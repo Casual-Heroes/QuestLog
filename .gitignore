@@ -46,6 +46,7 @@ staticfiles/admin/css/vendor/select2/LICENSE-SELECT2.md
 testapi.py
 testampsettings.py
 teststats.py
+.settings.py
 
 
 # Ignore environments
@@ -55,3 +56,4 @@ venv/
 .venv/
 chwebprj/
 .git_backup/
+
