@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Returns & FAQ | Casual Heroes{% endblock %}
+{% block og_title %}Welcome to Casual Heroes{% endblock %}
+{% block og_description %}Join the Casual Heroes community — modded servers, friendly vibes, and endless co-op adventures.{% endblock %}
+{% block og_image %}https://casual-heroes.com/static/img/siteassets/homepage/CHLogoFinal.png{% endblock %}
+{% block og_url %}https://casual-heroes.com/{% endblock %}
+{% block content %}
+<section class="mt-24 text-center px-6">
+  <h1 class="text-4xl font-extrabold mb-6">Returns & FAQ</h1>
+
+  <div class="max-w-3xl mx-auto text-left text-gray-200 text-sm space-y-8">
+    <div>
+      <h2 class="text-xl font-semibold text-indigo-300">Returns & Refunds</h2>
+      <p>If you're unhappy with your hosting or services, reach out to us within 7 days of purchase for a full refund. After that, all sales are final unless otherwise stated in writing.</p>
+    </div>
+
+    <div>
+      <h2 class="text-xl font-semibold text-indigo-300">What Can Be Refunded?</h2>
+      <ul class="list-disc pl-5 space-y-1">
+        <li>Game server subscriptions (within 7 days)</li>
+        <li>Hosting packages (trial periods only)</li>
+        <li>Add-on services purchased in error (case-by-case)</li>
+      </ul>
+    </div>
+
+    <div>
+      <h2 class="text-xl font-semibold text-indigo-300">Frequently Asked Questions</h2>
+      <li><strong>Can I upgrade or downgrade my server?</strong> Yes! Contact support and we’ll adjust your resources accordingly.</li>
+      <li><strong>Can I transfer my server to someone else?</strong> Not at this time. We’re working on adding this feature in the future.</li>
+      <li><strong>What’s your average response time?</strong> Most tickets are responded to within 24 hours. Urgent support gets faster priority.</li>
+    </div>
+  </div>
+</section>
+{% endblock %}

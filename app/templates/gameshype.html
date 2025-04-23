@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Upcoming Games We're Hyped About | Casual Heroes{% endblock %}
+{% block og_title %}Welcome to Casual Heroes{% endblock %}
+{% block og_description %}Join the Casual Heroes community — modded servers, friendly vibes, and endless co-op adventures.{% endblock %}
+{% block og_image %}https://casual-heroes.com/static/img/siteassets/homepage/CHLogoFinal.png{% endblock %}
+{% block og_url %}https://casual-heroes.com/{% endblock %}
+{% block content %}
+<section class="mt-20 max-w-4xl mx-auto px-4">
+  <h1 class="text-4xl font-extrabold text-center mb-10">Upcoming Games We're Hyped About</h1>
+  <p class="text-center text-gray-300 mb-12">
+    These are the titles we're watching closely, discussing in our Discord, and planning to build future servers, content, and community events around.
+  </p>
+
+  <div class="grid grid-cols-1 sm:grid-cols-2 gap-8">
+    <!-- Game Card -->
+    <a href="https://store.steampowered.com/app/1172710/Dune_Awakening/" target="_blank" class="bg-neutral-900 border border-neutral-800 p-4 rounded-xl shadow-[0_0_10px_#6366f1] shadow transition hover:shadow-[0_0_40px_#818CF8] block">
+      <h2 class="text-xl font-semibold text-indigo-400">Dune: Awakening</h2>
+      <p class="text-sm text-gray-400">Launching June 10, Dune blends MMO survival and spice-fueled chaos. We'll be running a guild, lore events, and more.</p>
+    </a>
+
+    <a href="https://store.steampowered.com/app/2622380/ELDEN_RING_NIGHTREIGN/" target="_blank" class="bg-neutral-900 border border-neutral-800 p-4 rounded-xl shadow-[0_0_10px_#6366f1] shadow transition hover:shadow-[0_0_40px_#818CF8] block">
+      <h2 class="text-xl font-semibold text-indigo-400">Elden Ring: Night Reign</h2>
+      <p class="text-sm text-gray-400">We're gathering for launch night raids and community builds. Prepare to die... gloriously.</p>
+    </a>
+
+    <a href="https://store.steampowered.com/app/1285190/Borderlands_4/" target="_blank" class="bg-neutral-900 border border-neutral-800 p-4 rounded-xl shadow-[0_0_10px_#6366f1] shadow transition hover:shadow-[0_0_40px_#818CF8] block">
+      <h2 class="text-xl font-semibold text-indigo-400">Borderlands 4</h2>
+      <p class="text-sm text-gray-400">The loot-fueled mayhem returns! Expect Discord chaos, launch parties, and co-op nights.</p>
+    </a>
+
+    <a href="https://store.steampowered.com/app/2849490/Outward_2/" target="_blank" class="bg-neutral-900 border border-neutral-800 p-4 rounded-xl shadow-[0_0_10px_#6366f1] shadow transition hover:shadow-[0_0_40px_#818CF8] block">
+      <h2 class="text-xl font-semibold text-indigo-400">Outward 2</h2>
+      <p class="text-sm text-gray-400">More punishing survival co-op with modding potential? Count us in. Watch this one.</p>
+    </a>
+
+    <a href="https://store.steampowered.com/app/1340720/State_of_Decay_3/" target="_blank" class="bg-neutral-900 border border-neutral-800 p-4 rounded-xl shadow-[0_0_10px_#6366f1] shadow transition hover:shadow-[0_0_40px_#818CF8] block">
+      <h2 class="text-xl font-semibold text-indigo-400">State of Deacy 3</h2>
+      <p class="text-sm text-gray-400">Zombies rot. Fun doesn’t. We’re gettimg ready for base-building, survival mayhem, bring on the co-op carnage!</p>
+    </a>
+
+    <a href="https://store.steampowered.com/app/2719590/Light_No_Fire/" target="_blank" class="bg-neutral-900 border border-neutral-800 p-4 rounded-xl shadow-[0_0_10px_#6366f1] shadow transition hover:shadow-[0_0_40px_#818CF8] block">
+      <h2 class="text-xl font-semibold text-indigo-400">Light No Fire</h2>
+      <p class="text-sm text-gray-400">A procedural open-world Earth-scale fantasy from Hello Games. No one's ready for how big this could be.</p>
+    </a>
+  </div>
+
+  <div class="text-center mt-12">
+    <a href="/gamesuggest" class="text-indigo-400 hover:underline">Suggest a game you’re hyped for →</a>
+  </div>
+</section>
+{% endblock %}

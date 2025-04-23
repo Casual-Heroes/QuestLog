@@ -1,0 +1,125 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <!-- In base.html inside <head> -->
+  <meta property="og:title" content="{% block og_title %}Casual Heroes - Game Servers & Community{% endblock %}">
+  <meta property="og:description" content="{% block og_description %}Join our friendly, mod-loving community. Explore servers, suggest games, and play your way.{% endblock %}">
+  <meta property="og:image" content="{% block og_image %}https://casual-heroes.com/static/img/siteassets/homepage/CHLogoFinal.png{% endblock %}">
+  <meta property="og:image:alt" content="Casual Heroes Logo">
+  <meta property="og:image:type" content="image/png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="680">
+  <meta property="og:url" content="{% block og_url %}https://casual-heroes.com/{% endblock %}">
+  <meta property="og:type" content="website">
+  <meta name="twitter:card" content="summary_large_image">
+
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="{% static 'img/siteassets/homepage/CHLogofav.png' %}">
+  <title>{% block title %}Casual Heroes{% endblock %}</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
+  <link href="{% static 'css/custom.css' %}" rel="stylesheet">
+  <style>
+    nav a:hover,
+    button:hover {
+      color: #818CF8;
+      font-weight: 600;
+      text-shadow: 0 0 6px #818CF8;
+      transition: all 0.2s ease-in-out;
+    }
+  </style>
+</head>
+<body class="bg-[#0a0a1a] text-white font-sans">
+  <div class="max-w-7xl mx-auto px-6">
+    <header class="py-6">
+      <div class="flex flex-col md:flex-row items-center justify-center gap-6">
+        <img src="{% static 'img/siteassets/homepage/CHLogoFinal.png' %}" alt="Casual Heroes Logo" class="h-12 rounded-full" />
+
+        <nav class="flex flex-wrap justify-center gap-6 text-sm md:text-base">
+          <a href="{% url 'home' %}" class="hover:text-indigo-400 transition">Home</a>
+
+          <!-- Games We Play Dropdown -->
+          <div x-data="{ open: false }" class="relative">
+            <button @click="open = !open" class="font-semibold hover:text-indigo-400 transition flex items-center gap-1">
+              Games We Play ▾
+            </button>
+            <div x-show="open" @click.outside="open = false" x-transition class="absolute left-0 mt-2 bg-neutral-900 border border-neutral-800 rounded-lg shadow-lg w-48 z-50 text-sm">
+              <a href="/gamesweplay" class="block px-4 py-2 hover:bg-neutral-800">Current Games</a>
+              <a href="/gameshype" class="block px-4 py-2 hover:bg-neutral-800">Games We're Hyped For</a>
+              <a href="/gamesuggest" class="block px-4 py-2 hover:bg-neutral-800">Suggest a Game</a>
+            </div>
+          </div>
+
+          <a href="/guides" class="hover:text-indigo-400 transition">Game Guides</a>
+          <a href="/reviews" class="hover:text-indigo-400 transition">Game Reviews</a>
+          <a href="/content" class="hover:text-indigo-400 transition">Casual Heroes Content</a>
+          <a href="/aboutus" class="hover:text-indigo-400 transition">About Us</a>
+
+          <!-- Hosting Dropdown with Icons -->
+          <div x-data="{ open: false }" class="relative">
+            <button @click="open = !open" class="text-indigo-400 font-semibold flex items-center gap-1 hover:text-indigo-400">
+              Hosting ▾
+            </button>
+            <div x-show="open" @click.outside="open = false" x-transition class="absolute left-0 mt-2 bg-neutral-900 border border-neutral-800 rounded-lg shadow-lg w-56 z-50 text-sm">
+              <a href="/hosting" class="flex items-center gap-2 px-4 py-2 hover:bg-neutral-800">
+                <span class="w-4 h-4"></span> Hosting Overview
+              </a>
+              <a href="/conan" class="flex items-center gap-2 px-4 py-2 hover:bg-neutral-800">
+                <img src="{% static 'img/siteassets/homepage/conan.png' %}" alt="Conan Exiles" class="w-4 h-4" />
+                Conan Exiles
+              </a>
+              <a href="/dragonwilds" class="flex items-center gap-2 px-4 py-2 hover:bg-neutral-800">
+                <img src="{% static 'img/siteassets/homepage/dragonwilds-1.png' %}" alt="Dragonwilds" class="w-4 h-4" />
+                Dragonwilds
+              </a>
+              <a href="/enshrouded" class="flex items-center gap-2 px-4 py-2 hover:bg-neutral-800">
+                <img src="{% static 'img/siteassets/homepage/enshrouded.png' %}" alt="Enshrouded" class="w-4 h-4" />
+                Enshrouded
+              </a>
+              <a href="/vrising" class="flex items-center gap-2 px-4 py-2 hover:bg-neutral-800">
+                <img src="{% static 'img/siteassets/homepage/virsing.png' %}" alt="V Rising" class="w-4 h-4" />
+                V Rising
+              </a>
+            </div>
+          </div>
+        </nav>
+      </div>
+    </header>
+
+    {% block content %}{% endblock %}
+
+    <footer class="mt-24 border-t border-gray-800 pt-6 pb-12 text-sm text-gray-400">
+      <div class="flex flex-col md:flex-row justify-between items-center gap-4">
+        <div class="flex flex-wrap justify-center gap-4 text-center md:text-left">
+          <a href="/contactus">Contact</a>
+          <a href="/terms">Terms of Service</a>
+          <a href="/privacy">Privacy Policy</a>
+          <a href="/faq">Returns & FAQ</a>
+        </div>
+
+        <div class="text-center space-y-2">
+          <p class="text-gray-500">© 2025 Casual Heroes</p>
+          <p class="text-xs text-gray-500 max-w-3xl mx-auto px-4">
+            All referenced images, logos, and characters are registered trademarks of their respective game studios. Casual Heroes Hosting Services claims no ownership over Dragonwilds, Enshrouded, V Rising, or any other game assets, which are used here solely for illustrative and community engagement purposes.
+          </p>
+        </div>
+        
+
+        <div class="flex gap-4 justify-center md:justify-end">
+          <a href="https://discord.gg/ECwJWppSjQ"><i class="fab fa-discord"></i></a>
+          <a href="https://www.youtube.com/@CasualHeroesCommunity"><i class="fab fa-youtube"></i></a>
+          <a href="https://x.com/CasualHeroes_"><i class="fab fa-twitter"></i></a>
+          <a href="https://www.facebook.com/CasualHeroesCmty"><i class="fab fa-facebook"></i></a>
+          <a href="https://www.instagram.com/casualheroescommunity/"><i class="fab fa-instagram"></i></a>
+          <a href="https://www.tiktok.com/@casualheroes"><i class="fab fa-tiktok"></i></a>
+        </div>
+      </div>
+    </footer>
+  </div>
+</body>
+</html>

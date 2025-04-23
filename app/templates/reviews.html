@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Coming Soon{% endblock %}
+{% block og_title %}Welcome to Casual Heroes{% endblock %}
+{% block og_description %}Join the Casual Heroes community — modded servers, friendly vibes, and endless co-op adventures.{% endblock %}
+{% block og_image %}https://casual-heroes.com/static/img/siteassets/homepage/CHLogoFinal.png{% endblock %}
+{% block og_url %}https://casual-heroes.com/{% endblock %}
+{% block content %}
+<section class="mt-24 text-center px-6">
+  <img src="{% static 'img/siteassets/homepage/CHLogoFinal.png' %}" alt="Casual Heroes Logo" class="mx-auto w-24 mb-6" />
+
+  <h1 class="text-4xl font-extrabold mb-4">This Page is Under Construction</h1>
+  <p class="text-gray-300 text-lg mb-6">
+    We’re working on something awesome here. Check back soon or join our Discord for updates.
+  </p>
+
+  <a href="https://discord.gg/ECwJWppSjQ" target="_blank" class="inline-block bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2 px-4 rounded-xl transition">
+    Join the Discord
+  </a>
+</section>
+{% endblock %}

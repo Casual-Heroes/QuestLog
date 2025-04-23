@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Welcome to Casual Heroes{% endblock %}
+
+{% block head_extra %}
+{% endblock %}
+{% block og_title %}Welcome to Casual Heroes{% endblock %}
+{% block og_description %}Join the Casual Heroes community — modded servers, friendly vibes, and endless co-op adventures.{% endblock %}
+{% block og_image %}https://casual-heroes.com/static/img/siteassets/homepage/CHLogoFinal.png{% endblock %}
+{% block og_url %}https://casual-heroes.com/{% endblock %}
+
+
+{% block content %}
+<!-- Container -->
+<div class="max-w-7xl mx-auto px-6">
+  <!-- Hero -->
+  <section class="text-center mt-16">
+    <h1 class="text-5xl font-extrabold mb-4 leading-tight tracking-tight hero-shadow">
+      Welcome to Casual Heroes<span style="opacity: 0.7; font-size: 0.5em; vertical-align: super;">™</span>!
+    </h1>
+    <p class="text-lg text-gray-300 max-w-3xl mx-auto hero-shadow">
+      The gaming community built for <span class="font-semibold">moms, dads, and working adults</span> who love
+      <span class="font-semibold">MMORPGs</span>, <span class="font-semibold">ARPGs</span>, and
+      <span class="font-semibold">Souls-Like</span> games.
+      Connect with like-minded players, enjoy epic adventures, and game at your own pace, because life always comes first!
+    </p>
+    <a href="/gamesweplay" class="mt-6 inline-block bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded-xl font-semibold transition">
+      See the Games We Play →
+    </a>
+  </section>
+
+  <!-- About -->
+  <section class="mt-24 grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
+    <img src="{% static 'img/siteassets/homepage/Pantheon_static.png' %}"
+         class="glow w-full h-auto rounded-xl shadow-xl"
+         alt="Guild Screenshot" />
+    <div>
+      <h2 class="text-2xl font-bold mb-4">What is Casual Heroes About?</h2>
+      <p class="text-gray-300 mb-4 hero-shadow">
+        Casual Heroes is a community built to evolve, providing a place where gamers can connect, unwind, and progress at their own pace.
+      </p>
+      <p class="text-gray-300 mb-4 hero-shadow">
+        Our vision is to create a space where everyone feels at home, balancing gaming with real-life responsibilities.
+        Whether you're here for a season or a lifetime, you’ll always have a place in Casual Heroes.
+      </p>
+      <p class="text-gray-300 hero-shadow">
+        We focus on community-driven growth, rewarding engagement, and creating experiences that last.
+      </p>
+    </div>
+  </section>
+
+  <!-- Hosting CTA -->
+<!-- Hosting CTA -->
+<section class="mt-24 text-center">
+  <div class="max-w-2xl mx-auto">
+    <h2 class="text-2xl font-bold mb-4 hero-shadow">We’re Not Just a Community — We’re Your Hosts</h2>
+    <p class="text-gray-300 text-lg leading-relaxed mb-6 hero-shadow">
+      Casual Heroes Hosting was born from our own guild’s needs. We were tired of overpriced, soulless providers that didn’t understand the games we actually play — so we built our own. <strong>Coming Soon!</strong>
+    </p>
+    <a href="/hosting" class="mt-4 inline-block bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium text-sm transition">
+      Interested in our Hosting Services? →
+    </a>
+
+    <p class="italic text-gray-400 mt-8 hero-shadow">
+      Powered by Proxmox, Debian, AMP — and real gamers who play what they host.
+    </p>
+    <p class="italic text-gray-400 hero-shadow">
+      This site is still a work in progress, but we’re excited to share the journey with you.
+    </p>
+  </div>
+</section>
+{% endblock %}

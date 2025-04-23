@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Games We Play{% endblock %}
+{% block head_extra %}{% endblock %}
+{% block og_title %}Welcome to Casual Heroes{% endblock %}
+{% block og_description %}Join the Casual Heroes community — modded servers, friendly vibes, and endless co-op adventures.{% endblock %}
+{% block og_image %}https://casual-heroes.com/static/img/siteassets/homepage/CHLogoFinal.png{% endblock %}
+{% block og_url %}https://casual-heroes.com/{% endblock %}
+{% block content %}
+<section class="mt-16">
+  <h1 class="text-4xl font-extrabold text-center mb-12">Games We Play</h1>
+
+  <div class="max-w-screen-xl mx-auto px-4">
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+      {% for game in games %}
+        <div class="relative rounded-2xl overflow-hidden border border-neutral-800 bg-neutral-900 group hover:shadow-[0_0_20px_#6366f1] transition-shadow duration-300 min-h-[265px]">
+
+          <!-- Banner Image with fallback logic -->
+          {% if game.custom_amp_img %}
+            <img src="{{ game.custom_amp_img }}"
+                 alt="{{ game.name }} Banner"
+                 class="w-full object-cover group-hover:scale-105 transition duration-500 z-10 h-[265px]" />
+          {% elif game.steam_appid %}
+            <img src="https://cdn.cloudflare.steamstatic.com/steam/apps/{{ game.steam_appid }}/header.jpg"
+                 alt="{{ game.name }} Steam Banner"
+                 class="w-full object-cover group-hover:scale-105 transition duration-500 z-10 h-[265px]" />
+          {% else %}
+            <img src="{% static 'img/games/wow/dwarf.webp' %}"
+                 alt="{{ game.name }} Placeholder"
+                 class="w-full object-cover group-hover:scale-105 transition duration-500 z-10 h-[265px]" />
+          {% endif %}
+
+          <!-- Overlay Gradient -->
+          <div class="absolute inset-0 bg-gradient-to-t from-black/40 via-black/20 to-transparent z-10 rounded-2xl"></div>
+
+          <!-- Content Overlay -->
+          <div class="absolute inset-0 bg-black/60 backdrop-blur-[1px] text-white px-4 pt-3 pb-2 flex flex-col justify-start z-20 text-shadow space-y-[0.35rem] text-[13px] leading-[1.35rem]">
+
+            <!-- Game Title + Status -->
+            <div class="flex items-center justify-between">
+              <h3 class="font-extrabold text-indigo-300 uppercase tracking-wide text-[16px]">
+                {{ game.name }}
+              </h3>
+              {% if game.status_label %}
+                <span class="text-xs font-bold {% if 'Online' in game.status_label %}text-green-400{% else %}text-red-500{% endif %}">{{ game.status_label }}</span>
+              {% endif %}
+            </div>
+
+            <!-- Description -->
+            <p>
+              <span class="text-indigo-300 font-semibold">Description:</span>
+              <span class="text-white font-medium">{{ game.description }}</span>
+            </p>
+
+            <!-- Active Players -->
+            <p>
+              <span class="text-indigo-300 font-semibold">Active Players:</span>
+              <span class="text-white font-bold">{{ game.online }}/{{ game.max }}</span>
+            </p>
+
+            <!-- Connect Info -->
+            {% if game.ip or game.pw %}
+            <div class="space-y-1">
+              <p class="text-indigo-300 font-semibold">Connect Info:</p>
+              {% if game.ip %}
+              <div class="flex items-center gap-1">
+                <span class="text-indigo-400 font-bold">IP:</span>
+                <span class="text-white text-xs">{{ game.ip }}</span>
+                <button onclick="copyText('{{ game.ip }}')" class="hover:text-indigo-400" title="Copy IP">
+                  <i class="fas fa-copy text-xs"></i>
+                </button>
+              </div>
+              {% endif %}
+              {% if game.pw %}
+              <div class="flex items-center gap-1">
+                <span class="text-indigo-400 font-bold">PW:</span>
+                <span class="text-white text-xs">{{ game.pw }}</span>
+                <button onclick="copyText('{{ game.pw }}')" class="hover:text-indigo-400" title="Copy PW">
+                  <i class="fas fa-copy text-xs"></i>
+                </button>
+              </div>
+              {% endif %}
+            </div>
+            {% endif %}
+
+            <!-- Join Discord (Optional) -->
+            {% if game.discord_invite %}
+              <a href="{{ game.discord_invite }}" target="_blank" class="text-indigo-400 font-semibold :underline text-xs">
+                Join Discord ↗
+              </a>
+            {% endif %}
+
+            <!-- View Link -->
+            <a href="{{ game.steam_link }}" target="_blank" class="text-indigo-400 font-semibold hover:underline text-xs pt-1">
+              {{ game.link_label|default:"View on Steam" }} ↗
+            </a>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+<!-- Copy toast -->
+<div id="copy-toast" class="hidden fixed bottom-5 right-5 bg-indigo-600 text-white px-4 py-2 rounded-xl shadow-xl z-50">
+  Copied to clipboard!
+</div>
+
+<script>
+  function copyText(text) {
+    navigator.clipboard.writeText(text).then(() => {
+      const toast = document.getElementById("copy-toast");
+      toast.classList.remove("hidden");
+      setTimeout(() => toast.classList.add("hidden"), 2000);
+    });
+  }
+
+  setInterval(() => {
+    location.reload();
+  }, 30000);
+</script>
+{% endblock %}

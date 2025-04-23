@@ -9,7 +9,7 @@ __pycache__/
 
 
 # Ignore temporary files
-temp*
+*.temp
 *.tmp
 *.log
 *.bak
@@ -31,7 +31,6 @@ staticfiles/admin/css/vendor/select2/LICENSE-SELECT2.md
 *.xlsx
 *.csv
 *.jpeg
-*.json
 *.svg
 *.gif
 *.css

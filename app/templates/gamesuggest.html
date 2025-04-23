@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}Suggest a Game | Casual Heroes{% endblock %}
+{% block og_title %}Welcome to Casual Heroes{% endblock %}
+{% block og_description %}Join the Casual Heroes community — modded servers, friendly vibes, and endless co-op adventures.{% endblock %}
+{% block og_image %}https://casual-heroes.com/static/img/siteassets/homepage/CHLogoFinal.png{% endblock %}
+{% block og_url %}https://casual-heroes.com/{% endblock %}
+{% block content %}
+<section class="mt-20 max-w-3xl mx-auto px-4">
+  <h1 class="text-4xl font-extrabold text-center mb-8">Suggest a Game</h1>
+  <p class="text-center text-gray-300 mb-10">
+    See a game we don’t support yet but should? Fill out the form below and let us know what you’re excited to play or host. Your suggestion will be shared directly with our team on Discord.
+  </p>
+
+  <form id="suggestionForm" class="bg-neutral-900 border border-neutral-800 rounded-xl shadow-lg p-6 space-y-6">
+    <div>
+      <label for="gameTitle" class="block font-semibold mb-2">Game Title</label>
+      <input type="text" id="gameTitle" name="gameTitle" required class="w-full px-4 py-2 rounded-md bg-neutral-800 border border-neutral-700 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+    </div>
+
+    <div>
+      <label for="whySupport" class="block font-semibold mb-2">Why should we support it?</label>
+      <textarea id="whySupport" name="whySupport" rows="4" required class="w-full px-4 py-2 rounded-md bg-neutral-800 border border-neutral-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"></textarea>
+    </div>
+
+    <div>
+      <label for="discordUser" class="block font-semibold mb-2">Your Discord Username <span class="text-sm text-gray-500">(e.g. FullData)</span></label>
+      <input type="text" id="discordUser" name="discordUser" class="w-full px-4 py-2 rounded-md bg-neutral-800 border border-neutral-700 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+    </div>
+
+    <div class="text-center">
+      <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-6 py-2 rounded-md transition">Submit Suggestion</button>
+    </div>
+  </form>
+
+  <div id="successMessage" class="hidden mt-6 text-green-400 text-center font-semibold">
+    ✅ Suggestion submitted! Thanks for your feedback.
+  </div>
+</section>
+
+<script>
+  const form = document.getElementById('suggestionForm');
+  const success = document.getElementById('successMessage');
+  const webhookURL = 'https://discordapp.com/api/webhooks/1363505947598917713/UOzn8uYeN4AR4SsigHr5ROtOavMnRs9uo8fY5xbihNq_k_0K6QIJARMfhsPq5-Isc1Px';
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const gameTitle = document.getElementById('gameTitle').value;
+    const whySupport = document.getElementById('whySupport').value;
+    const discordUser = document.getElementById('discordUser').value || 'Anonymous';
+
+    const payload = {
+      embeds: [
+        {
+          title: `New Game Suggestion: ${gameTitle}`,
+          description: whySupport,
+          color: 32896,
+          footer: {
+            text: `Suggested by ${discordUser}`
+          },
+          timestamp: new Date().toISOString()
+        }
+      ]
+    };
+
+    try {
+      const res = await fetch(webhookURL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (res.ok) {
+        form.reset();
+        success.classList.remove('hidden');
+      } else {
+        alert('There was an error sending your suggestion.');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Something went wrong.');
+    }
+  });
+</script>
+{% endblock %}

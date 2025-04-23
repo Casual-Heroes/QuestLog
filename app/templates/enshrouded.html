@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}Enshrouded Hosting | Casual Heroes{% endblock %}
+{% block og_title %}Welcome to Casual Heroes{% endblock %}
+{% block og_description %}Join the Casual Heroes community — modded servers, friendly vibes, and endless co-op adventures.{% endblock %}
+{% block og_image %}https://casual-heroes.com/static/img/siteassets/homepage/CHLogoFinal.png{% endblock %}
+{% block og_url %}https://casual-heroes.com/{% endblock %}
+{% block content %}
+
+<section class="mt-20 max-w-5xl mx-auto px-4">
+  <h1 class="text-4xl font-extrabold text-center mb-10">Enshrouded Hosting by Casual Heroes</h1>
+  <p class="text-center text-gray-300 mb-12">
+    We’re already live! Our <strong>community-driven Enshrouded server</strong> is online — featuring Souls-like difficulty and evolving player districts built by and for our community.
+  </p>
+
+  <div class="grid md:grid-cols-2 gap-8 items-start">
+    <!-- Gameplay Trailer -->
+    <div>
+      <iframe class="w-full aspect-video rounded-xl shadow-lg border border-neutral-800"
+              src="https://www.youtube.com/embed/NnqxKTOd9_Y?si=tZnDiqKpTHXWPWRc"
+              title="Enshrouded Update 6 Trailer" frameborder="0" allowfullscreen>
+      </iframe>
+    </div>
+
+    <!-- Server Details -->
+    <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-6 shadow-xl">
+      <h2 class="text-2xl font-bold text-white mb-4">Live Now</h2>
+      <ul class="text-gray-300 space-y-2 text-sm">
+        <li><strong>Souls-like Tuning:</strong> Expect punishing combat, stamina-heavy dodges, and challenging PvE</li>
+        <li><strong>Handcrafted Tools:</strong> In-house scripts and tools unique to our server</li>
+        <li><strong>Weekly Events:</strong> Loot hunts, boss rushes, and challenge zones</li>
+        <li><strong>Mod Support:</strong> As soon as we can mod, we will be building Custom content, performance tools, and more</li>
+        <li><strong>Active Community:</strong> Join us in Discord to connect & collaborate</li>
+        <li><strong>Community Districts in Development:</strong>
+          <ul class="mt-2 ml-4 list-disc list-inside space-y-1">
+            <li><strong>Castle District</strong> — A massive central medieval hub</li>
+            <li><strong>Castle Mall</strong> — Shared resources and stylish shops for profession</li>
+            <li><strong>Frostborn Citadel</strong> — Frozen ice temples and cliffside homes in the snow caves</li>
+            <li><strong>Emberwatch</strong> — Blackstone ruins and molten forges in the ashlands</li>
+            <li><strong>Forgotten Hollow</strong> — A haunted valley with bone altars, foggy graveyards, and abandoned ruins</li>
+            <li><strong>Druid Grove</strong> — Treehouses, hobbit homes, and enchanted woods</li>
+            <li><strong>Guild Hall District</strong> — Custom faction halls with banners, trophies, and roleplay flair</li>
+          </ul>
+        </li>
+      </ul>
+
+      <!-- Live Server Status -->
+      <div class="mt-12 bg-neutral-900 border border-neutral-800 p-6 rounded-xl text-left shadow-xl">
+        <h2 class="text-xl font-bold text-indigo-300 mb-3">Live Server Status</h2>
+        <div class="grid sm:grid-cols-2 gap-4 text-gray-300 text-sm">
+          <div><strong>Server Name:</strong> Casual Heroes - ShroudQuest - Souls-Inspired </div>
+          <div><strong>Status:</strong> {{ enshrouded_instance.status_label }}</div>
+          <div><strong>IP Address:</strong> <span class="text-white font-mono">{{ enshrouded_instance.ip }}</span></div>
+          <div><strong>Password:</strong> <span class="text-white font-mono">{{ enshrouded_instance.pw }}</span></div>
+          <div><strong>Active Players:</strong> {{ enshrouded_instance.online }}/{{ enshrouded_instance.max }}</div>
+          <div>
+            <a href="{{ enshrouded_instance.steam_link }}" target="_blank" class="text-indigo-400 hover:underline">
+              View on Steam →
+            </a>
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-6">
+        <a href="https://discord.gg/YAFF4dfEWz" target="_blank" class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-6 py-3 rounded-xl transition block text-center">
+          Join the Discord — Survive the Shroud.
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Hosting CTA -->
+  <div class="mt-16 bg-neutral-900 border border-neutral-800 p-6 rounded-xl text-center">
+    <h2 class="text-xl font-bold text-indigo-300 mb-2">Interested in Hosting Enshrouded?</h2>
+    <p class="text-gray-300 mb-4">Let us host your private server with modding, automation, and dev-level support.</p>
+    <a href="/hosting" class="text-indigo-400 hover:underline">See Hosting Options →</a>
+  </div>
+</section>
+
+{% endblock %}

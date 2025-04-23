@@ -1,0 +1,21 @@
+{% extends "admin/index.html" %}
+{% load admin_tools_dashboard_tags %}
+{% load static %}
+
+{% block extrastyle %}
+  {{ block.super }}
+  {% block dashboard_css %}{% admin_tools_render_dashboard_css %}{% endblock %}
+{% endblock %}
+
+{% block content %}
+  {{ block.super }}
+  <div class="app-analytics module">
+    <table>
+      <tr class="model-analytics">
+        <th scope="row">
+          <a href="{% url 'admin-analytics' %}">Analytics Dashboard</a>
+        </th>
+      </tr>
+    </table>
+  </div>
+{% endblock %}

@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Dragonwilds Hosting | Casual Heroes{% endblock %}
+{% block og_title %}Welcome to Casual Heroes{% endblock %}
+{% block og_description %}Join the Casual Heroes community — modded servers, friendly vibes, and endless co-op adventures.{% endblock %}
+{% block og_image %}https://casual-heroes.com/static/img/siteassets/homepage/CHLogoFinal.png{% endblock %}
+{% block og_url %}https://casual-heroes.com/{% endblock %}
+{% block content %}
+<section class="max-w-4xl mx-auto px-4 py-20">
+  <h1 class="text-5xl font-extrabold text-center mb-6">Dragonwilds Hosting by Casual Heroes</h1>
+  <p class="text-lg text-center text-neutral-300 mb-10">
+    The next-gen hosting platform for <strong>Dragonwilds</strong> creators and clans. Seamless mod support, active monitoring, and community-first design.
+  </p>
+
+  <div class="grid md:grid-cols-2 gap-8 items-center">
+    <!-- Embedded trailer -->
+    <div>
+      <iframe class="w-full aspect-video rounded-xl shadow-lg border border-neutral-800"
+              src="https://www.youtube.com/embed/-7DWtU-qpzo"
+              title="Dragonwilds Trailer"
+              frameborder="0"
+              allowfullscreen>
+      </iframe>
+    </div>
+
+    <!-- Hype Info -->
+    <div class="bg-neutral-900 p-6 rounded-xl border border-neutral-800 shadow-md">
+      <h2 class="text-2xl font-bold mb-4">Get Ready for Launch</h2>
+      <p class="text-sm text-neutral-400 mb-4">
+        When dedicated servers launch for <strong>Dragonwilds</strong>, Casual Heroes will be one of the first communities to <strong>self-host our own custom, mod-friendly servers</strong>.
+      </p>
+      <p class="text-sm text-neutral-300 mb-4">
+        Whether you’re a guild leader, modder, or just looking for a premium place to play — we’ve got you covered.
+      </p>
+
+      <div class="mt-6 text-sm space-y-3">
+        <p>💬 <a href="https://discord.gg/ECwJWppSjQ" target="_blank" class="text-purple-400 hover:underline">
+          Join the Casual Heroes Community</a> — Meet players, get involved in community events, and prepare for launch.
+        </p>
+
+        <p>🚀 <a href="/hosting" class="text-purple-400 hover:underline">Host your own Dragonwilds server</a> — Join our Hosting Beta and get <strong>10% off all services for life</strong>.</p>
+
+        <p>📋 See our <a href="/hosting" class="text-purple-400 hover:underline">Hosting Overview</a> for perks & early access and sign up for beta!.</p>
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}

@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}About Us | Casual Heroes{% endblock %}
+
+{% block content %}
+<section class="mt-24 max-w-4xl mx-auto px-4 text-center">
+
+  <h1 class="text-4xl font-extrabold mb-6">Welcome to Casual Heroes</h1>
+
+  <p class="text-lg text-gray-300 mb-10">
+    A community-first movement built by gamers, for gamers — combining our love for connection, creativity, and custom hosting into something greater.
+  </p>
+
+  <div class="text-left space-y-10">
+
+    <!-- Community Mission -->
+    <img src="{% static 'img/siteassets/homepage/CHLogoFinal.png' %}" alt="Casual Heroes Logo" class="mx-auto w-20 mb-6" />
+    <div>
+      <h2 class="text-2xl font-bold text-indigo-400 mb-2">🌐 Casual Heroes Mission</h2>
+      <p class="text-gray-300">
+        Casual Heroes isn’t just a gaming community — it's a space where gamers, parents, and working adults connect and thrive. We get that life comes first, but gaming doesn't have to stop.
+      </p>
+      <ul class="text-gray-400 mt-4 space-y-2 list-disc list-inside">
+        <li><strong>Gaming Without the Grind</strong> – Play your way, no pressure.</li>
+        <li><strong>Respect & Support</strong> – We lift each other up, in-game and out.</li>
+        <li><strong>Events & Custom Servers</strong> – From game nights to modded madness, it’s all here.</li>
+        <li><strong>Grow With Us</strong> – Whether for a season or a lifetime, you belong.</li>
+        <li><strong>For Players, Parents, and Gamers of All Walks.</strong></li>
+      </ul>
+      <p class="mt-4 text-gray-300">
+        This is more than just a Discord server — it’s where we game, grow, and build something legendary together.
+      </p>
+    </div>
+    
+    <!-- Community Join CTA -->
+    <div class="text-center mt-10">
+    <p class="text-gray-400">
+      Want to be part of a fast-growing, laid-back gaming community where you can build, play, and connect? Join Casual Heroes today!
+    </p>
+    <a href="https://discord.gg/ECwJWppSjQ" target="_blank"
+       class="inline-block mt-4 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-6 py-3 rounded-xl transition">
+      Join the Community Discord
+    </a>
+</div>
+
+
+    <!-- Business Vision -->
+    <img src="{% static 'img/siteassets/homepage/CHHS.png' %}" alt="Casual Heroes Hosting Services Logo" class="mx-auto w-20 mb-6" />
+    <div>
+      <h2 class="text-2xl font-bold text-indigo-400 mb-2">🚀 Casual Heroes Hosting Services</h2>
+      <p class="text-gray-300">
+        CHHS is our hosting platform built to empower creators, modders, and gamers with flexible, transparent, high-performance server hosting.
+      </p>
+      <ul class="text-gray-400 mt-4 space-y-2 list-disc list-inside">
+        <li><strong>Custom-Mod Support</strong> – Fully modded game server setups.</li>
+        <li><strong>Script-Ready Environments</strong> – Dev tools, RCON, and Discord integrations.</li>
+        <li><strong>High-Performance Infrastructure</strong> – Ryzen-powered, self-hosted, battle-tested.</li>
+        <li><strong>No Copy-Paste Support</strong> – Real people, real help.</li>
+        <li><strong>Built by Devs. Backed by Community.</strong></li>
+      </ul>
+      <p class="mt-4 text-gray-300">
+        CHHS is built by the same people behind the community — and you’re invited to help us shape what comes next.
+      </p>
+    </div>
+
+    <!-- 🔗 Final CTA -->
+    <div class="text-center mt-10">
+      <p class="text-gray-400">Want to help us test, build, and create? Join our Beta crew and lock in early perks!</p>
+      <a href="https://discord.gg/exRgR9YGyy" target="_blank"
+         class="inline-block mt-4 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-6 py-3 rounded-xl transition">
+        Join the Hosting Discord
+      </a>
+    </div>
+
+  </div>
+</section>
+{% endblock %}
