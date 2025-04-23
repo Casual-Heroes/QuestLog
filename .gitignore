@@ -1,0 +1,44 @@
+# Ignore Python compiled files
+__pycache__/
+*.py[cod]
+*.pyo
+.Python
+
+# Ignore Jupyter notebook checkpoints
+.ipynb_checkpoints/
+
+
+# Ignore temporary files
+temp*
+*.tmp
+*.log
+*.bak
+*.swp
+
+
+# Ignore generated files (e.g., from web scraping or data processing)
+*.png
+*.jpg
+*.xlsx
+*.csv
+*.jpeg
+*.json
+*.svg
+*.gif
+*.html
+*.css
+*.js
+*.download
+*.webp
+*.ipynb
+*_files/ 
+*db.sqlite3
+testapi.py
+
+
+# Ignore environments
+.env
+env/
+venv/
+.venv/
+chwebprj/
