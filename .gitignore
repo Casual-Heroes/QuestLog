@@ -15,6 +15,15 @@ temp*
 *.bak
 *.swp
 
+# Static vendor files
+staticfiles/admin/LICENSE*
+staticfiles/admin/README.md
+staticfiles/admin/img/README.txt
+staticfiles/admin/img/LICENSE
+staticfiles/admin/js/vendor/jquery/LICENSE.txt
+staticfiles/admin/js/vendor/select2/LICENSE.md
+staticfiles/admin/js/vendor/xregexp/LICENSE.txt
+staticfiles/admin/css/vendor/select2/LICENSE-SELECT2.md
 
 # Ignore generated files (e.g., from web scraping or data processing)
 *.png
@@ -33,7 +42,10 @@ temp*
 *.ipynb
 *_files/ 
 *db.sqlite3
+.git_backup/
 testapi.py
+testampsettings.py
+teststats.py
 
 
 # Ignore environments
@@ -42,3 +54,4 @@ env/
 venv/
 .venv/
 chwebprj/
+.git_backup/
