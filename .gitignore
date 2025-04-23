@@ -47,6 +47,7 @@ testapi.py
 testampsettings.py
 teststats.py
 .settings.py
+**/settings.py
 
 
 # Ignore environments
