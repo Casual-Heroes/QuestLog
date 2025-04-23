@@ -34,15 +34,15 @@ STATIC_GAME_INFO = {
         "connect_pw": "No Password"
     },
 
-    "CasualHeroes-Ascended01": {
-        "display_name": "Dragonwilds",
-        "description": "As soon as dedicated servers drop, we’re self-hosting, building custom content, and launching a one-of-a-kind Dragonwilds adventure.",
-        "discord_invite": "https://discord.gg/WZzTppBgBz",
-        "steam_link": "https://store.steampowered.com/app/1374490/RuneScape_Dragonwilds/",
-        "custom_amp_img": "/static/img/games/Dragonwilds/dw_static.jpg",
-        # "steam_appid": "1374490",
-        "connect_pw": "N/A"
-    },
+    # "CasualHeroes-Ascended01": {
+    #     "display_name": "Dragonwilds",
+    #     "description": "As soon as dedicated servers drop, we’re self-hosting, building custom content, and launching a one-of-a-kind Dragonwilds adventure.",
+    #     "discord_invite": "https://discord.gg/WZzTppBgBz",
+    #     "steam_link": "https://store.steampowered.com/app/1374490/RuneScape_Dragonwilds/",
+    #     "custom_amp_img": "/static/img/games/Dragonwilds/dw_static.jpg",
+    #     # "steam_appid": "1374490",
+    #     "connect_pw": "N/A"
+    # },
 
     "Enshrouded01": {
         "display_name": "Enshrouded",
@@ -64,6 +64,18 @@ STATIC_GAME_INFO = {
 # Games tracked through Discord only
 DISCORD_GAMES = [
     {
+        "id": "Dragonwilds",
+        "name": "Dragonwilds",
+        "description": "As soon as dedicated servers drop, we’re self-hosting, building custom content, and launching a one-of-a-kind Dragonwilds adventure.",
+        "steam_link": "https://store.steampowered.com/app/1374490/RuneScape_Dragonwilds/",
+        "discord_invite": "https://discord.gg/WZzTppBgBz",
+        "steam_appid": "1374490",
+        "custom_img": "/static/img/games/Dragonwilds/dw_static.jpg",
+        "online": "-",
+        "max": "-",
+        "link_label": "View on Steam"
+    },
+    {
         "id": "Pantheon",
         "name": "Pantheon: Rise of the Fallen",
         "description": "The premier casual guild in the Pantheon world. Chill dungeon runs, late-night banter, and a crew that’s always online. Whether you're new or a raiding vet, Casual Heroes has a spot for you.",
@@ -75,23 +87,23 @@ DISCORD_GAMES = [
         "link_label": "View on Steam"
     },
     {
-        "id": "PoE2",
-        "name": "Path of Exile 2",
-        "description": "You’ll always find someone theorycrafting their next crazy build here. Casual Heroes are farming, testing, and helping each other every step of the way.",
-        "steam_link": "https://store.steampowered.com/app/2694490/Path_of_Exile_2/",
-        "discord_invite": "https://discord.gg/fs9qAkVkxH",
-        "steam_appid": "2694490",
-        "online": "-",
-        "max": "-",
-        "link_label": "View on Steam"
-    },
-    {
         "id": "MHW",
         "name": "Monster Hunter Wilds",
         "description": "From fashion shows to chaotic wild hunts, our Monster Hunter community is growing fast. Whether you're min-maxing DPS or just showing off your best drip, there's a spot at the campfire for you.",
         "steam_link": "https://store.steampowered.com/app/2246340/Monster_Hunter_Wilds/",
         "discord_invite": "https://discord.gg/3rKQptH7Fd",
         "steam_appid": "2246340",
+        "online": "-",
+        "max": "-",
+        "link_label": "View on Steam"
+    },
+    {
+        "id": "PoE2",
+        "name": "Path of Exile 2",
+        "description": "You’ll always find someone theorycrafting their next crazy build here. Casual Heroes are farming, testing, and helping each other every step of the way.",
+        "steam_link": "https://store.steampowered.com/app/2694490/Path_of_Exile_2/",
+        "discord_invite": "https://discord.gg/fs9qAkVkxH",
+        "steam_appid": "2694490",
         "online": "-",
         "max": "-",
         "link_label": "View on Steam"

@@ -17,18 +17,22 @@
 
           <!-- Banner Image with fallback logic -->
           {% if game.custom_amp_img %}
-            <img src="{{ game.custom_amp_img }}"
-                 alt="{{ game.name }} Banner"
-                 class="w-full object-cover group-hover:scale-105 transition duration-500 z-10 h-[265px]" />
-          {% elif game.steam_appid %}
-            <img src="https://cdn.cloudflare.steamstatic.com/steam/apps/{{ game.steam_appid }}/header.jpg"
-                 alt="{{ game.name }} Steam Banner"
-                 class="w-full object-cover group-hover:scale-105 transition duration-500 z-10 h-[265px]" />
-          {% else %}
-            <img src="{% static 'img/games/wow/dwarf.webp' %}"
-                 alt="{{ game.name }} Placeholder"
-                 class="w-full object-cover group-hover:scale-105 transition duration-500 z-10 h-[265px]" />
-          {% endif %}
+          <img src="{{ game.custom_amp_img }}"
+               alt="{{ game.name }} Banner"
+               class="w-full object-cover group-hover:scale-105 transition duration-500 z-10 h-[265px]" />
+        {% elif game.custom_img %}
+          <img src="{{ game.custom_img }}"
+               alt="{{ game.name }} Custom Image"
+               class="w-full object-cover group-hover:scale-105 transition duration-500 z-10 h-[265px]" />
+        {% elif game.steam_appid %}
+          <img src="https://cdn.cloudflare.steamstatic.com/steam/apps/{{ game.steam_appid }}/header.jpg"
+               alt="{{ game.name }} Steam Banner"
+               class="w-full object-cover group-hover:scale-105 transition duration-500 z-10 h-[265px]" />
+        {% else %}
+          <img src="{% static 'img/games/wow/dwarf.webp' %}"
+               alt="{{ game.name }} Placeholder"
+               class="w-full object-cover group-hover:scale-105 transition duration-500 z-10 h-[265px]" />
+        {% endif %}
 
           <!-- Overlay Gradient -->
           <div class="absolute inset-0 bg-gradient-to-t from-black/40 via-black/20 to-transparent z-10 rounded-2xl"></div>
