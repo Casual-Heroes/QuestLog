@@ -32,6 +32,7 @@ staticfiles/admin/css/vendor/select2/LICENSE-SELECT2.md
 *.csv
 *.jpeg
 *.svg
+*.json
 *.gif
 *.css
 *.js
