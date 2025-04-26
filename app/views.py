@@ -50,7 +50,7 @@ STATIC_GAME_INFO = {
         "discord_invite": "https://discord.gg/YAFF4dfEWz",
         "steam_link": "https://store.steampowered.com/app/1203620/Enshrouded/",
         "steam_appid": "1203620",
-        "connect_pw": "C@sual"
+        "connect_pw": "Join the Discord"
     },
     "CasualHeroes-Vrising01": {
         "display_name": "V Rising",
@@ -58,7 +58,7 @@ STATIC_GAME_INFO = {
         "discord_invite": "https://discord.gg/QBaxdqNDQH",
         "steam_link": "https://store.steampowered.com/app/1604030/V_Rising/",
         "steam_appid": "1604030",
-        "connect_pw": "C@sual!2"
+        "connect_pw": "No Password"
     }
 }
 # Games tracked through Discord only
