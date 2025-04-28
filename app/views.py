@@ -76,23 +76,23 @@ DISCORD_GAMES = [
         "link_label": "View on Steam"
     },
     {
-        "id": "Pantheon",
-        "name": "Pantheon: Rise of the Fallen",
-        "description": "The premier casual guild in the Pantheon world. Chill dungeon runs, late-night banter, and a crew that’s always online. Whether you're new or a raiding vet, Casual Heroes has a spot for you.",
-        "steam_link": "https://store.steampowered.com/app/3107230/Pantheon_Rise_of_the_Fallen/",
-        "discord_invite": "https://discord.gg/REHJrygu64",
-        "steam_appid": "3107230",
-        "online": "-",
-        "max": "-",
-        "link_label": "View on Steam"
-    },
-    {
         "id": "MHW",
         "name": "Monster Hunter Wilds",
         "description": "From fashion shows to chaotic wild hunts, our Monster Hunter community is growing fast. Whether you're min-maxing DPS or just showing off your best drip, there's a spot at the campfire for you.",
         "steam_link": "https://store.steampowered.com/app/2246340/Monster_Hunter_Wilds/",
         "discord_invite": "https://discord.gg/3rKQptH7Fd",
         "steam_appid": "2246340",
+        "online": "-",
+        "max": "-",
+        "link_label": "View on Steam"
+    },
+    {
+        "id": "Pantheon",
+        "name": "Pantheon: Rise of the Fallen",
+        "description": "The premier casual guild in the Pantheon world. Chill dungeon runs, late-night banter, and a crew that’s always online. Whether you're new or a raiding vet, Casual Heroes has a spot for you.",
+        "steam_link": "https://store.steampowered.com/app/3107230/Pantheon_Rise_of_the_Fallen/",
+        "discord_invite": "https://discord.gg/REHJrygu64",
+        "steam_appid": "3107230",
         "online": "-",
         "max": "-",
         "link_label": "View on Steam"
