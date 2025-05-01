@@ -274,7 +274,126 @@ def get_discord_activity_counts():
 
     with ACTIVITY_FILE.open("r") as f:
         return json.load(f)
-    
+
+articles = [
+    {
+        "slug": "survival-games-2025",
+        "title": "Top Survival Games in 2025",
+        "author": "FullData",
+        "games": [
+            {
+                "title": "Dune: Awakening",
+                "summary": """Set on the unforgiving planet of Arrakis, Dune: Awakening blends survival mechanics with MMO elements. 
+                Players must navigate sandstorms, harvest spice, and avoid colossal sandworms. The game emphasizes base-building, resource management, and PvP combat.
+                While the world-building and atmosphere have been praised, some players have noted that combat mechanics feel clunky and could use refinement.
+                The game's success will likely hinge on how well it balances its ambitious features.""",
+                "image": "img/games/survivalgames/Dune1.jpg"
+            },
+            {
+                "title": "Subnautica 2",
+                "summary": """Diving back into the depths, Subnautica 2 offers a new alien ocean world to explore. 
+                The sequel introduces co-op gameplay, allowing up to four players to explore together. Players can expect new biomes, creatures, and crafting options. 
+                Early impressions highlight the game's immersive environment and improved mechanics. 
+                However, some fans express concerns about the game's shorter story length, aiming for around 15 hours, and the introduction of microtransactions.""",
+                "image": "img/games/survivalgames/sub2.jpg"
+            },
+            {
+                "title": "The Alters",
+                "summary": """The Alters presents a unique survival experience where players create alternate versions of themselves to survive on a hostile planet. 
+                Each "alter" possesses different skills, aiding in tasks like base-building and exploration. 
+                The game's narrative-driven approach has been lauded for its depth and originality. 
+                However, some players feel that the gameplay leans heavily on dialogue and could benefit from more interactive elements.""",
+                "image": "img/games/survivalgames/Alters.jpg"
+            },
+            {
+                "title": "RuneScape: Dragonwilds",
+                "summary": """A spin-off from the classic MMO, RuneScape: Dragonwilds ventures into survival territory. 
+                Set in the continent of Ashenfall, players engage in base-building, crafting, and combat against dragons. 
+                The game has seen a strong start, with over 600,000 copies sold and positive reviews highlighting its engaging mechanics. 
+                Nonetheless, some players feel that the game lacks depth in its current state and hope for more content in future updates.""",
+                "image": "img/games/survivalgames/dragonwilds_static.jpg"
+            },
+            {
+                "title": "V Rising: Invaders of Oakveil",
+                "summary": """V Rising: Invaders of Oakveil is out now and it’s a massive step forward for the game. 
+                It builds smartly on what V Rising already did well — from world design to progression — and adds meaningful features like the cursed forest biome, PvP duel arenas, and deeper character customization.
+                What really stands out in this update is how it pushes both PvE and PvP players forward. The cursed forest introduces new tactical layers with poison-based enemies and new gear, while the duel arenas finally give PvP-focused players a structured way to test their builds.
+                If you were already a fan of V Rising, this update makes the game feel more complete. And if you're new? There’s never been a better time to jump in.""",
+                "image": "img/games/survivalgames/V-Rising-Invaders-of-Oakveil.jpg"
+            },
+            {
+                "title": "The Forever Winter",
+                "summary": """Set in a post-apocalyptic world, The Forever Winter combines survival horror with extraction shooter mechanics. 
+                Players scavenge resources while avoiding massive war machines. The game's unique art style, inspired by anime and dystopian themes, has garnered attention. 
+                While the dynamic encounter system keeps gameplay fresh, some players have criticized certain mechanics, like the water system, though recent updates have addressed these concerns.""",
+                "image": "img/games/survivalgames/TheForeverWinter_SteamImage.jpg"
+            },
+            {
+                "title": "Oppidum",
+                "summary": """Aimed at a broader audience, Oppidum offers a more accessible survival experience. 
+                With its colorful visuals and simplified mechanics, it's reminiscent of titles like The Legend of Zelda. Players can engage in crafting, farming, and exploration. 
+                While the game has been praised for its charm and cooperative gameplay, some have pointed out issues like limited inventory space and a cumbersome travel system.""",
+                "image": "img/games/survivalgames/Oppidum.png"
+            },
+            {
+                "title": "Autonomica",
+                "summary": """Autonomica stands out with its solarpunk aesthetic and ambitious blend of farming, automation, and time-travel elements. 
+                Players can build automated farms, engage in mech battles, and even pursue romantic relationships with NPCs. 
+                The game's Kickstarter success indicates strong interest, but some are cautious about how all these features will integrate seamlessly.""",
+                "image": "img/games/survivalgames/autonomica.jpg"
+            },
+            {
+                "title": "Terminator: Survivors",
+                "summary": """Set between Judgment Day and the rise of John Connor's resistance, Terminator: Survivors is an open-world survival game where players scavenge resources while evading Skynet's machines. 
+                The game emphasizes co-op gameplay and base-building. 
+                While the premise is intriguing, some players are concerned about the game's delayed release and hope that it delivers a polished experience upon launch.""",
+                "image": "img/games/survivalgames/Terminiator.webp"
+            },
+            {
+                "title": "Outward 2",
+                "summary": """Building upon its predecessor, Outward 2 offers a challenging action RPG experience with survival elements. 
+                Players can expect improved combat mechanics, a richer world, and the ability to drop backpacks to manage weight. 
+                While early impressions are positive, some have noted issues like unpredictable enemy movements and occasional bugs. 
+                The developers' shift from Unity to Unreal Engine 5 suggests a commitment to enhancing the game's quality.""",
+                "image": "img/games/survivalgames/outward2.jpg"
+            }
+        ]
+    }
+]
+
+
+
+def features(request):
+    articles = [
+        {
+            "slug": "survival-games-2025",
+            "title": "Top Survival Games in 2025",
+            "summary": "What's next after V Rising and Enshrouded?",
+            "image_url": "img/games/survivalgames/survival2025.png"
+        },
+    ]
+    return render(request, "features/features.html", {"articles": articles})
+
+
+# def features_list(request):
+#     return render(request, "features/features.html", {
+#         "articles": [
+#             {
+#                 "slug": a["slug"],
+#                 "title": a["title"],
+#                 "summary": a["games"][0]["summary"],  # Use the game's summary
+#                 "image_url": a["games"][0]["image"]
+#             } for a in articles
+#         ]
+#     })
+
+def features_detail(request, slug):
+    article = next((a for a in articles if a["slug"] == slug), None)
+    if not article:
+        return render(request, "404.html", status=404)
+    return render(request, "features/article_details.html", {"article": article})
+
+
 def hosting(request):
     return render(request, 'hosting.html')
 
@@ -307,12 +426,8 @@ def conan(request):
     return render(request, 'conan.html', {
         "conan_instance": conan_instance
     })
-
 def guides(request):
     return render(request, 'guides.html')
-
-def reviews(request):
-    return render(request, 'reviews.html')
 
 def content(request):
     return render(request, 'content.html')

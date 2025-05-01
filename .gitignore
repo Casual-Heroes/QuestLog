@@ -47,6 +47,7 @@ testampsettings.py
 teststats.py
 .settings.py
 **/settings.py
+**/wsgi.py
 
 
 # Ignore environments

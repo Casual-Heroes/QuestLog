@@ -1,4 +1,4 @@
-from django.urls import path
+from django.urls import path, include
 from . import views
 
 urlpatterns = [
@@ -11,8 +11,9 @@ urlpatterns = [
     path('enshrouded/', views.enshrouded, name='enshrouded'),
     path('conan/', views.conan, name='conan'),
     path('vrising/', views.vrising, name='vrising'),
+    path('features/', views.features, name='features'),
+    path('features/<slug:slug>/', views.features_detail, name='features_detail'),
     path('guides/', views.guides, name='guides'),
-    path('reviews/', views.reviews, name='reviews'),
     path('content/', views.content, name='content'),
     path('aboutus/', views.aboutus, name='aboutus'),
     path('privacy/', views.privacy, name='privacy'),

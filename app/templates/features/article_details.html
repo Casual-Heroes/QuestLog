@@ -1,0 +1,22 @@
+<!-- templates/features/article_details.html -->
+{% extends "base.html" %}
+{% load static %}
+{% block content %}
+
+<h1 class="text-3xl font-bold text-white mb-4">{{ article.title }}</h1>
+<p class="text-sm text-gray-400 mb-8">By {{ article.author }}</p>
+
+<div class="space-y-16">
+  {% for game in article.games %}
+    <div class="bg-neutral-900/70 p-6 rounded-xl shadow-xl transition duration-300 hover:shadow-indigo-500/30">
+      <img src="{% static game.image %}" alt="{{ game.title }}" class="mx-auto rounded shadow-md" style="max-width: 600px; max-height: 340px; width: 100%; height: auto; object-fit: cover;">
+      <h2 class="text-2xl text-indigo-400 font-semibold mb-4">{{ game.title }}</h2>
+
+      {% for paragraph in game.summary.splitlines %}
+        <p class="text-gray-300 mb-4 leading-relaxed">{{ paragraph }}</p>
+      {% endfor %}
+    </div>
+  {% endfor %}
+</div>
+
+{% endblock %}
