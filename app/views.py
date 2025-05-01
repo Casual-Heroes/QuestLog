@@ -361,8 +361,6 @@ articles = [
     }
 ]
 
-
-
 def features(request):
     articles = [
         {
@@ -374,18 +372,6 @@ def features(request):
     ]
     return render(request, "features/features.html", {"articles": articles})
 
-
-# def features_list(request):
-#     return render(request, "features/features.html", {
-#         "articles": [
-#             {
-#                 "slug": a["slug"],
-#                 "title": a["title"],
-#                 "summary": a["games"][0]["summary"],  # Use the game's summary
-#                 "image_url": a["games"][0]["image"]
-#             } for a in articles
-#         ]
-#     })
 
 def features_detail(request, slug):
     article = next((a for a in articles if a["slug"] == slug), None)
