@@ -7,6 +7,7 @@ urlpatterns = [
     path('gameshype/', views.gameshype, name='gameshype'),
     path('gamesuggest/', views.gamesuggest, name='gamesuggest'),
     path('hosting/', views.hosting, name='hosting'),
+    path('7dtd/', views.sevendtd, name='7dtd'),
     path('dragonwilds/', views.dragonwilds, name='dragonwilds'),
     path('enshrouded/', views.enshrouded, name='enshrouded'),
     path('conan/', views.conan, name='conan'),
@@ -20,4 +21,6 @@ urlpatterns = [
     path('terms/', views.terms, name='terms'),
     path('contactus/', views.contactus, name='contactus'),
     path('faq/', views.faq, name='faq'),
+    path('login/', views.login_view, name='login'),
+    path("dashboard/", views.dashboard, name="dashboard")
 ]

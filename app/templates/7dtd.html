@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block title %}7 Days to Die Hosting | Casual Heroes{% endblock %}
+{% block og_title %}Modded 7DTD Servers by Casual Heroes{% endblock %}
+{% block og_description %}Host your own 7DTD server with Fallout-style classes, custom zombies, and evolving player towns.{% endblock %}
+{% block og_image %}https://casual-heroes.com/static/img/siteassets/homepage/CHLogoFinal.png{% endblock %}
+{% block og_url %}https://casual-heroes.com/7dtd{% endblock %}
+{% block content %}
+
+<section class="mt-20 max-w-5xl mx-auto px-4">
+  <h1 class="text-4xl font-extrabold text-center mb-10">7 Days to Die Hosting by Casual Heroes</h1>
+  <p class="text-center text-gray-300 mb-12">
+    Our fully modded <strong>Casual Heroes 7DTD server</strong> is built for hardcore survivors — featuring Fallout-Skyrim-inspired class trees, evolving towns, and a steady drip of custom zombies, quests, and biome expansions.
+  </p>
+
+  <div class="grid md:grid-cols-2 gap-8 items-start">
+    <!-- Trailer -->
+    <div>
+      <iframe class="w-full aspect-video rounded-xl shadow-lg border border-neutral-800"
+              src="https://www.youtube.com/embed/kikTJaVBank?si=gVETEL_a0fsgqms3" 
+              title="7 Days to Die Trailer" frameborder="0" allowfullscreen>
+      </iframe>
+    </div>
+
+    <!-- Server Details -->
+    <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-6 shadow-xl">
+      <h2 class="text-2xl font-bold text-white mb-4">Live Now</h2>
+      <ul class="text-gray-300 space-y-2 text-sm">
+        <li><strong>Fallout-Skyrim Class System:</strong> Choose from unique roles like Wasteland Knight, Alchemist, Scavver, Mutant, or Gunslinger</li>
+        <li><strong>Custom Zombies:</strong> Expect smarter AI, special afflictions, and surprise ambushes</li>
+        <li><strong>Quest Chains:</strong> New mission lines with branching outcomes and tiered rewards</li>
+        <li><strong>Modding Support:</strong> Full BepInEx integration and one-click mod deployment</li>
+        <li><strong>Dev Events & Boss Fights:</strong> Spawn waves, loot zones, and rotating siege encounters</li>
+        <li><strong>Community Settlements:</strong> Player-led build zones with collaborative town themes</li>
+      </ul>
+
+      <!-- Community Zones -->
+      <div class="mt-6">
+        <h3 class="text-xl font-bold text-white mb-3">Evolving Player Towns</h3>
+        <ul class="ml-4 list-disc list-inside space-y-1 text-sm text-gray-300">
+          <li><strong>Vault 87</strong> — A fortified tech-bunker with irradiated farms and an old-world data core</li>
+          <li><strong>Ironforge Keep</strong> — A medieval mountain stronghold, forged by Wasteland Smiths</li>
+          <li><strong>Deathroot Hollow</strong> — A necrotic swamp biome with corpse trees and zombie druids</li>
+          <li><strong>Dustveil Market</strong> — A neutral-zone trade hub for bartering gear and intel</li>
+          <li><strong>The Crimson Church</strong> — Fanatical zealots, ritual blood altars, and mutated relics</li>
+          <li><strong>Forgehome</strong> — An industrial hellscape where class engineers construct PvE war machines</li>
+        </ul>
+      </div>
+
+      <!-- Server Status -->
+      <div class="mt-12 bg-neutral-900 border border-neutral-800 p-6 rounded-xl text-left shadow-xl">
+        <h2 class="text-xl font-bold text-indigo-300 mb-3">Live Server Status</h2>
+        <div class="grid sm:grid-cols-2 gap-4 text-gray-300 text-sm">
+          <div><strong>Server Name:</strong> Casual Heroes - Wasteland Reborn</div>
+          <div><strong>Status:</strong> {{ sevendtd_instance.status_label }}</div>
+          <div><strong>IP Address:</strong> <span class="text-white font-mono">{{ sevendtd_instance.ip }}</span></div>
+          <div><strong>Password:</strong> <span class="text-white font-mono">{{ sevendtd_instance.pw }}</span></div>
+          <div><strong>Active Players:</strong> {{ sevendtd_instance.online }}/{{ sevendtd_instance.max }}</div>
+          <div>
+            <a href="{{ sevendtd_instance.steam_link }}" target="_blank" class="text-indigo-400 hover:underline">
+              View on Steam →
+            </a>
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-6">
+        <a href="https://discord.gg/Gzu7wnUvVM" target="_blank" class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-6 py-3 rounded-xl transition block text-center">
+          Join the Discord — Survive the Apocalypse.
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Hosting CTA -->
+  <div class="mt-16 bg-neutral-900 border border-neutral-800 p-6 rounded-xl text-center">
+    <h2 class="text-xl font-bold text-indigo-300 mb-2">Want a Modded 7DTD Server?</h2>
+    <p class="text-gray-300 mb-4">Get a Fallout-style experience for your crew — with automation, modding, and full control.</p>
+    <a href="/hosting" class="text-indigo-400 hover:underline">See Hosting Options →</a>
+  </div>
+</section>
+{% endblock %}

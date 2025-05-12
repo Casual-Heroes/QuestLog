@@ -43,17 +43,45 @@
         <nav class="flex flex-wrap justify-center gap-6 text-sm md:text-base">
           <a href="{% url 'home' %}" class="hover:text-indigo-400 transition">Home</a>
 
-          <!-- Games We Play Dropdown -->
-          <div x-data="{ open: false }" class="relative">
-            <button @click="open = !open" class="font-semibold hover:text-indigo-400 transition flex items-center gap-1">
-              Games We Play ▾
-            </button>
-            <div x-show="open" @click.outside="open = false" x-transition class="absolute left-0 mt-2 bg-neutral-900 border border-neutral-800 rounded-lg shadow-lg w-48 z-50 text-sm">
-              <a href="/gamesweplay" class="block px-4 py-2 hover:bg-neutral-800">Current Games</a>
-              <a href="/gameshype" class="block px-4 py-2 hover:bg-neutral-800">Games We're Hyped For</a>
-              <a href="/gamesuggest" class="block px-4 py-2 hover:bg-neutral-800">Suggest a Game</a>
-            </div>
+        <div x-data="{ open: false }" class="relative">
+          <button @click="open = !open" class="font-semibold hover:text-indigo-400 transition flex items-center gap-1">
+            Games ▾
+          </button>
+
+          <div x-show="open" @click.outside="open = false" x-transition 
+              class="absolute left-0 mt-2 bg-neutral-900 border border-neutral-800 rounded-lg shadow-lg w-60 z-50 text-sm py-2">
+
+            <!-- Community Favorites Section -->
+            <div class="px-4 py-1 text-xs uppercase text-gray-400 tracking-wider">Community Favorites</div>
+            <a href="/gamesweplay" class="block px-4 py-2 hover:bg-neutral-800">Current Games</a>
+            <a href="/gameshype" class="block px-4 py-2 hover:bg-neutral-800">Games We're Hyped For</a>
+            <a href="/gamesuggest" class="block px-4 py-2 hover:bg-neutral-800">Suggest a Game</a>
+
+            <!-- Hosted by Casual Heroes Section -->
+            <div class="px-4 py-1 mt-2 text-xs uppercase text-gray-400 tracking-wider">Hosted by Casual Heroes</div>
+            <a href="/7dtd" class="flex items-center gap-2 px-4 py-2 hover:bg-neutral-800">
+              <img src="{% static 'img/siteassets/homepage/7DTD.png' %}" alt="Conan Exiles" class="w-4 h-4" />
+              7 Days to Die <h6 class="text-xs text-gray-500">(Coming Soon)</h6>
+            </a>
+            <a href="/conan" class="flex items-center gap-2 px-4 py-2 hover:bg-neutral-800">
+              <img src="{% static 'img/siteassets/homepage/conan.png' %}" alt="Conan Exiles" class="w-4 h-4" />
+              Conan Exiles
+            </a>
+            <a href="/dragonwilds" class="flex items-center gap-2 px-4 py-2 hover:bg-neutral-800">
+              <img src="{% static 'img/siteassets/homepage/dragonwilds-1.png' %}" alt="Dragonwilds" class="w-4 h-4" />
+              Dragonwilds <h6 class="text-xs text-gray-500">(Coming Soon)</h6>
+            </a>
+            <a href="/enshrouded" class="flex items-center gap-2 px-4 py-2 hover:bg-neutral-800">
+              <img src="{% static 'img/siteassets/homepage/enshrouded.png' %}" alt="Enshrouded" class="w-4 h-4" />
+              Enshrouded
+            </a>
+            <a href="/vrising" class="flex items-center gap-2 px-4 py-2 hover:bg-neutral-800">
+              <img src="{% static 'img/siteassets/homepage/virsing.png' %}" alt="V Rising" class="w-4 h-4" />
+              V Rising
+            </a>
           </div>
+        </div>
+
 
           <a href="/guides" class="hover:text-indigo-400 transition">Game Guides</a>
           <a href="/features" class="hover:text-indigo-400 transition">Features</a>
@@ -69,21 +97,8 @@
               <a href="/hosting" class="flex items-center gap-2 px-4 py-2 hover:bg-neutral-800">
                 <span class="w-4 h-4"></span> Hosting Overview
               </a>
-              <a href="/conan" class="flex items-center gap-2 px-4 py-2 hover:bg-neutral-800">
-                <img src="{% static 'img/siteassets/homepage/conan.png' %}" alt="Conan Exiles" class="w-4 h-4" />
-                Conan Exiles
-              </a>
-              <a href="/dragonwilds" class="flex items-center gap-2 px-4 py-2 hover:bg-neutral-800">
-                <img src="{% static 'img/siteassets/homepage/dragonwilds-1.png' %}" alt="Dragonwilds" class="w-4 h-4" />
-                Dragonwilds
-              </a>
-              <a href="/enshrouded" class="flex items-center gap-2 px-4 py-2 hover:bg-neutral-800">
-                <img src="{% static 'img/siteassets/homepage/enshrouded.png' %}" alt="Enshrouded" class="w-4 h-4" />
-                Enshrouded
-              </a>
-              <a href="/vrising" class="flex items-center gap-2 px-4 py-2 hover:bg-neutral-800">
-                <img src="{% static 'img/siteassets/homepage/virsing.png' %}" alt="V Rising" class="w-4 h-4" />
-                V Rising
+              <a href="/login" class="flex items-center gap-2 px-4 py-2 hover:bg-neutral-800">
+                <span class="w-4 h-4"></span> Login to Hosting Panel
               </a>
             </div>
           </div>

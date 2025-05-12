@@ -2,6 +2,9 @@ def home(request):
     return render(request, 'index.html')
 
 from django.shortcuts import render
+from django.contrib.auth import authenticate, login
+from django.contrib import messages
+from django.shortcuts import redirect, render
 from django.contrib.admin.views.decorators import staff_member_required
 from dotenv import load_dotenv
 import os
@@ -25,6 +28,14 @@ def get_discord_activity():
 
 # Games tracked through AMP
 STATIC_GAME_INFO = {
+    "CasualHeroes-7DTD01": {
+        "display_name": "7 Days to Die",
+        "description": "Join us in a fully modded world. Builders and devs welcome. LFM Devs!",
+        "discord_invite": "https://discord.gg/3rKQptH7Fd",
+        "steam_link": "https://store.steampowered.com/app/251570/7_Days_to_Die/",
+        "steam_appid": "251570",
+        "connect_pw": "N/A"
+    },
     "CasualHeroes-Conan01": {
         "display_name": "Conan Exiles",
         "description": "PvE meets PvP in a fully modded world. Let the chaos rain — builders and devs welcome in the Exiled Lands. LFM Devs!",
@@ -380,8 +391,34 @@ def features_detail(request, slug):
     return render(request, "features/article_details.html", {"article": article})
 
 
+def login_view(request):
+    if request.method == "POST":
+        username = request.POST.get("username")
+        password = request.POST.get("password")
+        user = authenticate(request, username=username, password=password)
+        if user is not None:
+            login(request, user)
+            return redirect("dashboard")
+        else:
+            messages.error(request, "Invalid username or password.")
+    return render(request, "auth/login.html")
+
+from django.contrib.auth.decorators import login_required
+
+@login_required
+def dashboard(request):
+    return render(request, "dashboard.html")
+
 def hosting(request):
     return render(request, 'hosting.html')
+
+def sevendtd(request):
+    sevendtd_instance = asyncio.run(fetch_instance_data("CasualHeroes-7DTD01"))
+
+    return render(request, '7dtd.html', {
+        "sevendtd_instance": sevendtd_instance
+    })
+
 
 def dragonwilds(request):
     return render(request, 'dragonwilds.html')
