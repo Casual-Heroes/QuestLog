@@ -1,42 +1,116 @@
---- terms.html ---
 {% extends "base.html" %}
+{% load static %}
 {% block title %}Terms of Service | Casual Heroes{% endblock %}
 {% block og_title %}Welcome to Casual Heroes{% endblock %}
 {% block og_description %}Join the Casual Heroes community — modded servers, friendly vibes, and endless co-op adventures.{% endblock %}
 {% block og_image %}https://casual-heroes.com/static/img/siteassets/homepage/CHLogoFinal.png{% endblock %}
 {% block og_url %}https://casual-heroes.com/{% endblock %}
+
 {% block content %}
-<section class="mt-24 px-6 max-w-4xl mx-auto">
-  <h1 class="text-4xl font-extrabold text-center mb-8">Terms of Service</h1>
-  <p class="text-sm text-gray-400 text-center mb-12">Effective Date: April 18, 2025</p>
+<section class="max-w-3xl mx-auto py-16 px-4">
+  <h1 class="text-4xl font-bold text-white mb-10 text-center">Casual Heroes Hosting Terms of Service</h1>
 
-  <h2 class="text-xl font-bold mb-2">1. Community Use</h2>
-  <ul class="list-disc list-inside space-y-1">
-    <li>Follow our Community Guidelines</li>
-    <li>No hate, harassment, or disruption</li>
-    <li>Users must be 13 or older</li>
-  </ul>
+  <div class="prose prose-invert prose-lg max-w-none text-gray-300 space-y-10">
+    <div>
+      <h2>1. Community Conduct</h2>
+      <p>Casual Heroes is a space for gamers, creators, and developers of all backgrounds. To maintain a safe and inclusive environment:</p>
+      <ul>
+        <li>Harassment, hate speech, targeted abuse, and discrimination are strictly prohibited.</li>
+        <li>Disruptive behavior in servers, Discord, or hosted spaces may result in removal.</li>
+        <li>Users must be <strong>13 years or older</strong>, or have verifiable parental consent.</li>
+      </ul>
+    </div>
 
-  <h2 class="text-xl font-bold mt-8 mb-2">2. Hosting Services</h2>
-  <ul class="list-disc list-inside space-y-1">
-    <li>Provide accurate info when registering</li>
-    <li>No abuse or piracy</li>
-    <li>Accounts may be throttled/suspended for violations</li>
-  </ul>
+    <div>
+      <h2>2. Hosting Services</h2>
+      <p>By using our hosting services, you agree to:</p>
+      <ul>
+        <li>Provide accurate and honest registration information.</li>
+        <li>Not host or share illegal content, including pirated games or malware.</li>
+        <li>Not use servers for crypto-mining, DDoS, or mass automation.</li>
+        <li>Understand that services may be throttled, suspended, or terminated for abuse.</li>
+      </ul>
+    </div>
 
-  <h2 class="text-xl font-bold mt-8 mb-2">3. Refunds</h2>
-  <p>All sales are final unless stated otherwise. Discretionary refunds may be granted in special cases.</p>
+    <div>
+      <h2>3. Service Level Agreement (SLA)</h2>
+      <ul>
+        <li><strong>Expected Uptime:</strong> 99.5% monthly average</li>
+        <li><strong>Maintenance Windows:</strong> With 24–48 hour notice</li>
+        <li><strong>Unplanned Downtime:</strong> We are not liable for:</li>
+        <ul>
+          <li>Power or ISP failures</li>
+          <li>Steam, Discord, or game developer outages</li>
+          <li>Client-side mod issues or overuse of system resources</li>
+        </ul>
+      </ul>
+    </div>
 
-  <h2 class="text-xl font-bold mt-8 mb-2">4. Liability</h2>
-  <p>We are not responsible for downtime, patch conflicts, or third-party failures.</p>
+    <div>
+      <h2>4. Refund Policy</h2>
+      <p>All sales are final unless otherwise stated. We may issue discretionary refunds for:</p>
+      <ul>
+        <li>Deployment failures not resolved within 48 hours</li>
+        <li>First-time users who cancel within 24 hours</li>
+        <li>Confirmed system bugs that prevent usage</li>
+      </ul>
+    </div>
 
-  <h2 class="text-xl font-bold mt-8 mb-2">5. Intellectual Property</h2>
-  <p>You own your content, but you grant us permission to use it for display and promotion.</p>
+    <div>
+      <h2>5. Modding & Development</h2>
+      <p>We support creators. Script testing, modding, and automation are allowed if:</p>
+      <ul>
+        <li>You own or have the right to modify uploaded content</li>
+        <li>You do not endanger infrastructure, users, or system stability</li>
+        <li>You follow all copyright laws for public-facing content</li>
+      </ul>
+    </div>
 
-  <h2 class="text-xl font-bold mt-8 mb-2">6. Termination</h2>
-  <p>We may suspend or remove access for violations. Casual Heroes reserves the right to deny service.</p>
+    <div>
+      <h2>6. Intellectual Property</h2>
+      <p>You retain ownership of your data. By using our service, you grant Casual Heroes permission to:</p>
+      <ul>
+        <li>Display your server name/logo in public lists</li>
+        <li>Showcase community builds in marketing content with credit</li>
+      </ul>
+    </div>
 
-  <h2 class="text-xl font-bold mt-8 mb-2">7. Contact</h2>
-  <p>Email <strong>support@casual-heroes.com</strong> or visit our official Discord with any questions or concerns.</p>
+    <div>
+      <h2>7. Termination</h2>
+      <p>We may suspend or revoke access for violations. Examples include:</p>
+      <ul>
+        <li>Illegal activity or harassment</li>
+        <li>Repeated ToS violations</li>
+        <li>Chargebacks or payment abuse</li>
+      </ul>
+    </div>
+
+    <div>
+      <h2>8. Privacy & Security</h2>
+      <p>We do not sell user data. Basic tracking is used only to ensure server operation and detect abuse. See our <a href="/privacy">Privacy Policy</a>.</p>
+    </div>
+
+    <div>
+      <h2>9. Contact</h2>
+      <p>📧 Email: <a href="mailto:support@casual-heroes.com">support@casual-heroes.com</a><br>
+      💬 Discord: <a href="https://discord.gg/exRgR9YGyy">discord.gg/casualhosts </a></p>
+    </div>
+  </div>
 </section>
 {% endblock %}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
