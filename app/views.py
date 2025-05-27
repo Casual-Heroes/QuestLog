@@ -9,6 +9,7 @@ from django.contrib.admin.views.decorators import staff_member_required
 from dotenv import load_dotenv
 import os
 import asyncio
+import logging
 from ampapi.dataclass import APIParams
 from ampapi.bridge import Bridge
 from ampapi.controller import AMPControllerInstance
@@ -291,13 +292,94 @@ def games_we_play(request):
 def home(request):
     return render(request, 'index.html')
 
-ACTIVITY_FILE = Path("/srv/ch-webserver/shared/activity_data.json")
+
+def dune_page(request):
+    dune_data = {
+        "total": "-",
+        "online": "-",
+        "active": "-"
+    }
+
+    if DISCORD_ACTIVITY_FILE.exists():
+        try:
+            with DISCORD_ACTIVITY_FILE.open("r") as f:
+                all_activity = json.load(f)
+                raw = all_activity.get("Dune", {})
+                print("[DEBUG] Raw Dune Activity:", raw)
+
+                # Safely cast integers
+                dune_data["total"] = int(raw["total"]) if str(raw.get("total", "")).isdigit() else "-"
+                dune_data["online"] = int(raw["online"]) if str(raw.get("online", "")).isdigit() else "-"
+                dune_data["active"] = int(raw["active"]) if str(raw.get("active", "")).isdigit() else "-"
+        except Exception as e:
+            print(f"[DUNE PAGE] Failed to load activity data: {e}")
+
+    print("[DEBUG] Final dune_data:", dune_data)
+    return render(request, "dune.html", {
+        "dune_activity": dune_data
+    })
+
+
+def pantheon_page(request):
+    pantheon_data = {
+        "total": "-",
+        "online": "-",
+        "active": "-"
+    }
+
+    if DISCORD_ACTIVITY_FILE.exists():
+        try:
+            with DISCORD_ACTIVITY_FILE.open("r") as f:
+                all_activity = json.load(f)
+                raw = all_activity.get("Pantheon", {})
+                print("[DEBUG] Raw Pantheon Activity:", raw)
+
+                # Safely cast integers
+                pantheon_data["total"] = int(raw["total"]) if str(raw.get("total", "")).isdigit() else "-"
+                pantheon_data["online"] = int(raw["online"]) if str(raw.get("online", "")).isdigit() else "-"
+                pantheon_data["active"] = int(raw["active"]) if str(raw.get("active", "")).isdigit() else "-"
+        except Exception as e:
+            print(f"[PANTHEON PAGE] Failed to load activity data: {e}")
+
+    print("[DEBUG] Final pantheon_data:", pantheon_data)
+    return render(request, "pantheon.html", {
+        "pantheon_activity": pantheon_data
+    })
+
+def wow_page(request):
+    wow_data = {
+        "total": "-",
+        "online": "-",
+        "active": "-"
+    }
+
+    if DISCORD_ACTIVITY_FILE.exists():
+        try:
+            with DISCORD_ACTIVITY_FILE.open("r") as f:
+                all_activity = json.load(f)
+                raw = all_activity.get("WoW", {})
+                print("[DEBUG] Raw WoW Activity:", raw)
+
+                # Safely cast integers
+                wow_data["total"] = int(raw["total"]) if str(raw.get("total", "")).isdigit() else "-"
+                wow_data["online"] = int(raw["online"]) if str(raw.get("online", "")).isdigit() else "-"
+                wow_data["active"] = int(raw["active"]) if str(raw.get("active", "")).isdigit() else "-"
+        except Exception as e:
+            print(f"[WoW PAGE] Failed to load activity data: {e}")
+
+    print("[DEBUG] Final wow_data:", wow_data)
+    return render(request, "wow.html", {
+        "wow_activity": wow_data
+    })
+
+
+
 
 def get_discord_activity_counts():
-    if not ACTIVITY_FILE.exists():
+    if not DISCORD_ACTIVITY_FILE.exists():
         return {}
 
-    with ACTIVITY_FILE.open("r") as f:
+    with DISCORD_ACTIVITY_FILE.open("r") as f:
         return json.load(f)
 
 articles = [
@@ -436,18 +518,6 @@ def sevendtd(request):
 
 def dragonwilds(request):
     return render(request, 'dragonwilds.html')
-
-def dune(request):
-    return render(request, 'dune.html')
-
-def pantheon(request):
-    return render(request, 'pantheon.html')
-
-def wow(request):
-    return render(request, 'wow.html')
-
-def dune_guild(request):
-    return render(request, 'dune_guild.html')
 
 def gameshype(request):
     return render(request, 'gameshype.html')

@@ -32,6 +32,23 @@
         <li><strong>Casual-Friendly Events:</strong> We host off-peak events, leveling nights, and weekend runs</li>
       </ul>
 
+
+    <!-- Active Discord Players -->
+    <div class="mt-4 text-sm text-gray-400">
+        <strong>Active Discord Members:</strong>
+        {% if pantheon_activity.active != "-" and pantheon_activity.total != "-" %}
+            {% if pantheon_activity.active|add:0 > 0 %}
+            <span class="text-green-400 font-mono">🟢 {{ pantheon_activity.active }}</span>
+            {% else %}
+            <span class="text-red-400 font-mono">🔴 {{ pantheon_activity.active }}</span>
+            {% endif %}
+            <span class="text-gray-400">/ {{ pantheon_activity.total }}</span>
+        {% else %}
+            <span class="text-white font-mono">-</span> / <span class="text-gray-400">-</span>
+        {% endif %}
+    </div>
+
+
       <div class="mt-6">
         <a href="https://discord.gg/REHJrygu64" target="_blank" class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-6 py-3 rounded-xl transition block text-center">
           Join the Guild — Rise with Us.

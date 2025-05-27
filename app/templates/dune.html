@@ -34,6 +34,21 @@
         <li><strong>Casual-Friendly Schedule:</strong> Optional events, late-night teams, and on-demand groups</li>
       </ul>
 
+    <!-- Active Discord Players -->
+    <div class="mt-4 text-sm text-gray-400">
+        <strong>Active Discord Members:</strong>
+        {% if dune_activity.active != "-" and dune_activity.total != "-" %}
+            {% if dune_activity.active|add:0 > 0 %}
+            <span class="text-green-400 font-mono">🟢 {{ dune_activity.active }}</span>
+            {% else %}
+            <span class="text-red-400 font-mono">🔴 {{ dune_activity.active }}</span>
+            {% endif %}
+            <span class="text-gray-400">/ {{ dune_activity.total }}</span>
+        {% else %}
+            <span class="text-white font-mono">-</span> / <span class="text-gray-400">-</span>
+        {% endif %}
+    </div>
+
       <div class="mt-6">
         <a href="https://discord.gg/ECwJWppSjQ" target="_blank" class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-6 py-3 rounded-xl transition block text-center">
           Join the Guild — Survive the Sand.
