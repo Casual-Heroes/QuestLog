@@ -2,7 +2,6 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <!-- In base.html inside <head> -->
   <meta property="og:title" content="{% block og_title %}Casual Heroes - Game Servers & Community{% endblock %}">
   <meta property="og:description" content="{% block og_description %}Join our friendly, mod-loving community. Explore servers, suggest games, and play your way.{% endblock %}">
   <meta property="og:image" content="{% block og_image %}https://casual-heroes.com/static/img/siteassets/homepage/CHLogoFinal.png{% endblock %}">
@@ -16,14 +15,14 @@
 
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-
-  <!-- Favicon -->
   <link rel="icon" type="image/png" href="{% static 'img/siteassets/homepage/CHLogofav.png' %}">
   <title>{% block title %}Casual Heroes{% endblock %}</title>
+
   <script src="https://cdn.tailwindcss.com"></script>
   <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
   <link href="{% static 'css/custom.css' %}" rel="stylesheet">
+
   <style>
     nav a:hover,
     button:hover {
@@ -34,6 +33,7 @@
     }
   </style>
 </head>
+
 <body class="bg-[#0a0a1a] text-white font-sans">
   <div class="max-w-7xl mx-auto px-6">
     <header class="py-6">
@@ -43,57 +43,68 @@
         <nav class="flex flex-wrap justify-center gap-6 text-sm md:text-base">
           <a href="{% url 'home' %}" class="hover:text-indigo-400 transition">Home</a>
 
-        <div x-data="{ open: false }" class="relative">
-          <button @click="open = !open" class="font-semibold hover:text-indigo-400 transition flex items-center gap-1">
-            Games ▾
-          </button>
+          <!-- Games Dropdown -->
+          <div x-data="{ open: false }" class="relative">
+            <button @click="open = !open" class="font-semibold hover:text-indigo-400 transition flex items-center gap-1">
+              Games ▾
+            </button>
+            <div x-show="open" @click.outside="open = false" x-transition 
+              class="absolute left-0 mt-2 bg-neutral-900 border border-neutral-800 rounded-lg shadow-lg w-[20rem] max-w-none z-50 text-base py-4">
 
-          <div x-show="open" @click.outside="open = false" x-transition 
-              class="absolute left-0 mt-2 bg-neutral-900 border border-neutral-800 rounded-lg shadow-lg w-60 z-50 text-sm py-2">
+              <!-- Community Favorites -->
+              <div class="px-4 py-1 text-xs uppercase text-gray-400 tracking-wider">Community Favorites</div>
+              <a href="/gamesweplay" class="block px-4 py-2 hover:bg-neutral-800">Current Games</a>
+              <a href="/gameshype" class="block px-4 py-2 hover:bg-neutral-800">Games We're Hyped For</a>
+              <a href="/gamesuggest" class="block px-4 py-2 hover:bg-neutral-800">Suggest a Game</a>
 
-            <!-- Community Favorites Section -->
-            <div class="px-4 py-1 text-xs uppercase text-gray-400 tracking-wider">Community Favorites</div>
-            <a href="/gamesweplay" class="block px-4 py-2 hover:bg-neutral-800">Current Games</a>
-            <a href="/gameshype" class="block px-4 py-2 hover:bg-neutral-800">Games We're Hyped For</a>
-            <a href="/gamesuggest" class="block px-4 py-2 hover:bg-neutral-800">Suggest a Game</a>
+              <!-- Hosted by CHHS -->
+              <div class="px-4 py-1 mt-2 text-xs uppercase text-gray-400 tracking-wider">Hosted by Casual Heroes Hosting Services</div>
+              <a href="/7dtd" class="flex items-center gap-2 px-4 py-2 hover:bg-neutral-800">
+                <img src="{% static 'img/siteassets/homepage/7DTD.png' %}" alt="7DTD" class="w-4 h-4" />
+                7 Days to Die <span class="text-xs text-gray-500">(Coming Soon)</span>
+              </a>
+              <a href="/dragonwilds" class="flex items-center gap-2 px-4 py-2 hover:bg-neutral-800">
+                <img src="{% static 'img/siteassets/homepage/dragonwilds-1.png' %}" alt="Dragonwilds" class="w-4 h-4" />
+                Dragonwilds <span class="text-xs text-gray-500">(Coming Soon)</span>
+              </a>
+              <a href="/enshrouded" class="flex items-center gap-2 px-4 py-2 hover:bg-neutral-800">
+                <img src="{% static 'img/siteassets/homepage/enshrouded.png' %}" alt="Enshrouded" class="w-4 h-4" />
+                Enshrouded
+              </a>
+              <a href="/vrising" class="flex items-center gap-2 px-4 py-2 hover:bg-neutral-800">
+                <img src="{% static 'img/siteassets/homepage/virsing.png' %}" alt="V Rising" class="w-4 h-4" />
+                V Rising
+              </a>
 
-            <!-- Hosted by Casual Heroes Section -->
-            <div class="px-4 py-1 mt-2 text-xs uppercase text-gray-400 tracking-wider">Hosted by Casual Heroes</div>
-            <a href="/7dtd" class="flex items-center gap-2 px-4 py-2 hover:bg-neutral-800">
-              <img src="{% static 'img/siteassets/homepage/7DTD.png' %}" alt="Conan Exiles" class="w-4 h-4" />
-              7 Days to Die <h6 class="text-xs text-gray-500">(Coming Soon)</h6>
-            </a>
-            <a href="/conan" class="flex items-center gap-2 px-4 py-2 hover:bg-neutral-800">
-              <img src="{% static 'img/siteassets/homepage/conan.png' %}" alt="Conan Exiles" class="w-4 h-4" />
-              Conan Exiles
-            </a>
-            <a href="/dragonwilds" class="flex items-center gap-2 px-4 py-2 hover:bg-neutral-800">
-              <img src="{% static 'img/siteassets/homepage/dragonwilds-1.png' %}" alt="Dragonwilds" class="w-4 h-4" />
-              Dragonwilds <h6 class="text-xs text-gray-500">(Coming Soon)</h6>
-            </a>
-            <a href="/enshrouded" class="flex items-center gap-2 px-4 py-2 hover:bg-neutral-800">
-              <img src="{% static 'img/siteassets/homepage/enshrouded.png' %}" alt="Enshrouded" class="w-4 h-4" />
-              Enshrouded
-            </a>
-            <a href="/vrising" class="flex items-center gap-2 px-4 py-2 hover:bg-neutral-800">
-              <img src="{% static 'img/siteassets/homepage/virsing.png' %}" alt="V Rising" class="w-4 h-4" />
-              V Rising
-            </a>
+              <!-- Guilds -->
+              <div class="px-4 py-1 mt-2 text-xs uppercase text-gray-400 tracking-wider">Casual Heroes Guilds</div>
+              <a href="/dune" class="flex items-center gap-2 px-4 py-2 hover:bg-neutral-800">
+                <img src="{% static 'img/games/guilds/DA.webp' %}" alt="Dune" class="w-4 h-4" />
+                Dune
+              </a>
+              <a href="/pantheon" class="flex items-center gap-2 px-4 py-2 hover:bg-neutral-800">
+                <img src="{% static 'img/games/guilds/pantheon.webp' %}" alt="Pantheon" class="w-4 h-4" />
+                Pantheon
+              </a>
+              <a href="/wow" class="flex items-center gap-2 px-4 py-2 hover:bg-neutral-800">
+                <img src="{% static 'img/games/guilds/WoWlogo.png' %}" alt="WoW" class="w-4 h-4" />
+                World of Warcraft
+              </a>
+            </div>
           </div>
-        </div>
-
 
           <a href="/guides" class="hover:text-indigo-400 transition">Game Guides</a>
           <a href="/features" class="hover:text-indigo-400 transition">Features</a>
           <a href="/content" class="hover:text-indigo-400 transition">Casual Heroes Content</a>
           <a href="/aboutus" class="hover:text-indigo-400 transition">About Us</a>
 
-          <!-- Hosting Dropdown with Icons -->
+          <!-- Hosting Dropdown -->
           <div x-data="{ open: false }" class="relative">
             <button @click="open = !open" class="text-indigo-400 font-semibold flex items-center gap-1 hover:text-indigo-400">
               Hosting ▾
             </button>
-            <div x-show="open" @click.outside="open = false" x-transition class="absolute left-0 mt-2 bg-neutral-900 border border-neutral-800 rounded-lg shadow-lg w-56 z-50 text-sm">
+            <div x-show="open" @click.outside="open = false" x-transition 
+              class="absolute left-0 mt-2 bg-neutral-900 border border-neutral-800 rounded-lg shadow-lg w-56 z-50 text-sm">
               <a href="/hosting" class="flex items-center gap-2 px-4 py-2 hover:bg-neutral-800">
                 <span class="w-4 h-4"></span> Hosting Overview
               </a>
@@ -123,7 +134,6 @@
             All referenced images, logos, and characters are registered trademarks of their respective game studios. Casual Heroes Hosting Services claims no ownership over Dragonwilds, Enshrouded, V Rising, or any other game assets, which are used here solely for illustrative and community engagement purposes.
           </p>
         </div>
-        
 
         <div class="flex gap-4 justify-center md:justify-end">
           <a href="https://discord.gg/ECwJWppSjQ"><i class="fab fa-discord"></i></a>

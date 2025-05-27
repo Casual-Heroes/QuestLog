@@ -36,14 +36,14 @@ STATIC_GAME_INFO = {
         "steam_appid": "251570",
         "connect_pw": "N/A"
     },
-    "CasualHeroes-Conan01": {
-        "display_name": "Conan Exiles",
-        "description": "PvE meets PvP in a fully modded world. Let the chaos rain — builders and devs welcome in the Exiled Lands. LFM Devs!",
-        "discord_invite": "https://discord.gg/S4XkS58HTq",
-        "steam_link": "https://store.steampowered.com/app/440900/Conan_Exiles/",
-        "steam_appid": "440900",
-        "connect_pw": "No Password"
-    },
+    # "CasualHeroes-Conan01": {
+    #     "display_name": "Conan Exiles",
+    #     "description": "PvE meets PvP in a fully modded world. Let the chaos rain — builders and devs welcome in the Exiled Lands. LFM Devs!",
+    #     "discord_invite": "https://discord.gg/S4XkS58HTq",
+    #     "steam_link": "https://store.steampowered.com/app/440900/Conan_Exiles/",
+    #     "steam_appid": "440900",
+    #     "connect_pw": "No Password"
+    # },
 
     # "CasualHeroes-Ascended01": {
     #     "display_name": "Dragonwilds",
@@ -74,29 +74,41 @@ STATIC_GAME_INFO = {
 }
 # Games tracked through Discord only
 DISCORD_GAMES = [
-    {
-        "id": "Dragonwilds",
-        "name": "Dragonwilds",
-        "description": "As soon as dedicated servers drop, we’re self-hosting, building custom content, and launching a one-of-a-kind Dragonwilds adventure.",
-        "steam_link": "https://store.steampowered.com/app/1374490/RuneScape_Dragonwilds/",
-        "discord_invite": "https://discord.gg/WZzTppBgBz",
-        "steam_appid": "1374490",
-        "custom_img": "/static/img/games/Dragonwilds/dw_static.jpg",
+        {
+        "id": "Dune: Awakening",
+        "name": "Dune: Awakening",
+        "description": "The premier casual guild in the Dune uninverse. Chill dungeon runs, late-night banter, and a crew that’s always online. Whether you're new or a raiding vet, Casual Heroes has a spot for you.",
+        "guild_page": "https://casual-heroes.com/dune/",
+        "steam_link": "https://store.steampowered.com/app/1172710/Dune_Awakening/",
+        "discord_invite": "https://discord.gg/jAJvykZvej",
+        "steam_appid": "1172710",
         "online": "-",
         "max": "-",
         "link_label": "View on Steam"
     },
-    {
-        "id": "MHW",
-        "name": "Monster Hunter Wilds",
-        "description": "From fashion shows to chaotic wild hunts, our Monster Hunter community is growing fast. Whether you're min-maxing DPS or just showing off your best drip, there's a spot at the campfire for you.",
-        "steam_link": "https://store.steampowered.com/app/2246340/Monster_Hunter_Wilds/",
-        "discord_invite": "https://discord.gg/3rKQptH7Fd",
-        "steam_appid": "2246340",
-        "online": "-",
-        "max": "-",
-        "link_label": "View on Steam"
-    },
+    # {
+    #     "id": "Dragonwilds",
+    #     "name": "Dragonwilds",
+    #     "description": "As soon as dedicated servers drop, we’re self-hosting, building custom content, and launching a one-of-a-kind Dragonwilds adventure.",
+    #     "steam_link": "https://store.steampowered.com/app/1374490/RuneScape_Dragonwilds/",
+    #     "discord_invite": "https://discord.gg/WZzTppBgBz",
+    #     "steam_appid": "1374490",
+    #     "custom_img": "/static/img/games/Dragonwilds/dw_static.jpg",
+    #     "online": "-",
+    #     "max": "-",
+    #     "link_label": "View on Steam"
+    # },
+    # {
+    #     "id": "MHW",
+    #     "name": "Monster Hunter Wilds",
+    #     "description": "From fashion shows to chaotic wild hunts, our Monster Hunter community is growing fast. Whether you're min-maxing DPS or just showing off your best drip, there's a spot at the campfire for you.",
+    #     "steam_link": "https://store.steampowered.com/app/2246340/Monster_Hunter_Wilds/",
+    #     "discord_invite": "https://discord.gg/3rKQptH7Fd",
+    #     "steam_appid": "2246340",
+    #     "online": "-",
+    #     "max": "-",
+    #     "link_label": "View on Steam"
+    # },
     {
         "id": "Pantheon",
         "name": "Pantheon: Rise of the Fallen",
@@ -108,17 +120,17 @@ DISCORD_GAMES = [
         "max": "-",
         "link_label": "View on Steam"
     },
-    {
-        "id": "PoE2",
-        "name": "Path of Exile 2",
-        "description": "You’ll always find someone theorycrafting their next crazy build here. Casual Heroes are farming, testing, and helping each other every step of the way.",
-        "steam_link": "https://store.steampowered.com/app/2694490/Path_of_Exile_2/",
-        "discord_invite": "https://discord.gg/fs9qAkVkxH",
-        "steam_appid": "2694490",
-        "online": "-",
-        "max": "-",
-        "link_label": "View on Steam"
-    },
+    # {
+    #     "id": "PoE2",
+    #     "name": "Path of Exile 2",
+    #     "description": "You’ll always find someone theorycrafting their next crazy build here. Casual Heroes are farming, testing, and helping each other every step of the way.",
+    #     "steam_link": "https://store.steampowered.com/app/2694490/Path_of_Exile_2/",
+    #     "discord_invite": "https://discord.gg/fs9qAkVkxH",
+    #     "steam_appid": "2694490",
+    #     "online": "-",
+    #     "max": "-",
+    #     "link_label": "View on Steam"
+    # },
     {
         "id": "WoW",
         "name": "World of Warcraft",
@@ -185,6 +197,7 @@ async def fetch_instance_data(instance_name):
                     "title": static_info.get("display_name", instance_name),
                     "description": static_info.get("description", ""),
                     "discord_invite": static_info.get("discord_invite", "#"),
+                    "guild_page": static_info.get("guild_page", ""),
                     "steam_link": static_info.get("steam_link", "#"),
                     "steam_appid": static_info.get("steam_appid"),
                     "custom_img": static_info.get("custom_img"),
@@ -214,6 +227,7 @@ def safe_amp_fallback(instance_name):
         "title": static_info.get("display_name", instance_name),
         "description": static_info.get("description", ""),
         "discord_invite": static_info.get("discord_invite", "#"),
+        "guild_page": static_info.get("guild_page", ""),
         "steam_link": static_info.get("steam_link", "#"),
         "steam_appid": static_info.get("steam_appid"),
         "custom_img": static_info.get("custom_img"),
@@ -265,7 +279,7 @@ def games_we_play(request):
             game["steam_appid"] = static_info.get("steam_appid")
             game["custom_img"] = static_info.get("custom_img")
 
-        # 🔥 Ensure name and source
+        # Ensure name and source
         game["name"] = game.get("name", game["id"])
         game["source"] = "discord"
 
@@ -422,6 +436,18 @@ def sevendtd(request):
 
 def dragonwilds(request):
     return render(request, 'dragonwilds.html')
+
+def dune(request):
+    return render(request, 'dune.html')
+
+def pantheon(request):
+    return render(request, 'pantheon.html')
+
+def wow(request):
+    return render(request, 'wow.html')
+
+def dune_guild(request):
+    return render(request, 'dune_guild.html')
 
 def gameshype(request):
     return render(request, 'gameshype.html')
