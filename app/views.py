@@ -30,8 +30,8 @@ def get_discord_activity():
 STATIC_GAME_INFO = {
     "CasualHeroes-7DTD01": {
         "display_name": "7 Days to Die",
-        "description": "Join us in a fully modded world. Builders and devs welcome. LFM Devs!",
-        "discord_invite": "https://discord.gg/3rKQptH7Fd",
+        "description": "A custom survival world where biomes bite back. Bots spawn threats, buffs twist the rules, nothing is predictable, and that’s the point.",
+        "discord_invite": "https://discord.gg/CHHS",
         "steam_link": "https://store.steampowered.com/app/251570/7_Days_to_Die/",
         "steam_appid": "251570",
         "connect_pw": "N/A"
@@ -57,16 +57,16 @@ STATIC_GAME_INFO = {
 
     "Enshrouded01": {
         "display_name": "Enshrouded",
-        "description": "Soulslike combat, 255 altars, and modding as soon as it drops. Casual Heroes is building the wildest Enshrouded server yet. LFM devs.",
-        "discord_invite": "https://discord.gg/YAFF4dfEWz",
+        "description": "Soulslike survival with tuned combat, custom altars, and strange terrain. Built for players who like challenge, discovery, and a bit of chaos.",
+        "discord_invite": "https://discord.gg/CHHS",
         "steam_link": "https://store.steampowered.com/app/1203620/Enshrouded/",
         "steam_appid": "1203620",
         "connect_pw": "Join the Discord"
     },
     "CasualHeroes-Vrising01": {
         "display_name": "V Rising",
-        "description": "Rise with us in a gothic, modded world. We're expanding fast, castle building, PvP, and dev spots open for those ready to reshape Vardoran. LFM Devs!",
-        "discord_invite": "https://discord.gg/QBaxdqNDQH",
+        "description": "Modded gothic survival with PvP and random preset days, castle building, and a world that rewards planning over panic. Vardoran’s waiting, Rise. Bite. Build.",
+        "discord_invite": "https://discord.gg/CHHS",
         "steam_link": "https://store.steampowered.com/app/1604030/V_Rising/",
         "steam_appid": "1604030",
         "connect_pw": "No Password"
@@ -75,7 +75,7 @@ STATIC_GAME_INFO = {
 # Games tracked through Discord only
 DISCORD_GAMES = [
         {
-        "id": "Dune: Awakening",
+        "id": "Dune",
         "name": "Dune: Awakening",
         "description": "The premier casual guild in the Dune uninverse. Chill dungeon runs, late-night banter, and a crew that’s always online. Whether you're new or a raiding vet, Casual Heroes has a spot for you.",
         "guild_page": "https://casual-heroes.com/dune/",
