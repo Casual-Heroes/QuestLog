@@ -2,6 +2,7 @@ def home(request):
     return render(request, 'index.html')
 
 from django.shortcuts import render
+import requests
 from django.contrib.auth import authenticate, login
 from django.contrib import messages
 from django.shortcuts import redirect, render
@@ -183,7 +184,12 @@ async def fetch_instance_data(instance_name):
                 if not game_port and valid_ports:
                     game_port = valid_ports[0]
 
-                ip = game_port.get("externalip") or game_port.get("hostname") or "72.69.139.105"
+                ip = (
+                game_port.get("ip")
+                or game_port.get("hostname")
+                or requests.get("https://ifconfig.me").text.strip()
+                or "Unknown"
+            )
                 port = str(game_port.get("port")) if game_port else "Unknown"
 
                 static_info = STATIC_GAME_INFO.get(instance_name, {})
