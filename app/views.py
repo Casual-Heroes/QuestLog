@@ -57,14 +57,14 @@ STATIC_GAME_INFO = {
     #     "connect_pw": "N/A"
     # },
 
-    "Enshrouded01": {
-        "display_name": "Enshrouded",
-        "description": "Soulslike survival with tuned combat, custom altars, and strange terrain. Built for players who like challenge, discovery, and a bit of chaos.",
-        "discord_invite": "https://discord.gg/CHHS",
-        "steam_link": "https://store.steampowered.com/app/1203620/Enshrouded/",
-        "steam_appid": "1203620",
-        "connect_pw": "Join the Discord"
-    },
+    # "Enshrouded01": {
+    #     "display_name": "Enshrouded",
+    #     "description": "Soulslike survival with tuned combat, custom altars, and strange terrain. Built for players who like challenge, discovery, and a bit of chaos.",
+    #     "discord_invite": "https://discord.gg/CHHS",
+    #     "steam_link": "https://store.steampowered.com/app/1203620/Enshrouded/",
+    #     "steam_appid": "1203620",
+    #     "connect_pw": "Join the Discord"
+    # },
     "CasualHeroes-Vrising01": {
         "display_name": "V Rising",
         "description": "Modded gothic survival with PvP and random preset days, castle building, and a world that rewards planning over panic. Vardoran’s waiting, Rise. Bite. Build.",
@@ -133,17 +133,17 @@ DISCORD_GAMES = [
     #     "max": "-",
     #     "link_label": "View on Steam"
     # },
-    {
-        "id": "WoW",
-        "name": "World of Warcraft",
-        "description": "Teaming up with longtime friend Eldronox and his legendary community 'Eternal Legends', we're building a World of Warcraft guild called <Casual Legends>. A chill, zero-drama space for adventurers who play at their own pace..",
-        "steam_link": "https://worldofwarcraft.blizzard.com/en-us/",
-        "discord_invite": "https://discord.gg/exRgR9YGyy",
-        "custom_img": "/static/img/games/wow/dwarf.webp",
-        "online": "-",
-        "max": "-",
-        "link_label": "View Site"
-    }
+    # {
+    #     "id": "WoW",
+    #     "name": "World of Warcraft",
+    #     "description": "Teaming up with longtime friend Eldronox and his legendary community 'Eternal Legends', we're building a World of Warcraft guild called <Casual Legends>. A chill, zero-drama space for adventurers who play at their own pace..",
+    #     "steam_link": "https://worldofwarcraft.blizzard.com/en-us/",
+    #     "discord_invite": "https://discord.gg/exRgR9YGyy",
+    #     "custom_img": "/static/img/games/wow/dwarf.webp",
+    #     "online": "-",
+    #     "max": "-",
+    #     "link_label": "View Site"
+    # }
 ]
 
 
@@ -352,31 +352,31 @@ def pantheon_page(request):
         "pantheon_activity": pantheon_data
     })
 
-def wow_page(request):
-    wow_data = {
-        "total": "-",
-        "online": "-",
-        "active": "-"
-    }
+# def wow_page(request):
+#     wow_data = {
+#         "total": "-",
+#         "online": "-",
+#         "active": "-"
+#     }
 
-    if DISCORD_ACTIVITY_FILE.exists():
-        try:
-            with DISCORD_ACTIVITY_FILE.open("r") as f:
-                all_activity = json.load(f)
-                raw = all_activity.get("WoW", {})
-                print("[DEBUG] Raw WoW Activity:", raw)
+#     if DISCORD_ACTIVITY_FILE.exists():
+#         try:
+#             with DISCORD_ACTIVITY_FILE.open("r") as f:
+#                 all_activity = json.load(f)
+#                 raw = all_activity.get("WoW", {})
+#                 print("[DEBUG] Raw WoW Activity:", raw)
 
-                # Safely cast integers
-                wow_data["total"] = int(raw["total"]) if str(raw.get("total", "")).isdigit() else "-"
-                wow_data["online"] = int(raw["online"]) if str(raw.get("online", "")).isdigit() else "-"
-                wow_data["active"] = int(raw["active"]) if str(raw.get("active", "")).isdigit() else "-"
-        except Exception as e:
-            print(f"[WoW PAGE] Failed to load activity data: {e}")
+#                 # Safely cast integers
+#                 wow_data["total"] = int(raw["total"]) if str(raw.get("total", "")).isdigit() else "-"
+#                 wow_data["online"] = int(raw["online"]) if str(raw.get("online", "")).isdigit() else "-"
+#                 wow_data["active"] = int(raw["active"]) if str(raw.get("active", "")).isdigit() else "-"
+#         except Exception as e:
+#             print(f"[WoW PAGE] Failed to load activity data: {e}")
 
-    print("[DEBUG] Final wow_data:", wow_data)
-    return render(request, "wow.html", {
-        "wow_activity": wow_data
-    })
+#     print("[DEBUG] Final wow_data:", wow_data)
+#     return render(request, "wow.html", {
+#         "wow_activity": wow_data
+#     })
 
 
 
