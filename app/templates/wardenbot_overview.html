@@ -1,0 +1,898 @@
+{% extends 'base.html' %}
+
+{% block title %}WardenBot - User Guide | Casual Heroes{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto py-12 px-4">
+  <!-- Header -->
+  <div class="text-center mb-12">
+    <h1 class="text-5xl font-bold mb-4 bg-gradient-to-r from-indigo-400 to-purple-500 bg-clip-text text-transparent">
+      Warden Bot - User Guide
+    </h1>
+    <p class="text-xl text-gray-400">
+      Welcome to Warden! This guide will help you get started with the bot and web dashboard.
+    </p>
+  </div>
+
+  <!-- Quick Navigation -->
+  <div class="bg-neutral-900 border border-neutral-800 rounded-lg p-6 mb-12">
+    <h2 class="text-2xl font-bold mb-4">Table of Contents</h2>
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 text-sm">
+      <a href="#getting-started" class="text-indigo-400 hover:text-indigo-300">Getting Started</a>
+      <a href="#web-dashboard" class="text-indigo-400 hover:text-indigo-300">Web Dashboard</a>
+      <a href="#xp-leveling" class="text-indigo-400 hover:text-indigo-300">XP & Leveling</a>
+      <a href="#welcome-messages" class="text-indigo-400 hover:text-indigo-300">Welcome Messages</a>
+      <a href="#level-up-messages" class="text-indigo-400 hover:text-indigo-300">Level-Up Messages</a>
+      <a href="#verification" class="text-indigo-400 hover:text-indigo-300">Verification</a>
+      <a href="#moderation" class="text-indigo-400 hover:text-indigo-300">Moderation</a>
+      <a href="#channel-stats" class="text-indigo-400 hover:text-indigo-300">Channel Stats & Trackers</a>
+      <a href="#role-management" class="text-indigo-400 hover:text-indigo-300">Role Management</a>
+      <a href="#templates" class="text-indigo-400 hover:text-indigo-300">Templates</a>
+      <a href="#server-settings" class="text-indigo-400 hover:text-indigo-300">Server Settings</a>
+      <a href="#bot-commands" class="text-indigo-400 hover:text-indigo-300">Bot Commands</a>
+      <a href="#faq" class="text-indigo-400 hover:text-indigo-300">FAQ</a>
+    </div>
+  </div>
+
+  <!-- Content Sections -->
+  <div class="space-y-16">
+
+    <!-- Getting Started -->
+    <section id="getting-started" class="bg-neutral-900 border border-neutral-800 rounded-lg p-8">
+      <h2 class="text-3xl font-bold mb-6 text-indigo-400">Getting Started</h2>
+
+      <div class="space-y-6">
+        <div>
+          <h3 class="text-xl font-semibold mb-3">Inviting Warden to Your Server</h3>
+          <ol class="list-decimal list-inside space-y-2 text-gray-300 ml-4">
+            <li>Visit the Warden website</li>
+            <li>Click "Add to Discord"</li>
+            <li>Select your server from the dropdown</li>
+            <li>Authorize the requested permissions</li>
+            <li>Warden is now in your server!</li>
+          </ol>
+        </div>
+
+        <div>
+          <h3 class="text-xl font-semibold mb-3">Accessing the Dashboard</h3>
+          <ol class="list-decimal list-inside space-y-2 text-gray-300 ml-4">
+            <li>Go to the Warden website</li>
+            <li>Click "Login with Discord"</li>
+            <li>Authorize the application</li>
+            <li>Select your server from the list</li>
+            <li>Start configuring!</li>
+          </ol>
+          <p class="text-yellow-400 mt-4">
+            <i class="fas fa-exclamation-triangle"></i>
+            <strong>Note:</strong> You must have <strong>Administrator</strong> or <strong>Manage Server</strong> permission to access the dashboard.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Web Dashboard -->
+    <section id="web-dashboard" class="bg-neutral-900 border border-neutral-800 rounded-lg p-8">
+      <h2 class="text-3xl font-bold mb-6 text-indigo-400">Web Dashboard</h2>
+      <p class="text-gray-300 mb-4">The dashboard is your central hub for configuring Warden. Here's what you'll find:</p>
+
+      <div class="space-y-4">
+        <div>
+          <h3 class="text-xl font-semibold mb-2">Dashboard Overview</h3>
+          <ul class="list-disc list-inside space-y-2 text-gray-300 ml-4">
+            <li><strong>Quick Stats:</strong> Total members, active today, XP earned, warnings</li>
+            <li><strong>Configuration Modules:</strong> Click any module to configure it</li>
+            <li><strong>Server Settings:</strong> Bot prefix, language, timezone, and more</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- XP & Leveling -->
+    <section id="xp-leveling" class="bg-neutral-900 border border-neutral-800 rounded-lg p-8">
+      <h2 class="text-3xl font-bold mb-6 text-indigo-400">XP & Leveling</h2>
+      <p class="text-gray-300 mb-6">Reward your members for being active!</p>
+
+      <div class="space-y-6">
+        <div>
+          <h3 class="text-xl font-semibold mb-3">How XP Works</h3>
+          <ul class="list-disc list-inside space-y-2 text-gray-300 ml-4">
+            <li>Members earn XP by chatting in your server</li>
+            <li>XP is awarded once per message (with a cooldown to prevent spam)</li>
+            <li>As members accumulate XP, they level up</li>
+            <li>You can assign roles automatically when members reach certain levels</li>
+          </ul>
+        </div>
+
+        <div>
+          <h3 class="text-xl font-semibold mb-3">Configuration Options</h3>
+          <div class="overflow-x-auto">
+            <table class="w-full border-collapse border border-neutral-700">
+              <thead class="bg-neutral-800">
+                <tr>
+                  <th class="border border-neutral-700 px-4 py-2 text-left">Setting</th>
+                  <th class="border border-neutral-700 px-4 py-2 text-left">Description</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td class="border border-neutral-700 px-4 py-2 font-semibold">XP Per Message</td>
+                  <td class="border border-neutral-700 px-4 py-2">Base amount of XP earned per message (default: 15-25)</td>
+                </tr>
+                <tr>
+                  <td class="border border-neutral-700 px-4 py-2 font-semibold">Cooldown</td>
+                  <td class="border border-neutral-700 px-4 py-2">Seconds between XP awards per user (default: 60)</td>
+                </tr>
+                <tr>
+                  <td class="border border-neutral-700 px-4 py-2 font-semibold">Bonus Channels</td>
+                  <td class="border border-neutral-700 px-4 py-2">Channels with multiplied XP rates</td>
+                </tr>
+                <tr>
+                  <td class="border border-neutral-700 px-4 py-2 font-semibold">Ignored Channels</td>
+                  <td class="border border-neutral-700 px-4 py-2">Channels that don't award XP</td>
+                </tr>
+                <tr>
+                  <td class="border border-neutral-700 px-4 py-2 font-semibold">Level Roles</td>
+                  <td class="border border-neutral-700 px-4 py-2">Roles automatically assigned at specific levels</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div>
+          <h3 class="text-xl font-semibold mb-3">Setting Up Level Roles</h3>
+          <ol class="list-decimal list-inside space-y-2 text-gray-300 ml-4">
+            <li>Go to <strong>XP & Leveling</strong> in the dashboard</li>
+            <li>Scroll to "Level Roles"</li>
+            <li>Click "Add Level Role"</li>
+            <li>Enter the level and select the role</li>
+            <li>Click Save</li>
+          </ol>
+          <div class="mt-4 bg-neutral-800 p-4 rounded">
+            <p class="font-semibold mb-2">Example Setup:</p>
+            <ul class="list-disc list-inside space-y-1 text-gray-300 ml-4">
+              <li>Level 5: "Active Member"</li>
+              <li>Level 10: "Regular"</li>
+              <li>Level 25: "Veteran"</li>
+              <li>Level 50: "Legend"</li>
+            </ul>
+          </div>
+        </div>
+
+        <div>
+          <h3 class="text-xl font-semibold mb-3">Viewing the Leaderboard</h3>
+          <p class="text-gray-300">Use the <code class="bg-neutral-800 px-2 py-1 rounded">/leaderboard</code> command to see top members, or view it in the dashboard.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Welcome Messages -->
+    <section id="welcome-messages" class="bg-neutral-900 border border-neutral-800 rounded-lg p-8">
+      <h2 class="text-3xl font-bold mb-6 text-indigo-400">Welcome Messages</h2>
+      <p class="text-gray-300 mb-6">Greet new members and bid farewell to those who leave.</p>
+
+      <div class="space-y-6">
+        <div>
+          <h3 class="text-xl font-semibold mb-3">Configuration</h3>
+          <ol class="list-decimal list-inside space-y-2 text-gray-300 ml-4">
+            <li>Go to <strong>Welcome Messages</strong> in the dashboard</li>
+            <li>Enable welcome and/or goodbye messages</li>
+            <li>Select the channel where messages will be sent</li>
+            <li>Customize your message using variables</li>
+          </ol>
+        </div>
+
+        <div>
+          <h3 class="text-xl font-semibold mb-3">Available Variables</h3>
+          <div class="overflow-x-auto">
+            <table class="w-full border-collapse border border-neutral-700">
+              <thead class="bg-neutral-800">
+                <tr>
+                  <th class="border border-neutral-700 px-4 py-2 text-left">Variable</th>
+                  <th class="border border-neutral-700 px-4 py-2 text-left">Description</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td class="border border-neutral-700 px-4 py-2"><code class="bg-neutral-800 px-2 py-1 rounded">{user}</code></td>
+                  <td class="border border-neutral-700 px-4 py-2">Mentions the user (@username)</td>
+                </tr>
+                <tr>
+                  <td class="border border-neutral-700 px-4 py-2"><code class="bg-neutral-800 px-2 py-1 rounded">{username}</code></td>
+                  <td class="border border-neutral-700 px-4 py-2">The user's display name</td>
+                </tr>
+                <tr>
+                  <td class="border border-neutral-700 px-4 py-2"><code class="bg-neutral-800 px-2 py-1 rounded">{server}</code></td>
+                  <td class="border border-neutral-700 px-4 py-2">Your server's name</td>
+                </tr>
+                <tr>
+                  <td class="border border-neutral-700 px-4 py-2"><code class="bg-neutral-800 px-2 py-1 rounded">{membercount}</code></td>
+                  <td class="border border-neutral-700 px-4 py-2">Total member count</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div>
+          <h3 class="text-xl font-semibold mb-3">Example Messages</h3>
+          <div class="space-y-3">
+            <div class="bg-neutral-800 p-4 rounded">
+              <p class="font-semibold mb-2">Welcome:</p>
+              <code class="text-green-400">Welcome to {server}, {user}! You are member #{membercount}!</code>
+            </div>
+            <div class="bg-neutral-800 p-4 rounded">
+              <p class="font-semibold mb-2">Goodbye:</p>
+              <code class="text-red-400">{username} has left {server}. We now have {membercount} members.</code>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <h3 class="text-xl font-semibold mb-3">Auto-Role on Join</h3>
+          <p class="text-gray-300 mb-2">Automatically assign a role to new members:</p>
+          <ol class="list-decimal list-inside space-y-2 text-gray-300 ml-4">
+            <li>Enable "Auto-Role" toggle</li>
+            <li>Select the role to assign</li>
+            <li>New members will receive this role upon joining</li>
+          </ol>
+        </div>
+      </div>
+    </section>
+
+    <!-- Level-Up Messages -->
+    <section id="level-up-messages" class="bg-neutral-900 border border-neutral-800 rounded-lg p-8">
+      <h2 class="text-3xl font-bold mb-6 text-indigo-400">Level-Up Messages</h2>
+      <p class="text-gray-300 mb-6">Celebrate when members reach new levels!</p>
+
+      <div class="space-y-6">
+        <div>
+          <h3 class="text-xl font-semibold mb-3">Configuration Options</h3>
+          <div class="overflow-x-auto">
+            <table class="w-full border-collapse border border-neutral-700">
+              <thead class="bg-neutral-800">
+                <tr>
+                  <th class="border border-neutral-700 px-4 py-2 text-left">Setting</th>
+                  <th class="border border-neutral-700 px-4 py-2 text-left">Description</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td class="border border-neutral-700 px-4 py-2 font-semibold">Destination</td>
+                  <td class="border border-neutral-700 px-4 py-2">Where to send: current channel, specific channel, DM, or disabled</td>
+                </tr>
+                <tr>
+                  <td class="border border-neutral-700 px-4 py-2 font-semibold">Message</td>
+                  <td class="border border-neutral-700 px-4 py-2">Custom message with variables</td>
+                </tr>
+                <tr>
+                  <td class="border border-neutral-700 px-4 py-2 font-semibold">Use Embed</td>
+                  <td class="border border-neutral-700 px-4 py-2">Send as a fancy embed or plain text</td>
+                </tr>
+                <tr>
+                  <td class="border border-neutral-700 px-4 py-2 font-semibold">Embed Color</td>
+                  <td class="border border-neutral-700 px-4 py-2">Custom color for the embed</td>
+                </tr>
+                <tr>
+                  <td class="border border-neutral-700 px-4 py-2 font-semibold">Milestone Only</td>
+                  <td class="border border-neutral-700 px-4 py-2">Only announce at levels 5, 10, 25, 50, 100</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div>
+          <h3 class="text-xl font-semibold mb-3">Variables</h3>
+          <div class="overflow-x-auto">
+            <table class="w-full border-collapse border border-neutral-700">
+              <thead class="bg-neutral-800">
+                <tr>
+                  <th class="border border-neutral-700 px-4 py-2 text-left">Variable</th>
+                  <th class="border border-neutral-700 px-4 py-2 text-left">Description</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td class="border border-neutral-700 px-4 py-2"><code class="bg-neutral-800 px-2 py-1 rounded">{user}</code></td>
+                  <td class="border border-neutral-700 px-4 py-2">Mentions the user</td>
+                </tr>
+                <tr>
+                  <td class="border border-neutral-700 px-4 py-2"><code class="bg-neutral-800 px-2 py-1 rounded">{level}</code></td>
+                  <td class="border border-neutral-700 px-4 py-2">The new level</td>
+                </tr>
+                <tr>
+                  <td class="border border-neutral-700 px-4 py-2"><code class="bg-neutral-800 px-2 py-1 rounded">{xp}</code></td>
+                  <td class="border border-neutral-700 px-4 py-2">Total XP earned</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div>
+          <h3 class="text-xl font-semibold mb-3">Example Message</h3>
+          <div class="bg-neutral-800 p-4 rounded">
+            <code class="text-yellow-400">Congrats {user}! You've reached **Level {level}**!</code>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Verification -->
+    <section id="verification" class="bg-neutral-900 border border-neutral-800 rounded-lg p-8">
+      <h2 class="text-3xl font-bold mb-6 text-indigo-400">Verification</h2>
+      <p class="text-gray-300 mb-6">Protect your server from bots and raiders.</p>
+
+      <div class="space-y-6">
+        <div>
+          <h3 class="text-xl font-semibold mb-3">Verification Types</h3>
+          <div class="overflow-x-auto">
+            <table class="w-full border-collapse border border-neutral-700">
+              <thead class="bg-neutral-800">
+                <tr>
+                  <th class="border border-neutral-700 px-4 py-2 text-left">Type</th>
+                  <th class="border border-neutral-700 px-4 py-2 text-left">Description</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td class="border border-neutral-700 px-4 py-2 font-semibold">None</td>
+                  <td class="border border-neutral-700 px-4 py-2">No verification required</td>
+                </tr>
+                <tr>
+                  <td class="border border-neutral-700 px-4 py-2 font-semibold">Button</td>
+                  <td class="border border-neutral-700 px-4 py-2">Click a button to verify</td>
+                </tr>
+                <tr>
+                  <td class="border border-neutral-700 px-4 py-2 font-semibold">CAPTCHA</td>
+                  <td class="border border-neutral-700 px-4 py-2">Solve a text CAPTCHA</td>
+                </tr>
+                <tr>
+                  <td class="border border-neutral-700 px-4 py-2 font-semibold">Account Age</td>
+                  <td class="border border-neutral-700 px-4 py-2">Must have an account older than X days</td>
+                </tr>
+                <tr>
+                  <td class="border border-neutral-700 px-4 py-2 font-semibold">Multi-Step</td>
+                  <td class="border border-neutral-700 px-4 py-2">Combination of methods (Premium)</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div>
+          <h3 class="text-xl font-semibold mb-3">Setup</h3>
+          <ol class="list-decimal list-inside space-y-2 text-gray-300 ml-4">
+            <li>Go to <strong>Verification</strong> in the dashboard</li>
+            <li>Select your verification type</li>
+            <li>Set the verification channel (where the verify button appears)</li>
+            <li>Set the verified role (given after verification)</li>
+            <li>Customize messages and timeout settings</li>
+          </ol>
+        </div>
+
+        <div>
+          <h3 class="text-xl font-semibold mb-3">Account Age Protection</h3>
+          <p class="text-gray-300 mb-2">Block new Discord accounts to prevent alt abuse:</p>
+          <ol class="list-decimal list-inside space-y-2 text-gray-300 ml-4">
+            <li>Enable "Require Account Age"</li>
+            <li>Set minimum age in days (e.g., 7 days)</li>
+            <li>Users with newer accounts will be blocked</li>
+          </ol>
+        </div>
+      </div>
+    </section>
+
+    <!-- Moderation -->
+    <section id="moderation" class="bg-neutral-900 border border-neutral-800 rounded-lg p-8">
+      <h2 class="text-3xl font-bold mb-6 text-indigo-400">Moderation</h2>
+      <p class="text-gray-300 mb-6">Keep your server safe and organized.</p>
+
+      <div class="space-y-6">
+        <div>
+          <h3 class="text-xl font-semibold mb-3">Features</h3>
+          <ul class="list-disc list-inside space-y-2 text-gray-300 ml-4">
+            <li><strong>Warnings:</strong> Track member infractions</li>
+            <li><strong>Mod Log:</strong> All mod actions logged to a channel</li>
+            <li><strong>Auto-Moderation:</strong> Coming soon!</li>
+          </ul>
+        </div>
+
+        <div>
+          <h3 class="text-xl font-semibold mb-3">Managing Warnings</h3>
+          <div class="space-y-4">
+            <div>
+              <p class="font-semibold mb-2">Via Dashboard:</p>
+              <ol class="list-decimal list-inside space-y-2 text-gray-300 ml-4">
+                <li>Go to <strong>Moderation</strong></li>
+                <li>View all warnings in a table</li>
+                <li>Click "Pardon" to remove a warning</li>
+              </ol>
+            </div>
+            <div>
+              <p class="font-semibold mb-2">Via Bot Commands:</p>
+              <ul class="list-disc list-inside space-y-1 text-gray-300 ml-4">
+                <li><code class="bg-neutral-800 px-2 py-1 rounded">/warn @user reason</code> - Issue a warning</li>
+                <li><code class="bg-neutral-800 px-2 py-1 rounded">/warnings @user</code> - View user's warnings</li>
+                <li><code class="bg-neutral-800 px-2 py-1 rounded">/pardon @user warning_id</code> - Remove a warning</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <h3 class="text-xl font-semibold mb-3">Setting Up Mod Log</h3>
+          <ol class="list-decimal list-inside space-y-2 text-gray-300 ml-4">
+            <li>Go to <strong>Server Settings</strong></li>
+            <li>Enter your mod log channel ID</li>
+            <li>All mod actions will be logged there</li>
+          </ol>
+        </div>
+      </div>
+    </section>
+
+    <!-- Channel Stats & Trackers -->
+    <section id="channel-stats" class="bg-neutral-900 border border-neutral-800 rounded-lg p-8">
+      <h2 class="text-3xl font-bold mb-6 text-indigo-400">Channel Stats & Trackers</h2>
+      <p class="text-gray-300 mb-6">Display live stats in channel names!</p>
+
+      <div class="space-y-6">
+        <div>
+          <h3 class="text-xl font-semibold mb-3">How It Works</h3>
+          <p class="text-gray-300 mb-2">Trackers automatically update channel names with live information like:</p>
+          <ul class="list-disc list-inside space-y-2 text-gray-300 ml-4">
+            <li>Total member count</li>
+            <li>Online member count</li>
+            <li>Bot count</li>
+            <li>Members playing a specific game</li>
+          </ul>
+        </div>
+
+        <div>
+          <h3 class="text-xl font-semibold mb-3">Creating a Tracker</h3>
+          <ol class="list-decimal list-inside space-y-2 text-gray-300 ml-4">
+            <li>Go to <strong>Channel Stats</strong> in the dashboard</li>
+            <li>Click "New Tracker"</li>
+            <li>Select the channel to track</li>
+            <li>Choose the stat type</li>
+            <li>Set the format template</li>
+          </ol>
+        </div>
+
+        <div>
+          <h3 class="text-xl font-semibold mb-3">Format Templates</h3>
+          <div class="overflow-x-auto mb-4">
+            <table class="w-full border-collapse border border-neutral-700">
+              <thead class="bg-neutral-800">
+                <tr>
+                  <th class="border border-neutral-700 px-4 py-2 text-left">Variable</th>
+                  <th class="border border-neutral-700 px-4 py-2 text-left">Description</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td class="border border-neutral-700 px-4 py-2"><code class="bg-neutral-800 px-2 py-1 rounded">{count}</code></td>
+                  <td class="border border-neutral-700 px-4 py-2">The tracked count</td>
+                </tr>
+                <tr>
+                  <td class="border border-neutral-700 px-4 py-2"><code class="bg-neutral-800 px-2 py-1 rounded">{game}</code></td>
+                  <td class="border border-neutral-700 px-4 py-2">Game name (for game trackers)</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="font-semibold mb-2">Examples:</p>
+          <ul class="list-disc list-inside space-y-1 text-gray-300 ml-4">
+            <li><code class="bg-neutral-800 px-2 py-1 rounded">Members: {count}</code> → "Members: 1,234"</li>
+            <li><code class="bg-neutral-800 px-2 py-1 rounded">Online: {count}</code> → "Online: 456"</li>
+            <li><code class="bg-neutral-800 px-2 py-1 rounded">Playing {game}: {count}</code> → "Playing Minecraft: 23"</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- Role Management -->
+    <section id="role-management" class="bg-neutral-900 border border-neutral-800 rounded-lg p-8">
+      <h2 class="text-3xl font-bold mb-6 text-indigo-400">Role Management</h2>
+      <p class="text-gray-300 mb-6">Manage your server's roles from the dashboard.</p>
+
+      <div class="space-y-6">
+        <div>
+          <h3 class="text-xl font-semibold mb-3">Features</h3>
+          <ul class="list-disc list-inside space-y-2 text-gray-300 ml-4">
+            <li>View all roles with their permissions</li>
+            <li>Create new roles with color picker</li>
+            <li>Bulk import roles via CSV</li>
+            <li>Edit role colors and permissions</li>
+          </ul>
+        </div>
+
+        <div>
+          <h3 class="text-xl font-semibold mb-3">CSV Import Format</h3>
+          <div class="bg-neutral-800 p-4 rounded">
+            <pre class="text-sm overflow-x-auto"><code>name,color,hoist,mentionable
+Admin,#FF0000,true,false
+Moderator,#00FF00,true,false
+Member,#0000FF,false,true</code></pre>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Templates -->
+    <section id="templates" class="bg-neutral-900 border border-neutral-800 rounded-lg p-8">
+      <h2 class="text-3xl font-bold mb-6 text-indigo-400">Templates</h2>
+      <p class="text-gray-300 mb-4">Save and reuse channel and role setups. <span class="text-yellow-400">(Premium feature)</span></p>
+
+      <div class="space-y-6">
+        <div>
+          <h3 class="text-xl font-semibold mb-3">Channel Templates</h3>
+          <p class="text-gray-300 mb-2">Save your server's channel structure to recreate it later:</p>
+          <ol class="list-decimal list-inside space-y-2 text-gray-300 ml-4">
+            <li>Go to <strong>Templates</strong></li>
+            <li>Click "New Template" under Channel Templates</li>
+            <li>Name your template</li>
+            <li>Paste your channel configuration as JSON</li>
+            <li>Click Create</li>
+          </ol>
+        </div>
+
+        <div>
+          <h3 class="text-xl font-semibold mb-3">Role Templates</h3>
+          <p class="text-gray-300 mb-2">Save your role hierarchy:</p>
+          <ol class="list-decimal list-inside space-y-2 text-gray-300 ml-4">
+            <li>Go to <strong>Templates</strong></li>
+            <li>Click "New Template" under Role Templates</li>
+            <li>Name your template</li>
+            <li>Paste your role configuration as JSON</li>
+            <li>Click Create</li>
+          </ol>
+        </div>
+
+        <div>
+          <h3 class="text-xl font-semibold mb-3">Applying Templates</h3>
+          <ol class="list-decimal list-inside space-y-2 text-gray-300 ml-4">
+            <li>Find your template in the list</li>
+            <li>Click "Apply"</li>
+            <li>Confirm the action</li>
+            <li>The bot will create the channels/roles in your server</li>
+          </ol>
+        </div>
+      </div>
+    </section>
+
+    <!-- Server Settings -->
+    <section id="server-settings" class="bg-neutral-900 border border-neutral-800 rounded-lg p-8">
+      <h2 class="text-3xl font-bold mb-6 text-indigo-400">Server Settings</h2>
+      <p class="text-gray-300 mb-6">Customize how Warden works in your server.</p>
+
+      <div class="space-y-6">
+        <div>
+          <h3 class="text-xl font-semibold mb-3">General Settings</h3>
+          <div class="overflow-x-auto">
+            <table class="w-full border-collapse border border-neutral-700">
+              <thead class="bg-neutral-800">
+                <tr>
+                  <th class="border border-neutral-700 px-4 py-2 text-left">Setting</th>
+                  <th class="border border-neutral-700 px-4 py-2 text-left">Description</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td class="border border-neutral-700 px-4 py-2 font-semibold">Bot Prefix</td>
+                  <td class="border border-neutral-700 px-4 py-2">For legacy text commands (default: <code>!</code>)</td>
+                </tr>
+                <tr>
+                  <td class="border border-neutral-700 px-4 py-2 font-semibold">Language</td>
+                  <td class="border border-neutral-700 px-4 py-2">Bot response language</td>
+                </tr>
+                <tr>
+                  <td class="border border-neutral-700 px-4 py-2 font-semibold">Timezone</td>
+                  <td class="border border-neutral-700 px-4 py-2">Used for scheduled messages and logs</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div>
+          <h3 class="text-xl font-semibold mb-3">Token Customization</h3>
+          <p class="text-gray-300 mb-2">Rename "Hero Tokens" to match your server's theme:</p>
+          <ul class="list-disc list-inside space-y-2 text-gray-300 ml-4">
+            <li><strong>Token Name:</strong> What to call your currency (e.g., "Gold Coins", "Stars")</li>
+            <li><strong>Token Emoji:</strong> The emoji shown with the currency</li>
+          </ul>
+        </div>
+
+        <div>
+          <h3 class="text-xl font-semibold mb-3">Mod Log Channel</h3>
+          <p class="text-gray-300">Set a channel where all moderation actions are logged.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Bot Commands -->
+    <section id="bot-commands" class="bg-neutral-900 border border-neutral-800 rounded-lg p-8">
+      <h2 class="text-3xl font-bold mb-6 text-indigo-400">Bot Commands</h2>
+
+      <div class="space-y-8">
+        <div>
+          <h3 class="text-xl font-semibold mb-4">General Commands</h3>
+          <div class="overflow-x-auto">
+            <table class="w-full border-collapse border border-neutral-700">
+              <thead class="bg-neutral-800">
+                <tr>
+                  <th class="border border-neutral-700 px-4 py-2 text-left">Command</th>
+                  <th class="border border-neutral-700 px-4 py-2 text-left">Description</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td class="border border-neutral-700 px-4 py-2"><code class="bg-neutral-800 px-2 py-1 rounded">/help</code></td>
+                  <td class="border border-neutral-700 px-4 py-2">Show all commands</td>
+                </tr>
+                <tr>
+                  <td class="border border-neutral-700 px-4 py-2"><code class="bg-neutral-800 px-2 py-1 rounded">/ping</code></td>
+                  <td class="border border-neutral-700 px-4 py-2">Check bot latency</td>
+                </tr>
+                <tr>
+                  <td class="border border-neutral-700 px-4 py-2"><code class="bg-neutral-800 px-2 py-1 rounded">/serverinfo</code></td>
+                  <td class="border border-neutral-700 px-4 py-2">Display server information</td>
+                </tr>
+                <tr>
+                  <td class="border border-neutral-700 px-4 py-2"><code class="bg-neutral-800 px-2 py-1 rounded">/userinfo @user</code></td>
+                  <td class="border border-neutral-700 px-4 py-2">Display user information</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div>
+          <h3 class="text-xl font-semibold mb-4">XP Commands</h3>
+          <div class="overflow-x-auto">
+            <table class="w-full border-collapse border border-neutral-700">
+              <thead class="bg-neutral-800">
+                <tr>
+                  <th class="border border-neutral-700 px-4 py-2 text-left">Command</th>
+                  <th class="border border-neutral-700 px-4 py-2 text-left">Description</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td class="border border-neutral-700 px-4 py-2"><code class="bg-neutral-800 px-2 py-1 rounded">/rank</code></td>
+                  <td class="border border-neutral-700 px-4 py-2">View your rank and XP</td>
+                </tr>
+                <tr>
+                  <td class="border border-neutral-700 px-4 py-2"><code class="bg-neutral-800 px-2 py-1 rounded">/rank @user</code></td>
+                  <td class="border border-neutral-700 px-4 py-2">View another member's rank</td>
+                </tr>
+                <tr>
+                  <td class="border border-neutral-700 px-4 py-2"><code class="bg-neutral-800 px-2 py-1 rounded">/leaderboard</code></td>
+                  <td class="border border-neutral-700 px-4 py-2">View the XP leaderboard</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div>
+          <h3 class="text-xl font-semibold mb-4">Moderation Commands</h3>
+          <div class="overflow-x-auto">
+            <table class="w-full border-collapse border border-neutral-700">
+              <thead class="bg-neutral-800">
+                <tr>
+                  <th class="border border-neutral-700 px-4 py-2 text-left">Command</th>
+                  <th class="border border-neutral-700 px-4 py-2 text-left">Description</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td class="border border-neutral-700 px-4 py-2"><code class="bg-neutral-800 px-2 py-1 rounded">/warn @user reason</code></td>
+                  <td class="border border-neutral-700 px-4 py-2">Issue a warning</td>
+                </tr>
+                <tr>
+                  <td class="border border-neutral-700 px-4 py-2"><code class="bg-neutral-800 px-2 py-1 rounded">/warnings @user</code></td>
+                  <td class="border border-neutral-700 px-4 py-2">View warnings</td>
+                </tr>
+                <tr>
+                  <td class="border border-neutral-700 px-4 py-2"><code class="bg-neutral-800 px-2 py-1 rounded">/pardon @user warning_id</code></td>
+                  <td class="border border-neutral-700 px-4 py-2">Remove a warning</td>
+                </tr>
+                <tr>
+                  <td class="border border-neutral-700 px-4 py-2"><code class="bg-neutral-800 px-2 py-1 rounded">/kick @user reason</code></td>
+                  <td class="border border-neutral-700 px-4 py-2">Kick a member</td>
+                </tr>
+                <tr>
+                  <td class="border border-neutral-700 px-4 py-2"><code class="bg-neutral-800 px-2 py-1 rounded">/ban @user reason</code></td>
+                  <td class="border border-neutral-700 px-4 py-2">Ban a member</td>
+                </tr>
+                <tr>
+                  <td class="border border-neutral-700 px-4 py-2"><code class="bg-neutral-800 px-2 py-1 rounded">/mute @user duration</code></td>
+                  <td class="border border-neutral-700 px-4 py-2">Timeout a member</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div>
+          <h3 class="text-xl font-semibold mb-4">Token Commands</h3>
+          <div class="overflow-x-auto">
+            <table class="w-full border-collapse border border-neutral-700">
+              <thead class="bg-neutral-800">
+                <tr>
+                  <th class="border border-neutral-700 px-4 py-2 text-left">Command</th>
+                  <th class="border border-neutral-700 px-4 py-2 text-left">Description</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td class="border border-neutral-700 px-4 py-2"><code class="bg-neutral-800 px-2 py-1 rounded">/tokens</code></td>
+                  <td class="border border-neutral-700 px-4 py-2">View your token balance</td>
+                </tr>
+                <tr>
+                  <td class="border border-neutral-700 px-4 py-2"><code class="bg-neutral-800 px-2 py-1 rounded">/tokens @user</code></td>
+                  <td class="border border-neutral-700 px-4 py-2">View another member's tokens</td>
+                </tr>
+                <tr>
+                  <td class="border border-neutral-700 px-4 py-2"><code class="bg-neutral-800 px-2 py-1 rounded">/give @user amount</code></td>
+                  <td class="border border-neutral-700 px-4 py-2">Give tokens to another member</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div>
+          <h3 class="text-xl font-semibold mb-4">LFG Commands</h3>
+          <div class="overflow-x-auto">
+            <table class="w-full border-collapse border border-neutral-700">
+              <thead class="bg-neutral-800">
+                <tr>
+                  <th class="border border-neutral-700 px-4 py-2 text-left">Command</th>
+                  <th class="border border-neutral-700 px-4 py-2 text-left">Description</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td class="border border-neutral-700 px-4 py-2"><code class="bg-neutral-800 px-2 py-1 rounded">/lfg</code></td>
+                  <td class="border border-neutral-700 px-4 py-2">Create a Looking For Group post</td>
+                </tr>
+                <tr>
+                  <td class="border border-neutral-700 px-4 py-2"><code class="bg-neutral-800 px-2 py-1 rounded">/lfg_list</code></td>
+                  <td class="border border-neutral-700 px-4 py-2">View all games available for LFG</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="mt-4">
+            <p class="font-semibold mb-2">Admin Commands:</p>
+            <div class="overflow-x-auto">
+              <table class="w-full border-collapse border border-neutral-700">
+                <thead class="bg-neutral-800">
+                  <tr>
+                    <th class="border border-neutral-700 px-4 py-2 text-left">Command</th>
+                    <th class="border border-neutral-700 px-4 py-2 text-left">Description</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td class="border border-neutral-700 px-4 py-2"><code class="bg-neutral-800 px-2 py-1 rounded">/lfg_search</code></td>
+                    <td class="border border-neutral-700 px-4 py-2">Search IGDB for games to add</td>
+                  </tr>
+                  <tr>
+                    <td class="border border-neutral-700 px-4 py-2"><code class="bg-neutral-800 px-2 py-1 rounded">/lfg_add</code></td>
+                    <td class="border border-neutral-700 px-4 py-2">Add a game from IGDB</td>
+                  </tr>
+                  <tr>
+                    <td class="border border-neutral-700 px-4 py-2"><code class="bg-neutral-800 px-2 py-1 rounded">/lfg_custom</code></td>
+                    <td class="border border-neutral-700 px-4 py-2">Add a custom game (Premium)</td>
+                  </tr>
+                  <tr>
+                    <td class="border border-neutral-700 px-4 py-2"><code class="bg-neutral-800 px-2 py-1 rounded">/lfg_options</code></td>
+                    <td class="border border-neutral-700 px-4 py-2">Set custom options for a game (Premium)</td>
+                  </tr>
+                  <tr>
+                    <td class="border border-neutral-700 px-4 py-2"><code class="bg-neutral-800 px-2 py-1 rounded">/lfg_rank</code></td>
+                    <td class="border border-neutral-700 px-4 py-2">Enable rank requirements (Premium)</td>
+                  </tr>
+                  <tr>
+                    <td class="border border-neutral-700 px-4 py-2"><code class="bg-neutral-800 px-2 py-1 rounded">/lfg_remove</code></td>
+                    <td class="border border-neutral-700 px-4 py-2">Remove a game from LFG</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- FAQ -->
+    <section id="faq" class="bg-neutral-900 border border-neutral-800 rounded-lg p-8">
+      <h2 class="text-3xl font-bold mb-6 text-indigo-400">FAQ</h2>
+
+      <div class="space-y-6">
+        <div>
+          <h3 class="text-xl font-semibold mb-2">Why isn't the bot responding?</h3>
+          <ol class="list-decimal list-inside space-y-2 text-gray-300 ml-4">
+            <li>Make sure the bot has permission to see and send messages in that channel</li>
+            <li>Check if the bot is online (should show a green status)</li>
+            <li>Try using slash commands instead of prefix commands</li>
+          </ol>
+        </div>
+
+        <div>
+          <h3 class="text-xl font-semibold mb-2">Why am I not earning XP?</h3>
+          <ol class="list-decimal list-inside space-y-2 text-gray-300 ml-4">
+            <li>There's a cooldown between XP awards (default: 60 seconds)</li>
+            <li>The channel might be in the ignored list</li>
+            <li>Check if XP is enabled for the server</li>
+          </ol>
+        </div>
+
+        <div>
+          <h3 class="text-xl font-semibold mb-2">How do I check my level?</h3>
+          <p class="text-gray-300">Use the <code class="bg-neutral-800 px-2 py-1 rounded">/rank</code> command to see your current level, XP, and progress to the next level.</p>
+        </div>
+
+        <div>
+          <h3 class="text-xl font-semibold mb-2">Can I transfer XP between servers?</h3>
+          <p class="text-gray-300">No, XP is specific to each server and cannot be transferred.</p>
+        </div>
+
+        <div>
+          <h3 class="text-xl font-semibold mb-2">Why didn't I get my level role?</h3>
+          <ol class="list-decimal list-inside space-y-2 text-gray-300 ml-4">
+            <li>Make sure level roles are configured in the dashboard</li>
+            <li>Check that the bot has "Manage Roles" permission</li>
+            <li>Ensure the bot's role is higher than the role it's trying to assign</li>
+          </ol>
+        </div>
+
+        <div>
+          <h3 class="text-xl font-semibold mb-2">How do I reset someone's XP?</h3>
+          <p class="text-gray-300 mb-2">Admins can reset XP from the dashboard:</p>
+          <ol class="list-decimal list-inside space-y-2 text-gray-300 ml-4">
+            <li>Go to <strong>XP & Leveling</strong></li>
+            <li>Find the member in the leaderboard</li>
+            <li>Click "Edit" and set XP to 0</li>
+          </ol>
+        </div>
+
+        <div>
+          <h3 class="text-xl font-semibold mb-2">What's the difference between Free and Premium?</h3>
+          <p class="text-gray-300 mb-2">Premium includes:</p>
+          <ul class="list-disc list-inside space-y-1 text-gray-300 ml-4">
+            <li>Unlimited level roles (Free: 3)</li>
+            <li>Unlimited trackers (Free: 5)</li>
+            <li>Unlimited templates (Free: 5)</li>
+            <li>Custom XP multipliers</li>
+            <li>Multi-step verification</li>
+            <li>Custom embed colors</li>
+            <li>Priority support</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- Need Help -->
+    <div class="bg-gradient-to-r from-indigo-900 to-purple-900 border border-indigo-700 rounded-lg p-8 text-center">
+      <h2 class="text-3xl font-bold mb-4">Need Help?</h2>
+      <div class="space-y-3 text-gray-200">
+        <p><i class="fab fa-discord"></i> <strong>Support Server:</strong> Join our Discord for help</p>
+        <p><i class="fas fa-book"></i> <strong>Documentation:</strong> Check the website for detailed guides</p>
+        <p><i class="fas fa-bug"></i> <strong>Bug Reports:</strong> Report issues in our support server</p>
+      </div>
+      <div class="mt-6">
+        <a href="/wardenbot/login" class="inline-block bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-8 rounded-lg transition">
+          Login to Dashboard
+        </a>
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,204 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta property="og:title" content="{% block og_title %}Casual Heroes - Game Servers & Community{% endblock %}">
+  <meta property="og:description" content="{% block og_description %}Join our friendly, mod-loving community. Explore servers, suggest games, and play your way.{% endblock %}">
+  <meta property="og:image" content="{% block og_image %}https://casual-heroes.com/static/img/siteassets/homepage/CHLogoFinal.png{% endblock %}">
+  <meta property="og:image:alt" content="Casual Heroes Logo">
+  <meta property="og:image:type" content="image/png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="680">
+  <meta property="og:url" content="{% block og_url %}https://casual-heroes.com/{% endblock %}">
+  <meta property="og:type" content="website">
+  <meta name="twitter:card" content="summary_large_image">
+
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="icon" type="image/png" href="{% static 'img/siteassets/homepage/CHLogofav.png' %}">
+  <title>{% block title %}Casual Heroes{% endblock %}</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
+  <link href="{% static 'css/custom.css' %}" rel="stylesheet">
+
+  <style>
+    nav a:hover,
+    button:hover {
+      color: #818CF8;
+      font-weight: 600;
+      text-shadow: 0 0 6px #818CF8;
+      transition: all 0.2s ease-in-out;
+    }
+  </style>
+</head>
+
+<body class="bg-[#0a0a1a] text-white font-sans">
+  <div class="max-w-7xl mx-auto px-6">
+    <header class="py-6">
+      <div class="flex flex-col md:flex-row items-center justify-center gap-6">
+        <img src="{% static 'img/siteassets/homepage/CHLogoFinal.png' %}" alt="Casual Heroes Logo" class="h-12 rounded-full" />
+
+        <nav class="flex flex-wrap justify-center gap-6 text-sm md:text-base">
+          <a href="{% url 'home' %}" class="hover:text-indigo-400 transition">Home</a>
+
+          <!-- Games Dropdown -->
+          <div x-data="{ open: false }" class="relative">
+            <button @click="open = !open" class="font-semibold hover:text-indigo-400 transition flex items-center gap-1">
+              Games ▾
+            </button>
+            <div x-show="open" @click.outside="open = false" x-transition 
+              class="absolute left-0 mt-2 bg-neutral-900 border border-neutral-800 rounded-lg shadow-lg w-[20rem] max-w-none z-50 text-base py-4">
+
+              <!-- Community Favorites -->
+              <div class="px-4 py-1 text-xs uppercase text-gray-400 tracking-wider">Community Favorites</div>
+              <a href="/gamesweplay" class="block px-4 py-2 hover:bg-neutral-800">Current Games</a>
+              <a href="/gameshype" class="block px-4 py-2 hover:bg-neutral-800">Games We're Hyped For</a>
+              <a href="/gamesuggest" class="block px-4 py-2 hover:bg-neutral-800">Suggest a Game</a>
+
+              <!-- Hosted by CHHS -->
+              <div class="px-4 py-1 mt-2 text-xs uppercase text-gray-400 tracking-wider">Hosted by Casual Heroes Hosting Services</div>
+              <a href="/7dtd" class="flex items-center gap-2 px-4 py-2 hover:bg-neutral-800">
+                <img src="{% static 'img/siteassets/homepage/7DTD.png' %}" alt="7DTD" class="w-4 h-4" />
+                7 Days to Die <span class="text-xs text-gray-500">(Coming Soon)</span>
+              </a>
+              <a href="/dragonwilds" class="flex items-center gap-2 px-4 py-2 hover:bg-neutral-800">
+                <img src="{% static 'img/siteassets/homepage/dragonwilds-1.png' %}" alt="Dragonwilds" class="w-4 h-4" />
+                Dragonwilds <span class="text-xs text-gray-500">(Coming Soon)</span>
+              </a>
+              <!-- <a href="/enshrouded" class="flex items-center gap-2 px-4 py-2 hover:bg-neutral-800">
+                <img src="{% static 'img/siteassets/homepage/enshrouded.png' %}" alt="Enshrouded" class="w-4 h-4" />
+                Enshrouded
+              </a> -->
+              <a href="/vrising" class="flex items-center gap-2 px-4 py-2 hover:bg-neutral-800">
+                <img src="{% static 'img/siteassets/homepage/virsing.png' %}" alt="V Rising" class="w-4 h-4" />
+                V Rising
+              </a>
+
+              <!-- Guilds -->
+              <div class="px-4 py-1 mt-2 text-xs uppercase text-gray-400 tracking-wider">Casual Heroes Guilds</div>
+              <a href="/dune" class="flex items-center gap-2 px-4 py-2 hover:bg-neutral-800">
+                <img src="{% static 'img/games/guilds/DA.webp' %}" alt="Dune" class="w-4 h-4" />
+                Dune
+              </a>
+              <a href="/pantheon" class="flex items-center gap-2 px-4 py-2 hover:bg-neutral-800">
+                <img src="{% static 'img/games/guilds/pantheon.webp' %}" alt="Pantheon" class="w-4 h-4" />
+                Pantheon
+              </a>
+              <!-- <a href="/wow" class="flex items-center gap-2 px-4 py-2 hover:bg-neutral-800">
+                <img src="{% static 'img/games/guilds/WoWlogo.png' %}" alt="WoW" class="w-4 h-4" />
+                World of Warcraft
+              </a> -->
+            </div>
+          </div>
+
+          <a href="/guides" class="hover:text-indigo-400 transition">Game Guides</a>
+          <a href="/features" class="hover:text-indigo-400 transition">Features</a>
+          <a href="/content" class="hover:text-indigo-400 transition">Casual Heroes Content</a>
+          <a href="/aboutus" class="hover:text-indigo-400 transition">About Us</a>
+
+          <!-- Hosting Dropdown -->
+          <div x-data="{ open: false }" class="relative">
+            <button @click="open = !open" class="text-indigo-400 font-semibold flex items-center gap-1 hover:text-indigo-400">
+              Hosting ▾
+            </button>
+            <div x-show="open" @click.outside="open = false" x-transition
+              class="absolute left-0 mt-2 bg-neutral-900 border border-neutral-800 rounded-lg shadow-lg w-56 z-50 text-sm">
+              <a href="/hosting" class="flex items-center gap-2 px-4 py-2 hover:bg-neutral-800">
+                <span class="w-4 h-4"></span> Hosting Overview
+              </a>
+              <a href="/login" class="flex items-center gap-2 px-4 py-2 hover:bg-neutral-800">
+                <span class="w-4 h-4"></span> Login to Hosting Panel
+              </a>
+            </div>
+          </div>
+
+          <!-- User Account / Discord Login -->
+          {% if request.session.discord_user %}
+          <div x-data="{ open: false }" class="relative ml-4">
+            <button @click="open = !open" class="flex items-center gap-2 hover:opacity-80 transition">
+              <img src="{{ request.session.discord_user.avatar_url }}"
+                   alt="Avatar"
+                   class="w-8 h-8 rounded-full border-2 border-indigo-500">
+              <span class="hidden md:inline text-sm font-medium">{{ request.session.discord_user.global_name }}</span>
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+              </svg>
+            </button>
+            <div x-show="open" @click.outside="open = false" x-transition
+              class="absolute right-0 mt-2 bg-neutral-900 border border-neutral-800 rounded-lg shadow-lg w-56 z-50 text-sm">
+              <div class="px-4 py-3 border-b border-neutral-800">
+                <p class="text-white font-medium">{{ request.session.discord_user.global_name }}</p>
+                <p class="text-gray-400 text-xs">@{{ request.session.discord_user.username }}</p>
+              </div>
+              <a href="{% url 'user_profile' %}" class="flex items-center gap-2 px-4 py-2 hover:bg-neutral-800">
+                <i class="fas fa-user w-4"></i> My Profile
+              </a>
+              <a href="{% url 'warden_dashboard' %}" class="flex items-center gap-2 px-4 py-2 hover:bg-neutral-800">
+                <i class="fas fa-shield-alt w-4"></i> Warden Dashboard
+              </a>
+              <div class="border-t border-neutral-800">
+                <a href="{% url 'discord_logout' %}" class="flex items-center gap-2 px-4 py-2 hover:bg-neutral-800 text-red-400">
+                  <i class="fas fa-sign-out-alt w-4"></i> Log Out
+                </a>
+              </div>
+            </div>
+          </div>
+          {% else %}
+          <a href="{% url 'discord_login' %}"
+             class="ml-4 flex items-center gap-2 bg-[#5865F2] hover:bg-[#4752C4] text-white px-4 py-2 rounded-lg font-medium text-sm transition">
+            <i class="fab fa-discord"></i>
+            <span class="hidden md:inline">Login with Discord</span>
+          </a>
+          {% endif %}
+        </nav>
+      </div>
+    </header>
+
+    <!-- Flash Messages -->
+    {% if messages %}
+    <div class="fixed top-4 right-4 z-50 space-y-2" x-data="{ show: true }" x-init="setTimeout(() => show = false, 5000)">
+      {% for message in messages %}
+      <div x-show="show" x-transition
+           class="px-4 py-3 rounded-lg shadow-lg flex items-center gap-3 {% if message.tags == 'success' %}bg-green-600{% elif message.tags == 'error' %}bg-red-600{% elif message.tags == 'warning' %}bg-yellow-600{% else %}bg-indigo-600{% endif %}">
+        <span>{{ message }}</span>
+        <button @click="show = false" class="ml-2 hover:opacity-70">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    {% block content %}{% endblock %}
+
+    <footer class="mt-24 border-t border-gray-800 pt-6 pb-12 text-sm text-gray-400">
+      <div class="flex flex-col md:flex-row justify-between items-center gap-4">
+        <div class="flex flex-wrap justify-center gap-4 text-center md:text-left">
+          <a href="/contactus">Contact</a>
+          <a href="/terms">Terms of Service</a>
+          <a href="/privacy">Privacy Policy</a>
+          <a href="/faq">Returns & FAQ</a>
+        </div>
+
+        <div class="text-center space-y-2">
+          <p class="text-gray-500">© 2025 Casual Heroes</p>
+          <p class="text-xs text-gray-500 max-w-3xl mx-auto px-4">
+            All referenced images, logos, and characters are registered trademarks of their respective game studios. Casual Heroes Hosting Services claims no ownership over Dragonwilds, Enshrouded, V Rising, or any other game assets, which are used here solely for illustrative and community engagement purposes.
+          </p>
+        </div>
+
+        <div class="flex gap-4 justify-center md:justify-end">
+          <a href="https://discord.gg/ECwJWppSjQ"><i class="fab fa-discord"></i></a>
+          <a href="https://www.youtube.com/@CasualHeroesCommunity"><i class="fab fa-youtube"></i></a>
+          <a href="https://x.com/CasualHeroes_"><i class="fab fa-twitter"></i></a>
+          <a href="https://www.facebook.com/CasualHeroesCmty"><i class="fab fa-facebook"></i></a>
+          <a href="https://www.instagram.com/casualheroescommunity/"><i class="fab fa-instagram"></i></a>
+          <a href="https://www.tiktok.com/@casualheroes"><i class="fab fa-tiktok"></i></a>
+        </div>
+      </div>
+    </footer>
+  </div>
+</body>
+</html>

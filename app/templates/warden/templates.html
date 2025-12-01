@@ -1,0 +1,509 @@
+{% extends "warden/base_guild.html" %}
+{% load static %}
+
+{% block title %}Templates - {{ guild.name }}{% endblock %}
+
+{% block guild_content %}
+
+  <!-- Header -->
+  <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
+    <div>
+      <h1 class="text-3xl font-bold text-white">
+        <i class="fas fa-copy text-indigo-400 mr-3"></i>Templates
+      </h1>
+      <p class="text-gray-400 mt-1">Save and reuse channel and role configurations</p>
+    </div>
+  </div>
+
+  <!-- Tier Limits Info -->
+  <div class="mb-6 bg-gradient-to-r from-blue-900/30 to-purple-900/30 border border-blue-700/50 rounded-xl p-5">
+    <div class="flex items-start gap-4">
+      <div class="w-12 h-12 bg-blue-600/20 rounded-lg flex items-center justify-center flex-shrink-0">
+        <i class="fas fa-info-circle text-blue-400 text-xl"></i>
+      </div>
+      <div class="flex-1">
+        <h3 class="text-white font-bold mb-2">Template Limits</h3>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+          <div>
+            <p class="text-gray-300 font-medium mb-1">
+              <i class="fas fa-circle text-gray-500 mr-2 text-xs"></i>Free Tier
+            </p>
+            <p class="text-gray-400 ml-5">Up to 5 templates (combined)</p>
+          </div>
+          <div>
+            <p class="text-indigo-300 font-medium mb-1">
+              <i class="fas fa-circle text-indigo-500 mr-2 text-xs"></i>Pro Tier
+            </p>
+            <p class="text-gray-400 ml-5">Up to 10 templates (combined)</p>
+          </div>
+          <div>
+            <p class="text-yellow-300 font-medium mb-1">
+              <i class="fas fa-crown text-yellow-500 mr-2 text-xs"></i>Premium Tier
+            </p>
+            <p class="text-gray-400 ml-5">Unlimited templates</p>
+          </div>
+        </div>
+        {% if guild_record.is_vip or guild_record.subscription_tier == 'premium' %}
+        <p class="text-green-400 text-xs mt-3">
+          <i class="fas fa-check-circle mr-1"></i>
+          You have unlimited templates! Save as many configurations as you need.
+        </p>
+        {% elif guild_record.subscription_tier == 'pro' %}
+        <p class="text-blue-400 text-xs mt-3">
+          <i class="fas fa-lightbulb mr-1"></i>
+          You can create up to 10 templates. <a href="#" class="text-purple-400 hover:text-purple-300 underline">Upgrade to Premium</a> for unlimited templates!
+        </p>
+        {% else %}
+        <p class="text-blue-400 text-xs mt-3">
+          <i class="fas fa-lightbulb mr-1"></i>
+          You can create up to 5 templates. <a href="#" class="text-indigo-400 hover:text-indigo-300 underline">Upgrade to Pro or Premium</a> for more templates!
+        </p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Current Usage -->
+  <div class="mb-6 bg-neutral-900 rounded-xl border border-neutral-800 p-5">
+    <div class="flex items-center justify-between">
+      <div>
+        <p class="text-gray-400 text-sm">Templates Used</p>
+        <p class="text-2xl font-bold text-white mt-1">{{ total_templates }} / {% if guild_record.is_vip or guild_record.subscription_tier == 'premium' %}∞{% elif guild_record.subscription_tier == 'pro' %}10{% else %}5{% endif %}</p>
+      </div>
+      <div class="text-right">
+        <p class="text-gray-400 text-sm">Channel Templates: <span class="text-white font-medium">{{ channel_templates|length }}</span></p>
+        <p class="text-gray-400 text-sm">Role Templates: <span class="text-white font-medium">{{ role_templates|length }}</span></p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Channel Templates -->
+  <div class="mb-12">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-xl font-bold text-white">
+        <i class="fas fa-hashtag text-purple-400 mr-2"></i>Channel Templates
+      </h2>
+      <button onclick="openCreateModal('channel')" class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-medium transition text-sm">
+        <i class="fas fa-plus mr-2"></i>New Template
+      </button>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      {% for template in channel_templates %}
+      <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-4 hover:border-purple-500/50 transition">
+        <div class="flex items-start justify-between mb-3">
+          <div class="flex-1">
+            <h3 class="text-white font-medium">{{ template.name }}</h3>
+            <p class="text-gray-500 text-sm">{{ template.description|default:"No description"|truncatechars:50 }}</p>
+          </div>
+          <span class="text-gray-500 text-xs">{{ template.use_count }} uses</span>
+        </div>
+        <div class="flex gap-2">
+          <button onclick="applyTemplate('channels', {{ template.id }})" class="flex-1 bg-purple-600/20 hover:bg-purple-600/30 text-purple-400 py-2 rounded-lg text-sm font-medium transition">
+            <i class="fas fa-play mr-1"></i>Apply
+          </button>
+          <button onclick="deleteTemplate('channels', {{ template.id }})" class="bg-red-600/20 hover:bg-red-600/30 text-red-400 px-3 py-2 rounded-lg text-sm transition">
+            <i class="fas fa-trash"></i>
+          </button>
+        </div>
+      </div>
+      {% empty %}
+      <div class="col-span-full bg-neutral-900 rounded-xl border border-neutral-800 p-8 text-center">
+        <div class="w-16 h-16 bg-neutral-800 rounded-full flex items-center justify-center mx-auto mb-4">
+          <i class="fas fa-hashtag text-gray-600 text-2xl"></i>
+        </div>
+        <p class="text-gray-400">No channel templates yet</p>
+        <p class="text-gray-500 text-sm mt-1">Create one to save your channel setup</p>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- Role Templates -->
+  <div>
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-xl font-bold text-white">
+        <i class="fas fa-user-tag text-yellow-400 mr-2"></i>Role Templates
+      </h2>
+      <button onclick="openCreateModal('role')" class="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded-lg font-medium transition text-sm">
+        <i class="fas fa-plus mr-2"></i>New Template
+      </button>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      {% for template in role_templates %}
+      <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-4 hover:border-yellow-500/50 transition">
+        <div class="flex items-start justify-between mb-3">
+          <div class="flex-1">
+            <h3 class="text-white font-medium">{{ template.name }}</h3>
+            <p class="text-gray-500 text-sm">{{ template.description|default:"No description"|truncatechars:50 }}</p>
+          </div>
+          <span class="text-gray-500 text-xs">{{ template.use_count }} uses</span>
+        </div>
+        <div class="flex gap-2">
+          <button onclick="applyTemplate('roles', {{ template.id }})" class="flex-1 bg-yellow-600/20 hover:bg-yellow-600/30 text-yellow-400 py-2 rounded-lg text-sm font-medium transition">
+            <i class="fas fa-play mr-1"></i>Apply
+          </button>
+          <button onclick="deleteTemplate('roles', {{ template.id }})" class="bg-red-600/20 hover:bg-red-600/30 text-red-400 px-3 py-2 rounded-lg text-sm transition">
+            <i class="fas fa-trash"></i>
+          </button>
+        </div>
+      </div>
+      {% empty %}
+      <div class="col-span-full bg-neutral-900 rounded-xl border border-neutral-800 p-8 text-center">
+        <div class="w-16 h-16 bg-neutral-800 rounded-full flex items-center justify-center mx-auto mb-4">
+          <i class="fas fa-user-tag text-gray-600 text-2xl"></i>
+        </div>
+        <p class="text-gray-400">No role templates yet</p>
+        <p class="text-gray-500 text-sm mt-1">Create one to save your role hierarchy</p>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+<!-- Create Template Modal -->
+<div id="createModal" class="hidden fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+  <div class="bg-neutral-900 rounded-xl border border-neutral-800 w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+    <!-- Modal Header -->
+    <div class="p-6 border-b border-neutral-800 flex-shrink-0">
+      <div class="flex items-center justify-between">
+        <h3 class="text-xl font-bold text-white" id="modalTitle">
+          <i class="fas fa-plus mr-2"></i>Create Template
+        </h3>
+        <button onclick="closeCreateModal()" class="text-gray-400 hover:text-white">
+          <i class="fas fa-times text-xl"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- Modal Body - Scrollable -->
+    <div class="flex-1 overflow-y-auto p-6">
+      <input type="hidden" id="templateType">
+
+      <!-- Basic Info -->
+      <div class="space-y-4 mb-6">
+        <div>
+          <label class="block text-sm text-gray-400 mb-2">Template Name <span class="text-red-400">*</span></label>
+          <input type="text" id="templateName" maxlength="100" required
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:border-indigo-500 focus:outline-none"
+                 placeholder="e.g., Gaming Community Setup">
+        </div>
+        <div>
+          <label class="block text-sm text-gray-400 mb-2">Description (optional)</label>
+          <textarea id="templateDescription" rows="2" maxlength="500"
+                    class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:border-indigo-500 focus:outline-none resize-none"
+                    placeholder="Describe what this template includes..."></textarea>
+        </div>
+      </div>
+
+      <!-- Channel Template Builder -->
+      <div id="channelBuilder" class="hidden">
+        <div class="flex items-center justify-between mb-4">
+          <h4 class="text-lg font-bold text-white">
+            <i class="fas fa-hashtag text-purple-400 mr-2"></i>Channels
+          </h4>
+          <button type="button" onclick="addChannelRow()" class="bg-purple-600 hover:bg-purple-700 text-white px-3 py-2 rounded-lg text-sm transition">
+            <i class="fas fa-plus mr-1"></i>Add Channel
+          </button>
+        </div>
+        <div id="channelsList" class="space-y-3">
+          <!-- Channel rows will be added here -->
+        </div>
+      </div>
+
+      <!-- Role Template Builder -->
+      <div id="roleBuilder" class="hidden">
+        <div class="flex items-center justify-between mb-4">
+          <h4 class="text-lg font-bold text-white">
+            <i class="fas fa-user-tag text-yellow-400 mr-2"></i>Roles
+          </h4>
+          <button type="button" onclick="addRoleRow()" class="bg-yellow-600 hover:bg-yellow-700 text-white px-3 py-2 rounded-lg text-sm transition">
+            <i class="fas fa-plus mr-1"></i>Add Role
+          </button>
+        </div>
+        <div id="rolesList" class="space-y-3">
+          <!-- Role rows will be added here -->
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal Footer -->
+    <div class="p-6 border-t border-neutral-800 flex gap-3 justify-end flex-shrink-0">
+      <button onclick="closeCreateModal()" class="bg-neutral-700 hover:bg-neutral-600 text-white px-6 py-2 rounded-lg font-medium transition">
+        Cancel
+      </button>
+      <button onclick="saveTemplate()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-lg font-medium transition">
+        <i class="fas fa-save mr-2"></i>Create Template
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+const guildId = '{{ guild.id }}';
+const csrfToken = '{{ csrf_token }}';
+const currentTier = '{{ guild_record.subscription_tier }}';
+const isVIP = {{ guild_record.is_vip|lower }};
+const totalTemplates = {{ total_templates }};
+
+let channelCounter = 0;
+let roleCounter = 0;
+
+function canCreateTemplate() {
+  let limit;
+  if (isVIP || currentTier === 'premium') {
+    return true; // Unlimited
+  } else if (currentTier === 'pro') {
+    limit = 10;
+  } else {
+    limit = 5;
+  }
+
+  if (totalTemplates >= limit) {
+    alert(`You've reached your template limit (${limit} templates). ${currentTier === 'pro' ? 'Upgrade to Premium for unlimited templates!' : 'Upgrade to Pro for 10 templates or Premium for unlimited!'}`);
+    return false;
+  }
+  return true;
+}
+
+function openCreateModal(type) {
+  if (!canCreateTemplate()) return;
+
+  document.getElementById('templateType').value = type;
+  document.getElementById('modalTitle').innerHTML = `<i class="fas fa-plus mr-2"></i>Create ${type === 'channel' ? 'Channel' : 'Role'} Template`;
+  document.getElementById('templateName').value = '';
+  document.getElementById('templateDescription').value = '';
+
+  // Show appropriate builder
+  const channelBuilder = document.getElementById('channelBuilder');
+  const roleBuilder = document.getElementById('roleBuilder');
+
+  if (type === 'channel') {
+    channelBuilder.classList.remove('hidden');
+    roleBuilder.classList.add('hidden');
+    document.getElementById('channelsList').innerHTML = '';
+    channelCounter = 0;
+    addChannelRow(); // Start with one channel
+  } else {
+    roleBuilder.classList.remove('hidden');
+    channelBuilder.classList.add('hidden');
+    document.getElementById('rolesList').innerHTML = '';
+    roleCounter = 0;
+    addRoleRow(); // Start with one role
+  }
+
+  document.getElementById('createModal').classList.remove('hidden');
+}
+
+function closeCreateModal() {
+  document.getElementById('createModal').classList.add('hidden');
+}
+
+function addChannelRow() {
+  const id = channelCounter++;
+  const html = `
+    <div class="bg-neutral-800 rounded-lg p-4 border border-neutral-700" id="channel-${id}">
+      <div class="flex items-start gap-3">
+        <div class="flex-1 grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div>
+            <label class="text-xs text-gray-400">Channel Name <span class="text-red-400">*</span></label>
+            <input type="text" class="channel-name w-full bg-neutral-900 border border-neutral-600 rounded px-3 py-2 text-white text-sm mt-1"
+                   placeholder="general" required>
+          </div>
+          <div>
+            <label class="text-xs text-gray-400">Type</label>
+            <select class="channel-type w-full bg-neutral-900 border border-neutral-600 rounded px-3 py-2 text-white text-sm mt-1">
+              <option value="text">Text Channel</option>
+              <option value="voice">Voice Channel</option>
+              <option value="announcement">Announcement</option>
+              <option value="forum">Forum</option>
+              <option value="stage">Stage Channel</option>
+            </select>
+          </div>
+          <div>
+            <label class="text-xs text-gray-400">Category (optional)</label>
+            <input type="text" class="channel-category w-full bg-neutral-900 border border-neutral-600 rounded px-3 py-2 text-white text-sm mt-1"
+                   placeholder="General">
+          </div>
+          <div>
+            <label class="text-xs text-gray-400">Topic (optional)</label>
+            <input type="text" class="channel-topic w-full bg-neutral-900 border border-neutral-600 rounded px-3 py-2 text-white text-sm mt-1"
+                   placeholder="Channel topic">
+          </div>
+        </div>
+        <button type="button" onclick="removeChannel(${id})" class="text-red-400 hover:text-red-300 mt-6">
+          <i class="fas fa-trash"></i>
+        </button>
+      </div>
+    </div>
+  `;
+  document.getElementById('channelsList').insertAdjacentHTML('beforeend', html);
+}
+
+function removeChannel(id) {
+  document.getElementById(`channel-${id}`)?.remove();
+}
+
+function addRoleRow() {
+  const id = roleCounter++;
+  const html = `
+    <div class="bg-neutral-800 rounded-lg p-4 border border-neutral-700" id="role-${id}">
+      <div class="flex items-start gap-3">
+        <div class="flex-1 grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div>
+            <label class="text-xs text-gray-400">Role Name <span class="text-red-400">*</span></label>
+            <input type="text" class="role-name w-full bg-neutral-900 border border-neutral-600 rounded px-3 py-2 text-white text-sm mt-1"
+                   placeholder="Member" required>
+          </div>
+          <div>
+            <label class="text-xs text-gray-400">Color</label>
+            <input type="color" class="role-color w-full bg-neutral-900 border border-neutral-600 rounded px-3 py-2 h-10 mt-1"
+                   value="#99aab5">
+          </div>
+          <div class="flex items-end gap-3">
+            <label class="flex items-center gap-2 text-sm text-gray-400">
+              <input type="checkbox" class="role-hoisted">
+              <span>Hoisted</span>
+            </label>
+            <label class="flex items-center gap-2 text-sm text-gray-400">
+              <input type="checkbox" class="role-mentionable">
+              <span>Mentionable</span>
+            </label>
+          </div>
+        </div>
+        <button type="button" onclick="removeRole(${id})" class="text-red-400 hover:text-red-300 mt-6">
+          <i class="fas fa-trash"></i>
+        </button>
+      </div>
+    </div>
+  `;
+  document.getElementById('rolesList').insertAdjacentHTML('beforeend', html);
+}
+
+function removeRole(id) {
+  document.getElementById(`role-${id}`)?.remove();
+}
+
+async function saveTemplate() {
+  const type = document.getElementById('templateType').value;
+  const name = document.getElementById('templateName').value.trim();
+  const description = document.getElementById('templateDescription').value.trim();
+
+  if (!name) {
+    alert('Please enter a template name');
+    return;
+  }
+
+  let data = [];
+
+  if (type === 'channel') {
+    const channels = document.querySelectorAll('#channelsList > div');
+    if (channels.length === 0) {
+      alert('Please add at least one channel');
+      return;
+    }
+
+    channels.forEach(channelDiv => {
+      const nameInput = channelDiv.querySelector('.channel-name');
+      if (!nameInput.value.trim()) return;
+
+      data.push({
+        name: nameInput.value.trim(),
+        type: channelDiv.querySelector('.channel-type').value,
+        category: channelDiv.querySelector('.channel-category').value.trim() || null,
+        topic: channelDiv.querySelector('.channel-topic').value.trim() || null,
+      });
+    });
+  } else {
+    const roles = document.querySelectorAll('#rolesList > div');
+    if (roles.length === 0) {
+      alert('Please add at least one role');
+      return;
+    }
+
+    roles.forEach(roleDiv => {
+      const nameInput = roleDiv.querySelector('.role-name');
+      if (!nameInput.value.trim()) return;
+
+      data.push({
+        name: nameInput.value.trim(),
+        color: roleDiv.querySelector('.role-color').value,
+        hoist: roleDiv.querySelector('.role-hoisted').checked,
+        mentionable: roleDiv.querySelector('.role-mentionable').checked,
+      });
+    });
+  }
+
+  if (data.length === 0) {
+    alert(`Please add at least one ${type}`);
+    return;
+  }
+
+  const endpoint = type === 'channel'
+    ? `/api/guild/${guildId}/templates/channels/`
+    : `/api/guild/${guildId}/templates/roles/`;
+
+  try {
+    const response = await csrfFetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+      body: JSON.stringify({
+        name,
+        description: description || null,
+        [type === 'channel' ? 'channels' : 'roles']: data,
+      }),
+    });
+
+    const result = await response.json();
+
+    if (result.success) {
+      closeCreateModal();
+      window.location.reload();
+    } else {
+      alert('Error: ' + (result.error || 'Failed to create template'));
+    }
+  } catch (err) {
+    alert('Error: ' + err.message);
+  }
+}
+
+async function applyTemplate(type, id) {
+  if (!confirm(`Apply this template? This will create new ${type} in your server.`)) return;
+
+  try {
+    const response = await csrfFetch(`/api/guild/${guildId}/templates/${type}/${id}/apply/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+    });
+    const result = await response.json();
+    if (result.success) {
+      alert('Template queued for application! Check your Discord server.');
+      window.location.reload();
+    } else {
+      throw new Error(result.error);
+    }
+  } catch (err) {
+    alert('Error: ' + err.message);
+  }
+}
+
+async function deleteTemplate(type, id) {
+  if (!confirm('Delete this template? This cannot be undone.')) return;
+
+  try {
+    const response = await csrfFetch(`/api/guild/${guildId}/templates/${type}/${id}/`, {
+      method: 'DELETE',
+      headers: { 'X-CSRFToken': csrfToken },
+    });
+    const result = await response.json();
+    if (result.success) {
+      window.location.reload();
+    } else {
+      throw new Error(result.error);
+    }
+  } catch (err) {
+    alert('Error: ' + err.message);
+  }
+}
+</script>
+{% endblock guild_content %}

@@ -1,0 +1,200 @@
+<!-- Custom Select Dropdown Component
+     Usage: Call createCustomSelect(config) in JavaScript
+     Example:
+     createCustomSelect({
+       container: '#mySelectContainer',
+       name: 'channel_id',
+       placeholder: 'Select a channel...',
+       items: [{value: '123', label: '# general', icon: 'hashtag'}],
+       selected: '123',
+       color: 'blue'
+     });
+-->
+
+<script>
+function createCustomSelect(config) {
+  const {
+    container,
+    name,
+    id = name,
+    placeholder = 'Select an option...',
+    items = [],
+    selected = '',
+    color = 'blue',
+    onSelect = null
+  } = config;
+
+  const containerEl = typeof container === 'string' ? document.querySelector(container) : container;
+  if (!containerEl) {
+    console.error('Container not found:', container);
+    return;
+  }
+
+  let isOpen = false;
+  let searchQuery = '';
+  let selectedValue = selected;
+
+  // Build HTML
+  const html = `
+    <div class="custom-select-wrapper relative">
+      <!-- Trigger Button -->
+      <button
+        type="button"
+        class="custom-select-trigger w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white text-left focus:border-${color}-500 focus:outline-none flex items-center justify-between hover:bg-neutral-750 transition">
+        <span class="custom-select-label ${!selectedValue ? 'text-gray-400' : ''}">${selectedValue ? items.find(i => i.value === selectedValue)?.label || placeholder : placeholder}</span>
+        <i class="fas fa-chevron-down text-gray-400 text-sm transition-transform custom-select-icon"></i>
+      </button>
+
+      <!-- Hidden Input -->
+      <input type="hidden" name="${name}" id="${id}" value="${selectedValue}">
+
+      <!-- Dropdown Panel -->
+      <div class="custom-select-dropdown hidden absolute z-50 w-full mt-2 bg-neutral-800 border border-neutral-700 rounded-lg shadow-2xl overflow-hidden">
+        <!-- Search Input -->
+        <div class="p-3 border-b border-neutral-700">
+          <input
+            type="text"
+            class="custom-select-search w-full bg-neutral-900 border border-neutral-600 rounded px-3 py-2 text-white text-sm placeholder-gray-500 focus:border-${color}-500 focus:outline-none"
+            placeholder="Type to search...">
+        </div>
+
+        <!-- Options List -->
+        <div class="custom-select-options max-h-60 overflow-y-auto custom-scrollbar">
+          ${items.map(item => `
+            <button
+              type="button"
+              data-value="${item.value}"
+              class="custom-select-option w-full px-4 py-2.5 text-left text-white hover:bg-neutral-700 transition flex items-center gap-2 text-sm ${selectedValue === item.value ? 'bg-neutral-700' : ''}">
+              ${item.icon ? `<i class="fas fa-${item.icon} text-gray-400"></i>` : ''}
+              <span>${item.label}</span>
+              ${selectedValue === item.value ? '<i class="fas fa-check ml-auto text-green-400 text-xs"></i>' : ''}
+            </button>
+          `).join('')}
+
+          <!-- No Results -->
+          <div class="custom-select-no-results hidden px-4 py-6 text-center text-gray-500 text-sm">
+            No results found
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  containerEl.innerHTML = html;
+
+  // Get elements
+  const trigger = containerEl.querySelector('.custom-select-trigger');
+  const dropdown = containerEl.querySelector('.custom-select-dropdown');
+  const search = containerEl.querySelector('.custom-select-search');
+  const options = containerEl.querySelector('.custom-select-options');
+  const hiddenInput = containerEl.querySelector(`#${id}`);
+  const label = containerEl.querySelector('.custom-select-label');
+  const icon = containerEl.querySelector('.custom-select-icon');
+  const noResults = containerEl.querySelector('.custom-select-no-results');
+
+  // Toggle dropdown
+  function toggleDropdown() {
+    isOpen = !isOpen;
+    if (isOpen) {
+      dropdown.classList.remove('hidden');
+      icon.classList.add('rotate-180');
+      setTimeout(() => search.focus(), 100);
+    } else {
+      dropdown.classList.add('hidden');
+      icon.classList.remove('rotate-180');
+      search.value = '';
+      searchQuery = '';
+      filterOptions();
+    }
+  }
+
+  // Select option
+  function selectOption(value) {
+    selectedValue = value;
+    hiddenInput.value = value;
+    const item = items.find(i => i.value === value);
+    label.textContent = item ? item.label : placeholder;
+    label.classList.toggle('text-gray-400', !value);
+
+    // Update selected styling
+    options.querySelectorAll('.custom-select-option').forEach(opt => {
+      const isSelected = opt.dataset.value === value;
+      opt.classList.toggle('bg-neutral-700', isSelected);
+      const check = opt.querySelector('.fa-check');
+      if (check) check.remove();
+      if (isSelected) {
+        opt.innerHTML += '<i class="fas fa-check ml-auto text-green-400 text-xs"></i>';
+      }
+    });
+
+    toggleDropdown();
+    if (onSelect) onSelect(value, item);
+  }
+
+  // Filter options
+  function filterOptions() {
+    const query = searchQuery.toLowerCase();
+    let visibleCount = 0;
+
+    options.querySelectorAll('.custom-select-option').forEach(opt => {
+      const label = opt.textContent.toLowerCase();
+      const matches = label.includes(query);
+      opt.style.display = matches ? '' : 'none';
+      if (matches) visibleCount++;
+    });
+
+    noResults.classList.toggle('hidden', visibleCount > 0);
+  }
+
+  // Event listeners
+  trigger.addEventListener('click', (e) => {
+    e.stopPropagation();
+    toggleDropdown();
+  });
+
+  search.addEventListener('input', (e) => {
+    searchQuery = e.target.value;
+    filterOptions();
+  });
+
+  search.addEventListener('click', (e) => e.stopPropagation());
+
+  options.querySelectorAll('.custom-select-option').forEach(opt => {
+    opt.addEventListener('click', () => selectOption(opt.dataset.value));
+  });
+
+  // Click outside to close
+  document.addEventListener('click', (e) => {
+    if (isOpen && !containerEl.contains(e.target)) {
+      toggleDropdown();
+    }
+  });
+
+  // Return API
+  return {
+    getValue: () => selectedValue,
+    setValue: (value) => selectOption(value),
+    destroy: () => containerEl.innerHTML = ''
+  };
+}
+</script>
+
+<style>
+.custom-scrollbar::-webkit-scrollbar {
+  width: 8px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: #1f2937;
+  border-radius: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #4b5563;
+  border-radius: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #6b7280;
+}
+.rotate-180 {
+  transform: rotate(180deg);
+}
+</style>

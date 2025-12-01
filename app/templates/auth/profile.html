@@ -1,0 +1,161 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}My Profile - Casual Heroes{% endblock %}
+{% block og_title %}My Profile - Casual Heroes{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto px-6 py-12">
+  <!-- Profile Header -->
+  <div class="bg-neutral-900 rounded-2xl p-8 border border-neutral-800">
+    <div class="flex flex-col md:flex-row items-center gap-6">
+      <img src="{{ discord_user.avatar_url }}"
+           alt="Discord Avatar"
+           class="w-24 h-24 rounded-full border-4 border-indigo-500 shadow-lg shadow-indigo-500/20">
+      <div class="text-center md:text-left">
+        <h1 class="text-3xl font-bold text-white">{{ discord_user.global_name }}</h1>
+        <p class="text-gray-400 text-lg">@{{ discord_user.username }}</p>
+        {% if discord_user.email %}
+        <p class="text-gray-500 text-sm mt-1">
+          <i class="fas fa-envelope mr-2"></i>{{ discord_user.email }}
+        </p>
+        {% endif %}
+      </div>
+      <div class="md:ml-auto flex gap-3">
+        <a href="{% url 'warden_dashboard' %}"
+           class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-lg font-medium transition">
+          <i class="fas fa-shield-alt mr-2"></i>Warden Dashboard
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Stats Grid -->
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
+    <div class="bg-neutral-900 rounded-xl p-6 border border-neutral-800">
+      <div class="flex items-center gap-4">
+        <div class="w-12 h-12 bg-indigo-600/20 rounded-lg flex items-center justify-center">
+          <i class="fas fa-server text-indigo-400 text-xl"></i>
+        </div>
+        <div>
+          <p class="text-3xl font-bold text-white">{{ guild_count }}</p>
+          <p class="text-gray-400 text-sm">Servers</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="bg-neutral-900 rounded-xl p-6 border border-neutral-800">
+      <div class="flex items-center gap-4">
+        <div class="w-12 h-12 bg-green-600/20 rounded-lg flex items-center justify-center">
+          <i class="fas fa-crown text-green-400 text-xl"></i>
+        </div>
+        <div>
+          <p class="text-3xl font-bold text-white">{{ admin_guild_count }}</p>
+          <p class="text-gray-400 text-sm">Admin Servers</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="bg-neutral-900 rounded-xl p-6 border border-neutral-800">
+      <div class="flex items-center gap-4">
+        <div class="w-12 h-12 bg-purple-600/20 rounded-lg flex items-center justify-center">
+          <i class="fab fa-discord text-purple-400 text-xl"></i>
+        </div>
+        <div>
+          <p class="text-3xl font-bold text-white">Connected</p>
+          <p class="text-gray-400 text-sm">Discord Account</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Servers You Can Manage -->
+  <div class="mt-12">
+    <h2 class="text-2xl font-bold text-white mb-6">
+      <i class="fas fa-shield-alt text-indigo-400 mr-3"></i>Servers You Can Manage
+    </h2>
+
+    {% if admin_guilds %}
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      {% for guild in admin_guilds %}
+      <a href="{% url 'guild_dashboard' guild.id %}"
+         class="bg-neutral-900 rounded-xl p-4 border border-neutral-800 hover:border-indigo-500 transition group">
+        <div class="flex items-center gap-4">
+          {% if guild.icon %}
+          <img src="https://cdn.discordapp.com/icons/{{ guild.id }}/{{ guild.icon }}.png?size=64"
+               alt="{{ guild.name }}"
+               class="w-12 h-12 rounded-full">
+          {% else %}
+          <div class="w-12 h-12 bg-neutral-700 rounded-full flex items-center justify-center">
+            <span class="text-lg font-bold text-gray-400">{{ guild.name|slice:":2"|upper }}</span>
+          </div>
+          {% endif %}
+          <div class="flex-1 min-w-0">
+            <p class="text-white font-medium truncate group-hover:text-indigo-400 transition">{{ guild.name }}</p>
+            <p class="text-gray-500 text-sm">
+              {% if guild.owner %}
+              <i class="fas fa-crown text-yellow-500 mr-1"></i>Owner
+              {% else %}
+              <i class="fas fa-user-shield text-indigo-400 mr-1"></i>Admin
+              {% endif %}
+            </p>
+          </div>
+          <i class="fas fa-chevron-right text-gray-600 group-hover:text-indigo-400 transition"></i>
+        </div>
+      </a>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="bg-neutral-900 rounded-xl p-8 border border-neutral-800 text-center">
+      <i class="fas fa-server text-gray-600 text-4xl mb-4"></i>
+      <p class="text-gray-400">You don't have admin access to any servers.</p>
+      <p class="text-gray-500 text-sm mt-2">Become an admin or owner of a Discord server to manage it here.</p>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- All Servers -->
+  <div class="mt-12">
+    <h2 class="text-2xl font-bold text-white mb-6">
+      <i class="fas fa-users text-gray-400 mr-3"></i>All Your Servers
+    </h2>
+
+    <div class="bg-neutral-900 rounded-xl border border-neutral-800 overflow-hidden">
+      <div class="max-h-64 overflow-y-auto">
+        {% for guild in all_guilds %}
+        <div class="flex items-center gap-4 px-4 py-3 {% if not forloop.last %}border-b border-neutral-800{% endif %}">
+          {% if guild.icon %}
+          <img src="https://cdn.discordapp.com/icons/{{ guild.id }}/{{ guild.icon }}.png?size=32"
+               alt="{{ guild.name }}"
+               class="w-8 h-8 rounded-full">
+          {% else %}
+          <div class="w-8 h-8 bg-neutral-700 rounded-full flex items-center justify-center">
+            <span class="text-xs font-bold text-gray-400">{{ guild.name|slice:":2"|upper }}</span>
+          </div>
+          {% endif %}
+          <span class="text-gray-300">{{ guild.name }}</span>
+        </div>
+        {% empty %}
+        <div class="px-4 py-8 text-center text-gray-500">
+          No servers found
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Danger Zone -->
+  <div class="mt-12 bg-red-900/20 rounded-xl p-6 border border-red-900/50">
+    <h3 class="text-lg font-bold text-red-400 mb-4">
+      <i class="fas fa-exclamation-triangle mr-2"></i>Account Actions
+    </h3>
+    <p class="text-gray-400 text-sm mb-4">
+      Logging out will disconnect your Discord account from this session.
+    </p>
+    <a href="{% url 'discord_logout' %}"
+       class="inline-block bg-red-600 hover:bg-red-700 text-white px-6 py-2 rounded-lg font-medium transition">
+      <i class="fas fa-sign-out-alt mr-2"></i>Log Out
+    </a>
+  </div>
+</div>
+{% endblock %}

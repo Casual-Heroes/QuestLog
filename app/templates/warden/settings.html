@@ -1,0 +1,265 @@
+{% extends "warden/base_guild.html" %}
+{% load static %}
+
+{% block title %}Server Settings - {{ guild.name }}{% endblock %}
+
+{% block guild_content %}
+
+{% include "warden/partials/custom_select.html" %}
+
+  <!-- Header -->
+  <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
+    <div>
+      <h1 class="text-3xl font-bold text-white">
+        <i class="fas fa-cog text-gray-400 mr-3"></i>Server Settings
+      </h1>
+      <p class="text-gray-400 mt-1">Configure bot behavior for this server</p>
+    </div>
+    <div class="flex gap-3 items-center">
+      <span class="px-3 py-1 bg-{% if settings.subscription_tier == 'pro' %}purple{% elif settings.subscription_tier == 'premium' %}yellow{% else %}gray{% endif %}-600/20 text-{% if settings.subscription_tier == 'pro' %}purple{% elif settings.subscription_tier == 'premium' %}yellow{% else %}gray{% endif %}-400 rounded-full text-sm font-medium capitalize">
+        {{ settings.subscription_tier }} Plan
+      </span>
+      <button onclick="saveSettings()" id="saveBtn" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium transition text-sm">
+        <i class="fas fa-save mr-2"></i>Save Changes
+      </button>
+    </div>
+  </div>
+
+  <!-- General Settings -->
+  <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6 mb-6">
+    <h3 class="text-lg font-bold text-white mb-6">
+      <i class="fas fa-sliders-h text-gray-400 mr-2"></i>General
+    </h3>
+    <div class="space-y-6">
+      <!-- Prefix -->
+      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <p class="text-white font-medium">Bot Prefix</p>
+          <p class="text-gray-500 text-sm">Command prefix for legacy text commands</p>
+        </div>
+        <input type="text" id="prefix" value="{{ settings.prefix }}" maxlength="10"
+               class="w-full md:w-24 bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-center focus:border-indigo-500 focus:outline-none">
+      </div>
+
+      <!-- Language -->
+      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <p class="text-white font-medium">Language</p>
+          <p class="text-gray-500 text-sm">Bot response language</p>
+        </div>
+        <select id="language" class="w-full md:w-48 bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white focus:border-indigo-500 focus:outline-none">
+          <option value="en" {% if settings.language == 'en' %}selected{% endif %}>English</option>
+          <option value="es" {% if settings.language == 'es' %}selected{% endif %}>Spanish</option>
+          <option value="de" {% if settings.language == 'de' %}selected{% endif %}>German</option>
+          <option value="fr" {% if settings.language == 'fr' %}selected{% endif %}>French</option>
+          <option value="pt" {% if settings.language == 'pt' %}selected{% endif %}>Portuguese</option>
+          <option value="ja" {% if settings.language == 'ja' %}selected{% endif %}>Japanese</option>
+        </select>
+      </div>
+
+      <!-- Timezone -->
+      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <p class="text-white font-medium">Timezone</p>
+          <p class="text-gray-500 text-sm">Used for scheduled messages and logs</p>
+        </div>
+        <select id="timezone" class="w-full md:w-64 bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white focus:border-indigo-500 focus:outline-none">
+          <option value="UTC" {% if settings.timezone == 'UTC' %}selected{% endif %}>UTC</option>
+          <option value="America/New_York" {% if settings.timezone == 'America/New_York' %}selected{% endif %}>Eastern Time (ET)</option>
+          <option value="America/Chicago" {% if settings.timezone == 'America/Chicago' %}selected{% endif %}>Central Time (CT)</option>
+          <option value="America/Denver" {% if settings.timezone == 'America/Denver' %}selected{% endif %}>Mountain Time (MT)</option>
+          <option value="America/Los_Angeles" {% if settings.timezone == 'America/Los_Angeles' %}selected{% endif %}>Pacific Time (PT)</option>
+          <option value="Europe/London" {% if settings.timezone == 'Europe/London' %}selected{% endif %}>London (GMT)</option>
+          <option value="Europe/Paris" {% if settings.timezone == 'Europe/Paris' %}selected{% endif %}>Central European (CET)</option>
+          <option value="Europe/Berlin" {% if settings.timezone == 'Europe/Berlin' %}selected{% endif %}>Berlin (CET)</option>
+          <option value="Asia/Tokyo" {% if settings.timezone == 'Asia/Tokyo' %}selected{% endif %}>Tokyo (JST)</option>
+          <option value="Australia/Sydney" {% if settings.timezone == 'Australia/Sydney' %}selected{% endif %}>Sydney (AEDT)</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <!-- Token Customization -->
+  <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6 mb-6">
+    <h3 class="text-lg font-bold text-white mb-2">
+      <i class="fas fa-coins text-yellow-400 mr-2"></i>Token Customization
+    </h3>
+    <p class="text-gray-400 text-sm mb-6">Rename "Hero Tokens" to match your server's theme</p>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div>
+        <label class="block text-sm text-gray-400 mb-2">Token Name</label>
+        <input type="text" id="token_name" value="{{ settings.token_name }}" maxlength="50"
+               placeholder="e.g., Gold Coins, Stars, Points"
+               class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:border-yellow-500 focus:outline-none">
+        <p class="text-gray-500 text-xs mt-1">Used in all bot messages and commands</p>
+      </div>
+      <div>
+        <label class="block text-sm text-gray-400 mb-2">Token Emoji</label>
+        <input type="text" id="token_emoji" value="{{ settings.token_emoji }}" maxlength="20"
+               placeholder="e.g., :coin: or custom emoji ID"
+               class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:border-yellow-500 focus:outline-none">
+        <p class="text-gray-500 text-xs mt-1">Discord emoji or custom emoji</p>
+      </div>
+    </div>
+    <div class="mt-4 p-4 bg-neutral-800/50 rounded-lg">
+      <p class="text-gray-400 text-sm">
+        <i class="fas fa-info-circle text-blue-400 mr-2"></i>
+        Preview: <span class="text-white" id="tokenPreview">{{ settings.token_emoji }} 100 {{ settings.token_name }}</span>
+      </p>
+    </div>
+  </div>
+
+  <!-- Moderation Channels -->
+  <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6 mb-6">
+    <h3 class="text-lg font-bold text-white mb-6">
+      <i class="fas fa-hashtag text-gray-400 mr-2"></i>Moderation Channels
+    </h3>
+    <div class="space-y-6">
+      <div>
+        <label class="block text-sm text-gray-400 mb-2">Mod Log Channel</label>
+        <div id="mod_log_channel_idContainer"></div>
+        
+        <p class="text-gray-500 text-xs mt-1">Warnings, bans, kicks, and other mod actions will be logged here</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Danger Zone -->
+  <div class="bg-red-900/20 rounded-xl p-6 border border-red-900/50">
+    <h3 class="text-lg font-bold text-red-400 mb-4">
+      <i class="fas fa-exclamation-triangle mr-2"></i>Danger Zone
+    </h3>
+    <div class="space-y-4">
+      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <p class="text-white font-medium">Reset All Settings</p>
+          <p class="text-gray-400 text-sm">Reset all Warden settings for this server to defaults</p>
+        </div>
+        <button onclick="confirmReset()" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg font-medium transition text-sm whitespace-nowrap">
+          Reset Settings
+        </button>
+      </div>
+      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 pt-4 border-t border-red-900/30">
+        <div>
+          <p class="text-white font-medium">Remove Warden</p>
+          <p class="text-gray-400 text-sm">Remove all Warden data for this server</p>
+        </div>
+        <button onclick="confirmRemove()" class="bg-red-800 hover:bg-red-900 text-white px-4 py-2 rounded-lg font-medium transition text-sm whitespace-nowrap">
+          Remove Data
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const guildId = '{{ guild.id }}';
+const csrfToken = '{{ csrf_token }}';
+
+// Update token preview
+function updateTokenPreview() {
+  const emoji = document.getElementById('token_emoji').value || ':coin:';
+  const name = document.getElementById('token_name').value || 'Hero Tokens';
+  document.getElementById('tokenPreview').textContent = `${emoji} 100 ${name}`;
+}
+document.getElementById('token_emoji').addEventListener('input', updateTokenPreview);
+document.getElementById('token_name').addEventListener('input', updateTokenPreview);
+
+// Load Discord channels for custom select
+let modChannelSelect;
+async function loadChannels() {
+  try {
+    const response = await csrfFetch(`/api/guild/${guildId}/channels/`);
+    const data = await response.json();
+
+    const currentValue = '{{ settings.mod_log_channel_id }}';
+
+    if (data.channels) {
+      const textChannels = data.channels.filter(ch => ch.type === 0);
+
+      const channelItems = textChannels.map(channel => {
+        const label = channel.category_name
+          ? `# ${channel.name} (${channel.category_name})`
+          : `# ${channel.name}`;
+
+        return {
+          value: channel.id,
+          label: label,
+          icon: 'hashtag'
+        };
+      });
+
+      modChannelSelect = createCustomSelect({
+        container: '#mod_log_channel_idContainer',
+        name: 'mod_log_channel_id',
+        id: 'mod_log_channel_id',
+        placeholder: 'Select a channel...',
+        items: channelItems,
+        selected: currentValue || '',
+        color: 'indigo'
+      });
+    }
+  } catch (err) {
+    console.error('Failed to load channels:', err);
+  }
+}
+
+document.addEventListener('DOMContentLoaded', loadChannels);
+
+async function saveSettings() {
+  const btn = document.getElementById('saveBtn');
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Saving...';
+  btn.disabled = true;
+
+  const modChannelInput = document.getElementById('mod_log_channel_id');
+
+  const data = {
+    prefix: document.getElementById('prefix').value,
+    language: document.getElementById('language').value,
+    timezone: document.getElementById('timezone').value,
+    token_name: document.getElementById('token_name').value,
+    token_emoji: document.getElementById('token_emoji').value,
+    mod_log_channel_id: modChannelMap[modChannelInput.value] || modChannelInput.value || '',
+  };
+
+  try {
+    const response = await csrfFetch(`/api/guild/${guildId}/settings/update/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+      body: JSON.stringify(data),
+    });
+    const result = await response.json();
+    if (result.success) {
+      btn.innerHTML = '<i class="fas fa-check mr-2"></i>Saved!';
+      btn.classList.replace('bg-indigo-600', 'bg-green-600');
+      setTimeout(() => {
+        window.location.reload();
+      }, 1000);
+    } else {
+      throw new Error(result.error);
+    }
+  } catch (err) {
+    btn.innerHTML = '<i class="fas fa-times mr-2"></i>Error';
+    btn.classList.replace('bg-indigo-600', 'bg-red-600');
+    setTimeout(() => {
+      btn.innerHTML = '<i class="fas fa-save mr-2"></i>Save Changes';
+      btn.classList.replace('bg-red-600', 'bg-indigo-600');
+      btn.disabled = false;
+    }, 2000);
+    alert('Error: ' + err.message);
+  }
+}
+
+function confirmReset() {
+  if (confirm('Are you sure you want to reset all settings to defaults? This cannot be undone.')) {
+    alert('Reset functionality coming soon!');
+  }
+}
+
+function confirmRemove() {
+  if (confirm('Are you sure you want to remove all Warden data for this server? This action is permanent and cannot be undone.')) {
+    alert('Remove functionality coming soon!');
+  }
+}
+</script>
+{% endblock guild_content %}

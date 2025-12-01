@@ -1,0 +1,239 @@
+{% extends "warden/base_guild.html" %}
+{% load static %}
+
+{% block title %}Found Games - {{ guild.name }}{% endblock %}
+
+{% block og_title %}{{ guild.name }} - Game Discovery | Casual Heroes{% endblock %}
+{% block og_description %}Explore games discovered by WardenBot for {{ guild.name }}. Powered by Casual Heroes.{% endblock %}
+{% block og_url %}https://casual-heroes.com/warden/guild/{{ guild.id }}/found-games/{% endblock %}
+
+{% block guild_content %}
+<!-- Header -->
+<div class="bg-neutral-900/50 border-b border-neutral-800 -mx-1 px-6 py-6">
+    <div class="flex items-center justify-between flex-wrap gap-4">
+        <div>
+            <h1 class="text-3xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
+                🎮 Found Games
+            </h1>
+            <p class="text-gray-400 mt-2">
+                Games discovered by WardenBot for <span class="text-white font-semibold">{{ guild.name }}</span>
+            </p>
+        </div>
+        <a href="{% url 'guild_discovery' guild.id %}"
+           class="px-4 py-2 bg-neutral-800 hover:bg-neutral-700 rounded-lg border border-neutral-700 transition-colors">
+            <i class="fas fa-arrow-left mr-2"></i>Back to Discovery
+        </a>
+    </div>
+
+    <!-- Filter Dropdown -->
+    {% if search_configs %}
+    <div class="mt-6">
+        <select id="searchFilter"
+                class="w-full md:w-64 px-4 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white focus:outline-none focus:border-blue-500 transition-colors">
+            <option value="">🎮 All Searches</option>
+            {% for search in search_configs %}
+            <option value="{{ search.id }}" {% if search_id == search.id %}selected{% endif %}>
+                {{ search.name }}
+            </option>
+            {% endfor %}
+        </select>
+    </div>
+    {% endif %}
+
+    <!-- Stats -->
+    <div class="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div class="bg-neutral-800/50 border border-neutral-700 rounded-lg p-4">
+            <div class="flex items-center gap-3">
+                <div class="text-blue-400 text-2xl">
+                    <i class="fas fa-gamepad"></i>
+                </div>
+                <div>
+                    <div class="text-2xl font-bold">{{ total_count }}</div>
+                    <div class="text-sm text-gray-400">Games Found</div>
+                </div>
+            </div>
+        </div>
+        <div class="bg-neutral-800/50 border border-neutral-700 rounded-lg p-4">
+            <div class="flex items-center gap-3">
+                <div class="text-green-400 text-2xl">
+                    <i class="fab fa-steam"></i>
+                </div>
+                <div>
+                    <div class="text-2xl font-bold">{{ with_steam }}</div>
+                    <div class="text-sm text-gray-400">On Steam</div>
+                </div>
+            </div>
+        </div>
+        <div class="bg-neutral-800/50 border border-neutral-700 rounded-lg p-4">
+            <div class="flex items-center gap-3">
+                <div class="text-purple-400 text-2xl">
+                    <i class="fas fa-database"></i>
+                </div>
+                <div>
+                    <div class="text-2xl font-bold">IGDB</div>
+                    <div class="text-sm text-gray-400">Data Source</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Content -->
+<div class="px-6 py-8">
+        {% if error %}
+        <div class="bg-red-900/20 border border-red-800 rounded-xl p-6 text-center">
+            <i class="fas fa-exclamation-triangle text-red-400 text-3xl mb-2"></i>
+            <p class="text-red-400">{{ error }}</p>
+        </div>
+        {% elif not found_games %}
+        <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-12 text-center">
+            <i class="fas fa-search text-gray-500 text-5xl mb-4"></i>
+            <h3 class="text-xl font-bold text-gray-400 mb-2">No Games Found Yet</h3>
+            <p class="text-gray-500">Run a game discovery check to populate this page!</p>
+            <a href="{% url 'guild_discovery' guild.id %}"
+               class="inline-block mt-4 px-6 py-3 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors">
+                Go to Discovery Dashboard
+            </a>
+        </div>
+        {% else %}
+        <!-- Games Grid -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {% for game in found_games %}
+            <div class="bg-neutral-900 border border-neutral-800 rounded-xl overflow-hidden hover:border-blue-500 transition-all duration-300 group flex flex-col h-full">
+                <!-- Cover Image -->
+                {% if game.cover_url %}
+                <div class="relative aspect-[3/4] overflow-hidden bg-neutral-800 flex-shrink-0">
+                    <img src="{{ game.cover_url }}"
+                         alt="{{ game.name }}"
+                         class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                         loading="lazy">
+                    {% if game.rating %}
+                    <div class="absolute top-2 right-2 bg-yellow-500 text-black px-2 py-1 rounded-lg font-bold text-sm">
+                        ⭐ {{ game.rating }}
+                    </div>
+                    {% endif %}
+                </div>
+                {% endif %}
+
+                <!-- Game Info -->
+                <div class="p-4 flex-1 flex flex-col">
+                    <h3 class="font-bold text-lg mb-2 line-clamp-2 group-hover:text-blue-400 transition-colors">
+                        {{ game.name }}
+                    </h3>
+
+                    {% if game.release_date %}
+                    <div class="text-sm text-gray-400 mb-3">
+                        <i class="far fa-calendar mr-1"></i>{{ game.release_date }}
+                    </div>
+                    {% endif %}
+
+                    {% if game.summary %}
+                    <p class="text-sm text-gray-400 line-clamp-3 mb-4">
+                        {{ game.summary }}
+                    </p>
+                    {% endif %}
+
+                    <!-- Genres & Platforms -->
+                    <div class="space-y-2 mb-4">
+                        {% if game.genres %}
+                        <div class="flex flex-wrap gap-1">
+                            {% for genre in game.genres|slice:":3" %}
+                            <span class="text-xs bg-blue-900/30 text-blue-300 px-2 py-1 rounded border border-blue-800">
+                                {{ genre }}
+                            </span>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+
+                        {% if game.platforms %}
+                        <div class="flex flex-wrap gap-1">
+                            {% for platform in game.platforms|slice:":3" %}
+                            <span class="text-xs bg-purple-900/30 text-purple-300 px-2 py-1 rounded border border-purple-800">
+                                {{ platform }}
+                            </span>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Stats -->
+                    <div class="flex gap-4 text-xs text-gray-500 mb-4">
+                        {% if game.hypes %}
+                        <span title="Pre-release follows">
+                            <i class="fas fa-fire text-orange-400"></i> {{ game.hypes }}
+                        </span>
+                        {% endif %}
+                        {% if game.game_modes %}
+                        <span title="Game modes">
+                            <i class="fas fa-users text-gray-400"></i> {{ game.game_modes|length }}
+                        </span>
+                        {% endif %}
+                    </div>
+
+                    <!-- Action Buttons -->
+                    <div class="flex gap-2 mt-auto pt-2">
+                        {% if game.steam_url %}
+                        <a href="{{ game.steam_url }}"
+                           target="_blank"
+                           class="flex-1 px-3 py-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 rounded-lg text-center text-sm font-semibold transition-all shadow-lg hover:shadow-blue-500/50">
+                            <i class="fab fa-steam mr-1"></i>View on Steam
+                        </a>
+                        {% endif %}
+                        {% if game.igdb_url %}
+                        <a href="{{ game.igdb_url }}"
+                           target="_blank"
+                           class="{% if game.steam_url %}flex-none{% else %}flex-1{% endif %} px-3 py-2 bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 rounded-lg text-center text-sm transition-all hover:border-blue-500">
+                            <i class="fas fa-info-circle mr-1"></i>IGDB
+                        </a>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- Pagination hint -->
+        {% if total_count >= 100 %}
+        <div class="mt-8 bg-blue-900/20 border border-blue-800 rounded-lg p-4 text-center text-sm text-blue-300">
+            <i class="fas fa-info-circle mr-2"></i>
+            Showing the 100 most recently found games. Run another check to discover more!
+        </div>
+        {% endif %}
+        {% endif %}
+    </div>
+
+<style>
+.line-clamp-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+.line-clamp-3 {
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const searchFilter = document.getElementById('searchFilter');
+    if (searchFilter) {
+        searchFilter.addEventListener('change', function() {
+            const searchId = this.value;
+            const url = new URL(window.location);
+
+            if (searchId) {
+                url.searchParams.set('search_id', searchId);
+            } else {
+                url.searchParams.delete('search_id');
+            }
+
+            window.location.href = url.toString();
+        });
+    }
+});
+</script>
+{% endblock guild_content %}

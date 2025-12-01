@@ -1,0 +1,516 @@
+{% extends "warden/base_guild.html" %}
+{% load static %}
+
+{% block title %}Channel Trackers - {{ guild.name }}{% endblock %}
+{% block og_title %}Channel Trackers - {{ guild.name }}{% endblock %}
+
+{% block guild_content %}
+
+{% include "warden/partials/custom_select.html" %}
+
+  <!-- Header -->
+  <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+    <div>
+      <h1 class="text-3xl font-bold text-white">
+        <i class="fas fa-chart-bar text-orange-400 mr-3"></i>Channel Stat Trackers
+      </h1>
+      <p class="text-gray-400 mt-2">
+        Automatically update channel topics with live member counts and game activity
+      </p>
+    </div>
+    <button onclick="openAddModal()"
+            class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-lg font-medium transition">
+      <i class="fas fa-plus mr-2"></i>Add Tracker
+    </button>
+  </div>
+
+  <!-- How It Works -->
+  <div class="bg-gradient-to-r from-orange-600/20 to-yellow-600/20 rounded-xl p-6 border border-orange-500/30 mb-8">
+    <h3 class="text-lg font-bold text-white mb-3">
+      <i class="fas fa-lightbulb text-yellow-400 mr-2"></i>How Channel Trackers Work
+    </h3>
+    <div class="grid md:grid-cols-3 gap-4 text-sm">
+      <div class="flex items-start gap-3">
+        <div class="w-8 h-8 bg-orange-600/30 rounded-lg flex items-center justify-center flex-shrink-0">
+          <span class="text-orange-400 font-bold">1</span>
+        </div>
+        <div>
+          <p class="text-white font-medium">Select a Role</p>
+          <p class="text-gray-400">Choose which role's members to count</p>
+        </div>
+      </div>
+      <div class="flex items-start gap-3">
+        <div class="w-8 h-8 bg-orange-600/30 rounded-lg flex items-center justify-center flex-shrink-0">
+          <span class="text-orange-400 font-bold">2</span>
+        </div>
+        <div>
+          <p class="text-white font-medium">Pick a Channel</p>
+          <p class="text-gray-400">Channel topic will be auto-updated</p>
+        </div>
+      </div>
+      <div class="flex items-start gap-3">
+        <div class="w-8 h-8 bg-orange-600/30 rounded-lg flex items-center justify-center flex-shrink-0">
+          <span class="text-orange-400 font-bold">3</span>
+        </div>
+        <div>
+          <p class="text-white font-medium">Optional: Track Games</p>
+          <p class="text-gray-400">Show "currently playing" counts</p>
+        </div>
+      </div>
+    </div>
+    <div class="mt-4 p-3 bg-neutral-900/50 rounded-lg">
+      <p class="text-gray-400 text-sm">
+        <i class="fas fa-info-circle text-indigo-400 mr-2"></i>
+        <strong>Example output:</strong>
+        <code class="ml-2 text-orange-400">🧙 Pantheon Heroes: 22 members — 2 currently playing</code>
+      </p>
+    </div>
+  </div>
+
+  <!-- Trackers List -->
+  <div id="trackers-container">
+    {% if trackers %}
+    <!-- Trackers Grid -->
+    <div id="trackers-grid" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {% for tracker in trackers %}
+      <div class="tracker-card bg-neutral-900 rounded-xl border border-neutral-800 overflow-hidden" data-id="{{ tracker.id }}">
+        <div class="p-5">
+          <div class="flex items-start justify-between mb-3">
+            <div class="flex items-center gap-3">
+              <span class="text-2xl">{{ tracker.emoji|default:"📊" }}</span>
+              <div>
+                <h4 class="text-white font-medium">{{ tracker.label }}</h4>
+                <p class="text-gray-500 text-sm">Channel: {{ tracker.channel_id }}</p>
+              </div>
+            </div>
+            <div class="flex items-center gap-2">
+              {% if tracker.enabled %}
+              <span class="px-2 py-1 bg-green-600/20 text-green-400 rounded text-xs font-medium">Active</span>
+              {% else %}
+              <span class="px-2 py-1 bg-gray-700 text-gray-400 rounded text-xs font-medium">Disabled</span>
+              {% endif %}
+            </div>
+          </div>
+
+          <!-- Current Topic Preview -->
+          {% if tracker.last_topic %}
+          <div class="bg-neutral-800 rounded-lg p-3 text-sm mb-3">
+            <p class="text-gray-400 text-xs mb-1">Current Topic:</p>
+            <code class="text-orange-400">{{ tracker.last_topic }}</code>
+          </div>
+          {% else %}
+          <div class="bg-neutral-800 rounded-lg p-3 text-sm mb-3">
+            <p class="text-gray-400 text-xs mb-1">Preview:</p>
+            <code class="text-orange-400">{{ tracker.emoji|default:"" }} {{ tracker.label }}: X members{% if tracker.game_name %} — Y currently playing{% endif %}</code>
+          </div>
+          {% endif %}
+
+          <!-- Tracker Details -->
+          <div class="flex flex-wrap gap-2 text-xs text-gray-500">
+            <span class="bg-neutral-800 px-2 py-1 rounded">Role: {{ tracker.role_id }}</span>
+            {% if tracker.game_name %}
+            <span class="bg-indigo-900/30 text-indigo-400 px-2 py-1 rounded">Game: {{ tracker.game_name }}</span>
+            {% endif %}
+          </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="px-5 py-3 bg-neutral-800/50 border-t border-neutral-800 flex justify-between items-center">
+          <button onclick="toggleTracker({{ tracker.id }}, {{ tracker.enabled|yesno:'false,true' }})"
+                  class="text-sm {% if tracker.enabled %}text-yellow-400 hover:text-yellow-300{% else %}text-green-400 hover:text-green-300{% endif %} transition">
+            <i class="fas fa-{% if tracker.enabled %}pause{% else %}play{% endif %} mr-1"></i>
+            {% if tracker.enabled %}Disable{% else %}Enable{% endif %}
+          </button>
+          <div class="flex gap-3">
+            <button onclick="editTracker({{ tracker.id }})" class="text-gray-400 hover:text-white transition">
+              <i class="fas fa-edit"></i>
+            </button>
+            <button onclick="deleteTracker({{ tracker.id }}, '{{ tracker.label }}')" class="text-red-400 hover:text-red-300 transition">
+              <i class="fas fa-trash"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <!-- Empty State -->
+    <div id="empty-state" class="bg-neutral-900 rounded-xl p-12 border border-neutral-800 text-center">
+      <div class="w-16 h-16 bg-neutral-800 rounded-full flex items-center justify-center mx-auto mb-4">
+        <i class="fas fa-chart-bar text-gray-600 text-2xl"></i>
+      </div>
+      <h3 class="text-xl font-bold text-white mb-2">No Trackers Configured</h3>
+      <p class="text-gray-400 max-w-md mx-auto mb-6">
+        Set up channel stat trackers to automatically display live member counts and game activity in your channel topics.
+      </p>
+      <button onclick="openAddModal()"
+              class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-lg font-medium transition">
+        <i class="fas fa-plus mr-2"></i>Create Your First Tracker
+      </button>
+    </div>
+
+    <!-- Example Trackers for Demo (only show when no trackers) -->
+    <div class="mt-8">
+      <h3 class="text-lg font-bold text-white mb-4">
+        <i class="fas fa-star text-yellow-400 mr-2"></i>Example Configurations
+      </h3>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-4 opacity-60">
+          <div class="flex items-start justify-between mb-3">
+            <div class="flex items-center gap-3">
+              <span class="text-2xl">🎮</span>
+              <div>
+                <h4 class="text-white font-medium">Heroes</h4>
+                <p class="text-gray-500 text-sm">#just-chatting</p>
+              </div>
+            </div>
+            <span class="px-2 py-1 bg-gray-700 text-gray-400 rounded text-xs">Example</span>
+          </div>
+          <div class="bg-neutral-800 rounded-lg p-3 text-sm">
+            <code class="text-orange-400">🎮 Heroes: 40 members</code>
+          </div>
+          <p class="text-gray-500 text-xs mt-2">Tracks: @Hero role | No game filter</p>
+        </div>
+        <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-4 opacity-60">
+          <div class="flex items-start justify-between mb-3">
+            <div class="flex items-center gap-3">
+              <span class="text-2xl">🧙</span>
+              <div>
+                <h4 class="text-white font-medium">Pantheon Heroes</h4>
+                <p class="text-gray-500 text-sm">#pantheon</p>
+              </div>
+            </div>
+            <span class="px-2 py-1 bg-gray-700 text-gray-400 rounded text-xs">Example</span>
+          </div>
+          <div class="bg-neutral-800 rounded-lg p-3 text-sm">
+            <code class="text-orange-400">🧙 Pantheon Heroes: 22 members — 2 currently playing</code>
+          </div>
+          <p class="text-gray-500 text-xs mt-2">Tracks: @Pantheon role | Game: "pantheon"</p>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Add/Edit Tracker Modal -->
+<div id="tracker-modal" class="fixed inset-0 bg-black/70 z-50 hidden items-center justify-center">
+  <div class="bg-neutral-900 rounded-2xl max-w-lg w-full mx-4 border border-neutral-800 shadow-2xl">
+    <div class="p-6 border-b border-neutral-800">
+      <div class="flex items-center justify-between">
+        <h2 class="text-xl font-bold text-white" id="modal-title">
+          <i class="fas fa-plus text-indigo-400 mr-2"></i>Add Channel Tracker
+        </h2>
+        <button onclick="closeModal()" class="text-gray-400 hover:text-white transition">
+          <i class="fas fa-times text-xl"></i>
+        </button>
+      </div>
+    </div>
+
+    <form id="tracker-form" class="p-6 space-y-5">
+      <input type="hidden" name="tracker_id" id="tracker_id">
+
+      <!-- Label -->
+      <div>
+        <label class="block text-sm font-medium text-gray-300 mb-2">Display Label *</label>
+        <input type="text" name="label" id="form_label" required
+               placeholder="e.g., Pantheon Heroes"
+               class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2 text-white focus:border-indigo-500 focus:outline-none">
+        <p class="text-gray-500 text-xs mt-1">This appears in the channel topic</p>
+      </div>
+
+      <!-- Channel -->
+      <div>
+        <label class="block text-sm font-medium text-gray-300 mb-2">Channel *</label>
+        <div id="form_channel_idContainer"></div>
+        
+        <p class="text-gray-500 text-xs mt-1">Channel topic will be auto-updated</p>
+      </div>
+
+      <!-- Role -->
+      <div>
+        <label class="block text-sm font-medium text-gray-300 mb-2">Role *</label>
+        <div id="form_role_idContainer"></div>
+        
+        <p class="text-gray-500 text-xs mt-1">Members with this role will be counted</p>
+      </div>
+
+      <!-- Emoji -->
+      <div>
+        <label class="block text-sm font-medium text-gray-300 mb-2">Emoji (optional)</label>
+        <input type="text" name="emoji" id="form_emoji"
+               placeholder="e.g., 🧙 or <:Hero:123456789>"
+               class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2 text-white focus:border-indigo-500 focus:outline-none">
+        <p class="text-gray-500 text-xs mt-1">Unicode emoji or custom emoji format</p>
+      </div>
+
+      <!-- Game Name -->
+      <div>
+        <label class="block text-sm font-medium text-gray-300 mb-2">Game Name (optional)</label>
+        <input type="text" name="game_name" id="form_game_name"
+               placeholder="e.g., pantheon"
+               class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2 text-white focus:border-indigo-500 focus:outline-none">
+        <p class="text-gray-500 text-xs mt-1">Track "currently playing" from Discord activity (case insensitive)</p>
+      </div>
+
+      <!-- Preview -->
+      <div class="bg-neutral-800 rounded-lg p-4">
+        <label class="block text-sm font-medium text-gray-300 mb-2">Preview</label>
+        <div class="text-orange-400 font-mono text-sm" id="tracker-preview">
+          📊 Label: X members
+        </div>
+      </div>
+
+      <!-- Submit -->
+      <div class="flex gap-3 pt-2">
+        <button type="button" onclick="closeModal()"
+                class="flex-1 bg-neutral-700 hover:bg-neutral-600 text-white py-2 rounded-lg font-medium transition">
+          Cancel
+        </button>
+        <button type="submit" id="submit-btn"
+                class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white py-2 rounded-lg font-medium transition">
+          <i class="fas fa-plus mr-2"></i>Create Tracker
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+  const GUILD_ID = '{{ guild.id }}';
+  const API_BASE = `/api/guild/${GUILD_ID}/trackers`;
+
+  // Load Discord resources and initialize custom selects
+  let trackerChannelSelect;
+  let trackerRoleSelect;
+
+  async function loadChannels() {
+    try {
+      const response = await csrfFetch(`/api/guild/${GUILD_ID}/channels/`);
+      const data = await response.json();
+
+      if (data.channels) {
+        const textChannels = data.channels.filter(ch => ch.type === 0);
+
+        const channelItems = textChannels.map(channel => {
+          const label = channel.category_name
+            ? `# ${channel.name} (${channel.category_name})`
+            : `# ${channel.name}`;
+          return {
+            value: channel.id,
+            label: label,
+            icon: 'hashtag'
+          };
+        });
+
+        trackerChannelSelect = createCustomSelect({
+          container: '#form_channel_idContainer',
+          name: 'channel_id',
+          id: 'form_channel_id',
+          placeholder: 'Select a channel...',
+          items: channelItems,
+          color: 'purple'
+        });
+      }
+    } catch (err) {
+      console.error('Failed to load channels:', err);
+    }
+  }
+
+  async function loadRoles() {
+    try {
+      const response = await csrfFetch(`/api/guild/${GUILD_ID}/roles/`);
+      const data = await response.json();
+
+      if (data.roles) {
+        const roleItems = data.roles.map(role => ({
+          value: role.id,
+          label: role.name,
+          icon: 'user-tag'
+        }));
+
+        trackerRoleSelect = createCustomSelect({
+          container: '#form_role_idContainer',
+          name: 'role_id',
+          id: 'form_role_id',
+          placeholder: 'Select a role...',
+          items: roleItems,
+          color: 'purple'
+        });
+      }
+    } catch (err) {
+      console.error('Failed to load roles:', err);
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    loadChannels();
+    loadRoles();
+  });
+
+  // Modal controls
+  function openAddModal() {
+    document.getElementById('tracker_id').value = '';
+    document.getElementById('tracker-form').reset();
+    document.getElementById('modal-title').innerHTML = '<i class="fas fa-plus text-indigo-400 mr-2"></i>Add Channel Tracker';
+    document.getElementById('submit-btn').innerHTML = '<i class="fas fa-plus mr-2"></i>Create Tracker';
+    document.getElementById('form_channel_id').disabled = false;
+    updatePreview();
+    openModal();
+  }
+
+  function openModal() {
+    document.getElementById('tracker-modal').classList.remove('hidden');
+    document.getElementById('tracker-modal').classList.add('flex');
+  }
+
+  function closeModal() {
+    document.getElementById('tracker-modal').classList.add('hidden');
+    document.getElementById('tracker-modal').classList.remove('flex');
+  }
+
+  // Preview update
+  function updatePreview() {
+    const label = document.getElementById('form_label').value || 'Label';
+    const emoji = document.getElementById('form_emoji').value || '📊';
+    const gameName = document.getElementById('form_game_name').value;
+
+    let preview = `${emoji} ${label}: X members`;
+    if (gameName) {
+      preview += ' — Y currently playing';
+    }
+
+    document.getElementById('tracker-preview').textContent = preview;
+  }
+
+  document.getElementById('form_label').addEventListener('input', updatePreview);
+  document.getElementById('form_emoji').addEventListener('input', updatePreview);
+  document.getElementById('form_game_name').addEventListener('input', updatePreview);
+
+  // Form submit (create or update)
+  document.getElementById('tracker-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const trackerId = document.getElementById('tracker_id').value;
+    const isEdit = !!trackerId;
+
+    const data = {
+      label: document.getElementById('form_label').value,
+      channel_id: trackerChannelSelect ? trackerChannelSelect.getValue() : '',
+      role_id: trackerRoleSelect ? trackerRoleSelect.getValue() : '',
+      emoji: document.getElementById('form_emoji').value || null,
+      game_name: document.getElementById('form_game_name').value || null,
+    };
+
+    try {
+      const url = isEdit ? `${API_BASE}/${trackerId}/` : `${API_BASE}/create/`;
+      const method = isEdit ? 'PATCH' : 'POST';
+
+      const response = await csrfFetch(url, {
+        method: method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        closeModal();
+        location.reload(); // Refresh to show changes
+      } else {
+        alert('Error: ' + (result.error || 'Unknown error'));
+      }
+    } catch (err) {
+      alert('Error: ' + err.message);
+    }
+  });
+
+  // Edit tracker
+  function editTracker(trackerId) {
+    // Find tracker data from the page
+    const card = document.querySelector(`.tracker-card[data-id="${trackerId}"]`);
+    if (!card) return;
+
+    // For now, we'll need to fetch from API or use data attributes
+    // This is a simplified version - you'd want to fetch fresh data
+    fetch(`${API_BASE}/`)
+      .then(r => r.json())
+      .then(data => {
+        const tracker = data.trackers.find(t => t.id === trackerId);
+        if (tracker) {
+          document.getElementById('tracker_id').value = tracker.id;
+          document.getElementById('form_label').value = tracker.label;
+
+          // Set selected values in custom selects
+          if (trackerChannelSelect && tracker.channel_id) {
+            trackerChannelSelect.setValue(tracker.channel_id);
+          }
+          if (trackerRoleSelect && tracker.role_id) {
+            trackerRoleSelect.setValue(tracker.role_id);
+          }
+
+          document.getElementById('form_emoji').value = tracker.emoji || '';
+          document.getElementById('form_game_name').value = tracker.game_name || '';
+
+          document.getElementById('modal-title').innerHTML = '<i class="fas fa-edit text-indigo-400 mr-2"></i>Edit Tracker';
+          document.getElementById('submit-btn').innerHTML = '<i class="fas fa-save mr-2"></i>Save Changes';
+
+          updatePreview();
+          openModal();
+        }
+      });
+  }
+
+  // Toggle tracker enabled/disabled
+  async function toggleTracker(trackerId, enable) {
+    try {
+      const response = await csrfFetch(`${API_BASE}/${trackerId}/`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled: enable })
+      });
+
+      const result = await response.json();
+      if (result.success) {
+        location.reload();
+      } else {
+        alert('Error: ' + (result.error || 'Unknown error'));
+      }
+    } catch (err) {
+      alert('Error: ' + err.message);
+    }
+  }
+
+  // Delete tracker
+  async function deleteTracker(trackerId, label) {
+    if (!confirm(`Are you sure you want to delete the tracker "${label}"?`)) {
+      return;
+    }
+
+    try {
+      const response = await csrfFetch(`${API_BASE}/${trackerId}/delete/`, {
+        method: 'DELETE'
+      });
+
+      const result = await response.json();
+      if (result.success) {
+        location.reload();
+      } else {
+        alert('Error: ' + (result.error || 'Unknown error'));
+      }
+    } catch (err) {
+      alert('Error: ' + err.message);
+    }
+  }
+
+  // Close modal on escape
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeModal();
+  });
+
+  // Close modal on backdrop click
+  document.getElementById('tracker-modal').addEventListener('click', (e) => {
+    if (e.target.id === 'tracker-modal') closeModal();
+  });
+</script>
+{% endblock guild_content %}

@@ -40,79 +40,96 @@
       <div class="flex flex-col md:flex-row items-center justify-center gap-6">
         <img src="{% static 'img/siteassets/homepage/CHLogoFinal.png' %}" alt="Casual Heroes Logo" class="h-12 rounded-full" />
 
-        <nav class="flex flex-wrap justify-center gap-6 text-sm md:text-base">
-          <a href="{% url 'home' %}" class="hover:text-indigo-400 transition">Home</a>
+        <nav class="flex flex-wrap justify-center gap-6 text-sm md:text-base" x-data="{ activeDropdown: null }">
+          <a href="https://casual-heroes.com/" class="hover:text-indigo-400 transition">Home</a>
 
           <!-- Games Dropdown -->
-          <div x-data="{ open: false }" class="relative">
-            <button @click="open = !open" class="font-semibold hover:text-indigo-400 transition flex items-center gap-1">
+          <div class="relative">
+            <button @click="activeDropdown = activeDropdown === 'games' ? null : 'games'" class="font-semibold hover:text-indigo-400 transition flex items-center gap-1">
               Games ▾
             </button>
-            <div x-show="open" @click.outside="open = false" x-transition 
+            <div x-show="activeDropdown === 'games'" @click.outside="activeDropdown = null" x-transition
               class="absolute left-0 mt-2 bg-neutral-900 border border-neutral-800 rounded-lg shadow-lg w-[20rem] max-w-none z-50 text-base py-4">
 
               <!-- Community Favorites -->
               <div class="px-4 py-1 text-xs uppercase text-gray-400 tracking-wider">Community Favorites</div>
-              <a href="/gamesweplay" class="block px-4 py-2 hover:bg-neutral-800">Current Games</a>
-              <a href="/gameshype" class="block px-4 py-2 hover:bg-neutral-800">Games We're Hyped For</a>
-              <a href="/gamesuggest" class="block px-4 py-2 hover:bg-neutral-800">Suggest a Game</a>
+              <a href="https://casual-heroes.com/gamesweplay" class="block px-4 py-2 hover:bg-neutral-800">Current Games</a>
+              <a href="https://casual-heroes.com/gameshype" class="block px-4 py-2 hover:bg-neutral-800">Games We're Hyped For</a>
+              <a href="https://casual-heroes.com/gamesuggest" class="block px-4 py-2 hover:bg-neutral-800">Suggest a Game</a>
 
               <!-- Hosted by CHHS -->
               <div class="px-4 py-1 mt-2 text-xs uppercase text-gray-400 tracking-wider">Hosted by Casual Heroes Hosting Services</div>
-              <a href="/7dtd" class="flex items-center gap-2 px-4 py-2 hover:bg-neutral-800">
+              <a href="https://casual-heroes.com/7dtd" class="flex items-center gap-2 px-4 py-2 hover:bg-neutral-800">
                 <img src="{% static 'img/siteassets/homepage/7DTD.png' %}" alt="7DTD" class="w-4 h-4" />
                 7 Days to Die <span class="text-xs text-gray-500">(Coming Soon)</span>
               </a>
-              <a href="/dragonwilds" class="flex items-center gap-2 px-4 py-2 hover:bg-neutral-800">
+              <a href="https://casual-heroes.com/dragonwilds" class="flex items-center gap-2 px-4 py-2 hover:bg-neutral-800">
                 <img src="{% static 'img/siteassets/homepage/dragonwilds-1.png' %}" alt="Dragonwilds" class="w-4 h-4" />
                 Dragonwilds <span class="text-xs text-gray-500">(Coming Soon)</span>
               </a>
-              <!-- <a href="/enshrouded" class="flex items-center gap-2 px-4 py-2 hover:bg-neutral-800">
+              <!-- <a href="https://casual-heroes.com/enshrouded" class="flex items-center gap-2 px-4 py-2 hover:bg-neutral-800">
                 <img src="{% static 'img/siteassets/homepage/enshrouded.png' %}" alt="Enshrouded" class="w-4 h-4" />
                 Enshrouded
               </a> -->
-              <a href="/vrising" class="flex items-center gap-2 px-4 py-2 hover:bg-neutral-800">
+              <a href="https://casual-heroes.com/vrising" class="flex items-center gap-2 px-4 py-2 hover:bg-neutral-800">
                 <img src="{% static 'img/siteassets/homepage/virsing.png' %}" alt="V Rising" class="w-4 h-4" />
                 V Rising
               </a>
 
               <!-- Guilds -->
               <div class="px-4 py-1 mt-2 text-xs uppercase text-gray-400 tracking-wider">Casual Heroes Guilds</div>
-              <a href="/dune" class="flex items-center gap-2 px-4 py-2 hover:bg-neutral-800">
+              <a href="https://casual-heroes.com/dune" class="flex items-center gap-2 px-4 py-2 hover:bg-neutral-800">
                 <img src="{% static 'img/games/guilds/DA.webp' %}" alt="Dune" class="w-4 h-4" />
                 Dune
               </a>
-              <a href="/pantheon" class="flex items-center gap-2 px-4 py-2 hover:bg-neutral-800">
+              <a href="https://casual-heroes.com/pantheon" class="flex items-center gap-2 px-4 py-2 hover:bg-neutral-800">
                 <img src="{% static 'img/games/guilds/pantheon.webp' %}" alt="Pantheon" class="w-4 h-4" />
                 Pantheon
               </a>
-              <!-- <a href="/wow" class="flex items-center gap-2 px-4 py-2 hover:bg-neutral-800">
+              <!-- <a href="https://casual-heroes.com/wow" class="flex items-center gap-2 px-4 py-2 hover:bg-neutral-800">
                 <img src="{% static 'img/games/guilds/WoWlogo.png' %}" alt="WoW" class="w-4 h-4" />
                 World of Warcraft
               </a> -->
             </div>
           </div>
 
-          <a href="/guides" class="hover:text-indigo-400 transition">Game Guides</a>
-          <a href="/features" class="hover:text-indigo-400 transition">Features</a>
-          <a href="/content" class="hover:text-indigo-400 transition">Casual Heroes Content</a>
-          <a href="/aboutus" class="hover:text-indigo-400 transition">About Us</a>
+          <a href="https://casual-heroes.com/guides" class="hover:text-indigo-400 transition">Game Guides</a>
+          <a href="https://casual-heroes.com/features" class="hover:text-indigo-400 transition">Features</a>
+          <a href="https://casual-heroes.com/content" class="hover:text-indigo-400 transition">Casual Heroes Content</a>
+
+          <!-- WardenBot Dropdown -->
+          <div class="relative">
+            <button @click="activeDropdown = activeDropdown === 'wardenbot' ? null : 'wardenbot'" class="text-indigo-400 font-semibold flex items-center gap-1 hover:text-indigo-400">
+              WardenBot ▾
+            </button>
+            <div x-show="activeDropdown === 'wardenbot'" @click.outside="activeDropdown = null" x-transition
+              class="absolute left-0 mt-2 bg-neutral-900 border border-neutral-800 rounded-lg shadow-lg w-56 z-50 text-sm">
+              <a href="https://casual-heroes.com/wardenbot/overview" class="flex items-center gap-2 px-4 py-2 hover:bg-neutral-800">
+                <i class="fas fa-book w-4 h-4"></i> Overview
+              </a>
+              <a href="https://casual-heroes.com/wardenbot/login" class="flex items-center gap-2 px-4 py-2 hover:bg-neutral-800">
+                <i class="fas fa-sign-in-alt w-4 h-4"></i> Login to Dashboard
+              </a>
+            </div>
+          </div>
 
           <!-- Hosting Dropdown -->
-          <div x-data="{ open: false }" class="relative">
-            <button @click="open = !open" class="text-indigo-400 font-semibold flex items-center gap-1 hover:text-indigo-400">
+          <div class="relative">
+            <button @click="activeDropdown = activeDropdown === 'hosting' ? null : 'hosting'" class="text-indigo-400 font-semibold flex items-center gap-1 hover:text-indigo-400">
               Hosting ▾
             </button>
-            <div x-show="open" @click.outside="open = false" x-transition 
+            <div x-show="activeDropdown === 'hosting'" @click.outside="activeDropdown = null" x-transition
               class="absolute left-0 mt-2 bg-neutral-900 border border-neutral-800 rounded-lg shadow-lg w-56 z-50 text-sm">
-              <a href="/hosting" class="flex items-center gap-2 px-4 py-2 hover:bg-neutral-800">
+              <a href="https://casual-heroes.com/hosting" class="flex items-center gap-2 px-4 py-2 hover:bg-neutral-800">
                 <span class="w-4 h-4"></span> Hosting Overview
               </a>
-              <a href="/login" class="flex items-center gap-2 px-4 py-2 hover:bg-neutral-800">
+              <a href="https://casual-heroes.com/login" class="flex items-center gap-2 px-4 py-2 hover:bg-neutral-800">
                 <span class="w-4 h-4"></span> Login to Hosting Panel
               </a>
             </div>
           </div>
+
+          <a href="https://casual-heroes.com/aboutus" class="hover:text-indigo-400 transition">About Us</a>
         </nav>
       </div>
     </header>
@@ -146,5 +163,67 @@
       </div>
     </footer>
   </div>
+
+  <script>
+    // CSRF Token Utility Functions
+    // ============================
+    // These functions enable secure API calls with CSRF protection.
+
+    /**
+     * Get CSRF token from Django cookie
+     * @returns {string|null} The CSRF token or null if not found
+     */
+    function getCsrfToken() {
+      const name = 'csrftoken';
+      let cookieValue = null;
+      if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+          const cookie = cookies[i].trim();
+          if (cookie.substring(0, name.length + 1) === (name + '=')) {
+            cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+            break;
+          }
+        }
+      }
+      return cookieValue;
+    }
+
+    /**
+     * Wrapper for fetch() that automatically includes CSRF token
+     * @param {string} url - The URL to fetch
+     * @param {object} options - Fetch options (method, headers, body, etc.)
+     * @returns {Promise} Fetch promise
+     */
+    async function csrfFetch(url, options = {}) {
+      const csrfToken = getCsrfToken();
+
+      // Only add CSRF token for state-changing methods
+      const method = (options.method || 'GET').toUpperCase();
+      const needsCsrf = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method);
+
+      if (needsCsrf && csrfToken) {
+        // Add CSRF token to headers
+        const headers = {
+          ...options.headers,
+          'X-CSRFToken': csrfToken
+        };
+
+        return fetch(url, {
+          ...options,
+          headers
+        });
+      }
+
+      // For GET requests or if no token found, use regular fetch
+      return fetch(url, options);
+    }
+
+    // Make csrfFetch available globally
+    window.csrfFetch = csrfFetch;
+    window.getCsrfToken = getCsrfToken;
+  </script>
+
+  {% block extra_js %}{% endblock %}
 </body>
 </html>

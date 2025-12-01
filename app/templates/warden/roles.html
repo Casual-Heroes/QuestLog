@@ -1,0 +1,907 @@
+{% extends "warden/base_guild.html" %}
+{% load static %}
+
+{% block title %}Role Management - {{ guild.name }}{% endblock %}
+{% block og_title %}Role Management - {{ guild.name }}{% endblock %}
+
+{% block guild_content %}
+
+{% include "warden/partials/custom_select.html" %}
+  <!-- Header -->
+  <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+    <div>
+      <h1 class="text-3xl font-bold text-white">
+        <i class="fas fa-user-tag text-indigo-400 mr-3"></i>Role Management
+      </h1>
+      <p class="text-gray-400 mt-2">
+        Assign roles to members and import bulk role assignments
+      </p>
+    </div>
+    <div class="flex flex-wrap gap-3">
+      <!-- Role Assignment -->
+      <button onclick="openSingleRoleModal()"
+              class="bg-neutral-800 hover:bg-neutral-700 text-white px-4 py-2 rounded-lg font-medium transition border border-neutral-700">
+        <i class="fas fa-user-plus mr-2"></i>Single Assignment
+      </button>
+
+      <!-- Role Creation -->
+      <button onclick="openCreateRoleModal()"
+              class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium transition">
+        <i class="fas fa-plus-circle mr-2"></i>Create Role
+      </button>
+
+      {% if is_premium %}
+      <!-- Export Tools -->
+      <button onclick="exportTemplate()"
+              class="bg-neutral-800 hover:bg-neutral-700 text-white px-4 py-2 rounded-lg font-medium transition border border-neutral-700">
+        <i class="fas fa-download mr-2"></i>Export Template
+      </button>
+      <button onclick="exportCurrentRoles()"
+              class="bg-neutral-800 hover:bg-neutral-700 text-white px-4 py-2 rounded-lg font-medium transition border border-neutral-700">
+        <i class="fas fa-file-export mr-2"></i>Export Roles
+      </button>
+
+      <!-- Bulk Operations -->
+      <button onclick="openBulkImportModal()"
+              class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium transition">
+        <i class="fas fa-file-excel mr-2"></i>Bulk Assign
+      </button>
+      <button onclick="openBulkCreateModal()"
+              class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-medium transition">
+        <i class="fas fa-layer-group mr-2"></i>Bulk Create
+      </button>
+      {% else %}
+      <button onclick="showUpgradePrompt()"
+              class="bg-gradient-to-r from-yellow-600 to-orange-600 hover:from-yellow-500 hover:to-orange-500 text-white px-4 py-2 rounded-lg font-medium transition">
+        <i class="fas fa-crown mr-2"></i>Bulk Import (Pro)
+      </button>
+      {% endif %}
+
+      <!-- Sync Button -->
+      {% include "warden/partials/sync_button.html" %}
+    </div>
+  </div>
+
+  <!-- Premium Feature Banner (if not premium) -->
+  {% if not is_premium %}
+  <div class="bg-gradient-to-r from-yellow-600/20 to-orange-600/20 rounded-xl p-6 border border-yellow-500/30 mb-8">
+    <div class="flex items-start gap-4">
+      <div class="w-12 h-12 bg-yellow-600/20 rounded-lg flex items-center justify-center flex-shrink-0">
+        <i class="fas fa-crown text-yellow-400 text-xl"></i>
+      </div>
+      <div class="flex-1">
+        <h3 class="text-lg font-bold text-white mb-1">Unlock Bulk Role Import</h3>
+        <p class="text-gray-300 text-sm mb-3">
+          Upgrade to Premium or Pro to import XLSX files with hundreds of users for mass role assignments.
+          Perfect for migrating from other bots or managing large communities.
+        </p>
+        <a href="#" class="inline-flex items-center gap-2 bg-yellow-600 hover:bg-yellow-500 text-white px-4 py-2 rounded-lg text-sm font-medium transition">
+          <i class="fas fa-rocket"></i>Upgrade Now
+        </a>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Tier Limits Info -->
+  <div class="mb-6 bg-gradient-to-r from-blue-900/30 to-purple-900/30 border border-blue-700/50 rounded-xl p-5">
+    <div class="flex items-start gap-4">
+      <div class="w-12 h-12 bg-blue-600/20 rounded-lg flex items-center justify-center flex-shrink-0">
+        <i class="fas fa-info-circle text-blue-400 text-xl"></i>
+      </div>
+      <div class="flex-1">
+        <h3 class="text-white font-bold mb-2">Bulk Operation Limits (Daily)</h3>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+          <div>
+            <p class="text-gray-300 font-medium mb-1">
+              <i class="fas fa-circle text-gray-500 mr-2 text-xs"></i>Free Tier
+            </p>
+            <p class="text-gray-400 ml-5">6 items per day for Bulk Assign & Create</p>
+          </div>
+          <div>
+            <p class="text-indigo-300 font-medium mb-1">
+              <i class="fas fa-circle text-indigo-500 mr-2 text-xs"></i>Pro Tier
+            </p>
+            <p class="text-gray-400 ml-5">10 items per day for Bulk Assign & Create</p>
+          </div>
+          <div>
+            <p class="text-yellow-300 font-medium mb-1">
+              <i class="fas fa-crown text-yellow-500 mr-2 text-xs"></i>Premium Tier
+            </p>
+            <p class="text-gray-400 ml-5">Unlimited bulk operations</p>
+          </div>
+        </div>
+        {% if guild_record.is_vip or guild_record.subscription_tier == 'premium' %}
+        <p class="text-green-400 text-xs mt-3">
+          <i class="fas fa-check-circle mr-1"></i>
+          You have unlimited bulk operations! Assign roles to as many users as you need.
+        </p>
+        {% elif guild_record.subscription_tier == 'pro' %}
+        <p class="text-blue-400 text-xs mt-3">
+          <i class="fas fa-lightbulb mr-1"></i>
+          Daily limits reset at midnight. <a href="#" class="text-purple-400 hover:text-purple-300 underline">Upgrade to Premium</a> for unlimited bulk operations.
+        </p>
+        {% else %}
+        <p class="text-blue-400 text-xs mt-3">
+          <i class="fas fa-lightbulb mr-1"></i>
+          Daily limits reset at midnight. <a href="#" class="text-indigo-400 hover:text-indigo-300 underline">Upgrade to Pro or Premium</a> for more bulk operations.
+        </p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- How It Works -->
+  <div class="bg-neutral-900 rounded-xl p-6 border border-neutral-800 mb-8">
+    <h3 class="text-lg font-bold text-white mb-4">
+      <i class="fas fa-info-circle text-indigo-400 mr-2"></i>How Bulk Import Works
+    </h3>
+    <div class="grid md:grid-cols-4 gap-4 text-sm">
+      <div class="flex items-start gap-3">
+        <div class="w-8 h-8 bg-indigo-600/30 rounded-lg flex items-center justify-center flex-shrink-0">
+          <span class="text-indigo-400 font-bold">1</span>
+        </div>
+        <div>
+          <p class="text-white font-medium">Prepare XLSX</p>
+          <p class="text-gray-400">One user_id per row</p>
+        </div>
+      </div>
+      <div class="flex items-start gap-3">
+        <div class="w-8 h-8 bg-indigo-600/30 rounded-lg flex items-center justify-center flex-shrink-0">
+          <span class="text-indigo-400 font-bold">2</span>
+        </div>
+        <div>
+          <p class="text-white font-medium">Select Role</p>
+          <p class="text-gray-400">Choose role to assign</p>
+        </div>
+      </div>
+      <div class="flex items-start gap-3">
+        <div class="w-8 h-8 bg-indigo-600/30 rounded-lg flex items-center justify-center flex-shrink-0">
+          <span class="text-indigo-400 font-bold">3</span>
+        </div>
+        <div>
+          <p class="text-white font-medium">Upload</p>
+          <p class="text-gray-400">We queue the actions</p>
+        </div>
+      </div>
+      <div class="flex items-start gap-3">
+        <div class="w-8 h-8 bg-indigo-600/30 rounded-lg flex items-center justify-center flex-shrink-0">
+          <span class="text-indigo-400 font-bold">4</span>
+        </div>
+        <div>
+          <p class="text-white font-medium">Bot Executes</p>
+          <p class="text-gray-400">Processed automatically</p>
+        </div>
+      </div>
+    </div>
+    <div class="mt-4 p-3 bg-neutral-800 rounded-lg">
+      <p class="text-gray-400 text-sm mb-2">
+        <i class="fas fa-file-excel text-green-400 mr-2"></i>
+        <strong>XLSX Format Instructions:</strong>
+      </p>
+      <div class="text-gray-400 text-sm space-y-1 ml-6">
+        <p><strong>1.</strong> Create Excel file with one column header: <code class="text-indigo-400">user_id</code> (or <code class="text-indigo-400">discord_id</code> or <code class="text-indigo-400">id</code>)</p>
+        <p><strong>2.</strong> Add one Discord user ID per row (e.g., <code class="text-gray-500">141890558045061120</code>)</p>
+        <p><strong>3.</strong> Save as .xlsx file and upload using the "Bulk Assign" button above</p>
+        <p><strong>4.</strong> Select the role to assign and submit</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Two Column Layout -->
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <!-- Recent Actions -->
+    <div class="bg-neutral-900 rounded-xl border border-neutral-800 overflow-hidden">
+      <div class="p-5 border-b border-neutral-800">
+        <h3 class="text-lg font-bold text-white">
+          <i class="fas fa-history text-gray-400 mr-2"></i>Recent Role Actions
+        </h3>
+      </div>
+      <div id="actions-container" class="divide-y divide-neutral-800">
+        {% if pending_actions %}
+          {% for action in pending_actions %}
+          <div class="p-4 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-lg flex items-center justify-center
+                {% if action.status == 'completed' %}bg-green-600/20{% elif action.status == 'failed' %}bg-red-600/20{% else %}bg-yellow-600/20{% endif %}">
+                {% if action.status == 'completed' %}
+                <i class="fas fa-check text-green-400"></i>
+                {% elif action.status == 'failed' %}
+                <i class="fas fa-times text-red-400"></i>
+                {% else %}
+                <i class="fas fa-clock text-yellow-400"></i>
+                {% endif %}
+              </div>
+              <div>
+                <p class="text-white font-medium">{{ action.action_type }}</p>
+                <p class="text-gray-500 text-sm">by {{ action.triggered_by_name|default:"Unknown" }}</p>
+              </div>
+            </div>
+            <span class="px-2 py-1 rounded text-xs font-medium
+              {% if action.status == 'completed' %}bg-green-600/20 text-green-400
+              {% elif action.status == 'failed' %}bg-red-600/20 text-red-400
+              {% else %}bg-yellow-600/20 text-yellow-400{% endif %}">
+              {{ action.status }}
+            </span>
+          </div>
+          {% endfor %}
+        {% else %}
+          <div class="p-8 text-center">
+            <i class="fas fa-inbox text-4xl text-gray-600 mb-3"></i>
+            <p class="text-gray-400">No recent role actions</p>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Recent Imports -->
+    <div class="bg-neutral-900 rounded-xl border border-neutral-800 overflow-hidden">
+      <div class="p-5 border-b border-neutral-800">
+        <h3 class="text-lg font-bold text-white">
+          <i class="fas fa-file-import text-purple-400 mr-2"></i>Recent Bulk Imports
+        </h3>
+      </div>
+      <div id="imports-container" class="divide-y divide-neutral-800">
+        {% if recent_imports %}
+          {% for import in recent_imports %}
+          <div class="p-4">
+            <div class="flex items-center justify-between mb-2">
+              <div class="flex items-center gap-3">
+                <i class="fas fa-file-excel text-green-400"></i>
+                <span class="text-white font-medium">{{ import.filename }}</span>
+              </div>
+              <span class="px-2 py-1 rounded text-xs font-medium
+                {% if import.status == 'completed' %}bg-green-600/20 text-green-400
+                {% elif import.status == 'failed' %}bg-red-600/20 text-red-400
+                {% else %}bg-yellow-600/20 text-yellow-400{% endif %}">
+                {{ import.status }}
+              </span>
+            </div>
+            <div class="flex items-center gap-4 text-sm text-gray-500">
+              <span><i class="fas fa-users mr-1"></i>{{ import.total_records }} users</span>
+              <span class="text-green-400"><i class="fas fa-check mr-1"></i>{{ import.success_count }}</span>
+              {% if import.error_count > 0 %}
+              <span class="text-red-400"><i class="fas fa-times mr-1"></i>{{ import.error_count }}</span>
+              {% endif %}
+            </div>
+          </div>
+          {% endfor %}
+        {% else %}
+          <div class="p-8 text-center">
+            <i class="fas fa-file-excel text-4xl text-gray-600 mb-3"></i>
+            <p class="text-gray-400">No bulk imports yet</p>
+            {% if is_premium %}
+            <button onclick="openBulkImportModal()" class="text-indigo-400 hover:text-indigo-300 text-sm mt-2">
+              <i class="fas fa-upload mr-1"></i>Import your first XLSX
+            </button>
+            {% endif %}
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+<!-- Single Role Assignment Modal -->
+<div id="single-role-modal" class="fixed inset-0 z-50 hidden">
+  <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" onclick="closeSingleRoleModal()"></div>
+  <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md">
+    <div class="bg-neutral-900 rounded-xl border border-neutral-700 shadow-2xl">
+      <div class="p-5 border-b border-neutral-800 flex items-center justify-between">
+        <h3 class="text-lg font-bold text-white">
+          <i class="fas fa-user-plus text-indigo-400 mr-2"></i>Assign Role to User
+        </h3>
+        <button onclick="closeSingleRoleModal()" class="text-gray-400 hover:text-white">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <form id="single-role-form" class="p-5 space-y-4">
+        <div>
+          <label class="text-gray-400 text-sm block mb-1">User</label>
+          <input type="text" name="user_id" data-discord-select="member" placeholder="e.g., 123456789012345678" required
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white">
+        </div>
+        <div>
+          <label class="text-gray-400 text-sm block mb-1">Role</label>
+          <div id="singleRoleContainer"></div>
+        </div>
+        <div>
+          <label class="text-gray-400 text-sm block mb-1">Action</label>
+          <select name="action" class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white">
+            <option value="add">Add Role</option>
+            <option value="remove">Remove Role</option>
+          </select>
+        </div>
+        <div>
+          <label class="text-gray-400 text-sm block mb-1">Reason (optional)</label>
+          <input type="text" name="reason" placeholder="e.g., Promoted to moderator"
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white">
+        </div>
+        <div class="flex justify-end gap-3 pt-4">
+          <button type="button" onclick="closeSingleRoleModal()"
+                  class="px-4 py-2 text-gray-400 hover:text-white transition">Cancel</button>
+          <button type="submit"
+                  class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-lg font-medium transition">
+            <i class="fas fa-paper-plane mr-2"></i>Queue Action
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Bulk Import Modal -->
+<div id="bulk-import-modal" class="fixed inset-0 z-50 hidden">
+  <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" onclick="closeBulkImportModal()"></div>
+  <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-lg">
+    <div class="bg-neutral-900 rounded-xl border border-neutral-700 shadow-2xl">
+      <div class="p-5 border-b border-neutral-800 flex items-center justify-between">
+        <h3 class="text-lg font-bold text-white">
+          <i class="fas fa-file-excel text-indigo-400 mr-2"></i>Bulk Role Import
+        </h3>
+        <button onclick="closeBulkImportModal()" class="text-gray-400 hover:text-white">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <form id="bulk-import-form" class="p-5 space-y-4" enctype="multipart/form-data">
+        <div>
+          <label class="text-gray-400 text-sm block mb-1">XLSX File</label>
+          <div class="border-2 border-dashed border-neutral-700 rounded-lg p-6 text-center hover:border-indigo-500 transition cursor-pointer"
+               onclick="document.getElementById('csv-file').click()">
+            <input type="file" name="file" id="csv-file" accept=".xlsx" required class="hidden"
+                   onchange="updateFileName(this)">
+            <i class="fas fa-cloud-upload-alt text-3xl text-gray-500 mb-2"></i>
+            <p id="file-name" class="text-gray-400">Click to select XLSX file</p>
+            <p class="text-gray-500 text-xs mt-1">Max 10,000 rows</p>
+          </div>
+        </div>
+        <div>
+          <label class="text-gray-400 text-sm block mb-1">Role</label>
+          <div id="bulkRoleContainer"></div>
+          <p class="text-gray-500 text-xs mt-1">The role to assign to all users in the XLSX</p>
+        </div>
+        <div>
+          <label class="text-gray-400 text-sm block mb-1">Action</label>
+          <select name="action" class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white">
+            <option value="add">Add Role to All</option>
+            <option value="remove">Remove Role from All</option>
+          </select>
+        </div>
+        <div id="import-result" class="hidden p-3 rounded-lg text-sm"></div>
+        <div class="flex justify-end gap-3 pt-4">
+          <button type="button" onclick="closeBulkImportModal()"
+                  class="px-4 py-2 text-gray-400 hover:text-white transition">Cancel</button>
+          <button type="submit" id="import-btn"
+                  class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-lg font-medium transition">
+            <i class="fas fa-upload mr-2"></i>Upload & Import
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Create Role Modal -->
+<div id="create-role-modal" class="fixed inset-0 z-50 hidden">
+  <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" onclick="closeCreateRoleModal()"></div>
+  <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+    <div class="bg-neutral-900 rounded-xl border border-neutral-700 shadow-2xl">
+      <div class="p-5 border-b border-neutral-800 flex items-center justify-between sticky top-0 bg-neutral-900 z-10">
+        <h3 class="text-lg font-bold text-white">
+          <i class="fas fa-plus-circle text-green-400 mr-2"></i>Create New Role
+        </h3>
+        <button onclick="closeCreateRoleModal()" class="text-gray-400 hover:text-white">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <form id="create-role-form" class="p-5 space-y-4">
+        <!-- Basic Settings -->
+        <div class="space-y-4">
+          <h4 class="text-white font-semibold border-b border-neutral-800 pb-2">Basic Settings</h4>
+
+          <div>
+            <label class="text-gray-400 text-sm block mb-1">Role Name *</label>
+            <input type="text" name="name" required
+                   class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white">
+          </div>
+
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="text-gray-400 text-sm block mb-1">Color</label>
+              <input type="color" name="color" value="#99AAB5"
+                     class="w-full h-10 bg-neutral-800 border border-neutral-700 rounded-lg cursor-pointer">
+            </div>
+            <div>
+              <label class="text-gray-400 text-sm block mb-1">Position</label>
+              <input type="number" name="position" value="0" min="0"
+                     class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white">
+            </div>
+          </div>
+
+          <div class="flex gap-4">
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" name="hoist" class="w-4 h-4">
+              <span class="text-gray-400 text-sm">Display separately (hoist)</span>
+            </label>
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" name="mentionable" class="w-4 h-4">
+              <span class="text-gray-400 text-sm">Mentionable</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Common Permissions -->
+        <div class="space-y-4">
+          <h4 class="text-white font-semibold border-b border-neutral-800 pb-2">Permissions (Optional)</h4>
+          <p class="text-gray-500 text-xs">Select common permissions or leave empty for @everyone permissions</p>
+
+          <div class="grid grid-cols-2 gap-3">
+            <label class="flex items-center gap-2 cursor-pointer p-2 hover:bg-neutral-800 rounded">
+              <input type="checkbox" name="perm_manage_roles" value="268435456" class="w-4 h-4">
+              <span class="text-gray-400 text-sm">Manage Roles</span>
+            </label>
+            <label class="flex items-center gap-2 cursor-pointer p-2 hover:bg-neutral-800 rounded">
+              <input type="checkbox" name="perm_manage_channels" value="16" class="w-4 h-4">
+              <span class="text-gray-400 text-sm">Manage Channels</span>
+            </label>
+            <label class="flex items-center gap-2 cursor-pointer p-2 hover:bg-neutral-800 rounded">
+              <input type="checkbox" name="perm_kick_members" value="2" class="w-4 h-4">
+              <span class="text-gray-400 text-sm">Kick Members</span>
+            </label>
+            <label class="flex items-center gap-2 cursor-pointer p-2 hover:bg-neutral-800 rounded">
+              <input type="checkbox" name="perm_ban_members" value="4" class="w-4 h-4">
+              <span class="text-gray-400 text-sm">Ban Members</span>
+            </label>
+            <label class="flex items-center gap-2 cursor-pointer p-2 hover:bg-neutral-800 rounded">
+              <input type="checkbox" name="perm_administrator" value="8" class="w-4 h-4">
+              <span class="text-gray-400 text-sm text-red-400">⚠️ Administrator</span>
+            </label>
+            <label class="flex items-center gap-2 cursor-pointer p-2 hover:bg-neutral-800 rounded">
+              <input type="checkbox" name="perm_manage_messages" value="8192" class="w-4 h-4">
+              <span class="text-gray-400 text-sm">Manage Messages</span>
+            </label>
+            <label class="flex items-center gap-2 cursor-pointer p-2 hover:bg-neutral-800 rounded">
+              <input type="checkbox" name="perm_mention_everyone" value="131072" class="w-4 h-4">
+              <span class="text-gray-400 text-sm">Mention @everyone</span>
+            </label>
+            <label class="flex items-center gap-2 cursor-pointer p-2 hover:bg-neutral-800 rounded">
+              <input type="checkbox" name="perm_view_audit_log" value="128" class="w-4 h-4">
+              <span class="text-gray-400 text-sm">View Audit Log</span>
+            </label>
+          </div>
+        </div>
+
+        <div id="create-result" class="hidden p-3 rounded-lg text-sm"></div>
+        <div class="flex justify-end gap-3 pt-4 border-t border-neutral-800">
+          <button type="button" onclick="closeCreateRoleModal()"
+                  class="px-4 py-2 text-gray-400 hover:text-white transition">Cancel</button>
+          <button type="submit" id="create-role-btn"
+                  class="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg font-medium transition">
+            <i class="fas fa-plus-circle mr-2"></i>Create Role
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Bulk Create Modal -->
+<div id="bulk-create-modal" class="fixed inset-0 z-50 hidden">
+  <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" onclick="closeBulkCreateModal()"></div>
+  <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-lg">
+    <div class="bg-neutral-900 rounded-xl border border-neutral-700 shadow-2xl">
+      <div class="p-5 border-b border-neutral-800 flex items-center justify-between">
+        <h3 class="text-lg font-bold text-white">
+          <i class="fas fa-layer-group text-purple-400 mr-2"></i>Bulk Role Creation
+        </h3>
+        <button onclick="closeBulkCreateModal()" class="text-gray-400 hover:text-white">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <form id="bulk-create-form" class="p-5 space-y-4" enctype="multipart/form-data">
+        <div>
+          <label class="text-gray-400 text-sm block mb-1">XLSX File</label>
+          <div class="border-2 border-dashed border-neutral-700 rounded-lg p-6 text-center hover:border-purple-500 transition cursor-pointer"
+               onclick="document.getElementById('bulk-create-file').click()">
+            <input type="file" name="file" id="bulk-create-file" accept=".xlsx" required class="hidden"
+                   onchange="updateBulkCreateFileName(this)">
+            <i class="fas fa-cloud-upload-alt text-3xl text-gray-500 mb-2"></i>
+            <p id="bulk-create-file-name" class="text-gray-400">Click to select XLSX file</p>
+            <p class="text-gray-500 text-xs mt-1">Max 100 roles per import</p>
+          </div>
+        </div>
+
+        <div class="bg-neutral-800 rounded-lg p-4 space-y-2 text-sm">
+          <p class="text-white font-medium">Required Columns:</p>
+          <ul class="text-gray-400 space-y-1 ml-4">
+            <li>• <code class="text-indigo-400">name</code> - Role name</li>
+            <li>• <code class="text-indigo-400">color</code> - Hex color (e.g., #FF5733)</li>
+            <li>• <code class="text-indigo-400">permissions</code> - Permission number (0 for none)</li>
+            <li>• <code class="text-indigo-400">hoist</code> - TRUE/FALSE</li>
+            <li>• <code class="text-indigo-400">mentionable</code> - TRUE/FALSE</li>
+          </ul>
+        </div>
+
+        <div id="bulk-create-result" class="hidden p-3 rounded-lg text-sm"></div>
+        <div class="flex justify-end gap-3 pt-4">
+          <button type="button" onclick="closeBulkCreateModal()"
+                  class="px-4 py-2 text-gray-400 hover:text-white transition">Cancel</button>
+          <button type="button" onclick="exportBulkCreateTemplate()"
+                  class="bg-neutral-700 hover:bg-neutral-600 text-white px-4 py-2 rounded-lg font-medium transition">
+            <i class="fas fa-download mr-2"></i>Download Template
+          </button>
+          <button type="submit" id="bulk-create-btn"
+                  class="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded-lg font-medium transition">
+            <i class="fas fa-upload mr-2"></i>Upload & Create
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+const GUILD_ID = '{{ guild.id }}';
+const API_BASE = `/api/guild/${GUILD_ID}/roles`;
+
+// Load Discord roles for comboboxes
+let singleRoleSelect, bulkRoleSelect;
+
+async function loadRoles() {
+  try {
+    const response = await csrfFetch(`/api/guild/${GUILD_ID}/roles/`);
+    const data = await response.json();
+
+    if (data.roles) {
+      const roleItems = data.roles.map(role => ({
+        value: role.id,
+        label: role.name,
+        icon: 'user-tag'
+      }));
+
+      // Create custom select for single role modal
+      singleRoleSelect = createCustomSelect({
+        container: '#singleRoleContainer',
+        name: 'role_id',
+        id: 'single_role_id',
+        placeholder: 'Select a role...',
+        items: roleItems,
+        selected: '',
+        color: 'indigo'
+      });
+
+      // Create custom select for bulk import modal
+      bulkRoleSelect = createCustomSelect({
+        container: '#bulkRoleContainer',
+        name: 'role_id',
+        id: 'bulk_role_id',
+        placeholder: 'Select a role...',
+        items: roleItems,
+        selected: '',
+        color: 'indigo'
+      });
+    }
+  } catch (err) {
+    console.error('Failed to load roles:', err);
+  }
+}
+
+document.addEventListener('DOMContentLoaded', loadRoles);
+</script>
+
+{% include 'warden/partials/discord_resource_selects.html' %}
+
+<script>
+
+// Single Role Modal
+function openSingleRoleModal() {
+  document.getElementById('single-role-modal').classList.remove('hidden');
+}
+function closeSingleRoleModal() {
+  document.getElementById('single-role-modal').classList.add('hidden');
+  document.getElementById('single-role-form').reset();
+}
+
+// Bulk Import Modal
+function openBulkImportModal() {
+  document.getElementById('bulk-import-modal').classList.remove('hidden');
+}
+function closeBulkImportModal() {
+  document.getElementById('bulk-import-modal').classList.add('hidden');
+  document.getElementById('bulk-import-form').reset();
+  document.getElementById('file-name').textContent = 'Click to select XLSX file';
+  document.getElementById('import-result').classList.add('hidden');
+}
+
+function updateFileName(input) {
+  const fileName = input.files[0]?.name || 'Click to select XLSX file';
+  document.getElementById('file-name').textContent = fileName;
+}
+
+function showUpgradePrompt() {
+  showToast('Bulk import requires Premium or Pro subscription', 'info');
+}
+
+// Create Role Modal
+function openCreateRoleModal() {
+  document.getElementById('create-role-modal').classList.remove('hidden');
+}
+function closeCreateRoleModal() {
+  document.getElementById('create-role-modal').classList.add('hidden');
+  document.getElementById('create-role-form').reset();
+  document.getElementById('create-result').classList.add('hidden');
+}
+
+// Bulk Create Modal
+function openBulkCreateModal() {
+  document.getElementById('bulk-create-modal').classList.remove('hidden');
+}
+function closeBulkCreateModal() {
+  document.getElementById('bulk-create-modal').classList.add('hidden');
+  document.getElementById('bulk-create-form').reset();
+  document.getElementById('bulk-create-file-name').textContent = 'Click to select XLSX file';
+  document.getElementById('bulk-create-result').classList.add('hidden');
+}
+
+function updateBulkCreateFileName(input) {
+  const fileName = input.files[0]?.name || 'Click to select XLSX file';
+  document.getElementById('bulk-create-file-name').textContent = fileName;
+}
+
+async function exportBulkCreateTemplate() {
+  try {
+    const resp = await csrfFetch(`${API_BASE}/export-create-template/`);
+    if (!resp.ok) throw new Error('Export failed');
+
+    const blob = await resp.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `role_creation_template.xlsx`;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    a.remove();
+
+    showToast('Template downloaded successfully', 'success');
+  } catch (err) {
+    showToast('Failed to download template', 'error');
+  }
+}
+
+// Single Role Form
+document.getElementById('single-role-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const form = e.target;
+  const roleInput = document.getElementById('single_role_id');
+  const data = {
+    user_id: form.user_id.value,
+    role_id: singleRoleMap[roleInput.value] || roleInput.value,
+    action: form.action.value,
+    reason: form.reason.value || undefined,
+  };
+
+  try {
+    const resp = await csrfFetch(`${API_BASE}/action/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    const result = await resp.json();
+    if (result.success) {
+      closeSingleRoleModal();
+      showToast(result.message, 'success');
+      setTimeout(() => location.reload(), 1500);
+    } else {
+      showToast(result.error || 'Failed to queue action', 'error');
+    }
+  } catch (err) {
+    showToast('Error queuing action', 'error');
+  }
+});
+
+// Bulk Import Form
+document.getElementById('bulk-import-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const form = e.target;
+  const formData = new FormData(form);
+
+  // Map role name to ID
+  const roleInput = document.getElementById('bulk_role_id');
+  const roleId = bulkRoleMap[roleInput.value] || roleInput.value;
+  formData.set('role_id', roleId);
+
+  const btn = document.getElementById('import-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Uploading...';
+
+  const resultDiv = document.getElementById('import-result');
+
+  try {
+    const resp = await csrfFetch(`${API_BASE}/import/`, {
+      method: 'POST',
+      body: formData
+    });
+    const result = await resp.json();
+
+    if (result.success) {
+      resultDiv.className = 'p-3 rounded-lg text-sm bg-green-600/20 text-green-400';
+      resultDiv.innerHTML = `
+        <i class="fas fa-check-circle mr-2"></i>
+        <strong>Success!</strong> Queued ${result.total_users} users for processing.
+        ${result.parse_errors?.length ? `<br><small class="text-yellow-400">${result.parse_errors.length} rows had errors</small>` : ''}
+      `;
+      resultDiv.classList.remove('hidden');
+      setTimeout(() => location.reload(), 2000);
+    } else {
+      resultDiv.className = 'p-3 rounded-lg text-sm bg-red-600/20 text-red-400';
+      resultDiv.innerHTML = `<i class="fas fa-times-circle mr-2"></i>${result.error}`;
+      resultDiv.classList.remove('hidden');
+    }
+  } catch (err) {
+    resultDiv.className = 'p-3 rounded-lg text-sm bg-red-600/20 text-red-400';
+    resultDiv.innerHTML = '<i class="fas fa-times-circle mr-2"></i>Upload failed';
+    resultDiv.classList.remove('hidden');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-upload mr-2"></i>Upload & Import';
+  }
+});
+
+// Create Role Form
+document.getElementById('create-role-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const form = e.target;
+  const btn = document.getElementById('create-role-btn');
+  const resultDiv = document.getElementById('create-result');
+
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Creating...';
+
+  // Calculate permissions from checkboxes
+  let permissions = 0;
+  const permCheckboxes = form.querySelectorAll('input[name^="perm_"]');
+  permCheckboxes.forEach(cb => {
+    if (cb.checked) {
+      permissions |= parseInt(cb.value);
+    }
+  });
+
+  // Convert hex color to decimal
+  const colorHex = form.color.value.replace('#', '');
+  const colorDecimal = parseInt(colorHex, 16);
+
+  const data = {
+    name: form.name.value,
+    color: colorDecimal,
+    hoist: form.hoist.checked,
+    mentionable: form.mentionable.checked,
+    permissions: permissions.toString(),
+    position: parseInt(form.position.value) || 0
+  };
+
+  try {
+    const resp = await csrfFetch(`${API_BASE}/create/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    const result = await resp.json();
+
+    if (result.success) {
+      resultDiv.className = 'p-3 rounded-lg text-sm bg-green-600/20 text-green-400';
+      resultDiv.innerHTML = `<i class="fas fa-check-circle mr-2"></i>${result.message || 'Role created successfully!'}`;
+      resultDiv.classList.remove('hidden');
+      setTimeout(() => {
+        closeCreateRoleModal();
+        location.reload();
+      }, 1500);
+    } else {
+      resultDiv.className = 'p-3 rounded-lg text-sm bg-red-600/20 text-red-400';
+      resultDiv.innerHTML = `<i class="fas fa-times-circle mr-2"></i>${result.error}`;
+      resultDiv.classList.remove('hidden');
+    }
+  } catch (err) {
+    resultDiv.className = 'p-3 rounded-lg text-sm bg-red-600/20 text-red-400';
+    resultDiv.innerHTML = '<i class="fas fa-times-circle mr-2"></i>Failed to create role';
+    resultDiv.classList.remove('hidden');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-plus-circle mr-2"></i>Create Role';
+  }
+});
+
+// Bulk Create Form
+document.getElementById('bulk-create-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const form = e.target;
+  const btn = document.getElementById('bulk-create-btn');
+  const resultDiv = document.getElementById('bulk-create-result');
+  const formData = new FormData(form);
+
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Uploading...';
+
+  try {
+    const resp = await csrfFetch(`${API_BASE}/bulk-create/`, {
+      method: 'POST',
+      body: formData
+    });
+    const result = await resp.json();
+
+    if (result.success) {
+      resultDiv.className = 'p-3 rounded-lg text-sm bg-green-600/20 text-green-400';
+      resultDiv.innerHTML = `<i class="fas fa-check-circle mr-2"></i>${result.message || `Created ${result.created_count} roles!`}`;
+      resultDiv.classList.remove('hidden');
+      setTimeout(() => {
+        closeBulkCreateModal();
+        location.reload();
+      }, 2000);
+    } else {
+      resultDiv.className = 'p-3 rounded-lg text-sm bg-red-600/20 text-red-400';
+      resultDiv.innerHTML = `<i class="fas fa-times-circle mr-2"></i>${result.error}`;
+      resultDiv.classList.remove('hidden');
+    }
+  } catch (err) {
+    resultDiv.className = 'p-3 rounded-lg text-sm bg-red-600/20 text-red-400';
+    resultDiv.innerHTML = '<i class="fas fa-times-circle mr-2"></i>Upload failed';
+    resultDiv.classList.remove('hidden');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-upload mr-2"></i>Upload & Create';
+  }
+});
+
+// Export Functions
+async function exportTemplate() {
+  try {
+    const resp = await csrfFetch(`${API_BASE}/export-template/`);
+    if (!resp.ok) throw new Error('Export failed');
+
+    const blob = await resp.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `role_import_template.xlsx`;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    a.remove();
+
+    showToast('Template downloaded successfully', 'success');
+  } catch (err) {
+    showToast('Failed to download template', 'error');
+  }
+}
+
+async function exportCurrentRoles() {
+  try {
+    const resp = await csrfFetch(`${API_BASE}/export-roles/`);
+    if (!resp.ok) throw new Error('Export failed');
+
+    const blob = await resp.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `guild_roles_export.xlsx`;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    a.remove();
+
+    showToast('Roles exported successfully', 'success');
+  } catch (err) {
+    showToast('Failed to export roles', 'error');
+  }
+}
+
+// Toast Notification
+function showToast(message, type = 'info') {
+  const toast = document.createElement('div');
+  const bgColor = type === 'success' ? 'bg-green-600' : type === 'error' ? 'bg-red-600' : 'bg-indigo-600';
+  toast.className = `fixed bottom-4 right-4 ${bgColor} text-white px-6 py-3 rounded-lg shadow-lg z-50 animate-fade-in`;
+  toast.textContent = message;
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 3000);
+}
+</script>
+{% endblock guild_content %}
