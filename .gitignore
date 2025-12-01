@@ -3,6 +3,7 @@ __pycache__/
 *.py[cod]
 *.pyo
 .Python
+.claude
 
 # Ignore Jupyter notebook checkpoints
 .ipynb_checkpoints/
