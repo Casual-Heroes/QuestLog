@@ -62,18 +62,11 @@
 <!-- Featured Creators Grid -->
 <div id="creatorsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
   {% for creator in creators %}
-  {% if creator.forum_thread_id %}
-  <!-- Clickable card with forum link -->
-  <a href="https://discord.com/channels/{{ guild.id }}/{{ creator.forum_thread_id }}" target="_blank" rel="noopener noreferrer"
-     class="creator-card block bg-neutral-900 rounded-xl border border-neutral-800 p-6 hover:border-yellow-500 hover:scale-[1.02] transition-all duration-300 hover:shadow-lg hover:shadow-yellow-500/30 cursor-pointer"
-     data-name="{{ creator.display_name|lower }} {{ creator.username|lower }}"
-     data-platforms="{% if creator.twitch_url %}twitch {% endif %}{% if creator.youtube_url %}youtube {% endif %}{% if creator.twitter_url %}twitter {% endif %}{% if creator.tiktok_url %}tiktok {% endif %}{% if creator.instagram_url %}instagram {% endif %}">
-  {% else %}
-  <!-- Non-clickable card (no forum thread) -->
+  <!-- All cards are divs now, with separate forum link button -->
   <div class="creator-card bg-neutral-900 rounded-xl border border-neutral-800 p-6 hover:border-yellow-500/50 transition-all duration-300 hover:shadow-lg hover:shadow-yellow-500/20"
        data-name="{{ creator.display_name|lower }} {{ creator.username|lower }}"
-       data-platforms="{% if creator.twitch_url %}twitch {% endif %}{% if creator.youtube_url %}youtube {% endif %}{% if creator.twitter_url %}twitter {% endif %}{% if creator.tiktok_url %}tiktok {% endif %}{% if creator.instagram_url %}instagram {% endif %}">
-  {% endif %}
+       data-platforms="{% if creator.twitch_url %}twitch {% endif %}{% if creator.youtube_url %}youtube {% endif %}{% if creator.twitter_url %}twitter {% endif %}{% if creator.tiktok_url %}tiktok {% endif %}{% if creator.instagram_url %}instagram {% endif %}"
+       data-forum-url="{% if creator.forum_thread_id %}https://discord.com/channels/{{ guild.id }}/{{ creator.forum_thread_id }}{% endif %}">
 
     <!-- Profile Header -->
     <div class="flex items-center gap-4 mb-4">
@@ -81,7 +74,7 @@
         <img src="{{ creator.avatar_url }}" alt="{{ creator.display_name }}"
              class="w-20 h-20 rounded-full border-4 border-yellow-500/50 shadow-lg">
         {% if creator.times_featured >= 5 %}
-        <div class="absolute -top-1 -right-1 bg-gradient-to-r from-yellow-400 to-orange-500 rounded-full p-2 shadow-lg" title="Hall of Famer (5+ features)">
+        <div class="absolute top-1 -right-0 bg-gradient-to-r from-yellow-400 to-orange-500 rounded-full p-0.5 shadow-lg" title="Hall of Famer (5+ features)">
           <i class="fas fa-crown text-white text-xs"></i>
         </div>
         {% endif %}
@@ -128,7 +121,7 @@
            {% elif link.color == 'green' %}bg-green-600 hover:bg-green-700
            {% else %}bg-gray-700 hover:bg-gray-800
            {% endif %}
-           text-white px-3 py-2 rounded-lg text-xs font-medium transition shadow hover:shadow-lg">
+           text-white px-1.5 py-0.5 rounded-lg text-xs font-medium transition shadow hover:shadow-lg">
           <i class="{{ link.icon }}"></i> {{ link.platform }}
         </a>
         {% endfor %}
@@ -136,36 +129,36 @@
 
       <!-- Direct Social URLs - Only show if not already in extracted links -->
       {% if creator.show_twitch %}
-      <a href="{{ creator.twitch_url }}" target="_blank" rel="noopener noreferrer"
-         class="flex items-center gap-1.5 bg-purple-600 hover:bg-purple-700 text-white px-3 py-2 rounded-lg text-xs font-medium transition shadow hover:shadow-lg">
+      <a href="{{ creator.twitch_url }}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()"
+         class="flex items-center gap-1.5 bg-purple-600 hover:bg-purple-700 text-white px-2 py-1 rounded-md text-xs font-medium transition shadow hover:shadow-lg">
         <i class="fab fa-twitch"></i> Twitch
       </a>
       {% endif %}
 
       {% if creator.show_youtube %}
-      <a href="{{ creator.youtube_url }}" target="_blank" rel="noopener noreferrer"
-         class="flex items-center gap-1.5 bg-red-600 hover:bg-red-700 text-white px-3 py-2 rounded-lg text-xs font-medium transition shadow hover:shadow-lg">
+      <a href="{{ creator.youtube_url }}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()"
+         class="flex items-center gap-1.5 bg-red-600 hover:bg-red-700 text-white px-2 py-1 rounded-md text-xs font-medium transition shadow hover:shadow-lg">
         <i class="fab fa-youtube"></i> YouTube
       </a>
       {% endif %}
 
       {% if creator.show_twitter %}
-      <a href="{{ creator.twitter_url }}" target="_blank" rel="noopener noreferrer"
-         class="flex items-center gap-1.5 bg-sky-500 hover:bg-sky-600 text-white px-3 py-2 rounded-lg text-xs font-medium transition shadow hover:shadow-lg">
+      <a href="{{ creator.twitter_url }}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()"
+         class="flex items-center gap-1.5 bg-sky-500 hover:bg-sky-600 text-white px-2 py-1 rounded-md text-xs font-medium transition shadow hover:shadow-lg">
         <i class="fab fa-twitter"></i> Twitter
       </a>
       {% endif %}
 
       {% if creator.show_tiktok %}
-      <a href="{{ creator.tiktok_url }}" target="_blank" rel="noopener noreferrer"
-         class="flex items-center gap-1.5 bg-black hover:bg-gray-900 text-white px-3 py-2 rounded-lg text-xs font-medium transition shadow hover:shadow-lg border border-gray-700">
+      <a href="{{ creator.tiktok_url }}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()"
+         class="flex items-center gap-1.5 bg-black hover:bg-gray-900 text-white px-2 py-1 rounded-md text-xs font-medium transition shadow hover:shadow-lg border border-gray-700">
         <i class="fab fa-tiktok"></i> TikTok
       </a>
       {% endif %}
 
       {% if creator.show_instagram %}
-      <a href="{{ creator.instagram_url }}" target="_blank" rel="noopener noreferrer"
-         class="flex items-center gap-1.5 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white px-3 py-2 rounded-lg text-xs font-medium transition shadow hover:shadow-lg">
+      <a href="{{ creator.instagram_url }}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()"
+         class="flex items-center gap-1.5 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white px-2 py-1 rounded-md text-xs font-medium transition shadow hover:shadow-lg">
         <i class="fab fa-instagram"></i> Instagram
       </a>
       {% endif %}
@@ -223,15 +216,18 @@
       {% endif %}
     </div>
 
-    <!-- "View Full Post" indicator for clickable cards -->
+    <!-- "View Full Post" button for forum creators -->
     {% if creator.forum_thread_id %}
-    <div class="mt-4 pt-4 border-t border-neutral-800 flex items-center justify-center gap-2 text-yellow-400 text-sm font-semibold group-hover:text-yellow-300 transition">
-      <i class="fab fa-discord"></i>
-      <span>Click to View Full Forum Post</span>
-      <i class="fas fa-arrow-right"></i>
+    <div class="mt-4 pt-4 border-t border-neutral-800">
+      <a href="https://discord.com/channels/{{ guild.id }}/{{ creator.forum_thread_id }}" target="_blank" rel="noopener noreferrer"
+         class="flex items-center justify-center gap-2 text-yellow-400 hover:text-yellow-300 text-sm font-semibold transition">
+        <i class="fab fa-discord"></i>
+        <span>View Full Forum Post</span>
+        <i class="fas fa-arrow-right"></i>
+      </a>
     </div>
     {% endif %}
-  {% if creator.forum_thread_id %}</a>{% else %}</div>{% endif %}
+  </div>
   {% endfor %}
 </div>
 
@@ -274,37 +270,36 @@
 {% endif %}
 
 <!-- How Discovery Works Section -->
-<div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6 mt-8">
-  <h2 class="text-xl font-bold text-white mb-4">
+<div class="bg-neutral-900 rounded-xl border border-neutral-800 p-5 mt-32">
+  <h2 class="text-lg font-bold text-white mb-3">
     <i class="fas fa-question-circle text-yellow-400 mr-2"></i>How Creator Discovery Works
   </h2>
-  <div class="space-y-3 text-gray-300">
-    <div class="flex items-start gap-3">
-      <span class="flex-shrink-0 w-6 h-6 bg-yellow-600/20 rounded-full flex items-center justify-center text-yellow-400 text-sm font-bold">1</span>
-      <p><strong class="text-white">Share your content:</strong> Post your introduction in the designated Creator Intro forum with the "Self-Promo Intro" tag</p>
+  <div class="space-y-2 text-gray-300 text-sm">
+    <div class="flex items-start gap-2">
+      <span class="flex-shrink-0 w-5 h-5 bg-yellow-600/20 rounded-full flex items-center justify-center text-yellow-400 text-xs font-bold">1</span>
+      <p><strong class="text-white">Share:</strong> Post intro in Creator Intro forum with "Self-Promo Intro" tag</p>
     </div>
-    <div class="flex items-start gap-3">
-      <span class="flex-shrink-0 w-6 h-6 bg-yellow-600/20 rounded-full flex items-center justify-center text-yellow-400 text-sm font-bold">2</span>
-      <p><strong class="text-white">Get discovered:</strong> Our bot automatically scans the forum and adds qualified creators to the Featured Creators pool</p>
+    <div class="flex items-start gap-2">
+      <span class="flex-shrink-0 w-5 h-5 bg-yellow-600/20 rounded-full flex items-center justify-center text-yellow-400 text-xs font-bold">2</span>
+      <p><strong class="text-white">Get discovered:</strong> Bot scans forum and adds creators automatically</p>
     </div>
-    <div class="flex items-start gap-3">
-      <span class="flex-shrink-0 w-6 h-6 bg-yellow-600/20 rounded-full flex items-center justify-center text-yellow-400 text-sm font-bold">3</span>
-      <p><strong class="text-white">Double exposure:</strong> Featured creators appear both on this website AND get a special announcement in Discord</p>
+    <div class="flex items-start gap-2">
+      <span class="flex-shrink-0 w-5 h-5 bg-yellow-600/20 rounded-full flex items-center justify-center text-yellow-400 text-xs font-bold">3</span>
+      <p><strong class="text-white">Double exposure:</strong> Appear on website + Discord announcement</p>
     </div>
-    <div class="flex items-start gap-3">
-      <span class="flex-shrink-0 w-6 h-6 bg-yellow-600/20 rounded-full flex items-center justify-center text-yellow-400 text-sm font-bold">4</span>
-      <p><strong class="text-white">Build your audience:</strong> Community members can discover you here or in Discord, then click to view your full profile with all your social links</p>
+    <div class="flex items-start gap-2">
+      <span class="flex-shrink-0 w-5 h-5 bg-yellow-600/20 rounded-full flex items-center justify-center text-yellow-400 text-xs font-bold">4</span>
+      <p><strong class="text-white">Build audience:</strong> Members discover you and click to view full profile</p>
     </div>
   </div>
 
-  <div class="mt-6 p-4 bg-neutral-800 rounded-lg border border-neutral-700">
-    <h3 class="text-white font-semibold mb-2 flex items-center gap-2">
-      <i class="fas fa-lightbulb text-yellow-400"></i>
+  <div class="mt-4 p-3 bg-neutral-800 rounded-lg border border-neutral-700">
+    <h3 class="text-white font-semibold mb-1 flex items-center gap-2 text-sm">
+      <i class="fas fa-lightbulb text-yellow-400 text-xs"></i>
       Pro Tip
     </h3>
-    <p class="text-gray-300 text-sm">
-      Include all your social media links (Twitch, YouTube, Twitter, TikTok, Instagram) in your forum intro post to maximize your visibility.
-      The richer your profile, the better chance community members will connect with your content!
+    <p class="text-gray-300 text-xs">
+      Include all social links (Twitch, YouTube, Twitter, TikTok, Instagram) in your forum post to maximize visibility!
     </p>
   </div>
 </div>

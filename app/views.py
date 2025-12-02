@@ -19,6 +19,7 @@ from pathlib import Path
 from sqlalchemy import or_
 import time
 from django_ratelimit.decorators import ratelimit
+from casualsite.settings import get_client_ip
 
 load_dotenv()
 
@@ -805,7 +806,7 @@ def discord_login(request):
     return redirect(login_url)
 
 
-@ratelimit(key='ip', rate='10/m', method='GET')
+@ratelimit(key=get_client_ip, rate='10/m', method='GET')
 def discord_callback(request):
     """Handle Discord OAuth2 callback"""
     error = request.GET.get('error')
@@ -8443,7 +8444,7 @@ def guild_featured_creators(request, guild_id):
             if not guild_db:
                 logger.warning(f"Featured Creators: Guild {guild_id} not found in database")
                 messages.error(request, "Guild not found.")
-                return redirect('index')
+                return redirect('home')
 
             # Build guild object for template (from DB or session)
             if guild_from_session:
@@ -8453,7 +8454,7 @@ def guild_featured_creators(request, guild_id):
                 # Build minimal guild object from database for public view
                 guild = {
                     'id': str(guild_db.guild_id),
-                    'name': guild_db.name or f"Guild {guild_db.guild_id}",
+                    'name': guild_db.guild_name or f"Guild {guild_db.guild_id}",
                     'icon': None,  # We don't store icon in DB
                 }
 
@@ -8601,4 +8602,4 @@ def guild_featured_creators(request, guild_id):
     except Exception as e:
         logger.error(f"Error loading featured creators: {e}", exc_info=True)
         messages.error(request, f'Error loading featured creators: {e}')
-        return redirect('index')
+        return redirect('home')
