@@ -1,0 +1,451 @@
+  <div id="gamesContent" class="hidden">
+    <!-- Action Buttons -->
+    <div class="flex justify-between items-center mb-8">
+      <div class="flex gap-3">
+        <button onclick="checkGamesNow()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition text-sm">
+          <i class="fas fa-search mr-2"></i>Check for Games Now
+        </button>
+        <button onclick="saveGameGlobalSettings()" id="saveGameBtn" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium transition text-sm">
+          <i class="fas fa-save mr-2"></i>Save Global Settings
+        </button>
+      </div>
+      <button onclick="openAddSearchModal()" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium transition text-sm">
+        <i class="fas fa-plus mr-2"></i>Add Search
+      </button>
+    </div>
+
+    <!-- Search Configs Usage Counter -->
+    <div class="bg-neutral-900/50 rounded-lg border border-neutral-800 p-4 mb-6">
+      <div class="flex items-center justify-between">
+        <div>
+          <h3 class="text-sm font-medium text-gray-400">Game Searches Used</h3>
+          <p class="text-3xl font-bold text-white mt-1">
+            {{ total_search_configs }}
+            {% if guild_record.is_vip or guild_record.subscription_tier == 'premium' %}
+            <span class="text-lg text-gray-500">/ <i class="fas fa-infinity text-green-400"></i></span>
+            {% elif guild_record.subscription_tier == 'pro' %}
+            <span class="text-lg text-gray-500">/ 5</span>
+            {% else %}
+            <span class="text-lg text-gray-500">/ 3</span>
+            {% endif %}
+          </p>
+        </div>
+        <div class="text-right">
+          <p class="text-xs text-gray-400 mb-1">
+            {% if guild_record.is_vip or guild_record.subscription_tier == 'premium' %}
+            <span class="text-green-400"><i class="fas fa-infinity mr-1"></i>Unlimited</span>
+            {% elif guild_record.subscription_tier == 'pro' %}
+            <span class="text-blue-400"><i class="fas fa-search mr-1"></i>Pro Tier</span>
+            {% else %}
+            <span class="text-gray-400"><i class="fas fa-search mr-1"></i>Free Tier</span>
+            {% endif %}
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tier Limits Info -->
+    <div class="mb-6 bg-gradient-to-r from-blue-900/30 to-purple-900/30 border border-blue-700/50 rounded-xl p-5">
+      <div class="flex items-start gap-4">
+        <div class="w-12 h-12 bg-blue-600/20 rounded-lg flex items-center justify-center flex-shrink-0">
+          <i class="fas fa-info-circle text-blue-400 text-xl"></i>
+        </div>
+        <div class="flex-1">
+          <h3 class="text-white font-bold mb-2">Game Search Limits</h3>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+            <div>
+              <p class="text-gray-300 font-medium mb-1">
+                <i class="fas fa-circle text-gray-500 mr-2 text-xs"></i>Free Tier
+              </p>
+              <p class="text-gray-400 ml-5">Up to 3 search configurations</p>
+            </div>
+            <div>
+              <p class="text-indigo-300 font-medium mb-1">
+                <i class="fas fa-circle text-indigo-500 mr-2 text-xs"></i>Pro Tier
+              </p>
+              <p class="text-gray-400 ml-5">Up to 5 search configurations</p>
+            </div>
+            <div>
+              <p class="text-yellow-300 font-medium mb-1">
+                <i class="fas fa-crown text-yellow-500 mr-2 text-xs"></i>Premium Tier
+              </p>
+              <p class="text-gray-400 ml-5">Unlimited search configurations</p>
+            </div>
+          </div>
+          {% if guild_record.is_vip or guild_record.subscription_tier == 'premium' %}
+          <p class="text-green-400 text-xs mt-3">
+            <i class="fas fa-check-circle mr-1"></i>
+            You have unlimited search configurations! Searches run automatically based on your interval settings.
+          </p>
+          {% elif guild_record.subscription_tier == 'pro' %}
+          <p class="text-blue-400 text-xs mt-3">
+            <i class="fas fa-lightbulb mr-1"></i>
+            Searches run automatically based on your interval settings. <a href="#" class="text-purple-400 hover:text-purple-300 underline">Upgrade to Premium</a> for unlimited configurations!
+          </p>
+          {% else %}
+          <p class="text-blue-400 text-xs mt-3">
+            <i class="fas fa-lightbulb mr-1"></i>
+            Searches run automatically based on your interval settings. <a href="#" class="text-indigo-400 hover:text-indigo-300 underline">Upgrade to Pro or Premium</a> for more searches!
+          </p>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <!-- Settings Column -->
+      <div class="lg:col-span-2 space-y-6">
+        <!-- Global Settings -->
+        <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6">
+          <h3 class="text-lg font-bold text-white mb-4">
+            <i class="fas fa-cog text-gray-400 mr-2"></i>Global Settings
+          </h3>
+          <div class="space-y-6">
+            <!-- Enable Toggle -->
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-white font-medium">Enable Game Discovery</p>
+                <p class="text-gray-400 text-sm">Automatically announce new game releases</p>
+              </div>
+              <label class="relative inline-flex items-center cursor-pointer">
+                <input type="checkbox" id="game_discovery_enabled" class="sr-only peer" {% if discovery_config.game_discovery_enabled %}checked{% endif %}>
+                <div class="w-11 h-6 bg-neutral-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+              </label>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div>
+                <label class="block text-sm text-gray-400 mb-2">Public Discovery Channel</label>
+                <div id="public_game_channel_idContainer"></div>
+                
+                <p class="text-gray-500 text-xs mt-1">For searches with "Show on Website" enabled</p>
+              </div>
+              <div>
+                <label class="block text-sm text-gray-400 mb-2">Private Discovery Channel</label>
+                <div id="private_game_channel_idContainer"></div>
+                
+                <p class="text-gray-500 text-xs mt-1">For searches with "Show on Website" disabled</p>
+              </div>
+              <div>
+                <label class="block text-sm text-gray-400 mb-2">Check Interval</label>
+                <div class="flex items-center gap-2">
+                  <input type="number" id="game_check_interval_hours" value="{{ discovery_config.game_check_interval_hours|default:24 }}" min="1" max="168"
+                         class="w-24 bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-center focus:border-blue-500 focus:outline-none">
+                  <span class="text-gray-400">hours</span>
+                </div>
+                <p class="text-gray-500 text-xs mt-1">How often to check for new games</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Configured Searches -->
+        <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6">
+          <h3 class="text-lg font-bold text-white mb-4">
+            <i class="fas fa-search text-gray-400 mr-2"></i>Configured Searches
+            <span class="text-gray-500 text-sm font-normal ml-2" id="searchCount">({{ search_configs|length }} search{{ search_configs|length|pluralize:"es" }})</span>
+          </h3>
+
+          <div id="searchConfigsList">
+            {% if search_configs %}
+            <div class="space-y-4">
+              {% for search in search_configs %}
+              <div class="bg-neutral-800 rounded-lg p-4" data-search-id="{{ search.id }}">
+                <div class="flex items-center justify-between">
+                  <!-- Search Info -->
+                  <div class="flex-grow">
+                    <div class="flex items-center gap-2 mb-2">
+                      <h4 class="text-white font-bold">{{ search.name }}</h4>
+                      {% if not search.enabled %}
+                      <span class="text-xs px-2 py-0.5 rounded bg-red-600 text-white">Disabled</span>
+                      {% endif %}
+                    </div>
+                    <div class="flex flex-wrap gap-2 text-sm text-gray-400">
+                      {% if search.genres_list %}
+                      <span><i class="fas fa-gamepad text-gray-500 mr-1"></i>{{ search.genres_list|length }} genre{{ search.genres_list|length|pluralize }}</span>
+                      {% endif %}
+                      {% if search.themes_list %}
+                      <span><i class="fas fa-paint-brush text-gray-500 mr-1"></i>{{ search.themes_list|length }} theme{{ search.themes_list|length|pluralize }}</span>
+                      {% endif %}
+                      {% if search.modes_list %}
+                      <span><i class="fas fa-users text-gray-500 mr-1"></i>{{ search.modes_list|length }} mode{{ search.modes_list|length|pluralize }}</span>
+                      {% endif %}
+                      {% if search.platforms_list %}
+                      <span><i class="fas fa-desktop text-gray-500 mr-1"></i>{{ search.platforms_list|length }} platform{{ search.platforms_list|length|pluralize }}</span>
+                      {% endif %}
+                      <span><i class="fas fa-calendar text-gray-500 mr-1"></i>{{ search.days_ahead }} days ahead</span>
+                    </div>
+                  </div>
+
+                  <!-- Actions -->
+                  <div class="flex gap-2 flex-shrink-0 ml-4">
+                    <label class="relative inline-flex items-center cursor-pointer" title="Enable/Disable">
+                      <input type="checkbox" class="search-enabled-toggle sr-only peer" data-search-id="{{ search.id }}" {% if search.enabled %}checked{% endif %}>
+                      <div class="w-11 h-6 bg-neutral-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div>
+                    </label>
+                    <button onclick="editSearch({{ search.id }})" class="bg-neutral-700 hover:bg-neutral-600 text-white px-3 py-2 rounded-lg transition text-sm">
+                      <i class="fas fa-edit"></i>
+                    </button>
+                    <button onclick="deleteSearch({{ search.id }}, '{{ search.name }}')" class="bg-red-600/20 hover:bg-red-600 text-red-400 hover:text-white px-3 py-2 rounded-lg transition text-sm">
+                      <i class="fas fa-trash"></i>
+                    </button>
+                  </div>
+                </div>
+              </div>
+              {% endfor %}
+            </div>
+            {% else %}
+            <div class="text-center py-12">
+              <i class="fas fa-search text-4xl text-gray-600 mb-4"></i>
+              <p class="text-gray-400">No searches configured yet</p>
+              <p class="text-gray-500 text-sm mt-2">Click "Add Search" to create your first game search!</p>
+            </div>
+            {% endif %}
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Info Column -->
+      <div class="space-y-6">
+        <!-- Stats -->
+        <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6">
+          <h3 class="text-lg font-bold text-white mb-4">
+            <i class="fas fa-chart-bar text-gray-400 mr-2"></i>Stats
+          </h3>
+          <div class="space-y-3">
+            <div class="flex justify-between">
+              <span class="text-gray-400">Status</span>
+              <span class="{% if discovery_config.game_discovery_enabled %}text-green-400{% else %}text-red-400{% endif %}">
+                {% if discovery_config.game_discovery_enabled %}Active{% else %}Disabled{% endif %}
+              </span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-gray-400">Check Interval</span>
+              <span class="text-white">{{ discovery_config.game_check_interval_hours|default:24 }}h</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-gray-400">Games Announced</span>
+              <span class="text-white">{{ announced_games_count|default:0 }}</span>
+            </div>
+            {% if discovery_config.last_game_check_at %}
+            <div class="flex justify-between">
+              <span class="text-gray-400">Last Check</span>
+              <span class="text-white text-xs">{{ last_game_check }}</span>
+            </div>
+            {% endif %}
+          </div>
+        </div>
+
+        <!-- Recent Announcements -->
+        <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6">
+          <h3 class="text-lg font-bold text-white mb-4">
+            <i class="fas fa-history text-gray-400 mr-2"></i>Recent Announcements
+          </h3>
+          {% if recent_game_announcements %}
+          <div class="space-y-3 max-h-96 overflow-y-auto">
+            {% for game in recent_game_announcements %}
+            <div class="p-3 bg-neutral-800/50 rounded-lg">
+              <div class="flex items-start justify-between">
+                <p class="text-white text-sm font-medium">{{ game.game_name }}</p>
+                {% if game.igdb_url %}
+                <a href="{{ game.igdb_url }}" target="_blank" rel="noopener noreferrer" class="text-blue-400 hover:text-blue-300 ml-2 flex-shrink-0" title="View on IGDB">
+                  <i class="fas fa-external-link-alt text-xs"></i>
+                </a>
+                {% endif %}
+              </div>
+              <p class="text-gray-500 text-xs">{{ game.formatted_date }}</p>
+              {% if game.genres_list %}
+              <div class="flex flex-wrap gap-1 mt-1">
+                {% for genre in game.genres_list %}
+                <span class="text-xs px-2 py-0.5 bg-blue-600/20 text-blue-400 rounded">{{ genre }}</span>
+                {% endfor %}
+              </div>
+              {% endif %}
+            </div>
+            {% endfor %}
+          </div>
+          {% else %}
+          <div class="text-center py-8">
+            <div class="w-12 h-12 bg-neutral-800 rounded-full flex items-center justify-center mx-auto mb-3">
+              <i class="fas fa-inbox text-gray-600 text-xl"></i>
+            </div>
+            <p class="text-gray-400">No games announced yet</p>
+            <p class="text-gray-500 text-sm mt-1">Configure settings and check for games</p>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Add/Edit Search Modal -->
+    <div id="searchModal" class="hidden fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+      <div class="bg-neutral-900 rounded-xl border border-neutral-800 max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+        <div class="sticky top-0 bg-neutral-900 border-b border-neutral-800 p-6 flex items-center justify-between">
+          <h3 class="text-xl font-bold text-white" id="searchModalTitle">
+            <i class="fas fa-plus text-green-400 mr-2"></i>Add Game Search
+          </h3>
+          <button onclick="closeSearchModal()" class="text-gray-400 hover:text-white transition">
+            <i class="fas fa-times text-xl"></i>
+          </button>
+        </div>
+
+        <div class="p-6 space-y-6">
+          <!-- Search Name -->
+          <div>
+            <label class="block text-sm text-gray-400 mb-2">Search Name *</label>
+            <input type="text" id="modal_search_name" placeholder="e.g., Souls-like RPGs, MMO Games, Indie Puzzle" maxlength="100"
+                   class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:border-blue-500 focus:outline-none">
+            <p class="text-gray-500 text-xs mt-1">Give this search a descriptive name</p>
+          </div>
+
+          <!-- Days Ahead -->
+          <div>
+            <label class="block text-sm text-gray-400 mb-2">Announcement Window *</label>
+            <select id="modal_days_ahead" class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:border-blue-500 focus:outline-none">
+              <option value="7">7 days before release</option>
+              <option value="14">14 days before release</option>
+              <option value="30" selected>30 days before release</option>
+              <option value="60">60 days before release</option>
+              <option value="90">90 days before release</option>
+            </select>
+            <p class="text-gray-500 text-xs mt-1">How far ahead to announce games from this search</p>
+          </div>
+
+          <!-- Genre Filters -->
+          <div>
+            <label class="block text-sm text-gray-400 mb-3">
+              <i class="fas fa-filter mr-1"></i>Genres
+              <span class="text-gray-600 ml-1">(optional - leave empty for all)</span>
+            </label>
+            <div class="grid grid-cols-2 md:grid-cols-3 gap-3 max-h-48 overflow-y-auto p-3 bg-neutral-800/50 rounded-lg">
+              {% for genre in available_genres %}
+              <label class="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" class="modal-genre-filter w-4 h-4 rounded border-neutral-600 bg-neutral-700 text-blue-600" value="{{ genre }}">
+                <span class="text-white text-sm">{{ genre }}</span>
+              </label>
+              {% endfor %}
+            </div>
+          </div>
+
+          <!-- Theme Filters -->
+          <div>
+            <label class="block text-sm text-gray-400 mb-3">
+              <i class="fas fa-paint-brush mr-1"></i>Themes
+              <span class="text-gray-600 ml-1">(optional)</span>
+            </label>
+            <div class="grid grid-cols-2 md:grid-cols-3 gap-3 max-h-48 overflow-y-auto p-3 bg-neutral-800/50 rounded-lg">
+              {% for theme in available_themes %}
+              <label class="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" class="modal-theme-filter w-4 h-4 rounded border-neutral-600 bg-neutral-700 text-purple-600" value="{{ theme }}">
+                <span class="text-white text-sm">{{ theme }}</span>
+              </label>
+              {% endfor %}
+            </div>
+          </div>
+
+          <!-- Game Mode Filters -->
+          <div>
+            <label class="block text-sm text-gray-400 mb-3">
+              <i class="fas fa-users mr-1"></i>Game Modes
+              <span class="text-gray-600 ml-1">(optional)</span>
+            </label>
+            <div class="grid grid-cols-2 gap-3 p-3 bg-neutral-800/50 rounded-lg">
+              {% for mode in available_modes %}
+              <label class="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" class="modal-mode-filter w-4 h-4 rounded border-neutral-600 bg-neutral-700 text-blue-600" value="{{ mode }}">
+                <span class="text-white text-sm">{{ mode }}</span>
+              </label>
+              {% endfor %}
+            </div>
+          </div>
+
+          <!-- Platform Filters -->
+          <div>
+            <label class="block text-sm text-gray-400 mb-3">
+              <i class="fas fa-desktop mr-1"></i>Platforms
+              <span class="text-gray-600 ml-1">(optional)</span>
+            </label>
+            <div class="grid grid-cols-2 md:grid-cols-3 gap-3 max-h-48 overflow-y-auto p-3 bg-neutral-800/50 rounded-lg">
+              {% for platform in available_platforms %}
+              <label class="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" class="modal-platform-filter w-4 h-4 rounded border-neutral-600 bg-neutral-700 text-blue-600" value="{{ platform }}">
+                <span class="text-white text-sm">{{ platform }}</span>
+              </label>
+              {% endfor %}
+            </div>
+          </div>
+
+          <!-- Quality Filters -->
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <label class="block text-sm text-gray-400 mb-2">
+                <i class="fas fa-star mr-1"></i>Minimum Hype
+                <span class="text-gray-600 ml-1">(optional)</span>
+              </label>
+              <div class="flex items-center gap-2">
+                <input type="number" id="modal_min_hype" min="0" placeholder="No minimum"
+                       class="w-32 bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-center focus:border-blue-500 focus:outline-none">
+                <span class="text-gray-400">follows</span>
+              </div>
+              <p class="text-gray-500 text-xs mt-1">Number of follows before release</p>
+            </div>
+            <div>
+              <label class="block text-sm text-gray-400 mb-2">
+                <i class="fas fa-star mr-1"></i>Minimum Rating
+                <span class="text-gray-600 ml-1">(optional)</span>
+              </label>
+              <div class="flex items-center gap-2">
+                <input type="number" id="modal_min_rating" min="0" step="0.1" placeholder="No minimum"
+                       class="w-32 bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-center focus:border-blue-500 focus:outline-none">
+                <span class="text-gray-400">IGDB score</span>
+              </div>
+              <p class="text-gray-500 text-xs mt-1">Average IGDB user rating</p>
+            </div>
+          </div>
+
+          <!-- Privacy Settings -->
+          <div class="bg-neutral-800/30 border border-neutral-700/50 rounded-lg p-4 space-y-4">
+            <div class="flex items-start gap-3">
+              <input type="checkbox" id="modal_show_on_website" checked
+                     class="mt-1 w-5 h-5 rounded border-neutral-600 bg-neutral-700 text-blue-600 focus:ring-blue-500 focus:ring-offset-neutral-900">
+              <div class="flex-1">
+                <label for="modal_show_on_website" class="block text-sm font-medium text-white mb-1">
+                  <i class="fas fa-globe mr-2 text-blue-400"></i>Show on Website
+                </label>
+                <p class="text-gray-400 text-xs leading-relaxed">
+                  When enabled, found games are displayed on your public website dashboard.
+                  <br>
+                  <span class="text-yellow-400">
+                    <i class="fas fa-lock mr-1"></i>When disabled:
+                  </span> Games are posted to a private Discord thread instead (not visible on website).
+                </p>
+              </div>
+            </div>
+
+            <!-- Auto-Join Role (only for private threads) -->
+            <div id="auto_join_role_section" class="hidden pl-8 border-l-2 border-purple-500/30">
+              <label for="modal_auto_join_role" class="block text-sm font-medium text-white mb-2">
+                <i class="fas fa-users mr-2 text-purple-400"></i>Auto-Join Role (Optional)
+              </label>
+              <div id="modal_auto_join_roleContainer"></div>
+              
+              <p class="text-gray-400 text-xs mt-2 leading-relaxed">
+                Members with this role will automatically be added to the private thread when games are discovered.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div class="sticky bottom-0 bg-neutral-900 border-t border-neutral-800 p-6 flex justify-end gap-3">
+          <button onclick="closeSearchModal()" class="bg-neutral-700 hover:bg-neutral-600 text-white px-6 py-2 rounded-lg font-medium transition">
+            Cancel
+          </button>
+          <button onclick="saveSearch()" id="saveSearchBtn" class="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg font-medium transition">
+            <i class="fas fa-save mr-2"></i>Save Search
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </div> <!-- End Game Discovery Tab -->

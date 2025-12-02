@@ -1,0 +1,408 @@
+<div id="creatorContent">
+  <!-- Action Buttons -->
+  <div class="flex gap-3 mb-8 flex-wrap">
+    <button onclick="forceFeature()" class="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg font-medium transition text-sm">
+      <i class="fas fa-random mr-2"></i>Feature Now
+    </button>
+    <button onclick="clearFeatured()" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg font-medium transition text-sm">
+      <i class="fas fa-trash mr-2"></i>Clear Featured
+    </button>
+    <button onclick="saveConfig()" id="saveBtn" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium transition text-sm">
+      <i class="fas fa-save mr-2"></i>Save Changes
+    </button>
+  </div>
+
+  <!-- How It Works -->
+  <div class="bg-gradient-to-r from-orange-900/20 to-yellow-900/20 rounded-xl border border-orange-800/30 p-6 mb-8">
+    <h3 class="text-lg font-bold text-white mb-4">
+      <i class="fas fa-info-circle text-orange-400 mr-2"></i>How Creator Discovery Works
+    </h3>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div>
+        <div class="w-12 h-12 bg-orange-600/20 rounded-full flex items-center justify-center mb-3">
+          <i class="fas fa-hashtag text-orange-400 text-xl"></i>
+        </div>
+        <p class="text-white font-medium mb-2">Basic Channel</p>
+        <p class="text-gray-400 text-sm">Simple "I'm live" posts in a text channel. Quick discovery for streamers and content creators.</p>
+      </div>
+      <div>
+        <div class="w-12 h-12 bg-purple-600/20 rounded-full flex items-center justify-center mb-3">
+          <i class="fas fa-comments text-purple-400 text-xl"></i>
+        </div>
+        <p class="text-white font-medium mb-2">Forum Intros</p>
+        <p class="text-gray-400 text-sm">Users post detailed intros in a forum. Get featured on casual-heroes.com in the Hall of Fame!</p>
+      </div>
+    </div>
+    <div class="mt-4 p-3 bg-neutral-800/50 rounded-lg border border-neutral-700">
+      <p class="text-gray-300 text-sm">
+        <i class="fas fa-crown text-yellow-400 mr-2"></i>
+        <strong class="text-white">Premium:</strong> Upgrade for Creator of the Week (COTW) and Creator of the Month (COTM) features!
+      </p>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <!-- Settings Column -->
+    <div class="lg:col-span-2 space-y-6">
+      <!-- Enable Toggle -->
+      <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6">
+        <div class="flex items-center justify-between">
+          <div>
+            <h3 class="text-lg font-bold text-white">
+              <i class="fas fa-power-off text-gray-400 mr-2"></i>Enable Discovery
+            </h3>
+            <p class="text-gray-400 text-sm">Turn on the Creator Discovery feature</p>
+          </div>
+          <label class="relative inline-flex items-center cursor-pointer">
+            <input type="checkbox" id="enabled" class="sr-only peer" {% if discovery_config.enabled %}checked{% endif %}>
+            <div class="w-11 h-6 bg-neutral-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-orange-600"></div>
+          </label>
+        </div>
+      </div>
+
+      <!-- Channel Section -->
+      <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h3 class="text-lg font-bold text-white">
+              <i class="fas fa-hashtag text-orange-400 mr-2"></i>Channel Discovery
+            </h3>
+            <p class="text-gray-400 text-sm">Basic channel for quick "I'm live" posts</p>
+          </div>
+          <label class="relative inline-flex items-center cursor-pointer">
+            <input type="checkbox" id="channel_enabled" class="sr-only peer" {% if discovery_config.channel_enabled %}checked{% endif %}>
+            <div class="w-11 h-6 bg-neutral-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-orange-600"></div>
+          </label>
+        </div>
+
+        <div id="channelSettings" class="space-y-4 {% if not discovery_config.channel_enabled %}hidden{% endif %}">
+          <div>
+            <label class="block text-sm text-gray-400 mb-2">Self-Promo Channel</label>
+            <div id="selfpromo_channel_idContainer"></div>
+            <p class="text-gray-500 text-xs mt-1">Users post their content here</p>
+          </div>
+
+          <div>
+            <label class="block text-sm text-gray-400 mb-2">Feature Announcement Channel</label>
+            <div id="feature_channel_idContainer"></div>
+            <p class="text-gray-500 text-xs mt-1">Featured creators are announced here</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Forum Section -->
+      <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h3 class="text-lg font-bold text-white">
+              <i class="fas fa-comments text-purple-400 mr-2"></i>Forum Discovery
+            </h3>
+            <p class="text-gray-400 text-sm">Forum intros for Hall of Fame on casual-heroes.com</p>
+          </div>
+          <label class="relative inline-flex items-center cursor-pointer">
+            <input type="checkbox" id="forum_enabled" class="sr-only peer" {% if discovery_config.forum_enabled %}checked{% endif %}>
+            <div class="w-11 h-6 bg-neutral-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
+          </label>
+        </div>
+
+        <div id="forumSettings" class="space-y-4 {% if not discovery_config.forum_enabled %}hidden{% endif %}">
+          <div>
+            <label class="block text-sm text-gray-400 mb-2">
+              <i class="fas fa-comments text-purple-400 mr-1"></i>Creator Intro Forum Channel
+            </label>
+            <div id="intro_forum_channel_idContainer"></div>
+            <p class="text-gray-500 text-xs mt-1">Users post detailed creator intros here (must use "Self-Promo Intro" tag)</p>
+          </div>
+
+          <div>
+            <label class="block text-sm text-gray-400 mb-2">Feature Announcement Channel</label>
+            <div id="forum_feature_channel_idContainer"></div>
+            <p class="text-gray-500 text-xs mt-1">Featured forum creators are announced here</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Timings & Cooldowns -->
+      <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6">
+        <h3 class="text-lg font-bold text-white mb-4">
+          <i class="fas fa-clock text-blue-400 mr-2"></i>Timings & Cooldowns
+        </h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div>
+            <label class="block text-sm text-gray-400 mb-2">Feature Interval (hours)</label>
+            <input type="number" id="feature_interval_hours" value="{{ discovery_config.feature_interval_hours }}" min="1"
+                   class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:border-blue-500 focus:outline-none">
+            <p class="text-gray-500 text-xs mt-1">How often to feature someone</p>
+          </div>
+          <div>
+            <label class="block text-sm text-gray-400 mb-2">Pool Entry Duration (hours)</label>
+            <input type="number" id="pool_entry_duration_hours" value="{{ discovery_config.pool_entry_duration_hours }}" min="1"
+                   class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:border-blue-500 focus:outline-none">
+            <p class="text-gray-500 text-xs mt-1">How long entries stay in pool</p>
+          </div>
+          <div>
+            <label class="block text-sm text-gray-400 mb-2">Entry Cooldown (hours)</label>
+            <input type="number" id="entry_cooldown_hours" value="{{ discovery_config.entry_cooldown_hours }}" min="0"
+                   class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:border-blue-500 focus:outline-none">
+            <p class="text-gray-500 text-xs mt-1">Time before user can enter again</p>
+          </div>
+          <div>
+            <label class="block text-sm text-gray-400 mb-2">Feature Cooldown (hours)</label>
+            <input type="number" id="feature_cooldown_hours" value="{{ discovery_config.feature_cooldown_hours }}" min="0"
+                   class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:border-blue-500 focus:outline-none">
+            <p class="text-gray-500 text-xs mt-1">Time before user can be featured again</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Messages & Responses -->
+      <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6">
+        <h3 class="text-lg font-bold text-white mb-4">
+          <i class="fas fa-comment-dots text-indigo-400 mr-2"></i>Messages & Responses
+        </h3>
+        <div class="space-y-4">
+          <div>
+            <label class="block text-sm text-gray-400 mb-2">Post Response Message</label>
+            <textarea id="post_response" rows="3"
+                      class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:border-indigo-500 focus:outline-none resize-none"
+                      placeholder="Thanks for posting! You're in the pool.">{{ discovery_config.post_response }}</textarea>
+            <p class="text-gray-500 text-xs mt-1">Sent when someone enters the pool</p>
+          </div>
+          <div>
+            <label class="block text-sm text-gray-400 mb-2">Feature Announcement Message</label>
+            <textarea id="feature_message" rows="3"
+                      class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:border-indigo-500 focus:outline-none resize-none"
+                      placeholder="Congrats {user}! You've been featured!">{{ discovery_config.feature_message }}</textarea>
+            <p class="text-gray-500 text-xs mt-1">Use {user} for username</p>
+          </div>
+          <div class="flex items-center justify-between p-3 bg-neutral-800 rounded-lg">
+            <span class="text-sm text-gray-300">Use rich embeds for features</span>
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" id="use_embed" class="sr-only peer" {% if discovery_config.use_embed %}checked{% endif %}>
+              <div class="w-11 h-6 bg-neutral-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <!-- Premium Features -->
+      <div class="bg-gradient-to-r from-yellow-900/20 to-orange-900/20 border-2 border-yellow-700/50 rounded-xl p-6">
+        <div class="flex items-center gap-3 mb-4">
+          <div class="w-12 h-12 bg-gradient-to-r from-yellow-500 to-orange-500 rounded-xl flex items-center justify-center">
+            <i class="fas fa-crown text-white text-xl"></i>
+          </div>
+          <div class="flex-1">
+            <h3 class="text-xl font-bold text-white">Premium Features</h3>
+            <span class="px-2 py-1 bg-yellow-500/20 text-yellow-400 text-xs rounded-full font-medium">Upgrade Required</span>
+          </div>
+        </div>
+
+        <div class="space-y-4">
+          <!-- COTW -->
+          <div class="p-4 bg-neutral-900/50 rounded-lg border border-yellow-700/30">
+            <div class="flex items-center justify-between mb-2">
+              <div>
+                <h4 class="text-white font-semibold">Creator of the Week (COTW)</h4>
+                <p class="text-gray-400 text-xs">Weekly featured creator on casual-heroes.com</p>
+              </div>
+              <label class="relative inline-flex items-center cursor-pointer">
+                <input type="checkbox" id="cotw_enabled" class="sr-only peer" {% if discovery_config.cotw_enabled %}checked{% endif %}>
+                <div class="w-11 h-6 bg-neutral-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-yellow-600"></div>
+              </label>
+            </div>
+            <div id="cotwSettings" class="mt-3 {% if not discovery_config.cotw_enabled %}hidden{% endif %}">
+              <label class="block text-sm text-gray-400 mb-2">COTW Channel</label>
+              <div id="cotw_channel_idContainer"></div>
+            </div>
+          </div>
+
+          <!-- COTM -->
+          <div class="p-4 bg-neutral-900/50 rounded-lg border border-yellow-700/30">
+            <div class="flex items-center justify-between mb-2">
+              <div>
+                <h4 class="text-white font-semibold">Creator of the Month (COTM)</h4>
+                <p class="text-gray-400 text-xs">Monthly featured creator on casual-heroes.com</p>
+              </div>
+              <label class="relative inline-flex items-center cursor-pointer">
+                <input type="checkbox" id="cotm_enabled" class="sr-only peer" {% if discovery_config.cotm_enabled %}checked{% endif %}>
+                <div class="w-11 h-6 bg-neutral-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-yellow-600"></div>
+              </label>
+            </div>
+            <div id="cotmSettings" class="mt-3 {% if not discovery_config.cotm_enabled %}hidden{% endif %}">
+              <label class="block text-sm text-gray-400 mb-2">COTM Channel</label>
+              <div id="cotm_channel_idContainer"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right Sidebar -->
+    <div class="space-y-6">
+      <!-- Channel Token Cost -->
+      <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h3 class="text-base font-bold text-white">
+              <i class="fas fa-coins text-yellow-400 mr-2"></i>Channel Tokens
+            </h3>
+            <p class="text-gray-400 text-xs">Token cost for channel posts</p>
+          </div>
+          <label class="relative inline-flex items-center cursor-pointer">
+            <input type="checkbox" id="require_tokens" class="sr-only peer" {% if discovery_config.require_tokens %}checked{% endif %}>
+            <div class="w-11 h-6 bg-neutral-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-yellow-600"></div>
+          </label>
+        </div>
+        <div id="tokenCostSection" class="{% if not discovery_config.require_tokens %}hidden{% endif %}">
+          <label class="block text-sm text-gray-400 mb-2">Token Cost</label>
+          <input type="number" id="token_cost" value="{{ discovery_config.token_cost }}" min="0"
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2 text-white focus:border-yellow-500 focus:outline-none">
+        </div>
+      </div>
+
+      <!-- Forum Token Cost -->
+      <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h3 class="text-base font-bold text-white">
+              <i class="fas fa-coins text-purple-400 mr-2"></i>Forum Tokens
+            </h3>
+            <p class="text-gray-400 text-xs">Token cost for forum posts</p>
+          </div>
+          <label class="relative inline-flex items-center cursor-pointer">
+            <input type="checkbox" id="require_tokens_forum" class="sr-only peer" {% if discovery_config.require_tokens_forum %}checked{% endif %}>
+            <div class="w-11 h-6 bg-neutral-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
+          </label>
+        </div>
+        <div id="tokenCostForumSection" class="{% if not discovery_config.require_tokens_forum %}hidden{% endif %}">
+          <label class="block text-sm text-gray-400 mb-2">Token Cost</label>
+          <input type="number" id="token_cost_forum" value="{{ discovery_config.token_cost_forum|default:0 }}" min="0"
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2 text-white focus:border-purple-500 focus:outline-none">
+        </div>
+      </div>
+
+      <!-- Feature Pool -->
+      <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-lg font-bold text-white">
+            <i class="fas fa-users text-orange-400 mr-2"></i>Feature Pool
+          </h3>
+          <span class="px-3 py-1 bg-orange-600/20 text-orange-400 rounded-full text-sm font-medium">
+            {{ pool_count }} entries
+          </span>
+        </div>
+
+        {% if pool_entries %}
+        <div class="space-y-4 max-h-96 overflow-y-auto pr-2">
+          {% for entry in pool_entries %}
+          <div class="bg-gradient-to-br from-neutral-800 to-neutral-900 rounded-xl border border-neutral-700 hover:border-orange-500/50 transition-all overflow-hidden">
+            <div class="p-4">
+              <div class="flex items-start gap-3 mb-3">
+                <img src="{{ entry.avatar_url }}" alt="{{ entry.display_name }}"
+                     class="w-12 h-12 rounded-full border-2 border-orange-500/50">
+                <div class="flex-1 min-w-0">
+                  <div class="flex items-center gap-2 mb-1">
+                    <p class="text-white font-semibold truncate">{{ entry.display_name }}</p>
+                    {% if entry.source %}
+                    <span class="px-2 py-0.5 {% if entry.source == 'channel' %}bg-orange-500/20 text-orange-400{% else %}bg-purple-500/20 text-purple-400{% endif %} rounded text-xs font-medium">
+                      {{ entry.source }}
+                    </span>
+                    {% endif %}
+                  </div>
+                  <p class="text-gray-400 text-xs">
+                    <i class="far fa-clock mr-1"></i>
+                    <span>{{ entry.time_ago }}</span>
+                  </p>
+                </div>
+                <button onclick="removeFromPool({{ entry.id }})"
+                        class="text-gray-500 hover:text-red-400 transition-colors"
+                        title="Remove from pool">
+                  <i class="fas fa-times"></i>
+                </button>
+              </div>
+
+              {% if entry.clean_content %}
+              <p class="text-gray-200 text-sm mb-3 leading-relaxed">{{ entry.clean_content }}</p>
+              {% endif %}
+
+              {% if entry.extracted_links %}
+              <div class="flex flex-wrap gap-2">
+                {% for link in entry.extracted_links %}
+                <a href="{{ link.url }}" target="_blank" rel="noopener noreferrer"
+                   class="flex items-center gap-2
+                   {% if link.color == 'purple' %}bg-purple-600 hover:bg-purple-700
+                   {% elif link.color == 'red' %}bg-red-600 hover:bg-red-700
+                   {% elif link.color == 'sky' %}bg-sky-500 hover:bg-sky-600
+                   {% elif link.color == 'black' %}bg-black hover:bg-gray-900 border border-gray-700
+                   {% elif link.color == 'pink' %}bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700
+                   {% elif link.color == 'blue' %}bg-blue-600 hover:bg-blue-700
+                   {% elif link.color == 'teal' %}bg-teal-600 hover:bg-teal-700
+                   {% elif link.color == 'green' %}bg-green-600 hover:bg-green-700
+                   {% else %}bg-gray-700 hover:bg-gray-800
+                   {% endif %}
+                   text-white px-3 py-2 rounded-lg text-sm font-medium transition-all shadow-lg hover:shadow-xl hover:scale-105">
+                  <i class="{{ link.icon }} text-base"></i>
+                  <span>{{ link.platform }}</span>
+                </a>
+                {% endfor %}
+              </div>
+              {% endif %}
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="text-center py-8">
+          <div class="w-12 h-12 bg-neutral-800 rounded-full flex items-center justify-center mx-auto mb-3">
+            <i class="fas fa-inbox text-gray-600 text-xl"></i>
+          </div>
+          <p class="text-gray-400">No entries in pool</p>
+        </div>
+        {% endif %}
+      </div>
+
+      <!-- Recent Features -->
+      <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6">
+        <h3 class="text-lg font-bold text-white mb-4">
+          <i class="fas fa-history text-gray-400 mr-2"></i>Recent Features
+        </h3>
+
+        {% if recent_features %}
+        <div class="space-y-3">
+          {% for feature in recent_features %}
+          <div class="p-3 bg-neutral-800/50 rounded-lg">
+            <p class="text-white text-sm font-medium">{{ feature.username }}</p>
+            <p class="text-gray-500 text-xs">{{ feature.formatted_date }}</p>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <p class="text-gray-500 text-center py-4">No one featured yet</p>
+        {% endif %}
+      </div>
+
+      <!-- Testing Section -->
+      <div class="bg-gradient-to-br from-blue-900/20 to-indigo-900/20 rounded-xl border border-blue-800/30 p-6">
+        <h3 class="text-lg font-bold text-white mb-4">
+          <i class="fas fa-flask text-blue-400 mr-2"></i>Testing
+        </h3>
+        <div class="space-y-4">
+          <div>
+            <label class="block text-sm text-gray-400 mb-2">Test Channel Embed</label>
+            <div id="test_channel_idContainer" class="mb-2"></div>
+            <button onclick="testChannelEmbed()" class="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition text-sm">
+              <i class="fas fa-vial mr-2"></i>Send Test Channel Embed
+            </button>
+          </div>
+          <div>
+            <label class="block text-sm text-gray-400 mb-2">Test Forum Embed</label>
+            <div id="test_forum_idContainer" class="mb-2"></div>
+            <button onclick="testForumEmbed()" class="w-full bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded-lg font-medium transition text-sm">
+              <i class="fas fa-flask mr-2"></i>Send Test Forum Embed
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div> <!-- End Creator Discovery Tab -->

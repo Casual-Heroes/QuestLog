@@ -289,3 +289,61 @@ def queue_clear_featured(
         source='website',
         priority=5
     )
+
+
+def queue_test_channel_embed(
+    guild_id: int,
+    channel_id: int,
+    triggered_by: Optional[int] = None,
+    triggered_by_name: Optional[str] = None
+) -> int:
+    """
+    Queue an action to send a test channel embed.
+
+    Args:
+        guild_id: Discord guild/server ID
+        channel_id: Channel ID to send the test embed to
+        triggered_by: User ID who triggered this action (from website)
+        triggered_by_name: Display name of who triggered it
+
+    Returns:
+        int: The PendingAction ID
+    """
+    return queue_action(
+        guild_id=guild_id,
+        action_type=ActionType.TEST_CHANNEL_EMBED,
+        payload={'channel_id': channel_id},
+        triggered_by=triggered_by,
+        triggered_by_name=triggered_by_name,
+        source='website',
+        priority=5
+    )
+
+
+def queue_test_forum_embed(
+    guild_id: int,
+    channel_id: int,
+    triggered_by: Optional[int] = None,
+    triggered_by_name: Optional[str] = None
+) -> int:
+    """
+    Queue an action to send a test forum embed.
+
+    Args:
+        guild_id: Discord guild/server ID
+        channel_id: Channel ID to send the test embed to
+        triggered_by: User ID who triggered this action (from website)
+        triggered_by_name: Display name of who triggered it
+
+    Returns:
+        int: The PendingAction ID
+    """
+    return queue_action(
+        guild_id=guild_id,
+        action_type=ActionType.TEST_FORUM_EMBED,
+        payload={'channel_id': channel_id},
+        triggered_by=triggered_by,
+        triggered_by_name=triggered_by_name,
+        source='website',
+        priority=5
+    )

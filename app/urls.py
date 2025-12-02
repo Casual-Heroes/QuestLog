@@ -182,6 +182,8 @@ urlpatterns = [
     path('api/guild/<str:guild_id>/discovery/pool/<int:entry_id>/', views.api_discovery_pool_remove, name='api_discovery_pool_remove'),
     path('api/guild/<str:guild_id>/discovery/feature/', views.api_discovery_force_feature, name='api_discovery_force_feature'),
     path('api/guild/<str:guild_id>/discovery/clear/', views.api_discovery_clear_featured, name='api_discovery_clear_featured'),
+    path('api/guild/<str:guild_id>/discovery/test-channel-embed/', views.api_discovery_test_channel_embed, name='api_discovery_test_channel_embed'),
+    path('api/guild/<str:guild_id>/discovery/test-forum-embed/', views.api_discovery_test_forum_embed, name='api_discovery_test_forum_embed'),
     path('api/guild/<str:guild_id>/discovery/game-config/update/', views.api_game_discovery_config_update, name='api_game_discovery_config_update'),
     path('api/guild/<str:guild_id>/discovery/check-games/', views.api_game_discovery_check, name='api_game_discovery_check'),
 
@@ -198,6 +200,8 @@ urlpatterns = [
     path('warden/guild/<str:guild_id>/lfg/', views.guild_lfg, name='guild_lfg'),
     path('warden/guild/<str:guild_id>/attendance/', views.guild_attendance, name='guild_attendance'),
     path('warden/guild/<str:guild_id>/featured-creators/', views.guild_featured_creators, name='guild_featured_creators'),
+    path('warden/guild/<str:guild_id>/cotw/', views.guild_cotw, name='guild_cotw'),
+    path('warden/guild/<str:guild_id>/cotm/', views.guild_cotm, name='guild_cotm'),
 
     # LFG API Endpoints
     path('api/guild/<str:guild_id>/lfg/search/', views.api_lfg_search, name='api_lfg_search'),

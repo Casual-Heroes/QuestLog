@@ -111,6 +111,8 @@ class ActionType(str, Enum):
     # Discovery/Self-Promo
     FORCE_FEATURE = "force_feature"
     CLEAR_FEATURED = "clear_featured"
+    TEST_CHANNEL_EMBED = "test_channel_embed"
+    TEST_FORUM_EMBED = "test_forum_embed"
     CHECK_GAMES = "check_games"
 
     # Flair Management
@@ -606,22 +608,32 @@ class FeaturedPool(Base):
 
 
 class FeaturedCreator(Base):
-    """Permanent record of featured creators for public display (Hall of Fame)."""
+    """
+    Global record of featured creators for public display (Hall of Fame).
+    One entry per Discord user, regardless of how many guilds they're in.
+    """
     __tablename__ = "featured_creators"
 
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    guild_id = Column(BigInteger, ForeignKey("guilds.guild_id", ondelete="CASCADE"))
-    user_id = Column(BigInteger, nullable=False)
+    user_id = Column(BigInteger, primary_key=True)  # Discord user ID (global unique)
+
+    # Multi-guild tracking
+    guilds = Column(Text, nullable=False, default='[]')  # JSON array of guild_ids: [123, 456, 789]
+    primary_guild_id = Column(BigInteger, nullable=True)  # Which guild's intro to display
+    auto_select_primary = Column(Boolean, default=True)  # Auto-update primary to most recent?
+
+    # Activity tracking
+    is_active = Column(Boolean, default=True)  # False if they left all guilds
+    inactive_since = Column(BigInteger, nullable=True)  # Timestamp when they left all guilds
 
     # Discord profile data (cached for display)
     username = Column(String(255))
     display_name = Column(String(255))
     avatar_url = Column(Text)  # Discord profile picture
 
-    # Featured data
-    first_featured_at = Column(BigInteger)  # When they were first featured
-    last_featured_at = Column(BigInteger)  # Most recent feature
-    times_featured = Column(Integer, default=1)  # How many times featured
+    # Featured data - GLOBAL across all guilds
+    first_featured_at = Column(BigInteger)  # When they were first featured (any guild)
+    last_featured_at = Column(BigInteger)  # Most recent feature (any guild)
+    times_featured_total = Column(Integer, default=0)  # Total times featured across ALL guilds
 
     # Social links (from their featured pool entries)
     twitch_url = Column(Text, nullable=True)
@@ -629,6 +641,7 @@ class FeaturedCreator(Base):
     twitter_url = Column(Text, nullable=True)
     tiktok_url = Column(Text, nullable=True)
     instagram_url = Column(Text, nullable=True)
+    bsky_url = Column(Text, nullable=True)
     other_links = Column(Text, nullable=True)  # JSON array of other links
 
     # Content/bio
@@ -636,7 +649,7 @@ class FeaturedCreator(Base):
 
     # Source tracking (forum-based system)
     source = Column(String(50), default='forum')  # Source: 'forum', 'selfpromo', 'manual'
-    forum_thread_id = Column(BigInteger, nullable=True)  # Discord forum thread ID
+    forum_thread_id = Column(BigInteger, nullable=True)  # Discord forum thread ID (from primary guild)
     forum_tag_name = Column(String(255), nullable=True)  # Forum tag when featured
 
     # Discord connected accounts (from Discord API)
@@ -647,10 +660,9 @@ class FeaturedCreator(Base):
     updated_at = Column(BigInteger, default=lambda: int(time.time()))
 
     __table_args__ = (
-        UniqueConstraint('guild_id', 'user_id', name='unique_guild_user'),
-        Index("idx_featured_creators_guild", "guild_id"),
         Index("idx_featured_creators_user", "user_id"),
         Index("idx_featured_creators_last", "last_featured_at"),
+        Index("idx_featured_creators_active", "is_active"),
     )
 
 
@@ -667,6 +679,15 @@ class DiscoveryConfig(Base):
     selfpromo_channel_id = Column(BigInteger, nullable=True)  # Where users post (bot ignores regular posts)
     feature_channel_id = Column(BigInteger, nullable=True)  # Where featured users are shouted out
     intro_forum_channel_id = Column(BigInteger, nullable=True)  # Forum channel for creator intros (website featured creators)
+    forum_feature_channel_id = Column(BigInteger, nullable=True)  # Where forum featured users are announced (text channel)
+
+    # Channel/Forum enable toggles
+    channel_enabled = Column(Boolean, default=True)  # Enable channel-based discovery
+    forum_enabled = Column(Boolean, default=False)  # Enable forum-based discovery
+
+    # Test channels (for testing embeds)
+    test_channel_id = Column(BigInteger, nullable=True)  # Test channel for channel embeds
+    test_forum_id = Column(BigInteger, nullable=True)  # Test channel for forum embeds
 
     # Discord-only quick feature toggle
     selfpromo_quick_feature = Column(Boolean, default=False)  # Enable Discord-only embeds for selfpromo (not website)
@@ -698,8 +719,10 @@ class DiscoveryConfig(Base):
     embed_color = Column(Integer, default=0x5865F2)
 
     # Optional: require tokens to enter pool
-    require_tokens = Column(Boolean, default=False)
-    token_cost = Column(Integer, default=0)
+    require_tokens = Column(Boolean, default=False)  # Require tokens for channel posts
+    token_cost = Column(Integer, default=0)  # Token cost for channel posts
+    require_tokens_forum = Column(Boolean, default=False)  # Require tokens for forum posts
+    token_cost_forum = Column(Integer, default=0)  # Token cost for forum posts
 
     # Pool settings
     pool_entry_duration_hours = Column(Integer, default=24)  # How long entries stay in pool

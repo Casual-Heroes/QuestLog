@@ -5959,6 +5959,7 @@ def guild_discovery(request, guild_id):
                 if entry.content:
                     # Better regex to capture full URLs
                     url_pattern = r'https?://[^\s<>"\']+'
+                    # url_pattern = r'https?://\S+'
                     urls = re.findall(url_pattern, entry.content)
                     for full_url in urls:
                         # Identify platform based on domain
@@ -5987,6 +5988,10 @@ def guild_discovery(request, guild_id):
                             platform_name = 'Instagram'
                             icon = 'fab fa-instagram'
                             color = 'pink'
+                        elif 'bsky.app' in url_lower:
+                            platform_name = 'bsky'
+                            icon = 'fab fa-bluesky'
+                            color = 'teal'
                         elif 'facebook.com' in url_lower or 'fb.com' in url_lower:
                             platform_name = 'Facebook'
                             icon = 'fab fa-facebook'
@@ -6398,6 +6403,10 @@ def api_discovery_config_update(request, guild_id):
             # Update fields
             if 'enabled' in data:
                 config.enabled = bool(data['enabled'])
+            if 'channel_enabled' in data:
+                config.channel_enabled = bool(data['channel_enabled'])
+            if 'forum_enabled' in data:
+                config.forum_enabled = bool(data['forum_enabled'])
             if 'selfpromo_channel_id' in data:
                 config.selfpromo_channel_id = int(data['selfpromo_channel_id']) if data['selfpromo_channel_id'] else None
             if 'selfpromo_quick_feature' in data:
@@ -6406,12 +6415,55 @@ def api_discovery_config_update(request, guild_id):
                 config.feature_channel_id = int(data['feature_channel_id']) if data['feature_channel_id'] else None
             if 'intro_forum_channel_id' in data:
                 config.intro_forum_channel_id = int(data['intro_forum_channel_id']) if data['intro_forum_channel_id'] else None
+            if 'forum_feature_channel_id' in data:
+                config.forum_feature_channel_id = int(data['forum_feature_channel_id']) if data['forum_feature_channel_id'] else None
+            if 'test_channel_id' in data:
+                config.test_channel_id = int(data['test_channel_id']) if data['test_channel_id'] else None
+            if 'test_forum_id' in data:
+                config.test_forum_id = int(data['test_forum_id']) if data['test_forum_id'] else None
+            if 'cotw_enabled' in data:
+                config.cotw_enabled = bool(data['cotw_enabled'])
+            if 'cotw_channel_id' in data:
+                config.cotw_channel_id = int(data['cotw_channel_id']) if data['cotw_channel_id'] else None
             if 'cotm_enabled' in data:
                 config.cotm_enabled = bool(data['cotm_enabled'])
             if 'cotm_channel_id' in data:
                 config.cotm_channel_id = int(data['cotm_channel_id']) if data['cotm_channel_id'] else None
+            # Channel timing settings
+            if 'channel_feature_interval_hours' in data:
+                config.channel_feature_interval_hours = max(1, min(24, int(data['channel_feature_interval_hours'])))
+            if 'channel_pool_entry_duration_hours' in data:
+                config.channel_pool_entry_duration_hours = max(1, min(168, int(data['channel_pool_entry_duration_hours'])))
+            if 'channel_entry_cooldown_hours' in data:
+                config.channel_entry_cooldown_hours = max(1, min(168, int(data['channel_entry_cooldown_hours'])))
+            if 'channel_feature_cooldown_hours' in data:
+                config.channel_feature_cooldown_hours = max(0, min(168, int(data['channel_feature_cooldown_hours'])))
+
+            # Forum timing settings
+            if 'intro_scan_interval_hours' in data:
+                config.intro_scan_interval_hours = max(1, min(24, int(data['intro_scan_interval_hours'])))
+            if 'forum_resubmit_cooldown_days' in data:
+                config.forum_resubmit_cooldown_days = max(1, min(365, int(data['forum_resubmit_cooldown_days'])))
+            if 'forum_min_post_age_hours' in data:
+                config.forum_min_post_age_hours = max(0, min(168, int(data['forum_min_post_age_hours'])))
+
+            # Token costs (separate for channel and forum)
+            if 'token_cost' in data:
+                config.token_cost = max(0, int(data['token_cost']))
+            if 'token_cost_forum' in data:
+                config.token_cost_forum = max(0, int(data['token_cost_forum']))
+
+            # Timing settings
             if 'feature_interval_hours' in data:
                 config.feature_interval_hours = max(1, min(24, int(data['feature_interval_hours'])))
+            if 'pool_entry_duration_hours' in data:
+                config.pool_entry_duration_hours = max(1, min(168, int(data['pool_entry_duration_hours'])))
+            if 'entry_cooldown_hours' in data:
+                config.entry_cooldown_hours = max(0, min(168, int(data['entry_cooldown_hours'])))
+            if 'feature_cooldown_hours' in data:
+                config.feature_cooldown_hours = max(0, min(168, int(data['feature_cooldown_hours'])))
+
+            # Messages and embeds
             if 'post_response' in data:
                 config.post_response = data['post_response'][:500]
             if 'feature_message' in data:
@@ -6420,18 +6472,14 @@ def api_discovery_config_update(request, guild_id):
                 config.use_embed = bool(data['use_embed'])
             if 'embed_color' in data:
                 config.embed_color = int(data['embed_color'])
+
+            # Other settings
             if 'require_tokens' in data:
                 config.require_tokens = bool(data['require_tokens'])
-            if 'token_cost' in data:
-                config.token_cost = max(0, int(data['token_cost']))
-            if 'pool_entry_duration_hours' in data:
-                config.pool_entry_duration_hours = max(1, min(168, int(data['pool_entry_duration_hours'])))
+            if 'require_tokens_forum' in data:
+                config.require_tokens_forum = bool(data['require_tokens_forum'])
             if 'remove_after_feature' in data:
                 config.remove_after_feature = bool(data['remove_after_feature'])
-            if 'feature_cooldown_hours' in data:
-                config.feature_cooldown_hours = max(0, min(168, int(data['feature_cooldown_hours'])))
-            if 'entry_cooldown_hours' in data:
-                config.entry_cooldown_hours = max(1, min(168, int(data['entry_cooldown_hours'])))
 
             config.updated_at = int(time.time())
 
@@ -6579,6 +6627,94 @@ def api_discovery_clear_featured(request, guild_id):
                 'success': True,
                 'action_id': action_id,
                 'message': 'Clear action queued - check Discord in a few seconds'
+            })
+
+    except Exception as e:
+        return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
+
+
+@require_http_methods(["POST"])
+@api_auth_required
+def api_discovery_test_channel_embed(request, guild_id):
+    """POST /api/guild/<id>/discovery/test-channel-embed/ - Send test channel embed."""
+    try:
+        import json
+        from .db import get_db_session
+        from .models import DiscoveryConfig
+        from .actions import queue_test_channel_embed
+
+        discord_user = request.session.get('discord_user', {})
+        triggered_by = int(discord_user.get('id', 0))
+        triggered_by_name = discord_user.get('global_name', discord_user.get('username'))
+
+        # Parse request body to get channel_id
+        data = json.loads(request.body.decode('utf-8'))
+        channel_id = data.get('channel_id')
+
+        if not channel_id:
+            return JsonResponse({'error': 'No channel selected. Please select a test channel first.'}, status=400)
+
+        with get_db_session() as db:
+            config = db.query(DiscoveryConfig).filter_by(guild_id=int(guild_id)).first()
+            if not config:
+                return JsonResponse({'error': 'Discovery is not configured'}, status=400)
+
+            # Queue the action for the bot to process with the selected channel
+            action_id = queue_test_channel_embed(
+                guild_id=int(guild_id),
+                channel_id=int(channel_id),
+                triggered_by=triggered_by,
+                triggered_by_name=triggered_by_name
+            )
+
+            return JsonResponse({
+                'success': True,
+                'action_id': action_id,
+                'message': 'Test channel embed queued - check Discord in a few seconds'
+            })
+
+    except Exception as e:
+        return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
+
+
+@require_http_methods(["POST"])
+@api_auth_required
+def api_discovery_test_forum_embed(request, guild_id):
+    """POST /api/guild/<id>/discovery/test-forum-embed/ - Send test forum embed."""
+    try:
+        import json
+        from .db import get_db_session
+        from .models import DiscoveryConfig
+        from .actions import queue_test_forum_embed
+
+        discord_user = request.session.get('discord_user', {})
+        triggered_by = int(discord_user.get('id', 0))
+        triggered_by_name = discord_user.get('global_name', discord_user.get('username'))
+
+        # Parse request body to get channel_id
+        data = json.loads(request.body.decode('utf-8'))
+        channel_id = data.get('channel_id')
+
+        if not channel_id:
+            return JsonResponse({'error': 'No channel selected. Please select a test forum channel first.'}, status=400)
+
+        with get_db_session() as db:
+            config = db.query(DiscoveryConfig).filter_by(guild_id=int(guild_id)).first()
+            if not config:
+                return JsonResponse({'error': 'Discovery is not configured'}, status=400)
+
+            # Queue the action for the bot to process with the selected channel
+            action_id = queue_test_forum_embed(
+                guild_id=int(guild_id),
+                channel_id=int(channel_id),
+                triggered_by=triggered_by,
+                triggered_by_name=triggered_by_name
+            )
+
+            return JsonResponse({
+                'success': True,
+                'action_id': action_id,
+                'message': 'Test forum embed queued - check Discord and website in a few seconds'
             })
 
     except Exception as e:
@@ -8463,14 +8599,37 @@ def guild_featured_creators(request, guild_id):
             discovery_enabled = discovery_config.enabled if discovery_config else False
             selfpromo_channel_id = discovery_config.selfpromo_channel_id if discovery_config else None
 
-            # Get all featured creators for this guild (forum-sourced only), sorted by most recently featured
-            creators = db.query(FeaturedCreator).filter_by(
-                guild_id=int(guild_id),
-                source='forum'  # Only show forum-based creators on website
+            # Get all active featured creators (global model - one per user)
+            # Filter for those in this guild with active forum threads
+            all_creators = db.query(FeaturedCreator).filter(
+                FeaturedCreator.is_active == True,
+                FeaturedCreator.source == 'forum',
+                FeaturedCreator.forum_thread_id != None  # Only show if forum thread exists
             ).order_by(FeaturedCreator.last_featured_at.desc()).all()
+
+            # Filter for creators who are in this guild
+            import json
+            creators = []
+            for creator in all_creators:
+                try:
+                    guilds_list = json.loads(creator.guilds) if creator.guilds else []
+                    if int(guild_id) in guilds_list:
+                        creators.append(creator)
+                except:
+                    pass
 
             creators_data = []
             for creator in creators:
+                # Get member XP data (level and flair)
+                from .models import GuildMember
+                member_data = db.query(GuildMember).filter_by(
+                    guild_id=int(guild_id),
+                    user_id=creator.user_id
+                ).first()
+
+                member_level = member_data.level if member_data else 0
+                member_flair = member_data.flair if member_data else None
+
                 # Parse Discord connections if available
                 connections = {}
                 if creator.discord_connections:
@@ -8481,9 +8640,11 @@ def guild_featured_creators(request, guild_id):
 
                 # Extract URLs from bio
                 import re
+                import html
                 extracted_links = []
                 clean_bio = creator.bio
                 shown_platforms = set()  # Track platforms to avoid duplicates
+                social_media_urls = []  # URLs to remove from bio
 
                 if creator.bio:
                     url_pattern = r'https?://[^\s<>"\']+'
@@ -8493,48 +8654,92 @@ def guild_featured_creators(request, guild_id):
                         platform_name = None
                         icon = None
                         color = None
+                        is_social_media = False
 
                         if 'twitch.tv' in url_lower:
                             platform_name = 'Twitch'
                             icon = 'fab fa-twitch'
                             color = 'purple'
+                            is_social_media = True
                         elif 'youtube.com' in url_lower or 'youtu.be' in url_lower:
                             platform_name = 'YouTube'
                             icon = 'fab fa-youtube'
                             color = 'red'
+                            is_social_media = True
                         elif 'twitter.com' in url_lower or 'x.com' in url_lower:
                             platform_name = 'Twitter'
                             icon = 'fab fa-twitter'
                             color = 'sky'
+                            is_social_media = True
                         elif 'tiktok.com' in url_lower:
                             platform_name = 'TikTok'
                             icon = 'fab fa-tiktok'
                             color = 'black'
+                            is_social_media = True
                         elif 'instagram.com' in url_lower:
                             platform_name = 'Instagram'
                             icon = 'fab fa-instagram'
                             color = 'pink'
+                            is_social_media = True
+                        elif 'bsky.app' in url_lower:
+                            platform_name = 'Bluesky'
+                            icon = 'fab fa-bluesky'
+                            color = 'teal'
+                            is_social_media = True
+                        elif 'facebook.com' in url_lower or 'fb.com' in url_lower:
+                            platform_name = 'Facebook'
+                            icon = 'fab fa-facebook'
+                            color = 'blue'
+                            is_social_media = True
                         elif 'kick.com' in url_lower:
                             platform_name = 'Kick'
                             icon = 'fas fa-video'
                             color = 'green'
-                        else:
-                            platform_name = 'Link'
-                            icon = 'fas fa-external-link-alt'
-                            color = 'gray'
+                            is_social_media = True
 
-                        extracted_links.append({
-                            'url': full_url,
-                            'platform': platform_name,
-                            'icon': icon,
-                            'color': color
-                        })
-                        shown_platforms.add(platform_name.lower())
+                        if is_social_media:
+                            extracted_links.append({
+                                'url': full_url,
+                                'platform': platform_name,
+                                'icon': icon,
+                                'color': color
+                            })
+                            shown_platforms.add(platform_name.lower())
+                            social_media_urls.append(full_url)
 
-                    # Remove URLs from bio text
-                    for link in extracted_links:
-                        clean_bio = clean_bio.replace(link['url'], '')
-                    clean_bio = ' '.join(clean_bio.split())
+                    # Convert Discord markdown to HTML while removing social media URLs
+                    def discord_markdown_to_html(text):
+                        # First, remove ONLY social media URLs
+                        for url in social_media_urls:
+                            text = text.replace(url, '')
+
+                        # Escape HTML to prevent XSS
+                        text = html.escape(text)
+
+                        # Convert Discord markdown to HTML
+                        # Bold: **text**
+                        text = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', text)
+                        # Italic: *text* (but not ** which is already processed)
+                        text = re.sub(r'(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)', r'<em>\1</em>', text)
+                        # Underline: __text__
+                        text = re.sub(r'__(.+?)__', r'<u>\1</u>', text)
+                        # Strikethrough: ~~text~~
+                        text = re.sub(r'~~(.+?)~~', r'<del>\1</del>', text)
+
+                        # Convert remaining URLs to clickable links (these are NOT social media)
+                        # Match URLs that weren't removed
+                        text = re.sub(
+                            r'(https?://[^\s<>&quot;]+)',
+                            r'<a href="\1" target="_blank" rel="noopener noreferrer" class="text-blue-400 hover:text-blue-300 underline">\1</a>',
+                            text
+                        )
+
+                        # Convert line breaks to <br> tags
+                        text = text.replace('\n', '<br>')
+
+                        return text
+
+                    clean_bio = discord_markdown_to_html(clean_bio) if clean_bio else ''
 
                 # Only include direct URLs if not already in bio links
                 show_twitch = creator.twitch_url and 'twitch' not in shown_platforms
@@ -8542,6 +8747,7 @@ def guild_featured_creators(request, guild_id):
                 show_twitter = creator.twitter_url and 'twitter' not in shown_platforms
                 show_tiktok = creator.tiktok_url and 'tiktok' not in shown_platforms
                 show_instagram = creator.instagram_url and 'instagram' not in shown_platforms
+                show_bsky = creator.bsky_url and 'bsky' not in shown_platforms
 
                 if show_twitch:
                     shown_platforms.add('twitch')
@@ -8553,6 +8759,8 @@ def guild_featured_creators(request, guild_id):
                     shown_platforms.add('tiktok')
                 if show_instagram:
                     shown_platforms.add('instagram')
+                if show_bsky:
+                    shown_platforms.add('bksy')
 
                 # Filter discord connections to avoid duplicates
                 filtered_connections = {}
@@ -8569,19 +8777,23 @@ def guild_featured_creators(request, guild_id):
                     'bio': creator.bio,
                     'clean_bio': clean_bio,
                     'extracted_bio_links': extracted_links,
-                    'times_featured': creator.times_featured,
+                    'times_featured': creator.times_featured_total,
                     'first_featured_at': creator.first_featured_at,
                     'last_featured_at': creator.last_featured_at,
+                    'level': member_level,
+                    'flair': member_flair,
                     'show_twitch': show_twitch,
                     'show_youtube': show_youtube,
                     'show_twitter': show_twitter,
                     'show_tiktok': show_tiktok,
                     'show_instagram': show_instagram,
+                    'show_bsky': show_bsky,
                     'twitch_url': creator.twitch_url,
                     'youtube_url': creator.youtube_url,
                     'twitter_url': creator.twitter_url,
                     'tiktok_url': creator.tiktok_url,
                     'instagram_url': creator.instagram_url,
+                    'bsky_url': creator.bsky_url,
                     'discord_connections': filtered_connections,
                     'forum_thread_id': creator.forum_thread_id,  # For clickable Discord links
                 })
@@ -8603,3 +8815,13 @@ def guild_featured_creators(request, guild_id):
         logger.error(f"Error loading featured creators: {e}", exc_info=True)
         messages.error(request, f'Error loading featured creators: {e}')
         return redirect('home')
+
+def guild_cotw(request, guild_id):
+    """Guild-specific Creator of the Week page (placeholder)."""
+    # Redirect to global COTW page for now
+    return redirect('creator_of_the_week')
+
+def guild_cotm(request, guild_id):
+    """Guild-specific Creator of the Month page (placeholder)."""
+    # Redirect to global COTM page for now
+    return redirect('creator_of_the_month')

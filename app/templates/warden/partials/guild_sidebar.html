@@ -174,12 +174,27 @@
           </div>
         </div>
 
-        <!-- Discovery -->
-        <a href="{% url 'guild_discovery' guild.id %}"
-           class="nav-item {% if active_page == 'discovery' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
-          <i class="fas fa-search text-gray-400 group-hover:text-purple-400"></i>
-          <span>Discovery</span>
-        </a>
+        <!-- Discovery System (Expandable) -->
+        <div>
+          <button onclick="toggleSubmenu('discovery-submenu')"
+                  class="nav-item {% if active_page == 'discovery' %}active{% endif %} w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+            <i class="fas fa-bullhorn text-gray-400 group-hover:text-orange-400"></i>
+            <span class="flex-1 text-left">Discovery System</span>
+            <i class="fas fa-chevron-down text-xs transition-transform" id="discovery-submenu-icon"></i>
+          </button>
+          <div id="discovery-submenu" class="ml-6 mt-1 space-y-1 {% if active_page != 'discovery' %}hidden{% endif %}">
+            <a href="{% url 'guild_discovery' guild.id %}#creator"
+               class="sub-nav-item {% if active_page == 'discovery' %}active{% endif %} flex items-center gap-2 px-3 py-1.5 rounded text-xs transition">
+              <i class="fas fa-user w-4"></i>
+              <span>Creator Discovery</span>
+            </a>
+            <a href="{% url 'guild_discovery' guild.id %}#games"
+               class="sub-nav-item flex items-center gap-2 px-3 py-1.5 rounded text-xs transition">
+              <i class="fas fa-gamepad w-4"></i>
+              <span>Game Discovery</span>
+            </a>
+          </div>
+        </div>
 
         <!-- Trackers -->
         <a href="{% url 'guild_trackers' guild.id %}"
@@ -252,9 +267,18 @@
   </nav>
 
   <!-- Footer -->
-  <div class="p-4 border-t border-neutral-800 mt-auto">
+  <!-- Collapse Button (Desktop only) -->
+  <div class="p-4 border-t border-neutral-800 mt-auto hidden lg:block">
+    <button onclick="toggleSidebarCollapse()"
+            class="w-full flex items-center justify-center gap-2 text-gray-400 hover:text-white hover:bg-neutral-800 py-2 px-3 rounded-lg transition group">
+      <i id="sidebar-collapse-icon" class="fas fa-chevron-left"></i>
+      <span id="sidebar-collapse-text" class="text-xs font-medium">Collapse Sidebar</span>
+    </button>
+  </div>
+
+  <div class="p-4 border-t border-neutral-800">
     <div class="flex items-center justify-between text-xs text-gray-500">
-      <span>WardenBot</span>
+      <span id="sidebar-branding">WardenBot</span>
       <a href="https://github.com/casualheroes/wardenbot" target="_blank" class="hover:text-white transition">
         <i class="fab fa-github"></i>
       </a>
@@ -329,6 +353,58 @@
 #guild-sidebar::-webkit-scrollbar-thumb:hover {
   background: #4b5563;
 }
+
+/* Collapsed sidebar */
+@media (min-width: 1024px) {
+  .sidebar-collapsed {
+    width: 4rem !important;
+  }
+
+  .sidebar-collapsed .flex-1,
+  .sidebar-collapsed .text-sm,
+  .sidebar-collapsed .text-xs,
+  .sidebar-collapsed .text-lg,
+  .sidebar-collapsed .sub-nav-item,
+  .sidebar-collapsed #sidebar-branding,
+  .sidebar-collapsed #sidebar-collapse-text,
+  .sidebar-collapsed h2,
+  .sidebar-collapsed p,
+  .sidebar-collapsed h3,
+  .sidebar-collapsed span:not(#sidebar-collapse-icon) {
+    display: none !important;
+  }
+
+  /* Hide server dropdown entirely when collapsed */
+  .sidebar-collapsed #server-dropdown {
+    display: none !important;
+  }
+
+  /* Hide dropdown chevron when collapsed */
+  .sidebar-collapsed button[onclick="toggleServerDropdown()"] i.fa-chevron-down {
+    display: none !important;
+  }
+
+  .sidebar-collapsed .nav-item,
+  .sidebar-collapsed button {
+    justify-content: center !important;
+    padding: 0.5rem !important;
+  }
+
+  .sidebar-collapsed .nav-item i,
+  .sidebar-collapsed button i {
+    margin: 0 !important;
+  }
+
+  /* Center the server icon when collapsed */
+  .sidebar-collapsed button[onclick="toggleServerDropdown()"] {
+    justify-content: center !important;
+  }
+
+  /* Adjust main content margin when sidebar is collapsed */
+  .sidebar-main-collapsed {
+    margin-left: 4rem !important;
+  }
+}
 </style>
 
 <script>
@@ -341,7 +417,14 @@ function toggleSidebar() {
 }
 
 function toggleServerDropdown() {
+  const sidebar = document.getElementById('guild-sidebar');
   const dropdown = document.getElementById('server-dropdown');
+
+  // Don't open dropdown if sidebar is collapsed
+  if (sidebar.classList.contains('sidebar-collapsed')) {
+    return;
+  }
+
   dropdown.classList.toggle('hidden');
 }
 
@@ -352,6 +435,45 @@ function toggleSubmenu(submenuId) {
   submenu.classList.toggle('hidden');
   icon.classList.toggle('submenu-open');
 }
+
+// Toggle sidebar collapse (desktop only)
+function toggleSidebarCollapse() {
+  const sidebar = document.getElementById('guild-sidebar');
+  const mainContent = document.querySelector('.flex-1.lg\\:ml-1');
+  const icon = document.getElementById('sidebar-collapse-icon');
+  const text = document.getElementById('sidebar-collapse-text');
+  const dropdown = document.getElementById('server-dropdown');
+  const isCollapsed = sidebar.classList.contains('sidebar-collapsed');
+
+  if (isCollapsed) {
+    // Expand
+    sidebar.classList.remove('sidebar-collapsed');
+    if (mainContent) mainContent.classList.remove('sidebar-main-collapsed');
+    icon.className = 'fas fa-chevron-left';
+    text.textContent = 'Collapse Sidebar';
+    localStorage.setItem('sidebarCollapsed', 'false');
+  } else {
+    // Collapse
+    sidebar.classList.add('sidebar-collapsed');
+    if (mainContent) mainContent.classList.add('sidebar-main-collapsed');
+    icon.className = 'fas fa-chevron-right';
+    text.textContent = 'Expand';
+    localStorage.setItem('sidebarCollapsed', 'true');
+
+    // Close any open dropdowns when collapsing
+    if (dropdown) dropdown.classList.add('hidden');
+  }
+}
+
+// Restore sidebar state from localStorage on page load
+document.addEventListener('DOMContentLoaded', () => {
+  const isCollapsed = localStorage.getItem('sidebarCollapsed') === 'true';
+  if (isCollapsed && window.innerWidth >= 1024) {
+    document.getElementById('guild-sidebar').classList.add('sidebar-collapsed');
+    document.getElementById('sidebar-collapse-icon').className = 'fas fa-chevron-right';
+    document.getElementById('sidebar-collapse-text').textContent = 'Expand';
+  }
+});
 
 // Close dropdowns when clicking outside
 document.addEventListener('click', (e) => {
