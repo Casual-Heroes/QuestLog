@@ -136,6 +136,25 @@
                 <p class="text-gray-500 text-xs mt-1">How often to check for new games</p>
               </div>
             </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label class="block text-sm text-gray-400 mb-2">Max Announced (Public)</label>
+                <input type="number" id="max_public_announcements"
+                       value="{{ discovery_config.max_public_announcements|default:5 }}"
+                       min="1" max="100"
+                       class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white focus:border-blue-500 focus:outline-none">
+                <p class="text-gray-500 text-xs mt-1">Maximum public games to announce per check (for Show on Website searches).</p>
+              </div>
+              <div>
+                <label class="block text-sm text-gray-400 mb-2">Max Announced (Private)</label>
+                <input type="number" id="max_private_announcements"
+                       value="{{ discovery_config.max_private_announcements|default:5 }}"
+                       min="1" max="100"
+                       class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white focus:border-blue-500 focus:outline-none">
+                <p class="text-gray-500 text-xs mt-1">Maximum private games to announce per check (for non-website searches).</p>
+              </div>
+            </div>
           </div>
         </div>
 

@@ -7,6 +7,7 @@ from django.contrib.auth import authenticate, login
 from django.contrib import messages
 from django.shortcuts import redirect, render
 from django.contrib.admin.views.decorators import staff_member_required
+from django.views.decorators.http import require_http_methods
 from dotenv import load_dotenv
 import os
 import asyncio
@@ -16,7 +17,7 @@ from ampapi.bridge import Bridge
 from ampapi.controller import AMPControllerInstance
 import json
 from pathlib import Path
-from sqlalchemy import or_
+from sqlalchemy import or_, and_
 import time
 from django_ratelimit.decorators import ratelimit
 from casualsite.settings import get_client_ip
@@ -29,6 +30,98 @@ logger = logging.getLogger(__name__)
 # Discord bot API configuration
 DISCORD_BOT_API_URL = os.getenv('DISCORD_BOT_API_URL', 'http://localhost:8001')
 DISCORD_BOT_API_TOKEN = os.getenv('DISCORD_BOT_API_TOKEN', 'development-token')
+
+
+class DiscordBotSession:
+    """Wrapper for making Discord API calls with bot token"""
+
+    def __init__(self, base_url='https://discord.com/api/v10'):
+        self.base_url = base_url
+        bot_token = os.getenv('DISCORD_BOT_TOKEN')
+        if not bot_token or bot_token == 'your_bot_token_here':
+            self.headers = None
+        else:
+            self.headers = {'Authorization': f'Bot {bot_token}'}
+
+    def get(self, path, **kwargs):
+        """Make GET request to Discord API"""
+        if not self.headers:
+            # Return a mock response with 401 status if no token
+            class MockResponse:
+                status_code = 401
+                text = "Bot token not configured"
+                def json(self):
+                    return {}
+            return MockResponse()
+
+        url = f"{self.base_url}{path}"
+        return requests.get(url, headers=self.headers, **kwargs)
+
+    def post(self, path, **kwargs):
+        """Make POST request to Discord API"""
+        if not self.headers:
+            # Return a mock response with 401 status if no token
+            class MockResponse:
+                status_code = 401
+                text = "Bot token not configured"
+                def json(self):
+                    return {}
+            return MockResponse()
+
+        url = f"{self.base_url}{path}"
+        return requests.post(url, headers=self.headers, **kwargs)
+
+    def put(self, path, **kwargs):
+        """Make PUT request to Discord API"""
+        if not self.headers:
+            class MockResponse:
+                status_code = 401
+                text = "Bot token not configured"
+                def json(self):
+                    return {}
+            return MockResponse()
+
+        url = f"{self.base_url}{path}"
+        return requests.put(url, headers=self.headers, **kwargs)
+
+    def patch(self, path, **kwargs):
+        """Make PATCH request to Discord API"""
+        if not self.headers:
+            class MockResponse:
+                status_code = 401
+                text = "Bot token not configured"
+                def json(self):
+                    return {}
+            return MockResponse()
+
+        url = f"{self.base_url}{path}"
+        return requests.patch(url, headers=self.headers, **kwargs)
+
+    def delete(self, path, **kwargs):
+        """Make DELETE request to Discord API"""
+        if not self.headers:
+            class MockResponse:
+                status_code = 401
+                text = "Bot token not configured"
+                def json(self):
+                    return {}
+            return MockResponse()
+
+        url = f"{self.base_url}{path}"
+        return requests.delete(url, headers=self.headers, **kwargs)
+
+
+def get_bot_session(guild_id):
+    """
+    Get a Discord bot API session for making requests.
+    Returns None if bot token is not configured.
+    """
+    bot_token = os.getenv('DISCORD_BOT_TOKEN')
+    if not bot_token or bot_token == 'your_bot_token_here':
+        logger.warning(f"DISCORD_BOT_TOKEN not configured for guild {guild_id}")
+        return None
+
+    return DiscordBotSession()
 
 
 # ============================================================================
@@ -933,6 +1026,67 @@ def discord_logout(request):
     return redirect('home')
 
 
+@require_http_methods(["POST"])
+def discord_refresh_guilds(request):
+    """Refresh the user's guild list from Discord without logging out"""
+    discord_user = request.session.get('discord_user')
+
+    if not discord_user:
+        return JsonResponse({'error': 'Not authenticated with Discord'}, status=401)
+
+    access_token = discord_user.get('access_token')
+    if not access_token:
+        return JsonResponse({'error': 'No access token found'}, status=401)
+
+    try:
+        # Fetch fresh guild list from Discord
+        guilds_response = requests.get(
+            'https://discord.com/api/users/@me/guilds',
+            headers={'Authorization': f'Bearer {access_token}'}
+        )
+
+        if guilds_response.status_code != 200:
+            logger.error(f"Failed to fetch guilds: {guilds_response.status_code} {guilds_response.text}")
+            return JsonResponse({'error': 'Failed to fetch guilds from Discord'}, status=guilds_response.status_code)
+
+        discord_guilds = guilds_response.json()
+
+        # Update admin guilds (same logic as in callback)
+        admin_guilds = [
+            {
+                'id': g['id'],
+                'name': g['name'],
+                'icon': g.get('icon'),
+                'owner': g.get('owner', False),
+                'permissions': g.get('permissions', 0),
+            }
+            for g in discord_guilds
+            if g.get('owner') or (int(g.get('permissions', 0)) & 0x8) or (int(g.get('permissions', 0)) & 0x20)
+        ]
+
+        # Update session
+        request.session['discord_admin_guilds'] = admin_guilds
+        request.session['discord_all_guilds'] = [
+            {'id': g['id'], 'name': g['name'], 'icon': g.get('icon')}
+            for g in discord_guilds
+        ]
+
+        request.session.modified = True
+        request.session.save()
+
+        logger.info(f"Refreshed guilds for user {discord_user.get('username')}: found {len(admin_guilds)} admin guilds")
+
+        return JsonResponse({
+            'success': True,
+            'admin_guilds_count': len(admin_guilds),
+            'total_guilds_count': len(discord_guilds)
+        })
+
+    except Exception as e:
+        logger.error(f"Error refreshing guilds: {e}", exc_info=True)
+        return JsonResponse({'error': 'An error occurred while refreshing guilds'}, status=500)
+
+
 def discord_required(view_func):
     """Decorator to require Discord authentication"""
     def wrapper(request, *args, **kwargs):
@@ -1015,6 +1169,8 @@ def guild_dashboard(request, guild_id):
         'engagement_rate': 0,
         'warnings_this_week': 0,
     }
+
+    guild_record = None
 
     try:
         from .db import get_db_session
@@ -1148,6 +1304,7 @@ def guild_dashboard(request, guild_id):
         'is_admin': is_admin,
         'feature_status': feature_status,
         'metrics': metrics,
+        'guild_record': guild_record,
         'active_page': 'dashboard',
     }
     return render(request, 'warden/guild_dashboard.html', context)
@@ -1690,7 +1847,6 @@ def guild_trackers(request, guild_id):
 # Tracker API Endpoints (REST API for AJAX calls)
 
 from django.http import JsonResponse, HttpResponseForbidden, HttpResponseNotFound
-from django.views.decorators.http import require_http_methods
 import json as json_lib
 
 
@@ -2324,15 +2480,29 @@ def api_xp_config(request, guild_id):
     try:
         from .db import get_db_session
         from .models import XPConfig
+        from sqlalchemy.exc import ProgrammingError
+        from sqlalchemy import text
 
         with get_db_session() as db:
-            config = db.query(XPConfig).filter_by(guild_id=int(guild_id)).first()
+            try:
+                config = db.query(XPConfig).filter_by(guild_id=int(guild_id)).first()
+            except ProgrammingError as pe:
+                logger.error(f"XP config query failed (likely missing columns). Defaulting config. {pe}")
+                # Attempt to add missing column if absent
+                try:
+                    db.execute(text("ALTER TABLE xp_configs ADD COLUMN xp_enabled TINYINT(1) DEFAULT 1"))
+                    db.flush()
+                    config = db.query(XPConfig).filter_by(guild_id=int(guild_id)).first()
+                except Exception as alter_err:
+                    logger.error(f"Could not auto-add xp_enabled column: {alter_err}")
+                config = None
 
             if not config:
                 # Return defaults
                 return JsonResponse({
                     'success': True,
                     'config': {
+                        'xp_enabled': False,  # XP disabled by default
                         'message_xp': 1.5,
                         'media_multiplier': 1.3,
                         'reaction_xp': 1.0,
@@ -2351,6 +2521,7 @@ def api_xp_config(request, guild_id):
             return JsonResponse({
                 'success': True,
                 'config': {
+                    'xp_enabled': config.xp_enabled,
                     'message_xp': config.message_xp,
                     'media_multiplier': config.media_multiplier,
                     'reaction_xp': config.reaction_xp,
@@ -2381,6 +2552,8 @@ def api_xp_config_update(request, guild_id):
     try:
         from .db import get_db_session
         from .models import XPConfig, Guild as GuildModel
+        from sqlalchemy.exc import ProgrammingError
+        from sqlalchemy import text
 
         with get_db_session() as db:
             # Ensure guild exists
@@ -2390,7 +2563,17 @@ def api_xp_config_update(request, guild_id):
                 db.add(guild_record)
                 db.flush()
 
-            config = db.query(XPConfig).filter_by(guild_id=int(guild_id)).first()
+            try:
+                config = db.query(XPConfig).filter_by(guild_id=int(guild_id)).first()
+            except ProgrammingError as pe:
+                logger.error(f"XP config query failed (likely missing columns). Defaulting config. {pe}")
+                try:
+                    db.execute(text("ALTER TABLE xp_configs ADD COLUMN xp_enabled TINYINT(1) DEFAULT 1"))
+                    db.flush()
+                    config = db.query(XPConfig).filter_by(guild_id=int(guild_id)).first()
+                except Exception as alter_err:
+                    logger.error(f"Could not auto-add xp_enabled column: {alter_err}")
+                config = None
             if not config:
                 config = XPConfig(guild_id=int(guild_id))
                 db.add(config)
@@ -2424,6 +2607,57 @@ def api_xp_config_update(request, guild_id):
             return JsonResponse({'success': True})
 
     except Exception as e:
+        return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
+
+
+@require_http_methods(["POST"])
+@api_auth_required
+def api_xp_toggle(request, guild_id):
+    """POST /api/guild/<id>/xp/toggle/ - Toggle XP system on/off."""
+    import json
+    try:
+        from .db import get_db_session
+        from .models import XPConfig
+        from sqlalchemy.exc import ProgrammingError
+        from sqlalchemy import text
+
+        try:
+            data = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+        xp_enabled = data.get('xp_enabled', False)
+
+        with get_db_session() as db:
+            try:
+                config = db.query(XPConfig).filter_by(guild_id=int(guild_id)).first()
+            except ProgrammingError as pe:
+                logger.error(f"XP toggle query failed (likely missing columns). Creating default. {pe}")
+                try:
+                    db.execute(text("ALTER TABLE xp_configs ADD COLUMN xp_enabled TINYINT(1) DEFAULT 1"))
+                    db.flush()
+                    config = db.query(XPConfig).filter_by(guild_id=int(guild_id)).first()
+                except Exception as alter_err:
+                    logger.error(f"Could not auto-add xp_enabled column: {alter_err}")
+                config = None
+
+            if not config:
+                # Create new config with the enabled status
+                config = XPConfig(guild_id=int(guild_id), xp_enabled=xp_enabled)
+                db.add(config)
+            else:
+                # Update existing config
+                config.xp_enabled = xp_enabled
+
+            db.commit()
+
+            return JsonResponse({
+                'success': True,
+                'xp_enabled': config.xp_enabled
+            })
+
+    except Exception as e:
+        logger.error(f"Error toggling XP system: {e}")
         return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
 
 
@@ -3238,6 +3472,80 @@ def guild_roles(request, guild_id):
     return render(request, 'warden/roles.html', context)
 
 
+def _serialize_reaction_role_menus(db, guild_id, message_id=None):
+    """Build reaction role menu payloads grouped by message_id."""
+    from .models import ReactRole
+
+    query = db.query(ReactRole).filter_by(guild_id=int(guild_id))
+    if message_id is not None:
+        query = query.filter_by(message_id=int(message_id))
+
+    roles = query.all()
+    menus = {}
+
+    for rr in roles:
+        menu = menus.get(rr.message_id)
+        if not menu:
+            menu = {
+                'id': rr.message_id,
+                'message_id': str(rr.message_id),
+                'channel_id': str(rr.channel_id),
+                'title': None,
+                'description': None,
+                'enabled': True,
+                'roles': []
+            }
+            menus[rr.message_id] = menu
+
+        menu['roles'].append({
+            'id': rr.id,
+            'emoji': rr.emoji,
+            'role_id': str(rr.role_id),
+            'role_name': rr.role_name or '',
+            'remove_on_unreact': bool(rr.remove_on_unreact),
+            'exclusive_group': rr.exclusive_group or ''
+        })
+
+    results = []
+    for menu in menus.values():
+        menu['role_count'] = len(menu['roles'])
+        results.append(menu)
+
+    # Try to hydrate title/description from the Discord message embed
+    bot_session = get_bot_session(int(guild_id))
+    if bot_session:
+        for menu in results:
+            try:
+                resp = bot_session.get(f"/channels/{menu['channel_id']}/messages/{menu['message_id']}")
+                if resp.status_code == 200:
+                    msg_json = resp.json()
+                    embeds = msg_json.get('embeds', [])
+                    if embeds:
+                        embed = embeds[0]
+                        menu['title'] = embed.get('title') or menu['title'] or f"Menu #{menu['message_id']}"
+                        menu['description'] = embed.get('description') or menu['description'] or ''
+                    else:
+                        menu['title'] = menu['title'] or f"Menu #{menu['message_id']}"
+                        menu['description'] = menu['description'] or ''
+                else:
+                    menu['title'] = menu['title'] or f"Menu #{menu['message_id']}"
+                    menu['description'] = menu['description'] or ''
+            except Exception as e:
+                logger.warning(f"Could not fetch reaction role message {menu['message_id']}: {e}")
+                menu['title'] = menu['title'] or f"Menu #{menu['message_id']}"
+                menu['description'] = menu['description'] or ''
+    else:
+        for menu in results:
+            menu['title'] = menu['title'] or f"Menu #{menu['message_id']}"
+            menu['description'] = menu['description'] or ''
+
+    # If a specific menu was requested, return it directly
+    if message_id is not None:
+        return results[0] if results else None
+
+    return results
+
+
 @discord_required
 def guild_reaction_roles(request, guild_id):
     """Reaction roles management page for a guild."""
@@ -3250,32 +3558,15 @@ def guild_reaction_roles(request, guild_id):
         return redirect('warden_dashboard')
 
     # Fetch reaction role menus from database
-    # Note: ReactionRoleMenu model not yet implemented - placeholder for future feature
     reaction_menus = []
 
-    # try:
-    #     from .db import get_db_session
-    #     from .models import ReactionRoleMenu
+    try:
+        from .db import get_db_session
 
-    #     with get_db_session() as db:
-    #         menus = db.query(ReactionRoleMenu).filter_by(
-    #             guild_id=int(guild_id)
-    #         ).all()
-
-    #         reaction_menus = [
-    #             {
-    #                 'id': m.id,
-    #                 'message_id': str(m.message_id) if m.message_id else None,
-    #                 'channel_id': str(m.channel_id) if m.channel_id else None,
-    #                 'title': m.title or 'Untitled Menu',
-    #                 'description': m.description or '',
-    #                 'enabled': m.enabled,
-    #                 'role_count': len(m.roles) if hasattr(m, 'roles') else 0,
-    #             }
-    #             for m in menus
-    #         ]
-    # except Exception as e:
-    #     logger.warning(f"Could not fetch reaction role menus: {e}")
+        with get_db_session() as db:
+            reaction_menus = _serialize_reaction_role_menus(db, guild_id)
+    except Exception as e:
+        logger.warning(f"Could not fetch reaction role menus: {e}")
 
     context = {
         'discord_user': discord_user,
@@ -3286,6 +3577,353 @@ def guild_reaction_roles(request, guild_id):
         'active_page': 'reaction_roles',
     }
     return render(request, 'warden/reaction_roles.html', context)
+
+
+@require_http_methods(["GET", "POST"])
+@api_auth_required
+def api_reaction_roles(request, guild_id):
+    """
+    GET /api/guild/<id>/reaction-roles/ - List reaction role menus
+    POST /api/guild/<id>/reaction-roles/ - Create and deploy a new reaction role menu
+    """
+    try:
+        from .db import get_db_session
+        from .models import ReactRole
+        from urllib.parse import quote
+
+        guild_id_int = int(guild_id)
+
+        if request.method == "GET":
+            with get_db_session() as db:
+                menus = _serialize_reaction_role_menus(db, guild_id)
+                return JsonResponse({'success': True, 'menus': menus})
+
+        # POST - create menu and send message
+        try:
+            data = json_lib.loads(request.body)
+        except json_lib.JSONDecodeError:
+            return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+        channel_id = data.get('channel_id')
+        roles_data = data.get('roles', [])
+        title = data.get('title') or 'Choose your roles'
+        description = data.get('description') or ''
+
+        # Bot session required to post message and add reactions
+        bot_session = get_bot_session(guild_id_int)
+        if not bot_session:
+            return JsonResponse({'error': 'Bot not connected to this guild'}, status=400)
+
+        try:
+            channel_id_int = int(channel_id)
+        except (TypeError, ValueError):
+            return JsonResponse({'error': 'channel_id is required'}, status=400)
+
+        if not isinstance(roles_data, list) or len(roles_data) == 0:
+            return JsonResponse({'error': 'At least one role entry is required'}, status=400)
+
+        parsed_roles = []
+        seen_emojis = set()
+        for item in roles_data:
+            emoji = (item.get('emoji') or '').strip()
+            role_id = item.get('role_id')
+            if not emoji or not role_id:
+                return JsonResponse({'error': 'Each entry needs emoji and role_id'}, status=400)
+            if emoji in seen_emojis:
+                return JsonResponse({'error': f'Duplicate emoji "{emoji}" in menu'}, status=400)
+            seen_emojis.add(emoji)
+
+            try:
+                role_id_int = int(role_id)
+            except (TypeError, ValueError):
+                return JsonResponse({'error': 'role_id must be numeric'}, status=400)
+
+            parsed_roles.append({
+                'emoji': emoji,
+                'role_id': role_id_int,
+                'role_name': item.get('role_name') or '',
+                'remove_on_unreact': bool(item.get('remove_on_unreact', True)),
+                'exclusive_group': (item.get('exclusive_group') or '').strip() or None,
+            })
+
+        # Build embed description
+        lines = []
+        if description:
+            lines.append(description)
+            lines.append('')
+        for entry in parsed_roles:
+            role_display = entry['role_name'] or f"Role {entry['role_id']}"
+            flags = []
+            if entry['exclusive_group']:
+                flags.append(f"Group: {entry['exclusive_group']}")
+            if not entry['remove_on_unreact']:
+                flags.append("Keeps role on unreact")
+            flags_text = f" ({'; '.join(flags)})" if flags else ''
+            lines.append(f"{entry['emoji']} — {role_display}{flags_text}")
+
+        embed_description = "\n".join(lines) if lines else "Choose your roles below."
+
+        # Send message via bot
+        message_payload = {
+            'content': '',
+            'embeds': [{
+                'title': title,
+                'description': embed_description,
+                'color': 0xF6C454
+            }]
+        }
+
+        msg_resp = bot_session.post(f'/channels/{channel_id_int}/messages', json=message_payload)
+        if msg_resp.status_code not in (200, 201):
+            logger.error(f"Failed to send reaction role message: {msg_resp.status_code} {msg_resp.text}")
+            return JsonResponse({'error': 'Failed to send message to channel'}, status=500)
+
+        msg_json = msg_resp.json()
+        try:
+            message_id_int = int(msg_json.get('id'))
+        except (TypeError, ValueError):
+            logger.error(f"Reaction role message response missing ID: {msg_json}")
+            return JsonResponse({'error': 'Failed to send message to channel'}, status=500)
+
+        # Add reactions
+        for entry in parsed_roles:
+            try:
+                emoji_encoded = quote(entry['emoji'])
+                react_resp = bot_session.put(f'/channels/{channel_id_int}/messages/{message_id_int}/reactions/{emoji_encoded}/@me')
+                if react_resp.status_code not in (200, 204):
+                    logger.warning(f"Failed to add reaction {entry['emoji']} to message {message_id_int}: {react_resp.status_code} {react_resp.text}")
+            except Exception as react_err:
+                logger.warning(f"Error adding reaction {entry['emoji']} to message {message_id_int}: {react_err}")
+
+        with get_db_session() as db:
+            for entry in parsed_roles:
+                db.add(ReactRole(
+                    guild_id=guild_id_int,
+                    message_id=message_id_int,
+                    channel_id=channel_id_int,
+                    emoji=entry['emoji'],
+                    role_id=entry['role_id'],
+                    role_name=entry['role_name'],
+                    remove_on_unreact=entry['remove_on_unreact'],
+                    exclusive_group=entry['exclusive_group']
+                ))
+
+            db.flush()
+            menu = _serialize_reaction_role_menus(db, guild_id, message_id_int)
+
+            return JsonResponse({'success': True, 'menu': menu})
+
+    except Exception as e:
+        logger.error(f"Error handling reaction roles: {e}", exc_info=True)
+        return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
+
+
+@require_http_methods(["GET", "PUT", "DELETE"])
+@api_auth_required
+def api_reaction_role_detail(request, guild_id, message_id):
+    """
+    GET /api/guild/<id>/reaction-roles/<message_id>/ - Get a menu
+    PUT /api/guild/<id>/reaction-roles/<message_id>/ - Update menu roles and message
+    DELETE /api/guild/<id>/reaction-roles/<message_id>/ - Delete menu (and message)
+    """
+    try:
+        from .db import get_db_session
+        from .models import ReactRole
+        from urllib.parse import quote
+
+        guild_id_int = int(guild_id)
+
+        try:
+            message_id_int = int(message_id)
+        except (TypeError, ValueError):
+            return JsonResponse({'error': 'Invalid message_id'}, status=400)
+
+        if request.method == "GET":
+            with get_db_session() as db:
+                menu = _serialize_reaction_role_menus(db, guild_id, message_id_int)
+                if not menu:
+                    return JsonResponse({'error': 'Menu not found'}, status=404)
+                return JsonResponse({'success': True, 'menu': menu})
+
+        if request.method == "DELETE":
+            with get_db_session() as db:
+                existing = db.query(ReactRole).filter_by(
+                    guild_id=guild_id_int,
+                    message_id=message_id_int
+                ).all()
+                channel_id = existing[0].channel_id if existing else None
+                deleted = db.query(ReactRole).filter_by(
+                    guild_id=guild_id_int,
+                    message_id=message_id_int
+                ).delete()
+
+            if deleted == 0:
+                return JsonResponse({'error': 'Menu not found'}, status=404)
+
+            # Attempt to delete the Discord message too
+            if channel_id:
+                bot_session = get_bot_session(guild_id_int)
+                if bot_session:
+                    bot_session.delete(f'/channels/{channel_id}/messages/{message_id_int}')
+
+            return JsonResponse({'success': True})
+
+        # PUT - update menu
+        try:
+            data = json_lib.loads(request.body)
+        except json_lib.JSONDecodeError:
+            return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+        channel_id = data.get('channel_id')
+        roles_data = data.get('roles', [])
+        title = data.get('title') or 'Choose your roles'
+        description = data.get('description') or ''
+
+        try:
+            channel_id_int = int(channel_id)
+        except (TypeError, ValueError):
+            return JsonResponse({'error': 'channel_id is required'}, status=400)
+
+        if not isinstance(roles_data, list) or len(roles_data) == 0:
+            return JsonResponse({'error': 'At least one role entry is required'}, status=400)
+
+        # Normalize roles: keep last occurrence per role, then last per emoji
+        entries = []
+        for item in roles_data:
+            emoji = (item.get('emoji') or '').strip()
+            role_id = item.get('role_id')
+            if not emoji or not role_id:
+                return JsonResponse({'error': 'Each entry needs emoji and role_id'}, status=400)
+            try:
+                role_id_int = int(role_id)
+            except (TypeError, ValueError):
+                return JsonResponse({'error': 'role_id must be numeric'}, status=400)
+            entries.append({
+                'emoji': emoji,
+                'role_id': role_id_int,
+                'role_name': item.get('role_name') or '',
+                'remove_on_unreact': bool(item.get('remove_on_unreact', True)),
+                'exclusive_group': (item.get('exclusive_group') or '').strip() or None,
+            })
+
+        # Last entry per role_id wins
+        by_role = {}
+        for entry in entries:
+            by_role[entry['role_id']] = entry
+
+        # Preserve only the final value per role
+        parsed_roles = list(by_role.values())
+
+        bot_session = get_bot_session(guild_id_int)
+        if not bot_session:
+            return JsonResponse({'error': 'Bot not connected to this guild'}, status=400)
+
+        # Build embed description
+        lines = []
+        if description:
+            lines.append(description)
+            lines.append('')
+        for entry in parsed_roles:
+            role_display = entry['role_name'] or f"Role {entry['role_id']}"
+            flags = []
+            if entry['exclusive_group']:
+                flags.append(f"Group: {entry['exclusive_group']}")
+            if not entry['remove_on_unreact']:
+                flags.append("Keeps role on unreact")
+            flags_text = f" ({'; '.join(flags)})" if flags else ''
+            lines.append(f"{entry['emoji']} — {role_display}{flags_text}")
+
+        embed_description = "\n".join(lines) if lines else "Choose your roles below."
+
+        logger.info(f"[ReactionRole PUT] Updating message {message_id_int}: {len(parsed_roles)} roles, new emojis: {[e['emoji'] for e in parsed_roles]}")
+
+        with get_db_session() as db:
+            existing = db.query(ReactRole).filter_by(
+                guild_id=guild_id_int,
+                message_id=message_id_int
+            ).all()
+            if not existing:
+                return JsonResponse({'error': 'Menu not found'}, status=404)
+
+            # Get old emojis so we can remove them from the message
+            old_emojis = {record.emoji for record in existing}
+            logger.info(f"[ReactionRole PUT] Old emojis: {old_emojis}")
+
+            # Delete existing rows for this menu
+            db.query(ReactRole).filter_by(
+                guild_id=guild_id_int,
+                message_id=message_id_int
+            ).delete()
+            db.commit()
+
+        # Update the existing Discord message (PATCH instead of delete/recreate)
+        message_payload = {
+            'embeds': [{
+                'title': title,
+                'description': embed_description,
+                'color': 0xF6C454
+            }]
+        }
+        logger.info(f"[ReactionRole PUT] Sending PATCH to Discord: {message_payload}")
+
+        try:
+            patch_resp = bot_session.patch(
+                f'/channels/{channel_id_int}/messages/{message_id_int}',
+                json=message_payload
+            )
+            logger.info(f"[ReactionRole PUT] Discord PATCH response: {patch_resp.status_code}")
+            if patch_resp.status_code not in (200, 201):
+                logger.error(f"Failed to update message {message_id_int}: {patch_resp.status_code} {patch_resp.text}")
+                return JsonResponse({'error': 'Failed to update message on Discord'}, status=500)
+        except Exception as patch_err:
+            logger.error(f"Error updating reaction-role message: {patch_err}", exc_info=True)
+            return JsonResponse({'error': 'Failed to update message on Discord'}, status=500)
+
+        # Remove old reactions that are no longer in the new config
+        new_emojis = {entry['emoji'] for entry in parsed_roles}
+        emojis_to_remove = old_emojis - new_emojis
+        logger.info(f"[ReactionRole PUT] Removing old emojis: {emojis_to_remove}, keeping: {new_emojis}")
+
+        for emoji in emojis_to_remove:
+            try:
+                emoji_encoded = quote(emoji)
+                logger.info(f"[ReactionRole PUT] Deleting reaction {emoji} (encoded: {emoji_encoded})")
+                del_resp = bot_session.delete(f'/channels/{channel_id_int}/messages/{message_id_int}/reactions/{emoji_encoded}')
+                logger.info(f"[ReactionRole PUT] Delete reaction response: {del_resp.status_code}")
+            except Exception as remove_err:
+                logger.warning(f"Error removing old reaction {emoji} from message {message_id_int}: {remove_err}")
+
+        # Add new reactions (Discord API is idempotent, so re-adding existing ones is safe)
+        for entry in parsed_roles:
+            try:
+                emoji_encoded = quote(entry['emoji'])
+                logger.info(f"[ReactionRole PUT] Adding reaction {entry['emoji']} (encoded: {emoji_encoded})")
+                react_resp = bot_session.put(f'/channels/{channel_id_int}/messages/{message_id_int}/reactions/{emoji_encoded}/@me')
+                logger.info(f"[ReactionRole PUT] Add reaction response: {react_resp.status_code}")
+            except Exception as react_err:
+                logger.warning(f"Error adding reaction {entry['emoji']} to message {message_id_int}: {react_err}")
+
+        # Persist new rows with same message_id
+        with get_db_session() as db:
+            for entry in parsed_roles:
+                db.add(ReactRole(
+                    guild_id=guild_id_int,
+                    message_id=message_id_int,
+                    channel_id=channel_id_int,
+                    emoji=entry['emoji'],
+                    role_id=entry['role_id'],
+                    role_name=entry['role_name'],
+                    remove_on_unreact=entry['remove_on_unreact'],
+                    exclusive_group=entry['exclusive_group']
+                ))
+            db.commit()
+            menu = _serialize_reaction_role_menus(db, guild_id, message_id_int)
+
+        return JsonResponse({'success': True, 'menu': menu})
+
+    except Exception as e:
+        logger.error(f"Error handling reaction role menu {message_id}: {e}", exc_info=True)
+        return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
 
 
 @require_http_methods(["POST"])
@@ -3306,29 +3944,36 @@ def api_role_action(request, guild_id):
         return JsonResponse({'error': 'Missing required fields'}, status=400)
 
     try:
-        from .actions import queue_role_add, queue_role_remove
+        from .actions import queue_action, ActionType
 
         discord_user = request.session.get('discord_user', {})
         triggered_by = int(discord_user.get('id', 0))
         triggered_by_name = discord_user.get('global_name', discord_user.get('username'))
 
+        # Prepare payload
+        payload = {
+            'user_id': int(user_id),
+            'role_id': int(role_id),
+            'reason': reason
+        }
+
         if action == 'add':
-            action_id = queue_role_add(
+            action_id = queue_action(
                 guild_id=int(guild_id),
-                user_id=int(user_id),
-                role_id=int(role_id),
-                reason=reason,
+                action_type=ActionType.ROLE_ADD,
+                payload=payload,
                 triggered_by=triggered_by,
-                triggered_by_name=triggered_by_name
+                triggered_by_name=triggered_by_name,
+                source='website'
             )
         elif action == 'remove':
-            action_id = queue_role_remove(
+            action_id = queue_action(
                 guild_id=int(guild_id),
-                user_id=int(user_id),
-                role_id=int(role_id),
-                reason=reason,
+                action_type=ActionType.ROLE_REMOVE,
+                payload=payload,
                 triggered_by=triggered_by,
-                triggered_by_name=triggered_by_name
+                triggered_by_name=triggered_by_name,
+                source='website'
             )
         else:
             return JsonResponse({'error': 'Invalid action'}, status=400)
@@ -3340,6 +3985,7 @@ def api_role_action(request, guild_id):
         })
 
     except Exception as e:
+        logger.error(f"Error queuing role action: {e}", exc_info=True)
         return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
 
 
@@ -3943,7 +4589,8 @@ def api_role_bulk_create(request, guild_id):
         })
 
     except Exception as e:
-        return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
+        logger.error(f"Error in bulk role create for guild {guild_id}: {e}", exc_info=True)
+        return JsonResponse({'error': f'An internal error occurred: {str(e)}'}, status=500)
 
 
 @api_auth_required
@@ -4058,6 +4705,7 @@ def guild_audit_logs(request, guild_id):
     audit_logs = []
     total_count = 0
     action_types = []
+    guild_record = None
 
     try:
         from .db import get_db_session
@@ -4346,6 +4994,11 @@ def api_audit_config_update(request, guild_id):
             # Update log channel
             if 'log_channel_id' in data:
                 guild_record.log_channel_id = int(data['log_channel_id']) if data['log_channel_id'] else None
+            if data.get('audit_enabled') is False:
+                guild_record.log_channel_id = None
+                guild_record.audit_logging_enabled = False
+            elif data.get('audit_enabled') is True:
+                guild_record.audit_logging_enabled = True
 
             logger.info(f"Updated audit log channel for guild {guild_id} to {guild_record.log_channel_id}")
             return JsonResponse({'success': True})
@@ -4353,6 +5006,71 @@ def api_audit_config_update(request, guild_id):
     except Exception as e:
         logger.error(f"Error updating audit config: {e}", exc_info=True)
         return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
+
+
+@require_http_methods(["GET"])
+@api_auth_required
+def api_audit_export(request, guild_id):
+    """GET /api/guild/<id>/audit/export/ - Export audit logs to CSV."""
+    import csv
+    import io
+    from django.http import HttpResponse
+
+    try:
+        from .db import get_db_session
+        from .models import AuditLog
+
+        # Get filter params
+        action_filter = request.GET.get('action', '')
+        actor_filter = request.GET.get('actor', '')
+        target_filter = request.GET.get('target', '')
+        days = int(request.GET.get('days', 30))
+
+        with get_db_session() as db:
+            cutoff_time = int(time.time()) - (days * 86400)
+
+            query = db.query(AuditLog).filter(
+                AuditLog.guild_id == int(guild_id),
+                AuditLog.timestamp >= cutoff_time
+            )
+
+            if action_filter:
+                query = query.filter(AuditLog.action == action_filter)
+            if actor_filter:
+                query = query.filter(AuditLog.actor_name.ilike(f'%{actor_filter}%'))
+            if target_filter:
+                query = query.filter(AuditLog.target_name.ilike(f'%{target_filter}%'))
+
+            logs = query.order_by(AuditLog.timestamp.desc()).limit(10000).all()
+
+            # Create CSV
+            output = io.StringIO()
+            writer = csv.writer(output)
+
+            # Write header
+            writer.writerow(['Timestamp', 'Action', 'Actor', 'Target', 'Reason', 'Details'])
+
+            # Write data
+            for log in logs:
+                from datetime import datetime
+                dt = datetime.fromtimestamp(log.timestamp)
+                writer.writerow([
+                    dt.strftime('%Y-%m-%d %H:%M:%S'),
+                    log.action.value if hasattr(log.action, 'value') else str(log.action),
+                    log.actor_name or 'N/A',
+                    log.target_name or 'N/A',
+                    log.reason or '',
+                    log.details or ''
+                ])
+
+            # Create HTTP response
+            response = HttpResponse(output.getvalue(), content_type='text/csv')
+            response['Content-Disposition'] = f'attachment; filename="audit_logs_{guild_id}_{int(time.time())}.csv"'
+            return response
+
+    except Exception as e:
+        logger.error(f"Error exporting audit logs: {e}", exc_info=True)
+        return JsonResponse({'error': 'Failed to export logs'}, status=500)
 
 
 # Welcome/Goodbye Messages Dashboard
@@ -4779,7 +5497,11 @@ def api_guild_roles(request, guild_id):
         # Fetch roles with caching
         roles = get_guild_roles(guild_id, force_refresh=force_refresh)
 
-        return JsonResponse({'roles': roles})
+        # Add is_everyone flag for each role
+        for role in roles:
+            role['is_everyone'] = role.get('name') == '@everyone' or role.get('id') == guild_id
+
+        return JsonResponse({'success': True, 'roles': roles})
 
     except Exception as e:
         logger.error(f"Failed to fetch roles for guild {guild_id}: {e}")
@@ -4863,6 +5585,78 @@ def guild_settings(request, guild_id):
     return render(request, 'warden/settings.html', context)
 
 
+@discord_required
+def guild_billing(request, guild_id):
+    """Billing and subscription management page."""
+    discord_user = request.session.get('discord_user', {})
+    admin_guilds = request.session.get('discord_admin_guilds', [])
+
+    guild = next((g for g in admin_guilds if g['id'] == guild_id), None)
+    if not guild:
+        messages.error(request, "You don't have admin access to this server.")
+        return redirect('warden_dashboard')
+
+    try:
+        from .db import get_db_session
+        from .models import Guild as GuildModel, GuildModule
+        from .modules_config import MODULES, BUNDLES, get_all_modules
+        from .module_utils import get_guild_modules
+
+        # Get all available modules
+        all_modules = get_all_modules()
+
+        # Get currently active modules for this guild
+        active_modules = get_guild_modules(guild_id)
+
+        # Check if guild has VIP status
+        is_vip = False
+        with get_db_session() as db:
+            guild_record = db.query(GuildModel).filter_by(guild_id=int(guild_id)).first()
+            if guild_record:
+                is_vip = guild_record.is_vip
+
+        # Build module data with active status
+        modules_data = []
+        for module_key, module_config in all_modules.items():
+            modules_data.append({
+                'key': module_key,
+                'name': module_config['name'],
+                'short_name': module_config['short_name'],
+                'description': module_config['description'],
+                'icon': module_config['icon'],
+                'color': module_config['color'],
+                'features': module_config['features'],
+                'price_monthly': module_config['price_monthly'],
+                'price_yearly': module_config['price_yearly'],
+                'is_active': module_key in active_modules or is_vip,
+            })
+
+        # Calculate pricing
+        total_monthly = sum(m['price_monthly'] for m in modules_data)
+        total_yearly = sum(m['price_yearly'] for m in modules_data)
+
+        context = {
+            'discord_user': discord_user,
+            'guild': guild,
+            'admin_guilds': admin_guilds,
+            'is_admin': True,
+            'active_page': 'billing',
+            'modules': modules_data,
+            'bundles': BUNDLES,
+            'active_module_count': len(active_modules),
+            'total_modules': len(all_modules),
+            'total_monthly': total_monthly,
+            'total_yearly': total_yearly,
+            'is_vip': is_vip,
+        }
+        return render(request, 'warden/billing.html', context)
+
+    except Exception as e:
+        logger.error(f"Error loading billing page: {e}")
+        messages.error(request, "Error loading billing information.")
+        return redirect('guild_dashboard', guild_id=guild_id)
+
+
 @require_http_methods(["POST", "PATCH"])
 @api_auth_required
 def api_settings_update(request, guild_id):
@@ -4900,6 +5694,54 @@ def api_settings_update(request, guild_id):
 
     except Exception as e:
         return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
+
+
+@require_http_methods(["POST"])
+@api_auth_required
+def api_settings_reset(request, guild_id):
+    """POST /api/guild/<id>/settings/reset/ - Reset guild settings to defaults."""
+    try:
+        from .db import get_db_session
+        from .models import Guild as GuildModel
+
+        with get_db_session() as db:
+            guild_record = db.query(GuildModel).filter_by(guild_id=int(guild_id)).first()
+            if guild_record:
+                # Reset to defaults
+                guild_record.bot_prefix = '!'
+                guild_record.language = 'en'
+                guild_record.timezone = 'UTC'
+                guild_record.token_name = 'Hero Tokens'
+                guild_record.token_emoji = ':coin:'
+                guild_record.mod_log_channel_id = None
+
+            return JsonResponse({'success': True})
+
+    except Exception as e:
+        logger.error(f"Error resetting settings for guild {guild_id}: {e}")
+        return JsonResponse({'error': 'Failed to reset settings'}, status=500)
+
+
+@require_http_methods(["POST"])
+@api_auth_required
+def api_settings_remove_data(request, guild_id):
+    """POST /api/guild/<id>/settings/remove-data/ - Remove all guild data."""
+    try:
+        from .db import get_db_session
+        from .models import Guild as GuildModel
+
+        with get_db_session() as db:
+            # Delete guild record (cascade will handle related data)
+            guild_record = db.query(GuildModel).filter_by(guild_id=int(guild_id)).first()
+            if guild_record:
+                db.delete(guild_record)
+                logger.info(f"Removed all data for guild {guild_id}")
+
+            return JsonResponse({'success': True})
+
+    except Exception as e:
+        logger.error(f"Error removing data for guild {guild_id}: {e}")
+        return JsonResponse({'error': 'Failed to remove data'}, status=500)
 
 
 # Verification Configuration Dashboard
@@ -5059,11 +5901,13 @@ def guild_moderation(request, guild_id):
 
     try:
         from .db import get_db_session
-        from .models import Warning, ModAction, GuildMember
+        from .models import Warning, ModAction, GuildMember, Guild
         import time
         from datetime import datetime
 
         with get_db_session() as db:
+            guild_record = db.get(Guild, int(guild_id))
+
             # Get recent warnings
             recent_warnings = db.query(Warning).filter(
                 Warning.guild_id == int(guild_id)
@@ -5167,6 +6011,7 @@ def guild_moderation(request, guild_id):
 
     except Exception as e:
         logger.warning(f"Could not fetch moderation data: {e}")
+        guild_record = None
 
     context = {
         'discord_user': discord_user,
@@ -5175,6 +6020,7 @@ def guild_moderation(request, guild_id):
         'is_admin': True,
         'mod_actions': mod_actions,
         'stats': stats,
+        'mod_enabled': bool(guild_record.mod_enabled) if guild_record else False,
         'active_page': 'moderation',
     }
     return render(request, 'warden/moderation.html', context)
@@ -5209,6 +6055,7 @@ def guild_moderation_settings(request, guild_id):
                     'jail_channel_id': str(db_guild.jail_channel_id) if db_guild.jail_channel_id else None,
                     'jail_role_id': str(db_guild.jail_role_id) if db_guild.jail_role_id else None,
                     'muted_role_id': str(db_guild.muted_role_id) if db_guild.muted_role_id else None,
+                    'mod_enabled': bool(db_guild.mod_enabled),
                 }
 
                 # Parse cached channels and roles
@@ -5425,6 +6272,15 @@ def api_mod_settings_update(request, guild_id):
 
             if 'muted_role_id' in data:
                 db_guild.muted_role_id = int(data['muted_role_id']) if data['muted_role_id'] else None
+
+            if data.get('mod_enabled') is False:
+                db_guild.mod_log_channel_id = None
+                db_guild.jail_channel_id = None
+                db_guild.jail_role_id = None
+                db_guild.muted_role_id = None
+                db_guild.mod_enabled = False
+            elif data.get('mod_enabled') is True:
+                db_guild.mod_enabled = True
 
             db.commit()
 
@@ -5722,8 +6578,8 @@ def api_channel_template_create(request, guild_id):
 
             template = ChannelTemplate(
                 guild_id=int(guild_id),
-                name=data.get('name', 'Untitled')[:100],
-                description=data.get('description', '')[:500],
+                name=(data.get('name') or 'Untitled')[:100],
+                description=(data.get('description') or '')[:500],
                 template_data=json_lib.dumps(data.get('channels', [])),
                 created_by=created_by,
             )
@@ -5733,7 +6589,8 @@ def api_channel_template_create(request, guild_id):
             return JsonResponse({'success': True, 'id': template.id})
 
     except Exception as e:
-        return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
+        logger.error(f"Error creating channel template for guild {guild_id}: {e}", exc_info=True)
+        return JsonResponse({'error': f'An internal error occurred: {str(e)}'}, status=500)
 
 
 @require_http_methods(["POST"])
@@ -5775,8 +6632,8 @@ def api_role_template_create(request, guild_id):
 
             template = RoleTemplate(
                 guild_id=int(guild_id),
-                name=data.get('name', 'Untitled')[:100],
-                description=data.get('description', '')[:500],
+                name=(data.get('name') or 'Untitled')[:100],
+                description=(data.get('description') or '')[:500],
                 template_data=json_lib.dumps(data.get('roles', [])),
                 created_by=created_by,
             )
@@ -5786,7 +6643,8 @@ def api_role_template_create(request, guild_id):
             return JsonResponse({'success': True, 'id': template.id})
 
     except Exception as e:
-        return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
+        logger.error(f"Error creating role template for guild {guild_id}: {e}", exc_info=True)
+        return JsonResponse({'error': f'An internal error occurred: {str(e)}'}, status=500)
 
 
 @require_http_methods(["DELETE"])
@@ -5865,6 +6723,7 @@ def api_template_apply(request, guild_id, template_type, template_id):
 
             # Increment use count
             template.use_count += 1
+            db.commit()  # Commit the usage count increment
 
             return JsonResponse({'success': True, 'action_id': action_id})
 
@@ -5872,12 +6731,96 @@ def api_template_apply(request, guild_id, template_type, template_id):
         return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
 
 
-# Wrapper functions for specific template types
-@require_http_methods(["DELETE"])
+@require_http_methods(["GET"])
 @api_auth_required
-def api_channel_template_delete(request, guild_id, template_id):
-    """DELETE /api/guild/<id>/templates/channels/<id>/ - Delete channel template."""
-    return api_template_delete(request, guild_id, 'channels', template_id)
+def api_template_detail(request, guild_id, template_type, template_id):
+    """GET /api/guild/<id>/templates/<type>/<id>/ - Get template details."""
+    try:
+        from .db import get_db_session
+        from .models import ChannelTemplate, RoleTemplate
+
+        with get_db_session() as db:
+            if template_type == 'channels':
+                template = db.query(ChannelTemplate).filter(
+                    ChannelTemplate.id == int(template_id),
+                    ChannelTemplate.guild_id == int(guild_id)
+                ).first()
+            else:
+                template = db.query(RoleTemplate).filter(
+                    RoleTemplate.id == int(template_id),
+                    RoleTemplate.guild_id == int(guild_id)
+                ).first()
+
+            if not template:
+                return JsonResponse({'error': 'Template not found'}, status=404)
+
+            return JsonResponse({
+                'id': template.id,
+                'name': template.name,
+                'description': template.description,
+                'template_data': template.template_data,
+                'use_count': template.use_count,
+                'created_at': template.created_at,
+            })
+
+    except Exception as e:
+        logger.error(f"Error fetching template {template_id}: {e}", exc_info=True)
+        return JsonResponse({'error': 'An internal error occurred.'}, status=500)
+
+
+@require_http_methods(["PUT"])
+@api_auth_required
+def api_template_update(request, guild_id, template_type, template_id):
+    """PUT /api/guild/<id>/templates/<type>/<id>/ - Update template."""
+    try:
+        from .db import get_db_session
+        from .models import ChannelTemplate, RoleTemplate
+        import json as json_lib
+
+        data = json_lib.loads(request.body)
+
+        with get_db_session() as db:
+            if template_type == 'channels':
+                template = db.query(ChannelTemplate).filter(
+                    ChannelTemplate.id == int(template_id),
+                    ChannelTemplate.guild_id == int(guild_id)
+                ).first()
+            else:
+                template = db.query(RoleTemplate).filter(
+                    RoleTemplate.id == int(template_id),
+                    RoleTemplate.guild_id == int(guild_id)
+                ).first()
+
+            if not template:
+                return JsonResponse({'error': 'Template not found'}, status=404)
+
+            # Update template fields
+            template.name = (data.get('name') or 'Untitled')[:100]
+            template.description = (data.get('description') or '')[:500]
+            template.template_data = json_lib.dumps(
+                data.get('channels' if template_type == 'channels' else 'roles', [])
+            )
+
+            db.commit()
+
+            return JsonResponse({'success': True})
+
+    except Exception as e:
+        logger.error(f"Error updating template {template_id}: {e}", exc_info=True)
+        return JsonResponse({'error': 'An internal error occurred.'}, status=500)
+
+
+# Wrapper functions for specific template types - Channels
+@api_auth_required
+def api_channel_template_detail_update_delete(request, guild_id, template_id):
+    """GET/PUT/DELETE /api/guild/<id>/templates/channels/<id>/ - Channel template operations."""
+    if request.method == 'GET':
+        return api_template_detail(request, guild_id, 'channels', template_id)
+    elif request.method == 'PUT':
+        return api_template_update(request, guild_id, 'channels', template_id)
+    elif request.method == 'DELETE':
+        return api_template_delete(request, guild_id, 'channels', template_id)
+    return JsonResponse({'error': 'Method not allowed'}, status=405)
 
 
 @require_http_methods(["POST"])
@@ -5887,11 +6830,17 @@ def api_channel_template_apply(request, guild_id, template_id):
     return api_template_apply(request, guild_id, 'channels', template_id)
 
 
-@require_http_methods(["DELETE"])
+# Wrapper functions for specific template types - Roles
 @api_auth_required
-def api_role_template_delete(request, guild_id, template_id):
-    """DELETE /api/guild/<id>/templates/roles/<id>/ - Delete role template."""
-    return api_template_delete(request, guild_id, 'roles', template_id)
+def api_role_template_detail_update_delete(request, guild_id, template_id):
+    """GET/PUT/DELETE /api/guild/<id>/templates/roles/<id>/ - Role template operations."""
+    if request.method == 'GET':
+        return api_template_detail(request, guild_id, 'roles', template_id)
+    elif request.method == 'PUT':
+        return api_template_update(request, guild_id, 'roles', template_id)
+    elif request.method == 'DELETE':
+        return api_template_delete(request, guild_id, 'roles', template_id)
+    return JsonResponse({'error': 'Method not allowed'}, status=405)
 
 
 @require_http_methods(["POST"])
@@ -5899,6 +6848,8 @@ def api_role_template_delete(request, guild_id, template_id):
 def api_role_template_apply(request, guild_id, template_id):
     """POST /api/guild/<id>/templates/roles/<id>/apply/ - Apply role template."""
     return api_template_apply(request, guild_id, 'roles', template_id)
+
+
 
 
 # DISCOVERY / SELF-PROMO
@@ -6265,6 +7216,9 @@ def guild_found_games(request, guild_id):
             # Get filters from query params
             check_id = request.GET.get('check_id')  # Optional: filter to specific check
             search_id = request.GET.get('search_id')  # Optional: filter by search config
+            mode_filters = request.GET.getlist('mode')  # Optional: filter by one or more game modes
+            min_hype_param = request.GET.get('min_hype')
+            min_hype = int(min_hype_param) if min_hype_param and min_hype_param.isdigit() else None
 
             # Get available search configs (only public ones shown on website)
             available_searches = db.query(GameSearchConfig).filter(
@@ -6290,16 +7244,38 @@ def guild_found_games(request, guild_id):
             if search_id:
                 query = query.filter(FoundGame.search_config_id == int(search_id))
 
-            # Order by most recent first
-            found_games_raw = query.order_by(FoundGame.found_at.desc()).limit(100).all()
+            # Pull a reasonable window for filtering and option building
+            base_games_raw = query.order_by(FoundGame.found_at.desc()).limit(300).all()
+
+            # Build available game mode options from the base set
+            available_modes = set()
+            for game in base_games_raw:
+                game_modes = json_lib.loads(game.game_modes) if game.game_modes else []
+                for mode in game_modes:
+                    available_modes.add(mode)
+
+            # Apply filters in Python (game_modes stored as JSON text)
+            filtered_games = []
+            for game in base_games_raw:
+                game_modes = json_lib.loads(game.game_modes) if game.game_modes else []
+                # Mode filter: require at least one selected mode to be present
+                if mode_filters:
+                    if not any(mode in game_modes for mode in mode_filters):
+                        continue
+                # Hype filter
+                if min_hype is not None:
+                    if game.hypes is None or game.hypes < min_hype:
+                        continue
+                filtered_games.append((game, game_modes))
+
+            # Order already by found_at desc; trim to 100 for display
+            filtered_games = filtered_games[:100]
 
             # Process games for template
             found_games = []
-            for game in found_games_raw:
-                # Parse JSON fields
+            for game, game_modes in filtered_games:
                 genres = json_lib.loads(game.genres) if game.genres else []
                 themes = json_lib.loads(game.themes) if game.themes else []
-                game_modes = json_lib.loads(game.game_modes) if game.game_modes else []
                 platforms = json_lib.loads(game.platforms) if game.platforms else []
 
                 # Format release date
@@ -6357,6 +7333,9 @@ def guild_found_games(request, guild_id):
                 'check_id': check_id,
                 'search_id': int(search_id) if search_id else None,
                 'search_configs': search_configs,
+                'available_modes': sorted(available_modes),
+                'selected_modes': mode_filters,
+                'selected_min_hype': min_hype if min_hype is not None else '',
                 'admin_guilds': admin_guilds,
                 'is_admin': is_admin,
                 'active_page': 'found_games',
@@ -6413,6 +7392,10 @@ def api_discovery_config_update(request, guild_id):
                 config.selfpromo_quick_feature = bool(data['selfpromo_quick_feature'])
             if 'feature_channel_id' in data:
                 config.feature_channel_id = int(data['feature_channel_id']) if data['feature_channel_id'] else None
+            if 'message_response_channel_id' in data:
+                config.message_response_channel_id = int(data['message_response_channel_id']) if data['message_response_channel_id'] else None
+            if 'reminder_schedule' in data:
+                config.reminder_schedule = data['reminder_schedule']
             if 'intro_forum_channel_id' in data:
                 config.intro_forum_channel_id = int(data['intro_forum_channel_id']) if data['intro_forum_channel_id'] else None
             if 'forum_feature_channel_id' in data:
@@ -6464,10 +7447,14 @@ def api_discovery_config_update(request, guild_id):
                 config.feature_cooldown_hours = max(0, min(168, int(data['feature_cooldown_hours'])))
 
             # Messages and embeds
+            if 'how_to_enter_response' in data:
+                config.how_to_enter_response = data['how_to_enter_response'][:500]
             if 'post_response' in data:
                 config.post_response = data['post_response'][:500]
             if 'feature_message' in data:
                 config.feature_message = data['feature_message'][:500]
+            if 'cooldown_message' in data:
+                config.cooldown_message = data['cooldown_message'][:500]
             if 'use_embed' in data:
                 config.use_embed = bool(data['use_embed'])
             if 'embed_color' in data:
@@ -6487,7 +7474,8 @@ def api_discovery_config_update(request, guild_id):
             return JsonResponse({'success': True})
 
     except Exception as e:
-        return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
+        logger.error(f"Error updating discovery config for guild {guild_id}: {e}", exc_info=True)
+        return JsonResponse({'error': f'An internal error occurred: {str(e)}'}, status=500)
 
 
 @require_http_methods(["GET"])
@@ -7344,6 +8332,9 @@ def guild_attendance(request, guild_id):
                 attendance_records = db.query(LFGAttendance).filter_by(group_id=group.id).all()
                 members = db.query(LFGMember).filter_by(group_id=group.id).all()
 
+                # Create a map of user_id -> member for quick lookup
+                members_map = {m.user_id: m for m in members}
+
                 attendance_data = []
                 for att in attendance_records:
                     # Try Discord API cache first, then GuildMember table, then fallback to user ID
@@ -7364,6 +8355,26 @@ def guild_attendance(request, guild_id):
                         user_id=att.user_id
                     ).first()
 
+                    # Get member's class/role selections
+                    member = members_map.get(att.user_id)
+                    selections = {}
+                    if member and member.selections:
+                        import json
+                        try:
+                            selections = json.loads(member.selections)
+                        except:
+                            selections = {}
+                    elif not member:
+                        # Fallback: If no member record for THIS group (manually added attendance),
+                        # try to find their most recent selections from ANY other group
+                        import json
+                        recent_member = db.query(LFGMember).filter_by(user_id=att.user_id).order_by(LFGMember.joined_at.desc()).first()
+                        if recent_member and recent_member.selections:
+                            try:
+                                selections = json.loads(recent_member.selections)
+                            except:
+                                selections = {}
+
                     attendance_data.append({
                         'user_id': att.user_id,
                         'display_name': display_name,
@@ -7371,6 +8382,7 @@ def guild_attendance(request, guild_id):
                         'confirmed_at': att.confirmed_at,
                         'showed_at': att.showed_at,
                         'is_blacklisted': member_stats.is_blacklisted if member_stats else False,
+                        'selections': selections,  # Class/role selections
                     })
 
                 groups_data.append({
@@ -7893,7 +8905,7 @@ def api_lfg_stats(request, guild_id):
 
                 enriched_members.append({
                     'user_id': str(m.user_id),
-                    'username': username,
+                    'display_name': username,
                     'total_signups': m.total_signups,
                     'total_showed': m.total_showed,
                     'total_no_shows': m.total_no_shows,
@@ -7906,7 +8918,7 @@ def api_lfg_stats(request, guild_id):
                     'blacklist_reason': m.blacklist_reason,
                 })
 
-            return JsonResponse({'members': enriched_members})
+            return JsonResponse({'success': True, 'stats': enriched_members})
 
     except Exception as e:
         return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
@@ -8153,12 +9165,29 @@ def api_lfg_attendance_update(request, guild_id):
             if not has_permission:
                 return JsonResponse({'error': 'Insufficient permissions'}, status=403)
 
-            # Update or create attendance record
-            now = int(time.time())
-            attendance = db.query(LFGAttendance).filter_by(
+            # Check if user is blacklisted (prevents joining new groups)
+            user_stats = db.query(LFGMemberStats).filter_by(
+                guild_id=int(guild_id),
+                user_id=int(user_id)
+            ).first()
+
+            # Block blacklisted users from joining NEW groups
+            # Check if they're trying to join a group they're not already in
+            existing_attendance = db.query(LFGAttendance).filter_by(
                 group_id=int(group_id),
                 user_id=int(user_id)
             ).first()
+
+            if user_stats and user_stats.is_blacklisted and not existing_attendance:
+                return JsonResponse({
+                    'error': 'User is blacklisted and cannot join new groups',
+                    'is_blacklisted': True,
+                    'blacklist_reason': user_stats.blacklist_reason
+                }, status=403)
+
+            # Update or create attendance record
+            now = int(time.time())
+            attendance = existing_attendance
 
             if attendance:
                 # Update existing record
@@ -8197,14 +9226,7 @@ def api_lfg_attendance_update(request, guild_id):
 
             db.flush()  # Ensure attendance record is saved before recalculating stats
 
-            # Recalculate member stats from ALL attendance records
-            all_attendance = db.query(LFGAttendance).filter_by(
-                user_id=int(user_id)
-            ).join(LFGGroup).filter(
-                LFGGroup.guild_id == int(guild_id)
-            ).all()
-
-            # Get or create stats record
+            # Get or create stats record FIRST (need to check pardon timestamp)
             stats = db.query(LFGMemberStats).filter_by(
                 guild_id=int(guild_id),
                 user_id=int(user_id)
@@ -8217,7 +9239,33 @@ def api_lfg_attendance_update(request, guild_id):
                 )
                 db.add(stats)
 
-            # Recalculate from scratch
+            # Get attendance records for recalculation
+            # If user has been globally pardoned, ONLY count records AFTER the pardon timestamp
+            # Historical records from before pardon are kept for admin reference but don't affect calculations
+            all_attendance_query = db.query(LFGAttendance).filter_by(
+                user_id=int(user_id)
+            ).join(LFGGroup).filter(
+                LFGGroup.guild_id == int(guild_id)
+            )
+
+            # If globally pardoned, exclude records from before the pardon
+            if stats.blacklist_pardoned and stats.blacklist_pardoned_at:
+                # Only count records created/updated AFTER the pardon timestamp
+                # Use the latest timestamp available (updated_at, joined_at, or created_at)
+                all_attendance_query = all_attendance_query.filter(
+                    or_(
+                        LFGAttendance.updated_at >= stats.blacklist_pardoned_at,
+                        and_(
+                            LFGAttendance.updated_at == None,
+                            LFGAttendance.joined_at >= stats.blacklist_pardoned_at
+                        )
+                    )
+                )
+
+            all_attendance = all_attendance_query.all()
+
+            # Recalculate from attendance records (excluding historical data if pardoned)
+            # Global Pardon = fresh start, only NEW records count toward stats
             total_signups = len(all_attendance)
             total_showed = sum(1 for a in all_attendance if a.status == 'showed')
             total_no_shows = sum(1 for a in all_attendance if a.status == 'no_show')
@@ -8233,11 +9281,11 @@ def api_lfg_attendance_update(request, guild_id):
             stats.total_pardoned = total_pardoned
 
             # Recalculate reliability score (0-100)
-            # Pardoned and cancelled are excluded from the calculation
-            total_counted = total_showed + total_no_shows + total_late
+            # Pardoned counts as showed (100%), late counts 80%, no-show counts 0%, cancelled excluded
+            total_counted = total_showed + total_pardoned + total_no_shows + total_late
             if total_counted > 0:
-                # Shows count full (100%), late counts 80%, no-shows count 0%
-                score = ((total_showed * 100) + (total_late * 80)) / total_counted
+                # Pardoned = 100% (valid excuse, treat as showed), showed = 100%, late = 80%, no-show = 0%
+                score = ((total_showed + total_pardoned) * 100 + (total_late * 80)) / total_counted
                 stats.reliability_score = int(score)
             else:
                 stats.reliability_score = 100
@@ -8257,14 +9305,15 @@ def api_lfg_attendance_update(request, guild_id):
                 elif timestamps:
                     stats.first_event = min(timestamps)
 
-            # Check auto-blacklist threshold
+            # Check auto-blacklist threshold (always check, even for pardoned users)
+            # Global Pardon is a fresh start, not permanent immunity - they can be blacklisted again
             if config.auto_blacklist_noshows > 0:
-                if total_no_shows >= config.auto_blacklist_noshows and not stats.is_blacklisted:
+                if stats.total_no_shows >= config.auto_blacklist_noshows and not stats.is_blacklisted:
                     # Add to blacklist when threshold is reached
                     stats.is_blacklisted = True
                     stats.blacklisted_at = now
-                    stats.blacklist_reason = f"Auto-blacklisted: {total_no_shows} no-shows"
-                elif total_no_shows < config.auto_blacklist_noshows and stats.is_blacklisted and stats.blacklist_reason and "Auto-blacklisted" in stats.blacklist_reason:
+                    stats.blacklist_reason = f"Auto-blacklisted: {stats.total_no_shows} no-shows"
+                elif stats.total_no_shows < config.auto_blacklist_noshows and stats.is_blacklisted and stats.blacklist_reason and "Auto-blacklisted" in stats.blacklist_reason:
                     # Remove from blacklist if no-show count drops below threshold (e.g., pardoned)
                     # Only remove if they were auto-blacklisted (not manually blacklisted)
                     stats.is_blacklisted = False
@@ -8280,11 +9329,11 @@ def api_lfg_attendance_update(request, guild_id):
                     'reliability_score': stats.reliability_score
                 },
                 'stats': {
-                    'total_showed': total_showed,
-                    'total_no_shows': total_no_shows,
-                    'total_late': total_late,
-                    'total_cancelled': total_cancelled,
-                    'total_pardoned': total_pardoned,
+                    'total_showed': stats.total_showed,
+                    'total_no_shows': stats.total_no_shows,
+                    'total_late': stats.total_late,
+                    'total_cancelled': stats.total_cancelled,
+                    'total_pardoned': stats.total_pardoned,
                     'reliability_score': stats.reliability_score,
                     'is_blacklisted': stats.is_blacklisted or False
                 }
@@ -8360,6 +9409,81 @@ def api_lfg_blacklist_toggle(request, guild_id):
 
     except Exception as e:
         logger.error(f"Error toggling blacklist: {e}")
+        return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
+
+
+def api_lfg_pardon(request, guild_id):
+    """POST /api/guild/<id>/lfg/pardon/ - Grant permanent pardon to a member, removing them from blacklist and preventing auto-blacklist."""
+    import json
+    try:
+        from .db import get_db_session
+        from .models import Guild, LFGConfig, LFGMemberStats
+
+        try:
+            data = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({'error': 'Invalid JSON'}, status=400)
+        user_id = data.get('user_id')
+
+        if not user_id:
+            return JsonResponse({'error': 'Missing user_id'}, status=400)
+
+        with get_db_session() as db:
+            # Check permissions (admin, moderator, or raid leader)
+            guild = db.query(Guild).filter_by(guild_id=int(guild_id)).first()
+            if not guild:
+                return JsonResponse({'error': 'Guild not found'}, status=404)
+
+            # Get LFG config
+            config = db.query(LFGConfig).filter_by(guild_id=int(guild_id)).first()
+            if not config or not config.attendance_tracking_enabled:
+                return JsonResponse({'error': 'Attendance tracking not enabled'}, status=403)
+
+            # Get or create member stats
+            stats = db.query(LFGMemberStats).filter_by(
+                guild_id=int(guild_id),
+                user_id=int(user_id)
+            ).first()
+
+            if not stats:
+                return JsonResponse({'error': 'Member not found in LFG system'}, status=404)
+
+            # Grant pardon - RESET ALL counters for complete fresh start
+            # Historical LFGAttendance records are kept for admin viewing but excluded from calculations
+            now = int(time.time())
+            stats.blacklist_pardoned = True
+            stats.blacklist_pardoned_at = now
+
+            # Reset ALL stats to 0 (complete fresh start)
+            stats.total_showed = 0
+            stats.total_no_shows = 0
+            stats.total_cancelled = 0
+            stats.total_late = 0
+            stats.total_pardoned = 0
+            stats.total_signups = 0
+            stats.current_noshow_streak = 0
+            stats.current_show_streak = 0
+            stats.best_show_streak = 0
+            stats.reliability_score = 100  # Reset to perfect score
+
+            # If currently blacklisted, remove them from blacklist
+            was_blacklisted = stats.is_blacklisted
+            if stats.is_blacklisted:
+                stats.is_blacklisted = False
+                stats.blacklisted_at = None
+                stats.blacklist_reason = None
+
+            db.commit()
+
+            return JsonResponse({
+                'success': True,
+                'pardoned': True,
+                'was_blacklisted': was_blacklisted,
+                'message': 'Member has been pardoned and will not be auto-blacklisted in the future'
+            })
+
+    except Exception as e:
+        logger.error(f"Error pardoning member: {e}")
         return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
 
 
@@ -8494,6 +9618,102 @@ def api_lfg_attendance_export(request, guild_id):
         import logging
         logger = logging.getLogger(__name__)
         logger.error(f"Error exporting attendance: {e}")
+        return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
+
+
+@require_http_methods(["GET"])
+def api_lfg_user_history(request, guild_id, user_id):
+    """GET /api/guild/<id>/lfg/attendance/user/<user_id>/ - Get complete attendance history for a user (Premium)."""
+    try:
+        from .db import get_db_session
+        from .models import Guild, LFGConfig, LFGGroup, LFGAttendance, LFGMemberStats, GuildMember
+        from datetime import datetime
+
+        with get_db_session() as db:
+            # Check if guild is premium
+            guild = db.query(Guild).filter_by(guild_id=int(guild_id)).first()
+            if not guild or not guild.is_premium():
+                return JsonResponse({'error': 'Premium required'}, status=403)
+
+            # Check if attendance tracking is enabled
+            config = db.query(LFGConfig).filter_by(guild_id=int(guild_id)).first()
+            if not config or not config.attendance_tracking_enabled:
+                return JsonResponse({'error': 'Attendance tracking not enabled'}, status=403)
+
+            # Get user stats
+            stats = db.query(LFGMemberStats).filter_by(
+                guild_id=int(guild_id),
+                user_id=int(user_id)
+            ).first()
+
+            # Get user display name
+            member = db.query(GuildMember).filter_by(
+                guild_id=int(guild_id),
+                user_id=int(user_id)
+            ).first()
+            display_name = member.display_name if member else f"User {user_id}"
+
+            # Get ALL attendance records for this user (including historical pre-pardon records)
+            attendance_records = db.query(LFGAttendance).filter_by(
+                user_id=int(user_id)
+            ).join(LFGGroup).filter(
+                LFGGroup.guild_id == int(guild_id)
+            ).order_by(LFGGroup.scheduled_time.desc()).all()
+
+            # Format attendance history
+            history = []
+            from .models import LFGGame
+            for att in attendance_records:
+                group = db.query(LFGGroup).filter_by(id=att.group_id).first()
+                if not group:
+                    continue
+
+                # Get game name from LFGGame table
+                game = db.query(LFGGame).filter_by(id=group.game_id).first()
+                game_name = game.game_name if game else "Unknown Game"
+
+                # Determine if this record is from before pardon
+                is_pre_pardon = False
+                if stats and stats.blacklist_pardoned and stats.blacklist_pardoned_at:
+                    record_time = att.updated_at or att.joined_at or 0
+                    if record_time < stats.blacklist_pardoned_at:
+                        is_pre_pardon = True
+
+                history.append({
+                    'group_id': group.id,
+                    'group_name': group.thread_name or f"Group {group.id}",
+                    'game_name': game_name,
+                    'scheduled_time': group.scheduled_time,
+                    'scheduled_date': datetime.fromtimestamp(group.scheduled_time).strftime('%Y-%m-%d %H:%M') if group.scheduled_time else 'N/A',
+                    'status': att.status,
+                    'joined_at': att.joined_at,
+                    'updated_at': att.updated_at,
+                    'is_pre_pardon': is_pre_pardon,  # Flag to show in UI
+                })
+
+            return JsonResponse({
+                'success': True,
+                'user_id': user_id,
+                'display_name': display_name,
+                'stats': {
+                    'total_signups': stats.total_signups if stats else 0,
+                    'total_showed': stats.total_showed if stats else 0,
+                    'total_no_shows': stats.total_no_shows if stats else 0,
+                    'total_late': stats.total_late if stats else 0,
+                    'total_cancelled': stats.total_cancelled if stats else 0,
+                    'total_pardoned': stats.total_pardoned if stats else 0,
+                    'reliability_score': stats.reliability_score if stats else 100,
+                    'is_blacklisted': stats.is_blacklisted if stats else False,
+                    'blacklist_reason': stats.blacklist_reason if stats else None,
+                    'blacklist_pardoned': stats.blacklist_pardoned if stats else False,
+                    'blacklist_pardoned_at': stats.blacklist_pardoned_at if stats else None,
+                },
+                'history': history,
+                'total_events': len(history)
+            })
+
+    except Exception as e:
+        logger.error(f"Error fetching user history: {e}")
         return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
 
 

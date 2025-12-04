@@ -377,17 +377,17 @@
         <div class="text-center p-4 bg-neutral-800/50 rounded-lg">
           <i class="fas fa-terminal text-indigo-400 text-2xl mb-2"></i>
           <p class="text-gray-400 text-sm">Prefix</p>
-          <p class="text-white font-medium">!</p>
+          <p class="text-white font-medium">{{ guild_record.bot_prefix|default:"!" }}</p>
         </div>
         <div class="text-center p-4 bg-neutral-800/50 rounded-lg">
           <i class="fas fa-globe text-blue-400 text-2xl mb-2"></i>
           <p class="text-gray-400 text-sm">Language</p>
-          <p class="text-white font-medium">English</p>
+          <p class="text-white font-medium">{% if guild_record.language == 'en' %}English{% elif guild_record.language == 'es' %}Spanish{% elif guild_record.language == 'fr' %}French{% elif guild_record.language == 'de' %}German{% elif guild_record.language == 'pt' %}Portuguese{% else %}{{ guild_record.language|default:"English" }}{% endif %}</p>
         </div>
         <div class="text-center p-4 bg-neutral-800/50 rounded-lg">
           <i class="fas fa-clock text-green-400 text-2xl mb-2"></i>
           <p class="text-gray-400 text-sm">Timezone</p>
-          <p class="text-white font-medium">UTC</p>
+          <p class="text-white font-medium">{{ guild_record.timezone|default:"UTC" }}</p>
         </div>
       </div>
     </div>

@@ -126,6 +126,7 @@ async function loadChannels() {
 
     const currentSelfpromo = '{{ discovery_config.selfpromo_channel_id|default:"" }}';
     const currentFeature = '{{ discovery_config.feature_channel_id|default:"" }}';
+    const currentMessageResponse = '{{ discovery_config.message_response_channel_id|default:"" }}';
     const currentIntroForum = '{{ discovery_config.intro_forum_channel_id|default:"" }}';
     const currentForumFeature = '{{ discovery_config.forum_feature_channel_id|default:"" }}';
     const currentCotwChannel = '{{ discovery_config.cotw_channel_id|default:"" }}';
@@ -170,6 +171,17 @@ async function loadChannels() {
         items: channelItems,
         selected: currentFeature,
         color: 'blue'
+      });
+
+      // Message response channel
+      messageResponseSelect = createCustomSelect({
+        container: '#message_response_channel_idContainer',
+        name: 'message_response_channel_id',
+        id: 'message_response_channel_id',
+        placeholder: 'Select a channel...',
+        items: channelItems,
+        selected: currentMessageResponse,
+        color: 'purple'
       });
 
       // Public game discovery channel
@@ -323,14 +335,18 @@ async function saveConfig() {
     forum_enabled: document.getElementById('forum_enabled').checked,
     selfpromo_channel_id: selfpromoSelect ? selfpromoSelect.getValue() : '',
     feature_channel_id: featureSelect ? featureSelect.getValue() : '',
+    message_response_channel_id: messageResponseSelect ? messageResponseSelect.getValue() : '',
+    reminder_schedule: document.getElementById('reminder_schedule').value,
     intro_forum_channel_id: introForumSelect ? introForumSelect.getValue() : '',
     forum_feature_channel_id: forumFeatureSelect ? forumFeatureSelect.getValue() : '',
     feature_interval_hours: parseInt(document.getElementById('feature_interval_hours').value) || 3,
     pool_entry_duration_hours: parseInt(document.getElementById('pool_entry_duration_hours').value) || 24,
     entry_cooldown_hours: parseInt(document.getElementById('entry_cooldown_hours').value) || 24,
     feature_cooldown_hours: parseInt(document.getElementById('feature_cooldown_hours').value) || 72,
+    how_to_enter_response: document.getElementById('how_to_enter_response').value,
     post_response: document.getElementById('post_response').value,
     feature_message: document.getElementById('feature_message').value,
+    cooldown_message: document.getElementById('cooldown_message').value,
     use_embed: document.getElementById('use_embed').checked,
     require_tokens: document.getElementById('require_tokens').checked,
     token_cost: parseInt(document.getElementById('token_cost').value) || 0,
@@ -519,6 +535,14 @@ async function saveGameGlobalSettings() {
     public_game_channel_id: publicGameSelect ? publicGameSelect.getValue() : '',
     private_game_channel_id: privateGameSelect ? privateGameSelect.getValue() : '',
     game_check_interval_hours: parseInt(document.getElementById('game_check_interval_hours').value) || 24,
+    max_public_announcements: (function() {
+      const el = document.getElementById('max_public_announcements');
+      return el && el.value ? parseInt(el.value) : 5;
+    })(),
+    max_private_announcements: (function() {
+      const el = document.getElementById('max_private_announcements');
+      return el && el.value ? parseInt(el.value) : 5;
+    })(),
   };
 
   try {

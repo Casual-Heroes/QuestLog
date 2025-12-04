@@ -33,6 +33,13 @@
           <i class="fas fa-hashtag text-cyan-400 mr-2"></i>Audit Log Channel
         </h3>
         <p class="text-gray-400 text-sm mt-1">Choose where audit log messages will be sent in Discord</p>
+        <div class="mt-3 flex items-center gap-3">
+          <label class="relative inline-flex items-center cursor-pointer">
+            <input type="checkbox" id="audit_enabled" class="sr-only peer" {% if guild_record.log_channel_id %}checked{% endif %}>
+            <div class="w-11 h-6 bg-neutral-700 rounded-full peer peer-checked:bg-cyan-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full"></div>
+          </label>
+          <span class="text-sm text-gray-300">Enable audit logging</span>
+        </div>
       </div>
       <button onclick="saveAuditConfig()" id="saveAuditConfigBtn" class="bg-cyan-600 hover:bg-cyan-700 text-white px-4 py-2 rounded-lg font-medium transition text-sm">
         <i class="fas fa-save mr-2"></i>Save Channel
@@ -315,6 +322,17 @@
 
 <script>
 const guildId = '{{ guild.id }}';
+console.log('Audit page loaded, guild ID:', guildId);
+
+// CSRF-aware fetch function
+async function csrfFetch(url, options = {}) {
+  const csrfToken = '{{ csrf_token }}';
+  options.headers = options.headers || {};
+  if (!options.headers['X-CSRFToken']) {
+    options.headers['X-CSRFToken'] = csrfToken;
+  }
+  return fetch(url, options);
+}
 
 function refreshLogs() {
   window.location.reload();
@@ -323,10 +341,7 @@ function refreshLogs() {
 function exportLogs() {
   // Build export URL with current filters
   const params = new URLSearchParams(window.location.search);
-  params.set('format', 'csv');
-
-  // For now, show a message (implement actual export later)
-  alert('Export functionality coming soon! This will download a CSV of your filtered audit logs.');
+  window.location.href = `/api/guild/${guildId}/audit/export/?${params.toString()}`;
 }
 
 function loadMore() {
@@ -360,15 +375,19 @@ document.querySelectorAll('[data-timestamp]').forEach(el => {
 // Load channels for audit log configuration
 let auditChannelSelect;
 async function loadAuditChannels() {
+  console.log('Loading audit channels...');
   try {
     const res = await csrfFetch(`/api/guild/${guildId}/channels/`);
     const data = await res.json();
+    console.log('Channels data:', data);
 
     if (data.channels) {
       const currentChannelId = '{{ audit_log_channel_id }}';
+      console.log('Current audit log channel ID:', currentChannelId);
 
       // Filter text channels only
       const textChannels = data.channels.filter(c => c.type === 0 || c.type === 'text');
+      console.log('Text channels found:', textChannels.length);
 
       const channelItems = textChannels.map(channel => {
         const label = channel.category_name
@@ -391,17 +410,35 @@ async function loadAuditChannels() {
         selected: currentChannelId || '',
         color: 'blue'
       });
+      console.log('Custom select created:', auditChannelSelect);
+      toggleAuditInputs();
     }
   } catch (err) {
     console.error('Failed to load channels:', err);
   }
 }
 
+function toggleAuditInputs() {
+  const enabled = document.getElementById('audit_enabled').checked;
+  const container = document.getElementById('log_channel_idContainer');
+  if (!container) return;
+  container.classList.toggle('opacity-50', !enabled);
+  container.classList.toggle('pointer-events-none', !enabled);
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  const auditToggle = document.getElementById('audit_enabled');
+  if (auditToggle) {
+    auditToggle.addEventListener('change', toggleAuditInputs);
+    toggleAuditInputs();
+  }
+});
+
 // Save audit log configuration
 async function saveAuditConfig() {
   const btn = document.getElementById('saveAuditConfigBtn');
-  const input = document.getElementById('log_channel_id');
-  const channelId = auditChannelMap[input.value] || input.value || '';
+  const channelId = auditChannelSelect ? auditChannelSelect.getValue() : '';
+  const enabled = document.getElementById('audit_enabled')?.checked;
 
   btn.disabled = true;
   btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Saving...';
@@ -409,9 +446,13 @@ async function saveAuditConfig() {
   try {
     const res = await csrfFetch(`/api/guild/${guildId}/audit/config/`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': '{{ csrf_token }}'
+      },
       body: JSON.stringify({
-        log_channel_id: channelId
+        log_channel_id: enabled ? channelId : null,
+        audit_enabled: enabled
       })
     });
 

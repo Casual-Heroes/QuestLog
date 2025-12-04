@@ -13,7 +13,14 @@
       </h1>
       <p class="text-gray-400 mt-1">Warnings, bans, and timeout management</p>
     </div>
-    <div class="flex gap-3">
+    <div class="flex gap-3 items-center">
+      <div class="flex items-center gap-2 bg-neutral-800 px-3 py-2 rounded-lg border border-neutral-700">
+        <label class="relative inline-flex items-center cursor-pointer">
+          <input type="checkbox" id="mod_enabled_toggle" class="sr-only peer" {% if mod_enabled %}checked{% endif %}>
+          <div class="w-11 h-6 bg-neutral-700 rounded-full peer peer-checked:bg-red-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full"></div>
+        </label>
+        <span class="text-sm text-gray-200">Enable moderation</span>
+      </div>
       <a href="{% url 'guild_moderation_settings' guild.id %}" class="bg-neutral-800 hover:bg-neutral-700 text-white px-4 py-2 rounded-lg font-medium transition text-sm">
         <i class="fas fa-cog mr-2"></i>Settings
       </a>
@@ -200,7 +207,7 @@
     <div class="mb-4">
       <label class="block text-sm text-gray-400 mb-2">Reason (optional)</label>
       <textarea id="pardonReason" rows="2"
-                class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:border-green-500 focus:outline-none resize-none"
+                class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:border-green-500 focus:outline-none resize-y"
                 placeholder="Why is this warning being pardoned?"></textarea>
     </div>
     <div class="flex gap-3 justify-end">
@@ -239,6 +246,31 @@ function applyFilters() {
   if (active) url += `active=true&`;
   window.location.href = url;
 }
+
+document.addEventListener('DOMContentLoaded', () => {
+  const toggle = document.getElementById('mod_enabled_toggle');
+  if (toggle) {
+    toggle.addEventListener('change', async () => {
+      const enabled = toggle.checked;
+      try {
+        const res = await csrfFetch(`/api/guild/${guildId}/moderation/settings/`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken
+          },
+          body: JSON.stringify({ mod_enabled: enabled })
+        });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error || 'Failed to save');
+        setTimeout(() => window.location.reload(), 200);
+      } catch (err) {
+        alert('Failed to update moderation status: ' + err.message);
+        toggle.checked = !enabled;
+      }
+    });
+  }
+});
 
 // Pardon Warning
 function pardonWarning(warningId) {

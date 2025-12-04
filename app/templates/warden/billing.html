@@ -1,0 +1,220 @@
+{% extends "warden/base_guild.html" %}
+{% load static %}
+
+{% block title %}Billing & Subscriptions - {{ guild.name }}{% endblock %}
+
+{% block guild_content %}
+
+<!-- Header -->
+<div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
+  <div>
+    <h1 class="text-3xl font-bold text-white">
+      <i class="fas fa-credit-card text-gray-400 mr-3"></i>Billing & Subscriptions
+    </h1>
+    <p class="text-gray-400 mt-1">Manage your premium modules and subscription</p>
+  </div>
+  <div class="flex gap-3 items-center">
+    {% if is_vip %}
+    <span class="px-4 py-2 bg-gradient-to-r from-purple-600/20 to-pink-600/20 text-purple-400 rounded-lg text-sm font-bold border border-purple-500/30">
+      <i class="fas fa-crown mr-2"></i>VIP Access - All Modules Unlocked
+    </span>
+    {% else %}
+    <span class="px-3 py-1 bg-gray-600/20 text-gray-400 rounded-full text-sm font-medium">
+      {{ active_module_count }} of {{ total_modules }} Modules Active
+    </span>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Pricing Comparison Banner -->
+<div class="bg-gradient-to-r from-indigo-600/20 to-purple-600/20 border border-indigo-500/30 rounded-xl p-6 mb-8">
+  <div class="flex flex-col md:flex-row items-center justify-between gap-4">
+    <div>
+      <h3 class="text-xl font-bold text-white mb-1">
+        <i class="fas fa-bolt text-yellow-400 mr-2"></i>Why Warden Bot?
+      </h3>
+      <p class="text-gray-300">Pay only for what you need - Starting at $4/month</p>
+    </div>
+    <div class="flex gap-6 text-sm">
+      <div class="text-center">
+        <p class="text-gray-400">MEE6</p>
+        <p class="text-2xl font-bold text-red-400">$11.99<span class="text-sm text-gray-400">/mo</span></p>
+        <p class="text-gray-500 text-xs">All or Nothing</p>
+      </div>
+      <div class="text-center">
+        <p class="text-gray-400">Warden Complete</p>
+        <p class="text-2xl font-bold text-green-400">$9.99<span class="text-sm text-gray-400">/mo</span></p>
+        <p class="text-green-400 text-xs font-semibold">Save $2!</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Complete Bundle (Featured) -->
+<div class="bg-gradient-to-br from-indigo-600/10 to-purple-600/10 border-2 border-indigo-500/50 rounded-xl p-6 mb-8 relative overflow-hidden">
+  <div class="absolute top-0 right-0 bg-indigo-600 text-white text-xs font-bold px-4 py-1 rounded-bl-lg">
+    BEST VALUE
+  </div>
+  <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+    <div class="flex-1">
+      <h3 class="text-2xl font-bold text-white mb-2">
+        <i class="fas fa-sparkles text-yellow-400 mr-2"></i>{{ bundles.complete.name }}
+      </h3>
+      <p class="text-gray-300 mb-3">{{ bundles.complete.description }}</p>
+      <div class="flex flex-wrap gap-2">
+        {% for module in modules %}
+        <span class="inline-flex items-center px-3 py-1 bg-neutral-800/50 border border-neutral-700 rounded-lg text-sm text-gray-300">
+          <i class="fas {{ module.icon }} text-{{ module.color }}-400 mr-2"></i>
+          {{ module.short_name }}
+        </span>
+        {% endfor %}
+      </div>
+    </div>
+    <div class="flex flex-col items-end gap-2">
+      <div class="text-right">
+        <p class="text-gray-400 text-sm line-through">${{ total_monthly }}/mo</p>
+        <p class="text-4xl font-bold text-white">
+          ${{ bundles.complete.price_monthly }}<span class="text-lg text-gray-400">/mo</span>
+        </p>
+        <p class="text-green-400 text-sm font-semibold">Save ${{ bundles.complete.savings }}/month</p>
+        <p class="text-gray-500 text-xs">${{ bundles.complete.price_yearly }}/year (2 months free)</p>
+      </div>
+      <button class="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white px-8 py-3 rounded-lg font-bold transition shadow-lg shadow-indigo-500/30 text-lg">
+        <i class="fas fa-crown mr-2"></i>Get Complete Suite
+      </button>
+      <p class="text-gray-500 text-xs italic">Coming Soon - Stripe Integration</p>
+    </div>
+  </div>
+</div>
+
+<!-- Individual Modules -->
+<div class="mb-8">
+  <h2 class="text-2xl font-bold text-white mb-6">
+    <i class="fas fa-puzzle-piece text-gray-400 mr-2"></i>Individual Modules
+  </h2>
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    {% for module in modules %}
+    <div class="bg-neutral-900 border {% if module.is_active %}border-{{ module.color }}-500/50{% else %}border-neutral-800{% endif %} rounded-xl p-6 hover:border-{{ module.color }}-500/50 transition relative">
+
+      <!-- Active Badge -->
+      {% if module.is_active %}
+      <div class="absolute top-4 right-4">
+        <span class="px-3 py-1 bg-green-600/20 text-green-400 rounded-lg text-xs font-bold border border-green-500/30">
+          <i class="fas fa-check-circle mr-1"></i>Active
+        </span>
+      </div>
+      {% endif %}
+
+      <!-- Module Header -->
+      <div class="flex items-start gap-4 mb-4">
+        <div class="w-12 h-12 rounded-lg bg-{{ module.color }}-600/20 border border-{{ module.color }}-500/30 flex items-center justify-center flex-shrink-0">
+          <i class="fas {{ module.icon }} text-{{ module.color }}-400 text-xl"></i>
+        </div>
+        <div class="flex-1">
+          <h3 class="text-xl font-bold text-white mb-1">{{ module.name }}</h3>
+          <p class="text-gray-400 text-sm">{{ module.description }}</p>
+        </div>
+      </div>
+
+      <!-- Features List -->
+      <div class="mb-4">
+        <p class="text-sm font-semibold text-gray-300 mb-2">Includes:</p>
+        <ul class="space-y-1.5">
+          {% for feature in module.features %}
+          <li class="text-sm text-gray-400 flex items-start">
+            <i class="fas fa-check text-{{ module.color }}-400 mr-2 mt-0.5 flex-shrink-0"></i>
+            <span>{{ feature }}</span>
+          </li>
+          {% endfor %}
+        </ul>
+      </div>
+
+      <!-- Pricing & Action -->
+      <div class="flex items-center justify-between pt-4 border-t border-neutral-800">
+        <div>
+          <p class="text-2xl font-bold text-white">
+            ${{ module.price_monthly }}<span class="text-sm text-gray-400">/mo</span>
+          </p>
+          <p class="text-gray-500 text-xs">${{ module.price_yearly }}/year</p>
+        </div>
+        {% if module.is_active %}
+        <button disabled class="bg-green-600/20 text-green-400 px-6 py-2 rounded-lg font-semibold border border-green-500/30 cursor-not-allowed">
+          <i class="fas fa-check-circle mr-2"></i>Subscribed
+        </button>
+        {% else %}
+        <button class="bg-{{ module.color }}-600 hover:bg-{{ module.color }}-700 text-white px-6 py-2 rounded-lg font-semibold transition">
+          <i class="fas fa-plus mr-2"></i>Add Module
+        </button>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- Bundle Options -->
+<div class="mb-8">
+  <h2 class="text-2xl font-bold text-white mb-6">
+    <i class="fas fa-box-open text-gray-400 mr-2"></i>Bundle Packages
+  </h2>
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+    {% for bundle_key, bundle in bundles.items %}
+    {% if bundle_key != 'complete' %}
+    <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-6 hover:border-indigo-500/50 transition">
+      <h3 class="text-xl font-bold text-white mb-2">{{ bundle.name }}</h3>
+      <p class="text-gray-400 text-sm mb-4">{{ bundle.description }}</p>
+      <div class="flex items-baseline justify-between mb-4">
+        <div>
+          <p class="text-3xl font-bold text-white">
+            ${{ bundle.price_monthly }}<span class="text-sm text-gray-400">/mo</span>
+          </p>
+          <p class="text-gray-500 text-xs">${{ bundle.price_yearly }}/year</p>
+        </div>
+        <p class="text-green-400 text-sm font-semibold">Save ${{ bundle.savings }}</p>
+      </div>
+      <button class="w-full bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-lg font-semibold transition">
+        <i class="fas fa-shopping-cart mr-2"></i>Choose Modules
+      </button>
+    </div>
+    {% endif %}
+    {% endfor %}
+  </div>
+</div>
+
+<!-- FAQ Section -->
+<div class="bg-neutral-900 border border-neutral-800 rounded-xl p-6">
+  <h2 class="text-xl font-bold text-white mb-4">
+    <i class="fas fa-question-circle text-gray-400 mr-2"></i>Frequently Asked Questions
+  </h2>
+  <div class="space-y-4">
+    <div>
+      <h4 class="text-white font-semibold mb-1">Can I cancel anytime?</h4>
+      <p class="text-gray-400 text-sm">Yes! All subscriptions are month-to-month with no long-term commitment. Cancel anytime from this page.</p>
+    </div>
+    <div>
+      <h4 class="text-white font-semibold mb-1">What happens to my data if I unsubscribe?</h4>
+      <p class="text-gray-400 text-sm">Your data is safely stored for 90 days. If you resubscribe within that time, everything will be restored.</p>
+    </div>
+    <div>
+      <h4 class="text-white font-semibold mb-1">Can I switch between modules?</h4>
+      <p class="text-gray-400 text-sm">Absolutely! Add or remove modules at any time. Changes are prorated to your billing cycle.</p>
+    </div>
+    <div>
+      <h4 class="text-white font-semibold mb-1">Do you offer refunds?</h4>
+      <p class="text-gray-400 text-sm">Yes, we offer a 7-day money-back guarantee. No questions asked.</p>
+    </div>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  console.log('Billing page loaded');
+  console.log('Active modules:', {{ active_module_count }});
+  console.log('Total modules:', {{ total_modules }});
+  console.log('VIP status:', {{ is_vip|lower }});
+
+  // TODO: Add Stripe integration here
+});
+</script>
+
+{% endblock %}

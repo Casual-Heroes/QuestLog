@@ -37,6 +37,7 @@ urlpatterns = [
     path('auth/discord/login/', views.discord_login, name='discord_login'),
     path('auth/discord/callback/', views.discord_callback, name='discord_callback'),
     path('auth/discord/logout/', views.discord_logout, name='discord_logout'),
+    path('auth/discord/refresh-guilds/', views.discord_refresh_guilds, name='discord_refresh_guilds'),
 
     # Bot Installation
     path('bot/install/callback/', views.bot_install_callback, name='bot_install_callback'),
@@ -50,6 +51,7 @@ urlpatterns = [
     path('warden/guild/<str:guild_id>/profile/', views.member_profile, name='member_profile'),
     path('warden/guild/<str:guild_id>/leaderboards/', views.guild_leaderboards, name='guild_leaderboards'),
     path('warden/guild/<str:guild_id>/trackers/', views.guild_trackers, name='guild_trackers'),
+    path('warden/guild/<str:guild_id>/billing/', views.guild_billing, name='guild_billing'),
     path('warden/guild/<str:guild_id>/flair-store/', views.flair_store, name='flair_store'),
     path('warden/guild/<str:guild_id>/flair-management/', views.flair_management, name='flair_management'),
     path('warden/api/guild/<str:guild_id>/sync/', views.force_sync_guild, name='force_sync_guild'),
@@ -79,6 +81,7 @@ urlpatterns = [
     # XP API Endpoints
     path('api/guild/<str:guild_id>/xp/config/', views.api_xp_config, name='api_xp_config'),
     path('api/guild/<str:guild_id>/xp/config/update/', views.api_xp_config_update, name='api_xp_config_update'),
+    path('api/guild/<str:guild_id>/xp/toggle/', views.api_xp_toggle, name='api_xp_toggle'),
     path('api/guild/<str:guild_id>/xp/leaderboard/', views.api_xp_leaderboard, name='api_xp_leaderboard'),
     path('api/guild/<str:guild_id>/xp/member/<str:user_id>/', views.api_xp_member_update, name='api_xp_member_update'),
     path('api/guild/<str:guild_id>/xp/roles/', views.api_xp_level_roles, name='api_xp_level_roles'),
@@ -97,6 +100,10 @@ urlpatterns = [
     # Reaction Roles Dashboard
     path('warden/guild/<str:guild_id>/reaction-roles/', views.guild_reaction_roles, name='guild_reaction_roles'),
 
+    # Reaction Roles API
+    path('api/guild/<str:guild_id>/reaction-roles/', views.api_reaction_roles, name='api_reaction_roles'),
+    path('api/guild/<str:guild_id>/reaction-roles/<str:message_id>/', views.api_reaction_role_detail, name='api_reaction_role_detail'),
+
     # Role API Endpoints
     path('api/guild/<str:guild_id>/roles/action/', views.api_role_action, name='api_role_action'),
     path('api/guild/<str:guild_id>/roles/import/', views.api_role_bulk_import, name='api_role_bulk_import'),
@@ -114,6 +121,7 @@ urlpatterns = [
     path('api/guild/<str:guild_id>/audit/', views.api_audit_logs, name='api_audit_logs'),
     path('api/guild/<str:guild_id>/audit/stats/', views.api_audit_stats, name='api_audit_stats'),
     path('api/guild/<str:guild_id>/audit/config/', views.api_audit_config_update, name='api_audit_config_update'),
+    path('api/guild/<str:guild_id>/audit/export/', views.api_audit_export, name='api_audit_export'),
 
     # Welcome/Goodbye Messages Dashboard
     path('warden/guild/<str:guild_id>/welcome/', views.guild_welcome, name='guild_welcome'),
@@ -139,6 +147,8 @@ urlpatterns = [
 
     # Settings API Endpoints
     path('api/guild/<str:guild_id>/settings/update/', views.api_settings_update, name='api_settings_update'),
+    path('api/guild/<str:guild_id>/settings/reset/', views.api_settings_reset, name='api_settings_reset'),
+    path('api/guild/<str:guild_id>/settings/remove-data/', views.api_settings_remove_data, name='api_settings_remove_data'),
 
     # Verification Dashboard
     path('warden/guild/<str:guild_id>/verification/', views.guild_verification, name='guild_verification'),
@@ -166,11 +176,12 @@ urlpatterns = [
 
     # Templates API Endpoints
     path('api/guild/<str:guild_id>/templates/channels/', views.api_channel_template_create, name='api_channel_template_create'),
-    path('api/guild/<str:guild_id>/templates/channels/<int:template_id>/', views.api_channel_template_delete, name='api_channel_template_delete'),
+    path('api/guild/<str:guild_id>/templates/channels/<int:template_id>/', views.api_channel_template_detail_update_delete, name='api_channel_template_ops'),
     path('api/guild/<str:guild_id>/templates/channels/<int:template_id>/apply/', views.api_channel_template_apply, name='api_channel_template_apply'),
     path('api/guild/<str:guild_id>/templates/roles/', views.api_role_template_create, name='api_role_template_create'),
-    path('api/guild/<str:guild_id>/templates/roles/<int:template_id>/', views.api_role_template_delete, name='api_role_template_delete'),
+    path('api/guild/<str:guild_id>/templates/roles/<int:template_id>/', views.api_role_template_detail_update_delete, name='api_role_template_ops'),
     path('api/guild/<str:guild_id>/templates/roles/<int:template_id>/apply/', views.api_role_template_apply, name='api_role_template_apply'),
+    path('api/guild/<str:guild_id>/roles/', views.api_guild_roles, name='api_guild_roles'),
 
     # Discovery/Self-Promo Dashboard
     path('warden/guild/<str:guild_id>/discovery/', views.guild_discovery, name='guild_discovery'),
@@ -215,7 +226,9 @@ urlpatterns = [
     path('api/guild/<str:guild_id>/lfg/groups/', views.api_lfg_groups, name='api_lfg_groups'),
     path('api/guild/<str:guild_id>/lfg/blacklist/', views.api_lfg_blacklist, name='api_lfg_blacklist'),
     path('api/guild/<str:guild_id>/lfg/blacklist/toggle/', views.api_lfg_blacklist_toggle, name='api_lfg_blacklist_toggle'),
+    path('api/guild/<str:guild_id>/lfg/pardon/', views.api_lfg_pardon, name='api_lfg_pardon'),
     path('api/guild/<str:guild_id>/lfg/blacklist/<str:user_id>/', views.api_lfg_blacklist_update, name='api_lfg_blacklist_update'),
     path('api/guild/<str:guild_id>/lfg/attendance/update/', views.api_lfg_attendance_update, name='api_lfg_attendance_update'),
     path('api/guild/<str:guild_id>/lfg/attendance/export/', views.api_lfg_attendance_export, name='api_lfg_attendance_export'),
+    path('api/guild/<str:guild_id>/lfg/attendance/user/<str:user_id>/', views.api_lfg_user_history, name='api_lfg_user_history'),
 ]

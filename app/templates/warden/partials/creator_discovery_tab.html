@@ -87,6 +87,25 @@
             <div id="feature_channel_idContainer"></div>
             <p class="text-gray-500 text-xs mt-1">Featured creators are announced here</p>
           </div>
+
+          <div>
+            <label class="block text-sm text-gray-400 mb-2">Message Response Channel</label>
+            <div id="message_response_channel_idContainer"></div>
+            <p class="text-gray-500 text-xs mt-1">All automated messages sent here (recommended: bot-spam channel). Keeps self-promo channels clean!</p>
+          </div>
+
+          <div>
+            <label class="block text-sm text-gray-400 mb-2">Featured Reminder Schedule</label>
+            <select id="reminder_schedule" class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:border-purple-500 focus:outline-none">
+              <option value="disabled" {% if discovery_config.reminder_schedule == 'disabled' or not discovery_config.reminder_schedule %}selected{% endif %}>Disabled (use /send-featured-reminder command only)</option>
+              <option value="hourly" {% if discovery_config.reminder_schedule == 'hourly' %}selected{% endif %}>Every Hour</option>
+              <option value="every_6_hours" {% if discovery_config.reminder_schedule == 'every_6_hours' %}selected{% endif %}>Every 6 Hours</option>
+              <option value="daily" {% if discovery_config.reminder_schedule == 'daily' %}selected{% endif %}>Daily</option>
+              <option value="weekly" {% if discovery_config.reminder_schedule == 'weekly' %}selected{% endif %}>Weekly</option>
+              <option value="monthly" {% if discovery_config.reminder_schedule == 'monthly' %}selected{% endif %}>Monthly</option>
+            </select>
+            <p class="text-gray-500 text-xs mt-1">Automatically send "How to Get Featured" reminders to self-promo channel. Use <code class="text-purple-400">/send-featured-reminder</code> to send manually.</p>
+          </div>
         </div>
       </div>
 
@@ -162,18 +181,34 @@
         </h3>
         <div class="space-y-4">
           <div>
+            <label class="block text-sm text-gray-400 mb-2">How to get Featured Reminder</label>
+            <textarea id="how_to_enter_response" rows="3"
+                      class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:border-indigo-500 focus:outline-none resize-y"
+                      placeholder="💬 Want to be featured? You need {token_cost} {token_name} to enter the pool! Stay active to earn more. Re-enter every {entry_cooldown}. 🎮">{% if discovery_config.how_to_enter_response %}{{ discovery_config.how_to_enter_response }}{% else %}💬 Want to be featured? You need **{token_cost} {token_name}** to enter the pool!
+Stay active to earn more. Re-enter every {entry_cooldown}. 🎮{% endif %}</textarea>
+            <p class="text-gray-500 text-xs mt-1">Sent as scheduled reminder via <code class="text-purple-400">/send-featured-reminder</code>. Use {token_cost}, {token_name}, {entry_cooldown}.</p>
+          </div>
+          <div>
             <label class="block text-sm text-gray-400 mb-2">Post Response Message</label>
             <textarea id="post_response" rows="3"
-                      class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:border-indigo-500 focus:outline-none resize-none"
+                      class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:border-indigo-500 focus:outline-none resize-y"
                       placeholder="Thanks for posting! You're in the pool.">{{ discovery_config.post_response }}</textarea>
             <p class="text-gray-500 text-xs mt-1">Sent when someone enters the pool</p>
           </div>
           <div>
             <label class="block text-sm text-gray-400 mb-2">Feature Announcement Message</label>
             <textarea id="feature_message" rows="3"
-                      class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:border-indigo-500 focus:outline-none resize-none"
+                      class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:border-indigo-500 focus:outline-none resize-y"
                       placeholder="Congrats {user}! You've been featured!">{{ discovery_config.feature_message }}</textarea>
             <p class="text-gray-500 text-xs mt-1">Use {user} for username</p>
+          </div>
+          <div>
+            <label class="block text-sm text-gray-400 mb-2">Cooldown Message</label>
+            <textarea id="cooldown_message" rows="3"
+                      class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:border-indigo-500 focus:outline-none resize-y"
+                      placeholder="⏰ You're on cooldown! Can enter again in {time_left}. 💰 Your {token_cost} hero_tokens were saved.">{% if discovery_config.cooldown_message %}{{ discovery_config.cooldown_message }}{% else %}⏰ You're on cooldown! Can enter the featured pool again in {time_left}.
+💰 Your {token_cost} hero_tokens were saved.{% endif %}</textarea>
+            <p class="text-gray-500 text-xs mt-1">Use {time_left} for time remaining, {token_cost} for token amount</p>
           </div>
           <div class="flex items-center justify-between p-3 bg-neutral-800 rounded-lg">
             <span class="text-sm text-gray-300">Use rich embeds for features</span>

@@ -26,6 +26,14 @@ class VerificationType(str, Enum):
     ACCOUNT_AGE = "account_age"
     MULTI_STEP = "multi_step"
 
+class ModuleType(str, Enum):
+    """Available premium modules for modular pricing."""
+    ENGAGEMENT = "engagement"  # XP, Flairs, Leaderboards, Welcome/Level-up Messages
+    ROLES = "roles"  # Role Manager, Reaction Roles, Templates
+    MODERATION = "moderation"  # Moderation, Audit Logs, Verification
+    DISCOVERY = "discovery"  # Game/Creator Discovery, COTW, COTM
+    LFG = "lfg"  # LFG, Attendance, Trackers
+
 class AuditAction(str, Enum):
     MEMBER_JOIN = "member_join"
     MEMBER_LEAVE = "member_leave"
@@ -108,6 +116,10 @@ class ActionType(str, Enum):
     # Channel Management
     CHANNEL_TOPIC_SET = "channel_topic_set"
 
+    # Template Management
+    CHANNEL_CREATE = "channel_create"
+    ROLE_CREATE = "role_create"
+
     # Discovery/Self-Promo
     FORCE_FEATURE = "force_feature"
     CLEAR_FEATURED = "clear_featured"
@@ -162,7 +174,8 @@ class Guild(Base):
     xp_enabled = Column(Boolean, default=True)
     anti_raid_enabled = Column(Boolean, default=True)
     verification_enabled = Column(Boolean, default=False)
-    audit_logging_enabled = Column(Boolean, default=True)
+    audit_logging_enabled = Column(Boolean, nullable=False, default=False, server_default='0')
+    mod_enabled = Column(Boolean, nullable=False, default=False, server_default='0')
     discovery_enabled = Column(Boolean, default=False)
 
     # Cached Discord Resources (JSON text - synced by bot to reduce API calls)
@@ -204,6 +217,7 @@ class Guild(Base):
     verification_config = relationship("VerificationConfig", back_populates="guild", uselist=False, cascade="all, delete-orphan")
     level_roles = relationship("LevelRole", back_populates="guild", cascade="all, delete-orphan")
     react_roles = relationship("ReactRole", back_populates="guild", cascade="all, delete-orphan")
+    modules = relationship("GuildModule", back_populates="guild", cascade="all, delete-orphan")
 
     def is_premium(self) -> bool:
         """Check if guild has active premium or VIP status."""
@@ -217,6 +231,53 @@ class Guild(Base):
 
     def __repr__(self):
         return f"<Guild(id={self.guild_id}, name={self.guild_name}, tier={self.subscription_tier})>"
+
+
+# Guild Modules (Modular Pricing System)
+
+class GuildModule(Base):
+    """Tracks which premium modules a guild has access to (modular pricing)."""
+    __tablename__ = "guild_modules"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    guild_id = Column(BigInteger, ForeignKey("guilds.guild_id", ondelete="CASCADE"), nullable=False)
+
+    # Module information
+    module_name = Column(String(50), nullable=False)  # 'lfg', 'discovery', 'xp', etc.
+    enabled = Column(Boolean, default=True, nullable=False)
+
+    # Subscription details
+    stripe_subscription_id = Column(String(255), nullable=True)
+    stripe_product_id = Column(String(255), nullable=True)
+    stripe_price_id = Column(String(255), nullable=True)
+
+    # Expiration (for subscription management)
+    expires_at = Column(BigInteger, nullable=True)  # Unix timestamp
+
+    # Metadata
+    activated_at = Column(BigInteger, default=lambda: int(time.time()), nullable=False)
+    activated_by = Column(BigInteger, nullable=True)  # User ID who activated
+
+    # Relationship
+    guild = relationship("Guild", back_populates="modules")
+
+    __table_args__ = (
+        UniqueConstraint("guild_id", "module_name", name="uq_guild_module"),
+        Index("idx_guild_modules_guild", "guild_id"),
+        Index("idx_guild_modules_module", "module_name"),
+        Index("idx_guild_modules_stripe_sub", "stripe_subscription_id"),
+    )
+
+    def is_active(self) -> bool:
+        """Check if module is currently active (enabled and not expired)."""
+        if not self.enabled:
+            return False
+        if self.expires_at and self.expires_at < int(time.time()):
+            return False
+        return True
+
+    def __repr__(self):
+        return f"<GuildModule(guild={self.guild_id}, module={self.module_name}, active={self.is_active()})>"
 
 
 # Guild Member
@@ -305,6 +366,7 @@ class XPConfig(Base):
     gaming_xp_per_interval = Column(Float, default=1.2)
     invite_xp = Column(Float, default=50.0)
     join_xp = Column(Float, default=25.0)
+    xp_enabled = Column(Boolean, nullable=False, default=True, server_default='1')
 
     # Token conversion
     tokens_per_100_xp_active = Column(Integer, default=15)
@@ -712,9 +774,18 @@ class DiscoveryConfig(Base):
     last_featured_user_id = Column(BigInteger, nullable=True)  # Last user who was featured
     last_featured_message_id = Column(BigInteger, nullable=True)  # Message ID of last featured post (for deletion)
 
+    # Message Response Channel
+    message_response_channel_id = Column(BigInteger, nullable=True)  # Channel to send automated messages (instead of replying in self-promo)
+
+    # Featured Reminder Scheduling
+    reminder_schedule = Column(String(50), default='disabled')  # disabled, hourly, every_6_hours, daily, weekly, monthly
+    last_reminder_sent_at = Column(BigInteger, nullable=True)  # Timestamp of last reminder
+
     # Messages
+    how_to_enter_response = Column(Text, default="💬 Thanks for sharing! To enter the featured pool, you need **{token_cost} Hero Tokens**.\nYou currently have **{hero_tokens} Hero Tokens**. Stay active to earn more! 🎮")
     post_response = Column(Text, default="Good luck on being featured! You've been added to the feature pool.")
     feature_message = Column(Text, default="Shoutout to {user}! Check out their content!")
+    cooldown_message = Column(Text, nullable=True)  # Customizable cooldown message
     use_embed = Column(Boolean, default=True)
     embed_color = Column(Integer, default=0x5865F2)
 
@@ -1788,6 +1859,10 @@ class LFGMemberStats(Base):
     blacklisted_at = Column(BigInteger, nullable=True)
     blacklisted_by = Column(BigInteger, nullable=True)
     blacklist_reason = Column(String(500), nullable=True)
+
+    # Global Pardon - gives member fresh start, prevents auto-blacklist
+    blacklist_pardoned = Column(Boolean, default=False)
+    blacklist_pardoned_at = Column(BigInteger, nullable=True)
 
     # Timestamps
     first_event = Column(BigInteger, nullable=True)

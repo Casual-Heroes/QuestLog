@@ -33,6 +33,14 @@
         <p class="text-gray-400 text-sm">Managing</p>
         <p class="text-2xl font-bold text-indigo-400">{{ admin_guilds|length }} server{{ admin_guilds|length|pluralize }}</p>
       </div>
+      <div class="flex flex-col gap-2">
+        <button onclick="refreshGuilds()" id="refreshBtn" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition text-sm whitespace-nowrap">
+          <i class="fas fa-sync-alt mr-2"></i>Refresh Servers
+        </button>
+        <a href="{% url 'discord_logout' %}" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg font-medium transition text-sm text-center">
+          <i class="fas fa-sign-out-alt mr-2"></i>Logout
+        </a>
+      </div>
     </div>
   </div>
 
@@ -173,6 +181,52 @@
 </div>
 
 <script>
+// CSRF-aware fetch function
+async function csrfFetch(url, options = {}) {
+  const csrfToken = '{{ csrf_token }}';
+  options.headers = options.headers || {};
+  if (!options.headers['X-CSRFToken']) {
+    options.headers['X-CSRFToken'] = csrfToken;
+  }
+  return fetch(url, options);
+}
+
+async function refreshGuilds() {
+  const btn = document.getElementById('refreshBtn');
+  const icon = btn.querySelector('i');
+
+  // Show loading state
+  btn.disabled = true;
+  icon.classList.add('fa-spin');
+  btn.innerHTML = '<i class="fas fa-sync-alt fa-spin mr-2"></i>Refreshing...';
+
+  try {
+    const response = await csrfFetch('/auth/discord/refresh-guilds/', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': getCookie('csrftoken')
+      }
+    });
+
+    const data = await response.json();
+
+    if (response.ok && data.success) {
+      // Reload the page to show updated guild list
+      window.location.reload();
+    } else {
+      alert(`Error: ${data.error || 'Failed to refresh guild list'}`);
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fas fa-sync-alt mr-2"></i>Refresh Servers';
+    }
+  } catch (error) {
+    console.error('Error refreshing guilds:', error);
+    alert('An error occurred while refreshing. Please try again.');
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-sync-alt mr-2"></i>Refresh Servers';
+  }
+}
+
 async function leaveServer(guildId, guildName) {
   // Confirm action
   const confirmed = confirm(

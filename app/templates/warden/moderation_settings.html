@@ -23,6 +23,8 @@
   <!-- Settings Form -->
   <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6 mb-6">
     <form id="settingsForm">
+
+
       <!-- Mod Log Channel -->
       <div class="mb-6">
         <label class="block text-white font-medium mb-2">
@@ -130,6 +132,7 @@ const selectedModLog = '{{ settings.mod_log_channel_id|default:"" }}';
 const selectedJailRole = '{{ settings.jail_role_id|default:"" }}';
 const selectedJailChannel = '{{ settings.jail_channel_id|default:"" }}';
 const selectedMuteRole = '{{ settings.muted_role_id|default:"" }}';
+const modEnabledToggle = document.getElementById('mod_enabled');
 
 // Initialize custom selects
 const modLogSelect = createCustomSelect({
@@ -172,11 +175,28 @@ const muteRoleSelect = createCustomSelect({
   color: 'gray'
 });
 
+function toggleModInputs() {
+  const enabled = modEnabledToggle.checked;
+  ['modLogChannelContainer', 'jailRoleContainer', 'jailChannelContainer', 'muteRoleContainer'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.classList.toggle('opacity-50', !enabled);
+      el.classList.toggle('pointer-events-none', !enabled);
+    }
+  });
+}
+
+if (modEnabledToggle) {
+  modEnabledToggle.addEventListener('change', toggleModInputs);
+  toggleModInputs();
+}
+
 // Form submission
 document.getElementById('settingsForm').addEventListener('submit', async (e) => {
   e.preventDefault();
 
   const settings = {
+    mod_enabled: modEnabledToggle ? modEnabledToggle.checked : false,
     mod_log_channel_id: modLogSelect.getValue() || null,
     jail_channel_id: jailChannelSelect.getValue() || null,
     jail_role_id: jailRoleSelect.getValue() || null,

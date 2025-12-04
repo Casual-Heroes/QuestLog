@@ -19,24 +19,41 @@
                 Games discovered by WardenBot for <span class="text-white font-semibold">{{ guild.name }}</span>
             </p>
         </div>
-        <a href="{% url 'guild_discovery' guild.id %}"
+        <a href="/warden/guild/{{ guild.id }}/profile/"
            class="px-4 py-2 bg-neutral-800 hover:bg-neutral-700 rounded-lg border border-neutral-700 transition-colors">
-            <i class="fas fa-arrow-left mr-2"></i>Back to Discovery
+            <i class="fas fa-arrow-left mr-2"></i>Back to Profile
         </a>
     </div>
 
     <!-- Filter Dropdown -->
     {% if search_configs %}
     <div class="mt-6">
-        <select id="searchFilter"
-                class="w-full md:w-64 px-4 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white focus:outline-none focus:border-blue-500 transition-colors">
-            <option value="">🎮 All Searches</option>
-            {% for search in search_configs %}
-            <option value="{{ search.id }}" {% if search_id == search.id %}selected{% endif %}>
-                {{ search.name }}
-            </option>
-            {% endfor %}
-        </select>
+        <div class="flex flex-col lg:flex-row gap-3">
+            <select id="searchFilter"
+                    class="w-full lg:w-64 px-4 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white focus:outline-none focus:border-blue-500 transition-colors">
+                <option value="">🎮 All Searches</option>
+                {% for search in search_configs %}
+                <option value="{{ search.id }}" {% if search_id == search.id %}selected{% endif %}>
+                    {{ search.name }}
+                </option>
+                {% endfor %}
+            </select>
+
+            <div id="modeFilterContainer" class="w-full lg:w-80"></div>
+
+            <div class="flex items-center gap-2 w-full lg:w-56">
+                <input type="number" id="minHypeFilter" min="0" placeholder="Min follows (hype)"
+                       value="{{ selected_min_hype }}"
+                       class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white focus:border-blue-500 focus:outline-none">
+                <button id="applyFilters"
+                        class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition text-sm">
+                    Apply
+                </button>
+            </div>
+        </div>
+        <p class="text-xs text-gray-500 mt-2">
+            Filter by search, game mode, or minimum pre-release follows (hype).
+        </p>
     </div>
     {% endif %}
 
@@ -217,22 +234,128 @@
 }
 </style>
 
+{{ available_modes|json_script:"available-modes-data" }}
+{{ selected_modes|json_script:"preselected-modes-data" }}
+
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const searchFilter = document.getElementById('searchFilter');
-    if (searchFilter) {
-        searchFilter.addEventListener('change', function() {
-            const searchId = this.value;
-            const url = new URL(window.location);
+    const minHypeFilter = document.getElementById('minHypeFilter');
+    const applyBtn = document.getElementById('applyFilters');
+    const modeFilterContainer = document.getElementById('modeFilterContainer');
 
-            if (searchId) {
-                url.searchParams.set('search_id', searchId);
+    // Securely pass data from Django to JavaScript using json_script
+    const availableModesElement = document.getElementById('available-modes-data');
+    const preselectedModesElement = document.getElementById('preselected-modes-data');
+    const availableModes = availableModesElement ? JSON.parse(availableModesElement.textContent) : [];
+    const preselectedModes = preselectedModesElement ? JSON.parse(preselectedModesElement.textContent) : [];
+
+    // Build a searchable multi-select for modes
+    let selectedModes = new Set(preselectedModes);
+    if (modeFilterContainer) {
+        modeFilterContainer.innerHTML = `
+          <div class="relative">
+            <button type="button" id="modeTrigger"
+              class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2.5 text-left text-white flex items-center justify-between hover:bg-neutral-750 focus:border-blue-500 focus:outline-none">
+              <span id="modeLabel" class="text-sm text-gray-300">${selectedModes.size ? Array.from(selectedModes).join(', ') : 'Filter game modes...'}</span>
+              <i class="fas fa-chevron-down text-gray-400 text-xs"></i>
+            </button>
+            <div id="modeDropdown" class="hidden absolute z-40 mt-2 w-full min-w-[260px] max-w-[420px] bg-neutral-800 border border-neutral-700 rounded-lg shadow-2xl">
+              <div class="p-3 border-b border-neutral-700">
+                <input id="modeSearch" type="text" placeholder="Type to search..."
+                  class="w-full bg-neutral-900 border border-neutral-600 rounded px-3 py-2 text-white text-sm placeholder-gray-500 focus:border-blue-500 focus:outline-none">
+              </div>
+              <div id="modeOptions" class="max-h-60 overflow-y-auto custom-scrollbar p-2 space-y-1">
+                ${availableModes.map(mode => `
+                  <label class="flex items-center gap-2 px-2 py-1 rounded hover:bg-neutral-700 cursor-pointer text-sm text-white">
+                    <input type="checkbox" value="${mode}" ${selectedModes.has(mode) ? 'checked' : ''} class="mode-option accent-blue-500">
+                    <span>${mode}</span>
+                  </label>
+                `).join('') || '<p class="text-gray-500 text-sm px-3 py-2">No game modes available</p>'}
+              </div>
+            </div>
+          </div>
+        `;
+
+        const modeTrigger = document.getElementById('modeTrigger');
+        const modeDropdown = document.getElementById('modeDropdown');
+        const modeSearch = document.getElementById('modeSearch');
+        const modeLabel = document.getElementById('modeLabel');
+
+        function refreshLabel() {
+            modeLabel.textContent = selectedModes.size ? Array.from(selectedModes).join(', ') : 'Filter game modes...';
+            modeLabel.classList.toggle('text-gray-300', true);
+        }
+
+        function toggleDropdown(forceClose=false) {
+            if (forceClose || !modeDropdown.classList.contains('hidden')) {
+                modeDropdown.classList.add('hidden');
             } else {
-                url.searchParams.delete('search_id');
+                modeDropdown.classList.remove('hidden');
+                setTimeout(() => modeSearch && modeSearch.focus(), 50);
             }
+        }
 
-            window.location.href = url.toString();
+        modeTrigger.addEventListener('click', (e) => {
+            e.stopPropagation();
+            toggleDropdown();
         });
+
+        document.addEventListener('click', (e) => {
+            if (!modeFilterContainer.contains(e.target)) {
+                toggleDropdown(true);
+            }
+        });
+
+        modeSearch.addEventListener('input', (e) => {
+            const query = e.target.value.toLowerCase();
+            document.querySelectorAll('.mode-option').forEach(opt => {
+                const label = opt.nextElementSibling.textContent.toLowerCase();
+                const parent = opt.closest('label');
+                parent.style.display = label.includes(query) ? '' : 'none';
+            });
+        });
+
+        modeFilterContainer.querySelectorAll('.mode-option').forEach(cb => {
+            cb.addEventListener('change', () => {
+                if (cb.checked) {
+                    selectedModes.add(cb.value);
+                } else {
+                    selectedModes.delete(cb.value);
+                }
+                refreshLabel();
+            });
+        });
+    }
+
+    function applyFilters() {
+        const url = new URL(window.location);
+        const searchId = searchFilter ? searchFilter.value : '';
+        const minHype = minHypeFilter ? minHypeFilter.value : '';
+
+        // Reset existing filters
+        url.searchParams.delete('search_id');
+        url.searchParams.delete('min_hype');
+        url.searchParams.delete('mode');
+
+        if (searchId) {
+            url.searchParams.set('search_id', searchId);
+        }
+        if (minHype) {
+            url.searchParams.set('min_hype', minHype);
+        }
+        selectedModes.forEach(mode => url.searchParams.append('mode', mode));
+
+        window.location.href = url.toString();
+    }
+
+    if (applyBtn) {
+        applyBtn.addEventListener('click', applyFilters);
+    }
+
+    // Also apply when only search dropdown changes for convenience
+    if (searchFilter) {
+        searchFilter.addEventListener('change', applyFilters);
     }
 });
 </script>

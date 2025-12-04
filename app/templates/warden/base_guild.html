@@ -8,6 +8,15 @@
 
   <!-- Main Content Area -->
   <div class="flex-1 lg:ml-1 min-w-0 p-1">
+    {% if is_admin and active_page != 'billing' %}
+    <div class="flex justify-end mb-2 pr-2">
+      <a href="{% url 'guild_billing' guild.id %}"
+         class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-indigo-600/20 border border-indigo-500/40 text-indigo-200 text-xs font-semibold hover:bg-indigo-600/30 transition">
+        <i class="fas fa-rocket text-indigo-300"></i>
+        <span>Upgrade modules or get Complete for $9.99</span>
+      </a>
+    </div>
+    {% endif %}
     {% block guild_content %}
     <!-- Module content goes here -->
     {% endblock %}

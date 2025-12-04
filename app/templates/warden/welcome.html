@@ -84,10 +84,14 @@
       <div>
         <div class="flex items-center justify-between mb-2">
           <label class="block text-sm text-gray-400">Message</label>
-          <div class="flex gap-2 text-xs">
+          <div class="flex gap-2 text-xs items-center">
             <button type="button" onclick="insertVariable('channel_message', '{user}')"
                     class="px-2 py-1 bg-neutral-700 hover:bg-neutral-600 text-gray-300 rounded transition">
               +{user}
+            </button>
+            <button type="button" onclick="insertVariable('channel_message', '**{username}**')"
+                    class="px-2 py-1 bg-neutral-700 hover:bg-neutral-600 text-gray-300 rounded transition">
+              +{username}
             </button>
             <button type="button" onclick="insertVariable('channel_message', '{server}')"
                     class="px-2 py-1 bg-neutral-700 hover:bg-neutral-600 text-gray-300 rounded transition">
@@ -97,13 +101,14 @@
                     class="px-2 py-1 bg-neutral-700 hover:bg-neutral-600 text-gray-300 rounded transition">
               +{member_count}
             </button>
+            <div id="channelMentionContainer" class="w-56"></div>
           </div>
         </div>
         <textarea id="channel_message" rows="3"
-                  class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:border-blue-500 focus:outline-none resize-none font-mono">{{ welcome_config.channel_message }}</textarea>
+                  class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:border-blue-500 focus:outline-none resize-y font-mono">{{ welcome_config.channel_message }}</textarea>
         <p class="text-gray-500 text-xs mt-1">
-          ✨ Supports custom emojis! Variables: <code class="text-indigo-400">{user} {server} {member_count}</code><br>
-          💬 To mention channels, use: <code class="text-indigo-400">&lt;#channel_id&gt;</code> (e.g., Check out <code class="text-indigo-400">&lt;#1234567890&gt;</code>)
+          ✨ Supports user and server Variables: <code class="text-indigo-400">{user} {username} {server} {member_count}</code><br>
+          💬 Use the channel picker above to insert a channel mention automatically.
         </p>
       </div>
 
@@ -170,27 +175,31 @@
       </div>
     </div>
     <div class="p-6">
-      <div class="flex items-center justify-between mb-2">
-        <label class="block text-sm text-gray-400">DM Message</label>
-        <div class="flex gap-2 text-xs">
-          <button type="button" onclick="insertVariable('dm_message', '{user}')"
-                  class="px-2 py-1 bg-neutral-700 hover:bg-neutral-600 text-gray-300 rounded transition">
-            +{user}
-          </button>
-          <button type="button" onclick="insertVariable('dm_message', '{server}')"
-                  class="px-2 py-1 bg-neutral-700 hover:bg-neutral-600 text-gray-300 rounded transition">
-            +{server}
-          </button>
-          <button type="button" onclick="insertVariable('dm_message', '{member_count}')"
+        <div class="flex items-center justify-between mb-2">
+          <label class="block text-sm text-gray-400">DM Message</label>
+          <div class="flex gap-2 text-xs">
+            <button type="button" onclick="insertVariable('dm_message', '{user}')"
+                    class="px-2 py-1 bg-neutral-700 hover:bg-neutral-600 text-gray-300 rounded transition">
+              +{user}
+            </button>
+            <button type="button" onclick="insertVariable('dm_message', '{username}')"
+                    class="px-2 py-1 bg-neutral-700 hover:bg-neutral-600 text-gray-300 rounded transition">
+              +{username}
+            </button>
+            <button type="button" onclick="insertVariable('dm_message', '{server}')"
+                    class="px-2 py-1 bg-neutral-700 hover:bg-neutral-600 text-gray-300 rounded transition">
+              +{server}
+            </button>
+            <button type="button" onclick="insertVariable('dm_message', '{member_count}')"
                   class="px-2 py-1 bg-neutral-700 hover:bg-neutral-600 text-gray-300 rounded transition">
             +{member_count}
           </button>
         </div>
       </div>
       <textarea id="dm_message" rows="3"
-                class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:border-blue-500 focus:outline-none resize-none font-mono">{{ welcome_config.dm_message }}</textarea>
+                class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:border-blue-500 focus:outline-none resize-y font-mono">{{ welcome_config.dm_message }}</textarea>
       <p class="text-gray-500 text-xs mt-1">
-        ✨ Supports custom emojis! Variables: <code class="text-indigo-400">{user} {server} {member_count}</code><br>
+        ✨ Supports custom emojis! Variables: <code class="text-indigo-400">{user} {username} {server} {member_count}</code><br>
         💬 To mention channels, use: <code class="text-indigo-400">&lt;#channel_id&gt;</code> (e.g., Check out <code class="text-indigo-400">&lt;#1234567890&gt;</code>)
       </p>
       <p class="text-yellow-500 text-xs mt-2">
@@ -234,6 +243,10 @@
                     class="px-2 py-1 bg-neutral-700 hover:bg-neutral-600 text-gray-300 rounded transition">
               +{user}
             </button>
+            <button type="button" onclick="insertVariable('goodbye_message', '{username}')"
+                    class="px-2 py-1 bg-neutral-700 hover:bg-neutral-600 text-gray-300 rounded transition">
+              +{username}
+            </button>
             <button type="button" onclick="insertVariable('goodbye_message', '{server}')"
                     class="px-2 py-1 bg-neutral-700 hover:bg-neutral-600 text-gray-300 rounded transition">
               +{server}
@@ -245,9 +258,9 @@
           </div>
         </div>
         <textarea id="goodbye_message" rows="2"
-                  class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:border-blue-500 focus:outline-none resize-none font-mono">{{ welcome_config.goodbye_message }}</textarea>
+                  class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:border-blue-500 focus:outline-none resize-y font-mono">{{ welcome_config.goodbye_message }}</textarea>
         <p class="text-gray-500 text-xs mt-1">
-          ✨ Supports custom emojis! Variables: <code class="text-indigo-400">{user} {server} {member_count}</code><br>
+          ✨ Supports custom emojis! Variables: <code class="text-indigo-400">{user} {username} {server} {member_count}</code><br>
           💬 To mention channels, use: <code class="text-indigo-400">&lt;#channel_id&gt;</code> (e.g., Check out <code class="text-indigo-400">&lt;#1234567890&gt;</code>)
         </p>
       </div>
@@ -331,6 +344,7 @@ function insertVariable(fieldId, variable) {
 // Load Discord channels and initialize custom selects
 let welcomeChannelSelect;
 let goodbyeChannelSelect;
+let channelMentionSelect;
 async function loadChannels() {
   try {
     const response = await csrfFetch(`/api/guild/${guildId}/channels/`);
@@ -340,17 +354,18 @@ async function loadChannels() {
     const goodbyeCurrentValue = '{{ welcome_config.goodbye_channel_id }}';
 
     if (data.channels) {
-      // Only show text channels
-      const textChannels = data.channels.filter(ch => ch.type === 0);
+      // Text + forum channels
+      const selectableChannels = data.channels.filter(ch => ch.type === 0 || ch.type === 15);
 
-      const channelItems = textChannels.map(channel => {
+      const channelItems = selectableChannels.map(channel => {
+        const isForum = channel.type === 15;
         const label = channel.category_name
-          ? `# ${channel.name} (${channel.category_name})`
-          : `# ${channel.name}`;
+          ? `${isForum ? '🧵' : '#'} ${channel.name} (${channel.category_name})`
+          : `${isForum ? '🧵' : '#'} ${channel.name}`;
         return {
           value: channel.id,
           label: label,
-          icon: 'hashtag'
+          icon: isForum ? 'comments' : 'hashtag'
         };
       });
 
@@ -374,6 +389,25 @@ async function loadChannels() {
         items: channelItems,
         selected: goodbyeCurrentValue || '',
         color: 'red'
+      });
+
+      // Channel mention inserter
+      channelMentionSelect = createCustomSelect({
+        container: '#channelMentionContainer',
+        name: 'channel_mention_helper',
+        id: 'channel_mention_helper',
+        placeholder: 'Insert channel mention...',
+        items: channelItems,
+        selected: '',
+        color: 'yellow',
+        onSelect: (val) => {
+          if (val) {
+            insertVariable('channel_message', `<#${val}>`);
+            if (channelMentionSelect && channelMentionSelect.setValue) {
+              channelMentionSelect.setValue('');
+            }
+          }
+        }
       });
     }
   } catch (err) {

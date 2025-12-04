@@ -211,15 +211,13 @@ async function saveSettings() {
   btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Saving...';
   btn.disabled = true;
 
-  const modChannelInput = document.getElementById('mod_log_channel_id');
-
   const data = {
     prefix: document.getElementById('prefix').value,
     language: document.getElementById('language').value,
     timezone: document.getElementById('timezone').value,
     token_name: document.getElementById('token_name').value,
     token_emoji: document.getElementById('token_emoji').value,
-    mod_log_channel_id: modChannelMap[modChannelInput.value] || modChannelInput.value || '',
+    mod_log_channel_id: modChannelSelect ? modChannelSelect.getValue() : '',
   };
 
   try {
@@ -250,15 +248,49 @@ async function saveSettings() {
   }
 }
 
-function confirmReset() {
-  if (confirm('Are you sure you want to reset all settings to defaults? This cannot be undone.')) {
-    alert('Reset functionality coming soon!');
+async function confirmReset() {
+  if (!confirm('Are you sure you want to reset all settings to defaults? This cannot be undone.')) return;
+
+  try {
+    const response = await csrfFetch(`/api/guild/${guildId}/settings/reset/`, {
+      method: 'POST',
+      headers: { 'X-CSRFToken': csrfToken }
+    });
+    const result = await response.json();
+    if (result.success) {
+      alert('Settings have been reset to defaults.');
+      window.location.reload();
+    } else {
+      throw new Error(result.error || 'Unknown error');
+    }
+  } catch (err) {
+    alert('Error resetting settings: ' + err.message);
   }
 }
 
-function confirmRemove() {
-  if (confirm('Are you sure you want to remove all Warden data for this server? This action is permanent and cannot be undone.')) {
-    alert('Remove functionality coming soon!');
+async function confirmRemove() {
+  if (!confirm('Are you sure you want to remove ALL Warden data for this server? This action is PERMANENT and cannot be undone.\n\nType "DELETE" to confirm.')) return;
+
+  const confirmation = prompt('Type DELETE to confirm:');
+  if (confirmation !== 'DELETE') {
+    alert('Cancelled.');
+    return;
+  }
+
+  try {
+    const response = await csrfFetch(`/api/guild/${guildId}/settings/remove-data/`, {
+      method: 'POST',
+      headers: { 'X-CSRFToken': csrfToken }
+    });
+    const result = await response.json();
+    if (result.success) {
+      alert('All Warden data has been removed from this server.');
+      window.location.href = '/warden/dashboard/';
+    } else {
+      throw new Error(result.error || 'Unknown error');
+    }
+  } catch (err) {
+    alert('Error removing data: ' + err.message);
   }
 }
 </script>

@@ -105,6 +105,51 @@
     </div>
   </div>
 
+  <!-- Multi-Step Settings -->
+  <div id="multiStepSettings" class="bg-neutral-900 rounded-xl border border-neutral-800 p-6 mb-6 hidden">
+    <div class="flex items-center justify-between mb-4">
+      <div>
+        <h3 class="text-lg font-bold text-white">
+          <i class="fas fa-tasks text-purple-400 mr-2"></i>Multi-Step Requirements
+        </h3>
+        <p class="text-gray-400 text-sm">Require multiple actions before granting verification</p>
+      </div>
+      <span class="text-xs text-yellow-400 font-semibold">Premium</span>
+    </div>
+
+    <div class="space-y-4">
+      <label class="flex items-center gap-3">
+        <input type="checkbox" id="require_rules_read" class="w-5 h-5 rounded border-neutral-600 bg-neutral-700 text-purple-500 focus:ring-purple-500" {% if verification_config.require_rules_read %}checked{% endif %}>
+        <div>
+          <p class="text-white font-medium text-sm">Require rules acknowledgement</p>
+          <p class="text-gray-500 text-xs">User must click “I’ve read the rules” button.</p>
+        </div>
+      </label>
+
+      <div class="p-4 bg-neutral-800/50 rounded-lg space-y-3">
+        <label class="flex items-center gap-3">
+          <input type="checkbox" id="require_intro_message" class="w-5 h-5 rounded border-neutral-600 bg-neutral-700 text-purple-500 focus:ring-purple-500" {% if verification_config.require_intro_message %}checked{% endif %}>
+          <div>
+            <p class="text-white font-medium text-sm">Require intro message</p>
+            <p class="text-gray-500 text-xs">User must post in your intro channel before verification completes.</p>
+          </div>
+        </label>
+        <div id="introChannelContainer" class="{% if not verification_config.require_intro_message %}hidden{% endif %}">
+          <label class="block text-sm text-gray-400 mb-2">Intro Channel</label>
+          <div id="intro_channel_idContainer"></div>
+        </div>
+      </div>
+
+      <div class="bg-purple-900/20 border border-purple-700/40 rounded-lg p-4 text-xs text-gray-300">
+        <p class="text-white font-semibold mb-1">User flow:</p>
+        <p>1) Click verify button</p>
+        <p>2) (Optional) Confirm rules</p>
+        <p>3) (Optional) Post intro in selected channel</p>
+        <p>4) Grant verified role</p>
+      </div>
+    </div>
+  </div>
+
   <!-- Button Settings -->
   <div id="buttonSettings" class="bg-neutral-900 rounded-xl border border-neutral-800 p-6 mb-6">
     <h3 class="text-lg font-bold text-white mb-4">
@@ -146,7 +191,7 @@
         <label class="block text-sm text-gray-400 mb-2">Verification Instructions</label>
         <textarea id="verification_instructions" rows="2"
                   placeholder="Instructions shown to unverified members..."
-                  class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:border-purple-500 focus:outline-none resize-none">{{ verification_config.verification_instructions }}</textarea>
+                  class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:border-purple-500 focus:outline-none resize-y">{{ verification_config.verification_instructions }}</textarea>
       </div>
       <div>
         <label class="block text-sm text-gray-400 mb-2">Success Message</label>
@@ -187,18 +232,34 @@ function updateTypeSettings() {
   const type = document.querySelector('input[name="verification_type"]:checked')?.value;
   document.getElementById('buttonSettings').classList.toggle('hidden', type !== 'button');
   document.getElementById('captchaSettings').classList.toggle('hidden', type !== 'captcha');
+  document.getElementById('multiStepSettings').classList.toggle('hidden', type !== 'multi_step');
+
+  const introToggle = document.getElementById('require_intro_message');
+  const introContainer = document.getElementById('introChannelContainer');
+  if (introToggle && introContainer) {
+    introContainer.classList.toggle('hidden', !introToggle.checked || type !== 'multi_step');
+  }
 }
 document.querySelectorAll('input[name="verification_type"]').forEach(r => r.addEventListener('change', updateTypeSettings));
 updateTypeSettings();
 
+// Intro toggle visibility
+document.getElementById('require_intro_message')?.addEventListener('change', () => {
+  const introContainer = document.getElementById('introChannelContainer');
+  const type = document.querySelector('input[name="verification_type"]:checked')?.value;
+  if (introContainer) introContainer.classList.toggle('hidden', type !== 'multi_step' || !document.getElementById('require_intro_message').checked);
+});
+
 // Load Discord channels and initialize custom select
 let verificationChannelSelect;
+let introChannelSelect;
 async function loadChannels() {
   try {
     const response = await csrfFetch(`/api/guild/${guildId}/channels/`);
     const data = await response.json();
 
     const currentValue = '{{ verification_config.verification_channel_id }}';
+    const currentIntro = '{{ verification_config.intro_channel_id }}';
 
     if (data.channels) {
       const textChannels = data.channels.filter(ch => ch.type === 0);
@@ -222,6 +283,16 @@ async function loadChannels() {
         items: channelItems,
         selected: currentValue || '',
         color: 'green'
+      });
+
+      introChannelSelect = createCustomSelect({
+        container: '#intro_channel_idContainer',
+        name: 'intro_channel_id',
+        id: 'intro_channel_id',
+        placeholder: 'Select intro channel...',
+        items: channelItems,
+        selected: currentIntro || '',
+        color: 'purple'
       });
     }
   } catch (err) {
@@ -279,6 +350,9 @@ async function saveConfig() {
     button_text: document.getElementById('button_text').value,
     captcha_length: parseInt(document.getElementById('captcha_length').value) || 6,
     captcha_timeout_seconds: parseInt(document.getElementById('captcha_timeout_seconds').value) || 300,
+    require_rules_read: document.getElementById('require_rules_read').checked,
+    require_intro_message: document.getElementById('require_intro_message').checked,
+    intro_channel_id: introChannelSelect ? introChannelSelect.getValue() : '',
     verification_instructions: document.getElementById('verification_instructions').value,
     verified_message: document.getElementById('verified_message').value,
     verification_timeout_hours: parseInt(document.getElementById('verification_timeout_hours').value) || 24,

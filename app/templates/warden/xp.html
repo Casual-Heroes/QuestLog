@@ -7,6 +7,49 @@
 {% block guild_content %}
 
 {% include "warden/partials/custom_select.html" %}
+
+<!-- XP Tabs (Discovery-style) -->
+<div class="flex items-center gap-6 border-b border-neutral-800 mb-6">
+  <button id="xpTabSettingsBtn"
+          class="pb-3 text-sm font-semibold text-white border-b-2 border-yellow-500 flex items-center gap-2"
+          onclick="switchXpTab('settings')">
+    <i class="fas fa-cog text-yellow-400"></i> XP Settings
+  </button>
+  <button id="xpTabLevelupBtn"
+          class="pb-3 text-sm font-semibold text-gray-400 border-b-2 border-transparent hover:text-white"
+          onclick="switchXpTab('levelup')">
+    <i class="fas fa-bell text-blue-400"></i> Level-Up Messages
+  </button>
+  <button id="xpTabBoostBtn"
+          class="pb-3 text-sm font-semibold text-gray-400 border-b-2 border-transparent hover:text-white"
+          onclick="switchXpTab('boosts')">
+    <i class="fas fa-bolt text-orange-400"></i> XP Boost Events
+  </button>
+</div>
+
+<div id="xpTabSettings">
+<!-- XP System Toggle Banner -->
+<div class="mb-6 bg-gradient-to-r from-yellow-900/30 to-amber-900/30 border border-yellow-700/50 rounded-xl p-5">
+  <div class="flex items-center justify-between">
+    <div class="flex items-center gap-4">
+      <div class="w-12 h-12 bg-yellow-600/20 rounded-lg flex items-center justify-center flex-shrink-0">
+        <i class="fas fa-power-off text-yellow-400 text-xl"></i>
+      </div>
+      <div>
+        <h3 class="text-white font-bold mb-1">XP System Status</h3>
+        <p class="text-gray-400 text-sm" id="xpStatusText">
+          XP tracking is currently <span id="xpStatusLabel" class="font-semibold">disabled</span>
+        </p>
+      </div>
+    </div>
+    <label class="relative inline-flex items-center cursor-pointer">
+      <input type="checkbox" id="xpEnabledToggle" class="sr-only peer" onchange="toggleXPSystem()">
+      <div class="w-14 h-7 bg-gray-700 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-yellow-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[4px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-yellow-600"></div>
+      <span class="ml-3 text-sm font-medium text-white">Enable XP</span>
+    </label>
+  </div>
+</div>
+
 <!-- Header -->
   <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
     <div>
@@ -99,7 +142,7 @@
 
   <!-- Stats Overview -->
   <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-    <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-5">
+  <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-5">
       <div class="flex items-center gap-3">
         <div class="w-10 h-10 bg-indigo-600/20 rounded-lg flex items-center justify-center">
           <i class="fas fa-users text-indigo-400"></i>
@@ -756,6 +799,44 @@
     </div>
   </div>
 
+</div> <!-- end settings tab -->
+
+<!-- Level-Up Messages Tab -->
+<div id="xpTabLevelup" class="hidden">
+  <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6 mb-6">
+    <h3 class="text-xl font-bold text-white mb-2">
+      <i class="fas fa-bell text-blue-400 mr-2"></i>Level-Up Messages
+    </h3>
+    <p class="text-gray-400 mb-4 text-sm">
+      Configure how level-up announcements are delivered. (UI coming soon)
+    </p>
+    <div class="bg-neutral-800/50 border border-neutral-700 rounded-lg p-4 text-sm text-gray-300">
+      We’ll surface your existing level-up settings here and add per-channel/role targeting. For now, continue using the existing controls on this page.
+    </div>
+  </div>
+</div>
+
+<!-- XP Boost Events Tab -->
+<div id="xpTabBoosts" class="hidden">
+  <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6 mb-6">
+    <h3 class="text-xl font-bold text-white mb-2">
+      <i class="fas fa-bolt text-orange-400 mr-2"></i>XP Boost Events
+    </h3>
+    <p class="text-gray-400 mb-4 text-sm">
+      Create timed XP boosts for chat, reactions, voice/gaming, and token conversion. Configure scope (server/role/channel), multiplier, duration, and announcements.
+    </p>
+    <div class="bg-neutral-800/50 border border-neutral-700 rounded-lg p-4 text-sm text-gray-300 space-y-2">
+      <p class="text-white font-semibold">Coming Soon</p>
+      <ul class="list-disc list-inside space-y-1">
+        <li>One active boost per guild with clear start/end and countdown.</li>
+        <li>Scopes: server-wide, specific roles, or specific channels.</li>
+        <li>Multipliers with safe caps; optional token bonus per XP.</li>
+        <li>Announcements when boosts start/end to drive engagement.</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
 <script>
 const GUILD_ID = '{{ guild.id }}';
 const API_BASE = `/api/guild/${GUILD_ID}/xp`;
@@ -845,7 +926,75 @@ async function loadRoles() {
   }
 }
 
-document.addEventListener('DOMContentLoaded', loadRoles);
+document.addEventListener('DOMContentLoaded', () => {
+  loadRoles();
+  loadXPStatus();
+});
+
+// XP System Toggle
+let xpEnabled = false;
+
+async function loadXPStatus() {
+  try {
+    const response = await csrfFetch(`${API_BASE}/config/`);
+    const data = await response.json();
+
+    if (data.success && data.config) {
+      xpEnabled = data.config.xp_enabled || false;
+      updateXPStatusUI(xpEnabled);
+    }
+  } catch (err) {
+    console.error('Failed to load XP status:', err);
+  }
+}
+
+function updateXPStatusUI(enabled) {
+  const toggle = document.getElementById('xpEnabledToggle');
+  const statusLabel = document.getElementById('xpStatusLabel');
+
+  toggle.checked = enabled;
+  statusLabel.textContent = enabled ? 'enabled' : 'disabled';
+  statusLabel.className = enabled ? 'font-semibold text-green-400' : 'font-semibold text-red-400';
+}
+
+async function toggleXPSystem() {
+  const toggle = document.getElementById('xpEnabledToggle');
+  const newState = toggle.checked;
+
+  try {
+    const response = await csrfFetch(`${API_BASE}/toggle/`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': getCookie('csrftoken')
+      },
+      body: JSON.stringify({
+        xp_enabled: newState
+      })
+    });
+
+    const data = await response.json();
+
+    if (data.success) {
+      xpEnabled = newState;
+      updateXPStatusUI(newState);
+
+      // Show success message
+      alert(newState ?
+        '✅ XP system enabled! Members will now earn XP for activities.' :
+        '⚠️ XP system disabled. No XP will be earned until re-enabled.'
+      );
+    } else {
+      // Revert toggle on failure
+      toggle.checked = !newState;
+      alert('Error: ' + (data.error || 'Failed to update XP system status'));
+    }
+  } catch (err) {
+    // Revert toggle on failure
+    toggle.checked = !newState;
+    alert('Error updating XP system: ' + err.message);
+  }
+}
 
 // Config Modal
 function openConfigModal() {
@@ -1448,5 +1597,26 @@ function showToast(message, type = 'info') {
   document.body.appendChild(toast);
   setTimeout(() => toast.remove(), 3000);
 }
+
+function switchXpTab(tab) {
+  const tabs = ['settings', 'levelup', 'boosts'];
+  tabs.forEach(key => {
+    const section = document.getElementById(`xpTab${key.charAt(0).toUpperCase() + key.slice(1)}`);
+    const btn = document.getElementById(`xpTab${key.charAt(0).toUpperCase() + key.slice(1)}Btn`);
+    if (section) section.classList.toggle('hidden', key !== tab);
+    if (btn) {
+      const active = key === tab;
+      btn.classList.toggle('text-white', active);
+      btn.classList.toggle('text-gray-400', !active);
+      btn.classList.toggle('border-yellow-500', active && key === 'settings');
+      btn.classList.toggle('border-blue-500', active && key === 'levelup');
+      btn.classList.toggle('border-orange-500', active && key === 'boosts');
+      btn.classList.toggle('border-transparent', !active);
+    }
+  });
+}
+
+// init
+switchXpTab('settings');
 </script>
 {% endblock %}

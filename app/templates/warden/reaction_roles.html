@@ -5,6 +5,23 @@
 
 {% block guild_content %}
 
+<script>
+const csrfToken = '{{ csrf_token }}';
+async function csrfFetch(url, options = {}) {
+  const opts = { ...options };
+  opts.headers = opts.headers || {};
+  opts.headers['X-CSRFToken'] = csrfToken;
+
+  if (!(opts.body instanceof FormData) && opts.method && opts.method.toUpperCase() !== 'GET' && !opts.headers['Content-Type']) {
+    opts.headers['Content-Type'] = 'application/json';
+  }
+
+  return fetch(url, opts);
+}
+</script>
+{% include "warden/partials/discord_resource_selects.html" %}
+{% include "warden/partials/custom_select.html" %}
+
   <!-- Header -->
   <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
     <div>
@@ -14,7 +31,7 @@
       <p class="text-gray-400 mt-1">Create self-assignable role menus with reactions or buttons</p>
     </div>
     <div class="flex gap-3">
-      <button onclick="createMenu()" class="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded-lg font-medium transition text-sm">
+      <button onclick="openMenuModal()" class="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded-lg font-medium transition text-sm">
         <i class="fas fa-plus mr-2"></i>Create Menu
       </button>
       {% include "warden/partials/sync_button.html" %}
@@ -34,58 +51,20 @@
 
   <!-- Reaction Role Menus -->
   <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6">
-    <h2 class="text-xl font-bold text-white mb-4">
-      <i class="fas fa-list text-gray-400 mr-2"></i>Reaction Role Menus
-    </h2>
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-xl font-bold text-white">
+        <i class="fas fa-list text-gray-400 mr-2"></i>Reaction Role Menus
+      </h2>
+      <button onclick="openMenuModal()" class="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded-lg font-medium transition text-sm">
+        <i class="fas fa-plus mr-2"></i>New Menu
+      </button>
+    </div>
 
-    {% if reaction_menus %}
-      <div class="space-y-4">
-        {% for menu in reaction_menus %}
-        <div class="bg-neutral-800 rounded-lg p-5 border border-neutral-700">
-          <div class="flex items-start justify-between mb-3">
-            <div>
-              <h3 class="text-white font-semibold text-lg">{{ menu.title }}</h3>
-              {% if menu.description %}
-                <p class="text-gray-400 text-sm mt-1">{{ menu.description }}</p>
-              {% endif %}
-            </div>
-            <div class="flex items-center gap-2">
-              {% if menu.enabled %}
-                <span class="px-2 py-1 bg-green-600/20 text-green-400 rounded text-xs font-medium">Active</span>
-              {% else %}
-                <span class="px-2 py-1 bg-neutral-700 text-gray-400 rounded text-xs font-medium">Disabled</span>
-              {% endif %}
-            </div>
-          </div>
-
-          <div class="flex items-center gap-4 text-sm text-gray-500 mb-4">
-            {% if menu.channel_id %}
-              <span><i class="fas fa-hashtag mr-1"></i>Channel: {{ menu.channel_id }}</span>
-            {% endif %}
-            <span><i class="fas fa-tag mr-1"></i>{{ menu.role_count }} role{{ menu.role_count|pluralize }}</span>
-          </div>
-
-          <div class="flex items-center gap-3">
-            <button onclick="editMenu({{ menu.id }})" class="text-blue-400 hover:text-blue-300 text-sm font-medium">
-              <i class="fas fa-edit mr-1"></i>Edit
-            </button>
-            <button onclick="deleteMenu({{ menu.id }})" class="text-red-400 hover:text-red-300 text-sm font-medium">
-              <i class="fas fa-trash mr-1"></i>Delete
-            </button>
-          </div>
-        </div>
-        {% endfor %}
+    <div id="menusContainer">
+      <div class="text-center py-10 text-gray-500">
+        <i class="fas fa-spinner fa-spin mr-2"></i>Loading menus...
       </div>
-    {% else %}
-      <div class="text-center py-12">
-        <i class="fas fa-inbox text-6xl text-gray-700 mb-4"></i>
-        <h3 class="text-xl font-semibold text-gray-400 mb-2">No Reaction Role Menus</h3>
-        <p class="text-gray-500 mb-6">Get started by creating your first reaction role menu!</p>
-        <button onclick="createMenu()" class="bg-yellow-600 hover:bg-yellow-700 text-white px-6 py-3 rounded-lg font-medium transition">
-          <i class="fas fa-plus mr-2"></i>Create Your First Menu
-        </button>
-      </div>
-    {% endif %}
+    </div>
   </div>
 
   <!-- How to Use Section -->
@@ -114,21 +93,599 @@
   </div>
 </div>
 
+<!-- Create/Edit Menu Modal -->
+<div id="menuModal" class="fixed inset-0 bg-black/70 flex items-center justify-center z-50 hidden">
+  <div class="bg-neutral-900 rounded-xl border border-neutral-800 w-full max-w-3xl p-6">
+    <div class="flex items-start justify-between mb-4">
+      <div>
+        <h3 id="menuModalTitle" class="text-xl font-bold text-white flex items-center">
+          <i class="fas fa-plus mr-2 text-yellow-400"></i>Create Reaction Role Menu
+        </h3>
+        <p class="text-gray-400 text-sm" id="menuModalSubtitle">Attach emoji to roles and connect to an existing message.</p>
+      </div>
+      <button onclick="closeMenuModal()" class="text-gray-500 hover:text-white transition">
+        <i class="fas fa-times text-lg"></i>
+      </button>
+    </div>
+
+    <form id="menuForm" onsubmit="saveMenu(event)">
+      <div class="grid md:grid-cols-2 gap-4">
+        <div>
+          <label class="block text-sm text-gray-400 mb-1">Channel</label>
+          <div id="channelSelectContainer"></div>
+        </div>
+        <div>
+          <label class="block text-sm text-gray-400 mb-1">Menu Title</label>
+          <input id="menuTitleInput" type="text" class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-yellow-500" placeholder="Choose your roles">
+        </div>
+      </div>
+      <div class="mt-4">
+        <label class="block text-sm text-gray-400 mb-1">Menu Description (optional)</label>
+        <textarea id="menuDescriptionInput" class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-yellow-500" rows="2" placeholder="Describe what these roles are for..."></textarea>
+        <p class="text-xs text-gray-500 mt-1">We will post a new message to this channel and add these reactions automatically. No message ID needed.</p>
+      </div>
+
+      <div class="mt-5">
+        <div class="flex items-center justify-between mb-2">
+          <h4 class="text-white font-semibold text-sm">Role Options</h4>
+          <button type="button" onclick="addRoleRow()" class="text-yellow-400 hover:text-yellow-300 text-sm font-medium">
+            <i class="fas fa-plus mr-1"></i>Add Role
+          </button>
+        </div>
+        <div id="roleRows" class="space-y-3"></div>
+      </div>
+
+      <div class="flex items-center justify-end gap-3 mt-6">
+        <button type="button" onclick="closeMenuModal()" class="px-4 py-2 rounded-lg bg-neutral-800 text-gray-300 hover:bg-neutral-700 transition">
+          Cancel
+        </button>
+        <button type="submit" id="saveMenuBtn" class="px-5 py-2 rounded-lg bg-yellow-600 hover:bg-yellow-500 text-white font-medium transition">
+          <i class="fas fa-check mr-2"></i><span id="saveMenuBtnText">Save Menu</span>
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+{{ reaction_menus|json_script:"reaction-menus-data" }}
+
 <script>
-const GUILD_ID = '{{ guild.id }}';
+const guildId = '{{ guild.id }}';
+let menus = [];
+let channels = [];
+let roles = [];
+let editingMessageId = null;
+let resourcesLoaded = false;
+let resourcesLoading = false;
+let channelOptions = [];
+let roleOptions = [];
+let channelSelectInstance = null;
+let emojiOptions = [];
+let guildEmojis = [];
 
-function createMenu() {
-  alert('Create menu feature coming soon! This will open a modal to configure a new reaction role menu.');
+function escapeHtml(str) {
+  return (str || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
-function editMenu(menuId) {
-  alert(`Edit menu ${menuId} - Coming soon!`);
+function channelName(id) {
+  const found = channels.find(c => c.id === String(id));
+  return found ? `#${found.name}` : `#${id}`;
 }
 
-function deleteMenu(menuId) {
-  if (confirm('Are you sure you want to delete this reaction role menu?')) {
-    alert(`Delete menu ${menuId} - Coming soon!`);
+function roleName(id) {
+  const found = roles.find(r => r.id === String(id));
+  return found ? found.name : id;
+}
+
+function renderMenus() {
+  const container = document.getElementById('menusContainer');
+  if (!menus || menus.length === 0) {
+    container.innerHTML = `
+      <div class="text-center py-12">
+        <i class="fas fa-inbox text-6xl text-gray-700 mb-4"></i>
+        <h3 class="text-xl font-semibold text-gray-400 mb-2">No Reaction Role Menus</h3>
+        <p class="text-gray-500 mb-6">Get started by creating your first reaction role menu!</p>
+        <button onclick="openMenuModal()" class="bg-yellow-600 hover:bg-yellow-700 text-white px-6 py-3 rounded-lg font-medium transition">
+          <i class="fas fa-plus mr-2"></i>Create Your First Menu
+        </button>
+      </div>
+    `;
+    return;
+  }
+
+  const cards = menus.map(menu => {
+    const roleBadges = (menu.roles || []).map(r => `
+      <div class="flex items-center gap-2 bg-neutral-800 px-3 py-2 rounded-lg border border-neutral-700">
+        <span class="text-lg">${escapeHtml(r.emoji)}</span>
+        <span class="text-sm text-white font-medium">${escapeHtml(roleName(r.role_id))}</span>
+        <span class="text-xs text-gray-500">${r.remove_on_unreact ? 'Remove on unreact' : 'Keep on unreact'}</span>
+        ${r.exclusive_group ? `<span class="text-xs text-indigo-300 bg-indigo-500/10 px-2 py-1 rounded">Group: ${escapeHtml(r.exclusive_group)}</span>` : ''}
+      </div>
+    `).join('');
+
+    return `
+      <div class="bg-neutral-800 rounded-lg p-5 border border-neutral-700">
+        <div class="flex items-start justify-between mb-3">
+          <div>
+            <h3 class="text-white font-semibold text-lg">${escapeHtml(menu.title || `Menu #${menu.message_id}`)}</h3>
+            ${menu.description ? `<p class="text-gray-400 text-sm mt-1">${escapeHtml(menu.description)}</p>` : ''}
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="px-2 py-1 bg-green-600/20 text-green-400 rounded text-xs font-medium">Active</span>
+          </div>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-4 text-sm text-gray-400 mb-4">
+          <span><i class="fas fa-hashtag mr-1"></i>${channelName(menu.channel_id)}</span>
+          <span><i class="fas fa-envelope mr-1"></i>Message ID: ${escapeHtml(menu.message_id)}</span>
+          <span><i class="fas fa-tag mr-1"></i>${menu.role_count || (menu.roles ? menu.roles.length : 0)} role${(menu.role_count || (menu.roles ? menu.roles.length : 0)) === 1 ? '' : 's'}</span>
+        </div>
+
+        <div class="grid md:grid-cols-2 gap-2 mb-4">
+          ${roleBadges || '<p class="text-gray-500 text-sm">No roles configured yet.</p>'}
+        </div>
+
+        <div class="flex items-center gap-3">
+          <button onclick="openEditMenu('${menu.message_id}')" class="text-blue-400 hover:text-blue-300 text-sm font-medium">
+            <i class="fas fa-edit mr-1"></i>Edit
+          </button>
+          <button onclick="deleteMenu('${menu.message_id}')" class="text-red-400 hover:text-red-300 text-sm font-medium">
+            <i class="fas fa-trash mr-1"></i>Delete
+          </button>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  container.innerHTML = `<div class="space-y-4">${cards}</div>`;
+}
+
+function getChannelList() {
+  if (Array.isArray(channels)) return channels;
+  if (window.DiscordResources && Array.isArray(window.DiscordResources.channels)) {
+    channels = window.DiscordResources.channels;
+    return channels;
+  }
+  channels = [];
+  return channels;
+}
+
+function getRoleList() {
+  if (Array.isArray(roles)) return roles;
+  if (window.DiscordResources && Array.isArray(window.DiscordResources.roles)) {
+    roles = window.DiscordResources.roles;
+    return roles;
+  }
+  roles = [];
+  return roles;
+}
+
+function getEmojiList() {
+  if (Array.isArray(guildEmojis) && guildEmojis.length) return guildEmojis;
+  if (Array.isArray(window.DiscordEmojis) && window.DiscordEmojis.length) {
+    guildEmojis = window.DiscordEmojis;
+    return guildEmojis;
+  }
+  return [];
+}
+
+function addRoleRow(roleData = null) {
+  const container = document.getElementById('roleRows');
+  const row = document.createElement('div');
+  row.className = 'role-row grid md:grid-cols-4 gap-3 bg-neutral-800 border border-neutral-700 rounded-lg p-3';
+  const roleSelectId = `role_select_${Date.now()}_${Math.floor(Math.random()*10000)}`;
+  const emojiSelectId = `emoji_select_${Date.now()}_${Math.floor(Math.random()*10000)}`;
+
+  row.innerHTML = `
+    <div>
+      <label class="block text-xs text-gray-400 mb-1">Emoji</label>
+      <div class="emoji-select-container"></div>
+      <input type="hidden" class="emoji-value-input" id="${emojiSelectId}" value="${roleData ? escapeHtml(roleData.emoji) : ''}">
+    </div>
+    <div>
+      <label class="block text-xs text-gray-400 mb-1">Role</label>
+      <div class="role-select-container"></div>
+      <input type="hidden" class="role-id-input" id="${roleSelectId}" value="${roleData ? roleData.role_id : ''}">
+    </div>
+    <div class="space-y-2">
+      <label class="flex items-center gap-2 text-xs text-gray-300">
+        <input type="checkbox" class="remove-toggle h-4 w-4 text-yellow-500" ${!roleData || roleData.remove_on_unreact ? 'checked' : ''}>
+        Remove role when reaction is removed
+      </label>
+      <input type="text" class="exclusive-input w-full bg-neutral-900 border border-neutral-700 rounded px-3 py-2 text-white focus:outline-none focus:border-yellow-500 text-sm" placeholder="Exclusive group (optional)" value="${roleData && roleData.exclusive_group ? escapeHtml(roleData.exclusive_group) : ''}">
+    </div>
+    <div class="flex items-center justify-end">
+      <button type="button" class="text-red-400 hover:text-red-300 text-sm font-medium" onclick="removeRoleRow(this)">
+        <i class="fas fa-times mr-1"></i>Remove
+      </button>
+    </div>
+  `;
+
+  container.appendChild(row);
+
+  // Initialize custom select for this row
+  const roleList = getRoleList();
+  roleOptions = roleList.map(r => ({ value: String(r.id), label: r.name, icon: 'user-tag' }));
+  const selectContainer = row.querySelector('.role-select-container');
+  const hiddenInput = row.querySelector('.role-id-input');
+  createCustomSelect({
+    container: selectContainer,
+    name: `role_select_display_${roleSelectId}`,
+    id: `role_select_display_${roleSelectId}`,
+    placeholder: 'Select role...',
+    items: roleOptions,
+    selected: roleData ? String(roleData.role_id) : '',
+    color: 'indigo',
+    onSelect: (val) => {
+      hiddenInput.value = val;
+    }
+  });
+
+  // Emoji select
+  const emojiContainer = row.querySelector('.emoji-select-container');
+  const emojiHidden = row.querySelector('.emoji-value-input');
+  const emojiItems = emojiOptions;
+
+  createCustomSelect({
+    container: emojiContainer,
+    name: `emoji_select_display_${emojiSelectId}`,
+    id: `emoji_select_display_${emojiSelectId}`,
+    placeholder: 'Select emoji...',
+    items: emojiItems,
+    selected: emojiOptions.some(e => e.value === (roleData ? roleData.emoji : '')) ? (roleData ? roleData.emoji : '') : '',
+    color: 'yellow',
+    onSelect: (val) => {
+      emojiHidden.value = val;
+    }
+  });
+}
+
+function removeRoleRow(button) {
+  const row = button.closest('.role-row');
+  if (row) row.remove();
+}
+
+function resetMenuForm() {
+  editingMessageId = null;
+  document.getElementById('menuForm').reset();
+  document.getElementById('menuTitleInput').value = 'Choose your roles';
+  document.getElementById('menuDescriptionInput').value = '';
+  document.getElementById('roleRows').innerHTML = '';
+}
+
+async function openMenuModal(menu = null) {
+  await ensureResources();
+  resetMenuForm();
+  initChannelSelect(menu ? menu.channel_id : '');
+
+  if (menu) {
+    editingMessageId = String(menu.message_id);
+    document.getElementById('menuModalTitle').innerHTML = '<i class="fas fa-edit mr-2 text-blue-400"></i>Edit Reaction Role Menu';
+    document.getElementById('menuModalSubtitle').textContent = 'Update emoji/role pairs for this reaction role message.';
+    document.getElementById('menuTitleInput').value = menu.title || 'Choose your roles';
+    document.getElementById('menuDescriptionInput').value = menu.description || '';
+    document.getElementById('saveMenuBtnText').textContent = 'Update Menu';
+    document.getElementById('roleRows').innerHTML = '';
+    (menu.roles || []).forEach(r => addRoleRow(r));
+  } else {
+    document.getElementById('menuModalTitle').innerHTML = '<i class="fas fa-plus mr-2 text-yellow-400"></i>Create Reaction Role Menu';
+    document.getElementById('menuModalSubtitle').textContent = 'Attach emoji to roles and connect to an existing message.';
+    document.getElementById('saveMenuBtnText').textContent = 'Save Menu';
+    document.getElementById('menuTitleInput').value = 'Choose your roles';
+    addRoleRow();
+  }
+
+  document.getElementById('menuModal').classList.remove('hidden');
+}
+
+function openEditMenu(messageId) {
+  const menu = menus.find(m => String(m.message_id) === String(messageId));
+  if (!menu) {
+    alert('Could not find that menu.');
+    return;
+  }
+  openMenuModal(menu);
+}
+
+function closeMenuModal() {
+  document.getElementById('menuModal').classList.add('hidden');
+}
+
+function collectRoleRows() {
+  const rows = Array.from(document.querySelectorAll('#roleRows .role-row'));
+  return rows.map(row => {
+    const emojiHidden = row.querySelector('.emoji-value-input');
+    const emoji = (emojiHidden?.value || '').trim();
+    const roleId = row.querySelector('.role-id-input')?.value || '';
+    const removeOnUnreact = row.querySelector('.remove-toggle').checked;
+    const exclusiveGroup = row.querySelector('.exclusive-input').value.trim();
+    const roleObj = getRoleList().find(r => String(r.id) === String(roleId));
+    return {
+      emoji,
+      role_id: roleId,
+      role_name: roleObj ? roleObj.name : '',
+      remove_on_unreact: removeOnUnreact,
+      exclusive_group: exclusiveGroup
+    };
+  }).filter(r => r.emoji && r.role_id);
+}
+
+async function saveMenu(event) {
+  event.preventDefault();
+
+  const channelHidden = document.getElementById('channel_id');
+  const channelId = channelSelectInstance && channelSelectInstance.getValue ? channelSelectInstance.getValue() : (channelHidden ? channelHidden.value : '');
+  const title = document.getElementById('menuTitleInput').value.trim() || 'Choose your roles';
+  const description = document.getElementById('menuDescriptionInput').value.trim();
+  const rolesPayload = collectRoleRows();
+
+  if (!channelId) {
+    alert('Channel is required.');
+    return;
+  }
+
+  if (rolesPayload.length === 0) {
+    alert('Add at least one emoji/role pair.');
+    return;
+  }
+
+  const btn = document.getElementById('saveMenuBtn');
+  const btnText = document.getElementById('saveMenuBtnText');
+  const originalText = btnText.textContent;
+  btn.disabled = true;
+  btnText.textContent = 'Saving...';
+
+  try {
+    const endpoint = editingMessageId
+      ? `/api/guild/${guildId}/reaction-roles/${editingMessageId}/`
+      : `/api/guild/${guildId}/reaction-roles/`;
+
+    const method = editingMessageId ? 'PUT' : 'POST';
+
+    const response = await csrfFetch(endpoint, {
+      method,
+      body: JSON.stringify({
+        channel_id: channelId,
+        title,
+        description,
+        roles: rolesPayload,
+        overwrite: true
+      })
+    });
+
+    const result = await response.json();
+    if (!response.ok || !result.success) {
+      throw new Error(result.error || 'Failed to save reaction role menu');
+    }
+
+    closeMenuModal();
+    await fetchMenus();
+  } catch (err) {
+    alert(err.message);
+  } finally {
+    btn.disabled = false;
+    btnText.textContent = originalText;
   }
 }
+
+async function deleteMenu(messageId) {
+  if (!confirm('Delete this reaction role menu? This will remove all emoji/role pairs for the message.')) return;
+
+  try {
+    const response = await csrfFetch(`/api/guild/${guildId}/reaction-roles/${messageId}/`, {
+      method: 'DELETE'
+    });
+    const result = await response.json();
+    if (!response.ok || !result.success) {
+      throw new Error(result.error || 'Failed to delete menu');
+    }
+    await fetchMenus();
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+async function fetchResources() {
+  try {
+    const resources = await loadDiscordResources();
+    channels = (resources && Array.isArray(resources.channels)) ? resources.channels : [];
+    roles = (resources && Array.isArray(resources.roles)) ? resources.roles : [];
+    // Fallback fetch if resources were empty
+    if (channels.length === 0) {
+      const chResp = await csrfFetch(`/api/guild/${guildId}/channels/`);
+      if (chResp.ok) {
+        const chData = await chResp.json();
+        channels = Array.isArray(chData.channels) ? chData.channels : [];
+      }
+    }
+    if (roles.length === 0) {
+      const rResp = await csrfFetch(`/api/guild/${guildId}/roles/`);
+      if (rResp.ok) {
+        const rData = await rResp.json();
+        roles = Array.isArray(rData.roles) ? rData.roles : [];
+      }
+    }
+    // Emojis
+    try {
+      const eResp = await csrfFetch(`/api/guild/${guildId}/emojis/`);
+      if (eResp.ok) {
+        const eData = await eResp.json();
+        guildEmojis = Array.isArray(eData.emojis) ? eData.emojis : [];
+        window.DiscordEmojis = guildEmojis;
+      }
+    } catch (emojiErr) {
+      console.warn('Could not load emojis', emojiErr);
+    }
+    // Sync back into global cache to help other pages/components
+    if (window.DiscordResources) {
+      window.DiscordResources.channels = channels;
+      window.DiscordResources.roles = roles;
+      window.DiscordResources.loaded = true;
+      window.DiscordResources.loading = false;
+    }
+
+    buildOptionData();
+    initChannelSelect();
+    refreshRoleSelects();
+
+    resourcesLoaded = true;
+  } catch (err) {
+    console.error('Failed to load guild resources', err);
+  } finally {
+    resourcesLoading = false;
+  }
+}
+
+function ensureResources() {
+  if (resourcesLoaded) return Promise.resolve();
+  if (resourcesLoading) return new Promise(resolve => {
+    const interval = setInterval(() => {
+      if (!resourcesLoading) {
+        clearInterval(interval);
+        resolve();
+      }
+    }, 50);
+  });
+  resourcesLoading = true;
+  return fetchResources();
+}
+
+function buildOptionData() {
+  const channelList = getChannelList();
+  channelOptions = channelList.map(ch => ({
+    value: String(ch.id),
+    label: ch.name ? `#${ch.name}` : ch.id,
+    icon: 'hashtag'
+  }));
+
+  const roleList = getRoleList();
+  roleOptions = roleList.map(r => ({
+    value: String(r.id),
+    label: r.name,
+    icon: 'user-tag'
+  }));
+
+  // Emojis: guild custom + a small curated Unicode set
+  const emojiList = getEmojiList();
+  const guildEmojiOptions = emojiList.map(e => ({
+    value: `${e.name}:${e.id}`,
+    label: `:${e.name}:`,
+    icon: e.animated ? 'bolt' : 'smile'
+  }));
+
+  const standardEmojis = [
+    { value: '😀', label: '😀 Grinning', icon: 'smile' },
+    { value: '😁', label: '😁 Beaming', icon: 'smile' },
+    { value: '😂', label: '😂 Tears of Joy', icon: 'laugh' },
+    { value: '🤣', label: '🤣 Rolling Laugh', icon: 'laugh' },
+    { value: '😊', label: '😊 Smiling', icon: 'smile' },
+    { value: '😎', label: '😎 Cool', icon: 'sunglasses' },
+    { value: '😍', label: '😍 Heart Eyes', icon: 'heart' },
+    { value: '😇', label: '😇 Innocent', icon: 'smile' },
+    { value: '😉', label: '😉 Wink', icon: 'smile' },
+    { value: '🙂', label: '🙂 Slight Smile', icon: 'smile' },
+    { value: '🙃', label: '🙃 Upside Down', icon: 'smile' },
+    { value: '😐', label: '😐 Neutral', icon: 'meh' },
+    { value: '😑', label: '😑 Expressionless', icon: 'meh' },
+    { value: '😢', label: '😢 Crying', icon: 'frown' },
+    { value: '😭', label: '😭 Loud Cry', icon: 'frown' },
+    { value: '😡', label: '😡 Angry', icon: 'angry' },
+    { value: '👍', label: '👍 Thumbs Up', icon: 'thumbs-up' },
+    { value: '👎', label: '👎 Thumbs Down', icon: 'thumbs-down' },
+    { value: '🔥', label: '🔥 Fire', icon: 'fire' },
+    { value: '⭐', label: '⭐ Star', icon: 'star' },
+    { value: '✅', label: '✅ Check', icon: 'check' },
+    { value: '❌', label: '❌ Cross', icon: 'times' },
+    { value: '🎮', label: '🎮 Game', icon: 'gamepad' },
+    { value: '🎉', label: '🎉 Party', icon: 'birthday-cake' },
+    { value: '🛡️', label: '🛡️ Shield', icon: 'shield-alt' },
+    { value: '📢', label: '📢 Loudspeaker', icon: 'bullhorn' },
+  ];
+
+  // Deduplicate by value: guild first, then standard
+  const seen = new Set();
+  emojiOptions = [];
+  guildEmojiOptions.forEach(opt => {
+    if (!seen.has(opt.value)) {
+      seen.add(opt.value);
+      emojiOptions.push(opt);
+    }
+  });
+  standardEmojis.forEach(opt => {
+    if (!seen.has(opt.value)) {
+      seen.add(opt.value);
+      emojiOptions.push(opt);
+    }
+  });
+
+  // Ensure the first option is a placeholder if none selected
+  emojiOptions.unshift({ value: '', label: 'Select emoji...', icon: 'smile' });
+}
+
+function initChannelSelect(selectedId = '') {
+  const container = document.getElementById('channelSelectContainer');
+  if (!container || channelOptions.length === 0) return;
+  container.innerHTML = '';
+  channelSelectInstance = createCustomSelect({
+    container,
+    name: 'channel_id',
+    id: 'channel_id',
+    placeholder: 'Select a channel...',
+    items: channelOptions,
+    selected: selectedId ? String(selectedId) : '',
+    color: 'yellow'
+  });
+}
+
+function refreshRoleSelects() {
+  // Rebuild custom selects for existing rows when role list changes
+  document.querySelectorAll('.role-row').forEach(row => {
+    const existingInput = row.querySelector('.role-id-input');
+    const currentValue = existingInput ? existingInput.value : '';
+    const selectContainer = row.querySelector('.role-select-container');
+    if (selectContainer) {
+      selectContainer.innerHTML = '';
+      createCustomSelect({
+        container: selectContainer,
+        name: `role_select_display_${Date.now()}`,
+        id: `role_select_display_${Date.now()}`,
+        placeholder: 'Select role...',
+        items: roleOptions,
+        selected: currentValue ? String(currentValue) : '',
+        color: 'indigo',
+        onSelect: (val) => {
+          if (existingInput) existingInput.value = val;
+        }
+      });
+    }
+  });
+}
+
+async function fetchMenus() {
+  try {
+    const response = await csrfFetch(`/api/guild/${guildId}/reaction-roles/`);
+    const data = await response.json();
+    if (data.menus) {
+      menus = data.menus;
+      renderMenus();
+    }
+  } catch (err) {
+    console.error('Failed to load reaction role menus', err);
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  try {
+    const initialMenusScript = document.getElementById('reaction-menus-data');
+    if (initialMenusScript && initialMenusScript.textContent) {
+      menus = JSON.parse(initialMenusScript.textContent);
+      renderMenus();
+    }
+  } catch (err) {
+    console.warn('Could not parse initial reaction menus', err);
+  }
+
+  ensureResources().then(fetchMenus);
+});
 </script>
 {% endblock guild_content %}
