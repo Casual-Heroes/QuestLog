@@ -338,15 +338,63 @@ class GuildMember(Base):
 
     guild = relationship("Guild", back_populates="members")
 
+
+# Raffles
+
+class Raffle(Base):
+    """Raffle configuration for a guild."""
+    __tablename__ = "raffles"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    guild_id = Column(BigInteger, ForeignKey("guilds.guild_id", ondelete="CASCADE"), index=True)
+    title = Column(String(255), nullable=False)
+    description = Column(Text, nullable=True)
+    cost_tokens = Column(Integer, default=0)
+    max_winners = Column(Integer, default=1)
+    start_at = Column(BigInteger, nullable=True)  # epoch seconds
+    end_at = Column(BigInteger, nullable=True)    # epoch seconds
+    auto_pick = Column(Boolean, default=False)
+    active = Column(Boolean, default=True)
+    winners = Column(Text, nullable=True)  # JSON array of winners [{'user_id':..., 'username':...}]
+    winners_announced = Column(Boolean, default=False)  # Track if winners have been announced
+    announce_channel_id = Column(BigInteger, nullable=True)
+    announce_role_id = Column(BigInteger, nullable=True)
+    announce_message = Column(Text, nullable=True)
+    winner_message = Column(Text, nullable=True)
+    entry_emoji = Column(String(32), nullable=True)
+    announce_message_id = Column(BigInteger, nullable=True)
+    reminder_channel_id = Column(BigInteger, nullable=True)  # Channel to send admin pick reminders
+    reminder_sent = Column(Boolean, default=False)  # Track if admin reminder has been sent
+
+    created_by = Column(BigInteger, nullable=True)
+    created_by_name = Column(String(255), nullable=True)
+    created_at = Column(BigInteger, default=lambda: int(time.time()))
+
+    entries = relationship("RaffleEntry", cascade="all, delete-orphan", back_populates="raffle")
+
+
+class RaffleEntry(Base):
+    """Entries for a raffle."""
+    __tablename__ = "raffle_entries"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    guild_id = Column(BigInteger, index=True)
+    raffle_id = Column(Integer, ForeignKey("raffles.id", ondelete="CASCADE"), index=True)
+    user_id = Column(BigInteger, index=True)
+    username = Column(String(255), nullable=True)
+    tickets = Column(Integer, default=1)
+    created_at = Column(BigInteger, default=lambda: int(time.time()))
+
+    raffle = relationship("Raffle", back_populates="entries")
+
     __table_args__ = (
-        Index("idx_guild_member_xp", "guild_id", "xp"),
-        Index("idx_guild_member_level", "guild_id", "level"),
-        Index("idx_guild_member_active", "guild_id", "last_active"),
-        Index("idx_user_across_guilds", "user_id"),
+        Index("idx_raffle_entry_guild", "guild_id"),
+        Index("idx_raffle_entry_raffle", "raffle_id"),
+        Index("idx_raffle_entry_user", "user_id"),
     )
 
     def __repr__(self):
-        return f"<GuildMember(guild={self.guild_id}, user={self.user_id}, level={self.level})>"
+        return f"<RaffleEntry(raffle={self.raffle_id}, user={self.user_id}, tickets={self.tickets})>"
 
 
 # XP Config

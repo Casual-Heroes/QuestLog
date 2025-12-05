@@ -9,20 +9,20 @@
 {% include "warden/partials/custom_select.html" %}
 
 <!-- XP Tabs (Discovery-style) -->
-<div class="flex items-center gap-6 border-b border-neutral-800 mb-6">
+<div class="flex items-center gap-6 border-b border-neutral-800 mb-4">
   <button id="xpTabSettingsBtn"
-          class="pb-3 text-sm font-semibold text-white border-b-2 border-yellow-500 flex items-center gap-2"
-          onclick="switchXpTab('settings')">
+          class="pb-3 text-sm font-semibold border-b-2 flex items-center gap-2"
+          onclick="switchXpTab('settings', true)">
     <i class="fas fa-cog text-yellow-400"></i> XP Settings
   </button>
-  <button id="xpTabLevelupBtn"
-          class="pb-3 text-sm font-semibold text-gray-400 border-b-2 border-transparent hover:text-white"
-          onclick="switchXpTab('levelup')">
-    <i class="fas fa-bell text-blue-400"></i> Level-Up Messages
-  </button>
+  <a id="xpTabLevelupBtn"
+     href="{% url 'guild_levelup' guild.id %}"
+     class="pb-3 text-sm font-semibold border-b-2 flex items-center gap-2 text-gray-400 border-transparent hover:text-white">
+    <i class="fas fa-comment text-blue-400"></i> Level-Up Messages
+  </a>
   <button id="xpTabBoostBtn"
-          class="pb-3 text-sm font-semibold text-gray-400 border-b-2 border-transparent hover:text-white"
-          onclick="switchXpTab('boosts')">
+          class="pb-3 text-sm font-semibold border-b-2 flex items-center gap-2"
+          onclick="switchXpTab('boosts', true)">
     <i class="fas fa-bolt text-orange-400"></i> XP Boost Events
   </button>
 </div>
@@ -60,35 +60,37 @@
         Configure XP rates, level roles, and manage member progression
       </p>
     </div>
-    <div class="flex flex-wrap gap-3">
-      <button onclick="openConfigModal()"
-              class="bg-neutral-800 hover:bg-neutral-700 text-white px-4 py-2 rounded-lg font-medium transition border border-neutral-700">
-        <i class="fas fa-cog mr-2"></i>XP Settings
+    <div class="relative">
+      <button onclick="toggleXpActions()" id="xpActionsBtn"
+              class="px-4 py-2 bg-neutral-800 hover:bg-neutral-700 text-white rounded-lg border border-neutral-700 flex items-center gap-2">
+        <i class="fas fa-ellipsis-h"></i>
+        <span>XP Actions</span>
+        <i class="fas fa-chevron-down text-xs"></i>
       </button>
-      <button onclick="openLevelRoleModal()"
-              class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium transition">
-        <i class="fas fa-plus mr-2"></i>Add Level Role
-      </button>
-      <button onclick="openBulkLevelRoleModal()"
-              class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-medium transition">
-        <i class="fas fa-layer-group mr-2"></i>Bulk Add
-      </button>
-      <button onclick="openAddMemberModal()"
-              class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium transition">
-        <i class="fas fa-user-plus mr-2"></i>Add Member
-      </button>
-      <button onclick="openBulkEditModal()"
-              class="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white px-4 py-2 rounded-lg font-medium transition">
-        <i class="fas fa-users-cog mr-2"></i>Bulk Edit XP
-      </button>
-      <button onclick="openImportModal()"
-              class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium transition">
-        <i class="fas fa-file-import mr-2"></i>Import Excel
-      </button>
-      <a href="{% url 'api_xp_export_csv' guild.id %}"
-         class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-medium transition inline-flex items-center">
-        <i class="fas fa-file-excel mr-2"></i>Export Excel
-      </a>
+      <div id="xpActionsMenu" class="hidden absolute right-0 mt-2 w-56 bg-neutral-900 border border-neutral-800 rounded-lg shadow-xl z-20">
+        <button onclick="openConfigModal(); toggleXpActions(true);" class="w-full text-left px-4 py-2 text-sm text-white hover:bg-neutral-800 flex items-center gap-2">
+          <i class="fas fa-sliders-h text-yellow-400"></i><span>XP Settings</span>
+        </button>
+        <button onclick="openLevelRoleModal(); toggleXpActions(true);" class="w-full text-left px-4 py-2 text-sm text-white hover:bg-neutral-800 flex items-center gap-2">
+          <i class="fas fa-plus text-blue-300"></i><span>Add Level Role</span>
+        </button>
+        <button onclick="openBulkLevelRoleModal(); toggleXpActions(true);" class="w-full text-left px-4 py-2 text-sm text-white hover:bg-neutral-800 flex items-center gap-2">
+          <i class="fas fa-layer-group text-purple-300"></i><span>Bulk Add</span>
+        </button>
+        <button onclick="openAddMemberModal(); toggleXpActions(true);" class="w-full text-left px-4 py-2 text-sm text-white hover:bg-neutral-800 flex items-center gap-2">
+          <i class="fas fa-user-plus text-green-300"></i><span>Add Member</span>
+        </button>
+        <button onclick="openBulkEditModal(); toggleXpActions(true);" class="w-full text-left px-4 py-2 text-sm text-white hover:bg-neutral-800 flex items-center gap-2">
+          <i class="fas fa-users-cog text-blue-300"></i><span>Bulk Edit XP</span>
+        </button>
+        <button onclick="openImportModal(); toggleXpActions(true);" class="w-full text-left px-4 py-2 text-sm text-white hover:bg-neutral-800 flex items-center gap-2">
+          <i class="fas fa-file-import text-green-300"></i><span>Import Excel</span>
+        </button>
+        <a href="{% url 'api_xp_export_csv' guild.id %}"
+           class="block px-4 py-2 text-sm text-white hover:bg-neutral-800 border-t border-neutral-800 flex items-center gap-2">
+          <i class="fas fa-file-excel text-purple-300"></i><span>Export Excel</span>
+        </a>
+      </div>
     </div>
   </div>
 
@@ -1598,7 +1600,7 @@ function showToast(message, type = 'info') {
   setTimeout(() => toast.remove(), 3000);
 }
 
-function switchXpTab(tab) {
+function switchXpTab(tab, setHash = false) {
   const tabs = ['settings', 'levelup', 'boosts'];
   tabs.forEach(key => {
     const section = document.getElementById(`xpTab${key.charAt(0).toUpperCase() + key.slice(1)}`);
@@ -1614,9 +1616,34 @@ function switchXpTab(tab) {
       btn.classList.toggle('border-transparent', !active);
     }
   });
+  if (setHash) {
+    window.location.hash = tab === 'settings' ? '' : `#${tab}`;
+  }
 }
 
 // init
-switchXpTab('settings');
+const hash = (window.location.hash || '').replace('#', '');
+const initialTab = ['settings', 'levelup', 'boosts'].includes(hash) ? hash : 'settings';
+switchXpTab(initialTab);
+
+function toggleXpActions(forceClose = false) {
+  const menu = document.getElementById('xpActionsMenu');
+  if (!menu) return;
+  const isOpen = !menu.classList.contains('hidden');
+  if (forceClose || isOpen) {
+    menu.classList.add('hidden');
+  } else {
+    menu.classList.remove('hidden');
+  }
+}
+
+document.addEventListener('click', (e) => {
+  const menu = document.getElementById('xpActionsMenu');
+  const btn = document.getElementById('xpActionsBtn');
+  if (!menu || !btn) return;
+  if (!menu.contains(e.target) && !btn.contains(e.target)) {
+    menu.classList.add('hidden');
+  }
+});
 </script>
 {% endblock %}

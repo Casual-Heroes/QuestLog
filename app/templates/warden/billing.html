@@ -79,10 +79,9 @@
         <p class="text-green-400 text-sm font-semibold">Save ${{ bundles.complete.savings }}/month</p>
         <p class="text-gray-500 text-xs">${{ bundles.complete.price_yearly }}/year (2 months free)</p>
       </div>
-      <button class="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white px-8 py-3 rounded-lg font-bold transition shadow-lg shadow-indigo-500/30 text-lg">
+      <button onclick="checkoutComplete()" class="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white px-8 py-3 rounded-lg font-bold transition shadow-lg shadow-indigo-500/30 text-lg">
         <i class="fas fa-crown mr-2"></i>Get Complete Suite
       </button>
-      <p class="text-gray-500 text-xs italic">Coming Soon - Stripe Integration</p>
     </div>
   </div>
 </div>
@@ -142,7 +141,7 @@
           <i class="fas fa-check-circle mr-2"></i>Subscribed
         </button>
         {% else %}
-        <button class="bg-{{ module.color }}-600 hover:bg-{{ module.color }}-700 text-white px-6 py-2 rounded-lg font-semibold transition">
+        <button onclick="checkoutModule('{{ module.key }}')" class="bg-{{ module.color }}-600 hover:bg-{{ module.color }}-700 text-white px-6 py-2 rounded-lg font-semibold transition">
           <i class="fas fa-plus mr-2"></i>Add Module
         </button>
         {% endif %}
@@ -207,14 +206,98 @@
 </div>
 
 <script>
+const GUILD_ID = '{{ guild.id }}';
+
 document.addEventListener('DOMContentLoaded', function() {
   console.log('Billing page loaded');
   console.log('Active modules:', {{ active_module_count }});
   console.log('Total modules:', {{ total_modules }});
   console.log('VIP status:', {{ is_vip|lower }});
 
-  // TODO: Add Stripe integration here
+  // Check for success/cancelled parameters
+  const urlParams = new URLSearchParams(window.location.search);
+  if (urlParams.get('success') === 'true') {
+    alert('✅ Subscription activated successfully! Your modules are now available.');
+    // Remove parameter from URL
+    window.history.replaceState({}, document.title, window.location.pathname);
+  } else if (urlParams.get('cancelled') === 'true') {
+    alert('❌ Checkout was cancelled. You can try again anytime.');
+    // Remove parameter from URL
+    window.history.replaceState({}, document.title, window.location.pathname);
+  }
 });
+
+async function checkoutComplete() {
+  try {
+    const response = await csrfFetch(`/api/guild/${GUILD_ID}/stripe/checkout/`, {
+      method: 'POST',
+      body: JSON.stringify({
+        items: [{ type: 'bundle', key: 'complete' }],
+        billing_cycle: 'monthly'
+      })
+    });
+
+    const data = await response.json();
+
+    if (data.success && data.checkout_url) {
+      // Redirect to Stripe checkout
+      window.location.href = data.checkout_url;
+    } else {
+      alert('Error: ' + (data.error || 'Failed to create checkout session'));
+    }
+  } catch (error) {
+    console.error('Checkout error:', error);
+    alert('Failed to start checkout. Please try again.');
+  }
+}
+
+async function checkoutModule(moduleKey) {
+  try {
+    const response = await csrfFetch(`/api/guild/${GUILD_ID}/stripe/checkout/`, {
+      method: 'POST',
+      body: JSON.stringify({
+        items: [{ type: 'module', key: moduleKey }],
+        billing_cycle: 'monthly'
+      })
+    });
+
+    const data = await response.json();
+
+    if (data.success && data.checkout_url) {
+      // Redirect to Stripe checkout
+      window.location.href = data.checkout_url;
+    } else {
+      alert('Error: ' + (data.error || 'Failed to create checkout session'));
+    }
+  } catch (error) {
+    console.error('Checkout error:', error);
+    alert('Failed to start checkout. Please try again.');
+  }
+}
+
+async function cancelSubscription() {
+  if (!confirm('Are you sure you want to cancel your subscription? You will lose access to all premium modules at the end of your billing period.')) {
+    return;
+  }
+
+  try {
+    const response = await csrfFetch(`/api/guild/${GUILD_ID}/stripe/cancel/`, {
+      method: 'POST'
+    });
+
+    const data = await response.json();
+
+    if (data.success) {
+      alert('✅ ' + data.message);
+      location.reload();
+    } else {
+      alert('Error: ' + (data.error || 'Failed to cancel subscription'));
+    }
+  } catch (error) {
+    console.error('Cancellation error:', error);
+    alert('Failed to cancel subscription. Please try again.');
+  }
+}
 </script>
 
 {% endblock %}

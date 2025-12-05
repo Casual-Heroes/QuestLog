@@ -7,6 +7,22 @@
 
 {% include "warden/partials/custom_select.html" %}
 
+<!-- XP Tabs (Discovery-style, shared across XP pages) -->
+<div class="flex items-center gap-6 border-b border-neutral-800 mb-4">
+  <a href="{% url 'guild_xp' guild.id %}"
+     class="pb-3 text-sm font-semibold border-b-2 flex items-center gap-2 text-gray-400 border-transparent hover:text-white">
+    <i class="fas fa-cog text-yellow-400"></i> XP Settings
+  </a>
+  <a href="{% url 'guild_levelup' guild.id %}"
+     class="pb-3 text-sm font-semibold border-b-2 flex items-center gap-2 text-white border-blue-400">
+    <i class="fas fa-comment text-blue-400"></i> Level-Up Messages
+  </a>
+  <a href="{% url 'guild_xp' guild.id %}#boosts"
+     class="pb-3 text-sm font-semibold border-b-2 flex items-center gap-2 text-gray-400 border-transparent hover:text-white">
+    <i class="fas fa-bolt text-orange-400"></i> XP Boost Events
+  </a>
+</div>
+
   <!-- Header -->
   <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
     <div>

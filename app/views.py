@@ -1297,6 +1297,10 @@ def guild_dashboard(request, guild_id):
     except Exception as e:
         logger.error(f"Could not fetch feature statuses or metrics for guild {guild_id}: {e}", exc_info=True)
 
+    # Get subscription tier info
+    is_vip = guild_record.is_vip if guild_record else False
+    subscription_tier = guild_record.subscription_tier if guild_record else 'free'
+
     context = {
         'discord_user': discord_user,
         'guild': guild,
@@ -1305,6 +1309,8 @@ def guild_dashboard(request, guild_id):
         'feature_status': feature_status,
         'metrics': metrics,
         'guild_record': guild_record,
+        'is_vip': is_vip,
+        'subscription_tier': subscription_tier,
         'active_page': 'dashboard',
     }
     return render(request, 'warden/guild_dashboard.html', context)
@@ -1382,6 +1388,49 @@ def flair_store(request, guild_id):
             data = json.loads(request.body)
         except json.JSONDecodeError:
             return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
+
+        # Handle flair removal (no replacement)
+        if data.get('remove_flair'):
+            try:
+                with get_db_session() as db:
+                    member = db.query(GuildMember).filter_by(
+                        guild_id=int(guild_id),
+                        user_id=int(discord_user['id'])
+                    ).first()
+
+                    if not member:
+                        return JsonResponse({
+                            'success': False,
+                            'error': 'You are not a member of this server yet. Please interact in Discord first.'
+                        }, status=404)
+
+                    # Clear current flair
+                    member.flair = None
+
+                    # Add pending action to remove flair roles in Discord
+                    from .models import PendingAction, ActionType, ActionStatus
+                    action = PendingAction(
+                        guild_id=int(guild_id),
+                        action_type=ActionType.FLAIR_ASSIGN.value,
+                        status=ActionStatus.PENDING.value,
+                        payload=json.dumps({
+                            'target_user_id': int(discord_user['id']),
+                            'flair_name': None  # signals removal
+                        }),
+                        triggered_by=int(discord_user['id']),
+                        triggered_by_name=discord_user.get('username', 'Unknown')
+                    )
+                    db.add(action)
+
+                    logger.info(f"User {discord_user.get('username')} removed flair in guild {guild_id}")
+
+                    return JsonResponse({
+                        'success': True,
+                        'message': 'Flair removed. Your Discord roles will update automatically.'
+                    })
+            except Exception as e:
+                logger.error(f"Error removing flair: {e}", exc_info=True)
+                return JsonResponse({'success': False, 'error': 'Failed to remove flair'}, status=500)
 
         flair_name = data.get('flair_name')
 
@@ -4420,6 +4469,24 @@ def api_role_create(request, guild_id):
 
         if resp.status_code == 200:
             role = resp.json()
+
+            # If a position was requested, attempt to move the role using Discord's bulk role move
+            desired_position = data.get('position')
+            if desired_position is not None:
+                try:
+                    desired_position = int(desired_position)
+                    patch_resp = bot_session.patch(
+                        f'/guilds/{guild_id_int}/roles',
+                        json=[{'id': role['id'], 'position': desired_position}]
+                    )
+                    if patch_resp.status_code != 200:
+                        logger.warning(
+                            f"Failed to set role position for role {role['id']} in guild {guild_id_int}: "
+                            f"{patch_resp.status_code} {patch_resp.text}"
+                        )
+                except Exception as e:
+                    logger.warning(f"Error adjusting role position in guild {guild_id_int}: {e}", exc_info=True)
+
             return JsonResponse({
                 'success': True,
                 'message': f'Role "{data["name"]}" created successfully!',
@@ -4437,6 +4504,116 @@ def api_role_create(request, guild_id):
 
     except Exception as e:
         return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
+
+
+def _ensure_admin(guild_id, request):
+    all_admin_guilds = request.session.get('discord_admin_guilds', [])
+    return any(str(g['id']) == str(guild_id) for g in all_admin_guilds)
+
+
+@login_required
+def guild_raffles(request, guild_id):
+    """Render raffles dashboard."""
+    from .db import get_db_session
+
+    admin_guilds = request.session.get('discord_admin_guilds', [])
+    guild = next((g for g in admin_guilds if str(g.get('id')) == str(guild_id)), None)
+    if not guild:
+        messages.error(request, "You don't have permission to manage raffles.")
+        return redirect('warden_dashboard')
+
+    # Require Admin or Manage Server
+    permissions = int(guild.get('permissions', 0))
+    is_admin = (permissions & 0x8) == 0x8 or (permissions & 0x20) == 0x20
+    if not is_admin:
+        messages.error(request, "You need Admin or Manage Server permission.")
+        return redirect('warden_dashboard')
+
+    is_vip = False
+    subscription_tier = 'free'
+    try:
+        with get_db_session() as db:
+            from .models import GuildMember, Guild as GuildModel
+            member = db.query(GuildMember).filter_by(
+                guild_id=int(guild_id),
+                user_id=int(request.session.get('discord_user', {}).get('id', 0))
+            ).first()
+            current_tokens = member.hero_tokens if member else 0
+
+            # Get subscription tier info
+            guild_record = db.query(GuildModel).filter_by(guild_id=int(guild_id)).first()
+            if guild_record:
+                is_vip = guild_record.is_vip
+                subscription_tier = guild_record.subscription_tier if guild_record.subscription_tier else 'free'
+    except Exception:
+        current_tokens = 0
+
+    return render(request, 'warden/raffles.html', {
+        'guild': guild,
+        'admin_guilds': admin_guilds,
+        'discord_user': request.session.get('discord_user', {}),
+        'is_admin': True,
+        'current_tokens': current_tokens,
+        'is_vip': is_vip,
+        'subscription_tier': subscription_tier,
+        'active_page': 'raffles',
+    })
+
+
+def _raffle_status(raffle):
+    import time
+    now = int(time.time())
+    if raffle.winners:
+        return 'completed'
+    if not raffle.active:
+        return 'closed'
+    # Only mark as ended if auto_pick is enabled (bot will handle it)
+    # If auto_pick is off, keep it active so admins can manually pick winners
+    if raffle.end_at and now > raffle.end_at and raffle.auto_pick:
+        return 'ended'
+    if raffle.start_at and now < raffle.start_at:
+        return 'scheduled'
+    return 'active'
+
+
+def _draw_winners(db, raffle):
+    import random
+    from .models import RaffleEntry
+    entries = db.query(RaffleEntry).filter_by(raffle_id=raffle.id).all()
+    if not entries:
+        raffle.winners = json_lib.dumps([])
+        raffle.active = False
+        return []
+
+    population = []
+    for e in entries:
+        population.append({'user_id': e.user_id, 'username': e.username, 'weight': max(1, e.tickets)})
+
+    # weighted sampling without replacement
+    winners = []
+    remaining = population[:]
+    total_winners = max(1, raffle.max_winners or 1)
+    rng = random.SystemRandom()
+
+    for _ in range(total_winners):
+        if not remaining:
+            break
+        total_weight = sum(item['weight'] for item in remaining)
+        pick = rng.uniform(0, total_weight)
+        cumulative = 0
+        chosen = None
+        for item in remaining:
+            cumulative += item['weight']
+            if pick <= cumulative:
+                chosen = item
+                break
+        if chosen:
+            winners.append({'user_id': chosen['user_id'], 'username': chosen.get('username')})
+            remaining = [r for r in remaining if r['user_id'] != chosen['user_id']]
+
+    raffle.winners = json_lib.dumps(winners)
+    raffle.active = False
+    return winners
 
 
 @require_http_methods(["POST"])
@@ -4468,6 +4645,335 @@ def api_role_bulk_create(request, guild_id):
                 max_roles = 6
     except Exception as e:
         return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
+
+
+@require_http_methods(["GET"])
+@api_auth_required
+def api_raffle_list(request, guild_id):
+    """List raffles; auto-finalize ended raffles with auto_pick."""
+    from .db import get_db_session
+    from .models import Raffle, RaffleEntry
+    import time
+    now = int(time.time())
+
+    try:
+        with get_db_session() as db:
+            # auto finalize ended raffles that requested auto_pick and have no winners
+            auto_raffles = db.query(Raffle).filter(
+                Raffle.guild_id == int(guild_id),
+                Raffle.active == True,
+                Raffle.auto_pick == True,
+                Raffle.end_at != None,
+                Raffle.end_at < now,
+                Raffle.winners == None
+            ).all()
+            for r in auto_raffles:
+                _draw_winners(db, r)
+            if auto_raffles:
+                db.flush()
+
+            raffles = db.query(Raffle).filter_by(guild_id=int(guild_id)).order_by(Raffle.id.desc()).all()
+
+            active, ended = [], []
+            admin = _ensure_admin(guild_id, request)
+
+            for r in raffles:
+                entry_count = db.query(RaffleEntry).filter_by(raffle_id=r.id).count()
+                winners = []
+                if r.winners:
+                    try:
+                        winners = json_lib.loads(r.winners)
+                    except Exception:
+                        winners = []
+
+                row = {
+                    'id': r.id,
+                    'title': r.title,
+                    'description': r.description,
+                    'cost_tokens': r.cost_tokens,
+                    'max_winners': r.max_winners,
+                    'start_at': r.start_at,
+                    'end_at': r.end_at,
+                    'auto_pick': r.auto_pick,
+                    'active': r.active,
+                    'announce_channel_id': str(r.announce_channel_id) if r.announce_channel_id else None,
+                    'announce_role_id': str(r.announce_role_id) if r.announce_role_id else None,
+                    'announce_message': r.announce_message,
+                    'winner_message': r.winner_message,
+                    'entry_emoji': r.entry_emoji,
+                    'announce_message_id': str(r.announce_message_id) if r.announce_message_id else None,
+                    'reminder_channel_id': str(r.reminder_channel_id) if r.reminder_channel_id else None,
+                    'entry_count': entry_count,
+                    'winners': winners,
+                    'can_manage': admin,
+                }
+
+                if _raffle_status(r) in ['completed', 'ended', 'closed']:
+                    ended.append(row)
+                else:
+                    active.append(row)
+
+            return JsonResponse({'active': active, 'ended': ended})
+    except Exception as e:
+        logger.error(f"Error listing raffles: {e}", exc_info=True)
+        return JsonResponse({'error': 'Failed to load raffles'}, status=500)
+
+
+@require_http_methods(["POST"])
+@api_auth_required
+def api_raffle_create(request, guild_id):
+    """Create a raffle (admin only)."""
+    from .db import get_db_session
+    from .models import Raffle, Guild as GuildModel
+
+    logger.info(f"Raffle create request for guild {guild_id}")
+
+    if not _ensure_admin(guild_id, request):
+        logger.warning(f"Permission denied for guild {guild_id}")
+        return JsonResponse({'error': 'Permission denied'}, status=403)
+
+    try:
+        data = json_lib.loads(request.body)
+        logger.info(f"Raffle data received: {data}")
+        logger.info(f"Channel ID raw: {data.get('announce_channel_id')} (type: {type(data.get('announce_channel_id'))})")
+        logger.info(f"Role ID raw: {data.get('announce_role_id')} (type: {type(data.get('announce_role_id'))})")
+    except json_lib.JSONDecodeError as e:
+        logger.error(f"Invalid JSON: {e}")
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+    def _to_int(val):
+        try:
+            return int(val) if val else None
+        except Exception:
+            return None
+
+    try:
+        with get_db_session() as db:
+            guild_record = db.query(GuildModel).filter_by(guild_id=int(guild_id)).first()
+            if not guild_record:
+                logger.warning(f"Guild {guild_id} not found in database")
+                # Create guild record if it doesn't exist
+                guild_record = GuildModel(guild_id=int(guild_id))
+                db.add(guild_record)
+                db.flush()
+
+            raffle = Raffle(
+                guild_id=int(guild_id),
+                title=data.get('title', '').strip(),
+                description=data.get('description', ''),
+                cost_tokens=max(0, int(data.get('cost_tokens', 0))),
+                max_winners=max(1, int(data.get('max_winners', 1))),
+                start_at=data.get('start_at') or None,
+                end_at=data.get('end_at') or None,
+                auto_pick=bool(data.get('auto_pick', False)),
+                announce_channel_id=_to_int(data.get('announce_channel_id')),
+                announce_role_id=_to_int(data.get('announce_role_id')),
+                announce_message=(data.get('announce_message') or '').strip(),
+                winner_message=(data.get('winner_message') or '').strip(),
+                entry_emoji=data.get('entry_emoji') or "🎟️",
+                reminder_channel_id=_to_int(data.get('reminder_channel_id')),
+                active=True,
+                winners=None,
+                created_by=_to_int(request.session.get('discord_user', {}).get('id')),
+                created_by_name=request.session.get('discord_user', {}).get('username')
+            )
+            db.add(raffle)
+            db.flush()
+
+            logger.info(f"Raffle created successfully with ID: {raffle.id}")
+
+            return JsonResponse({'success': True, 'id': raffle.id})
+    except Exception as e:
+        logger.error(f"Error creating raffle: {e}", exc_info=True)
+        return JsonResponse({'error': f'Failed to create raffle: {str(e)}'}, status=500)
+
+
+@require_http_methods(["POST"])
+@api_auth_required
+def api_raffle_update(request, guild_id, raffle_id):
+    """Update an existing raffle (admin only)."""
+    from .db import get_db_session
+    from .models import Raffle
+    if not _ensure_admin(guild_id, request):
+        return JsonResponse({'error': 'Permission denied'}, status=403)
+
+    def _to_int(val):
+        try:
+            return int(val)
+        except Exception:
+            return None
+
+    try:
+        data = json_lib.loads(request.body)
+    except json_lib.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+    try:
+        with get_db_session() as db:
+            raffle = db.query(Raffle).filter_by(id=raffle_id, guild_id=int(guild_id)).first()
+            if not raffle:
+                return JsonResponse({'error': 'Raffle not found'}, status=404)
+
+            raffle.title = data.get('title', raffle.title).strip()
+            raffle.description = data.get('description', raffle.description)
+            raffle.cost_tokens = max(0, int(data.get('cost_tokens', raffle.cost_tokens or 0)))
+            raffle.max_winners = max(1, int(data.get('max_winners', raffle.max_winners or 1)))
+            raffle.start_at = data.get('start_at') or None
+            raffle.end_at = data.get('end_at') or None
+            raffle.auto_pick = bool(data.get('auto_pick', raffle.auto_pick))
+            raffle.announce_channel_id = _to_int(data.get('announce_channel_id'))
+            raffle.announce_role_id = _to_int(data.get('announce_role_id'))
+            raffle.announce_message = (data.get('announce_message') or '').strip()
+            raffle.winner_message = (data.get('winner_message') or '').strip()
+            raffle.entry_emoji = data.get('entry_emoji') or raffle.entry_emoji or "🎟️"
+            raffle.reminder_channel_id = _to_int(data.get('reminder_channel_id'))
+            # reset announce message id if channel changed so bot can re-post
+            if data.get('announce_channel_id') and str(raffle.announce_channel_id) != str(data.get('announce_channel_id')):
+                raffle.announce_message_id = None
+            return JsonResponse({'success': True})
+    except Exception as e:
+        logger.error(f"Error updating raffle: {e}", exc_info=True)
+        return JsonResponse({'error': 'Failed to update raffle'}, status=500)
+
+
+@require_http_methods(["POST"])
+@api_auth_required
+def api_raffle_enter(request, guild_id, raffle_id):
+    """Enter a raffle using tokens."""
+    from .db import get_db_session
+    from .models import Raffle, RaffleEntry, GuildMember
+    try:
+        data = json_lib.loads(request.body)
+    except json_lib.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+    tickets = max(1, int(data.get('tickets', 1)))
+    discord_user = request.session.get('discord_user', {})
+
+    try:
+        with get_db_session() as db:
+            raffle = db.query(Raffle).filter_by(id=raffle_id, guild_id=int(guild_id)).first()
+            if not raffle:
+                return JsonResponse({'error': 'Raffle not found'}, status=404)
+
+            # status checks
+            status = _raffle_status(raffle)
+            if status == 'completed':
+                return JsonResponse({'error': 'Raffle already completed'}, status=400)
+            if status == 'closed':
+                return JsonResponse({'error': 'Raffle closed'}, status=400)
+
+            import time
+            now = int(time.time())
+            if raffle.start_at and now < raffle.start_at:
+                return JsonResponse({'error': 'Raffle has not started yet'}, status=400)
+            if raffle.end_at and now > raffle.end_at:
+                return JsonResponse({'error': 'Raffle has ended'}, status=400)
+
+            member = db.query(GuildMember).filter_by(
+                guild_id=int(guild_id),
+                user_id=int(discord_user.get('id', 0))
+            ).first()
+            if not member:
+                return JsonResponse({'error': 'You must interact in the server first.'}, status=400)
+
+            cost = raffle.cost_tokens * tickets
+            if member.hero_tokens < cost:
+                return JsonResponse({'error': f'Not enough tokens. Need {cost}, have {member.hero_tokens}.'}, status=400)
+
+            member.hero_tokens -= cost
+            entry = RaffleEntry(
+                raffle_id=raffle.id,
+                user_id=int(discord_user.get('id')),
+                username=discord_user.get('username'),
+                tickets=tickets
+            )
+            db.add(entry)
+
+            return JsonResponse({
+                'success': True,
+                'message': 'Entry submitted!',
+                'tokens_remaining': member.hero_tokens
+            })
+    except Exception as e:
+        logger.error(f"Error entering raffle: {e}", exc_info=True)
+        return JsonResponse({'error': 'Failed to enter raffle'}, status=500)
+
+
+@require_http_methods(["POST"])
+@api_auth_required
+def api_raffle_pick(request, guild_id, raffle_id):
+    """Pick winners (admin only)."""
+    from .db import get_db_session
+    from .models import Raffle
+    if not _ensure_admin(guild_id, request):
+        return JsonResponse({'error': 'Permission denied'}, status=403)
+
+    try:
+        with get_db_session() as db:
+            raffle = db.query(Raffle).filter_by(id=raffle_id, guild_id=int(guild_id)).first()
+            if not raffle:
+                return JsonResponse({'error': 'Raffle not found'}, status=404)
+
+            winners = _draw_winners(db, raffle)
+            return JsonResponse({
+                'success': True,
+                'message': 'Winners selected!' if winners else 'No entries to draw from.',
+                'winners': winners
+            })
+    except Exception as e:
+        logger.error(f"Error picking winners: {e}", exc_info=True)
+        return JsonResponse({'error': 'Failed to pick winners'}, status=500)
+
+
+@require_http_methods(["POST"])
+@api_auth_required
+def api_raffle_start_now(request, guild_id, raffle_id):
+    """Manually start a raffle immediately (set start_at to now and clear announce message so bot can post)."""
+    from .db import get_db_session
+    from .models import Raffle
+    if not _ensure_admin(guild_id, request):
+        return JsonResponse({'error': 'Permission denied'}, status=403)
+    import time
+    now = int(time.time())
+    try:
+        with get_db_session() as db:
+            raffle = db.query(Raffle).filter_by(id=raffle_id, guild_id=int(guild_id)).first()
+            if not raffle:
+                return JsonResponse({'error': 'Raffle not found'}, status=404)
+            raffle.start_at = now
+            raffle.active = True
+            raffle.announce_message_id = None
+            # if no end supplied, leave as None and rely on manual end/pick
+            return JsonResponse({'success': True})
+    except Exception as e:
+        logger.error(f"Error starting raffle {raffle_id}: {e}", exc_info=True)
+        return JsonResponse({'error': 'Failed to start raffle'}, status=500)
+
+
+@require_http_methods(["POST"])
+@api_auth_required
+def api_raffle_end_now(request, guild_id, raffle_id):
+    """Manually end a raffle immediately; marks end_at and triggers draw if auto_pick."""
+    from .db import get_db_session
+    from .models import Raffle
+    if not _ensure_admin(guild_id, request):
+        return JsonResponse({'error': 'Permission denied'}, status=403)
+    import time
+    now = int(time.time())
+    try:
+        with get_db_session() as db:
+            raffle = db.query(Raffle).filter_by(id=raffle_id, guild_id=int(guild_id)).first()
+            if not raffle:
+                return JsonResponse({'error': 'Raffle not found'}, status=404)
+            raffle.end_at = now
+            raffle.active = False
+            if raffle.auto_pick:
+                _draw_winners(db, raffle)
+            return JsonResponse({'success': True})
+    except Exception as e:
+        logger.error(f"Error ending raffle {raffle_id}: {e}", exc_info=True)
+        return JsonResponse({'error': 'Failed to end raffle'}, status=500)
 
     excel_file = request.FILES['file']
 
@@ -5476,8 +5982,16 @@ def api_guild_channels(request, guild_id):
 
         # Fetch channels with caching
         channels = get_guild_channels(guild_id, force_refresh=force_refresh)
+        # Normalize IDs to strings to avoid JS precision loss
+        norm_channels = []
+        for c in channels:
+            norm_channels.append({
+                'id': str(c.get('id')),
+                'name': c.get('name'),
+                'type': c.get('type')
+            })
 
-        return JsonResponse({'channels': channels})
+        return JsonResponse({'channels': norm_channels})
 
     except Exception as e:
         logger.error(f"Failed to fetch channels for guild {guild_id}: {e}")
@@ -5498,10 +6012,16 @@ def api_guild_roles(request, guild_id):
         roles = get_guild_roles(guild_id, force_refresh=force_refresh)
 
         # Add is_everyone flag for each role
+        norm_roles = []
         for role in roles:
-            role['is_everyone'] = role.get('name') == '@everyone' or role.get('id') == guild_id
+            norm_roles.append({
+                'id': str(role.get('id')),
+                'name': role.get('name'),
+                'position': role.get('position'),
+                'is_everyone': role.get('name') == '@everyone' or str(role.get('id')) == str(guild_id)
+            })
 
-        return JsonResponse({'success': True, 'roles': roles})
+        return JsonResponse({'success': True, 'roles': norm_roles})
 
     except Exception as e:
         logger.error(f"Failed to fetch roles for guild {guild_id}: {e}")
@@ -5608,12 +6128,17 @@ def guild_billing(request, guild_id):
         # Get currently active modules for this guild
         active_modules = get_guild_modules(guild_id)
 
-        # Check if guild has VIP status
+        # Check if guild has VIP status or Premium/Pro tier
         is_vip = False
+        subscription_tier = 'free'
+        has_all_modules = False
         with get_db_session() as db:
             guild_record = db.query(GuildModel).filter_by(guild_id=int(guild_id)).first()
             if guild_record:
                 is_vip = guild_record.is_vip
+                subscription_tier = guild_record.subscription_tier if guild_record.subscription_tier else 'free'
+                # VIP, Premium, or Pro get all modules
+                has_all_modules = is_vip or subscription_tier in ['premium', 'pro']
 
         # Build module data with active status
         modules_data = []
@@ -5628,7 +6153,7 @@ def guild_billing(request, guild_id):
                 'features': module_config['features'],
                 'price_monthly': module_config['price_monthly'],
                 'price_yearly': module_config['price_yearly'],
-                'is_active': module_key in active_modules or is_vip,
+                'is_active': module_key in active_modules or has_all_modules,
             })
 
         # Calculate pricing
@@ -5720,6 +6245,155 @@ def api_settings_reset(request, guild_id):
     except Exception as e:
         logger.error(f"Error resetting settings for guild {guild_id}: {e}")
         return JsonResponse({'error': 'Failed to reset settings'}, status=500)
+
+
+# ============================================================================
+# Stripe Integration Views
+# ============================================================================
+
+@require_http_methods(["POST"])
+@api_auth_required
+def stripe_create_checkout(request, guild_id):
+    """
+    POST /api/guild/<id>/stripe/checkout/ - Create Stripe checkout session.
+
+    Body: {
+        "items": [{"type": "module", "key": "engagement"}],
+        "billing_cycle": "monthly"  # or "yearly"
+    }
+    """
+    try:
+        from .stripe_utils import create_checkout_session
+        import json
+        from django.conf import settings
+
+        data = json.loads(request.body)
+        items = data.get('items', [])
+        billing_cycle = data.get('billing_cycle', 'monthly')
+
+        if not items:
+            return JsonResponse({'error': 'No items specified'}, status=400)
+
+        # Create URLs for success and cancel
+        base_url = f"https://{request.get_host()}"
+        success_url = f"{base_url}/warden/guild/{guild_id}/billing/?success=true"
+        cancel_url = f"{base_url}/warden/guild/{guild_id}/billing/?cancelled=true"
+
+        # Create checkout session
+        session = create_checkout_session(
+            guild_id=guild_id,
+            items=items,
+            billing_cycle=billing_cycle,
+            success_url=success_url,
+            cancel_url=cancel_url
+        )
+
+        return JsonResponse({
+            'success': True,
+            'session_id': session.id,
+            'checkout_url': session.url
+        })
+
+    except Exception as e:
+        logger.error(f"Error creating checkout session: {e}")
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@require_http_methods(["POST"])
+def stripe_webhook(request):
+    """
+    POST /webhooks/stripe/ - Handle Stripe webhook events.
+
+    This endpoint is called by Stripe to notify us of subscription events.
+    """
+    try:
+        from django.conf import settings
+        from .stripe_utils import (
+            handle_checkout_completed,
+            handle_subscription_updated,
+            handle_subscription_deleted
+        )
+        import stripe
+
+        payload = request.body
+        sig_header = request.META.get('HTTP_STRIPE_SIGNATURE')
+
+        if not sig_header:
+            return JsonResponse({'error': 'Missing signature'}, status=400)
+
+        # Verify webhook signature
+        try:
+            event = stripe.Webhook.construct_event(
+                payload, sig_header, settings.STRIPE_WEBHOOK_SECRET
+            )
+        except ValueError:
+            return JsonResponse({'error': 'Invalid payload'}, status=400)
+        except stripe.error.SignatureVerificationError:
+            return JsonResponse({'error': 'Invalid signature'}, status=400)
+
+        # Handle the event
+        event_type = event['type']
+        event_data = event['data']['object']
+
+        logger.info(f"Received Stripe webhook: {event_type}")
+
+        if event_type == 'checkout.session.completed':
+            handle_checkout_completed(event_data)
+        elif event_type == 'customer.subscription.updated':
+            handle_subscription_updated(event_data)
+        elif event_type == 'customer.subscription.deleted':
+            handle_subscription_deleted(event_data)
+        elif event_type == 'invoice.payment_failed':
+            # Handle failed payments (optional - could send notification)
+            logger.warning(f"Payment failed for subscription: {event_data.get('subscription')}")
+
+        return JsonResponse({'success': True})
+
+    except Exception as e:
+        logger.error(f"Stripe webhook error: {e}")
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@require_http_methods(["POST"])
+@api_auth_required
+def stripe_cancel_subscription(request, guild_id):
+    """
+    POST /api/guild/<id>/stripe/cancel/ - Cancel guild's subscription.
+    """
+    try:
+        from .stripe_utils import cancel_subscription
+
+        success, message = cancel_subscription(guild_id)
+
+        if success:
+            return JsonResponse({'success': True, 'message': message})
+        else:
+            return JsonResponse({'error': message}, status=400)
+
+    except Exception as e:
+        logger.error(f"Error cancelling subscription: {e}")
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@require_http_methods(["GET"])
+@api_auth_required
+def stripe_subscription_status(request, guild_id):
+    """
+    GET /api/guild/<id>/stripe/status/ - Get subscription status.
+    """
+    try:
+        from .stripe_utils import get_subscription_status
+
+        status = get_subscription_status(guild_id)
+
+        if status:
+            return JsonResponse({'success': True, 'subscription': status})
+        else:
+            return JsonResponse({'success': True, 'subscription': None})
+
+    except Exception as e:
+        logger.error(f"Error fetching subscription status: {e}")
+        return JsonResponse({'error': str(e)}, status=500)
 
 
 @require_http_methods(["POST"])

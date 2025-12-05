@@ -114,6 +114,16 @@ urlpatterns = [
     path('api/guild/<str:guild_id>/roles/bulk-create/', views.api_role_bulk_create, name='api_role_bulk_create'),
     path('api/guild/<str:guild_id>/roles/export-create-template/', views.api_role_export_create_template, name='api_role_export_create_template'),
 
+    # Raffles (Engagement)
+    path('warden/guild/<str:guild_id>/raffles/', views.guild_raffles, name='guild_raffles'),
+    path('api/guild/<str:guild_id>/raffles/', views.api_raffle_list, name='api_raffle_list'),
+    path('api/guild/<str:guild_id>/raffles/create/', views.api_raffle_create, name='api_raffle_create'),
+    path('api/guild/<str:guild_id>/raffles/<int:raffle_id>/update/', views.api_raffle_update, name='api_raffle_update'),
+    path('api/guild/<str:guild_id>/raffles/<int:raffle_id>/enter/', views.api_raffle_enter, name='api_raffle_enter'),
+    path('api/guild/<str:guild_id>/raffles/<int:raffle_id>/pick/', views.api_raffle_pick, name='api_raffle_pick'),
+    path('api/guild/<str:guild_id>/raffles/<int:raffle_id>/start/', views.api_raffle_start_now, name='api_raffle_start_now'),
+    path('api/guild/<str:guild_id>/raffles/<int:raffle_id>/end/', views.api_raffle_end_now, name='api_raffle_end_now'),
+
     # Audit Logs Dashboard
     path('warden/guild/<str:guild_id>/audit/', views.guild_audit_logs, name='guild_audit_logs'),
 
@@ -149,6 +159,12 @@ urlpatterns = [
     path('api/guild/<str:guild_id>/settings/update/', views.api_settings_update, name='api_settings_update'),
     path('api/guild/<str:guild_id>/settings/reset/', views.api_settings_reset, name='api_settings_reset'),
     path('api/guild/<str:guild_id>/settings/remove-data/', views.api_settings_remove_data, name='api_settings_remove_data'),
+
+    # Stripe Integration Endpoints
+    path('api/guild/<str:guild_id>/stripe/checkout/', views.stripe_create_checkout, name='stripe_create_checkout'),
+    path('api/guild/<str:guild_id>/stripe/cancel/', views.stripe_cancel_subscription, name='stripe_cancel_subscription'),
+    path('api/guild/<str:guild_id>/stripe/status/', views.stripe_subscription_status, name='stripe_subscription_status'),
+    path('webhooks/stripe/', views.stripe_webhook, name='stripe_webhook'),
 
     # Verification Dashboard
     path('warden/guild/<str:guild_id>/verification/', views.guild_verification, name='guild_verification'),

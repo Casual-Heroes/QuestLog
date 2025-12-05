@@ -215,6 +215,13 @@
           </div>
         </div>
 
+        <!-- Raffles -->
+        <a href="{% url 'guild_raffles' guild.id %}"
+           class="nav-item {% if active_page == 'raffles' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          <i class="fas fa-ticket-alt text-gray-400 group-hover:text-yellow-400"></i>
+          <span>Raffles</span>
+        </a>
+
         <!-- Trackers -->
         <a href="{% url 'guild_trackers' guild.id %}"
            class="nav-item {% if active_page == 'trackers' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">

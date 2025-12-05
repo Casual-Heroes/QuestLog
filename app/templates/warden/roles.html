@@ -17,54 +17,45 @@
         Assign roles to members and import bulk role assignments
       </p>
     </div>
-    <div class="flex flex-wrap gap-3">
-      <!-- Role Assignment -->
-      <button onclick="openSingleRoleModal()"
-              class="bg-neutral-800 hover:bg-neutral-700 text-white px-4 py-2 rounded-lg font-medium transition border border-neutral-700">
-        <i class="fas fa-user-plus mr-2"></i>Single Assignment
+    <div class="relative ml-auto">
+      <button onclick="toggleRoleActions()" id="roleActionsBtn"
+              class="px-4 py-2 bg-neutral-800 hover:bg-neutral-700 text-white rounded-lg border border-neutral-700 flex items-center gap-2">
+        <i class="fas fa-ellipsis-h"></i>
+        <span>Role Actions</span>
+        <i class="fas fa-chevron-down text-xs"></i>
       </button>
-
-      <!-- Role Creation -->
-      <button onclick="openCreateRoleModal()"
-              class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium transition">
-        <i class="fas fa-plus-circle mr-2"></i>Create Role
-      </button>
-
-      <!-- Interactive Bulk Assign (Free tier) -->
-      <button onclick="openInteractiveBulkAssignModal()"
-              class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium transition">
-        <i class="fas fa-users-cog mr-2"></i>Bulk Assign
-      </button>
-
-      {% if is_premium or guild_record.subscription_tier == 'pro' %}
-      <!-- Export Tools (Pro/Premium) -->
-      <button onclick="exportTemplate()"
-              class="bg-neutral-800 hover:bg-neutral-700 text-white px-4 py-2 rounded-lg font-medium transition border border-neutral-700">
-        <i class="fas fa-download mr-2"></i>Export Template
-      </button>
-      <button onclick="exportCurrentRoles()"
-              class="bg-neutral-800 hover:bg-neutral-700 text-white px-4 py-2 rounded-lg font-medium transition border border-neutral-700">
-        <i class="fas fa-file-export mr-2"></i>Export Roles
-      </button>
-
-      <!-- Advanced Bulk Operations (Pro/Premium) -->
-      <button onclick="openBulkImportModal()"
-              class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-medium transition">
-        <i class="fas fa-file-excel mr-2"></i>Import XLSX
-      </button>
-      <button onclick="openBulkCreateModal()"
-              class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium transition">
-        <i class="fas fa-layer-group mr-2"></i>Bulk Create
-      </button>
-      {% else %}
-      <button onclick="showUpgradePrompt()"
-              class="bg-gradient-to-r from-yellow-600 to-orange-600 hover:from-yellow-500 hover:to-orange-500 text-white px-4 py-2 rounded-lg font-medium transition">
-        <i class="fas fa-crown mr-2"></i>Import XLSX (Pro/Premium)
-      </button>
-      {% endif %}
-
-      <!-- Sync Button -->
-      {% include "warden/partials/sync_button.html" %}
+      <div id="roleActionsMenu" class="hidden absolute right-0 mt-2 w-60 bg-neutral-900 border border-neutral-800 rounded-lg shadow-xl z-20">
+        <button onclick="openSingleRoleModal(); toggleRoleActions(true);" class="w-full text-left px-4 py-2 text-sm text-white hover:bg-neutral-800 flex items-center gap-2">
+          <i class="fas fa-user-plus text-gray-300"></i><span>Single Assignment</span>
+        </button>
+        <button onclick="openCreateRoleModal(); toggleRoleActions(true);" class="w-full text-left px-4 py-2 text-sm text-white hover:bg-neutral-800 flex items-center gap-2">
+          <i class="fas fa-plus-circle text-green-300"></i><span>Create Role</span>
+        </button>
+        <button onclick="openInteractiveBulkAssignModal(); toggleRoleActions(true);" class="w-full text-left px-4 py-2 text-sm text-white hover:bg-neutral-800 flex items-center gap-2">
+          <i class="fas fa-users-cog text-indigo-300"></i><span>Bulk Assign</span>
+        </button>
+        {% if is_premium or guild_record.subscription_tier == 'pro' %}
+        <button onclick="exportTemplate(); toggleRoleActions(true);" class="w-full text-left px-4 py-2 text-sm text-white hover:bg-neutral-800 flex items-center gap-2">
+          <i class="fas fa-download text-gray-300"></i><span>Export Template</span>
+        </button>
+        <button onclick="exportCurrentRoles(); toggleRoleActions(true);" class="w-full text-left px-4 py-2 text-sm text-white hover:bg-neutral-800 flex items-center gap-2">
+          <i class="fas fa-file-export text-gray-300"></i><span>Export Roles</span>
+        </button>
+        <button onclick="openBulkImportModal(); toggleRoleActions(true);" class="w-full text-left px-4 py-2 text-sm text-white hover:bg-neutral-800 flex items-center gap-2">
+          <i class="fas fa-file-excel text-purple-300"></i><span>Import XLSX</span>
+        </button>
+        <button onclick="openBulkCreateModal(); toggleRoleActions(true);" class="w-full text-left px-4 py-2 text-sm text-white hover:bg-neutral-800 flex items-center gap-2 border-b border-neutral-800">
+          <i class="fas fa-layer-group text-green-300"></i><span>Bulk Create</span>
+        </button>
+        {% else %}
+        <button onclick="showUpgradePrompt(); toggleRoleActions(true);" class="w-full text-left px-4 py-2 text-sm text-white hover:bg-neutral-800 flex items-center gap-2 border-b border-neutral-800">
+          <i class="fas fa-crown text-yellow-300"></i><span>Import / Bulk (Pro/Premium)</span>
+        </button>
+        {% endif %}
+        <button onclick="triggerSync(); toggleRoleActions(true);" class="w-full text-left px-4 py-2 text-sm text-white hover:bg-neutral-800 flex items-center gap-2">
+          <i class="fas fa-sync-alt text-gray-300"></i><span>Sync Data</span>
+        </button>
+      </div>
     </div>
   </div>
 
@@ -335,8 +326,7 @@
       <form id="single-role-form" class="p-5 space-y-4">
         <div>
           <label class="text-gray-400 text-sm block mb-1">User</label>
-          <input type="text" name="user_id" data-discord-select="member" placeholder="e.g., 123456789012345678" required
-                 class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white">
+          <div id="singleUserContainer"></div>
         </div>
         <div>
           <label class="text-gray-400 text-sm block mb-1">Role</label>
@@ -926,7 +916,7 @@ const GUILD_ID = '{{ guild.id }}';
 const API_BASE = `/api/guild/${GUILD_ID}/roles`;
 
 // Load Discord roles for comboboxes
-let singleRoleSelect, bulkRoleSelect;
+let singleRoleSelect, bulkRoleSelect, singleUserSelect;
 
 async function loadRoles() {
   try {
@@ -967,7 +957,39 @@ async function loadRoles() {
   }
 }
 
-document.addEventListener('DOMContentLoaded', loadRoles);
+async function loadMembersForSingleAssign() {
+  try {
+    // ensure shared resources are loaded
+    await loadDiscordResources();
+    const members = window.DiscordResources.members || [];
+    const memberItems = (members && members.length) ? members.map(m => ({
+      value: m.id,
+      label: m.name,
+      icon: 'user'
+    })) : [{
+      value: '',
+      label: 'No members available',
+      icon: 'user'
+    }];
+
+    singleUserSelect = createCustomSelect({
+      container: '#singleUserContainer',
+      name: 'user_id',
+      id: 'single_user_id',
+      placeholder: 'Select a member...',
+      items: memberItems,
+      selected: '',
+      color: 'indigo'
+    });
+  } catch (err) {
+    console.error('Failed to load members:', err);
+  }
+}
+
+document.addEventListener('DOMContentLoaded', async () => {
+  await loadRoles();
+  await loadMembersForSingleAssign();
+});
 </script>
 
 {% include 'warden/partials/discord_resource_selects.html' %}
@@ -982,6 +1004,8 @@ function closeSingleRoleModal() {
   const modal = document.getElementById('single-role-modal');
   modal.classList.add('hidden');
   document.getElementById('single-role-form').reset();
+  if (singleUserSelect && singleUserSelect.setValue) singleUserSelect.setValue('');
+  if (singleRoleSelect && singleRoleSelect.setValue) singleRoleSelect.setValue('');
 }
 
 // Bulk Import Modal
@@ -1627,6 +1651,37 @@ function showToast(message, type = 'info') {
   toast.textContent = message;
   document.body.appendChild(toast);
   setTimeout(() => toast.remove(), 3000);
+}
+
+// Role actions dropdown
+function toggleRoleActions(forceClose = false) {
+  const menu = document.getElementById('roleActionsMenu');
+  if (!menu) return;
+  const isHidden = menu.classList.contains('hidden');
+  if (forceClose) {
+    menu.classList.add('hidden');
+    return;
+  }
+  if (isHidden) {
+    menu.classList.remove('hidden');
+    document.addEventListener('click', closeRoleActionsOnOutside, { once: true });
+  } else {
+    menu.classList.add('hidden');
+  }
+}
+
+function closeRoleActionsOnOutside(event) {
+  const menu = document.getElementById('roleActionsMenu');
+  const btn = document.getElementById('roleActionsBtn');
+  if (!menu || !btn) return;
+  if (!menu.contains(event.target) && !btn.contains(event.target)) {
+    menu.classList.add('hidden');
+  }
+}
+
+function triggerSync() {
+  const syncBtn = document.getElementById('syncButton');
+  if (syncBtn) syncBtn.click();
 }
 </script>
 {% endblock guild_content %}

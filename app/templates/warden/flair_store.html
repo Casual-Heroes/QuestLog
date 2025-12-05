@@ -354,8 +354,30 @@ async function removeFlair() {
     return;
   }
 
-  // Set flair to null by purchasing the free flair
-  await purchaseFlair('[🕹️ Gamer]', 'normal', 0);
+  try {
+    const response = await csrfFetch('{% url "flair_store" guild.id %}', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': '{{ csrf_token }}'
+      },
+      body: JSON.stringify({
+        remove_flair: true
+      })
+    });
+
+    const data = await response.json();
+
+    if (data.success) {
+      showToast(`✨ ${data.message}`, 'success');
+      setTimeout(() => location.reload(), 1000);
+    } else {
+      showToast(data.error || 'Failed to remove flair.', 'error');
+    }
+  } catch (err) {
+    console.error('Failed to remove flair:', err);
+    showToast('Failed to remove flair. Please try again.', 'error');
+  }
 }
 
 function showMessage(message, type) {
