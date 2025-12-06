@@ -72,4 +72,5 @@ venv/
 chwebsiteprj/
 .git_backup/
 /hosting
+/docs
 

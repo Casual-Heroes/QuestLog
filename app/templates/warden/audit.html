@@ -16,12 +16,66 @@
       <p class="text-gray-400 mt-1">Track all server events and moderation actions</p>
     </div>
     <div class="flex gap-3">
+      <button onclick="openAuditSettings()" class="bg-neutral-800 hover:bg-neutral-700 text-white px-4 py-2 rounded-lg font-medium transition text-sm">
+        <i class="fas fa-sliders-h mr-2"></i>Settings
+      </button>
       <button onclick="refreshLogs()" class="bg-neutral-800 hover:bg-neutral-700 text-white px-4 py-2 rounded-lg font-medium transition text-sm">
         <i class="fas fa-sync-alt mr-2"></i>Refresh
       </button>
       <button onclick="exportLogs()" class="bg-cyan-600 hover:bg-cyan-700 text-white px-4 py-2 rounded-lg font-medium transition text-sm">
         <i class="fas fa-download mr-2"></i>Export
       </button>
+    </div>
+  </div>
+
+  <!-- Audit Event Settings Modal -->
+  <div id="auditSettingsModal" class="fixed inset-0 bg-black/70 hidden items-center justify-center z-50 px-3 py-6">
+    <div class="bg-neutral-900 border border-neutral-800 rounded-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto p-6 custom-scrollbar">
+      <div class="flex items-start justify-between mb-4">
+        <div>
+          <h3 class="text-xl font-bold text-white">
+            <i class="fas fa-sliders-h text-cyan-400 mr-2"></i>Audit Event Settings
+          </h3>
+          <p class="text-gray-400 text-sm">Choose which events are captured. Toggle off to stop logging specific actions.</p>
+        </div>
+        <button onclick="closeAuditSettings()" class="text-gray-400 hover:text-white">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="bg-neutral-800/60 border border-neutral-700 rounded-lg p-4">
+          <h4 class="text-white font-semibold mb-2">Moderation Events</h4>
+          <div class="space-y-2" id="cat_moderation"></div>
+        </div>
+        <div class="bg-neutral-800/60 border border-neutral-700 rounded-lg p-4">
+          <h4 class="text-white font-semibold mb-2">Message Events</h4>
+          <div class="space-y-2" id="cat_messages"></div>
+        </div>
+        <div class="bg-neutral-800/60 border border-neutral-700 rounded-lg p-4">
+          <h4 class="text-white font-semibold mb-2">Member Events</h4>
+          <div class="space-y-2" id="cat_members"></div>
+        </div>
+        <div class="bg-neutral-800/60 border border-neutral-700 rounded-lg p-4">
+          <h4 class="text-white font-semibold mb-2">Role Events</h4>
+          <div class="space-y-2" id="cat_roles"></div>
+        </div>
+        <div class="bg-neutral-800/60 border border-neutral-700 rounded-lg p-4">
+          <h4 class="text-white font-semibold mb-2">Channel Events</h4>
+          <div class="space-y-2" id="cat_channels"></div>
+        </div>
+        <div class="bg-neutral-800/60 border border-neutral-700 rounded-lg p-4">
+          <h4 class="text-white font-semibold mb-2">Security / Verification</h4>
+          <div class="space-y-2" id="cat_security"></div>
+        </div>
+      </div>
+
+      <div class="flex justify-end gap-3 pt-4">
+        <button onclick="closeAuditSettings()" class="px-4 py-2 text-gray-400 hover:text-white">Cancel</button>
+        <button onclick="saveAuditSettings()" class="bg-cyan-600 hover:bg-cyan-700 text-white px-6 py-2 rounded-lg font-medium transition">
+          <i class="fas fa-save mr-2"></i>Save Settings
+        </button>
+      </div>
     </div>
   </div>
 
@@ -35,7 +89,7 @@
         <p class="text-gray-400 text-sm mt-1">Choose where audit log messages will be sent in Discord</p>
         <div class="mt-3 flex items-center gap-3">
           <label class="relative inline-flex items-center cursor-pointer">
-            <input type="checkbox" id="audit_enabled" class="sr-only peer" {% if guild_record.log_channel_id %}checked{% endif %}>
+            <input type="checkbox" id="audit_enabled" class="sr-only peer" {% if audit_enabled %}checked{% endif %}>
             <div class="w-11 h-6 bg-neutral-700 rounded-full peer peer-checked:bg-cyan-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full"></div>
           </label>
           <span class="text-sm text-gray-300">Enable audit logging</span>
@@ -320,9 +374,52 @@
   </div>
 </div>
 
+<div id="auditEventConfigData" data-config="{{ audit_event_config|default:'{}'|escapejs }}"></div>
+
 <script>
 const guildId = '{{ guild.id }}';
+const auditEventConfigDataEl = document.getElementById('auditEventConfigData');
+const auditEventConfigData = auditEventConfigDataEl ? auditEventConfigDataEl.dataset.config : '{}';
+const auditEnabledInitial = {{ audit_enabled|yesno:"true,false" }};
 console.log('Audit page loaded, guild ID:', guildId);
+
+const AUDIT_EVENT_DEFS = {
+  moderation: [
+    { key: 'member_ban', label: 'Member banned' },
+    { key: 'member_unban', label: 'Member unbanned' },
+    { key: 'member_kick', label: 'Member kicked' },
+    { key: 'member_timeout', label: 'Member timed out' },
+  ],
+  messages: [
+    { key: 'message_delete', label: 'Message deleted' },
+    { key: 'message_bulk_delete', label: 'Bulk messages deleted' },
+  ],
+  members: [
+    { key: 'member_join', label: 'Member joined' },
+    { key: 'member_leave', label: 'Member left' },
+    { key: 'verification_passed', label: 'Verification passed' },
+    { key: 'verification_failed', label: 'Verification failed' },
+  ],
+  roles: [
+    { key: 'role_add', label: 'Role added to member' },
+    { key: 'role_remove', label: 'Role removed from member' },
+    { key: 'role_create', label: 'Role created' },
+    { key: 'role_delete', label: 'Role deleted' },
+  ],
+  channels: [
+    { key: 'channel_create', label: 'Channel created' },
+    { key: 'channel_delete', label: 'Channel deleted' },
+    { key: 'channel_update', label: 'Channel updated' },
+    { key: 'permission_update', label: 'Permissions updated' },
+  ],
+  security: [
+    { key: 'raid_detected', label: 'Raid detected' },
+    { key: 'lockdown_activated', label: 'Lockdown activated' },
+    { key: 'lockdown_deactivated', label: 'Lockdown deactivated' },
+  ]
+};
+
+let auditEventConfig = {};
 
 // CSRF-aware fetch function
 async function csrfFetch(url, options = {}) {
@@ -411,6 +508,9 @@ async function loadAuditChannels() {
         color: 'blue'
       });
       console.log('Custom select created:', auditChannelSelect);
+      if (auditEnabledInitial) {
+        document.getElementById('audit_enabled').checked = true;
+      }
       toggleAuditInputs();
     }
   } catch (err) {
@@ -452,7 +552,8 @@ async function saveAuditConfig() {
       },
       body: JSON.stringify({
         log_channel_id: enabled ? channelId : null,
-        audit_enabled: enabled
+        audit_enabled: enabled,
+        event_config: auditEventConfig
       })
     });
 
@@ -484,7 +585,78 @@ async function saveAuditConfig() {
   }
 }
 
-// Load channels on page load
+function buildDefaultEventConfig() {
+  const cfg = {};
+  Object.values(AUDIT_EVENT_DEFS).forEach(arr => {
+    arr.forEach(item => cfg[item.key] = true);
+  });
+  return cfg;
+}
+
+function loadEventConfig() {
+  try {
+    const parsed = auditEventConfigData ? JSON.parse(auditEventConfigData) : {};
+    auditEventConfig = Object.assign(buildDefaultEventConfig(), parsed || {});
+  } catch (err) {
+    auditEventConfig = buildDefaultEventConfig();
+  }
+}
+
+function renderAuditEventToggles() {
+  Object.entries(AUDIT_EVENT_DEFS).forEach(([cat, items]) => {
+    const container = document.getElementById(`cat_${cat}`);
+    if (!container) return;
+    container.innerHTML = items.map(item => `
+      <label class="flex items-center justify-between bg-neutral-800 px-3 py-2 rounded border border-neutral-700">
+        <span class="text-sm text-gray-200">${item.label}</span>
+        <label class="relative inline-flex items-center cursor-pointer">
+          <input type="checkbox" data-event-key="${item.key}" class="sr-only peer" ${auditEventConfig[item.key] === false ? '' : 'checked'}>
+          <div class="w-10 h-5 bg-neutral-700 rounded-full peer peer-checked:bg-cyan-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-full"></div>
+        </label>
+      </label>
+    `).join('');
+  });
+}
+
+function openAuditSettings() {
+  document.getElementById('auditSettingsModal').classList.remove('hidden');
+  document.getElementById('auditSettingsModal').classList.add('flex');
+}
+
+function closeAuditSettings() {
+  document.getElementById('auditSettingsModal').classList.add('hidden');
+  document.getElementById('auditSettingsModal').classList.remove('flex');
+}
+
+async function saveAuditSettings() {
+  const toggles = document.querySelectorAll('[data-event-key]');
+  const cfg = {};
+  toggles.forEach(t => {
+    cfg[t.getAttribute('data-event-key')] = t.checked;
+  });
+  auditEventConfig = cfg;
+  try {
+    const resp = await csrfFetch(`/api/guild/${guildId}/audit/config/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        log_channel_id: auditChannelSelect ? auditChannelSelect.getValue() : '',
+        audit_enabled: document.getElementById('audit_enabled')?.checked,
+        event_config: cfg
+      })
+    });
+    const data = await resp.json();
+    if (!resp.ok || !data.success) throw new Error(data.error || 'Failed to save');
+    closeAuditSettings();
+    alert('Audit settings saved.');
+  } catch (err) {
+    alert('Error saving audit settings: ' + err.message);
+  }
+}
+
+// Load config and channels on page load
+loadEventConfig();
+renderAuditEventToggles();
 loadAuditChannels();
 </script>
 {% endblock guild_content %}

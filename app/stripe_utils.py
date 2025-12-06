@@ -37,7 +37,9 @@ def create_checkout_session(guild_id, items, billing_cycle='monthly', success_ur
                     continue
 
                 # Use the stripe price ID based on billing cycle
-                price_id = module.get(f'stripe_price_{billing_cycle}_id')
+                price_id = module.get(f'stripe_price_{billing_cycle}_id') \
+                           or module.get('stripe_price_monthly_id') \
+                           or module.get('stripe_price_yearly_id')
                 if not price_id:
                     # If no Stripe price ID configured, skip
                     # In production, you'd want to create these in Stripe dashboard first
@@ -53,10 +55,16 @@ def create_checkout_session(guild_id, items, billing_cycle='monthly', success_ur
                 if not bundle:
                     continue
 
-                # For bundles, you'd need to create bundle products in Stripe
-                # For now, we'll create a price on the fly (not recommended for production)
-                # In production, create these in Stripe dashboard
-                continue
+                price_id = bundle.get(f'stripe_price_{billing_cycle}_id') \
+                           or bundle.get('stripe_price_monthly_id') \
+                           or bundle.get('stripe_price_yearly_id')
+                if not price_id:
+                    continue
+
+                line_items.append({
+                    'price': price_id,
+                    'quantity': 1,
+                })
 
         if not line_items:
             raise ValueError("No valid items to checkout")

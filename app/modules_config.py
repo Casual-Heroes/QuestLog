@@ -19,9 +19,9 @@ MODULES = {
         ],
         'price_monthly': 5.00,
         'price_yearly': 50.00,
-        'stripe_product_id': None,
-        'stripe_price_monthly_id': None,
-        'stripe_price_yearly_id': None,
+        'stripe_product_id': 'prod_TYBMnmy2vfuZm6',
+        'stripe_price_monthly_id': 'price_1Sb4zUCqgyN1IYjdjhnCeT0o',
+        'stripe_price_yearly_id': 'price_1Sb4zUCqgyN1IYjd5FxRCi8g',
     },
     'roles': {
         'name': 'Role Management',
@@ -39,9 +39,9 @@ MODULES = {
         ],
         'price_monthly': 4.00,
         'price_yearly': 40.00,
-        'stripe_product_id': None,
-        'stripe_price_monthly_id': None,
-        'stripe_price_yearly_id': None,
+        'stripe_product_id': 'prod_TYBMHchTq9ZMwc',
+        'stripe_price_monthly_id': 'price_1Sb4zVCqgyN1IYjd0gE56rXm',
+        'stripe_price_yearly_id': 'price_1Sb4zVCqgyN1IYjdLetipMmG',
     },
     'moderation': {
         'name': 'Moderation & Security',
@@ -60,9 +60,9 @@ MODULES = {
         ],
         'price_monthly': 5.00,
         'price_yearly': 50.00,
-        'stripe_product_id': None,
-        'stripe_price_monthly_id': None,
-        'stripe_price_yearly_id': None,
+        'stripe_product_id': 'prod_TYBMFj6UFUHetD',
+        'stripe_price_monthly_id': 'price_1Sb4zWCqgyN1IYjddwDfMCbZ',
+        'stripe_price_yearly_id': 'price_1Sb4zXCqgyN1IYjdDh3xHo36',
     },
     'discovery': {
         'name': 'Discovery & Promotion',
@@ -81,9 +81,9 @@ MODULES = {
         ],
         'price_monthly': 5.00,
         'price_yearly': 50.00,
-        'stripe_product_id': None,
-        'stripe_price_monthly_id': None,
-        'stripe_price_yearly_id': None,
+        'stripe_product_id': 'prod_TYBMYXexweItne',
+        'stripe_price_monthly_id': 'price_1Sb4zXCqgyN1IYjdXVxmY5zE',
+        'stripe_price_yearly_id': 'price_1Sb4zYCqgyN1IYjdtEHOoOnO',
     },
     'lfg': {
         'name': 'Events & Attendance',
@@ -102,9 +102,9 @@ MODULES = {
         ],
         'price_monthly': 4.00,
         'price_yearly': 40.00,
-        'stripe_product_id': None,
-        'stripe_price_monthly_id': None,
-        'stripe_price_yearly_id': None,
+        'stripe_product_id': 'prod_TYBMmq3F7y8dM8',
+        'stripe_price_monthly_id': 'price_1Sb4zYCqgyN1IYjd5dhuViGM',
+        'stripe_price_yearly_id': 'price_1Sb4zZCqgyN1IYjdS67XHT8V',
     },
 }
 
@@ -117,6 +117,9 @@ BUNDLES = {
         'price_monthly': 7.99,
         'price_yearly': 79.99,
         'savings': 2.00,
+        'stripe_product_id': 'prod_TYBMJk1BjeqfFA',
+        'stripe_price_monthly_id': 'price_1Sb4zZCqgyN1IYjdpiTNIksA',
+        'stripe_price_yearly_id': 'price_1Sb4zaCqgyN1IYjdoybQoYzP',
     },
     'pick_3': {
         'name': 'Pick 3 Bundle',
@@ -125,6 +128,9 @@ BUNDLES = {
         'price_monthly': 8.99,
         'price_yearly': 89.99,
         'savings': 5.00,
+        'stripe_product_id': 'prod_TYBMGHfOv3apqb',
+        'stripe_price_monthly_id': 'price_1Sb4zaCqgyN1IYjdvXqbkU7I',
+        'stripe_price_yearly_id': 'price_1Sb4zbCqgyN1IYjdmKPJ8qJc',
     },
     'complete': {
         'name': 'Complete Suite',
@@ -134,6 +140,9 @@ BUNDLES = {
         'price_yearly': 99.99,
         'savings': 13.00,  # Total would be $23/month à la carte (5+4+5+5+4)
         'highlight': True,  # Featured bundle
+        'stripe_product_id': 'prod_TYBM2y4BsAt1Nj',
+        'stripe_price_monthly_id': 'price_1Sb4zcCqgyN1IYjd3LbVrDM6',
+        'stripe_price_yearly_id': 'price_1Sb4zcCqgyN1IYjdYu1LE9Vp',
     },
 }
 

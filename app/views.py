@@ -5298,6 +5298,8 @@ def guild_audit_logs(request, guild_id):
         'total_count': total_count,
         'action_types': action_types,
         'audit_log_channel_id': audit_log_channel_id,
+        'audit_enabled': bool(guild_record.audit_logging_enabled) if guild_record else False,
+        'audit_event_config': guild_record.audit_event_config if guild_record else '',
         'current_filters': {
             'action': action_filter,
             'actor': actor_filter,
@@ -5505,6 +5507,8 @@ def api_audit_config_update(request, guild_id):
                 guild_record.audit_logging_enabled = False
             elif data.get('audit_enabled') is True:
                 guild_record.audit_logging_enabled = True
+            if 'event_config' in data:
+                guild_record.audit_event_config = json_lib.dumps(data.get('event_config') or {})
 
             logger.info(f"Updated audit log channel for guild {guild_id} to {guild_record.log_channel_id}")
             return JsonResponse({'success': True})
