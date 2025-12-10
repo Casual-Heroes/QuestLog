@@ -78,7 +78,7 @@
           </div>
         </div>
         <button
-          onclick="purchaseFlair('{{ flair_name|escapejs }}', 'normal', {{ cost }})"
+          onclick="purchaseFlair('{{ flair_name|escapejs }}', 'normal', 0)"
           class="w-full text-white font-medium py-2 px-4 rounded-lg transition text-sm
                  {% if current_flair == flair_name %}bg-green-600 hover:bg-green-500{% else %}bg-indigo-600 hover:bg-indigo-500{% endif %}">
           {% if current_flair == flair_name %}
@@ -133,7 +133,7 @@
           </div>
         </div>
         <button
-          onclick="purchaseFlair('{{ flair_name|escapejs }}', 'seasonal', {{ cost }})"
+          onclick="purchaseFlair('{{ flair_name|escapejs }}', 'seasonal', 0)"
           class="w-full text-white font-medium py-2 px-4 rounded-lg transition text-sm
                  {% if current_flair == flair_name %}bg-green-600 hover:bg-green-500{% else %}bg-pink-600 hover:bg-pink-500{% endif %}">
           {% if current_flair == flair_name %}
@@ -207,7 +207,7 @@
           </div>
         </div>
         <button
-          onclick="purchaseFlair('{{ flair_name|escapejs }}', 'custom', {{ cost }})"
+          onclick="purchaseFlair('{{ flair_name|escapejs }}', 'custom', 0)"
           class="w-full text-white font-medium py-2 px-4 rounded-lg transition text-sm
                  {% if current_flair == flair_name %}bg-green-600 hover:bg-green-500{% else %}bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500{% endif %}">
           {% if current_flair == flair_name %}
