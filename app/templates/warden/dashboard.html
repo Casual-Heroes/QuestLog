@@ -12,10 +12,10 @@
       <i class="fas fa-shield-alt text-indigo-400"></i>
       <span class="text-indigo-400 font-medium">Warden Bot</span>
     </div>
-    <h1 class="text-4xl font-bold text-white mb-4">Select a Server to Manage</h1>
+    <h1 class="text-4xl font-bold text-white mb-4">Select a Server</h1>
     <p class="text-gray-400 max-w-2xl mx-auto">
-      Choose a Discord server where you have admin permissions to configure Warden's features
-      including XP systems, moderation, welcome messages, and more.
+      Choose a Discord server to access Warden's features including XP systems, LFG groups,
+      moderation tools, and more.
     </p>
   </div>
 
@@ -30,8 +30,9 @@
         <h2 class="text-2xl font-bold text-white">{{ discord_user.global_name }}</h2>
       </div>
       <div class="md:ml-auto text-center md:text-right">
-        <p class="text-gray-400 text-sm">Managing</p>
-        <p class="text-2xl font-bold text-indigo-400">{{ admin_guilds|length }} server{{ admin_guilds|length|pluralize }}</p>
+        <p class="text-gray-400 text-sm">Your Servers</p>
+        <p class="text-2xl font-bold text-indigo-400">{{ total_guilds }} total</p>
+        <p class="text-sm text-gray-500">{{ admin_guilds|length }} admin • {{ member_guilds|length }} member</p>
       </div>
       <div class="flex flex-col gap-2">
         <button onclick="refreshGuilds()" id="refreshBtn" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition text-sm whitespace-nowrap">
@@ -44,87 +45,153 @@
     </div>
   </div>
 
-  <!-- Server Grid -->
+  <!-- Servers You Manage -->
   {% if admin_guilds %}
-  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-    {% for guild in admin_guilds %}
-    <div class="bg-neutral-900 rounded-2xl overflow-hidden border border-neutral-800 hover:border-indigo-500 transition">
-      <!-- Server Banner/Header -->
-      <div class="h-24 bg-gradient-to-br from-indigo-600/30 to-purple-600/30 relative">
-        <div class="absolute -bottom-8 left-6">
-          {% if guild.icon %}
-          <img src="https://cdn.discordapp.com/icons/{{ guild.id }}/{{ guild.icon }}.png?size=128"
-               alt="{{ guild.name }}"
-               class="w-16 h-16 rounded-2xl border-4 border-neutral-900 shadow-lg">
-          {% else %}
-          <div class="w-16 h-16 bg-neutral-700 rounded-2xl border-4 border-neutral-900 shadow-lg flex items-center justify-center">
-            <span class="text-xl font-bold text-gray-400">{{ guild.name|slice:":2"|upper }}</span>
+  <div class="mb-12">
+    <div class="flex items-center gap-3 mb-6">
+      <h2 class="text-2xl font-bold text-white">Servers You Manage</h2>
+      <span class="bg-indigo-600/20 text-indigo-400 px-3 py-1 rounded-full text-sm font-medium">{{ admin_guilds|length }}</span>
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      {% for guild in admin_guilds %}
+      <div class="bg-neutral-900 rounded-2xl overflow-hidden border border-neutral-800 hover:border-indigo-500 transition">
+        <!-- Server Banner/Header -->
+        <div class="h-24 bg-gradient-to-br from-indigo-600/30 to-purple-600/30 relative">
+          <div class="absolute -bottom-8 left-6">
+            {% if guild.icon %}
+            <img src="https://cdn.discordapp.com/icons/{{ guild.id }}/{{ guild.icon }}.png?size=128"
+                 alt="{{ guild.name }}"
+                 class="w-16 h-16 rounded-2xl border-4 border-neutral-900 shadow-lg">
+            {% else %}
+            <div class="w-16 h-16 bg-neutral-700 rounded-2xl border-4 border-neutral-900 shadow-lg flex items-center justify-center">
+              <span class="text-xl font-bold text-gray-400">{{ guild.name|slice:":2"|upper }}</span>
+            </div>
+            {% endif %}
+          </div>
+          {% if guild.owner %}
+          <div class="absolute top-3 right-3 bg-yellow-500/20 text-yellow-400 px-2 py-1 rounded-full text-xs font-medium">
+            <i class="fas fa-crown mr-1"></i>Owner
           </div>
           {% endif %}
         </div>
-        {% if guild.owner %}
-        <div class="absolute top-3 right-3 bg-yellow-500/20 text-yellow-400 px-2 py-1 rounded-full text-xs font-medium">
-          <i class="fas fa-crown mr-1"></i>Owner
-        </div>
-        {% endif %}
-      </div>
 
-      <!-- Server Info -->
-      <div class="pt-12 pb-6 px-6">
-        <h3 class="text-xl font-bold text-white truncate">
-          {{ guild.name }}
-        </h3>
-        <p class="text-gray-500 text-sm mt-1">ID: {{ guild.id }}</p>
+        <!-- Server Info -->
+        <div class="pt-12 pb-6 px-6">
+          <h3 class="text-xl font-bold text-white truncate">
+            {{ guild.name }}
+          </h3>
+          <p class="text-gray-500 text-sm mt-1">ID: {{ guild.id }}</p>
 
-        <!-- Quick Stats (placeholder) -->
-        <div class="flex items-center gap-4 mt-4 text-sm text-gray-400">
-          <span><i class="fas fa-cog mr-1"></i>Configure</span>
-          <span><i class="fas fa-chart-line mr-1"></i>Stats</span>
-        </div>
+          <!-- Quick Stats (placeholder) -->
+          <div class="flex items-center gap-4 mt-4 text-sm text-gray-400">
+            <span><i class="fas fa-cog mr-1"></i>Configure</span>
+            <span><i class="fas fa-chart-line mr-1"></i>Stats</span>
+          </div>
 
-        <!-- Action Buttons -->
-        <div class="mt-4 pt-4 border-t border-neutral-800 space-y-2">
-          <a href="{% url 'guild_dashboard' guild.id %}"
-             class="block w-full text-center bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium transition">
-            <i class="fas fa-cog mr-2"></i>Manage Server
-          </a>
-          <div class="grid grid-cols-2 gap-2">
-            <a href="https://discord.com/oauth2/authorize?client_id=1442643999713394831&guild_id={{ guild.id }}&permissions=8&scope=bot%20applications.commands"
-               target="_blank"
-               class="text-center bg-green-600/20 hover:bg-green-600/30 text-green-400 px-3 py-2 rounded-lg text-sm font-medium transition border border-green-600/30">
-              <i class="fas fa-plus-circle mr-1"></i>Join Server
+          <!-- Action Buttons -->
+          <div class="mt-4 pt-4 border-t border-neutral-800 space-y-2">
+            {% if guild.has_bot %}
+            <!-- Bot is installed -->
+            <a href="{% url 'guild_dashboard' guild.id %}"
+               class="block w-full text-center bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium transition">
+              <i class="fas fa-cog mr-2"></i>Manage Server
             </a>
             <button onclick="leaveServer('{{ guild.id }}', '{{ guild.name|escapejs }}')"
-                    class="bg-red-600/20 hover:bg-red-600/30 text-red-400 px-3 py-2 rounded-lg text-sm font-medium transition border border-red-600/30">
-              <i class="fas fa-sign-out-alt mr-1"></i>Leave Server
+                    class="w-full bg-red-600/20 hover:bg-red-600/30 text-red-400 px-3 py-2 rounded-lg text-sm font-medium transition border border-red-600/30">
+              <i class="fas fa-sign-out-alt mr-1"></i>Remove Bot from Server
             </button>
+            {% else %}
+            <!-- Bot is NOT installed -->
+            <a href="https://discord.com/oauth2/authorize?client_id=1442643999713394831&guild_id={{ guild.id }}&permissions=8&scope=bot%20applications.commands"
+               target="_blank"
+               class="block w-full text-center bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium transition">
+              <i class="fas fa-plus-circle mr-2"></i>Add Bot to Server
+            </a>
+            <a href="https://discord.com/channels/{{ guild.id }}"
+               target="_blank"
+               class="block w-full text-center bg-neutral-700 hover:bg-neutral-600 text-gray-300 px-3 py-2 rounded-lg text-sm font-medium transition">
+              <i class="fab fa-discord mr-1"></i>Open in Discord
+            </a>
+            {% endif %}
           </div>
         </div>
       </div>
-    </div>
-    {% endfor %}
+      {% endfor %}
 
-    <!-- Add Bot Card -->
-    <a href="https://discord.com/api/oauth2/authorize?client_id={{ bot_client_id }}&permissions=8&scope=bot%20applications.commands"
-       target="_blank"
-       class="bg-neutral-900/50 rounded-2xl border-2 border-dashed border-neutral-700 hover:border-indigo-500 transition flex flex-col items-center justify-center py-12 group">
-      <div class="w-16 h-16 bg-neutral-800 rounded-2xl flex items-center justify-center mb-4 group-hover:bg-indigo-600/20 transition">
-        <i class="fas fa-plus text-2xl text-gray-500 group-hover:text-indigo-400 transition"></i>
-      </div>
-      <p class="text-gray-400 font-medium group-hover:text-indigo-400 transition">Add Warden to a Server</p>
-      <p class="text-gray-600 text-sm mt-1">Invite the bot to your Discord</p>
-    </a>
+      <!-- Add Bot Card -->
+      <a href="https://discord.com/api/oauth2/authorize?client_id={{ bot_client_id }}&permissions=8&scope=bot%20applications.commands"
+         target="_blank"
+         class="bg-neutral-900/50 rounded-2xl border-2 border-dashed border-neutral-700 hover:border-indigo-500 transition flex flex-col items-center justify-center py-12 group">
+        <div class="w-16 h-16 bg-neutral-800 rounded-2xl flex items-center justify-center mb-4 group-hover:bg-indigo-600/20 transition">
+          <i class="fas fa-plus text-2xl text-gray-500 group-hover:text-indigo-400 transition"></i>
+        </div>
+        <p class="text-gray-400 font-medium group-hover:text-indigo-400 transition">Add Warden to a Server</p>
+        <p class="text-gray-600 text-sm mt-1">Invite the bot to your Discord</p>
+      </a>
+    </div>
   </div>
-  {% else %}
+  {% endif %}
+
+  <!-- Servers You Are In -->
+  {% if member_guilds %}
+  <div class="mb-12">
+    <div class="flex items-center gap-3 mb-6">
+      <h2 class="text-2xl font-bold text-white">Servers You Are In</h2>
+      <span class="bg-neutral-600/20 text-gray-400 px-3 py-1 rounded-full text-sm font-medium">{{ member_guilds|length }}</span>
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      {% for guild in member_guilds %}
+      <div class="bg-neutral-900 rounded-2xl overflow-hidden border border-neutral-800 hover:border-green-500 transition">
+        <!-- Server Banner/Header -->
+        <div class="h-24 bg-gradient-to-br from-green-600/20 to-blue-600/20 relative">
+          <div class="absolute -bottom-8 left-6">
+            {% if guild.icon %}
+            <img src="https://cdn.discordapp.com/icons/{{ guild.id }}/{{ guild.icon }}.png?size=128"
+                 alt="{{ guild.name }}"
+                 class="w-16 h-16 rounded-2xl border-4 border-neutral-900 shadow-lg">
+            {% else %}
+            <div class="w-16 h-16 bg-neutral-700 rounded-2xl border-4 border-neutral-900 shadow-lg flex items-center justify-center">
+              <span class="text-xl font-bold text-gray-400">{{ guild.name|slice:":2"|upper }}</span>
+            </div>
+            {% endif %}
+          </div>
+        </div>
+
+        <!-- Server Info -->
+        <div class="pt-12 pb-6 px-6">
+          <h3 class="text-xl font-bold text-white truncate">
+            {{ guild.name }}
+          </h3>
+          <p class="text-gray-500 text-sm mt-1">ID: {{ guild.id }}</p>
+
+          <!-- Member Stats -->
+          <div class="flex items-center gap-4 mt-4 text-sm text-gray-400">
+            <span><i class="fas fa-users mr-1"></i>Member</span>
+          </div>
+
+          <!-- Action Button -->
+          <div class="mt-4 pt-4 border-t border-neutral-800">
+            <a href="{% url 'guild_dashboard' guild.id %}"
+               class="block w-full text-center bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium transition">
+              <i class="fas fa-eye mr-2"></i>View Server
+            </a>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
   <!-- No Servers State -->
+  {% if not admin_guilds and not member_guilds %}
   <div class="bg-neutral-900 rounded-2xl p-12 border border-neutral-800 text-center">
     <div class="w-20 h-20 bg-neutral-800 rounded-full flex items-center justify-center mx-auto mb-6">
       <i class="fas fa-server text-gray-600 text-3xl"></i>
     </div>
-    <h3 class="text-2xl font-bold text-white mb-4">No Servers to Manage</h3>
+    <h3 class="text-2xl font-bold text-white mb-4">No Servers Found</h3>
     <p class="text-gray-400 max-w-md mx-auto mb-8">
-      You don't have admin permissions in any servers. To use the Warden dashboard,
-      you need to be an admin or owner of a Discord server.
+      You are not a member of any Discord servers. Join a server with Warden to get started.
     </p>
     <div class="flex flex-col sm:flex-row gap-4 justify-center">
       <a href="https://discord.com/api/oauth2/authorize?client_id={{ bot_client_id }}&permissions=8&scope=bot%20applications.commands"

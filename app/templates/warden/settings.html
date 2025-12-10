@@ -16,8 +16,8 @@
       <p class="text-gray-400 mt-1">Configure bot behavior for this server</p>
     </div>
     <div class="flex gap-3 items-center">
-      <span class="px-3 py-1 bg-{% if settings.subscription_tier == 'pro' %}purple{% elif settings.subscription_tier == 'premium' %}yellow{% else %}gray{% endif %}-600/20 text-{% if settings.subscription_tier == 'pro' %}purple{% elif settings.subscription_tier == 'premium' %}yellow{% else %}gray{% endif %}-400 rounded-full text-sm font-medium capitalize">
-        {{ settings.subscription_tier }} Plan
+      <span class="px-3 py-1 bg-{% if settings.billing_cycle == 'lifetime' %}yellow{% elif settings.subscription_tier == 'complete' %}purple{% elif settings.is_vip %}yellow{% else %}gray{% endif %}-600/20 text-{% if settings.billing_cycle == 'lifetime' %}yellow{% elif settings.subscription_tier == 'complete' %}purple{% elif settings.is_vip %}yellow{% else %}gray{% endif %}-400 rounded-full text-sm font-medium capitalize">
+        {% if settings.billing_cycle == 'lifetime' %}Lifetime{% elif settings.subscription_tier == 'complete' %}Complete{% elif settings.is_vip %}VIP{% else %}Free{% endif %} Plan
       </span>
       <button onclick="saveSettings()" id="saveBtn" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium transition text-sm">
         <i class="fas fa-save mr-2"></i>Save Changes

@@ -264,6 +264,40 @@ def queue_tokens_add(
     )
 
 
+def queue_tokens_set(
+    guild_id: int,
+    user_id: int,
+    amount: int,
+    triggered_by: Optional[int] = None,
+    triggered_by_name: Optional[str] = None
+) -> int:
+    """
+    Queue an action to set a user's Hero Tokens to a specific value.
+
+    Args:
+        guild_id: Discord guild/server ID
+        user_id: Discord user ID
+        amount: Token value to set
+        triggered_by: User ID who triggered this action (from website)
+        triggered_by_name: Display name of who triggered it
+
+    Returns:
+        int: The PendingAction ID
+    """
+    return queue_action(
+        guild_id=guild_id,
+        action_type=ActionType.TOKENS_SET,
+        payload={
+            'user_id': user_id,
+            'amount': amount
+        },
+        triggered_by=triggered_by,
+        triggered_by_name=triggered_by_name,
+        source='website',
+        priority=5
+    )
+
+
 def queue_clear_featured(
     guild_id: int,
     triggered_by: Optional[int] = None,

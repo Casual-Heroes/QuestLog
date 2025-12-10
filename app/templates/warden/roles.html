@@ -34,7 +34,7 @@
         <button onclick="openInteractiveBulkAssignModal(); toggleRoleActions(true);" class="w-full text-left px-4 py-2 text-sm text-white hover:bg-neutral-800 flex items-center gap-2">
           <i class="fas fa-users-cog text-indigo-300"></i><span>Bulk Assign</span>
         </button>
-        {% if is_premium or guild_record.subscription_tier == 'pro' %}
+        {% if has_roles_module %}
         <button onclick="exportTemplate(); toggleRoleActions(true);" class="w-full text-left px-4 py-2 text-sm text-white hover:bg-neutral-800 flex items-center gap-2">
           <i class="fas fa-download text-gray-300"></i><span>Export Template</span>
         </button>
@@ -49,7 +49,7 @@
         </button>
         {% else %}
         <button onclick="showUpgradePrompt(); toggleRoleActions(true);" class="w-full text-left px-4 py-2 text-sm text-white hover:bg-neutral-800 flex items-center gap-2 border-b border-neutral-800">
-          <i class="fas fa-crown text-yellow-300"></i><span>Import / Bulk (Pro/Premium)</span>
+          <i class="fas fa-crown text-yellow-300"></i><span>Import / Bulk (Roles Module)</span>
         </button>
         {% endif %}
         <button onclick="triggerSync(); toggleRoleActions(true);" class="w-full text-left px-4 py-2 text-sm text-white hover:bg-neutral-800 flex items-center gap-2">
@@ -59,21 +59,21 @@
     </div>
   </div>
 
-  <!-- Pro/Premium Feature Banner (if not pro/premium) -->
-  {% if not is_premium and guild_record.subscription_tier != 'pro' %}
-  <div class="bg-gradient-to-r from-yellow-600/20 to-orange-600/20 rounded-xl p-6 border border-yellow-500/30 mb-8">
+  <!-- Role Management Module Feature Banner -->
+  {% if not has_roles_module %}
+  <div class="bg-gradient-to-r from-purple-600/20 to-indigo-600/20 rounded-xl p-6 border border-purple-500/30 mb-8">
     <div class="flex items-start gap-4">
-      <div class="w-12 h-12 bg-yellow-600/20 rounded-lg flex items-center justify-center flex-shrink-0">
-        <i class="fas fa-crown text-yellow-400 text-xl"></i>
+      <div class="w-12 h-12 bg-purple-600/20 rounded-lg flex items-center justify-center flex-shrink-0">
+        <i class="fas fa-crown text-purple-400 text-xl"></i>
       </div>
       <div class="flex-1">
         <h3 class="text-lg font-bold text-white mb-1">Unlock XLSX Import & Advanced Features</h3>
         <p class="text-gray-300 text-sm mb-3">
-          Upgrade to Pro or Premium to import XLSX files with hundreds of users for mass role assignments.
-          Perfect for migrating from other bots or managing large communities. Pro tier unlocks advanced bulk operations!
+          Upgrade to the Role Management Module to import XLSX files with hundreds of users for mass role assignments.
+          Perfect for migrating from other bots or managing large communities. Unlocks advanced bulk operations!
         </p>
-        <a href="#" class="inline-flex items-center gap-2 bg-yellow-600 hover:bg-yellow-500 text-white px-4 py-2 rounded-lg text-sm font-medium transition">
-          <i class="fas fa-rocket"></i>Upgrade to Pro or Premium
+        <a href="{% url 'guild_billing' guild.id %}" class="inline-flex items-center gap-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition">
+          <i class="fas fa-rocket"></i>Upgrade to Role Management Module or get Complete for $12.99/mo
         </a>
       </div>
     </div>
@@ -96,32 +96,28 @@
             <p class="text-gray-400 ml-5">6 items per day for Bulk Assign & Create</p>
           </div>
           <div>
-            <p class="text-indigo-300 font-medium mb-1">
-              <i class="fas fa-circle text-indigo-500 mr-2 text-xs"></i>Pro Tier
+            <p class="text-purple-300 font-medium mb-1">
+              <i class="fas fa-user-tag text-purple-500 mr-2 text-xs"></i>Role Module
             </p>
-            <p class="text-gray-400 ml-5">10 items per day for Bulk Assign & Create</p>
+            <p class="text-gray-400 ml-5">Unlimited bulk operations</p>
           </div>
           <div>
-            <p class="text-yellow-300 font-medium mb-1">
-              <i class="fas fa-crown text-yellow-500 mr-2 text-xs"></i>Premium Tier
+            <p class="text-purple-300 font-medium mb-1">
+              <i class="fas fa-crown text-purple-500 mr-2 text-xs"></i>Complete Suite
             </p>
             <p class="text-gray-400 ml-5">Unlimited bulk operations</p>
           </div>
         </div>
-        {% if guild_record.is_vip or guild_record.subscription_tier == 'premium' %}
+        {% if has_roles_module or guild_record.is_vip or guild_record.subscription_tier == 'complete' or guild_record.billing_cycle == 'lifetime' %}
         <p class="text-green-400 text-xs mt-3">
           <i class="fas fa-check-circle mr-1"></i>
           You have unlimited bulk operations! Assign roles to as many users as you need.
         </p>
-        {% elif guild_record.subscription_tier == 'pro' %}
-        <p class="text-blue-400 text-xs mt-3">
-          <i class="fas fa-lightbulb mr-1"></i>
-          Daily limits reset at midnight. <a href="#" class="text-purple-400 hover:text-purple-300 underline">Upgrade to Premium</a> for unlimited bulk operations.
         </p>
         {% else %}
         <p class="text-blue-400 text-xs mt-3">
           <i class="fas fa-lightbulb mr-1"></i>
-          Daily limits reset at midnight. <a href="#" class="text-indigo-400 hover:text-indigo-300 underline">Upgrade to Pro or Premium</a> for more bulk operations.
+          Daily limits reset at midnight. <a href="{% url 'guild_billing' guild.id %}" class="text-indigo-400 hover:text-indigo-300 underline">Upgrade to Role Management Module or get Complete for $12.99/mo</a> for unlimited bulk operations.
         </p>
         {% endif %}
       </div>
@@ -172,7 +168,7 @@
     <!-- XLSX Import (Pro/Premium) -->
     <div class="bg-neutral-900 rounded-xl p-6 border border-neutral-800">
       <h3 class="text-lg font-bold text-white mb-4">
-        <i class="fas fa-file-excel text-purple-400 mr-2"></i>XLSX Import {% if not is_premium and guild_record.subscription_tier != 'pro' %}<span class="text-yellow-400 text-xs">(Pro/Premium)</span>{% endif %}
+        <i class="fas fa-file-excel text-purple-400 mr-2"></i>XLSX Import {% if not has_roles_module %}<span class="text-purple-400 text-xs">(Roles Module)</span>{% endif %}
       </h3>
       <p class="text-gray-400 text-sm mb-4">
         Import hundreds of users from spreadsheet files.
@@ -206,11 +202,11 @@
           </div>
         </div>
       </div>
-      {% if not is_premium and guild_record.subscription_tier != 'pro' %}
-      <div class="mt-4 p-3 bg-yellow-900/20 border border-yellow-700/30 rounded-lg">
-        <p class="text-yellow-200 text-xs">
+      {% if not has_roles_module %}
+      <div class="mt-4 p-3 bg-purple-900/20 border border-purple-700/30 rounded-lg">
+        <p class="text-purple-200 text-xs">
           <i class="fas fa-crown mr-1"></i>
-          Upgrade to Pro or Premium to unlock XLSX import for mass operations.
+          Upgrade to Role Management Module or get Complete for $12.99/mo to unlock XLSX import for mass operations.
         </p>
       </div>
       {% endif %}
@@ -299,7 +295,7 @@
           <div class="p-8 text-center">
             <i class="fas fa-file-excel text-4xl text-gray-600 mb-3"></i>
             <p class="text-gray-400">No bulk imports yet</p>
-            {% if is_premium %}
+            {% if has_roles_module %}
             <button onclick="openBulkImportModal()" class="text-indigo-400 hover:text-indigo-300 text-sm mt-2">
               <i class="fas fa-upload mr-1"></i>Import your first XLSX
             </button>
@@ -1026,7 +1022,7 @@ function updateFileName(input) {
 }
 
 function showUpgradePrompt() {
-  showToast('XLSX import requires Pro or Premium subscription', 'info');
+  showToast('XLSX import requires Role Management Module - upgrade or get Complete for $12.99/mo', 'info');
 }
 
 // Interactive Bulk Assign Modal

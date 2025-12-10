@@ -1,0 +1,248 @@
+<div id="twitchContent" class="hidden">
+  {% if has_discovery_module or guild_record.is_vip or guild_record.subscription_tier == 'complete' or guild_record.billing_cycle == 'lifetime' %}
+  <!-- Coming Soon Banner -->
+  <div class="bg-gradient-to-r from-purple-900/40 to-indigo-900/40 rounded-xl border-2 border-purple-500/50 p-8 mb-8 text-center">
+    <div class="inline-block p-4 bg-purple-600/20 rounded-full mb-4">
+      <i class="fab fa-twitch text-purple-400 text-6xl"></i>
+    </div>
+    <h2 class="text-3xl font-bold text-white mb-3">
+      Twitch Integration
+      <span class="ml-3 px-3 py-1 text-sm bg-purple-600/30 text-purple-300 border border-purple-500/40 rounded-full">Coming Soon</span>
+    </h2>
+    <p class="text-gray-300 text-lg max-w-2xl mx-auto">
+      Connect your Twitch account and stream data directly to your Discord server
+    </p>
+  </div>
+
+  <!-- Planned Features Grid -->
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+    <!-- Feature 1: Account Linking -->
+    <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6 hover:border-purple-500/30 transition">
+      <div class="flex items-start gap-4">
+        <div class="w-12 h-12 bg-purple-600/20 rounded-lg flex items-center justify-center flex-shrink-0">
+          <i class="fas fa-link text-purple-400 text-xl"></i>
+        </div>
+        <div>
+          <h3 class="text-lg font-bold text-white mb-2">Account Linking</h3>
+          <p class="text-gray-400 text-sm">
+            Allow Discord users to link their Twitch accounts through OAuth. Verify streamers and track their channels automatically.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Feature 2: Live Stream Notifications -->
+    <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6 hover:border-purple-500/30 transition">
+      <div class="flex items-start gap-4">
+        <div class="w-12 h-12 bg-purple-600/20 rounded-lg flex items-center justify-center flex-shrink-0">
+          <i class="fas fa-broadcast-tower text-purple-400 text-xl"></i>
+        </div>
+        <div>
+          <h3 class="text-lg font-bold text-white mb-2">Live Stream Alerts</h3>
+          <p class="text-gray-400 text-sm">
+            Automatically announce when linked members go live on Twitch with customizable embeds and role mentions.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Feature 3: Auto-Roles -->
+    <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6 hover:border-purple-500/30 transition">
+      <div class="flex items-start gap-4">
+        <div class="w-12 h-12 bg-purple-600/20 rounded-lg flex items-center justify-center flex-shrink-0">
+          <i class="fas fa-user-tag text-purple-400 text-xl"></i>
+        </div>
+        <div>
+          <h3 class="text-lg font-bold text-white mb-2">Streamer Auto-Roles</h3>
+          <p class="text-gray-400 text-sm">
+            Automatically assign Discord roles based on Twitch verification, partner status, or follower count thresholds.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Feature 4: Stream Stats -->
+    <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6 hover:border-purple-500/30 transition">
+      <div class="flex items-start gap-4">
+        <div class="w-12 h-12 bg-purple-600/20 rounded-lg flex items-center justify-center flex-shrink-0">
+          <i class="fas fa-chart-line text-purple-400 text-xl"></i>
+        </div>
+        <div>
+          <h3 class="text-lg font-bold text-white mb-2">Stream Analytics</h3>
+          <p class="text-gray-400 text-sm">
+            Track viewer counts, stream duration, and community engagement metrics directly in Discord.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Feature 5: Channel Integration -->
+    <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6 hover:border-purple-500/30 transition">
+      <div class="flex items-start gap-4">
+        <div class="w-12 h-12 bg-purple-600/20 rounded-lg flex items-center justify-center flex-shrink-0">
+          <i class="fas fa-hashtag text-purple-400 text-xl"></i>
+        </div>
+        <div>
+          <h3 class="text-lg font-bold text-white mb-2">Channel Sync</h3>
+          <p class="text-gray-400 text-sm">
+            Create dedicated Discord channels that update with live stream information and viewer count in real-time.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Feature 6: Clip Sharing -->
+    <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6 hover:border-purple-500/30 transition">
+      <div class="flex items-start gap-4">
+        <div class="w-12 h-12 bg-purple-600/20 rounded-lg flex items-center justify-center flex-shrink-0">
+          <i class="fas fa-video text-purple-400 text-xl"></i>
+        </div>
+        <div>
+          <h3 class="text-lg font-bold text-white mb-2">Clip & VOD Sharing</h3>
+          <p class="text-gray-400 text-sm">
+            Automatically share new clips and VODs to designated channels with rich embeds and metadata.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- How It Will Work -->
+  <div class="bg-gradient-to-r from-purple-900/20 to-purple-800/20 rounded-xl border border-purple-800/30 p-6 mb-8">
+    <h3 class="text-lg font-bold text-white mb-4">
+      <i class="fas fa-info-circle text-purple-400 mr-2"></i>How Twitch Integration Will Work
+    </h3>
+    <div class="space-y-3">
+      <div class="flex items-start gap-3">
+        <div class="w-6 h-6 bg-purple-600 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+          <span class="text-white text-xs font-bold">1</span>
+        </div>
+        <p class="text-gray-300 text-sm">
+          <strong class="text-white">OAuth Connection:</strong> Users will connect their Twitch accounts through a secure OAuth flow on the Casual Heroes website.
+        </p>
+      </div>
+      <div class="flex items-start gap-3">
+        <div class="w-6 h-6 bg-purple-600 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+          <span class="text-white text-xs font-bold">2</span>
+        </div>
+        <p class="text-gray-300 text-sm">
+          <strong class="text-white">Webhook Monitoring:</strong> The bot will monitor Twitch webhooks for stream status changes, new clips, and channel updates.
+        </p>
+      </div>
+      <div class="flex items-start gap-3">
+        <div class="w-6 h-6 bg-purple-600 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+          <span class="text-white text-xs font-bold">3</span>
+        </div>
+        <p class="text-gray-300 text-sm">
+          <strong class="text-white">Automated Announcements:</strong> Configure which channels receive notifications, customize announcement messages, and set role mentions.
+        </p>
+      </div>
+      <div class="flex items-start gap-3">
+        <div class="w-6 h-6 bg-purple-600 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+          <span class="text-white text-xs font-bold">4</span>
+        </div>
+        <p class="text-gray-300 text-sm">
+          <strong class="text-white">Role Management:</strong> Set up automatic role assignment based on streamer status, verification, or follower milestones.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Use Cases -->
+  <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6">
+    <h3 class="text-lg font-bold text-white mb-4">
+      <i class="fas fa-lightbulb text-yellow-400 mr-2"></i>Perfect For
+    </h3>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div class="p-4 bg-neutral-800/50 rounded-lg border border-neutral-700">
+        <p class="text-white font-medium mb-1">Streaming Communities</p>
+        <p class="text-gray-400 text-sm">Support your community's streamers with automatic announcements</p>
+      </div>
+      <div class="p-4 bg-neutral-800/50 rounded-lg border border-neutral-700">
+        <p class="text-white font-medium mb-1">Gaming Guilds</p>
+        <p class="text-gray-400 text-sm">Track when guild members are streaming and engage viewers</p>
+      </div>
+      <div class="p-4 bg-neutral-800/50 rounded-lg border border-neutral-700">
+        <p class="text-white font-medium mb-1">Content Creator Hubs</p>
+        <p class="text-gray-400 text-sm">Centralize all your creators' Twitch activity in one place</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Feedback Section -->
+  <div class="mt-8 p-6 bg-gradient-to-r from-indigo-900/30 to-purple-900/30 rounded-xl border border-indigo-700/40">
+    <div class="flex items-start gap-4">
+      <div class="w-12 h-12 bg-indigo-600/20 rounded-lg flex items-center justify-center flex-shrink-0">
+        <i class="fas fa-comment-dots text-indigo-400 text-xl"></i>
+      </div>
+      <div>
+        <h3 class="text-lg font-bold text-white mb-2">Want to Help Shape This Feature?</h3>
+        <p class="text-gray-300 text-sm mb-3">
+          We're actively developing Twitch integration and would love your input! Join our Discord server to share your ideas and get early access when it launches.
+        </p>
+        <a href="https://discord.gg/casualheroes" target="_blank" class="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition text-sm">
+          <i class="fab fa-discord"></i>
+          Join Our Discord
+        </a>
+      </div>
+    </div>
+  </div>
+
+  {% else %}
+  <!-- Upgrade Required Banner -->
+  <div class="bg-gradient-to-r from-purple-900/20 to-indigo-900/20 rounded-xl border-2 border-purple-500/30 p-8 text-center">
+    <div class="inline-block p-4 bg-purple-600/10 rounded-full mb-4">
+      <i class="fas fa-lock text-purple-400 text-5xl"></i>
+    </div>
+    <h2 class="text-2xl font-bold text-white mb-3">
+      Twitch Integration
+      <span class="ml-3 px-3 py-1 text-sm bg-purple-600/30 text-purple-300 border border-purple-500/40 rounded-full">Coming Soon</span>
+    </h2>
+    <p class="text-gray-400 text-lg mb-6 max-w-2xl mx-auto">
+      Twitch integration will be included with the Discovery module when it launches
+    </p>
+    <div class="flex flex-col sm:flex-row gap-3 justify-center">
+      <a href="{% url 'guild_billing' guild.id %}" class="inline-flex items-center gap-2 px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-bold transition">
+        <i class="fas fa-crown"></i>
+        Upgrade to Discovery Module
+      </a>
+      <a href="{% url 'guild_billing' guild.id %}" class="inline-flex items-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-bold transition">
+        <i class="fas fa-sparkles"></i>
+        Get Complete Suite
+      </a>
+    </div>
+  </div>
+
+  <!-- Feature Preview (Limited) -->
+  <div class="mt-8 bg-neutral-900/50 rounded-xl border border-neutral-800 p-6 relative overflow-hidden">
+    <div class="absolute inset-0 bg-gradient-to-t from-neutral-900 via-neutral-900/80 to-transparent z-10 flex items-end justify-center pb-8">
+      <a href="{% url 'guild_billing' guild.id %}" class="px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-bold transition">
+        <i class="fas fa-unlock-alt mr-2"></i>Unlock Full Preview
+      </a>
+    </div>
+    <div class="filter blur-sm opacity-50">
+      <h3 class="text-xl font-bold text-white mb-4">
+        <i class="fab fa-twitch text-purple-400 mr-2"></i>Planned Features
+      </h3>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="p-4 bg-neutral-800/50 rounded-lg">
+          <p class="text-white font-medium mb-1">Account Linking</p>
+          <p class="text-gray-400 text-sm">OAuth connection for Twitch accounts</p>
+        </div>
+        <div class="p-4 bg-neutral-800/50 rounded-lg">
+          <p class="text-white font-medium mb-1">Live Stream Alerts</p>
+          <p class="text-gray-400 text-sm">Auto-announce when members go live</p>
+        </div>
+        <div class="p-4 bg-neutral-800/50 rounded-lg">
+          <p class="text-white font-medium mb-1">Auto-Roles</p>
+          <p class="text-gray-400 text-sm">Role assignment based on stream status</p>
+        </div>
+        <div class="p-4 bg-neutral-800/50 rounded-lg">
+          <p class="text-white font-medium mb-1">Stream Analytics</p>
+          <p class="text-gray-400 text-sm">Track viewer counts and engagement</p>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+</div>

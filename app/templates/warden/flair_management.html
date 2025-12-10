@@ -6,13 +6,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Flair Management - {{ guild.name }}</title>
   <link rel="icon" href="https://cdn.discordapp.com/icons/{{ guild.id }}/{{ guild.icon }}.png?size=64">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
-    * { font-family: 'Inter', sans-serif; }
+    * { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif; }
     body { background-color: #0a0a0a; }
   </style>
 </head>
@@ -40,17 +37,17 @@
       <!-- Toast Container -->
       <div id="toast-container" class="fixed top-4 right-4 z-50 space-y-2"></div>
 
-      <!-- Premium Banner (Free Tier Only) -->
-      {% if not is_premium %}
+      <!-- Engagement Module Banner (Free Tier Only) -->
+      {% if not has_engagement_module %}
       <div class="bg-gradient-to-r from-purple-900/30 to-indigo-900/30 border border-purple-700/50 rounded-xl p-6 mb-6">
         <div class="flex items-start gap-4">
           <i class="fas fa-crown text-yellow-500 text-3xl"></i>
           <div class="flex-1">
-            <h3 class="text-xl font-bold text-white mb-2">Premium Feature</h3>
-            <p class="text-gray-300 mb-4">Flair management requires a Premium or Pro subscription. Customize your flair store, adjust prices, and create unlimited custom flairs!</p>
-            <a href="{% url 'guild_settings' guild.id %}"
+            <h3 class="text-xl font-bold text-white mb-2">Engagement Module Feature</h3>
+            <p class="text-gray-300 mb-4">Flair management requires the Engagement Module. Customize your flair store, adjust prices, and create unlimited custom flairs!</p>
+            <a href="{% url 'guild_billing' guild.id %}"
                class="inline-flex items-center gap-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white px-6 py-2 rounded-lg font-medium transition">
-              <i class="fas fa-arrow-up"></i>Upgrade to Premium
+              <i class="fas fa-arrow-up"></i>Upgrade to Engagement Module or get Complete for $12.99/mo
             </a>
           </div>
         </div>
@@ -61,15 +58,19 @@
       <div class="flex gap-3 mb-6">
         <button onclick="openCreateFlairModal()"
                 class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium transition
-                       {% if not is_premium %}opacity-50 cursor-not-allowed{% endif %}"
-                {% if not is_premium %}disabled{% endif %}>
+                       {% if not has_engagement_module %}opacity-50 cursor-not-allowed{% endif %}"
+                {% if not has_engagement_module %}disabled{% endif %}>
           <i class="fas fa-plus mr-2"></i>Create Custom Flair
         </button>
         <button onclick="saveAllChanges()"
                 class="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white px-4 py-2 rounded-lg font-medium transition
-                       {% if not is_premium %}opacity-50 cursor-not-allowed{% endif %}"
-                {% if not is_premium %}disabled{% endif %}>
+                       {% if not has_engagement_module %}opacity-50 cursor-not-allowed{% endif %}"
+                {% if not has_engagement_module %}disabled{% endif %}>
           <i class="fas fa-save mr-2"></i>Save All Changes
+        </button>
+        <button onclick="createDefaultFlairRoles()"
+                class="bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded-lg font-medium transition">
+          <i class="fas fa-layer-group mr-2"></i>Create Default Flair Roles
         </button>
       </div>
 
@@ -96,6 +97,7 @@
                   <th class="text-left p-3 font-medium">Flair Name</th>
                   <th class="text-left p-3 font-medium w-32">Cost (Tokens)</th>
                   <th class="text-left p-3 font-medium w-32">Display Order</th>
+                  <th class="text-left p-3 font-medium w-40">Discord Position</th>
                 </tr>
               </thead>
               <tbody id="normal-flairs-body" class="divide-y divide-neutral-700">
@@ -117,6 +119,7 @@
                   <th class="text-left p-3 font-medium">Flair Name</th>
                   <th class="text-left p-3 font-medium w-32">Cost (Tokens)</th>
                   <th class="text-left p-3 font-medium w-32">Display Order</th>
+                  <th class="text-left p-3 font-medium w-40">Discord Position</th>
                 </tr>
               </thead>
               <tbody id="seasonal-flairs-body" class="divide-y divide-neutral-700">
@@ -138,6 +141,7 @@
                   <th class="text-left p-3 font-medium">Flair Name</th>
                   <th class="text-left p-3 font-medium w-32">Cost (Tokens)</th>
                   <th class="text-left p-3 font-medium w-32">Display Order</th>
+                  <th class="text-left p-3 font-medium w-40">Discord Position</th>
                   <th class="text-left p-3 font-medium w-24">Actions</th>
                 </tr>
               </thead>
@@ -168,14 +172,20 @@
         <form onsubmit="createFlair(event)">
           <div class="space-y-4">
             <div>
-              <label class="block text-sm font-medium text-gray-300 mb-2">Flair Name</label>
+              <label class="block text-sm font-medium text-gray-300 mb-2">
+                Flair Name
+                <i class="fas fa-info-circle text-gray-500 text-xs ml-1" title="Discord role will be named 'Flair: [Your Name]'"></i>
+              </label>
               <input type="text"
                      id="new-flair-name"
                      placeholder="[🎯 Custom Flair]"
                      maxlength="100"
                      required
                      class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
-              <p class="text-xs text-gray-500 mt-1">Tip: Use emojis and brackets for best results</p>
+              <p class="text-xs text-blue-400 mt-1">
+                <i class="fas fa-lightbulb mr-1"></i>Discord role will be: <span class="text-white font-mono">Flair: [Your Name]</span>
+              </p>
+              <p class="text-xs text-gray-500 mt-1">Tip: Use emojis and brackets for best results. Don't include "Flair: " prefix.</p>
             </div>
 
             <div>
@@ -187,6 +197,19 @@
                      value="100"
                      required
                      class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-gray-300 mb-2">
+                Discord Role Position (Optional)
+                <i class="fas fa-info-circle text-gray-500 text-xs ml-1" title="Higher numbers = closer to top of role list. Leave empty for default position."></i>
+              </label>
+              <input type="number"
+                     id="new-role-position"
+                     placeholder="Leave empty for default"
+                     min="0"
+                     class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+              <p class="text-xs text-gray-500 mt-1">Higher numbers place the role closer to the top of the role list</p>
             </div>
           </div>
 
@@ -207,16 +230,60 @@
   </div>
 
   <script>
-    const IS_PREMIUM = {{ is_premium|yesno:"true,false" }};
+    const HAS_ENGAGEMENT_MODULE = {{ has_engagement_module|yesno:"true,false" }};
     const API_BASE = '/api/guild/{{ guild.id }}/flairs';
     const CSRF_TOKEN = '{{ csrf_token }}';
 
+    // CSRF-aware fetch helper
+    async function csrfFetch(url, options = {}) {
+      options.headers = options.headers || {};
+      if (!options.headers['X-CSRFToken']) {
+        options.headers['X-CSRFToken'] = CSRF_TOKEN;
+      }
+      return fetch(url, options);
+    }
+
     let flairsData = [];
+    let discordRoles = [];
 
     // Load flairs on page load
     document.addEventListener('DOMContentLoaded', () => {
       loadFlairs();
+      loadDiscordRoles();
     });
+
+    async function loadDiscordRoles() {
+      try {
+        // Force refresh to bypass cache and get latest Discord roles
+        const response = await csrfFetch('/api/guild/{{ guild.id }}/roles/?force_refresh=true');
+        const data = await response.json();
+
+        console.log('Discord roles response:', data);
+
+        if (data.success && data.roles) {
+          discordRoles = data.roles;
+          console.log('Loaded Discord roles:', discordRoles.length);
+          // Re-render flairs if they're already loaded
+          if (flairsData.length > 0) {
+            renderFlairs();
+          }
+        } else {
+          console.error('Failed to load Discord roles:', data.error || 'Unknown error');
+        }
+      } catch (error) {
+        console.error('Error loading Discord roles:', error);
+      }
+    }
+
+    function getDiscordRolePosition(flairName) {
+      // Discord roles have "Flair: " prefix, so we need to add it
+      const roleName = `Flair: ${flairName}`;
+      const role = discordRoles.find(r => r.name === roleName);
+      if (!role) {
+        console.log(`No Discord role found for flair: "${flairName}" (searched for "${roleName}")`);
+      }
+      return role ? role.position : null;
+    }
 
     async function loadFlairs() {
       try {
@@ -262,7 +329,7 @@
       if (flairsData.filter(f => f.flair_type === 'custom').length === 0) {
         customBody.innerHTML = `
           <tr>
-            <td colspan="5" class="p-8 text-center text-gray-500">
+            <td colspan="6" class="p-8 text-center text-gray-500">
               <i class="fas fa-inbox text-4xl mb-3 block"></i>
               No custom flairs yet. Click "Create Custom Flair" to add one!
             </td>
@@ -276,7 +343,11 @@
       row.className = 'hover:bg-neutral-800/50 transition';
       row.dataset.flairId = flair.id;
 
-      const isReadonly = !IS_PREMIUM ? 'readonly disabled' : '';
+      const isReadonly = !HAS_ENGAGEMENT_MODULE ? 'readonly disabled' : '';
+      const discordPosition = getDiscordRolePosition(flair.flair_name);
+      // Discord roles have "Flair: " prefix
+      const roleName = `Flair: ${flair.flair_name}`;
+      const role = discordRoles.find(r => r.name === roleName);
 
       row.innerHTML = `
         <td class="p-3">
@@ -284,14 +355,14 @@
                  ${flair.enabled ? 'checked' : ''}
                  ${isReadonly}
                  onchange="updateFlair(${flair.id}, 'enabled', this.checked)"
-                 class="w-5 h-5 text-indigo-600 bg-neutral-700 border-neutral-600 rounded focus:ring-2 focus:ring-indigo-500 ${!IS_PREMIUM ? 'opacity-50 cursor-not-allowed' : ''}">
+                 class="w-5 h-5 text-indigo-600 bg-neutral-700 border-neutral-600 rounded focus:ring-2 focus:ring-indigo-500 ${!HAS_ENGAGEMENT_MODULE ? 'opacity-50 cursor-not-allowed' : ''}">
         </td>
         <td class="p-3">
           <input type="text"
                  value="${flair.flair_name}"
                  ${isReadonly}
                  onchange="updateFlair(${flair.id}, 'flair_name', this.value)"
-                 class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-1.5 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 ${!IS_PREMIUM ? 'opacity-50 cursor-not-allowed' : ''}">
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-1.5 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 ${!HAS_ENGAGEMENT_MODULE ? 'opacity-50 cursor-not-allowed' : ''}">
         </td>
         <td class="p-3">
           <input type="number"
@@ -299,7 +370,7 @@
                  min="0"
                  ${isReadonly}
                  onchange="updateFlair(${flair.id}, 'cost', parseInt(this.value))"
-                 class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-1.5 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 ${!IS_PREMIUM ? 'opacity-50 cursor-not-allowed' : ''}">
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-1.5 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 ${!HAS_ENGAGEMENT_MODULE ? 'opacity-50 cursor-not-allowed' : ''}">
         </td>
         <td class="p-3">
           <input type="number"
@@ -307,17 +378,27 @@
                  min="0"
                  ${isReadonly}
                  onchange="updateFlair(${flair.id}, 'display_order', parseInt(this.value))"
-                 class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-1.5 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 ${!IS_PREMIUM ? 'opacity-50 cursor-not-allowed' : ''}">
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-1.5 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 ${!HAS_ENGAGEMENT_MODULE ? 'opacity-50 cursor-not-allowed' : ''}">
+        </td>
+        <td class="p-3">
+          ${role ? `
+            <span class="inline-flex items-center px-3 py-1.5 rounded bg-neutral-800 border border-neutral-700 text-sm font-mono text-gray-300" title="Discord role position (automatic - higher = closer to top)">
+              <i class="fas fa-layer-group mr-2 text-purple-400"></i>
+              ${discordPosition}
+            </span>
+          ` : `
+            <span class="text-gray-500 text-xs">No role</span>
+          `}
         </td>
         ${flair.flair_type === 'custom' ? `
           <td class="p-3">
             <button onclick="deleteFlair(${flair.id})"
-                    ${!IS_PREMIUM ? 'disabled' : ''}
-                    class="text-red-400 hover:text-red-300 transition ${!IS_PREMIUM ? 'opacity-50 cursor-not-allowed' : ''}">
+                    ${!HAS_ENGAGEMENT_MODULE ? 'disabled' : ''}
+                    class="text-red-400 hover:text-red-300 transition ${!HAS_ENGAGEMENT_MODULE ? 'opacity-50 cursor-not-allowed' : ''}">
               <i class="fas fa-trash"></i>
             </button>
           </td>
-        ` : (flair.flair_type === 'normal' || flair.flair_type === 'seasonal' ? '' : '<td></td>')}
+        ` : (flair.flair_type === 'normal' || flair.flair_type === 'seasonal' ? '<td></td>' : '<td></td>')}
       `;
 
       return row;
@@ -326,13 +407,23 @@
     function updateFlair(flairId, field, value) {
       const flair = flairsData.find(f => f.id === flairId);
       if (flair) {
+        // Auto-strip "Flair: " prefix from flair names
+        if (field === 'flair_name' && typeof value === 'string' && value.startsWith('Flair: ')) {
+          value = value.substring(7);
+          showToast('Removed "Flair: " prefix - it\'s added automatically to Discord roles!', 'info');
+          // Update the input field to show the corrected value
+          const input = document.querySelector(`input[value="${flair[field]}"]`);
+          if (input) {
+            input.value = value;
+          }
+        }
         flair[field] = value;
       }
     }
 
     async function saveAllChanges() {
-      if (!IS_PREMIUM) {
-        showToast('Premium subscription required', 'error');
+      if (!HAS_ENGAGEMENT_MODULE) {
+        showToast('Engagement Module required', 'error');
         return;
       }
 
@@ -351,7 +442,11 @@
         const data = await response.json();
 
         if (data.success) {
-          showToast(`✨ Successfully updated ${data.updated} flairs`, 'success');
+          let message = `✨ Successfully updated ${data.updated} flairs`;
+          if (data.roles_renamed && data.roles_renamed > 0) {
+            message += ` and renamed ${data.roles_renamed} Discord role${data.roles_renamed > 1 ? 's' : ''}`;
+          }
+          showToast(message, 'success');
           setTimeout(() => {
             window.location.reload();
           }, 1000);
@@ -365,13 +460,14 @@
     }
 
     function openCreateFlairModal() {
-      if (!IS_PREMIUM) {
-        showToast('Premium subscription required', 'error');
+      if (!HAS_ENGAGEMENT_MODULE) {
+        showToast('Engagement Module required', 'error');
         return;
       }
       document.getElementById('create-flair-modal').classList.remove('hidden');
       document.getElementById('new-flair-name').value = '';
       document.getElementById('new-flair-cost').value = 100;
+      document.getElementById('new-role-position').value = '';
     }
 
     function closeCreateFlairModal() {
@@ -381,8 +477,26 @@
     async function createFlair(event) {
       event.preventDefault();
 
-      const flairName = document.getElementById('new-flair-name').value.trim();
+      let flairName = document.getElementById('new-flair-name').value.trim();
       const cost = parseInt(document.getElementById('new-flair-cost').value);
+      const rolePosition = document.getElementById('new-role-position').value;
+
+      // Auto-strip "Flair: " prefix if user entered it
+      if (flairName.startsWith('Flair: ')) {
+        flairName = flairName.substring(7);
+        showToast('Removed "Flair: " prefix - it\'s added automatically!', 'info');
+      }
+
+      // Build request body
+      const requestBody = {
+        flair_name: flairName,
+        cost: cost
+      };
+
+      // Only include role_position if it has a value
+      if (rolePosition && rolePosition.trim() !== '') {
+        requestBody.role_position = parseInt(rolePosition);
+      }
 
       try {
         const response = await csrfFetch(API_BASE + '/create/', {
@@ -391,16 +505,18 @@
             'Content-Type': 'application/json',
             'X-CSRFToken': CSRF_TOKEN
           },
-          body: JSON.stringify({
-            flair_name: flairName,
-            cost: cost
-          })
+          body: JSON.stringify(requestBody)
         });
 
         const data = await response.json();
 
         if (data.success) {
-          showToast('✨ Custom flair created successfully!', 'success');
+          // Show success message with role creation status
+          if (data.role_created) {
+            showToast('✨ Custom flair and Discord role created successfully!', 'success');
+          } else {
+            showToast('✨ Custom flair created! Note: ' + data.role_info, 'success');
+          }
           closeCreateFlairModal();
           loadFlairs();  // Reload to show new flair
         } else {
@@ -413,8 +529,8 @@
     }
 
     async function deleteFlair(flairId) {
-      if (!IS_PREMIUM) {
-        showToast('Premium subscription required', 'error');
+      if (!HAS_ENGAGEMENT_MODULE) {
+        showToast('Engagement Module required', 'error');
         return;
       }
 
@@ -441,6 +557,30 @@
       } catch (error) {
         console.error('Error deleting flair:', error);
         showToast('Error deleting flair', 'error');
+      }
+    }
+
+    async function createDefaultFlairRoles() {
+      const confirmed = confirm('Create all default flair roles and hoist them to the top of your server?');
+      if (!confirmed) return;
+
+      try {
+        const response = await csrfFetch(API_BASE + '/create-default-roles/', {
+          method: 'POST',
+          headers: {
+            'X-CSRFToken': CSRF_TOKEN
+          }
+        });
+        const data = await response.json();
+        if (data.success) {
+          showToast(data.message || 'Default flair roles are being created.', 'success');
+          setTimeout(() => window.location.reload(), 1200);
+        } else {
+          showToast(data.error || 'Failed to queue flair role creation', 'error');
+        }
+      } catch (error) {
+        console.error('Error creating default flair roles:', error);
+        showToast('Error creating default flair roles', 'error');
       }
     }
 

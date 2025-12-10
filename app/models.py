@@ -92,6 +92,7 @@ class ActionType(str, Enum):
     LEVEL_SET = "level_set"
     TOKENS_ADD = "tokens_add"
     TOKENS_REMOVE = "tokens_remove"
+    TOKENS_SET = "tokens_set"
 
     # Member Management
     MEMBER_KICK = "member_kick"
@@ -113,6 +114,9 @@ class ActionType(str, Enum):
     EMBED_SEND = "embed_send"
     DM_SEND = "dm_send"
 
+    # XP Boost Events
+    BOOST_EVENT_START = "boost_event_start"
+
     # Channel Management
     CHANNEL_TOPIC_SET = "channel_topic_set"
 
@@ -129,6 +133,12 @@ class ActionType(str, Enum):
 
     # Flair Management
     FLAIR_ASSIGN = "flair_assign"
+    FLAIR_SEED_ROLES = "flair_seed_roles"
+
+    # LFG System
+    LFG_THREAD_CREATE = "lfg_thread_create"
+    LFG_THREAD_UPDATE = "lfg_thread_update"
+    LFG_THREAD_DELETE = "lfg_thread_delete"
 
     # Sync Operations
     SYNC_ROLES = "sync_roles"
@@ -148,8 +158,12 @@ class Guild(Base):
     # Subscription
     # Use explicit enum values to match database (consistent with bot)
     subscription_tier = Column(
-        SQLEnum('free', 'premium', 'pro', name='subscriptiontier'),
+        SQLEnum('free', 'complete', name='subscriptiontier'),
         default='free'
+    )
+    billing_cycle = Column(
+        SQLEnum('monthly', '3month', '6month', 'yearly', 'lifetime', name='billingcycle'),
+        nullable=True
     )
     subscription_expires = Column(BigInteger, nullable=True)
     stripe_customer_id = Column(String(255), nullable=True)
@@ -217,6 +231,7 @@ class Guild(Base):
     raid_config = relationship("RaidConfig", back_populates="guild", uselist=False, cascade="all, delete-orphan")
     verification_config = relationship("VerificationConfig", back_populates="guild", uselist=False, cascade="all, delete-orphan")
     level_roles = relationship("LevelRole", back_populates="guild", cascade="all, delete-orphan")
+    xp_boost_events = relationship("XPBoostEvent", back_populates="guild", cascade="all, delete-orphan")
     react_roles = relationship("ReactRole", back_populates="guild", cascade="all, delete-orphan")
     modules = relationship("GuildModule", back_populates="guild", cascade="all, delete-orphan")
 
@@ -489,6 +504,52 @@ class XPExcludedRole(Base):
         UniqueConstraint("guild_id", "role_id", name="uq_guild_role_xp"),
         Index("idx_xp_excluded_role_guild", "guild_id"),
     )
+
+
+class XPBoostEvent(Base):
+    """Timed XP boost events with multipliers and optional token bonuses."""
+    __tablename__ = "xp_boost_events"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    guild_id = Column(BigInteger, ForeignKey("guilds.guild_id", ondelete="CASCADE"))
+
+    # Event details
+    name = Column(String(255), nullable=False)
+    description = Column(Text, nullable=True)
+    multiplier = Column(Float, default=2.0)  # XP multiplier (e.g., 2.0 = 2x XP)
+
+    # Timing (Unix timestamps, null = not scheduled/permanent)
+    start_time = Column(BigInteger, nullable=True)
+    end_time = Column(BigInteger, nullable=True)
+
+    # Status
+    is_active = Column(Boolean, default=False)
+    is_default = Column(Boolean, default=False)  # True for default events, False for custom
+
+    # Scope (server-wide, specific role, or specific channel)
+    scope = Column(String(50), default='server')  # 'server', 'role', or 'channel'
+    scope_id = Column(BigInteger, nullable=True)  # role_id or channel_id depending on scope
+
+    # Bonuses
+    token_bonus = Column(Integer, default=0)  # Token bonus per XP earned
+
+    # Announcements
+    announcement_channel_id = Column(BigInteger, nullable=True)
+    announcement_role_id = Column(BigInteger, nullable=True)  # Role to ping when event starts
+
+    # Metadata
+    created_at = Column(BigInteger, nullable=False)
+    updated_at = Column(BigInteger, nullable=False)
+
+    guild = relationship("Guild", back_populates="xp_boost_events")
+
+    __table_args__ = (
+        Index("idx_xp_boost_events_guild", "guild_id"),
+        Index("idx_xp_boost_events_active", "guild_id", "is_active"),
+    )
+
+    def __repr__(self):
+        return f"<XPBoostEvent(guild={self.guild_id}, name='{self.name}', active={self.is_active})>"
 
 
 # Anti-Raid
@@ -1711,6 +1772,7 @@ class LFGGroup(Base):
     thread_id = Column(BigInteger, nullable=False)
     thread_name = Column(String(255), nullable=True)
     management_message_id = Column(BigInteger, nullable=True)
+    ping_role_id = Column(BigInteger, nullable=True)  # Role to ping when creating thread
 
     # Creator info
     creator_id = Column(BigInteger, nullable=False)
@@ -1718,6 +1780,7 @@ class LFGGroup(Base):
 
     # Group details
     scheduled_time = Column(BigInteger, nullable=True)  # Unix timestamp for scheduled play
+    event_duration = Column(Integer, nullable=True)  # Duration in hours
     description = Column(Text, nullable=True)
     custom_data = Column(Text, nullable=True)  # JSON - game-specific selections
     max_group_size = Column(Integer, nullable=True)  # Override game's default max size for this specific group
@@ -1752,6 +1815,7 @@ class LFGMember(Base):
 
     # Status
     is_creator = Column(Boolean, default=False)
+    is_co_leader = Column(Boolean, default=False)  # Co-leaders can manage the group
     joined_at = Column(BigInteger, default=lambda: int(time.time()))
     left_at = Column(BigInteger, nullable=True)
 
@@ -1947,12 +2011,60 @@ class LFGConfig(Base):
     notify_on_noshow = Column(Boolean, default=False)  # Notify group when someone no-shows
     notify_channel_id = Column(BigInteger, nullable=True)  # Where to send reliability reports
 
+    # Pro/Premium: LFG Browser Notifications
+    browser_notify_channel_id = Column(BigInteger, nullable=True)  # Channel for browser notifications
+    notify_on_group_create = Column(Boolean, default=True)  # Notify when group is created
+    notify_on_group_update = Column(Boolean, default=False)  # Notify when group is updated
+    notify_on_group_delete = Column(Boolean, default=False)  # Notify when group is deleted
+    notify_on_member_join = Column(Boolean, default=False)  # Notify when member joins
+    notify_on_member_leave = Column(Boolean, default=False)  # Notify when member leaves
+    dm_members_on_update = Column(Boolean, default=True)  # DM group members on update
+    dm_members_on_delete = Column(Boolean, default=True)  # DM group members on deletion
+    webhook_url = Column(String(500), nullable=True)  # Optional webhook for custom integrations
+
     # Timestamps
     created_at = Column(BigInteger, default=lambda: int(time.time()))
     updated_at = Column(BigInteger, default=lambda: int(time.time()))
 
     __table_args__ = (
         Index("idx_lfg_config_guild", "guild_id"),
+    )
+
+
+class LFGGroupAuditLog(Base):
+    """
+    Audit log for LFG group changes.
+    Tracks who created/edited/deleted groups, when, and what changed.
+    Visible to admins and LFG Managers.
+    """
+    __tablename__ = "lfg_group_audit_logs"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    guild_id = Column(BigInteger, ForeignKey("guilds.guild_id", ondelete="CASCADE"), nullable=False)
+    group_id = Column(Integer, nullable=True)  # Nullable because group may be deleted
+
+    # Action info
+    action = Column(String(50), nullable=False)  # 'create', 'update', 'delete'
+    actor_id = Column(BigInteger, nullable=False)  # Discord user ID who performed the action
+    actor_name = Column(String(255), nullable=True)  # Discord username at time of action
+
+    # Change tracking
+    field_changed = Column(String(100), nullable=True)  # Which field was changed (for updates)
+    old_value = Column(Text, nullable=True)  # Previous value (JSON for complex types)
+    new_value = Column(Text, nullable=True)  # New value (JSON for complex types)
+
+    # Group snapshot (for context)
+    group_name = Column(String(255), nullable=True)  # Thread name at time of action
+    game_name = Column(String(255), nullable=True)  # Game name at time of action
+
+    # Timestamp
+    created_at = Column(BigInteger, default=lambda: int(time.time()), nullable=False)
+
+    __table_args__ = (
+        Index("idx_audit_guild", "guild_id"),
+        Index("idx_audit_group", "group_id"),
+        Index("idx_audit_actor", "actor_id"),
+        Index("idx_audit_created", "created_at"),
     )
 
 
@@ -1992,4 +2104,50 @@ class GuildFlair(Base):
         Index("idx_guild_flair_type", "guild_id", "flair_type"),
         Index("idx_guild_flair_enabled", "guild_id", "enabled"),
         UniqueConstraint("guild_id", "flair_name", name="uq_guild_flair_name"),
+    )
+
+
+class ScheduledMessage(Base):
+    """Scheduled messages, embeds, and broadcasts."""
+    __tablename__ = "scheduled_messages"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    guild_id = Column(BigInteger, ForeignKey("guilds.guild_id", ondelete="CASCADE"), nullable=False)
+
+    # Message type and destination
+    message_type = Column(
+        SQLEnum('message', 'embed', 'broadcast', name='scheduledmessagetype'),
+        nullable=False
+    )
+    channel_id = Column(BigInteger, nullable=True)  # For message/embed
+    category_id = Column(BigInteger, nullable=True)  # For broadcast
+
+    # Scheduling details
+    scheduled_time = Column(BigInteger, nullable=False)  # Unix timestamp
+    timezone = Column(String(50), nullable=False, default='UTC')  # IANA timezone (e.g., 'America/New_York')
+
+    # Message content (JSON)
+    # For message: {"content": "...", "silent": false}
+    # For embed: {"title": "...", "description": "...", "color": 123456, "footer": "...", "silent": false}
+    # For broadcast: {"content": "...", "silent": false}
+    content_data = Column(Text, nullable=False)
+
+    # Status tracking
+    status = Column(
+        SQLEnum('pending', 'sent', 'cancelled', 'failed', name='scheduledmessagestatus'),
+        nullable=False,
+        default='pending'
+    )
+    sent_at = Column(BigInteger, nullable=True)  # When the message was actually sent
+    error_message = Column(Text, nullable=True)  # If failed, why
+
+    # Audit
+    created_by = Column(BigInteger, nullable=False)  # User ID who scheduled
+    created_at = Column(BigInteger, default=lambda: int(time.time()))
+    updated_at = Column(BigInteger, default=lambda: int(time.time()), onupdate=lambda: int(time.time()))
+
+    __table_args__ = (
+        Index("idx_scheduled_message_guild", "guild_id"),
+        Index("idx_scheduled_message_status", "status", "scheduled_time"),
+        Index("idx_scheduled_message_pending", "guild_id", "status", "scheduled_time"),
     )

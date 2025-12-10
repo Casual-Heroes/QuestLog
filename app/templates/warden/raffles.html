@@ -51,6 +51,53 @@ async function csrfFetch(url, options = {}) {
   </div>
 </div>
 
+<!-- Raffle Limits Info -->
+{% if is_admin %}
+<div class="bg-blue-900/20 border border-blue-700/50 rounded-xl p-6 mb-6">
+  <div class="flex items-start gap-4">
+    <div class="w-12 h-12 rounded-full bg-blue-600/20 border border-blue-500/30 flex items-center justify-center flex-shrink-0">
+      <i class="fas fa-ticket-alt text-blue-400 text-xl"></i>
+    </div>
+    <div class="flex-1">
+      <h3 class="text-blue-400 font-semibold mb-3 flex items-center">
+        <i class="fas fa-info-circle mr-2"></i>Active Raffle Limits
+      </h3>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+        <div>
+          <p class="text-gray-300 font-medium mb-1">
+            <i class="fas fa-circle text-gray-400 mr-2 text-xs"></i>Free Tier
+          </p>
+          <p class="text-gray-400 text-xs">Up to 3 active raffles with entry requirements</p>
+        </div>
+        <div>
+          <p class="text-orange-300 font-medium mb-1">
+            <i class="fas fa-fire text-orange-500 mr-2 text-xs"></i>Engagement Module
+          </p>
+          <p class="text-gray-400 text-xs">Unlimited raffles + auto-draw, multiple winners & analytics</p>
+        </div>
+        <div>
+          <p class="text-purple-300 font-medium mb-1">
+            <i class="fas fa-crown text-purple-500 mr-2 text-xs"></i>Complete Suite
+          </p>
+          <p class="text-gray-400 text-xs">Unlimited raffles + all premium features</p>
+        </div>
+      </div>
+      {% if has_engagement_module or guild_record.is_vip or guild_record.subscription_tier == 'complete' or guild_record.billing_cycle == 'lifetime' %}
+      <p class="text-green-400 text-xs mt-3">
+        <i class="fas fa-check-circle mr-1"></i>
+        You have unlimited raffles! Create as many as your community needs.
+      </p>
+      {% else %}
+      <p class="text-blue-300 text-xs mt-3">
+        <i class="fas fa-lightbulb mr-1"></i>
+        You can create up to 3 active raffles. <a href="{% url 'guild_billing' guild.id %}" class="text-blue-400 hover:text-blue-300 underline font-semibold">Upgrade to Engagement Module or get Complete for $12.99</a> for more raffles!
+      </p>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endif %}
+
 <!-- Active Raffles -->
 <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-6 mb-6">
   <div class="flex items-center justify-between mb-4">

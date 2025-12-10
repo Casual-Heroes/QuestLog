@@ -31,10 +31,8 @@
         <h3 class="text-sm font-medium text-gray-400">LFG Games Used</h3>
         <p class="text-3xl font-bold text-white mt-1">
           {{ total_lfg_games }}
-          {% if guild_record.is_vip or guild_record.subscription_tier == 'premium' %}
+          {% if guild_record.is_vip or guild_record.subscription_tier == 'complete' or guild_record.billing_cycle == 'lifetime' %}
           <span class="text-lg text-gray-500">/ <i class="fas fa-infinity text-green-400"></i></span>
-          {% elif guild_record.subscription_tier == 'pro' %}
-          <span class="text-lg text-gray-500">/ 10</span>
           {% else %}
           <span class="text-lg text-gray-500">/ 5</span>
           {% endif %}
@@ -42,10 +40,8 @@
       </div>
       <div class="text-right">
         <p class="text-xs text-gray-400 mb-1">
-          {% if guild_record.is_vip or guild_record.subscription_tier == 'premium' %}
+          {% if guild_record.is_vip or guild_record.subscription_tier == 'complete' or guild_record.billing_cycle == 'lifetime' %}
           <span class="text-green-400"><i class="fas fa-infinity mr-1"></i>Unlimited</span>
-          {% elif guild_record.subscription_tier == 'pro' %}
-          <span class="text-blue-400"><i class="fas fa-gamepad mr-1"></i>Pro Tier</span>
           {% else %}
           <span class="text-gray-400"><i class="fas fa-gamepad mr-1"></i>Free Tier</span>
           {% endif %}
@@ -101,55 +97,56 @@
         <h3 class="text-white font-bold mb-2">LFG Game Limits</h3>
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
           <div>
-            <p class="text-gray-300 font-medium mb-1">Free Tier</p>
+            <p class="text-gray-300 font-medium mb-1">
+              <i class="fas fa-circle text-gray-500 mr-2 text-xs"></i>Free Tier
+            </p>
             <p class="text-gray-400"><i class="fas fa-gamepad mr-2"></i>Up to 5 LFG games</p>
           </div>
           <div>
-            <p class="text-gray-300 font-medium mb-1">Pro Tier</p>
-            <p class="text-gray-400"><i class="fas fa-gamepad mr-2"></i>Up to 10 LFG games</p>
+            <p class="text-blue-300 font-medium mb-1">
+              <i class="fas fa-calendar-check text-blue-500 mr-2 text-xs"></i>LFG Module
+            </p>
+            <p class="text-green-400"><i class="fas fa-infinity mr-2"></i>Unlimited LFG games</p>
           </div>
           <div>
-            <p class="text-gray-300 font-medium mb-1">Premium Tier</p>
+            <p class="text-purple-300 font-medium mb-1">
+              <i class="fas fa-crown text-purple-500 mr-2 text-xs"></i>Complete Suite
+            </p>
             <p class="text-green-400"><i class="fas fa-infinity mr-2"></i>Unlimited LFG games</p>
           </div>
         </div>
-        {% if guild_record.is_vip or guild_record.subscription_tier == 'premium' %}
+        {% if has_lfg_module or guild_record.is_vip or guild_record.subscription_tier == 'complete' or guild_record.billing_cycle == 'lifetime' %}
         <p class="text-green-400 text-xs mt-3">
           <i class="fas fa-check-circle mr-1"></i>
           You have unlimited LFG games! Add as many games as your community plays.
         </p>
-        {% elif guild_record.subscription_tier == 'pro' %}
-        <p class="text-blue-400 text-xs mt-3">
-          <i class="fas fa-lightbulb mr-1"></i>
-          You can create up to 10 LFG games. <a href="#" class="text-purple-400 hover:text-purple-300 underline">Upgrade to Premium</a> for unlimited games!
-        </p>
         {% else %}
         <p class="text-blue-400 text-xs mt-3">
           <i class="fas fa-lightbulb mr-1"></i>
-          You can create up to 5 LFG games. <a href="#" class="text-indigo-400 hover:text-indigo-300 underline">Upgrade to Pro or Premium</a> for more games!
+          You can create up to 5 LFG games. <a href="{% url 'guild_billing' guild.id %}" class="text-indigo-400 hover:text-indigo-300 underline">Upgrade to unlock unlimited games!
         </p>
         {% endif %}
       </div>
     </div>
   </div>
 
-  <!-- Premium Features Banner -->
-  {% if not is_premium %}
-  <div class="bg-gradient-to-r from-purple-900/30 to-pink-900/30 rounded-xl border border-purple-700/40 p-6 mb-8">
+  <!-- Engagement Module Features Banner -->
+  {% if not has_engagement_module %}
+  <div class="bg-gradient-to-r from-orange-900/30 to-red-900/30 rounded-xl border border-orange-700/40 p-6 mb-8">
     <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
       <div>
         <h3 class="text-lg font-bold text-white">
-          <i class="fas fa-crown text-yellow-400 mr-2"></i>Upgrade to Premium LFG
+          <i class="fas fa-fire text-orange-400 mr-2"></i>Upgrade to Engagement Module
         </h3>
         <p class="text-gray-300 mt-1">Attendance tracking, reliability scores, no-show reporting, and flake detection for raid guilds & co-op communities.</p>
         <div class="flex flex-wrap gap-4 mt-3 text-sm">
-          <span class="text-purple-300"><i class="fas fa-clipboard-check mr-1"></i>Attendance Tracking</span>
-          <span class="text-purple-300"><i class="fas fa-chart-line mr-1"></i>Reliability Scores</span>
-          <span class="text-purple-300"><i class="fas fa-user-slash mr-1"></i>No-Show Reports</span>
-          <span class="text-purple-300"><i class="fas fa-ban mr-1"></i>Auto-Blacklist</span>
+          <span class="text-orange-300"><i class="fas fa-clipboard-check mr-1"></i>Attendance Tracking</span>
+          <span class="text-orange-300"><i class="fas fa-chart-line mr-1"></i>Reliability Scores</span>
+          <span class="text-orange-300"><i class="fas fa-user-slash mr-1"></i>No-Show Reports</span>
+          <span class="text-orange-300"><i class="fas fa-ban mr-1"></i>Auto-Blacklist</span>
         </div>
       </div>
-      <a href="#" class="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white px-5 py-2 rounded-lg font-medium transition whitespace-nowrap">
+      <a href="{% url 'guild_billing' guild.id %}" class="bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700 text-white px-5 py-2 rounded-lg font-medium transition whitespace-nowrap">
         Upgrade
       </a>
     </div>
@@ -161,7 +158,17 @@
     <button onclick="showTab('games')" id="tab-games" class="tab-btn px-4 py-2 rounded-lg text-sm font-medium transition bg-green-600 text-white">
       <i class="fas fa-gamepad mr-2"></i>Games
     </button>
-    {% if is_premium %}
+    {% if has_engagement_module %}
+    <button onclick="showTab('browser-notifications')" id="tab-browser-notifications" class="tab-btn px-4 py-2 rounded-lg text-sm font-medium transition bg-neutral-700 text-gray-300 hover:bg-neutral-600">
+      <i class="fas fa-bell mr-2"></i>Browser Notifications
+    </button>
+    {% endif %}
+    {% if is_admin_or_manager %}
+    <button onclick="showTab('audit-logs')" id="tab-audit-logs" class="tab-btn px-4 py-2 rounded-lg text-sm font-medium transition bg-neutral-700 text-gray-300 hover:bg-neutral-600">
+      <i class="fas fa-history mr-2"></i>Audit Logs
+    </button>
+    {% endif %}
+    {% if has_engagement_module %}
     <button onclick="showTab('config')" id="tab-config" class="tab-btn px-4 py-2 rounded-lg text-sm font-medium transition bg-neutral-700 text-gray-300 hover:bg-neutral-600">
       <i class="fas fa-cog mr-2"></i>Attendance Config
     </button>
@@ -266,8 +273,116 @@
   </div>
   </div>
 
-  {% if is_premium %}
-  <!-- Config Tab (Premium) -->
+  {% if has_engagement_module %}
+  <!-- Browser Notifications Tab (Engagement Module) -->
+  <div id="panel-browser-notifications" class="tab-panel hidden">
+  <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6">
+    <h3 class="text-lg font-bold text-white mb-6">
+      <i class="fas fa-bell text-blue-400 mr-2"></i>LFG Browser Notifications
+    </h3>
+
+    <div class="space-y-6">
+      <!-- Channel Announcements -->
+      <div class="border-b border-neutral-700 pb-6">
+        <h4 class="text-white font-medium mb-4">
+          <i class="fas fa-hashtag text-gray-400 mr-2"></i>Channel Announcements
+        </h4>
+
+        <div>
+          <label class="block text-sm text-gray-400 mb-2">Announcement Channel</label>
+          <div id="browserNotifyChannelContainer"></div>
+          <p class="text-gray-500 text-xs mt-1">All LFG Browser activity will be announced in this channel</p>
+        </div>
+      </div>
+      <!-- Webhook Integration (Optional) -->
+      <div>
+        <h4 class="text-white font-medium mb-4">
+          <i class="fas fa-webhook text-gray-400 mr-2"></i>Webhook Integration <span class="text-gray-600 text-xs font-normal">(Optional)</span>
+        </h4>
+        <p class="text-gray-400 text-sm mb-3">Send notifications to a custom webhook URL for integrations</p>
+
+        <div>
+          <label class="block text-sm text-gray-400 mb-2">Webhook URL</label>
+          <input type="url" id="webhookUrl" placeholder="https://discord.com/api/webhooks/..."
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:border-blue-500 focus:outline-none">
+          <p class="text-gray-500 text-xs mt-1">Leave blank to disable webhook notifications</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="mt-6 pt-6 border-t border-neutral-700">
+      <button onclick="saveBrowserNotifications()" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium transition">
+        <i class="fas fa-save mr-2"></i>Save Notification Settings
+      </button>
+    </div>
+  </div>
+  </div>
+  {% endif %}
+
+  {% if is_admin_or_manager %}
+  <!-- Audit Logs Tab (Admins & LFG Managers) -->
+  <div id="panel-audit-logs" class="tab-panel hidden">
+    <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6">
+      <div class="flex items-center justify-between mb-6">
+        <h3 class="text-lg font-bold text-white">
+          <i class="fas fa-history text-blue-400 mr-2"></i>LFG Group Audit Logs
+        </h3>
+        <button onclick="loadAuditLogs()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition">
+          <i class="fas fa-sync-alt mr-2"></i>Refresh
+        </button>
+      </div>
+
+      <p class="text-gray-400 text-sm mb-6">
+        Track all LFG group changes including creations, updates, and deletions. Shows who made the change and what was modified.
+      </p>
+
+      <!-- Filter Options -->
+      <div class="bg-neutral-800 rounded-lg p-4 mb-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div>
+          <label class="block text-sm text-gray-400 mb-2">Filter by Action</label>
+          <select id="auditActionFilter" onchange="loadAuditLogs()" class="w-full bg-neutral-700 border border-neutral-600 text-white rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500">
+            <option value="">All Actions</option>
+            <option value="create">Create</option>
+            <option value="update">Update</option>
+            <option value="delete">Delete</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm text-gray-400 mb-2">Limit</label>
+          <select id="auditLimit" onchange="loadAuditLogs()" class="w-full bg-neutral-700 border border-neutral-600 text-white rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500">
+            <option value="50">50 entries</option>
+            <option value="100">100 entries</option>
+            <option value="200">200 entries</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm text-gray-400 mb-2">Search Group</label>
+          <input type="text" id="auditGroupSearch" placeholder="Group name..." class="w-full bg-neutral-700 border border-neutral-600 text-white rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500">
+        </div>
+      </div>
+
+      <!-- Loading State -->
+      <div id="auditLogsLoading" class="text-center py-12 hidden">
+        <i class="fas fa-spinner fa-spin text-blue-400 text-3xl mb-3"></i>
+        <p class="text-gray-400">Loading audit logs...</p>
+      </div>
+
+      <!-- Audit Logs Container -->
+      <div id="auditLogsContainer" class="space-y-3">
+        <!-- Will be populated by JavaScript -->
+      </div>
+
+      <!-- Empty State -->
+      <div id="auditLogsEmpty" class="text-center py-12 hidden">
+        <i class="fas fa-inbox text-gray-600 text-5xl mb-4"></i>
+        <p class="text-gray-400">No audit logs found</p>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if has_engagement_module %}
+  <!-- Config Tab (Engagement Module) -->
   <div id="panel-config" class="tab-panel hidden">
   <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6">
     <h3 class="text-lg font-bold text-white mb-6">
@@ -697,6 +812,15 @@
 <script>
 const guildId = "{{ guild.id }}";
 const csrfToken = "{{ csrf_token }}";
+
+// CSRF-aware fetch function
+async function csrfFetch(url, options = {}) {
+  options.headers = options.headers || {};
+  if (!options.headers['X-CSRFToken']) {
+    options.headers['X-CSRFToken'] = csrfToken;
+  }
+  return fetch(url, options);
+}
 
 // Tier limit info
 const currentTier = "{{ guild_record.subscription_tier }}";
@@ -1214,6 +1338,8 @@ function showTab(tabName) {
     btn.classList.remove('bg-neutral-700', 'text-gray-300');
     const colors = {
       games: 'bg-green-600',
+      'browser-notifications': 'bg-blue-600',
+      'audit-logs': 'bg-blue-600',
       config: 'bg-purple-600',
       stats: 'bg-blue-600',
       blacklist: 'bg-red-600'
@@ -1222,6 +1348,8 @@ function showTab(tabName) {
   }
 
   // Load data for premium tabs
+  if (tabName === 'browser-notifications') loadBrowserNotifications();
+  if (tabName === 'audit-logs') loadAuditLogs();
   if (tabName === 'config') loadConfig();
   if (tabName === 'stats') loadStats();
   if (tabName === 'blacklist') loadBlacklist();
@@ -1556,9 +1684,211 @@ async function removeFromBlacklist(userId) {
   }
 }
 
+// Browser Notifications: Load settings
+let browserNotifyChannelSelect;
+async function loadBrowserNotifications() {
+  try {
+    // Fetch current settings from API to ensure fresh data
+    const response = await csrfFetch(`/api/guild/${guildId}/lfg/browser-notifications/`, {
+      method: 'GET',
+      headers: {
+        'X-CSRFToken': csrfToken
+      }
+    });
+
+    const settings = await response.json();
+    console.log('Loading browser notifications, channel ID:', settings.browser_notify_channel_id);
+
+    // Destroy existing select if it exists
+    if (browserNotifyChannelSelect) {
+      browserNotifyChannelSelect.destroy();
+    }
+
+    // Initialize channel select with current value
+    browserNotifyChannelSelect = createCustomSelect({
+      container: '#browserNotifyChannelContainer',
+      name: 'browserNotifyChannel',
+      id: 'browserNotifyChannel',
+      placeholder: 'No announcement channel',
+      items: channelItems,
+      selected: settings.browser_notify_channel_id || '',
+      color: 'blue'
+    });
+    console.log('Created select with channel ID:', settings.browser_notify_channel_id);
+
+    // Load webhook URL from API
+    document.getElementById('webhookUrl').value = settings.webhook_url || '';
+  } catch (error) {
+    console.error('Error loading browser notifications:', error);
+  }
+}
+
+// Browser Notifications: Save settings
+async function saveBrowserNotifications() {
+  const channelId = browserNotifyChannelSelect?.getValue() || null;
+  console.log('Saving browser notifications, channel ID:', channelId);
+
+  const data = {
+    browser_notify_channel_id: channelId,
+    webhook_url: document.getElementById('webhookUrl').value.trim() || null
+  };
+  console.log('Saving data:', data);
+
+  try {
+    const response = await csrfFetch(`/api/guild/${guildId}/lfg/browser-notifications/`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': csrfToken
+      },
+      body: JSON.stringify(data)
+    });
+
+    if (response.ok) {
+      alert('✅ Browser notification settings saved successfully!');
+      // Reload and stay on the browser-notifications tab
+      window.location.href = window.location.pathname + window.location.search + '#browser-notifications';
+    } else {
+      const error = await response.json();
+      alert(error.error || 'Error saving notification settings');
+    }
+  } catch (error) {
+    alert('Error saving notification settings');
+  }
+}
+
+// Audit Logs: Load audit log entries
+async function loadAuditLogs() {
+  const container = document.getElementById('auditLogsContainer');
+  const loadingEl = document.getElementById('auditLogsLoading');
+  const emptyEl = document.getElementById('auditLogsEmpty');
+
+  // Show loading state
+  container.classList.add('hidden');
+  emptyEl.classList.add('hidden');
+  loadingEl.classList.remove('hidden');
+
+  try {
+    const actionFilter = document.getElementById('auditActionFilter').value;
+    const limit = document.getElementById('auditLimit').value;
+    const searchQuery = document.getElementById('auditGroupSearch').value.toLowerCase();
+
+    let url = `/api/guild/${guildId}/lfg/browser/audit-logs/?limit=${limit}`;
+
+    const response = await csrfFetch(url);
+    const data = await response.json();
+
+    if (data.error) {
+      container.innerHTML = `<p class="text-gray-400 text-center py-8">${data.error}</p>`;
+      loadingEl.classList.add('hidden');
+      container.classList.remove('hidden');
+      return;
+    }
+
+    let logs = data.logs || [];
+
+    // Apply client-side filtering
+    if (actionFilter) {
+      logs = logs.filter(log => log.action === actionFilter);
+    }
+    if (searchQuery) {
+      logs = logs.filter(log =>
+        (log.group_name && log.group_name.toLowerCase().includes(searchQuery)) ||
+        (log.game_name && log.game_name.toLowerCase().includes(searchQuery))
+      );
+    }
+
+    if (logs.length === 0) {
+      loadingEl.classList.add('hidden');
+      emptyEl.classList.remove('hidden');
+      return;
+    }
+
+    // Render audit logs
+    container.innerHTML = logs.map(log => {
+      const actionColors = {
+        'create': 'text-green-400',
+        'update': 'text-blue-400',
+        'delete': 'text-red-400'
+      };
+      const actionIcons = {
+        'create': 'fa-plus-circle',
+        'update': 'fa-edit',
+        'delete': 'fa-trash'
+      };
+
+      const actionColor = actionColors[log.action] || 'text-gray-400';
+      const actionIcon = actionIcons[log.action] || 'fa-circle';
+
+      let changeDetails = '';
+      if (log.field_changed) {
+        const fieldNames = {
+          'description': 'Description',
+          'scheduled_time': 'Scheduled Time',
+          'max_group_size': 'Max Group Size',
+          'event_duration_hours': 'Event Duration'
+        };
+        const fieldName = fieldNames[log.field_changed] || log.field_changed;
+
+        changeDetails = `
+          <div class="mt-3 bg-neutral-800 rounded-lg p-3 text-sm">
+            <div class="text-gray-400 mb-2"><i class="fas fa-info-circle mr-1"></i>Field Changed: <span class="text-white">${fieldName}</span></div>
+            ${log.old_value ? `<div class="text-gray-500">Old: <span class="text-gray-300">${log.old_value}</span></div>` : ''}
+            ${log.new_value ? `<div class="text-gray-500">New: <span class="text-white">${log.new_value}</span></div>` : ''}
+          </div>
+        `;
+      }
+
+      return `
+        <div class="bg-neutral-800 rounded-lg p-4 hover:bg-neutral-750 transition">
+          <div class="flex items-start gap-4">
+            <div class="w-10 h-10 bg-neutral-700 rounded-full flex items-center justify-center flex-shrink-0">
+              <i class="fas ${actionIcon} ${actionColor}"></i>
+            </div>
+            <div class="flex-grow">
+              <div class="flex items-center gap-2 mb-1">
+                <span class="${actionColor} font-semibold capitalize">${log.action}</span>
+                <span class="text-gray-600">•</span>
+                <span class="text-gray-400 text-sm">${log.created_at_formatted}</span>
+              </div>
+              <div class="text-white font-medium">${log.game_name || 'Unknown Game'} - ${log.group_name || 'Unknown Group'}</div>
+              <div class="text-gray-400 text-sm mt-1">
+                <i class="fas fa-user mr-1"></i>by ${log.actor_name || 'Unknown'}
+              </div>
+              ${changeDetails}
+            </div>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    loadingEl.classList.add('hidden');
+    container.classList.remove('hidden');
+
+  } catch (error) {
+    console.error('Error loading audit logs:', error);
+    container.innerHTML = '<p class="text-red-400 text-center py-8">Error loading audit logs. Please try again.</p>';
+    loadingEl.classList.add('hidden');
+    container.classList.remove('hidden');
+  }
+}
+
 // Enter key for search
 document.getElementById('searchQuery')?.addEventListener('keypress', function(e) {
   if (e.key === 'Enter') searchGames();
 });
+
+// Initialize: Restore tab from URL hash on page load
+(function() {
+  const hash = window.location.hash.substring(1); // Remove the '#'
+  const validTabs = ['games', 'browser-notifications', 'audit-logs', 'config', 'stats', 'blacklist'];
+
+  if (hash && validTabs.includes(hash)) {
+    showTab(hash);
+  } else {
+    // Default to games tab
+    showTab('games');
+  }
+})();
 </script>
 {% endblock %}

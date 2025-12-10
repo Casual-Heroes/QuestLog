@@ -1,0 +1,278 @@
+<div id="youtubeContent" class="hidden">
+  {% if has_discovery_module or guild_record.is_vip or guild_record.subscription_tier == 'complete' or guild_record.billing_cycle == 'lifetime' %}
+  <!-- Coming Soon Banner -->
+  <div class="bg-gradient-to-r from-red-900/40 to-pink-900/40 rounded-xl border-2 border-red-500/50 p-8 mb-8 text-center">
+    <div class="inline-block p-4 bg-red-600/20 rounded-full mb-4">
+      <i class="fab fa-youtube text-red-400 text-6xl"></i>
+    </div>
+    <h2 class="text-3xl font-bold text-white mb-3">
+      YouTube Integration
+      <span class="ml-3 px-3 py-1 text-sm bg-red-600/30 text-red-300 border border-red-500/40 rounded-full">Coming Soon</span>
+    </h2>
+    <p class="text-gray-300 text-lg max-w-2xl mx-auto">
+      Connect your YouTube channel and share content automatically with your Discord community
+    </p>
+  </div>
+
+  <!-- Planned Features Grid -->
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+    <!-- Feature 1: Channel Linking -->
+    <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6 hover:border-red-500/30 transition">
+      <div class="flex items-start gap-4">
+        <div class="w-12 h-12 bg-red-600/20 rounded-lg flex items-center justify-center flex-shrink-0">
+          <i class="fas fa-link text-red-400 text-xl"></i>
+        </div>
+        <div>
+          <h3 class="text-lg font-bold text-white mb-2">Channel Linking</h3>
+          <p class="text-gray-400 text-sm">
+            Allow Discord users to link their YouTube channels through OAuth. Verify creators and track their content automatically.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Feature 2: Upload Notifications -->
+    <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6 hover:border-red-500/30 transition">
+      <div class="flex items-start gap-4">
+        <div class="w-12 h-12 bg-red-600/20 rounded-lg flex items-center justify-center flex-shrink-0">
+          <i class="fas fa-upload text-red-400 text-xl"></i>
+        </div>
+        <div>
+          <h3 class="text-lg font-bold text-white mb-2">Upload Announcements</h3>
+          <p class="text-gray-400 text-sm">
+            Automatically announce new video uploads from linked channels with rich embeds showing thumbnails and descriptions.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Feature 3: Live Stream Alerts -->
+    <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6 hover:border-red-500/30 transition">
+      <div class="flex items-start gap-4">
+        <div class="w-12 h-12 bg-red-600/20 rounded-lg flex items-center justify-center flex-shrink-0">
+          <i class="fas fa-video text-red-400 text-xl"></i>
+        </div>
+        <div>
+          <h3 class="text-lg font-bold text-white mb-2">YouTube Live Alerts</h3>
+          <p class="text-gray-400 text-sm">
+            Get notified when linked members start live streaming on YouTube with customizable embeds and role mentions.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Feature 4: Subscriber Milestones -->
+    <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6 hover:border-red-500/30 transition">
+      <div class="flex items-start gap-4">
+        <div class="w-12 h-12 bg-red-600/20 rounded-lg flex items-center justify-center flex-shrink-0">
+          <i class="fas fa-trophy text-red-400 text-xl"></i>
+        </div>
+        <div>
+          <h3 class="text-lg font-bold text-white mb-2">Milestone Celebrations</h3>
+          <p class="text-gray-400 text-sm">
+            Celebrate subscriber milestones with automatic announcements and special role rewards for hitting 100, 1K, 10K+ subscribers.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Feature 5: Creator Roles -->
+    <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6 hover:border-red-500/30 transition">
+      <div class="flex items-start gap-4">
+        <div class="w-12 h-12 bg-red-600/20 rounded-lg flex items-center justify-center flex-shrink-0">
+          <i class="fas fa-user-check text-red-400 text-xl"></i>
+        </div>
+        <div>
+          <h3 class="text-lg font-bold text-white mb-2">Creator Auto-Roles</h3>
+          <p class="text-gray-400 text-sm">
+            Automatically assign Discord roles based on YouTube verification, partner status, or subscriber count thresholds.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Feature 6: Channel Analytics -->
+    <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6 hover:border-red-500/30 transition">
+      <div class="flex items-start gap-4">
+        <div class="w-12 h-12 bg-red-600/20 rounded-lg flex items-center justify-center flex-shrink-0">
+          <i class="fas fa-chart-bar text-red-400 text-xl"></i>
+        </div>
+        <div>
+          <h3 class="text-lg font-bold text-white mb-2">Channel Analytics</h3>
+          <p class="text-gray-400 text-sm">
+            Track video views, watch time, and engagement metrics for your community's content creators.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Feature 7: Premiere Notifications -->
+    <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6 hover:border-red-500/30 transition">
+      <div class="flex items-start gap-4">
+        <div class="w-12 h-12 bg-red-600/20 rounded-lg flex items-center justify-center flex-shrink-0">
+          <i class="fas fa-star text-red-400 text-xl"></i>
+        </div>
+        <div>
+          <h3 class="text-lg font-bold text-white mb-2">Premiere Events</h3>
+          <p class="text-gray-400 text-sm">
+            Announce scheduled video premieres in advance and remind the community when they're about to start.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Feature 8: Community Posts -->
+    <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6 hover:border-red-500/30 transition">
+      <div class="flex items-start gap-4">
+        <div class="w-12 h-12 bg-red-600/20 rounded-lg flex items-center justify-center flex-shrink-0">
+          <i class="fas fa-comments text-red-400 text-xl"></i>
+        </div>
+        <div>
+          <h3 class="text-lg font-bold text-white mb-2">Community Post Sync</h3>
+          <p class="text-gray-400 text-sm">
+            Share YouTube Community tab posts automatically to Discord, keeping your audience engaged across platforms.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- How It Will Work -->
+  <div class="bg-gradient-to-r from-red-900/20 to-red-800/20 rounded-xl border border-red-800/30 p-6 mb-8">
+    <h3 class="text-lg font-bold text-white mb-4">
+      <i class="fas fa-info-circle text-red-400 mr-2"></i>How YouTube Integration Will Work
+    </h3>
+    <div class="space-y-3">
+      <div class="flex items-start gap-3">
+        <div class="w-6 h-6 bg-red-600 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+          <span class="text-white text-xs font-bold">1</span>
+        </div>
+        <p class="text-gray-300 text-sm">
+          <strong class="text-white">OAuth Connection:</strong> Users will connect their YouTube channels through a secure Google OAuth flow on the Casual Heroes website.
+        </p>
+      </div>
+      <div class="flex items-start gap-3">
+        <div class="w-6 h-6 bg-red-600 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+          <span class="text-white text-xs font-bold">2</span>
+        </div>
+        <p class="text-gray-300 text-sm">
+          <strong class="text-white">API Monitoring:</strong> The bot will poll YouTube Data API for new uploads, live streams, premieres, and community posts from linked channels.
+        </p>
+      </div>
+      <div class="flex items-start gap-3">
+        <div class="w-6 h-6 bg-red-600 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+          <span class="text-white text-xs font-bold">3</span>
+        </div>
+        <p class="text-gray-300 text-sm">
+          <strong class="text-white">Rich Embeds:</strong> Videos will be announced with beautiful embeds showing thumbnails, titles, descriptions, and direct links.
+        </p>
+      </div>
+      <div class="flex items-start gap-3">
+        <div class="w-6 h-6 bg-red-600 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+          <span class="text-white text-xs font-bold">4</span>
+        </div>
+        <p class="text-gray-300 text-sm">
+          <strong class="text-white">Milestone Tracking:</strong> Set subscriber goals and the bot will automatically celebrate when creators reach them with custom messages.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Use Cases -->
+  <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6">
+    <h3 class="text-lg font-bold text-white mb-4">
+      <i class="fas fa-lightbulb text-yellow-400 mr-2"></i>Perfect For
+    </h3>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div class="p-4 bg-neutral-800/50 rounded-lg border border-neutral-700">
+        <p class="text-white font-medium mb-1">Content Creator Communities</p>
+        <p class="text-gray-400 text-sm">Support your YouTubers by auto-sharing their latest uploads</p>
+      </div>
+      <div class="p-4 bg-neutral-800/50 rounded-lg border border-neutral-700">
+        <p class="text-white font-medium mb-1">Gaming Channels</p>
+        <p class="text-gray-400 text-sm">Announce Let's Plays, guides, and gaming content automatically</p>
+      </div>
+      <div class="p-4 bg-neutral-800/50 rounded-lg border border-neutral-700">
+        <p class="text-white font-medium mb-1">Multi-Platform Networks</p>
+        <p class="text-gray-400 text-sm">Centralize YouTube activity alongside Twitch and other platforms</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Feedback Section -->
+  <div class="mt-8 p-6 bg-gradient-to-r from-pink-900/30 to-red-900/30 rounded-xl border border-pink-700/40">
+    <div class="flex items-start gap-4">
+      <div class="w-12 h-12 bg-pink-600/20 rounded-lg flex items-center justify-center flex-shrink-0">
+        <i class="fas fa-comment-dots text-pink-400 text-xl"></i>
+      </div>
+      <div>
+        <h3 class="text-lg font-bold text-white mb-2">Want to Help Shape This Feature?</h3>
+        <p class="text-gray-300 text-sm mb-3">
+          We're actively developing YouTube integration and would love your input! Join our Discord server to share your ideas and get early access when it launches.
+        </p>
+        <a href="https://discord.gg/casualheroes" target="_blank" class="inline-flex items-center gap-2 px-4 py-2 bg-pink-600 hover:bg-pink-700 text-white rounded-lg font-medium transition text-sm">
+          <i class="fab fa-discord"></i>
+          Join Our Discord
+        </a>
+      </div>
+    </div>
+  </div>
+
+  {% else %}
+  <!-- Upgrade Required Banner -->
+  <div class="bg-gradient-to-r from-red-900/20 to-pink-900/20 rounded-xl border-2 border-red-500/30 p-8 text-center">
+    <div class="inline-block p-4 bg-red-600/10 rounded-full mb-4">
+      <i class="fas fa-lock text-red-400 text-5xl"></i>
+    </div>
+    <h2 class="text-2xl font-bold text-white mb-3">
+      YouTube Integration
+      <span class="ml-3 px-3 py-1 text-sm bg-red-600/30 text-red-300 border border-red-500/40 rounded-full">Coming Soon</span>
+    </h2>
+    <p class="text-gray-400 text-lg mb-6 max-w-2xl mx-auto">
+      YouTube integration will be included with the Discovery module when it launches
+    </p>
+    <div class="flex flex-col sm:flex-row gap-3 justify-center">
+      <a href="{% url 'guild_billing' guild.id %}" class="inline-flex items-center gap-2 px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg font-bold transition">
+        <i class="fas fa-crown"></i>
+        Upgrade to Discovery Module
+      </a>
+      <a href="{% url 'guild_billing' guild.id %}" class="inline-flex items-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-bold transition">
+        <i class="fas fa-sparkles"></i>
+        Get Complete Suite
+      </a>
+    </div>
+  </div>
+
+  <!-- Feature Preview (Limited) -->
+  <div class="mt-8 bg-neutral-900/50 rounded-xl border border-neutral-800 p-6 relative overflow-hidden">
+    <div class="absolute inset-0 bg-gradient-to-t from-neutral-900 via-neutral-900/80 to-transparent z-10 flex items-end justify-center pb-8">
+      <a href="{% url 'guild_billing' guild.id %}" class="px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg font-bold transition">
+        <i class="fas fa-unlock-alt mr-2"></i>Unlock Full Preview
+      </a>
+    </div>
+    <div class="filter blur-sm opacity-50">
+      <h3 class="text-xl font-bold text-white mb-4">
+        <i class="fab fa-youtube text-red-400 mr-2"></i>Planned Features
+      </h3>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="p-4 bg-neutral-800/50 rounded-lg">
+          <p class="text-white font-medium mb-1">Channel Linking</p>
+          <p class="text-gray-400 text-sm">OAuth connection for YouTube channels</p>
+        </div>
+        <div class="p-4 bg-neutral-800/50 rounded-lg">
+          <p class="text-white font-medium mb-1">Upload Announcements</p>
+          <p class="text-gray-400 text-sm">Auto-announce new video uploads</p>
+        </div>
+        <div class="p-4 bg-neutral-800/50 rounded-lg">
+          <p class="text-white font-medium mb-1">Live Stream Alerts</p>
+          <p class="text-gray-400 text-sm">Notifications for YouTube live streams</p>
+        </div>
+        <div class="p-4 bg-neutral-800/50 rounded-lg">
+          <p class="text-white font-medium mb-1">Milestone Celebrations</p>
+          <p class="text-gray-400 text-sm">Celebrate subscriber milestones</p>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+</div>

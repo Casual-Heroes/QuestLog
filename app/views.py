@@ -8,6 +8,7 @@ from django.contrib import messages
 from django.shortcuts import redirect, render
 from django.contrib.admin.views.decorators import staff_member_required
 from django.views.decorators.http import require_http_methods
+from django.views.decorators.csrf import csrf_exempt
 from dotenv import load_dotenv
 import os
 import asyncio
@@ -21,6 +22,7 @@ from sqlalchemy import or_, and_
 import time
 from django_ratelimit.decorators import ratelimit
 from casualsite.settings import get_client_ip
+from .decorators import validate_json_schema, require_subscription_tier
 
 load_dotenv()
 
@@ -30,6 +32,84 @@ logger = logging.getLogger(__name__)
 # Discord bot API configuration
 DISCORD_BOT_API_URL = os.getenv('DISCORD_BOT_API_URL', 'http://localhost:8001')
 DISCORD_BOT_API_TOKEN = os.getenv('DISCORD_BOT_API_TOKEN', 'development-token')
+
+# LFG Game Limits by Tier
+def get_lfg_game_limit(guild):
+    """Get LFG game limit based on guild subscription tier."""
+    if guild.is_vip or guild.subscription_tier in ['premium', 'Premium']:
+        return None  # Unlimited
+    elif guild.subscription_tier in ['pro', 'Pro']:
+        return 10
+    else:  # free tier
+        return 5
+
+def get_guilds_with_bot():
+    """Get set of guild IDs where the bot is actually installed (queried from bot API)."""
+    guilds_with_bot = set()
+    try:
+        import requests
+        response = requests.get(
+            f'{DISCORD_BOT_API_URL}/api/guilds',
+            headers={'Authorization': f'Bearer {DISCORD_BOT_API_TOKEN}'},
+            timeout=5
+        )
+        if response.status_code == 200:
+            data = response.json()
+            guilds_with_bot = set(data.get('guild_ids', []))
+        else:
+            logger.warning(f"Failed to get guild list from bot API: {response.status_code}")
+            # Fallback to database check if API fails
+            from .db import get_db_session
+            from .models import Guild as GuildModel
+            with get_db_session() as db:
+                installed_guilds = db.query(GuildModel.guild_id).all()
+                guilds_with_bot = {str(g.guild_id) for g in installed_guilds}
+    except Exception as e:
+        logger.error(f"Error checking installed guilds from API: {e}", exc_info=True)
+        # Fallback to database check
+        try:
+            from .db import get_db_session
+            from .models import Guild as GuildModel
+            with get_db_session() as db:
+                installed_guilds = db.query(GuildModel.guild_id).all()
+                guilds_with_bot = {str(g.guild_id) for g in installed_guilds}
+        except Exception as fallback_error:
+            logger.error(f"Database fallback also failed: {fallback_error}", exc_info=True)
+    return guilds_with_bot
+
+def get_member_guilds(request):
+    """Calculate member guilds (guilds where user is member but NOT admin) that have the bot installed."""
+    admin_guilds = request.session.get('discord_admin_guilds', [])
+    all_guilds = request.session.get('discord_all_guilds', [])
+    admin_guild_ids = {str(g['id']) for g in admin_guilds}
+    member_guilds = [g for g in all_guilds if str(g['id']) not in admin_guild_ids]
+
+    # Get guilds with bot installed
+    guilds_with_bot = get_guilds_with_bot()
+
+    # Only return member guilds where bot is installed
+    return [g for g in member_guilds if str(g['id']) in guilds_with_bot]
+
+def add_has_bot_flag(guilds):
+    """Add 'has_bot' flag to each guild dict."""
+    guilds_with_bot = get_guilds_with_bot()
+    for guild in guilds:
+        guild_id_str = str(guild['id'])
+        guild['has_bot'] = guild_id_str in guilds_with_bot
+    return guilds
+
+def check_lfg_game_limit(db, guild_id, guild):
+    """Check if guild has reached their LFG game limit. Returns (can_add, current_count, limit)."""
+    from .models import LFGGame
+
+    limit = get_lfg_game_limit(guild)
+    if limit is None:
+        return (True, None, None)  # Unlimited
+
+    current_count = db.query(LFGGame).filter_by(guild_id=int(guild_id), enabled=True).count()
+    can_add = current_count < limit
+
+    return (can_add, current_count, limit)
 
 
 class DiscordBotSession:
@@ -124,6 +204,307 @@ def get_bot_session(guild_id):
     return DiscordBotSession()
 
 
+def check_lfg_manager_role(guild_id, user_id):
+    """
+    Check if a user has the "LFG Manager" role with required permissions.
+
+    The LFG Manager role must have both:
+    - CREATE_EVENTS permission (bit 44)
+    - MANAGE_EVENTS permission (bit 33)
+
+    Args:
+        guild_id: Discord guild ID
+        user_id: Discord user ID
+
+    Returns:
+        bool: True if user has valid LFG Manager role, False otherwise
+    """
+    if not user_id:
+        return False
+
+    try:
+        import requests
+
+        bot_token = os.getenv('DISCORD_BOT_TOKEN')
+        if not bot_token:
+            return False
+
+        # Get guild roles to find "LFG Manager" role ID
+        roles_url = f'https://discord.com/api/v10/guilds/{guild_id}/roles'
+        headers = {'Authorization': f'Bot {bot_token}'}
+        roles_response = requests.get(roles_url, headers=headers)
+
+        lfg_manager_role_id = None
+        if roles_response.status_code == 200:
+            roles = roles_response.json()
+            for role in roles:
+                if role.get('name') == 'LFG Manager':
+                    # Verify role has both CREATE_EVENTS and MANAGE_EVENTS permissions
+                    role_permissions = int(role.get('permissions', 0))
+                    # CREATE_EVENTS = 1 << 44 (17592186044416), MANAGE_EVENTS = 1 << 33 (8589934592)
+                    has_create = (role_permissions & (1 << 44)) != 0
+                    has_manage = (role_permissions & (1 << 33)) != 0
+                    if has_create and has_manage:
+                        lfg_manager_role_id = role.get('id')
+                    break
+
+        # Check if user has the LFG Manager role
+        if lfg_manager_role_id:
+            member_url = f'https://discord.com/api/v10/guilds/{guild_id}/members/{user_id}'
+            response = requests.get(member_url, headers=headers)
+            if response.status_code == 200:
+                member_data = response.json()
+                member_roles = member_data.get('roles', [])
+                if str(lfg_manager_role_id) in member_roles:
+                    return True
+
+    except Exception as e:
+        logger.error(f"Error checking LFG Manager role: {e}", exc_info=True)
+
+    return False
+
+
+def log_lfg_audit(db, guild_id, group_id, action, actor_id, actor_name,
+                  field_changed=None, old_value=None, new_value=None,
+                  group_name=None, game_name=None):
+    """
+    Create an audit log entry for LFG group changes.
+
+    Args:
+        db: Database session
+        guild_id: Discord guild ID
+        group_id: LFG group ID (can be None for deletions after commit)
+        action: Action performed ('create', 'update', 'delete')
+        actor_id: Discord user ID who performed the action
+        actor_name: Discord username
+        field_changed: Which field was changed (for updates)
+        old_value: Previous value (will be JSON encoded if complex type)
+        new_value: New value (will be JSON encoded if complex type)
+        group_name: Thread/group name for context
+        game_name: Game name for context
+    """
+    try:
+        from .models import LFGGroupAuditLog
+
+        # Convert complex values to JSON strings
+        if old_value is not None and not isinstance(old_value, str):
+            old_value = json.dumps(old_value)
+        if new_value is not None and not isinstance(new_value, str):
+            new_value = json.dumps(new_value)
+
+        audit_entry = LFGGroupAuditLog(
+            guild_id=int(guild_id),
+            group_id=group_id,
+            action=action,
+            actor_id=int(actor_id),
+            actor_name=actor_name,
+            field_changed=field_changed,
+            old_value=old_value,
+            new_value=new_value,
+            group_name=group_name,
+            game_name=game_name
+        )
+        db.add(audit_entry)
+        # Note: Caller is responsible for committing the transaction
+
+    except Exception as e:
+        logger.error(f"Error creating audit log entry: {e}", exc_info=True)
+
+
+def send_lfg_browser_notification(guild_id, lfg_config, notification_type, embed_data):
+    """
+    Send LFG Browser notification to configured channel and/or webhook.
+
+    Args:
+        guild_id: Discord guild ID
+        lfg_config: LFGConfig instance with notification settings
+        notification_type: Type of notification ('create', 'update', 'delete', 'join', 'leave')
+        embed_data: Dict with embed fields (title, description, color, fields, etc.)
+    """
+    try:
+        import requests
+
+        # Check if this notification type is enabled
+        notification_enabled = {
+            'create': lfg_config.notify_on_group_create,
+            'update': lfg_config.notify_on_group_update,
+            'delete': lfg_config.notify_on_group_delete,
+            'join': lfg_config.notify_on_member_join,
+            'leave': lfg_config.notify_on_member_leave,
+        }.get(notification_type, False)
+
+        if not notification_enabled:
+            return
+
+        # Build embed
+        embed = {
+            'title': embed_data.get('title', 'LFG Group Update'),
+            'description': embed_data.get('description', ''),
+            'color': embed_data.get('color', 0x5865F2),
+            'fields': embed_data.get('fields', []),
+            'timestamp': embed_data.get('timestamp'),
+            'footer': embed_data.get('footer'),
+        }
+
+        # Send to channel if configured
+        if lfg_config.browser_notify_channel_id:
+            bot_session = get_bot_session(guild_id)
+            if bot_session:
+                try:
+                    # For group creation, queue bot action to create thread with interactive view
+                    if notification_type == 'create' and embed_data.get('group_id'):
+                        from .models import PendingAction, ActionType, ActionStatus
+                        from .db import get_db_session as get_db
+                        import time as time_lib
+
+                        # Queue action for bot to create thread with interactive components
+                        with get_db() as db_session:
+                            action = PendingAction(
+                                guild_id=int(guild_id),
+                                action_type=ActionType.LFG_THREAD_CREATE,
+                                payload=json.dumps({
+                                    'group_id': embed_data.get('group_id'),
+                                    'channel_id': str(lfg_config.browser_notify_channel_id)
+                                }),
+                                status=ActionStatus.PENDING,
+                                priority=1,  # High priority
+                                created_at=int(time_lib.time())
+                            )
+                            db_session.add(action)
+                            db_session.flush()
+                            logger.info(f"Queued LFG thread creation action for group {embed_data.get('group_id')}")
+                    else:
+                        # For other notifications, just post to channel
+                        response = bot_session.post(
+                            f'/channels/{lfg_config.browser_notify_channel_id}/messages',
+                            json={'embeds': [embed]}
+                        )
+                        if response.status_code != 200:
+                            logger.warning(f"Failed to send LFG notification to channel: {response.status_code}")
+                except Exception as e:
+                    logger.error(f"Error sending LFG channel notification: {e}")
+
+        # Send to webhook if configured
+        if lfg_config.webhook_url:
+            try:
+                response = requests.post(
+                    lfg_config.webhook_url,
+                    json={'embeds': [embed]},
+                    timeout=5
+                )
+                if response.status_code not in [200, 204]:
+                    logger.warning(f"Failed to send LFG webhook notification: {response.status_code}")
+            except Exception as e:
+                logger.error(f"Error sending LFG webhook notification: {e}")
+
+    except Exception as e:
+        logger.error(f"Error in send_lfg_browser_notification: {e}", exc_info=True)
+
+
+def send_lfg_webhook_notification(webhook_url, embed_data):
+    """
+    Send LFG notification to a webhook.
+
+    Args:
+        webhook_url: Discord webhook URL
+        embed_data: Dict with embed fields
+    """
+    try:
+        import requests
+
+        # Build Discord embed
+        embed = {
+            'title': embed_data.get('title', 'LFG Group'),
+            'description': embed_data.get('description', ''),
+            'color': embed_data.get('color', 0x5865F2),
+            'fields': embed_data.get('fields', []),
+        }
+
+        if embed_data.get('footer'):
+            embed['footer'] = embed_data['footer']
+
+        response = requests.post(
+            webhook_url,
+            json={'embeds': [embed]},
+            timeout=5
+        )
+        if response.status_code not in [200, 204]:
+            logger.warning(f"Failed to send LFG webhook notification: {response.status_code}")
+    except Exception as e:
+        logger.error(f"Error sending LFG webhook notification: {e}")
+
+
+def send_lfg_browser_dm(guild_id, user_id, embed_data):
+    """
+    Send a DM to a user about an LFG Browser event.
+
+    Args:
+        guild_id: Discord guild ID (for bot session)
+        user_id: Discord user ID to DM
+        embed_data: Dict with embed fields
+
+    Returns:
+        bool: True if successful, False otherwise
+    """
+    try:
+        bot_session = get_bot_session(guild_id)
+        if not bot_session:
+            return False
+
+        # Create DM channel
+        dm_response = bot_session.post('/users/@me/channels', json={'recipient_id': str(user_id)})
+        if dm_response.status_code != 200:
+            logger.warning(f"Failed to create DM channel for user {user_id}: {dm_response.status_code}")
+            return False
+
+        dm_channel = dm_response.json()
+        dm_channel_id = dm_channel.get('id')
+
+        if not dm_channel_id:
+            return False
+
+        # Build embed
+        embed = {
+            'title': embed_data.get('title', 'LFG Group Update'),
+            'description': embed_data.get('description', ''),
+            'color': embed_data.get('color', 0x5865F2),
+            'fields': embed_data.get('fields', []),
+            'timestamp': embed_data.get('timestamp'),
+            'footer': embed_data.get('footer', {'text': 'LFG Browser'}),
+        }
+
+        # Send DM
+        msg_response = bot_session.post(f'/channels/{dm_channel_id}/messages', json={'embeds': [embed]})
+        if msg_response.status_code != 200:
+            logger.warning(f"Failed to send DM to user {user_id}: {msg_response.status_code}")
+            return False
+
+        return True
+
+    except Exception as e:
+        logger.error(f"Error sending LFG Browser DM to {user_id}: {e}")
+        return False
+
+
+def send_lfg_browser_dms(guild_id, user_ids, embed_data):
+    """
+    Send DMs to multiple users about an LFG Browser event.
+
+    Args:
+        guild_id: Discord guild ID
+        user_ids: List of Discord user IDs
+        embed_data: Dict with embed fields
+
+    Returns:
+        int: Number of successful DMs sent
+    """
+    success_count = 0
+    for user_id in user_ids:
+        if send_lfg_browser_dm(guild_id, user_id, embed_data):
+            success_count += 1
+    return success_count
+
+
 # ============================================================================
 # Bulk Operation Rate Limiting Helper Functions
 # ============================================================================
@@ -135,9 +516,14 @@ def get_tier_limits(guild_record):
 
     - Free: 6 items per operation, 6 total per day
     - Pro: 10 items per operation, 10 total per day
-    - Premium/VIP: Unlimited
+    - Premium/VIP/Engagement Module: Unlimited
     """
     from .models import SubscriptionTier
+    from .module_utils import has_module_access
+
+    # Check if guild has Engagement Module (grants unlimited bulk operations)
+    if has_module_access(guild_record.guild_id, 'engagement'):
+        return (None, None)  # Unlimited
 
     if guild_record.is_vip or guild_record.subscription_tier == SubscriptionTier.PREMIUM.value:
         return (None, None)  # Unlimited
@@ -1107,6 +1493,7 @@ def user_profile(request):
     context = {
         'discord_user': discord_user,
         'admin_guilds': admin_guilds,
+        'member_guilds': get_member_guilds(request),
         'all_guilds': all_guilds,
         'guild_count': len(all_guilds),
         'admin_guild_count': len(admin_guilds),
@@ -1120,9 +1507,17 @@ def warden_dashboard(request):
     discord_user = request.session.get('discord_user', {})
     admin_guilds = request.session.get('discord_admin_guilds', [])
 
+    # Add 'has_bot' flag to admin guilds
+    admin_guilds = add_has_bot_flag(admin_guilds)
+
+    # Get member guilds (already filtered to only show guilds with bot)
+    member_guilds = get_member_guilds(request)
+
     context = {
         'discord_user': discord_user,
         'admin_guilds': admin_guilds,
+        'member_guilds': member_guilds,
+        'total_guilds': len(admin_guilds) + len(member_guilds),
         'bot_client_id': os.getenv('DISCORD_CLIENT_ID', ''),
     }
     return render(request, 'warden/dashboard.html', context)
@@ -1133,6 +1528,7 @@ def guild_dashboard(request, guild_id):
     """Dashboard for a specific guild - shows admin config or member portal based on permissions"""
     discord_user = request.session.get('discord_user', {})
     admin_guilds = request.session.get('discord_admin_guilds', [])
+    admin_guilds = add_has_bot_flag(admin_guilds)
     all_guilds = request.session.get('discord_all_guilds', [])
 
     # Check if user is admin OR member of this guild
@@ -1149,6 +1545,8 @@ def guild_dashboard(request, guild_id):
             'discord_user': discord_user,
             'guild': guild,
             'admin_guilds': admin_guilds,
+        'member_guilds': get_member_guilds(request),
+            'member_guilds': get_member_guilds(request),
             'is_admin': False,
         })
 
@@ -1300,17 +1698,21 @@ def guild_dashboard(request, guild_id):
     # Get subscription tier info
     is_vip = guild_record.is_vip if guild_record else False
     subscription_tier = guild_record.subscription_tier if guild_record else 'free'
+    billing_cycle = guild_record.billing_cycle if guild_record else None
 
     context = {
         'discord_user': discord_user,
         'guild': guild,
         'admin_guilds': admin_guilds,
+        'member_guilds': get_member_guilds(request),
+        'member_guilds': get_member_guilds(request),
         'is_admin': is_admin,
         'feature_status': feature_status,
         'metrics': metrics,
         'guild_record': guild_record,
         'is_vip': is_vip,
         'subscription_tier': subscription_tier,
+        'billing_cycle': billing_cycle,
         'active_page': 'dashboard',
     }
     return render(request, 'warden/guild_dashboard.html', context)
@@ -1370,6 +1772,7 @@ def flair_store(request, guild_id):
     from django.http import JsonResponse
     from .db import get_db_session
     from .models import GuildMember, Guild as GuildModel, GuildFlair
+    from .module_utils import has_module_access, has_any_module_access
 
     discord_user = request.session.get('discord_user', {})
     all_guilds = request.session.get('discord_all_guilds', [])
@@ -1453,12 +1856,12 @@ def flair_store(request, guild_id):
                 if flair.flair_type == 'custom':
                     guild_record = db.query(GuildModel).filter_by(guild_id=int(guild_id)).first()
                     is_premium = (guild_record and (
-                        guild_record.subscription_tier in ['premium', 'pro'] or guild_record.is_vip
+                        guild_record.subscription_tier == 'complete' or guild_record.is_vip
                     ))
                     if not is_premium:
                         return JsonResponse({
                             'success': False,
-                            'error': 'Custom flairs are a Premium feature. Upgrade to Premium or Pro!'
+                            'error': 'Custom flairs require the Complete Suite or Engagement module!'
                         }, status=403)
 
                 cost = flair.cost
@@ -1585,13 +1988,14 @@ def flair_store(request, guild_id):
 
             subscription_tier = guild_record.subscription_tier if guild_record else 'free'
             is_vip = guild_record.is_vip if guild_record else False
+            billing_cycle = guild_record.billing_cycle if guild_record else None
             token_name = guild_record.token_name if guild_record and guild_record.token_name else "Hero Tokens"
             token_emoji = guild_record.token_emoji if guild_record and guild_record.token_emoji else ":coin:"
 
-            # Premium access = Premium tier OR Pro tier OR VIP
-            is_premium = subscription_tier in ['premium', 'pro'] or is_vip
-            # Pro features = Pro tier only
-            is_pro = subscription_tier == 'pro'
+            # Premium access = Complete tier OR VIP
+            is_premium = subscription_tier == 'complete' or is_vip
+            # All premium features available in Complete tier
+            is_pro = is_premium
 
             # Load flairs from database
             flairs = db.query(GuildFlair).filter_by(
@@ -1618,10 +2022,16 @@ def flair_store(request, guild_id):
     # Check if user has admin permissions for this guild
     is_admin = any(str(g['id']) == str(guild_id) for g in admin_guilds)
 
+    # Check if guild has engagement module access
+    has_engagement_module = has_module_access(guild_id, 'engagement')
+    has_any_module = has_any_module_access(guild_id)
+
     context = {
         'discord_user': discord_user,
         'guild': guild,
+        'guild_record': guild_record,  # Add for sidebar navigation
         'admin_guilds': admin_guilds,
+        'member_guilds': get_member_guilds(request),
         'is_admin': is_admin,
         'normal_flairs': normal_flairs,
         'seasonal_flairs': seasonal_flairs,
@@ -1631,10 +2041,13 @@ def flair_store(request, guild_id):
         'owned_flairs': owned_flairs,
         'subscription_tier': subscription_tier,
         'is_vip': is_vip,
+        'billing_cycle': billing_cycle,
         'is_premium': is_premium,
         'is_pro': is_pro,
         'token_name': token_name,
         'token_emoji': token_emoji,
+        'has_engagement_module': has_engagement_module,
+        'has_any_module': has_any_module,
         'active_page': 'flair_store',
     }
     return render(request, 'warden/flair_store.html', context)
@@ -1719,7 +2132,9 @@ def member_profile(request, guild_id):
     context = {
         'discord_user': discord_user,
         'guild': guild,
+        'guild_record': guild_record,  # Add for sidebar navigation
         'admin_guilds': admin_guilds,
+        'member_guilds': get_member_guilds(request),
         'is_admin': is_admin,
         'member_stats': member_stats,
         'token_name': token_name,
@@ -1785,7 +2200,9 @@ def guild_leaderboards(request, guild_id):
     context = {
         'discord_user': discord_user,
         'guild': guild,
+        'guild_record': guild_record,  # Add for sidebar navigation
         'admin_guilds': admin_guilds,
+        'member_guilds': get_member_guilds(request),
         'is_admin': is_admin,
         'xp_leaders': xp_leaders,
         'token_leaders': token_leaders,
@@ -1804,6 +2221,7 @@ def flair_management(request, guild_id):
     """Flair management page - bulk editor for customizing flairs and prices."""
     from .db import get_db_session
     from .models import Guild as GuildModel
+    from .module_utils import has_module_access, has_any_module_access
 
     discord_user = request.session.get('discord_user', {})
     admin_guilds = request.session.get('discord_admin_guilds', [])
@@ -1824,19 +2242,29 @@ def flair_management(request, guild_id):
             if guild_record:
                 subscription_tier = guild_record.subscription_tier
                 is_vip = guild_record.is_vip
-                is_premium = subscription_tier in ['premium', 'pro'] or is_vip
+                billing_cycle = guild_record.billing_cycle
+                is_premium = subscription_tier == 'complete' or is_vip
 
     except Exception as e:
         logger.warning(f"Could not fetch guild premium status: {e}")
+
+    # Check if guild has engagement module access
+    has_engagement_module = has_module_access(guild_id, 'engagement')
+    has_any_module = has_any_module_access(guild_id)
 
     context = {
         'discord_user': discord_user,
         'guild': guild,
         'admin_guilds': admin_guilds,
+        'member_guilds': get_member_guilds(request),
+        'is_admin': True,  # User already validated as admin above
         'is_premium': is_premium,
         'is_vip': is_vip,
         'subscription_tier': subscription_tier,
-        'active_page': 'flair_store',
+        'billing_cycle': billing_cycle if 'billing_cycle' in locals() else None,
+        'has_engagement_module': has_engagement_module,
+        'has_any_module': has_any_module,
+        'active_page': 'flair_management',
     }
     return render(request, 'warden/flair_management.html', context)
 
@@ -1846,6 +2274,8 @@ def flair_management(request, guild_id):
 @discord_required
 def guild_trackers(request, guild_id):
     """Manage channel stat trackers for a guild."""
+    from .module_utils import has_module_access, has_any_module_access
+
     discord_user = request.session.get('discord_user', {})
     admin_guilds = request.session.get('discord_admin_guilds', [])
 
@@ -1882,12 +2312,19 @@ def guild_trackers(request, guild_id):
     except Exception as e:
         logger.warning(f"Could not fetch trackers: {e}")
 
+    # Check if guild has LFG module access
+    has_lfg_module = has_module_access(guild_id, 'lfg')
+    has_any_module = has_any_module_access(guild_id)
+
     context = {
         'discord_user': discord_user,
         'guild': guild,
         'admin_guilds': admin_guilds,
+        'member_guilds': get_member_guilds(request),
         'is_admin': True,
         'trackers': trackers,
+        'has_lfg_module': has_lfg_module,
+        'has_any_module': has_any_module,
         'active_page': 'trackers',
     }
     return render(request, 'warden/trackers.html', context)
@@ -1910,6 +2347,22 @@ def api_auth_required(view_func):
         guild = next((g for g in admin_guilds if str(g['id']) == str(guild_id)), None)
         if not guild:
             return JsonResponse({'error': 'No admin access to this guild'}, status=403)
+
+        return view_func(request, guild_id, *args, **kwargs)
+    return wrapper
+
+
+def api_member_auth_required(view_func):
+    """Check Discord auth and guild member access for API endpoints."""
+    def wrapper(request, guild_id, *args, **kwargs):
+        discord_user = request.session.get('discord_user')
+        if not discord_user:
+            return JsonResponse({'error': 'Not authenticated'}, status=401)
+
+        all_guilds = request.session.get('discord_all_guilds', [])
+        guild = next((g for g in all_guilds if str(g['id']) == str(guild_id)), None)
+        if not guild:
+            return JsonResponse({'error': 'No access to this guild'}, status=403)
 
         return view_func(request, guild_id, *args, **kwargs)
     return wrapper
@@ -1977,6 +2430,8 @@ def api_flair_bulk_update(request, guild_id):
         if not flairs_to_update:
             return JsonResponse({'error': 'No flairs provided'}, status=400)
 
+        rename_results = []
+
         with get_db_session() as db:
             updated = 0
             for flair_data in flairs_to_update:
@@ -1987,17 +2442,91 @@ def api_flair_bulk_update(request, guild_id):
                 ).first()
 
                 if flair:
+                    old_name = flair.flair_name
+                    old_display_order = flair.display_order
+                    new_name = flair_data.get('flair_name', flair.flair_name)
+                    new_display_order = int(flair_data.get('display_order', flair.display_order))
+
                     # Update flair properties
-                    flair.flair_name = flair_data.get('flair_name', flair.flair_name)
+                    flair.flair_name = new_name
                     flair.cost = int(flair_data.get('cost', flair.cost))
                     flair.enabled = flair_data.get('enabled', flair.enabled)
-                    flair.display_order = int(flair_data.get('display_order', flair.display_order))
+                    flair.display_order = new_display_order
                     flair.updated_at = int(time.time())
                     updated += 1
 
+                    # Rename Discord role if flair name changed (for all flair types)
+                    if new_name != old_name:
+                        try:
+                            bot_session = get_bot_session(int(guild_id))
+                            if bot_session:
+                                # Get all roles in the guild
+                                roles_resp = bot_session.get(f'/guilds/{guild_id}/roles')
+                                if roles_resp.status_code == 200:
+                                    roles = roles_resp.json()
+                                    # Find the role with the old name
+                                    matching_role = next((r for r in roles if r['name'] == old_name), None)
+
+                                    if matching_role:
+                                        # Rename the role
+                                        patch_resp = bot_session.patch(
+                                            f'/guilds/{guild_id}/roles/{matching_role["id"]}',
+                                            json={'name': new_name}
+                                        )
+                                        if patch_resp.status_code == 200:
+                                            logger.info(f"Renamed Discord role '{old_name}' to '{new_name}' in guild {guild_id}")
+                                            rename_results.append({'old': old_name, 'new': new_name, 'success': True})
+                                        else:
+                                            logger.warning(f"Failed to rename Discord role '{old_name}' in guild {guild_id}: {patch_resp.status_code}")
+                                            rename_results.append({'old': old_name, 'new': new_name, 'success': False})
+                                    else:
+                                        logger.warning(f"Discord role '{old_name}' not found in guild {guild_id}")
+                                else:
+                                    logger.warning(f"Failed to fetch roles for guild {guild_id}: {roles_resp.status_code}")
+                            else:
+                                logger.warning(f"Bot session not available for guild {guild_id}")
+                        except Exception as e:
+                            logger.error(f"Error renaming Discord role '{old_name}' to '{new_name}' in guild {guild_id}: {e}", exc_info=True)
+
+                    # Update Discord role position if display_order changed
+                    if new_display_order != old_display_order:
+                        try:
+                            bot_session = get_bot_session(int(guild_id))
+                            if bot_session:
+                                # Get all roles in the guild to find the role ID
+                                roles_resp = bot_session.get(f'/guilds/{guild_id}/roles')
+                                if roles_resp.status_code == 200:
+                                    roles = roles_resp.json()
+                                    # Find the role with the current flair name (use new_name in case it was renamed)
+                                    matching_role = next((r for r in roles if r['name'] == new_name), None)
+
+                                    if matching_role:
+                                        # Update the role position
+                                        # Discord API expects an array of role position objects
+                                        patch_resp = bot_session.patch(
+                                            f'/guilds/{guild_id}/roles',
+                                            json=[{'id': matching_role['id'], 'position': new_display_order}]
+                                        )
+                                        if patch_resp.status_code == 200:
+                                            logger.info(f"Updated Discord role '{new_name}' position from {old_display_order} to {new_display_order} in guild {guild_id}")
+                                        else:
+                                            logger.warning(f"Failed to update Discord role '{new_name}' position in guild {guild_id}: {patch_resp.status_code}")
+                                    else:
+                                        logger.warning(f"Discord role '{new_name}' not found in guild {guild_id} for position update")
+                                else:
+                                    logger.warning(f"Failed to fetch roles for guild {guild_id} for position update: {roles_resp.status_code}")
+                            else:
+                                logger.warning(f"Bot session not available for guild {guild_id} for position update")
+                        except Exception as e:
+                            logger.error(f"Error updating Discord role '{new_name}' position in guild {guild_id}: {e}", exc_info=True)
+
+            db.commit()
+
             return JsonResponse({
                 'success': True,
-                'updated': updated
+                'updated': updated,
+                'roles_renamed': len(rename_results),
+                'rename_details': rename_results
             })
 
     except Exception as e:
@@ -2023,6 +2552,7 @@ def api_flair_create(request, guild_id):
 
         flair_name = data.get('flair_name', '').strip()
         cost = int(data.get('cost', 100))
+        role_position = data.get('role_position')  # Optional position for the Discord role
 
         if not flair_name:
             return JsonResponse({'error': 'Flair name is required'}, status=400)
@@ -2056,6 +2586,49 @@ def api_flair_create(request, guild_id):
             db.add(new_flair)
             db.commit()
 
+            # Create the Discord role for this flair
+            role_created = False
+            role_error = None
+            try:
+                bot_session = get_bot_session(int(guild_id))
+                if bot_session:
+                    # Create role with default settings (no special permissions, not hoisted by default)
+                    role_data = {
+                        'name': flair_name,
+                        'permissions': '0',
+                        'color': 0,
+                        'hoist': False,  # Don't hoist by default
+                        'mentionable': False,
+                    }
+
+                    resp = bot_session.post(f'/guilds/{guild_id}/roles', json=role_data)
+                    if resp.status_code == 200:
+                        role = resp.json()
+                        role_created = True
+                        logger.info(f"Created Discord role '{flair_name}' (ID: {role['id']}) for flair in guild {guild_id}")
+
+                        # Set role position if specified
+                        if role_position is not None:
+                            try:
+                                position = int(role_position)
+                                patch_resp = bot_session.patch(
+                                    f'/guilds/{guild_id}/roles',
+                                    json=[{'id': role['id'], 'position': position}]
+                                )
+                                if patch_resp.status_code != 200:
+                                    logger.warning(f"Failed to set role position for '{flair_name}' in guild {guild_id}: {patch_resp.status_code}")
+                            except Exception as e:
+                                logger.warning(f"Error setting role position for '{flair_name}' in guild {guild_id}: {e}")
+                    else:
+                        role_error = f"Discord API returned status {resp.status_code}"
+                        logger.warning(f"Failed to create Discord role for flair '{flair_name}' in guild {guild_id}: {role_error}")
+                else:
+                    role_error = "Bot session not available"
+                    logger.warning(f"Could not create Discord role for flair '{flair_name}': Bot not connected to guild {guild_id}")
+            except Exception as e:
+                role_error = str(e)
+                logger.error(f"Error creating Discord role for flair '{flair_name}' in guild {guild_id}: {e}", exc_info=True)
+
             return JsonResponse({
                 'success': True,
                 'flair': {
@@ -2066,7 +2639,9 @@ def api_flair_create(request, guild_id):
                     'enabled': new_flair.enabled,
                     'created_by': str(new_flair.created_by) if new_flair.created_by else None,
                     'display_order': new_flair.display_order,
-                }
+                },
+                'role_created': role_created,
+                'role_info': 'Discord role created successfully' if role_created else f'Flair created but Discord role creation failed: {role_error}'
             })
 
     except Exception as e:
@@ -2108,6 +2683,51 @@ def api_flair_delete(request, guild_id, flair_id):
     except Exception as e:
         logger.error(f"Error deleting flair: {e}", exc_info=True)
         return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
+
+
+@require_http_methods(["POST"])
+@api_auth_required
+def api_flair_create_default_roles(request, guild_id):
+    """POST /api/guild/<id>/flairs/create-default-roles/ - Queue creation of default flair roles."""
+    try:
+        from .models import PendingAction, ActionType, ActionStatus
+        from .db import get_db_session
+
+        discord_user = request.session.get('discord_user', {})
+
+        with get_db_session() as db:
+            # Avoid duplicate pending actions
+            existing = db.query(PendingAction).filter_by(
+                guild_id=int(guild_id),
+                action_type=ActionType.FLAIR_SEED_ROLES.value,
+                status=ActionStatus.PENDING.value
+            ).first()
+
+            if existing:
+                return JsonResponse({
+                    'success': True,
+                    'message': 'A flair role creation task is already queued.'
+                })
+
+            action = PendingAction(
+                guild_id=int(guild_id),
+                action_type=ActionType.FLAIR_SEED_ROLES.value,
+                status=ActionStatus.PENDING.value,
+                payload=json.dumps({}),
+                triggered_by=int(discord_user.get('id', 0)),
+                triggered_by_name=discord_user.get('username', 'Unknown')
+            )
+            db.add(action)
+            db.commit()
+
+            return JsonResponse({
+                'success': True,
+                'message': 'Default flair roles will be created and hoisted automatically.'
+            })
+
+    except Exception as e:
+        logger.error(f"Error queueing default flair role creation for guild {guild_id}: {e}", exc_info=True)
+        return JsonResponse({'error': 'Failed to queue flair role creation'}, status=500)
 
 
 # Tracker API Endpoints
@@ -2349,6 +2969,311 @@ def api_guild_resources(request, guild_id):
         return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
 
 
+@require_http_methods(["GET"])
+@api_member_auth_required
+def api_guild_members(request, guild_id):
+    """GET /api/guild/<id>/members/ - Fetch cached members (id + name)."""
+    try:
+        from .db import get_db_session
+        from .models import GuildMember as MemberModel
+
+        with get_db_session() as db:
+            members = db.query(MemberModel).filter_by(guild_id=int(guild_id)).limit(1000).all()
+            members_list = [
+                {
+                    'id': str(m.user_id),
+                    'username': m.display_name or f'User {m.user_id}',
+                    'display_name': m.display_name or f'User {m.user_id}'
+                }
+                for m in members
+            ]
+        return JsonResponse({'success': True, 'members': members_list})
+    except Exception as e:
+        logger.error(f"Error fetching guild members for {guild_id}: {e}")
+        return JsonResponse({'success': False, 'error': 'An internal error occurred. Please try again later.'}, status=500)
+
+
+# REMOVED DUPLICATE - See the correct api_guild_emojis implementation at line ~6252
+
+
+@require_http_methods(["POST"])
+@api_auth_required
+def api_message_action(request, guild_id):
+    """POST /api/guild/<id>/messages/ - Queue message/embed send/edit/broadcast."""
+    try:
+        data = json_lib.loads(request.body)
+    except json_lib.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+    mode = data.get('mode')
+    if mode not in ('send', 'send_embed', 'edit', 'edit_embed', 'broadcast'):
+        return JsonResponse({'error': 'Invalid mode'}, status=400)
+
+    try:
+        from .actions import queue_action, ActionType
+
+        discord_user = request.session.get('discord_user', {})
+        triggered_by = int(discord_user.get('id', 0))
+        triggered_by_name = discord_user.get('global_name', discord_user.get('username'))
+
+        payload = data
+        payload['mode'] = mode
+        payload['guild_id'] = int(guild_id)
+
+        action_id = queue_action(
+            guild_id=int(guild_id),
+            action_type=ActionType.MESSAGE_SEND,
+            payload=payload,
+            triggered_by=triggered_by,
+            triggered_by_name=triggered_by_name,
+            source='website'
+        )
+
+        return JsonResponse({'success': True, 'action_id': action_id, 'message': 'Queued'})
+
+    except Exception as e:
+        logger.error(f"Error queueing message action for guild {guild_id}: {e}", exc_info=True)
+        return JsonResponse({'error': 'Failed to queue message action'}, status=500)
+
+
+# Scheduled Messages Endpoints
+
+@require_http_methods(["POST"])
+@api_auth_required
+def api_scheduled_messages_create(request, guild_id):
+    """POST /api/guild/<id>/scheduled-messages/ - Create a scheduled message."""
+    try:
+        data = json_lib.loads(request.body)
+    except json_lib.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+    # Validate required fields
+    message_type = data.get('message_type')
+    if message_type not in ('message', 'embed', 'broadcast'):
+        return JsonResponse({'error': 'Invalid message_type. Must be message, embed, or broadcast'}, status=400)
+
+    scheduled_time = data.get('scheduled_time')
+    if not scheduled_time:
+        return JsonResponse({'error': 'scheduled_time is required'}, status=400)
+
+    content_data = data.get('content_data')
+    if not content_data:
+        return JsonResponse({'error': 'content_data is required'}, status=400)
+
+    # Validate destination
+    if message_type in ('message', 'embed') and not data.get('channel_id'):
+        return JsonResponse({'error': 'channel_id is required for message and embed types'}, status=400)
+
+    if message_type == 'broadcast' and not data.get('category_id'):
+        return JsonResponse({'error': 'category_id is required for broadcast type'}, status=400)
+
+    try:
+        from .db import get_db_session
+        from .models import ScheduledMessage
+        import time
+
+        discord_user = request.session.get('discord_user', {})
+        user_id = int(discord_user.get('id', 0))
+
+        with get_db_session() as db:
+            scheduled_msg = ScheduledMessage(
+                guild_id=int(guild_id),
+                message_type=message_type,
+                channel_id=int(data.get('channel_id')) if data.get('channel_id') else None,
+                category_id=int(data.get('category_id')) if data.get('category_id') else None,
+                scheduled_time=int(scheduled_time),
+                timezone=data.get('timezone', 'UTC'),
+                content_data=json_lib.dumps(content_data),
+                status='pending',
+                created_by=user_id,
+                created_at=int(time.time()),
+                updated_at=int(time.time())
+            )
+            db.add(scheduled_msg)
+            db.commit()
+            db.refresh(scheduled_msg)
+
+            return JsonResponse({
+                'success': True,
+                'message': 'Scheduled message created successfully',
+                'id': scheduled_msg.id
+            })
+
+    except Exception as e:
+        logger.error(f"Error creating scheduled message for guild {guild_id}: {e}", exc_info=True)
+        return JsonResponse({'error': 'Failed to create scheduled message'}, status=500)
+
+
+@require_http_methods(["GET"])
+@api_auth_required
+def api_scheduled_messages_list(request, guild_id):
+    """GET /api/guild/<id>/scheduled-messages/ - List all scheduled messages for a guild."""
+    try:
+        from .db import get_db_session
+        from .models import ScheduledMessage
+
+        # Optional status filter
+        status_filter = request.GET.get('status', None)
+
+        with get_db_session() as db:
+            from .models import Guild
+
+            # Get guild to access cached channels/roles
+            guild = db.query(Guild).filter_by(guild_id=int(guild_id)).first()
+            if not guild:
+                return JsonResponse({'error': 'Guild not found'}, status=404)
+
+            # Parse cached resources
+            cached_channels = json_lib.loads(guild.cached_channels) if guild.cached_channels else []
+            channel_map = {str(ch['id']): ch['name'] for ch in cached_channels}
+
+            query = db.query(ScheduledMessage).filter_by(guild_id=int(guild_id))
+
+            if status_filter:
+                query = query.filter_by(status=status_filter)
+
+            # Order by scheduled_time ascending (soonest first)
+            scheduled_messages = query.order_by(ScheduledMessage.scheduled_time.asc()).all()
+
+            messages_data = []
+            for msg in scheduled_messages:
+                # Get channel/category name
+                channel_name = None
+                category_name = None
+
+                if msg.channel_id:
+                    channel_name = channel_map.get(str(msg.channel_id), f"Unknown ({msg.channel_id})")
+                if msg.category_id:
+                    category_name = channel_map.get(str(msg.category_id), f"Unknown ({msg.category_id})")
+
+                messages_data.append({
+                    'id': msg.id,
+                    'message_type': msg.message_type,
+                    'channel_id': str(msg.channel_id) if msg.channel_id else None,
+                    'channel_name': channel_name,
+                    'category_id': str(msg.category_id) if msg.category_id else None,
+                    'category_name': category_name,
+                    'scheduled_time': msg.scheduled_time,
+                    'timezone': msg.timezone,
+                    'content_data': json_lib.loads(msg.content_data),
+                    'status': msg.status,
+                    'sent_at': msg.sent_at,
+                    'error_message': msg.error_message,
+                    'created_by': str(msg.created_by),
+                    'created_at': msg.created_at,
+                    'updated_at': msg.updated_at
+                })
+
+            return JsonResponse({
+                'success': True,
+                'messages': messages_data,
+                'count': len(messages_data)
+            })
+
+    except Exception as e:
+        logger.error(f"Error listing scheduled messages for guild {guild_id}: {e}", exc_info=True)
+        return JsonResponse({'error': 'Failed to list scheduled messages'}, status=500)
+
+
+@require_http_methods(["PUT"])
+@api_auth_required
+def api_scheduled_messages_update(request, guild_id, message_id):
+    """PUT /api/guild/<id>/scheduled-messages/<msg_id>/ - Update a scheduled message."""
+    try:
+        data = json_lib.loads(request.body)
+    except json_lib.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+    try:
+        from .db import get_db_session
+        from .models import ScheduledMessage
+        import time
+
+        with get_db_session() as db:
+            scheduled_msg = db.query(ScheduledMessage).filter_by(
+                id=int(message_id),
+                guild_id=int(guild_id)
+            ).first()
+
+            if not scheduled_msg:
+                return JsonResponse({'error': 'Scheduled message not found'}, status=404)
+
+            # Only allow editing pending messages
+            if scheduled_msg.status != 'pending':
+                return JsonResponse({
+                    'error': f'Cannot edit {scheduled_msg.status} messages. Only pending messages can be edited.'
+                }, status=400)
+
+            # Update fields if provided
+            if 'scheduled_time' in data:
+                scheduled_msg.scheduled_time = int(data['scheduled_time'])
+
+            if 'timezone' in data:
+                scheduled_msg.timezone = data['timezone']
+
+            if 'content_data' in data:
+                scheduled_msg.content_data = json_lib.dumps(data['content_data'])
+
+            if 'channel_id' in data:
+                scheduled_msg.channel_id = int(data['channel_id']) if data['channel_id'] else None
+
+            if 'category_id' in data:
+                scheduled_msg.category_id = int(data['category_id']) if data['category_id'] else None
+
+            scheduled_msg.updated_at = int(time.time())
+
+            db.commit()
+            db.refresh(scheduled_msg)
+
+            return JsonResponse({
+                'success': True,
+                'message': 'Scheduled message updated successfully'
+            })
+
+    except Exception as e:
+        logger.error(f"Error updating scheduled message {message_id} for guild {guild_id}: {e}", exc_info=True)
+        return JsonResponse({'error': 'Failed to update scheduled message'}, status=500)
+
+
+@require_http_methods(["DELETE"])
+@api_auth_required
+def api_scheduled_messages_cancel(request, guild_id, message_id):
+    """DELETE /api/guild/<id>/scheduled-messages/<msg_id>/ - Cancel a scheduled message."""
+    try:
+        from .db import get_db_session
+        from .models import ScheduledMessage
+        import time
+
+        with get_db_session() as db:
+            scheduled_msg = db.query(ScheduledMessage).filter_by(
+                id=int(message_id),
+                guild_id=int(guild_id)
+            ).first()
+
+            if not scheduled_msg:
+                return JsonResponse({'error': 'Scheduled message not found'}, status=404)
+
+            # Only allow cancelling pending messages
+            if scheduled_msg.status != 'pending':
+                return JsonResponse({
+                    'error': f'Cannot cancel {scheduled_msg.status} messages. Only pending messages can be cancelled.'
+                }, status=400)
+
+            scheduled_msg.status = 'cancelled'
+            scheduled_msg.updated_at = int(time.time())
+
+            db.commit()
+
+            return JsonResponse({
+                'success': True,
+                'message': 'Scheduled message cancelled successfully'
+            })
+
+    except Exception as e:
+        logger.error(f"Error cancelling scheduled message {message_id} for guild {guild_id}: {e}", exc_info=True)
+        return JsonResponse({'error': 'Failed to cancel scheduled message'}, status=500)
+
+
 @require_http_methods(["POST"])
 @api_auth_required
 def api_guild_leave(request, guild_id):
@@ -2398,6 +3323,8 @@ def api_guild_leave(request, guild_id):
 @discord_required
 def guild_xp(request, guild_id):
     """XP and leveling management page for a guild."""
+    from .module_utils import has_module_access, has_any_module_access
+
     discord_user = request.session.get('discord_user', {})
     admin_guilds = request.session.get('discord_admin_guilds', [])
 
@@ -2504,16 +3431,23 @@ def guild_xp(request, guild_id):
         bulk_edit_items_today = 0
         import_items_today = 0
 
+    # Check if guild has engagement module access
+    has_engagement_module = has_module_access(guild_id, 'engagement')
+    has_any_module = has_any_module_access(guild_id)
+
     context = {
         'discord_user': discord_user,
         'guild': guild,
         'guild_record': guild_record,
         'admin_guilds': admin_guilds,
+        'member_guilds': get_member_guilds(request),
         'is_admin': True,
         'xp_config': xp_config or {},
         'leaderboard': leaderboard,
         'level_roles': level_roles,
         'total_members': total_members,
+        'has_engagement_module': has_engagement_module,
+        'has_any_module': has_any_module,
         'active_page': 'xp',
         'bulk_edit_items_today': bulk_edit_items_today,
         'import_items_today': import_items_today,
@@ -2698,6 +3632,12 @@ def api_xp_toggle(request, guild_id):
                 # Update existing config
                 config.xp_enabled = xp_enabled
 
+            # Keep guild table flag in sync (bot checks Guild.xp_enabled)
+            from .models import Guild as GuildModel
+            guild_record = db.query(GuildModel).filter_by(guild_id=int(guild_id)).first()
+            if guild_record:
+                guild_record.xp_enabled = xp_enabled
+
             db.commit()
 
             return JsonResponse({
@@ -2754,21 +3694,27 @@ def api_xp_leaderboard(request, guild_id):
 
 @require_http_methods(["POST"])
 @api_auth_required
+@validate_json_schema({
+    "type": "object",
+    "properties": {
+        "action": {"type": "string", "enum": ["add", "subtract", "set"]},
+        "amount": {"type": "number", "minimum": -1000000, "maximum": 1000000},
+        "field": {"type": "string", "enum": ["xp", "tokens"]}
+    },
+    "required": ["action", "amount", "field"]
+})
 def api_xp_member_update(request, guild_id, user_id):
     """POST /api/guild/<id>/xp/member/<user_id>/ - Update a member's XP/tokens."""
-    try:
-        data = json_lib.loads(request.body)
-    except json_lib.JSONDecodeError:
-        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+    data = request.validated_data
 
     try:
-        from .actions import queue_xp_add, queue_xp_set, queue_tokens_add
+        from .actions import queue_xp_add, queue_xp_set, queue_tokens_add, queue_tokens_set
 
         discord_user = request.session.get('discord_user', {})
         triggered_by = int(discord_user.get('id', 0))
         triggered_by_name = discord_user.get('global_name', discord_user.get('username'))
 
-        action_type = data.get('action', 'set')  # 'add', 'remove', 'set'
+        action_type = data.get('action', 'set')  # 'add', 'subtract', 'set'
         amount = float(data.get('amount', 0))
         field = data.get('field', 'xp')  # 'xp' or 'tokens'
 
@@ -2781,7 +3727,16 @@ def api_xp_member_update(request, guild_id, user_id):
                     triggered_by=triggered_by,
                     triggered_by_name=triggered_by_name
                 )
-            else:
+            elif action_type == 'subtract':
+                # Use negative amount for subtraction
+                action_id = queue_xp_add(
+                    guild_id=int(guild_id),
+                    user_id=int(user_id),
+                    amount=-abs(amount),
+                    triggered_by=triggered_by,
+                    triggered_by_name=triggered_by_name
+                )
+            elif action_type == 'set':
                 action_id = queue_xp_set(
                     guild_id=int(guild_id),
                     user_id=int(user_id),
@@ -2789,14 +3744,36 @@ def api_xp_member_update(request, guild_id, user_id):
                     triggered_by=triggered_by,
                     triggered_by_name=triggered_by_name
                 )
+            else:
+                return JsonResponse({'error': 'Invalid action type'}, status=400)
         elif field == 'tokens':
-            action_id = queue_tokens_add(
-                guild_id=int(guild_id),
-                user_id=int(user_id),
-                amount=int(amount),
-                triggered_by=triggered_by,
-                triggered_by_name=triggered_by_name
-            )
+            if action_type == 'add':
+                action_id = queue_tokens_add(
+                    guild_id=int(guild_id),
+                    user_id=int(user_id),
+                    amount=int(amount),
+                    triggered_by=triggered_by,
+                    triggered_by_name=triggered_by_name
+                )
+            elif action_type == 'subtract':
+                # Use negative amount for subtraction
+                action_id = queue_tokens_add(
+                    guild_id=int(guild_id),
+                    user_id=int(user_id),
+                    amount=-abs(int(amount)),
+                    triggered_by=triggered_by,
+                    triggered_by_name=triggered_by_name
+                )
+            elif action_type == 'set':
+                action_id = queue_tokens_set(
+                    guild_id=int(guild_id),
+                    user_id=int(user_id),
+                    amount=int(amount),
+                    triggered_by=triggered_by,
+                    triggered_by_name=triggered_by_name
+                )
+            else:
+                return JsonResponse({'error': 'Invalid action type'}, status=400)
         else:
             return JsonResponse({'error': 'Invalid field'}, status=400)
 
@@ -3273,8 +4250,10 @@ def api_xp_import_csv(request, guild_id):
 
 @require_http_methods(["GET"])
 @api_auth_required
+@require_subscription_tier('pro', 'premium')
+@ratelimit(key='user_or_ip', rate='10/h', method='GET', block=True)
 def api_xp_export_csv(request, guild_id):
-    """GET /api/guild/<id>/xp/export/ - Export XP data as Excel (XLSX)."""
+    """GET /api/guild/<id>/xp/export/ - Export XP data as Excel (Pro/Premium only, 10 req/hour)."""
     try:
         from .db import get_db_session
         from .models import GuildMember
@@ -3340,8 +4319,12 @@ def api_xp_export_csv(request, guild_id):
         return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
 
 
+@require_http_methods(["GET", "POST"])
+@api_auth_required
+@require_subscription_tier('pro', 'premium')
+@ratelimit(key='user_or_ip', rate='5/h', method='POST', block=True)
 def api_xp_bulk_edit(request, guild_id):
-    """GET/POST /api/guild/<id>/xp/bulk-edit/ - Bulk edit XP for active members."""
+    """GET/POST /api/guild/<id>/xp/bulk-edit/ - Bulk edit XP for active members (Pro/Premium only, 5 req/hour)."""
     try:
         from .db import get_db_session
         from .models import GuildMember
@@ -3416,13 +4399,6 @@ def api_xp_bulk_edit(request, guild_id):
                         member.level = int(member_data.get('level', member.level))
                         member.hero_tokens = int(member_data.get('hero_tokens', member.hero_tokens or 0))
 
-                        # Reset tracking metrics (fresh start)
-                        member.message_count = 0
-                        member.media_count = 0
-                        member.reaction_count = 0
-                        member.voice_minutes = 0
-                        member.invite_count = 0
-
                         updated += 1
 
                 db.commit()
@@ -3439,11 +4415,338 @@ def api_xp_bulk_edit(request, guild_id):
         return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
 
 
+# XP Boost Events API
+
+@api_auth_required
+def api_xp_boost_events_list(request, guild_id):
+    """GET /api/guild/<id>/xp/boost-events/ - Get all boost events for a guild."""
+    try:
+        from .db import get_db_session
+        from .models import XPBoostEvent
+        import time
+
+        with get_db_session() as db:
+            events = db.query(XPBoostEvent).filter_by(
+                guild_id=int(guild_id)
+            ).order_by(XPBoostEvent.is_default.desc(), XPBoostEvent.name).all()
+
+            return JsonResponse({
+                'success': True,
+                'events': [
+                    {
+                        'id': e.id,
+                        'name': e.name,
+                        'description': e.description,
+                        'multiplier': float(e.multiplier),
+                        'start_time': e.start_time,
+                        'end_time': e.end_time,
+                        'is_active': e.is_active,
+                        'is_default': e.is_default,
+                        'scope': e.scope,
+                        'scope_id': str(e.scope_id) if e.scope_id else None,
+                        'token_bonus': e.token_bonus,
+                        'announcement_channel_id': str(e.announcement_channel_id) if e.announcement_channel_id else None,
+                        'announcement_role_id': str(e.announcement_role_id) if e.announcement_role_id else None,
+                        'created_at': e.created_at,
+                        'updated_at': e.updated_at,
+                    }
+                    for e in events
+                ]
+            })
+    except Exception as e:
+        logger.error(f"Error fetching boost events for guild {guild_id}: {e}", exc_info=True)
+        return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
+
+
+@require_http_methods(["PATCH"])
+@api_auth_required
+def api_xp_boost_event_update(request, guild_id, event_id):
+    """PATCH /api/guild/<id>/xp/boost-events/<event_id>/ - Update a boost event."""
+    try:
+        import json as json_lib
+        data = json_lib.loads(request.body)
+    except json_lib.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+    try:
+        from .db import get_db_session
+        from .models import XPBoostEvent, PendingAction, ActionType
+        import time
+
+        with get_db_session() as db:
+            event = db.query(XPBoostEvent).filter_by(
+                id=int(event_id),
+                guild_id=int(guild_id)
+            ).first()
+
+            if not event:
+                return JsonResponse({'error': 'Boost event not found'}, status=404)
+
+            # Track old is_active state for announcement triggering
+            was_active = event.is_active
+            should_announce = False
+
+            # Update fields
+            if 'is_active' in data:
+                new_is_active = bool(data['is_active'])
+                event.is_active = new_is_active
+                # Queue announcement if event is being activated
+                if not was_active and new_is_active:
+                    should_announce = True
+
+            if 'name' in data:
+                event.name = data['name']
+            if 'description' in data:
+                event.description = data['description']
+            if 'multiplier' in data:
+                event.multiplier = float(data['multiplier'])
+            if 'token_bonus' in data:
+                event.token_bonus = int(data['token_bonus'])
+            if 'scope' in data:
+                event.scope = data['scope']
+            if 'scope_id' in data:
+                event.scope_id = int(data['scope_id']) if data['scope_id'] else None
+
+            # Timing fields
+            if 'start_time' in data:
+                event.start_time = int(data['start_time']) if data['start_time'] else None
+            if 'end_time' in data:
+                event.end_time = int(data['end_time']) if data['end_time'] else None
+
+            # Announcement fields
+            if 'announcement_channel_id' in data:
+                event.announcement_channel_id = int(data['announcement_channel_id']) if data['announcement_channel_id'] else None
+            if 'announcement_role_id' in data:
+                event.announcement_role_id = int(data['announcement_role_id']) if data['announcement_role_id'] else None
+
+            event.updated_at = int(time.time())
+            db.commit()
+
+            # Queue announcement action if event was just activated
+            if should_announce and event.announcement_channel_id:
+                import json as json_module
+
+                action_data = {
+                    'event_id': event.id,
+                    'event_name': event.name,
+                    'multiplier': float(event.multiplier),
+                    'description': event.description,
+                    'channel_id': str(event.announcement_channel_id),
+                    'role_id': str(event.announcement_role_id) if event.announcement_role_id else None,
+                    'end_time': event.end_time,
+                }
+
+                pending_action = PendingAction(
+                    guild_id=int(guild_id),
+                    action_type=ActionType.BOOST_EVENT_START,
+                    payload=json_module.dumps(action_data),
+                    status='pending'
+                )
+                db.add(pending_action)
+                db.commit()
+
+            return JsonResponse({
+                'success': True,
+                'message': 'Boost event updated successfully'
+            })
+
+    except Exception as e:
+        logger.error(f"Error updating boost event {event_id} for guild {guild_id}: {e}", exc_info=True)
+        return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
+
+
+@require_http_methods(["DELETE"])
+@api_auth_required
+def api_xp_boost_event_delete(request, guild_id, event_id):
+    """DELETE /api/guild/<id>/xp/boost-events/<event_id>/ - Delete a custom boost event."""
+    try:
+        from .db import get_db_session
+        from .models import XPBoostEvent
+        from .module_utils import has_module_access
+
+        # Only allow deletion of custom events (not defaults)
+        # Require Engagement Module
+        if not has_module_access(guild_id, 'engagement'):
+            return JsonResponse({'error': 'Engagement Module required to delete custom boost events'}, status=403)
+
+        with get_db_session() as db:
+            event = db.query(XPBoostEvent).filter_by(
+                id=int(event_id),
+                guild_id=int(guild_id)
+            ).first()
+
+            if not event:
+                return JsonResponse({'error': 'Boost event not found'}, status=404)
+
+            if event.is_default:
+                return JsonResponse({'error': 'Cannot delete default boost events'}, status=400)
+
+            db.delete(event)
+            db.commit()
+
+            return JsonResponse({
+                'success': True,
+                'message': 'Boost event deleted successfully'
+            })
+
+    except Exception as e:
+        logger.error(f"Error deleting boost event {event_id} for guild {guild_id}: {e}", exc_info=True)
+        return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
+
+
+@require_http_methods(["POST"])
+@api_auth_required
+def api_xp_boost_event_create(request, guild_id):
+    """POST /api/guild/<id>/xp/boost-events/create/ - Create a custom boost event."""
+    try:
+        import json as json_lib
+        data = json_lib.loads(request.body)
+    except json_lib.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+    try:
+        from .db import get_db_session
+        from .models import XPBoostEvent
+        from .module_utils import has_module_access
+        import time
+
+        # Require Engagement Module for custom events
+        if not has_module_access(guild_id, 'engagement'):
+            return JsonResponse({'error': 'Engagement Module required to create custom boost events'}, status=403)
+
+        # Validate required fields
+        name = data.get('name', '').strip()
+        if not name:
+            return JsonResponse({'error': 'Event name is required'}, status=400)
+        if len(name) > 255:
+            return JsonResponse({'error': 'Event name must be 255 characters or less'}, status=400)
+
+        description = data.get('description', '').strip()
+
+        # Validate multiplier
+        try:
+            multiplier = float(data.get('multiplier', 2.0))
+            if multiplier < 1.0 or multiplier > 10.0:
+                return JsonResponse({'error': 'Multiplier must be between 1.0 and 10.0'}, status=400)
+        except (ValueError, TypeError):
+            return JsonResponse({'error': 'Invalid multiplier value'}, status=400)
+
+        # Validate scope
+        scope = data.get('scope', 'server')
+        if scope not in ['server', 'role', 'channel']:
+            return JsonResponse({'error': 'Invalid scope. Must be server, role, or channel'}, status=400)
+
+        # Validate scope_id if scope is role or channel
+        scope_id = None
+        if scope in ['role', 'channel']:
+            scope_id_str = data.get('scope_id', '').strip()
+            if not scope_id_str:
+                return JsonResponse({'error': f'Scope ID is required when scope is {scope}'}, status=400)
+            try:
+                scope_id = int(scope_id_str)
+            except (ValueError, TypeError):
+                return JsonResponse({'error': 'Invalid scope ID'}, status=400)
+
+        # Validate token bonus
+        try:
+            token_bonus = int(data.get('token_bonus', 0))
+            if token_bonus < 0:
+                return JsonResponse({'error': 'Token bonus cannot be negative'}, status=400)
+        except (ValueError, TypeError):
+            return JsonResponse({'error': 'Invalid token bonus value'}, status=400)
+
+        # Parse timing fields
+        start_time = None
+        end_time = None
+        if 'start_time' in data and data['start_time']:
+            try:
+                start_time = int(data['start_time'])
+            except (ValueError, TypeError):
+                return JsonResponse({'error': 'Invalid start time'}, status=400)
+
+        if 'end_time' in data and data['end_time']:
+            try:
+                end_time = int(data['end_time'])
+            except (ValueError, TypeError):
+                return JsonResponse({'error': 'Invalid end time'}, status=400)
+
+        # Validate end_time is after start_time
+        if start_time and end_time and end_time <= start_time:
+            return JsonResponse({'error': 'End time must be after start time'}, status=400)
+
+        # Parse announcement fields
+        announcement_channel_id = None
+        announcement_role_id = None
+        if 'announcement_channel_id' in data and data['announcement_channel_id']:
+            try:
+                announcement_channel_id = int(data['announcement_channel_id'])
+            except (ValueError, TypeError):
+                return JsonResponse({'error': 'Invalid announcement channel ID'}, status=400)
+
+        if 'announcement_role_id' in data and data['announcement_role_id']:
+            try:
+                announcement_role_id = int(data['announcement_role_id'])
+            except (ValueError, TypeError):
+                return JsonResponse({'error': 'Invalid announcement role ID'}, status=400)
+
+        current_time = int(time.time())
+
+        with get_db_session() as db:
+            # Create new boost event
+            new_event = XPBoostEvent(
+                guild_id=int(guild_id),
+                name=name,
+                description=description or None,
+                multiplier=multiplier,
+                start_time=start_time,
+                end_time=end_time,
+                is_active=False,
+                is_default=False,  # Custom events are not defaults
+                scope=scope,
+                scope_id=scope_id,
+                token_bonus=token_bonus,
+                announcement_channel_id=announcement_channel_id,
+                announcement_role_id=announcement_role_id,
+                created_at=current_time,
+                updated_at=current_time
+            )
+
+            db.add(new_event)
+            db.commit()
+            db.refresh(new_event)
+
+            return JsonResponse({
+                'success': True,
+                'message': 'Boost event created successfully',
+                'event': {
+                    'id': new_event.id,
+                    'name': new_event.name,
+                    'description': new_event.description,
+                    'multiplier': float(new_event.multiplier),
+                    'start_time': new_event.start_time,
+                    'end_time': new_event.end_time,
+                    'is_active': new_event.is_active,
+                    'is_default': new_event.is_default,
+                    'scope': new_event.scope,
+                    'scope_id': str(new_event.scope_id) if new_event.scope_id else None,
+                    'token_bonus': new_event.token_bonus,
+                    'announcement_channel_id': str(new_event.announcement_channel_id) if new_event.announcement_channel_id else None,
+                    'announcement_role_id': str(new_event.announcement_role_id) if new_event.announcement_role_id else None,
+                }
+            })
+
+    except Exception as e:
+        logger.error(f"Error creating boost event for guild {guild_id}: {e}", exc_info=True)
+        return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
+
+
 # Role Management Dashboard (with CSV Import - Pro/Premium)
 
 @discord_required
 def guild_roles(request, guild_id):
     """Role management page for a guild."""
+    from .module_utils import has_module_access, has_any_module_access
+
     discord_user = request.session.get('discord_user', {})
     admin_guilds = request.session.get('discord_admin_guilds', [])
 
@@ -3507,15 +4810,22 @@ def guild_roles(request, guild_id):
     except Exception as e:
         logger.warning(f"Could not fetch role data: {e}")
 
+    # Check if guild has roles module access
+    has_roles_module = has_module_access(guild_id, 'roles')
+    has_any_module = has_any_module_access(guild_id)
+
     context = {
         'discord_user': discord_user,
         'guild': guild,
         'guild_record': guild_record,
         'admin_guilds': admin_guilds,
+        'member_guilds': get_member_guilds(request),
         'is_admin': True,
         'is_premium': is_premium,
         'pending_actions': pending_actions,
         'recent_imports': recent_imports,
+        'has_roles_module': has_roles_module,
+        'has_any_module': has_any_module,
         'active_page': 'roles',
     }
     return render(request, 'warden/roles.html', context)
@@ -3598,6 +4908,8 @@ def _serialize_reaction_role_menus(db, guild_id, message_id=None):
 @discord_required
 def guild_reaction_roles(request, guild_id):
     """Reaction roles management page for a guild."""
+    from .module_utils import has_module_access, has_any_module_access
+
     discord_user = request.session.get('discord_user', {})
     admin_guilds = request.session.get('discord_admin_guilds', [])
 
@@ -3608,21 +4920,32 @@ def guild_reaction_roles(request, guild_id):
 
     # Fetch reaction role menus from database
     reaction_menus = []
+    guild_record = None
 
     try:
         from .db import get_db_session
+        from .models import Guild as GuildModel
 
         with get_db_session() as db:
+            guild_record = db.query(GuildModel).filter_by(guild_id=int(guild_id)).first()
             reaction_menus = _serialize_reaction_role_menus(db, guild_id)
     except Exception as e:
         logger.warning(f"Could not fetch reaction role menus: {e}")
 
+    # Check if guild has roles module access
+    has_roles_module = has_module_access(guild_id, 'roles')
+    has_any_module = has_any_module_access(guild_id)
+
     context = {
         'discord_user': discord_user,
         'guild': guild,
+        'guild_record': guild_record,
         'admin_guilds': admin_guilds,
+        'member_guilds': get_member_guilds(request),
         'is_admin': True,
         'reaction_menus': reaction_menus,
+        'has_roles_module': has_roles_module,
+        'has_any_module': has_any_module,
         'active_page': 'reaction_roles',
     }
     return render(request, 'warden/reaction_roles.html', context)
@@ -4040,8 +5363,10 @@ def api_role_action(request, guild_id):
 
 @require_http_methods(["POST"])
 @api_auth_required
+@require_subscription_tier('pro', 'premium')
+@ratelimit(key='user_or_ip', rate='5/h', method='POST', block=True)
 def api_role_bulk_import(request, guild_id):
-    """POST /api/guild/<id>/roles/import/ - Import XLSX for bulk role assignment."""
+    """POST /api/guild/<id>/roles/import/ - Import XLSX for bulk role assignment (Pro/Premium only, 5 req/hour)."""
     # Check subscription tier and determine limits
     try:
         from .db import get_db_session
@@ -4053,15 +5378,13 @@ def api_role_bulk_import(request, guild_id):
                 return JsonResponse({'error': 'Guild not found'}, status=404)
 
             # Determine import limit based on tier
+            # Free tier blocked by @require_subscription_tier decorator
             # VIP and Premium: Unlimited
             # Pro: 10 users
-            # Free: 6 users
             if guild_record.is_vip or guild_record.subscription_tier == SubscriptionTier.PREMIUM.value:
                 max_users = None  # Unlimited
-            elif guild_record.subscription_tier == SubscriptionTier.PRO.value:
+            else:  # Pro tier
                 max_users = 10
-            else:  # Free tier
-                max_users = 6
     except Exception as e:
         return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
 
@@ -4515,6 +5838,7 @@ def _ensure_admin(guild_id, request):
 def guild_raffles(request, guild_id):
     """Render raffles dashboard."""
     from .db import get_db_session
+    from .module_utils import has_module_access, has_any_module_access
 
     admin_guilds = request.session.get('discord_admin_guilds', [])
     guild = next((g for g in admin_guilds if str(g.get('id')) == str(guild_id)), None)
@@ -4531,6 +5855,7 @@ def guild_raffles(request, guild_id):
 
     is_vip = False
     subscription_tier = 'free'
+    guild_record = None
     try:
         with get_db_session() as db:
             from .models import GuildMember, Guild as GuildModel
@@ -4545,17 +5870,28 @@ def guild_raffles(request, guild_id):
             if guild_record:
                 is_vip = guild_record.is_vip
                 subscription_tier = guild_record.subscription_tier if guild_record.subscription_tier else 'free'
+                billing_cycle = guild_record.billing_cycle
     except Exception:
         current_tokens = 0
+        billing_cycle = None
+
+    # Check if guild has engagement module access
+    has_engagement_module = has_module_access(guild_id, 'engagement')
+    has_any_module = has_any_module_access(guild_id)
 
     return render(request, 'warden/raffles.html', {
         'guild': guild,
+        'guild_record': guild_record,
         'admin_guilds': admin_guilds,
+        'member_guilds': get_member_guilds(request),
         'discord_user': request.session.get('discord_user', {}),
         'is_admin': True,
         'current_tokens': current_tokens,
         'is_vip': is_vip,
         'subscription_tier': subscription_tier,
+        'billing_cycle': billing_cycle if 'billing_cycle' in locals() else None,
+        'has_engagement_module': has_engagement_module,
+        'has_any_module': has_any_module,
         'active_page': 'raffles',
     })
 
@@ -5193,6 +6529,8 @@ def api_role_export_create_template(request, guild_id):
 @discord_required
 def guild_audit_logs(request, guild_id):
     """View audit logs for a guild."""
+    from .module_utils import has_module_access, has_any_module_access
+
     discord_user = request.session.get('discord_user', {})
     admin_guilds = request.session.get('discord_admin_guilds', [])
 
@@ -5289,10 +6627,16 @@ def guild_audit_logs(request, guild_id):
     if guild_record:
         audit_log_channel_id = str(guild_record.log_channel_id) if guild_record.log_channel_id else ''
 
+    # Check if guild has moderation module access
+    has_moderation_module = has_module_access(guild_id, 'moderation')
+    has_any_module = has_any_module_access(guild_id)
+
     context = {
         'discord_user': discord_user,
         'guild': guild,
+        'guild_record': guild_record,
         'admin_guilds': admin_guilds,
+        'member_guilds': get_member_guilds(request),
         'is_admin': True,
         'audit_logs': audit_logs,
         'total_count': total_count,
@@ -5300,6 +6644,8 @@ def guild_audit_logs(request, guild_id):
         'audit_log_channel_id': audit_log_channel_id,
         'audit_enabled': bool(guild_record.audit_logging_enabled) if guild_record else False,
         'audit_event_config': guild_record.audit_event_config if guild_record else '',
+        'has_moderation_module': has_moderation_module,
+        'has_any_module': has_any_module,
         'current_filters': {
             'action': action_filter,
             'actor': actor_filter,
@@ -5480,10 +6826,29 @@ def api_audit_stats(request, guild_id):
         return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
 
 
-@require_http_methods(["POST", "PATCH"])
+@require_http_methods(["GET", "POST", "PATCH"])
 @api_auth_required
 def api_audit_config_update(request, guild_id):
-    """POST /api/guild/<id>/audit/config/ - Update audit log channel configuration."""
+    """GET/POST /api/guild/<id>/audit/config/ - Fetch or update audit log configuration."""
+    # GET: return current config
+    if request.method == "GET":
+        try:
+            from .db import get_db_session
+            from .models import Guild as GuildModel
+
+            with get_db_session() as db:
+                guild_record = db.query(GuildModel).filter_by(guild_id=int(guild_id)).first()
+                return JsonResponse({
+                    'success': True,
+                    'log_channel_id': str(guild_record.log_channel_id) if guild_record and guild_record.log_channel_id else '',
+                    'audit_enabled': bool(guild_record.audit_logging_enabled) if guild_record else False,
+                    'event_config': json_lib.loads(guild_record.audit_event_config or '{}') if guild_record else {}
+                })
+        except Exception as e:
+            logger.error(f"Error fetching audit config: {e}", exc_info=True)
+            return JsonResponse({'error': 'Failed to fetch audit config'}, status=500)
+
+    # POST/PATCH: update config
     try:
         data = json_lib.loads(request.body)
     except json_lib.JSONDecodeError:
@@ -5501,7 +6866,10 @@ def api_audit_config_update(request, guild_id):
 
             # Update log channel
             if 'log_channel_id' in data:
-                guild_record.log_channel_id = int(data['log_channel_id']) if data['log_channel_id'] else None
+                try:
+                    guild_record.log_channel_id = int(data['log_channel_id']) if data['log_channel_id'] else None
+                except (TypeError, ValueError):
+                    guild_record.log_channel_id = None
             if data.get('audit_enabled') is False:
                 guild_record.log_channel_id = None
                 guild_record.audit_logging_enabled = False
@@ -5511,7 +6879,13 @@ def api_audit_config_update(request, guild_id):
                 guild_record.audit_event_config = json_lib.dumps(data.get('event_config') or {})
 
             logger.info(f"Updated audit log channel for guild {guild_id} to {guild_record.log_channel_id}")
-            return JsonResponse({'success': True})
+            db.commit()
+            return JsonResponse({
+                'success': True,
+                'log_channel_id': str(guild_record.log_channel_id) if guild_record.log_channel_id else '',
+                'audit_enabled': guild_record.audit_logging_enabled,
+                'event_config': json_lib.loads(guild_record.audit_event_config or '{}')
+            })
 
     except Exception as e:
         logger.error(f"Error updating audit config: {e}", exc_info=True)
@@ -5520,8 +6894,10 @@ def api_audit_config_update(request, guild_id):
 
 @require_http_methods(["GET"])
 @api_auth_required
+@require_subscription_tier('pro', 'premium')
+@ratelimit(key='user_or_ip', rate='10/h', method='GET', block=True)
 def api_audit_export(request, guild_id):
-    """GET /api/guild/<id>/audit/export/ - Export audit logs to CSV."""
+    """GET /api/guild/<id>/audit/export/ - Export audit logs to CSV (Pro/Premium only, 10 req/hour)."""
     import csv
     import io
     from django.http import HttpResponse
@@ -5588,6 +6964,8 @@ def api_audit_export(request, guild_id):
 @discord_required
 def guild_welcome(request, guild_id):
     """Welcome and goodbye message configuration page."""
+    from .module_utils import has_module_access, has_any_module_access
+
     discord_user = request.session.get('discord_user', {})
     admin_guilds = request.session.get('discord_admin_guilds', [])
 
@@ -5599,6 +6977,7 @@ def guild_welcome(request, guild_id):
     # Fetch welcome config from database
     welcome_config = None
     guild_channels = []
+    guild_record = None
 
     try:
         from .db import get_db_session
@@ -5656,12 +7035,20 @@ def guild_welcome(request, guild_id):
         logger.warning(f"Could not fetch welcome config: {e}")
         welcome_config = {}
 
+    # Check if guild has engagement module access
+    has_engagement_module = has_module_access(guild_id, 'engagement')
+    has_any_module = has_any_module_access(guild_id)
+
     context = {
         'discord_user': discord_user,
         'guild': guild,
+        'guild_record': guild_record,
         'admin_guilds': admin_guilds,
+        'member_guilds': get_member_guilds(request),
         'is_admin': True,
         'welcome_config': welcome_config,
+        'has_engagement_module': has_engagement_module,
+        'has_any_module': has_any_module,
         'active_page': 'welcome',
     }
     return render(request, 'warden/welcome.html', context)
@@ -5773,6 +7160,7 @@ def api_welcome_config(request, guild_id):
                 'success': True,
                 'config': {
                     'enabled': config.enabled,
+                    'xp_enabled': config.xp_enabled,
                     'channel_message_enabled': config.channel_message_enabled,
                     'channel_message': config.channel_message,
                     'channel_embed_enabled': config.channel_embed_enabled,
@@ -5832,6 +7220,8 @@ def api_welcome_test(request, guild_id):
 @discord_required
 def guild_levelup(request, guild_id):
     """Level-up message configuration page."""
+    from .module_utils import has_module_access, has_any_module_access
+
     discord_user = request.session.get('discord_user', {})
     admin_guilds = request.session.get('discord_admin_guilds', [])
 
@@ -5841,6 +7231,7 @@ def guild_levelup(request, guild_id):
         return redirect('warden_dashboard')
 
     levelup_config = None
+    guild_record = None
 
     try:
         from .db import get_db_session
@@ -5893,15 +7284,55 @@ def guild_levelup(request, guild_id):
         logger.warning(f"Could not fetch level-up config: {e}")
         levelup_config = {}
 
+    # Check if guild has engagement module access
+    has_engagement_module = has_module_access(guild_id, 'engagement')
+    has_any_module = has_any_module_access(guild_id)
+
     context = {
         'discord_user': discord_user,
         'guild': guild,
+        'guild_record': guild_record,
         'admin_guilds': admin_guilds,
+        'member_guilds': get_member_guilds(request),
         'is_admin': True,
         'levelup_config': levelup_config,
+        'has_engagement_module': has_engagement_module,
+        'has_any_module': has_any_module,
         'active_page': 'levelup',
     }
     return render(request, 'warden/levelup.html', context)
+
+
+# Message System
+@discord_required
+def guild_messages(request, guild_id):
+    """Message System dashboard (send/edit messages and embeds)."""
+    discord_user = request.session.get('discord_user', {})
+    admin_guilds = request.session.get('discord_admin_guilds', [])
+    guild = next((g for g in admin_guilds if g['id'] == guild_id), None)
+    if not guild:
+        messages.error(request, "You don't have admin access to this server.")
+        return redirect('warden_dashboard')
+
+    guild_record = None
+    try:
+        from .db import get_db_session
+        from .models import Guild as GuildModel
+        with get_db_session() as db:
+            guild_record = db.query(GuildModel).filter_by(guild_id=int(guild_id)).first()
+    except Exception as e:
+        logger.warning(f"Could not fetch guild record: {e}")
+
+    context = {
+        'discord_user': discord_user,
+        'guild': guild,
+        'guild_record': guild_record,
+        'admin_guilds': admin_guilds,
+        'member_guilds': get_member_guilds(request),
+        'is_admin': True,
+        'active_page': 'messages',
+    }
+    return render(request, 'warden/messages.html', context)
 
 
 @require_http_methods(["POST", "PATCH"])
@@ -6002,54 +7433,137 @@ def api_guild_channels(request, guild_id):
         return JsonResponse({'error': str(e), 'channels': []}, status=500)
 
 
-@require_http_methods(["GET"])
+@require_http_methods(["GET", "PATCH"])
 @api_auth_required
 def api_guild_roles(request, guild_id):
-    """GET /api/guild/<id>/roles/ - Get guild roles (cached)."""
-    try:
-        from .discord_resources import get_guild_roles
+    """
+    GET /api/guild/<id>/roles/ - Get guild roles (cached).
+    PATCH /api/guild/<id>/roles/ - Update Discord role positions.
+    """
+    if request.method == 'GET':
+        try:
+            from .discord_resources import get_guild_roles
 
-        # Get force_refresh from query params
-        force_refresh = request.GET.get('force_refresh', 'false').lower() == 'true'
+            # Get force_refresh from query params
+            force_refresh = request.GET.get('force_refresh', 'false').lower() == 'true'
 
-        # Fetch roles with caching
-        roles = get_guild_roles(guild_id, force_refresh=force_refresh)
+            # Fetch roles with caching
+            roles = get_guild_roles(guild_id, force_refresh=force_refresh)
 
-        # Add is_everyone flag for each role
-        norm_roles = []
-        for role in roles:
-            norm_roles.append({
-                'id': str(role.get('id')),
-                'name': role.get('name'),
-                'position': role.get('position'),
-                'is_everyone': role.get('name') == '@everyone' or str(role.get('id')) == str(guild_id)
-            })
+            # Add is_everyone flag for each role
+            norm_roles = []
+            for role in roles:
+                norm_roles.append({
+                    'id': str(role.get('id')),
+                    'name': role.get('name'),
+                    'position': role.get('position'),
+                    'is_everyone': role.get('name') == '@everyone' or str(role.get('id')) == str(guild_id)
+                })
 
-        return JsonResponse({'success': True, 'roles': norm_roles})
+            return JsonResponse({'success': True, 'roles': norm_roles})
 
-    except Exception as e:
-        logger.error(f"Failed to fetch roles for guild {guild_id}: {e}")
-        return JsonResponse({'error': str(e), 'roles': []}, status=500)
+        except Exception as e:
+            logger.error(f"Failed to fetch roles for guild {guild_id}: {e}")
+            return JsonResponse({'error': str(e), 'roles': []}, status=500)
+
+    elif request.method == 'PATCH':
+        try:
+            import json
+
+            try:
+                data = json.loads(request.body)
+            except json.JSONDecodeError:
+                return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+            # Data should be an array of role position updates
+            # Format: [{"id": "role_id", "position": 5}, ...]
+            if not isinstance(data, list):
+                return JsonResponse({'error': 'Expected array of role updates'}, status=400)
+
+            bot_session = get_bot_session(int(guild_id))
+            if not bot_session:
+                return JsonResponse({'error': 'Bot session not available'}, status=500)
+
+            # Update role positions via Discord API
+            # NOTE: Discord may auto-adjust positions to prevent conflicts or enforce hierarchy rules
+            resp = bot_session.patch(f'/guilds/{guild_id}/roles', json=data)
+
+            if resp.status_code == 200:
+                # Discord returns the updated roles array
+                updated_roles = resp.json()
+                logger.info(f"Discord accepted position update for guild {guild_id}. Response: {updated_roles}")
+
+                # Check if Discord actually applied the requested position
+                requested_role = data[0]  # We only send one role at a time
+                actual_role = next((r for r in updated_roles if r['id'] == requested_role['id']), None)
+
+                if actual_role and actual_role['position'] != requested_role['position']:
+                    logger.warning(
+                        f"Discord adjusted role position for {requested_role['id']} in guild {guild_id}: "
+                        f"requested {requested_role['position']}, actual {actual_role['position']}"
+                    )
+                    return JsonResponse({
+                        'success': True,
+                        'updated': len(data),
+                        'warning': f'Discord adjusted position to {actual_role["position"]} due to role hierarchy rules'
+                    })
+
+                return JsonResponse({'success': True, 'updated': len(data)})
+            else:
+                error_text = resp.text
+                logger.error(f"Failed to update Discord role positions in guild {guild_id}: {resp.status_code} - {error_text}")
+                return JsonResponse({'error': f'Discord API returned status {resp.status_code}: {error_text}'}, status=resp.status_code)
+
+        except Exception as e:
+            logger.error(f"Error updating Discord role positions in guild {guild_id}: {e}", exc_info=True)
+            return JsonResponse({'error': 'An internal error occurred'}, status=500)
+
+    else:
+        return JsonResponse({'error': 'Method not allowed'}, status=405)
 
 
 @require_http_methods(["GET"])
 @api_auth_required
 def api_guild_emojis(request, guild_id):
-    """GET /api/guild/<id>/emojis/ - Get guild custom emojis (cached)."""
+    """GET /api/guild/<id>/emojis/ - Get ALL guild custom emojis from database cache + standard emojis."""
     try:
         from .discord_resources import get_guild_emojis
 
         # Get force_refresh from query params
         force_refresh = request.GET.get('force_refresh', 'false').lower() == 'true'
 
-        # Fetch emojis with caching
-        emojis = get_guild_emojis(guild_id, force_refresh=force_refresh)
+        # Fetch ALL custom emojis from database (synced by bot)
+        custom = get_guild_emojis(guild_id, force_refresh=force_refresh)
 
-        return JsonResponse({'emojis': emojis})
+        # Standard emoji list (commonly used ones)
+        standard = [
+            {'name': '😀', 'id': None},
+            {'name': '😁', 'id': None},
+            {'name': '😂', 'id': None},
+            {'name': '🤣', 'id': None},
+            {'name': '😎', 'id': None},
+            {'name': '😍', 'id': None},
+            {'name': '👍', 'id': None},
+            {'name': '👎', 'id': None},
+            {'name': '🎉', 'id': None},
+            {'name': '✅', 'id': None},
+            {'name': '❌', 'id': None},
+            {'name': '🔥', 'id': None},
+            {'name': '⭐', 'id': None},
+            {'name': '💎', 'id': None},
+            {'name': '🎮', 'id': None},
+            {'name': '🎯', 'id': None},
+            {'name': '🏆', 'id': None},
+            {'name': '💰', 'id': None},
+            {'name': '🎁', 'id': None},
+            {'name': '🎲', 'id': None},
+        ]
+
+        return JsonResponse({'success': True, 'standard': standard, 'custom': custom})
 
     except Exception as e:
         logger.error(f"Failed to fetch emojis for guild {guild_id}: {e}")
-        return JsonResponse({'error': str(e), 'emojis': []}, status=500)
+        return JsonResponse({'success': False, 'error': str(e), 'standard': [], 'custom': []}, status=500)
 
 
 # Admin/Server Settings Dashboard
@@ -6066,6 +7580,7 @@ def guild_settings(request, guild_id):
         return redirect('warden_dashboard')
 
     settings = {}
+    guild_record = None
 
     try:
         from .db import get_db_session
@@ -6083,6 +7598,8 @@ def guild_settings(request, guild_id):
                     'token_emoji': guild_record.token_emoji or ':coin:',
                     'mod_log_channel_id': str(guild_record.mod_log_channel_id) if guild_record.mod_log_channel_id else '',
                     'subscription_tier': guild_record.subscription_tier if guild_record.subscription_tier else 'free',
+                    'billing_cycle': guild_record.billing_cycle,
+                    'is_vip': guild_record.is_vip,
                 }
             else:
                 settings = {
@@ -6093,6 +7610,8 @@ def guild_settings(request, guild_id):
                     'token_emoji': ':coin:',
                     'mod_log_channel_id': '',
                     'subscription_tier': 'free',
+                    'billing_cycle': None,
+                    'is_vip': False,
                 }
 
     except Exception as e:
@@ -6101,7 +7620,9 @@ def guild_settings(request, guild_id):
     context = {
         'discord_user': discord_user,
         'guild': guild,
+        'guild_record': guild_record,
         'admin_guilds': admin_guilds,
+        'member_guilds': get_member_guilds(request),
         'is_admin': True,
         'settings': settings,
         'active_page': 'settings',
@@ -6120,7 +7641,9 @@ def guild_billing(request, guild_id):
         messages.error(request, "You don't have admin access to this server.")
         return redirect('warden_dashboard')
 
+    guild_record = None
     try:
+        from django.conf import settings
         from .db import get_db_session
         from .models import Guild as GuildModel, GuildModule
         from .modules_config import MODULES, BUNDLES, get_all_modules
@@ -6132,7 +7655,7 @@ def guild_billing(request, guild_id):
         # Get currently active modules for this guild
         active_modules = get_guild_modules(guild_id)
 
-        # Check if guild has VIP status or Premium/Pro tier
+        # Check if guild has VIP status or Complete tier
         is_vip = False
         subscription_tier = 'free'
         has_all_modules = False
@@ -6141,8 +7664,11 @@ def guild_billing(request, guild_id):
             if guild_record:
                 is_vip = guild_record.is_vip
                 subscription_tier = guild_record.subscription_tier if guild_record.subscription_tier else 'free'
-                # VIP, Premium, or Pro get all modules
-                has_all_modules = is_vip or subscription_tier in ['premium', 'pro']
+                billing_cycle = guild_record.billing_cycle
+                # VIP or Complete tier get all modules
+                has_all_modules = is_vip or subscription_tier == 'complete' or billing_cycle == 'lifetime'
+            else:
+                billing_cycle = None
 
         # Build module data with active status
         modules_data = []
@@ -6164,19 +7690,58 @@ def guild_billing(request, guild_id):
         total_monthly = sum(m['price_monthly'] for m in modules_data)
         total_yearly = sum(m['price_yearly'] for m in modules_data)
 
+        # Get Stripe subscription details if available
+        subscription_data = None
+        if guild_record and guild_record.stripe_subscription_id:
+            # Skip if it's a lifetime subscription (not a real Stripe subscription ID)
+            if not guild_record.stripe_subscription_id.startswith('lifetime_'):
+                try:
+                    import stripe
+                    stripe.api_key = settings.STRIPE_SECRET_KEY
+                    subscription = stripe.Subscription.retrieve(guild_record.stripe_subscription_id)
+
+                    # Extract price info from subscription items using dict-style access
+                    amount = 0
+                    interval = 'month'
+                    if 'items' in subscription and subscription['items'].get('data'):
+                        items_data = subscription['items']['data']
+                        if items_data and len(items_data) > 0:
+                            price = items_data[0]['price']
+                            amount = price['unit_amount'] / 100
+                            interval = price.get('recurring', {}).get('interval', 'month')
+
+                    subscription_data = {
+                        'id': subscription.id,
+                        'status': subscription.get('status', 'active'),
+                        'current_period_end': subscription['items']['data'][0].get('current_period_end') if subscription.get('items', {}).get('data') else None,
+                        'cancel_at_period_end': subscription.get('cancel_at_period_end', False),
+                        'plan_name': subscription.get('metadata', {}).get('plan_name', 'Complete Suite'),
+                        'amount': amount,
+                        'interval': interval,
+                    }
+                    logger.info(f"Fetched subscription for guild {guild_id}: status={subscription_data['status']}, cancel_at_period_end={subscription_data['cancel_at_period_end']}, current_period_end={subscription_data['current_period_end']}")
+                except Exception as e:
+                    logger.error(f"Error fetching Stripe subscription: {e}", exc_info=True)
+
         context = {
             'discord_user': discord_user,
             'guild': guild,
+            'guild_record': guild_record,
             'admin_guilds': admin_guilds,
+        'member_guilds': get_member_guilds(request),
             'is_admin': True,
             'active_page': 'billing',
             'modules': modules_data,
             'bundles': BUNDLES,
+            'active_modules': active_modules,
             'active_module_count': len(active_modules),
             'total_modules': len(all_modules),
             'total_monthly': total_monthly,
             'total_yearly': total_yearly,
             'is_vip': is_vip,
+            'subscription_tier': subscription_tier,
+            'billing_cycle': billing_cycle if 'billing_cycle' in locals() else None,
+            'subscription': subscription_data,
         }
         return render(request, 'warden/billing.html', context)
 
@@ -6304,11 +7869,13 @@ def stripe_create_checkout(request, guild_id):
 
 
 @require_http_methods(["POST"])
+@csrf_exempt  # Stripe webhook uses signature verification instead of CSRF
 def stripe_webhook(request):
     """
     POST /webhooks/stripe/ - Handle Stripe webhook events.
 
     This endpoint is called by Stripe to notify us of subscription events.
+    CSRF exempt because Stripe webhook signature verification is more secure.
     """
     try:
         from django.conf import settings
@@ -6402,6 +7969,122 @@ def stripe_subscription_status(request, guild_id):
 
 @require_http_methods(["POST"])
 @api_auth_required
+def stripe_billing_portal(request, guild_id):
+    """
+    POST /api/guild/<id>/stripe/portal/ - Create Stripe billing portal session.
+    """
+    try:
+        from django.conf import settings
+        from .db import get_db_session
+        from .models import Guild as GuildModel
+        import stripe
+        stripe.api_key = settings.STRIPE_SECRET_KEY
+
+        with get_db_session() as db:
+            guild = db.query(GuildModel).filter_by(guild_id=int(guild_id)).first()
+            if not guild or not guild.stripe_customer_id:
+                return JsonResponse({'error': 'No active subscription found'}, status=404)
+
+            # Create portal session
+            # Construct return URL from request
+            return_url = request.build_absolute_uri(f'/warden/guild/{guild_id}/billing/?portal=success')
+            portal_session = stripe.billing_portal.Session.create(
+                customer=guild.stripe_customer_id,
+                return_url=return_url
+            )
+
+            return JsonResponse({'success': True, 'portal_url': portal_session.url})
+
+    except Exception as e:
+        logger.error(f"Error creating billing portal: {e}")
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@require_http_methods(["POST"])
+@api_auth_required
+def stripe_transfer_subscription(request, guild_id):
+    """
+    POST /api/guild/<id>/stripe/transfer/ - Transfer subscription to another guild.
+    """
+    try:
+        import json
+        from .db import get_db_session
+        from .models import Guild as GuildModel, GuildModule
+
+        data = json.loads(request.body)
+        new_guild_id = data.get('new_guild_id')
+
+        if not new_guild_id:
+            return JsonResponse({'error': 'new_guild_id is required'}, status=400)
+
+        with get_db_session() as db:
+            # Get source guild
+            source_guild = db.query(GuildModel).filter_by(guild_id=int(guild_id)).first()
+            if not source_guild:
+                return JsonResponse({'error': 'Source guild not found'}, status=404)
+
+            # Get or create target guild
+            target_guild = db.query(GuildModel).filter_by(guild_id=int(new_guild_id)).first()
+            if not target_guild:
+                target_guild = GuildModel(
+                    guild_id=int(new_guild_id),
+                    is_vip=False,
+                    subscription_tier='free',
+                )
+                db.add(target_guild)
+                db.flush()
+
+            # Transfer subscription data
+            target_guild.stripe_customer_id = source_guild.stripe_customer_id
+            target_guild.stripe_subscription_id = source_guild.stripe_subscription_id
+            target_guild.subscription_tier = source_guild.subscription_tier
+
+            # Transfer all modules
+            source_modules = db.query(GuildModule).filter_by(guild_id=int(guild_id)).all()
+            for src_module in source_modules:
+                # Check if target already has this module
+                target_module = db.query(GuildModule).filter_by(
+                    guild_id=int(new_guild_id),
+                    module_name=src_module.module_name
+                ).first()
+
+                if target_module:
+                    # Update existing
+                    target_module.enabled = src_module.enabled
+                    target_module.expires_at = src_module.expires_at
+                    target_module.stripe_subscription_id = src_module.stripe_subscription_id
+                else:
+                    # Create new
+                    new_module = GuildModule(
+                        guild_id=int(new_guild_id),
+                        module_name=src_module.module_name,
+                        enabled=src_module.enabled,
+                        expires_at=src_module.expires_at,
+                        stripe_subscription_id=src_module.stripe_subscription_id,
+                    )
+                    db.add(new_module)
+
+            # Clear source guild subscription
+            source_guild.stripe_customer_id = None
+            source_guild.stripe_subscription_id = None
+            source_guild.subscription_tier = 'free'
+
+            # Disable all source modules
+            for src_module in source_modules:
+                src_module.enabled = False
+
+            db.commit()
+
+            logger.info(f"Transferred subscription from guild {guild_id} to {new_guild_id}")
+            return JsonResponse({'success': True, 'message': 'Subscription transferred successfully'})
+
+    except Exception as e:
+        logger.error(f"Error transferring subscription: {e}")
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@require_http_methods(["POST"])
+@api_auth_required
 def api_settings_remove_data(request, guild_id):
     """POST /api/guild/<id>/settings/remove-data/ - Remove all guild data."""
     try:
@@ -6427,6 +8110,8 @@ def api_settings_remove_data(request, guild_id):
 @discord_required
 def guild_verification(request, guild_id):
     """Verification configuration page."""
+    from .module_utils import has_module_access, has_any_module_access
+
     discord_user = request.session.get('discord_user', {})
     admin_guilds = request.session.get('discord_admin_guilds', [])
 
@@ -6436,6 +8121,7 @@ def guild_verification(request, guild_id):
         return redirect('warden_dashboard')
 
     verification_config = {}
+    guild_record = None
 
     try:
         from .db import get_db_session
@@ -6485,12 +8171,20 @@ def guild_verification(request, guild_id):
     except Exception as e:
         logger.warning(f"Could not fetch verification config: {e}")
 
+    # Check if guild has moderation module access
+    has_moderation_module = has_module_access(guild_id, 'moderation')
+    has_any_module = has_any_module_access(guild_id)
+
     context = {
         'discord_user': discord_user,
         'guild': guild,
+        'guild_record': guild_record,
         'admin_guilds': admin_guilds,
+        'member_guilds': get_member_guilds(request),
         'is_admin': True,
         'verification_config': verification_config,
+        'has_moderation_module': has_moderation_module,
+        'has_any_module': has_any_module,
         'active_page': 'verification',
     }
     return render(request, 'warden/verification.html', context)
@@ -6566,6 +8260,8 @@ def api_verification_config_update(request, guild_id):
 @discord_required
 def guild_moderation(request, guild_id):
     """Moderation dashboard - warnings, bans, timeouts."""
+    from .module_utils import has_module_access, has_any_module_access
+
     discord_user = request.session.get('discord_user', {})
     admin_guilds = request.session.get('discord_admin_guilds', [])
 
@@ -6576,6 +8272,7 @@ def guild_moderation(request, guild_id):
 
     mod_actions = []
     stats = {'total': 0, 'active': 0, 'week': 0}
+    guild_record = None
 
     try:
         from .db import get_db_session
@@ -6691,14 +8388,22 @@ def guild_moderation(request, guild_id):
         logger.warning(f"Could not fetch moderation data: {e}")
         guild_record = None
 
+    # Check if guild has moderation module access
+    has_moderation_module = has_module_access(guild_id, 'moderation')
+    has_any_module = has_any_module_access(guild_id)
+
     context = {
         'discord_user': discord_user,
         'guild': guild,
+        'guild_record': guild_record,
         'admin_guilds': admin_guilds,
+        'member_guilds': get_member_guilds(request),
         'is_admin': True,
         'mod_actions': mod_actions,
         'stats': stats,
         'mod_enabled': bool(guild_record.mod_enabled) if guild_record else False,
+        'has_moderation_module': has_moderation_module,
+        'has_any_module': has_any_module,
         'active_page': 'moderation',
     }
     return render(request, 'warden/moderation.html', context)
@@ -6707,6 +8412,8 @@ def guild_moderation(request, guild_id):
 @discord_required
 def guild_moderation_settings(request, guild_id):
     """Moderation settings - configure jail, mute, mod log."""
+    from .module_utils import has_module_access, has_any_module_access
+
     discord_user = request.session.get('discord_user', {})
     admin_guilds = request.session.get('discord_admin_guilds', [])
 
@@ -6752,14 +8459,21 @@ def guild_moderation_settings(request, guild_id):
     except Exception as e:
         logger.warning(f"Could not fetch moderation settings: {e}")
 
+    # Check if guild has moderation module access
+    has_moderation_module = has_module_access(guild_id, 'moderation')
+    has_any_module = has_any_module_access(guild_id)
+
     context = {
         'discord_user': discord_user,
         'guild': guild,
         'admin_guilds': admin_guilds,
+        'member_guilds': get_member_guilds(request),
         'is_admin': True,
         'settings': settings,
         'channels': channels,
         'roles': roles,
+        'has_moderation_module': has_moderation_module,
+        'has_any_module': has_any_module,
         'active_page': 'moderation_settings',
     }
     return render(request, 'warden/moderation_settings.html', context)
@@ -7142,6 +8856,8 @@ def api_warnings_list(request, guild_id):
 @discord_required
 def guild_templates(request, guild_id):
     """Templates dashboard for channel and role templates."""
+    from .module_utils import has_module_access, has_any_module_access
+
     discord_user = request.session.get('discord_user', {})
     admin_guilds = request.session.get('discord_admin_guilds', [])
 
@@ -7202,14 +8918,21 @@ def guild_templates(request, guild_id):
     except Exception as e:
         logger.warning(f"Could not fetch templates: {e}")
 
+    # Check if guild has roles module access
+    has_roles_module = has_module_access(guild_id, 'roles')
+    has_any_module = has_any_module_access(guild_id)
+
     context = {
         'discord_user': discord_user,
         'guild': guild,
         'admin_guilds': admin_guilds,
+        'member_guilds': get_member_guilds(request),
         'is_admin': True,
         'channel_templates': channel_templates,
         'role_templates': role_templates,
         'is_premium': is_premium,
+        'has_roles_module': has_roles_module,
+        'has_any_module': has_any_module,
         'active_page': 'templates',
         'guild_record': guild_record,
         'total_templates': total_templates,
@@ -7244,14 +8967,12 @@ def api_channel_template_create(request, guild_id):
             role_count = db.query(RoleTemplate).filter_by(guild_id=int(guild_id)).count()
             total_templates = channel_count + role_count
 
-            # Check limits (VIP and Premium = unlimited, Pro = 10, Free = 5)
-            if not guild_record.is_vip and guild_record.subscription_tier != 'premium':
-                limit = 10 if guild_record.subscription_tier == 'pro' else 5
+            # Check limits (VIP and Complete = unlimited, Free = 5)
+            if not guild_record.is_vip and guild_record.subscription_tier != 'complete':
+                limit = 5
                 if total_templates >= limit:
-                    tier_name = guild_record.subscription_tier.upper()
-                    upgrade_msg = 'Upgrade to Premium for unlimited templates!' if guild_record.subscription_tier == 'pro' else 'Upgrade to Pro for 10 templates or Premium for unlimited!'
                     return JsonResponse({
-                        'error': f'Template limit reached ({total_templates}/{limit} templates). {upgrade_msg}'
+                        'error': f'Template limit reached ({total_templates}/{limit} templates). Upgrade to Complete Suite for unlimited templates!'
                     }, status=403)
 
             template = ChannelTemplate(
@@ -7298,14 +9019,12 @@ def api_role_template_create(request, guild_id):
             role_count = db.query(RoleTemplate).filter_by(guild_id=int(guild_id)).count()
             total_templates = channel_count + role_count
 
-            # Check limits (VIP and Premium = unlimited, Pro = 10, Free = 5)
-            if not guild_record.is_vip and guild_record.subscription_tier != 'premium':
-                limit = 10 if guild_record.subscription_tier == 'pro' else 5
+            # Check limits (VIP and Complete = unlimited, Free = 5)
+            if not guild_record.is_vip and guild_record.subscription_tier != 'complete':
+                limit = 5
                 if total_templates >= limit:
-                    tier_name = guild_record.subscription_tier.upper()
-                    upgrade_msg = 'Upgrade to Premium for unlimited templates!' if guild_record.subscription_tier == 'pro' else 'Upgrade to Pro for 10 templates or Premium for unlimited!'
                     return JsonResponse({
-                        'error': f'Template limit reached ({total_templates}/{limit} templates). {upgrade_msg}'
+                        'error': f'Template limit reached ({total_templates}/{limit} templates). Upgrade to Complete Suite for unlimited templates!'
                     }, status=403)
 
             template = RoleTemplate(
@@ -7534,6 +9253,8 @@ def api_role_template_apply(request, guild_id, template_id):
 @discord_required
 def guild_discovery(request, guild_id):
     """Discovery/Self-Promo dashboard."""
+    from .module_utils import has_module_access, has_any_module_access
+
     user_guilds = request.session.get('discord_admin_guilds', [])
     admin_guilds = user_guilds  # For sidebar navigation
     guild = next((g for g in user_guilds if str(g.get('id')) == str(guild_id)), None)
@@ -7557,6 +9278,18 @@ def guild_discovery(request, guild_id):
         now = int(time.time())
 
         with get_db_session() as db:
+            # Ensure guild exists first
+            guild_db = db.query(Guild).filter_by(guild_id=int(guild_id)).first()
+            if not guild_db:
+                # Create guild record if it doesn't exist
+                guild_db = Guild(
+                    guild_id=int(guild_id),
+                    guild_name=guild.get('name', 'Unknown'),
+                    subscription_tier='free'
+                )
+                db.add(guild_db)
+                db.flush()
+
             # Get or create discovery config
             discovery_config = db.query(DiscoveryConfig).filter_by(guild_id=int(guild_id)).first()
             if not discovery_config:
@@ -7829,6 +9562,10 @@ def guild_discovery(request, guild_id):
                     'min_rating': config.min_rating,
                 })
 
+            # Check if guild has discovery module access
+            has_discovery_module = has_module_access(guild_id, 'discovery')
+            has_any_module = has_any_module_access(guild_id)
+
             context = {
                 'guild': guild,
                 'guild_record': guild_record,
@@ -7853,7 +9590,10 @@ def guild_discovery(request, guild_id):
                 'last_game_check': last_game_check,
                 'search_configs': search_configs,
                 'total_search_configs': len(search_configs),
+                'has_discovery_module': has_discovery_module,
+                'has_any_module': has_any_module,
                 'admin_guilds': admin_guilds,
+        'member_guilds': get_member_guilds(request),
                 'active_page': 'discovery',
                 'discovery_enabled': discovery_config.enabled if discovery_config else False,
             }
@@ -7861,11 +9601,18 @@ def guild_discovery(request, guild_id):
             return render(request, 'warden/discovery.html', context)
 
     except Exception as e:
+        # Check if guild has discovery module access (for error case too)
+        has_discovery_module = has_module_access(guild_id, 'discovery')
+        has_any_module = has_any_module_access(guild_id)
+
         return render(request, 'warden/discovery.html', {
             'guild': guild,
             'error': str(e),
             'admin_guilds': admin_guilds,
+        'member_guilds': get_member_guilds(request),
             'is_admin': is_admin,
+            'has_discovery_module': has_discovery_module,
+            'has_any_module': has_any_module,
             'active_page': 'discovery',
         })
 
@@ -7873,6 +9620,7 @@ def guild_discovery(request, guild_id):
 @discord_required
 def guild_found_games(request, guild_id):
     """GET /warden/guild/<id>/found-games/ - View all games found in recent discovery checks."""
+    from .module_utils import has_module_access, has_any_module_access
     import json as json_lib
     from datetime import datetime
 
@@ -7890,6 +9638,8 @@ def guild_found_games(request, guild_id):
         from .models import Guild, FoundGame, GameSearchConfig
 
         with get_db_session() as db:
+            # Get guild record for sidebar navigation
+            guild_record = db.query(Guild).filter_by(guild_id=int(guild_id)).first()
 
             # Get filters from query params
             check_id = request.GET.get('check_id')  # Optional: filter to specific check
@@ -8002,9 +9752,14 @@ def guild_found_games(request, guild_id):
             # Check if user is admin
             is_admin = any(str(g['id']) == str(guild_id) for g in admin_guilds)
 
+            # Check if guild has discovery module access
+            has_discovery_module = has_module_access(guild_id, 'discovery')
+            has_any_module = has_any_module_access(guild_id)
+
             # Use guild from session (already set at top of function)
             context = {
                 'guild': guild,
+                'guild_record': guild_record,  # Add for sidebar navigation
                 'found_games': found_games,
                 'total_count': total_count,
                 'with_steam': with_steam,
@@ -8014,7 +9769,10 @@ def guild_found_games(request, guild_id):
                 'available_modes': sorted(available_modes),
                 'selected_modes': mode_filters,
                 'selected_min_hype': min_hype if min_hype is not None else '',
+                'has_discovery_module': has_discovery_module,
+                'has_any_module': has_any_module,
                 'admin_guilds': admin_guilds,
+        'member_guilds': get_member_guilds(request),
                 'is_admin': is_admin,
                 'active_page': 'found_games',
             }
@@ -8025,11 +9783,27 @@ def guild_found_games(request, guild_id):
         # Check if user is admin
         is_admin = any(str(g['id']) == str(guild_id) for g in admin_guilds)
 
+        # Check if guild has discovery module access (for error case too)
+        has_discovery_module = has_module_access(guild_id, 'discovery')
+        has_any_module = has_any_module_access(guild_id)
+
+        # Get guild_record for sidebar navigation
+        guild_record = None
+        try:
+            with get_db_session() as db:
+                guild_record = db.query(Guild).filter_by(guild_id=int(guild_id)).first()
+        except:
+            pass
+
         # Use guild from session (already set at top of function)
         return render(request, 'warden/found_games.html', {
             'guild': guild,
+            'guild_record': guild_record,  # Add for sidebar navigation
             'error': str(e),
+            'has_discovery_module': has_discovery_module,
+            'has_any_module': has_any_module,
             'admin_guilds': admin_guilds,
+        'member_guilds': get_member_guilds(request),
             'is_admin': is_admin,
             'active_page': 'found_games',
         })
@@ -8572,7 +10346,10 @@ def api_game_search_config_create(request, guild_id):
                 return JsonResponse({'error': 'Guild not found'}, status=404)
 
             # Determine search limit based on tier
-            if guild_record.is_vip or guild_record.subscription_tier == SubscriptionTier.PREMIUM.value:
+            # Check if guild has Discovery Module (grants unlimited searches)
+            from .module_utils import has_module_access
+
+            if has_module_access(guild_id, 'discovery') or guild_record.is_vip or guild_record.subscription_tier == SubscriptionTier.PREMIUM.value:
                 max_searches = None  # Unlimited
             elif guild_record.subscription_tier == SubscriptionTier.PRO.value:
                 max_searches = 5
@@ -8757,6 +10534,7 @@ def api_action_status(request, guild_id, action_id):
 @discord_required
 def guild_lfg(request, guild_id):
     """LFG dashboard."""
+    from .module_utils import has_module_access, has_any_module_access
     import logging
     logger = logging.getLogger(__name__)
 
@@ -8782,13 +10560,22 @@ def guild_lfg(request, guild_id):
 
     try:
         from .db import get_db_session
-        from .models import Guild, LFGGame
+        from .models import Guild, LFGGame, LFGConfig
 
         with get_db_session() as db:
             guild_db = db.query(Guild).filter_by(guild_id=int(guild_id)).first()
             is_premium = guild_db.is_premium() if guild_db else False
+            is_pro_plus = guild_db and (guild_db.subscription_tier in ['pro', 'premium'] or guild_db.is_vip)
 
             games = db.query(LFGGame).filter_by(guild_id=int(guild_id)).all()
+
+            # Get LFG Browser notification config
+            lfg_config = db.query(LFGConfig).filter_by(guild_id=int(guild_id)).first()
+            if not lfg_config and is_pro_plus:
+                # Create default config for Pro+ servers
+                lfg_config = LFGConfig(guild_id=int(guild_id))
+                db.add(lfg_config)
+                db.commit()
             games_data = []
             for game in games:
                 games_data.append({
@@ -8861,6 +10648,17 @@ def guild_lfg(request, guild_id):
         else:
             logger.warning("DISCORD_BOT_TOKEN not configured")
 
+        # Check if user is admin or LFG Manager (for audit log access)
+        discord_user = request.session.get('discord_user', {})
+        user_id = discord_user.get('id')
+        has_lfg_manager_role = check_lfg_manager_role(guild_id, user_id) if user_id else False
+        is_admin_or_manager = is_admin or has_lfg_manager_role
+
+        # Check if guild has LFG module access
+        has_lfg_module = has_module_access(guild_id, 'lfg')
+        has_engagement_module = has_module_access(guild_id, 'engagement')
+        has_any_module = has_any_module_access(guild_id)
+
         return render(request, 'warden/lfg.html', {
             'guild': guild,
             'guild_record': guild_db,
@@ -8868,7 +10666,13 @@ def guild_lfg(request, guild_id):
             'channels': channels,
             'roles': roles,
             'is_premium': is_premium,
+            'is_pro_plus': is_pro_plus,
+            'lfg_config': lfg_config,
             'is_admin': True,
+            'is_admin_or_manager': is_admin_or_manager,
+            'has_lfg_module': has_lfg_module,
+            'has_engagement_module': has_engagement_module,
+            'has_any_module': has_any_module,
             'admin_guilds': user_guilds,
             'active_page': 'lfg',
             'total_lfg_games': len(games_data),
@@ -8876,6 +10680,111 @@ def guild_lfg(request, guild_id):
 
     except Exception as e:
         messages.error(request, f'Error loading LFG: {e}')
+        return redirect('guild_dashboard', guild_id=guild_id)
+
+
+def guild_lfg_browser(request, guild_id):
+    """
+    LFG Browser - Browse and create LFG groups (All tiers).
+
+    This view renders the LFG Browser interface where users can:
+    - Browse active LFG groups
+    - Create new groups
+    - Join/leave groups
+    - Manage groups (if they have permissions)
+
+    Permission Levels:
+    - Regular users: Can create/join groups, manage their own groups
+    - LFG Managers: Can edit/delete ANY group (requires "LFG Manager" Discord role with CREATE_EVENTS + MANAGE_EVENTS permissions)
+    - Admins: Full management access to all groups
+    """
+    from .module_utils import has_module_access, has_any_module_access
+    import logging
+    logger = logging.getLogger(__name__)
+
+    # Get user's guilds and authentication info from Discord OAuth session
+    admin_guilds = request.session.get('discord_admin_guilds', [])
+    all_guilds = request.session.get('discord_all_guilds', [])
+    user_id = request.session.get('discord_user', {}).get('id')
+    discord_user = request.session.get('discord_user', {})
+
+    # Verify user is a member of this guild
+    guild = next((g for g in all_guilds if str(g['id']) == str(guild_id)), None)
+    is_admin = any(str(g['id']) == str(guild_id) for g in admin_guilds)
+
+    if not guild:
+        messages.error(request, "You are not a member of this server.")
+        return redirect('warden_dashboard')
+
+    # Check if user has "LFG Manager" role (requires both CREATE_EVENTS and MANAGE_EVENTS permissions)
+    has_lfg_manager_role = check_lfg_manager_role(guild_id, user_id)
+
+    # Users can manage ANY group if they're admin OR have the LFG Manager role
+    # Otherwise, they can only manage their own groups (enforced in individual endpoints)
+    can_manage_groups = is_admin or has_lfg_manager_role
+
+    try:
+        from .db import get_db_session
+        from .models import Guild, LFGGame
+
+        with get_db_session() as db:
+            guild_db = db.query(Guild).filter_by(guild_id=int(guild_id)).first()
+
+            if not guild_db:
+                messages.error(request, 'Server not found in database.')
+                return redirect('warden_dashboard')
+
+            # Get all enabled games for this guild
+            games = db.query(LFGGame).filter_by(
+                guild_id=int(guild_id),
+                enabled=True
+            ).all()
+
+            games_data = []
+            for game in games:
+                games_data.append({
+                    'id': game.id,
+                    'game_name': game.game_name,
+                    'game_short': game.game_short,
+                    'game_emoji': game.game_emoji,
+                    'cover_url': game.cover_url,
+                    'max_group_size': game.max_group_size,
+                    'require_rank': game.require_rank,
+                    'rank_label': game.rank_label,
+                    'rank_min': game.rank_min,
+                    'rank_max': game.rank_max,
+                    'custom_options': json.loads(game.custom_options) if game.custom_options else None,
+                    'current_player_count': game.current_player_count or 0,
+                })
+
+        # JSON encode games for JavaScript to avoid Python None -> "None" issue
+        import json as json_module
+        games_json = json_module.dumps(games_data)
+
+        # Check if guild has LFG module access
+        has_lfg_module = has_module_access(guild_id, 'lfg')
+        has_engagement_module = has_module_access(guild_id, 'engagement')
+        has_any_module = has_any_module_access(guild_id)
+
+        return render(request, 'warden/lfg_browser.html', {
+            'guild': guild,
+            'guild_record': guild_db,
+            'games': games_data,
+            'games_json': games_json,
+            'discord_user': discord_user,
+            'is_admin': is_admin,
+            'can_manage_groups': can_manage_groups,  # Pass can_manage_groups for audit logs button
+            'has_lfg_module': has_lfg_module,
+            'has_engagement_module': has_engagement_module,
+            'has_any_module': has_any_module,
+            'admin_guilds': admin_guilds,
+        'member_guilds': get_member_guilds(request),
+            'active_page': 'lfg_browser',
+        })
+
+    except Exception as e:
+        logger.error(f"Error loading LFG browser: {e}", exc_info=True)
+        messages.error(request, f'Error loading LFG browser: {e}')
         return redirect('guild_dashboard', guild_id=guild_id)
 
 
@@ -8914,11 +10823,17 @@ def guild_attendance(request, guild_id):
             guild_db = db.query(Guild).filter_by(guild_id=int(guild_id)).first()
             is_premium = guild_db.is_premium() if guild_db else False
 
-            # Check if attendance tracking is enabled
-            config = db.query(LFGConfig).filter_by(guild_id=int(guild_id)).first()
-            if not config or not config.attendance_tracking_enabled:
-                messages.info(request, 'Attendance tracking is not enabled for this server.')
+            # Check if guild has premium (required for attendance tracking)
+            if not is_premium:
+                messages.error(request, 'Attendance tracking requires Premium or VIP subscription.')
                 return redirect('guild_dashboard', guild_id=guild_id)
+
+            # Get or create LFG config
+            config = db.query(LFGConfig).filter_by(guild_id=int(guild_id)).first()
+            if not config:
+                config = LFGConfig(guild_id=int(guild_id))
+                db.add(config)
+                db.flush()
 
             # Check for fixed "Raid Leader" role via Discord API
             has_raid_leader_role = False
@@ -9234,6 +11149,7 @@ def guild_attendance(request, guild_id):
             'is_member': is_member,
             'can_manage_attendance': can_manage_attendance,
             'admin_guilds': admin_guilds,
+        'member_guilds': get_member_guilds(request),
             'active_page': 'attendance',
         })
 
@@ -9737,39 +11653,33 @@ def api_lfg_groups(request, guild_id):
 
 @require_http_methods(["POST"])
 @api_auth_required
+@require_subscription_tier('pro', 'premium')
+@validate_json_schema({
+    "type": "object",
+    "properties": {
+        "group_id": {"type": "integer", "minimum": 1},
+        "user_id": {"type": "integer", "minimum": 1},
+        "status": {"type": "string", "enum": ["showed", "no_show", "late", "cancelled", "confirmed", "pardoned"]}
+    },
+    "required": ["group_id", "user_id", "status"]
+})
 def api_lfg_attendance_update(request, guild_id):
-    """POST /api/guild/<id>/lfg/attendance/update/ - Update attendance status (Premium)."""
+    """POST /api/guild/<id>/lfg/attendance/update/ - Update attendance status (Pro/Premium only)."""
     try:
         from .db import get_db_session
         from .models import Guild, LFGConfig, LFGGroup, LFGMember, LFGAttendance, LFGMemberStats
-        import json
         import time
         import logging
         logger = logging.getLogger(__name__)
 
-        # Parse request
-        try:
-            data = json.loads(request.body)
-        except json.JSONDecodeError:
-            return JsonResponse({'error': 'Invalid JSON'}, status=400)
-        group_id = data.get('group_id')
-        user_id = data.get('user_id')
-        status = data.get('status')
-
-        if not all([group_id, user_id, status]):
-            return JsonResponse({'error': 'Missing required fields'}, status=400)
-
-        # Validate status
-        valid_statuses = ['showed', 'no_show', 'late', 'cancelled', 'confirmed', 'pardoned']
-        if status not in valid_statuses:
-            return JsonResponse({'error': f'Invalid status. Must be one of: {", ".join(valid_statuses)}'}, status=400)
+        # Get validated data
+        data = request.validated_data
+        group_id = data['group_id']
+        user_id = data['user_id']
+        status = data['status']
 
         with get_db_session() as db:
-            # Check if guild is premium
-            guild = db.query(Guild).filter_by(guild_id=int(guild_id)).first()
-            if not guild or not guild.is_premium():
-                return JsonResponse({'error': 'Premium required'}, status=403)
-
+            # Tier check handled by @require_subscription_tier decorator
             # Check if attendance tracking is enabled
             config = db.query(LFGConfig).filter_by(guild_id=int(guild_id)).first()
             if not config or not config.attendance_tracking_enabled:
@@ -10167,22 +12077,20 @@ def api_lfg_pardon(request, guild_id):
 
 @require_http_methods(["GET"])
 @api_auth_required
+@require_subscription_tier('pro', 'premium')
+@ratelimit(key='user_or_ip', rate='10/h', method='GET', block=True)
 def api_lfg_attendance_export(request, guild_id):
-    """GET /api/guild/<id>/lfg/attendance/export/ - Export attendance data as CSV (Premium)."""
+    """GET /api/guild/<id>/lfg/attendance/export/ - Export attendance data as CSV (Pro/Premium only, 10 req/hour)."""
     import csv
     import io
     from django.http import HttpResponse
 
     try:
         from .db import get_db_session
-        from .models import Guild, LFGConfig, LFGGroup, LFGAttendance, LFGMemberStats
+        from .models import LFGConfig, LFGGroup, LFGAttendance, LFGMemberStats
 
         with get_db_session() as db:
-            # Check if guild is premium
-            guild = db.query(Guild).filter_by(guild_id=int(guild_id)).first()
-            if not guild or not guild.is_premium():
-                return JsonResponse({'error': 'Premium required'}, status=403)
-
+            # Tier check handled by @require_subscription_tier decorator
             # Check if attendance tracking is enabled
             config = db.query(LFGConfig).filter_by(guild_id=int(guild_id)).first()
             if not config or not config.attendance_tracking_enabled:
@@ -10395,6 +12303,1523 @@ def api_lfg_user_history(request, guild_id, user_id):
         return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
 
 
+# ====== LFG Browser API Endpoints (All Tiers - Game limits enforced) ======
+
+@require_http_methods(["GET"])
+@api_member_auth_required
+def api_lfg_manager_check(request, guild_id):
+    """
+    GET /api/guild/<id>/lfg/manager-check/ - Check if user has LFG Manager role (real-time).
+
+    This endpoint is polled every 30 seconds by the frontend to detect permission changes
+    in real-time without requiring a page refresh. This ensures that:
+    - When a user is granted the "LFG Manager" role, Edit/Delete buttons appear immediately
+    - When the role is revoked, the buttons disappear immediately
+    - Role permission changes (adding/removing CREATE_EVENTS or MANAGE_EVENTS) are detected
+
+    Returns:
+        JSON with is_admin, has_lfg_manager_role, and can_manage flags
+    """
+    try:
+        # Get Discord user from session
+        discord_user = request.session.get('discord_user', {})
+        user_id = discord_user.get('id')
+
+        if not user_id:
+            return JsonResponse({'error': 'Not authenticated'}, status=401)
+
+        # Check if user is admin
+        admin_guilds = request.session.get('discord_admin_guilds', [])
+        is_admin = any(str(g['id']) == str(guild_id) for g in admin_guilds)
+
+        # Check for "LFG Manager" role with required permissions
+        has_lfg_manager_role = check_lfg_manager_role(guild_id, user_id)
+
+        can_manage = is_admin or has_lfg_manager_role
+
+        return JsonResponse({
+            'success': True,
+            'is_admin': is_admin,
+            'has_lfg_manager_role': has_lfg_manager_role,
+            'can_manage': can_manage
+        })
+
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error in LFG Manager check: {e}", exc_info=True)
+        return JsonResponse({'error': 'An internal error occurred'}, status=500)
+
+
+@require_http_methods(["GET"])
+def api_lfg_browser_groups(request, guild_id):
+    """GET /api/guild/<id>/lfg/browser/groups/ - List active LFG groups with game info (Pro/Premium/VIP)."""
+    try:
+        from .db import get_db_session
+        from .models import Guild, LFGGroup, LFGGame, LFGMember
+        import time
+
+        with get_db_session() as db:
+            # Get guild (LFG Browser now available to all tiers)
+            guild = db.query(Guild).filter_by(guild_id=int(guild_id)).first()
+            if not guild:
+                return JsonResponse({'error': 'Guild not found'}, status=404)
+
+            # Get filter parameters
+            game_id = request.GET.get('game_id')
+            status_filter = request.GET.get('status', 'active')  # active, full, all
+
+            # Build query
+            query = db.query(LFGGroup).filter(
+                LFGGroup.guild_id == int(guild_id),
+                LFGGroup.is_active == True
+            )
+
+            # Filter by game
+            if game_id:
+                query = query.filter(LFGGroup.game_id == int(game_id))
+
+            # Filter by status
+            if status_filter == 'active':
+                query = query.filter(LFGGroup.is_full == False)
+            elif status_filter == 'full':
+                query = query.filter(LFGGroup.is_full == True)
+
+            # Get groups ordered by scheduled time (upcoming first)
+            current_time = int(time.time())
+            groups = query.order_by(LFGGroup.scheduled_time.asc()).all()
+
+            # PERFORMANCE: Batch load all games and members to avoid N+1 queries
+            group_ids = [g.id for g in groups]
+            game_ids = list(set([g.game_id for g in groups]))
+
+            # Single query for all games
+            games_dict = {}
+            if game_ids:
+                games = db.query(LFGGame).filter(LFGGame.id.in_(game_ids)).all()
+                games_dict = {g.id: g for g in games}
+
+            # Single query for all members
+            members_by_group = {}
+            if group_ids:
+                all_members = db.query(LFGMember).filter(
+                    LFGMember.group_id.in_(group_ids),
+                    LFGMember.left_at == None
+                ).all()
+
+                for member in all_members:
+                    if member.group_id not in members_by_group:
+                        members_by_group[member.group_id] = []
+                    members_by_group[member.group_id].append(member)
+
+            # Single query for all attendance records (if attendance tracking enabled and Pro/Premium/VIP)
+            from .models import LFGConfig, LFGAttendance, AttendanceStatus
+            lfg_config = db.query(LFGConfig).filter_by(guild_id=int(guild_id)).first()
+            attendance_by_group = {}
+            # Attendance tracking only for Pro/Premium/VIP
+            is_attendance_tier = guild.subscription_tier in ['pro', 'Pro', 'premium', 'Premium'] or guild.is_vip
+            if lfg_config and lfg_config.attendance_tracking_enabled and is_attendance_tier and group_ids:
+                all_attendance = db.query(LFGAttendance).filter(
+                    LFGAttendance.group_id.in_(group_ids),
+                    LFGAttendance.status == AttendanceStatus.CONFIRMED
+                ).all()
+
+                for attendance in all_attendance:
+                    if attendance.group_id not in attendance_by_group:
+                        attendance_by_group[attendance.group_id] = []
+                    attendance_by_group[attendance.group_id].append(attendance)
+
+            groups_data = []
+            for group in groups:
+                # Get game from pre-loaded dict
+                game = games_dict.get(group.game_id)
+
+                # Get members from pre-loaded dict
+                members = members_by_group.get(group.id, [])
+
+                # Populate display names if null (for legacy records)
+                from .models import GuildMember as GuildMemberModel
+                members_data = []
+                for m in members:
+                    display_name = m.display_name
+                    if not display_name:
+                        # Look up display name from GuildMember table
+                        guild_member = db.query(GuildMemberModel).filter_by(
+                            guild_id=int(guild_id),
+                            user_id=m.user_id
+                        ).first()
+                        display_name = guild_member.display_name if guild_member else f'User {m.user_id}'
+                        # Update the LFGMember record with the display name
+                        m.display_name = display_name
+
+                    members_data.append({
+                        'user_id': str(m.user_id),
+                        'display_name': display_name,
+                        'rank_value': m.rank_value,
+                        'is_creator': m.is_creator,
+                        'is_co_leader': m.is_co_leader,
+                        'selections': json_lib.loads(m.selections) if m.selections else {},
+                        'joined_at': m.joined_at,
+                    })
+
+                # Commit any display name updates
+                db.commit()
+
+                # Determine if group is in the past, present, or future
+                time_status = 'upcoming'
+                if group.scheduled_time:
+                    if group.scheduled_time < current_time - (2 * 3600):  # More than 2 hours ago
+                        time_status = 'past'
+                    elif group.scheduled_time < current_time + (1800):  # Within 30 minutes
+                        time_status = 'active_now'
+
+                # Get confirmed attendance for this group
+                confirmed_attendance = attendance_by_group.get(group.id, [])
+                confirmed_ids = [a.user_id for a in confirmed_attendance]
+
+                groups_data.append({
+                    'id': group.id,
+                    'game_id': group.game_id,
+                    'game_name': game.game_name if game else 'Unknown',
+                    'game_short': game.game_short if game else '',
+                    'game_emoji': game.game_emoji if game else '',
+                    'cover_url': game.cover_url if game else None,
+                    'thread_id': str(group.thread_id) if group.thread_id else None,
+                    'thread_name': group.thread_name,
+                    'creator_id': str(group.creator_id),
+                    'creator_name': group.creator_name,
+                    'scheduled_time': group.scheduled_time,
+                    'description': group.description,
+                    'max_group_size': group.max_group_size or (game.max_group_size if game else 4),
+                    'is_active': group.is_active,
+                    'is_full': group.is_full,
+                    'member_count': group.member_count,
+                    'members': members_data,
+                    'created_at': group.created_at,
+                    'time_status': time_status,
+                    'confirmed_attendance_count': len(confirmed_ids),
+                    'confirmed_attendance_ids': [str(uid) for uid in confirmed_ids],
+                    'attendance_tracking_enabled': (lfg_config.attendance_tracking_enabled and is_attendance_tier) if lfg_config else False,
+                })
+
+            response = JsonResponse({
+                'success': True,
+                'groups': groups_data,
+                'count': len(groups_data)
+            })
+            # No caching - always fetch fresh data for instant updates
+            response['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+            response['Pragma'] = 'no-cache'
+            response['Expires'] = '0'
+            return response
+
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error fetching LFG browser groups: {e}", exc_info=True)
+        return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
+
+
+@require_http_methods(["POST"])
+@api_member_auth_required
+def api_lfg_browser_create(request, guild_id):
+    """POST /api/guild/<id>/lfg/browser/create/ - Create LFG group from web (Pro/Premium/VIP)."""
+    try:
+        from .db import get_db_session
+        from .models import Guild, LFGGroup, LFGGame, LFGMember
+        import time
+        import logging
+        logger = logging.getLogger(__name__)
+
+        data = json.loads(request.body)
+        game_id = data.get('game_id')
+        title = data.get('title', '').strip()
+        scheduled_time = data.get('scheduled_time')
+        event_duration = data.get('event_duration')
+        ping_role_id = data.get('ping_role_id')
+        description = data.get('description', '')
+        max_group_size = data.get('max_group_size')
+        co_leader_ids = data.get('co_leader_ids', [])  # List of user IDs
+        creator_options = data.get('creator_options', {})  # Creator's game-specific selections
+
+        if not game_id:
+            return JsonResponse({'error': 'Game ID required'}, status=400)
+
+        if not title:
+            return JsonResponse({'error': 'Group title required'}, status=400)
+
+        if len(title) > 150:
+            return JsonResponse({'error': 'Title must be 150 characters or less'}, status=400)
+
+        # Get Discord user from session
+        discord_user = request.session.get('discord_user', {})
+        user_id = discord_user.get('id')
+        username = discord_user.get('username', 'Unknown')
+
+        if not user_id:
+            return JsonResponse({'error': 'Not authenticated'}, status=401)
+
+        with get_db_session() as db:
+            # Get guild (LFG Browser available to all tiers)
+            guild = db.query(Guild).filter_by(guild_id=int(guild_id)).first()
+            if not guild:
+                return JsonResponse({'error': 'Guild not found'}, status=404)
+
+            # Get game
+            game = db.query(LFGGame).filter_by(id=int(game_id), guild_id=int(guild_id)).first()
+            if not game:
+                return JsonResponse({'error': 'Game not found'}, status=404)
+
+            # Create group (note: thread_id will be 0 for web-created groups until bot creates thread)
+            new_group = LFGGroup(
+                guild_id=int(guild_id),
+                game_id=game.id,
+                thread_id=0,  # Will be updated by bot when thread is created
+                thread_name=title,
+                ping_role_id=int(ping_role_id) if ping_role_id else None,
+                creator_id=int(user_id),
+                creator_name=username,
+                scheduled_time=scheduled_time,
+                event_duration=event_duration,
+                description=description,
+                max_group_size=max_group_size or game.max_group_size,
+                is_active=True,
+                is_full=False,
+                member_count=1,
+                created_at=int(time.time())
+            )
+            db.add(new_group)
+            db.flush()  # Get the ID
+
+            # Add creator as first member
+            # Extract rank and selections from creator_options
+            rank_value = creator_options.get('rank') if creator_options else None
+            selections_dict = {k: v for k, v in creator_options.items() if k != 'rank'} if creator_options else {}
+
+            creator_member = LFGMember(
+                group_id=new_group.id,
+                user_id=int(user_id),
+                display_name=username,
+                rank_value=rank_value,
+                selections=json_lib.dumps(selections_dict) if selections_dict else None,
+                is_creator=True,
+                joined_at=int(time.time())
+            )
+            db.add(creator_member)
+
+            # Add co-leaders as members
+            from .models import GuildMember as GuildMemberModel
+            co_leaders_added = []
+            for co_leader_id in co_leader_ids:
+                # Skip if co-leader is the creator themselves
+                if str(co_leader_id) == str(user_id):
+                    continue
+
+                # Fetch display name from GuildMember table
+                guild_member = db.query(GuildMemberModel).filter_by(
+                    guild_id=int(guild_id),
+                    user_id=int(co_leader_id)
+                ).first()
+                co_leader_display_name = guild_member.display_name if guild_member else f'User {co_leader_id}'
+
+                co_leader_member = LFGMember(
+                    group_id=new_group.id,
+                    user_id=int(co_leader_id),
+                    display_name=co_leader_display_name,
+                    is_co_leader=True,
+                    joined_at=int(time.time())
+                )
+                db.add(co_leader_member)
+                new_group.member_count += 1
+                co_leaders_added.append(int(co_leader_id))
+
+            # Log audit entry for group creation
+            log_lfg_audit(
+                db=db,
+                guild_id=guild_id,
+                group_id=new_group.id,
+                action='create',
+                actor_id=user_id,
+                actor_name=username,
+                group_name=title,
+                game_name=game.game_name
+            )
+
+            # Auto-confirm attendance for creator and co-leaders if attendance tracking is enabled (Pro/Premium/VIP only)
+            from .models import LFGConfig
+            lfg_config = db.query(LFGConfig).filter_by(guild_id=int(guild_id)).first()
+            is_attendance_tier = guild.subscription_tier in ['pro', 'Pro', 'premium', 'Premium'] or guild.is_vip
+            if lfg_config and lfg_config.attendance_tracking_enabled and is_attendance_tier:
+                from .models import LFGAttendance, AttendanceStatus
+
+                now = int(time.time())
+
+                # Auto-confirm creator
+                creator_attendance = LFGAttendance(
+                    group_id=new_group.id,
+                    user_id=int(user_id),
+                    status=AttendanceStatus.CONFIRMED,
+                    confirmed_at=now,
+                    joined_at=now
+                )
+                db.add(creator_attendance)
+
+                # Auto-confirm co-leaders
+                for co_leader_id in co_leaders_added:
+                    co_leader_attendance = LFGAttendance(
+                        group_id=new_group.id,
+                        user_id=co_leader_id,
+                        status=AttendanceStatus.CONFIRMED,
+                        confirmed_at=now,
+                        joined_at=now
+                    )
+                    db.add(co_leader_attendance)
+
+            db.commit()
+
+            # Send notifications (lfg_config already queried above for attendance)
+            if not lfg_config:
+                lfg_config = db.query(LFGConfig).filter_by(guild_id=int(guild_id)).first()
+
+            if lfg_config:
+                # Build notification embed with full group details
+                scheduled_text = f"<t:{scheduled_time}:F>" if scheduled_time else "Now / Flexible"
+
+                # Build members list with roles
+                # Extract creator's role from selections if available
+                creator_role = 'Leader'
+                if creator_options:
+                    for key, value in creator_options.items():
+                        if key != 'rank' and value:
+                            creator_role = value
+                            break
+                members_text = f"<@{user_id}> - {creator_role}"
+                member_count = 1
+
+                # Add co-leaders to members list
+                for co_leader_id in co_leaders_added:
+                    members_text += f"\n<@{co_leader_id}> - Co-Leader"
+                    member_count += 1
+
+                # Build confirmed attendance list (for premium guilds with attendance enabled)
+                confirmed_attendance = ""
+                if hasattr(lfg_config, 'attendance_tracking_enabled') and lfg_config.attendance_tracking_enabled:
+                    # For now, creator is auto-confirmed
+                    confirmed_attendance = f"<@{user_id}>"
+                    for co_leader_id in co_leaders_added:
+                        confirmed_attendance += f" <@{co_leader_id}>"
+
+                # Format event duration
+                duration_text = 'Not set'
+                if new_group.event_duration:
+                    duration_text = f"{new_group.event_duration} hour{'s' if new_group.event_duration != 1 else ''}"
+
+                embed_data = {
+                    'title': f"{game.game_emoji or '🎮'} {title}",
+                    'description': f"Group by <@{user_id}>",
+                    'color': 0x5865F2,  # Discord blurple
+                    'fields': [
+                        {'name': 'Scheduled Time', 'value': scheduled_text, 'inline': True},
+                        {'name': 'Event Duration ⏱️', 'value': duration_text, 'inline': True},
+                        {'name': 'Activity 🎮', 'value': 'No one currently playing', 'inline': True},
+                        {'name': f'Members ({member_count}/{new_group.max_group_size})', 'value': members_text, 'inline': False},
+                    ],
+                    'footer': {'text': f'Group ID: {new_group.id}'},
+                    'group_id': new_group.id,  # For bot action processing
+                }
+
+                if description:
+                    embed_data['fields'].insert(3, {'name': '📝 Description', 'value': description[:1024], 'inline': False})
+
+                # Add confirmed attendance if tracking is enabled
+                if confirmed_attendance:
+                    confirm_count = len(confirmed_attendance.split())
+                    embed_data['fields'].append({
+                        'name': f'📋 Confirmed Attendance ({confirm_count}/{member_count})',
+                        'value': confirmed_attendance,
+                        'inline': False
+                    })
+
+                # Queue bot action to create thread with interactive view
+                if lfg_config.browser_notify_channel_id and lfg_config.notify_on_group_create:
+                    from .models import PendingAction, ActionType, ActionStatus
+                    import time as time_lib
+
+                    action = PendingAction(
+                        guild_id=int(guild_id),
+                        action_type=ActionType.LFG_THREAD_CREATE,
+                        payload=json.dumps({
+                            'group_id': new_group.id,
+                            'channel_id': str(lfg_config.browser_notify_channel_id)
+                        }),
+                        status=ActionStatus.PENDING,
+                        priority=1,  # High priority
+                        created_at=int(time_lib.time())
+                    )
+                    db.add(action)
+                    logger.info(f"Queued LFG thread creation action for group {new_group.id}")
+
+                # Send webhook notification if configured
+                if lfg_config.webhook_url and lfg_config.notify_on_group_create:
+                    send_lfg_webhook_notification(lfg_config.webhook_url, embed_data)
+
+            return JsonResponse({
+                'success': True,
+                'message': 'LFG group created! Bot will create a Discord thread shortly.',
+                'group': {
+                    'id': new_group.id,
+                    'game_name': game.game_name,
+                    'scheduled_time': new_group.scheduled_time,
+                    'co_leaders': co_leaders_added,
+                }
+            })
+
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error creating LFG group: {e}", exc_info=True)
+        return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
+
+
+@require_http_methods(["POST"])
+@api_member_auth_required
+def api_lfg_browser_join(request, guild_id, group_id):
+    """POST /api/guild/<id>/lfg/browser/<group_id>/join/ - Join LFG group (Pro/Premium/VIP)."""
+    try:
+        from .db import get_db_session
+        from .models import Guild, LFGGroup, LFGMember
+        import time
+
+        # Get Discord user from session
+        discord_user = request.session.get('discord_user', {})
+        user_id = discord_user.get('id')
+        username = discord_user.get('username', 'Unknown')
+
+        if not user_id:
+            return JsonResponse({'error': 'Not authenticated'}, status=401)
+
+        # Parse request body for options
+        data = json.loads(request.body) if request.body else {}
+        options = data.get('options', {})
+
+        with get_db_session() as db:
+            # Get guild
+            guild = db.query(Guild).filter_by(guild_id=int(guild_id)).first()
+            if not guild:
+                return JsonResponse({'error': 'Guild not found'}, status=404)
+
+            # Get group
+            group = db.query(LFGGroup).filter_by(id=int(group_id), guild_id=int(guild_id)).first()
+            if not group:
+                return JsonResponse({'error': 'Group not found'}, status=404)
+
+            if not group.is_active:
+                return JsonResponse({'error': 'Group is no longer active'}, status=400)
+
+            if group.is_full:
+                return JsonResponse({'error': 'Group is full'}, status=400)
+
+            # Check if user has any existing member record (active or left)
+            existing = db.query(LFGMember).filter_by(
+                group_id=group.id,
+                user_id=int(user_id)
+            ).first()
+
+            # Extract rank if provided
+            rank_value = options.get('rank')
+
+            # Extract other selections (exclude 'rank' as it's stored separately)
+            selections = {k: v for k, v in options.items() if k != 'rank'}
+            selections_json = json.dumps(selections) if selections else None
+
+            if existing:
+                # Check if they're currently in the group
+                if existing.left_at is None:
+                    return JsonResponse({'error': 'You are already in this group'}, status=400)
+
+                # They left before, so rejoin them by updating their record
+                existing.display_name = username
+                existing.rank_value = rank_value
+                existing.selections = selections_json
+                existing.joined_at = int(time.time())
+                existing.left_at = None  # Clear the left timestamp
+
+                # Update group member count
+                group.member_count += 1
+                if group.member_count >= group.max_group_size:
+                    group.is_full = True
+            else:
+                # Add new member
+                new_member = LFGMember(
+                    group_id=group.id,
+                    user_id=int(user_id),
+                    display_name=username,
+                    is_creator=False,
+                    rank_value=rank_value,
+                    selections=selections_json,
+                    joined_at=int(time.time())
+                )
+                db.add(new_member)
+
+                # Update group member count
+                group.member_count += 1
+                if group.member_count >= group.max_group_size:
+                    group.is_full = True
+
+            # Get game info for notifications (before commit)
+            from .models import LFGGame
+            game = db.query(LFGGame).filter_by(id=group.game_id).first()
+
+            # Auto-confirm attendance if attendance tracking is enabled (Pro/Premium/VIP only)
+            from .models import LFGConfig
+            lfg_config = db.query(LFGConfig).filter_by(guild_id=int(guild_id)).first()
+            is_attendance_tier = guild.subscription_tier in ['pro', 'Pro', 'premium', 'Premium'] or guild.is_vip
+            if lfg_config and lfg_config.attendance_tracking_enabled and is_attendance_tier:
+                from .models import LFGAttendance, AttendanceStatus
+
+                # Check if user already has an attendance record
+                attendance = db.query(LFGAttendance).filter_by(
+                    group_id=group.id,
+                    user_id=int(user_id)
+                ).first()
+
+                now = int(time.time())
+                if not attendance:
+                    # Create new attendance record with CONFIRMED status
+                    attendance = LFGAttendance(
+                        group_id=group.id,
+                        user_id=int(user_id),
+                        status=AttendanceStatus.CONFIRMED,
+                        confirmed_at=now,
+                        joined_at=now
+                    )
+                    db.add(attendance)
+                else:
+                    # Update existing record to CONFIRMED
+                    attendance.status = AttendanceStatus.CONFIRMED
+                    attendance.confirmed_at = now
+                    if not attendance.joined_at:
+                        attendance.joined_at = now
+
+            db.commit()
+
+            # Queue bot action to update thread embed and add user to thread
+            from .models import PendingAction, ActionType, ActionStatus
+            import logging
+            logger = logging.getLogger(__name__)
+
+            if lfg_config and group.thread_id:
+                import time as time_lib
+
+                action = PendingAction(
+                    guild_id=int(guild_id),
+                    action_type=ActionType.LFG_THREAD_UPDATE,
+                    payload=json.dumps({
+                        'group_id': group.id,
+                        'add_user_to_thread': int(user_id),  # Add this user to the thread
+                    }),
+                    status=ActionStatus.PENDING,
+                    priority=2,
+                    created_at=int(time_lib.time())
+                )
+                db.add(action)
+                db.commit()
+                logger.info(f"Queued LFG thread update action for join: user {user_id} to group {group.id}")
+
+            return JsonResponse({
+                'success': True,
+                'message': 'Successfully joined the group!',
+                'member_count': group.member_count
+            })
+
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error joining LFG group: {e}", exc_info=True)
+        return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
+
+
+@require_http_methods(["DELETE"])
+@api_member_auth_required
+def api_lfg_browser_leave(request, guild_id, group_id):
+    """DELETE /api/guild/<id>/lfg/browser/<group_id>/leave/ - Leave LFG group (Pro/Premium/VIP)."""
+    try:
+        from .db import get_db_session
+        from .models import Guild, LFGGroup, LFGMember
+        import time
+
+        # Get Discord user from session
+        discord_user = request.session.get('discord_user', {})
+        user_id = discord_user.get('id')
+
+        if not user_id:
+            return JsonResponse({'error': 'Not authenticated'}, status=401)
+
+        with get_db_session() as db:
+            # Get guild
+            guild = db.query(Guild).filter_by(guild_id=int(guild_id)).first()
+            if not guild:
+                return JsonResponse({'error': 'Guild not found'}, status=404)
+
+            # Get group
+            group = db.query(LFGGroup).filter_by(id=int(group_id), guild_id=int(guild_id)).first()
+            if not group:
+                return JsonResponse({'error': 'Group not found'}, status=404)
+
+            # Find membership
+            member = db.query(LFGMember).filter_by(
+                group_id=group.id,
+                user_id=int(user_id)
+            ).filter(LFGMember.left_at == None).first()
+
+            if not member:
+                return JsonResponse({'error': 'You are not in this group'}, status=400)
+
+            if member.is_creator:
+                return JsonResponse({'error': 'Group creator cannot leave. Delete the group instead.'}, status=400)
+
+            # Mark as left
+            member.left_at = int(time.time())
+
+            # Update group member count
+            group.member_count = max(1, group.member_count - 1)
+            group.is_full = False
+
+            # Get game info for notifications (before commit)
+            from .models import LFGGame
+            game = db.query(LFGGame).filter_by(id=group.game_id).first()
+
+            db.commit()
+
+            # Queue bot action to update thread embed (user will be removed from embed automatically)
+            from .models import LFGConfig, PendingAction, ActionType, ActionStatus
+            import logging
+            logger = logging.getLogger(__name__)
+
+            lfg_config = db.query(LFGConfig).filter_by(guild_id=int(guild_id)).first()
+            if lfg_config and group.thread_id:
+                import time as time_lib
+
+                action = PendingAction(
+                    guild_id=int(guild_id),
+                    action_type=ActionType.LFG_THREAD_UPDATE,
+                    payload=json.dumps({
+                        'group_id': group.id,
+                    }),
+                    status=ActionStatus.PENDING,
+                    priority=2,
+                    created_at=int(time_lib.time())
+                )
+                db.add(action)
+                db.commit()
+                logger.info(f"Queued LFG thread update action for leave: user {user_id} from group {group.id}")
+
+            return JsonResponse({
+                'success': True,
+                'message': 'Successfully left the group',
+                'member_count': group.member_count
+            })
+
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error leaving LFG group: {e}", exc_info=True)
+        return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
+
+
+@require_http_methods(["POST"])
+@api_member_auth_required
+def api_lfg_browser_remove_member(request, guild_id, group_id):
+    """POST /api/guild/<id>/lfg/browser/<group_id>/remove-member/ - Remove a member from LFG group (Creator/Co-Leader only)."""
+    try:
+        from .db import get_db_session
+        from .models import Guild, LFGGroup, LFGMember
+        import time
+
+        # Get Discord user from session
+        discord_user = request.session.get('discord_user', {})
+        user_id = discord_user.get('id')
+
+        if not user_id:
+            return JsonResponse({'error': 'Not authenticated'}, status=401)
+
+        data = json.loads(request.body)
+        target_user_id = data.get('user_id')
+
+        if not target_user_id:
+            return JsonResponse({'error': 'user_id is required'}, status=400)
+
+        with get_db_session() as db:
+            # Get guild
+            guild = db.query(Guild).filter_by(guild_id=int(guild_id)).first()
+            if not guild:
+                return JsonResponse({'error': 'Guild not found'}, status=404)
+
+            # Get group
+            group = db.query(LFGGroup).filter_by(id=int(group_id), guild_id=int(guild_id)).first()
+            if not group:
+                return JsonResponse({'error': 'Group not found'}, status=404)
+
+            # Check permissions: only creator or co-leaders can remove members
+            requester_member = db.query(LFGMember).filter_by(
+                group_id=group.id,
+                user_id=int(user_id)
+            ).filter(LFGMember.left_at == None).first()
+
+            is_creator = requester_member and requester_member.is_creator
+            is_co_leader = requester_member and requester_member.is_co_leader
+
+            if not (is_creator or is_co_leader):
+                return JsonResponse({'error': 'Permission denied. Only the creator or co-leaders can remove members.'}, status=403)
+
+            # Find target member
+            target_member = db.query(LFGMember).filter_by(
+                group_id=group.id,
+                user_id=int(target_user_id)
+            ).filter(LFGMember.left_at == None).first()
+
+            if not target_member:
+                return JsonResponse({'error': 'Member not found in group'}, status=404)
+
+            # Cannot remove the creator
+            if target_member.is_creator:
+                return JsonResponse({'error': 'Cannot remove the group creator'}, status=400)
+
+            # Mark as left
+            target_member.left_at = int(time.time())
+            target_display_name = target_member.display_name or f"User {target_user_id}"
+
+            # Update group member count
+            group.member_count = max(1, group.member_count - 1)
+            group.is_full = False
+
+            db.commit()
+
+            # Queue bot action to remove user from thread and update embed
+            from .models import LFGConfig, PendingAction, ActionType, ActionStatus
+            import logging
+            logger = logging.getLogger(__name__)
+
+            lfg_config = db.query(LFGConfig).filter_by(guild_id=int(guild_id)).first()
+            if lfg_config and group.thread_id:
+                import time as time_lib
+
+                action = PendingAction(
+                    guild_id=int(guild_id),
+                    action_type=ActionType.LFG_THREAD_UPDATE,
+                    payload=json.dumps({
+                        'group_id': group.id,
+                        'remove_users_from_thread': [int(target_user_id)],  # Remove from thread
+                    }),
+                    status=ActionStatus.PENDING,
+                    priority=2,
+                    created_at=int(time_lib.time())
+                )
+                db.add(action)
+                db.commit()
+                logger.info(f"Queued LFG thread update action to remove user {target_user_id} from group {group.id}")
+
+            return JsonResponse({
+                'success': True,
+                'message': f'Removed {target_display_name} from the group',
+                'member_count': group.member_count
+            })
+
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error removing member from LFG group: {e}", exc_info=True)
+        return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
+
+
+@require_http_methods(["POST"])
+@api_member_auth_required
+def api_lfg_browser_join_thread(request, guild_id, group_id):
+    """POST /api/guild/<id>/lfg/browser/<group_id>/join-thread/ - Add user to Discord thread."""
+    try:
+        from .db import get_db_session
+        from .models import Guild, LFGGroup, PendingAction, ActionType, ActionStatus
+        import time
+        import logging
+        logger = logging.getLogger(__name__)
+
+        # Get Discord user from session
+        discord_user = request.session.get('discord_user', {})
+        user_id = discord_user.get('id')
+
+        if not user_id:
+            return JsonResponse({'error': 'Not authenticated'}, status=401)
+
+        with get_db_session() as db:
+            # Get guild
+            guild = db.query(Guild).filter_by(guild_id=int(guild_id)).first()
+            if not guild:
+                return JsonResponse({'error': 'Guild not found'}, status=404)
+
+            # Get group
+            group = db.query(LFGGroup).filter_by(id=int(group_id), guild_id=int(guild_id)).first()
+            if not group:
+                return JsonResponse({'error': 'Group not found'}, status=404)
+
+            if not group.thread_id:
+                return JsonResponse({'error': 'This group does not have a Discord thread'}, status=400)
+
+            # Queue bot action to add user to thread
+            action = PendingAction(
+                guild_id=int(guild_id),
+                action_type=ActionType.LFG_THREAD_UPDATE,
+                payload=json.dumps({
+                    'group_id': group.id,
+                    'add_user_to_thread': int(user_id),
+                }),
+                status=ActionStatus.PENDING,
+                priority=2,
+                created_at=int(time.time())
+            )
+            db.add(action)
+            db.commit()
+
+            logger.info(f"Queued action to add user {user_id} to thread {group.thread_id}")
+
+            return JsonResponse({
+                'success': True,
+                'message': 'You will be added to the Discord thread shortly'
+            })
+
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error joining thread: {e}", exc_info=True)
+        return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
+
+
+@require_http_methods(["DELETE"])
+@api_member_auth_required
+def api_lfg_browser_delete(request, guild_id, group_id):
+    """
+    DELETE /api/guild/<id>/lfg/browser/<group_id>/delete/ - Delete LFG group.
+
+    Permission hierarchy (any of these grants delete access):
+    1. Group creator (always can delete their own group)
+    2. Co-leaders (designated by creator)
+    3. LFG Managers (users with "LFG Manager" Discord role with proper permissions)
+    4. Server admins
+
+    Returns:
+        200: Group deleted successfully
+        403: Permission denied
+        404: Group not found
+    """
+    try:
+        from .db import get_db_session
+        from .models import Guild, LFGGroup, LFGMember
+
+        # Get Discord user from session
+        discord_user = request.session.get('discord_user', {})
+        user_id = discord_user.get('id')
+
+        if not user_id:
+            return JsonResponse({'error': 'Not authenticated'}, status=401)
+
+        # Check if user is server admin
+        admin_guilds = request.session.get('admin_guilds', [])
+        is_admin = str(guild_id) in [str(g['id']) for g in admin_guilds]
+
+        # Check if user has "LFG Manager" role (users with this role can manage ANY group)
+        has_lfg_manager_role = check_lfg_manager_role(guild_id, user_id)
+
+        can_manage = is_admin or has_lfg_manager_role
+
+        with get_db_session() as db:
+            # Get guild
+            guild = db.query(Guild).filter_by(guild_id=int(guild_id)).first()
+            if not guild:
+                return JsonResponse({'error': 'Guild not found'}, status=404)
+
+            # Get group
+            group = db.query(LFGGroup).filter_by(id=int(group_id), guild_id=int(guild_id)).first()
+            if not group:
+                return JsonResponse({'error': 'Group not found'}, status=404)
+
+            # Check permissions: creator, co-leader, or admin
+            is_creator = group.creator_id == int(user_id)
+
+            # Check if user is a co-leader
+            is_co_leader = db.query(LFGMember).filter_by(
+                group_id=group.id,
+                user_id=int(user_id),
+                is_co_leader=True
+            ).filter(LFGMember.left_at == None).first() is not None
+
+            if not (is_creator or is_co_leader or can_manage):
+                return JsonResponse({'error': 'Permission denied. Only the creator, co-leaders, admins, or users with the LFG Manager role can delete this group.'}, status=403)
+
+            # Capture group info before deletion for audit log
+            from .models import LFGGame, LFGConfig, PendingAction, ActionType, ActionStatus
+            import logging
+            logger = logging.getLogger(__name__)
+
+            game = db.query(LFGGame).filter_by(id=group.game_id).first()
+            group_name_snapshot = group.thread_name
+            game_name_snapshot = game.game_name if game else 'Unknown'
+            game_emoji = game.game_emoji if game else '🎮'
+            thread_id_snapshot = group.thread_id
+
+            # Log audit entry for group deletion
+            log_lfg_audit(
+                db=db,
+                guild_id=guild_id,
+                group_id=group.id,
+                action='delete',
+                actor_id=user_id,
+                actor_name=discord_user.get('username', 'Unknown'),
+                group_name=group_name_snapshot,
+                game_name=game_name_snapshot
+            )
+
+            # Queue bot action to delete thread and send cancellation notice
+            lfg_config = db.query(LFGConfig).filter_by(guild_id=int(guild_id)).first()
+            if lfg_config and lfg_config.browser_notify_channel_id and lfg_config.notify_on_group_delete:
+                import time as time_lib
+
+                action = PendingAction(
+                    guild_id=int(guild_id),
+                    action_type=ActionType.LFG_THREAD_DELETE,
+                    payload=json.dumps({
+                        'group_id': group.id,
+                        'thread_id': str(thread_id_snapshot) if thread_id_snapshot else None,
+                        'thread_name': group_name_snapshot,
+                        'game_name': game_name_snapshot,
+                        'game_emoji': game_emoji,
+                        'deleted_by_id': user_id,
+                        'channel_id': str(lfg_config.browser_notify_channel_id)
+                    }),
+                    status=ActionStatus.PENDING,
+                    priority=1,  # High priority
+                    created_at=int(time_lib.time())
+                )
+                db.add(action)
+                db.commit()  # Commit action BEFORE deleting group so bot can process it
+                logger.info(f"Queued LFG thread deletion action for group {group.id}")
+
+            # Delete all members first
+            db.query(LFGMember).filter_by(group_id=group.id).delete()
+
+            # Delete the group
+            db.delete(group)
+            db.commit()
+
+            return JsonResponse({
+                'success': True,
+                'message': 'Group deleted successfully'
+            })
+
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error deleting LFG group: {e}", exc_info=True)
+        return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
+
+
+@require_http_methods(["PUT", "PATCH"])
+@api_member_auth_required
+def api_lfg_browser_update(request, guild_id, group_id):
+    """
+    PUT/PATCH /api/guild/<id>/lfg/browser/<group_id>/update/ - Update LFG group.
+
+    Permission hierarchy (any of these grants edit access):
+    1. Group creator (always can edit their own group)
+    2. Co-leaders (designated by creator)
+    3. LFG Managers (users with "LFG Manager" Discord role with proper permissions)
+    4. Server admins
+
+    Updatable fields:
+    - description: Group description/notes
+    - scheduled_time: Unix timestamp of when group is scheduled
+    - max_group_size: Maximum number of members
+    - co_leader_ids: List of user IDs to designate as co-leaders
+
+    Returns:
+        200: Group updated successfully with updated group data
+        403: Permission denied
+        404: Group not found
+    """
+    try:
+        from .db import get_db_session
+        from .models import Guild, LFGGroup, LFGMember
+        import time
+
+        # Get Discord user from session
+        discord_user = request.session.get('discord_user', {})
+        user_id = discord_user.get('id')
+
+        if not user_id:
+            return JsonResponse({'error': 'Not authenticated'}, status=401)
+
+        # Check if user is server admin
+        admin_guilds = request.session.get('admin_guilds', [])
+        is_admin = str(guild_id) in [str(g['id']) for g in admin_guilds]
+
+        # Check if user has "LFG Manager" role (users with this role can manage ANY group)
+        has_lfg_manager_role = check_lfg_manager_role(guild_id, user_id)
+
+        can_manage = is_admin or has_lfg_manager_role
+
+        data = json.loads(request.body)
+        description = data.get('description')
+        scheduled_time = data.get('scheduled_time')
+        max_group_size = data.get('max_group_size')
+        co_leader_ids = data.get('co_leader_ids')
+
+        with get_db_session() as db:
+            # Get guild
+            guild = db.query(Guild).filter_by(guild_id=int(guild_id)).first()
+            if not guild:
+                return JsonResponse({'error': 'Guild not found'}, status=404)
+
+            # Get group
+            group = db.query(LFGGroup).filter_by(id=int(group_id), guild_id=int(guild_id)).first()
+            if not group:
+                return JsonResponse({'error': 'Group not found'}, status=404)
+
+            # Check permissions: creator, co-leader, or admin
+            is_creator = group.creator_id == int(user_id)
+
+            # Check if user is a co-leader
+            is_co_leader = db.query(LFGMember).filter_by(
+                group_id=group.id,
+                user_id=int(user_id),
+                is_co_leader=True
+            ).filter(LFGMember.left_at == None).first() is not None
+
+            if not (is_creator or is_co_leader or can_manage):
+                return JsonResponse({'error': 'Permission denied. Only the creator, co-leaders, admins, or users with the LFG Manager role can update this group.'}, status=403)
+
+            # Get game info for audit log
+            from .models import LFGGame
+            game = db.query(LFGGame).filter_by(id=group.game_id).first()
+            group_name_snapshot = group.thread_name
+            game_name_snapshot = game.game_name if game else 'Unknown'
+            actor_name = discord_user.get('username', 'Unknown')
+
+            # Update fields if provided and log changes
+            if description is not None and group.description != description:
+                log_lfg_audit(
+                    db=db, guild_id=guild_id, group_id=group.id, action='update',
+                    actor_id=user_id, actor_name=actor_name,
+                    field_changed='description',
+                    old_value=group.description, new_value=description,
+                    group_name=group_name_snapshot, game_name=game_name_snapshot
+                )
+                group.description = description
+
+            if scheduled_time is not None and group.scheduled_time != scheduled_time:
+                log_lfg_audit(
+                    db=db, guild_id=guild_id, group_id=group.id, action='update',
+                    actor_id=user_id, actor_name=actor_name,
+                    field_changed='scheduled_time',
+                    old_value=str(group.scheduled_time), new_value=str(scheduled_time),
+                    group_name=group_name_snapshot, game_name=game_name_snapshot
+                )
+                group.scheduled_time = scheduled_time
+
+            if max_group_size is not None and group.max_group_size != max_group_size:
+                log_lfg_audit(
+                    db=db, guild_id=guild_id, group_id=group.id, action='update',
+                    actor_id=user_id, actor_name=actor_name,
+                    field_changed='max_group_size',
+                    old_value=str(group.max_group_size), new_value=str(max_group_size),
+                    group_name=group_name_snapshot, game_name=game_name_snapshot
+                )
+                group.max_group_size = max_group_size
+                # Update is_full status based on new size
+                group.is_full = group.member_count >= max_group_size
+
+            # Track removed co-leaders for thread management
+            removed_co_leader_ids = []
+
+            # Update co-leaders if provided
+            if co_leader_ids is not None:
+                # Get existing co-leaders before removing them
+                existing_co_leaders = db.query(LFGMember).filter_by(
+                    group_id=group.id,
+                    is_co_leader=True
+                ).filter(LFGMember.left_at == None).all()
+
+                # Track which co-leaders are being removed
+                existing_co_leader_ids = [co.user_id for co in existing_co_leaders]
+                new_co_leader_ids = [int(cid) for cid in co_leader_ids]
+                removed_co_leader_ids = [cid for cid in existing_co_leader_ids if cid not in new_co_leader_ids and cid != group.creator_id]
+
+                for co_leader in existing_co_leaders:
+                    # Remove co-leader status
+                    db.delete(co_leader)
+                    group.member_count = max(1, group.member_count - 1)
+
+                # Add new co-leaders
+                for co_leader_id in co_leader_ids:
+                    # Skip if co-leader is the creator themselves
+                    if str(co_leader_id) == str(group.creator_id):
+                        continue
+
+                    # Check if they're already a regular member
+                    existing_member = db.query(LFGMember).filter_by(
+                        group_id=group.id,
+                        user_id=int(co_leader_id)
+                    ).filter(LFGMember.left_at == None).first()
+
+                    if existing_member:
+                        # Promote to co-leader
+                        existing_member.is_co_leader = True
+                    else:
+                        # Fetch display name from GuildMember table
+                        from .models import GuildMember as GuildMemberModel
+                        guild_member = db.query(GuildMemberModel).filter_by(
+                            guild_id=int(guild_id),
+                            user_id=int(co_leader_id)
+                        ).first()
+                        co_leader_display_name = guild_member.display_name if guild_member else f'User {co_leader_id}'
+
+                        # Add as new co-leader member
+                        new_co_leader = LFGMember(
+                            group_id=group.id,
+                            user_id=int(co_leader_id),
+                            display_name=co_leader_display_name,
+                            is_co_leader=True,
+                            joined_at=int(time.time())
+                        )
+                        db.add(new_co_leader)
+                        group.member_count += 1
+
+            # Update leader's game-specific options if provided
+            leader_options = data.get('leader_options')
+            if leader_options and is_creator:
+                # Find the creator's member record
+                creator_member = db.query(LFGMember).filter_by(
+                    group_id=group.id,
+                    user_id=int(user_id),
+                    is_creator=True
+                ).filter(LFGMember.left_at == None).first()
+
+                if creator_member:
+                    # Extract rank and selections
+                    rank_value = leader_options.get('rank') if leader_options else None
+                    selections_dict = {k: v for k, v in leader_options.items() if k != 'rank'} if leader_options else {}
+
+                    # Update creator member record
+                    creator_member.rank_value = rank_value
+                    creator_member.selections = json_lib.dumps(selections_dict) if selections_dict else None
+
+            db.commit()
+
+            # Queue bot action to update the thread embed
+            from .models import LFGConfig, PendingAction, ActionType, ActionStatus
+            import logging
+            logger = logging.getLogger(__name__)
+
+            lfg_config = db.query(LFGConfig).filter_by(guild_id=int(guild_id)).first()
+            if lfg_config and lfg_config.browser_notify_channel_id and lfg_config.notify_on_group_update:
+                import time as time_lib
+
+                action = PendingAction(
+                    guild_id=int(guild_id),
+                    action_type=ActionType.LFG_THREAD_UPDATE,
+                    payload=json.dumps({
+                        'group_id': group.id,
+                        'remove_users_from_thread': removed_co_leader_ids,  # Remove ex-co-leaders from thread
+                    }),
+                    status=ActionStatus.PENDING,
+                    priority=2,  # Medium priority
+                    created_at=int(time_lib.time())
+                )
+                db.add(action)
+                logger.info(f"Queued LFG thread update action for group {group.id}, removing {len(removed_co_leader_ids)} users from thread")
+
+            return JsonResponse({
+                'success': True,
+                'message': 'Group updated successfully',
+                'group': {
+                    'id': group.id,
+                    'description': group.description,
+                    'scheduled_time': group.scheduled_time,
+                    'max_group_size': group.max_group_size,
+                    'member_count': group.member_count,
+                }
+            })
+
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error updating LFG group: {e}", exc_info=True)
+        return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
+
+
+@require_http_methods(["GET"])
+@api_member_auth_required
+def api_lfg_browser_audit_logs(request, guild_id):
+    """
+    GET /api/guild/<id>/lfg/browser/audit-logs/ - Get audit logs for LFG groups.
+
+    Query parameters:
+    - group_id (optional): Filter logs for specific group
+    - limit (optional): Number of logs to return (default 50, max 200)
+    - offset (optional): Pagination offset
+
+    Access: Admins and LFG Managers only
+
+    Returns:
+        JSON with audit log entries including actor, action, changes, and timestamps
+    """
+    try:
+        from .db import get_db_session
+        from .models import Guild, LFGGroupAuditLog
+
+        # Get Discord user from session
+        discord_user = request.session.get('discord_user', {})
+        user_id = discord_user.get('id')
+
+        if not user_id:
+            return JsonResponse({'error': 'Not authenticated'}, status=401)
+
+        # Check if user is admin or LFG Manager
+        admin_guilds = request.session.get('discord_admin_guilds', [])
+        is_admin = any(str(g['id']) == str(guild_id) for g in admin_guilds)
+        has_lfg_manager_role = check_lfg_manager_role(guild_id, user_id)
+
+        if not (is_admin or has_lfg_manager_role):
+            return JsonResponse({'error': 'Permission denied. Only admins and LFG Managers can view audit logs.'}, status=403)
+
+        # Get query parameters
+        group_id_filter = request.GET.get('group_id')
+        limit = min(int(request.GET.get('limit', 50)), 200)
+        offset = int(request.GET.get('offset', 0))
+
+        with get_db_session() as db:
+            # Check if guild exists
+            guild = db.query(Guild).filter_by(guild_id=int(guild_id)).first()
+            if not guild:
+                return JsonResponse({'error': 'Guild not found'}, status=404)
+
+            # Build query
+            query = db.query(LFGGroupAuditLog).filter_by(guild_id=int(guild_id))
+
+            if group_id_filter:
+                query = query.filter_by(group_id=int(group_id_filter))
+
+            # Order by most recent first
+            query = query.order_by(LFGGroupAuditLog.created_at.desc())
+
+            # Get total count
+            total_count = query.count()
+
+            # Apply pagination
+            logs = query.offset(offset).limit(limit).all()
+
+            # Format logs for response
+            logs_data = []
+            for log in logs:
+                from datetime import datetime
+                logs_data.append({
+                    'id': log.id,
+                    'group_id': log.group_id,
+                    'action': log.action,
+                    'actor_id': log.actor_id,
+                    'actor_name': log.actor_name,
+                    'field_changed': log.field_changed,
+                    'old_value': log.old_value,
+                    'new_value': log.new_value,
+                    'group_name': log.group_name,
+                    'game_name': log.game_name,
+                    'created_at': log.created_at,
+                    'created_at_formatted': datetime.fromtimestamp(log.created_at).strftime('%Y-%m-%d %H:%M:%S') if log.created_at else None
+                })
+
+            return JsonResponse({
+                'success': True,
+                'logs': logs_data,
+                'total_count': total_count,
+                'limit': limit,
+                'offset': offset
+            })
+
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error fetching audit logs: {e}", exc_info=True)
+        return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
+
+
+@require_http_methods(["PATCH"])
+@api_member_auth_required
+def api_lfg_browser_update_class(request, guild_id, group_id):
+    """PATCH /api/guild/<id>/lfg/browser/<group_id>/update-class/ - Update member's class/role selections."""
+    try:
+        from .db import get_db_session
+        from .models import Guild, LFGGroup, LFGMember
+        import time
+
+        # Get Discord user from session
+        discord_user = request.session.get('discord_user', {})
+        user_id = discord_user.get('id')
+
+        if not user_id:
+            return JsonResponse({'error': 'Not authenticated'}, status=401)
+
+        data = json.loads(request.body)
+        options = data.get('options', {})
+
+        with get_db_session() as db:
+            # Get guild
+            guild = db.query(Guild).filter_by(guild_id=int(guild_id)).first()
+            if not guild:
+                return JsonResponse({'error': 'Guild not found'}, status=404)
+
+            # Get group
+            group = db.query(LFGGroup).filter_by(id=int(group_id), guild_id=int(guild_id)).first()
+            if not group:
+                return JsonResponse({'error': 'Group not found'}, status=404)
+
+            # Find member
+            member = db.query(LFGMember).filter_by(
+                group_id=group.id,
+                user_id=int(user_id)
+            ).filter(LFGMember.left_at == None).first()
+
+            if not member:
+                return JsonResponse({'error': 'You are not in this group'}, status=400)
+
+            # Extract rank and selections
+            rank_value = options.get('rank')
+            selections = {k: v for k, v in options.items() if k != 'rank'}
+            selections_json = json_lib.dumps(selections) if selections else None
+
+            # Update member's selections
+            member.rank_value = rank_value
+            member.selections = selections_json
+
+            db.commit()
+
+            return JsonResponse({
+                'success': True,
+                'message': 'Class updated successfully'
+            })
+
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error updating member class: {e}", exc_info=True)
+        return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
+
+
+@require_http_methods(["GET", "POST"])
+@discord_required
+def api_lfg_browser_notifications(request, guild_id):
+    """
+    GET/POST /api/guild/<id>/lfg/browser-notifications/ - Get or save LFG Browser notification settings.
+
+    Pro/Premium/VIP only feature.
+
+    GET Returns:
+        200: Current notification settings
+        403: Not Pro/Premium/VIP or not admin
+
+    POST Payload:
+        browser_notify_channel_id: Channel ID for announcements (optional)
+        notify_on_group_create: Announce new groups (bool)
+        notify_on_group_update: Announce group updates (bool)
+        notify_on_group_delete: Announce group deletions (bool)
+        notify_on_member_join: Announce member joins (bool)
+        notify_on_member_leave: Announce member leaves (bool)
+        dm_members_on_update: DM members on group update (bool)
+        dm_members_on_delete: DM members on group deletion (bool)
+        webhook_url: Optional webhook URL for custom integrations
+
+    POST Returns:
+        200: Settings saved successfully
+        403: Not Pro/Premium/VIP or not admin
+    """
+    try:
+        from .db import get_db_session
+        from .models import Guild, LFGConfig
+
+        # Verify admin permission
+        admin_guilds = request.session.get('discord_admin_guilds', [])
+        is_admin = str(guild_id) in [str(g['id']) for g in admin_guilds]
+
+        if not is_admin:
+            return JsonResponse({'error': 'Admin permission required'}, status=403)
+
+        with get_db_session() as db:
+            # Get guild
+            guild = db.query(Guild).filter_by(guild_id=int(guild_id)).first()
+            if not guild:
+                return JsonResponse({'error': 'Guild not found'}, status=404)
+
+            # GET: Return current settings
+            if request.method == 'GET':
+                lfg_config = db.query(LFGConfig).filter_by(guild_id=int(guild_id)).first()
+                if not lfg_config:
+                    # Return default settings
+                    return JsonResponse({
+                        'browser_notify_channel_id': None,
+                        'notify_on_group_create': True,
+                        'notify_on_group_update': False,
+                        'notify_on_group_delete': False,
+                        'notify_on_member_join': False,
+                        'notify_on_member_leave': False,
+                        'webhook_url': None
+                    })
+
+                return JsonResponse({
+                    'browser_notify_channel_id': str(lfg_config.browser_notify_channel_id) if lfg_config.browser_notify_channel_id else None,
+                    'notify_on_group_create': lfg_config.notify_on_group_create,
+                    'notify_on_group_update': lfg_config.notify_on_group_update,
+                    'notify_on_group_delete': lfg_config.notify_on_group_delete,
+                    'notify_on_member_join': lfg_config.notify_on_member_join,
+                    'notify_on_member_leave': lfg_config.notify_on_member_leave,
+                    'webhook_url': lfg_config.webhook_url or ''
+                })
+
+        # POST: Save settings
+        data = json.loads(request.body)
+
+        with get_db_session() as db:
+            # Get guild
+            guild = db.query(Guild).filter_by(guild_id=int(guild_id)).first()
+            if not guild:
+                return JsonResponse({'error': 'Guild not found'}, status=404)
+
+            # Get or create LFG config
+            lfg_config = db.query(LFGConfig).filter_by(guild_id=int(guild_id)).first()
+            if not lfg_config:
+                lfg_config = LFGConfig(guild_id=int(guild_id))
+                db.add(lfg_config)
+
+            # Update notification settings
+            lfg_config.browser_notify_channel_id = int(data.get('browser_notify_channel_id')) if data.get('browser_notify_channel_id') else None
+            lfg_config.notify_on_group_create = data.get('notify_on_group_create', True)
+            lfg_config.notify_on_group_update = data.get('notify_on_group_update', False)
+            lfg_config.notify_on_group_delete = data.get('notify_on_group_delete', False)
+            lfg_config.notify_on_member_join = data.get('notify_on_member_join', False)
+            lfg_config.notify_on_member_leave = data.get('notify_on_member_leave', False)
+            lfg_config.dm_members_on_update = data.get('dm_members_on_update', True)
+            lfg_config.dm_members_on_delete = data.get('dm_members_on_delete', True)
+            lfg_config.webhook_url = data.get('webhook_url')
+
+            db.commit()
+
+            return JsonResponse({
+                'success': True,
+                'message': 'Browser notification settings saved successfully'
+            })
+
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error saving LFG Browser notification settings: {e}", exc_info=True)
+        return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
+
+
 # Bot Installation Callback
 def bot_install_callback(request):
     """
@@ -10453,6 +13878,7 @@ def guild_featured_creators(request, guild_id):
     Anyone can view featured creators to discover content creators.
     Admin features (Discovery settings) still require authentication.
     """
+    from .module_utils import has_module_access, has_any_module_access
     import logging
     logger = logging.getLogger(__name__)
 
@@ -10696,6 +14122,10 @@ def guild_featured_creators(request, guild_id):
                     'forum_thread_id': creator.forum_thread_id,  # For clickable Discord links
                 })
 
+        # Check if guild has discovery module access
+        has_discovery_module = has_module_access(guild_id, 'discovery')
+        has_any_module = has_any_module_access(guild_id)
+
         return render(request, 'warden/featured_creators.html', {
             'guild': guild,
             'guild_record': guild_db,
@@ -10705,7 +14135,10 @@ def guild_featured_creators(request, guild_id):
             'show_admin_view': show_admin_view,
             'discovery_enabled': discovery_enabled,
             'selfpromo_channel_id': selfpromo_channel_id,
+            'has_discovery_module': has_discovery_module,
+            'has_any_module': has_any_module,
             'admin_guilds': admin_guilds,
+        'member_guilds': get_member_guilds(request),
             'active_page': 'featured_creators',
         })
 

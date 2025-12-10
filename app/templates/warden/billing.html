@@ -33,56 +33,188 @@
       <h3 class="text-xl font-bold text-white mb-1">
         <i class="fas fa-bolt text-yellow-400 mr-2"></i>Why Warden Bot?
       </h3>
-      <p class="text-gray-300">Pay only for what you need - Starting at $4/month</p>
+      <p class="text-gray-300">Flexible pricing - Individual modules or complete suite</p>
     </div>
     <div class="flex gap-6 text-sm">
       <div class="text-center">
-        <p class="text-gray-400">MEE6</p>
+        <p class="text-gray-400">MEE6 Premium</p>
         <p class="text-2xl font-bold text-red-400">$11.99<span class="text-sm text-gray-400">/mo</span></p>
         <p class="text-gray-500 text-xs">All or Nothing</p>
       </div>
       <div class="text-center">
         <p class="text-gray-400">Warden Complete</p>
-        <p class="text-2xl font-bold text-green-400">$9.99<span class="text-sm text-gray-400">/mo</span></p>
-        <p class="text-green-400 text-xs font-semibold">Save $2!</p>
+        <p class="text-2xl font-bold text-green-400">$12.99<span class="text-sm text-gray-400">/mo</span></p>
+        <p class="text-green-400 text-xs font-semibold">More features!</p>
       </div>
     </div>
   </div>
 </div>
 
+{% if not is_vip %}
 <!-- Complete Bundle (Featured) -->
-<div class="bg-gradient-to-br from-indigo-600/10 to-purple-600/10 border-2 border-indigo-500/50 rounded-xl p-6 mb-8 relative overflow-hidden">
-  <div class="absolute top-0 right-0 bg-indigo-600 text-white text-xs font-bold px-4 py-1 rounded-bl-lg">
-    BEST VALUE
+<div class="mb-8">
+  <div class="text-center mb-6">
+    <h2 class="text-3xl font-bold text-white mb-2">
+      <i class="fas fa-sparkles text-yellow-400 mr-2"></i>{{ bundles.complete.name }}
+    </h2>
+    <p class="text-gray-300 mb-4">{{ bundles.complete.description }}</p>
+    <div class="flex flex-wrap justify-center gap-2">
+      {% for module in modules %}
+      <span class="inline-flex items-center px-3 py-1 bg-neutral-800/50 border border-neutral-700 rounded-lg text-sm text-gray-300">
+        <i class="fas {{ module.icon }} text-{{ module.color }}-400 mr-2"></i>
+        {{ module.short_name }}
+      </span>
+      {% endfor %}
+    </div>
   </div>
-  <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-    <div class="flex-1">
-      <h3 class="text-2xl font-bold text-white mb-2">
-        <i class="fas fa-sparkles text-yellow-400 mr-2"></i>{{ bundles.complete.name }}
-      </h3>
-      <p class="text-gray-300 mb-3">{{ bundles.complete.description }}</p>
-      <div class="flex flex-wrap gap-2">
-        {% for module in modules %}
-        <span class="inline-flex items-center px-3 py-1 bg-neutral-800/50 border border-neutral-700 rounded-lg text-sm text-gray-300">
-          <i class="fas {{ module.icon }} text-{{ module.color }}-400 mr-2"></i>
-          {{ module.short_name }}
-        </span>
-        {% endfor %}
+
+  <!-- Pricing Cards -->
+  <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
+
+    <!-- Monthly Plan -->
+    <div class="bg-gray-800/50 border border-gray-700 rounded-xl p-6 flex flex-col">
+      <div class="text-center mb-4">
+        <h3 class="text-lg font-bold text-white mb-2">Monthly</h3>
+        <div class="text-3xl font-bold text-white mb-1">
+          ${{ bundles.complete.price_monthly }}
+          <span class="text-sm text-gray-400">/mo</span>
+        </div>
+        <p class="text-xs text-gray-500">Billed monthly</p>
       </div>
-    </div>
-    <div class="flex flex-col items-end gap-2">
-      <div class="text-right">
-        <p class="text-gray-400 text-sm line-through">${{ total_monthly }}/mo</p>
-        <p class="text-4xl font-bold text-white">
-          ${{ bundles.complete.price_monthly }}<span class="text-lg text-gray-400">/mo</span>
-        </p>
-        <p class="text-green-400 text-sm font-semibold">Save ${{ bundles.complete.savings }}/month</p>
-        <p class="text-gray-500 text-xs">${{ bundles.complete.price_yearly }}/year (2 months free)</p>
-      </div>
-      <button onclick="checkoutComplete()" class="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white px-8 py-3 rounded-lg font-bold transition shadow-lg shadow-indigo-500/30 text-lg">
-        <i class="fas fa-crown mr-2"></i>Get Complete Suite
+      {% if guild_record.subscription_tier == 'complete' and guild_record.billing_cycle == 'monthly' %}
+      <button disabled class="w-full bg-green-600/20 text-green-400 px-4 py-3 rounded-lg font-bold border border-green-500/30 cursor-not-allowed">
+        <i class="fas fa-check-circle mr-2"></i>Active
       </button>
+      {% elif guild_record.subscription_tier == 'complete' and guild_record.billing_cycle != 'lifetime' %}
+      <button onclick="if(confirm('Downgrade to Monthly? Your current subscription will be cancelled and replaced with this plan.')) checkoutComplete('monthly')" class="w-full bg-orange-600 hover:bg-orange-700 text-white px-4 py-3 rounded-lg font-bold transition">
+        <i class="fas fa-arrow-down mr-2"></i>Downgrade
+      </button>
+      {% elif not guild_record.subscription_tier == 'complete' %}
+      <button onclick="checkoutComplete('monthly')" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-3 rounded-lg font-bold transition">
+        Subscribe
+      </button>
+      {% endif %}
     </div>
+
+    <!-- 3-Month Plan -->
+    <div class="bg-gray-800/50 border border-gray-700 rounded-xl p-6 flex flex-col relative">
+      <div class="absolute top-2 right-2 bg-blue-600 text-white text-xs font-bold px-2 py-1 rounded">
+        Save 31%
+      </div>
+      <div class="text-center mb-4">
+        <h3 class="text-lg font-bold text-white mb-2">3-Month</h3>
+        <div class="text-3xl font-bold text-white mb-1">
+          $9
+          <span class="text-sm text-gray-400">/mo</span>
+        </div>
+        <p class="text-xs text-gray-500">${{ bundles.complete.price_3month }} every 3 months</p>
+      </div>
+      {% if guild_record.subscription_tier == 'complete' and guild_record.billing_cycle == '3month' %}
+      <button disabled class="w-full bg-green-600/20 text-green-400 px-4 py-3 rounded-lg font-bold border border-green-500/30 cursor-not-allowed">
+        <i class="fas fa-check-circle mr-2"></i>Active
+      </button>
+      {% elif guild_record.subscription_tier == 'complete' and guild_record.billing_cycle == 'monthly' %}
+      <button onclick="if(confirm('Upgrade to 3-Month plan? Your current subscription will be cancelled and replaced with this plan.')) checkoutComplete('3month')" class="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-3 rounded-lg font-bold transition">
+        <i class="fas fa-arrow-up mr-2"></i>Upgrade
+      </button>
+      {% elif guild_record.subscription_tier == 'complete' and guild_record.billing_cycle != 'lifetime' %}
+      <button onclick="if(confirm('Downgrade to 3-Month plan? Your current subscription will be cancelled and replaced with this plan.')) checkoutComplete('3month')" class="w-full bg-orange-600 hover:bg-orange-700 text-white px-4 py-3 rounded-lg font-bold transition">
+        <i class="fas fa-arrow-down mr-2"></i>Downgrade
+      </button>
+      {% elif not guild_record.subscription_tier == 'complete' %}
+      <button onclick="checkoutComplete('3month')" class="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-3 rounded-lg font-bold transition">
+        Subscribe
+      </button>
+      {% endif %}
+    </div>
+
+    <!-- 6-Month Plan -->
+    <div class="bg-gray-800/50 border border-gray-700 rounded-xl p-6 flex flex-col relative">
+      <div class="absolute top-2 right-2 bg-green-600 text-white text-xs font-bold px-2 py-1 rounded">
+        Save 46%
+      </div>
+      <div class="text-center mb-4">
+        <h3 class="text-lg font-bold text-white mb-2">6-Month</h3>
+        <div class="text-3xl font-bold text-white mb-1">
+          $7
+          <span class="text-sm text-gray-400">/mo</span>
+        </div>
+        <p class="text-xs text-gray-500">${{ bundles.complete.price_6month }} every 6 months</p>
+      </div>
+      {% if guild_record.subscription_tier == 'complete' and guild_record.billing_cycle == '6month' %}
+      <button disabled class="w-full bg-green-600/20 text-green-400 px-4 py-3 rounded-lg font-bold border border-green-500/30 cursor-not-allowed">
+        <i class="fas fa-check-circle mr-2"></i>Active
+      </button>
+      {% elif guild_record.subscription_tier == 'complete' and guild_record.billing_cycle == 'monthly' or guild_record.billing_cycle == '3month' %}
+      <button onclick="if(confirm('Upgrade to 6-Month plan? Your current subscription will be cancelled and replaced with this plan.')) checkoutComplete('6month')" class="w-full bg-green-600 hover:bg-green-700 text-white px-4 py-3 rounded-lg font-bold transition">
+        <i class="fas fa-arrow-up mr-2"></i>Upgrade
+      </button>
+      {% elif guild_record.subscription_tier == 'complete' and guild_record.billing_cycle != 'lifetime' %}
+      <button onclick="if(confirm('Downgrade to 6-Month plan? Your current subscription will be cancelled and replaced with this plan.')) checkoutComplete('6month')" class="w-full bg-orange-600 hover:bg-orange-700 text-white px-4 py-3 rounded-lg font-bold transition">
+        <i class="fas fa-arrow-down mr-2"></i>Downgrade
+      </button>
+      {% elif not guild_record.subscription_tier == 'complete' %}
+      <button onclick="checkoutComplete('6month')" class="w-full bg-green-600 hover:bg-green-700 text-white px-4 py-3 rounded-lg font-bold transition">
+        Subscribe
+      </button>
+      {% endif %}
+    </div>
+
+    <!-- Yearly Plan -->
+    <div class="bg-gradient-to-br from-green-600/20 to-emerald-600/20 border-2 border-green-500/50 rounded-xl p-6 flex flex-col relative">
+      <div class="absolute top-2 right-2 bg-green-600 text-white text-xs font-bold px-2 py-1 rounded">
+        Save 68%
+      </div>
+      <div class="text-center mb-4">
+        <h3 class="text-lg font-bold text-white mb-2">Yearly</h3>
+        <div class="text-3xl font-bold text-white mb-1">
+          $4.17
+          <span class="text-sm text-gray-400">/mo</span>
+        </div>
+        <p class="text-xs text-green-400 font-semibold">${{ bundles.complete.price_yearly }}/year</p>
+      </div>
+      {% if guild_record.subscription_tier == 'complete' and guild_record.billing_cycle == 'yearly' %}
+      <button disabled class="w-full bg-green-600/20 text-green-400 px-4 py-3 rounded-lg font-bold border border-green-500/30 cursor-not-allowed">
+        <i class="fas fa-check-circle mr-2"></i>Active
+      </button>
+      {% elif guild_record.subscription_tier == 'complete' and guild_record.billing_cycle != 'lifetime' %}
+      <button onclick="if(confirm('Upgrade to Yearly plan? Your current subscription will be cancelled and replaced with this plan.')) checkoutComplete('yearly')" class="w-full bg-green-600 hover:bg-green-700 text-white px-4 py-3 rounded-lg font-bold transition">
+        <i class="fas fa-arrow-up mr-2"></i>Upgrade
+      </button>
+      {% elif not guild_record.subscription_tier == 'complete' %}
+      <button onclick="checkoutComplete('yearly')" class="w-full bg-green-600 hover:bg-green-700 text-white px-4 py-3 rounded-lg font-bold transition">
+        Subscribe
+      </button>
+      {% endif %}
+    </div>
+
+    <!-- Lifetime Plan -->
+    <div class="bg-gradient-to-br from-purple-600/20 to-pink-600/20 border-2 border-purple-500/50 rounded-xl p-6 flex flex-col relative">
+      <div class="absolute top-2 right-2 bg-purple-600 text-white text-xs font-bold px-2 py-1 rounded">
+        BEST VALUE
+      </div>
+      <div class="text-center mb-4">
+        <h3 class="text-lg font-bold text-white mb-2">Lifetime</h3>
+        <div class="text-3xl font-bold text-purple-300 mb-1">
+          ${{ bundles.complete.price_lifetime }}
+        </div>
+        <p class="text-xs text-purple-400 font-semibold">Pay once, own forever</p>
+      </div>
+      {% if guild_record.subscription_tier == 'complete' and guild_record.billing_cycle == 'lifetime' %}
+      <button disabled class="w-full bg-purple-600/20 text-purple-400 px-4 py-3 rounded-lg font-bold border border-purple-500/30 cursor-not-allowed">
+        <i class="fas fa-infinity mr-2"></i>Owned
+      </button>
+      {% elif guild_record.subscription_tier == 'complete' %}
+      <button onclick="if(confirm('Upgrade to Lifetime plan? Your current subscription will be cancelled and replaced with lifetime access.')) checkoutComplete('lifetime')" class="w-full bg-purple-600 hover:bg-purple-700 text-white px-4 py-3 rounded-lg font-bold transition">
+        <i class="fas fa-arrow-up mr-2"></i>Upgrade
+      </button>
+      {% else %}
+      <button onclick="checkoutComplete('lifetime')" class="w-full bg-purple-600 hover:bg-purple-700 text-white px-4 py-3 rounded-lg font-bold transition">
+        Buy Now
+      </button>
+      {% endif %}
+    </div>
+
   </div>
 </div>
 
@@ -151,34 +283,294 @@
   </div>
 </div>
 
-<!-- Bundle Options -->
-<div class="mb-8">
-  <h2 class="text-2xl font-bold text-white mb-6">
-    <i class="fas fa-box-open text-gray-400 mr-2"></i>Bundle Packages
-  </h2>
-  <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-    {% for bundle_key, bundle in bundles.items %}
-    {% if bundle_key != 'complete' %}
-    <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-6 hover:border-indigo-500/50 transition">
-      <h3 class="text-xl font-bold text-white mb-2">{{ bundle.name }}</h3>
-      <p class="text-gray-400 text-sm mb-4">{{ bundle.description }}</p>
-      <div class="flex items-baseline justify-between mb-4">
-        <div>
-          <p class="text-3xl font-bold text-white">
-            ${{ bundle.price_monthly }}<span class="text-sm text-gray-400">/mo</span>
-          </p>
-          <p class="text-gray-500 text-xs">${{ bundle.price_yearly }}/year</p>
-        </div>
-        <p class="text-green-400 text-sm font-semibold">Save ${{ bundle.savings }}</p>
+<!-- Promotional Bundles (only show if enabled) -->
+{% for bundle_key, bundle in bundles.items %}
+{% if bundle_key != 'complete' and bundle.enabled %}
+<div class="bg-gradient-to-r from-orange-600/10 to-red-600/10 border border-orange-500/50 rounded-xl p-6 mb-8 relative">
+  <div class="absolute top-0 right-0 bg-red-600 text-white text-xs font-bold px-4 py-1 rounded-bl-lg animate-pulse">
+    LIMITED TIME OFFER
+  </div>
+  <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+    <div class="flex-1">
+      <h3 class="text-2xl font-bold text-white mb-2">
+        <i class="fas fa-fire text-orange-400 mr-2"></i>{{ bundle.name }}
+      </h3>
+      <p class="text-gray-300 mb-3">{{ bundle.description }}</p>
+      <p class="text-orange-400 font-semibold">Save ${{ bundle.savings }}/month compared to individual modules</p>
+    </div>
+    <div class="flex flex-col items-end gap-2">
+      <div class="text-right">
+        <p class="text-3xl font-bold text-white">
+          ${{ bundle.price_monthly }}<span class="text-sm text-gray-400">/mo</span>
+        </p>
+        <p class="text-gray-500 text-xs">${{ bundle.price_yearly }}/year</p>
       </div>
-      <button class="w-full bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-lg font-semibold transition">
-        <i class="fas fa-shopping-cart mr-2"></i>Choose Modules
+      <button onclick="alert('Contact us to customize your {{ bundle.name }}!')" class="bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700 text-white px-6 py-2 rounded-lg font-bold transition">
+        <i class="fas fa-bolt mr-2"></i>Get This Deal
       </button>
     </div>
-    {% endif %}
-    {% endfor %}
   </div>
 </div>
+{% endif %}
+{% endfor %}
+
+<!-- Pricing Info Banner -->
+<div class="bg-neutral-900 border border-neutral-800 rounded-xl p-6 mb-8">
+  <div class="flex items-center gap-4 mb-4">
+    <div class="w-12 h-12 rounded-lg bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center flex-shrink-0">
+      <i class="fas fa-puzzle-piece text-indigo-400 text-xl"></i>
+    </div>
+    <div>
+      <h3 class="text-lg font-bold text-white">Need specific features?</h3>
+      <p class="text-gray-400 text-sm">Choose individual modules below at $4-5/month each</p>
+    </div>
+  </div>
+  <div class="text-sm text-gray-400">
+    <p><i class="fas fa-check text-green-400 mr-2"></i>Only pay for what you need</p>
+    <p><i class="fas fa-check text-green-400 mr-2"></i>Add or remove modules anytime</p>
+    <p><i class="fas fa-check text-green-400 mr-2"></i>Complete Suite saves you $10/month</p>
+  </div>
+</div>
+
+<!-- What You Get Section -->
+<div class="mb-8">
+  <h2 class="text-2xl font-bold text-white mb-6 text-center">
+    <i class="fas fa-gift text-gray-400 mr-2"></i>What You Get
+  </h2>
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+    <!-- Free Tier -->
+    <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-6">
+      <div class="flex items-center gap-3 mb-4">
+        <div class="w-10 h-10 rounded-lg bg-gray-600/20 border border-gray-500/30 flex items-center justify-center">
+          <i class="fas fa-gift text-gray-400 text-lg"></i>
+        </div>
+        <div>
+          <h3 class="text-lg font-bold text-white">Free Tier</h3>
+          <p class="text-gray-400 text-sm">$0 forever</p>
+        </div>
+      </div>
+      <ul class="space-y-2 text-sm">
+        <li class="text-gray-300"><i class="fas fa-check text-green-400 mr-2"></i>Basic XP & Leveling</li>
+        <li class="text-gray-300"><i class="fas fa-check text-green-400 mr-2"></i>Level-up Messages</li>
+        <li class="text-gray-300"><i class="fas fa-check text-green-400 mr-2"></i>Welcome/Goodbye Messages</li>
+        <li class="text-gray-300"><i class="fas fa-check text-green-400 mr-2"></i>Member Profiles</li>
+        <li class="text-gray-300"><i class="fas fa-check text-green-400 mr-2"></i>Basic Leaderboards</li>
+        <li class="text-gray-300"><i class="fas fa-check text-green-400 mr-2"></i>Up to 2 Reaction Role Menus</li>
+        <li class="text-gray-400 text-xs italic mt-3">Perfect for small communities</li>
+      </ul>
+    </div>
+
+    <!-- Individual Modules -->
+    <div class="bg-neutral-900 border border-indigo-500/50 rounded-xl p-6">
+      <div class="flex items-center gap-3 mb-4">
+        <div class="w-10 h-10 rounded-lg bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center">
+          <i class="fas fa-puzzle-piece text-indigo-400 text-lg"></i>
+        </div>
+        <div>
+          <h3 class="text-lg font-bold text-white">Individual Modules</h3>
+          <p class="text-indigo-400 text-sm font-semibold">$4-5/month each</p>
+        </div>
+      </div>
+      <ul class="space-y-2 text-sm">
+        <li class="text-gray-300"><i class="fas fa-check text-indigo-400 mr-2"></i>All Free features</li>
+        <li class="text-gray-300"><i class="fas fa-plus text-indigo-400 mr-2"></i>Premium module features</li>
+        <li class="text-gray-300"><i class="fas fa-infinity text-indigo-400 mr-2"></i>Unlimited XP tracking</li>
+        <li class="text-gray-300"><i class="fas fa-infinity text-indigo-400 mr-2"></i>Unlimited reaction roles</li>
+        <li class="text-gray-300"><i class="fas fa-tools text-indigo-400 mr-2"></i>Advanced customization</li>
+        <li class="text-gray-300"><i class="fas fa-cog text-indigo-400 mr-2"></i>Module-specific tools</li>
+        <li class="text-indigo-400 text-xs italic mt-3">Only pay for what you need</li>
+      </ul>
+    </div>
+
+    <!-- Complete Suite -->
+    <div class="bg-gradient-to-br from-purple-600/10 to-pink-600/10 border-2 border-purple-500/50 rounded-xl p-6 relative">
+      <div class="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-purple-600 text-white text-xs font-bold px-3 py-1 rounded-full">
+        BEST VALUE
+      </div>
+      <div class="flex items-center gap-3 mb-4 mt-2">
+        <div class="w-10 h-10 rounded-lg bg-purple-600/20 border border-purple-500/30 flex items-center justify-center">
+          <i class="fas fa-crown text-purple-400 text-lg"></i>
+        </div>
+        <div>
+          <h3 class="text-lg font-bold text-white">Complete Suite</h3>
+          <p class="text-purple-400 text-sm font-semibold">$12.99/mo or $99.99 lifetime</p>
+        </div>
+      </div>
+      <ul class="space-y-2 text-sm">
+        <li class="text-gray-300"><i class="fas fa-check text-purple-400 mr-2"></i>Everything in Free</li>
+        <li class="text-gray-300"><i class="fas fa-star text-purple-400 mr-2"></i>ALL 5 premium modules</li>
+        <li class="text-gray-300"><i class="fas fa-infinity text-purple-400 mr-2"></i>Unlimited everything</li>
+        <li class="text-gray-300"><i class="fas fa-bolt text-purple-400 mr-2"></i>XP Boost Events</li>
+        <li class="text-gray-300"><i class="fas fa-shield-alt text-purple-400 mr-2"></i>Full moderation suite</li>
+        <li class="text-gray-300"><i class="fas fa-bullhorn text-purple-400 mr-2"></i>Discovery & promotions</li>
+        <li class="text-gray-300"><i class="fas fa-calendar-check text-purple-400 mr-2"></i>LFG & event tracking</li>
+        <li class="text-purple-400 text-xs font-bold italic mt-3">Save $10/month vs à la carte!</li>
+      </ul>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- Current Subscription Management -->
+{% if is_vip or subscription or guild_record.subscription_tier == 'complete' or guild_record.stripe_subscription_id or active_modules %}
+<div class="{% if subscription and subscription.cancel_at_period_end %}bg-gradient-to-r from-yellow-600/10 to-orange-600/10 border-2 border-yellow-500/50{% elif guild_record.billing_cycle == 'lifetime' %}bg-gradient-to-r from-purple-600/10 to-pink-600/10 border-2 border-purple-500/50{% else %}bg-gradient-to-r from-green-600/10 to-emerald-600/10 border-2 border-green-500/50{% endif %} rounded-xl p-6 mb-8">
+  <div class="flex items-start justify-between gap-4">
+    <div class="flex-1">
+      <div class="flex items-center gap-3 mb-3">
+        <div class="w-12 h-12 rounded-lg {% if subscription and subscription.cancel_at_period_end %}bg-yellow-600/20 border border-yellow-500/40{% else %}bg-green-600/20 border border-green-500/40{% endif %} flex items-center justify-center">
+          {% if guild_record.subscription_tier == 'complete' and guild_record.billing_cycle == 'lifetime' %}
+            <i class="fas fa-infinity text-purple-400 text-2xl"></i>
+          {% elif subscription and subscription.cancel_at_period_end %}
+            <i class="fas fa-exclamation-triangle text-yellow-400 text-2xl"></i>
+          {% else %}
+            <i class="fas fa-check-circle text-green-400 text-2xl"></i>
+          {% endif %}
+        </div>
+        <div>
+          {% if guild_record.subscription_tier == 'complete' and guild_record.billing_cycle == 'lifetime' %}
+            <h2 class="text-2xl font-bold text-white">
+              Lifetime Access
+              {% if is_vip %}
+              <span class="ml-2 px-2 py-1 text-xs bg-yellow-600/20 text-yellow-400 border border-yellow-500/30 rounded">VIP</span>
+              {% endif %}
+            </h2>
+            <p class="text-purple-400 font-semibold">Complete Suite - Forever{% if is_vip %} (Complimentary){% endif %}</p>
+          {% elif subscription and subscription.cancel_at_period_end %}
+            <h2 class="text-2xl font-bold text-white">Subscription Cancelled</h2>
+            {% if guild_record.subscription_tier == 'complete' or active_module_count == total_modules %}
+              <p class="text-yellow-400 font-semibold">Complete Suite - Access until <span id="cancel-expiry-date" data-timestamp="{{ subscription.current_period_end }}"></span></p>
+            {% elif active_modules %}
+              <div class="text-yellow-400 font-semibold">
+                <p class="mb-1">Active until <span id="cancel-expiry-date" data-timestamp="{{ subscription.current_period_end }}"></span>:</p>
+                <div class="space-y-1 text-sm">
+                  {% for module in modules %}
+                    {% if module.is_active %}
+                      <div class="flex items-center">
+                        <i class="{{ module.icon }} text-{{ module.color }}-400 mr-2"></i>
+                        <span>{{ module.name }}</span>
+                      </div>
+                    {% endif %}
+                  {% endfor %}
+                </div>
+              </div>
+            {% else %}
+              <p class="text-yellow-400 font-semibold">Access continues until expiration</p>
+            {% endif %}
+          {% elif guild_record.subscription_tier == 'complete' or active_module_count == total_modules %}
+            <h2 class="text-2xl font-bold text-white">Active Subscription</h2>
+            {% if guild_record.billing_cycle == 'monthly' %}
+              <p class="text-green-400 font-semibold">Complete Suite - Monthly</p>
+            {% elif guild_record.billing_cycle == '3month' %}
+              <p class="text-green-400 font-semibold">Complete Suite - 3-Month</p>
+            {% elif guild_record.billing_cycle == '6month' %}
+              <p class="text-green-400 font-semibold">Complete Suite - 6-Month</p>
+            {% elif guild_record.billing_cycle == 'yearly' %}
+              <p class="text-green-400 font-semibold">Complete Suite - Yearly</p>
+            {% else %}
+              <p class="text-green-400 font-semibold">Complete Suite</p>
+            {% endif %}
+          {% elif active_modules %}
+            <h2 class="text-2xl font-bold text-white">Active Modules</h2>
+            <div class="text-green-400 font-semibold space-y-1">
+              {% for module in modules %}
+                {% if module.is_active %}
+                  <div class="flex items-center text-sm">
+                    <i class="{{ module.icon }} text-{{ module.color }}-400 mr-2"></i>
+                    <span>{{ module.name }}</span>
+                  </div>
+                {% endif %}
+              {% endfor %}
+            </div>
+          {% elif subscription %}
+            <h2 class="text-2xl font-bold text-white">Active Subscription</h2>
+            <p class="text-green-400 font-semibold">{{ subscription.plan_name }} - ${{ subscription.amount }}/{{ subscription.interval }}</p>
+          {% endif %}
+        </div>
+      </div>
+
+      {% if subscription %}
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+        <div>
+          <p class="text-gray-400 mb-1">Status</p>
+          <p class="text-white font-semibold">
+            {% if subscription.status == 'active' %}
+              <i class="fas fa-circle text-green-400 text-xs mr-1"></i>Active
+            {% elif subscription.status == 'trialing' %}
+              <i class="fas fa-clock text-blue-400 text-xs mr-1"></i>Trial
+            {% else %}
+              <i class="fas fa-exclamation-triangle text-yellow-400 text-xs mr-1"></i>{{ subscription.status|title }}
+            {% endif %}
+          </p>
+        </div>
+        <div>
+          <p class="text-gray-400 mb-1">Billing Cycle</p>
+          <p class="text-white font-semibold">
+            {% if guild_record.billing_cycle == 'monthly' %}Monthly
+            {% elif guild_record.billing_cycle == '3month' %}Every 3 Months
+            {% elif guild_record.billing_cycle == '6month' %}Every 6 Months
+            {% elif guild_record.billing_cycle == 'yearly' %}Yearly
+            {% elif guild_record.billing_cycle == 'lifetime' %}Lifetime
+            {% else %}{{ subscription.interval|title }}ly
+            {% endif %}
+          </p>
+        </div>
+        <div>
+          <p class="text-gray-400 mb-1">Next Billing Date</p>
+          <p class="text-white font-semibold">
+            {% if guild_record.billing_cycle == 'lifetime' %}
+              <span class="text-purple-400">Never - Enjoy Wardenbot Forever!</span>
+            {% elif subscription.cancel_at_period_end %}
+              <span class="text-yellow-400">Valid until <span id="next-billing-date" data-timestamp="{{ subscription.current_period_end }}"></span></span>
+            {% else %}
+              <span id="next-billing-date" data-timestamp="{{ subscription.current_period_end }}"></span>
+            {% endif %}
+          </p>
+        </div>
+      </div>
+
+      {% if subscription.cancel_at_period_end %}
+      <div class="mt-4 p-3 bg-yellow-600/10 border border-yellow-500/30 rounded-lg">
+        <p class="text-yellow-400 text-sm">
+          <i class="fas fa-info-circle mr-2"></i>
+          Your subscription will expire at the end of the current billing period. You'll retain access until then.
+        </p>
+      </div>
+      {% endif %}
+      {% elif guild_record.subscription_tier == 'complete' and guild_record.billing_cycle == 'lifetime' %}
+      <div class="text-sm text-gray-300">
+        <p><i class="fas fa-infinity mr-2 text-purple-400"></i>You have permanent access to all Warden Bot features</p>
+      </div>
+      {% elif guild_record.subscription_tier == 'complete' %}
+      <div class="text-sm text-gray-300">
+        <p class="mb-2"><i class="fas fa-star mr-2 text-green-400"></i>You have access to all Warden Bot features</p>
+        {% if guild_record.subscription_expires %}
+        <p class="text-gray-400">
+          <i class="fas fa-calendar mr-2"></i>
+          Renews: <span id="db-billing-date" data-timestamp="{{ guild_record.subscription_expires }}"></span>
+        </p>
+        {% endif %}
+      </div>
+      {% endif %}
+    </div>
+
+    <div class="flex flex-col gap-2">
+      {% if subscription and guild_record.billing_cycle != 'lifetime' %}
+      <button onclick="openBillingPortal()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2.5 rounded-lg font-semibold transition text-center whitespace-nowrap">
+        <i class="fas fa-cog mr-2"></i>Manage Subscription
+      </button>
+      {% if not subscription.cancel_at_period_end %}
+      <button onclick="cancelSubscription()" class="bg-red-600/20 hover:bg-red-600/30 text-red-400 hover:text-red-300 px-6 py-2.5 rounded-lg font-semibold transition border border-red-500/30">
+        <i class="fas fa-times-circle mr-2"></i>Cancel Subscription
+      </button>
+      {% endif %}
+      {% endif %}
+      <button onclick="transferSubscription()" class="bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 hover:text-blue-300 px-6 py-2.5 rounded-lg font-semibold transition border border-blue-500/30">
+        <i class="fas fa-exchange-alt mr-2"></i>Transfer to Another Server
+      </button>
+    </div>
+  </div>
+</div>
+{% endif %}
 
 <!-- FAQ Section -->
 <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-6">
@@ -192,7 +584,7 @@
     </div>
     <div>
       <h4 class="text-white font-semibold mb-1">What happens to my data if I unsubscribe?</h4>
-      <p class="text-gray-400 text-sm">Your data is safely stored for 90 days. If you resubscribe within that time, everything will be restored.</p>
+      <p class="text-gray-400 text-sm">Your data is never deleted! All your XP, settings, and configurations are safely stored. Premium features are disabled, but you can resubscribe anytime to instantly regain access.</p>
     </div>
     <div>
       <h4 class="text-white font-semibold mb-1">Can I switch between modules?</h4>
@@ -205,6 +597,54 @@
   </div>
 </div>
 
+<!-- Transfer Subscription Modal -->
+<div id="transferModal" class="hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+  <div class="bg-gray-800 rounded-xl border border-gray-700 max-w-md w-full p-6 shadow-2xl">
+    <div class="flex items-center justify-between mb-4">
+      <h3 class="text-xl font-bold text-white">
+        <i class="fas fa-exchange-alt text-blue-400 mr-2"></i>Transfer Subscription
+      </h3>
+      <button onclick="closeTransferModal()" class="text-gray-400 hover:text-white transition">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+
+    <div class="mb-6">
+      <p class="text-gray-300 text-sm mb-4">
+        Select the server you want to transfer your subscription to. This server will lose access to all premium features.
+      </p>
+
+      <label class="block text-sm font-medium text-gray-300 mb-2">
+        <i class="fas fa-server mr-1"></i>Target Server
+      </label>
+      <select id="transferTargetGuild" class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+        <option value="">Select a server...</option>
+        {% for admin_guild in admin_guilds %}
+          {% if admin_guild.id != guild.id %}
+          <option value="{{ admin_guild.id }}">{{ admin_guild.name }}</option>
+          {% endif %}
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="bg-yellow-600/10 border border-yellow-500/30 rounded-lg p-3 mb-4">
+      <p class="text-yellow-400 text-sm">
+        <i class="fas fa-exclamation-triangle mr-2"></i>
+        <strong>Warning:</strong> This action cannot be undone. Your current server will immediately lose access to all premium features.
+      </p>
+    </div>
+
+    <div class="flex gap-3">
+      <button onclick="closeTransferModal()" class="flex-1 bg-gray-700 hover:bg-gray-600 text-white px-4 py-2.5 rounded-lg font-semibold transition">
+        Cancel
+      </button>
+      <button onclick="confirmTransfer()" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-lg font-semibold transition">
+        <i class="fas fa-exchange-alt mr-2"></i>Transfer
+      </button>
+    </div>
+  </div>
+</div>
+
 <script>
 const GUILD_ID = '{{ guild.id }}';
 
@@ -213,6 +653,48 @@ document.addEventListener('DOMContentLoaded', function() {
   console.log('Active modules:', {{ active_module_count }});
   console.log('Total modules:', {{ total_modules }});
   console.log('VIP status:', {{ is_vip|lower }});
+
+  // Format billing dates
+  const billingDateEl = document.getElementById('next-billing-date');
+  if (billingDateEl) {
+    const timestamp = parseInt(billingDateEl.dataset.timestamp);
+    if (!isNaN(timestamp)) {
+      const date = new Date(timestamp * 1000);
+      billingDateEl.textContent = date.toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      });
+    }
+  }
+
+  // Format database billing date
+  const dbBillingDateEl = document.getElementById('db-billing-date');
+  if (dbBillingDateEl) {
+    const timestamp = parseInt(dbBillingDateEl.dataset.timestamp);
+    if (!isNaN(timestamp)) {
+      const date = new Date(timestamp * 1000);
+      dbBillingDateEl.textContent = date.toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      });
+    }
+  }
+
+  // Format cancel expiry date
+  const cancelExpiryDateEl = document.getElementById('cancel-expiry-date');
+  if (cancelExpiryDateEl) {
+    const timestamp = parseInt(cancelExpiryDateEl.dataset.timestamp);
+    if (!isNaN(timestamp)) {
+      const date = new Date(timestamp * 1000);
+      cancelExpiryDateEl.textContent = date.toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      });
+    }
+  }
 
   // Check for success/cancelled parameters
   const urlParams = new URLSearchParams(window.location.search);
@@ -227,13 +709,13 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 });
 
-async function checkoutComplete() {
+async function checkoutComplete(billingType) {
   try {
     const response = await csrfFetch(`/api/guild/${GUILD_ID}/stripe/checkout/`, {
       method: 'POST',
       body: JSON.stringify({
         items: [{ type: 'bundle', key: 'complete' }],
-        billing_cycle: 'monthly'
+        billing_cycle: billingType  // 'monthly', 'yearly', or 'lifetime'
       })
     });
 
@@ -296,6 +778,82 @@ async function cancelSubscription() {
   } catch (error) {
     console.error('Cancellation error:', error);
     alert('Failed to cancel subscription. Please try again.');
+  }
+}
+
+async function openBillingPortal() {
+  try {
+    const response = await csrfFetch(`/api/guild/${GUILD_ID}/stripe/portal/`, {
+      method: 'POST'
+    });
+
+    const data = await response.json();
+
+    if (data.success && data.portal_url) {
+      // Open Stripe billing portal in new tab
+      window.open(data.portal_url, '_blank');
+    } else {
+      alert('Error: ' + (data.error || 'Failed to open billing portal'));
+    }
+  } catch (error) {
+    console.error('Portal error:', error);
+    alert('Failed to open billing portal. Please try again.');
+  }
+}
+
+function transferSubscription() {
+  // Open the transfer modal
+  document.getElementById('transferModal').classList.remove('hidden');
+}
+
+function closeTransferModal() {
+  // Close the transfer modal
+  document.getElementById('transferModal').classList.add('hidden');
+  // Reset the select
+  document.getElementById('transferTargetGuild').value = '';
+}
+
+async function confirmTransfer() {
+  const newGuildId = document.getElementById('transferTargetGuild').value;
+
+  if (!newGuildId) {
+    alert('Please select a server to transfer to.');
+    return;
+  }
+
+  // Get the selected server name for confirmation
+  const selectEl = document.getElementById('transferTargetGuild');
+  const selectedOption = selectEl.options[selectEl.selectedIndex];
+  const serverName = selectedOption.text;
+
+  if (!confirm(`Are you sure you want to transfer your subscription to "${serverName}"? This server will immediately lose access to all premium features.`)) {
+    return;
+  }
+
+  try {
+    const response = await csrfFetch(`/api/guild/${GUILD_ID}/stripe/transfer/`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        new_guild_id: newGuildId
+      })
+    });
+
+    const data = await response.json();
+
+    if (data.success) {
+      alert('✅ Subscription transferred successfully! Redirecting...');
+      window.location.href = `/warden/guild/${newGuildId}/billing/`;
+    } else {
+      alert('Error: ' + (data.error || 'Failed to transfer subscription'));
+      closeTransferModal();
+    }
+  } catch (error) {
+    console.error('Transfer error:', error);
+    alert('Failed to transfer subscription. Please try again.');
+    closeTransferModal();
   }
 }
 </script>

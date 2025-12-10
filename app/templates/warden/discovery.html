@@ -21,12 +21,18 @@
   </div>
 
   <!-- Tabs -->
-  <div class="flex gap-2 mb-8 border-b border-neutral-800">
-    <button onclick="switchTab('creator')" id="creatorTab" class="px-6 py-3 font-medium text-white border-b-2 border-orange-500 transition">
+  <div class="flex gap-2 mb-8 border-b border-neutral-800 overflow-x-auto">
+    <button onclick="switchTab('creator')" id="creatorTab" class="px-6 py-3 font-medium text-white border-b-2 border-orange-500 transition whitespace-nowrap">
       <i class="fas fa-user mr-2"></i>Creator Discovery
     </button>
-    <button onclick="switchTab('games')" id="gamesTab" class="px-6 py-3 font-medium text-gray-400 hover:text-white border-b-2 border-transparent transition">
+    <button onclick="switchTab('games')" id="gamesTab" class="px-6 py-3 font-medium text-gray-400 hover:text-white border-b-2 border-transparent transition whitespace-nowrap">
       <i class="fas fa-gamepad mr-2"></i>Game Discovery
+    </button>
+    <button onclick="switchTab('twitch')" id="twitchTab" class="px-6 py-3 font-medium text-gray-400 hover:text-white border-b-2 border-transparent transition whitespace-nowrap">
+      <i class="fab fa-twitch mr-2"></i>Twitch
+    </button>
+    <button onclick="switchTab('youtube')" id="youtubeTab" class="px-6 py-3 font-medium text-gray-400 hover:text-white border-b-2 border-transparent transition whitespace-nowrap">
+      <i class="fab fa-youtube mr-2"></i>YouTube
     </button>
   </div>
 
@@ -35,6 +41,12 @@
 
   <!-- Game Discovery Tab Content -->
   {% include "warden/partials/game_discovery_tab.html" %}
+
+  <!-- Twitch Integration Tab Content -->
+  {% include "warden/partials/twitch_integration_tab.html" %}
+
+  <!-- YouTube Integration Tab Content -->
+  {% include "warden/partials/youtube_integration_tab.html" %}
 
 </div>
 
@@ -52,23 +64,16 @@ const totalSearchConfigs = {{ total_search_configs }};
 
 // Check if user can add more search configs
 function canAddSearchConfig() {
-  // VIP or Premium = unlimited
-  if (isVIP || currentTier === 'premium') {
+  // VIP or has Discovery module = unlimited
+  const hasDiscoveryModule = {{ has_discovery_module|lower }};
+  if (isVIP || hasDiscoveryModule || currentTier === 'lifetime') {
     return true;
   }
 
-  // Pro = 5 limit
-  if (currentTier === 'pro') {
-    if (totalSearchConfigs >= 5) {
-      alert('⚠️ Search Configuration Limit Reached\n\nYou\'ve reached your limit of 5 search configurations.\n\nUpgrade to Premium for unlimited searches!');
-      return false;
-    }
-  } else {
-    // Free = 3 limit
-    if (totalSearchConfigs >= 3) {
-      alert('⚠️ Search Configuration Limit Reached\n\nYou\'ve reached your limit of 3 search configurations.\n\nUpgrade to Pro (5 searches) or Premium (unlimited) for more!');
-      return false;
-    }
+  // Free = 3 limit
+  if (totalSearchConfigs >= 3) {
+    alert('⚠️ Search Configuration Limit Reached\n\nYou\'ve reached your limit of 3 search configurations.\n\nUpgrade to Discovery Module or get Complete Suite for $12.99/mo for unlimited searches!');
+    return false;
   }
 
   return true;
@@ -503,24 +508,43 @@ async function removeFromPool(entryId) {
 
 // Tab switching
 function switchTab(tab) {
+  // Hide all content
+  document.getElementById('creatorContent').classList.add('hidden');
+  document.getElementById('gamesContent').classList.add('hidden');
+  document.getElementById('twitchContent').classList.add('hidden');
+  document.getElementById('youtubeContent').classList.add('hidden');
+
+  // Reset all tabs
+  document.getElementById('creatorTab').classList.remove('text-white', 'border-orange-500');
+  document.getElementById('creatorTab').classList.add('text-gray-400', 'border-transparent');
+  document.getElementById('gamesTab').classList.remove('text-white', 'border-blue-500');
+  document.getElementById('gamesTab').classList.add('text-gray-400', 'border-transparent');
+  document.getElementById('twitchTab').classList.remove('text-white', 'border-purple-500');
+  document.getElementById('twitchTab').classList.add('text-gray-400', 'border-transparent');
+  document.getElementById('youtubeTab').classList.remove('text-white', 'border-red-500');
+  document.getElementById('youtubeTab').classList.add('text-gray-400', 'border-transparent');
+
+  // Show selected tab
   if (tab === 'creator') {
     document.getElementById('creatorContent').classList.remove('hidden');
-    document.getElementById('gamesContent').classList.add('hidden');
     document.getElementById('creatorTab').classList.add('text-white', 'border-orange-500');
     document.getElementById('creatorTab').classList.remove('text-gray-400', 'border-transparent');
-    document.getElementById('gamesTab').classList.remove('text-white', 'border-blue-500');
-    document.getElementById('gamesTab').classList.add('text-gray-400', 'border-transparent');
-    // Update URL hash without scrolling
     history.replaceState(null, null, '#creator');
-  } else {
-    document.getElementById('creatorContent').classList.add('hidden');
+  } else if (tab === 'games') {
     document.getElementById('gamesContent').classList.remove('hidden');
     document.getElementById('gamesTab').classList.add('text-white', 'border-blue-500');
     document.getElementById('gamesTab').classList.remove('text-gray-400', 'border-transparent');
-    document.getElementById('creatorTab').classList.remove('text-white', 'border-orange-500');
-    document.getElementById('creatorTab').classList.add('text-gray-400', 'border-transparent');
-    // Update URL hash without scrolling
     history.replaceState(null, null, '#games');
+  } else if (tab === 'twitch') {
+    document.getElementById('twitchContent').classList.remove('hidden');
+    document.getElementById('twitchTab').classList.add('text-white', 'border-purple-500');
+    document.getElementById('twitchTab').classList.remove('text-gray-400', 'border-transparent');
+    history.replaceState(null, null, '#twitch');
+  } else if (tab === 'youtube') {
+    document.getElementById('youtubeContent').classList.remove('hidden');
+    document.getElementById('youtubeTab').classList.add('text-white', 'border-red-500');
+    document.getElementById('youtubeTab').classList.remove('text-gray-400', 'border-transparent');
+    history.replaceState(null, null, '#youtube');
   }
 }
 
@@ -901,6 +925,10 @@ document.addEventListener('DOMContentLoaded', function() {
   const hash = window.location.hash;
   if (hash === '#games') {
     switchTab('games');
+  } else if (hash === '#twitch') {
+    switchTab('twitch');
+  } else if (hash === '#youtube') {
+    switchTab('youtube');
   } else if (hash === '#creator') {
     switchTab('creator');
   }
@@ -912,6 +940,10 @@ window.addEventListener('hashchange', function() {
   const hash = window.location.hash;
   if (hash === '#games') {
     switchTab('games');
+  } else if (hash === '#twitch') {
+    switchTab('twitch');
+  } else if (hash === '#youtube') {
+    switchTab('youtube');
   } else if (hash === '#creator') {
     switchTab('creator');
   }

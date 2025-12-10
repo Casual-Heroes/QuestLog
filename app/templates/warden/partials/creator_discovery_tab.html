@@ -184,8 +184,8 @@
             <label class="block text-sm text-gray-400 mb-2">How to get Featured Reminder</label>
             <textarea id="how_to_enter_response" rows="3"
                       class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:border-indigo-500 focus:outline-none resize-y"
-                      placeholder="💬 Want to be featured? You need {token_cost} {token_name} to enter the pool! Stay active to earn more. Re-enter every {entry_cooldown}. 🎮">{% if discovery_config.how_to_enter_response %}{{ discovery_config.how_to_enter_response }}{% else %}💬 Want to be featured? You need **{token_cost} {token_name}** to enter the pool!
-Stay active to earn more. Re-enter every {entry_cooldown}. 🎮{% endif %}</textarea>
+                      placeholder="💬 Thanks for sharing! To enter the featured pool, you need {token_cost} {token_name}. To see how many {token_name} you have, use /xp profile. Stay active to earn more! 🎮">{% if discovery_config.how_to_enter_response %}{{ discovery_config.how_to_enter_response }}{% else %}💬 Thanks for sharing! To enter the featured pool, you need {token_cost} {token_name}.
+To see how many {token_name} you have, use /xp profile. Stay active to earn more! 🎮{% endif %}</textarea>
             <p class="text-gray-500 text-xs mt-1">Sent as scheduled reminder via <code class="text-purple-400">/send-featured-reminder</code>. Use {token_cost}, {token_name}, {entry_cooldown}.</p>
           </div>
           <div>

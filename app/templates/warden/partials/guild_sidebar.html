@@ -5,7 +5,7 @@
 <div id="guild-sidebar" class="fixed inset-y-0 left-0 z-50 w-64 bg-neutral-900 border-r border-neutral-800 transform -translate-x-full lg:translate-x-0 transition-transform duration-300 ease-in-out overflow-y-auto">
   <!-- Server Selector Dropdown -->
   <div class="p-4 border-b border-neutral-800">
-    <button onclick="toggleServerDropdown()"
+    <button onclick="toggleServerDropdown()" type="button"
             class="w-full flex items-center gap-3 mb-2 hover:bg-neutral-800 p-2 rounded-lg transition group">
       {% if guild.icon %}
       <img src="https://cdn.discordapp.com/icons/{{ guild.id }}/{{ guild.icon }}.png?size=64"
@@ -32,8 +32,41 @@
     </button>
 
     <!-- Server Dropdown Menu -->
-    <div id="server-dropdown" class="hidden mt-2 bg-neutral-800 rounded-lg border border-neutral-700 max-h-64 overflow-y-auto">
+    <div id="server-dropdown" class="hidden mt-2 bg-neutral-800 rounded-lg border border-neutral-700 max-h-96 overflow-y-auto">
+      <!-- Servers You Manage (only show servers with bot installed) -->
+      {% if admin_guilds %}
       {% for g in admin_guilds %}
+      {% if g.id != guild.id and g.has_bot %}
+      <a href="{% url 'guild_dashboard' g.id %}"
+         class="flex items-center gap-3 p-3 hover:bg-neutral-700 transition">
+        {% if g.icon %}
+        <img src="https://cdn.discordapp.com/icons/{{ g.id }}/{{ g.icon }}.png?size=48"
+             alt="{{ g.name }}"
+             class="w-8 h-8 rounded-lg">
+        {% else %}
+        <div class="w-8 h-8 bg-neutral-600 rounded-lg flex items-center justify-center">
+          <span class="text-xs font-bold text-gray-400">{{ g.name|slice:":2"|upper }}</span>
+        </div>
+        {% endif %}
+        <div class="flex-1 min-w-0">
+          <p class="text-white text-sm truncate">{{ g.name }}</p>
+          <p class="text-gray-500 text-xs">
+            {% if g.owner %}<i class="fas fa-crown text-yellow-500 mr-1"></i>Owner{% else %}<i class="fas fa-shield-alt text-indigo-400 mr-1"></i>Admin{% endif %}
+          </p>
+        </div>
+      </a>
+      {% endif %}
+      {% endfor %}
+      {% endif %}
+
+      <!-- Servers You Are In (Members) -->
+      {% if member_guilds %}
+      {% if admin_guilds %}
+      <div class="border-t border-neutral-700 pt-2 pb-1 px-3">
+        <p class="text-xs text-gray-500 uppercase tracking-wider font-semibold">Member Servers</p>
+      </div>
+      {% endif %}
+      {% for g in member_guilds %}
       {% if g.id != guild.id %}
       <a href="{% url 'guild_dashboard' g.id %}"
          class="flex items-center gap-3 p-3 hover:bg-neutral-700 transition">
@@ -49,12 +82,13 @@
         <div class="flex-1 min-w-0">
           <p class="text-white text-sm truncate">{{ g.name }}</p>
           <p class="text-gray-500 text-xs">
-            {% if g.owner %}<i class="fas fa-crown text-yellow-500 mr-1"></i>{% else %}<i class="fas fa-shield-alt text-indigo-400 mr-1"></i>{% endif %}
+            <i class="fas fa-users text-blue-400 mr-1"></i>Member
           </p>
         </div>
       </a>
       {% endif %}
       {% endfor %}
+      {% endif %}
 
       <!-- All Servers Link -->
       <a href="{% url 'warden_dashboard' %}"
@@ -116,6 +150,13 @@
           <i class="fas fa-gamepad text-gray-400 group-hover:text-green-400"></i>
           <span>Found Games</span>
         </a>
+
+        <!-- LFG Browser (All Tiers) -->
+        <a href="{% url 'guild_lfg_browser' guild.id %}"
+           class="nav-item {% if active_page == 'lfg_browser' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          <i class="fas fa-users text-gray-400 group-hover:text-green-400"></i>
+          <span class="flex-1">Find Groups</span>
+        </a>
       </div>
     </div>
 
@@ -143,7 +184,7 @@
       <div class="space-y-1">
         <!-- XP & Leveling (Expandable) -->
         <div>
-          <button onclick="toggleSubmenu('xp-submenu')"
+          <button onclick="toggleSubmenu('xp-submenu', event)" type="button"
                   class="nav-item {% if active_page == 'xp' or active_page == 'levelup' %}active{% endif %} w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
             <i class="fas fa-star text-gray-400 group-hover:text-green-400"></i>
             <span class="flex-1 text-left">XP & Leveling</span>
@@ -170,32 +211,37 @@
 
         <!-- LFG System (Expandable) -->
         <div>
-          <button onclick="toggleSubmenu('lfg-submenu')"
-                  class="nav-item {% if active_page == 'lfg' or active_page == 'attendance' %}active{% endif %} w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          <button onclick="toggleSubmenu('lfg-submenu', event)" type="button"
+                  class="nav-item {% if active_page == 'lfg' or active_page == 'attendance' or active_page == 'lfg_browser' %}active{% endif %} w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
             <i class="fas fa-gamepad text-gray-400 group-hover:text-blue-400"></i>
             <span class="flex-1 text-left">LFG System</span>
             <i class="fas fa-chevron-down text-xs transition-transform" id="lfg-submenu-icon"></i>
           </button>
-          <div id="lfg-submenu" class="ml-6 mt-1 space-y-1 {% if active_page != 'lfg' and active_page != 'attendance' %}hidden{% endif %}">
+          <div id="lfg-submenu" class="ml-6 mt-1 space-y-1 {% if active_page != 'lfg' and active_page != 'attendance' and active_page != 'lfg_browser' %}hidden{% endif %}">
             <a href="{% url 'guild_lfg' guild.id %}"
                class="sub-nav-item {% if active_page == 'lfg' %}active{% endif %} flex items-center gap-2 px-3 py-1.5 rounded text-xs transition">
               <i class="fas fa-cog w-4"></i>
               <span>LFG Settings</span>
             </a>
-            {% is_attendance_enabled guild.id as attendance_enabled %}
-            {% if attendance_enabled %}
+            {% is_premium guild.id as is_premium %}
+            {% if is_premium %}
             <a href="{% url 'guild_attendance' guild.id %}"
                class="sub-nav-item {% if active_page == 'attendance' %}active{% endif %} flex items-center gap-2 px-3 py-1.5 rounded text-xs transition">
               <i class="fas fa-clipboard-check w-4"></i>
               <span>Attendance</span>
             </a>
             {% endif %}
+            <a href="{% url 'guild_lfg_browser' guild.id %}"
+               class="sub-nav-item {% if active_page == 'lfg_browser' %}active{% endif %} flex items-center gap-2 px-3 py-1.5 rounded text-xs transition">
+              <i class="fas fa-users w-4"></i>
+              <span>LFG Browser</span>
+            </a>
           </div>
         </div>
 
         <!-- Discovery System (Expandable) -->
         <div>
-          <button onclick="toggleSubmenu('discovery-submenu')"
+          <button onclick="toggleSubmenu('discovery-submenu', event)" type="button"
                   class="nav-item {% if active_page == 'discovery' %}active{% endif %} w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
             <i class="fas fa-bullhorn text-gray-400 group-hover:text-orange-400"></i>
             <span class="flex-1 text-left">Discovery System</span>
@@ -212,8 +258,25 @@
               <i class="fas fa-gamepad w-4"></i>
               <span>Game Discovery</span>
             </a>
+            <a href="{% url 'guild_discovery' guild.id %}#twitch"
+               class="sub-nav-item flex items-center gap-2 px-3 py-1.5 rounded text-xs transition">
+              <i class="fab fa-twitch w-4"></i>
+              <span>Twitch</span>
+            </a>
+            <a href="{% url 'guild_discovery' guild.id %}#youtube"
+               class="sub-nav-item flex items-center gap-2 px-3 py-1.5 rounded text-xs transition">
+              <i class="fab fa-youtube w-4"></i>
+              <span>YouTube</span>
+            </a>
           </div>
         </div>
+
+        <!-- Flair Management -->
+        <a href="{% url 'flair_management' guild.id %}"
+           class="nav-item {% if active_page == 'flair_management' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          <i class="fas fa-palette text-gray-400 group-hover:text-pink-400"></i>
+          <span>Flair Management</span>
+        </a>
 
         <!-- Raffles -->
         <a href="{% url 'guild_raffles' guild.id %}"
@@ -255,16 +318,16 @@
       </div>
     </div>
 
-    <!-- Customization Section -->
+    <!-- Message System Section -->
     <div>
       <div class="flex items-center justify-between px-3 mb-2">
-        <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wider">Customization</h3>
+        <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wider">Message System</h3>
       </div>
       <div class="space-y-1">
-        <a href="{% url 'guild_roles' guild.id %}"
-           class="nav-item {% if active_page == 'roles' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
-          <i class="fas fa-user-tag text-gray-400 group-hover:text-indigo-400"></i>
-          <span>Role Management</span>
+        <a href="{% url 'guild_messages' guild.id %}"
+           class="nav-item {% if active_page == 'messages' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          <i class="fas fa-envelope-open-text text-gray-400 group-hover:text-cyan-400"></i>
+          <span>Message Tools</span>
         </a>
         <a href="{% url 'guild_welcome' guild.id %}"
            class="nav-item {% if active_page == 'welcome' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
@@ -275,6 +338,20 @@
            class="nav-item {% if active_page == 'reaction_roles' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
           <i class="fas fa-smile text-gray-400 group-hover:text-yellow-400"></i>
           <span>Reaction Roles</span>
+        </a>
+      </div>
+    </div>
+
+    <!-- Customization Section -->
+    <div>
+      <div class="flex items-center justify-between px-3 mb-2">
+        <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wider">Customization</h3>
+      </div>
+      <div class="space-y-1">
+        <a href="{% url 'guild_roles' guild.id %}"
+           class="nav-item {% if active_page == 'roles' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          <i class="fas fa-user-tag text-gray-400 group-hover:text-indigo-400"></i>
+          <span>Role Management</span>
         </a>
         <a href="{% url 'guild_templates' guild.id %}"
            class="nav-item {% if active_page == 'templates' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
@@ -295,7 +372,7 @@
   <!-- Footer -->
   <!-- Collapse Button (Desktop only) -->
   <div class="p-4 border-t border-neutral-800 mt-auto hidden lg:block">
-    <button onclick="toggleSidebarCollapse()"
+    <button onclick="toggleSidebarCollapse()" type="button"
             class="w-full flex items-center justify-center gap-2 text-gray-400 hover:text-white hover:bg-neutral-800 py-2 px-3 rounded-lg transition group">
       <i id="sidebar-collapse-icon" class="fas fa-chevron-left"></i>
       <span id="sidebar-collapse-text" class="text-xs font-medium">Collapse Sidebar</span>
@@ -316,7 +393,7 @@
 <div id="sidebar-overlay" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 lg:hidden hidden" onclick="toggleSidebar()"></div>
 
 <!-- Mobile Menu Button -->
-<button onclick="toggleSidebar()"
+<button onclick="toggleSidebar()" type="button"
         class="fixed top-4 left-4 z-50 lg:hidden bg-neutral-900 border border-neutral-800 text-white p-2 rounded-lg shadow-lg hover:bg-neutral-800 transition">
   <i class="fas fa-bars"></i>
 </button>
@@ -454,7 +531,12 @@ function toggleServerDropdown() {
   dropdown.classList.toggle('hidden');
 }
 
-function toggleSubmenu(submenuId) {
+function toggleSubmenu(submenuId, event) {
+  if (event) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
+
   const submenu = document.getElementById(submenuId);
   const icon = document.getElementById(submenuId + '-icon');
 
@@ -491,11 +573,17 @@ function toggleSidebarCollapse() {
   }
 }
 
+// AJAX navigation disabled - causing flickering and performance issues
+// Using normal page navigation instead
+
 // Restore sidebar state from localStorage on page load
 document.addEventListener('DOMContentLoaded', () => {
+  const sidebar = document.getElementById('guild-sidebar');
+
+  // Restore collapsed state
   const isCollapsed = localStorage.getItem('sidebarCollapsed') === 'true';
   if (isCollapsed && window.innerWidth >= 1024) {
-    document.getElementById('guild-sidebar').classList.add('sidebar-collapsed');
+    sidebar.classList.add('sidebar-collapsed');
     document.getElementById('sidebar-collapse-icon').className = 'fas fa-chevron-right';
     document.getElementById('sidebar-collapse-text').textContent = 'Expand';
   }
@@ -506,14 +594,5 @@ document.addEventListener('click', (e) => {
   if (!e.target.closest('#server-dropdown') && !e.target.closest('button[onclick="toggleServerDropdown()"]')) {
     document.getElementById('server-dropdown')?.classList.add('hidden');
   }
-});
-
-// Close sidebar when clicking a link on mobile
-document.querySelectorAll('#guild-sidebar a').forEach(link => {
-  link.addEventListener('click', () => {
-    if (window.innerWidth < 1024) {
-      toggleSidebar();
-    }
-  });
 });
 </script>

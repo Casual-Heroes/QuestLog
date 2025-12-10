@@ -647,6 +647,13 @@ async function saveAuditSettings() {
     });
     const data = await resp.json();
     if (!resp.ok || !data.success) throw new Error(data.error || 'Failed to save');
+    // Update local state with saved values
+    auditEventConfig = data.event_config || cfg;
+    if (data.audit_enabled !== undefined) {
+      const auditToggle = document.getElementById('audit_enabled');
+      if (auditToggle) auditToggle.checked = !!data.audit_enabled;
+      toggleAuditInputs();
+    }
     closeAuditSettings();
     alert('Audit settings saved.');
   } catch (err) {
@@ -654,9 +661,27 @@ async function saveAuditSettings() {
   }
 }
 
-// Load config and channels on page load
-loadEventConfig();
-renderAuditEventToggles();
-loadAuditChannels();
+// Load config (fresh from API) and channels on page load
+(async () => {
+  try {
+    const resp = await csrfFetch(`/api/guild/${guildId}/audit/config/`);
+    const data = await resp.json();
+    if (data && data.success) {
+      auditEventConfig = Object.assign(buildDefaultEventConfig(), data.event_config || {});
+      // Set toggle state for audit enabled
+      const auditToggle = document.getElementById('audit_enabled');
+      if (auditToggle) {
+        auditToggle.checked = !!data.audit_enabled;
+        toggleAuditInputs();
+      }
+    } else {
+      loadEventConfig();
+    }
+  } catch (err) {
+    loadEventConfig();
+  }
+  renderAuditEventToggles();
+  loadAuditChannels();
+})();
 </script>
 {% endblock guild_content %}

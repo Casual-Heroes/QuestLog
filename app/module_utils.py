@@ -49,6 +49,44 @@ def has_module_access(guild_id, module_name):
         return False
 
 
+def has_any_module_access(guild_id):
+    """
+    Check if a guild has access to ANY module.
+
+    Args:
+        guild_id: Discord guild ID
+
+    Returns:
+        bool: True if guild has active access to at least one module
+    """
+    try:
+        with get_db_session() as db:
+            # Check if guild has VIP status (gets everything for free)
+            guild = db.query(Guild).filter_by(guild_id=int(guild_id)).first()
+            if guild and guild.is_vip:
+                return True
+
+            # Check if any module exists in database and is active
+            modules = db.query(GuildModule).filter_by(
+                guild_id=int(guild_id),
+                enabled=True
+            ).all()
+
+            if not modules:
+                return False
+
+            # Check if at least one module is not expired
+            current_time = int(time.time())
+            for module in modules:
+                if not module.expires_at or module.expires_at > current_time:
+                    return True
+
+            return False
+    except Exception as e:
+        print(f"Error checking any module access: {e}")
+        return False
+
+
 def get_guild_modules(guild_id):
     """
     Get all active modules for a guild.

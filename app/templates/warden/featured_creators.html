@@ -286,17 +286,9 @@
     <span>Set Up Discovery</span>
   </a>
   {% else %}
-  <!-- Member View - Show Creator Encouragement -->
+  <!-- Member View - Ask Admin to Setup -->
   <h3 class="text-white text-2xl font-bold mb-2">No Creators Featured Yet</h3>
-  <p class="text-gray-400 text-lg mb-4">Be the first to be featured!</p>
-  <p class="text-gray-300 max-w-2xl mx-auto">
-    If you're a content creator, share your streams, videos, or content in the self-promo channel.
-    {% if selfpromo_channel_id %}
-    You'll automatically be entered into the featured pool and could be showcased here!
-    {% else %}
-    Ask a server admin to set up Creator Discovery to start featuring talented members.
-    {% endif %}
-  </p>
+  <p class="text-gray-400 text-lg">Ask your server admin to setup Creator Discovery to start featuring talented members</p>
   {% endif %}
 </div>
 {% endif %}

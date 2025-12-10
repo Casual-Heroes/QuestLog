@@ -61,6 +61,7 @@ urlpatterns = [
     path('api/guild/<str:guild_id>/flairs/', views.api_flair_list, name='api_flair_list'),
     path('api/guild/<str:guild_id>/flairs/bulk-update/', views.api_flair_bulk_update, name='api_flair_bulk_update'),
     path('api/guild/<str:guild_id>/flairs/create/', views.api_flair_create, name='api_flair_create'),
+    path('api/guild/<str:guild_id>/flairs/create-default-roles/', views.api_flair_create_default_roles, name='api_flair_create_default_roles'),
     path('api/guild/<str:guild_id>/flairs/<int:flair_id>/delete/', views.api_flair_delete, name='api_flair_delete'),
 
     # Warden API (REST endpoints for dashboard AJAX)
@@ -93,6 +94,12 @@ urlpatterns = [
     path('api/guild/<str:guild_id>/xp/import/', views.api_xp_import_csv, name='api_xp_import_csv'),
     path('api/guild/<str:guild_id>/xp/export/', views.api_xp_export_csv, name='api_xp_export_csv'),
     path('api/guild/<str:guild_id>/xp/bulk-edit/', views.api_xp_bulk_edit, name='api_xp_bulk_edit'),
+
+    # XP Boost Events API
+    path('api/guild/<str:guild_id>/xp/boost-events/', views.api_xp_boost_events_list, name='api_xp_boost_events_list'),
+    path('api/guild/<str:guild_id>/xp/boost-events/create/', views.api_xp_boost_event_create, name='api_xp_boost_event_create'),
+    path('api/guild/<str:guild_id>/xp/boost-events/<int:event_id>/', views.api_xp_boost_event_update, name='api_xp_boost_event_update'),
+    path('api/guild/<str:guild_id>/xp/boost-events/<int:event_id>/delete/', views.api_xp_boost_event_delete, name='api_xp_boost_event_delete'),
 
     # Role Management Dashboard
     path('warden/guild/<str:guild_id>/roles/', views.guild_roles, name='guild_roles'),
@@ -150,10 +157,19 @@ urlpatterns = [
     # Discord Resource API Endpoints (cached to reduce rate limiting)
     path('api/guild/<str:guild_id>/channels/', views.api_guild_channels, name='api_guild_channels'),
     path('api/guild/<str:guild_id>/roles/', views.api_guild_roles, name='api_guild_roles'),
+    path('api/guild/<str:guild_id>/members/', views.api_guild_members, name='api_guild_members'),
     path('api/guild/<str:guild_id>/emojis/', views.api_guild_emojis, name='api_guild_emojis'),
+    path('api/guild/<str:guild_id>/messages/', views.api_message_action, name='api_message_action'),
+
+    # Scheduled Messages API Endpoints
+    path('api/guild/<str:guild_id>/scheduled-messages/', views.api_scheduled_messages_list, name='api_scheduled_messages_list'),
+    path('api/guild/<str:guild_id>/scheduled-messages/create/', views.api_scheduled_messages_create, name='api_scheduled_messages_create'),
+    path('api/guild/<str:guild_id>/scheduled-messages/<int:message_id>/update/', views.api_scheduled_messages_update, name='api_scheduled_messages_update'),
+    path('api/guild/<str:guild_id>/scheduled-messages/<int:message_id>/cancel/', views.api_scheduled_messages_cancel, name='api_scheduled_messages_cancel'),
 
     # Server Settings Dashboard
     path('warden/guild/<str:guild_id>/settings/', views.guild_settings, name='guild_settings'),
+    path('warden/guild/<str:guild_id>/messages/', views.guild_messages, name='guild_messages'),
 
     # Settings API Endpoints
     path('api/guild/<str:guild_id>/settings/update/', views.api_settings_update, name='api_settings_update'),
@@ -164,6 +180,8 @@ urlpatterns = [
     path('api/guild/<str:guild_id>/stripe/checkout/', views.stripe_create_checkout, name='stripe_create_checkout'),
     path('api/guild/<str:guild_id>/stripe/cancel/', views.stripe_cancel_subscription, name='stripe_cancel_subscription'),
     path('api/guild/<str:guild_id>/stripe/status/', views.stripe_subscription_status, name='stripe_subscription_status'),
+    path('api/guild/<str:guild_id>/stripe/portal/', views.stripe_billing_portal, name='stripe_billing_portal'),
+    path('api/guild/<str:guild_id>/stripe/transfer/', views.stripe_transfer_subscription, name='stripe_transfer_subscription'),
     path('webhooks/stripe/', views.stripe_webhook, name='stripe_webhook'),
 
     # Verification Dashboard
@@ -225,6 +243,7 @@ urlpatterns = [
 
     # LFG Dashboard
     path('warden/guild/<str:guild_id>/lfg/', views.guild_lfg, name='guild_lfg'),
+    path('warden/guild/<str:guild_id>/lfg/browser/', views.guild_lfg_browser, name='guild_lfg_browser'),
     path('warden/guild/<str:guild_id>/attendance/', views.guild_attendance, name='guild_attendance'),
     path('warden/guild/<str:guild_id>/featured-creators/', views.guild_featured_creators, name='guild_featured_creators'),
     path('warden/guild/<str:guild_id>/cotw/', views.guild_cotw, name='guild_cotw'),
@@ -247,4 +266,18 @@ urlpatterns = [
     path('api/guild/<str:guild_id>/lfg/attendance/update/', views.api_lfg_attendance_update, name='api_lfg_attendance_update'),
     path('api/guild/<str:guild_id>/lfg/attendance/export/', views.api_lfg_attendance_export, name='api_lfg_attendance_export'),
     path('api/guild/<str:guild_id>/lfg/attendance/user/<str:user_id>/', views.api_lfg_user_history, name='api_lfg_user_history'),
+
+    # LFG Browser API Endpoints (All Tiers - Game limits enforced)
+    path('api/guild/<str:guild_id>/lfg/manager-check/', views.api_lfg_manager_check, name='api_lfg_manager_check'),
+    path('api/guild/<str:guild_id>/lfg/browser/groups/', views.api_lfg_browser_groups, name='api_lfg_browser_groups'),
+    path('api/guild/<str:guild_id>/lfg/browser/create/', views.api_lfg_browser_create, name='api_lfg_browser_create'),
+    path('api/guild/<str:guild_id>/lfg/browser/<int:group_id>/join/', views.api_lfg_browser_join, name='api_lfg_browser_join'),
+    path('api/guild/<str:guild_id>/lfg/browser/<int:group_id>/leave/', views.api_lfg_browser_leave, name='api_lfg_browser_leave'),
+    path('api/guild/<str:guild_id>/lfg/browser/<int:group_id>/remove-member/', views.api_lfg_browser_remove_member, name='api_lfg_browser_remove_member'),
+    path('api/guild/<str:guild_id>/lfg/browser/<int:group_id>/join-thread/', views.api_lfg_browser_join_thread, name='api_lfg_browser_join_thread'),
+    path('api/guild/<str:guild_id>/lfg/browser/<int:group_id>/update/', views.api_lfg_browser_update, name='api_lfg_browser_update'),
+    path('api/guild/<str:guild_id>/lfg/browser/<int:group_id>/update-class/', views.api_lfg_browser_update_class, name='api_lfg_browser_update_class'),
+    path('api/guild/<str:guild_id>/lfg/browser/<int:group_id>/delete/', views.api_lfg_browser_delete, name='api_lfg_browser_delete'),
+    path('api/guild/<str:guild_id>/lfg/browser/audit-logs/', views.api_lfg_browser_audit_logs, name='api_lfg_browser_audit_logs'),
+    path('api/guild/<str:guild_id>/lfg/browser-notifications/', views.api_lfg_browser_notifications, name='api_lfg_browser_notifications'),
 ]

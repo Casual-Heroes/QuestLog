@@ -16,6 +16,7 @@ window.DiscordResources = {
   channels: [],
   roles: [],
   members: [],
+  emojis: [],
   loaded: false,
   loading: false
 };
@@ -32,17 +33,28 @@ async function loadDiscordResources() {
 
   try {
     const guildId = '{{ guild.id }}';
-    const response = await csrfFetch(`/api/guild/${guildId}/resources/`);
+    const [res, emj, ch, rl, mb] = await Promise.all([
+      csrfFetch(`/api/guild/${guildId}/resources/`),
+      csrfFetch(`/api/guild/${guildId}/emojis/`),
+      csrfFetch(`/api/guild/${guildId}/channels/`),
+      csrfFetch(`/api/guild/${guildId}/roles/`),
+      csrfFetch(`/api/guild/${guildId}/members/`)
+    ]);
 
-    if (!response.ok) {
+    if (!res.ok) {
       throw new Error('Failed to load Discord resources');
     }
 
-    const data = await response.json();
+    const data = await res.json();
+    const emjs = await emj.json();
+    const chData = await ch.json();
+    const rlData = await rl.json();
+    const mbData = await mb.json();
 
-    window.DiscordResources.channels = data.channels || [];
-    window.DiscordResources.roles = data.roles || [];
-    window.DiscordResources.members = data.members || [];
+    window.DiscordResources.channels = chData.channels || data.channels || [];
+    window.DiscordResources.roles = rlData.roles || data.roles || [];
+    window.DiscordResources.members = mbData.members || data.members || [];
+    window.DiscordResources.emojis = emjs.success ? [...(emjs.standard || []), ...(emjs.custom || [])] : [];
     window.DiscordResources.loaded = true;
 
     return window.DiscordResources;
@@ -58,7 +70,10 @@ async function loadDiscordResources() {
  * Convert a text input to a searchable select dropdown
  */
 function convertToDiscordSelect(input, resourceType) {
-  const resources = window.DiscordResources[resourceType + 's'] || [];
+  let resources = window.DiscordResources[resourceType + 's'] || [];
+  if (resourceType === 'emoji') {
+    resources = window.DiscordResources.emojis || [];
+  }
 
   if (resources.length === 0) {
     console.warn(`No ${resourceType}s available for dropdown`);
@@ -81,7 +96,7 @@ function convertToDiscordSelect(input, resourceType) {
   // Add options
   resources.forEach(resource => {
     const option = document.createElement('option');
-    option.value = resource.id;
+    option.value = resource.id || resource.name;
     option.textContent = resource.name;
     select.appendChild(option);
   });
