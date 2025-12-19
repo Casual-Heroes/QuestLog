@@ -1,0 +1,114 @@
+{% extends 'base.html' %}
+
+{% block title %}QuestLog - Overview | Casual Heroes{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto py-12 px-4 space-y-12">
+  <!-- Hero -->
+  <div class="text-center">
+    <h1 class="text-5xl font-bold mb-4 bg-gradient-to-r from-indigo-400 to-purple-500 bg-clip-text text-transparent">
+      QuestLog Overview
+    </h1>
+    <p class="text-lg text-gray-400">
+      Modular Discord automation for engagement, roles, security, discovery, and events — with a full web dashboard.
+    </p>
+  </div>
+
+  <!-- Core Pillars -->
+  <section class="bg-neutral-900 border border-neutral-800 rounded-lg p-8">
+    <h2 class="text-3xl font-bold mb-6 text-indigo-400">What Warden Delivers</h2>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 text-gray-300">
+      <div class="space-y-2">
+        <h3 class="text-xl font-semibold">Engagement & Progression</h3>
+        <p>XP & leveling, leaderboards, level-up announcements, and premium XP Boost Events to spark activity.</p>
+      </div>
+      <div class="space-y-2">
+        <h3 class="text-xl font-semibold">Roles & Self-Service</h3>
+        <p>Reaction roles (standard + custom emojis), role/channel templates, and quick server scaffolding.</p>
+      </div>
+      <div class="space-y-2">
+        <h3 class="text-xl font-semibold">Security & Moderation</h3>
+        <p>Verification (button, CAPTCHA, account age, multi-step), moderation actions, and exportable audit logs.</p>
+      </div>
+      <div class="space-y-2">
+        <h3 class="text-xl font-semibold">Discovery & Events</h3>
+        <p>Creator/Game discovery with IGDB filters, Found Games summaries, LFG plus attendance/reliability tracking.</p>
+      </div>
+      <div class="space-y-2">
+        <h3 class="text-xl font-semibold">Flairs, Tokens, Profiles</h3>
+        <p>Flair store/management, configurable token name/emoji, and member profile tracking.</p>
+      </div>
+      <div class="space-y-2">
+        <h3 class="text-xl font-semibold">Automations & Trackers</h3>
+        <p>Channel stat trackers, welcome/goodbye messaging, level-role rewards, and configurable schedules.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Modules & Pricing -->
+  <section class="bg-neutral-900 border border-neutral-800 rounded-lg p-8">
+    <h2 class="text-3xl font-bold mb-4 text-indigo-400">Modular by Design</h2>
+    <p class="text-gray-300 mb-4">Keep the free core or unlock only what you need — up to the Complete Suite.</p>
+    <ul class="list-disc list-inside space-y-2 text-gray-300 ml-4">
+      <li><strong>Engagement</strong> — XP/levels, flairs, profiles, level-up embeds, premium XP Boost Events.</li>
+      <li><strong>Roles</strong> — Reaction roles, role/channel templates, bulk role tools.</li>
+      <li><strong>Moderation & Security</strong> — Warnings/timeouts/bans, audit exports, verification, anti-raid posture.</li>
+      <li><strong>Discovery</strong> — Creator/Game discovery, Found Games dashboard, IGDB filters, announcement caps.</li>
+      <li><strong>Events & Attendance</strong> — LFG, attendance history, reliability/blacklist controls.</li>
+      <li><strong>Complete Suite</strong> — All modules at a bundled price (see billing page).</li>
+      <li><strong>Free Core</strong> — Base XP, basic templates, reaction menus, welcome/level-up messaging.</li>
+    </ul>
+  </section>
+
+  <!-- Security & Access -->
+  <section class="bg-neutral-900 border border-neutral-800 rounded-lg p-8">
+    <h2 class="text-3xl font-bold mb-4 text-indigo-400">Security First</h2>
+    <ul class="list-disc list-inside space-y-2 text-gray-300 ml-4">
+      <li>Dashboard requires Discord auth and proper server permissions.</li>
+      <li>Module enable/disable switches are enforced across logging and automations.</li>
+      <li>Audit exports and destructive actions are limited to authorized admins.</li>
+      <li>Reaction roles and templates honor Discord role hierarchy constraints.</li>
+    </ul>
+  </section>
+
+  <!-- Feature Highlights -->
+  <section class="bg-neutral-900 border border-neutral-800 rounded-lg p-8 space-y-6">
+    <h2 class="text-3xl font-bold text-indigo-400 mb-2">Highlights at a Glance</h2>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-gray-300">
+      <div>
+        <h3 class="font-semibold mb-1">XP & Leveling</h3>
+        <p>Cooldown-based XP, level roles, leaderboards, level-up embeds, XP Boost Events (premium).</p>
+      </div>
+      <div>
+        <h3 class="font-semibold mb-1">Reaction Roles</h3>
+        <p>Post menus with standard/custom emojis; edits replace reactions to stay in sync.</p>
+      </div>
+      <div>
+        <h3 class="font-semibold mb-1">Discovery</h3>
+        <p>Creator/Game tabs, IGDB-driven filters, configurable announce caps, Found Games summary embeds.</p>
+      </div>
+      <div>
+        <h3 class="font-semibold mb-1">LFG & Attendance</h3>
+        <p>LFG flows, attendance history, bulk/global pardon, reliability and blacklist controls.</p>
+      </div>
+      <div>
+        <h3 class="font-semibold mb-1">Moderation & Audit</h3>
+        <p>Warnings/timeouts/bans with audit exports; respects module toggles.</p>
+      </div>
+      <div>
+        <h3 class="font-semibold mb-1">Templates</h3>
+        <p>Reusable role/channel templates with clear edit states and quick setup.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Call to Action -->
+  <section class="bg-gradient-to-r from-indigo-900 to-purple-900 border border-indigo-700 rounded-lg p-8 text-center">
+    <h2 class="text-3xl font-bold mb-3 text-white">Ready to configure?</h2>
+    <p class="text-gray-200 mb-4">Log in with Discord to manage your guild’s modules and settings.</p>
+    <a href="/questlog/login" class="inline-block bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-8 rounded-lg transition">
+      Login to Dashboard
+    </a>
+  </section>
+</div>
+{% endblock %}

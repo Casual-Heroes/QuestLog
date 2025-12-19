@@ -1,0 +1,428 @@
+{% extends "questlog/base_guild.html" %}
+{% load static %}
+
+{% block title %}Flair Store - {{ guild.name }}{% endblock %}
+{% block og_title %}Flair Store - {{ guild.name }}{% endblock %}
+
+{% block guild_content %}
+
+  <!-- Page Header -->
+  <div class="bg-neutral-900 rounded-2xl overflow-hidden border border-neutral-800 mb-8">
+    <div class="h-32 bg-gradient-to-r from-purple-600/30 via-pink-600/30 to-rose-600/30 relative">
+      <div class="absolute -bottom-10 left-8">
+        <div class="w-20 h-20 bg-gradient-to-br from-purple-500 to-pink-500 rounded-2xl border-4 border-neutral-900 shadow-lg flex items-center justify-center">
+          <i class="fas fa-palette text-3xl text-white"></i>
+        </div>
+      </div>
+    </div>
+
+    <div class="pt-14 pb-6 px-8">
+      <h1 class="text-3xl font-bold text-white mb-2">🎨 Flair Store</h1>
+      <p class="text-gray-400">
+        Customize your profile with unique flairs using {{ token_name }}
+      </p>
+
+      <!-- Token Balance -->
+      <div class="mt-6 inline-flex items-center gap-3 bg-neutral-800 rounded-lg px-6 py-3 border border-neutral-700">
+        <i class="fas fa-coins text-yellow-500 text-2xl"></i>
+        <div>
+          <p class="text-gray-400 text-sm">Your Balance</p>
+          <p class="text-white text-2xl font-bold" id="token-balance">{{ current_tokens }}</p>
+        </div>
+      </div>
+
+      <!-- Debug: Show current Discord user -->
+      <div class="mt-4 text-xs text-gray-500">
+        Logged in as: {{ discord_user.username }}#{{ discord_user.discriminator|default:"0" }} (ID: {{ discord_user.id }})
+      </div>
+    </div>
+  </div>
+
+  <!-- Current Flair -->
+  {% if current_flair %}
+  <div class="bg-neutral-900 rounded-xl p-6 border border-neutral-800 mb-8">
+    <h2 class="text-xl font-bold text-white mb-3">
+      <i class="fas fa-star text-yellow-500 mr-2"></i>Your Current Flair
+    </h2>
+    <div class="inline-flex items-center gap-3 bg-neutral-800 rounded-lg px-4 py-2">
+      <span class="text-lg">{{ current_flair }}</span>
+      <button onclick="removeFlair()" class="text-red-400 hover:text-red-300 text-sm ml-2">
+        <i class="fas fa-times mr-1"></i>Remove
+      </button>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Success/Error Messages -->
+  <div id="message-container" class="mb-6"></div>
+
+  <!-- Toast Notification (Fixed position) -->
+  <div id="toast-container" class="fixed top-4 right-4 z-50 space-y-2"></div>
+
+  <!-- Normal Flairs -->
+  <div class="bg-neutral-900 rounded-xl p-6 border border-neutral-800 mb-8">
+    <h2 class="text-xl font-bold text-white mb-4">
+      <i class="fas fa-gamepad text-indigo-500 mr-2"></i>Normal Flairs
+    </h2>
+    <p class="text-gray-400 mb-6 text-sm">Permanent flairs that grow with your journey</p>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      {% for flair_name, cost in normal_flairs.items %}
+      {% if flair_name in owned_flairs %}
+      {# User owns this flair - free to equip #}
+      <div class="bg-neutral-800 rounded-lg p-4 border border-green-700/50 hover:border-green-500/50 transition-all group">
+        <div class="flex items-start justify-between mb-3">
+          <div class="flex items-center gap-2">
+            <span class="text-lg group-hover:scale-105 transition-transform">{{ flair_name }}</span>
+            <span class="text-xs bg-green-600 text-white px-2 py-0.5 rounded-full">Owned</span>
+          </div>
+        </div>
+        <button
+          onclick="purchaseFlair('{{ flair_name|escapejs }}', 'normal', 0)"
+          class="w-full text-white font-medium py-2 px-4 rounded-lg transition text-sm
+                 {% if current_flair == flair_name %}bg-green-600 hover:bg-green-500{% else %}bg-indigo-600 hover:bg-indigo-500{% endif %}">
+          {% if current_flair == flair_name %}
+            <i class="fas fa-check mr-1"></i>Equipped
+          {% else %}
+            <i class="fas fa-palette mr-1"></i>Equip
+          {% endif %}
+        </button>
+      </div>
+      {% else %}
+      {# User doesn't own this flair - needs to purchase #}
+      <div class="bg-neutral-800 rounded-lg p-4 border border-neutral-700 hover:border-indigo-500/50 transition-all group">
+        <div class="flex items-start justify-between mb-3">
+          <span class="text-lg group-hover:scale-105 transition-transform">{{ flair_name }}</span>
+          <span class="text-yellow-500 font-semibold text-sm">
+            <i class="fas fa-coins mr-1"></i>{{ cost }}
+          </span>
+        </div>
+        <button
+          onclick="purchaseFlair('{{ flair_name|escapejs }}', 'normal', {{ cost }})"
+          class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-medium py-2 px-4 rounded-lg transition text-sm
+                 {% if cost > current_tokens %}opacity-50 cursor-not-allowed{% endif %}"
+          {% if cost > current_tokens %}disabled{% endif %}>
+          {% if cost == 0 %}
+            <i class="fas fa-gift mr-1"></i>Free
+          {% else %}
+            <i class="fas fa-shopping-cart mr-1"></i>Purchase
+          {% endif %}
+        </button>
+      </div>
+      {% endif %}
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- Seasonal Flairs -->
+  <div class="bg-neutral-900 rounded-xl p-6 border border-neutral-800 mb-8">
+    <h2 class="text-xl font-bold text-white mb-4">
+      <i class="fas fa-calendar-alt text-pink-500 mr-2"></i>Seasonal Flairs
+    </h2>
+    <p class="text-gray-400 mb-6 text-sm">Limited-time flairs celebrating special occasions</p>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      {% for flair_name, cost in seasonal_flairs.items %}
+      {% if flair_name in owned_flairs %}
+      {# User owns this flair - free to equip #}
+      <div class="bg-neutral-800 rounded-lg p-4 border border-green-700/50 hover:border-green-500/50 transition-all group">
+        <div class="flex items-start justify-between mb-3">
+          <div class="flex items-center gap-2">
+            <span class="text-lg group-hover:scale-105 transition-transform">{{ flair_name }}</span>
+            <span class="text-xs bg-green-600 text-white px-2 py-0.5 rounded-full">Owned</span>
+          </div>
+        </div>
+        <button
+          onclick="purchaseFlair('{{ flair_name|escapejs }}', 'seasonal', 0)"
+          class="w-full text-white font-medium py-2 px-4 rounded-lg transition text-sm
+                 {% if current_flair == flair_name %}bg-green-600 hover:bg-green-500{% else %}bg-pink-600 hover:bg-pink-500{% endif %}">
+          {% if current_flair == flair_name %}
+            <i class="fas fa-check mr-1"></i>Equipped
+          {% else %}
+            <i class="fas fa-palette mr-1"></i>Equip
+          {% endif %}
+        </button>
+      </div>
+      {% else %}
+      {# User doesn't own this flair - needs to purchase #}
+      <div class="bg-neutral-800 rounded-lg p-4 border border-neutral-700 hover:border-pink-500/50 transition-all group">
+        <div class="flex items-start justify-between mb-3">
+          <span class="text-lg group-hover:scale-105 transition-transform">{{ flair_name }}</span>
+          <span class="text-yellow-500 font-semibold text-sm">
+            <i class="fas fa-coins mr-1"></i>{{ cost }}
+          </span>
+        </div>
+        <button
+          onclick="purchaseFlair('{{ flair_name|escapejs }}', 'seasonal', {{ cost }})"
+          class="w-full bg-pink-600 hover:bg-pink-500 text-white font-medium py-2 px-4 rounded-lg transition text-sm
+                 {% if cost > current_tokens %}opacity-50 cursor-not-allowed{% endif %}"
+          {% if cost > current_tokens %}disabled{% endif %}>
+          {% if cost == 0 %}
+            <i class="fas fa-gift mr-1"></i>Free
+          {% else %}
+            <i class="fas fa-shopping-cart mr-1"></i>Purchase
+          {% endif %}
+        </button>
+      </div>
+      {% endif %}
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- Custom Flairs (Premium Feature - Admin Only) -->
+  {% if is_admin %}
+  {% if custom_flairs %}
+  <div class="bg-gradient-to-br from-purple-900/20 to-pink-900/20 border border-purple-700/50 rounded-xl p-6 mb-8">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-xl font-bold text-white flex items-center">
+        <i class="fas fa-crown text-yellow-500 mr-2"></i>Custom Flairs
+        {% if is_vip %}
+        <span class="ml-2 text-xs bg-yellow-500 text-black px-2 py-1 rounded-full font-bold">VIP</span>
+        {% elif is_pro %}
+        <span class="ml-2 text-xs bg-purple-500 text-white px-2 py-1 rounded-full font-bold">PRO</span>
+        {% else %}
+        <span class="ml-2 text-xs bg-blue-500 text-white px-2 py-1 rounded-full font-bold">PREMIUM</span>
+        {% endif %}
+      </h2>
+
+      {% if is_premium %}
+      <a href="{% url 'flair_management' guild.id %}"
+         class="text-xs text-purple-400 hover:text-purple-300 flex items-center gap-1">
+        <i class="fas fa-cog mr-1"></i>Manage Flairs
+      </a>
+      {% endif %}
+    </div>
+
+    <p class="text-gray-300 mb-6 text-sm">Exclusive server-specific flairs created by your admins</p>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      {% for flair_name, cost in custom_flairs.items %}
+      {% if flair_name in owned_flairs %}
+      {# User owns this flair - free to equip #}
+      <div class="bg-neutral-800 rounded-lg p-4 border border-green-700/50 hover:border-green-500/50 transition-all group">
+        <div class="flex items-start justify-between mb-3">
+          <div class="flex items-center gap-2">
+            <span class="text-lg group-hover:scale-105 transition-transform">{{ flair_name }}</span>
+            <span class="text-xs bg-green-600 text-white px-2 py-0.5 rounded-full">Owned</span>
+          </div>
+        </div>
+        <button
+          onclick="purchaseFlair('{{ flair_name|escapejs }}', 'custom', 0)"
+          class="w-full text-white font-medium py-2 px-4 rounded-lg transition text-sm
+                 {% if current_flair == flair_name %}bg-green-600 hover:bg-green-500{% else %}bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500{% endif %}">
+          {% if current_flair == flair_name %}
+            <i class="fas fa-check mr-1"></i>Equipped
+          {% else %}
+            <i class="fas fa-palette mr-1"></i>Equip
+          {% endif %}
+        </button>
+      </div>
+      {% else %}
+      {# User doesn't own this flair - needs to purchase #}
+      <div class="bg-neutral-800 rounded-lg p-4 border border-purple-700/50 hover:border-purple-500 transition-all group">
+        <div class="flex items-start justify-between mb-3">
+          <span class="text-lg group-hover:scale-105 transition-transform">{{ flair_name }}</span>
+          <span class="text-yellow-500 font-semibold text-sm">
+            <i class="fas fa-coins mr-1"></i>{{ cost }}
+          </span>
+        </div>
+        <button
+          onclick="purchaseFlair('{{ flair_name|escapejs }}', 'custom', {{ cost }})"
+          class="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-medium py-2 px-4 rounded-lg transition text-sm
+                 {% if cost > current_tokens %}opacity-50 cursor-not-allowed{% endif %}"
+          {% if cost > current_tokens %}disabled{% endif %}>
+          <i class="fas fa-shopping-cart mr-1"></i>Purchase
+        </button>
+      </div>
+      {% endif %}
+      {% endfor %}
+    </div>
+  </div>
+  {% elif has_engagement_module %}
+  <!-- No Custom Flairs Yet (Has Engagement Module but no custom flairs) -->
+  <div class="bg-gradient-to-br from-purple-900/20 to-pink-900/20 border border-purple-700/50 rounded-xl p-6 mb-8">
+    <h2 class="text-xl font-bold text-white mb-4 flex items-center">
+      <i class="fas fa-crown text-yellow-500 mr-2"></i>Custom Flairs
+      <span class="ml-2 text-xs bg-gradient-to-r from-orange-500 to-pink-500 text-white px-3 py-1 rounded-full font-bold">ENGAGEMENT MODULE</span>
+    </h2>
+    <p class="text-gray-300 mb-4">No custom flairs have been created yet. Create unique flairs for your server!</p>
+    <a href="{% url 'flair_management' guild.id %}"
+       class="inline-flex items-center gap-2 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-medium py-2 px-6 rounded-lg transition">
+      <i class="fas fa-cog mr-1"></i>Manage Flairs
+    </a>
+  </div>
+  {% else %}
+  <!-- Upgrade to Complete Suite Banner (Free Tier) -->
+  <div class="bg-gradient-to-br from-purple-900/20 to-pink-900/20 border border-purple-700/50 rounded-xl p-6 mb-8">
+    <h2 class="text-xl font-bold text-white mb-4 flex items-center">
+      <i class="fas fa-crown text-yellow-500 mr-2"></i>Custom Flairs
+      <span class="ml-2 text-xs bg-gradient-to-r from-orange-500 to-pink-500 text-white px-3 py-1 rounded-full font-bold">ENGAGEMENT MODULE</span>
+    </h2>
+    <p class="text-gray-300 mb-4">Create your own unique custom flairs and stand out from the crowd!</p>
+    <a href="{% url 'guild_billing' guild.id %}"
+       class="inline-flex items-center gap-2 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-medium py-2 px-6 rounded-lg transition">
+      <i class="fas fa-arrow-up mr-1"></i>View Subscription Options
+    </a>
+  </div>
+  {% endif %}
+  {% endif %}
+
+  <!-- Info Box -->
+  <div class="bg-blue-900/20 border border-blue-700/50 rounded-xl p-6">
+    <h3 class="text-blue-400 font-semibold mb-2 flex items-center">
+      <i class="fas fa-info-circle mr-2"></i>How It Works
+    </h3>
+    <ul class="text-gray-300 space-y-2 text-sm">
+      <li><i class="fas fa-check text-green-500 mr-2"></i>Earn {{ token_name }} by being active in Discord (messages, voice chat, reactions, etc.)</li>
+      <li><i class="fas fa-check text-green-500 mr-2"></i>Purchase flairs to customize your profile and show off your personality</li>
+      <li><i class="fas fa-check text-green-500 mr-2"></i>Flairs appear as special roles in Discord with the "Flair: " prefix</li>
+      <li><i class="fas fa-check text-green-500 mr-2"></i>You can only have one flair equipped at a time</li>
+      <li><i class="fas fa-check text-green-500 mr-2"></i>The free "[🕹️ Gamer]" flair is available to everyone!</li>
+      {% if is_premium %}
+      <li><i class="fas fa-check text-yellow-500 mr-2"></i><strong>Premium:</strong> Admins can create and customize flairs in the management dashboard!</li>
+      {% endif %}
+    </ul>
+  </div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Test function to verify JS is loaded
+console.log('Flair Store JS loaded successfully');
+
+async function purchaseFlair(flairName, flairType, cost) {
+  console.log('purchaseFlair() called with:', flairName, flairType, cost);
+
+  const currentBalance = parseInt(document.getElementById('token-balance').textContent);
+  console.log('Current balance:', currentBalance);
+
+  // Check if already equipped
+  {% if current_flair %}
+  if (flairName === '{{ current_flair|escapejs }}') {
+    showToast('You already have this flair equipped!', 'info');
+    return;
+  }
+  {% endif %}
+
+  // Check balance
+  if (cost > currentBalance) {
+    showToast(`You need ${cost} tokens but only have ${currentBalance}.`, 'error');
+    return;
+  }
+
+  try {
+    const response = await csrfFetch('{% url "flair_store" guild.id %}', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': '{{ csrf_token }}'
+      },
+      body: JSON.stringify({
+        flair_name: flairName,
+        flair_type: flairType
+      })
+    });
+
+    console.log('Response status:', response.status);
+    const data = await response.json();
+    console.log('Response data:', data);
+
+    if (data.success) {
+      showToast(`✨ ${data.message}`, 'success');
+      document.getElementById('token-balance').textContent = data.tokens_remaining;
+
+      // Reload after 2 seconds to show updated UI
+      setTimeout(() => location.reload(), 2000);
+    } else {
+      showToast(data.error, 'error');
+    }
+  } catch (error) {
+    console.error('Purchase error:', error);
+    showToast('Failed to purchase flair. Please try again.', 'error');
+  }
+}
+
+async function removeFlair() {
+  if (!confirm('Are you sure you want to remove your current flair?')) {
+    return;
+  }
+
+  try {
+    const response = await csrfFetch('{% url "flair_store" guild.id %}', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': '{{ csrf_token }}'
+      },
+      body: JSON.stringify({
+        remove_flair: true
+      })
+    });
+
+    const data = await response.json();
+
+    if (data.success) {
+      showToast(`✨ ${data.message}`, 'success');
+      setTimeout(() => location.reload(), 1000);
+    } else {
+      showToast(data.error || 'Failed to remove flair.', 'error');
+    }
+  } catch (err) {
+    console.error('Failed to remove flair:', err);
+    showToast('Failed to remove flair. Please try again.', 'error');
+  }
+}
+
+function showMessage(message, type) {
+  showToast(message, type);
+}
+
+function showToast(message, type) {
+  const container = document.getElementById('toast-container');
+  const toastId = 'toast-' + Date.now();
+
+  const bgColor = type === 'success' ? 'bg-green-600' :
+                  type === 'error' ? 'bg-red-600' :
+                  'bg-blue-600';
+
+  const icon = type === 'success' ? 'fa-check-circle' :
+               type === 'error' ? 'fa-exclamation-circle' :
+               'fa-info-circle';
+
+  const toast = document.createElement('div');
+  toast.id = toastId;
+  toast.className = `${bgColor} text-white px-6 py-3 rounded-lg shadow-lg flex items-center gap-3 transform transition-all duration-300 translate-x-full`;
+  toast.innerHTML = `
+    <i class="fas ${icon} text-lg"></i>
+    <span class="font-medium">${message}</span>
+    <button onclick="removeToast('${toastId}')" class="ml-2 hover:bg-white/20 rounded p-1">
+      <i class="fas fa-times text-sm"></i>
+    </button>
+  `;
+
+  container.appendChild(toast);
+
+  // Slide in
+  setTimeout(() => {
+    toast.classList.remove('translate-x-full');
+  }, 10);
+
+  // Auto-hide after 4 seconds
+  setTimeout(() => {
+    removeToast(toastId);
+  }, 4000);
+}
+
+function removeToast(toastId) {
+  const toast = document.getElementById(toastId);
+  if (toast) {
+    toast.classList.add('translate-x-full', 'opacity-0');
+    setTimeout(() => toast.remove(), 300);
+  }
+}
+
+// Note: Custom flairs are now managed in the Flair Management dashboard
+// Users can purchase pre-created custom flairs here, but admins create them in the management interface
+</script>
+{% endblock %}

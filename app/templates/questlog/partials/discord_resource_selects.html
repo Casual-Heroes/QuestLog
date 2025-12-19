@@ -1,0 +1,141 @@
+{% comment %}
+Discord Resource Dropdown Utilities
+Include this partial to enable automatic conversion of ID inputs to searchable dropdowns.
+
+Usage:
+  1. Include this partial: {% include 'questlog/partials/discord_resource_selects.html' %}
+  2. Add data attributes to your inputs:
+     <input type="text" data-discord-select="role" id="role_id" name="role_id">
+     <input type="text" data-discord-select="channel" id="channel_id" name="channel_id">
+     <input type="text" data-discord-select="member" id="user_id" name="user_id">
+{% endcomment %}
+
+<script>
+// Global Discord Resources Cache
+window.DiscordResources = {
+  channels: [],
+  roles: [],
+  members: [],
+  emojis: [],
+  loaded: false,
+  loading: false
+};
+
+/**
+ * Load Discord resources (channels, roles, members) for the current guild
+ */
+async function loadDiscordResources() {
+  if (window.DiscordResources.loaded || window.DiscordResources.loading) {
+    return window.DiscordResources;
+  }
+
+  window.DiscordResources.loading = true;
+
+  try {
+    const guildId = '{{ guild.id }}';
+    const [res, emj, ch, rl, mb] = await Promise.all([
+      csrfFetch(`/api/guild/${guildId}/resources/`),
+      csrfFetch(`/api/guild/${guildId}/emojis/`),
+      csrfFetch(`/api/guild/${guildId}/channels/`),
+      csrfFetch(`/api/guild/${guildId}/roles/`),
+      csrfFetch(`/api/guild/${guildId}/members/`)
+    ]);
+
+    if (!res.ok) {
+      throw new Error('Failed to load Discord resources');
+    }
+
+    const data = await res.json();
+    const emjs = await emj.json();
+    const chData = await ch.json();
+    const rlData = await rl.json();
+    const mbData = await mb.json();
+
+    window.DiscordResources.channels = chData.channels || data.channels || [];
+    window.DiscordResources.roles = rlData.roles || data.roles || [];
+    window.DiscordResources.members = mbData.members || data.members || [];
+    window.DiscordResources.emojis = emjs.success ? [...(emjs.standard || []), ...(emjs.custom || [])] : [];
+    window.DiscordResources.loaded = true;
+
+    return window.DiscordResources;
+  } catch (error) {
+    console.error('Error loading Discord resources:', error);
+    return window.DiscordResources;
+  } finally {
+    window.DiscordResources.loading = false;
+  }
+}
+
+/**
+ * Convert a text input to a searchable select dropdown
+ */
+function convertToDiscordSelect(input, resourceType) {
+  let resources = window.DiscordResources[resourceType + 's'] || [];
+  if (resourceType === 'emoji') {
+    resources = window.DiscordResources.emojis || [];
+  }
+
+  if (resources.length === 0) {
+    console.warn(`No ${resourceType}s available for dropdown`);
+    return;
+  }
+
+  // Create select element
+  const select = document.createElement('select');
+  select.id = input.id;
+  select.name = input.name;
+  select.className = input.className;
+  select.required = input.required;
+
+  // Add placeholder option
+  const placeholderOption = document.createElement('option');
+  placeholderOption.value = '';
+  placeholderOption.textContent = `Select a ${resourceType}...`;
+  select.appendChild(placeholderOption);
+
+  // Add options
+  resources.forEach(resource => {
+    const option = document.createElement('option');
+    option.value = resource.id || resource.name;
+    option.textContent = resource.name;
+    select.appendChild(option);
+  });
+
+  // If input had a value, select it
+  if (input.value) {
+    select.value = input.value;
+  }
+
+  // Replace input with select
+  input.parentNode.replaceChild(select, input);
+
+  // Add search functionality (simple filter)
+  select.addEventListener('input', function() {
+    // The browser handles basic search in native selects
+    // For more advanced search, use a library like Select2 or Choices.js
+  });
+
+  return select;
+}
+
+/**
+ * Initialize all Discord resource selects on the page
+ */
+async function initDiscordSelects() {
+  // Load resources first
+  await loadDiscordResources();
+
+  // Find all inputs with data-discord-select attribute
+  document.querySelectorAll('[data-discord-select]').forEach(input => {
+    const resourceType = input.getAttribute('data-discord-select');
+    convertToDiscordSelect(input, resourceType);
+  });
+}
+
+// Auto-initialize when DOM is ready
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initDiscordSelects);
+} else {
+  initDiscordSelects();
+}
+</script>

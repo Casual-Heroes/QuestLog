@@ -18,7 +18,7 @@ class DashboardDomainMiddleware:
         if 'dashboard.casual-heroes.com' in host:
             # If at root path, redirect to warden dashboard
             if request.path == '/':
-                return redirect('/warden/')
+                return redirect('/questlog/')
 
         response = self.get_response(request)
         return response

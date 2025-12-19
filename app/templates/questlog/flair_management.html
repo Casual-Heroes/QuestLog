@@ -1,0 +1,633 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Flair Management - {{ guild.name }}</title>
+  <link rel="icon" href="https://cdn.discordapp.com/icons/{{ guild.id }}/{{ guild.icon }}.png?size=64">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    * { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif; }
+    body { background-color: #0a0a0a; }
+  </style>
+</head>
+<body class="bg-neutral-950 text-gray-300">
+  {% include 'questlog/partials/guild_sidebar.html' %}
+
+  <!-- Main Content -->
+  <div class="lg:ml-64 min-h-screen">
+    <!-- Header -->
+    <div class="bg-gradient-to-br from-neutral-900 to-neutral-950 border-b border-neutral-800 p-6">
+      <div class="max-w-7xl mx-auto">
+        <div class="flex items-center justify-between">
+          <div>
+            <h1 class="text-3xl font-bold bg-gradient-to-r from-pink-400 to-purple-400 bg-clip-text text-transparent">
+              <i class="fas fa-palette mr-2"></i>Flair Management
+            </h1>
+            <p class="text-gray-400 mt-2">Customize flair names, costs, and availability for your server</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main Container -->
+    <div class="p-6 max-w-7xl mx-auto">
+      <!-- Toast Container -->
+      <div id="toast-container" class="fixed top-4 right-4 z-50 space-y-2"></div>
+
+      <!-- Engagement Module Banner (Free Tier Only) -->
+      {% if not has_engagement_module %}
+      <div class="bg-gradient-to-r from-purple-900/30 to-indigo-900/30 border border-purple-700/50 rounded-xl p-6 mb-6">
+        <div class="flex items-start gap-4">
+          <i class="fas fa-crown text-yellow-500 text-3xl"></i>
+          <div class="flex-1">
+            <h3 class="text-xl font-bold text-white mb-2">Engagement Module Feature</h3>
+            <p class="text-gray-300 mb-4">Flair management requires the Engagement Module. Customize your flair store, adjust prices, and create unlimited custom flairs!</p>
+            <a href="{% url 'guild_billing' guild.id %}"
+               class="inline-flex items-center gap-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white px-6 py-2 rounded-lg font-medium transition">
+              <i class="fas fa-arrow-up"></i>Upgrade to Engagement Module or get Complete for $12.99/mo
+            </a>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- Action Buttons -->
+      <div class="flex gap-3 mb-6">
+        <button onclick="openCreateFlairModal()"
+                class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium transition
+                       {% if not has_engagement_module %}opacity-50 cursor-not-allowed{% endif %}"
+                {% if not has_engagement_module %}disabled{% endif %}>
+          <i class="fas fa-plus mr-2"></i>Create Custom Flair
+        </button>
+        <button onclick="saveAllChanges()"
+                class="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white px-4 py-2 rounded-lg font-medium transition
+                       {% if not has_engagement_module %}opacity-50 cursor-not-allowed{% endif %}"
+                {% if not has_engagement_module %}disabled{% endif %}>
+          <i class="fas fa-save mr-2"></i>Save All Changes
+        </button>
+        <button onclick="createDefaultFlairRoles()"
+                class="bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded-lg font-medium transition">
+          <i class="fas fa-layer-group mr-2"></i>Create Default Flair Roles
+        </button>
+      </div>
+
+      <!-- Flair Table -->
+      <div class="bg-neutral-900 rounded-xl border border-neutral-800 overflow-hidden">
+        <div id="loading" class="flex items-center justify-center py-12">
+          <div class="text-center">
+            <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-400 mx-auto mb-4"></div>
+            <p class="text-gray-400">Loading flairs...</p>
+          </div>
+        </div>
+
+        <div id="flairs-table-container" class="hidden">
+          <!-- Normal Flairs Section -->
+          <div class="border-b border-neutral-800 p-4 bg-neutral-800/50">
+            <h3 class="text-lg font-bold text-white"><i class="fas fa-star text-yellow-500 mr-2"></i>Normal Flairs</h3>
+            <p class="text-sm text-gray-400 mt-1">Default flairs available to all members</p>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full">
+              <thead class="bg-neutral-800 text-gray-300 text-sm">
+                <tr>
+                  <th class="text-left p-3 font-medium w-12">Enabled</th>
+                  <th class="text-left p-3 font-medium">Flair Name</th>
+                  <th class="text-left p-3 font-medium w-32">Cost (Tokens)</th>
+                  <th class="text-left p-3 font-medium w-32">Display Order</th>
+                  <th class="text-left p-3 font-medium w-40">Discord Position</th>
+                </tr>
+              </thead>
+              <tbody id="normal-flairs-body" class="divide-y divide-neutral-700">
+                <!-- Rows populated via JavaScript -->
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Seasonal Flairs Section -->
+          <div class="border-y border-neutral-800 p-4 bg-neutral-800/50 mt-4">
+            <h3 class="text-lg font-bold text-white"><i class="fas fa-snowflake text-blue-400 mr-2"></i>Seasonal Flairs</h3>
+            <p class="text-sm text-gray-400 mt-1">Limited-time event flairs</p>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full">
+              <thead class="bg-neutral-800 text-gray-300 text-sm">
+                <tr>
+                  <th class="text-left p-3 font-medium w-12">Enabled</th>
+                  <th class="text-left p-3 font-medium">Flair Name</th>
+                  <th class="text-left p-3 font-medium w-32">Cost (Tokens)</th>
+                  <th class="text-left p-3 font-medium w-32">Display Order</th>
+                  <th class="text-left p-3 font-medium w-40">Discord Position</th>
+                </tr>
+              </thead>
+              <tbody id="seasonal-flairs-body" class="divide-y divide-neutral-700">
+                <!-- Rows populated via JavaScript -->
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Custom Flairs Section -->
+          <div class="border-y border-neutral-800 p-4 bg-neutral-800/50 mt-4">
+            <h3 class="text-lg font-bold text-white"><i class="fas fa-crown text-yellow-500 mr-2"></i>Custom Flairs</h3>
+            <p class="text-sm text-gray-400 mt-1">Server-specific flairs created by admins</p>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full">
+              <thead class="bg-neutral-800 text-gray-300 text-sm">
+                <tr>
+                  <th class="text-left p-3 font-medium w-12">Enabled</th>
+                  <th class="text-left p-3 font-medium">Flair Name</th>
+                  <th class="text-left p-3 font-medium w-32">Cost (Tokens)</th>
+                  <th class="text-left p-3 font-medium w-32">Display Order</th>
+                  <th class="text-left p-3 font-medium w-40">Discord Position</th>
+                  <th class="text-left p-3 font-medium w-24">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="custom-flairs-body" class="divide-y divide-neutral-700">
+                <!-- Rows populated via JavaScript -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Create Flair Modal -->
+  <div id="create-flair-modal" class="fixed inset-0 z-50 hidden">
+    <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" onclick="closeCreateFlairModal()"></div>
+    <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-lg">
+      <div class="bg-neutral-900 rounded-xl border border-neutral-700 shadow-2xl p-6">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-lg font-bold text-white">
+            <i class="fas fa-plus text-green-400 mr-2"></i>Create Custom Flair
+          </h3>
+          <button onclick="closeCreateFlairModal()" class="text-gray-400 hover:text-white">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+
+        <form onsubmit="createFlair(event)">
+          <div class="space-y-4">
+            <div>
+              <label class="block text-sm font-medium text-gray-300 mb-2">
+                Flair Name
+                <i class="fas fa-info-circle text-gray-500 text-xs ml-1" title="Discord role will be named 'Flair: [Your Name]'"></i>
+              </label>
+              <input type="text"
+                     id="new-flair-name"
+                     placeholder="[🎯 Custom Flair]"
+                     maxlength="100"
+                     required
+                     class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+              <p class="text-xs text-blue-400 mt-1">
+                <i class="fas fa-lightbulb mr-1"></i>Discord role will be: <span class="text-white font-mono">Flair: [Your Name]</span>
+              </p>
+              <p class="text-xs text-gray-500 mt-1">Tip: Use emojis and brackets for best results. Don't include "Flair: " prefix.</p>
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-gray-300 mb-2">Cost (Hero Tokens)</label>
+              <input type="number"
+                     id="new-flair-cost"
+                     placeholder="100"
+                     min="0"
+                     value="100"
+                     required
+                     class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-gray-300 mb-2">
+                Discord Role Position (Optional)
+                <i class="fas fa-info-circle text-gray-500 text-xs ml-1" title="Higher numbers = closer to top of role list. Leave empty for default position."></i>
+              </label>
+              <input type="number"
+                     id="new-role-position"
+                     placeholder="Leave empty for default"
+                     min="0"
+                     class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+              <p class="text-xs text-gray-500 mt-1">Higher numbers place the role closer to the top of the role list</p>
+            </div>
+          </div>
+
+          <div class="flex gap-2 mt-6">
+            <button type="button"
+                    onclick="closeCreateFlairModal()"
+                    class="flex-1 px-4 py-2 bg-neutral-800 hover:bg-neutral-700 text-white rounded-lg transition">
+              Cancel
+            </button>
+            <button type="submit"
+                    class="flex-1 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition">
+              <i class="fas fa-plus mr-2"></i>Create
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const HAS_ENGAGEMENT_MODULE = {{ has_engagement_module|yesno:"true,false" }};
+    const API_BASE = '/api/guild/{{ guild.id }}/flairs';
+    const CSRF_TOKEN = '{{ csrf_token }}';
+
+    // CSRF-aware fetch helper
+    async function csrfFetch(url, options = {}) {
+      options.headers = options.headers || {};
+      if (!options.headers['X-CSRFToken']) {
+        options.headers['X-CSRFToken'] = CSRF_TOKEN;
+      }
+      return fetch(url, options);
+    }
+
+    let flairsData = [];
+    let discordRoles = [];
+
+    // Load flairs on page load
+    document.addEventListener('DOMContentLoaded', () => {
+      loadFlairs();
+      loadDiscordRoles();
+    });
+
+    async function loadDiscordRoles() {
+      try {
+        // Force refresh to bypass cache and get latest Discord roles
+        const response = await csrfFetch('/api/guild/{{ guild.id }}/roles/?force_refresh=true');
+        const data = await response.json();
+
+        console.log('Discord roles response:', data);
+
+        if (data.success && data.roles) {
+          discordRoles = data.roles;
+          console.log('Loaded Discord roles:', discordRoles.length);
+          // Re-render flairs if they're already loaded
+          if (flairsData.length > 0) {
+            renderFlairs();
+          }
+        } else {
+          console.error('Failed to load Discord roles:', data.error || 'Unknown error');
+        }
+      } catch (error) {
+        console.error('Error loading Discord roles:', error);
+      }
+    }
+
+    function getDiscordRolePosition(flairName) {
+      // Discord roles have "Flair: " prefix, so we need to add it
+      const roleName = `Flair: ${flairName}`;
+      const role = discordRoles.find(r => r.name === roleName);
+      if (!role) {
+        console.log(`No Discord role found for flair: "${flairName}" (searched for "${roleName}")`);
+      }
+      return role ? role.position : null;
+    }
+
+    async function loadFlairs() {
+      try {
+        const response = await csrfFetch(API_BASE + '/');
+        const data = await response.json();
+
+        if (data.success) {
+          flairsData = data.flairs;
+          renderFlairs();
+          document.getElementById('loading').classList.add('hidden');
+          document.getElementById('flairs-table-container').classList.remove('hidden');
+        } else {
+          showToast('Failed to load flairs', 'error');
+        }
+      } catch (error) {
+        console.error('Error loading flairs:', error);
+        showToast('Error loading flairs', 'error');
+      }
+    }
+
+    function renderFlairs() {
+      const normalBody = document.getElementById('normal-flairs-body');
+      const seasonalBody = document.getElementById('seasonal-flairs-body');
+      const customBody = document.getElementById('custom-flairs-body');
+
+      normalBody.innerHTML = '';
+      seasonalBody.innerHTML = '';
+      customBody.innerHTML = '';
+
+      flairsData.forEach(flair => {
+        const row = createFlairRow(flair);
+
+        if (flair.flair_type === 'normal') {
+          normalBody.appendChild(row);
+        } else if (flair.flair_type === 'seasonal') {
+          seasonalBody.appendChild(row);
+        } else if (flair.flair_type === 'custom') {
+          customBody.appendChild(row);
+        }
+      });
+
+      // Show empty state for custom flairs if none exist
+      if (flairsData.filter(f => f.flair_type === 'custom').length === 0) {
+        customBody.innerHTML = `
+          <tr>
+            <td colspan="6" class="p-8 text-center text-gray-500">
+              <i class="fas fa-inbox text-4xl mb-3 block"></i>
+              No custom flairs yet. Click "Create Custom Flair" to add one!
+            </td>
+          </tr>
+        `;
+      }
+    }
+
+    function createFlairRow(flair) {
+      const row = document.createElement('tr');
+      row.className = 'hover:bg-neutral-800/50 transition';
+      row.dataset.flairId = flair.id;
+
+      const isReadonly = !HAS_ENGAGEMENT_MODULE ? 'readonly disabled' : '';
+      const discordPosition = getDiscordRolePosition(flair.flair_name);
+      // Discord roles have "Flair: " prefix
+      const roleName = `Flair: ${flair.flair_name}`;
+      const role = discordRoles.find(r => r.name === roleName);
+
+      row.innerHTML = `
+        <td class="p-3">
+          <input type="checkbox"
+                 ${flair.enabled ? 'checked' : ''}
+                 ${isReadonly}
+                 onchange="updateFlair(${flair.id}, 'enabled', this.checked)"
+                 class="w-5 h-5 text-indigo-600 bg-neutral-700 border-neutral-600 rounded focus:ring-2 focus:ring-indigo-500 ${!HAS_ENGAGEMENT_MODULE ? 'opacity-50 cursor-not-allowed' : ''}">
+        </td>
+        <td class="p-3">
+          <input type="text"
+                 value="${flair.flair_name}"
+                 ${isReadonly}
+                 onchange="updateFlair(${flair.id}, 'flair_name', this.value)"
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-1.5 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 ${!HAS_ENGAGEMENT_MODULE ? 'opacity-50 cursor-not-allowed' : ''}">
+        </td>
+        <td class="p-3">
+          <input type="number"
+                 value="${flair.cost}"
+                 min="0"
+                 ${isReadonly}
+                 onchange="updateFlair(${flair.id}, 'cost', parseInt(this.value))"
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-1.5 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 ${!HAS_ENGAGEMENT_MODULE ? 'opacity-50 cursor-not-allowed' : ''}">
+        </td>
+        <td class="p-3">
+          <input type="number"
+                 value="${flair.display_order}"
+                 min="0"
+                 ${isReadonly}
+                 onchange="updateFlair(${flair.id}, 'display_order', parseInt(this.value))"
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-1.5 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 ${!HAS_ENGAGEMENT_MODULE ? 'opacity-50 cursor-not-allowed' : ''}">
+        </td>
+        <td class="p-3">
+          ${role ? `
+            <span class="inline-flex items-center px-3 py-1.5 rounded bg-neutral-800 border border-neutral-700 text-sm font-mono text-gray-300" title="Discord role position (automatic - higher = closer to top)">
+              <i class="fas fa-layer-group mr-2 text-purple-400"></i>
+              ${discordPosition}
+            </span>
+          ` : `
+            <span class="text-gray-500 text-xs">No role</span>
+          `}
+        </td>
+        ${flair.flair_type === 'custom' ? `
+          <td class="p-3">
+            <button onclick="deleteFlair(${flair.id})"
+                    ${!HAS_ENGAGEMENT_MODULE ? 'disabled' : ''}
+                    class="text-red-400 hover:text-red-300 transition ${!HAS_ENGAGEMENT_MODULE ? 'opacity-50 cursor-not-allowed' : ''}">
+              <i class="fas fa-trash"></i>
+            </button>
+          </td>
+        ` : (flair.flair_type === 'normal' || flair.flair_type === 'seasonal' ? '<td></td>' : '<td></td>')}
+      `;
+
+      return row;
+    }
+
+    function updateFlair(flairId, field, value) {
+      const flair = flairsData.find(f => f.id === flairId);
+      if (flair) {
+        // Auto-strip "Flair: " prefix from flair names
+        if (field === 'flair_name' && typeof value === 'string' && value.startsWith('Flair: ')) {
+          value = value.substring(7);
+          showToast('Removed "Flair: " prefix - it\'s added automatically to Discord roles!', 'info');
+          // Update the input field to show the corrected value
+          const input = document.querySelector(`input[value="${flair[field]}"]`);
+          if (input) {
+            input.value = value;
+          }
+        }
+        flair[field] = value;
+      }
+    }
+
+    async function saveAllChanges() {
+      if (!HAS_ENGAGEMENT_MODULE) {
+        showToast('Engagement Module required', 'error');
+        return;
+      }
+
+      try {
+        const response = await csrfFetch(API_BASE + '/bulk-update/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': CSRF_TOKEN
+          },
+          body: JSON.stringify({
+            flairs: flairsData
+          })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+          let message = `✨ Successfully updated ${data.updated} flairs`;
+          if (data.roles_renamed && data.roles_renamed > 0) {
+            message += ` and renamed ${data.roles_renamed} Discord role${data.roles_renamed > 1 ? 's' : ''}`;
+          }
+          showToast(message, 'success');
+          setTimeout(() => {
+            window.location.reload();
+          }, 1000);
+        } else {
+          showToast(data.error || 'Failed to save changes', 'error');
+        }
+      } catch (error) {
+        console.error('Error saving changes:', error);
+        showToast('Error saving changes', 'error');
+      }
+    }
+
+    function openCreateFlairModal() {
+      if (!HAS_ENGAGEMENT_MODULE) {
+        showToast('Engagement Module required', 'error');
+        return;
+      }
+      document.getElementById('create-flair-modal').classList.remove('hidden');
+      document.getElementById('new-flair-name').value = '';
+      document.getElementById('new-flair-cost').value = 100;
+      document.getElementById('new-role-position').value = '';
+    }
+
+    function closeCreateFlairModal() {
+      document.getElementById('create-flair-modal').classList.add('hidden');
+    }
+
+    async function createFlair(event) {
+      event.preventDefault();
+
+      let flairName = document.getElementById('new-flair-name').value.trim();
+      const cost = parseInt(document.getElementById('new-flair-cost').value);
+      const rolePosition = document.getElementById('new-role-position').value;
+
+      // Auto-strip "Flair: " prefix if user entered it
+      if (flairName.startsWith('Flair: ')) {
+        flairName = flairName.substring(7);
+        showToast('Removed "Flair: " prefix - it\'s added automatically!', 'info');
+      }
+
+      // Build request body
+      const requestBody = {
+        flair_name: flairName,
+        cost: cost
+      };
+
+      // Only include role_position if it has a value
+      if (rolePosition && rolePosition.trim() !== '') {
+        requestBody.role_position = parseInt(rolePosition);
+      }
+
+      try {
+        const response = await csrfFetch(API_BASE + '/create/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': CSRF_TOKEN
+          },
+          body: JSON.stringify(requestBody)
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+          // Show success message with role creation status
+          if (data.role_created) {
+            showToast('✨ Custom flair and Discord role created successfully!', 'success');
+          } else {
+            showToast('✨ Custom flair created! Note: ' + data.role_info, 'success');
+          }
+          closeCreateFlairModal();
+          loadFlairs();  // Reload to show new flair
+        } else {
+          showToast(data.error || 'Failed to create flair', 'error');
+        }
+      } catch (error) {
+        console.error('Error creating flair:', error);
+        showToast('Error creating flair', 'error');
+      }
+    }
+
+    async function deleteFlair(flairId) {
+      if (!HAS_ENGAGEMENT_MODULE) {
+        showToast('Engagement Module required', 'error');
+        return;
+      }
+
+      if (!confirm('Are you sure you want to delete this custom flair?')) {
+        return;
+      }
+
+      try {
+        const response = await csrfFetch(`${API_BASE}/${flairId}/delete/`, {
+          method: 'DELETE',
+          headers: {
+            'X-CSRFToken': CSRF_TOKEN
+          }
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+          showToast('Flair deleted successfully', 'success');
+          loadFlairs();  // Reload to update table
+        } else {
+          showToast(data.error || 'Failed to delete flair', 'error');
+        }
+      } catch (error) {
+        console.error('Error deleting flair:', error);
+        showToast('Error deleting flair', 'error');
+      }
+    }
+
+    async function createDefaultFlairRoles() {
+      const confirmed = confirm('Create all default flair roles and hoist them to the top of your server?');
+      if (!confirmed) return;
+
+      try {
+        const response = await csrfFetch(API_BASE + '/create-default-roles/', {
+          method: 'POST',
+          headers: {
+            'X-CSRFToken': CSRF_TOKEN
+          }
+        });
+        const data = await response.json();
+        if (data.success) {
+          showToast(data.message || 'Default flair roles are being created.', 'success');
+          setTimeout(() => window.location.reload(), 1200);
+        } else {
+          showToast(data.error || 'Failed to queue flair role creation', 'error');
+        }
+      } catch (error) {
+        console.error('Error creating default flair roles:', error);
+        showToast('Error creating default flair roles', 'error');
+      }
+    }
+
+    // Toast notification system
+    function showToast(message, type) {
+      const container = document.getElementById('toast-container');
+      const toastId = 'toast-' + Date.now();
+
+      const bgColor = type === 'success' ? 'bg-green-600' :
+                      type === 'error' ? 'bg-red-600' :
+                      'bg-blue-600';
+
+      const icon = type === 'success' ? 'fa-check-circle' :
+                   type === 'error' ? 'fa-exclamation-circle' :
+                   'fa-info-circle';
+
+      const toast = document.createElement('div');
+      toast.id = toastId;
+      toast.className = `${bgColor} text-white px-6 py-3 rounded-lg shadow-lg flex items-center gap-3 transform transition-all duration-300 translate-x-full`;
+      toast.innerHTML = `
+        <i class="fas ${icon} text-lg"></i>
+        <span class="font-medium">${message}</span>
+        <button onclick="removeToast('${toastId}')" class="ml-2 hover:bg-white/20 rounded p-1">
+          <i class="fas fa-times text-sm"></i>
+        </button>
+      `;
+
+      container.appendChild(toast);
+
+      // Slide in
+      setTimeout(() => {
+        toast.classList.remove('translate-x-full');
+      }, 10);
+
+      // Auto-hide after 4 seconds
+      setTimeout(() => {
+        removeToast(toastId);
+      }, 4000);
+    }
+
+    function removeToast(toastId) {
+      const toast = document.getElementById(toastId);
+      if (toast) {
+        toast.classList.add('translate-x-full');
+        setTimeout(() => toast.remove(), 300);
+      }
+    }
+  </script>
+</body>
+</html>

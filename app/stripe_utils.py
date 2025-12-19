@@ -1,5 +1,5 @@
 """
-Stripe integration utilities for Warden Bot subscription management.
+Stripe integration utilities for QuestLog subscription management.
 """
 import stripe
 from django.conf import settings
@@ -75,8 +75,8 @@ def create_checkout_session(guild_id, items, billing_cycle='monthly', success_ur
             'payment_method_types': ['card'],
             'line_items': line_items,
             'mode': 'payment' if is_lifetime else 'subscription',
-            'success_url': success_url or f"{settings.ALLOWED_HOSTS[0]}/warden/guild/{guild_id}/billing/?success=true",
-            'cancel_url': cancel_url or f"{settings.ALLOWED_HOSTS[0]}/warden/guild/{guild_id}/billing/?cancelled=true",
+            'success_url': success_url or f"{settings.ALLOWED_HOSTS[0]}/questlog/guild/{guild_id}/billing/?success=true",
+            'cancel_url': cancel_url or f"{settings.ALLOWED_HOSTS[0]}/questlog/guild/{guild_id}/billing/?cancelled=true",
             'client_reference_id': str(guild_id),
             'metadata': {
                 'guild_id': str(guild_id),

@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Creator of the Week - Casual Heroes{% endblock %}
+
+{% block content %}
+  <!-- Header -->
+  <div class="mb-8">
+    <h1 class="text-4xl font-bold text-white mb-2">
+      ⭐ Creator of the Week ⭐
+    </h1>
+    <p class="text-gray-400">
+      Showcasing talented content creators from our communities every week. Powered by QuestLog.
+    </p>
+  </div>
+
+  {% if not cotw_records %}
+    <!-- Empty State -->
+    <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-12 text-center">
+      <div class="w-24 h-24 bg-blue-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+        <i class="fas fa-star text-blue-400 text-4xl"></i>
+      </div>
+      <h2 class="text-2xl font-bold text-white mb-2">No Creators Featured Yet</h2>
+      <p class="text-gray-400 max-w-md mx-auto">
+        Creator of the Week winners will appear here. This is a Pro feature for Discord communities using QuestLog.
+      </p>
+    </div>
+  {% else %}
+    <!-- Current Week Spotlight (First Record) -->
+    {% with current=cotw_records.0 %}
+      <div class="bg-gradient-to-r from-blue-900/20 to-cyan-900/20 border-2 border-blue-700/50 rounded-xl p-8 mb-8">
+        <div class="flex items-center gap-2 mb-6">
+          <span class="px-3 py-1 bg-blue-500/20 text-blue-400 text-sm rounded-full font-medium">
+            This Week
+          </span>
+          <span class="text-gray-400 text-sm">
+            Week {{ current.week }}, {{ current.year }}
+          </span>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+          <!-- Avatar -->
+          <div class="md:col-span-1 flex justify-center">
+            <div class="relative">
+              <img src="{{ current.avatar_url }}" alt="{{ current.display_name }}"
+                   class="w-48 h-48 rounded-full border-4 border-blue-500 shadow-xl shadow-blue-500/20">
+              <div class="absolute -bottom-2 -right-2 w-16 h-16 bg-blue-500 rounded-full flex items-center justify-center shadow-lg">
+                <i class="fas fa-star text-white text-2xl"></i>
+              </div>
+            </div>
+          </div>
+
+          <!-- Info -->
+          <div class="md:col-span-2">
+            <h2 class="text-3xl font-bold text-white mb-2">{{ current.display_name }}</h2>
+            <p class="text-blue-400 mb-4">@{{ current.username }}</p>
+
+            {% if current.bio %}
+              <div class="bg-black/30 rounded-lg p-4 mb-6">
+                <p class="text-gray-300 text-sm">{{ current.bio }}</p>
+              </div>
+            {% endif %}
+
+            <!-- Guild Info -->
+            <div class="flex items-center gap-3 mb-4">
+              {% if current.guild_icon %}
+                <img src="{{ current.guild_icon }}" alt="{{ current.guild_name }}"
+                     class="w-8 h-8 rounded-full">
+              {% endif %}
+              <div>
+                <p class="text-gray-400 text-xs">Featured in</p>
+                <p class="text-white font-medium">{{ current.guild_name }}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    {% endwith %}
+
+    <!-- Past Winners -->
+    {% if cotw_records|length > 1 %}
+      <div class="mb-6">
+        <h2 class="text-2xl font-bold text-white mb-4">
+          <i class="fas fa-history text-gray-400 mr-2"></i>Past Winners
+        </h2>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {% for record in cotw_records %}
+          {% if not forloop.first %}
+            <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6 hover:border-blue-700/50 transition-all">
+              <!-- Avatar & Name -->
+              <div class="flex items-center gap-4 mb-4">
+                <img src="{{ record.avatar_url }}" alt="{{ record.display_name }}"
+                     class="w-16 h-16 rounded-full border-2 border-blue-700/50">
+                <div class="flex-1">
+                  <h3 class="text-lg font-bold text-white">{{ record.display_name }}</h3>
+                  <p class="text-blue-400 text-sm">Week {{ record.week }}, {{ record.year }}</p>
+                </div>
+              </div>
+
+              <!-- Bio Preview -->
+              {% if record.bio %}
+                <p class="text-gray-400 text-sm line-clamp-2 mb-4">{{ record.bio }}</p>
+              {% endif %}
+
+              <!-- Guild -->
+              <div class="flex items-center gap-2 text-xs text-gray-500">
+                {% if record.guild_icon %}
+                  <img src="{{ record.guild_icon }}" alt="{{ record.guild_name }}"
+                       class="w-5 h-5 rounded-full">
+                {% else %}
+                  <i class="fas fa-server"></i>
+                {% endif %}
+                <span>{{ record.guild_name }}</span>
+              </div>
+            </div>
+          {% endif %}
+        {% endfor %}
+      </div>
+    {% endif %}
+  {% endif %}
+
+  <!-- CTA Section -->
+  <div class="mt-12 bg-gradient-to-r from-indigo-900/20 to-purple-900/20 border border-indigo-700/50 rounded-xl p-8 text-center">
+    <h3 class="text-2xl font-bold text-white mb-2">
+      <i class="fas fa-robot text-indigo-400 mr-2"></i>Powered by QuestLog
+    </h3>
+    <p class="text-gray-300 mb-6 max-w-2xl mx-auto">
+      Creator of the Week is a Pro feature that automatically showcases your community's content creators.
+      Get QuestLog for your Discord server today!
+    </p>
+    <a href="https://discord.casual-heroes.com" target="_blank"
+       class="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-6 py-3 rounded-lg transition shadow-lg hover:shadow-xl">
+      <i class="fab fa-discord"></i>
+      Add QuestLog
+    </a>
+  </div>
+{% endblock %}

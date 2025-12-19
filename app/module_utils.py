@@ -1,5 +1,5 @@
 """
-Warden Bot - Module Utilities
+QuestLog - Module Utilities
 Helper functions and decorators for checking module access.
 """
 
@@ -174,7 +174,7 @@ def module_required(module_name):
                     'requires_upgrade': True,
                     'module': module_name,
                     'module_info': module_info,
-                    'upgrade_url': f'/warden/guild/{guild_id}/billing/'
+                    'upgrade_url': f'/questlog/guild/{guild_id}/billing/'
                 }, status=403)
 
             # Module access verified, proceed with view

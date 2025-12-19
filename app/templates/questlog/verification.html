@@ -1,0 +1,390 @@
+{% extends "questlog/base_guild.html" %}
+{% load static %}
+
+{% block title %}Verification - {{ guild.name }}{% endblock %}
+
+{% block guild_content %}
+
+{% include "questlog/partials/custom_select.html" %}
+
+  <!-- Header -->
+  <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
+    <div>
+      <h1 class="text-3xl font-bold text-white">
+        <i class="fas fa-check-circle text-purple-400 mr-3"></i>Verification
+      </h1>
+      <p class="text-gray-400 mt-1">Configure how new members verify themselves</p>
+    </div>
+    <button onclick="saveConfig()" id="saveBtn" class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-medium transition text-sm">
+      <i class="fas fa-save mr-2"></i>Save Changes
+    </button>
+  </div>
+
+  <!-- Verification Type -->
+  <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6 mb-6">
+    <h3 class="text-lg font-bold text-white mb-4">
+      <i class="fas fa-key text-gray-400 mr-2"></i>Verification Type
+    </h3>
+    <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
+      <label class="relative cursor-pointer">
+        <input type="radio" name="verification_type" value="none" class="sr-only peer" {% if verification_config.verification_type == 'none' %}checked{% endif %}>
+        <div class="p-4 bg-neutral-800 rounded-xl border-2 border-transparent peer-checked:border-purple-500 hover:bg-neutral-700 transition text-center">
+          <i class="fas fa-times text-2xl text-gray-400 mb-2"></i>
+          <p class="text-white font-medium text-sm">None</p>
+        </div>
+      </label>
+      <label class="relative cursor-pointer">
+        <input type="radio" name="verification_type" value="button" class="sr-only peer" {% if verification_config.verification_type == 'button' %}checked{% endif %}>
+        <div class="p-4 bg-neutral-800 rounded-xl border-2 border-transparent peer-checked:border-purple-500 hover:bg-neutral-700 transition text-center">
+          <i class="fas fa-hand-pointer text-2xl text-green-400 mb-2"></i>
+          <p class="text-white font-medium text-sm">Button</p>
+        </div>
+      </label>
+      <label class="relative cursor-pointer">
+        <input type="radio" name="verification_type" value="captcha" class="sr-only peer" {% if verification_config.verification_type == 'captcha' %}checked{% endif %}>
+        <div class="p-4 bg-neutral-800 rounded-xl border-2 border-transparent peer-checked:border-purple-500 hover:bg-neutral-700 transition text-center">
+          <i class="fas fa-robot text-2xl text-blue-400 mb-2"></i>
+          <p class="text-white font-medium text-sm">CAPTCHA</p>
+        </div>
+      </label>
+      <label class="relative cursor-pointer">
+        <input type="radio" name="verification_type" value="account_age" class="sr-only peer" {% if verification_config.verification_type == 'account_age' %}checked{% endif %}>
+        <div class="p-4 bg-neutral-800 rounded-xl border-2 border-transparent peer-checked:border-purple-500 hover:bg-neutral-700 transition text-center">
+          <i class="fas fa-clock text-2xl text-yellow-400 mb-2"></i>
+          <p class="text-white font-medium text-sm">Age Only</p>
+        </div>
+      </label>
+      <label class="relative cursor-pointer">
+        <input type="radio" name="verification_type" value="multi_step" class="sr-only peer" {% if verification_config.verification_type == 'multi_step' %}checked{% endif %}>
+        <div class="p-4 bg-neutral-800 rounded-xl border-2 border-transparent peer-checked:border-purple-500 hover:bg-neutral-700 transition text-center">
+          <i class="fas fa-tasks text-2xl text-purple-400 mb-2"></i>
+          <p class="text-white font-medium text-sm">Multi-Step</p>
+          <span class="text-xs text-yellow-400">Premium</span>
+        </div>
+      </label>
+    </div>
+  </div>
+
+  <!-- Channels & Roles -->
+  <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6 mb-6">
+    <h3 class="text-lg font-bold text-white mb-4">
+      <i class="fas fa-hashtag text-gray-400 mr-2"></i>Channels & Roles
+    </h3>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div>
+        <label class="block text-sm text-gray-400 mb-2">Verification Channel</label>
+        <div id="verification_channel_idContainer"></div>
+        
+      </div>
+      <div>
+        <label class="block text-sm text-gray-400 mb-2">Verified Role</label>
+        <div id="verified_role_idContainer"></div>
+        
+      </div>
+    </div>
+  </div>
+
+  <!-- Account Age -->
+  <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6 mb-6">
+    <div class="flex items-center justify-between mb-4">
+      <div>
+        <h3 class="text-lg font-bold text-white">
+          <i class="fas fa-calendar text-yellow-400 mr-2"></i>Account Age Requirement
+        </h3>
+        <p class="text-gray-400 text-sm">Block new Discord accounts</p>
+      </div>
+      <label class="relative inline-flex items-center cursor-pointer">
+        <input type="checkbox" id="require_account_age" class="sr-only peer" {% if verification_config.require_account_age %}checked{% endif %}>
+        <div class="w-11 h-6 bg-neutral-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-yellow-600"></div>
+      </label>
+    </div>
+    <div>
+      <label class="block text-sm text-gray-400 mb-2">Minimum Account Age (days)</label>
+      <input type="number" id="min_account_age_days" value="{{ verification_config.min_account_age_days }}" min="1" max="365"
+             class="w-32 bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:border-purple-500 focus:outline-none">
+    </div>
+  </div>
+
+  <!-- Multi-Step Settings -->
+  <div id="multiStepSettings" class="bg-neutral-900 rounded-xl border border-neutral-800 p-6 mb-6 hidden">
+    <div class="flex items-center justify-between mb-4">
+      <div>
+        <h3 class="text-lg font-bold text-white">
+          <i class="fas fa-tasks text-purple-400 mr-2"></i>Multi-Step Requirements
+        </h3>
+        <p class="text-gray-400 text-sm">Require multiple actions before granting verification</p>
+      </div>
+      <span class="text-xs text-yellow-400 font-semibold">Premium</span>
+    </div>
+
+    <div class="space-y-4">
+      <label class="flex items-center gap-3">
+        <input type="checkbox" id="require_rules_read" class="w-5 h-5 rounded border-neutral-600 bg-neutral-700 text-purple-500 focus:ring-purple-500" {% if verification_config.require_rules_read %}checked{% endif %}>
+        <div>
+          <p class="text-white font-medium text-sm">Require rules acknowledgement</p>
+          <p class="text-gray-500 text-xs">User must click “I’ve read the rules” button.</p>
+        </div>
+      </label>
+
+      <div class="p-4 bg-neutral-800/50 rounded-lg space-y-3">
+        <label class="flex items-center gap-3">
+          <input type="checkbox" id="require_intro_message" class="w-5 h-5 rounded border-neutral-600 bg-neutral-700 text-purple-500 focus:ring-purple-500" {% if verification_config.require_intro_message %}checked{% endif %}>
+          <div>
+            <p class="text-white font-medium text-sm">Require intro message</p>
+            <p class="text-gray-500 text-xs">User must post in your intro channel before verification completes.</p>
+          </div>
+        </label>
+        <div id="introChannelContainer" class="{% if not verification_config.require_intro_message %}hidden{% endif %}">
+          <label class="block text-sm text-gray-400 mb-2">Intro Channel</label>
+          <div id="intro_channel_idContainer"></div>
+        </div>
+      </div>
+
+      <div class="bg-purple-900/20 border border-purple-700/40 rounded-lg p-4 text-xs text-gray-300">
+        <p class="text-white font-semibold mb-1">User flow:</p>
+        <p>1) Click verify button</p>
+        <p>2) (Optional) Confirm rules</p>
+        <p>3) (Optional) Post intro in selected channel</p>
+        <p>4) Grant verified role</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Button Settings -->
+  <div id="buttonSettings" class="bg-neutral-900 rounded-xl border border-neutral-800 p-6 mb-6">
+    <h3 class="text-lg font-bold text-white mb-4">
+      <i class="fas fa-hand-pointer text-green-400 mr-2"></i>Button Settings
+    </h3>
+    <div>
+      <label class="block text-sm text-gray-400 mb-2">Button Text</label>
+      <input type="text" id="button_text" value="{{ verification_config.button_text }}" maxlength="100"
+             class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:border-purple-500 focus:outline-none">
+    </div>
+  </div>
+
+  <!-- CAPTCHA Settings -->
+  <div id="captchaSettings" class="bg-neutral-900 rounded-xl border border-neutral-800 p-6 mb-6 hidden">
+    <h3 class="text-lg font-bold text-white mb-4">
+      <i class="fas fa-robot text-blue-400 mr-2"></i>CAPTCHA Settings
+    </h3>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div>
+        <label class="block text-sm text-gray-400 mb-2">CAPTCHA Length</label>
+        <input type="number" id="captcha_length" value="{{ verification_config.captcha_length }}" min="4" max="10"
+               class="w-32 bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:border-purple-500 focus:outline-none">
+      </div>
+      <div>
+        <label class="block text-sm text-gray-400 mb-2">Timeout (seconds)</label>
+        <input type="number" id="captcha_timeout_seconds" value="{{ verification_config.captcha_timeout_seconds }}" min="60" max="600"
+               class="w-32 bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:border-purple-500 focus:outline-none">
+      </div>
+    </div>
+  </div>
+
+  <!-- Messages -->
+  <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6 mb-6">
+    <h3 class="text-lg font-bold text-white mb-4">
+      <i class="fas fa-comment-dots text-gray-400 mr-2"></i>Messages
+    </h3>
+    <div class="space-y-4">
+      <div>
+        <label class="block text-sm text-gray-400 mb-2">Verification Instructions</label>
+        <textarea id="verification_instructions" rows="2"
+                  placeholder="Instructions shown to unverified members..."
+                  class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:border-purple-500 focus:outline-none resize-y">{{ verification_config.verification_instructions }}</textarea>
+      </div>
+      <div>
+        <label class="block text-sm text-gray-400 mb-2">Success Message</label>
+        <input type="text" id="verified_message" value="{{ verification_config.verified_message }}"
+               class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:border-purple-500 focus:outline-none">
+      </div>
+    </div>
+  </div>
+
+  <!-- Timeout -->
+  <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6 mb-6">
+    <h3 class="text-lg font-bold text-white mb-4">
+      <i class="fas fa-hourglass-half text-red-400 mr-2"></i>Timeout Settings
+    </h3>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div>
+        <label class="block text-sm text-gray-400 mb-2">Verification Timeout (hours)</label>
+        <input type="number" id="verification_timeout_hours" value="{{ verification_config.verification_timeout_hours }}" min="1" max="168"
+               class="w-32 bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:border-purple-500 focus:outline-none">
+      </div>
+      <div class="flex items-center gap-4 p-4 bg-neutral-800/50 rounded-lg">
+        <input type="checkbox" id="kick_on_timeout" class="w-5 h-5 rounded border-neutral-600 bg-neutral-700 text-red-600" {% if verification_config.kick_on_timeout %}checked{% endif %}>
+        <div>
+          <p class="text-white font-medium">Kick on Timeout</p>
+          <p class="text-gray-500 text-sm">Remove users who don't verify in time</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const guildId = '{{ guild.id }}';
+const csrfToken = '{{ csrf_token }}';
+
+// Show/hide settings based on verification type
+function updateTypeSettings() {
+  const type = document.querySelector('input[name="verification_type"]:checked')?.value;
+  document.getElementById('buttonSettings').classList.toggle('hidden', type !== 'button');
+  document.getElementById('captchaSettings').classList.toggle('hidden', type !== 'captcha');
+  document.getElementById('multiStepSettings').classList.toggle('hidden', type !== 'multi_step');
+
+  const introToggle = document.getElementById('require_intro_message');
+  const introContainer = document.getElementById('introChannelContainer');
+  if (introToggle && introContainer) {
+    introContainer.classList.toggle('hidden', !introToggle.checked || type !== 'multi_step');
+  }
+}
+document.querySelectorAll('input[name="verification_type"]').forEach(r => r.addEventListener('change', updateTypeSettings));
+updateTypeSettings();
+
+// Intro toggle visibility
+document.getElementById('require_intro_message')?.addEventListener('change', () => {
+  const introContainer = document.getElementById('introChannelContainer');
+  const type = document.querySelector('input[name="verification_type"]:checked')?.value;
+  if (introContainer) introContainer.classList.toggle('hidden', type !== 'multi_step' || !document.getElementById('require_intro_message').checked);
+});
+
+// Load Discord channels and initialize custom select
+let verificationChannelSelect;
+let introChannelSelect;
+async function loadChannels() {
+  try {
+    const response = await csrfFetch(`/api/guild/${guildId}/channels/`);
+    const data = await response.json();
+
+    const currentValue = '{{ verification_config.verification_channel_id }}';
+    const currentIntro = '{{ verification_config.intro_channel_id }}';
+
+    if (data.channels) {
+      const textChannels = data.channels.filter(ch => ch.type === 0);
+
+      const channelItems = textChannels.map(channel => {
+        const label = channel.category_name
+          ? `# ${channel.name} (${channel.category_name})`
+          : `# ${channel.name}`;
+        return {
+          value: channel.id,
+          label: label,
+          icon: 'hashtag'
+        };
+      });
+
+      verificationChannelSelect = createCustomSelect({
+        container: '#verification_channel_idContainer',
+        name: 'verification_channel_id',
+        id: 'verification_channel_id',
+        placeholder: 'Select a channel...',
+        items: channelItems,
+        selected: currentValue || '',
+        color: 'green'
+      });
+
+      introChannelSelect = createCustomSelect({
+        container: '#intro_channel_idContainer',
+        name: 'intro_channel_id',
+        id: 'intro_channel_id',
+        placeholder: 'Select intro channel...',
+        items: channelItems,
+        selected: currentIntro || '',
+        color: 'purple'
+      });
+    }
+  } catch (err) {
+    console.error('Failed to load channels:', err);
+  }
+}
+
+// Load Discord roles and initialize custom select
+let verifiedRoleSelect;
+async function loadRoles() {
+  try {
+    const response = await csrfFetch(`/api/guild/${guildId}/roles/`);
+    const data = await response.json();
+
+    const currentValue = '{{ verification_config.verified_role_id }}';
+
+    if (data.roles) {
+      const roleItems = data.roles.map(role => ({
+        value: role.id,
+        label: role.name,
+        icon: 'user-tag'
+      }));
+
+      verifiedRoleSelect = createCustomSelect({
+        container: '#verified_role_idContainer',
+        name: 'verified_role_id',
+        id: 'verified_role_id',
+        placeholder: 'Select a role...',
+        items: roleItems,
+        selected: currentValue || '',
+        color: 'green'
+      });
+    }
+  } catch (err) {
+    console.error('Failed to load roles:', err);
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  loadChannels();
+  loadRoles();
+});
+
+async function saveConfig() {
+  const btn = document.getElementById('saveBtn');
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Saving...';
+  btn.disabled = true;
+
+  const data = {
+    verification_type: document.querySelector('input[name="verification_type"]:checked')?.value || 'button',
+    verification_channel_id: verificationChannelSelect ? verificationChannelSelect.getValue() : '',
+    verified_role_id: verifiedRoleSelect ? verifiedRoleSelect.getValue() : '',
+    require_account_age: document.getElementById('require_account_age').checked,
+    min_account_age_days: parseInt(document.getElementById('min_account_age_days').value) || 7,
+    button_text: document.getElementById('button_text').value,
+    captcha_length: parseInt(document.getElementById('captcha_length').value) || 6,
+    captcha_timeout_seconds: parseInt(document.getElementById('captcha_timeout_seconds').value) || 300,
+    require_rules_read: document.getElementById('require_rules_read').checked,
+    require_intro_message: document.getElementById('require_intro_message').checked,
+    intro_channel_id: introChannelSelect ? introChannelSelect.getValue() : '',
+    verification_instructions: document.getElementById('verification_instructions').value,
+    verified_message: document.getElementById('verified_message').value,
+    verification_timeout_hours: parseInt(document.getElementById('verification_timeout_hours').value) || 24,
+    kick_on_timeout: document.getElementById('kick_on_timeout').checked,
+  };
+
+  try {
+    const response = await csrfFetch(`/api/guild/${guildId}/verification/config/update/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+      body: JSON.stringify(data),
+    });
+    const result = await response.json();
+    if (result.success) {
+      btn.innerHTML = '<i class="fas fa-check mr-2"></i>Saved!';
+      btn.classList.replace('bg-purple-600', 'bg-green-600');
+      setTimeout(() => {
+        window.location.reload();
+      }, 1000);
+    } else {
+      throw new Error(result.error);
+    }
+  } catch (err) {
+    btn.innerHTML = '<i class="fas fa-times mr-2"></i>Error';
+    btn.classList.replace('bg-purple-600', 'bg-red-600');
+    setTimeout(() => {
+      btn.innerHTML = '<i class="fas fa-save mr-2"></i>Save Changes';
+      btn.classList.replace('bg-red-600', 'bg-purple-600');
+      btn.disabled = false;
+    }, 2000);
+    alert('Error: ' + err.message);
+  }
+}
+</script>
+{% endblock guild_content %}

@@ -1,5 +1,5 @@
 # warden/models.py
-# Database models for Warden Bot - Multi-tenant design for 1000+ guilds
+# Database models for QuestLog - Multi-tenant design for 1000+ guilds
 
 from sqlalchemy import (
     Column, Integer, String, BigInteger, Boolean, Text, Float,

@@ -27,11 +27,11 @@ urlpatterns = [
     path('login/', views.login_view, name='login'),
     path("dashboard/", views.dashboard, name="dashboard"),
 
-    # WardenBot
-    path('wardenbot/overview/', views.wardenbot_overview, name='wardenbot_overview'),
-    path('wardenbot/login/', views.wardenbot_login, name='wardenbot_login'),
-    path('wardenbot/creatorofthemonth/', views.creator_of_the_month_page, name='creator_of_the_month'),
-    path('wardenbot/creatoroftheweek/', views.creator_of_the_week_page, name='creator_of_the_week'),
+    # QuestLog
+    path('questlog/overview/', views.questlog_overview, name='questlog_overview'),
+    path('questlog/login/', views.questlog_login, name='questlog_login'),
+    path('questlog/creatorofthemonth/', views.creator_of_the_month_page, name='creator_of_the_month'),
+    path('questlog/creatoroftheweek/', views.creator_of_the_week_page, name='creator_of_the_week'),
 
     # Discord OAuth2 Authentication
     path('auth/discord/login/', views.discord_login, name='discord_login'),
@@ -45,17 +45,17 @@ urlpatterns = [
     # User Pages
     path('profile/', views.user_profile, name='user_profile'),
 
-    # Warden Bot Dashboard
-    path('warden/', views.warden_dashboard, name='warden_dashboard'),
-    path('warden/guild/<str:guild_id>/', views.guild_dashboard, name='guild_dashboard'),
-    path('warden/guild/<str:guild_id>/profile/', views.member_profile, name='member_profile'),
-    path('warden/guild/<str:guild_id>/leaderboards/', views.guild_leaderboards, name='guild_leaderboards'),
-    path('warden/guild/<str:guild_id>/trackers/', views.guild_trackers, name='guild_trackers'),
-    path('warden/guild/<str:guild_id>/billing/', views.guild_billing, name='guild_billing'),
-    path('warden/guild/<str:guild_id>/flair-store/', views.flair_store, name='flair_store'),
-    path('warden/guild/<str:guild_id>/flair-management/', views.flair_management, name='flair_management'),
-    path('warden/api/guild/<str:guild_id>/sync/', views.force_sync_guild, name='force_sync_guild'),
-    path('warden/api/guild/<str:guild_id>/invalidate-cache/', views.invalidate_cache, name='invalidate_cache'),
+    # QuestLog Dashboard
+    path('questlog/', views.questlog_dashboard, name='questlog_dashboard'),
+    path('questlog/guild/<str:guild_id>/', views.guild_dashboard, name='guild_dashboard'),
+    path('questlog/guild/<str:guild_id>/profile/', views.member_profile, name='member_profile'),
+    path('questlog/guild/<str:guild_id>/leaderboards/', views.guild_leaderboards, name='guild_leaderboards'),
+    path('questlog/guild/<str:guild_id>/trackers/', views.guild_trackers, name='guild_trackers'),
+    path('questlog/guild/<str:guild_id>/billing/', views.guild_billing, name='guild_billing'),
+    path('questlog/guild/<str:guild_id>/flair-store/', views.flair_store, name='flair_store'),
+    path('questlog/guild/<str:guild_id>/flair-management/', views.flair_management, name='flair_management'),
+    path('questlog/api/guild/<str:guild_id>/sync/', views.force_sync_guild, name='force_sync_guild'),
+    path('questlog/api/guild/<str:guild_id>/invalidate-cache/', views.invalidate_cache, name='invalidate_cache'),
 
     # Flair API Endpoints
     path('api/guild/<str:guild_id>/flairs/', views.api_flair_list, name='api_flair_list'),
@@ -77,7 +77,7 @@ urlpatterns = [
     path('api/guild/<str:guild_id>/leave/', views.api_guild_leave, name='api_guild_leave'),
 
     # XP Dashboard
-    path('warden/guild/<str:guild_id>/xp/', views.guild_xp, name='guild_xp'),
+    path('questlog/guild/<str:guild_id>/xp/', views.guild_xp, name='guild_xp'),
 
     # XP API Endpoints
     path('api/guild/<str:guild_id>/xp/config/', views.api_xp_config, name='api_xp_config'),
@@ -102,10 +102,10 @@ urlpatterns = [
     path('api/guild/<str:guild_id>/xp/boost-events/<int:event_id>/delete/', views.api_xp_boost_event_delete, name='api_xp_boost_event_delete'),
 
     # Role Management Dashboard
-    path('warden/guild/<str:guild_id>/roles/', views.guild_roles, name='guild_roles'),
+    path('questlog/guild/<str:guild_id>/roles/', views.guild_roles, name='guild_roles'),
 
     # Reaction Roles Dashboard
-    path('warden/guild/<str:guild_id>/reaction-roles/', views.guild_reaction_roles, name='guild_reaction_roles'),
+    path('questlog/guild/<str:guild_id>/reaction-roles/', views.guild_reaction_roles, name='guild_reaction_roles'),
 
     # Reaction Roles API
     path('api/guild/<str:guild_id>/reaction-roles/', views.api_reaction_roles, name='api_reaction_roles'),
@@ -122,7 +122,7 @@ urlpatterns = [
     path('api/guild/<str:guild_id>/roles/export-create-template/', views.api_role_export_create_template, name='api_role_export_create_template'),
 
     # Raffles (Engagement)
-    path('warden/guild/<str:guild_id>/raffles/', views.guild_raffles, name='guild_raffles'),
+    path('questlog/guild/<str:guild_id>/raffles/', views.guild_raffles, name='guild_raffles'),
     path('api/guild/<str:guild_id>/raffles/', views.api_raffle_list, name='api_raffle_list'),
     path('api/guild/<str:guild_id>/raffles/create/', views.api_raffle_create, name='api_raffle_create'),
     path('api/guild/<str:guild_id>/raffles/<int:raffle_id>/update/', views.api_raffle_update, name='api_raffle_update'),
@@ -132,7 +132,7 @@ urlpatterns = [
     path('api/guild/<str:guild_id>/raffles/<int:raffle_id>/end/', views.api_raffle_end_now, name='api_raffle_end_now'),
 
     # Audit Logs Dashboard
-    path('warden/guild/<str:guild_id>/audit/', views.guild_audit_logs, name='guild_audit_logs'),
+    path('questlog/guild/<str:guild_id>/audit/', views.guild_audit_logs, name='guild_audit_logs'),
 
     # Audit Logs API Endpoints
     path('api/guild/<str:guild_id>/audit/', views.api_audit_logs, name='api_audit_logs'),
@@ -141,7 +141,7 @@ urlpatterns = [
     path('api/guild/<str:guild_id>/audit/export/', views.api_audit_export, name='api_audit_export'),
 
     # Welcome/Goodbye Messages Dashboard
-    path('warden/guild/<str:guild_id>/welcome/', views.guild_welcome, name='guild_welcome'),
+    path('questlog/guild/<str:guild_id>/welcome/', views.guild_welcome, name='guild_welcome'),
 
     # Welcome API Endpoints
     path('api/guild/<str:guild_id>/welcome/config/', views.api_welcome_config, name='api_welcome_config'),
@@ -149,7 +149,7 @@ urlpatterns = [
     path('api/guild/<str:guild_id>/welcome/test/', views.api_welcome_test, name='api_welcome_test'),
 
     # Level-Up Messages Dashboard
-    path('warden/guild/<str:guild_id>/levelup/', views.guild_levelup, name='guild_levelup'),
+    path('questlog/guild/<str:guild_id>/levelup/', views.guild_levelup, name='guild_levelup'),
 
     # Level-Up API Endpoints
     path('api/guild/<str:guild_id>/levelup/config/update/', views.api_levelup_config_update, name='api_levelup_config_update'),
@@ -168,8 +168,8 @@ urlpatterns = [
     path('api/guild/<str:guild_id>/scheduled-messages/<int:message_id>/cancel/', views.api_scheduled_messages_cancel, name='api_scheduled_messages_cancel'),
 
     # Server Settings Dashboard
-    path('warden/guild/<str:guild_id>/settings/', views.guild_settings, name='guild_settings'),
-    path('warden/guild/<str:guild_id>/messages/', views.guild_messages, name='guild_messages'),
+    path('questlog/guild/<str:guild_id>/settings/', views.guild_settings, name='guild_settings'),
+    path('questlog/guild/<str:guild_id>/messages/', views.guild_messages, name='guild_messages'),
 
     # Settings API Endpoints
     path('api/guild/<str:guild_id>/settings/update/', views.api_settings_update, name='api_settings_update'),
@@ -185,14 +185,14 @@ urlpatterns = [
     path('webhooks/stripe/', views.stripe_webhook, name='stripe_webhook'),
 
     # Verification Dashboard
-    path('warden/guild/<str:guild_id>/verification/', views.guild_verification, name='guild_verification'),
+    path('questlog/guild/<str:guild_id>/verification/', views.guild_verification, name='guild_verification'),
 
     # Verification API Endpoints
     path('api/guild/<str:guild_id>/verification/config/update/', views.api_verification_config_update, name='api_verification_config_update'),
 
     # Moderation Dashboard
-    path('warden/guild/<str:guild_id>/moderation/', views.guild_moderation, name='guild_moderation'),
-    path('warden/guild/<str:guild_id>/moderation/settings/', views.guild_moderation_settings, name='guild_moderation_settings'),
+    path('questlog/guild/<str:guild_id>/moderation/', views.guild_moderation, name='guild_moderation'),
+    path('questlog/guild/<str:guild_id>/moderation/settings/', views.guild_moderation_settings, name='guild_moderation_settings'),
 
     # Moderation API Endpoints
     path('api/guild/<str:guild_id>/warnings/', views.api_warnings_list, name='api_warnings_list'),
@@ -206,7 +206,7 @@ urlpatterns = [
     path('api/guild/<str:guild_id>/moderation/settings/', views.api_mod_settings_update, name='api_mod_settings_update'),
 
     # Templates Dashboard
-    path('warden/guild/<str:guild_id>/templates/', views.guild_templates, name='guild_templates'),
+    path('questlog/guild/<str:guild_id>/templates/', views.guild_templates, name='guild_templates'),
 
     # Templates API Endpoints
     path('api/guild/<str:guild_id>/templates/channels/', views.api_channel_template_create, name='api_channel_template_create'),
@@ -218,8 +218,8 @@ urlpatterns = [
     path('api/guild/<str:guild_id>/roles/', views.api_guild_roles, name='api_guild_roles'),
 
     # Discovery/Self-Promo Dashboard
-    path('warden/guild/<str:guild_id>/discovery/', views.guild_discovery, name='guild_discovery'),
-    path('warden/guild/<str:guild_id>/found-games/', views.guild_found_games, name='guild_found_games'),
+    path('questlog/guild/<str:guild_id>/discovery/', views.guild_discovery, name='guild_discovery'),
+    path('questlog/guild/<str:guild_id>/found-games/', views.guild_found_games, name='guild_found_games'),
 
     # Discovery API Endpoints
     path('api/guild/<str:guild_id>/discovery/config/update/', views.api_discovery_config_update, name='api_discovery_config_update'),
@@ -242,12 +242,12 @@ urlpatterns = [
     path('api/guild/<str:guild_id>/action/<str:action_id>/status/', views.api_action_status, name='api_action_status'),
 
     # LFG Dashboard
-    path('warden/guild/<str:guild_id>/lfg/', views.guild_lfg, name='guild_lfg'),
-    path('warden/guild/<str:guild_id>/lfg/browser/', views.guild_lfg_browser, name='guild_lfg_browser'),
-    path('warden/guild/<str:guild_id>/attendance/', views.guild_attendance, name='guild_attendance'),
-    path('warden/guild/<str:guild_id>/featured-creators/', views.guild_featured_creators, name='guild_featured_creators'),
-    path('warden/guild/<str:guild_id>/cotw/', views.guild_cotw, name='guild_cotw'),
-    path('warden/guild/<str:guild_id>/cotm/', views.guild_cotm, name='guild_cotm'),
+    path('questlog/guild/<str:guild_id>/lfg/', views.guild_lfg, name='guild_lfg'),
+    path('questlog/guild/<str:guild_id>/lfg/browser/', views.guild_lfg_browser, name='guild_lfg_browser'),
+    path('questlog/guild/<str:guild_id>/attendance/', views.guild_attendance, name='guild_attendance'),
+    path('questlog/guild/<str:guild_id>/featured-creators/', views.guild_featured_creators, name='guild_featured_creators'),
+    path('questlog/guild/<str:guild_id>/cotw/', views.guild_cotw, name='guild_cotw'),
+    path('questlog/guild/<str:guild_id>/cotm/', views.guild_cotm, name='guild_cotm'),
 
     # LFG API Endpoints
     path('api/guild/<str:guild_id>/lfg/search/', views.api_lfg_search, name='api_lfg_search'),

@@ -73,7 +73,7 @@ def require_subscription_tier(*required_tiers):
                         'error': f'This feature requires {" or ".join(required_tiers).title()} subscription',
                         'current_tier': guild_tier,
                         'required_tiers': list(required_tiers),
-                        'upgrade_url': f'/warden/guild/{guild_id}/billing'
+                        'upgrade_url': f'/questlog/guild/{guild_id}/billing'
                     }, status=403)
 
             except Exception as e:
@@ -126,7 +126,7 @@ def require_module_access(module_name):
                     return JsonResponse({
                         'error': f'This feature requires the {module_name} module',
                         'module_name': module_name,
-                        'upgrade_url': f'/warden/guild/{guild_id}/billing'
+                        'upgrade_url': f'/questlog/guild/{guild_id}/billing'
                     }, status=403)
 
             except Exception as e:

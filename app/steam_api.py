@@ -86,7 +86,7 @@ class SteamAPI:
         self.last_request_time = 0
         self.session = requests.Session()
         self.session.headers.update({
-            'User-Agent': 'Warden Bot Game Discovery (Discord Bot)'
+            'User-Agent': 'QuestLog Game Discovery (Discord Bot)'
         })
 
     def _rate_limit(self):

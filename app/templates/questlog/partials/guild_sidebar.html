@@ -1,0 +1,598 @@
+{% load static %}
+{% load lfg_tags %}
+
+<!-- Sidebar Navigation -->
+<div id="guild-sidebar" class="fixed inset-y-0 left-0 z-50 w-64 bg-neutral-900 border-r border-neutral-800 transform -translate-x-full lg:translate-x-0 transition-transform duration-300 ease-in-out overflow-y-auto">
+  <!-- Server Selector Dropdown -->
+  <div class="p-4 border-b border-neutral-800">
+    <button onclick="toggleServerDropdown()" type="button"
+            class="w-full flex items-center gap-3 mb-2 hover:bg-neutral-800 p-2 rounded-lg transition group">
+      {% if guild.icon %}
+      <img src="https://cdn.discordapp.com/icons/{{ guild.id }}/{{ guild.icon }}.png?size=64"
+           alt="{{ guild.name }}"
+           class="w-10 h-10 rounded-lg flex-shrink-0">
+      {% else %}
+      <div class="w-10 h-10 bg-neutral-700 rounded-lg flex items-center justify-center flex-shrink-0">
+        <span class="text-sm font-bold text-gray-400">{{ guild.name|slice:":2"|upper }}</span>
+      </div>
+      {% endif %}
+      <div class="flex-1 min-w-0 text-left">
+        <h2 class="text-white font-semibold text-sm truncate">{{ guild.name }}</h2>
+        <p class="text-gray-500 text-xs">
+          {% if guild.owner %}
+          <i class="fas fa-crown text-yellow-500 mr-1"></i>Owner
+          {% elif is_admin %}
+          <i class="fas fa-shield-alt text-indigo-400 mr-1"></i>Admin
+          {% else %}
+          <i class="fas fa-user text-blue-400 mr-1"></i>Member
+          {% endif %}
+        </p>
+      </div>
+      <i class="fas fa-chevron-down text-gray-500 group-hover:text-white transition"></i>
+    </button>
+
+    <!-- Server Dropdown Menu -->
+    <div id="server-dropdown" class="hidden mt-2 bg-neutral-800 rounded-lg border border-neutral-700 max-h-96 overflow-y-auto">
+      <!-- Servers You Manage (only show servers with bot installed) -->
+      {% if admin_guilds %}
+      {% for g in admin_guilds %}
+      {% if g.id != guild.id and g.has_bot %}
+      <a href="{% url 'guild_dashboard' g.id %}"
+         class="flex items-center gap-3 p-3 hover:bg-neutral-700 transition">
+        {% if g.icon %}
+        <img src="https://cdn.discordapp.com/icons/{{ g.id }}/{{ g.icon }}.png?size=48"
+             alt="{{ g.name }}"
+             class="w-8 h-8 rounded-lg">
+        {% else %}
+        <div class="w-8 h-8 bg-neutral-600 rounded-lg flex items-center justify-center">
+          <span class="text-xs font-bold text-gray-400">{{ g.name|slice:":2"|upper }}</span>
+        </div>
+        {% endif %}
+        <div class="flex-1 min-w-0">
+          <p class="text-white text-sm truncate">{{ g.name }}</p>
+          <p class="text-gray-500 text-xs">
+            {% if g.owner %}<i class="fas fa-crown text-yellow-500 mr-1"></i>Owner{% else %}<i class="fas fa-shield-alt text-indigo-400 mr-1"></i>Admin{% endif %}
+          </p>
+        </div>
+      </a>
+      {% endif %}
+      {% endfor %}
+      {% endif %}
+
+      <!-- Servers You Are In (Members) -->
+      {% if member_guilds %}
+      {% if admin_guilds %}
+      <div class="border-t border-neutral-700 pt-2 pb-1 px-3">
+        <p class="text-xs text-gray-500 uppercase tracking-wider font-semibold">Member Servers</p>
+      </div>
+      {% endif %}
+      {% for g in member_guilds %}
+      {% if g.id != guild.id %}
+      <a href="{% url 'guild_dashboard' g.id %}"
+         class="flex items-center gap-3 p-3 hover:bg-neutral-700 transition">
+        {% if g.icon %}
+        <img src="https://cdn.discordapp.com/icons/{{ g.id }}/{{ g.icon }}.png?size=48"
+             alt="{{ g.name }}"
+             class="w-8 h-8 rounded-lg">
+        {% else %}
+        <div class="w-8 h-8 bg-neutral-600 rounded-lg flex items-center justify-center">
+          <span class="text-xs font-bold text-gray-400">{{ g.name|slice:":2"|upper }}</span>
+        </div>
+        {% endif %}
+        <div class="flex-1 min-w-0">
+          <p class="text-white text-sm truncate">{{ g.name }}</p>
+          <p class="text-gray-500 text-xs">
+            <i class="fas fa-users text-blue-400 mr-1"></i>Member
+          </p>
+        </div>
+      </a>
+      {% endif %}
+      {% endfor %}
+      {% endif %}
+
+      <!-- All Servers Link -->
+      <a href="{% url 'questlog_dashboard' %}"
+         class="flex items-center gap-3 p-3 border-t border-neutral-700 hover:bg-neutral-700 transition text-gray-400 hover:text-white">
+        <i class="fas fa-th text-lg w-8 text-center"></i>
+        <span class="text-sm">All Servers</span>
+      </a>
+    </div>
+  </div>
+
+  <!-- Navigation Menu -->
+  <nav class="p-3 space-y-6">
+    <!-- Dashboard -->
+    <div>
+      <a href="{% url 'guild_dashboard' guild.id %}"
+         class="nav-item {% if active_page == 'dashboard' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition group">
+        <i class="fas fa-home text-gray-400 group-hover:text-indigo-400"></i>
+        <span>Dashboard</span>
+      </a>
+    </div>
+
+    <!-- Member Features (Always Visible) -->
+    <div>
+      <div class="flex items-center justify-between px-3 mb-2">
+        <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wider">Member Features</h3>
+      </div>
+      <div class="space-y-1">
+        <!-- Profile -->
+        <a href="{% url 'member_profile' guild.id %}"
+           class="nav-item {% if active_page == 'profile' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          <i class="fas fa-user text-gray-400 group-hover:text-blue-400"></i>
+          <span>Your Profile</span>
+        </a>
+
+        <!-- Leaderboards -->
+        <a href="{% url 'guild_leaderboards' guild.id %}"
+           class="nav-item {% if active_page == 'leaderboards' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          <i class="fas fa-trophy text-gray-400 group-hover:text-yellow-400"></i>
+          <span>Leaderboards</span>
+        </a>
+        
+        <!-- Featured Creators -->
+        <a href="{% url 'guild_featured_creators' guild.id %}"
+           class="nav-item {% if active_page == 'featured_creators' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          <i class="fas fa-star text-yellow-400 group-hover:text-yellow-300"></i>
+          <span>Featured Creators</span>
+        </a>
+
+        <!-- Flair Store -->
+        <a href="{% url 'flair_store' guild.id %}"
+           class="nav-item {% if active_page == 'flair_store' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          <i class="fas fa-palette text-gray-400 group-hover:text-pink-400"></i>
+          <span>Flair Store</span>
+        </a>
+
+        <!-- Found Games -->
+        <a href="{% url 'guild_found_games' guild.id %}"
+           class="nav-item {% if active_page == 'found_games' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          <i class="fas fa-gamepad text-gray-400 group-hover:text-green-400"></i>
+          <span>Found Games</span>
+        </a>
+
+        <!-- LFG Browser (All Tiers) -->
+        <a href="{% url 'guild_lfg_browser' guild.id %}"
+           class="nav-item {% if active_page == 'lfg_browser' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          <i class="fas fa-users text-gray-400 group-hover:text-green-400"></i>
+          <span class="flex-1">Find Groups</span>
+        </a>
+      </div>
+    </div>
+
+    <!-- Admin Only Sections -->
+    {% if is_admin %}
+    <!-- Billing -->
+    <div>
+      <div class="flex items-center justify-between px-3 mb-2">
+        <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wider">Billing</h3>
+      </div>
+      <div class="space-y-1">
+        <a href="{% url 'guild_billing' guild.id %}"
+           class="nav-item {% if active_page == 'billing' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          <i class="fas fa-credit-card text-gray-400 group-hover:text-indigo-400"></i>
+          <span>Billing & Subscriptions</span>
+        </a>
+      </div>
+    </div>
+
+    <!-- Engagement Section -->
+    <div>
+      <div class="flex items-center justify-between px-3 mb-2">
+        <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wider">Engagement</h3>
+      </div>
+      <div class="space-y-1">
+        <!-- XP & Leveling (Expandable) -->
+        <div>
+          <button onclick="toggleSubmenu('xp-submenu', event)" type="button"
+                  class="nav-item {% if active_page == 'xp' or active_page == 'levelup' %}active{% endif %} w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+            <i class="fas fa-star text-gray-400 group-hover:text-green-400"></i>
+            <span class="flex-1 text-left">XP & Leveling</span>
+            <i class="fas fa-chevron-down text-xs transition-transform" id="xp-submenu-icon"></i>
+          </button>
+          <div id="xp-submenu" class="ml-6 mt-1 space-y-1 {% if active_page != 'xp' and active_page != 'levelup' %}hidden{% endif %}">
+            <a href="{% url 'guild_xp' guild.id %}"
+               class="sub-nav-item {% if active_page == 'xp' %}active{% endif %} flex items-center gap-2 px-3 py-1.5 rounded text-xs transition">
+              <i class="fas fa-cog w-4"></i>
+              <span>XP Settings</span>
+            </a>
+            <a href="{% url 'guild_levelup' guild.id %}"
+               class="sub-nav-item {% if active_page == 'levelup' %}active{% endif %} flex items-center gap-2 px-3 py-1.5 rounded text-xs transition">
+              <i class="fas fa-comment w-4"></i>
+              <span>Level-Up Messages</span>
+            </a>
+            <a href="{% url 'guild_xp' guild.id %}#boosts"
+               class="sub-nav-item flex items-center gap-2 px-3 py-1.5 rounded text-xs transition">
+              <i class="fas fa-bolt w-4"></i>
+              <span>XP Boost Events</span>
+            </a>
+          </div>
+        </div>
+
+        <!-- LFG System (Expandable) -->
+        <div>
+          <button onclick="toggleSubmenu('lfg-submenu', event)" type="button"
+                  class="nav-item {% if active_page == 'lfg' or active_page == 'attendance' or active_page == 'lfg_browser' %}active{% endif %} w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+            <i class="fas fa-gamepad text-gray-400 group-hover:text-blue-400"></i>
+            <span class="flex-1 text-left">LFG System</span>
+            <i class="fas fa-chevron-down text-xs transition-transform" id="lfg-submenu-icon"></i>
+          </button>
+          <div id="lfg-submenu" class="ml-6 mt-1 space-y-1 {% if active_page != 'lfg' and active_page != 'attendance' and active_page != 'lfg_browser' %}hidden{% endif %}">
+            <a href="{% url 'guild_lfg' guild.id %}"
+               class="sub-nav-item {% if active_page == 'lfg' %}active{% endif %} flex items-center gap-2 px-3 py-1.5 rounded text-xs transition">
+              <i class="fas fa-cog w-4"></i>
+              <span>LFG Settings</span>
+            </a>
+            {% is_premium guild.id as is_premium %}
+            {% if is_premium %}
+            <a href="{% url 'guild_attendance' guild.id %}"
+               class="sub-nav-item {% if active_page == 'attendance' %}active{% endif %} flex items-center gap-2 px-3 py-1.5 rounded text-xs transition">
+              <i class="fas fa-clipboard-check w-4"></i>
+              <span>Attendance</span>
+            </a>
+            {% endif %}
+            <a href="{% url 'guild_lfg_browser' guild.id %}"
+               class="sub-nav-item {% if active_page == 'lfg_browser' %}active{% endif %} flex items-center gap-2 px-3 py-1.5 rounded text-xs transition">
+              <i class="fas fa-users w-4"></i>
+              <span>LFG Browser</span>
+            </a>
+          </div>
+        </div>
+
+        <!-- Discovery System (Expandable) -->
+        <div>
+          <button onclick="toggleSubmenu('discovery-submenu', event)" type="button"
+                  class="nav-item {% if active_page == 'discovery' %}active{% endif %} w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+            <i class="fas fa-bullhorn text-gray-400 group-hover:text-orange-400"></i>
+            <span class="flex-1 text-left">Discovery System</span>
+            <i class="fas fa-chevron-down text-xs transition-transform" id="discovery-submenu-icon"></i>
+          </button>
+          <div id="discovery-submenu" class="ml-6 mt-1 space-y-1 {% if active_page != 'discovery' %}hidden{% endif %}">
+            <a href="{% url 'guild_discovery' guild.id %}#creator"
+               class="sub-nav-item {% if active_page == 'discovery' %}active{% endif %} flex items-center gap-2 px-3 py-1.5 rounded text-xs transition">
+              <i class="fas fa-user w-4"></i>
+              <span>Creator Discovery</span>
+            </a>
+            <a href="{% url 'guild_discovery' guild.id %}#games"
+               class="sub-nav-item flex items-center gap-2 px-3 py-1.5 rounded text-xs transition">
+              <i class="fas fa-gamepad w-4"></i>
+              <span>Game Discovery</span>
+            </a>
+            <a href="{% url 'guild_discovery' guild.id %}#twitch"
+               class="sub-nav-item flex items-center gap-2 px-3 py-1.5 rounded text-xs transition">
+              <i class="fab fa-twitch w-4"></i>
+              <span>Twitch</span>
+            </a>
+            <a href="{% url 'guild_discovery' guild.id %}#youtube"
+               class="sub-nav-item flex items-center gap-2 px-3 py-1.5 rounded text-xs transition">
+              <i class="fab fa-youtube w-4"></i>
+              <span>YouTube</span>
+            </a>
+          </div>
+        </div>
+
+        <!-- Flair Management -->
+        <a href="{% url 'flair_management' guild.id %}"
+           class="nav-item {% if active_page == 'flair_management' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          <i class="fas fa-palette text-gray-400 group-hover:text-pink-400"></i>
+          <span>Flair Management</span>
+        </a>
+
+        <!-- Raffles -->
+        <a href="{% url 'guild_raffles' guild.id %}"
+           class="nav-item {% if active_page == 'raffles' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          <i class="fas fa-ticket-alt text-gray-400 group-hover:text-yellow-400"></i>
+          <span>Raffles</span>
+        </a>
+
+        <!-- Trackers -->
+        <a href="{% url 'guild_trackers' guild.id %}"
+           class="nav-item {% if active_page == 'trackers' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          <i class="fas fa-chart-line text-gray-400 group-hover:text-cyan-400"></i>
+          <span>Trackers</span>
+        </a>
+      </div>
+    </div>
+
+    <!-- Moderation Section -->
+    <div>
+      <div class="flex items-center justify-between px-3 mb-2">
+        <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wider">Moderation</h3>
+      </div>
+      <div class="space-y-1">
+        <a href="{% url 'guild_moderation' guild.id %}"
+           class="nav-item {% if active_page == 'moderation' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          <i class="fas fa-gavel text-gray-400 group-hover:text-red-400"></i>
+          <span>Moderation</span>
+        </a>
+        <a href="{% url 'guild_verification' guild.id %}"
+           class="nav-item {% if active_page == 'verification' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          <i class="fas fa-user-check text-gray-400 group-hover:text-green-400"></i>
+          <span>Verification</span>
+        </a>
+        <a href="{% url 'guild_audit_logs' guild.id %}"
+           class="nav-item {% if active_page == 'audit' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          <i class="fas fa-history text-gray-400 group-hover:text-yellow-400"></i>
+          <span>Audit Log</span>
+        </a>
+      </div>
+    </div>
+
+    <!-- Message System Section -->
+    <div>
+      <div class="flex items-center justify-between px-3 mb-2">
+        <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wider">Message System</h3>
+      </div>
+      <div class="space-y-1">
+        <a href="{% url 'guild_messages' guild.id %}"
+           class="nav-item {% if active_page == 'messages' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          <i class="fas fa-envelope-open-text text-gray-400 group-hover:text-cyan-400"></i>
+          <span>Message Tools</span>
+        </a>
+        <a href="{% url 'guild_welcome' guild.id %}"
+           class="nav-item {% if active_page == 'welcome' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          <i class="fas fa-door-open text-gray-400 group-hover:text-blue-400"></i>
+          <span>Welcome Messages</span>
+        </a>
+        <a href="{% url 'guild_reaction_roles' guild.id %}"
+           class="nav-item {% if active_page == 'reaction_roles' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          <i class="fas fa-smile text-gray-400 group-hover:text-yellow-400"></i>
+          <span>Reaction Roles</span>
+        </a>
+      </div>
+    </div>
+
+    <!-- Customization Section -->
+    <div>
+      <div class="flex items-center justify-between px-3 mb-2">
+        <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wider">Customization</h3>
+      </div>
+      <div class="space-y-1">
+        <a href="{% url 'guild_roles' guild.id %}"
+           class="nav-item {% if active_page == 'roles' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          <i class="fas fa-user-tag text-gray-400 group-hover:text-indigo-400"></i>
+          <span>Role Management</span>
+        </a>
+        <a href="{% url 'guild_templates' guild.id %}"
+           class="nav-item {% if active_page == 'templates' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          <i class="fas fa-file-alt text-gray-400 group-hover:text-indigo-400"></i>
+          <span>Templates</span>
+        </a>
+        <a href="{% url 'guild_settings' guild.id %}"
+           class="nav-item {% if active_page == 'settings' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          <i class="fas fa-cog text-gray-400 group-hover:text-gray-300"></i>
+          <span>Settings</span>
+        </a>
+      </div>
+    </div>
+    {% endif %}
+    <!-- End Admin Only Sections -->
+  </nav>
+
+  <!-- Footer -->
+  <!-- Collapse Button (Desktop only) -->
+  <div class="p-4 border-t border-neutral-800 mt-auto hidden lg:block">
+    <button onclick="toggleSidebarCollapse()" type="button"
+            class="w-full flex items-center justify-center gap-2 text-gray-400 hover:text-white hover:bg-neutral-800 py-2 px-3 rounded-lg transition group">
+      <i id="sidebar-collapse-icon" class="fas fa-chevron-left"></i>
+      <span id="sidebar-collapse-text" class="text-xs font-medium">Collapse Sidebar</span>
+    </button>
+  </div>
+
+  <div class="p-4 border-t border-neutral-800">
+    <div class="flex items-center justify-between text-xs text-gray-500">
+      <span id="sidebar-branding">QuestLog</span>
+      <a href="https://github.com/casualheroes/questlog" target="_blank" class="hover:text-white transition">
+        <i class="fab fa-github"></i>
+      </a>
+    </div>
+  </div>
+</div>
+
+<!-- Mobile Overlay -->
+<div id="sidebar-overlay" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 lg:hidden hidden" onclick="toggleSidebar()"></div>
+
+<!-- Mobile Menu Button -->
+<button onclick="toggleSidebar()" type="button"
+        class="fixed top-4 left-4 z-50 lg:hidden bg-neutral-900 border border-neutral-800 text-white p-2 rounded-lg shadow-lg hover:bg-neutral-800 transition">
+  <i class="fas fa-bars"></i>
+</button>
+
+<style>
+/* Active nav item */
+.nav-item.active {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.2), rgba(139, 92, 246, 0.2));
+  color: white;
+  border-left: 3px solid #6366f1;
+}
+
+.nav-item.active i {
+  color: #6366f1;
+}
+
+.nav-item:not(.active) {
+  color: #9ca3af;
+}
+
+.nav-item:not(.active):hover {
+  background: rgba(55, 65, 81, 0.5);
+  color: white;
+}
+
+/* Sub-nav items */
+.sub-nav-item {
+  color: #9ca3af;
+}
+
+.sub-nav-item.active {
+  color: #818cf8;
+  background: rgba(99, 102, 241, 0.1);
+}
+
+.sub-nav-item:hover {
+  background: rgba(55, 65, 81, 0.3);
+  color: white;
+}
+
+/* Rotate chevron when submenu is open */
+.submenu-open {
+  transform: rotate(180deg);
+}
+
+/* Smooth scrollbar */
+#guild-sidebar::-webkit-scrollbar {
+  width: 6px;
+}
+
+#guild-sidebar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+#guild-sidebar::-webkit-scrollbar-thumb {
+  background: #374151;
+  border-radius: 3px;
+}
+
+#guild-sidebar::-webkit-scrollbar-thumb:hover {
+  background: #4b5563;
+}
+
+/* Collapsed sidebar */
+@media (min-width: 1024px) {
+  .sidebar-collapsed {
+    width: 4rem !important;
+  }
+
+  .sidebar-collapsed .flex-1,
+  .sidebar-collapsed .text-sm,
+  .sidebar-collapsed .text-xs,
+  .sidebar-collapsed .text-lg,
+  .sidebar-collapsed .sub-nav-item,
+  .sidebar-collapsed #sidebar-branding,
+  .sidebar-collapsed #sidebar-collapse-text,
+  .sidebar-collapsed h2,
+  .sidebar-collapsed p,
+  .sidebar-collapsed h3,
+  .sidebar-collapsed span:not(#sidebar-collapse-icon) {
+    display: none !important;
+  }
+
+  /* Hide server dropdown entirely when collapsed */
+  .sidebar-collapsed #server-dropdown {
+    display: none !important;
+  }
+
+  /* Hide dropdown chevron when collapsed */
+  .sidebar-collapsed button[onclick="toggleServerDropdown()"] i.fa-chevron-down {
+    display: none !important;
+  }
+
+  .sidebar-collapsed .nav-item,
+  .sidebar-collapsed button {
+    justify-content: center !important;
+    padding: 0.5rem !important;
+  }
+
+  .sidebar-collapsed .nav-item i,
+  .sidebar-collapsed button i {
+    margin: 0 !important;
+  }
+
+  /* Center the server icon when collapsed */
+  .sidebar-collapsed button[onclick="toggleServerDropdown()"] {
+    justify-content: center !important;
+  }
+
+  /* Adjust main content margin when sidebar is collapsed */
+  .sidebar-main-collapsed {
+    margin-left: 4rem !important;
+  }
+}
+</style>
+
+<script>
+function toggleSidebar() {
+  const sidebar = document.getElementById('guild-sidebar');
+  const overlay = document.getElementById('sidebar-overlay');
+
+  sidebar.classList.toggle('-translate-x-full');
+  overlay.classList.toggle('hidden');
+}
+
+function toggleServerDropdown() {
+  const sidebar = document.getElementById('guild-sidebar');
+  const dropdown = document.getElementById('server-dropdown');
+
+  // Don't open dropdown if sidebar is collapsed
+  if (sidebar.classList.contains('sidebar-collapsed')) {
+    return;
+  }
+
+  dropdown.classList.toggle('hidden');
+}
+
+function toggleSubmenu(submenuId, event) {
+  if (event) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
+
+  const submenu = document.getElementById(submenuId);
+  const icon = document.getElementById(submenuId + '-icon');
+
+  submenu.classList.toggle('hidden');
+  icon.classList.toggle('submenu-open');
+}
+
+// Toggle sidebar collapse (desktop only)
+function toggleSidebarCollapse() {
+  const sidebar = document.getElementById('guild-sidebar');
+  const mainContent = document.querySelector('.flex-1.lg\\:ml-1');
+  const icon = document.getElementById('sidebar-collapse-icon');
+  const text = document.getElementById('sidebar-collapse-text');
+  const dropdown = document.getElementById('server-dropdown');
+  const isCollapsed = sidebar.classList.contains('sidebar-collapsed');
+
+  if (isCollapsed) {
+    // Expand
+    sidebar.classList.remove('sidebar-collapsed');
+    if (mainContent) mainContent.classList.remove('sidebar-main-collapsed');
+    icon.className = 'fas fa-chevron-left';
+    text.textContent = 'Collapse Sidebar';
+    localStorage.setItem('sidebarCollapsed', 'false');
+  } else {
+    // Collapse
+    sidebar.classList.add('sidebar-collapsed');
+    if (mainContent) mainContent.classList.add('sidebar-main-collapsed');
+    icon.className = 'fas fa-chevron-right';
+    text.textContent = 'Expand';
+    localStorage.setItem('sidebarCollapsed', 'true');
+
+    // Close any open dropdowns when collapsing
+    if (dropdown) dropdown.classList.add('hidden');
+  }
+}
+
+// AJAX navigation disabled - causing flickering and performance issues
+// Using normal page navigation instead
+
+// Restore sidebar state from localStorage on page load
+document.addEventListener('DOMContentLoaded', () => {
+  const sidebar = document.getElementById('guild-sidebar');
+
+  // Restore collapsed state
+  const isCollapsed = localStorage.getItem('sidebarCollapsed') === 'true';
+  if (isCollapsed && window.innerWidth >= 1024) {
+    sidebar.classList.add('sidebar-collapsed');
+    document.getElementById('sidebar-collapse-icon').className = 'fas fa-chevron-right';
+    document.getElementById('sidebar-collapse-text').textContent = 'Expand';
+  }
+});
+
+// Close dropdowns when clicking outside
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('#server-dropdown') && !e.target.closest('button[onclick="toggleServerDropdown()"]')) {
+    document.getElementById('server-dropdown')?.classList.add('hidden');
+  }
+});
+</script>

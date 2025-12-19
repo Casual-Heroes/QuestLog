@@ -1,0 +1,636 @@
+{% extends "questlog/base_guild.html" %}
+{% load static %}
+
+{% block title %}Raffles - {{ guild.name }}{% endblock %}
+{% block og_title %}Raffles - {{ guild.name }}{% endblock %}
+
+{% block guild_content %}
+{% include "questlog/partials/custom_select.html" %}
+{% include "questlog/partials/discord_resource_selects.html" %}
+
+<script>
+const csrfToken = '{{ csrf_token }}';
+async function csrfFetch(url, options = {}) {
+  const opts = { ...options };
+  opts.headers = opts.headers || {};
+  opts.headers['X-CSRFToken'] = csrfToken;
+  if (!(opts.body instanceof FormData) && opts.method && opts.method.toUpperCase() !== 'GET' && !opts.headers['Content-Type']) {
+    opts.headers['Content-Type'] = 'application/json';
+  }
+  return fetch(url, opts);
+}
+</script>
+
+<div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
+  <div>
+    <h1 class="text-3xl font-bold text-white flex items-center gap-3">
+      <i class="fas fa-ticket-alt text-yellow-400"></i>Raffles
+    </h1>
+    <p class="text-gray-400 mt-1">Run token-based raffles for your community.</p>
+  </div>
+  <div class="flex gap-3">
+    <button onclick="openCreateModal()"
+            class="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded-lg font-medium transition text-sm">
+      <i class="fas fa-plus mr-2"></i>Create Raffle
+    </button>
+  </div>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
+  <div class="bg-neutral-900 border border-neutral-800 rounded-lg p-4">
+    <p class="text-gray-400 text-sm">Token Balance</p>
+    <p class="text-white text-2xl font-bold" id="tokenBalance">{{ current_tokens }}</p>
+  </div>
+  <div class="bg-neutral-900 border border-neutral-800 rounded-lg p-4">
+    <p class="text-gray-400 text-sm">Active Raffles</p>
+    <p class="text-white text-2xl font-bold" id="activeCount">0</p>
+  </div>
+  <div class="bg-neutral-900 border border-neutral-800 rounded-lg p-4">
+    <p class="text-gray-400 text-sm">Ended Raffles</p>
+    <p class="text-white text-2xl font-bold" id="endedCount">0</p>
+  </div>
+</div>
+
+<!-- Raffle Limits Info -->
+{% if is_admin %}
+<div class="bg-blue-900/20 border border-blue-700/50 rounded-xl p-6 mb-6">
+  <div class="flex items-start gap-4">
+    <div class="w-12 h-12 rounded-full bg-blue-600/20 border border-blue-500/30 flex items-center justify-center flex-shrink-0">
+      <i class="fas fa-ticket-alt text-blue-400 text-xl"></i>
+    </div>
+    <div class="flex-1">
+      <h3 class="text-blue-400 font-semibold mb-3 flex items-center">
+        <i class="fas fa-info-circle mr-2"></i>Active Raffle Limits
+      </h3>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+        <div>
+          <p class="text-gray-300 font-medium mb-1">
+            <i class="fas fa-circle text-gray-400 mr-2 text-xs"></i>Free Tier
+          </p>
+          <p class="text-gray-400 text-xs">Up to 3 active raffles with entry requirements</p>
+        </div>
+        <div>
+          <p class="text-orange-300 font-medium mb-1">
+            <i class="fas fa-fire text-orange-500 mr-2 text-xs"></i>Engagement Module
+          </p>
+          <p class="text-gray-400 text-xs">Unlimited raffles + auto-draw, multiple winners & analytics</p>
+        </div>
+        <div>
+          <p class="text-purple-300 font-medium mb-1">
+            <i class="fas fa-crown text-purple-500 mr-2 text-xs"></i>Complete Suite
+          </p>
+          <p class="text-gray-400 text-xs">Unlimited raffles + all premium features</p>
+        </div>
+      </div>
+      {% if has_engagement_module or guild_record.is_vip or guild_record.subscription_tier == 'complete' or guild_record.billing_cycle == 'lifetime' %}
+      <p class="text-green-400 text-xs mt-3">
+        <i class="fas fa-check-circle mr-1"></i>
+        You have unlimited raffles! Create as many as your community needs.
+      </p>
+      {% else %}
+      <p class="text-blue-300 text-xs mt-3">
+        <i class="fas fa-lightbulb mr-1"></i>
+        You can create up to 3 active raffles. <a href="{% url 'guild_billing' guild.id %}" class="text-blue-400 hover:text-blue-300 underline font-semibold">Upgrade to Engagement Module or get Complete for $12.99</a> for more raffles!
+      </p>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- Active Raffles -->
+<div class="bg-neutral-900 border border-neutral-800 rounded-xl p-6 mb-6">
+  <div class="flex items-center justify-between mb-4">
+    <h2 class="text-xl font-bold text-white flex items-center gap-2">
+      <i class="fas fa-play text-green-400"></i>Active Raffles
+    </h2>
+  </div>
+  <div id="activeRaffles" class="space-y-3 text-gray-300 text-sm">
+    <div class="text-gray-500">Loading...</div>
+  </div>
+</div>
+
+<!-- Ended Raffles -->
+<div class="bg-neutral-900 border border-neutral-800 rounded-xl p-6">
+  <div class="flex items-center justify-between mb-4">
+    <h2 class="text-xl font-bold text-white flex items-center gap-2">
+      <i class="fas fa-flag-checkered text-blue-400"></i>Ended Raffles
+    </h2>
+  </div>
+  <div id="endedRaffles" class="space-y-3 text-gray-300 text-sm">
+    <div class="text-gray-500">Loading...</div>
+  </div>
+</div>
+
+<!-- Create/Edit Raffle Modal -->
+<div id="raffleModal" class="fixed inset-0 bg-black/70 hidden items-center justify-center z-50 px-3 py-6">
+  <div class="bg-neutral-900 border border-neutral-800 rounded-xl w-full max-w-3xl max-h-[90vh] overflow-y-auto p-6 custom-scrollbar">
+    <div class="flex items-start justify-between mb-4">
+      <div>
+        <h3 class="text-xl font-bold text-white" id="raffleModalTitle">
+          <i class="fas fa-plus text-yellow-400 mr-2"></i>Create Raffle
+        </h3>
+        <p class="text-gray-400 text-sm">Set cost, timing, winners, and announcements.</p>
+      </div>
+      <button onclick="closeRaffleModal()" class="text-gray-400 hover:text-white">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+    <form id="raffleForm" class="space-y-4" onsubmit="saveRaffle(event)">
+      <input type="hidden" id="raffleId">
+      <div class="grid md:grid-cols-2 gap-4">
+        <div>
+          <label class="block text-sm text-gray-400 mb-1">Title</label>
+          <input id="raffleTitle" required class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white">
+        </div>
+        <div>
+          <label class="block text-sm text-gray-400 mb-1">Token Cost (per entry)</label>
+          <input id="raffleCost" type="number" min="0" value="0" class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white">
+        </div>
+      </div>
+      <div>
+        <label class="block text-sm text-gray-400 mb-1">Description</label>
+        <textarea id="raffleDescription" rows="3" class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white"></textarea>
+      </div>
+      <div class="grid md:grid-cols-2 gap-4">
+        <div>
+          <label class="block text-sm text-gray-400 mb-1">Start</label>
+          <input id="raffleStart" type="datetime-local" class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white">
+        </div>
+        <div>
+          <label class="block text-sm text-gray-400 mb-1">End</label>
+          <input id="raffleEnd" type="datetime-local" class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white">
+        </div>
+      </div>
+      <div class="grid md:grid-cols-2 gap-4">
+        <div>
+          <label class="block text-sm text-gray-400 mb-1">Max Winners</label>
+          <input id="raffleWinners" type="number" min="1" value="1" class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white">
+        </div>
+        <div class="flex items-center gap-3 mt-6">
+          <input id="raffleAuto" type="checkbox" class="h-5 w-5 rounded border-neutral-600 bg-neutral-800 text-yellow-500">
+          <label for="raffleAuto" class="text-gray-300 text-sm">Auto pick when raffle ends</label>
+        </div>
+      </div>
+      <div class="grid md:grid-cols-2 gap-4">
+        <div>
+          <label class="block text-sm text-gray-400 mb-1">Announcement Channel</label>
+          <div id="raffleChannelSelect"></div>
+        </div>
+        <div>
+          <label class="block text-sm text-gray-400 mb-1">Ping Role (optional)</label>
+          <div id="raffleRoleSelect"></div>
+        </div>
+      </div>
+      <div>
+        <label class="block text-sm text-gray-400 mb-1">Admin Reminder Channel (if not auto-pick)</label>
+        <div id="raffleReminderChannelSelect"></div>
+        <p class="text-xs text-gray-500 mt-1">Where to send reminders if raffle ends without auto-pick enabled</p>
+      </div>
+      <div>
+        <div class="flex items-center justify-between mb-1">
+          <label class="block text-sm text-gray-400">Announcement Message</label>
+          <div class="flex gap-2 items-center">
+            <select id="announceTemplate" class="bg-neutral-800 border border-neutral-700 text-gray-300 text-sm rounded px-2 py-1"
+              onchange="applyTemplate('raffleAnnounceMsg', this.value)">
+              <option value="">Smart Text</option>
+              <option value="A new raffle is live! {role} Win **{title}**. Cost: {cost} tokens. Ends: {end}.">{role} New raffle is live</option>
+              <option value="Win **{title}**! Cost {cost} tokens. Ends {end}. Good luck!">{title} hype</option>
+            </select>
+            <div class="flex gap-1">
+              <button type="button" class="px-2 py-1 bg-neutral-800 border border-neutral-700 rounded text-gray-300 text-xs" onclick="insertVar('raffleAnnounceMsg','{title}')">{title}</button>
+              <button type="button" class="px-2 py-1 bg-neutral-800 border border-neutral-700 rounded text-gray-300 text-xs" onclick="insertVar('raffleAnnounceMsg','{cost}')">{cost}</button>
+              <button type="button" class="px-2 py-1 bg-neutral-800 border border-neutral-700 rounded text-gray-300 text-xs" onclick="insertVar('raffleAnnounceMsg','{end}')">{end}</button>
+              <button type="button" class="px-2 py-1 bg-neutral-800 border border-neutral-700 rounded text-gray-300 text-xs" onclick="insertVar('raffleAnnounceMsg','{role}')">{role}</button>
+              <button type="button" class="px-2 py-1 bg-neutral-800 border border-neutral-700 rounded text-gray-300 text-xs" onclick="insertVar('raffleAnnounceMsg','{guild}')">{guild}</button>
+            </div>
+          </div>
+        </div>
+        <textarea id="raffleAnnounceMsg" rows="3" class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white resize-y" placeholder="A new raffle is live! Use {title}, {cost}, {end}, {role}, {guild} variables."></textarea>
+        <p class="text-xs text-gray-500 mt-1">Variables: <code class="text-indigo-400">{title}</code> <code class="text-indigo-400">{cost}</code> <code class="text-indigo-400">{end}</code> <code class="text-indigo-400">{role}</code> <code class="text-indigo-400">{guild}</code></p>
+      </div>
+      <div>
+        <div class="flex items-center justify-between mb-1">
+          <label class="block text-sm text-gray-400">Winner Message</label>
+          <div class="flex gap-2 items-center">
+            <select id="winnerTemplate" class="bg-neutral-800 border border-neutral-700 text-gray-300 text-sm rounded px-2 py-1"
+              onchange="applyTemplate('raffleWinnerMsg', this.value)">
+              <option value="">Smart Text</option>
+              <option value="Congrats {user}, you won **{title}**!">{user} wins</option>
+              <option value="Give it up for {user}! They snagged **{title}** in our raffle.">{guild} shout</option>
+            </select>
+            <div class="flex gap-1">
+              <button type="button" class="px-2 py-1 bg-neutral-800 border border-neutral-700 rounded text-gray-300 text-xs" onclick="insertVar('raffleWinnerMsg','{user}')">{user}</button>
+              <button type="button" class="px-2 py-1 bg-neutral-800 border border-neutral-700 rounded text-gray-300 text-xs" onclick="insertVar('raffleWinnerMsg','{title}')">{title}</button>
+              <button type="button" class="px-2 py-1 bg-neutral-800 border border-neutral-700 rounded text-gray-300 text-xs" onclick="insertVar('raffleWinnerMsg','{guild}')">{guild}</button>
+            </div>
+          </div>
+        </div>
+        <textarea id="raffleWinnerMsg" rows="3" class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white resize-y" placeholder="Congrats {user}, you won {title}!"></textarea>
+        <p class="text-xs text-gray-500 mt-1">Variables: <code class="text-indigo-400">{user}</code> <code class="text-indigo-400">{title}</code> <code class="text-indigo-400">{guild}</code></p>
+      </div>
+      <div>
+        <label class="block text-sm text-gray-400 mb-1">Entry Emoji</label>
+        <div id="raffleEmojiSelect"></div>
+        <p class="text-xs text-gray-500 mt-1">Pick a standard or guild emoji to use as the entry reaction.</p>
+      </div>
+      <div class="flex justify-end gap-3 pt-2">
+        <button type="button" onclick="closeRaffleModal()" class="px-4 py-2 text-gray-400 hover:text-white">Cancel</button>
+        <button type="submit" class="bg-yellow-600 hover:bg-yellow-700 text-white px-6 py-2 rounded-lg font-medium transition">
+          <i class="fas fa-save mr-2"></i>Save
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+const GUILD_ID = '{{ guild.id }}';
+let raffleChannelSelect, raffleRoleSelect, raffleEmojiSelect, raffleReminderChannelSelect;
+let raffleSelectsReady = false;
+let rafflesMap = {};
+
+function toEpoch(dateStr) {
+  if (!dateStr) return null;
+  return Math.floor(new Date(dateStr).getTime() / 1000);
+}
+
+function formatTs(ts) {
+  if (!ts) return '—';
+  return new Date(ts * 1000).toLocaleString();
+}
+
+function statusLabel(r) {
+  const now = Math.floor(Date.now()/1000);
+  if (r.winners && r.winners.length) return 'Completed';
+  if (r.active === false) return 'Closed';
+  if (r.start_at && now < r.start_at) return 'Scheduled';
+  if (r.end_at && now > r.end_at) return 'Ended';
+  return 'Active';
+}
+
+async function loadRaffles() {
+  const activeDiv = document.getElementById('activeRaffles');
+  const endedDiv = document.getElementById('endedRaffles');
+  activeDiv.innerHTML = '<div class="text-gray-500">Loading...</div>';
+  endedDiv.innerHTML = '<div class="text-gray-500">Loading...</div>';
+  try {
+    const resp = await csrfFetch(`/api/guild/${GUILD_ID}/raffles/`);
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || 'Failed to load raffles');
+
+    document.getElementById('activeCount').textContent = data.active.length;
+    document.getElementById('endedCount').textContent = data.ended.length;
+
+  const renderCard = (r, ended = false) => {
+    const winnersHtml = (r.winners && r.winners.length)
+      ? `<div class="text-green-400 text-sm mt-2"><i class="fas fa-trophy mr-1"></i>Winners: ${r.winners.map(w=>w.username||w.user_id).join(', ')}</div>`
+      : '';
+    const actions = ended
+      ? ''
+      : `<div class="flex gap-2 mt-3 flex-wrap">
+          <button onclick="openEditRaffle(${r.id})" class="bg-neutral-800 hover:bg-neutral-700 text-white px-3 py-1.5 rounded text-sm border border-neutral-700">
+            <i class="fas fa-edit mr-1"></i>Edit
+          </button>
+          ${(!r.start_at || (r.start_at && Date.now()/1000 < r.start_at)) && r.can_manage ? `<button onclick="startRaffle(${r.id})" class="bg-neutral-800 hover:bg-neutral-700 text-white px-3 py-1.5 rounded text-sm border border-neutral-700">
+            <i class="fas fa-play mr-1"></i>Start Now
+          </button>` : ''}
+          ${r.can_manage ? `<button onclick="pickWinners(${r.id})" class="bg-neutral-800 hover:bg-neutral-700 text-white px-3 py-1.5 rounded text-sm border border-neutral-700">
+            <i class="fas fa-random mr-1"></i>Pick Winners
+          </button>` : ''}
+        </div>`;
+      return `
+        <div class="bg-neutral-800 border border-neutral-700 rounded-lg p-4">
+          <div class="flex items-center justify-between">
+            <div>
+              <h3 class="text-lg font-bold text-white">${r.title}</h3>
+              <p class="text-gray-400 text-sm">${r.description || ''}</p>
+            </div>
+            <span class="text-xs px-3 py-1 rounded-full bg-neutral-700 text-gray-300">${statusLabel(r)}</span>
+          </div>
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm text-gray-300 mt-3">
+            <div><span class="text-gray-500">Cost</span><br><strong>${r.cost_tokens} tokens</strong></div>
+            <div><span class="text-gray-500">Max Winners</span><br><strong>${r.max_winners}</strong></div>
+            <div><span class="text-gray-500">Start</span><br>${formatTs(r.start_at)}</div>
+            <div><span class="text-gray-500">End</span><br>${formatTs(r.end_at)}</div>
+          </div>
+          <div class="text-sm text-gray-400 mt-2">Entries: ${r.entry_count}</div>
+          ${winnersHtml}
+          ${actions}
+        </div>
+      `;
+    };
+
+    activeDiv.innerHTML = data.active.length
+      ? data.active.map(r => renderCard(r, false)).join('')
+      : '<div class="text-gray-500">No active raffles.</div>';
+
+    endedDiv.innerHTML = data.ended.length
+      ? data.ended.map(r => renderCard(r, true)).join('')
+      : '<div class="text-gray-500">No ended raffles.</div>';
+
+    rafflesMap = {};
+    [...data.active, ...data.ended].forEach(r => { rafflesMap[r.id] = r; });
+  } catch (err) {
+    activeDiv.innerHTML = `<div class="text-red-400">Error: ${err.message}</div>`;
+    endedDiv.innerHTML = `<div class="text-red-400">Error: ${err.message}</div>`;
+  }
+}
+
+async function openCreateModal() {
+  document.getElementById('raffleId').value = '';
+  document.getElementById('raffleTitle').value = '';
+  document.getElementById('raffleCost').value = 0;
+  document.getElementById('raffleDescription').value = '';
+  document.getElementById('raffleStart').value = '';
+  document.getElementById('raffleEnd').value = '';
+  document.getElementById('raffleWinners').value = 1;
+  document.getElementById('raffleAuto').checked = false;
+  document.getElementById('raffleAnnounceMsg').value = '';
+  document.getElementById('raffleWinnerMsg').value = '';
+
+  // Ensure selects are initialized
+  if (!raffleSelectsReady) {
+    await initRaffleSelects();
+  }
+
+  // Reset select values
+  if (raffleChannelSelect && raffleChannelSelect.setValue) raffleChannelSelect.setValue('');
+  if (raffleRoleSelect && raffleRoleSelect.setValue) raffleRoleSelect.setValue('');
+  if (raffleEmojiSelect && raffleEmojiSelect.setValue) raffleEmojiSelect.setValue('🎟️');
+  if (raffleReminderChannelSelect && raffleReminderChannelSelect.setValue) raffleReminderChannelSelect.setValue('');
+
+  document.getElementById('raffleModal').classList.remove('hidden');
+  document.getElementById('raffleModal').classList.add('flex');
+}
+
+function openEditRaffle(id) {
+  const r = rafflesMap[id];
+  if (!r) return;
+  document.getElementById('raffleId').value = r.id || '';
+  document.getElementById('raffleTitle').value = r.title || '';
+  document.getElementById('raffleCost').value = r.cost_tokens || 0;
+  document.getElementById('raffleDescription').value = r.description || '';
+  document.getElementById('raffleWinners').value = r.max_winners || 1;
+  document.getElementById('raffleAuto').checked = !!r.auto_pick;
+  document.getElementById('raffleAnnounceMsg').value = r.announce_message || '';
+  document.getElementById('raffleWinnerMsg').value = r.winner_message || '';
+  if (r.start_at) {
+    const dt = new Date(r.start_at * 1000);
+    // Convert to local datetime string for datetime-local input
+    const year = dt.getFullYear();
+    const month = String(dt.getMonth() + 1).padStart(2, '0');
+    const day = String(dt.getDate()).padStart(2, '0');
+    const hours = String(dt.getHours()).padStart(2, '0');
+    const minutes = String(dt.getMinutes()).padStart(2, '0');
+    document.getElementById('raffleStart').value = `${year}-${month}-${day}T${hours}:${minutes}`;
+  } else {
+    document.getElementById('raffleStart').value = '';
+  }
+  if (r.end_at) {
+    const dt = new Date(r.end_at * 1000);
+    // Convert to local datetime string for datetime-local input
+    const year = dt.getFullYear();
+    const month = String(dt.getMonth() + 1).padStart(2, '0');
+    const day = String(dt.getDate()).padStart(2, '0');
+    const hours = String(dt.getHours()).padStart(2, '0');
+    const minutes = String(dt.getMinutes()).padStart(2, '0');
+    document.getElementById('raffleEnd').value = `${year}-${month}-${day}T${hours}:${minutes}`;
+  } else {
+    document.getElementById('raffleEnd').value = '';
+  }
+  if (raffleChannelSelect && raffleChannelSelect.setValue) raffleChannelSelect.setValue(r.announce_channel_id ? String(r.announce_channel_id) : '');
+  if (raffleRoleSelect && raffleRoleSelect.setValue) raffleRoleSelect.setValue(r.announce_role_id ? String(r.announce_role_id) : '');
+  if (raffleEmojiSelect && raffleEmojiSelect.setValue) raffleEmojiSelect.setValue(r.entry_emoji || '🎟️');
+  if (raffleReminderChannelSelect && raffleReminderChannelSelect.setValue) raffleReminderChannelSelect.setValue(r.reminder_channel_id ? String(r.reminder_channel_id) : '');
+  document.getElementById('raffleModal').classList.remove('hidden');
+  document.getElementById('raffleModal').classList.add('flex');
+}
+
+function closeRaffleModal() {
+  document.getElementById('raffleModal').classList.add('hidden');
+  document.getElementById('raffleModal').classList.remove('flex');
+}
+
+async function saveRaffle(e) {
+  e.preventDefault();
+  const raffleId = document.getElementById('raffleId').value;
+
+  // Get values from custom selects
+  const channelValue = raffleChannelSelect ? raffleChannelSelect.getValue() : '';
+  const roleValue = raffleRoleSelect ? raffleRoleSelect.getValue() : '';
+  const emojiValue = raffleEmojiSelect ? raffleEmojiSelect.getValue() : '🎟️';
+  const reminderChannelValue = raffleReminderChannelSelect ? raffleReminderChannelSelect.getValue() : '';
+
+  const payload = {
+    title: document.getElementById('raffleTitle').value,
+    description: document.getElementById('raffleDescription').value,
+    cost_tokens: parseInt(document.getElementById('raffleCost').value || '0'),
+    max_winners: parseInt(document.getElementById('raffleWinners').value || '1'),
+    start_at: toEpoch(document.getElementById('raffleStart').value),
+    end_at: toEpoch(document.getElementById('raffleEnd').value),
+    auto_pick: document.getElementById('raffleAuto').checked,
+    announce_channel_id: channelValue || null,
+    announce_role_id: roleValue || null,
+    announce_message: document.getElementById('raffleAnnounceMsg').value,
+    winner_message: document.getElementById('raffleWinnerMsg').value,
+    entry_emoji: emojiValue || '🎟️',
+    reminder_channel_id: reminderChannelValue || null
+  };
+
+  console.log('Saving raffle with payload:', payload);
+
+  try {
+    const url = raffleId ? `/api/guild/${GUILD_ID}/raffles/${raffleId}/update/` : `/api/guild/${GUILD_ID}/raffles/create/`;
+    console.log('Sending to:', url);
+
+    const resp = await csrfFetch(url, {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+
+    const data = await resp.json();
+    console.log('Response:', data);
+
+    if (!resp.ok) throw new Error(data.error || 'Failed to save raffle');
+
+    alert('Raffle saved successfully!');
+    closeRaffleModal();
+    await loadRaffles();
+  } catch (err) {
+    console.error('Save raffle failed:', err);
+    alert(err.message || 'Failed to save raffle');
+  }
+}
+
+async function enterRaffle(id) {
+  const tickets = prompt('How many entries? (tokens are charged per entry)', '1');
+  const count = parseInt(tickets || '0');
+  if (!count || count < 1) return;
+  try {
+    const resp = await csrfFetch(`/api/guild/${GUILD_ID}/raffles/${id}/enter/`, {
+      method: 'POST',
+      body: JSON.stringify({ tickets: count })
+    });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || 'Failed to enter raffle');
+    alert(data.message || 'Entry submitted!');
+    document.getElementById('tokenBalance').textContent = data.tokens_remaining;
+    await loadRaffles();
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+async function pickWinners(id) {
+  if (!confirm('Pick winners now?')) return;
+  try {
+    const resp = await csrfFetch(`/api/guild/${GUILD_ID}/raffles/${id}/pick/`, { method: 'POST' });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || 'Failed to pick winners');
+    alert(data.message || 'Winners picked!');
+    await loadRaffles();
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+async function startRaffle(id) {
+  if (!confirm('Start this raffle now?')) return;
+  try {
+    const resp = await csrfFetch(`/api/guild/${GUILD_ID}/raffles/${id}/start/`, { method: 'POST' });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || 'Failed to start raffle');
+    await loadRaffles();
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+async function endRaffle(id) {
+  if (!confirm('End this raffle now?')) return;
+  try {
+    const resp = await csrfFetch(`/api/guild/${GUILD_ID}/raffles/${id}/end/`, { method: 'POST' });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || 'Failed to end raffle');
+    await loadRaffles();
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+  document.addEventListener('DOMContentLoaded', async () => {
+    await initRaffleSelects();
+    loadRaffles();
+  });
+
+function insertVar(targetId, token) {
+  const el = document.getElementById(targetId);
+  if (!el) return;
+  const start = el.selectionStart || el.value.length;
+  const end = el.selectionEnd || el.value.length;
+  const text = el.value;
+  el.value = text.slice(0, start) + token + text.slice(end);
+  el.focus();
+  el.selectionStart = el.selectionEnd = start + token.length;
+}
+
+function applyTemplate(targetId, templateVal) {
+  if (!templateVal) return;
+  const el = document.getElementById(targetId);
+  if (!el) return;
+  el.value = templateVal;
+}
+
+async function initRaffleSelects() {
+  try {
+    await loadDiscordResources();
+    let channels = window.DiscordResources.channels || [];
+    let roles = window.DiscordResources.roles || [];
+    let emojis = window.DiscordResources.emojis || [];
+
+    // Fallback to dedicated endpoints if combined resources are empty
+    if (!channels.length) {
+      const chResp = await csrfFetch(`/api/guild/${GUILD_ID}/channels/`);
+      if (chResp.ok) channels = (await chResp.json()).channels || [];
+    }
+    if (!roles.length) {
+      const rResp = await csrfFetch(`/api/guild/${GUILD_ID}/roles/`);
+      if (rResp.ok) roles = (await rResp.json()).roles || [];
+    }
+    if (!emojis.length) {
+      const eResp = await csrfFetch(`/api/guild/${GUILD_ID}/emojis/`);
+      if (eResp.ok) emojis = (await eResp.json()).emojis || [];
+    }
+
+    // Standard emoji shortlist
+    const standardEmojis = ['🎟️','🎉','⭐','✅','🔥','💎','🏆','🎮','🎲','🎁','🎯','💰'].map(e => ({ value: e, label: e }));
+
+    raffleChannelSelect = createCustomSelect({
+      container: '#raffleChannelSelect',
+      name: 'announce_channel_id',
+      id: 'announce_channel_id',
+      placeholder: 'Select a channel...',
+      items: channels.map(c => ({
+        value: String(c.id),
+        label: c.name,
+        icon: c.type === 15 ? 'comments' : 'hashtag'
+      })),
+      selected: '',
+      color: 'yellow'
+    });
+
+    raffleRoleSelect = createCustomSelect({
+      container: '#raffleRoleSelect',
+      name: 'announce_role_id',
+      id: 'announce_role_id',
+      placeholder: 'Select a role...',
+      items: roles.map(r => ({
+        value: String(r.id),
+        label: r.name,
+        icon: 'user-tag'
+      })),
+      selected: '',
+      color: 'yellow'
+    });
+
+    const emojiItems = [
+      ...standardEmojis,
+      ...emojis.map(e => ({
+        value: e.id ? `<:${e.name}:${e.id}>` : e.name,
+        label: e.name,
+        icon: 'smile'
+      }))
+    ];
+
+    raffleEmojiSelect = createCustomSelect({
+      container: '#raffleEmojiSelect',
+      name: 'entry_emoji',
+      id: 'entry_emoji',
+      placeholder: 'Select an emoji...',
+      items: emojiItems,
+      selected: '🎟️',
+      color: 'yellow'
+    });
+
+    raffleReminderChannelSelect = createCustomSelect({
+      container: '#raffleReminderChannelSelect',
+      name: 'reminder_channel_id',
+      id: 'reminder_channel_id',
+      placeholder: 'Select reminder channel...',
+      items: channels.map(c => ({
+        value: String(c.id),
+        label: c.name,
+        icon: c.type === 15 ? 'comments' : 'hashtag'
+      })),
+      selected: '',
+      color: 'yellow'
+    });
+
+    raffleSelectsReady = true;
+  } catch (err) {
+    console.error('Failed to init raffle selects', err);
+  }
+}
+</script>
+{% endblock %}

@@ -1,0 +1,952 @@
+{% extends "questlog/base_guild.html" %}
+{% load static %}
+
+{% block title %}Discovery - {{ guild.name }}{% endblock %}
+
+{% block og_title %}{{ guild.name }} - Discovery System | Casual Heroes{% endblock %}
+{% block og_description %}Manage creator and game discovery settings for {{ guild.name }}. Powered by Casual Heroes.{% endblock %}
+{% block og_url %}https://casual-heroes.com/questlog/guild/{{ guild.guild_id }}/discovery/{% endblock %}
+
+{% block guild_content %}
+
+{% include "questlog/partials/custom_select.html" %}
+  <!-- Header -->
+  <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
+    <div>
+      <h1 class="text-3xl font-bold text-white">
+        <i class="fas fa-bullhorn text-orange-400 mr-3"></i>Discovery System
+      </h1>
+      <p class="text-gray-400 mt-1">Feature creators and announce upcoming games</p>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="flex gap-2 mb-8 border-b border-neutral-800 overflow-x-auto">
+    <button onclick="switchTab('creator')" id="creatorTab" class="px-6 py-3 font-medium text-white border-b-2 border-orange-500 transition whitespace-nowrap">
+      <i class="fas fa-user mr-2"></i>Creator Discovery
+    </button>
+    <button onclick="switchTab('games')" id="gamesTab" class="px-6 py-3 font-medium text-gray-400 hover:text-white border-b-2 border-transparent transition whitespace-nowrap">
+      <i class="fas fa-gamepad mr-2"></i>Game Discovery
+    </button>
+    <button onclick="switchTab('twitch')" id="twitchTab" class="px-6 py-3 font-medium text-gray-400 hover:text-white border-b-2 border-transparent transition whitespace-nowrap">
+      <i class="fab fa-twitch mr-2"></i>Twitch
+    </button>
+    <button onclick="switchTab('youtube')" id="youtubeTab" class="px-6 py-3 font-medium text-gray-400 hover:text-white border-b-2 border-transparent transition whitespace-nowrap">
+      <i class="fab fa-youtube mr-2"></i>YouTube
+    </button>
+  </div>
+
+  <!-- Creator Discovery Tab Content -->
+  {% include "questlog/partials/creator_discovery_tab.html" %}
+
+  <!-- Game Discovery Tab Content -->
+  {% include "questlog/partials/game_discovery_tab.html" %}
+
+  <!-- Twitch Integration Tab Content -->
+  {% include "questlog/partials/twitch_integration_tab.html" %}
+
+  <!-- YouTube Integration Tab Content -->
+  {% include "questlog/partials/youtube_integration_tab.html" %}
+
+</div>
+
+
+</div>
+
+<script>
+const guildId = '{{ guild.id }}';
+const csrfToken = '{{ csrf_token }}';
+
+// Tier limit info
+const currentTier = "{{ guild_record.subscription_tier }}";
+const isVIP = {{ guild_record.is_vip|lower }};
+const totalSearchConfigs = {{ total_search_configs }};
+
+// Check if user can add more search configs
+function canAddSearchConfig() {
+  // VIP or has Discovery module = unlimited
+  const hasDiscoveryModule = {{ has_discovery_module|lower }};
+  if (isVIP || hasDiscoveryModule || currentTier === 'lifetime') {
+    return true;
+  }
+
+  // Free = 3 limit
+  if (totalSearchConfigs >= 3) {
+    alert('⚠️ Search Configuration Limit Reached\n\nYou\'ve reached your limit of 3 search configurations.\n\nUpgrade to Discovery Module or get Complete Suite for $12.99/mo for unlimited searches!');
+    return false;
+  }
+
+  return true;
+}
+
+// Toggle token cost section
+document.getElementById('require_tokens').addEventListener('change', function() {
+  document.getElementById('tokenCostSection').classList.toggle('hidden', !this.checked);
+});
+
+// Toggle forum token cost section
+document.getElementById('require_tokens_forum').addEventListener('change', function() {
+  document.getElementById('tokenCostForumSection').classList.toggle('hidden', !this.checked);
+});
+
+// Toggle auto-join role section based on "Show on Website" checkbox
+document.getElementById('modal_show_on_website').addEventListener('change', function() {
+  const autoJoinSection = document.getElementById('auto_join_role_section');
+  if (this.checked) {
+    // Website enabled = hide auto-join role (only for private threads)
+    autoJoinSection.classList.add('hidden');
+  } else {
+    // Website disabled = show auto-join role for private threads
+    autoJoinSection.classList.remove('hidden');
+  }
+});
+
+// Toggle channel settings section
+document.getElementById('channel_enabled').addEventListener('change', function() {
+  document.getElementById('channelSettings').classList.toggle('hidden', !this.checked);
+});
+
+// Toggle forum settings section
+document.getElementById('forum_enabled').addEventListener('change', function() {
+  document.getElementById('forumSettings').classList.toggle('hidden', !this.checked);
+});
+
+// Toggle COTW settings section
+document.getElementById('cotw_enabled').addEventListener('change', function() {
+  document.getElementById('cotwSettings').classList.toggle('hidden', !this.checked);
+});
+
+// Toggle COTM settings section
+document.getElementById('cotm_enabled').addEventListener('change', function() {
+  document.getElementById('cotmSettings').classList.toggle('hidden', !this.checked);
+});
+
+// Load Discord channels and initialize custom selects
+let selfpromoSelect, featureSelect, introForumSelect, forumFeatureSelect, cotwChannelSelect, cotmChannelSelect, publicGameSelect, privateGameSelect, autoJoinRoleSelect, testChannelSelect, testForumSelect;
+
+async function loadChannels() {
+  try {
+    const response = await csrfFetch(`/api/guild/${guildId}/channels/`);
+    const data = await response.json();
+
+    const currentSelfpromo = '{{ discovery_config.selfpromo_channel_id|default:"" }}';
+    const currentFeature = '{{ discovery_config.feature_channel_id|default:"" }}';
+    const currentMessageResponse = '{{ discovery_config.message_response_channel_id|default:"" }}';
+    const currentIntroForum = '{{ discovery_config.intro_forum_channel_id|default:"" }}';
+    const currentForumFeature = '{{ discovery_config.forum_feature_channel_id|default:"" }}';
+    const currentCotwChannel = '{{ discovery_config.cotw_channel_id|default:"" }}';
+    const currentCotmChannel = '{{ discovery_config.cotm_channel_id|default:"" }}';
+    const currentTestChannel = '{{ discovery_config.test_channel_id|default:"" }}';
+    const currentTestForum = '{{ discovery_config.test_forum_id|default:"" }}';
+    const currentPublicGame = '{{ discovery_config.public_game_channel_id|default:"" }}';
+    const currentPrivateGame = '{{ discovery_config.private_game_channel_id|default:"" }}';
+
+    if (data.channels) {
+      const textChannels = data.channels.filter(ch => ch.type === 0);
+      const forumChannels = data.channels.filter(ch => ch.type === 15);  // Forum channels
+
+      const channelItems = textChannels.map(channel => {
+        const label = channel.category_name
+          ? `# ${channel.name} (${channel.category_name})`
+          : `# ${channel.name}`;
+        return {
+          value: channel.id,
+          label: label,
+          icon: 'hashtag'
+        };
+      });
+
+      // Self-promo channel
+      selfpromoSelect = createCustomSelect({
+        container: '#selfpromo_channel_idContainer',
+        name: 'selfpromo_channel_id',
+        id: 'selfpromo_channel_id',
+        placeholder: 'Select a channel...',
+        items: channelItems,
+        selected: currentSelfpromo,
+        color: 'orange'
+      });
+
+      // Feature channel
+      featureSelect = createCustomSelect({
+        container: '#feature_channel_idContainer',
+        name: 'feature_channel_id',
+        id: 'feature_channel_id',
+        placeholder: 'Select a channel...',
+        items: channelItems,
+        selected: currentFeature,
+        color: 'blue'
+      });
+
+      // Message response channel
+      messageResponseSelect = createCustomSelect({
+        container: '#message_response_channel_idContainer',
+        name: 'message_response_channel_id',
+        id: 'message_response_channel_id',
+        placeholder: 'Select a channel...',
+        items: channelItems,
+        selected: currentMessageResponse,
+        color: 'purple'
+      });
+
+      // Public game discovery channel
+      publicGameSelect = createCustomSelect({
+        container: '#public_game_channel_idContainer',
+        name: 'public_game_channel_id',
+        id: 'public_game_channel_id',
+        placeholder: 'Select a channel...',
+        items: channelItems,
+        selected: currentPublicGame,
+        color: 'green'
+      });
+
+      // Private game discovery channel
+      privateGameSelect = createCustomSelect({
+        container: '#private_game_channel_idContainer',
+        name: 'private_game_channel_id',
+        id: 'private_game_channel_id',
+        placeholder: 'Select a channel...',
+        items: channelItems,
+        selected: currentPrivateGame,
+        color: 'purple'
+      });
+
+      // Intro forum channel (for Featured Creators)
+      const forumChannelItems = forumChannels.map(channel => {
+        const label = channel.category_name
+          ? `# ${channel.name} (${channel.category_name})`
+          : `# ${channel.name}`;
+        return {
+          value: channel.id,
+          label: label,
+          icon: 'comments'
+        };
+      });
+
+      introForumSelect = createCustomSelect({
+        container: '#intro_forum_channel_idContainer',
+        name: 'intro_forum_channel_id',
+        id: 'intro_forum_channel_id',
+        placeholder: 'Select a forum channel...',
+        items: forumChannelItems,
+        selected: currentIntroForum,
+        color: 'yellow'
+      });
+
+      // Forum feature announcement channel (text channel for forum discovery)
+      forumFeatureSelect = createCustomSelect({
+        container: '#forum_feature_channel_idContainer',
+        name: 'forum_feature_channel_id',
+        id: 'forum_feature_channel_id',
+        placeholder: 'Select a channel...',
+        items: channelItems,
+        selected: currentForumFeature,
+        color: 'purple'
+      });
+
+      // COTW channel (Premium)
+      cotwChannelSelect = createCustomSelect({
+        container: '#cotw_channel_idContainer',
+        name: 'cotw_channel_id',
+        id: 'cotw_channel_id',
+        placeholder: 'Select a channel...',
+        items: channelItems,
+        selected: currentCotwChannel,
+        color: 'orange'
+      });
+
+      // COTM channel (Premium)
+      cotmChannelSelect = createCustomSelect({
+        container: '#cotm_channel_idContainer',
+        name: 'cotm_channel_id',
+        id: 'cotm_channel_id',
+        placeholder: 'Select a channel...',
+        items: channelItems,
+        selected: currentCotmChannel,
+        color: 'yellow'
+      });
+
+      // Test channel dropdown (for testing embeds)
+      testChannelSelect = createCustomSelect({
+        container: '#test_channel_idContainer',
+        name: 'test_channel_id',
+        id: 'test_channel_id',
+        placeholder: 'Select channel to test...',
+        items: channelItems,
+        selected: currentTestChannel,
+        color: 'blue'
+      });
+
+      // Test forum dropdown (for testing embeds - text channel, not forum)
+      testForumSelect = createCustomSelect({
+        container: '#test_forum_idContainer',
+        name: 'test_forum_id',
+        id: 'test_forum_id',
+        placeholder: 'Select channel to test...',
+        items: channelItems,
+        selected: currentTestForum,
+        color: 'yellow'
+      });
+    }
+  } catch (err) {
+    console.error('Failed to load channels:', err);
+  }
+}
+
+// Load guild roles and initialize custom select
+async function loadRoles() {
+  try {
+    const response = await csrfFetch(`/api/guild/${guildId}/roles/`);
+    const data = await response.json();
+
+    if (data.roles) {
+      const sortedRoles = data.roles
+        .filter(role => role.name !== '@everyone')
+        .sort((a, b) => b.position - a.position);
+
+      const roleItems = sortedRoles.map(role => ({
+        value: role.id,
+        label: role.name,
+        icon: 'user-tag'
+      }));
+
+      autoJoinRoleSelect = createCustomSelect({
+        container: '#modal_auto_join_roleContainer',
+        name: 'auto_join_role_id',
+        id: 'modal_auto_join_role',
+        placeholder: 'Select a role...',
+        items: roleItems,
+        color: 'indigo'
+      });
+    }
+  } catch (err) {
+    console.error('Failed to load roles:', err);
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  loadChannels();
+  loadRoles();
+});
+
+async function saveConfig() {
+  const btn = document.getElementById('saveBtn');
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Saving...';
+  btn.disabled = true;
+
+  const data = {
+    enabled: document.getElementById('enabled').checked,
+    channel_enabled: document.getElementById('channel_enabled').checked,
+    forum_enabled: document.getElementById('forum_enabled').checked,
+    selfpromo_channel_id: selfpromoSelect ? selfpromoSelect.getValue() : '',
+    feature_channel_id: featureSelect ? featureSelect.getValue() : '',
+    message_response_channel_id: messageResponseSelect ? messageResponseSelect.getValue() : '',
+    reminder_schedule: document.getElementById('reminder_schedule').value,
+    intro_forum_channel_id: introForumSelect ? introForumSelect.getValue() : '',
+    forum_feature_channel_id: forumFeatureSelect ? forumFeatureSelect.getValue() : '',
+    feature_interval_hours: parseInt(document.getElementById('feature_interval_hours').value) || 3,
+    pool_entry_duration_hours: parseInt(document.getElementById('pool_entry_duration_hours').value) || 24,
+    entry_cooldown_hours: parseInt(document.getElementById('entry_cooldown_hours').value) || 24,
+    feature_cooldown_hours: parseInt(document.getElementById('feature_cooldown_hours').value) || 72,
+    how_to_enter_response: document.getElementById('how_to_enter_response').value,
+    post_response: document.getElementById('post_response').value,
+    feature_message: document.getElementById('feature_message').value,
+    cooldown_message: document.getElementById('cooldown_message').value,
+    use_embed: document.getElementById('use_embed').checked,
+    require_tokens: document.getElementById('require_tokens').checked,
+    token_cost: parseInt(document.getElementById('token_cost').value) || 0,
+    require_tokens_forum: document.getElementById('require_tokens_forum').checked,
+    token_cost_forum: parseInt(document.getElementById('token_cost_forum').value) || 0,
+    cotw_enabled: document.getElementById('cotw_enabled') ? document.getElementById('cotw_enabled').checked : false,
+    cotw_channel_id: cotwChannelSelect ? cotwChannelSelect.getValue() : '',
+    cotm_enabled: document.getElementById('cotm_enabled') ? document.getElementById('cotm_enabled').checked : false,
+    cotm_channel_id: cotmChannelSelect ? cotmChannelSelect.getValue() : '',
+    test_channel_id: testChannelSelect ? testChannelSelect.getValue() : '',
+    test_forum_id: testForumSelect ? testForumSelect.getValue() : '',
+  };
+
+  try {
+    const response = await csrfFetch(`/api/guild/${guildId}/discovery/config/update/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+      body: JSON.stringify(data),
+    });
+    const result = await response.json();
+    if (result.success) {
+      btn.innerHTML = '<i class="fas fa-check mr-2"></i>Saved!';
+      btn.classList.replace('bg-indigo-600', 'bg-green-600');
+      setTimeout(() => {
+        window.location.reload();
+      }, 1000);
+    } else {
+      throw new Error(result.error);
+    }
+  } catch (err) {
+    btn.innerHTML = '<i class="fas fa-times mr-2"></i>Error';
+    btn.classList.replace('bg-indigo-600', 'bg-red-600');
+    setTimeout(() => {
+      btn.innerHTML = '<i class="fas fa-save mr-2"></i>Save Changes';
+      btn.classList.replace('bg-red-600', 'bg-indigo-600');
+      btn.disabled = false;
+    }, 2000);
+    alert('Error: ' + err.message);
+  }
+}
+
+async function forceFeature() {
+  if (!confirm('Feature someone now? This will randomly select from the pool.')) return;
+
+  try {
+    const response = await csrfFetch(`/api/guild/${guildId}/discovery/feature/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+    });
+    const result = await response.json();
+    if (result.success) {
+      alert('Feature queued! Check your Discord.');
+      window.location.reload();
+    } else {
+      throw new Error(result.error);
+    }
+  } catch (err) {
+    alert('Error: ' + err.message);
+  }
+}
+
+async function clearFeatured() {
+  if (!confirm('Clear the currently featured person? This will remove them from the featured pool and delete their message.')) return;
+
+  try {
+    const response = await csrfFetch(`/api/guild/${guildId}/discovery/clear/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+    });
+    const result = await response.json();
+    if (result.success) {
+      alert(`Cleared! ${result.cleared || 0} entries removed, ${result.messages_deleted || 0} messages deleted.`);
+      window.location.reload();
+    } else {
+      throw new Error(result.error);
+    }
+  } catch (err) {
+    alert('Error: ' + err.message);
+  }
+}
+
+async function testChannelEmbed() {
+  const channelId = testChannelSelect ? testChannelSelect.getValue() : '';
+
+  if (!channelId) {
+    alert('Please select a test channel first!');
+    return;
+  }
+
+  if (!confirm('Send a test embed to the selected channel?')) return;
+
+  try {
+    const response = await csrfFetch(`/api/guild/${guildId}/discovery/test-channel-embed/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+      body: JSON.stringify({ channel_id: channelId }),
+    });
+    const result = await response.json();
+    if (result.success) {
+      alert('Test channel embed queued! Check your Discord in a few seconds.');
+    } else {
+      throw new Error(result.error);
+    }
+  } catch (err) {
+    alert('Error: ' + err.message);
+  }
+}
+
+async function testForumEmbed() {
+  const channelId = testForumSelect ? testForumSelect.getValue() : '';
+
+  if (!channelId) {
+    alert('Please select a test channel first!');
+    return;
+  }
+
+  if (!confirm('Send a test forum embed to the selected channel?')) return;
+
+  try {
+    const response = await csrfFetch(`/api/guild/${guildId}/discovery/test-forum-embed/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+      body: JSON.stringify({ channel_id: channelId }),
+    });
+    const result = await response.json();
+    if (result.success) {
+      alert('Test forum embed queued! Check your Discord in a few seconds.');
+    } else {
+      throw new Error(result.error);
+    }
+  } catch (err) {
+    alert('Error: ' + err.message);
+  }
+}
+
+async function removeFromPool(entryId) {
+  if (!confirm('Remove this entry from the pool?')) return;
+
+  try {
+    const response = await csrfFetch(`/api/guild/${guildId}/discovery/pool/${entryId}/`, {
+      method: 'DELETE',
+      headers: { 'X-CSRFToken': csrfToken },
+    });
+    const result = await response.json();
+    if (result.success) {
+      window.location.reload();
+    } else {
+      throw new Error(result.error);
+    }
+  } catch (err) {
+    alert('Error: ' + err.message);
+  }
+}
+
+// Tab switching
+function switchTab(tab) {
+  // Hide all content
+  document.getElementById('creatorContent').classList.add('hidden');
+  document.getElementById('gamesContent').classList.add('hidden');
+  document.getElementById('twitchContent').classList.add('hidden');
+  document.getElementById('youtubeContent').classList.add('hidden');
+
+  // Reset all tabs
+  document.getElementById('creatorTab').classList.remove('text-white', 'border-orange-500');
+  document.getElementById('creatorTab').classList.add('text-gray-400', 'border-transparent');
+  document.getElementById('gamesTab').classList.remove('text-white', 'border-blue-500');
+  document.getElementById('gamesTab').classList.add('text-gray-400', 'border-transparent');
+  document.getElementById('twitchTab').classList.remove('text-white', 'border-purple-500');
+  document.getElementById('twitchTab').classList.add('text-gray-400', 'border-transparent');
+  document.getElementById('youtubeTab').classList.remove('text-white', 'border-red-500');
+  document.getElementById('youtubeTab').classList.add('text-gray-400', 'border-transparent');
+
+  // Show selected tab
+  if (tab === 'creator') {
+    document.getElementById('creatorContent').classList.remove('hidden');
+    document.getElementById('creatorTab').classList.add('text-white', 'border-orange-500');
+    document.getElementById('creatorTab').classList.remove('text-gray-400', 'border-transparent');
+    history.replaceState(null, null, '#creator');
+  } else if (tab === 'games') {
+    document.getElementById('gamesContent').classList.remove('hidden');
+    document.getElementById('gamesTab').classList.add('text-white', 'border-blue-500');
+    document.getElementById('gamesTab').classList.remove('text-gray-400', 'border-transparent');
+    history.replaceState(null, null, '#games');
+  } else if (tab === 'twitch') {
+    document.getElementById('twitchContent').classList.remove('hidden');
+    document.getElementById('twitchTab').classList.add('text-white', 'border-purple-500');
+    document.getElementById('twitchTab').classList.remove('text-gray-400', 'border-transparent');
+    history.replaceState(null, null, '#twitch');
+  } else if (tab === 'youtube') {
+    document.getElementById('youtubeContent').classList.remove('hidden');
+    document.getElementById('youtubeTab').classList.add('text-white', 'border-red-500');
+    document.getElementById('youtubeTab').classList.remove('text-gray-400', 'border-transparent');
+    history.replaceState(null, null, '#youtube');
+  }
+}
+
+// Game Discovery - Save Global Settings (enabled, channel, interval)
+async function saveGameGlobalSettings() {
+  const btn = document.getElementById('saveGameBtn');
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Saving...';
+  btn.disabled = true;
+
+  const data = {
+    game_discovery_enabled: document.getElementById('game_discovery_enabled').checked,
+    public_game_channel_id: publicGameSelect ? publicGameSelect.getValue() : '',
+    private_game_channel_id: privateGameSelect ? privateGameSelect.getValue() : '',
+    game_check_interval_hours: parseInt(document.getElementById('game_check_interval_hours').value) || 24,
+    max_public_announcements: (function() {
+      const el = document.getElementById('max_public_announcements');
+      return el && el.value ? parseInt(el.value) : 5;
+    })(),
+    max_private_announcements: (function() {
+      const el = document.getElementById('max_private_announcements');
+      return el && el.value ? parseInt(el.value) : 5;
+    })(),
+  };
+
+  try {
+    const response = await csrfFetch(`/api/guild/${guildId}/discovery/game-config/update/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+      body: JSON.stringify(data),
+    });
+    const result = await response.json();
+    if (result.success) {
+      btn.innerHTML = '<i class="fas fa-check mr-2"></i>Saved!';
+      btn.classList.replace('bg-indigo-600', 'bg-green-600');
+      setTimeout(() => {
+        window.location.reload();
+      }, 1000);
+    } else {
+      throw new Error(result.error);
+    }
+  } catch (err) {
+    btn.innerHTML = '<i class="fas fa-times mr-2"></i>Error';
+    btn.classList.replace('bg-indigo-600', 'bg-red-600');
+    setTimeout(() => {
+      btn.innerHTML = '<i class="fas fa-save mr-2"></i>Save Global Settings';
+      btn.classList.replace('bg-red-600', 'bg-indigo-600');
+      btn.disabled = false;
+    }, 2000);
+    alert('Error: ' + err.message);
+  }
+}
+
+// =============================================================================
+// Search Config Management
+// =============================================================================
+
+let currentEditingSearchId = null;
+
+// Open modal for adding new search
+function openAddSearchModal() {
+  // Check limit before opening modal
+  if (!canAddSearchConfig()) {
+    return;
+  }
+
+  currentEditingSearchId = null;
+  document.getElementById('searchModalTitle').innerHTML = '<i class="fas fa-plus text-green-400 mr-2"></i>Add Game Search';
+  document.getElementById('saveSearchBtn').innerHTML = '<i class="fas fa-save mr-2"></i>Save Search';
+
+  // Clear all fields
+  document.getElementById('modal_search_name').value = '';
+  document.getElementById('modal_days_ahead').value = '30';
+  document.getElementById('modal_min_hype').value = '';
+  document.getElementById('modal_min_rating').value = '';
+  document.getElementById('modal_show_on_website').checked = true;
+  document.getElementById('modal_auto_join_role').value = '';
+  document.getElementById('auto_join_role_section').classList.add('hidden');
+
+  // Uncheck all filters
+  document.querySelectorAll('.modal-genre-filter').forEach(el => el.checked = false);
+  document.querySelectorAll('.modal-theme-filter').forEach(el => el.checked = false);
+  document.querySelectorAll('.modal-mode-filter').forEach(el => el.checked = false);
+  document.querySelectorAll('.modal-platform-filter').forEach(el => el.checked = false);
+
+  document.getElementById('searchModal').classList.remove('hidden');
+}
+
+// Close search modal
+function closeSearchModal() {
+  document.getElementById('searchModal').classList.add('hidden');
+  currentEditingSearchId = null;
+}
+
+// Edit existing search
+async function editSearch(searchId) {
+  currentEditingSearchId = searchId;
+  document.getElementById('searchModalTitle').innerHTML = '<i class="fas fa-edit text-blue-400 mr-2"></i>Edit Game Search';
+  document.getElementById('saveSearchBtn').innerHTML = '<i class="fas fa-save mr-2"></i>Update Search';
+
+  try {
+    // Fetch search configs
+    const response = await csrfFetch(`/api/guild/${guildId}/discovery/searches/`);
+    const data = await response.json();
+
+    if (!data.success) {
+      throw new Error(data.error || 'Failed to load search configs');
+    }
+
+    const search = data.searches.find(s => s.id === searchId);
+    if (!search) {
+      throw new Error('Search config not found');
+    }
+
+    // Populate fields
+    document.getElementById('modal_search_name').value = search.name;
+    document.getElementById('modal_days_ahead').value = search.days_ahead || 30;
+    document.getElementById('modal_min_hype').value = search.min_hype || '';
+    document.getElementById('modal_min_rating').value = search.min_rating || '';
+    document.getElementById('modal_show_on_website').checked = search.show_on_website !== false;
+
+    // Set auto-join role using custom select
+    if (search.auto_join_role_id && autoJoinRoleSelect) {
+      autoJoinRoleSelect.setValue(search.auto_join_role_id);
+    } else if (autoJoinRoleSelect) {
+      autoJoinRoleSelect.setValue('');
+    }
+
+    // Show/hide auto-join role section based on show_on_website
+    const autoJoinSection = document.getElementById('auto_join_role_section');
+    if (search.show_on_website !== false) {
+      autoJoinSection.classList.add('hidden');
+    } else {
+      autoJoinSection.classList.remove('hidden');
+    }
+
+    // Uncheck all first
+    document.querySelectorAll('.modal-genre-filter').forEach(el => el.checked = false);
+    document.querySelectorAll('.modal-theme-filter').forEach(el => el.checked = false);
+    document.querySelectorAll('.modal-mode-filter').forEach(el => el.checked = false);
+    document.querySelectorAll('.modal-platform-filter').forEach(el => el.checked = false);
+
+    // Check selected filters
+    if (search.genres) {
+      search.genres.forEach(genre => {
+        const checkbox = document.querySelector(`.modal-genre-filter[value="${genre}"]`);
+        if (checkbox) checkbox.checked = true;
+      });
+    }
+    if (search.themes) {
+      search.themes.forEach(theme => {
+        const checkbox = document.querySelector(`.modal-theme-filter[value="${theme}"]`);
+        if (checkbox) checkbox.checked = true;
+      });
+    }
+    if (search.game_modes) {
+      search.game_modes.forEach(mode => {
+        const checkbox = document.querySelector(`.modal-mode-filter[value="${mode}"]`);
+        if (checkbox) checkbox.checked = true;
+      });
+    }
+    if (search.platforms) {
+      search.platforms.forEach(platform => {
+        const checkbox = document.querySelector(`.modal-platform-filter[value="${platform}"]`);
+        if (checkbox) checkbox.checked = true;
+      });
+    }
+
+    document.getElementById('searchModal').classList.remove('hidden');
+  } catch (err) {
+    alert('Error loading search config: ' + err.message);
+  }
+}
+
+// Save search (create or update)
+async function saveSearch() {
+  const name = document.getElementById('modal_search_name').value.trim();
+
+  if (!name) {
+    alert('Please enter a search name');
+    return;
+  }
+
+  const btn = document.getElementById('saveSearchBtn');
+  const originalHTML = btn.innerHTML;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Saving...';
+  btn.disabled = true;
+
+  // Collect filters
+  const genres = Array.from(document.querySelectorAll('.modal-genre-filter:checked')).map(el => el.value);
+  const themes = Array.from(document.querySelectorAll('.modal-theme-filter:checked')).map(el => el.value);
+  const modes = Array.from(document.querySelectorAll('.modal-mode-filter:checked')).map(el => el.value);
+  const platforms = Array.from(document.querySelectorAll('.modal-platform-filter:checked')).map(el => el.value);
+
+  const minHype = document.getElementById('modal_min_hype').value;
+  const minRating = document.getElementById('modal_min_rating').value;
+
+  const autoJoinRoleInput = document.getElementById('modal_auto_join_role');
+
+  const data = {
+    name: name,
+    enabled: true,
+    genres: genres.length > 0 ? genres : null,
+    themes: themes.length > 0 ? themes : null,
+    game_modes: modes.length > 0 ? modes : null,
+    platforms: platforms.length > 0 ? platforms : null,
+    min_hype: minHype ? parseInt(minHype) : null,
+    min_rating: minRating ? parseFloat(minRating) : null,
+    days_ahead: parseInt(document.getElementById('modal_days_ahead').value) || 30,
+    show_on_website: document.getElementById('modal_show_on_website').checked,
+    auto_join_role_id: (autoJoinRoleSelect && autoJoinRoleSelect.getValue() && autoJoinRoleSelect.getValue() !== '') ? autoJoinRoleSelect.getValue() : null,
+  };
+
+  try {
+    let url, method;
+    if (currentEditingSearchId) {
+      // Update existing
+      url = `/api/guild/${guildId}/discovery/searches/${currentEditingSearchId}/update/`;
+      method = 'PUT';
+    } else {
+      // Create new
+      url = `/api/guild/${guildId}/discovery/searches/create/`;
+      method = 'POST';
+    }
+
+    const response = await csrfFetch(url, {
+      method: method,
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+      body: JSON.stringify(data),
+    });
+
+    const result = await response.json();
+
+    if (result.success) {
+      closeSearchModal();
+      // Reload page to show updated search list
+      window.location.hash = 'games';
+      window.location.reload();
+    } else {
+      throw new Error(result.error || 'Failed to save search');
+    }
+  } catch (err) {
+    btn.innerHTML = originalHTML;
+    btn.disabled = false;
+    alert('Error: ' + err.message);
+  }
+}
+
+// Delete search
+async function deleteSearch(searchId, name) {
+  if (!confirm(`Delete search "${name}"?\n\nThis will remove this search configuration. Already announced games will not be affected.`)) {
+    return;
+  }
+
+  try {
+    const response = await csrfFetch(`/api/guild/${guildId}/discovery/searches/${searchId}/delete/`, {
+      method: 'DELETE',
+      headers: { 'X-CSRFToken': csrfToken },
+    });
+
+    const result = await response.json();
+
+    if (result.success) {
+      // Reload page to show updated search list
+      window.location.hash = 'games';
+      window.location.reload();
+    } else {
+      throw new Error(result.error || 'Failed to delete search');
+    }
+  } catch (err) {
+    alert('Error: ' + err.message);
+  }
+}
+
+// Toggle search enabled/disabled
+document.addEventListener('DOMContentLoaded', function() {
+  // Add event listeners to all search toggle switches
+  document.querySelectorAll('.search-enabled-toggle').forEach(toggle => {
+    toggle.addEventListener('change', async function() {
+      const searchId = this.getAttribute('data-search-id');
+      const enabled = this.checked;
+
+      try {
+        const response = await csrfFetch(`/api/guild/${guildId}/discovery/searches/${searchId}/update/`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+          body: JSON.stringify({ enabled: enabled }),
+        });
+
+        const result = await response.json();
+
+        if (!result.success) {
+          throw new Error(result.error || 'Failed to update search');
+        }
+
+        // Update the disabled badge
+        const searchCard = document.querySelector(`[data-search-id="${searchId}"]`);
+        const badge = searchCard.querySelector('.text-xs.px-2.py-0\\.5.rounded.bg-red-600');
+        if (enabled && badge) {
+          badge.remove();
+        } else if (!enabled && !badge) {
+          const nameContainer = searchCard.querySelector('h4').parentElement;
+          const disabledBadge = document.createElement('span');
+          disabledBadge.className = 'text-xs px-2 py-0.5 rounded bg-red-600 text-white';
+          disabledBadge.textContent = 'Disabled';
+          nameContainer.appendChild(disabledBadge);
+        }
+      } catch (err) {
+        alert('Error: ' + err.message);
+        // Revert toggle
+        this.checked = !enabled;
+      }
+    });
+  });
+});
+
+// Game Discovery - Check for Games Now
+async function checkGamesNow() {
+  if (!confirm('Check for new games now? This will announce any matching games that haven\'t been announced yet.')) return;
+
+  try {
+    // Queue the action
+    const response = await csrfFetch(`/api/guild/${guildId}/discovery/check-games/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+    });
+    const result = await response.json();
+
+    if (!result.success) {
+      throw new Error(result.error);
+    }
+
+    const actionId = result.action_id;
+
+    // Poll for action completion (max 30 seconds)
+    const startTime = Date.now();
+    const maxWaitTime = 60000; // 60 seconds
+
+    while (Date.now() - startTime < maxWaitTime) {
+      await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds
+
+      const statusResponse = await csrfFetch(`/api/guild/${guildId}/action/${actionId}/status/`);
+      const statusData = await statusResponse.json();
+
+      if (statusData.status === 'completed') {
+        const actionResult = statusData.result || {};
+
+        // Show custom message if available, otherwise fallback to detailed breakdown
+        if (actionResult.message) {
+          const viewGames = confirm(`${actionResult.message}\n\nClick OK to view all found games on the dashboard.`);
+          if (viewGames && actionResult.dashboard_url) {
+            window.location.href = actionResult.dashboard_url;
+            return;
+          }
+        } else {
+          alert(`Game check complete!\n\nTotal Found: ${actionResult.total_found || 0}\nNew Games: ${actionResult.new_games || 0}\nAnnounced: ${actionResult.announced || 0}`);
+        }
+
+        // Reload and stay on games tab
+        window.location.hash = 'games';
+        window.location.reload();
+        return;
+      } else if (statusData.status === 'failed') {
+        throw new Error(statusData.error_message || 'Action failed');
+      }
+    }
+
+    // Timeout - action still processing (just reload silently, check will complete in background)
+    window.location.hash = 'games';
+    window.location.reload();
+
+  } catch (err) {
+    alert('Error: ' + err.message);
+  }
+}
+
+// Check URL hash on page load to restore tab state
+document.addEventListener('DOMContentLoaded', function() {
+  const hash = window.location.hash;
+  if (hash === '#games') {
+    switchTab('games');
+  } else if (hash === '#twitch') {
+    switchTab('twitch');
+  } else if (hash === '#youtube') {
+    switchTab('youtube');
+  } else if (hash === '#creator') {
+    switchTab('creator');
+  }
+  // Default to creator tab if no hash
+});
+
+// Handle hash changes (for browser back/forward buttons and sidebar links)
+window.addEventListener('hashchange', function() {
+  const hash = window.location.hash;
+  if (hash === '#games') {
+    switchTab('games');
+  } else if (hash === '#twitch') {
+    switchTab('twitch');
+  } else if (hash === '#youtube') {
+    switchTab('youtube');
+  } else if (hash === '#creator') {
+    switchTab('creator');
+  }
+});
+</script>
+{% endblock guild_content %}

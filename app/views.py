@@ -1173,25 +1173,25 @@ def contactus(request):
 def faq(request):
     return render(request, 'faq.html')
 
-def wardenbot_overview(request):
-    return render(request, 'wardenbot_overview.html')
+def questlog_overview(request):
+    return render(request, 'questlog_overview.html')
 
-def wardenbot_login(request):
-    """Redirect to WardenBot dashboard with Discord OAuth"""
+def questlog_login(request):
+    """Redirect to QuestLog dashboard with Discord OAuth"""
     import secrets
     from .discord_auth import get_discord_login_url
 
     # Check if already logged in
     if request.session.get('discord_user'):
         # Already authenticated, redirect directly to dashboard
-        return redirect('https://dashboard.casual-heroes.com/warden/')
+        return redirect('https://dashboard.casual-heroes.com/questlog/')
 
     # Generate a state token for CSRF protection
     state = secrets.token_urlsafe(32)
     request.session['discord_oauth_state'] = state
 
     # Set the next URL to the dashboard subdomain
-    request.session['discord_login_next'] = 'https://dashboard.casual-heroes.com/warden/'
+    request.session['discord_login_next'] = 'https://dashboard.casual-heroes.com/questlog/'
 
     # Force session save before OAuth redirect
     request.session.modified = True
@@ -1223,7 +1223,7 @@ def creator_of_the_month_page(request):
             # Format month name
             record.month_name = datetime.datetime(record.year, record.month, 1).strftime("%B")
 
-        return render(request, 'warden/creator_of_the_month.html', {
+        return render(request, 'questlog/creator_of_the_month.html', {
             'cotm_records': cotm_records,
             'page_title': 'Creator of the Month - Hall of Fame'
         })
@@ -1246,7 +1246,7 @@ def creator_of_the_week_page(request):
             record.guild_name = guild.name if guild else f"Guild {record.guild_id}"
             record.guild_icon = guild.icon_url if guild else None
 
-        return render(request, 'warden/creator_of_the_week.html', {
+        return render(request, 'questlog/creator_of_the_week.html', {
             'cotw_records': cotw_records,
             'page_title': 'Creator of the Week - Hall of Fame'
         })
@@ -1502,7 +1502,7 @@ def user_profile(request):
 
 
 @discord_required
-def warden_dashboard(request):
+def questlog_dashboard(request):
     """Main Warden bot dashboard - select a guild to manage"""
     discord_user = request.session.get('discord_user', {})
     admin_guilds = request.session.get('discord_admin_guilds', [])
@@ -1520,7 +1520,7 @@ def warden_dashboard(request):
         'total_guilds': len(admin_guilds) + len(member_guilds),
         'bot_client_id': os.getenv('DISCORD_CLIENT_ID', ''),
     }
-    return render(request, 'warden/dashboard.html', context)
+    return render(request, 'questlog/dashboard.html', context)
 
 
 @discord_required
@@ -1541,7 +1541,7 @@ def guild_dashboard(request, guild_id):
 
     # If not admin, show member landing page instead
     if not is_admin:
-        return render(request, 'warden/member_portal.html', {
+        return render(request, 'questlog/member_portal.html', {
             'discord_user': discord_user,
             'guild': guild,
             'admin_guilds': admin_guilds,
@@ -1715,7 +1715,7 @@ def guild_dashboard(request, guild_id):
         'billing_cycle': billing_cycle,
         'active_page': 'dashboard',
     }
-    return render(request, 'warden/guild_dashboard.html', context)
+    return render(request, 'questlog/guild_dashboard.html', context)
 
 
 @discord_required
@@ -2050,7 +2050,7 @@ def flair_store(request, guild_id):
         'has_any_module': has_any_module,
         'active_page': 'flair_store',
     }
-    return render(request, 'warden/flair_store.html', context)
+    return render(request, 'questlog/flair_store.html', context)
 
 
 # Member Profile
@@ -2141,7 +2141,7 @@ def member_profile(request, guild_id):
         'token_emoji': token_emoji,
         'active_page': 'profile',
     }
-    return render(request, 'warden/member_profile.html', context)
+    return render(request, 'questlog/member_profile.html', context)
 
 
 # Leaderboards
@@ -2211,7 +2211,7 @@ def guild_leaderboards(request, guild_id):
         'token_emoji': token_emoji,
         'active_page': 'leaderboards',
     }
-    return render(request, 'warden/leaderboards.html', context)
+    return render(request, 'questlog/leaderboards.html', context)
 
 
 # Flair Management Dashboard (Premium Feature)
@@ -2266,7 +2266,7 @@ def flair_management(request, guild_id):
         'has_any_module': has_any_module,
         'active_page': 'flair_management',
     }
-    return render(request, 'warden/flair_management.html', context)
+    return render(request, 'questlog/flair_management.html', context)
 
 
 # Tracker Management Dashboard Page
@@ -2327,7 +2327,7 @@ def guild_trackers(request, guild_id):
         'has_any_module': has_any_module,
         'active_page': 'trackers',
     }
-    return render(request, 'warden/trackers.html', context)
+    return render(request, 'questlog/trackers.html', context)
 
 
 # Tracker API Endpoints (REST API for AJAX calls)
@@ -3452,7 +3452,7 @@ def guild_xp(request, guild_id):
         'bulk_edit_items_today': bulk_edit_items_today,
         'import_items_today': import_items_today,
     }
-    return render(request, 'warden/xp.html', context)
+    return render(request, 'questlog/xp.html', context)
 
 
 # XP API Endpoints
@@ -4828,7 +4828,7 @@ def guild_roles(request, guild_id):
         'has_any_module': has_any_module,
         'active_page': 'roles',
     }
-    return render(request, 'warden/roles.html', context)
+    return render(request, 'questlog/roles.html', context)
 
 
 def _serialize_reaction_role_menus(db, guild_id, message_id=None):
@@ -4948,7 +4948,7 @@ def guild_reaction_roles(request, guild_id):
         'has_any_module': has_any_module,
         'active_page': 'reaction_roles',
     }
-    return render(request, 'warden/reaction_roles.html', context)
+    return render(request, 'questlog/reaction_roles.html', context)
 
 
 @require_http_methods(["GET", "POST"])
@@ -5879,7 +5879,7 @@ def guild_raffles(request, guild_id):
     has_engagement_module = has_module_access(guild_id, 'engagement')
     has_any_module = has_any_module_access(guild_id)
 
-    return render(request, 'warden/raffles.html', {
+    return render(request, 'questlog/raffles.html', {
         'guild': guild,
         'guild_record': guild_record,
         'admin_guilds': admin_guilds,
@@ -6654,7 +6654,7 @@ def guild_audit_logs(request, guild_id):
         },
         'active_page': 'audit',
     }
-    return render(request, 'warden/audit.html', context)
+    return render(request, 'questlog/audit.html', context)
 
 
 def get_action_category(action: str) -> str:
@@ -7051,7 +7051,7 @@ def guild_welcome(request, guild_id):
         'has_any_module': has_any_module,
         'active_page': 'welcome',
     }
-    return render(request, 'warden/welcome.html', context)
+    return render(request, 'questlog/welcome.html', context)
 
 
 @require_http_methods(["POST", "PATCH"])
@@ -7300,7 +7300,7 @@ def guild_levelup(request, guild_id):
         'has_any_module': has_any_module,
         'active_page': 'levelup',
     }
-    return render(request, 'warden/levelup.html', context)
+    return render(request, 'questlog/levelup.html', context)
 
 
 # Message System
@@ -7332,7 +7332,7 @@ def guild_messages(request, guild_id):
         'is_admin': True,
         'active_page': 'messages',
     }
-    return render(request, 'warden/messages.html', context)
+    return render(request, 'questlog/messages.html', context)
 
 
 @require_http_methods(["POST", "PATCH"])
@@ -7627,7 +7627,7 @@ def guild_settings(request, guild_id):
         'settings': settings,
         'active_page': 'settings',
     }
-    return render(request, 'warden/settings.html', context)
+    return render(request, 'questlog/settings.html', context)
 
 
 @discord_required
@@ -7743,7 +7743,7 @@ def guild_billing(request, guild_id):
             'billing_cycle': billing_cycle if 'billing_cycle' in locals() else None,
             'subscription': subscription_data,
         }
-        return render(request, 'warden/billing.html', context)
+        return render(request, 'questlog/billing.html', context)
 
     except Exception as e:
         logger.error(f"Error loading billing page: {e}")
@@ -7845,8 +7845,8 @@ def stripe_create_checkout(request, guild_id):
 
         # Create URLs for success and cancel
         base_url = f"https://{request.get_host()}"
-        success_url = f"{base_url}/warden/guild/{guild_id}/billing/?success=true"
-        cancel_url = f"{base_url}/warden/guild/{guild_id}/billing/?cancelled=true"
+        success_url = f"{base_url}/questlog/guild/{guild_id}/billing/?success=true"
+        cancel_url = f"{base_url}/questlog/guild/{guild_id}/billing/?cancelled=true"
 
         # Create checkout session
         session = create_checkout_session(
@@ -7987,7 +7987,7 @@ def stripe_billing_portal(request, guild_id):
 
             # Create portal session
             # Construct return URL from request
-            return_url = request.build_absolute_uri(f'/warden/guild/{guild_id}/billing/?portal=success')
+            return_url = request.build_absolute_uri(f'/questlog/guild/{guild_id}/billing/?portal=success')
             portal_session = stripe.billing_portal.Session.create(
                 customer=guild.stripe_customer_id,
                 return_url=return_url
@@ -8187,7 +8187,7 @@ def guild_verification(request, guild_id):
         'has_any_module': has_any_module,
         'active_page': 'verification',
     }
-    return render(request, 'warden/verification.html', context)
+    return render(request, 'questlog/verification.html', context)
 
 
 @require_http_methods(["POST", "PATCH"])
@@ -8406,7 +8406,7 @@ def guild_moderation(request, guild_id):
         'has_any_module': has_any_module,
         'active_page': 'moderation',
     }
-    return render(request, 'warden/moderation.html', context)
+    return render(request, 'questlog/moderation.html', context)
 
 
 @discord_required
@@ -8476,7 +8476,7 @@ def guild_moderation_settings(request, guild_id):
         'has_any_module': has_any_module,
         'active_page': 'moderation_settings',
     }
-    return render(request, 'warden/moderation_settings.html', context)
+    return render(request, 'questlog/moderation_settings.html', context)
 
 
 @require_http_methods(["POST"])
@@ -8937,7 +8937,7 @@ def guild_templates(request, guild_id):
         'guild_record': guild_record,
         'total_templates': total_templates,
     }
-    return render(request, 'warden/templates.html', context)
+    return render(request, 'questlog/templates.html', context)
 
 
 @require_http_methods(["POST"])
@@ -9598,14 +9598,14 @@ def guild_discovery(request, guild_id):
                 'discovery_enabled': discovery_config.enabled if discovery_config else False,
             }
 
-            return render(request, 'warden/discovery.html', context)
+            return render(request, 'questlog/discovery.html', context)
 
     except Exception as e:
         # Check if guild has discovery module access (for error case too)
         has_discovery_module = has_module_access(guild_id, 'discovery')
         has_any_module = has_any_module_access(guild_id)
 
-        return render(request, 'warden/discovery.html', {
+        return render(request, 'questlog/discovery.html', {
             'guild': guild,
             'error': str(e),
             'admin_guilds': admin_guilds,
@@ -9619,7 +9619,7 @@ def guild_discovery(request, guild_id):
 
 @discord_required
 def guild_found_games(request, guild_id):
-    """GET /warden/guild/<id>/found-games/ - View all games found in recent discovery checks."""
+    """GET /questlog/guild/<id>/found-games/ - View all games found in recent discovery checks."""
     from .module_utils import has_module_access, has_any_module_access
     import json as json_lib
     from datetime import datetime
@@ -9777,7 +9777,7 @@ def guild_found_games(request, guild_id):
                 'active_page': 'found_games',
             }
 
-            return render(request, 'warden/found_games.html', context)
+            return render(request, 'questlog/found_games.html', context)
 
     except Exception as e:
         # Check if user is admin
@@ -9796,7 +9796,7 @@ def guild_found_games(request, guild_id):
             pass
 
         # Use guild from session (already set at top of function)
-        return render(request, 'warden/found_games.html', {
+        return render(request, 'questlog/found_games.html', {
             'guild': guild,
             'guild_record': guild_record,  # Add for sidebar navigation
             'error': str(e),
@@ -10659,7 +10659,7 @@ def guild_lfg(request, guild_id):
         has_engagement_module = has_module_access(guild_id, 'engagement')
         has_any_module = has_any_module_access(guild_id)
 
-        return render(request, 'warden/lfg.html', {
+        return render(request, 'questlog/lfg.html', {
             'guild': guild,
             'guild_record': guild_db,
             'games': games_data,
@@ -10766,7 +10766,7 @@ def guild_lfg_browser(request, guild_id):
         has_engagement_module = has_module_access(guild_id, 'engagement')
         has_any_module = has_any_module_access(guild_id)
 
-        return render(request, 'warden/lfg_browser.html', {
+        return render(request, 'questlog/lfg_browser.html', {
             'guild': guild,
             'guild_record': guild_db,
             'games': games_data,
@@ -11129,7 +11129,7 @@ def guild_attendance(request, guild_id):
             # Get unique game names for filter dropdown
             unique_games = sorted(list(set(g['game_name'] for g in groups_data)))
 
-        return render(request, 'warden/attendance.html', {
+        return render(request, 'questlog/attendance.html', {
             'guild': guild,
             'guild_record': guild_db,
             'config': {
@@ -13859,7 +13859,7 @@ def bot_install_callback(request):
             }
 
         messages.success(request, f'Wardenbot has been successfully added to your server!')
-        return render(request, 'warden/bot_install_success.html', context)
+        return render(request, 'questlog/bot_install_success.html', context)
 
     except Exception as e:
         logger.error(f"Error in bot install callback: {e}", exc_info=True)
@@ -14126,7 +14126,7 @@ def guild_featured_creators(request, guild_id):
         has_discovery_module = has_module_access(guild_id, 'discovery')
         has_any_module = has_any_module_access(guild_id)
 
-        return render(request, 'warden/featured_creators.html', {
+        return render(request, 'questlog/featured_creators.html', {
             'guild': guild,
             'guild_record': guild_db,
             'creators': creators_data,

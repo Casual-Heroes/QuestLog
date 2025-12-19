@@ -1,0 +1,1335 @@
+{% extends "questlog/base_guild.html" %}
+{% load static %}
+
+{% block title %}Templates - {{ guild.name }}{% endblock %}
+
+{% block guild_content %}
+
+  <!-- Header -->
+  <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
+    <div>
+      <h1 class="text-3xl font-bold text-white">
+        <i class="fas fa-copy text-indigo-400 mr-3"></i>Templates
+      </h1>
+      <p class="text-gray-400 mt-1">Save and reuse channel and role configurations</p>
+    </div>
+  </div>
+
+  <!-- Tier Limits Info -->
+  <div class="mb-6 bg-gradient-to-r from-blue-900/30 to-purple-900/30 border border-blue-700/50 rounded-xl p-5">
+    <div class="flex items-start gap-4">
+      <div class="w-12 h-12 bg-blue-600/20 rounded-lg flex items-center justify-center flex-shrink-0">
+        <i class="fas fa-info-circle text-blue-400 text-xl"></i>
+      </div>
+      <div class="flex-1">
+        <h3 class="text-white font-bold mb-2">Template Limits</h3>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+          <div>
+            <p class="text-gray-300 font-medium mb-1">
+              <i class="fas fa-circle text-gray-500 mr-2 text-xs"></i>Free Tier
+            </p>
+            <p class="text-gray-400 ml-5">Up to 5 templates (combined)</p>
+          </div>
+          <div>
+            <p class="text-purple-300 font-medium mb-1">
+              <i class="fas fa-user-tag text-purple-500 mr-2 text-xs"></i>Role Module
+            </p>
+            <p class="text-gray-400 ml-5">Unlimited templates</p>
+          </div>
+          <div>
+            <p class="text-purple-300 font-medium mb-1">
+              <i class="fas fa-crown text-purple-500 mr-2 text-xs"></i>Complete Suite
+            </p>
+            <p class="text-gray-400 ml-5">Unlimited templates</p>
+          </div>
+        </div>
+        {% if has_roles_module or guild_record.is_vip or guild_record.subscription_tier == 'complete' or guild_record.billing_cycle == 'lifetime' %}
+        <p class="text-green-400 text-xs mt-3">
+          <i class="fas fa-check-circle mr-1"></i>
+          You have unlimited templates! Save as many configurations as you need.
+        </p>
+        {% else %}
+        <p class="text-blue-400 text-xs mt-3">
+          <i class="fas fa-lightbulb mr-1"></i>
+          You can create up to 5 templates. <a href="{% url 'guild_billing' guild.id %}" class="text-indigo-400 hover:text-indigo-300 underline">Upgrade to unlock unlimited templates!
+        </p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Current Usage -->
+  <div class="mb-6 bg-neutral-900 rounded-xl border border-neutral-800 p-5">
+    <div class="flex items-center justify-between">
+      <div>
+        <p class="text-gray-400 text-sm">Templates Used</p>
+        <p class="text-2xl font-bold text-white mt-1">{{ total_templates }} / {% if guild_record.is_vip or guild_record.subscription_tier == 'complete' or guild_record.billing_cycle == 'lifetime' %}∞{% else %}5{% endif %}</p>
+      </div>
+      <div class="text-right">
+        <p class="text-gray-400 text-sm">Channel Templates: <span class="text-white font-medium">{{ channel_templates|length }}</span></p>
+        <p class="text-gray-400 text-sm">Role Templates: <span class="text-white font-medium">{{ role_templates|length }}</span></p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Channel Templates -->
+  <div class="mb-12">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-xl font-bold text-white">
+        <i class="fas fa-hashtag text-purple-400 mr-2"></i>Channel Templates
+      </h2>
+      <button onclick="openCreateModal('channel')" class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-medium transition text-sm">
+        <i class="fas fa-plus mr-2"></i>New Template
+      </button>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      {% for template in channel_templates %}
+      <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-4 hover:border-purple-500/50 transition">
+        <div class="flex items-start justify-between mb-3">
+          <div class="flex-1">
+            <h3 class="text-white font-medium">{{ template.name }}</h3>
+            <p class="text-gray-500 text-sm">{{ template.description|default:"No description"|truncatechars:50 }}</p>
+          </div>
+          <span class="text-gray-500 text-xs">{{ template.use_count }} uses</span>
+        </div>
+        <div class="flex gap-2">
+          <button onclick="applyTemplate('channels', {{ template.id }})" class="flex-1 bg-purple-600/20 hover:bg-purple-600/30 text-purple-400 py-2 rounded-lg text-sm font-medium transition">
+            <i class="fas fa-play mr-1"></i>Apply
+          </button>
+          <button onclick="editTemplate('channels', {{ template.id }})" class="bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 px-3 py-2 rounded-lg text-sm transition">
+            <i class="fas fa-edit"></i>
+          </button>
+          <button onclick="deleteTemplate('channels', {{ template.id }})" class="bg-red-600/20 hover:bg-red-600/30 text-red-400 px-3 py-2 rounded-lg text-sm transition">
+            <i class="fas fa-trash"></i>
+          </button>
+        </div>
+      </div>
+      {% empty %}
+      <div class="col-span-full bg-neutral-900 rounded-xl border border-neutral-800 p-8 text-center">
+        <div class="w-16 h-16 bg-neutral-800 rounded-full flex items-center justify-center mx-auto mb-4">
+          <i class="fas fa-hashtag text-gray-600 text-2xl"></i>
+        </div>
+        <p class="text-gray-400">No channel templates yet</p>
+        <p class="text-gray-500 text-sm mt-1">Create one to save your channel setup</p>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- Role Templates -->
+  <div>
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-xl font-bold text-white">
+        <i class="fas fa-user-tag text-yellow-400 mr-2"></i>Role Templates
+      </h2>
+      <button onclick="openCreateModal('role')" class="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded-lg font-medium transition text-sm">
+        <i class="fas fa-plus mr-2"></i>New Template
+      </button>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      {% for template in role_templates %}
+      <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-4 hover:border-yellow-500/50 transition">
+        <div class="flex items-start justify-between mb-3">
+          <div class="flex-1">
+            <h3 class="text-white font-medium">{{ template.name }}</h3>
+            <p class="text-gray-500 text-sm">{{ template.description|default:"No description"|truncatechars:50 }}</p>
+          </div>
+          <span class="text-gray-500 text-xs">{{ template.use_count }} uses</span>
+        </div>
+        <div class="flex gap-2">
+          <button onclick="applyTemplate('roles', {{ template.id }})" class="flex-1 bg-yellow-600/20 hover:bg-yellow-600/30 text-yellow-400 py-2 rounded-lg text-sm font-medium transition">
+            <i class="fas fa-play mr-1"></i>Apply
+          </button>
+          <button onclick="editTemplate('roles', {{ template.id }})" class="bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 px-3 py-2 rounded-lg text-sm transition">
+            <i class="fas fa-edit"></i>
+          </button>
+          <button onclick="deleteTemplate('roles', {{ template.id }})" class="bg-red-600/20 hover:bg-red-600/30 text-red-400 px-3 py-2 rounded-lg text-sm transition">
+            <i class="fas fa-trash"></i>
+          </button>
+        </div>
+      </div>
+      {% empty %}
+      <div class="col-span-full bg-neutral-900 rounded-xl border border-neutral-800 p-8 text-center">
+        <div class="w-16 h-16 bg-neutral-800 rounded-full flex items-center justify-center mx-auto mb-4">
+          <i class="fas fa-user-tag text-gray-600 text-2xl"></i>
+        </div>
+        <p class="text-gray-400">No role templates yet</p>
+        <p class="text-gray-500 text-sm mt-1">Create one to save your role hierarchy</p>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+<!-- Create Template Modal -->
+<div id="createModal" class="hidden fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+  <div class="bg-neutral-900 rounded-xl border border-neutral-800 w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+    <!-- Modal Header -->
+    <div class="p-6 border-b border-neutral-800 flex-shrink-0">
+      <div class="flex items-center justify-between">
+        <h3 class="text-xl font-bold text-white" id="modalTitle">
+          <i class="fas fa-plus mr-2"></i>Create Template
+        </h3>
+        <button onclick="closeCreateModal()" class="text-gray-400 hover:text-white">
+          <i class="fas fa-times text-xl"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- Modal Body - Scrollable -->
+    <div class="flex-1 overflow-y-auto p-6">
+      <input type="hidden" id="templateType">
+
+      <!-- Basic Info -->
+      <div class="space-y-4 mb-6">
+        <div>
+          <label class="block text-sm text-gray-400 mb-2">Template Name <span class="text-red-400">*</span></label>
+          <input type="text" id="templateName" maxlength="100" required
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:border-indigo-500 focus:outline-none"
+                 placeholder="e.g., Gaming Community Setup">
+        </div>
+        <div>
+          <label class="block text-sm text-gray-400 mb-2">Description (optional)</label>
+          <textarea id="templateDescription" rows="2" maxlength="500"
+                    class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:border-indigo-500 focus:outline-none resize-y"
+                    placeholder="Describe what this template includes..."></textarea>
+        </div>
+      </div>
+
+      <!-- Channel Template Builder (Category-First) -->
+      <div id="channelBuilder" class="hidden">
+        <div class="bg-blue-900/20 border border-blue-700/30 rounded-lg p-4 mb-4">
+          <div class="flex items-start gap-3">
+            <i class="fas fa-info-circle text-blue-400 mt-1"></i>
+            <div>
+              <h5 class="text-blue-300 font-semibold mb-1">Enhanced Category-First Builder</h5>
+              <p class="text-blue-200/80 text-sm">Set role permissions once at the category level, then add multiple channels that automatically inherit those permissions. Much more efficient than setting permissions per channel!</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex items-center justify-between mb-4">
+          <h4 class="text-lg font-bold text-white">
+            <i class="fas fa-folder text-purple-400 mr-2"></i>Categories & Channels
+          </h4>
+          <button type="button" onclick="addCategory()" class="bg-purple-600 hover:bg-purple-700 text-white px-3 py-2 rounded-lg text-sm transition">
+            <i class="fas fa-plus mr-1"></i>Add Category
+          </button>
+        </div>
+        <div id="categoriesList" class="space-y-4">
+          <!-- Categories will be added here -->
+        </div>
+      </div>
+
+      <!-- Role Template Builder -->
+      <div id="roleBuilder" class="hidden">
+        <div class="flex items-center justify-between mb-4">
+          <h4 class="text-lg font-bold text-white">
+            <i class="fas fa-user-tag text-yellow-400 mr-2"></i>Roles
+          </h4>
+          <button type="button" onclick="addRoleRow()" class="bg-yellow-600 hover:bg-yellow-700 text-white px-3 py-2 rounded-lg text-sm transition">
+            <i class="fas fa-plus mr-1"></i>Add Role
+          </button>
+        </div>
+        <div id="rolesList" class="space-y-3">
+          <!-- Role rows will be added here -->
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal Footer -->
+    <div class="p-6 border-t border-neutral-800 flex gap-3 justify-end flex-shrink-0">
+      <button onclick="closeCreateModal()" class="bg-neutral-700 hover:bg-neutral-600 text-white px-6 py-2 rounded-lg font-medium transition">
+        Cancel
+      </button>
+      <button id="saveTemplateBtn" onclick="saveTemplate()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-lg font-medium transition">
+        <i class="fas fa-save mr-2"></i>Create Template
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+const guildId = '{{ guild.id }}';
+const csrfToken = '{{ csrf_token }}';
+const currentTier = '{{ guild_record.subscription_tier }}';
+const isVIP = {{ guild_record.is_vip|lower }};
+const totalTemplates = {{ total_templates }};
+
+let channelCounter = 0;
+let roleCounter = 0;
+let roleOverrideCounter = 0;
+let guildRoles = []; // Will be populated when creating channel template
+let editingTemplateId = null;
+
+// CSRF-aware fetch function
+async function csrfFetch(url, options = {}) {
+  options.headers = options.headers || {};
+  if (!options.headers['X-CSRFToken']) {
+    options.headers['X-CSRFToken'] = csrfToken;
+  }
+  return fetch(url, options);
+}
+
+function canCreateTemplate() {
+  let limit;
+  if (isVIP || currentTier === 'premium') {
+    return true; // Unlimited
+  } else if (currentTier === 'pro') {
+    limit = 10;
+  } else {
+    limit = 5;
+  }
+
+  if (totalTemplates >= limit) {
+    alert(`You've reached your template limit (${limit} templates). ${currentTier === 'pro' ? 'Upgrade to Premium for unlimited templates!' : 'Upgrade to Pro for 10 templates or Premium for unlimited!'}`);
+    return false;
+  }
+  return true;
+}
+
+async function openCreateModal(type) {
+  if (!canCreateTemplate()) return;
+
+  editingTemplateId = null; // Reset editing state
+
+  document.getElementById('templateType').value = type;
+  document.getElementById('modalTitle').innerHTML = `<i class="fas fa-plus mr-2"></i>Create ${type === 'channel' ? 'Channel' : 'Role'} Template`;
+  document.getElementById('saveTemplateBtn').innerHTML = '<i class="fas fa-save mr-2"></i>Create Template';
+  document.getElementById('templateName').value = '';
+  document.getElementById('templateDescription').value = '';
+
+  // Show appropriate builder
+  const channelBuilder = document.getElementById('channelBuilder');
+  const roleBuilder = document.getElementById('roleBuilder');
+
+  if (type === 'channel') {
+    // Fetch guild roles first
+    try {
+      const response = await csrfFetch(`/api/guild/${guildId}/roles/`);
+      const data = await response.json();
+      if (data.success) {
+        guildRoles = data.roles;
+      }
+    } catch (err) {
+      console.error('Error fetching roles:', err);
+      guildRoles = [];
+    }
+
+    channelBuilder.classList.remove('hidden');
+    roleBuilder.classList.add('hidden');
+    document.getElementById('categoriesList').innerHTML = '';
+    channelCounter = 0;
+    categoryCounter = 0;
+    roleOverrideCounter = 0;
+    addCategory(); // Start with one category
+  } else {
+    roleBuilder.classList.remove('hidden');
+    channelBuilder.classList.add('hidden');
+    document.getElementById('rolesList').innerHTML = '';
+    roleCounter = 0;
+    addRoleRow(); // Start with one role
+  }
+
+  document.getElementById('createModal').classList.remove('hidden');
+}
+
+function closeCreateModal() {
+  document.getElementById('createModal').classList.add('hidden');
+  editingTemplateId = null; // Reset editing state
+}
+
+// Discord Channel Permissions
+const CHANNEL_PERMISSIONS = {
+  'view_channel': 'View Channel',
+  'manage_channels': 'Manage Channel',
+  'manage_permissions': 'Manage Permissions',
+  'manage_webhooks': 'Manage Webhooks',
+  'create_instant_invite': 'Create Invite',
+  'send_messages': 'Send Messages',
+  'send_messages_in_threads': 'Send Messages in Threads',
+  'create_public_threads': 'Create Public Threads',
+  'create_private_threads': 'Create Private Threads',
+  'embed_links': 'Embed Links',
+  'attach_files': 'Attach Files',
+  'add_reactions': 'Add Reactions',
+  'use_external_emojis': 'Use External Emojis',
+  'use_external_stickers': 'Use External Stickers',
+  'mention_everyone': 'Mention @everyone',
+  'manage_messages': 'Manage Messages',
+  'manage_threads': 'Manage Threads',
+  'read_message_history': 'Read Message History',
+  'send_tts_messages': 'Send TTS Messages',
+  'use_application_commands': 'Use Slash Commands',
+  'connect': 'Connect (Voice)',
+  'speak': 'Speak (Voice)',
+  'stream': 'Video (Voice)',
+  'use_voice_activation': 'Use Voice Activity',
+  'priority_speaker': 'Priority Speaker',
+  'mute_members': 'Mute Members',
+  'deafen_members': 'Deafen Members',
+  'move_members': 'Move Members',
+};
+
+// Category-First Builder Functions
+let categoryCounter = 0;
+
+function addCategory() {
+  const catId = categoryCounter++;
+
+  const html = `
+    <div class="bg-neutral-800 rounded-xl p-5 border-2 border-purple-700/30" id="category-${catId}">
+      <!-- Category Header -->
+      <div class="flex items-center justify-between mb-4">
+        <div class="flex-1">
+          <label class="text-xs text-gray-400 mb-1 block">Category Name <span class="text-red-400">*</span></label>
+          <input type="text" class="category-name w-full bg-neutral-900 border border-neutral-600 rounded-lg px-3 py-2 text-white font-medium"
+                 placeholder="e.g., Community Chat, Gaming Channels, Staff Area" required>
+        </div>
+        <button type="button" onclick="removeCategory(${catId})" class="text-red-400 hover:text-red-300 ml-3">
+          <i class="fas fa-trash text-lg"></i>
+        </button>
+      </div>
+
+      <!-- Category-Level Role Permissions -->
+      <div class="bg-neutral-900 rounded-lg p-4 mb-4 border border-neutral-700">
+        <div class="flex items-center justify-between mb-3">
+          <label class="text-sm font-medium text-purple-300">
+            <i class="fas fa-shield-alt mr-2"></i>Category Role Permissions
+          </label>
+          <div class="flex gap-2">
+            <button type="button" onclick="copyPermissionsToCategory(${catId})" class="bg-blue-600/80 hover:bg-blue-600 text-white px-3 py-1.5 rounded text-xs transition" title="Copy all role permissions from another category">
+              <i class="fas fa-copy mr-1"></i>Copy From Category
+            </button>
+            <button type="button" onclick="addCategoryRoleOverride(${catId})" class="bg-purple-600 hover:bg-purple-700 text-white px-3 py-1.5 rounded text-xs transition">
+              <i class="fas fa-plus mr-1"></i>Add Role
+            </button>
+          </div>
+        </div>
+        <p class="text-xs text-gray-500 mb-3">
+          <i class="fas fa-magic text-purple-400 mr-1"></i>
+          Set permissions once here - all channels in this category will automatically inherit them!
+        </p>
+        <div class="category-role-overrides space-y-2" id="category-${catId}-overrides">
+          <!-- Category role overrides will be added here -->
+        </div>
+      </div>
+
+      <!-- Channels in this Category -->
+      <div class="bg-neutral-900/50 rounded-lg p-4 border border-neutral-600">
+        <div class="flex items-center justify-between mb-3">
+          <label class="text-sm font-medium text-blue-300">
+            <i class="fas fa-hashtag mr-2"></i>Channels in this Category
+          </label>
+          <button type="button" onclick="addChannelToCategory(${catId})" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded text-xs transition">
+            <i class="fas fa-plus mr-1"></i>Add Channel
+          </button>
+        </div>
+        <p class="text-xs text-gray-500 mb-3">Channels automatically inherit the category's role permissions above.</p>
+        <div class="category-channels space-y-2" id="category-${catId}-channels">
+          <!-- Channels will be added here -->
+        </div>
+      </div>
+    </div>
+  `;
+  document.getElementById('categoriesList').insertAdjacentHTML('beforeend', html);
+}
+
+function removeCategory(catId) {
+  if (confirm('Remove this entire category and all its channels?')) {
+    document.getElementById(`category-${catId}`)?.remove();
+  }
+}
+
+function addChannelToCategory(catId) {
+  const channelId = channelCounter++;
+
+  const html = `
+    <div class="bg-neutral-800 rounded-lg p-3 border border-neutral-600 flex items-center gap-3" id="channel-${channelId}">
+      <div class="flex-1 grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div>
+          <label class="text-xs text-gray-400 mb-1 block">Channel Name <span class="text-red-400">*</span></label>
+          <input type="text" class="channel-name w-full bg-neutral-900 border border-neutral-600 rounded px-3 py-2 text-white text-sm"
+                 placeholder="general" required>
+        </div>
+        <div>
+          <label class="text-xs text-gray-400 mb-1 block">Type</label>
+          <select class="channel-type w-full bg-neutral-900 border border-neutral-600 rounded px-3 py-2 text-white text-sm">
+            <option value="text">Text Channel</option>
+            <option value="voice">Voice Channel</option>
+            <option value="announcement">Announcement</option>
+            <option value="forum">Forum</option>
+            <option value="stage">Stage Channel</option>
+          </select>
+        </div>
+        <div>
+          <label class="text-xs text-gray-400 mb-1 block">Topic (optional)</label>
+          <input type="text" class="channel-topic w-full bg-neutral-900 border border-neutral-600 rounded px-3 py-2 text-white text-sm"
+                 placeholder="Channel topic">
+        </div>
+      </div>
+      <button type="button" onclick="removeChannelFromCategory(${channelId})" class="text-red-400 hover:text-red-300">
+        <i class="fas fa-trash"></i>
+      </button>
+    </div>
+  `;
+  document.querySelector(`#category-${catId}-channels`).insertAdjacentHTML('beforeend', html);
+}
+
+function removeChannelFromCategory(channelId) {
+  document.getElementById(`channel-${channelId}`)?.remove();
+}
+
+function addCategoryRoleOverride(catId) {
+  const overrideId = roleOverrideCounter++;
+
+  // Build role options
+  const roleOptions = guildRoles.map(role =>
+    `<option value="${role.id}" ${role.is_everyone ? 'selected' : ''}>${role.name}</option>`
+  ).join('');
+
+  // Build permission checkboxes with allow/deny/neutral
+  const permissionCheckboxes = Object.entries(CHANNEL_PERMISSIONS).map(([key, label]) => `
+    <div class="flex items-center justify-between py-1 hover:bg-neutral-700/30 px-2 rounded text-xs">
+      <span class="text-gray-300">${label}</span>
+      <div class="flex gap-2">
+        <label class="flex items-center gap-1 cursor-pointer">
+          <input type="radio" name="perm-${overrideId}-${key}" value="allow" class="text-green-500">
+          <span class="text-green-400">✓</span>
+        </label>
+        <label class="flex items-center gap-1 cursor-pointer">
+          <input type="radio" name="perm-${overrideId}-${key}" value="deny" class="text-red-500">
+          <span class="text-red-400">✗</span>
+        </label>
+        <label class="flex items-center gap-1 cursor-pointer">
+          <input type="radio" name="perm-${overrideId}-${key}" value="neutral" checked class="text-gray-500">
+          <span class="text-gray-500">—</span>
+        </label>
+      </div>
+    </div>
+  `).join('');
+
+  const html = `
+    <div class="bg-neutral-800 rounded border border-neutral-500 p-3" id="override-${overrideId}">
+      <div class="flex items-start gap-3">
+        <div class="flex-1 space-y-3">
+          <!-- Role Selector -->
+          <div>
+            <label class="text-xs text-gray-400 mb-1 block">Select Role</label>
+            <select class="override-role w-full bg-neutral-900 border border-neutral-600 rounded px-3 py-2 text-white text-sm">
+              ${roleOptions}
+            </select>
+          </div>
+
+          <!-- Quick Actions -->
+          <div class="flex gap-2">
+            <button type="button" onclick="copyPermissionsFromRole(${overrideId})" class="flex-1 bg-blue-600/80 hover:bg-blue-600 text-white px-3 py-1.5 rounded text-xs transition" title="Copy permissions from another role">
+              <i class="fas fa-copy mr-1"></i>Copy From Role
+            </button>
+            <button type="button" onclick="applyPermissionTemplate(${overrideId})" class="flex-1 bg-purple-600/80 hover:bg-purple-600 text-white px-3 py-1.5 rounded text-xs transition" title="Apply a permission template">
+              <i class="fas fa-magic mr-1"></i>Apply Template
+            </button>
+          </div>
+
+          <!-- Permissions with Allow/Deny -->
+          <div>
+            <label class="text-xs text-gray-400 mb-2 block">Permissions (✓ Allow / ✗ Deny / — Neutral)</label>
+            <div class="max-h-48 overflow-y-auto bg-neutral-900 rounded border border-neutral-600 p-2">
+              ${permissionCheckboxes}
+            </div>
+          </div>
+        </div>
+        <button type="button" onclick="removeCategoryRoleOverride(${overrideId})" class="text-red-400 hover:text-red-300">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+    </div>
+  `;
+
+  document.querySelector(`#category-${catId}-overrides`).insertAdjacentHTML('beforeend', html);
+}
+
+function removeCategoryRoleOverride(id) {
+  document.getElementById(`override-${id}`)?.remove();
+}
+
+function copyPermissionsToCategory(targetCatId) {
+  // Get all categories except the target
+  const allCategories = document.querySelectorAll('#categoriesList > div');
+  const categoryOptions = [];
+
+  allCategories.forEach(catDiv => {
+    const catId = catDiv.id.split('-')[1];
+    if (catId !== targetCatId.toString()) {
+      const catName = catDiv.querySelector('.category-name').value || `Category ${catId}`;
+      const overridesContainer = catDiv.querySelector('.category-role-overrides');
+      const overrideCount = overridesContainer.querySelectorAll('[id^="override-"]').length;
+
+      if (overrideCount > 0) {
+        categoryOptions.push({ id: catId, name: catName, count: overrideCount });
+      }
+    }
+  });
+
+  if (categoryOptions.length === 0) {
+    alert('No other categories with permissions found. Add permissions to another category first.');
+    return;
+  }
+
+  // Build selection dialog
+  let optionsHtml = categoryOptions.map(opt =>
+    `<option value="${opt.id}">${opt.name} (${opt.count} role${opt.count > 1 ? 's' : ''})</option>`
+  ).join('');
+
+  // Show custom prompt using a quick modal
+  const existingModal = document.getElementById('copyPermModal');
+  if (existingModal) existingModal.remove();
+
+  const modal = document.createElement('div');
+  modal.id = 'copyPermModal';
+  modal.className = 'fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[60]';
+  modal.innerHTML = `
+    <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6 max-w-md">
+      <h3 class="text-lg font-bold text-white mb-4">Copy Permissions</h3>
+      <p class="text-gray-400 text-sm mb-4">Select a category to copy role permissions from:</p>
+      <select id="sourceCategorySelect" class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white mb-4">
+        ${optionsHtml}
+      </select>
+      <div class="flex gap-3">
+        <button onclick="document.getElementById('copyPermModal').remove()" class="flex-1 bg-neutral-800 hover:bg-neutral-700 text-white px-4 py-2 rounded-lg transition">
+          Cancel
+        </button>
+        <button onclick="executeCopyPermissions(${targetCatId})" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition">
+          <i class="fas fa-copy mr-2"></i>Copy
+        </button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+}
+
+function executeCopyPermissions(targetCatId) {
+  const modal = document.getElementById('copyPermModal');
+  const sourceCatId = document.getElementById('sourceCategorySelect').value;
+  modal.remove();
+
+  if (!sourceCatId) return;
+
+  const sourceCategory = document.getElementById(`category-${sourceCatId}`);
+  const targetCategory = document.getElementById(`category-${targetCatId}`);
+
+  if (!sourceCategory || !targetCategory) {
+    alert('Error: Category not found');
+    return;
+  }
+
+  // Get source overrides
+  const sourceOverrides = sourceCategory.querySelector('.category-role-overrides');
+  const overrideDivs = sourceOverrides.querySelectorAll('[id^="override-"]');
+
+  if (overrideDivs.length === 0) {
+    alert('Source category has no permissions to copy');
+    return;
+  }
+
+  // Copy each override
+  overrideDivs.forEach(overrideDiv => {
+    const roleSelect = overrideDiv.querySelector('.override-role');
+    const roleId = roleSelect.value;
+
+    // Add new override to target category
+    addCategoryRoleOverride(targetCatId);
+    const targetOverridesContainer = targetCategory.querySelector('.category-role-overrides');
+    const newOverride = targetOverridesContainer.querySelector('[id^="override-"]:last-child');
+
+    // Set role
+    const newRoleSelect = newOverride.querySelector('.override-role');
+    newRoleSelect.value = roleId;
+
+    // Copy all permission radio states
+    Object.keys(CHANNEL_PERMISSIONS).forEach(permKey => {
+      const sourceRadios = overrideDiv.querySelectorAll(`input[name$="-${permKey}"]`);
+      sourceRadios.forEach(radio => {
+        if (radio.checked) {
+          const targetRadio = newOverride.querySelector(`input[name$="-${permKey}"][value="${radio.value}"]`);
+          if (targetRadio) targetRadio.checked = true;
+        }
+      });
+    });
+  });
+
+  alert(`Copied ${overrideDivs.length} role permission${overrideDivs.length > 1 ? 's' : ''} successfully!`);
+}
+
+// Permission Templates
+const PERMISSION_TEMPLATES = {
+  moderator: {
+    name: 'Moderator',
+    description: 'Full moderation permissions',
+    allow: ['view_channel', 'send_messages', 'manage_messages', 'manage_threads', 'embed_links', 'attach_files', 'read_message_history', 'add_reactions', 'use_external_emojis', 'use_external_stickers', 'use_application_commands', 'connect', 'speak', 'stream', 'use_voice_activation', 'mute_members', 'deafen_members', 'move_members', 'moderate_members'],
+    deny: []
+  },
+  member: {
+    name: 'Member',
+    description: 'Standard member permissions',
+    allow: ['view_channel', 'send_messages', 'embed_links', 'attach_files', 'read_message_history', 'add_reactions', 'use_external_emojis', 'use_external_stickers', 'use_application_commands', 'connect', 'speak', 'stream', 'use_voice_activation'],
+    deny: []
+  },
+  readonly: {
+    name: 'Read-Only',
+    description: 'View only, no sending',
+    allow: ['view_channel', 'read_message_history'],
+    deny: ['send_messages', 'add_reactions', 'connect']
+  },
+  staff: {
+    name: 'Staff',
+    description: 'Staff permissions (everything except admin)',
+    allow: ['view_channel', 'manage_channels', 'manage_permissions', 'manage_webhooks', 'create_instant_invite', 'send_messages', 'manage_messages', 'manage_threads', 'embed_links', 'attach_files', 'read_message_history', 'mention_everyone', 'use_external_emojis', 'use_external_stickers', 'add_reactions', 'use_application_commands', 'connect', 'speak', 'stream', 'use_voice_activation', 'priority_speaker', 'mute_members', 'deafen_members', 'move_members', 'moderate_members'],
+    deny: []
+  },
+  restricted: {
+    name: 'Restricted',
+    description: 'Limited access (read + react only)',
+    allow: ['view_channel', 'read_message_history', 'add_reactions'],
+    deny: ['send_messages', 'connect']
+  },
+  voice_only: {
+    name: 'Voice Only',
+    description: 'Voice permissions only',
+    allow: ['view_channel', 'connect', 'speak', 'stream', 'use_voice_activation'],
+    deny: ['send_messages']
+  }
+};
+
+// Copy permissions from another role override
+function copyPermissionsFromRole(targetOverrideId) {
+  // Get all role overrides in all categories
+  const allOverrides = document.querySelectorAll('[id^="override-"]');
+  const roleOptions = [];
+
+  allOverrides.forEach(overrideDiv => {
+    const overrideId = overrideDiv.id.split('-')[1];
+    if (overrideId !== targetOverrideId.toString()) {
+      const roleSelect = overrideDiv.querySelector('.override-role');
+      const roleName = roleSelect.selectedOptions[0]?.text || 'Unknown Role';
+
+      // Count how many permissions are set
+      const radios = overrideDiv.querySelectorAll('input[type="radio"]:checked');
+      const permCount = Array.from(radios).filter(r => r.value !== 'neutral').length;
+
+      if (permCount > 0) {
+        roleOptions.push({
+          id: overrideId,
+          name: roleName,
+          count: permCount
+        });
+      }
+    }
+  });
+
+  if (roleOptions.length === 0) {
+    alert('No other roles with permissions found. Set permissions on another role first, or use a template.');
+    return;
+  }
+
+  // Build selection dialog
+  let optionsHtml = roleOptions.map(opt =>
+    `<option value="${opt.id}">${opt.name} (${opt.count} permission${opt.count > 1 ? 's' : ''})</option>`
+  ).join('');
+
+  // Show modal
+  const existingModal = document.getElementById('copyRolePermModal');
+  if (existingModal) existingModal.remove();
+
+  const modal = document.createElement('div');
+  modal.id = 'copyRolePermModal';
+  modal.className = 'fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[60]';
+  modal.innerHTML = `
+    <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6 max-w-md">
+      <h3 class="text-lg font-bold text-white mb-4">
+        <i class="fas fa-copy text-blue-400 mr-2"></i>Copy Permissions From Role
+      </h3>
+      <p class="text-gray-400 text-sm mb-4">Select a role to copy permissions from:</p>
+      <select id="sourceRoleSelect" class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white mb-4">
+        ${optionsHtml}
+      </select>
+      <div class="flex gap-3">
+        <button onclick="document.getElementById('copyRolePermModal').remove()" class="flex-1 bg-neutral-800 hover:bg-neutral-700 text-white px-4 py-2 rounded-lg transition">
+          Cancel
+        </button>
+        <button onclick="executeCopyFromRole(${targetOverrideId})" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition">
+          <i class="fas fa-copy mr-2"></i>Copy
+        </button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+}
+
+function executeCopyFromRole(targetOverrideId) {
+  const modal = document.getElementById('copyRolePermModal');
+  const sourceOverrideId = document.getElementById('sourceRoleSelect').value;
+  modal.remove();
+
+  if (!sourceOverrideId) return;
+
+  const sourceOverride = document.getElementById(`override-${sourceOverrideId}`);
+  const targetOverride = document.getElementById(`override-${targetOverrideId}`);
+
+  if (!sourceOverride || !targetOverride) {
+    alert('Error: Role override not found');
+    return;
+  }
+
+  // Copy all permission radio states
+  Object.keys(CHANNEL_PERMISSIONS).forEach(permKey => {
+    const sourceRadios = sourceOverride.querySelectorAll(`input[name$="-${permKey}"]`);
+    sourceRadios.forEach(radio => {
+      if (radio.checked) {
+        const targetRadio = targetOverride.querySelector(`input[name$="-${permKey}"][value="${radio.value}"]`);
+        if (targetRadio) targetRadio.checked = true;
+      }
+    });
+  });
+
+  alert('Permissions copied successfully!');
+}
+
+// Apply permission template
+function applyPermissionTemplate(overrideId) {
+  const targetOverride = document.getElementById(`override-${overrideId}`);
+  if (!targetOverride) {
+    alert('Error: Role override not found');
+    return;
+  }
+
+  // Build template options
+  const templateOptions = Object.entries(PERMISSION_TEMPLATES).map(([key, template]) =>
+    `<option value="${key}">${template.name} - ${template.description}</option>`
+  ).join('');
+
+  // Show modal
+  const existingModal = document.getElementById('templateModal');
+  if (existingModal) existingModal.remove();
+
+  const modal = document.createElement('div');
+  modal.id = 'templateModal';
+  modal.className = 'fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[60]';
+  modal.innerHTML = `
+    <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6 max-w-md">
+      <h3 class="text-lg font-bold text-white mb-4">
+        <i class="fas fa-magic text-purple-400 mr-2"></i>Apply Permission Template
+      </h3>
+      <p class="text-gray-400 text-sm mb-4">Choose a template to quickly set common permission patterns:</p>
+      <select id="templateSelect" class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white mb-4">
+        ${templateOptions}
+      </select>
+      <div class="bg-blue-900/20 border border-blue-700/30 rounded-lg p-3 mb-4">
+        <p class="text-blue-200 text-xs">
+          <i class="fas fa-info-circle mr-1"></i>
+          This will replace current permissions with the template settings.
+        </p>
+      </div>
+      <div class="flex gap-3">
+        <button onclick="document.getElementById('templateModal').remove()" class="flex-1 bg-neutral-800 hover:bg-neutral-700 text-white px-4 py-2 rounded-lg transition">
+          Cancel
+        </button>
+        <button onclick="executeApplyTemplate(${overrideId})" class="flex-1 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg transition">
+          <i class="fas fa-magic mr-2"></i>Apply
+        </button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+}
+
+function executeApplyTemplate(overrideId) {
+  const modal = document.getElementById('templateModal');
+  const templateKey = document.getElementById('templateSelect').value;
+  modal.remove();
+
+  if (!templateKey || !PERMISSION_TEMPLATES[templateKey]) return;
+
+  const template = PERMISSION_TEMPLATES[templateKey];
+  const targetOverride = document.getElementById(`override-${overrideId}`);
+
+  if (!targetOverride) {
+    alert('Error: Role override not found');
+    return;
+  }
+
+  // First, reset all permissions to neutral
+  Object.keys(CHANNEL_PERMISSIONS).forEach(permKey => {
+    const neutralRadio = targetOverride.querySelector(`input[name$="-${permKey}"][value="neutral"]`);
+    if (neutralRadio) neutralRadio.checked = true;
+  });
+
+  // Apply allow permissions
+  template.allow.forEach(permKey => {
+    const allowRadio = targetOverride.querySelector(`input[name$="-${permKey}"][value="allow"]`);
+    if (allowRadio) allowRadio.checked = true;
+  });
+
+  // Apply deny permissions
+  template.deny.forEach(permKey => {
+    const denyRadio = targetOverride.querySelector(`input[name$="-${permKey}"][value="deny"]`);
+    if (denyRadio) denyRadio.checked = true;
+  });
+
+  alert(`"${template.name}" template applied successfully!`);
+}
+
+// Discord Role Permissions
+const ROLE_PERMISSIONS = {
+  'administrator': 'Administrator',
+  'manage_guild': 'Manage Server',
+  'manage_roles': 'Manage Roles',
+  'manage_channels': 'Manage Channels',
+  'kick_members': 'Kick Members',
+  'ban_members': 'Ban Members',
+  'create_instant_invite': 'Create Invite',
+  'change_nickname': 'Change Nickname',
+  'manage_nicknames': 'Manage Nicknames',
+  'manage_emojis_and_stickers': 'Manage Emojis & Stickers',
+  'manage_webhooks': 'Manage Webhooks',
+  'view_audit_log': 'View Audit Log',
+  'view_guild_insights': 'View Server Insights',
+  'view_channel': 'View Channels',
+  'send_messages': 'Send Messages',
+  'send_messages_in_threads': 'Send Messages in Threads',
+  'create_public_threads': 'Create Public Threads',
+  'create_private_threads': 'Create Private Threads',
+  'send_tts_messages': 'Send TTS Messages',
+  'manage_messages': 'Manage Messages',
+  'manage_threads': 'Manage Threads',
+  'embed_links': 'Embed Links',
+  'attach_files': 'Attach Files',
+  'read_message_history': 'Read Message History',
+  'mention_everyone': 'Mention @everyone',
+  'use_external_emojis': 'Use External Emojis',
+  'use_external_stickers': 'Use External Stickers',
+  'add_reactions': 'Add Reactions',
+  'use_application_commands': 'Use Slash Commands',
+  'connect': 'Connect (Voice)',
+  'speak': 'Speak (Voice)',
+  'stream': 'Video (Voice)',
+  'use_voice_activation': 'Use Voice Activity',
+  'priority_speaker': 'Priority Speaker',
+  'mute_members': 'Mute Members',
+  'deafen_members': 'Deafen Members',
+  'move_members': 'Move Members',
+  'moderate_members': 'Timeout Members',
+  'request_to_speak': 'Request to Speak',
+};
+
+function addRoleRow() {
+  const id = roleCounter++;
+  const permissionsOptions = Object.entries(ROLE_PERMISSIONS).map(([key, label]) =>
+    `<option value="${key}">${label}</option>`
+  ).join('');
+
+  const html = `
+    <div class="bg-neutral-800 rounded-lg p-4 border border-neutral-700" id="role-${id}">
+      <div class="flex items-start gap-3">
+        <div class="flex-1 space-y-3">
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div>
+              <label class="text-xs text-gray-400">Role Name <span class="text-red-400">*</span></label>
+              <input type="text" class="role-name w-full bg-neutral-900 border border-neutral-600 rounded px-3 py-2 text-white text-sm mt-1"
+                     placeholder="Member" required>
+            </div>
+            <div>
+              <label class="text-xs text-gray-400">Color</label>
+              <input type="color" class="role-color w-full bg-neutral-900 border border-neutral-600 rounded px-3 py-2 h-10 mt-1"
+                     value="#99aab5">
+            </div>
+            <div class="flex items-end gap-3">
+              <label class="flex items-center gap-2 text-sm text-gray-400">
+                <input type="checkbox" class="role-hoisted">
+                <span>Hoisted</span>
+              </label>
+              <label class="flex items-center gap-2 text-sm text-gray-400">
+                <input type="checkbox" class="role-mentionable">
+                <span>Mentionable</span>
+              </label>
+            </div>
+          </div>
+          <div>
+            <label class="text-xs text-gray-400 mb-2 block">
+              Role Permissions <span class="text-gray-500">(server-wide permissions for this role)</span>
+            </label>
+            <select multiple class="role-permissions w-full bg-neutral-900 border border-neutral-600 rounded px-3 py-2 text-white text-sm"
+                    style="min-height: 120px;">
+              ${permissionsOptions}
+            </select>
+            <p class="text-xs text-gray-500 mt-1">Hold Ctrl/Cmd to select multiple. Leave empty for no special permissions.</p>
+          </div>
+        </div>
+        <button type="button" onclick="removeRole(${id})" class="text-red-400 hover:text-red-300 mt-6">
+          <i class="fas fa-trash"></i>
+        </button>
+      </div>
+    </div>
+  `;
+  document.getElementById('rolesList').insertAdjacentHTML('beforeend', html);
+}
+
+function removeRole(id) {
+  document.getElementById(`role-${id}`)?.remove();
+}
+
+async function saveTemplate() {
+  const type = document.getElementById('templateType').value;
+  const name = document.getElementById('templateName').value.trim();
+  const description = document.getElementById('templateDescription').value.trim();
+
+  if (!name) {
+    alert('Please enter a template name');
+    return;
+  }
+
+  let data = [];
+
+  if (type === 'channel') {
+    const categories = document.querySelectorAll('#categoriesList > div');
+    if (categories.length === 0) {
+      alert('Please add at least one category with channels');
+      return;
+    }
+
+    categories.forEach(categoryDiv => {
+      const categoryName = categoryDiv.querySelector('.category-name').value.trim();
+      if (!categoryName) return;
+
+      // Collect category-level role overrides
+      const categoryRoleOverrides = [];
+      const categoryOverrideContainer = categoryDiv.querySelector('.category-role-overrides');
+      if (categoryOverrideContainer) {
+        const overrideDivs = categoryOverrideContainer.querySelectorAll('[id^="override-"]');
+        overrideDivs.forEach(overrideDiv => {
+          const roleSelect = overrideDiv.querySelector('.override-role');
+          const roleId = roleSelect.value;
+          const roleName = roleSelect.selectedOptions[0].text;
+
+          // Collect allow and deny permissions
+          const allow = [];
+          const deny = [];
+
+          Object.keys(CHANNEL_PERMISSIONS).forEach(permKey => {
+            const radios = overrideDiv.querySelectorAll(`input[name^="perm-"][name$="-${permKey}"]`);
+            radios.forEach(radio => {
+              if (radio.checked) {
+                if (radio.value === 'allow') {
+                  allow.push(permKey);
+                } else if (radio.value === 'deny') {
+                  deny.push(permKey);
+                }
+              }
+            });
+          });
+
+          // Only add override if there are actual permissions set
+          if (allow.length > 0 || deny.length > 0) {
+            categoryRoleOverrides.push({
+              role_id: roleId,
+              role_name: roleName,
+              allow,
+              deny
+            });
+          }
+        });
+      }
+
+      // Collect channels in this category
+      const channels = [];
+      const channelContainer = categoryDiv.querySelector('.category-channels');
+      if (channelContainer) {
+        const channelDivs = channelContainer.querySelectorAll('[id^="channel-"]');
+        channelDivs.forEach(channelDiv => {
+          const nameInput = channelDiv.querySelector('.channel-name');
+          if (!nameInput || !nameInput.value.trim()) return;
+
+          channels.push({
+            name: nameInput.value.trim(),
+            type: channelDiv.querySelector('.channel-type').value,
+            topic: channelDiv.querySelector('.channel-topic')?.value.trim() || null,
+          });
+        });
+      }
+
+      // Only add category if it has at least one channel
+      if (channels.length > 0) {
+        data.push({
+          category_name: categoryName,
+          role_overrides: categoryRoleOverrides.length > 0 ? categoryRoleOverrides : null,
+          channels: channels
+        });
+      }
+    });
+  } else {
+    const roles = document.querySelectorAll('#rolesList > div');
+    if (roles.length === 0) {
+      alert('Please add at least one role');
+      return;
+    }
+
+    roles.forEach(roleDiv => {
+      const nameInput = roleDiv.querySelector('.role-name');
+      if (!nameInput.value.trim()) return;
+
+      // Get selected permissions
+      const permissionsSelect = roleDiv.querySelector('.role-permissions');
+      const selectedPermissions = Array.from(permissionsSelect.selectedOptions).map(opt => opt.value);
+
+      data.push({
+        name: nameInput.value.trim(),
+        color: roleDiv.querySelector('.role-color').value,
+        hoist: roleDiv.querySelector('.role-hoisted').checked,
+        mentionable: roleDiv.querySelector('.role-mentionable').checked,
+        permissions: selectedPermissions.length > 0 ? selectedPermissions : null,
+      });
+    });
+  }
+
+  if (data.length === 0) {
+    alert(`Please add at least one ${type}`);
+    return;
+  }
+
+  // Determine if we're editing or creating
+  const isEditing = editingTemplateId !== null;
+  const endpoint = isEditing
+    ? `/api/guild/${guildId}/templates/${type}/${editingTemplateId}/`
+    : (type === 'channel'
+        ? `/api/guild/${guildId}/templates/channels/`
+        : `/api/guild/${guildId}/templates/roles/`);
+
+  try {
+    const response = await csrfFetch(endpoint, {
+      method: isEditing ? 'PUT' : 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+      body: JSON.stringify({
+        name,
+        description: description || null,
+        [type === 'channel' ? 'channels' : 'roles']: data,
+      }),
+    });
+
+    const result = await response.json();
+
+    if (result.success) {
+      closeCreateModal();
+      window.location.reload();
+    } else {
+      alert('Error: ' + (result.error || (isEditing ? 'Failed to update template' : 'Failed to create template')));
+    }
+  } catch (err) {
+    alert('Error: ' + err.message);
+  }
+}
+
+async function applyTemplate(type, id) {
+  if (!confirm(`Apply this template? This will create new ${type} in your server.`)) return;
+
+  try {
+    const response = await csrfFetch(`/api/guild/${guildId}/templates/${type}/${id}/apply/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+    });
+    const result = await response.json();
+    if (result.success) {
+      alert('Template queued for application! Check your Discord server.');
+      window.location.reload();
+    } else {
+      throw new Error(result.error);
+    }
+  } catch (err) {
+    alert('Error: ' + err.message);
+  }
+}
+
+async function deleteTemplate(type, id) {
+  if (!confirm('Delete this template? This cannot be undone.')) return;
+
+  try {
+    const response = await csrfFetch(`/api/guild/${guildId}/templates/${type}/${id}/`, {
+      method: 'DELETE',
+      headers: { 'X-CSRFToken': csrfToken },
+    });
+    const result = await response.json();
+    if (result.success) {
+      window.location.reload();
+    } else {
+      throw new Error(result.error);
+    }
+  } catch (err) {
+    alert('Error: ' + err.message);
+  }
+}
+
+async function editTemplate(type, id) {
+  try {
+    // Fetch template data
+    const response = await csrfFetch(`/api/guild/${guildId}/templates/${type}/${id}/`);
+    const template = await response.json();
+
+    if (!template) {
+      alert('Failed to load template');
+      return;
+    }
+
+    editingTemplateId = id;
+
+    // Set up modal for editing
+    document.getElementById('templateType').value = type;
+    document.getElementById('modalTitle').innerHTML = `<i class="fas fa-edit mr-2"></i>Edit ${type === 'channels' ? 'Channel' : 'Role'} Template`;
+    document.getElementById('saveTemplateBtn').innerHTML = '<i class="fas fa-check mr-2"></i>Update Template';
+    document.getElementById('templateName').value = template.name;
+    document.getElementById('templateDescription').value = template.description || '';
+
+    // Show appropriate builder
+    const channelBuilder = document.getElementById('channelBuilder');
+    const roleBuilder = document.getElementById('roleBuilder');
+
+    if (type === 'channels') {
+      // Fetch guild roles first
+      try {
+        const rolesResponse = await csrfFetch(`/api/guild/${guildId}/roles/`);
+        const rolesData = await rolesResponse.json();
+        if (rolesData.success) {
+          guildRoles = rolesData.roles;
+        }
+      } catch (err) {
+        console.error('Error fetching roles:', err);
+        guildRoles = [];
+      }
+
+      channelBuilder.classList.remove('hidden');
+      roleBuilder.classList.add('hidden');
+      document.getElementById('categoriesList').innerHTML = '';
+      channelCounter = 0;
+      categoryCounter = 0;
+      roleOverrideCounter = 0;
+
+      // Parse and load category data
+      const templateData = JSON.parse(template.template_data);
+
+      // Detect if this is old format (channel-first) and convert to new format (category-first)
+      let categories;
+      if (templateData.length > 0 && templateData[0].hasOwnProperty('category') && !templateData[0].hasOwnProperty('category_name')) {
+        // Old format detected - convert to category-first
+        console.log('Old template format detected, converting to category-first structure');
+        const categoryMap = new Map();
+
+        templateData.forEach(channelData => {
+          const catName = channelData.category || 'Uncategorized';
+
+          if (!categoryMap.has(catName)) {
+            // Create new category entry
+            categoryMap.set(catName, {
+              category_name: catName,
+              role_overrides: channelData.role_overrides || null,
+              channels: []
+            });
+          }
+
+          // Add channel to category
+          categoryMap.get(catName).channels.push({
+            name: channelData.name,
+            type: channelData.type || 'text',
+            topic: channelData.topic || null
+          });
+        });
+
+        categories = Array.from(categoryMap.values());
+        console.log('Converted old template to category-first:', categories);
+      } else {
+        // New format - use as is
+        categories = templateData;
+      }
+
+      categories.forEach(categoryData => {
+        addCategory();
+        const lastCategory = document.querySelector('#categoriesList > div:last-child');
+        const categoryId = lastCategory.id.split('-')[1];
+
+        // Set category name
+        lastCategory.querySelector('.category-name').value = categoryData.category_name;
+
+        // Load category-level role overrides
+        if (categoryData.role_overrides && categoryData.role_overrides.length > 0) {
+          categoryData.role_overrides.forEach(override => {
+            addCategoryRoleOverride(categoryId);
+            const lastOverride = document.querySelector(`#category-${categoryId}-overrides > div:last-child`);
+
+            // Set role
+            const roleSelect = lastOverride.querySelector('.override-role');
+            roleSelect.value = override.role_id;
+
+            // Set allow permissions
+            if (override.allow) {
+              override.allow.forEach(perm => {
+                const allowRadio = lastOverride.querySelector(`input[name$="-${perm}"][value="allow"]`);
+                if (allowRadio) allowRadio.checked = true;
+              });
+            }
+
+            // Set deny permissions
+            if (override.deny) {
+              override.deny.forEach(perm => {
+                const denyRadio = lastOverride.querySelector(`input[name$="-${perm}"][value="deny"]`);
+                if (denyRadio) denyRadio.checked = true;
+              });
+            }
+          });
+        }
+
+        // Load channels in this category
+        if (categoryData.channels && categoryData.channels.length > 0) {
+          categoryData.channels.forEach(channelData => {
+            addChannelToCategory(categoryId);
+            const lastChannel = document.querySelector(`#category-${categoryId}-channels > div:last-child`);
+
+            lastChannel.querySelector('.channel-name').value = channelData.name;
+            lastChannel.querySelector('.channel-type').value = channelData.type || 'text';
+            if (channelData.topic) {
+              lastChannel.querySelector('.channel-topic').value = channelData.topic;
+            }
+          });
+        }
+      });
+    } else {
+      roleBuilder.classList.remove('hidden');
+      channelBuilder.classList.add('hidden');
+      document.getElementById('rolesList').innerHTML = '';
+      roleCounter = 0;
+
+      // Parse and load role data
+      const roles = JSON.parse(template.template_data);
+      roles.forEach(roleData => {
+        addRoleRow();
+        const lastRole = document.querySelector('#rolesList > div:last-child');
+        lastRole.querySelector('.role-name').value = roleData.name;
+        lastRole.querySelector('.role-color').value = roleData.color || '#99aab5';
+        lastRole.querySelector('.role-hoisted').checked = roleData.hoist || false;
+        lastRole.querySelector('.role-mentionable').checked = roleData.mentionable || false;
+
+        // Set selected permissions
+        if (roleData.permissions) {
+          const permSelect = lastRole.querySelector('.role-permissions');
+          roleData.permissions.forEach(perm => {
+            const option = Array.from(permSelect.options).find(opt => opt.value === perm);
+            if (option) option.selected = true;
+          });
+        }
+      });
+    }
+
+    document.getElementById('createModal').classList.remove('hidden');
+  } catch (err) {
+    alert('Error loading template: ' + err.message);
+  }
+}
+</script>
+{% endblock guild_content %}

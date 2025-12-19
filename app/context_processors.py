@@ -8,7 +8,7 @@ def subscription_info(request):
     path_parts = request.path.split('/')
     guild_id = None
 
-    # Check if path contains a guild ID (format: /warden/guild/<guild_id>/...)
+    # Check if path contains a guild ID (format: /questlog/guild/<guild_id>/...)
     if 'guild' in path_parts:
         try:
             guild_idx = path_parts.index('guild')

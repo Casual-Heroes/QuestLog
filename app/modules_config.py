@@ -1,5 +1,5 @@
 """
-Warden Bot - Module Configuration
+QuestLog - Module Configuration
 Defines available modules, pricing, and features for modular subscription system.
 """
 
