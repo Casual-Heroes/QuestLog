@@ -1726,8 +1726,10 @@ def force_sync_guild(request, guild_id):
     try:
         # Call bot API to trigger sync
         bot_api_url = os.getenv('WARDEN_BOT_API_URL', 'http://localhost:8001')
+        bot_api_token = os.getenv('DISCORD_BOT_API_TOKEN')
         response = requests.post(
             f'{bot_api_url}/api/sync/{guild_id}',
+            headers={'Authorization': f'Bearer {bot_api_token}'},
             timeout=10
         )
 

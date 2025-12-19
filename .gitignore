@@ -25,6 +25,8 @@ staticfiles/admin/js/vendor/jquery/LICENSE.txt
 staticfiles/admin/js/vendor/select2/LICENSE.md
 staticfiles/admin/js/vendor/xregexp/LICENSE.txt
 staticfiles/admin/css/vendor/select2/LICENSE-SELECT2.md
+QUESTLOG_SECURITY_AUDIT_SUMMARY.md
+QUESTLOG_TESTING_CHECKLIST.md
 
 # Custom Files and Folders to Ignore
 find_corrupted_members.py
@@ -63,6 +65,7 @@ teststats.py
 **/settings.py
 **/wsgi.py
 *.sql
+*.md
 
 # Ignore environments
 .env
