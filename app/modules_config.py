@@ -19,10 +19,10 @@ MODULES = {
             'Unlock: Unlimited Raffles with scheduled auto-draw, multiple winners, prize tiers & analytics',
         ],
         'price_monthly': 5.00,
-        'price_yearly': 50.00,
-        'stripe_product_id': 'prod_TZclRkRQ3gPpqM',
-        'stripe_price_monthly_id': 'price_1ScTWHCqgyN1IYjdTxFykzCH',
-        'stripe_price_yearly_id': 'price_1ScTWHCqgyN1IYjdTxFykzCH',  # Update with yearly ID when created
+        'price_yearly': None,  # No yearly option for individual modules - use Complete Suite instead
+        'stripe_product_id': 'prod_TZd6IFxIGxYZ12',
+        'stripe_price_monthly_id': 'price_1ScTqdERj6YYcmYacCxWuHvx',
+        'stripe_price_yearly_id': None,  # Not available - yearly only offered in Complete Suite
     },
     'roles': {
         'name': 'Role Management',
@@ -39,10 +39,10 @@ MODULES = {
             'Quick Server Setup',
         ],
         'price_monthly': 4.00,
-        'price_yearly': 40.00,
-        'stripe_product_id': 'prod_TZcmPFcIcFQbkS',
-        'stripe_price_monthly_id': 'price_1ScTWnCqgyN1IYjdjR6CjPdT',
-        'stripe_price_yearly_id': 'price_1ScTWnCqgyN1IYjdjR6CjPdT',  # Update with yearly ID when created
+        'price_yearly': None,  # No yearly option for individual modules - use Complete Suite instead
+        'stripe_product_id': 'prod_TZd6kMol8h8OxS',
+        'stripe_price_monthly_id': 'price_1ScTqbERj6YYcmYay3mrvS2X',
+        'stripe_price_yearly_id': None,  # Not available - yearly only offered in Complete Suite
     },
     'moderation': {
         'name': 'Moderation & Security',
@@ -60,10 +60,10 @@ MODULES = {
             'Bulk Moderation Tools',
         ],
         'price_monthly': 5.00,
-        'price_yearly': 50.00,
-        'stripe_product_id': 'prod_TZcmue3k5Gd9n1',
-        'stripe_price_monthly_id': 'price_1ScTX9CqgyN1IYjdICJkXc4L',
-        'stripe_price_yearly_id': 'price_1ScTX9CqgyN1IYjdICJkXc4L',  # Update with yearly ID when created
+        'price_yearly': None,  # No yearly option for individual modules - use Complete Suite instead
+        'stripe_product_id': 'prod_TZd6nD1lZpGO5C',
+        'stripe_price_monthly_id': 'price_1ScTqaERj6YYcmYa6KMXQ6mc',
+        'stripe_price_yearly_id': None,  # Not available - yearly only offered in Complete Suite
     },
     'discovery': {
         'name': 'Discovery & Promotion',
@@ -81,10 +81,10 @@ MODULES = {
             'Customizable Schedules & Cooldowns',
         ],
         'price_monthly': 5.00,
-        'price_yearly': 50.00,
-        'stripe_product_id': 'prod_TZcnweCmkz1XER',
-        'stripe_price_monthly_id': 'price_1ScTYMCqgyN1IYjdwgYA0lpS',
-        'stripe_price_yearly_id': 'price_1ScTYMCqgyN1IYjdwgYA0lpS',  # Update with yearly ID when created
+        'price_yearly': None,  # No yearly option for individual modules - use Complete Suite instead
+        'stripe_product_id': 'prod_TZd6zIo0bgrOkI',
+        'stripe_price_monthly_id': 'price_1ScTqYERj6YYcmYaPbMaXKMq',
+        'stripe_price_yearly_id': None,  # Not available - yearly only offered in Complete Suite
     },
     'lfg': {
         'name': 'Events & Attendance',
@@ -102,10 +102,10 @@ MODULES = {
             'Global Pardon System',
         ],
         'price_monthly': 4.00,
-        'price_yearly': 40.00,
-        'stripe_product_id': 'prod_TZcoiL7fpIHIfC',
-        'stripe_price_monthly_id': 'price_1ScTYhCqgyN1IYjdBxbQpD35',
-        'stripe_price_yearly_id': 'price_1ScTYhCqgyN1IYjdBxbQpD35',  # Update with yearly ID when created
+        'price_yearly': None,  # No yearly option for individual modules - use Complete Suite instead
+        'stripe_product_id': 'prod_TZd6NDw20w922S',
+        'stripe_price_monthly_id': 'price_1ScTqWERj6YYcmYapbCjlS9v',
+        'stripe_price_yearly_id': None,  # Not available - yearly only offered in Complete Suite
     },
 }
 
@@ -127,12 +127,17 @@ BUNDLES = {
         'sale_price_lifetime': None,
         'savings': 10.00,  # Total would be $23/month à la carte (5+4+5+5+4)
         'highlight': True,  # Featured bundle
-        'stripe_product_id': 'prod_TZgyYIHP0dbMpP',  # Complete Suite product
-        'stripe_price_monthly_id': 'price_1ScXaQCqgyN1IYjdLGIog2SW',  # Monthly $12.99
-        'stripe_price_3month_id': 'price_1ScTUlCqgyN1IYjd9qbkfE6G',
-        'stripe_price_6month_id': 'price_1ScTU0CqgyN1IYjdzMWY02Og',
-        'stripe_price_yearly_id': 'price_1ScTVuCqgyN1IYjdn76QEcx1',
-        'stripe_price_lifetime_id': 'price_1ScTVOCqgyN1IYjddB9jx6Br',
+        # Note: Each billing cycle has its own product in Stripe
+        'stripe_product_id': 'prod_TdOB8KKZeUuIkd',  # Monthly product
+        'stripe_product_3month_id': 'prod_TZd7f8sag4VZeu',  # 3-Month product
+        'stripe_product_6month_id': 'prod_TZd6zLCDTjgnb5',  # 6-Month product
+        'stripe_product_yearly_id': 'prod_TZd6ZNFkNrv2tY',  # Yearly product
+        'stripe_product_lifetime_id': 'prod_TZd6VDLIlYxdsm',  # Lifetime product
+        'stripe_price_monthly_id': 'price_1Sg7PUERj6YYcmYaHPYUJFlF',  # Monthly $12.99
+        'stripe_price_3month_id': 'price_1ScTr8ERj6YYcmYakvc4TNRU',   # 3-Month $27.00
+        'stripe_price_6month_id': 'price_1ScTqkERj6YYcmYafd25n0iR',   # 6-Month $42.00
+        'stripe_price_yearly_id': 'price_1ScTqgERj6YYcmYa6aF6ppqO',   # Yearly $49.99
+        'stripe_price_lifetime_id': 'price_1ScTqhERj6YYcmYa4mvJXiiZ', # Lifetime $99.99
         # Sale price IDs (create in Stripe when running promotions)
         'stripe_sale_price_monthly_id': None,
         'stripe_sale_price_3month_id': None,

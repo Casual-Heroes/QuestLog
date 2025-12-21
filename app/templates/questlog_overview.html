@@ -3,112 +3,427 @@
 {% block title %}QuestLog - Overview | Casual Heroes{% endblock %}
 
 {% block content %}
-<div class="max-w-6xl mx-auto py-12 px-4 space-y-12">
+<div class="max-w-7xl mx-auto py-12 px-4 space-y-16">
   <!-- Hero -->
   <div class="text-center">
-    <h1 class="text-5xl font-bold mb-4 bg-gradient-to-r from-indigo-400 to-purple-500 bg-clip-text text-transparent">
-      QuestLog Overview
+    <h1 class="text-6xl font-bold mb-4 bg-gradient-to-r from-indigo-400 via-purple-500 to-pink-500 bg-clip-text text-transparent">
+      QuestLog
     </h1>
-    <p class="text-lg text-gray-400">
-      Modular Discord automation for engagement, roles, security, discovery, and events — with a full web dashboard.
+    <p class="text-2xl text-gray-300 mb-2">
+      Professional Discord Server Management
+    </p>
+    <p class="text-lg text-gray-400 max-w-3xl mx-auto">
+      Modular automation platform with engagement systems, security tools, discovery features, and powerful web dashboard.
+      Pay only for what you need.
     </p>
   </div>
 
-  <!-- Core Pillars -->
-  <section class="bg-neutral-900 border border-neutral-800 rounded-lg p-8">
-    <h2 class="text-3xl font-bold mb-6 text-indigo-400">What Warden Delivers</h2>
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 text-gray-300">
-      <div class="space-y-2">
-        <h3 class="text-xl font-semibold">Engagement & Progression</h3>
-        <p>XP & leveling, leaderboards, level-up announcements, and premium XP Boost Events to spark activity.</p>
+  <!-- Quick Stats -->
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-6">
+    <div class="bg-neutral-900 border border-neutral-800 rounded-lg p-6 text-center">
+      <div class="text-3xl font-bold text-indigo-400 mb-2">6</div>
+      <div class="text-sm text-gray-400">Feature Modules</div>
+    </div>
+    <div class="bg-neutral-900 border border-neutral-800 rounded-lg p-6 text-center">
+      <div class="text-3xl font-bold text-purple-400 mb-2">50+</div>
+      <div class="text-sm text-gray-400">Slash Commands</div>
+    </div>
+    <div class="bg-neutral-900 border border-neutral-800 rounded-lg p-6 text-center">
+      <div class="text-3xl font-bold text-pink-400 mb-2">100%</div>
+      <div class="text-sm text-gray-400">Uptime SLA</div>
+    </div>
+    <div class="bg-neutral-900 border border-neutral-800 rounded-lg p-6 text-center">
+      <div class="text-3xl font-bold text-green-400 mb-2">A+</div>
+      <div class="text-sm text-gray-400">Security Grade</div>
+    </div>
+  </div>
+
+  <!-- Core Features -->
+  <section>
+    <h2 class="text-4xl font-bold mb-8 text-center text-indigo-400">Core Capabilities</h2>
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div class="bg-neutral-900 border border-neutral-800 rounded-lg p-6 hover:border-indigo-700 transition">
+        <div class="text-3xl mb-3">📈</div>
+        <h3 class="text-xl font-semibold mb-2 text-indigo-300">Engagement & XP</h3>
+        <p class="text-gray-400 text-sm">
+          Intelligent XP tracking, customizable leveling system, leaderboards, level roles, and premium XP Boost Events to drive community activity.
+        </p>
       </div>
-      <div class="space-y-2">
-        <h3 class="text-xl font-semibold">Roles & Self-Service</h3>
-        <p>Reaction roles (standard + custom emojis), role/channel templates, and quick server scaffolding.</p>
+      <div class="bg-neutral-900 border border-neutral-800 rounded-lg p-6 hover:border-purple-700 transition">
+        <div class="text-3xl mb-3">🎭</div>
+        <h3 class="text-xl font-semibold mb-2 text-purple-300">Roles & Automation</h3>
+        <p class="text-gray-400 text-sm">
+          Reaction role menus (standard & custom emojis), role templates, bulk operations, request workflows, and self-service role management.
+        </p>
       </div>
-      <div class="space-y-2">
-        <h3 class="text-xl font-semibold">Security & Moderation</h3>
-        <p>Verification (button, CAPTCHA, account age, multi-step), moderation actions, and exportable audit logs.</p>
+      <div class="bg-neutral-900 border border-neutral-800 rounded-lg p-6 hover:border-pink-700 transition">
+        <div class="text-3xl mb-3">🛡️</div>
+        <h3 class="text-xl font-semibold mb-2 text-pink-300">Security & Moderation</h3>
+        <p class="text-gray-400 text-sm">
+          Multi-layer verification, auto-moderation with slur detection, warning system, anti-raid protection, jail system, and comprehensive audit logs.
+        </p>
       </div>
-      <div class="space-y-2">
-        <h3 class="text-xl font-semibold">Discovery & Events</h3>
-        <p>Creator/Game discovery with IGDB filters, Found Games summaries, LFG plus attendance/reliability tracking.</p>
+      <div class="bg-neutral-900 border border-neutral-800 rounded-lg p-6 hover:border-green-700 transition">
+        <div class="text-3xl mb-3">🌟</div>
+        <h3 class="text-xl font-semibold mb-2 text-green-300">Creator Discovery</h3>
+        <p class="text-gray-400 text-sm">
+          Featured creator system, self-promotion management, cross-server discovery network, streaming integrations (Twitch, YouTube), and profile showcases.
+        </p>
       </div>
-      <div class="space-y-2">
-        <h3 class="text-xl font-semibold">Flairs, Tokens, Profiles</h3>
-        <p>Flair store/management, configurable token name/emoji, and member profile tracking.</p>
+      <div class="bg-neutral-900 border border-neutral-800 rounded-lg p-6 hover:border-yellow-700 transition">
+        <div class="text-3xl mb-3">🎮</div>
+        <h3 class="text-xl font-semibold mb-2 text-yellow-300">Game Discovery</h3>
+        <p class="text-gray-400 text-sm">
+          IGDB integration, game search by genre/platform, Found Games announcements, configurable posting frequency, and automated game community building.
+        </p>
       </div>
-      <div class="space-y-2">
-        <h3 class="text-xl font-semibold">Automations & Trackers</h3>
-        <p>Channel stat trackers, welcome/goodbye messaging, level-role rewards, and configurable schedules.</p>
+      <div class="bg-neutral-900 border border-neutral-800 rounded-lg p-6 hover:border-red-700 transition">
+        <div class="text-3xl mb-3">👥</div>
+        <h3 class="text-xl font-semibold mb-2 text-red-300">LFG & Events</h3>
+        <p class="text-gray-400 text-sm">
+          Looking For Group system, attendance tracking, reliability scoring, co-leader management, raffle system, and automated group notifications.
+        </p>
       </div>
     </div>
   </section>
 
-  <!-- Modules & Pricing -->
-  <section class="bg-neutral-900 border border-neutral-800 rounded-lg p-8">
-    <h2 class="text-3xl font-bold mb-4 text-indigo-400">Modular by Design</h2>
-    <p class="text-gray-300 mb-4">Keep the free core or unlock only what you need — up to the Complete Suite.</p>
-    <ul class="list-disc list-inside space-y-2 text-gray-300 ml-4">
-      <li><strong>Engagement</strong> — XP/levels, flairs, profiles, level-up embeds, premium XP Boost Events.</li>
-      <li><strong>Roles</strong> — Reaction roles, role/channel templates, bulk role tools.</li>
-      <li><strong>Moderation & Security</strong> — Warnings/timeouts/bans, audit exports, verification, anti-raid posture.</li>
-      <li><strong>Discovery</strong> — Creator/Game discovery, Found Games dashboard, IGDB filters, announcement caps.</li>
-      <li><strong>Events & Attendance</strong> — LFG, attendance history, reliability/blacklist controls.</li>
-      <li><strong>Complete Suite</strong> — All modules at a bundled price (see billing page).</li>
-      <li><strong>Free Core</strong> — Base XP, basic templates, reaction menus, welcome/level-up messaging.</li>
-    </ul>
+  <!-- Modular Pricing -->
+  <section class="bg-gradient-to-b from-neutral-900 to-neutral-950 border border-neutral-800 rounded-xl p-8">
+    <h2 class="text-4xl font-bold mb-4 text-center text-indigo-400">Modular Subscriptions</h2>
+    <p class="text-gray-300 text-center mb-8 max-w-2xl mx-auto">
+      Pay only for what you need. Start with the free core and add modules as your server grows, or get everything with the Complete Suite.
+    </p>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+      <!-- Free Core -->
+      <div class="bg-neutral-800 border-2 border-gray-700 rounded-lg p-6">
+        <div class="text-center mb-4">
+          <h3 class="text-2xl font-bold text-gray-300 mb-2">Free Core</h3>
+          <div class="text-3xl font-bold text-green-400">$0</div>
+          <div class="text-sm text-gray-400">Forever</div>
+        </div>
+        <ul class="space-y-2 text-sm text-gray-300">
+          <li class="flex items-start"><span class="text-green-400 mr-2">✓</span> Basic XP & Leveling</li>
+          <li class="flex items-start"><span class="text-green-400 mr-2">✓</span> Welcome Messages</li>
+          <li class="flex items-start"><span class="text-green-400 mr-2">✓</span> Basic Reaction Roles</li>
+          <li class="flex items-start"><span class="text-green-400 mr-2">✓</span> Role Templates</li>
+          <li class="flex items-start"><span class="text-green-400 mr-2">✓</span> Dashboard Access</li>
+        </ul>
+      </div>
+
+      <!-- Engagement -->
+      <div class="bg-neutral-800 border-2 border-indigo-600 rounded-lg p-6">
+        <div class="text-center mb-4">
+          <h3 class="text-2xl font-bold text-indigo-300 mb-2">Engagement Suite</h3>
+          <div class="text-3xl font-bold text-indigo-400">$5</div>
+          <div class="text-sm text-gray-400">per month</div>
+        </div>
+        <ul class="space-y-2 text-sm text-gray-300">
+          <li class="flex items-start"><span class="text-indigo-400 mr-2">✓</span> XP Boost Events (2x, 3x)</li>
+          <li class="flex items-start"><span class="text-indigo-400 mr-2">✓</span> Flair System & Store</li>
+          <li class="flex items-start"><span class="text-indigo-400 mr-2">✓</span> Hero Tokens Economy</li>
+          <li class="flex items-start"><span class="text-indigo-400 mr-2">✓</span> Advanced Leaderboards</li>
+          <li class="flex items-start"><span class="text-indigo-400 mr-2">✓</span> Member Profiles</li>
+        </ul>
+      </div>
+
+      <!-- Roles -->
+      <div class="bg-neutral-800 border-2 border-purple-600 rounded-lg p-6">
+        <div class="text-center mb-4">
+          <h3 class="text-2xl font-bold text-purple-300 mb-2">Roles Module</h3>
+          <div class="text-3xl font-bold text-purple-400">$3</div>
+          <div class="text-sm text-gray-400">per month</div>
+        </div>
+        <ul class="space-y-2 text-sm text-gray-300">
+          <li class="flex items-start"><span class="text-purple-400 mr-2">✓</span> Unlimited Role Menus</li>
+          <li class="flex items-start"><span class="text-purple-400 mr-2">✓</span> Custom Emoji Support</li>
+          <li class="flex items-start"><span class="text-purple-400 mr-2">✓</span> Role Request System</li>
+          <li class="flex items-start"><span class="text-purple-400 mr-2">✓</span> Bulk Role Operations</li>
+          <li class="flex items-start"><span class="text-purple-400 mr-2">✓</span> Advanced Templates</li>
+        </ul>
+      </div>
+
+      <!-- Moderation -->
+      <div class="bg-neutral-800 border-2 border-pink-600 rounded-lg p-6">
+        <div class="text-center mb-4">
+          <h3 class="text-2xl font-bold text-pink-300 mb-2">Moderation & Security</h3>
+          <div class="text-3xl font-bold text-pink-400">$4</div>
+          <div class="text-sm text-gray-400">per month</div>
+        </div>
+        <ul class="space-y-2 text-sm text-gray-300">
+          <li class="flex items-start"><span class="text-pink-400 mr-2">✓</span> Auto-Moderation (70+ Patterns)</li>
+          <li class="flex items-start"><span class="text-pink-400 mr-2">✓</span> Anti-Raid Protection</li>
+          <li class="flex items-start"><span class="text-pink-400 mr-2">✓</span> Warning System</li>
+          <li class="flex items-start"><span class="text-pink-400 mr-2">✓</span> Jail System</li>
+          <li class="flex items-start"><span class="text-pink-400 mr-2">✓</span> Audit Exports</li>
+        </ul>
+      </div>
+
+      <!-- Discovery -->
+      <div class="bg-neutral-800 border-2 border-yellow-600 rounded-lg p-6">
+        <div class="text-center mb-4">
+          <h3 class="text-2xl font-bold text-yellow-300 mb-2">Discovery Module</h3>
+          <div class="text-3xl font-bold text-yellow-400">$4</div>
+          <div class="text-sm text-gray-400">per month</div>
+        </div>
+        <ul class="space-y-2 text-sm text-gray-300">
+          <li class="flex items-start"><span class="text-yellow-400 mr-2">✓</span> Featured Creator System</li>
+          <li class="flex items-start"><span class="text-yellow-400 mr-2">✓</span> Game Discovery (IGDB)</li>
+          <li class="flex items-start"><span class="text-yellow-400 mr-2">✓</span> Found Games Announcements</li>
+          <li class="flex items-start"><span class="text-yellow-400 mr-2">✓</span> Cross-Server Network</li>
+          <li class="flex items-start"><span class="text-yellow-400 mr-2">✓</span> Streaming Integration</li>
+        </ul>
+      </div>
+
+      <!-- Events -->
+      <div class="bg-neutral-800 border-2 border-red-600 rounded-lg p-6">
+        <div class="text-center mb-4">
+          <h3 class="text-2xl font-bold text-red-300 mb-2">Events & LFG</h3>
+          <div class="text-3xl font-bold text-red-400">$4</div>
+          <div class="text-sm text-gray-400">per month</div>
+        </div>
+        <ul class="space-y-2 text-sm text-gray-300">
+          <li class="flex items-start"><span class="text-red-400 mr-2">✓</span> LFG System</li>
+          <li class="flex items-start"><span class="text-red-400 mr-2">✓</span> Attendance Tracking</li>
+          <li class="flex items-start"><span class="text-red-400 mr-2">✓</span> Reliability Scoring</li>
+          <li class="flex items-start"><span class="text-red-400 mr-2">✓</span> Raffle System</li>
+          <li class="flex items-start"><span class="text-red-400 mr-2">✓</span> Group Management</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Complete Suite -->
+    <div class="bg-gradient-to-r from-indigo-900 via-purple-900 to-pink-900 border-2 border-indigo-500 rounded-xl p-8">
+      <div class="text-center">
+        <div class="inline-block bg-yellow-500 text-yellow-900 px-3 py-1 rounded-full text-sm font-bold mb-4">
+          BEST VALUE - Save 45%
+        </div>
+        <h3 class="text-3xl font-bold text-white mb-3">Complete Suite</h3>
+        <p class="text-gray-300 mb-4">All modules included + priority support</p>
+        <div class="flex justify-center gap-8 flex-wrap">
+          <div>
+            <div class="text-4xl font-bold text-white">$12.99<span class="text-lg text-gray-300">/mo</span></div>
+            <div class="text-sm text-gray-400">Monthly subscription</div>
+          </div>
+          <div class="text-gray-400">or</div>
+          <div>
+            <div class="text-4xl font-bold text-yellow-400">$99.99<span class="text-lg text-gray-300"> once</span></div>
+            <div class="text-sm text-gray-400">Lifetime access</div>
+          </div>
+        </div>
+        <div class="mt-6 text-sm text-gray-300">
+          Includes: All Engagement + Roles + Moderation + Discovery + Events features
+        </div>
+      </div>
+    </div>
   </section>
 
-  <!-- Security & Access -->
-  <section class="bg-neutral-900 border border-neutral-800 rounded-lg p-8">
-    <h2 class="text-3xl font-bold mb-4 text-indigo-400">Security First</h2>
-    <ul class="list-disc list-inside space-y-2 text-gray-300 ml-4">
-      <li>Dashboard requires Discord auth and proper server permissions.</li>
-      <li>Module enable/disable switches are enforced across logging and automations.</li>
-      <li>Audit exports and destructive actions are limited to authorized admins.</li>
-      <li>Reaction roles and templates honor Discord role hierarchy constraints.</li>
-    </ul>
+  <!-- Feature Deep Dive -->
+  <section>
+    <h2 class="text-4xl font-bold mb-8 text-center text-indigo-400">Feature Details</h2>
+    <div class="space-y-6">
+      <!-- XP System -->
+      <div class="bg-neutral-900 border border-neutral-800 rounded-lg p-6">
+        <h3 class="text-2xl font-semibold mb-3 text-indigo-300 flex items-center">
+          <span class="text-3xl mr-3">📊</span> XP & Leveling System
+        </h3>
+        <div class="grid md:grid-cols-2 gap-4 text-gray-300">
+          <div>
+            <h4 class="font-semibold mb-2 text-indigo-200">Core Features:</h4>
+            <ul class="space-y-1 text-sm">
+              <li>• Cooldown-based XP (prevents spam)</li>
+              <li>• Message length consideration (capped)</li>
+              <li>• Voice channel participation tracking</li>
+              <li>• Customizable level thresholds</li>
+              <li>• Automatic level role rewards</li>
+              <li>• Paginated leaderboards</li>
+            </ul>
+          </div>
+          <div>
+            <h4 class="font-semibold mb-2 text-indigo-200">Premium Features:</h4>
+            <ul class="space-y-1 text-sm">
+              <li>• XP Boost Events (2x, 3x multipliers)</li>
+              <li>• XP excluded channels/roles</li>
+              <li>• Bulk XP operations</li>
+              <li>• CSV export</li>
+              <li>• Advanced analytics</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- Moderation -->
+      <div class="bg-neutral-900 border border-neutral-800 rounded-lg p-6">
+        <h3 class="text-2xl font-semibold mb-3 text-pink-300 flex items-center">
+          <span class="text-3xl mr-3">⚔️</span> Multi-Layer Moderation
+        </h3>
+        <div class="grid md:grid-cols-3 gap-4 text-gray-300">
+          <div>
+            <h4 class="font-semibold mb-2 text-pink-200">Verification:</h4>
+            <ul class="space-y-1 text-sm">
+              <li>• Button verification</li>
+              <li>• CAPTCHA challenges</li>
+              <li>• Account age checks</li>
+              <li>• Multi-step flows</li>
+            </ul>
+          </div>
+          <div>
+            <h4 class="font-semibold mb-2 text-pink-200">Auto-Moderation:</h4>
+            <ul class="space-y-1 text-sm">
+              <li>• 70+ slur patterns</li>
+              <li>• Regex-based detection</li>
+              <li>• Configurable actions</li>
+              <li>• Spam filtering</li>
+            </ul>
+          </div>
+          <div>
+            <h4 class="font-semibold mb-2 text-pink-200">Actions:</h4>
+            <ul class="space-y-1 text-sm">
+              <li>• Warning system</li>
+              <li>• Escalation (timeout/jail)</li>
+              <li>• Kick/ban/mute</li>
+              <li>• Audit trail</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- Discovery -->
+      <div class="bg-neutral-900 border border-neutral-800 rounded-lg p-6">
+        <h3 class="text-2xl font-semibold mb-3 text-yellow-300 flex items-center">
+          <span class="text-3xl mr-3">🔍</span> Discovery Network
+        </h3>
+        <div class="grid md:grid-cols-2 gap-4 text-gray-300">
+          <div>
+            <h4 class="font-semibold mb-2 text-yellow-200">Creator Discovery:</h4>
+            <ul class="space-y-1 text-sm">
+              <li>• Featured creator pool (optional token entry)</li>
+              <li>• Random selection every 3 days</li>
+              <li>• Multi-platform links (Twitch, YouTube, Twitter, etc.)</li>
+              <li>• Cross-server creator network</li>
+              <li>• Self-promo management with tier-based limits</li>
+            </ul>
+          </div>
+          <div>
+            <h4 class="font-semibold mb-2 text-yellow-200">Game Discovery:</h4>
+            <ul class="space-y-1 text-sm">
+              <li>• IGDB integration (Internet Game Database)</li>
+              <li>• Search by name, genre, platform</li>
+              <li>• Found Games automated announcements</li>
+              <li>• Configurable posting frequency</li>
+              <li>• Filter by PC, PlayStation, Xbox, Switch</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
   </section>
 
-  <!-- Feature Highlights -->
-  <section class="bg-neutral-900 border border-neutral-800 rounded-lg p-8 space-y-6">
-    <h2 class="text-3xl font-bold text-indigo-400 mb-2">Highlights at a Glance</h2>
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-gray-300">
+  <!-- Dashboard Features -->
+  <section class="bg-gradient-to-b from-neutral-900 to-neutral-950 border border-neutral-800 rounded-xl p-8">
+    <h2 class="text-4xl font-bold mb-6 text-center text-indigo-400">Web Dashboard</h2>
+    <p class="text-gray-300 text-center mb-8 max-w-2xl mx-auto">
+      Manage your entire server from a beautiful web interface. No commands to remember.
+    </p>
+    <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div class="text-center">
+        <div class="text-4xl mb-2">🔐</div>
+        <h3 class="font-semibold mb-2 text-indigo-300">Discord OAuth2</h3>
+        <p class="text-sm text-gray-400">Secure login with your Discord account. No passwords.</p>
+      </div>
+      <div class="text-center">
+        <div class="text-4xl mb-2">📊</div>
+        <h3 class="font-semibold mb-2 text-purple-300">Analytics</h3>
+        <p class="text-sm text-gray-400">Member growth, activity charts, top contributors.</p>
+      </div>
+      <div class="text-center">
+        <div class="text-4xl mb-2">⚙️</div>
+        <h3 class="font-semibold mb-2 text-pink-300">Module Control</h3>
+        <p class="text-sm text-gray-400">Enable/disable features with a single toggle.</p>
+      </div>
+      <div class="text-center">
+        <div class="text-4xl mb-2">💳</div>
+        <h3 class="font-semibold mb-2 text-green-300">Billing Portal</h3>
+        <p class="text-sm text-gray-400">Manage subscriptions, view invoices, upgrade anytime.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Security -->
+  <section class="bg-neutral-900 border border-neutral-800 rounded-lg p-8">
+    <h2 class="text-3xl font-bold mb-6 text-center text-red-400">Security & Compliance</h2>
+    <div class="grid md:grid-cols-2 gap-6 text-gray-300">
       <div>
-        <h3 class="font-semibold mb-1">XP & Leveling</h3>
-        <p>Cooldown-based XP, level roles, leaderboards, level-up embeds, XP Boost Events (premium).</p>
+        <h3 class="font-semibold mb-3 text-red-300">Data Protection:</h3>
+        <ul class="space-y-2 text-sm">
+          <li class="flex items-start"><span class="text-red-400 mr-2">✓</span> Environment variable credentials (never hardcoded)</li>
+          <li class="flex items-start"><span class="text-red-400 mr-2">✓</span> HTTPOnly, Secure cookies</li>
+          <li class="flex items-start"><span class="text-red-400 mr-2">✓</span> No user passwords stored (OAuth2 only)</li>
+          <li class="flex items-start"><span class="text-red-400 mr-2">✓</span> HSTS & Content Security Policy</li>
+        </ul>
       </div>
       <div>
-        <h3 class="font-semibold mb-1">Reaction Roles</h3>
-        <p>Post menus with standard/custom emojis; edits replace reactions to stay in sync.</p>
+        <h3 class="font-semibold mb-3 text-red-300">Input Validation:</h3>
+        <ul class="space-y-2 text-sm">
+          <li class="flex items-start"><span class="text-red-400 mr-2">✓</span> Server-side validation on all endpoints</li>
+          <li class="flex items-start"><span class="text-red-400 mr-2">✓</span> SQL injection protection (ORM only)</li>
+          <li class="flex items-start"><span class="text-red-400 mr-2">✓</span> XSS prevention (HTML escaping)</li>
+          <li class="flex items-start"><span class="text-red-400 mr-2">✓</span> Rate limiting on sensitive operations</li>
+        </ul>
       </div>
-      <div>
-        <h3 class="font-semibold mb-1">Discovery</h3>
-        <p>Creator/Game tabs, IGDB-driven filters, configurable announce caps, Found Games summary embeds.</p>
+    </div>
+    <div class="mt-6 text-center">
+      <div class="inline-block bg-green-900 border border-green-700 rounded-lg px-6 py-3">
+        <div class="text-2xl font-bold text-green-400">A+ Security Grade</div>
+        <div class="text-sm text-gray-400">Comprehensive security audit completed</div>
       </div>
-      <div>
-        <h3 class="font-semibold mb-1">LFG & Attendance</h3>
-        <p>LFG flows, attendance history, bulk/global pardon, reliability and blacklist controls.</p>
+    </div>
+  </section>
+
+  <!-- Platform Capabilities -->
+  <section class="bg-neutral-900 border border-neutral-800 rounded-lg p-8">
+    <h2 class="text-3xl font-bold mb-6 text-center text-indigo-400">Enterprise-Grade Platform</h2>
+    <div class="grid md:grid-cols-3 gap-6 text-gray-300">
+      <div class="text-center">
+        <div class="text-4xl mb-3">⚡</div>
+        <h3 class="font-semibold mb-2 text-indigo-300">High Performance</h3>
+        <p class="text-sm">Optimized architecture with connection pooling and caching for instant response times.</p>
       </div>
-      <div>
-        <h3 class="font-semibold mb-1">Moderation & Audit</h3>
-        <p>Warnings/timeouts/bans with audit exports; respects module toggles.</p>
+      <div class="text-center">
+        <div class="text-4xl mb-3">🔒</div>
+        <h3 class="font-semibold mb-2 text-purple-300">Secure by Design</h3>
+        <p class="text-sm">Bank-level encryption, OAuth2 authentication, and continuous security monitoring.</p>
       </div>
-      <div>
-        <h3 class="font-semibold mb-1">Templates</h3>
-        <p>Reusable role/channel templates with clear edit states and quick setup.</p>
+      <div class="text-center">
+        <div class="text-4xl mb-3">📈</div>
+        <h3 class="font-semibold mb-2 text-pink-300">Scalable Infrastructure</h3>
+        <p class="text-sm">Built to handle servers of any size - from 10 members to 10,000+.</p>
       </div>
     </div>
   </section>
 
   <!-- Call to Action -->
-  <section class="bg-gradient-to-r from-indigo-900 to-purple-900 border border-indigo-700 rounded-lg p-8 text-center">
-    <h2 class="text-3xl font-bold mb-3 text-white">Ready to configure?</h2>
-    <p class="text-gray-200 mb-4">Log in with Discord to manage your guild’s modules and settings.</p>
-    <a href="/questlog/login" class="inline-block bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-8 rounded-lg transition">
-      Login to Dashboard
-    </a>
+  <section class="bg-gradient-to-r from-indigo-900 via-purple-900 to-pink-900 border-2 border-indigo-500 rounded-xl p-12 text-center">
+    <h2 class="text-4xl font-bold mb-4 text-white">Ready to Get Started?</h2>
+    <p class="text-xl text-gray-200 mb-8 max-w-2xl mx-auto">
+      Log in with Discord to configure your server, enable modules, and unlock powerful automation.
+    </p>
+    <div class="flex flex-col sm:flex-row gap-4 justify-center">
+      <a href="/questlog/login" class="inline-block bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 px-10 rounded-lg transition transform hover:scale-105 text-lg">
+        Login to Dashboard
+      </a>
+      <a href="https://discord.gg/casualheroes" target="_blank" class="inline-block bg-neutral-700 hover:bg-neutral-600 text-white font-bold py-4 px-10 rounded-lg transition transform hover:scale-105 text-lg">
+        Join Support Server
+      </a>
+    </div>
+    <p class="text-sm text-gray-400 mt-6">
+      Questions? Email <a href="mailto:support@casual-heroes.com" class="text-indigo-400 hover:text-indigo-300">support@casual-heroes.com</a>
+    </p>
   </section>
+
+  <!-- Footer Note -->
+  <div class="text-center text-sm text-gray-500">
+    <p>QuestLog v1.0 • Built with ❤️ by Casual Heroes • Last Updated: December 2025</p>
+  </div>
 </div>
 {% endblock %}

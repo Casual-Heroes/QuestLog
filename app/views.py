@@ -33,6 +33,10 @@ logger = logging.getLogger(__name__)
 DISCORD_BOT_API_URL = os.getenv('DISCORD_BOT_API_URL', 'http://localhost:8001')
 DISCORD_BOT_API_TOKEN = os.getenv('DISCORD_BOT_API_TOKEN', 'development-token')
 
+# Cache for guilds_with_bot to prevent excessive API calls
+_guilds_cache = {'data': None, 'timestamp': 0}
+GUILDS_CACHE_TTL = 300  # Cache for 5 minutes (300 seconds) to prevent Discord API rate limiting
+
 # LFG Game Limits by Tier
 def get_lfg_game_limit(guild):
     """Get LFG game limit based on guild subscription tier."""
@@ -44,7 +48,15 @@ def get_lfg_game_limit(guild):
         return 5
 
 def get_guilds_with_bot():
-    """Get set of guild IDs where the bot is actually installed (queried from bot API)."""
+    """Get set of guild IDs where the bot is actually installed (queried from bot API with caching)."""
+    global _guilds_cache
+
+    # Check if cache is still valid
+    current_time = time.time()
+    if _guilds_cache['data'] is not None and (current_time - _guilds_cache['timestamp']) < GUILDS_CACHE_TTL:
+        return _guilds_cache['data']
+
+    # Cache expired or empty, fetch fresh data
     guilds_with_bot = set()
     try:
         import requests
@@ -75,6 +87,11 @@ def get_guilds_with_bot():
                 guilds_with_bot = {str(g.guild_id) for g in installed_guilds}
         except Exception as fallback_error:
             logger.error(f"Database fallback also failed: {fallback_error}", exc_info=True)
+
+    # Update cache
+    _guilds_cache['data'] = guilds_with_bot
+    _guilds_cache['timestamp'] = current_time
+
     return guilds_with_bot
 
 def get_member_guilds(request):
@@ -110,6 +127,107 @@ def check_lfg_game_limit(db, guild_id, guild):
     can_add = current_count < limit
 
     return (can_add, current_count, limit)
+
+
+def get_discovery_lfg_post_limit(guild):
+    """Get Discovery Network LFG monthly posting limit based on guild subscription tier."""
+    from .decorators import has_module
+
+    # Complete Suite or LFG Module = Unlimited
+    if guild.subscription_tier in ['premium', 'Premium'] or guild.is_vip:
+        return None  # Unlimited
+
+    # Check if they have LFG module
+    if has_module(guild, 'lfg'):
+        return None  # Unlimited
+
+    # Free tier = 5 posts per month
+    return 5
+
+
+def check_discovery_lfg_post_limit(db, guild_id, guild):
+    """
+    Check if guild has reached their Discovery Network LFG monthly posting limit.
+    Returns (can_post, current_count, limit, reset_date).
+    """
+    from .models import LFGGroup
+    from datetime import datetime, timezone
+    from dateutil.relativedelta import relativedelta
+
+    limit = get_discovery_lfg_post_limit(guild)
+    if limit is None:
+        return (True, None, None, None)  # Unlimited
+
+    # Calculate start of current month (UTC)
+    now = datetime.now(timezone.utc)
+    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    month_start_timestamp = int(month_start.timestamp())
+
+    # Calculate next month for reset date
+    next_month = month_start + relativedelta(months=1)
+    reset_date = next_month.strftime('%B %d, %Y')
+
+    # Count LFG posts created this month in Discovery Network
+    # (LFG groups that were created via Discovery Network have member_count >= 0)
+    current_count = db.query(LFGGroup).filter(
+        LFGGroup.guild_id == int(guild_id),
+        LFGGroup.created_at >= month_start_timestamp,
+        LFGGroup.thread_id == 0  # Discovery Network posts use placeholder thread_id
+    ).count()
+
+    can_post = current_count < limit
+
+    return (can_post, current_count, limit, reset_date)
+
+
+def get_discovery_game_share_limit(guild):
+    """Get Discovery Network game sharing monthly limit based on guild subscription tier."""
+    from .decorators import has_module
+
+    # Complete Suite or Discovery Module = Unlimited
+    if guild.subscription_tier in ['premium', 'Premium'] or guild.is_vip:
+        return None  # Unlimited
+
+    # Check if they have Discovery module
+    if has_module(guild, 'discovery'):
+        return None  # Unlimited
+
+    # Free tier = 3 shares per month (matches their 3 search config limit)
+    return 3
+
+
+def check_discovery_game_share_limit(db, guild_id, guild):
+    """
+    Check if guild has reached their Discovery Network game sharing monthly limit.
+    Returns (can_share, current_count, limit, reset_date).
+    """
+    from .models import AnnouncedGame
+    from datetime import datetime, timezone
+    from dateutil.relativedelta import relativedelta
+
+    limit = get_discovery_game_share_limit(guild)
+    if limit is None:
+        return (True, None, None, None)  # Unlimited
+
+    # Calculate start of current month (UTC)
+    now = datetime.now(timezone.utc)
+    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    month_start_timestamp = int(month_start.timestamp())
+
+    # Calculate next month for reset date
+    next_month = month_start + relativedelta(months=1)
+    reset_date = next_month.strftime('%B %d, %Y')
+
+    # Count game shares created this month
+    # (We'll add a 'shared_to_network' flag to track Discovery Network shares)
+    current_count = db.query(AnnouncedGame).filter(
+        AnnouncedGame.guild_id == int(guild_id),
+        AnnouncedGame.announced_at >= month_start_timestamp
+    ).count()
+
+    can_share = current_count < limit
+
+    return (can_share, current_count, limit, reset_date)
 
 
 class DiscordBotSession:
@@ -1537,7 +1655,7 @@ def guild_dashboard(request, guild_id):
 
     if not guild:
         messages.error(request, "You are not a member of this server.")
-        return redirect('warden_dashboard')
+        return redirect('questlog_dashboard')
 
     # If not admin, show member landing page instead
     if not is_admin:
@@ -1784,7 +1902,7 @@ def flair_store(request, guild_id):
     guild = next((g for g in all_guilds if str(g['id']) == str(guild_id)), None)
     if not guild:
         messages.error(request, "You are not a member of this server.")
-        return redirect('warden_dashboard')
+        return redirect('questlog_dashboard')
 
     # Handle POST (purchase flair)
     if request.method == 'POST':
@@ -2070,7 +2188,7 @@ def member_profile(request, guild_id):
     guild = next((g for g in all_guilds if str(g['id']) == str(guild_id)), None)
     if not guild:
         messages.error(request, "You are not a member of this server.")
-        return redirect('warden_dashboard')
+        return redirect('questlog_dashboard')
 
     is_admin = any(str(g['id']) == str(guild_id) for g in admin_guilds)
 
@@ -2161,7 +2279,7 @@ def guild_leaderboards(request, guild_id):
     guild = next((g for g in all_guilds if str(g['id']) == str(guild_id)), None)
     if not guild:
         messages.error(request, "You are not a member of this server.")
-        return redirect('warden_dashboard')
+        return redirect('questlog_dashboard')
 
     is_admin = any(str(g['id']) == str(guild_id) for g in admin_guilds)
 
@@ -2231,7 +2349,7 @@ def flair_management(request, guild_id):
     guild = next((g for g in admin_guilds if g['id'] == guild_id), None)
     if not guild:
         messages.error(request, "You don't have admin access to this server.")
-        return redirect('warden_dashboard')
+        return redirect('questlog_dashboard')
 
     # Check premium status
     is_premium = False
@@ -2284,7 +2402,7 @@ def guild_trackers(request, guild_id):
     guild = next((g for g in admin_guilds if g['id'] == guild_id), None)
     if not guild:
         messages.error(request, "You don't have admin access to this server.")
-        return redirect('warden_dashboard')
+        return redirect('questlog_dashboard')
 
     # Fetch existing trackers from database
     trackers = []
@@ -2339,16 +2457,72 @@ import json as json_lib
 
 
 def api_auth_required(view_func):
-    """Check Discord auth and guild admin access for API endpoints."""
+    """Check Discord auth and guild admin access for API endpoints with server-side validation."""
     def wrapper(request, guild_id, *args, **kwargs):
         discord_user = request.session.get('discord_user')
         if not discord_user:
             return JsonResponse({'error': 'Not authenticated'}, status=401)
 
-        admin_guilds = request.session.get('discord_admin_guilds', [])
-        guild = next((g for g in admin_guilds if str(g['id']) == str(guild_id)), None)
-        if not guild:
-            return JsonResponse({'error': 'No admin access to this guild'}, status=403)
+        # SECURITY: Server-side validation - verify permissions with Discord API
+        try:
+            import requests as req_lib
+            user_id = discord_user.get('id')
+            access_token = discord_user.get('access_token')
+
+            if not access_token:
+                logger.warning(f"No access token for user {user_id}")
+                return JsonResponse({'error': 'Authentication expired. Please log in again.'}, status=401)
+
+            # Verify user still has admin permissions in this guild
+            headers = {'Authorization': f"Bearer {access_token}"}
+
+            # Get user's guilds from Discord API
+            response = req_lib.get(
+                'https://discord.com/api/v10/users/@me/guilds',
+                headers=headers,
+                timeout=5
+            )
+
+            if response.status_code == 401:
+                # Token expired
+                logger.warning(f"Expired token for user {user_id}")
+                return JsonResponse({'error': 'Authentication expired. Please log in again.'}, status=401)
+
+            if response.status_code != 200:
+                logger.error(f"Discord API error: {response.status_code}")
+                # Fallback to session data if API fails (but log the failure)
+                admin_guilds = request.session.get('discord_admin_guilds', [])
+                guild = next((g for g in admin_guilds if str(g['id']) == str(guild_id)), None)
+                if not guild:
+                    return JsonResponse({'error': 'No admin access to this guild'}, status=403)
+                return view_func(request, guild_id, *args, **kwargs)
+
+            guilds = response.json()
+
+            # Find the requested guild and verify admin permissions
+            target_guild = next((g for g in guilds if str(g['id']) == str(guild_id)), None)
+
+            if not target_guild:
+                return JsonResponse({'error': 'You are not a member of this guild'}, status=403)
+
+            # Check for administrator permission (bit 3 = 0x8)
+            permissions = int(target_guild.get('permissions', 0))
+            is_admin = (permissions & 0x8) != 0
+
+            if not is_admin:
+                logger.warning(f"User {user_id} attempted to access guild {guild_id} without admin permissions")
+                return JsonResponse({'error': 'No admin access to this guild'}, status=403)
+
+        except req_lib.Timeout:
+            logger.error("Discord API timeout during authorization check")
+            # Fallback to session data on timeout
+            admin_guilds = request.session.get('discord_admin_guilds', [])
+            guild = next((g for g in admin_guilds if str(g['id']) == str(guild_id)), None)
+            if not guild:
+                return JsonResponse({'error': 'No admin access to this guild'}, status=403)
+        except Exception as e:
+            logger.error(f"Authorization check failed: {e}", exc_info=True)
+            return JsonResponse({'error': 'Authorization failed. Please try again.'}, status=500)
 
         return view_func(request, guild_id, *args, **kwargs)
     return wrapper
@@ -3333,7 +3507,7 @@ def guild_xp(request, guild_id):
     guild = next((g for g in admin_guilds if g['id'] == guild_id), None)
     if not guild:
         messages.error(request, "You don't have admin access to this server.")
-        return redirect('warden_dashboard')
+        return redirect('questlog_dashboard')
 
     # Fetch XP config and leaderboard from database
     xp_config = None
@@ -3696,6 +3870,7 @@ def api_xp_leaderboard(request, guild_id):
 
 @require_http_methods(["POST"])
 @api_auth_required
+@ratelimit(key='user_or_ip', rate='30/m', method='POST', block=True)
 @validate_json_schema({
     "type": "object",
     "properties": {
@@ -4755,7 +4930,7 @@ def guild_roles(request, guild_id):
     guild = next((g for g in admin_guilds if g['id'] == guild_id), None)
     if not guild:
         messages.error(request, "You don't have admin access to this server.")
-        return redirect('warden_dashboard')
+        return redirect('questlog_dashboard')
 
     # Fetch guild info including subscription tier
     is_premium = False
@@ -4918,7 +5093,7 @@ def guild_reaction_roles(request, guild_id):
     guild = next((g for g in admin_guilds if g['id'] == guild_id), None)
     if not guild:
         messages.error(request, "You don't have admin access to this server.")
-        return redirect('warden_dashboard')
+        return redirect('questlog_dashboard')
 
     # Fetch reaction role menus from database
     reaction_menus = []
@@ -5302,6 +5477,7 @@ def api_reaction_role_detail(request, guild_id, message_id):
 
 @require_http_methods(["POST"])
 @api_auth_required
+@ratelimit(key='user_or_ip', rate='20/m', method='POST', block=True)
 def api_role_action(request, guild_id):
     """POST /api/guild/<id>/roles/action/ - Queue a role action."""
     try:
@@ -5846,14 +6022,14 @@ def guild_raffles(request, guild_id):
     guild = next((g for g in admin_guilds if str(g.get('id')) == str(guild_id)), None)
     if not guild:
         messages.error(request, "You don't have permission to manage raffles.")
-        return redirect('warden_dashboard')
+        return redirect('questlog_dashboard')
 
     # Require Admin or Manage Server
     permissions = int(guild.get('permissions', 0))
     is_admin = (permissions & 0x8) == 0x8 or (permissions & 0x20) == 0x20
     if not is_admin:
         messages.error(request, "You need Admin or Manage Server permission.")
-        return redirect('warden_dashboard')
+        return redirect('questlog_dashboard')
 
     is_vip = False
     subscription_tier = 'free'
@@ -6539,7 +6715,7 @@ def guild_audit_logs(request, guild_id):
     guild = next((g for g in admin_guilds if g['id'] == guild_id), None)
     if not guild:
         messages.error(request, "You don't have admin access to this server.")
-        return redirect('warden_dashboard')
+        return redirect('questlog_dashboard')
 
     # Get filter parameters
     action_filter = request.GET.get('action', '')
@@ -6974,7 +7150,7 @@ def guild_welcome(request, guild_id):
     guild = next((g for g in admin_guilds if g['id'] == guild_id), None)
     if not guild:
         messages.error(request, "You don't have admin access to this server.")
-        return redirect('warden_dashboard')
+        return redirect('questlog_dashboard')
 
     # Fetch welcome config from database
     welcome_config = None
@@ -7230,7 +7406,7 @@ def guild_levelup(request, guild_id):
     guild = next((g for g in admin_guilds if g['id'] == guild_id), None)
     if not guild:
         messages.error(request, "You don't have admin access to this server.")
-        return redirect('warden_dashboard')
+        return redirect('questlog_dashboard')
 
     levelup_config = None
     guild_record = None
@@ -7314,7 +7490,7 @@ def guild_messages(request, guild_id):
     guild = next((g for g in admin_guilds if g['id'] == guild_id), None)
     if not guild:
         messages.error(request, "You don't have admin access to this server.")
-        return redirect('warden_dashboard')
+        return redirect('questlog_dashboard')
 
     guild_record = None
     try:
@@ -7579,7 +7755,7 @@ def guild_settings(request, guild_id):
     guild = next((g for g in admin_guilds if g['id'] == guild_id), None)
     if not guild:
         messages.error(request, "You don't have admin access to this server.")
-        return redirect('warden_dashboard')
+        return redirect('questlog_dashboard')
 
     settings = {}
     guild_record = None
@@ -7641,7 +7817,7 @@ def guild_billing(request, guild_id):
     guild = next((g for g in admin_guilds if g['id'] == guild_id), None)
     if not guild:
         messages.error(request, "You don't have admin access to this server.")
-        return redirect('warden_dashboard')
+        return redirect('questlog_dashboard')
 
     guild_record = None
     try:
@@ -7688,9 +7864,9 @@ def guild_billing(request, guild_id):
                 'is_active': module_key in active_modules or has_all_modules,
             })
 
-        # Calculate pricing
-        total_monthly = sum(m['price_monthly'] for m in modules_data)
-        total_yearly = sum(m['price_yearly'] for m in modules_data)
+        # Calculate pricing (filter out None values for yearly since individual modules don't have yearly pricing)
+        total_monthly = sum(m['price_monthly'] for m in modules_data if m['price_monthly'] is not None)
+        total_yearly = sum(m['price_yearly'] for m in modules_data if m['price_yearly'] is not None)
 
         # Get Stripe subscription details if available
         subscription_data = None
@@ -7824,6 +8000,7 @@ def api_settings_reset(request, guild_id):
 
 @require_http_methods(["POST"])
 @api_auth_required
+@ratelimit(key='user_or_ip', rate='5/m', method='POST', block=True)
 def stripe_create_checkout(request, guild_id):
     """
     POST /api/guild/<id>/stripe/checkout/ - Create Stripe checkout session.
@@ -8087,6 +8264,7 @@ def stripe_transfer_subscription(request, guild_id):
 
 @require_http_methods(["POST"])
 @api_auth_required
+@ratelimit(key='user_or_ip', rate='2/h', method='POST', block=True)
 def api_settings_remove_data(request, guild_id):
     """POST /api/guild/<id>/settings/remove-data/ - Remove all guild data."""
     try:
@@ -8120,7 +8298,7 @@ def guild_verification(request, guild_id):
     guild = next((g for g in admin_guilds if g['id'] == guild_id), None)
     if not guild:
         messages.error(request, "You don't have admin access to this server.")
-        return redirect('warden_dashboard')
+        return redirect('questlog_dashboard')
 
     verification_config = {}
     guild_record = None
@@ -8270,7 +8448,7 @@ def guild_moderation(request, guild_id):
     guild = next((g for g in admin_guilds if g['id'] == guild_id), None)
     if not guild:
         messages.error(request, "You don't have admin access to this server.")
-        return redirect('warden_dashboard')
+        return redirect('questlog_dashboard')
 
     mod_actions = []
     stats = {'total': 0, 'active': 0, 'week': 0}
@@ -8422,7 +8600,7 @@ def guild_moderation_settings(request, guild_id):
     guild = next((g for g in admin_guilds if g['id'] == guild_id), None)
     if not guild:
         messages.error(request, "You don't have admin access to this server.")
-        return redirect('warden_dashboard')
+        return redirect('questlog_dashboard')
 
     # Get guild settings from database
     settings = {}
@@ -8534,6 +8712,10 @@ def api_mod_untimeout(request, guild_id):
     if not user_id:
         return JsonResponse({'error': 'user_id is required'}, status=400)
 
+    # Get requester's Discord ID from session
+    discord_user = request.session.get('discord_user')
+    requester_id = discord_user.get('id') if discord_user else None
+
     try:
         # Call Discord bot API to remove timeout
         response = requests.post(
@@ -8541,6 +8723,7 @@ def api_mod_untimeout(request, guild_id):
             json={
                 'guild_id': guild_id,
                 'user_id': user_id,
+                'requester_id': requester_id,
                 'reason': reason,
             },
             headers={'Authorization': f'Bearer {DISCORD_BOT_API_TOKEN}'},
@@ -8573,6 +8756,10 @@ def api_mod_kick(request, guild_id):
     if not user_id:
         return JsonResponse({'error': 'user_id is required'}, status=400)
 
+    # Get requester's Discord ID from session
+    discord_user = request.session.get('discord_user')
+    requester_id = discord_user.get('id') if discord_user else None
+
     try:
         # Call Discord bot API to kick user
         response = requests.post(
@@ -8580,6 +8767,7 @@ def api_mod_kick(request, guild_id):
             json={
                 'guild_id': guild_id,
                 'user_id': user_id,
+                'requester_id': requester_id,
                 'reason': reason,
             },
             headers={'Authorization': f'Bearer {DISCORD_BOT_API_TOKEN}'},
@@ -8599,6 +8787,7 @@ def api_mod_kick(request, guild_id):
 
 @require_http_methods(["POST"])
 @api_auth_required
+@ratelimit(key='user_or_ip', rate='10/m', method='POST', block=True)
 def api_mod_ban(request, guild_id):
     """POST /api/guild/<id>/mod/ban/ - Ban a user from the server."""
     try:
@@ -8612,6 +8801,10 @@ def api_mod_ban(request, guild_id):
     if not user_id:
         return JsonResponse({'error': 'user_id is required'}, status=400)
 
+    # Get requester's Discord ID from session
+    discord_user = request.session.get('discord_user')
+    requester_id = discord_user.get('id') if discord_user else None
+
     try:
         # Call Discord bot API to ban user
         response = requests.post(
@@ -8619,6 +8812,7 @@ def api_mod_ban(request, guild_id):
             json={
                 'guild_id': guild_id,
                 'user_id': user_id,
+                'requester_id': requester_id,
                 'reason': reason,
             },
             headers={'Authorization': f'Bearer {DISCORD_BOT_API_TOKEN}'},
@@ -8701,6 +8895,10 @@ def api_mod_unban(request, guild_id):
     if not user_id:
         return JsonResponse({'error': 'user_id is required'}, status=400)
 
+    # Get requester's Discord ID from session
+    discord_user = request.session.get('discord_user')
+    requester_id = discord_user.get('id') if discord_user else None
+
     try:
         # Call Discord bot API to unban user
         response = requests.post(
@@ -8708,6 +8906,7 @@ def api_mod_unban(request, guild_id):
             json={
                 'guild_id': guild_id,
                 'user_id': user_id,
+                'requester_id': requester_id,
                 'reason': reason,
             },
             headers={'Authorization': f'Bearer {DISCORD_BOT_API_TOKEN}'},
@@ -8740,6 +8939,10 @@ def api_mod_unmute(request, guild_id):
     if not user_id:
         return JsonResponse({'error': 'user_id is required'}, status=400)
 
+    # Get requester's Discord ID from session
+    discord_user = request.session.get('discord_user')
+    requester_id = discord_user.get('id') if discord_user else None
+
     try:
         # Call Discord bot API to unmute user
         response = requests.post(
@@ -8747,6 +8950,7 @@ def api_mod_unmute(request, guild_id):
             json={
                 'guild_id': guild_id,
                 'user_id': user_id,
+                'requester_id': requester_id,
                 'reason': reason,
             },
             headers={'Authorization': f'Bearer {DISCORD_BOT_API_TOKEN}'},
@@ -8779,6 +8983,10 @@ def api_mod_unjail(request, guild_id):
     if not user_id:
         return JsonResponse({'error': 'user_id is required'}, status=400)
 
+    # Get requester's Discord ID from session
+    discord_user = request.session.get('discord_user')
+    requester_id = discord_user.get('id') if discord_user else None
+
     try:
         # Call Discord bot API to unjail user
         response = requests.post(
@@ -8786,6 +8994,7 @@ def api_mod_unjail(request, guild_id):
             json={
                 'guild_id': guild_id,
                 'user_id': user_id,
+                'requester_id': requester_id,
                 'reason': reason,
             },
             headers={'Authorization': f'Bearer {DISCORD_BOT_API_TOKEN}'},
@@ -8866,7 +9075,7 @@ def guild_templates(request, guild_id):
     guild = next((g for g in admin_guilds if g['id'] == guild_id), None)
     if not guild:
         messages.error(request, "You don't have admin access to this server.")
-        return redirect('warden_dashboard')
+        return redirect('questlog_dashboard')
 
     channel_templates = []
     role_templates = []
@@ -9262,13 +9471,13 @@ def guild_discovery(request, guild_id):
     guild = next((g for g in user_guilds if str(g.get('id')) == str(guild_id)), None)
 
     if not guild:
-        return redirect('warden_dashboard')
+        return redirect('questlog_dashboard')
 
     # Check admin permission
     permissions = int(guild.get('permissions', 0))
     is_admin = (permissions & 0x8) == 0x8 or (permissions & 0x20) == 0x20
     if not is_admin:
-        return redirect('warden_dashboard')
+        return redirect('questlog_dashboard')
 
     try:
         from .db import get_db_session
@@ -9620,6 +9829,2537 @@ def guild_discovery(request, guild_id):
 
 
 @discord_required
+def guild_discovery_network(request, guild_id):
+    """Discovery Network dashboard - cross-server creator discovery."""
+    from .module_utils import has_module_access, has_any_module_access
+
+    # Check if user is admin of this guild
+    admin_guilds = request.session.get('discord_admin_guilds', [])
+    guild = next((g for g in admin_guilds if str(g.get('id')) == str(guild_id)), None)
+
+    is_admin = False
+    if guild:
+        permissions = int(guild.get('permissions', 0))
+        is_admin = (permissions & 0x8) == 0x8 or (permissions & 0x20) == 0x20
+
+    # If not admin, check if user is a member and guild is approved
+    if not is_admin:
+        all_guilds = request.session.get('discord_all_guilds', [])
+        guild = next((g for g in all_guilds if str(g.get('id')) == str(guild_id)), None)
+
+        if not guild:
+            return redirect('questlog_dashboard')
+
+        # Check if this guild is approved in Discovery Network
+        from .db import get_db_session
+        from .models import DiscoveryNetworkApplication
+
+        with get_db_session() as db:
+            application = db.query(DiscoveryNetworkApplication).filter_by(
+                guild_id=int(guild_id),
+                status='approved'
+            ).first()
+
+            if not application:
+                # Not an admin and guild is not approved - redirect
+                return redirect('questlog_dashboard')
+
+    # Get guild owner ID from Discord
+    guild_owner_id = guild.get('owner_id')
+    user_id = request.session.get('discord_user', {}).get('id')
+    is_owner = str(guild_owner_id) == str(user_id)
+
+    # Check if user is bot owner (superadmin for Discovery Network)
+    import os
+    bot_owner_id = os.getenv('BOT_OWNER_ID')
+    is_bot_owner = str(user_id) == str(bot_owner_id) if bot_owner_id else False
+
+    try:
+        from .db import get_db_session
+        from .models import Guild, DiscoveryNetworkApplication, DiscoveryNetworkBan
+        import time
+
+        with get_db_session() as db:
+            # Get guild record
+            guild_record = db.query(Guild).filter_by(guild_id=int(guild_id)).first()
+
+            # Check SERVER's network status (per-guild, not per-user)
+            server_network_status = None
+            application_date = None
+            denial_reason = None
+            ban_reason = None
+            ban_violation_type = None
+            ban_appeal_allowed = False
+            ban_appeal_submitted = False
+            ban_appeal_reviewed = False
+            ban_appeal_approved = False
+
+            # Check if user (owner) is banned from adding ANY servers
+            ban = db.query(DiscoveryNetworkBan).filter_by(user_id=int(user_id)).first()
+            if ban:
+                server_network_status = 'banned'
+                ban_reason = ban.reason
+                ban_violation_type = ban.violation_type
+                ban_appeal_allowed = ban.appeal_allowed
+                ban_appeal_submitted = ban.appeal_submitted
+                ban_appeal_reviewed = ban.appeal_reviewed
+                ban_appeal_approved = ban.appeal_approved
+            else:
+                # Check application status FOR THIS SPECIFIC SERVER/GUILD
+                application = db.query(DiscoveryNetworkApplication).filter_by(
+                    guild_id=int(guild_id)
+                ).order_by(DiscoveryNetworkApplication.applied_at.desc()).first()
+
+                if application:
+                    server_network_status = application.status
+                    application_date = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(application.applied_at))
+                    if application.status == 'denied':
+                        denial_reason = application.denial_reason
+
+            # Check module access
+            has_discovery_module = has_module_access(guild_id, 'discovery')
+            has_any_module = has_any_module_access(guild_id)
+
+            # Get user's Discovery Network preferences
+            from .models import DiscoveryNetworkPreferences
+            user_prefs = db.query(DiscoveryNetworkPreferences).filter_by(
+                user_id=int(user_id)
+            ).first()
+
+            # Default to all enabled if no preferences exist
+            enable_lfg = user_prefs.enable_lfg if user_prefs else True
+            enable_games = user_prefs.enable_games if user_prefs else True
+            enable_creators = user_prefs.enable_creators if user_prefs else True
+            enable_directory = user_prefs.enable_directory if user_prefs else True
+
+            context = {
+                'guild': guild,
+                'guild_record': guild_record,
+                'is_admin': is_admin,
+                'is_owner': is_owner,
+                'is_bot_owner': is_bot_owner,
+                'admin_guilds': admin_guilds,
+                'member_guilds': get_member_guilds(request),
+                'active_page': 'discovery_network',
+                'has_discovery_module': has_discovery_module,
+                'has_any_module': has_any_module,
+                'user_network_status': server_network_status,  # Renamed for clarity - this is SERVER status
+                'application_date': application_date,
+                'denial_reason': denial_reason,
+                'ban_reason': ban_reason,
+                'ban_violation_type': ban_violation_type,
+                'ban_appeal_allowed': ban_appeal_allowed,
+                'ban_appeal_submitted': ban_appeal_submitted,
+                'ban_appeal_reviewed': ban_appeal_reviewed,
+                'ban_appeal_approved': ban_appeal_approved,
+                'enable_lfg': enable_lfg,
+                'enable_games': enable_games,
+                'enable_creators': enable_creators,
+                'enable_directory': enable_directory,
+            }
+
+            return render(request, 'questlog/discovery_network.html', context)
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return render(request, 'questlog/discovery_network.html', {
+            'guild': guild,
+            'error': str(e),
+            'admin_guilds': admin_guilds,
+            'member_guilds': get_member_guilds(request),
+            'is_admin': is_admin,
+            'is_owner': False,
+            'has_discovery_module': False,
+            'has_any_module': False,
+            'active_page': 'discovery_network',
+        })
+
+
+# Discovery Network API Endpoints
+
+@csrf_exempt
+@require_http_methods(["GET"])
+def api_discovery_network_servers(request):
+    """Get list of servers in the Discovery Network - ONLY APPROVED members."""
+    try:
+        from .db import get_db_session
+        from .models import Guild, DiscoveryNetworkApplication
+
+        with get_db_session() as db:
+            # ONLY get SERVERS (guilds) with APPROVED applications
+            # Applications are per-server, not per-user
+            approved_applications = db.query(DiscoveryNetworkApplication).filter_by(
+                status='approved'
+            ).all()
+
+            # If no approved applications, return empty list
+            if not approved_applications:
+                return JsonResponse({
+                    'success': True,
+                    'servers': []
+                })
+
+            # Get approved guild IDs (server-specific approvals)
+            approved_guild_ids = [app.guild_id for app in approved_applications if app.guild_id]
+
+            # Get guilds that have been approved
+            guilds = db.query(Guild).filter(
+                Guild.guild_id.in_(approved_guild_ids)
+            ).limit(100).all()
+
+            servers = []
+            for guild in guilds:
+                # Get the server's application to get bio/description
+                guild_app = next((app for app in approved_applications if app.guild_id == guild.guild_id), None)
+
+                # Parse tags from JSON
+                tags = []
+                if guild_app and guild_app.tags:
+                    try:
+                        import json as json_lib
+                        tags = json_lib.loads(guild_app.tags)
+                    except:
+                        tags = []  # Empty if parsing fails
+                # If no tags, leave empty array instead of defaults
+
+                # Check if join is allowed - handle NULL values properly
+                # If allow_join is None (NULL in DB), default to False for safety
+                allow_join = bool(guild_app.allow_join) if (guild_app and guild_app.allow_join is not None) else False
+
+                # Get actual member count from guild
+                member_count = guild.member_count if guild.member_count else 0
+
+                # Calculate activity level based on recent messages
+                # You can enhance this logic based on your needs
+                activity_level = 'Low'  # Default
+                if hasattr(guild, 'total_messages') and guild.total_messages:
+                    if guild.total_messages > 1000:
+                        activity_level = 'High'
+                    elif guild.total_messages > 100:
+                        activity_level = 'Medium'
+
+                # Get primary game from guild settings if available
+                primary_game = None
+                if hasattr(guild, 'primary_game') and guild.primary_game:
+                    primary_game = guild.primary_game
+
+                # Construct Discord CDN URL for guild icon
+                icon_url = None
+                if hasattr(guild, 'guild_icon_hash') and guild.guild_icon_hash:
+                    # Discord CDN format: https://cdn.discordapp.com/icons/{guild_id}/{icon_hash}.png
+                    icon_url = f'https://cdn.discordapp.com/icons/{guild.guild_id}/{guild.guild_icon_hash}.png'
+
+                # Get Discord invite URL (use invite_code from application if available)
+                invite_url = None
+                if guild_app and guild_app.invite_code and allow_join:
+                    # Use invite code from the application (e.g., "abc123" -> "https://discord.gg/abc123")
+                    invite_url = f'https://discord.gg/{guild_app.invite_code}'
+
+                servers.append({
+                    'id': str(guild.guild_id),
+                    'name': guild.guild_name or 'QuestLog Community',
+                    'description': guild_app.bio[:200] if guild_app and guild_app.bio else 'A QuestLog gaming community',
+                    'icon_url': icon_url,  # Discord CDN URL or None
+                    'member_count': member_count,  # From Guild model
+                    'activity_level': activity_level,  # Calculated from guild activity
+                    'primary_game': primary_game,  # From guild settings
+                    'tags': tags,  # From application (empty if none selected)
+                    'allow_join': allow_join,  # From application
+                    'invite_url': invite_url,  # Discord invite URL (if available)
+                })
+
+            return JsonResponse({
+                'success': True,
+                'servers': servers
+            })
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["GET"])
+def api_discovery_network_lfg(request):
+    """Get cross-server LFG posts from Discovery Network guilds."""
+    try:
+        from .db import get_db_session
+        from .models import LFGGroup, LFGGame, Guild, DiscoveryNetworkApplication
+        from sqlalchemy import and_
+
+        with get_db_session() as db:
+            # Get all guilds in Discovery Network (approved applications)
+            network_guilds = db.query(DiscoveryNetworkApplication.guild_id).filter(
+                DiscoveryNetworkApplication.status == 'approved'
+            ).all()
+            network_guild_ids = [g[0] for g in network_guilds]
+
+            if not network_guild_ids:
+                return JsonResponse({
+                    'success': True,
+                    'posts': []
+                })
+
+            # Get active LFG groups from Discovery Network guilds
+            active_groups = db.query(
+                LFGGroup, LFGGame, Guild
+            ).join(
+                LFGGame, LFGGroup.game_id == LFGGame.id
+            ).join(
+                Guild, LFGGroup.guild_id == Guild.guild_id
+            ).filter(
+                and_(
+                    LFGGroup.guild_id.in_(network_guild_ids),
+                    LFGGroup.is_active == True,
+                    LFGGroup.is_full == False
+                )
+            ).order_by(
+                LFGGroup.created_at.desc()
+            ).limit(100).all()
+
+            posts = []
+            for lfg_group, game, guild in active_groups:
+                # Parse custom_data for additional details
+                custom_data = {}
+                if lfg_group.custom_data:
+                    try:
+                        import json as json_lib
+                        custom_data = json_lib.loads(lfg_group.custom_data)
+                    except:
+                        custom_data = {}
+
+                # Determine platform, activity, skill level, player_role from custom_data
+                platform = custom_data.get('platform', 'PC')
+                activity = custom_data.get('activity', 'casual')
+                skill_level = custom_data.get('skill_level', 'any')
+                voice_required = custom_data.get('voice_required', False)
+                player_role = custom_data.get('player_role', '')
+
+                # Calculate start time
+                start_time = 'now'
+                if lfg_group.scheduled_time:
+                    now = int(time.time())
+                    time_diff = lfg_group.scheduled_time - now
+                    if time_diff > 7200:  # More than 2 hours
+                        start_time = 'custom'
+                    elif time_diff > 3600:  # More than 1 hour
+                        start_time = '2hours'
+                    elif time_diff > 0:
+                        start_time = 'hour'
+
+                # Get members for this group with avatar info
+                from .models import LFGMember, GuildMember
+                members = db.query(LFGMember).filter(
+                    LFGMember.group_id == lfg_group.id,
+                    LFGMember.left_at == None
+                ).all()
+
+                members_list = []
+                for member in members:
+                    # Try to get avatar from GuildMember table
+                    guild_member = db.query(GuildMember).filter(
+                        GuildMember.guild_id == lfg_group.guild_id,
+                        GuildMember.user_id == member.user_id
+                    ).first()
+
+                    if guild_member and guild_member.avatar_hash:
+                        # Construct Discord CDN URL with custom avatar
+                        avatar_url = f"https://cdn.discordapp.com/avatars/{member.user_id}/{guild_member.avatar_hash}.png"
+                    else:
+                        # Use Discord's default avatar (calculated from user ID)
+                        # New Discord system uses (user_id >> 22) % 6 for default avatar index
+                        default_avatar_index = (int(member.user_id) >> 22) % 6
+                        avatar_url = f"https://cdn.discordapp.com/embed/avatars/{default_avatar_index}.png"
+
+                    member_data = {
+                        'user_id': str(member.user_id),
+                        'display_name': member.display_name or 'Unknown',
+                        'is_creator': member.is_creator,
+                        'avatar_url': avatar_url
+                    }
+                    # Add role info if available
+                    if member.selections:
+                        try:
+                            import json as json_lib
+                            selections = json_lib.loads(member.selections)
+                            if selections.get('player_role'):
+                                member_data['player_role'] = selections['player_role']
+                        except:
+                            pass
+                    members_list.append(member_data)
+
+                # Get creator's avatar
+                creator_guild_member = db.query(GuildMember).filter(
+                    GuildMember.guild_id == lfg_group.guild_id,
+                    GuildMember.user_id == lfg_group.creator_id
+                ).first()
+
+                if creator_guild_member and creator_guild_member.avatar_hash:
+                    # Use custom avatar if available
+                    creator_avatar = f"https://cdn.discordapp.com/avatars/{lfg_group.creator_id}/{creator_guild_member.avatar_hash}.png"
+                else:
+                    # Use Discord's default avatar (calculated from user ID)
+                    default_avatar_index = (int(lfg_group.creator_id) >> 22) % 6
+                    creator_avatar = f"https://cdn.discordapp.com/embed/avatars/{default_avatar_index}.png"
+
+                posts.append({
+                    'id': str(lfg_group.id),
+                    'game': game.game_name if game else 'Unknown',
+                    'title': lfg_group.thread_name or f"LFG for {game.game_name if game else 'game'}",
+                    'description': lfg_group.description or '',
+                    'platform': platform,
+                    'activity': activity,
+                    'skill_level': skill_level,
+                    'spots_needed': (lfg_group.max_group_size or game.max_group_size or 5) - lfg_group.member_count,
+                    'voice_required': voice_required,
+                    'start_time': start_time,
+                    'created_at': lfg_group.created_at,
+                    'username': lfg_group.creator_name or 'Unknown',
+                    'user_avatar': creator_avatar,
+                    'server_name': guild.guild_name or 'Unknown Server',
+                    'guild_id': str(guild.guild_id),
+                    'player_role': player_role,
+                    'member_count': lfg_group.member_count,
+                    'max_group_size': lfg_group.max_group_size or game.max_group_size or 5,
+                    'members': members_list,
+                    'cover_url': game.cover_url if game else None,
+                    'igdb_id': game.igdb_id if game else None,
+                    'igdb_slug': game.igdb_slug if game else None
+                })
+
+            return JsonResponse({
+                'success': True,
+                'posts': posts
+            })
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
+@require_http_methods(["POST"])
+def api_discovery_lfg_create(request):
+    """Create a new Cross-Server LFG post in the Discovery Network."""
+    try:
+        import json as json_lib
+        from .db import get_db_session
+        from .models import LFGGroup, LFGGame, Guild, DiscoveryNetworkApplication
+
+        # Parse request body
+        data = json_lib.loads(request.body)
+
+        # Required fields
+        guild_id = data.get('guild_id')
+        game_name = data.get('game')
+        title = data.get('title', '').strip()
+        description = data.get('description', '').strip()
+
+        # Input length validation (prevent DoS)
+        MAX_TITLE_LENGTH = 200
+        MAX_DESCRIPTION_LENGTH = 2000
+        MAX_GAME_NAME_LENGTH = 100
+
+        if not guild_id or not game_name:
+            return JsonResponse({
+                'success': False,
+                'error': 'Missing required fields: guild_id and game'
+            }, status=400)
+
+        if not title:
+            return JsonResponse({
+                'success': False,
+                'error': 'Title is required'
+            }, status=400)
+
+        if len(title) > MAX_TITLE_LENGTH:
+            return JsonResponse({
+                'success': False,
+                'error': f'Title must be {MAX_TITLE_LENGTH} characters or less'
+            }, status=400)
+
+        if len(description) > MAX_DESCRIPTION_LENGTH:
+            return JsonResponse({
+                'success': False,
+                'error': f'Description must be {MAX_DESCRIPTION_LENGTH} characters or less'
+            }, status=400)
+
+        if len(game_name) > MAX_GAME_NAME_LENGTH:
+            return JsonResponse({
+                'success': False,
+                'error': f'Game name must be {MAX_GAME_NAME_LENGTH} characters or less'
+            }, status=400)
+
+        with get_db_session() as db:
+            # Verify guild is in Discovery Network
+            network_app = db.query(DiscoveryNetworkApplication).filter(
+                DiscoveryNetworkApplication.guild_id == int(guild_id),
+                DiscoveryNetworkApplication.status == 'approved'
+            ).first()
+
+            if not network_app:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Your guild is not in the Discovery Network'
+                }, status=403)
+
+            # Get guild to check tier limits
+            guild = db.query(Guild).filter_by(guild_id=int(guild_id)).first()
+            if not guild:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Guild not found'
+                }, status=404)
+
+            # Check Discovery Network LFG posting limit
+            can_post, current_count, limit, reset_date = check_discovery_lfg_post_limit(db, guild_id, guild)
+            if not can_post:
+                return JsonResponse({
+                    'success': False,
+                    'error': f'Monthly LFG posting limit reached. You have posted {current_count}/{limit} LFG posts this month. Limit resets on {reset_date}. Upgrade to the LFG Module or Complete Suite for unlimited posting!',
+                    'limit_reached': True,
+                    'current_count': current_count,
+                    'limit': limit,
+                    'reset_date': reset_date
+                }, status=429)
+
+            # Get or create LFGGame
+            game = db.query(LFGGame).filter(
+                LFGGame.guild_id == int(guild_id),
+                LFGGame.game_name == game_name
+            ).first()
+
+            if not game:
+                # Create new game entry for this guild
+                game = LFGGame(
+                    guild_id=int(guild_id),
+                    game_name=game_name,
+                    game_short=game_name.lower().replace(' ', '_')[:50],
+                    enabled=True,
+                    max_group_size=5  # Default
+                )
+                db.add(game)
+                db.flush()
+
+            # Build custom_data JSON with player role/class/spec
+            custom_data = {
+                'platform': data.get('platform', 'PC'),
+                'activity': data.get('activity', 'casual'),
+                'skill_level': data.get('skill_level', 'any'),
+                'voice_required': data.get('voice_required', False)
+            }
+
+            # Add player role/class/spec info
+            if data.get('player_role'):
+                custom_data['player_role'] = data.get('player_role')
+            if data.get('player_class'):
+                custom_data['player_class'] = data.get('player_class')
+            if data.get('player_spec'):
+                custom_data['player_spec'] = data.get('player_spec')
+
+            # Calculate scheduled_time from start_time
+            scheduled_time = None
+            start_time = data.get('start_time', 'now')
+            if start_time == 'hour':
+                scheduled_time = int(time.time()) + 3600
+            elif start_time == '2hours':
+                scheduled_time = int(time.time()) + 7200
+            elif start_time == 'custom' and data.get('custom_time'):
+                scheduled_time = int(data.get('custom_time'))
+            else:
+                scheduled_time = int(time.time())
+
+            # Get user info from session (same pattern as api_lfg_browser_create)
+            discord_user = request.session.get('discord_user', {})
+            user_id = discord_user.get('id')
+            user_name = discord_user.get('username', 'Unknown')
+
+            if not user_id:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'You must be logged in to create LFG posts'
+                }, status=401)
+
+            # Create LFG group (using a placeholder thread_id since this is web-based)
+            # The bot will need to create actual Discord threads when users join
+            lfg_group = LFGGroup(
+                guild_id=int(guild_id),
+                game_id=game.id,
+                thread_id=0,  # Placeholder - bot will create thread on first join
+                thread_name=title,
+                creator_id=int(user_id),
+                creator_name=user_name,
+                scheduled_time=scheduled_time,
+                description=description,
+                custom_data=json_lib.dumps(custom_data),
+                max_group_size=int(data.get('spots_needed', game.max_group_size or 5)) + 1,  # +1 for creator
+                is_active=True,
+                is_full=False,
+                member_count=1  # Creator counts as first member
+            )
+
+            db.add(lfg_group)
+            db.commit()
+
+            return JsonResponse({
+                'success': True,
+                'message': 'LFG post created successfully!',
+                'post_id': lfg_group.id
+            })
+
+    except json_lib.JSONDecodeError:
+        return JsonResponse({
+            'success': False,
+            'error': 'Invalid JSON in request body'
+        }, status=400)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
+@require_http_methods(["POST"])
+def api_discovery_lfg_join(request, post_id):
+    """POST /api/discovery/lfg/<post_id>/join - Join a Discovery Network LFG post."""
+    try:
+        import json as json_lib
+        import time
+        from .db import get_db_session
+        from .models import LFGGroup, LFGMember, Guild, DiscoveryNetworkApplication
+
+        # Get Discord user from session
+        discord_user = request.session.get('discord_user', {})
+        user_id = discord_user.get('id')
+        username = discord_user.get('username', 'Unknown')
+
+        if not user_id:
+            return JsonResponse({
+                'success': False,
+                'error': 'You must be logged in to join LFG posts'
+            }, status=401)
+
+        # Parse request body for options (if provided)
+        data = json_lib.loads(request.body) if request.body else {}
+        options = data.get('options', {})
+
+        with get_db_session() as db:
+            # Get the LFG group
+            group = db.query(LFGGroup).filter_by(id=int(post_id)).first()
+            if not group:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'LFG post not found'
+                }, status=404)
+
+            if not group.is_active:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'This LFG post is no longer active'
+                }, status=400)
+
+            if group.is_full:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'This group is already full'
+                }, status=400)
+
+            # Check if user has any existing member record (active or left)
+            existing = db.query(LFGMember).filter_by(
+                group_id=group.id,
+                user_id=int(user_id)
+            ).first()
+
+            # Extract rank if provided
+            rank_value = options.get('rank')
+
+            # Extract other selections (exclude 'rank' as it's stored separately)
+            selections = {k: v for k, v in options.items() if k != 'rank'}
+            selections_json = json_lib.dumps(selections) if selections else None
+
+            if existing:
+                # Check if they're currently in the group
+                if existing.left_at is None:
+                    return JsonResponse({
+                        'success': False,
+                        'error': 'You are already in this group'
+                    }, status=400)
+
+                # They left before, so rejoin them by updating their record
+                existing.display_name = username
+                existing.rank_value = rank_value
+                existing.selections = selections_json
+                existing.joined_at = int(time.time())
+                existing.left_at = None  # Clear the left timestamp
+
+                # Update group member count
+                group.member_count += 1
+                if group.member_count >= group.max_group_size:
+                    group.is_full = True
+            else:
+                # Add new member
+                new_member = LFGMember(
+                    group_id=group.id,
+                    user_id=int(user_id),
+                    display_name=username,
+                    is_creator=False,
+                    rank_value=rank_value,
+                    selections=selections_json,
+                    joined_at=int(time.time())
+                )
+                db.add(new_member)
+
+                # Update group member count
+                group.member_count += 1
+                if group.member_count >= group.max_group_size:
+                    group.is_full = True
+
+            db.commit()
+
+            return JsonResponse({
+                'success': True,
+                'message': 'Successfully joined the group!',
+                'member_count': group.member_count
+            })
+
+    except json_lib.JSONDecodeError:
+        return JsonResponse({
+            'success': False,
+            'error': 'Invalid JSON in request body'
+        }, status=400)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["GET"])
+def api_discovery_network_games(request):
+    """Get games from LFG settings across all Discovery Network servers (for Server Directory filtering)."""
+    try:
+        from .db import get_db_session
+        from .models import LFGGame, DiscoveryNetworkApplication
+
+        with get_db_session() as db:
+            # Get all guilds in Discovery Network (approved applications)
+            network_guilds = db.query(DiscoveryNetworkApplication.guild_id).filter(
+                DiscoveryNetworkApplication.status == 'approved'
+            ).all()
+            network_guild_ids = [g[0] for g in network_guilds]
+
+            if not network_guild_ids:
+                return JsonResponse({
+                    'success': True,
+                    'games': []
+                })
+
+            # Get all unique games from LFG settings in Discovery Network
+            lfg_games = db.query(LFGGame).filter(
+                LFGGame.guild_id.in_(network_guild_ids)
+            ).order_by(LFGGame.game_name).all()
+
+            # Build unique games list
+            game_set = set()
+            games_list = []
+
+            for game in lfg_games:
+                if game.game_name and game.game_name not in game_set:
+                    game_set.add(game.game_name)
+                    games_list.append({
+                        'name': game.game_name,
+                        'slug': game.game_name.lower().replace(' ', '-').replace(':', '').replace("'", '')
+                    })
+
+            # Sort alphabetically
+            games_list.sort(key=lambda x: x['name'])
+
+            return JsonResponse({
+                'success': True,
+                'games': games_list
+            })
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["GET"])
+def api_discovery_game_templates(request):
+    """Get ALL custom templates for a specific game from Discovery Network servers."""
+    try:
+        from .db import get_db_session
+        from .models import LFGGame, DiscoveryNetworkApplication
+        import json as json_lib
+
+        game_name = request.GET.get('game')
+        if not game_name:
+            return JsonResponse({
+                'success': False,
+                'error': 'Game name required'
+            }, status=400)
+
+        with get_db_session() as db:
+            from sqlalchemy import and_, or_
+            import logging
+            logger = logging.getLogger(__name__)
+
+            # Get all guilds in Discovery Network
+            network_guilds = db.query(DiscoveryNetworkApplication.guild_id).filter(
+                DiscoveryNetworkApplication.status == 'approved'
+            ).all()
+            network_guild_ids = [g[0] for g in network_guilds]
+            logger.info(f"Found {len(network_guild_ids)} guilds in Discovery Network")
+
+            # Find all LFG game configurations for this game across Discovery Network
+            # Check both exact match and partial match for game name
+            lfg_games = db.query(LFGGame).filter(
+                and_(
+                    or_(
+                        LFGGame.game_name.ilike(f'%{game_name}%'),
+                        LFGGame.game_name == game_name
+                    ),
+                    LFGGame.guild_id.in_(network_guild_ids) if network_guild_ids else True,
+                    LFGGame.custom_options.isnot(None)
+                )
+            ).all()
+            logger.info(f"Found {len(lfg_games)} LFG games matching '{game_name}'")
+
+            # Collect all unique templates
+            templates = []
+            seen_template_names = set()
+
+            for lfg_game in lfg_games:
+                if not lfg_game.custom_options:
+                    logger.debug(f"Game {lfg_game.game_name} has no custom_options")
+                    continue
+
+                try:
+                    custom_options = json_lib.loads(lfg_game.custom_options)
+                    logger.debug(f"Parsed custom_options for {lfg_game.game_name}: {type(custom_options)}")
+
+                    # Handle both array format and dict format
+                    options_list = []
+                    if isinstance(custom_options, list):
+                        # Direct array format: [{name: "Class", choices: [...]}]
+                        options_list = custom_options
+                        logger.debug(f"Found array format with {len(custom_options)} options")
+                    elif isinstance(custom_options, dict) and 'options' in custom_options:
+                        # Dict format: {options: [{name: "Class", choices: [...]}]}
+                        options_list = custom_options['options']
+                        logger.debug(f"Found dict format with {len(options_list)} options")
+                    else:
+                        logger.debug(f"custom_options structure invalid: {custom_options}")
+                        continue
+
+                    # Process the options
+                    for option in options_list:
+                        if not isinstance(option, dict):
+                            continue
+                        template_name = option.get('name', '')
+                        if template_name and template_name not in seen_template_names:
+                            seen_template_names.add(template_name)
+                            template_data = {
+                                'name': template_name,
+                                'choices': option.get('choices', [])
+                            }
+                            # Include depends_on if it exists (for Class + Spec systems)
+                            if 'depends_on' in option:
+                                template_data['depends_on'] = option['depends_on']
+                            templates.append(template_data)
+                            logger.info(f"Added template: {template_name} with {len(option.get('choices', []) if isinstance(option.get('choices'), list) else option.get('choices', {}))} choices")
+                except Exception as e:
+                    logger.error(f"Failed to parse custom_options for {lfg_game.game_name}: {e}")
+                    continue
+
+            return JsonResponse({
+                'success': True,
+                'templates': templates
+            })
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["GET"])
+def api_discovery_game_roles(request):
+    """DEPRECATED: Use api_discovery_game_templates instead. Kept for backwards compatibility."""
+    return api_discovery_game_templates(request)
+
+
+@csrf_exempt
+@require_http_methods(["GET"])
+def api_discovery_network_lfg_games(request):
+    """Get games from LFG settings across all Discovery Network servers."""
+    try:
+        from .db import get_db_session
+        from .models import LFGGame, Guild, DiscoveryNetworkApplication
+        from sqlalchemy import and_
+
+        with get_db_session() as db:
+            # Get all guilds in Discovery Network (approved applications)
+            network_guilds = db.query(DiscoveryNetworkApplication.guild_id).filter(
+                DiscoveryNetworkApplication.status == 'approved'
+            ).all()
+            network_guild_ids = [g[0] for g in network_guilds]
+
+            if not network_guild_ids:
+                return JsonResponse({
+                    'success': True,
+                    'games': []
+                })
+
+            # Get all unique games from LFG settings in Discovery Network
+            lfg_games = db.query(LFGGame).filter(
+                LFGGame.guild_id.in_(network_guild_ids)
+            ).order_by(LFGGame.game_name).all()
+
+            # Build unique games list
+            games_set = set()
+            games_list = []
+
+            for game in lfg_games:
+                if game.game_name and game.game_name not in games_set:
+                    games_set.add(game.game_name)
+                    games_list.append({
+                        'name': game.game_name,
+                        'slug': game.game_name.lower().replace(' ', '-').replace(':', '').replace("'", '')
+                    })
+
+            # Sort alphabetically
+            games_list.sort(key=lambda x: x['name'])
+
+            return JsonResponse({
+                'success': True,
+                'games': games_list
+            })
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
+@csrf_exempt
+@discord_required
+@require_http_methods(["POST"])
+def api_discovery_network_apply(request):
+    """Submit application to join Discovery Network."""
+    try:
+        import json as json_lib
+        from .db import get_db_session
+        from .models import DiscoveryNetworkApplication, DiscoveryNetworkBan
+        import time
+
+        data = json_lib.loads(request.body)
+        user = request.session.get('discord_user', {})
+        user_id = user.get('id')
+        guild_id = data.get('guild_id')  # Get guild_id from form data
+
+        if not user_id:
+            return JsonResponse({
+                'success': False,
+                'error': 'Not authenticated'
+            }, status=401)
+
+        if not guild_id:
+            return JsonResponse({
+                'success': False,
+                'error': 'Guild ID is required'
+            }, status=400)
+
+        with get_db_session() as db:
+            # Check if user (owner) is banned from adding ANY servers
+            ban = db.query(DiscoveryNetworkBan).filter_by(user_id=int(user_id)).first()
+            if ban:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'You are banned from the Discovery Network'
+                }, status=403)
+
+            # Check for existing pending application FOR THIS SPECIFIC SERVER
+            existing = db.query(DiscoveryNetworkApplication).filter_by(
+                guild_id=int(guild_id),
+                status='pending'
+            ).first()
+
+            if existing:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'This server already has a pending application'
+                }, status=400)
+
+            # Serialize tags to JSON
+            tags = data.get('tags', [])
+            tags_json = json_lib.dumps(tags) if tags else None
+
+            # Create new application for this specific server
+            application = DiscoveryNetworkApplication(
+                user_id=int(user_id),
+                guild_id=int(guild_id),  # Server-specific application
+                bio=data.get('bio', ''),
+                twitch_url=data.get('twitch_url'),
+                youtube_url=data.get('youtube_url'),
+                twitter_url=data.get('twitter_url'),
+                tiktok_url=data.get('tiktok_url'),
+                instagram_url=data.get('instagram_url'),
+                bsky_url=data.get('bsky_url'),
+                username=user.get('username', 'Unknown'),
+                display_name=user.get('global_name'),
+                avatar_url=f"https://cdn.discordapp.com/avatars/{user_id}/{user.get('avatar')}.png" if user.get('avatar') else None,
+                account_created_at=int(time.time()),  # Would need actual Discord account creation time
+                guidelines_accepted=data.get('guidelines_accepted', False),
+                tos_accepted=data.get('tos_accepted', False),
+                content_policy_accepted=data.get('content_policy_accepted', False),
+                tags=tags_json,  # JSON array of tags
+                allow_join=data.get('allow_join', False),  # Allow others to join
+                status='pending',
+                applied_at=int(time.time()),
+                updated_at=int(time.time())
+            )
+
+            db.add(application)
+            db.commit()
+
+            return JsonResponse({
+                'success': True,
+                'message': 'Application submitted successfully'
+            })
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
+@csrf_exempt
+@discord_required
+@require_http_methods(["GET", "POST"])
+def api_discovery_network_preferences(request):
+    """Get or update Discovery Network preferences for the current user."""
+    try:
+        import json as json_lib
+        from .db import get_db_session
+        from .models import DiscoveryNetworkPreferences
+        import time
+
+        user = request.session.get('discord_user', {})
+        user_id = user.get('id')
+
+        if not user_id:
+            return JsonResponse({
+                'success': False,
+                'error': 'Not authenticated'
+            }, status=401)
+
+        with get_db_session() as db:
+            # GET - Load preferences
+            if request.method == 'GET':
+                prefs = db.query(DiscoveryNetworkPreferences).filter_by(user_id=int(user_id)).first()
+
+                # Also get allow_join and invite_code from the server's application (server setting, not user pref)
+                from .models import DiscoveryNetworkApplication
+                guild_id = request.GET.get('guild_id') or request.session.get('guild_id')
+                allow_join = False
+                invite_code = None
+
+                if guild_id:
+                    application = db.query(DiscoveryNetworkApplication).filter_by(
+                        guild_id=int(guild_id),
+                        status='approved'
+                    ).first()
+
+                    if application:
+                        allow_join = application.allow_join
+                        invite_code = application.invite_code
+
+                if not prefs:
+                    # Return default preferences
+                    return JsonResponse({
+                        'success': True,
+                        'preferences': {
+                            'enable_lfg': True,
+                            'enable_games': True,
+                            'enable_creators': True,
+                            'enable_directory': True,
+                            'preferred_games': [],
+                            'preferred_tags': [],
+                            'preferred_size': '',
+                            'lfg_filter_games': False,
+                            'lfg_show_now': True,
+                            'lfg_hide_voice': False,
+                            'notify_lfg': False,
+                            'notify_servers': False,
+                            'notify_digest': False,
+                            'privacy_show_profile': True,
+                            'privacy_show_server': True,
+                            'privacy_allow_dms': True,
+                            'allow_join': allow_join,
+                            'invite_code': invite_code
+                        }
+                    })
+
+                # Parse JSON fields
+                preferred_games = []
+                preferred_tags = []
+                try:
+                    if prefs.preferred_games:
+                        preferred_games = json_lib.loads(prefs.preferred_games)
+                    if prefs.preferred_tags:
+                        preferred_tags = json_lib.loads(prefs.preferred_tags)
+                except:
+                    pass
+
+                return JsonResponse({
+                    'success': True,
+                    'preferences': {
+                        'enable_lfg': prefs.enable_lfg,
+                        'enable_games': prefs.enable_games,
+                        'enable_creators': prefs.enable_creators,
+                        'enable_directory': prefs.enable_directory,
+                        'preferred_games': preferred_games,
+                        'preferred_tags': preferred_tags,
+                        'preferred_size': prefs.preferred_size or '',
+                        'lfg_filter_games': prefs.lfg_filter_games,
+                        'lfg_show_now': prefs.lfg_show_now,
+                        'lfg_hide_voice': prefs.lfg_hide_voice,
+                        'notify_lfg': prefs.notify_lfg,
+                        'notify_servers': prefs.notify_servers,
+                        'notify_digest': prefs.notify_digest,
+                        'privacy_show_profile': prefs.privacy_show_profile,
+                        'privacy_show_server': prefs.privacy_show_server,
+                        'privacy_allow_dms': prefs.privacy_allow_dms,
+                        'allow_join': allow_join,
+                        'invite_code': invite_code
+                    }
+                })
+
+            # POST - Save preferences
+            elif request.method == 'POST':
+                data = json_lib.loads(request.body)
+
+                # Get or create preferences record
+                prefs = db.query(DiscoveryNetworkPreferences).filter_by(user_id=int(user_id)).first()
+                if not prefs:
+                    prefs = DiscoveryNetworkPreferences(user_id=int(user_id))
+                    db.add(prefs)
+
+                # Update boolean fields
+                if 'enable_lfg' in data:
+                    prefs.enable_lfg = bool(data['enable_lfg'])
+                if 'enable_games' in data:
+                    prefs.enable_games = bool(data['enable_games'])
+                if 'enable_creators' in data:
+                    prefs.enable_creators = bool(data['enable_creators'])
+                if 'enable_directory' in data:
+                    prefs.enable_directory = bool(data['enable_directory'])
+
+                # Update preference arrays (stored as JSON)
+                if 'preferred_games' in data:
+                    prefs.preferred_games = json_lib.dumps(data['preferred_games']) if data['preferred_games'] else None
+                if 'preferred_tags' in data:
+                    prefs.preferred_tags = json_lib.dumps(data['preferred_tags']) if data['preferred_tags'] else None
+                if 'preferred_size' in data:
+                    prefs.preferred_size = data['preferred_size'] or None
+
+                # Update LFG preferences
+                if 'lfg_filter_games' in data:
+                    prefs.lfg_filter_games = bool(data['lfg_filter_games'])
+                if 'lfg_show_now' in data:
+                    prefs.lfg_show_now = bool(data['lfg_show_now'])
+                if 'lfg_hide_voice' in data:
+                    prefs.lfg_hide_voice = bool(data['lfg_hide_voice'])
+
+                # Update notification preferences
+                if 'notify_lfg' in data:
+                    prefs.notify_lfg = bool(data['notify_lfg'])
+                if 'notify_servers' in data:
+                    prefs.notify_servers = bool(data['notify_servers'])
+                if 'notify_digest' in data:
+                    prefs.notify_digest = bool(data['notify_digest'])
+
+                # Update privacy preferences
+                if 'privacy_show_profile' in data:
+                    prefs.privacy_show_profile = bool(data['privacy_show_profile'])
+                if 'privacy_show_server' in data:
+                    prefs.privacy_show_server = bool(data['privacy_show_server'])
+                if 'privacy_allow_dms' in data:
+                    prefs.privacy_allow_dms = bool(data['privacy_allow_dms'])
+
+                # Update timestamp
+                prefs.updated_at = int(time.time())
+
+                # ALSO UPDATE ALLOW_JOIN AND INVITE_CODE IN THE APPLICATION TABLE (SERVER SETTINGS)
+                # These are server settings, not user preferences, so they need to update the application
+                # ADMIN ONLY - only server admins can modify these settings
+                if 'allow_join' in data or 'invite_code' in data:
+                    # Check if user is admin
+                    admin_guilds = request.session.get('discord_admin_guilds', [])
+                    guild_id = request.GET.get('guild_id') or request.session.get('guild_id')
+                    is_admin = any(str(g['id']) == str(guild_id) for g in admin_guilds) if guild_id else False
+
+                    if not is_admin:
+                        # Non-admins cannot modify server settings (allow_join, invite_code)
+                        # Continue saving other preferences but ignore these fields
+                        pass
+                    else:
+                        # Admin can update server settings
+                        from .models import DiscoveryNetworkApplication
+
+                        if guild_id:
+                            # Find the server's application
+                            application = db.query(DiscoveryNetworkApplication).filter_by(
+                                guild_id=int(guild_id),
+                                status='approved'
+                            ).first()
+
+                            if application:
+                                if 'allow_join' in data:
+                                    application.allow_join = bool(data['allow_join'])
+                                if 'invite_code' in data:
+                                    # Strip whitespace and set to None if empty
+                                    invite_code_value = str(data['invite_code']).strip() if data['invite_code'] else None
+                                    application.invite_code = invite_code_value if invite_code_value else None
+                                application.updated_at = int(time.time())
+
+                db.commit()
+
+                return JsonResponse({
+                    'success': True,
+                    'message': 'Preferences saved successfully'
+                })
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
+@csrf_exempt
+@discord_required
+@require_http_methods(["POST"])
+def api_discovery_network_leave(request):
+    """Leave the Discovery Network - keeps approval status so they can rejoin without reapplying. ADMIN ONLY."""
+    try:
+        from .db import get_db_session
+        from .models import DiscoveryNetworkApplication
+        import time
+
+        user = request.session.get('discord_user', {})
+        user_id = user.get('id')
+        guild_id = request.GET.get('guild_id')  # Get from query params or session
+
+        if not user_id:
+            return JsonResponse({
+                'success': False,
+                'error': 'Not authenticated'
+            }, status=401)
+
+        if not guild_id:
+            return JsonResponse({
+                'success': False,
+                'error': 'Guild ID required'
+            }, status=400)
+
+        # ADMIN CHECK - only admins can leave the network
+        admin_guilds = request.session.get('discord_admin_guilds', [])
+        is_admin = any(str(g['id']) == str(guild_id) for g in admin_guilds)
+
+        if not is_admin:
+            return JsonResponse({
+                'success': False,
+                'error': 'Admin permission required to leave the Discovery Network'
+            }, status=403)
+
+        with get_db_session() as db:
+            # Find the server's application
+            application = db.query(DiscoveryNetworkApplication).filter_by(
+                guild_id=int(guild_id),
+                status='approved'
+            ).first()
+
+            if not application:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'No approved application found for this server'
+                }, status=404)
+
+            # Don't delete the application - just mark it as inactive
+            # This way they keep their approved status and can rejoin anytime
+            # We'll add a new field to track this
+            # For now, we'll change status to 'left' (we can add this status)
+            application.status = 'left'
+            application.updated_at = int(time.time())
+
+            db.commit()
+
+            return JsonResponse({
+                'success': True,
+                'message': 'Successfully left the Discovery Network. You can rejoin anytime.'
+            })
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
+@csrf_exempt
+@discord_required
+@require_http_methods(["POST"])
+def api_discovery_network_rejoin(request):
+    """Rejoin the Discovery Network - restore approved status for servers who left within 90 days."""
+    try:
+        from .db import get_db_session
+        from .models import DiscoveryNetworkApplication
+        import time
+
+        user = request.session.get('discord_user', {})
+        user_id = user.get('id')
+        guild_id = request.GET.get('guild_id')
+
+        if not user_id:
+            return JsonResponse({
+                'success': False,
+                'error': 'Not authenticated'
+            }, status=401)
+
+        if not guild_id:
+            return JsonResponse({
+                'success': False,
+                'error': 'Guild ID required'
+            }, status=400)
+
+        with get_db_session() as db:
+            # Find the server's application with 'left' status
+            application = db.query(DiscoveryNetworkApplication).filter_by(
+                guild_id=int(guild_id),
+                status='left'
+            ).first()
+
+            if not application:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'No previous membership found. Please apply to join the network.'
+                }, status=404)
+
+            # Check if they left more than 90 days ago
+            current_time = int(time.time())
+            ninety_days_seconds = 90 * 24 * 60 * 60  # 90 days in seconds
+            time_since_left = current_time - application.updated_at
+
+            if time_since_left > ninety_days_seconds:
+                # More than 90 days - they need to reapply
+                return JsonResponse({
+                    'success': False,
+                    'error': 'reapply_required',
+                    'message': 'It has been more than 90 days since you left the network. Please submit a new application.'
+                }, status=400)
+
+            # Restore to approved status (within 90 days)
+            application.status = 'approved'
+            application.updated_at = int(time.time())
+
+            db.commit()
+
+            return JsonResponse({
+                'success': True,
+                'message': 'Welcome back to the Discovery Network!'
+            })
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["GET"])
+def api_discovery_games_list(request):
+    """
+    GET /api/discovery/games-list - Get aggregated game list from Discovery Network.
+    Aggregates games from announced_games and lfg_groups, showing counts and ratings.
+    Query params: guild_id, search, genre, sort
+    """
+    try:
+        from .db import get_db_session
+        from .models import AnnouncedGame, LFGGroup, LFGGame, DiscoveryGameReview, Guild
+        from sqlalchemy import func, case
+        from collections import defaultdict
+
+        guild_id = request.GET.get('guild_id')
+        search_term = request.GET.get('search', '').strip().lower()
+        genre_filter = request.GET.get('genre', '').strip().lower()
+        sort_by = request.GET.get('sort', 'trending')  # trending, servers, recent, rating
+
+        with get_db_session() as db:
+            # Verify guild is in Discovery Network (approved application)
+            from .models import DiscoveryNetworkApplication
+
+            # Get all approved guilds (status='approved')
+            approved_apps = db.query(DiscoveryNetworkApplication.guild_id).filter(
+                DiscoveryNetworkApplication.status == 'approved'
+            ).all()
+            approved_guild_ids = [g[0] for g in approved_apps if g[0] is not None]
+
+            # If checking specific guild, verify it's approved
+            if guild_id:
+                if int(guild_id) not in approved_guild_ids:
+                    return JsonResponse({
+                        'success': False,
+                        'error': 'Guild is not a member of the Discovery Network. Please apply first!'
+                    }, status=403)
+
+            if not approved_guild_ids:
+                return JsonResponse({
+                    'success': True,
+                    'games': []
+                })
+
+            # Aggregate game data from multiple sources
+            games_data = defaultdict(lambda: {
+                'name': '',
+                'genre': None,
+                'description': None,
+                'release_date': None,
+                'genres': None,
+                'platforms': None,
+                'server_count': 0,
+                'lfg_count': 0,
+                'total_reviews': 0,
+                'avg_rating': 0,
+                'latest_timestamp': 0,
+                'cover_url': None,
+                'igdb_slug': None,
+                'steam_id': None,
+                'steam_url': None,
+                'hypes': None
+            })
+
+            # 1. Get games from announced_games (Found Games)
+            announced_games = db.query(
+                AnnouncedGame.game_name,
+                AnnouncedGame.genre,
+                AnnouncedGame.description,
+                AnnouncedGame.release_date,
+                AnnouncedGame.genres,
+                AnnouncedGame.platforms,
+                AnnouncedGame.cover_url,
+                AnnouncedGame.igdb_slug,
+                AnnouncedGame.steam_id,
+                func.count(func.distinct(AnnouncedGame.guild_id)).label('server_count'),
+                func.max(AnnouncedGame.created_at).label('latest')
+            ).filter(
+                AnnouncedGame.guild_id.in_(approved_guild_ids)
+            ).group_by(
+                AnnouncedGame.game_name,
+                AnnouncedGame.genre,
+                AnnouncedGame.description,
+                AnnouncedGame.release_date,
+                AnnouncedGame.genres,
+                AnnouncedGame.platforms,
+                AnnouncedGame.cover_url,
+                AnnouncedGame.igdb_slug,
+                AnnouncedGame.steam_id
+            ).all()
+
+            for game in announced_games:
+                game_name_lower = game.game_name.lower()
+                games_data[game_name_lower]['name'] = game.game_name  # Keep original casing
+                games_data[game_name_lower]['genre'] = game.genre
+                games_data[game_name_lower]['server_count'] += game.server_count
+                if game.latest and game.latest > games_data[game_name_lower]['latest_timestamp']:
+                    games_data[game_name_lower]['latest_timestamp'] = game.latest
+                # Use first non-null values found
+                if not games_data[game_name_lower]['cover_url'] and game.cover_url:
+                    games_data[game_name_lower]['cover_url'] = game.cover_url
+                if not games_data[game_name_lower]['igdb_slug'] and game.igdb_slug:
+                    games_data[game_name_lower]['igdb_slug'] = game.igdb_slug
+                if not games_data[game_name_lower]['steam_id'] and game.steam_id:
+                    games_data[game_name_lower]['steam_id'] = game.steam_id
+                if not games_data[game_name_lower]['description'] and game.description:
+                    games_data[game_name_lower]['description'] = game.description
+                if not games_data[game_name_lower]['release_date'] and game.release_date:
+                    games_data[game_name_lower]['release_date'] = game.release_date
+                if not games_data[game_name_lower]['genres'] and game.genres:
+                    games_data[game_name_lower]['genres'] = game.genres
+                if not games_data[game_name_lower]['platforms'] and game.platforms:
+                    games_data[game_name_lower]['platforms'] = game.platforms
+
+            # 2. Get games from found_games (has Steam URLs and rich IGDB data)
+            from .models import FoundGame
+            found_games = db.query(
+                FoundGame.game_name,
+                FoundGame.cover_url,
+                FoundGame.igdb_slug,
+                FoundGame.steam_url,
+                FoundGame.release_date,
+                FoundGame.summary,
+                FoundGame.genres,
+                FoundGame.platforms,
+                FoundGame.hypes,
+                FoundGame.rating,
+                func.count(func.distinct(FoundGame.guild_id)).label('found_count')
+            ).filter(
+                FoundGame.guild_id.in_(approved_guild_ids)
+            ).group_by(
+                FoundGame.game_name,
+                FoundGame.cover_url,
+                FoundGame.igdb_slug,
+                FoundGame.steam_url,
+                FoundGame.release_date,
+                FoundGame.summary,
+                FoundGame.genres,
+                FoundGame.platforms,
+                FoundGame.hypes,
+                FoundGame.rating
+            ).all()
+
+            for game in found_games:
+                game_name_lower = game.game_name.lower()
+                if game_name_lower not in games_data:
+                    games_data[game_name_lower]['name'] = game.game_name
+                # Enrich with found_games data (prefer this over announced_games since it has Steam URLs)
+                if not games_data[game_name_lower]['cover_url'] and game.cover_url:
+                    games_data[game_name_lower]['cover_url'] = game.cover_url
+                if not games_data[game_name_lower]['igdb_slug'] and game.igdb_slug:
+                    games_data[game_name_lower]['igdb_slug'] = game.igdb_slug
+                if game.steam_url:  # Steam URL from found_games
+                    games_data[game_name_lower]['steam_url'] = game.steam_url
+                if not games_data[game_name_lower]['release_date'] and game.release_date:
+                    games_data[game_name_lower]['release_date'] = game.release_date
+                if not games_data[game_name_lower]['description'] and game.summary:
+                    games_data[game_name_lower]['description'] = game.summary
+                if not games_data[game_name_lower]['genres'] and game.genres:
+                    games_data[game_name_lower]['genres'] = game.genres
+                if not games_data[game_name_lower]['platforms'] and game.platforms:
+                    games_data[game_name_lower]['platforms'] = game.platforms
+                if game.hypes:
+                    games_data[game_name_lower]['hypes'] = game.hypes
+                if game.rating and not games_data[game_name_lower]['avg_rating']:
+                    games_data[game_name_lower]['avg_rating'] = game.rating
+
+            # 3. Get active LFG count per game
+            active_lfgs = db.query(
+                LFGGame.game_name,
+                LFGGame.cover_url,
+                LFGGame.igdb_slug,
+                func.count(func.distinct(LFGGroup.id)).label('lfg_count')
+            ).join(
+                LFGGroup, LFGGroup.game_id == LFGGame.id
+            ).filter(
+                LFGGame.guild_id.in_(approved_guild_ids),
+                LFGGroup.is_active == True
+            ).group_by(
+                LFGGame.game_name,
+                LFGGame.cover_url,
+                LFGGame.igdb_slug
+            ).all()
+
+            for game in active_lfgs:
+                if game.game_name:
+                    game_name_lower = game.game_name.lower()
+                    if game_name_lower not in games_data:
+                        games_data[game_name_lower]['name'] = game.game_name
+                    games_data[game_name_lower]['lfg_count'] = game.lfg_count
+                    # Use LFG game cover if we don't have one yet
+                    if not games_data[game_name_lower]['cover_url'] and game.cover_url:
+                        games_data[game_name_lower]['cover_url'] = game.cover_url
+                    if not games_data[game_name_lower]['igdb_slug'] and game.igdb_slug:
+                        games_data[game_name_lower]['igdb_slug'] = game.igdb_slug
+
+            # 3. Get review stats
+            review_stats = db.query(
+                func.lower(DiscoveryGameReview.game_name).label('game_name_lower'),
+                func.avg(DiscoveryGameReview.rating).label('avg_rating'),
+                func.count(DiscoveryGameReview.id).label('review_count')
+            ).filter(
+                DiscoveryGameReview.is_flagged == False
+            ).group_by(
+                func.lower(DiscoveryGameReview.game_name)
+            ).all()
+
+            for stat in review_stats:
+                game_name_lower = stat.game_name_lower
+                if game_name_lower in games_data:
+                    games_data[game_name_lower]['avg_rating'] = float(stat.avg_rating) if stat.avg_rating else 0
+                    games_data[game_name_lower]['total_reviews'] = stat.review_count
+
+            # Convert to list and apply filters
+            games_list = []
+            for game_key, data in games_data.items():
+                # Apply search filter
+                if search_term and search_term not in game_key:
+                    continue
+
+                # Apply genre filter
+                if genre_filter and (not data['genre'] or data['genre'].lower() != genre_filter):
+                    continue
+
+                # Build IGDB URL
+                igdb_url = None
+                if data['igdb_slug']:
+                    igdb_url = f"https://www.igdb.com/games/{data['igdb_slug']}"
+
+                # Use steam_url from found_games if available, otherwise construct from steam_id
+                steam_url = data['steam_url']  # Prefer full URL from found_games
+                if not steam_url and data['steam_id']:
+                    steam_url = f"https://store.steampowered.com/app/{data['steam_id']}"
+
+                # Parse JSON fields
+                import json
+                genres_list = None
+                platforms_list = None
+                if data['genres']:
+                    try:
+                        genres_list = json.loads(data['genres']) if isinstance(data['genres'], str) else data['genres']
+                    except:
+                        pass
+                if data['platforms']:
+                    try:
+                        platforms_list = json.loads(data['platforms']) if isinstance(data['platforms'], str) else data['platforms']
+                    except:
+                        pass
+
+                # Format release date
+                release_date_str = None
+                if data['release_date']:
+                    try:
+                        from datetime import datetime
+                        release_date_str = datetime.fromtimestamp(data['release_date']).strftime('%b %d, %Y')
+                    except:
+                        pass
+
+                # Use description or fallback to summary from IGDB if available
+                summary = data['description']
+
+                games_list.append({
+                    'id': game_key,  # Use lowercase name as ID
+                    'name': data['name'],
+                    'genre': data['genre'],
+                    'summary': summary,
+                    'release_date': release_date_str,
+                    'genres': genres_list,
+                    'platforms': platforms_list,
+                    'server_count': data['server_count'],
+                    'lfg_count': data['lfg_count'],
+                    'rating': round(data['avg_rating'], 1) if data['avg_rating'] > 0 else None,
+                    'review_count': data['total_reviews'],
+                    'latest_timestamp': data['latest_timestamp'],
+                    'cover_url': data['cover_url'],
+                    'igdb_url': igdb_url,
+                    'steam_url': steam_url,
+                    'hypes': data['hypes']
+                })
+
+            # Apply sorting
+            if sort_by == 'servers':
+                games_list.sort(key=lambda x: x['server_count'], reverse=True)
+            elif sort_by == 'recent':
+                games_list.sort(key=lambda x: x['latest_timestamp'], reverse=True)
+            elif sort_by == 'rating':
+                games_list.sort(key=lambda x: (x['rating'] or 0, x['review_count']), reverse=True)
+            else:  # trending (default)
+                # Trending = combination of server count, LFG count, and recency
+                import time
+                now = time.time()
+                for game in games_list:
+                    # Calculate trending score
+                    recency_bonus = 1.0
+                    if game['latest_timestamp'] > 0:
+                        days_old = (now - game['latest_timestamp']) / 86400
+                        recency_bonus = max(0.1, 1.0 - (days_old / 30))  # Decay over 30 days
+
+                    game['trending_score'] = (
+                        game['server_count'] * 10 +
+                        game['lfg_count'] * 5 +
+                        (game['rating'] or 0) * 3
+                    ) * recency_bonus
+
+                games_list.sort(key=lambda x: x['trending_score'], reverse=True)
+
+            return JsonResponse({
+                'success': True,
+                'games': games_list
+            })
+
+    except Exception as e:
+        import traceback
+        import logging
+        logger = logging.getLogger(__name__)
+
+        # Log the full error for debugging
+        logger.error(f"Error in api_discovery_games_list: {str(e)}")
+        traceback.print_exc()
+
+        # Return user-friendly error message
+        return JsonResponse({
+            'success': False,
+            'error': 'Unable to load games at this time. Please try again later.'
+        }, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["GET"])
+def api_discovery_game_share_limit(request):
+    """
+    GET /api/discovery/game-share-limit - Check remaining game share limit for guild.
+    Query params: guild_id
+    """
+    try:
+        from .db import get_db_session
+        from .models import Guild
+
+        guild_id = request.GET.get('guild_id')
+        if not guild_id:
+            return JsonResponse({
+                'success': False,
+                'error': 'Guild ID is required'
+            }, status=400)
+
+        with get_db_session() as db:
+            guild = db.query(Guild).filter_by(guild_id=int(guild_id)).first()
+            if not guild:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Guild not found'
+                }, status=404)
+
+            # Check limit
+            can_share, current_count, limit, reset_date = check_discovery_game_share_limit(db, guild_id, guild)
+
+            if limit is None:
+                # Unlimited
+                return JsonResponse({
+                    'success': True,
+                    'unlimited': True,
+                    'current': current_count,
+                    'limit': None,
+                    'remaining': None,
+                    'reset_date': None
+                })
+            else:
+                return JsonResponse({
+                    'success': True,
+                    'unlimited': False,
+                    'current': current_count,
+                    'limit': limit,
+                    'remaining': max(0, limit - current_count),
+                    'reset_date': reset_date,
+                    'can_share': can_share
+                })
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
+@discord_required
+@require_http_methods(["POST"])
+def api_discovery_share_game(request):
+    """
+    POST /api/discovery/share-game - Manually share a game to Discovery Network.
+    Includes duplicate checking and input sanitization.
+    Body: guild_id, game_name, genre, description
+    """
+    try:
+        import json as json_lib
+        from .db import get_db_session
+        from .models import AnnouncedGame, Guild
+        import time
+        import html
+
+        data = json_lib.loads(request.body)
+        user = request.session.get('discord_user', {})
+        user_id = user.get('id')
+
+        if not user_id:
+            return JsonResponse({
+                'success': False,
+                'error': 'Not authenticated'
+            }, status=401)
+
+        guild_id = data.get('guild_id')
+        game_name = data.get('game_name', '').strip()
+        genre = data.get('genre', '').strip()
+        description = data.get('description', '').strip()
+
+        # Validation
+        if not guild_id or not game_name:
+            return JsonResponse({
+                'success': False,
+                'error': 'Guild ID and game name are required'
+            }, status=400)
+
+        if len(game_name) > 255:
+            return JsonResponse({
+                'success': False,
+                'error': 'Game name must be 255 characters or less'
+            }, status=400)
+
+        if description and len(description) > 1000:
+            return JsonResponse({
+                'success': False,
+                'error': 'Description must be 1000 characters or less'
+            }, status=400)
+
+        # Sanitize inputs (prevent XSS)
+        game_name = html.escape(game_name)
+        genre = html.escape(genre) if genre else None
+        description = html.escape(description) if description else None
+
+        with get_db_session() as db:
+            # Verify guild exists and user has permission
+            guild = db.query(Guild).filter_by(guild_id=int(guild_id)).first()
+            if not guild:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Guild not found'
+                }, status=404)
+
+            # Check if guild is in Discovery Network
+            if not guild.discovery_network_approved or not guild.discovery_network_active:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Guild must be a member of the Discovery Network to share games'
+                }, status=403)
+
+            # Check share limit
+            can_share, current_count, limit, reset_date = check_discovery_game_share_limit(db, guild_id, guild)
+            if not can_share:
+                return JsonResponse({
+                    'success': False,
+                    'error': f'Monthly game sharing limit reached. You have shared {current_count}/{limit} games this month. Limit resets on {reset_date}. Upgrade to the Discovery Module or Complete Suite for unlimited sharing!',
+                    'limit_reached': True,
+                    'current_count': current_count,
+                    'limit': limit,
+                    'reset_date': reset_date
+                }, status=429)
+
+            # Check for duplicate - see if this guild already shared this game
+            existing = db.query(AnnouncedGame).filter(
+                AnnouncedGame.guild_id == int(guild_id),
+                func.lower(AnnouncedGame.game_name) == game_name.lower()
+            ).first()
+
+            if existing:
+                return JsonResponse({
+                    'success': False,
+                    'error': f'Your server has already shared "{game_name}" to the Discovery Network',
+                    'duplicate': True
+                }, status=400)
+
+            # Create the game entry
+            new_game = AnnouncedGame(
+                guild_id=int(guild_id),
+                game_name=game_name,
+                genre=genre,
+                description=description,
+                created_at=int(time.time()),
+                is_manual=True  # Flag to indicate manually shared
+            )
+
+            db.add(new_game)
+            db.commit()
+
+            return JsonResponse({
+                'success': True,
+                'message': f'Successfully shared "{game_name}" to the Discovery Network!',
+                'game': {
+                    'id': new_game.id,
+                    'name': game_name,
+                    'genre': genre,
+                    'description': description
+                }
+            })
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["GET"])
+def api_discovery_creators_list(request):
+    """
+    GET /api/discovery/creators-list - Get featured creators from Discovery Network.
+    TODO: This is a stub - Twitch/YouTube integration coming soon.
+    """
+    try:
+        # For now, return empty list
+        # TODO: Implement Twitch and YouTube discovery
+        return JsonResponse({
+            'success': True,
+            'creators': [],
+            'message': 'Creator discovery coming soon! Twitch and YouTube integration in progress.'
+        })
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def api_discovery_feature_creator(request):
+    """
+    POST /api/discovery/feature-creator - Feature a creator to Discovery Network.
+    TODO: This is a stub - Twitch/YouTube integration coming soon.
+    """
+    try:
+        return JsonResponse({
+            'success': False,
+            'error': 'Creator featuring coming soon! This feature requires Twitch/YouTube integration.'
+        }, status=501)  # 501 Not Implemented
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
+@discord_required
+@require_http_methods(["GET", "POST"])
+def api_discovery_game_reviews(request, game_id):
+    """
+    GET/POST /api/discovery/games/<game_id>/reviews
+    Get all reviews for a game or submit a new review.
+    """
+    try:
+        import json as json_lib
+        from .db import get_db_session
+        from .models import DiscoveryGameReview, Guild
+        from sqlalchemy import func
+        import time
+        import html
+
+        user = request.session.get('discord_user', {})
+        user_id = user.get('id')
+
+        if not user_id:
+            return JsonResponse({
+                'success': False,
+                'error': 'Not authenticated'
+            }, status=401)
+
+        # Decode game_id (it's the lowercase game name)
+        game_name = game_id.replace('_', ' ')
+
+        if request.method == 'GET':
+            # Get all reviews for this game
+            with get_db_session() as db:
+                reviews = db.query(DiscoveryGameReview).filter(
+                    func.lower(DiscoveryGameReview.game_name) == game_name.lower(),
+                    DiscoveryGameReview.is_flagged == False
+                ).order_by(
+                    DiscoveryGameReview.created_at.desc()
+                ).all()
+
+                reviews_data = []
+                for review in reviews:
+                    reviews_data.append({
+                        'id': review.id,
+                        'user_id': str(review.user_id),
+                        'username': review.username,
+                        'rating': review.rating,
+                        'review_text': review.review_text,
+                        'hours_played': review.hours_played,
+                        'created_at': review.created_at,
+                        'updated_at': review.updated_at
+                    })
+
+                # Calculate average rating
+                avg_rating = db.query(func.avg(DiscoveryGameReview.rating)).filter(
+                    func.lower(DiscoveryGameReview.game_name) == game_name.lower(),
+                    DiscoveryGameReview.is_flagged == False
+                ).scalar()
+
+                return JsonResponse({
+                    'success': True,
+                    'reviews': reviews_data,
+                    'average_rating': round(float(avg_rating), 1) if avg_rating else 0,
+                    'total_reviews': len(reviews_data)
+                })
+
+        elif request.method == 'POST':
+            # Submit a new review
+            data = json_lib.loads(request.body)
+            guild_id = data.get('guild_id')
+            rating = data.get('rating')
+            review_text = data.get('review_text', '').strip()
+            hours_played = data.get('hours_played')
+
+            # Validation
+            if not rating or not isinstance(rating, int) or rating < 1 or rating > 5:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Rating must be between 1 and 5 stars'
+                }, status=400)
+
+            if review_text and len(review_text) > 2000:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Review text must be 2000 characters or less'
+                }, status=400)
+
+            # Sanitize inputs
+            review_text = html.escape(review_text) if review_text else None
+
+            with get_db_session() as db:
+                # Get user's Discord username
+                username = user.get('username', 'Unknown User')
+
+                # Check if user already reviewed this game
+                existing = db.query(DiscoveryGameReview).filter(
+                    func.lower(DiscoveryGameReview.game_name) == game_name.lower(),
+                    DiscoveryGameReview.user_id == int(user_id)
+                ).first()
+
+                if existing:
+                    # Update existing review
+                    existing.rating = rating
+                    existing.review_text = review_text
+                    existing.hours_played = hours_played
+                    existing.updated_at = int(time.time())
+                    db.commit()
+
+                    return JsonResponse({
+                        'success': True,
+                        'message': 'Review updated successfully!',
+                        'review': {
+                            'id': existing.id,
+                            'rating': rating,
+                            'review_text': review_text,
+                            'hours_played': hours_played
+                        }
+                    })
+                else:
+                    # Create new review
+                    new_review = DiscoveryGameReview(
+                        game_name=game_name,
+                        user_id=int(user_id),
+                        username=username,
+                        guild_id=int(guild_id) if guild_id else None,
+                        rating=rating,
+                        review_text=review_text,
+                        hours_played=hours_played,
+                        created_at=int(time.time()),
+                        updated_at=int(time.time())
+                    )
+
+                    db.add(new_review)
+                    db.commit()
+
+                    return JsonResponse({
+                        'success': True,
+                        'message': 'Review submitted successfully!',
+                        'review': {
+                            'id': new_review.id,
+                            'rating': rating,
+                            'review_text': review_text,
+                            'hours_played': hours_played
+                        }
+                    })
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
+@discord_required
+@require_http_methods(["GET", "POST"])
+def api_discovery_game_discussions(request, game_id):
+    """
+    GET/POST /api/discovery/games/<game_id>/discussions
+    Get all discussions for a game or post a new comment.
+    """
+    try:
+        import json as json_lib
+        from .db import get_db_session
+        from .models import DiscoveryGameDiscussion
+        from sqlalchemy import func
+        import time
+        import html
+
+        user = request.session.get('discord_user', {})
+        user_id = user.get('id')
+
+        if not user_id:
+            return JsonResponse({
+                'success': False,
+                'error': 'Not authenticated'
+            }, status=401)
+
+        # Decode game_id
+        game_name = game_id.replace('_', ' ')
+
+        if request.method == 'GET':
+            # Get all discussions for this game
+            with get_db_session() as db:
+                discussions = db.query(DiscoveryGameDiscussion).filter(
+                    func.lower(DiscoveryGameDiscussion.game_name) == game_name.lower(),
+                    DiscoveryGameDiscussion.is_deleted == False,
+                    DiscoveryGameDiscussion.is_flagged == False
+                ).order_by(
+                    DiscoveryGameDiscussion.created_at.desc()
+                ).all()
+
+                discussions_data = []
+                for disc in discussions:
+                    discussions_data.append({
+                        'id': disc.id,
+                        'user_id': str(disc.user_id),
+                        'username': disc.username,
+                        'comment_text': disc.comment_text,
+                        'parent_comment_id': disc.parent_comment_id,
+                        'created_at': disc.created_at,
+                        'updated_at': disc.updated_at,
+                        'upvotes': disc.upvotes
+                    })
+
+                return JsonResponse({
+                    'success': True,
+                    'discussions': discussions_data,
+                    'total_comments': len(discussions_data)
+                })
+
+        elif request.method == 'POST':
+            # Post a new comment
+            data = json_lib.loads(request.body)
+            guild_id = data.get('guild_id')
+            comment_text = data.get('comment_text', '').strip()
+            parent_comment_id = data.get('parent_comment_id')
+
+            # Validation
+            if not comment_text:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Comment text is required'
+                }, status=400)
+
+            if len(comment_text) > 2000:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Comment must be 2000 characters or less'
+                }, status=400)
+
+            # Sanitize input
+            comment_text = html.escape(comment_text)
+
+            with get_db_session() as db:
+                # Get user's Discord username
+                username = user.get('username', 'Unknown User')
+
+                # Create new comment
+                new_comment = DiscoveryGameDiscussion(
+                    game_name=game_name,
+                    user_id=int(user_id),
+                    username=username,
+                    guild_id=int(guild_id) if guild_id else None,
+                    comment_text=comment_text,
+                    parent_comment_id=parent_comment_id,
+                    created_at=int(time.time()),
+                    updated_at=int(time.time())
+                )
+
+                db.add(new_comment)
+                db.commit()
+
+                return JsonResponse({
+                    'success': True,
+                    'message': 'Comment posted successfully!',
+                    'comment': {
+                        'id': new_comment.id,
+                        'comment_text': comment_text,
+                        'parent_comment_id': parent_comment_id,
+                        'upvotes': 0
+                    }
+                })
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
+@discord_required
+@require_http_methods(["POST"])
+def api_discovery_discussion_upvote(request, discussion_id):
+    """
+    POST /api/discovery/discussions/<discussion_id>/upvote
+    Upvote a discussion comment.
+    """
+    try:
+        from .db import get_db_session
+        from .models import DiscoveryGameDiscussion
+
+        user = request.session.get('discord_user', {})
+        user_id = user.get('id')
+
+        if not user_id:
+            return JsonResponse({
+                'success': False,
+                'error': 'Not authenticated'
+            }, status=401)
+
+        with get_db_session() as db:
+            comment = db.query(DiscoveryGameDiscussion).filter_by(id=discussion_id).first()
+
+            if not comment:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Comment not found'
+                }, status=404)
+
+            # Increment upvote count
+            comment.upvotes += 1
+            db.commit()
+
+            return JsonResponse({
+                'success': True,
+                'upvotes': comment.upvotes
+            })
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
+def api_discovery_network_admin_applications(request):
+    """Get all applications for admin review (BOT OWNER ONLY)."""
+    try:
+        import os
+        from .db import get_db_session
+        from .models import DiscoveryNetworkApplication, DiscoveryNetworkBan, Guild
+
+        user = request.session.get('discord_user', {})
+        user_id = user.get('id')
+        bot_owner_id = os.getenv('BOT_OWNER_ID')
+
+        # Only bot owner can access this
+        if str(user_id) != str(bot_owner_id):
+            return JsonResponse({
+                'success': False,
+                'error': 'Unauthorized - Bot owner only'
+            }, status=403)
+
+        with get_db_session() as db:
+            # Get all applications
+            applications = db.query(DiscoveryNetworkApplication).order_by(
+                DiscoveryNetworkApplication.applied_at.desc()
+            ).all()
+
+            # Get all bans
+            bans = db.query(DiscoveryNetworkBan).all()
+
+            # Format applications
+            apps_data = []
+            for app in applications:
+                # Get guild info if guild_id exists
+                guild_info = None
+                if app.guild_id:
+                    guild = db.query(Guild).filter_by(guild_id=app.guild_id).first()
+                    if guild:
+                        guild_info = {
+                            'id': str(guild.guild_id),
+                            'name': guild.guild_name or 'Unknown Server'
+                        }
+
+                apps_data.append({
+                    'id': app.id,
+                    'user_id': str(app.user_id),
+                    'guild_id': str(app.guild_id) if app.guild_id else None,
+                    'guild_info': guild_info,
+                    'username': app.username,
+                    'display_name': app.display_name,
+                    'avatar_url': app.avatar_url,
+                    'bio': app.bio,
+                    'twitch_url': app.twitch_url,
+                    'youtube_url': app.youtube_url,
+                    'twitter_url': app.twitter_url,
+                    'tiktok_url': app.tiktok_url,
+                    'status': app.status,
+                    'applied_at': app.applied_at,
+                    'updated_at': app.updated_at,
+                    'denial_reason': app.denial_reason,
+                    'reviewed_by': str(app.reviewed_by) if app.reviewed_by else None
+                })
+
+            # Format bans
+            bans_data = []
+            for ban in bans:
+                bans_data.append({
+                    'id': ban.id,
+                    'user_id': str(ban.user_id),
+                    'reason': ban.reason,
+                    'violation_type': ban.violation_type,
+                    'banned_at': ban.banned_at,
+                    'banned_by': str(ban.banned_by) if ban.banned_by else None,
+                    'appeal_allowed': ban.appeal_allowed,
+                    'appeal_submitted': ban.appeal_submitted
+                })
+
+            return JsonResponse({
+                'success': True,
+                'applications': apps_data,
+                'bans': bans_data,
+                'stats': {
+                    'pending': len([a for a in applications if a.status == 'pending']),
+                    'approved': len([a for a in applications if a.status == 'approved']),
+                    'denied': len([a for a in applications if a.status == 'denied']),
+                    'banned': len(bans)
+                }
+            })
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
+def api_discovery_network_admin_approve(request, application_id):
+    """Approve an application (BOT OWNER ONLY)."""
+    try:
+        import os
+        import time
+        from .db import get_db_session
+        from .models import DiscoveryNetworkApplication
+
+        user = request.session.get('discord_user', {})
+        user_id = user.get('id')
+        bot_owner_id = os.getenv('BOT_OWNER_ID')
+
+        # Only bot owner can access this
+        if str(user_id) != str(bot_owner_id):
+            return JsonResponse({
+                'success': False,
+                'error': 'Unauthorized - Bot owner only'
+            }, status=403)
+
+        with get_db_session() as db:
+            application = db.query(DiscoveryNetworkApplication).filter_by(id=application_id).first()
+
+            if not application:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Application not found'
+                }, status=404)
+
+            application.status = 'approved'
+            application.reviewed_by = int(user_id)
+            application.updated_at = int(time.time())
+
+            db.commit()
+
+            return JsonResponse({
+                'success': True,
+                'message': 'Application approved'
+            })
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
+def api_discovery_network_admin_deny(request, application_id):
+    """Deny an application (BOT OWNER ONLY)."""
+    try:
+        import os
+        import time
+        import json as json_lib
+        from .db import get_db_session
+        from .models import DiscoveryNetworkApplication
+
+        user = request.session.get('discord_user', {})
+        user_id = user.get('id')
+        bot_owner_id = os.getenv('BOT_OWNER_ID')
+
+        # Only bot owner can access this
+        if str(user_id) != str(bot_owner_id):
+            return JsonResponse({
+                'success': False,
+                'error': 'Unauthorized - Bot owner only'
+            }, status=403)
+
+        data = json_lib.loads(request.body)
+        reason = data.get('reason', 'No reason provided')
+
+        with get_db_session() as db:
+            application = db.query(DiscoveryNetworkApplication).filter_by(id=application_id).first()
+
+            if not application:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Application not found'
+                }, status=404)
+
+            application.status = 'denied'
+            application.denial_reason = reason
+            application.reviewed_by = int(user_id)
+            application.updated_at = int(time.time())
+
+            db.commit()
+
+            return JsonResponse({
+                'success': True,
+                'message': 'Application denied'
+            })
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
+def api_discovery_network_admin_ban(request, application_id):
+    """Ban a user from Discovery Network (BOT OWNER ONLY)."""
+    try:
+        import os
+        import time
+        import json as json_lib
+        from .db import get_db_session
+        from .models import DiscoveryNetworkApplication, DiscoveryNetworkBan
+
+        user = request.session.get('discord_user', {})
+        user_id = user.get('id')
+        bot_owner_id = os.getenv('BOT_OWNER_ID')
+
+        # Only bot owner can access this
+        if str(user_id) != str(bot_owner_id):
+            return JsonResponse({
+                'success': False,
+                'error': 'Unauthorized - Bot owner only'
+            }, status=403)
+
+        data = json_lib.loads(request.body)
+        reason = data.get('reason', 'No reason provided')
+        violation_type = data.get('violation_type', 'other')
+
+        with get_db_session() as db:
+            application = db.query(DiscoveryNetworkApplication).filter_by(id=application_id).first()
+
+            if not application:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Application not found'
+                }, status=404)
+
+            # Check if already banned
+            existing_ban = db.query(DiscoveryNetworkBan).filter_by(user_id=application.user_id).first()
+            if existing_ban:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'User is already banned'
+                }, status=400)
+
+            # Create ban
+            ban = DiscoveryNetworkBan(
+                user_id=application.user_id,
+                reason=reason,
+                violation_type=violation_type,
+                banned_by=int(user_id),
+                banned_at=int(time.time()),
+                appeal_allowed=True,
+                appeal_submitted=False
+            )
+
+            # Update application status
+            application.status = 'denied'
+            application.denial_reason = f'Banned: {reason}'
+            application.reviewed_by = int(user_id)
+            application.updated_at = int(time.time())
+
+            db.add(ban)
+            db.commit()
+
+            return JsonResponse({
+                'success': True,
+                'message': 'User banned from Discovery Network'
+            })
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
+@discord_required
 def guild_found_games(request, guild_id):
     """GET /questlog/guild/<id>/found-games/ - View all games found in recent discovery checks."""
     from .module_utils import has_module_access, has_any_module_access
@@ -9633,7 +12373,7 @@ def guild_found_games(request, guild_id):
 
     if not guild:
         messages.error(request, "You are not a member of this server.")
-        return redirect('warden_dashboard')
+        return redirect('questlog_dashboard')
 
     try:
         from .db import get_db_session
@@ -10550,7 +13290,7 @@ def guild_lfg(request, guild_id):
 
     if not guild:
         logger.warning(f"LFG: Guild {guild_id} not found in session, redirecting to dashboard")
-        return redirect('warden_dashboard')
+        return redirect('questlog_dashboard')
 
     # Check admin permission
     permissions = int(guild.get('permissions', 0))
@@ -10558,7 +13298,7 @@ def guild_lfg(request, guild_id):
 
     if not is_admin:
         messages.error(request, 'You need Admin or Manage Server permission.')
-        return redirect('warden_dashboard')
+        return redirect('questlog_dashboard')
 
     try:
         from .db import get_db_session
@@ -10716,7 +13456,7 @@ def guild_lfg_browser(request, guild_id):
 
     if not guild:
         messages.error(request, "You are not a member of this server.")
-        return redirect('warden_dashboard')
+        return redirect('questlog_dashboard')
 
     # Check if user has "LFG Manager" role (requires both CREATE_EVENTS and MANAGE_EVENTS permissions)
     has_lfg_manager_role = check_lfg_manager_role(guild_id, user_id)
@@ -10734,7 +13474,7 @@ def guild_lfg_browser(request, guild_id):
 
             if not guild_db:
                 messages.error(request, 'Server not found in database.')
-                return redirect('warden_dashboard')
+                return redirect('questlog_dashboard')
 
             # Get all enabled games for this guild
             games = db.query(LFGGame).filter_by(
@@ -10759,10 +13499,7 @@ def guild_lfg_browser(request, guild_id):
                     'current_player_count': game.current_player_count or 0,
                 })
 
-        # JSON encode games for JavaScript to avoid Python None -> "None" issue
-        import json as json_module
-        games_json = json_module.dumps(games_data)
-
+        # Pass games_data directly to template - will use json_script tag for safe JSON injection prevention
         # Check if guild has LFG module access
         has_lfg_module = has_module_access(guild_id, 'lfg')
         has_engagement_module = has_module_access(guild_id, 'engagement')
@@ -10772,7 +13509,7 @@ def guild_lfg_browser(request, guild_id):
             'guild': guild,
             'guild_record': guild_db,
             'games': games_data,
-            'games_json': games_json,
+            'games_data': games_data,  # Pass for json_script tag
             'discord_user': discord_user,
             'is_admin': is_admin,
             'can_manage_groups': can_manage_groups,  # Pass can_manage_groups for audit logs button
@@ -10806,7 +13543,7 @@ def guild_attendance(request, guild_id):
 
     if not guild:
         messages.error(request, "You are not a member of this server.")
-        return redirect('warden_dashboard')
+        return redirect('questlog_dashboard')
 
     # Check permissions
     permissions = int(guild.get('permissions', 0))
@@ -14066,6 +16803,17 @@ def guild_featured_creators(request, guild_id):
                         return text
 
                     clean_bio = discord_markdown_to_html(clean_bio) if clean_bio else ''
+
+                # SECURITY: Sanitize HTML to prevent XSS attacks
+                import bleach
+                ALLOWED_TAGS = ['b', 'i', 'u', 'strong', 'em', 'br', 'p', 'a', 'ul', 'ol', 'li', 'code', 'pre']
+                ALLOWED_ATTRS = {'a': ['href', 'title', 'target', 'rel']}
+                clean_bio = bleach.clean(
+                    clean_bio,
+                    tags=ALLOWED_TAGS,
+                    attributes=ALLOWED_ATTRS,
+                    strip=True
+                ) if clean_bio else ''
 
                 # Only include direct URLs if not already in bio links
                 show_twitch = creator.twitch_url and 'twitch' not in shown_platforms

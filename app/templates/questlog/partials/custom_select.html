@@ -34,6 +34,17 @@ function createCustomSelect(config) {
   let searchQuery = '';
   let selectedValue = selected;
 
+  // HTML Escaping function to prevent XSS
+  function escapeHtml(unsafe) {
+    if (unsafe === null || unsafe === undefined) return '';
+    return String(unsafe)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+  }
+
   // Build HTML
   const html = `
     <div class="custom-select-wrapper relative">
@@ -41,12 +52,12 @@ function createCustomSelect(config) {
       <button
         type="button"
         class="custom-select-trigger w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white text-left focus:border-${color}-500 focus:outline-none flex items-center justify-between hover:bg-neutral-750 transition">
-        <span class="custom-select-label ${!selectedValue ? 'text-gray-400' : ''}">${selectedValue ? items.find(i => i.value === selectedValue)?.label || placeholder : placeholder}</span>
+        <span class="custom-select-label ${!selectedValue ? 'text-gray-400' : ''}">${escapeHtml(selectedValue ? items.find(i => i.value === selectedValue)?.label || placeholder : placeholder)}</span>
         <i class="fas fa-chevron-down text-gray-400 text-sm transition-transform custom-select-icon"></i>
       </button>
 
       <!-- Hidden Input -->
-      <input type="hidden" name="${name}" id="${id}" value="${selectedValue}">
+      <input type="hidden" name="${escapeHtml(name)}" id="${escapeHtml(id)}" value="${escapeHtml(selectedValue)}">
 
       <!-- Dropdown Panel -->
       <div class="custom-select-dropdown hidden absolute z-50 w-full min-w-[260px] max-w-[420px] mt-2 bg-neutral-800 border border-neutral-700 rounded-lg shadow-2xl overflow-hidden">
@@ -63,10 +74,10 @@ function createCustomSelect(config) {
           ${items.map(item => `
             <button
               type="button"
-              data-value="${item.value}"
+              data-value="${escapeHtml(item.value)}"
               class="custom-select-option w-full px-4 py-2.5 text-left text-white hover:bg-neutral-700 transition flex items-center gap-2 text-sm ${selectedValue === item.value ? 'bg-neutral-700' : ''}">
-              ${item.icon ? `<i class="fas fa-${item.icon} text-gray-400"></i>` : ''}
-              <span>${item.label}</span>
+              ${item.icon ? `<i class="fas fa-${escapeHtml(item.icon)} text-gray-400"></i>` : ''}
+              <span>${escapeHtml(item.label)}</span>
               ${selectedValue === item.value ? '<i class="fas fa-check ml-auto text-green-400 text-xs"></i>' : ''}
             </button>
           `).join('')}

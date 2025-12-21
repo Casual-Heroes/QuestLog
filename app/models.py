@@ -197,6 +197,7 @@ class Guild(Base):
     cached_channels = Column(Text, nullable=True)  # JSON array of channel objects
     cached_roles = Column(Text, nullable=True)  # JSON array of role objects
     cached_emojis = Column(Text, nullable=True)  # JSON array of emoji objects
+    guild_icon_hash = Column(String(255), nullable=True)  # Discord guild icon hash for CDN URL
 
     # Cached Member Stats (synced by bot from Discord presence data)
     member_count = Column(Integer, nullable=True)  # Total members (excluding bots)
@@ -1027,9 +1028,16 @@ class AnnouncedGame(Base):
     announced_at = Column(BigInteger, nullable=False)
     announcement_message_id = Column(BigInteger, nullable=True)
 
+    # Manual sharing fields (for Discovery Network)
+    genre = Column(String(100), nullable=True)  # Single genre for manually shared games
+    description = Column(Text, nullable=True)  # Description for manually shared games
+    created_at = Column(BigInteger, nullable=True, default=lambda: int(time.time()))  # Timestamp for manual shares
+    is_manual = Column(Boolean, default=False, nullable=False)  # Flag to indicate manually shared
+
     __table_args__ = (
         Index("idx_announced_game_guild", "guild_id", "igdb_id"),
         Index("idx_announced_game_steam", "guild_id", "steam_id"),
+        Index("idx_announced_game_manual", "guild_id", "is_manual"),
     )
 
 
@@ -2150,4 +2158,223 @@ class ScheduledMessage(Base):
         Index("idx_scheduled_message_guild", "guild_id"),
         Index("idx_scheduled_message_status", "status", "scheduled_time"),
         Index("idx_scheduled_message_pending", "guild_id", "status", "scheduled_time"),
+    )
+
+
+# Discovery Network Models
+
+class DiscoveryNetworkApplication(Base):
+    """
+    Applications for Discovery Network cross-server creator listing.
+    Requires admin review before approval.
+    """
+    __tablename__ = "discovery_network_applications"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(BigInteger, nullable=False)
+    guild_id = Column(BigInteger, ForeignKey("guilds.guild_id", ondelete="CASCADE"))
+
+    # Application data
+    bio = Column(Text, nullable=False)
+    twitch_url = Column(Text, nullable=True)
+    youtube_url = Column(Text, nullable=True)
+    twitter_url = Column(Text, nullable=True)
+    tiktok_url = Column(Text, nullable=True)
+    instagram_url = Column(Text, nullable=True)
+    bsky_url = Column(Text, nullable=True)
+    other_links = Column(Text, nullable=True)
+
+    # Cached Discord profile data
+    username = Column(String(255), nullable=False)
+    display_name = Column(String(255), nullable=True)
+    avatar_url = Column(Text, nullable=True)
+    account_created_at = Column(BigInteger, nullable=False)
+
+    # Guidelines acceptance
+    guidelines_accepted = Column(Boolean, default=False, nullable=False)
+    tos_accepted = Column(Boolean, default=False, nullable=False)
+    content_policy_accepted = Column(Boolean, default=False, nullable=False)
+
+    # Server tags (JSON array of tag strings)
+    tags = Column(Text, nullable=True)  # JSON array: ["competitive", "casual", "18+", etc.]
+
+    # Allow others to join this server via Discovery Network
+    allow_join = Column(Boolean, default=False, nullable=False)
+    invite_code = Column(String(50), nullable=True)  # Discord invite code (e.g., "abc123" from discord.gg/abc123)
+
+    # Application status: pending, approved, denied, banned
+    status = Column(String(20), nullable=False, default='pending')
+
+    # Review data
+    reviewed_by = Column(BigInteger, nullable=True)
+    reviewed_at = Column(BigInteger, nullable=True)
+    review_notes = Column(Text, nullable=True)
+    denial_reason = Column(Text, nullable=True)
+
+    # Timestamps
+    applied_at = Column(BigInteger, nullable=False, default=lambda: int(time.time()))
+    updated_at = Column(BigInteger, nullable=False, default=lambda: int(time.time()))
+
+    __table_args__ = (
+        Index("idx_discovery_app_user", "user_id"),
+        Index("idx_discovery_app_status", "status"),
+        Index("idx_discovery_app_guild", "guild_id"),
+    )
+
+
+class DiscoveryNetworkBan(Base):
+    """
+    Permanent bans from Discovery Network for guideline violations.
+    Prevents reapplication.
+    """
+    __tablename__ = "discovery_network_bans"
+
+    user_id = Column(BigInteger, primary_key=True)
+
+    # Ban details
+    reason = Column(Text, nullable=False)
+    violation_type = Column(String(50), nullable=False)  # discord_tos, nsfw_content, harassment, spam, illegal
+    evidence = Column(Text, nullable=True)  # JSON: screenshots, links, etc.
+
+    # Ban metadata
+    banned_by = Column(BigInteger, nullable=False)
+    banned_at = Column(BigInteger, nullable=False, default=lambda: int(time.time()))
+
+    # Appeal tracking
+    appeal_allowed = Column(Boolean, default=True)
+    appeal_submitted = Column(Boolean, default=False)
+    appeal_text = Column(Text, nullable=True)
+    appeal_reviewed = Column(Boolean, default=False)
+    appeal_approved = Column(Boolean, default=False)
+    appeal_reviewed_by = Column(BigInteger, nullable=True)
+    appeal_reviewed_at = Column(BigInteger, nullable=True)
+
+    # Cached user data
+    username = Column(String(255), nullable=False)
+
+    __table_args__ = (
+        Index("idx_discovery_ban_user", "user_id"),
+    )
+
+
+class DiscoveryNetworkPreferences(Base):
+    """
+    User preferences for Discovery Network features.
+    Controls feature visibility, filters, notifications, and privacy.
+    """
+    __tablename__ = "discovery_network_preferences"
+
+    user_id = Column(BigInteger, primary_key=True)
+
+    # Feature toggles
+    enable_lfg = Column(Boolean, default=True, nullable=False)
+    enable_games = Column(Boolean, default=True, nullable=False)
+    enable_creators = Column(Boolean, default=True, nullable=False)
+    enable_directory = Column(Boolean, default=True, nullable=False)
+
+    # Directory preferences (stored as JSON)
+    preferred_games = Column(Text, nullable=True)  # JSON array
+    preferred_tags = Column(Text, nullable=True)  # JSON array
+    preferred_size = Column(String(50), nullable=True)  # small, medium, large, xlarge
+
+    # LFG preferences
+    lfg_filter_games = Column(Boolean, default=False, nullable=False)
+    lfg_show_now = Column(Boolean, default=True, nullable=False)
+    lfg_hide_voice = Column(Boolean, default=False, nullable=False)
+
+    # Notification preferences
+    notify_lfg = Column(Boolean, default=False, nullable=False)
+    notify_servers = Column(Boolean, default=False, nullable=False)
+    notify_digest = Column(Boolean, default=False, nullable=False)
+
+    # Privacy settings
+    privacy_show_profile = Column(Boolean, default=True, nullable=False)
+    privacy_show_server = Column(Boolean, default=True, nullable=False)
+    privacy_allow_dms = Column(Boolean, default=True, nullable=False)
+
+    # Metadata
+    created_at = Column(BigInteger, nullable=False, default=lambda: int(time.time()))
+    updated_at = Column(BigInteger, nullable=False, default=lambda: int(time.time()))
+
+    __table_args__ = (
+        Index("idx_discovery_prefs_user", "user_id"),
+    )
+
+
+class DiscoveryGameReview(Base):
+    """
+    User reviews for games in the Discovery Network.
+    Allows users to rate and review games they've played.
+    """
+    __tablename__ = "discovery_game_reviews"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+
+    # Game identifier (normalized name for aggregation)
+    game_name = Column(String(255), nullable=False)
+
+    # Reviewer info
+    user_id = Column(BigInteger, nullable=False)
+    username = Column(String(255), nullable=False)
+    guild_id = Column(BigInteger, ForeignKey("guilds.guild_id", ondelete="CASCADE"), nullable=True)  # Optional: which server they reviewed from
+
+    # Review content
+    rating = Column(Integer, nullable=False)  # 1-5 stars
+    review_text = Column(Text, nullable=True)  # Optional review text
+    hours_played = Column(Integer, nullable=True)  # Optional: hours played
+
+    # Metadata
+    created_at = Column(BigInteger, nullable=False, default=lambda: int(time.time()))
+    updated_at = Column(BigInteger, nullable=False, default=lambda: int(time.time()))
+
+    # Moderation
+    is_flagged = Column(Boolean, default=False, nullable=False)
+    flagged_reason = Column(String(500), nullable=True)
+
+    __table_args__ = (
+        Index("idx_game_review_game", "game_name"),
+        Index("idx_game_review_user", "user_id"),
+        Index("idx_game_review_rating", "rating"),
+        # Prevent duplicate reviews from same user for same game
+        UniqueConstraint("game_name", "user_id", name="uq_game_review_user"),
+    )
+
+
+class DiscoveryGameDiscussion(Base):
+    """
+    Discussion threads/comments for games in the Discovery Network.
+    Allows users to discuss games, ask questions, share tips.
+    """
+    __tablename__ = "discovery_game_discussions"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+
+    # Game identifier (normalized name for aggregation)
+    game_name = Column(String(255), nullable=False)
+
+    # Comment info
+    user_id = Column(BigInteger, nullable=False)
+    username = Column(String(255), nullable=False)
+    guild_id = Column(BigInteger, ForeignKey("guilds.guild_id", ondelete="CASCADE"), nullable=True)  # Optional: which server they're from
+
+    # Content
+    comment_text = Column(Text, nullable=False)
+    parent_comment_id = Column(Integer, ForeignKey("discovery_game_discussions.id", ondelete="CASCADE"), nullable=True)  # For threaded replies
+
+    # Metadata
+    created_at = Column(BigInteger, nullable=False, default=lambda: int(time.time()))
+    updated_at = Column(BigInteger, nullable=False, default=lambda: int(time.time()))
+
+    # Engagement
+    upvotes = Column(Integer, default=0, nullable=False)
+
+    # Moderation
+    is_flagged = Column(Boolean, default=False, nullable=False)
+    is_deleted = Column(Boolean, default=False, nullable=False)
+
+    __table_args__ = (
+        Index("idx_game_discussion_game", "game_name"),
+        Index("idx_game_discussion_user", "user_id"),
+        Index("idx_game_discussion_created", "created_at"),
+        Index("idx_game_discussion_parent", "parent_comment_id"),
     )

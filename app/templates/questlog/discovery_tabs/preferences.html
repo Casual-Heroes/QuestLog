@@ -1,0 +1,556 @@
+<!-- Preferences Tab -->
+<div class="space-y-6">
+
+  <div class="bg-neutral-900 border border-neutral-800 rounded-lg p-8">
+    <h2 class="text-2xl font-bold text-white mb-2">Discovery Network Preferences</h2>
+    <p class="text-gray-400 mb-6">Customize your Discovery Network experience. Choose which features to enable and how you want to see content.</p>
+
+    <form id="preferencesForm" method="POST" action="/api/discovery/preferences" class="space-y-8">
+      {% csrf_token %}
+
+      <!-- Feature Toggles -->
+      <div>
+        <h3 class="text-lg font-semibold text-white mb-4">Feature Visibility</h3>
+        <p class="text-sm text-gray-400 mb-4">Control which Discovery Network features you want to use</p>
+
+        <div class="space-y-4">
+          <!-- Cross-Server LFG -->
+          <div class="flex items-start justify-between p-4 bg-neutral-800 rounded-lg">
+            <div class="flex-1">
+              <div class="flex items-center space-x-3 mb-2">
+                <span class="text-2xl">👥</span>
+                <h4 class="text-white font-semibold">Cross-Server LFG</h4>
+              </div>
+              <p class="text-sm text-gray-400">See LFG posts from all QuestLog servers in the network</p>
+            </div>
+            <label class="relative inline-flex items-center cursor-pointer ml-4">
+              <input type="checkbox" name="enable_lfg" class="sr-only peer" checked>
+              <div class="w-11 h-6 bg-gray-700 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-indigo-500 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+            </label>
+          </div>
+
+          <!-- Game Discovery -->
+          <div class="flex items-start justify-between p-4 bg-neutral-800 rounded-lg">
+            <div class="flex-1">
+              <div class="flex items-center space-x-3 mb-2">
+                <span class="text-2xl">🎮</span>
+                <h4 class="text-white font-semibold">Game Discovery</h4>
+              </div>
+              <p class="text-sm text-gray-400">Discover what games communities across the network are playing</p>
+            </div>
+            <label class="relative inline-flex items-center cursor-pointer ml-4">
+              <input type="checkbox" name="enable_games" class="sr-only peer" checked>
+              <div class="w-11 h-6 bg-gray-700 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-indigo-500 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+            </label>
+          </div>
+
+          <!-- Featured Creators -->
+          <div class="flex items-start justify-between p-4 bg-neutral-800 rounded-lg">
+            <div class="flex-1">
+              <div class="flex items-center space-x-3 mb-2">
+                <span class="text-2xl">🌟</span>
+                <h4 class="text-white font-semibold">Featured Creators</h4>
+              </div>
+              <p class="text-sm text-gray-400">See streamers and content creators from across the network</p>
+            </div>
+            <label class="relative inline-flex items-center cursor-pointer ml-4">
+              <input type="checkbox" name="enable_creators" class="sr-only peer" checked>
+              <div class="w-11 h-6 bg-gray-700 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-indigo-500 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+            </label>
+          </div>
+
+          <!-- Server Directory -->
+          <div class="flex items-start justify-between p-4 bg-neutral-800 rounded-lg">
+            <div class="flex-1">
+              <div class="flex items-center space-x-3 mb-2">
+                <span class="text-2xl">🔍</span>
+                <h4 class="text-white font-semibold">Server Directory</h4>
+              </div>
+              <p class="text-sm text-gray-400">Browse and join QuestLog servers in the network</p>
+            </div>
+            <label class="relative inline-flex items-center cursor-pointer ml-4">
+              <input type="checkbox" name="enable_directory" class="sr-only peer" checked>
+              <div class="w-11 h-6 bg-gray-700 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-indigo-500 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <!-- Server Directory Filters -->
+      <div>
+        <h3 class="text-lg font-semibold text-white mb-4">Server Directory Filters</h3>
+        <p class="text-sm text-gray-400 mb-4">Set default filters for the server directory</p>
+
+        <div class="grid md:grid-cols-2 gap-4">
+          <!-- Preferred Games -->
+          <div>
+            <label class="block text-sm font-medium text-gray-300 mb-2">Preferred Games</label>
+            <div class="custom-select-wrapper">
+              <select id="preferredGamesSelect" name="preferred_games" multiple class="custom-select w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white focus:outline-none focus:border-indigo-500" data-placeholder="Select games...">
+                <option value="" disabled>Loading games...</option>
+              </select>
+            </div>
+            <p class="text-xs text-gray-500 mt-1">Select multiple games</p>
+          </div>
+
+          <!-- Preferred Server Tags -->
+          <div>
+            <label class="block text-sm font-medium text-gray-300 mb-2">Preferred Tags</label>
+            <div class="custom-select-wrapper">
+              <select name="preferred_tags" multiple class="custom-select w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white focus:outline-none focus:border-indigo-500" data-placeholder="Select tags...">
+                <option value="competitive">Competitive</option>
+                <option value="casual">Casual</option>
+                <option value="18+">18+ Only</option>
+                <option value="family-friendly">Family Friendly</option>
+                <option value="lgbtq">LGBTQ+ Friendly</option>
+                <option value="streamer">Streamer Community</option>
+                <option value="lfg">Active LFG</option>
+                <option value="events">Regular Events</option>
+              </select>
+            </div>
+            <p class="text-xs text-gray-500 mt-1">Select multiple tags</p>
+          </div>
+        </div>
+
+        <!-- Server Size Preference -->
+        <div class="mt-4">
+          <label class="block text-sm font-medium text-gray-300 mb-2">Preferred Server Size</label>
+          <select name="preferred_size" class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white focus:outline-none focus:border-indigo-500">
+            <option value="">No Preference</option>
+            <option value="small">Small (< 100 members)</option>
+            <option value="medium">Medium (100-500 members)</option>
+            <option value="large">Large (500-2000 members)</option>
+            <option value="xlarge">Very Large (2000+ members)</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- LFG Preferences -->
+      <div>
+        <h3 class="text-lg font-semibold text-white mb-4">LFG Preferences</h3>
+        <p class="text-sm text-gray-400 mb-4">Customize your LFG experience</p>
+
+        <div class="space-y-4">
+          <!-- Auto-filter LFG by preferred games -->
+          <div class="flex items-start">
+            <input type="checkbox" name="lfg_filter_games" id="lfgFilterGames" class="mt-1 h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded">
+            <label for="lfgFilterGames" class="ml-3">
+              <span class="text-sm font-medium text-gray-300">Auto-filter LFG by preferred games</span>
+              <p class="text-xs text-gray-500">Only show LFG posts for games you've selected above</p>
+            </label>
+          </div>
+
+          <!-- Show only "right now" posts by default -->
+          <div class="flex items-start">
+            <input type="checkbox" name="lfg_show_now" id="lfgShowNow" class="mt-1 h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded">
+            <label for="lfgShowNow" class="ml-3">
+              <span class="text-sm font-medium text-gray-300">Prioritize "Right Now" posts</span>
+              <p class="text-xs text-gray-500">Show LFG posts starting right now at the top</p>
+            </label>
+          </div>
+
+          <!-- Hide voice-required posts -->
+          <div class="flex items-start">
+            <input type="checkbox" name="lfg_hide_voice" id="lfgHideVoice" class="mt-1 h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded">
+            <label for="lfgHideVoice" class="ml-3">
+              <span class="text-sm font-medium text-gray-300">Hide voice-required posts</span>
+              <p class="text-xs text-gray-500">Don't show LFG posts that require voice chat</p>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <!-- Notification Preferences -->
+      <div>
+        <h3 class="text-lg font-semibold text-white mb-4">Notifications</h3>
+        <p class="text-sm text-gray-400 mb-4">Control what notifications you receive from the QuestLog bot</p>
+
+        <div class="space-y-4">
+          <!-- New LFG posts -->
+          <div class="flex items-start">
+            <input type="checkbox" name="notify_lfg" id="notifyLFG" class="mt-1 h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded">
+            <label for="notifyLFG" class="ml-3">
+              <span class="text-sm font-medium text-gray-300">New LFG posts for my games</span>
+              <p class="text-xs text-gray-500">Get a DM when someone posts LFG for your preferred games</p>
+            </label>
+          </div>
+
+          <!-- New servers -->
+          <div class="flex items-start">
+            <input type="checkbox" name="notify_servers" id="notifyServers" class="mt-1 h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded">
+            <label for="notifyServers" class="ml-3">
+              <span class="text-sm font-medium text-gray-300">New servers matching my preferences</span>
+              <p class="text-xs text-gray-500">Get a DM when new servers join the network that match your filters</p>
+            </label>
+          </div>
+
+          <!-- Weekly digest -->
+          <div class="flex items-start">
+            <input type="checkbox" name="notify_digest" id="notifyDigest" class="mt-1 h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded">
+            <label for="notifyDigest" class="ml-3">
+              <span class="text-sm font-medium text-gray-300">Weekly Discovery Digest</span>
+              <p class="text-xs text-gray-500">Get a weekly DM with trending games, popular servers, and active LFG posts</p>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <!-- Server Settings (Admin Only) -->
+      {% if is_admin %}
+      <div>
+        <h3 class="text-lg font-semibold text-white mb-4">Server Settings</h3>
+        <p class="text-sm text-gray-400 mb-4">Configure how your server appears in the Discovery Network</p>
+
+        <div class="space-y-4">
+          <!-- Allow Join Toggle -->
+          <div class="flex items-start justify-between p-4 bg-neutral-800 rounded-lg">
+            <div class="flex-1">
+              <div class="flex items-center space-x-3 mb-2">
+                <span class="text-2xl">🔗</span>
+                <h4 class="text-white font-semibold">Allow Join Button</h4>
+              </div>
+              <p class="text-sm text-gray-400">Show "Join Server" button in the directory. When disabled, your server will show "Joining Disabled".</p>
+            </div>
+            <label class="relative inline-flex items-center cursor-pointer ml-4">
+              <input type="checkbox" name="allow_join" id="allowJoinCheckbox" class="sr-only peer" checked>
+              <div class="w-11 h-6 bg-gray-700 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-indigo-500 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+            </label>
+          </div>
+
+          <!-- Discord Invite Code -->
+          <div id="inviteCodeContainer" class="p-4 bg-neutral-800 rounded-lg">
+            <div class="flex items-center space-x-3 mb-2">
+              <span class="text-2xl">🎟️</span>
+              <h4 class="text-white font-semibold">Discord Invite Code</h4>
+            </div>
+            <p class="text-sm text-gray-400 mb-3">Provide a Discord invite code so users can join your server from the Discovery Network. Leave blank to disable the join button.</p>
+            <div class="flex items-center space-x-2">
+              <span class="text-gray-400 text-sm">discord.gg/</span>
+              <input
+                type="text"
+                name="invite_code"
+                id="inviteCodeInput"
+                maxlength="50"
+                placeholder="abc123"
+                class="flex-1 bg-neutral-900 border border-neutral-700 rounded px-3 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500"
+              >
+            </div>
+            <p class="text-xs text-gray-500 mt-2">Enter just the code part (e.g., "abc123" from discord.gg/abc123)</p>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- Privacy Settings -->
+      <div>
+        <h3 class="text-lg font-semibold text-white mb-4">Privacy</h3>
+        <p class="text-sm text-gray-400 mb-4">Control your visibility in the Discovery Network</p>
+
+        <div class="space-y-4">
+          <!-- Show profile in creator directory -->
+          <div class="flex items-start">
+            <input type="checkbox" name="privacy_show_profile" id="privacyShowProfile" class="mt-1 h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded" checked>
+            <label for="privacyShowProfile" class="ml-3">
+              <span class="text-sm font-medium text-gray-300">Show my profile in Featured Creators</span>
+              <p class="text-xs text-gray-500">Allow your creator profile to be discovered by other users</p>
+            </label>
+          </div>
+
+          <!-- Show server in my LFG posts -->
+          <div class="flex items-start">
+            <input type="checkbox" name="privacy_show_server" id="privacyShowServer" class="mt-1 h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded" checked>
+            <label for="privacyShowServer" class="ml-3">
+              <span class="text-sm font-medium text-gray-300">Show my server in LFG posts</span>
+              <p class="text-xs text-gray-500">Display which server you're from when you create LFG posts</p>
+            </label>
+          </div>
+
+          <!-- Allow DMs from network users -->
+          <div class="flex items-start">
+            <input type="checkbox" name="privacy_allow_dms" id="privacyAllowDMs" class="mt-1 h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded" checked>
+            <label for="privacyAllowDMs" class="ml-3">
+              <span class="text-sm font-medium text-gray-300">Allow DMs from Discovery Network users</span>
+              <p class="text-xs text-gray-500">Let other network members message you (subject to Discord privacy settings)</p>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <!-- Danger Zone (Admin Only) -->
+      {% if is_admin %}
+      <div class="bg-red-900/20 border border-red-700 rounded-lg p-6">
+        <h3 class="text-lg font-semibold text-red-400 mb-4">⚠️ Danger Zone</h3>
+
+        <div class="space-y-4">
+          <!-- Temporarily disable Discovery Network -->
+          <div>
+            <h4 class="text-white font-medium mb-2">Temporarily Disable Discovery Network</h4>
+            <p class="text-sm text-gray-400 mb-3">Hide yourself from all Discovery Network features without leaving. You can re-enable anytime.</p>
+            <button type="button" onclick="toggleDiscovery()" class="bg-orange-600 hover:bg-orange-700 text-white font-semibold py-2 px-4 rounded transition">
+              Disable Discovery Network
+            </button>
+          </div>
+
+          <!-- Leave Discovery Network -->
+          <div class="pt-4 border-t border-red-800">
+            <h4 class="text-white font-medium mb-2">Leave Discovery Network</h4>
+            <p class="text-sm text-gray-400 mb-3">Permanently remove yourself from the Discovery Network. You'll need to reapply to rejoin.</p>
+            <button type="button" onclick="confirmLeave()" class="bg-red-600 hover:bg-red-700 text-white font-semibold py-2 px-4 rounded transition">
+              Leave Network
+            </button>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- Save Button -->
+      <div class="flex justify-end space-x-3">
+        <button type="button" onclick="resetPreferences()" class="px-6 py-2 bg-neutral-800 hover:bg-neutral-700 text-white rounded-lg transition">
+          Reset to Defaults
+        </button>
+        <button type="submit" class="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg transition">
+          Save Preferences
+        </button>
+      </div>
+    </form>
+  </div>
+
+</div>
+
+<script>
+// Get CSRF token from cookie
+function getCookie(name) {
+  let cookieValue = null;
+  if (document.cookie && document.cookie !== '') {
+    const cookies = document.cookie.split(';');
+    for (let i = 0; i < cookies.length; i++) {
+      const cookie = cookies[i].trim();
+      if (cookie.substring(0, name.length + 1) === (name + '=')) {
+        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+        break;
+      }
+    }
+  }
+  return cookieValue;
+}
+
+// Load games list from API (same as directory page)
+async function loadGamesList() {
+  try {
+    const response = await fetch('/api/discovery/games');
+    const data = await response.json();
+
+    if (data.success && data.games) {
+      const select = document.getElementById('preferredGamesSelect');
+      select.innerHTML = ''; // Clear loading message
+
+      // Add games to select
+      data.games.forEach(game => {
+        // Skip if game doesn't have a name
+        if (!game.name) return;
+
+        const option = document.createElement('option');
+        option.value = game.slug || game.name.toLowerCase().replace(/\s+/g, '-');
+        option.textContent = game.name;
+        select.appendChild(option);
+      });
+    }
+  } catch (error) {
+    console.error('Failed to load games:', error);
+    document.getElementById('preferredGamesSelect').innerHTML = '<option value="" disabled>Failed to load games</option>';
+  }
+}
+
+// Load current preferences
+async function loadPreferences() {
+  try {
+    const guildId = '{{ guild.id }}';
+    const response = await fetch(`/api/discovery/preferences?guild_id=${guildId}`);
+    const data = await response.json();
+
+    if (data.success) {
+      // Populate form with current preferences
+      const form = document.getElementById('preferencesForm');
+      Object.keys(data.preferences).forEach(key => {
+        const input = form.elements[key];
+        if (input) {
+          if (input.type === 'checkbox') {
+            input.checked = data.preferences[key];
+          } else if (input.multiple && input.tagName === 'SELECT') {
+            // Handle multi-select dropdowns
+            const values = Array.isArray(data.preferences[key])
+              ? data.preferences[key]
+              : (data.preferences[key] ? data.preferences[key].split(',') : []);
+
+            Array.from(input.options).forEach(option => {
+              option.selected = values.includes(option.value);
+            });
+          } else {
+            input.value = data.preferences[key];
+          }
+        }
+      });
+
+      // Also populate invite_code if present
+      if (data.preferences.invite_code) {
+        document.getElementById('inviteCodeInput').value = data.preferences.invite_code;
+      }
+    }
+  } catch (error) {
+    console.error('Failed to load preferences:', error);
+  }
+}
+
+// Save preferences
+document.getElementById('preferencesForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const formData = new FormData(e.target);
+  const data = {};
+
+  // Handle multi-select dropdowns separately
+  const multiSelects = e.target.querySelectorAll('select[multiple]');
+  multiSelects.forEach(select => {
+    const selectedValues = Array.from(select.selectedOptions).map(option => option.value);
+    data[select.name] = selectedValues;
+  });
+
+  // Convert FormData to object
+  for (const [key, value] of formData.entries()) {
+    // Skip multi-select fields (already handled above)
+    if (data.hasOwnProperty(key)) continue;
+
+    if (key.startsWith('enable_') || key.startsWith('privacy_') || key.startsWith('notify_') || key.startsWith('lfg_') || key === 'allow_join') {
+      data[key] = true; // Checkbox was checked
+    } else {
+      data[key] = value;
+    }
+  }
+
+  // Add unchecked checkboxes as false
+  const allCheckboxes = e.target.querySelectorAll('input[type="checkbox"]');
+  allCheckboxes.forEach(checkbox => {
+    if (!data.hasOwnProperty(checkbox.name)) {
+      data[checkbox.name] = false;
+    }
+  });
+
+  // Add invite_code (get directly from input since it's not in FormData if empty)
+  const inviteCodeInput = document.getElementById('inviteCodeInput');
+  if (inviteCodeInput) {
+    data.invite_code = inviteCodeInput.value.trim() || null;
+  }
+
+  try {
+    const csrftoken = getCookie('csrftoken');
+    const guildId = '{{ guild.id }}';
+    const response = await fetch(`/api/discovery/preferences?guild_id=${guildId}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': csrftoken
+      },
+      body: JSON.stringify(data)
+    });
+
+    const result = await response.json();
+    if (result.success) {
+      alert('Preferences saved successfully! Reloading page...');
+      window.location.reload();
+    } else {
+      alert(result.error || 'Failed to save preferences');
+    }
+  } catch (error) {
+    console.error('Failed to save preferences:', error);
+    alert('Failed to save preferences. Please try again.');
+  }
+});
+
+// Reset preferences
+async function resetPreferences() {
+  if (confirm('Are you sure you want to reset all preferences to defaults?')) {
+    try {
+      const response = await fetch('/api/discovery/preferences/reset', {
+        method: 'POST'
+      });
+
+      const result = await response.json();
+      if (result.success) {
+        loadPreferences();
+        alert('Preferences reset to defaults');
+      }
+    } catch (error) {
+      console.error('Failed to reset preferences:', error);
+      alert('Failed to reset preferences. Please try again.');
+    }
+  }
+}
+
+// Toggle Discovery Network
+async function toggleDiscovery() {
+  if (confirm('Are you sure you want to temporarily disable Discovery Network? You can re-enable it anytime.')) {
+    try {
+      const response = await fetch('/api/discovery/toggle', {
+        method: 'POST'
+      });
+
+      const result = await response.json();
+      if (result.success) {
+        alert('Discovery Network disabled. You can re-enable it from this page.');
+        location.reload();
+      }
+    } catch (error) {
+      console.error('Failed to toggle Discovery Network:', error);
+      alert('Failed to disable Discovery Network. Please try again.');
+    }
+  }
+}
+
+// Leave Discovery Network
+async function confirmLeave() {
+  const confirmed = confirm(
+    'Are you sure you want to leave the Discovery Network?\n\n' +
+    'Your server will be removed from the directory and you will lose access to network features.\n\n' +
+    'You can rejoin within 90 days without reapplying. After 90 days, you will need to submit a new application.'
+  );
+
+  if (!confirmed) return;
+
+  try {
+    const csrftoken = getCookie('csrftoken');
+    const guildId = '{{ guild.id }}';
+    const response = await fetch(`/api/discovery/leave?guild_id=${guildId}`, {
+      method: 'POST',
+      headers: {
+        'X-CSRFToken': csrftoken
+      }
+    });
+
+    const data = await response.json();
+
+    if (data.success) {
+      alert('You have successfully left the Discovery Network. Reloading page...');
+      window.location.reload();
+    } else {
+      alert('Failed to leave network: ' + (data.error || 'Unknown error'));
+    }
+  } catch (error) {
+    console.error('Failed to leave network:', error);
+    alert('Failed to leave network. Please try again.');
+  }
+}
+
+// Load games list and preferences on page load
+async function initializePage() {
+  await loadGamesList();
+  await loadPreferences();
+
+  // Initialize custom-select components after data is loaded
+  if (typeof initCustomSelect === 'function') {
+    document.querySelectorAll('.custom-select').forEach(select => {
+      initCustomSelect(select);
+    });
+  }
+}
+
+initializePage();
+</script>

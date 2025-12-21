@@ -21,19 +21,28 @@ def subscription_info(request):
     context = {
         'is_vip': False,
         'subscription_tier': 'free',
+        'user_network_status': None,
     }
 
-    # If we have a guild_id, fetch the subscription info
+    # If we have a guild_id, fetch the subscription info and network status
     if guild_id:
         try:
             from .db import get_db_session
-            from .models import Guild as GuildModel
+            from .models import Guild as GuildModel, DiscoveryNetworkApplication
 
             with get_db_session() as db:
                 guild_record = db.query(GuildModel).filter_by(guild_id=int(guild_id)).first()
                 if guild_record:
                     context['is_vip'] = guild_record.is_vip
                     context['subscription_tier'] = guild_record.subscription_tier if guild_record.subscription_tier else 'free'
+
+                # Check Discovery Network status for this guild
+                application = db.query(DiscoveryNetworkApplication).filter_by(
+                    guild_id=int(guild_id)
+                ).order_by(DiscoveryNetworkApplication.applied_at.desc()).first()
+
+                if application:
+                    context['user_network_status'] = application.status
         except Exception:
             # If there's any error, just use defaults
             pass

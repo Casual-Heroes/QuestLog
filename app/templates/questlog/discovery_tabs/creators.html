@@ -1,0 +1,346 @@
+<!-- Featured Creators Tab -->
+<div class="space-y-6">
+
+  <!-- Header & Filters -->
+  <div class="bg-gradient-to-r from-purple-900/20 to-pink-900/20 border border-purple-800 rounded-lg p-6">
+    <div class="flex justify-between items-start mb-4">
+      <div>
+        <h2 class="text-2xl font-bold text-white mb-2">⭐ Featured Creators</h2>
+        <p class="text-gray-300">Discover streamers and content creators across the QuestLog network</p>
+      </div>
+      {% if is_admin %}
+      <button onclick="featureCreatorModal()" class="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-lg transition">
+        <i class="fas fa-star mr-2"></i>Feature Your Creators
+      </button>
+      {% endif %}
+    </div>
+
+    <!-- Search & Filters -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <input
+        type="text"
+        id="creatorSearchInput"
+        placeholder="Search creators..."
+        class="bg-neutral-900 border border-neutral-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-purple-500"
+      >
+      <select id="platformFilter" class="bg-neutral-900 border border-neutral-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-purple-500">
+        <option value="">All Platforms</option>
+        <option value="twitch">Twitch</option>
+        <option value="youtube">YouTube</option>
+        <option value="tiktok">TikTok</option>
+        <option value="kick">Kick</option>
+      </select>
+      <select id="creatorSortBy" class="bg-neutral-900 border border-neutral-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-purple-500">
+        <option value="recent">Recently Added</option>
+        <option value="followers">Most Followers</option>
+        <option value="servers">Most Servers</option>
+        <option value="active">Most Active</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- Creator Grid -->
+  <div id="creatorsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+    <!-- Creators will be loaded here -->
+    <div class="col-span-full text-center py-12">
+      <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-500 mx-auto"></div>
+      <p class="text-gray-400 mt-4">Loading creators...</p>
+    </div>
+  </div>
+
+</div>
+
+<!-- Feature Creator Modal -->
+<div id="featureCreatorModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm hidden items-center justify-center z-50">
+  <div class="bg-neutral-900 border border-neutral-700 rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+    <div class="flex justify-between items-center mb-6">
+      <h3 class="text-2xl font-bold text-white">Feature Creators from Your Server</h3>
+      <button onclick="closeFeatureCreatorModal()" class="text-gray-400 hover:text-white">
+        <i class="fas fa-times text-xl"></i>
+      </button>
+    </div>
+
+    <form id="featureCreatorForm" class="space-y-4">
+      <!-- Platform -->
+      <div>
+        <label class="block text-sm font-medium text-gray-300 mb-2">Platform *</label>
+        <select name="platform" id="creatorPlatform" required class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-purple-500">
+          <option value="">Select platform...</option>
+          <option value="twitch">Twitch</option>
+          <option value="youtube">YouTube</option>
+          <option value="tiktok">TikTok</option>
+          <option value="kick">Kick</option>
+        </select>
+      </div>
+
+      <!-- Creator Username/Channel -->
+      <div>
+        <label class="block text-sm font-medium text-gray-300 mb-2">Creator Username/Channel *</label>
+        <input
+          type="text"
+          name="username"
+          id="creatorUsername"
+          required
+          placeholder="Enter username or channel name..."
+          class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-purple-500"
+        >
+      </div>
+
+      <!-- Bio/Description -->
+      <div>
+        <label class="block text-sm font-medium text-gray-300 mb-2">Bio (Optional)</label>
+        <textarea
+          name="bio"
+          rows="3"
+          placeholder="Tell others about this creator..."
+          class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-purple-500"
+        ></textarea>
+      </div>
+
+      <!-- Games/Content -->
+      <div>
+        <label class="block text-sm font-medium text-gray-300 mb-2">Primary Games/Content</label>
+        <input
+          type="text"
+          name="content"
+          placeholder="e.g., Valorant, WoW, Variety"
+          class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-purple-500"
+        >
+      </div>
+
+      <!-- Info -->
+      <div class="bg-purple-900/20 border border-purple-700 rounded-lg p-4">
+        <p class="text-sm text-purple-400">
+          <i class="fas fa-info-circle mr-2"></i>
+          Creator featuring is FREE for all servers! Help grow the QuestLog creator community.
+        </p>
+      </div>
+
+      <!-- Submit -->
+      <div class="flex space-x-3">
+        <button type="button" onclick="closeFeatureCreatorModal()" class="flex-1 px-4 py-2 bg-neutral-800 hover:bg-neutral-700 text-white rounded-lg transition">
+          Cancel
+        </button>
+        <button type="submit" class="flex-1 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-lg transition">
+          Feature Creator
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+let currentCreators = [];
+
+// Platform icons
+const platformIcons = {
+  'twitch': 'fab fa-twitch',
+  'youtube': 'fab fa-youtube',
+  'tiktok': 'fab fa-tiktok',
+  'kick': 'fas fa-k'
+};
+
+const platformColors = {
+  'twitch': 'from-purple-600 to-purple-800',
+  'youtube': 'from-red-600 to-red-800',
+  'tiktok': 'from-pink-600 to-pink-800',
+  'kick': 'from-green-600 to-green-800'
+};
+
+// Load creators
+async function loadCreators() {
+  try {
+    const searchTerm = document.getElementById('creatorSearchInput').value;
+    const platform = document.getElementById('platformFilter').value;
+    const sort = document.getElementById('creatorSortBy').value;
+
+    const guildId = '{{ guild.id }}';
+    const response = await fetch(`/api/discovery/creators-list?guild_id=${guildId}&search=${searchTerm}&platform=${platform}&sort=${sort}`);
+    const data = await response.json();
+
+    if (data.success) {
+      currentCreators = data.creators || [];
+      renderCreators();
+    } else {
+      document.getElementById('creatorsGrid').innerHTML = `
+        <div class="col-span-full text-center py-12">
+          <i class="fas fa-exclamation-circle text-4xl text-red-500 mb-4"></i>
+          <p class="text-gray-400">${data.error || 'Failed to load creators'}</p>
+        </div>
+      `;
+    }
+  } catch (error) {
+    console.error('Failed to load creators:', error);
+    document.getElementById('creatorsGrid').innerHTML = `
+      <div class="col-span-full text-center py-12">
+        <i class="fas fa-exclamation-circle text-4xl text-red-500 mb-4"></i>
+        <p class="text-gray-400">Failed to load creators. Please try again.</p>
+      </div>
+    `;
+  }
+}
+
+function renderCreators() {
+  const grid = document.getElementById('creatorsGrid');
+
+  if (currentCreators.length === 0) {
+    grid.innerHTML = `
+      <div class="col-span-full text-center py-12 bg-gradient-to-br from-purple-900/10 to-indigo-900/10 border border-purple-800/30 rounded-lg p-12">
+        <i class="fas fa-video text-6xl text-purple-500 mb-6"></i>
+        <h3 class="text-2xl font-bold text-white mb-3">Creator Discovery Coming Soon!</h3>
+        <p class="text-gray-300 mb-4 max-w-md mx-auto">
+          We're working on integrating Twitch and YouTube to help you discover amazing content creators across the QuestLog network.
+        </p>
+        <div class="flex items-center justify-center gap-4 text-sm text-gray-400 mt-6">
+          <div class="flex items-center gap-2">
+            <i class="fab fa-twitch text-purple-500 text-xl"></i>
+            <span>Twitch Integration</span>
+          </div>
+          <span>•</span>
+          <div class="flex items-center gap-2">
+            <i class="fab fa-youtube text-red-500 text-xl"></i>
+            <span>YouTube Integration</span>
+          </div>
+        </div>
+        <p class="text-xs text-gray-500 mt-8">This feature is currently under development</p>
+      </div>
+    `;
+    return;
+  }
+
+  grid.innerHTML = currentCreators.map(creator => {
+    const platformIcon = platformIcons[creator.platform] || 'fas fa-user';
+    const platformColor = platformColors[creator.platform] || 'from-gray-600 to-gray-800';
+
+    return `
+    <div class="bg-neutral-900 border border-neutral-800 hover:border-purple-700 rounded-lg p-6 transition">
+      <!-- Creator Header -->
+      <div class="flex items-start space-x-4 mb-4">
+        <div class="w-16 h-16 bg-gradient-to-br ${platformColor} rounded-full flex items-center justify-center flex-shrink-0">
+          <i class="${platformIcon} text-2xl text-white"></i>
+        </div>
+        <div class="flex-1 min-w-0">
+          <h3 class="text-lg font-bold text-white mb-1 truncate">${creator.username}</h3>
+          <div class="flex items-center space-x-2 text-sm">
+            <span class="px-2 py-1 bg-purple-900/50 text-purple-400 rounded text-xs capitalize">${creator.platform}</span>
+            ${creator.follower_count ? `<span class="text-gray-500">${formatNumber(creator.follower_count)} followers</span>` : ''}
+          </div>
+        </div>
+      </div>
+
+      <!-- Bio -->
+      ${creator.bio ? `
+      <p class="text-sm text-gray-400 mb-4 line-clamp-2">${creator.bio}</p>
+      ` : ''}
+
+      <!-- Content/Games -->
+      ${creator.content ? `
+      <div class="mb-4">
+        <span class="text-xs text-gray-500">Content: </span>
+        <span class="text-sm text-gray-300">${creator.content}</span>
+      </div>
+      ` : ''}
+
+      <!-- Stats -->
+      <div class="flex items-center space-x-4 text-sm text-gray-500 mb-4 pb-4 border-b border-neutral-800">
+        ${creator.server_count ? `
+        <div class="flex items-center">
+          <i class="fas fa-server mr-1"></i>
+          <span>${creator.server_count} servers</span>
+        </div>
+        ` : ''}
+        ${creator.last_stream ? `
+        <div class="flex items-center">
+          <i class="fas fa-clock mr-1"></i>
+          <span>Last stream ${creator.last_stream}</span>
+        </div>
+        ` : ''}
+      </div>
+
+      <!-- Actions -->
+      <div class="flex space-x-2">
+        <a href="${getPlatformUrl(creator.platform, creator.username)}" target="_blank" class="flex-1 px-3 py-2 bg-purple-900/50 hover:bg-purple-900 text-purple-400 hover:text-purple-300 rounded text-sm text-center transition">
+          <i class="fas fa-external-link-alt mr-1"></i>Visit Channel
+        </a>
+        ${creator.server_invite ? `
+        <a href="${creator.server_invite}" target="_blank" class="flex-1 px-3 py-2 bg-neutral-800 hover:bg-neutral-700 text-gray-300 rounded text-sm text-center transition">
+          <i class="fab fa-discord mr-1"></i>Join Server
+        </a>
+        ` : ''}
+      </div>
+    </div>
+  `}).join('');
+}
+
+function getPlatformUrl(platform, username) {
+  const urls = {
+    'twitch': `https://twitch.tv/${username}`,
+    'youtube': `https://youtube.com/@${username}`,
+    'tiktok': `https://tiktok.com/@${username}`,
+    'kick': `https://kick.com/${username}`
+  };
+  return urls[platform] || '#';
+}
+
+function formatNumber(num) {
+  if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+  if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
+  return num.toString();
+}
+
+// Feature creator modal
+function featureCreatorModal() {
+  document.getElementById('featureCreatorModal').classList.remove('hidden');
+  document.getElementById('featureCreatorModal').classList.add('flex');
+}
+
+function closeFeatureCreatorModal() {
+  document.getElementById('featureCreatorModal').classList.add('hidden');
+  document.getElementById('featureCreatorModal').classList.remove('flex');
+  document.getElementById('featureCreatorForm').reset();
+}
+
+// Handle feature form submission
+document.getElementById('featureCreatorForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+
+  const formData = new FormData(e.target);
+  const data = Object.fromEntries(formData.entries());
+  data.guild_id = '{{ guild.id }}';
+
+  try {
+    const csrftoken = getCookie('csrftoken');
+    const response = await fetch('/api/discovery/feature-creator', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': csrftoken
+      },
+      body: JSON.stringify(data)
+    });
+
+    const result = await response.json();
+
+    if (result.success) {
+      alert('✅ Creator featured successfully!');
+      closeFeatureCreatorModal();
+      loadCreators(); // Reload creators
+    } else {
+      alert('❌ ' + (result.error || 'Failed to feature creator'));
+    }
+  } catch (error) {
+    console.error('Failed to feature creator:', error);
+    alert('Failed to feature creator. Please try again.');
+  }
+});
+
+// Filter handlers
+document.getElementById('creatorSearchInput').addEventListener('input', loadCreators);
+document.getElementById('platformFilter').addEventListener('change', loadCreators);
+document.getElementById('creatorSortBy').addEventListener('change', loadCreators);
+
+// Load creators on init
+if (document.getElementById('tab-creators') && document.getElementById('tab-creators').classList.contains('tab-active')) {
+  loadCreators();
+}
+</script>

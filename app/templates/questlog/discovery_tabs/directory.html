@@ -1,0 +1,525 @@
+<!-- Server Directory Tab -->
+<div class="space-y-6">
+
+  <!-- Search and Filters -->
+  <div class="bg-neutral-900 border border-neutral-800 rounded-lg p-6">
+    <h2 class="text-2xl font-bold text-white mb-4">Discover QuestLog Servers</h2>
+
+    <!-- Search Bar -->
+    <div class="mb-6">
+      <div class="relative">
+        <input
+          type="text"
+          id="serverSearch"
+          placeholder="Search servers by name, game, or description..."
+          class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 pl-12 text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500"
+        >
+        <svg class="absolute left-4 top-3.5 w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+        </svg>
+      </div>
+    </div>
+
+    <!-- Filter Section -->
+    <div class="grid md:grid-cols-4 gap-4">
+      <!-- Game Filter -->
+      <div>
+        <label class="block text-sm font-medium text-gray-300 mb-2">Game</label>
+        <div id="filterGameContainer"></div>
+      </div>
+
+      <!-- Member Count Filter -->
+      <div>
+        <label class="block text-sm font-medium text-gray-300 mb-2">Server Size</label>
+        <div id="filterSizeContainer"></div>
+      </div>
+
+      <!-- Activity Filter -->
+      <div>
+        <label class="block text-sm font-medium text-gray-300 mb-2">Activity Level</label>
+        <div id="filterActivityContainer"></div>
+      </div>
+
+      <!-- Tags Filter -->
+      <div>
+        <label class="block text-sm font-medium text-gray-300 mb-2">Tags</label>
+        <div id="filterTagsContainer"></div>
+      </div>
+    </div>
+
+    <!-- Filter Actions -->
+    <div class="flex justify-between items-center mt-4">
+      <button onclick="clearFilters()" class="text-gray-400 hover:text-white text-sm">
+        Clear Filters
+      </button>
+      <div class="text-sm text-gray-400">
+        <span id="serverCount">0</span> servers found
+      </div>
+    </div>
+  </div>
+
+  <!-- Server Grid -->
+  <div id="serverGrid" class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+    <!-- Server cards will be populated here via JavaScript -->
+    <!-- Loading state -->
+    <div class="col-span-full text-center py-12">
+      <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500"></div>
+      <p class="text-gray-400 mt-4">Loading servers...</p>
+    </div>
+  </div>
+
+  <!-- Empty State -->
+  <div id="emptyState" class="hidden bg-neutral-900 border border-neutral-800 rounded-lg p-12 text-center">
+    <svg class="w-16 h-16 mx-auto text-gray-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+    </svg>
+    <h3 class="text-xl font-semibold text-white mb-2">No Servers Found</h3>
+    <p class="text-gray-400">Try adjusting your filters or search terms</p>
+  </div>
+
+  <!-- Pagination -->
+  <div id="pagination" class="flex justify-center items-center space-x-2 mt-6">
+    <button onclick="previousPage()" class="px-4 py-2 bg-neutral-800 hover:bg-neutral-700 text-white rounded disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+      Previous
+    </button>
+    <div class="flex space-x-1" id="pageNumbers">
+      <!-- Page numbers will be populated here -->
+    </div>
+    <button onclick="nextPage()" class="px-4 py-2 bg-neutral-800 hover:bg-neutral-700 text-white rounded disabled:opacity-50 disabled:cursor-not-allowed">
+      Next
+    </button>
+  </div>
+
+</div>
+
+<script>
+// Server directory state
+let currentPage = 1;
+let serversPerPage = 9;
+let allServers = [];
+let filteredServers = [];
+
+// Load servers from API
+async function loadServers() {
+  try {
+    const response = await fetch('/api/discovery/servers');
+    const data = await response.json();
+
+    if (data.success) {
+      allServers = data.servers;
+      filteredServers = allServers;
+      renderServers();
+    }
+  } catch (error) {
+    console.error('Failed to load servers:', error);
+    showError('Failed to load servers. Please try again later.');
+  }
+}
+
+// Render server cards
+function renderServers() {
+  const grid = document.getElementById('serverGrid');
+  const emptyState = document.getElementById('emptyState');
+  const serverCount = document.getElementById('serverCount');
+
+  // Update count
+  serverCount.textContent = filteredServers.length;
+
+  // Check if empty
+  if (filteredServers.length === 0) {
+    grid.classList.add('hidden');
+    emptyState.classList.remove('hidden');
+    return;
+  }
+
+  grid.classList.remove('hidden');
+  emptyState.classList.add('hidden');
+
+  // Calculate pagination
+  const startIndex = (currentPage - 1) * serversPerPage;
+  const endIndex = startIndex + serversPerPage;
+  const pageServers = filteredServers.slice(startIndex, endIndex);
+
+  // Render server cards
+  grid.innerHTML = pageServers.map(server => `
+    <div class="bg-neutral-900 border border-neutral-800 rounded-lg overflow-hidden hover:border-indigo-600 transition">
+      <!-- Server Icon/Banner -->
+      <div class="relative h-32 bg-gradient-to-br from-indigo-900 to-purple-900">
+        ${server.icon_url ? `
+          <img src="${server.icon_url}" alt="${server.name}" class="w-full h-full object-cover">
+        ` : `
+          <div class="flex items-center justify-center h-full">
+            <span class="text-4xl font-bold text-white opacity-50">${server.name.charAt(0)}</span>
+          </div>
+        `}
+
+        <!-- Member Count Badge -->
+        <div class="absolute top-2 right-2 bg-black/60 backdrop-blur-sm px-3 py-1 rounded-full">
+          <span class="text-white text-sm font-semibold">👥 ${formatMemberCount(server.member_count)}</span>
+        </div>
+
+        <!-- Activity Indicator -->
+        <div class="absolute bottom-2 left-2">
+          <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getActivityBadge(server.activity_level)}" title="${getActivityTooltip(server.activity_level)}">
+            <span class="w-2 h-2 mr-1 rounded-full ${getActivityDot(server.activity_level)}"></span>
+            ${server.activity_level}
+          </span>
+        </div>
+      </div>
+
+      <!-- Server Info -->
+      <div class="p-4">
+        <h3 class="text-lg font-bold text-white mb-2 truncate">${server.name}</h3>
+        <p class="text-sm text-gray-400 mb-3 line-clamp-2">${server.description || 'No description provided'}</p>
+
+        <!-- Tags - Only show if tags exist -->
+        ${server.tags && server.tags.length > 0 ? `
+          <div class="flex flex-wrap gap-1 mb-3">
+            ${server.tags.slice(0, 3).map(tag => `
+              <span class="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-indigo-900/50 text-indigo-300">
+                ${tag}
+              </span>
+            `).join('')}
+            ${server.tags.length > 3 ? `
+              <span class="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-neutral-800 text-gray-400">
+                +${server.tags.length - 3}
+              </span>
+            ` : ''}
+          </div>
+        ` : ''}
+
+        <!-- Primary Game -->
+        ${server.primary_game ? `
+          <div class="text-xs text-gray-500 mb-3">
+            🎮 ${server.primary_game}
+          </div>
+        ` : ''}
+
+        <!-- Join Button - Only show if server allows joining -->
+        ${server.allow_join ? `
+          <a href="${server.invite_url}" target="_blank" class="block w-full text-center bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-4 rounded transition">
+            Join Server
+          </a>
+        ` : `
+          <div class="block w-full text-center bg-neutral-800 text-gray-500 font-semibold py-2 px-4 rounded cursor-not-allowed">
+            Joining Disabled
+          </div>
+        `}
+      </div>
+    </div>
+  `).join('');
+
+  renderPagination();
+}
+
+// Format member count (1234 -> 1.2K)
+function formatMemberCount(count) {
+  if (count >= 1000) {
+    return (count / 1000).toFixed(1) + 'K';
+  }
+  return count.toString();
+}
+
+// Get activity badge color
+function getActivityBadge(level) {
+  switch (level.toLowerCase()) {
+    case 'high': return 'bg-green-900/50 text-green-300';
+    case 'medium': return 'bg-yellow-900/50 text-yellow-300';
+    case 'low': return 'bg-gray-800 text-gray-400';
+    default: return 'bg-gray-800 text-gray-400';
+  }
+}
+
+// Get activity dot color
+function getActivityDot(level) {
+  switch (level.toLowerCase()) {
+    case 'high': return 'bg-green-400';
+    case 'medium': return 'bg-yellow-400';
+    case 'low': return 'bg-gray-500';
+    default: return 'bg-gray-500';
+  }
+}
+
+// Get activity tooltip text
+function getActivityTooltip(level) {
+  switch (level.toLowerCase()) {
+    case 'high': return 'Active daily - Members chat and play together every day';
+    case 'medium': return 'Active weekly - Members regularly engage throughout the week';
+    case 'low': return 'Casual activity - Members drop in occasionally';
+    default: return 'Activity level not specified';
+  }
+}
+
+// Render pagination
+function renderPagination() {
+  const totalPages = Math.ceil(filteredServers.length / serversPerPage);
+  const pageNumbers = document.getElementById('pageNumbers');
+
+  // Update prev/next buttons
+  document.querySelector('button[onclick="previousPage()"]').disabled = currentPage === 1;
+  document.querySelector('button[onclick="nextPage()"]').disabled = currentPage === totalPages || totalPages === 0;
+
+  // Render page numbers
+  let pages = [];
+  for (let i = 1; i <= totalPages; i++) {
+    if (i === 1 || i === totalPages || (i >= currentPage - 1 && i <= currentPage + 1)) {
+      pages.push(i);
+    } else if (pages[pages.length - 1] !== '...') {
+      pages.push('...');
+    }
+  }
+
+  pageNumbers.innerHTML = pages.map(page => {
+    if (page === '...') {
+      return '<span class="px-3 py-2 text-gray-500">...</span>';
+    }
+    return `
+      <button
+        onclick="goToPage(${page})"
+        class="px-3 py-2 rounded ${page === currentPage ? 'bg-indigo-600 text-white' : 'bg-neutral-800 hover:bg-neutral-700 text-white'}"
+      >
+        ${page}
+      </button>
+    `;
+  }).join('');
+}
+
+// Pagination functions
+function previousPage() {
+  if (currentPage > 1) {
+    currentPage--;
+    renderServers();
+    scrollToTop();
+  }
+}
+
+function nextPage() {
+  const totalPages = Math.ceil(filteredServers.length / serversPerPage);
+  if (currentPage < totalPages) {
+    currentPage++;
+    renderServers();
+    scrollToTop();
+  }
+}
+
+function goToPage(page) {
+  currentPage = page;
+  renderServers();
+  scrollToTop();
+}
+
+function scrollToTop() {
+  document.getElementById('serverGrid').scrollIntoView({ behavior: 'smooth' });
+}
+
+// Custom select instances
+let gameSelect, sizeSelect, activitySelect, tagsSelect;
+
+// Filter state
+let filterState = {
+  game: '',
+  size: '',
+  activity: '',
+  tags: ''
+};
+
+// Filter functions
+function applyFilters() {
+  const search = document.getElementById('serverSearch').value.toLowerCase();
+
+  filteredServers = allServers.filter(server => {
+    // Search filter
+    if (search && !server.name.toLowerCase().includes(search) &&
+        !server.description.toLowerCase().includes(search) &&
+        !server.primary_game.toLowerCase().includes(search)) {
+      return false;
+    }
+
+    // Game filter
+    if (filterState.game && server.primary_game.toLowerCase() !== filterState.game) {
+      return false;
+    }
+
+    // Size filter
+    if (filterState.size) {
+      const count = server.member_count;
+      if (filterState.size === 'small' && count >= 100) return false;
+      if (filterState.size === 'medium' && (count < 100 || count >= 500)) return false;
+      if (filterState.size === 'large' && (count < 500 || count >= 2000)) return false;
+      if (filterState.size === 'xlarge' && count < 2000) return false;
+    }
+
+    // Activity filter
+    if (filterState.activity && server.activity_level.toLowerCase() !== filterState.activity) {
+      return false;
+    }
+
+    // Tags filter
+    if (filterState.tags && !server.tags.includes(filterState.tags)) {
+      return false;
+    }
+
+    return true;
+  });
+
+  currentPage = 1; // Reset to first page
+  renderServers();
+}
+
+function clearFilters() {
+  document.getElementById('serverSearch').value = '';
+
+  // Reset custom selects
+  if (gameSelect) gameSelect.setValue('');
+  if (sizeSelect) sizeSelect.setValue('');
+  if (activitySelect) activitySelect.setValue('');
+  if (tagsSelect) tagsSelect.setValue('');
+
+  filterState = {
+    game: '',
+    size: '',
+    activity: '',
+    tags: ''
+  };
+
+  applyFilters();
+}
+
+function showError(message) {
+  const grid = document.getElementById('serverGrid');
+  grid.innerHTML = `
+    <div class="col-span-full bg-red-900/20 border border-red-700 rounded-lg p-6 text-center">
+      <p class="text-red-300">${message}</p>
+    </div>
+  `;
+}
+
+// Initialize custom select dropdowns
+function initializeFilters() {
+  // Size filter
+  sizeSelect = createCustomSelect({
+    container: '#filterSizeContainer',
+    name: 'filterSize',
+    placeholder: 'Any Size',
+    color: 'indigo',
+    items: [
+      { value: '', label: 'Any Size' },
+      { value: 'small', label: 'Small (< 100)', icon: 'users' },
+      { value: 'medium', label: 'Medium (100-500)', icon: 'users' },
+      { value: 'large', label: 'Large (500-2000)', icon: 'users' },
+      { value: 'xlarge', label: 'Very Large (2000+)', icon: 'users' }
+    ],
+    onSelect: (value) => {
+      filterState.size = value;
+      applyFilters();
+    }
+  });
+
+  // Activity filter
+  activitySelect = createCustomSelect({
+    container: '#filterActivityContainer',
+    name: 'filterActivity',
+    placeholder: 'Any Activity',
+    color: 'indigo',
+    items: [
+      { value: '', label: 'Any Activity' },
+      { value: 'high', label: 'High (Active daily)', icon: 'chart-line' },
+      { value: 'medium', label: 'Medium (Active weekly)', icon: 'chart-line' },
+      { value: 'low', label: 'Low (Casual)', icon: 'chart-line' }
+    ],
+    onSelect: (value) => {
+      filterState.activity = value;
+      applyFilters();
+    }
+  });
+
+  // Tags filter
+  tagsSelect = createCustomSelect({
+    container: '#filterTagsContainer',
+    name: 'filterTags',
+    placeholder: 'All Tags',
+    color: 'indigo',
+    items: [
+      { value: '', label: 'All Tags' },
+      { value: 'competitive', label: 'Competitive', icon: 'trophy' },
+      { value: 'casual', label: 'Casual', icon: 'gamepad' },
+      { value: '18+', label: '18+ Only', icon: 'exclamation-triangle' },
+      { value: 'family-friendly', label: 'Family Friendly', icon: 'heart' },
+      { value: 'lgbtq', label: 'LGBTQ+ Friendly', icon: 'rainbow' },
+      { value: 'streamer', label: 'Streamer Community', icon: 'video' },
+      { value: 'lfg', label: 'Active LFG', icon: 'users' },
+      { value: 'events', label: 'Regular Events', icon: 'calendar' }
+    ],
+    onSelect: (value) => {
+      filterState.tags = value;
+      applyFilters();
+    }
+  });
+}
+
+// Load games dynamically from API
+async function loadGamesList() {
+  try {
+    // First check if there are any approved servers
+    const serversResponse = await fetch('/api/discovery/servers');
+    const serversData = await serversResponse.json();
+
+    // If no servers are approved, show empty game list
+    if (!serversData.success || !serversData.servers || serversData.servers.length === 0) {
+      gameSelect = createCustomSelect({
+        container: '#filterGameContainer',
+        name: 'filterGame',
+        placeholder: 'All Games',
+        color: 'indigo',
+        items: [
+          { value: '', label: 'All Games' }
+        ],
+        onSelect: (value) => {
+          filterState.game = value;
+          applyFilters();
+        }
+      });
+      return;
+    }
+
+    // If servers exist, load games from API
+    const response = await fetch('/api/discovery/games');
+    const data = await response.json();
+
+    if (data.success && data.games) {
+      // Build items array for custom select
+      const items = [
+        { value: '', label: 'All Games' },
+        ...data.games.map(game => ({
+          value: (game.slug || game.name || game).toLowerCase().replace(/[^a-z0-9]/g, ''),
+          label: game.name || game,
+          icon: 'gamepad'
+        }))
+      ];
+
+      // Create game select
+      gameSelect = createCustomSelect({
+        container: '#filterGameContainer',
+        name: 'filterGame',
+        placeholder: 'All Games',
+        color: 'indigo',
+        items: items,
+        onSelect: (value) => {
+          filterState.game = value;
+          applyFilters();
+        }
+      });
+    }
+  } catch (error) {
+    console.error('Failed to load games list:', error);
+  }
+}
+
+// Event listeners
+document.getElementById('serverSearch').addEventListener('input', applyFilters);
+
+// Load data on page load
+initializeFilters();
+loadGamesList();
+loadServers();
+</script>

@@ -1,0 +1,1388 @@
+<!-- Cross-Server LFG Tab -->
+<div class="space-y-6">
+
+  <!-- Header with Create Button -->
+  <div class="flex justify-between items-center">
+    <div>
+      <h2 class="text-2xl font-bold text-white">Cross-Server LFG</h2>
+      <p class="text-gray-400 text-sm mt-1">Find groups across all QuestLog servers in the Discovery Network</p>
+    </div>
+    <button onclick="showCreateModal()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-6 rounded-lg transition">
+      + Create LFG Post
+    </button>
+  </div>
+
+  <!-- Filters -->
+  <div class="bg-neutral-900 border border-neutral-800 rounded-lg p-4">
+    <div class="grid md:grid-cols-5 gap-4">
+      <!-- Game Filter -->
+      <div>
+        <label class="block text-xs font-medium text-gray-400 mb-1">Game</label>
+        <div id="lfgFilterGameContainer"></div>
+      </div>
+
+      <!-- Platform Filter -->
+      <div>
+        <label class="block text-xs font-medium text-gray-400 mb-1">Platform</label>
+        <div id="lfgFilterPlatformContainer"></div>
+      </div>
+
+      <!-- Activity Type -->
+      <div>
+        <label class="block text-xs font-medium text-gray-400 mb-1">Activity</label>
+        <div id="lfgFilterActivityContainer"></div>
+      </div>
+
+      <!-- Skill Level -->
+      <div>
+        <label class="block text-xs font-medium text-gray-400 mb-1">Skill Level</label>
+        <div id="lfgFilterSkillContainer"></div>
+      </div>
+
+      <!-- Time -->
+      <div>
+        <label class="block text-xs font-medium text-gray-400 mb-1">When</label>
+        <div id="lfgFilterTimeContainer"></div>
+      </div>
+    </div>
+
+    <div class="flex justify-between items-center mt-3">
+      <button onclick="clearLFGFilters()" class="text-gray-400 hover:text-white text-sm">
+        Clear Filters
+      </button>
+      <div class="text-sm text-gray-400">
+        <span id="lfgCount">0</span> posts found
+      </div>
+    </div>
+  </div>
+
+  <!-- LFG Posts Grid -->
+  <div id="lfgGrid" class="space-y-4">
+    <!-- Loading state -->
+    <div class="text-center py-12">
+      <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500"></div>
+      <p class="text-gray-400 mt-4">Loading LFG posts...</p>
+    </div>
+  </div>
+
+  <!-- Empty State -->
+  <div id="lfgEmptyState" class="hidden bg-neutral-900 border border-neutral-800 rounded-lg p-12 text-center">
+    <svg class="w-16 h-16 mx-auto text-gray-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/>
+    </svg>
+    <h3 class="text-xl font-semibold text-white mb-2">No LFG Posts Found</h3>
+    <p class="text-gray-400 mb-4">Try adjusting your filters or create the first post!</p>
+    <button onclick="showCreateModal()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-6 rounded-lg transition">
+      Create LFG Post
+    </button>
+  </div>
+
+  <!-- Load More Button -->
+  <div id="loadMoreContainer" class="hidden text-center">
+    <button onclick="loadMoreLFG()" class="bg-neutral-800 hover:bg-neutral-700 text-white font-semibold py-2 px-8 rounded-lg transition">
+      Load More
+    </button>
+  </div>
+
+</div>
+
+<!-- Create LFG Modal -->
+<div id="createLFGModal" class="hidden fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+  <div class="bg-neutral-900 border border-neutral-700 rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+    <div class="p-6">
+      <div class="flex justify-between items-center mb-6">
+        <h3 class="text-2xl font-bold text-white">Create LFG Post</h3>
+        <button onclick="hideCreateModal()" class="text-gray-400 hover:text-white">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+
+      <form id="createLFGForm" class="space-y-4">
+        <!-- Game Selection -->
+        <div>
+          <label class="block text-sm font-medium text-gray-300 mb-2">Game *</label>
+          <div id="createLFGGameContainer"></div>
+        </div>
+
+        <!-- Group Title -->
+        <div>
+          <label class="block text-sm font-medium text-gray-300 mb-2">Group Title *</label>
+          <input
+            type="text"
+            name="title"
+            required
+            maxlength="200"
+            placeholder="E.g., Raid Night - Need Tank & Healer"
+            class="w-full bg-neutral-800 border border-neutral-700 rounded px-4 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500"
+          >
+          <p class="text-xs text-gray-500 mt-1">This will be the name of your group (150 character limit)</p>
+        </div>
+
+        <!-- Scheduled Time (optional) -->
+        <div>
+          <label class="block text-sm font-medium text-gray-300 mb-2">Scheduled Time (optional)</label>
+          <input
+            type="datetime-local"
+            name="scheduled_time"
+            class="w-full bg-neutral-800 border border-neutral-700 rounded px-4 py-2 text-white focus:outline-none focus:border-indigo-500"
+          >
+          <p class="text-xs text-gray-500 mt-1">Leave empty for "play now"</p>
+        </div>
+
+        <!-- Event Duration (optional) -->
+        <div>
+          <label class="block text-sm font-medium text-gray-300 mb-2">Event Duration (optional)</label>
+          <input
+            type="number"
+            name="event_duration"
+            min="1"
+            max="24"
+            placeholder="Hours"
+            class="w-full bg-neutral-800 border border-neutral-700 rounded px-4 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500"
+          >
+          <p class="text-xs text-gray-500 mt-1">How long will this event last? (in hours)</p>
+        </div>
+
+        <!-- Class Selection (for games with Class + Spec system) -->
+        <div id="classSelectionContainer" class="hidden">
+          <label class="block text-sm font-medium text-gray-300 mb-2">Class (optional)</label>
+          <div id="createLFGClassContainer"></div>
+          <p class="text-xs text-gray-500 mt-1">Select your class</p>
+        </div>
+
+        <!-- Specialization/Subclass Selection (appears after class) -->
+        <div id="specSelectionContainer" class="hidden">
+          <label class="block text-sm font-medium text-gray-300 mb-2">Specialization (optional)</label>
+          <div id="createLFGSpecContainer"></div>
+          <p class="text-xs text-gray-500 mt-1">Select your specialization</p>
+        </div>
+
+        <!-- Simple Role Selection (for games without Class/Spec system) -->
+        <div id="roleSelectionContainer" class="hidden">
+          <label class="block text-sm font-medium text-gray-300 mb-2">Your Role/Class (optional)</label>
+          <div id="createLFGRoleContainer"></div>
+          <p class="text-xs text-gray-500 mt-1">Select your in-game role for this group</p>
+        </div>
+
+        <!-- Group Size -->
+        <div>
+          <label class="block text-sm font-medium text-gray-300 mb-2">Group Size *</label>
+          <input
+            type="number"
+            name="group_size"
+            required
+            min="2"
+            max="50"
+            value="4"
+            class="w-full bg-neutral-800 border border-neutral-700 rounded px-4 py-2 text-white focus:outline-none focus:border-indigo-500"
+          >
+          <p class="text-xs text-gray-500 mt-1">Maximum number of players in your group (including you)</p>
+        </div>
+
+        <!-- Description (optional) -->
+        <div>
+          <label class="block text-sm font-medium text-gray-300 mb-2">Description (optional)</label>
+          <textarea
+            name="description"
+            rows="3"
+            maxlength="2000"
+            placeholder="E.g., Looking for experienced players for endgame content..."
+            class="w-full bg-neutral-800 border border-neutral-700 rounded px-4 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500"
+          ></textarea>
+        </div>
+
+        <!-- Platform & Activity Type -->
+        <div class="grid md:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-300 mb-2">Platform</label>
+            <div id="createLFGPlatformContainer"></div>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-gray-300 mb-2">Activity Type</label>
+            <div id="createLFGActivityContainer"></div>
+          </div>
+        </div>
+
+        <!-- Skill Level -->
+        <div>
+          <label class="block text-sm font-medium text-gray-300 mb-2">Skill Level</label>
+          <div id="createLFGSkillContainer"></div>
+        </div>
+
+        <!-- Co-Leaders (optional) -->
+        <div>
+          <label class="block text-sm font-medium text-gray-300 mb-2">Co-Leaders (optional)</label>
+          <input
+            type="text"
+            name="co_leaders"
+            placeholder="@username, @another_user"
+            maxlength="200"
+            class="w-full bg-neutral-800 border border-neutral-700 rounded px-4 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500"
+          >
+          <p class="text-xs text-gray-500 mt-1">Enter Discord usernames separated by commas</p>
+        </div>
+
+        <!-- Voice Required -->
+        <div class="flex items-start">
+          <input type="checkbox" name="voice_required" id="voiceRequired" class="mt-1 h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded">
+          <label for="voiceRequired" class="ml-3 text-sm text-gray-300">
+            Voice chat required
+          </label>
+        </div>
+
+        <!-- Buttons -->
+        <div class="flex justify-end space-x-3 mt-6">
+          <button type="button" onclick="hideCreateModal()" class="px-6 py-2 bg-neutral-800 hover:bg-neutral-700 text-white rounded-lg transition">
+            Cancel
+          </button>
+          <button type="submit" class="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg transition">
+            Create Post
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Join LFG Modal -->
+<div id="joinLFGModal" class="hidden fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+  <div class="bg-neutral-900 border border-neutral-700 rounded-lg max-w-md w-full">
+    <div class="p-6">
+      <div class="flex justify-between items-center mb-4">
+        <h3 class="text-xl font-bold text-white">Join LFG Group</h3>
+        <button onclick="hideJoinModal()" class="text-gray-400 hover:text-white">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+      <div id="joinModalContent"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// Guild context
+const guildId = '{{ guild.id }}';
+
+// LFG state
+let allLFGPosts = [];
+let filteredLFGPosts = [];
+let displayedCount = 20;
+
+// Get CSRF token from cookie
+function getCookie(name) {
+  let cookieValue = null;
+  if (document.cookie && document.cookie !== '') {
+    const cookies = document.cookie.split(';');
+    for (let i = 0; i < cookies.length; i++) {
+      const cookie = cookies[i].trim();
+      if (cookie.substring(0, name.length + 1) === (name + '=')) {
+        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+        break;
+      }
+    }
+  }
+  return cookieValue;
+}
+
+const csrfToken = getCookie('csrftoken');
+
+// HTML Escaping function to prevent XSS
+function escapeHtml(unsafe) {
+  if (unsafe === null || unsafe === undefined) return '';
+  return String(unsafe)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+// Custom select instances
+let filterGameSelect, filterPlatformSelect, filterActivitySelect, filterSkillSelect, filterTimeSelect;
+let createGameSelect, createClassSelect, createSpecSelect, createRoleSelect, createPlatformSelect, createActivitySelect, createSkillSelect;
+
+// Store current game templates data
+let currentGameTemplates = [];
+
+// Map game slugs to full names
+let gameNameMap = {};
+
+// User preferences
+let userPreferences = {
+  lfg_filter_games: false,
+  lfg_show_now: false,
+  lfg_hide_voice: false,
+  preferred_games: []
+};
+
+// Load user preferences
+async function loadUserPreferences() {
+  try {
+    const response = await fetch(`/api/discovery/preferences?guild_id=${guildId}`);
+    const data = await response.json();
+    if (data.success) {
+      userPreferences = {
+        lfg_filter_games: data.preferences.lfg_filter_games || false,
+        lfg_show_now: data.preferences.lfg_show_now || false,
+        lfg_hide_voice: data.preferences.lfg_hide_voice || false,
+        preferred_games: data.preferences.preferred_games || []
+      };
+      console.log('Loaded user preferences:', userPreferences);
+    }
+  } catch (error) {
+    console.error('Failed to load user preferences:', error);
+  }
+}
+
+// Load LFG posts
+async function loadLFGPosts() {
+  try {
+    const response = await fetch('/api/discovery/lfg');
+    const data = await response.json();
+
+    if (data.success) {
+      allLFGPosts = data.posts;
+      applyUserPreferenceFilters();
+      renderLFGPosts();
+    }
+  } catch (error) {
+    console.error('Failed to load LFG posts:', error);
+    showLFGError('Failed to load LFG posts. Please try again later.');
+  }
+}
+
+// Apply user preference-based filters
+function applyUserPreferenceFilters() {
+  let posts = [...allLFGPosts];
+
+  // Filter by preferred games if enabled
+  if (userPreferences.lfg_filter_games && userPreferences.preferred_games.length > 0) {
+    posts = posts.filter(post => {
+      // Check if post.game matches any preferred game (case-insensitive)
+      return userPreferences.preferred_games.some(prefGame => {
+        return post.game && post.game.toLowerCase() === prefGame.toLowerCase();
+      });
+    });
+  }
+
+  // Hide voice-required posts if enabled
+  if (userPreferences.lfg_hide_voice) {
+    posts = posts.filter(post => !post.voice_required);
+  }
+
+  // Prioritize "right now" posts if enabled
+  if (userPreferences.lfg_show_now) {
+    posts.sort((a, b) => {
+      const aIsNow = a.start_time === 'now';
+      const bIsNow = b.start_time === 'now';
+      if (aIsNow && !bIsNow) return -1;
+      if (!aIsNow && bIsNow) return 1;
+      return b.created_at - a.created_at; // Otherwise sort by creation time
+    });
+  }
+
+  filteredLFGPosts = posts;
+}
+
+// Render LFG posts
+function renderLFGPosts() {
+  const grid = document.getElementById('lfgGrid');
+  const emptyState = document.getElementById('lfgEmptyState');
+  const loadMoreContainer = document.getElementById('loadMoreContainer');
+  const lfgCount = document.getElementById('lfgCount');
+
+  // Update count
+  lfgCount.textContent = filteredLFGPosts.length;
+
+  // Check if empty
+  if (filteredLFGPosts.length === 0) {
+    grid.classList.add('hidden');
+    emptyState.classList.remove('hidden');
+    loadMoreContainer.classList.add('hidden');
+    return;
+  }
+
+  grid.classList.remove('hidden');
+  emptyState.classList.add('hidden');
+
+  // Show load more button if needed
+  if (filteredLFGPosts.length > displayedCount) {
+    loadMoreContainer.classList.remove('hidden');
+  } else {
+    loadMoreContainer.classList.add('hidden');
+  }
+
+  // Render posts
+  const postsToShow = filteredLFGPosts.slice(0, displayedCount);
+
+  grid.innerHTML = postsToShow.map(post => `
+    <div class="bg-neutral-900 border border-neutral-800 rounded-lg p-5 hover:border-indigo-600 transition">
+      <div class="flex items-start justify-between">
+        <!-- Left: Post Info -->
+        <div class="flex-1">
+          <div class="flex items-center space-x-3 mb-3">
+            <!-- Game Icon/Badge -->
+            <div class="flex-shrink-0 w-12 h-12 bg-gradient-to-br from-indigo-600 to-purple-600 rounded-lg flex items-center justify-center overflow-hidden">
+              ${post.cover_url ? `
+                <img src="${escapeHtml(post.cover_url)}" alt="${escapeHtml(post.game)}" class="w-full h-full object-cover">
+              ` : `
+                <span class="text-xl">🎮</span>
+              `}
+            </div>
+
+            <div class="flex-1">
+              <h3 class="text-lg font-bold text-white">${escapeHtml(post.title)}</h3>
+              <div class="flex items-center space-x-2 text-sm text-gray-400">
+                <span>${escapeHtml(post.game)}</span>
+                <span>•</span>
+                <span>${escapeHtml(post.platform)}</span>
+                <span>•</span>
+                <span>${formatTimeAgo(post.created_at)}</span>
+              </div>
+            </div>
+          </div>
+
+          ${post.description ? `
+            <p class="text-gray-300 text-sm mb-3">${escapeHtml(post.description)}</p>
+          ` : ''}
+
+          <!-- Tags/Badges -->
+          <div class="flex flex-wrap gap-2 mb-3">
+            <span class="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-purple-900/50 text-purple-300">
+              ${escapeHtml(post.activity)}
+            </span>
+            ${post.skill_level !== 'any' ? `
+              <span class="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-blue-900/50 text-blue-300">
+                ${escapeHtml(post.skill_level)}
+              </span>
+            ` : ''}
+            <span class="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-indigo-900/50 text-indigo-300">
+              ${post.spots_needed} ${post.spots_needed === 1 ? 'spot' : 'spots'} needed
+            </span>
+            ${post.voice_required ? `
+              <span class="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-green-900/50 text-green-300">
+                🎤 Voice Required
+              </span>
+            ` : ''}
+            <span class="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-orange-900/50 text-orange-300">
+              ⏰ ${formatStartTime(post.start_time)}
+            </span>
+          </div>
+
+          <!-- Members -->
+          ${post.members && post.members.length > 0 ? `
+            <div class="bg-neutral-800/50 rounded-lg p-3 mb-3 border border-neutral-700">
+              <div class="flex items-center gap-2 mb-2">
+                <i class="fas fa-users text-gray-400 text-sm"></i>
+                <span class="text-sm font-semibold text-gray-300">Members</span>
+                <span class="text-white ml-auto">${post.member_count} / ${post.max_group_size}</span>
+              </div>
+              <div class="flex flex-wrap gap-2">
+                ${post.members.map(member => `
+                  <div class="flex items-center gap-1.5 bg-neutral-900 px-2 py-1 rounded text-xs">
+                    <img src="${escapeHtml(member.avatar_url || 'https://cdn.discordapp.com/embed/avatars/0.png')}"
+                         alt="${escapeHtml(member.display_name)}"
+                         class="w-5 h-5 rounded-full">
+                    <span class="text-gray-300">${escapeHtml(member.display_name)}</span>
+                    ${member.is_creator ? '<span class="text-yellow-400">👑</span>' : ''}
+                    ${member.player_role ? `<span class="text-indigo-400">(${escapeHtml(member.player_role)})</span>` : ''}
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+          ` : ''}
+
+          <!-- Creator Info -->
+          <div class="flex items-center text-sm text-gray-400">
+            <img src="${escapeHtml(post.user_avatar)}" alt="${escapeHtml(post.username)}" class="w-6 h-6 rounded-full mr-2">
+            <span>${escapeHtml(post.username)}</span>
+            ${post.player_role ? `<span class="ml-1 text-indigo-300">(${escapeHtml(post.player_role)})</span>` : ''}
+            <span class="mx-2">from</span>
+            <span class="text-indigo-400">${escapeHtml(post.server_name)}</span>
+          </div>
+        </div>
+
+        <!-- Right: Join Button -->
+        <div class="ml-4 flex-shrink-0">
+          <button onclick="joinLFG('${post.id}')" class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-6 rounded-lg transition">
+            Join
+          </button>
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+// Format time ago
+function formatTimeAgo(timestamp) {
+  const now = Date.now() / 1000;
+  const diff = now - timestamp;
+
+  if (diff < 60) return 'Just now';
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  return `${Math.floor(diff / 86400)}d ago`;
+}
+
+// Format start time
+function formatStartTime(startTime) {
+  const options = {
+    now: 'Right Now',
+    hour: 'In 1 Hour',
+    '2hours': 'In 2 Hours',
+    today: 'Later Today',
+    tomorrow: 'Tomorrow',
+    custom: 'Custom Time'
+  };
+  return options[startTime] || startTime;
+}
+
+// Apply filters
+function applyLFGFilters() {
+  const game = filterGameSelect ? filterGameSelect.getValue() : '';
+  const platform = filterPlatformSelect ? filterPlatformSelect.getValue() : '';
+  const activity = filterActivitySelect ? filterActivitySelect.getValue() : '';
+  const skill = filterSkillSelect ? filterSkillSelect.getValue() : '';
+  const time = filterTimeSelect ? filterTimeSelect.getValue() : '';
+
+  // Start with all posts
+  let posts = [...allLFGPosts];
+
+  // Apply user preference filters FIRST
+  // Filter by preferred games if enabled
+  if (userPreferences.lfg_filter_games && userPreferences.preferred_games.length > 0) {
+    posts = posts.filter(post => {
+      return userPreferences.preferred_games.some(prefGame => {
+        return post.game && post.game.toLowerCase() === prefGame.toLowerCase();
+      });
+    });
+  }
+
+  // Hide voice-required posts if enabled
+  if (userPreferences.lfg_hide_voice) {
+    posts = posts.filter(post => !post.voice_required);
+  }
+
+  // THEN apply manual filter dropdown selections
+  filteredLFGPosts = posts.filter(post => {
+    if (game && post.game !== game) return false;
+    if (platform && post.platform !== platform) return false;
+    if (activity && post.activity !== activity) return false;
+    if (skill && post.skill_level !== skill) return false;
+    if (time) {
+      // Implement time filtering logic
+      const now = Date.now() / 1000;
+      const postTime = post.created_at;
+      if (time === 'now' && post.start_time !== 'now') return false;
+      if (time === 'hour' && !['now', 'hour'].includes(post.start_time)) return false;
+      // Add more time filters as needed
+    }
+    return true;
+  });
+
+  // Apply sorting preference (prioritize "right now" posts)
+  if (userPreferences.lfg_show_now) {
+    filteredLFGPosts.sort((a, b) => {
+      const aIsNow = a.start_time === 'now';
+      const bIsNow = b.start_time === 'now';
+      if (aIsNow && !bIsNow) return -1;
+      if (!aIsNow && bIsNow) return 1;
+      return b.created_at - a.created_at;
+    });
+  }
+
+  displayedCount = 20; // Reset displayed count
+  renderLFGPosts();
+}
+
+function clearLFGFilters() {
+  if (filterGameSelect) filterGameSelect.setValue('');
+  if (filterPlatformSelect) filterPlatformSelect.setValue('');
+  if (filterActivitySelect) filterActivitySelect.setValue('');
+  if (filterSkillSelect) filterSkillSelect.setValue('');
+  if (filterTimeSelect) filterTimeSelect.setValue('');
+  applyLFGFilters();
+}
+
+function loadMoreLFG() {
+  displayedCount += 20;
+  renderLFGPosts();
+}
+
+// Modal functions
+function showCreateModal() {
+  document.getElementById('createLFGModal').classList.remove('hidden');
+}
+
+function hideCreateModal() {
+  document.getElementById('createLFGModal').classList.add('hidden');
+  document.getElementById('createLFGForm').reset();
+}
+
+// Create LFG post
+document.getElementById('createLFGForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const formData = new FormData(e.target);
+  const data = Object.fromEntries(formData.entries());
+  data.voice_required = formData.get('voice_required') === 'on';
+
+  // Add guild_id to form data
+  data.guild_id = guildId;
+
+  // Add custom select values to form data
+  if (createGameSelect) {
+    const gameSlug = createGameSelect.getValue();
+    // Convert slug to full game name
+    data.game = gameNameMap[gameSlug] || gameSlug;
+  }
+
+  // Handle Class + Spec system OR simple role system
+  if (createClassSelect && createClassSelect.getValue()) {
+    // Class + Spec system (WoW style)
+    data.player_class = createClassSelect.getValue();
+    if (createSpecSelect && createSpecSelect.getValue()) {
+      data.player_spec = createSpecSelect.getValue();
+      // Combine as "Class - Spec" for display
+      data.player_role = `${data.player_class} - ${data.player_spec}`;
+    } else {
+      data.player_role = data.player_class;
+    }
+  } else if (createRoleSelect && createRoleSelect.getValue()) {
+    // Simple role system (GW2 style)
+    data.player_role = createRoleSelect.getValue();
+  }
+
+  if (createPlatformSelect) data.platform = createPlatformSelect.getValue();
+  if (createActivitySelect) data.activity = createActivitySelect.getValue();
+  if (createSkillSelect) data.skill_level = createSkillSelect.getValue();
+
+  console.log('📤 Submitting LFG post:', data);
+
+  try {
+    const response = await fetch('/api/discovery/lfg/create', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest',
+        'X-CSRFToken': csrfToken
+      },
+      credentials: 'same-origin',
+      body: JSON.stringify(data)
+    });
+
+    const result = await response.json();
+    if (result.success) {
+      hideCreateModal();
+      loadLFGPosts(); // Reload posts
+      alert('LFG post created successfully!');
+    } else {
+      alert(result.error || 'Failed to create LFG post');
+    }
+  } catch (error) {
+    console.error('Failed to create LFG post:', error);
+    alert('Failed to create LFG post. Please try again.');
+  }
+});
+
+// Join LFG - Show modal with game templates/options
+async function joinLFG(postId) {
+  const post = allLFGPosts.find(p => p.id == postId);
+  if (!post) {
+    showToast('LFG post not found', 'error');
+    return;
+  }
+
+  // Load game templates for this game
+  try {
+    const response = await fetch(`/api/discovery/game-templates?game=${encodeURIComponent(post.game)}`);
+    const data = await response.json();
+
+    let optionsHtml = '';
+
+    if (data.success && data.templates && data.templates.length > 0) {
+      // Show game info
+      optionsHtml += `
+        <div class="mb-4 p-3 bg-neutral-800 rounded-lg border border-neutral-700">
+          <p class="text-sm text-gray-300">
+            <strong class="text-white">${escapeHtml(post.game)}</strong>
+          </p>
+          <p class="text-xs text-gray-500 mt-1">${escapeHtml(post.title)}</p>
+          <p class="text-xs text-gray-400 mt-1">from <span class="text-indigo-400">${escapeHtml(post.server_name)}</span></p>
+        </div>
+      `;
+
+      // Check for Class + Spec system
+      const classTemplate = data.templates.find(t => t.name === 'Class');
+      const specTemplate = data.templates.find(t => t.depends_on === 'Class' || t.name === 'Specialization' || t.name === 'Subclass');
+
+      if (classTemplate && specTemplate && typeof specTemplate.choices === 'object') {
+        // Class + Spec system with custom selects
+        optionsHtml += `
+          <div class="space-y-3">
+            <div>
+              <label class="text-sm text-gray-300 mb-2 block">Select Your Class</label>
+              <div id="joinClassContainer"></div>
+            </div>
+            <div id="joinSpecContainer" class="hidden">
+              <label class="text-sm text-gray-300 mb-2 block">Select Your Specialization</label>
+              <div id="joinSpecSelectContainer"></div>
+            </div>
+          </div>
+        `;
+
+        // Store template data for later use
+        window.joinClassTemplate = classTemplate;
+        window.joinSpecTemplate = specTemplate;
+
+        // Initialize custom select for class
+        setTimeout(() => {
+          const classItems = classTemplate.choices.map(cls => ({
+            value: cls,
+            label: cls
+          }));
+
+          window.joinClassSelect = createCustomSelect({
+            container: '#joinClassContainer',
+            name: 'join_class',
+            placeholder: 'Select your class...',
+            items: classItems,
+            color: 'green',
+            onSelect: (value) => {
+              const specContainer = document.getElementById('joinSpecContainer');
+              const specSelectContainer = document.getElementById('joinSpecSelectContainer');
+
+              if (value && specTemplate.choices[value]) {
+                // Show spec container and create spec select
+                specContainer.classList.remove('hidden');
+
+                const specItems = specTemplate.choices[value].map(spec => ({
+                  value: spec,
+                  label: spec
+                }));
+
+                // Destroy old spec select if exists
+                if (window.joinSpecSelect) {
+                  window.joinSpecSelect.destroy();
+                }
+
+                window.joinSpecSelect = createCustomSelect({
+                  container: '#joinSpecSelectContainer',
+                  name: 'join_spec',
+                  placeholder: 'Select your spec...',
+                  items: specItems,
+                  color: 'green'
+                });
+              } else {
+                specContainer.classList.add('hidden');
+                if (window.joinSpecSelect) {
+                  window.joinSpecSelect.destroy();
+                  window.joinSpecSelect = null;
+                }
+              }
+            }
+          });
+        }, 100);
+      } else {
+        // Simple role system - flatten all choices
+        const allRoles = new Set();
+        data.templates.forEach(template => {
+          if (template.choices && Array.isArray(template.choices)) {
+            template.choices.forEach(choice => {
+              if (choice && choice.trim()) allRoles.add(choice);
+            });
+          }
+        });
+
+        if (allRoles.size > 0) {
+          optionsHtml += `
+            <div>
+              <label class="text-sm text-gray-300 mb-2 block">Select Your Role/Class</label>
+              <div id="joinRoleContainer"></div>
+            </div>
+          `;
+
+          // Initialize custom select for role
+          setTimeout(() => {
+            const roleItems = Array.from(allRoles).map(role => ({
+              value: role,
+              label: role
+            }));
+
+            window.joinRoleSelect = createCustomSelect({
+              container: '#joinRoleContainer',
+              name: 'join_role',
+              placeholder: 'Select your role...',
+              items: roleItems,
+              color: 'green'
+            });
+          }, 100);
+        }
+      }
+    } else {
+      // No templates - simple join
+      optionsHtml = `
+        <div class="text-center py-4">
+          <p class="text-gray-300">Ready to join <strong class="text-white">${escapeHtml(post.game)}</strong>?</p>
+          <p class="text-sm text-gray-400 mt-2">${escapeHtml(post.title)}</p>
+          <p class="text-xs text-gray-500 mt-1">from <span class="text-indigo-400">${escapeHtml(post.server_name)}</span></p>
+        </div>
+      `;
+    }
+
+    // Add buttons
+    optionsHtml += `
+      <div class="flex gap-3 mt-4">
+        <button onclick="submitJoinLFG(${postId})" class="flex-1 bg-green-600 hover:bg-green-700 text-white rounded-lg py-2 font-semibold">
+          Join Group
+        </button>
+        <button onclick="hideJoinModal()" class="px-6 bg-neutral-800 hover:bg-neutral-700 text-white rounded-lg py-2 font-semibold">
+          Cancel
+        </button>
+      </div>
+    `;
+
+    // Show modal
+    document.getElementById('joinModalContent').innerHTML = optionsHtml;
+    document.getElementById('joinLFGModal').classList.remove('hidden');
+
+  } catch (error) {
+    console.error('Failed to load game templates:', error);
+    showToast('Failed to load join options', 'error');
+  }
+}
+
+// Submit join request
+async function submitJoinLFG(postId) {
+  try {
+    const options = {};
+
+    // Get class/spec or role from custom selects
+    if (window.joinClassSelect && window.joinClassSelect.getValue()) {
+      options.player_class = window.joinClassSelect.getValue();
+      if (window.joinSpecSelect && window.joinSpecSelect.getValue()) {
+        options.player_spec = window.joinSpecSelect.getValue();
+        options.player_role = `${options.player_class} - ${options.player_spec}`;
+      } else {
+        options.player_role = options.player_class;
+      }
+    } else if (window.joinRoleSelect && window.joinRoleSelect.getValue()) {
+      options.player_role = window.joinRoleSelect.getValue();
+    }
+
+    const response = await fetch(`/api/discovery/lfg/${postId}/join`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': csrfToken
+      },
+      body: JSON.stringify({ options })
+    });
+
+    const result = await response.json();
+    if (result.success) {
+      hideJoinModal();
+      showToast('✓ Successfully joined! The group creator will contact you.', 'success');
+      loadLFGPosts(); // Reload to update member counts
+    } else {
+      showToast(result.error || 'Failed to join LFG', 'error');
+    }
+  } catch (error) {
+    console.error('Failed to join LFG:', error);
+    showToast('Failed to join LFG. Please try again.', 'error');
+  }
+}
+
+// Hide join modal
+function hideJoinModal() {
+  document.getElementById('joinLFGModal').classList.add('hidden');
+
+  // Clean up custom selects
+  if (window.joinClassSelect) {
+    window.joinClassSelect.destroy();
+    window.joinClassSelect = null;
+  }
+  if (window.joinSpecSelect) {
+    window.joinSpecSelect.destroy();
+    window.joinSpecSelect = null;
+  }
+  if (window.joinRoleSelect) {
+    window.joinRoleSelect.destroy();
+    window.joinRoleSelect = null;
+  }
+}
+
+// Toast notification system
+function showToast(message, type = 'info') {
+  const toast = document.createElement('div');
+  const colors = {
+    success: 'bg-green-600',
+    error: 'bg-red-600',
+    info: 'bg-indigo-600'
+  };
+
+  toast.className = `fixed top-4 right-4 ${colors[type] || colors.info} text-white px-6 py-3 rounded-lg shadow-lg z-50 animate-fade-in`;
+  toast.textContent = message;
+  document.body.appendChild(toast);
+
+  setTimeout(() => {
+    toast.classList.add('opacity-0', 'transition-opacity');
+    setTimeout(() => toast.remove(), 300);
+  }, 3000);
+}
+
+function showLFGError(message) {
+  const grid = document.getElementById('lfgGrid');
+  grid.innerHTML = `
+    <div class="bg-red-900/20 border border-red-700 rounded-lg p-6 text-center">
+      <p class="text-red-300">${message}</p>
+    </div>
+  `;
+}
+
+// Initialize filter dropdowns with custom select
+function initializeFilterDropdowns() {
+  // Initialize Platform filter
+  filterPlatformSelect = createCustomSelect({
+    container: '#lfgFilterPlatformContainer',
+    name: 'filter_platform',
+    placeholder: 'All Platforms',
+    items: [
+      {value: '', label: 'All Platforms'},
+      {value: 'pc', label: 'PC', icon: 'desktop'},
+      {value: 'playstation', label: 'PlayStation', icon: 'gamepad'},
+      {value: 'xbox', label: 'Xbox', icon: 'gamepad'},
+      {value: 'switch', label: 'Nintendo Switch', icon: 'gamepad'},
+      {value: 'mobile', label: 'Mobile', icon: 'mobile'},
+      {value: 'crossplay', label: 'Crossplay', icon: 'network-wired'}
+    ],
+    color: 'indigo',
+    onSelect: applyLFGFilters
+  });
+
+  // Initialize Activity filter
+  filterActivitySelect = createCustomSelect({
+    container: '#lfgFilterActivityContainer',
+    name: 'filter_activity',
+    placeholder: 'Any Activity',
+    items: [
+      {value: '', label: 'Any Activity'},
+      {value: 'competitive', label: 'Competitive/Ranked', icon: 'trophy'},
+      {value: 'casual', label: 'Casual', icon: 'smile'},
+      {value: 'raid', label: 'Raid/Dungeon', icon: 'dungeon'},
+      {value: 'quest', label: 'Quest/Mission', icon: 'map'},
+      {value: 'pvp', label: 'PvP', icon: 'crosshairs'},
+      {value: 'pve', label: 'PvE', icon: 'dragon'},
+      {value: 'custom', label: 'Custom Game', icon: 'cog'}
+    ],
+    color: 'indigo',
+    onSelect: applyLFGFilters
+  });
+
+  // Initialize Skill filter
+  filterSkillSelect = createCustomSelect({
+    container: '#lfgFilterSkillContainer',
+    name: 'filter_skill',
+    placeholder: 'Any Skill',
+    items: [
+      {value: '', label: 'Any Skill'},
+      {value: 'beginner', label: 'Beginner', icon: 'seedling'},
+      {value: 'intermediate', label: 'Intermediate', icon: 'star'},
+      {value: 'advanced', label: 'Advanced', icon: 'fire'},
+      {value: 'expert', label: 'Expert/Pro', icon: 'crown'},
+      {value: 'any', label: 'All Welcome', icon: 'users'}
+    ],
+    color: 'indigo',
+    onSelect: applyLFGFilters
+  });
+
+  // Initialize Time filter
+  filterTimeSelect = createCustomSelect({
+    container: '#lfgFilterTimeContainer',
+    name: 'filter_time',
+    placeholder: 'Any Time',
+    items: [
+      {value: '', label: 'Any Time'},
+      {value: 'now', label: 'Right Now', icon: 'clock'},
+      {value: 'hour', label: 'Within 1 Hour', icon: 'clock'},
+      {value: 'today', label: 'Today', icon: 'calendar-day'},
+      {value: 'tomorrow', label: 'Tomorrow', icon: 'calendar'},
+      {value: 'week', label: 'This Week', icon: 'calendar-week'}
+    ],
+    color: 'indigo',
+    onSelect: applyLFGFilters
+  });
+}
+
+// Load game-specific roles/classes from templates
+async function loadGameRoles(gameName) {
+  console.log('🎮 loadGameRoles called with:', gameName);
+
+  // Hide all role containers first
+  document.getElementById('classSelectionContainer').classList.add('hidden');
+  document.getElementById('specSelectionContainer').classList.add('hidden');
+  document.getElementById('roleSelectionContainer').classList.add('hidden');
+
+  if (!gameName) return;
+
+  try {
+    console.log('📡 Fetching templates from API...');
+    const response = await fetch(`/api/discovery/game-templates?game=${encodeURIComponent(gameName)}`);
+    const data = await response.json();
+    console.log('📦 API Response:', data);
+
+    if (!data.success || !data.templates || data.templates.length === 0) {
+      console.log('⚠️ No templates found for this game');
+      return;
+    }
+
+    currentGameTemplates = data.templates;
+
+    // Check if this game has a Class + Spec system (dependent templates)
+    const classTemplate = data.templates.find(t => t.name === 'Class');
+    const specTemplate = data.templates.find(t => t.depends_on === 'Class' || t.name === 'Specialization' || t.name === 'Subclass');
+
+    if (classTemplate && specTemplate && specTemplate.choices && typeof specTemplate.choices === 'object') {
+      // This game has Class + Spec system (like WoW)
+      console.log('✅ Detected Class + Spec system');
+      loadClassSpecSystem(classTemplate, specTemplate);
+    } else {
+      // This game has simple role system (like GW2) - flatten all choices
+      console.log('✅ Detected simple role system');
+      loadSimpleRoleSystem(data.templates);
+    }
+  } catch (error) {
+    console.error('❌ Failed to load game roles:', error);
+  }
+}
+
+// Load Class + Specialization system (WoW style)
+function loadClassSpecSystem(classTemplate, specTemplate) {
+  // Create class dropdown
+  const classItems = classTemplate.choices.map(className => ({
+    value: className,
+    label: className,
+    icon: getClassIcon(className)
+  }));
+
+  if (createClassSelect) {
+    createClassSelect.destroy();
+  }
+  createClassSelect = createCustomSelect({
+    container: '#createLFGClassContainer',
+    name: 'player_class',
+    placeholder: 'Select your class...',
+    items: classItems,
+    color: 'indigo',
+    onSelect: (selectedClass) => {
+      loadSpecializationsForClass(selectedClass, specTemplate);
+    }
+  });
+
+  document.getElementById('classSelectionContainer').classList.remove('hidden');
+  console.log(`✅ Loaded ${classItems.length} classes`);
+}
+
+// Load specializations for selected class
+function loadSpecializationsForClass(className, specTemplate) {
+  document.getElementById('specSelectionContainer').classList.add('hidden');
+
+  if (!className || !specTemplate.choices) return;
+
+  const specs = specTemplate.choices[className];
+  if (!specs || !Array.isArray(specs) || specs.length === 0) {
+    console.log(`⚠️ No specializations found for ${className}`);
+    return;
+  }
+
+  const specItems = specs.map(spec => ({
+    value: spec,
+    label: spec,
+    icon: getSpecIcon(spec)
+  }));
+
+  if (createSpecSelect) {
+    createSpecSelect.destroy();
+  }
+  createSpecSelect = createCustomSelect({
+    container: '#createLFGSpecContainer',
+    name: 'player_spec',
+    placeholder: 'Select your specialization...',
+    items: specItems,
+    color: 'indigo'
+  });
+
+  document.getElementById('specSelectionContainer').classList.remove('hidden');
+  console.log(`✅ Loaded ${specItems.length} specializations for ${className}`);
+}
+
+// Load simple role system (GW2 style) - flatten all choices
+function loadSimpleRoleSystem(templates) {
+  const allRoles = new Set();
+
+  templates.forEach(template => {
+    if (template.choices && Array.isArray(template.choices)) {
+      template.choices.forEach(choice => {
+        if (choice && choice.trim()) {
+          allRoles.add(choice);
+        }
+      });
+    }
+  });
+
+  if (allRoles.size === 0) {
+    console.log('⚠️ No roles found');
+    return;
+  }
+
+  const roleItems = Array.from(allRoles).map(role => ({
+    value: role,
+    label: role,
+    icon: getRoleIcon(role)
+  }));
+
+  if (createRoleSelect) {
+    createRoleSelect.destroy();
+  }
+  createRoleSelect = createCustomSelect({
+    container: '#createLFGRoleContainer',
+    name: 'player_role',
+    placeholder: 'Select your role...',
+    items: roleItems,
+    color: 'indigo'
+  });
+
+  document.getElementById('roleSelectionContainer').classList.remove('hidden');
+  console.log(`✅ Loaded ${allRoles.size} roles`);
+}
+
+// Get icon for WoW/D&D style classes
+function getClassIcon(className) {
+  const classLower = className.toLowerCase();
+
+  // WoW Classes
+  if (classLower.includes('death knight')) return 'skull';
+  if (classLower.includes('demon hunter')) return 'fire-alt';
+  if (classLower.includes('druid')) return 'leaf';
+  if (classLower.includes('evoker')) return 'dragon';
+  if (classLower.includes('hunter')) return 'bullseye';
+  if (classLower.includes('mage')) return 'hat-wizard';
+  if (classLower.includes('monk')) return 'fist-raised';
+  if (classLower.includes('paladin')) return 'shield-alt';
+  if (classLower.includes('priest')) return 'praying-hands';
+  if (classLower.includes('rogue')) return 'user-secret';
+  if (classLower.includes('shaman')) return 'bolt';
+  if (classLower.includes('warlock')) return 'skull-crossbones';
+  if (classLower.includes('warrior')) return 'sword';
+
+  // GW2 Classes
+  if (classLower.includes('elementalist') || classLower.includes('elemenatlist')) return 'fire';
+  if (classLower.includes('thief')) return 'mask';
+  if (classLower.includes('ranger')) return 'paw';
+  if (classLower.includes('guardian')) return 'shield';
+  if (classLower.includes('engineer')) return 'cog';
+  if (classLower.includes('necromancer')) return 'skull';
+  if (classLower.includes('revenant')) return 'ghost';
+  if (classLower.includes('mesmer')) return 'magic';
+
+  // Generic D&D style classes
+  if (classLower.includes('fighter')) return 'sword';
+  if (classLower.includes('cleric')) return 'cross';
+  if (classLower.includes('barbarian')) return 'axe';
+  if (classLower.includes('bard')) return 'music';
+  if (classLower.includes('sorcerer')) return 'wand-magic';
+  if (classLower.includes('wizard')) return 'hat-wizard';
+
+  return 'user';
+}
+
+// Get icon for specializations
+function getSpecIcon(specName) {
+  const specLower = specName.toLowerCase();
+
+  // Tank specs
+  if (specLower.includes('blood') || specLower.includes('protection') ||
+      specLower.includes('guardian') || specLower.includes('brewmaster') ||
+      specLower.includes('vengeance')) return 'shield-alt';
+
+  // Healer specs
+  if (specLower.includes('holy') || specLower.includes('restoration') ||
+      specLower.includes('mistweaver') || specLower.includes('preservation') ||
+      specLower.includes('discipline')) return 'heart';
+
+  // DPS specs
+  if (specLower.includes('fire') || specLower.includes('destruction') ||
+      specLower.includes('havoc') || specLower.includes('fury')) return 'fire';
+  if (specLower.includes('frost')) return 'snowflake';
+  if (specLower.includes('arcane')) return 'star';
+  if (specLower.includes('shadow') || specLower.includes('subtlety') ||
+      specLower.includes('assassination')) return 'user-ninja';
+  if (specLower.includes('balance')) return 'yin-yang';
+  if (specLower.includes('feral') || specLower.includes('beast')) return 'paw';
+  if (specLower.includes('marksmanship') || specLower.includes('survival')) return 'crosshairs';
+  if (specLower.includes('enhancement') || specLower.includes('elemental')) return 'bolt';
+  if (specLower.includes('windwalker') || specLower.includes('outlaw')) return 'fist-raised';
+  if (specLower.includes('retribution') || specLower.includes('arms')) return 'sword';
+  if (specLower.includes('affliction') || specLower.includes('demonology')) return 'skull';
+  if (specLower.includes('devastation') || specLower.includes('augmentation')) return 'dragon';
+  if (specLower.includes('unholy')) return 'biohazard';
+
+  return 'star';
+}
+
+// Get icon for simple role types (GW2 style)
+function getRoleIcon(role) {
+  const roleLower = role.toLowerCase();
+
+  // Use class icon function for class names
+  return getClassIcon(role);
+}
+
+// Load games list from LFG settings across Discovery Network
+async function loadGamesList() {
+  try {
+    const response = await fetch('/api/discovery/lfg-games');
+    const data = await response.json();
+
+    if (data.success && data.games) {
+      // Prepare game items for dropdowns
+      const gameItems = [];
+
+      data.games.forEach(game => {
+        if (!game.name) return; // Skip games without names
+
+        const slug = game.slug || game.name.toLowerCase().replace(/\s+/g, '-');
+        gameNameMap[slug] = game.name;
+
+        gameItems.push({
+          value: slug,
+          label: game.name,
+          icon: 'gamepad'
+        });
+      });
+
+      // Initialize Filter Game dropdown
+      filterGameSelect = createCustomSelect({
+        container: '#lfgFilterGameContainer',
+        name: 'filter_game',
+        placeholder: 'All Games',
+        items: [
+          {value: '', label: 'All Games'},
+          ...gameItems
+        ],
+        color: 'indigo',
+        onSelect: applyLFGFilters
+      });
+
+      // Initialize Create Game dropdown
+      createGameSelect = createCustomSelect({
+        container: '#createLFGGameContainer',
+        name: 'game',
+        placeholder: 'Select a game...',
+        items: gameItems,
+        color: 'indigo',
+        onSelect: (value) => {
+          console.log('🎯 Game selected:', value);
+          const gameName = gameNameMap[value] || value;
+          console.log('📝 Game name mapped to:', gameName);
+          if (gameName) {
+            loadGameRoles(gameName);
+          }
+        }
+      });
+
+      // Initialize Platform dropdown
+      createPlatformSelect = createCustomSelect({
+        container: '#createLFGPlatformContainer',
+        name: 'platform',
+        placeholder: 'Select platform...',
+        items: [
+          {value: 'pc', label: 'PC', icon: 'desktop'},
+          {value: 'playstation', label: 'PlayStation', icon: 'gamepad'},
+          {value: 'xbox', label: 'Xbox', icon: 'gamepad'},
+          {value: 'switch', label: 'Nintendo Switch', icon: 'gamepad'},
+          {value: 'mobile', label: 'Mobile', icon: 'mobile'},
+          {value: 'crossplay', label: 'Crossplay', icon: 'network-wired'}
+        ],
+        selected: 'pc',
+        color: 'indigo'
+      });
+
+      // Initialize Activity Type dropdown
+      createActivitySelect = createCustomSelect({
+        container: '#createLFGActivityContainer',
+        name: 'activity',
+        placeholder: 'Select activity...',
+        items: [
+          {value: 'casual', label: 'Casual', icon: 'smile'},
+          {value: 'competitive', label: 'Competitive/Ranked', icon: 'trophy'},
+          {value: 'raid', label: 'Raid/Dungeon', icon: 'dungeon'},
+          {value: 'quest', label: 'Quest/Mission', icon: 'map'},
+          {value: 'pvp', label: 'PvP', icon: 'crosshairs'},
+          {value: 'pve', label: 'PvE', icon: 'dragon'},
+          {value: 'custom', label: 'Custom Game', icon: 'cog'}
+        ],
+        selected: 'casual',
+        color: 'indigo'
+      });
+
+      // Initialize Skill Level dropdown
+      createSkillSelect = createCustomSelect({
+        container: '#createLFGSkillContainer',
+        name: 'skill_level',
+        placeholder: 'Select skill level...',
+        items: [
+          {value: 'any', label: 'All Welcome', icon: 'users'},
+          {value: 'beginner', label: 'Beginner', icon: 'seedling'},
+          {value: 'intermediate', label: 'Intermediate', icon: 'star'},
+          {value: 'advanced', label: 'Advanced', icon: 'fire'},
+          {value: 'expert', label: 'Expert/Pro', icon: 'crown'}
+        ],
+        selected: 'any',
+        color: 'indigo'
+      });
+    }
+  } catch (error) {
+    console.error('Failed to load games:', error);
+
+    // Initialize with error state
+    filterGameSelect = createCustomSelect({
+      container: '#lfgFilterGameContainer',
+      name: 'filter_game',
+      placeholder: 'Failed to load games',
+      items: [],
+      color: 'indigo'
+    });
+
+    createGameSelect = createCustomSelect({
+      container: '#createLFGGameContainer',
+      name: 'game',
+      placeholder: 'Failed to load games',
+      items: [],
+      color: 'indigo'
+    });
+  }
+}
+
+// Initialize page
+async function initializeLFGPage() {
+  // Load user preferences FIRST
+  await loadUserPreferences();
+
+  // Initialize filter dropdowns
+  initializeFilterDropdowns();
+
+  // Load games list and initialize create modal dropdowns
+  await loadGamesList();
+
+  // Load LFG posts (will automatically apply user preferences)
+  loadLFGPosts();
+}
+
+// Load on page load
+initializeLFGPage();
+</script>

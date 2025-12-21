@@ -219,6 +219,7 @@ urlpatterns = [
 
     # Discovery/Self-Promo Dashboard
     path('questlog/guild/<str:guild_id>/discovery/', views.guild_discovery, name='guild_discovery'),
+    path('questlog/guild/<str:guild_id>/discovery-network/', views.guild_discovery_network, name='guild_discovery_network'),
     path('questlog/guild/<str:guild_id>/found-games/', views.guild_found_games, name='guild_found_games'),
 
     # Discovery API Endpoints
@@ -236,6 +237,38 @@ urlpatterns = [
     path('api/guild/<str:guild_id>/discovery/searches/', views.api_game_search_configs_list, name='api_game_search_configs_list'),
     path('api/guild/<str:guild_id>/discovery/searches/create/', views.api_game_search_config_create, name='api_game_search_config_create'),
     path('api/guild/<str:guild_id>/discovery/searches/<int:search_id>/update/', views.api_game_search_config_update, name='api_game_search_config_update'),
+
+    # Discovery Network API Endpoints
+    path('api/discovery/servers', views.api_discovery_network_servers, name='api_discovery_network_servers'),
+    path('api/discovery/lfg', views.api_discovery_network_lfg, name='api_discovery_network_lfg'),
+    path('api/discovery/lfg/create', views.api_discovery_lfg_create, name='api_discovery_lfg_create'),
+    path('api/discovery/lfg/<int:post_id>/join', views.api_discovery_lfg_join, name='api_discovery_lfg_join'),
+    path('api/discovery/lfg-games', views.api_discovery_network_lfg_games, name='api_discovery_network_lfg_games'),
+    path('api/discovery/games', views.api_discovery_network_games, name='api_discovery_network_games'),
+    path('api/discovery/game-templates', views.api_discovery_game_templates, name='api_discovery_game_templates'),
+    path('api/discovery/game-roles', views.api_discovery_game_roles, name='api_discovery_game_roles'),
+    path('api/discovery/apply', views.api_discovery_network_apply, name='api_discovery_network_apply'),
+    path('api/discovery/preferences', views.api_discovery_network_preferences, name='api_discovery_network_preferences'),
+    path('api/discovery/leave', views.api_discovery_network_leave, name='api_discovery_network_leave'),
+    path('api/discovery/rejoin', views.api_discovery_network_rejoin, name='api_discovery_network_rejoin'),
+
+    # Game Discovery Endpoints (new)
+    path('api/discovery/games-list', views.api_discovery_games_list, name='api_discovery_games_list'),
+    path('api/discovery/share-game', views.api_discovery_share_game, name='api_discovery_share_game'),
+    path('api/discovery/game-share-limit', views.api_discovery_game_share_limit, name='api_discovery_game_share_limit'),
+    path('api/discovery/games/<str:game_id>/reviews', views.api_discovery_game_reviews, name='api_discovery_game_reviews'),
+    path('api/discovery/games/<str:game_id>/discussions', views.api_discovery_game_discussions, name='api_discovery_game_discussions'),
+    path('api/discovery/discussions/<int:discussion_id>/upvote', views.api_discovery_discussion_upvote, name='api_discovery_discussion_upvote'),
+
+    # Creator Discovery Endpoints (stubs for now - Twitch/YouTube integration pending)
+    path('api/discovery/creators-list', views.api_discovery_creators_list, name='api_discovery_creators_list'),
+    path('api/discovery/feature-creator', views.api_discovery_feature_creator, name='api_discovery_feature_creator'),
+
+    # Discovery Network Admin API Endpoints (Bot Owner Only)
+    path('api/discovery/admin/applications', views.api_discovery_network_admin_applications, name='api_discovery_network_admin_applications'),
+    path('api/discovery/admin/applications/<int:application_id>/approve', views.api_discovery_network_admin_approve, name='api_discovery_network_admin_approve'),
+    path('api/discovery/admin/applications/<int:application_id>/deny', views.api_discovery_network_admin_deny, name='api_discovery_network_admin_deny'),
+    path('api/discovery/admin/applications/<int:application_id>/ban', views.api_discovery_network_admin_ban, name='api_discovery_network_admin_ban'),
     path('api/guild/<str:guild_id>/discovery/searches/<int:search_id>/delete/', views.api_game_search_config_delete, name='api_game_search_config_delete'),
 
     # Action Status

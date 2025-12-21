@@ -1,0 +1,405 @@
+<!-- Game Discovery Tab -->
+<div class="space-y-6">
+
+  <!-- Header & Filters -->
+  <div class="bg-gradient-to-r from-indigo-900/20 to-purple-900/20 border border-indigo-800 rounded-lg p-6">
+    <div class="flex justify-between items-start mb-4">
+      <div>
+        <h2 class="text-2xl font-bold text-white mb-2">🎮 Game Discovery</h2>
+        <p class="text-gray-300">Discover trending games across the QuestLog network</p>
+      </div>
+      {% if is_admin and user_tier != 'free' %}
+      <button onclick="shareGameModal()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg transition">
+        <i class="fas fa-share mr-2"></i>Share a Game
+      </button>
+      {% elif is_admin %}
+      <div class="text-right">
+        <button disabled class="px-4 py-2 bg-gray-700 text-gray-400 font-semibold rounded-lg cursor-not-allowed">
+          <i class="fas fa-lock mr-2"></i>Share a Game
+        </button>
+        <p class="text-xs text-gray-500 mt-1">Upgrade to share games</p>
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Search & Filters -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <input
+        type="text"
+        id="gameSearchInput"
+        placeholder="Search games..."
+        class="bg-neutral-900 border border-neutral-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-indigo-500"
+      >
+      <div id="genreFilterContainer"></div>
+      <div id="sortByContainer"></div>
+    </div>
+  </div>
+
+  <!-- Game Grid -->
+  <div id="gamesGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+    <!-- Games will be loaded here -->
+    <div class="col-span-full text-center py-12">
+      <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-500 mx-auto"></div>
+      <p class="text-gray-400 mt-4">Loading games...</p>
+    </div>
+  </div>
+
+</div>
+
+<!-- Share Game Modal -->
+<div id="shareGameModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm hidden items-center justify-center z-50">
+  <div class="bg-neutral-900 border border-neutral-700 rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+    <div class="flex justify-between items-center mb-6">
+      <h3 class="text-2xl font-bold text-white">Share a Game to Discovery Network</h3>
+      <button onclick="closeShareGameModal()" class="text-gray-400 hover:text-white">
+        <i class="fas fa-times text-xl"></i>
+      </button>
+    </div>
+
+    <form id="shareGameForm" class="space-y-4">
+      <!-- Game Name -->
+      <div>
+        <label class="block text-sm font-medium text-gray-300 mb-2">Game Name *</label>
+        <input
+          type="text"
+          name="game_name"
+          id="shareGameName"
+          required
+          placeholder="Enter game name..."
+          class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-indigo-500"
+        >
+      </div>
+
+      <!-- Genre -->
+      <div>
+        <label class="block text-sm font-medium text-gray-300 mb-2">Genre</label>
+        <select name="genre" class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-indigo-500">
+          <option value="">Select genre...</option>
+          <option value="action">Action</option>
+          <option value="adventure">Adventure</option>
+          <option value="rpg">RPG</option>
+          <option value="strategy">Strategy</option>
+          <option value="shooter">Shooter</option>
+          <option value="mmo">MMO</option>
+          <option value="survival">Survival</option>
+          <option value="sports">Sports</option>
+        </select>
+      </div>
+
+      <!-- Description/Review -->
+      <div>
+        <label class="block text-sm font-medium text-gray-300 mb-2">Why should others check this out?</label>
+        <textarea
+          name="description"
+          rows="4"
+          placeholder="Share your thoughts about this game..."
+          class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-indigo-500"
+        ></textarea>
+      </div>
+
+      <!-- Tier Limit Info -->
+      <div class="bg-yellow-900/20 border border-yellow-700 rounded-lg p-4">
+        <p class="text-sm text-yellow-400">
+          <i class="fas fa-info-circle mr-2"></i>
+          <span id="shareLimit">Loading limit...</span>
+        </p>
+      </div>
+
+      <!-- Submit -->
+      <div class="flex space-x-3">
+        <button type="button" onclick="closeShareGameModal()" class="flex-1 px-4 py-2 bg-neutral-800 hover:bg-neutral-700 text-white rounded-lg transition">
+          Cancel
+        </button>
+        <button type="submit" class="flex-1 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg transition">
+          Share Game
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+let currentGames = [];
+let genreFilterValue = '';
+let sortByValue = 'trending';
+
+// Load games on page load
+async function loadGames() {
+  try {
+    const searchTerm = document.getElementById('gameSearchInput').value;
+    const genre = genreFilterValue;
+    const sort = sortByValue;
+
+    const guildId = '{{ guild.id }}';
+    const response = await fetch(`/api/discovery/games-list?guild_id=${guildId}&search=${searchTerm}&genre=${genre}&sort=${sort}`);
+    const data = await response.json();
+
+    if (data.success) {
+      currentGames = data.games || [];
+      renderGames();
+    } else {
+      document.getElementById('gamesGrid').innerHTML = `
+        <div class="col-span-full text-center py-12">
+          <i class="fas fa-exclamation-circle text-4xl text-red-500 mb-4"></i>
+          <p class="text-gray-400">${data.error || 'Failed to load games'}</p>
+        </div>
+      `;
+    }
+  } catch (error) {
+    console.error('Failed to load games:', error);
+    document.getElementById('gamesGrid').innerHTML = `
+      <div class="col-span-full text-center py-12">
+        <i class="fas fa-exclamation-circle text-4xl text-red-500 mb-4"></i>
+        <p class="text-gray-400">Failed to load games. Please try again.</p>
+      </div>
+    `;
+  }
+}
+
+function renderGames() {
+  const grid = document.getElementById('gamesGrid');
+
+  if (currentGames.length === 0) {
+    grid.innerHTML = `
+      <div class="col-span-full text-center py-12">
+        <i class="fas fa-gamepad text-6xl text-gray-600 mb-4"></i>
+        <h3 class="text-xl font-bold text-white mb-2">No Games Found</h3>
+        <p class="text-gray-400">Be the first to share a game to the network!</p>
+      </div>
+    `;
+    return;
+  }
+
+  grid.innerHTML = currentGames.map(game => `
+    <div class="bg-neutral-900 border border-neutral-800 rounded-xl overflow-hidden hover:border-indigo-500 transition-all duration-300 group flex flex-col h-full">
+      <!-- Cover Image -->
+      ${game.cover_url ? `
+      <div class="relative aspect-[3/4] overflow-hidden bg-neutral-800 flex-shrink-0">
+        <img src="${game.cover_url}"
+             alt="${game.name}"
+             class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+             loading="lazy">
+        ${game.rating ? `
+        <div class="absolute top-2 right-2 bg-yellow-500 text-black px-2 py-1 rounded-lg font-bold text-sm">
+          ⭐ ${game.rating}
+        </div>
+        ` : ''}
+      </div>
+      ` : ''}
+
+      <!-- Game Info -->
+      <div class="p-4 flex-1 flex flex-col">
+        <h3 class="font-bold text-lg mb-2 line-clamp-2 group-hover:text-indigo-400 transition-colors">
+          ${game.name}
+        </h3>
+
+        ${game.release_date ? `
+        <div class="text-sm text-gray-400 mb-3">
+          <i class="far fa-calendar mr-1"></i>${game.release_date}
+        </div>
+        ` : ''}
+
+        ${game.summary ? `
+        <p class="text-sm text-gray-400 line-clamp-3 mb-4">
+          ${game.summary}
+        </p>
+        ` : ''}
+
+        <!-- Genres & Platforms -->
+        <div class="space-y-2 mb-4">
+          ${game.genres && game.genres.length > 0 ? `
+          <div class="flex flex-wrap gap-1">
+            ${game.genres.slice(0, 3).map(genre => `
+            <span class="text-xs bg-indigo-900/30 text-indigo-300 px-2 py-1 rounded border border-indigo-800">
+              ${genre}
+            </span>
+            `).join('')}
+          </div>
+          ` : ''}
+
+          ${game.platforms && game.platforms.length > 0 ? `
+          <div class="flex flex-wrap gap-1">
+            ${game.platforms.slice(0, 3).map(platform => `
+            <span class="text-xs bg-purple-900/30 text-purple-300 px-2 py-1 rounded border border-purple-800">
+              ${platform}
+            </span>
+            `).join('')}
+          </div>
+          ` : ''}
+        </div>
+
+        <!-- Stats -->
+        <div class="flex gap-4 text-xs text-gray-500 mb-4">
+          ${game.server_count ? `
+          <span title="Found in ${game.server_count} communities">
+            <i class="fas fa-server text-indigo-400"></i> ${game.server_count}
+          </span>
+          ` : ''}
+          ${game.lfg_count > 0 ? `
+          <span title="Active LFG groups">
+            <i class="fas fa-users text-green-400"></i> ${game.lfg_count}
+          </span>
+          ` : ''}
+          ${game.hypes ? `
+          <span title="Pre-release follows">
+            <i class="fas fa-fire text-orange-400"></i> ${game.hypes}
+          </span>
+          ` : ''}
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="flex gap-2 mt-auto pt-2">
+          ${game.steam_url ? `
+          <a href="${game.steam_url}"
+             target="_blank"
+             class="flex-1 px-3 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 rounded-lg text-center text-sm font-semibold transition-all shadow-lg hover:shadow-indigo-500/50">
+            <i class="fab fa-steam mr-1"></i>View on Steam
+          </a>
+          ` : ''}
+          ${game.igdb_url ? `
+          <a href="${game.igdb_url}"
+             target="_blank"
+             class="${game.steam_url ? 'flex-none' : 'flex-1'} px-3 py-2 bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 rounded-lg text-center text-sm transition-all hover:border-indigo-500">
+            <i class="fas fa-info-circle mr-1"></i>IGDB
+          </a>
+          ` : ''}
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+// Share game modal
+function shareGameModal() {
+  document.getElementById('shareGameModal').classList.remove('hidden');
+  document.getElementById('shareGameModal').classList.add('flex');
+  loadShareLimit();
+}
+
+function closeShareGameModal() {
+  document.getElementById('shareGameModal').classList.add('hidden');
+  document.getElementById('shareGameModal').classList.remove('flex');
+  document.getElementById('shareGameForm').reset();
+}
+
+async function loadShareLimit() {
+  try {
+    const guildId = '{{ guild.id }}';
+    const response = await fetch(`/api/discovery/game-share-limit?guild_id=${guildId}`);
+    const data = await response.json();
+
+    if (data.success) {
+      const limitEl = document.getElementById('shareLimit');
+      if (data.unlimited) {
+        limitEl.textContent = 'You have unlimited game sharing!';
+      } else {
+        limitEl.textContent = `You can share ${data.remaining}/${data.limit} games this month. Resets ${data.reset_date}.`;
+      }
+    }
+  } catch (error) {
+    console.error('Failed to load share limit:', error);
+  }
+}
+
+// Handle share form submission
+document.getElementById('shareGameForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+
+  const formData = new FormData(e.target);
+  const data = Object.fromEntries(formData.entries());
+  data.guild_id = '{{ guild.id }}';
+
+  try {
+    const csrftoken = getCookie('csrftoken');
+    const response = await fetch('/api/discovery/share-game', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': csrftoken
+      },
+      body: JSON.stringify(data)
+    });
+
+    const result = await response.json();
+
+    if (result.success) {
+      alert('✅ Game shared successfully!');
+      closeShareGameModal();
+      loadGames(); // Reload games
+    } else {
+      alert('❌ ' + (result.error || 'Failed to share game'));
+    }
+  } catch (error) {
+    console.error('Failed to share game:', error);
+    alert('Failed to share game. Please try again.');
+  }
+});
+
+// Initialize custom selects and load games when ready
+function initGameDiscovery() {
+  // Check if containers exist (tab might not be visible yet)
+  if (!document.getElementById('genreFilterContainer')) {
+    return;
+  }
+
+  // Initialize custom selects
+  createCustomSelect({
+    container: '#genreFilterContainer',
+    name: 'genreFilter',
+    id: 'genreFilter',
+    placeholder: 'All Genres',
+    color: 'indigo',
+    items: [
+      { value: '', label: 'All Genres', icon: 'filter' },
+      { value: 'action', label: 'Action', icon: 'fist-raised' },
+      { value: 'adventure', label: 'Adventure', icon: 'compass' },
+      { value: 'rpg', label: 'RPG', icon: 'hat-wizard' },
+      { value: 'strategy', label: 'Strategy', icon: 'chess' },
+      { value: 'shooter', label: 'Shooter', icon: 'crosshairs' },
+      { value: 'mmo', label: 'MMO', icon: 'users' },
+      { value: 'survival', label: 'Survival', icon: 'heartbeat' },
+      { value: 'sports', label: 'Sports', icon: 'football-ball' }
+    ],
+    selected: '',
+    onSelect: (value) => {
+      genreFilterValue = value;
+      loadGames();
+    }
+  });
+
+  createCustomSelect({
+    container: '#sortByContainer',
+    name: 'sortBy',
+    id: 'sortBy',
+    placeholder: 'Sort by...',
+    color: 'indigo',
+    items: [
+      { value: 'trending', label: 'Trending', icon: 'fire' },
+      { value: 'servers', label: 'Most Servers', icon: 'server' },
+      { value: 'recent', label: 'Recently Added', icon: 'clock' },
+      { value: 'rating', label: 'Highest Rated', icon: 'star' }
+    ],
+    selected: 'trending',
+    onSelect: (value) => {
+      sortByValue = value;
+      loadGames();
+    }
+  });
+
+  // Filter handler for search input
+  const searchInput = document.getElementById('gameSearchInput');
+  if (searchInput) {
+    searchInput.addEventListener('input', loadGames);
+  }
+
+  // Load games
+  loadGames();
+}
+
+// Initialize when DOM is ready
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initGameDiscovery);
+} else {
+  initGameDiscovery();
+}
+</script>

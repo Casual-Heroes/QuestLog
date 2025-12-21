@@ -1,0 +1,259 @@
+{% extends 'questlog/base_guild.html' %}
+{% load static %}
+
+{% block title %}Discovery Network - {{ guild.name }} - QuestLog{% endblock %}
+
+{% block guild_content %}
+<!-- Include custom select component -->
+{% include 'questlog/partials/custom_select.html' %}
+
+<div class="space-y-6">
+  <!-- Header -->
+  <div class="flex justify-between items-center">
+    <div>
+      <h1 class="text-3xl font-bold text-white mb-2">🌐 Discovery Network</h1>
+      <p class="text-gray-400">Connect with creators and communities across all QuestLog servers</p>
+    </div>
+    <div class="text-right space-y-2">
+      {% if user_network_status == 'approved' %}
+        <span class="inline-flex items-center px-4 py-2 bg-green-900 border border-green-700 rounded-lg text-green-400">
+          <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+          </svg>
+          Network Member
+        </span>
+        {% if is_admin %}
+        <button onclick="confirmLeaveNetwork()" class="block w-full px-4 py-2 bg-red-900 border border-red-700 hover:bg-red-800 rounded-lg text-red-400 hover:text-red-300 text-sm font-medium transition">
+          Leave Network
+        </button>
+        {% endif %}
+      {% elif user_network_status == 'pending' %}
+        <span class="inline-flex items-center px-4 py-2 bg-yellow-900 border border-yellow-700 rounded-lg text-yellow-400">
+          <svg class="w-5 h-5 mr-2 animate-spin" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          </svg>
+          Application Pending
+        </span>
+      {% elif user_network_status == 'banned' %}
+        <span class="inline-flex items-center px-4 py-2 bg-red-900 border border-red-700 rounded-lg text-red-400">
+          <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+            <path fill-rule="evenodd" d="M13.477 14.89A6 6 0 015.11 6.524l8.367 8.368zm1.414-1.414L6.524 5.11a6 6 0 018.367 8.367zM18 10a8 8 0 11-16 0 8 8 0 0116 0z" clip-rule="evenodd"/>
+          </svg>
+          Banned from Network
+        </span>
+      {% elif user_network_status == 'left' %}
+        <span class="inline-flex items-center px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-gray-400 mb-2">
+          Previously Approved
+        </span>
+        <button onclick="confirmRejoinNetwork()" class="block w-full px-4 py-2 bg-green-900 border border-green-700 hover:bg-green-800 rounded-lg text-green-400 hover:text-green-300 text-sm font-medium transition">
+          Rejoin Network
+        </button>
+      {% else %}
+        <span class="inline-flex items-center px-4 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-gray-400">
+          Not a Member
+        </span>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="border-b border-neutral-700">
+    <nav class="flex space-x-8" aria-label="Tabs">
+      <button onclick="switchTab('overview')" id="tab-overview" class="tab-button tab-active border-b-2 border-indigo-500 py-4 px-1 text-sm font-medium text-indigo-400">
+        Overview
+      </button>
+      {% if enable_directory %}
+      <button onclick="switchTab('directory')" id="tab-directory" class="tab-button border-b-2 border-transparent py-4 px-1 text-sm font-medium text-gray-400 hover:text-gray-300">
+        Server Directory
+      </button>
+      {% endif %}
+      {% if user_network_status == 'approved' %}
+        {% if enable_lfg %}
+        <button onclick="switchTab('lfg')" id="tab-lfg" class="tab-button border-b-2 border-transparent py-4 px-1 text-sm font-medium text-gray-400 hover:text-gray-300">
+          Cross-Server LFG
+        </button>
+        {% endif %}
+        {% if enable_games %}
+        <button onclick="switchTab('games')" id="tab-games" class="tab-button border-b-2 border-transparent py-4 px-1 text-sm font-medium text-gray-400 hover:text-gray-300">
+          Game Discovery
+        </button>
+        {% endif %}
+        {% if enable_creators %}
+        <button onclick="switchTab('creators')" id="tab-creators" class="tab-button border-b-2 border-transparent py-4 px-1 text-sm font-medium text-gray-400 hover:text-gray-300">
+          Featured Creators
+        </button>
+        {% endif %}
+        <button onclick="switchTab('preferences')" id="tab-preferences" class="tab-button border-b-2 border-transparent py-4 px-1 text-sm font-medium text-gray-400 hover:text-gray-300">
+          My Preferences
+        </button>
+      {% endif %}
+
+      {% if is_bot_owner %}
+      <!-- BOT OWNER ADMIN TAB -->
+      <button onclick="switchTab('admin')" id="tab-admin" class="tab-button border-b-2 border-transparent py-4 px-1 text-sm font-medium text-red-400 hover:text-red-300">
+        🔒 Admin Panel
+      </button>
+      {% endif %}
+    </nav>
+  </div>
+
+  <!-- Tab Content -->
+  <div id="content-overview" class="tab-content">
+    {% include 'questlog/discovery_tabs/overview.html' %}
+  </div>
+
+  {% if enable_directory %}
+  <div id="content-directory" class="tab-content hidden">
+    {% include 'questlog/discovery_tabs/directory.html' %}
+  </div>
+  {% endif %}
+
+  {% if user_network_status == 'approved' %}
+    {% if enable_lfg %}
+    <div id="content-lfg" class="tab-content hidden">
+      {% include 'questlog/discovery_tabs/lfg.html' %}
+    </div>
+    {% endif %}
+
+    {% if enable_games %}
+    <div id="content-games" class="tab-content hidden">
+      {% include 'questlog/discovery_tabs/games.html' %}
+    </div>
+    {% endif %}
+
+    {% if enable_creators %}
+    <div id="content-creators" class="tab-content hidden">
+      {% include 'questlog/discovery_tabs/creators.html' %}
+    </div>
+    {% endif %}
+
+    <div id="content-preferences" class="tab-content hidden">
+      {% include 'questlog/discovery_tabs/preferences.html' %}
+    </div>
+  {% endif %}
+
+  {% if is_bot_owner %}
+  <!-- ADMIN PANEL - ONLY VISIBLE TO BOT OWNER -->
+  <div id="content-admin" class="tab-content hidden">
+    {% include 'questlog/discovery_tabs/admin.html' %}
+  </div>
+  {% endif %}
+</div>
+
+<script>
+function switchTab(tabName) {
+  // Hide all tab contents
+  document.querySelectorAll('.tab-content').forEach(content => {
+    content.classList.add('hidden');
+  });
+
+  // Remove active class from all tabs
+  document.querySelectorAll('.tab-button').forEach(button => {
+    button.classList.remove('tab-active', 'border-indigo-500', 'text-indigo-400');
+    button.classList.add('border-transparent', 'text-gray-400');
+  });
+
+  // Show selected tab content
+  document.getElementById('content-' + tabName).classList.remove('hidden');
+
+  // Add active class to selected tab
+  const activeTab = document.getElementById('tab-' + tabName);
+  activeTab.classList.add('tab-active', 'border-indigo-500', 'text-indigo-400');
+  activeTab.classList.remove('border-transparent', 'text-gray-400');
+
+  // Initialize tab-specific functionality when switching
+  if (tabName === 'games' && typeof initGameDiscovery === 'function') {
+    initGameDiscovery();
+  }
+}
+
+// Get CSRF token from cookie
+function getCookie(name) {
+  let cookieValue = null;
+  if (document.cookie && document.cookie !== '') {
+    const cookies = document.cookie.split(';');
+    for (let i = 0; i < cookies.length; i++) {
+      const cookie = cookies[i].trim();
+      if (cookie.substring(0, name.length + 1) === (name + '=')) {
+        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+        break;
+      }
+    }
+  }
+  return cookieValue;
+}
+
+// Confirm and leave network
+async function confirmLeaveNetwork() {
+  const confirmed = confirm(
+    'Are you sure you want to leave the Discovery Network?\n\n' +
+    'Your server will be removed from the directory and you will lose access to network features.\n\n' +
+    'You can rejoin within 90 days without reapplying. After 90 days, you will need to submit a new application.'
+  );
+
+  if (!confirmed) return;
+
+  try {
+    const csrftoken = getCookie('csrftoken');
+    const guildId = '{{ guild.id }}';
+    const response = await fetch(`/api/discovery/leave?guild_id=${guildId}`, {
+      method: 'POST',
+      headers: {
+        'X-CSRFToken': csrftoken
+      }
+    });
+
+    const data = await response.json();
+
+    if (data.success) {
+      alert('You have successfully left the Discovery Network. Reloading page...');
+      window.location.reload();
+    } else {
+      alert('Failed to leave network: ' + (data.error || 'Unknown error'));
+    }
+  } catch (error) {
+    console.error('Failed to leave network:', error);
+    alert('Failed to leave network. Please try again.');
+  }
+}
+
+// Rejoin network (for users who previously left)
+async function confirmRejoinNetwork() {
+  const confirmed = confirm(
+    'Welcome back! Do you want to rejoin the Discovery Network?\n\n' +
+    'Your server will be restored to the directory with your previous approval.'
+  );
+
+  if (!confirmed) return;
+
+  try {
+    const csrftoken = getCookie('csrftoken');
+    const guildId = '{{ guild.id }}';
+    const response = await fetch(`/api/discovery/rejoin?guild_id=${guildId}`, {
+      method: 'POST',
+      headers: {
+        'X-CSRFToken': csrftoken
+      }
+    });
+
+    const data = await response.json();
+
+    if (data.success) {
+      alert('Welcome back to the Discovery Network! Reloading page...');
+      window.location.reload();
+    } else {
+      if (data.error === 'reapply_required') {
+        alert(data.message + '\n\nYou will need to reapply since it has been more than 90 days.');
+        window.location.reload(); // Reload to show application form
+      } else {
+        alert('Failed to rejoin network: ' + (data.error || 'Unknown error'));
+      }
+    }
+  } catch (error) {
+    console.error('Failed to rejoin network:', error);
+    alert('Failed to rejoin network. Please try again.');
+  }
+}
+</script>
+{% endblock %}

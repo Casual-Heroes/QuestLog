@@ -5,6 +5,10 @@
 
 {% block guild_content %}
 {% include 'questlog/partials/custom_select.html' %}
+
+<!-- Safely inject games data using json_script to prevent JSON injection -->
+{{ games_data|json_script:"games-data" }}
+
 <script>
   // CSRF setup
   const CSRF_TOKEN = '{{ csrf_token }}';
@@ -47,29 +51,15 @@
   <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
     <div>
       <label class="text-sm text-gray-300 mb-2 block">Filter by Game</label>
-      <select id="gameFilter" onchange="filterGroups()" class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white">
-        <option value="">All Games</option>
-        {% for game in games %}
-        <option value="{{ game.id }}">{% if game.game_emoji %}{{ game.game_emoji }} {% endif %}{{ game.game_name }}</option>
-        {% endfor %}
-      </select>
+      <div id="gameFilterContainer"></div>
     </div>
     <div>
       <label class="text-sm text-gray-300 mb-2 block">Status</label>
-      <select id="statusFilter" onchange="filterGroups()" class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white">
-        <option value="active">Available to Join</option>
-        <option value="all">All Groups</option>
-        <option value="full">Full Groups</option>
-      </select>
+      <div id="statusFilterContainer"></div>
     </div>
     <div>
       <label class="text-sm text-gray-300 mb-2 block">Time</label>
-      <select id="timeFilter" onchange="filterGroups()" class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white">
-        <option value="all">All Times</option>
-        <option value="now">Active Now</option>
-        <option value="upcoming">Upcoming</option>
-        <option value="past">Past</option>
-      </select>
+      <div id="timeFilterContainer"></div>
     </div>
   </div>
 </div>
@@ -300,7 +290,10 @@
   let canManageGroups = {{ can_manage_groups|lower }};  // LFG Manager status - can be updated
   console.log('[LFG Browser] isAdmin (server admin):', isAdmin, 'canManageGroups:', canManageGroups);
   let allGroups = [];
-  const gamesData = {{ games_json|safe }};
+  const gamesData = JSON.parse(document.getElementById('games-data').textContent);
+
+  // Custom select instances for filters
+  let gameFilterSelect, statusFilterSelect, timeFilterSelect;
 
   function showToast(message, type='info') {
     const container = document.getElementById('toast-container');
@@ -359,9 +352,9 @@
   }
 
   function renderGroups() {
-    const gameFilter = document.getElementById('gameFilter').value;
-    const statusFilter = document.getElementById('statusFilter').value;
-    const timeFilter = document.getElementById('timeFilter')?.value || 'all';
+    const gameFilter = gameFilterSelect ? gameFilterSelect.getValue() : '';
+    const statusFilter = statusFilterSelect ? statusFilterSelect.getValue() : 'active';
+    const timeFilter = timeFilterSelect ? timeFilterSelect.getValue() : 'all';
     const container = document.getElementById('groupsList');
 
     let filtered = allGroups;
@@ -1519,8 +1512,62 @@
     }
   }
 
+  // Initialize filter dropdowns
+  function initializeFilterDropdowns() {
+    // Game filter
+    const gameItems = [{value: '', label: 'All Games'}];
+    gamesData.forEach(game => {
+      gameItems.push({
+        value: game.id.toString(),
+        label: game.game_name,
+        icon: 'gamepad'
+      });
+    });
+
+    gameFilterSelect = createCustomSelect({
+      container: '#gameFilterContainer',
+      name: 'game_filter',
+      placeholder: 'All Games',
+      items: gameItems,
+      color: 'green',
+      onSelect: filterGroups
+    });
+
+    // Status filter
+    statusFilterSelect = createCustomSelect({
+      container: '#statusFilterContainer',
+      name: 'status_filter',
+      placeholder: 'Available to Join',
+      items: [
+        {value: 'active', label: 'Available to Join', icon: 'check-circle'},
+        {value: 'all', label: 'All Groups', icon: 'list'},
+        {value: 'full', label: 'Full Groups', icon: 'ban'}
+      ],
+      selected: 'active',
+      color: 'green',
+      onSelect: filterGroups
+    });
+
+    // Time filter
+    timeFilterSelect = createCustomSelect({
+      container: '#timeFilterContainer',
+      name: 'time_filter',
+      placeholder: 'All Times',
+      items: [
+        {value: 'all', label: 'All Times', icon: 'clock'},
+        {value: 'now', label: 'Active Now', icon: 'play-circle'},
+        {value: 'upcoming', label: 'Upcoming', icon: 'calendar-alt'},
+        {value: 'past', label: 'Past', icon: 'history'}
+      ],
+      selected: 'all',
+      color: 'green',
+      onSelect: filterGroups
+    });
+  }
+
   // Load on page load
   document.addEventListener('DOMContentLoaded', () => {
+    initializeFilterDropdowns();
     loadGroups();
     checkLFGManagerStatus();
 

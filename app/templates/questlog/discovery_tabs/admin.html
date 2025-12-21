@@ -1,0 +1,361 @@
+<!-- Admin Panel Tab - Bot Owner Only -->
+<div class="space-y-6">
+
+  <!-- Header -->
+  <div class="bg-red-900/20 border border-red-700 rounded-lg p-6">
+    <h2 class="text-2xl font-bold text-red-400 mb-2">🔒 Discovery Network Administration</h2>
+    <p class="text-gray-300">Review applications, manage bans, and moderate the Discovery Network.</p>
+  </div>
+
+  <!-- Stats Overview -->
+  <div class="grid md:grid-cols-4 gap-4">
+    <div class="bg-neutral-900 border border-neutral-800 rounded-lg p-4">
+      <div class="text-sm text-gray-400 mb-1">Pending Applications</div>
+      <div class="text-3xl font-bold text-yellow-400" id="pendingCount">0</div>
+    </div>
+    <div class="bg-neutral-900 border border-neutral-800 rounded-lg p-4">
+      <div class="text-sm text-gray-400 mb-1">Approved Members</div>
+      <div class="text-3xl font-bold text-green-400" id="approvedCount">0</div>
+    </div>
+    <div class="bg-neutral-900 border border-neutral-800 rounded-lg p-4">
+      <div class="text-sm text-gray-400 mb-1">Denied Applications</div>
+      <div class="text-3xl font-bold text-orange-400" id="deniedCount">0</div>
+    </div>
+    <div class="bg-neutral-900 border border-neutral-800 rounded-lg p-4">
+      <div class="text-sm text-gray-400 mb-1">Banned Users</div>
+      <div class="text-3xl font-bold text-red-400" id="bannedCount">0</div>
+    </div>
+  </div>
+
+  <!-- Filter Tabs -->
+  <div class="border-b border-neutral-700">
+    <nav class="flex space-x-4">
+      <button onclick="filterApplications('pending')" id="filter-pending" class="admin-filter-btn admin-filter-active px-4 py-2 text-sm font-medium border-b-2 border-yellow-500 text-yellow-400">
+        Pending Review
+      </button>
+      <button onclick="filterApplications('approved')" id="filter-approved" class="admin-filter-btn px-4 py-2 text-sm font-medium border-b-2 border-transparent text-gray-400 hover:text-gray-300">
+        Approved
+      </button>
+      <button onclick="filterApplications('denied')" id="filter-denied" class="admin-filter-btn px-4 py-2 text-sm font-medium border-b-2 border-transparent text-gray-400 hover:text-gray-300">
+        Denied
+      </button>
+      <button onclick="filterApplications('banned')" id="filter-banned" class="admin-filter-btn px-4 py-2 text-sm font-medium border-b-2 border-transparent text-gray-400 hover:text-gray-300">
+        Banned
+      </button>
+    </nav>
+  </div>
+
+  <!-- Applications List -->
+  <div id="applicationsList" class="space-y-4">
+    <!-- Loading state -->
+    <div class="text-center py-12">
+      <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500"></div>
+      <p class="text-gray-400 mt-4">Loading applications...</p>
+    </div>
+  </div>
+
+</div>
+
+<script>
+let currentFilter = 'pending';
+let allApplications = [];
+let allBans = [];
+
+// Load all data
+async function loadAdminData() {
+  try {
+    const response = await fetch('/api/discovery/admin/applications');
+    const data = await response.json();
+
+    if (!data.success) {
+      throw new Error(data.error || 'Failed to load applications');
+    }
+
+    allApplications = data.applications;
+    allBans = data.bans;
+
+    // Update stats
+    document.getElementById('pendingCount').textContent = data.stats.pending;
+    document.getElementById('approvedCount').textContent = data.stats.approved;
+    document.getElementById('deniedCount').textContent = data.stats.denied;
+    document.getElementById('bannedCount').textContent = data.stats.banned;
+
+    // Render filtered applications
+    renderApplications();
+
+  } catch (error) {
+    console.error('Failed to load admin data:', error);
+    document.getElementById('applicationsList').innerHTML = `
+      <div class="bg-red-900/20 border border-red-700 rounded-lg p-6 text-center">
+        <p class="text-red-300">Failed to load applications: ${error.message}</p>
+      </div>
+    `;
+  }
+}
+
+// Render applications based on current filter
+function renderApplications() {
+  const container = document.getElementById('applicationsList');
+
+  // Filter applications
+  let filtered = [];
+  if (currentFilter === 'banned') {
+    // Show banned users
+    const bannedUserIds = allBans.map(b => b.user_id);
+    filtered = allApplications.filter(app => bannedUserIds.includes(app.user_id));
+  } else {
+    filtered = allApplications.filter(app => app.status === currentFilter);
+  }
+
+  if (filtered.length === 0) {
+    container.innerHTML = `
+      <div class="bg-neutral-900 border border-neutral-800 rounded-lg p-8 text-center">
+        <p class="text-gray-400">No ${currentFilter} applications</p>
+      </div>
+    `;
+    return;
+  }
+
+  // Render application cards
+  container.innerHTML = filtered.map(app => {
+    const date = new Date(app.applied_at * 1000).toLocaleDateString();
+    const statusColor = {
+      'pending': 'yellow',
+      'approved': 'green',
+      'denied': 'orange'
+    }[app.status] || 'gray';
+
+    const ban = allBans.find(b => b.user_id === app.user_id);
+    const isBanned = !!ban;
+
+    return `
+      <div class="bg-neutral-900 border border-neutral-800 rounded-lg p-6">
+        <!-- Header -->
+        <div class="flex items-start justify-between mb-4">
+          <div class="flex items-center gap-3">
+            ${app.avatar_url ? `<img src="${app.avatar_url}" class="w-12 h-12 rounded-full">` : '<div class="w-12 h-12 rounded-full bg-neutral-700"></div>'}
+            <div>
+              <h3 class="text-lg font-semibold text-white">${app.display_name || app.username}</h3>
+              <p class="text-sm text-gray-400">@${app.username} • Applied ${date}</p>
+              ${app.guild_info ? `<p class="text-sm text-indigo-400 mt-1">Server: ${app.guild_info.name}</p>` : ''}
+            </div>
+          </div>
+          <span class="px-3 py-1 bg-${statusColor}-900 border border-${statusColor}-700 rounded-lg text-${statusColor}-400 text-sm">
+            ${isBanned ? '🚫 Banned' : app.status.charAt(0).toUpperCase() + app.status.slice(1)}
+          </span>
+        </div>
+
+        <!-- Bio -->
+        <div class="mb-4">
+          <h4 class="text-sm font-medium text-gray-300 mb-2">Bio</h4>
+          <p class="text-gray-400 text-sm">${app.bio}</p>
+        </div>
+
+        <!-- Social Links -->
+        ${app.twitch_url || app.youtube_url || app.twitter_url || app.tiktok_url ? `
+          <div class="mb-4">
+            <h4 class="text-sm font-medium text-gray-300 mb-2">Social Links</h4>
+            <div class="flex gap-2">
+              ${app.twitch_url ? `<a href="${app.twitch_url}" target="_blank" class="text-purple-400 hover:text-purple-300"><i class="fab fa-twitch"></i></a>` : ''}
+              ${app.youtube_url ? `<a href="${app.youtube_url}" target="_blank" class="text-red-400 hover:text-red-300"><i class="fab fa-youtube"></i></a>` : ''}
+              ${app.twitter_url ? `<a href="${app.twitter_url}" target="_blank" class="text-blue-400 hover:text-blue-300"><i class="fab fa-twitter"></i></a>` : ''}
+              ${app.tiktok_url ? `<a href="${app.tiktok_url}" target="_blank" class="text-pink-400 hover:text-pink-300"><i class="fab fa-tiktok"></i></a>` : ''}
+            </div>
+          </div>
+        ` : ''}
+
+        <!-- Denial/Ban Reason -->
+        ${app.denial_reason ? `
+          <div class="mb-4 bg-red-900/20 border border-red-700 rounded p-3">
+            <p class="text-sm text-red-300"><strong>Reason:</strong> ${app.denial_reason}</p>
+          </div>
+        ` : ''}
+
+        ${isBanned && ban ? `
+          <div class="mb-4 bg-red-900/20 border border-red-700 rounded p-3">
+            <p class="text-sm text-red-300"><strong>Ban Reason:</strong> ${ban.reason}</p>
+            <p class="text-sm text-red-400 mt-1"><strong>Violation:</strong> ${ban.violation_type}</p>
+          </div>
+        ` : ''}
+
+        <!-- Actions -->
+        ${app.status === 'pending' && !isBanned ? `
+          <div class="flex gap-2">
+            <button onclick="approveApplication(${app.id})" class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium">
+              Approve
+            </button>
+            <button onclick="showDenyModal(${app.id})" class="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg text-sm font-medium">
+              Deny
+            </button>
+            <button onclick="showBanModal(${app.id})" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium">
+              Ban User
+            </button>
+          </div>
+        ` : ''}
+      </div>
+    `;
+  }).join('');
+}
+
+// Filter applications by status
+function filterApplications(status) {
+  currentFilter = status;
+
+  // Update active tab
+  document.querySelectorAll('.admin-filter-btn').forEach(btn => {
+    btn.classList.remove('admin-filter-active', 'border-yellow-500', 'text-yellow-400', 'border-green-500', 'text-green-400', 'border-orange-500', 'text-orange-400', 'border-red-500', 'text-red-400');
+    btn.classList.add('border-transparent', 'text-gray-400');
+  });
+
+  const activeBtn = document.getElementById('filter-' + status);
+  activeBtn.classList.add('admin-filter-active');
+  activeBtn.classList.remove('border-transparent', 'text-gray-400');
+
+  switch(status) {
+    case 'pending':
+      activeBtn.classList.add('border-yellow-500', 'text-yellow-400');
+      break;
+    case 'approved':
+      activeBtn.classList.add('border-green-500', 'text-green-400');
+      break;
+    case 'denied':
+      activeBtn.classList.add('border-orange-500', 'text-orange-400');
+      break;
+    case 'banned':
+      activeBtn.classList.add('border-red-500', 'text-red-400');
+      break;
+  }
+
+  // Re-render filtered applications
+  renderApplications();
+}
+
+// Get CSRF token from cookie
+function getCookie(name) {
+  let cookieValue = null;
+  if (document.cookie && document.cookie !== '') {
+    const cookies = document.cookie.split(';');
+    for (let i = 0; i < cookies.length; i++) {
+      const cookie = cookies[i].trim();
+      if (cookie.substring(0, name.length + 1) === (name + '=')) {
+        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+        break;
+      }
+    }
+  }
+  return cookieValue;
+}
+
+// Approve application
+async function approveApplication(appId) {
+  if (!confirm('Are you sure you want to approve this application?')) return;
+
+  try {
+    const csrftoken = getCookie('csrftoken');
+    const response = await fetch(`/api/discovery/admin/applications/${appId}/approve`, {
+      method: 'POST',
+      headers: {
+        'X-CSRFToken': csrftoken
+      }
+    });
+
+    const data = await response.json();
+
+    if (data.success) {
+      alert('Application approved!');
+      loadAdminData(); // Reload data
+    } else {
+      alert('Failed to approve: ' + data.error);
+    }
+  } catch (error) {
+    console.error('Failed to approve application:', error);
+    alert('Failed to approve application');
+  }
+}
+
+// Show deny modal
+function showDenyModal(appId) {
+  const reason = prompt('Enter reason for denial:');
+  if (!reason) return;
+
+  denyApplication(appId, reason);
+}
+
+// Deny application
+async function denyApplication(appId, reason) {
+  try {
+    const csrftoken = getCookie('csrftoken');
+    const response = await fetch(`/api/discovery/admin/applications/${appId}/deny`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': csrftoken
+      },
+      body: JSON.stringify({ reason })
+    });
+
+    const data = await response.json();
+
+    if (data.success) {
+      alert('Application denied');
+      loadAdminData(); // Reload data
+    } else {
+      alert('Failed to deny: ' + data.error);
+    }
+  } catch (error) {
+    console.error('Failed to deny application:', error);
+    alert('Failed to deny application');
+  }
+}
+
+// Show ban modal
+function showBanModal(appId) {
+  const reason = prompt('Enter reason for ban:');
+  if (!reason) return;
+
+  const violationType = prompt('Enter violation type (spam/harassment/illegal/other):', 'other');
+  if (!violationType) return;
+
+  banUser(appId, reason, violationType);
+}
+
+// Ban user
+async function banUser(appId, reason, violationType) {
+  if (!confirm('Are you sure you want to BAN this user from the Discovery Network? This is permanent.')) return;
+
+  try {
+    const csrftoken = getCookie('csrftoken');
+    const response = await fetch(`/api/discovery/admin/applications/${appId}/ban`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': csrftoken
+      },
+      body: JSON.stringify({ reason, violation_type: violationType })
+    });
+
+    const data = await response.json();
+
+    if (data.success) {
+      alert('User banned from Discovery Network');
+      loadAdminData(); // Reload data
+    } else {
+      alert('Failed to ban: ' + data.error);
+    }
+  } catch (error) {
+    console.error('Failed to ban user:', error);
+    alert('Failed to ban user');
+  }
+}
+
+// Load on tab switch
+if (document.getElementById('applicationsList')) {
+  loadAdminData();
+}
+</script>
+
+<style>
+.admin-filter-active {
+  font-weight: 600;
+}
+</style>

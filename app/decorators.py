@@ -112,7 +112,7 @@ def require_module_access(module_name):
                     module = db.query(GuildModule).filter_by(
                         guild_id=int(guild_id),
                         module_name=module_name,
-                        is_active=True
+                        enabled=True
                     ).first()
 
                     if module:
