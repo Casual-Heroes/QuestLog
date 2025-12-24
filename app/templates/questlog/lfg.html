@@ -668,6 +668,9 @@
           <label class="block text-xs text-gray-500 mb-2">Quick Templates <span class="text-gray-600">(select to add fields)</span></label>
           <select @change="loadTemplate($event.target.value); $event.target.value = ''" class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-purple-500 focus:outline-none">
             <option value="">Select a template...</option>
+            <optgroup label="General">
+              <option value="activity">Activity Type (PvP, Raid, Dungeon, etc.)</option>
+            </optgroup>
             <optgroup label="Roles & Classes">
               <option value="mmo-roles">MMO Roles (Tank, DPS, Healer)</option>
               <option value="mmo-classes">MMO Classes (Warrior, Mage, Rogue, etc.)</option>
@@ -696,7 +699,8 @@
                 <div class="flex-grow space-y-3">
                   <!-- Field Name -->
                   <input type="text" x-model="field.name" @input="updateJSON()" placeholder="Field name (e.g., Class)"
-                         class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white text-sm focus:border-purple-500 focus:outline-none">
+                         :readonly="field.name === 'Activity'"
+                         :class="field.name === 'Activity' ? 'w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white text-sm focus:border-purple-500 focus:outline-none cursor-not-allowed opacity-75' : 'w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white text-sm focus:border-purple-500 focus:outline-none'">
 
                   <!-- Conditional Dropdown (Object-based choices) -->
                   <template x-if="typeof field.choices === 'object' && !Array.isArray(field.choices)">
@@ -732,9 +736,13 @@
                           </button>
                         </div>
                       </template>
-                      <button type="button" @click="addChoice(index)" class="text-sm text-purple-400 hover:text-purple-300">
+                      <!-- Hide "Add Choice" button for Activity field (standardized list) -->
+                      <button type="button" @click="addChoice(index)" class="text-sm text-purple-400 hover:text-purple-300" x-show="field.name !== 'Activity'">
                         <i class="fas fa-plus mr-1"></i>Add Choice
                       </button>
+                      <p x-show="field.name === 'Activity'" class="text-xs text-yellow-400 mt-2">
+                        <i class="fas fa-lock mr-1"></i>Activity choices are standardized across the network. You can remove unwanted choices but cannot add new ones.
+                      </p>
                     </div>
                   </template>
                 </div>
@@ -876,6 +884,7 @@ function customOptionsBuilder() {
     jsonOutput: '',
     selectedTemplate: '',
     templateNames: {
+      'activity': 'Activity Type',
       'mmo-roles': 'MMO Roles',
       'mmo-classes': 'MMO Classes',
       'wow-class-spec': 'WoW Class + Spec',
@@ -895,7 +904,7 @@ function customOptionsBuilder() {
           this.fields = JSON.parse(existingJSON);
           this.updateJSON();
         } catch (e) {
-          console.error('Failed to parse existing custom options:', e);
+          // Failed to parse existing custom options:
           this.fields = [];
         }
       }
@@ -933,6 +942,10 @@ function customOptionsBuilder() {
       this.selectedTemplate = templateName;
 
       const templates = {
+        'activity': {
+          name: 'Activity',
+          choices: ['PvP', 'Raid', 'Dungeon', 'Casual', 'Story', 'Endgame', 'Leveling', 'Farming', 'Social', 'Event', 'Achievement', 'Roleplay']
+        },
         'mmo-roles': {
           name: 'Role',
           choices: ['Tank', 'DPS', 'Healer', 'Support']
@@ -1076,9 +1089,9 @@ function customOptionsBuilder() {
 
     // Method to load fields from external JSON string
     loadFromJSON(jsonString) {
-      console.log('[CustomOptionsBuilder] loadFromJSON called with:', jsonString ? jsonString.substring(0, 100) + '...' : 'EMPTY');
+      // Loading custom options
       if (!jsonString || !jsonString.trim()) {
-        console.log('[CustomOptionsBuilder] No JSON to load, clearing fields');
+        // [CustomOptionsBuilder] No JSON to load, clearing fields
         this.fields = [];
         this.selectedTemplate = '';
         this.jsonOutput = '';
@@ -1087,13 +1100,13 @@ function customOptionsBuilder() {
 
       try {
         const parsed = JSON.parse(jsonString);
-        console.log('[CustomOptionsBuilder] Parsed JSON:', parsed);
+        // [CustomOptionsBuilder] Parsed JSON:
         this.fields = parsed;
         this.selectedTemplate = ''; // Clear template since loading raw fields
         this.updateJSON();
-        console.log('[CustomOptionsBuilder] ✅ Fields loaded successfully, count:', this.fields.length);
+        // [CustomOptionsBuilder] ✅ Fields loaded successfully, count:
       } catch (e) {
-        console.error('[CustomOptionsBuilder] ❌ Error parsing JSON:', e);
+        // [CustomOptionsBuilder] ❌ Error parsing JSON:
         this.fields = [];
         this.selectedTemplate = '';
         this.jsonOutput = '';
@@ -1165,7 +1178,7 @@ async function searchGames() {
 // Add Game Modal
 function selectGame(igdbId, name, coverUrl, platforms) {
   try {
-    console.log('selectGame called with:', { igdbId, name, coverUrl, platforms });
+    // selectGame called with:
     closeSearchModal();
 
     document.getElementById('addIgdbId').value = igdbId;
@@ -1179,7 +1192,7 @@ function selectGame(igdbId, name, coverUrl, platforms) {
     const suggested = words.slice(0, 4).map(w => w[0].toUpperCase()).join('');
     document.getElementById('addShortCode').value = suggested || name.substring(0, 3).toUpperCase();
 
-    console.log('Initializing custom selects...', { channelItems, roleItems });
+    // Initializing custom selects...
 
     // Initialize custom selects
     addGameChannelSelect = createCustomSelect({
@@ -1191,7 +1204,7 @@ function selectGame(igdbId, name, coverUrl, platforms) {
       selected: '',
       color: 'green'
     });
-    console.log('Channel select created:', addGameChannelSelect);
+    // Channel select created:
 
     addGameRoleSelect = createCustomSelect({
       container: '#addGameRoleContainer',
@@ -1202,13 +1215,13 @@ function selectGame(igdbId, name, coverUrl, platforms) {
       selected: '',
       color: 'purple'
     });
-    console.log('Role select created:', addGameRoleSelect);
+    // Role select created:
 
     document.getElementById('addGameModal').classList.remove('hidden');
     document.getElementById('addGameModal').classList.add('flex');
-    console.log('Modal should be visible now');
+    // Modal should be visible now
   } catch (error) {
-    console.error('Error in selectGame:', error);
+    // Error in selectGame:
     alert('Error opening game modal: ' + error.message);
   }
 }
@@ -1413,28 +1426,23 @@ async function editGame(gameId) {
     setTimeout(() => {
       const customOptionsEl = document.querySelector('[x-data*="customOptionsBuilder"]');
 
-      console.log('[Edit Game] Looking for Alpine component...');
+      // [Edit Game] Looking for Alpine component...
 
       if (customOptionsEl) {
         // Alpine v3: Access component data through _x_dataStack
         const alpineData = customOptionsEl._x_dataStack ? customOptionsEl._x_dataStack[0] : null;
 
-        console.log('[Edit Game] Alpine component found:', {
-          hasElement: true,
-          hasDataStack: !!customOptionsEl._x_dataStack,
-          hasData: !!alpineData,
-          hasLoadMethod: alpineData ? typeof alpineData.loadFromJSON === 'function' : false
-        });
+        // Alpine component found with data
 
         if (alpineData && typeof alpineData.loadFromJSON === 'function') {
           // Call our custom loadFromJSON method
           alpineData.loadFromJSON(customOptionsJSON);
         } else {
-          console.error('[Edit Game] ❌ Alpine component found but loadFromJSON method not available');
-          console.log('[Edit Game] Available methods:', alpineData ? Object.keys(alpineData) : 'NO DATA');
+          // [Edit Game] ❌ Alpine component found but loadFromJSON method not available
+          // Alpine methods checked
         }
       } else {
-        console.error('[Edit Game] ❌ Alpine component element not found');
+        // [Edit Game] ❌ Alpine component element not found
       }
     }, 500);
   } catch (error) {
@@ -1528,7 +1536,7 @@ async function loadConfig() {
     document.getElementById('warnAtReliability').value = config.warn_at_reliability || 50;
     document.getElementById('autoBlacklist').value = config.auto_blacklist_noshows || 0;
   } catch (error) {
-    console.error('Error loading config:', error);
+    // Error loading config:
   }
 }
 
@@ -1697,7 +1705,7 @@ async function loadBrowserNotifications() {
     });
 
     const settings = await response.json();
-    console.log('Loading browser notifications, channel ID:', settings.browser_notify_channel_id);
+    // Loading browser notifications, channel ID:
 
     // Destroy existing select if it exists
     if (browserNotifyChannelSelect) {
@@ -1714,25 +1722,25 @@ async function loadBrowserNotifications() {
       selected: settings.browser_notify_channel_id || '',
       color: 'blue'
     });
-    console.log('Created select with channel ID:', settings.browser_notify_channel_id);
+    // Created select with channel ID:
 
     // Load webhook URL from API
     document.getElementById('webhookUrl').value = settings.webhook_url || '';
   } catch (error) {
-    console.error('Error loading browser notifications:', error);
+    // Error loading browser notifications:
   }
 }
 
 // Browser Notifications: Save settings
 async function saveBrowserNotifications() {
   const channelId = browserNotifyChannelSelect?.getValue() || null;
-  console.log('Saving browser notifications, channel ID:', channelId);
+  // Saving browser notifications, channel ID:
 
   const data = {
     browser_notify_channel_id: channelId,
     webhook_url: document.getElementById('webhookUrl').value.trim() || null
   };
-  console.log('Saving data:', data);
+  // Saving data:
 
   try {
     const response = await csrfFetch(`/api/guild/${guildId}/lfg/browser-notifications/`, {
@@ -1866,7 +1874,7 @@ async function loadAuditLogs() {
     container.classList.remove('hidden');
 
   } catch (error) {
-    console.error('Error loading audit logs:', error);
+    // Error loading audit logs:
     container.innerHTML = '<p class="text-red-400 text-center py-8">Error loading audit logs. Please try again.</p>';
     loadingEl.classList.add('hidden');
     container.classList.remove('hidden');

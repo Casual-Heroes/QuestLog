@@ -144,6 +144,41 @@
     </div>
   </div>
 
+  <!-- Discovery Network Settings -->
+  <div class="mt-12">
+    <h2 class="text-2xl font-bold text-white mb-6">
+      <i class="fas fa-globe text-indigo-400 mr-3"></i>Discovery Network Settings
+    </h2>
+
+    <div class="bg-neutral-900 rounded-xl p-6 border border-neutral-800">
+      <div class="mb-6">
+        <h3 class="text-lg font-semibold text-white mb-2">Main Server</h3>
+        <p class="text-gray-400 text-sm mb-4">
+          Select your main server for the Discovery Network. You can only share games from this server.
+          This prevents multi-server promotion abuse. Change cooldown: 30 days.
+        </p>
+      </div>
+
+      <!-- Main Server Display/Selection -->
+      <div id="mainServerSection">
+        <div class="flex items-center justify-center py-8">
+          <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500"></div>
+        </div>
+      </div>
+
+      <!-- Info Box -->
+      <div class="mt-6 bg-indigo-900/20 border border-indigo-800/30 rounded-lg p-4">
+        <div class="flex gap-3">
+          <i class="fas fa-info-circle text-indigo-400 mt-1"></i>
+          <div class="text-sm text-gray-300">
+            <p class="font-semibold text-indigo-300 mb-1">Why set a main server?</p>
+            <p>This prevents multi-server promotion abuse. You can only share games from your main server - this ensures you're promoting one community consistently rather than spamming across multiple servers.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Danger Zone -->
   <div class="mt-12 bg-red-900/20 rounded-xl p-6 border border-red-900/50">
     <h3 class="text-lg font-bold text-red-400 mb-4">
@@ -158,4 +193,206 @@
     </a>
   </div>
 </div>
+
+<script>
+// Main Server functionality
+let currentMainServer = null;
+let allGuilds = [];
+
+// Load main server settings on page load
+document.addEventListener('DOMContentLoaded', function() {
+  loadMainServerSettings();
+});
+
+async function loadMainServerSettings() {
+  try {
+    // Get current main server
+    const response = await fetch('/api/discovery/user/main-server');
+    const data = await response.json();
+
+    if (data.success) {
+      currentMainServer = data.main_server;
+      renderMainServerSection(data);
+    } else {
+      showMainServerError('Failed to load main server settings');
+    }
+  } catch (error) {
+    console.error('Error loading main server settings:', error);
+    showMainServerError('Failed to load main server settings');
+  }
+}
+
+function renderMainServerSection(data) {
+  const section = document.getElementById('mainServerSection');
+
+  if (!data.main_server) {
+    // No main server set - show selection
+    const message = data.auto_reset
+      ? `<div class="bg-yellow-900/20 border border-yellow-800 rounded-lg p-3 mb-4">
+           <i class="fas fa-exclamation-triangle text-yellow-400 mr-2"></i>
+           <span class="text-yellow-300 text-sm">${data.message || 'Your main server was removed. Please select a new one.'}</span>
+         </div>`
+      : '<p class="text-gray-400 text-sm mb-4">You haven\'t set a main server yet. Select one from your servers:</p>';
+
+    section.innerHTML = `
+      <div>
+        ${message}
+        <button onclick="showMainServerSelector()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-lg font-medium transition">
+          <i class="fas fa-server mr-2"></i>Select Main Server
+        </button>
+      </div>
+    `;
+  } else {
+    // Main server is set
+    const canChangeClass = data.can_change ? 'bg-green-600 hover:bg-green-700' : 'bg-gray-600 cursor-not-allowed';
+    const canChangeText = data.can_change ? 'Change Main Server' : `Change in ${data.days_remaining} days`;
+
+    section.innerHTML = `
+      <div class="bg-neutral-800 rounded-lg p-6">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-sm text-gray-400 mb-2">Current Main Server</p>
+            <p class="text-xl font-bold text-white">${escapeHtml(data.main_server.name)}</p>
+            <p class="text-sm text-gray-500 mt-2">
+              ${data.can_change
+                ? '<i class="fas fa-check-circle text-green-400 mr-1"></i>Ready to change'
+                : `<i class="fas fa-clock text-yellow-400 mr-1"></i>Change available in ${data.days_remaining} days`}
+            </p>
+          </div>
+          <button onclick="showMainServerSelector()" ${!data.can_change ? 'disabled' : ''}
+                  class="${canChangeClass} text-white px-5 py-2.5 rounded-lg font-medium transition text-sm">
+            <i class="fas fa-exchange-alt mr-2"></i>${canChangeText}
+          </button>
+        </div>
+      </div>
+    `;
+  }
+}
+
+async function showMainServerSelector() {
+  const section = document.getElementById('mainServerSection');
+
+  // Show loading
+  section.innerHTML = `
+    <div class="flex items-center justify-center py-8">
+      <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500"></div>
+      <span class="ml-3 text-gray-400">Loading your servers...</span>
+    </div>
+  `;
+
+  try {
+    // Get user's guilds from the page data
+    const guilds = {{ all_guilds_json|safe }};
+
+    // Render server selection
+    section.innerHTML = `
+      <div>
+        <p class="text-gray-400 text-sm mb-4">Select which server is your main server:</p>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-96 overflow-y-auto">
+          ${guilds.map(guild => `
+            <button onclick="setMainServer('${guild.id}', '${escapeHtml(guild.name)}')"
+                    class="bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 hover:border-indigo-500 rounded-lg p-4 text-left transition group">
+              <div class="flex items-center gap-3">
+                ${guild.icon
+                  ? `<img src="https://cdn.discordapp.com/icons/${guild.id}/${guild.icon}.png?size=48" class="w-10 h-10 rounded-full">`
+                  : `<div class="w-10 h-10 bg-neutral-700 rounded-full flex items-center justify-center"><span class="text-sm font-bold text-gray-400">${guild.name.slice(0, 2).toUpperCase()}</span></div>`}
+                <div class="flex-1 min-w-0">
+                  <p class="text-white font-medium truncate group-hover:text-indigo-400 transition">${escapeHtml(guild.name)}</p>
+                </div>
+                <i class="fas fa-chevron-right text-gray-600 group-hover:text-indigo-400 transition"></i>
+              </div>
+            </button>
+          `).join('')}
+        </div>
+        <div class="mt-4">
+          <button onclick="loadMainServerSettings()" class="text-gray-400 hover:text-white transition text-sm">
+            <i class="fas fa-times mr-1"></i>Cancel
+          </button>
+        </div>
+      </div>
+    `;
+  } catch (error) {
+    console.error('Error showing server selector:', error);
+    showMainServerError('Failed to load servers');
+  }
+}
+
+async function setMainServer(guildId, guildName) {
+  if (!confirm(`Set "${guildName}" as your main server?\n\nYou won't be able to change this again for 30 days, and you can ONLY share games from this server to the Discovery Network.`)) {
+    return;
+  }
+
+  const section = document.getElementById('mainServerSection');
+  section.innerHTML = `
+    <div class="flex items-center justify-center py-8">
+      <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500"></div>
+      <span class="ml-3 text-gray-400">Setting main server...</span>
+    </div>
+  `;
+
+  try {
+    const csrftoken = getCookie('csrftoken');
+    const response = await fetch('/api/discovery/user/set-main-server', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': csrftoken
+      },
+      body: JSON.stringify({ guild_id: guildId })
+    });
+
+    const data = await response.json();
+
+    if (data.success) {
+      alert(`✅ ${data.message}`);
+      loadMainServerSettings(); // Reload to show new state
+    } else if (data.cooldown) {
+      alert(`❌ ${data.error}`);
+      loadMainServerSettings(); // Reload to show current state
+    } else {
+      alert(`❌ ${data.error || 'Failed to set main server'}`);
+      loadMainServerSettings();
+    }
+  } catch (error) {
+    console.error('Error setting main server:', error);
+    alert('Failed to set main server. Please try again.');
+    loadMainServerSettings();
+  }
+}
+
+function showMainServerError(message) {
+  const section = document.getElementById('mainServerSection');
+  section.innerHTML = `
+    <div class="bg-red-900/20 border border-red-800 rounded-lg p-4 text-center">
+      <i class="fas fa-exclamation-circle text-red-400 text-2xl mb-2"></i>
+      <p class="text-red-400">${message}</p>
+      <button onclick="loadMainServerSettings()" class="mt-3 text-sm text-gray-400 hover:text-white transition">
+        <i class="fas fa-redo mr-1"></i>Try Again
+      </button>
+    </div>
+  `;
+}
+
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+function getCookie(name) {
+  let cookieValue = null;
+  if (document.cookie && document.cookie !== '') {
+    const cookies = document.cookie.split(';');
+    for (let i = 0; i < cookies.length; i++) {
+      const cookie = cookies[i].trim();
+      if (cookie.substring(0, name.length + 1) === (name + '=')) {
+        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+        break;
+      }
+    }
+  }
+  return cookieValue;
+}
+</script>
+
 {% endblock %}

@@ -1033,6 +1033,7 @@ class AnnouncedGame(Base):
     description = Column(Text, nullable=True)  # Description for manually shared games
     created_at = Column(BigInteger, nullable=True, default=lambda: int(time.time()))  # Timestamp for manual shares
     is_manual = Column(Boolean, default=False, nullable=False)  # Flag to indicate manually shared
+    shared_by_user_id = Column(BigInteger, nullable=True)  # Discord user ID who shared this game
 
     __table_args__ = (
         Index("idx_announced_game_guild", "guild_id", "igdb_id"),
@@ -2279,8 +2280,10 @@ class DiscoveryNetworkPreferences(Base):
 
     # LFG preferences
     lfg_filter_games = Column(Boolean, default=False, nullable=False)
+    lfg_filter_activities = Column(Boolean, default=False, nullable=False)
     lfg_show_now = Column(Boolean, default=True, nullable=False)
     lfg_hide_voice = Column(Boolean, default=False, nullable=False)
+    preferred_activities = Column(Text, nullable=True)  # JSON array
 
     # Notification preferences
     notify_lfg = Column(Boolean, default=False, nullable=False)
@@ -2291,6 +2294,11 @@ class DiscoveryNetworkPreferences(Base):
     privacy_show_profile = Column(Boolean, default=True, nullable=False)
     privacy_show_server = Column(Boolean, default=True, nullable=False)
     privacy_allow_dms = Column(Boolean, default=True, nullable=False)
+
+    # Main Server (anti-abuse for game sharing)
+    main_server_id = Column(BigInteger, nullable=True)  # Guild ID set as main server
+    main_server_set_at = Column(BigInteger, nullable=True)  # When main server was set/changed
+    main_server_can_change_at = Column(BigInteger, nullable=True)  # When they can change again (30 days)
 
     # Metadata
     created_at = Column(BigInteger, nullable=False, default=lambda: int(time.time()))

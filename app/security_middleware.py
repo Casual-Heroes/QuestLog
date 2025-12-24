@@ -8,6 +8,7 @@ logger = logging.getLogger(__name__)
 
 # List of suspicious file patterns that should never be accessible
 BLOCKED_PATTERNS = [
+    # Environment and config files
     '.env', '.git', '.svn', '.hg', '.DS_Store',
     'web.config', 'htaccess', 'htpasswd',
     '.bak', '.backup', '.old', '.save', '.swp', '.tmp',
@@ -16,6 +17,22 @@ BLOCKED_PATTERNS = [
     '.npmrc', '.dockerenv', 'docker-compose',
     'id_rsa', 'id_dsa', 'authorized_keys',
     'database.yml', 'settings.py.bak',
+
+    # WordPress (common attack target)
+    'wp-login', 'wp-admin', 'wp-content', 'wp-includes',
+    'xmlrpc.php', 'wp-cron.php', 'wp-config',
+
+    # PHP files (we're a Django app, not PHP)
+    'phpinfo', 'phpmyadmin', 'pma', 'admin.php',
+    'shell.php', 'c99.php', 'r57.php', 'backdoor.php',
+
+    # Common exploits
+    'solr/admin', 'jenkins', 'struts',
+    'console/', 'actuator/', 'jmx-console',
+    'manager/html', 'tomcat',
+
+    # API abuse attempts
+    'graphql', 'swagger', 'api-docs',
 ]
 
 # Blocked directory traversal patterns

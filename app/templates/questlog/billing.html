@@ -649,10 +649,6 @@
 const GUILD_ID = '{{ guild.id }}';
 
 document.addEventListener('DOMContentLoaded', function() {
-  console.log('Billing page loaded');
-  console.log('Active modules:', {{ active_module_count }});
-  console.log('Total modules:', {{ total_modules }});
-  console.log('VIP status:', {{ is_vip|lower }});
 
   // Format billing dates
   const billingDateEl = document.getElementById('next-billing-date');
@@ -728,7 +724,6 @@ async function checkoutComplete(billingType) {
       alert('Error: ' + (data.error || 'Failed to create checkout session'));
     }
   } catch (error) {
-    console.error('Checkout error:', error);
     alert('Failed to start checkout. Please try again.');
   }
 }
@@ -752,7 +747,6 @@ async function checkoutModule(moduleKey) {
       alert('Error: ' + (data.error || 'Failed to create checkout session'));
     }
   } catch (error) {
-    console.error('Checkout error:', error);
     alert('Failed to start checkout. Please try again.');
   }
 }
@@ -776,7 +770,6 @@ async function cancelSubscription() {
       alert('Error: ' + (data.error || 'Failed to cancel subscription'));
     }
   } catch (error) {
-    console.error('Cancellation error:', error);
     alert('Failed to cancel subscription. Please try again.');
   }
 }
@@ -796,7 +789,6 @@ async function openBillingPortal() {
       alert('Error: ' + (data.error || 'Failed to open billing portal'));
     }
   } catch (error) {
-    console.error('Portal error:', error);
     alert('Failed to open billing portal. Please try again.');
   }
 }
@@ -851,7 +843,6 @@ async function confirmTransfer() {
       closeTransferModal();
     }
   } catch (error) {
-    console.error('Transfer error:', error);
     alert('Failed to transfer subscription. Please try again.');
     closeTransferModal();
   }

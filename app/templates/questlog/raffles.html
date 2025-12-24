@@ -438,11 +438,11 @@ async function saveRaffle(e) {
     reminder_channel_id: reminderChannelValue || null
   };
 
-  console.log('Saving raffle with payload:', payload);
+  // Saving raffle with payload:
 
   try {
     const url = raffleId ? `/api/guild/${GUILD_ID}/raffles/${raffleId}/update/` : `/api/guild/${GUILD_ID}/raffles/create/`;
-    console.log('Sending to:', url);
+    // Sending to:
 
     const resp = await csrfFetch(url, {
       method: 'POST',
@@ -450,7 +450,7 @@ async function saveRaffle(e) {
     });
 
     const data = await resp.json();
-    console.log('Response:', data);
+    // Response:
 
     if (!resp.ok) throw new Error(data.error || 'Failed to save raffle');
 
@@ -458,7 +458,7 @@ async function saveRaffle(e) {
     closeRaffleModal();
     await loadRaffles();
   } catch (err) {
-    console.error('Save raffle failed:', err);
+    // Save raffle failed:
     alert(err.message || 'Failed to save raffle');
   }
 }
@@ -629,7 +629,7 @@ async function initRaffleSelects() {
 
     raffleSelectsReady = true;
   } catch (err) {
-    console.error('Failed to init raffle selects', err);
+    // Failed to init raffle selects
   }
 }
 </script>

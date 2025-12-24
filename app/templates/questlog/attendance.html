@@ -725,7 +725,7 @@ async function updateAttendance(groupId, userId, status, selectElement) {
       }, 1000);
 
       // Show success toast (optional, can be added later)
-      console.log('Attendance updated successfully:', data);
+      // Attendance updated successfully:
 
       // Reload page to update stats (reliability score, leaderboard, etc.)
       setTimeout(() => {
@@ -735,7 +735,7 @@ async function updateAttendance(groupId, userId, status, selectElement) {
       throw new Error(data.error || 'Failed to update attendance');
     }
   } catch (err) {
-    console.error('Error updating attendance:', err);
+    // Error updating attendance:
 
     // Revert to original value
     selectElement.value = originalValue;
@@ -1027,7 +1027,7 @@ async function openGlobalPardonModal() {
       renderGlobalPardonMembers();
     }
   } catch (err) {
-    console.error('Error loading members:', err);
+    // Error loading members:
     alert('Failed to load members. Please try again.');
     closeGlobalPardonModal();
   }
@@ -1317,7 +1317,7 @@ async function openUserHistoryModal(userId, displayName) {
       throw new Error(data.error || 'Failed to load history');
     }
   } catch (err) {
-    console.error('Error loading user history:', err);
+    // Error loading user history:
     document.getElementById('historyEventsList').innerHTML = '<div class="text-center py-8 text-red-400">Error loading history. Please try again.</div>';
   }
 }

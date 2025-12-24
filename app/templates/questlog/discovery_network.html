@@ -166,7 +166,34 @@ function switchTab(tabName) {
   if (tabName === 'games' && typeof initGameDiscovery === 'function') {
     initGameDiscovery();
   }
+  if (tabName === 'creators') {
+    if (typeof initCreatorFilters === 'function') {
+      initCreatorFilters();
+    }
+    if (typeof loadCreators === 'function') {
+      loadCreators();
+    }
+  }
+  if (tabName === 'lfg' && typeof initializeLFGPage === 'function') {
+    initializeLFGPage();
+  }
 }
+
+// Check for hash on page load to auto-switch tabs
+document.addEventListener('DOMContentLoaded', function() {
+  const hash = window.location.hash.substring(1).split('?')[0]; // Remove the '#' and query params
+  if (hash && document.getElementById('tab-' + hash)) {
+    switchTab(hash);
+  }
+});
+
+// Handle hash changes (when clicking links on the same page)
+window.addEventListener('hashchange', function() {
+  const hash = window.location.hash.substring(1).split('?')[0]; // Remove the '#' and query params
+  if (hash && document.getElementById('tab-' + hash)) {
+    switchTab(hash);
+  }
+});
 
 // Get CSRF token from cookie
 function getCookie(name) {
@@ -213,7 +240,7 @@ async function confirmLeaveNetwork() {
       alert('Failed to leave network: ' + (data.error || 'Unknown error'));
     }
   } catch (error) {
-    console.error('Failed to leave network:', error);
+    // Failed to leave network:
     alert('Failed to leave network. Please try again.');
   }
 }
@@ -251,7 +278,7 @@ async function confirmRejoinNetwork() {
       }
     }
   } catch (error) {
-    console.error('Failed to rejoin network:', error);
+    // Failed to rejoin network:
     alert('Failed to rejoin network. Please try again.');
   }
 }

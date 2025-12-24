@@ -381,7 +381,6 @@ const guildId = '{{ guild.id }}';
 const auditEventConfigDataEl = document.getElementById('auditEventConfigData');
 const auditEventConfigData = auditEventConfigDataEl ? auditEventConfigDataEl.dataset.config : '{}';
 const auditEnabledInitial = {{ audit_enabled|yesno:"true,false" }};
-console.log('Audit page loaded, guild ID:', guildId);
 
 const AUDIT_EVENT_DEFS = {
   moderation: [
@@ -472,19 +471,15 @@ document.querySelectorAll('[data-timestamp]').forEach(el => {
 // Load channels for audit log configuration
 let auditChannelSelect;
 async function loadAuditChannels() {
-  console.log('Loading audit channels...');
   try {
     const res = await csrfFetch(`/api/guild/${guildId}/channels/`);
     const data = await res.json();
-    console.log('Channels data:', data);
 
     if (data.channels) {
       const currentChannelId = '{{ audit_log_channel_id }}';
-      console.log('Current audit log channel ID:', currentChannelId);
 
       // Filter text channels only
       const textChannels = data.channels.filter(c => c.type === 0 || c.type === 'text');
-      console.log('Text channels found:', textChannels.length);
 
       const channelItems = textChannels.map(channel => {
         const label = channel.category_name
@@ -507,14 +502,13 @@ async function loadAuditChannels() {
         selected: currentChannelId || '',
         color: 'blue'
       });
-      console.log('Custom select created:', auditChannelSelect);
       if (auditEnabledInitial) {
         document.getElementById('audit_enabled').checked = true;
       }
       toggleAuditInputs();
     }
   } catch (err) {
-    console.error('Failed to load channels:', err);
+    // Silently fail
   }
 }
 

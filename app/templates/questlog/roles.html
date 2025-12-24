@@ -949,7 +949,7 @@ async function loadRoles() {
       });
     }
   } catch (err) {
-    console.error('Failed to load roles:', err);
+    // Failed to load roles:
   }
 }
 
@@ -978,7 +978,7 @@ async function loadMembersForSingleAssign() {
       color: 'indigo'
     });
   } catch (err) {
-    console.error('Failed to load members:', err);
+    // Failed to load members:
   }
 }
 
@@ -1062,7 +1062,7 @@ async function loadMembersForBulkAssign() {
       renderMembers(allMembers);
     }
   } catch (err) {
-    console.error('Failed to load members:', err);
+    // Failed to load members:
     document.getElementById('members-list').innerHTML = '<div class="p-4 text-center text-red-400">Failed to load members</div>';
   }
 }
@@ -1077,7 +1077,7 @@ async function loadRolesForBulkAssign() {
       renderRoles(allRoles);
     }
   } catch (err) {
-    console.error('Failed to load roles:', err);
+    // Failed to load roles:
     document.getElementById('roles-list').innerHTML = '<div class="p-4 text-center text-red-400">Failed to load roles</div>';
   }
 }

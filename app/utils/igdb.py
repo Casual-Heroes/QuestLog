@@ -43,6 +43,16 @@ class IGDBGame:
         else:
             self.release_year = None
 
+        # Steam ID from external_games (category 1 = Steam)
+        self.steam_id = None
+        external_games = data.get('external_games', [])
+        for ext in external_games:
+            if isinstance(ext, dict) and ext.get('category') == 1:  # Category 1 = Steam
+                uid = ext.get('uid')
+                if uid and uid.isdigit():
+                    self.steam_id = int(uid)
+                    break
+
 
 class IGDBClient:
     """IGDB API client"""
@@ -91,10 +101,10 @@ class IGDBClient:
             token = await self.get_access_token()
 
             # IGDB uses Apicalypse query language
-            # Search for games matching the query, including cover art and platform info
+            # Search for games matching the query, including cover art, platform info, and Steam ID
             query_body = f"""
                 search "{query}";
-                fields name, slug, summary, cover.image_id, platforms.name, first_release_date;
+                fields name, slug, summary, cover.image_id, platforms.name, first_release_date, external_games.category, external_games.uid;
                 limit {limit};
                 where version_parent = null;
             """.strip()

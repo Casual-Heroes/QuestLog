@@ -130,6 +130,28 @@
         <h3 class="text-lg font-semibold text-white mb-4">LFG Preferences</h3>
         <p class="text-sm text-gray-400 mb-4">Customize your LFG experience</p>
 
+        <!-- Preferred Activities -->
+        <div class="mb-6">
+          <label class="block text-sm font-medium text-gray-300 mb-2">Preferred Activities</label>
+          <div class="custom-select-wrapper">
+            <select id="preferredActivitiesSelect" name="preferred_activities" multiple class="custom-select w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white focus:outline-none focus:border-indigo-500" data-placeholder="Select activities...">
+              <option value="PvP">PvP</option>
+              <option value="Raid">Raid</option>
+              <option value="Dungeon">Dungeon</option>
+              <option value="Casual">Casual</option>
+              <option value="Story">Story</option>
+              <option value="Endgame">Endgame</option>
+              <option value="Leveling">Leveling</option>
+              <option value="Farming">Farming</option>
+              <option value="Social">Social</option>
+              <option value="Event">Event</option>
+              <option value="Achievement">Achievement</option>
+              <option value="Roleplay">Roleplay</option>
+            </select>
+          </div>
+          <p class="text-xs text-gray-500 mt-1">Filter Cross-Server LFG by activity type (standardized across network)</p>
+        </div>
+
         <div class="space-y-4">
           <!-- Auto-filter LFG by preferred games -->
           <div class="flex items-start">
@@ -137,6 +159,15 @@
             <label for="lfgFilterGames" class="ml-3">
               <span class="text-sm font-medium text-gray-300">Auto-filter LFG by preferred games</span>
               <p class="text-xs text-gray-500">Only show LFG posts for games you've selected above</p>
+            </label>
+          </div>
+
+          <!-- Auto-filter LFG by preferred activities -->
+          <div class="flex items-start">
+            <input type="checkbox" name="lfg_filter_activities" id="lfgFilterActivities" class="mt-1 h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded">
+            <label for="lfgFilterActivities" class="ml-3">
+              <span class="text-sm font-medium text-gray-300">Auto-filter LFG by preferred activities</span>
+              <p class="text-xs text-gray-500">Only show LFG posts matching your selected activities</p>
             </label>
           </div>
 
@@ -356,7 +387,7 @@ async function loadGamesList() {
       });
     }
   } catch (error) {
-    console.error('Failed to load games:', error);
+    // Failed to load games:
     document.getElementById('preferredGamesSelect').innerHTML = '<option value="" disabled>Failed to load games</option>';
   }
 }
@@ -397,7 +428,7 @@ async function loadPreferences() {
       }
     }
   } catch (error) {
-    console.error('Failed to load preferences:', error);
+    // Failed to load preferences:
   }
 }
 
@@ -460,7 +491,7 @@ document.getElementById('preferencesForm').addEventListener('submit', async (e) 
       alert(result.error || 'Failed to save preferences');
     }
   } catch (error) {
-    console.error('Failed to save preferences:', error);
+    // Failed to save preferences:
     alert('Failed to save preferences. Please try again.');
   }
 });
@@ -479,7 +510,7 @@ async function resetPreferences() {
         alert('Preferences reset to defaults');
       }
     } catch (error) {
-      console.error('Failed to reset preferences:', error);
+      // Failed to reset preferences:
       alert('Failed to reset preferences. Please try again.');
     }
   }
@@ -499,7 +530,7 @@ async function toggleDiscovery() {
         location.reload();
       }
     } catch (error) {
-      console.error('Failed to toggle Discovery Network:', error);
+      // Failed to toggle Discovery Network:
       alert('Failed to disable Discovery Network. Please try again.');
     }
   }
@@ -534,7 +565,7 @@ async function confirmLeave() {
       alert('Failed to leave network: ' + (data.error || 'Unknown error'));
     }
   } catch (error) {
-    console.error('Failed to leave network:', error);
+    // Failed to leave network:
     alert('Failed to leave network. Please try again.');
   }
 }

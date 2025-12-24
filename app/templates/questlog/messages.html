@@ -384,8 +384,6 @@
       const rolesData = await rl.json();
       const membersData = await mb.json();
 
-      console.log('Emoji API response:', emojisData);
-
       resources.channels = channelsData.channels || [];
       resources.roles = rolesData.roles || [];
       resources.members = membersData.members || [];
@@ -396,14 +394,10 @@
       const customEmojis = (emojisData.custom || []);
       resources.emojis = [...standardEmojis, ...customEmojis];
 
-      console.log('Total emojis loaded:', resources.emojis.length);
-      console.log('Custom emojis:', customEmojis.length);
-      console.log('Standard emojis:', standardEmojis.length);
-
       // Initialize all custom selects
       initAllSelects();
     } catch (err) {
-      console.error('Failed to load resources:', err);
+      // Failed to load resources:
       showToast('Failed to load guild resources', 'error');
     }
   }
@@ -439,14 +433,10 @@
         icon: 'smile'
       }));
 
-      console.log('Custom emoji items for selector:', customEmojiItems.length);
-
       const emojiItems = [
         ...standardEmojiList.map(e => ({ value: e, label: e, icon: null })),
         ...customEmojiItems
       ];
-
-      console.log('Total emoji items:', emojiItems.length);
 
       // Category items
       const categoryItems = resources.categories.map(c => ({
@@ -587,7 +577,7 @@
       });
 
     } catch (err) {
-      console.error('Failed to initialize selects:', err);
+      // Failed to initialize selects:
       showToast('Failed to initialize dropdowns', 'error');
     }
   }
@@ -722,8 +712,7 @@
       showToast(data.message || 'Message scheduled successfully', 'success');
       await loadScheduledMessages(); // Refresh the list
     } catch (err) {
-      console.error(err);
-      showToast(err.message || 'Error scheduling message', 'error');
+      showToast('Error scheduling message', 'error');
     }
   }
 
@@ -821,8 +810,7 @@
       if (!res.ok || !data.success) throw new Error(data.error || 'Failed');
       showToast(data.message || 'Queued successfully', 'success');
     } catch (err) {
-      console.error(err);
-      showToast(err.message || 'Error', 'error');
+      showToast('Operation failed', 'error');
     }
   }
 
@@ -909,8 +897,7 @@
       scheduledMessages = data.messages || [];
       renderScheduledMessages();
     } catch (err) {
-      console.error(err);
-      showToast(err.message || 'Error loading scheduled messages', 'error');
+      showToast('Failed to load scheduled messages', 'error');
     }
   }
 
@@ -1045,8 +1032,7 @@
       showToast(data.message || 'Message cancelled successfully', 'success');
       await loadScheduledMessages();
     } catch (err) {
-      console.error(err);
-      showToast(err.message || 'Error cancelling message', 'error');
+      showToast('Failed to cancel message', 'error');
     }
   }
 </script>

@@ -26,7 +26,7 @@ function createCustomSelect(config) {
 
   const containerEl = typeof container === 'string' ? document.querySelector(container) : container;
   if (!containerEl) {
-    console.error('Container not found:', container);
+    // Container not found:
     return;
   }
 
@@ -76,7 +76,7 @@ function createCustomSelect(config) {
               type="button"
               data-value="${escapeHtml(item.value)}"
               class="custom-select-option w-full px-4 py-2.5 text-left text-white hover:bg-neutral-700 transition flex items-center gap-2 text-sm ${selectedValue === item.value ? 'bg-neutral-700' : ''}">
-              ${item.icon ? `<i class="fas fa-${escapeHtml(item.icon)} text-gray-400"></i>` : ''}
+              ${item.iconHtml ? item.iconHtml : (item.icon ? `<i class="fas fa-${escapeHtml(item.icon)} text-gray-400"></i>` : '')}
               <span>${escapeHtml(item.label)}</span>
               ${selectedValue === item.value ? '<i class="fas fa-check ml-auto text-green-400 text-xs"></i>' : ''}
             </button>

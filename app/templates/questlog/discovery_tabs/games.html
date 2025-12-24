@@ -48,7 +48,7 @@
 
 <!-- Share Game Modal -->
 <div id="shareGameModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm hidden items-center justify-center z-50">
-  <div class="bg-neutral-900 border border-neutral-700 rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+  <div class="bg-neutral-900 border border-neutral-700 rounded-lg p-6 max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
     <div class="flex justify-between items-center mb-6">
       <h3 class="text-2xl font-bold text-white">Share a Game to Discovery Network</h3>
       <button onclick="closeShareGameModal()" class="text-gray-400 hover:text-white">
@@ -56,41 +56,49 @@
       </button>
     </div>
 
-    <form id="shareGameForm" class="space-y-4">
-      <!-- Game Name -->
+    <!-- Step 1: Search IGDB -->
+    <div id="searchStep" class="space-y-4">
       <div>
-        <label class="block text-sm font-medium text-gray-300 mb-2">Game Name *</label>
+        <label class="block text-sm font-medium text-gray-300 mb-2">Search for a game *</label>
         <input
           type="text"
-          name="game_name"
-          id="shareGameName"
-          required
-          placeholder="Enter game name..."
-          class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-indigo-500"
+          id="igdbSearchInput"
+          placeholder="Type to search IGDB..."
+          class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-indigo-500"
         >
+        <p class="text-xs text-gray-500 mt-1">Search powered by IGDB (Internet Game Database)</p>
       </div>
 
-      <!-- Genre -->
-      <div>
-        <label class="block text-sm font-medium text-gray-300 mb-2">Genre</label>
-        <select name="genre" class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-indigo-500">
-          <option value="">Select genre...</option>
-          <option value="action">Action</option>
-          <option value="adventure">Adventure</option>
-          <option value="rpg">RPG</option>
-          <option value="strategy">Strategy</option>
-          <option value="shooter">Shooter</option>
-          <option value="mmo">MMO</option>
-          <option value="survival">Survival</option>
-          <option value="sports">Sports</option>
-        </select>
+      <!-- Search Results -->
+      <div id="igdbResults" class="space-y-2 max-h-96 overflow-y-auto hidden">
+        <!-- Results will be populated here -->
       </div>
 
-      <!-- Description/Review -->
+      <!-- No Results -->
+      <div id="igdbNoResults" class="hidden text-center py-8">
+        <i class="fas fa-search text-4xl text-gray-600 mb-3"></i>
+        <p class="text-gray-400">No games found. Try a different search term.</p>
+      </div>
+
+      <!-- Loading -->
+      <div id="igdbLoading" class="hidden text-center py-8">
+        <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-indigo-500 mx-auto mb-3"></div>
+        <p class="text-gray-400">Searching IGDB...</p>
+      </div>
+    </div>
+
+    <!-- Step 2: Add Details (hidden until game selected) -->
+    <div id="detailsStep" class="hidden space-y-4">
+      <!-- Selected Game Preview -->
+      <div id="selectedGamePreview" class="bg-neutral-800 border border-neutral-700 rounded-lg p-4">
+        <!-- Preview will be populated here -->
+      </div>
+
+      <!-- Why recommend -->
       <div>
-        <label class="block text-sm font-medium text-gray-300 mb-2">Why should others check this out?</label>
+        <label class="block text-sm font-medium text-gray-300 mb-2">Why should others check this out? (Optional)</label>
         <textarea
-          name="description"
+          id="shareRecommendation"
           rows="4"
           placeholder="Share your thoughts about this game..."
           class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-indigo-500"
@@ -105,16 +113,16 @@
         </p>
       </div>
 
-      <!-- Submit -->
+      <!-- Actions -->
       <div class="flex space-x-3">
-        <button type="button" onclick="closeShareGameModal()" class="flex-1 px-4 py-2 bg-neutral-800 hover:bg-neutral-700 text-white rounded-lg transition">
-          Cancel
+        <button type="button" onclick="backToSearch()" class="px-4 py-2 bg-neutral-800 hover:bg-neutral-700 text-white rounded-lg transition">
+          <i class="fas fa-arrow-left mr-2"></i>Back to Search
         </button>
-        <button type="submit" class="flex-1 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg transition">
-          Share Game
+        <button type="button" onclick="submitSharedGame()" class="flex-1 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg transition">
+          <i class="fas fa-share mr-2"></i>Share to Network
         </button>
       </div>
-    </form>
+    </div>
   </div>
 </div>
 
@@ -146,7 +154,6 @@ async function loadGames() {
       `;
     }
   } catch (error) {
-    console.error('Failed to load games:', error);
     document.getElementById('gamesGrid').innerHTML = `
       <div class="col-span-full text-center py-12">
         <i class="fas fa-exclamation-circle text-4xl text-red-500 mb-4"></i>
@@ -228,38 +235,54 @@ function renderGames() {
           ` : ''}
         </div>
 
-        <!-- Stats -->
-        <div class="flex gap-4 text-xs text-gray-500 mb-4">
-          ${game.server_count ? `
-          <span title="Found in ${game.server_count} communities">
-            <i class="fas fa-server text-indigo-400"></i> ${game.server_count}
-          </span>
-          ` : ''}
-          ${game.lfg_count > 0 ? `
-          <span title="Active LFG groups">
-            <i class="fas fa-users text-green-400"></i> ${game.lfg_count}
-          </span>
-          ` : ''}
-          ${game.hypes ? `
-          <span title="Pre-release follows">
-            <i class="fas fa-fire text-orange-400"></i> ${game.hypes}
-          </span>
+        <!-- Stats & Attribution -->
+        <div class="space-y-2 mb-4">
+          <div class="flex gap-4 text-xs text-gray-500">
+            ${game.server_count ? `
+            <span title="Found in ${game.server_count} communities">
+              <i class="fas fa-server text-indigo-400"></i> ${game.server_count}
+            </span>
+            ` : ''}
+            ${game.lfg_count > 0 ? `
+            <span title="Active LFG groups">
+              <i class="fas fa-users text-green-400"></i> ${game.lfg_count}
+            </span>
+            ` : ''}
+            ${game.hypes ? `
+            <span title="Pre-release follows">
+              <i class="fas fa-fire text-orange-400"></i> ${game.hypes}
+            </span>
+            ` : ''}
+          </div>
+
+          ${game.is_manual && (game.shared_by_user || game.shared_by_server) ? `
+          <div class="text-xs text-gray-400 bg-indigo-900/20 border border-indigo-800/30 rounded px-2 py-1">
+            <i class="fas fa-share text-indigo-400 mr-1"></i>
+            Shared by <span class="text-indigo-300 font-semibold">${game.shared_by_user || 'User'}</span>
+            ${game.shared_by_server ? ` from <span class="text-purple-300 font-semibold">${game.shared_by_server}</span>` : ''}
+          </div>
           ` : ''}
         </div>
 
         <!-- Action Buttons -->
         <div class="flex gap-2 mt-auto pt-2">
+          ${game.lfg_count > 0 ? `
+          <a href="/questlog/guild/{{ guild.id }}/discovery-network/#lfg?game=${encodeURIComponent(game.name)}"
+             class="flex-1 px-3 py-2 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 rounded-lg text-center text-sm font-semibold transition-all shadow-lg hover:shadow-green-500/50">
+            <i class="fas fa-users mr-1"></i>View LFG
+          </a>
+          ` : ''}
           ${game.steam_url ? `
           <a href="${game.steam_url}"
              target="_blank"
-             class="flex-1 px-3 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 rounded-lg text-center text-sm font-semibold transition-all shadow-lg hover:shadow-indigo-500/50">
-            <i class="fab fa-steam mr-1"></i>View on Steam
+             class="${game.lfg_count > 0 ? 'flex-none' : 'flex-1'} px-3 py-2 ${game.lfg_count > 0 ? 'bg-neutral-800 hover:bg-neutral-700 border border-neutral-700' : 'bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 shadow-lg hover:shadow-indigo-500/50'} rounded-lg text-center text-sm font-semibold transition-all">
+            <i class="fab fa-steam mr-1"></i>${game.lfg_count > 0 ? 'Steam' : 'View on Steam'}
           </a>
           ` : ''}
           ${game.igdb_url ? `
           <a href="${game.igdb_url}"
              target="_blank"
-             class="${game.steam_url ? 'flex-none' : 'flex-1'} px-3 py-2 bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 rounded-lg text-center text-sm transition-all hover:border-indigo-500">
+             class="flex-none px-3 py-2 bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 rounded-lg text-center text-sm transition-all hover:border-indigo-500">
             <i class="fas fa-info-circle mr-1"></i>IGDB
           </a>
           ` : ''}
@@ -269,45 +292,208 @@ function renderGames() {
   `).join('');
 }
 
-// Share game modal
+// Share game modal state
+let selectedGame = null;
+let igdbSearchTimeout = null;
+
+// Open share modal
 function shareGameModal() {
   document.getElementById('shareGameModal').classList.remove('hidden');
   document.getElementById('shareGameModal').classList.add('flex');
+
+  // Reset to search step
+  document.getElementById('searchStep').classList.remove('hidden');
+  document.getElementById('detailsStep').classList.add('hidden');
+  document.getElementById('igdbSearchInput').value = '';
+  document.getElementById('igdbResults').innerHTML = '';
+  document.getElementById('igdbResults').classList.add('hidden');
+  document.getElementById('igdbNoResults').classList.add('hidden');
+
+  selectedGame = null;
   loadShareLimit();
+
+  // Focus search input
+  setTimeout(() => document.getElementById('igdbSearchInput').focus(), 100);
 }
 
 function closeShareGameModal() {
   document.getElementById('shareGameModal').classList.add('hidden');
   document.getElementById('shareGameModal').classList.remove('flex');
-  document.getElementById('shareGameForm').reset();
+  selectedGame = null;
+}
+
+// IGDB Search
+document.addEventListener('DOMContentLoaded', function() {
+  const searchInput = document.getElementById('igdbSearchInput');
+  if (searchInput) {
+    searchInput.addEventListener('input', async (e) => {
+      const query = e.target.value.trim();
+
+      // Clear previous timeout
+      if (igdbSearchTimeout) {
+        clearTimeout(igdbSearchTimeout);
+      }
+
+      // Hide everything first
+      document.getElementById('igdbResults').classList.add('hidden');
+      document.getElementById('igdbNoResults').classList.add('hidden');
+      document.getElementById('igdbLoading').classList.add('hidden');
+
+      if (query.length < 2) {
+        return;
+      }
+
+      // Show loading
+      document.getElementById('igdbLoading').classList.remove('hidden');
+
+      // Debounce search
+      igdbSearchTimeout = setTimeout(async () => {
+        try {
+          const response = await fetch(`/api/igdb/search?query=${encodeURIComponent(query)}`);
+          const data = await response.json();
+
+          document.getElementById('igdbLoading').classList.add('hidden');
+
+          if (data.success && data.games && data.games.length > 0) {
+            renderIGDBResults(data.games);
+          } else {
+            document.getElementById('igdbNoResults').classList.remove('hidden');
+          }
+        } catch (error) {
+          document.getElementById('igdbLoading').classList.add('hidden');
+          document.getElementById('igdbNoResults').classList.remove('hidden');
+        }
+      }, 300);
+    });
+  }
+});
+
+function renderIGDBResults(games) {
+  const resultsContainer = document.getElementById('igdbResults');
+
+  resultsContainer.innerHTML = games.map(game => `
+    <div onclick="selectGame(${game.id})" class="bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 hover:border-indigo-500 rounded-lg p-3 cursor-pointer transition-all flex items-center gap-4">
+      ${game.cover_url ? `
+      <img src="${game.cover_url}" alt="${game.name}" class="w-16 h-24 object-cover rounded flex-shrink-0">
+      ` : `
+      <div class="w-16 h-24 bg-neutral-900 rounded flex items-center justify-center flex-shrink-0">
+        <i class="fas fa-gamepad text-gray-600 text-2xl"></i>
+      </div>
+      `}
+      <div class="flex-1 min-w-0">
+        <h4 class="font-semibold text-white truncate">${game.name}</h4>
+        ${game.release_year ? `<p class="text-sm text-gray-400">Released: ${game.release_year}</p>` : ''}
+        ${game.platforms && game.platforms.length > 0 ? `
+        <div class="flex flex-wrap gap-1 mt-1">
+          ${game.platforms.slice(0, 3).map(p => `<span class="text-xs bg-purple-900/30 text-purple-300 px-2 py-0.5 rounded">${p}</span>`).join('')}
+        </div>
+        ` : ''}
+      </div>
+      <i class="fas fa-chevron-right text-gray-600"></i>
+    </div>
+  `).join('');
+
+  resultsContainer.classList.remove('hidden');
+
+  // Store games for selection
+  window.igdbGamesCache = games;
+}
+
+function selectGame(gameId) {
+  const game = window.igdbGamesCache.find(g => g.id === gameId);
+  if (!game) return;
+
+  selectedGame = game;
+
+  // Show preview
+  document.getElementById('selectedGamePreview').innerHTML = `
+    <div class="flex items-start gap-4">
+      ${game.cover_url ? `
+      <img src="${game.cover_url}" alt="${game.name}" class="w-24 h-36 object-cover rounded flex-shrink-0">
+      ` : ''}
+      <div class="flex-1">
+        <h4 class="text-xl font-bold text-white mb-2">${game.name}</h4>
+        ${game.release_year ? `<p class="text-sm text-gray-400 mb-2"><i class="far fa-calendar mr-1"></i>Released: ${game.release_year}</p>` : ''}
+        ${game.summary ? `<p class="text-sm text-gray-300">${game.summary}</p>` : ''}
+        ${game.platforms && game.platforms.length > 0 ? `
+        <div class="flex flex-wrap gap-1 mt-3">
+          ${game.platforms.map(p => `<span class="text-xs bg-purple-900/30 text-purple-300 px-2 py-1 rounded border border-purple-800">${p}</span>`).join('')}
+        </div>
+        ` : ''}
+      </div>
+    </div>
+  `;
+
+  // Switch to details step
+  document.getElementById('searchStep').classList.add('hidden');
+  document.getElementById('detailsStep').classList.remove('hidden');
+}
+
+function backToSearch() {
+  document.getElementById('detailsStep').classList.add('hidden');
+  document.getElementById('searchStep').classList.remove('hidden');
+  selectedGame = null;
 }
 
 async function loadShareLimit() {
+  const limitEl = document.getElementById('shareLimit');
+
   try {
     const guildId = '{{ guild.id }}';
+
     const response = await fetch(`/api/discovery/game-share-limit?guild_id=${guildId}`);
+
     const data = await response.json();
 
     if (data.success) {
-      const limitEl = document.getElementById('shareLimit');
       if (data.unlimited) {
         limitEl.textContent = 'You have unlimited game sharing!';
+        limitEl.parentElement.classList.remove('bg-yellow-900/20', 'border-yellow-700');
+        limitEl.parentElement.classList.add('bg-green-900/20', 'border-green-700');
+        limitEl.classList.remove('text-yellow-400');
+        limitEl.classList.add('text-green-400');
       } else {
-        limitEl.textContent = `You can share ${data.remaining}/${data.limit} games this month. Resets ${data.reset_date}.`;
+        const remaining = data.remaining || 0;
+        const limit = data.limit || 0;
+        limitEl.textContent = `You can share ${remaining}/${limit} games this month${data.reset_date ? '. Resets ' + data.reset_date : ''}.`;
+
+        // Change color based on remaining shares
+        if (remaining === 0) {
+          limitEl.parentElement.classList.remove('bg-yellow-900/20', 'border-yellow-700');
+          limitEl.parentElement.classList.add('bg-red-900/20', 'border-red-700');
+          limitEl.classList.remove('text-yellow-400');
+          limitEl.classList.add('text-red-400');
+        }
       }
+    } else {
+      limitEl.textContent = `Error: ${data.error || 'Unable to load limit'}`;
     }
   } catch (error) {
-    console.error('Failed to load share limit:', error);
+    limitEl.textContent = 'Unable to load sharing limit. Please try again.';
   }
 }
 
-// Handle share form submission
-document.getElementById('shareGameForm').addEventListener('submit', async (e) => {
-  e.preventDefault();
+// Submit shared game
+async function submitSharedGame() {
+  if (!selectedGame) {
+    alert('Please select a game first');
+    return;
+  }
 
-  const formData = new FormData(e.target);
-  const data = Object.fromEntries(formData.entries());
-  data.guild_id = '{{ guild.id }}';
+  const recommendation = document.getElementById('shareRecommendation').value.trim();
+
+  const data = {
+    guild_id: '{{ guild.id }}',
+    igdb_id: selectedGame.id,
+    igdb_slug: selectedGame.slug,
+    game_name: selectedGame.name,
+    cover_url: selectedGame.cover_url,
+    summary: selectedGame.summary,
+    release_year: selectedGame.release_year,
+    platforms: JSON.stringify(selectedGame.platforms || []),
+    recommendation: recommendation,
+    steam_id: selectedGame.steam_id  // Include Steam ID from IGDB
+  };
 
   try {
     const csrftoken = getCookie('csrftoken');
@@ -323,17 +509,16 @@ document.getElementById('shareGameForm').addEventListener('submit', async (e) =>
     const result = await response.json();
 
     if (result.success) {
-      alert('✅ Game shared successfully!');
+      alert('✅ Game shared successfully to Discovery Network!');
       closeShareGameModal();
       loadGames(); // Reload games
     } else {
       alert('❌ ' + (result.error || 'Failed to share game'));
     }
   } catch (error) {
-    console.error('Failed to share game:', error);
     alert('Failed to share game. Please try again.');
   }
-});
+}
 
 // Initialize custom selects and load games when ready
 function initGameDiscovery() {

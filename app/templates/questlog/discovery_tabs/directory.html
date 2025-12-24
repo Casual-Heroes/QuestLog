@@ -111,7 +111,7 @@ async function loadServers() {
       renderServers();
     }
   } catch (error) {
-    console.error('Failed to load servers:', error);
+    // Failed to load servers:
     showError('Failed to load servers. Please try again later.');
   }
 }
@@ -511,7 +511,7 @@ async function loadGamesList() {
       });
     }
   } catch (error) {
-    console.error('Failed to load games list:', error);
+    // Failed to load games list:
   }
 }
 

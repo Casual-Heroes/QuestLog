@@ -131,14 +131,14 @@ def check_lfg_game_limit(db, guild_id, guild):
 
 def get_discovery_lfg_post_limit(guild):
     """Get Discovery Network LFG monthly posting limit based on guild subscription tier."""
-    from .decorators import has_module
+    from .module_utils import has_module_access
 
     # Complete Suite or LFG Module = Unlimited
     if guild.subscription_tier in ['premium', 'Premium'] or guild.is_vip:
         return None  # Unlimited
 
     # Check if they have LFG module
-    if has_module(guild, 'lfg'):
+    if has_module_access(guild.guild_id, 'lfg'):
         return None  # Unlimited
 
     # Free tier = 5 posts per month
@@ -182,14 +182,14 @@ def check_discovery_lfg_post_limit(db, guild_id, guild):
 
 def get_discovery_game_share_limit(guild):
     """Get Discovery Network game sharing monthly limit based on guild subscription tier."""
-    from .decorators import has_module
+    from .module_utils import has_module_access
 
     # Complete Suite or Discovery Module = Unlimited
     if guild.subscription_tier in ['premium', 'Premium'] or guild.is_vip:
         return None  # Unlimited
 
     # Check if they have Discovery module
-    if has_module(guild, 'discovery'):
+    if has_module_access(guild.guild_id, 'discovery'):
         return None  # Unlimited
 
     # Free tier = 3 shares per month (matches their 3 search config limit)
@@ -741,22 +741,22 @@ def get_discord_activity():
 
 # Games tracked through AMP
 STATIC_GAME_INFO = {
-    "CasualHeroes-7DTD01": {
-        "display_name": "7 Days to Die",
-        "description": "A custom survival world where biomes bite back. Bots spawn threats, buffs twist the rules, nothing is predictable, and that’s the point.",
-        "discord_invite": "https://discord.gg/CHHS",
-        "steam_link": "https://store.steampowered.com/app/251570/7_Days_to_Die/",
-        "steam_appid": "251570",
-        "connect_pw": "N/A"
-    },
-    "CasualHeroes-ASA01": {
-        "display_name": "Ark: Survival Ascended",
-        "description": "Custom dinos, wild events, and evolving threats. Build smart, hunt fast, or get hunted.",
-        "discord_invite": "https://discord.gg/Zs8tFYY7Gf",
-        "steam_link": "https://store.steampowered.com/app/2399830/ARK_Survival_Ascended/",
-        "steam_appid": "2399830",
-        "connect_pw": "Join our Discord to gain access!"
-    },
+    # "CasualHeroes-7DTD01": {
+    #     "display_name": "7 Days to Die",
+    #     "description": "A custom survival world where biomes bite back. Bots spawn threats, buffs twist the rules, nothing is predictable, and that’s the point.",
+    #     "discord_invite": "https://discord.gg/CHHS",
+    #     "steam_link": "https://store.steampowered.com/app/251570/7_Days_to_Die/",
+    #     "steam_appid": "251570",
+    #     "connect_pw": "N/A"
+    # },
+    # "CasualHeroes-ASA01": {
+    #     "display_name": "Ark: Survival Ascended",
+    #     "description": "Custom dinos, wild events, and evolving threats. Build smart, hunt fast, or get hunted.",
+    #     "discord_invite": "https://discord.gg/Zs8tFYY7Gf",
+    #     "steam_link": "https://store.steampowered.com/app/2399830/ARK_Survival_Ascended/",
+    #     "steam_appid": "2399830",
+    #     "connect_pw": "Join our Discord to gain access!"
+    # },
     # "CasualHeroes-Conan01": {
     #     "display_name": "Conan Exiles",
     #     "description": "PvE meets PvP in a fully modded world. Let the chaos rain — builders and devs welcome in the Exiled Lands. LFM Devs!",
@@ -784,29 +784,29 @@ STATIC_GAME_INFO = {
     #     "steam_appid": "1203620",
     #     "connect_pw": "Join the Discord"
     # },
-    "CasualHeroes-Vrising01": {
-        "display_name": "V Rising",
-        "description": "Modded gothic survival with PvP and random preset days, castle building, and a world that rewards planning over panic. Vardoran’s waiting, Rise. Bite. Build.",
-        "discord_invite": "https://discord.gg/CHHS",
-        "steam_link": "https://store.steampowered.com/app/1604030/V_Rising/",
-        "steam_appid": "1604030",
-        "connect_pw": "No Password"
-    }
+    # "CasualHeroes-Vrising01": {
+    #     "display_name": "V Rising",
+    #     "description": "Modded gothic survival with PvP and random preset days, castle building, and a world that rewards planning over panic. Vardoran’s waiting, Rise. Bite. Build.",
+    #     "discord_invite": "https://discord.gg/CHHS",
+    #     "steam_link": "https://store.steampowered.com/app/1604030/V_Rising/",
+    #     "steam_appid": "1604030",
+    #     "connect_pw": "No Password"
+    # }
 }
 # Games tracked through Discord only
 DISCORD_GAMES = [
-        {
-        "id": "Dune",
-        "name": "Dune: Awakening",
-        "description": "The premier casual guild in the Dune uninverse. Chill dungeon runs, late-night banter, and a crew that’s always online. Whether you're new or a raiding vet, Casual Heroes has a spot for you.",
-        "guild_page": "https://casual-heroes.com/dune/",
-        "steam_link": "https://store.steampowered.com/app/1172710/Dune_Awakening/",
-        "discord_invite": "https://discord.gg/jAJvykZvej",
-        "steam_appid": "1172710",
-        "online": "-",
-        "max": "-",
-        "link_label": "View on Steam"
-    },
+    #     {
+    #     "id": "Dune",
+    #     "name": "Dune: Awakening",
+    #     "description": "The premier casual guild in the Dune uninverse. Chill dungeon runs, late-night banter, and a crew that’s always online. Whether you're new or a raiding vet, Casual Heroes has a spot for you.",
+    #     "guild_page": "https://casual-heroes.com/dune/",
+    #     "steam_link": "https://store.steampowered.com/app/1172710/Dune_Awakening/",
+    #     "discord_invite": "https://discord.gg/jAJvykZvej",
+    #     "steam_appid": "1172710",
+    #     "online": "-",
+    #     "max": "-",
+    #     "link_label": "View on Steam"
+    # },
     # {
     #     "id": "Dragonwilds",
     #     "name": "Dragonwilds",
@@ -830,17 +830,17 @@ DISCORD_GAMES = [
     #     "max": "-",
     #     "link_label": "View on Steam"
     # },
-    {
-        "id": "Pantheon",
-        "name": "Pantheon: Rise of the Fallen",
-        "description": "The premier casual guild in the Pantheon world. Chill dungeon runs, late-night banter, and a crew that’s always online. Whether you're new or a raiding vet, Casual Heroes has a spot for you.",
-        "steam_link": "https://store.steampowered.com/app/3107230/Pantheon_Rise_of_the_Fallen/",
-        "discord_invite": "https://discord.gg/REHJrygu64",
-        "steam_appid": "3107230",
-        "online": "-",
-        "max": "-",
-        "link_label": "View on Steam"
-    },
+    # {
+    #     "id": "Pantheon",
+    #     "name": "Pantheon: Rise of the Fallen",
+    #     "description": "The premier casual guild in the Pantheon world. Chill dungeon runs, late-night banter, and a crew that’s always online. Whether you're new or a raiding vet, Casual Heroes has a spot for you.",
+    #     "steam_link": "https://store.steampowered.com/app/3107230/Pantheon_Rise_of_the_Fallen/",
+    #     "discord_invite": "https://discord.gg/REHJrygu64",
+    #     "steam_appid": "3107230",
+    #     "online": "-",
+    #     "max": "-",
+    #     "link_label": "View on Steam"
+    # },
     # {
     #     "id": "PoE2",
     #     "name": "Path of Exile 2",
@@ -865,9 +865,52 @@ DISCORD_GAMES = [
     # }
 ]
 
+# ============================================
+# AMP Instance Data Cache
+# ============================================
+# Cache structure: {instance_name: {"data": {...}, "timestamp": 123456789}}
+_amp_instance_cache = {}
+AMP_CACHE_TTL = 300  # 5 minutes (in seconds)
 
+def get_cached_instance_data(instance_name):
+    """Get cached instance data if it exists and is not expired"""
+    if instance_name in _amp_instance_cache:
+        cached = _amp_instance_cache[instance_name]
+        age = time.time() - cached["timestamp"]
+        if age < AMP_CACHE_TTL:
+            logger.info(f"Using cached data for {instance_name} (age: {int(age)}s)")
+            return cached["data"]
+        else:
+            logger.info(f"Cache expired for {instance_name} (age: {int(age)}s)")
+    return None
+
+def set_cached_instance_data(instance_name, data):
+    """Store instance data in cache with current timestamp"""
+    _amp_instance_cache[instance_name] = {
+        "data": data,
+        "timestamp": time.time()
+    }
+    logger.info(f"Cached data for {instance_name}")
+
+def clear_amp_cache(instance_name=None):
+    """Clear AMP cache for a specific instance or all instances"""
+    global _amp_instance_cache
+    if instance_name:
+        if instance_name in _amp_instance_cache:
+            del _amp_instance_cache[instance_name]
+            logger.info(f"Cleared cache for {instance_name}")
+            return True
+        return False
+    else:
+        _amp_instance_cache.clear()
+        logger.info("Cleared all AMP instance cache")
+        return True
 
 async def fetch_instance_data(instance_name):
+    # Check cache first
+    cached_data = get_cached_instance_data(instance_name)
+    if cached_data:
+        return cached_data
     _params = APIParams(
         url=os.getenv("AMP_URL"),
         user=os.getenv("AMP_USER"),
@@ -916,8 +959,8 @@ async def fetch_instance_data(instance_name):
                 # ✅ Check if AMP reports the server as Running
                 is_running = status.get("running", True)
 
-
-                return {
+                # Build the data object
+                data = {
                     "id": instance_name,
                     "name": static_info.get("display_name", instance_name),
                     "title": static_info.get("display_name", instance_name),
@@ -936,12 +979,22 @@ async def fetch_instance_data(instance_name):
                     "status_label": "🟢 Online" if is_running else "🔴 Offline"
                 }
 
+                # Cache the successful result
+                set_cached_instance_data(instance_name, data)
+                return data
+
             except Exception as e:
                 logger.warning(f"AMP instance {instance_name} error: {e}")
-                return safe_amp_fallback(instance_name)
+                fallback = safe_amp_fallback(instance_name)
+                # Cache fallback data too to prevent repeated failures
+                set_cached_instance_data(instance_name, fallback)
+                return fallback
 
     logger.info(f"AMP instance {instance_name} not found — using fallback.")
-    return safe_amp_fallback(instance_name)
+    fallback = safe_amp_fallback(instance_name)
+    # Cache fallback data to prevent repeated lookups
+    set_cached_instance_data(instance_name, fallback)
+    return fallback
 
 
     # fallback
@@ -1234,10 +1287,10 @@ def hosting(request):
     return render(request, 'hosting.html')
 
 def sevendtd(request):
-    sevendtd_instance = asyncio.run(fetch_instance_data("CasualHeroes-7DTD01"))
+    # sevendtd_instance = asyncio.run(fetch_instance_data("CasualHeroes-7DTD01"))
 
     return render(request, '7dtd.html', {
-        "sevendtd_instance": sevendtd_instance
+        # "sevendtd_instance": sevendtd_instance
     })
 
 
@@ -1251,24 +1304,24 @@ def gamesuggest(request):
     return render(request, 'gamesuggest.html')
 
 def enshrouded(request):
-    enshrouded_instance = asyncio.run(fetch_instance_data("Enshrouded01"))
+    # enshrouded_instance = asyncio.run(fetch_instance_data("Enshrouded01"))
 
     return render(request, 'enshrouded.html', {
-        "enshrouded_instance": enshrouded_instance
+        # "enshrouded_instance": enshrouded_instance
     })
 
 def vrising(request):
-    vrising_instance = asyncio.run(fetch_instance_data("CasualHeroes-Vrising01"))
+    # vrising_instance = asyncio.run(fetch_instance_data("CasualHeroes-Vrising01"))
 
     return render(request, 'vrising.html', {
-        "vrising_instance": vrising_instance
+        # "vrising_instance": vrising_instance
     })
 
 def conan(request):
-    conan_instance = asyncio.run(fetch_instance_data("CasualHeroes-Conan01"))
+    # conan_instance = asyncio.run(fetch_instance_data("CasualHeroes-Conan01"))
 
     return render(request, 'conan.html', {
-        "conan_instance": conan_instance
+        # "conan_instance": conan_instance
     })
 def guides(request):
     return render(request, 'guides.html')
@@ -1604,6 +1657,8 @@ def discord_required(view_func):
 @discord_required
 def user_profile(request):
     """User profile page showing Discord account info and connected guilds"""
+    import json as json_lib
+
     discord_user = request.session.get('discord_user', {})
     admin_guilds = request.session.get('discord_admin_guilds', [])
     all_guilds = request.session.get('discord_all_guilds', [])
@@ -1613,6 +1668,7 @@ def user_profile(request):
         'admin_guilds': admin_guilds,
         'member_guilds': get_member_guilds(request),
         'all_guilds': all_guilds,
+        'all_guilds_json': json_lib.dumps(all_guilds),  # JSON-encoded for JavaScript
         'guild_count': len(all_guilds),
         'admin_guild_count': len(admin_guilds),
     }
@@ -10218,6 +10274,7 @@ def api_discovery_network_lfg(request):
                     'spots_needed': (lfg_group.max_group_size or game.max_group_size or 5) - lfg_group.member_count,
                     'voice_required': voice_required,
                     'start_time': start_time,
+                    'scheduled_time': lfg_group.scheduled_time if lfg_group.scheduled_time else None,
                     'created_at': lfg_group.created_at,
                     'username': lfg_group.creator_name or 'Unknown',
                     'user_avatar': creator_avatar,
@@ -10365,16 +10422,21 @@ def api_discovery_lfg_create(request):
             if data.get('player_spec'):
                 custom_data['player_spec'] = data.get('player_spec')
 
-            # Calculate scheduled_time from start_time
+            # Calculate scheduled_time from scheduled_time input (datetime-local from form)
             scheduled_time = None
-            start_time = data.get('start_time', 'now')
-            if start_time == 'hour':
-                scheduled_time = int(time.time()) + 3600
-            elif start_time == '2hours':
-                scheduled_time = int(time.time()) + 7200
-            elif start_time == 'custom' and data.get('custom_time'):
-                scheduled_time = int(data.get('custom_time'))
+            scheduled_time_input = data.get('scheduled_time', '').strip()
+
+            if scheduled_time_input:
+                # Parse datetime-local format: "2025-12-23T15:30"
+                try:
+                    from datetime import datetime
+                    dt = datetime.fromisoformat(scheduled_time_input)
+                    scheduled_time = int(dt.timestamp())
+                except:
+                    # If parsing fails, default to now
+                    scheduled_time = int(time.time())
             else:
+                # No scheduled time provided, default to "now"
                 scheduled_time = int(time.time())
 
             # Get user info from session (same pattern as api_lfg_browser_create)
@@ -10400,7 +10462,7 @@ def api_discovery_lfg_create(request):
                 scheduled_time=scheduled_time,
                 description=description,
                 custom_data=json_lib.dumps(custom_data),
-                max_group_size=int(data.get('spots_needed', game.max_group_size or 5)) + 1,  # +1 for creator
+                max_group_size=int(data.get('group_size', game.max_group_size or 5)),
                 is_active=True,
                 is_full=False,
                 member_count=1  # Creator counts as first member
@@ -10767,6 +10829,150 @@ def api_discovery_network_lfg_games(request):
         }, status=500)
 
 
+@discord_required
+@require_http_methods(["GET"])
+def api_discovery_network_lfg_activities(request):
+    """Get all unique activity options from LFG games across Discovery Network."""
+    try:
+        from .db import get_db_session
+        from .models import LFGGame, DiscoveryNetworkApplication
+        import json
+
+        with get_db_session() as db:
+            # Get all guilds in Discovery Network (approved applications)
+            network_guilds = db.query(DiscoveryNetworkApplication.guild_id).filter(
+                DiscoveryNetworkApplication.status == 'approved'
+            ).all()
+            network_guild_ids = [g[0] for g in network_guilds]
+
+            if not network_guild_ids:
+                return JsonResponse({
+                    'success': True,
+                    'activities': []
+                })
+
+            # Get all LFG games from Discovery Network
+            lfg_games = db.query(LFGGame).filter(
+                LFGGame.guild_id.in_(network_guild_ids)
+            ).all()
+
+            # Extract all unique activity values from custom_options
+            activities_set = set()
+
+            for game in lfg_games:
+                if not game.custom_options:
+                    continue
+
+                try:
+                    custom_options = json.loads(game.custom_options)
+                    for option in custom_options:
+                        # Look for "Activity" field
+                        if option.get('name', '').lower() == 'activity':
+                            choices = option.get('choices', [])
+                            # Handle both array and object-based choices
+                            if isinstance(choices, list):
+                                for choice in choices:
+                                    if choice and isinstance(choice, str):
+                                        activities_set.add(choice.strip())
+                            elif isinstance(choices, dict):
+                                # For conditional dropdowns, get all values
+                                for values in choices.values():
+                                    if isinstance(values, list):
+                                        for v in values:
+                                            if v and isinstance(v, str):
+                                                activities_set.add(v.strip())
+                except:
+                    continue
+
+            # Convert to list and sort
+            activities_list = sorted(list(activities_set))
+
+            return JsonResponse({
+                'success': True,
+                'activities': activities_list
+            })
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
+@discord_required
+@require_http_methods(["GET"])
+def api_discovery_game_config(request):
+    """Get custom_options configuration for a specific game across Discovery Network."""
+    try:
+        from .db import get_db_session
+        from .models import LFGGame, DiscoveryNetworkApplication
+        import json
+
+        game_name = request.GET.get('game_name')
+
+        if not game_name:
+            return JsonResponse({
+                'success': False,
+                'error': 'game_name parameter is required'
+            }, status=400)
+
+        with get_db_session() as db:
+            # Get all guilds in Discovery Network (approved applications)
+            network_guilds = db.query(DiscoveryNetworkApplication.guild_id).filter(
+                DiscoveryNetworkApplication.status == 'approved'
+            ).all()
+            network_guild_ids = [g[0] for g in network_guilds]
+
+            if not network_guild_ids:
+                return JsonResponse({
+                    'success': True,
+                    'custom_options': []
+                })
+
+            # Find this game in any Discovery Network server
+            # Try exact match first, then case-insensitive
+            lfg_game = db.query(LFGGame).filter(
+                LFGGame.guild_id.in_(network_guild_ids),
+                LFGGame.game_name == game_name
+            ).first()
+
+            if not lfg_game:
+                # Try case-insensitive match
+                lfg_game = db.query(LFGGame).filter(
+                    LFGGame.guild_id.in_(network_guild_ids),
+                    LFGGame.game_name.ilike(game_name)
+                ).first()
+
+            if not lfg_game or not lfg_game.custom_options:
+                return JsonResponse({
+                    'success': True,
+                    'custom_options': []
+                })
+
+            # Parse and return custom_options
+            try:
+                custom_options = json.loads(lfg_game.custom_options)
+                return JsonResponse({
+                    'success': True,
+                    'custom_options': custom_options
+                })
+            except:
+                return JsonResponse({
+                    'success': True,
+                    'custom_options': []
+                })
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
 @csrf_exempt
 @discord_required
 @require_http_methods(["POST"])
@@ -10914,8 +11120,10 @@ def api_discovery_network_preferences(request):
                             'enable_directory': True,
                             'preferred_games': [],
                             'preferred_tags': [],
+                            'preferred_activities': [],
                             'preferred_size': '',
                             'lfg_filter_games': False,
+                            'lfg_filter_activities': False,
                             'lfg_show_now': True,
                             'lfg_hide_voice': False,
                             'notify_lfg': False,
@@ -10932,11 +11140,14 @@ def api_discovery_network_preferences(request):
                 # Parse JSON fields
                 preferred_games = []
                 preferred_tags = []
+                preferred_activities = []
                 try:
                     if prefs.preferred_games:
                         preferred_games = json_lib.loads(prefs.preferred_games)
                     if prefs.preferred_tags:
                         preferred_tags = json_lib.loads(prefs.preferred_tags)
+                    if prefs.preferred_activities:
+                        preferred_activities = json_lib.loads(prefs.preferred_activities)
                 except:
                     pass
 
@@ -10949,8 +11160,10 @@ def api_discovery_network_preferences(request):
                         'enable_directory': prefs.enable_directory,
                         'preferred_games': preferred_games,
                         'preferred_tags': preferred_tags,
+                        'preferred_activities': preferred_activities,
                         'preferred_size': prefs.preferred_size or '',
                         'lfg_filter_games': prefs.lfg_filter_games,
+                        'lfg_filter_activities': prefs.lfg_filter_activities,
                         'lfg_show_now': prefs.lfg_show_now,
                         'lfg_hide_voice': prefs.lfg_hide_voice,
                         'notify_lfg': prefs.notify_lfg,
@@ -10989,12 +11202,16 @@ def api_discovery_network_preferences(request):
                     prefs.preferred_games = json_lib.dumps(data['preferred_games']) if data['preferred_games'] else None
                 if 'preferred_tags' in data:
                     prefs.preferred_tags = json_lib.dumps(data['preferred_tags']) if data['preferred_tags'] else None
+                if 'preferred_activities' in data:
+                    prefs.preferred_activities = json_lib.dumps(data['preferred_activities']) if data['preferred_activities'] else None
                 if 'preferred_size' in data:
                     prefs.preferred_size = data['preferred_size'] or None
 
                 # Update LFG preferences
                 if 'lfg_filter_games' in data:
                     prefs.lfg_filter_games = bool(data['lfg_filter_games'])
+                if 'lfg_filter_activities' in data:
+                    prefs.lfg_filter_activities = bool(data['lfg_filter_activities'])
                 if 'lfg_show_now' in data:
                     prefs.lfg_show_now = bool(data['lfg_show_now'])
                 if 'lfg_hide_voice' in data:
@@ -11272,7 +11489,10 @@ def api_discovery_games_list(request):
                 'igdb_slug': None,
                 'steam_id': None,
                 'steam_url': None,
-                'hypes': None
+                'hypes': None,
+                'shared_by_user_id': None,
+                'shared_by_guild_id': None,
+                'is_manual': False
             })
 
             # 1. Get games from announced_games (Found Games)
@@ -11424,6 +11644,27 @@ def api_discovery_games_list(request):
                     games_data[game_name_lower]['avg_rating'] = float(stat.avg_rating) if stat.avg_rating else 0
                     games_data[game_name_lower]['total_reviews'] = stat.review_count
 
+            # 4. Get ONE example manual share per game (for attribution)
+            manual_shares = db.query(
+                func.lower(AnnouncedGame.game_name).label('game_name_lower'),
+                AnnouncedGame.shared_by_user_id,
+                AnnouncedGame.guild_id,
+                AnnouncedGame.is_manual
+            ).filter(
+                AnnouncedGame.is_manual == True,
+                AnnouncedGame.shared_by_user_id.isnot(None),
+                AnnouncedGame.guild_id.in_(approved_guild_ids)
+            ).distinct(
+                func.lower(AnnouncedGame.game_name)
+            ).all()
+
+            for share in manual_shares:
+                game_name_lower = share.game_name_lower
+                if game_name_lower in games_data:
+                    games_data[game_name_lower]['shared_by_user_id'] = share.shared_by_user_id
+                    games_data[game_name_lower]['shared_by_guild_id'] = share.guild_id
+                    games_data[game_name_lower]['is_manual'] = True
+
             # Convert to list and apply filters
             games_list = []
             for game_key, data in games_data.items():
@@ -11472,6 +11713,29 @@ def api_discovery_games_list(request):
                 # Use description or fallback to summary from IGDB if available
                 summary = data['description']
 
+                # Get user and guild info for manual shares
+                shared_by_user = None
+                shared_by_server = None
+                if data['is_manual'] and data['shared_by_user_id'] and data['shared_by_guild_id']:
+                    # Get Discord user info via API
+                    try:
+                        bot_token = os.getenv('DISCORD_BOT_TOKEN')
+                        if bot_token and bot_token != 'your_bot_token_here':
+                            member_url = f'https://discord.com/api/v10/guilds/{data["shared_by_guild_id"]}/members/{data["shared_by_user_id"]}'
+                            headers = {'Authorization': f'Bot {bot_token}'}
+                            response = requests.get(member_url, headers=headers)
+                            if response.status_code == 200:
+                                member_data = response.json()
+                                # Try to get display name (nick or global_name) first, fallback to username
+                                shared_by_user = member_data.get('nick') or member_data.get('user', {}).get('global_name') or member_data.get('user', {}).get('username')
+                    except Exception as e:
+                        logger.warning(f"Failed to fetch Discord user {data['shared_by_user_id']}: {e}")
+
+                    # Get guild name
+                    sharing_guild = db.query(Guild).filter_by(guild_id=data['shared_by_guild_id']).first()
+                    if sharing_guild:
+                        shared_by_server = sharing_guild.guild_name
+
                 games_list.append({
                     'id': game_key,  # Use lowercase name as ID
                     'name': data['name'],
@@ -11488,7 +11752,10 @@ def api_discovery_games_list(request):
                     'cover_url': data['cover_url'],
                     'igdb_url': igdb_url,
                     'steam_url': steam_url,
-                    'hypes': data['hypes']
+                    'hypes': data['hypes'],
+                    'is_manual': data['is_manual'],
+                    'shared_by_user': shared_by_user,
+                    'shared_by_server': shared_by_server
                 })
 
             # Apply sorting
@@ -11597,18 +11864,73 @@ def api_discovery_game_share_limit(request):
         }, status=500)
 
 
+@csrf_exempt
+@require_http_methods(["GET"])
+def api_igdb_search(request):
+    """
+    GET /api/igdb/search - Search IGDB for games.
+    Query params: query (search string)
+    """
+    try:
+        from .utils.igdb import search_games
+        import asyncio
+
+        query = request.GET.get('query', '').strip()
+        if not query or len(query) < 2:
+            return JsonResponse({
+                'success': False,
+                'error': 'Query must be at least 2 characters'
+            }, status=400)
+
+        # Run async search in sync context
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            games = loop.run_until_complete(search_games(query, limit=10))
+        finally:
+            loop.close()
+
+        # Convert to JSON-serializable format
+        games_data = []
+        for game in games:
+            games_data.append({
+                'id': game.id,
+                'name': game.name,
+                'slug': game.slug,
+                'summary': game.summary,
+                'cover_url': game.cover_url,
+                'platforms': game.platforms,
+                'release_year': game.release_year,
+                'steam_id': game.steam_id
+            })
+
+        return JsonResponse({
+            'success': True,
+            'games': games_data
+        })
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': 'Failed to search IGDB. Please try again.'
+        }, status=500)
+
+
 @discord_required
 @require_http_methods(["POST"])
 def api_discovery_share_game(request):
     """
     POST /api/discovery/share-game - Manually share a game to Discovery Network.
-    Includes duplicate checking and input sanitization.
-    Body: guild_id, game_name, genre, description
+    Now uses IGDB data instead of manual entry.
+    Body: guild_id, igdb_id, igdb_slug, game_name, cover_url, summary, release_year, platforms, recommendation
     """
     try:
         import json as json_lib
         from .db import get_db_session
         from .models import AnnouncedGame, Guild
+        from sqlalchemy import func
         import time
         import html
 
@@ -11623,15 +11945,23 @@ def api_discovery_share_game(request):
             }, status=401)
 
         guild_id = data.get('guild_id')
+
+        # IGDB data
+        igdb_id = data.get('igdb_id')
+        igdb_slug = data.get('igdb_slug', '').strip()
         game_name = data.get('game_name', '').strip()
-        genre = data.get('genre', '').strip()
-        description = data.get('description', '').strip()
+        cover_url = data.get('cover_url', '').strip()
+        summary = data.get('summary', '').strip()
+        release_year = data.get('release_year')
+        platforms = data.get('platforms', '[]')  # JSON string
+        recommendation = data.get('recommendation', '').strip()
+        steam_id = data.get('steam_id')  # Steam ID from IGDB
 
         # Validation
-        if not guild_id or not game_name:
+        if not guild_id or not game_name or not igdb_id:
             return JsonResponse({
                 'success': False,
-                'error': 'Guild ID and game name are required'
+                'error': 'Guild ID, game name, and IGDB ID are required'
             }, status=400)
 
         if len(game_name) > 255:
@@ -11640,16 +11970,15 @@ def api_discovery_share_game(request):
                 'error': 'Game name must be 255 characters or less'
             }, status=400)
 
-        if description and len(description) > 1000:
+        if recommendation and len(recommendation) > 1000:
             return JsonResponse({
                 'success': False,
-                'error': 'Description must be 1000 characters or less'
+                'error': 'Recommendation must be 1000 characters or less'
             }, status=400)
 
         # Sanitize inputs (prevent XSS)
         game_name = html.escape(game_name)
-        genre = html.escape(genre) if genre else None
-        description = html.escape(description) if description else None
+        recommendation = html.escape(recommendation) if recommendation else None
 
         with get_db_session() as db:
             # Verify guild exists and user has permission
@@ -11660,12 +11989,29 @@ def api_discovery_share_game(request):
                     'error': 'Guild not found'
                 }, status=404)
 
-            # Check if guild is in Discovery Network
-            if not guild.discovery_network_approved or not guild.discovery_network_active:
+            # Check if guild is in Discovery Network (has approved application)
+            from .models import DiscoveryNetworkApplication, DiscoveryNetworkPreferences
+            network_app = db.query(DiscoveryNetworkApplication).filter(
+                DiscoveryNetworkApplication.guild_id == int(guild_id),
+                DiscoveryNetworkApplication.status == 'approved'
+            ).first()
+
+            if not network_app:
                 return JsonResponse({
                     'success': False,
                     'error': 'Guild must be a member of the Discovery Network to share games'
                 }, status=403)
+
+            # Check if user is trying to share from a server that is NOT their main server (anti-abuse)
+            user_prefs = db.query(DiscoveryNetworkPreferences).filter_by(user_id=int(user_id)).first()
+
+            # If user has set a main server, they can ONLY share from that server
+            if user_prefs and user_prefs.main_server_id:
+                if user_prefs.main_server_id != int(guild_id):
+                    return JsonResponse({
+                        'success': False,
+                        'error': 'You can only share games from your main server. This prevents multi-server promotion abuse. Change your main server in Profile Settings (30-day cooldown applies).'
+                    }, status=403)
 
             # Check share limit
             can_share, current_count, limit, reset_date = check_discovery_game_share_limit(db, guild_id, guild)
@@ -11679,27 +12025,57 @@ def api_discovery_share_game(request):
                     'reset_date': reset_date
                 }, status=429)
 
-            # Check for duplicate - see if this guild already shared this game
-            existing = db.query(AnnouncedGame).filter(
-                AnnouncedGame.guild_id == int(guild_id),
-                func.lower(AnnouncedGame.game_name) == game_name.lower()
+            # Check for duplicate - multiple checks needed:
+            # 1. Check if THIS SERVER already has this game
+            existing_in_server = db.query(AnnouncedGame).filter(
+                AnnouncedGame.guild_id == int(guild_id)
+            ).filter(
+                (AnnouncedGame.igdb_id == igdb_id) |
+                (func.lower(AnnouncedGame.game_name) == game_name.lower())
             ).first()
 
-            if existing:
+            if existing_in_server:
+                # Determine if it was bot-discovered or manually shared
+                source = "manually shared" if existing_in_server.is_manual else "automatically discovered by the bot"
                 return JsonResponse({
                     'success': False,
-                    'error': f'Your server has already shared "{game_name}" to the Discovery Network',
+                    'error': f'"{game_name}" was already {source} for your server',
                     'duplicate': True
                 }, status=400)
 
-            # Create the game entry
+            # 2. Check if THIS USER already shared this game from THIS SERVER (extra safety)
+            user_already_shared = db.query(AnnouncedGame).filter(
+                AnnouncedGame.guild_id == int(guild_id),
+                AnnouncedGame.shared_by_user_id == int(user_id),
+                AnnouncedGame.is_manual == True
+            ).filter(
+                (AnnouncedGame.igdb_id == igdb_id) |
+                (func.lower(AnnouncedGame.game_name) == game_name.lower())
+            ).first()
+
+            if user_already_shared:
+                return JsonResponse({
+                    'success': False,
+                    'error': f'You already shared "{game_name}" from this server',
+                    'duplicate': True
+                }, status=400)
+
+            # Create the game entry with IGDB data
+            current_time = int(time.time())
             new_game = AnnouncedGame(
                 guild_id=int(guild_id),
+                igdb_id=igdb_id,
+                igdb_slug=igdb_slug,
+                steam_id=steam_id,  # Steam ID from IGDB
                 game_name=game_name,
-                genre=genre,
-                description=description,
-                created_at=int(time.time()),
-                is_manual=True  # Flag to indicate manually shared
+                cover_url=cover_url or None,
+                release_date=int(time.mktime(time.strptime(f"{release_year}-01-01", "%Y-%m-%d"))) if release_year else None,
+                platforms=platforms,  # JSON string
+                announced_at=current_time,  # Required field
+                created_at=current_time,
+                description=recommendation,  # User's recommendation goes in description
+                is_manual=True,  # Flag to indicate manually shared
+                shared_by_user_id=int(user_id)  # Track who shared it
             )
 
             db.add(new_game)
@@ -11711,8 +12087,178 @@ def api_discovery_share_game(request):
                 'game': {
                     'id': new_game.id,
                     'name': game_name,
-                    'genre': genre,
-                    'description': description
+                    'igdb_id': igdb_id,
+                    'cover_url': cover_url
+                }
+            })
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        # Never expose raw database errors to users
+        return JsonResponse({
+            'success': False,
+            'error': 'An error occurred while sharing your game. Please try again or contact support if the issue persists.'
+        }, status=500)
+
+
+@discord_required
+@require_http_methods(["GET"])
+def api_discovery_user_main_server(request):
+    """
+    GET /api/discovery/user/main-server - Get user's main server settings.
+    Returns main server ID, when it was set, and when it can be changed.
+    """
+    try:
+        from .db import get_db_session
+        from .models import DiscoveryNetworkPreferences, Guild
+        import time
+
+        user = request.session.get('discord_user', {})
+        user_id = user.get('id')
+
+        if not user_id:
+            return JsonResponse({
+                'success': False,
+                'error': 'Not authenticated'
+            }, status=401)
+
+        with get_db_session() as db:
+            # Get user preferences
+            prefs = db.query(DiscoveryNetworkPreferences).filter_by(user_id=int(user_id)).first()
+
+            if not prefs or not prefs.main_server_id:
+                return JsonResponse({
+                    'success': True,
+                    'main_server': None,
+                    'can_change': True,
+                    'message': 'No main server set'
+                })
+
+            # Get guild info
+            guild = db.query(Guild).filter_by(guild_id=prefs.main_server_id).first()
+
+            # Auto-select next available server if main server no longer exists
+            if not guild:
+                # Main server was deleted - reset to None and allow immediate change
+                prefs.main_server_id = None
+                prefs.main_server_set_at = None
+                prefs.main_server_can_change_at = None
+                db.commit()
+
+                return JsonResponse({
+                    'success': True,
+                    'main_server': None,
+                    'can_change': True,
+                    'message': 'Your main server was removed. Please select a new one.',
+                    'auto_reset': True
+                })
+
+            # Check if user can change (30 days since last change)
+            current_time = int(time.time())
+            can_change = not prefs.main_server_can_change_at or current_time >= prefs.main_server_can_change_at
+
+            days_remaining = 0
+            if prefs.main_server_can_change_at and current_time < prefs.main_server_can_change_at:
+                days_remaining = (prefs.main_server_can_change_at - current_time) // 86400
+
+            return JsonResponse({
+                'success': True,
+                'main_server': {
+                    'id': prefs.main_server_id,
+                    'name': guild.guild_name,
+                    'set_at': prefs.main_server_set_at,
+                    'can_change_at': prefs.main_server_can_change_at
+                },
+                'can_change': can_change,
+                'days_remaining': days_remaining
+            })
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': 'Failed to get main server settings'
+        }, status=500)
+
+
+@discord_required
+@require_http_methods(["POST"])
+def api_discovery_user_set_main_server(request):
+    """
+    POST /api/discovery/user/set-main-server - Set or change user's main server.
+    Body: guild_id
+    Enforces 30-day cooldown between changes.
+    """
+    try:
+        import json as json_lib
+        from .db import get_db_session
+        from .models import DiscoveryNetworkPreferences, Guild
+        import time
+
+        user = request.session.get('discord_user', {})
+        user_id = user.get('id')
+
+        if not user_id:
+            return JsonResponse({
+                'success': False,
+                'error': 'Not authenticated'
+            }, status=401)
+
+        data = json_lib.loads(request.body)
+        guild_id = data.get('guild_id')
+
+        if not guild_id:
+            return JsonResponse({
+                'success': False,
+                'error': 'Guild ID is required'
+            }, status=400)
+
+        with get_db_session() as db:
+            # Verify guild exists
+            guild = db.query(Guild).filter_by(guild_id=int(guild_id)).first()
+            if not guild:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Guild not found'
+                }, status=404)
+
+            # Get or create user preferences
+            prefs = db.query(DiscoveryNetworkPreferences).filter_by(user_id=int(user_id)).first()
+            if not prefs:
+                prefs = DiscoveryNetworkPreferences(user_id=int(user_id))
+                db.add(prefs)
+
+            current_time = int(time.time())
+
+            # Check if user can change (30 days since last change)
+            if prefs.main_server_can_change_at and current_time < prefs.main_server_can_change_at:
+                days_remaining = (prefs.main_server_can_change_at - current_time) // 86400
+                return JsonResponse({
+                    'success': False,
+                    'error': f'You can change your main server again in {days_remaining} days. This cooldown prevents abuse.',
+                    'cooldown': True,
+                    'days_remaining': days_remaining
+                }, status=429)
+
+            # Set the new main server
+            prefs.main_server_id = int(guild_id)
+            prefs.main_server_set_at = current_time
+            # 30 days = 30 * 24 * 60 * 60 = 2592000 seconds
+            prefs.main_server_can_change_at = current_time + 2592000
+            prefs.updated_at = current_time
+
+            db.commit()
+
+            return JsonResponse({
+                'success': True,
+                'message': f'Main server set to "{guild.guild_name}". You can change it again in 30 days.',
+                'main_server': {
+                    'id': prefs.main_server_id,
+                    'name': guild.guild_name,
+                    'set_at': prefs.main_server_set_at,
+                    'can_change_at': prefs.main_server_can_change_at
                 }
             })
 
@@ -11721,7 +12267,7 @@ def api_discovery_share_game(request):
         traceback.print_exc()
         return JsonResponse({
             'success': False,
-            'error': str(e)
+            'error': 'Failed to set main server'
         }, status=500)
 
 

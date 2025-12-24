@@ -313,7 +313,7 @@ async function openCreateModal(type) {
         guildRoles = data.roles;
       }
     } catch (err) {
-      console.error('Error fetching roles:', err);
+      // Error fetching roles:
       guildRoles = [];
     }
 
@@ -1201,7 +1201,7 @@ async function editTemplate(type, id) {
           guildRoles = rolesData.roles;
         }
       } catch (err) {
-        console.error('Error fetching roles:', err);
+        // Error fetching roles:
         guildRoles = [];
       }
 
@@ -1219,7 +1219,7 @@ async function editTemplate(type, id) {
       let categories;
       if (templateData.length > 0 && templateData[0].hasOwnProperty('category') && !templateData[0].hasOwnProperty('category_name')) {
         // Old format detected - convert to category-first
-        console.log('Old template format detected, converting to category-first structure');
+        // Old template format detected, converting to category-first structure
         const categoryMap = new Map();
 
         templateData.forEach(channelData => {
@@ -1243,7 +1243,7 @@ async function editTemplate(type, id) {
         });
 
         categories = Array.from(categoryMap.values());
-        console.log('Converted old template to category-first:', categories);
+        // Converted old template to category-first:
       } else {
         // New format - use as is
         categories = templateData;

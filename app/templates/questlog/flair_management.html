@@ -258,20 +258,20 @@
         const response = await csrfFetch('/api/guild/{{ guild.id }}/roles/?force_refresh=true');
         const data = await response.json();
 
-        console.log('Discord roles response:', data);
+        // Discord roles response:
 
         if (data.success && data.roles) {
           discordRoles = data.roles;
-          console.log('Loaded Discord roles:', discordRoles.length);
+          // Loaded Discord roles:
           // Re-render flairs if they're already loaded
           if (flairsData.length > 0) {
             renderFlairs();
           }
         } else {
-          console.error('Failed to load Discord roles:', data.error || 'Unknown error');
+          // Failed to load Discord roles:
         }
       } catch (error) {
-        console.error('Error loading Discord roles:', error);
+        // Error loading Discord roles:
       }
     }
 
@@ -280,7 +280,7 @@
       const roleName = `Flair: ${flairName}`;
       const role = discordRoles.find(r => r.name === roleName);
       if (!role) {
-        console.log(`No Discord role found for flair: "${flairName}" (searched for "${roleName}")`);
+        // Logged
       }
       return role ? role.position : null;
     }
@@ -299,7 +299,7 @@
           showToast('Failed to load flairs', 'error');
         }
       } catch (error) {
-        console.error('Error loading flairs:', error);
+        // Error loading flairs:
         showToast('Error loading flairs', 'error');
       }
     }
@@ -454,7 +454,7 @@
           showToast(data.error || 'Failed to save changes', 'error');
         }
       } catch (error) {
-        console.error('Error saving changes:', error);
+        // Error saving changes:
         showToast('Error saving changes', 'error');
       }
     }
@@ -523,7 +523,7 @@
           showToast(data.error || 'Failed to create flair', 'error');
         }
       } catch (error) {
-        console.error('Error creating flair:', error);
+        // Error creating flair:
         showToast('Error creating flair', 'error');
       }
     }
@@ -555,7 +555,7 @@
           showToast(data.error || 'Failed to delete flair', 'error');
         }
       } catch (error) {
-        console.error('Error deleting flair:', error);
+        // Error deleting flair:
         showToast('Error deleting flair', 'error');
       }
     }
@@ -579,7 +579,7 @@
           showToast(data.error || 'Failed to queue flair role creation', 'error');
         }
       } catch (error) {
-        console.error('Error creating default flair roles:', error);
+        // Error creating default flair roles:
         showToast('Error creating default flair roles', 'error');
       }
     }

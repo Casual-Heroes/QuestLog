@@ -511,7 +511,7 @@ async function fetchResources() {
         window.DiscordEmojis = guildEmojis;
       }
     } catch (emojiErr) {
-      console.warn('Could not load emojis', emojiErr);
+      // Could not load emojis
     }
     // Sync back into global cache to help other pages/components
     if (window.DiscordResources) {
@@ -527,7 +527,7 @@ async function fetchResources() {
 
     resourcesLoaded = true;
   } catch (err) {
-    console.error('Failed to load guild resources', err);
+    // Failed to load guild resources
   } finally {
     resourcesLoading = false;
   }
@@ -667,7 +667,7 @@ async function fetchMenus() {
       renderMenus();
     }
   } catch (err) {
-    console.error('Failed to load reaction role menus', err);
+    // Failed to load reaction role menus
   }
 }
 
@@ -679,7 +679,7 @@ document.addEventListener('DOMContentLoaded', () => {
       renderMenus();
     }
   } catch (err) {
-    console.warn('Could not parse initial reaction menus', err);
+    // Could not parse initial reaction menus
   }
 
   ensureResources().then(fetchMenus);

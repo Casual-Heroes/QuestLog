@@ -59,7 +59,7 @@ async function loadDiscordResources() {
 
     return window.DiscordResources;
   } catch (error) {
-    console.error('Error loading Discord resources:', error);
+    // Error loading Discord resources:
     return window.DiscordResources;
   } finally {
     window.DiscordResources.loading = false;
@@ -76,7 +76,7 @@ function convertToDiscordSelect(input, resourceType) {
   }
 
   if (resources.length === 0) {
-    console.warn(`No ${resourceType}s available for dropdown`);
+    // Operation logged
     return;
   }
 

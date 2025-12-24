@@ -244,6 +244,8 @@ urlpatterns = [
     path('api/discovery/lfg/create', views.api_discovery_lfg_create, name='api_discovery_lfg_create'),
     path('api/discovery/lfg/<int:post_id>/join', views.api_discovery_lfg_join, name='api_discovery_lfg_join'),
     path('api/discovery/lfg-games', views.api_discovery_network_lfg_games, name='api_discovery_network_lfg_games'),
+    path('api/discovery/lfg-activities', views.api_discovery_network_lfg_activities, name='api_discovery_network_lfg_activities'),
+    path('api/discovery/game-config', views.api_discovery_game_config, name='api_discovery_game_config'),
     path('api/discovery/games', views.api_discovery_network_games, name='api_discovery_network_games'),
     path('api/discovery/game-templates', views.api_discovery_game_templates, name='api_discovery_game_templates'),
     path('api/discovery/game-roles', views.api_discovery_game_roles, name='api_discovery_game_roles'),
@@ -253,12 +255,17 @@ urlpatterns = [
     path('api/discovery/rejoin', views.api_discovery_network_rejoin, name='api_discovery_network_rejoin'),
 
     # Game Discovery Endpoints (new)
+    path('api/igdb/search', views.api_igdb_search, name='api_igdb_search'),
     path('api/discovery/games-list', views.api_discovery_games_list, name='api_discovery_games_list'),
     path('api/discovery/share-game', views.api_discovery_share_game, name='api_discovery_share_game'),
     path('api/discovery/game-share-limit', views.api_discovery_game_share_limit, name='api_discovery_game_share_limit'),
     path('api/discovery/games/<str:game_id>/reviews', views.api_discovery_game_reviews, name='api_discovery_game_reviews'),
     path('api/discovery/games/<str:game_id>/discussions', views.api_discovery_game_discussions, name='api_discovery_game_discussions'),
     path('api/discovery/discussions/<int:discussion_id>/upvote', views.api_discovery_discussion_upvote, name='api_discovery_discussion_upvote'),
+
+    # User Settings for Discovery Network
+    path('api/discovery/user/main-server', views.api_discovery_user_main_server, name='api_discovery_user_main_server'),
+    path('api/discovery/user/set-main-server', views.api_discovery_user_set_main_server, name='api_discovery_user_set_main_server'),
 
     # Creator Discovery Endpoints (stubs for now - Twitch/YouTube integration pending)
     path('api/discovery/creators-list', views.api_discovery_creators_list, name='api_discovery_creators_list'),

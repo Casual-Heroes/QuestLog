@@ -1220,7 +1220,7 @@ async function loadRoles() {
       });
     }
   } catch (err) {
-    console.error('Failed to load roles:', err);
+    // Failed to load roles:
   }
 }
 
@@ -1242,7 +1242,7 @@ async function loadXPStatus() {
       updateXPStatusUI(xpEnabled);
     }
   } catch (err) {
-    console.error('Failed to load XP status:', err);
+    // Failed to load XP status:
   }
 }
 
@@ -1979,7 +1979,7 @@ async function fetchGuildResources() {
     const rolesData = await rolesRes.json();
     guildRoles = (rolesData.roles || []).filter(r => !r.managed && r.name !== '@everyone');
   } catch (error) {
-    console.error('Error fetching guild resources:', error);
+    // Error fetching guild resources:
   }
 }
 
@@ -2066,7 +2066,7 @@ async function loadBoostEvents() {
       showToast(data.error || 'Failed to load boost events', 'error');
     }
   } catch (error) {
-    console.error('Error loading boost events:', error);
+    // Error loading boost events:
     showToast('Error loading boost events', 'error');
     document.getElementById('boostEventsLoading').classList.add('hidden');
     document.getElementById('boostEventsContent').classList.remove('hidden');
@@ -2237,7 +2237,7 @@ async function toggleBoostEvent(eventId, active) {
       renderBoostEvents();
     }
   } catch (error) {
-    console.error('Error toggling boost event:', error);
+    // Error toggling boost event:
     showToast('Error updating boost event', 'error');
     renderBoostEvents();
   }
@@ -2263,7 +2263,7 @@ async function deleteBoostEvent(eventId) {
       showToast(data.error || 'Failed to delete boost event', 'error');
     }
   } catch (error) {
-    console.error('Error deleting boost event:', error);
+    // Error deleting boost event:
     showToast('Error deleting boost event', 'error');
   }
 }
@@ -2385,7 +2385,7 @@ async function submitCreateBoost(event) {
       showToast(data.error || 'Failed to create boost event', 'error');
     }
   } catch (error) {
-    console.error('Error creating boost event:', error);
+    // Error creating boost event:
     showToast('Error creating boost event', 'error');
   }
 }
@@ -2583,7 +2583,7 @@ async function submitEditBoost(event) {
       showToast(data.error || 'Failed to update boost event', 'error');
     }
   } catch (error) {
-    console.error('Error updating boost event:', error);
+    // Error updating boost event:
     showToast('Error updating boost event', 'error');
   }
 }

@@ -200,7 +200,7 @@
             <div id="createLFGPlatformContainer"></div>
           </div>
 
-          <div>
+          <div id="activityFieldWrapper">
             <label class="block text-sm font-medium text-gray-300 mb-2">Activity Type</label>
             <div id="createLFGActivityContainer"></div>
           </div>
@@ -272,6 +272,8 @@ const guildId = '{{ guild.id }}';
 let allLFGPosts = [];
 let filteredLFGPosts = [];
 let displayedCount = 20;
+let lfgPageInitialized = false;
+let lfgPageInitializing = false;
 
 // Get CSRF token from cookie
 function getCookie(name) {
@@ -315,9 +317,11 @@ let gameNameMap = {};
 // User preferences
 let userPreferences = {
   lfg_filter_games: false,
+  lfg_filter_activities: false,
   lfg_show_now: false,
   lfg_hide_voice: false,
-  preferred_games: []
+  preferred_games: [],
+  preferred_activities: []
 };
 
 // Load user preferences
@@ -328,14 +332,23 @@ async function loadUserPreferences() {
     if (data.success) {
       userPreferences = {
         lfg_filter_games: data.preferences.lfg_filter_games || false,
+        lfg_filter_activities: data.preferences.lfg_filter_activities || false,
         lfg_show_now: data.preferences.lfg_show_now || false,
         lfg_hide_voice: data.preferences.lfg_hide_voice || false,
-        preferred_games: data.preferences.preferred_games || []
+        preferred_games: data.preferences.preferred_games || [],
+        preferred_activities: data.preferences.preferred_activities || []
       };
-      console.log('Loaded user preferences:', userPreferences);
+
+      // Apply user preferences to filter dropdowns (only if auto-filter is enabled AND they have a single preferred activity)
+      if (userPreferences.lfg_filter_activities && userPreferences.preferred_activities.length === 1) {
+        // Set the activity filter to their single preferred activity
+        if (filterActivitySelect) {
+          filterActivitySelect.setValue(userPreferences.preferred_activities[0]);
+        }
+      }
     }
   } catch (error) {
-    console.error('Failed to load user preferences:', error);
+    // Failed to load user preferences
   }
 }
 
@@ -351,7 +364,7 @@ async function loadLFGPosts() {
       renderLFGPosts();
     }
   } catch (error) {
-    console.error('Failed to load LFG posts:', error);
+    // Failed to load LFG posts
     showLFGError('Failed to load LFG posts. Please try again later.');
   }
 }
@@ -369,6 +382,11 @@ function applyUserPreferenceFilters() {
       });
     });
   }
+
+  // Note: Manual activity filter dropdown always takes precedence over preferences
+  // Preferences only apply on initial page load (handled in loadUserPreferences)
+  // Once user manually changes the dropdown, their selection overrides preferences
+  // This happens automatically through applyLFGFilters() which is called by manual filter dropdowns
 
   // Hide voice-required posts if enabled
   if (userPreferences.lfg_hide_voice) {
@@ -470,7 +488,7 @@ function renderLFGPosts() {
               </span>
             ` : ''}
             <span class="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-orange-900/50 text-orange-300">
-              ⏰ ${formatStartTime(post.start_time)}
+              ⏰ ${formatStartTime(post.start_time, post.scheduled_time)}
             </span>
           </div>
 
@@ -529,8 +547,27 @@ function formatTimeAgo(timestamp) {
   return `${Math.floor(diff / 86400)}d ago`;
 }
 
-// Format start time
-function formatStartTime(startTime) {
+// Format start time - now accepts either string or timestamp
+function formatStartTime(startTime, scheduledTime = null) {
+  // If we have a scheduled_time timestamp and it's for a custom time, format it nicely
+  if (startTime === 'custom' && scheduledTime) {
+    const date = new Date(scheduledTime * 1000); // Convert Unix timestamp to JS Date
+    const now = new Date();
+    const isToday = date.toDateString() === now.toDateString();
+    const isTomorrow = date.toDateString() === new Date(now.getTime() + 86400000).toDateString();
+
+    const timeStr = date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+
+    if (isToday) {
+      return `Today at ${timeStr}`;
+    } else if (isTomorrow) {
+      return `Tomorrow at ${timeStr}`;
+    } else {
+      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ` at ${timeStr}`;
+    }
+  }
+
+  // Fallback to preset labels
   const options = {
     now: 'Right Now',
     hour: 'In 1 Hour',
@@ -570,9 +607,14 @@ function applyLFGFilters() {
 
   // THEN apply manual filter dropdown selections
   filteredLFGPosts = posts.filter(post => {
-    if (game && post.game !== game) return false;
+    // Game filter: Convert slug back to game name for comparison
+    if (game) {
+      const gameName = gameNameMap[game] || game;
+      if (post.game !== gameName) return false;
+    }
     if (platform && post.platform !== platform) return false;
-    if (activity && post.activity !== activity) return false;
+    // Activity filter: Case-insensitive comparison
+    if (activity && post.activity && post.activity.toLowerCase() !== activity.toLowerCase()) return false;
     if (skill && post.skill_level !== skill) return false;
     if (time) {
       // Implement time filtering logic
@@ -634,34 +676,26 @@ document.getElementById('createLFGForm').addEventListener('submit', async (e) =>
   // Add guild_id to form data
   data.guild_id = guildId;
 
-  // Add custom select values to form data
   if (createGameSelect) {
     const gameSlug = createGameSelect.getValue();
-    // Convert slug to full game name
     data.game = gameNameMap[gameSlug] || gameSlug;
   }
 
-  // Handle Class + Spec system OR simple role system
   if (createClassSelect && createClassSelect.getValue()) {
-    // Class + Spec system (WoW style)
     data.player_class = createClassSelect.getValue();
     if (createSpecSelect && createSpecSelect.getValue()) {
       data.player_spec = createSpecSelect.getValue();
-      // Combine as "Class - Spec" for display
       data.player_role = `${data.player_class} - ${data.player_spec}`;
     } else {
       data.player_role = data.player_class;
     }
   } else if (createRoleSelect && createRoleSelect.getValue()) {
-    // Simple role system (GW2 style)
     data.player_role = createRoleSelect.getValue();
   }
 
   if (createPlatformSelect) data.platform = createPlatformSelect.getValue();
   if (createActivitySelect) data.activity = createActivitySelect.getValue();
   if (createSkillSelect) data.skill_level = createSkillSelect.getValue();
-
-  console.log('📤 Submitting LFG post:', data);
 
   try {
     const response = await fetch('/api/discovery/lfg/create', {
@@ -678,13 +712,13 @@ document.getElementById('createLFGForm').addEventListener('submit', async (e) =>
     const result = await response.json();
     if (result.success) {
       hideCreateModal();
-      loadLFGPosts(); // Reload posts
+      loadLFGPosts();
       alert('LFG post created successfully!');
     } else {
       alert(result.error || 'Failed to create LFG post');
     }
   } catch (error) {
-    console.error('Failed to create LFG post:', error);
+    // Failed to create LFG post
     alert('Failed to create LFG post. Please try again.');
   }
 });
@@ -851,7 +885,7 @@ async function joinLFG(postId) {
     document.getElementById('joinLFGModal').classList.remove('hidden');
 
   } catch (error) {
-    console.error('Failed to load game templates:', error);
+    // Failed to load game templates
     showToast('Failed to load join options', 'error');
   }
 }
@@ -887,12 +921,12 @@ async function submitJoinLFG(postId) {
     if (result.success) {
       hideJoinModal();
       showToast('✓ Successfully joined! The group creator will contact you.', 'success');
-      loadLFGPosts(); // Reload to update member counts
+      loadLFGPosts();
     } else {
       showToast(result.error || 'Failed to join LFG', 'error');
     }
   } catch (error) {
-    console.error('Failed to join LFG:', error);
+    // Failed to join LFG
     showToast('Failed to join LFG. Please try again.', 'error');
   }
 }
@@ -946,6 +980,8 @@ function showLFGError(message) {
 
 // Initialize filter dropdowns with custom select
 function initializeFilterDropdowns() {
+  // Game filter is created by loadGamesList(), so we don't create it here
+
   // Initialize Platform filter
   filterPlatformSelect = createCustomSelect({
     container: '#lfgFilterPlatformContainer',
@@ -964,20 +1000,25 @@ function initializeFilterDropdowns() {
     onSelect: applyLFGFilters
   });
 
-  // Initialize Activity filter
+  // Initialize Activity filter (using standardized Discovery Network activities)
   filterActivitySelect = createCustomSelect({
     container: '#lfgFilterActivityContainer',
     name: 'filter_activity',
     placeholder: 'Any Activity',
     items: [
       {value: '', label: 'Any Activity'},
-      {value: 'competitive', label: 'Competitive/Ranked', icon: 'trophy'},
-      {value: 'casual', label: 'Casual', icon: 'smile'},
-      {value: 'raid', label: 'Raid/Dungeon', icon: 'dungeon'},
-      {value: 'quest', label: 'Quest/Mission', icon: 'map'},
-      {value: 'pvp', label: 'PvP', icon: 'crosshairs'},
-      {value: 'pve', label: 'PvE', icon: 'dragon'},
-      {value: 'custom', label: 'Custom Game', icon: 'cog'}
+      {value: 'PvP', label: 'PvP', icon: 'crosshairs'},
+      {value: 'Raid', label: 'Raid', icon: 'shield-alt'},
+      {value: 'Dungeon', label: 'Dungeon', icon: 'dungeon'},
+      {value: 'Casual', label: 'Casual', icon: 'smile'},
+      {value: 'Story', label: 'Story', icon: 'book'},
+      {value: 'Endgame', label: 'Endgame', icon: 'trophy'},
+      {value: 'Leveling', label: 'Leveling', icon: 'arrow-up'},
+      {value: 'Farming', label: 'Farming', icon: 'seedling'},
+      {value: 'Social', label: 'Social', icon: 'users'},
+      {value: 'Event', label: 'Event', icon: 'calendar-alt'},
+      {value: 'Achievement', label: 'Achievement', icon: 'medal'},
+      {value: 'Roleplay', label: 'Roleplay', icon: 'masks-theater'}
     ],
     color: 'indigo',
     onSelect: applyLFGFilters
@@ -1020,9 +1061,6 @@ function initializeFilterDropdowns() {
 
 // Load game-specific roles/classes from templates
 async function loadGameRoles(gameName) {
-  console.log('🎮 loadGameRoles called with:', gameName);
-
-  // Hide all role containers first
   document.getElementById('classSelectionContainer').classList.add('hidden');
   document.getElementById('specSelectionContainer').classList.add('hidden');
   document.getElementById('roleSelectionContainer').classList.add('hidden');
@@ -1030,33 +1068,73 @@ async function loadGameRoles(gameName) {
   if (!gameName) return;
 
   try {
-    console.log('📡 Fetching templates from API...');
     const response = await fetch(`/api/discovery/game-templates?game=${encodeURIComponent(gameName)}`);
     const data = await response.json();
-    console.log('📦 API Response:', data);
 
     if (!data.success || !data.templates || data.templates.length === 0) {
-      console.log('⚠️ No templates found for this game');
       return;
     }
 
     currentGameTemplates = data.templates;
 
-    // Check if this game has a Class + Spec system (dependent templates)
     const classTemplate = data.templates.find(t => t.name === 'Class');
     const specTemplate = data.templates.find(t => t.depends_on === 'Class' || t.name === 'Specialization' || t.name === 'Subclass');
 
     if (classTemplate && specTemplate && specTemplate.choices && typeof specTemplate.choices === 'object') {
-      // This game has Class + Spec system (like WoW)
-      console.log('✅ Detected Class + Spec system');
       loadClassSpecSystem(classTemplate, specTemplate);
     } else {
-      // This game has simple role system (like GW2) - flatten all choices
-      console.log('✅ Detected simple role system');
       loadSimpleRoleSystem(data.templates);
     }
   } catch (error) {
-    console.error('❌ Failed to load game roles:', error);
+    // Failed to load game roles
+  }
+}
+
+// Load game-specific custom options (Activity dropdown)
+async function loadGameCustomOptions(gameName) {
+  if (!gameName) {
+    document.getElementById('activityFieldWrapper').classList.add('hidden');
+    return;
+  }
+
+  try {
+    const response = await fetch(`/api/discovery/game-config?game_name=${encodeURIComponent(gameName)}`);
+    const data = await response.json();
+
+    if (!data.success || !data.custom_options || data.custom_options.length === 0) {
+      document.getElementById('activityFieldWrapper').classList.add('hidden');
+      return;
+    }
+
+    const activityField = data.custom_options.find(field => field.name === 'Activity');
+
+    if (!activityField || !activityField.choices || activityField.choices.length === 0) {
+      document.getElementById('activityFieldWrapper').classList.add('hidden');
+      return;
+    }
+
+    const activityItems = activityField.choices.map(activity => ({
+      value: activity,
+      label: activity,
+      icon: getActivityIcon(activity)
+    }));
+
+    if (createActivitySelect) {
+      createActivitySelect.destroy();
+    }
+
+    createActivitySelect = createCustomSelect({
+      container: '#createLFGActivityContainer',
+      name: 'activity',
+      placeholder: 'Select activity...',
+      items: activityItems,
+      selected: activityItems.length > 0 ? activityItems[0].value : null,
+      color: 'indigo'
+    });
+
+    document.getElementById('activityFieldWrapper').classList.remove('hidden');
+  } catch (error) {
+    document.getElementById('activityFieldWrapper').classList.add('hidden');
   }
 }
 
@@ -1084,7 +1162,6 @@ function loadClassSpecSystem(classTemplate, specTemplate) {
   });
 
   document.getElementById('classSelectionContainer').classList.remove('hidden');
-  console.log(`✅ Loaded ${classItems.length} classes`);
 }
 
 // Load specializations for selected class
@@ -1095,7 +1172,6 @@ function loadSpecializationsForClass(className, specTemplate) {
 
   const specs = specTemplate.choices[className];
   if (!specs || !Array.isArray(specs) || specs.length === 0) {
-    console.log(`⚠️ No specializations found for ${className}`);
     return;
   }
 
@@ -1117,14 +1193,18 @@ function loadSpecializationsForClass(className, specTemplate) {
   });
 
   document.getElementById('specSelectionContainer').classList.remove('hidden');
-  console.log(`✅ Loaded ${specItems.length} specializations for ${className}`);
 }
 
 // Load simple role system (GW2 style) - flatten all choices
 function loadSimpleRoleSystem(templates) {
   const allRoles = new Set();
 
+  // Only process templates that are NOT "Activity" (Activity has its own dedicated dropdown)
   templates.forEach(template => {
+    if (template.name === 'Activity') {
+      return; // Skip Activity template - it's handled by loadGameCustomOptions
+    }
+
     if (template.choices && Array.isArray(template.choices)) {
       template.choices.forEach(choice => {
         if (choice && choice.trim()) {
@@ -1135,8 +1215,7 @@ function loadSimpleRoleSystem(templates) {
   });
 
   if (allRoles.size === 0) {
-    console.log('⚠️ No roles found');
-    return;
+    return; // No role/class templates found, keep container hidden
   }
 
   const roleItems = Array.from(allRoles).map(role => ({
@@ -1157,7 +1236,6 @@ function loadSimpleRoleSystem(templates) {
   });
 
   document.getElementById('roleSelectionContainer').classList.remove('hidden');
-  console.log(`✅ Loaded ${allRoles.size} roles`);
 }
 
 // Get icon for WoW/D&D style classes
@@ -1242,8 +1320,28 @@ function getRoleIcon(role) {
   return getClassIcon(role);
 }
 
+// Get icon for activity types (standardized across Discovery Network)
+function getActivityIcon(activity) {
+  const activityLower = activity.toLowerCase();
+
+  if (activityLower === 'pvp') return 'crosshairs';
+  if (activityLower === 'raid') return 'shield-alt';
+  if (activityLower === 'dungeon') return 'dungeon';
+  if (activityLower === 'casual') return 'smile';
+  if (activityLower === 'story') return 'book';
+  if (activityLower === 'endgame') return 'trophy';
+  if (activityLower === 'leveling') return 'arrow-up';
+  if (activityLower === 'farming') return 'seedling';
+  if (activityLower === 'social') return 'users';
+  if (activityLower === 'event') return 'calendar-alt';
+  if (activityLower === 'achievement') return 'medal';
+  if (activityLower === 'roleplay') return 'masks-theater';
+
+  return 'gamepad';
+}
+
 // Load games list from LFG settings across Discovery Network
-async function loadGamesList() {
+async function loadLFGGamesList() {
   try {
     const response = await fetch('/api/discovery/lfg-games');
     const data = await response.json();
@@ -1265,7 +1363,10 @@ async function loadGamesList() {
         });
       });
 
-      // Initialize Filter Game dropdown
+      // Update Filter Game dropdown
+      if (filterGameSelect && filterGameSelect.destroy) {
+        filterGameSelect.destroy();
+      }
       filterGameSelect = createCustomSelect({
         container: '#lfgFilterGameContainer',
         name: 'filter_game',
@@ -1286,11 +1387,10 @@ async function loadGamesList() {
         items: gameItems,
         color: 'indigo',
         onSelect: (value) => {
-          console.log('🎯 Game selected:', value);
           const gameName = gameNameMap[value] || value;
-          console.log('📝 Game name mapped to:', gameName);
           if (gameName) {
             loadGameRoles(gameName);
+            loadGameCustomOptions(gameName);
           }
         }
       });
@@ -1312,23 +1412,9 @@ async function loadGamesList() {
         color: 'indigo'
       });
 
-      // Initialize Activity Type dropdown
-      createActivitySelect = createCustomSelect({
-        container: '#createLFGActivityContainer',
-        name: 'activity',
-        placeholder: 'Select activity...',
-        items: [
-          {value: 'casual', label: 'Casual', icon: 'smile'},
-          {value: 'competitive', label: 'Competitive/Ranked', icon: 'trophy'},
-          {value: 'raid', label: 'Raid/Dungeon', icon: 'dungeon'},
-          {value: 'quest', label: 'Quest/Mission', icon: 'map'},
-          {value: 'pvp', label: 'PvP', icon: 'crosshairs'},
-          {value: 'pve', label: 'PvE', icon: 'dragon'},
-          {value: 'custom', label: 'Custom Game', icon: 'cog'}
-        ],
-        selected: 'casual',
-        color: 'indigo'
-      });
+      // Activity dropdown will be dynamically loaded based on selected game
+      // Hide it initially until a game is selected
+      document.getElementById('activityFieldWrapper').classList.add('hidden');
 
       // Initialize Skill Level dropdown
       createSkillSelect = createCustomSelect({
@@ -1347,9 +1433,8 @@ async function loadGamesList() {
       });
     }
   } catch (error) {
-    console.error('Failed to load games:', error);
+    // Failed to load games
 
-    // Initialize with error state
     filterGameSelect = createCustomSelect({
       container: '#lfgFilterGameContainer',
       name: 'filter_game',
@@ -1370,19 +1455,35 @@ async function loadGamesList() {
 
 // Initialize page
 async function initializeLFGPage() {
-  // Load user preferences FIRST
-  await loadUserPreferences();
+  // Prevent multiple simultaneous initializations
+  if (lfgPageInitializing || lfgPageInitialized) {
+    return;
+  }
 
-  // Initialize filter dropdowns
-  initializeFilterDropdowns();
+  lfgPageInitializing = true;
 
-  // Load games list and initialize create modal dropdowns
-  await loadGamesList();
+  try {
+    await loadUserPreferences();
+    await loadLFGGamesList();
+    initializeFilterDropdowns();
 
-  // Load LFG posts (will automatically apply user preferences)
-  loadLFGPosts();
+    const urlParams = new URLSearchParams(window.location.hash.split('?')[1] || '');
+    const gameParam = urlParams.get('game');
+    if (gameParam && filterGameSelect) {
+      const gameSlug = gameParam.toLowerCase().replace(/\s+/g, '-').replace(/[:']/g, '');
+      filterGameSelect.setValue(gameSlug);
+    }
+
+    loadLFGPosts();
+
+    lfgPageInitialized = true;
+  } catch (error) {
+    // Error initializing LFG page
+  } finally {
+    lfgPageInitializing = false;
+  }
 }
 
-// Load on page load
-initializeLFGPage();
+// Don't initialize on page load - wait for tab to be visible
+// initializeLFGPage() will be called by switchTab() when the LFG tab is clicked
 </script>

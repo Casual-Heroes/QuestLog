@@ -84,7 +84,7 @@ async function loadAdminData() {
     renderApplications();
 
   } catch (error) {
-    console.error('Failed to load admin data:', error);
+    // Failed to load admin data:
     document.getElementById('applicationsList').innerHTML = `
       <div class="bg-red-900/20 border border-red-700 rounded-lg p-6 text-center">
         <p class="text-red-300">Failed to load applications: ${error.message}</p>
@@ -268,7 +268,7 @@ async function approveApplication(appId) {
       alert('Failed to approve: ' + data.error);
     }
   } catch (error) {
-    console.error('Failed to approve application:', error);
+    // Failed to approve application:
     alert('Failed to approve application');
   }
 }
@@ -303,7 +303,7 @@ async function denyApplication(appId, reason) {
       alert('Failed to deny: ' + data.error);
     }
   } catch (error) {
-    console.error('Failed to deny application:', error);
+    // Failed to deny application:
     alert('Failed to deny application');
   }
 }
@@ -343,7 +343,7 @@ async function banUser(appId, reason, violationType) {
       alert('Failed to ban: ' + data.error);
     }
   } catch (error) {
-    console.error('Failed to ban user:', error);
+    // Failed to ban user:
     alert('Failed to ban user');
   }
 }

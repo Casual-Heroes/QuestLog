@@ -288,14 +288,8 @@
 
 {% block extra_js %}
 <script>
-// Test function to verify JS is loaded
-console.log('Flair Store JS loaded successfully');
-
 async function purchaseFlair(flairName, flairType, cost) {
-  console.log('purchaseFlair() called with:', flairName, flairType, cost);
-
   const currentBalance = parseInt(document.getElementById('token-balance').textContent);
-  console.log('Current balance:', currentBalance);
 
   // Check if already equipped
   {% if current_flair %}
@@ -324,9 +318,7 @@ async function purchaseFlair(flairName, flairType, cost) {
       })
     });
 
-    console.log('Response status:', response.status);
     const data = await response.json();
-    console.log('Response data:', data);
 
     if (data.success) {
       showToast(`✨ ${data.message}`, 'success');
@@ -338,7 +330,6 @@ async function purchaseFlair(flairName, flairType, cost) {
       showToast(data.error, 'error');
     }
   } catch (error) {
-    console.error('Purchase error:', error);
     showToast('Failed to purchase flair. Please try again.', 'error');
   }
 }
@@ -369,7 +360,6 @@ async function removeFlair() {
       showToast(data.error || 'Failed to remove flair.', 'error');
     }
   } catch (err) {
-    console.error('Failed to remove flair:', err);
     showToast('Failed to remove flair. Please try again.', 'error');
   }
 }

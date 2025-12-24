@@ -8,13 +8,13 @@
 // Only define forceGuildSync if it doesn't already exist
 if (typeof forceGuildSync === 'undefined') {
   window.forceGuildSync = async function() {
-    console.log('Sync button clicked');
+    // Sync button clicked
     const button = document.getElementById('syncButton');
     const icon = document.getElementById('syncIcon');
     const text = document.getElementById('syncText');
 
     if (!button || !icon || !text) {
-      console.error('Sync button elements not found');
+      // Sync button elements not found
       return;
     }
 
@@ -29,7 +29,7 @@ if (typeof forceGuildSync === 'undefined') {
       const csrfToken = '{{ csrf_token }}';
       const syncUrl = '/questlog/api/guild/' + guildId + '/sync/';
 
-      console.log('Syncing guild:', guildId, 'URL:', syncUrl);
+      // Syncing guild:
 
       const response = await fetch(syncUrl, {
         method: 'POST',
@@ -38,9 +38,9 @@ if (typeof forceGuildSync === 'undefined') {
         }
       });
 
-      console.log('Response status:', response.status);
+      // Response status:
       const data = await response.json();
-      console.log('Response data:', data);
+      // Response data:
 
       if (data.success) {
         // Success - reload page to show updated data
@@ -60,7 +60,7 @@ if (typeof forceGuildSync === 'undefined') {
         }, 2000);
       }
     } catch (error) {
-      console.error('Sync error:', error);
+      // Sync error:
       alert('Sync error: ' + error.message);
       text.textContent = 'Connection Error';
       setTimeout(() => {

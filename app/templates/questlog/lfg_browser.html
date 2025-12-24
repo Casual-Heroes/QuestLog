@@ -288,7 +288,6 @@
   const currentUserId = '{{ discord_user.id }}';
   const isAdmin = {{ is_admin|lower }};  // Server admin status - NEVER changes
   let canManageGroups = {{ can_manage_groups|lower }};  // LFG Manager status - can be updated
-  console.log('[LFG Browser] isAdmin (server admin):', isAdmin, 'canManageGroups:', canManageGroups);
   let allGroups = [];
   const gamesData = JSON.parse(document.getElementById('games-data').textContent);
 
@@ -319,8 +318,7 @@
         }
       }
     } catch (err) {
-      // Silently fail - don't disrupt user experience with errors
-      console.error('Error checking LFG Manager status:', err);
+      // Silently fail - don't disrupt user experience
     }
   }
 
@@ -337,11 +335,10 @@
       allGroups = data.groups || [];
       renderGroups();
     } catch (err) {
-      console.error(err);
       document.getElementById('groupsList').innerHTML = `
         <div class="text-center text-red-500 py-12">
           <i class="fas fa-exclamation-circle text-4xl mb-2"></i>
-          <p>${err.message || 'Error loading groups'}</p>
+          <p>Failed to load groups</p>
         </div>
       `;
     }
@@ -382,9 +379,7 @@
     }
 
     if (filtered.length === 0) {
-      console.log('[LFG Browser] Empty state - isAdmin:', isAdmin, 'Type:', typeof isAdmin);
       if (isAdmin === true) {
-        console.log('[LFG Browser] Showing ADMIN empty state');
         container.innerHTML = `
           <div class="text-center text-gray-500 py-12">
             <i class="fas fa-users-slash text-4xl mb-2"></i>
@@ -401,7 +396,6 @@
           </div>
         `;
       } else {
-        console.log('[LFG Browser] Showing MEMBER empty state');
         container.innerHTML = `
           <div class="text-center text-gray-500 py-12">
             <i class="fas fa-users-slash text-4xl mb-2"></i>
@@ -756,8 +750,7 @@
       showToast(data.message || 'Joined successfully!', 'success');
       await loadGroups();
     } catch (err) {
-      console.error(err);
-      showToast(err.message || 'Error joining group', 'error');
+      showToast('Failed to join group', 'error');
     }
   }
 
@@ -782,8 +775,7 @@
       showToast(data.message || 'Left group successfully', 'success');
       await loadGroups();
     } catch (err) {
-      console.error(err);
-      showToast(err.message || 'Error leaving group', 'error');
+      showToast('Failed to leave group', 'error');
     }
   }
 
@@ -805,8 +797,7 @@
       showToast(data.message || `Removed ${displayName} from group`, 'success');
       await loadGroups();
     } catch (err) {
-      console.error(err);
-      showToast(err.message || 'Error removing member', 'error');
+      showToast('Failed to remove member', 'error');
     }
   }
 
@@ -830,8 +821,7 @@
         window.location.href = `discord://discord.com/channels/${guildId}/${threadId}`;
       }, 500);
     } catch (err) {
-      console.error(err);
-      showToast(err.message || 'Error joining thread', 'error');
+      showToast('Failed to join thread', 'error');
     }
   }
 
@@ -974,7 +964,6 @@
       }).join('');
 
     } catch (err) {
-      console.error(err);
       container.innerHTML = '<p class="text-red-500 text-sm">Failed to load members</p>';
     }
   }
@@ -1032,8 +1021,7 @@
       showToast(data.message || 'Group updated successfully!', 'success');
       await loadGroups();
     } catch (err) {
-      console.error(err);
-      showToast(err.message || 'Error updating group', 'error');
+      showToast('Failed to update group', 'error');
     }
   }
 
@@ -1058,8 +1046,7 @@
       showToast(data.message || 'Group deleted successfully', 'success');
       await loadGroups();
     } catch (err) {
-      console.error(err);
-      showToast(err.message || 'Error deleting group', 'error');
+      showToast('Failed to delete group', 'error');
     }
   }
 
@@ -1091,7 +1078,7 @@
           });
         }
       } catch (err) {
-        console.error('Failed to load roles:', err);
+        // Silently fail
       }
     }
   }
@@ -1125,7 +1112,6 @@
       `).join('');
 
     } catch (err) {
-      console.error(err);
       container.innerHTML = '<p class="text-red-500 text-sm">Failed to load members</p>';
     }
   }
@@ -1283,8 +1269,7 @@
 
       await loadGroups();
     } catch (err) {
-      console.error(err);
-      showToast(err.message || 'Error creating group', 'error');
+      showToast('Failed to create group', 'error');
     }
   }
 
@@ -1398,8 +1383,7 @@
       showToast(data.message || 'Class updated successfully!', 'success');
       await loadGroups();
     } catch (err) {
-      console.error(err);
-      showToast(err.message || 'Error updating class', 'error');
+      showToast('Failed to update class', 'error');
     }
   }
 
@@ -1504,8 +1488,7 @@
       nextBtn.disabled = (offset + logs.length) >= totalCount;
 
     } catch (err) {
-      console.error(err);
-      content.innerHTML = `<p class="text-red-400 text-center py-8">${err.message || 'Error loading audit logs'}</p>`;
+      content.innerHTML = `<p class="text-red-400 text-center py-8">Failed to load audit logs</p>`;
       pagination.textContent = '';
       prevBtn.disabled = true;
       nextBtn.disabled = true;
