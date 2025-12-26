@@ -1,6 +1,7 @@
 """
 Stripe integration utilities for QuestLog subscription management.
 """
+import logging
 import stripe
 from django.conf import settings
 from django.urls import reverse
@@ -11,6 +12,8 @@ from .models import Guild as GuildModel, GuildModule
 
 # Initialize Stripe
 stripe.api_key = settings.STRIPE_SECRET_KEY
+
+logger = logging.getLogger(__name__)
 
 
 def create_checkout_session(guild_id, items, billing_cycle='monthly', success_url=None, cancel_url=None):
@@ -116,8 +119,7 @@ def handle_checkout_completed(session):
     Update database to activate purchased modules.
     """
     try:
-        print(f"[WEBHOOK] Starting checkout completion handler")
-        print(f"[WEBHOOK] Session data: {session}")
+        logger.info(f"Processing checkout completion webhook")
 
         guild_id = int(session.get('client_reference_id') or session.get('metadata', {}).get('guild_id'))
         subscription_id = session.get('subscription')
@@ -125,12 +127,7 @@ def handle_checkout_completed(session):
         is_lifetime = session.get('metadata', {}).get('is_lifetime') == 'true'
         billing_cycle_meta = session.get('metadata', {}).get('billing_cycle')
 
-        print(f"[WEBHOOK] Extracted data:")
-        print(f"  Guild ID: {guild_id}")
-        print(f"  Subscription ID: {subscription_id}")
-        print(f"  Customer ID: {customer_id}")
-        print(f"  Is Lifetime: {is_lifetime}")
-        print(f"  Billing Cycle (metadata): {billing_cycle_meta}")
+        logger.info(f"Checkout for guild {guild_id}: subscription={subscription_id}, lifetime={is_lifetime}, cycle={billing_cycle_meta}")
 
         if not guild_id:
             raise ValueError("No guild_id in session metadata")
@@ -182,16 +179,14 @@ def handle_checkout_completed(session):
             return True
 
         # Get subscription details to see what was purchased (recurring subscriptions)
-        print(f"[WEBHOOK] Retrieving subscription from Stripe: {subscription_id}")
+        logger.info(f"Retrieving subscription {subscription_id} from Stripe")
         subscription = stripe.Subscription.retrieve(subscription_id)
-        print(f"[WEBHOOK] Subscription retrieved successfully")
 
         with get_db_session() as db:
             # Update guild record
             guild_record = db.query(GuildModel).filter_by(guild_id=guild_id).first()
             if not guild_record:
                 # Create guild record if it doesn't exist
-                print(f"[WEBHOOK] Creating new guild record for {guild_id}")
                 guild_record = GuildModel(
                     guild_id=guild_id,
                     is_vip=False,
@@ -200,7 +195,6 @@ def handle_checkout_completed(session):
                 db.add(guild_record)
                 db.flush()
             else:
-                print(f"[WEBHOOK] Found existing guild record for {guild_id}")
 
             # Store Stripe customer and subscription IDs
             guild_record.stripe_customer_id = customer_id
@@ -211,7 +205,6 @@ def handle_checkout_completed(session):
             interval = subscription['items']['data'][0]['price']['recurring']['interval']
             interval_count = subscription['items']['data'][0]['price']['recurring'].get('interval_count', 1)
 
-            print(f"[WEBHOOK] Subscription interval: {interval}, count: {interval_count}")
 
             if interval == 'month':
                 if interval_count == 1:
@@ -227,7 +220,6 @@ def handle_checkout_completed(session):
             else:
                 billing_cycle = 'monthly'  # Default
 
-            print(f"[WEBHOOK] Determined billing_cycle: {billing_cycle}")
 
             # Activate modules based on subscription items
             is_complete_bundle = False
@@ -235,17 +227,10 @@ def handle_checkout_completed(session):
                 price_id = item['price']['id']
                 modules_to_activate = []
 
-                print(f"[WEBHOOK] Processing subscription item with price_id: {price_id}")
 
                 # Check if this is a bundle purchase
                 bundle_found = False
                 for bundle_key, bundle_config in BUNDLES.items():
-                    print(f"[WEBHOOK] Checking bundle: {bundle_key}")
-                    print(f"  Monthly ID: {bundle_config.get('stripe_price_monthly_id')}")
-                    print(f"  3-Month ID: {bundle_config.get('stripe_price_3month_id')}")
-                    print(f"  6-Month ID: {bundle_config.get('stripe_price_6month_id')}")
-                    print(f"  Yearly ID: {bundle_config.get('stripe_price_yearly_id')}")
-                    print(f"  Lifetime ID: {bundle_config.get('stripe_price_lifetime_id')}")
 
                     if (bundle_config.get('stripe_price_monthly_id') == price_id or
                         bundle_config.get('stripe_price_3month_id') == price_id or
@@ -253,12 +238,10 @@ def handle_checkout_completed(session):
                         bundle_config.get('stripe_price_yearly_id') == price_id or
                         bundle_config.get('stripe_price_lifetime_id') == price_id):
                         # Bundle purchase - activate all modules
-                        print(f"[WEBHOOK] ✅ MATCH FOUND for bundle: {bundle_key}")
                         if bundle_key == 'complete':
                             # Complete Suite: activate ALL modules
                             modules_to_activate = list(MODULES.keys())
                             is_complete_bundle = True
-                            print(f"[WEBHOOK] Activating Complete Suite with all {len(modules_to_activate)} modules")
                         else:
                             # Other bundles: would need custom logic (not implemented yet)
                             # For now, treat as complete suite
@@ -268,7 +251,6 @@ def handle_checkout_completed(session):
                         break
 
                 if not bundle_found:
-                    print(f"[WEBHOOK] ❌ NO BUNDLE MATCH FOUND for price_id: {price_id}")
 
                 # If not a bundle, check individual modules
                 if not bundle_found:
@@ -301,17 +283,12 @@ def handle_checkout_completed(session):
                         existing.stripe_subscription_id = subscription['id']
 
             # Update subscription tier and billing cycle on guild record
-            print(f"[WEBHOOK] is_complete_bundle: {is_complete_bundle}")
             if is_complete_bundle:
                 guild_record.subscription_tier = 'complete'
                 guild_record.billing_cycle = billing_cycle
                 # Get current_period_end from subscription items (not top-level subscription object)
                 current_period_end = subscription['items']['data'][0].get('current_period_end')
                 guild_record.subscription_expires = current_period_end
-                print(f"[WEBHOOK] ✅ Setting guild {guild_id} to Complete Suite")
-                print(f"  Tier: complete")
-                print(f"  Billing Cycle: {billing_cycle}")
-                print(f"  Expires: {current_period_end}")
             else:
                 # Individual module subscription - keep tier as 'free'
                 # Module access is tracked in guild_modules table
@@ -320,18 +297,14 @@ def handle_checkout_completed(session):
                 # Get current_period_end from subscription items
                 current_period_end = subscription['items']['data'][0].get('current_period_end')
                 guild_record.subscription_expires = current_period_end
-                print(f"[WEBHOOK] Setting guild {guild_id} as individual module subscription (tier=free)")
-                print(f"  Billing Cycle: {billing_cycle}")
-                print(f"  Expires: {current_period_end}")
 
-            print(f"[WEBHOOK] Committing changes to database...")
             db.commit()
-            print(f"[WEBHOOK] ✅ Database updated successfully!")
 
+        logger.info(f"Successfully processed checkout for guild")
         return True
 
     except Exception as e:
-        print(f"[WEBHOOK] ❌ ERROR handling checkout completion: {e}")
+        logger.error(f"Error handling checkout completion: {e}")
         import traceback
         traceback.print_exc()
         return False
@@ -361,7 +334,6 @@ def handle_subscription_updated(subscription):
             # Handle cancellation - if cancel_at_period_end is true, keep access until expiration
             if subscription.get('cancel_at_period_end', False):
                 guild_record.subscription_expires = current_period_end
-                print(f"Subscription cancelled for guild {guild_id}, access continues until: {current_period_end}")
             else:
                 # Subscription is active, update expiration to current period end
                 guild_record.subscription_expires = current_period_end
@@ -435,7 +407,6 @@ def handle_subscription_updated(subscription):
         return True
 
     except Exception as e:
-        print(f"Error handling subscription update: {e}")
         return False
 
 
@@ -461,14 +432,12 @@ def handle_subscription_deleted(subscription):
                 guild_record.billing_cycle = None
                 guild_record.subscription_expires = None
                 # Keep customer_id for potential reactivation
-                print(f"Subscription deleted for guild {guild_id}, reverted to free tier")
 
             db.commit()
 
         return True
 
     except Exception as e:
-        print(f"Error handling subscription deletion: {e}")
         return False
 
 
@@ -514,7 +483,6 @@ def cancel_subscription(guild_id):
             return True, f"Subscription cancelled. You'll retain access until {expiry_date}."
 
     except Exception as e:
-        print(f"Error cancelling subscription: {e}")
         return False, f"Error cancelling subscription: {str(e)}"
 
 
@@ -540,5 +508,4 @@ def get_subscription_status(guild_id):
             }
 
     except Exception as e:
-        print(f"Error fetching subscription status: {e}")
         return None

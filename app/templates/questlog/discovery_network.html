@@ -7,6 +7,9 @@
 <!-- Include custom select component -->
 {% include 'questlog/partials/custom_select.html' %}
 
+<!-- CSRF Token for AJAX requests -->
+<div style="display:none;">{% csrf_token %}</div>
+
 <div class="space-y-6">
   <!-- Header -->
   <div class="flex justify-between items-center">
@@ -161,6 +164,12 @@ function switchTab(tabName) {
   const activeTab = document.getElementById('tab-' + tabName);
   activeTab.classList.add('tab-active', 'border-indigo-500', 'text-indigo-400');
   activeTab.classList.remove('border-transparent', 'text-gray-400');
+
+  // Update URL hash without triggering a hashchange event or adding to history
+  // This preserves the current tab when the page is refreshed
+  const currentUrl = new URL(window.location.href);
+  currentUrl.hash = tabName;
+  window.history.replaceState(null, '', currentUrl.toString());
 
   // Initialize tab-specific functionality when switching
   if (tabName === 'games' && typeof initGameDiscovery === 'function') {

@@ -741,30 +741,30 @@ def get_discord_activity():
 
 # Games tracked through AMP
 STATIC_GAME_INFO = {
-    # "CasualHeroes-7DTD01": {
-    #     "display_name": "7 Days to Die",
-    #     "description": "A custom survival world where biomes bite back. Bots spawn threats, buffs twist the rules, nothing is predictable, and that’s the point.",
-    #     "discord_invite": "https://discord.gg/CHHS",
-    #     "steam_link": "https://store.steampowered.com/app/251570/7_Days_to_Die/",
-    #     "steam_appid": "251570",
-    #     "connect_pw": "N/A"
-    # },
-    # "CasualHeroes-ASA01": {
-    #     "display_name": "Ark: Survival Ascended",
-    #     "description": "Custom dinos, wild events, and evolving threats. Build smart, hunt fast, or get hunted.",
-    #     "discord_invite": "https://discord.gg/Zs8tFYY7Gf",
-    #     "steam_link": "https://store.steampowered.com/app/2399830/ARK_Survival_Ascended/",
-    #     "steam_appid": "2399830",
-    #     "connect_pw": "Join our Discord to gain access!"
-    # },
-    # "CasualHeroes-Conan01": {
-    #     "display_name": "Conan Exiles",
-    #     "description": "PvE meets PvP in a fully modded world. Let the chaos rain — builders and devs welcome in the Exiled Lands. LFM Devs!",
-    #     "discord_invite": "https://discord.gg/S4XkS58HTq",
-    #     "steam_link": "https://store.steampowered.com/app/440900/Conan_Exiles/",
-    #     "steam_appid": "440900",
-    #     "connect_pw": "No Password"
-    # },
+    "CH-7DTD01": {
+        "display_name": "Dynamic Horde Protocol (PvE)",
+        "description": "A custom survival world where biomes bite back. Bots spawn threats, buffs twist the rules, nothing is predictable, and that’s the point.",
+        "discord_invite": "https://discord.gg/ECwJWppSjQ",
+        "steam_link": "https://store.steampowered.com/app/251570/7_Days_to_Die/",
+        "steam_appid": "251570",
+        "connect_pw": "Join our Discord to gain access!"
+    },
+    "CH-Icarus01": {
+        "display_name": "Prospectors Lounge",
+        "description": "Custom server, No Lifing is Optional",
+        "discord_invite": "https://discord.gg/ECwJWppSjQ",
+        "steam_link": "https://store.steampowered.com/app/1149460/ICARUS/",
+        "steam_appid": "1149460",
+        "connect_pw": "Join our Discord to gain access!"
+    },
+    "CH-Palworld01": {
+        "display_name": "Pal Sanctuary",
+        "description": "Where we catch Pals and ignore responsibilities together!",
+        "discord_invite": "https://discord.gg/ECwJWppSjQ",
+        "steam_link": "https://store.steampowered.com/app/1623730/Palworld/",
+        "steam_appid": "1623730",
+        "connect_pw": "Join our Discord to gain access!"
+    },
 
     # "CasualHeroes-Ascended01": {
     #     "display_name": "Dragonwilds",
@@ -869,8 +869,20 @@ DISCORD_GAMES = [
 # AMP Instance Data Cache
 # ============================================
 # Cache structure: {instance_name: {"data": {...}, "timestamp": 123456789}}
+#
+# ⚙️ CACHE CONFIGURATION - Adjust this to control how often AMP API is called
+# Lower value = more real-time updates, but more API calls
+# Higher value = fewer API calls, but slower to show status changes
+#
 _amp_instance_cache = {}
-AMP_CACHE_TTL = 300  # 5 minutes (in seconds)
+AMP_CACHE_TTL = 60  # 5 minutes (in seconds) - Cache duration for AMP instance data
+#
+# Common values:
+#   60   = 1 minute  (very responsive, high API usage)
+#   300  = 5 minutes (good balance)
+#   600  = 10 minutes (slower updates, lower API usage)
+#   1800 = 30 minutes (slow updates, minimal API usage)
+#   3600 = 60 minutes (very slow updates, very low API usage)
 
 def get_cached_instance_data(instance_name):
     """Get cached instance data if it exists and is not expired"""
@@ -931,18 +943,29 @@ async def fetch_instance_data(instance_name):
                 status = await instance.get_status(format_data=False)
                 ports = await instance.get_port_summaries(format_data=False)
 
+                # Filter out internal ports and non-game ports (SFTP, etc.)
                 valid_ports = [
                     p for p in ports
                     if not p.get("internalonly", False)
                     and p.get("port") is not None
+                    and "sftp" not in p.get("name", "").lower()  # Exclude SFTP ports
                 ]
 
-                preferred_order = ["Game Port", "Game and Mods Port", "Query Port"]
+                # Preferred port names (in order of preference)
+                # Different games use different naming conventions in AMP
+                preferred_order = [
+                    "server and steam port",  # 7 Days to Die
+                    "game port",              # Most games
+                    "game and mods port",     # Some games
+                    "query port",             # Fallback for some games
+                ]
+
                 game_port = next(
                     (p for name in preferred_order for p in valid_ports if name.lower() in p.get("name", "").lower()),
                     None
                 )
 
+                # If no preferred port found, use the first valid port
                 if not game_port and valid_ports:
                     game_port = valid_ports[0]
 
@@ -1287,10 +1310,10 @@ def hosting(request):
     return render(request, 'hosting.html')
 
 def sevendtd(request):
-    # sevendtd_instance = asyncio.run(fetch_instance_data("CasualHeroes-7DTD01"))
+    sevendtd_instance = asyncio.run(fetch_instance_data("CasualHeroes-7DTD01"))
 
     return render(request, '7dtd.html', {
-        # "sevendtd_instance": sevendtd_instance
+        "sevendtd_instance": sevendtd_instance
     })
 
 
@@ -1317,11 +1340,18 @@ def vrising(request):
         # "vrising_instance": vrising_instance
     })
 
-def conan(request):
-    # conan_instance = asyncio.run(fetch_instance_data("CasualHeroes-Conan01"))
+def palworld(request):
+    palworld_instance = asyncio.run(fetch_instance_data("CH-Palworld01"))
 
-    return render(request, 'conan.html', {
-        # "conan_instance": conan_instance
+    return render(request, 'palworld.html', {
+        "palworld_instance": palworld_instance
+    })
+
+def icarus(request):
+    icarus_instance = asyncio.run(fetch_instance_data("CH-Icarus01"))
+
+    return render(request, 'icarus.html', {
+        "icarus_instance": icarus_instance
     })
 def guides(request):
     return render(request, 'guides.html')
@@ -2512,6 +2542,10 @@ from django.http import JsonResponse, HttpResponseForbidden, HttpResponseNotFoun
 import json as json_lib
 
 
+# Cache for Discord guild permissions (user_id+guild_id -> {is_admin, timestamp})
+_discord_permission_cache = {}
+_PERMISSION_CACHE_TTL = 300  # 5 minutes cache for permission checks
+
 def api_auth_required(view_func):
     """Check Discord auth and guild admin access for API endpoints with server-side validation."""
     def wrapper(request, guild_id, *args, **kwargs):
@@ -2519,10 +2553,20 @@ def api_auth_required(view_func):
         if not discord_user:
             return JsonResponse({'error': 'Not authenticated'}, status=401)
 
+        user_id = discord_user.get('id')
+        cache_key = f"{user_id}_{guild_id}"
+
+        # Check cache first
+        import time
+        cached = _discord_permission_cache.get(cache_key)
+        if cached and (time.time() - cached['timestamp']) < _PERMISSION_CACHE_TTL:
+            if not cached['is_admin']:
+                return JsonResponse({'error': 'No admin access to this guild'}, status=403)
+            return view_func(request, guild_id, *args, **kwargs)
+
         # SECURITY: Server-side validation - verify permissions with Discord API
         try:
             import requests as req_lib
-            user_id = discord_user.get('id')
             access_token = discord_user.get('access_token')
 
             if not access_token:
@@ -2559,6 +2603,8 @@ def api_auth_required(view_func):
             target_guild = next((g for g in guilds if str(g['id']) == str(guild_id)), None)
 
             if not target_guild:
+                # Cache negative result
+                _discord_permission_cache[cache_key] = {'is_admin': False, 'timestamp': time.time()}
                 return JsonResponse({'error': 'You are not a member of this guild'}, status=403)
 
             # Check for administrator permission (bit 3 = 0x8)
@@ -2567,7 +2613,12 @@ def api_auth_required(view_func):
 
             if not is_admin:
                 logger.warning(f"User {user_id} attempted to access guild {guild_id} without admin permissions")
+                # Cache negative result
+                _discord_permission_cache[cache_key] = {'is_admin': False, 'timestamp': time.time()}
                 return JsonResponse({'error': 'No admin access to this guild'}, status=403)
+
+            # Cache positive result
+            _discord_permission_cache[cache_key] = {'is_admin': True, 'timestamp': time.time()}
 
         except req_lib.Timeout:
             logger.error("Discord API timeout during authorization check")
@@ -9996,6 +10047,7 @@ def guild_discovery_network(request, guild_id):
                 'is_bot_owner': is_bot_owner,
                 'admin_guilds': admin_guilds,
                 'member_guilds': get_member_guilds(request),
+                'discord_user': request.session.get('discord_user', {}),
                 'active_page': 'discovery_network',
                 'has_discovery_module': has_discovery_module,
                 'has_any_module': has_any_module,
@@ -10191,7 +10243,11 @@ def api_discovery_network_lfg(request):
 
                 # Determine platform, activity, skill level, player_role from custom_data
                 platform = custom_data.get('platform', 'PC')
-                activity = custom_data.get('activity', 'casual')
+                # Activity is now stored as an array, but we return it as-is for frontend to handle
+                activity = custom_data.get('activity', ['casual'])
+                # Ensure activity is always an array for consistency
+                if not isinstance(activity, list):
+                    activity = [activity] if activity else ['casual']
                 skill_level = custom_data.get('skill_level', 'any')
                 voice_required = custom_data.get('voice_required', False)
                 player_role = custom_data.get('player_role', '')
@@ -10236,6 +10292,7 @@ def api_discovery_network_lfg(request):
                         'user_id': str(member.user_id),
                         'display_name': member.display_name or 'Unknown',
                         'is_creator': member.is_creator,
+                        'is_co_leader': member.is_co_leader,
                         'avatar_url': avatar_url
                     }
                     # Add role info if available
@@ -10276,6 +10333,7 @@ def api_discovery_network_lfg(request):
                     'start_time': start_time,
                     'scheduled_time': lfg_group.scheduled_time if lfg_group.scheduled_time else None,
                     'created_at': lfg_group.created_at,
+                    'user_id': str(lfg_group.creator_id),
                     'username': lfg_group.creator_name or 'Unknown',
                     'user_avatar': creator_avatar,
                     'server_name': guild.guild_name or 'Unknown Server',
@@ -10286,7 +10344,9 @@ def api_discovery_network_lfg(request):
                     'members': members_list,
                     'cover_url': game.cover_url if game else None,
                     'igdb_id': game.igdb_id if game else None,
-                    'igdb_slug': game.igdb_slug if game else None
+                    'igdb_slug': game.igdb_slug if game else None,
+                    'event_duration': lfg_group.event_duration,
+                    'activity_type': activity
                 })
 
             return JsonResponse({
@@ -10395,21 +10455,59 @@ def api_discovery_lfg_create(request):
             ).first()
 
             if not game:
+                # Try to find IGDB data from another server's game entry
+                from sqlalchemy import func
+                existing_game_with_igdb = db.query(LFGGame).filter(
+                    func.lower(LFGGame.game_name) == game_name.lower(),
+                    LFGGame.igdb_id != None,
+                    LFGGame.cover_url != None
+                ).first()
+
                 # Create new game entry for this guild
                 game = LFGGame(
                     guild_id=int(guild_id),
                     game_name=game_name,
                     game_short=game_name.lower().replace(' ', '_')[:50],
                     enabled=True,
-                    max_group_size=5  # Default
+                    max_group_size=5,  # Default
+                    # Copy IGDB data if found
+                    igdb_id=existing_game_with_igdb.igdb_id if existing_game_with_igdb else None,
+                    igdb_slug=existing_game_with_igdb.igdb_slug if existing_game_with_igdb else None,
+                    cover_url=existing_game_with_igdb.cover_url if existing_game_with_igdb else None
                 )
                 db.add(game)
                 db.flush()
+            elif not game.cover_url or not game.igdb_id:
+                # Game exists but is missing IGDB data - try to enrich it
+                from sqlalchemy import func
+                existing_game_with_igdb = db.query(LFGGame).filter(
+                    func.lower(LFGGame.game_name) == game_name.lower(),
+                    LFGGame.igdb_id != None,
+                    LFGGame.cover_url != None
+                ).first()
+
+                if existing_game_with_igdb:
+                    # Update existing game with IGDB data
+                    if not game.igdb_id:
+                        game.igdb_id = existing_game_with_igdb.igdb_id
+                    if not game.igdb_slug:
+                        game.igdb_slug = existing_game_with_igdb.igdb_slug
+                    if not game.cover_url:
+                        game.cover_url = existing_game_with_igdb.cover_url
+                    db.flush()
 
             # Build custom_data JSON with player role/class/spec
+            # Activity can now be an array (multi-select up to 3)
+            activity_value = data.get('activity', 'casual')
+            # If activity is a list, keep it as is; otherwise wrap single value in list for consistency
+            if isinstance(activity_value, list):
+                activity = activity_value
+            else:
+                activity = [activity_value] if activity_value else ['casual']
+
             custom_data = {
                 'platform': data.get('platform', 'PC'),
-                'activity': data.get('activity', 'casual'),
+                'activity': activity,  # Now stored as array
                 'skill_level': data.get('skill_level', 'any'),
                 'voice_required': data.get('voice_required', False)
             }
@@ -10463,12 +10561,34 @@ def api_discovery_lfg_create(request):
                 description=description,
                 custom_data=json_lib.dumps(custom_data),
                 max_group_size=int(data.get('group_size', game.max_group_size or 5)),
+                event_duration=int(data.get('event_duration')) if data.get('event_duration') else None,
                 is_active=True,
                 is_full=False,
                 member_count=1  # Creator counts as first member
             )
 
             db.add(lfg_group)
+            db.flush()  # Get the group ID
+
+            # Add creator as first member (leader)
+            from .models import LFGMember
+
+            # Build selections JSON for creator's class/spec/role
+            creator_selections = {}
+            if data.get('player_role'):
+                creator_selections['player_role'] = data.get('player_role')
+
+            creator_member = LFGMember(
+                group_id=lfg_group.id,
+                user_id=int(user_id),
+                display_name=user_name,
+                is_creator=True,
+                is_co_leader=False,
+                selections=json_lib.dumps(creator_selections) if creator_selections else None,
+                joined_at=int(time.time())
+            )
+
+            db.add(creator_member)
             db.commit()
 
             return JsonResponse({
@@ -10599,6 +10719,225 @@ def api_discovery_lfg_join(request, post_id):
             'success': False,
             'error': 'Invalid JSON in request body'
         }, status=400)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
+@require_http_methods(["PATCH"])
+def api_discovery_lfg_update(request, post_id):
+    """PATCH /api/discovery/lfg/<post_id>/update - Update a Discovery Network LFG post."""
+    try:
+        import json as json_lib
+        from .db import get_db_session
+        from .models import LFGGroup, LFGMember
+
+        # Get Discord user from session
+        discord_user = request.session.get('discord_user', {})
+        user_id = discord_user.get('id')
+
+        if not user_id:
+            return JsonResponse({
+                'success': False,
+                'error': 'You must be logged in'
+            }, status=401)
+
+        # Parse request body
+        data = json_lib.loads(request.body)
+
+        with get_db_session() as db:
+            # Get the LFG group
+            group = db.query(LFGGroup).filter_by(id=int(post_id)).first()
+            if not group:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'LFG post not found'
+                }, status=404)
+
+            # Check if user is creator or co-leader
+            is_creator = str(group.creator_id) == str(user_id)
+            member = db.query(LFGMember).filter_by(
+                group_id=group.id,
+                user_id=int(user_id)
+            ).filter(LFGMember.left_at == None).first()
+
+            is_co_leader = member and member.is_co_leader if member else False
+
+            if not is_creator and not is_co_leader:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Only the creator or co-leaders can edit this post'
+                }, status=403)
+
+            # Update fields
+            if 'title' in data:
+                group.thread_name = data['title']
+            if 'description' in data:
+                group.description = data['description']
+            if 'scheduled_time' in data:
+                group.scheduled_time = data['scheduled_time']
+            if 'event_duration' in data:
+                group.event_duration = data['event_duration']
+            if 'max_group_size' in data:
+                group.max_group_size = data['max_group_size']
+                # Update is_full status
+                group.is_full = group.member_count >= group.max_group_size
+
+            # Update custom_data (platform, activity, skill_level, voice_required)
+            custom_data = json_lib.loads(group.custom_data) if group.custom_data else {}
+            if 'platform' in data:
+                custom_data['platform'] = data['platform']
+            if 'activity_type' in data:
+                custom_data['activity'] = data['activity_type']
+            if 'skill_level' in data:
+                custom_data['skill_level'] = data['skill_level']
+            if 'voice_required' in data:
+                custom_data['voice_required'] = data['voice_required']
+
+            group.custom_data = json_lib.dumps(custom_data)
+
+            db.commit()
+
+            return JsonResponse({
+                'success': True,
+                'message': 'LFG post updated successfully'
+            })
+
+    except json_lib.JSONDecodeError:
+        return JsonResponse({
+            'success': False,
+            'error': 'Invalid JSON in request body'
+        }, status=400)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
+@require_http_methods(["PATCH"])
+def api_discovery_lfg_update_class(request, post_id):
+    """PATCH /api/discovery/lfg/<post_id>/update-class - Update member's class/role."""
+    try:
+        import json as json_lib
+        from .db import get_db_session
+        from .models import LFGGroup, LFGMember
+
+        # Get Discord user from session
+        discord_user = request.session.get('discord_user', {})
+        user_id = discord_user.get('id')
+
+        if not user_id:
+            return JsonResponse({
+                'success': False,
+                'error': 'You must be logged in'
+            }, status=401)
+
+        # Parse request body
+        data = json_lib.loads(request.body)
+        player_role = data.get('player_role')
+
+        if not player_role:
+            return JsonResponse({
+                'success': False,
+                'error': 'Player role is required'
+            }, status=400)
+
+        with get_db_session() as db:
+            # Get the LFG group
+            group = db.query(LFGGroup).filter_by(id=int(post_id)).first()
+            if not group:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'LFG post not found'
+                }, status=404)
+
+            # Get member record
+            member = db.query(LFGMember).filter_by(
+                group_id=group.id,
+                user_id=int(user_id)
+            ).filter(LFGMember.left_at == None).first()
+
+            if not member:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'You are not a member of this group'
+                }, status=403)
+
+            # Update member's selections with player_role
+            selections = json_lib.loads(member.selections) if member.selections else {}
+            selections['player_role'] = player_role
+            member.selections = json_lib.dumps(selections)
+
+            db.commit()
+
+            return JsonResponse({
+                'success': True,
+                'message': 'Class updated successfully'
+            })
+
+    except json_lib.JSONDecodeError:
+        return JsonResponse({
+            'success': False,
+            'error': 'Invalid JSON in request body'
+        }, status=400)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
+@require_http_methods(["DELETE"])
+def api_discovery_lfg_delete(request, post_id):
+    """DELETE /api/discovery/lfg/<post_id>/delete - Delete a Discovery Network LFG post."""
+    try:
+        from .db import get_db_session
+        from .models import LFGGroup, LFGMember
+
+        # Get Discord user from session
+        discord_user = request.session.get('discord_user', {})
+        user_id = discord_user.get('id')
+
+        if not user_id:
+            return JsonResponse({
+                'success': False,
+                'error': 'You must be logged in'
+            }, status=401)
+
+        with get_db_session() as db:
+            # Get the LFG group
+            group = db.query(LFGGroup).filter_by(id=int(post_id)).first()
+            if not group:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'LFG post not found'
+                }, status=404)
+
+            # Only creator can delete
+            if str(group.creator_id) != str(user_id):
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Only the creator can delete this post'
+                }, status=403)
+
+            # Mark as inactive instead of deleting
+            group.is_active = False
+            db.commit()
+
+            return JsonResponse({
+                'success': True,
+                'message': 'LFG post deleted successfully'
+            })
+
     except Exception as e:
         import traceback
         traceback.print_exc()
@@ -11121,9 +11460,11 @@ def api_discovery_network_preferences(request):
                             'preferred_games': [],
                             'preferred_tags': [],
                             'preferred_activities': [],
+                            'preferred_skill_levels': [],
                             'preferred_size': '',
                             'lfg_filter_games': False,
                             'lfg_filter_activities': False,
+                            'lfg_filter_skill_levels': False,
                             'lfg_show_now': True,
                             'lfg_hide_voice': False,
                             'notify_lfg': False,
@@ -11141,6 +11482,7 @@ def api_discovery_network_preferences(request):
                 preferred_games = []
                 preferred_tags = []
                 preferred_activities = []
+                preferred_skill_levels = []
                 try:
                     if prefs.preferred_games:
                         preferred_games = json_lib.loads(prefs.preferred_games)
@@ -11148,6 +11490,8 @@ def api_discovery_network_preferences(request):
                         preferred_tags = json_lib.loads(prefs.preferred_tags)
                     if prefs.preferred_activities:
                         preferred_activities = json_lib.loads(prefs.preferred_activities)
+                    if prefs.preferred_skill_levels:
+                        preferred_skill_levels = json_lib.loads(prefs.preferred_skill_levels)
                 except:
                     pass
 
@@ -11161,9 +11505,11 @@ def api_discovery_network_preferences(request):
                         'preferred_games': preferred_games,
                         'preferred_tags': preferred_tags,
                         'preferred_activities': preferred_activities,
+                        'preferred_skill_levels': preferred_skill_levels,
                         'preferred_size': prefs.preferred_size or '',
                         'lfg_filter_games': prefs.lfg_filter_games,
                         'lfg_filter_activities': prefs.lfg_filter_activities,
+                        'lfg_filter_skill_levels': prefs.lfg_filter_skill_levels,
                         'lfg_show_now': prefs.lfg_show_now,
                         'lfg_hide_voice': prefs.lfg_hide_voice,
                         'notify_lfg': prefs.notify_lfg,
@@ -11204,6 +11550,8 @@ def api_discovery_network_preferences(request):
                     prefs.preferred_tags = json_lib.dumps(data['preferred_tags']) if data['preferred_tags'] else None
                 if 'preferred_activities' in data:
                     prefs.preferred_activities = json_lib.dumps(data['preferred_activities']) if data['preferred_activities'] else None
+                if 'preferred_skill_levels' in data:
+                    prefs.preferred_skill_levels = json_lib.dumps(data['preferred_skill_levels']) if data['preferred_skill_levels'] else None
                 if 'preferred_size' in data:
                     prefs.preferred_size = data['preferred_size'] or None
 
@@ -11212,6 +11560,8 @@ def api_discovery_network_preferences(request):
                     prefs.lfg_filter_games = bool(data['lfg_filter_games'])
                 if 'lfg_filter_activities' in data:
                     prefs.lfg_filter_activities = bool(data['lfg_filter_activities'])
+                if 'lfg_filter_skill_levels' in data:
+                    prefs.lfg_filter_skill_levels = bool(data['lfg_filter_skill_levels'])
                 if 'lfg_show_now' in data:
                     prefs.lfg_show_now = bool(data['lfg_show_now'])
                 if 'lfg_hide_voice' in data:
@@ -14030,6 +14380,33 @@ def guild_lfg_browser(request, guild_id):
 
             games_data = []
             for game in games:
+                # Parse custom_options safely - ensure it's always an array
+                custom_options = None
+                if game.custom_options:
+                    try:
+                        parsed = json.loads(game.custom_options)
+                        # Ensure custom_options is a list and each option has a choices array
+                        if isinstance(parsed, list):
+                            custom_options = []
+                            for opt in parsed:
+                                if isinstance(opt, dict) and 'name' in opt:
+                                    # Build option object
+                                    option_obj = {'name': opt['name']}
+
+                                    # Add depends_on if present
+                                    if 'depends_on' in opt:
+                                        option_obj['depends_on'] = opt['depends_on']
+
+                                    # Add choices (can be array or object for conditional dropdowns)
+                                    choices = opt.get('choices', [])
+                                    # Don't validate type for conditional dropdowns - can be object or array
+                                    option_obj['choices'] = choices
+
+                                    custom_options.append(option_obj)
+                    except (json.JSONDecodeError, TypeError, KeyError) as e:
+                        logger.warning(f"Failed to parse custom_options for game {game.id}: {e}")
+                        custom_options = None
+
                 games_data.append({
                     'id': game.id,
                     'game_name': game.game_name,
@@ -14041,7 +14418,7 @@ def guild_lfg_browser(request, guild_id):
                     'rank_label': game.rank_label,
                     'rank_min': game.rank_min,
                     'rank_max': game.rank_max,
-                    'custom_options': json.loads(game.custom_options) if game.custom_options else None,
+                    'custom_options': custom_options,
                     'current_player_count': game.current_player_count or 0,
                 })
 
@@ -16723,8 +17100,8 @@ def api_lfg_browser_update(request, guild_id, group_id):
             # Track removed co-leaders for thread management
             removed_co_leader_ids = []
 
-            # Update co-leaders if provided
-            if co_leader_ids is not None:
+            # Update co-leaders if provided (only allow creator to modify co-leaders)
+            if co_leader_ids is not None and is_creator:
                 # Get existing co-leaders before removing them
                 existing_co_leaders = db.query(LFGMember).filter_by(
                     group_id=group.id,
@@ -16776,24 +17153,42 @@ def api_lfg_browser_update(request, guild_id, group_id):
                         db.add(new_co_leader)
                         group.member_count += 1
 
-            # Update leader's game-specific options if provided
+            # Update game-specific options if provided
             leader_options = data.get('leader_options')
-            if leader_options and is_creator:
-                # Find the creator's member record
-                creator_member = db.query(LFGMember).filter_by(
+            if leader_options:
+                # Find the current user's member record
+                current_user_member = db.query(LFGMember).filter_by(
                     group_id=group.id,
-                    user_id=int(user_id),
-                    is_creator=True
+                    user_id=int(user_id)
                 ).filter(LFGMember.left_at == None).first()
 
-                if creator_member:
+                if current_user_member:
                     # Extract rank and selections
                     rank_value = leader_options.get('rank') if leader_options else None
                     selections_dict = {k: v for k, v in leader_options.items() if k != 'rank'} if leader_options else {}
 
-                    # Update creator member record
-                    creator_member.rank_value = rank_value
-                    creator_member.selections = json_lib.dumps(selections_dict) if selections_dict else None
+                    # Separate Activity (group-level) from personal options (Class, Spec, etc.)
+                    activity_value = selections_dict.pop('Activity', None)
+
+                    # Update current user's personal selections (Class, Spec, etc.)
+                    current_user_member.rank_value = rank_value
+                    current_user_member.selections = json_lib.dumps(selections_dict) if selections_dict else None
+
+                    # Update Activity on the leader's record (group-level setting)
+                    # This allows co-leaders to modify the group's activities
+                    if activity_value is not None:
+                        leader_member = db.query(LFGMember).filter_by(
+                            group_id=group.id,
+                            is_creator=True
+                        ).filter(LFGMember.left_at == None).first()
+
+                        if leader_member:
+                            # Get leader's current selections
+                            leader_selections = json_lib.loads(leader_member.selections) if leader_member.selections else {}
+                            # Update Activity
+                            leader_selections['Activity'] = activity_value
+                            # Save back to leader
+                            leader_member.selections = json_lib.dumps(leader_selections)
 
             db.commit()
 

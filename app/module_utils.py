@@ -4,11 +4,14 @@ Helper functions and decorators for checking module access.
 """
 
 import time
+import logging
 from functools import wraps
 from django.http import JsonResponse
 from .db import get_db_session
 from .models import GuildModule, Guild
 from .modules_config import get_module, MODULES
+
+logger = logging.getLogger(__name__)
 
 
 def has_module_access(guild_id, module_name):
@@ -45,7 +48,7 @@ def has_module_access(guild_id, module_name):
 
             return True
     except Exception as e:
-        print(f"Error checking module access: {e}")
+        logger.error(f"Error checking module access for guild {guild_id}, module {module_name}: {e}")
         return False
 
 
@@ -83,7 +86,7 @@ def has_any_module_access(guild_id):
 
             return False
     except Exception as e:
-        print(f"Error checking any module access: {e}")
+        logger.error(f"Error checking any module access for guild {guild_id}: {e}")
         return False
 
 
@@ -113,7 +116,7 @@ def get_guild_modules(guild_id):
 
             return active_modules
     except Exception as e:
-        print(f"Error getting guild modules: {e}")
+        logger.error(f"Error getting guild modules for guild {guild_id}: {e}")
         return []
 
 
@@ -265,7 +268,7 @@ def grant_module_access(guild_id, module_name, expires_at=None, stripe_subscript
             db.commit()
             return True
     except Exception as e:
-        print(f"Error granting module access: {e}")
+        logger.error(f"Error granting module access for guild {guild_id}, module {module_name}: {e}")
         return False
 
 
@@ -293,7 +296,7 @@ def revoke_module_access(guild_id, module_name):
 
             return True
     except Exception as e:
-        print(f"Error revoking module access: {e}")
+        logger.error(f"Error revoking module access for guild {guild_id}, module {module_name}: {e}")
         return False
 
 
@@ -331,7 +334,7 @@ def get_module_stats(guild_id):
                 ]
             }
     except Exception as e:
-        print(f"Error getting module stats: {e}")
+        logger.error(f"Error getting module stats for guild {guild_id}: {e}")
         return {
             'active_modules': 0,
             'total_modules': len(MODULES),

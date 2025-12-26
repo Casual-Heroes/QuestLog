@@ -22,7 +22,7 @@ BLOCKED_PATTERNS = [
     'wp-login', 'wp-admin', 'wp-content', 'wp-includes',
     'xmlrpc.php', 'wp-cron.php', 'wp-config',
 
-    # PHP files (we're a Django app, not PHP)
+    # PHP files
     'phpinfo', 'phpmyadmin', 'pma', 'admin.php',
     'shell.php', 'c99.php', 'r57.php', 'backdoor.php',
 
@@ -31,8 +31,15 @@ BLOCKED_PATTERNS = [
     'console/', 'actuator/', 'jmx-console',
     'manager/html', 'tomcat',
 
+    # ColdFusion (common attack target)
+    'cfide', 'cfide/', 'administrator/login',
+    'cfformgateway', 'railo-context',
+
     # API abuse attempts
     'graphql', 'swagger', 'api-docs',
+
+    # Well-known paths (often probed)
+    '.well-known/discord',
 ]
 
 # Blocked directory traversal patterns
@@ -53,6 +60,13 @@ class SecurityMiddleware:
     def __call__(self, request):
         # Get the request path
         path = request.path.lower()
+
+        # Block Django admin access (but allow /admin/analytics and /admin_tools/)
+        if path.startswith('/admin/') and not path.startswith('/admin/analytics') and not path.startswith('/admin_tools/'):
+            logger.warning(
+                f"Blocked Django admin access from {self.get_client_ip(request)}: {request.path}"
+            )
+            return HttpResponseNotFound()
 
         # Check for blocked file patterns
         for pattern in BLOCKED_PATTERNS:

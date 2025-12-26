@@ -916,6 +916,8 @@ class DiscoveryConfig(Base):
     game_discovery_enabled = Column(Boolean, default=False)
     public_game_channel_id = Column(BigInteger, nullable=True)  # Channel for public game discoveries (show_on_website=True)
     private_game_channel_id = Column(BigInteger, nullable=True)  # Channel for private game discoveries (show_on_website=False)
+    public_game_ping_role_id = Column(BigInteger, nullable=True)  # Role to ping for public game announcements
+    private_game_ping_role_id = Column(BigInteger, nullable=True)  # Role to ping for private game announcements
     game_check_interval_hours = Column(Integer, default=24)
     game_api_sources = Column(Text, nullable=True)  # JSON array: ["igdb", "steam"] - which APIs to use
     game_genres = Column(Text, nullable=True)  # JSON array of genre slugs
@@ -2281,9 +2283,11 @@ class DiscoveryNetworkPreferences(Base):
     # LFG preferences
     lfg_filter_games = Column(Boolean, default=False, nullable=False)
     lfg_filter_activities = Column(Boolean, default=False, nullable=False)
+    lfg_filter_skill_levels = Column(Boolean, default=False, nullable=False)
     lfg_show_now = Column(Boolean, default=True, nullable=False)
     lfg_hide_voice = Column(Boolean, default=False, nullable=False)
     preferred_activities = Column(Text, nullable=True)  # JSON array
+    preferred_skill_levels = Column(Text, nullable=True)  # JSON array
 
     # Notification preferences
     notify_lfg = Column(Boolean, default=False, nullable=False)

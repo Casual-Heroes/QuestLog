@@ -317,10 +317,10 @@ let gameSelect, sizeSelect, activitySelect, tagsSelect;
 
 // Filter state
 let filterState = {
-  game: '',
-  size: '',
-  activity: '',
-  tags: ''
+  game: [],      // Array for multi-select
+  size: '',      // String for single-select
+  activity: '',  // String for single-select
+  tags: []       // Array for multi-select
 };
 
 // Filter functions
@@ -335,9 +335,18 @@ function applyFilters() {
       return false;
     }
 
-    // Game filter
-    if (filterState.game && server.primary_game.toLowerCase() !== filterState.game) {
-      return false;
+    // Game filter (multi-select with OR logic)
+    if (filterState.game) {
+      if (Array.isArray(filterState.game) && filterState.game.length > 0) {
+        // Check if server's game matches ANY selected game
+        const matchesAny = filterState.game.some(selectedGame =>
+          server.primary_game.toLowerCase() === selectedGame.toLowerCase()
+        );
+        if (!matchesAny) return false;
+      } else if (typeof filterState.game === 'string' && filterState.game !== '') {
+        // Single-select backwards compatibility
+        if (server.primary_game.toLowerCase() !== filterState.game) return false;
+      }
     }
 
     // Size filter
@@ -354,9 +363,18 @@ function applyFilters() {
       return false;
     }
 
-    // Tags filter
-    if (filterState.tags && !server.tags.includes(filterState.tags)) {
-      return false;
+    // Tags filter (multi-select with OR logic)
+    if (filterState.tags) {
+      if (Array.isArray(filterState.tags) && filterState.tags.length > 0) {
+        // Check if server has ANY of the selected tags
+        const matchesAny = filterState.tags.some(selectedTag =>
+          server.tags && server.tags.includes(selectedTag)
+        );
+        if (!matchesAny) return false;
+      } else if (typeof filterState.tags === 'string' && filterState.tags !== '') {
+        // Single-select backwards compatibility
+        if (!server.tags.includes(filterState.tags)) return false;
+      }
     }
 
     return true;
@@ -369,17 +387,17 @@ function applyFilters() {
 function clearFilters() {
   document.getElementById('serverSearch').value = '';
 
-  // Reset custom selects
-  if (gameSelect) gameSelect.setValue('');
+  // Reset custom selects (arrays for multi-select, empty string for single-select)
+  if (gameSelect) gameSelect.setValue([]);
   if (sizeSelect) sizeSelect.setValue('');
   if (activitySelect) activitySelect.setValue('');
-  if (tagsSelect) tagsSelect.setValue('');
+  if (tagsSelect) tagsSelect.setValue([]);
 
   filterState = {
-    game: '',
+    game: [],
     size: '',
     activity: '',
-    tags: ''
+    tags: []
   };
 
   applyFilters();
@@ -433,14 +451,13 @@ function initializeFilters() {
     }
   });
 
-  // Tags filter
+  // Tags filter (multi-select enabled)
   tagsSelect = createCustomSelect({
     container: '#filterTagsContainer',
     name: 'filterTags',
     placeholder: 'All Tags',
     color: 'indigo',
     items: [
-      { value: '', label: 'All Tags' },
       { value: 'competitive', label: 'Competitive', icon: 'trophy' },
       { value: 'casual', label: 'Casual', icon: 'gamepad' },
       { value: '18+', label: '18+ Only', icon: 'exclamation-triangle' },
@@ -450,8 +467,11 @@ function initializeFilters() {
       { value: 'lfg', label: 'Active LFG', icon: 'users' },
       { value: 'events', label: 'Regular Events', icon: 'calendar' }
     ],
+    multiSelect: true,
+    maxSelections: null, // No limit on tag selections
+    selected: [],
     onSelect: (value) => {
-      filterState.tags = value;
+      filterState.tags = value; // value is now an array
       applyFilters();
     }
   });
@@ -471,9 +491,10 @@ async function loadGamesList() {
         name: 'filterGame',
         placeholder: 'All Games',
         color: 'indigo',
-        items: [
-          { value: '', label: 'All Games' }
-        ],
+        items: [],
+        multiSelect: true,
+        maxSelections: null,
+        selected: [],
         onSelect: (value) => {
           filterState.game = value;
           applyFilters();
@@ -487,25 +508,25 @@ async function loadGamesList() {
     const data = await response.json();
 
     if (data.success && data.games) {
-      // Build items array for custom select
-      const items = [
-        { value: '', label: 'All Games' },
-        ...data.games.map(game => ({
-          value: (game.slug || game.name || game).toLowerCase().replace(/[^a-z0-9]/g, ''),
-          label: game.name || game,
-          icon: 'gamepad'
-        }))
-      ];
+      // Build items array for custom select (without "All Games" option for multi-select)
+      const items = data.games.map(game => ({
+        value: (game.slug || game.name || game).toLowerCase().replace(/[^a-z0-9]/g, ''),
+        label: game.name || game,
+        icon: 'gamepad'
+      }));
 
-      // Create game select
+      // Create game select with multi-select enabled
       gameSelect = createCustomSelect({
         container: '#filterGameContainer',
         name: 'filterGame',
         placeholder: 'All Games',
         color: 'indigo',
         items: items,
+        multiSelect: true,
+        maxSelections: null, // No limit on game selections
+        selected: [],
         onSelect: (value) => {
-          filterState.game = value;
+          filterState.game = value; // value is now an array
           applyFilters();
         }
       });

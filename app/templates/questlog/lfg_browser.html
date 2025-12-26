@@ -204,9 +204,8 @@
         <textarea id="editDescription" rows="3" placeholder="E.g., Looking for experienced players for endgame content..." class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white"></textarea>
       </div>
 
-      <!-- Leader's Game-specific options -->
-      <div id="editGameOptions" class="space-y-3">
-        <!-- Will be populated dynamically -->
+      <div id="editActivityContainer" class="hidden">
+        <!-- Activity dropdown will be dynamically populated here -->
       </div>
 
       <div>
@@ -430,6 +429,44 @@
       timeStatusBadge = '<span class="px-2 py-1 text-xs rounded bg-gray-600 text-white">Past</span>';
     }
 
+    // Collect all activities from group members
+    const allActivities = new Set();
+    group.members.forEach(m => {
+      const selections = m.selections || {};
+      // Look for Activity field (case-insensitive check)
+      Object.entries(selections).forEach(([key, value]) => {
+        if (key.toLowerCase() === 'activity' && value) {
+          // Parse if it's a JSON string (e.g., "[\"Raid\",\"Dungeon\"]")
+          let activityValue = value;
+          if (typeof value === 'string' && value.startsWith('[')) {
+            try {
+              activityValue = JSON.parse(value);
+            } catch (e) {
+              // If parsing fails, treat as single string value
+              activityValue = value;
+            }
+          }
+
+          if (Array.isArray(activityValue)) {
+            activityValue.forEach(act => allActivities.add(act));
+          } else {
+            allActivities.add(activityValue);
+          }
+        }
+      });
+    });
+
+    // Activity badges HTML
+    const activityBadges = Array.from(allActivities).length > 0 ? `
+      <div class="flex flex-wrap gap-2 mb-3">
+        ${Array.from(allActivities).map(activity => `
+          <span class="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-purple-900/50 text-purple-300">
+            ${activity}
+          </span>
+        `).join('')}
+      </div>
+    ` : '';
+
     // Member list
     const membersList = group.members.map(m => {
       let icon = 'fa-user';
@@ -446,23 +483,26 @@
         roleLabel = 'Co-Leader';
       }
 
-      // Build display text with selections
+      // Build display text with selections (exclude Activity)
       let displayText = m.display_name;
       const selections = m.selections || {};
       const selectionParts = [];
 
-      // Add all selections (class, role, etc.)
+      // Add all selections EXCEPT Activity (class, role, spec, etc.)
       Object.entries(selections).forEach(([key, value]) => {
-        if (value) selectionParts.push(value);
+        if (value && key.toLowerCase() !== 'activity') {
+          // Only add non-array values (Activity should be the only array)
+          if (!Array.isArray(value)) {
+            selectionParts.push(value);
+          }
+        }
       });
 
-      // Format: "Role / Selection - Name" or "Name - Selection"
-      if (roleLabel && selectionParts.length > 0) {
-        displayText = `${roleLabel} / ${selectionParts.join(', ')} - ${m.display_name}`;
-      } else if (roleLabel) {
-        displayText = `${roleLabel} - ${m.display_name}`;
-      } else if (selectionParts.length > 0) {
-        displayText = `${m.display_name} - ${selectionParts.join(', ')}`;
+      // Format: "Name (Role: Selection)" - cleaner display
+      if (selectionParts.length > 0) {
+        displayText = `${m.display_name} (${selectionParts.join(', ')})`;
+      } else {
+        displayText = m.display_name;
       }
 
       // Show remove button for creators/co-leaders (can't remove the creator themselves)
@@ -533,6 +573,9 @@
               <p class="text-gray-300 text-sm mb-3 italic">"${group.description}"</p>
             ` : ''}
 
+            <!-- Activity Badges -->
+            ${activityBadges}
+
             <!-- Members -->
             <div class="bg-neutral-900/50 rounded-lg p-3 mb-3 border border-neutral-700">
               <div class="flex items-center gap-2 mb-2">
@@ -598,7 +641,8 @@
                 <button onclick="deleteGroup(${group.id})" class="px-4 py-2 bg-red-600/20 hover:bg-red-600 text-red-400 hover:text-white rounded-lg text-sm font-medium">
                   <i class="fas fa-trash mr-2"></i>Delete
                 </button>
-              ` : isMember && !isCreator && !isCoLeader ? `
+              ` : ''}
+              ${isMember ? `
                 <button onclick="updateMemberClass(${group.id})" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium">
                   <i class="fas fa-user-edit mr-2"></i>Update Class
                 </button>
@@ -651,15 +695,23 @@
     // Add custom options if available
     if (game.custom_options && game.custom_options.length > 0) {
       game.custom_options.forEach((option, index) => {
-        optionsHtml += `
-          <div>
-            <label class="text-sm text-gray-300 mb-2 block">${option.name}</label>
-            <select id="joinOption${index}" class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white" data-name="${option.name}">
-              <option value="">Select ${option.name.toLowerCase()}...</option>
-              ${option.choices.map(choice => `<option value="${choice}">${choice}</option>`).join('')}
-            </select>
-          </div>
-        `;
+        // For conditional dropdowns, skip them initially (they'll be shown when parent changes)
+        if (option.depends_on) {
+          return; // Skip conditional options in initial render
+        }
+
+        // Only render if choices is an array
+        if (Array.isArray(option.choices)) {
+          optionsHtml += `
+            <div>
+              <label class="text-sm text-gray-300 mb-2 block">${option.name}</label>
+              <select id="joinOption${index}" class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white" data-name="${option.name}">
+                <option value="">Select ${option.name.toLowerCase()}...</option>
+                ${option.choices.map(choice => `<option value="${choice}">${choice}</option>`).join('')}
+              </select>
+            </div>
+          `;
+        }
       });
     }
 
@@ -865,9 +917,9 @@
     // Set description
     document.getElementById('editDescription').value = group.description || '';
 
-    // Populate leader's game-specific options
+    // Populate Activity options (group-level setting)
     const leaderMember = group.members.find(m => m.is_creator);
-    populateEditGameOptions(game, leaderMember);
+    populateEditActivityOptions(game, leaderMember);
 
     // Show modal immediately for better UX
     document.getElementById('editGroupModal').classList.remove('hidden');
@@ -876,7 +928,74 @@
     loadEditGuildMembers(group);
   }
 
-  function populateEditGameOptions(game, leaderMember) {
+  function populateEditActivityOptions(game, leaderMember) {
+    const container = document.getElementById('editActivityContainer');
+
+    if (!game || !game.custom_options) {
+      container.classList.add('hidden');
+      return;
+    }
+
+    // Find the Activity option
+    const activityOption = game.custom_options.find(opt => opt.name === 'Activity');
+    if (!activityOption || !activityOption.choices || !Array.isArray(activityOption.choices) || activityOption.choices.length === 0) {
+      container.classList.add('hidden');
+      return;
+    }
+
+    // Get leader's current Activity selections
+    const leaderSelections = leaderMember?.selections || {};
+    let currentActivityValue = leaderSelections['Activity'] || [];
+
+    // Parse if it's a string
+    if (typeof currentActivityValue === 'string') {
+      if (currentActivityValue.startsWith('[')) {
+        try {
+          currentActivityValue = JSON.parse(currentActivityValue);
+        } catch (e) {
+          currentActivityValue = [];
+        }
+      } else {
+        currentActivityValue = currentActivityValue ? [currentActivityValue] : [];
+      }
+    }
+
+    // Ensure it's an array
+    if (!Array.isArray(currentActivityValue)) {
+      currentActivityValue = [];
+    }
+
+    // Show container and build HTML
+    container.classList.remove('hidden');
+    container.innerHTML = `
+      <div>
+        <label class="text-sm text-gray-300 mb-2 block">Activity (select up to 3)</label>
+        <div id="editActivitySelect"></div>
+      </div>
+    `;
+
+    // Build activity items
+    const activityItems = activityOption.choices.map(choice => ({
+      value: choice,
+      label: choice,
+      icon: 'gamepad'
+    }));
+
+    // Create multi-select dropdown
+    createCustomSelect({
+      container: '#editActivitySelect',
+      name: 'editActivity',
+      id: 'editActivity',
+      placeholder: 'Select activities...',
+      items: activityItems,
+      selected: currentActivityValue,
+      color: 'purple',
+      multiSelect: true,
+      maxSelections: 3
+    });
+  }
+
+  function populateEditGameOptions(game, currentMember, leaderMember) {
     const container = document.getElementById('editGameOptions');
 
     if (!game) {
@@ -884,48 +1003,129 @@
       return;
     }
 
+    const currentSelections = currentMember?.selections || {};
+    const currentRank = currentMember?.rank_value;
     const leaderSelections = leaderMember?.selections || {};
-    const leaderRank = leaderMember?.rank_value;
 
-    let optionsHtml = '';
+    container.innerHTML = '';
 
     // Add rank selection if required
     if (game.require_rank && game.rank_label) {
-      optionsHtml += `
-        <div>
-          <label class="text-sm text-gray-300 mb-2 block">${game.rank_label} *</label>
-          <select id="editRank" class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white">
-            <option value="">Select your ${game.rank_label.toLowerCase()}...</option>
-      `;
+      const rankDiv = document.createElement('div');
+      rankDiv.className = 'mb-4';
+
+      const rankLabel = document.createElement('label');
+      rankLabel.className = 'text-sm text-gray-300 mb-2 block';
+      rankLabel.textContent = `${game.rank_label} *`;
+      rankDiv.appendChild(rankLabel);
+
+      const rankSelectContainer = document.createElement('div');
+      rankSelectContainer.id = 'editRankContainer';
+      rankDiv.appendChild(rankSelectContainer);
+      container.appendChild(rankDiv);
+
+      // Build rank items
+      const rankItems = [];
       if (game.rank_min !== null && game.rank_max !== null) {
         for (let i = game.rank_min; i <= game.rank_max; i++) {
-          const selected = (leaderRank === i) ? 'selected' : '';
-          optionsHtml += `<option value="${i}" ${selected}>${i}</option>`;
+          rankItems.push({ value: String(i), label: String(i) });
         }
       }
-      optionsHtml += `</select></div>`;
+
+      createCustomSelect({
+        container: rankSelectContainer,
+        name: 'editRank',
+        id: 'editRank',
+        placeholder: `Select your ${game.rank_label.toLowerCase()}...`,
+        items: rankItems,
+        selected: currentRank ? String(currentRank) : '',
+        color: 'blue'
+      });
     }
 
     // Add custom options if available
     if (game.custom_options && game.custom_options.length > 0) {
       game.custom_options.forEach((option, index) => {
-        const currentValue = leaderSelections[option.name] || '';
-        optionsHtml += `
-          <div>
-            <label class="text-sm text-gray-300 mb-2 block">${option.name}</label>
-            <select id="editOption${index}" class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white" data-name="${option.name}">
-              <option value="">Select ${option.name.toLowerCase()}...</option>
-              ${option.choices.map(choice => {
-                const selected = (choice === currentValue) ? 'selected' : '';
-                return `<option value="${choice}" ${selected}>${choice}</option>`;
-              }).join('')}
-            </select>
-          </div>
-        `;
+        // For Activity, use leader's selection (group-level setting)
+        // For everything else (Class, Spec, etc.), use current user's selection
+        const currentValue = (option.name === 'Activity' ? leaderSelections[option.name] : currentSelections[option.name]) || '';
+
+        const optionDiv = document.createElement('div');
+        optionDiv.className = 'mb-4';
+
+        const optionLabel = document.createElement('label');
+        optionLabel.className = 'text-sm text-gray-300 mb-2 block';
+        optionLabel.textContent = option.name;
+        optionDiv.appendChild(optionLabel);
+
+        const optionSelectContainer = document.createElement('div');
+        optionSelectContainer.id = `editOption${index}Container`;
+        optionSelectContainer.dataset.name = option.name;
+        if (option.depends_on) {
+          optionSelectContainer.dataset.dependsOn = option.depends_on;
+        }
+        optionDiv.appendChild(optionSelectContainer);
+        container.appendChild(optionDiv);
+
+        // Build items from choices
+        let items = [];
+
+        // Check if this is a conditional dropdown
+        if (option.depends_on && typeof option.choices === 'object' && !Array.isArray(option.choices)) {
+          // Get parent value to determine which choices to show
+          const parentOption = game.custom_options.find(opt => opt.name === option.depends_on);
+          const parentValue = currentSelections[option.depends_on] || '';
+          if (parentValue && option.choices[parentValue]) {
+            items = option.choices[parentValue].map(choice => ({
+              value: choice,
+              label: choice
+            }));
+          }
+        } else if (Array.isArray(option.choices)) {
+          items = option.choices.map(choice => ({
+            value: choice,
+            label: choice
+          }));
+        }
+
+        // Check if this option should allow multi-select (Activity allows up to 3)
+        const isMultiSelect = option.name === 'Activity';
+        const maxSelections = isMultiSelect ? 3 : null;
+
+        // For multi-select, currentValue might be a JSON string or array
+        let selectedValue = currentValue;
+        if (isMultiSelect && typeof currentValue === 'string' && currentValue) {
+          try {
+            selectedValue = JSON.parse(currentValue);
+          } catch (e) {
+            // If it's not valid JSON, check if it's a corrupted value like '[' or malformed
+            // Only treat as single value if it doesn't look like broken JSON
+            if (currentValue.startsWith('[') || currentValue.startsWith('{')) {
+              // Corrupted JSON, default to empty array
+              selectedValue = [];
+            } else {
+              // Valid single string value
+              selectedValue = [currentValue];
+            }
+          }
+        }
+
+        createCustomSelect({
+          container: optionSelectContainer,
+          name: `editOption${index}`,
+          id: `editOption${index}`,
+          placeholder: `Select ${option.name.toLowerCase()}...`,
+          items: items,
+          selected: isMultiSelect ? (selectedValue || []) : currentValue,
+          color: 'blue',
+          multiSelect: isMultiSelect,
+          maxSelections: maxSelections,
+          onSelect: (value) => {
+            updateDependentOptions(game.id, index, value, 'edit');
+          }
+        });
       });
     }
-
-    container.innerHTML = optionsHtml;
   }
 
   async function loadEditGuildMembers(group) {
@@ -974,37 +1174,54 @@
     const maxGroupSize = parseInt(document.getElementById('editGroupSize').value);
     const description = document.getElementById('editDescription').value;
 
-    // Get selected co-leaders
-    const coLeaderCheckboxes = document.querySelectorAll('.edit-co-leader-checkbox:checked');
-    const coLeaderIds = Array.from(coLeaderCheckboxes).map(cb => cb.value);
+    // Find the group to check if current user is creator
+    const group = allGroups.find(g => g.id === groupId);
+    const isCreator = group && String(group.creator_id) === String(currentUserId);
 
-    // Collect leader's updated game-specific options
-    const leaderOptions = {};
-
-    // Get rank if present
-    const rankSelect = document.getElementById('editRank');
-    if (rankSelect && rankSelect.value) {
-      leaderOptions.rank = parseInt(rankSelect.value);
+    // Only collect co-leaders if user is the creator
+    let coLeaderIds = undefined;
+    if (isCreator) {
+      const coLeaderCheckboxes = document.querySelectorAll('.edit-co-leader-checkbox:checked');
+      coLeaderIds = Array.from(coLeaderCheckboxes).map(cb => cb.value);
     }
 
-    // Get custom options
-    const optionSelects = document.querySelectorAll('[id^="editOption"]');
-    optionSelects.forEach(select => {
-      const optionName = select.getAttribute('data-name');
-      const value = select.value;
-      if (optionName && value) {
-        leaderOptions[optionName] = value;
+    // Collect Activity values (group-level setting)
+    const activityInput = document.getElementById('editActivity');
+    let activityValue = null;
+    if (activityInput) {
+      try {
+        const rawValue = activityInput.value;
+        if (rawValue) {
+          // Parse the JSON array from the hidden input
+          const parsedValue = JSON.parse(rawValue);
+          // Only send if there are actual selections
+          if (Array.isArray(parsedValue) && parsedValue.length > 0) {
+            activityValue = parsedValue;
+          }
+        }
+      } catch (e) {
+        console.error('Failed to parse activity value:', e);
       }
-    });
+    }
 
     try {
       const payload = {
         scheduled_time: scheduledTime ? Math.floor(new Date(scheduledTime).getTime() / 1000) : null,
         max_group_size: maxGroupSize,
-        description: description,
-        co_leader_ids: coLeaderIds,
-        leader_options: leaderOptions
+        description: description
       };
+
+      // Only include co_leader_ids if user is creator
+      if (isCreator && coLeaderIds !== undefined) {
+        payload.co_leader_ids = coLeaderIds;
+      }
+
+      // Include Activity if present
+      if (activityValue !== null) {
+        payload.leader_options = {
+          Activity: activityValue
+        };
+      }
 
       const res = await csrfFetch(`/api/guild/${guildId}/lfg/browser/${groupId}/update/`, {
         method: 'PATCH',
@@ -1116,6 +1333,58 @@
     }
   }
 
+  // Helper function to update dependent dropdowns
+  function updateDependentOptions(gameId, parentIndex, parentValue, prefix) {
+    // Find the game data
+    const game = gamesData.find(g => g.id == gameId);
+    if (!game || !game.custom_options) return;
+
+    const parentOption = game.custom_options[parentIndex];
+    if (!parentOption) return;
+
+    // Find all dependent options
+    game.custom_options.forEach((option, index) => {
+      if (option.depends_on === parentOption.name) {
+        // This option depends on the parent that just changed
+        const container = document.getElementById(`${prefix}Option${index}Container`);
+        if (!container) return;
+
+        // Get the choices for the selected parent value
+        let newChoices = [];
+        if (parentValue && typeof option.choices === 'object' && !Array.isArray(option.choices)) {
+          const choicesForParent = option.choices[parentValue];
+          if (Array.isArray(choicesForParent)) {
+            newChoices = choicesForParent.map(choice => ({
+              value: choice,
+              label: choice
+            }));
+          }
+        }
+
+        // Recreate the custom select with new choices
+        // Check if this option should allow multi-select
+        const isMultiSelect = option.name === 'Activity';
+        const maxSelections = isMultiSelect ? 3 : null;
+
+        container.innerHTML = '';
+        createCustomSelect({
+          container: container,
+          name: `${prefix}Option${index}`,
+          id: `${prefix}Option${index}`,
+          placeholder: `Select ${option.name.toLowerCase()}...`,
+          items: newChoices,
+          selected: isMultiSelect ? [] : '',
+          color: 'blue',
+          multiSelect: isMultiSelect,
+          maxSelections: maxSelections,
+          onSelect: (value) => {
+            updateDependentOptions(gameId, index, value, prefix);
+          }
+        });
+      }
+    });
+  }
+
   function onCreateGameChange() {
     const gameId = document.getElementById('createGame').value;
     const container = document.getElementById('createGameOptions');
@@ -1130,48 +1399,109 @@
     const game = gamesData.find(g => g.id == gameId);
     if (!game) return;
 
-    let optionsHtml = '';
+    container.innerHTML = '';
+    let hasOptions = false;
 
     // Add rank selection if required
     if (game.require_rank && game.rank_label) {
-      optionsHtml += `
-        <div>
-          <label class="text-sm text-gray-300 mb-2 block">${game.rank_label} *</label>
-          <select id="createRank" class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white">
-            <option value="">Select your ${game.rank_label.toLowerCase()}...</option>
-      `;
+      hasOptions = true;
+
+      const rankDiv = document.createElement('div');
+      rankDiv.className = 'mb-4';
+
+      const rankLabel = document.createElement('label');
+      rankLabel.className = 'text-sm text-gray-300 mb-2 block';
+      rankLabel.textContent = `${game.rank_label} *`;
+      rankDiv.appendChild(rankLabel);
+
+      const rankSelectContainer = document.createElement('div');
+      rankSelectContainer.id = 'createRankContainer';
+      rankDiv.appendChild(rankSelectContainer);
+      container.appendChild(rankDiv);
+
+      // Build rank items
+      const rankItems = [];
       if (game.rank_min !== null && game.rank_max !== null) {
         for (let i = game.rank_min; i <= game.rank_max; i++) {
-          optionsHtml += `<option value="${i}">${i}</option>`;
+          rankItems.push({ value: String(i), label: String(i) });
         }
       }
-      optionsHtml += `
-          </select>
-        </div>
-      `;
+
+      createCustomSelect({
+        container: rankSelectContainer,
+        name: 'createRank',
+        id: 'createRank',
+        placeholder: `Select your ${game.rank_label.toLowerCase()}...`,
+        items: rankItems,
+        selected: '',
+        color: 'blue'
+      });
     }
 
     // Add custom options if available
     if (game.custom_options && game.custom_options.length > 0) {
+      hasOptions = true;
+
       game.custom_options.forEach((option, index) => {
-        optionsHtml += `
-          <div>
-            <label class="text-sm text-gray-300 mb-2 block">${option.name}</label>
-            <select id="createOption${index}" class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white" data-name="${option.name}">
-              <option value="">Select ${option.name.toLowerCase()}...</option>
-              ${option.choices.map(choice => `<option value="${choice}">${choice}</option>`).join('')}
-            </select>
-          </div>
-        `;
+        const optionDiv = document.createElement('div');
+        optionDiv.className = 'mb-4';
+        optionDiv.dataset.optionIndex = index;
+
+        const optionLabel = document.createElement('label');
+        optionLabel.className = 'text-sm text-gray-300 mb-2 block';
+        optionLabel.textContent = option.name;
+        optionDiv.appendChild(optionLabel);
+
+        const optionSelectContainer = document.createElement('div');
+        optionSelectContainer.id = `createOption${index}Container`;
+        optionSelectContainer.dataset.name = option.name;
+        if (option.depends_on) {
+          optionSelectContainer.dataset.dependsOn = option.depends_on;
+        }
+        optionDiv.appendChild(optionSelectContainer);
+        container.appendChild(optionDiv);
+
+        // Build items from choices
+        let items = [];
+
+        // Check if this is a conditional dropdown (choices is an object)
+        if (option.depends_on && typeof option.choices === 'object' && !Array.isArray(option.choices)) {
+          // Conditional dropdown - will be populated when parent changes
+          items = [];
+        } else if (Array.isArray(option.choices)) {
+          // Simple dropdown
+          items = option.choices.map(choice => ({
+            value: choice,
+            label: choice
+          }));
+        }
+
+        // Check if this option should allow multi-select (Activity allows up to 3)
+        const isMultiSelect = option.name === 'Activity';
+        const maxSelections = isMultiSelect ? 3 : null;
+
+        const customSelect = createCustomSelect({
+          container: optionSelectContainer,
+          name: `createOption${index}`,
+          id: `createOption${index}`,
+          placeholder: `Select ${option.name.toLowerCase()}...`,
+          items: items,
+          selected: isMultiSelect ? [] : '',
+          color: 'blue',
+          multiSelect: isMultiSelect,
+          maxSelections: maxSelections,
+          onSelect: (value) => {
+            // When this option changes, update any dependent options
+            updateDependentOptions(gameId, index, value, 'create');
+          }
+        });
       });
     }
 
-    if (optionsHtml) {
-      container.innerHTML = optionsHtml;
+    if (hasOptions) {
       container.classList.remove('hidden');
     } else {
       container.classList.add('hidden');
-      container.innerHTML = '';
     }
   }
 
@@ -1205,11 +1535,11 @@
     const game = gamesData.find(g => g.id == gameId);
 
     if (game) {
-      // Get rank if required
+      // Get rank if required (from custom select hidden input)
       if (game.require_rank) {
-        const rankSelect = document.getElementById('createRank');
-        if (rankSelect) {
-          const rankValue = rankSelect.value;
+        const rankInput = document.getElementById('createRank');
+        if (rankInput) {
+          const rankValue = rankInput.value;
           if (!rankValue) {
             return showToast(`Please select your ${game.rank_label}`, 'error');
           }
@@ -1217,14 +1547,14 @@
         }
       }
 
-      // Get custom options
+      // Get custom options (from custom select hidden inputs)
       if (game.custom_options && game.custom_options.length > 0) {
         game.custom_options.forEach((option, index) => {
-          const optionSelect = document.getElementById(`createOption${index}`);
-          if (optionSelect) {
-            const value = optionSelect.value;
-            if (value) {
-              creatorOptions[option.name] = value;
+          const optionContainer = document.getElementById(`createOption${index}Container`);
+          if (optionContainer) {
+            const hiddenInput = optionContainer.querySelector('input[type="hidden"]');
+            if (hiddenInput && hiddenInput.value) {
+              creatorOptions[option.name] = hiddenInput.value;
             }
           }
         });
@@ -1299,50 +1629,127 @@
     // Find current member's selections
     const currentMember = group.members.find(m => m.user_id === currentUserId);
 
-    let optionsHtml = `<div class="mb-4 p-3 bg-neutral-800 rounded-lg border border-neutral-700">
+    const container = document.getElementById('updateClassContent');
+    container.innerHTML = '';
+
+    // Game info header
+    const headerDiv = document.createElement('div');
+    headerDiv.className = 'mb-4 p-3 bg-neutral-800 rounded-lg border border-neutral-700';
+    headerDiv.innerHTML = `
       <p class="text-sm text-gray-300"><strong class="text-white">${game.game_emoji || '🎮'} ${game.game_name}</strong></p>
       <p class="text-xs text-gray-500 mt-1">Update your class/role for this group</p>
-    </div>`;
+    `;
+    container.appendChild(headerDiv);
 
     // Add rank selection if required
     if (game.require_rank && game.rank_label) {
-      optionsHtml += `<div><label class="text-sm text-gray-300 mb-2 block">${game.rank_label}</label>
-        <select id="updateRank" class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white">
-          <option value="">Select your ${game.rank_label.toLowerCase()}...</option>`;
+      const rankDiv = document.createElement('div');
+      rankDiv.className = 'mb-4';
+
+      const rankLabel = document.createElement('label');
+      rankLabel.className = 'text-sm text-gray-300 mb-2 block';
+      rankLabel.textContent = game.rank_label;
+      rankDiv.appendChild(rankLabel);
+
+      const rankSelectContainer = document.createElement('div');
+      rankSelectContainer.id = 'updateRankContainer';
+      rankDiv.appendChild(rankSelectContainer);
+      container.appendChild(rankDiv);
+
+      // Build rank items
+      const rankItems = [];
       if (game.rank_min !== null && game.rank_max !== null) {
         for (let i = game.rank_min; i <= game.rank_max; i++) {
-          const selected = (currentMember?.rank_value === i) ? 'selected' : '';
-          optionsHtml += `<option value="${i}" ${selected}>${i}</option>`;
+          rankItems.push({ value: String(i), label: String(i) });
         }
       }
-      optionsHtml += `</select></div>`;
-    }
 
-    // Add custom options
-    if (game.custom_options && game.custom_options.length > 0) {
-      game.custom_options.forEach((option, index) => {
-        const currentValue = currentMember?.selections?.[option.name] || '';
-        optionsHtml += `<div><label class="text-sm text-gray-300 mb-2 block">${option.name}</label>
-          <select id="updateOption${index}" class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white" data-name="${option.name}">
-            <option value="">Select ${option.name.toLowerCase()}...</option>
-            ${option.choices.map(choice => {
-              const selected = (choice === currentValue) ? 'selected' : '';
-              return `<option value="${choice}" ${selected}>${choice}</option>`;
-            }).join('')}
-          </select></div>`;
+      createCustomSelect({
+        container: rankSelectContainer,
+        name: 'updateRank',
+        id: 'updateRank',
+        placeholder: `Select your ${game.rank_label.toLowerCase()}...`,
+        items: rankItems,
+        selected: currentMember?.rank_value ? String(currentMember.rank_value) : '',
+        color: 'blue'
       });
     }
 
-    optionsHtml += `<div class="flex gap-3 mt-4">
+    // Add custom options (Class, Spec, etc. - NOT Activity)
+    if (game.custom_options && game.custom_options.length > 0) {
+      game.custom_options.forEach((option, index) => {
+        // Skip Activity - it's managed in the Edit modal, not here
+        if (option.name === 'Activity') {
+          return;
+        }
+
+        const currentValue = currentMember?.selections?.[option.name] || '';
+
+        const optionDiv = document.createElement('div');
+        optionDiv.className = 'mb-4';
+
+        const optionLabel = document.createElement('label');
+        optionLabel.className = 'text-sm text-gray-300 mb-2 block';
+        optionLabel.textContent = option.name;
+        optionDiv.appendChild(optionLabel);
+
+        const optionSelectContainer = document.createElement('div');
+        optionSelectContainer.id = `updateOption${index}Container`;
+        optionSelectContainer.dataset.name = option.name;
+        if (option.depends_on) {
+          optionSelectContainer.dataset.dependsOn = option.depends_on;
+        }
+        optionDiv.appendChild(optionSelectContainer);
+        container.appendChild(optionDiv);
+
+        // Build items from choices
+        let items = [];
+
+        // Check if this is a conditional dropdown
+        if (option.depends_on && typeof option.choices === 'object' && !Array.isArray(option.choices)) {
+          // Get parent value to determine which choices to show
+          const parentValue = currentMember?.selections?.[option.depends_on] || '';
+          if (parentValue && option.choices[parentValue]) {
+            items = option.choices[parentValue].map(choice => ({
+              value: choice,
+              label: choice
+            }));
+          }
+        } else if (Array.isArray(option.choices)) {
+          items = option.choices.map(choice => ({
+            value: choice,
+            label: choice
+          }));
+        }
+
+        createCustomSelect({
+          container: optionSelectContainer,
+          name: `updateOption${index}`,
+          id: `updateOption${index}`,
+          placeholder: `Select ${option.name.toLowerCase()}...`,
+          items: items,
+          selected: currentValue,
+          color: 'blue',
+          onSelect: (value) => {
+            updateDependentOptions(game.id, index, value, 'update');
+          }
+        });
+      });
+    }
+
+    // Buttons
+    const buttonsDiv = document.createElement('div');
+    buttonsDiv.className = 'flex gap-3 mt-4';
+    buttonsDiv.innerHTML = `
       <button onclick="submitUpdateClass(${groupId})" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg py-2 font-semibold">
         <i class="fas fa-save mr-2"></i>Save Changes
       </button>
       <button onclick="closeUpdateClassModal()" class="px-6 bg-neutral-800 hover:bg-neutral-700 text-white rounded-lg py-2 font-semibold">
         Cancel
       </button>
-    </div>`;
+    `;
+    container.appendChild(buttonsDiv);
 
-    document.getElementById('updateClassContent').innerHTML = optionsHtml;
     document.getElementById('updateClassModal').classList.remove('hidden');
   }
 
@@ -1353,17 +1760,25 @@
 
       const options = {};
       if (game.require_rank) {
-        const rankSelect = document.getElementById('updateRank');
-        if (rankSelect && rankSelect.value) {
-          options.rank = parseInt(rankSelect.value);
+        const rankInput = document.getElementById('updateRank');
+        if (rankInput && rankInput.value) {
+          options.rank = parseInt(rankInput.value);
         }
       }
 
       if (game.custom_options && game.custom_options.length > 0) {
         game.custom_options.forEach((option, index) => {
-          const optionSelect = document.getElementById(`updateOption${index}`);
-          if (optionSelect && optionSelect.value) {
-            options[option.name] = optionSelect.value;
+          // Skip Activity - not in this modal
+          if (option.name === 'Activity') {
+            return;
+          }
+
+          const optionContainer = document.getElementById(`updateOption${index}Container`);
+          if (optionContainer) {
+            const hiddenInput = optionContainer.querySelector('input[type="hidden"]');
+            if (hiddenInput && hiddenInput.value) {
+              options[option.name] = hiddenInput.value;
+            }
           }
         });
       }

@@ -22,6 +22,7 @@ from app import views
 urlpatterns = [
     path('admin_tools/', include('admin_tools.urls')),
     path('admin/analytics', views.analytics_view, name='admin-analytics'),
-    path('admin/', admin.site.urls),
+    # Django admin disabled - not in use and causes template errors
+    # path('admin/', admin.site.urls),
     path('', include('app.urls')),
 ]

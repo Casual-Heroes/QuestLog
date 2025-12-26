@@ -85,30 +85,15 @@
           <!-- Preferred Games -->
           <div>
             <label class="block text-sm font-medium text-gray-300 mb-2">Preferred Games</label>
-            <div class="custom-select-wrapper">
-              <select id="preferredGamesSelect" name="preferred_games" multiple class="custom-select w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white focus:outline-none focus:border-indigo-500" data-placeholder="Select games...">
-                <option value="" disabled>Loading games...</option>
-              </select>
-            </div>
-            <p class="text-xs text-gray-500 mt-1">Select multiple games</p>
+            <div id="preferredGamesContainer"></div>
+            <p class="text-xs text-gray-500 mt-1">Filter Server Directory by your preferred games</p>
           </div>
 
           <!-- Preferred Server Tags -->
           <div>
             <label class="block text-sm font-medium text-gray-300 mb-2">Preferred Tags</label>
-            <div class="custom-select-wrapper">
-              <select name="preferred_tags" multiple class="custom-select w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white focus:outline-none focus:border-indigo-500" data-placeholder="Select tags...">
-                <option value="competitive">Competitive</option>
-                <option value="casual">Casual</option>
-                <option value="18+">18+ Only</option>
-                <option value="family-friendly">Family Friendly</option>
-                <option value="lgbtq">LGBTQ+ Friendly</option>
-                <option value="streamer">Streamer Community</option>
-                <option value="lfg">Active LFG</option>
-                <option value="events">Regular Events</option>
-              </select>
-            </div>
-            <p class="text-xs text-gray-500 mt-1">Select multiple tags</p>
+            <div id="preferredTagsContainer"></div>
+            <p class="text-xs text-gray-500 mt-1">Filter Server Directory by server tags</p>
           </div>
         </div>
 
@@ -132,24 +117,16 @@
 
         <!-- Preferred Activities -->
         <div class="mb-6">
-          <label class="block text-sm font-medium text-gray-300 mb-2">Preferred Activities</label>
-          <div class="custom-select-wrapper">
-            <select id="preferredActivitiesSelect" name="preferred_activities" multiple class="custom-select w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white focus:outline-none focus:border-indigo-500" data-placeholder="Select activities...">
-              <option value="PvP">PvP</option>
-              <option value="Raid">Raid</option>
-              <option value="Dungeon">Dungeon</option>
-              <option value="Casual">Casual</option>
-              <option value="Story">Story</option>
-              <option value="Endgame">Endgame</option>
-              <option value="Leveling">Leveling</option>
-              <option value="Farming">Farming</option>
-              <option value="Social">Social</option>
-              <option value="Event">Event</option>
-              <option value="Achievement">Achievement</option>
-              <option value="Roleplay">Roleplay</option>
-            </select>
-          </div>
-          <p class="text-xs text-gray-500 mt-1">Filter Cross-Server LFG by activity type (standardized across network)</p>
+          <label class="block text-sm font-medium text-gray-300 mb-2">Preferred Activities (Select up to 3)</label>
+          <div id="preferredActivitiesContainer"></div>
+          <p class="text-xs text-gray-500 mt-1">Select up to 3 preferred activity types to auto-filter Cross-Server LFG</p>
+        </div>
+
+        <!-- Preferred Skill Levels -->
+        <div class="mb-6">
+          <label class="block text-sm font-medium text-gray-300 mb-2">Preferred Skill Levels</label>
+          <div id="preferredSkillLevelsContainer"></div>
+          <p class="text-xs text-gray-500 mt-1">Select skill levels to auto-filter Cross-Server LFG</p>
         </div>
 
         <div class="space-y-4">
@@ -168,6 +145,15 @@
             <label for="lfgFilterActivities" class="ml-3">
               <span class="text-sm font-medium text-gray-300">Auto-filter LFG by preferred activities</span>
               <p class="text-xs text-gray-500">Only show LFG posts matching your selected activities</p>
+            </label>
+          </div>
+
+          <!-- Auto-filter LFG by preferred skill levels -->
+          <div class="flex items-start">
+            <input type="checkbox" name="lfg_filter_skill_levels" id="lfgFilterSkillLevels" class="mt-1 h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded">
+            <label for="lfgFilterSkillLevels" class="ml-3">
+              <span class="text-sm font-medium text-gray-300">Auto-filter LFG by preferred skill levels</span>
+              <p class="text-xs text-gray-500">Only show LFG posts matching your selected skill levels</p>
             </label>
           </div>
 
@@ -349,6 +335,92 @@
 </div>
 
 <script>
+// Initialize custom selects
+let preferredActivitiesSelect = null;
+let preferredSkillLevelsSelect = null;
+let preferredGamesSelect = null;
+let preferredTagsSelect = null;
+
+function initPreferredActivitiesSelect() {
+  preferredActivitiesSelect = createCustomSelect({
+    container: '#preferredActivitiesContainer',
+    name: 'preferred_activities',
+    placeholder: 'Select up to 3 activities...',
+    items: [
+      {value: 'PvP', label: 'PvP', icon: 'crosshairs'},
+      {value: 'Raid', label: 'Raid', icon: 'shield-alt'},
+      {value: 'Dungeon', label: 'Dungeon', icon: 'dungeon'},
+      {value: 'Casual', label: 'Casual', icon: 'smile'},
+      {value: 'Story', label: 'Story', icon: 'book'},
+      {value: 'Endgame', label: 'Endgame', icon: 'trophy'},
+      {value: 'Leveling', label: 'Leveling', icon: 'arrow-up'},
+      {value: 'Farming', label: 'Farming', icon: 'seedling'},
+      {value: 'Social', label: 'Social', icon: 'users'},
+      {value: 'Event', label: 'Event', icon: 'calendar-alt'},
+      {value: 'Achievement', label: 'Achievement', icon: 'medal'},
+      {value: 'Roleplay', label: 'Roleplay', icon: 'masks-theater'}
+    ],
+    color: 'indigo',
+    multiSelect: true,
+    maxSelections: 3,
+    selected: []
+  });
+}
+
+function initPreferredSkillLevelsSelect() {
+  preferredSkillLevelsSelect = createCustomSelect({
+    container: '#preferredSkillLevelsContainer',
+    name: 'preferred_skill_levels',
+    placeholder: 'Select skill levels...',
+    items: [
+      {value: 'beginner', label: 'Beginner', icon: 'seedling'},
+      {value: 'intermediate', label: 'Intermediate', icon: 'star'},
+      {value: 'advanced', label: 'Advanced', icon: 'fire'},
+      {value: 'expert', label: 'Expert', icon: 'crown'},
+      {value: 'hardcore', label: 'Hardcore', icon: 'skull'}
+    ],
+    color: 'indigo',
+    multiSelect: true,
+    selected: []
+  });
+}
+
+function initPreferredGamesSelect() {
+  // Will be populated after games are loaded from API
+  preferredGamesSelect = createCustomSelect({
+    container: '#preferredGamesContainer',
+    name: 'preferred_games',
+    placeholder: 'Select preferred games...',
+    items: [], // Populated by loadGamesList()
+    color: 'indigo',
+    multiSelect: true,
+    maxSelections: null, // No limit
+    selected: []
+  });
+}
+
+function initPreferredTagsSelect() {
+  preferredTagsSelect = createCustomSelect({
+    container: '#preferredTagsContainer',
+    name: 'preferred_tags',
+    placeholder: 'Select server tags...',
+    items: [
+      {value: 'competitive', label: 'Competitive', icon: 'trophy'},
+      {value: 'casual', label: 'Casual', icon: 'gamepad'},
+      {value: '18+', label: '18+ Only', icon: 'exclamation-triangle'},
+      {value: 'family-friendly', label: 'Family Friendly', icon: 'heart'},
+      {value: 'lgbtq', label: 'LGBTQ+ Friendly', icon: 'rainbow'},
+      {value: 'streamer', label: 'Streamer Community', icon: 'video'},
+      {value: 'lfg', label: 'Active LFG', icon: 'users'},
+      {value: 'events', label: 'Regular Events', icon: 'calendar'}
+    ],
+    color: 'indigo',
+    multiSelect: true,
+    maxSelections: null, // No limit
+    selected: []
+  });
+}
+
 // Get CSRF token from cookie
 function getCookie(name) {
   let cookieValue = null;
@@ -365,30 +437,38 @@ function getCookie(name) {
   return cookieValue;
 }
 
-// Load games list from API (same as directory page)
+// Load games list from API and populate custom select
 async function loadGamesList() {
   try {
     const response = await fetch('/api/discovery/games');
     const data = await response.json();
 
     if (data.success && data.games) {
-      const select = document.getElementById('preferredGamesSelect');
-      select.innerHTML = ''; // Clear loading message
+      // Build items array for custom select
+      const items = data.games.map(game => ({
+        value: game.slug || game.name.toLowerCase().replace(/\s+/g, '-'),
+        label: game.name || game,
+        icon: 'gamepad'
+      })).filter(item => item.label); // Remove any without names
 
-      // Add games to select
-      data.games.forEach(game => {
-        // Skip if game doesn't have a name
-        if (!game.name) return;
-
-        const option = document.createElement('option');
-        option.value = game.slug || game.name.toLowerCase().replace(/\s+/g, '-');
-        option.textContent = game.name;
-        select.appendChild(option);
-      });
+      // Update custom select with loaded games
+      if (preferredGamesSelect && items.length > 0) {
+        // Recreate the select with populated items
+        preferredGamesSelect.destroy();
+        preferredGamesSelect = createCustomSelect({
+          container: '#preferredGamesContainer',
+          name: 'preferred_games',
+          placeholder: 'Select preferred games...',
+          items: items,
+          color: 'indigo',
+          multiSelect: true,
+          maxSelections: null,
+          selected: []
+        });
+      }
     }
   } catch (error) {
-    // Failed to load games:
-    document.getElementById('preferredGamesSelect').innerHTML = '<option value="" disabled>Failed to load games</option>';
+    // Failed to load games - show error in placeholder
   }
 }
 
@@ -408,7 +488,7 @@ async function loadPreferences() {
           if (input.type === 'checkbox') {
             input.checked = data.preferences[key];
           } else if (input.multiple && input.tagName === 'SELECT') {
-            // Handle multi-select dropdowns
+            // Handle multi-select dropdowns (for preferred_games)
             const values = Array.isArray(data.preferences[key])
               ? data.preferences[key]
               : (data.preferences[key] ? data.preferences[key].split(',') : []);
@@ -421,6 +501,35 @@ async function loadPreferences() {
           }
         }
       });
+
+      // Handle custom selects separately
+      if (preferredActivitiesSelect && data.preferences.preferred_activities) {
+        const activities = Array.isArray(data.preferences.preferred_activities)
+          ? data.preferences.preferred_activities
+          : [];
+        preferredActivitiesSelect.setValue(activities);
+      }
+
+      if (preferredSkillLevelsSelect && data.preferences.preferred_skill_levels) {
+        const skillLevels = Array.isArray(data.preferences.preferred_skill_levels)
+          ? data.preferences.preferred_skill_levels
+          : [];
+        preferredSkillLevelsSelect.setValue(skillLevels);
+      }
+
+      if (preferredGamesSelect && data.preferences.preferred_games) {
+        const games = Array.isArray(data.preferences.preferred_games)
+          ? data.preferences.preferred_games
+          : [];
+        preferredGamesSelect.setValue(games);
+      }
+
+      if (preferredTagsSelect && data.preferences.preferred_tags) {
+        const tags = Array.isArray(data.preferences.preferred_tags)
+          ? data.preferences.preferred_tags
+          : [];
+        preferredTagsSelect.setValue(tags);
+      }
 
       // Also populate invite_code if present
       if (data.preferences.invite_code) {
@@ -471,7 +580,21 @@ document.getElementById('preferencesForm').addEventListener('submit', async (e) 
     data.invite_code = inviteCodeInput.value.trim() || null;
   }
 
-  try {
+  // Handle custom selects
+  if (preferredActivitiesSelect) {
+    data.preferred_activities = preferredActivitiesSelect.getValue();
+  }
+  if (preferredSkillLevelsSelect) {
+    data.preferred_skill_levels = preferredSkillLevelsSelect.getValue();
+  }
+  if (preferredGamesSelect) {
+    data.preferred_games = preferredGamesSelect.getValue();
+  }
+  if (preferredTagsSelect) {
+    data.preferred_tags = preferredTagsSelect.getValue();
+  }
+
+  try{
     const csrftoken = getCookie('csrftoken');
     const guildId = '{{ guild.id }}';
     const response = await fetch(`/api/discovery/preferences?guild_id=${guildId}`, {
@@ -572,10 +695,19 @@ async function confirmLeave() {
 
 // Load games list and preferences on page load
 async function initializePage() {
+  // Initialize custom selects BEFORE loading preferences
+  initPreferredActivitiesSelect();
+  initPreferredSkillLevelsSelect();
+  initPreferredGamesSelect();
+  initPreferredTagsSelect();
+
+  // Load games list (will populate preferredGamesSelect)
   await loadGamesList();
+
+  // Load and apply preferences
   await loadPreferences();
 
-  // Initialize custom-select components after data is loaded
+  // Initialize any remaining custom-select components after data is loaded
   if (typeof initCustomSelect === 'function') {
     document.querySelectorAll('.custom-select').forEach(select => {
       initCustomSelect(select);
