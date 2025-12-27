@@ -89,18 +89,6 @@ document.getElementById('require_tokens_forum').addEventListener('change', funct
   document.getElementById('tokenCostForumSection').classList.toggle('hidden', !this.checked);
 });
 
-// Toggle auto-join role section based on "Show on Website" checkbox
-document.getElementById('modal_show_on_website').addEventListener('change', function() {
-  const autoJoinSection = document.getElementById('auto_join_role_section');
-  if (this.checked) {
-    // Website enabled = hide auto-join role (only for private threads)
-    autoJoinSection.classList.add('hidden');
-  } else {
-    // Website disabled = show auto-join role for private threads
-    autoJoinSection.classList.remove('hidden');
-  }
-});
-
 // Toggle channel settings section
 document.getElementById('channel_enabled').addEventListener('change', function() {
   document.getElementById('channelSettings').classList.toggle('hidden', !this.checked);
@@ -121,13 +109,41 @@ document.getElementById('cotm_enabled').addEventListener('change', function() {
   document.getElementById('cotmSettings').classList.toggle('hidden', !this.checked);
 });
 
+// Helper function to clear cached data (useful for manual refresh)
+function clearDiscoveryCache() {
+  sessionStorage.removeItem(`channels_${guildId}`);
+  sessionStorage.removeItem(`channels_${guildId}_time`);
+  sessionStorage.removeItem(`roles_${guildId}`);
+  sessionStorage.removeItem(`roles_${guildId}_time`);
+  console.log('Cleared discovery cache');
+}
+
 // Load Discord channels and initialize custom selects
-let selfpromoSelect, featureSelect, introForumSelect, forumFeatureSelect, cotwChannelSelect, cotmChannelSelect, publicGameSelect, privateGameSelect, autoJoinRoleSelect, testChannelSelect, testForumSelect;
+let selfpromoSelect, featureSelect, introForumSelect, forumFeatureSelect, cotwChannelSelect, cotmChannelSelect, publicGameSelect, privateGameSelect, autoJoinRoleSelect, testChannelSelect, testForumSelect, publicGamePingRoleSelect, privateGamePingRoleSelect;
 
 async function loadChannels() {
   try {
-    const response = await csrfFetch(`/api/guild/${guildId}/channels/`);
-    const data = await response.json();
+    // Check cache first (5 minute cache to reduce API calls)
+    const cacheKey = `channels_${guildId}`;
+    const cached = sessionStorage.getItem(cacheKey);
+    const cacheTime = sessionStorage.getItem(`${cacheKey}_time`);
+    const now = Date.now();
+
+    let data;
+    if (cached && cacheTime && (now - parseInt(cacheTime)) < 300000) {
+      // Use cached data (less than 5 minutes old)
+      data = JSON.parse(cached);
+      console.log('Using cached channel data');
+    } else {
+      // Fetch fresh data
+      const response = await csrfFetch(`/api/guild/${guildId}/channels/`);
+      data = await response.json();
+
+      // Cache the result
+      sessionStorage.setItem(cacheKey, JSON.stringify(data));
+      sessionStorage.setItem(`${cacheKey}_time`, now.toString());
+      console.log('Fetched and cached fresh channel data');
+    }
 
     const currentSelfpromo = '{{ discovery_config.selfpromo_channel_id|default:"" }}';
     const currentFeature = '{{ discovery_config.feature_channel_id|default:"" }}';
@@ -139,7 +155,6 @@ async function loadChannels() {
     const currentTestChannel = '{{ discovery_config.test_channel_id|default:"" }}';
     const currentTestForum = '{{ discovery_config.test_forum_id|default:"" }}';
     const currentPublicGame = '{{ discovery_config.public_game_channel_id|default:"" }}';
-    const currentPrivateGame = '{{ discovery_config.private_game_channel_id|default:"" }}';
 
     if (data.channels) {
       const textChannels = data.channels.filter(ch => ch.type === 0);
@@ -189,7 +204,7 @@ async function loadChannels() {
         color: 'purple'
       });
 
-      // Public game discovery channel
+      // Game discovery channel
       publicGameSelect = createCustomSelect({
         container: '#public_game_channel_idContainer',
         name: 'public_game_channel_id',
@@ -198,17 +213,6 @@ async function loadChannels() {
         items: channelItems,
         selected: currentPublicGame,
         color: 'green'
-      });
-
-      // Private game discovery channel
-      privateGameSelect = createCustomSelect({
-        container: '#private_game_channel_idContainer',
-        name: 'private_game_channel_id',
-        id: 'private_game_channel_id',
-        placeholder: 'Select a channel...',
-        items: channelItems,
-        selected: currentPrivateGame,
-        color: 'purple'
       });
 
       // Intro forum channel (for Featured Creators)
@@ -296,8 +300,27 @@ async function loadChannels() {
 // Load guild roles and initialize custom select
 async function loadRoles() {
   try {
-    const response = await csrfFetch(`/api/guild/${guildId}/roles/`);
-    const data = await response.json();
+    // Check cache first (5 minute cache to reduce API calls)
+    const cacheKey = `roles_${guildId}`;
+    const cached = sessionStorage.getItem(cacheKey);
+    const cacheTime = sessionStorage.getItem(`${cacheKey}_time`);
+    const now = Date.now();
+
+    let data;
+    if (cached && cacheTime && (now - parseInt(cacheTime)) < 300000) {
+      // Use cached data (less than 5 minutes old)
+      data = JSON.parse(cached);
+      console.log('Using cached roles data');
+    } else {
+      // Fetch fresh data
+      const response = await csrfFetch(`/api/guild/${guildId}/roles/`);
+      data = await response.json();
+
+      // Cache the result
+      sessionStorage.setItem(cacheKey, JSON.stringify(data));
+      sessionStorage.setItem(`${cacheKey}_time`, now.toString());
+      console.log('Fetched and cached fresh roles data');
+    }
 
     if (data.roles) {
       const sortedRoles = data.roles
@@ -310,6 +333,8 @@ async function loadRoles() {
         icon: 'user-tag'
       }));
 
+      const currentPublicGamePingRole = '{{ discovery_config.public_game_ping_role_id|default:"" }}';
+
       autoJoinRoleSelect = createCustomSelect({
         container: '#modal_auto_join_roleContainer',
         name: 'auto_join_role_id',
@@ -317,6 +342,16 @@ async function loadRoles() {
         placeholder: 'Select a role...',
         items: roleItems,
         color: 'indigo'
+      });
+
+      publicGamePingRoleSelect = createCustomSelect({
+        container: '#public_game_ping_role_idContainer',
+        name: 'public_game_ping_role_id',
+        id: 'public_game_ping_role_id',
+        placeholder: 'Select a role...',
+        items: roleItems,
+        selected: currentPublicGamePingRole,
+        color: 'blue'
       });
     }
   } catch (err) {
@@ -557,14 +592,10 @@ async function saveGameGlobalSettings() {
   const data = {
     game_discovery_enabled: document.getElementById('game_discovery_enabled').checked,
     public_game_channel_id: publicGameSelect ? publicGameSelect.getValue() : '',
-    private_game_channel_id: privateGameSelect ? privateGameSelect.getValue() : '',
+    public_game_ping_role_id: publicGamePingRoleSelect ? publicGamePingRoleSelect.getValue() : '',
     game_check_interval_hours: parseInt(document.getElementById('game_check_interval_hours').value) || 24,
     max_public_announcements: (function() {
       const el = document.getElementById('max_public_announcements');
-      return el && el.value ? parseInt(el.value) : 5;
-    })(),
-    max_private_announcements: (function() {
-      const el = document.getElementById('max_private_announcements');
       return el && el.value ? parseInt(el.value) : 5;
     })(),
   };
@@ -620,8 +651,6 @@ function openAddSearchModal() {
   document.getElementById('modal_min_hype').value = '';
   document.getElementById('modal_min_rating').value = '';
   document.getElementById('modal_show_on_website').checked = true;
-  document.getElementById('modal_auto_join_role').value = '';
-  document.getElementById('auto_join_role_section').classList.add('hidden');
 
   // Uncheck all filters
   document.querySelectorAll('.modal-genre-filter').forEach(el => el.checked = false);
@@ -670,14 +699,6 @@ async function editSearch(searchId) {
       autoJoinRoleSelect.setValue(search.auto_join_role_id);
     } else if (autoJoinRoleSelect) {
       autoJoinRoleSelect.setValue('');
-    }
-
-    // Show/hide auto-join role section based on show_on_website
-    const autoJoinSection = document.getElementById('auto_join_role_section');
-    if (search.show_on_website !== false) {
-      autoJoinSection.classList.add('hidden');
-    } else {
-      autoJoinSection.classList.remove('hidden');
     }
 
     // Uncheck all first
@@ -913,6 +934,28 @@ async function checkGamesNow() {
 
     // Timeout - action still processing (just reload silently, check will complete in background)
     window.location.hash = 'games';
+    window.location.reload();
+
+  } catch (err) {
+    alert('Error: ' + err.message);
+  }
+}
+
+async function purgeDiscoveryNetworkGames() {
+  if (!confirm('⚠️ WARNING: This will clear ALL games from the Discovery Network for your server.\n\nThis allows games to be re-announced but removes them from the cross-server Discovery Network.\n\nAre you sure you want to continue?')) return;
+
+  try {
+    const response = await csrfFetch(`/api/guild/${guildId}/discovery/purge-announced-games/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+    });
+    const result = await response.json();
+
+    if (!result.success) {
+      throw new Error(result.error || 'Failed to purge Discovery Network games');
+    }
+
+    alert(`✅ Success! Purged ${result.count} games from the Discovery Network.\n\nThese games can now be re-announced in your next discovery check.`);
     window.location.reload();
 
   } catch (err) {

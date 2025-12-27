@@ -255,11 +255,13 @@ function renderGames() {
             ` : ''}
           </div>
 
-          ${game.is_manual && (game.shared_by_user || game.shared_by_server) ? `
+          ${game.server_names && game.server_names.length > 0 ? `
           <div class="text-xs text-gray-400 bg-indigo-900/20 border border-indigo-800/30 rounded px-2 py-1">
-            <i class="fas fa-share text-indigo-400 mr-1"></i>
-            Shared by <span class="text-indigo-300 font-semibold">${game.shared_by_user || 'User'}</span>
-            ${game.shared_by_server ? ` from <span class="text-purple-300 font-semibold">${game.shared_by_server}</span>` : ''}
+            <i class="fas fa-server text-indigo-400 mr-1"></i>
+            ${game.is_manual && game.shared_by_user ? `
+              Shared by <span class="text-indigo-300 font-semibold">${game.shared_by_user}</span> from
+            ` : 'Found by '}
+            <span class="text-purple-300 font-semibold">${game.server_names.slice(0, 2).join(', ')}</span>${game.server_names.length > 2 ? ` <span class="text-gray-500">+${game.server_names.length - 2} more</span>` : ''}
           </div>
           ` : ''}
         </div>

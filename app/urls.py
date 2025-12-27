@@ -2,6 +2,9 @@ from django.urls import path, include
 from . import views
 
 urlpatterns = [
+    # SEO and crawlers
+    path('robots.txt', views.robots_txt, name='robots_txt'),
+
     path('', views.home, name='home'),
     path('gamesweplay/', views.games_we_play, name='games_we_play'),
     path('gameshype/', views.gameshype, name='gameshype'),
@@ -232,6 +235,7 @@ urlpatterns = [
     path('api/guild/<str:guild_id>/discovery/test-forum-embed/', views.api_discovery_test_forum_embed, name='api_discovery_test_forum_embed'),
     path('api/guild/<str:guild_id>/discovery/game-config/update/', views.api_game_discovery_config_update, name='api_game_discovery_config_update'),
     path('api/guild/<str:guild_id>/discovery/check-games/', views.api_game_discovery_check, name='api_game_discovery_check'),
+    path('api/guild/<str:guild_id>/discovery/purge-announced-games/', views.api_purge_announced_games, name='api_purge_announced_games'),
 
     # Game Search Configs
     path('api/guild/<str:guild_id>/discovery/searches/', views.api_game_search_configs_list, name='api_game_search_configs_list'),

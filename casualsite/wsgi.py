@@ -15,7 +15,9 @@ from dotenv import load_dotenv
 
 load_dotenv('/srv/secrets/ch_env/.env')
 
+# Add project directory to Python path BEFORE loading Django
+sys.path.insert(0, "/srv/ch-webserver")
+
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'casualsite.settings')
 
 application = get_wsgi_application()
-sys.path.append("/srv/ch-webserver")

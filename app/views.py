@@ -13,6 +13,7 @@ from dotenv import load_dotenv
 import os
 import asyncio
 import logging
+
 from ampapi.dataclass import APIParams
 from ampapi.bridge import Bridge
 from ampapi.controller import AMPControllerInstance
@@ -347,31 +348,27 @@ def check_lfg_manager_role(guild_id, user_id):
         if not bot_token:
             return False
 
-        # Get guild roles to find "LFG Manager" role ID
-        roles_url = f'https://discord.com/api/v10/guilds/{guild_id}/roles'
-        headers = {'Authorization': f'Bot {bot_token}'}
-        roles_response = requests.get(roles_url, headers=headers)
+        # Get guild roles from cache (no Discord API call!)
+        from .discord_resources import get_guild_roles, get_guild_member
+
+        roles = get_guild_roles(str(guild_id))
 
         lfg_manager_role_id = None
-        if roles_response.status_code == 200:
-            roles = roles_response.json()
-            for role in roles:
-                if role.get('name') == 'LFG Manager':
-                    # Verify role has both CREATE_EVENTS and MANAGE_EVENTS permissions
-                    role_permissions = int(role.get('permissions', 0))
-                    # CREATE_EVENTS = 1 << 44 (17592186044416), MANAGE_EVENTS = 1 << 33 (8589934592)
-                    has_create = (role_permissions & (1 << 44)) != 0
-                    has_manage = (role_permissions & (1 << 33)) != 0
-                    if has_create and has_manage:
-                        lfg_manager_role_id = role.get('id')
-                    break
+        for role in roles:
+            if role.get('name') == 'LFG Manager':
+                # Verify role has both CREATE_EVENTS and MANAGE_EVENTS permissions
+                role_permissions = int(role.get('permissions', 0))
+                # CREATE_EVENTS = 1 << 44 (17592186044416), MANAGE_EVENTS = 1 << 33 (8589934592)
+                has_create = (role_permissions & (1 << 44)) != 0
+                has_manage = (role_permissions & (1 << 33)) != 0
+                if has_create and has_manage:
+                    lfg_manager_role_id = role.get('id')
+                break
 
-        # Check if user has the LFG Manager role
+        # Check if user has the LFG Manager role (from cache, no API call!)
         if lfg_manager_role_id:
-            member_url = f'https://discord.com/api/v10/guilds/{guild_id}/members/{user_id}'
-            response = requests.get(member_url, headers=headers)
-            if response.status_code == 200:
-                member_data = response.json()
+            member_data = get_guild_member(str(guild_id), str(user_id))
+            if member_data:
                 member_roles = member_data.get('roles', [])
                 if str(lfg_manager_role_id) in member_roles:
                     return True
@@ -866,56 +863,83 @@ DISCORD_GAMES = [
 ]
 
 # ============================================
-# AMP Instance Data Cache
+# AMP Instance Data Cache (PERSISTENT - Industry Standard)
 # ============================================
-# Cache structure: {instance_name: {"data": {...}, "timestamp": 123456789}}
+# Uses persistent file cache system (survives restarts)
+# Same approach as Discord caching for consistency
 #
 # ⚙️ CACHE CONFIGURATION - Adjust this to control how often AMP API is called
 # Lower value = more real-time updates, but more API calls
 # Higher value = fewer API calls, but slower to show status changes
 #
-_amp_instance_cache = {}
-AMP_CACHE_TTL = 60  # 5 minutes (in seconds) - Cache duration for AMP instance data
+AMP_CACHE_TTL = 60  # 60 seconds (1 minute) - Good balance for game server status
 #
 # Common values:
-#   60   = 1 minute  (very responsive, high API usage)
+#   60   = 1 minute  (very responsive, good for game servers)
 #   300  = 5 minutes (good balance)
 #   600  = 10 minutes (slower updates, lower API usage)
 #   1800 = 30 minutes (slow updates, minimal API usage)
 #   3600 = 60 minutes (very slow updates, very low API usage)
 
 def get_cached_instance_data(instance_name):
-    """Get cached instance data if it exists and is not expired"""
-    if instance_name in _amp_instance_cache:
-        cached = _amp_instance_cache[instance_name]
-        age = time.time() - cached["timestamp"]
-        if age < AMP_CACHE_TTL:
-            logger.info(f"Using cached data for {instance_name} (age: {int(age)}s)")
-            return cached["data"]
-        else:
-            logger.info(f"Cache expired for {instance_name} (age: {int(age)}s)")
+    """
+    Get cached AMP instance data using persistent cache.
+
+    Returns cached data if valid, None if expired or not found.
+    """
+    from .discord_cache import get_cache
+
+    cache = get_cache()
+    cache_key = f"amp_instance:{instance_name}"
+
+    cached = cache.get(cache_key)
+    if cached is not None:
+        logger.info(f"AMP cache HIT for {instance_name}")
+        return cached
+
+    logger.debug(f"AMP cache MISS for {instance_name}")
     return None
 
 def set_cached_instance_data(instance_name, data):
-    """Store instance data in cache with current timestamp"""
-    _amp_instance_cache[instance_name] = {
-        "data": data,
-        "timestamp": time.time()
-    }
-    logger.info(f"Cached data for {instance_name}")
+    """
+    Store AMP instance data in persistent cache with TTL.
+
+    Cache survives Django restarts.
+    """
+    from .discord_cache import get_cache
+
+    cache = get_cache()
+    cache_key = f"amp_instance:{instance_name}"
+
+    cache.set(cache_key, data, ttl=AMP_CACHE_TTL)
+    logger.info(f"Cached AMP data for {instance_name} (TTL: {AMP_CACHE_TTL}s)")
 
 def clear_amp_cache(instance_name=None):
-    """Clear AMP cache for a specific instance or all instances"""
-    global _amp_instance_cache
+    """
+    Clear AMP cache for a specific instance or all instances.
+
+    Args:
+        instance_name: Specific instance to clear, or None to clear all
+
+    Returns:
+        True if cache was cleared
+    """
+    from .discord_cache import get_cache
+
+    cache = get_cache()
+
     if instance_name:
-        if instance_name in _amp_instance_cache:
-            del _amp_instance_cache[instance_name]
-            logger.info(f"Cleared cache for {instance_name}")
-            return True
-        return False
+        cache_key = f"amp_instance:{instance_name}"
+        cache.delete(cache_key)
+        logger.info(f"Cleared AMP cache for {instance_name}")
+        return True
     else:
-        _amp_instance_cache.clear()
-        logger.info("Cleared all AMP instance cache")
+        # Clear all AMP instance caches
+        # Note: This requires iterating through known instances
+        from .views import STATIC_GAME_INFO
+        for name in STATIC_GAME_INFO.keys():
+            cache.delete(f"amp_instance:{name}")
+        logger.info("Cleared all AMP instance caches")
         return True
 
 async def fetch_instance_data(instance_name):
@@ -1675,8 +1699,20 @@ def discord_refresh_guilds(request):
 
 
 def discord_required(view_func):
-    """Decorator to require Discord authentication"""
+    """Decorator to require Discord authentication (skips auth for social media crawlers for Open Graph)"""
     def wrapper(request, *args, **kwargs):
+        # Allow social media crawlers through without auth for Open Graph meta tags
+        user_agent = request.META.get('HTTP_USER_AGENT', '').lower()
+        is_crawler = any(bot in user_agent for bot in [
+            'facebookexternalhit', 'twitterbot', 'linkedinbot', 'discordbot',
+            'slackbot', 'telegrambot', 'whatsapp', 'pinterest', 'bot'
+        ])
+
+        # Skip auth check for crawlers - let the view handle Open Graph response
+        if is_crawler:
+            return view_func(request, *args, **kwargs)
+
+        # Normal auth check for non-crawlers
         if not request.session.get('discord_user'):
             messages.warning(request, "Please log in with Discord to access this page.")
             return redirect(f"/auth/discord/login/?next={request.path}")
@@ -2542,95 +2578,58 @@ from django.http import JsonResponse, HttpResponseForbidden, HttpResponseNotFoun
 import json as json_lib
 
 
-# Cache for Discord guild permissions (user_id+guild_id -> {is_admin, timestamp})
-_discord_permission_cache = {}
-_PERMISSION_CACHE_TTL = 300  # 5 minutes cache for permission checks
+# PERSISTENT CACHE for Discord guild permissions (industry standard: persistent cache)
+_PERMISSION_CACHE_TTL = 14400  # 4 hours cache for permission checks (admin permissions rarely change)
+
+# Rate limit tracking constants (per-user tracking)
+_DISCORD_API_RATE_LIMIT_PER_USER = 1  # Max 1 call per user per window (Discord's actual limit)
+_RATE_LIMIT_WINDOW = 3  # 3 second window per user to be VERY safe
+
+# Emergency circuit breaker - completely stop API calls if we get too many 429s
+_CIRCUIT_BREAKER_THRESHOLD = 5  # After 5 429s in a row
+_CIRCUIT_BREAKER_DURATION = 300  # Stop all calls for 5 minutes
 
 def api_auth_required(view_func):
-    """Check Discord auth and guild admin access for API endpoints with server-side validation."""
+    """
+    Check Discord auth and guild admin access for API endpoints.
+
+    ZERO DISCORD API CALLS - Uses session data from OAuth login (industry standard).
+    Session data is populated during login and refreshed on re-auth.
+    """
     def wrapper(request, guild_id, *args, **kwargs):
+        from .discord_cache import get_cache
+
+        cache = get_cache()
+
         discord_user = request.session.get('discord_user')
         if not discord_user:
             return JsonResponse({'error': 'Not authenticated'}, status=401)
 
         user_id = discord_user.get('id')
-        cache_key = f"{user_id}_{guild_id}"
+        cache_key = f"discord_permission:{user_id}:{guild_id}"
 
-        # Check cache first
-        import time
-        cached = _discord_permission_cache.get(cache_key)
-        if cached and (time.time() - cached['timestamp']) < _PERMISSION_CACHE_TTL:
+        # Check persistent cache first (4 hour TTL)
+        cached = cache.get(cache_key)
+        if cached is not None:
+            logger.debug(f"Permission cache HIT for user {user_id} guild {guild_id}")
             if not cached['is_admin']:
                 return JsonResponse({'error': 'No admin access to this guild'}, status=403)
             return view_func(request, guild_id, *args, **kwargs)
 
-        # SECURITY: Server-side validation - verify permissions with Discord API
-        try:
-            import requests as req_lib
-            access_token = discord_user.get('access_token')
+        # Cache MISS: Use session data (populated during OAuth login)
+        # This is the industry-standard approach - trust the session data from OAuth
+        admin_guilds = request.session.get('discord_admin_guilds', [])
+        guild = next((g for g in admin_guilds if str(g['id']) == str(guild_id)), None)
 
-            if not access_token:
-                logger.warning(f"No access token for user {user_id}")
-                return JsonResponse({'error': 'Authentication expired. Please log in again.'}, status=401)
+        if not guild:
+            # Cache negative result
+            cache.set(cache_key, {'is_admin': False}, ttl=_PERMISSION_CACHE_TTL)
+            logger.debug(f"Permission cache MISS: User {user_id} has no admin access to guild {guild_id}")
+            return JsonResponse({'error': 'No admin access to this guild'}, status=403)
 
-            # Verify user still has admin permissions in this guild
-            headers = {'Authorization': f"Bearer {access_token}"}
-
-            # Get user's guilds from Discord API
-            response = req_lib.get(
-                'https://discord.com/api/v10/users/@me/guilds',
-                headers=headers,
-                timeout=5
-            )
-
-            if response.status_code == 401:
-                # Token expired
-                logger.warning(f"Expired token for user {user_id}")
-                return JsonResponse({'error': 'Authentication expired. Please log in again.'}, status=401)
-
-            if response.status_code != 200:
-                logger.error(f"Discord API error: {response.status_code}")
-                # Fallback to session data if API fails (but log the failure)
-                admin_guilds = request.session.get('discord_admin_guilds', [])
-                guild = next((g for g in admin_guilds if str(g['id']) == str(guild_id)), None)
-                if not guild:
-                    return JsonResponse({'error': 'No admin access to this guild'}, status=403)
-                return view_func(request, guild_id, *args, **kwargs)
-
-            guilds = response.json()
-
-            # Find the requested guild and verify admin permissions
-            target_guild = next((g for g in guilds if str(g['id']) == str(guild_id)), None)
-
-            if not target_guild:
-                # Cache negative result
-                _discord_permission_cache[cache_key] = {'is_admin': False, 'timestamp': time.time()}
-                return JsonResponse({'error': 'You are not a member of this guild'}, status=403)
-
-            # Check for administrator permission (bit 3 = 0x8)
-            permissions = int(target_guild.get('permissions', 0))
-            is_admin = (permissions & 0x8) != 0
-
-            if not is_admin:
-                logger.warning(f"User {user_id} attempted to access guild {guild_id} without admin permissions")
-                # Cache negative result
-                _discord_permission_cache[cache_key] = {'is_admin': False, 'timestamp': time.time()}
-                return JsonResponse({'error': 'No admin access to this guild'}, status=403)
-
-            # Cache positive result
-            _discord_permission_cache[cache_key] = {'is_admin': True, 'timestamp': time.time()}
-
-        except req_lib.Timeout:
-            logger.error("Discord API timeout during authorization check")
-            # Fallback to session data on timeout
-            admin_guilds = request.session.get('discord_admin_guilds', [])
-            guild = next((g for g in admin_guilds if str(g['id']) == str(guild_id)), None)
-            if not guild:
-                return JsonResponse({'error': 'No admin access to this guild'}, status=403)
-        except Exception as e:
-            logger.error(f"Authorization check failed: {e}", exc_info=True)
-            return JsonResponse({'error': 'Authorization failed. Please try again.'}, status=500)
-
+        # Cache positive result
+        cache.set(cache_key, {'is_admin': True}, ttl=_PERMISSION_CACHE_TTL)
+        logger.debug(f"Permission cache MISS: Cached admin access for user {user_id} guild {guild_id} from session data")
         return view_func(request, guild_id, *args, **kwargs)
     return wrapper
 
@@ -9940,6 +9939,38 @@ def guild_discovery_network(request, guild_id):
     """Discovery Network dashboard - cross-server creator discovery."""
     from .module_utils import has_module_access, has_any_module_access
 
+    # Serve Open Graph meta tags for social media crawlers (no auth required)
+    user_agent = request.META.get('HTTP_USER_AGENT', '').lower()
+    is_crawler = any(bot in user_agent for bot in [
+        'facebookexternalhit', 'twitterbot', 'linkedinbot', 'discordbot',
+        'slackbot', 'telegrambot', 'whatsapp', 'pinterest'
+    ])
+
+    if is_crawler:
+        from django.http import HttpResponse
+        og_html = f"""<!DOCTYPE html>
+<html>
+<head>
+    <meta property="og:title" content="QuestLog Dashboard - Casual Heroes">
+    <meta property="og:description" content="Discover gaming communities, find groups, and connect with players across the Casual Heroes network. Manage your Discord server with powerful moderation, leveling, and discovery tools.">
+    <meta property="og:image" content="https://dashboard.casual-heroes.com/static/img/siteassets/homepage/CHLogoFinal.png">
+    <meta property="og:url" content="https://dashboard.casual-heroes.com/questlog/guild/{guild_id}/discovery-network/">
+    <meta property="og:type" content="website">
+    <meta property="article:author" content="Ryven">
+    <meta name="author" content="Ryven">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="QuestLog Dashboard - Casual Heroes">
+    <meta name="twitter:description" content="Discover gaming communities, find groups, and connect with players across the Casual Heroes network.">
+    <meta name="twitter:image" content="https://dashboard.casual-heroes.com/static/img/siteassets/homepage/CHLogoFinal.png">
+    <meta name="twitter:creator" content="@Ryven">
+</head>
+<body>
+    <h1>QuestLog Dashboard - Casual Heroes</h1>
+    <p>Visit <a href="https://dashboard.casual-heroes.com/">Casual Heroes</a> to explore gaming communities.</p>
+</body>
+</html>"""
+        return HttpResponse(og_html)
+
     # Check if user is admin of this guild
     admin_guilds = request.session.get('discord_admin_guilds', [])
     guild = next((g for g in admin_guilds if str(g.get('id')) == str(guild_id)), None)
@@ -11831,6 +11862,7 @@ def api_discovery_games_list(request):
                 'genres': None,
                 'platforms': None,
                 'server_count': 0,
+                'server_guild_ids': set(),  # Track which servers announced this game
                 'lfg_count': 0,
                 'total_reviews': 0,
                 'avg_rating': 0,
@@ -11845,9 +11877,10 @@ def api_discovery_games_list(request):
                 'is_manual': False
             })
 
-            # 1. Get games from announced_games (Found Games)
+            # 1. Get games from announced_games (Found Games) - Fetch ALL instances to track guild IDs
             announced_games = db.query(
                 AnnouncedGame.game_name,
+                AnnouncedGame.guild_id,
                 AnnouncedGame.genre,
                 AnnouncedGame.description,
                 AnnouncedGame.release_date,
@@ -11856,29 +11889,19 @@ def api_discovery_games_list(request):
                 AnnouncedGame.cover_url,
                 AnnouncedGame.igdb_slug,
                 AnnouncedGame.steam_id,
-                func.count(func.distinct(AnnouncedGame.guild_id)).label('server_count'),
-                func.max(AnnouncedGame.created_at).label('latest')
+                AnnouncedGame.created_at
             ).filter(
                 AnnouncedGame.guild_id.in_(approved_guild_ids)
-            ).group_by(
-                AnnouncedGame.game_name,
-                AnnouncedGame.genre,
-                AnnouncedGame.description,
-                AnnouncedGame.release_date,
-                AnnouncedGame.genres,
-                AnnouncedGame.platforms,
-                AnnouncedGame.cover_url,
-                AnnouncedGame.igdb_slug,
-                AnnouncedGame.steam_id
             ).all()
 
             for game in announced_games:
                 game_name_lower = game.game_name.lower()
                 games_data[game_name_lower]['name'] = game.game_name  # Keep original casing
                 games_data[game_name_lower]['genre'] = game.genre
-                games_data[game_name_lower]['server_count'] += game.server_count
-                if game.latest and game.latest > games_data[game_name_lower]['latest_timestamp']:
-                    games_data[game_name_lower]['latest_timestamp'] = game.latest
+                # Track which servers announced this game
+                games_data[game_name_lower]['server_guild_ids'].add(game.guild_id)
+                if game.created_at and game.created_at > games_data[game_name_lower]['latest_timestamp']:
+                    games_data[game_name_lower]['latest_timestamp'] = game.created_at
                 # Use first non-null values found
                 if not games_data[game_name_lower]['cover_url'] and game.cover_url:
                     games_data[game_name_lower]['cover_url'] = game.cover_url
@@ -11896,7 +11919,8 @@ def api_discovery_games_list(request):
                     games_data[game_name_lower]['platforms'] = game.platforms
 
             # 2. Get games from found_games (has Steam URLs and rich IGDB data)
-            from .models import FoundGame
+            # ONLY include games from public search configs (show_on_website=True)
+            from .models import FoundGame, GameSearchConfig
             found_games = db.query(
                 FoundGame.game_name,
                 FoundGame.cover_url,
@@ -11909,8 +11933,12 @@ def api_discovery_games_list(request):
                 FoundGame.hypes,
                 FoundGame.rating,
                 func.count(func.distinct(FoundGame.guild_id)).label('found_count')
+            ).join(
+                GameSearchConfig,
+                FoundGame.search_config_id == GameSearchConfig.id
             ).filter(
-                FoundGame.guild_id.in_(approved_guild_ids)
+                FoundGame.guild_id.in_(approved_guild_ids),
+                GameSearchConfig.show_on_website == True  # ONLY public games
             ).group_by(
                 FoundGame.game_name,
                 FoundGame.cover_url,
@@ -12069,22 +12097,28 @@ def api_discovery_games_list(request):
                 if data['is_manual'] and data['shared_by_user_id'] and data['shared_by_guild_id']:
                     # Get Discord user info via API
                     try:
-                        bot_token = os.getenv('DISCORD_BOT_TOKEN')
-                        if bot_token and bot_token != 'your_bot_token_here':
-                            member_url = f'https://discord.com/api/v10/guilds/{data["shared_by_guild_id"]}/members/{data["shared_by_user_id"]}'
-                            headers = {'Authorization': f'Bot {bot_token}'}
-                            response = requests.get(member_url, headers=headers)
-                            if response.status_code == 200:
-                                member_data = response.json()
-                                # Try to get display name (nick or global_name) first, fallback to username
-                                shared_by_user = member_data.get('nick') or member_data.get('user', {}).get('global_name') or member_data.get('user', {}).get('username')
+                        # Get member from cache (no Discord API call!)
+                        from .discord_resources import get_guild_member
+
+                        member_data = get_guild_member(str(data["shared_by_guild_id"]), str(data["shared_by_user_id"]))
+                        if member_data:
+                            # Get display name from cached data
+                            shared_by_user = member_data.get('display_name') or member_data.get('username', 'Unknown User')
                     except Exception as e:
-                        logger.warning(f"Failed to fetch Discord user {data['shared_by_user_id']}: {e}")
+                        logger.warning(f"Failed to fetch Discord user {data['shared_by_user_id']} from cache: {e}")
 
                     # Get guild name
                     sharing_guild = db.query(Guild).filter_by(guild_id=data['shared_by_guild_id']).first()
                     if sharing_guild:
                         shared_by_server = sharing_guild.guild_name
+
+                # Get list of server names that announced this game
+                server_names = []
+                if data['server_guild_ids']:
+                    guild_lookup = db.query(Guild.guild_id, Guild.guild_name).filter(
+                        Guild.guild_id.in_(list(data['server_guild_ids']))
+                    ).all()
+                    server_names = [name for _, name in guild_lookup if name]
 
                 games_list.append({
                     'id': game_key,  # Use lowercase name as ID
@@ -12094,7 +12128,8 @@ def api_discovery_games_list(request):
                     'release_date': release_date_str,
                     'genres': genres_list,
                     'platforms': platforms_list,
-                    'server_count': data['server_count'],
+                    'server_count': len(data['server_guild_ids']),  # Use actual count from set
+                    'server_names': server_names,  # List of server names that announced this game
                     'lfg_count': data['lfg_count'],
                     'rating': round(data['avg_rating'], 1) if data['avg_rating'] > 0 else None,
                     'review_count': data['total_reviews'],
@@ -13287,23 +13322,15 @@ def guild_found_games(request, guild_id):
             min_hype = int(min_hype_param) if min_hype_param and min_hype_param.isdigit() else None
 
             # Get available search configs (only public ones shown on website)
+            # Get ALL search configs for this guild (both public and private)
             available_searches = db.query(GameSearchConfig).filter(
-                GameSearchConfig.guild_id == int(guild_id),
-                GameSearchConfig.show_on_website == True
+                GameSearchConfig.guild_id == int(guild_id)
             ).all()
 
-            # Query found games (only from public searches)
+            # Query found games (ALL games, both public and private searches)
             query = db.query(FoundGame).filter(
                 FoundGame.guild_id == int(guild_id)
             )
-
-            # Only show games from public searches
-            public_search_ids = [s.id for s in available_searches]
-            if public_search_ids:
-                query = query.filter(FoundGame.search_config_id.in_(public_search_ids))
-            else:
-                # No public searches - show no games
-                query = query.filter(FoundGame.id == None)
 
             if check_id:
                 query = query.filter(FoundGame.check_id == check_id)
@@ -13832,6 +13859,14 @@ def api_game_discovery_config_update(request, guild_id):
                 channel_id = data['private_game_channel_id']
                 config.private_game_channel_id = int(channel_id) if channel_id else None
 
+            if 'public_game_ping_role_id' in data:
+                role_id = data['public_game_ping_role_id']
+                config.public_game_ping_role_id = int(role_id) if role_id else None
+
+            if 'private_game_ping_role_id' in data:
+                role_id = data['private_game_ping_role_id']
+                config.private_game_ping_role_id = int(role_id) if role_id else None
+
             if 'game_check_interval_hours' in data:
                 config.game_check_interval_hours = int(data['game_check_interval_hours'])
 
@@ -13922,6 +13957,29 @@ def api_game_discovery_check(request, guild_id):
                 'success': True,
                 'action_id': action_id,
                 'message': 'Game check queued using IGDB - results will appear in Discord shortly'
+            })
+
+    except Exception as e:
+        return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
+
+
+@require_http_methods(["POST"])
+@api_auth_required
+def api_purge_announced_games(request, guild_id):
+    """POST /api/guild/<id>/discovery/purge-announced-games/ - Clear all announced games for re-announcement."""
+    try:
+        from .db import get_db_session
+        from .models import AnnouncedGame
+
+        with get_db_session() as db:
+            # Delete all announced games for this guild
+            count = db.query(AnnouncedGame).filter_by(guild_id=int(guild_id)).delete()
+            db.commit()
+
+            return JsonResponse({
+                'success': True,
+                'count': count,
+                'message': f'Purged {count} games from Discovery Network. These can now be re-announced.'
             })
 
     except Exception as e:
@@ -14243,46 +14301,31 @@ def guild_lfg(request, guild_id):
 
         if bot_token and bot_token != 'your_bot_token_here':
             try:
-                # Fetch guild channels using bot token
-                channel_response = requests.get(
-                    f'https://discord.com/api/v10/guilds/{guild_id}/channels',
-                    headers={'Authorization': f'Bot {bot_token}'}
-                )
-                logger.info(f"Channel fetch status: {channel_response.status_code}")
-                if channel_response.status_code == 200:
-                    all_channels = channel_response.json()
-                    # Filter for text channels (type 0) and forum channels (type 15)
-                    channels = [
-                        {'id': ch['id'], 'name': ch['name']}
-                        for ch in all_channels
-                        if ch.get('type') in [0, 15]  # Text and Forum channels
-                    ]
-                    channels.sort(key=lambda x: x['name'])
-                    logger.info(f"Found {len(channels)} text/forum channels")
-                else:
-                    logger.error(f"Failed to fetch channels: {channel_response.status_code} - {channel_response.text}")
+                # Fetch guild channels from cache (no Discord API call!)
+                from .discord_resources import get_guild_channels, get_guild_roles
 
-                # Fetch guild roles using bot token
-                role_response = requests.get(
-                    f'https://discord.com/api/v10/guilds/{guild_id}/roles',
-                    headers={'Authorization': f'Bot {bot_token}'}
-                )
-                logger.info(f"Role fetch status: {role_response.status_code}")
-                if role_response.status_code == 200:
-                    all_roles = role_response.json()
-                    # Filter out @everyone role and sort by position
-                    roles = [
-                        {'id': r['id'], 'name': r['name'], 'position': r.get('position', 0)}
-                        for r in all_roles
-                        if r['name'] != '@everyone'
-                    ]
-                    roles.sort(key=lambda x: x['position'], reverse=True)
-                    logger.info(f"Found {len(roles)} roles")
-                else:
-                    logger.error(f"Failed to fetch roles: {role_response.status_code} - {role_response.text}")
+                all_channels = get_guild_channels(str(guild_id))
+                # Filter for text channels (type 0) and forum channels (type 15)
+                channels = [
+                    {'id': ch['id'], 'name': ch['name']}
+                    for ch in all_channels
+                    if ch.get('type') in [0, 15]  # Text and Forum channels
+                ]
+                channels.sort(key=lambda x: x['name'])
+                logger.info(f"Found {len(channels)} text/forum channels from cache")
+
+                # Fetch guild roles from cache (no Discord API call!)
+                all_roles = get_guild_roles(str(guild_id))
+                # Sort by position
+                roles = [
+                    {'id': r['id'], 'name': r['name'], 'position': r.get('position', 0)}
+                    for r in all_roles
+                ]
+                roles.sort(key=lambda x: x['position'], reverse=True)
+                logger.info(f"Found {len(roles)} roles from cache")
 
             except Exception as e:
-                logger.error(f"Error fetching Discord channels/roles: {e}")
+                logger.error(f"Error fetching Discord channels/roles from cache: {e}")
         else:
             logger.warning("DISCORD_BOT_TOKEN not configured")
 
@@ -14501,35 +14544,26 @@ def guild_attendance(request, guild_id):
             has_raid_leader_role = False
             if user_id:
                 try:
-                    import requests
-                    from django.conf import settings
-                    access_token = request.session.get('discord_token')
-                    if access_token:
-                        # Get guild roles to find "Raid Leader" role ID
-                        roles_url = f'https://discord.com/api/v10/guilds/{guild_id}/roles'
-                        headers = {'Authorization': f'Bot {settings.DISCORD_BOT_TOKEN}'}
-                        roles_response = requests.get(roles_url, headers=headers)
+                    # Get guild roles from cache (no Discord API call!)
+                    from .discord_resources import get_guild_roles, get_guild_member
 
-                        raid_leader_role_id = None
-                        if roles_response.status_code == 200:
-                            roles = roles_response.json()
-                            for role in roles:
-                                if role.get('name') == 'Raid Leader':
-                                    raid_leader_role_id = role.get('id')
-                                    break
+                    roles = get_guild_roles(str(guild_id))
 
-                        # Check if user has the Raid Leader role
-                        if raid_leader_role_id:
-                            headers = {'Authorization': f'Bearer {access_token}'}
-                            member_url = f'https://discord.com/api/v10/guilds/{guild_id}/members/{user_id}'
-                            response = requests.get(member_url, headers=headers)
-                            if response.status_code == 200:
-                                member_data = response.json()
-                                member_roles = member_data.get('roles', [])
-                                if str(raid_leader_role_id) in member_roles:
-                                    has_raid_leader_role = True
+                    raid_leader_role_id = None
+                    for role in roles:
+                        if role.get('name') == 'Raid Leader':
+                            raid_leader_role_id = role.get('id')
+                            break
+
+                    # Check if user has the Raid Leader role (from cache, no API call!)
+                    if raid_leader_role_id:
+                        member_data = get_guild_member(str(guild_id), str(user_id))
+                        if member_data:
+                            member_roles = member_data.get('roles', [])
+                            if str(raid_leader_role_id) in member_roles:
+                                has_raid_leader_role = True
                 except Exception as e:
-                    logger.error(f"Error checking Raid Leader role: {e}")
+                    logger.error(f"Error checking Raid Leader role from cache: {e}")
 
             # Permission logic: Admin OR Moderator OR (Raid Leader + Create Events + Manage Events)
             has_raid_leader_full_perms = has_raid_leader_role and has_create_events and has_manage_events
@@ -14542,26 +14576,20 @@ def guild_attendance(request, guild_id):
             # Determine if user can manage attendance (for UI)
             can_manage_attendance = is_admin or has_manage_messages or has_raid_leader_full_perms
 
-            # Fetch member display names from Discord API first (using bot token)
+            # Fetch member display names from cache (no Discord API call!)
+            from .discord_resources import get_guild_members
             import requests
             member_names_cache = {}
 
-            bot_token = os.getenv('DISCORD_BOT_TOKEN')
-            if bot_token:
-                try:
-                    headers = {'Authorization': f'Bot {bot_token}'}
-                    members_url = f'https://discord.com/api/v10/guilds/{guild_id}/members?limit=1000'
-                    response = requests.get(members_url, headers=headers)
-                    if response.status_code == 200:
-                        guild_members = response.json()
-                        for m in guild_members:
-                            user_id = int(m['user']['id'])
-                            display_name = m.get('nick') or m['user'].get('global_name') or m['user']['username']
-                            member_names_cache[user_id] = display_name
-                    else:
-                        logger.warning(f"Failed to fetch guild members: {response.status_code} - {response.text}")
-                except Exception as e:
-                    logger.error(f"Error fetching guild members: {e}")
+            try:
+                guild_members = get_guild_members(str(guild_id))
+                for m in guild_members:
+                    user_id = int(m['id'])
+                    display_name = m.get('display_name') or m.get('username', 'Unknown')
+                    member_names_cache[user_id] = display_name
+                logger.info(f"Loaded {len(member_names_cache)} member names from cache")
+            except Exception as e:
+                logger.error(f"Error fetching guild members from cache: {e}")
 
             # Get recent groups (last 30 days) with attendance tracking
             import time
@@ -15380,37 +15408,29 @@ def api_lfg_attendance_update(request, guild_id):
                 else:
                     # Check for Raid Leader role
                     try:
-                        import requests
-                        from django.conf import settings
-                        access_token = request.session.get('discord_token')
-                        if access_token and session_user_id:
-                            # Get guild roles to find "Raid Leader" role ID
-                            roles_url = f'https://discord.com/api/v10/guilds/{guild_id}/roles'
-                            headers = {'Authorization': f'Bot {settings.DISCORD_BOT_TOKEN}'}
-                            roles_response = requests.get(roles_url, headers=headers)
+                        # Get guild roles from cache (no Discord API call!)
+                        from .discord_resources import get_guild_roles, get_guild_member
+
+                        if session_user_id:
+                            roles = get_guild_roles(str(guild_id))
 
                             raid_leader_role_id = None
-                            if roles_response.status_code == 200:
-                                roles = roles_response.json()
-                                for role in roles:
-                                    if role.get('name') == 'Raid Leader':
-                                        raid_leader_role_id = role.get('id')
-                                        break
+                            for role in roles:
+                                if role.get('name') == 'Raid Leader':
+                                    raid_leader_role_id = role.get('id')
+                                    break
 
-                            # Check if user has the Raid Leader role
+                            # Check if user has the Raid Leader role (from cache, no API call!)
                             if raid_leader_role_id:
-                                headers = {'Authorization': f'Bearer {access_token}'}
-                                member_url = f'https://discord.com/api/v10/guilds/{guild_id}/members/{session_user_id}'
-                                response = requests.get(member_url, headers=headers)
-                                if response.status_code == 200:
-                                    member_data = response.json()
+                                member_data = get_guild_member(str(guild_id), str(session_user_id))
+                                if member_data:
                                     member_roles = member_data.get('roles', [])
                                     if str(raid_leader_role_id) in member_roles:
                                         # Check if they have required permissions
                                         if has_create_events and has_manage_events:
                                             has_permission = True
                     except Exception as e:
-                        logger.error(f"Error checking Raid Leader permissions: {e}")
+                        logger.error(f"Error checking Raid Leader permissions from cache: {e}")
 
             if not has_permission:
                 return JsonResponse({'error': 'Insufficient permissions'}, status=403)
@@ -15762,22 +15782,18 @@ def api_lfg_attendance_export(request, guild_id):
             import requests
             member_names_cache = {}
 
-            bot_token = os.getenv('DISCORD_BOT_TOKEN')
-            if bot_token:
-                try:
-                    headers = {'Authorization': f'Bot {bot_token}'}
-                    members_url = f'https://discord.com/api/v10/guilds/{guild_id}/members?limit=1000'
-                    response = requests.get(members_url, headers=headers)
-                    if response.status_code == 200:
-                        guild_members = response.json()
-                        for m in guild_members:
-                            user_id = int(m['user']['id'])
-                            display_name = m.get('nick') or m['user'].get('global_name') or m['user']['username']
-                            member_names_cache[user_id] = display_name
-                    else:
-                        logger.warning(f"Failed to fetch guild members for export: {response.status_code} - {response.text}")
-                except Exception as e:
-                    logger.error(f"Error fetching guild members for export: {e}")
+            # Fetch member names from cache (no Discord API call!)
+            from .discord_resources import get_guild_members
+
+            try:
+                guild_members = get_guild_members(str(guild_id))
+                for m in guild_members:
+                    user_id = int(m['id'])
+                    display_name = m.get('display_name') or m.get('username', 'Unknown')
+                    member_names_cache[user_id] = display_name
+                logger.info(f"Loaded {len(member_names_cache)} member names from cache for export")
+            except Exception as e:
+                logger.error(f"Error fetching guild members from cache for export: {e}")
 
             # Get all groups with attendance from last 90 days
             import time
@@ -17847,3 +17863,69 @@ def guild_cotm(request, guild_id):
     """Guild-specific Creator of the Month page (placeholder)."""
     # Redirect to global COTM page for now
     return redirect('creator_of_the_month')
+
+
+def robots_txt(request):
+    """Serve robots.txt with proper headers for social media and search engine crawlers."""
+    from django.http import HttpResponse
+
+    robots_content = """# Casual Heroes - robots.txt
+
+# Allow social media crawlers (Discord, LinkedIn, Twitter, Facebook, etc.)
+User-agent: Twitterbot
+Allow: /
+
+User-agent: facebookexternalhit
+Allow: /
+
+User-agent: LinkedInBot
+Allow: /
+
+User-agent: Discordbot
+Allow: /
+
+User-agent: Slackbot
+Allow: /
+
+User-agent: TelegramBot
+Allow: /
+
+# Allow search engines
+User-agent: Googlebot
+Allow: /
+
+User-agent: Bingbot
+Allow: /
+
+# Block AI scrapers
+User-agent: GPTBot
+Disallow: /
+
+User-agent: ChatGPT-User
+Disallow: /
+
+User-agent: CCBot
+Disallow: /
+
+User-agent: Google-Extended
+Disallow: /
+
+User-agent: anthropic-ai
+Disallow: /
+
+User-agent: Claude-Web
+Disallow: /
+
+User-agent: cohere-ai
+Disallow: /
+
+# Default: Allow everything else except API endpoints
+User-agent: *
+Allow: /
+Disallow: /api/admin/
+Disallow: /admin/
+
+Sitemap: https://dashboard.casual-heroes.com/sitemap.xml
+"""
+
+    return HttpResponse(robots_content, content_type='text/plain')

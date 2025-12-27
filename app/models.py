@@ -197,6 +197,7 @@ class Guild(Base):
     cached_channels = Column(Text, nullable=True)  # JSON array of channel objects
     cached_roles = Column(Text, nullable=True)  # JSON array of role objects
     cached_emojis = Column(Text, nullable=True)  # JSON array of emoji objects
+    cached_members = Column(Text, nullable=True)  # JSON array of member objects (id, username, discriminator, roles, avatar)
     guild_icon_hash = Column(String(255), nullable=True)  # Discord guild icon hash for CDN URL
 
     # Cached Member Stats (synced by bot from Discord presence data)
@@ -914,8 +915,8 @@ class DiscoveryConfig(Base):
 
     # Game Discovery settings
     game_discovery_enabled = Column(Boolean, default=False)
-    public_game_channel_id = Column(BigInteger, nullable=True)  # Channel for public game discoveries (show_on_website=True)
-    private_game_channel_id = Column(BigInteger, nullable=True)  # Channel for private game discoveries (show_on_website=False)
+    public_game_channel_id = Column(BigInteger, nullable=True)  # Channel for public game announcements (shared on Discovery Network)
+    private_game_channel_id = Column(BigInteger, nullable=True)  # Channel for server-only game announcements (not shared publicly)
     public_game_ping_role_id = Column(BigInteger, nullable=True)  # Role to ping for public game announcements
     private_game_ping_role_id = Column(BigInteger, nullable=True)  # Role to ping for private game announcements
     game_check_interval_hours = Column(Integer, default=24)
@@ -1069,9 +1070,9 @@ class GameSearchConfig(Base):
     days_ahead = Column(Integer, default=30, nullable=False)  # How far ahead to announce
 
     # Privacy settings
-    show_on_website = Column(Boolean, default=True, nullable=False)  # If False, only posts to Discord thread
-    discovery_thread_id = Column(BigInteger, nullable=True)  # Discord thread ID for private searches
-    auto_join_role_id = Column(BigInteger, nullable=True)  # Role ID to auto-join members to private thread
+    show_on_website = Column(Boolean, default=True, nullable=False)  # If True, shared on Discovery Network + Found Games + public channel; If False, server-only (Found Games + private channel)
+    discovery_thread_id = Column(BigInteger, nullable=True)  # Discord thread ID for private searches (deprecated - now uses channels)
+    auto_join_role_id = Column(BigInteger, nullable=True)  # Role ID to auto-join members to private thread (deprecated)
 
     # Timestamps
     created_at = Column(BigInteger, default=lambda: int(time.time()))

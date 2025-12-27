@@ -8,6 +8,9 @@
         <button onclick="saveGameGlobalSettings()" id="saveGameBtn" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium transition text-sm">
           <i class="fas fa-save mr-2"></i>Save Global Settings
         </button>
+        <button onclick="purgeDiscoveryNetworkGames()" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg font-medium transition text-sm">
+          <i class="fas fa-trash mr-2"></i>Purge Discovery Network
+        </button>
       </div>
       <button onclick="openAddSearchModal()" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium transition text-sm">
         <i class="fas fa-plus mr-2"></i>Add Search
@@ -104,18 +107,12 @@
               </label>
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <label class="block text-sm text-gray-400 mb-2">Public Discovery Channel</label>
+                <label class="block text-sm text-gray-400 mb-2">Discovery Channel</label>
                 <div id="public_game_channel_idContainer"></div>
 
-                <p class="text-gray-500 text-xs mt-1">For searches with "Show on Website" enabled</p>
-              </div>
-              <div>
-                <label class="block text-sm text-gray-400 mb-2">Private Discovery Channel</label>
-                <div id="private_game_channel_idContainer"></div>
-
-                <p class="text-gray-500 text-xs mt-1">For searches with "Show on Website" disabled</p>
+                <p class="text-gray-500 text-xs mt-1">Channel for game announcements</p>
               </div>
               <div>
                 <label class="block text-sm text-gray-400 mb-2">Check Interval</label>
@@ -131,38 +128,22 @@
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
               <div>
                 <label class="block text-sm text-gray-400 mb-2">
-                  <i class="fas fa-at mr-1 text-blue-400"></i>Ping Role (Public) <span class="text-gray-600">(Optional)</span>
+                  <i class="fas fa-at mr-1 text-blue-400"></i>Ping Role <span class="text-gray-600">(Optional)</span>
                 </label>
                 <div id="public_game_ping_role_idContainer"></div>
 
-                <p class="text-gray-500 text-xs mt-1">Role to ping when new public games are found</p>
-              </div>
-              <div>
-                <label class="block text-sm text-gray-400 mb-2">
-                  <i class="fas fa-at mr-1 text-purple-400"></i>Ping Role (Private) <span class="text-gray-600">(Optional)</span>
-                </label>
-                <div id="private_game_ping_role_idContainer"></div>
-
-                <p class="text-gray-500 text-xs mt-1">Role to ping when new private games are found</p>
+                <p class="text-gray-500 text-xs mt-1">Role to ping when new games are announced</p>
               </div>
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <label class="block text-sm text-gray-400 mb-2">Max Announced (Public)</label>
+                <label class="block text-sm text-gray-400 mb-2">Max Games Announced</label>
                 <input type="number" id="max_public_announcements"
                        value="{{ discovery_config.max_public_announcements|default:5 }}"
                        min="1" max="100"
                        class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white focus:border-blue-500 focus:outline-none">
-                <p class="text-gray-500 text-xs mt-1">Maximum public games to announce per check (for Show on Website searches).</p>
-              </div>
-              <div>
-                <label class="block text-sm text-gray-400 mb-2">Max Announced (Private)</label>
-                <input type="number" id="max_private_announcements"
-                       value="{{ discovery_config.max_private_announcements|default:5 }}"
-                       min="1" max="100"
-                       class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white focus:border-blue-500 focus:outline-none">
-                <p class="text-gray-500 text-xs mt-1">Maximum private games to announce per check (for non-website searches).</p>
+                <p class="text-gray-500 text-xs mt-1">Maximum games to announce per check (for searches with "Share on Discovery Network" enabled).</p>
               </div>
             </div>
           </div>
@@ -440,28 +421,14 @@
                      class="mt-1 w-5 h-5 rounded border-neutral-600 bg-neutral-700 text-blue-600 focus:ring-blue-500 focus:ring-offset-neutral-900">
               <div class="flex-1">
                 <label for="modal_show_on_website" class="block text-sm font-medium text-white mb-1">
-                  <i class="fas fa-globe mr-2 text-blue-400"></i>Show on Website
+                  <i class="fas fa-share-nodes mr-2 text-blue-400"></i>Share on Discovery Network
                 </label>
                 <p class="text-gray-400 text-xs leading-relaxed">
-                  When enabled, found games are displayed on your public website dashboard.
+                  <strong>✅ When enabled:</strong> Games are shared on the public Discovery Network + your Found Games dashboard + announced in public channel
                   <br>
-                  <span class="text-yellow-400">
-                    <i class="fas fa-lock mr-1"></i>When disabled:
-                  </span> Games are posted to a private Discord thread instead (not visible on website).
+                  <strong>❌ When disabled:</strong> Games appear only in your Found Games dashboard (server-only) + announced in private channel
                 </p>
               </div>
-            </div>
-
-            <!-- Auto-Join Role (only for private threads) -->
-            <div id="auto_join_role_section" class="hidden pl-8 border-l-2 border-purple-500/30">
-              <label for="modal_auto_join_role" class="block text-sm font-medium text-white mb-2">
-                <i class="fas fa-users mr-2 text-purple-400"></i>Auto-Join Role (Optional)
-              </label>
-              <div id="modal_auto_join_roleContainer"></div>
-              
-              <p class="text-gray-400 text-xs mt-2 leading-relaxed">
-                Members with this role will automatically be added to the private thread when games are discovered.
-              </p>
             </div>
           </div>
         </div>
