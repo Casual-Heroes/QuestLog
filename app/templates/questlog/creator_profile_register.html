@@ -518,10 +518,9 @@ async function deleteProfile() {
   const csrfToken = '{{ csrf_token }}';
 
   try {
-    const response = await fetch(`/api/guild/{{ guild.id }}/creator/delete/`, {
+    const response = await csrfFetch(`/api/guild/{{ guild.id }}/creator/delete/`, {
       method: 'POST',
       headers: {
-        'X-CSRFToken': csrfToken,
         'Content-Type': 'application/json'
       }
     });

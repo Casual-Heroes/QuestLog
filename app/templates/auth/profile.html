@@ -207,7 +207,7 @@ document.addEventListener('DOMContentLoaded', function() {
 async function loadMainServerSettings() {
   try {
     // Get current main server
-    const response = await fetch('/api/discovery/user/main-server');
+    const response = await csrfFetch('/api/discovery/user/main-server');
     const data = await response.json();
 
     if (data.success) {
@@ -329,12 +329,10 @@ async function setMainServer(guildId, guildName) {
   `;
 
   try {
-    const csrftoken = getCookie('csrftoken');
-    const response = await fetch('/api/discovery/user/set-main-server', {
+    const response = await csrfFetch('/api/discovery/user/set-main-server', {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
-        'X-CSRFToken': csrftoken
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify({ guild_id: guildId })
     });

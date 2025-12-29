@@ -425,7 +425,7 @@ let userPreferences = {
 // Load user preferences
 async function loadUserPreferences() {
   try {
-    const response = await fetch(`/api/discovery/preferences?guild_id=${guildId}`);
+    const response = await csrfFetch(`/api/discovery/preferences?guild_id=${guildId}`);
     const data = await response.json();
     if (data.success) {
       userPreferences = {
@@ -474,7 +474,7 @@ function applyPreferredFiltersToDropdowns() {
 // Load LFG posts
 async function loadLFGPosts() {
   try {
-    const response = await fetch('/api/discovery/lfg');
+    const response = await csrfFetch('/api/discovery/lfg');
     const data = await response.json();
 
     if (data.success) {

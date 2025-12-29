@@ -120,6 +120,14 @@
 </style>
 
 <script>
+// XSS Protection: HTML escape function
+function escapeHtml(text) {
+  if (text == null || text === undefined) return '';
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
 let allCreators = [];
 let networkCotw = null;
 let networkCotm = null;
@@ -298,37 +306,37 @@ function renderCreatorCard(creator) {
 
   return `
     <div class="creator-card bg-neutral-900 rounded-xl border border-neutral-800 p-6 hover:border-yellow-500/50 transition-all duration-300 hover:shadow-lg hover:shadow-yellow-500/20"
-         data-name="${creator.display_name.toLowerCase()}"
+         data-name="${escapeHtml(creator.display_name.toLowerCase())}"
          data-platforms="${platforms.join(' ')}">
 
       <!-- Profile Header -->
       <div class="flex items-center gap-4 mb-4">
         <div class="relative">
-          <img src="${creator.avatar_url}" alt="${creator.display_name}"
+          <img src="${escapeHtml(creator.avatar_url)}" alt="${escapeHtml(creator.display_name)}"
                class="w-20 h-20 rounded-full border-4 border-yellow-500/50 shadow-lg">
         </div>
         <div class="flex-1 min-w-0">
           <h3 class="text-white font-bold text-lg truncate">
-            ${creator.display_name}
+            ${escapeHtml(creator.display_name)}
             ${(creator.times_featured || 0) >= 5 ? `
               <span class="inline-flex items-center shadow-xl" title="Hall of Famer (5+ features)">
                 <i class="fas fa-fire-alt text-orange-400 text-xl ml-2"></i>
               </span>
             ` : ''}
           </h3>
-          <p class="text-gray-400 text-sm truncate mb-2">@${creator.username || creator.display_name.toLowerCase().replace(/\s+/g, '')}</p>
+          <p class="text-gray-400 text-sm truncate mb-2">@${escapeHtml(creator.username || creator.display_name.toLowerCase().replace(/\s+/g, ''))}</p>
 
           <!-- Home Server & Flair -->
           <div class="flex items-center gap-2 mb-2 flex-wrap">
             ${creator.home_server ? `
               <span class="inline-flex items-center gap-1 px-2 py-0.5 bg-neutral-800 border border-neutral-700 rounded text-xs text-gray-400">
                 <i class="fas fa-server text-xs"></i>
-                ${creator.home_server}
+                ${escapeHtml(creator.home_server)}
               </span>
             ` : ''}
             ${creator.role_flair ? `
               <span class="inline-block px-2 py-0.5 bg-gradient-to-r from-purple-600/20 to-pink-600/20 border border-purple-500/40 rounded-full text-purple-300 text-xs font-medium">
-                ${creator.role_flair}
+                ${escapeHtml(creator.role_flair)}
               </span>
             ` : ''}
           </div>
@@ -355,7 +363,7 @@ function renderCreatorCard(creator) {
       <!-- Bio -->
       ${creator.bio ? `
         <div class="mb-4 p-3 bg-neutral-800/50 rounded-lg border border-neutral-700">
-          <p class="text-sm text-gray-300 line-clamp-3">${creator.bio}</p>
+          <p class="text-sm text-gray-300 line-clamp-3">${escapeHtml(creator.bio)}</p>
         </div>
       ` : ''}
 
@@ -363,7 +371,7 @@ function renderCreatorCard(creator) {
       ${categories.length > 0 ? `
         <div class="mb-4">
           <div class="flex flex-wrap gap-1">
-            ${categories.map(cat => `<span class="px-2 py-0.5 bg-neutral-800 text-gray-400 rounded text-xs">${cat}</span>`).join('')}
+            ${categories.map(cat => `<span class="px-2 py-0.5 bg-neutral-800 text-gray-400 rounded text-xs">${escapeHtml(cat)}</span>`).join('')}
           </div>
         </div>
       ` : ''}
@@ -374,7 +382,7 @@ function renderCreatorCard(creator) {
           <i class="fas fa-calendar-alt text-purple-400 mt-0.5"></i>
           <div class="flex-1">
             <p class="text-xs text-purple-300 font-semibold mb-0.5">Stream Schedule</p>
-            <p class="text-xs text-gray-300">${creator.stream_schedule}</p>
+            <p class="text-xs text-gray-300">${escapeHtml(creator.stream_schedule)}</p>
           </div>
         </div>
       ` : ''}

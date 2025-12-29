@@ -23,7 +23,7 @@ from sqlalchemy import or_, and_
 import time
 from django_ratelimit.decorators import ratelimit
 from casualsite.settings import get_client_ip
-from .decorators import validate_json_schema, require_subscription_tier
+from .decorators import validate_json_schema, require_subscription_tier, bot_owner_required, discovery_approvers_required, server_owner_required
 
 load_dotenv()
 
@@ -115,6 +115,26 @@ def add_has_bot_flag(guilds):
         guild_id_str = str(guild['id'])
         guild['has_bot'] = guild_id_str in guilds_with_bot
     return guilds
+
+def get_guild_with_permissions(guild_id, admin_guilds, all_guilds):
+    """
+    Get guild dict with full permission data (owner, permissions fields).
+    Checks admin_guilds first (has owner/permissions), falls back to all_guilds.
+
+    This ensures templates can check guild.owner status correctly.
+    """
+    # Try to find in admin_guilds first (has owner/permissions data)
+    guild = next((g for g in admin_guilds if str(g['id']) == str(guild_id)), None)
+
+    # Fall back to all_guilds if not found (member-only access)
+    if not guild:
+        guild = next((g for g in all_guilds if str(g['id']) == str(guild_id)), None)
+        # Add owner=False for member-only guilds
+        if guild:
+            guild = dict(guild)  # Make a copy to avoid modifying session data
+            guild['owner'] = False
+
+    return guild
 
 def check_lfg_game_limit(db, guild_id, guild):
     """Check if guild has reached their LFG game limit. Returns (can_add, current_count, limit)."""
@@ -1555,7 +1575,14 @@ def discord_callback(request):
             'refresh_token': refresh_token,
         }
 
-        # Store guilds where user has admin permissions
+        # Store all guilds first
+        all_guilds = [
+            {'id': g['id'], 'name': g['name'], 'icon': g.get('icon')}
+            for g in discord_guilds
+        ]
+        request.session['discord_all_guilds'] = all_guilds
+
+        # Store guilds where user has Discord admin permissions
         # 0x8 = Administrator, 0x20 = Manage Server (for trusted mods)
         admin_guilds = [
             {
@@ -1568,11 +1595,19 @@ def discord_callback(request):
             for g in discord_guilds
             if g.get('owner') or (int(g.get('permissions', 0)) & 0x8) or (int(g.get('permissions', 0)) & 0x20)
         ]
+
+        # HYBRID ADMIN: Also check custom admin roles and add those guilds to admin list
+        user_id = discord_user.get('id')
+        if user_id:
+            custom_admin_guilds = get_guilds_with_custom_admin_access(user_id, all_guilds)
+            # Add custom admin guilds that aren't already in admin_guilds
+            admin_guild_ids = {g['id'] for g in admin_guilds}
+            for custom_guild in custom_admin_guilds:
+                if custom_guild['id'] not in admin_guild_ids:
+                    admin_guilds.append(custom_guild)
+                    logger.info(f"[HYBRID_ADMIN] User {user_id} granted admin access to guild {custom_guild['id']} via custom roles")
+
         request.session['discord_admin_guilds'] = admin_guilds
-        request.session['discord_all_guilds'] = [
-            {'id': g['id'], 'name': g['name'], 'icon': g.get('icon')}
-            for g in discord_guilds
-        ]
 
         # Optionally link to Django user (create if doesn't exist)
         try:
@@ -1662,6 +1697,13 @@ def discord_refresh_guilds(request):
 
         discord_guilds = guilds_response.json()
 
+        # Store all guilds first
+        all_guilds = [
+            {'id': g['id'], 'name': g['name'], 'icon': g.get('icon')}
+            for g in discord_guilds
+        ]
+        request.session['discord_all_guilds'] = all_guilds
+
         # Update admin guilds (same logic as in callback)
         admin_guilds = [
             {
@@ -1675,12 +1717,19 @@ def discord_refresh_guilds(request):
             if g.get('owner') or (int(g.get('permissions', 0)) & 0x8) or (int(g.get('permissions', 0)) & 0x20)
         ]
 
+        # HYBRID ADMIN: Also check custom admin roles and add those guilds to admin list
+        user_id = request.session.get('discord_user', {}).get('id')
+        if user_id:
+            custom_admin_guilds = get_guilds_with_custom_admin_access(user_id, all_guilds)
+            # Add custom admin guilds that aren't already in admin_guilds
+            admin_guild_ids = {g['id'] for g in admin_guilds}
+            for custom_guild in custom_admin_guilds:
+                if custom_guild['id'] not in admin_guild_ids:
+                    admin_guilds.append(custom_guild)
+                    logger.info(f"[HYBRID_ADMIN] User {user_id} granted admin access to guild {custom_guild['id']} via custom roles (refresh)")
+
         # Update session
         request.session['discord_admin_guilds'] = admin_guilds
-        request.session['discord_all_guilds'] = [
-            {'id': g['id'], 'name': g['name'], 'icon': g.get('icon')}
-            for g in discord_guilds
-        ]
 
         request.session.modified = True
         request.session.save()
@@ -1773,7 +1822,7 @@ def guild_dashboard(request, guild_id):
 
     # Check if user is admin OR member of this guild
     is_admin = any(str(g['id']) == str(guild_id) for g in admin_guilds)
-    guild = next((g for g in all_guilds if str(g['id']) == str(guild_id)), None)
+    guild = get_guild_with_permissions(guild_id, admin_guilds, all_guilds)
 
     if not guild:
         messages.error(request, "You are not a member of this server.")
@@ -2579,7 +2628,7 @@ import json as json_lib
 
 
 # PERSISTENT CACHE for Discord guild permissions (industry standard: persistent cache)
-_PERMISSION_CACHE_TTL = 14400  # 4 hours cache for permission checks (admin permissions rarely change)
+_PERMISSION_CACHE_TTL = 30  # 30 seconds cache for permission checks (fast updates with minimal DB load)
 
 # Rate limit tracking constants (per-user tracking)
 _DISCORD_API_RATE_LIMIT_PER_USER = 1  # Max 1 call per user per window (Discord's actual limit)
@@ -2589,12 +2638,106 @@ _RATE_LIMIT_WINDOW = 3  # 3 second window per user to be VERY safe
 _CIRCUIT_BREAKER_THRESHOLD = 5  # After 5 429s in a row
 _CIRCUIT_BREAKER_DURATION = 300  # Stop all calls for 5 minutes
 
+
+def check_custom_admin_roles(guild_id, user_id):
+    """
+    Check if user has any of the guild's custom admin roles.
+
+    Uses cached_members from Guild table (synced by bot) to check role membership.
+    NO Discord API calls - uses database cache only.
+
+    Returns:
+        bool: True if user has admin role, False otherwise
+    """
+    try:
+        from .db import get_db_session
+        from .models import Guild
+        import json
+
+        with get_db_session() as db:
+            guild = db.query(Guild).filter_by(guild_id=int(guild_id)).first()
+
+            if not guild:
+                return False
+
+            # Check if guild has custom admin roles configured
+            admin_roles_json = guild.admin_roles if hasattr(guild, 'admin_roles') else None
+            if not admin_roles_json:
+                return False  # No custom roles configured
+
+            # Parse admin role IDs
+            try:
+                admin_role_ids = json.loads(admin_roles_json) if isinstance(admin_roles_json, str) else admin_roles_json
+                if not admin_role_ids or not isinstance(admin_role_ids, list):
+                    return False
+            except (json.JSONDecodeError, TypeError):
+                return False
+
+            # Get cached members data
+            if not guild.cached_members:
+                return False
+
+            try:
+                cached_members = json.loads(guild.cached_members)
+            except (json.JSONDecodeError, TypeError):
+                return False
+
+            # Find this user in cached members
+            user_data = next((m for m in cached_members if str(m.get('id')) == str(user_id)), None)
+            if not user_data:
+                return False
+
+            # Check if user has any of the admin roles
+            user_roles = user_data.get('roles', [])
+            has_admin_role = any(str(role_id) in [str(r) for r in user_roles] for role_id in admin_role_ids)
+
+            if has_admin_role:
+                logger.info(f"[ADMIN_ROLE_CHECK] User {user_id} has custom admin role in guild {guild_id}")
+
+            return has_admin_role
+
+    except Exception as e:
+        logger.error(f"Error checking custom admin roles for user {user_id} in guild {guild_id}: {e}")
+        return False
+
+
+def get_guilds_with_custom_admin_access(user_id, all_guilds):
+    """
+    Get list of guilds where user has custom admin role access.
+
+    Args:
+        user_id: Discord user ID
+        all_guilds: List of guild dicts from Discord OAuth (with id, name, icon)
+
+    Returns:
+        List of guild dicts where user has custom admin roles
+    """
+    custom_admin_guilds = []
+
+    for guild in all_guilds:
+        guild_id = guild.get('id')
+        if guild_id and check_custom_admin_roles(guild_id, user_id):
+            custom_admin_guilds.append({
+                'id': guild_id,
+                'name': guild.get('name'),
+                'icon': guild.get('icon'),
+                'owner': False,
+                'permissions': 0,  # No Discord permissions, but has custom admin role
+                'custom_admin': True,  # Flag to indicate this is from custom roles
+            })
+
+    return custom_admin_guilds
+
+
 def api_auth_required(view_func):
     """
     Check Discord auth and guild admin access for API endpoints.
 
-    ZERO DISCORD API CALLS - Uses session data from OAuth login (industry standard).
-    Session data is populated during login and refreshed on re-auth.
+    HYBRID PERMISSION CHECK:
+    1. Discord OAuth permissions (Administrator or Manage Server)
+    2. Custom admin roles configured in guild settings
+
+    ZERO DISCORD API CALLS - Uses session data + database cache only.
     """
     def wrapper(request, guild_id, *args, **kwargs):
         from .discord_cache import get_cache
@@ -2608,7 +2751,7 @@ def api_auth_required(view_func):
         user_id = discord_user.get('id')
         cache_key = f"discord_permission:{user_id}:{guild_id}"
 
-        # Check persistent cache first (4 hour TTL)
+        # Check persistent cache first (30 minute TTL)
         cached = cache.get(cache_key)
         if cached is not None:
             logger.debug(f"Permission cache HIT for user {user_id} guild {guild_id}")
@@ -2616,20 +2759,32 @@ def api_auth_required(view_func):
                 return JsonResponse({'error': 'No admin access to this guild'}, status=403)
             return view_func(request, guild_id, *args, **kwargs)
 
-        # Cache MISS: Use session data (populated during OAuth login)
-        # This is the industry-standard approach - trust the session data from OAuth
+        # Cache MISS: Check both Discord permissions AND custom admin roles
+        is_admin = False
+
+        # Check #1: Discord OAuth permissions (session data)
         admin_guilds = request.session.get('discord_admin_guilds', [])
         guild = next((g for g in admin_guilds if str(g['id']) == str(guild_id)), None)
 
-        if not guild:
-            # Cache negative result
-            cache.set(cache_key, {'is_admin': False}, ttl=_PERMISSION_CACHE_TTL)
+        if guild:
+            is_admin = True
+            logger.debug(f"Permission check: User {user_id} has Discord admin permissions in guild {guild_id}")
+
+        # Check #2: Custom admin roles (database lookup - fast, no API call)
+        if not is_admin:
+            has_custom_role = check_custom_admin_roles(guild_id, user_id)
+            if has_custom_role:
+                is_admin = True
+                logger.debug(f"Permission check: User {user_id} has custom admin role in guild {guild_id}")
+
+        # Cache the result
+        cache.set(cache_key, {'is_admin': is_admin}, ttl=_PERMISSION_CACHE_TTL)
+
+        if not is_admin:
             logger.debug(f"Permission cache MISS: User {user_id} has no admin access to guild {guild_id}")
             return JsonResponse({'error': 'No admin access to this guild'}, status=403)
 
-        # Cache positive result
-        cache.set(cache_key, {'is_admin': True}, ttl=_PERMISSION_CACHE_TTL)
-        logger.debug(f"Permission cache MISS: Cached admin access for user {user_id} guild {guild_id} from session data")
+        logger.debug(f"Permission cache MISS: Cached admin access for user {user_id} guild {guild_id}")
         return view_func(request, guild_id, *args, **kwargs)
     return wrapper
 
@@ -2653,6 +2808,7 @@ def api_member_auth_required(view_func):
 # Flair Management API Endpoints
 
 @api_auth_required
+@ratelimit(key='user_or_ip', rate='60/m', method='GET', block=True)
 def api_flair_list(request, guild_id):
     """GET /api/guild/<id>/flairs/ - Get all flairs for a guild."""
     try:
@@ -2692,6 +2848,7 @@ def api_flair_list(request, guild_id):
 
 
 @api_auth_required
+@ratelimit(key='user', rate='20/h', method='POST', block=True)
 def api_flair_bulk_update(request, guild_id):
     """POST /api/guild/<id>/flairs/bulk-update/ - Update multiple flairs at once."""
     if request.method != 'POST':
@@ -2817,6 +2974,7 @@ def api_flair_bulk_update(request, guild_id):
 
 
 @api_auth_required
+@ratelimit(key='user_or_ip', rate='30/m', method='POST', block=True)
 def api_flair_create(request, guild_id):
     """POST /api/guild/<id>/flairs/create/ - Create a new custom flair."""
     if request.method != 'POST':
@@ -2932,6 +3090,7 @@ def api_flair_create(request, guild_id):
 
 
 @api_auth_required
+@ratelimit(key='user_or_ip', rate='30/m', method='DELETE', block=True)
 def api_flair_delete(request, guild_id, flair_id):
     """DELETE /api/guild/<id>/flairs/<flair_id>/ - Delete a custom flair."""
     if request.method != 'DELETE':
@@ -2969,6 +3128,7 @@ def api_flair_delete(request, guild_id, flair_id):
 
 @require_http_methods(["POST"])
 @api_auth_required
+@ratelimit(key='user_or_ip', rate='30/m', method='POST', block=True)
 def api_flair_create_default_roles(request, guild_id):
     """POST /api/guild/<id>/flairs/create-default-roles/ - Queue creation of default flair roles."""
     try:
@@ -3015,6 +3175,7 @@ def api_flair_create_default_roles(request, guild_id):
 # Tracker API Endpoints
 
 @api_auth_required
+@ratelimit(key='user_or_ip', rate='60/m', method='GET', block=True)
 def api_trackers_list(request, guild_id):
     """GET /api/guild/<id>/trackers/ - List all trackers for a guild."""
     try:
@@ -3050,6 +3211,7 @@ def api_trackers_list(request, guild_id):
 
 @require_http_methods(["POST"])
 @api_auth_required
+@ratelimit(key='user_or_ip', rate='30/m', method='POST', block=True)
 def api_tracker_create(request, guild_id):
     """POST /api/guild/<id>/trackers/ - Create a new tracker."""
     try:
@@ -3116,6 +3278,7 @@ def api_tracker_create(request, guild_id):
 
 @require_http_methods(["PATCH", "PUT"])
 @api_auth_required
+@ratelimit(key='user_or_ip', rate='30/m', method=['PATCH', 'PUT'], block=True)
 def api_tracker_update(request, guild_id, tracker_id):
     """PATCH /api/guild/<id>/trackers/<tracker_id>/ - Update a tracker."""
     try:
@@ -3172,6 +3335,7 @@ def api_tracker_update(request, guild_id, tracker_id):
 
 @require_http_methods(["DELETE"])
 @api_auth_required
+@ratelimit(key='user_or_ip', rate='30/m', method='DELETE', block=True)
 def api_tracker_delete(request, guild_id, tracker_id):
     """DELETE /api/guild/<id>/trackers/<tracker_id>/ - Delete a tracker."""
     try:
@@ -3197,6 +3361,7 @@ def api_tracker_delete(request, guild_id, tracker_id):
 
 @require_http_methods(["GET"])
 @api_auth_required
+@ratelimit(key='user_or_ip', rate='60/m', method='GET', block=True)
 def api_guild_resources(request, guild_id):
     """GET /api/guild/<id>/resources/ - Fetch guild channels, roles, and cached members."""
     try:
@@ -3253,6 +3418,7 @@ def api_guild_resources(request, guild_id):
 
 @require_http_methods(["GET"])
 @api_member_auth_required
+@ratelimit(key='user_or_ip', rate='60/m', method='GET', block=True)
 def api_guild_members(request, guild_id):
     """GET /api/guild/<id>/members/ - Fetch cached members (id + name)."""
     try:
@@ -3280,6 +3446,7 @@ def api_guild_members(request, guild_id):
 
 @require_http_methods(["POST"])
 @api_auth_required
+@ratelimit(key='user_or_ip', rate='30/m', method='POST', block=True)
 def api_message_action(request, guild_id):
     """POST /api/guild/<id>/messages/ - Queue message/embed send/edit/broadcast."""
     try:
@@ -3322,6 +3489,7 @@ def api_message_action(request, guild_id):
 
 @require_http_methods(["POST"])
 @api_auth_required
+@ratelimit(key='user_or_ip', rate='30/m', method='POST', block=True)
 def api_scheduled_messages_create(request, guild_id):
     """POST /api/guild/<id>/scheduled-messages/ - Create a scheduled message."""
     try:
@@ -3388,6 +3556,7 @@ def api_scheduled_messages_create(request, guild_id):
 
 @require_http_methods(["GET"])
 @api_auth_required
+@ratelimit(key='user_or_ip', rate='60/m', method='GET', block=True)
 def api_scheduled_messages_list(request, guild_id):
     """GET /api/guild/<id>/scheduled-messages/ - List all scheduled messages for a guild."""
     try:
@@ -3459,6 +3628,7 @@ def api_scheduled_messages_list(request, guild_id):
 
 @require_http_methods(["PUT"])
 @api_auth_required
+@ratelimit(key='user_or_ip', rate='30/m', method='PUT', block=True)
 def api_scheduled_messages_update(request, guild_id, message_id):
     """PUT /api/guild/<id>/scheduled-messages/<msg_id>/ - Update a scheduled message."""
     try:
@@ -3519,6 +3689,7 @@ def api_scheduled_messages_update(request, guild_id, message_id):
 
 @require_http_methods(["DELETE"])
 @api_auth_required
+@ratelimit(key='user_or_ip', rate='30/m', method='DELETE', block=True)
 def api_scheduled_messages_cancel(request, guild_id, message_id):
     """DELETE /api/guild/<id>/scheduled-messages/<msg_id>/ - Cancel a scheduled message."""
     try:
@@ -3558,6 +3729,7 @@ def api_scheduled_messages_cancel(request, guild_id, message_id):
 
 @require_http_methods(["POST"])
 @api_auth_required
+@ratelimit(key='user', rate='5/h', method='POST', block=True)
 def api_guild_leave(request, guild_id):
     """POST /api/guild/<id>/leave/ - Make the bot leave the specified guild."""
     try:
@@ -3740,6 +3912,7 @@ def guild_xp(request, guild_id):
 # XP API Endpoints
 
 @api_auth_required
+@ratelimit(key='user_or_ip', rate='60/m', method='GET', block=True)
 def api_xp_config(request, guild_id):
     """GET /api/guild/<id>/xp/config/ - Get XP configuration."""
     try:
@@ -3807,6 +3980,7 @@ def api_xp_config(request, guild_id):
 
 @require_http_methods(["POST", "PATCH"])
 @api_auth_required
+@ratelimit(key='user_or_ip', rate='30/m', method=['POST', 'PATCH'], block=True)
 def api_xp_config_update(request, guild_id):
     """POST /api/guild/<id>/xp/config/ - Update XP configuration."""
     try:
@@ -3877,6 +4051,7 @@ def api_xp_config_update(request, guild_id):
 
 @require_http_methods(["POST"])
 @api_auth_required
+@ratelimit(key='user_or_ip', rate='30/m', method='POST', block=True)
 def api_xp_toggle(request, guild_id):
     """POST /api/guild/<id>/xp/toggle/ - Toggle XP system on/off."""
     import json
@@ -3933,6 +4108,7 @@ def api_xp_toggle(request, guild_id):
 
 
 @api_auth_required
+@ratelimit(key='user_or_ip', rate='60/m', method='GET', block=True)
 def api_xp_leaderboard(request, guild_id):
     """GET /api/guild/<id>/xp/leaderboard/ - Get XP leaderboard."""
     try:
@@ -3986,6 +4162,7 @@ def api_xp_leaderboard(request, guild_id):
     },
     "required": ["action", "amount", "field"]
 })
+@api_auth_required
 def api_xp_member_update(request, guild_id, user_id):
     """POST /api/guild/<id>/xp/member/<user_id>/ - Update a member's XP/tokens."""
     data = request.validated_data
@@ -4071,6 +4248,7 @@ def api_xp_member_update(request, guild_id, user_id):
 
 
 @api_auth_required
+@ratelimit(key='user_or_ip', rate='60/m', method='GET', block=True)
 def api_xp_level_roles(request, guild_id):
     """GET /api/guild/<id>/xp/roles/ - Get level roles."""
     try:
@@ -4101,6 +4279,7 @@ def api_xp_level_roles(request, guild_id):
 
 @require_http_methods(["POST"])
 @api_auth_required
+@ratelimit(key='user_or_ip', rate='30/m', method='POST', block=True)
 def api_xp_level_role_create(request, guild_id):
     """POST /api/guild/<id>/xp/roles/ - Create a level role."""
     try:
@@ -4154,6 +4333,7 @@ def api_xp_level_role_create(request, guild_id):
 
 @require_http_methods(["POST"])
 @api_auth_required
+@ratelimit(key='user_or_ip', rate='30/m', method='POST', block=True)
 def api_xp_level_role_bulk_create(request, guild_id):
     """POST /api/guild/<id>/xp/roles/bulk-create/ - Create multiple level roles at once."""
     try:
@@ -4224,6 +4404,7 @@ def api_xp_level_role_bulk_create(request, guild_id):
 
 @require_http_methods(["DELETE"])
 @api_auth_required
+@ratelimit(key='user_or_ip', rate='30/m', method='DELETE', block=True)
 def api_xp_level_role_delete(request, guild_id, role_id):
     """DELETE /api/guild/<id>/xp/roles/<role_id>/ - Delete a level role."""
     try:
@@ -4248,6 +4429,7 @@ def api_xp_level_role_delete(request, guild_id, role_id):
 
 @require_http_methods(["DELETE"])
 @api_auth_required
+@ratelimit(key='user', rate='10/m', method='DELETE', block=True)
 def api_xp_member_delete(request, guild_id, user_id):
     """DELETE /api/guild/<id>/xp/member/<user_id>/delete/ - Remove a member from XP system."""
     try:
@@ -4277,6 +4459,7 @@ def api_xp_member_delete(request, guild_id, user_id):
 
 @require_http_methods(["POST"])
 @api_auth_required
+@ratelimit(key='user_or_ip', rate='30/m', method='POST', block=True)
 def api_xp_member_add(request, guild_id):
     """POST /api/guild/<id>/xp/member/add/ - Manually add a member to XP system."""
     try:
@@ -4326,6 +4509,7 @@ def api_xp_member_add(request, guild_id):
 
 @require_http_methods(["POST"])
 @api_auth_required
+@ratelimit(key='user', rate='10/h', method='POST', block=True)
 def api_xp_import_csv(request, guild_id):
     """POST /api/guild/<id>/xp/import/ - Import XP data from CSV or XLSX file."""
     try:
@@ -4337,6 +4521,16 @@ def api_xp_import_csv(request, guild_id):
 
         upload_file = request.FILES['csv_file']
         filename = upload_file.name.lower()
+
+        # Validate file size (10MB limit)
+        MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
+        if upload_file.size > MAX_FILE_SIZE:
+            return JsonResponse({'error': 'File too large (max 10MB)'}, status=400)
+
+        # Validate file extension
+        allowed_extensions = ['.csv', '.xlsx', '.tsv']
+        if not any(filename.endswith(ext) for ext in allowed_extensions):
+            return JsonResponse({'error': f'Invalid file type. Only {", ".join(allowed_extensions)} allowed'}, status=400)
 
         # LOG who is uploading XP files
         user_session = request.session.get('discord_user', {})
@@ -4701,6 +4895,7 @@ def api_xp_bulk_edit(request, guild_id):
 # XP Boost Events API
 
 @api_auth_required
+@ratelimit(key='user_or_ip', rate='60/m', method='GET', block=True)
 def api_xp_boost_events_list(request, guild_id):
     """GET /api/guild/<id>/xp/boost-events/ - Get all boost events for a guild."""
     try:
@@ -4743,6 +4938,7 @@ def api_xp_boost_events_list(request, guild_id):
 
 @require_http_methods(["PATCH"])
 @api_auth_required
+@ratelimit(key='user_or_ip', rate='30/m', method='PATCH', block=True)
 def api_xp_boost_event_update(request, guild_id, event_id):
     """PATCH /api/guild/<id>/xp/boost-events/<event_id>/ - Update a boost event."""
     try:
@@ -4840,6 +5036,7 @@ def api_xp_boost_event_update(request, guild_id, event_id):
 
 @require_http_methods(["DELETE"])
 @api_auth_required
+@ratelimit(key='user_or_ip', rate='30/m', method='DELETE', block=True)
 def api_xp_boost_event_delete(request, guild_id, event_id):
     """DELETE /api/guild/<id>/xp/boost-events/<event_id>/ - Delete a custom boost event."""
     try:
@@ -4879,6 +5076,7 @@ def api_xp_boost_event_delete(request, guild_id, event_id):
 
 @require_http_methods(["POST"])
 @api_auth_required
+@ratelimit(key='user_or_ip', rate='30/m', method='POST', block=True)
 def api_xp_boost_event_create(request, guild_id):
     """POST /api/guild/<id>/xp/boost-events/create/ - Create a custom boost event."""
     try:
@@ -5236,6 +5434,8 @@ def guild_reaction_roles(request, guild_id):
 
 @require_http_methods(["GET", "POST"])
 @api_auth_required
+@ratelimit(key='user_or_ip', rate='60/m', method='GET', block=True)
+@ratelimit(key='user_or_ip', rate='30/m', method='POST', block=True)
 def api_reaction_roles(request, guild_id):
     """
     GET /api/guild/<id>/reaction-roles/ - List reaction role menus
@@ -5375,6 +5575,8 @@ def api_reaction_roles(request, guild_id):
 
 @require_http_methods(["GET", "PUT", "DELETE"])
 @api_auth_required
+@ratelimit(key='user_or_ip', rate='60/m', method='GET', block=True)
+@ratelimit(key='user_or_ip', rate='30/m', method=['PUT', 'DELETE'], block=True)
 def api_reaction_role_detail(request, guild_id, message_id):
     """
     GET /api/guild/<id>/reaction-roles/<message_id>/ - Get a menu
@@ -5677,6 +5879,15 @@ def api_role_bulk_import(request, guild_id):
     if not excel_file:
         return JsonResponse({'error': 'No file uploaded'}, status=400)
 
+    # Validate file size (5MB limit)
+    MAX_FILE_SIZE = 5 * 1024 * 1024  # 5MB
+    if excel_file.size > MAX_FILE_SIZE:
+        return JsonResponse({'error': 'File too large (max 5MB)'}, status=400)
+
+    # Validate file extension
+    if not excel_file.name.lower().endswith('.xlsx'):
+        return JsonResponse({'error': 'Invalid file type. Only .xlsx files allowed'}, status=400)
+
     role_id = request.POST.get('role_id')
     action = request.POST.get('action', 'add')  # 'add' or 'remove'
 
@@ -5801,6 +6012,7 @@ def api_role_bulk_import(request, guild_id):
 
 
 @api_auth_required
+@ratelimit(key='user_or_ip', rate='60/m', method='GET', block=True)
 def api_bulk_import_status(request, guild_id, job_id):
     """GET /api/guild/<id>/roles/import/<job_id>/ - Get bulk import status."""
     try:
@@ -5817,6 +6029,7 @@ def api_bulk_import_status(request, guild_id, job_id):
 
 
 @api_auth_required
+@ratelimit(key='user_or_ip', rate='60/m', method='GET', block=True)
 def api_role_export_template(request, guild_id):
     """GET /api/guild/<id>/roles/export-template/ - Export blank XLSX template for bulk role import."""
     try:
@@ -5894,6 +6107,7 @@ def api_role_export_template(request, guild_id):
 
 
 @api_auth_required
+@ratelimit(key='user_or_ip', rate='60/m', method='GET', block=True)
 def api_role_export_current(request, guild_id):
     """GET /api/guild/<id>/roles/export-roles/ - Export all guild roles with their permissions."""
     try:
@@ -6043,6 +6257,7 @@ def api_role_export_current(request, guild_id):
 
 @require_http_methods(["POST"])
 @api_auth_required
+@ratelimit(key='user_or_ip', rate='30/m', method='POST', block=True)
 def api_role_create(request, guild_id):
     """POST /api/guild/<id>/roles/create/ - Create a new Discord role."""
     try:
@@ -6188,10 +6403,11 @@ def guild_raffle_browser(request, guild_id):
     # Get all guilds the user is in (both admin and member)
     admin_guilds = request.session.get('discord_admin_guilds', [])
     member_guilds = get_member_guilds(request)
+    all_guilds_session = request.session.get('discord_all_guilds', [])
     all_guilds = admin_guilds + member_guilds
 
-    # Check if user is in this guild
-    guild = next((g for g in all_guilds if str(g.get('id')) == str(guild_id)), None)
+    # Check if user is in this guild (get from admin_guilds first for owner/permissions)
+    guild = get_guild_with_permissions(guild_id, admin_guilds, all_guilds_session)
     if not guild:
         messages.error(request, "You are not a member of this server.")
         return redirect('questlog_dashboard')
@@ -6281,10 +6497,22 @@ def _draw_winners(db, raffle):
 
 @require_http_methods(["POST"])
 @api_auth_required
+@ratelimit(key='user', rate='10/h', method='POST', block=True)
 def api_role_bulk_create(request, guild_id):
     """POST /api/guild/<id>/roles/bulk-create/ - Create multiple roles from XLSX import."""
     if 'file' not in request.FILES:
         return JsonResponse({'error': 'No file uploaded'}, status=400)
+
+    upload_file = request.FILES['file']
+
+    # Validate file size (5MB limit for role imports)
+    MAX_FILE_SIZE = 5 * 1024 * 1024  # 5MB
+    if upload_file.size > MAX_FILE_SIZE:
+        return JsonResponse({'error': 'File too large (max 5MB)'}, status=400)
+
+    # Validate file extension
+    if not upload_file.name.lower().endswith('.xlsx'):
+        return JsonResponse({'error': 'Invalid file type. Only .xlsx files allowed'}, status=400)
 
     # Check subscription tier and determine limits
     try:
@@ -6311,6 +6539,7 @@ def api_role_bulk_create(request, guild_id):
 
 
 @require_http_methods(["GET"])
+@ratelimit(key='user_or_ip', rate='60/m', method='GET', block=True)
 def api_raffle_list(request, guild_id):
     """List raffles; auto-finalize ended raffles with auto_pick. (Members can view)"""
     from .db import get_db_session
@@ -6390,6 +6619,7 @@ def api_raffle_list(request, guild_id):
 
 @require_http_methods(["POST"])
 @api_auth_required
+@ratelimit(key='user_or_ip', rate='30/m', method='POST', block=True)
 def api_raffle_create(request, guild_id):
     """Create a raffle (admin only)."""
     from .db import get_db_session
@@ -6460,6 +6690,7 @@ def api_raffle_create(request, guild_id):
 
 @require_http_methods(["POST"])
 @api_auth_required
+@ratelimit(key='user_or_ip', rate='30/m', method='POST', block=True)
 def api_raffle_update(request, guild_id, raffle_id):
     """Update an existing raffle (admin only)."""
     from .db import get_db_session
@@ -6508,6 +6739,7 @@ def api_raffle_update(request, guild_id, raffle_id):
 
 
 @require_http_methods(["POST"])
+@ratelimit(key='user_or_ip', rate='10/m', method='POST', block=True)
 def api_raffle_enter(request, guild_id, raffle_id):
     """Enter a raffle using tokens. (Members can enter)"""
     from .db import get_db_session
@@ -6597,6 +6829,7 @@ def api_raffle_enter(request, guild_id, raffle_id):
 
 @require_http_methods(["POST"])
 @api_auth_required
+@ratelimit(key='user_or_ip', rate='30/m', method='POST', block=True)
 def api_raffle_pick(request, guild_id, raffle_id):
     """Pick winners (admin only)."""
     from .db import get_db_session
@@ -6623,6 +6856,7 @@ def api_raffle_pick(request, guild_id, raffle_id):
 
 @require_http_methods(["POST"])
 @api_auth_required
+@ratelimit(key='user_or_ip', rate='30/m', method='POST', block=True)
 def api_raffle_start_now(request, guild_id, raffle_id):
     """Manually start a raffle immediately (set start_at to now and clear announce message so bot can post)."""
     from .db import get_db_session
@@ -6648,6 +6882,7 @@ def api_raffle_start_now(request, guild_id, raffle_id):
 
 @require_http_methods(["POST"])
 @api_auth_required
+@ratelimit(key='user_or_ip', rate='30/m', method='POST', block=True)
 def api_raffle_end_now(request, guild_id, raffle_id):
     """Manually end a raffle immediately; marks end_at and triggers draw if auto_pick."""
     from .db import get_db_session
@@ -6795,6 +7030,7 @@ def api_raffle_end_now(request, guild_id, raffle_id):
 
 
 @api_auth_required
+@ratelimit(key='user_or_ip', rate='60/m', method='GET', block=True)
 def api_role_export_create_template(request, guild_id):
     """GET /api/guild/<id>/roles/export-create-template/ - Export XLSX template for bulk role creation."""
     try:
@@ -7037,6 +7273,7 @@ def get_action_category(action: str) -> str:
 # Audit Logs API Endpoints
 
 @api_auth_required
+@ratelimit(key='user_or_ip', rate='60/m', method='GET', block=True)
 def api_audit_logs(request, guild_id):
     """GET /api/guild/<id>/audit/ - Get paginated audit logs."""
     try:
@@ -7122,6 +7359,7 @@ def api_audit_logs(request, guild_id):
 
 
 @api_auth_required
+@ratelimit(key='user_or_ip', rate='60/m', method='GET', block=True)
 def api_audit_stats(request, guild_id):
     """GET /api/guild/<id>/audit/stats/ - Get audit log statistics."""
     try:
@@ -7187,6 +7425,8 @@ def api_audit_stats(request, guild_id):
 
 @require_http_methods(["GET", "POST", "PATCH"])
 @api_auth_required
+@ratelimit(key='user_or_ip', rate='60/m', method='GET', block=True)
+@ratelimit(key='user_or_ip', rate='30/m', method=['POST', 'PATCH'], block=True)
 def api_audit_config_update(request, guild_id):
     """GET/POST /api/guild/<id>/audit/config/ - Fetch or update audit log configuration."""
     # GET: return current config
@@ -7415,6 +7655,7 @@ def guild_welcome(request, guild_id):
 
 @require_http_methods(["POST", "PATCH"])
 @api_auth_required
+@ratelimit(key='user_or_ip', rate='30/m', method=['POST', 'PATCH'], block=True)
 def api_welcome_config_update(request, guild_id):
     """POST /api/guild/<id>/welcome/config/ - Update welcome configuration."""
     try:
@@ -7484,6 +7725,7 @@ def api_welcome_config_update(request, guild_id):
 
 
 @api_auth_required
+@ratelimit(key='user_or_ip', rate='60/m', method='GET', block=True)
 def api_welcome_config(request, guild_id):
     """GET /api/guild/<id>/welcome/config/ - Get welcome configuration."""
     try:
@@ -7541,6 +7783,7 @@ def api_welcome_config(request, guild_id):
 
 
 @api_auth_required
+@ratelimit(key='user_or_ip', rate='30/m', method='POST', block=True)
 def api_welcome_test(request, guild_id):
     """POST /api/guild/<id>/welcome/test/ - Send a test welcome message."""
     try:
@@ -7696,6 +7939,7 @@ def guild_messages(request, guild_id):
 
 @require_http_methods(["POST", "PATCH"])
 @api_auth_required
+@ratelimit(key='user_or_ip', rate='30/m', method=['POST', 'PATCH'], block=True)
 def api_levelup_config_update(request, guild_id):
     """POST /api/guild/<id>/levelup/config/ - Update level-up configuration."""
     try:
@@ -7766,6 +8010,7 @@ def api_levelup_config_update(request, guild_id):
 
 @require_http_methods(["GET"])
 @api_auth_required
+@ratelimit(key='user_or_ip', rate='60/m', method='GET', block=True)
 def api_guild_channels(request, guild_id):
     """GET /api/guild/<id>/channels/ - Get guild channels (cached)."""
     try:
@@ -7794,6 +8039,7 @@ def api_guild_channels(request, guild_id):
 
 @require_http_methods(["GET", "PATCH"])
 @api_auth_required
+@ratelimit(key='user_or_ip', rate='60/m', method='GET', block=True)
 def api_guild_roles(request, guild_id):
     """
     GET /api/guild/<id>/roles/ - Get guild roles (cached).
@@ -7883,6 +8129,7 @@ def api_guild_roles(request, guild_id):
 
 @require_http_methods(["GET"])
 @api_auth_required
+@ratelimit(key='user_or_ip', rate='60/m', method='GET', block=True)
 def api_guild_emojis(request, guild_id):
     """GET /api/guild/<id>/emojis/ - Get ALL guild custom emojis from database cache + standard emojis."""
     try:
@@ -7956,6 +8203,7 @@ def guild_settings(request, guild_id):
                     'token_name': guild_record.token_name or 'Hero Tokens',
                     'token_emoji': guild_record.token_emoji or ':coin:',
                     'mod_log_channel_id': str(guild_record.mod_log_channel_id) if guild_record.mod_log_channel_id else '',
+                    'admin_roles': guild_record.admin_roles or '[]',
                     'subscription_tier': guild_record.subscription_tier if guild_record.subscription_tier else 'free',
                     'billing_cycle': guild_record.billing_cycle,
                     'is_vip': guild_record.is_vip,
@@ -7968,6 +8216,7 @@ def guild_settings(request, guild_id):
                     'token_name': 'Hero Tokens',
                     'token_emoji': ':coin:',
                     'mod_log_channel_id': '',
+                    'admin_roles': '[]',
                     'subscription_tier': 'free',
                     'billing_cycle': None,
                     'is_vip': False,
@@ -7990,15 +8239,15 @@ def guild_settings(request, guild_id):
 
 
 @discord_required
+@server_owner_required
 def guild_billing(request, guild_id):
-    """Billing and subscription management page."""
+    """Billing and subscription management page - SERVER OWNER ONLY."""
     discord_user = request.session.get('discord_user', {})
     admin_guilds = request.session.get('discord_admin_guilds', [])
+    all_guilds = request.session.get('discord_all_guilds', [])
 
-    guild = next((g for g in admin_guilds if g['id'] == guild_id), None)
-    if not guild:
-        messages.error(request, "You don't have admin access to this server.")
-        return redirect('questlog_dashboard')
+    # Get guild with owner/permissions data for sidebar
+    guild = get_guild_with_permissions(guild_id, admin_guilds, all_guilds)
 
     guild_record = None
     try:
@@ -8112,6 +8361,7 @@ def guild_billing(request, guild_id):
 
 @require_http_methods(["POST", "PATCH"])
 @api_auth_required
+@ratelimit(key='user_or_ip', rate='30/m', method=['POST', 'PATCH'], block=True)
 def api_settings_update(request, guild_id):
     """POST /api/guild/<id>/settings/ - Update server settings."""
     try:
@@ -8142,6 +8392,14 @@ def api_settings_update(request, guild_id):
                 guild_record.token_emoji = data['token_emoji'][:20] if data['token_emoji'] else ':coin:'
             if 'mod_log_channel_id' in data:
                 guild_record.mod_log_channel_id = int(data['mod_log_channel_id']) if data['mod_log_channel_id'] else None
+            if 'admin_roles' in data:
+                # Store admin_roles as JSON string (already stringified from frontend)
+                guild_record.admin_roles = data['admin_roles'] if data['admin_roles'] else None
+
+            db.commit()
+
+            # Note: Permission cache will auto-expire in 30 seconds, so changes take effect quickly
+            # No need to manually clear cache - it's already short-lived
 
             return JsonResponse({'success': True})
 
@@ -8151,8 +8409,10 @@ def api_settings_update(request, guild_id):
 
 @require_http_methods(["POST"])
 @api_auth_required
+@server_owner_required
+@ratelimit(key='user', rate='10/m', method='POST', block=True)
 def api_settings_reset(request, guild_id):
-    """POST /api/guild/<id>/settings/reset/ - Reset guild settings to defaults."""
+    """POST /api/guild/<id>/settings/reset/ - Reset guild settings to defaults. SERVER OWNER ONLY."""
     try:
         from .db import get_db_session
         from .models import Guild as GuildModel
@@ -8445,9 +8705,10 @@ def stripe_transfer_subscription(request, guild_id):
 
 @require_http_methods(["POST"])
 @api_auth_required
+@server_owner_required
 @ratelimit(key='user_or_ip', rate='2/h', method='POST', block=True)
 def api_settings_remove_data(request, guild_id):
-    """POST /api/guild/<id>/settings/remove-data/ - Remove all guild data."""
+    """POST /api/guild/<id>/settings/remove-data/ - Remove all guild data. SERVER OWNER ONLY."""
     try:
         from .db import get_db_session
         from .models import Guild as GuildModel
@@ -8553,6 +8814,7 @@ def guild_verification(request, guild_id):
 
 @require_http_methods(["POST", "PATCH"])
 @api_auth_required
+@ratelimit(key='user_or_ip', rate='30/m', method=['POST', 'PATCH'], block=True)
 def api_verification_config_update(request, guild_id):
     """POST /api/guild/<id>/verification/config/ - Update verification configuration."""
     try:
@@ -8842,6 +9104,7 @@ def guild_moderation_settings(request, guild_id):
 
 @require_http_methods(["POST"])
 @api_auth_required
+@ratelimit(key='user_or_ip', rate='30/m', method='POST', block=True)
 def api_warning_pardon(request, guild_id, warning_id):
     """POST /api/guild/<id>/warnings/<warning_id>/pardon/ - Pardon a warning."""
     try:
@@ -8880,6 +9143,7 @@ def api_warning_pardon(request, guild_id, warning_id):
 
 @require_http_methods(["POST"])
 @api_auth_required
+@ratelimit(key='user_or_ip', rate='30/m', method='POST', block=True)
 def api_mod_untimeout(request, guild_id):
     """POST /api/guild/<id>/mod/untimeout/ - Remove timeout from a user."""
     try:
@@ -8924,6 +9188,7 @@ def api_mod_untimeout(request, guild_id):
 
 @require_http_methods(["POST"])
 @api_auth_required
+@ratelimit(key='user', rate='10/m', method='POST', block=True)
 def api_mod_kick(request, guild_id):
     """POST /api/guild/<id>/mod/kick/ - Kick a user from the server."""
     try:
@@ -9013,6 +9278,7 @@ def api_mod_ban(request, guild_id):
 
 @require_http_methods(["POST"])
 @api_auth_required
+@ratelimit(key='user_or_ip', rate='30/m', method='POST', block=True)
 def api_mod_settings_update(request, guild_id):
     """POST /api/guild/<id>/moderation/settings/ - Update moderation settings."""
     try:
@@ -9063,6 +9329,7 @@ def api_mod_settings_update(request, guild_id):
 
 @require_http_methods(["POST"])
 @api_auth_required
+@ratelimit(key='user_or_ip', rate='30/m', method='POST', block=True)
 def api_mod_unban(request, guild_id):
     """POST /api/guild/<id>/mod/unban/ - Unban a user from the server."""
     try:
@@ -9107,6 +9374,7 @@ def api_mod_unban(request, guild_id):
 
 @require_http_methods(["POST"])
 @api_auth_required
+@ratelimit(key='user_or_ip', rate='30/m', method='POST', block=True)
 def api_mod_unmute(request, guild_id):
     """POST /api/guild/<id>/mod/unmute/ - Unmute a user."""
     try:
@@ -9151,6 +9419,7 @@ def api_mod_unmute(request, guild_id):
 
 @require_http_methods(["POST"])
 @api_auth_required
+@ratelimit(key='user_or_ip', rate='30/m', method='POST', block=True)
 def api_mod_unjail(request, guild_id):
     """POST /api/guild/<id>/mod/unjail/ - Unjail a user."""
     try:
@@ -9194,6 +9463,7 @@ def api_mod_unjail(request, guild_id):
 
 
 @api_auth_required
+@ratelimit(key='user_or_ip', rate='60/m', method='GET', block=True)
 def api_warnings_list(request, guild_id):
     """GET /api/guild/<id>/warnings/ - Get warnings list with pagination."""
     try:
@@ -9334,6 +9604,7 @@ def guild_templates(request, guild_id):
 
 @require_http_methods(["POST"])
 @api_auth_required
+@ratelimit(key='user_or_ip', rate='30/m', method='POST', block=True)
 def api_channel_template_create(request, guild_id):
     """POST /api/guild/<id>/templates/channels/ - Create channel template."""
     try:
@@ -9386,6 +9657,7 @@ def api_channel_template_create(request, guild_id):
 
 @require_http_methods(["POST"])
 @api_auth_required
+@ratelimit(key='user_or_ip', rate='30/m', method='POST', block=True)
 def api_role_template_create(request, guild_id):
     """POST /api/guild/<id>/templates/roles/ - Create role template."""
     try:
@@ -9438,6 +9710,7 @@ def api_role_template_create(request, guild_id):
 
 @require_http_methods(["DELETE"])
 @api_auth_required
+@ratelimit(key='user_or_ip', rate='30/m', method='DELETE', block=True)
 def api_template_delete(request, guild_id, template_type, template_id):
     """DELETE /api/guild/<id>/templates/<type>/<id>/ - Delete template."""
     try:
@@ -9468,6 +9741,7 @@ def api_template_delete(request, guild_id, template_type, template_id):
 
 @require_http_methods(["POST"])
 @api_auth_required
+@ratelimit(key='user_or_ip', rate='30/m', method='POST', block=True)
 def api_template_apply(request, guild_id, template_type, template_id):
     """POST /api/guild/<id>/templates/<type>/<id>/apply/ - Apply template."""
     try:
@@ -9522,6 +9796,7 @@ def api_template_apply(request, guild_id, template_type, template_id):
 
 @require_http_methods(["GET"])
 @api_auth_required
+@ratelimit(key='user_or_ip', rate='60/m', method='GET', block=True)
 def api_template_detail(request, guild_id, template_type, template_id):
     """GET /api/guild/<id>/templates/<type>/<id>/ - Get template details."""
     try:
@@ -9559,6 +9834,7 @@ def api_template_detail(request, guild_id, template_type, template_id):
 
 @require_http_methods(["PUT"])
 @api_auth_required
+@ratelimit(key='user_or_ip', rate='30/m', method='PUT', block=True)
 def api_template_update(request, guild_id, template_type, template_id):
     """PUT /api/guild/<id>/templates/<type>/<id>/ - Update template."""
     try:
@@ -9601,6 +9877,8 @@ def api_template_update(request, guild_id, template_type, template_id):
 
 # Wrapper functions for specific template types - Channels
 @api_auth_required
+@ratelimit(key='user_or_ip', rate='60/m', method='GET', block=True)
+@ratelimit(key='user_or_ip', rate='30/m', method=['PUT', 'DELETE'], block=True)
 def api_channel_template_detail_update_delete(request, guild_id, template_id):
     """GET/PUT/DELETE /api/guild/<id>/templates/channels/<id>/ - Channel template operations."""
     if request.method == 'GET':
@@ -9614,6 +9892,7 @@ def api_channel_template_detail_update_delete(request, guild_id, template_id):
 
 @require_http_methods(["POST"])
 @api_auth_required
+@ratelimit(key='user_or_ip', rate='30/m', method='POST', block=True)
 def api_channel_template_apply(request, guild_id, template_id):
     """POST /api/guild/<id>/templates/channels/<id>/apply/ - Apply channel template."""
     return api_template_apply(request, guild_id, 'channels', template_id)
@@ -9621,6 +9900,8 @@ def api_channel_template_apply(request, guild_id, template_id):
 
 # Wrapper functions for specific template types - Roles
 @api_auth_required
+@ratelimit(key='user_or_ip', rate='60/m', method='GET', block=True)
+@ratelimit(key='user_or_ip', rate='30/m', method=['PUT', 'DELETE'], block=True)
 def api_role_template_detail_update_delete(request, guild_id, template_id):
     """GET/PUT/DELETE /api/guild/<id>/templates/roles/<id>/ - Role template operations."""
     if request.method == 'GET':
@@ -9634,6 +9915,7 @@ def api_role_template_detail_update_delete(request, guild_id, template_id):
 
 @require_http_methods(["POST"])
 @api_auth_required
+@ratelimit(key='user_or_ip', rate='30/m', method='POST', block=True)
 def api_role_template_apply(request, guild_id, template_id):
     """POST /api/guild/<id>/templates/roles/<id>/apply/ - Apply role template."""
     return api_template_apply(request, guild_id, 'roles', template_id)
@@ -10194,7 +10476,9 @@ def guild_discovery_network(request, guild_id):
 # Discovery Network API Endpoints
 
 @csrf_exempt
+@discord_required
 @require_http_methods(["GET"])
+@ratelimit(key='user_or_ip', rate='60/m', method='GET', block=True)
 def api_discovery_network_servers(request):
     """Get list of servers in the Discovery Network - ONLY APPROVED members."""
     try:
@@ -10299,7 +10583,9 @@ def api_discovery_network_servers(request):
 
 
 @csrf_exempt
+@discord_required
 @require_http_methods(["GET"])
+@ratelimit(key='user_or_ip', rate='60/m', method='GET', block=True)
 def api_discovery_network_lfg(request):
     """Get cross-server LFG posts from Discovery Network guilds."""
     try:
@@ -10471,6 +10757,7 @@ def api_discovery_network_lfg(request):
 
 
 @require_http_methods(["POST"])
+@ratelimit(key='user_or_ip', rate='20/h', method='POST', block=True)
 def api_discovery_lfg_create(request):
     """Create a new Cross-Server LFG post in the Discovery Network."""
     try:
@@ -10719,6 +11006,7 @@ def api_discovery_lfg_create(request):
 
 
 @require_http_methods(["POST"])
+@ratelimit(key='user_or_ip', rate='30/h', method='POST', block=True)
 def api_discovery_lfg_join(request, post_id):
     """POST /api/discovery/lfg/<post_id>/join - Join a Discovery Network LFG post."""
     try:
@@ -10836,6 +11124,7 @@ def api_discovery_lfg_join(request, post_id):
 
 
 @require_http_methods(["PATCH"])
+@ratelimit(key='user_or_ip', rate='30/h', method='PATCH', block=True)
 def api_discovery_lfg_update(request, post_id):
     """PATCH /api/discovery/lfg/<post_id>/update - Update a Discovery Network LFG post."""
     try:
@@ -10929,6 +11218,7 @@ def api_discovery_lfg_update(request, post_id):
 
 
 @require_http_methods(["PATCH"])
+@ratelimit(key='user_or_ip', rate='60/h', method='PATCH', block=True)
 def api_discovery_lfg_update_class(request, post_id):
     """PATCH /api/discovery/lfg/<post_id>/update-class - Update member's class/role."""
     try:
@@ -11004,6 +11294,7 @@ def api_discovery_lfg_update_class(request, post_id):
 
 
 @require_http_methods(["DELETE"])
+@ratelimit(key='user_or_ip', rate='30/h', method='DELETE', block=True)
 def api_discovery_lfg_delete(request, post_id):
     """DELETE /api/discovery/lfg/<post_id>/delete - Delete a Discovery Network LFG post."""
     try:
@@ -11055,7 +11346,9 @@ def api_discovery_lfg_delete(request, post_id):
 
 
 @csrf_exempt
+@discord_required
 @require_http_methods(["GET"])
+@ratelimit(key='user_or_ip', rate='60/m', method='GET', block=True)
 def api_discovery_network_games(request):
     """Get games from LFG settings across all Discovery Network servers (for Server Directory filtering)."""
     try:
@@ -11110,7 +11403,9 @@ def api_discovery_network_games(request):
 
 
 @csrf_exempt
+@discord_required
 @require_http_methods(["GET"])
+@ratelimit(key='user_or_ip', rate='60/m', method='GET', block=True)
 def api_discovery_game_templates(request):
     """Get ALL custom templates for a specific game from Discovery Network servers."""
     try:
@@ -11213,14 +11508,18 @@ def api_discovery_game_templates(request):
 
 
 @csrf_exempt
+@discord_required
 @require_http_methods(["GET"])
+@ratelimit(key='user_or_ip', rate='60/m', method='GET', block=True)
 def api_discovery_game_roles(request):
     """DEPRECATED: Use api_discovery_game_templates instead. Kept for backwards compatibility."""
     return api_discovery_game_templates(request)
 
 
 @csrf_exempt
+@discord_required
 @require_http_methods(["GET"])
+@ratelimit(key='user_or_ip', rate='60/m', method='GET', block=True)
 def api_discovery_network_lfg_games(request):
     """Get games from LFG settings across all Discovery Network servers."""
     try:
@@ -11277,6 +11576,7 @@ def api_discovery_network_lfg_games(request):
 
 @discord_required
 @require_http_methods(["GET"])
+@ratelimit(key='user_or_ip', rate='60/m', method='GET', block=True)
 def api_discovery_network_lfg_activities(request):
     """Get all unique activity options from LFG games across Discovery Network."""
     try:
@@ -11349,6 +11649,7 @@ def api_discovery_network_lfg_activities(request):
 
 @discord_required
 @require_http_methods(["GET"])
+@ratelimit(key='user_or_ip', rate='60/m', method='GET', block=True)
 def api_discovery_game_config(request):
     """Get custom_options configuration for a specific game across Discovery Network."""
     try:
@@ -11422,6 +11723,7 @@ def api_discovery_game_config(request):
 @csrf_exempt
 @discord_required
 @require_http_methods(["POST"])
+@ratelimit(key='user_or_ip', rate='30/m', method='POST', block=True)
 def api_discovery_network_apply(request):
     """Submit application to join Discovery Network."""
     try:
@@ -11517,6 +11819,8 @@ def api_discovery_network_apply(request):
 @csrf_exempt
 @discord_required
 @require_http_methods(["GET", "POST"])
+@ratelimit(key='user_or_ip', rate='60/m', method='GET', block=True)
+@ratelimit(key='user_or_ip', rate='30/m', method='POST', block=True)
 def api_discovery_network_preferences(request):
     """Get or update Discovery Network preferences for the current user."""
     try:
@@ -11745,8 +12049,9 @@ def api_discovery_network_preferences(request):
 @csrf_exempt
 @discord_required
 @require_http_methods(["POST"])
+@ratelimit(key='user', rate='10/h', method='POST', block=True)
 def api_discovery_network_leave(request):
-    """Leave the Discovery Network - keeps approval status so they can rejoin without reapplying. ADMIN ONLY."""
+    """Leave the Discovery Network - keeps approval status so they can rejoin without reapplying. SERVER OWNER ONLY."""
     try:
         from .db import get_db_session
         from .models import DiscoveryNetworkApplication
@@ -11768,15 +12073,36 @@ def api_discovery_network_leave(request):
                 'error': 'Guild ID required'
             }, status=400)
 
-        # ADMIN CHECK - only admins can leave the network
+        # SERVER OWNER CHECK - Use decorator-based security
+        # The @server_owner_required decorator will be added after this function
+        # For now, we need to check manually inline
         admin_guilds = request.session.get('discord_admin_guilds', [])
-        is_admin = any(str(g['id']) == str(guild_id) for g in admin_guilds)
+        guild = next((g for g in admin_guilds if str(g['id']) == str(guild_id)), None)
 
-        if not is_admin:
+        if not guild:
             return JsonResponse({
                 'success': False,
-                'error': 'Admin permission required to leave the Discovery Network'
+                'error': 'No access to this server'
             }, status=403)
+
+        # Check if user is the actual owner (not just admin/custom role)
+        is_owner = guild.get('owner', False)
+        if not is_owner:
+            logger.warning(
+                f"[SECURITY] Server owner check failed: User {user_id} is not owner of guild {guild_id} | "
+                f"View: api_discovery_network_leave | "
+                f"Owner required: True | "
+                f"IP: {request.META.get('REMOTE_ADDR')}"
+            )
+            return JsonResponse({
+                'success': False,
+                'error': 'Server owner access required - This action can only be performed by the Discord server owner'
+            }, status=403)
+
+        logger.info(
+            f"[SECURITY] Server owner {user_id} leaving Discovery Network for guild {guild_id} | "
+            f"IP: {request.META.get('REMOTE_ADDR')}"
+        )
 
         with get_db_session() as db:
             # Find the server's application
@@ -11817,6 +12143,7 @@ def api_discovery_network_leave(request):
 @csrf_exempt
 @discord_required
 @require_http_methods(["POST"])
+@ratelimit(key='user', rate='10/h', method='POST', block=True)
 def api_discovery_network_rejoin(request):
     """Rejoin the Discovery Network - restore approved status for servers who left within 90 days."""
     try:
@@ -11887,7 +12214,9 @@ def api_discovery_network_rejoin(request):
 
 
 @csrf_exempt
+@discord_required
 @require_http_methods(["GET"])
+@ratelimit(key='user_or_ip', rate='30/m', method='GET', block=True)
 def api_discovery_games_list(request):
     """
     GET /api/discovery/games-list - Get aggregated game list from Discovery Network.
@@ -12267,7 +12596,9 @@ def api_discovery_games_list(request):
 
 
 @csrf_exempt
+@discord_required
 @require_http_methods(["GET"])
+@ratelimit(key='user_or_ip', rate='60/m', method='GET', block=True)
 def api_discovery_game_share_limit(request):
     """
     GET /api/discovery/game-share-limit - Check remaining game share limit for guild.
@@ -12326,7 +12657,9 @@ def api_discovery_game_share_limit(request):
 
 
 @csrf_exempt
+@discord_required
 @require_http_methods(["GET"])
+@ratelimit(key='user_or_ip', rate='10/m', method='GET', block=True)
 def api_igdb_search(request):
     """
     GET /api/igdb/search - Search IGDB for games.
@@ -12381,6 +12714,7 @@ def api_igdb_search(request):
 
 @discord_required
 @require_http_methods(["POST"])
+@ratelimit(key='user', rate='30/h', method='POST', block=True)
 def api_discovery_share_game(request):
     """
     POST /api/discovery/share-game - Manually share a game to Discovery Network.
@@ -12565,6 +12899,7 @@ def api_discovery_share_game(request):
 
 @discord_required
 @require_http_methods(["GET"])
+@ratelimit(key='user_or_ip', rate='60/m', method='GET', block=True)
 def api_discovery_user_main_server(request):
     """
     GET /api/discovery/user/main-server - Get user's main server settings.
@@ -12646,6 +12981,7 @@ def api_discovery_user_main_server(request):
 
 @discord_required
 @require_http_methods(["POST"])
+@ratelimit(key='user_or_ip', rate='30/m', method='POST', block=True)
 def api_discovery_user_set_main_server(request):
     """
     POST /api/discovery/user/set-main-server - Set or change user's main server.
@@ -12733,7 +13069,9 @@ def api_discovery_user_set_main_server(request):
 
 
 @csrf_exempt
+@discord_required
 @require_http_methods(["GET"])
+@ratelimit(key='user_or_ip', rate='60/m', method='GET', block=True)
 def api_discovery_creators_list(request):
     """
     GET /api/discovery/creators-list - Get featured creators from Discovery Network.
@@ -12758,6 +13096,7 @@ def api_discovery_creators_list(request):
 
 @csrf_exempt
 @require_http_methods(["POST"])
+@ratelimit(key='user_or_ip', rate='30/m', method='POST', block=True)
 def api_discovery_feature_creator(request):
     """
     POST /api/discovery/feature-creator - Feature a creator to Discovery Network.
@@ -12777,7 +13116,9 @@ def api_discovery_feature_creator(request):
         }, status=500)
 
 
+@discord_required
 @require_http_methods(["GET"])
+@ratelimit(key='user_or_ip', rate='60/m', method='GET', block=True)
 def api_discovery_network_creators(request):
     """
     GET /api/discovery/network-creators - Get all network creators with COTW/COTM.
@@ -12966,6 +13307,8 @@ def api_discovery_network_creators(request):
 
 @discord_required
 @require_http_methods(["GET", "POST"])
+@ratelimit(key='user_or_ip', rate='60/m', method='GET', block=True)
+@ratelimit(key='user_or_ip', rate='30/m', method='POST', block=True)
 def api_discovery_game_reviews(request, game_id):
     """
     GET/POST /api/discovery/games/<game_id>/reviews
@@ -13118,6 +13461,8 @@ def api_discovery_game_reviews(request, game_id):
 
 @discord_required
 @require_http_methods(["GET", "POST"])
+@ratelimit(key='user_or_ip', rate='60/m', method='GET', block=True)
+@ratelimit(key='user_or_ip', rate='30/m', method='POST', block=True)
 def api_discovery_game_discussions(request, game_id):
     """
     GET/POST /api/discovery/games/<game_id>/discussions
@@ -13237,6 +13582,7 @@ def api_discovery_game_discussions(request, game_id):
 
 @discord_required
 @require_http_methods(["POST"])
+@ratelimit(key='user_or_ip', rate='30/m', method='POST', block=True)
 def api_discovery_discussion_upvote(request, discussion_id):
     """
     POST /api/discovery/discussions/<discussion_id>/upvote
@@ -13282,24 +13628,15 @@ def api_discovery_discussion_upvote(request, discussion_id):
         }, status=500)
 
 
+@discovery_approvers_required
+@ratelimit(key='user', rate='60/m', method='GET', block=True)
 def api_discovery_network_admin_applications(request):
-    """Get all applications for admin review (BOT OWNER ONLY)."""
+    """Get all applications for admin review (DISCOVERY APPROVERS ONLY)."""
     try:
-        import os
         from .db import get_db_session
         from .models import DiscoveryNetworkApplication, DiscoveryNetworkBan, Guild
 
-        user = request.session.get('discord_user', {})
-        user_id = user.get('id')
-        bot_owner_id = os.getenv('BOT_OWNER_ID')
-
-        # Only bot owner can access this
-        if str(user_id) != str(bot_owner_id):
-            return JsonResponse({
-                'success': False,
-                'error': 'Unauthorized - Bot owner only'
-            }, status=403)
-
+        # Authorization handled by @discovery_approvers_required decorator
         with get_db_session() as db:
             # Get all applications
             applications = db.query(DiscoveryNetworkApplication).order_by(
@@ -13377,24 +13714,18 @@ def api_discovery_network_admin_applications(request):
         }, status=500)
 
 
+@discovery_approvers_required
+@ratelimit(key='user', rate='20/m', method='POST', block=True)
 def api_discovery_network_admin_approve(request, application_id):
-    """Approve an application (BOT OWNER ONLY)."""
+    """Approve an application (DISCOVERY APPROVERS ONLY)."""
     try:
-        import os
         import time
         from .db import get_db_session
         from .models import DiscoveryNetworkApplication
 
+        # Authorization handled by @discovery_approvers_required decorator
         user = request.session.get('discord_user', {})
         user_id = user.get('id')
-        bot_owner_id = os.getenv('BOT_OWNER_ID')
-
-        # Only bot owner can access this
-        if str(user_id) != str(bot_owner_id):
-            return JsonResponse({
-                'success': False,
-                'error': 'Unauthorized - Bot owner only'
-            }, status=403)
 
         with get_db_session() as db:
             application = db.query(DiscoveryNetworkApplication).filter_by(id=application_id).first()
@@ -13425,25 +13756,19 @@ def api_discovery_network_admin_approve(request, application_id):
         }, status=500)
 
 
+@discovery_approvers_required
+@ratelimit(key='user', rate='20/m', method='POST', block=True)
 def api_discovery_network_admin_deny(request, application_id):
-    """Deny an application (BOT OWNER ONLY)."""
+    """Deny an application (DISCOVERY APPROVERS ONLY)."""
     try:
-        import os
         import time
         import json as json_lib
         from .db import get_db_session
         from .models import DiscoveryNetworkApplication
 
+        # Authorization handled by @discovery_approvers_required decorator
         user = request.session.get('discord_user', {})
         user_id = user.get('id')
-        bot_owner_id = os.getenv('BOT_OWNER_ID')
-
-        # Only bot owner can access this
-        if str(user_id) != str(bot_owner_id):
-            return JsonResponse({
-                'success': False,
-                'error': 'Unauthorized - Bot owner only'
-            }, status=403)
 
         data = json_lib.loads(request.body)
         reason = data.get('reason', 'No reason provided')
@@ -13478,25 +13803,19 @@ def api_discovery_network_admin_deny(request, application_id):
         }, status=500)
 
 
+@discovery_approvers_required
+@ratelimit(key='user', rate='10/m', method='POST', block=True)
 def api_discovery_network_admin_ban(request, application_id):
-    """Ban a user from Discovery Network (BOT OWNER ONLY)."""
+    """Ban a user from Discovery Network (DISCOVERY APPROVERS ONLY)."""
     try:
-        import os
         import time
         import json as json_lib
         from .db import get_db_session
         from .models import DiscoveryNetworkApplication, DiscoveryNetworkBan
 
+        # Authorization handled by @discovery_approvers_required decorator
         user = request.session.get('discord_user', {})
         user_id = user.get('id')
-        bot_owner_id = os.getenv('BOT_OWNER_ID')
-
-        # Only bot owner can access this
-        if str(user_id) != str(bot_owner_id):
-            return JsonResponse({
-                'success': False,
-                'error': 'Unauthorized - Bot owner only'
-            }, status=403)
 
         data = json_lib.loads(request.body)
         reason = data.get('reason', 'No reason provided')
@@ -13563,7 +13882,7 @@ def guild_found_games(request, guild_id):
     # Get guild from session - allow any guild member to view
     all_guilds = request.session.get('discord_all_guilds', [])
     admin_guilds = request.session.get('discord_admin_guilds', [])  # For sidebar navigation
-    guild = next((g for g in all_guilds if str(g.get('id')) == str(guild_id)), None)
+    guild = get_guild_with_permissions(guild_id, admin_guilds, all_guilds)
 
     if not guild:
         messages.error(request, "You are not a member of this server.")
@@ -13739,6 +14058,7 @@ def guild_found_games(request, guild_id):
 
 @require_http_methods(["POST"])
 @api_auth_required
+@ratelimit(key='user_or_ip', rate='30/m', method='POST', block=True)
 def api_discovery_config_update(request, guild_id):
     """POST /api/guild/<id>/discovery/config/update/ - Update discovery config."""
     import json as json_lib
@@ -13874,6 +14194,7 @@ def api_discovery_config_update(request, guild_id):
 
 @require_http_methods(["GET"])
 @api_auth_required
+@ratelimit(key='user_or_ip', rate='60/m', method='GET', block=True)
 def api_discovery_pool(request, guild_id):
     """GET /api/guild/<id>/discovery/pool/ - Get current pool entries."""
     try:
@@ -13910,6 +14231,7 @@ def api_discovery_pool(request, guild_id):
 
 @require_http_methods(["DELETE"])
 @api_auth_required
+@ratelimit(key='user_or_ip', rate='30/m', method='DELETE', block=True)
 def api_discovery_pool_remove(request, guild_id, entry_id):
     """DELETE /api/guild/<id>/discovery/pool/<entry_id>/ - Remove entry from pool."""
     try:
@@ -13934,6 +14256,7 @@ def api_discovery_pool_remove(request, guild_id, entry_id):
 
 @require_http_methods(["POST"])
 @api_auth_required
+@ratelimit(key='user_or_ip', rate='30/m', method='POST', block=True)
 def api_discovery_force_feature(request, guild_id):
     """POST /api/guild/<id>/discovery/feature/ - Force a feature selection now."""
     try:
@@ -13982,6 +14305,7 @@ def api_discovery_force_feature(request, guild_id):
 
 @require_http_methods(["POST"])
 @api_auth_required
+@ratelimit(key='user_or_ip', rate='30/m', method='POST', block=True)
 def api_discovery_clear_featured(request, guild_id):
     """POST /api/guild/<id>/discovery/clear/ - Clear the currently featured person."""
     try:
@@ -14017,6 +14341,7 @@ def api_discovery_clear_featured(request, guild_id):
 
 @require_http_methods(["POST"])
 @api_auth_required
+@ratelimit(key='user_or_ip', rate='30/m', method='POST', block=True)
 def api_discovery_test_channel_embed(request, guild_id):
     """POST /api/guild/<id>/discovery/test-channel-embed/ - Send test channel embed."""
     try:
@@ -14061,6 +14386,7 @@ def api_discovery_test_channel_embed(request, guild_id):
 
 @require_http_methods(["POST"])
 @api_auth_required
+@ratelimit(key='user_or_ip', rate='30/m', method='POST', block=True)
 def api_discovery_test_forum_embed(request, guild_id):
     """POST /api/guild/<id>/discovery/test-forum-embed/ - Send test forum embed."""
     try:
@@ -14105,6 +14431,7 @@ def api_discovery_test_forum_embed(request, guild_id):
 
 @require_http_methods(["POST"])
 @api_auth_required
+@ratelimit(key='user_or_ip', rate='30/m', method='POST', block=True)
 def api_game_discovery_config_update(request, guild_id):
     """POST /api/guild/<id>/discovery/game-config/update/ - Update game discovery config."""
     import json as json_lib
@@ -14191,6 +14518,7 @@ def api_game_discovery_config_update(request, guild_id):
 
 @require_http_methods(["POST"])
 @api_auth_required
+@ratelimit(key='user_or_ip', rate='30/m', method='POST', block=True)
 def api_game_discovery_check(request, guild_id):
     """POST /api/guild/<id>/discovery/check-games/ - Manually trigger game discovery check."""
     try:
@@ -14242,6 +14570,7 @@ def api_game_discovery_check(request, guild_id):
 
 @require_http_methods(["POST"])
 @api_auth_required
+@ratelimit(key='user', rate='10/m', method='POST', block=True)
 def api_purge_announced_games(request, guild_id):
     """POST /api/guild/<id>/discovery/purge-announced-games/ - Clear all announced games for re-announcement."""
     try:
@@ -14265,6 +14594,7 @@ def api_purge_announced_games(request, guild_id):
 
 @require_http_methods(["GET"])
 @api_auth_required
+@ratelimit(key='user_or_ip', rate='60/m', method='GET', block=True)
 def api_game_search_configs_list(request, guild_id):
     """GET /api/guild/<id>/discovery/searches/ - List all game search configurations."""
     try:
@@ -14302,6 +14632,7 @@ def api_game_search_configs_list(request, guild_id):
 
 @require_http_methods(["POST"])
 @api_auth_required
+@ratelimit(key='user_or_ip', rate='30/m', method='POST', block=True)
 def api_game_search_config_create(request, guild_id):
     """POST /api/guild/<id>/discovery/searches/ - Create a new game search configuration."""
     try:
@@ -14378,6 +14709,7 @@ def api_game_search_config_create(request, guild_id):
 
 @require_http_methods(["PUT", "POST"])
 @api_auth_required
+@ratelimit(key='user_or_ip', rate='30/m', method=['PUT', 'POST'], block=True)
 def api_game_search_config_update(request, guild_id, search_id):
     """PUT /api/guild/<id>/discovery/searches/<search_id>/ - Update a game search configuration."""
     try:
@@ -14435,6 +14767,7 @@ def api_game_search_config_update(request, guild_id, search_id):
 
 @require_http_methods(["DELETE", "POST"])
 @api_auth_required
+@ratelimit(key='user_or_ip', rate='30/m', method=['DELETE', 'POST'], block=True)
 def api_game_search_config_delete(request, guild_id, search_id):
     """DELETE /api/guild/<id>/discovery/searches/<search_id>/ - Delete a game search configuration."""
     try:
@@ -14465,6 +14798,7 @@ def api_game_search_config_delete(request, guild_id, search_id):
 
 @require_http_methods(["GET"])
 @api_auth_required
+@ratelimit(key='user_or_ip', rate='60/m', method='GET', block=True)
 def api_action_status(request, guild_id, action_id):
     """GET /api/guild/<id>/action/<action_id>/status/ - Get status of a queued action."""
     try:
@@ -15128,6 +15462,7 @@ def guild_attendance(request, guild_id):
 
 @require_http_methods(["GET"])
 @api_auth_required
+@ratelimit(key='user_or_ip', rate='30/m', method='GET', block=True)
 def api_lfg_search(request, guild_id):
     """GET /api/guild/<id>/lfg/search/?q=query - Search IGDB for games."""
     query = request.GET.get('q', '')
@@ -15165,6 +15500,7 @@ def api_lfg_search(request, guild_id):
 
 @require_http_methods(["POST"])
 @api_auth_required
+@ratelimit(key='user_or_ip', rate='30/m', method='POST', block=True)
 def api_lfg_add(request, guild_id):
     """POST /api/guild/<id>/lfg/add/ - Add a game to LFG."""
     try:
@@ -15242,6 +15578,7 @@ def api_lfg_add(request, guild_id):
 
 @require_http_methods(["DELETE"])
 @api_auth_required
+@ratelimit(key='user_or_ip', rate='30/m', method='DELETE', block=True)
 def api_lfg_remove(request, guild_id, game_id):
     """DELETE /api/guild/<id>/lfg/<game_id>/ - Remove a game from LFG."""
     try:
@@ -15266,6 +15603,8 @@ def api_lfg_remove(request, guild_id, game_id):
 
 @require_http_methods(["GET", "POST"])
 @api_auth_required
+@ratelimit(key='user_or_ip', rate='60/m', method='GET', block=True)
+@ratelimit(key='user_or_ip', rate='30/m', method='POST', block=True)
 def api_lfg_game_update(request, guild_id, game_id):
     """GET/POST /api/guild/<id>/lfg/<game_id>/update/ - Get or update a game."""
     try:
@@ -15343,6 +15682,8 @@ def api_lfg_game_update(request, guild_id, game_id):
 
 @require_http_methods(["GET", "POST"])
 @api_auth_required
+@ratelimit(key='user_or_ip', rate='60/m', method='GET', block=True)
+@ratelimit(key='user_or_ip', rate='30/m', method='POST', block=True)
 def api_lfg_config(request, guild_id):
     """GET/POST /api/guild/<id>/lfg/config/ - Get or update LFG config (Premium)."""
     try:
@@ -15424,6 +15765,7 @@ def api_lfg_config(request, guild_id):
 
 @require_http_methods(["GET"])
 @api_auth_required
+@ratelimit(key='user_or_ip', rate='60/m', method='GET', block=True)
 def api_lfg_stats(request, guild_id):
     """GET /api/guild/<id>/lfg/stats/ - Get member stats/leaderboard (Premium)."""
     try:
@@ -15487,6 +15829,7 @@ def api_lfg_stats(request, guild_id):
 
 @require_http_methods(["GET"])
 @api_auth_required
+@ratelimit(key='user_or_ip', rate='60/m', method='GET', block=True)
 def api_lfg_blacklist(request, guild_id):
     """GET /api/guild/<id>/lfg/blacklist/ - Get blacklisted members (Premium)."""
     try:
@@ -15535,6 +15878,7 @@ def api_lfg_blacklist(request, guild_id):
 
 @require_http_methods(["POST"])
 @api_auth_required
+@ratelimit(key='user_or_ip', rate='30/m', method='POST', block=True)
 def api_lfg_blacklist_update(request, guild_id, user_id):
     """POST /api/guild/<id>/lfg/blacklist/<user_id>/ - Update blacklist status (Premium)."""
     try:
@@ -15583,6 +15927,7 @@ def api_lfg_blacklist_update(request, guild_id, user_id):
 
 @require_http_methods(["GET"])
 @api_auth_required
+@ratelimit(key='user_or_ip', rate='60/m', method='GET', block=True)
 def api_lfg_groups(request, guild_id):
     """GET /api/guild/<id>/lfg/groups/ - List active LFG groups."""
     try:
@@ -15893,6 +16238,7 @@ def api_lfg_attendance_update(request, guild_id):
 
 @require_http_methods(["POST"])
 @api_auth_required
+@ratelimit(key='user_or_ip', rate='30/m', method='POST', block=True)
 def api_lfg_blacklist_toggle(request, guild_id):
     """POST /api/guild/<id>/lfg/blacklist/toggle/ - Manually toggle blacklist status for a member."""
     import json
@@ -15959,6 +16305,8 @@ def api_lfg_blacklist_toggle(request, guild_id):
         return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
 
 
+@api_auth_required
+@ratelimit(key='user_or_ip', rate='30/m', method='POST', block=True)
 def api_lfg_pardon(request, guild_id):
     """POST /api/guild/<id>/lfg/pardon/ - Grant permanent pardon to a member, removing them from blacklist and preventing auto-blacklist."""
     import json
@@ -16163,6 +16511,7 @@ def api_lfg_attendance_export(request, guild_id):
 
 
 @require_http_methods(["GET"])
+@ratelimit(key='user_or_ip', rate='60/m', method='GET', block=True)
 def api_lfg_user_history(request, guild_id, user_id):
     """GET /api/guild/<id>/lfg/attendance/user/<user_id>/ - Get complete attendance history for a user (Premium)."""
     try:
@@ -16262,6 +16611,7 @@ def api_lfg_user_history(request, guild_id, user_id):
 
 @require_http_methods(["GET"])
 @api_member_auth_required
+@ratelimit(key='user_or_ip', rate='60/m', method='GET', block=True)
 def api_lfg_manager_check(request, guild_id):
     """
     GET /api/guild/<id>/lfg/manager-check/ - Check if user has LFG Manager role (real-time).
@@ -16306,7 +16656,9 @@ def api_lfg_manager_check(request, guild_id):
         return JsonResponse({'error': 'An internal error occurred'}, status=500)
 
 
+@api_member_auth_required
 @require_http_methods(["GET"])
+@ratelimit(key='user_or_ip', rate='60/m', method='GET', block=True)
 def api_lfg_browser_groups(request, guild_id):
     """GET /api/guild/<id>/lfg/browser/groups/ - List active LFG groups with game info (Pro/Premium/VIP)."""
     try:
@@ -16477,6 +16829,7 @@ def api_lfg_browser_groups(request, guild_id):
 
 @require_http_methods(["POST"])
 @api_member_auth_required
+@ratelimit(key='user_or_ip', rate='30/m', method='POST', block=True)
 def api_lfg_browser_create(request, guild_id):
     """POST /api/guild/<id>/lfg/browser/create/ - Create LFG group from web (Pro/Premium/VIP)."""
     try:
@@ -16738,6 +17091,7 @@ def api_lfg_browser_create(request, guild_id):
 
 @require_http_methods(["POST"])
 @api_member_auth_required
+@ratelimit(key='user_or_ip', rate='30/m', method='POST', block=True)
 def api_lfg_browser_join(request, guild_id, group_id):
     """POST /api/guild/<id>/lfg/browser/<group_id>/join/ - Join LFG group (Pro/Premium/VIP)."""
     try:
@@ -16896,6 +17250,7 @@ def api_lfg_browser_join(request, guild_id, group_id):
 
 @require_http_methods(["DELETE"])
 @api_member_auth_required
+@ratelimit(key='user', rate='10/m', method='DELETE', block=True)
 def api_lfg_browser_leave(request, guild_id, group_id):
     """DELETE /api/guild/<id>/lfg/browser/<group_id>/leave/ - Leave LFG group (Pro/Premium/VIP)."""
     try:
@@ -16984,6 +17339,7 @@ def api_lfg_browser_leave(request, guild_id, group_id):
 
 @require_http_methods(["POST"])
 @api_member_auth_required
+@ratelimit(key='user_or_ip', rate='30/m', method='POST', block=True)
 def api_lfg_browser_remove_member(request, guild_id, group_id):
     """POST /api/guild/<id>/lfg/browser/<group_id>/remove-member/ - Remove a member from LFG group (Creator/Co-Leader only)."""
     try:
@@ -17089,6 +17445,7 @@ def api_lfg_browser_remove_member(request, guild_id, group_id):
 
 @require_http_methods(["POST"])
 @api_member_auth_required
+@ratelimit(key='user_or_ip', rate='30/m', method='POST', block=True)
 def api_lfg_browser_join_thread(request, guild_id, group_id):
     """POST /api/guild/<id>/lfg/browser/<group_id>/join-thread/ - Add user to Discord thread."""
     try:
@@ -17150,6 +17507,7 @@ def api_lfg_browser_join_thread(request, guild_id, group_id):
 
 @require_http_methods(["DELETE"])
 @api_member_auth_required
+@ratelimit(key='user', rate='10/m', method='DELETE', block=True)
 def api_lfg_browser_delete(request, guild_id, group_id):
     """
     DELETE /api/guild/<id>/lfg/browser/<group_id>/delete/ - Delete LFG group.
@@ -17278,6 +17636,7 @@ def api_lfg_browser_delete(request, guild_id, group_id):
 
 @require_http_methods(["PUT", "PATCH"])
 @api_member_auth_required
+@ratelimit(key='user_or_ip', rate='30/m', method=['PUT', 'PATCH'], block=True)
 def api_lfg_browser_update(request, guild_id, group_id):
     """
     PUT/PATCH /api/guild/<id>/lfg/browser/<group_id>/update/ - Update LFG group.
@@ -17529,6 +17888,7 @@ def api_lfg_browser_update(request, guild_id, group_id):
 
 @require_http_methods(["GET"])
 @api_member_auth_required
+@ratelimit(key='user_or_ip', rate='60/m', method='GET', block=True)
 def api_lfg_browser_audit_logs(request, guild_id):
     """
     GET /api/guild/<id>/lfg/browser/audit-logs/ - Get audit logs for LFG groups.
@@ -17624,6 +17984,7 @@ def api_lfg_browser_audit_logs(request, guild_id):
 
 @require_http_methods(["PATCH"])
 @api_member_auth_required
+@ratelimit(key='user_or_ip', rate='30/m', method='PATCH', block=True)
 def api_lfg_browser_update_class(request, guild_id, group_id):
     """PATCH /api/guild/<id>/lfg/browser/<group_id>/update-class/ - Update member's class/role selections."""
     try:
@@ -17686,6 +18047,8 @@ def api_lfg_browser_update_class(request, guild_id, group_id):
 
 @require_http_methods(["GET", "POST"])
 @discord_required
+@ratelimit(key='user_or_ip', rate='60/m', method='GET', block=True)
+@ratelimit(key='user_or_ip', rate='30/m', method='POST', block=True)
 def api_lfg_browser_notifications(request, guild_id):
     """
     GET/POST /api/guild/<id>/lfg/browser-notifications/ - Get or save LFG Browser notification settings.
@@ -18229,7 +18592,7 @@ def creator_profile_register(request, guild_id):
     # Get guild data
     all_guilds = request.session.get('discord_all_guilds', [])
     admin_guilds = request.session.get('discord_admin_guilds', [])
-    guild = next((g for g in all_guilds if str(g.get('id')) == str(guild_id)), None)
+    guild = get_guild_with_permissions(guild_id, admin_guilds, all_guilds)
 
     if not guild:
         messages.error(request, "Guild not found.")

@@ -25,10 +25,11 @@
           </svg>
           Network Member
         </span>
-        {% if is_admin %}
+        {% if guild.owner %}
         <button onclick="confirmLeaveNetwork()" class="block w-full px-4 py-2 bg-red-900 border border-red-700 hover:bg-red-800 rounded-lg text-red-400 hover:text-red-300 text-sm font-medium transition">
-          Leave Network
+          Leave Network <i class="fas fa-crown text-yellow-500 ml-1 text-xs"></i>
         </button>
+        <p class="text-xs text-gray-500 mt-1">Server owner only</p>
         {% endif %}
       {% elif user_network_status == 'pending' %}
         <span class="inline-flex items-center px-4 py-2 bg-yellow-900 border border-yellow-700 rounded-lg text-yellow-400">
@@ -231,13 +232,9 @@ async function confirmLeaveNetwork() {
   if (!confirmed) return;
 
   try {
-    const csrftoken = getCookie('csrftoken');
     const guildId = '{{ guild.id }}';
-    const response = await fetch(`/api/discovery/leave?guild_id=${guildId}`, {
-      method: 'POST',
-      headers: {
-        'X-CSRFToken': csrftoken
-      }
+    const response = await csrfFetch(`/api/discovery/leave?guild_id=${guildId}`, {
+      method: 'POST'
     });
 
     const data = await response.json();
@@ -266,11 +263,8 @@ async function confirmRejoinNetwork() {
   try {
     const csrftoken = getCookie('csrftoken');
     const guildId = '{{ guild.id }}';
-    const response = await fetch(`/api/discovery/rejoin?guild_id=${guildId}`, {
-      method: 'POST',
-      headers: {
-        'X-CSRFToken': csrftoken
-      }
+    const response = await csrfFetch(`/api/discovery/rejoin?guild_id=${guildId}`, {
+      method: 'POST'
     });
 
     const data = await response.json();

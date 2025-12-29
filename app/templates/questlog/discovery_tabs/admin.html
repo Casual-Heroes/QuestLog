@@ -64,7 +64,7 @@ let allBans = [];
 // Load all data
 async function loadAdminData() {
   try {
-    const response = await fetch('/api/discovery/admin/applications');
+    const response = await csrfFetch('/api/discovery/admin/applications');
     const data = await response.json();
 
     if (!data.success) {
@@ -251,12 +251,8 @@ async function approveApplication(appId) {
   if (!confirm('Are you sure you want to approve this application?')) return;
 
   try {
-    const csrftoken = getCookie('csrftoken');
-    const response = await fetch(`/api/discovery/admin/applications/${appId}/approve`, {
-      method: 'POST',
-      headers: {
-        'X-CSRFToken': csrftoken
-      }
+    const response = await csrfFetch(`/api/discovery/admin/applications/${appId}/approve`, {
+      method: 'POST'
     });
 
     const data = await response.json();

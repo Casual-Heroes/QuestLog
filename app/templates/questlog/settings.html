@@ -99,6 +99,25 @@
     </div>
   </div>
 
+  <!-- Admin Roles (Dashboard Access Control) -->
+  <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6 mb-6">
+    <h3 class="text-lg font-bold text-white mb-2">
+      <i class="fas fa-user-shield text-indigo-400 mr-2"></i>Dashboard Admin Roles
+    </h3>
+    <p class="text-gray-400 text-sm mb-6">Select which roles can manage the bot dashboard (in addition to Discord Administrators)</p>
+    <div>
+      <label class="block text-sm text-gray-400 mb-2">
+        Admin Roles
+        <span class="text-xs text-gray-500 ml-2">(Multi-select)</span>
+      </label>
+      <div id="adminRolesContainer"></div>
+      <p class="text-gray-500 text-xs mt-2">
+        <i class="fas fa-info-circle text-blue-400 mr-1"></i>
+        Users with these roles will have full access to the dashboard, even without Discord's Administrator permission. Changes take effect within 30 seconds.
+      </p>
+    </div>
+  </div>
+
   <!-- Moderation Channels -->
   <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6 mb-6">
     <h3 class="text-lg font-bold text-white mb-6">
@@ -114,11 +133,13 @@
     </div>
   </div>
 
-  <!-- Danger Zone -->
+  <!-- Danger Zone (Server Owner Only) -->
+  {% if guild.owner %}
   <div class="bg-red-900/20 rounded-xl p-6 border border-red-900/50">
     <h3 class="text-lg font-bold text-red-400 mb-4">
-      <i class="fas fa-exclamation-triangle mr-2"></i>Danger Zone
+      <i class="fas fa-exclamation-triangle mr-2"></i>Danger Zone <i class="fas fa-crown text-yellow-500 ml-2 text-sm"></i>
     </h3>
+    <p class="text-gray-400 text-xs mb-4">These destructive actions can only be performed by the server owner</p>
     <div class="space-y-4">
       <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
@@ -140,6 +161,7 @@
       </div>
     </div>
   </div>
+  {% endif %}
 </div>
 
 <script>
@@ -194,7 +216,66 @@ async function loadChannels() {
   }
 }
 
-document.addEventListener('DOMContentLoaded', loadChannels);
+// Load Discord roles for admin roles multi-select
+let adminRolesSelect;
+async function loadAdminRoles() {
+  try {
+    const response = await csrfFetch(`/api/guild/${guildId}/roles/`);
+    const data = await response.json();
+
+    // Parse current admin_roles from settings (JSON array of role IDs)
+    let currentAdminRoles = [];
+    try {
+      const adminRolesJson = '{{ settings.admin_roles|escapejs }}';
+      if (adminRolesJson) {
+        currentAdminRoles = JSON.parse(adminRolesJson);
+      }
+    } catch (e) {
+      console.error('Failed to parse admin_roles:', e);
+    }
+
+    if (data.roles) {
+      // Filter out @everyone role and bot roles
+      const assignableRoles = data.roles.filter(role =>
+        role.id !== '{{ guild.id }}' && !role.managed
+      );
+
+      // Sort roles by position (higher position = more important)
+      assignableRoles.sort((a, b) => (b.position || 0) - (a.position || 0));
+
+      const roleItems = assignableRoles.map(role => {
+        // Create color dot for role color
+        const colorDot = role.color && role.color !== '0'
+          ? `<span class="w-3 h-3 rounded-full" style="background-color: #${parseInt(role.color).toString(16).padStart(6, '0')}"></span>`
+          : '<span class="w-3 h-3 rounded-full bg-gray-600"></span>';
+
+        return {
+          value: role.id,
+          label: role.name,
+          iconHtml: colorDot
+        };
+      });
+
+      adminRolesSelect = createCustomSelect({
+        container: '#adminRolesContainer',
+        name: 'admin_roles',
+        id: 'admin_roles',
+        placeholder: 'Select admin roles...',
+        items: roleItems,
+        selected: currentAdminRoles,
+        color: 'indigo',
+        multiSelect: true
+      });
+    }
+  } catch (err) {
+    console.error('Failed to load roles:', err);
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  loadChannels();
+  loadAdminRoles();
+});
 
 async function saveSettings() {
   const btn = document.getElementById('saveBtn');
@@ -208,6 +289,7 @@ async function saveSettings() {
     token_name: document.getElementById('token_name').value,
     token_emoji: document.getElementById('token_emoji').value,
     mod_log_channel_id: modChannelSelect ? modChannelSelect.getValue() : '',
+    admin_roles: adminRolesSelect ? JSON.stringify(adminRolesSelect.getValue()) : '[]',
   };
 
   try {

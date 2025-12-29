@@ -127,6 +127,14 @@
 </div>
 
 <script>
+// XSS Protection: HTML escape function
+function escapeHtml(text) {
+  if (text == null || text === undefined) return '';
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
 let currentGames = [];
 let genreFilterValue = '';
 let sortByValue = 'trending';
@@ -139,7 +147,7 @@ async function loadGames() {
     const sort = sortByValue;
 
     const guildId = '{{ guild.id }}';
-    const response = await fetch(`/api/discovery/games-list?guild_id=${guildId}&search=${searchTerm}&genre=${genre}&sort=${sort}`);
+    const response = await csrfFetch(`/api/discovery/games-list?guild_id=${guildId}&search=${searchTerm}&genre=${genre}&sort=${sort}`);
     const data = await response.json();
 
     if (data.success) {
@@ -149,7 +157,7 @@ async function loadGames() {
       document.getElementById('gamesGrid').innerHTML = `
         <div class="col-span-full text-center py-12">
           <i class="fas fa-exclamation-circle text-4xl text-red-500 mb-4"></i>
-          <p class="text-gray-400">${data.error || 'Failed to load games'}</p>
+          <p class="text-gray-400">${escapeHtml(data.error || 'Failed to load games')}</p>
         </div>
       `;
     }
@@ -182,8 +190,8 @@ function renderGames() {
       <!-- Cover Image -->
       ${game.cover_url ? `
       <div class="relative aspect-[3/4] overflow-hidden bg-neutral-800 flex-shrink-0">
-        <img src="${game.cover_url}"
-             alt="${game.name}"
+        <img src="${escapeHtml(game.cover_url)}"
+             alt="${escapeHtml(game.name)}"
              class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
              loading="lazy">
         ${game.rating ? `
@@ -197,18 +205,18 @@ function renderGames() {
       <!-- Game Info -->
       <div class="p-4 flex-1 flex flex-col">
         <h3 class="font-bold text-lg mb-2 line-clamp-2 group-hover:text-indigo-400 transition-colors">
-          ${game.name}
+          ${escapeHtml(game.name)}
         </h3>
 
         ${game.release_date ? `
         <div class="text-sm text-gray-400 mb-3">
-          <i class="far fa-calendar mr-1"></i>${game.release_date}
+          <i class="far fa-calendar mr-1"></i>${escapeHtml(game.release_date)}
         </div>
         ` : ''}
 
         ${game.summary ? `
         <p class="text-sm text-gray-400 line-clamp-3 mb-4">
-          ${game.summary}
+          ${escapeHtml(game.summary)}
         </p>
         ` : ''}
 
@@ -218,7 +226,7 @@ function renderGames() {
           <div class="flex flex-wrap gap-1">
             ${game.genres.slice(0, 3).map(genre => `
             <span class="text-xs bg-indigo-900/30 text-indigo-300 px-2 py-1 rounded border border-indigo-800">
-              ${genre}
+              ${escapeHtml(genre)}
             </span>
             `).join('')}
           </div>
@@ -228,7 +236,7 @@ function renderGames() {
           <div class="flex flex-wrap gap-1">
             ${game.platforms.slice(0, 3).map(platform => `
             <span class="text-xs bg-purple-900/30 text-purple-300 px-2 py-1 rounded border border-purple-800">
-              ${platform}
+              ${escapeHtml(platform)}
             </span>
             `).join('')}
           </div>
@@ -259,9 +267,9 @@ function renderGames() {
           <div class="text-xs text-gray-400 bg-indigo-900/20 border border-indigo-800/30 rounded px-2 py-1">
             <i class="fas fa-server text-indigo-400 mr-1"></i>
             ${game.is_manual && game.shared_by_user ? `
-              Shared by <span class="text-indigo-300 font-semibold">${game.shared_by_user}</span> from
+              Shared by <span class="text-indigo-300 font-semibold">${escapeHtml(game.shared_by_user)}</span> from
             ` : 'Found by '}
-            <span class="text-purple-300 font-semibold">${game.server_names.slice(0, 2).join(', ')}</span>${game.server_names.length > 2 ? ` <span class="text-gray-500">+${game.server_names.length - 2} more</span>` : ''}
+            <span class="text-purple-300 font-semibold">${game.server_names.slice(0, 2).map(n => escapeHtml(n)).join(', ')}</span>${game.server_names.length > 2 ? ` <span class="text-gray-500">+${game.server_names.length - 2} more</span>` : ''}
           </div>
           ` : ''}
         </div>
@@ -351,7 +359,7 @@ document.addEventListener('DOMContentLoaded', function() {
       // Debounce search
       igdbSearchTimeout = setTimeout(async () => {
         try {
-          const response = await fetch(`/api/igdb/search?query=${encodeURIComponent(query)}`);
+          const response = await csrfFetch(`/api/igdb/search?query=${encodeURIComponent(query)}`);
           const data = await response.json();
 
           document.getElementById('igdbLoading').classList.add('hidden');
@@ -376,18 +384,18 @@ function renderIGDBResults(games) {
   resultsContainer.innerHTML = games.map(game => `
     <div onclick="selectGame(${game.id})" class="bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 hover:border-indigo-500 rounded-lg p-3 cursor-pointer transition-all flex items-center gap-4">
       ${game.cover_url ? `
-      <img src="${game.cover_url}" alt="${game.name}" class="w-16 h-24 object-cover rounded flex-shrink-0">
+      <img src="${escapeHtml(game.cover_url)}" alt="${escapeHtml(game.name)}" class="w-16 h-24 object-cover rounded flex-shrink-0">
       ` : `
       <div class="w-16 h-24 bg-neutral-900 rounded flex items-center justify-center flex-shrink-0">
         <i class="fas fa-gamepad text-gray-600 text-2xl"></i>
       </div>
       `}
       <div class="flex-1 min-w-0">
-        <h4 class="font-semibold text-white truncate">${game.name}</h4>
+        <h4 class="font-semibold text-white truncate">${escapeHtml(game.name)}</h4>
         ${game.release_year ? `<p class="text-sm text-gray-400">Released: ${game.release_year}</p>` : ''}
         ${game.platforms && game.platforms.length > 0 ? `
         <div class="flex flex-wrap gap-1 mt-1">
-          ${game.platforms.slice(0, 3).map(p => `<span class="text-xs bg-purple-900/30 text-purple-300 px-2 py-0.5 rounded">${p}</span>`).join('')}
+          ${game.platforms.slice(0, 3).map(p => `<span class="text-xs bg-purple-900/30 text-purple-300 px-2 py-0.5 rounded">${escapeHtml(p)}</span>`).join('')}
         </div>
         ` : ''}
       </div>
@@ -411,15 +419,15 @@ function selectGame(gameId) {
   document.getElementById('selectedGamePreview').innerHTML = `
     <div class="flex items-start gap-4">
       ${game.cover_url ? `
-      <img src="${game.cover_url}" alt="${game.name}" class="w-24 h-36 object-cover rounded flex-shrink-0">
+      <img src="${escapeHtml(game.cover_url)}" alt="${escapeHtml(game.name)}" class="w-24 h-36 object-cover rounded flex-shrink-0">
       ` : ''}
       <div class="flex-1">
-        <h4 class="text-xl font-bold text-white mb-2">${game.name}</h4>
+        <h4 class="text-xl font-bold text-white mb-2">${escapeHtml(game.name)}</h4>
         ${game.release_year ? `<p class="text-sm text-gray-400 mb-2"><i class="far fa-calendar mr-1"></i>Released: ${game.release_year}</p>` : ''}
-        ${game.summary ? `<p class="text-sm text-gray-300">${game.summary}</p>` : ''}
+        ${game.summary ? `<p class="text-sm text-gray-300">${escapeHtml(game.summary)}</p>` : ''}
         ${game.platforms && game.platforms.length > 0 ? `
         <div class="flex flex-wrap gap-1 mt-3">
-          ${game.platforms.map(p => `<span class="text-xs bg-purple-900/30 text-purple-300 px-2 py-1 rounded border border-purple-800">${p}</span>`).join('')}
+          ${game.platforms.map(p => `<span class="text-xs bg-purple-900/30 text-purple-300 px-2 py-1 rounded border border-purple-800">${escapeHtml(p)}</span>`).join('')}
         </div>
         ` : ''}
       </div>

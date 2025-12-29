@@ -25,8 +25,16 @@
   <title>{% block title %}Casual Heroes{% endblock %}</title>
 
   <script src="https://cdn.tailwindcss.com"></script>
-  <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
+  <!-- Alpine.js 3.14.1 with SRI -->
+  <script defer src="https://unpkg.com/alpinejs@3.14.1/dist/cdn.min.js"
+          integrity="sha384-l8f0VcPi/M1iHPv8egOnY/15TDwqgbOR1anMIJWvU6nLRgZVLTLSaNqi/TOoT5Fh"
+          crossorigin="anonymous"></script>
+  <!-- Font Awesome 6.5.0 with SRI -->
+  <link rel="stylesheet"
+        href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
+        integrity="sha384-/o6I2CkkWC//PSjvWC/eYN7l3xM3tJm8ZzVkCOfp//W05QcE3mlGskpoHB6XqI+B"
+        crossorigin="anonymous"
+        referrerpolicy="no-referrer" />
   <link href="{% static 'css/custom.css' %}" rel="stylesheet">
 
   <style>
@@ -38,6 +46,10 @@
       transition: all 0.2s ease-in-out;
     }
   </style>
+
+  <!-- XSS Protection: DOMPurify library -->
+  <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.6/dist/purify.min.js" integrity="sha384-cwS6YdhLI7XS60eoDiC+egV0qHp8zI+Cms46R0nbn8JrmoAzV9uFL60etMZhAnSu" crossorigin="anonymous"></script>
+  <script src="{% static 'js/xss-protection.js' %}"></script>
 </head>
 
 <body class="bg-[#0a0a1a] text-white font-sans">
@@ -113,12 +125,12 @@
               <a href="https://casual-heroes.com/questlog/overview" class="flex items-center gap-2 px-4 py-2 hover:bg-neutral-800">
                 <i class="fas fa-book w-4 h-4"></i> Overview
               </a>
-              <a href="https://casual-heroes.com/questlog/login" class="flex items-center gap-2 px-4 py-2 hover:bg-neutral-800">
+              <!-- <a href="https://casual-heroes.com/questlog/login" class="flex items-center gap-2 px-4 py-2 hover:bg-neutral-800">
                 <i class="fas fa-sign-in-alt w-4 h-4"></i> Login to Dashboard
               </a>
               <a href="/profile/" class="flex items-center gap-2 px-4 py-2 hover:bg-neutral-800">
                 <i class="fas fa-user-cog w-4 h-4"></i> Profile Settings
-              </a>
+              </a> -->
             </div>
           </div>
 

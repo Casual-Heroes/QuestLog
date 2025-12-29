@@ -908,6 +908,14 @@
 </div>
 
 <script>
+// XSS Protection: HTML escape function
+function escapeHtml(text) {
+  if (text == null || text === undefined) return '';
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
 const GUILD_ID = '{{ guild.id }}';
 const API_BASE = `/api/guild/${GUILD_ID}/roles`;
 
@@ -1091,13 +1099,13 @@ function renderMembers(members) {
 
   list.innerHTML = members.map(member => `
     <div class="flex items-center gap-3 p-3 hover:bg-neutral-700 cursor-pointer border-b border-neutral-700 last:border-0 ${selectedMembers.has(member.user_id) ? 'bg-indigo-900/30' : ''}"
-         onclick="toggleMember('${member.user_id}', '${(member.display_name || member.username).replace(/'/g, "\\'")}')">
+         onclick="toggleMember('${escapeHtml(member.user_id)}', '${escapeHtml((member.display_name || member.username)).replace(/'/g, "\\'")}')">
       <input type="checkbox" ${selectedMembers.has(member.user_id) ? 'checked' : ''}
              class="w-4 h-4 text-indigo-600 bg-neutral-800 border-neutral-600 rounded focus:ring-indigo-500"
              onclick="event.stopPropagation()">
       <div class="flex-1">
-        <p class="text-white text-sm font-medium">${member.display_name || member.username}</p>
-        <p class="text-gray-500 text-xs">${member.user_id}</p>
+        <p class="text-white text-sm font-medium">${escapeHtml(member.display_name || member.username)}</p>
+        <p class="text-gray-500 text-xs">${escapeHtml(member.user_id)}</p>
       </div>
     </div>
   `).join('');
@@ -1112,13 +1120,13 @@ function renderRoles(roles) {
 
   list.innerHTML = roles.map(role => `
     <div class="flex items-center gap-3 p-3 hover:bg-neutral-700 cursor-pointer border-b border-neutral-700 last:border-0 ${selectedRoles.has(role.id) ? 'bg-purple-900/30' : ''}"
-         onclick="toggleRole('${role.id}', '${role.name.replace(/'/g, "\\'")}')">
+         onclick="toggleRole('${escapeHtml(role.id)}', '${escapeHtml(role.name).replace(/'/g, "\\'")}')">
       <input type="checkbox" ${selectedRoles.has(role.id) ? 'checked' : ''}
              class="w-4 h-4 text-purple-600 bg-neutral-800 border-neutral-600 rounded focus:ring-purple-500"
              onclick="event.stopPropagation()">
       <div class="flex-1 flex items-center gap-2">
         <div class="w-3 h-3 rounded-full" style="background-color: ${role.color ? '#' + role.color.toString(16).padStart(6, '0') : '#99AAB5'}"></div>
-        <p class="text-white text-sm font-medium">${role.name}</p>
+        <p class="text-white text-sm font-medium">${escapeHtml(role.name)}</p>
       </div>
     </div>
   `).join('');

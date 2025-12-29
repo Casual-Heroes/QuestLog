@@ -93,6 +93,14 @@
 </div>
 
 <script>
+// XSS Protection: HTML escape function
+function escapeHtml(text) {
+  if (text == null || text === undefined) return '';
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
 // Server directory state
 let currentPage = 1;
 let serversPerPage = 9;
@@ -146,10 +154,10 @@ function renderServers() {
       <!-- Server Icon/Banner -->
       <div class="relative h-32 bg-gradient-to-br from-indigo-900 to-purple-900">
         ${server.icon_url ? `
-          <img src="${server.icon_url}" alt="${server.name}" class="w-full h-full object-cover">
+          <img src="${escapeHtml(server.icon_url)}" alt="${escapeHtml(server.name)}" class="w-full h-full object-cover">
         ` : `
           <div class="flex items-center justify-center h-full">
-            <span class="text-4xl font-bold text-white opacity-50">${server.name.charAt(0)}</span>
+            <span class="text-4xl font-bold text-white opacity-50">${escapeHtml(server.name.charAt(0))}</span>
           </div>
         `}
 
@@ -162,22 +170,22 @@ function renderServers() {
         <div class="absolute bottom-2 left-2">
           <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getActivityBadge(server.activity_level)}" title="${getActivityTooltip(server.activity_level)}">
             <span class="w-2 h-2 mr-1 rounded-full ${getActivityDot(server.activity_level)}"></span>
-            ${server.activity_level}
+            ${escapeHtml(server.activity_level)}
           </span>
         </div>
       </div>
 
       <!-- Server Info -->
       <div class="p-4">
-        <h3 class="text-lg font-bold text-white mb-2 truncate">${server.name}</h3>
-        <p class="text-sm text-gray-400 mb-3 line-clamp-2">${server.description || 'No description provided'}</p>
+        <h3 class="text-lg font-bold text-white mb-2 truncate">${escapeHtml(server.name)}</h3>
+        <p class="text-sm text-gray-400 mb-3 line-clamp-2">${escapeHtml(server.description || 'No description provided')}</p>
 
         <!-- Tags - Only show if tags exist -->
         ${server.tags && server.tags.length > 0 ? `
           <div class="flex flex-wrap gap-1 mb-3">
             ${server.tags.slice(0, 3).map(tag => `
               <span class="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-indigo-900/50 text-indigo-300">
-                ${tag}
+                ${escapeHtml(tag)}
               </span>
             `).join('')}
             ${server.tags.length > 3 ? `

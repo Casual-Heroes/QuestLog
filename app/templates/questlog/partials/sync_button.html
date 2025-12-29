@@ -31,11 +31,8 @@ if (typeof forceGuildSync === 'undefined') {
 
       // Syncing guild:
 
-      const response = await fetch(syncUrl, {
-        method: 'POST',
-        headers: {
-          'X-CSRFToken': csrfToken
-        }
+      const response = await csrfFetch(syncUrl, {
+        method: 'POST'
       });
 
       // Response status:

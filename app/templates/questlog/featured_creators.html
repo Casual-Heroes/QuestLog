@@ -703,12 +703,10 @@ async function setCreatorOfWeek(userId, displayName) {
     return;
   }
 
-  const csrfToken = '{{ csrf_token }}';
   try {
-    const response = await fetch(`/api/guild/{{ guild.id }}/creator/set-cotw/`, {
+    const response = await csrfFetch(`/api/guild/{{ guild.id }}/creator/set-cotw/`, {
       method: 'POST',
       headers: {
-        'X-CSRFToken': csrfToken,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({ user_id: userId })
@@ -731,12 +729,10 @@ async function setCreatorOfMonth(userId, displayName) {
     return;
   }
 
-  const csrfToken = '{{ csrf_token }}';
   try {
-    const response = await fetch(`/api/guild/{{ guild.id }}/creator/set-cotm/`, {
+    const response = await csrfFetch(`/api/guild/{{ guild.id }}/creator/set-cotm/`, {
       method: 'POST',
       headers: {
-        'X-CSRFToken': csrfToken,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({ user_id: userId })

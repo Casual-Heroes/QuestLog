@@ -440,7 +440,7 @@ function getCookie(name) {
 // Load games list from API and populate custom select
 async function loadGamesList() {
   try {
-    const response = await fetch('/api/discovery/games');
+    const response = await csrfFetch('/api/discovery/games');
     const data = await response.json();
 
     if (data.success && data.games) {
@@ -476,7 +476,7 @@ async function loadGamesList() {
 async function loadPreferences() {
   try {
     const guildId = '{{ guild.id }}';
-    const response = await fetch(`/api/discovery/preferences?guild_id=${guildId}`);
+    const response = await csrfFetch(`/api/discovery/preferences?guild_id=${guildId}`);
     const data = await response.json();
 
     if (data.success) {

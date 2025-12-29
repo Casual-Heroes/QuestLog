@@ -200,6 +200,9 @@ class Guild(Base):
     cached_members = Column(Text, nullable=True)  # JSON array of member objects (id, username, discriminator, roles, avatar)
     guild_icon_hash = Column(String(255), nullable=True)  # Discord guild icon hash for CDN URL
 
+    # Custom Admin Roles (JSON array of role IDs - grants dashboard admin access)
+    admin_roles = Column(Text, nullable=True)  # JSON array of Discord role IDs (e.g. ["123456789", "987654321"])
+
     # Cached Member Stats (synced by bot from Discord presence data)
     member_count = Column(Integer, nullable=True)  # Total members (excluding bots)
     online_count = Column(Integer, nullable=True)  # Currently online members

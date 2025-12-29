@@ -234,3 +234,192 @@ def log_security_event(event_type):
 
         return wrapped
     return decorator
+
+
+def bot_owner_required(view_func):
+    """
+    Decorator to restrict access to bot owner only.
+
+    Usage:
+        @bot_owner_required
+        def api_admin_endpoint(request):
+            # Only bot owner can access this
+            ...
+
+    Returns:
+        401 error if user is not authenticated
+        403 error if user is not the bot owner
+    """
+    @wraps(view_func)
+    def wrapper(request, *args, **kwargs):
+        import os
+
+        # Check if user is authenticated
+        user = request.session.get('discord_user', {})
+        user_id = user.get('id')
+
+        if not user_id:
+            logger.warning(
+                f"[SECURITY] Bot owner check failed: No Discord session | "
+                f"View: {view_func.__name__} | "
+                f"IP: {request.META.get('REMOTE_ADDR')}"
+            )
+            return JsonResponse({'error': 'Not authenticated'}, status=401)
+
+        # Check if user is bot owner
+        bot_owner_id = os.getenv('BOT_OWNER_ID')
+
+        if str(user_id) != str(bot_owner_id):
+            logger.warning(
+                f"[SECURITY] Bot owner check failed: User {user_id} is not bot owner | "
+                f"View: {view_func.__name__} | "
+                f"IP: {request.META.get('REMOTE_ADDR')}"
+            )
+            return JsonResponse({
+                'success': False,
+                'error': 'Unauthorized - Bot owner only'
+            }, status=403)
+
+        logger.debug(f"Bot owner {user_id} accessed {view_func.__name__}")
+        return view_func(request, *args, **kwargs)
+
+    return wrapper
+
+
+def server_owner_required(view_func):
+    """
+    Decorator to restrict access to Discord server owner ONLY.
+
+    Use this for critical actions like:
+    - Billing & Subscriptions
+    - Leaving Discovery Network
+    - Deleting server data
+    - Other irreversible or financially impactful actions
+
+    Returns:
+        401 error if user is not authenticated
+        403 error if user is not the server owner
+    """
+    @wraps(view_func)
+    def wrapper(request, guild_id, *args, **kwargs):
+        from django.http import JsonResponse
+
+        # Check if user is authenticated
+        user = request.session.get('discord_user', {})
+        user_id = user.get('id')
+
+        if not user_id:
+            logger.warning(
+                f"[SECURITY] Server owner check failed: No Discord session | "
+                f"View: {view_func.__name__} | "
+                f"Guild: {guild_id} | "
+                f"IP: {request.META.get('REMOTE_ADDR')}"
+            )
+            return JsonResponse({'error': 'Not authenticated'}, status=401)
+
+        # Check if user is the server owner
+        admin_guilds = request.session.get('discord_admin_guilds', [])
+        guild = next((g for g in admin_guilds if str(g['id']) == str(guild_id)), None)
+
+        if not guild:
+            logger.warning(
+                f"[SECURITY] Server owner check failed: User {user_id} is not admin of guild {guild_id} | "
+                f"View: {view_func.__name__} | "
+                f"IP: {request.META.get('REMOTE_ADDR')}"
+            )
+            return JsonResponse({
+                'success': False,
+                'error': 'No access to this server'
+            }, status=403)
+
+        # Check if user is the actual owner (not just admin/custom role)
+        is_owner = guild.get('owner', False)
+
+        if not is_owner:
+            logger.warning(
+                f"[SECURITY] Server owner check failed: User {user_id} is not owner of guild {guild_id} | "
+                f"View: {view_func.__name__} | "
+                f"Owner required: True | "
+                f"IP: {request.META.get('REMOTE_ADDR')}"
+            )
+            return JsonResponse({
+                'success': False,
+                'error': 'Server owner access required - This action can only be performed by the Discord server owner'
+            }, status=403)
+
+        logger.info(
+            f"[SECURITY] Server owner {user_id} accessed {view_func.__name__} for guild {guild_id} | "
+            f"IP: {request.META.get('REMOTE_ADDR')}"
+        )
+        return view_func(request, guild_id, *args, **kwargs)
+
+    return wrapper
+
+
+def discovery_approvers_required(view_func):
+    """
+    Decorator to restrict access to Discovery Network approvers.
+
+    Approvers are defined in DISCOVERY_APPROVERS environment variable as a
+    comma-separated list of Discord user IDs.
+
+    Usage:
+        @discovery_approvers_required
+        def api_discovery_approve(request):
+            # Only bot owner and approved users can access this
+            ...
+
+    Environment Variable:
+        DISCOVERY_APPROVERS="123456789,987654321,555555555"
+
+    Returns:
+        401 error if user is not authenticated
+        403 error if user is not an approved discovery approver
+    """
+    @wraps(view_func)
+    def wrapper(request, *args, **kwargs):
+        import os
+
+        # Check if user is authenticated
+        user = request.session.get('discord_user', {})
+        user_id = user.get('id')
+
+        if not user_id:
+            logger.warning(
+                f"[SECURITY] Discovery approver check failed: No Discord session | "
+                f"View: {view_func.__name__} | "
+                f"IP: {request.META.get('REMOTE_ADDR')}"
+            )
+            return JsonResponse({'error': 'Not authenticated'}, status=401)
+
+        # Get bot owner ID (always has approval rights)
+        bot_owner_id = os.getenv('BOT_OWNER_ID')
+
+        # Get list of approved discovery approvers from environment
+        approvers_env = os.getenv('DISCOVERY_APPROVERS', '')
+        approved_ids = [id.strip() for id in approvers_env.split(',') if id.strip()]
+
+        # Add bot owner to approved list
+        if bot_owner_id:
+            approved_ids.append(bot_owner_id)
+
+        # Check if user is in approved list
+        if str(user_id) not in approved_ids:
+            logger.warning(
+                f"[SECURITY] Discovery approver check failed: User {user_id} is not an approved discovery approver | "
+                f"View: {view_func.__name__} | "
+                f"Approved IDs: {len(approved_ids)} | "
+                f"IP: {request.META.get('REMOTE_ADDR')}"
+            )
+            return JsonResponse({
+                'success': False,
+                'error': 'Unauthorized - Discovery approver access required'
+            }, status=403)
+
+        logger.info(
+            f"[SECURITY] Discovery approver {user_id} accessed {view_func.__name__} | "
+            f"IP: {request.META.get('REMOTE_ADDR')}"
+        )
+        return view_func(request, *args, **kwargs)
+
+    return wrapper
