@@ -24,6 +24,21 @@
   <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6 mb-6">
     <form id="settingsForm">
 
+      <!-- Enable Moderation Toggle -->
+      <div class="mb-6 pb-6 border-b border-neutral-800">
+        <div class="flex items-center justify-between">
+          <div>
+            <label class="block text-white font-medium mb-1">
+              <i class="fas fa-shield-alt text-red-400 mr-2"></i>Enable Moderation System
+            </label>
+            <p class="text-gray-400 text-sm">Turn on to use moderation features (jail, mute, mod log)</p>
+          </div>
+          <label class="relative inline-flex items-center cursor-pointer">
+            <input type="checkbox" id="mod_enabled" class="sr-only peer" {% if settings.mod_enabled %}checked{% endif %}>
+            <div class="w-11 h-6 bg-neutral-700 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-red-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-red-600"></div>
+          </label>
+        </div>
+      </div>
 
       <!-- Mod Log Channel -->
       <div class="mb-6">
@@ -108,6 +123,17 @@
 <script>
 const guildId = '{{ guild.id }}';
 const csrfToken = '{{ csrf_token }}';
+
+// CSRF-aware fetch helper
+async function csrfFetch(url, options = {}) {
+  const opts = { ...options };
+  opts.headers = opts.headers || {};
+  opts.headers['X-CSRFToken'] = csrfToken;
+  if (!(opts.body instanceof FormData) && opts.method && opts.method.toUpperCase() !== 'GET' && !opts.headers['Content-Type']) {
+    opts.headers['Content-Type'] = 'application/json';
+  }
+  return fetch(url, opts);
+}
 
 // Prepare channel options
 const channels = [

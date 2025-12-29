@@ -1,0 +1,204 @@
+{% extends "questlog/base_guild.html" %}
+{% load static %}
+
+{% block title %}Raffles - {{ guild.name }}{% endblock %}
+{% block og_title %}Raffles - {{ guild.name }}{% endblock %}
+
+{% block guild_content %}
+
+<script>
+const csrfToken = '{{ csrf_token }}';
+async function csrfFetch(url, options = {}) {
+  const opts = { ...options };
+  opts.headers = opts.headers || {};
+  opts.headers['X-CSRFToken'] = csrfToken;
+  if (!(opts.body instanceof FormData) && opts.method && opts.method.toUpperCase() !== 'GET' && !opts.headers['Content-Type']) {
+    opts.headers['Content-Type'] = 'application/json';
+  }
+  return fetch(url, opts);
+}
+</script>
+
+<div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
+  <div>
+    <h1 class="text-3xl font-bold text-white flex items-center gap-3">
+      <i class="fas fa-ticket-alt text-yellow-400"></i>Raffles
+    </h1>
+    <p class="text-gray-400 mt-1">Enter raffles to win prizes using your tokens.</p>
+  </div>
+  {% if is_admin %}
+  <div class="flex gap-3">
+    <a href="{% url 'guild_raffles' guild.id %}"
+       class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium transition text-sm">
+      <i class="fas fa-cog mr-2"></i>Manage Raffles
+    </a>
+  </div>
+  {% endif %}
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
+  <div class="bg-neutral-900 border border-neutral-800 rounded-lg p-4">
+    <p class="text-gray-400 text-sm">Token Balance</p>
+    <p class="text-white text-2xl font-bold" id="tokenBalance">{{ current_tokens }}</p>
+  </div>
+  <div class="bg-neutral-900 border border-neutral-800 rounded-lg p-4">
+    <p class="text-gray-400 text-sm">Active Raffles</p>
+    <p class="text-white text-2xl font-bold" id="activeCount">0</p>
+  </div>
+  <div class="bg-neutral-900 border border-neutral-800 rounded-lg p-4">
+    <p class="text-gray-400 text-sm">Ended Raffles</p>
+    <p class="text-white text-2xl font-bold" id="endedCount">0</p>
+  </div>
+</div>
+
+<!-- Active Raffles -->
+<div class="bg-neutral-900 border border-neutral-800 rounded-xl p-6 mb-6">
+  <div class="flex items-center justify-between mb-4">
+    <h2 class="text-xl font-bold text-white flex items-center gap-2">
+      <i class="fas fa-play text-green-400"></i>Active Raffles
+    </h2>
+  </div>
+  <div id="activeRaffles" class="space-y-3 text-gray-300 text-sm">
+    <div class="text-gray-500">Loading...</div>
+  </div>
+</div>
+
+<!-- Ended Raffles -->
+<div class="bg-neutral-900 border border-neutral-800 rounded-xl p-6">
+  <div class="flex items-center justify-between mb-4">
+    <h2 class="text-xl font-bold text-white flex items-center gap-2">
+      <i class="fas fa-flag-checkered text-blue-400"></i>Ended Raffles
+    </h2>
+  </div>
+  <div id="endedRaffles" class="space-y-3 text-gray-300 text-sm">
+    <div class="text-gray-500">Loading...</div>
+  </div>
+</div>
+
+<script>
+const GUILD_ID = '{{ guild.id }}';
+let rafflesMap = {};
+
+function formatTs(ts) {
+  if (!ts) return '—';
+  return new Date(ts * 1000).toLocaleString();
+}
+
+function statusLabel(r) {
+  const now = Math.floor(Date.now()/1000);
+  if (r.winners && r.winners.length) return 'Completed';
+  if (r.active === false) return 'Closed';
+  if (r.start_at && now < r.start_at) return 'Scheduled';
+  if (r.end_at && now > r.end_at) return 'Ended';
+  return 'Active';
+}
+
+async function loadRaffles() {
+  const activeDiv = document.getElementById('activeRaffles');
+  const endedDiv = document.getElementById('endedRaffles');
+  activeDiv.innerHTML = '<div class="text-gray-500">Loading...</div>';
+  endedDiv.innerHTML = '<div class="text-gray-500">Loading...</div>';
+
+  try {
+    const resp = await csrfFetch(`/api/guild/${GUILD_ID}/raffles/`);
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || 'Failed to load raffles');
+
+    document.getElementById('activeCount').textContent = data.active.length;
+    document.getElementById('endedCount').textContent = data.ended.length;
+
+    const renderCard = (r, ended = false) => {
+      const winnersHtml = (r.winners && r.winners.length)
+        ? `<div class="text-green-400 text-sm mt-2"><i class="fas fa-trophy mr-1"></i>Winners: ${r.winners.map(w=>w.username||w.user_id).join(', ')}</div>`
+        : '';
+
+      const canEnter = !ended && statusLabel(r) === 'Active';
+      const enterButton = canEnter
+        ? `<button onclick="enterRaffle(${r.id})" class="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded-lg font-medium transition text-sm">
+            <i class="fas fa-ticket-alt mr-2"></i>Enter Raffle (${r.cost_tokens} tokens)
+          </button>`
+        : '';
+
+      const maxEntriesInfo = r.max_entries_per_user
+        ? `<div class="text-blue-400 text-xs mt-2"><i class="fas fa-info-circle mr-1"></i>Max ${r.max_entries_per_user} entries per person</div>`
+        : '';
+
+      return `
+        <div class="bg-neutral-800 border border-neutral-700 rounded-lg p-4">
+          <div class="flex items-center justify-between mb-3">
+            <div class="flex-1">
+              <h3 class="text-lg font-bold text-white">${r.title}</h3>
+              <p class="text-gray-400 text-sm">${r.description || ''}</p>
+            </div>
+            <span class="text-xs px-3 py-1 rounded-full bg-neutral-700 text-gray-300 ml-3">${statusLabel(r)}</span>
+          </div>
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm text-gray-300 mb-3">
+            <div><span class="text-gray-500">Cost</span><br><strong>${r.cost_tokens} tokens</strong></div>
+            <div><span class="text-gray-500">Max Winners</span><br><strong>${r.max_winners}</strong></div>
+            <div><span class="text-gray-500">End</span><br>${formatTs(r.end_at)}</div>
+            <div><span class="text-gray-500">Entries</span><br><strong>${r.entry_count}</strong></div>
+          </div>
+          ${winnersHtml}
+          ${maxEntriesInfo}
+          <div class="mt-3">
+            ${enterButton}
+          </div>
+        </div>
+      `;
+    };
+
+    activeDiv.innerHTML = data.active.length
+      ? data.active.map(r => renderCard(r, false)).join('')
+      : '<div class="text-gray-500">No active raffles.</div>';
+
+    endedDiv.innerHTML = data.ended.length
+      ? data.ended.map(r => renderCard(r, true)).join('')
+      : '<div class="text-gray-500">No ended raffles.</div>';
+
+    rafflesMap = {};
+    [...data.active, ...data.ended].forEach(r => { rafflesMap[r.id] = r; });
+  } catch (err) {
+    activeDiv.innerHTML = `<div class="text-red-400">Error: ${err.message}</div>`;
+    endedDiv.innerHTML = `<div class="text-red-400">Error: ${err.message}</div>`;
+  }
+}
+
+async function enterRaffle(id) {
+  const raffle = rafflesMap[id];
+  if (!raffle) return;
+
+  const maxEntriesMsg = raffle.max_entries_per_user ? `\nMax entries per person: ${raffle.max_entries_per_user}` : '';
+  const tickets = prompt(`How many entries do you want to buy?\n\nCost: ${raffle.cost_tokens} tokens per entry\nYour balance: ${document.getElementById('tokenBalance').textContent} tokens${maxEntriesMsg}`, '1');
+  const count = parseInt(tickets || '0');
+  if (!count || count < 1) return;
+
+  const totalCost = count * raffle.cost_tokens;
+  const currentBalance = parseInt(document.getElementById('tokenBalance').textContent);
+
+  if (totalCost > currentBalance) {
+    alert(`Not enough tokens!\n\nYou're trying to buy ${count} ${count === 1 ? 'entry' : 'entries'} at ${raffle.cost_tokens} tokens each.\nTotal cost: ${totalCost} tokens\nYour balance: ${currentBalance} tokens\n\nYou need ${totalCost - currentBalance} more tokens.`);
+    return;
+  }
+
+  try {
+    const resp = await csrfFetch(`/api/guild/${GUILD_ID}/raffles/${id}/enter/`, {
+      method: 'POST',
+      body: JSON.stringify({ tickets: count })
+    });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || 'Failed to enter raffle');
+
+    alert(data.message || `Successfully entered ${count} time(s)!`);
+    document.getElementById('tokenBalance').textContent = data.tokens_remaining;
+    await loadRaffles();
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  loadRaffles();
+});
+</script>
+
+{% endblock %}

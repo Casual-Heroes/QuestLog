@@ -1,0 +1,575 @@
+{% extends "questlog/base_guild.html" %}
+{% load static %}
+
+{% block title %}Creator Profile Registration - {{ guild.name }}{% endblock %}
+
+{% block og_title %}{{ guild.name }} - Creator Profile Registration | Casual Heroes{% endblock %}
+{% block og_description %}Register as a content creator for {{ guild.name }}. Powered by Casual Heroes.{% endblock %}
+{% block og_url %}https://dashboard.casual-heroes.com/questlog/guild/{{ guild_record.guild_id }}/creator/register/{% endblock %}
+
+{% block guild_content %}
+{% include "questlog/partials/custom_select.html" %}
+
+<!-- Header -->
+<div class="mb-8">
+  <h1 class="text-3xl font-bold text-white flex items-center gap-3">
+    <i class="fas fa-user-plus text-yellow-400"></i>
+    {% if existing_profile %}Edit Your Creator Profile{% else %}Register as a Creator{% endif %}
+  </h1>
+  <p class="text-gray-400 mt-2">
+    {% if existing_profile %}
+      Update your creator profile and social links.
+    {% else %}
+      Create a profile to showcase your content and get featured on the creators page!
+    {% endif %}
+  </p>
+</div>
+
+<!-- Info Box -->
+<div class="bg-gradient-to-r from-yellow-900/30 to-orange-900/30 border border-yellow-500/30 rounded-xl p-6 mb-8">
+  <div class="flex items-start gap-4">
+    <div class="w-12 h-12 bg-yellow-600/20 rounded-lg flex items-center justify-center flex-shrink-0">
+      <i class="fas fa-info-circle text-yellow-400 text-xl"></i>
+    </div>
+    <div class="flex-1">
+      <h3 class="text-lg font-bold text-white mb-2">Free for Everyone!</h3>
+      <p class="text-gray-300 text-sm mb-3">
+        Creating a creator profile is completely free. Fill out your information below to get listed on the Featured Creators page.
+      </p>
+      {% if has_discovery_module %}
+        <div class="bg-yellow-600/20 border border-yellow-500/40 rounded-lg p-4 mt-3">
+          <div class="flex items-center gap-2 mb-2">
+            <i class="fas fa-star text-yellow-400"></i>
+            <span class="font-semibold text-yellow-300">Discovery Module Active</span>
+          </div>
+          <p class="text-gray-300 text-sm">
+            This server has the Discovery Module! After creating your profile, you can link your Twitch/YouTube accounts to enable live stream alerts and auto-role assignment when you go live.
+          </p>
+        </div>
+      {% else %}
+        <div class="bg-neutral-800/50 border border-neutral-700 rounded-lg p-4 mt-3">
+          <div class="flex items-center gap-2 mb-2">
+            <i class="fas fa-lock text-gray-400"></i>
+            <span class="font-semibold text-gray-300">Want Live Stream Integration?</span>
+          </div>
+          <p class="text-gray-400 text-sm">
+            The server admin can unlock the <strong>Discovery Module</strong> ($5/mo) to enable live stream notifications, auto-roles, and analytics!
+          </p>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- Registration Form -->
+<form method="POST" action="{% url 'creator_profile_register' guild.id %}" id="creatorForm">
+  {% csrf_token %}
+
+  <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6 mb-6">
+
+    <!-- Display Name -->
+    <div class="mb-6">
+      <label class="block text-white font-medium mb-2">
+        <i class="fas fa-user text-yellow-400 mr-2"></i>Display Name <span class="text-red-400">*</span>
+      </label>
+      <p class="text-gray-400 text-sm mb-3">How should we display your name on the creators page?</p>
+      <input
+        type="text"
+        name="display_name"
+        id="display_name"
+        value="{{ profile.display_name }}"
+        maxlength="100"
+        required
+        class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:border-yellow-500 focus:ring-2 focus:ring-yellow-500/50 transition"
+        placeholder="Your Creator Name"
+      >
+      <p class="text-gray-500 text-xs mt-1">Max 100 characters</p>
+    </div>
+
+    <!-- Bio -->
+    <div class="mb-6">
+      <label class="block text-white font-medium mb-2">
+        <i class="fas fa-align-left text-yellow-400 mr-2"></i>Bio
+      </label>
+      <p class="text-gray-400 text-sm mb-3">Tell people about yourself and your content</p>
+      <textarea
+        name="bio"
+        id="bio"
+        maxlength="1000"
+        rows="5"
+        class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:border-yellow-500 focus:ring-2 focus:ring-yellow-500/50 transition resize-none"
+        placeholder="I'm a content creator who streams [games/art/music]..."
+      >{{ profile.bio }}</textarea>
+      <p class="text-gray-500 text-xs mt-1">Max 1000 characters · <span id="bioCount">0</span>/1000</p>
+    </div>
+
+    <!-- Content Categories -->
+    <div class="mb-6">
+      <label class="block text-white font-medium mb-2">
+        <i class="fas fa-tags text-yellow-400 mr-2"></i>Content Categories
+      </label>
+      <p class="text-gray-400 text-sm mb-3">What type of content do you create? (Select up to 10)</p>
+      <div id="content_categories_container"></div>
+
+      <!-- Selected Categories Display -->
+      <div id="selected_categories_display" class="mt-3 flex flex-wrap gap-2"></div>
+
+      <p class="text-gray-500 text-xs mt-1">Select the categories that best describe your content</p>
+    </div>
+
+    <!-- Stream Schedule -->
+    <div class="mb-6">
+      <label class="block text-white font-medium mb-2">
+        <i class="fas fa-calendar-alt text-yellow-400 mr-2"></i>Stream Schedule (Optional)
+      </label>
+      <p class="text-gray-400 text-sm mb-3">When do you usually stream or post content?</p>
+      <textarea
+        name="stream_schedule"
+        id="stream_schedule"
+        maxlength="200"
+        rows="3"
+        class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:border-yellow-500 focus:ring-2 focus:ring-yellow-500/50 transition resize-none"
+        placeholder="Mon/Wed/Fri at 7pm EST, or whenever I feel like it!"
+      >{{ profile.stream_schedule }}</textarea>
+    </div>
+
+  </div>
+
+  <!-- Social Media Links -->
+  <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6 mb-6">
+    <h2 class="text-xl font-bold text-white mb-4 flex items-center gap-2">
+      <i class="fas fa-share-alt text-yellow-400"></i>
+      Social Media Links
+    </h2>
+    <p class="text-gray-400 text-sm mb-6">Add your social media handles so people can find you! (All optional)</p>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <!-- Twitch -->
+      <div>
+        <label class="block text-white font-medium mb-2">
+          <i class="fab fa-twitch text-purple-400 mr-2"></i>Twitch
+        </label>
+        <div class="relative">
+          <span class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">twitch.tv/</span>
+          <input
+            type="text"
+            name="twitch_handle"
+            value="{{ profile.twitch_handle }}"
+            maxlength="100"
+            class="w-full bg-neutral-800 border border-neutral-700 rounded-lg pl-24 pr-4 py-3 text-white focus:border-purple-500 focus:ring-2 focus:ring-purple-500/50 transition"
+            placeholder="username"
+          >
+        </div>
+      </div>
+
+      <!-- YouTube -->
+      <div>
+        <label class="block text-white font-medium mb-2">
+          <i class="fab fa-youtube text-red-400 mr-2"></i>YouTube
+        </label>
+        <div class="relative">
+          <span class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">@</span>
+          <input
+            type="text"
+            name="youtube_handle"
+            value="{{ profile.youtube_handle }}"
+            maxlength="100"
+            class="w-full bg-neutral-800 border border-neutral-700 rounded-lg pl-10 pr-4 py-3 text-white focus:border-red-500 focus:ring-2 focus:ring-red-500/50 transition"
+            placeholder="@yourchannel or channel ID"
+          >
+        </div>
+      </div>
+
+      <!-- TikTok -->
+      <div>
+        <label class="block text-white font-medium mb-2">
+          <i class="fab fa-tiktok text-black mr-2"></i>TikTok
+        </label>
+        <div class="relative">
+          <span class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">@</span>
+          <input
+            type="text"
+            name="tiktok_handle"
+            value="{{ profile.tiktok_handle }}"
+            maxlength="100"
+            class="w-full bg-neutral-800 border border-neutral-700 rounded-lg pl-10 pr-4 py-3 text-white focus:border-pink-500 focus:ring-2 focus:ring-pink-500/50 transition"
+            placeholder="username"
+          >
+        </div>
+      </div>
+
+      <!-- Instagram -->
+      <div>
+        <label class="block text-white font-medium mb-2">
+          <i class="fab fa-instagram text-pink-400 mr-2"></i>Instagram
+        </label>
+        <div class="relative">
+          <span class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">@</span>
+          <input
+            type="text"
+            name="instagram_handle"
+            value="{{ profile.instagram_handle }}"
+            maxlength="100"
+            class="w-full bg-neutral-800 border border-neutral-700 rounded-lg pl-10 pr-4 py-3 text-white focus:border-pink-500 focus:ring-2 focus:ring-pink-500/50 transition"
+            placeholder="username"
+          >
+        </div>
+      </div>
+
+      <!-- Bluesky -->
+      <div>
+        <label class="block text-white font-medium mb-2">
+          <i class="fas fa-cloud text-teal-400 mr-2"></i>Bluesky
+        </label>
+        <div class="relative">
+          <span class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">@</span>
+          <input
+            type="text"
+            name="bluesky_handle"
+            value="{{ profile.bluesky_handle }}"
+            maxlength="100"
+            class="w-full bg-neutral-800 border border-neutral-700 rounded-lg pl-10 pr-4 py-3 text-white focus:border-teal-500 focus:ring-2 focus:ring-teal-500/50 transition"
+            placeholder="username.bsky.social"
+          >
+        </div>
+      </div>
+
+      <!-- Twitter/X -->
+      <div>
+        <label class="block text-white font-medium mb-2">
+          <i class="fab fa-twitter text-sky-400 mr-2"></i>Twitter/X
+        </label>
+        <div class="relative">
+          <span class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">@</span>
+          <input
+            type="text"
+            name="twitter_handle"
+            value="{{ profile.twitter_handle }}"
+            maxlength="100"
+            class="w-full bg-neutral-800 border border-neutral-700 rounded-lg pl-10 pr-4 py-3 text-white focus:border-sky-500 focus:ring-2 focus:ring-sky-500/50 transition"
+            placeholder="username"
+          >
+        </div>
+      </div>
+    </div>
+
+    <div class="mt-6 bg-neutral-800/50 border border-neutral-700 rounded-lg p-4">
+      <div class="flex items-start gap-3">
+        <i class="fas fa-info-circle text-blue-400 mt-1"></i>
+        <div class="flex-1">
+          <p class="text-sm text-gray-300 mb-2">
+            <strong>Your social links are live immediately!</strong>
+          </p>
+          <p class="text-xs text-gray-400">
+            All the handles you add above will appear as clickable buttons on your creator profile. Members can find and follow you with one click!
+            {% if has_discovery_module %}
+              <br><br><strong>Bonus:</strong> This server has the Discovery Module! In the future, you'll be able to enable automatic live stream notifications when you go live on Twitch or YouTube.
+            {% endif %}
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Discovery Network Opt-In -->
+  <div class="bg-gradient-to-r from-indigo-900/20 to-purple-900/20 rounded-xl border border-indigo-800/30 p-6 mb-6">
+    <div class="flex items-start gap-4">
+      <div class="w-12 h-12 bg-indigo-600/20 rounded-lg flex items-center justify-center flex-shrink-0">
+        <i class="fas fa-globe text-indigo-400 text-xl"></i>
+      </div>
+      <div class="flex-1">
+        <h2 class="text-xl font-bold text-white mb-2">Discovery Network</h2>
+
+        {% if guild_network_status == 'approved' %}
+        <!-- Guild is approved - show opt-in checkbox -->
+        <p class="text-gray-400 text-sm mb-4">
+          Join the QuestLog Discovery Network to be featured across ALL participating servers! Get discovered by creators and communities beyond just this server.
+        </p>
+
+        <!-- Checkbox -->
+        <label class="flex items-start gap-3 cursor-pointer group">
+          <div class="relative flex items-center">
+            <input
+              type="checkbox"
+              name="share_to_network"
+              id="share_to_network"
+              value="true"
+              {% if profile.share_to_network %}checked{% endif %}
+              class="w-5 h-5 bg-neutral-800 border-2 border-neutral-600 rounded checked:bg-indigo-600 checked:border-indigo-600 focus:ring-2 focus:ring-indigo-500/50 transition cursor-pointer"
+            >
+          </div>
+          <div class="flex-1">
+            <span class="text-white font-medium group-hover:text-indigo-400 transition">
+              Share my profile to the Discovery Network
+            </span>
+            <p class="text-gray-400 text-sm mt-1">
+              Your profile will be visible on the <strong>Discovery Network Featured Creators</strong> page and you'll be eligible for Network Creator of the Week/Month awards!
+            </p>
+          </div>
+        </label>
+
+        <!-- Info Box -->
+        <div class="mt-4 bg-indigo-900/20 border border-indigo-700/30 rounded-lg p-4">
+          <div class="flex items-start gap-2">
+            <i class="fas fa-shield-alt text-indigo-400 mt-1"></i>
+            <div class="flex-1">
+              <p class="text-sm text-indigo-300 mb-2">
+                <strong>Your privacy matters</strong>
+              </p>
+              <ul class="text-xs text-gray-400 space-y-1">
+                <li>✓ Only the information you provide above is shared</li>
+                <li>✓ Your Discord username and server membership remain private</li>
+                <li>✓ You can opt-out anytime by unchecking this box</li>
+                <li>✓ Network admins cannot change your profile</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        {% else %}
+        <!-- Guild is NOT approved - show message to ask admin -->
+        <p class="text-gray-400 text-sm mb-4">
+          Want to be featured in the Discovery Network and reach creators across all QuestLog servers?
+        </p>
+
+        <div class="bg-yellow-900/20 border border-yellow-700/30 rounded-lg p-4">
+          <div class="flex items-start gap-3">
+            <i class="fas fa-info-circle text-yellow-400 text-xl mt-0.5"></i>
+            <div class="flex-1">
+              <p class="text-yellow-300 font-medium mb-2">
+                This server is not part of the Discovery Network yet
+              </p>
+              <p class="text-gray-300 text-sm mb-3">
+                Ask your server admin to apply for the Discovery Network to unlock cross-server creator features and get discovered by communities beyond just {{ guild.name }}.
+              </p>
+              {% if is_admin %}
+              <a href="{% url 'guild_discovery_network' guild.id %}" class="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition text-sm font-medium">
+                <i class="fas fa-paper-plane"></i>
+                Apply for Discovery Network
+              </a>
+              {% else %}
+              <p class="text-xs text-gray-400 italic">
+                Only server admins can apply for the Discovery Network
+              </p>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+
+        <!-- Hidden field to ensure share_to_network is false when not approved -->
+        <input type="hidden" name="share_to_network" value="false">
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Submit Buttons -->
+  <div class="flex items-center justify-between gap-4">
+    <a href="{% url 'guild_featured_creators' guild.id %}" class="px-6 py-3 bg-neutral-800 hover:bg-neutral-700 text-white rounded-lg transition">
+      <i class="fas fa-arrow-left mr-2"></i>Cancel
+    </a>
+
+    <div class="flex items-center gap-4">
+      {% if existing_profile %}
+        <button
+          type="button"
+          onclick="deleteProfile()"
+          class="px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg transition"
+        >
+          <i class="fas fa-trash mr-2"></i>Delete Profile
+        </button>
+      {% endif %}
+
+      <button
+        type="submit"
+        class="px-8 py-3 bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-white font-bold rounded-lg transition shadow-lg hover:shadow-xl"
+      >
+        <i class="fas fa-save mr-2"></i>{% if existing_profile %}Update Profile{% else %}Create Profile{% endif %}
+        </button>
+    </div>
+  </div>
+
+</form>
+
+<script>
+// Content Categories Multi-Select
+const categoryItems = [
+  { value: 'Gaming', label: 'Gaming' },
+  { value: 'Python', label: 'Python' },
+  { value: 'Bot Development', label: 'Bot Development' },
+  { value: 'Survival Servers', label: 'Survival Servers' },
+  { value: 'ARPG', label: 'ARPG' },
+  { value: 'JRPG', label: 'JRPG' },
+  { value: 'FPS', label: 'FPS' },
+  { value: 'Souls-Like', label: 'Souls-Like' },
+  { value: 'Battle Royale', label: 'Battle Royale' },
+  { value: 'MOBA', label: 'MOBA' },
+  { value: 'MMO', label: 'MMO' },
+  { value: 'RPG', label: 'RPG' },
+  { value: 'Strategy', label: 'Strategy' },
+  { value: 'Survival', label: 'Survival' },
+  { value: 'Horror', label: 'Horror' },
+  { value: 'Platformer', label: 'Platformer' },
+  { value: 'Racing', label: 'Racing' },
+  { value: 'Sports', label: 'Sports' },
+  { value: 'Fighting', label: 'Fighting' },
+  { value: 'Puzzle', label: 'Puzzle' },
+  { value: 'Simulation', label: 'Simulation' },
+  { value: 'Sandbox', label: 'Sandbox' },
+  { value: 'Roguelike', label: 'Roguelike' },
+  { value: 'Art', label: 'Art' },
+  { value: 'Music', label: 'Music' },
+  { value: 'IRL', label: 'IRL' },
+  { value: 'Cooking', label: 'Cooking' },
+  { value: 'Fitness', label: 'Fitness' },
+  { value: 'Education', label: 'Education' },
+  { value: 'Tutorial', label: 'Tutorial' },
+  { value: 'Comedy', label: 'Comedy' },
+  { value: 'Talk Show', label: 'Talk Show' },
+  { value: 'Speedrun', label: 'Speedrun' },
+  { value: 'Competitive', label: 'Competitive' },
+  { value: 'Casual', label: 'Casual' },
+  { value: 'Retro Gaming', label: 'Retro Gaming' },
+  { value: 'VR', label: 'VR' },
+  { value: 'Mobile Gaming', label: 'Mobile Gaming' },
+  { value: 'Card Games', label: 'Card Games' },
+  { value: 'Board Games', label: 'Board Games' },
+  { value: 'Creative', label: 'Creative' },
+  { value: 'Community', label: 'Community' },
+  { value: 'Variety', label: 'Variety' }
+];
+
+// Parse existing categories from profile
+const existingCategories = '{{ profile.content_categories|escapejs }}';
+let selectedCategories = [];
+try {
+  if (existingCategories) {
+    if (existingCategories.startsWith('[')) {
+      selectedCategories = JSON.parse(existingCategories);
+    } else {
+      selectedCategories = existingCategories.split(',').map(c => c.trim()).filter(c => c);
+    }
+  }
+} catch (e) {
+  selectedCategories = [];
+}
+
+// Function to render selected categories as badges
+function renderSelectedCategories(selected) {
+  const displayContainer = document.getElementById('selected_categories_display');
+  if (!displayContainer) return;
+
+  if (!selected || selected.length === 0) {
+    displayContainer.innerHTML = '<p class="text-gray-500 text-sm italic">No categories selected yet</p>';
+    return;
+  }
+
+  displayContainer.innerHTML = selected.map(category => `
+    <span class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-neutral-800 border border-neutral-700 rounded-lg text-sm text-gray-300">
+      <i class="fas fa-tag text-yellow-400 text-xs"></i>
+      ${category}
+    </span>
+  `).join('');
+}
+
+const categoriesSelect = createCustomSelect({
+  container: '#content_categories_container',
+  name: 'content_categories',
+  id: 'content_categories',
+  placeholder: 'Select categories...',
+  items: categoryItems,
+  selected: selectedCategories,
+  color: 'yellow',
+  multiSelect: true,
+  maxSelections: 10,
+  onSelect: (selectedValues) => {
+    renderSelectedCategories(selectedValues);
+  }
+});
+
+// Initial render of selected categories - use setTimeout to ensure DOM is ready
+setTimeout(() => {
+  renderSelectedCategories(selectedCategories);
+}, 100);
+
+// Bio character counter
+const bioTextarea = document.getElementById('bio');
+const bioCount = document.getElementById('bioCount');
+
+function updateBioCount() {
+  const length = bioTextarea.value.length;
+  bioCount.textContent = length;
+  if (length > 500) {
+    bioCount.classList.add('text-red-400');
+  } else {
+    bioCount.classList.remove('text-red-400');
+  }
+}
+
+bioTextarea.addEventListener('input', updateBioCount);
+updateBioCount(); // Initial count
+
+// Delete profile function
+async function deleteProfile() {
+  if (!confirm('Are you sure you want to delete your creator profile? This cannot be undone.')) {
+    return;
+  }
+
+  const csrfToken = '{{ csrf_token }}';
+
+  try {
+    const response = await fetch(`/api/guild/{{ guild.id }}/creator/delete/`, {
+      method: 'POST',
+      headers: {
+        'X-CSRFToken': csrfToken,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    const data = await response.json();
+
+    if (data.success) {
+      alert('Profile deleted successfully');
+      window.location.href = "{% url 'guild_featured_creators' guild.id %}";
+    } else {
+      alert('Error: ' + (data.error || 'Failed to delete profile'));
+    }
+  } catch (error) {
+    alert('Error: ' + error.message);
+  }
+}
+
+// Form validation
+document.getElementById('creatorForm').addEventListener('submit', function(e) {
+  console.log('🔥 Form submit event triggered!');
+  const displayName = document.getElementById('display_name').value.trim();
+  const bio = document.getElementById('bio').value;
+
+  console.log('Display name:', displayName, 'Bio length:', bio.length);
+
+  if (!displayName) {
+    console.log('❌ Validation failed: No display name');
+    e.preventDefault();
+    alert('Display name is required');
+    return false;
+  }
+
+  if (displayName.length > 100) {
+    console.log('❌ Validation failed: Display name too long');
+    e.preventDefault();
+    alert('Display name must be 100 characters or less');
+    return false;
+  }
+
+  if (bio.length > 1000) {
+    console.log('❌ Validation failed: Bio too long');
+    e.preventDefault();
+    alert('Bio must be 1000 characters or less');
+    return false;
+  }
+
+  console.log('✅ Validation passed, submitting form to:', this.action);
+});
+</script>
+
+{% endblock %}

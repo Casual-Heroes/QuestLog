@@ -34,7 +34,7 @@
           {% if guild_record.is_vip or guild_record.subscription_tier == 'complete' or guild_record.billing_cycle == 'lifetime' %}
           <span class="text-lg text-gray-500">/ <i class="fas fa-infinity text-green-400"></i></span>
           {% else %}
-          <span class="text-lg text-gray-500">/ 5</span>
+          <span class="text-lg text-gray-500">/ 3</span>
           {% endif %}
         </p>
       </div>
@@ -100,7 +100,7 @@
             <p class="text-gray-300 font-medium mb-1">
               <i class="fas fa-circle text-gray-500 mr-2 text-xs"></i>Free Tier
             </p>
-            <p class="text-gray-400"><i class="fas fa-gamepad mr-2"></i>Up to 5 LFG games</p>
+            <p class="text-gray-400"><i class="fas fa-gamepad mr-2"></i>Up to 3 LFG games</p>
           </div>
           <div>
             <p class="text-blue-300 font-medium mb-1">
@@ -123,30 +123,30 @@
         {% else %}
         <p class="text-blue-400 text-xs mt-3">
           <i class="fas fa-lightbulb mr-1"></i>
-          You can create up to 5 LFG games. <a href="{% url 'guild_billing' guild.id %}" class="text-indigo-400 hover:text-indigo-300 underline">Upgrade to unlock unlimited games!
+          You can create up to 3 LFG games. <a href="{% url 'guild_billing' guild.id %}" class="text-indigo-400 hover:text-indigo-300 underline">Upgrade to unlock unlimited games!
         </p>
         {% endif %}
       </div>
     </div>
   </div>
 
-  <!-- Engagement Module Features Banner -->
-  {% if not has_engagement_module %}
-  <div class="bg-gradient-to-r from-orange-900/30 to-red-900/30 rounded-xl border border-orange-700/40 p-6 mb-8">
+  <!-- Events & Attendance Module Features Banner -->
+  {% if not has_lfg_module %}
+  <div class="bg-gradient-to-r from-blue-900/30 to-indigo-900/30 rounded-xl border border-blue-700/40 p-6 mb-8">
     <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
       <div>
         <h3 class="text-lg font-bold text-white">
-          <i class="fas fa-fire text-orange-400 mr-2"></i>Upgrade to Engagement Module
+          <i class="fas fa-calendar-check text-blue-400 mr-2"></i>Upgrade to Events & Attendance
         </h3>
         <p class="text-gray-300 mt-1">Attendance tracking, reliability scores, no-show reporting, and flake detection for raid guilds & co-op communities.</p>
         <div class="flex flex-wrap gap-4 mt-3 text-sm">
-          <span class="text-orange-300"><i class="fas fa-clipboard-check mr-1"></i>Attendance Tracking</span>
-          <span class="text-orange-300"><i class="fas fa-chart-line mr-1"></i>Reliability Scores</span>
-          <span class="text-orange-300"><i class="fas fa-user-slash mr-1"></i>No-Show Reports</span>
-          <span class="text-orange-300"><i class="fas fa-ban mr-1"></i>Auto-Blacklist</span>
+          <span class="text-blue-300"><i class="fas fa-clipboard-check mr-1"></i>Attendance Tracking</span>
+          <span class="text-blue-300"><i class="fas fa-chart-line mr-1"></i>Reliability Scores</span>
+          <span class="text-blue-300"><i class="fas fa-user-slash mr-1"></i>No-Show Reports</span>
+          <span class="text-blue-300"><i class="fas fa-ban mr-1"></i>Auto-Blacklist</span>
         </div>
       </div>
-      <a href="{% url 'guild_billing' guild.id %}" class="bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700 text-white px-5 py-2 rounded-lg font-medium transition whitespace-nowrap">
+      <a href="{% url 'guild_billing' guild.id %}" class="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-5 py-2 rounded-lg font-medium transition whitespace-nowrap">
         Upgrade
       </a>
     </div>
@@ -158,7 +158,7 @@
     <button onclick="showTab('games')" id="tab-games" class="tab-btn px-4 py-2 rounded-lg text-sm font-medium transition bg-green-600 text-white">
       <i class="fas fa-gamepad mr-2"></i>Games
     </button>
-    {% if has_engagement_module %}
+    {% if has_lfg_module %}
     <button onclick="showTab('browser-notifications')" id="tab-browser-notifications" class="tab-btn px-4 py-2 rounded-lg text-sm font-medium transition bg-neutral-700 text-gray-300 hover:bg-neutral-600">
       <i class="fas fa-bell mr-2"></i>Browser Notifications
     </button>
@@ -168,7 +168,7 @@
       <i class="fas fa-history mr-2"></i>Audit Logs
     </button>
     {% endif %}
-    {% if has_engagement_module %}
+    {% if has_lfg_module %}
     <button onclick="showTab('config')" id="tab-config" class="tab-btn px-4 py-2 rounded-lg text-sm font-medium transition bg-neutral-700 text-gray-300 hover:bg-neutral-600">
       <i class="fas fa-cog mr-2"></i>Attendance Config
     </button>
@@ -273,8 +273,8 @@
   </div>
   </div>
 
-  {% if has_engagement_module %}
-  <!-- Browser Notifications Tab (Engagement Module) -->
+  {% if has_lfg_module %}
+  <!-- Browser Notifications Tab (Events & Attendance Module) -->
   <div id="panel-browser-notifications" class="tab-panel hidden">
   <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6">
     <h3 class="text-lg font-bold text-white mb-6">
@@ -381,8 +381,8 @@
   </div>
   {% endif %}
 
-  {% if has_engagement_module %}
-  <!-- Config Tab (Engagement Module) -->
+  {% if has_lfg_module %}
+  <!-- Config Tab (Events & Attendance Module) -->
   <div id="panel-config" class="tab-panel hidden">
   <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6">
     <h3 class="text-lg font-bold text-white mb-6">

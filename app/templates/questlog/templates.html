@@ -28,7 +28,7 @@
             <p class="text-gray-300 font-medium mb-1">
               <i class="fas fa-circle text-gray-500 mr-2 text-xs"></i>Free Tier
             </p>
-            <p class="text-gray-400 ml-5">Up to 5 templates (combined)</p>
+            <p class="text-gray-400 ml-5">Up to 3 templates (combined)</p>
           </div>
           <div>
             <p class="text-purple-300 font-medium mb-1">
@@ -51,7 +51,7 @@
         {% else %}
         <p class="text-blue-400 text-xs mt-3">
           <i class="fas fa-lightbulb mr-1"></i>
-          You can create up to 5 templates. <a href="{% url 'guild_billing' guild.id %}" class="text-indigo-400 hover:text-indigo-300 underline">Upgrade to unlock unlimited templates!
+          You can create up to 3 templates (role + channel combined). <a href="{% url 'guild_billing' guild.id %}" class="text-indigo-400 hover:text-indigo-300 underline">Upgrade to unlock unlimited templates!
         </p>
         {% endif %}
       </div>

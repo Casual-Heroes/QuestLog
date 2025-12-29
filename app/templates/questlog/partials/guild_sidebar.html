@@ -116,25 +116,27 @@
         <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wider">Member Features</h3>
       </div>
       <div class="space-y-1">
-        <!-- Profile -->
-        <a href="{% url 'member_profile' guild.id %}"
-           class="nav-item {% if active_page == 'profile' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
-          <i class="fas fa-user text-gray-400 group-hover:text-blue-400"></i>
-          <span>Your Profile</span>
+        <!-- Discovery Network (Members can see if guild is approved) -->
+        {% if user_network_status == 'approved' %}
+        <a href="{% url 'guild_discovery_network' guild.id %}"
+           class="nav-item {% if active_page == 'discovery_network' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          <i class="fas fa-globe text-gray-400 group-hover:text-indigo-400"></i>
+          <span>Discovery Network</span>
         </a>
+        {% endif %}
 
-        <!-- Leaderboards -->
-        <a href="{% url 'guild_leaderboards' guild.id %}"
-           class="nav-item {% if active_page == 'leaderboards' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
-          <i class="fas fa-trophy text-gray-400 group-hover:text-yellow-400"></i>
-          <span>Leaderboards</span>
-        </a>
-        
         <!-- Featured Creators -->
         <a href="{% url 'guild_featured_creators' guild.id %}"
            class="nav-item {% if active_page == 'featured_creators' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
           <i class="fas fa-star text-yellow-400 group-hover:text-yellow-300"></i>
           <span>Featured Creators</span>
+        </a>
+
+        <!-- Find Groups -->
+        <a href="{% url 'guild_lfg_browser' guild.id %}"
+           class="nav-item {% if active_page == 'lfg_browser' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          <i class="fas fa-users text-gray-400 group-hover:text-green-400"></i>
+          <span>Find Groups</span>
         </a>
 
         <!-- Flair Store -->
@@ -151,21 +153,26 @@
           <span>Found Games</span>
         </a>
 
-        <!-- LFG Browser (All Tiers) -->
-        <a href="{% url 'guild_lfg_browser' guild.id %}"
-           class="nav-item {% if active_page == 'lfg_browser' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
-          <i class="fas fa-users text-gray-400 group-hover:text-green-400"></i>
-          <span class="flex-1">Find Groups</span>
+        <!-- Leaderboards -->
+        <a href="{% url 'guild_leaderboards' guild.id %}"
+           class="nav-item {% if active_page == 'leaderboards' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          <i class="fas fa-trophy text-gray-400 group-hover:text-yellow-400"></i>
+          <span>Leaderboards</span>
         </a>
 
-        <!-- Discovery Network (Members can see if guild is approved) -->
-        {% if user_network_status == 'approved' %}
-        <a href="{% url 'guild_discovery_network' guild.id %}"
-           class="nav-item {% if active_page == 'discovery_network' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
-          <i class="fas fa-globe text-gray-400 group-hover:text-indigo-400"></i>
-          <span>Discovery Network</span>
+        <!-- Raffles -->
+        <a href="{% url 'guild_raffle_browser' guild.id %}"
+           class="nav-item {% if active_page == 'raffle_browser' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          <i class="fas fa-ticket-alt text-gray-400 group-hover:text-yellow-400"></i>
+          <span>Raffles</span>
         </a>
-        {% endif %}
+
+        <!-- Your Profile -->
+        <a href="{% url 'member_profile' guild.id %}"
+           class="nav-item {% if active_page == 'profile' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          <i class="fas fa-user text-gray-400 group-hover:text-blue-400"></i>
+          <span>Your Profile</span>
+        </a>
       </div>
     </div>
 
@@ -201,6 +208,7 @@
           </button>
           <div id="xp-submenu" class="ml-6 mt-1 space-y-1 {% if active_page != 'xp' and active_page != 'levelup' %}hidden{% endif %}">
             <a href="{% url 'guild_xp' guild.id %}"
+               id="xp-settings-nav-link"
                class="sub-nav-item {% if active_page == 'xp' %}active{% endif %} flex items-center gap-2 px-3 py-1.5 rounded text-xs transition">
               <i class="fas fa-cog w-4"></i>
               <span>XP Settings</span>
@@ -211,6 +219,7 @@
               <span>Level-Up Messages</span>
             </a>
             <a href="{% url 'guild_xp' guild.id %}#boosts"
+               id="xp-boosts-nav-link"
                class="sub-nav-item flex items-center gap-2 px-3 py-1.5 rounded text-xs transition">
               <i class="fas fa-bolt w-4"></i>
               <span>XP Boost Events</span>
@@ -263,21 +272,25 @@
               <span>Discovery Network</span>
             </a>
             <a href="{% url 'guild_discovery' guild.id %}#creator"
+               id="discovery-creator-nav-link"
                class="sub-nav-item {% if active_page == 'discovery' %}active{% endif %} flex items-center gap-2 px-3 py-1.5 rounded text-xs transition">
               <i class="fas fa-user w-4"></i>
               <span>Creator Settings</span>
             </a>
             <a href="{% url 'guild_discovery' guild.id %}#games"
+               id="discovery-games-nav-link"
                class="sub-nav-item flex items-center gap-2 px-3 py-1.5 rounded text-xs transition">
               <i class="fas fa-gamepad w-4"></i>
               <span>Game Settings</span>
             </a>
             <a href="{% url 'guild_discovery' guild.id %}#twitch"
+               id="discovery-twitch-nav-link"
                class="sub-nav-item flex items-center gap-2 px-3 py-1.5 rounded text-xs transition">
               <i class="fab fa-twitch w-4"></i>
               <span>Twitch</span>
             </a>
             <a href="{% url 'guild_discovery' guild.id %}#youtube"
+               id="discovery-youtube-nav-link"
                class="sub-nav-item flex items-center gap-2 px-3 py-1.5 rounded text-xs transition">
               <i class="fab fa-youtube w-4"></i>
               <span>YouTube</span>
@@ -609,4 +622,56 @@ document.addEventListener('click', (e) => {
     document.getElementById('server-dropdown')?.classList.add('hidden');
   }
 });
+
+// Handle hash-based active states for sidebar links
+function updateHashBasedNav() {
+  const hash = window.location.hash.replace('#', '');
+
+  // XP & Leveling section
+  const xpSettingsLink = document.getElementById('xp-settings-nav-link');
+  const xpBoostsLink = document.getElementById('xp-boosts-nav-link');
+
+  if (xpSettingsLink && xpBoostsLink) {
+    if (hash === 'boosts') {
+      xpSettingsLink.classList.remove('active');
+      xpBoostsLink.classList.add('active');
+    } else {
+      xpBoostsLink.classList.remove('active');
+      // Only add active to settings if we're on the xp page (not levelup)
+      if (window.location.pathname.includes('/xp/')) {
+        xpSettingsLink.classList.add('active');
+      }
+    }
+  }
+
+  // Discovery System section
+  const discoveryCreatorLink = document.getElementById('discovery-creator-nav-link');
+  const discoveryGamesLink = document.getElementById('discovery-games-nav-link');
+  const discoveryTwitchLink = document.getElementById('discovery-twitch-nav-link');
+  const discoveryYoutubeLink = document.getElementById('discovery-youtube-nav-link');
+
+  if (discoveryCreatorLink && discoveryGamesLink && discoveryTwitchLink && discoveryYoutubeLink) {
+    // Remove active from all Discovery links first
+    discoveryCreatorLink.classList.remove('active');
+    discoveryGamesLink.classList.remove('active');
+    discoveryTwitchLink.classList.remove('active');
+    discoveryYoutubeLink.classList.remove('active');
+
+    // Add active to the appropriate link based on hash
+    if (hash === 'games') {
+      discoveryGamesLink.classList.add('active');
+    } else if (hash === 'twitch') {
+      discoveryTwitchLink.classList.add('active');
+    } else if (hash === 'youtube') {
+      discoveryYoutubeLink.classList.add('active');
+    } else if (hash === 'creator' || window.location.pathname.includes('/discovery/')) {
+      // Default to Creator Settings if on discovery page with no hash or #creator hash
+      discoveryCreatorLink.classList.add('active');
+    }
+  }
+}
+
+// Run on page load and hash changes
+updateHashBasedNav();
+window.addEventListener('hashchange', updateHashBasedNav);
 </script>

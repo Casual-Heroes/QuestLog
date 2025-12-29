@@ -6180,6 +6180,49 @@ def guild_raffles(request, guild_id):
     })
 
 
+@discord_required
+def guild_raffle_browser(request, guild_id):
+    """Member-facing raffle browser - view and enter raffles."""
+    from .db import get_db_session
+
+    # Get all guilds the user is in (both admin and member)
+    admin_guilds = request.session.get('discord_admin_guilds', [])
+    member_guilds = get_member_guilds(request)
+    all_guilds = admin_guilds + member_guilds
+
+    # Check if user is in this guild
+    guild = next((g for g in all_guilds if str(g.get('id')) == str(guild_id)), None)
+    if not guild:
+        messages.error(request, "You are not a member of this server.")
+        return redirect('questlog_dashboard')
+
+    # Get user's token balance
+    current_tokens = 0
+    try:
+        with get_db_session() as db:
+            from .models import GuildMember
+            member = db.query(GuildMember).filter_by(
+                guild_id=int(guild_id),
+                user_id=int(request.session.get('discord_user', {}).get('id', 0))
+            ).first()
+            current_tokens = member.hero_tokens if member else 0
+    except Exception:
+        current_tokens = 0
+
+    # Check if user is admin for conditional UI elements
+    is_admin = any(str(g.get('id')) == str(guild_id) for g in admin_guilds)
+
+    return render(request, 'questlog/raffle_browser.html', {
+        'guild': guild,
+        'admin_guilds': admin_guilds,
+        'member_guilds': member_guilds,
+        'discord_user': request.session.get('discord_user', {}),
+        'is_admin': is_admin,
+        'current_tokens': current_tokens,
+        'active_page': 'raffle_browser',
+    })
+
+
 def _raffle_status(raffle):
     import time
     now = int(time.time())
@@ -6268,12 +6311,17 @@ def api_role_bulk_create(request, guild_id):
 
 
 @require_http_methods(["GET"])
-@api_auth_required
 def api_raffle_list(request, guild_id):
-    """List raffles; auto-finalize ended raffles with auto_pick."""
+    """List raffles; auto-finalize ended raffles with auto_pick. (Members can view)"""
     from .db import get_db_session
     from .models import Raffle, RaffleEntry
     import time
+
+    # Check if user is logged in (but don't require admin access)
+    discord_user = request.session.get('discord_user')
+    if not discord_user:
+        return JsonResponse({'error': 'Not authenticated'}, status=401)
+
     now = int(time.time())
 
     try:
@@ -6312,6 +6360,7 @@ def api_raffle_list(request, guild_id):
                     'description': r.description,
                     'cost_tokens': r.cost_tokens,
                     'max_winners': r.max_winners,
+                    'max_entries_per_user': r.max_entries_per_user,
                     'start_at': r.start_at,
                     'end_at': r.end_at,
                     'auto_pick': r.auto_pick,
@@ -6383,6 +6432,7 @@ def api_raffle_create(request, guild_id):
                 description=data.get('description', ''),
                 cost_tokens=max(0, int(data.get('cost_tokens', 0))),
                 max_winners=max(1, int(data.get('max_winners', 1))),
+                max_entries_per_user=_to_int(data.get('max_entries_per_user')),
                 start_at=data.get('start_at') or None,
                 end_at=data.get('end_at') or None,
                 auto_pick=bool(data.get('auto_pick', False)),
@@ -6438,6 +6488,7 @@ def api_raffle_update(request, guild_id, raffle_id):
             raffle.description = data.get('description', raffle.description)
             raffle.cost_tokens = max(0, int(data.get('cost_tokens', raffle.cost_tokens or 0)))
             raffle.max_winners = max(1, int(data.get('max_winners', raffle.max_winners or 1)))
+            raffle.max_entries_per_user = _to_int(data.get('max_entries_per_user'))
             raffle.start_at = data.get('start_at') or None
             raffle.end_at = data.get('end_at') or None
             raffle.auto_pick = bool(data.get('auto_pick', raffle.auto_pick))
@@ -6457,18 +6508,22 @@ def api_raffle_update(request, guild_id, raffle_id):
 
 
 @require_http_methods(["POST"])
-@api_auth_required
 def api_raffle_enter(request, guild_id, raffle_id):
-    """Enter a raffle using tokens."""
+    """Enter a raffle using tokens. (Members can enter)"""
     from .db import get_db_session
     from .models import Raffle, RaffleEntry, GuildMember
+
+    # Check if user is logged in (but don't require admin access)
+    discord_user = request.session.get('discord_user')
+    if not discord_user:
+        return JsonResponse({'error': 'Not authenticated'}, status=401)
+
     try:
         data = json_lib.loads(request.body)
     except json_lib.JSONDecodeError:
         return JsonResponse({'error': 'Invalid JSON'}, status=400)
 
     tickets = max(1, int(data.get('tickets', 1)))
-    discord_user = request.session.get('discord_user', {})
 
     try:
         with get_db_session() as db:
@@ -6496,6 +6551,26 @@ def api_raffle_enter(request, guild_id, raffle_id):
             ).first()
             if not member:
                 return JsonResponse({'error': 'You must interact in the server first.'}, status=400)
+
+            # Check max entries per user limit
+            if raffle.max_entries_per_user:
+                from sqlalchemy import func
+                existing_entries = db.query(func.sum(RaffleEntry.tickets)).filter_by(
+                    raffle_id=raffle.id,
+                    user_id=int(discord_user.get('id'))
+                ).scalar() or 0
+
+                total_entries = existing_entries + tickets
+                if total_entries > raffle.max_entries_per_user:
+                    remaining_slots = raffle.max_entries_per_user - existing_entries
+                    if remaining_slots <= 0:
+                        return JsonResponse({
+                            'error': f'You have already purchased the maximum of {raffle.max_entries_per_user} entries for this raffle.'
+                        }, status=400)
+                    else:
+                        return JsonResponse({
+                            'error': f'This raffle has a limit of {raffle.max_entries_per_user} entries per person. You have {existing_entries} entries and can only buy {remaining_slots} more.'
+                        }, status=400)
 
             cost = raffle.cost_tokens * tickets
             if member.hero_tokens < cost:
@@ -10067,7 +10142,8 @@ def guild_discovery_network(request, guild_id):
             # Default to all enabled if no preferences exist
             enable_lfg = user_prefs.enable_lfg if user_prefs else True
             enable_games = user_prefs.enable_games if user_prefs else True
-            enable_creators = user_prefs.enable_creators if user_prefs else True
+            # Only enable creators tab if guild is approved in the network
+            enable_creators = (user_prefs.enable_creators if user_prefs else True) and server_network_status == 'approved'
             enable_directory = user_prefs.enable_directory if user_prefs else True
 
             context = {
@@ -12701,6 +12777,193 @@ def api_discovery_feature_creator(request):
         }, status=500)
 
 
+@require_http_methods(["GET"])
+def api_discovery_network_creators(request):
+    """
+    GET /api/discovery/network-creators - Get all network creators with COTW/COTM.
+    Returns creators who have share_to_network=True.
+    """
+    try:
+        from .db import get_db_session
+        from .models import CreatorProfile, Guild
+        import json as json_lib
+
+        guild_id = request.GET.get('guild_id')
+        if not guild_id:
+            return JsonResponse({'success': False, 'error': 'guild_id required'}, status=400)
+
+        with get_db_session() as session:
+            # Get all creators who opted into network sharing
+            creators_query = session.query(CreatorProfile).filter(
+                CreatorProfile.share_to_network == True
+            ).all()
+
+            # Get Network COTW
+            network_cotw = session.query(CreatorProfile).filter(
+                CreatorProfile.is_current_network_cotw == True,
+                CreatorProfile.share_to_network == True
+            ).first()
+
+            # Get Network COTM
+            network_cotm = session.query(CreatorProfile).filter(
+                CreatorProfile.is_current_network_cotm == True,
+                CreatorProfile.share_to_network == True
+            ).first()
+
+            # Helper function to parse content categories
+            def parse_categories(categories_str):
+                """Parse content_categories from various formats to a list."""
+                if not categories_str:
+                    return []
+                try:
+                    if categories_str.startswith('['):
+                        # Try JSON first
+                        try:
+                            return json.loads(categories_str)
+                        except json.JSONDecodeError:
+                            # Might be Python string representation - use ast.literal_eval
+                            import ast
+                            try:
+                                return ast.literal_eval(categories_str)
+                            except:
+                                # Last resort - parse as comma-separated
+                                return [cat.strip().strip("'\"") for cat in categories_str.strip('[]').split(',') if cat.strip()]
+                    else:
+                        return [cat.strip() for cat in categories_str.split(',') if cat.strip()]
+                except:
+                    return []
+
+            # Helper function to get avatar URL and home server name
+            def get_creator_extras(creator):
+                try:
+                    from .models import GuildMember
+
+                    # Get home guild
+                    guild = session.query(Guild).filter(Guild.guild_id == creator.guild_id).first()
+                    home_server = guild.guild_name if guild else None
+
+                    # Get member data for avatar and level
+                    member_data = session.query(GuildMember).filter_by(
+                        guild_id=creator.guild_id,
+                        user_id=creator.discord_id
+                    ).first()
+
+                    if member_data:
+                        username = member_data.username or f"user_{creator.discord_id}"
+                        avatar_url = f"https://cdn.discordapp.com/avatars/{creator.discord_id}/{member_data.avatar_hash}.png" if member_data.avatar_hash else f"https://cdn.discordapp.com/embed/avatars/{creator.discord_id % 5}.png"
+                        discord_level = member_data.level if member_data.level else 0
+                        role_flair = member_data.flair if member_data.flair else None
+                    else:
+                        username = f"user_{creator.discord_id}"
+                        avatar_url = f"https://cdn.discordapp.com/embed/avatars/{creator.discord_id % 5}.png"
+                        discord_level = 0
+                        role_flair = None
+
+                    return {
+                        'home_server': home_server,
+                        'username': username,
+                        'avatar_url': avatar_url,
+                        'discord_level': discord_level,
+                        'role_flair': role_flair
+                    }
+                except Exception as e:
+                    print(f"Error getting extras for creator {creator.id}: {e}")
+                    return {
+                        'home_server': None,
+                        'username': f"user_{creator.discord_id}",
+                        'avatar_url': f"https://cdn.discordapp.com/embed/avatars/{creator.discord_id % 5}.png",
+                        'discord_level': 0,
+                        'role_flair': None
+                    }
+
+            # Build creators list
+            creators_list = []
+            for creator in creators_query:
+                extras = get_creator_extras(creator)
+                creators_list.append({
+                    'id': creator.id,
+                    'discord_id': str(creator.discord_id),
+                    'guild_id': str(creator.guild_id),
+                    'display_name': creator.display_name,
+                    'bio': creator.bio,
+                    'content_categories': parse_categories(creator.content_categories),
+                    'twitter_handle': creator.twitter_handle,
+                    'tiktok_handle': creator.tiktok_handle,
+                    'instagram_handle': creator.instagram_handle,
+                    'bluesky_handle': creator.bluesky_handle,
+                    'twitch_handle': creator.twitch_handle,
+                    'youtube_handle': creator.youtube_handle,
+                    'stream_schedule': creator.stream_schedule,
+                    'times_featured': creator.times_featured,
+                    'is_current_cotw': creator.is_current_cotw,
+                    'is_current_cotm': creator.is_current_cotm,
+                    'is_current_network_cotw': creator.is_current_network_cotw,
+                    'is_current_network_cotm': creator.is_current_network_cotm,
+                    'home_server': extras['home_server'],
+                    'username': extras['username'],
+                    'avatar_url': extras['avatar_url'],
+                    'discord_level': extras['discord_level'],
+                    'role_flair': extras['role_flair'],
+                })
+
+            # Build Network COTW data
+            network_cotw_data = None
+            if network_cotw:
+                extras = get_creator_extras(network_cotw)
+                network_cotw_data = {
+                    'id': network_cotw.id,
+                    'discord_id': str(network_cotw.discord_id),
+                    'display_name': network_cotw.display_name,
+                    'bio': network_cotw.bio,
+                    'content_categories': parse_categories(network_cotw.content_categories),
+                    'twitter_handle': network_cotw.twitter_handle,
+                    'tiktok_handle': network_cotw.tiktok_handle,
+                    'instagram_handle': network_cotw.instagram_handle,
+                    'bluesky_handle': network_cotw.bluesky_handle,
+                    'twitch_handle': network_cotw.twitch_handle,
+                    'youtube_handle': network_cotw.youtube_handle,
+                    'home_server': extras['home_server'],
+                    'username': extras['username'],
+                    'avatar_url': extras['avatar_url'],
+                }
+
+            # Build Network COTM data
+            network_cotm_data = None
+            if network_cotm:
+                extras = get_creator_extras(network_cotm)
+                network_cotm_data = {
+                    'id': network_cotm.id,
+                    'discord_id': str(network_cotm.discord_id),
+                    'display_name': network_cotm.display_name,
+                    'bio': network_cotm.bio,
+                    'content_categories': parse_categories(network_cotm.content_categories),
+                    'twitter_handle': network_cotm.twitter_handle,
+                    'tiktok_handle': network_cotm.tiktok_handle,
+                    'instagram_handle': network_cotm.instagram_handle,
+                    'bluesky_handle': network_cotm.bluesky_handle,
+                    'twitch_handle': network_cotm.twitch_handle,
+                    'youtube_handle': network_cotm.youtube_handle,
+                    'home_server': extras['home_server'],
+                    'username': extras['username'],
+                    'avatar_url': extras['avatar_url'],
+                }
+
+            return JsonResponse({
+                'success': True,
+                'creators': creators_list,
+                'network_cotw': network_cotw_data,
+                'network_cotm': network_cotm_data,
+            })
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
 @discord_required
 @require_http_methods(["GET", "POST"])
 def api_discovery_game_reviews(request, game_id):
@@ -13525,10 +13788,18 @@ def api_discovery_config_update(request, guild_id):
                 config.cotw_enabled = bool(data['cotw_enabled'])
             if 'cotw_channel_id' in data:
                 config.cotw_channel_id = int(data['cotw_channel_id']) if data['cotw_channel_id'] else None
+            if 'cotw_auto_rotate' in data:
+                config.cotw_auto_rotate = bool(data['cotw_auto_rotate'])
+            if 'cotw_rotation_day' in data:
+                config.cotw_rotation_day = max(0, min(6, int(data['cotw_rotation_day'])))  # 0-6 for days of week
             if 'cotm_enabled' in data:
                 config.cotm_enabled = bool(data['cotm_enabled'])
             if 'cotm_channel_id' in data:
                 config.cotm_channel_id = int(data['cotm_channel_id']) if data['cotm_channel_id'] else None
+            if 'cotm_auto_rotate' in data:
+                config.cotm_auto_rotate = bool(data['cotm_auto_rotate'])
+            if 'cotm_rotation_day' in data:
+                config.cotm_rotation_day = max(1, min(28, int(data['cotm_rotation_day'])))  # 1-28 for days of month
             # Channel timing settings
             if 'channel_feature_interval_hours' in data:
                 config.channel_feature_interval_hours = max(1, min(24, int(data['channel_feature_interval_hours'])))
@@ -13584,6 +13855,12 @@ def api_discovery_config_update(request, guild_id):
                 config.require_tokens_forum = bool(data['require_tokens_forum'])
             if 'remove_after_feature' in data:
                 config.remove_after_feature = bool(data['remove_after_feature'])
+
+            # Network Creator Discovery settings
+            if 'network_announcements_enabled' in data:
+                config.network_announcements_enabled = bool(data['network_announcements_enabled'])
+            if 'network_announcement_channel_id' in data:
+                config.network_announcement_channel_id = int(data['network_announcement_channel_id']) if data['network_announcement_channel_id'] else None
 
             config.updated_at = int(time.time())
 
@@ -14920,10 +15197,10 @@ def api_lfg_add(request, guild_id):
                         'current': current_count
                     }, status=403)
             else:  # Free tier
-                if current_count >= 5:
+                if current_count >= 3:
                     return JsonResponse({
-                        'error': f'Free tier limit reached: You can create up to 5 LFG games. Currently have {current_count} games. Upgrade to Pro for 10 games or Premium for unlimited.',
-                        'limit': 5,
+                        'error': f'Free tier limit reached: You can create up to 3 LFG games. Currently have {current_count} games. Unlock the Events & Attendance module or Complete Suite for unlimited games.',
+                        'limit': 3,
                         'current': current_count
                     }, status=403)
 
@@ -17592,7 +17869,7 @@ def guild_featured_creators(request, guild_id):
 
     try:
         from .db import get_db_session
-        from .models import Guild as DBGuild, FeaturedCreator, DiscoveryConfig
+        from .models import Guild as DBGuild, DiscoveryConfig, CreatorProfile, GuildMember
 
         with get_db_session() as db:
             guild_db = db.query(DBGuild).filter_by(guild_id=int(guild_id)).first()
@@ -17619,219 +17896,202 @@ def guild_featured_creators(request, guild_id):
             discovery_enabled = discovery_config.enabled if discovery_config else False
             selfpromo_channel_id = discovery_config.selfpromo_channel_id if discovery_config else None
 
-            # Get all active featured creators (global model - one per user)
-            # Filter for those in this guild with active forum threads
-            all_creators = db.query(FeaturedCreator).filter(
-                FeaturedCreator.is_active == True,
-                FeaturedCreator.source == 'forum',
-                FeaturedCreator.forum_thread_id != None  # Only show if forum thread exists
-            ).order_by(FeaturedCreator.last_featured_at.desc()).all()
-
-            # Filter for creators who are in this guild
+            # Get CreatorProfile creators for this guild
             import json
-            creators = []
-            for creator in all_creators:
-                try:
-                    guilds_list = json.loads(creator.guilds) if creator.guilds else []
-                    if int(guild_id) in guilds_list:
-                        creators.append(creator)
-                except:
-                    pass
+            profile_creators = db.query(CreatorProfile).filter_by(
+                guild_id=int(guild_id)
+            ).order_by(CreatorProfile.updated_at.desc()).all()
 
+            # Process CreatorProfile creators
             creators_data = []
-            for creator in creators:
-                # Get member XP data (level and flair)
-                from .models import GuildMember
+            for profile in profile_creators:
+                # Get Discord user info from GuildMember
                 member_data = db.query(GuildMember).filter_by(
                     guild_id=int(guild_id),
-                    user_id=creator.user_id
+                    user_id=profile.discord_id
                 ).first()
 
-                member_level = member_data.level if member_data else 0
-                member_flair = member_data.flair if member_data else None
+                # Get user info - use member data if available, otherwise use defaults
+                if member_data:
+                    username = member_data.username or f"User_{profile.discord_id}"
+                    avatar_url = f"https://cdn.discordapp.com/avatars/{profile.discord_id}/{member_data.avatar_hash}.png" if member_data.avatar_hash else f"https://cdn.discordapp.com/embed/avatars/{profile.discord_id % 5}.png"
+                    member_level = member_data.level if member_data else 0
+                    member_flair = member_data.flair if member_data else None
+                else:
+                    username = f"User_{profile.discord_id}"
+                    avatar_url = f"https://cdn.discordapp.com/embed/avatars/{profile.discord_id % 5}.png"
+                    member_level = 0
+                    member_flair = None
 
-                # Parse Discord connections if available
-                connections = {}
-                if creator.discord_connections:
+                # SECURITY: Sanitize bio HTML to prevent XSS
+                import bleach
+                import html
+                clean_bio = ""
+                if profile.bio:
+                    # Escape HTML first
+                    bio_text = html.escape(profile.bio)
+                    # Convert line breaks to <br>
+                    bio_text = bio_text.replace('\n', '<br>')
+                    # Sanitize
+                    ALLOWED_TAGS = ['br']
+                    clean_bio = bleach.clean(bio_text, tags=ALLOWED_TAGS, strip=True)
+
+                # Build social media links from handles
+                extracted_links = []
+                shown_platforms = set()
+
+                if profile.twitter_handle:
+                    extracted_links.append({
+                        'url': f"https://twitter.com/{profile.twitter_handle}",
+                        'platform': 'Twitter',
+                        'icon': 'fab fa-twitter',
+                        'color': 'sky'
+                    })
+                    shown_platforms.add('twitter')
+
+                if profile.tiktok_handle:
+                    extracted_links.append({
+                        'url': f"https://tiktok.com/@{profile.tiktok_handle}",
+                        'platform': 'TikTok',
+                        'icon': 'fab fa-tiktok',
+                        'color': 'gray'
+                    })
+                    shown_platforms.add('tiktok')
+
+                if profile.instagram_handle:
+                    extracted_links.append({
+                        'url': f"https://instagram.com/{profile.instagram_handle}",
+                        'platform': 'Instagram',
+                        'icon': 'fab fa-instagram',
+                        'color': 'pink'
+                    })
+                    shown_platforms.add('instagram')
+
+                if profile.bluesky_handle:
+                    extracted_links.append({
+                        'url': f"https://bsky.app/profile/{profile.bluesky_handle}",
+                        'platform': 'Bluesky',
+                        'icon': 'fas fa-cloud',
+                        'color': 'teal'
+                    })
+                    shown_platforms.add('bsky')
+
+                if profile.twitch_handle:
+                    extracted_links.append({
+                        'url': f"https://twitch.tv/{profile.twitch_handle}",
+                        'platform': 'Twitch',
+                        'icon': 'fab fa-twitch',
+                        'color': 'purple'
+                    })
+                    shown_platforms.add('twitch')
+
+                if profile.youtube_handle:
+                    # YouTube handles can be either @username or channel ID
+                    if profile.youtube_handle.startswith('@'):
+                        extracted_links.append({
+                            'url': f"https://youtube.com/{profile.youtube_handle}",
+                            'platform': 'YouTube',
+                            'icon': 'fab fa-youtube',
+                            'color': 'red'
+                        })
+                    else:
+                        # Assume it's a channel ID or custom URL
+                        extracted_links.append({
+                            'url': f"https://youtube.com/@{profile.youtube_handle}",
+                            'platform': 'YouTube',
+                            'icon': 'fab fa-youtube',
+                            'color': 'red'
+                        })
+                    shown_platforms.add('youtube')
+
+                # Parse content categories if present
+                content_categories = []
+                if profile.content_categories:
                     try:
-                        connections = json.loads(creator.discord_connections)
+                        # Could be JSON array or comma-separated
+                        if profile.content_categories.startswith('['):
+                            # Try JSON first
+                            try:
+                                content_categories = json.loads(profile.content_categories)
+                            except json.JSONDecodeError:
+                                # Might be Python string representation - use ast.literal_eval
+                                import ast
+                                try:
+                                    content_categories = ast.literal_eval(profile.content_categories)
+                                except:
+                                    # Last resort - parse as comma-separated
+                                    content_categories = [cat.strip().strip("'\"") for cat in profile.content_categories.strip('[]').split(',') if cat.strip()]
+                        else:
+                            content_categories = [cat.strip() for cat in profile.content_categories.split(',') if cat.strip()]
                     except:
                         pass
 
-                # Extract URLs from bio
-                import re
-                import html
-                extracted_links = []
-                clean_bio = creator.bio
-                shown_platforms = set()  # Track platforms to avoid duplicates
-                social_media_urls = []  # URLs to remove from bio
-
-                if creator.bio:
-                    url_pattern = r'https?://[^\s<>"\']+'
-                    urls = re.findall(url_pattern, creator.bio)
-                    for full_url in urls:
-                        url_lower = full_url.lower()
-                        platform_name = None
-                        icon = None
-                        color = None
-                        is_social_media = False
-
-                        if 'twitch.tv' in url_lower:
-                            platform_name = 'Twitch'
-                            icon = 'fab fa-twitch'
-                            color = 'purple'
-                            is_social_media = True
-                        elif 'youtube.com' in url_lower or 'youtu.be' in url_lower:
-                            platform_name = 'YouTube'
-                            icon = 'fab fa-youtube'
-                            color = 'red'
-                            is_social_media = True
-                        elif 'twitter.com' in url_lower or 'x.com' in url_lower:
-                            platform_name = 'Twitter'
-                            icon = 'fab fa-twitter'
-                            color = 'sky'
-                            is_social_media = True
-                        elif 'tiktok.com' in url_lower:
-                            platform_name = 'TikTok'
-                            icon = 'fab fa-tiktok'
-                            color = 'black'
-                            is_social_media = True
-                        elif 'instagram.com' in url_lower:
-                            platform_name = 'Instagram'
-                            icon = 'fab fa-instagram'
-                            color = 'pink'
-                            is_social_media = True
-                        elif 'bsky.app' in url_lower:
-                            platform_name = 'Bluesky'
-                            icon = 'fab fa-bluesky'
-                            color = 'teal'
-                            is_social_media = True
-                        elif 'facebook.com' in url_lower or 'fb.com' in url_lower:
-                            platform_name = 'Facebook'
-                            icon = 'fab fa-facebook'
-                            color = 'blue'
-                            is_social_media = True
-                        elif 'kick.com' in url_lower:
-                            platform_name = 'Kick'
-                            icon = 'fas fa-video'
-                            color = 'green'
-                            is_social_media = True
-
-                        if is_social_media:
-                            extracted_links.append({
-                                'url': full_url,
-                                'platform': platform_name,
-                                'icon': icon,
-                                'color': color
-                            })
-                            shown_platforms.add(platform_name.lower())
-                            social_media_urls.append(full_url)
-
-                    # Convert Discord markdown to HTML while removing social media URLs
-                    def discord_markdown_to_html(text):
-                        # First, remove ONLY social media URLs
-                        for url in social_media_urls:
-                            text = text.replace(url, '')
-
-                        # Escape HTML to prevent XSS
-                        text = html.escape(text)
-
-                        # Convert Discord markdown to HTML
-                        # Bold: **text**
-                        text = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', text)
-                        # Italic: *text* (but not ** which is already processed)
-                        text = re.sub(r'(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)', r'<em>\1</em>', text)
-                        # Underline: __text__
-                        text = re.sub(r'__(.+?)__', r'<u>\1</u>', text)
-                        # Strikethrough: ~~text~~
-                        text = re.sub(r'~~(.+?)~~', r'<del>\1</del>', text)
-
-                        # Convert remaining URLs to clickable links (these are NOT social media)
-                        # Match URLs that weren't removed
-                        text = re.sub(
-                            r'(https?://[^\s<>&quot;]+)',
-                            r'<a href="\1" target="_blank" rel="noopener noreferrer" class="text-blue-400 hover:text-blue-300 underline">\1</a>',
-                            text
-                        )
-
-                        # Convert line breaks to <br> tags
-                        text = text.replace('\n', '<br>')
-
-                        return text
-
-                    clean_bio = discord_markdown_to_html(clean_bio) if clean_bio else ''
-
-                # SECURITY: Sanitize HTML to prevent XSS attacks
-                import bleach
-                ALLOWED_TAGS = ['b', 'i', 'u', 'strong', 'em', 'br', 'p', 'a', 'ul', 'ol', 'li', 'code', 'pre']
-                ALLOWED_ATTRS = {'a': ['href', 'title', 'target', 'rel']}
-                clean_bio = bleach.clean(
-                    clean_bio,
-                    tags=ALLOWED_TAGS,
-                    attributes=ALLOWED_ATTRS,
-                    strip=True
-                ) if clean_bio else ''
-
-                # Only include direct URLs if not already in bio links
-                show_twitch = creator.twitch_url and 'twitch' not in shown_platforms
-                show_youtube = creator.youtube_url and 'youtube' not in shown_platforms
-                show_twitter = creator.twitter_url and 'twitter' not in shown_platforms
-                show_tiktok = creator.tiktok_url and 'tiktok' not in shown_platforms
-                show_instagram = creator.instagram_url and 'instagram' not in shown_platforms
-                show_bsky = creator.bsky_url and 'bsky' not in shown_platforms
-
-                if show_twitch:
-                    shown_platforms.add('twitch')
-                if show_youtube:
-                    shown_platforms.add('youtube')
-                if show_twitter:
-                    shown_platforms.add('twitter')
-                if show_tiktok:
-                    shown_platforms.add('tiktok')
-                if show_instagram:
-                    shown_platforms.add('instagram')
-                if show_bsky:
-                    shown_platforms.add('bksy')
-
-                # Filter discord connections to avoid duplicates
-                filtered_connections = {}
-                if connections:
-                    for conn_type, conn_data in connections.items():
-                        if conn_type not in shown_platforms:
-                            filtered_connections[conn_type] = conn_data
-
                 creators_data.append({
-                    'user_id': creator.user_id,
-                    'username': creator.username,
-                    'display_name': creator.display_name,
-                    'avatar_url': creator.avatar_url,
-                    'bio': creator.bio,
+                    'user_id': profile.discord_id,
+                    'username': username,
+                    'display_name': profile.display_name,
+                    'avatar_url': avatar_url,
+                    'bio': profile.bio,
                     'clean_bio': clean_bio,
                     'extracted_bio_links': extracted_links,
-                    'times_featured': creator.times_featured_total,
-                    'first_featured_at': creator.first_featured_at,
-                    'last_featured_at': creator.last_featured_at,
+                    'times_featured': profile.times_featured,
+                    'first_featured_at': profile.created_at,
+                    'last_featured_at': profile.updated_at,
                     'level': member_level,
                     'flair': member_flair,
-                    'show_twitch': show_twitch,
-                    'show_youtube': show_youtube,
-                    'show_twitter': show_twitter,
-                    'show_tiktok': show_tiktok,
-                    'show_instagram': show_instagram,
-                    'show_bsky': show_bsky,
-                    'twitch_url': creator.twitch_url,
-                    'youtube_url': creator.youtube_url,
-                    'twitter_url': creator.twitter_url,
-                    'tiktok_url': creator.tiktok_url,
-                    'instagram_url': creator.instagram_url,
-                    'bsky_url': creator.bsky_url,
-                    'discord_connections': filtered_connections,
-                    'forum_thread_id': creator.forum_thread_id,  # For clickable Discord links
+                    'show_twitch': False,  # Profile system doesn't have direct URLs
+                    'show_youtube': False,
+                    'show_twitter': False,
+                    'show_tiktok': False,
+                    'show_instagram': False,
+                    'show_bsky': False,
+                    'twitch_url': None,
+                    'youtube_url': None,
+                    'twitter_url': None,
+                    'tiktok_url': None,
+                    'instagram_url': None,
+                    'bsky_url': None,
+                    'discord_connections': {},
+                    'forum_thread_id': None,  # Profile creators don't have forum threads
+                    'source': 'profile',  # Source type for template
+                    'content_categories': content_categories,
+                    'stream_schedule': profile.stream_schedule,
+                    'is_current_cotw': profile.is_current_cotw,
+                    'is_current_cotm': profile.is_current_cotm,
                 })
 
         # Check if guild has discovery module access
         has_discovery_module = has_module_access(guild_id, 'discovery')
         has_any_module = has_any_module_access(guild_id)
+
+        # Check if current user already has a creator profile
+        user_has_profile = False
+        if is_authenticated:
+            discord_user = request.session.get('discord_user')
+            user_id = int(discord_user['id'])
+            existing_profile = db.query(CreatorProfile).filter_by(
+                guild_id=int(guild_id),
+                discord_id=user_id
+            ).first()
+            user_has_profile = existing_profile is not None
+
+        # Get featured creators (COTW, COTM, and Random)
+        cotw_creator = None
+        cotm_creator = None
+        random_featured = None
+
+        # Get Creator of the Week (admin-selected)
+        for creator in creators_data:
+            if creator.get('is_current_cotw'):
+                cotw_creator = creator
+            if creator.get('is_current_cotm'):
+                cotm_creator = creator
+
+        # Get random featured creator (excluding COTW/COTM)
+        import random
+        eligible_for_random = [c for c in creators_data if not c.get('is_current_cotw') and not c.get('is_current_cotm')]
+        if eligible_for_random:
+            random_featured = random.choice(eligible_for_random)
 
         return render(request, 'questlog/featured_creators.html', {
             'guild': guild,
@@ -17845,8 +18105,13 @@ def guild_featured_creators(request, guild_id):
             'has_discovery_module': has_discovery_module,
             'has_any_module': has_any_module,
             'admin_guilds': admin_guilds,
-        'member_guilds': get_member_guilds(request),
+            'member_guilds': get_member_guilds(request),
             'active_page': 'featured_creators',
+            'user_has_profile': user_has_profile,
+            'is_authenticated': is_authenticated,
+            'cotw_creator': cotw_creator,
+            'cotm_creator': cotm_creator,
+            'random_featured': random_featured,
         })
 
     except Exception as e:
@@ -17929,3 +18194,431 @@ Sitemap: https://dashboard.casual-heroes.com/sitemap.xml
 """
 
     return HttpResponse(robots_content, content_type='text/plain')
+
+
+# ============================================================================
+# CREATOR DISCOVERY SYSTEM - Phase 1
+# ============================================================================
+
+@discord_required
+def creator_profile_register(request, guild_id):
+    """
+    Creator self-registration form.
+
+    FREE TIER: Anyone can create a creator profile.
+    Users fill out bio, social links, and streaming info.
+    """
+    import logging
+    import json
+    import time
+    import bleach
+    from .db import get_db_session
+    from .models import Guild as DBGuild, GuildMember, CreatorProfile
+    from .module_utils import has_module_access
+
+    logger = logging.getLogger(__name__)
+
+    # Security: Get authenticated user
+    discord_user = request.session.get('discord_user')
+    if not discord_user:
+        messages.error(request, "You must be logged in to register as a creator.")
+        return redirect('login')
+
+    user_id = int(discord_user['id'])
+
+    # Get guild data
+    all_guilds = request.session.get('discord_all_guilds', [])
+    admin_guilds = request.session.get('discord_admin_guilds', [])
+    guild = next((g for g in all_guilds if str(g.get('id')) == str(guild_id)), None)
+
+    if not guild:
+        messages.error(request, "Guild not found.")
+        return redirect('home')
+
+    is_admin = any(str(g.get('id')) == str(guild_id) for g in admin_guilds)
+
+    try:
+        with get_db_session() as db:
+            guild_db = db.query(DBGuild).filter_by(guild_id=int(guild_id)).first()
+            if not guild_db:
+                messages.error(request, "Guild not found in database.")
+                return redirect('home')
+
+            # Check if user is a member of this guild
+            member = db.query(GuildMember).filter_by(
+                guild_id=int(guild_id),
+                user_id=user_id
+            ).first()
+
+            if not member:
+                logger.warning(f"User {user_id} is not a member of guild {guild_id}")
+                messages.error(request, "You must be a member of this server to register as a creator.")
+                return redirect('guild_dashboard', guild_id=guild_id)
+
+            # Check if profile already exists
+            existing_profile = db.query(CreatorProfile).filter_by(
+                discord_id=user_id,
+                guild_id=int(guild_id)
+            ).first()
+
+            if request.method == 'POST':
+                # Security: CSRF protection (Django middleware handles this)
+                # Input validation and sanitization
+                logger.info(f"CreatorProfile POST request: user_id={user_id}, guild_id={guild_id}")
+
+                display_name = request.POST.get('display_name', '').strip()
+                bio = request.POST.get('bio', '').strip()
+                content_categories = request.POST.get('content_categories', '').strip()
+
+                # Social media handles (sanitize input)
+                twitter_handle = request.POST.get('twitter_handle', '').strip()
+                tiktok_handle = request.POST.get('tiktok_handle', '').strip()
+                instagram_handle = request.POST.get('instagram_handle', '').strip()
+                bluesky_handle = request.POST.get('bluesky_handle', '').strip()
+                twitch_handle = request.POST.get('twitch_handle', '').strip()
+                youtube_handle = request.POST.get('youtube_handle', '').strip()
+
+                stream_schedule = request.POST.get('stream_schedule', '').strip()
+
+                # Discovery Network opt-in
+                share_to_network = request.POST.get('share_to_network') == 'true'
+
+                # Validation
+                if not display_name:
+                    messages.error(request, "Display name is required.")
+                    return redirect('creator_profile_register', guild_id=guild_id)
+
+                if len(display_name) > 100:
+                    messages.error(request, "Display name must be 100 characters or less.")
+                    return redirect('creator_profile_register', guild_id=guild_id)
+
+                if bio and len(bio) > 1000:
+                    messages.error(request, "Bio must be 1000 characters or less.")
+                    return redirect('creator_profile_register', guild_id=guild_id)
+
+                # Sanitize HTML in bio (prevent XSS)
+                ALLOWED_TAGS = []  # No HTML allowed in bio input
+                ALLOWED_ATTRS = {}
+                bio = bleach.clean(bio, tags=ALLOWED_TAGS, attributes=ALLOWED_ATTRS, strip=True)
+
+                # Sanitize handles
+                import re
+                def sanitize_handle(handle):
+                    """Sanitize regular handles (alphanumeric, underscore, hyphen only)."""
+                    if not handle:
+                        return None
+                    # Remove @ symbol if present
+                    handle = handle.lstrip('@')
+                    # Allow only alphanumeric, underscore, hyphen
+                    return re.sub(r'[^a-zA-Z0-9_-]', '', handle)[:100]
+
+                def sanitize_bluesky_handle(handle):
+                    """Sanitize Bluesky handles - allows dots for domain format."""
+                    if not handle:
+                        return None
+                    # Remove @ symbol if present
+                    handle = handle.lstrip('@')
+                    # Allow alphanumeric, underscore, hyphen, and dots (for domain format)
+                    return re.sub(r'[^a-zA-Z0-9_.-]', '', handle)[:100]
+
+                twitter_handle = sanitize_handle(twitter_handle)
+                tiktok_handle = sanitize_handle(tiktok_handle)
+                instagram_handle = sanitize_handle(instagram_handle)
+                bluesky_handle = sanitize_bluesky_handle(bluesky_handle)
+                twitch_handle = sanitize_handle(twitch_handle)
+                youtube_handle = sanitize_handle(youtube_handle)
+
+                # Parse content categories (JSON array from custom_select)
+                categories_list = []
+                if content_categories:
+                    try:
+                        # Try parsing as JSON first (from custom_select multiselect)
+                        if content_categories.startswith('['):
+                            categories_list = json.loads(content_categories)
+                        else:
+                            # Fallback to comma-separated for backwards compatibility
+                            categories_list = [cat.strip() for cat in content_categories.split(',') if cat.strip()]
+                    except json.JSONDecodeError:
+                        # If JSON parsing fails, treat as comma-separated
+                        categories_list = [cat.strip() for cat in content_categories.split(',') if cat.strip()]
+
+                    categories_list = categories_list[:10]  # Limit to 10 categories
+
+                categories_json = json.dumps(categories_list) if categories_list else None
+
+                # Create or update profile
+                if existing_profile:
+                    # Update existing
+                    existing_profile.display_name = display_name
+                    existing_profile.bio = bio
+                    existing_profile.content_categories = categories_json
+                    existing_profile.twitter_handle = twitter_handle
+                    existing_profile.tiktok_handle = tiktok_handle
+                    existing_profile.instagram_handle = instagram_handle
+                    existing_profile.bluesky_handle = bluesky_handle
+                    existing_profile.twitch_handle = twitch_handle
+                    existing_profile.youtube_handle = youtube_handle
+                    existing_profile.stream_schedule = stream_schedule
+                    existing_profile.share_to_network = share_to_network
+                    existing_profile.updated_at = int(time.time())
+
+                    db.commit()
+                    messages.success(request, "Your creator profile has been updated!")
+                    logger.info(f"Creator profile updated: user_id={user_id}, guild_id={guild_id}, share_to_network={share_to_network}")
+                else:
+                    # Create new
+                    try:
+                        new_profile = CreatorProfile(
+                            discord_id=user_id,
+                            guild_id=int(guild_id),
+                            display_name=display_name,
+                            bio=bio,
+                            content_categories=categories_json,
+                            twitter_handle=twitter_handle,
+                            tiktok_handle=tiktok_handle,
+                            instagram_handle=instagram_handle,
+                            bluesky_handle=bluesky_handle,
+                            twitch_handle=twitch_handle,
+                            youtube_handle=youtube_handle,
+                            stream_schedule=stream_schedule,
+                            times_featured=0,
+                            is_current_cotw=False,
+                            is_current_cotm=False,
+                            share_to_network=share_to_network,
+                            created_at=int(time.time()),
+                            updated_at=int(time.time())
+                        )
+                        db.add(new_profile)
+                        db.commit()
+                        messages.success(request, "Your creator profile has been created!")
+                        logger.info(f"Creator profile created: user_id={user_id}, guild_id={guild_id}, profile_id={new_profile.id}, share_to_network={share_to_network}")
+                    except Exception as save_error:
+                        logger.error(f"Failed to save creator profile: {save_error}", exc_info=True)
+                        db.rollback()
+                        messages.error(request, f"Error saving profile: {str(save_error)}")
+                        return redirect('creator_profile_register', guild_id=guild_id)
+
+                return redirect('guild_featured_creators', guild_id=guild_id)
+
+            # GET request - show form
+            profile_data = None
+            if existing_profile:
+                categories_list = []
+                if existing_profile.content_categories:
+                    try:
+                        categories_list = json.loads(existing_profile.content_categories)
+                    except:
+                        pass
+
+                profile_data = {
+                    'display_name': existing_profile.display_name,
+                    'bio': existing_profile.bio,
+                    'content_categories': ', '.join(categories_list) if categories_list else '',
+                    'twitter_handle': existing_profile.twitter_handle or '',
+                    'tiktok_handle': existing_profile.tiktok_handle or '',
+                    'instagram_handle': existing_profile.instagram_handle or '',
+                    'bluesky_handle': existing_profile.bluesky_handle or '',
+                    'twitch_handle': existing_profile.twitch_handle or '',
+                    'youtube_handle': existing_profile.youtube_handle or '',
+                    'stream_schedule': existing_profile.stream_schedule or '',
+                }
+
+            # Check if guild has Discovery module (for showing OAuth link options later)
+            has_discovery_module = has_module_access(guild_id, 'discovery')
+
+            # Check if guild is approved in Discovery Network
+            from .models import DiscoveryNetworkApplication
+            guild_network_status = None
+            network_application = db.query(DiscoveryNetworkApplication).filter_by(
+                guild_id=int(guild_id)
+            ).order_by(DiscoveryNetworkApplication.applied_at.desc()).first()
+
+            if network_application:
+                guild_network_status = network_application.status
+
+            return render(request, 'questlog/creator_profile_register.html', {
+                'guild': guild,
+                'guild_record': guild_db,
+                'is_admin': is_admin,
+                'profile': profile_data,
+                'existing_profile': existing_profile is not None,
+                'has_discovery_module': has_discovery_module,
+                'guild_network_status': guild_network_status,
+                'member_guilds': get_member_guilds(request),
+                'admin_guilds': admin_guilds,
+                'active_page': 'featured_creators',
+            })
+
+    except Exception as e:
+        logger.error(f"Error in creator profile registration: {e}", exc_info=True)
+        messages.error(request, f"An error occurred: {e}")
+        return redirect('guild_dashboard', guild_id=guild_id)
+
+
+@discord_required
+def creator_profile_delete(request, guild_id):
+    """
+    Delete creator profile.
+    Security: Users can only delete their own profiles.
+    """
+    import logging
+    from .db import get_db_session
+    from .models import CreatorProfile
+
+    logger = logging.getLogger(__name__)
+
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST required'}, status=405)
+
+    discord_user = request.session.get('discord_user')
+    if not discord_user:
+        return JsonResponse({'error': 'Not authenticated'}, status=401)
+
+    user_id = int(discord_user['id'])
+
+    try:
+        with get_db_session() as db:
+            profile = db.query(CreatorProfile).filter_by(
+                discord_id=user_id,
+                guild_id=int(guild_id)
+            ).first()
+
+            if not profile:
+                return JsonResponse({'error': 'Profile not found'}, status=404)
+
+            # Security: Verify ownership
+            if profile.discord_id != user_id:
+                logger.warning(f"Unauthorized delete attempt: user {user_id} tried to delete profile of user {profile.discord_id}")
+                return JsonResponse({'error': 'Unauthorized'}, status=403)
+
+            db.delete(profile)
+            db.commit()
+
+            logger.info(f"Creator profile deleted: user_id={user_id}, guild_id={guild_id}")
+            return JsonResponse({'success': True, 'message': 'Profile deleted successfully'})
+
+    except Exception as e:
+        logger.error(f"Error deleting creator profile: {e}", exc_info=True)
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@discord_required
+def set_creator_of_week(request, guild_id):
+    """
+    Set a creator as Creator of the Week.
+    Security: Only admins can set COTW.
+    """
+    import logging
+    import json
+    from .db import get_db_session
+    from .models import CreatorProfile
+
+    logger = logging.getLogger(__name__)
+
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST required'}, status=405)
+
+    # Check if user is admin
+    admin_guilds = request.session.get('discord_admin_guilds', [])
+    is_admin = any(str(g.get('id')) == str(guild_id) for g in admin_guilds)
+
+    if not is_admin:
+        return JsonResponse({'error': 'Admin access required'}, status=403)
+
+    try:
+        data = json.loads(request.body)
+        target_user_id = int(data.get('user_id'))
+
+        with get_db_session() as db:
+            # Remove current COTW
+            current_cotw = db.query(CreatorProfile).filter_by(
+                guild_id=int(guild_id),
+                is_current_cotw=True
+            ).all()
+
+            for profile in current_cotw:
+                profile.is_current_cotw = False
+                import time
+                profile.cotw_last_featured = int(time.time())
+
+            # Set new COTW
+            new_cotw = db.query(CreatorProfile).filter_by(
+                guild_id=int(guild_id),
+                discord_id=target_user_id
+            ).first()
+
+            if not new_cotw:
+                return JsonResponse({'error': 'Creator profile not found'}, status=404)
+
+            new_cotw.is_current_cotw = True
+            new_cotw.times_featured += 1
+
+            db.commit()
+
+            logger.info(f"COTW set: guild_id={guild_id}, user_id={target_user_id}")
+            return JsonResponse({'success': True, 'message': 'Creator of the Week set successfully'})
+
+    except Exception as e:
+        logger.error(f"Error setting COTW: {e}", exc_info=True)
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@discord_required
+def set_creator_of_month(request, guild_id):
+    """
+    Set a creator as Creator of the Month.
+    Security: Only admins can set COTM.
+    """
+    import logging
+    import json
+    from .db import get_db_session
+    from .models import CreatorProfile
+
+    logger = logging.getLogger(__name__)
+
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST required'}, status=405)
+
+    # Check if user is admin
+    admin_guilds = request.session.get('discord_admin_guilds', [])
+    is_admin = any(str(g.get('id')) == str(guild_id) for g in admin_guilds)
+
+    if not is_admin:
+        return JsonResponse({'error': 'Admin access required'}, status=403)
+
+    try:
+        data = json.loads(request.body)
+        target_user_id = int(data.get('user_id'))
+
+        with get_db_session() as db:
+            # Remove current COTM
+            current_cotm = db.query(CreatorProfile).filter_by(
+                guild_id=int(guild_id),
+                is_current_cotm=True
+            ).all()
+
+            for profile in current_cotm:
+                profile.is_current_cotm = False
+                import time
+                profile.cotm_last_featured = int(time.time())
+
+            # Set new COTM
+            new_cotm = db.query(CreatorProfile).filter_by(
+                guild_id=int(guild_id),
+                discord_id=target_user_id
+            ).first()
+
+            if not new_cotm:
+                return JsonResponse({'error': 'Creator profile not found'}, status=404)
+
+            new_cotm.is_current_cotm = True
+            new_cotm.times_featured += 1
+
+            db.commit()
+
+            logger.info(f"COTM set: guild_id={guild_id}, user_id={target_user_id}")
+            return JsonResponse({'success': True, 'message': 'Creator of the Month set successfully'})
+
+    except Exception as e:
+        logger.error(f"Error setting COTM: {e}", exc_info=True)
+        return JsonResponse({'error': str(e)}, status=500)

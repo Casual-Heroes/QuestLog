@@ -24,6 +24,28 @@
 
 <!-- Canonical URL -->
 <link rel="canonical" href="{{ request.build_absolute_uri }}">
+
+<style>
+/* Dark theme for select dropdown */
+#platformFilter option {
+  background-color: #262626; /* neutral-800 */
+  color: #ffffff;
+  padding: 8px;
+}
+
+#platformFilter option:hover {
+  background-color: #404040; /* neutral-700 */
+}
+
+/* Style for custom dropdown arrow */
+#platformFilter {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3E%3Cpath stroke='%239CA3AF' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3E%3C/svg%3E");
+  background-position: right 0.5rem center;
+  background-repeat: no-repeat;
+  background-size: 1.5em 1.5em;
+  padding-right: 2.5rem;
+}
+</style>
 {% endblock %}
 
 {% block guild_content %}
@@ -36,25 +58,211 @@
     </h1>
     <p class="text-gray-400 mt-1">{{ total_creators }} talented creator{{ total_creators|pluralize }} discovered and featured</p>
   </div>
+
+  {% if is_authenticated %}
+  <div>
+    {% if user_has_profile %}
+    <a href="{% url 'creator_profile_register' guild.id %}" class="inline-flex items-center gap-2 bg-yellow-600 hover:bg-yellow-700 text-white font-semibold px-6 py-3 rounded-lg transition shadow-lg hover:shadow-xl">
+      <i class="fas fa-edit"></i>
+      <span>Edit My Profile</span>
+    </a>
+    {% else %}
+    <a href="{% url 'creator_profile_register' guild.id %}" class="inline-flex items-center gap-2 bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-white font-bold px-6 py-3 rounded-lg transition shadow-lg hover:shadow-xl">
+      <i class="fas fa-user-plus"></i>
+      <span>Register as Creator</span>
+    </a>
+    {% endif %}
+  </div>
+  {% endif %}
 </div>
 
 {% if total_creators > 0 %}
+
+<!-- Featured Spotlight Section -->
+{% if cotw_creator or cotm_creator or random_featured %}
+<div class="grid grid-cols-1 {% if cotw_creator and cotm_creator %}lg:grid-cols-2{% endif %} gap-6 mb-8">
+
+  <!-- Creator of the Week -->
+  {% if cotw_creator %}
+  <div class="bg-gradient-to-br from-yellow-900/40 to-orange-900/40 rounded-xl border-2 border-yellow-500/50 p-6 shadow-lg hover:shadow-yellow-500/30 transition-all duration-300">
+    <div class="flex items-center gap-3 mb-4">
+      <div class="w-12 h-12 bg-yellow-600/20 rounded-lg flex items-center justify-center">
+        <i class="fas fa-trophy text-yellow-400 text-2xl"></i>
+      </div>
+      <div>
+        <h2 class="text-xl font-bold text-white">Creator of the Week</h2>
+        <p class="text-yellow-400 text-sm">Hand-picked by server admins</p>
+      </div>
+    </div>
+
+    <div class="flex items-center gap-4 mb-4">
+      <img src="{{ cotw_creator.avatar_url }}" alt="{{ cotw_creator.display_name }}"
+           class="w-16 h-16 rounded-full border-4 border-yellow-500/70 shadow-lg">
+      <div class="flex-1">
+        <h3 class="text-white font-bold text-lg">{{ cotw_creator.display_name }}</h3>
+        <p class="text-gray-300 text-sm">@{{ cotw_creator.username }}</p>
+      </div>
+    </div>
+
+    {% if cotw_creator.clean_bio %}
+    <div class="text-gray-300 text-sm mb-4 line-clamp-3">{{ cotw_creator.clean_bio|safe }}</div>
+    {% endif %}
+
+    <div class="flex flex-wrap gap-2">
+      {% for link in cotw_creator.extracted_bio_links %}
+      <a href="{{ link.url }}" target="_blank" rel="noopener noreferrer"
+         class="inline-flex items-center gap-2 px-3 py-2 bg-{{ link.color }}-600 hover:bg-{{ link.color }}-700 text-white rounded-lg text-sm transition">
+        <i class="{{ link.icon }}"></i>
+        <span>{{ link.platform }}</span>
+      </a>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Creator of the Month -->
+  {% if cotm_creator %}
+  <div class="bg-gradient-to-br from-purple-900/40 to-indigo-900/40 rounded-xl border-2 border-purple-500/50 p-6 shadow-lg hover:shadow-purple-500/30 transition-all duration-300">
+    <div class="flex items-center gap-3 mb-4">
+      <div class="w-12 h-12 bg-purple-600/20 rounded-lg flex items-center justify-center">
+        <i class="fas fa-crown text-purple-400 text-2xl"></i>
+      </div>
+      <div>
+        <h2 class="text-xl font-bold text-white">Creator of the Month</h2>
+        <p class="text-purple-400 text-sm">Monthly featured creator</p>
+      </div>
+    </div>
+
+    <div class="flex items-center gap-4 mb-4">
+      <img src="{{ cotm_creator.avatar_url }}" alt="{{ cotm_creator.display_name }}"
+           class="w-16 h-16 rounded-full border-4 border-purple-500/70 shadow-lg">
+      <div class="flex-1">
+        <h3 class="text-white font-bold text-lg">{{ cotm_creator.display_name }}</h3>
+        <p class="text-gray-300 text-sm">@{{ cotm_creator.username }}</p>
+      </div>
+    </div>
+
+    {% if cotm_creator.clean_bio %}
+    <div class="text-gray-300 text-sm mb-4 line-clamp-3">{{ cotm_creator.clean_bio|safe }}</div>
+    {% endif %}
+
+    <div class="flex flex-wrap gap-2">
+      {% for link in cotm_creator.extracted_bio_links %}
+      <a href="{{ link.url }}" target="_blank" rel="noopener noreferrer"
+         class="inline-flex items-center gap-2 px-3 py-2 bg-{{ link.color }}-600 hover:bg-{{ link.color }}-700 text-white rounded-lg text-sm transition">
+        <i class="{{ link.icon }}"></i>
+        <span>{{ link.platform }}</span>
+      </a>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Random Featured Creator (if no COTW/COTM, or if both exist and we want to show random too) -->
+  {% if random_featured and not cotw_creator and not cotm_creator %}
+  <div class="bg-gradient-to-br from-neutral-800/80 to-neutral-900/80 rounded-xl border-2 border-neutral-700 p-6 shadow-lg hover:shadow-neutral-500/20 transition-all duration-300">
+    <div class="flex items-center gap-3 mb-4">
+      <div class="w-12 h-12 bg-neutral-700/50 rounded-lg flex items-center justify-center">
+        <i class="fas fa-dice text-gray-400 text-2xl"></i>
+      </div>
+      <div>
+        <h2 class="text-xl font-bold text-white">Featured Creator</h2>
+        <p class="text-gray-400 text-sm">Randomly selected</p>
+      </div>
+    </div>
+
+    <div class="flex items-center gap-4 mb-4">
+      <img src="{{ random_featured.avatar_url }}" alt="{{ random_featured.display_name }}"
+           class="w-16 h-16 rounded-full border-4 border-gray-500/70 shadow-lg">
+      <div class="flex-1">
+        <h3 class="text-white font-bold text-lg">{{ random_featured.display_name }}</h3>
+        <p class="text-gray-300 text-sm">@{{ random_featured.username }}</p>
+      </div>
+    </div>
+
+    {% if random_featured.clean_bio %}
+    <div class="text-gray-300 text-sm mb-4 line-clamp-3">{{ random_featured.clean_bio|safe }}</div>
+    {% endif %}
+
+    <div class="flex flex-wrap gap-2">
+      {% for link in random_featured.extracted_bio_links %}
+      <a href="{{ link.url }}" target="_blank" rel="noopener noreferrer"
+         class="inline-flex items-center gap-2 px-3 py-2 bg-{{ link.color }}-600 hover:bg-{{ link.color }}-700 text-white rounded-lg text-sm transition">
+        <i class="{{ link.icon }}"></i>
+        <span>{{ link.platform }}</span>
+      </a>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+</div>
+{% endif %}
+
 <!-- Search & Filter Bar -->
 <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-4 mb-6">
-  <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
     <div>
       <input type="text" id="searchInput" placeholder="Search creators by name..."
              class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2 text-white focus:border-purple-500 focus:outline-none">
     </div>
     <div>
-      <select id="platformFilter" class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2 text-white focus:border-purple-500 focus:outline-none">
+      <select id="platformFilter" class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2 text-white focus:border-purple-500 focus:outline-none appearance-none cursor-pointer">
         <option value="">All Platforms</option>
         <option value="twitch">🟣 Twitch</option>
         <option value="youtube">🔴 YouTube</option>
         <option value="twitter">🐦 Twitter/X</option>
         <option value="tiktok">⚫ TikTok</option>
         <option value="instagram">📷 Instagram</option>
-        <option value="bsky">🦋 bsky</option>
+        <option value="bluesky">🦋 Bluesky</option>
+      </select>
+    </div>
+    <div>
+      <select id="categoryFilter" class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2 text-white focus:border-purple-500 focus:outline-none appearance-none cursor-pointer">
+        <option value="">All Categories</option>
+        <option value="Gaming">Gaming</option>
+        <option value="Python">Python</option>
+        <option value="Bot Development">Bot Development</option>
+        <option value="Survival Servers">Survival Servers</option>
+        <option value="ARPG">ARPG</option>
+        <option value="JRPG">JRPG</option>
+        <option value="FPS">FPS</option>
+        <option value="Souls-Like">Souls-Like</option>
+        <option value="Battle Royale">Battle Royale</option>
+        <option value="MOBA">MOBA</option>
+        <option value="MMO">MMO</option>
+        <option value="RPG">RPG</option>
+        <option value="Strategy">Strategy</option>
+        <option value="Survival">Survival</option>
+        <option value="Horror">Horror</option>
+        <option value="Platformer">Platformer</option>
+        <option value="Racing">Racing</option>
+        <option value="Sports">Sports</option>
+        <option value="Fighting">Fighting</option>
+        <option value="Puzzle">Puzzle</option>
+        <option value="Simulation">Simulation</option>
+        <option value="Sandbox">Sandbox</option>
+        <option value="Roguelike">Roguelike</option>
+        <option value="Art">Art</option>
+        <option value="Music">Music</option>
+        <option value="IRL">IRL</option>
+        <option value="Cooking">Cooking</option>
+        <option value="Fitness">Fitness</option>
+        <option value="Education">Education</option>
+        <option value="Tutorial">Tutorial</option>
+        <option value="Comedy">Comedy</option>
+        <option value="Talk Show">Talk Show</option>
+        <option value="Speedrun">Speedrun</option>
+        <option value="Competitive">Competitive</option>
+        <option value="Casual">Casual</option>
+        <option value="Retro Gaming">Retro Gaming</option>
+        <option value="VR">VR</option>
+        <option value="Mobile Gaming">Mobile Gaming</option>
+        <option value="Card Games">Card Games</option>
+        <option value="Board Games">Board Games</option>
+        <option value="Creative">Creative</option>
+        <option value="Community">Community</option>
+        <option value="Variety">Variety</option>
       </select>
     </div>
   </div>
@@ -66,7 +274,8 @@
   <!-- All cards are divs now, with separate forum link button -->
   <div class="creator-card bg-neutral-900 rounded-xl border border-neutral-800 p-6 hover:border-yellow-500/50 transition-all duration-300 hover:shadow-lg hover:shadow-yellow-500/20"
        data-name="{{ creator.display_name|lower }} {{ creator.username|lower }}"
-       data-platforms="{% if creator.twitch_url %}twitch {% endif %}{% if creator.youtube_url %}youtube {% endif %}{% if creator.twitter_url %}twitter {% endif %}{% if creator.tiktok_url %}tiktok {% endif %}{% if creator.instagram_url %}instagram {% endif %}{% if creator.bsky_url %}bsky {% endif %}"
+       data-platforms="{% for link in creator.extracted_bio_links %}{{ link.platform|lower }} {% endfor %}{% if creator.show_twitch %}twitch {% endif %}{% if creator.show_youtube %}youtube {% endif %}{% if creator.show_twitter %}twitter {% endif %}{% if creator.show_tiktok %}tiktok {% endif %}{% if creator.show_instagram %}instagram {% endif %}{% if creator.show_bsky %}bsky {% endif %}{% for connection_type in creator.discord_connections.keys %}{{ connection_type }} {% endfor %}"
+       data-categories="{% for category in creator.content_categories %}{{ category|lower }} {% endfor %}"
        data-forum-url="{% if creator.forum_thread_id %}https://discord.com/channels/{{ guild.id }}/{{ creator.forum_thread_id }}{% endif %}">
 
     <!-- Profile Header -->
@@ -131,6 +340,35 @@
         </div>
       </div>
     </div>
+
+    <!-- Bio -->
+    {% if creator.bio %}
+    <div class="mb-4 p-3 bg-neutral-800/50 rounded-lg border border-neutral-700">
+      <p class="text-sm text-gray-300 line-clamp-3">{{ creator.bio }}</p>
+    </div>
+    {% endif %}
+
+    <!-- Content Categories -->
+    {% if creator.content_categories %}
+    <div class="mb-4">
+      <div class="flex flex-wrap gap-1">
+        {% for category in creator.content_categories %}
+        <span class="px-2 py-0.5 bg-neutral-800 text-gray-400 rounded text-xs">{{ category }}</span>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Stream Schedule -->
+    {% if creator.stream_schedule %}
+    <div class="mb-4 flex items-start gap-2 p-2 bg-purple-900/20 border border-purple-700/30 rounded-lg">
+      <i class="fas fa-calendar-alt text-purple-400 mt-0.5"></i>
+      <div class="flex-1">
+        <p class="text-xs text-purple-300 font-semibold mb-0.5">Stream Schedule</p>
+        <p class="text-xs text-gray-300">{{ creator.stream_schedule }}</p>
+      </div>
+    </div>
+    {% endif %}
 
     <!-- Social Links -->
     <div class="flex flex-wrap gap-2">
@@ -259,6 +497,25 @@
       <div class="text-gray-300 text-sm leading-relaxed">{{ creator.clean_bio|safe }}</div>
     </div>
     {% endif %}
+
+    <!-- Admin Controls -->
+    {% if is_admin %}
+    <div class="mt-4 pt-4 border-t border-neutral-700">
+      <div class="flex items-center gap-2">
+        <span class="text-gray-400 text-xs font-medium">Admin Actions:</span>
+        <button onclick="setCreatorOfWeek({{ creator.user_id }}, '{{ creator.display_name|escapejs }}')"
+                class="text-xs px-3 py-1 {% if creator.is_current_cotw %}bg-yellow-600{% else %}bg-neutral-700 hover:bg-yellow-600/50{% endif %} text-white rounded transition"
+                title="Set as Creator of the Week">
+          <i class="fas fa-trophy"></i> {% if creator.is_current_cotw %}Current COTW{% else %}Set COTW{% endif %}
+        </button>
+        <button onclick="setCreatorOfMonth({{ creator.user_id }}, '{{ creator.display_name|escapejs }}')"
+                class="text-xs px-3 py-1 {% if creator.is_current_cotm %}bg-purple-600{% else %}bg-neutral-700 hover:bg-purple-600/50{% endif %} text-white rounded transition"
+                title="Set as Creator of the Month">
+          <i class="fas fa-crown"></i> {% if creator.is_current_cotm %}Current COTM{% else %}Set COTM{% endif %}
+        </button>
+      </div>
+    </div>
+    {% endif %}
   </div>
   {% endfor %}
 </div>
@@ -277,18 +534,20 @@
     <i class="fas fa-star text-yellow-500 text-5xl"></i>
   </div>
 
-  {% if show_admin_view %}
-  <!-- Admin View - Show Setup Button -->
-  <h3 class="text-white text-2xl font-bold mb-2">No Featured Creators Yet</h3>
-  <p class="text-gray-400 text-lg mb-6">When creators get featured through Discovery, they'll appear here in your hall of fame!</p>
-  <a href="{% url 'guild_discovery' guild.id %}" class="inline-flex items-center gap-2 bg-yellow-500 hover:bg-yellow-600 text-black font-semibold px-6 py-3 rounded-lg transition">
-    <i class="fas fa-sparkles"></i>
-    <span>Set Up Discovery</span>
-  </a>
+  <h3 class="text-white text-2xl font-bold mb-2">No Creators Yet</h3>
+  <p class="text-gray-400 text-lg mb-6">Be the first to create a creator profile and get discovered!</p>
+
+  {% if is_authenticated %}
+  <div class="flex items-center justify-center gap-4">
+    <a href="{% url 'creator_profile_register' guild.id %}" class="inline-flex items-center gap-2 bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-white font-bold px-8 py-4 rounded-lg transition shadow-lg hover:shadow-xl">
+      <i class="fas fa-user-plus text-xl"></i>
+      <span class="text-lg">Register as Creator</span>
+    </a>
+  </div>
   {% else %}
-  <!-- Member View - Ask Admin to Setup -->
-  <h3 class="text-white text-2xl font-bold mb-2">No Creators Featured Yet</h3>
-  <p class="text-gray-400 text-lg">Ask your server admin to setup Creator Discovery to start featuring talented members</p>
+  <p class="text-gray-400 text-sm mt-4">
+    <a href="{% url 'login' %}" class="text-yellow-400 hover:text-yellow-300 underline">Log in with Discord</a> to register as a creator
+  </p>
   {% endif %}
 </div>
 {% endif %}
@@ -296,36 +555,48 @@
 <!-- How Discovery Works Section -->
 <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-5 mt-32">
   <h2 class="text-lg font-bold text-white mb-3">
-    <i class="fas fa-question-circle text-yellow-400 mr-2"></i>How Creator Discovery Works
+    <i class="fas fa-question-circle text-yellow-400 mr-2"></i>How to Get Featured
   </h2>
   <div class="space-y-2 text-gray-300 text-sm">
     <div class="flex items-start gap-2">
       <span class="flex-shrink-0 w-5 h-5 bg-yellow-600/20 rounded-full flex items-center justify-center text-yellow-400 text-xs font-bold">1</span>
-      <p><strong class="text-white">Share:</strong> Post intro in Creator Intro forum with "Self-Promo Intro" tag</p>
+      <p><strong class="text-white">Register:</strong> Click "Register as Creator" and fill out your profile with bio and social links</p>
     </div>
     <div class="flex items-start gap-2">
       <span class="flex-shrink-0 w-5 h-5 bg-yellow-600/20 rounded-full flex items-center justify-center text-yellow-400 text-xs font-bold">2</span>
-      <p><strong class="text-white">Get discovered:</strong> Bot scans forum and adds creators automatically</p>
+      <p><strong class="text-white">Get listed:</strong> Your profile appears here instantly for all server members to discover</p>
     </div>
     <div class="flex items-start gap-2">
       <span class="flex-shrink-0 w-5 h-5 bg-yellow-600/20 rounded-full flex items-center justify-center text-yellow-400 text-xs font-bold">3</span>
-      <p><strong class="text-white">Double exposure:</strong> Appear on website + Discord announcement</p>
+      <p><strong class="text-white">Get featured:</strong> Server admins can select you as Creator of the Week/Month for extra exposure</p>
     </div>
     <div class="flex items-start gap-2">
       <span class="flex-shrink-0 w-5 h-5 bg-yellow-600/20 rounded-full flex items-center justify-center text-yellow-400 text-xs font-bold">4</span>
-      <p><strong class="text-white">Build audience:</strong> Members discover you and click to view full profile</p>
+      <p><strong class="text-white">Grow your audience:</strong> Members can find your Twitch, YouTube, and social media with one click</p>
     </div>
   </div>
 
+  {% if has_discovery_module %}
+  <div class="mt-4 p-3 bg-gradient-to-r from-purple-900/30 to-pink-900/30 border border-purple-500/40 rounded-lg">
+    <h3 class="text-white font-semibold mb-1 flex items-center gap-2 text-sm">
+      <i class="fas fa-star text-yellow-400 text-xs"></i>
+      Discovery Module Active
+    </h3>
+    <p class="text-gray-300 text-xs">
+      After registering, you can link your Twitch/YouTube account for automatic live stream notifications and auto-roles when you go live!
+    </p>
+  </div>
+  {% else %}
   <div class="mt-4 p-3 bg-neutral-800 rounded-lg border border-neutral-700">
     <h3 class="text-white font-semibold mb-1 flex items-center gap-2 text-sm">
       <i class="fas fa-lightbulb text-yellow-400 text-xs"></i>
       Pro Tip
     </h3>
     <p class="text-gray-300 text-xs">
-      Include all social links (Twitch, YouTube, Twitter, TikTok, Instagram, Bluesky) in your forum post to maximize visibility!
+      Include all your social links (Twitch, YouTube, Twitter, TikTok, Instagram, Bluesky) in your profile to maximize visibility! Registration is 100% free.
     </p>
   </div>
+  {% endif %}
 </div>
 
 <script>
@@ -337,16 +608,20 @@ const noResults = document.getElementById('noResults');
 function filterCreators() {
   const searchTerm = searchInput ? searchInput.value.toLowerCase() : '';
   const platform = platformFilter ? platformFilter.value.toLowerCase() : '';
+  const categoryFilterEl = document.getElementById('categoryFilter');
+  const category = categoryFilterEl ? categoryFilterEl.value.toLowerCase() : '';
   let visibleCount = 0;
 
   allCards.forEach(card => {
     const name = card.dataset.name || '';
     const platforms = card.dataset.platforms || '';
+    const categories = card.dataset.categories || '';
 
     const matchesSearch = name.includes(searchTerm);
     const matchesPlatform = !platform || platforms.includes(platform);
+    const matchesCategory = !category || categories.includes(category);
 
-    if (matchesSearch && matchesPlatform) {
+    if (matchesSearch && matchesPlatform && matchesCategory) {
       card.classList.remove('hidden');
       visibleCount++;
     } else {
@@ -356,7 +631,7 @@ function filterCreators() {
 
   // Show/hide no results message
   if (noResults) {
-    if (visibleCount === 0 && (searchTerm || platform)) {
+    if (visibleCount === 0 && (searchTerm || platform || category)) {
       noResults.classList.remove('hidden');
     } else {
       noResults.classList.add('hidden');
@@ -383,6 +658,10 @@ if (searchInput) {
 }
 if (platformFilter) {
   platformFilter.addEventListener('change', filterCreators);
+}
+const categoryFilterEl = document.getElementById('categoryFilter');
+if (categoryFilterEl) {
+  categoryFilterEl.addEventListener('change', filterCreators);
 }
 
 // Format timestamps
@@ -417,6 +696,63 @@ document.querySelectorAll('.timeago').forEach(el => {
     el.textContent = timeStr;
   }
 });
+
+// Admin functions for setting COTW/COTM
+async function setCreatorOfWeek(userId, displayName) {
+  if (!confirm(`Set "${displayName}" as Creator of the Week?\n\nThis will remove the current COTW (if any) and feature this creator prominently.`)) {
+    return;
+  }
+
+  const csrfToken = '{{ csrf_token }}';
+  try {
+    const response = await fetch(`/api/guild/{{ guild.id }}/creator/set-cotw/`, {
+      method: 'POST',
+      headers: {
+        'X-CSRFToken': csrfToken,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ user_id: userId })
+    });
+
+    const data = await response.json();
+    if (data.success) {
+      alert(`✅ ${displayName} is now Creator of the Week!`);
+      location.reload();
+    } else {
+      alert(`❌ Error: ${data.error || 'Failed to set COTW'}`);
+    }
+  } catch (error) {
+    alert(`❌ Error: ${error.message}`);
+  }
+}
+
+async function setCreatorOfMonth(userId, displayName) {
+  if (!confirm(`Set "${displayName}" as Creator of the Month?\n\nThis will remove the current COTM (if any) and feature this creator prominently.`)) {
+    return;
+  }
+
+  const csrfToken = '{{ csrf_token }}';
+  try {
+    const response = await fetch(`/api/guild/{{ guild.id }}/creator/set-cotm/`, {
+      method: 'POST',
+      headers: {
+        'X-CSRFToken': csrfToken,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ user_id: userId })
+    });
+
+    const data = await response.json();
+    if (data.success) {
+      alert(`✅ ${displayName} is now Creator of the Month!`);
+      location.reload();
+    } else {
+      alert(`❌ Error: ${data.error || 'Failed to set COTM'}`);
+    }
+  } catch (error) {
+    alert(`❌ Error: ${error.message}`);
+  }
+}
 </script>
 
 {% endblock %}

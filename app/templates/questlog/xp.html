@@ -1936,6 +1936,13 @@ const hash = (window.location.hash || '').replace('#', '');
 const initialTab = ['settings', 'levelup', 'boosts'].includes(hash) ? hash : 'settings';
 switchXpTab(initialTab);
 
+// Handle hash changes when clicking sidebar links while already on the page
+window.addEventListener('hashchange', () => {
+  const newHash = (window.location.hash || '').replace('#', '');
+  const targetTab = ['settings', 'levelup', 'boosts'].includes(newHash) ? newHash : 'settings';
+  switchXpTab(targetTab);
+});
+
 function toggleXpActions(forceClose = false) {
   const menu = document.getElementById('xpActionsMenu');
   if (!menu) return;

@@ -194,7 +194,6 @@ def handle_checkout_completed(session):
                 )
                 db.add(guild_record)
                 db.flush()
-            else:
 
             # Store Stripe customer and subscription IDs
             guild_record.stripe_customer_id = customer_id
@@ -225,6 +224,7 @@ def handle_checkout_completed(session):
             is_complete_bundle = False
             for item in subscription['items']['data']:
                 price_id = item['price']['id']
+                logger.info(f"Processing subscription item with price_id: {price_id}")
                 modules_to_activate = []
 
 
@@ -250,15 +250,16 @@ def handle_checkout_completed(session):
                         bundle_found = True
                         break
 
-                if not bundle_found:
-
                 # If not a bundle, check individual modules
                 if not bundle_found:
                     for module_key, module_config in MODULES.items():
                         if (module_config.get('stripe_price_monthly_id') == price_id or
                             module_config.get('stripe_price_yearly_id') == price_id):
                             modules_to_activate.append(module_key)
+                            logger.info(f"Matched individual module: {module_key} for price_id: {price_id}")
                             break
+
+                logger.info(f"Modules to activate: {modules_to_activate}")
 
                 # Activate all identified modules
                 for module_key in modules_to_activate:

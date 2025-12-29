@@ -162,10 +162,15 @@ async function csrfFetch(url, options = {}) {
           <input id="raffleEnd" type="datetime-local" class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white">
         </div>
       </div>
-      <div class="grid md:grid-cols-2 gap-4">
+      <div class="grid md:grid-cols-3 gap-4">
         <div>
           <label class="block text-sm text-gray-400 mb-1">Max Winners</label>
           <input id="raffleWinners" type="number" min="1" value="1" class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white">
+        </div>
+        <div>
+          <label class="block text-sm text-gray-400 mb-1">Max Entries Per Person</label>
+          <input id="raffleMaxEntries" type="number" min="1" placeholder="Unlimited" class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white">
+          <p class="text-xs text-gray-500 mt-1">Leave empty for unlimited</p>
         </div>
         <div class="flex items-center gap-3 mt-6">
           <input id="raffleAuto" type="checkbox" class="h-5 w-5 rounded border-neutral-600 bg-neutral-800 text-yellow-500">
@@ -345,6 +350,7 @@ async function openCreateModal() {
   document.getElementById('raffleStart').value = '';
   document.getElementById('raffleEnd').value = '';
   document.getElementById('raffleWinners').value = 1;
+  document.getElementById('raffleMaxEntries').value = '';
   document.getElementById('raffleAuto').checked = false;
   document.getElementById('raffleAnnounceMsg').value = '';
   document.getElementById('raffleWinnerMsg').value = '';
@@ -372,6 +378,7 @@ function openEditRaffle(id) {
   document.getElementById('raffleCost').value = r.cost_tokens || 0;
   document.getElementById('raffleDescription').value = r.description || '';
   document.getElementById('raffleWinners').value = r.max_winners || 1;
+  document.getElementById('raffleMaxEntries').value = r.max_entries_per_user || '';
   document.getElementById('raffleAuto').checked = !!r.auto_pick;
   document.getElementById('raffleAnnounceMsg').value = r.announce_message || '';
   document.getElementById('raffleWinnerMsg').value = r.winner_message || '';
@@ -422,11 +429,13 @@ async function saveRaffle(e) {
   const emojiValue = raffleEmojiSelect ? raffleEmojiSelect.getValue() : '🎟️';
   const reminderChannelValue = raffleReminderChannelSelect ? raffleReminderChannelSelect.getValue() : '';
 
+  const maxEntriesVal = document.getElementById('raffleMaxEntries').value;
   const payload = {
     title: document.getElementById('raffleTitle').value,
     description: document.getElementById('raffleDescription').value,
     cost_tokens: parseInt(document.getElementById('raffleCost').value || '0'),
     max_winners: parseInt(document.getElementById('raffleWinners').value || '1'),
+    max_entries_per_user: maxEntriesVal ? parseInt(maxEntriesVal) : null,
     start_at: toEpoch(document.getElementById('raffleStart').value),
     end_at: toEpoch(document.getElementById('raffleEnd').value),
     auto_pick: document.getElementById('raffleAuto').checked,

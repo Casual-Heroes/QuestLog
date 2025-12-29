@@ -126,6 +126,7 @@ urlpatterns = [
 
     # Raffles (Engagement)
     path('questlog/guild/<str:guild_id>/raffles/', views.guild_raffles, name='guild_raffles'),
+    path('questlog/guild/<str:guild_id>/raffle-browser/', views.guild_raffle_browser, name='guild_raffle_browser'),
     path('api/guild/<str:guild_id>/raffles/', views.api_raffle_list, name='api_raffle_list'),
     path('api/guild/<str:guild_id>/raffles/create/', views.api_raffle_create, name='api_raffle_create'),
     path('api/guild/<str:guild_id>/raffles/<int:raffle_id>/update/', views.api_raffle_update, name='api_raffle_update'),
@@ -274,9 +275,10 @@ urlpatterns = [
     path('api/discovery/user/main-server', views.api_discovery_user_main_server, name='api_discovery_user_main_server'),
     path('api/discovery/user/set-main-server', views.api_discovery_user_set_main_server, name='api_discovery_user_set_main_server'),
 
-    # Creator Discovery Endpoints (stubs for now - Twitch/YouTube integration pending)
+    # Creator Discovery Endpoints
     path('api/discovery/creators-list', views.api_discovery_creators_list, name='api_discovery_creators_list'),
     path('api/discovery/feature-creator', views.api_discovery_feature_creator, name='api_discovery_feature_creator'),
+    path('api/discovery/network-creators', views.api_discovery_network_creators, name='api_discovery_network_creators'),
 
     # Discovery Network Admin API Endpoints (Bot Owner Only)
     path('api/discovery/admin/applications', views.api_discovery_network_admin_applications, name='api_discovery_network_admin_applications'),
@@ -295,6 +297,12 @@ urlpatterns = [
     path('questlog/guild/<str:guild_id>/featured-creators/', views.guild_featured_creators, name='guild_featured_creators'),
     path('questlog/guild/<str:guild_id>/cotw/', views.guild_cotw, name='guild_cotw'),
     path('questlog/guild/<str:guild_id>/cotm/', views.guild_cotm, name='guild_cotm'),
+
+    # Creator Profile Management (Phase 1)
+    path('questlog/guild/<str:guild_id>/creator/register/', views.creator_profile_register, name='creator_profile_register'),
+    path('api/guild/<str:guild_id>/creator/delete/', views.creator_profile_delete, name='creator_profile_delete'),
+    path('api/guild/<str:guild_id>/creator/set-cotw/', views.set_creator_of_week, name='set_creator_of_week'),
+    path('api/guild/<str:guild_id>/creator/set-cotm/', views.set_creator_of_month, name='set_creator_of_month'),
 
     # LFG API Endpoints
     path('api/guild/<str:guild_id>/lfg/search/', views.api_lfg_search, name='api_lfg_search'),

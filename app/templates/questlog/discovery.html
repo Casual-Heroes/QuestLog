@@ -5,7 +5,7 @@
 
 {% block og_title %}{{ guild.name }} - Discovery System | Casual Heroes{% endblock %}
 {% block og_description %}Manage creator and game discovery settings for {{ guild.name }}. Powered by Casual Heroes.{% endblock %}
-{% block og_url %}https://casual-heroes.com/questlog/guild/{{ guild.guild_id }}/discovery/{% endblock %}
+{% block og_url %}https://dashboard.casual-heroes.com/questlog/guild/{{ guild.guild_id }}/discovery/{% endblock %}
 
 {% block guild_content %}
 
@@ -80,34 +80,52 @@ function canAddSearchConfig() {
 }
 
 // Toggle token cost section
-document.getElementById('require_tokens').addEventListener('change', function() {
-  document.getElementById('tokenCostSection').classList.toggle('hidden', !this.checked);
-});
-
-// Toggle forum token cost section
-document.getElementById('require_tokens_forum').addEventListener('change', function() {
-  document.getElementById('tokenCostForumSection').classList.toggle('hidden', !this.checked);
-});
+const requireTokens = document.getElementById('require_tokens');
+if (requireTokens) {
+  requireTokens.addEventListener('change', function() {
+    document.getElementById('tokenCostSection').classList.toggle('hidden', !this.checked);
+  });
+}
 
 // Toggle channel settings section
-document.getElementById('channel_enabled').addEventListener('change', function() {
-  document.getElementById('channelSettings').classList.toggle('hidden', !this.checked);
-});
-
-// Toggle forum settings section
-document.getElementById('forum_enabled').addEventListener('change', function() {
-  document.getElementById('forumSettings').classList.toggle('hidden', !this.checked);
-});
+const channelEnabled = document.getElementById('channel_enabled');
+if (channelEnabled) {
+  channelEnabled.addEventListener('change', function() {
+    document.getElementById('channelSettings').classList.toggle('hidden', !this.checked);
+  });
+}
 
 // Toggle COTW settings section
-document.getElementById('cotw_enabled').addEventListener('change', function() {
-  document.getElementById('cotwSettings').classList.toggle('hidden', !this.checked);
-});
+const cotwEnabled = document.getElementById('cotw_enabled');
+if (cotwEnabled) {
+  cotwEnabled.addEventListener('change', function() {
+    document.getElementById('cotwSettings').classList.toggle('hidden', !this.checked);
+  });
+}
 
 // Toggle COTM settings section
-document.getElementById('cotm_enabled').addEventListener('change', function() {
-  document.getElementById('cotmSettings').classList.toggle('hidden', !this.checked);
-});
+const cotmEnabled = document.getElementById('cotm_enabled');
+if (cotmEnabled) {
+  cotmEnabled.addEventListener('change', function() {
+    document.getElementById('cotmSettings').classList.toggle('hidden', !this.checked);
+  });
+}
+
+// Toggle COTW auto-rotation settings
+const cotwAutoRotate = document.getElementById('cotw_auto_rotate');
+if (cotwAutoRotate) {
+  cotwAutoRotate.addEventListener('change', function() {
+    document.getElementById('cotwAutoRotateSettings').classList.toggle('hidden', !this.checked);
+  });
+}
+
+// Toggle COTM auto-rotation settings
+const cotmAutoRotate = document.getElementById('cotm_auto_rotate');
+if (cotmAutoRotate) {
+  cotmAutoRotate.addEventListener('change', function() {
+    document.getElementById('cotmAutoRotateSettings').classList.toggle('hidden', !this.checked);
+  });
+}
 
 // Helper function to clear cached data (useful for manual refresh)
 function clearDiscoveryCache() {
@@ -119,7 +137,7 @@ function clearDiscoveryCache() {
 }
 
 // Load Discord channels and initialize custom selects
-let selfpromoSelect, featureSelect, introForumSelect, forumFeatureSelect, cotwChannelSelect, cotmChannelSelect, publicGameSelect, privateGameSelect, autoJoinRoleSelect, testChannelSelect, testForumSelect, publicGamePingRoleSelect, privateGamePingRoleSelect;
+let selfpromoSelect, featureSelect, messageResponseSelect, cotwChannelSelect, cotmChannelSelect, networkAnnouncementSelect, publicGameSelect, privateGameSelect, autoJoinRoleSelect, testChannelSelect, publicGamePingRoleSelect, privateGamePingRoleSelect;
 
 async function loadChannels() {
   try {
@@ -130,8 +148,8 @@ async function loadChannels() {
     const now = Date.now();
 
     let data;
-    if (cached && cacheTime && (now - parseInt(cacheTime)) < 300000) {
-      // Use cached data (less than 5 minutes old)
+    if (cached && cacheTime && (now - parseInt(cacheTime)) < 30000) {
+      // Use cached data (less than 30 seconds old)
       data = JSON.parse(cached);
       console.log('Using cached channel data');
     } else {
@@ -270,6 +288,18 @@ async function loadChannels() {
         color: 'yellow'
       });
 
+      // Network Announcement Channel
+      const currentNetworkChannel = discoveryConfig.network_announcement_channel_id ? discoveryConfig.network_announcement_channel_id.toString() : '';
+      networkAnnouncementSelect = createCustomSelect({
+        container: '#network_announcement_channel_idContainer',
+        name: 'network_announcement_channel_id',
+        id: 'network_announcement_channel_id',
+        placeholder: 'Select a channel...',
+        items: channelItems,
+        selected: currentNetworkChannel,
+        color: 'indigo'
+      });
+
       // Test channel dropdown (for testing embeds)
       testChannelSelect = createCustomSelect({
         container: '#test_channel_idContainer',
@@ -279,17 +309,6 @@ async function loadChannels() {
         items: channelItems,
         selected: currentTestChannel,
         color: 'blue'
-      });
-
-      // Test forum dropdown (for testing embeds - text channel, not forum)
-      testForumSelect = createCustomSelect({
-        container: '#test_forum_idContainer',
-        name: 'test_forum_id',
-        id: 'test_forum_id',
-        placeholder: 'Select channel to test...',
-        items: channelItems,
-        selected: currentTestForum,
-        color: 'yellow'
       });
     }
   } catch (err) {
@@ -307,8 +326,8 @@ async function loadRoles() {
     const now = Date.now();
 
     let data;
-    if (cached && cacheTime && (now - parseInt(cacheTime)) < 300000) {
-      // Use cached data (less than 5 minutes old)
+    if (cached && cacheTime && (now - parseInt(cacheTime)) < 30000) {
+      // Use cached data (less than 30 seconds old)
       data = JSON.parse(cached);
       console.log('Using cached roles data');
     } else {
@@ -369,35 +388,47 @@ async function saveConfig() {
   btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Saving...';
   btn.disabled = true;
 
+  // Helper to safely get checkbox value
+  const getCheckbox = (id) => {
+    const el = document.getElementById(id);
+    return el ? el.checked : false;
+  };
+
+  // Helper to safely get input value
+  const getInputValue = (id, defaultValue = '') => {
+    const el = document.getElementById(id);
+    return el ? el.value : defaultValue;
+  };
+
   const data = {
-    enabled: document.getElementById('enabled').checked,
-    channel_enabled: document.getElementById('channel_enabled').checked,
-    forum_enabled: document.getElementById('forum_enabled').checked,
+    enabled: getCheckbox('enabled'),
+    channel_enabled: getCheckbox('channel_enabled'),
     selfpromo_channel_id: selfpromoSelect ? selfpromoSelect.getValue() : '',
     feature_channel_id: featureSelect ? featureSelect.getValue() : '',
     message_response_channel_id: messageResponseSelect ? messageResponseSelect.getValue() : '',
-    reminder_schedule: document.getElementById('reminder_schedule').value,
-    intro_forum_channel_id: introForumSelect ? introForumSelect.getValue() : '',
-    forum_feature_channel_id: forumFeatureSelect ? forumFeatureSelect.getValue() : '',
-    feature_interval_hours: parseInt(document.getElementById('feature_interval_hours').value) || 3,
-    pool_entry_duration_hours: parseInt(document.getElementById('pool_entry_duration_hours').value) || 24,
-    entry_cooldown_hours: parseInt(document.getElementById('entry_cooldown_hours').value) || 24,
-    feature_cooldown_hours: parseInt(document.getElementById('feature_cooldown_hours').value) || 72,
-    how_to_enter_response: document.getElementById('how_to_enter_response').value,
-    post_response: document.getElementById('post_response').value,
-    feature_message: document.getElementById('feature_message').value,
-    cooldown_message: document.getElementById('cooldown_message').value,
-    use_embed: document.getElementById('use_embed').checked,
-    require_tokens: document.getElementById('require_tokens').checked,
-    token_cost: parseInt(document.getElementById('token_cost').value) || 0,
-    require_tokens_forum: document.getElementById('require_tokens_forum').checked,
-    token_cost_forum: parseInt(document.getElementById('token_cost_forum').value) || 0,
-    cotw_enabled: document.getElementById('cotw_enabled') ? document.getElementById('cotw_enabled').checked : false,
+    reminder_schedule: getInputValue('reminder_schedule', ''),
+    feature_interval_hours: parseInt(getInputValue('feature_interval_hours', '3')) || 3,
+    pool_entry_duration_hours: parseInt(getInputValue('pool_entry_duration_hours', '24')) || 24,
+    entry_cooldown_hours: parseInt(getInputValue('entry_cooldown_hours', '24')) || 24,
+    feature_cooldown_hours: parseInt(getInputValue('feature_cooldown_hours', '72')) || 72,
+    how_to_enter_response: getInputValue('how_to_enter_response', ''),
+    post_response: getInputValue('post_response', ''),
+    feature_message: getInputValue('feature_message', ''),
+    cooldown_message: getInputValue('cooldown_message', ''),
+    use_embed: getCheckbox('use_embed'),
+    require_tokens: getCheckbox('require_tokens'),
+    token_cost: parseInt(getInputValue('token_cost', '0')) || 0,
+    cotw_enabled: getCheckbox('cotw_enabled'),
     cotw_channel_id: cotwChannelSelect ? cotwChannelSelect.getValue() : '',
-    cotm_enabled: document.getElementById('cotm_enabled') ? document.getElementById('cotm_enabled').checked : false,
+    cotw_auto_rotate: getCheckbox('cotw_auto_rotate'),
+    cotw_rotation_day: parseInt(getInputValue('cotw_rotation_day', '1')) || 1,
+    cotm_enabled: getCheckbox('cotm_enabled'),
     cotm_channel_id: cotmChannelSelect ? cotmChannelSelect.getValue() : '',
+    cotm_auto_rotate: getCheckbox('cotm_auto_rotate'),
+    cotm_rotation_day: parseInt(getInputValue('cotm_rotation_day', '1')) || 1,
+    network_announcements_enabled: getCheckbox('network_announcements_enabled'),
+    network_announcement_channel_id: networkAnnouncementSelect ? networkAnnouncementSelect.getValue() : '',
     test_channel_id: testChannelSelect ? testChannelSelect.getValue() : '',
-    test_forum_id: testForumSelect ? testForumSelect.getValue() : '',
   };
 
   try {
@@ -469,7 +500,12 @@ async function clearFeatured() {
 }
 
 async function testChannelEmbed() {
-  const channelId = testChannelSelect ? testChannelSelect.getValue() : '';
+  if (!testChannelSelect) {
+    alert('Channel selector is still loading. Please wait a moment and try again.');
+    return;
+  }
+
+  const channelId = testChannelSelect.getValue();
 
   if (!channelId) {
     alert('Please select a test channel first!');
@@ -486,39 +522,12 @@ async function testChannelEmbed() {
     });
     const result = await response.json();
     if (result.success) {
-      alert('Test channel embed queued! Check your Discord in a few seconds.');
+      alert('✅ Test embed queued! Check your Discord in a few seconds.');
     } else {
       throw new Error(result.error);
     }
   } catch (err) {
-    alert('Error: ' + err.message);
-  }
-}
-
-async function testForumEmbed() {
-  const channelId = testForumSelect ? testForumSelect.getValue() : '';
-
-  if (!channelId) {
-    alert('Please select a test channel first!');
-    return;
-  }
-
-  if (!confirm('Send a test forum embed to the selected channel?')) return;
-
-  try {
-    const response = await csrfFetch(`/api/guild/${guildId}/discovery/test-forum-embed/`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
-      body: JSON.stringify({ channel_id: channelId }),
-    });
-    const result = await response.json();
-    if (result.success) {
-      alert('Test forum embed queued! Check your Discord in a few seconds.');
-    } else {
-      throw new Error(result.error);
-    }
-  } catch (err) {
-    alert('Error: ' + err.message);
+    alert('❌ Error: ' + err.message);
   }
 }
 
