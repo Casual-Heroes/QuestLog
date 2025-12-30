@@ -869,17 +869,28 @@ DISCORD_GAMES = [
     #     "max": "-",
     #     "link_label": "View on Steam"
     # },
-    # {
-    #     "id": "WoW",
-    #     "name": "World of Warcraft",
-    #     "description": "Teaming up with longtime friend Eldronox and his legendary community 'Eternal Legends', we're building a World of Warcraft guild called <Casual Legends>. A chill, zero-drama space for adventurers who play at their own pace..",
-    #     "steam_link": "https://worldofwarcraft.blizzard.com/en-us/",
-    #     "discord_invite": "https://discord.gg/exRgR9YGyy",
-    #     "custom_img": "/static/img/games/wow/dwarf.webp",
-    #     "online": "-",
-    #     "max": "-",
-    #     "link_label": "View Site"
-    # }
+    {
+        "id": "WoW",
+        "name": "World of Warcraft",
+        "description": "Teaming up with longtime friend Eldronox and his legendary community 'Eternal Legends', we're building a World of Warcraft guild called <Casual Legends>. A chill, zero-drama space for adventurers who play at their own pace..",
+        "steam_link": "https://worldofwarcraft.blizzard.com/en-us/",
+        "discord_invite": "https://discord.gg/ECwJWppSjQ",
+        "custom_img": "/static/img/games/wow/dwarf.webp",
+        "online": "-",
+        "max": "-",
+        "link_label": "View Site"
+    },
+    {
+        "id": "ESO",
+        "name": "Elder Scrolls Online",
+        "description": "Casual Heroes is building a PC-NA ESO guild for adults who want chill runs and real progress—without the drama or sweaty expectations. New and returning players welcome. We learn together, gear up together, and push harder content when we’re ready.",
+        "steam_link": "https://store.steampowered.com/app/306130/The_Elder_Scrolls_Online/",
+        "discord_invite": "https://discord.gg/ECwJWppSjQ",
+        "steam_appid": "306130",
+        "online": "-",
+        "max": "-",
+        "link_label": "View Site"
+    }
 ]
 
 # ============================================
@@ -1191,31 +1202,59 @@ def pantheon_page(request):
         "pantheon_activity": pantheon_data
     })
 
-# def wow_page(request):
-#     wow_data = {
-#         "total": "-",
-#         "online": "-",
-#         "active": "-"
-#     }
+def wow_page(request):
+    wow_data = {
+        "total": "-",
+        "online": "-",
+        "active": "-"
+    }
 
-#     if DISCORD_ACTIVITY_FILE.exists():
-#         try:
-#             with DISCORD_ACTIVITY_FILE.open("r") as f:
-#                 all_activity = json.load(f)
-#                 raw = all_activity.get("WoW", {})
-#                 print("[DEBUG] Raw WoW Activity:", raw)
+    if DISCORD_ACTIVITY_FILE.exists():
+        try:
+            with DISCORD_ACTIVITY_FILE.open("r") as f:
+                all_activity = json.load(f)
+                raw = all_activity.get("WoW", {})
+                print("[DEBUG] Raw WoW Activity:", raw)
 
-#                 # Safely cast integers
-#                 wow_data["total"] = int(raw["total"]) if str(raw.get("total", "")).isdigit() else "-"
-#                 wow_data["online"] = int(raw["online"]) if str(raw.get("online", "")).isdigit() else "-"
-#                 wow_data["active"] = int(raw["active"]) if str(raw.get("active", "")).isdigit() else "-"
-#         except Exception as e:
-#             print(f"[WoW PAGE] Failed to load activity data: {e}")
+                # Safely cast integers
+                wow_data["total"] = int(raw["total"]) if str(raw.get("total", "")).isdigit() else "-"
+                wow_data["online"] = int(raw["online"]) if str(raw.get("online", "")).isdigit() else "-"
+                wow_data["active"] = int(raw["active"]) if str(raw.get("active", "")).isdigit() else "-"
+        except Exception as e:
+            print(f"[WoW PAGE] Failed to load activity data: {e}")
 
-#     print("[DEBUG] Final wow_data:", wow_data)
-#     return render(request, "wow.html", {
-#         "wow_activity": wow_data
-#     })
+    print("[DEBUG] Final wow_data:", wow_data)
+    return render(request, "wow.html", {
+        "wow_activity": wow_data
+    })
+
+
+
+def eso_page(request):
+    eso_data = {
+        "total": "-",
+        "online": "-",
+        "active": "-"
+    }
+
+    if DISCORD_ACTIVITY_FILE.exists():
+        try:
+            with DISCORD_ACTIVITY_FILE.open("r") as f:
+                all_activity = json.load(f)
+                raw = all_activity.get("ESO", {})
+                print("[DEBUG] Raw ESO Activity:", raw)
+
+                # Safely cast integers
+                eso_data["total"] = int(raw["total"]) if str(raw.get("total", "")).isdigit() else "-"
+                eso_data["online"] = int(raw["online"]) if str(raw.get("online", "")).isdigit() else "-"
+                eso_data["active"] = int(raw["active"]) if str(raw.get("active", "")).isdigit() else "-"
+        except Exception as e:
+            print(f"[ESO PAGE] Failed to load activity data: {e}")
+
+    print("[DEBUG] Final eso_data:", eso_data)
+    return render(request, "eso.html", {
+        "eso_activity": eso_data
+    })
 
 
 

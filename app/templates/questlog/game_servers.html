@@ -1,0 +1,1691 @@
+{% extends "questlog/base_guild.html" %}
+{% load static %}
+
+{% block title %}Game Server Management - {{ guild.name }}{% endblock %}
+{% block og_title %}Game Server Management - {{ guild.name }}{% endblock %}
+
+{% block guild_content %}
+
+{% include "questlog/partials/custom_select.html" %}
+  <!-- Header -->
+  <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+    <div>
+      <h1 class="text-3xl font-bold text-white">
+        <i class="fas fa-user-tag text-indigo-400 mr-3"></i>Game Server Management - Coming Soon
+      </h1>
+      <p class="text-gray-400 mt-2">
+        Manage your game servers and settings
+      </p>
+    </div>
+    <div class="relative ml-auto">
+      <button onclick="toggleRoleActions()" id="roleActionsBtn"
+              class="px-4 py-2 bg-neutral-800 hover:bg-neutral-700 text-white rounded-lg border border-neutral-700 flex items-center gap-2">
+        <i class="fas fa-ellipsis-h"></i>
+        <span>Role Actions</span>
+        <i class="fas fa-chevron-down text-xs"></i>
+      </button>
+      <div id="roleActionsMenu" class="hidden absolute right-0 mt-2 w-60 bg-neutral-900 border border-neutral-800 rounded-lg shadow-xl z-20">
+        <button onclick="openSingleRoleModal(); toggleRoleActions(true);" class="w-full text-left px-4 py-2 text-sm text-white hover:bg-neutral-800 flex items-center gap-2">
+          <i class="fas fa-user-plus text-gray-300"></i><span>Single Assignment</span>
+        </button>
+        <button onclick="openCreateRoleModal(); toggleRoleActions(true);" class="w-full text-left px-4 py-2 text-sm text-white hover:bg-neutral-800 flex items-center gap-2">
+          <i class="fas fa-plus-circle text-green-300"></i><span>Create Role</span>
+        </button>
+        <button onclick="openInteractiveBulkAssignModal(); toggleRoleActions(true);" class="w-full text-left px-4 py-2 text-sm text-white hover:bg-neutral-800 flex items-center gap-2">
+          <i class="fas fa-users-cog text-indigo-300"></i><span>Bulk Assign</span>
+        </button>
+        {% if has_roles_module %}
+        <button onclick="exportTemplate(); toggleRoleActions(true);" class="w-full text-left px-4 py-2 text-sm text-white hover:bg-neutral-800 flex items-center gap-2">
+          <i class="fas fa-download text-gray-300"></i><span>Export Template</span>
+        </button>
+        <button onclick="exportCurrentRoles(); toggleRoleActions(true);" class="w-full text-left px-4 py-2 text-sm text-white hover:bg-neutral-800 flex items-center gap-2">
+          <i class="fas fa-file-export text-gray-300"></i><span>Export Roles</span>
+        </button>
+        <button onclick="openBulkImportModal(); toggleRoleActions(true);" class="w-full text-left px-4 py-2 text-sm text-white hover:bg-neutral-800 flex items-center gap-2">
+          <i class="fas fa-file-excel text-purple-300"></i><span>Import XLSX</span>
+        </button>
+        <button onclick="openBulkCreateModal(); toggleRoleActions(true);" class="w-full text-left px-4 py-2 text-sm text-white hover:bg-neutral-800 flex items-center gap-2 border-b border-neutral-800">
+          <i class="fas fa-layer-group text-green-300"></i><span>Bulk Create</span>
+        </button>
+        {% else %}
+        <button onclick="showUpgradePrompt(); toggleRoleActions(true);" class="w-full text-left px-4 py-2 text-sm text-white hover:bg-neutral-800 flex items-center gap-2 border-b border-neutral-800">
+          <i class="fas fa-crown text-yellow-300"></i><span>Import / Bulk (Roles Module)</span>
+        </button>
+        {% endif %}
+        <button onclick="triggerSync(); toggleRoleActions(true);" class="w-full text-left px-4 py-2 text-sm text-white hover:bg-neutral-800 flex items-center gap-2">
+          <i class="fas fa-sync-alt text-gray-300"></i><span>Sync Data</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Role Management Module Feature Banner -->
+  {% if not has_roles_module %}
+  <div class="bg-gradient-to-r from-purple-600/20 to-indigo-600/20 rounded-xl p-6 border border-purple-500/30 mb-8">
+    <div class="flex items-start gap-4">
+      <div class="w-12 h-12 bg-purple-600/20 rounded-lg flex items-center justify-center flex-shrink-0">
+        <i class="fas fa-crown text-purple-400 text-xl"></i>
+      </div>
+      <div class="flex-1">
+        <h3 class="text-lg font-bold text-white mb-1">Unlock XLSX Import & Advanced Features</h3>
+        <p class="text-gray-300 text-sm mb-3">
+          Upgrade to the Role Management Module to import XLSX files with hundreds of users for mass role assignments.
+          Perfect for migrating from other bots or managing large communities. Unlocks advanced bulk operations!
+        </p>
+        <a href="{% url 'guild_billing' guild.id %}" class="inline-flex items-center gap-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition">
+          <i class="fas fa-rocket"></i>Upgrade to Role Management Module or get Complete for $12.99/mo
+        </a>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Tier Limits Info -->
+  <div class="mb-6 bg-gradient-to-r from-blue-900/30 to-purple-900/30 border border-blue-700/50 rounded-xl p-5">
+    <div class="flex items-start gap-4">
+      <div class="w-12 h-12 bg-blue-600/20 rounded-lg flex items-center justify-center flex-shrink-0">
+        <i class="fas fa-info-circle text-blue-400 text-xl"></i>
+      </div>
+      <div class="flex-1">
+        <h3 class="text-white font-bold mb-2">Bulk Operation Limits (Daily)</h3>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+          <div>
+            <p class="text-gray-300 font-medium mb-1">
+              <i class="fas fa-circle text-gray-500 mr-2 text-xs"></i>Free Tier
+            </p>
+            <p class="text-gray-400 ml-5">6 items per day for Bulk Assign & Create</p>
+          </div>
+          <div>
+            <p class="text-purple-300 font-medium mb-1">
+              <i class="fas fa-user-tag text-purple-500 mr-2 text-xs"></i>Role Module
+            </p>
+            <p class="text-gray-400 ml-5">Unlimited bulk operations</p>
+          </div>
+          <div>
+            <p class="text-purple-300 font-medium mb-1">
+              <i class="fas fa-crown text-purple-500 mr-2 text-xs"></i>Complete Suite
+            </p>
+            <p class="text-gray-400 ml-5">Unlimited bulk operations</p>
+          </div>
+        </div>
+        {% if has_roles_module or guild_record.is_vip or guild_record.subscription_tier == 'complete' or guild_record.billing_cycle == 'lifetime' %}
+        <p class="text-green-400 text-xs mt-3">
+          <i class="fas fa-check-circle mr-1"></i>
+          You have unlimited bulk operations! Assign roles to as many users as you need.
+        </p>
+        </p>
+        {% else %}
+        <p class="text-blue-400 text-xs mt-3">
+          <i class="fas fa-lightbulb mr-1"></i>
+          Daily limits reset at midnight. <a href="{% url 'guild_billing' guild.id %}" class="text-indigo-400 hover:text-indigo-300 underline">Upgrade to Role Management Module or get Complete for $12.99/mo</a> for unlimited bulk operations.
+        </p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- How It Works -->
+  <div class="grid md:grid-cols-2 gap-6 mb-8">
+    <!-- Interactive Bulk Assign -->
+    <div class="bg-neutral-900 rounded-xl p-6 border border-neutral-800">
+      <h3 class="text-lg font-bold text-white mb-4">
+        <i class="fas fa-users-cog text-indigo-400 mr-2"></i>Interactive Bulk Assign (Free)
+      </h3>
+      <p class="text-gray-400 text-sm mb-4">
+        Select multiple members and roles visually - no file needed!
+      </p>
+      <div class="space-y-3 text-sm">
+        <div class="flex items-start gap-3">
+          <div class="w-8 h-8 bg-indigo-600/30 rounded-lg flex items-center justify-center flex-shrink-0">
+            <span class="text-indigo-400 font-bold">1</span>
+          </div>
+          <div>
+            <p class="text-white font-medium">Select Members</p>
+            <p class="text-gray-400">Search and select users from your server</p>
+          </div>
+        </div>
+        <div class="flex items-start gap-3">
+          <div class="w-8 h-8 bg-indigo-600/30 rounded-lg flex items-center justify-center flex-shrink-0">
+            <span class="text-indigo-400 font-bold">2</span>
+          </div>
+          <div>
+            <p class="text-white font-medium">Choose Roles</p>
+            <p class="text-gray-400">Pick roles to add or remove</p>
+          </div>
+        </div>
+        <div class="flex items-start gap-3">
+          <div class="w-8 h-8 bg-indigo-600/30 rounded-lg flex items-center justify-center flex-shrink-0">
+            <span class="text-indigo-400 font-bold">3</span>
+          </div>
+          <div>
+            <p class="text-white font-medium">Submit</p>
+            <p class="text-gray-400">Actions are queued and processed</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- XLSX Import (Pro/Premium) -->
+    <div class="bg-neutral-900 rounded-xl p-6 border border-neutral-800">
+      <h3 class="text-lg font-bold text-white mb-4">
+        <i class="fas fa-file-excel text-purple-400 mr-2"></i>XLSX Import {% if not has_roles_module %}<span class="text-purple-400 text-xs">(Roles Module)</span>{% endif %}
+      </h3>
+      <p class="text-gray-400 text-sm mb-4">
+        Import hundreds of users from spreadsheet files.
+      </p>
+      <div class="space-y-3 text-sm">
+        <div class="flex items-start gap-3">
+          <div class="w-8 h-8 bg-purple-600/30 rounded-lg flex items-center justify-center flex-shrink-0">
+            <span class="text-purple-400 font-bold">1</span>
+          </div>
+          <div>
+            <p class="text-white font-medium">Prepare XLSX</p>
+            <p class="text-gray-400">Column: <code class="text-purple-400">user_id</code>, one ID per row</p>
+          </div>
+        </div>
+        <div class="flex items-start gap-3">
+          <div class="w-8 h-8 bg-purple-600/30 rounded-lg flex items-center justify-center flex-shrink-0">
+            <span class="text-purple-400 font-bold">2</span>
+          </div>
+          <div>
+            <p class="text-white font-medium">Upload & Select Role</p>
+            <p class="text-gray-400">Choose file and target role</p>
+          </div>
+        </div>
+        <div class="flex items-start gap-3">
+          <div class="w-8 h-8 bg-purple-600/30 rounded-lg flex items-center justify-center flex-shrink-0">
+            <span class="text-purple-400 font-bold">3</span>
+          </div>
+          <div>
+            <p class="text-white font-medium">Process</p>
+            <p class="text-gray-400">Bot queues and executes automatically</p>
+          </div>
+        </div>
+      </div>
+      {% if not has_roles_module %}
+      <div class="mt-4 p-3 bg-purple-900/20 border border-purple-700/30 rounded-lg">
+        <p class="text-purple-200 text-xs">
+          <i class="fas fa-crown mr-1"></i>
+          Upgrade to Role Management Module or get Complete for $12.99/mo to unlock XLSX import for mass operations.
+        </p>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Two Column Layout -->
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <!-- Recent Actions -->
+    <div class="bg-neutral-900 rounded-xl border border-neutral-800 overflow-hidden">
+      <div class="p-5 border-b border-neutral-800">
+        <h3 class="text-lg font-bold text-white">
+          <i class="fas fa-history text-gray-400 mr-2"></i>Recent Role Actions
+        </h3>
+      </div>
+      <div id="actions-container" class="divide-y divide-neutral-800">
+        {% if pending_actions %}
+          {% for action in pending_actions %}
+          <div class="p-4 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-lg flex items-center justify-center
+                {% if action.status == 'completed' %}bg-green-600/20{% elif action.status == 'failed' %}bg-red-600/20{% else %}bg-yellow-600/20{% endif %}">
+                {% if action.status == 'completed' %}
+                <i class="fas fa-check text-green-400"></i>
+                {% elif action.status == 'failed' %}
+                <i class="fas fa-times text-red-400"></i>
+                {% else %}
+                <i class="fas fa-clock text-yellow-400"></i>
+                {% endif %}
+              </div>
+              <div>
+                <p class="text-white font-medium">{{ action.action_type }}</p>
+                <p class="text-gray-500 text-sm">by {{ action.triggered_by_name|default:"Unknown" }}</p>
+              </div>
+            </div>
+            <span class="px-2 py-1 rounded text-xs font-medium
+              {% if action.status == 'completed' %}bg-green-600/20 text-green-400
+              {% elif action.status == 'failed' %}bg-red-600/20 text-red-400
+              {% else %}bg-yellow-600/20 text-yellow-400{% endif %}">
+              {{ action.status }}
+            </span>
+          </div>
+          {% endfor %}
+        {% else %}
+          <div class="p-8 text-center">
+            <i class="fas fa-inbox text-4xl text-gray-600 mb-3"></i>
+            <p class="text-gray-400">No recent role actions</p>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Recent Imports -->
+    <div class="bg-neutral-900 rounded-xl border border-neutral-800 overflow-hidden">
+      <div class="p-5 border-b border-neutral-800">
+        <h3 class="text-lg font-bold text-white">
+          <i class="fas fa-file-import text-purple-400 mr-2"></i>Recent Bulk Imports
+        </h3>
+      </div>
+      <div id="imports-container" class="divide-y divide-neutral-800">
+        {% if recent_imports %}
+          {% for import in recent_imports %}
+          <div class="p-4">
+            <div class="flex items-center justify-between mb-2">
+              <div class="flex items-center gap-3">
+                <i class="fas fa-file-excel text-green-400"></i>
+                <span class="text-white font-medium">{{ import.filename }}</span>
+              </div>
+              <span class="px-2 py-1 rounded text-xs font-medium
+                {% if import.status == 'completed' %}bg-green-600/20 text-green-400
+                {% elif import.status == 'failed' %}bg-red-600/20 text-red-400
+                {% else %}bg-yellow-600/20 text-yellow-400{% endif %}">
+                {{ import.status }}
+              </span>
+            </div>
+            <div class="flex items-center gap-4 text-sm text-gray-500">
+              <span><i class="fas fa-users mr-1"></i>{{ import.total_records }} users</span>
+              <span class="text-green-400"><i class="fas fa-check mr-1"></i>{{ import.success_count }}</span>
+              {% if import.error_count > 0 %}
+              <span class="text-red-400"><i class="fas fa-times mr-1"></i>{{ import.error_count }}</span>
+              {% endif %}
+            </div>
+          </div>
+          {% endfor %}
+        {% else %}
+          <div class="p-8 text-center">
+            <i class="fas fa-file-excel text-4xl text-gray-600 mb-3"></i>
+            <p class="text-gray-400">No bulk imports yet</p>
+            {% if has_roles_module %}
+            <button onclick="openBulkImportModal()" class="text-indigo-400 hover:text-indigo-300 text-sm mt-2">
+              <i class="fas fa-upload mr-1"></i>Import your first XLSX
+            </button>
+            {% endif %}
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+<!-- Single Role Assignment Modal -->
+<div id="single-role-modal" class="fixed inset-0 z-50 hidden">
+  <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" onclick="closeSingleRoleModal()"></div>
+  <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md">
+    <div class="bg-neutral-900 rounded-xl border border-neutral-700 shadow-2xl">
+      <div class="p-5 border-b border-neutral-800 flex items-center justify-between">
+        <h3 class="text-lg font-bold text-white">
+          <i class="fas fa-user-plus text-indigo-400 mr-2"></i>Assign Role to User
+        </h3>
+        <button onclick="closeSingleRoleModal()" class="text-gray-400 hover:text-white">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <form id="single-role-form" class="p-5 space-y-4">
+        <div>
+          <label class="text-gray-400 text-sm block mb-1">User</label>
+          <div id="singleUserContainer"></div>
+        </div>
+        <div>
+          <label class="text-gray-400 text-sm block mb-1">Role</label>
+          <div id="singleRoleContainer"></div>
+        </div>
+        <div>
+          <label class="text-gray-400 text-sm block mb-1">Action</label>
+          <select name="action" class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white">
+            <option value="add">Add Role</option>
+            <option value="remove">Remove Role</option>
+          </select>
+        </div>
+        <div>
+          <label class="text-gray-400 text-sm block mb-1">Reason (optional)</label>
+          <input type="text" name="reason" placeholder="e.g., Promoted to moderator"
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white">
+        </div>
+        <div class="flex justify-end gap-3 pt-4">
+          <button type="button" onclick="closeSingleRoleModal()"
+                  class="px-4 py-2 text-gray-400 hover:text-white transition">Cancel</button>
+          <button type="submit"
+                  class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-lg font-medium transition">
+            <i class="fas fa-paper-plane mr-2"></i>Queue Action
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Interactive Bulk Assign Modal -->
+<div id="interactive-bulk-assign-modal" class="fixed inset-0 z-50 hidden">
+  <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" onclick="closeInteractiveBulkAssignModal()"></div>
+  <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+    <div class="bg-neutral-900 rounded-xl border border-neutral-700 shadow-2xl">
+      <div class="p-5 border-b border-neutral-800 flex items-center justify-between sticky top-0 bg-neutral-900 z-10">
+        <h3 class="text-lg font-bold text-white">
+          <i class="fas fa-users-cog text-indigo-400 mr-2"></i>Interactive Bulk Role Assignment
+        </h3>
+        <button onclick="closeInteractiveBulkAssignModal()" class="text-gray-400 hover:text-white">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <form id="interactive-bulk-assign-form" class="p-5">
+        <div class="grid md:grid-cols-2 gap-6">
+          <!-- Members Selection -->
+          <div>
+            <div class="flex items-center justify-between mb-3">
+              <label class="text-white font-semibold">
+                <i class="fas fa-users text-indigo-400 mr-2"></i>Select Members
+              </label>
+              <span id="selected-members-count" class="text-sm text-gray-400">0 selected</span>
+            </div>
+            <input type="text" id="member-search" placeholder="Search members..."
+                   class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2 text-white mb-3 focus:border-indigo-500 focus:outline-none">
+            <div id="members-list" class="bg-neutral-800 rounded-lg border border-neutral-700 max-h-96 overflow-y-auto">
+              <div class="p-4 text-center text-gray-400">
+                <i class="fas fa-spinner fa-spin mr-2"></i>Loading members...
+              </div>
+            </div>
+          </div>
+
+          <!-- Roles Selection -->
+          <div>
+            <div class="flex items-center justify-between mb-3">
+              <label class="text-white font-semibold">
+                <i class="fas fa-user-tag text-purple-400 mr-2"></i>Select Roles
+              </label>
+              <span id="selected-roles-count" class="text-sm text-gray-400">0 selected</span>
+            </div>
+            <input type="text" id="role-search" placeholder="Search roles..."
+                   class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2 text-white mb-3 focus:border-purple-500 focus:outline-none">
+            <div id="roles-list" class="bg-neutral-800 rounded-lg border border-neutral-700 max-h-96 overflow-y-auto">
+              <div class="p-4 text-center text-gray-400">
+                <i class="fas fa-spinner fa-spin mr-2"></i>Loading roles...
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="mt-6 p-4 bg-neutral-800 rounded-lg">
+          <label class="text-white font-semibold mb-3 block">Action</label>
+          <select id="bulk-action" name="action" class="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-4 py-3 text-white">
+            <option value="add">Add selected roles to selected members</option>
+            <option value="remove">Remove selected roles from selected members</option>
+          </select>
+        </div>
+
+        <div id="interactive-bulk-result" class="hidden mt-4 p-3 rounded-lg text-sm"></div>
+
+        <div class="flex justify-end gap-3 pt-6 mt-6 border-t border-neutral-800">
+          <button type="button" onclick="closeInteractiveBulkAssignModal()"
+                  class="px-4 py-2 text-gray-400 hover:text-white transition">Cancel</button>
+          <button type="submit" id="interactive-bulk-submit-btn"
+                  class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-lg font-medium transition disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled>
+            <i class="fas fa-paper-plane mr-2"></i>Queue Actions
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Bulk Import Modal -->
+<div id="bulk-import-modal" class="fixed inset-0 z-50 hidden">
+  <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" onclick="closeBulkImportModal()"></div>
+  <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-lg">
+    <div class="bg-neutral-900 rounded-xl border border-neutral-700 shadow-2xl">
+      <div class="p-5 border-b border-neutral-800 flex items-center justify-between">
+        <h3 class="text-lg font-bold text-white">
+          <i class="fas fa-file-excel text-indigo-400 mr-2"></i>Bulk Role Import
+        </h3>
+        <button onclick="closeBulkImportModal()" class="text-gray-400 hover:text-white">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <form id="bulk-import-form" class="p-5 space-y-4" enctype="multipart/form-data">
+        <div>
+          <label class="text-gray-400 text-sm block mb-1">XLSX File</label>
+          <div class="border-2 border-dashed border-neutral-700 rounded-lg p-6 text-center hover:border-indigo-500 transition cursor-pointer"
+               onclick="document.getElementById('csv-file').click()">
+            <input type="file" name="file" id="csv-file" accept=".xlsx" class="hidden"
+                   onchange="updateFileName(this)">
+            <i class="fas fa-cloud-upload-alt text-3xl text-gray-500 mb-2"></i>
+            <p id="file-name" class="text-gray-400">Click to select XLSX file</p>
+            <p class="text-gray-500 text-xs mt-1">Max 10,000 rows</p>
+          </div>
+        </div>
+        <div>
+          <label class="text-gray-400 text-sm block mb-1">Role</label>
+          <div id="bulkRoleContainer"></div>
+          <p class="text-gray-500 text-xs mt-1">The role to assign to all users in the XLSX</p>
+        </div>
+        <div>
+          <label class="text-gray-400 text-sm block mb-1">Action</label>
+          <select name="action" class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white">
+            <option value="add">Add Role to All</option>
+            <option value="remove">Remove Role from All</option>
+          </select>
+        </div>
+        <div id="import-result" class="hidden p-3 rounded-lg text-sm"></div>
+        <div class="flex justify-end gap-3 pt-4">
+          <button type="button" onclick="closeBulkImportModal()"
+                  class="px-4 py-2 text-gray-400 hover:text-white transition">Cancel</button>
+          <button type="submit" id="import-btn"
+                  class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-lg font-medium transition">
+            <i class="fas fa-upload mr-2"></i>Upload & Import
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Create Role Modal -->
+<div id="create-role-modal" class="fixed inset-0 z-50 hidden">
+  <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" onclick="closeCreateRoleModal()"></div>
+  <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+    <div class="bg-neutral-900 rounded-xl border border-neutral-700 shadow-2xl">
+      <div class="p-5 border-b border-neutral-800 flex items-center justify-between sticky top-0 bg-neutral-900 z-10">
+        <h3 class="text-lg font-bold text-white">
+          <i class="fas fa-plus-circle text-green-400 mr-2"></i>Create New Role
+        </h3>
+        <button onclick="closeCreateRoleModal()" class="text-gray-400 hover:text-white">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <form id="create-role-form" class="p-5 space-y-4">
+        <!-- Basic Settings -->
+        <div class="space-y-4">
+          <h4 class="text-white font-semibold border-b border-neutral-800 pb-2">Basic Settings</h4>
+
+          <div>
+            <label class="text-gray-400 text-sm block mb-1">Role Name *</label>
+            <input type="text" name="name" required
+                   class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white">
+          </div>
+
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="text-gray-400 text-sm block mb-1">Color</label>
+              <input type="color" name="color" value="#99AAB5"
+                     class="w-full h-10 bg-neutral-800 border border-neutral-700 rounded-lg cursor-pointer">
+            </div>
+            <div>
+              <label class="text-gray-400 text-sm block mb-1">Position</label>
+              <input type="number" name="position" value="0" min="0"
+                     class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white">
+            </div>
+          </div>
+
+          <div class="flex gap-4">
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" name="hoist" class="w-4 h-4">
+              <span class="text-gray-400 text-sm">Display separately (hoist)</span>
+            </label>
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" name="mentionable" class="w-4 h-4">
+              <span class="text-gray-400 text-sm">Mentionable</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Permissions -->
+        <div class="space-y-4">
+          <div class="flex items-center justify-between border-b border-neutral-800 pb-2">
+            <h4 class="text-white font-semibold">Permissions</h4>
+            <div class="flex items-center gap-3">
+              <div class="text-xs text-gray-400">
+                Permission Value: <span id="permission-value" class="text-purple-400 font-mono font-bold">0</span>
+              </div>
+              <a href="https://discordapi.com/permissions.html" target="_blank" rel="noopener noreferrer"
+                 class="text-indigo-400 hover:text-indigo-300 text-xs flex items-center gap-1">
+                <i class="fas fa-calculator"></i>Discord Calculator
+              </a>
+            </div>
+          </div>
+          <p class="text-gray-500 text-xs">Select permissions or leave empty for @everyone permissions. Permission value updates automatically.</p>
+
+          <!-- Quick Actions -->
+          <div class="flex gap-2 flex-wrap">
+            <button type="button" onclick="selectAllPermissions()" class="px-3 py-1 bg-neutral-800 hover:bg-neutral-700 text-gray-300 text-xs rounded transition">
+              <i class="fas fa-check-double mr-1"></i>Select All
+            </button>
+            <button type="button" onclick="clearAllPermissions()" class="px-3 py-1 bg-neutral-800 hover:bg-neutral-700 text-gray-300 text-xs rounded transition">
+              <i class="fas fa-times mr-1"></i>Clear All
+            </button>
+            <button type="button" onclick="selectModeratorPermissions()" class="px-3 py-1 bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 text-xs rounded transition border border-blue-500/30">
+              <i class="fas fa-shield-alt mr-1"></i>Moderator Preset
+            </button>
+            <button type="button" onclick="selectAdminPermissions()" class="px-3 py-1 bg-red-600/20 hover:bg-red-600/30 text-red-300 text-xs rounded transition border border-red-500/30">
+              <i class="fas fa-crown mr-1"></i>Admin Preset
+            </button>
+          </div>
+
+          <!-- Permission Categories -->
+          <div class="space-y-3 max-h-[400px] overflow-y-auto pr-2">
+            <!-- General Server Permissions -->
+            <div class="bg-neutral-800 rounded-lg p-3">
+              <div class="flex items-center justify-between mb-2 cursor-pointer" onclick="togglePermissionCategory('general')">
+                <h5 class="text-white text-sm font-semibold flex items-center gap-2">
+                  <i class="fas fa-server text-purple-400"></i>General Server Permissions
+                  <i id="general-chevron" class="fas fa-chevron-down text-gray-500 text-xs"></i>
+                </h5>
+              </div>
+              <div id="general-perms" class="grid grid-cols-2 gap-2">
+                <label class="flex items-center gap-2 cursor-pointer p-2 hover:bg-neutral-700 rounded permission-item">
+                  <input type="checkbox" data-perm="view_channel" value="1024" class="w-4 h-4 permission-checkbox">
+                  <span class="text-gray-300 text-xs">View Channels</span>
+                </label>
+                <label class="flex items-center gap-2 cursor-pointer p-2 hover:bg-neutral-700 rounded permission-item">
+                  <input type="checkbox" data-perm="manage_channels" value="16" class="w-4 h-4 permission-checkbox">
+                  <span class="text-gray-300 text-xs">Manage Channels</span>
+                </label>
+                <label class="flex items-center gap-2 cursor-pointer p-2 hover:bg-neutral-700 rounded permission-item">
+                  <input type="checkbox" data-perm="manage_roles" value="268435456" class="w-4 h-4 permission-checkbox">
+                  <span class="text-gray-300 text-xs">Manage Roles</span>
+                </label>
+                <label class="flex items-center gap-2 cursor-pointer p-2 hover:bg-neutral-700 rounded permission-item">
+                  <input type="checkbox" data-perm="manage_emojis" value="1073741824" class="w-4 h-4 permission-checkbox">
+                  <span class="text-gray-300 text-xs">Manage Emojis & Stickers</span>
+                </label>
+                <label class="flex items-center gap-2 cursor-pointer p-2 hover:bg-neutral-700 rounded permission-item">
+                  <input type="checkbox" data-perm="view_audit_log" value="128" class="w-4 h-4 permission-checkbox">
+                  <span class="text-gray-300 text-xs">View Audit Log</span>
+                </label>
+                <label class="flex items-center gap-2 cursor-pointer p-2 hover:bg-neutral-700 rounded permission-item">
+                  <input type="checkbox" data-perm="view_guild_insights" value="524288" class="w-4 h-4 permission-checkbox">
+                  <span class="text-gray-300 text-xs">View Server Insights</span>
+                </label>
+                <label class="flex items-center gap-2 cursor-pointer p-2 hover:bg-neutral-700 rounded permission-item">
+                  <input type="checkbox" data-perm="manage_webhooks" value="536870912" class="w-4 h-4 permission-checkbox">
+                  <span class="text-gray-300 text-xs">Manage Webhooks</span>
+                </label>
+                <label class="flex items-center gap-2 cursor-pointer p-2 hover:bg-neutral-700 rounded permission-item">
+                  <input type="checkbox" data-perm="manage_guild" value="32" class="w-4 h-4 permission-checkbox">
+                  <span class="text-gray-300 text-xs">Manage Server</span>
+                </label>
+                <label class="flex items-center gap-2 cursor-pointer p-2 hover:bg-neutral-700 rounded permission-item">
+                  <input type="checkbox" data-perm="create_expressions" value="8796093022208" class="w-4 h-4 permission-checkbox">
+                  <span class="text-gray-300 text-xs">Create Expressions</span>
+                </label>
+                <label class="flex items-center gap-2 cursor-pointer p-2 hover:bg-neutral-700 rounded permission-item bg-red-900/20 border border-red-500/30">
+                  <input type="checkbox" data-perm="administrator" value="8" class="w-4 h-4 permission-checkbox">
+                  <span class="text-red-400 text-xs font-semibold">⚠️ Administrator</span>
+                </label>
+              </div>
+            </div>
+
+            <!-- Membership Permissions -->
+            <div class="bg-neutral-800 rounded-lg p-3">
+              <div class="flex items-center justify-between mb-2 cursor-pointer" onclick="togglePermissionCategory('membership')">
+                <h5 class="text-white text-sm font-semibold flex items-center gap-2">
+                  <i class="fas fa-users text-blue-400"></i>Membership Permissions
+                  <i id="membership-chevron" class="fas fa-chevron-down text-gray-500 text-xs"></i>
+                </h5>
+              </div>
+              <div id="membership-perms" class="grid grid-cols-2 gap-2">
+                <label class="flex items-center gap-2 cursor-pointer p-2 hover:bg-neutral-700 rounded permission-item">
+                  <input type="checkbox" data-perm="create_instant_invite" value="1" class="w-4 h-4 permission-checkbox">
+                  <span class="text-gray-300 text-xs">Create Invite</span>
+                </label>
+                <label class="flex items-center gap-2 cursor-pointer p-2 hover:bg-neutral-700 rounded permission-item">
+                  <input type="checkbox" data-perm="change_nickname" value="67108864" class="w-4 h-4 permission-checkbox">
+                  <span class="text-gray-300 text-xs">Change Nickname</span>
+                </label>
+                <label class="flex items-center gap-2 cursor-pointer p-2 hover:bg-neutral-700 rounded permission-item">
+                  <input type="checkbox" data-perm="manage_nicknames" value="134217728" class="w-4 h-4 permission-checkbox">
+                  <span class="text-gray-300 text-xs">Manage Nicknames</span>
+                </label>
+                <label class="flex items-center gap-2 cursor-pointer p-2 hover:bg-neutral-700 rounded permission-item">
+                  <input type="checkbox" data-perm="kick_members" value="2" class="w-4 h-4 permission-checkbox">
+                  <span class="text-gray-300 text-xs">Kick Members</span>
+                </label>
+                <label class="flex items-center gap-2 cursor-pointer p-2 hover:bg-neutral-700 rounded permission-item">
+                  <input type="checkbox" data-perm="ban_members" value="4" class="w-4 h-4 permission-checkbox">
+                  <span class="text-gray-300 text-xs">Ban Members</span>
+                </label>
+                <label class="flex items-center gap-2 cursor-pointer p-2 hover:bg-neutral-700 rounded permission-item">
+                  <input type="checkbox" data-perm="moderate_members" value="1099511627776" class="w-4 h-4 permission-checkbox">
+                  <span class="text-gray-300 text-xs">Timeout Members</span>
+                </label>
+              </div>
+            </div>
+
+            <!-- Text Channel Permissions -->
+            <div class="bg-neutral-800 rounded-lg p-3">
+              <div class="flex items-center justify-between mb-2 cursor-pointer" onclick="togglePermissionCategory('text')">
+                <h5 class="text-white text-sm font-semibold flex items-center gap-2">
+                  <i class="fas fa-comment text-green-400"></i>Text Channel Permissions
+                  <i id="text-chevron" class="fas fa-chevron-down text-gray-500 text-xs"></i>
+                </h5>
+              </div>
+              <div id="text-perms" class="grid grid-cols-2 gap-2">
+                <label class="flex items-center gap-2 cursor-pointer p-2 hover:bg-neutral-700 rounded permission-item">
+                  <input type="checkbox" data-perm="send_messages" value="2048" class="w-4 h-4 permission-checkbox">
+                  <span class="text-gray-300 text-xs">Send Messages</span>
+                </label>
+                <label class="flex items-center gap-2 cursor-pointer p-2 hover:bg-neutral-700 rounded permission-item">
+                  <input type="checkbox" data-perm="send_messages_in_threads" value="274877906944" class="w-4 h-4 permission-checkbox">
+                  <span class="text-gray-300 text-xs">Send Messages in Threads</span>
+                </label>
+                <label class="flex items-center gap-2 cursor-pointer p-2 hover:bg-neutral-700 rounded permission-item">
+                  <input type="checkbox" data-perm="create_public_threads" value="34359738368" class="w-4 h-4 permission-checkbox">
+                  <span class="text-gray-300 text-xs">Create Public Threads</span>
+                </label>
+                <label class="flex items-center gap-2 cursor-pointer p-2 hover:bg-neutral-700 rounded permission-item">
+                  <input type="checkbox" data-perm="create_private_threads" value="68719476736" class="w-4 h-4 permission-checkbox">
+                  <span class="text-gray-300 text-xs">Create Private Threads</span>
+                </label>
+                <label class="flex items-center gap-2 cursor-pointer p-2 hover:bg-neutral-700 rounded permission-item">
+                  <input type="checkbox" data-perm="embed_links" value="16384" class="w-4 h-4 permission-checkbox">
+                  <span class="text-gray-300 text-xs">Embed Links</span>
+                </label>
+                <label class="flex items-center gap-2 cursor-pointer p-2 hover:bg-neutral-700 rounded permission-item">
+                  <input type="checkbox" data-perm="attach_files" value="32768" class="w-4 h-4 permission-checkbox">
+                  <span class="text-gray-300 text-xs">Attach Files</span>
+                </label>
+                <label class="flex items-center gap-2 cursor-pointer p-2 hover:bg-neutral-700 rounded permission-item">
+                  <input type="checkbox" data-perm="add_reactions" value="64" class="w-4 h-4 permission-checkbox">
+                  <span class="text-gray-300 text-xs">Add Reactions</span>
+                </label>
+                <label class="flex items-center gap-2 cursor-pointer p-2 hover:bg-neutral-700 rounded permission-item">
+                  <input type="checkbox" data-perm="use_external_emojis" value="262144" class="w-4 h-4 permission-checkbox">
+                  <span class="text-gray-300 text-xs">Use External Emojis</span>
+                </label>
+                <label class="flex items-center gap-2 cursor-pointer p-2 hover:bg-neutral-700 rounded permission-item">
+                  <input type="checkbox" data-perm="use_external_stickers" value="137438953472" class="w-4 h-4 permission-checkbox">
+                  <span class="text-gray-300 text-xs">Use External Stickers</span>
+                </label>
+                <label class="flex items-center gap-2 cursor-pointer p-2 hover:bg-neutral-700 rounded permission-item">
+                  <input type="checkbox" data-perm="mention_everyone" value="131072" class="w-4 h-4 permission-checkbox">
+                  <span class="text-gray-300 text-xs">Mention @everyone</span>
+                </label>
+                <label class="flex items-center gap-2 cursor-pointer p-2 hover:bg-neutral-700 rounded permission-item">
+                  <input type="checkbox" data-perm="manage_messages" value="8192" class="w-4 h-4 permission-checkbox">
+                  <span class="text-gray-300 text-xs">Manage Messages</span>
+                </label>
+                <label class="flex items-center gap-2 cursor-pointer p-2 hover:bg-neutral-700 rounded permission-item">
+                  <input type="checkbox" data-perm="manage_threads" value="17179869184" class="w-4 h-4 permission-checkbox">
+                  <span class="text-gray-300 text-xs">Manage Threads</span>
+                </label>
+                <label class="flex items-center gap-2 cursor-pointer p-2 hover:bg-neutral-700 rounded permission-item">
+                  <input type="checkbox" data-perm="read_message_history" value="65536" class="w-4 h-4 permission-checkbox">
+                  <span class="text-gray-300 text-xs">Read Message History</span>
+                </label>
+                <label class="flex items-center gap-2 cursor-pointer p-2 hover:bg-neutral-700 rounded permission-item">
+                  <input type="checkbox" data-perm="send_tts_messages" value="4096" class="w-4 h-4 permission-checkbox">
+                  <span class="text-gray-300 text-xs">Send TTS Messages</span>
+                </label>
+                <label class="flex items-center gap-2 cursor-pointer p-2 hover:bg-neutral-700 rounded permission-item">
+                  <input type="checkbox" data-perm="use_application_commands" value="2147483648" class="w-4 h-4 permission-checkbox">
+                  <span class="text-gray-300 text-xs">Use Application Commands</span>
+                </label>
+                <label class="flex items-center gap-2 cursor-pointer p-2 hover:bg-neutral-700 rounded permission-item">
+                  <input type="checkbox" data-perm="send_voice_messages" value="70368744177664" class="w-4 h-4 permission-checkbox">
+                  <span class="text-gray-300 text-xs">Send Voice Messages</span>
+                </label>
+              </div>
+            </div>
+
+            <!-- Voice Channel Permissions -->
+            <div class="bg-neutral-800 rounded-lg p-3">
+              <div class="flex items-center justify-between mb-2 cursor-pointer" onclick="togglePermissionCategory('voice')">
+                <h5 class="text-white text-sm font-semibold flex items-center gap-2">
+                  <i class="fas fa-microphone text-yellow-400"></i>Voice Channel Permissions
+                  <i id="voice-chevron" class="fas fa-chevron-down text-gray-500 text-xs"></i>
+                </h5>
+              </div>
+              <div id="voice-perms" class="grid grid-cols-2 gap-2">
+                <label class="flex items-center gap-2 cursor-pointer p-2 hover:bg-neutral-700 rounded permission-item">
+                  <input type="checkbox" data-perm="connect" value="1048576" class="w-4 h-4 permission-checkbox">
+                  <span class="text-gray-300 text-xs">Connect</span>
+                </label>
+                <label class="flex items-center gap-2 cursor-pointer p-2 hover:bg-neutral-700 rounded permission-item">
+                  <input type="checkbox" data-perm="speak" value="2097152" class="w-4 h-4 permission-checkbox">
+                  <span class="text-gray-300 text-xs">Speak</span>
+                </label>
+                <label class="flex items-center gap-2 cursor-pointer p-2 hover:bg-neutral-700 rounded permission-item">
+                  <input type="checkbox" data-perm="stream" value="512" class="w-4 h-4 permission-checkbox">
+                  <span class="text-gray-300 text-xs">Video</span>
+                </label>
+                <label class="flex items-center gap-2 cursor-pointer p-2 hover:bg-neutral-700 rounded permission-item">
+                  <input type="checkbox" data-perm="use_vad" value="33554432" class="w-4 h-4 permission-checkbox">
+                  <span class="text-gray-300 text-xs">Use Voice Activity</span>
+                </label>
+                <label class="flex items-center gap-2 cursor-pointer p-2 hover:bg-neutral-700 rounded permission-item">
+                  <input type="checkbox" data-perm="priority_speaker" value="256" class="w-4 h-4 permission-checkbox">
+                  <span class="text-gray-300 text-xs">Priority Speaker</span>
+                </label>
+                <label class="flex items-center gap-2 cursor-pointer p-2 hover:bg-neutral-700 rounded permission-item">
+                  <input type="checkbox" data-perm="mute_members" value="4194304" class="w-4 h-4 permission-checkbox">
+                  <span class="text-gray-300 text-xs">Mute Members</span>
+                </label>
+                <label class="flex items-center gap-2 cursor-pointer p-2 hover:bg-neutral-700 rounded permission-item">
+                  <input type="checkbox" data-perm="deafen_members" value="8388608" class="w-4 h-4 permission-checkbox">
+                  <span class="text-gray-300 text-xs">Deafen Members</span>
+                </label>
+                <label class="flex items-center gap-2 cursor-pointer p-2 hover:bg-neutral-700 rounded permission-item">
+                  <input type="checkbox" data-perm="move_members" value="16777216" class="w-4 h-4 permission-checkbox">
+                  <span class="text-gray-300 text-xs">Move Members</span>
+                </label>
+                <label class="flex items-center gap-2 cursor-pointer p-2 hover:bg-neutral-700 rounded permission-item">
+                  <input type="checkbox" data-perm="use_soundboard" value="4398046511104" class="w-4 h-4 permission-checkbox">
+                  <span class="text-gray-300 text-xs">Use Soundboard</span>
+                </label>
+                <label class="flex items-center gap-2 cursor-pointer p-2 hover:bg-neutral-700 rounded permission-item">
+                  <input type="checkbox" data-perm="use_external_sounds" value="35184372088832" class="w-4 h-4 permission-checkbox">
+                  <span class="text-gray-300 text-xs">Use External Sounds</span>
+                </label>
+              </div>
+            </div>
+
+            <!-- Stage & Events -->
+            <div class="bg-neutral-800 rounded-lg p-3">
+              <div class="flex items-center justify-between mb-2 cursor-pointer" onclick="togglePermissionCategory('events')">
+                <h5 class="text-white text-sm font-semibold flex items-center gap-2">
+                  <i class="fas fa-calendar text-pink-400"></i>Stage & Events
+                  <i id="events-chevron" class="fas fa-chevron-down text-gray-500 text-xs"></i>
+                </h5>
+              </div>
+              <div id="events-perms" class="grid grid-cols-2 gap-2">
+                <label class="flex items-center gap-2 cursor-pointer p-2 hover:bg-neutral-700 rounded permission-item">
+                  <input type="checkbox" data-perm="request_to_speak" value="4294967296" class="w-4 h-4 permission-checkbox">
+                  <span class="text-gray-300 text-xs">Request to Speak</span>
+                </label>
+                <label class="flex items-center gap-2 cursor-pointer p-2 hover:bg-neutral-700 rounded permission-item">
+                  <input type="checkbox" data-perm="manage_events" value="8589934592" class="w-4 h-4 permission-checkbox">
+                  <span class="text-gray-300 text-xs">Manage Events</span>
+                </label>
+                <label class="flex items-center gap-2 cursor-pointer p-2 hover:bg-neutral-700 rounded permission-item">
+                  <input type="checkbox" data-perm="create_events" value="17592186044416" class="w-4 h-4 permission-checkbox">
+                  <span class="text-gray-300 text-xs">Create Events</span>
+                </label>
+              </div>
+            </div>
+
+            <!-- Advanced Permissions -->
+            <div class="bg-neutral-800 rounded-lg p-3">
+              <div class="flex items-center justify-between mb-2 cursor-pointer" onclick="togglePermissionCategory('advanced')">
+                <h5 class="text-white text-sm font-semibold flex items-center gap-2">
+                  <i class="fas fa-cog text-orange-400"></i>Advanced Permissions
+                  <i id="advanced-chevron" class="fas fa-chevron-down text-gray-500 text-xs"></i>
+                </h5>
+              </div>
+              <div id="advanced-perms" class="grid grid-cols-2 gap-2">
+                <label class="flex items-center gap-2 cursor-pointer p-2 hover:bg-neutral-700 rounded permission-item">
+                  <input type="checkbox" data-perm="use_embedded_activities" value="549755813888" class="w-4 h-4 permission-checkbox">
+                  <span class="text-gray-300 text-xs">Use Activities</span>
+                </label>
+                <label class="flex items-center gap-2 cursor-pointer p-2 hover:bg-neutral-700 rounded permission-item">
+                  <input type="checkbox" data-perm="view_creator_monetization" value="2199023255552" class="w-4 h-4 permission-checkbox">
+                  <span class="text-gray-300 text-xs">View Monetization Analytics</span>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <!-- Permission Calculator Info -->
+          <div class="bg-indigo-900/20 border border-indigo-500/30 rounded-lg p-3 text-xs">
+            <p class="text-indigo-300 mb-2"><i class="fas fa-info-circle mr-1"></i><strong>Permission Calculator</strong></p>
+            <p class="text-gray-400 mb-2">The permission value is calculated automatically as you select permissions. You can also use Discord's official calculator to generate a permission number and paste it back here.</p>
+            <div class="flex items-center gap-2">
+              <input type="number" id="manual-permission-input" placeholder="Paste permission number here"
+                     class="flex-1 bg-neutral-900 border border-neutral-700 rounded px-2 py-1 text-white text-xs"
+                     onchange="applyManualPermissions(this.value)">
+              <button type="button" onclick="applyManualPermissions(document.getElementById('manual-permission-input').value)"
+                      class="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-xs">
+                Apply
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div id="create-result" class="hidden p-3 rounded-lg text-sm"></div>
+        <div class="flex justify-end gap-3 pt-4 border-t border-neutral-800">
+          <button type="button" onclick="closeCreateRoleModal()"
+                  class="px-4 py-2 text-gray-400 hover:text-white transition">Cancel</button>
+          <button type="submit" id="create-role-btn"
+                  class="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg font-medium transition">
+            <i class="fas fa-plus-circle mr-2"></i>Create Role
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Bulk Create Modal -->
+<div id="bulk-create-modal" class="fixed inset-0 z-50 hidden">
+  <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" onclick="closeBulkCreateModal()"></div>
+  <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-lg">
+    <div class="bg-neutral-900 rounded-xl border border-neutral-700 shadow-2xl">
+      <div class="p-5 border-b border-neutral-800 flex items-center justify-between">
+        <h3 class="text-lg font-bold text-white">
+          <i class="fas fa-layer-group text-purple-400 mr-2"></i>Bulk Role Creation
+        </h3>
+        <button onclick="closeBulkCreateModal()" class="text-gray-400 hover:text-white">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <form id="bulk-create-form" class="p-5 space-y-4" enctype="multipart/form-data">
+        <div>
+          <label class="text-gray-400 text-sm block mb-1">XLSX File</label>
+          <div class="border-2 border-dashed border-neutral-700 rounded-lg p-6 text-center hover:border-purple-500 transition cursor-pointer"
+               onclick="document.getElementById('bulk-create-file').click()">
+            <input type="file" name="file" id="bulk-create-file" accept=".xlsx" class="hidden"
+                   onchange="updateBulkCreateFileName(this)">
+            <i class="fas fa-cloud-upload-alt text-3xl text-gray-500 mb-2"></i>
+            <p id="bulk-create-file-name" class="text-gray-400">Click to select XLSX file</p>
+            <p class="text-gray-500 text-xs mt-1">Max 100 roles per import</p>
+          </div>
+        </div>
+
+        <div class="bg-neutral-800 rounded-lg p-4 space-y-2 text-sm">
+          <p class="text-white font-medium">Required Columns:</p>
+          <ul class="text-gray-400 space-y-1 ml-4">
+            <li>• <code class="text-indigo-400">name</code> - Role name</li>
+            <li>• <code class="text-indigo-400">color</code> - Hex color (e.g., #FF5733)</li>
+            <li>• <code class="text-indigo-400">permissions</code> - Permission number (0 for none)</li>
+            <li>• <code class="text-indigo-400">hoist</code> - TRUE/FALSE</li>
+            <li>• <code class="text-indigo-400">mentionable</code> - TRUE/FALSE</li>
+          </ul>
+        </div>
+
+        <div id="bulk-create-result" class="hidden p-3 rounded-lg text-sm"></div>
+        <div class="flex justify-end gap-3 pt-4">
+          <button type="button" onclick="closeBulkCreateModal()"
+                  class="px-4 py-2 text-gray-400 hover:text-white transition">Cancel</button>
+          <button type="button" onclick="exportBulkCreateTemplate()"
+                  class="bg-neutral-700 hover:bg-neutral-600 text-white px-4 py-2 rounded-lg font-medium transition">
+            <i class="fas fa-download mr-2"></i>Download Template
+          </button>
+          <button type="submit" id="bulk-create-btn"
+                  class="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded-lg font-medium transition">
+            <i class="fas fa-upload mr-2"></i>Upload & Create
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+// XSS Protection: HTML escape function
+function escapeHtml(text) {
+  if (text == null || text === undefined) return '';
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+const GUILD_ID = '{{ guild.id }}';
+const API_BASE = `/api/guild/${GUILD_ID}/roles`;
+
+// Load Discord roles for comboboxes
+let singleRoleSelect, bulkRoleSelect, singleUserSelect;
+
+async function loadRoles() {
+  try {
+    const response = await csrfFetch(`/api/guild/${GUILD_ID}/roles/`);
+    const data = await response.json();
+
+    if (data.roles) {
+      const roleItems = data.roles.map(role => ({
+        value: role.id,
+        label: role.name,
+        icon: 'user-tag'
+      }));
+
+      // Create custom select for single role modal
+      singleRoleSelect = createCustomSelect({
+        container: '#singleRoleContainer',
+        name: 'role_id',
+        id: 'single_role_id',
+        placeholder: 'Select a role...',
+        items: roleItems,
+        selected: '',
+        color: 'indigo'
+      });
+
+      // Create custom select for bulk import modal
+      bulkRoleSelect = createCustomSelect({
+        container: '#bulkRoleContainer',
+        name: 'role_id',
+        id: 'bulk_role_id',
+        placeholder: 'Select a role...',
+        items: roleItems,
+        selected: '',
+        color: 'indigo'
+      });
+    }
+  } catch (err) {
+    // Failed to load roles:
+  }
+}
+
+async function loadMembersForSingleAssign() {
+  try {
+    // ensure shared resources are loaded
+    await loadDiscordResources();
+    const members = window.DiscordResources.members || [];
+    const memberItems = (members && members.length) ? members.map(m => ({
+      value: m.id,
+      label: m.name,
+      icon: 'user'
+    })) : [{
+      value: '',
+      label: 'No members available',
+      icon: 'user'
+    }];
+
+    singleUserSelect = createCustomSelect({
+      container: '#singleUserContainer',
+      name: 'user_id',
+      id: 'single_user_id',
+      placeholder: 'Select a member...',
+      items: memberItems,
+      selected: '',
+      color: 'indigo'
+    });
+  } catch (err) {
+    // Failed to load members:
+  }
+}
+
+document.addEventListener('DOMContentLoaded', async () => {
+  await loadRoles();
+  await loadMembersForSingleAssign();
+});
+</script>
+
+{% include 'questlog/partials/discord_resource_selects.html' %}
+
+<script>
+
+// Single Role Modal
+function openSingleRoleModal() {
+  document.getElementById('single-role-modal').classList.remove('hidden');
+}
+function closeSingleRoleModal() {
+  const modal = document.getElementById('single-role-modal');
+  modal.classList.add('hidden');
+  document.getElementById('single-role-form').reset();
+  if (singleUserSelect && singleUserSelect.setValue) singleUserSelect.setValue('');
+  if (singleRoleSelect && singleRoleSelect.setValue) singleRoleSelect.setValue('');
+}
+
+// Bulk Import Modal
+function openBulkImportModal() {
+  document.getElementById('bulk-import-modal').classList.remove('hidden');
+}
+function closeBulkImportModal() {
+  const modal = document.getElementById('bulk-import-modal');
+  modal.classList.add('hidden');
+  document.getElementById('bulk-import-form').reset();
+  document.getElementById('file-name').textContent = 'Click to select XLSX file';
+  document.getElementById('import-result').classList.add('hidden');
+}
+
+function updateFileName(input) {
+  const fileName = input.files[0]?.name || 'Click to select XLSX file';
+  document.getElementById('file-name').textContent = fileName;
+}
+
+function showUpgradePrompt() {
+  showToast('XLSX import requires Role Management Module - upgrade or get Complete for $12.99/mo', 'info');
+}
+
+// Interactive Bulk Assign Modal
+let selectedMembers = new Set();
+let selectedRoles = new Set();
+let allMembers = [];
+let allRoles = [];
+
+async function openInteractiveBulkAssignModal() {
+  document.getElementById('interactive-bulk-assign-modal').classList.remove('hidden');
+
+  // Load members and roles
+  await loadMembersForBulkAssign();
+  await loadRolesForBulkAssign();
+}
+
+function closeInteractiveBulkAssignModal() {
+  const modal = document.getElementById('interactive-bulk-assign-modal');
+  modal.classList.add('hidden');
+  selectedMembers.clear();
+  selectedRoles.clear();
+  updateSelectionCounts();
+}
+
+async function loadMembersForBulkAssign() {
+  try {
+    const response = await csrfFetch(`/api/guild/${GUILD_ID}/resources/`);
+    const data = await response.json();
+
+    if (data.members) {
+      // Map the data structure from resources endpoint to expected format
+      allMembers = data.members.map(m => ({
+        user_id: m.id,
+        display_name: m.name,
+        username: m.name
+      }));
+      renderMembers(allMembers);
+    }
+  } catch (err) {
+    // Failed to load members:
+    document.getElementById('members-list').innerHTML = '<div class="p-4 text-center text-red-400">Failed to load members</div>';
+  }
+}
+
+async function loadRolesForBulkAssign() {
+  try {
+    const response = await csrfFetch(`/api/guild/${GUILD_ID}/roles/`);
+    const data = await response.json();
+
+    if (data.roles) {
+      allRoles = data.roles.filter(r => r.name !== '@everyone');
+      renderRoles(allRoles);
+    }
+  } catch (err) {
+    // Failed to load roles:
+    document.getElementById('roles-list').innerHTML = '<div class="p-4 text-center text-red-400">Failed to load roles</div>';
+  }
+}
+
+function renderMembers(members) {
+  const list = document.getElementById('members-list');
+  if (members.length === 0) {
+    list.innerHTML = '<div class="p-4 text-center text-gray-400">No members found</div>';
+    return;
+  }
+
+  list.innerHTML = members.map(member => `
+    <div class="flex items-center gap-3 p-3 hover:bg-neutral-700 cursor-pointer border-b border-neutral-700 last:border-0 ${selectedMembers.has(member.user_id) ? 'bg-indigo-900/30' : ''}"
+         onclick="toggleMember('${escapeHtml(member.user_id)}', '${escapeHtml((member.display_name || member.username)).replace(/'/g, "\\'")}')">
+      <input type="checkbox" ${selectedMembers.has(member.user_id) ? 'checked' : ''}
+             class="w-4 h-4 text-indigo-600 bg-neutral-800 border-neutral-600 rounded focus:ring-indigo-500"
+             onclick="event.stopPropagation()">
+      <div class="flex-1">
+        <p class="text-white text-sm font-medium">${escapeHtml(member.display_name || member.username)}</p>
+        <p class="text-gray-500 text-xs">${escapeHtml(member.user_id)}</p>
+      </div>
+    </div>
+  `).join('');
+}
+
+function renderRoles(roles) {
+  const list = document.getElementById('roles-list');
+  if (roles.length === 0) {
+    list.innerHTML = '<div class="p-4 text-center text-gray-400">No roles found</div>';
+    return;
+  }
+
+  list.innerHTML = roles.map(role => `
+    <div class="flex items-center gap-3 p-3 hover:bg-neutral-700 cursor-pointer border-b border-neutral-700 last:border-0 ${selectedRoles.has(role.id) ? 'bg-purple-900/30' : ''}"
+         onclick="toggleRole('${escapeHtml(role.id)}', '${escapeHtml(role.name).replace(/'/g, "\\'")}')">
+      <input type="checkbox" ${selectedRoles.has(role.id) ? 'checked' : ''}
+             class="w-4 h-4 text-purple-600 bg-neutral-800 border-neutral-600 rounded focus:ring-purple-500"
+             onclick="event.stopPropagation()">
+      <div class="flex-1 flex items-center gap-2">
+        <div class="w-3 h-3 rounded-full" style="background-color: ${role.color ? '#' + role.color.toString(16).padStart(6, '0') : '#99AAB5'}"></div>
+        <p class="text-white text-sm font-medium">${escapeHtml(role.name)}</p>
+      </div>
+    </div>
+  `).join('');
+}
+
+function toggleMember(userId, displayName) {
+  if (selectedMembers.has(userId)) {
+    selectedMembers.delete(userId);
+  } else {
+    selectedMembers.add(userId);
+  }
+  updateSelectionCounts();
+  renderMembers(allMembers.filter(m =>
+    (m.display_name || m.username).toLowerCase().includes(document.getElementById('member-search').value.toLowerCase())
+  ));
+}
+
+function toggleRole(roleId, roleName) {
+  if (selectedRoles.has(roleId)) {
+    selectedRoles.delete(roleId);
+  } else {
+    selectedRoles.add(roleId);
+  }
+  updateSelectionCounts();
+  renderRoles(allRoles.filter(r =>
+    r.name.toLowerCase().includes(document.getElementById('role-search').value.toLowerCase())
+  ));
+}
+
+function updateSelectionCounts() {
+  document.getElementById('selected-members-count').textContent = `${selectedMembers.size} selected`;
+  document.getElementById('selected-roles-count').textContent = `${selectedRoles.size} selected`;
+
+  // Enable/disable submit button
+  const submitBtn = document.getElementById('interactive-bulk-submit-btn');
+  submitBtn.disabled = selectedMembers.size === 0 || selectedRoles.size === 0;
+}
+
+// Search functionality
+document.addEventListener('DOMContentLoaded', () => {
+  const memberSearch = document.getElementById('member-search');
+  if (memberSearch) {
+    memberSearch.addEventListener('input', (e) => {
+      const searchTerm = e.target.value.toLowerCase();
+      const filtered = allMembers.filter(m =>
+        (m.display_name || m.username).toLowerCase().includes(searchTerm)
+      );
+      renderMembers(filtered);
+    });
+  }
+
+  const roleSearch = document.getElementById('role-search');
+  if (roleSearch) {
+    roleSearch.addEventListener('input', (e) => {
+      const searchTerm = e.target.value.toLowerCase();
+      const filtered = allRoles.filter(r =>
+        r.name.toLowerCase().includes(searchTerm)
+      );
+      renderRoles(filtered);
+    });
+  }
+});
+
+// Interactive Bulk Assign Form Submit
+document.addEventListener('DOMContentLoaded', () => {
+  const form = document.getElementById('interactive-bulk-assign-form');
+  if (form) {
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const action = document.getElementById('bulk-action').value;
+      const resultDiv = document.getElementById('interactive-bulk-result');
+      const submitBtn = document.getElementById('interactive-bulk-submit-btn');
+
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Processing...';
+
+      try {
+        const actions = [];
+        for (const memberId of selectedMembers) {
+          for (const roleId of selectedRoles) {
+            actions.push({
+              user_id: memberId,
+              role_id: roleId,
+              action: action
+            });
+          }
+        }
+
+        // Submit actions to the same endpoint as single role
+        const promises = actions.map(actionData =>
+          csrfFetch(`${API_BASE}/action/`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(actionData)
+          })
+        );
+
+        await Promise.all(promises);
+
+        resultDiv.className = 'p-3 rounded-lg text-sm bg-green-600/20 text-green-400';
+        resultDiv.innerHTML = `<i class="fas fa-check-circle mr-2"></i>Successfully queued ${actions.length} role actions!`;
+        resultDiv.classList.remove('hidden');
+
+        setTimeout(() => {
+          closeInteractiveBulkAssignModal();
+          location.reload();
+        }, 2000);
+      } catch (err) {
+        resultDiv.className = 'p-3 rounded-lg text-sm bg-red-600/20 text-red-400';
+        resultDiv.innerHTML = '<i class="fas fa-times-circle mr-2"></i>Failed to queue actions';
+        resultDiv.classList.remove('hidden');
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<i class="fas fa-paper-plane mr-2"></i>Queue Actions';
+      }
+    });
+  }
+});
+
+// Create Role Modal
+function openCreateRoleModal() {
+  document.getElementById('create-role-modal').classList.remove('hidden');
+}
+function closeCreateRoleModal() {
+  const modal = document.getElementById('create-role-modal');
+  modal.classList.add('hidden');
+  document.getElementById('create-role-form').reset();
+  document.getElementById('create-result').classList.add('hidden');
+}
+
+// Bulk Create Modal
+function openBulkCreateModal() {
+  document.getElementById('bulk-create-modal').classList.remove('hidden');
+}
+function closeBulkCreateModal() {
+  const modal = document.getElementById('bulk-create-modal');
+  modal.classList.add('hidden');
+  document.getElementById('bulk-create-form').reset();
+  document.getElementById('bulk-create-file-name').textContent = 'Click to select XLSX file';
+  document.getElementById('bulk-create-result').classList.add('hidden');
+}
+
+function updateBulkCreateFileName(input) {
+  const fileName = input.files[0]?.name || 'Click to select XLSX file';
+  document.getElementById('bulk-create-file-name').textContent = fileName;
+}
+
+async function exportBulkCreateTemplate() {
+  try {
+    const resp = await csrfFetch(`${API_BASE}/export-create-template/`);
+    if (!resp.ok) throw new Error('Export failed');
+
+    const blob = await resp.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `role_creation_template.xlsx`;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    a.remove();
+
+    showToast('Template downloaded successfully', 'success');
+  } catch (err) {
+    showToast('Failed to download template', 'error');
+  }
+}
+
+// Single Role Form
+document.getElementById('single-role-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const form = e.target;
+  const roleInput = document.getElementById('single_role_id');
+  const data = {
+    user_id: form.user_id.value,
+    role_id: singleRoleMap[roleInput.value] || roleInput.value,
+    action: form.action.value,
+    reason: form.reason.value || undefined,
+  };
+
+  try {
+    const resp = await csrfFetch(`${API_BASE}/action/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    const result = await resp.json();
+    if (result.success) {
+      closeSingleRoleModal();
+      showToast(result.message, 'success');
+      setTimeout(() => location.reload(), 1500);
+    } else {
+      showToast(result.error || 'Failed to queue action', 'error');
+    }
+  } catch (err) {
+    showToast('Error queuing action', 'error');
+  }
+});
+
+// Bulk Import Form
+document.getElementById('bulk-import-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const form = e.target;
+
+  // Validate file is selected
+  const fileInput = document.getElementById('csv-file');
+  if (!fileInput.files || fileInput.files.length === 0) {
+    alert('Please select an XLSX file to upload');
+    return;
+  }
+
+  const formData = new FormData(form);
+
+  // Map role name to ID
+  const roleInput = document.getElementById('bulk_role_id');
+  const roleId = bulkRoleMap[roleInput.value] || roleInput.value;
+  formData.set('role_id', roleId);
+
+  const btn = document.getElementById('import-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Uploading...';
+
+  const resultDiv = document.getElementById('import-result');
+
+  try {
+    const resp = await csrfFetch(`${API_BASE}/import/`, {
+      method: 'POST',
+      body: formData
+    });
+    const result = await resp.json();
+
+    if (result.success) {
+      resultDiv.className = 'p-3 rounded-lg text-sm bg-green-600/20 text-green-400';
+      resultDiv.innerHTML = `
+        <i class="fas fa-check-circle mr-2"></i>
+        <strong>Success!</strong> Queued ${result.total_users} users for processing.
+        ${result.parse_errors?.length ? `<br><small class="text-yellow-400">${result.parse_errors.length} rows had errors</small>` : ''}
+      `;
+      resultDiv.classList.remove('hidden');
+      setTimeout(() => location.reload(), 2000);
+    } else {
+      resultDiv.className = 'p-3 rounded-lg text-sm bg-red-600/20 text-red-400';
+      resultDiv.innerHTML = `<i class="fas fa-times-circle mr-2"></i>${result.error}`;
+      resultDiv.classList.remove('hidden');
+    }
+  } catch (err) {
+    resultDiv.className = 'p-3 rounded-lg text-sm bg-red-600/20 text-red-400';
+    resultDiv.innerHTML = '<i class="fas fa-times-circle mr-2"></i>Upload failed';
+    resultDiv.classList.remove('hidden');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-upload mr-2"></i>Upload & Import';
+  }
+});
+
+// Permission Selector Functions
+function calculatePermissionValue() {
+  let permissions = BigInt(0);
+  const permCheckboxes = document.querySelectorAll('.permission-checkbox');
+  permCheckboxes.forEach(cb => {
+    if (cb.checked) {
+      permissions |= BigInt(cb.value);
+    }
+  });
+
+  const permValue = document.getElementById('permission-value');
+  if (permValue) {
+    permValue.textContent = permissions.toString();
+  }
+  return permissions;
+}
+
+function togglePermissionCategory(category) {
+  const permsDiv = document.getElementById(`${category}-perms`);
+  const chevron = document.getElementById(`${category}-chevron`);
+
+  if (permsDiv.classList.contains('hidden')) {
+    permsDiv.classList.remove('hidden');
+    chevron.classList.remove('fa-chevron-right');
+    chevron.classList.add('fa-chevron-down');
+  } else {
+    permsDiv.classList.add('hidden');
+    chevron.classList.add('fa-chevron-right');
+    chevron.classList.remove('fa-chevron-down');
+  }
+}
+
+function selectAllPermissions() {
+  const permCheckboxes = document.querySelectorAll('.permission-checkbox');
+  permCheckboxes.forEach(cb => cb.checked = true);
+  calculatePermissionValue();
+}
+
+function clearAllPermissions() {
+  const permCheckboxes = document.querySelectorAll('.permission-checkbox');
+  permCheckboxes.forEach(cb => cb.checked = false);
+  calculatePermissionValue();
+}
+
+function selectModeratorPermissions() {
+  clearAllPermissions();
+  const moderatorPerms = [
+    'view_channel', 'manage_channels', 'manage_roles', 'view_audit_log',
+    'kick_members', 'ban_members', 'moderate_members',
+    'send_messages', 'manage_messages', 'manage_threads', 'read_message_history',
+    'connect', 'speak', 'mute_members', 'deafen_members', 'move_members'
+  ];
+
+  const permCheckboxes = document.querySelectorAll('.permission-checkbox');
+  permCheckboxes.forEach(cb => {
+    if (moderatorPerms.includes(cb.getAttribute('data-perm'))) {
+      cb.checked = true;
+    }
+  });
+  calculatePermissionValue();
+}
+
+function selectAdminPermissions() {
+  clearAllPermissions();
+  const adminPerms = [
+    'view_channel', 'manage_channels', 'manage_roles', 'manage_emojis',
+    'view_audit_log', 'manage_webhooks', 'manage_guild',
+    'kick_members', 'ban_members', 'moderate_members', 'manage_nicknames',
+    'send_messages', 'manage_messages', 'manage_threads', 'read_message_history',
+    'mention_everyone', 'embed_links', 'attach_files',
+    'connect', 'speak', 'mute_members', 'deafen_members', 'move_members',
+    'manage_events'
+  ];
+
+  const permCheckboxes = document.querySelectorAll('.permission-checkbox');
+  permCheckboxes.forEach(cb => {
+    if (adminPerms.includes(cb.getAttribute('data-perm'))) {
+      cb.checked = true;
+    }
+  });
+  calculatePermissionValue();
+}
+
+function applyManualPermissions(value) {
+  if (!value || value === '') return;
+
+  clearAllPermissions();
+  const targetPerms = BigInt(value);
+
+  const permCheckboxes = document.querySelectorAll('.permission-checkbox');
+  permCheckboxes.forEach(cb => {
+    const permValue = BigInt(cb.value);
+    if ((targetPerms & permValue) === permValue) {
+      cb.checked = true;
+    }
+  });
+
+  calculatePermissionValue();
+}
+
+// Auto-update permission value when checkboxes change
+document.addEventListener('DOMContentLoaded', () => {
+  const permCheckboxes = document.querySelectorAll('.permission-checkbox');
+  permCheckboxes.forEach(cb => {
+    cb.addEventListener('change', () => calculatePermissionValue());
+  });
+});
+
+
+// Create Role Form
+document.getElementById('create-role-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const form = e.target;
+  const btn = document.getElementById('create-role-btn');
+  const resultDiv = document.getElementById('create-result');
+
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Creating...';
+
+  // Calculate permissions from checkboxes (use BigInt for large numbers)
+  let permissions = BigInt(0);
+  const permCheckboxes = form.querySelectorAll('.permission-checkbox');
+  permCheckboxes.forEach(cb => {
+    if (cb.checked) {
+      permissions |= BigInt(cb.value);
+    }
+  });
+
+  // Convert hex color to decimal
+  const colorHex = form.color.value.replace('#', '');
+  const colorDecimal = parseInt(colorHex, 16);
+
+  const data = {
+    name: form.name.value,
+    color: colorDecimal,
+    hoist: form.hoist.checked,
+    mentionable: form.mentionable.checked,
+    permissions: permissions.toString(),
+    position: parseInt(form.position.value) || 0
+  };
+
+  try {
+    const resp = await csrfFetch(`${API_BASE}/create/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    const result = await resp.json();
+
+    if (result.success) {
+      resultDiv.className = 'p-3 rounded-lg text-sm bg-green-600/20 text-green-400';
+      resultDiv.innerHTML = `<i class="fas fa-check-circle mr-2"></i>${result.message || 'Role created successfully!'}`;
+      resultDiv.classList.remove('hidden');
+      setTimeout(() => {
+        closeCreateRoleModal();
+        location.reload();
+      }, 1500);
+    } else {
+      resultDiv.className = 'p-3 rounded-lg text-sm bg-red-600/20 text-red-400';
+      resultDiv.innerHTML = `<i class="fas fa-times-circle mr-2"></i>${result.error}`;
+      resultDiv.classList.remove('hidden');
+    }
+  } catch (err) {
+    resultDiv.className = 'p-3 rounded-lg text-sm bg-red-600/20 text-red-400';
+    resultDiv.innerHTML = '<i class="fas fa-times-circle mr-2"></i>Failed to create role';
+    resultDiv.classList.remove('hidden');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-plus-circle mr-2"></i>Create Role';
+  }
+});
+
+// Bulk Create Form
+document.getElementById('bulk-create-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const form = e.target;
+
+  // Validate file is selected
+  const fileInput = document.getElementById('bulk-create-file');
+  if (!fileInput.files || fileInput.files.length === 0) {
+    alert('Please select an XLSX file to upload');
+    return;
+  }
+
+  const btn = document.getElementById('bulk-create-btn');
+  const resultDiv = document.getElementById('bulk-create-result');
+  const formData = new FormData(form);
+
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Uploading...';
+
+  try {
+    const resp = await csrfFetch(`${API_BASE}/bulk-create/`, {
+      method: 'POST',
+      body: formData
+    });
+    const result = await resp.json();
+
+    if (result.success) {
+      resultDiv.className = 'p-3 rounded-lg text-sm bg-green-600/20 text-green-400';
+      resultDiv.innerHTML = `<i class="fas fa-check-circle mr-2"></i>${result.message || `Created ${result.created_count} roles!`}`;
+      resultDiv.classList.remove('hidden');
+      setTimeout(() => {
+        closeBulkCreateModal();
+        location.reload();
+      }, 2000);
+    } else {
+      resultDiv.className = 'p-3 rounded-lg text-sm bg-red-600/20 text-red-400';
+      resultDiv.innerHTML = `<i class="fas fa-times-circle mr-2"></i>${result.error}`;
+      resultDiv.classList.remove('hidden');
+    }
+  } catch (err) {
+    resultDiv.className = 'p-3 rounded-lg text-sm bg-red-600/20 text-red-400';
+    resultDiv.innerHTML = '<i class="fas fa-times-circle mr-2"></i>Upload failed';
+    resultDiv.classList.remove('hidden');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-upload mr-2"></i>Upload & Create';
+  }
+});
+
+// Export Functions
+async function exportTemplate() {
+  try {
+    const resp = await csrfFetch(`${API_BASE}/export-template/`);
+    if (!resp.ok) throw new Error('Export failed');
+
+    const blob = await resp.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `role_import_template.xlsx`;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    a.remove();
+
+    showToast('Template downloaded successfully', 'success');
+  } catch (err) {
+    showToast('Failed to download template', 'error');
+  }
+}
+
+async function exportCurrentRoles() {
+  try {
+    const resp = await csrfFetch(`${API_BASE}/export-roles/`);
+    if (!resp.ok) throw new Error('Export failed');
+
+    const blob = await resp.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `guild_roles_export.xlsx`;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    a.remove();
+
+    showToast('Roles exported successfully', 'success');
+  } catch (err) {
+    showToast('Failed to export roles', 'error');
+  }
+}
+
+// Toast Notification
+function showToast(message, type = 'info') {
+  const toast = document.createElement('div');
+  const bgColor = type === 'success' ? 'bg-green-600' : type === 'error' ? 'bg-red-600' : 'bg-indigo-600';
+  toast.className = `fixed bottom-4 right-4 ${bgColor} text-white px-6 py-3 rounded-lg shadow-lg z-50 animate-fade-in`;
+  toast.textContent = message;
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 3000);
+}
+
+// Role actions dropdown
+function toggleRoleActions(forceClose = false) {
+  const menu = document.getElementById('roleActionsMenu');
+  if (!menu) return;
+  const isHidden = menu.classList.contains('hidden');
+  if (forceClose) {
+    menu.classList.add('hidden');
+    return;
+  }
+  if (isHidden) {
+    menu.classList.remove('hidden');
+    document.addEventListener('click', closeRoleActionsOnOutside, { once: true });
+  } else {
+    menu.classList.add('hidden');
+  }
+}
+
+function closeRoleActionsOnOutside(event) {
+  const menu = document.getElementById('roleActionsMenu');
+  const btn = document.getElementById('roleActionsBtn');
+  if (!menu || !btn) return;
+  if (!menu.contains(event.target) && !btn.contains(event.target)) {
+    menu.classList.add('hidden');
+  }
+}
+
+function triggerSync() {
+  const syncBtn = document.getElementById('syncButton');
+  if (syncBtn) syncBtn.click();
+}
+</script>
+{% endblock guild_content %}

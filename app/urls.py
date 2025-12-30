@@ -12,9 +12,10 @@ urlpatterns = [
     path('hosting/', views.hosting, name='hosting'),
     path('7dtd/', views.sevendtd, name='7dtd'),
     path('dragonwilds/', views.dragonwilds, name='dragonwilds'),
-    path('dune/', views.dune_page, name='dune'),
-    path('pantheon/', views.pantheon_page, name='pantheon'),
-    # path('wow/', views.wow_page, name='wow'),
+    # path('dune/', views.dune_page, name='dune'),
+    # path('pantheon/', views.pantheon_page, name='pantheon'),
+    path('wow/', views.wow_page, name='wow'),
+    path('eso/', views.eso_page, name='eso'),
     # path('enshrouded/', views.enshrouded, name='enshrouded'),
     path('icaurs/', views.icarus, name='icarus'),
     path('vrising/', views.vrising, name='vrising'),
@@ -106,6 +107,10 @@ urlpatterns = [
 
     # Role Management Dashboard
     path('questlog/guild/<str:guild_id>/roles/', views.guild_roles, name='guild_roles'),
+
+    # Game Server Management Dashboard
+    # path('questlog/guild/<str:guild_id>/game-servers/', views.game_servers, name='game_servers'),
+
 
     # Reaction Roles Dashboard
     path('questlog/guild/<str:guild_id>/reaction-roles/', views.guild_reaction_roles, name='guild_reaction_roles'),

@@ -13,60 +13,137 @@
 {% block content %}
 <!-- Container -->
 <div class="max-w-7xl mx-auto px-6">
+
   <!-- Hero -->
   <section class="text-center mt-16">
     <h1 class="text-5xl font-extrabold mb-4 leading-tight tracking-tight hero-shadow">
-      Welcome to Casual Heroes™ <p> We are remodling the site - Stay tuned for updates! </p> <span style="opacity: 0.7; font-size: 0.5em; vertical-align: super;"></span>
+      Gaming for adults with real lives.
     </h1>
-    <!-- <p class="text-lg text-gray-300 max-w-3xl mx-auto hero-shadow">
-      The gaming community built for <span class="font-semibold">moms, dads, and working adults</span> who love
-      <span class="font-semibold">MMORPGs</span>, <span class="font-semibold">ARPGs</span>, and
-      <span class="font-semibold">Souls-Like</span> games.
-      Connect with like-minded players, enjoy epic adventures, and game at your own pace, because life always comes first!
+
+    <p class="text-lg text-gray-300 max-w-3xl mx-auto hero-shadow">
+      Casual Heroes is a chill, no-pressure community for <span class="font-semibold">moms, dads, and working adults</span>.
+      Good runs, clean comms, and no drama. Whether you’ve got <span class="font-semibold">60 minutes</span> or a whole weekend.
     </p>
-    <a href="/gamesweplay" class="mt-6 inline-block bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded-xl font-semibold transition">
-      See the Games We Play →
-    </a> -->
+
+    <div class="mt-8 flex flex-col sm:flex-row gap-3 justify-center">
+      <!-- <a href="https://discord.gg/ECwJWppSjQ"
+         target="_blank"
+         class="inline-flex items-center justify-center bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-xl font-semibold transition">
+        Join the Discord →
+      </a> -->
+
+      <a href="/gamesweplay"
+         class="inline-flex items-center justify-center bg-indigo-600 hover:bg-indigo-700  border border-neutral-800 text-white px-6 py-3 rounded-xl font-semibold transition">
+        See the Games We Play →
+      </a>
+    </div>
+
+    <p class="mt-6 text-sm text-gray-400 hero-shadow">
+      Life first • No pressure • New & returning players welcome
+    </p>
   </section>
 
   <!-- About -->
-  <!-- <section class="mt-24 grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
-    <img src="{% static 'img/siteassets/homepage/Pantheonguildmates.png' %}"
-         class="glow w-full h-auto rounded-xl shadow-xl"
-         alt="Guild Screenshot" />
+  <section class="mt-20 grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
+    <!-- Swap this image later with: a multi-game collage OR QuestLog UI screenshot -->
+    <!-- <div class="bg-neutral-900 border border-neutral-800 rounded-xl shadow-xl overflow-hidden"> -->
+      <!-- <img src="{% static 'img/siteassets/homepage/home-collage-placeholder.jpg' %}"
+           class="w-full h-auto"
+           alt="Casual Heroes Community" /> -->
+    </div>
+
     <div>
-      <h2 class="text-2xl font-bold mb-4">What is Casual Heroes About?</h2>
+      <h2 class="text-2xl font-bold mb-4 text-center">What is Casual Heroes?</h2>
+
       <p class="text-gray-300 mb-4 hero-shadow">
-        Casual Heroes is a community built to evolve, providing a place where gamers can connect, unwind, and progress at their own pace.
+        Casual Heroes is for adults who want to play real content without turning gaming into a second job.
+        Most of us are 20+ with work, kids, and life pulling in every direction.
       </p>
+
       <p class="text-gray-300 mb-4 hero-shadow">
-        Our vision is to create a space where everyone feels at home, balancing gaming with real-life responsibilities.
-        Whether you're here for a season or a lifetime, you’ll always have a place in Casual Heroes.
+        That doesn’t mean we don’t push things. We just do it on our terms,  no drama, no ego, no pressure to be online every night.
+        Some of us are veterans, some are brand new. Either way, we’re here to learn, run, and improve together.
       </p>
+
       <p class="text-gray-300 hero-shadow">
-        We focus on community-driven growth, rewarding engagement, and creating experiences that last.
+        And if you want more than just a Discord? That’s where <span class="font-semibold">QuestLog</span> and
+        <span class="font-semibold">Casual Heroes Hosting</span> come in! We have tools and servers built to make community gaming easier.
+      </p>
+    </div>
+  </section>
+
+  <!-- 3 Pillars -->
+  <section class="mt-20">
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <!-- Community -->
+      <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-6 shadow-xl">
+        <h3 class="text-lg font-bold mb-2">Adult-First Community</h3>
+        <p class="text-gray-300 text-sm leading-relaxed">
+          No guilt if you miss a week. No sweaty expectations. Just good people, solid groups, and a vibe that respects your time.
+        </p>
+        <a href="https://discord.gg/ECwJWppSjQ"
+           class="mt-4 inline-block text-indigo-300 hover:text-indigo-200 text-sm font-semibold transition">
+          Join the Discord →
+        </a>  
+      </div>
+
+      <!-- QuestLog -->
+      <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-6 shadow-xl">
+        <h3 class="text-lg font-bold mb-2">QuestLog Discord Bot</h3>
+        <p class="text-gray-300 text-sm leading-relaxed">
+          QuestLog is the bot we built because Discord shouldn’t feel like work. LFG, events, discovery, and community tools that actually help people link up and play.
+          Built by gamers, for gamers.
+          <span  class="font-bold text-indigo-400"> (Launches 1/19/2026) </span>
+        </p>
+        <a href="/questlog/overview"
+           class="mt-4 inline-block text-indigo-300 hover:text-indigo-200 text-sm font-semibold transition">
+          Explore QuestLog →
+        </a>
+      </div>
+
+      <!-- Hosting -->
+      <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-6 shadow-xl">
+        <h3 class="text-lg font-bold mb-2">Casual Heroes Hosting</h3>
+        <p class="text-gray-300 text-sm leading-relaxed">
+          Hosting built by people who actually play. Reliable servers, honest support, and none of the “pay extra for basics” nonsense.
+          <span class="font-bold  text-indigo-400">(Coming Soon)</span>
+        </p>
+        <!-- <a href="/hosting"
+           class="mt-4 inline-block text-indigo-300 hover:text-indigo-200 text-sm font-semibold transition">
+          Interested in Hosting? → -->
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Hosting CTA (clean, less apologetic) -->
+  <!-- <section class="mt-20 text-center">
+    <div class="max-w-3xl mx-auto bg-neutral-900 border border-neutral-800 rounded-xl p-8 shadow-xl">
+      <h2 class="text-2xl font-bold mb-3 hero-shadow">Built by real gamers. Backed by real infrastructure.</h2>
+
+      <p class="text-gray-300 text-lg leading-relaxed hero-shadow">
+        We’re building a home where the community and the tooling actually work together — Discord, QuestLog, and hosting under one roof.
+        No bloat. No fake hype. Just a place that’s easier to game in.
+      </p>
+
+      <div class="mt-6 flex flex-col sm:flex-row gap-3 justify-center">
+        <a href="/hosting"
+           class="inline-flex items-center justify-center bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-xl font-semibold transition">
+          Check out Hosting →
+        </a>
+
+        <a href="/gamesweplay"
+           class="inline-flex items-center justify-center bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-white px-6 py-3 rounded-xl font-semibold transition">
+          Explore the Community →
+        </a>
+      </div>
+
+      <p class="mt-6 text-sm text-gray-400 hero-shadow">
+        Powered by Proxmox • Debian • AMP • and a borderline unhealthy love of optimization
       </p>
     </div>
   </section> -->
 
+</div>
 
-<!-- Hosting CTA -->
-<!-- <section class="mt-24 text-center">
-  <div class="max-w-2xl mx-auto">
-    <h2 class="text-2xl font-bold mb-4 hero-shadow">We’re Not Just a Community — We’re Your Hosts</h2>
-    <p class="text-gray-300 text-lg leading-relaxed mb-6 hero-shadow">
-      Casual Heroes Hosting was born from our own guild’s needs. We were tired of overpriced, soulless providers that didn’t understand the games we actually play — so we built our own. <strong>Coming Soon!</strong>
-    </p>
-    <a href="/hosting" class="mt-4 inline-block bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium text-sm transition">
-      Interested in our Hosting Services? →
-    </a>
-
-    <p class="italic text-gray-400 mt-8 hero-shadow">
-      Powered by Proxmox, Debian, AMP — and real gamers who play what they host.
-    </p>
-    <p class="italic text-gray-400 hero-shadow">
-      This site is still a work in progress, but we’re excited to share the journey with you.
-    </p>
-  </div>
-</section> -->
 {% endblock %}

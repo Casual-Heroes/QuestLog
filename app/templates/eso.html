@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+{% block title %}Elder Scrolls Online Guild | Casual Heroes{% endblock %}
+{% block og_title %}Join Our ESO Guild | Casual Heroes{% endblock %}
+{% block og_description %}Run Mythic+, raid with friends, PvP in battlegrounds, or level chill in Classic. Join Casual Heroes in Elder Scrolls Online today.{% endblock %}
+{% block og_image %}https://casual-heroes.com/static/img/siteassets/homepage/eso.jpg{% endblock %}
+{% block og_url %}https://casual-heroes.com/eso{% endblock %}
+{% block content %}
+
+<section class="mt-20 max-w-5xl mx-auto px-4">
+  <h1 class="text-4xl font-extrabold text-center mb-10">Casual Heroes in ESO</h1>
+<div class="text-gray-300 mb-12 max-w-4xl mx-auto text-center space-y-2 leading-relaxed">
+  <p>
+    Casual Heroes is a guild built for adults who want to experience ESO — from the ground up — without the expectations and burnout of a hardcore guild.
+    Most of us are 20+ with jobs, families, and real-life responsibilities.
+  </p>
+
+  <p>
+    Some of us are returning players. Some of us are brand new.
+    Either way, we’re here for the same thing: a crew to learn with, run content with, and actually enjoy the game with.
+  </p>
+
+  <p>
+    We want to grow into dungeons, Trials, and PvP — we’re just doing it the right way:
+    learning mechanics, building solid groups, and progressing at a pace that makes sense.
+  </p>
+
+  <div class="pt-2">
+    <p class="font-semibold text-white mb-2">Right now we’re focused on:</p>
+
+    <ul class="text-gray-300 text-sm list-disc list-inside space-y-1 text-left max-w-xl mx-auto">
+      <li>Leveling and gearing</li>
+      <li>Dungeon runs (normal → veteran when ready)</li>
+      <li>Crafting, builds, and “what the hell do I do next?” help</li>
+      <li>Battlegrounds / Cyrodiil nights when people are feeling it</li>
+    </ul>
+  </div>
+
+  <p>
+    We’re not locked into a sweaty schedule. We organize runs when people are online, and we’ll build consistent nights as the roster grows.
+  </p>
+
+  <p class="text-white">
+    If you want a chill, no-drama guild where you can learn, improve, and push harder content over time — you’ll fit in here.
+  </p>
+</div>
+
+  <div class="grid md:grid-cols-2 gap-8 items-start">
+    <!-- Trailer Embed -->
+    <div>
+      <iframe class="w-full aspect-video rounded-xl shadow-lg border border-neutral-800"
+              src="https://www.youtube.com/embed/zt-ZIb2dKIw?si=JZIwcdMfDL5GZOcP"
+              title="Elder Scrolls Online Trailer" frameborder="0" allowfullscreen>
+      </iframe>
+    </div>
+
+    
+<!-- Guild Focus & Features -->
+<div class="bg-neutral-900 border border-neutral-800 rounded-xl p-6 shadow-xl">
+  <h2 class="text-2xl font-bold text-white mb-4">What We’re Running</h2>
+
+  <ul class="text-gray-300 space-y-2 text-sm">
+    <li><strong class="text-indigo-400">Dungeons:</strong> Normal runs while we level — vet when we’re ready</li>
+    <li><strong class="text-indigo-400">Trials:</strong> Learning runs as the roster grows (no toxic parse culture)</li>
+    <li><strong class="text-indigo-400">PvP Nights:</strong> Battlegrounds and Cyrodiil when people are feeling it</li>
+    <li><strong class="text-indigo-400">Build & Gear Help:</strong> Sets, traits, mundus, CP paths — we’ll help you get dialed in</li>
+    <li><strong class="text-indigo-400">Leveling & Story:</strong> Zone clears, skyshards + skill points, new-character help</li>
+    <li><strong class="text-indigo-400">Crafting & Gold:</strong> Writs, farming routes, motifs/materials</li>
+    <li><strong class="text-indigo-400">Casual First:</strong> Flexible schedules, late-night squads, no pressure to grind</li>
+  </ul>
+
+
+
+    <!-- Active Discord Players -->
+    <div class="mt-4 text-sm text-gray-400">
+        <strong>Active Discord Members:</strong>
+        {% if eso_activity.active != "-" and eso_activity.total != "-" %}
+            {% if eso_activity.active|add:0 > 0 %}
+            <span class="text-green-400 font-mono">🟢 {{ eso_activity.active }}</span>
+            {% else %}
+            <span class="text-red-400 font-mono">🔴 {{ eso_activity.active }}</span>
+            {% endif %}
+            <span class="text-gray-400">/ {{ eso_activity.total }}</span>
+        {% else %}
+            <span class="text-white font-mono">-</span> / <span class="text-gray-400">-</span>
+        {% endif %}
+    </div>
+
+
+      <div class="mt-6">
+        <a href="https://discord.gg/ECwJWppSjQ" target="_blank" class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-6 py-3 rounded-xl transition block text-center">
+          Join the Guild — And write your own legend!
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- ESO Role Callout -->
+   <div class="mt-16 bg-neutral-900 border border-neutral-800 p-6 rounded-xl max-w-5xl mx-auto px-4">
+    <h2 class="text-xl font-bold text-indigo-300 mb-2 text-center">Guild Roles & What We Need</h2>
+    <p class="text-gray-300 mb-6 text-center">
+        <span class="text-indigo-300 font-semibold">PC-NA</span> - We’re always welcoming friendly players. Here’s what helps most as we build from scratch:
+  </p>
+  <ul class="text-gray-300 text-sm max-w-3xl mx-auto divide-y divide-neutral-800/70">
+    <li class="py-3 grid grid-cols-1 sm:grid-cols-[220px,1fr] gap-1 sm:gap-3 items-start">
+        <span class="text-indigo-400 font-semibold sm:text-right">New & Returning Players:</span>
+        <span>If you’re learning the game, you belong here. We’ll figure it out together.</span>
+    </li>
+
+    <li class="py-3 grid grid-cols-1 sm:grid-cols-[220px,1fr] gap-1 sm:gap-3 items-start">
+      <span class="text-indigo-400 font-semibold sm:text-right">Patient Healers:</span>
+      <span>If you’re down to heal dungeons and help newer players learn, you’re gold.</span>
+    </li>
+
+    <li class="py-3 grid grid-cols-1 sm:grid-cols-[220px,1fr] gap-1 sm:gap-3 items-start">
+      <span class="text-indigo-400 font-semibold sm:text-right">Tanks (New or Experienced):</span>
+      <span>Dungeon tanks now. Trial tanks later as we ramp up.</span>
+    </li>
+
+    <li class="py-3 grid grid-cols-1 sm:grid-cols-[220px,1fr] gap-1 sm:gap-3 items-start">
+      <span class="text-indigo-400 font-semibold sm:text-right">Dungeon / Trial Guides:</span>
+      <span>Returning vets who can explain mechanics and be patient as we learn.</span>
+    </li>
+
+    <li class="py-3 grid grid-cols-1 sm:grid-cols-[220px,1fr] gap-1 sm:gap-3 items-start">
+      <span class="text-indigo-400 font-semibold sm:text-right">Crafters:</span>
+      <span>People who can help with gear, traits, food/pots, and “what should I make?” questions.</span>
+    </li>
+
+    <li class="py-3 grid grid-cols-1 sm:grid-cols-[220px,1fr] gap-1 sm:gap-3 items-start">
+      <span class="text-indigo-400 font-semibold sm:text-right">PvP Leads:</span>
+      <span>Anyone who enjoys organizing BGs/Cyrodiil nights when the mood hits.</span>
+    </li>
+  </ul>
+</div>
+
+  <!-- CTA -->
+   <div class="mt-16 bg-neutral-900 border border-neutral-800 p-6 rounded-xl max-w-5xl mx-auto px-4 text-center">
+    <h2 class="text-xl font-bold text-indigo-300 mb-2">Jump In Anytime</h2>
+    <p class="text-gray-300 mb-4">There’s no rush,  we play at our own pace. Just bring the vibes and we’ll take care of the rest.</p>
+    <a href="https://discord.gg/ECwJWppSjQ" target="_blank" class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-6 py-3 rounded-xl transition block text-center">
+      Join Our ESO Discord Channel →
+    </a>
+  </div>
+</section>
+
+{% endblock %}

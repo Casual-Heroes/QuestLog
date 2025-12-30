@@ -286,16 +286,28 @@
               <span>Game Settings</span>
             </a>
             <a href="{% url 'guild_discovery' guild.id %}#twitch"
-               id="discovery-twitch-nav-link"
-               class="sub-nav-item flex items-center gap-2 px-3 py-1.5 rounded text-xs transition">
-              <i class="fab fa-twitch w-4"></i>
-              <span>Twitch</span>
+              id="discovery-twitch-nav-link"
+              class="sub-nav-item flex w-full items-center gap-2 px-3 py-1.5 rounded text-xs transition">
+              <i class="fab fa-twitch w-4 shrink-0"></i>
+
+              <span class="whitespace-nowrap">Twitch</span>
+
+              <span class="ml-auto shrink-0 whitespace-nowrap inline-flex items-center rounded-full px-2 py-0.5 text-[10px] leading-none
+                          bg-purple-600/30 text-purple-300 border border-purple-500/40">
+                Coming Soon
+              </span>
             </a>
             <a href="{% url 'guild_discovery' guild.id %}#youtube"
-               id="discovery-youtube-nav-link"
-               class="sub-nav-item flex items-center gap-2 px-3 py-1.5 rounded text-xs transition">
-              <i class="fab fa-youtube w-4"></i>
-              <span>YouTube</span>
+              id="discovery-youtube-nav-link"
+              class="sub-nav-item flex w-full items-center gap-2 px-3 py-1.5 rounded text-xs transition">
+              <i class="fab fa-youtube w-4 shrink-0"></i>
+
+              <span class="whitespace-nowrap">YouTube</span>
+
+              <span class="ml-auto shrink-0 whitespace-nowrap inline-flex items-center rounded-full px-2 py-0.5 text-[10px] leading-none
+                          bg-red-600/30 text-red-300 border border-red-500/40">
+                Coming Soon
+              </span>
             </a>
           </div>
         </div>
@@ -394,6 +406,28 @@
         </a>
       </div>
     </div>
+
+    <!-- AMP Server Management Section -->
+    <!-- <div>
+      <div class="flex items-center justify-between px-3 mb-2">
+        <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wider">AMP Server Management</h3>
+      </div>
+      <div class="space-y-1">
+      <a href="{% url 'guild_roles' guild.id %}"
+        class="nav-item {% if active_page == 'roles' %}active{% endif %}
+                flex w-full items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+        <i class="fas fa-server text-gray-400 group-hover:text-indigo-400 shrink-0"></i>
+
+        <span class="whitespace-nowrap">Game Servers</span>
+
+        <span class="ml-auto shrink-0 whitespace-nowrap inline-flex items-center rounded-full px-1 py-0.5 text-[10px] leading-none
+                    bg-blue-600/30 text-blue-300 border border-blue-500/40">
+          Coming Soon
+        </span>
+      </a>
+      </div>
+    </div> -->
+
     {% endif %}
     <!-- End Admin Only Sections -->
   </nav>
