@@ -93,14 +93,7 @@
     <div class="space-y-4 overflow-y-auto flex-1">
       <div>
         <label class="text-sm text-gray-300 mb-2 block">Game *</label>
-        <select id="createGame" onchange="onCreateGameChange()" class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white">
-          <option value="">Select a game...</option>
-          {% for game in games %}
-          <option value="{{ game.id }}" data-max-size="{{ game.max_group_size }}">
-            {% if game.game_emoji %}{{ game.game_emoji }} {% endif %}{{ game.game_name }}
-          </option>
-          {% endfor %}
-        </select>
+        <div id="createGameContainer"></div>
       </div>
 
       <div>
@@ -146,6 +139,17 @@
           <p class="text-gray-500 text-sm">Loading members...</p>
         </div>
         <p class="text-xs text-gray-500 mt-1">Co-leaders can manage the group alongside you</p>
+      </div>
+
+      <!-- Discord Thread Creation Option -->
+      <div class="bg-neutral-800/50 border border-neutral-700 rounded-lg p-4">
+        <label class="flex items-center gap-3 cursor-pointer">
+          <input type="checkbox" id="createDiscordThread" checked class="w-5 h-5 rounded bg-neutral-700 border-neutral-600 text-green-600 focus:ring-green-500">
+          <div>
+            <div class="text-white font-medium">Create Discord Thread</div>
+            <p class="text-xs text-gray-400 mt-0.5">Members can join from Discord or the website. Thread stays active for 7 days (can be kept alive by chatting).</p>
+          </div>
+        </label>
       </div>
 
       <div class="flex gap-3">
@@ -222,6 +226,20 @@
           <p class="text-gray-500 text-sm">Loading members...</p>
         </div>
         <p class="text-xs text-gray-500 mt-1">Co-leaders can manage the group alongside you</p>
+      </div>
+
+      <!-- Convert to Discord Thread Option (only shown if no thread exists) -->
+      <div id="convertToThreadContainer" class="hidden bg-blue-900/20 border border-blue-700/50 rounded-lg p-4">
+        <div class="flex items-start gap-3">
+          <i class="fas fa-comments text-blue-400 text-xl mt-1"></i>
+          <div class="flex-1">
+            <div class="text-white font-medium mb-1">Convert to Discord Thread</div>
+            <p class="text-xs text-gray-400 mb-3">Create a Discord thread in the game's LFG channel. Members can join from Discord or the website. Thread stays active for 7 days and can be kept alive by chatting.</p>
+            <button onclick="convertToThread()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition">
+              <i class="fas fa-arrow-right mr-2"></i>Convert to Thread
+            </button>
+          </div>
+        </div>
       </div>
 
       <div class="flex gap-3">
@@ -929,6 +947,16 @@
     const leaderMember = group.members.find(m => m.is_creator);
     populateEditActivityOptions(game, leaderMember);
 
+    // Show/hide "Convert to Thread" option based on whether thread exists
+    const convertContainer = document.getElementById('convertToThreadContainer');
+    if (group.thread_id && group.thread_id > 0) {
+      // Thread already exists, hide convert option
+      convertContainer.classList.add('hidden');
+    } else {
+      // No thread, show convert option
+      convertContainer.classList.remove('hidden');
+    }
+
     // Show modal immediately for better UX
     document.getElementById('editGroupModal').classList.remove('hidden');
 
@@ -1250,6 +1278,32 @@
     }
   }
 
+  async function convertToThread() {
+    const groupId = document.getElementById('editGroupId').value;
+
+    if (!confirm('Convert this group to a Discord thread?\n\nThis will create a thread where members can join from Discord. The thread will stay active for 7 days and can be kept alive by chatting.')) {
+      return;
+    }
+
+    try {
+      const res = await csrfFetch(`/api/guild/${guildId}/lfg/browser/${groupId}/convert-to-thread/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Failed to convert to thread');
+      }
+
+      showToast(data.message || 'Group converted to Discord thread!', 'success');
+      closeEditGroupModal();
+      await loadGroups();
+    } catch (err) {
+      showToast(err.message || 'Failed to convert to thread', 'error');
+    }
+  }
+
   function closeEditGroupModal() {
     document.getElementById('editGroupModal').classList.add('hidden');
   }
@@ -1280,6 +1334,11 @@
   async function openCreateGroupModal() {
     document.getElementById('createGroupModal').classList.remove('hidden');
     await loadGuildMembers();
+
+    // Initialize game select if not already created
+    if (!createGameSelect) {
+      initializeCreateGameSelect();
+    }
 
     // Initialize role select if not already created
     if (!createPingRoleSelect) {
@@ -1393,8 +1452,9 @@
     });
   }
 
-  function onCreateGameChange() {
-    const gameId = document.getElementById('createGame').value;
+  function onCreateGameChange(gameIdParam) {
+    // Get game ID from parameter (custom select) or fallback to old input
+    const gameId = gameIdParam || (document.getElementById('createGame') ? document.getElementById('createGame').value : '');
     const container = document.getElementById('createGameOptions');
 
     if (!gameId) {
@@ -1406,6 +1466,11 @@
     // Find the game data
     const game = gamesData.find(g => g.id == gameId);
     if (!game) return;
+
+    // Auto-update max group size
+    if (game.max_group_size) {
+      document.getElementById('createGroupSize').value = game.max_group_size;
+    }
 
     container.innerHTML = '';
     let hasOptions = false;
@@ -1518,13 +1583,14 @@
   }
 
   async function createGroup() {
-    const gameId = document.getElementById('createGame').value;
+    const gameId = createGameSelect ? createGameSelect.getValue() : '';
     const title = document.getElementById('createTitle').value.trim();
     const scheduledTime = document.getElementById('createScheduledTime').value;
     const maxGroupSize = parseInt(document.getElementById('createGroupSize').value);
     const description = document.getElementById('createDescription').value;
     const eventDuration = document.getElementById('createEventDuration').value;
     const pingRoleId = createPingRoleSelect ? createPingRoleSelect.getValue() : null;
+    const createThread = document.getElementById('createDiscordThread').checked;
 
     // Get selected co-leaders
     const coLeaderCheckboxes = document.querySelectorAll('.co-leader-checkbox:checked');
@@ -1579,7 +1645,8 @@
         event_duration: eventDuration ? parseInt(eventDuration) : null,
         ping_role_id: pingRoleId ? pingRoleId : null,
         co_leader_ids: coLeaderIds,
-        creator_options: creatorOptions
+        creator_options: creatorOptions,
+        create_discord_thread: createThread
       };
 
       const res = await csrfFetch(`/api/guild/${guildId}/lfg/browser/create/`, {
@@ -1597,28 +1664,22 @@
       closeCreateGroupModal();
 
       // Reset form
-      document.getElementById('createGame').value = '';
+      if (createGameSelect) createGameSelect.setValue('');
       document.getElementById('createTitle').value = '';
       document.getElementById('createScheduledTime').value = '';
       document.getElementById('createGroupSize').value = '4';
       document.getElementById('createDescription').value = '';
+      document.getElementById('createEventDuration').value = '';
+      document.getElementById('createDiscordThread').checked = true;
       document.getElementById('createGameOptions').classList.add('hidden');
       document.getElementById('createGameOptions').innerHTML = '';
 
       await loadGroups();
     } catch (err) {
-      showToast('Failed to create group', 'error');
+      console.error('Create group error:', err);
+      showToast(err.message || 'Failed to create group', 'error');
     }
   }
-
-  // Auto-update max group size when game is selected
-  document.getElementById('createGame')?.addEventListener('change', (e) => {
-    const selectedOption = e.target.selectedOptions[0];
-    const maxSize = selectedOption.getAttribute('data-max-size');
-    if (maxSize) {
-      document.getElementById('createGroupSize').value = maxSize;
-    }
-  });
 
   // Update Class functions
   async function updateMemberClass(groupId) {
@@ -1919,6 +1980,33 @@
   }
 
   // Initialize filter dropdowns
+  // Create game select instance (global)
+  let createGameSelect = null;
+
+  function initializeCreateGameSelect() {
+    // Build game items for create modal
+    const gameItems = [{value: '', label: 'Select a game...'}];
+    gamesData.forEach(game => {
+      gameItems.push({
+        value: game.id.toString(),
+        label: `${game.game_emoji || ''} ${game.game_name}`.trim(),
+        icon: 'gamepad'
+      });
+    });
+
+    createGameSelect = createCustomSelect({
+      container: '#createGameContainer',
+      name: 'create_game',
+      placeholder: 'Select a game...',
+      items: gameItems,
+      color: 'green',
+      onSelect: (value) => {
+        // Trigger game change handler
+        onCreateGameChange(value);
+      }
+    });
+  }
+
   function initializeFilterDropdowns() {
     // Game filter
     const gameItems = [{value: '', label: 'All Games'}];

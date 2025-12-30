@@ -25,9 +25,8 @@
   <title>{% block title %}Casual Heroes{% endblock %}</title>
 
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- Alpine.js 3.14.1 with SRI -->
+  <!-- Alpine.js 3.14.1 -->
   <script defer src="https://unpkg.com/alpinejs@3.14.1/dist/cdn.min.js"
-          integrity="sha384-l8f0VcPi/M1iHPv8egOnY/15TDwqgbOR1anMIJWvU6nLRgZVLTLSaNqi/TOoT5Fh"
           crossorigin="anonymous"></script>
   <!-- Font Awesome 6.5.0 with SRI -->
   <link rel="stylesheet"
@@ -243,6 +242,43 @@
     // Make csrfFetch available globally
     window.csrfFetch = csrfFetch;
     window.getCsrfToken = getCsrfToken;
+
+    /**
+     * Global ESC key handler to close modals
+     * Finds any modal with class 'fixed' that is not 'hidden' and tries to close it
+     */
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' || event.keyCode === 27) {
+        // Find all modals that are currently visible
+        const visibleModals = Array.from(document.querySelectorAll('.fixed.inset-0'))
+          .filter(modal => !modal.classList.contains('hidden'));
+
+        if (visibleModals.length > 0) {
+          // Get the modal ID and try to call its close function
+          const modal = visibleModals[visibleModals.length - 1]; // Get topmost modal
+          const modalId = modal.id;
+
+          // Try common close function naming patterns
+          const closeFunctionNames = [
+            `close${modalId.charAt(0).toUpperCase() + modalId.slice(1)}`,
+            `close${modalId.replace('Modal', '').charAt(0).toUpperCase() + modalId.replace('Modal', '').slice(1)}Modal`,
+            'closeModal'
+          ];
+
+          for (const fnName of closeFunctionNames) {
+            if (typeof window[fnName] === 'function') {
+              window[fnName]();
+              break;
+            }
+          }
+
+          // Fallback: just hide the modal
+          if (!modal.classList.contains('hidden')) {
+            modal.classList.add('hidden');
+          }
+        }
+      }
+    });
   </script>
 
   {% block extra_js %}{% endblock %}

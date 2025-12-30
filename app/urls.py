@@ -333,6 +333,10 @@ urlpatterns = [
     path('api/guild/<str:guild_id>/lfg/browser/<int:group_id>/update/', views.api_lfg_browser_update, name='api_lfg_browser_update'),
     path('api/guild/<str:guild_id>/lfg/browser/<int:group_id>/update-class/', views.api_lfg_browser_update_class, name='api_lfg_browser_update_class'),
     path('api/guild/<str:guild_id>/lfg/browser/<int:group_id>/delete/', views.api_lfg_browser_delete, name='api_lfg_browser_delete'),
+    path('api/guild/<str:guild_id>/lfg/browser/<int:group_id>/convert-to-thread/', views.api_lfg_convert_to_thread, name='api_lfg_convert_to_thread'),
     path('api/guild/<str:guild_id>/lfg/browser/audit-logs/', views.api_lfg_browser_audit_logs, name='api_lfg_browser_audit_logs'),
     path('api/guild/<str:guild_id>/lfg/browser-notifications/', views.api_lfg_browser_notifications, name='api_lfg_browser_notifications'),
+
+    # CSP Violation Reporting
+    path('csp-violations/', views.csp_violation_report, name='csp_violations'),
 ]

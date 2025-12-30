@@ -6685,7 +6685,7 @@ def api_raffle_create(request, guild_id):
             return JsonResponse({'success': True, 'id': raffle.id})
     except Exception as e:
         logger.error(f"Error creating raffle: {e}", exc_info=True)
-        return JsonResponse({'error': f'Failed to create raffle: {str(e)}'}, status=500)
+        return JsonResponse({'error': 'Failed to create raffle'}, status=500)
 
 
 @require_http_methods(["POST"])
@@ -7026,7 +7026,7 @@ def api_raffle_end_now(request, guild_id, raffle_id):
 
     except Exception as e:
         logger.error(f"Error in bulk role create for guild {guild_id}: {e}", exc_info=True)
-        return JsonResponse({'error': f'An internal error occurred: {str(e)}'}, status=500)
+        return JsonResponse({'error': 'Failed to create roles'}, status=500)
 
 
 @api_auth_required
@@ -8034,7 +8034,7 @@ def api_guild_channels(request, guild_id):
 
     except Exception as e:
         logger.error(f"Failed to fetch channels for guild {guild_id}: {e}")
-        return JsonResponse({'error': str(e), 'channels': []}, status=500)
+        return JsonResponse({'error': 'Failed to fetch channels', 'channels': []}, status=500)
 
 
 @require_http_methods(["GET", "PATCH"])
@@ -8069,7 +8069,7 @@ def api_guild_roles(request, guild_id):
 
         except Exception as e:
             logger.error(f"Failed to fetch roles for guild {guild_id}: {e}")
-            return JsonResponse({'error': str(e), 'roles': []}, status=500)
+            return JsonResponse({'error': 'Failed to fetch roles', 'roles': []}, status=500)
 
     elif request.method == 'PATCH':
         try:
@@ -8117,7 +8117,7 @@ def api_guild_roles(request, guild_id):
             else:
                 error_text = resp.text
                 logger.error(f"Failed to update Discord role positions in guild {guild_id}: {resp.status_code} - {error_text}")
-                return JsonResponse({'error': f'Discord API returned status {resp.status_code}: {error_text}'}, status=resp.status_code)
+                return JsonResponse({'error': 'Failed to update role positions'}, status=500)
 
         except Exception as e:
             logger.error(f"Error updating Discord role positions in guild {guild_id}: {e}", exc_info=True)
@@ -8169,7 +8169,7 @@ def api_guild_emojis(request, guild_id):
 
     except Exception as e:
         logger.error(f"Failed to fetch emojis for guild {guild_id}: {e}")
-        return JsonResponse({'success': False, 'error': str(e), 'standard': [], 'custom': []}, status=500)
+        return JsonResponse({'success': False, 'error': 'Failed to fetch emojis', 'standard': [], 'custom': []}, status=500)
 
 
 # Admin/Server Settings Dashboard
@@ -8485,7 +8485,7 @@ def stripe_create_checkout(request, guild_id):
 
     except Exception as e:
         logger.error(f"Error creating checkout session: {e}")
-        return JsonResponse({'error': str(e)}, status=500)
+        return JsonResponse({'error': 'Payment processing failed'}, status=500)
 
 
 @require_http_methods(["POST"])
@@ -8542,7 +8542,7 @@ def stripe_webhook(request):
 
     except Exception as e:
         logger.error(f"Stripe webhook error: {e}")
-        return JsonResponse({'error': str(e)}, status=500)
+        return JsonResponse({'error': 'Failed to process webhook'}, status=500)
 
 
 @require_http_methods(["POST"])
@@ -8563,7 +8563,7 @@ def stripe_cancel_subscription(request, guild_id):
 
     except Exception as e:
         logger.error(f"Error cancelling subscription: {e}")
-        return JsonResponse({'error': str(e)}, status=500)
+        return JsonResponse({'error': 'Payment processing failed'}, status=500)
 
 
 @require_http_methods(["GET"])
@@ -8584,7 +8584,7 @@ def stripe_subscription_status(request, guild_id):
 
     except Exception as e:
         logger.error(f"Error fetching subscription status: {e}")
-        return JsonResponse({'error': str(e)}, status=500)
+        return JsonResponse({'error': 'Payment processing failed'}, status=500)
 
 
 @require_http_methods(["POST"])
@@ -8617,7 +8617,7 @@ def stripe_billing_portal(request, guild_id):
 
     except Exception as e:
         logger.error(f"Error creating billing portal: {e}")
-        return JsonResponse({'error': str(e)}, status=500)
+        return JsonResponse({'error': 'Payment processing failed'}, status=500)
 
 
 @require_http_methods(["POST"])
@@ -8700,7 +8700,7 @@ def stripe_transfer_subscription(request, guild_id):
 
     except Exception as e:
         logger.error(f"Error transferring subscription: {e}")
-        return JsonResponse({'error': str(e)}, status=500)
+        return JsonResponse({'error': 'Payment processing failed'}, status=500)
 
 
 @require_http_methods(["POST"])
@@ -9652,7 +9652,7 @@ def api_channel_template_create(request, guild_id):
 
     except Exception as e:
         logger.error(f"Error creating channel template for guild {guild_id}: {e}", exc_info=True)
-        return JsonResponse({'error': f'An internal error occurred: {str(e)}'}, status=500)
+        return JsonResponse({'error': 'Failed to create channel template'}, status=500)
 
 
 @require_http_methods(["POST"])
@@ -9705,7 +9705,7 @@ def api_role_template_create(request, guild_id):
 
     except Exception as e:
         logger.error(f"Error creating role template for guild {guild_id}: {e}", exc_info=True)
-        return JsonResponse({'error': f'An internal error occurred: {str(e)}'}, status=500)
+        return JsonResponse({'error': 'Failed to create role template'}, status=500)
 
 
 @require_http_methods(["DELETE"])
@@ -14189,7 +14189,7 @@ def api_discovery_config_update(request, guild_id):
 
     except Exception as e:
         logger.error(f"Error updating discovery config for guild {guild_id}: {e}", exc_info=True)
-        return JsonResponse({'error': f'An internal error occurred: {str(e)}'}, status=500)
+        return JsonResponse({'error': 'Failed to update discovery configuration'}, status=500)
 
 
 @require_http_methods(["GET"])
@@ -15495,7 +15495,7 @@ def api_lfg_search(request, guild_id):
         return JsonResponse({'success': True, 'games': games_data})
 
     except Exception as e:
-        return JsonResponse({'error': str(e), 'games': []})
+        return JsonResponse({'error': 'Failed to load game data', 'games': []})
 
 
 @require_http_methods(["POST"])
@@ -16849,6 +16849,7 @@ def api_lfg_browser_create(request, guild_id):
         max_group_size = data.get('max_group_size')
         co_leader_ids = data.get('co_leader_ids', [])  # List of user IDs
         creator_options = data.get('creator_options', {})  # Creator's game-specific selections
+        create_discord_thread = data.get('create_discord_thread', False)  # Whether to create Discord thread
 
         if not game_id:
             return JsonResponse({'error': 'Game ID required'}, status=400)
@@ -16985,7 +16986,26 @@ def api_lfg_browser_create(request, guild_id):
 
             db.commit()
 
-            # Send notifications (lfg_config already queried above for attendance)
+            # Queue Discord thread creation if user requested it (independent of lfg_config)
+            if create_discord_thread and game.lfg_channel_id:
+                from .models import PendingAction, ActionType, ActionStatus
+                import time as time_lib
+
+                action = PendingAction(
+                    guild_id=int(guild_id),
+                    action_type=ActionType.LFG_THREAD_CREATE,
+                    payload=json.dumps({
+                        'group_id': new_group.id,
+                        'channel_id': str(game.lfg_channel_id)
+                    }),
+                    status=ActionStatus.PENDING,
+                    priority=1,
+                    created_at=int(time_lib.time())
+                )
+                db.add(action)
+                db.commit()
+
+            # Send webhook notifications if lfg_config exists and webhooks are enabled
             if not lfg_config:
                 lfg_config = db.query(LFGConfig).filter_by(guild_id=int(guild_id)).first()
 
@@ -17048,32 +17068,18 @@ def api_lfg_browser_create(request, guild_id):
                         'inline': False
                     })
 
-                # Queue bot action to create thread with interactive view
-                if lfg_config.browser_notify_channel_id and lfg_config.notify_on_group_create:
-                    from .models import PendingAction, ActionType, ActionStatus
-                    import time as time_lib
-
-                    action = PendingAction(
-                        guild_id=int(guild_id),
-                        action_type=ActionType.LFG_THREAD_CREATE,
-                        payload=json.dumps({
-                            'group_id': new_group.id,
-                            'channel_id': str(lfg_config.browser_notify_channel_id)
-                        }),
-                        status=ActionStatus.PENDING,
-                        priority=1,  # High priority
-                        created_at=int(time_lib.time())
-                    )
-                    db.add(action)
-                    logger.info(f"Queued LFG thread creation action for group {new_group.id}")
-
                 # Send webhook notification if configured
                 if lfg_config.webhook_url and lfg_config.notify_on_group_create:
                     send_lfg_webhook_notification(lfg_config.webhook_url, embed_data)
 
+            # Success message varies based on whether Discord thread was requested
+            success_message = 'LFG group created!'
+            if create_discord_thread:
+                success_message = 'LFG group created! Bot will create a Discord thread shortly.'
+
             return JsonResponse({
                 'success': True,
-                'message': 'LFG group created! Bot will create a Discord thread shortly.',
+                'message': success_message,
                 'group': {
                     'id': new_group.id,
                     'game_name': game.game_name,
@@ -17631,6 +17637,156 @@ def api_lfg_browser_delete(request, guild_id, group_id):
         import logging
         logger = logging.getLogger(__name__)
         logger.error(f"Error deleting LFG group: {e}", exc_info=True)
+        return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
+
+
+@require_http_methods(["POST"])
+@api_member_auth_required
+@ratelimit(key='user_or_ip', rate='10/m', method='POST', block=True)
+def api_lfg_convert_to_thread(request, guild_id, group_id):
+    """
+    POST /api/guild/<id>/lfg/browser/<group_id>/convert-to-thread/ - Convert web-only LFG group to Discord thread.
+
+    Converts a browser-only LFG group into a Discord thread, allowing members to join from Discord.
+    Thread will be created in the game's configured LFG channel and will stay active for 7 days.
+
+    Permission Hierarchy:
+    - Server admins: Full control of all groups
+    - Group creator: Can convert their own group
+    - Co-leaders: Can convert appointed groups
+
+    Security:
+    - Rate limited to 10 conversions per minute to prevent spam
+    - Validates group has no existing thread
+    - Requires game's LFG channel to be configured
+
+    Returns:
+        200: Thread creation queued successfully
+        400: Group already has a thread or LFG channel not configured
+        403: Permission denied (not admin, creator, or co-leader)
+        404: Group or game not found
+    """
+    try:
+        from .db import get_db_session
+        from .models import Guild, LFGGroup, LFGConfig, LFGGame, LFGMember, PendingAction, ActionType, ActionStatus
+        import logging
+        import time as time_lib
+        logger = logging.getLogger(__name__)
+
+        # Get Discord user from session
+        discord_user = request.session.get('discord_user', {})
+        user_id = discord_user.get('id')
+        username = discord_user.get('username', 'Unknown')
+
+        if not user_id:
+            return JsonResponse({'error': 'Not authenticated'}, status=401)
+
+        with get_db_session() as db:
+            # Get guild
+            guild = db.query(Guild).filter_by(guild_id=int(guild_id)).first()
+            if not guild:
+                return JsonResponse({'error': 'Guild not found'}, status=404)
+
+            # Get group
+            group = db.query(LFGGroup).filter_by(id=int(group_id), guild_id=int(guild_id)).first()
+            if not group:
+                return JsonResponse({'error': 'Group not found'}, status=404)
+
+            # Permission hierarchy:
+            # 1. Server admins (full control of all groups)
+            # 2. Group creator (control their own group)
+            # 3. Co-leaders (control appointed groups)
+
+            # Check if user is server admin
+            admin_guilds = request.session.get('discord_admin_guilds', [])
+            logger.info(f"DEBUG: admin_guilds from session: {admin_guilds}")
+            logger.info(f"DEBUG: guild_id checking: {guild_id} (type: {type(guild_id)})")
+
+            is_admin = str(guild_id) in [str(g['id']) for g in admin_guilds]
+            logger.info(f"DEBUG: is_admin result: {is_admin}")
+
+            # Check if user is the group creator
+            is_creator = group.creator_id == int(user_id)
+            logger.info(f"DEBUG: is_creator: {is_creator} (group.creator_id={group.creator_id}, user_id={user_id})")
+
+            # Check if user is a co-leader
+            co_leader_member = db.query(LFGMember).filter_by(
+                group_id=group.id,
+                user_id=int(user_id),
+                is_co_leader=True
+            ).filter(LFGMember.left_at == None).first()
+            is_co_leader = co_leader_member is not None
+            logger.info(f"DEBUG: is_co_leader: {is_co_leader}")
+
+            # Admin, creator, or co-leader can convert
+            if not (is_admin or is_creator or is_co_leader):
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Only server admins, the group creator, or co-leaders can convert this group to a Discord thread'
+                }, status=403)
+
+            # Check if group already has a thread
+            if group.thread_id and group.thread_id > 0:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'This group already has a Discord thread'
+                }, status=400)
+
+            # Get game to check if LFG channel is configured
+            game = db.query(LFGGame).filter_by(id=group.game_id).first()
+            if not game:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Game not found'
+                }, status=404)
+
+            if not game.lfg_channel_id:
+                return JsonResponse({
+                    'success': False,
+                    'error': f'LFG channel not configured for {game.game_name}. Please ask an admin to set it up in the LFG settings.'
+                }, status=400)
+
+            # Get LFG config for notification settings
+            lfg_config = db.query(LFGConfig).filter_by(guild_id=int(guild_id)).first()
+
+            # Queue bot action to create the Discord thread
+            action = PendingAction(
+                guild_id=int(guild_id),
+                action_type=ActionType.LFG_THREAD_CREATE,
+                payload=json.dumps({
+                    'group_id': group.id,
+                    'channel_id': str(game.lfg_channel_id)  # Use game's LFG channel, not notify channel
+                }),
+                status=ActionStatus.PENDING,
+                priority=1,  # High priority
+                created_at=int(time_lib.time())
+            )
+            db.add(action)
+
+            # Log audit entry
+            log_lfg_audit(
+                db=db,
+                guild_id=guild_id,
+                group_id=group.id,
+                action='convert_to_thread',
+                actor_id=user_id,
+                actor_name=username,
+                group_name=group.thread_name,
+                game_name=game.game_name if game else 'Unknown'
+            )
+
+            db.commit()
+            logger.info(f"User {username} ({user_id}) converted LFG group {group.id} to thread")
+
+            return JsonResponse({
+                'success': True,
+                'message': 'Discord thread creation queued! The bot will create the thread shortly.'
+            })
+
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error converting LFG group to thread: {e}", exc_info=True)
         return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
 
 
@@ -18862,7 +19018,7 @@ def creator_profile_delete(request, guild_id):
 
     except Exception as e:
         logger.error(f"Error deleting creator profile: {e}", exc_info=True)
-        return JsonResponse({'error': str(e)}, status=500)
+        return JsonResponse({'error': 'Failed to delete creator profile'}, status=500)
 
 
 @discord_required
@@ -18923,7 +19079,7 @@ def set_creator_of_week(request, guild_id):
 
     except Exception as e:
         logger.error(f"Error setting COTW: {e}", exc_info=True)
-        return JsonResponse({'error': str(e)}, status=500)
+        return JsonResponse({'error': 'Failed to set Creator of the Week'}, status=500)
 
 
 @discord_required
@@ -18984,4 +19140,41 @@ def set_creator_of_month(request, guild_id):
 
     except Exception as e:
         logger.error(f"Error setting COTM: {e}", exc_info=True)
-        return JsonResponse({'error': str(e)}, status=500)
+        return JsonResponse({'error': 'Failed to set Creator of the Month'}, status=500)
+
+
+# ==============================================================================
+# CSP Violation Reporting Endpoint
+# ==============================================================================
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def csp_violation_report(request):
+    """
+    Endpoint to receive CSP violation reports.
+    Logs violations for security monitoring and analysis.
+    """
+    import json as json_lib
+    try:
+        # Parse CSP violation report
+        report = json_lib.loads(request.body.decode('utf-8'))
+
+        # Extract key information
+        violated_directive = report.get('csp-report', {}).get('violated-directive', 'unknown')
+        blocked_uri = report.get('csp-report', {}).get('blocked-uri', 'unknown')
+        document_uri = report.get('csp-report', {}).get('document-uri', 'unknown')
+        source_file = report.get('csp-report', {}).get('source-file', 'unknown')
+        line_number = report.get('csp-report', {}).get('line-number', 'unknown')
+
+        # Log the violation
+        logger.warning(
+            f"CSP VIOLATION: directive={violated_directive}, "
+            f"blocked_uri={blocked_uri}, document={document_uri}, "
+            f"source={source_file}:{line_number}"
+        )
+
+        return JsonResponse({'status': 'ok'}, status=204)
+
+    except Exception as e:
+        logger.error(f"Error processing CSP violation report: {e}", exc_info=True)
+        return JsonResponse({'status': 'error'}, status=400)

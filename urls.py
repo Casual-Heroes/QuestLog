@@ -141,4 +141,7 @@ urlpatterns = [
     path('api/guild/<str:guild_id>/lfg/groups/', views.api_lfg_groups, name='api_lfg_groups'),
     path('api/guild/<str:guild_id>/lfg/blacklist/', views.api_lfg_blacklist, name='api_lfg_blacklist'),
     path('api/guild/<str:guild_id>/lfg/blacklist/<str:user_id>/', views.api_lfg_blacklist_update, name='api_lfg_blacklist_update'),
+
+    # CSP Violation Reporting
+    path('csp-violations/', views.csp_violation_report, name='csp_violations'),
 ]
