@@ -1,248 +1,504 @@
-<div id="twitchContent" class="hidden">
-  {% if has_discovery_module or guild_record.is_vip or guild_record.subscription_tier == 'complete' or guild_record.billing_cycle == 'lifetime' %}
-  <!-- Coming Soon Banner -->
-  <div class="bg-gradient-to-r from-purple-900/40 to-indigo-900/40 rounded-xl border-2 border-purple-500/50 p-8 mb-8 text-center">
-    <div class="inline-block p-4 bg-purple-600/20 rounded-full mb-4">
-      <i class="fab fa-twitch text-purple-400 text-6xl"></i>
-    </div>
-    <h2 class="text-3xl font-bold text-white mb-3">
-      Twitch Integration
-      <span class="ml-3 px-3 py-1 text-sm bg-purple-600/30 text-purple-300 border border-purple-500/40 rounded-full">Coming Soon</span>
-    </h2>
-    <p class="text-gray-300 text-lg max-w-2xl mx-auto">
-      Connect your Twitch account and stream data directly to your Discord server
-    </p>
-  </div>
+<!-- Twitch Integration Tab Content -->
+<!-- Include custom select component -->
+{% include 'questlog/partials/custom_select.html' %}
 
-  <!-- Planned Features Grid -->
-  <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-    <!-- Feature 1: Account Linking -->
-    <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6 hover:border-purple-500/30 transition">
-      <div class="flex items-start gap-4">
-        <div class="w-12 h-12 bg-purple-600/20 rounded-lg flex items-center justify-center flex-shrink-0">
-          <i class="fas fa-link text-purple-400 text-xl"></i>
-        </div>
-        <div>
-          <h3 class="text-lg font-bold text-white mb-2">Account Linking</h3>
-          <p class="text-gray-400 text-sm">
-            Allow Discord users to link their Twitch accounts through OAuth. Verify streamers and track their channels automatically.
-          </p>
-        </div>
-      </div>
-    </div>
+<!-- CSRF Token -->
+<div style="display:none;">{% csrf_token %}</div>
 
-    <!-- Feature 2: Live Stream Notifications -->
-    <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6 hover:border-purple-500/30 transition">
-      <div class="flex items-start gap-4">
-        <div class="w-12 h-12 bg-purple-600/20 rounded-lg flex items-center justify-center flex-shrink-0">
-          <i class="fas fa-broadcast-tower text-purple-400 text-xl"></i>
+<div id="twitchContent" class="space-y-6">
+  <!-- Header -->
+  <div class="flex items-center justify-between mb-6">
+    <div>
+      <h2 class="text-2xl font-bold text-white mb-2 flex items-center gap-3">
+        <div class="w-12 h-12 bg-purple-600/20 rounded-lg flex items-center justify-center">
+          <i class="fab fa-twitch text-purple-400 text-2xl"></i>
         </div>
-        <div>
-          <h3 class="text-lg font-bold text-white mb-2">Live Stream Alerts</h3>
-          <p class="text-gray-400 text-sm">
-            Automatically announce when linked members go live on Twitch with customizable embeds and role mentions.
-          </p>
-        </div>
-      </div>
-    </div>
-
-    <!-- Feature 3: Auto-Roles -->
-    <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6 hover:border-purple-500/30 transition">
-      <div class="flex items-start gap-4">
-        <div class="w-12 h-12 bg-purple-600/20 rounded-lg flex items-center justify-center flex-shrink-0">
-          <i class="fas fa-user-tag text-purple-400 text-xl"></i>
-        </div>
-        <div>
-          <h3 class="text-lg font-bold text-white mb-2">Streamer Auto-Roles</h3>
-          <p class="text-gray-400 text-sm">
-            Automatically assign Discord roles based on Twitch verification, partner status, or follower count thresholds.
-          </p>
-        </div>
-      </div>
-    </div>
-
-    <!-- Feature 4: Stream Stats -->
-    <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6 hover:border-purple-500/30 transition">
-      <div class="flex items-start gap-4">
-        <div class="w-12 h-12 bg-purple-600/20 rounded-lg flex items-center justify-center flex-shrink-0">
-          <i class="fas fa-chart-line text-purple-400 text-xl"></i>
-        </div>
-        <div>
-          <h3 class="text-lg font-bold text-white mb-2">Stream Analytics</h3>
-          <p class="text-gray-400 text-sm">
-            Track viewer counts, stream duration, and community engagement metrics directly in Discord.
-          </p>
-        </div>
-      </div>
-    </div>
-
-    <!-- Feature 5: Channel Integration -->
-    <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6 hover:border-purple-500/30 transition">
-      <div class="flex items-start gap-4">
-        <div class="w-12 h-12 bg-purple-600/20 rounded-lg flex items-center justify-center flex-shrink-0">
-          <i class="fas fa-hashtag text-purple-400 text-xl"></i>
-        </div>
-        <div>
-          <h3 class="text-lg font-bold text-white mb-2">Channel Sync</h3>
-          <p class="text-gray-400 text-sm">
-            Create dedicated Discord channels that update with live stream information and viewer count in real-time.
-          </p>
-        </div>
-      </div>
-    </div>
-
-    <!-- Feature 6: Clip Sharing -->
-    <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6 hover:border-purple-500/30 transition">
-      <div class="flex items-start gap-4">
-        <div class="w-12 h-12 bg-purple-600/20 rounded-lg flex items-center justify-center flex-shrink-0">
-          <i class="fas fa-video text-purple-400 text-xl"></i>
-        </div>
-        <div>
-          <h3 class="text-lg font-bold text-white mb-2">Clip & VOD Sharing</h3>
-          <p class="text-gray-400 text-sm">
-            Automatically share new clips and VODs to designated channels with rich embeds and metadata.
-          </p>
-        </div>
-      </div>
+        Twitch Integration
+      </h2>
+      <p class="text-gray-400">Automatically notify members when approved streamers go live on Twitch</p>
     </div>
   </div>
 
-  <!-- How It Will Work -->
-  <div class="bg-gradient-to-r from-purple-900/20 to-purple-800/20 rounded-xl border border-purple-800/30 p-6 mb-8">
-    <h3 class="text-lg font-bold text-white mb-4">
-      <i class="fas fa-info-circle text-purple-400 mr-2"></i>How Twitch Integration Will Work
-    </h3>
-    <div class="space-y-3">
-      <div class="flex items-start gap-3">
-        <div class="w-6 h-6 bg-purple-600 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-          <span class="text-white text-xs font-bold">1</span>
-        </div>
-        <p class="text-gray-300 text-sm">
-          <strong class="text-white">OAuth Connection:</strong> Users will connect their Twitch accounts through a secure OAuth flow on the Casual Heroes website.
-        </p>
+  <!-- Configuration Section -->
+  <div class="bg-neutral-900 border border-neutral-700 rounded-xl p-6 space-y-6">
+    <div class="flex items-center justify-between mb-4">
+      <h3 class="text-xl font-bold text-white">Notification Settings</h3>
+      <div class="flex items-center gap-3">
+        <span class="text-gray-400 text-sm">Enable Notifications</span>
+        <label class="relative inline-flex items-center cursor-pointer">
+          <input type="checkbox" id="twitch-enabled" class="sr-only peer">
+          <div class="w-11 h-6 bg-neutral-700 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-purple-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
+        </label>
       </div>
-      <div class="flex items-start gap-3">
-        <div class="w-6 h-6 bg-purple-600 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-          <span class="text-white text-xs font-bold">2</span>
-        </div>
-        <p class="text-gray-300 text-sm">
-          <strong class="text-white">Webhook Monitoring:</strong> The bot will monitor Twitch webhooks for stream status changes, new clips, and channel updates.
-        </p>
+    </div>
+
+    <!-- Notification Channel -->
+    <div>
+      <label class="block text-white font-medium mb-2">Notification Channel</label>
+      <div id="twitch-channel-select-container"></div>
+      <p class="text-gray-500 text-sm mt-2">Select where live stream notifications will be posted</p>
+    </div>
+
+    <!-- Ping Role -->
+    <div>
+      <label class="block text-white font-medium mb-2">Ping Role (Optional)</label>
+      <div id="twitch-ping-role-select-container"></div>
+      <p class="text-gray-500 text-sm mt-2">Optionally select a role to mention in notifications</p>
+    </div>
+
+    <!-- Minimum Level Required -->
+    <div>
+      <label class="block text-white font-medium mb-2">Minimum Level Required</label>
+      <input type="number" id="twitch-min-level" min="0" max="100" value="10"
+             class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:border-purple-500 focus:outline-none">
+      <p class="text-gray-500 text-sm mt-2">Members below this level cannot use /streamstart (prevents spam)</p>
+    </div>
+
+    <!-- Notification Title -->
+    <div>
+      <label class="block text-white font-medium mb-2">Notification Title</label>
+      <input type="text" id="twitch-notification-title" maxlength="100" value="🔴 {creator} is now live on Twitch!"
+             class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:border-purple-500 focus:outline-none">
+      <p class="text-gray-500 text-sm mt-2">Use {creator} to insert the creator's name</p>
+    </div>
+
+    <!-- Notification Message -->
+    <div>
+      <label class="block text-white font-medium mb-2">Notification Message</label>
+      <textarea id="twitch-notification-message" rows="3" maxlength="500"
+                class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:border-purple-500 focus:outline-none"
+                placeholder="Come watch the stream!">Come watch the stream!</textarea>
+      <p class="text-gray-500 text-sm mt-2">This will appear in the Discord embed description</p>
+    </div>
+
+    <!-- Embed Color -->
+    <div>
+      <label class="block text-white font-medium mb-2">Embed Color</label>
+      <div class="flex items-center gap-4">
+        <input type="color" id="twitch-embed-color" value="#9147ff"
+               class="w-20 h-12 rounded-lg cursor-pointer border-2 border-neutral-700">
+        <input type="text" id="twitch-embed-color-hex" value="#9147ff" maxlength="7" pattern="^#[0-9A-Fa-f]{6}$"
+               class="flex-1 bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:border-purple-500 focus:outline-none font-mono">
       </div>
-      <div class="flex items-start gap-3">
-        <div class="w-6 h-6 bg-purple-600 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-          <span class="text-white text-xs font-bold">3</span>
-        </div>
-        <p class="text-gray-300 text-sm">
-          <strong class="text-white">Automated Announcements:</strong> Configure which channels receive notifications, customize announcement messages, and set role mentions.
-        </p>
-      </div>
-      <div class="flex items-start gap-3">
-        <div class="w-6 h-6 bg-purple-600 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-          <span class="text-white text-xs font-bold">4</span>
-        </div>
-        <p class="text-gray-300 text-sm">
-          <strong class="text-white">Role Management:</strong> Set up automatic role assignment based on streamer status, verification, or follower milestones.
-        </p>
+      <p class="text-gray-500 text-sm mt-2">Choose the border color for Twitch notification embeds</p>
+    </div>
+
+    <!-- Action Buttons -->
+    <div class="flex gap-3 pt-4 border-t border-neutral-700">
+      <button onclick="saveTwitchConfiguration()"
+              class="px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition font-medium">
+        <i class="fas fa-save mr-2"></i>Save Configuration
+      </button>
+      <button onclick="sendTwitchTestNotification()"
+              class="px-6 py-3 bg-neutral-700 hover:bg-neutral-600 text-white rounded-lg transition font-medium">
+        <i class="fas fa-bell mr-2"></i>Send Test Notification
+      </button>
+    </div>
+  </div>
+
+  <!-- Approved Streamers Section -->
+  <div class="bg-neutral-900 border border-neutral-700 rounded-xl p-6">
+    <h3 class="text-xl font-bold text-white mb-4">Approved Streamers</h3>
+    <p class="text-gray-400 mb-4">These creators will trigger automatic notifications when they go live on Twitch</p>
+
+    <div id="twitch-approved-streamers-list" class="space-y-3">
+      <!-- Dynamically loaded -->
+      <div class="text-center py-8 text-gray-500">
+        <i class="fas fa-spinner fa-spin text-2xl mb-2"></i>
+        <p>Loading approved streamers...</p>
       </div>
     </div>
   </div>
 
-  <!-- Use Cases -->
-  <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6">
-    <h3 class="text-lg font-bold text-white mb-4">
-      <i class="fas fa-lightbulb text-yellow-400 mr-2"></i>Perfect For
-    </h3>
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-      <div class="p-4 bg-neutral-800/50 rounded-lg border border-neutral-700">
-        <p class="text-white font-medium mb-1">Streaming Communities</p>
-        <p class="text-gray-400 text-sm">Support your community's streamers with automatic announcements</p>
-      </div>
-      <div class="p-4 bg-neutral-800/50 rounded-lg border border-neutral-700">
-        <p class="text-white font-medium mb-1">Gaming Guilds</p>
-        <p class="text-gray-400 text-sm">Track when guild members are streaming and engage viewers</p>
-      </div>
-      <div class="p-4 bg-neutral-800/50 rounded-lg border border-neutral-700">
-        <p class="text-white font-medium mb-1">Content Creator Hubs</p>
-        <p class="text-gray-400 text-sm">Centralize all your creators' Twitch activity in one place</p>
+  <!-- All Creators with Twitch Connected -->
+  <div class="bg-neutral-900 border border-neutral-700 rounded-xl p-6">
+    <h3 class="text-xl font-bold text-white mb-4">Creators with Twitch Connected</h3>
+    <p class="text-gray-400 mb-4">Approve creators to enable notifications for this server</p>
+
+    <div id="twitch-all-creators-list" class="space-y-3">
+      <!-- TODO: Implement all creators list dynamically -->
+      <div class="text-center py-8 text-gray-500">
+        <p>Creator approval list coming soon</p>
       </div>
     </div>
   </div>
 
-  <!-- Feedback Section -->
-  <div class="mt-8 p-6 bg-gradient-to-r from-indigo-900/30 to-purple-900/30 rounded-xl border border-indigo-700/40">
+  <!-- Info Section -->
+  <div class="bg-blue-900/20 border border-blue-700/30 rounded-lg p-6">
     <div class="flex items-start gap-4">
-      <div class="w-12 h-12 bg-indigo-600/20 rounded-lg flex items-center justify-center flex-shrink-0">
-        <i class="fas fa-comment-dots text-indigo-400 text-xl"></i>
-      </div>
+      <i class="fas fa-info-circle text-blue-400 text-2xl mt-1"></i>
       <div>
-        <h3 class="text-lg font-bold text-white mb-2">Want to Help Shape This Feature?</h3>
-        <p class="text-gray-300 text-sm mb-3">
-          We're actively developing Twitch integration and would love your input! Join our Discord server to share your ideas and get early access when it launches.
-        </p>
-        <a href="https://discord.gg/casualheroes" target="_blank" class="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition text-sm">
-          <i class="fab fa-discord"></i>
-          Join Our Discord
-        </a>
-      </div>
-    </div>
-  </div>
+        <h4 class="text-white font-bold text-lg mb-3">How Twitch Integration Works</h4>
+        <div class="space-y-3 text-gray-300">
+          <div class="flex items-start gap-3">
+            <span class="flex-shrink-0 w-6 h-6 bg-purple-600 text-white rounded-full flex items-center justify-center text-sm font-bold">1</span>
+            <p><strong class="text-white">Creators Connect Twitch:</strong> Creators register their profile and securely connect their Twitch account via OAuth in their creator profile settings.</p>
+          </div>
+          <div class="flex items-start gap-3">
+            <span class="flex-shrink-0 w-6 h-6 bg-purple-600 text-white rounded-full flex items-center justify-center text-sm font-bold">2</span>
+            <p><strong class="text-white">Admin Approves:</strong> Server admins review and approve creators for live notifications in this tab. This prevents spam and ensures quality content.</p>
+          </div>
+          <div class="flex items-start gap-3">
+            <span class="flex-shrink-0 w-6 h-6 bg-purple-600 text-white rounded-full flex items-center justify-center text-sm font-bold">3</span>
+            <p><strong class="text-white">Automatic Monitoring:</strong> The bot checks approved streamers every 3 minutes for live status. No manual commands needed!</p>
+          </div>
+          <div class="flex items-start gap-3">
+            <span class="flex-shrink-0 w-6 h-6 bg-purple-600 text-white rounded-full flex items-center justify-center text-sm font-bold">4</span>
+            <p><strong class="text-white">Rich Notifications:</strong> When a creator goes live, a customized Discord embed is posted with stream title, game/category, thumbnail, and viewer count.</p>
+          </div>
+        </div>
 
-  {% else %}
-  <!-- Upgrade Required Banner -->
-  <div class="bg-gradient-to-r from-purple-900/20 to-indigo-900/20 rounded-xl border-2 border-purple-500/30 p-8 text-center">
-    <div class="inline-block p-4 bg-purple-600/10 rounded-full mb-4">
-      <i class="fas fa-lock text-purple-400 text-5xl"></i>
-    </div>
-    <h2 class="text-2xl font-bold text-white mb-3">
-      Twitch Integration
-      <span class="ml-3 px-3 py-1 text-sm bg-purple-600/30 text-purple-300 border border-purple-500/40 rounded-full">Coming Soon</span>
-    </h2>
-    <p class="text-gray-400 text-lg mb-6 max-w-2xl mx-auto">
-      Twitch integration will be included with the Discovery module when it launches
-    </p>
-    <div class="flex flex-col sm:flex-row gap-3 justify-center">
-      <a href="{% url 'guild_billing' guild.id %}" class="inline-flex items-center gap-2 px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-bold transition">
-        <i class="fas fa-crown"></i>
-        Upgrade to Discovery Module
-      </a>
-      <a href="{% url 'guild_billing' guild.id %}" class="inline-flex items-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-bold transition">
-        <i class="fas fa-sparkles"></i>
-        Get Complete Suite
-      </a>
-    </div>
-  </div>
+        <div class="mt-4 p-4 bg-neutral-900/50 rounded-lg border border-neutral-700">
+          <p class="text-sm text-gray-400"><i class="fas fa-shield-alt text-purple-400 mr-2"></i><strong>Security:</strong> All OAuth tokens are encrypted using AES-256-GCM before storage. The bot only has read access to check live status.</p>
+        </div>
 
-  <!-- Feature Preview (Limited) -->
-  <div class="mt-8 bg-neutral-900/50 rounded-xl border border-neutral-800 p-6 relative overflow-hidden">
-    <div class="absolute inset-0 bg-gradient-to-t from-neutral-900 via-neutral-900/80 to-transparent z-10 flex items-end justify-center pb-8">
-      <a href="{% url 'guild_billing' guild.id %}" class="px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-bold transition">
-        <i class="fas fa-unlock-alt mr-2"></i>Unlock Full Preview
-      </a>
-    </div>
-    <div class="filter blur-sm opacity-50">
-      <h3 class="text-xl font-bold text-white mb-4">
-        <i class="fab fa-twitch text-purple-400 mr-2"></i>Planned Features
-      </h3>
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div class="p-4 bg-neutral-800/50 rounded-lg">
-          <p class="text-white font-medium mb-1">Account Linking</p>
-          <p class="text-gray-400 text-sm">OAuth connection for Twitch accounts</p>
-        </div>
-        <div class="p-4 bg-neutral-800/50 rounded-lg">
-          <p class="text-white font-medium mb-1">Live Stream Alerts</p>
-          <p class="text-gray-400 text-sm">Auto-announce when members go live</p>
-        </div>
-        <div class="p-4 bg-neutral-800/50 rounded-lg">
-          <p class="text-white font-medium mb-1">Auto-Roles</p>
-          <p class="text-gray-400 text-sm">Role assignment based on stream status</p>
-        </div>
-        <div class="p-4 bg-neutral-800/50 rounded-lg">
-          <p class="text-white font-medium mb-1">Stream Analytics</p>
-          <p class="text-gray-400 text-sm">Track viewer counts and engagement</p>
+        <div class="mt-3 p-4 bg-purple-900/20 rounded-lg border border-purple-700/30">
+          <p class="text-sm text-gray-300"><i class="fab fa-twitch text-purple-400 mr-2"></i><strong>Note:</strong> Twitch access tokens expire after ~60 days. The bot will automatically refresh them, but creators may need to re-auth if issues occur.</p>
         </div>
       </div>
     </div>
   </div>
-  {% endif %}
 </div>
+
+<script>
+// Custom select instances
+let twitchChannelSelect = null;
+let twitchRoleSelect = null;
+
+// Sync color picker with hex input
+document.addEventListener('DOMContentLoaded', function() {
+  const colorPicker = document.getElementById('twitch-embed-color');
+  const colorHex = document.getElementById('twitch-embed-color-hex');
+
+  if (colorPicker && colorHex) {
+    colorPicker.addEventListener('input', function() {
+      colorHex.value = this.value;
+    });
+
+    colorHex.addEventListener('input', function() {
+      if (/^#[0-9A-Fa-f]{6}$/.test(this.value)) {
+        colorPicker.value = this.value;
+      }
+    });
+  }
+});
+
+// Load Twitch configuration
+async function loadTwitchConfiguration() {
+  try {
+    const guildId = '{{ guild.id }}';
+    const response = await fetch(`/api/guild/${guildId}/streaming/config/`);
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+
+    const data = await response.json();
+
+    // Set enabled toggle
+    document.getElementById('twitch-enabled').checked = data.enabled || false;
+
+    // Set minimum level
+    document.getElementById('twitch-min-level').value = data.minimum_level_required || 10;
+
+    // Set notification title and message
+    document.getElementById('twitch-notification-title').value = data.notification_title || '🔴 {creator} is now live on Twitch!';
+    document.getElementById('twitch-notification-message').value = data.notification_message || 'Come watch the stream!';
+
+    // Set embed color
+    const embedColor = data.embed_color || '#9147ff';
+    document.getElementById('twitch-embed-color').value = embedColor;
+    document.getElementById('twitch-embed-color-hex').value = embedColor;
+
+    // Load channels and roles
+    await loadTwitchChannelsAndRoles(data.notification_channel_id, data.ping_role_id);
+
+  } catch (error) {
+    console.error('Error loading Twitch configuration:', error);
+    showTwitchToast('Failed to load configuration', 'error');
+  }
+}
+
+// Load channels and roles into dropdowns
+async function loadTwitchChannelsAndRoles(selectedChannelId, selectedRoleId) {
+  try {
+    const guildId = '{{ guild.id }}';
+    const channelsResponse = await fetch(`/api/guild/${guildId}/channels/`);
+    const rolesResponse = await fetch(`/api/guild/${guildId}/roles/`);
+
+    const channelsData = await channelsResponse.json();
+    const rolesData = await rolesResponse.json();
+
+    // Extract arrays from response (API returns {channels: [...]} and {roles: [...]})
+    const channels = Array.isArray(channelsData) ? channelsData : (channelsData.channels || []);
+    const roles = Array.isArray(rolesData) ? rolesData : (rolesData.roles || []);
+
+    // Prepare channel items
+    const channelItems = channels
+      .filter(c => c.type === 0) // Text channels only
+      .map(c => ({
+        value: c.id,
+        label: `# ${c.name}`,
+        icon: 'hashtag'
+      }));
+
+    // Prepare role items (add "None" option)
+    const roleItems = [
+      { value: '', label: 'No role ping', icon: 'ban' },
+      ...roles.map(r => ({
+        value: r.id,
+        label: r.name,
+        icon: 'shield-alt'
+      }))
+    ];
+
+    // Create channel select
+    if (twitchChannelSelect) {
+      twitchChannelSelect.destroy();
+    }
+    twitchChannelSelect = createCustomSelect({
+      container: '#twitch-channel-select-container',
+      name: 'twitch_notification_channel_id',
+      id: 'twitch-notification-channel',
+      placeholder: 'Select a channel...',
+      items: channelItems,
+      selected: selectedChannelId || '',
+      color: 'purple'
+    });
+
+    // Create role select
+    if (twitchRoleSelect) {
+      twitchRoleSelect.destroy();
+    }
+    twitchRoleSelect = createCustomSelect({
+      container: '#twitch-ping-role-select-container',
+      name: 'twitch_ping_role_id',
+      id: 'twitch-ping-role',
+      placeholder: 'Select a role (optional)...',
+      items: roleItems,
+      selected: selectedRoleId || '',
+      color: 'purple'
+    });
+
+  } catch (error) {
+    console.error('Error loading channels/roles:', error);
+    showTwitchToast('Failed to load channels and roles', 'error');
+  }
+}
+
+// Save Twitch configuration
+async function saveTwitchConfiguration() {
+  try {
+    const guildId = '{{ guild.id }}';
+    const enabled = document.getElementById('twitch-enabled').checked;
+    const channelId = twitchChannelSelect ? twitchChannelSelect.getValue() : '';
+    const roleId = twitchRoleSelect ? twitchRoleSelect.getValue() : '';
+    const minLevel = parseInt(document.getElementById('twitch-min-level').value) || 10;
+    const title = document.getElementById('twitch-notification-title').value;
+    const message = document.getElementById('twitch-notification-message').value;
+    const embedColor = document.getElementById('twitch-embed-color-hex').value;
+
+    if (enabled && !channelId) {
+      showTwitchToast('Please select a notification channel', 'error');
+      return;
+    }
+
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+
+    const response = await fetch(`/api/guild/${guildId}/streaming/config/`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': csrfToken
+      },
+      body: JSON.stringify({
+        enabled,
+        notification_channel_id: channelId || null,
+        ping_role_id: roleId || null,
+        minimum_level_required: minLevel,
+        notification_title: title,
+        notification_message: message,
+        embed_color: embedColor
+      })
+    });
+
+    const data = await response.json();
+
+    if (data.success) {
+      showTwitchToast('Configuration saved successfully!', 'success');
+    } else {
+      showTwitchToast('Failed to save: ' + (data.error || 'Unknown error'), 'error');
+    }
+
+  } catch (error) {
+    console.error('Error saving Twitch configuration:', error);
+    showTwitchToast('Failed to save configuration', 'error');
+  }
+}
+
+// Send test notification
+async function sendTwitchTestNotification() {
+  try {
+    const guildId = '{{ guild.id }}';
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+
+    const response = await fetch(`/api/guild/${guildId}/streaming/test/`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': csrfToken
+      },
+      body: JSON.stringify({ platform: 'twitch' })
+    });
+
+    const data = await response.json();
+
+    if (data.success) {
+      showTwitchToast('Test notification sent! Check your Discord server.', 'success');
+    } else {
+      showTwitchToast('Failed to send test: ' + (data.error || 'Unknown error'), 'error');
+    }
+
+  } catch (error) {
+    console.error('Error sending test notification:', error);
+    showTwitchToast('Failed to send test notification', 'error');
+  }
+}
+
+// Load approved streamers
+async function loadTwitchApprovedStreamers() {
+  try {
+    const guildId = '{{ guild.id }}';
+    const response = await fetch(`/api/guild/${guildId}/streaming/approved/`);
+    const data = await response.json();
+
+    const container = document.getElementById('twitch-approved-streamers-list');
+
+    if (!data.approved_streamers || data.approved_streamers.length === 0) {
+      container.innerHTML = `
+        <div class="text-center py-8 text-gray-500">
+          <i class="fas fa-user-slash text-4xl mb-3"></i>
+          <p>No approved streamers yet</p>
+          <p class="text-sm mt-2">Approve creators below to enable notifications</p>
+        </div>
+      `;
+      return;
+    }
+
+    // Filter for Twitch-connected creators only
+    const twitchStreamers = data.approved_streamers.filter(s => s.twitch_user_id);
+
+    if (twitchStreamers.length === 0) {
+      container.innerHTML = `
+        <div class="text-center py-8 text-gray-500">
+          <i class="fab fa-twitch text-4xl mb-3"></i>
+          <p>No Twitch streamers approved</p>
+          <p class="text-sm mt-2">Approved creators need to connect their Twitch account</p>
+        </div>
+      `;
+      return;
+    }
+
+    container.innerHTML = twitchStreamers.map(streamer => `
+      <div class="bg-neutral-800 border border-neutral-700 rounded-lg p-4 flex items-center justify-between hover:border-neutral-600 transition">
+        <div class="flex items-center gap-4">
+          <div class="w-12 h-12 bg-gradient-to-br from-purple-600 to-purple-800 rounded-lg flex items-center justify-center">
+            <i class="fab fa-twitch text-white text-xl"></i>
+          </div>
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="text-white font-semibold">${streamer.display_name || streamer.username}</span>
+              ${streamer.is_live_twitch ? '<span class="px-2 py-0.5 bg-red-600 text-white text-xs rounded-full font-bold uppercase">LIVE</span>' : ''}
+            </div>
+            <div class="flex items-center gap-2 text-sm text-gray-400 mt-1">
+              <i class="fab fa-twitch text-purple-400"></i>
+              <span>${streamer.twitch_handle || 'Twitch Connected'}</span>
+              <span class="text-gray-600">•</span>
+              <span>Approved ${new Date(streamer.approved_at * 1000).toLocaleDateString()}</span>
+            </div>
+          </div>
+        </div>
+        <button onclick="revokeTwitchStreamer(${streamer.creator_profile_id})"
+                class="px-4 py-2 bg-red-600/20 hover:bg-red-600/30 text-red-400 rounded-lg transition border border-red-600/30">
+          <i class="fas fa-times mr-2"></i>Revoke
+        </button>
+      </div>
+    `).join('');
+
+  } catch (error) {
+    console.error('Error loading approved streamers:', error);
+    document.getElementById('twitch-approved-streamers-list').innerHTML = `
+      <div class="text-center py-8 text-red-400">
+        <i class="fas fa-exclamation-triangle text-4xl mb-3"></i>
+        <p>Failed to load approved streamers</p>
+      </div>
+    `;
+  }
+}
+
+// Revoke streamer approval
+async function revokeTwitchStreamer(creatorProfileId) {
+  if (!confirm('Are you sure you want to revoke this streamer? They will no longer trigger notifications.')) {
+    return;
+  }
+
+  try {
+    const guildId = '{{ guild.id }}';
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+
+    const response = await fetch(`/api/guild/${guildId}/streaming/revoke/`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': csrfToken
+      },
+      body: JSON.stringify({ creator_profile_id: creatorProfileId })
+    });
+
+    const data = await response.json();
+
+    if (data.success) {
+      showTwitchToast('Streamer revoked successfully', 'success');
+      loadTwitchApprovedStreamers(); // Reload list
+    } else {
+      showTwitchToast('Failed to revoke: ' + (data.error || 'Unknown error'), 'error');
+    }
+
+  } catch (error) {
+    console.error('Error revoking streamer:', error);
+    showTwitchToast('Failed to revoke streamer', 'error');
+  }
+}
+
+// Toast notification
+function showTwitchToast(message, type = 'info') {
+  const toast = document.createElement('div');
+  toast.className = `fixed bottom-4 right-4 px-6 py-4 rounded-lg shadow-lg text-white z-50 ${
+    type === 'success' ? 'bg-green-600' : type === 'error' ? 'bg-red-600' : 'bg-blue-600'
+  }`;
+  toast.innerHTML = `
+    <div class="flex items-center gap-3">
+      <i class="fas ${type === 'success' ? 'fa-check-circle' : type === 'error' ? 'fa-exclamation-circle' : 'fa-info-circle'}"></i>
+      <span>${message}</span>
+    </div>
+  `;
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 3000);
+}
+
+// Initialize when tab is shown (using Intersection Observer)
+const twitchTabObserver = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      loadTwitchConfiguration();
+      loadTwitchApprovedStreamers();
+    }
+  });
+});
+
+// Observe the Twitch tab content
+const twitchTabContent = document.getElementById('twitchContent');
+if (twitchTabContent) {
+  twitchTabObserver.observe(twitchTabContent);
+}
+</script>

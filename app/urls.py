@@ -179,6 +179,7 @@ urlpatterns = [
     # Server Settings Dashboard
     path('questlog/guild/<str:guild_id>/settings/', views.guild_settings, name='guild_settings'),
     path('questlog/guild/<str:guild_id>/messages/', views.guild_messages, name='guild_messages'),
+    path('questlog/guild/<str:guild_id>/game-servers/', views.guild_game_servers, name='guild_game_servers'),
 
     # Settings API Endpoints
     path('api/guild/<str:guild_id>/settings/update/', views.api_settings_update, name='api_settings_update'),
@@ -308,6 +309,31 @@ urlpatterns = [
     path('api/guild/<str:guild_id>/creator/delete/', views.creator_profile_delete, name='creator_profile_delete'),
     path('api/guild/<str:guild_id>/creator/set-cotw/', views.set_creator_of_week, name='set_creator_of_week'),
     path('api/guild/<str:guild_id>/creator/set-cotm/', views.set_creator_of_month, name='set_creator_of_month'),
+    path('api/guild/<str:guild_id>/creator/clear-cotw/', views.clear_creator_of_week, name='clear_creator_of_week'),
+    path('api/guild/<str:guild_id>/creator/clear-cotm/', views.clear_creator_of_month, name='clear_creator_of_month'),
+
+    # Network Creator of the Week/Month (DISCOVERY_APPROVERS only)
+    path('api/network/creator/set-cotw/', views.set_network_creator_of_week, name='set_network_creator_of_week'),
+    path('api/network/creator/set-cotm/', views.set_network_creator_of_month, name='set_network_creator_of_month'),
+    path('api/network/creator/clear-cotw/', views.clear_network_creator_of_week, name='clear_network_creator_of_week'),
+    path('api/network/creator/clear-cotm/', views.clear_network_creator_of_month, name='clear_network_creator_of_month'),
+
+    # YouTube OAuth Integration
+    path('api/youtube/oauth/initiate/<str:guild_id>/', views.youtube_oauth_initiate, name='youtube_oauth_initiate'),
+    path('api/youtube/oauth/callback/', views.youtube_oauth_callback, name='youtube_oauth_callback'),
+    path('api/youtube/disconnect/<str:guild_id>/', views.youtube_disconnect, name='youtube_disconnect'),
+
+    # Twitch OAuth Integration
+    path('api/twitch/oauth/initiate/<str:guild_id>/', views.twitch_oauth_initiate, name='twitch_oauth_initiate'),
+    path('api/twitch/oauth/callback/', views.twitch_oauth_callback, name='twitch_oauth_callback'),
+    path('api/twitch/disconnect/<str:guild_id>/', views.twitch_disconnect, name='twitch_disconnect'),
+
+    # Streaming Notifications Management
+    path('api/guild/<str:guild_id>/streaming/config/', views.streaming_notifications_config, name='streaming_notifications_config'),
+    path('api/guild/<str:guild_id>/streaming/approved/', views.approved_streamers_list, name='approved_streamers_list'),
+    path('api/guild/<str:guild_id>/streaming/approve/', views.approve_streamer, name='approve_streamer'),
+    path('api/guild/<str:guild_id>/streaming/revoke/', views.revoke_streamer, name='revoke_streamer'),
+    path('api/guild/<str:guild_id>/streaming/test/', views.test_streaming_notification, name='test_streaming_notification'),
 
     # LFG API Endpoints
     path('api/guild/<str:guild_id>/lfg/search/', views.api_lfg_search, name='api_lfg_search'),

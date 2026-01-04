@@ -49,6 +49,7 @@
 {% endblock %}
 
 {% block guild_content %}
+{% include "questlog/partials/custom_select.html" %}
 
 <!-- Header -->
 <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
@@ -79,7 +80,7 @@
 {% if total_creators > 0 %}
 
 <!-- Featured Spotlight Section -->
-{% if cotw_creator or cotm_creator or random_featured %}
+{% if cotw_creator or cotm_creator %}
 <div class="grid grid-cols-1 {% if cotw_creator and cotm_creator %}lg:grid-cols-2{% endif %} gap-6 mb-8">
 
   <!-- Creator of the Week -->
@@ -89,10 +90,15 @@
       <div class="w-12 h-12 bg-yellow-600/20 rounded-lg flex items-center justify-center">
         <i class="fas fa-trophy text-yellow-400 text-2xl"></i>
       </div>
-      <div>
+      <div class="flex-1">
         <h2 class="text-xl font-bold text-white">Creator of the Week</h2>
         <p class="text-yellow-400 text-sm">Hand-picked by server admins</p>
       </div>
+      {% if is_admin %}
+      <button onclick="clearCreatorOfWeek()" class="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-sm rounded-lg transition">
+        <i class="fas fa-times mr-1"></i>Clear
+      </button>
+      {% endif %}
     </div>
 
     <div class="flex items-center gap-4 mb-4">
@@ -127,10 +133,15 @@
       <div class="w-12 h-12 bg-purple-600/20 rounded-lg flex items-center justify-center">
         <i class="fas fa-crown text-purple-400 text-2xl"></i>
       </div>
-      <div>
+      <div class="flex-1">
         <h2 class="text-xl font-bold text-white">Creator of the Month</h2>
         <p class="text-purple-400 text-sm">Monthly featured creator</p>
       </div>
+      {% if is_admin %}
+      <button onclick="clearCreatorOfMonth()" class="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-sm rounded-lg transition">
+        <i class="fas fa-times mr-1"></i>Clear
+      </button>
+      {% endif %}
     </div>
 
     <div class="flex items-center gap-4 mb-4">
@@ -158,44 +169,6 @@
   </div>
   {% endif %}
 
-  <!-- Random Featured Creator (if no COTW/COTM, or if both exist and we want to show random too) -->
-  {% if random_featured and not cotw_creator and not cotm_creator %}
-  <div class="bg-gradient-to-br from-neutral-800/80 to-neutral-900/80 rounded-xl border-2 border-neutral-700 p-6 shadow-lg hover:shadow-neutral-500/20 transition-all duration-300">
-    <div class="flex items-center gap-3 mb-4">
-      <div class="w-12 h-12 bg-neutral-700/50 rounded-lg flex items-center justify-center">
-        <i class="fas fa-dice text-gray-400 text-2xl"></i>
-      </div>
-      <div>
-        <h2 class="text-xl font-bold text-white">Featured Creator</h2>
-        <p class="text-gray-400 text-sm">Randomly selected</p>
-      </div>
-    </div>
-
-    <div class="flex items-center gap-4 mb-4">
-      <img src="{{ random_featured.avatar_url }}" alt="{{ random_featured.display_name }}"
-           class="w-16 h-16 rounded-full border-4 border-gray-500/70 shadow-lg">
-      <div class="flex-1">
-        <h3 class="text-white font-bold text-lg">{{ random_featured.display_name }}</h3>
-        <p class="text-gray-300 text-sm">@{{ random_featured.username }}</p>
-      </div>
-    </div>
-
-    {% if random_featured.clean_bio %}
-    <div class="text-gray-300 text-sm mb-4 line-clamp-3">{{ random_featured.clean_bio|safe }}</div>
-    {% endif %}
-
-    <div class="flex flex-wrap gap-2">
-      {% for link in random_featured.extracted_bio_links %}
-      <a href="{{ link.url }}" target="_blank" rel="noopener noreferrer"
-         class="inline-flex items-center gap-2 px-3 py-2 bg-{{ link.color }}-600 hover:bg-{{ link.color }}-700 text-white rounded-lg text-sm transition">
-        <i class="{{ link.icon }}"></i>
-        <span>{{ link.platform }}</span>
-      </a>
-      {% endfor %}
-    </div>
-  </div>
-  {% endif %}
-
 </div>
 {% endif %}
 
@@ -206,65 +179,8 @@
       <input type="text" id="searchInput" placeholder="Search creators by name..."
              class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2 text-white focus:border-purple-500 focus:outline-none">
     </div>
-    <div>
-      <select id="platformFilter" class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2 text-white focus:border-purple-500 focus:outline-none appearance-none cursor-pointer">
-        <option value="">All Platforms</option>
-        <option value="twitch">🟣 Twitch</option>
-        <option value="youtube">🔴 YouTube</option>
-        <option value="twitter">🐦 Twitter/X</option>
-        <option value="tiktok">⚫ TikTok</option>
-        <option value="instagram">📷 Instagram</option>
-        <option value="bluesky">🦋 Bluesky</option>
-      </select>
-    </div>
-    <div>
-      <select id="categoryFilter" class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2 text-white focus:border-purple-500 focus:outline-none appearance-none cursor-pointer">
-        <option value="">All Categories</option>
-        <option value="Gaming">Gaming</option>
-        <option value="Python">Python</option>
-        <option value="Bot Development">Bot Development</option>
-        <option value="Survival Servers">Survival Servers</option>
-        <option value="ARPG">ARPG</option>
-        <option value="JRPG">JRPG</option>
-        <option value="FPS">FPS</option>
-        <option value="Souls-Like">Souls-Like</option>
-        <option value="Battle Royale">Battle Royale</option>
-        <option value="MOBA">MOBA</option>
-        <option value="MMO">MMO</option>
-        <option value="RPG">RPG</option>
-        <option value="Strategy">Strategy</option>
-        <option value="Survival">Survival</option>
-        <option value="Horror">Horror</option>
-        <option value="Platformer">Platformer</option>
-        <option value="Racing">Racing</option>
-        <option value="Sports">Sports</option>
-        <option value="Fighting">Fighting</option>
-        <option value="Puzzle">Puzzle</option>
-        <option value="Simulation">Simulation</option>
-        <option value="Sandbox">Sandbox</option>
-        <option value="Roguelike">Roguelike</option>
-        <option value="Art">Art</option>
-        <option value="Music">Music</option>
-        <option value="IRL">IRL</option>
-        <option value="Cooking">Cooking</option>
-        <option value="Fitness">Fitness</option>
-        <option value="Education">Education</option>
-        <option value="Tutorial">Tutorial</option>
-        <option value="Comedy">Comedy</option>
-        <option value="Talk Show">Talk Show</option>
-        <option value="Speedrun">Speedrun</option>
-        <option value="Competitive">Competitive</option>
-        <option value="Casual">Casual</option>
-        <option value="Retro Gaming">Retro Gaming</option>
-        <option value="VR">VR</option>
-        <option value="Mobile Gaming">Mobile Gaming</option>
-        <option value="Card Games">Card Games</option>
-        <option value="Board Games">Board Games</option>
-        <option value="Creative">Creative</option>
-        <option value="Community">Community</option>
-        <option value="Variety">Variety</option>
-      </select>
-    </div>
+    <div id="platformFilterContainer"></div>
+    <div id="categoryFilterContainer"></div>
   </div>
 </div>
 
@@ -602,14 +518,99 @@
 <script>
 const allCards = document.querySelectorAll('.creator-card');
 const searchInput = document.getElementById('searchInput');
-const platformFilter = document.getElementById('platformFilter');
 const noResults = document.getElementById('noResults');
+
+// Initialize custom select dropdowns
+let platformFilterAPI = null;
+let categoryFilterAPI = null;
+
+document.addEventListener('DOMContentLoaded', function() {
+  // Platform Filter
+  platformFilterAPI = createCustomSelect({
+    container: '#platformFilterContainer',
+    name: 'platformFilter',
+    id: 'platformFilter',
+    placeholder: 'All Platforms',
+    items: [
+      {value: '', label: 'All Platforms', icon: 'filter'},
+      {value: 'twitch', label: '🟣 Twitch', icon: 'twitch'},
+      {value: 'youtube', label: '🔴 YouTube', icon: 'youtube'},
+      {value: 'twitter', label: '🐦 Twitter/X', icon: 'twitter'},
+      {value: 'tiktok', label: '⚫ TikTok', icon: 'tiktok'},
+      {value: 'instagram', label: '📷 Instagram', icon: 'instagram'},
+      {value: 'bluesky', label: '🦋 Bluesky', icon: 'cloud'}
+    ],
+    selected: '',
+    color: 'purple',
+    onSelect: (value) => {
+      filterCreators();
+    }
+  });
+
+  // Category Filter
+  categoryFilterAPI = createCustomSelect({
+    container: '#categoryFilterContainer',
+    name: 'categoryFilter',
+    id: 'categoryFilter',
+    placeholder: 'All Categories',
+    items: [
+      {value: '', label: 'All Categories', icon: 'filter'},
+      {value: 'Gaming', label: 'Gaming', icon: 'gamepad'},
+      {value: 'Python', label: 'Python', icon: 'code'},
+      {value: 'Bot Development', label: 'Bot Development', icon: 'robot'},
+      {value: 'Survival Servers', label: 'Survival Servers', icon: 'server'},
+      {value: 'ARPG', label: 'ARPG', icon: 'dice-d20'},
+      {value: 'JRPG', label: 'JRPG', icon: 'dice-d20'},
+      {value: 'FPS', label: 'FPS', icon: 'crosshairs'},
+      {value: 'Souls-Like', label: 'Souls-Like', icon: 'skull'},
+      {value: 'Battle Royale', label: 'Battle Royale', icon: 'trophy'},
+      {value: 'MOBA', label: 'MOBA', icon: 'chess'},
+      {value: 'MMO', label: 'MMO', icon: 'users'},
+      {value: 'RPG', label: 'RPG', icon: 'dragon'},
+      {value: 'Strategy', label: 'Strategy', icon: 'brain'},
+      {value: 'Survival', label: 'Survival', icon: 'campground'},
+      {value: 'Horror', label: 'Horror', icon: 'ghost'},
+      {value: 'Platformer', label: 'Platformer', icon: 'running'},
+      {value: 'Racing', label: 'Racing', icon: 'flag-checkered'},
+      {value: 'Sports', label: 'Sports', icon: 'football-ball'},
+      {value: 'Fighting', label: 'Fighting', icon: 'fist-raised'},
+      {value: 'Puzzle', label: 'Puzzle', icon: 'puzzle-piece'},
+      {value: 'Simulation', label: 'Simulation', icon: 'cogs'},
+      {value: 'Sandbox', label: 'Sandbox', icon: 'cube'},
+      {value: 'Roguelike', label: 'Roguelike', icon: 'dice'},
+      {value: 'Art', label: 'Art', icon: 'palette'},
+      {value: 'Music', label: 'Music', icon: 'music'},
+      {value: 'IRL', label: 'IRL', icon: 'camera'},
+      {value: 'Cooking', label: 'Cooking', icon: 'utensils'},
+      {value: 'Fitness', label: 'Fitness', icon: 'dumbbell'},
+      {value: 'Education', label: 'Education', icon: 'graduation-cap'},
+      {value: 'Tutorial', label: 'Tutorial', icon: 'book'},
+      {value: 'Comedy', label: 'Comedy', icon: 'laugh'},
+      {value: 'Talk Show', label: 'Talk Show', icon: 'microphone'},
+      {value: 'Speedrun', label: 'Speedrun', icon: 'stopwatch'},
+      {value: 'Competitive', label: 'Competitive', icon: 'medal'},
+      {value: 'Casual', label: 'Casual', icon: 'smile'},
+      {value: 'Retro Gaming', label: 'Retro Gaming', icon: 'game-controller'},
+      {value: 'VR', label: 'VR', icon: 'vr-cardboard'},
+      {value: 'Mobile Gaming', label: 'Mobile Gaming', icon: 'mobile'},
+      {value: 'Card Games', label: 'Card Games', icon: 'cards'},
+      {value: 'Board Games', label: 'Board Games', icon: 'chess-board'},
+      {value: 'Creative', label: 'Creative', icon: 'lightbulb'},
+      {value: 'Community', label: 'Community', icon: 'users'},
+      {value: 'Variety', label: 'Variety', icon: 'random'}
+    ],
+    selected: '',
+    color: 'purple',
+    onSelect: (value) => {
+      filterCreators();
+    }
+  });
+});
 
 function filterCreators() {
   const searchTerm = searchInput ? searchInput.value.toLowerCase() : '';
-  const platform = platformFilter ? platformFilter.value.toLowerCase() : '';
-  const categoryFilterEl = document.getElementById('categoryFilter');
-  const category = categoryFilterEl ? categoryFilterEl.value.toLowerCase() : '';
+  const platform = platformFilterAPI ? platformFilterAPI.getValue() : '';
+  const category = categoryFilterAPI ? categoryFilterAPI.getValue() : '';
   let visibleCount = 0;
 
   allCards.forEach(card => {
@@ -656,13 +657,7 @@ function debounce(func, wait) {
 if (searchInput) {
   searchInput.addEventListener('input', debounce(filterCreators, 300));
 }
-if (platformFilter) {
-  platformFilter.addEventListener('change', filterCreators);
-}
-const categoryFilterEl = document.getElementById('categoryFilter');
-if (categoryFilterEl) {
-  categoryFilterEl.addEventListener('change', filterCreators);
-}
+// Note: platformFilter and categoryFilter onChange handlers are set in createCustomSelect onSelect callbacks
 
 // Format timestamps
 document.querySelectorAll('.timeago').forEach(el => {
@@ -744,6 +739,58 @@ async function setCreatorOfMonth(userId, displayName) {
       location.reload();
     } else {
       alert(`❌ Error: ${data.error || 'Failed to set COTM'}`);
+    }
+  } catch (error) {
+    alert(`❌ Error: ${error.message}`);
+  }
+}
+
+// Clear COTW
+async function clearCreatorOfWeek() {
+  if (!confirm('Clear the current Creator of the Week?\n\nThis will also delete the announcement message from Discord (if configured).')) {
+    return;
+  }
+
+  try {
+    const response = await csrfFetch(`/api/guild/{{ guild.id }}/creator/clear-cotw/`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+
+    const data = await response.json();
+    if (data.success) {
+      alert('✅ Creator of the Week cleared!');
+      location.reload();
+    } else {
+      alert(`❌ Error: ${data.error || 'Failed to clear COTW'}`);
+    }
+  } catch (error) {
+    alert(`❌ Error: ${error.message}`);
+  }
+}
+
+// Clear COTM
+async function clearCreatorOfMonth() {
+  if (!confirm('Clear the current Creator of the Month?\n\nThis will also delete the announcement message from Discord (if configured).')) {
+    return;
+  }
+
+  try {
+    const response = await csrfFetch(`/api/guild/{{ guild.id }}/creator/clear-cotm/`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+
+    const data = await response.json();
+    if (data.success) {
+      alert('✅ Creator of the Month cleared!');
+      location.reload();
+    } else {
+      alert(`❌ Error: ${data.error || 'Failed to clear COTM'}`);
     }
   } catch (error) {
     alert(`❌ Error: ${error.message}`);

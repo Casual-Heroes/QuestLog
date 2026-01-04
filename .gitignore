@@ -31,6 +31,9 @@ QUESTLOG_TESTING_CHECKLIST.md
 # Custom Files and Folders to Ignore
 find_corrupted_members.py
 fix_corrupted_members.py
+add_streaming_integration.py
+encryption.py
+add_lfg_shared_to_network.py
 purge_corrupted_import.py
 RATE_LIMIT_FIXES.md
 RATE_LIMIT_FIXES.md
@@ -76,4 +79,6 @@ chwebsiteprj/
 .git_backup/
 /hosting
 /docs
+/
+
 

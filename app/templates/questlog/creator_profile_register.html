@@ -1,5 +1,6 @@
 {% extends "questlog/base_guild.html" %}
 {% load static %}
+{% load humanize %}
 
 {% block title %}Creator Profile Registration - {{ guild.name }}{% endblock %}
 
@@ -143,43 +144,16 @@
     </h2>
     <p class="text-gray-400 text-sm mb-6">Add your social media handles so people can find you! (All optional)</p>
 
+    <div class="bg-blue-900/20 border border-blue-500/30 rounded-lg p-4 mb-6">
+      <div class="flex items-start gap-3">
+        <i class="fas fa-info-circle text-blue-400 mt-1"></i>
+        <div class="text-sm text-blue-200">
+          <strong>Note:</strong> YouTube and Twitch links are automatically added when you connect your accounts via OAuth below. No need to enter them manually!
+        </div>
+      </div>
+    </div>
+
     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-      <!-- Twitch -->
-      <div>
-        <label class="block text-white font-medium mb-2">
-          <i class="fab fa-twitch text-purple-400 mr-2"></i>Twitch
-        </label>
-        <div class="relative">
-          <span class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">twitch.tv/</span>
-          <input
-            type="text"
-            name="twitch_handle"
-            value="{{ profile.twitch_handle }}"
-            maxlength="100"
-            class="w-full bg-neutral-800 border border-neutral-700 rounded-lg pl-24 pr-4 py-3 text-white focus:border-purple-500 focus:ring-2 focus:ring-purple-500/50 transition"
-            placeholder="username"
-          >
-        </div>
-      </div>
-
-      <!-- YouTube -->
-      <div>
-        <label class="block text-white font-medium mb-2">
-          <i class="fab fa-youtube text-red-400 mr-2"></i>YouTube
-        </label>
-        <div class="relative">
-          <span class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">@</span>
-          <input
-            type="text"
-            name="youtube_handle"
-            value="{{ profile.youtube_handle }}"
-            maxlength="100"
-            class="w-full bg-neutral-800 border border-neutral-700 rounded-lg pl-10 pr-4 py-3 text-white focus:border-red-500 focus:ring-2 focus:ring-red-500/50 transition"
-            placeholder="@yourchannel or channel ID"
-          >
-        </div>
-      </div>
-
       <!-- TikTok -->
       <div>
         <label class="block text-white font-medium mb-2">
@@ -363,6 +337,152 @@
     </div>
   </div>
 
+  {% if has_discovery_module %}
+  <!-- YouTube/Twitch OAuth Integration -->
+  <div class="bg-gradient-to-r from-red-900/30 to-pink-900/30 border border-red-500/30 rounded-xl p-6 mb-6">
+    <h2 class="text-xl font-bold text-white mb-4 flex items-center gap-2">
+      <i class="fas fa-video text-red-400"></i>
+      Live Stream Integration
+    </h2>
+    <p class="text-gray-300 text-sm mb-6">
+      Connect your YouTube or Twitch account to enable automatic live stream notifications when you go live!
+    </p>
+
+    <!-- YouTube Connection -->
+    <div class="bg-neutral-900/50 rounded-lg border border-neutral-700 p-4 mb-4">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="w-12 h-12 bg-red-600/20 rounded-lg flex items-center justify-center">
+            <i class="fab fa-youtube text-red-400 text-2xl"></i>
+          </div>
+          <div>
+            <h3 class="text-white font-semibold">YouTube</h3>
+            <p class="text-gray-400 text-sm" id="youtube-status">
+              {% if existing_profile and existing_profile.youtube_channel_id %}
+                Connected <i class="fas fa-check-circle text-green-400 ml-1"></i>
+              {% else %}
+                Not connected
+              {% endif %}
+            </p>
+          </div>
+        </div>
+        <div>
+          {% if existing_profile and existing_profile.youtube_channel_id %}
+            <button
+              type="button"
+              onclick="disconnectYouTube()"
+              class="px-4 py-2 bg-red-600/20 hover:bg-red-600/30 text-red-400 rounded-lg transition border border-red-600/30"
+            >
+              <i class="fas fa-unlink mr-2"></i>Disconnect
+            </button>
+          {% else %}
+            <button
+              type="button"
+              onclick="openYouTubeOAuth()"
+              class="inline-flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition"
+            >
+              <i class="fab fa-youtube mr-2"></i>Connect YouTube
+            </button>
+          {% endif %}
+        </div>
+      </div>
+
+      {% if existing_profile and existing_profile.youtube_channel_id %}
+      <div class="mt-4 p-3 bg-neutral-800/50 rounded border border-neutral-700">
+        <div class="flex items-center gap-3 text-sm">
+          <span class="text-gray-400">Channel:</span>
+          <span class="text-white font-medium">
+            {% if existing_profile.youtube_handle %}
+              @{{ existing_profile.youtube_handle }}
+            {% else %}
+              {{ existing_profile.youtube_channel_id }}
+            {% endif %}
+          </span>
+          {% if existing_profile.youtube_subscriber_count %}
+            <span class="text-gray-500">•</span>
+            <span class="text-gray-400">{{ existing_profile.youtube_subscriber_count|intcomma }} subscribers</span>
+          {% endif %}
+        </div>
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Twitch Connection -->
+    <div class="bg-neutral-900/50 rounded-lg border border-neutral-700 p-4">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="w-12 h-12 bg-purple-600/20 rounded-lg flex items-center justify-center">
+            <i class="fab fa-twitch text-purple-400 text-2xl"></i>
+          </div>
+          <div>
+            <h3 class="text-white font-semibold">Twitch</h3>
+            <p class="text-gray-400 text-sm" id="twitch-status">
+              {% if existing_profile and existing_profile.twitch_user_id %}
+                Connected <i class="fas fa-check-circle text-green-400 ml-1"></i>
+              {% else %}
+                Not connected
+              {% endif %}
+            </p>
+          </div>
+        </div>
+        <div>
+          {% if existing_profile and existing_profile.twitch_user_id %}
+            <button
+              type="button"
+              onclick="disconnectTwitch()"
+              class="px-4 py-2 bg-purple-600/20 hover:bg-purple-600/30 text-purple-400 rounded-lg transition border border-purple-600/30"
+            >
+              <i class="fas fa-unlink mr-2"></i>Disconnect
+            </button>
+          {% else %}
+            <button
+              type="button"
+              onclick="openTwitchOAuth()"
+              class="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition"
+            >
+              <i class="fab fa-twitch mr-2"></i>Connect Twitch
+            </button>
+          {% endif %}
+        </div>
+      </div>
+
+      {% if existing_profile and existing_profile.twitch_user_id %}
+      <div class="mt-4 p-3 bg-neutral-800/50 rounded border border-neutral-700">
+        <div class="flex items-center gap-3 text-sm">
+          <span class="text-gray-400">Channel:</span>
+          <span class="text-white font-medium">
+            {% if existing_profile.twitch_handle %}
+              {{ existing_profile.twitch_handle }}
+            {% else %}
+              {{ existing_profile.twitch_user_id }}
+            {% endif %}
+          </span>
+          {% if existing_profile.twitch_follower_count %}
+            <span class="text-gray-500">•</span>
+            <span class="text-gray-400">{{ existing_profile.twitch_follower_count|intcomma }} followers</span>
+          {% endif %}
+        </div>
+      </div>
+      {% endif %}
+    </div>
+
+    <div class="mt-4 bg-blue-900/20 border border-blue-700/30 rounded-lg p-4">
+      <div class="flex items-start gap-3">
+        <i class="fas fa-info-circle text-blue-400 mt-0.5"></i>
+        <div>
+          <h4 class="text-white font-semibold mb-1">How it works:</h4>
+          <ul class="text-gray-300 text-sm space-y-1">
+            <li>• Connect your YouTube or Twitch account securely via OAuth</li>
+            <li>• Server admins must approve you for notifications (prevents spam)</li>
+            <li>• When you go live, members get notified automatically in Discord</li>
+            <li>• Your profile shows a "LIVE" indicator when streaming</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
   <!-- Submit Buttons -->
   <div class="flex items-center justify-between gap-4">
     <a href="{% url 'guild_featured_creators' guild.id %}" class="px-6 py-3 bg-neutral-800 hover:bg-neutral-700 text-white rounded-lg transition">
@@ -443,14 +563,25 @@ const categoryItems = [
 const existingCategories = '{{ profile.content_categories|escapejs }}';
 let selectedCategories = [];
 try {
-  if (existingCategories) {
-    if (existingCategories.startsWith('[')) {
+  if (existingCategories && existingCategories.trim()) {
+    // Try JSON parsing first
+    try {
       selectedCategories = JSON.parse(existingCategories);
-    } else {
-      selectedCategories = existingCategories.split(',').map(c => c.trim()).filter(c => c);
+      // Validate it's an array
+      if (!Array.isArray(selectedCategories)) {
+        selectedCategories = [];
+      }
+    } catch (jsonError) {
+      // If JSON parse fails, try comma-separated fallback
+      selectedCategories = existingCategories
+        .replace(/^\[|\]$/g, '') // Remove [ and ] if present
+        .split(',')
+        .map(c => c.trim().replace(/^["']|["']$/g, '')) // Remove quotes
+        .filter(c => c && c !== '[' && c !== ']'); // Filter empty and brackets
     }
   }
 } catch (e) {
+  console.error('Error parsing categories:', e);
   selectedCategories = [];
 }
 
@@ -540,35 +671,131 @@ async function deleteProfile() {
 
 // Form validation
 document.getElementById('creatorForm').addEventListener('submit', function(e) {
-  console.log('🔥 Form submit event triggered!');
   const displayName = document.getElementById('display_name').value.trim();
   const bio = document.getElementById('bio').value;
 
-  console.log('Display name:', displayName, 'Bio length:', bio.length);
-
   if (!displayName) {
-    console.log('❌ Validation failed: No display name');
     e.preventDefault();
     alert('Display name is required');
     return false;
   }
 
   if (displayName.length > 100) {
-    console.log('❌ Validation failed: Display name too long');
     e.preventDefault();
     alert('Display name must be 100 characters or less');
     return false;
   }
 
   if (bio.length > 1000) {
-    console.log('❌ Validation failed: Bio too long');
     e.preventDefault();
     alert('Bio must be 1000 characters or less');
     return false;
   }
-
-  console.log('✅ Validation passed, submitting form to:', this.action);
 });
+
+// YouTube OAuth New Tab Function
+function openYouTubeOAuth() {
+  const oauthUrl = "{% url 'youtube_oauth_initiate' guild.id %}";
+
+  // Open in new tab
+  const newTab = window.open(oauthUrl, '_blank');
+
+  if (!newTab) {
+    alert('Please allow popups for this site to connect YouTube');
+    return;
+  }
+
+  // Listen for OAuth completion message from the new tab
+  window.addEventListener('message', function(event) {
+    if (event.data === 'youtube_oauth_complete') {
+      // Auto-save the form after OAuth success
+      const form = document.getElementById('creatorProfileForm');
+      if (form) {
+        form.submit();
+      } else {
+        location.reload();
+      }
+    }
+  }, { once: true });
+}
+
+// YouTube Disconnect Function
+async function disconnectYouTube() {
+  if (!confirm('Are you sure you want to disconnect your YouTube channel? This will disable live stream notifications.')) {
+    return;
+  }
+
+  try {
+    const response = await csrfFetch('/api/youtube/disconnect/{{ guild.id }}/', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'}
+    });
+
+    const data = await response.json();
+
+    if (data.success) {
+      alert('YouTube channel disconnected successfully');
+      location.reload();
+    } else {
+      alert('Failed to disconnect YouTube: ' + (data.error || 'Unknown error'));
+    }
+  } catch (error) {
+    console.error('YouTube disconnect error:', error);
+    alert('An error occurred while disconnecting YouTube');
+  }
+}
+
+// Twitch OAuth New Tab Function
+function openTwitchOAuth() {
+  const oauthUrl = "{% url 'twitch_oauth_initiate' guild.id %}";
+
+  // Open in new tab
+  const newTab = window.open(oauthUrl, '_blank');
+
+  if (!newTab) {
+    alert('Please allow popups for this site to connect Twitch');
+    return;
+  }
+
+  // Listen for OAuth completion message from the new tab
+  window.addEventListener('message', function(event) {
+    if (event.data.type === 'twitch_oauth_complete') {
+      // Auto-save the form after OAuth success
+      const form = document.getElementById('creatorProfileForm');
+      if (form) {
+        form.submit();
+      } else {
+        location.reload();
+      }
+    }
+  }, { once: true });
+}
+
+// Twitch Disconnect Function
+async function disconnectTwitch() {
+  if (!confirm('Are you sure you want to disconnect your Twitch channel? This will disable live stream notifications.')) {
+    return;
+  }
+
+  try {
+    const response = await csrfFetch('/api/twitch/disconnect/{{ guild.id }}/', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'}
+    });
+
+    const data = await response.json();
+
+    if (data.success) {
+      alert('Twitch channel disconnected successfully');
+      location.reload();
+    } else {
+      alert('Failed to disconnect Twitch: ' + (data.error || 'Unknown error'));
+    }
+  } catch (error) {
+    console.error('Twitch disconnect error:', error);
+    alert('An error occurred while disconnecting Twitch');
+  }
+}
 </script>
 
 {% endblock %}

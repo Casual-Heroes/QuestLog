@@ -3,8 +3,76 @@
 
   <!-- Header -->
   <div class="bg-red-900/20 border border-red-700 rounded-lg p-6">
-    <h2 class="text-2xl font-bold text-red-400 mb-2">🔒 Discovery Network Administration</h2>
+    <h2 class="text-2xl font-bold text-red-400 mb-2">🔒 QuestLog Network Administration</h2>
     <p class="text-gray-300">Review applications, manage bans, and moderate the Discovery Network.</p>
+  </div>
+
+  <!-- Network COTW/COTM Management -->
+  <div class="bg-gradient-to-r from-purple-900/20 to-yellow-900/20 border border-purple-700 rounded-lg p-6">
+    <h3 class="text-xl font-bold text-purple-300 mb-4">🏆 Network Featured Creators Management</h3>
+    <p class="text-gray-300 text-sm mb-6">Manually override the automated Network Creator of the Week/Month rotation. Changes will be announced to all opted-in servers.</p>
+
+    <!-- Current Network COTW/COTM Display -->
+    <div class="grid md:grid-cols-2 gap-4 mb-6">
+      <!-- Network COTW Card -->
+      <div class="bg-neutral-900 border border-yellow-600 rounded-lg p-4">
+        <div class="flex items-center justify-between mb-3">
+          <h4 class="text-sm font-semibold text-yellow-400">⭐ Network Creator of the Week</h4>
+          <button onclick="clearNetworkCOTW()" class="text-xs px-2 py-1 bg-red-600 hover:bg-red-700 text-white rounded">
+            Clear
+          </button>
+        </div>
+        <div id="currentNetworkCOTW" class="text-sm">
+          <div class="text-center py-4">
+            <div class="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-yellow-500"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Network COTM Card -->
+      <div class="bg-neutral-900 border border-purple-600 rounded-lg p-4">
+        <div class="flex items-center justify-between mb-3">
+          <h4 class="text-sm font-semibold text-purple-400">👑 Network Creator of the Month</h4>
+          <button onclick="clearNetworkCOTM()" class="text-xs px-2 py-1 bg-red-600 hover:bg-red-700 text-white rounded">
+            Clear
+          </button>
+        </div>
+        <div id="currentNetworkCOTM" class="text-sm">
+          <div class="text-center py-4">
+            <div class="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-purple-500"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Manual Override Controls -->
+    <div class="bg-neutral-900 border border-neutral-700 rounded-lg p-4">
+      <h4 class="text-sm font-semibold text-gray-300 mb-3">Manual Override</h4>
+      <div class="grid md:grid-cols-2 gap-4">
+        <!-- Set Network COTW -->
+        <div>
+          <label class="block text-sm text-gray-400 mb-2">Set Network COTW</label>
+          <div class="flex gap-2">
+            <div id="networkCotwSelectContainer" class="flex-1"></div>
+            <button onclick="setNetworkCOTW()" class="px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white rounded-lg text-sm font-medium whitespace-nowrap">
+              Set COTW
+            </button>
+          </div>
+        </div>
+
+        <!-- Set Network COTM -->
+        <div>
+          <label class="block text-sm text-gray-400 mb-2">Set Network COTM</label>
+          <div class="flex gap-2">
+            <div id="networkCotmSelectContainer" class="flex-1"></div>
+            <button onclick="setNetworkCOTM()" class="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm font-medium whitespace-nowrap">
+              Set COTM
+            </button>
+          </div>
+        </div>
+      </div>
+      <p class="text-xs text-gray-500 mt-3">⚠️ Setting a creator as Network COTW/COTM will override the automated rotation and announce to all opted-in servers.</p>
+    </div>
   </div>
 
   <!-- Stats Overview -->
@@ -57,9 +125,244 @@
 </div>
 
 <script>
+// CSRF fetch helper
+async function csrfFetch(url, options = {}) {
+  const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+  options.headers = options.headers || {};
+  if (!options.headers['X-CSRFToken']) {
+    options.headers['X-CSRFToken'] = csrfToken;
+  }
+  return fetch(url, options);
+}
+
 let currentFilter = 'pending';
 let allApplications = [];
 let allBans = [];
+let networkCreators = [];
+let networkCotwSelectInstance = null;
+let networkCotmSelectInstance = null;
+
+// Load Network COTW/COTM data
+async function loadNetworkFeaturedCreators() {
+  try {
+    // Fetch all network creators
+    const guildId = '{{ guild.id }}';
+    const creatorsResponse = await csrfFetch(`/api/discovery/network-creators?guild_id=${guildId}`);
+    const creatorsData = await creatorsResponse.json();
+
+    if (!creatorsData.success) {
+      throw new Error(creatorsData.error || 'Failed to load network creators');
+    }
+
+    networkCreators = creatorsData.creators;
+
+    // Prepare items for custom select
+    const selectItems = networkCreators.map(creator => ({
+      value: creator.id.toString(),
+      label: creator.display_name || creator.username,
+      icon: 'user'
+    }));
+
+    // Create custom select for Network COTW
+    if (networkCotwSelectInstance) {
+      networkCotwSelectInstance.destroy();
+    }
+    networkCotwSelectInstance = createCustomSelect({
+      container: '#networkCotwSelectContainer',
+      name: 'network_cotw_profile_id',
+      id: 'networkCotwSelect',
+      placeholder: 'Select a creator...',
+      items: selectItems,
+      selected: '',
+      color: 'yellow'
+    });
+
+    // Create custom select for Network COTM
+    if (networkCotmSelectInstance) {
+      networkCotmSelectInstance.destroy();
+    }
+    networkCotmSelectInstance = createCustomSelect({
+      container: '#networkCotmSelectContainer',
+      name: 'network_cotm_profile_id',
+      id: 'networkCotmSelect',
+      placeholder: 'Select a creator...',
+      items: selectItems,
+      selected: '',
+      color: 'purple'
+    });
+
+    // Display current Network COTW
+    const currentCotw = networkCreators.find(c => c.is_current_network_cotw);
+    const cotwContainer = document.getElementById('currentNetworkCOTW');
+
+    if (currentCotw) {
+      cotwContainer.innerHTML = `
+        <div class="flex items-center gap-3">
+          ${currentCotw.avatar_url ? `<img src="${currentCotw.avatar_url}" class="w-10 h-10 rounded-full">` : '<div class="w-10 h-10 rounded-full bg-neutral-700"></div>'}
+          <div>
+            <p class="font-semibold text-white">${currentCotw.display_name || currentCotw.username}</p>
+            <p class="text-xs text-gray-400">@${currentCotw.username}</p>
+          </div>
+        </div>
+      `;
+    } else {
+      cotwContainer.innerHTML = '<p class="text-gray-500 text-center py-2">No creator currently featured</p>';
+    }
+
+    // Display current Network COTM
+    const currentCotm = networkCreators.find(c => c.is_current_network_cotm);
+    const cotmContainer = document.getElementById('currentNetworkCOTM');
+
+    if (currentCotm) {
+      cotmContainer.innerHTML = `
+        <div class="flex items-center gap-3">
+          ${currentCotm.avatar_url ? `<img src="${currentCotm.avatar_url}" class="w-10 h-10 rounded-full">` : '<div class="w-10 h-10 rounded-full bg-neutral-700"></div>'}
+          <div>
+            <p class="font-semibold text-white">${currentCotm.display_name || currentCotm.username}</p>
+            <p class="text-xs text-gray-400">@${currentCotm.username}</p>
+          </div>
+        </div>
+      `;
+    } else {
+      cotmContainer.innerHTML = '<p class="text-gray-500 text-center py-2">No creator currently featured</p>';
+    }
+
+  } catch (error) {
+    document.getElementById('currentNetworkCOTW').innerHTML = `<p class="text-red-400 text-xs">Failed to load</p>`;
+    document.getElementById('currentNetworkCOTM').innerHTML = `<p class="text-red-400 text-xs">Failed to load</p>`;
+    console.error('Failed to load network featured creators:', error);
+  }
+}
+
+// Set Network COTW
+async function setNetworkCOTW() {
+  if (!networkCotwSelectInstance) {
+    alert('Please wait for creators to load');
+    return;
+  }
+
+  const profileId = networkCotwSelectInstance.getValue();
+
+  if (!profileId) {
+    alert('Please select a creator');
+    return;
+  }
+
+  const creator = networkCreators.find(c => c.id === parseInt(profileId));
+  if (!confirm(`Set ${creator.display_name || creator.username} as Network Creator of the Week?\n\nThis will announce to all opted-in servers.`)) {
+    return;
+  }
+
+  try {
+    const response = await csrfFetch('/api/network/creator/set-cotw/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ profile_id: parseInt(profileId) })
+    });
+
+    const data = await response.json();
+
+    if (data.success) {
+      alert('Network Creator of the Week set successfully!');
+      loadNetworkFeaturedCreators(); // Reload
+    } else {
+      alert('Failed to set Network COTW: ' + data.error);
+    }
+  } catch (error) {
+    alert('Failed to set Network COTW');
+    console.error('Error:', error);
+  }
+}
+
+// Set Network COTM
+async function setNetworkCOTM() {
+  if (!networkCotmSelectInstance) {
+    alert('Please wait for creators to load');
+    return;
+  }
+
+  const profileId = networkCotmSelectInstance.getValue();
+
+  if (!profileId) {
+    alert('Please select a creator');
+    return;
+  }
+
+  const creator = networkCreators.find(c => c.id === parseInt(profileId));
+  if (!confirm(`Set ${creator.display_name || creator.username} as Network Creator of the Month?\n\nThis will announce to all opted-in servers.`)) {
+    return;
+  }
+
+  try {
+    const response = await csrfFetch('/api/network/creator/set-cotm/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ profile_id: parseInt(profileId) })
+    });
+
+    const data = await response.json();
+
+    if (data.success) {
+      alert('Network Creator of the Month set successfully!');
+      loadNetworkFeaturedCreators(); // Reload
+    } else {
+      alert('Failed to set Network COTM: ' + data.error);
+    }
+  } catch (error) {
+    alert('Failed to set Network COTM');
+    console.error('Error:', error);
+  }
+}
+
+// Clear Network COTW
+async function clearNetworkCOTW() {
+  if (!confirm('Clear the current Network Creator of the Week?\n\nNo creator will be featured until the next automated rotation or manual override.')) {
+    return;
+  }
+
+  try {
+    const response = await csrfFetch('/api/network/creator/clear-cotw/', {
+      method: 'POST'
+    });
+
+    const data = await response.json();
+
+    if (data.success) {
+      alert('Network Creator of the Week cleared');
+      loadNetworkFeaturedCreators(); // Reload
+    } else {
+      alert('Failed to clear Network COTW: ' + data.error);
+    }
+  } catch (error) {
+    alert('Failed to clear Network COTW');
+    console.error('Error:', error);
+  }
+}
+
+// Clear Network COTM
+async function clearNetworkCOTM() {
+  if (!confirm('Clear the current Network Creator of the Month?\n\nNo creator will be featured until the next automated rotation or manual override.')) {
+    return;
+  }
+
+  try {
+    const response = await csrfFetch('/api/network/creator/clear-cotm/', {
+      method: 'POST'
+    });
+
+    const data = await response.json();
+
+    if (data.success) {
+      alert('Network Creator of the Month cleared');
+      loadNetworkFeaturedCreators(); // Reload
+    } else {
+      alert('Failed to clear Network COTM: ' + data.error);
+    }
+  } catch (error) {
+    alert('Failed to clear Network COTM');
+    console.error('Error:', error);
+  }
+}
 
 // Load all data
 async function loadAdminData() {
@@ -347,6 +650,7 @@ async function banUser(appId, reason, violationType) {
 // Load on tab switch
 if (document.getElementById('applicationsList')) {
   loadAdminData();
+  loadNetworkFeaturedCreators();
 }
 </script>
 

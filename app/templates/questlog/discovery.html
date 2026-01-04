@@ -133,7 +133,6 @@ function clearDiscoveryCache() {
   sessionStorage.removeItem(`channels_${guildId}_time`);
   sessionStorage.removeItem(`roles_${guildId}`);
   sessionStorage.removeItem(`roles_${guildId}_time`);
-  console.log('Cleared discovery cache');
 }
 
 // Load Discord channels and initialize custom selects
@@ -151,7 +150,6 @@ async function loadChannels() {
     if (cached && cacheTime && (now - parseInt(cacheTime)) < 30000) {
       // Use cached data (less than 30 seconds old)
       data = JSON.parse(cached);
-      console.log('Using cached channel data');
     } else {
       // Fetch fresh data
       const response = await csrfFetch(`/api/guild/${guildId}/channels/`);
@@ -160,7 +158,6 @@ async function loadChannels() {
       // Cache the result
       sessionStorage.setItem(cacheKey, JSON.stringify(data));
       sessionStorage.setItem(`${cacheKey}_time`, now.toString());
-      console.log('Fetched and cached fresh channel data');
     }
 
     const currentSelfpromo = '{{ discovery_config.selfpromo_channel_id|default:"" }}';
@@ -289,7 +286,7 @@ async function loadChannels() {
       });
 
       // Network Announcement Channel
-      const currentNetworkChannel = discoveryConfig.network_announcement_channel_id ? discoveryConfig.network_announcement_channel_id.toString() : '';
+      const currentNetworkChannel = '{{ discovery_config.network_announcement_channel_id|default:"" }}';
       networkAnnouncementSelect = createCustomSelect({
         container: '#network_announcement_channel_idContainer',
         name: 'network_announcement_channel_id',
@@ -329,7 +326,6 @@ async function loadRoles() {
     if (cached && cacheTime && (now - parseInt(cacheTime)) < 30000) {
       // Use cached data (less than 30 seconds old)
       data = JSON.parse(cached);
-      console.log('Using cached roles data');
     } else {
       // Fetch fresh data
       const response = await csrfFetch(`/api/guild/${guildId}/roles/`);
@@ -338,7 +334,6 @@ async function loadRoles() {
       // Cache the result
       sessionStorage.setItem(cacheKey, JSON.stringify(data));
       sessionStorage.setItem(`${cacheKey}_time`, now.toString());
-      console.log('Fetched and cached fresh roles data');
     }
 
     if (data.roles) {

@@ -193,6 +193,9 @@ class Guild(Base):
     mod_enabled = Column(Boolean, nullable=False, default=False, server_default='0')
     discovery_enabled = Column(Boolean, default=False)
 
+    # AMP Integration (Casual Heroes Hosting Services)
+    amp_instance_id = Column(String(255), nullable=True)  # AMP instance ID for game server access
+
     # Cached Discord Resources (JSON text - synced by bot to reduce API calls)
     cached_channels = Column(Text, nullable=True)  # JSON array of channel objects
     cached_roles = Column(Text, nullable=True)  # JSON array of role objects
@@ -1817,6 +1820,7 @@ class LFGGroup(Base):
     is_active = Column(Boolean, default=True)
     is_full = Column(Boolean, default=False)
     member_count = Column(Integer, default=1)
+    shared_to_network = Column(Boolean, default=False)  # Whether shared to Discovery Network
 
     # Timestamps
     created_at = Column(BigInteger, default=lambda: int(time.time()))
@@ -2433,8 +2437,42 @@ class CreatorProfile(Base):
     twitch_handle = Column(String(100), nullable=True)
     youtube_handle = Column(String(100), nullable=True)
 
+    # Profile metadata
+    avatar_url = Column(Text, nullable=True)  # Cached Discord avatar URL
+    user_id = Column(BigInteger, nullable=True)  # For compatibility/future use
+
+    # YouTube Integration (OAuth)
+    youtube_channel_id = Column(String(100), nullable=True)  # Official YT channel ID
+    youtube_url = Column(String(255), nullable=True)  # Full YouTube channel URL
+    youtube_access_token = Column(Text, nullable=True)  # Encrypted OAuth token
+    youtube_refresh_token = Column(Text, nullable=True)  # Encrypted refresh token
+    youtube_token_expires = Column(BigInteger, nullable=True)  # Token expiry timestamp
+    youtube_subscriber_count = Column(Integer, nullable=True)  # Cached from API
+    youtube_video_count = Column(Integer, nullable=True)  # Cached from API
+    youtube_last_synced = Column(BigInteger, nullable=True)  # Last API sync
+
+    # Twitch Integration (OAuth) - Future
+    twitch_user_id = Column(String(100), nullable=True)  # Official Twitch user ID
+    twitch_access_token = Column(Text, nullable=True)  # Encrypted OAuth token
+    twitch_refresh_token = Column(Text, nullable=True)  # Encrypted refresh token
+    twitch_token_expires = Column(BigInteger, nullable=True)  # Token expiry timestamp
+    twitch_follower_count = Column(Integer, nullable=True)  # Cached from API
+    twitch_last_synced = Column(BigInteger, nullable=True)  # Last API sync
+
+    # Live Stream Status (updated by background job)
+    is_live_youtube = Column(Boolean, default=False, nullable=False)
+    is_live_twitch = Column(Boolean, default=False, nullable=False)
+    current_stream_title = Column(String(255), nullable=True)
+    current_stream_game = Column(String(255), nullable=True)
+    current_stream_started_at = Column(BigInteger, nullable=True)
+    current_stream_thumbnail = Column(Text, nullable=True)  # URL to thumbnail
+    current_stream_viewer_count = Column(Integer, nullable=True)
+
     # Stream schedule
     stream_schedule = Column(Text, nullable=True)
+
+    # Hero Token Tips
+    total_tips_received = Column(Integer, default=0, nullable=False)
 
     # Stats and metadata
     times_featured = Column(Integer, default=0, nullable=False)
@@ -2466,4 +2504,130 @@ class CreatorProfile(Base):
         Index("idx_creator_network", "share_to_network"),
         # One profile per user per guild
         UniqueConstraint("discord_id", "guild_id", name="uq_creator_per_guild"),
+    )
+
+
+class StreamingNotificationsConfig(Base):
+    """
+    Per-guild configuration for streaming notifications.
+    Admins control who can get stream announcements and where they go.
+    """
+    __tablename__ = "streaming_notifications_config"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    guild_id = Column(BigInteger, ForeignKey("guilds.guild_id", ondelete="CASCADE"), nullable=False, unique=True)
+
+    # Feature toggle
+    enabled = Column(Boolean, default=False, nullable=False)
+
+    # Notification settings
+    notification_channel_id = Column(BigInteger, nullable=True)  # Where to post notifications
+    ping_role_id = Column(BigInteger, nullable=True)  # Optional role to ping
+
+    # Customizable notification content
+    notification_title = Column(String(255), default='🔴 {creator} is now LIVE!', nullable=True)
+    notification_message = Column(Text, default='Check out the stream!', nullable=True)
+    embed_color = Column(String(7), default='#FF0000', nullable=True)  # Hex color code
+
+    # Access control
+    minimum_level_required = Column(Integer, default=10, nullable=False)  # Min XP level to get notifications
+
+    # Timestamps
+    created_at = Column(BigInteger, nullable=False, default=lambda: int(time.time()))
+    updated_at = Column(BigInteger, nullable=False, default=lambda: int(time.time()))
+
+    __table_args__ = (
+        Index("idx_streaming_config_guild", "guild_id"),
+    )
+
+
+class ApprovedStreamer(Base):
+    """
+    Admin-approved streamers for notifications.
+    Even if streaming notifications are enabled, only approved creators get announced.
+    """
+    __tablename__ = "approved_streamers"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    guild_id = Column(BigInteger, ForeignKey("guilds.guild_id", ondelete="CASCADE"), nullable=False)
+    creator_profile_id = Column(Integer, ForeignKey("creator_profiles.id", ondelete="CASCADE"), nullable=False)
+
+    # Approval metadata
+    approved_by_user_id = Column(BigInteger, nullable=False)  # Discord user ID of admin
+    approved_at = Column(BigInteger, nullable=False, default=lambda: int(time.time()))
+
+    # Revocation (soft delete)
+    revoked = Column(Boolean, default=False, nullable=False)
+    revoked_by_user_id = Column(BigInteger, nullable=True)
+    revoked_at = Column(BigInteger, nullable=True)
+
+    __table_args__ = (
+        Index("idx_approved_streamer_guild", "guild_id"),
+        Index("idx_approved_streamer_creator", "creator_profile_id"),
+        # One approval per creator per guild
+        UniqueConstraint("guild_id", "creator_profile_id", name="uq_approved_streamer"),
+    )
+
+
+class CreatorVideo(Base):
+    """
+    VODs, clips, and uploads from YouTube/Twitch.
+    Synced periodically from creator's channels.
+    """
+    __tablename__ = "creator_videos"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    creator_profile_id = Column(Integer, ForeignKey("creator_profiles.id", ondelete="CASCADE"), nullable=False)
+
+    # Platform info
+    platform = Column(SQLEnum('youtube', 'twitch', name='videoplatform'), nullable=False)
+    video_id = Column(String(100), nullable=False)  # Platform's video ID
+
+    # Video metadata
+    title = Column(String(255), nullable=False)
+    description = Column(Text, nullable=True)
+    thumbnail_url = Column(Text, nullable=True)
+    duration = Column(Integer, nullable=True)  # Duration in seconds
+    view_count = Column(Integer, nullable=True)
+    like_count = Column(Integer, nullable=True)
+
+    # Timestamps
+    published_at = Column(BigInteger, nullable=False)  # When video was published
+    synced_at = Column(BigInteger, nullable=False, default=lambda: int(time.time()))  # Last sync from API
+
+    __table_args__ = (
+        Index("idx_creator_video_creator", "creator_profile_id"),
+        Index("idx_creator_video_platform", "platform"),
+        Index("idx_creator_video_published", "published_at"),
+        # Unique video per platform
+        UniqueConstraint("platform", "video_id", name="uq_creator_video"),
+    )
+
+
+class CreatorTip(Base):
+    """
+    Hero Token tips from viewers to creators.
+    100% goes to creator, no platform cut.
+    """
+    __tablename__ = "creator_tips"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+
+    # Parties
+    from_user_id = Column(BigInteger, nullable=False)  # Discord ID of tipper
+    to_creator_profile_id = Column(Integer, ForeignKey("creator_profiles.id", ondelete="CASCADE"), nullable=False)
+    guild_id = Column(BigInteger, ForeignKey("guilds.guild_id", ondelete="CASCADE"), nullable=False)
+
+    # Tip details
+    amount = Column(Integer, nullable=False)  # Hero Tokens
+    message = Column(Text, nullable=True)  # Optional message from tipper
+
+    # Timestamps
+    tipped_at = Column(BigInteger, nullable=False, default=lambda: int(time.time()))
+
+    __table_args__ = (
+        Index("idx_creator_tip_creator", "to_creator_profile_id"),
+        Index("idx_creator_tip_from", "from_user_id"),
+        Index("idx_creator_tip_guild", "guild_id"),
+        Index("idx_creator_tip_date", "tipped_at"),
     )

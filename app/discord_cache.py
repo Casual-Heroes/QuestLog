@@ -375,9 +375,16 @@ class PersistentCache:
                 # Write to temp file first (atomic operation)
                 with open(temp_path, 'w', encoding='utf-8') as f:
                     f.write(json_str)
+                    f.flush()  # Ensure data is written to disk
+                    os.fsync(f.fileno())  # Force OS to write to disk
 
                 # Set secure file permissions (owner read/write only)
                 os.chmod(temp_path, 0o600)
+
+                # Verify temp file exists before rename
+                if not os.path.exists(temp_path):
+                    logger.error(f"Temp file disappeared after creation: {temp_path}")
+                    return
 
                 # Atomic rename
                 os.replace(temp_path, cache_path)

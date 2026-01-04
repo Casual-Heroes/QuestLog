@@ -1,0 +1,168 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}AMP Server Management - Casual Heroes{% endblock %}
+
+{% block content %}
+<div class="min-h-screen flex items-center justify-center px-4 py-12">
+  <div class="max-w-md w-full">
+    <!-- Logo -->
+    <div class="text-center mb-8">
+      <img src="{% static 'img/siteassets/homepage/CHLogoFinal.png' %}" alt="Casual Heroes Logo" class="h-16 mx-auto mb-4 rounded-full" />
+      <h1 class="text-3xl font-bold text-white mb-2">AMP Server Management</h1>
+      <p class="text-gray-400">Access your game servers powered by AMP</p>
+    </div>
+
+    <!-- Login Card -->
+    <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-8 shadow-xl">
+      <div class="mb-6">
+        <div class="bg-gradient-to-r from-indigo-900/20 to-purple-900/20 border border-indigo-800 rounded-lg p-4 mb-6">
+          <div class="flex items-start gap-3">
+            <i class="fas fa-info-circle text-indigo-400 text-xl mt-0.5"></i>
+            <div class="flex-1">
+              <h3 class="text-white font-semibold mb-1">AMP Panel Access</h3>
+              <p class="text-sm text-gray-300">
+                Use your AMP credentials to access your game servers. If you're a QuestLog user, you can also access your servers from your guild dashboard.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <form id="ampLoginForm" class="space-y-4">
+          {% csrf_token %}
+
+          <div>
+            <label for="amp_username" class="block text-sm font-medium text-gray-300 mb-2">
+              AMP Username
+            </label>
+            <input
+              type="text"
+              id="amp_username"
+              name="amp_username"
+              required
+              class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-indigo-500 transition"
+              placeholder="Enter your AMP username"
+            >
+          </div>
+
+          <div>
+            <label for="amp_password" class="block text-sm font-medium text-gray-300 mb-2">
+              AMP Password
+            </label>
+            <input
+              type="password"
+              id="amp_password"
+              name="amp_password"
+              required
+              class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-indigo-500 transition"
+              placeholder="Enter your AMP password"
+            >
+          </div>
+
+          <div class="flex items-center">
+            <input
+              type="checkbox"
+              id="remember_me"
+              name="remember_me"
+              class="w-4 h-4 bg-neutral-800 border-neutral-700 rounded focus:ring-indigo-500"
+            >
+            <label for="remember_me" class="ml-2 text-sm text-gray-400">
+              Remember me for 30 days
+            </label>
+          </div>
+
+          <button
+            type="submit"
+            class="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-semibold py-3 rounded-lg transition shadow-lg hover:shadow-indigo-500/50"
+          >
+            <i class="fas fa-sign-in-alt mr-2"></i>Access AMP Panel
+          </button>
+        </form>
+
+        <!-- Error Message -->
+        <div id="errorMessage" class="hidden mt-4 bg-red-900/20 border border-red-700 rounded-lg p-4">
+          <div class="flex items-start gap-3">
+            <i class="fas fa-exclamation-circle text-red-400 text-lg mt-0.5"></i>
+            <div class="flex-1">
+              <h4 class="text-red-400 font-semibold mb-1">Login Failed</h4>
+              <p class="text-sm text-red-300" id="errorText"></p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Divider -->
+      <div class="relative my-6">
+        <div class="absolute inset-0 flex items-center">
+          <div class="w-full border-t border-neutral-700"></div>
+        </div>
+        <div class="relative flex justify-center text-sm">
+          <span class="px-2 bg-neutral-900 text-gray-500">or</span>
+        </div>
+      </div>
+
+      <!-- Alternative Access Methods -->
+      <div class="space-y-3">
+        <a href="{% url 'discord_login' %}"
+           class="block w-full bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-white font-semibold py-3 rounded-lg transition text-center">
+          <i class="fab fa-discord mr-2"></i>Login with Discord (QuestLog)
+        </a>
+
+        <a href="https://discord.gg/ECwJWppSjQ"
+           target="_blank"
+           class="block w-full bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-gray-300 py-3 rounded-lg transition text-center text-sm">
+          <i class="fas fa-question-circle mr-2"></i>Don't have an account? Contact us on Discord
+        </a>
+      </div>
+    </div>
+
+    <!-- Additional Info -->
+    <div class="mt-6 text-center">
+      <p class="text-sm text-gray-500">
+        <i class="fas fa-lock mr-1"></i>
+        Your credentials are encrypted and never stored on our servers
+      </p>
+    </div>
+  </div>
+</div>
+
+<script>
+document.getElementById('ampLoginForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+
+  const errorDiv = document.getElementById('errorMessage');
+  const errorText = document.getElementById('errorText');
+  errorDiv.classList.add('hidden');
+
+  const formData = new FormData(e.target);
+  const data = {
+    username: formData.get('amp_username'),
+    password: formData.get('amp_password'),
+    remember: formData.get('remember_me') === 'on'
+  };
+
+  try {
+    const response = await csrfFetch('/api/amp/login', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(data)
+    });
+
+    const result = await response.json();
+
+    if (result.success) {
+      // Redirect to server dashboard
+      window.location.href = result.redirect || '/amp/dashboard';
+    } else {
+      errorText.textContent = result.error || 'Invalid credentials. Please try again.';
+      errorDiv.classList.remove('hidden');
+    }
+  } catch (error) {
+    errorText.textContent = 'An error occurred. Please try again later.';
+    errorDiv.classList.remove('hidden');
+  }
+});
+</script>
+{% endblock %}

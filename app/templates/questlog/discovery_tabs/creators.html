@@ -8,9 +8,21 @@
         <h2 class="text-2xl font-bold text-white mb-2">⭐ Featured Creators</h2>
         <p class="text-gray-300">Discover streamers and content creators across the QuestLog network</p>
       </div>
-      <button onclick="window.open('/questlog/guild/{{ guild.id }}/creator/register/', '_blank')" class="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-lg transition">
-        <i class="fas fa-user-plus mr-2"></i>Register as Creator
-      </button>
+      {% if has_creator_profile %}
+        {% if profile_shared_to_network %}
+          <button onclick="window.open('/questlog/guild/{{ guild.id }}/creator/register/', '_blank')" class="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-lg transition">
+            <i class="fas fa-edit mr-2"></i>Edit Profile
+          </button>
+        {% else %}
+          <button onclick="window.open('/questlog/guild/{{ guild.id }}/creator/register/', '_blank')" class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition">
+            <i class="fas fa-share-alt mr-2"></i>Share to Network
+          </button>
+        {% endif %}
+      {% else %}
+        <button onclick="window.open('/questlog/guild/{{ guild.id }}/creator/register/', '_blank')" class="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-lg transition">
+          <i class="fas fa-user-plus mr-2"></i>Register as Creator
+        </button>
+      {% endif %}
     </div>
 
     <!-- Search & Filters -->
@@ -188,7 +200,16 @@ function renderFeaturedCreator(creator, type) {
   // Build social links
   const socialLinks = [];
   if (creator.twitch_handle) socialLinks.push(`<a href="https://twitch.tv/${creator.twitch_handle}" target="_blank" class="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded text-sm transition"><i class="fab fa-twitch mr-1"></i>Twitch</a>`);
-  if (creator.youtube_handle) socialLinks.push(`<a href="https://youtube.com/@${creator.youtube_handle}" target="_blank" class="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded text-sm transition"><i class="fab fa-youtube mr-1"></i>YouTube</a>`);
+
+  // YouTube - fallback to channel ID if handle is missing
+  if (creator.youtube_handle) {
+    socialLinks.push(`<a href="https://youtube.com/@${creator.youtube_handle}" target="_blank" class="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded text-sm transition"><i class="fab fa-youtube mr-1"></i>YouTube</a>`);
+  } else if (creator.youtube_url) {
+    socialLinks.push(`<a href="${creator.youtube_url}" target="_blank" class="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded text-sm transition"><i class="fab fa-youtube mr-1"></i>YouTube</a>`);
+  } else if (creator.youtube_channel_id) {
+    socialLinks.push(`<a href="https://youtube.com/channel/${creator.youtube_channel_id}" target="_blank" class="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded text-sm transition"><i class="fab fa-youtube mr-1"></i>YouTube</a>`);
+  }
+
   if (creator.twitter_handle) socialLinks.push(`<a href="https://twitter.com/${creator.twitter_handle}" target="_blank" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm transition"><i class="fab fa-twitter mr-1"></i>Twitter</a>`);
   if (creator.tiktok_handle) socialLinks.push(`<a href="https://tiktok.com/@${creator.tiktok_handle}" target="_blank" class="px-3 py-1.5 bg-gray-800 hover:bg-gray-900 text-white rounded text-sm transition"><i class="fab fa-tiktok mr-1"></i>TikTok</a>`);
   if (creator.instagram_handle) socialLinks.push(`<a href="https://instagram.com/${creator.instagram_handle}" target="_blank" class="px-3 py-1.5 bg-pink-600 hover:bg-pink-700 text-white rounded text-sm transition"><i class="fab fa-instagram mr-1"></i>Instagram</a>`);
@@ -212,9 +233,9 @@ function renderFeaturedCreator(creator, type) {
           <h3 class="text-2xl font-bold text-white mb-1">${creator.display_name}</h3>
           ${creator.bio ? `<p class="text-gray-300 text-sm mb-3">${creator.bio}</p>` : ''}
 
-          ${creator.content_categories ? `
+          ${creator.content_categories && creator.content_categories.length > 0 ? `
             <div class="flex flex-wrap gap-1 mb-3">
-              ${JSON.parse(creator.content_categories || '[]').map(cat =>
+              ${(Array.isArray(creator.content_categories) ? creator.content_categories : []).map(cat =>
                 `<span class="px-2 py-0.5 bg-neutral-800 text-gray-400 rounded text-xs">${cat}</span>`
               ).join('')}
             </div>
@@ -396,8 +417,8 @@ function renderCreatorCard(creator) {
           </a>
         ` : ''}
 
-        ${creator.youtube_handle ? `
-          <a href="https://youtube.com/@${creator.youtube_handle}" target="_blank" rel="noopener noreferrer"
+        ${creator.youtube_handle || creator.youtube_url || creator.youtube_channel_id ? `
+          <a href="${creator.youtube_handle ? `https://youtube.com/@${creator.youtube_handle}` : (creator.youtube_url || `https://youtube.com/channel/${creator.youtube_channel_id}`)}" target="_blank" rel="noopener noreferrer"
              class="flex items-center gap-1.5 bg-red-600 hover:bg-red-700 text-white px-2 py-1 rounded-md text-xs font-medium transition shadow hover:shadow-lg">
             <i class="fab fa-youtube"></i> YouTube
           </a>

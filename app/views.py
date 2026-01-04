@@ -189,11 +189,11 @@ def check_discovery_lfg_post_limit(db, guild_id, guild):
     reset_date = next_month.strftime('%B %d, %Y')
 
     # Count LFG posts created this month in Discovery Network
-    # (LFG groups that were created via Discovery Network have member_count >= 0)
+    # (LFG groups that were shared to Discovery Network)
     current_count = db.query(LFGGroup).filter(
         LFGGroup.guild_id == int(guild_id),
         LFGGroup.created_at >= month_start_timestamp,
-        LFGGroup.thread_id == 0  # Discovery Network posts use placeholder thread_id
+        LFGGroup.shared_to_network == True  # Discovery Network posts are flagged
     ).count()
 
     can_post = current_count < limit
@@ -883,7 +883,7 @@ DISCORD_GAMES = [
     {
         "id": "ESO",
         "name": "Elder Scrolls Online",
-        "description": "Casual Heroes is building a PC-NA ESO guild for adults who want chill runs and real progress—without the drama or sweaty expectations. New and returning players welcome. We learn together, gear up together, and push harder content when we’re ready.",
+        "description": "Casual Legends is building a PC-NA ESO guild for adults who want chill runs and real progress—without the drama or sweaty expectations. New and returning players welcome. We learn together, gear up together, and push harder content when we’re ready.",
         "steam_link": "https://store.steampowered.com/app/306130/The_Elder_Scrolls_Online/",
         "discord_invite": "https://discord.gg/ECwJWppSjQ",
         "steam_appid": "306130",
@@ -1905,7 +1905,6 @@ def guild_dashboard(request, guild_id):
             GuildMember, Warning, LevelRole, ReactRole, ChannelStatTracker
         )
         from datetime import datetime, timedelta
-        import time
 
         logger.info(f"[METRICS DEBUG] Loading dashboard for guild {guild_id}")
 
@@ -2662,7 +2661,7 @@ def guild_trackers(request, guild_id):
 
 # Tracker API Endpoints (REST API for AJAX calls)
 
-from django.http import JsonResponse, HttpResponseForbidden, HttpResponseNotFound
+from django.http import JsonResponse, HttpResponseForbidden, HttpResponseNotFound, HttpResponse
 import json as json_lib
 
 
@@ -3559,7 +3558,6 @@ def api_scheduled_messages_create(request, guild_id):
     try:
         from .db import get_db_session
         from .models import ScheduledMessage
-        import time
 
         discord_user = request.session.get('discord_user', {})
         user_id = int(discord_user.get('id', 0))
@@ -3678,7 +3676,6 @@ def api_scheduled_messages_update(request, guild_id, message_id):
     try:
         from .db import get_db_session
         from .models import ScheduledMessage
-        import time
 
         with get_db_session() as db:
             scheduled_msg = db.query(ScheduledMessage).filter_by(
@@ -3734,7 +3731,6 @@ def api_scheduled_messages_cancel(request, guild_id, message_id):
     try:
         from .db import get_db_session
         from .models import ScheduledMessage
-        import time
 
         with get_db_session() as db:
             scheduled_msg = db.query(ScheduledMessage).filter_by(
@@ -3836,7 +3832,6 @@ def guild_xp(request, guild_id):
     try:
         from .db import get_db_session
         from .models import XPConfig, GuildMember, LevelRole, Guild as GuildModel, DailyBulkUsage
-        import time
         from datetime import datetime
 
         # Get today's date as integer (YYYYMMDD)
@@ -4940,7 +4935,6 @@ def api_xp_boost_events_list(request, guild_id):
     try:
         from .db import get_db_session
         from .models import XPBoostEvent
-        import time
 
         with get_db_session() as db:
             events = db.query(XPBoostEvent).filter_by(
@@ -4989,7 +4983,6 @@ def api_xp_boost_event_update(request, guild_id, event_id):
     try:
         from .db import get_db_session
         from .models import XPBoostEvent, PendingAction, ActionType
-        import time
 
         with get_db_session() as db:
             event = db.query(XPBoostEvent).filter_by(
@@ -5128,7 +5121,6 @@ def api_xp_boost_event_create(request, guild_id):
         from .db import get_db_session
         from .models import XPBoostEvent
         from .module_utils import has_module_access
-        import time
 
         # Require Engagement Module for custom events
         if not has_module_access(guild_id, 'engagement'):
@@ -6479,7 +6471,6 @@ def guild_raffle_browser(request, guild_id):
 
 
 def _raffle_status(raffle):
-    import time
     now = int(time.time())
     if raffle.winners:
         return 'completed'
@@ -6583,7 +6574,6 @@ def api_raffle_list(request, guild_id):
     """List raffles; auto-finalize ended raffles with auto_pick. (Members can view)"""
     from .db import get_db_session
     from .models import Raffle, RaffleEntry
-    import time
 
     # Check if user is logged in (but don't require admin access)
     discord_user = request.session.get('discord_user')
@@ -6809,7 +6799,6 @@ def api_raffle_enter(request, guild_id, raffle_id):
             if status == 'closed':
                 return JsonResponse({'error': 'Raffle closed'}, status=400)
 
-            import time
             now = int(time.time())
             if raffle.start_at and now < raffle.start_at:
                 return JsonResponse({'error': 'Raffle has not started yet'}, status=400)
@@ -6902,7 +6891,6 @@ def api_raffle_start_now(request, guild_id, raffle_id):
     from .models import Raffle
     if not _ensure_admin(guild_id, request):
         return JsonResponse({'error': 'Permission denied'}, status=403)
-    import time
     now = int(time.time())
     try:
         with get_db_session() as db:
@@ -6928,7 +6916,6 @@ def api_raffle_end_now(request, guild_id, raffle_id):
     from .models import Raffle
     if not _ensure_admin(guild_id, request):
         return JsonResponse({'error': 'Permission denied'}, status=403)
-    import time
     now = int(time.time())
     try:
         with get_db_session() as db:
@@ -7188,7 +7175,6 @@ def guild_audit_logs(request, guild_id):
     try:
         from .db import get_db_session
         from .models import AuditLog, AuditAction, Guild as GuildModel
-        import time
 
         with get_db_session() as db:
             # Get guild info
@@ -7318,7 +7304,6 @@ def api_audit_logs(request, guild_id):
     try:
         from .db import get_db_session
         from .models import AuditLog, AuditAction, Guild as GuildModel
-        import time
 
         # Pagination
         page = int(request.GET.get('page', 1))
@@ -7405,7 +7390,6 @@ def api_audit_stats(request, guild_id):
         from .db import get_db_session
         from .models import AuditLog, AuditAction
         from sqlalchemy import func
-        import time
 
         days = int(request.GET.get('days', 7))
         time_threshold = int(time.time()) - (days * 24 * 60 * 60)
@@ -7705,7 +7689,6 @@ def api_welcome_config_update(request, guild_id):
     try:
         from .db import get_db_session
         from .models import WelcomeConfig, Guild as GuildModel
-        import time
 
         with get_db_session() as db:
             # Ensure guild exists
@@ -7989,7 +7972,6 @@ def api_levelup_config_update(request, guild_id):
     try:
         from .db import get_db_session
         from .models import LevelUpConfig, Guild as GuildModel
-        import time
 
         with get_db_session() as db:
             guild_record = db.query(GuildModel).filter_by(guild_id=int(guild_id)).first()
@@ -8275,6 +8257,47 @@ def guild_settings(request, guild_id):
         'active_page': 'settings',
     }
     return render(request, 'questlog/settings.html', context)
+
+
+@discord_required
+def guild_game_servers(request, guild_id):
+    """AMP Game Server Management page - Shows hosting upsell or AMP panel access."""
+    discord_user = request.session.get('discord_user', {})
+    admin_guilds = request.session.get('discord_admin_guilds', [])
+    all_guilds = request.session.get('discord_all_guilds', [])
+
+    # Check if user is admin
+    guild_check = next((g for g in admin_guilds if g['id'] == guild_id), None)
+    if not guild_check:
+        messages.error(request, "You don't have admin access to this server.")
+        return redirect('questlog_dashboard')
+
+    # Get guild with owner/permissions data for sidebar
+    guild = get_guild_with_permissions(guild_id, admin_guilds, all_guilds)
+
+    try:
+        from .db import get_db_session
+        from .models import Guild as GuildModel
+
+        with get_db_session() as db:
+            guild_record = db.query(GuildModel).filter_by(guild_id=int(guild_id)).first()
+
+            context = {
+                'guild': guild,
+                'guild_record': guild_record,
+                'admin_guilds': admin_guilds,
+                'member_guilds': get_member_guilds(request),
+                'is_admin': True,
+                'active_page': 'game_servers',
+            }
+            return render(request, 'questlog/game_servers.html', context)
+
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error loading game servers page: {e}", exc_info=True)
+        messages.error(request, "Failed to load game servers page.")
+        return redirect('guild_dashboard', guild_id=guild_id)
 
 
 @discord_required
@@ -8939,7 +8962,6 @@ def guild_moderation(request, guild_id):
     try:
         from .db import get_db_session
         from .models import Warning, ModAction, GuildMember, Guild
-        import time
         from datetime import datetime
 
         with get_db_session() as db:
@@ -9154,7 +9176,6 @@ def api_warning_pardon(request, guild_id, warning_id):
     try:
         from .db import get_db_session
         from .models import Warning
-        import time
 
         discord_user = request.session.get('discord_user', {})
         pardoned_by = int(discord_user.get('id', 0))
@@ -9984,7 +10005,6 @@ def guild_discovery(request, guild_id):
     try:
         from .db import get_db_session
         from .models import DiscoveryConfig, FeaturedPool, Guild, GuildMember, AnnouncedGame, GameSearchConfig
-        import time
         import json as json_lib
         from datetime import datetime
 
@@ -10279,6 +10299,24 @@ def guild_discovery(request, guild_id):
             has_discovery_module = has_module_access(guild_id, 'discovery')
             has_any_module = has_any_module_access(guild_id)
 
+            # Get text channels and roles from Discord API for YouTube integration
+            text_channels = []
+            try:
+                import requests
+                bot_token = os.getenv('DISCORD_BOT_TOKEN', '')
+                if bot_token:
+                    headers = {'Authorization': f'Bot {bot_token}'}
+                    channels_resp = requests.get(
+                        f'https://discord.com/api/v10/guilds/{guild_id}/channels',
+                        headers=headers,
+                        timeout=5
+                    )
+                    if channels_resp.status_code == 200:
+                        all_channels = channels_resp.json()
+                        text_channels = [ch for ch in all_channels if ch.get('type') == 0]  # 0 = text channels
+            except Exception as e:
+                logger.warning(f"Failed to fetch channels for guild {guild_id}: {e}")
+
             context = {
                 'guild': guild,
                 'guild_record': guild_record,
@@ -10309,6 +10347,8 @@ def guild_discovery(request, guild_id):
         'member_guilds': get_member_guilds(request),
                 'active_page': 'discovery',
                 'discovery_enabled': discovery_config.enabled if discovery_config else False,
+                # YouTube Integration
+                'text_channels': text_channels,
             }
 
             return render(request, 'questlog/discovery.html', context)
@@ -10408,10 +10448,16 @@ def guild_discovery_network(request, guild_id):
     bot_owner_id = os.getenv('BOT_OWNER_ID')
     is_bot_owner = str(user_id) == str(bot_owner_id) if bot_owner_id else False
 
+    # Check if user is a Discovery Approver (can manage Network COTW/COTM)
+    approvers_env = os.getenv('DISCOVERY_APPROVERS', '')
+    approved_ids = [id.strip() for id in approvers_env.split(',') if id.strip()]
+    if bot_owner_id:
+        approved_ids.append(bot_owner_id)
+    is_discovery_approver = str(user_id) in approved_ids
+
     try:
         from .db import get_db_session
         from .models import Guild, DiscoveryNetworkApplication, DiscoveryNetworkBan
-        import time
 
         with get_db_session() as db:
             # Get guild record
@@ -10467,12 +10513,23 @@ def guild_discovery_network(request, guild_id):
             enable_creators = (user_prefs.enable_creators if user_prefs else True) and server_network_status == 'approved'
             enable_directory = user_prefs.enable_directory if user_prefs else True
 
+            # Check if user has a creator profile for this guild
+            from .models import CreatorProfile
+            user_creator_profile = db.query(CreatorProfile).filter_by(
+                guild_id=int(guild_id),
+                discord_id=int(user_id)
+            ).first()
+
+            has_creator_profile = user_creator_profile is not None
+            profile_shared_to_network = user_creator_profile.share_to_network if user_creator_profile else False
+
             context = {
                 'guild': guild,
                 'guild_record': guild_record,
                 'is_admin': is_admin,
                 'is_owner': is_owner,
                 'is_bot_owner': is_bot_owner,
+                'is_discovery_approver': is_discovery_approver,
                 'admin_guilds': admin_guilds,
                 'member_guilds': get_member_guilds(request),
                 'discord_user': request.session.get('discord_user', {}),
@@ -10492,6 +10549,8 @@ def guild_discovery_network(request, guild_id):
                 'enable_games': enable_games,
                 'enable_creators': enable_creators,
                 'enable_directory': enable_directory,
+                'has_creator_profile': has_creator_profile,
+                'profile_shared_to_network': profile_shared_to_network,
             }
 
             return render(request, 'questlog/discovery_network.html', context)
@@ -10645,7 +10704,7 @@ def api_discovery_network_lfg(request):
                     'posts': []
                 })
 
-            # Get active LFG groups from Discovery Network guilds
+            # Get active LFG groups from Discovery Network guilds (only shared groups)
             active_groups = db.query(
                 LFGGroup, LFGGame, Guild
             ).join(
@@ -10656,7 +10715,8 @@ def api_discovery_network_lfg(request):
                 and_(
                     LFGGroup.guild_id.in_(network_guild_ids),
                     LFGGroup.is_active == True,
-                    LFGGroup.is_full == False
+                    LFGGroup.is_full == False,
+                    LFGGroup.shared_to_network == True  # Only show cross-server groups
                 )
             ).order_by(
                 LFGGroup.created_at.desc()
@@ -10997,7 +11057,8 @@ def api_discovery_lfg_create(request):
                 event_duration=int(data.get('event_duration')) if data.get('event_duration') else None,
                 is_active=True,
                 is_full=False,
-                member_count=1  # Creator counts as first member
+                member_count=1,  # Creator counts as first member
+                shared_to_network=True  # Discovery Network LFG posts are cross-server
             )
 
             db.add(lfg_group)
@@ -11050,7 +11111,6 @@ def api_discovery_lfg_join(request, post_id):
     """POST /api/discovery/lfg/<post_id>/join - Join a Discovery Network LFG post."""
     try:
         import json as json_lib
-        import time
         from .db import get_db_session
         from .models import LFGGroup, LFGMember, Guild, DiscoveryNetworkApplication
 
@@ -11769,7 +11829,6 @@ def api_discovery_network_apply(request):
         import json as json_lib
         from .db import get_db_session
         from .models import DiscoveryNetworkApplication, DiscoveryNetworkBan
-        import time
 
         data = json_lib.loads(request.body)
         user = request.session.get('discord_user', {})
@@ -11866,7 +11925,6 @@ def api_discovery_network_preferences(request):
         import json as json_lib
         from .db import get_db_session
         from .models import DiscoveryNetworkPreferences
-        import time
 
         user = request.session.get('discord_user', {})
         user_id = user.get('id')
@@ -12094,7 +12152,6 @@ def api_discovery_network_leave(request):
     try:
         from .db import get_db_session
         from .models import DiscoveryNetworkApplication
-        import time
 
         user = request.session.get('discord_user', {})
         user_id = user.get('id')
@@ -12188,7 +12245,6 @@ def api_discovery_network_rejoin(request):
     try:
         from .db import get_db_session
         from .models import DiscoveryNetworkApplication
-        import time
 
         user = request.session.get('discord_user', {})
         user_id = user.get('id')
@@ -12420,7 +12476,7 @@ def api_discovery_games_list(request):
                 if game.rating and not games_data[game_name_lower]['avg_rating']:
                     games_data[game_name_lower]['avg_rating'] = game.rating
 
-            # 3. Get active LFG count per game
+            # 3. Get active Cross-Server LFG count per game (only shared_to_network=True)
             active_lfgs = db.query(
                 LFGGame.game_name,
                 LFGGame.cover_url,
@@ -12430,7 +12486,8 @@ def api_discovery_games_list(request):
                 LFGGroup, LFGGroup.game_id == LFGGame.id
             ).filter(
                 LFGGame.guild_id.in_(approved_guild_ids),
-                LFGGroup.is_active == True
+                LFGGroup.is_active == True,
+                LFGGroup.shared_to_network == True  # Only count Cross-Server LFG groups
             ).group_by(
                 LFGGame.game_name,
                 LFGGame.cover_url,
@@ -12596,7 +12653,6 @@ def api_discovery_games_list(request):
                 games_list.sort(key=lambda x: (x['rating'] or 0, x['review_count']), reverse=True)
             else:  # trending (default)
                 # Trending = combination of server count, LFG count, and recency
-                import time
                 now = time.time()
                 for game in games_list:
                     # Calculate trending score
@@ -12765,7 +12821,6 @@ def api_discovery_share_game(request):
         from .db import get_db_session
         from .models import AnnouncedGame, Guild
         from sqlalchemy import func
-        import time
         import html
 
         data = json_lib.loads(request.body)
@@ -12947,7 +13002,6 @@ def api_discovery_user_main_server(request):
     try:
         from .db import get_db_session
         from .models import DiscoveryNetworkPreferences, Guild
-        import time
 
         user = request.session.get('discord_user', {})
         user_id = user.get('id')
@@ -13031,7 +13085,6 @@ def api_discovery_user_set_main_server(request):
         import json as json_lib
         from .db import get_db_session
         from .models import DiscoveryNetworkPreferences, Guild
-        import time
 
         user = request.session.get('discord_user', {})
         user_id = user.get('id')
@@ -13273,6 +13326,8 @@ def api_discovery_network_creators(request):
                     'bluesky_handle': creator.bluesky_handle,
                     'twitch_handle': creator.twitch_handle,
                     'youtube_handle': creator.youtube_handle,
+                    'youtube_url': creator.youtube_url,
+                    'youtube_channel_id': creator.youtube_channel_id,
                     'stream_schedule': creator.stream_schedule,
                     'times_featured': creator.times_featured,
                     'is_current_cotw': creator.is_current_cotw,
@@ -13302,6 +13357,8 @@ def api_discovery_network_creators(request):
                     'bluesky_handle': network_cotw.bluesky_handle,
                     'twitch_handle': network_cotw.twitch_handle,
                     'youtube_handle': network_cotw.youtube_handle,
+                    'youtube_url': network_cotw.youtube_url,
+                    'youtube_channel_id': network_cotw.youtube_channel_id,
                     'home_server': extras['home_server'],
                     'username': extras['username'],
                     'avatar_url': extras['avatar_url'],
@@ -13323,6 +13380,8 @@ def api_discovery_network_creators(request):
                     'bluesky_handle': network_cotm.bluesky_handle,
                     'twitch_handle': network_cotm.twitch_handle,
                     'youtube_handle': network_cotm.youtube_handle,
+                    'youtube_url': network_cotm.youtube_url,
+                    'youtube_channel_id': network_cotm.youtube_channel_id,
                     'home_server': extras['home_server'],
                     'username': extras['username'],
                     'avatar_url': extras['avatar_url'],
@@ -13358,7 +13417,6 @@ def api_discovery_game_reviews(request, game_id):
         from .db import get_db_session
         from .models import DiscoveryGameReview, Guild
         from sqlalchemy import func
-        import time
         import html
 
         user = request.session.get('discord_user', {})
@@ -13512,7 +13570,6 @@ def api_discovery_game_discussions(request, game_id):
         from .db import get_db_session
         from .models import DiscoveryGameDiscussion
         from sqlalchemy import func
-        import time
         import html
 
         user = request.session.get('discord_user', {})
@@ -13758,7 +13815,6 @@ def api_discovery_network_admin_applications(request):
 def api_discovery_network_admin_approve(request, application_id):
     """Approve an application (DISCOVERY APPROVERS ONLY)."""
     try:
-        import time
         from .db import get_db_session
         from .models import DiscoveryNetworkApplication
 
@@ -13800,7 +13856,6 @@ def api_discovery_network_admin_approve(request, application_id):
 def api_discovery_network_admin_deny(request, application_id):
     """Deny an application (DISCOVERY APPROVERS ONLY)."""
     try:
-        import time
         import json as json_lib
         from .db import get_db_session
         from .models import DiscoveryNetworkApplication
@@ -13847,7 +13902,6 @@ def api_discovery_network_admin_deny(request, application_id):
 def api_discovery_network_admin_ban(request, application_id):
     """Ban a user from Discovery Network (DISCOVERY APPROVERS ONLY)."""
     try:
-        import time
         import json as json_lib
         from .db import get_db_session
         from .models import DiscoveryNetworkApplication, DiscoveryNetworkBan
@@ -14110,7 +14164,6 @@ def api_discovery_config_update(request, guild_id):
     try:
         from .db import get_db_session
         from .models import DiscoveryConfig
-        import time
 
         with get_db_session() as db:
             config = db.query(DiscoveryConfig).filter_by(guild_id=int(guild_id)).first()
@@ -14239,7 +14292,6 @@ def api_discovery_pool(request, guild_id):
     try:
         from .db import get_db_session
         from .models import FeaturedPool
-        import time
 
         now = int(time.time())
 
@@ -14302,7 +14354,6 @@ def api_discovery_force_feature(request, guild_id):
         from .db import get_db_session
         from .models import DiscoveryConfig, FeaturedPool
         from .actions import queue_action, ActionType
-        import time
 
         now = int(time.time())
         discord_user = request.session.get('discord_user', {})
@@ -14564,7 +14615,6 @@ def api_game_discovery_check(request, guild_id):
         from .db import get_db_session
         from .models import DiscoveryConfig, AnnouncedGame
         from .actions import queue_action, ActionType
-        import time
         import os
 
         discord_user = request.session.get('discord_user', {})
@@ -14678,7 +14728,6 @@ def api_game_search_config_create(request, guild_id):
         from .db import get_db_session
         from .models import GameSearchConfig, Guild as GuildModel, SubscriptionTier
         import json as json_lib
-        import time
 
         data = json_lib.loads(request.body)
 
@@ -14755,7 +14804,6 @@ def api_game_search_config_update(request, guild_id, search_id):
         from .db import get_db_session
         from .models import GameSearchConfig
         import json as json_lib
-        import time
 
         data = json_lib.loads(request.body)
 
@@ -15242,7 +15290,6 @@ def guild_attendance(request, guild_id):
                 logger.error(f"Error fetching guild members from cache: {e}")
 
             # Get recent groups (last 30 days) with attendance tracking
-            import time
             thirty_days_ago = int(time.time()) - (30 * 24 * 3600)
 
             # Only show groups that have attendance records (meaning attendance was ON when created)
@@ -15729,7 +15776,6 @@ def api_lfg_config(request, guild_id):
         from .db import get_db_session
         from .models import LFGConfig, Guild
         import json
-        import time
 
         with get_db_session() as db:
             # Check premium
@@ -15924,7 +15970,6 @@ def api_lfg_blacklist_update(request, guild_id, user_id):
         from .db import get_db_session
         from .models import LFGMemberStats, Guild
         import json
-        import time
 
         with get_db_session() as db:
             guild = db.query(Guild).filter_by(guild_id=int(guild_id)).first()
@@ -15972,7 +16017,6 @@ def api_lfg_groups(request, guild_id):
     try:
         from .db import get_db_session
         from .models import LFGGroup, LFGGame
-        import time
 
         with get_db_session() as db:
             # Get groups from last 7 days
@@ -16019,7 +16063,6 @@ def api_lfg_attendance_update(request, guild_id):
     try:
         from .db import get_db_session
         from .models import Guild, LFGConfig, LFGGroup, LFGMember, LFGAttendance, LFGMemberStats
-        import time
         import logging
         logger = logging.getLogger(__name__)
 
@@ -16460,7 +16503,6 @@ def api_lfg_attendance_export(request, guild_id):
                 logger.error(f"Error fetching guild members from cache for export: {e}")
 
             # Get all groups with attendance from last 90 days
-            import time
             ninety_days_ago = int(time.time()) - (90 * 24 * 3600)
 
             groups = db.query(LFGGroup).filter(
@@ -16703,7 +16745,6 @@ def api_lfg_browser_groups(request, guild_id):
     try:
         from .db import get_db_session
         from .models import Guild, LFGGroup, LFGGame, LFGMember
-        import time
 
         with get_db_session() as db:
             # Get guild (LFG Browser now available to all tiers)
@@ -16715,10 +16756,11 @@ def api_lfg_browser_groups(request, guild_id):
             game_id = request.GET.get('game_id')
             status_filter = request.GET.get('status', 'active')  # active, full, all
 
-            # Build query
+            # Build query - only show server-only groups (not Discovery Network)
             query = db.query(LFGGroup).filter(
                 LFGGroup.guild_id == int(guild_id),
-                LFGGroup.is_active == True
+                LFGGroup.is_active == True,
+                LFGGroup.shared_to_network == False  # Find Groups = server-only
             )
 
             # Filter by game
@@ -16874,7 +16916,6 @@ def api_lfg_browser_create(request, guild_id):
     try:
         from .db import get_db_session
         from .models import Guild, LFGGroup, LFGGame, LFGMember
-        import time
         import logging
         logger = logging.getLogger(__name__)
 
@@ -16934,6 +16975,7 @@ def api_lfg_browser_create(request, guild_id):
                 is_active=True,
                 is_full=False,
                 member_count=1,
+                shared_to_network=False,  # Find Groups are server-only, not cross-server
                 created_at=int(time.time())
             )
             db.add(new_group)
@@ -17142,7 +17184,6 @@ def api_lfg_browser_join(request, guild_id, group_id):
     try:
         from .db import get_db_session
         from .models import Guild, LFGGroup, LFGMember
-        import time
 
         # Get Discord user from session
         discord_user = request.session.get('discord_user', {})
@@ -17301,7 +17342,6 @@ def api_lfg_browser_leave(request, guild_id, group_id):
     try:
         from .db import get_db_session
         from .models import Guild, LFGGroup, LFGMember
-        import time
 
         # Get Discord user from session
         discord_user = request.session.get('discord_user', {})
@@ -17390,7 +17430,6 @@ def api_lfg_browser_remove_member(request, guild_id, group_id):
     try:
         from .db import get_db_session
         from .models import Guild, LFGGroup, LFGMember
-        import time
 
         # Get Discord user from session
         discord_user = request.session.get('discord_user', {})
@@ -17496,7 +17535,6 @@ def api_lfg_browser_join_thread(request, guild_id, group_id):
     try:
         from .db import get_db_session
         from .models import Guild, LFGGroup, PendingAction, ActionType, ActionStatus
-        import time
         import logging
         logger = logging.getLogger(__name__)
 
@@ -17856,7 +17894,6 @@ def api_lfg_browser_update(request, guild_id, group_id):
     try:
         from .db import get_db_session
         from .models import Guild, LFGGroup, LFGMember
-        import time
 
         # Get Discord user from session
         discord_user = request.session.get('discord_user', {})
@@ -18185,7 +18222,6 @@ def api_lfg_browser_update_class(request, guild_id, group_id):
     try:
         from .db import get_db_session
         from .models import Guild, LFGGroup, LFGMember
-        import time
 
         # Get Discord user from session
         discord_user = request.session.get('discord_user', {})
@@ -18495,9 +18531,51 @@ def guild_featured_creators(request, guild_id):
                     clean_bio = bleach.clean(bio_text, tags=ALLOWED_TAGS, strip=True)
 
                 # Build social media links from handles
+                # IMPORTANT: Twitch and YouTube MUST be first
                 extracted_links = []
                 shown_platforms = set()
 
+                # Twitch FIRST (connected via OAuth)
+                if profile.twitch_handle or profile.twitch_user_id:
+                    handle = profile.twitch_handle or profile.twitch_user_id
+                    extracted_links.append({
+                        'url': f"https://twitch.tv/{handle}",
+                        'platform': 'Twitch',
+                        'icon': 'fab fa-twitch',
+                        'color': 'purple'
+                    })
+                    shown_platforms.add('twitch')
+
+                # YouTube SECOND (connected via OAuth)
+                if profile.youtube_handle:
+                    # YouTube handles can be either @username or channel ID
+                    if profile.youtube_handle.startswith('@'):
+                        extracted_links.append({
+                            'url': f"https://youtube.com/{profile.youtube_handle}",
+                            'platform': 'YouTube',
+                            'icon': 'fab fa-youtube',
+                            'color': 'red'
+                        })
+                    else:
+                        # Assume it's a channel ID or custom URL
+                        extracted_links.append({
+                            'url': f"https://youtube.com/@{profile.youtube_handle}",
+                            'platform': 'YouTube',
+                            'icon': 'fab fa-youtube',
+                            'color': 'red'
+                        })
+                    shown_platforms.add('youtube')
+                elif profile.youtube_channel_id:
+                    # Fallback to channel ID if no handle
+                    extracted_links.append({
+                        'url': f"https://youtube.com/channel/{profile.youtube_channel_id}",
+                        'platform': 'YouTube',
+                        'icon': 'fab fa-youtube',
+                        'color': 'red'
+                    })
+                    shown_platforms.add('youtube')
+
+                # Other social platforms
                 if profile.twitter_handle:
                     extracted_links.append({
                         'url': f"https://twitter.com/{profile.twitter_handle}",
@@ -18533,34 +18611,6 @@ def guild_featured_creators(request, guild_id):
                         'color': 'teal'
                     })
                     shown_platforms.add('bsky')
-
-                if profile.twitch_handle:
-                    extracted_links.append({
-                        'url': f"https://twitch.tv/{profile.twitch_handle}",
-                        'platform': 'Twitch',
-                        'icon': 'fab fa-twitch',
-                        'color': 'purple'
-                    })
-                    shown_platforms.add('twitch')
-
-                if profile.youtube_handle:
-                    # YouTube handles can be either @username or channel ID
-                    if profile.youtube_handle.startswith('@'):
-                        extracted_links.append({
-                            'url': f"https://youtube.com/{profile.youtube_handle}",
-                            'platform': 'YouTube',
-                            'icon': 'fab fa-youtube',
-                            'color': 'red'
-                        })
-                    else:
-                        # Assume it's a channel ID or custom URL
-                        extracted_links.append({
-                            'url': f"https://youtube.com/@{profile.youtube_handle}",
-                            'platform': 'YouTube',
-                            'icon': 'fab fa-youtube',
-                            'color': 'red'
-                        })
-                    shown_platforms.add('youtube')
 
                 # Parse content categories if present
                 content_categories = []
@@ -18633,23 +18683,16 @@ def guild_featured_creators(request, guild_id):
             ).first()
             user_has_profile = existing_profile is not None
 
-        # Get featured creators (COTW, COTM, and Random)
+        # Get featured creators (COTW and COTM only - no random)
         cotw_creator = None
         cotm_creator = None
-        random_featured = None
 
-        # Get Creator of the Week (admin-selected)
+        # Get Creator of the Week and Creator of the Month (admin-selected)
         for creator in creators_data:
             if creator.get('is_current_cotw'):
                 cotw_creator = creator
             if creator.get('is_current_cotm'):
                 cotm_creator = creator
-
-        # Get random featured creator (excluding COTW/COTM)
-        import random
-        eligible_for_random = [c for c in creators_data if not c.get('is_current_cotw') and not c.get('is_current_cotm')]
-        if eligible_for_random:
-            random_featured = random.choice(eligible_for_random)
 
         return render(request, 'questlog/featured_creators.html', {
             'guild': guild,
@@ -18669,7 +18712,6 @@ def guild_featured_creators(request, guild_id):
             'is_authenticated': is_authenticated,
             'cotw_creator': cotw_creator,
             'cotm_creator': cotm_creator,
-            'random_featured': random_featured,
         })
 
     except Exception as e:
@@ -18768,7 +18810,6 @@ def creator_profile_register(request, guild_id):
     """
     import logging
     import json
-    import time
     import bleach
     from .db import get_db_session
     from .models import Guild as DBGuild, GuildMember, CreatorProfile
@@ -18839,7 +18880,7 @@ def creator_profile_register(request, guild_id):
                 stream_schedule = request.POST.get('stream_schedule', '').strip()
 
                 # Discovery Network opt-in
-                share_to_network = request.POST.get('share_to_network') == 'true'
+                share_to_network = request.POST.get('share_to_network') in ['true', 'on']
 
                 # Validation
                 if not display_name:
@@ -18889,20 +18930,32 @@ def creator_profile_register(request, guild_id):
                 # Parse content categories (JSON array from custom_select)
                 categories_list = []
                 if content_categories:
+                    # DEBUG: Log raw POST data
+                    logger.info(f"[CATEGORY DEBUG] Raw content_categories from POST: {repr(content_categories)}")
+
                     try:
                         # Try parsing as JSON first (from custom_select multiselect)
                         if content_categories.startswith('['):
                             categories_list = json.loads(content_categories)
+                            logger.info(f"[CATEGORY DEBUG] After JSON parse: {repr(categories_list)}")
                         else:
                             # Fallback to comma-separated for backwards compatibility
                             categories_list = [cat.strip() for cat in content_categories.split(',') if cat.strip()]
-                    except json.JSONDecodeError:
+                            logger.info(f"[CATEGORY DEBUG] After CSV parse: {repr(categories_list)}")
+                    except json.JSONDecodeError as e:
                         # If JSON parsing fails, treat as comma-separated
+                        logger.warning(f"[CATEGORY DEBUG] JSON parse failed: {e}, falling back to CSV")
                         categories_list = [cat.strip() for cat in content_categories.split(',') if cat.strip()]
 
-                    categories_list = categories_list[:10]  # Limit to 10 categories
+                    # Filter out empty strings, bracket-only strings, and limit to 10 categories
+                    categories_list = [
+                        cat for cat in categories_list
+                        if cat and cat.strip() and cat.strip() not in ['[', ']', '[]', '[[', ']]']
+                    ][:10]
+                    logger.info(f"[CATEGORY DEBUG] After filtering: {repr(categories_list)}")
 
                 categories_json = json.dumps(categories_list) if categories_list else None
+                logger.info(f"[CATEGORY DEBUG] Final JSON to save: {repr(categories_json)}")
 
                 # Create or update profile
                 if existing_profile:
@@ -18915,7 +18968,11 @@ def creator_profile_register(request, guild_id):
                     existing_profile.instagram_handle = instagram_handle
                     existing_profile.bluesky_handle = bluesky_handle
                     existing_profile.twitch_handle = twitch_handle
-                    existing_profile.youtube_handle = youtube_handle
+
+                    # Only update YouTube handle if not OAuth-connected
+                    if not existing_profile.youtube_channel_id:
+                        existing_profile.youtube_handle = youtube_handle
+
                     existing_profile.stream_schedule = stream_schedule
                     existing_profile.share_to_network = share_to_network
                     existing_profile.updated_at = int(time.time())
@@ -18961,17 +19018,11 @@ def creator_profile_register(request, guild_id):
             # GET request - show form
             profile_data = None
             if existing_profile:
-                categories_list = []
-                if existing_profile.content_categories:
-                    try:
-                        categories_list = json.loads(existing_profile.content_categories)
-                    except:
-                        pass
-
+                # Keep categories as stored JSON string - template will parse it
                 profile_data = {
                     'display_name': existing_profile.display_name,
                     'bio': existing_profile.bio,
-                    'content_categories': ', '.join(categories_list) if categories_list else '',
+                    'content_categories': existing_profile.content_categories or '[]',
                     'twitter_handle': existing_profile.twitter_handle or '',
                     'tiktok_handle': existing_profile.tiktok_handle or '',
                     'instagram_handle': existing_profile.instagram_handle or '',
@@ -18979,6 +19030,9 @@ def creator_profile_register(request, guild_id):
                     'twitch_handle': existing_profile.twitch_handle or '',
                     'youtube_handle': existing_profile.youtube_handle or '',
                     'stream_schedule': existing_profile.stream_schedule or '',
+                    'share_to_network': existing_profile.share_to_network,
+                    'youtube_connected': bool(existing_profile.youtube_channel_id),
+                    'twitch_connected': bool(existing_profile.twitch_user_id),
                 }
 
             # Check if guild has Discovery module (for showing OAuth link options later)
@@ -18999,7 +19053,7 @@ def creator_profile_register(request, guild_id):
                 'guild_record': guild_db,
                 'is_admin': is_admin,
                 'profile': profile_data,
-                'existing_profile': existing_profile is not None,
+                'existing_profile': existing_profile,
                 'has_discovery_module': has_discovery_module,
                 'guild_network_status': guild_network_status,
                 'member_guilds': get_member_guilds(request),
@@ -19069,7 +19123,7 @@ def set_creator_of_week(request, guild_id):
     import logging
     import json
     from .db import get_db_session
-    from .models import CreatorProfile
+    from .models import CreatorProfile, DiscoveryConfig
 
     logger = logging.getLogger(__name__)
 
@@ -19088,18 +19142,7 @@ def set_creator_of_week(request, guild_id):
         target_user_id = int(data.get('user_id'))
 
         with get_db_session() as db:
-            # Remove current COTW
-            current_cotw = db.query(CreatorProfile).filter_by(
-                guild_id=int(guild_id),
-                is_current_cotw=True
-            ).all()
-
-            for profile in current_cotw:
-                profile.is_current_cotw = False
-                import time
-                profile.cotw_last_featured = int(time.time())
-
-            # Set new COTW
+            # Get the target profile first
             new_cotw = db.query(CreatorProfile).filter_by(
                 guild_id=int(guild_id),
                 discord_id=target_user_id
@@ -19108,10 +19151,71 @@ def set_creator_of_week(request, guild_id):
             if not new_cotw:
                 return JsonResponse({'error': 'Creator profile not found'}, status=404)
 
+            # Get discovery config for channel info
+            discovery_config = db.query(DiscoveryConfig).filter_by(guild_id=int(guild_id)).first()
+
+            # If this person is currently COTM, remove that status first and delete the COTM announcement
+            if new_cotw.is_current_cotm:
+                new_cotw.is_current_cotm = False
+                new_cotw.cotm_last_featured = int(time.time())
+
+                # Delete COTM Discord announcement
+                if discovery_config and discovery_config.cotm_last_message_id and discovery_config.cotm_channel_id:
+                    try:
+                        import requests
+                        import os
+                        bot_api_url = "http://localhost:8001/api/delete-message"
+                        api_token = os.getenv('DISCORD_BOT_API_TOKEN')
+                        headers = {'Authorization': f'Bearer {api_token}'} if api_token else {}
+                        payload = {
+                            'guild_id': int(guild_id),
+                            'channel_id': discovery_config.cotm_channel_id,
+                            'message_id': discovery_config.cotm_last_message_id
+                        }
+                        response = requests.post(bot_api_url, json=payload, headers=headers, timeout=5)
+                        if response.status_code == 200:
+                            discovery_config.cotm_last_message_id = None
+                            logger.info(f"Deleted COTM announcement when setting user as COTW")
+                    except Exception as bot_error:
+                        logger.error(f"Error deleting COTM announcement: {bot_error}", exc_info=True)
+
+            # Remove current COTW
+            current_cotw = db.query(CreatorProfile).filter_by(
+                guild_id=int(guild_id),
+                is_current_cotw=True
+            ).all()
+
+            for profile in current_cotw:
+                profile.is_current_cotw = False
+                profile.cotw_last_featured = int(time.time())
+
+            # Set new COTW
             new_cotw.is_current_cotw = True
             new_cotw.times_featured += 1
 
             db.commit()
+
+            # Trigger Discord bot to delete old announcement and post new one
+            if discovery_config and discovery_config.cotw_enabled and discovery_config.cotw_channel_id:
+                try:
+                    import requests
+                    import os
+                    bot_api_url = "http://localhost:8001/api/announce-cotw"
+                    api_token = os.getenv('DISCORD_BOT_API_TOKEN')
+                    headers = {'Authorization': f'Bearer {api_token}'} if api_token else {}
+                    payload = {
+                        'guild_id': int(guild_id),
+                        'user_id': target_user_id,
+                        'channel_id': discovery_config.cotw_channel_id,
+                        'old_message_id': discovery_config.cotw_last_message_id
+                    }
+                    response = requests.post(bot_api_url, json=payload, headers=headers, timeout=5)
+                    if response.status_code == 200:
+                        logger.info(f"Discord bot notified of COTW change for guild {guild_id}")
+                    else:
+                        logger.warning(f"Failed to notify Discord bot of COTW change: {response.text}")
+                except Exception as bot_error:
+                    logger.error(f"Error notifying Discord bot of COTW change: {bot_error}", exc_info=True)
 
             logger.info(f"COTW set: guild_id={guild_id}, user_id={target_user_id}")
             return JsonResponse({'success': True, 'message': 'Creator of the Week set successfully'})
@@ -19119,6 +19223,150 @@ def set_creator_of_week(request, guild_id):
     except Exception as e:
         logger.error(f"Error setting COTW: {e}", exc_info=True)
         return JsonResponse({'error': 'Failed to set Creator of the Week'}, status=500)
+
+
+@discord_required
+def clear_creator_of_week(request, guild_id):
+    """
+    Clear the current Creator of the Week.
+    Security: Only admins can clear COTW.
+    """
+    import logging
+    import json
+    from .db import get_db_session
+    from .models import CreatorProfile, DiscoveryConfig
+
+    logger = logging.getLogger(__name__)
+
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST required'}, status=405)
+
+    # Check if user is admin
+    admin_guilds = request.session.get('discord_admin_guilds', [])
+    is_admin = any(str(g.get('id')) == str(guild_id) for g in admin_guilds)
+
+    if not is_admin:
+        return JsonResponse({'error': 'Admin access required'}, status=403)
+
+    try:
+        with get_db_session() as db:
+            # Remove current COTW
+            current_cotw = db.query(CreatorProfile).filter_by(
+                guild_id=int(guild_id),
+                is_current_cotw=True
+            ).all()
+
+            for profile in current_cotw:
+                profile.is_current_cotw = False
+                profile.cotw_last_featured = int(time.time())
+
+            # Get discovery config to delete announcement
+            discovery_config = db.query(DiscoveryConfig).filter_by(guild_id=int(guild_id)).first()
+
+            db.commit()
+
+            # Delete Discord announcement if it exists
+            if discovery_config and discovery_config.cotw_last_message_id and discovery_config.cotw_channel_id:
+                try:
+                    import requests
+                    import os
+                    bot_api_url = "http://localhost:8001/api/delete-message"
+                    api_token = os.getenv('DISCORD_BOT_API_TOKEN')
+                    headers = {'Authorization': f'Bearer {api_token}'} if api_token else {}
+                    payload = {
+                        'guild_id': int(guild_id),
+                        'channel_id': discovery_config.cotw_channel_id,
+                        'message_id': discovery_config.cotw_last_message_id
+                    }
+                    response = requests.post(bot_api_url, json=payload, headers=headers, timeout=5)
+                    if response.status_code == 200:
+                        logger.info(f"Deleted COTW announcement message for guild {guild_id}")
+                        # Clear the message ID from database
+                        discovery_config.cotw_last_message_id = None
+                        db.commit()
+                    else:
+                        logger.warning(f"Failed to delete COTW announcement: {response.text}")
+                except Exception as bot_error:
+                    logger.error(f"Error deleting COTW announcement: {bot_error}", exc_info=True)
+
+            logger.info(f"COTW cleared for guild {guild_id}")
+            return JsonResponse({'success': True, 'message': 'Creator of the Week cleared'})
+
+    except Exception as e:
+        logger.error(f"Error clearing COTW: {e}", exc_info=True)
+        return JsonResponse({'error': 'Failed to clear Creator of the Week'}, status=500)
+
+
+@discord_required
+def clear_creator_of_month(request, guild_id):
+    """
+    Clear the current Creator of the Month.
+    Security: Only admins can clear COTM.
+    """
+    import logging
+    import json
+    from .db import get_db_session
+    from .models import CreatorProfile, DiscoveryConfig
+
+    logger = logging.getLogger(__name__)
+
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST required'}, status=405)
+
+    # Check if user is admin
+    admin_guilds = request.session.get('discord_admin_guilds', [])
+    is_admin = any(str(g.get('id')) == str(guild_id) for g in admin_guilds)
+
+    if not is_admin:
+        return JsonResponse({'error': 'Admin access required'}, status=403)
+
+    try:
+        with get_db_session() as db:
+            # Remove current COTM
+            current_cotm = db.query(CreatorProfile).filter_by(
+                guild_id=int(guild_id),
+                is_current_cotm=True
+            ).all()
+
+            for profile in current_cotm:
+                profile.is_current_cotm = False
+                profile.cotm_last_featured = int(time.time())
+
+            # Get discovery config to delete announcement
+            discovery_config = db.query(DiscoveryConfig).filter_by(guild_id=int(guild_id)).first()
+
+            db.commit()
+
+            # Delete Discord announcement if it exists
+            if discovery_config and discovery_config.cotm_last_message_id and discovery_config.cotm_channel_id:
+                try:
+                    import requests
+                    import os
+                    bot_api_url = "http://localhost:8001/api/delete-message"
+                    api_token = os.getenv('DISCORD_BOT_API_TOKEN')
+                    headers = {'Authorization': f'Bearer {api_token}'} if api_token else {}
+                    payload = {
+                        'guild_id': int(guild_id),
+                        'channel_id': discovery_config.cotm_channel_id,
+                        'message_id': discovery_config.cotm_last_message_id
+                    }
+                    response = requests.post(bot_api_url, json=payload, headers=headers, timeout=5)
+                    if response.status_code == 200:
+                        logger.info(f"Deleted COTM announcement message for guild {guild_id}")
+                        # Clear the message ID from database
+                        discovery_config.cotm_last_message_id = None
+                        db.commit()
+                    else:
+                        logger.warning(f"Failed to delete COTM announcement: {response.text}")
+                except Exception as bot_error:
+                    logger.error(f"Error deleting COTM announcement: {bot_error}", exc_info=True)
+
+            logger.info(f"COTM cleared for guild {guild_id}")
+            return JsonResponse({'success': True, 'message': 'Creator of the Month cleared'})
+
+    except Exception as e:
+        logger.error(f"Error clearing COTM: {e}", exc_info=True)
+        return JsonResponse({'error': 'Failed to clear Creator of the Month'}, status=500)
 
 
 @discord_required
@@ -19130,7 +19378,7 @@ def set_creator_of_month(request, guild_id):
     import logging
     import json
     from .db import get_db_session
-    from .models import CreatorProfile
+    from .models import CreatorProfile, DiscoveryConfig
 
     logger = logging.getLogger(__name__)
 
@@ -19149,18 +19397,7 @@ def set_creator_of_month(request, guild_id):
         target_user_id = int(data.get('user_id'))
 
         with get_db_session() as db:
-            # Remove current COTM
-            current_cotm = db.query(CreatorProfile).filter_by(
-                guild_id=int(guild_id),
-                is_current_cotm=True
-            ).all()
-
-            for profile in current_cotm:
-                profile.is_current_cotm = False
-                import time
-                profile.cotm_last_featured = int(time.time())
-
-            # Set new COTM
+            # Get the target profile first
             new_cotm = db.query(CreatorProfile).filter_by(
                 guild_id=int(guild_id),
                 discord_id=target_user_id
@@ -19169,10 +19406,71 @@ def set_creator_of_month(request, guild_id):
             if not new_cotm:
                 return JsonResponse({'error': 'Creator profile not found'}, status=404)
 
+            # Get discovery config for channel info
+            discovery_config = db.query(DiscoveryConfig).filter_by(guild_id=int(guild_id)).first()
+
+            # If this person is currently COTW, remove that status first and delete the COTW announcement
+            if new_cotm.is_current_cotw:
+                new_cotm.is_current_cotw = False
+                new_cotm.cotw_last_featured = int(time.time())
+
+                # Delete COTW Discord announcement
+                if discovery_config and discovery_config.cotw_last_message_id and discovery_config.cotw_channel_id:
+                    try:
+                        import requests
+                        import os
+                        bot_api_url = "http://localhost:8001/api/delete-message"
+                        api_token = os.getenv('DISCORD_BOT_API_TOKEN')
+                        headers = {'Authorization': f'Bearer {api_token}'} if api_token else {}
+                        payload = {
+                            'guild_id': int(guild_id),
+                            'channel_id': discovery_config.cotw_channel_id,
+                            'message_id': discovery_config.cotw_last_message_id
+                        }
+                        response = requests.post(bot_api_url, json=payload, headers=headers, timeout=5)
+                        if response.status_code == 200:
+                            discovery_config.cotw_last_message_id = None
+                            logger.info(f"Deleted COTW announcement when setting user as COTM")
+                    except Exception as bot_error:
+                        logger.error(f"Error deleting COTW announcement: {bot_error}", exc_info=True)
+
+            # Remove current COTM
+            current_cotm = db.query(CreatorProfile).filter_by(
+                guild_id=int(guild_id),
+                is_current_cotm=True
+            ).all()
+
+            for profile in current_cotm:
+                profile.is_current_cotm = False
+                profile.cotm_last_featured = int(time.time())
+
+            # Set new COTM
             new_cotm.is_current_cotm = True
             new_cotm.times_featured += 1
 
             db.commit()
+
+            # Trigger Discord bot to delete old announcement and post new one
+            if discovery_config and discovery_config.cotm_enabled and discovery_config.cotm_channel_id:
+                try:
+                    import requests
+                    import os
+                    bot_api_url = "http://localhost:8001/api/announce-cotm"
+                    api_token = os.getenv('DISCORD_BOT_API_TOKEN')
+                    headers = {'Authorization': f'Bearer {api_token}'} if api_token else {}
+                    payload = {
+                        'guild_id': int(guild_id),
+                        'user_id': target_user_id,
+                        'channel_id': discovery_config.cotm_channel_id,
+                        'old_message_id': discovery_config.cotm_last_message_id
+                    }
+                    response = requests.post(bot_api_url, json=payload, headers=headers, timeout=5)
+                    if response.status_code == 200:
+                        logger.info(f"Discord bot notified of COTM change for guild {guild_id}")
+                    else:
+                        logger.warning(f"Failed to notify Discord bot of COTM change: {response.text}")
+                except Exception as bot_error:
+                    logger.error(f"Error notifying Discord bot of COTM change: {bot_error}", exc_info=True)
 
             logger.info(f"COTM set: guild_id={guild_id}, user_id={target_user_id}")
             return JsonResponse({'success': True, 'message': 'Creator of the Month set successfully'})
@@ -19180,6 +19478,240 @@ def set_creator_of_month(request, guild_id):
     except Exception as e:
         logger.error(f"Error setting COTM: {e}", exc_info=True)
         return JsonResponse({'error': 'Failed to set Creator of the Month'}, status=500)
+
+
+# ==============================================================================
+# Network Creator of the Week/Month Management (DISCOVERY_APPROVERS ONLY)
+# ==============================================================================
+
+@discovery_approvers_required
+@discord_required
+def set_network_creator_of_week(request):
+    """
+    Set a creator as Network Creator of the Week (cross-server).
+    Security: Only DISCOVERY_APPROVERS can set Network COTW.
+    """
+    import logging
+    import json
+    from .db import get_db_session
+    from .models import CreatorProfile
+
+    logger = logging.getLogger(__name__)
+
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST required'}, status=405)
+
+    try:
+        data = json.loads(request.body)
+        profile_id = int(data.get('profile_id'))
+
+        with get_db_session() as db:
+            # Get the target profile
+            new_cotw = db.query(CreatorProfile).filter_by(id=profile_id).first()
+
+            if not new_cotw:
+                return JsonResponse({'error': 'Creator profile not found'}, status=404)
+
+            # Verify creator is shared to network
+            if not new_cotw.share_to_network:
+                return JsonResponse({'error': 'Creator is not shared to Discovery Network'}, status=400)
+
+            # If this person is currently Network COTM, remove that status first
+            if new_cotw.is_current_network_cotm:
+                new_cotw.is_current_network_cotm = False
+                new_cotw.network_cotm_last_featured = int(time.time())
+
+            # Remove current Network COTW
+            current_cotw = db.query(CreatorProfile).filter_by(
+                is_current_network_cotw=True
+            ).all()
+
+            for profile in current_cotw:
+                profile.is_current_network_cotw = False
+                profile.network_cotw_last_featured = int(time.time())
+
+            # Set new Network COTW
+            new_cotw.is_current_network_cotw = True
+            new_cotw.network_cotw_last_featured = int(time.time())
+
+            db.commit()
+
+            # Trigger Discord bot to post Network COTW announcements to all opted-in servers
+            try:
+                import requests
+                import os
+                bot_api_url = "http://localhost:8001/api/announce-network-cotw"
+                api_token = os.getenv('DISCORD_BOT_API_TOKEN')
+                headers = {'Authorization': f'Bearer {api_token}'} if api_token else {}
+                payload = {
+                    'profile_id': profile_id
+                }
+                response = requests.post(bot_api_url, json=payload, headers=headers, timeout=10)
+                if response.status_code == 200:
+                    logger.info(f"Discord bot notified of Network COTW change: profile_id={profile_id}")
+                else:
+                    logger.warning(f"Failed to notify Discord bot of Network COTW change: {response.text}")
+            except Exception as bot_error:
+                logger.error(f"Error notifying Discord bot of Network COTW change: {bot_error}", exc_info=True)
+
+            logger.info(f"Network COTW set by DISCOVERY_APPROVER: profile_id={profile_id}, user_id={new_cotw.discord_id}")
+            return JsonResponse({'success': True, 'message': 'Network Creator of the Week set successfully'})
+
+    except Exception as e:
+        logger.error(f"Error setting Network COTW: {e}", exc_info=True)
+        return JsonResponse({'error': 'Failed to set Network Creator of the Week'}, status=500)
+
+
+@discovery_approvers_required
+@discord_required
+def set_network_creator_of_month(request):
+    """
+    Set a creator as Network Creator of the Month (cross-server).
+    Security: Only DISCOVERY_APPROVERS can set Network COTM.
+    """
+    import logging
+    import json
+    from .db import get_db_session
+    from .models import CreatorProfile
+
+    logger = logging.getLogger(__name__)
+
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST required'}, status=405)
+
+    try:
+        data = json.loads(request.body)
+        profile_id = int(data.get('profile_id'))
+
+        with get_db_session() as db:
+            # Get the target profile
+            new_cotm = db.query(CreatorProfile).filter_by(id=profile_id).first()
+
+            if not new_cotm:
+                return JsonResponse({'error': 'Creator profile not found'}, status=404)
+
+            # Verify creator is shared to network
+            if not new_cotm.share_to_network:
+                return JsonResponse({'error': 'Creator is not shared to Discovery Network'}, status=400)
+
+            # If this person is currently Network COTW, remove that status first
+            if new_cotm.is_current_network_cotw:
+                new_cotm.is_current_network_cotw = False
+                new_cotm.network_cotw_last_featured = int(time.time())
+
+            # Remove current Network COTM
+            current_cotm = db.query(CreatorProfile).filter_by(
+                is_current_network_cotm=True
+            ).all()
+
+            for profile in current_cotm:
+                profile.is_current_network_cotm = False
+                profile.network_cotm_last_featured = int(time.time())
+
+            # Set new Network COTM
+            new_cotm.is_current_network_cotm = True
+            new_cotm.network_cotm_last_featured = int(time.time())
+
+            db.commit()
+
+            # Trigger Discord bot to post Network COTM announcements to all opted-in servers
+            try:
+                import requests
+                import os
+                bot_api_url = "http://localhost:8001/api/announce-network-cotm"
+                api_token = os.getenv('DISCORD_BOT_API_TOKEN')
+                headers = {'Authorization': f'Bearer {api_token}'} if api_token else {}
+                payload = {
+                    'profile_id': profile_id
+                }
+                response = requests.post(bot_api_url, json=payload, headers=headers, timeout=10)
+                if response.status_code == 200:
+                    logger.info(f"Discord bot notified of Network COTM change: profile_id={profile_id}")
+                else:
+                    logger.warning(f"Failed to notify Discord bot of Network COTM change: {response.text}")
+            except Exception as bot_error:
+                logger.error(f"Error notifying Discord bot of Network COTM change: {bot_error}", exc_info=True)
+
+            logger.info(f"Network COTM set by DISCOVERY_APPROVER: profile_id={profile_id}, user_id={new_cotm.discord_id}")
+            return JsonResponse({'success': True, 'message': 'Network Creator of the Month set successfully'})
+
+    except Exception as e:
+        logger.error(f"Error setting Network COTM: {e}", exc_info=True)
+        return JsonResponse({'error': 'Failed to set Network Creator of the Month'}, status=500)
+
+
+@discovery_approvers_required
+@discord_required
+def clear_network_creator_of_week(request):
+    """
+    Clear the current Network Creator of the Week.
+    Security: Only DISCOVERY_APPROVERS can clear Network COTW.
+    """
+    import logging
+    from .db import get_db_session
+    from .models import CreatorProfile
+
+    logger = logging.getLogger(__name__)
+
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST required'}, status=405)
+
+    try:
+        with get_db_session() as db:
+            # Remove current Network COTW
+            current_cotw = db.query(CreatorProfile).filter_by(
+                is_current_network_cotw=True
+            ).all()
+
+            for profile in current_cotw:
+                profile.is_current_network_cotw = False
+                profile.network_cotw_last_featured = int(time.time())
+
+            db.commit()
+
+            logger.info(f"Network COTW cleared by DISCOVERY_APPROVER")
+            return JsonResponse({'success': True, 'message': 'Network Creator of the Week cleared'})
+
+    except Exception as e:
+        logger.error(f"Error clearing Network COTW: {e}", exc_info=True)
+        return JsonResponse({'error': 'Failed to clear Network Creator of the Week'}, status=500)
+
+
+@discovery_approvers_required
+@discord_required
+def clear_network_creator_of_month(request):
+    """
+    Clear the current Network Creator of the Month.
+    Security: Only DISCOVERY_APPROVERS can clear Network COTM.
+    """
+    import logging
+    from .db import get_db_session
+    from .models import CreatorProfile
+
+    logger = logging.getLogger(__name__)
+
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST required'}, status=405)
+
+    try:
+        with get_db_session() as db:
+            # Remove current Network COTM
+            current_cotm = db.query(CreatorProfile).filter_by(
+                is_current_network_cotm=True
+            ).all()
+
+            for profile in current_cotm:
+                profile.is_current_network_cotm = False
+                profile.network_cotm_last_featured = int(time.time())
+
+            db.commit()
+
+            logger.info(f"Network COTM cleared by DISCOVERY_APPROVER")
+            return JsonResponse({'success': True, 'message': 'Network Creator of the Month cleared'})
+
+    except Exception as e:
+        logger.error(f"Error clearing Network COTM: {e}", exc_info=True)
+        return JsonResponse({'error': 'Failed to clear Network Creator of the Month'}, status=500)
 
 
 # ==============================================================================
@@ -19217,3 +19749,1193 @@ def csp_violation_report(request):
     except Exception as e:
         logger.error(f"Error processing CSP violation report: {e}", exc_info=True)
         return JsonResponse({'status': 'error'}, status=400)
+
+
+# ============================================================================
+# YouTube OAuth & Streaming Integration
+# ============================================================================
+
+@discord_required
+@require_http_methods(["GET"])
+def youtube_oauth_initiate(request, guild_id):
+    """
+    Initiate YouTube OAuth flow for connecting a creator's YouTube channel.
+
+    This endpoint generates a secure OAuth URL and redirects the creator to
+    Google's consent screen to grant access to their YouTube channel data.
+    """
+    import secrets
+    from app.services.youtube_service import YouTubeService
+
+    discord_user = request.session.get('discord_user', {})
+    user_id = discord_user.get('id')
+
+    if not user_id:
+        messages.error(request, "You must be logged in to connect YouTube.")
+        return redirect('questlog_dashboard')
+
+    try:
+        # Generate secure state token for CSRF protection
+        state = secrets.token_urlsafe(32)
+
+        # Store state in session with metadata
+        request.session[f'youtube_oauth_state_{state}'] = {
+            'guild_id': guild_id,
+            'user_id': user_id,
+            'timestamp': int(time.time()),
+        }
+        request.session.modified = True
+
+        # Generate authorization URL
+        youtube_service = YouTubeService()
+        auth_url = youtube_service.get_authorization_url(state)
+
+        logger.info(f"YouTube OAuth initiated for user {user_id} in guild {guild_id}")
+        return redirect(auth_url)
+
+    except Exception as e:
+        logger.error(f"YouTube OAuth initiation error: {e}", exc_info=True)
+        messages.error(request, "Failed to initiate YouTube connection. Please try again.")
+        return redirect('creator_profile_register', guild_id=guild_id)
+
+
+@require_http_methods(["GET"])
+def youtube_oauth_callback(request):
+    """
+    Handle OAuth callback from Google after user grants/denies access.
+
+    This endpoint:
+    1. Validates the state token (CSRF protection)
+    2. Exchanges authorization code for access & refresh tokens
+    3. Fetches channel information from YouTube API
+    4. Creates/updates CreatorProfile with YouTube credentials
+    5. Redirects back to creator profile page
+    """
+    from app.services.youtube_service import YouTubeService, YouTubeAPIError
+    from app.db import get_db_session
+    from app.models import CreatorProfile, GuildMember, Guild, ApprovedStreamer
+    import json
+
+    # Get OAuth response parameters
+    code = request.GET.get('code')
+    state = request.GET.get('state')
+    error = request.GET.get('error')
+
+    # Check if user denied access
+    if error:
+        logger.warning(f"YouTube OAuth denied: {error}")
+        messages.error(request, "YouTube connection was cancelled.")
+        return redirect('questlog_dashboard')
+
+    if not code or not state:
+        logger.error("YouTube OAuth callback missing code or state")
+        messages.error(request, "Invalid YouTube OAuth response.")
+        return redirect('questlog_dashboard')
+
+    # Validate state token
+    session_key = f'youtube_oauth_state_{state}'
+    state_data = request.session.get(session_key)
+
+    if not state_data:
+        logger.error(f"YouTube OAuth invalid state token: {state}")
+        messages.error(request, "Invalid or expired OAuth session. Please try again.")
+        return redirect('questlog_dashboard')
+
+    # Clean up state from session
+    del request.session[session_key]
+    request.session.modified = True
+
+    # Extract metadata
+    guild_id = state_data.get('guild_id')
+    user_id = state_data.get('user_id')
+
+    # Check for expired state (30 minute timeout)
+    state_age = int(time.time()) - state_data.get('timestamp', 0)
+    if state_age > 1800:  # 30 minutes
+        logger.warning(f"YouTube OAuth expired state token: {state_age}s old")
+        messages.error(request, "OAuth session expired. Please try again.")
+        return redirect('creator_profile_register', guild_id=guild_id)
+
+    try:
+        youtube_service = YouTubeService()
+
+        # Exchange code for tokens
+        tokens = youtube_service.exchange_code_for_tokens(code)
+        access_token = tokens.get('access_token')
+        refresh_token = tokens.get('refresh_token')
+        expires_in = tokens.get('expires_in', 3600)
+
+        if not access_token:
+            raise YouTubeAPIError("No access token received")
+
+        # Calculate token expiration timestamp
+        token_expires = int(time.time()) + expires_in
+
+        # Get channel information
+        channel_info = youtube_service.get_channel_info(access_token)
+
+        # Update database
+        with get_db_session() as db:
+            # Find or create creator profile
+            member = db.query(GuildMember).filter(
+                GuildMember.guild_id == int(guild_id),
+                GuildMember.user_id == int(user_id)
+            ).first()
+
+            if not member:
+                raise Exception("Guild member not found")
+
+            creator_profile = db.query(CreatorProfile).filter(
+                CreatorProfile.guild_id == int(guild_id),
+                CreatorProfile.discord_id == int(user_id)
+            ).first()
+
+            if not creator_profile:
+                # Create new creator profile
+                # Build avatar URL from avatar_hash
+                avatar_url = None
+                if member.avatar_hash:
+                    avatar_url = f"https://cdn.discordapp.com/avatars/{user_id}/{member.avatar_hash}.png"
+
+                creator_profile = CreatorProfile(
+                    guild_id=int(guild_id),
+                    discord_id=int(user_id),
+                    display_name=member.display_name or member.username,
+                    avatar_url=avatar_url,
+                    created_at=int(time.time()),
+                    updated_at=int(time.time()),
+                )
+                db.add(creator_profile)
+                db.flush()  # Get ID
+
+            # Update YouTube fields with encrypted tokens
+            from app.utils.encryption import encrypt_token
+
+            creator_profile.youtube_channel_id = channel_info['id']
+            creator_profile.youtube_access_token = encrypt_token(access_token)
+            creator_profile.youtube_refresh_token = encrypt_token(refresh_token) if refresh_token else None
+            creator_profile.youtube_token_expires = token_expires
+            creator_profile.youtube_subscriber_count = channel_info.get('subscriber_count')
+            creator_profile.youtube_video_count = channel_info.get('video_count')
+            creator_profile.youtube_last_synced = int(time.time())
+
+            # Store YouTube handle from custom_url or title
+            if channel_info.get('custom_url'):
+                # Remove @ if it's already there, we'll add it in display
+                youtube_handle = channel_info['custom_url'].lstrip('@')
+                creator_profile.youtube_handle = youtube_handle
+                creator_profile.youtube_url = f"https://youtube.com/@{youtube_handle}"
+            else:
+                # Fallback to channel title as handle
+                creator_profile.youtube_handle = channel_info.get('title', '').replace(' ', '')
+                creator_profile.youtube_url = f"https://youtube.com/channel/{channel_info['id']}"
+
+            creator_profile.updated_at = int(time.time())
+
+            db.commit()
+
+            # Auto-approve guild owner as streamer
+            guild_record = db.query(Guild).filter(Guild.guild_id == int(guild_id)).first()
+            if guild_record and guild_record.owner_id == int(user_id):
+                # Check if already approved
+                existing_approval = db.query(ApprovedStreamer).filter(
+                    ApprovedStreamer.guild_id == int(guild_id),
+                    ApprovedStreamer.creator_profile_id == creator_profile.id,
+                    ApprovedStreamer.revoked == False
+                ).first()
+
+                if not existing_approval:
+                    # Auto-approve the owner
+                    approval = ApprovedStreamer(
+                        guild_id=int(guild_id),
+                        creator_profile_id=creator_profile.id,
+                        approved_by_user_id=int(user_id),  # Self-approved
+                        approved_at=int(time.time()),
+                        revoked=False
+                    )
+                    db.add(approval)
+                    db.commit()
+                    logger.info(f"Auto-approved guild owner {user_id} as streamer in guild {guild_id}")
+
+            logger.info(
+                f"YouTube connected: user={user_id}, guild={guild_id}, "
+                f"channel={channel_info['id']} ({channel_info['title']})"
+            )
+
+            # Return a page that notifies parent window
+            from django.http import HttpResponse
+            return HttpResponse("""
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <title>YouTube Connected</title>
+                    <style>
+                        body {{
+                            font-family: system-ui, -apple-system, sans-serif;
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            min-height: 100vh;
+                            margin: 0;
+                            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                            color: white;
+                        }}
+                        .container {{
+                            text-align: center;
+                            padding: 2rem;
+                            background: rgba(255, 255, 255, 0.1);
+                            border-radius: 1rem;
+                            backdrop-filter: blur(10px);
+                        }}
+                        .icon {{
+                            font-size: 4rem;
+                            margin-bottom: 1rem;
+                        }}
+                        h1 {{
+                            margin: 0 0 1rem 0;
+                        }}
+                        p {{
+                            margin: 0.5rem 0;
+                            opacity: 0.9;
+                        }}
+                    </style>
+                </head>
+                <body>
+                    <div class="container">
+                        <div class="icon">✓</div>
+                        <h1>YouTube Connected!</h1>
+                        <p>Your YouTube channel has been successfully connected.</p>
+                        <p style="margin-top: 1.5rem; font-size: 0.9rem;">You can safely close this tab now.</p>
+                    </div>
+                    <script>
+                        // Notify parent window that OAuth is complete
+                        if (window.opener) {{
+                            window.opener.postMessage('youtube_oauth_complete', '*');
+                            // Close immediately after sending message
+                            setTimeout(() => {{
+                                window.close();
+                                // If close didn't work, try again
+                                setTimeout(() => window.close(), 500);
+                            }}, 500);
+                        }} else {{
+                            // No opener, close after showing message
+                            setTimeout(() => window.close(), 2000);
+                        }}
+                    </script>
+                </body>
+                </html>
+            """.format(guild_id))
+
+    except YouTubeAPIError as e:
+        logger.error(f"YouTube API error during OAuth: {e}", exc_info=True)
+        messages.error(request, f"Failed to connect YouTube: {e}")
+        return redirect('creator_profile_register', guild_id=guild_id)
+
+    except Exception as e:
+        logger.error(f"YouTube OAuth callback error: {e}", exc_info=True)
+        messages.error(request, "An error occurred while connecting YouTube. Please try again.")
+        return redirect('creator_profile_register', guild_id=guild_id)
+
+
+@discord_required
+@require_http_methods(["POST"])
+def youtube_disconnect(request, guild_id):
+    """
+    Disconnect YouTube from creator profile.
+
+    Removes all YouTube OAuth tokens and credentials from the database.
+    Does NOT revoke the token with Google (user must do that manually).
+    """
+    from app.db import get_db_session
+    from app.models import CreatorProfile
+
+    discord_user = request.session.get('discord_user', {})
+    user_id = discord_user.get('id')
+
+    if not user_id:
+        return JsonResponse({'success': False, 'error': 'Not logged in'}, status=401)
+
+    try:
+        with get_db_session() as db:
+            creator_profile = db.query(CreatorProfile).filter(
+                CreatorProfile.guild_id == int(guild_id),
+                CreatorProfile.discord_id == int(user_id)
+            ).first()
+
+            if not creator_profile:
+                return JsonResponse({'success': False, 'error': 'Creator profile not found'}, status=404)
+
+            # Clear YouTube fields
+            creator_profile.youtube_channel_id = None
+            creator_profile.youtube_handle = None
+            creator_profile.youtube_url = None
+            creator_profile.youtube_access_token = None
+            creator_profile.youtube_refresh_token = None
+            creator_profile.youtube_token_expires = None
+            creator_profile.youtube_subscriber_count = None
+            creator_profile.youtube_video_count = None
+            creator_profile.youtube_last_synced = None
+            creator_profile.is_live_youtube = False
+            creator_profile.updated_at = int(time.time())
+
+            db.commit()
+
+            logger.info(f"YouTube disconnected: user={user_id}, guild={guild_id}")
+
+            return JsonResponse({
+                'success': True,
+                'message': 'YouTube channel disconnected successfully'
+            })
+
+    except Exception as e:
+        logger.error(f"YouTube disconnect error: {e}", exc_info=True)
+        return JsonResponse({
+            'success': False,
+            'error': 'Failed to disconnect YouTube'
+        }, status=500)
+
+
+# ============================================================================
+# Twitch OAuth Integration
+# ============================================================================
+
+@discord_required
+@require_http_methods(["GET"])
+def twitch_oauth_initiate(request, guild_id):
+    """
+    Initiate Twitch OAuth flow for creator profile.
+    Security: Uses state token for CSRF protection, validates user is creator owner.
+    """
+    from app.services.twitch_service import TwitchService
+    import secrets
+
+    discord_user = request.session.get('discord_user', {})
+    user_id = discord_user.get('id')
+
+    if not user_id:
+        return JsonResponse({'error': 'Not authenticated'}, status=401)
+
+    try:
+        # Generate secure state token
+        state = secrets.token_urlsafe(32)
+
+        # Store state in session with metadata
+        request.session['twitch_oauth_state'] = {
+            'token': state,
+            'guild_id': guild_id,
+            'user_id': user_id,
+            'created_at': int(time.time())
+        }
+
+        # Generate authorization URL
+        twitch_service = TwitchService()
+        auth_url = twitch_service.get_authorization_url(state)
+
+        return redirect(auth_url)
+
+    except Exception as e:
+        logger.error(f"Error initiating Twitch OAuth: {e}")
+        return JsonResponse({'error': 'Failed to initiate Twitch OAuth'}, status=500)
+
+
+@require_http_methods(["GET"])
+def twitch_oauth_callback(request):
+    """
+    Handle Twitch OAuth callback.
+    Security:
+    - Validates state token (30 min timeout)
+    - Encrypts tokens before storage
+    - Only updates creator profile owned by user
+    - Auto-approves guild owners as streamers
+    """
+    from app.db import get_db_session
+    from app.models import CreatorProfile, ApprovedStreamer, Guild
+    from app.services.twitch_service import TwitchService, TwitchAPIError
+    from app.utils.encryption import encrypt_token
+    import secrets
+
+    code = request.GET.get('code')
+    state = request.GET.get('state')
+
+    if not code or not state:
+        return HttpResponse("""
+            <html><body>
+                <h1>Error</h1>
+                <p>Missing authorization code or state</p>
+                <script>
+                    if (window.opener) {
+                        window.opener.postMessage({type: 'twitch_oauth_error', error: 'Missing parameters'}, '*');
+                        window.close();
+                    }
+                </script>
+            </body></html>
+        """, status=400)
+
+    # Validate state token
+    session_state = request.session.get('twitch_oauth_state')
+    if not session_state:
+        return HttpResponse("""
+            <html><body>
+                <h1>Error</h1>
+                <p>Invalid or expired state token</p>
+                <script>
+                    if (window.opener) {
+                        window.opener.postMessage({type: 'twitch_oauth_error', error: 'Invalid state'}, '*');
+                        window.close();
+                    }
+                </script>
+            </body></html>
+        """, status=400)
+
+    # Check state matches and is not expired (30 minutes)
+    if session_state['token'] != state:
+        return HttpResponse("""
+            <html><body>
+                <h1>Error</h1>
+                <p>State token mismatch</p>
+                <script>
+                    if (window.opener) {
+                        window.opener.postMessage({type: 'twitch_oauth_error', error: 'State mismatch'}, '*');
+                        window.close();
+                    }
+                </script>
+            </body></html>
+        """, status=400)
+
+    if int(time.time()) - session_state['created_at'] > 1800:  # 30 minutes
+        return HttpResponse("""
+            <html><body>
+                <h1>Error</h1>
+                <p>State token expired. Please try again.</p>
+                <script>
+                    if (window.opener) {
+                        window.opener.postMessage({type: 'twitch_oauth_error', error: 'State expired'}, '*');
+                        window.close();
+                    }
+                </script>
+            </body></html>
+        """, status=400)
+
+    guild_id = session_state['guild_id']
+    user_id = session_state['user_id']
+
+    try:
+        twitch_service = TwitchService()
+
+        # Exchange code for tokens
+        token_data = twitch_service.exchange_code_for_token(code)
+        access_token = token_data['access_token']
+        refresh_token = token_data['refresh_token']
+        expires_in = token_data['expires_in']
+
+        # Get user info
+        user_info = twitch_service.get_user_info(access_token)
+        twitch_user_id = user_info['id']
+        twitch_login = user_info['login']
+        display_name = user_info['display_name']
+        profile_image = user_info['profile_image_url']
+
+        # Get channel stats
+        channel_info = twitch_service.get_channel_info(access_token, twitch_user_id)
+        follower_count = channel_info['follower_count']
+
+        # Encrypt tokens before storage
+        encrypted_access_token = encrypt_token(access_token)
+        encrypted_refresh_token = encrypt_token(refresh_token)
+
+        # Calculate token expiry timestamp
+        token_expires = int(time.time()) + expires_in
+
+        with get_db_session() as db:
+            from app.models import GuildMember
+
+            # Find creator profile for this user
+            creator = db.query(CreatorProfile).filter(
+                CreatorProfile.discord_id == user_id
+            ).first()
+
+            if not creator:
+                # Auto-create creator profile from Discord info
+                member = db.query(GuildMember).filter(
+                    GuildMember.guild_id == int(guild_id),
+                    GuildMember.user_id == int(user_id)
+                ).first()
+
+                if not member:
+                    raise Exception("Guild member not found")
+
+                # Build avatar URL from avatar_hash
+                avatar_url = profile_image  # Use Twitch profile image as fallback
+                if member.avatar_hash:
+                    avatar_url = f"https://cdn.discordapp.com/avatars/{user_id}/{member.avatar_hash}.png"
+
+                creator = CreatorProfile(
+                    guild_id=int(guild_id),
+                    discord_id=int(user_id),
+                    display_name=member.display_name or member.username or display_name,
+                    avatar_url=avatar_url,
+                    created_at=int(time.time()),
+                    updated_at=int(time.time()),
+                )
+                db.add(creator)
+                db.flush()  # Get ID
+
+            # Update creator profile with Twitch OAuth data
+            creator.twitch_user_id = twitch_user_id
+            creator.twitch_access_token = encrypted_access_token
+            creator.twitch_refresh_token = encrypted_refresh_token
+            creator.twitch_token_expires = token_expires
+            creator.twitch_follower_count = follower_count
+            creator.twitch_last_synced = int(time.time())
+
+            # Update twitch_handle if not set
+            if not creator.twitch_handle:
+                creator.twitch_handle = twitch_login
+
+            # Update avatar if not set
+            if not creator.avatar_url and profile_image:
+                creator.avatar_url = profile_image
+
+            db.commit()
+
+            # Auto-approve guild owner as streamer
+            guild = db.query(Guild).filter(Guild.guild_id == guild_id).first()
+            if guild and str(guild.owner_id) == str(user_id):
+                # Check if already approved
+                existing_approval = db.query(ApprovedStreamer).filter(
+                    ApprovedStreamer.guild_id == guild_id,
+                    ApprovedStreamer.creator_profile_id == creator.id,
+                    ApprovedStreamer.revoked == False
+                ).first()
+
+                if not existing_approval:
+                    approval = ApprovedStreamer(
+                        guild_id=guild_id,
+                        creator_profile_id=creator.id,
+                        approved_by_user_id=user_id,
+                        approved_at=int(time.time()),
+                        revoked=False
+                    )
+                    db.add(approval)
+                    db.commit()
+
+        # Clear state from session
+        del request.session['twitch_oauth_state']
+
+        # Return success page that notifies parent window
+        return HttpResponse(f"""
+            <html>
+            <head>
+                <title>Twitch Connected</title>
+                <style>
+                    body {{
+                        font-family: Arial, sans-serif;
+                        text-align: center;
+                        padding: 50px;
+                        background: linear-gradient(135deg, #6441a5 0%, #9147ff 100%);
+                        color: white;
+                    }}
+                    .success-box {{
+                        background: rgba(255, 255, 255, 0.1);
+                        border-radius: 10px;
+                        padding: 30px;
+                        max-width: 500px;
+                        margin: 0 auto;
+                        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+                    }}
+                    h1 {{
+                        margin-bottom: 20px;
+                    }}
+                </style>
+            </head>
+            <body>
+                <div class="success-box">
+                    <h1>✅ Twitch Connected!</h1>
+                    <p>Your Twitch account <strong>{display_name}</strong> has been successfully connected.</p>
+                    <p>This window will close automatically...</p>
+                </div>
+                <script>
+                    // Send message to parent window
+                    if (window.opener) {{
+                        window.opener.postMessage({{
+                            type: 'twitch_oauth_complete',
+                            data: {{
+                                twitch_login: '{twitch_login}',
+                                display_name: '{display_name}',
+                                follower_count: {follower_count}
+                            }}
+                        }}, '*');
+                        // Close immediately after sending message
+                        setTimeout(() => {{
+                            window.close();
+                            // If close didn't work, try again
+                            setTimeout(() => window.close(), 500);
+                        }}, 500);
+                    }} else {{
+                        // No opener, close after showing message
+                        setTimeout(() => window.close(), 2000);
+                    }}
+                </script>
+            </body>
+            </html>
+        """)
+
+    except TwitchAPIError as e:
+        logger.error(f"Twitch API error during OAuth: {e}")
+        return HttpResponse(f"""
+            <html><body>
+                <h1>Error</h1>
+                <p>Twitch API error: {e}</p>
+                <script>
+                    if (window.opener) {{
+                        window.opener.postMessage({{type: 'twitch_oauth_error', error: '{e}'}}, '*');
+                        window.close();
+                    }}
+                </script>
+            </body></html>
+        """, status=500)
+
+    except Exception as e:
+        logger.error(f"Error in Twitch OAuth callback: {e}")
+        import traceback
+        traceback.print_exc()
+        return HttpResponse(f"""
+            <html><body>
+                <h1>Error</h1>
+                <p>Failed to complete Twitch authentication</p>
+                <script>
+                    if (window.opener) {{
+                        window.opener.postMessage({{type: 'twitch_oauth_error', error: 'Server error'}}, '*');
+                        window.close();
+                    }}
+                </script>
+            </body></html>
+        """, status=500)
+
+
+@discord_required
+@require_http_methods(["POST"])
+def twitch_disconnect(request, guild_id):
+    """
+    Disconnect Twitch from creator profile.
+    Security: Only creator owner can disconnect, CSRF protected.
+    Note: Does NOT revoke token with Twitch (user must do manually in Twitch settings).
+    """
+    from app.db import get_db_session
+    from app.models import CreatorProfile
+
+    discord_user = request.session.get('discord_user', {})
+    user_id = discord_user.get('id')
+
+    if not user_id:
+        return JsonResponse({'error': 'Not authenticated'}, status=401)
+
+    try:
+        with get_db_session() as db:
+            # Find creator profile for this user
+            creator = db.query(CreatorProfile).filter(
+                CreatorProfile.discord_id == user_id
+            ).first()
+
+            if not creator:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Creator profile not found'
+                }, status=404)
+
+            # Clear all Twitch OAuth fields
+            creator.twitch_user_id = None
+            creator.twitch_access_token = None
+            creator.twitch_refresh_token = None
+            creator.twitch_token_expires = None
+            creator.twitch_follower_count = None
+            creator.twitch_last_synced = None
+            creator.is_live_twitch = False
+            creator.current_stream_title = None
+            creator.current_stream_game = None
+            creator.current_stream_started_at = None
+            creator.current_stream_thumbnail = None
+            creator.current_stream_viewer_count = None
+
+            db.commit()
+
+            return JsonResponse({
+                'success': True,
+                'message': 'Twitch disconnected successfully'
+            })
+
+    except Exception as e:
+        logger.error(f"Error disconnecting Twitch: {e}")
+        return JsonResponse({
+            'success': False,
+            'error': 'Failed to disconnect Twitch'
+        }, status=500)
+
+
+# ============================================================================
+# Streaming Notifications Admin API
+# ============================================================================
+
+@discord_required
+@require_http_methods(["GET", "POST"])
+def streaming_notifications_config(request, guild_id):
+    """
+    Get or update streaming notification configuration for a guild.
+
+    GET: Returns current configuration
+    POST: Updates configuration (admin only)
+    """
+    from app.db import get_db_session
+    from app.models import StreamingNotificationsConfig
+
+    discord_user = request.session.get('discord_user', {})
+    admin_guilds = request.session.get('discord_admin_guilds', [])
+
+    # Check admin for POST
+    if request.method == 'POST':
+        guild_check = next((g for g in admin_guilds if g['id'] == guild_id), None)
+        if not guild_check:
+            return JsonResponse({'success': False, 'error': 'Admin access required'}, status=403)
+
+    try:
+        with get_db_session() as db:
+            # Get or create config
+            config = db.query(StreamingNotificationsConfig).filter(
+                StreamingNotificationsConfig.guild_id == int(guild_id)
+            ).first()
+
+            if request.method == 'GET':
+                # Return current config
+                if not config:
+                    return JsonResponse({
+                        'success': True,
+                        'config': {
+                            'enabled': False,
+                            'notification_channel_id': None,
+                            'ping_role_id': None,
+                            'minimum_level_required': 10,
+                            'notification_title': '🔴 {creator} is now LIVE!',
+                            'notification_message': 'Check out the stream!',
+                            'embed_color': '#FF0000',
+                        }
+                    })
+
+                return JsonResponse({
+                    'success': True,
+                    'config': {
+                        'enabled': config.enabled,
+                        'notification_channel_id': str(config.notification_channel_id) if config.notification_channel_id else None,
+                        'ping_role_id': str(config.ping_role_id) if config.ping_role_id else None,
+                        'minimum_level_required': config.minimum_level_required,
+                        'notification_title': config.notification_title or '🔴 {creator} is now LIVE!',
+                        'notification_message': config.notification_message or 'Check out the stream!',
+                        'embed_color': config.embed_color or '#FF0000',
+                    }
+                })
+
+            # POST - Update config
+            data = json.loads(request.body)
+
+            if not config:
+                config = StreamingNotificationsConfig(
+                    guild_id=int(guild_id),
+                    enabled=False,
+                    minimum_level_required=10,
+                    created_at=int(time.time()),
+                    updated_at=int(time.time()),
+                )
+                db.add(config)
+
+            # Update fields
+            if 'enabled' in data:
+                config.enabled = bool(data['enabled'])
+
+            if 'notification_channel_id' in data:
+                channel_id = data['notification_channel_id']
+                config.notification_channel_id = int(channel_id) if channel_id else None
+
+            if 'ping_role_id' in data:
+                role_id = data['ping_role_id']
+                config.ping_role_id = int(role_id) if role_id else None
+
+            if 'minimum_level_required' in data:
+                config.minimum_level_required = int(data['minimum_level_required'])
+
+            if 'notification_title' in data:
+                config.notification_title = data['notification_title'] or '🔴 {creator} is now LIVE!'
+
+            if 'notification_message' in data:
+                config.notification_message = data['notification_message'] or 'Check out the stream!'
+
+            if 'embed_color' in data:
+                config.embed_color = data['embed_color'] or '#FF0000'
+
+            config.updated_at = int(time.time())
+            db.commit()
+
+            logger.info(f"Streaming notifications config updated for guild {guild_id}")
+
+            return JsonResponse({
+                'success': True,
+                'message': 'Configuration updated successfully'
+            })
+
+    except Exception as e:
+        logger.error(f"Streaming notifications config error: {e}", exc_info=True)
+        return JsonResponse({
+            'success': False,
+            'error': 'Failed to update configuration'
+        }, status=500)
+
+
+@discord_required
+@require_http_methods(["GET"])
+def approved_streamers_list(request, guild_id):
+    """
+    Get list of approved streamers for a guild.
+
+    Returns creator profiles that are approved for notifications.
+    """
+    from app.db import get_db_session
+    from app.models import ApprovedStreamer, CreatorProfile, GuildMember
+
+    discord_user = request.session.get('discord_user', {})
+    admin_guilds = request.session.get('discord_admin_guilds', [])
+
+    # Check admin access
+    guild_check = next((g for g in admin_guilds if g['id'] == guild_id), None)
+    if not guild_check:
+        return JsonResponse({'success': False, 'error': 'Admin access required'}, status=403)
+
+    try:
+        with get_db_session() as db:
+            # Get approved streamers with creator info and guild member data
+            approvals = db.query(ApprovedStreamer, CreatorProfile, GuildMember).join(
+                CreatorProfile,
+                ApprovedStreamer.creator_profile_id == CreatorProfile.id
+            ).outerjoin(
+                GuildMember,
+                (GuildMember.guild_id == ApprovedStreamer.guild_id) &
+                (GuildMember.user_id == CreatorProfile.discord_id)
+            ).filter(
+                ApprovedStreamer.guild_id == int(guild_id),
+                ApprovedStreamer.revoked == False
+            ).all()
+
+            streamers = []
+            for approval, creator, member in approvals:
+                # Construct avatar URL from hash
+                avatar_url = None
+                if member and member.avatar_hash:
+                    avatar_url = f"https://cdn.discordapp.com/avatars/{creator.discord_id}/{member.avatar_hash}.png"
+
+                streamers.append({
+                    'creator_profile_id': creator.id,
+                    'user_id': str(creator.discord_id),
+                    'display_name': creator.display_name,
+                    'avatar_url': avatar_url,
+                    'youtube_connected': bool(creator.youtube_channel_id),
+                    'youtube_handle': creator.youtube_handle,
+                    'twitch_connected': bool(creator.twitch_user_id),
+                    'is_live_youtube': creator.is_live_youtube,
+                    'is_live_twitch': creator.is_live_twitch,
+                    'approved_at': approval.approved_at,
+                    'approved_by': str(approval.approved_by_user_id),
+                })
+
+            return JsonResponse({
+                'success': True,
+                'streamers': streamers
+            })
+
+    except Exception as e:
+        logger.error(f"Approved streamers list error: {e}", exc_info=True)
+        return JsonResponse({
+            'success': False,
+            'error': 'Failed to get approved streamers'
+        }, status=500)
+
+
+@discord_required
+@require_http_methods(["POST"])
+def approve_streamer(request, guild_id):
+    """
+    Approve a creator for stream notifications.
+
+    Requires admin access.
+    """
+    from app.db import get_db_session
+    from app.models import ApprovedStreamer, CreatorProfile
+
+    discord_user = request.session.get('discord_user', {})
+    user_id = discord_user.get('id')
+    admin_guilds = request.session.get('discord_admin_guilds', [])
+
+    # Check admin access
+    guild_check = next((g for g in admin_guilds if g['id'] == guild_id), None)
+    if not guild_check:
+        return JsonResponse({'success': False, 'error': 'Admin access required'}, status=403)
+
+    try:
+        data = json.loads(request.body)
+        creator_profile_id = data.get('creator_profile_id')
+
+        if not creator_profile_id:
+            return JsonResponse({'success': False, 'error': 'Creator profile ID required'}, status=400)
+
+        with get_db_session() as db:
+            # Verify creator exists and belongs to this guild
+            creator = db.query(CreatorProfile).filter(
+                CreatorProfile.id == int(creator_profile_id),
+                CreatorProfile.guild_id == int(guild_id)
+            ).first()
+
+            if not creator:
+                return JsonResponse({'success': False, 'error': 'Creator not found'}, status=404)
+
+            # Check if already approved
+            existing = db.query(ApprovedStreamer).filter(
+                ApprovedStreamer.guild_id == int(guild_id),
+                ApprovedStreamer.creator_profile_id == int(creator_profile_id)
+            ).first()
+
+            if existing:
+                if existing.revoked:
+                    # Un-revoke
+                    existing.revoked = False
+                    existing.revoked_by_user_id = None
+                    existing.revoked_at = None
+                    message = 'Streamer approval restored'
+                else:
+                    return JsonResponse({'success': False, 'error': 'Streamer already approved'}, status=400)
+            else:
+                # Create new approval
+                approval = ApprovedStreamer(
+                    guild_id=int(guild_id),
+                    creator_profile_id=int(creator_profile_id),
+                    approved_by_user_id=int(user_id),
+                    approved_at=int(time.time()),
+                    revoked=False
+                )
+                db.add(approval)
+                message = 'Streamer approved for notifications'
+
+            db.commit()
+
+            logger.info(f"Streamer {creator_profile_id} approved in guild {guild_id} by {user_id}")
+
+            return JsonResponse({
+                'success': True,
+                'message': message
+            })
+
+    except Exception as e:
+        logger.error(f"Approve streamer error: {e}", exc_info=True)
+        return JsonResponse({
+            'success': False,
+            'error': 'Failed to approve streamer'
+        }, status=500)
+
+
+@discord_required
+@require_http_methods(["POST"])
+def revoke_streamer(request, guild_id):
+    """
+    Revoke a creator's stream notification approval.
+
+    Requires admin access.
+    """
+    from app.db import get_db_session
+    from app.models import ApprovedStreamer
+
+    discord_user = request.session.get('discord_user', {})
+    user_id = discord_user.get('id')
+    admin_guilds = request.session.get('discord_admin_guilds', [])
+
+    # Check admin access
+    guild_check = next((g for g in admin_guilds if g['id'] == guild_id), None)
+    if not guild_check:
+        return JsonResponse({'success': False, 'error': 'Admin access required'}, status=403)
+
+    try:
+        data = json.loads(request.body)
+        creator_profile_id = data.get('creator_profile_id')
+
+        if not creator_profile_id:
+            return JsonResponse({'success': False, 'error': 'Creator profile ID required'}, status=400)
+
+        with get_db_session() as db:
+            approval = db.query(ApprovedStreamer).filter(
+                ApprovedStreamer.guild_id == int(guild_id),
+                ApprovedStreamer.creator_profile_id == int(creator_profile_id)
+            ).first()
+
+            if not approval:
+                return JsonResponse({'success': False, 'error': 'Approval not found'}, status=404)
+
+            if approval.revoked:
+                return JsonResponse({'success': False, 'error': 'Already revoked'}, status=400)
+
+            # Revoke approval
+            approval.revoked = True
+            approval.revoked_by_user_id = int(user_id)
+            approval.revoked_at = int(time.time())
+
+            db.commit()
+
+            logger.info(f"Streamer {creator_profile_id} revoked in guild {guild_id} by {user_id}")
+
+            return JsonResponse({
+                'success': True,
+                'message': 'Streamer approval revoked'
+            })
+
+    except Exception as e:
+        logger.error(f"Revoke streamer error: {e}", exc_info=True)
+        return JsonResponse({
+            'success': False,
+            'error': 'Failed to revoke streamer'
+        }, status=500)
+
+
+@discord_required
+@require_http_methods(["POST"])
+def test_streaming_notification(request, guild_id):
+    """
+    Send a test streaming notification to the configured channel.
+
+    Requires admin access.
+    """
+    from app.db import get_db_session
+    from app.models import StreamingNotificationsConfig
+    import os
+    import requests
+
+    discord_user = request.session.get('discord_user', {})
+    admin_guilds = request.session.get('discord_admin_guilds', [])
+
+    # Check admin access
+    guild_check = next((g for g in admin_guilds if g['id'] == guild_id), None)
+    if not guild_check:
+        return JsonResponse({'success': False, 'error': 'Admin access required'}, status=403)
+
+    try:
+        # Parse request body for platform parameter
+        import json
+        try:
+            body = json.loads(request.body.decode('utf-8'))
+            platform = body.get('platform', 'youtube').lower()
+        except:
+            platform = 'youtube'
+
+        with get_db_session() as db:
+            config = db.query(StreamingNotificationsConfig).filter(
+                StreamingNotificationsConfig.guild_id == int(guild_id)
+            ).first()
+
+            if not config or not config.enabled:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Streaming notifications not enabled'
+                }, status=400)
+
+            if not config.notification_channel_id:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'No notification channel configured'
+                }, status=400)
+
+            # Get bot token
+            bot_token = os.getenv('DISCORD_BOT_TOKEN', '')
+            if not bot_token:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Bot token not configured'
+                }, status=500)
+
+            # Get custom notification settings
+            notification_title = config.notification_title or '🔴 {creator} is now LIVE!'
+            notification_message = config.notification_message or 'Check out the stream!'
+            embed_color_hex = config.embed_color or '#FF0000'
+
+            # Replace {creator} placeholder with test value
+            notification_title = notification_title.replace('{creator}', 'Test Creator')
+            notification_message = notification_message.replace('{creator}', 'Test Creator')
+
+            # Convert hex color to decimal
+            embed_color_decimal = int(embed_color_hex.lstrip('#'), 16)
+
+            # Platform-specific footer branding
+            if platform == 'twitch':
+                footer_text = 'Twitch'
+                footer_icon = 'https://static-cdn.jtvnw.net/jtv_user_pictures/8a6381c7-d0c0-4576-b179-38bd5ce1d6af-profile_image-70x70.png'
+            else:  # Default to YouTube
+                footer_text = 'YouTube'
+                footer_icon = 'https://www.youtube.com/s/desktop/f506bd45/img/favicon_32.png'
+
+            # Build test embed
+            embed = {
+                'title': notification_title,
+                'description': notification_message,
+                'color': embed_color_decimal,
+                'fields': [
+                    {
+                        'name': 'Playing',
+                        'value': 'Test Game/Category',
+                        'inline': True
+                    },
+                    {
+                        'name': 'Viewers',
+                        'value': '0',
+                        'inline': True
+                    }
+                ],
+                'footer': {
+                    'text': footer_text,
+                    'icon_url': footer_icon
+                },
+                'thumbnail': {
+                    'url': 'https://cdn.casual-heroes.com/static/img/logo.png'
+                }
+            }
+
+            # Build message payload
+            payload = {
+                'embeds': [embed]
+            }
+
+            # Add role ping if configured
+            if config.ping_role_id:
+                role_content = f'<@&{config.ping_role_id}> - Test stream notification!'
+                payload['content'] = role_content
+
+            # Send via Discord API
+            response = requests.post(
+                f'https://discord.com/api/v10/channels/{config.notification_channel_id}/messages',
+                headers={
+                    'Authorization': f'Bot {bot_token}',
+                    'Content-Type': 'application/json'
+                },
+                json=payload,
+                timeout=10
+            )
+
+            if response.status_code == 200 or response.status_code == 204:
+                logger.info(f"Test notification sent to guild {guild_id} channel {config.notification_channel_id}")
+                return JsonResponse({
+                    'success': True,
+                    'message': 'Test notification sent successfully!'
+                })
+            else:
+                logger.error(f"Discord API error: {response.status_code} - {response.text}")
+                return JsonResponse({
+                    'success': False,
+                    'error': f'Failed to send notification (Discord API error: {response.status_code})'
+                }, status=500)
+
+    except Exception as e:
+        logger.error(f"Test notification error: {e}", exc_info=True)
+        return JsonResponse({
+            'success': False,
+            'error': 'Failed to send test notification'
+        }, status=500)

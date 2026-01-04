@@ -1,219 +1,227 @@
 <div id="youtubeContent" class="hidden">
   {% if has_discovery_module or guild_record.is_vip or guild_record.subscription_tier == 'complete' or guild_record.billing_cycle == 'lifetime' %}
-  <!-- Coming Soon Banner -->
-  <div class="bg-gradient-to-r from-red-900/40 to-pink-900/40 rounded-xl border-2 border-red-500/50 p-8 mb-8 text-center">
-    <div class="inline-block p-4 bg-red-600/20 rounded-full mb-4">
-      <i class="fab fa-youtube text-red-400 text-6xl"></i>
-    </div>
-    <h2 class="text-3xl font-bold text-white mb-3">
-      YouTube Integration
-      <span class="ml-3 px-3 py-1 text-sm bg-red-600/30 text-red-300 border border-red-500/40 rounded-full">Coming Soon</span>
-    </h2>
-    <p class="text-gray-300 text-lg max-w-2xl mx-auto">
-      Connect your YouTube channel and share content automatically with your Discord community
-    </p>
-  </div>
 
-  <!-- Planned Features Grid -->
-  <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-    <!-- Feature 1: Channel Linking -->
-    <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6 hover:border-red-500/30 transition">
-      <div class="flex items-start gap-4">
-        <div class="w-12 h-12 bg-red-600/20 rounded-lg flex items-center justify-center flex-shrink-0">
-          <i class="fas fa-link text-red-400 text-xl"></i>
-        </div>
-        <div>
-          <h3 class="text-lg font-bold text-white mb-2">Channel Linking</h3>
-          <p class="text-gray-400 text-sm">
-            Allow Discord users to link their YouTube channels through OAuth. Verify creators and track their content automatically.
-          </p>
-        </div>
+  <!-- Header -->
+  <div class="bg-gradient-to-r from-red-900/40 to-pink-900/40 rounded-xl border-2 border-red-500/50 p-6 mb-8">
+    <div class="flex items-center gap-4">
+      <div class="w-16 h-16 bg-red-600/20 rounded-full flex items-center justify-center flex-shrink-0">
+        <i class="fab fa-youtube text-red-400 text-3xl"></i>
       </div>
-    </div>
-
-    <!-- Feature 2: Upload Notifications -->
-    <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6 hover:border-red-500/30 transition">
-      <div class="flex items-start gap-4">
-        <div class="w-12 h-12 bg-red-600/20 rounded-lg flex items-center justify-center flex-shrink-0">
-          <i class="fas fa-upload text-red-400 text-xl"></i>
-        </div>
-        <div>
-          <h3 class="text-lg font-bold text-white mb-2">Upload Announcements</h3>
-          <p class="text-gray-400 text-sm">
-            Automatically announce new video uploads from linked channels with rich embeds showing thumbnails and descriptions.
-          </p>
-        </div>
-      </div>
-    </div>
-
-    <!-- Feature 3: Live Stream Alerts -->
-    <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6 hover:border-red-500/30 transition">
-      <div class="flex items-start gap-4">
-        <div class="w-12 h-12 bg-red-600/20 rounded-lg flex items-center justify-center flex-shrink-0">
-          <i class="fas fa-video text-red-400 text-xl"></i>
-        </div>
-        <div>
-          <h3 class="text-lg font-bold text-white mb-2">YouTube Live Alerts</h3>
-          <p class="text-gray-400 text-sm">
-            Get notified when linked members start live streaming on YouTube with customizable embeds and role mentions.
-          </p>
-        </div>
-      </div>
-    </div>
-
-    <!-- Feature 4: Subscriber Milestones -->
-    <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6 hover:border-red-500/30 transition">
-      <div class="flex items-start gap-4">
-        <div class="w-12 h-12 bg-red-600/20 rounded-lg flex items-center justify-center flex-shrink-0">
-          <i class="fas fa-trophy text-red-400 text-xl"></i>
-        </div>
-        <div>
-          <h3 class="text-lg font-bold text-white mb-2">Milestone Celebrations</h3>
-          <p class="text-gray-400 text-sm">
-            Celebrate subscriber milestones with automatic announcements and special role rewards for hitting 100, 1K, 10K+ subscribers.
-          </p>
-        </div>
-      </div>
-    </div>
-
-    <!-- Feature 5: Creator Roles -->
-    <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6 hover:border-red-500/30 transition">
-      <div class="flex items-start gap-4">
-        <div class="w-12 h-12 bg-red-600/20 rounded-lg flex items-center justify-center flex-shrink-0">
-          <i class="fas fa-user-check text-red-400 text-xl"></i>
-        </div>
-        <div>
-          <h3 class="text-lg font-bold text-white mb-2">Creator Auto-Roles</h3>
-          <p class="text-gray-400 text-sm">
-            Automatically assign Discord roles based on YouTube verification, partner status, or subscriber count thresholds.
-          </p>
-        </div>
-      </div>
-    </div>
-
-    <!-- Feature 6: Channel Analytics -->
-    <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6 hover:border-red-500/30 transition">
-      <div class="flex items-start gap-4">
-        <div class="w-12 h-12 bg-red-600/20 rounded-lg flex items-center justify-center flex-shrink-0">
-          <i class="fas fa-chart-bar text-red-400 text-xl"></i>
-        </div>
-        <div>
-          <h3 class="text-lg font-bold text-white mb-2">Channel Analytics</h3>
-          <p class="text-gray-400 text-sm">
-            Track video views, watch time, and engagement metrics for your community's content creators.
-          </p>
-        </div>
-      </div>
-    </div>
-
-    <!-- Feature 7: Premiere Notifications -->
-    <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6 hover:border-red-500/30 transition">
-      <div class="flex items-start gap-4">
-        <div class="w-12 h-12 bg-red-600/20 rounded-lg flex items-center justify-center flex-shrink-0">
-          <i class="fas fa-star text-red-400 text-xl"></i>
-        </div>
-        <div>
-          <h3 class="text-lg font-bold text-white mb-2">Premiere Events</h3>
-          <p class="text-gray-400 text-sm">
-            Announce scheduled video premieres in advance and remind the community when they're about to start.
-          </p>
-        </div>
-      </div>
-    </div>
-
-    <!-- Feature 8: Community Posts -->
-    <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6 hover:border-red-500/30 transition">
-      <div class="flex items-start gap-4">
-        <div class="w-12 h-12 bg-red-600/20 rounded-lg flex items-center justify-center flex-shrink-0">
-          <i class="fas fa-comments text-red-400 text-xl"></i>
-        </div>
-        <div>
-          <h3 class="text-lg font-bold text-white mb-2">Community Post Sync</h3>
-          <p class="text-gray-400 text-sm">
-            Share YouTube Community tab posts automatically to Discord, keeping your audience engaged across platforms.
-          </p>
-        </div>
+      <div class="flex-1">
+        <h2 class="text-2xl font-bold text-white mb-1">
+          YouTube Integration
+          <span class="ml-3 px-3 py-1 text-xs bg-green-600/30 text-green-300 border border-green-500/40 rounded-full">Live</span>
+        </h2>
+        <p class="text-gray-300">
+          Notify your community when approved streamers go live on YouTube
+        </p>
       </div>
     </div>
   </div>
 
-  <!-- How It Will Work -->
-  <div class="bg-gradient-to-r from-red-900/20 to-red-800/20 rounded-xl border border-red-800/30 p-6 mb-8">
-    <h3 class="text-lg font-bold text-white mb-4">
-      <i class="fas fa-info-circle text-red-400 mr-2"></i>How YouTube Integration Will Work
+  <!-- Configuration Section -->
+  <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6 mb-8">
+    <h3 class="text-xl font-bold text-white mb-6">
+      <i class="fas fa-cog text-gray-400 mr-2"></i>Stream Notification Settings
     </h3>
-    <div class="space-y-3">
+
+    <form id="youtubeConfigForm" class="space-y-6">
+      <!-- Enable/Disable Toggle -->
+      <div class="flex items-start justify-between p-4 bg-neutral-800/50 rounded-lg border border-neutral-700">
+        <div class="flex-1">
+          <label class="text-white font-medium mb-1 block">Enable Stream Notifications</label>
+          <p class="text-gray-400 text-sm">Send Discord notifications when approved streamers go live on YouTube</p>
+        </div>
+        <label class="relative inline-flex items-center cursor-pointer ml-4">
+          <input type="checkbox" id="notificationsEnabled" class="sr-only peer" />
+          <div class="w-11 h-6 bg-neutral-700 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-red-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-red-600"></div>
+        </label>
+      </div>
+
+      <div id="notificationSettings" class="space-y-6 hidden">
+        <!-- Notification Channel -->
+        <div>
+          <label class="block text-white font-medium mb-2">
+            <i class="fas fa-hashtag text-gray-400 mr-2"></i>Notification Channel
+          </label>
+          <p class="text-gray-400 text-sm mb-3">Select the channel where live stream notifications will be posted</p>
+          <div id="notificationChannelContainer"></div>
+        </div>
+
+        <!-- Ping Role (Optional) -->
+        <div>
+          <label class="block text-white font-medium mb-2">
+            <i class="fas fa-at text-gray-400 mr-2"></i>Ping Role (Optional)
+          </label>
+          <p class="text-gray-400 text-sm mb-3">Optionally mention a role when someone goes live (e.g., @Stream Watchers)</p>
+          <div id="pingRoleContainer"></div>
+        </div>
+
+        <!-- Minimum Level Requirement -->
+        <div>
+          <label class="block text-white font-medium mb-2">
+            <i class="fas fa-level-up-alt text-gray-400 mr-2"></i>Minimum Level Required
+          </label>
+          <p class="text-gray-400 text-sm mb-3">Streamers must be at least this level to trigger notifications (prevents spam from new members)</p>
+          <input
+            type="number"
+            id="minimumLevel"
+            min="0"
+            max="100"
+            value="10"
+            class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-red-500 transition"
+          />
+        </div>
+
+        <!-- Notification Title -->
+        <div>
+          <label class="block text-white font-medium mb-2">
+            <i class="fas fa-heading text-gray-400 mr-2"></i>Notification Title
+          </label>
+          <p class="text-gray-400 text-sm mb-3">Customize the notification title. Use {creator} to insert the streamer's name.</p>
+          <input
+            type="text"
+            id="notificationTitle"
+            placeholder="🔴 {creator} is now LIVE!"
+            value="🔴 {creator} is now LIVE!"
+            maxlength="255"
+            class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-red-500 transition"
+          />
+        </div>
+
+        <!-- Notification Message -->
+        <div>
+          <label class="block text-white font-medium mb-2">
+            <i class="fas fa-message text-gray-400 mr-2"></i>Notification Message
+          </label>
+          <p class="text-gray-400 text-sm mb-3">The main message shown in the embed. Use {creator} to insert the streamer's name.</p>
+          <textarea
+            id="notificationMessage"
+            rows="3"
+            placeholder="Check out the stream!"
+            class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-red-500 transition resize-none"
+          >Check out the stream!</textarea>
+        </div>
+
+        <!-- Embed Color -->
+        <div>
+          <label class="block text-white font-medium mb-2">
+            <i class="fas fa-palette text-gray-400 mr-2"></i>Embed Color
+          </label>
+          <p class="text-gray-400 text-sm mb-3">Choose the color for the notification embed border</p>
+          <div class="flex items-center gap-3">
+            <input
+              type="color"
+              id="embedColor"
+              value="#FF0000"
+              class="h-12 w-20 bg-neutral-800 border border-neutral-700 rounded-lg cursor-pointer"
+            />
+            <input
+              type="text"
+              id="embedColorHex"
+              value="#FF0000"
+              maxlength="7"
+              placeholder="#FF0000"
+              class="flex-1 bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-red-500 transition font-mono"
+            />
+          </div>
+        </div>
+
+        <!-- Save Button -->
+        <div class="flex gap-3">
+          <button type="submit" class="px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition">
+            <i class="fas fa-save mr-2"></i>Save Configuration
+          </button>
+          <button type="button" id="testNotification" class="px-6 py-3 bg-neutral-700 hover:bg-neutral-600 text-white rounded-lg font-medium transition">
+            <i class="fas fa-bell mr-2"></i>Send Test Notification
+          </button>
+        </div>
+      </div>
+    </form>
+  </div>
+
+  <!-- Approved Streamers Section -->
+  <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6 mb-8">
+    <div class="flex items-center justify-between mb-6">
+      <h3 class="text-xl font-bold text-white">
+        <i class="fas fa-user-check text-green-400 mr-2"></i>Approved Streamers
+      </h3>
+      <button id="refreshStreamers" class="px-4 py-2 bg-neutral-700 hover:bg-neutral-600 text-white rounded-lg text-sm font-medium transition">
+        <i class="fas fa-sync-alt mr-2"></i>Refresh
+      </button>
+    </div>
+
+    <p class="text-gray-400 text-sm mb-6">
+      Only approved streamers will trigger notifications when they go live. Manage who can send auto-shoutouts to your community.
+    </p>
+
+    <!-- Streamers List -->
+    <div id="approvedStreamersList" class="space-y-3">
+      <!-- Populated via JavaScript -->
+      <div class="text-center py-12 text-gray-500">
+        <i class="fas fa-spinner fa-spin text-3xl mb-3"></i>
+        <p>Loading approved streamers...</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- All Creators Section -->
+  <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6">
+    <h3 class="text-xl font-bold text-white mb-6">
+      <i class="fas fa-users text-gray-400 mr-2"></i>All Creators with YouTube Connected
+    </h3>
+
+    <p class="text-gray-400 text-sm mb-6">
+      These creators have connected their YouTube channels. Click "Approve" to enable stream notifications for them.
+    </p>
+
+    <!-- All Creators List -->
+    <div id="allCreatorsList" class="space-y-3">
+      <!-- Populated via JavaScript -->
+      <div class="text-center py-12 text-gray-500">
+        <i class="fas fa-spinner fa-spin text-3xl mb-3"></i>
+        <p>Loading creators...</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Info Box -->
+  <div class="mt-8 bg-gradient-to-r from-blue-900/20 to-indigo-900/20 rounded-xl border border-blue-800/30 p-6">
+    <h3 class="text-lg font-bold text-white mb-4">
+      <i class="fas fa-info-circle text-blue-400 mr-2"></i>How YouTube Integration Works
+    </h3>
+    <div class="space-y-3 text-sm">
       <div class="flex items-start gap-3">
-        <div class="w-6 h-6 bg-red-600 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+        <div class="w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
           <span class="text-white text-xs font-bold">1</span>
         </div>
-        <p class="text-gray-300 text-sm">
-          <strong class="text-white">OAuth Connection:</strong> Users will connect their YouTube channels through a secure Google OAuth flow on the Casual Heroes website.
+        <p class="text-gray-300">
+          Creators connect their YouTube channels via <strong class="text-white">Featured Creators</strong> page using secure Google OAuth
         </p>
       </div>
       <div class="flex items-start gap-3">
-        <div class="w-6 h-6 bg-red-600 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+        <div class="w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
           <span class="text-white text-xs font-bold">2</span>
         </div>
-        <p class="text-gray-300 text-sm">
-          <strong class="text-white">API Monitoring:</strong> The bot will poll YouTube Data API for new uploads, live streams, premieres, and community posts from linked channels.
+        <p class="text-gray-300">
+          Admins approve which creators can trigger stream notifications (prevents spam)
         </p>
       </div>
       <div class="flex items-start gap-3">
-        <div class="w-6 h-6 bg-red-600 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+        <div class="w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
           <span class="text-white text-xs font-bold">3</span>
         </div>
-        <p class="text-gray-300 text-sm">
-          <strong class="text-white">Rich Embeds:</strong> Videos will be announced with beautiful embeds showing thumbnails, titles, descriptions, and direct links.
+        <p class="text-gray-300">
+          Bot checks every 3 minutes if approved streamers are live on YouTube
         </p>
       </div>
       <div class="flex items-start gap-3">
-        <div class="w-6 h-6 bg-red-600 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+        <div class="w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
           <span class="text-white text-xs font-bold">4</span>
         </div>
-        <p class="text-gray-300 text-sm">
-          <strong class="text-white">Milestone Tracking:</strong> Set subscriber goals and the bot will automatically celebrate when creators reach them with custom messages.
+        <p class="text-gray-300">
+          When a streamer goes live, a rich notification with thumbnail, title, and viewer count is posted to your notification channel
         </p>
-      </div>
-    </div>
-  </div>
-
-  <!-- Use Cases -->
-  <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6">
-    <h3 class="text-lg font-bold text-white mb-4">
-      <i class="fas fa-lightbulb text-yellow-400 mr-2"></i>Perfect For
-    </h3>
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-      <div class="p-4 bg-neutral-800/50 rounded-lg border border-neutral-700">
-        <p class="text-white font-medium mb-1">Content Creator Communities</p>
-        <p class="text-gray-400 text-sm">Support your YouTubers by auto-sharing their latest uploads</p>
-      </div>
-      <div class="p-4 bg-neutral-800/50 rounded-lg border border-neutral-700">
-        <p class="text-white font-medium mb-1">Gaming Channels</p>
-        <p class="text-gray-400 text-sm">Announce Let's Plays, guides, and gaming content automatically</p>
-      </div>
-      <div class="p-4 bg-neutral-800/50 rounded-lg border border-neutral-700">
-        <p class="text-white font-medium mb-1">Multi-Platform Networks</p>
-        <p class="text-gray-400 text-sm">Centralize YouTube activity alongside Twitch and other platforms</p>
-      </div>
-    </div>
-  </div>
-
-  <!-- Feedback Section -->
-  <div class="mt-8 p-6 bg-gradient-to-r from-pink-900/30 to-red-900/30 rounded-xl border border-pink-700/40">
-    <div class="flex items-start gap-4">
-      <div class="w-12 h-12 bg-pink-600/20 rounded-lg flex items-center justify-center flex-shrink-0">
-        <i class="fas fa-comment-dots text-pink-400 text-xl"></i>
-      </div>
-      <div>
-        <h3 class="text-lg font-bold text-white mb-2">Want to Help Shape This Feature?</h3>
-        <p class="text-gray-300 text-sm mb-3">
-          We're actively developing YouTube integration and would love your input! Join our Discord server to share your ideas and get early access when it launches.
-        </p>
-        <a href="https://discord.gg/casualheroes" target="_blank" class="inline-flex items-center gap-2 px-4 py-2 bg-pink-600 hover:bg-pink-700 text-white rounded-lg font-medium transition text-sm">
-          <i class="fab fa-discord"></i>
-          Join Our Discord
-        </a>
       </div>
     </div>
   </div>
@@ -226,10 +234,10 @@
     </div>
     <h2 class="text-2xl font-bold text-white mb-3">
       YouTube Integration
-      <span class="ml-3 px-3 py-1 text-sm bg-red-600/30 text-red-300 border border-red-500/40 rounded-full">Coming Soon</span>
+      <span class="ml-3 px-3 py-1 text-sm bg-orange-600/30 text-orange-300 border border-orange-500/40 rounded-full">Premium Feature</span>
     </h2>
     <p class="text-gray-400 text-lg mb-6 max-w-2xl mx-auto">
-      YouTube integration will be included with the Discovery module when it launches
+      YouTube streaming notifications are included with the Discovery module
     </p>
     <div class="flex flex-col sm:flex-row gap-3 justify-center">
       <a href="{% url 'guild_billing' guild.id %}" class="inline-flex items-center gap-2 px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg font-bold transition">
@@ -242,37 +250,426 @@
       </a>
     </div>
   </div>
-
-  <!-- Feature Preview (Limited) -->
-  <div class="mt-8 bg-neutral-900/50 rounded-xl border border-neutral-800 p-6 relative overflow-hidden">
-    <div class="absolute inset-0 bg-gradient-to-t from-neutral-900 via-neutral-900/80 to-transparent z-10 flex items-end justify-center pb-8">
-      <a href="{% url 'guild_billing' guild.id %}" class="px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg font-bold transition">
-        <i class="fas fa-unlock-alt mr-2"></i>Unlock Full Preview
-      </a>
-    </div>
-    <div class="filter blur-sm opacity-50">
-      <h3 class="text-xl font-bold text-white mb-4">
-        <i class="fab fa-youtube text-red-400 mr-2"></i>Planned Features
-      </h3>
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div class="p-4 bg-neutral-800/50 rounded-lg">
-          <p class="text-white font-medium mb-1">Channel Linking</p>
-          <p class="text-gray-400 text-sm">OAuth connection for YouTube channels</p>
-        </div>
-        <div class="p-4 bg-neutral-800/50 rounded-lg">
-          <p class="text-white font-medium mb-1">Upload Announcements</p>
-          <p class="text-gray-400 text-sm">Auto-announce new video uploads</p>
-        </div>
-        <div class="p-4 bg-neutral-800/50 rounded-lg">
-          <p class="text-white font-medium mb-1">Live Stream Alerts</p>
-          <p class="text-gray-400 text-sm">Notifications for YouTube live streams</p>
-        </div>
-        <div class="p-4 bg-neutral-800/50 rounded-lg">
-          <p class="text-white font-medium mb-1">Milestone Celebrations</p>
-          <p class="text-gray-400 text-sm">Celebrate subscriber milestones</p>
-        </div>
-      </div>
-    </div>
-  </div>
   {% endif %}
 </div>
+
+<script>
+// YouTube Integration JavaScript
+(function() {
+  const youtubeTab = document.getElementById('youtubeContent');
+  if (!youtubeTab || youtubeTab.querySelector('.fas.fa-lock')) return; // Not premium or not loaded
+
+  const notificationsEnabled = document.getElementById('notificationsEnabled');
+  const notificationSettings = document.getElementById('notificationSettings');
+  const configForm = document.getElementById('youtubeConfigForm');
+
+  // Toast notification function
+  function showToast(message, type = 'info') {
+    // Create toast container if it doesn't exist
+    let container = document.getElementById('youtube-toast-container');
+    if (!container) {
+      container = document.createElement('div');
+      container.id = 'youtube-toast-container';
+      container.className = 'fixed top-4 right-4 z-50 space-y-2';
+      document.body.appendChild(container);
+    }
+
+    const toastId = 'toast-' + Date.now();
+    const bgColor = type === 'success' ? 'bg-green-600' :
+                    type === 'error' ? 'bg-red-600' :
+                    'bg-blue-600';
+    const icon = type === 'success' ? 'fa-check-circle' :
+                 type === 'error' ? 'fa-exclamation-circle' :
+                 'fa-info-circle';
+
+    const toast = document.createElement('div');
+    toast.id = toastId;
+    toast.className = `${bgColor} text-white px-6 py-3 rounded-lg shadow-lg flex items-center gap-3 transform transition-all duration-300 translate-x-full`;
+    toast.innerHTML = `
+      <i class="fas ${icon} text-lg"></i>
+      <span class="font-medium">${message}</span>
+      <button onclick="this.parentElement.remove()" class="ml-2 hover:bg-white/20 rounded p-1">
+        <i class="fas fa-times text-sm"></i>
+      </button>
+    `;
+
+    container.appendChild(toast);
+
+    // Slide in
+    setTimeout(() => {
+      toast.classList.remove('translate-x-full');
+    }, 10);
+
+    // Auto-hide after 4 seconds
+    setTimeout(() => {
+      toast.classList.add('translate-x-full');
+      setTimeout(() => toast.remove(), 300);
+    }, 4000);
+  }
+
+  // Initialize custom select dropdowns
+  let channelSelect, roleSelect;
+
+  // Initialize selects function
+  async function initializeSelects() {
+    try {
+      // Fetch channels from API
+      const channelsResponse = await csrfFetch(`/api/guild/${guildId}/channels/`);
+      const channelsData = await channelsResponse.json();
+
+      // Fetch roles from API
+      const rolesResponse = await csrfFetch(`/api/guild/${guildId}/roles/`);
+      const rolesData = await rolesResponse.json();
+
+      // Create channel select
+      const channelItems = [
+        {value: '', label: 'Select a channel...', icon: 'hashtag'}
+      ];
+
+      if (channelsData.channels) {
+        channelsData.channels
+          .filter(ch => ch.type === 0) // Text channels only
+          .forEach(channel => {
+            channelItems.push({
+              value: channel.id,
+              label: `# ${channel.name}`,
+              icon: 'hashtag'
+            });
+          });
+      }
+
+      channelSelect = createCustomSelect({
+        container: '#notificationChannelContainer',
+        name: 'notification_channel_id',
+        placeholder: 'Select a channel...',
+        items: channelItems,
+        selected: '',
+        color: 'red'
+      });
+
+      // Create role select
+      const roleItems = [
+        {value: '', label: 'No role ping', icon: 'user-slash'}
+      ];
+
+      if (rolesData.roles) {
+        rolesData.roles
+          .filter(role => !role.is_default && !role.managed)
+          .forEach(role => {
+            roleItems.push({
+              value: role.id,
+              label: `@${role.name}`,
+              icon: 'at'
+            });
+          });
+      }
+
+      roleSelect = createCustomSelect({
+        container: '#pingRoleContainer',
+        name: 'ping_role_id',
+        placeholder: 'No role ping',
+        items: roleItems,
+        selected: '',
+        color: 'red'
+      });
+    } catch (error) {
+      console.error('Failed to initialize selects:', error);
+    }
+  }
+
+  // Load current configuration
+  async function loadConfig() {
+    try {
+      const response = await csrfFetch(`/api/guild/${guildId}/streaming/config/`);
+      const data = await response.json();
+
+      if (data.success && data.config) {
+        const config = data.config;
+        notificationsEnabled.checked = config.enabled;
+
+        // Only set values if selects are initialized
+        if (channelSelect && roleSelect) {
+          channelSelect.setValue(config.notification_channel_id || '');
+          roleSelect.setValue(config.ping_role_id || '');
+        }
+
+        document.getElementById('minimumLevel').value = config.minimum_level_required || 10;
+
+        // Load customization fields
+        document.getElementById('notificationTitle').value = config.notification_title || '🔴 {creator} is now LIVE!';
+        document.getElementById('notificationMessage').value = config.notification_message || 'Check out the stream!';
+
+        const embedColor = config.embed_color || '#FF0000';
+        document.getElementById('embedColor').value = embedColor;
+        document.getElementById('embedColorHex').value = embedColor;
+
+        // Show/hide settings
+        if (config.enabled) {
+          notificationSettings.classList.remove('hidden');
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load YouTube config:', error);
+    }
+  }
+
+  // Toggle settings visibility
+  notificationsEnabled.addEventListener('change', function() {
+    notificationSettings.classList.toggle('hidden', !this.checked);
+  });
+
+  // Save configuration
+  configForm.addEventListener('submit', async function(e) {
+    e.preventDefault();
+
+    const config = {
+      enabled: notificationsEnabled.checked,
+      notification_channel_id: channelSelect.getValue() || null,
+      ping_role_id: roleSelect.getValue() || null,
+      minimum_level_required: parseInt(document.getElementById('minimumLevel').value) || 10,
+      notification_title: document.getElementById('notificationTitle').value || '🔴 {creator} is now LIVE!',
+      notification_message: document.getElementById('notificationMessage').value || 'Check out the stream!',
+      embed_color: document.getElementById('embedColorHex').value || '#FF0000'
+    };
+
+    try {
+      const response = await csrfFetch(`/api/guild/${guildId}/streaming/config/`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(config)
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        showToast('Configuration saved successfully!', 'success');
+      } else {
+        showToast(data.error || 'Failed to save configuration', 'error');
+      }
+    } catch (error) {
+      console.error('Save config error:', error);
+      showToast('Failed to save configuration', 'error');
+    }
+  });
+
+  // Load approved streamers
+  async function loadApprovedStreamers() {
+    const container = document.getElementById('approvedStreamersList');
+
+    try {
+      const response = await csrfFetch(`/api/guild/${guildId}/streaming/approved/`);
+      const data = await response.json();
+
+      if (data.success) {
+        if (data.streamers.length === 0) {
+          container.innerHTML = `
+            <div class="text-center py-8 text-gray-500">
+              <i class="fas fa-user-slash text-3xl mb-3"></i>
+              <p>No approved streamers yet</p>
+              <p class="text-sm mt-1">Approve creators below to enable notifications</p>
+            </div>
+          `;
+          return;
+        }
+
+        container.innerHTML = data.streamers.map(streamer => `
+          <div class="flex items-center gap-4 p-4 bg-neutral-800/50 rounded-lg border border-neutral-700">
+            <img src="${streamer.avatar_url || '/static/img/default-avatar.png'}" alt="${streamer.display_name}" class="w-12 h-12 rounded-full" />
+            <div class="flex-1">
+              <div class="flex items-center gap-2">
+                <span class="text-white font-medium">${streamer.display_name}</span>
+                ${streamer.is_live_youtube ? '<span class="px-2 py-1 bg-red-600 text-white text-xs rounded-full font-bold">🔴 LIVE</span>' : ''}
+              </div>
+              <div class="flex items-center gap-3 mt-1 text-sm text-gray-400">
+                ${streamer.youtube_connected ? '<i class="fab fa-youtube text-red-400"></i>' : ''}
+                ${streamer.twitch_connected ? '<i class="fab fa-twitch text-purple-400"></i>' : ''}
+                <span>Approved ${new Date(streamer.approved_at * 1000).toLocaleDateString()}</span>
+              </div>
+            </div>
+            <button onclick="revokeStreamer(${streamer.creator_profile_id})" class="px-4 py-2 bg-red-600/20 hover:bg-red-600/30 text-red-400 rounded-lg text-sm font-medium transition border border-red-600/30">
+              <i class="fas fa-times mr-2"></i>Revoke
+            </button>
+          </div>
+        `).join('');
+      }
+    } catch (error) {
+      console.error('Failed to load approved streamers:', error);
+      container.innerHTML = `
+        <div class="text-center py-8 text-red-400">
+          <i class="fas fa-exclamation-triangle text-3xl mb-3"></i>
+          <p>Failed to load approved streamers</p>
+        </div>
+      `;
+    }
+  }
+
+  // Load all creators with YouTube
+  async function loadAllCreators() {
+    const container = document.getElementById('allCreatorsList');
+
+    try {
+      // TODO: Create endpoint to get all creators with YouTube connected
+      // For now, show placeholder
+      container.innerHTML = `
+        <div class="text-center py-8 text-gray-500">
+          <i class="fas fa-info-circle text-3xl mb-3"></i>
+          <p>Creators can connect YouTube from the Featured Creators page</p>
+        </div>
+      `;
+    } catch (error) {
+      console.error('Failed to load creators:', error);
+    }
+  }
+
+  // Approve streamer
+  window.approveStreamer = async function(creatorProfileId) {
+    try {
+      const response = await csrfFetch(`/api/guild/${guildId}/streaming/approve/`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ creator_profile_id: creatorProfileId })
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        showToast('Streamer approved successfully!', 'success');
+        loadApprovedStreamers();
+        loadAllCreators();
+      } else {
+        showToast(data.error || 'Failed to approve streamer', 'error');
+      }
+    } catch (error) {
+      console.error('Approve error:', error);
+      showToast('Failed to approve streamer', 'error');
+    }
+  };
+
+  // Revoke streamer
+  window.revokeStreamer = async function(creatorProfileId) {
+    if (!confirm('Are you sure you want to revoke this streamer\'s notification approval?')) {
+      return;
+    }
+
+    try {
+      const response = await csrfFetch(`/api/guild/${guildId}/streaming/revoke/`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ creator_profile_id: creatorProfileId })
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        showToast('Streamer approval revoked', 'success');
+        loadApprovedStreamers();
+        loadAllCreators();
+      } else {
+        showToast(data.error || 'Failed to revoke streamer', 'error');
+      }
+    } catch (error) {
+      console.error('Revoke error:', error);
+      showToast('Failed to revoke streamer', 'error');
+    }
+  };
+
+  // Refresh button
+  document.getElementById('refreshStreamers')?.addEventListener('click', async function() {
+    const button = this;
+    const originalHTML = button.innerHTML;
+
+    // Show loading state
+    button.disabled = true;
+    button.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Refreshing...';
+
+    try {
+      await Promise.all([
+        loadApprovedStreamers(),
+        loadAllCreators()
+      ]);
+      showToast('Streamer lists refreshed', 'success');
+    } catch (error) {
+      console.error('Refresh error:', error);
+      showToast('Failed to refresh lists', 'error');
+    } finally {
+      // Restore button
+      button.disabled = false;
+      button.innerHTML = originalHTML;
+    }
+  });
+
+  // Test notification button
+  document.getElementById('testNotification')?.addEventListener('click', async function() {
+    const button = this;
+    const originalText = button.innerHTML;
+
+    // Disable button and show loading state
+    button.disabled = true;
+    button.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Sending...';
+
+    try {
+      const response = await csrfFetch(`/api/guild/${guildId}/streaming/test/`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'}
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        showToast(data.message || 'Test notification sent!', 'success');
+      } else {
+        showToast(data.error || 'Failed to send test notification', 'error');
+      }
+    } catch (error) {
+      console.error('Test notification error:', error);
+      showToast('Failed to send test notification', 'error');
+    } finally {
+      // Re-enable button
+      button.disabled = false;
+      button.innerHTML = originalText;
+    }
+  });
+
+  // Load data when tab becomes visible
+  const observer = new MutationObserver(function(mutations) {
+    mutations.forEach(async function(mutation) {
+      if (!youtubeTab.classList.contains('hidden')) {
+        if (!channelSelect) {
+          await initializeSelects();
+        }
+        await loadConfig();
+        loadApprovedStreamers();
+        loadAllCreators();
+      }
+    });
+  });
+
+  // Sync color picker and hex input
+  const embedColorPicker = document.getElementById('embedColor');
+  const embedColorHex = document.getElementById('embedColorHex');
+
+  embedColorPicker.addEventListener('input', function() {
+    embedColorHex.value = this.value.toUpperCase();
+  });
+
+  embedColorHex.addEventListener('input', function() {
+    const hex = this.value.trim();
+    // Validate hex color format
+    if (/^#[0-9A-Fa-f]{6}$/.test(hex)) {
+      embedColorPicker.value = hex;
+    }
+  });
+
+  observer.observe(youtubeTab, { attributes: true, attributeFilter: ['class'] });
+
+  // Initial load if tab is already visible
+  if (!youtubeTab.classList.contains('hidden')) {
+    (async () => {
+      await initializeSelects();
+      await loadConfig();
+      loadApprovedStreamers();
+      loadAllCreators();
+    })();
+  }
+})();
+</script>

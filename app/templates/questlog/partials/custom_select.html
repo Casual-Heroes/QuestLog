@@ -58,7 +58,7 @@ function createCustomSelect(config) {
     return `${selectedValues.length} selected`;
   }
 
-  // Build HTML
+  // Build HTML - DO NOT set value in template, set it after DOM creation to avoid escaping issues
   const html = `
     <div class="custom-select-wrapper relative">
       <!-- Trigger Button -->
@@ -69,8 +69,8 @@ function createCustomSelect(config) {
         <i class="fas fa-chevron-down text-gray-400 text-sm transition-transform custom-select-icon"></i>
       </button>
 
-      <!-- Hidden Input -->
-      <input type="hidden" name="${escapeHtml(name)}" id="${escapeHtml(id)}" value="${multiSelect ? JSON.stringify(selectedValues) : escapeHtml(selectedValue)}">
+      <!-- Hidden Input - value will be set via JavaScript after creation -->
+      <input type="hidden" name="${escapeHtml(name)}" id="${escapeHtml(id)}" value="">
 
       <!-- Dropdown Panel -->
       <div class="custom-select-dropdown hidden absolute z-50 w-full min-w-[260px] max-w-[420px] mt-2 bg-neutral-800 border border-neutral-700 rounded-lg shadow-2xl overflow-hidden">
@@ -134,6 +134,13 @@ function createCustomSelect(config) {
   const label = containerEl.querySelector('.custom-select-label');
   const icon = containerEl.querySelector('.custom-select-icon');
   const noResults = containerEl.querySelector('.custom-select-no-results');
+
+  // Set initial value for hidden input (AFTER DOM creation to avoid HTML escaping issues)
+  if (multiSelect) {
+    hiddenInput.value = JSON.stringify(selectedValues);
+  } else {
+    hiddenInput.value = selectedValue || '';
+  }
 
   // Toggle dropdown
   function toggleDropdown() {

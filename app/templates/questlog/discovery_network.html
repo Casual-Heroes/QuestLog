@@ -14,7 +14,7 @@
   <!-- Header -->
   <div class="flex justify-between items-center">
     <div>
-      <h1 class="text-3xl font-bold text-white mb-2">🌐 Discovery Network</h1>
+      <h1 class="text-3xl font-bold text-white mb-2">🌐 QuestLog Network</h1>
       <p class="text-gray-400">Connect with creators and communities across all QuestLog servers</p>
     </div>
     <div class="text-right space-y-2">
@@ -93,8 +93,8 @@
         </button>
       {% endif %}
 
-      {% if is_bot_owner %}
-      <!-- BOT OWNER ADMIN TAB -->
+      {% if is_discovery_approver %}
+      <!-- DISCOVERY APPROVER ADMIN TAB -->
       <button onclick="switchTab('admin')" id="tab-admin" class="tab-button border-b-2 border-transparent py-4 px-1 text-sm font-medium text-red-400 hover:text-red-300">
         🔒 Admin Panel
       </button>
@@ -137,8 +137,8 @@
     </div>
   {% endif %}
 
-  {% if is_bot_owner %}
-  <!-- ADMIN PANEL - ONLY VISIBLE TO BOT OWNER -->
+  {% if is_discovery_approver %}
+  <!-- ADMIN PANEL - ONLY VISIBLE TO DISCOVERY APPROVERS -->
   <div id="content-admin" class="tab-content hidden">
     {% include 'questlog/discovery_tabs/admin.html' %}
   </div>
