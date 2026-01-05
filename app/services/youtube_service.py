@@ -198,7 +198,11 @@ class YouTubeService:
     # Live Stream Status
     # =========================================================================
 
-    def get_live_broadcasts(self, access_token: str) -> Optional[Dict[str, Any]]:
+    def get_live_broadcasts(
+        self,
+        access_token: str,
+        channel_id: Optional[str] = None
+    ) -> Optional[Dict[str, Any]]:
         """
         Check if channel is currently live streaming.
 
@@ -222,21 +226,30 @@ class YouTubeService:
                 f"{self.API_BASE_URL}/liveBroadcasts",
                 headers={'Authorization': f'Bearer {access_token}'},
                 params={
-                    'part': 'snippet,status,contentDetails,statistics',
-                    'broadcastStatus': 'active',  # Only active streams
+                    'part': 'snippet,status,contentDetails',
                     'mine': 'true',
+                    'maxResults': 5,
                 }
             )
 
             response.raise_for_status()
             data = response.json()
 
-            if not data.get('items'):
+            items = data.get('items', [])
+            if not items:
                 return None  # Not currently live
 
-            broadcast = data['items'][0]
+            broadcast = None
+            for item in items:
+                status = item.get('status', {})
+                if status.get('lifeCycleStatus') in ('live', 'liveStarting'):
+                    broadcast = item
+                    break
+
+            if not broadcast:
+                return None
+
             snippet = broadcast.get('snippet', {})
-            statistics = broadcast.get('statistics', {})
 
             # Try to get game/category from snippet
             game_name = None
@@ -247,14 +260,103 @@ class YouTubeService:
                 'title': snippet.get('title'),
                 'description': snippet.get('description'),
                 'thumbnail_url': snippet.get('thumbnails', {}).get('high', {}).get('url'),
-                'viewer_count': int(statistics.get('concurrentViewers', 0)),
+                'viewer_count': 0,
                 'started_at': snippet.get('actualStartTime'),  # ISO 8601 format
                 'game_name': game_name,
             }
 
         except requests.RequestException as e:
-            logger.error(f"YouTube live broadcast check failed: {e}")
+            response = getattr(e, 'response', None)
+            if response is not None:
+                logger.error(
+                    "YouTube live broadcast check failed: %s (status=%s, body=%s)",
+                    e,
+                    response.status_code,
+                    response.text[:500],
+                )
+            else:
+                logger.error(f"YouTube live broadcast check failed: {e}")
+
+            if channel_id and self.api_key:
+                try:
+                    return self._get_live_broadcasts_by_channel_id(channel_id)
+                except YouTubeAPIError:
+                    raise
             raise YouTubeAPIError(f"Failed to check live status: {e}")
+
+    def _get_live_broadcasts_by_channel_id(self, channel_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Fallback live check using channel ID and API key.
+
+        Uses search.list + videos.list to determine if a public live stream is active.
+        """
+        try:
+            search_resp = requests.get(
+                f"{self.API_BASE_URL}/search",
+                params={
+                    'part': 'snippet',
+                    'channelId': channel_id,
+                    'eventType': 'live',
+                    'type': 'video',
+                    'maxResults': 1,
+                    'key': self.api_key,
+                }
+            )
+            search_resp.raise_for_status()
+            search_data = search_resp.json()
+
+            if not search_data.get('items'):
+                return None
+
+            video_id = search_data['items'][0].get('id', {}).get('videoId')
+            if not video_id:
+                return None
+
+            video_resp = requests.get(
+                f"{self.API_BASE_URL}/videos",
+                params={
+                    'part': 'snippet,liveStreamingDetails,statistics',
+                    'id': video_id,
+                    'key': self.api_key,
+                }
+            )
+            video_resp.raise_for_status()
+            video_data = video_resp.json()
+            if not video_data.get('items'):
+                return None
+
+            video = video_data['items'][0]
+            snippet = video.get('snippet', {})
+            live_details = video.get('liveStreamingDetails', {})
+            statistics = video.get('statistics', {})
+
+            game_name = None
+            if snippet.get('categoryId'):
+                game_name = self._get_category_name(snippet['categoryId'])
+
+            viewer_count = live_details.get('concurrentViewers')
+            if viewer_count is None:
+                viewer_count = statistics.get('viewCount', 0)
+
+            return {
+                'title': snippet.get('title'),
+                'description': snippet.get('description'),
+                'thumbnail_url': snippet.get('thumbnails', {}).get('high', {}).get('url'),
+                'viewer_count': int(viewer_count or 0),
+                'started_at': live_details.get('actualStartTime'),
+                'game_name': game_name,
+            }
+
+        except requests.RequestException as e:
+            response = getattr(e, 'response', None)
+            if response is not None:
+                logger.error(
+                    "YouTube live fallback check failed: %s (status=%s, body=%s)",
+                    e,
+                    response.status_code,
+                    response.text[:500],
+                )
+            raise YouTubeAPIError(f"Failed to check live status (fallback): {e}")
 
     def _get_category_name(self, category_id: str) -> Optional[str]:
         """
