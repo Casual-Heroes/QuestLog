@@ -3845,6 +3845,7 @@ def guild_xp(request, guild_id):
             config = db.query(XPConfig).filter_by(guild_id=int(guild_id)).first()
             if config:
                 xp_config = {
+                    'xp_enabled': config.xp_enabled,
                     'message_xp': config.message_xp,
                     'media_multiplier': config.media_multiplier,
                     'reaction_xp': config.reaction_xp,
@@ -3857,6 +3858,12 @@ def guild_xp(request, guild_id):
                     'max_level': config.max_level,
                     'tokens_active': config.tokens_per_100_xp_active,
                     'tokens_passive': config.tokens_per_100_xp_passive,
+                    'track_messages': config.track_messages,
+                    'track_media': config.track_media,
+                    'track_reactions': config.track_reactions,
+                    'track_voice': config.track_voice,
+                    'track_gaming': config.track_gaming,
+                    'track_game_launch': config.track_game_launch,
                 }
 
             # Get top 50 leaderboard
@@ -3987,6 +3994,13 @@ def api_xp_config(request, guild_id):
                         'max_level': 99,
                         'tokens_active': 15,
                         'tokens_passive': 5,
+                        # XP source toggles (OPT-IN: disabled by default)
+                        'track_messages': False,
+                        'track_media': False,
+                        'track_reactions': False,
+                        'track_voice': False,
+                        'track_gaming': False,
+                        'track_game_launch': False,
                     }
                 })
 
@@ -4006,6 +4020,13 @@ def api_xp_config(request, guild_id):
                     'max_level': config.max_level,
                     'tokens_active': config.tokens_per_100_xp_active,
                     'tokens_passive': config.tokens_per_100_xp_passive,
+                    # XP source toggles
+                    'track_messages': config.track_messages,
+                    'track_media': config.track_media,
+                    'track_reactions': config.track_reactions,
+                    'track_voice': config.track_voice,
+                    'track_gaming': config.track_gaming,
+                    'track_game_launch': config.track_game_launch,
                 }
             })
     except Exception as e:
@@ -4077,6 +4098,28 @@ def api_xp_config_update(request, guild_id):
             if 'tokens_passive' in data:
                 config.tokens_per_100_xp_passive = int(data['tokens_passive'])
 
+            # Update XP source toggles
+            if 'track_messages' in data:
+                config.track_messages = bool(data['track_messages'])
+                logger.info(f"[XP Config] Setting track_messages to {config.track_messages} for guild {guild_id}")
+            if 'track_media' in data:
+                config.track_media = bool(data['track_media'])
+                logger.info(f"[XP Config] Setting track_media to {config.track_media} for guild {guild_id}")
+            if 'track_reactions' in data:
+                config.track_reactions = bool(data['track_reactions'])
+                logger.info(f"[XP Config] Setting track_reactions to {config.track_reactions} for guild {guild_id}")
+            if 'track_voice' in data:
+                config.track_voice = bool(data['track_voice'])
+                logger.info(f"[XP Config] Setting track_voice to {config.track_voice} for guild {guild_id}")
+            if 'track_gaming' in data:
+                config.track_gaming = bool(data['track_gaming'])
+                logger.info(f"[XP Config] Setting track_gaming to {config.track_gaming} for guild {guild_id}")
+            if 'track_game_launch' in data:
+                config.track_game_launch = bool(data['track_game_launch'])
+                logger.info(f"[XP Config] Setting track_game_launch to {config.track_game_launch} for guild {guild_id}")
+
+            db.flush()  # Ensure changes are flushed before commit
+            logger.info(f"[XP Config] Saved XP config for guild {guild_id}")
             return JsonResponse({'success': True})
 
     except Exception as e:

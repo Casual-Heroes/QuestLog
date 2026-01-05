@@ -400,6 +400,64 @@
           </div>
         </div>
 
+        <!-- XP Source Toggles -->
+        <div>
+          <h4 class="text-white font-medium mb-3">
+            <i class="fas fa-toggle-on text-green-400 mr-2"></i>XP Sources
+          </h4>
+          <p class="text-gray-400 text-sm mb-3">Enable or disable specific XP earning methods</p>
+          <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+            <label class="flex items-center justify-between bg-neutral-800 rounded-lg px-4 py-3 cursor-pointer hover:bg-neutral-750 transition">
+              <div class="flex items-center gap-2">
+                <i class="fas fa-comment text-blue-400"></i>
+                <span class="text-white text-sm">Messages</span>
+              </div>
+              <input type="checkbox" name="track_messages" {% if xp_config.track_messages %}checked{% endif %}
+                     class="w-5 h-5 text-blue-600 bg-neutral-700 border-neutral-600 rounded focus:ring-blue-500 focus:ring-2">
+            </label>
+            <label class="flex items-center justify-between bg-neutral-800 rounded-lg px-4 py-3 cursor-pointer hover:bg-neutral-750 transition">
+              <div class="flex items-center gap-2">
+                <i class="fas fa-image text-purple-400"></i>
+                <span class="text-white text-sm">Media</span>
+              </div>
+              <input type="checkbox" name="track_media" {% if xp_config.track_media %}checked{% endif %}
+                     class="w-5 h-5 text-purple-600 bg-neutral-700 border-neutral-600 rounded focus:ring-purple-500 focus:ring-2">
+            </label>
+            <label class="flex items-center justify-between bg-neutral-800 rounded-lg px-4 py-3 cursor-pointer hover:bg-neutral-750 transition">
+              <div class="flex items-center gap-2">
+                <i class="fas fa-heart text-red-400"></i>
+                <span class="text-white text-sm">Reactions</span>
+              </div>
+              <input type="checkbox" name="track_reactions" {% if xp_config.track_reactions %}checked{% endif %}
+                     class="w-5 h-5 text-red-600 bg-neutral-700 border-neutral-600 rounded focus:ring-red-500 focus:ring-2">
+            </label>
+            <label class="flex items-center justify-between bg-neutral-800 rounded-lg px-4 py-3 cursor-pointer hover:bg-neutral-750 transition">
+              <div class="flex items-center gap-2">
+                <i class="fas fa-microphone text-green-400"></i>
+                <span class="text-white text-sm">Voice Chat</span>
+              </div>
+              <input type="checkbox" name="track_voice" {% if xp_config.track_voice %}checked{% endif %}
+                     class="w-5 h-5 text-green-600 bg-neutral-700 border-neutral-600 rounded focus:ring-green-500 focus:ring-2">
+            </label>
+            <label class="flex items-center justify-between bg-neutral-800 rounded-lg px-4 py-3 cursor-pointer hover:bg-neutral-750 transition">
+              <div class="flex items-center gap-2">
+                <i class="fas fa-gamepad text-orange-400"></i>
+                <span class="text-white text-sm">Gaming</span>
+              </div>
+              <input type="checkbox" name="track_gaming" {% if xp_config.track_gaming %}checked{% endif %}
+                     class="w-5 h-5 text-orange-600 bg-neutral-700 border-neutral-600 rounded focus:ring-orange-500 focus:ring-2">
+            </label>
+            <label class="flex items-center justify-between bg-neutral-800 rounded-lg px-4 py-3 cursor-pointer hover:bg-neutral-750 transition">
+              <div class="flex items-center gap-2">
+                <i class="fas fa-rocket text-yellow-400"></i>
+                <span class="text-white text-sm">Game Launch</span>
+              </div>
+              <input type="checkbox" name="track_game_launch" {% if xp_config.track_game_launch %}checked{% endif %}
+                     class="w-5 h-5 text-yellow-600 bg-neutral-700 border-neutral-600 rounded focus:ring-yellow-500 focus:ring-2">
+            </label>
+          </div>
+        </div>
+
         <div class="flex justify-end gap-3 pt-4 border-t border-neutral-800">
           <button type="button" onclick="closeConfigModal()"
                   class="px-4 py-2 text-gray-400 hover:text-white transition">Cancel</button>
@@ -1339,6 +1397,13 @@ document.getElementById('config-form').addEventListener('submit', async (e) => {
     max_level: parseInt(form.max_level.value),
     tokens_active: parseInt(form.tokens_active.value),
     tokens_passive: parseInt(form.tokens_passive.value),
+    // XP source toggles
+    track_messages: form.track_messages.checked,
+    track_media: form.track_media.checked,
+    track_reactions: form.track_reactions.checked,
+    track_voice: form.track_voice.checked,
+    track_gaming: form.track_gaming.checked,
+    track_game_launch: form.track_game_launch.checked,
   };
 
   try {
