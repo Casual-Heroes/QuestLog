@@ -54,6 +54,7 @@ import time
 import hashlib
 import re
 import stat
+import tempfile
 from typing import Any, Optional
 import threading
 import logging
@@ -353,7 +354,7 @@ class PersistentCache:
         }
 
         with self._lock:
-            temp_path = cache_path + '.tmp'
+            temp_path = None
             try:
                 # SECURITY: Ensure cache directory exists with secure permissions
                 if not os.path.exists(self.cache_dir):
@@ -372,17 +373,26 @@ class PersistentCache:
                     logger.warning(f"Cache value too large ({len(json_str)} bytes), rejecting")
                     return
 
-                # Write to temp file first (atomic operation)
-                with open(temp_path, 'w', encoding='utf-8') as f:
+                # Write to a unique temp file first (atomic operation, avoids multi-process collisions)
+                with tempfile.NamedTemporaryFile(
+                    mode='w',
+                    encoding='utf-8',
+                    dir=self.cache_dir,
+                    prefix=f"{os.path.basename(cache_path)}.",
+                    suffix='.tmp',
+                    delete=False
+                ) as f:
+                    temp_path = f.name
                     f.write(json_str)
                     f.flush()  # Ensure data is written to disk
                     os.fsync(f.fileno())  # Force OS to write to disk
 
                 # Set secure file permissions (owner read/write only)
-                os.chmod(temp_path, 0o600)
+                if temp_path:
+                    os.chmod(temp_path, 0o600)
 
                 # Verify temp file exists before rename
-                if not os.path.exists(temp_path):
+                if not temp_path or not os.path.exists(temp_path):
                     logger.error(f"Temp file disappeared after creation: {temp_path}")
                     return
 
@@ -392,37 +402,41 @@ class PersistentCache:
 
             except TypeError:
                 logger.error("Value is not JSON-serializable")
-                try:
-                    if os.path.exists(temp_path):
-                        os.remove(temp_path)
-                except:
-                    pass
+                if temp_path:
+                    try:
+                        if os.path.exists(temp_path):
+                            os.remove(temp_path)
+                    except:
+                        pass
             except ValueError as e:
                 logger.error(f"Cache value validation failed: {type(e).__name__}")
-                try:
-                    if os.path.exists(temp_path):
-                        os.remove(temp_path)
-                except:
-                    pass
+                if temp_path:
+                    try:
+                        if os.path.exists(temp_path):
+                            os.remove(temp_path)
+                    except:
+                        pass
             except OSError as e:
                 # More detailed logging for filesystem errors
                 logger.error(
                     f"Failed to cache {_sanitize_for_log(key)}: {e} "
-                    f"(temp_exists={os.path.exists(temp_path)}, "
+                    f"(temp_exists={os.path.exists(temp_path) if temp_path else False}, "
                     f"dir_exists={os.path.exists(self.cache_dir)})"
                 )
-                try:
-                    if os.path.exists(temp_path):
-                        os.remove(temp_path)
-                except:
-                    pass
+                if temp_path:
+                    try:
+                        if os.path.exists(temp_path):
+                            os.remove(temp_path)
+                    except:
+                        pass
             except Exception as e:
                 logger.error(f"Cache set failed for {_sanitize_for_log(key)}: {type(e).__name__}: {str(e)}")
-                try:
-                    if os.path.exists(temp_path):
-                        os.remove(temp_path)
-                except:
-                    pass
+                if temp_path:
+                    try:
+                        if os.path.exists(temp_path):
+                            os.remove(temp_path)
+                    except:
+                        pass
 
     def delete(self, key: str):
         """
