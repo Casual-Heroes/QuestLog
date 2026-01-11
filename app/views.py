@@ -38,6 +38,57 @@ DISCORD_BOT_API_TOKEN = os.getenv('DISCORD_BOT_API_TOKEN', 'development-token')
 _guilds_cache = {'data': None, 'timestamp': 0}
 GUILDS_CACHE_TTL = 300  # Cache for 5 minutes (300 seconds) to prevent Discord API rate limiting
 
+# Security Helper Functions
+def is_safe_redirect(url):
+    """
+    Validate that a redirect URL is safe (same-origin).
+    Prevents open redirect vulnerabilities (SEC-008).
+
+    Args:
+        url: The URL to validate
+
+    Returns:
+        bool: True if URL is safe, False otherwise
+    """
+    from urllib.parse import urlparse
+    from django.conf import settings
+
+    if not url:
+        return False
+
+    url = url.strip()
+
+    # Block dangerous schemes
+    if url.startswith(('javascript:', 'data:', 'vbscript:', 'file:')):
+        logger.warning(f"[SECURITY] Blocked dangerous scheme in redirect: {url}")
+        return False
+
+    try:
+        parsed = urlparse(url)
+    except Exception:
+        logger.warning(f"[SECURITY] Failed to parse redirect URL: {url}")
+        return False
+
+    # Relative URLs (no netloc) are safe if they start with /
+    if not parsed.netloc:
+        is_safe = url.startswith('/')
+        if not is_safe:
+            logger.warning(f"[SECURITY] Blocked non-absolute relative URL: {url}")
+        return is_safe
+
+    # Absolute URLs must match allowed hosts
+    allowed_hosts = settings.ALLOWED_HOSTS
+    # Also allow localhost for development
+    if settings.DEBUG:
+        allowed_hosts = list(allowed_hosts) + ['localhost', '127.0.0.1']
+
+    is_safe = parsed.netloc in allowed_hosts
+    if not is_safe:
+        logger.warning(f"[SECURITY] Blocked redirect to external host: {parsed.netloc}")
+
+    return is_safe
+
+
 # LFG Game Limits by Tier
 def get_lfg_game_limit(guild):
     """Get LFG game limit based on guild subscription tier."""
@@ -803,13 +854,35 @@ STATIC_GAME_INFO = {
     # },
     # "CasualHeroes-Vrising01": {
     #     "display_name": "V Rising",
-    #     "description": "Modded gothic survival with PvP and random preset days, castle building, and a world that rewards planning over panic. Vardoran’s waiting, Rise. Bite. Build.",
+    #     "description": "Modded gothic survival with PvP and random preset days, castle building, and a world that rewards planning over panic. Vardoran's waiting, Rise. Bite. Build.",
     #     "discord_invite": "https://discord.gg/CHHS",
     #     "steam_link": "https://store.steampowered.com/app/1604030/V_Rising/",
     #     "steam_appid": "1604030",
     #     "connect_pw": "No Password"
     # }
 }
+
+# ============================================
+# Discord-Only Games (Static Info)
+# ============================================
+# These provide Steam links, Discord invites, and custom images
+# for games tracked via Discord activity (not AMP servers)
+# NOTE: Do NOT add these to STATIC_GAME_INFO above - that's for AMP servers only!
+DISCORD_GAME_STATIC_INFO = {
+    "WoW": {
+        "steam_link": "https://worldofwarcraft.blizzard.com/en-us/",
+        "discord_invite": "https://discord.gg/ECwJWppSjQ",
+        "custom_img": "/static/img/games/wow/dwarf.webp",
+        "link_label": "View Site"
+    },
+    "ESO": {
+        "steam_link": "https://store.steampowered.com/app/306130/The_Elder_Scrolls_Online/",
+        "discord_invite": "https://discord.gg/ECwJWppSjQ",
+        "steam_appid": "306130",
+        "link_label": "View on Steam"
+    },
+}
+
 # Games tracked through Discord only
 DISCORD_GAMES = [
     #     {
@@ -1024,12 +1097,22 @@ async def fetch_instance_data(instance_name):
                 if not game_port and valid_ports:
                     game_port = valid_ports[0]
 
+                # SECURITY HARDENING: Use timeout and error handling for external IP lookup
+                # This is intentional for AMP game servers - players need the public IP
+                fallback_ip = "Unknown"
+                if not game_port.get("ip") and not game_port.get("hostname"):
+                    try:
+                        # Use short timeout to avoid blocking if service is slow
+                        fallback_ip = requests.get("https://ifconfig.me/ip", timeout=2).text.strip()
+                    except (requests.RequestException, Exception) as e:
+                        logger.warning(f"Failed to fetch public IP from ifconfig.me: {e}")
+                        fallback_ip = "Unknown"
+
                 ip = (
-                game_port.get("ip")
-                or game_port.get("hostname")
-                or requests.get("https://ifconfig.me").text.strip()
-                or "Unknown"
-            )
+                    game_port.get("ip")
+                    or game_port.get("hostname")
+                    or fallback_ip
+                )
                 port = str(game_port.get("port")) if game_port else "Unknown"
 
                 static_info = STATIC_GAME_INFO.get(instance_name, {})
@@ -1100,49 +1183,470 @@ def safe_amp_fallback(instance_name):
 
 # Merge and render
 def games_we_play(request):
+    """
+    Load ALL games from database (Activity Tracker).
+    Supports both AMP servers and Discord-only games.
+    """
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
 
-    instance_names = list(STATIC_GAME_INFO.keys())
-    amp_games = loop.run_until_complete(asyncio.gather(
-        *(fetch_instance_data(name) for name in instance_names)
-    ))
-
-    # Inject steam_appid and custom_img into AMP games
-    for game in amp_games:
-        game["title"] = game.get("name")
-        instance_info = STATIC_GAME_INFO.get(game["id"])
-        if instance_info:
-            game["steam_appid"] = instance_info.get("steam_appid")
-            game["custom_img"] = instance_info.get("custom_img")  # Optional for WoW or non-Steam
-
-    # Combine AMP + Discord games into one list
-    # Load Discord activity
+    all_games = []
     discord_activity = get_discord_activity()
 
-    # Inject activity into Discord-only games
-    activity_counts = get_discord_activity_counts()
-    for game in DISCORD_GAMES:
-        game["title"] = game.get("name")
-        stats = discord_activity.get(game["id"])
-        if stats:
-            game["online"] = stats.get("active", "-")
-            game["max"] = stats.get("total", "-")
-            game["live_now"] = stats.get("active", 0) > 0
+    try:
+        from .db import get_db_session
+        from .models import SiteActivityGame
 
-        # Inject steam_appid and fallback images
-        static_info = STATIC_GAME_INFO.get(game["id"])
-        if static_info:
-            game["steam_appid"] = static_info.get("steam_appid")
-            game["custom_img"] = static_info.get("custom_img")
+        with get_db_session() as db:
+            # Load all active games from database
+            db_games = db.query(SiteActivityGame).filter_by(is_active=True).order_by(SiteActivityGame.sort_order).all()
 
-        # Ensure name and source
-        game["name"] = game.get("name", game["id"])
-        game["source"] = "discord"
+            # Collect AMP instance names to fetch in parallel
+            amp_instance_names = []
+            for db_game in db_games:
+                if db_game.game_type in ['amp', 'both'] and db_game.amp_instance_id:
+                    amp_instance_names.append(db_game.amp_instance_id)
 
-    all_games = amp_games + DISCORD_GAMES
+            # Fetch AMP data in parallel
+            amp_data_map = {}
+            if amp_instance_names:
+                amp_results = loop.run_until_complete(asyncio.gather(
+                    *(fetch_instance_data(name) for name in amp_instance_names),
+                    return_exceptions=True
+                ))
+                amp_data_map = {game.get("id"): game for game in amp_results if isinstance(game, dict)}
+
+            # Build game cards from database
+            for db_game in db_games:
+                game_dict = {
+                    "id": db_game.game_key,
+                    "name": db_game.display_name,
+                    "title": db_game.display_name,
+                    "description": db_game.description or "",
+                    "steam_appid": db_game.steam_appid,
+                    "custom_img": db_game.custom_img,
+                    "steam_link": db_game.steam_link,
+                    "discord_invite": db_game.discord_invite,
+                    "link_label": db_game.link_label or "View Site",
+                    "online": "-",
+                    "max": "-",
+                    "live_now": False,
+                }
+
+                # For AMP servers: inject live server data
+                if db_game.game_type in ['amp', 'both'] and db_game.amp_instance_id:
+                    amp_data = amp_data_map.get(db_game.amp_instance_id)
+                    if amp_data:
+                        game_dict["source"] = "amp"
+                        game_dict["online"] = amp_data.get("online", "-")
+                        game_dict["max"] = amp_data.get("max", "-")
+                        game_dict["live_now"] = amp_data.get("live_now", False)
+                        game_dict["ip"] = amp_data.get("ip", "Unavailable")
+                        game_dict["connect_pw"] = amp_data.get("connect_pw", "Unknown")
+                        game_dict["status_label"] = amp_data.get("status_label", "Unknown")
+
+                # For Discord games: inject Discord activity data
+                if db_game.game_type in ['discord', 'both']:
+                    stats = discord_activity.get(db_game.game_key)
+                    if stats:
+                        game_dict["source"] = "discord"
+                        game_dict["online"] = stats.get("active", "-")
+                        game_dict["max"] = stats.get("total", "-")
+                        game_dict["live_now"] = stats.get("active", 0) > 0
+
+                all_games.append(game_dict)
+
+            logger.info(f"Loaded {len(all_games)} active games from database ({len(amp_data_map)} AMP, {len(all_games) - len(amp_data_map)} Discord)")
+    except Exception as e:
+        logger.error(f"Failed to load games from database: {e}")
+        # Empty list if database fails
+        all_games = []
 
     return render(request, 'gamesweplay.html', { 'games': all_games })
+
+
+# ============================================================================
+# SITE ACTIVITY TRACKER - BOT OWNER ADMIN PANEL
+# ============================================================================
+# Configuration interface for Discord game activity tracking
+# SECURITY: BOT OWNER ONLY - These views are protected by @bot_owner_required
+
+@bot_owner_required
+def site_activity_tracker_admin(request, guild_id):
+    """
+    Admin panel for configuring site activity tracker.
+
+    BOT OWNER ONLY - Configure which games to track and their Discord role mappings.
+    Integrated into QuestLog guild dashboard.
+    """
+    from .db import get_db_session
+    from .models import SiteActivityGame, SiteActivityGuildRole, Guild as GuildModel
+
+    discord_user = request.session.get('discord_user', {})
+    admin_guilds = request.session.get('discord_admin_guilds', [])
+
+    # Get guild context (for sidebar and base_guild.html)
+    guild = next((g for g in admin_guilds if g['id'] == guild_id), None)
+    if not guild:
+        messages.error(request, "You don't have admin access to this server.")
+        return redirect('questlog_dashboard')
+
+    guild_record = None
+
+    with get_db_session() as db:
+        # Get guild record for premium features
+        guild_record = db.query(GuildModel).filter_by(guild_id=int(guild_id)).first()
+
+        # Get all configured games with their role mappings
+        games = db.query(SiteActivityGame).order_by(SiteActivityGame.sort_order, SiteActivityGame.display_name).all()
+
+        # Get role mappings for each game
+        games_data = []
+        for game in games:
+            roles = db.query(SiteActivityGuildRole).filter_by(game_id=game.id, is_active=True).all()
+
+            games_data.append({
+                'id': game.id,
+                'game_key': game.game_key,
+                'display_name': game.display_name,
+                'description': game.description,
+                'activity_keywords': json.loads(game.activity_keywords),
+                'is_active': game.is_active,
+                'sort_order': game.sort_order,
+                'roles': [{
+                    'id': r.id,
+                    'guild_id': r.guild_id,
+                    'role_id': r.role_id,
+                    'guild_name': r.guild_name,
+                    'role_name': r.role_name,
+                } for r in roles]
+            })
+
+    context = {
+        'discord_user': discord_user,
+        'guild': guild,
+        'guild_record': guild_record,
+        'admin_guilds': admin_guilds,
+        'member_guilds': get_member_guilds(request),
+        'is_admin': True,
+        'games': games_data,
+        'data_file': str(DISCORD_ACTIVITY_FILE),
+        'active_page': 'site_activity_tracker',
+    }
+
+    return render(request, 'questlog/site_activity_tracker.html', context)
+
+
+@bot_owner_required
+@require_http_methods(["GET", "POST", "PUT", "DELETE"])
+def api_site_activity_games(request, guild_id, game_id=None):
+    """
+    API endpoint for managing site activity games.
+
+    BOT OWNER ONLY
+
+    GET: List all games or get specific game
+    POST: Create new game
+    PUT: Update existing game
+    DELETE: Delete game
+    """
+    from .db import get_db_session
+    from .models import SiteActivityGame, SiteActivityGuildRole
+
+    with get_db_session() as db:
+        if request.method == "GET":
+            if game_id:
+                # Get specific game
+                game = db.query(SiteActivityGame).filter_by(id=game_id).first()
+                if not game:
+                    return JsonResponse({'error': 'Game not found'}, status=404)
+
+                roles = db.query(SiteActivityGuildRole).filter_by(game_id=game.id).all()
+
+                return JsonResponse({
+                    'id': game.id,
+                    'game_key': game.game_key,
+                    'display_name': game.display_name,
+                    'description': game.description,
+                    'game_type': game.game_type,
+                    'amp_instance_id': game.amp_instance_id,
+                    'steam_appid': game.steam_appid,
+                    'steam_link': game.steam_link,
+                    'discord_invite': game.discord_invite,
+                    'custom_img': game.custom_img,
+                    'link_label': game.link_label,
+                    'activity_keywords': json.loads(game.activity_keywords),
+                    'is_active': game.is_active,
+                    'sort_order': game.sort_order,
+                    'roles': [{
+                        'id': r.id,
+                        'guild_id': str(r.guild_id),  # Return as string to preserve full Discord ID in JavaScript
+                        'role_id': str(r.role_id),    # Return as string to preserve full Discord ID in JavaScript
+                        'guild_name': r.guild_name,
+                        'role_name': r.role_name,
+                        'is_active': r.is_active,
+                    } for r in roles]
+                })
+            else:
+                # List all games
+                games = db.query(SiteActivityGame).order_by(SiteActivityGame.sort_order).all()
+                return JsonResponse({
+                    'games': [{
+                        'id': g.id,
+                        'game_key': g.game_key,
+                        'display_name': g.display_name,
+                        'description': g.description,
+                        'game_type': g.game_type,
+                        'amp_instance_id': g.amp_instance_id,
+                        'steam_appid': g.steam_appid,
+                        'steam_link': g.steam_link,
+                        'discord_invite': g.discord_invite,
+                        'custom_img': g.custom_img,
+                        'link_label': g.link_label,
+                        'activity_keywords': json.loads(g.activity_keywords),
+                        'is_active': g.is_active,
+                        'sort_order': g.sort_order,
+                    } for g in games]
+                })
+
+        elif request.method == "POST":
+            # Create new game
+            data = json.loads(request.body)
+
+            # Validation
+            if not data.get('game_key') or not data.get('display_name'):
+                return JsonResponse({'error': 'game_key and display_name are required'}, status=400)
+
+            # Check for duplicate game_key
+            existing = db.query(SiteActivityGame).filter_by(game_key=data['game_key']).first()
+            if existing:
+                return JsonResponse({'error': 'Game with this key already exists'}, status=400)
+
+            game = SiteActivityGame(
+                game_key=data['game_key'],
+                display_name=data['display_name'],
+                description=data.get('description', ''),
+                game_type=data.get('game_type', 'discord'),
+                amp_instance_id=data.get('amp_instance_id'),
+                steam_appid=data.get('steam_appid'),
+                steam_link=data.get('steam_link'),
+                discord_invite=data.get('discord_invite'),
+                custom_img=data.get('custom_img'),
+                link_label=data.get('link_label', 'View Site'),
+                activity_keywords=json.dumps(data.get('activity_keywords', [])),
+                is_active=data.get('is_active', True),
+                sort_order=data.get('sort_order', 0),
+                created_at=int(time.time()),
+                updated_at=int(time.time())
+            )
+
+            db.add(game)
+            db.commit()
+            db.refresh(game)
+
+            # Handle role mappings if provided
+            role_mappings = data.get('role_mappings', [])
+            if role_mappings:
+                from .models import SiteActivityGuildRole
+                for mapping in role_mappings:
+                    if mapping.get('guild_id') and mapping.get('role_id'):
+                        role = SiteActivityGuildRole(
+                            game_id=game.id,
+                            guild_id=int(str(mapping['guild_id'])),  # Convert to string first to avoid JS number precision loss
+                            role_id=int(str(mapping['role_id'])),    # Convert to string first to avoid JS number precision loss
+                            guild_name=mapping.get('guild_name'),
+                            role_name=mapping.get('role_name'),
+                            created_at=int(time.time())
+                        )
+                        db.add(role)
+                db.commit()
+
+            return JsonResponse({
+                'success': True,
+                'game': {
+                    'id': game.id,
+                    'game_key': game.game_key,
+                    'display_name': game.display_name
+                }
+            })
+
+        elif request.method == "PUT":
+            # Update existing game
+            if not game_id:
+                return JsonResponse({'error': 'game_id required for update'}, status=400)
+
+            game = db.query(SiteActivityGame).filter_by(id=game_id).first()
+            if not game:
+                return JsonResponse({'error': 'Game not found'}, status=404)
+
+            data = json.loads(request.body)
+
+            # Update fields
+            if 'display_name' in data:
+                game.display_name = data['display_name']
+            if 'description' in data:
+                game.description = data['description']
+            if 'game_type' in data:
+                game.game_type = data['game_type']
+            if 'amp_instance_id' in data:
+                game.amp_instance_id = data['amp_instance_id']
+            if 'steam_appid' in data:
+                game.steam_appid = data['steam_appid']
+            if 'steam_link' in data:
+                game.steam_link = data['steam_link']
+            if 'discord_invite' in data:
+                game.discord_invite = data['discord_invite']
+            if 'custom_img' in data:
+                game.custom_img = data['custom_img']
+            if 'link_label' in data:
+                game.link_label = data['link_label']
+            if 'activity_keywords' in data:
+                game.activity_keywords = json.dumps(data['activity_keywords'])
+            if 'is_active' in data:
+                game.is_active = data['is_active']
+            if 'sort_order' in data:
+                game.sort_order = data['sort_order']
+
+            game.updated_at = int(time.time())
+
+            # Handle role mappings if provided
+            if 'role_mappings' in data:
+                from .models import SiteActivityGuildRole
+
+                # Get existing role mappings
+                existing_roles = db.query(SiteActivityGuildRole).filter_by(game_id=game_id).all()
+                existing_ids = {role.id for role in existing_roles}
+
+                # Process new role mappings
+                new_role_ids = set()
+                for mapping in data['role_mappings']:
+                    if mapping.get('guild_id') and mapping.get('role_id'):
+                        # If mapping has an ID, it's an existing one (update)
+                        if mapping.get('id'):
+                            role = db.query(SiteActivityGuildRole).filter_by(id=mapping['id']).first()
+                            if role:
+                                role.guild_id = int(str(mapping['guild_id']))  # Convert to string first to avoid JS number precision loss
+                                role.role_id = int(str(mapping['role_id']))    # Convert to string first to avoid JS number precision loss
+                                role.guild_name = mapping.get('guild_name')
+                                role.role_name = mapping.get('role_name')
+                                new_role_ids.add(role.id)
+                        else:
+                            # New mapping
+                            role = SiteActivityGuildRole(
+                                game_id=game_id,
+                                guild_id=int(str(mapping['guild_id'])),  # Convert to string first to avoid JS number precision loss
+                                role_id=int(str(mapping['role_id'])),    # Convert to string first to avoid JS number precision loss
+                                guild_name=mapping.get('guild_name'),
+                                role_name=mapping.get('role_name'),
+                                created_at=int(time.time())
+                            )
+                            db.add(role)
+                            db.flush()
+                            new_role_ids.add(role.id)
+
+                # Delete role mappings that were removed
+                roles_to_delete = existing_ids - new_role_ids
+                if roles_to_delete:
+                    db.query(SiteActivityGuildRole).filter(
+                        SiteActivityGuildRole.id.in_(roles_to_delete)
+                    ).delete(synchronize_session=False)
+
+            db.commit()
+
+            return JsonResponse({'success': True})
+
+        elif request.method == "DELETE":
+            # Delete game
+            if not game_id:
+                return JsonResponse({'error': 'game_id required for delete'}, status=400)
+
+            game = db.query(SiteActivityGame).filter_by(id=game_id).first()
+            if not game:
+                return JsonResponse({'error': 'Game not found'}, status=404)
+
+            db.delete(game)
+            db.commit()
+
+            return JsonResponse({'success': True})
+
+
+@bot_owner_required
+@require_http_methods(["POST", "DELETE"])
+def api_site_activity_roles(request, guild_id, role_mapping_id=None):
+    """
+    API endpoint for managing game role mappings.
+
+    BOT OWNER ONLY
+
+    POST: Add guild/role mapping to a game
+    DELETE: Remove role mapping
+    """
+    from .db import get_db_session
+    from .models import SiteActivityGame, SiteActivityGuildRole
+
+    with get_db_session() as db:
+        if request.method == "POST":
+            # Add role mapping
+            data = json.loads(request.body)
+
+            # Validation
+            required_fields = ['game_id', 'guild_id', 'role_id']
+            if not all(data.get(f) for f in required_fields):
+                return JsonResponse({'error': 'game_id, guild_id, and role_id are required'}, status=400)
+
+            # Check game exists
+            game = db.query(SiteActivityGame).filter_by(id=data['game_id']).first()
+            if not game:
+                return JsonResponse({'error': 'Game not found'}, status=404)
+
+            # Check for duplicate
+            existing = db.query(SiteActivityGuildRole).filter_by(
+                game_id=data['game_id'],
+                guild_id=data['guild_id'],
+                role_id=data['role_id']
+            ).first()
+            if existing:
+                return JsonResponse({'error': 'This role mapping already exists'}, status=400)
+
+            role_mapping = SiteActivityGuildRole(
+                game_id=data['game_id'],
+                guild_id=data['guild_id'],
+                role_id=data['role_id'],
+                guild_name=data.get('guild_name', ''),
+                role_name=data.get('role_name', ''),
+                is_active=data.get('is_active', True),
+                created_at=int(time.time()),
+                updated_at=int(time.time())
+            )
+
+            db.add(role_mapping)
+            db.commit()
+            db.refresh(role_mapping)
+
+            return JsonResponse({
+                'success': True,
+                'role_mapping': {
+                    'id': role_mapping.id,
+                    'game_id': role_mapping.game_id,
+                    'guild_id': role_mapping.guild_id,
+                    'role_id': role_mapping.role_id
+                }
+            })
+
+        elif request.method == "DELETE":
+            # Delete role mapping
+            if not role_mapping_id:
+                return JsonResponse({'error': 'role_mapping_id required'}, status=400)
+
+            role_mapping = db.query(SiteActivityGuildRole).filter_by(id=role_mapping_id).first()
+            if not role_mapping:
+                return JsonResponse({'error': 'Role mapping not found'}, status=404)
+
+            db.delete(role_mapping)
+            db.commit()
+
+            return JsonResponse({'success': True})
+
 
 # Leave this here
 def home(request):
@@ -1214,16 +1718,16 @@ def wow_page(request):
             with DISCORD_ACTIVITY_FILE.open("r") as f:
                 all_activity = json.load(f)
                 raw = all_activity.get("WoW", {})
-                print("[DEBUG] Raw WoW Activity:", raw)
+                logger.debug("[WoW PAGE] Raw WoW Activity: %s", raw)
 
                 # Safely cast integers
                 wow_data["total"] = int(raw["total"]) if str(raw.get("total", "")).isdigit() else "-"
                 wow_data["online"] = int(raw["online"]) if str(raw.get("online", "")).isdigit() else "-"
                 wow_data["active"] = int(raw["active"]) if str(raw.get("active", "")).isdigit() else "-"
         except Exception as e:
-            print(f"[WoW PAGE] Failed to load activity data: {e}")
+            logger.error("[WoW PAGE] Failed to load activity data", exc_info=True)
 
-    print("[DEBUG] Final wow_data:", wow_data)
+    logger.debug("[WoW PAGE] Final wow_data: %s", wow_data)
     return render(request, "wow.html", {
         "wow_activity": wow_data
     })
@@ -1242,16 +1746,16 @@ def eso_page(request):
             with DISCORD_ACTIVITY_FILE.open("r") as f:
                 all_activity = json.load(f)
                 raw = all_activity.get("ESO", {})
-                print("[DEBUG] Raw ESO Activity:", raw)
+                logger.debug("[ESO PAGE] Raw ESO Activity: %s", raw)
 
                 # Safely cast integers
                 eso_data["total"] = int(raw["total"]) if str(raw.get("total", "")).isdigit() else "-"
                 eso_data["online"] = int(raw["online"]) if str(raw.get("online", "")).isdigit() else "-"
                 eso_data["active"] = int(raw["active"]) if str(raw.get("active", "")).isdigit() else "-"
         except Exception as e:
-            print(f"[ESO PAGE] Failed to load activity data: {e}")
+            logger.error("[ESO PAGE] Failed to load activity data", exc_info=True)
 
-    print("[DEBUG] Final eso_data:", eso_data)
+    logger.debug("[ESO PAGE] Final eso_data: %s", eso_data)
     return render(request, "eso.html", {
         "eso_activity": eso_data
     })
@@ -1561,8 +2065,11 @@ def discord_login(request):
     state = secrets.token_urlsafe(32)
     request.session['discord_oauth_state'] = state
 
-    # Store the 'next' URL if provided
+    # Store the 'next' URL if provided (SEC-008 fix: validate redirect URL)
     next_url = request.GET.get('next', '/dashboard/')
+    if not is_safe_redirect(next_url):
+        logger.warning(f"[SECURITY] SEC-008: Blocked unsafe redirect URL from OAuth login: {next_url}")
+        next_url = '/dashboard/'
     request.session['discord_login_next'] = next_url
 
     login_url = get_discord_login_url(state=state)
@@ -1676,8 +2183,11 @@ def discord_callback(request):
         request.session.modified = True
         request.session.save()
 
-        # Redirect to stored 'next' URL or dashboard
+        # Redirect to stored 'next' URL or dashboard (SEC-008 fix: validate again)
         next_url = request.session.pop('discord_login_next', '/dashboard/')
+        if not is_safe_redirect(next_url):
+            logger.warning(f"[SECURITY] SEC-008: Blocked unsafe redirect URL from OAuth callback: {next_url}")
+            next_url = '/dashboard/'
 
         # Save again after popping discord_login_next
         request.session.modified = True
@@ -1787,21 +2297,73 @@ def discord_refresh_guilds(request):
 
 
 def discord_required(view_func):
-    """Decorator to require Discord authentication (skips auth for social media crawlers for Open Graph)"""
+    """
+    Decorator to require Discord authentication - NO CRAWLER BYPASS.
+
+    Use this for:
+    - All state-changing views (POST/PUT/DELETE)
+    - Admin pages
+    - Any sensitive endpoint
+
+    For public pages that need Open Graph support, use @discord_required_read_only instead.
+
+    Security: SEC-001 fix - removed crawler bypass to prevent authentication bypass attacks.
+    """
     def wrapper(request, *args, **kwargs):
-        # Allow social media crawlers through without auth for Open Graph meta tags
-        user_agent = request.META.get('HTTP_USER_AGENT', '').lower()
-        is_crawler = any(bot in user_agent for bot in [
-            'facebookexternalhit', 'twitterbot', 'linkedinbot', 'discordbot',
-            'slackbot', 'telegrambot', 'whatsapp', 'pinterest', 'bot'
-        ])
-
-        # Skip auth check for crawlers - let the view handle Open Graph response
-        if is_crawler:
-            return view_func(request, *args, **kwargs)
-
-        # Normal auth check for non-crawlers
         if not request.session.get('discord_user'):
+            # For API endpoints, return JSON error
+            if request.path.startswith('/api/'):
+                from django.http import JsonResponse
+                return JsonResponse({'error': 'Not authenticated'}, status=401)
+            # For page views, redirect to login
+            messages.warning(request, "Please log in with Discord to access this page.")
+            return redirect(f"/auth/discord/login/?next={request.path}")
+        return view_func(request, *args, **kwargs)
+    return wrapper
+
+
+def discord_required_read_only(view_func):
+    """
+    Decorator for read-only pages that need Open Graph support for social media previews.
+
+    Allows trusted social media crawlers to access pages for GET requests ONLY.
+    All POST/PUT/DELETE requests require full authentication.
+
+    Use this for:
+    - Public profile pages
+    - Event pages that should show previews
+    - Guild pages with public leaderboards
+
+    Security: SEC-001 fix - restricts crawler bypass to GET requests only with specific crawlers.
+    """
+    def wrapper(request, *args, **kwargs):
+        # Only allow crawler bypass for GET requests
+        if request.method == 'GET':
+            user_agent = request.META.get('HTTP_USER_AGENT', '').lower()
+            # Specific trusted crawlers only - NO generic 'bot' pattern
+            is_trusted_crawler = any(crawler in user_agent for crawler in [
+                'facebookexternalhit',  # Facebook
+                'twitterbot',            # Twitter/X
+                'linkedinbot',           # LinkedIn
+                'discordbot',            # Discord
+                'slackbot',              # Slack
+                'telegrambot',           # Telegram
+                'whatsapp',              # WhatsApp
+                'pinterest',             # Pinterest
+            ])
+
+            if is_trusted_crawler:
+                # Log crawler access for monitoring
+                logger.info(f"Crawler access: {user_agent[:100]} -> {request.path}")
+                return view_func(request, *args, **kwargs)
+
+        # All non-GET requests and non-crawler GET requests require auth
+        if not request.session.get('discord_user'):
+            # For API endpoints, return JSON error
+            if request.path.startswith('/api/'):
+                from django.http import JsonResponse
+                return JsonResponse({'error': 'Not authenticated'}, status=401)
+            # For page views, redirect to login
             messages.warning(request, "Please log in with Discord to access this page.")
             return redirect(f"/auth/discord/login/?next={request.path}")
         return view_func(request, *args, **kwargs)
@@ -2843,6 +3405,44 @@ def api_member_auth_required(view_func):
     return wrapper
 
 
+def api_owner_required(view_func):
+    """
+    Check Discord auth and guild OWNER access for API endpoints.
+
+    OWNER-ONLY CHECK:
+    - Only the Discord server owner can access this endpoint
+    - More restrictive than @api_auth_required (which allows admins)
+    - Used for sensitive operations like Discovery Network apply/leave/rejoin
+
+    ZERO DISCORD API CALLS - Uses session data + database only.
+    """
+    def wrapper(request, guild_id, *args, **kwargs):
+        from .db import get_db_session
+        from .models import Guild
+
+        discord_user = request.session.get('discord_user')
+        if not discord_user:
+            return JsonResponse({'error': 'Not authenticated'}, status=401)
+
+        user_id = int(discord_user.get('id'))
+
+        # Check database for guild owner
+        with get_db_session() as db:
+            guild = db.query(Guild).filter_by(guild_id=int(guild_id)).first()
+
+            if not guild:
+                return JsonResponse({'error': 'Guild not found'}, status=404)
+
+            if not guild.owner_id or int(guild.owner_id) != user_id:
+                return JsonResponse({
+                    'error': 'Owner access required',
+                    'detail': 'Only the server owner can perform this action'
+                }, status=403)
+
+        return view_func(request, guild_id, *args, **kwargs)
+    return wrapper
+
+
 # Flair Management API Endpoints
 
 @api_auth_required
@@ -3244,6 +3844,7 @@ def api_trackers_list(request, guild_id):
                 ]
             })
     except Exception as e:
+        logger.error('API error occurred', exc_info=True)
         return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
 
 
@@ -3311,6 +3912,7 @@ def api_tracker_create(request, guild_id):
             })
 
     except Exception as e:
+        logger.error('API error occurred', exc_info=True)
         return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
 
 
@@ -3368,6 +3970,7 @@ def api_tracker_update(request, guild_id, tracker_id):
             })
 
     except Exception as e:
+        logger.error('API error occurred', exc_info=True)
         return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
 
 
@@ -3394,6 +3997,7 @@ def api_tracker_delete(request, guild_id, tracker_id):
             return JsonResponse({'success': True})
 
     except Exception as e:
+        logger.error('API error occurred', exc_info=True)
         return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
 
 
@@ -4030,6 +4634,7 @@ def api_xp_config(request, guild_id):
                 }
             })
     except Exception as e:
+        logger.error('API error occurred', exc_info=True)
         return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
 
 
@@ -4123,6 +4728,7 @@ def api_xp_config_update(request, guild_id):
             return JsonResponse({'success': True})
 
     except Exception as e:
+        logger.error('API error occurred', exc_info=True)
         return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
 
 
@@ -4224,6 +4830,7 @@ def api_xp_leaderboard(request, guild_id):
                 'total_pages': (total + per_page - 1) // per_page,
             })
     except Exception as e:
+        logger.error('API error occurred', exc_info=True)
         return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
 
 
@@ -4321,6 +4928,7 @@ def api_xp_member_update(request, guild_id, user_id):
         })
 
     except Exception as e:
+        logger.error('API error occurred', exc_info=True)
         return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
 
 
@@ -4351,6 +4959,7 @@ def api_xp_level_roles(request, guild_id):
                 ]
             })
     except Exception as e:
+        logger.error('API error occurred', exc_info=True)
         return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
 
 
@@ -4405,6 +5014,7 @@ def api_xp_level_role_create(request, guild_id):
             })
 
     except Exception as e:
+        logger.error('API error occurred', exc_info=True)
         return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
 
 
@@ -4501,6 +5111,7 @@ def api_xp_level_role_delete(request, guild_id, role_id):
             return JsonResponse({'success': True})
 
     except Exception as e:
+        logger.error('API error occurred', exc_info=True)
         return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
 
 
@@ -4531,6 +5142,7 @@ def api_xp_member_delete(request, guild_id, user_id):
             })
 
     except Exception as e:
+        logger.error('API error occurred', exc_info=True)
         return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
 
 
@@ -4581,6 +5193,7 @@ def api_xp_member_add(request, guild_id):
             })
 
     except Exception as e:
+        logger.error('API error occurred', exc_info=True)
         return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
 
 
@@ -4604,10 +5217,19 @@ def api_xp_import_csv(request, guild_id):
         if upload_file.size > MAX_FILE_SIZE:
             return JsonResponse({'error': 'File too large (max 10MB)'}, status=400)
 
-        # Validate file extension
-        allowed_extensions = ['.csv', '.xlsx', '.tsv']
-        if not any(filename.endswith(ext) for ext in allowed_extensions):
-            return JsonResponse({'error': f'Invalid file type. Only {", ".join(allowed_extensions)} allowed'}, status=400)
+        # SECURITY: Only accept .xlsx files (more reliable than CSV, prevents encoding issues)
+        if not filename.endswith('.xlsx'):
+            return JsonResponse({'error': 'Invalid file type. Only .xlsx files allowed'}, status=400)
+
+        # SECURITY: Validate content-type header to prevent extension spoofing
+        content_type = upload_file.content_type.lower() if upload_file.content_type else ''
+        allowed_content_types = [
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'application/octet-stream',  # Sometimes browsers send this for Excel files
+        ]
+        if content_type and content_type not in allowed_content_types:
+            logger.warning(f"[XP IMPORT] Rejected file with invalid content-type: {content_type} (filename: {filename})")
+            return JsonResponse({'error': f'Invalid file type. Content-type {content_type} not allowed'}, status=400)
 
         # LOG who is uploading XP files
         user_session = request.session.get('discord_user', {})
@@ -4620,54 +5242,24 @@ def api_xp_import_csv(request, guild_id):
         from .db import get_db_session
         from .models import GuildMember
 
-        # Parse file based on extension
+        # Parse XLSX file
+        from openpyxl import load_workbook
+        from io import BytesIO
+
+        wb = load_workbook(BytesIO(upload_file.read()))
+        ws = wb.active
+
+        # Get headers from first row
+        headers = [cell.value for cell in ws[1]]
+
+        # Read data rows
         rows = []
-
-        if filename.endswith('.xlsx'):
-            # Parse XLSX file
-            from openpyxl import load_workbook
-            from io import BytesIO
-
-            wb = load_workbook(BytesIO(upload_file.read()))
-            ws = wb.active
-
-            # Get headers from first row
-            headers = [cell.value for cell in ws[1]]
-
-            # Read data rows
-            for row in ws.iter_rows(min_row=2, values_only=True):
-                row_dict = {}
-                for i, value in enumerate(row):
-                    if i < len(headers) and headers[i]:
-                        row_dict[headers[i]] = str(value) if value is not None else ''
-                rows.append(row_dict)
-
-        else:
-            # Parse CSV/TSV file
-            import csv
-            from io import StringIO
-
-            # Try different encodings
-            content = None
-            for encoding in ['utf-8', 'cp1252', 'latin-1', 'iso-8859-1']:
-                try:
-                    content = upload_file.read().decode(encoding)
-                    break
-                except UnicodeDecodeError:
-                    upload_file.seek(0)
-                    continue
-
-            if not content:
-                return JsonResponse({'error': 'Could not read file with any supported encoding'}, status=400)
-
-            # Detect delimiter (comma or tab)
-            try:
-                dialect = csv.Sniffer().sniff(content[:1024], delimiters=',\t')
-                reader = csv.DictReader(StringIO(content), dialect=dialect)
-            except:
-                reader = csv.DictReader(StringIO(content))
-
-            rows = list(reader)
+        for row in ws.iter_rows(min_row=2, values_only=True):
+            row_dict = {}
+            for i, value in enumerate(row):
+                if i < len(headers) and headers[i]:
+                    row_dict[headers[i]] = str(value) if value is not None else ''
+            rows.append(row_dict)
 
         # Check tier limits and daily usage
         from .models import Guild as GuildModel
@@ -4799,6 +5391,7 @@ def api_xp_import_csv(request, guild_id):
         })
 
     except Exception as e:
+        logger.error('API error occurred', exc_info=True)
         return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
 
 
@@ -4870,6 +5463,7 @@ def api_xp_export_csv(request, guild_id):
             return response
 
     except Exception as e:
+        logger.error('API error occurred', exc_info=True)
         return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
 
 
@@ -4966,6 +5560,7 @@ def api_xp_bulk_edit(request, guild_id):
                 })
 
     except Exception as e:
+        logger.error('API error occurred', exc_info=True)
         return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
 
 
@@ -5946,6 +6541,7 @@ def api_role_bulk_import(request, guild_id):
             else:  # Pro tier
                 max_users = 10
     except Exception as e:
+        logger.error('API error occurred', exc_info=True)
         return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
 
     # Get uploaded file
@@ -5958,9 +6554,19 @@ def api_role_bulk_import(request, guild_id):
     if excel_file.size > MAX_FILE_SIZE:
         return JsonResponse({'error': 'File too large (max 5MB)'}, status=400)
 
-    # Validate file extension
+    # Validate file extension (case-insensitive, prevent mixed-case tricks)
     if not excel_file.name.lower().endswith('.xlsx'):
         return JsonResponse({'error': 'Invalid file type. Only .xlsx files allowed'}, status=400)
+
+    # SECURITY: Validate content-type header to prevent extension spoofing
+    content_type = excel_file.content_type.lower() if excel_file.content_type else ''
+    allowed_content_types = [
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'application/octet-stream',  # Sometimes browsers send this for Excel files
+    ]
+    if content_type and content_type not in allowed_content_types:
+        logger.warning(f"[ROLE IMPORT] Rejected file with invalid content-type: {content_type} (filename: {excel_file.name})")
+        return JsonResponse({'error': f'Invalid file type. Content-type {content_type} not allowed'}, status=400)
 
     role_id = request.POST.get('role_id')
     action = request.POST.get('action', 'add')  # 'add' or 'remove'
@@ -6082,6 +6688,7 @@ def api_role_bulk_import(request, guild_id):
         })
 
     except Exception as e:
+        logger.error('API error occurred', exc_info=True)
         return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
 
 
@@ -6099,6 +6706,7 @@ def api_bulk_import_status(request, guild_id, job_id):
         return JsonResponse({'success': True, 'job': job})
 
     except Exception as e:
+        logger.error('API error occurred', exc_info=True)
         return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
 
 
@@ -6177,6 +6785,7 @@ def api_role_export_template(request, guild_id):
         return response
 
     except Exception as e:
+        logger.error('API error occurred', exc_info=True)
         return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
 
 
@@ -6399,6 +7008,7 @@ def api_role_create(request, guild_id):
             }, status=500)
 
     except Exception as e:
+        logger.error('API error occurred', exc_info=True)
         return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
 
 
@@ -6583,9 +7193,19 @@ def api_role_bulk_create(request, guild_id):
     if upload_file.size > MAX_FILE_SIZE:
         return JsonResponse({'error': 'File too large (max 5MB)'}, status=400)
 
-    # Validate file extension
+    # Validate file extension (case-insensitive, prevent mixed-case tricks)
     if not upload_file.name.lower().endswith('.xlsx'):
         return JsonResponse({'error': 'Invalid file type. Only .xlsx files allowed'}, status=400)
+
+    # SECURITY: Validate content-type header to prevent extension spoofing
+    content_type = upload_file.content_type.lower() if upload_file.content_type else ''
+    allowed_content_types = [
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'application/octet-stream',  # Sometimes browsers send this for Excel files
+    ]
+    if content_type and content_type not in allowed_content_types:
+        logger.warning(f"[ROLE CREATE] Rejected file with invalid content-type: {content_type} (filename: {upload_file.name})")
+        return JsonResponse({'error': f'Invalid file type. Content-type {content_type} not allowed'}, status=400)
 
     # Check subscription tier and determine limits
     try:
@@ -6608,6 +7228,7 @@ def api_role_bulk_create(request, guild_id):
             else:  # Free tier
                 max_roles = 6
     except Exception as e:
+        logger.error('API error occurred', exc_info=True)
         return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
 
 
@@ -6974,129 +7595,6 @@ def api_raffle_end_now(request, guild_id, raffle_id):
         logger.error(f"Error ending raffle {raffle_id}: {e}", exc_info=True)
         return JsonResponse({'error': 'Failed to end raffle'}, status=500)
 
-    excel_file = request.FILES['file']
-
-    try:
-        from openpyxl import load_workbook
-        from io import BytesIO
-
-        # Get bot session
-        guild_id_int = int(guild_id)
-        bot_session = get_bot_session(guild_id_int)
-        if not bot_session:
-            return JsonResponse({'error': 'Bot not connected to this guild'}, status=400)
-
-        # Read XLSX file
-        wb = load_workbook(BytesIO(excel_file.read()), read_only=True, data_only=True)
-        ws = wb.active
-
-        # Get header row
-        headers = [cell.value for cell in ws[1]]
-
-        # Find required columns
-        name_col = next((i for i, h in enumerate(headers) if h and str(h).lower() == 'name'), None)
-        color_col = next((i for i, h in enumerate(headers) if h and str(h).lower() == 'color'), None)
-        permissions_col = next((i for i, h in enumerate(headers) if h and str(h).lower() == 'permissions'), None)
-        hoist_col = next((i for i, h in enumerate(headers) if h and str(h).lower() == 'hoist'), None)
-        mentionable_col = next((i for i, h in enumerate(headers) if h and str(h).lower() == 'mentionable'), None)
-
-        if name_col is None:
-            return JsonResponse({'error': 'Missing required column: name'}, status=400)
-
-        roles_created = []
-        errors = []
-
-        # Count total roles first to check limits
-        total_rows = sum(1 for _ in ws.iter_rows(min_row=2, values_only=True))
-
-        # Check daily bulk limit
-        allowed, error_msg, usage_info = check_daily_bulk_limit(
-            guild_id, 'role_create', total_rows, guild_record
-        )
-
-        if not allowed:
-            return JsonResponse({
-                'error': error_msg,
-                'limit_exceeded': True,
-                'usage_info': usage_info
-            }, status=403)
-
-        # Read data rows (skip header)
-        for row_num, row in enumerate(ws.iter_rows(min_row=2, values_only=True), start=2):
-            if not row:
-                break
-
-            name = row[name_col] if name_col < len(row) else None
-            if not name:
-                errors.append({'row': row_num, 'error': 'Missing name'})
-                continue
-
-            # Parse color (hex to decimal)
-            color = 0
-            if color_col is not None and color_col < len(row) and row[color_col]:
-                color_str = str(row[color_col]).strip()
-                if color_str.startswith('#'):
-                    color_str = color_str[1:]
-                try:
-                    color = int(color_str, 16)
-                except ValueError:
-                    errors.append({'row': row_num, 'error': f'Invalid color: {row[color_col]}'})
-                    continue
-
-            # Parse permissions
-            permissions = '0'
-            if permissions_col is not None and permissions_col < len(row) and row[permissions_col]:
-                try:
-                    permissions = str(int(float(row[permissions_col])))
-                except (ValueError, TypeError):
-                    errors.append({'row': row_num, 'error': f'Invalid permissions: {row[permissions_col]}'})
-                    continue
-
-            # Parse boolean fields
-            hoist = False
-            if hoist_col is not None and hoist_col < len(row) and row[hoist_col]:
-                hoist_val = str(row[hoist_col]).strip().upper()
-                hoist = hoist_val in ['TRUE', 'YES', '1', 'Y']
-
-            mentionable = False
-            if mentionable_col is not None and mentionable_col < len(row) and row[mentionable_col]:
-                ment_val = str(row[mentionable_col]).strip().upper()
-                mentionable = ment_val in ['TRUE', 'YES', '1', 'Y']
-
-            # Create role via Discord API
-            role_data = {
-                'name': str(name),
-                'permissions': permissions,
-                'color': color,
-                'hoist': hoist,
-                'mentionable': mentionable,
-            }
-
-            resp = bot_session.post(f'/guilds/{guild_id_int}/roles', json=role_data)
-
-            if resp.status_code == 200:
-                role = resp.json()
-                roles_created.append(role['name'])
-            else:
-                error_data = resp.json() if resp.headers.get('content-type') == 'application/json' else {}
-                errors.append({'row': row_num, 'error': error_data.get('message', f'Discord API error: {resp.status_code}')})
-
-        # Record usage for daily tracking
-        if len(roles_created) > 0:
-            record_bulk_usage(guild_id, 'role_create', len(roles_created))
-
-        return JsonResponse({
-            'success': True,
-            'created_count': len(roles_created),
-            'roles_created': roles_created[:10],  # Show first 10
-            'errors': errors[:10] if errors else [],  # Show first 10 errors
-            'message': f'Created {len(roles_created)} roles successfully!'
-        })
-
-    except Exception as e:
-        logger.error(f"Error in bulk role create for guild {guild_id}: {e}", exc_info=True)
-        return JsonResponse({'error': 'Failed to create roles'}, status=500)
-
 
 @api_auth_required
 @ratelimit(key='user_or_ip', rate='60/m', method='GET', block=True)
@@ -7185,6 +7683,7 @@ def api_role_export_create_template(request, guild_id):
         return response
 
     except Exception as e:
+        logger.error('API error occurred', exc_info=True)
         return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
 
 
@@ -7422,6 +7921,7 @@ def api_audit_logs(request, guild_id):
             })
 
     except Exception as e:
+        logger.error('API error occurred', exc_info=True)
         return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
 
 
@@ -7486,6 +7986,7 @@ def api_audit_stats(request, guild_id):
             })
 
     except Exception as e:
+        logger.error('API error occurred', exc_info=True)
         return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
 
 
@@ -7786,6 +8287,7 @@ def api_welcome_config_update(request, guild_id):
             return JsonResponse({'success': True})
 
     except Exception as e:
+        logger.error('API error occurred', exc_info=True)
         return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
 
 
@@ -7844,6 +8346,7 @@ def api_welcome_config(request, guild_id):
             })
 
     except Exception as e:
+        logger.error('API error occurred', exc_info=True)
         return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
 
 
@@ -7879,6 +8382,7 @@ def api_welcome_test(request, guild_id):
         })
 
     except Exception as e:
+        logger.error('API error occurred', exc_info=True)
         return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
 
 
@@ -8069,6 +8573,7 @@ def api_levelup_config_update(request, guild_id):
             return JsonResponse({'success': True})
 
     except Exception as e:
+        logger.error('API error occurred', exc_info=True)
         return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
 
 
@@ -8509,6 +9014,7 @@ def api_settings_update(request, guild_id):
             return JsonResponse({'success': True})
 
     except Exception as e:
+        logger.error('API error occurred', exc_info=True)
         return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
 
 
@@ -8980,6 +9486,7 @@ def api_verification_config_update(request, guild_id):
             return JsonResponse({'success': True})
 
     except Exception as e:
+        logger.error('API error occurred', exc_info=True)
         return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
 
 
@@ -9241,6 +9748,7 @@ def api_warning_pardon(request, guild_id, warning_id):
             return JsonResponse({'success': True})
 
     except Exception as e:
+        logger.error('API error occurred', exc_info=True)
         return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
 
 
@@ -9613,6 +10121,7 @@ def api_warnings_list(request, guild_id):
             })
 
     except Exception as e:
+        logger.error('API error occurred', exc_info=True)
         return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
 
 
@@ -9839,6 +10348,7 @@ def api_template_delete(request, guild_id, template_type, template_id):
             return JsonResponse({'success': True})
 
     except Exception as e:
+        logger.error('API error occurred', exc_info=True)
         return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
 
 
@@ -9894,6 +10404,7 @@ def api_template_apply(request, guild_id, template_type, template_id):
             return JsonResponse({'success': True, 'action_id': action_id})
 
     except Exception as e:
+        logger.error('API error occurred', exc_info=True)
         return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
 
 
@@ -10397,13 +10908,15 @@ def guild_discovery(request, guild_id):
             return render(request, 'questlog/discovery.html', context)
 
     except Exception as e:
+        logger.error('API error occurred', exc_info=True)
         # Check if guild has discovery module access (for error case too)
         has_discovery_module = has_module_access(guild_id, 'discovery')
         has_any_module = has_any_module_access(guild_id)
 
         return render(request, 'questlog/discovery.html', {
             'guild': guild,
-            'error': str(e),
+            'error': 'An internal error occurred. Please try again later.',
+
             'admin_guilds': admin_guilds,
         'member_guilds': get_member_guilds(request),
             'is_admin': is_admin,
@@ -10599,11 +11112,11 @@ def guild_discovery_network(request, guild_id):
             return render(request, 'questlog/discovery_network.html', context)
 
     except Exception as e:
-        import traceback
-        traceback.print_exc()
+        logger.error('API error occurred', exc_info=True)
         return render(request, 'questlog/discovery_network.html', {
             'guild': guild,
-            'error': str(e),
+            'error': 'An internal error occurred. Please try again later.',
+
             'admin_guilds': admin_guilds,
             'member_guilds': get_member_guilds(request),
             'is_admin': is_admin,
@@ -10715,11 +11228,11 @@ def api_discovery_network_servers(request):
             })
 
     except Exception as e:
-        import traceback
-        traceback.print_exc()
+        logger.error('API error occurred', exc_info=True)
         return JsonResponse({
             'success': False,
-            'error': str(e)
+            'error': 'An internal error occurred. Please try again later.'
+
         }, status=500)
 
 
@@ -10876,6 +11389,10 @@ def api_discovery_network_lfg(request):
                     'player_role': player_role,
                     'member_count': lfg_group.member_count,
                     'max_group_size': lfg_group.max_group_size or game.max_group_size or 5,
+                    'is_raid': lfg_group.is_raid or False,
+                    'tanks_needed': lfg_group.tanks_needed,
+                    'healers_needed': lfg_group.healers_needed,
+                    'dps_needed': lfg_group.dps_needed,
                     'members': members_list,
                     'cover_url': game.cover_url if game else None,
                     'igdb_id': game.igdb_id if game else None,
@@ -10890,11 +11407,11 @@ def api_discovery_network_lfg(request):
             })
 
     except Exception as e:
-        import traceback
-        traceback.print_exc()
+        logger.error('API error occurred', exc_info=True)
         return JsonResponse({
             'success': False,
-            'error': str(e)
+            'error': 'An internal error occurred. Please try again later.'
+
         }, status=500)
 
 
@@ -11140,11 +11657,11 @@ def api_discovery_lfg_create(request):
             'error': 'Invalid JSON in request body'
         }, status=400)
     except Exception as e:
-        import traceback
-        traceback.print_exc()
+        logger.error('API error occurred', exc_info=True)
         return JsonResponse({
             'success': False,
-            'error': str(e)
+            'error': 'An internal error occurred. Please try again later.'
+
         }, status=500)
 
 
@@ -11257,11 +11774,11 @@ def api_discovery_lfg_join(request, post_id):
             'error': 'Invalid JSON in request body'
         }, status=400)
     except Exception as e:
-        import traceback
-        traceback.print_exc()
+        logger.error('API error occurred', exc_info=True)
         return JsonResponse({
             'success': False,
-            'error': str(e)
+            'error': 'An internal error occurred. Please try again later.'
+
         }, status=500)
 
 
@@ -11351,11 +11868,11 @@ def api_discovery_lfg_update(request, post_id):
             'error': 'Invalid JSON in request body'
         }, status=400)
     except Exception as e:
-        import traceback
-        traceback.print_exc()
+        logger.error('API error occurred', exc_info=True)
         return JsonResponse({
             'success': False,
-            'error': str(e)
+            'error': 'An internal error occurred. Please try again later.'
+
         }, status=500)
 
 
@@ -11427,11 +11944,11 @@ def api_discovery_lfg_update_class(request, post_id):
             'error': 'Invalid JSON in request body'
         }, status=400)
     except Exception as e:
-        import traceback
-        traceback.print_exc()
+        logger.error('API error occurred', exc_info=True)
         return JsonResponse({
             'success': False,
-            'error': str(e)
+            'error': 'An internal error occurred. Please try again later.'
+
         }, status=500)
 
 
@@ -11479,11 +11996,11 @@ def api_discovery_lfg_delete(request, post_id):
             })
 
     except Exception as e:
-        import traceback
-        traceback.print_exc()
+        logger.error('API error occurred', exc_info=True)
         return JsonResponse({
             'success': False,
-            'error': str(e)
+            'error': 'An internal error occurred. Please try again later.'
+
         }, status=500)
 
 
@@ -11536,11 +12053,11 @@ def api_discovery_network_games(request):
             })
 
     except Exception as e:
-        import traceback
-        traceback.print_exc()
+        logger.error('API error occurred', exc_info=True)
         return JsonResponse({
             'success': False,
-            'error': str(e)
+            'error': 'An internal error occurred. Please try again later.'
+
         }, status=500)
 
 
@@ -11641,11 +12158,11 @@ def api_discovery_game_templates(request):
             })
 
     except Exception as e:
-        import traceback
-        traceback.print_exc()
+        logger.error('API error occurred', exc_info=True)
         return JsonResponse({
             'success': False,
-            'error': str(e)
+            'error': 'An internal error occurred. Please try again later.'
+
         }, status=500)
 
 
@@ -11708,11 +12225,11 @@ def api_discovery_network_lfg_games(request):
             })
 
     except Exception as e:
-        import traceback
-        traceback.print_exc()
+        logger.error('API error occurred', exc_info=True)
         return JsonResponse({
             'success': False,
-            'error': str(e)
+            'error': 'An internal error occurred. Please try again later.'
+
         }, status=500)
 
 
@@ -11781,11 +12298,11 @@ def api_discovery_network_lfg_activities(request):
             })
 
     except Exception as e:
-        import traceback
-        traceback.print_exc()
+        logger.error('API error occurred', exc_info=True)
         return JsonResponse({
             'success': False,
-            'error': str(e)
+            'error': 'An internal error occurred. Please try again later.'
+
         }, status=500)
 
 
@@ -11854,20 +12371,23 @@ def api_discovery_game_config(request):
                 })
 
     except Exception as e:
-        import traceback
-        traceback.print_exc()
+        logger.error('API error occurred', exc_info=True)
         return JsonResponse({
             'success': False,
-            'error': str(e)
+            'error': 'An internal error occurred. Please try again later.'
+
         }, status=500)
 
 
-@csrf_exempt
-@discord_required
+@api_owner_required  # SECURITY: Owner-only access (not admins)
 @require_http_methods(["POST"])
 @ratelimit(key='user_or_ip', rate='30/m', method='POST', block=True)
-def api_discovery_network_apply(request):
-    """Submit application to join Discovery Network."""
+def api_discovery_network_apply(request, guild_id):
+    """Submit application to join Discovery Network.
+
+    Security: OWNER-ONLY - Only the server owner can apply to Discovery Network.
+    This prevents non-owner admins from applying for guilds they don't own.
+    """
     try:
         import json as json_lib
         from .db import get_db_session
@@ -11876,20 +12396,9 @@ def api_discovery_network_apply(request):
         data = json_lib.loads(request.body)
         user = request.session.get('discord_user', {})
         user_id = user.get('id')
-        guild_id = data.get('guild_id')  # Get guild_id from form data
+        # guild_id now comes from URL parameter, validated by @api_auth_required
 
-        if not user_id:
-            return JsonResponse({
-                'success': False,
-                'error': 'Not authenticated'
-            }, status=401)
-
-        if not guild_id:
-            return JsonResponse({
-                'success': False,
-                'error': 'Guild ID is required'
-            }, status=400)
-
+        # Note: user_id and guild_id are guaranteed by @api_auth_required decorator
         with get_db_session() as db:
             # Check if user (owner) is banned from adding ANY servers
             ban = db.query(DiscoveryNetworkBan).filter_by(user_id=int(user_id)).first()
@@ -11949,21 +12458,23 @@ def api_discovery_network_apply(request):
             })
 
     except Exception as e:
-        import traceback
-        traceback.print_exc()
+        logger.error('API error occurred', exc_info=True)
         return JsonResponse({
             'success': False,
-            'error': str(e)
+            'error': 'An internal error occurred. Please try again later.'
+
         }, status=500)
 
 
-@csrf_exempt
-@discord_required
+@api_auth_required  # SEC-005 fix: Validates guild admin access + enables CSRF
 @require_http_methods(["GET", "POST"])
 @ratelimit(key='user_or_ip', rate='60/m', method='GET', block=True)
 @ratelimit(key='user_or_ip', rate='30/m', method='POST', block=True)
-def api_discovery_network_preferences(request):
-    """Get or update Discovery Network preferences for the current user."""
+def api_discovery_network_preferences(request, guild_id):
+    """Get or update Discovery Network preferences for the current user.
+
+    Security: SEC-005 fix - guild_id now comes from URL parameter and is validated by @api_auth_required.
+    """
     try:
         import json as json_lib
         from .db import get_db_session
@@ -11985,19 +12496,18 @@ def api_discovery_network_preferences(request):
 
                 # Also get allow_join and invite_code from the server's application (server setting, not user pref)
                 from .models import DiscoveryNetworkApplication
-                guild_id = request.GET.get('guild_id') or request.session.get('guild_id')
+                # guild_id comes from URL parameter, validated by @api_auth_required
                 allow_join = False
                 invite_code = None
 
-                if guild_id:
-                    application = db.query(DiscoveryNetworkApplication).filter_by(
-                        guild_id=int(guild_id),
-                        status='approved'
-                    ).first()
+                application = db.query(DiscoveryNetworkApplication).filter_by(
+                    guild_id=int(guild_id),
+                    status='approved'
+                ).first()
 
-                    if application:
-                        allow_join = application.allow_join
-                        invite_code = application.invite_code
+                if application:
+                    allow_join = application.allow_join
+                    invite_code = application.invite_code
 
                 if not prefs:
                     # Return default preferences
@@ -12139,36 +12649,24 @@ def api_discovery_network_preferences(request):
 
                 # ALSO UPDATE ALLOW_JOIN AND INVITE_CODE IN THE APPLICATION TABLE (SERVER SETTINGS)
                 # These are server settings, not user preferences, so they need to update the application
-                # ADMIN ONLY - only server admins can modify these settings
+                # guild_id comes from URL parameter and user is already validated as admin by @api_auth_required
                 if 'allow_join' in data or 'invite_code' in data:
-                    # Check if user is admin
-                    admin_guilds = request.session.get('discord_admin_guilds', [])
-                    guild_id = request.GET.get('guild_id') or request.session.get('guild_id')
-                    is_admin = any(str(g['id']) == str(guild_id) for g in admin_guilds) if guild_id else False
+                    from .models import DiscoveryNetworkApplication
 
-                    if not is_admin:
-                        # Non-admins cannot modify server settings (allow_join, invite_code)
-                        # Continue saving other preferences but ignore these fields
-                        pass
-                    else:
-                        # Admin can update server settings
-                        from .models import DiscoveryNetworkApplication
+                    # Find the server's application
+                    application = db.query(DiscoveryNetworkApplication).filter_by(
+                        guild_id=int(guild_id),
+                        status='approved'
+                    ).first()
 
-                        if guild_id:
-                            # Find the server's application
-                            application = db.query(DiscoveryNetworkApplication).filter_by(
-                                guild_id=int(guild_id),
-                                status='approved'
-                            ).first()
-
-                            if application:
-                                if 'allow_join' in data:
-                                    application.allow_join = bool(data['allow_join'])
-                                if 'invite_code' in data:
-                                    # Strip whitespace and set to None if empty
-                                    invite_code_value = str(data['invite_code']).strip() if data['invite_code'] else None
-                                    application.invite_code = invite_code_value if invite_code_value else None
-                                application.updated_at = int(time.time())
+                    if application:
+                        if 'allow_join' in data:
+                            application.allow_join = bool(data['allow_join'])
+                        if 'invite_code' in data:
+                            # Strip whitespace and set to None if empty
+                            invite_code_value = str(data['invite_code']).strip() if data['invite_code'] else None
+                            application.invite_code = invite_code_value if invite_code_value else None
+                        application.updated_at = int(time.time())
 
                 db.commit()
 
@@ -12178,68 +12676,33 @@ def api_discovery_network_preferences(request):
                 })
 
     except Exception as e:
-        import traceback
-        traceback.print_exc()
+        logger.error('API error occurred', exc_info=True)
         return JsonResponse({
             'success': False,
-            'error': str(e)
+            'error': 'An internal error occurred. Please try again later.'
+
         }, status=500)
 
 
-@csrf_exempt
-@discord_required
+@api_owner_required  # SECURITY: Owner-only access (not admins)
 @require_http_methods(["POST"])
 @ratelimit(key='user', rate='10/h', method='POST', block=True)
-def api_discovery_network_leave(request):
-    """Leave the Discovery Network - keeps approval status so they can rejoin without reapplying. SERVER OWNER ONLY."""
+def api_discovery_network_leave(request, guild_id):
+    """Leave the Discovery Network - keeps approval status so they can rejoin without reapplying.
+
+    Security: OWNER-ONLY - Only the server owner can leave the Discovery Network.
+    This prevents non-owner admins from leaving the network for guilds they don't own.
+    """
     try:
         from .db import get_db_session
         from .models import DiscoveryNetworkApplication
 
         user = request.session.get('discord_user', {})
         user_id = user.get('id')
-        guild_id = request.GET.get('guild_id')  # Get from query params or session
-
-        if not user_id:
-            return JsonResponse({
-                'success': False,
-                'error': 'Not authenticated'
-            }, status=401)
-
-        if not guild_id:
-            return JsonResponse({
-                'success': False,
-                'error': 'Guild ID required'
-            }, status=400)
-
-        # SERVER OWNER CHECK - Use decorator-based security
-        # The @server_owner_required decorator will be added after this function
-        # For now, we need to check manually inline
-        admin_guilds = request.session.get('discord_admin_guilds', [])
-        guild = next((g for g in admin_guilds if str(g['id']) == str(guild_id)), None)
-
-        if not guild:
-            return JsonResponse({
-                'success': False,
-                'error': 'No access to this server'
-            }, status=403)
-
-        # Check if user is the actual owner (not just admin/custom role)
-        is_owner = guild.get('owner', False)
-        if not is_owner:
-            logger.warning(
-                f"[SECURITY] Server owner check failed: User {user_id} is not owner of guild {guild_id} | "
-                f"View: api_discovery_network_leave | "
-                f"Owner required: True | "
-                f"IP: {request.META.get('REMOTE_ADDR')}"
-            )
-            return JsonResponse({
-                'success': False,
-                'error': 'Server owner access required - This action can only be performed by the Discord server owner'
-            }, status=403)
+        # guild_id comes from URL parameter, validated by @api_auth_required
 
         logger.info(
-            f"[SECURITY] Server owner {user_id} leaving Discovery Network for guild {guild_id} | "
+            f"[SECURITY] Admin {user_id} leaving Discovery Network for guild {guild_id} | "
             f"IP: {request.META.get('REMOTE_ADDR')}"
         )
 
@@ -12271,39 +12734,30 @@ def api_discovery_network_leave(request):
             })
 
     except Exception as e:
-        import traceback
-        traceback.print_exc()
+        logger.error('API error occurred', exc_info=True)
         return JsonResponse({
             'success': False,
-            'error': str(e)
+            'error': 'An internal error occurred. Please try again later.'
+
         }, status=500)
 
 
-@csrf_exempt
-@discord_required
+@api_owner_required  # SECURITY: Owner-only access (not admins)
 @require_http_methods(["POST"])
 @ratelimit(key='user', rate='10/h', method='POST', block=True)
-def api_discovery_network_rejoin(request):
-    """Rejoin the Discovery Network - restore approved status for servers who left within 90 days."""
+def api_discovery_network_rejoin(request, guild_id):
+    """Rejoin the Discovery Network - restore approved status for servers who left within 90 days.
+
+    Security: OWNER-ONLY - Only the server owner can rejoin the Discovery Network.
+    This prevents non-owner admins from rejoining the network for guilds they don't own.
+    """
     try:
         from .db import get_db_session
         from .models import DiscoveryNetworkApplication
 
         user = request.session.get('discord_user', {})
         user_id = user.get('id')
-        guild_id = request.GET.get('guild_id')
-
-        if not user_id:
-            return JsonResponse({
-                'success': False,
-                'error': 'Not authenticated'
-            }, status=401)
-
-        if not guild_id:
-            return JsonResponse({
-                'success': False,
-                'error': 'Guild ID required'
-            }, status=400)
+        # guild_id comes from URL parameter, validated by @api_auth_required
 
         with get_db_session() as db:
             # Find the server's application with 'left' status
@@ -12343,11 +12797,11 @@ def api_discovery_network_rejoin(request):
             })
 
     except Exception as e:
-        import traceback
-        traceback.print_exc()
+        logger.error('API error occurred', exc_info=True)
         return JsonResponse({
             'success': False,
-            'error': str(e)
+            'error': 'An internal error occurred. Please try again later.'
+
         }, status=500)
 
 
@@ -12718,13 +13172,11 @@ def api_discovery_games_list(request):
             })
 
     except Exception as e:
-        import traceback
         import logging
         logger = logging.getLogger(__name__)
 
         # Log the full error for debugging
         logger.error(f"Error in api_discovery_games_list: {str(e)}")
-        traceback.print_exc()
 
         # Return user-friendly error message
         return JsonResponse({
@@ -12786,11 +13238,11 @@ def api_discovery_game_share_limit(request):
                 })
 
     except Exception as e:
-        import traceback
-        traceback.print_exc()
+        logger.error('API error occurred', exc_info=True)
         return JsonResponse({
             'success': False,
-            'error': str(e)
+            'error': 'An internal error occurred. Please try again later.'
+
         }, status=500)
 
 
@@ -12842,8 +13294,6 @@ def api_igdb_search(request):
         })
 
     except Exception as e:
-        import traceback
-        traceback.print_exc()
         return JsonResponse({
             'success': False,
             'error': 'Failed to search IGDB. Please try again.'
@@ -13025,8 +13475,6 @@ def api_discovery_share_game(request):
             })
 
     except Exception as e:
-        import traceback
-        traceback.print_exc()
         # Never expose raw database errors to users
         return JsonResponse({
             'success': False,
@@ -13107,8 +13555,6 @@ def api_discovery_user_main_server(request):
             })
 
     except Exception as e:
-        import traceback
-        traceback.print_exc()
         return JsonResponse({
             'success': False,
             'error': 'Failed to get main server settings'
@@ -13195,8 +13641,6 @@ def api_discovery_user_set_main_server(request):
             })
 
     except Exception as e:
-        import traceback
-        traceback.print_exc()
         return JsonResponse({
             'success': False,
             'error': 'Failed to set main server'
@@ -13221,21 +13665,22 @@ def api_discovery_creators_list(request):
             'message': 'Creator discovery coming soon! Twitch and YouTube integration in progress.'
         })
     except Exception as e:
-        import traceback
-        traceback.print_exc()
+        logger.error('API error occurred', exc_info=True)
         return JsonResponse({
             'success': False,
-            'error': str(e)
+            'error': 'An internal error occurred. Please try again later.'
+
         }, status=500)
 
 
-@csrf_exempt
+@api_auth_required
 @require_http_methods(["POST"])
 @ratelimit(key='user_or_ip', rate='30/m', method='POST', block=True)
 def api_discovery_feature_creator(request):
     """
     POST /api/discovery/feature-creator - Feature a creator to Discovery Network.
     TODO: This is a stub - Twitch/YouTube integration coming soon.
+    SECURITY: Requires authentication (admin-only via @api_auth_required).
     """
     try:
         return JsonResponse({
@@ -13243,11 +13688,11 @@ def api_discovery_feature_creator(request):
             'error': 'Creator featuring coming soon! This feature requires Twitch/YouTube integration.'
         }, status=501)  # 501 Not Implemented
     except Exception as e:
-        import traceback
-        traceback.print_exc()
+        logger.error('API error occurred', exc_info=True)
         return JsonResponse({
             'success': False,
-            'error': str(e)
+            'error': 'An internal error occurred. Please try again later.'
+
         }, status=500)
 
 
@@ -13343,7 +13788,7 @@ def api_discovery_network_creators(request):
                         'role_flair': role_flair
                     }
                 except Exception as e:
-                    print(f"Error getting extras for creator {creator.id}: {e}")
+                    logger.error(f"Error getting extras for creator {creator.id}", exc_info=True)
                     return {
                         'home_server': None,
                         'username': f"user_{creator.discord_id}",
@@ -13438,11 +13883,11 @@ def api_discovery_network_creators(request):
             })
 
     except Exception as e:
-        import traceback
-        traceback.print_exc()
+        logger.error('API error occurred', exc_info=True)
         return JsonResponse({
             'success': False,
-            'error': str(e)
+            'error': 'An internal error occurred. Please try again later.'
+
         }, status=500)
 
 
@@ -13591,11 +14036,11 @@ def api_discovery_game_reviews(request, game_id):
                     })
 
     except Exception as e:
-        import traceback
-        traceback.print_exc()
+        logger.error('API error occurred', exc_info=True)
         return JsonResponse({
             'success': False,
-            'error': str(e)
+            'error': 'An internal error occurred. Please try again later.'
+
         }, status=500)
 
 
@@ -13711,11 +14156,11 @@ def api_discovery_game_discussions(request, game_id):
                 })
 
     except Exception as e:
-        import traceback
-        traceback.print_exc()
+        logger.error('API error occurred', exc_info=True)
         return JsonResponse({
             'success': False,
-            'error': str(e)
+            'error': 'An internal error occurred. Please try again later.'
+
         }, status=500)
 
 
@@ -13759,11 +14204,11 @@ def api_discovery_discussion_upvote(request, discussion_id):
             })
 
     except Exception as e:
-        import traceback
-        traceback.print_exc()
+        logger.error('API error occurred', exc_info=True)
         return JsonResponse({
             'success': False,
-            'error': str(e)
+            'error': 'An internal error occurred. Please try again later.'
+
         }, status=500)
 
 
@@ -13845,11 +14290,11 @@ def api_discovery_network_admin_applications(request):
             })
 
     except Exception as e:
-        import traceback
-        traceback.print_exc()
+        logger.error('API error occurred', exc_info=True)
         return JsonResponse({
             'success': False,
-            'error': str(e)
+            'error': 'An internal error occurred. Please try again later.'
+
         }, status=500)
 
 
@@ -13886,11 +14331,11 @@ def api_discovery_network_admin_approve(request, application_id):
             })
 
     except Exception as e:
-        import traceback
-        traceback.print_exc()
+        logger.error('API error occurred', exc_info=True)
         return JsonResponse({
             'success': False,
-            'error': str(e)
+            'error': 'An internal error occurred. Please try again later.'
+
         }, status=500)
 
 
@@ -13932,11 +14377,11 @@ def api_discovery_network_admin_deny(request, application_id):
             })
 
     except Exception as e:
-        import traceback
-        traceback.print_exc()
+        logger.error('API error occurred', exc_info=True)
         return JsonResponse({
             'success': False,
-            'error': str(e)
+            'error': 'An internal error occurred. Please try again later.'
+
         }, status=500)
 
 
@@ -14000,11 +14445,11 @@ def api_discovery_network_admin_ban(request, application_id):
             })
 
     except Exception as e:
-        import traceback
-        traceback.print_exc()
+        logger.error('API error occurred', exc_info=True)
         return JsonResponse({
             'success': False,
-            'error': str(e)
+            'error': 'An internal error occurred. Please try again later.'
+
         }, status=500)
 
 
@@ -14182,7 +14627,8 @@ def guild_found_games(request, guild_id):
         return render(request, 'questlog/found_games.html', {
             'guild': guild,
             'guild_record': guild_record,  # Add for sidebar navigation
-            'error': str(e),
+            'error': 'An internal error occurred. Please try again later.',
+
             'has_discovery_module': has_discovery_module,
             'has_any_module': has_any_module,
             'admin_guilds': admin_guilds,
@@ -14360,6 +14806,7 @@ def api_discovery_pool(request, guild_id):
             return JsonResponse({'success': True, 'pool': pool_data, 'count': len(pool_data)})
 
     except Exception as e:
+        logger.error('API error occurred', exc_info=True)
         return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
 
 
@@ -14385,6 +14832,7 @@ def api_discovery_pool_remove(request, guild_id, entry_id):
             return JsonResponse({'success': True})
 
     except Exception as e:
+        logger.error('API error occurred', exc_info=True)
         return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
 
 
@@ -14433,6 +14881,7 @@ def api_discovery_force_feature(request, guild_id):
             return JsonResponse({'success': True, 'action_id': action_id, 'pool_count': entry_count})
 
     except Exception as e:
+        logger.error('API error occurred', exc_info=True)
         return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
 
 
@@ -14469,6 +14918,7 @@ def api_discovery_clear_featured(request, guild_id):
             })
 
     except Exception as e:
+        logger.error('API error occurred', exc_info=True)
         return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
 
 
@@ -14514,6 +14964,7 @@ def api_discovery_test_channel_embed(request, guild_id):
             })
 
     except Exception as e:
+        logger.error('API error occurred', exc_info=True)
         return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
 
 
@@ -14559,6 +15010,7 @@ def api_discovery_test_forum_embed(request, guild_id):
             })
 
     except Exception as e:
+        logger.error('API error occurred', exc_info=True)
         return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
 
 
@@ -14646,6 +15098,7 @@ def api_game_discovery_config_update(request, guild_id):
             return JsonResponse({'success': True})
 
     except Exception as e:
+        logger.error('API error occurred', exc_info=True)
         return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
 
 
@@ -14697,6 +15150,7 @@ def api_game_discovery_check(request, guild_id):
             })
 
     except Exception as e:
+        logger.error('API error occurred', exc_info=True)
         return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
 
 
@@ -14721,6 +15175,7 @@ def api_purge_announced_games(request, guild_id):
             })
 
     except Exception as e:
+        logger.error('API error occurred', exc_info=True)
         return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
 
 
@@ -14759,6 +15214,7 @@ def api_game_search_configs_list(request, guild_id):
             return JsonResponse({'success': True, 'searches': result})
 
     except Exception as e:
+        logger.error('API error occurred', exc_info=True)
         return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
 
 
@@ -14835,6 +15291,7 @@ def api_game_search_config_create(request, guild_id):
             })
 
     except Exception as e:
+        logger.error('API error occurred', exc_info=True)
         return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
 
 
@@ -14892,6 +15349,7 @@ def api_game_search_config_update(request, guild_id, search_id):
             })
 
     except Exception as e:
+        logger.error('API error occurred', exc_info=True)
         return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
 
 
@@ -14923,6 +15381,7 @@ def api_game_search_config_delete(request, guild_id, search_id):
             })
 
     except Exception as e:
+        logger.error('API error occurred', exc_info=True)
         return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
 
 
@@ -14963,6 +15422,7 @@ def api_action_status(request, guild_id, action_id):
             })
 
     except Exception as e:
+        logger.error('API error occurred', exc_info=True)
         return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
 
 
@@ -15702,6 +16162,7 @@ def api_lfg_add(request, guild_id):
             return JsonResponse({'success': True, 'game_id': game.id})
 
     except Exception as e:
+        logger.error('API error occurred', exc_info=True)
         return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
 
 
@@ -15727,6 +16188,7 @@ def api_lfg_remove(request, guild_id, game_id):
             return JsonResponse({'success': True})
 
     except Exception as e:
+        logger.error('API error occurred', exc_info=True)
         return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
 
 
@@ -15806,6 +16268,7 @@ def api_lfg_game_update(request, guild_id, game_id):
             return JsonResponse({'success': True})
 
     except Exception as e:
+        logger.error('API error occurred', exc_info=True)
         return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
 
 
@@ -15888,6 +16351,7 @@ def api_lfg_config(request, guild_id):
             return JsonResponse({'success': True})
 
     except Exception as e:
+        logger.error('API error occurred', exc_info=True)
         return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
 
 
@@ -15952,6 +16416,7 @@ def api_lfg_stats(request, guild_id):
             return JsonResponse({'success': True, 'stats': enriched_members})
 
     except Exception as e:
+        logger.error('API error occurred', exc_info=True)
         return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
 
 
@@ -16001,6 +16466,7 @@ def api_lfg_blacklist(request, guild_id):
             return JsonResponse({'members': enriched_members})
 
     except Exception as e:
+        logger.error('API error occurred', exc_info=True)
         return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
 
 
@@ -16049,6 +16515,7 @@ def api_lfg_blacklist_update(request, guild_id, user_id):
             return JsonResponse({'success': True})
 
     except Exception as e:
+        logger.error('API error occurred', exc_info=True)
         return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
 
 
@@ -16086,6 +16553,7 @@ def api_lfg_groups(request, guild_id):
             })
 
     except Exception as e:
+        logger.error('API error occurred', exc_info=True)
         return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
 
 
@@ -16922,6 +17390,10 @@ def api_lfg_browser_groups(request, guild_id):
                     'scheduled_time': group.scheduled_time,
                     'description': group.description,
                     'max_group_size': group.max_group_size or (game.max_group_size if game else 4),
+                    'is_raid': group.is_raid or False,
+                    'tanks_needed': group.tanks_needed,
+                    'healers_needed': group.healers_needed,
+                    'dps_needed': group.dps_needed,
                     'is_active': group.is_active,
                     'is_full': group.is_full,
                     'member_count': group.member_count,
@@ -16974,6 +17446,12 @@ def api_lfg_browser_create(request, guild_id):
         creator_options = data.get('creator_options', {})  # Creator's game-specific selections
         create_discord_thread = data.get('create_discord_thread', False)  # Whether to create Discord thread
 
+        # Raid composition fields (unified LFG/LFR system)
+        is_raid = data.get('is_raid', False)
+        tanks_needed = data.get('tanks_needed')
+        healers_needed = data.get('healers_needed')
+        dps_needed = data.get('dps_needed')
+
         if not game_id:
             return JsonResponse({'error': 'Game ID required'}, status=400)
 
@@ -17015,6 +17493,10 @@ def api_lfg_browser_create(request, guild_id):
                 event_duration=event_duration,
                 description=description,
                 max_group_size=max_group_size or game.max_group_size,
+                is_raid=is_raid,
+                tanks_needed=tanks_needed,
+                healers_needed=healers_needed,
+                dps_needed=dps_needed,
                 is_active=True,
                 is_full=False,
                 member_count=1,
@@ -18453,20 +18935,15 @@ def bot_install_callback(request):
         return redirect('home')
 
     try:
-        from .db import get_db_session
-        from .models import Guild as DBGuild
-
-        # Check if guild exists in database
-        with get_db_session() as db:
-            guild_db = db.query(DBGuild).filter_by(guild_id=int(guild_id)).first()
-
-            context = {
-                'guild_id': guild_id,
-                'guild_name': guild_db.guild_name if guild_db else 'Your Server',
-                'bot_name': 'Wardenbot',
-                'permissions': permissions,
-                'is_premium': guild_db.is_premium() if guild_db else False,
-            }
+        # SECURITY FIX: Don't leak guild existence or premium status
+        # Display generic success message without querying database
+        context = {
+            'guild_id': guild_id,
+            'guild_name': 'Your Server',  # Generic - don't leak actual name
+            'bot_name': 'Wardenbot',
+            'permissions': permissions,
+            'is_premium': False,  # Generic - don't leak premium status
+        }
 
         messages.success(request, f'Wardenbot has been successfully added to your server!')
         return render(request, 'questlog/bot_install_success.html', context)
@@ -20440,8 +20917,6 @@ def twitch_oauth_callback(request):
 
     except Exception as e:
         logger.error(f"Error in Twitch OAuth callback: {e}")
-        import traceback
-        traceback.print_exc()
         return HttpResponse(f"""
             <html><body>
                 <h1>Error</h1>
@@ -20525,20 +21000,24 @@ def streaming_notifications_config(request, guild_id):
     """
     Get or update streaming notification configuration for a guild.
 
-    GET: Returns current configuration
+    GET: Returns current configuration (requires guild membership)
     POST: Updates configuration (admin only)
+
+    Security: IDOR fix - GET requests now require guild membership verification.
+    This prevents users from reading configuration for guilds they don't belong to.
     """
     from app.db import get_db_session
     from app.models import StreamingNotificationsConfig
 
     discord_user = request.session.get('discord_user', {})
     admin_guilds = request.session.get('discord_admin_guilds', [])
+    user_guilds = request.session.get('discord_guilds', [])
 
-    # Check admin for POST
-    if request.method == 'POST':
-        guild_check = next((g for g in admin_guilds if g['id'] == guild_id), None)
-        if not guild_check:
-            return JsonResponse({'success': False, 'error': 'Admin access required'}, status=403)
+    # SECURITY FIX: Require admin access for both GET and POST
+    # Streaming config contains sensitive channel/role IDs that should only be visible to admins
+    guild_check = next((g for g in admin_guilds if g['id'] == guild_id), None)
+    if not guild_check:
+        return JsonResponse({'success': False, 'error': 'Admin access required'}, status=403)
 
     try:
         with get_db_session() as db:
@@ -20982,3 +21461,521 @@ def test_streaming_notification(request, guild_id):
             'success': False,
             'error': 'Failed to send test notification'
         }, status=500)
+
+
+# ============================================================================
+# RAID MANAGEMENT API ENDPOINTS
+# ============================================================================
+
+@require_http_methods(["POST"])
+@api_auth_required
+@ratelimit(key='user_or_ip', rate='30/m', method='POST', block=True)
+def api_raid_create(request, guild_id):
+    """
+    POST /api/guild/<guild_id>/raids/create/
+    Create a new raid event.
+
+    FREE: up to 3 active raids
+    LFG Module: unlimited active raids
+    Complete Edition: unlimited active raids
+    """
+    from .db import get_db_session
+    from .models import RaidScheduleEvent, Guild
+    from .module_utils import has_module_access
+    import json as json_lib
+
+    try:
+        # Parse request body
+        try:
+            data = json_lib.loads(request.body)
+        except json_lib.JSONDecodeError:
+            return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+        # Validate required fields
+        required_fields = ['title', 'game', 'scheduled_at']
+        for field in required_fields:
+            if field not in data:
+                return JsonResponse({'error': f'Missing required field: {field}'}, status=400)
+
+        title = (data.get('title') or '').strip()
+        description = (data.get('description') or '').strip()
+        game = (data.get('game') or '').strip()
+        raid_type = (data.get('raid_type') or '').strip()
+        scheduled_at = data.get('scheduled_at')
+        duration_minutes = data.get('duration_minutes', 120)
+        tanks_needed = data.get('tanks_needed', 2)
+        healers_needed = data.get('healers_needed', 2)
+        dps_needed = data.get('dps_needed', 6)
+
+        # Validate input lengths
+        if len(title) < 3 or len(title) > 150:
+            return JsonResponse({'error': 'Title must be between 3 and 150 characters'}, status=400)
+
+        if description and len(description) > 2000:
+            return JsonResponse({'error': 'Description must be less than 2000 characters'}, status=400)
+
+        if len(game) < 2 or len(game) > 100:
+            return JsonResponse({'error': 'Game must be between 2 and 100 characters'}, status=400)
+
+        if raid_type and len(raid_type) > 100:
+            return JsonResponse({'error': 'Raid type must be less than 100 characters'}, status=400)
+
+        # Validate numeric fields
+        try:
+            scheduled_at = int(scheduled_at)
+            duration_minutes = int(duration_minutes)
+            tanks_needed = int(tanks_needed)
+            healers_needed = int(healers_needed)
+            dps_needed = int(dps_needed)
+        except (ValueError, TypeError):
+            return JsonResponse({'error': 'Invalid numeric field'}, status=400)
+
+        # Validate timestamp is in the future
+        if scheduled_at < int(time.time()):
+            return JsonResponse({'error': 'Cannot schedule raid in the past'}, status=400)
+
+        # Validate composition numbers
+        if tanks_needed < 0 or tanks_needed > 50:
+            return JsonResponse({'error': 'Tanks needed must be between 0 and 50'}, status=400)
+
+        if healers_needed < 0 or healers_needed > 50:
+            return JsonResponse({'error': 'Healers needed must be between 0 and 50'}, status=400)
+
+        if dps_needed < 0 or dps_needed > 200:
+            return JsonResponse({'error': 'DPS needed must be between 0 and 200'}, status=400)
+
+        if duration_minutes < 15 or duration_minutes > 1440:
+            return JsonResponse({'error': 'Duration must be between 15 and 1440 minutes'}, status=400)
+
+        # Check active raid limit based on tier
+        with get_db_session() as db:
+            guild = db.query(Guild).filter_by(guild_id=guild_id).first()
+            if not guild:
+                return JsonResponse({'error': 'Guild not found'}, status=404)
+
+            active_raids = db.query(RaidScheduleEvent).filter_by(
+                guild_id=guild_id,
+                status='scheduled'
+            ).count()
+
+            # FREE: 3 raids, LFG Module: unlimited, Complete Edition: unlimited
+            has_lfg = has_module_access(guild_id, 'lfg')
+            has_complete = guild.subscription_tier == 'complete'
+
+            if has_complete or has_lfg:
+                max_raids = None  # Unlimited
+            else:
+                max_raids = 3  # FREE tier
+
+            if max_raids and active_raids >= max_raids:
+                return JsonResponse({
+                    'error': f'Maximum {max_raids} active raids reached. Upgrade to LFG Module for unlimited raids.',
+                    'upgrade_required': True,
+                    'current_tier': 'free',
+                    'required_tier': 'lfg'
+                }, status=403)
+
+            # Get creator info from session
+            discord_user = request.session.get('discord_user', {})
+            creator_id = int(discord_user.get('id', 0))
+            creator_name = discord_user.get('username', 'Unknown')
+
+            if not creator_id:
+                return JsonResponse({'error': 'Not authenticated'}, status=401)
+
+            # Create the raid event
+            current_time = int(time.time())
+            raid = RaidScheduleEvent(
+                guild_id=guild_id,
+                title=title,
+                description=description or None,
+                game=game,
+                raid_type=raid_type or None,
+                scheduled_at=scheduled_at,
+                duration_minutes=duration_minutes,
+                tanks_needed=tanks_needed,
+                healers_needed=healers_needed,
+                dps_needed=dps_needed,
+                creator_id=creator_id,
+                creator_name=creator_name,
+                status='scheduled',
+                created_at=current_time,
+                updated_at=current_time
+            )
+
+            db.add(raid)
+            db.commit()
+            db.refresh(raid)
+
+            logger.info(f"[RAID] Created raid {raid.id} for guild {guild_id} by user {creator_id}")
+
+            return JsonResponse({
+                'success': True,
+                'raid': {
+                    'id': raid.id,
+                    'title': raid.title,
+                    'description': raid.description,
+                    'game': raid.game,
+                    'raid_type': raid.raid_type,
+                    'scheduled_at': raid.scheduled_at,
+                    'duration_minutes': raid.duration_minutes,
+                    'tanks_needed': raid.tanks_needed,
+                    'healers_needed': raid.healers_needed,
+                    'dps_needed': raid.dps_needed,
+                    'status': raid.status,
+                    'created_at': raid.created_at
+                }
+            }, status=201)
+
+    except Exception as e:
+        logger.error('API error occurred', exc_info=True)
+        return JsonResponse({
+            'error': 'An internal error occurred. Please try again later.'
+        }, status=500)
+
+
+@require_http_methods(["GET"])
+@api_member_auth_required
+@ratelimit(key='user_or_ip', rate='60/m', method='GET', block=True)
+def api_raid_list(request, guild_id):
+    """
+    GET /api/guild/<guild_id>/raids/
+    List all raids for a guild with optional filters.
+
+    Query params:
+    - status: filter by status (scheduled, completed, cancelled)
+    - game: filter by game
+    - limit: max results (default 50, max 100)
+    - offset: pagination offset
+    """
+    from .db import get_db_session
+    from .models import RaidScheduleEvent, RaidSignup
+
+    try:
+        # Parse query parameters
+        status_filter = request.GET.get('status', 'scheduled')
+        game_filter = request.GET.get('game')
+        limit = min(int(request.GET.get('limit', 50)), 100)
+        offset = int(request.GET.get('offset', 0))
+
+        with get_db_session() as db:
+            # Build query
+            query = db.query(RaidScheduleEvent).filter_by(guild_id=int(guild_id))
+
+            if status_filter:
+                query = query.filter_by(status=status_filter)
+
+            if game_filter:
+                query = query.filter_by(game=game_filter)
+
+            # Order by scheduled time
+            query = query.order_by(RaidScheduleEvent.scheduled_at.asc())
+
+            # Apply pagination
+            total_count = query.count()
+            raids = query.limit(limit).offset(offset).all()
+
+            # Build response with signup counts
+            raid_list = []
+            for raid in raids:
+                # Count signups by role
+                signups = db.query(RaidSignup).filter_by(
+                    raid_id=raid.id,
+                    status='confirmed'
+                ).all()
+
+                tanks_count = sum(1 for s in signups if s.role == 'tank')
+                healers_count = sum(1 for s in signups if s.role == 'healer')
+                dps_count = sum(1 for s in signups if s.role == 'dps')
+
+                raid_list.append({
+                    'id': raid.id,
+                    'title': raid.title,
+                    'description': raid.description,
+                    'game': raid.game,
+                    'raid_type': raid.raid_type,
+                    'scheduled_at': raid.scheduled_at,
+                    'duration_minutes': raid.duration_minutes,
+                    'composition': {
+                        'tanks': {'current': tanks_count, 'needed': raid.tanks_needed},
+                        'healers': {'current': healers_count, 'needed': raid.healers_needed},
+                        'dps': {'current': dps_count, 'needed': raid.dps_needed}
+                    },
+                    'status': raid.status,
+                    'created_at': raid.created_at
+                })
+
+            return JsonResponse({
+                'success': True,
+                'raids': raid_list,
+                'pagination': {
+                    'total': total_count,
+                    'limit': limit,
+                    'offset': offset,
+                    'has_more': (offset + limit) < total_count
+                }
+            })
+
+    except ValueError:
+        return JsonResponse({'error': 'Invalid pagination parameters'}, status=400)
+    except Exception as e:
+        logger.error('API error occurred', exc_info=True)
+        return JsonResponse({
+            'error': 'An internal error occurred. Please try again later.'
+        }, status=500)
+
+
+@require_http_methods(["GET"])
+@api_member_auth_required
+@ratelimit(key='user_or_ip', rate='60/m', method='GET', block=True)
+def api_raid_detail(request, guild_id, raid_id):
+    """
+    GET /api/guild/<guild_id>/raids/<raid_id>/
+    Get detailed information about a specific raid including all signups.
+    """
+    from .db import get_db_session
+    from .models import RaidScheduleEvent, RaidSignup
+
+    try:
+        with get_db_session() as db:
+            # Get raid
+            raid = db.query(RaidScheduleEvent).filter_by(
+                id=raid_id,
+                guild_id=guild_id
+            ).first()
+
+            if not raid:
+                return JsonResponse({'error': 'Raid not found'}, status=404)
+
+            # Get all signups
+            signups = db.query(RaidSignup).filter_by(raid_id=raid.id).all()
+
+            # Organize signups by role and status
+            signups_by_role = {
+                'tank': [],
+                'healer': [],
+                'dps': []
+            }
+
+            bench_signups = []
+
+            for signup in signups:
+                signup_data = {
+                    'id': signup.id,
+                    'user_id': signup.user_id,
+                    'username': signup.username,
+                    'display_name': signup.display_name,
+                    'avatar_url': signup.avatar_url,
+                    'role': signup.role,
+                    'class_spec': signup.class_spec,
+                    'status': signup.status,
+                    'notes': signup.notes,
+                    'signed_up_at': signup.signed_up_at
+                }
+
+                if signup.status == 'bench':
+                    bench_signups.append(signup_data)
+                elif signup.status in ['confirmed', 'tentative', 'late']:
+                    if signup.role in signups_by_role:
+                        signups_by_role[signup.role].append(signup_data)
+
+            return JsonResponse({
+                'success': True,
+                'raid': {
+                    'id': raid.id,
+                    'title': raid.title,
+                    'description': raid.description,
+                    'game': raid.game,
+                    'raid_type': raid.raid_type,
+                    'scheduled_at': raid.scheduled_at,
+                    'duration_minutes': raid.duration_minutes,
+                    'composition': {
+                        'tanks': {'current': len(signups_by_role['tank']), 'needed': raid.tanks_needed},
+                        'healers': {'current': len(signups_by_role['healer']), 'needed': raid.healers_needed},
+                        'dps': {'current': len(signups_by_role['dps']), 'needed': raid.dps_needed}
+                    },
+                    'status': raid.status,
+                    'thread_id': raid.thread_id,
+                    'creator_id': raid.creator_id,
+                    'created_at': raid.created_at,
+                    'updated_at': raid.updated_at
+                },
+                'signups': {
+                    'tanks': signups_by_role['tank'],
+                    'healers': signups_by_role['healer'],
+                    'dps': signups_by_role['dps'],
+                    'bench': bench_signups
+                }
+            })
+
+    except Exception as e:
+        logger.error('API error occurred', exc_info=True)
+        return JsonResponse({
+            'error': 'An internal error occurred. Please try again later.'
+        }, status=500)
+
+
+@require_http_methods(["POST"])
+@api_member_auth_required
+@ratelimit(key='user_or_ip', rate='30/m', method='POST', block=True)
+def api_raid_signup(request, guild_id, raid_id):
+    """
+    POST /api/guild/<guild_id>/raids/<raid_id>/signup/
+    Sign up for a raid event.
+
+    Body: {
+        "role": "tank|healer|dps",
+        "class_spec": "Protection Warrior" (optional),
+        "notes": "Can swap to heals if needed" (optional)
+    }
+    """
+    from .db import get_db_session
+    from .models import RaidScheduleEvent, RaidSignup
+    import json as json_lib
+
+    try:
+        # Parse request body
+        try:
+            data = json_lib.loads(request.body)
+        except json_lib.JSONDecodeError:
+            return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+        role = data.get('role', '').strip().lower()
+        class_spec = data.get('class_spec', '').strip()
+        notes = data.get('notes', '').strip()
+
+        # Validate role
+        if role not in ['tank', 'healer', 'dps']:
+            return JsonResponse({'error': 'Role must be tank, healer, or dps'}, status=400)
+
+        # Validate input lengths
+        if class_spec and len(class_spec) > 100:
+            return JsonResponse({'error': 'Class/spec must be less than 100 characters'}, status=400)
+
+        if notes and len(notes) > 500:
+            return JsonResponse({'error': 'Notes must be less than 500 characters'}, status=400)
+
+        with get_db_session() as db:
+            # Verify raid exists
+            raid = db.query(RaidScheduleEvent).filter_by(
+                id=raid_id,
+                guild_id=guild_id
+            ).first()
+
+            if not raid:
+                return JsonResponse({'error': 'Raid not found'}, status=404)
+
+            if raid.status != 'scheduled':
+                return JsonResponse({'error': 'Cannot sign up for a raid that is not scheduled'}, status=400)
+
+            # Check if user already signed up
+            existing_signup = db.query(RaidSignup).filter_by(
+                raid_id=raid_id,
+                user_id=request.user_id
+            ).first()
+
+            if existing_signup:
+                return JsonResponse({'error': 'You are already signed up for this raid'}, status=400)
+
+            # Get user info from Discord cache
+            user_info = request.session.get('discord_user', {})
+            username = user_info.get('username', 'Unknown')
+            display_name = user_info.get('global_name') or user_info.get('username', 'Unknown')
+            avatar_hash = user_info.get('avatar', '')
+            avatar_url = f"https://cdn.discordapp.com/avatars/{request.user_id}/{avatar_hash}.png" if avatar_hash else None
+
+            # Create signup
+            current_time = int(time.time())
+            signup = RaidSignup(
+                raid_id=raid_id,
+                guild_id=guild_id,
+                user_id=request.user_id,
+                username=username,
+                display_name=display_name,
+                avatar_url=avatar_url,
+                role=role,
+                class_spec=class_spec or None,
+                status='confirmed',
+                notes=notes or None,
+                signed_up_at=current_time,
+                updated_at=current_time
+            )
+
+            db.add(signup)
+            db.commit()
+            db.refresh(signup)
+
+            logger.info(f"[RAID] User {request.user_id} signed up for raid {raid_id} as {role}")
+
+            return JsonResponse({
+                'success': True,
+                'signup': {
+                    'id': signup.id,
+                    'role': signup.role,
+                    'class_spec': signup.class_spec,
+                    'status': signup.status,
+                    'signed_up_at': signup.signed_up_at
+                }
+            }, status=201)
+
+    except Exception as e:
+        logger.error('API error occurred', exc_info=True)
+        return JsonResponse({
+            'error': 'An internal error occurred. Please try again later.'
+        }, status=500)
+
+
+@require_http_methods(["DELETE"])
+@api_member_auth_required
+@ratelimit(key='user_or_ip', rate='30/m', method='DELETE', block=True)
+def api_raid_leave(request, guild_id, raid_id):
+    """
+    DELETE /api/guild/<guild_id>/raids/<raid_id>/signup/
+    Leave a raid (remove your signup).
+    """
+    from .db import get_db_session
+    from .models import RaidScheduleEvent, RaidSignup
+
+    try:
+        with get_db_session() as db:
+            # Verify raid exists
+            raid = db.query(RaidScheduleEvent).filter_by(
+                id=raid_id,
+                guild_id=guild_id
+            ).first()
+
+            if not raid:
+                return JsonResponse({'error': 'Raid not found'}, status=404)
+
+            # Find user's signup
+            signup = db.query(RaidSignup).filter_by(
+                raid_id=raid_id,
+                user_id=request.user_id
+            ).first()
+
+            if not signup:
+                return JsonResponse({'error': 'You are not signed up for this raid'}, status=404)
+
+            # Delete the signup
+            db.delete(signup)
+            db.commit()
+
+            logger.info(f"[RAID] User {request.user_id} left raid {raid_id}")
+
+            return JsonResponse({
+                'success': True,
+                'message': 'Successfully left the raid'
+            })
+
+    except Exception as e:
+        logger.error('API error occurred', exc_info=True)
+        return JsonResponse({
+            'error': 'An internal error occurred. Please try again later.'
+        }, status=500)
+
+
+
+# ============================================================================
+# RAID MANAGEMENT PAGE VIEW
+# ============================================================================
+

@@ -323,8 +323,8 @@ document.getElementById('applicationForm')?.addEventListener('submit', async fun
     const tags = Array.from(tagCheckboxes).map(cb => cb.value);
 
     // Collect form data
+    // SEC-002 fix: guild_id no longer in POST body, comes from URL
     const formData = {
-      guild_id: '{{ guild.id }}',  // Include guild_id for server-specific application
       bio: this.querySelector('[name="bio"]').value,
       twitch_url: this.querySelector('[name="twitch_url"]').value || null,
       youtube_url: this.querySelector('[name="youtube_url"]').value || null,
@@ -352,7 +352,9 @@ document.getElementById('applicationForm')?.addEventListener('submit', async fun
     }
 
     // Submit application
-    const response = await csrfFetch('/api/discovery/apply', {
+    // SEC-002 fix: Guild ID now in URL
+    const guildId = '{{ guild.id }}';
+    const response = await csrfFetch(`/api/guild/${guildId}/discovery/apply/`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'

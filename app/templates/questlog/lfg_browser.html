@@ -123,9 +123,37 @@
         <p class="text-xs text-gray-500 mt-1">Select a role to ping when creating the thread. Users with this role will be auto-invited.</p>
       </div>
 
-      <div>
+      <div id="groupSizeContainer">
         <label class="text-sm text-gray-300 mb-2 block">Group Size</label>
         <input type="number" id="createGroupSize" min="2" max="100" value="4" class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white">
+      </div>
+
+      <!-- Raid Composition (shown when Raid activity is selected) -->
+      <div id="raidCompositionContainer" class="hidden">
+        <label class="text-sm text-gray-300 mb-2 block">
+          <i class="fas fa-users-cog text-purple-400 mr-1"></i>Raid Composition
+        </label>
+        <p class="text-xs text-gray-500 mb-3">Specify how many of each role you need for this raid</p>
+        <div class="grid grid-cols-3 gap-4">
+          <div>
+            <label class="text-sm text-gray-300 mb-2 block">
+              <i class="fas fa-shield text-blue-400 mr-1"></i>Tanks
+            </label>
+            <input type="number" id="createTanks" min="0" max="50" value="2" class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white">
+          </div>
+          <div>
+            <label class="text-sm text-gray-300 mb-2 block">
+              <i class="fas fa-heart text-green-400 mr-1"></i>Healers
+            </label>
+            <input type="number" id="createHealers" min="0" max="50" value="2" class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white">
+          </div>
+          <div>
+            <label class="text-sm text-gray-300 mb-2 block">
+              <i class="fas fa-bolt text-red-400 mr-1"></i>DPS
+            </label>
+            <input type="number" id="createDPS" min="0" max="200" value="6" class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white">
+          </div>
+        </div>
       </div>
 
       <div>
@@ -317,7 +345,7 @@
   const gamesData = JSON.parse(document.getElementById('games-data').textContent);
 
   // Custom select instances for filters
-  let gameFilterSelect, statusFilterSelect, timeFilterSelect;
+  let gameFilterSelect, statusFilterSelect, timeFilterSelect, typeFilterSelect;
 
   function showToast(message, type='info') {
     const container = document.getElementById('toast-container');
@@ -349,17 +377,19 @@
 
   async function loadGroups() {
     try {
-      // Load all groups - filtering is done client-side for instant results
-      const res = await csrfFetch(`/api/guild/${guildId}/lfg/browser/groups/?status=all`);
-      const data = await res.json();
+      // Load groups
+      const groupsRes = await csrfFetch(`/api/guild/${guildId}/lfg/browser/groups/?status=all`);
+      const groupsData = await groupsRes.json();
 
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || 'Failed to load groups');
+      if (!groupsRes.ok || !groupsData.success) {
+        throw new Error(groupsData.error || 'Failed to load groups');
       }
 
-      allGroups = data.groups || [];
+      allGroups = groupsData.groups || [];
+
       renderGroups();
     } catch (err) {
+      console.error('Load error:', err);
       document.getElementById('groupsList').innerHTML = `
         <div class="text-center text-red-500 py-12">
           <i class="fas fa-exclamation-circle text-4xl mb-2"></i>
@@ -379,23 +409,23 @@
     const timeFilter = timeFilterSelect ? timeFilterSelect.getValue() : 'all';
     const container = document.getElementById('groupsList');
 
-    let filtered = allGroups;
+    let filteredGroups = allGroups;
 
     // Apply game filter
     if (gameFilter) {
-      filtered = filtered.filter(g => g.game_id == gameFilter);
+      filteredGroups = filteredGroups.filter(g => g.game_id == gameFilter);
     }
 
     // Apply status filter
     if (statusFilter === 'active') {
-      filtered = filtered.filter(g => !g.is_full);
+      filteredGroups = filteredGroups.filter(g => !g.is_full);
     } else if (statusFilter === 'full') {
-      filtered = filtered.filter(g => g.is_full);
+      filteredGroups = filteredGroups.filter(g => g.is_full);
     }
 
     // Apply time filter
     if (timeFilter !== 'all') {
-      filtered = filtered.filter(g => {
+      filteredGroups = filteredGroups.filter(g => {
         if (timeFilter === 'now') return g.time_status === 'active_now';
         if (timeFilter === 'upcoming') return g.time_status === 'upcoming';
         if (timeFilter === 'past') return g.time_status === 'past';
@@ -403,7 +433,7 @@
       });
     }
 
-    if (filtered.length === 0) {
+    if (filteredGroups.length === 0) {
       if (isAdmin === true) {
         container.innerHTML = `
           <div class="text-center text-gray-500 py-12">
@@ -432,7 +462,9 @@
       return;
     }
 
-    container.innerHTML = filtered.map(renderGroup).join('');
+    // Render groups
+    const groupCards = filteredGroups.map(renderGroup);
+    container.innerHTML = groupCards.join('');
   }
 
   function renderGroup(group) {
@@ -570,6 +602,7 @@
               <div>
                 <h3 class="text-2xl font-bold text-white mb-1 flex items-center gap-2">
                   ${group.thread_name || 'Untitled Group'}
+                  ${group.is_raid ? '<span class="px-2 py-1 text-xs rounded bg-purple-600 text-white"><i class="fas fa-swords mr-1"></i>RAID</span>' : ''}
                   ${timeStatusBadge}
                 </h3>
                 <p class="text-sm text-gray-400 flex items-center gap-1">
@@ -589,10 +622,29 @@
                 <span class="text-gray-400"><i class="far fa-clock mr-2"></i>Time:</span>
                 <span class="text-white">${formattedDate}</span>
               </div>
-              <div class="text-sm">
-                <span class="text-gray-400"><i class="fas fa-users mr-2"></i>Members:</span>
-                <span class="text-white">${group.member_count} / ${group.max_group_size}</span>
-              </div>
+              ${group.is_raid ? `
+                <!-- Raid Composition -->
+                <div class="text-sm">
+                  <span class="text-gray-400"><i class="fas fa-users-cog mr-2"></i>Composition:</span>
+                  <div class="flex gap-3 mt-1 flex-wrap">
+                    <span class="text-blue-400">
+                      <i class="fas fa-shield mr-1"></i>${group.tanks_needed || 0} Tanks
+                    </span>
+                    <span class="text-green-400">
+                      <i class="fas fa-heart mr-1"></i>${group.healers_needed || 0} Healers
+                    </span>
+                    <span class="text-red-400">
+                      <i class="fas fa-bolt mr-1"></i>${group.dps_needed || 0} DPS
+                    </span>
+                  </div>
+                </div>
+              ` : `
+                <!-- Regular Group Size -->
+                <div class="text-sm">
+                  <span class="text-gray-400"><i class="fas fa-users mr-2"></i>Members:</span>
+                  <span class="text-white">${group.member_count} / ${group.max_group_size}</span>
+                </div>
+              `}
             </div>
 
             ${group.description ? `
@@ -1566,6 +1618,11 @@
           onSelect: (value) => {
             // When this option changes, update any dependent options
             updateDependentOptions(gameId, index, value, 'create');
+
+            // If this is the Activity field, check if "Raid" is selected
+            if (option.name === 'Activity') {
+              toggleRaidComposition(value);
+            }
           }
         });
       });
@@ -1580,6 +1637,30 @@
 
   function closeCreateGroupModal() {
     document.getElementById('createGroupModal').classList.add('hidden');
+  }
+
+  // Toggle raid composition fields based on activity selection
+  function toggleRaidComposition(activities) {
+    const raidCompositionContainer = document.getElementById('raidCompositionContainer');
+    const groupSizeContainer = document.getElementById('groupSizeContainer');
+
+    // Check if "Raid" is in the selected activities (supports multi-select)
+    let isRaid = false;
+    if (Array.isArray(activities)) {
+      isRaid = activities.some(activity => activity.toLowerCase() === 'raid');
+    } else if (typeof activities === 'string') {
+      isRaid = activities.toLowerCase() === 'raid';
+    }
+
+    if (isRaid) {
+      // Show raid composition, hide group size
+      raidCompositionContainer.classList.remove('hidden');
+      groupSizeContainer.classList.add('hidden');
+    } else {
+      // Hide raid composition, show group size
+      raidCompositionContainer.classList.add('hidden');
+      groupSizeContainer.classList.remove('hidden');
+    }
   }
 
   async function createGroup() {
@@ -1636,11 +1717,14 @@
     }
 
     try {
+      // Check if this is a raid (composition fields are visible)
+      const raidCompositionContainer = document.getElementById('raidCompositionContainer');
+      const isRaid = !raidCompositionContainer.classList.contains('hidden');
+
       const payload = {
         game_id: parseInt(gameId),
         title: title,
         scheduled_time: scheduledTime ? Math.floor(new Date(scheduledTime).getTime() / 1000) : null,
-        max_group_size: maxGroupSize,
         description: description,
         event_duration: eventDuration ? parseInt(eventDuration) : null,
         ping_role_id: pingRoleId ? pingRoleId : null,
@@ -1648,6 +1732,27 @@
         creator_options: creatorOptions,
         create_discord_thread: createThread
       };
+
+      // Add raid composition or regular group size
+      if (isRaid) {
+        const tanks = parseInt(document.getElementById('createTanks').value) || 0;
+        const healers = parseInt(document.getElementById('createHealers').value) || 0;
+        const dps = parseInt(document.getElementById('createDPS').value) || 0;
+
+        // Validate at least one role is needed
+        if (tanks + healers + dps === 0) {
+          return showToast('Please specify at least one role (Tanks, Healers, or DPS)', 'error');
+        }
+
+        payload.is_raid = true;
+        payload.tanks_needed = tanks;
+        payload.healers_needed = healers;
+        payload.dps_needed = dps;
+        payload.max_group_size = tanks + healers + dps; // Total raid size
+      } else {
+        payload.is_raid = false;
+        payload.max_group_size = maxGroupSize;
+      }
 
       const res = await csrfFetch(`/api/guild/${guildId}/lfg/browser/create/`, {
         method: 'POST',

@@ -614,7 +614,7 @@ class RaidConfig(Base):
 
 
 class RaidEvent(Base):
-    """Log of detected raid events."""
+    """Log of detected raid events (join spam detection)."""
     __tablename__ = "raid_events"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
@@ -631,6 +631,142 @@ class RaidEvent(Base):
 
     __table_args__ = (
         Index("idx_raid_events_guild", "guild_id", "detected_at"),
+    )
+
+
+# Raid Scheduling System (RAID-HELPER)
+
+class RaidScheduleEvent(Base):
+    """Scheduled raid events (game raids, not join spam)."""
+    __tablename__ = "raid_schedule_events"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    guild_id = Column(BigInteger, ForeignKey("guilds.guild_id", ondelete="CASCADE"), nullable=False)
+
+    # Basic Info
+    title = Column(String(150), nullable=False)
+    description = Column(Text, nullable=True)
+    game = Column(String(100), nullable=False)
+    raid_type = Column(String(100), nullable=True)  # Normal, Heroic, Mythic, etc.
+
+    # Scheduling
+    scheduled_at = Column(BigInteger, nullable=False)  # Unix timestamp
+    duration_minutes = Column(Integer, default=120)
+    created_at = Column(BigInteger, default=lambda: int(time.time()))
+    updated_at = Column(BigInteger, default=lambda: int(time.time()), onupdate=lambda: int(time.time()))
+
+    # Composition Requirements
+    tanks_needed = Column(Integer, default=0)
+    healers_needed = Column(Integer, default=0)
+    dps_needed = Column(Integer, default=0)
+
+    # Status
+    status = Column(String(20), default='scheduled')  # scheduled, in_progress, completed, cancelled
+
+    # Creator
+    creator_id = Column(BigInteger, nullable=False)
+    creator_name = Column(String(255), nullable=True)
+
+    # Discord Integration
+    thread_id = Column(BigInteger, nullable=True)
+    thread_url = Column(String(500), nullable=True)
+
+    # Premium Features
+    is_recurring = Column(Boolean, default=False)
+    recurrence_pattern = Column(String(100), nullable=True)  # weekly, biweekly, etc.
+    template_id = Column(Integer, ForeignKey("raid_templates.id", ondelete="SET NULL"), nullable=True)
+
+    __table_args__ = (
+        Index("idx_raid_schedule_guild_status", "guild_id", "status"),
+        Index("idx_raid_schedule_guild_time", "guild_id", "scheduled_at"),
+    )
+
+
+class RaidSignup(Base):
+    """Raid signup tracking."""
+    __tablename__ = "raid_signups"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    raid_id = Column(Integer, ForeignKey("raid_schedule_events.id", ondelete="CASCADE"), nullable=False)
+    guild_id = Column(BigInteger, ForeignKey("guilds.guild_id", ondelete="CASCADE"), nullable=False)
+
+    # User Info
+    user_id = Column(BigInteger, nullable=False)
+    username = Column(String(255), nullable=True)
+
+    # Role Info
+    role = Column(String(20), nullable=False)  # tank, healer, dps
+    class_spec = Column(String(100), nullable=True)  # e.g., "Protection Warrior"
+    notes = Column(String(500), nullable=True)
+
+    # Status
+    status = Column(String(20), default='signed_up')  # signed_up, bench, declined, removed
+    signed_up_at = Column(BigInteger, default=lambda: int(time.time()))
+    updated_at = Column(BigInteger, default=lambda: int(time.time()), onupdate=lambda: int(time.time()))
+
+    __table_args__ = (
+        Index("idx_raid_signup_raid", "raid_id"),
+        Index("idx_raid_signup_user", "user_id"),
+        UniqueConstraint("raid_id", "user_id", name="uq_raid_user_signup"),
+    )
+
+
+class RaidAttendance(Base):
+    """Raid attendance tracking."""
+    __tablename__ = "raid_attendance"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    raid_id = Column(Integer, ForeignKey("raid_schedule_events.id", ondelete="CASCADE"), nullable=False)
+    guild_id = Column(BigInteger, ForeignKey("guilds.guild_id", ondelete="CASCADE"), nullable=False)
+
+    user_id = Column(BigInteger, nullable=False)
+    username = Column(String(255), nullable=True)
+
+    # Attendance Status
+    attended = Column(Boolean, default=False)
+    was_late = Column(Boolean, default=False)
+    minutes_late = Column(Integer, default=0)
+    left_early = Column(Boolean, default=False)
+
+    # Admin tracking
+    marked_by = Column(BigInteger, nullable=True)
+    marked_at = Column(BigInteger, default=lambda: int(time.time()))
+    notes = Column(Text, nullable=True)
+
+    __table_args__ = (
+        Index("idx_raid_attendance_raid", "raid_id"),
+        Index("idx_raid_attendance_user", "user_id"),
+        Index("idx_raid_attendance_guild", "guild_id"),
+    )
+
+
+class RaidTemplate(Base):
+    """Saved raid templates for quick creation."""
+    __tablename__ = "raid_templates"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    guild_id = Column(BigInteger, ForeignKey("guilds.guild_id", ondelete="CASCADE"), nullable=False)
+
+    name = Column(String(150), nullable=False)
+    game = Column(String(100), nullable=False)
+    raid_type = Column(String(100), nullable=True)
+    description = Column(Text, nullable=True)
+
+    # Default Composition
+    tanks_needed = Column(Integer, default=0)
+    healers_needed = Column(Integer, default=0)
+    dps_needed = Column(Integer, default=0)
+
+    # Default Duration
+    duration_minutes = Column(Integer, default=120)
+
+    # Metadata
+    created_by = Column(BigInteger, nullable=False)
+    created_at = Column(BigInteger, default=lambda: int(time.time()))
+    use_count = Column(Integer, default=0)
+
+    __table_args__ = (
+        Index("idx_raid_template_guild", "guild_id"),
     )
 
 
@@ -1825,6 +1961,12 @@ class LFGGroup(Base):
     custom_data = Column(Text, nullable=True)  # JSON - game-specific selections
     max_group_size = Column(Integer, nullable=True)  # Override game's default max size for this specific group
 
+    # Raid composition (for unified LFG/LFR system)
+    tanks_needed = Column(Integer, nullable=True)
+    healers_needed = Column(Integer, nullable=True)
+    dps_needed = Column(Integer, nullable=True)
+    is_raid = Column(Boolean, default=False)
+
     # Status
     is_active = Column(Boolean, default=True)
     is_full = Column(Boolean, default=False)
@@ -2639,4 +2781,103 @@ class CreatorTip(Base):
         Index("idx_creator_tip_from", "from_user_id"),
         Index("idx_creator_tip_guild", "guild_id"),
         Index("idx_creator_tip_date", "tipped_at"),
+    )
+
+
+# ============================================================================
+# RAID SYSTEM MODELS
+# ============================================================================
+# Comprehensive raid management system for scheduled raids with role-based
+# signups, recurring events, attendance tracking, and bench management
+
+# ============================================================================
+# SITE ACTIVITY TRACKER MODELS
+# ============================================================================
+# Configuration for Discord game activity tracking displayed on casual-heroes.com/gamesweplay/
+# Bot owner only - tracks Discord role members playing specific games
+
+class SiteActivityGame(Base):
+    """
+    Games to track for site activity display.
+
+    Each game has:
+    - Display name and metadata
+    - Discord roles to monitor (across multiple guilds)
+    - Activity keywords to detect active players
+    """
+    __tablename__ = "site_activity_games"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+
+    # Game Info
+    game_key = Column(String(100), nullable=False, unique=True)  # e.g., "WoW", "ESO", "CH-7DTD01"
+    display_name = Column(String(255), nullable=False)  # e.g., "World of Warcraft"
+    description = Column(Text, nullable=True)
+
+    # Game Type
+    game_type = Column(String(20), default="discord")  # 'discord', 'amp', or 'both'
+
+    # AMP Server (if game_type = 'amp' or 'both')
+    amp_instance_id = Column(String(255), nullable=True)  # e.g., "CH-7DTD01"
+
+    # Static Info (Steam, Discord, Images)
+    steam_appid = Column(String(50), nullable=True)  # e.g., "251570"
+    steam_link = Column(String(500), nullable=True)  # e.g., "https://store.steampowered.com/..."
+    discord_invite = Column(String(500), nullable=True)  # e.g., "https://discord.gg/..."
+    custom_img = Column(String(500), nullable=True)  # e.g., "/static/img/games/wow/dwarf.webp"
+    link_label = Column(String(100), default="View Site")  # e.g., "View on Steam", "View Site"
+
+    # Discord Activity Keywords (JSON array)
+    # Example: ["World of Warcraft", "WoW", "World of Warcraft®"]
+    # Only used if game_type = 'discord' or 'both'
+    activity_keywords = Column(Text, nullable=False, default="[]")  # JSON array as string
+
+    # Display on website
+    is_active = Column(Boolean, default=True)  # Show on /gamesweplay/
+    sort_order = Column(Integer, default=0)  # Display order on site
+
+    # Timestamps
+    created_at = Column(BigInteger, nullable=False, default=lambda: int(time.time()))
+    updated_at = Column(BigInteger, nullable=False, default=lambda: int(time.time()), onupdate=lambda: int(time.time()))
+
+    __table_args__ = (
+        Index("idx_site_activity_game_key", "game_key"),
+        Index("idx_site_activity_game_active", "is_active", "sort_order"),
+        Index("idx_site_activity_amp_instance", "amp_instance_id"),
+    )
+
+
+class SiteActivityGuildRole(Base):
+    """
+    Discord guild/role mappings for activity tracking.
+
+    Links games to specific Discord roles that should be monitored.
+    Supports tracking the same game across multiple guilds.
+    """
+    __tablename__ = "site_activity_guild_roles"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+
+    # Game reference
+    game_id = Column(Integer, ForeignKey("site_activity_games.id", ondelete="CASCADE"), nullable=False)
+
+    # Discord IDs
+    guild_id = Column(BigInteger, nullable=False)  # Discord guild ID
+    role_id = Column(BigInteger, nullable=False)  # Discord role ID to monitor
+
+    # Metadata
+    guild_name = Column(String(255), nullable=True)  # Cached guild name for admin UI
+    role_name = Column(String(255), nullable=True)  # Cached role name for admin UI
+
+    # Status
+    is_active = Column(Boolean, default=True)  # Enable/disable tracking for this role
+
+    # Timestamps
+    created_at = Column(BigInteger, nullable=False, default=lambda: int(time.time()))
+    updated_at = Column(BigInteger, nullable=False, default=lambda: int(time.time()), onupdate=lambda: int(time.time()))
+
+    __table_args__ = (
+        Index("idx_site_activity_guild_role_game", "game_id"),
+        Index("idx_site_activity_guild_role_guild", "guild_id"),
+        UniqueConstraint("game_id", "guild_id", "role_id", name="uq_game_guild_role"),
     )

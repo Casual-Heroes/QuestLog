@@ -425,7 +425,8 @@ let userPreferences = {
 // Load user preferences
 async function loadUserPreferences() {
   try {
-    const response = await csrfFetch(`/api/discovery/preferences?guild_id=${guildId}`);
+    // SEC-005 fix: Guild ID now in URL
+    const response = await csrfFetch(`/api/guild/${guildId}/discovery/preferences/`);
     const data = await response.json();
     if (data.success) {
       userPreferences = {
@@ -625,7 +626,10 @@ function renderLFGPosts() {
             </div>
 
             <div class="flex-1">
-              <h3 class="text-lg font-bold text-white">${escapeHtml(post.title)}</h3>
+              <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                ${escapeHtml(post.title)}
+                ${post.is_raid ? '<span class="px-2 py-0.5 text-xs rounded bg-purple-600 text-white"><i class="fas fa-swords mr-1"></i>RAID</span>' : ''}
+              </h3>
               <div class="flex items-center space-x-2 text-sm text-gray-400">
                 <span>${escapeHtml(post.game)}</span>
                 <span>•</span>
@@ -675,7 +679,15 @@ function renderLFGPosts() {
               <div class="flex items-center gap-2 mb-2">
                 <i class="fas fa-users text-gray-400 text-sm"></i>
                 <span class="text-sm font-semibold text-gray-300">Members</span>
-                <span class="text-white ml-auto">${post.member_count} / ${post.max_group_size}</span>
+                ${post.is_raid ? `
+                  <span class="text-white ml-auto flex gap-3 text-xs">
+                    <span class="text-blue-400"><i class="fas fa-shield mr-1"></i>${post.tanks_needed || 0}</span>
+                    <span class="text-green-400"><i class="fas fa-heart mr-1"></i>${post.healers_needed || 0}</span>
+                    <span class="text-red-400"><i class="fas fa-bolt mr-1"></i>${post.dps_needed || 0}</span>
+                  </span>
+                ` : `
+                  <span class="text-white ml-auto">${post.member_count} / ${post.max_group_size}</span>
+                `}
               </div>
               <div class="flex flex-wrap gap-2">
                 ${post.members.map(member => `

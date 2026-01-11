@@ -305,9 +305,7 @@ def handle_checkout_completed(session):
         return True
 
     except Exception as e:
-        logger.error(f"Error handling checkout completion: {e}")
-        import traceback
-        traceback.print_exc()
+        logger.error(f"Error handling checkout completion: {e}", exc_info=True)
         return False
 
 

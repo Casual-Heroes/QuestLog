@@ -795,11 +795,6 @@
           </ul>
         </div>
 
-        <div class="bg-yellow-900/20 border border-yellow-700 rounded-lg p-4">
-          <p class="text-yellow-400 font-medium text-sm mb-2">⚠️ CSV Files (Not Recommended)</p>
-          <p class="text-gray-400 text-xs">CSV files lose formatting. Only use if you know what you're doing!</p>
-        </div>
-
         <div class="bg-neutral-800/50 border border-neutral-700 rounded-lg p-4">
           <p class="text-gray-300 font-medium text-sm mb-2">
             <i class="fas fa-table text-purple-400 mr-2"></i>Required Column Headers
@@ -838,8 +833,8 @@
 
         <form id="import-form" class="space-y-4" onsubmit="submitImportFile(event)">
           <div>
-            <label class="text-gray-400 text-sm block mb-2">Select Excel File (.xlsx preferred)</label>
-            <input type="file" name="file" accept=".xlsx,.csv" required
+            <label class="text-gray-400 text-sm block mb-2">Select Excel File (.xlsx only)</label>
+            <input type="file" name="file" accept=".xlsx" required
                    class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:bg-green-600 file:text-white hover:file:bg-green-700">
           </div>
           <div id="import-progress" class="hidden">

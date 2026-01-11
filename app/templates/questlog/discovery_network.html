@@ -232,8 +232,9 @@ async function confirmLeaveNetwork() {
   if (!confirmed) return;
 
   try {
+    // SEC-006 fix: Guild ID now in URL
     const guildId = '{{ guild.id }}';
-    const response = await csrfFetch(`/api/discovery/leave?guild_id=${guildId}`, {
+    const response = await csrfFetch(`/api/guild/${guildId}/discovery/leave/`, {
       method: 'POST'
     });
 
@@ -262,8 +263,9 @@ async function confirmRejoinNetwork() {
 
   try {
     const csrftoken = getCookie('csrftoken');
+    // SEC-007 fix: Guild ID now in URL
     const guildId = '{{ guild.id }}';
-    const response = await csrfFetch(`/api/discovery/rejoin?guild_id=${guildId}`, {
+    const response = await csrfFetch(`/api/guild/${guildId}/discovery/rejoin/`, {
       method: 'POST'
     });
 

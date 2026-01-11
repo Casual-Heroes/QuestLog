@@ -7,7 +7,7 @@ __pycache__/
 
 # Ignore Jupyter notebook checkpoints
 .ipynb_checkpoints/
-
+9NCL-SRGJZK-VHA7
 
 # Ignore temporary files
 *.temp
@@ -29,18 +29,6 @@ QUESTLOG_SECURITY_AUDIT_SUMMARY.md
 QUESTLOG_TESTING_CHECKLIST.md
 
 # Custom Files and Folders to Ignore
-find_corrupted_members.py
-fix_corrupted_members.py
-add_streaming_integration.py
-encryption.py
-add_lfg_shared_to_network.py
-purge_corrupted_import.py
-RATE_LIMIT_FIXES.md
-RATE_LIMIT_FIXES.md
-cleanup_duplicate_xp.py
-XP_SYSTEM_SUMMARY.md
-test_xp_import.py
-TICKETING_SYSTEM_SPEC.md
 /archived
 
 
@@ -80,5 +68,8 @@ chwebsiteprj/
 /hosting
 /docs
 /
-
-
+.github/workflows/security-scan.yml
+app/test_auth_decorators.py
+app/test_sec002_003.py
+app/test_security_fixes.py
+app/utils/encryption.py

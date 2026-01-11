@@ -7,6 +7,14 @@ urlpatterns = [
 
     path('', views.home, name='home'),
     path('gamesweplay/', views.games_we_play, name='games_we_play'),
+
+    # Site Activity Tracker (Bot Owner Only - in QuestLog Guild Dashboard)
+    path('questlog/guild/<str:guild_id>/site-activity-tracker/', views.site_activity_tracker_admin, name='site_activity_tracker_admin'),
+    path('api/guild/<str:guild_id>/site-activity-tracker/games/', views.api_site_activity_games, name='api_site_activity_games_list'),
+    path('api/guild/<str:guild_id>/site-activity-tracker/games/<int:game_id>/', views.api_site_activity_games, name='api_site_activity_games_detail'),
+    path('api/guild/<str:guild_id>/site-activity-tracker/roles/', views.api_site_activity_roles, name='api_site_activity_roles_create'),
+    path('api/guild/<str:guild_id>/site-activity-tracker/roles/<int:role_mapping_id>/', views.api_site_activity_roles, name='api_site_activity_roles_delete'),
+
     path('gameshype/', views.gameshype, name='gameshype'),
     path('gamesuggest/', views.gamesuggest, name='gamesuggest'),
     path('hosting/', views.hosting, name='hosting'),
@@ -263,10 +271,11 @@ urlpatterns = [
     path('api/discovery/games', views.api_discovery_network_games, name='api_discovery_network_games'),
     path('api/discovery/game-templates', views.api_discovery_game_templates, name='api_discovery_game_templates'),
     path('api/discovery/game-roles', views.api_discovery_game_roles, name='api_discovery_game_roles'),
-    path('api/discovery/apply', views.api_discovery_network_apply, name='api_discovery_network_apply'),
-    path('api/discovery/preferences', views.api_discovery_network_preferences, name='api_discovery_network_preferences'),
-    path('api/discovery/leave', views.api_discovery_network_leave, name='api_discovery_network_leave'),
-    path('api/discovery/rejoin', views.api_discovery_network_rejoin, name='api_discovery_network_rejoin'),
+    # SEC-002/003 fix: Guild ID now in URL for proper authorization
+    path('api/guild/<int:guild_id>/discovery/apply/', views.api_discovery_network_apply, name='api_discovery_network_apply'),
+    path('api/guild/<int:guild_id>/discovery/preferences/', views.api_discovery_network_preferences, name='api_discovery_network_preferences'),
+    path('api/guild/<int:guild_id>/discovery/leave/', views.api_discovery_network_leave, name='api_discovery_network_leave'),
+    path('api/guild/<int:guild_id>/discovery/rejoin/', views.api_discovery_network_rejoin, name='api_discovery_network_rejoin'),
 
     # Game Discovery Endpoints (new)
     path('api/igdb/search', views.api_igdb_search, name='api_igdb_search'),
@@ -299,6 +308,7 @@ urlpatterns = [
     # LFG Dashboard
     path('questlog/guild/<str:guild_id>/lfg/', views.guild_lfg, name='guild_lfg'),
     path('questlog/guild/<str:guild_id>/lfg/browser/', views.guild_lfg_browser, name='guild_lfg_browser'),
+
     path('questlog/guild/<str:guild_id>/attendance/', views.guild_attendance, name='guild_attendance'),
     path('questlog/guild/<str:guild_id>/featured-creators/', views.guild_featured_creators, name='guild_featured_creators'),
     path('questlog/guild/<str:guild_id>/cotw/', views.guild_cotw, name='guild_cotw'),
@@ -367,6 +377,15 @@ urlpatterns = [
     path('api/guild/<str:guild_id>/lfg/browser/<int:group_id>/convert-to-thread/', views.api_lfg_convert_to_thread, name='api_lfg_convert_to_thread'),
     path('api/guild/<str:guild_id>/lfg/browser/audit-logs/', views.api_lfg_browser_audit_logs, name='api_lfg_browser_audit_logs'),
     path('api/guild/<str:guild_id>/lfg/browser-notifications/', views.api_lfg_browser_notifications, name='api_lfg_browser_notifications'),
+
+    # =========================================================================
+    # RAID MANAGEMENT ENDPOINTS
+    # =========================================================================
+    path('api/guild/<str:guild_id>/raids/', views.api_raid_list, name='api_raid_list'),  # GET - List raids
+    path('api/guild/<str:guild_id>/raids/create/', views.api_raid_create, name='api_raid_create'),  # POST - Create raid
+    path('api/guild/<str:guild_id>/raids/<int:raid_id>/', views.api_raid_detail, name='api_raid_detail'),  # GET - Raid details
+    path('api/guild/<str:guild_id>/raids/<int:raid_id>/signup/', views.api_raid_signup, name='api_raid_signup'),  # POST - Sign up
+    path('api/guild/<str:guild_id>/raids/<int:raid_id>/leave/', views.api_raid_leave, name='api_raid_leave'),  # DELETE - Leave raid
 
     # CSP Violation Reporting
     path('csp-violations/', views.csp_violation_report, name='csp_violations'),

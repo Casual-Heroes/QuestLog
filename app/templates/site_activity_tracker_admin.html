@@ -1,0 +1,687 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Site Activity Tracker Admin - Casual Heroes{% endblock %}
+
+{% block content %}
+{% include "questlog/partials/custom_select.html" %}
+
+<div class="flex min-h-screen bg-gradient-to-br from-neutral-950 via-neutral-900 to-neutral-950">
+  <!-- Sidebar -->
+  <div id="admin-sidebar" class="fixed inset-y-0 left-0 z-50 w-64 bg-neutral-900 border-r border-neutral-800 transform -translate-x-full lg:translate-x-0 transition-transform duration-300 ease-in-out overflow-y-auto">
+    <!-- Bot Owner Header -->
+    <div class="p-4 border-b border-neutral-800">
+      <div class="flex items-center gap-3 mb-2 p-2 rounded-lg bg-yellow-600/10 border border-yellow-600/20">
+        <div class="w-10 h-10 bg-yellow-600/20 rounded-lg flex items-center justify-center flex-shrink-0">
+          <i class="fas fa-crown text-yellow-400"></i>
+        </div>
+        <div class="flex-1 min-w-0 text-left">
+          <h2 class="text-white font-semibold text-sm">Bot Owner</h2>
+          <p class="text-yellow-400 text-xs">
+            <i class="fas fa-shield-alt mr-1"></i>Admin Panel
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Navigation Menu -->
+    <nav class="p-3 space-y-6">
+      <!-- Site Management -->
+      <div>
+        <div class="flex items-center justify-between px-3 mb-2">
+          <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wider">Site Management</h3>
+        </div>
+        <div class="space-y-1">
+          <!-- Activity Tracker -->
+          <a href="/admin/site-activity-tracker/"
+             class="nav-item active flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+            <i class="fas fa-chart-line text-indigo-400 group-hover:text-indigo-300"></i>
+            <span>Activity Tracker</span>
+          </a>
+
+          <!-- Future Admin Tools (commented out for now) -->
+          <!--
+          <a href="/admin/discovery-approvals/"
+             class="nav-item flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+            <i class="fas fa-check-circle text-green-400 group-hover:text-green-300"></i>
+            <span>Discovery Approvals</span>
+          </a>
+          -->
+        </div>
+      </div>
+
+      <!-- Quick Links -->
+      <div>
+        <div class="flex items-center justify-between px-3 mb-2">
+          <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wider">Quick Links</h3>
+        </div>
+        <div class="space-y-1">
+          <a href="/gamesweplay/"
+             class="nav-item flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+            <i class="fas fa-eye text-gray-400 group-hover:text-blue-400"></i>
+            <span>View Public Page</span>
+          </a>
+
+          <a href="https://casual-heroes.com/"
+             class="nav-item flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+            <i class="fas fa-home text-gray-400 group-hover:text-indigo-400"></i>
+            <span>Main Site</span>
+          </a>
+
+          <a href="/questlog/"
+             class="nav-item flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+            <i class="fas fa-book text-gray-400 group-hover:text-purple-400"></i>
+            <span>QuestLog Dashboard</span>
+          </a>
+        </div>
+      </div>
+    </nav>
+
+    <!-- Sidebar Footer -->
+    <div class="p-4 border-t border-neutral-800 mt-auto">
+      <p class="text-xs text-gray-500 text-center">
+        <i class="fas fa-info-circle mr-1"></i>
+        Bot Owner Access Only
+      </p>
+    </div>
+  </div>
+
+  <!-- Main Content Area -->
+  <div class="flex-1 lg:ml-64 min-w-0 p-6">
+    <!-- Header -->
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
+      <div>
+        <h1 class="text-3xl font-bold text-white">
+          <i class="fas fa-chart-line text-indigo-400 mr-3"></i>Site Activity Tracker
+        </h1>
+        <p class="text-gray-400 mt-1">Configure Discord game activity tracking for casual-heroes.com/gamesweplay/</p>
+      </div>
+      <div class="flex gap-3 items-center">
+        <button onclick="window.location.href='/gamesweplay/'" class="bg-neutral-800 hover:bg-neutral-700 text-white px-4 py-2 rounded-lg font-medium transition text-sm">
+          <i class="fas fa-eye mr-2"></i>View Public Page
+        </button>
+        <button onclick="showAddGameModal()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium transition text-sm">
+          <i class="fas fa-plus mr-2"></i>Add Game
+        </button>
+      </div>
+    </div>
+
+    <!-- Data File Info -->
+    <div class="bg-neutral-900/50 border border-neutral-800 rounded-lg p-4 mb-6">
+      <div class="flex items-center gap-3">
+        <i class="fas fa-database text-blue-400"></i>
+        <div>
+          <p class="text-white text-sm font-medium">Data File</p>
+          <p class="text-gray-400 text-xs font-mono">{{ data_file }}</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Games List -->
+    <div class="space-y-4">
+      {% if games %}
+        {% for game in games %}
+        <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6 hover:border-neutral-700 transition">
+          <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
+            <!-- Game Info -->
+            <div class="flex-1">
+              <div class="flex items-center gap-3 mb-2">
+                <h3 class="text-xl font-bold text-white">{{ game.display_name }}</h3>
+                <span class="px-2 py-1 text-xs rounded {% if game.is_active %}bg-green-600/20 text-green-400{% else %}bg-gray-600/20 text-gray-400{% endif %}">
+                  {% if game.is_active %}<i class="fas fa-check-circle mr-1"></i>Active{% else %}<i class="fas fa-times-circle mr-1"></i>Inactive{% endif %}
+                </span>
+                <span class="px-2 py-1 text-xs rounded bg-indigo-600/20 text-indigo-400">
+                  <i class="fas fa-hashtag mr-1"></i>{{ game.game_key }}
+                </span>
+              </div>
+
+              {% if game.description %}
+              <p class="text-gray-400 text-sm mb-4">{{ game.description }}</p>
+              {% endif %}
+
+              <!-- Activity Keywords -->
+              <div class="mb-4">
+                <p class="text-gray-500 text-xs uppercase tracking-wide mb-2">Activity Keywords</p>
+                <div class="flex flex-wrap gap-2">
+                  {% for keyword in game.activity_keywords %}
+                  <span class="px-2 py-1 bg-neutral-800 text-gray-300 rounded text-xs font-mono">
+                    {{ keyword }}
+                  </span>
+                  {% endfor %}
+                </div>
+              </div>
+
+              <!-- Role Mappings -->
+              <div>
+                <p class="text-gray-500 text-xs uppercase tracking-wide mb-2">Discord Role Mappings</p>
+                {% if game.roles %}
+                <div class="space-y-2">
+                  {% for role in game.roles %}
+                  <div class="flex items-center justify-between bg-neutral-800/50 rounded px-3 py-2">
+                    <div class="flex-1">
+                      <p class="text-white text-sm">
+                        <i class="fab fa-discord text-indigo-400 mr-2"></i>
+                        {% if role.guild_name %}{{ role.guild_name }}{% else %}Guild ID: {{ role.guild_id }}{% endif %}
+                      </p>
+                      <p class="text-gray-500 text-xs">
+                        Role ID: <span class="font-mono">{{ role.role_id }}</span>
+                        {% if role.role_name %} - {{ role.role_name }}{% endif %}
+                      </p>
+                    </div>
+                    <button onclick="deleteRoleMapping({{ role.id }})" class="text-red-400 hover:text-red-300 transition">
+                      <i class="fas fa-trash-alt"></i>
+                    </button>
+                  </div>
+                  {% endfor %}
+                </div>
+                {% else %}
+                <p class="text-gray-500 text-sm italic">No role mappings configured</p>
+                {% endif %}
+                <button onclick="showAddRoleModal({{ game.id }}, '{{ game.display_name }}')" class="mt-2 text-indigo-400 hover:text-indigo-300 text-sm transition">
+                  <i class="fas fa-plus mr-1"></i>Add Role Mapping
+                </button>
+              </div>
+            </div>
+
+            <!-- Actions -->
+            <div class="flex lg:flex-col gap-2">
+              <button onclick="editGame({{ game.id }})" class="bg-neutral-800 hover:bg-neutral-700 text-white px-4 py-2 rounded-lg text-sm transition">
+                <i class="fas fa-edit mr-2"></i>Edit
+              </button>
+              <button onclick="deleteGame({{ game.id }}, '{{ game.display_name }}')" class="bg-red-600/20 hover:bg-red-600/30 text-red-400 px-4 py-2 rounded-lg text-sm transition">
+                <i class="fas fa-trash-alt mr-2"></i>Delete
+              </button>
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      {% else %}
+        <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-12 text-center">
+          <i class="fas fa-gamepad text-gray-600 text-4xl mb-4"></i>
+          <p class="text-gray-400 mb-4">No games configured yet</p>
+          <button onclick="showAddGameModal()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-lg font-medium transition">
+            <i class="fas fa-plus mr-2"></i>Add Your First Game
+          </button>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- Mobile Sidebar Toggle -->
+<button onclick="toggleMobileSidebar()" class="lg:hidden fixed bottom-4 left-4 z-50 bg-indigo-600 hover:bg-indigo-700 text-white p-3 rounded-full shadow-lg">
+  <i class="fas fa-bars"></i>
+</button>
+
+<!-- Add/Edit Game Modal -->
+<div id="gameModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm hidden items-center justify-center z-50" onclick="if(event.target === this) closeGameModal()">
+  <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+    <div class="flex items-center justify-between mb-6">
+      <h2 class="text-2xl font-bold text-white" id="gameModalTitle">Add Game</h2>
+      <button onclick="closeGameModal()" class="text-gray-400 hover:text-white transition">
+        <i class="fas fa-times text-xl"></i>
+      </button>
+    </div>
+
+    <form id="gameForm" onsubmit="saveGame(event)">
+      <input type="hidden" id="gameId" value="">
+
+      <!-- Game Key -->
+      <div class="mb-4">
+        <label class="block text-sm text-gray-400 mb-2">
+          Game Key <span class="text-red-400">*</span>
+        </label>
+        <input type="text" id="gameKey" required maxlength="100"
+               placeholder="e.g., WoW, ESO, PoE2"
+               class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:border-indigo-500 focus:outline-none">
+        <p class="text-gray-500 text-xs mt-1">Unique identifier (alphanumeric, no spaces)</p>
+      </div>
+
+      <!-- Display Name -->
+      <div class="mb-4">
+        <label class="block text-sm text-gray-400 mb-2">
+          Display Name <span class="text-red-400">*</span>
+        </label>
+        <input type="text" id="displayName" required maxlength="255"
+               placeholder="e.g., World of Warcraft, Elder Scrolls Online"
+               class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:border-indigo-500 focus:outline-none">
+      </div>
+
+      <!-- Description -->
+      <div class="mb-4">
+        <label class="block text-sm text-gray-400 mb-2">Description</label>
+        <textarea id="description" rows="3" maxlength="500"
+                  placeholder="Brief description for the website"
+                  class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:border-indigo-500 focus:outline-none"></textarea>
+      </div>
+
+      <!-- Activity Keywords -->
+      <div class="mb-4">
+        <label class="block text-sm text-gray-400 mb-2">
+          Activity Keywords <span class="text-red-400">*</span>
+        </label>
+        <div id="keywordsList" class="flex flex-wrap gap-2 mb-2"></div>
+        <div class="flex gap-2">
+          <input type="text" id="newKeyword" maxlength="100"
+                 placeholder="e.g., World of Warcraft"
+                 class="flex-1 bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:border-indigo-500 focus:outline-none">
+          <button type="button" onclick="addKeyword()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-3 rounded-lg transition">
+            <i class="fas fa-plus"></i>
+          </button>
+        </div>
+        <p class="text-gray-500 text-xs mt-1">Discord activity names that indicate the user is playing this game</p>
+      </div>
+
+      <!-- Sort Order -->
+      <div class="mb-4">
+        <label class="block text-sm text-gray-400 mb-2">Sort Order</label>
+        <input type="number" id="sortOrder" value="0" min="0" max="1000"
+               class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:border-indigo-500 focus:outline-none">
+        <p class="text-gray-500 text-xs mt-1">Lower numbers appear first on the website</p>
+      </div>
+
+      <!-- Is Active -->
+      <div class="mb-6">
+        <label class="flex items-center gap-3 cursor-pointer">
+          <input type="checkbox" id="isActive" checked class="w-5 h-5 rounded bg-neutral-800 border-neutral-700 text-indigo-600 focus:ring-indigo-500">
+          <span class="text-white">Show on website</span>
+        </label>
+      </div>
+
+      <!-- Actions -->
+      <div class="flex gap-3">
+        <button type="button" onclick="closeGameModal()" class="flex-1 bg-neutral-800 hover:bg-neutral-700 text-white px-6 py-3 rounded-lg font-medium transition">
+          Cancel
+        </button>
+        <button type="submit" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-lg font-medium transition">
+          <i class="fas fa-save mr-2"></i>Save Game
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Add Role Mapping Modal -->
+<div id="roleModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm hidden items-center justify-center z-50" onclick="if(event.target === this) closeRoleModal()">
+  <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6 max-w-lg w-full mx-4">
+    <div class="flex items-center justify-between mb-6">
+      <h2 class="text-2xl font-bold text-white">Add Role Mapping</h2>
+      <button onclick="closeRoleModal()" class="text-gray-400 hover:text-white transition">
+        <i class="fas fa-times text-xl"></i>
+      </button>
+    </div>
+
+    <form id="roleForm" onsubmit="saveRoleMapping(event)">
+      <input type="hidden" id="roleGameId" value="">
+
+      <p class="text-gray-400 mb-4">Game: <span class="text-white font-medium" id="roleGameName"></span></p>
+
+      <!-- Guild ID -->
+      <div class="mb-4">
+        <label class="block text-sm text-gray-400 mb-2">
+          Discord Guild ID <span class="text-red-400">*</span>
+        </label>
+        <input type="text" id="guildId" required pattern="[0-9]+"
+               placeholder="e.g., 248806476150210571"
+               class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white font-mono focus:border-indigo-500 focus:outline-none">
+      </div>
+
+      <!-- Role ID -->
+      <div class="mb-4">
+        <label class="block text-sm text-gray-400 mb-2">
+          Discord Role ID <span class="text-red-400">*</span>
+        </label>
+        <input type="text" id="roleId" required pattern="[0-9]+"
+               placeholder="e.g., 1362775103288639640"
+               class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white font-mono focus:border-indigo-500 focus:outline-none">
+      </div>
+
+      <!-- Guild Name (Optional) -->
+      <div class="mb-4">
+        <label class="block text-sm text-gray-400 mb-2">Guild Name (Optional)</label>
+        <input type="text" id="guildName" maxlength="255"
+               placeholder="e.g., Casual Heroes"
+               class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:border-indigo-500 focus:outline-none">
+      </div>
+
+      <!-- Role Name (Optional) -->
+      <div class="mb-6">
+        <label class="block text-sm text-gray-400 mb-2">Role Name (Optional)</label>
+        <input type="text" id="roleName" maxlength="255"
+               placeholder="e.g., WoW Players"
+               class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:border-indigo-500 focus:outline-none">
+      </div>
+
+      <!-- Actions -->
+      <div class="flex gap-3">
+        <button type="button" onclick="closeRoleModal()" class="flex-1 bg-neutral-800 hover:bg-neutral-700 text-white px-6 py-3 rounded-lg font-medium transition">
+          Cancel
+        </button>
+        <button type="submit" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-lg font-medium transition">
+          <i class="fas fa-save mr-2"></i>Add Mapping
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Toast Notification -->
+<div id="toast" class="fixed bottom-4 right-4 bg-neutral-900 border border-neutral-800 rounded-lg p-4 shadow-xl hidden z-50">
+  <div class="flex items-center gap-3">
+    <i id="toastIcon" class="fas fa-check-circle text-green-400 text-xl"></i>
+    <p id="toastMessage" class="text-white"></p>
+  </div>
+</div>
+
+<style>
+.nav-item {
+  color: #9ca3af;
+}
+
+.nav-item:hover {
+  background-color: rgba(64, 64, 64, 0.5);
+  color: white;
+}
+
+.nav-item.active {
+  background-color: rgba(99, 102, 241, 0.1);
+  color: #818cf8;
+  border-left: 3px solid #818cf8;
+}
+
+.sub-nav-item {
+  color: #9ca3af;
+}
+
+.sub-nav-item:hover {
+  background-color: rgba(64, 64, 64, 0.3);
+  color: white;
+}
+
+.sub-nav-item.active {
+  color: #818cf8;
+}
+</style>
+
+<script>
+// CSRF Token
+const csrftoken = '{{ csrf_token }}';
+
+// Current keywords array for form
+let currentKeywords = [];
+
+// Mobile sidebar toggle
+function toggleMobileSidebar() {
+  const sidebar = document.getElementById('admin-sidebar');
+  sidebar.classList.toggle('-translate-x-full');
+}
+
+// Show toast notification
+function showToast(message, type = 'success') {
+  const toast = document.getElementById('toast');
+  const icon = document.getElementById('toastIcon');
+  const messageEl = document.getElementById('toastMessage');
+
+  messageEl.textContent = message;
+
+  if (type === 'success') {
+    icon.className = 'fas fa-check-circle text-green-400 text-xl';
+  } else if (type === 'error') {
+    icon.className = 'fas fa-exclamation-circle text-red-400 text-xl';
+  }
+
+  toast.classList.remove('hidden');
+  setTimeout(() => toast.classList.add('hidden'), 3000);
+}
+
+// Game Modal Functions
+function showAddGameModal() {
+  document.getElementById('gameModalTitle').textContent = 'Add Game';
+  document.getElementById('gameForm').reset();
+  document.getElementById('gameId').value = '';
+  document.getElementById('gameKey').disabled = false;
+  currentKeywords = [];
+  renderKeywords();
+  document.getElementById('gameModal').classList.remove('hidden');
+  document.getElementById('gameModal').classList.add('flex');
+}
+
+function closeGameModal() {
+  document.getElementById('gameModal').classList.add('hidden');
+  document.getElementById('gameModal').classList.remove('flex');
+}
+
+function editGame(gameId) {
+  fetch(`/api/admin/site-activity-tracker/games/${gameId}/`, {
+    headers: {
+      'X-CSRFToken': csrftoken
+    }
+  })
+  .then(response => response.json())
+  .then(data => {
+    document.getElementById('gameModalTitle').textContent = 'Edit Game';
+    document.getElementById('gameId').value = data.id;
+    document.getElementById('gameKey').value = data.game_key;
+    document.getElementById('gameKey').disabled = true;
+    document.getElementById('displayName').value = data.display_name;
+    document.getElementById('description').value = data.description || '';
+    document.getElementById('sortOrder').value = data.sort_order;
+    document.getElementById('isActive').checked = data.is_active;
+    currentKeywords = data.activity_keywords || [];
+    renderKeywords();
+    document.getElementById('gameModal').classList.remove('hidden');
+    document.getElementById('gameModal').classList.add('flex');
+  })
+  .catch(error => {
+    showToast('Failed to load game data', 'error');
+    console.error(error);
+  });
+}
+
+function saveGame(event) {
+  event.preventDefault();
+
+  if (currentKeywords.length === 0) {
+    showToast('Please add at least one activity keyword', 'error');
+    return;
+  }
+
+  const gameId = document.getElementById('gameId').value;
+  const data = {
+    game_key: document.getElementById('gameKey').value,
+    display_name: document.getElementById('displayName').value,
+    description: document.getElementById('description').value,
+    activity_keywords: currentKeywords,
+    sort_order: parseInt(document.getElementById('sortOrder').value),
+    is_active: document.getElementById('isActive').checked
+  };
+
+  const url = gameId ?
+    `/api/admin/site-activity-tracker/games/${gameId}/` :
+    '/api/admin/site-activity-tracker/games/';
+  const method = gameId ? 'PUT' : 'POST';
+
+  fetch(url, {
+    method: method,
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': csrftoken
+    },
+    body: JSON.stringify(data)
+  })
+  .then(response => response.json())
+  .then(result => {
+    if (result.success || result.game) {
+      showToast(gameId ? 'Game updated successfully' : 'Game created successfully');
+      closeGameModal();
+      setTimeout(() => location.reload(), 1000);
+    } else {
+      showToast(result.error || 'Failed to save game', 'error');
+    }
+  })
+  .catch(error => {
+    showToast('Failed to save game', 'error');
+    console.error(error);
+  });
+}
+
+function deleteGame(gameId, gameName) {
+  if (!confirm(`Are you sure you want to delete "${gameName}"? This will also delete all role mappings.`)) {
+    return;
+  }
+
+  fetch(`/api/admin/site-activity-tracker/games/${gameId}/`, {
+    method: 'DELETE',
+    headers: {
+      'X-CSRFToken': csrftoken
+    }
+  })
+  .then(response => response.json())
+  .then(result => {
+    if (result.success) {
+      showToast('Game deleted successfully');
+      setTimeout(() => location.reload(), 1000);
+    } else {
+      showToast(result.error || 'Failed to delete game', 'error');
+    }
+  })
+  .catch(error => {
+    showToast('Failed to delete game', 'error');
+    console.error(error);
+  });
+}
+
+// Keywords management
+function addKeyword() {
+  const input = document.getElementById('newKeyword');
+  const keyword = input.value.trim();
+
+  if (!keyword) return;
+
+  if (currentKeywords.includes(keyword)) {
+    showToast('Keyword already added', 'error');
+    return;
+  }
+
+  currentKeywords.push(keyword);
+  input.value = '';
+  renderKeywords();
+}
+
+function removeKeyword(index) {
+  currentKeywords.splice(index, 1);
+  renderKeywords();
+}
+
+function renderKeywords() {
+  const container = document.getElementById('keywordsList');
+  container.innerHTML = currentKeywords.map((keyword, index) => `
+    <span class="px-3 py-1 bg-indigo-600/20 text-indigo-300 rounded flex items-center gap-2 text-sm">
+      <span class="font-mono">${escapeHtml(keyword)}</span>
+      <button type="button" onclick="removeKeyword(${index})" class="text-indigo-400 hover:text-indigo-200">
+        <i class="fas fa-times text-xs"></i>
+      </button>
+    </span>
+  `).join('');
+}
+
+// XSS Protection
+function escapeHtml(unsafe) {
+  return unsafe
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+// Role Modal Functions
+function showAddRoleModal(gameId, gameName) {
+  document.getElementById('roleGameId').value = gameId;
+  document.getElementById('roleGameName').textContent = gameName;
+  document.getElementById('roleForm').reset();
+  document.getElementById('roleModal').classList.remove('hidden');
+  document.getElementById('roleModal').classList.add('flex');
+}
+
+function closeRoleModal() {
+  document.getElementById('roleModal').classList.add('hidden');
+  document.getElementById('roleModal').classList.remove('flex');
+}
+
+function saveRoleMapping(event) {
+  event.preventDefault();
+
+  const data = {
+    game_id: parseInt(document.getElementById('roleGameId').value),
+    guild_id: document.getElementById('guildId').value,
+    role_id: document.getElementById('roleId').value,
+    guild_name: document.getElementById('guildName').value,
+    role_name: document.getElementById('roleName').value
+  };
+
+  fetch('/api/admin/site-activity-tracker/roles/', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': csrftoken
+    },
+    body: JSON.stringify(data)
+  })
+  .then(response => response.json())
+  .then(result => {
+    if (result.success) {
+      showToast('Role mapping added successfully');
+      closeRoleModal();
+      setTimeout(() => location.reload(), 1000);
+    } else {
+      showToast(result.error || 'Failed to add role mapping', 'error');
+    }
+  })
+  .catch(error => {
+    showToast('Failed to add role mapping', 'error');
+    console.error(error);
+  });
+}
+
+function deleteRoleMapping(roleId) {
+  if (!confirm('Are you sure you want to delete this role mapping?')) {
+    return;
+  }
+
+  fetch(`/api/admin/site-activity-tracker/roles/${roleId}/`, {
+    method: 'DELETE',
+    headers: {
+      'X-CSRFToken': csrftoken
+    }
+  })
+  .then(response => response.json())
+  .then(result => {
+    if (result.success) {
+      showToast('Role mapping deleted successfully');
+      setTimeout(() => location.reload(), 1000);
+    } else {
+      showToast(result.error || 'Failed to delete role mapping', 'error');
+    }
+  })
+  .catch(error => {
+    showToast('Failed to delete role mapping', 'error');
+    console.error(error);
+  });
+}
+
+// Allow Enter key to add keywords
+document.addEventListener('DOMContentLoaded', function() {
+  const newKeywordInput = document.getElementById('newKeyword');
+  if (newKeywordInput) {
+    newKeywordInput.addEventListener('keypress', function(e) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        addKeyword();
+      }
+    });
+  }
+});
+</script>
+
+{% endblock %}

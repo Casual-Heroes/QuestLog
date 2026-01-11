@@ -475,8 +475,9 @@ async function loadGamesList() {
 // Load current preferences
 async function loadPreferences() {
   try {
+    // SEC-005 fix: Guild ID now in URL
     const guildId = '{{ guild.id }}';
-    const response = await csrfFetch(`/api/discovery/preferences?guild_id=${guildId}`);
+    const response = await csrfFetch(`/api/guild/${guildId}/discovery/preferences/`);
     const data = await response.json();
 
     if (data.success) {
@@ -596,8 +597,9 @@ document.getElementById('preferencesForm').addEventListener('submit', async (e) 
 
   try{
     const csrftoken = getCookie('csrftoken');
+    // SEC-005 fix: Guild ID now in URL
     const guildId = '{{ guild.id }}';
-    const response = await fetch(`/api/discovery/preferences?guild_id=${guildId}`, {
+    const response = await fetch(`/api/guild/${guildId}/discovery/preferences/`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -671,8 +673,9 @@ async function confirmLeave() {
 
   try {
     const csrftoken = getCookie('csrftoken');
+    // SEC-006 fix: Guild ID now in URL
     const guildId = '{{ guild.id }}';
-    const response = await fetch(`/api/discovery/leave?guild_id=${guildId}`, {
+    const response = await fetch(`/api/guild/${guildId}/discovery/leave/`, {
       method: 'POST',
       headers: {
         'X-CSRFToken': csrftoken

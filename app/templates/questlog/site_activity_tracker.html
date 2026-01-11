@@ -1,0 +1,810 @@
+{% extends "questlog/base_guild.html" %}
+{% load static %}
+
+{% block title %}Site Activity Tracker - {{ guild.name }}{% endblock %}
+
+{% block guild_content %}
+
+  <!-- Header -->
+  <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
+    <div>
+      <h1 class="text-3xl font-bold text-white">
+        <i class="fas fa-chart-line text-indigo-400 mr-3"></i>Site Activity Tracker
+      </h1>
+      <p class="text-gray-400 mt-1">Configure Discord game activity tracking for casual-heroes.com/gamesweplay/</p>
+    </div>
+    <div class="flex gap-3 items-center">
+      <button onclick="window.location.href='/gamesweplay/'" class="bg-neutral-800 hover:bg-neutral-700 text-white px-4 py-2 rounded-lg font-medium transition text-sm">
+        <i class="fas fa-eye mr-2"></i>View Public Page
+      </button>
+      <button onclick="showAddGameModal()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium transition text-sm">
+        <i class="fas fa-plus mr-2"></i>Add Game
+      </button>
+    </div>
+  </div>
+
+  <!-- Data File Info -->
+  <div class="bg-neutral-900/50 border border-neutral-800 rounded-lg p-4 mb-6">
+    <div class="flex items-center gap-3">
+      <i class="fas fa-database text-blue-400"></i>
+      <div>
+        <p class="text-white text-sm font-medium">Data File</p>
+        <p class="text-gray-400 text-xs font-mono">{{ data_file }}</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Games List -->
+  <div class="space-y-4">
+    {% if games %}
+      {% for game in games %}
+      <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6 hover:border-neutral-700 transition">
+        <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
+          <!-- Game Info -->
+          <div class="flex-1">
+            <div class="flex items-center gap-3 mb-2">
+              <h3 class="text-xl font-bold text-white">{{ game.display_name }}</h3>
+              <span class="px-2 py-1 text-xs rounded {% if game.is_active %}bg-green-600/20 text-green-400{% else %}bg-gray-600/20 text-gray-400{% endif %}">
+                {% if game.is_active %}<i class="fas fa-check-circle mr-1"></i>Active{% else %}<i class="fas fa-times-circle mr-1"></i>Inactive{% endif %}
+              </span>
+              <span class="px-2 py-1 text-xs rounded bg-indigo-600/20 text-indigo-400">
+                <i class="fas fa-hashtag mr-1"></i>{{ game.game_key }}
+              </span>
+            </div>
+
+            {% if game.description %}
+            <p class="text-gray-400 text-sm mb-4">{{ game.description }}</p>
+            {% endif %}
+
+            <!-- Activity Keywords -->
+            <div class="mb-4">
+              <p class="text-gray-500 text-xs uppercase tracking-wide mb-2">Activity Keywords</p>
+              <div class="flex flex-wrap gap-2">
+                {% for keyword in game.activity_keywords %}
+                <span class="px-2 py-1 bg-neutral-800 text-gray-300 rounded text-xs font-mono">
+                  {{ keyword }}
+                </span>
+                {% endfor %}
+              </div>
+            </div>
+
+            <!-- Role Mappings -->
+            <div>
+              <p class="text-gray-500 text-xs uppercase tracking-wide mb-2">Discord Role Mappings</p>
+              {% if game.roles %}
+              <div class="space-y-2">
+                {% for role in game.roles %}
+                <div class="flex items-center justify-between bg-neutral-800/50 rounded px-3 py-2">
+                  <div class="flex-1">
+                    <p class="text-white text-sm">
+                      <i class="fab fa-discord text-indigo-400 mr-2"></i>
+                      {% if role.guild_name %}{{ role.guild_name }}{% else %}Guild ID: {{ role.guild_id }}{% endif %}
+                    </p>
+                    <p class="text-gray-500 text-xs">
+                      Role ID: <span class="font-mono">{{ role.role_id }}</span>
+                      {% if role.role_name %} - {{ role.role_name }}{% endif %}
+                    </p>
+                  </div>
+                  <button onclick="deleteRoleMapping({{ role.id }})" class="text-red-400 hover:text-red-300 transition">
+                    <i class="fas fa-trash-alt"></i>
+                  </button>
+                </div>
+                {% endfor %}
+              </div>
+              {% else %}
+              <p class="text-gray-500 text-sm italic">No role mappings configured</p>
+              {% endif %}
+
+              <!-- Add Role Mapping Button -->
+              <button onclick="showAddRoleMappingModal({{ game.id }}, '{{ game.display_name|escapejs }}')" class="mt-3 text-indigo-400 hover:text-indigo-300 text-sm transition">
+                <i class="fas fa-plus-circle mr-1"></i>Add Role Mapping
+              </button>
+            </div>
+          </div>
+
+          <!-- Actions -->
+          <div class="flex lg:flex-col gap-2">
+            <button onclick="editGame({{ game.id }})" class="text-gray-400 hover:text-white transition p-2">
+              <i class="fas fa-edit"></i>
+            </button>
+            <button onclick="deleteGame({{ game.id }}, '{{ game.display_name|escapejs }}')" class="text-red-400 hover:text-red-300 transition p-2">
+              <i class="fas fa-trash-alt"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    {% else %}
+      <div class="bg-neutral-900/50 border border-neutral-800 rounded-lg p-12 text-center">
+        <i class="fas fa-gamepad text-gray-600 text-5xl mb-4"></i>
+        <p class="text-gray-400 mb-4">No games configured yet</p>
+        <button onclick="showAddGameModal()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-lg font-medium transition">
+          <i class="fas fa-plus mr-2"></i>Add Your First Game
+        </button>
+      </div>
+    {% endif %}
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div id="toast-container" class="fixed bottom-4 right-4 z-50 space-y-2"></div>
+
+  <!-- Add/Edit Game Modal (Unified) -->
+  <div id="gameModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm hidden items-center justify-center z-50" onclick="closeGameModalOnBackdrop(event)">
+    <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6 max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto" onclick="event.stopPropagation()">
+      <div class="flex items-center justify-between mb-6">
+        <h2 id="gameModalTitle" class="text-2xl font-bold text-white">
+          <i class="fas fa-gamepad text-indigo-400 mr-2"></i>Add Game
+        </h2>
+        <button onclick="closeGameModal()" class="text-gray-400 hover:text-white transition">
+          <i class="fas fa-times text-xl"></i>
+        </button>
+      </div>
+
+      <form id="gameForm" class="space-y-6">
+        <input type="hidden" id="gameId" value="">
+
+        <!-- Basic Info Section -->
+        <div class="space-y-4">
+          <h3 class="text-lg font-semibold text-white border-b border-neutral-800 pb-2">
+            <i class="fas fa-info-circle text-indigo-400 mr-2"></i>Basic Information
+          </h3>
+
+          <!-- Game Key -->
+          <div>
+            <label class="block text-sm text-gray-400 mb-2">
+              Game Key <span class="text-red-400">*</span>
+              <span class="text-xs text-gray-500 ml-2">(Unique identifier, e.g., "WoW", "ESO", "CH-7DTD01")</span>
+            </label>
+            <input type="text" id="gameKey" required
+              class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2 text-white focus:border-indigo-500 focus:outline-none"
+              placeholder="e.g., WoW or CH-7DTD01">
+          </div>
+
+          <!-- Display Name -->
+          <div>
+            <label class="block text-sm text-gray-400 mb-2">
+              Display Name <span class="text-red-400">*</span>
+            </label>
+            <input type="text" id="displayName" required
+              class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2 text-white focus:border-indigo-500 focus:outline-none"
+              placeholder="e.g., World of Warcraft">
+          </div>
+
+          <!-- Description -->
+          <div>
+            <label class="block text-sm text-gray-400 mb-2">Description</label>
+            <textarea id="description" rows="3"
+              class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2 text-white focus:border-indigo-500 focus:outline-none resize-none"
+              placeholder="Game description shown on website..."></textarea>
+          </div>
+        </div>
+
+        <!-- Game Type Section -->
+        <div class="space-y-4">
+          <h3 class="text-lg font-semibold text-white border-b border-neutral-800 pb-2">
+            <i class="fas fa-layer-group text-indigo-400 mr-2"></i>Game Type
+          </h3>
+
+          <div>
+            <label class="block text-sm text-gray-400 mb-2">
+              Game Type <span class="text-red-400">*</span>
+            </label>
+            <select id="gameType" onchange="toggleGameTypeSections()"
+              class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2 text-white focus:border-indigo-500 focus:outline-none">
+              <option value="discord">Discord Only (Activity Tracking)</option>
+              <option value="amp">AMP Server Only (Live Server Status)</option>
+              <option value="both">Both (Hybrid - AMP + Discord)</option>
+            </select>
+            <p class="text-xs text-gray-500 mt-1">
+              <span id="gameTypeHelp">Track Discord activity from Rich Presence.</span>
+            </p>
+          </div>
+        </div>
+
+        <!-- AMP Server Section (conditional) -->
+        <div id="ampSection" class="space-y-4 hidden">
+          <h3 class="text-lg font-semibold text-white border-b border-neutral-800 pb-2">
+            <i class="fas fa-server text-yellow-400 mr-2"></i>AMP Server Configuration
+          </h3>
+
+          <div>
+            <label class="block text-sm text-gray-400 mb-2">
+              AMP Instance ID <span class="text-red-400">*</span>
+              <span class="text-xs text-gray-500 ml-2">(e.g., "CH-7DTD01", "CH-Palworld01")</span>
+            </label>
+            <input type="text" id="ampInstanceId"
+              class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2 text-white font-mono focus:border-indigo-500 focus:outline-none"
+              placeholder="e.g., CH-7DTD01">
+          </div>
+        </div>
+
+        <!-- Discord Activity Section (conditional) -->
+        <div id="discordSection" class="space-y-4">
+          <h3 class="text-lg font-semibold text-white border-b border-neutral-800 pb-2">
+            <i class="fab fa-discord text-indigo-400 mr-2"></i>Discord Activity Tracking
+          </h3>
+
+          <div>
+            <label class="block text-sm text-gray-400 mb-2">
+              Activity Keywords <span class="text-red-400">*</span>
+              <span class="text-xs text-gray-500 ml-2">(Discord Rich Presence names to match)</span>
+            </label>
+            <div id="keywordsContainer" class="space-y-2 mb-2"></div>
+            <button type="button" onclick="addKeywordField()" class="text-indigo-400 hover:text-indigo-300 text-sm transition">
+              <i class="fas fa-plus-circle mr-1"></i>Add Keyword
+            </button>
+          </div>
+
+          <!-- Role Mappings (Inline) -->
+          <div>
+            <label class="block text-sm text-gray-400 mb-2">
+              Discord Role Mappings
+              <span class="text-xs text-gray-500 ml-2">(Track members with these roles)</span>
+            </label>
+            <div id="roleMappingsContainer" class="space-y-2 mb-2"></div>
+            <button type="button" onclick="addRoleMappingField()" class="text-indigo-400 hover:text-indigo-300 text-sm transition">
+              <i class="fas fa-plus-circle mr-1"></i>Add Role Mapping
+            </button>
+          </div>
+        </div>
+
+        <!-- Static Info Section (always shown) -->
+        <div class="space-y-4">
+          <h3 class="text-lg font-semibold text-white border-b border-neutral-800 pb-2">
+            <i class="fas fa-link text-indigo-400 mr-2"></i>Links & Images
+          </h3>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <!-- Steam App ID -->
+            <div>
+              <label class="block text-sm text-gray-400 mb-2">
+                Steam App ID <span class="text-xs text-gray-500">(Optional)</span>
+              </label>
+              <input type="text" id="steamAppid"
+                class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2 text-white font-mono focus:border-indigo-500 focus:outline-none"
+                placeholder="e.g., 251570">
+              <p class="text-xs text-gray-500 mt-1">For Steam game card image</p>
+            </div>
+
+            <!-- Custom Image -->
+            <div>
+              <label class="block text-sm text-gray-400 mb-2">
+                Custom Image Path <span class="text-xs text-gray-500">(Optional)</span>
+              </label>
+              <input type="text" id="customImg"
+                class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2 text-white font-mono focus:border-indigo-500 focus:outline-none"
+                placeholder="/static/img/games/...">
+              <p class="text-xs text-gray-500 mt-1">Use if no Steam App ID</p>
+            </div>
+          </div>
+
+          <!-- Steam Link -->
+          <div>
+            <label class="block text-sm text-gray-400 mb-2">
+              Steam/Website Link
+            </label>
+            <input type="url" id="steamLink"
+              class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2 text-white focus:border-indigo-500 focus:outline-none"
+              placeholder="https://store.steampowered.com/app/...">
+          </div>
+
+          <!-- Discord Invite -->
+          <div>
+            <label class="block text-sm text-gray-400 mb-2">
+              Discord Invite Link
+            </label>
+            <input type="url" id="discordInvite"
+              class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2 text-white focus:border-indigo-500 focus:outline-none"
+              placeholder="https://discord.gg/...">
+          </div>
+
+          <!-- Link Label -->
+          <div>
+            <label class="block text-sm text-gray-400 mb-2">
+              Link Button Label
+            </label>
+            <input type="text" id="linkLabel"
+              class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2 text-white focus:border-indigo-500 focus:outline-none"
+              placeholder="e.g., View on Steam, View Site">
+          </div>
+        </div>
+
+        <!-- Display Settings Section -->
+        <div class="space-y-4">
+          <h3 class="text-lg font-semibold text-white border-b border-neutral-800 pb-2">
+            <i class="fas fa-cog text-indigo-400 mr-2"></i>Display Settings
+          </h3>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <!-- Sort Order -->
+            <div>
+              <label class="block text-sm text-gray-400 mb-2">Sort Order</label>
+              <input type="number" id="sortOrder" value="0"
+                class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2 text-white focus:border-indigo-500 focus:outline-none">
+            </div>
+
+            <!-- Active Toggle -->
+            <div>
+              <label class="block text-sm text-gray-400 mb-2">Visibility</label>
+              <div class="flex items-center gap-3">
+                <label class="relative inline-flex items-center cursor-pointer">
+                  <input type="checkbox" id="isActive" class="sr-only peer" checked>
+                  <div class="w-11 h-6 bg-neutral-700 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                </label>
+                <span class="text-white text-sm">Show on website</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="flex gap-3 pt-4 border-t border-neutral-800">
+          <button type="button" onclick="closeGameModal()" class="flex-1 bg-neutral-800 hover:bg-neutral-700 text-white px-4 py-2 rounded-lg font-medium transition">
+            Cancel
+          </button>
+          <button type="submit" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium transition">
+            <i class="fas fa-save mr-2"></i>Save Game
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Add Role Mapping Modal -->
+  <div id="roleMappingModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm hidden items-center justify-center z-50" onclick="closeRoleMappingModalOnBackdrop(event)">
+    <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6 max-w-lg w-full mx-4" onclick="event.stopPropagation()">
+      <div class="flex items-center justify-between mb-6">
+        <h2 class="text-2xl font-bold text-white">
+          <i class="fab fa-discord text-indigo-400 mr-2"></i>Add Role Mapping
+        </h2>
+        <button onclick="closeRoleMappingModal()" class="text-gray-400 hover:text-white transition">
+          <i class="fas fa-times text-xl"></i>
+        </button>
+      </div>
+
+      <p id="roleMappingGameName" class="text-gray-400 mb-4"></p>
+
+      <form id="roleMappingForm" class="space-y-4">
+        <input type="hidden" id="roleMappingGameId" value="">
+
+        <!-- Discord Guild ID -->
+        <div>
+          <label class="block text-sm text-gray-400 mb-2">
+            Discord Guild ID <span class="text-red-400">*</span>
+          </label>
+          <input type="text" id="guildId" required
+            class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2 text-white font-mono focus:border-indigo-500 focus:outline-none"
+            placeholder="e.g., 248806476150210571">
+        </div>
+
+        <!-- Discord Role ID -->
+        <div>
+          <label class="block text-sm text-gray-400 mb-2">
+            Discord Role ID <span class="text-red-400">*</span>
+          </label>
+          <input type="text" id="roleId" required
+            class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2 text-white font-mono focus:border-indigo-500 focus:outline-none"
+            placeholder="e.g., 1326967728581509170">
+        </div>
+
+        <!-- Guild Name (Optional) -->
+        <div>
+          <label class="block text-sm text-gray-400 mb-2">
+            Guild Name <span class="text-xs text-gray-500">(Optional, for display)</span>
+          </label>
+          <input type="text" id="guildName"
+            class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2 text-white focus:border-indigo-500 focus:outline-none"
+            placeholder="e.g., Casual Heroes">
+        </div>
+
+        <!-- Role Name (Optional) -->
+        <div>
+          <label class="block text-sm text-gray-400 mb-2">
+            Role Name <span class="text-xs text-gray-500">(Optional, for display)</span>
+          </label>
+          <input type="text" id="roleName"
+            class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2 text-white focus:border-indigo-500 focus:outline-none"
+            placeholder="e.g., WoW Players">
+        </div>
+
+        <!-- Actions -->
+        <div class="flex gap-3 pt-4">
+          <button type="button" onclick="closeRoleMappingModal()" class="flex-1 bg-neutral-800 hover:bg-neutral-700 text-white px-4 py-2 rounded-lg font-medium transition">
+            Cancel
+          </button>
+          <button type="submit" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium transition">
+            <i class="fas fa-plus mr-2"></i>Add Mapping
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+<script>
+const csrftoken = '{{ csrf_token }}';
+const guildId = '{{ guild.id }}';
+let currentKeywords = [];
+let currentRoleMappings = [];
+
+// Toast notification helper
+function showToast(message, type = 'success') {
+  const toast = document.createElement('div');
+  toast.className = `px-6 py-4 rounded-lg shadow-lg border flex items-center gap-3 transition-all transform translate-x-0 ${
+    type === 'success' ? 'bg-green-600/20 border-green-600/50 text-green-400' :
+    type === 'error' ? 'bg-red-600/20 border-red-600/50 text-red-400' :
+    'bg-blue-600/20 border-blue-600/50 text-blue-400'
+  }`;
+
+  toast.innerHTML = `
+    <i class="fas fa-${type === 'success' ? 'check-circle' : type === 'error' ? 'exclamation-circle' : 'info-circle'}"></i>
+    <span>${message}</span>
+  `;
+
+  document.getElementById('toast-container').appendChild(toast);
+
+  setTimeout(() => {
+    toast.style.opacity = '0';
+    toast.style.transform = 'translateX(100%)';
+    setTimeout(() => toast.remove(), 300);
+  }, 3000);
+}
+
+// Game Type Toggle
+function toggleGameTypeSections() {
+  const gameType = document.getElementById('gameType').value;
+  const ampSection = document.getElementById('ampSection');
+  const discordSection = document.getElementById('discordSection');
+  const gameTypeHelp = document.getElementById('gameTypeHelp');
+
+  if (gameType === 'discord') {
+    ampSection.classList.add('hidden');
+    discordSection.classList.remove('hidden');
+    gameTypeHelp.textContent = 'Track Discord activity from Rich Presence.';
+  } else if (gameType === 'amp') {
+    ampSection.classList.remove('hidden');
+    discordSection.classList.add('hidden');
+    gameTypeHelp.textContent = 'Display live AMP server status (IP, players, password).';
+  } else if (gameType === 'both') {
+    ampSection.classList.remove('hidden');
+    discordSection.classList.remove('hidden');
+    gameTypeHelp.textContent = 'Hybrid: AMP server status + Discord activity tracking.';
+  }
+}
+
+// Game Modal Functions
+function showAddGameModal() {
+  document.getElementById('gameModalTitle').innerHTML = '<i class="fas fa-gamepad text-indigo-400 mr-2"></i>Add Game';
+  document.getElementById('gameId').value = '';
+  document.getElementById('gameForm').reset();
+  currentKeywords = [];
+  currentRoleMappings = [];
+  renderKeywordFields();
+  renderRoleMappingFields();
+  addKeywordField(); // Start with one empty keyword field
+  toggleGameTypeSections(); // Show correct sections
+  document.getElementById('gameModal').classList.remove('hidden');
+  document.getElementById('gameModal').classList.add('flex');
+}
+
+function editGame(gameId) {
+  fetch(`/api/guild/${guildId}/site-activity-tracker/games/${gameId}/`, {
+    headers: { 'X-CSRFToken': csrftoken }
+  })
+  .then(res => res.json())
+  .then(game => {
+    document.getElementById('gameModalTitle').innerHTML = '<i class="fas fa-edit text-indigo-400 mr-2"></i>Edit Game';
+    document.getElementById('gameId').value = game.id;
+    document.getElementById('gameKey').value = game.game_key;
+    document.getElementById('displayName').value = game.display_name;
+    document.getElementById('description').value = game.description || '';
+    document.getElementById('gameType').value = game.game_type || 'discord';
+    document.getElementById('ampInstanceId').value = game.amp_instance_id || '';
+    document.getElementById('steamAppid').value = game.steam_appid || '';
+    document.getElementById('steamLink').value = game.steam_link || '';
+    document.getElementById('discordInvite').value = game.discord_invite || '';
+    document.getElementById('customImg').value = game.custom_img || '';
+    document.getElementById('linkLabel').value = game.link_label || 'View Site';
+    document.getElementById('sortOrder').value = game.sort_order;
+    document.getElementById('isActive').checked = game.is_active;
+
+    currentKeywords = game.activity_keywords || [];
+    renderKeywordFields();
+
+    // Load existing role mappings
+    currentRoleMappings = (game.roles || []).map(role => ({
+      id: role.id,
+      guild_id: role.guild_id,
+      role_id: role.role_id,
+      guild_name: role.guild_name || '',
+      role_name: role.role_name || ''
+    }));
+    renderRoleMappingFields();
+
+    toggleGameTypeSections();
+
+    document.getElementById('gameModal').classList.remove('hidden');
+    document.getElementById('gameModal').classList.add('flex');
+  })
+  .catch(err => {
+    showToast('Failed to load game data', 'error');
+    console.error(err);
+  });
+}
+
+function closeGameModal() {
+  document.getElementById('gameModal').classList.add('hidden');
+  document.getElementById('gameModal').classList.remove('flex');
+  document.getElementById('gameForm').reset();
+  currentKeywords = [];
+  currentRoleMappings = [];
+}
+
+function closeGameModalOnBackdrop(event) {
+  if (event.target === event.currentTarget) {
+    closeGameModal();
+  }
+}
+
+// Keyword Management
+function addKeywordField(value = '') {
+  currentKeywords.push(value);
+  renderKeywordFields();
+}
+
+function removeKeywordField(index) {
+  currentKeywords.splice(index, 1);
+  renderKeywordFields();
+}
+
+function renderKeywordFields() {
+  const container = document.getElementById('keywordsContainer');
+  container.innerHTML = '';
+
+  currentKeywords.forEach((keyword, index) => {
+    const div = document.createElement('div');
+    div.className = 'flex gap-2';
+    div.innerHTML = `
+      <input type="text" value="${keyword}"
+        onchange="currentKeywords[${index}] = this.value"
+        class="flex-1 bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2 text-white focus:border-indigo-500 focus:outline-none"
+        placeholder='e.g., "World of Warcraft"'>
+      <button type="button" onclick="removeKeywordField(${index})" class="px-3 text-red-400 hover:text-red-300 transition">
+        <i class="fas fa-trash-alt"></i>
+      </button>
+    `;
+    container.appendChild(div);
+  });
+}
+
+// Role Mapping Management (Inline)
+function addRoleMappingField() {
+  currentRoleMappings.push({
+    guild_id: '',
+    role_id: '',
+    guild_name: '',
+    role_name: ''
+  });
+  renderRoleMappingFields();
+}
+
+function removeRoleMappingField(index) {
+  currentRoleMappings.splice(index, 1);
+  renderRoleMappingFields();
+}
+
+function renderRoleMappingFields() {
+  const container = document.getElementById('roleMappingsContainer');
+  container.innerHTML = '';
+
+  currentRoleMappings.forEach((mapping, index) => {
+    const div = document.createElement('div');
+    div.className = 'bg-neutral-800/50 rounded-lg p-3 space-y-2';
+    div.innerHTML = `
+      <div class="flex items-center justify-between mb-2">
+        <span class="text-xs text-gray-400 font-semibold uppercase">Role Mapping #${index + 1}</span>
+        <button type="button" onclick="removeRoleMappingField(${index})" class="text-red-400 hover:text-red-300 transition text-sm">
+          <i class="fas fa-trash-alt mr-1"></i>Remove
+        </button>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+        <input type="text" value="${mapping.guild_id}"
+          onchange="currentRoleMappings[${index}].guild_id = this.value"
+          class="bg-neutral-800 border border-neutral-700 rounded px-3 py-1.5 text-white text-sm font-mono focus:border-indigo-500 focus:outline-none"
+          placeholder="Guild ID (required)">
+        <input type="text" value="${mapping.role_id}"
+          onchange="currentRoleMappings[${index}].role_id = this.value"
+          class="bg-neutral-800 border border-neutral-700 rounded px-3 py-1.5 text-white text-sm font-mono focus:border-indigo-500 focus:outline-none"
+          placeholder="Role ID (required)">
+        <input type="text" value="${mapping.guild_name}"
+          onchange="currentRoleMappings[${index}].guild_name = this.value"
+          class="bg-neutral-800 border border-neutral-700 rounded px-3 py-1.5 text-white text-sm focus:border-indigo-500 focus:outline-none"
+          placeholder="Guild Name (optional)">
+        <input type="text" value="${mapping.role_name}"
+          onchange="currentRoleMappings[${index}].role_name = this.value"
+          class="bg-neutral-800 border border-neutral-700 rounded px-3 py-1.5 text-white text-sm focus:border-indigo-500 focus:outline-none"
+          placeholder="Role Name (optional)">
+      </div>
+    `;
+    container.appendChild(div);
+  });
+}
+
+// Save Game
+document.getElementById('gameForm').addEventListener('submit', function(e) {
+  e.preventDefault();
+
+  const gameId = document.getElementById('gameId').value;
+  const gameType = document.getElementById('gameType').value;
+
+  // Validate keywords for discord/both types
+  if ((gameType === 'discord' || gameType === 'both') && currentKeywords.filter(k => k.trim() !== '').length === 0) {
+    showToast('At least one activity keyword is required for Discord tracking', 'error');
+    return;
+  }
+
+  // Validate AMP instance ID for amp/both types
+  if ((gameType === 'amp' || gameType === 'both') && !document.getElementById('ampInstanceId').value.trim()) {
+    showToast('AMP Instance ID is required for AMP servers', 'error');
+    return;
+  }
+
+  const data = {
+    game_key: document.getElementById('gameKey').value,
+    display_name: document.getElementById('displayName').value,
+    description: document.getElementById('description').value,
+    game_type: gameType,
+    amp_instance_id: document.getElementById('ampInstanceId').value || null,
+    steam_appid: document.getElementById('steamAppid').value || null,
+    steam_link: document.getElementById('steamLink').value || null,
+    discord_invite: document.getElementById('discordInvite').value || null,
+    custom_img: document.getElementById('customImg').value || null,
+    link_label: document.getElementById('linkLabel').value || 'View Site',
+    activity_keywords: currentKeywords.filter(k => k.trim() !== ''),
+    is_active: document.getElementById('isActive').checked,
+    sort_order: parseInt(document.getElementById('sortOrder').value),
+    role_mappings: currentRoleMappings
+      .filter(m => m.guild_id && m.role_id)
+      .map(m => ({
+        ...m,
+        guild_id: String(m.guild_id),  // Force to string to preserve full Discord ID
+        role_id: String(m.role_id)     // Force to string to preserve full Discord ID
+      }))
+  };
+
+  const url = gameId
+    ? `/api/guild/${guildId}/site-activity-tracker/games/${gameId}/`
+    : `/api/guild/${guildId}/site-activity-tracker/games/`;
+  const method = gameId ? 'PUT' : 'POST';
+
+  fetch(url, {
+    method: method,
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': csrftoken
+    },
+    body: JSON.stringify(data)
+  })
+  .then(res => res.json())
+  .then(result => {
+    if (result.success) {
+      showToast(gameId ? 'Game updated successfully' : 'Game created successfully', 'success');
+      closeGameModal();
+      setTimeout(() => location.reload(), 1000);
+    } else {
+      showToast(result.error || 'Failed to save game', 'error');
+    }
+  })
+  .catch(err => {
+    showToast('Network error', 'error');
+    console.error(err);
+  });
+});
+
+// Delete Game
+function deleteGame(gameId, gameName) {
+  if (!confirm(`Delete "${gameName}"? This will also delete all role mappings for this game.`)) {
+    return;
+  }
+
+  fetch(`/api/guild/${guildId}/site-activity-tracker/games/${gameId}/`, {
+    method: 'DELETE',
+    headers: { 'X-CSRFToken': csrftoken }
+  })
+  .then(res => res.json())
+  .then(result => {
+    if (result.success) {
+      showToast('Game deleted successfully', 'success');
+      setTimeout(() => location.reload(), 1000);
+    } else {
+      showToast(result.error || 'Failed to delete game', 'error');
+    }
+  })
+  .catch(err => {
+    showToast('Network error', 'error');
+    console.error(err);
+  });
+}
+
+// Role Mapping Modal Functions
+function showAddRoleMappingModal(gameId, gameName) {
+  document.getElementById('roleMappingGameId').value = gameId;
+  document.getElementById('roleMappingGameName').textContent = `Adding role mapping for: ${gameName}`;
+  document.getElementById('roleMappingForm').reset();
+  document.getElementById('roleMappingModal').classList.remove('hidden');
+  document.getElementById('roleMappingModal').classList.add('flex');
+}
+
+function closeRoleMappingModal() {
+  document.getElementById('roleMappingModal').classList.add('hidden');
+  document.getElementById('roleMappingModal').classList.remove('flex');
+}
+
+function closeRoleMappingModalOnBackdrop(event) {
+  if (event.target === event.currentTarget) {
+    closeRoleMappingModal();
+  }
+}
+
+// Save Role Mapping
+document.getElementById('roleMappingForm').addEventListener('submit', function(e) {
+  e.preventDefault();
+
+  const data = {
+    game_id: parseInt(document.getElementById('roleMappingGameId').value),
+    guild_id: document.getElementById('guildId').value,
+    role_id: document.getElementById('roleId').value,
+    guild_name: document.getElementById('guildName').value,
+    role_name: document.getElementById('roleName').value,
+  };
+
+  fetch(`/api/guild/${guildId}/site-activity-tracker/roles/`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': csrftoken
+    },
+    body: JSON.stringify(data)
+  })
+  .then(res => res.json())
+  .then(result => {
+    if (result.success) {
+      showToast('Role mapping added successfully', 'success');
+      closeRoleMappingModal();
+      setTimeout(() => location.reload(), 1000);
+    } else {
+      showToast(result.error || 'Failed to add role mapping', 'error');
+    }
+  })
+  .catch(err => {
+    showToast('Network error', 'error');
+    console.error(err);
+  });
+});
+
+// Delete Role Mapping
+function deleteRoleMapping(roleMappingId) {
+  if (!confirm('Delete this role mapping?')) {
+    return;
+  }
+
+  fetch(`/api/guild/${guildId}/site-activity-tracker/roles/${roleMappingId}/`, {
+    method: 'DELETE',
+    headers: { 'X-CSRFToken': csrftoken }
+  })
+  .then(res => res.json())
+  .then(result => {
+    if (result.success) {
+      showToast('Role mapping deleted successfully', 'success');
+      setTimeout(() => location.reload(), 1000);
+    } else {
+      showToast(result.error || 'Failed to delete role mapping', 'error');
+    }
+  })
+  .catch(err => {
+    showToast('Network error', 'error');
+    console.error(err);
+  });
+}
+</script>
+
+{% endblock %}

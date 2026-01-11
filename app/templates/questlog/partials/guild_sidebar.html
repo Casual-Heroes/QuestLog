@@ -428,6 +428,25 @@
 
     {% endif %}
     <!-- End Admin Only Sections -->
+
+    <!-- Bot Owner Only Section -->
+    {% if request.session.discord_user.id == "141890558045061120" %}
+    <div>
+      <div class="flex items-center justify-between px-3 mb-2">
+        <h3 class="text-xs font-bold text-yellow-500 uppercase tracking-wider">
+          <i class="fas fa-crown mr-1"></i>Site Management
+        </h3>
+      </div>
+      <div class="space-y-1">
+        <a href="{% url 'site_activity_tracker_admin' guild.id %}"
+           class="nav-item {% if active_page == 'site_activity_tracker' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          <i class="fas fa-chart-line text-yellow-400 group-hover:text-yellow-300"></i>
+          <span>Activity Tracker</span>
+        </a>
+      </div>
+    </div>
+    {% endif %}
+    <!-- End Bot Owner Only Section -->
   </nav>
 
   <!-- Footer -->

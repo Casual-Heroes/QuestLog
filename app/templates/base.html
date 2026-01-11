@@ -132,6 +132,28 @@
             </div>
           </div>
 
+          <!-- Admin Dropdown (Bot Owner Only) -->
+          {% if request.session.discord_user.id == "1442643999713394831" %}
+          <div class="relative">
+            <button @click="activeDropdown = activeDropdown === 'admin' ? null : 'admin'" class="text-yellow-400 font-semibold flex items-center gap-1 hover:text-yellow-300">
+              <i class="fas fa-shield-alt"></i> Admin ▾
+            </button>
+            <div x-show="activeDropdown === 'admin'" @click.outside="activeDropdown = null" x-transition
+              class="absolute left-0 mt-2 bg-neutral-900 border border-neutral-800 rounded-lg shadow-lg w-64 z-50 text-sm">
+              <div class="px-4 py-2 text-xs uppercase text-yellow-400 tracking-wider border-b border-neutral-800">
+                <i class="fas fa-crown mr-1"></i>Bot Owner Tools
+              </div>
+              <a href="/admin/site-activity-tracker/" class="flex items-center gap-2 px-4 py-3 hover:bg-neutral-800">
+                <i class="fas fa-chart-line text-indigo-400 w-4 h-4"></i>
+                <div>
+                  <div class="text-white">Activity Tracker</div>
+                  <div class="text-xs text-gray-500">Discord game tracking config</div>
+                </div>
+              </a>
+            </div>
+          </div>
+          {% endif %}
+
           <!-- Hosting Dropdown -->
           <!-- <div class="relative">
             <button @click="activeDropdown = activeDropdown === 'hosting' ? null : 'hosting'" class="text-indigo-400 font-semibold flex items-center gap-1 hover:text-indigo-400">
