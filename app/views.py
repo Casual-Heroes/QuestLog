@@ -1970,9 +1970,30 @@ def questlog_login(request):
     from .discord_auth import get_discord_login_url
 
     # Check if already logged in
-    if request.session.get('discord_user'):
-        # Already authenticated, redirect directly to dashboard
-        return redirect('https://dashboard.casual-heroes.com/questlog/')
+    discord_user = request.session.get('discord_user')
+    if discord_user:
+        # Validate token is still valid before redirecting to dashboard
+        access_token = discord_user.get('access_token')
+        if access_token:
+            try:
+                validate_response = requests.get(
+                    'https://discord.com/api/users/@me',
+                    headers={'Authorization': f'Bearer {access_token}'},
+                    timeout=5
+                )
+
+                # If token is valid, redirect to dashboard
+                if validate_response.status_code == 200:
+                    return redirect('https://dashboard.casual-heroes.com/questlog/')
+
+                # If token expired (401), clear session and continue to re-auth below
+                if validate_response.status_code == 401:
+                    logger.warning(f"Discord token expired during login check, clearing session")
+                    request.session.flush()
+            except requests.RequestException:
+                # Network error - fail open and redirect to dashboard
+                # Dashboard will handle auth validation
+                return redirect('https://dashboard.casual-heroes.com/questlog/')
 
     # Generate a state token for CSRF protection
     state = secrets.token_urlsafe(32)
@@ -2242,6 +2263,16 @@ def discord_refresh_guilds(request):
 
         if guilds_response.status_code != 200:
             logger.error(f"Failed to fetch guilds: {guilds_response.status_code} {guilds_response.text}")
+
+            # If token is expired (401), clear session and trigger re-auth
+            if guilds_response.status_code == 401:
+                request.session.flush()  # Clear the expired session
+                return JsonResponse({
+                    'error': 'Session expired',
+                    'requires_reauth': True,
+                    'redirect_url': '/auth/discord/login/'
+                }, status=401)
+
             return JsonResponse({'error': 'Failed to fetch guilds from Discord'}, status=guilds_response.status_code)
 
         discord_guilds = guilds_response.json()
@@ -2310,7 +2341,9 @@ def discord_required(view_func):
     Security: SEC-001 fix - removed crawler bypass to prevent authentication bypass attacks.
     """
     def wrapper(request, *args, **kwargs):
-        if not request.session.get('discord_user'):
+        discord_user = request.session.get('discord_user')
+
+        if not discord_user:
             # For API endpoints, return JSON error
             if request.path.startswith('/api/'):
                 from django.http import JsonResponse
@@ -2318,6 +2351,40 @@ def discord_required(view_func):
             # For page views, redirect to login
             messages.warning(request, "Please log in with Discord to access this page.")
             return redirect(f"/auth/discord/login/?next={request.path}")
+
+        # Validate token is still valid by making a lightweight Discord API call
+        access_token = discord_user.get('access_token')
+        if access_token:
+            try:
+                # Quick validation call to check if token is still valid
+                validate_response = requests.get(
+                    'https://discord.com/api/users/@me',
+                    headers={'Authorization': f'Bearer {access_token}'},
+                    timeout=5
+                )
+
+                # If token is expired (401), clear session and redirect to login
+                if validate_response.status_code == 401:
+                    logger.warning(f"Discord token expired for user {discord_user.get('username')}, forcing re-auth")
+                    request.session.flush()
+
+                    # For API endpoints, return JSON error
+                    if request.path.startswith('/api/'):
+                        from django.http import JsonResponse
+                        return JsonResponse({
+                            'error': 'Session expired',
+                            'requires_reauth': True,
+                            'redirect_url': '/auth/discord/login/'
+                        }, status=401)
+
+                    # For page views, redirect to login with message
+                    messages.warning(request, "Your Discord session has expired. Please log in again.")
+                    return redirect(f"/auth/discord/login/?next={request.path}")
+            except requests.RequestException:
+                # If validation fails due to network error, allow through (fail open for availability)
+                # The actual API calls will fail and handle appropriately
+                pass
+
         return view_func(request, *args, **kwargs)
     return wrapper
 

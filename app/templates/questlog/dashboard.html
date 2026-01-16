@@ -282,6 +282,13 @@ async function refreshGuilds() {
       // Reload the page to show updated guild list
       window.location.reload();
     } else {
+      // Check if session expired and re-auth is required
+      if (response.status === 401 && data.requires_reauth) {
+        alert('Your Discord session has expired. Please log in again.');
+        window.location.href = data.redirect_url || '/auth/discord/login/';
+        return;
+      }
+
       alert(`Error: ${data.error || 'Failed to refresh guild list'}`);
       btn.disabled = false;
       btn.innerHTML = '<i class="fas fa-sync-alt mr-2"></i>Refresh Servers';
