@@ -454,14 +454,17 @@
 
   // Load approved streamers
   async function loadApprovedStreamers() {
+    // Skip if premium elements don't exist (upgrade banner shown instead)
     const container = document.getElementById('approvedStreamersList');
+    if (!container) return;
 
     try {
       const response = await csrfFetch(`/api/guild/${guildId}/streaming/approved/`);
       const data = await response.json();
 
       if (data.success) {
-        if (data.streamers.length === 0) {
+        const allStreamers = data.approved_streamers || [];
+        if (allStreamers.length === 0) {
           container.innerHTML = `
             <div class="text-center py-8 text-gray-500">
               <i class="fas fa-user-slash text-3xl mb-3"></i>
@@ -472,7 +475,21 @@
           return;
         }
 
-        container.innerHTML = data.streamers.map(streamer => `
+        // Filter for YouTube-connected creators only
+        const streamers = allStreamers.filter(s => s.youtube_connected);
+
+        if (streamers.length === 0) {
+          container.innerHTML = `
+            <div class="text-center py-8 text-gray-500">
+              <i class="fab fa-youtube text-3xl mb-3"></i>
+              <p>No YouTube streamers approved</p>
+              <p class="text-sm mt-1">Approved creators need to connect their YouTube account</p>
+            </div>
+          `;
+          return;
+        }
+
+        container.innerHTML = streamers.map(streamer => `
           <div class="flex items-center gap-4 p-4 bg-neutral-800/50 rounded-lg border border-neutral-700">
             <img src="${streamer.avatar_url || '/static/img/default-avatar.png'}" alt="${streamer.display_name}" class="w-12 h-12 rounded-full" />
             <div class="flex-1">
@@ -481,9 +498,9 @@
                 ${streamer.is_live_youtube ? '<span class="px-2 py-1 bg-red-600 text-white text-xs rounded-full font-bold">🔴 LIVE</span>' : ''}
               </div>
               <div class="flex items-center gap-3 mt-1 text-sm text-gray-400">
-                ${streamer.youtube_connected ? '<i class="fab fa-youtube text-red-400"></i>' : ''}
-                ${streamer.twitch_connected ? '<i class="fab fa-twitch text-purple-400"></i>' : ''}
-                <span>Approved ${new Date(streamer.approved_at * 1000).toLocaleDateString()}</span>
+                <i class="fab fa-youtube text-red-400"></i>
+                <span>${streamer.youtube_handle || 'YouTube Connected'}</span>
+                <span>• Approved ${new Date(streamer.approved_at * 1000).toLocaleDateString()}</span>
               </div>
             </div>
             <button onclick="revokeStreamer(${streamer.creator_profile_id})" class="px-4 py-2 bg-red-600/20 hover:bg-red-600/30 text-red-400 rounded-lg text-sm font-medium transition border border-red-600/30">
@@ -503,21 +520,60 @@
     }
   }
 
-  // Load all creators with YouTube
+  // Load all creators with YouTube connected
   async function loadAllCreators() {
     const container = document.getElementById('allCreatorsList');
 
     try {
-      // TODO: Create endpoint to get all creators with YouTube connected
-      // For now, show placeholder
+      const response = await csrfFetch(`/api/guild/${guildId}/streaming/creators/?platform=youtube`);
+      const data = await response.json();
+
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to load creators');
+      }
+
+      // Filter out already approved creators
+      const unapproved = data.creators.filter(c => !c.is_approved);
+
+      if (unapproved.length === 0) {
+        container.innerHTML = `
+          <div class="text-center py-8 text-gray-500">
+            <i class="fas fa-check-circle text-3xl mb-3"></i>
+            <p>All creators with YouTube connected have been approved</p>
+            <p class="text-sm mt-1">Creators can connect YouTube from the Featured Creators page</p>
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = unapproved.map(creator => `
+        <div class="flex items-center gap-4 p-4 bg-neutral-800/50 rounded-lg border border-neutral-700">
+          <img src="${creator.avatar_url || '/static/img/default-avatar.png'}" alt="${creator.display_name}" class="w-12 h-12 rounded-full" />
+          <div class="flex-1">
+            <div class="flex items-center gap-2">
+              <span class="text-white font-medium">${creator.display_name}</span>
+              ${creator.is_live_youtube ? '<span class="px-2 py-1 bg-red-600 text-white text-xs rounded-full font-bold">🔴 LIVE</span>' : ''}
+            </div>
+            <div class="flex items-center gap-3 mt-1 text-sm text-gray-400">
+              <i class="fab fa-youtube text-red-400"></i>
+              <span>${creator.youtube_handle || 'YouTube Connected'}</span>
+              ${creator.youtube_subscriber_count ? `<span>• ${creator.youtube_subscriber_count.toLocaleString()} subscribers</span>` : ''}
+            </div>
+          </div>
+          <button onclick="approveStreamer(${creator.creator_profile_id})" class="px-4 py-2 bg-green-600/20 hover:bg-green-600/30 text-green-400 rounded-lg text-sm font-medium transition border border-green-600/30">
+            <i class="fas fa-check mr-2"></i>Approve
+          </button>
+        </div>
+      `).join('');
+
+    } catch (error) {
+      console.error('Failed to load creators:', error);
       container.innerHTML = `
         <div class="text-center py-8 text-gray-500">
           <i class="fas fa-info-circle text-3xl mb-3"></i>
           <p>Creators can connect YouTube from the Featured Creators page</p>
         </div>
       `;
-    } catch (error) {
-      console.error('Failed to load creators:', error);
     }
   }
 

@@ -341,6 +341,7 @@ urlpatterns = [
     # Streaming Notifications Management
     path('api/guild/<str:guild_id>/streaming/config/', views.streaming_notifications_config, name='streaming_notifications_config'),
     path('api/guild/<str:guild_id>/streaming/approved/', views.approved_streamers_list, name='approved_streamers_list'),
+    path('api/guild/<str:guild_id>/streaming/creators/', views.all_creators_with_streaming, name='all_creators_with_streaming'),
     path('api/guild/<str:guild_id>/streaming/approve/', views.approve_streamer, name='approve_streamer'),
     path('api/guild/<str:guild_id>/streaming/revoke/', views.revoke_streamer, name='revoke_streamer'),
     path('api/guild/<str:guild_id>/streaming/test/', views.test_streaming_notification, name='test_streaming_notification'),

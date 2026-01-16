@@ -19605,6 +19605,112 @@ def creator_profile_register(request, guild_id):
             # GET request - show form
             profile_data = None
             if existing_profile:
+                # Refresh YouTube/Twitch stats on page load
+                stats_updated = False
+
+                # Refresh YouTube stats if connected
+                if existing_profile.youtube_channel_id and existing_profile.youtube_access_token:
+                    try:
+                        from app.services.youtube_service import YouTubeService, YouTubeAPIError
+                        from app.utils.encryption import decrypt_token, encrypt_token
+
+                        yt_service = YouTubeService()
+                        access_token = decrypt_token(existing_profile.youtube_access_token)
+
+                        # Try to get channel info
+                        try:
+                            channel_info = yt_service.get_channel_info(access_token)
+                            existing_profile.youtube_subscriber_count = channel_info.get('subscriber_count', 0)
+                            existing_profile.youtube_last_synced = int(time.time())
+                            stats_updated = True
+                            logger.debug(f"YouTube stats refreshed for creator {existing_profile.id}: {channel_info.get('subscriber_count')} subs")
+                        except YouTubeAPIError as e:
+                            # Token might be expired, try to refresh
+                            if existing_profile.youtube_refresh_token:
+                                try:
+                                    refresh_token = decrypt_token(existing_profile.youtube_refresh_token)
+                                    new_tokens = yt_service.refresh_access_token(refresh_token)
+                                    existing_profile.youtube_access_token = encrypt_token(new_tokens['access_token'])
+                                    existing_profile.youtube_token_expires = int(time.time()) + new_tokens.get('expires_in', 3600)
+
+                                    # Retry with new token
+                                    channel_info = yt_service.get_channel_info(new_tokens['access_token'])
+                                    existing_profile.youtube_subscriber_count = channel_info.get('subscriber_count', 0)
+                                    existing_profile.youtube_last_synced = int(time.time())
+                                    stats_updated = True
+                                    logger.debug(f"YouTube stats refreshed after token refresh for creator {existing_profile.id}")
+                                except Exception as refresh_err:
+                                    error_str = str(refresh_err).lower()
+                                    # Check if token was revoked/expired - clear connection so user can reconnect
+                                    # Catch: invalid_grant, revoked, expired, 400 Bad Request, 401 Unauthorized
+                                    if any(x in error_str for x in ['invalid_grant', 'revoked', 'expired', '400', '401', 'bad request', 'unauthorized']):
+                                        logger.warning(f"YouTube token revoked for creator {existing_profile.id}, clearing connection")
+                                        existing_profile.youtube_access_token = None
+                                        existing_profile.youtube_refresh_token = None
+                                        existing_profile.youtube_token_expires = None
+                                        existing_profile.youtube_channel_id = None  # Clear so UI shows "Not connected"
+                                        stats_updated = True  # Need to commit this change
+                                    else:
+                                        logger.warning(f"YouTube token refresh failed for creator {existing_profile.id}: {refresh_err}")
+                    except Exception as yt_err:
+                        logger.warning(f"Failed to refresh YouTube stats for creator {existing_profile.id}: {yt_err}")
+
+                # Refresh Twitch stats if connected
+                if existing_profile.twitch_user_id and existing_profile.twitch_access_token:
+                    try:
+                        from app.services.twitch_service import TwitchService, TwitchAPIError
+                        from app.utils.encryption import decrypt_token, encrypt_token
+
+                        twitch_service = TwitchService()
+                        access_token = decrypt_token(existing_profile.twitch_access_token)
+
+                        # Try to get channel info
+                        try:
+                            channel_info = twitch_service.get_channel_info(access_token, existing_profile.twitch_user_id)
+                            existing_profile.twitch_follower_count = channel_info.get('follower_count', 0)
+                            existing_profile.twitch_last_synced = int(time.time())
+                            stats_updated = True
+                            logger.debug(f"Twitch stats refreshed for creator {existing_profile.id}: {channel_info.get('follower_count')} followers")
+                        except TwitchAPIError as e:
+                            # Token might be expired, try to refresh
+                            if existing_profile.twitch_refresh_token:
+                                try:
+                                    refresh_token = decrypt_token(existing_profile.twitch_refresh_token)
+                                    new_tokens = twitch_service.refresh_access_token(refresh_token)
+                                    existing_profile.twitch_access_token = encrypt_token(new_tokens['access_token'])
+                                    if new_tokens.get('refresh_token'):
+                                        existing_profile.twitch_refresh_token = encrypt_token(new_tokens['refresh_token'])
+                                    existing_profile.twitch_token_expires = int(time.time()) + new_tokens.get('expires_in', 3600)
+
+                                    # Retry with new token
+                                    channel_info = twitch_service.get_channel_info(new_tokens['access_token'], existing_profile.twitch_user_id)
+                                    existing_profile.twitch_follower_count = channel_info.get('follower_count', 0)
+                                    existing_profile.twitch_last_synced = int(time.time())
+                                    stats_updated = True
+                                    logger.debug(f"Twitch stats refreshed after token refresh for creator {existing_profile.id}")
+                                except Exception as refresh_err:
+                                    error_str = str(refresh_err).lower()
+                                    # Check if token was revoked/expired - clear connection so user can reconnect
+                                    if 'invalid' in error_str or 'revoked' in error_str or 'expired' in error_str or 'unauthorized' in error_str:
+                                        logger.warning(f"Twitch token revoked for creator {existing_profile.id}, clearing connection")
+                                        existing_profile.twitch_access_token = None
+                                        existing_profile.twitch_refresh_token = None
+                                        existing_profile.twitch_token_expires = None
+                                        existing_profile.twitch_user_id = None  # Clear so UI shows "Not connected"
+                                        stats_updated = True  # Need to commit this change
+                                    else:
+                                        logger.warning(f"Twitch token refresh failed for creator {existing_profile.id}: {refresh_err}")
+                    except Exception as tw_err:
+                        logger.warning(f"Failed to refresh Twitch stats for creator {existing_profile.id}: {tw_err}")
+
+                # Commit if any stats were updated
+                if stats_updated:
+                    try:
+                        db.commit()
+                    except Exception as commit_err:
+                        logger.warning(f"Failed to commit stats update: {commit_err}")
+                        db.rollback()
+
                 # Keep categories as stored JSON string - template will parse it
                 profile_data = {
                     'display_name': existing_profile.display_name,
@@ -20875,9 +20981,8 @@ def twitch_oauth_callback(request):
             creator.twitch_follower_count = follower_count
             creator.twitch_last_synced = int(time.time())
 
-            # Update twitch_handle if not set
-            if not creator.twitch_handle:
-                creator.twitch_handle = twitch_login
+            # Always update twitch_handle with the login name from API
+            creator.twitch_handle = twitch_login
 
             # Update avatar if not set
             if not creator.avatar_url and profile_image:
@@ -21123,6 +21228,29 @@ def streaming_notifications_config(request, guild_id):
                 })
 
             # POST - Update config
+            # Check for Discovery module access (required to save streaming config)
+            from app.models import Guild as GuildModel, GuildModule
+            guild_record = db.query(GuildModel).filter_by(guild_id=int(guild_id)).first()
+            if guild_record:
+                has_discovery_module = db.query(GuildModule).filter_by(
+                    guild_id=int(guild_id),
+                    module_name='discovery',
+                    enabled=True
+                ).first() is not None
+
+                has_access = (
+                    guild_record.is_vip or
+                    guild_record.subscription_tier == 'complete' or
+                    guild_record.billing_cycle == 'lifetime' or
+                    has_discovery_module
+                )
+
+                if not has_access:
+                    return JsonResponse({
+                        'success': False,
+                        'error': 'Discovery module or Complete tier required for streaming notifications'
+                    }, status=403)
+
             data = json.loads(request.body)
 
             if not config:
@@ -21226,6 +21354,7 @@ def approved_streamers_list(request, guild_id):
                     'youtube_connected': bool(creator.youtube_channel_id),
                     'youtube_handle': creator.youtube_handle,
                     'twitch_connected': bool(creator.twitch_user_id),
+                    'twitch_handle': creator.twitch_handle,
                     'is_live_youtube': creator.is_live_youtube,
                     'is_live_twitch': creator.is_live_twitch,
                     'approved_at': approval.approved_at,
@@ -21234,7 +21363,7 @@ def approved_streamers_list(request, guild_id):
 
             return JsonResponse({
                 'success': True,
-                'streamers': streamers
+                'approved_streamers': streamers  # Frontend expects 'approved_streamers' key
             })
 
     except Exception as e:
@@ -21242,6 +21371,101 @@ def approved_streamers_list(request, guild_id):
         return JsonResponse({
             'success': False,
             'error': 'Failed to get approved streamers'
+        }, status=500)
+
+
+@discord_required
+@require_http_methods(["GET"])
+def all_creators_with_streaming(request, guild_id):
+    """
+    Get all creators in a guild that have YouTube or Twitch connected.
+    Used by admins to see who can be approved for streaming notifications.
+
+    Query params:
+    - platform: 'youtube', 'twitch', or 'all' (default: 'all')
+    """
+    from app.db import get_db_session
+    from app.models import CreatorProfile, ApprovedStreamer, GuildMember
+
+    discord_user = request.session.get('discord_user', {})
+    admin_guilds = request.session.get('discord_admin_guilds', [])
+
+    # Check admin access
+    guild_check = next((g for g in admin_guilds if g['id'] == guild_id), None)
+    if not guild_check:
+        return JsonResponse({'success': False, 'error': 'Admin access required'}, status=403)
+
+    platform = request.GET.get('platform', 'all').lower()
+
+    try:
+        with get_db_session() as db:
+            # Base query for creators in this guild
+            query = db.query(CreatorProfile).filter(
+                CreatorProfile.guild_id == int(guild_id)
+            )
+
+            # Filter by platform
+            if platform == 'youtube':
+                query = query.filter(CreatorProfile.youtube_channel_id.isnot(None))
+            elif platform == 'twitch':
+                query = query.filter(CreatorProfile.twitch_user_id.isnot(None))
+            else:
+                # 'all' - must have at least one platform connected
+                query = query.filter(
+                    (CreatorProfile.youtube_channel_id.isnot(None)) |
+                    (CreatorProfile.twitch_user_id.isnot(None))
+                )
+
+            creators = query.all()
+
+            # Get list of already approved creator IDs for this guild
+            approved_ids = set(
+                row[0] for row in db.query(ApprovedStreamer.creator_profile_id).filter(
+                    ApprovedStreamer.guild_id == int(guild_id),
+                    ApprovedStreamer.revoked == False
+                ).all()
+            )
+
+            result = []
+            for creator in creators:
+                # Get guild member for avatar
+                member = db.query(GuildMember).filter(
+                    GuildMember.guild_id == int(guild_id),
+                    GuildMember.user_id == creator.discord_id
+                ).first()
+
+                avatar_url = None
+                if member and member.avatar_hash:
+                    avatar_url = f"https://cdn.discordapp.com/avatars/{creator.discord_id}/{member.avatar_hash}.png"
+                elif creator.avatar_url:
+                    avatar_url = creator.avatar_url
+
+                result.append({
+                    'creator_profile_id': creator.id,
+                    'user_id': str(creator.discord_id),
+                    'display_name': creator.display_name,
+                    'avatar_url': avatar_url,
+                    'youtube_connected': bool(creator.youtube_channel_id),
+                    'youtube_handle': creator.youtube_handle,
+                    'youtube_subscriber_count': creator.youtube_subscriber_count,
+                    'twitch_connected': bool(creator.twitch_user_id),
+                    'twitch_handle': creator.twitch_handle,
+                    'twitch_follower_count': creator.twitch_follower_count,
+                    'is_live_youtube': creator.is_live_youtube,
+                    'is_live_twitch': creator.is_live_twitch,
+                    'is_approved': creator.id in approved_ids,
+                })
+
+            return JsonResponse({
+                'success': True,
+                'creators': result
+            })
+
+    except Exception as e:
+        logger.error(f"All creators with streaming error: {e}", exc_info=True)
+        return JsonResponse({
+            'success': False,
+            'error': 'Failed to get creators'
         }, status=500)
 
 
@@ -21273,6 +21497,29 @@ def approve_streamer(request, guild_id):
             return JsonResponse({'success': False, 'error': 'Creator profile ID required'}, status=400)
 
         with get_db_session() as db:
+            # Check for Discovery module access
+            from app.models import Guild as GuildModel, GuildModule
+            guild_record = db.query(GuildModel).filter_by(guild_id=int(guild_id)).first()
+            if guild_record:
+                has_discovery_module = db.query(GuildModule).filter_by(
+                    guild_id=int(guild_id),
+                    module_name='discovery',
+                    enabled=True
+                ).first() is not None
+
+                has_access = (
+                    guild_record.is_vip or
+                    guild_record.subscription_tier == 'complete' or
+                    guild_record.billing_cycle == 'lifetime' or
+                    has_discovery_module
+                )
+
+                if not has_access:
+                    return JsonResponse({
+                        'success': False,
+                        'error': 'Discovery module or Complete tier required'
+                    }, status=403)
+
             # Verify creator exists and belongs to this guild
             creator = db.query(CreatorProfile).filter(
                 CreatorProfile.id == int(creator_profile_id),
@@ -21354,6 +21601,29 @@ def revoke_streamer(request, guild_id):
             return JsonResponse({'success': False, 'error': 'Creator profile ID required'}, status=400)
 
         with get_db_session() as db:
+            # Check for Discovery module access
+            from app.models import Guild as GuildModel, GuildModule
+            guild_record = db.query(GuildModel).filter_by(guild_id=int(guild_id)).first()
+            if guild_record:
+                has_discovery_module = db.query(GuildModule).filter_by(
+                    guild_id=int(guild_id),
+                    module_name='discovery',
+                    enabled=True
+                ).first() is not None
+
+                has_access = (
+                    guild_record.is_vip or
+                    guild_record.subscription_tier == 'complete' or
+                    guild_record.billing_cycle == 'lifetime' or
+                    has_discovery_module
+                )
+
+                if not has_access:
+                    return JsonResponse({
+                        'success': False,
+                        'error': 'Discovery module or Complete tier required'
+                    }, status=403)
+
             approval = db.query(ApprovedStreamer).filter(
                 ApprovedStreamer.guild_id == int(guild_id),
                 ApprovedStreamer.creator_profile_id == int(creator_profile_id)
@@ -21418,6 +21688,29 @@ def test_streaming_notification(request, guild_id):
             platform = 'youtube'
 
         with get_db_session() as db:
+            # Check for Discovery module access
+            from app.models import Guild as GuildModel, GuildModule
+            guild_record = db.query(GuildModel).filter_by(guild_id=int(guild_id)).first()
+            if guild_record:
+                has_discovery_module = db.query(GuildModule).filter_by(
+                    guild_id=int(guild_id),
+                    module_name='discovery',
+                    enabled=True
+                ).first() is not None
+
+                has_access = (
+                    guild_record.is_vip or
+                    guild_record.subscription_tier == 'complete' or
+                    guild_record.billing_cycle == 'lifetime' or
+                    has_discovery_module
+                )
+
+                if not has_access:
+                    return JsonResponse({
+                        'success': False,
+                        'error': 'Discovery module or Complete tier required'
+                    }, status=403)
+
             config = db.query(StreamingNotificationsConfig).filter(
                 StreamingNotificationsConfig.guild_id == int(guild_id)
             ).first()

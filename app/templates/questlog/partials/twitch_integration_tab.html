@@ -1,11 +1,14 @@
 <!-- Twitch Integration Tab Content -->
+<div id="twitchContent" class="hidden">
+{% if has_discovery_module or guild_record.is_vip or guild_record.subscription_tier == 'complete' or guild_record.billing_cycle == 'lifetime' %}
+
 <!-- Include custom select component -->
 {% include 'questlog/partials/custom_select.html' %}
 
 <!-- CSRF Token -->
 <div style="display:none;">{% csrf_token %}</div>
 
-<div id="twitchContent" class="space-y-6">
+<div class="space-y-6">
   <!-- Header -->
   <div class="flex items-center justify-between mb-6">
     <div>
@@ -116,9 +119,9 @@
     <p class="text-gray-400 mb-4">Approve creators to enable notifications for this server</p>
 
     <div id="twitch-all-creators-list" class="space-y-3">
-      <!-- TODO: Implement all creators list dynamically -->
       <div class="text-center py-8 text-gray-500">
-        <p>Creator approval list coming soon</p>
+        <i class="fas fa-spinner fa-spin text-2xl mb-2"></i>
+        <p>Loading creators...</p>
       </div>
     </div>
   </div>
@@ -160,6 +163,33 @@
   </div>
 </div>
 
+{% else %}
+<!-- Upgrade Required Banner -->
+<div class="bg-gradient-to-r from-purple-900/20 to-indigo-900/20 rounded-xl border-2 border-purple-500/30 p-8 text-center">
+  <div class="inline-block p-4 bg-purple-600/10 rounded-full mb-4">
+    <i class="fas fa-lock text-purple-400 text-5xl"></i>
+  </div>
+  <h2 class="text-2xl font-bold text-white mb-3">
+    Twitch Integration
+    <span class="ml-3 px-3 py-1 text-sm bg-orange-600/30 text-orange-300 border border-orange-500/40 rounded-full">Premium Feature</span>
+  </h2>
+  <p class="text-gray-400 text-lg mb-6 max-w-2xl mx-auto">
+    Twitch streaming notifications are included with the Discovery module
+  </p>
+  <div class="flex flex-col sm:flex-row gap-3 justify-center">
+    <a href="{% url 'guild_billing' guild.id %}" class="inline-flex items-center gap-2 px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-bold transition">
+      <i class="fas fa-crown"></i>
+      Upgrade to Discovery Module
+    </a>
+    <a href="{% url 'guild_billing' guild.id %}" class="inline-flex items-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-bold transition">
+      <i class="fas fa-sparkles"></i>
+      Get Complete Suite
+    </a>
+  </div>
+</div>
+{% endif %}
+</div>
+
 <script>
 // Custom select instances
 let twitchChannelSelect = null;
@@ -185,6 +215,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // Load Twitch configuration
 async function loadTwitchConfiguration() {
+  // Skip if premium elements don't exist (upgrade banner shown instead)
+  const enabledToggle = document.getElementById('twitch-enabled');
+  if (!enabledToggle) return;
+
   try {
     const guildId = '{{ guild.id }}';
     const response = await fetch(`/api/guild/${guildId}/streaming/config/`);
@@ -194,24 +228,30 @@ async function loadTwitchConfiguration() {
     }
 
     const data = await response.json();
+    const config = data.config || data;  // Handle both wrapped and unwrapped response
 
     // Set enabled toggle
-    document.getElementById('twitch-enabled').checked = data.enabled || false;
+    enabledToggle.checked = config.enabled || false;
 
     // Set minimum level
-    document.getElementById('twitch-min-level').value = data.minimum_level_required || 10;
+    const minLevelEl = document.getElementById('twitch-min-level');
+    if (minLevelEl) minLevelEl.value = config.minimum_level_required || 10;
 
     // Set notification title and message
-    document.getElementById('twitch-notification-title').value = data.notification_title || '🔴 {creator} is now live on Twitch!';
-    document.getElementById('twitch-notification-message').value = data.notification_message || 'Come watch the stream!';
+    const titleEl = document.getElementById('twitch-notification-title');
+    const messageEl = document.getElementById('twitch-notification-message');
+    if (titleEl) titleEl.value = config.notification_title || '🔴 {creator} is now live on Twitch!';
+    if (messageEl) messageEl.value = config.notification_message || 'Come watch the stream!';
 
     // Set embed color
-    const embedColor = data.embed_color || '#9147ff';
-    document.getElementById('twitch-embed-color').value = embedColor;
-    document.getElementById('twitch-embed-color-hex').value = embedColor;
+    const embedColor = config.embed_color || '#9147ff';
+    const colorEl = document.getElementById('twitch-embed-color');
+    const colorHexEl = document.getElementById('twitch-embed-color-hex');
+    if (colorEl) colorEl.value = embedColor;
+    if (colorHexEl) colorHexEl.value = embedColor;
 
     // Load channels and roles
-    await loadTwitchChannelsAndRoles(data.notification_channel_id, data.ping_role_id);
+    await loadTwitchChannelsAndRoles(config.notification_channel_id, config.ping_role_id);
 
   } catch (error) {
     console.error('Error loading Twitch configuration:', error);
@@ -367,12 +407,14 @@ async function sendTwitchTestNotification() {
 
 // Load approved streamers
 async function loadTwitchApprovedStreamers() {
+  // Skip if premium elements don't exist (upgrade banner shown instead)
+  const container = document.getElementById('twitch-approved-streamers-list');
+  if (!container) return;
+
   try {
     const guildId = '{{ guild.id }}';
     const response = await fetch(`/api/guild/${guildId}/streaming/approved/`);
     const data = await response.json();
-
-    const container = document.getElementById('twitch-approved-streamers-list');
 
     if (!data.approved_streamers || data.approved_streamers.length === 0) {
       container.innerHTML = `
@@ -386,7 +428,7 @@ async function loadTwitchApprovedStreamers() {
     }
 
     // Filter for Twitch-connected creators only
-    const twitchStreamers = data.approved_streamers.filter(s => s.twitch_user_id);
+    const twitchStreamers = data.approved_streamers.filter(s => s.twitch_connected);
 
     if (twitchStreamers.length === 0) {
       container.innerHTML = `
@@ -400,26 +442,20 @@ async function loadTwitchApprovedStreamers() {
     }
 
     container.innerHTML = twitchStreamers.map(streamer => `
-      <div class="bg-neutral-800 border border-neutral-700 rounded-lg p-4 flex items-center justify-between hover:border-neutral-600 transition">
-        <div class="flex items-center gap-4">
-          <div class="w-12 h-12 bg-gradient-to-br from-purple-600 to-purple-800 rounded-lg flex items-center justify-center">
-            <i class="fab fa-twitch text-white text-xl"></i>
+      <div class="flex items-center gap-4 p-4 bg-neutral-800/50 rounded-lg border border-neutral-700">
+        <img src="${streamer.avatar_url || '/static/img/default-avatar.png'}" alt="${streamer.display_name}" class="w-12 h-12 rounded-full" />
+        <div class="flex-1">
+          <div class="flex items-center gap-2">
+            <span class="text-white font-medium">${streamer.display_name}</span>
+            ${streamer.is_live_twitch ? '<span class="px-2 py-1 bg-purple-600 text-white text-xs rounded-full font-bold">🔴 LIVE</span>' : ''}
           </div>
-          <div>
-            <div class="flex items-center gap-2">
-              <span class="text-white font-semibold">${streamer.display_name || streamer.username}</span>
-              ${streamer.is_live_twitch ? '<span class="px-2 py-0.5 bg-red-600 text-white text-xs rounded-full font-bold uppercase">LIVE</span>' : ''}
-            </div>
-            <div class="flex items-center gap-2 text-sm text-gray-400 mt-1">
-              <i class="fab fa-twitch text-purple-400"></i>
-              <span>${streamer.twitch_handle || 'Twitch Connected'}</span>
-              <span class="text-gray-600">•</span>
-              <span>Approved ${new Date(streamer.approved_at * 1000).toLocaleDateString()}</span>
-            </div>
+          <div class="flex items-center gap-3 mt-1 text-sm text-gray-400">
+            <i class="fab fa-twitch text-purple-400"></i>
+            <span>${streamer.twitch_handle || 'Twitch Connected'}</span>
+            <span>• Approved ${new Date(streamer.approved_at * 1000).toLocaleDateString()}</span>
           </div>
         </div>
-        <button onclick="revokeTwitchStreamer(${streamer.creator_profile_id})"
-                class="px-4 py-2 bg-red-600/20 hover:bg-red-600/30 text-red-400 rounded-lg transition border border-red-600/30">
+        <button onclick="revokeTwitchStreamer(${streamer.creator_profile_id})" class="px-4 py-2 bg-red-600/20 hover:bg-red-600/30 text-red-400 rounded-lg text-sm font-medium transition border border-red-600/30">
           <i class="fas fa-times mr-2"></i>Revoke
         </button>
       </div>
@@ -427,12 +463,104 @@ async function loadTwitchApprovedStreamers() {
 
   } catch (error) {
     console.error('Error loading approved streamers:', error);
-    document.getElementById('twitch-approved-streamers-list').innerHTML = `
-      <div class="text-center py-8 text-red-400">
-        <i class="fas fa-exclamation-triangle text-4xl mb-3"></i>
-        <p>Failed to load approved streamers</p>
+    if (container) {
+      container.innerHTML = `
+        <div class="text-center py-8 text-red-400">
+          <i class="fas fa-exclamation-triangle text-4xl mb-3"></i>
+          <p>Failed to load approved streamers</p>
+        </div>
+      `;
+    }
+  }
+}
+
+// Load all creators with Twitch connected
+async function loadTwitchAllCreators() {
+  const container = document.getElementById('twitch-all-creators-list');
+  if (!container) return;
+
+  try {
+    const guildId = '{{ guild.id }}';
+    const response = await fetch(`/api/guild/${guildId}/streaming/creators/?platform=twitch`);
+    const data = await response.json();
+
+    if (!data.success) {
+      throw new Error(data.error || 'Failed to load creators');
+    }
+
+    // Filter out already approved creators
+    const unapproved = data.creators.filter(c => !c.is_approved);
+
+    if (unapproved.length === 0) {
+      container.innerHTML = `
+        <div class="text-center py-8 text-gray-500">
+          <i class="fas fa-check-circle text-3xl mb-3"></i>
+          <p>All creators with Twitch connected have been approved</p>
+          <p class="text-sm mt-1">Creators can connect Twitch from the Featured Creators page</p>
+        </div>
+      `;
+      return;
+    }
+
+    container.innerHTML = unapproved.map(creator => `
+      <div class="flex items-center gap-4 p-4 bg-neutral-800/50 rounded-lg border border-neutral-700">
+        <img src="${creator.avatar_url || '/static/img/default-avatar.png'}" alt="${creator.display_name}" class="w-12 h-12 rounded-full" />
+        <div class="flex-1">
+          <div class="flex items-center gap-2">
+            <span class="text-white font-medium">${creator.display_name}</span>
+            ${creator.is_live_twitch ? '<span class="px-2 py-1 bg-purple-600 text-white text-xs rounded-full font-bold">🔴 LIVE</span>' : ''}
+          </div>
+          <div class="flex items-center gap-3 mt-1 text-sm text-gray-400">
+            <i class="fab fa-twitch text-purple-400"></i>
+            <span>${creator.twitch_handle || 'Twitch Connected'}</span>
+            ${creator.twitch_follower_count ? `<span>• ${creator.twitch_follower_count.toLocaleString()} followers</span>` : ''}
+          </div>
+        </div>
+        <button onclick="approveTwitchStreamer(${creator.creator_profile_id})" class="px-4 py-2 bg-green-600/20 hover:bg-green-600/30 text-green-400 rounded-lg text-sm font-medium transition border border-green-600/30">
+          <i class="fas fa-check mr-2"></i>Approve
+        </button>
+      </div>
+    `).join('');
+
+  } catch (error) {
+    console.error('Failed to load Twitch creators:', error);
+    container.innerHTML = `
+      <div class="text-center py-8 text-gray-500">
+        <i class="fas fa-info-circle text-3xl mb-3"></i>
+        <p>Creators can connect Twitch from the Featured Creators page</p>
       </div>
     `;
+  }
+}
+
+// Approve streamer for Twitch notifications
+async function approveTwitchStreamer(creatorProfileId) {
+  try {
+    const guildId = '{{ guild.id }}';
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+
+    const response = await fetch(`/api/guild/${guildId}/streaming/approve/`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': csrfToken
+      },
+      body: JSON.stringify({ creator_profile_id: creatorProfileId })
+    });
+
+    const data = await response.json();
+
+    if (data.success) {
+      showTwitchToast('Streamer approved successfully!', 'success');
+      loadTwitchApprovedStreamers();
+      loadTwitchAllCreators();
+    } else {
+      showTwitchToast('Failed to approve: ' + (data.error || 'Unknown error'), 'error');
+    }
+
+  } catch (error) {
+    console.error('Error approving streamer:', error);
+    showTwitchToast('Failed to approve streamer', 'error');
   }
 }
 
@@ -459,7 +587,8 @@ async function revokeTwitchStreamer(creatorProfileId) {
 
     if (data.success) {
       showTwitchToast('Streamer revoked successfully', 'success');
-      loadTwitchApprovedStreamers(); // Reload list
+      loadTwitchApprovedStreamers();
+      loadTwitchAllCreators();
     } else {
       showTwitchToast('Failed to revoke: ' + (data.error || 'Unknown error'), 'error');
     }
@@ -492,6 +621,7 @@ const twitchTabObserver = new IntersectionObserver((entries) => {
     if (entry.isIntersecting) {
       loadTwitchConfiguration();
       loadTwitchApprovedStreamers();
+      loadTwitchAllCreators();
     }
   });
 });

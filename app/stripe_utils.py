@@ -454,15 +454,28 @@ def cancel_subscription(guild_id):
             if guild_record.stripe_subscription_id.startswith('lifetime_'):
                 return False, "Cannot cancel lifetime subscription"
 
+            # Fetch subscription to check its current status first
+            subscription = stripe.Subscription.retrieve(guild_record.stripe_subscription_id)
+
+            # Check if already canceled
+            if subscription.status == 'canceled':
+                return False, "This subscription has already been cancelled."
+
+            # Check if already set to cancel at period end
+            if subscription.cancel_at_period_end:
+                from datetime import datetime
+                expiry_date = datetime.fromtimestamp(subscription.current_period_end).strftime('%B %d, %Y')
+                return False, f"This subscription is already set to cancel on {expiry_date}."
+
             # Cancel the subscription at period end (not immediately)
             stripe.Subscription.modify(
                 guild_record.stripe_subscription_id,
                 cancel_at_period_end=True
             )
 
-            # Fetch updated subscription to get current_period_end
+            # Refresh subscription to get updated data
             subscription = stripe.Subscription.retrieve(guild_record.stripe_subscription_id)
-            current_period_end = subscription['items']['data'][0].get('current_period_end')
+            current_period_end = subscription.current_period_end
 
             # Update database to reflect cancellation
             guild_record.subscription_expires = current_period_end
@@ -481,8 +494,20 @@ def cancel_subscription(guild_id):
 
             return True, f"Subscription cancelled. You'll retain access until {expiry_date}."
 
+    except stripe.error.InvalidRequestError as e:
+        # Handle specific Stripe errors with user-friendly messages
+        error_msg = str(e)
+        if 'canceled subscription' in error_msg.lower():
+            return False, "This subscription has already been cancelled."
+        elif 'No such subscription' in error_msg:
+            return False, "Subscription not found. It may have already been cancelled."
+        else:
+            logger.error(f"Stripe error cancelling subscription for guild {guild_id}: {e}")
+            return False, "Unable to cancel subscription. Please try again or contact support."
+
     except Exception as e:
-        return False, f"Error cancelling subscription: {str(e)}"
+        logger.error(f"Error cancelling subscription for guild {guild_id}: {e}")
+        return False, "Something went wrong. Please try again or contact support."
 
 
 def get_subscription_status(guild_id):
