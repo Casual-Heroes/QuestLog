@@ -117,7 +117,7 @@
         Flair Store
       </h3>
       <p class="text-gray-400 text-sm mb-4">
-        Purchase and equip unique flairs using Hero Tokens
+        Purchase and equip unique flairs using {{ token_name|default:"Hero Tokens" }}
       </p>
 
       <div class="flex items-center text-purple-400 text-sm font-medium">
@@ -200,7 +200,7 @@
     </h3>
     <p class="text-gray-300 text-sm">
       Welcome to the {{ guild.name }} member portal! Here you can access member-only features like the Flair Store and Found Games.
-      Earn Hero Tokens by being active in Discord and spend them on unique flairs to customize your profile.
+      Earn {{ token_name|default:"Hero Tokens" }} by being active in Discord and spend them on unique flairs to customize your profile.
     </p>
   </div>
 

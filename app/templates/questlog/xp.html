@@ -385,7 +385,7 @@
 
         <!-- Token Rates -->
         <div>
-          <h4 class="text-white font-medium mb-3">Hero Token Conversion (per 100 XP)</h4>
+          <h4 class="text-white font-medium mb-3">{{ token_name|default:"Hero Tokens" }} Conversion (per 100 XP)</h4>
           <div class="grid grid-cols-2 gap-4">
             <div>
               <label class="text-gray-400 text-sm">Active XP Tokens</label>
@@ -616,7 +616,7 @@
           </div>
         </div>
         <div>
-          <label class="text-gray-400 text-sm block mb-1">Hero Tokens</label>
+          <label class="text-gray-400 text-sm block mb-1">{{ token_name|default:"Hero Tokens" }}</label>
           <div class="flex gap-2">
             <input type="number" name="tokens" id="edit-tokens"
                    class="flex-1 bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white">
@@ -712,7 +712,7 @@
           <h3 class="text-lg font-bold text-white">
             <i class="fas fa-users-cog text-blue-400 mr-2"></i>Bulk Edit XP Data
           </h3>
-          <p class="text-sm text-gray-400 mt-1">Edit XP, Level, and Hero Tokens for all members in the database</p>
+          <p class="text-sm text-gray-400 mt-1">Edit XP, Level, and {{ token_name|default:"Hero Tokens" }} for all members in the database</p>
         </div>
         <button onclick="closeBulkEditModal()" class="text-gray-400 hover:text-white">
           <i class="fas fa-times"></i>
@@ -742,7 +742,7 @@
                   <th class="text-left p-3 text-gray-400 font-medium">Member</th>
                   <th class="text-left p-3 text-gray-400 font-medium w-32">XP</th>
                   <th class="text-left p-3 text-gray-400 font-medium w-24">Level</th>
-                  <th class="text-left p-3 text-gray-400 font-medium w-32">Hero Tokens</th>
+                  <th class="text-left p-3 text-gray-400 font-medium w-32">{{ token_name|default:"Hero Tokens" }}</th>
                 </tr>
               </thead>
               <tbody id="bulk-edit-table" class="divide-y divide-neutral-700">
@@ -1006,7 +1006,7 @@
           <label class="text-gray-400 text-sm block mb-1">Token Bonus per XP (Optional)</label>
           <input type="number" id="boost-token-bonus" min="0" max="100" value="0"
                  class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-orange-500">
-          <p class="text-xs text-gray-500 mt-1">Award bonus Hero Tokens for each XP earned (0 = no bonus)</p>
+          <p class="text-xs text-gray-500 mt-1">Award bonus {{ token_name|default:"Hero Tokens" }} for each XP earned (0 = no bonus)</p>
         </div>
 
         <!-- Duration -->
@@ -1132,7 +1132,7 @@
           <label class="text-gray-400 text-sm block mb-1">Token Bonus per XP (Optional)</label>
           <input type="number" id="edit-boost-token-bonus" min="0" max="100" value="0"
                  class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
-          <p class="text-xs text-gray-500 mt-1">Award bonus Hero Tokens for each XP earned (0 = no bonus)</p>
+          <p class="text-xs text-gray-500 mt-1">Award bonus {{ token_name|default:"Hero Tokens" }} for each XP earned (0 = no bonus)</p>
         </div>
 
         <!-- Duration -->

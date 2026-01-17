@@ -2498,13 +2498,18 @@ def guild_dashboard(request, guild_id):
 
     # If not admin, show member landing page instead
     if not is_admin:
+        # Get guild record for token name customization
+        from app.models import Guild as GuildModel
+        guild_record = GuildModel.objects.filter(guild_id=guild_id).first()
+        token_name = guild_record.token_name if guild_record and guild_record.token_name else "Hero Tokens"
+
         return render(request, 'questlog/member_portal.html', {
             'discord_user': discord_user,
             'guild': guild,
             'admin_guilds': admin_guilds,
-        'member_guilds': get_member_guilds(request),
             'member_guilds': get_member_guilds(request),
             'is_admin': False,
+            'token_name': token_name,
         })
 
     # Fetch feature statuses
@@ -3194,6 +3199,7 @@ def flair_management(request, guild_id):
     is_vip = False
     subscription_tier = 'free'
 
+    token_name = "Hero Tokens"
     try:
         with get_db_session() as db:
             guild_record = db.query(GuildModel).filter_by(guild_id=int(guild_id)).first()
@@ -3202,6 +3208,7 @@ def flair_management(request, guild_id):
                 is_vip = guild_record.is_vip
                 billing_cycle = guild_record.billing_cycle
                 is_premium = subscription_tier == 'complete' or is_vip
+                token_name = guild_record.token_name or "Hero Tokens"
 
     except Exception as e:
         logger.warning(f"Could not fetch guild premium status: {e}")
@@ -3223,6 +3230,7 @@ def flair_management(request, guild_id):
         'has_engagement_module': has_engagement_module,
         'has_any_module': has_any_module,
         'active_page': 'flair_management',
+        'token_name': token_name,
     }
     return render(request, 'questlog/flair_management.html', context)
 
@@ -4601,6 +4609,9 @@ def guild_xp(request, guild_id):
     has_engagement_module = has_module_access(guild_id, 'engagement')
     has_any_module = has_any_module_access(guild_id)
 
+    # Get token name for UI
+    token_name = guild_record.token_name if guild_record and guild_record.token_name else "Hero Tokens"
+
     context = {
         'discord_user': discord_user,
         'guild': guild,
@@ -4617,6 +4628,7 @@ def guild_xp(request, guild_id):
         'active_page': 'xp',
         'bulk_edit_items_today': bulk_edit_items_today,
         'import_items_today': import_items_today,
+        'token_name': token_name,
     }
     return render(request, 'questlog/xp.html', context)
 
