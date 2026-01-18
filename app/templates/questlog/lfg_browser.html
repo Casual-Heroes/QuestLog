@@ -56,7 +56,7 @@
 
 <!-- Filters -->
 <div class="bg-neutral-900/50 rounded-lg border border-neutral-800 p-4 mb-6">
-  <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+  <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
     <div>
       <label class="text-sm text-gray-300 mb-2 block">Filter by Game</label>
       <div id="gameFilterContainer"></div>
@@ -68,6 +68,10 @@
     <div>
       <label class="text-sm text-gray-300 mb-2 block">Time</label>
       <div id="timeFilterContainer"></div>
+    </div>
+    <div>
+      <label class="text-sm text-gray-300 mb-2 block">Sort By</label>
+      <div id="sortFilterContainer"></div>
     </div>
   </div>
 </div>
@@ -128,31 +132,48 @@
         <input type="number" id="createGroupSize" min="2" max="100" value="4" class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white">
       </div>
 
-      <!-- Raid Composition (shown when Raid activity is selected) -->
-      <div id="raidCompositionContainer" class="hidden">
-        <label class="text-sm text-gray-300 mb-2 block">
-          <i class="fas fa-users-cog text-purple-400 mr-1"></i>Raid Composition
+      <!-- Role Composition (optional for any group type) -->
+      <div id="roleCompositionSection" class="bg-neutral-800/50 border border-neutral-700 rounded-lg p-4">
+        <label class="flex items-center gap-3 cursor-pointer">
+          <input type="checkbox" id="enableRoleComposition" onchange="toggleRoleCompositionFields()" class="w-5 h-5 rounded bg-neutral-700 border-neutral-600 text-purple-600 focus:ring-purple-500">
+          <div>
+            <div class="text-white font-medium"><i class="fas fa-users-cog text-purple-400 mr-1"></i>Enable Role Composition</div>
+            <p class="text-xs text-gray-400 mt-0.5">Set specific Tank/Healer/DPS/Support slots for this group</p>
+          </div>
         </label>
-        <p class="text-xs text-gray-500 mb-3">Specify how many of each role you need for this raid</p>
-        <div class="grid grid-cols-3 gap-4">
-          <div>
-            <label class="text-sm text-gray-300 mb-2 block">
-              <i class="fas fa-shield text-blue-400 mr-1"></i>Tanks
-            </label>
-            <input type="number" id="createTanks" min="0" max="50" value="2" class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white">
+
+        <div id="roleCompositionFields" class="hidden mt-4">
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
+            <div>
+              <label class="text-sm text-gray-300 mb-2 block">
+                <i class="fas fa-shield text-blue-400 mr-1"></i>Tanks
+              </label>
+              <input type="number" id="createTanks" min="0" max="50" value="1" class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white">
+            </div>
+            <div>
+              <label class="text-sm text-gray-300 mb-2 block">
+                <i class="fas fa-heart text-green-400 mr-1"></i>Healers
+              </label>
+              <input type="number" id="createHealers" min="0" max="50" value="1" class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white">
+            </div>
+            <div>
+              <label class="text-sm text-gray-300 mb-2 block">
+                <i class="fas fa-bolt text-red-400 mr-1"></i>DPS
+              </label>
+              <input type="number" id="createDPS" min="0" max="200" value="3" class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white">
+            </div>
+            <div>
+              <label class="text-sm text-gray-300 mb-2 block">
+                <i class="fas fa-music text-yellow-400 mr-1"></i>Support
+              </label>
+              <input type="number" id="createSupport" min="0" max="50" value="0" class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white">
+            </div>
           </div>
-          <div>
-            <label class="text-sm text-gray-300 mb-2 block">
-              <i class="fas fa-heart text-green-400 mr-1"></i>Healers
-            </label>
-            <input type="number" id="createHealers" min="0" max="50" value="2" class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white">
-          </div>
-          <div>
-            <label class="text-sm text-gray-300 mb-2 block">
-              <i class="fas fa-bolt text-red-400 mr-1"></i>DPS
-            </label>
-            <input type="number" id="createDPS" min="0" max="200" value="6" class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white">
-          </div>
+
+          <label class="flex items-center gap-2 cursor-pointer mt-2">
+            <input type="checkbox" id="enforceRoleLimits" checked class="w-4 h-4 rounded bg-neutral-700 border-neutral-600 text-purple-600 focus:ring-purple-500">
+            <span class="text-sm text-gray-300">Enforce role limits (prevent more signups than slots available)</span>
+          </label>
         </div>
       </div>
 
@@ -234,9 +255,54 @@
         <p class="text-xs text-gray-500 mt-1">Leave empty for "play now"</p>
       </div>
 
-      <div>
+      <div id="editGroupSizeContainer">
         <label class="text-sm text-gray-300 mb-2 block">Group Size</label>
         <input type="number" id="editGroupSize" min="2" max="100" class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white">
+      </div>
+
+      <!-- Role Composition Section -->
+      <div id="editRoleCompositionSection" class="bg-neutral-800/50 border border-neutral-700 rounded-lg p-4">
+        <label class="flex items-center gap-3 cursor-pointer">
+          <input type="checkbox" id="editEnableRoleComposition" onchange="toggleEditRoleCompositionFields()" class="w-5 h-5 rounded bg-neutral-700 border-neutral-600 text-purple-600 focus:ring-purple-500">
+          <div>
+            <div class="text-white font-medium"><i class="fas fa-users-cog text-purple-400 mr-1"></i>Enable Role Composition</div>
+            <p class="text-xs text-gray-400 mt-0.5">Set specific Tank/Healer/DPS/Support slots for this group</p>
+          </div>
+        </label>
+
+        <div id="editRoleCompositionFields" class="hidden mt-4">
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
+            <div>
+              <label class="text-sm text-gray-300 mb-2 block">
+                <i class="fas fa-shield text-blue-400 mr-1"></i>Tanks
+              </label>
+              <input type="number" id="editTanks" min="0" max="50" value="1" class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white">
+            </div>
+            <div>
+              <label class="text-sm text-gray-300 mb-2 block">
+                <i class="fas fa-heart text-green-400 mr-1"></i>Healers
+              </label>
+              <input type="number" id="editHealers" min="0" max="50" value="1" class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white">
+            </div>
+            <div>
+              <label class="text-sm text-gray-300 mb-2 block">
+                <i class="fas fa-bolt text-red-400 mr-1"></i>DPS
+              </label>
+              <input type="number" id="editDPS" min="0" max="200" value="3" class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white">
+            </div>
+            <div>
+              <label class="text-sm text-gray-300 mb-2 block">
+                <i class="fas fa-music text-yellow-400 mr-1"></i>Support
+              </label>
+              <input type="number" id="editSupport" min="0" max="50" value="0" class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white">
+            </div>
+          </div>
+
+          <label class="flex items-center gap-2 cursor-pointer mt-2">
+            <input type="checkbox" id="editEnforceRoleLimits" checked class="w-4 h-4 rounded bg-neutral-700 border-neutral-600 text-purple-600 focus:ring-purple-500">
+            <span class="text-sm text-gray-300">Enforce role limits (prevent more signups than slots available)</span>
+          </label>
+        </div>
       </div>
 
       <div>
@@ -345,7 +411,7 @@
   const gamesData = JSON.parse(document.getElementById('games-data').textContent);
 
   // Custom select instances for filters
-  let gameFilterSelect, statusFilterSelect, timeFilterSelect, typeFilterSelect;
+  let gameFilterSelect, statusFilterSelect, timeFilterSelect, typeFilterSelect, sortFilterSelect;
 
   function showToast(message, type='info') {
     const container = document.getElementById('toast-container');
@@ -377,8 +443,11 @@
 
   async function loadGroups() {
     try {
-      // Load groups
-      const groupsRes = await csrfFetch(`/api/guild/${guildId}/lfg/browser/groups/?status=all`);
+      // Get sort parameter from filter
+      const sortBy = sortFilterSelect ? sortFilterSelect.getValue() : 'newest';
+
+      // Load groups with sort parameter
+      const groupsRes = await csrfFetch(`/api/guild/${guildId}/lfg/browser/groups/?status=all&sort=${sortBy}`);
       const groupsData = await groupsRes.json();
 
       if (!groupsRes.ok || !groupsData.success) {
@@ -525,8 +594,177 @@
       </div>
     ` : '';
 
-    // Member list
-    const membersList = group.members.map(m => {
+    // =================================================================
+    // Built-in Role Detection System (mirrors lfg_role_mappings.py)
+    // =================================================================
+
+    // Built-in game identifiers
+    const BUILTIN_GAMES = {
+      'wow': ['world of warcraft', 'wow'],
+      'ffxiv': ['final fantasy xiv', 'final fantasy 14', 'ffxiv', 'ff14'],
+      'pantheon': ['pantheon', 'pantheon: rise of the fallen']
+    };
+
+    // WoW Role Mappings
+    const WOW_ROLES = {
+      'tank': ['blood', 'vengeance', 'guardian', 'brewmaster', 'protection'],
+      'healer': ['restoration', 'preservation', 'mistweaver', 'holy', 'discipline'],
+      'dps': ['frost', 'unholy', 'havoc', 'balance', 'feral', 'devastation',
+              'beast mastery', 'marksmanship', 'survival', 'arcane', 'fire',
+              'windwalker', 'retribution', 'shadow', 'assassination', 'outlaw', 'subtlety',
+              'elemental', 'enhancement', 'affliction', 'demonology', 'destruction', 'arms', 'fury'],
+      'support': ['augmentation']  // Evoker Augmentation is a support spec
+    };
+
+    // FFXIV Role Mappings
+    const FFXIV_ROLES = {
+      'tank': ['paladin', 'pld', 'warrior', 'war', 'dark knight', 'drk', 'gunbreaker', 'gnb'],
+      'healer': ['white mage', 'whm', 'scholar', 'sch', 'astrologian', 'ast', 'sage', 'sge'],
+      'dps': ['monk', 'mnk', 'dragoon', 'drg', 'ninja', 'nin', 'samurai', 'sam', 'reaper', 'rpr', 'viper', 'vpr',
+              'bard', 'brd', 'machinist', 'mch', 'dancer', 'dnc',
+              'black mage', 'blm', 'summoner', 'smn', 'red mage', 'rdm', 'pictomancer', 'pct']
+    };
+
+    // Pantheon Role Mappings
+    const PANTHEON_ROLES = {
+      'tank': ['warrior', 'dire lord', 'paladin'],
+      'healer': ['cleric', 'shaman', 'druid'],
+      'dps': ['wizard', 'enchanter', 'summoner', 'rogue', 'ranger', 'monk'],
+      'support': ['bard', 'enchanter']
+    };
+
+    // Get built-in game type from game name
+    function getBuiltinGameType(gameName) {
+      if (!gameName) return null;
+      const nameLower = gameName.toLowerCase().trim();
+      for (const [gameType, aliases] of Object.entries(BUILTIN_GAMES)) {
+        for (const alias of aliases) {
+          if (nameLower.includes(alias) || alias.includes(nameLower)) {
+            return gameType;
+          }
+        }
+      }
+      return null;
+    }
+
+    // Get role from built-in mappings
+    function getRoleFromBuiltin(gameType, specOrClass) {
+      if (!specOrClass) return null;
+      const specLower = specOrClass.toLowerCase().trim();
+
+      let mappings;
+      if (gameType === 'wow') mappings = WOW_ROLES;
+      else if (gameType === 'ffxiv') mappings = FFXIV_ROLES;
+      else if (gameType === 'pantheon') mappings = PANTHEON_ROLES;
+      else return null;
+
+      for (const [role, specs] of Object.entries(mappings)) {
+        if (specs.some(s => specLower.includes(s) || s.includes(specLower))) {
+          return role;
+        }
+      }
+      return null;
+    }
+
+    // Get role from custom options with role tags
+    function getRoleFromCustomOptions(selections, customOptions) {
+      if (!customOptions || !selections) return null;
+
+      for (const option of customOptions) {
+        const optionName = option.name;
+        const choices = option.choices || [];
+
+        if (!optionName || !Array.isArray(choices)) continue;
+
+        // Get member's selection for this option
+        let memberValue = selections[optionName];
+        if (!memberValue) continue;
+
+        // Handle array values
+        if (Array.isArray(memberValue)) {
+          memberValue = memberValue[0];
+        }
+        if (!memberValue) continue;
+
+        // Check if choices have role tags
+        for (const choice of choices) {
+          if (typeof choice === 'object' && choice !== null) {
+            if (choice.value === memberValue && choice.role) {
+              return choice.role;
+            }
+          }
+        }
+      }
+
+      return null;
+    }
+
+    // Detect role using priority system (builtin > custom tags > selected_role > generic)
+    function detectRole(gameName, selections, selectedRole, customOptions) {
+      // Priority 1: Check built-in game mappings
+      const gameType = getBuiltinGameType(gameName);
+
+      if (gameType) {
+        // Extract spec/class/job from selections
+        const spec = selections['Specialization'] || selections['specialization'] || selections['Spec'] || selections['spec'];
+        const cls = selections['Class'] || selections['class'];
+        const job = selections['Job'] || selections['job'];
+
+        const specVal = Array.isArray(spec) ? spec[0] : spec;
+        const clsVal = Array.isArray(cls) ? cls[0] : cls;
+        const jobVal = Array.isArray(job) ? job[0] : job;
+
+        // Try spec first, then class, then job
+        if (specVal) {
+          const role = getRoleFromBuiltin(gameType, specVal);
+          if (role) return role;
+        }
+        if (clsVal) {
+          const role = getRoleFromBuiltin(gameType, clsVal);
+          if (role) return role;
+        }
+        if (jobVal) {
+          const role = getRoleFromBuiltin(gameType, jobVal);
+          if (role) return role;
+        }
+
+        // Built-in game but no matching spec/class - unassigned
+        return null;
+      }
+
+      // Priority 2: Check custom role tags from game options
+      if (customOptions) {
+        const customRole = getRoleFromCustomOptions(selections, customOptions);
+        if (customRole) return customRole;
+      }
+
+      // Priority 3: Check explicit selected_role (generic mode)
+      if (selectedRole && ['tank', 'healer', 'dps', 'support', 'flex'].includes(selectedRole)) {
+        return selectedRole;
+      }
+
+      // Priority 4: Legacy fallback - check role in selections
+      const roleVal = selections['Role'] || selections['role'];
+      if (roleVal) {
+        const roleLower = (Array.isArray(roleVal) ? roleVal[0] : roleVal).toLowerCase();
+        if (['tank', 'healer', 'dps', 'support', 'flex'].includes(roleLower)) {
+          return roleLower;
+        }
+      }
+
+      return null;
+    }
+
+    // Categorize members by role for raids
+    const tanksList = [];
+    const healersList = [];
+    const dpsList = [];
+    const supportList = [];
+    const flexList = [];
+    const unassignedList = [];
+
+    // Member list (and categorization for raids)
+    const membersList = group.members.map((m, idx) => {
       let icon = 'fa-user';
       let color = 'text-gray-300';
       let roleLabel = '';
@@ -541,18 +779,28 @@
         roleLabel = 'Co-Leader';
       }
 
-      // Build display text with selections (exclude Activity)
+      // Build display text with selections (exclude Activity and Role - role is shown by which column you're in)
       let displayText = m.display_name;
       const selections = m.selections || {};
       const selectionParts = [];
+      let spec = '';
+      let cls = '';
+      let role = '';
 
-      // Add all selections EXCEPT Activity (class, role, spec, etc.)
+      // Add all selections EXCEPT Activity and Role (role is redundant when shown in role columns)
       Object.entries(selections).forEach(([key, value]) => {
-        if (value && key.toLowerCase() !== 'activity') {
-          // Only add non-array values (Activity should be the only array)
+        const keyLower = key.toLowerCase();
+        if (value && keyLower !== 'activity' && keyLower !== 'role') {
           if (!Array.isArray(value)) {
             selectionParts.push(value);
+            // Track spec/class for categorization
+            if (keyLower === 'specialization') spec = value.toLowerCase();
+            if (keyLower === 'class') cls = value;
           }
+        }
+        // Still track role for detection even though we don't display it
+        if (keyLower === 'role' && value && !Array.isArray(value)) {
+          role = value.toLowerCase();
         }
       });
 
@@ -561,6 +809,45 @@
         displayText = `${m.display_name} (${selectionParts.join(', ')})`;
       } else {
         displayText = m.display_name;
+      }
+
+      // For groups with role composition: categorize member by role using centralized role detection
+      if (group.has_role_composition) {
+        const memberEntry = {
+          displayText,
+          icon,
+          color,
+          is_creator: m.is_creator,
+          is_co_leader: m.is_co_leader,
+          user_id: m.user_id,
+          display_name: m.display_name,
+          idx: idx + 1,
+          // Use player_role from backend (Class - Spec format) if available, fallback to selections
+          spec: m.player_role || (selectionParts.length > 0 ? selectionParts.join(', ') : null)
+        };
+
+        // Use centralized role detection with game name and custom options
+        // Note: game_name is directly on group, custom_options comes from gamesData
+        const gameName = group.game_name || '';
+        const gameData = gamesData.find(g => g.id === group.game_id);
+        const customOptions = gameData?.custom_options || [];
+        const detectedRole = detectRole(gameName, selections, m.selected_role, customOptions);
+
+        // Categorize by detected role
+        if (detectedRole === 'tank') {
+          tanksList.push(memberEntry);
+        } else if (detectedRole === 'healer') {
+          healersList.push(memberEntry);
+        } else if (detectedRole === 'dps') {
+          dpsList.push(memberEntry);
+        } else if (detectedRole === 'support') {
+          supportList.push(memberEntry);
+        } else if (detectedRole === 'flex') {
+          flexList.push(memberEntry);
+        } else {
+          // No role detected - unassigned
+          unassignedList.push(memberEntry);
+        }
       }
 
       // Show remove button for creators/co-leaders (can't remove the creator themselves)
@@ -582,6 +869,135 @@
       `;
     }).join('');
 
+    // Helper to render role column member
+    const renderRoleMember = (m, canRemove) => {
+      const leaderIcon = m.is_creator ? '<i class="fas fa-crown text-yellow-400 mr-1"></i>' :
+                         m.is_co_leader ? '<i class="fas fa-star text-blue-400 mr-1"></i>' : '';
+      const removeBtn = canRemove && !m.is_creator ? `
+        <button onclick="removeMember(${group.id}, ${m.user_id}, '${m.display_name}')"
+                class="ml-auto text-red-400 hover:text-red-300 transition opacity-0 group-hover:opacity-100"
+                title="Remove">
+          <i class="fas fa-times text-xs"></i>
+        </button>
+      ` : '';
+      return `
+        <div class="flex items-center gap-1 text-sm py-1 group">
+          <span class="text-gray-500 text-xs w-4">${m.idx}</span>
+          ${leaderIcon}
+          <span class="text-gray-200">${m.display_name}</span>
+          ${m.spec ? `<span class="text-gray-500 text-xs ml-1">• ${m.spec}</span>` : ''}
+          ${removeBtn}
+        </div>
+      `;
+    };
+
+    // Build role columns HTML
+    const assignedCount = tanksList.length + healersList.length + dpsList.length + supportList.length + flexList.length;
+    const totalNeeded = (group.tanks_needed || 0) + (group.healers_needed || 0) + (group.dps_needed || 0) + (group.support_needed || 0);
+
+    // Determine which optional columns to show
+    const hasSupport = (group.support_needed || 0) > 0 || supportList.length > 0;
+    const hasFlex = flexList.length > 0;
+
+    const roleRosterHtml = group.has_role_composition ? `
+      <!-- Main roles row: Tank | Healer | DPS -->
+      <div class="grid grid-cols-3 gap-3">
+        <!-- Tanks Column -->
+        <div class="bg-neutral-900/70 rounded-lg p-3 border border-blue-900/50">
+          <div class="flex items-center gap-2 mb-2 pb-2 border-b border-neutral-700">
+            <i class="fas fa-shield-alt text-blue-400"></i>
+            <span class="text-sm font-semibold text-blue-400">Tank</span>
+            <span class="text-xs text-gray-400 ml-auto">${tanksList.length}/${group.tanks_needed || 0}</span>
+          </div>
+          <div class="space-y-0.5 min-h-[40px]">
+            ${tanksList.length > 0 ? tanksList.map(m => renderRoleMember(m, canManage)).join('') : '<span class="text-gray-500 text-xs italic">—</span>'}
+          </div>
+        </div>
+
+        <!-- Healers Column -->
+        <div class="bg-neutral-900/70 rounded-lg p-3 border border-green-900/50">
+          <div class="flex items-center gap-2 mb-2 pb-2 border-b border-neutral-700">
+            <i class="fas fa-heart text-green-400"></i>
+            <span class="text-sm font-semibold text-green-400">Healer</span>
+            <span class="text-xs text-gray-400 ml-auto">${healersList.length}/${group.healers_needed || 0}</span>
+          </div>
+          <div class="space-y-0.5 min-h-[40px]">
+            ${healersList.length > 0 ? healersList.map(m => renderRoleMember(m, canManage)).join('') : '<span class="text-gray-500 text-xs italic">—</span>'}
+          </div>
+        </div>
+
+        <!-- DPS Column -->
+        <div class="bg-neutral-900/70 rounded-lg p-3 border border-red-900/50">
+          <div class="flex items-center gap-2 mb-2 pb-2 border-b border-neutral-700">
+            <i class="fas fa-bolt text-red-400"></i>
+            <span class="text-sm font-semibold text-red-400">DPS</span>
+            <span class="text-xs text-gray-400 ml-auto">${dpsList.length}/${group.dps_needed || 0}</span>
+          </div>
+          <div class="space-y-0.5 min-h-[40px]">
+            ${dpsList.length > 0 ? dpsList.map(m => renderRoleMember(m, canManage)).join('') : '<span class="text-gray-500 text-xs italic">—</span>'}
+          </div>
+        </div>
+      </div>
+
+      <!-- Second row: Support | Flex (if needed) -->
+      ${hasSupport || hasFlex ? `
+      <div class="grid grid-cols-3 gap-3 mt-3">
+        ${hasSupport ? `
+        <!-- Support Column -->
+        <div class="bg-neutral-900/70 rounded-lg p-3 border border-yellow-900/50">
+          <div class="flex items-center gap-2 mb-2 pb-2 border-b border-neutral-700">
+            <i class="fas fa-music text-yellow-400"></i>
+            <span class="text-sm font-semibold text-yellow-400">Support</span>
+            <span class="text-xs text-gray-400 ml-auto">${supportList.length}/${group.support_needed || 0}</span>
+          </div>
+          <div class="space-y-0.5 min-h-[40px]">
+            ${supportList.length > 0 ? supportList.map(m => renderRoleMember(m, canManage)).join('') : '<span class="text-gray-500 text-xs italic">—</span>'}
+          </div>
+        </div>
+        ` : '<div></div>'}
+
+        ${hasFlex ? `
+        <!-- Flex Column -->
+        <div class="bg-neutral-900/70 rounded-lg p-3 border border-cyan-900/50">
+          <div class="flex items-center gap-2 mb-2 pb-2 border-b border-neutral-700">
+            <i class="fas fa-sync-alt text-cyan-400"></i>
+            <span class="text-sm font-semibold text-cyan-400">Flex</span>
+            <span class="text-xs text-gray-400 ml-auto">${flexList.length}</span>
+          </div>
+          <div class="space-y-0.5 min-h-[40px]">
+            ${flexList.map(m => renderRoleMember(m, canManage)).join('')}
+          </div>
+        </div>
+        ` : '<div></div>'}
+
+        <div></div>
+      </div>
+      ` : ''}
+
+      ${unassignedList.length > 0 ? `
+        <div class="mt-3 bg-neutral-900/70 rounded-lg p-3 border border-orange-900/50">
+          <div class="flex items-center gap-2 mb-2 pb-2 border-b border-neutral-700">
+            <i class="fas fa-question-circle text-orange-400"></i>
+            <span class="text-sm font-semibold text-orange-400">Unassigned</span>
+            <span class="text-xs text-gray-400 ml-auto">${unassignedList.length}</span>
+          </div>
+          <div class="grid grid-cols-3 gap-2">
+            ${unassignedList.map(m => renderRoleMember(m, canManage)).join('')}
+          </div>
+        </div>
+      ` : ''}
+      <div class="mt-2 text-center">
+        <span class="text-sm text-gray-400">
+          <i class="fas fa-users mr-1"></i>Roster:
+          <span class="text-white font-semibold">${assignedCount}</span>
+          <span class="text-gray-500">/</span>
+          <span class="text-gray-400">${totalNeeded}</span>
+          ${unassignedList.length > 0 ? `<span class="text-orange-400 ml-2">• ${unassignedList.length} unassigned</span>` : ''}
+          ${group.enforce_role_limits === false ? `<span class="text-gray-500 ml-2">• limits off</span>` : ''}
+        </span>
+      </div>
+    ` : '';
+
     return `
       <div class="bg-neutral-800 border border-neutral-700 rounded-xl p-5 hover:border-green-600/50 transition">
         <div class="flex flex-col md:flex-row gap-4">
@@ -602,7 +1018,7 @@
               <div>
                 <h3 class="text-2xl font-bold text-white mb-1 flex items-center gap-2">
                   ${group.thread_name || 'Untitled Group'}
-                  ${group.is_raid ? '<span class="px-2 py-1 text-xs rounded bg-purple-600 text-white"><i class="fas fa-swords mr-1"></i>RAID</span>' : ''}
+                  ${group.has_role_composition ? '<span class="px-2 py-1 text-xs rounded bg-purple-600 text-white"><i class="fas fa-users-cog mr-1"></i>ROLES</span>' : ''}
                   ${timeStatusBadge}
                 </h3>
                 <p class="text-sm text-gray-400 flex items-center gap-1">
@@ -622,20 +1038,15 @@
                 <span class="text-gray-400"><i class="far fa-clock mr-2"></i>Time:</span>
                 <span class="text-white">${formattedDate}</span>
               </div>
-              ${group.is_raid ? `
-                <!-- Raid Composition -->
+              ${group.has_role_composition ? `
+                <!-- Role Composition -->
                 <div class="text-sm">
                   <span class="text-gray-400"><i class="fas fa-users-cog mr-2"></i>Composition:</span>
                   <div class="flex gap-3 mt-1 flex-wrap">
-                    <span class="text-blue-400">
-                      <i class="fas fa-shield mr-1"></i>${group.tanks_needed || 0} Tanks
-                    </span>
-                    <span class="text-green-400">
-                      <i class="fas fa-heart mr-1"></i>${group.healers_needed || 0} Healers
-                    </span>
-                    <span class="text-red-400">
-                      <i class="fas fa-bolt mr-1"></i>${group.dps_needed || 0} DPS
-                    </span>
+                    ${(group.tanks_needed || 0) > 0 ? `<span class="text-blue-400"><i class="fas fa-shield mr-1"></i>${group.tanks_needed} Tank${group.tanks_needed > 1 ? 's' : ''}</span>` : ''}
+                    ${(group.healers_needed || 0) > 0 ? `<span class="text-green-400"><i class="fas fa-heart mr-1"></i>${group.healers_needed} Healer${group.healers_needed > 1 ? 's' : ''}</span>` : ''}
+                    ${(group.dps_needed || 0) > 0 ? `<span class="text-red-400"><i class="fas fa-bolt mr-1"></i>${group.dps_needed} DPS</span>` : ''}
+                    ${(group.support_needed || 0) > 0 ? `<span class="text-yellow-400"><i class="fas fa-music mr-1"></i>${group.support_needed} Support</span>` : ''}
                   </div>
                 </div>
               ` : `
@@ -654,16 +1065,22 @@
             <!-- Activity Badges -->
             ${activityBadges}
 
-            <!-- Members -->
-            <div class="bg-neutral-900/50 rounded-lg p-3 mb-3 border border-neutral-700">
-              <div class="flex items-center gap-2 mb-2">
-                <i class="fas fa-users text-gray-400 text-sm"></i>
-                <span class="text-sm font-medium text-gray-300">Group Members</span>
+            <!-- Members / Role Roster -->
+            ${group.has_role_composition ? `
+              <div class="mb-3">
+                ${roleRosterHtml}
               </div>
-              <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
-                ${membersList}
+            ` : `
+              <div class="bg-neutral-900/50 rounded-lg p-3 mb-3 border border-neutral-700">
+                <div class="flex items-center gap-2 mb-2">
+                  <i class="fas fa-users text-gray-400 text-sm"></i>
+                  <span class="text-sm font-medium text-gray-300">Group Members</span>
+                </div>
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
+                  ${membersList}
+                </div>
               </div>
-            </div>
+            `}
 
             <!-- Attendance (if enabled) -->
             ${group.attendance_tracking_enabled ? `
@@ -785,12 +1202,40 @@
               <label class="text-sm text-gray-300 mb-2 block">${option.name}</label>
               <select id="joinOption${index}" class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white" data-name="${option.name}">
                 <option value="">Select ${option.name.toLowerCase()}...</option>
-                ${option.choices.map(choice => `<option value="${choice}">${choice}</option>`).join('')}
+                ${option.choices.map(choice => {
+                  // Handle both string and object {value, role} formats
+                  const val = typeof choice === 'object' ? choice.value : choice;
+                  return `<option value="${val}">${val}</option>`;
+                }).join('')}
               </select>
             </div>
           `;
         }
       });
+    }
+
+    // Add generic role dropdown for groups with role composition when not using built-in detection
+    // (Built-in games like WoW/FFXIV use Class/Spec options to determine role)
+    if (group.has_role_composition) {
+      const gameName = game.game_name || '';
+      const gameType = getBuiltinGameType(gameName);
+
+      // Only show role dropdown for non-builtin games (ESO, GW2, etc.)
+      if (!gameType) {
+        optionsHtml += `
+          <div>
+            <label class="text-sm text-gray-300 mb-2 block">Role *</label>
+            <select id="joinRole" class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white">
+              <option value="">Select your role...</option>
+              <option value="tank">🛡️ Tank</option>
+              <option value="healer">💚 Healer</option>
+              <option value="dps">⚔️ DPS</option>
+              <option value="support">🎵 Support</option>
+              <option value="flex">🔄 Flex</option>
+            </select>
+          </div>
+        `;
+      }
     }
 
     // If no options, show simple confirmation
@@ -864,11 +1309,27 @@
         });
       }
 
+      // Get selected role for groups with role composition (generic mode only)
+      let selectedRole = null;
+      const roleSelect = document.getElementById('joinRole');
+      if (roleSelect) {
+        selectedRole = roleSelect.value || null;
+        // Validate role selection for groups with roles and generic mode
+        if (group.has_role_composition && !selectedRole) {
+          const gameName = game.game_name || '';
+          const gameType = getBuiltinGameType(gameName);
+          if (!gameType) {
+            showToast('Please select your role', 'error');
+            return;
+          }
+        }
+      }
+
       // Submit join request
       const res = await csrfFetch(`/api/guild/${guildId}/lfg/browser/${groupId}/join/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ options })
+        body: JSON.stringify({ options, selected_role: selectedRole })
       });
       const data = await res.json();
 
@@ -991,6 +1452,24 @@
 
     // Set group size
     document.getElementById('editGroupSize').value = group.max_group_size;
+
+    // Set role composition
+    const hasRoleComposition = group.has_role_composition;
+    document.getElementById('editEnableRoleComposition').checked = hasRoleComposition;
+    document.getElementById('editTanks').value = group.tanks_needed || 1;
+    document.getElementById('editHealers').value = group.healers_needed || 1;
+    document.getElementById('editDPS').value = group.dps_needed || 3;
+    document.getElementById('editSupport').value = group.support_needed || 0;
+    document.getElementById('editEnforceRoleLimits').checked = group.enforce_role_limits !== false;
+
+    // Show/hide role composition fields and group size
+    if (hasRoleComposition) {
+      document.getElementById('editRoleCompositionFields').classList.remove('hidden');
+      document.getElementById('editGroupSizeContainer').classList.add('hidden');
+    } else {
+      document.getElementById('editRoleCompositionFields').classList.add('hidden');
+      document.getElementById('editGroupSizeContainer').classList.remove('hidden');
+    }
 
     // Set description
     document.getElementById('editDescription').value = group.description || '';
@@ -1164,16 +1643,16 @@
           const parentOption = game.custom_options.find(opt => opt.name === option.depends_on);
           const parentValue = currentSelections[option.depends_on] || '';
           if (parentValue && option.choices[parentValue]) {
-            items = option.choices[parentValue].map(choice => ({
-              value: choice,
-              label: choice
-            }));
+            items = option.choices[parentValue].map(choice => {
+              const val = typeof choice === 'object' ? choice.value : choice;
+              return { value: val, label: val };
+            });
           }
         } else if (Array.isArray(option.choices)) {
-          items = option.choices.map(choice => ({
-            value: choice,
-            label: choice
-          }));
+          items = option.choices.map(choice => {
+            const val = typeof choice === 'object' ? choice.value : choice;
+            return { value: val, label: val };
+          });
         }
 
         // Check if this option should allow multi-select (Activity allows up to 3)
@@ -1256,11 +1735,34 @@
     }
   }
 
+  // Toggle edit role composition fields
+  function toggleEditRoleCompositionFields() {
+    const checkbox = document.getElementById('editEnableRoleComposition');
+    const fieldsContainer = document.getElementById('editRoleCompositionFields');
+    const groupSizeContainer = document.getElementById('editGroupSizeContainer');
+
+    if (checkbox.checked) {
+      fieldsContainer.classList.remove('hidden');
+      groupSizeContainer.classList.add('hidden');
+    } else {
+      fieldsContainer.classList.add('hidden');
+      groupSizeContainer.classList.remove('hidden');
+    }
+  }
+
   async function updateGroup() {
     const groupId = parseInt(document.getElementById('editGroupId').value);
     const scheduledTime = document.getElementById('editScheduledTime').value;
     const maxGroupSize = parseInt(document.getElementById('editGroupSize').value);
     const description = document.getElementById('editDescription').value;
+
+    // Role composition
+    const roleCompositionEnabled = document.getElementById('editEnableRoleComposition').checked;
+    const tanks = parseInt(document.getElementById('editTanks').value) || 0;
+    const healers = parseInt(document.getElementById('editHealers').value) || 0;
+    const dps = parseInt(document.getElementById('editDPS').value) || 0;
+    const support = parseInt(document.getElementById('editSupport').value) || 0;
+    const enforceRoleLimits = document.getElementById('editEnforceRoleLimits').checked;
 
     // Find the group to check if current user is creator
     const group = allGroups.find(g => g.id === groupId);
@@ -1295,9 +1797,29 @@
     try {
       const payload = {
         scheduled_time: scheduledTime ? Math.floor(new Date(scheduledTime).getTime() / 1000) : null,
-        max_group_size: maxGroupSize,
         description: description
       };
+
+      // Add role composition or regular group size
+      if (roleCompositionEnabled) {
+        if (tanks + healers + dps + support === 0) {
+          return showToast('Please specify at least one role slot', 'error');
+        }
+        payload.tanks_needed = tanks;
+        payload.healers_needed = healers;
+        payload.dps_needed = dps;
+        payload.support_needed = support;
+        payload.enforce_role_limits = enforceRoleLimits;
+        payload.max_group_size = tanks + healers + dps + support;
+      } else {
+        // Disable role composition - set all to null
+        payload.tanks_needed = null;
+        payload.healers_needed = null;
+        payload.dps_needed = null;
+        payload.support_needed = null;
+        payload.enforce_role_limits = true;
+        payload.max_group_size = maxGroupSize;
+      }
 
       // Only include co_leader_ids if user is creator
       if (isCreator && coLeaderIds !== undefined) {
@@ -1473,10 +1995,10 @@
         if (parentValue && typeof option.choices === 'object' && !Array.isArray(option.choices)) {
           const choicesForParent = option.choices[parentValue];
           if (Array.isArray(choicesForParent)) {
-            newChoices = choicesForParent.map(choice => ({
-              value: choice,
-              label: choice
-            }));
+            newChoices = choicesForParent.map(choice => {
+              const val = typeof choice === 'object' ? choice.value : choice;
+              return { value: val, label: val };
+            });
           }
         }
 
@@ -1594,11 +2116,11 @@
           // Conditional dropdown - will be populated when parent changes
           items = [];
         } else if (Array.isArray(option.choices)) {
-          // Simple dropdown
-          items = option.choices.map(choice => ({
-            value: choice,
-            label: choice
-          }));
+          // Simple dropdown - handle both string and object {value, role} formats
+          items = option.choices.map(choice => {
+            const val = typeof choice === 'object' ? choice.value : choice;
+            return { value: val, label: val };
+          });
         }
 
         // Check if this option should allow multi-select (Activity allows up to 3)
@@ -1619,9 +2141,9 @@
             // When this option changes, update any dependent options
             updateDependentOptions(gameId, index, value, 'create');
 
-            // If this is the Activity field, check if "Raid" is selected
+            // If this is the Activity field, check if "Raid" is selected to auto-enable roles
             if (option.name === 'Activity') {
-              toggleRaidComposition(value);
+              checkActivityForRoles(value);
             }
           }
         });
@@ -1639,10 +2161,24 @@
     document.getElementById('createGroupModal').classList.add('hidden');
   }
 
-  // Toggle raid composition fields based on activity selection
-  function toggleRaidComposition(activities) {
-    const raidCompositionContainer = document.getElementById('raidCompositionContainer');
+  // Toggle role composition fields based on checkbox
+  function toggleRoleCompositionFields() {
+    const checkbox = document.getElementById('enableRoleComposition');
+    const fieldsContainer = document.getElementById('roleCompositionFields');
     const groupSizeContainer = document.getElementById('groupSizeContainer');
+
+    if (checkbox.checked) {
+      fieldsContainer.classList.remove('hidden');
+      groupSizeContainer.classList.add('hidden');
+    } else {
+      fieldsContainer.classList.add('hidden');
+      groupSizeContainer.classList.remove('hidden');
+    }
+  }
+
+  // Auto-enable role composition for certain activities (like Raid)
+  function checkActivityForRoles(activities) {
+    const checkbox = document.getElementById('enableRoleComposition');
 
     // Check if "Raid" is in the selected activities (supports multi-select)
     let isRaid = false;
@@ -1652,14 +2188,10 @@
       isRaid = activities.toLowerCase() === 'raid';
     }
 
-    if (isRaid) {
-      // Show raid composition, hide group size
-      raidCompositionContainer.classList.remove('hidden');
-      groupSizeContainer.classList.add('hidden');
-    } else {
-      // Hide raid composition, show group size
-      raidCompositionContainer.classList.add('hidden');
-      groupSizeContainer.classList.remove('hidden');
+    // Auto-enable for raids, but don't auto-disable
+    if (isRaid && !checkbox.checked) {
+      checkbox.checked = true;
+      toggleRoleCompositionFields();
     }
   }
 
@@ -1717,9 +2249,8 @@
     }
 
     try {
-      // Check if this is a raid (composition fields are visible)
-      const raidCompositionContainer = document.getElementById('raidCompositionContainer');
-      const isRaid = !raidCompositionContainer.classList.contains('hidden');
+      // Check if role composition is enabled
+      const roleCompositionEnabled = document.getElementById('enableRoleComposition').checked;
 
       const payload = {
         game_id: parseInt(gameId),
@@ -1733,24 +2264,26 @@
         create_discord_thread: createThread
       };
 
-      // Add raid composition or regular group size
-      if (isRaid) {
+      // Add role composition or regular group size
+      if (roleCompositionEnabled) {
         const tanks = parseInt(document.getElementById('createTanks').value) || 0;
         const healers = parseInt(document.getElementById('createHealers').value) || 0;
         const dps = parseInt(document.getElementById('createDPS').value) || 0;
+        const support = parseInt(document.getElementById('createSupport').value) || 0;
+        const enforceRoleLimits = document.getElementById('enforceRoleLimits').checked;
 
         // Validate at least one role is needed
-        if (tanks + healers + dps === 0) {
-          return showToast('Please specify at least one role (Tanks, Healers, or DPS)', 'error');
+        if (tanks + healers + dps + support === 0) {
+          return showToast('Please specify at least one role slot', 'error');
         }
 
-        payload.is_raid = true;
         payload.tanks_needed = tanks;
         payload.healers_needed = healers;
         payload.dps_needed = dps;
-        payload.max_group_size = tanks + healers + dps; // Total raid size
+        payload.support_needed = support;
+        payload.enforce_role_limits = enforceRoleLimits;
+        payload.max_group_size = tanks + healers + dps + support; // Total group size
       } else {
-        payload.is_raid = false;
         payload.max_group_size = maxGroupSize;
       }
 
@@ -1884,16 +2417,16 @@
           // Get parent value to determine which choices to show
           const parentValue = currentMember?.selections?.[option.depends_on] || '';
           if (parentValue && option.choices[parentValue]) {
-            items = option.choices[parentValue].map(choice => ({
-              value: choice,
-              label: choice
-            }));
+            items = option.choices[parentValue].map(choice => {
+              const val = typeof choice === 'object' ? choice.value : choice;
+              return { value: val, label: val };
+            });
           }
         } else if (Array.isArray(option.choices)) {
-          items = option.choices.map(choice => ({
-            value: choice,
-            label: choice
-          }));
+          items = option.choices.map(choice => {
+            const val = typeof choice === 'object' ? choice.value : choice;
+            return { value: val, label: val };
+          });
         }
 
         createCustomSelect({
@@ -1972,7 +2505,7 @@
       showToast(data.message || 'Class updated successfully!', 'success');
       await loadGroups();
     } catch (err) {
-      showToast('Failed to update class', 'error');
+      showToast(err.message || 'Failed to update class', 'error');
     }
   }
 
@@ -2161,6 +2694,21 @@
       selected: 'all',
       color: 'green',
       onSelect: filterGroups
+    });
+
+    // Sort filter
+    sortFilterSelect = createCustomSelect({
+      container: '#sortFilterContainer',
+      name: 'sort_filter',
+      placeholder: 'Newest First',
+      items: [
+        {value: 'newest', label: 'Newest First', icon: 'sort-amount-down'},
+        {value: 'oldest', label: 'Oldest First', icon: 'sort-amount-up'},
+        {value: 'scheduled', label: 'By Scheduled Time', icon: 'calendar-check'}
+      ],
+      selected: 'newest',
+      color: 'green',
+      onSelect: () => loadGroups()
     });
   }
 

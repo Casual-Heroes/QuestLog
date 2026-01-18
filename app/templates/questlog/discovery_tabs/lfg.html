@@ -159,26 +159,71 @@
           <p class="text-xs text-gray-500 mt-1">Select your specialization</p>
         </div>
 
-        <!-- Simple Role Selection (for games without Class/Spec system) -->
+        <!-- Dynamic Game Options Container (Role, Classes, etc. for games without Class/Spec system) -->
         <div id="roleSelectionContainer" class="hidden">
-          <label class="block text-sm font-medium text-gray-300 mb-2">Your Role/Class (optional)</label>
-          <div id="createLFGRoleContainer"></div>
-          <p class="text-xs text-gray-500 mt-1">Select your in-game role for this group</p>
+          <div id="dynamicGameOptionsContainer">
+            <!-- Dynamic dropdowns will be inserted here by loadSimpleRoleSystem -->
+          </div>
         </div>
 
         <!-- Group Size -->
-        <div>
+        <div id="groupSizeContainer">
           <label class="block text-sm font-medium text-gray-300 mb-2">Group Size *</label>
           <input
             type="number"
             name="group_size"
-            required
+            id="createGroupSize"
             min="2"
             max="50"
             value="4"
             class="w-full bg-neutral-800 border border-neutral-700 rounded px-4 py-2 text-white focus:outline-none focus:border-indigo-500"
           >
           <p class="text-xs text-gray-500 mt-1">Maximum number of players in your group (including you)</p>
+        </div>
+
+        <!-- Role Composition (optional for any group type) -->
+        <div id="roleCompositionSection" class="bg-neutral-800/50 border border-neutral-700 rounded-lg p-4">
+          <label class="flex items-center gap-3 cursor-pointer">
+            <input type="checkbox" id="enableRoleComposition" onchange="toggleRoleCompositionFields()" class="w-5 h-5 rounded bg-neutral-700 border-neutral-600 text-purple-600 focus:ring-purple-500">
+            <div>
+              <div class="text-white font-medium"><i class="fas fa-users-cog text-purple-400 mr-1"></i>Enable Role Composition</div>
+              <p class="text-xs text-gray-400 mt-0.5">Set specific Tank/Healer/DPS/Support slots for this group</p>
+            </div>
+          </label>
+
+          <div id="roleCompositionFields" class="hidden mt-4">
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
+              <div>
+                <label class="text-sm text-gray-300 mb-2 block">
+                  <i class="fas fa-shield text-blue-400 mr-1"></i>Tanks
+                </label>
+                <input type="number" id="createTanks" min="0" max="50" value="1" class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white">
+              </div>
+              <div>
+                <label class="text-sm text-gray-300 mb-2 block">
+                  <i class="fas fa-heart text-green-400 mr-1"></i>Healers
+                </label>
+                <input type="number" id="createHealers" min="0" max="50" value="1" class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white">
+              </div>
+              <div>
+                <label class="text-sm text-gray-300 mb-2 block">
+                  <i class="fas fa-bolt text-red-400 mr-1"></i>DPS
+                </label>
+                <input type="number" id="createDPS" min="0" max="200" value="3" class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white">
+              </div>
+              <div>
+                <label class="text-sm text-gray-300 mb-2 block">
+                  <i class="fas fa-music text-yellow-400 mr-1"></i>Support
+                </label>
+                <input type="number" id="createSupport" min="0" max="50" value="0" class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white">
+              </div>
+            </div>
+
+            <label class="flex items-center gap-2 cursor-pointer mt-2">
+              <input type="checkbox" id="enforceRoleLimits" checked class="w-4 h-4 rounded bg-neutral-700 border-neutral-600 text-purple-600 focus:ring-purple-500">
+              <span class="text-sm text-gray-300">Enforce role limits (prevent more signups than slots available)</span>
+            </label>
+          </div>
         </div>
 
         <!-- Description (optional) -->
@@ -300,9 +345,54 @@
         <input type="number" id="editLFGEventDuration" min="1" max="24" class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white">
       </div>
 
-      <div>
+      <div id="editGroupSizeContainer">
         <label class="text-sm text-gray-300 mb-2 block">Group Size</label>
         <input type="number" id="editLFGGroupSize" min="2" max="50" class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white">
+      </div>
+
+      <!-- Role Composition Section -->
+      <div id="editRoleCompositionSection" class="bg-neutral-800/50 border border-neutral-700 rounded-lg p-4">
+        <label class="flex items-center gap-3 cursor-pointer">
+          <input type="checkbox" id="editEnableRoleComposition" onchange="toggleEditRoleCompositionFields()" class="w-5 h-5 rounded bg-neutral-700 border-neutral-600 text-purple-600 focus:ring-purple-500">
+          <div>
+            <div class="text-white font-medium"><i class="fas fa-users-cog text-purple-400 mr-1"></i>Enable Role Composition</div>
+            <p class="text-xs text-gray-400 mt-0.5">Set specific Tank/Healer/DPS/Support slots for this group</p>
+          </div>
+        </label>
+
+        <div id="editRoleCompositionFields" class="hidden mt-4">
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
+            <div>
+              <label class="text-sm text-gray-300 mb-2 block">
+                <i class="fas fa-shield text-blue-400 mr-1"></i>Tanks
+              </label>
+              <input type="number" id="editTanks" min="0" max="50" value="1" class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white">
+            </div>
+            <div>
+              <label class="text-sm text-gray-300 mb-2 block">
+                <i class="fas fa-heart text-green-400 mr-1"></i>Healers
+              </label>
+              <input type="number" id="editHealers" min="0" max="50" value="1" class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white">
+            </div>
+            <div>
+              <label class="text-sm text-gray-300 mb-2 block">
+                <i class="fas fa-bolt text-red-400 mr-1"></i>DPS
+              </label>
+              <input type="number" id="editDPS" min="0" max="200" value="3" class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white">
+            </div>
+            <div>
+              <label class="text-sm text-gray-300 mb-2 block">
+                <i class="fas fa-music text-yellow-400 mr-1"></i>Support
+              </label>
+              <input type="number" id="editSupport" min="0" max="50" value="0" class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white">
+            </div>
+          </div>
+
+          <label class="flex items-center gap-2 cursor-pointer mt-2">
+            <input type="checkbox" id="editEnforceRoleLimits" checked class="w-4 h-4 rounded bg-neutral-700 border-neutral-600 text-purple-600 focus:ring-purple-500">
+            <span class="text-sm text-gray-300">Enforce role limits (prevent more signups than slots available)</span>
+          </label>
+        </div>
       </div>
 
       <div>
@@ -403,6 +493,9 @@ function escapeHtml(unsafe) {
 // Custom select instances
 let filterGameSelect, filterPlatformSelect, filterActivitySelect, filterSkillSelect, filterTimeSelect;
 let createGameSelect, createClassSelect, createSpecSelect, createRoleSelect, createPlatformSelect, createActivitySelect, createSkillSelect;
+
+// Dynamic option selects for games with multiple custom options (Role, Classes, etc.)
+let dynamicOptionSelects = [];
 
 // Store current game templates data
 let currentGameTemplates = [];
@@ -611,33 +704,46 @@ function renderLFGPosts() {
   const postsToShow = filteredLFGPosts.slice(0, displayedCount);
 
   grid.innerHTML = postsToShow.map(post => `
-    <div class="bg-neutral-900 border border-neutral-800 rounded-lg p-5 hover:border-indigo-600 transition">
-      <div class="flex items-start justify-between">
-        <!-- Left: Post Info -->
-        <div class="flex-1">
-          <div class="flex items-center space-x-3 mb-3">
-            <!-- Game Icon/Badge -->
-            <div class="flex-shrink-0 w-12 h-12 bg-gradient-to-br from-indigo-600 to-purple-600 rounded-lg flex items-center justify-center overflow-hidden">
-              ${post.cover_url ? `
-                <img src="${escapeHtml(post.cover_url)}" alt="${escapeHtml(post.game)}" class="w-full h-full object-cover">
-              ` : `
-                <span class="text-xl">🎮</span>
-              `}
+    <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-5 hover:border-indigo-600 transition">
+      <div class="flex flex-col md:flex-row gap-4">
+        <!-- Game Cover -->
+        <div class="flex-shrink-0">
+          ${post.cover_url ? `
+            <img src="${escapeHtml(post.cover_url)}" alt="${escapeHtml(post.game)}" class="w-24 h-32 object-cover rounded-lg border border-neutral-700">
+          ` : `
+            <div class="w-24 h-32 bg-neutral-800 rounded-lg border border-neutral-700 flex items-center justify-center text-4xl">
+              🎮
             </div>
+          `}
+        </div>
 
-            <div class="flex-1">
-              <h3 class="text-lg font-bold text-white flex items-center gap-2">
+        <!-- Post Info -->
+        <div class="flex-1">
+          <div class="flex items-start justify-between mb-2">
+            <div>
+              <h3 class="text-lg font-bold text-white flex items-center gap-2 flex-wrap">
                 ${escapeHtml(post.title)}
-                ${post.is_raid ? '<span class="px-2 py-0.5 text-xs rounded bg-purple-600 text-white"><i class="fas fa-swords mr-1"></i>RAID</span>' : ''}
+                ${post.has_role_composition ? '<span class="px-2 py-0.5 text-xs rounded bg-purple-600 text-white"><i class="fas fa-users-cog mr-1"></i>ROLES</span>' : ''}
+                ${post.start_time === 'now' || (post.scheduled_time && post.scheduled_time * 1000 <= Date.now() + 30 * 60 * 1000) ? '<span class="px-2 py-0.5 text-xs rounded bg-green-600 text-white">● Active Now</span>' : ''}
               </h3>
-              <div class="flex items-center space-x-2 text-sm text-gray-400">
-                <span>${escapeHtml(post.game)}</span>
+              <div class="flex items-center flex-wrap gap-x-2 text-sm text-gray-400 mt-1">
+                <span>🎮 ${escapeHtml(post.game)}</span>
                 <span>•</span>
                 <span>${escapeHtml(post.platform)}</span>
                 <span>•</span>
                 <span>${formatTimeAgo(post.created_at)}</span>
               </div>
+              ${post.has_role_composition ? `
+              <div class="text-sm text-gray-400 mt-1">
+                <i class="fas fa-users-cog text-purple-400 mr-1"></i>Composition:
+                ${post.tanks_needed ? `<span class="text-blue-400 ml-1">🛡️ ${post.tanks_needed} Tank${post.tanks_needed > 1 ? 's' : ''}</span>` : ''}
+                ${post.healers_needed ? `<span class="text-green-400 ml-1">💚 ${post.healers_needed} Healer${post.healers_needed > 1 ? 's' : ''}</span>` : ''}
+                ${post.dps_needed ? `<span class="text-red-400 ml-1">⚔️ ${post.dps_needed} DPS</span>` : ''}
+                ${post.support_needed ? `<span class="text-yellow-400 ml-1">🎵 ${post.support_needed} Support</span>` : ''}
+              </div>
+              ` : ''}
             </div>
+            <a href="#" onclick="openLFGDetails('${post.id}'); return false;" class="text-indigo-400 hover:text-indigo-300 text-sm font-medium ml-2 flex-shrink-0">Open</a>
           </div>
 
           ${post.description ? `
@@ -673,50 +779,304 @@ function renderLFGPosts() {
             </span>
           </div>
 
-          <!-- Members -->
+          <!-- Members / Role Composition Roster -->
           ${post.members && post.members.length > 0 ? `
-            <div class="bg-neutral-800/50 rounded-lg p-3 mb-3 border border-neutral-700">
-              <div class="flex items-center gap-2 mb-2">
-                <i class="fas fa-users text-gray-400 text-sm"></i>
-                <span class="text-sm font-semibold text-gray-300">Members</span>
-                ${post.is_raid ? `
-                  <span class="text-white ml-auto flex gap-3 text-xs">
-                    <span class="text-blue-400"><i class="fas fa-shield mr-1"></i>${post.tanks_needed || 0}</span>
-                    <span class="text-green-400"><i class="fas fa-heart mr-1"></i>${post.healers_needed || 0}</span>
-                    <span class="text-red-400"><i class="fas fa-bolt mr-1"></i>${post.dps_needed || 0}</span>
-                  </span>
-                ` : `
-                  <span class="text-white ml-auto">${post.member_count} / ${post.max_group_size}</span>
-                `}
-              </div>
-              <div class="flex flex-wrap gap-2">
-                ${post.members.map(member => `
-                  <div class="flex items-center gap-1.5 bg-neutral-900 px-2 py-1 rounded text-xs">
-                    <img src="${escapeHtml(member.avatar_url || 'https://cdn.discordapp.com/embed/avatars/0.png')}"
-                         alt="${escapeHtml(member.display_name)}"
-                         class="w-5 h-5 rounded-full">
-                    <span class="text-gray-300">${escapeHtml(member.display_name)}</span>
-                    ${member.is_creator ? '<span class="text-yellow-400">👑</span>' : ''}
-                    ${member.player_role ? `<span class="text-indigo-400">(${escapeHtml(member.player_role)})</span>` : ''}
+            ${post.has_role_composition ? (() => {
+              // =================================================================
+              // Built-in Role Detection System (mirrors lfg_role_mappings.py)
+              // =================================================================
+
+              // Built-in game identifiers
+              const BUILTIN_GAMES = {
+                'wow': ['world of warcraft', 'wow'],
+                'ffxiv': ['final fantasy xiv', 'final fantasy 14', 'ffxiv', 'ff14'],
+                'pantheon': ['pantheon', 'pantheon: rise of the fallen']
+              };
+
+              // WoW Role Mappings
+              const WOW_ROLES = {
+                'tank': ['blood', 'vengeance', 'guardian', 'brewmaster', 'protection'],
+                'healer': ['restoration', 'preservation', 'mistweaver', 'holy', 'discipline'],
+                'dps': ['frost', 'unholy', 'havoc', 'balance', 'feral', 'devastation',
+                        'beast mastery', 'marksmanship', 'survival', 'arcane', 'fire',
+                        'windwalker', 'retribution', 'shadow', 'assassination', 'outlaw', 'subtlety',
+                        'elemental', 'enhancement', 'affliction', 'demonology', 'destruction', 'arms', 'fury'],
+                'support': ['augmentation']  // Evoker Augmentation is a support spec
+              };
+
+              // FFXIV Role Mappings
+              const FFXIV_ROLES = {
+                'tank': ['paladin', 'pld', 'warrior', 'war', 'dark knight', 'drk', 'gunbreaker', 'gnb'],
+                'healer': ['white mage', 'whm', 'scholar', 'sch', 'astrologian', 'ast', 'sage', 'sge'],
+                'dps': ['monk', 'mnk', 'dragoon', 'drg', 'ninja', 'nin', 'samurai', 'sam', 'reaper', 'rpr', 'viper', 'vpr',
+                        'bard', 'brd', 'machinist', 'mch', 'dancer', 'dnc',
+                        'black mage', 'blm', 'summoner', 'smn', 'red mage', 'rdm', 'pictomancer', 'pct']
+              };
+
+              // Pantheon Role Mappings
+              const PANTHEON_ROLES = {
+                'tank': ['warrior', 'dire lord', 'paladin'],
+                'healer': ['cleric', 'shaman', 'druid'],
+                'dps': ['wizard', 'enchanter', 'summoner', 'rogue', 'ranger', 'monk'],
+                'support': ['bard', 'enchanter']
+              };
+
+              // Get built-in game type from game name
+              function getBuiltinGameType(gameName) {
+                if (!gameName) return null;
+                const nameLower = gameName.toLowerCase().trim();
+                for (const [gameType, aliases] of Object.entries(BUILTIN_GAMES)) {
+                  for (const alias of aliases) {
+                    if (nameLower.includes(alias) || alias.includes(nameLower)) {
+                      return gameType;
+                    }
+                  }
+                }
+                return null;
+              }
+
+              // Get role from built-in mappings
+              function getRoleFromBuiltin(gameType, specOrClass) {
+                if (!specOrClass) return null;
+                const specLower = specOrClass.toLowerCase().trim();
+
+                let mappings;
+                if (gameType === 'wow') mappings = WOW_ROLES;
+                else if (gameType === 'ffxiv') mappings = FFXIV_ROLES;
+                else if (gameType === 'pantheon') mappings = PANTHEON_ROLES;
+                else return null;
+
+                for (const [role, specs] of Object.entries(mappings)) {
+                  if (specs.some(s => specLower.includes(s) || s.includes(specLower))) {
+                    return role;
+                  }
+                }
+                return null;
+              }
+
+              // Detect role for a member
+              function detectMemberRole(member, gameName) {
+                const gameType = getBuiltinGameType(gameName);
+                const playerRole = (member.player_role || '').toLowerCase();
+
+                // Priority 1: Check built-in game mappings using player_role (spec/class/job)
+                if (gameType && playerRole) {
+                  const role = getRoleFromBuiltin(gameType, playerRole);
+                  if (role) return role;
+                }
+
+                // Priority 2: Check explicit selected_role
+                if (member.selected_role && ['tank', 'healer', 'dps', 'support', 'flex'].includes(member.selected_role)) {
+                  return member.selected_role;
+                }
+
+                // Priority 3: Legacy check - direct role keywords in player_role
+                if (playerRole) {
+                  if (['tank'].includes(playerRole)) return 'tank';
+                  if (['healer', 'healing'].includes(playerRole)) return 'healer';
+                  if (['dps'].includes(playerRole)) return 'dps';
+                  if (['support'].includes(playerRole)) return 'support';
+                  if (['flex'].includes(playerRole)) return 'flex';
+                }
+
+                return null;
+              }
+
+              const gameName = post.game || post.game_name || '';
+
+              // Categorize members using centralized role detection
+              const tanks = [];
+              const healers = [];
+              const dps = [];
+              const support = [];
+              const flex = [];
+              const unassigned = [];
+
+              post.members.forEach(m => {
+                const role = detectMemberRole(m, gameName);
+                if (role === 'tank') tanks.push(m);
+                else if (role === 'healer') healers.push(m);
+                else if (role === 'dps') dps.push(m);
+                else if (role === 'support') support.push(m);
+                else if (role === 'flex') flex.push(m);
+                else unassigned.push(m);
+              });
+
+              const assignedCount = tanks.length + healers.length + dps.length + support.length + flex.length;
+              const totalNeeded = (post.tanks_needed || 0) + (post.healers_needed || 0) + (post.dps_needed || 0) + (post.support_needed || 0);
+
+              // Determine if we need to show Support column
+              const hasSupport = (post.support_needed || 0) > 0 || support.length > 0;
+              const hasFlex = flex.length > 0;
+
+              return `
+              <!-- Role Columns -->
+              <div class="bg-neutral-800/50 rounded-lg p-3 mb-3 border border-neutral-700">
+                <!-- Main roles row: Tank | Healer | DPS -->
+                <div class="grid grid-cols-3 gap-2">
+                  <!-- Tanks -->
+                  <div class="bg-neutral-900/70 rounded-lg p-2 border border-blue-900/30">
+                    <div class="flex items-center gap-1 mb-1.5 pb-1 border-b border-neutral-700">
+                      <i class="fas fa-shield-alt text-blue-400 text-xs"></i>
+                      <span class="text-xs font-semibold text-blue-400">Tank</span>
+                      <span class="text-xs text-gray-500 ml-auto">${tanks.length}/${post.tanks_needed || 0}</span>
+                    </div>
+                    <div class="space-y-0.5 min-h-[24px]">
+                      ${tanks.map((m, i) => `
+                        <div class="flex items-center gap-1 text-xs">
+                          <span class="text-gray-500 w-3">${i+1}</span>
+                          ${m.is_creator ? '<i class="fas fa-crown text-yellow-400 text-xs"></i>' : ''}
+                          <span class="text-gray-200 truncate">${escapeHtml(m.display_name)}</span>
+                          ${m.player_role ? `<span class="text-gray-500 text-xs ml-1">• ${escapeHtml(m.player_role)}</span>` : ''}
+                        </div>
+                      `).join('') || '<span class="text-gray-600 text-xs">—</span>'}
+                    </div>
                   </div>
-                `).join('')}
+
+                  <!-- Healers -->
+                  <div class="bg-neutral-900/70 rounded-lg p-2 border border-green-900/30">
+                    <div class="flex items-center gap-1 mb-1.5 pb-1 border-b border-neutral-700">
+                      <i class="fas fa-heart text-green-400 text-xs"></i>
+                      <span class="text-xs font-semibold text-green-400">Healer</span>
+                      <span class="text-xs text-gray-500 ml-auto">${healers.length}/${post.healers_needed || 0}</span>
+                    </div>
+                    <div class="space-y-0.5 min-h-[24px]">
+                      ${healers.map((m, i) => `
+                        <div class="flex items-center gap-1 text-xs">
+                          <span class="text-gray-500 w-3">${i+1}</span>
+                          ${m.is_creator ? '<i class="fas fa-crown text-yellow-400 text-xs"></i>' : ''}
+                          <span class="text-gray-200 truncate">${escapeHtml(m.display_name)}</span>
+                          ${m.player_role ? `<span class="text-gray-500 text-xs ml-1">• ${escapeHtml(m.player_role)}</span>` : ''}
+                        </div>
+                      `).join('') || '<span class="text-gray-600 text-xs">—</span>'}
+                    </div>
+                  </div>
+
+                  <!-- DPS -->
+                  <div class="bg-neutral-900/70 rounded-lg p-2 border border-red-900/30">
+                    <div class="flex items-center gap-1 mb-1.5 pb-1 border-b border-neutral-700">
+                      <i class="fas fa-bolt text-red-400 text-xs"></i>
+                      <span class="text-xs font-semibold text-red-400">DPS</span>
+                      <span class="text-xs text-gray-500 ml-auto">${dps.length}/${post.dps_needed || 0}</span>
+                    </div>
+                    <div class="space-y-0.5 min-h-[24px]">
+                      ${dps.map((m, i) => `
+                        <div class="flex items-center gap-1 text-xs">
+                          <span class="text-gray-500 w-3">${i+1}</span>
+                          ${m.is_creator ? '<i class="fas fa-crown text-yellow-400 text-xs"></i>' : ''}
+                          <span class="text-gray-200 truncate">${escapeHtml(m.display_name)}</span>
+                          ${m.player_role ? `<span class="text-gray-500 text-xs ml-1">• ${escapeHtml(m.player_role)}</span>` : ''}
+                        </div>
+                      `).join('') || '<span class="text-gray-600 text-xs">—</span>'}
+                    </div>
+                  </div>
+                </div>
+                <!-- Second row: Support | Flex (if needed) -->
+                ${hasSupport || hasFlex ? `
+                <div class="grid grid-cols-3 gap-2 mt-2">
+                  ${hasSupport ? `
+                  <div class="bg-neutral-900/70 rounded-lg p-2 border border-yellow-900/30">
+                    <div class="flex items-center gap-1 mb-1.5 pb-1 border-b border-neutral-700">
+                      <i class="fas fa-music text-yellow-400 text-xs"></i>
+                      <span class="text-xs font-semibold text-yellow-400">Support</span>
+                      <span class="text-xs text-gray-500 ml-auto">${support.length}/${post.support_needed || 0}</span>
+                    </div>
+                    <div class="space-y-0.5 min-h-[24px]">
+                      ${support.map((m, i) => `
+                        <div class="flex items-center gap-1 text-xs">
+                          <span class="text-gray-500 w-3">${i+1}</span>
+                          ${m.is_creator ? '<i class="fas fa-crown text-yellow-400 text-xs"></i>' : ''}
+                          <span class="text-gray-200">${escapeHtml(m.display_name)}</span>
+                          ${m.player_role ? `<span class="text-gray-500 text-xs ml-1">• ${escapeHtml(m.player_role)}</span>` : ''}
+                        </div>
+                      `).join('') || '<span class="text-gray-600 text-xs">—</span>'}
+                    </div>
+                  </div>
+                  ` : '<div></div>'}
+                  ${hasFlex ? `
+                  <div class="bg-neutral-900/70 rounded-lg p-2 border border-cyan-900/30">
+                    <div class="flex items-center gap-1 mb-1.5 pb-1 border-b border-neutral-700">
+                      <i class="fas fa-sync-alt text-cyan-400 text-xs"></i>
+                      <span class="text-xs font-semibold text-cyan-400">Flex</span>
+                      <span class="text-xs text-gray-500 ml-auto">${flex.length}</span>
+                    </div>
+                    <div class="space-y-0.5 min-h-[24px]">
+                      ${flex.map((m, i) => `
+                        <div class="flex items-center gap-1 text-xs">
+                          ${m.is_creator ? '<i class="fas fa-crown text-yellow-400 text-xs"></i>' : ''}
+                          <span class="text-gray-200">${escapeHtml(m.display_name)}</span>
+                          ${m.player_role ? `<span class="text-gray-500 text-xs ml-1">• ${escapeHtml(m.player_role)}</span>` : ''}
+                        </div>
+                      `).join('')}
+                    </div>
+                  </div>
+                  ` : '<div></div>'}
+                  <div></div>
+                </div>
+                ` : ''}
+                ${unassigned.length > 0 ? `
+                  <div class="mt-2 bg-neutral-900/70 rounded-lg p-2 border border-orange-900/30">
+                    <div class="flex items-center gap-1 mb-1.5 pb-1 border-b border-neutral-700">
+                      <i class="fas fa-question-circle text-orange-400 text-xs"></i>
+                      <span class="text-xs font-semibold text-orange-400">Unassigned</span>
+                      <span class="text-xs text-gray-500 ml-auto">${unassigned.length}</span>
+                    </div>
+                    <div class="flex flex-wrap gap-2">
+                      ${unassigned.map((m, i) => `
+                        <div class="flex items-center gap-1 text-xs">
+                          ${m.is_creator ? '<i class="fas fa-crown text-yellow-400 text-xs"></i>' : ''}
+                          <span class="text-gray-200">${escapeHtml(m.display_name)}</span>
+                          ${m.player_role ? `<span class="text-gray-500 text-xs ml-1">• ${escapeHtml(m.player_role)}</span>` : ''}
+                        </div>
+                      `).join('')}
+                    </div>
+                  </div>
+                ` : ''}
+                <div class="text-center mt-2 text-xs text-gray-400">
+                  <i class="fas fa-users mr-1"></i>Roster: <span class="text-white">${assignedCount}</span> / ${totalNeeded}
+                  ${flex.length > 0 ? `<span class="text-cyan-400 ml-2">• ${flex.length} flex</span>` : ''}
+                  ${support.length > 0 ? `<span class="text-yellow-400 ml-2">• ${support.length} support</span>` : ''}
+                  ${unassigned.length > 0 ? `<span class="text-orange-400 ml-2">• ${unassigned.length} unassigned</span>` : ''}
+                </div>
               </div>
-            </div>
+              `;
+            })() : `
+              <!-- Regular Members List -->
+              <div class="bg-neutral-800/50 rounded-lg p-3 mb-3 border border-neutral-700">
+                <div class="flex items-center gap-2 mb-2">
+                  <i class="fas fa-users text-gray-400 text-sm"></i>
+                  <span class="text-sm font-semibold text-gray-300">Members</span>
+                  <span class="text-white ml-auto">${post.member_count} / ${post.max_group_size}</span>
+                </div>
+                <div class="flex flex-wrap gap-2">
+                  ${post.members.map(member => `
+                    <div class="flex items-center gap-1.5 bg-neutral-900 px-2 py-1 rounded text-xs">
+                      <img src="${escapeHtml(member.avatar_url || 'https://cdn.discordapp.com/embed/avatars/0.png')}"
+                           alt="${escapeHtml(member.display_name)}"
+                           class="w-5 h-5 rounded-full">
+                      <span class="text-gray-300">${escapeHtml(member.display_name)}</span>
+                      ${member.is_creator ? '<span class="text-yellow-400">👑</span>' : ''}
+                      ${member.player_role ? `<span class="text-indigo-400">• ${escapeHtml(member.player_role)}</span>` : ''}
+                    </div>
+                  `).join('')}
+                </div>
+              </div>
+            `}
           ` : ''}
 
-          <!-- Creator Info -->
-          <div class="flex items-center text-sm text-gray-400">
-            <img src="${escapeHtml(post.user_avatar)}" alt="${escapeHtml(post.username)}" class="w-6 h-6 rounded-full mr-2">
-            <span>${escapeHtml(post.username)}</span>
-            ${post.player_role ? `<span class="ml-1 text-indigo-300">(${escapeHtml(post.player_role)})</span>` : ''}
-            <span class="mx-2">from</span>
-            <span class="text-indigo-400">${escapeHtml(post.server_name)}</span>
+          <!-- Creator Info & Actions -->
+          <div class="flex items-center justify-between flex-wrap gap-2">
+            <div class="flex items-center text-sm text-gray-400">
+              <img src="${escapeHtml(post.user_avatar)}" alt="${escapeHtml(post.username)}" class="w-6 h-6 rounded-full mr-2">
+              <span>${escapeHtml(post.username)}</span>
+              ${post.player_role ? `<span class="ml-1 text-indigo-300">• ${escapeHtml(post.player_role)}</span>` : ''}
+              <span class="mx-2">from</span>
+              <span class="text-indigo-400">${escapeHtml(post.server_name)}</span>
+            </div>
+            <div class="flex gap-2">
+              ${renderActionButtons(post)}
+            </div>
           </div>
-        </div>
-
-        <!-- Right: Action Buttons -->
-        <div class="ml-4 flex-shrink-0">
-          ${renderActionButtons(post)}
         </div>
       </div>
     </div>
@@ -922,6 +1282,40 @@ function showCreateModal() {
 function hideCreateModal() {
   document.getElementById('createLFGModal').classList.add('hidden');
   document.getElementById('createLFGForm').reset();
+  // Reset role composition UI
+  document.getElementById('enableRoleComposition').checked = false;
+  document.getElementById('roleCompositionFields').classList.add('hidden');
+  document.getElementById('groupSizeContainer').classList.remove('hidden');
+}
+
+// Toggle role composition fields (create modal)
+function toggleRoleCompositionFields() {
+  const checkbox = document.getElementById('enableRoleComposition');
+  const fieldsContainer = document.getElementById('roleCompositionFields');
+  const groupSizeContainer = document.getElementById('groupSizeContainer');
+
+  if (checkbox.checked) {
+    fieldsContainer.classList.remove('hidden');
+    groupSizeContainer.classList.add('hidden');
+  } else {
+    fieldsContainer.classList.add('hidden');
+    groupSizeContainer.classList.remove('hidden');
+  }
+}
+
+// Toggle role composition fields (edit modal)
+function toggleEditRoleCompositionFields() {
+  const checkbox = document.getElementById('editEnableRoleComposition');
+  const fieldsContainer = document.getElementById('editRoleCompositionFields');
+  const groupSizeContainer = document.getElementById('editGroupSizeContainer');
+
+  if (checkbox.checked) {
+    fieldsContainer.classList.remove('hidden');
+    groupSizeContainer.classList.add('hidden');
+  } else {
+    fieldsContainer.classList.add('hidden');
+    groupSizeContainer.classList.remove('hidden');
+  }
 }
 
 // Create LFG post
@@ -947,13 +1341,61 @@ document.getElementById('createLFGForm').addEventListener('submit', async (e) =>
     } else {
       data.player_role = data.player_class;
     }
-  } else if (createRoleSelect && createRoleSelect.getValue()) {
-    data.player_role = createRoleSelect.getValue();
+  } else if (dynamicOptionSelects && dynamicOptionSelects.length > 0) {
+    // Collect values from dynamic option selects
+    const selectedValues = [];
+    dynamicOptionSelects.forEach(item => {
+      if (item.select && item.select.getValue()) {
+        const value = item.select.getValue();
+        // Store by template name for backend role detection
+        data[item.name] = value;
+        selectedValues.push(value);
+
+        // Check if this is a Role field for selected_role
+        if (item.name === 'Role') {
+          const roleLower = value.toLowerCase();
+          if (['tank', 'healer', 'dps', 'support', 'flex'].includes(roleLower)) {
+            data.selected_role = roleLower;
+          }
+        }
+      }
+    });
+    // Also set player_role as combined string for display
+    if (selectedValues.length > 0) {
+      data.player_role = selectedValues.join(', ');
+    }
   }
 
   if (createPlatformSelect) data.platform = createPlatformSelect.getValue();
   if (createActivitySelect) data.activity = createActivitySelect.getValue();
   if (createSkillSelect) data.skill_level = createSkillSelect.getValue();
+
+  // Check if role composition is enabled
+  const roleCompositionEnabled = document.getElementById('enableRoleComposition').checked;
+
+  if (roleCompositionEnabled) {
+    const tanks = parseInt(document.getElementById('createTanks').value) || 0;
+    const healers = parseInt(document.getElementById('createHealers').value) || 0;
+    const dps = parseInt(document.getElementById('createDPS').value) || 0;
+    const support = parseInt(document.getElementById('createSupport').value) || 0;
+    const enforceRoleLimits = document.getElementById('enforceRoleLimits').checked;
+
+    // Validate at least one role is needed
+    if (tanks + healers + dps + support === 0) {
+      alert('Please specify at least one role slot');
+      return;
+    }
+
+    data.tanks_needed = tanks;
+    data.healers_needed = healers;
+    data.dps_needed = dps;
+    data.support_needed = support;
+    data.enforce_role_limits = enforceRoleLimits;
+    data.group_size = tanks + healers + dps + support; // Total group size from roles
+  } else {
+    // Use the standard group size field
+    data.group_size = parseInt(document.getElementById('createGroupSize').value) || 4;
+  }
 
   try {
     const response = await fetch('/api/discovery/lfg/create', {
@@ -1154,16 +1596,30 @@ async function submitJoinLFG(postId) {
     const options = {};
 
     // Get class/spec or role from custom selects
+    // Format selections to match what the backend role detection expects
     if (window.joinClassSelect && window.joinClassSelect.getValue()) {
-      options.player_class = window.joinClassSelect.getValue();
+      const cls = window.joinClassSelect.getValue();
+      options.Class = cls;
+      options.player_class = cls;
+
       if (window.joinSpecSelect && window.joinSpecSelect.getValue()) {
-        options.player_spec = window.joinSpecSelect.getValue();
-        options.player_role = `${options.player_class} - ${options.player_spec}`;
+        const spec = window.joinSpecSelect.getValue();
+        options.Specialization = spec;
+        options.player_spec = spec;
+        options.player_role = `${cls}, ${spec}`;
       } else {
-        options.player_role = options.player_class;
+        options.player_role = cls;
       }
     } else if (window.joinRoleSelect && window.joinRoleSelect.getValue()) {
-      options.player_role = window.joinRoleSelect.getValue();
+      const roleValue = window.joinRoleSelect.getValue();
+      options.player_role = roleValue;
+      // Store as "Role" field for backend role detection
+      options.Role = roleValue;
+      // Check if this is a simple role (tank/healer/dps/etc) for selected_role
+      const roleLower = roleValue.toLowerCase();
+      if (['tank', 'healer', 'dps', 'support', 'flex'].includes(roleLower)) {
+        options.selected_role = roleLower;
+      }
     }
 
     const response = await fetch(`/api/discovery/lfg/${postId}/join`, {
@@ -1243,6 +1699,34 @@ async function editLFG(postId) {
 
   // Set group size
   document.getElementById('editLFGGroupSize').value = post.max_group_size || 5;
+
+  // Set role composition fields
+  const hasRoleComposition = post.tanks_needed !== null || post.healers_needed !== null ||
+                             post.dps_needed !== null || post.support_needed !== null;
+  const roleCompCheckbox = document.getElementById('editEnableRoleComposition');
+  const roleCompFields = document.getElementById('editRoleCompositionFields');
+  const groupSizeContainer = document.getElementById('editGroupSizeContainer');
+
+  if (hasRoleComposition) {
+    roleCompCheckbox.checked = true;
+    roleCompFields.classList.remove('hidden');
+    groupSizeContainer.classList.add('hidden');
+    document.getElementById('editTanks').value = post.tanks_needed || 0;
+    document.getElementById('editHealers').value = post.healers_needed || 0;
+    document.getElementById('editDPS').value = post.dps_needed || 0;
+    document.getElementById('editSupport').value = post.support_needed || 0;
+    document.getElementById('editEnforceRoleLimits').checked = post.enforce_role_limits !== false;
+  } else {
+    roleCompCheckbox.checked = false;
+    roleCompFields.classList.add('hidden');
+    groupSizeContainer.classList.remove('hidden');
+    // Reset role fields to defaults
+    document.getElementById('editTanks').value = 1;
+    document.getElementById('editHealers').value = 1;
+    document.getElementById('editDPS').value = 3;
+    document.getElementById('editSupport').value = 0;
+    document.getElementById('editEnforceRoleLimits').checked = true;
+  }
 
   // Set description
   document.getElementById('editLFGDescription').value = post.description || '';
@@ -1378,6 +1862,9 @@ async function submitEditLFG() {
     return;
   }
 
+  // Check if role composition is enabled
+  const roleCompositionEnabled = document.getElementById('editEnableRoleComposition').checked;
+
   try {
     // Collect Activity values
     const activityInput = document.getElementById('editLFGActivity');
@@ -1404,13 +1891,42 @@ async function submitEditLFG() {
       title: title,
       scheduled_time: scheduledTime ? Math.floor(new Date(scheduledTime).getTime() / 1000) : null,
       event_duration: eventDuration ? parseInt(eventDuration) : null,
-      max_group_size: groupSize,
       description: description || null,
       activity_type: activityValue,
       platform: platformInput ? platformInput.value : null,
       skill_level: skillInput ? skillInput.value : 'any',
       voice_required: voiceRequired
     };
+
+    // Add role composition or regular group size
+    if (roleCompositionEnabled) {
+      const tanks = parseInt(document.getElementById('editTanks').value) || 0;
+      const healers = parseInt(document.getElementById('editHealers').value) || 0;
+      const dps = parseInt(document.getElementById('editDPS').value) || 0;
+      const support = parseInt(document.getElementById('editSupport').value) || 0;
+      const enforceRoleLimits = document.getElementById('editEnforceRoleLimits').checked;
+
+      // Validate at least one role is needed
+      if (tanks + healers + dps + support === 0) {
+        showToast('Please specify at least one role slot', 'error');
+        return;
+      }
+
+      payload.tanks_needed = tanks;
+      payload.healers_needed = healers;
+      payload.dps_needed = dps;
+      payload.support_needed = support;
+      payload.enforce_role_limits = enforceRoleLimits;
+      payload.max_group_size = tanks + healers + dps + support;
+    } else {
+      // Disable role composition by setting all to null
+      payload.tanks_needed = null;
+      payload.healers_needed = null;
+      payload.dps_needed = null;
+      payload.support_needed = null;
+      payload.enforce_role_limits = false;
+      payload.max_group_size = groupSize;
+    }
 
     const csrfToken = getCookie('csrftoken');
     const res = await fetch(`/api/discovery/lfg/${postId}/update`, {
@@ -1510,14 +2026,25 @@ async function updateMemberClass(postId) {
     const templates = data.templates;
     const optionsContainer = document.getElementById('updateClassOptionsContainer');
 
-    // Check for Class+Spec system
-    const classTemplate = templates.find(t => t.option_name === 'Class');
-    const specTemplate = templates.find(t => t.option_name === 'Specialization' || t.option_name === 'Subclass');
+    // Check for Class+Spec system (match join modal logic)
+    const classTemplate = templates.find(t => t.name === 'Class' || t.option_name === 'Class');
+    const specTemplate = templates.find(t => t.depends_on === 'Class' || t.name === 'Specialization' || t.name === 'Subclass' || t.option_name === 'Specialization');
 
-    if (classTemplate && specTemplate) {
+    // Check if spec template has class-dependent choices (object format)
+    const hasClassSpecSystem = classTemplate && specTemplate && typeof specTemplate.choices === 'object' && !Array.isArray(specTemplate.choices);
+
+    if (hasClassSpecSystem) {
       // Class + Spec system
-      const currentClass = currentMember?.player_role ? currentMember.player_role.split(' - ')[0].trim() : '';
-      const currentSpec = currentMember?.player_role ? currentMember.player_role.split(' - ')[1]?.trim() : '';
+      // Get current values from selections object (properly stored by backend)
+      let currentClass = '';
+      let currentSpec = '';
+      if (currentMember?.selections) {
+        currentClass = currentMember.selections.Class || '';
+        currentSpec = currentMember.selections.Specialization || '';
+      }
+
+      // Store spec template for later use
+      window.updateSpecTemplate = specTemplate;
 
       optionsContainer.innerHTML = `
         <div class="space-y-4">
@@ -1525,7 +2052,7 @@ async function updateMemberClass(postId) {
             <label class="text-sm text-gray-300 mb-2 block">Class</label>
             <div id="updateClassSelectContainer"></div>
           </div>
-          <div id="updateSpecContainer" class="${currentClass ? '' : 'hidden'}">
+          <div id="updateSpecContainer" class="hidden">
             <label class="text-sm text-gray-300 mb-2 block">Specialization</label>
             <div id="updateSpecSelectContainer"></div>
           </div>
@@ -1547,14 +2074,14 @@ async function updateMemberClass(postId) {
         selected: currentClass,
         color: 'blue',
         onSelect: (value) => {
-          // Load specs for selected class
-          loadSpecsForUpdateClass(value, specTemplate, currentSpec);
+          // Load specs for selected class using specTemplate.choices[value]
+          loadSpecsForUpdateClass(value, currentSpec);
         }
       });
 
       // Load specs if class is already selected
       if (currentClass) {
-        loadSpecsForUpdateClass(currentClass, specTemplate, currentSpec);
+        loadSpecsForUpdateClass(currentClass, currentSpec);
       }
     } else {
       // Simple role system
@@ -1592,19 +2119,33 @@ async function updateMemberClass(postId) {
 }
 
 // Load specializations for update class modal
-function loadSpecsForUpdateClass(className, specTemplate, currentSpec) {
+function loadSpecsForUpdateClass(className, currentSpec) {
   const container = document.getElementById('updateSpecContainer');
-  if (!container) return;
+  const specSelectContainer = document.getElementById('updateSpecSelectContainer');
+  if (!container || !specSelectContainer) return;
 
-  container.classList.remove('hidden');
-
-  // Find specs for this class
-  const specs = specTemplate.conditional_choices?.[className] || [];
-
-  if (specs.length === 0) {
+  // Get spec template from window (stored when modal opened)
+  const specTemplate = window.updateSpecTemplate;
+  if (!specTemplate || !specTemplate.choices) {
     container.classList.add('hidden');
     return;
   }
+
+  // Find specs for this class (specTemplate.choices is an object keyed by class name)
+  const specs = specTemplate.choices[className] || [];
+
+  if (!specs || specs.length === 0) {
+    container.classList.add('hidden');
+    // Clean up old select
+    if (window.updateSpecSelect) {
+      window.updateSpecSelect.destroy();
+      window.updateSpecSelect = null;
+    }
+    return;
+  }
+
+  // Show the spec container
+  container.classList.remove('hidden');
 
   const specItems = specs.map(spec => ({
     value: spec,
@@ -1634,14 +2175,17 @@ async function submitUpdateClass() {
 
   try {
     let playerRole = null;
+    let playerClass = null;
+    let playerSpec = null;
 
     // Get class/spec or role
     if (window.updateClassSelect) {
-      const playerClass = window.updateClassSelect.getValue();
+      playerClass = window.updateClassSelect.getValue();
       if (playerClass) {
         if (window.updateSpecSelect) {
-          const playerSpec = window.updateSpecSelect.getValue();
-          playerRole = playerSpec ? `${playerClass} - ${playerSpec}` : playerClass;
+          playerSpec = window.updateSpecSelect.getValue();
+          // Use comma format to match the rest of the system
+          playerRole = playerSpec ? `${playerClass}, ${playerSpec}` : playerClass;
         } else {
           playerRole = playerClass;
         }
@@ -1650,9 +2194,20 @@ async function submitUpdateClass() {
       playerRole = window.updateRoleSelect.getValue();
     }
 
-    if (!playerRole) {
+    if (!playerRole && !playerClass) {
       showToast('Please select your class/role', 'error');
       return;
+    }
+
+    // Build payload with all relevant fields for role detection
+    const payload = { player_role: playerRole };
+    if (playerClass) {
+      payload.Class = playerClass;
+      payload.player_class = playerClass;
+    }
+    if (playerSpec) {
+      payload.Specialization = playerSpec;
+      payload.player_spec = playerSpec;
     }
 
     const csrfToken = getCookie('csrftoken');
@@ -1662,7 +2217,7 @@ async function submitUpdateClass() {
         'Content-Type': 'application/json',
         'X-CSRFToken': csrfToken
       },
-      body: JSON.stringify({ player_role: playerRole })
+      body: JSON.stringify(payload)
     });
 
     const data = await res.json();
@@ -1951,47 +2506,77 @@ function loadSpecializationsForClass(className, specTemplate) {
   document.getElementById('specSelectionContainer').classList.remove('hidden');
 }
 
-// Load simple role system (GW2 style) - flatten all choices
+// Load simple role system (GW2 style) - each template as separate dropdown
 function loadSimpleRoleSystem(templates) {
-  const allRoles = new Set();
+  // Clean up previous dynamic selects
+  dynamicOptionSelects.forEach(select => {
+    if (select && select.destroy) select.destroy();
+  });
+  dynamicOptionSelects = [];
 
-  // Only process templates that are NOT "Activity" (Activity has its own dedicated dropdown)
-  templates.forEach(template => {
+  // Clear the dynamic options container
+  const dynamicContainer = document.getElementById('dynamicGameOptionsContainer');
+  if (dynamicContainer) {
+    dynamicContainer.innerHTML = '';
+  }
+
+  // Process each template as a separate dropdown (like regular LFG browser)
+  templates.forEach((template, index) => {
+    // Skip Activity - it has its own dedicated dropdown
     if (template.name === 'Activity') {
-      return; // Skip Activity template - it's handled by loadGameCustomOptions
+      return;
     }
 
-    if (template.choices && Array.isArray(template.choices)) {
-      template.choices.forEach(choice => {
-        if (choice && choice.trim()) {
-          allRoles.add(choice);
-        }
-      });
+    // Skip conditional dropdowns (they'll be handled separately)
+    if (template.depends_on) {
+      return;
     }
+
+    // Skip if no choices
+    if (!template.choices || !Array.isArray(template.choices) || template.choices.length === 0) {
+      return;
+    }
+
+    // Create container for this option
+    const optionDiv = document.createElement('div');
+    optionDiv.className = 'mb-4';
+    optionDiv.id = `dynamicOption${index}Wrapper`;
+
+    const label = document.createElement('label');
+    label.className = 'block text-sm font-medium text-gray-300 mb-2';
+    label.textContent = template.name;
+    optionDiv.appendChild(label);
+
+    const selectContainer = document.createElement('div');
+    selectContainer.id = `dynamicOption${index}Container`;
+    selectContainer.dataset.templateName = template.name;
+    optionDiv.appendChild(selectContainer);
+
+    dynamicContainer.appendChild(optionDiv);
+
+    // Build items
+    const items = template.choices.map(choice => {
+      const val = typeof choice === 'object' ? choice.value : choice;
+      return { value: val, label: val, icon: getRoleIcon(val) };
+    });
+
+    // Create the dropdown
+    const select = createCustomSelect({
+      container: selectContainer,
+      name: `option_${template.name}`,
+      placeholder: `Select ${template.name.toLowerCase()}...`,
+      items: items,
+      color: 'indigo'
+    });
+
+    dynamicOptionSelects.push({ name: template.name, select: select });
   });
 
-  if (allRoles.size === 0) {
-    return; // No role/class templates found, keep container hidden
+  // Show role selection container if we created any options
+  // (We use the existing container but it will show the dynamic options)
+  if (dynamicOptionSelects.length > 0) {
+    document.getElementById('roleSelectionContainer').classList.remove('hidden');
   }
-
-  const roleItems = Array.from(allRoles).map(role => ({
-    value: role,
-    label: role,
-    icon: getRoleIcon(role)
-  }));
-
-  if (createRoleSelect) {
-    createRoleSelect.destroy();
-  }
-  createRoleSelect = createCustomSelect({
-    container: '#createLFGRoleContainer',
-    name: 'player_role',
-    placeholder: 'Select your role...',
-    items: roleItems,
-    color: 'indigo'
-  });
-
-  document.getElementById('roleSelectionContainer').classList.remove('hidden');
 }
 
 // Get icon for WoW/D&D style classes
@@ -2237,6 +2822,11 @@ async function initializeLFGPage() {
     loadLFGPosts();
 
     lfgPageInitialized = true;
+
+    // Auto-refresh every 30 seconds to keep data current
+    setInterval(() => {
+      loadLFGPosts();
+    }, 30000);
   } catch (error) {
     // Error initializing LFG page
   } finally {

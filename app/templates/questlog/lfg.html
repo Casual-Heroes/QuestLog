@@ -158,11 +158,6 @@
     <button onclick="showTab('games')" id="tab-games" class="tab-btn px-4 py-2 rounded-lg text-sm font-medium transition bg-green-600 text-white">
       <i class="fas fa-gamepad mr-2"></i>Games
     </button>
-    {% if has_lfg_module %}
-    <button onclick="showTab('browser-notifications')" id="tab-browser-notifications" class="tab-btn px-4 py-2 rounded-lg text-sm font-medium transition bg-neutral-700 text-gray-300 hover:bg-neutral-600">
-      <i class="fas fa-bell mr-2"></i>Browser Notifications
-    </button>
-    {% endif %}
     {% if is_admin_or_manager %}
     <button onclick="showTab('audit-logs')" id="tab-audit-logs" class="tab-btn px-4 py-2 rounded-lg text-sm font-medium transition bg-neutral-700 text-gray-300 hover:bg-neutral-600">
       <i class="fas fa-history mr-2"></i>Audit Logs
@@ -272,52 +267,6 @@
     {% endif %}
   </div>
   </div>
-
-  {% if has_lfg_module %}
-  <!-- Browser Notifications Tab (Events & Attendance Module) -->
-  <div id="panel-browser-notifications" class="tab-panel hidden">
-  <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6">
-    <h3 class="text-lg font-bold text-white mb-6">
-      <i class="fas fa-bell text-blue-400 mr-2"></i>LFG Browser Notifications
-    </h3>
-
-    <div class="space-y-6">
-      <!-- Channel Announcements -->
-      <div class="border-b border-neutral-700 pb-6">
-        <h4 class="text-white font-medium mb-4">
-          <i class="fas fa-hashtag text-gray-400 mr-2"></i>Channel Announcements
-        </h4>
-
-        <div>
-          <label class="block text-sm text-gray-400 mb-2">Announcement Channel</label>
-          <div id="browserNotifyChannelContainer"></div>
-          <p class="text-gray-500 text-xs mt-1">All LFG Browser activity will be announced in this channel</p>
-        </div>
-      </div>
-      <!-- Webhook Integration (Optional) -->
-      <div>
-        <h4 class="text-white font-medium mb-4">
-          <i class="fas fa-webhook text-gray-400 mr-2"></i>Webhook Integration <span class="text-gray-600 text-xs font-normal">(Optional)</span>
-        </h4>
-        <p class="text-gray-400 text-sm mb-3">Send notifications to a custom webhook URL for integrations</p>
-
-        <div>
-          <label class="block text-sm text-gray-400 mb-2">Webhook URL</label>
-          <input type="url" id="webhookUrl" placeholder="https://discord.com/api/webhooks/..."
-                 class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:border-blue-500 focus:outline-none">
-          <p class="text-gray-500 text-xs mt-1">Leave blank to disable webhook notifications</p>
-        </div>
-      </div>
-    </div>
-
-    <div class="mt-6 pt-6 border-t border-neutral-700">
-      <button onclick="saveBrowserNotifications()" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium transition">
-        <i class="fas fa-save mr-2"></i>Save Notification Settings
-      </button>
-    </div>
-  </div>
-  </div>
-  {% endif %}
 
   {% if is_admin_or_manager %}
   <!-- Audit Logs Tab (Admins & LFG Managers) -->
@@ -672,7 +621,7 @@
               <option value="activity">Activity Type (PvP, Raid, Dungeon, etc.)</option>
             </optgroup>
             <optgroup label="Roles & Classes">
-              <option value="mmo-roles">MMO Roles (Tank, DPS, Healer)</option>
+              <option value="mmo-roles">🎯 MMO Roles with Tags (Tank, DPS, Healer) - for raids</option>
               <option value="mmo-classes">MMO Classes (Warrior, Mage, Rogue, etc.)</option>
               <option value="wow-class-spec">WoW Class + Spec (Death Knight - Blood, etc.)</option>
               <option value="class-subclass">Class + Subclass (Generic dual-class system)</option>
@@ -727,10 +676,51 @@
                   <!-- Simple Array Choices -->
                   <template x-if="Array.isArray(field.choices)">
                     <div class="space-y-2">
+                      <!-- Role tagging toggle for this field -->
+                      <div class="flex items-center gap-2 mb-2 pb-2 border-b border-neutral-700" x-show="field.name !== 'Activity'">
+                        <label class="flex items-center gap-2 cursor-pointer">
+                          <input type="checkbox" x-model="field.enableRoleTags" @change="toggleRoleTags(index)"
+                                 class="w-4 h-4 rounded bg-neutral-700 border-neutral-600 text-green-500 focus:ring-green-500">
+                          <span class="text-xs text-gray-400">Enable role tags for raid composition</span>
+                        </label>
+                        <span class="text-xs text-gray-500" x-show="field.enableRoleTags">
+                          <i class="fas fa-info-circle"></i> Tag choices as Tank/Healer/DPS/Support
+                        </span>
+                      </div>
+
                       <template x-for="(choice, choiceIndex) in field.choices" :key="choiceIndex">
                         <div class="flex gap-2">
-                          <input type="text" x-model="field.choices[choiceIndex]" @input="updateJSON()" placeholder="Choice option"
+                          <!-- Choice value input -->
+                          <input type="text"
+                                 :value="getChoiceValue(choice)"
+                                 @input="setChoiceValue(index, choiceIndex, $event.target.value)"
+                                 placeholder="Choice option"
                                  class="flex-grow bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white text-sm focus:border-purple-500 focus:outline-none">
+
+                          <!-- Role tag selector (shown when role tags are enabled) -->
+                          <select x-show="field.enableRoleTags"
+                                  :value="getChoiceRole(choice)"
+                                  @change="setChoiceRole(index, choiceIndex, $event.target.value)"
+                                  class="w-28 bg-neutral-800 border border-neutral-700 rounded px-2 py-2 text-white text-xs focus:border-green-500 focus:outline-none">
+                            <option value="">No role</option>
+                            <option value="tank">🛡️ Tank</option>
+                            <option value="healer">💚 Healer</option>
+                            <option value="dps">⚔️ DPS</option>
+                            <option value="support">🎵 Support</option>
+                          </select>
+
+                          <!-- Role indicator badge (when role is set) -->
+                          <span x-show="field.enableRoleTags && getChoiceRole(choice)"
+                                class="flex items-center px-2 py-1 rounded text-xs"
+                                :class="{
+                                  'bg-blue-900/50 text-blue-300': getChoiceRole(choice) === 'tank',
+                                  'bg-green-900/50 text-green-300': getChoiceRole(choice) === 'healer',
+                                  'bg-red-900/50 text-red-300': getChoiceRole(choice) === 'dps',
+                                  'bg-purple-900/50 text-purple-300': getChoiceRole(choice) === 'support'
+                                }">
+                            <span x-text="getRoleEmoji(getChoiceRole(choice))"></span>
+                          </span>
+
                           <button type="button" @click="removeChoice(index, choiceIndex)" class="bg-red-600/20 hover:bg-red-600 text-red-400 hover:text-white px-3 py-2 rounded transition text-sm">
                             <i class="fas fa-times"></i>
                           </button>
@@ -910,6 +900,14 @@ function customOptionsBuilder() {
       if (existingJSON && existingJSON.trim()) {
         try {
           this.fields = JSON.parse(existingJSON);
+
+          // Detect and enable role tags for fields that have them
+          this.fields.forEach(field => {
+            if (this.hasRoleTags(field)) {
+              field.enableRoleTags = true;
+            }
+          });
+
           this.updateJSON();
         } catch (e) {
           // Failed to parse existing custom options:
@@ -943,6 +941,100 @@ function customOptionsBuilder() {
       }
     },
 
+    // === Role Tag Helper Methods ===
+
+    // Get the display value from a choice (handles both string and object formats)
+    getChoiceValue(choice) {
+      if (typeof choice === 'object' && choice !== null) {
+        return choice.value || '';
+      }
+      return choice || '';
+    },
+
+    // Get the role tag from a choice
+    getChoiceRole(choice) {
+      if (typeof choice === 'object' && choice !== null) {
+        return choice.role || '';
+      }
+      return '';
+    },
+
+    // Set the value for a choice
+    setChoiceValue(fieldIndex, choiceIndex, value) {
+      const field = this.fields[fieldIndex];
+      const choice = field.choices[choiceIndex];
+
+      if (field.enableRoleTags) {
+        // Use object format when role tags are enabled
+        if (typeof choice === 'object' && choice !== null) {
+          field.choices[choiceIndex] = { ...choice, value: value };
+        } else {
+          field.choices[choiceIndex] = { value: value, role: '' };
+        }
+      } else {
+        // Use simple string format
+        field.choices[choiceIndex] = value;
+      }
+      this.updateJSON();
+    },
+
+    // Set the role tag for a choice
+    setChoiceRole(fieldIndex, choiceIndex, role) {
+      const field = this.fields[fieldIndex];
+      const choice = field.choices[choiceIndex];
+
+      if (typeof choice === 'object' && choice !== null) {
+        field.choices[choiceIndex] = { ...choice, role: role || undefined };
+      } else {
+        field.choices[choiceIndex] = { value: choice || '', role: role || undefined };
+      }
+      this.updateJSON();
+    },
+
+    // Toggle role tags on/off for a field
+    toggleRoleTags(fieldIndex) {
+      const field = this.fields[fieldIndex];
+
+      if (field.enableRoleTags) {
+        // Convert string choices to object format
+        field.choices = field.choices.map(choice => {
+          if (typeof choice === 'string') {
+            return { value: choice, role: '' };
+          }
+          return choice;
+        });
+      } else {
+        // Convert object choices back to string format (lose role info)
+        field.choices = field.choices.map(choice => {
+          if (typeof choice === 'object' && choice !== null) {
+            return choice.value || '';
+          }
+          return choice;
+        });
+      }
+      this.updateJSON();
+    },
+
+    // Get emoji for a role
+    getRoleEmoji(role) {
+      const emojis = {
+        'tank': '🛡️',
+        'healer': '💚',
+        'dps': '⚔️',
+        'support': '🎵'
+      };
+      return emojis[role] || '';
+    },
+
+    // Check if field has role-tagged choices (object format with value/role)
+    // Returns true if ANY choice is in object format (indicating role tags were enabled)
+    hasRoleTags(field) {
+      if (!Array.isArray(field.choices)) return false;
+      return field.choices.some(choice =>
+        typeof choice === 'object' && choice !== null && 'value' in choice
+      );
+    },
+
     loadTemplate(templateName) {
       if (!templateName) return;
 
@@ -956,7 +1048,13 @@ function customOptionsBuilder() {
         },
         'mmo-roles': {
           name: 'Role',
-          choices: ['Tank', 'DPS', 'Healer', 'Support']
+          enableRoleTags: true,
+          choices: [
+            { value: 'Tank', role: 'tank' },
+            { value: 'DPS', role: 'dps' },
+            { value: 'Healer', role: 'healer' },
+            { value: 'Support', role: 'support' }
+          ]
         },
         'mmo-classes': {
           name: 'Class',
@@ -1066,8 +1164,26 @@ function customOptionsBuilder() {
             // Object-based choices (conditional dropdown) - preserve as-is
             result.choices = field.choices;
           } else if (Array.isArray(field.choices)) {
-            // Array-based choices - filter empty values
-            result.choices = field.choices.filter(c => c && c.trim()).map(c => c.trim());
+            // Array-based choices - handle both string and object formats (role tags)
+            result.choices = field.choices
+              .filter(c => {
+                if (typeof c === 'object' && c !== null) {
+                  return c.value && c.value.trim();
+                }
+                return c && c.trim();
+              })
+              .map(c => {
+                if (typeof c === 'object' && c !== null) {
+                  // Role-tagged choice - preserve object format
+                  const choice = { value: c.value.trim() };
+                  if (c.role) {
+                    choice.role = c.role;
+                  }
+                  return choice;
+                }
+                // Simple string choice
+                return c.trim();
+              });
           }
 
           // Preserve depends_on if it exists (critical for conditional dropdowns)
@@ -1111,6 +1227,14 @@ function customOptionsBuilder() {
         // [CustomOptionsBuilder] Parsed JSON:
         this.fields = parsed;
         this.selectedTemplate = ''; // Clear template since loading raw fields
+
+        // Detect and enable role tags for fields that have them
+        this.fields.forEach(field => {
+          if (this.hasRoleTags(field)) {
+            field.enableRoleTags = true;
+          }
+        });
+
         this.updateJSON();
         // [CustomOptionsBuilder] ✅ Fields loaded successfully, count:
       } catch (e) {
@@ -1359,7 +1483,6 @@ function showTab(tabName) {
     btn.classList.remove('bg-neutral-700', 'text-gray-300');
     const colors = {
       games: 'bg-green-600',
-      'browser-notifications': 'bg-blue-600',
       'audit-logs': 'bg-blue-600',
       config: 'bg-purple-600',
       stats: 'bg-blue-600',
@@ -1369,7 +1492,6 @@ function showTab(tabName) {
   }
 
   // Load data for premium tabs
-  if (tabName === 'browser-notifications') loadBrowserNotifications();
   if (tabName === 'audit-logs') loadAuditLogs();
   if (tabName === 'config') loadConfig();
   if (tabName === 'stats') loadStats();
@@ -1700,79 +1822,6 @@ async function removeFromBlacklist(userId) {
   }
 }
 
-// Browser Notifications: Load settings
-let browserNotifyChannelSelect;
-async function loadBrowserNotifications() {
-  try {
-    // Fetch current settings from API to ensure fresh data
-    const response = await csrfFetch(`/api/guild/${guildId}/lfg/browser-notifications/`, {
-      method: 'GET',
-      headers: {
-        'X-CSRFToken': csrfToken
-      }
-    });
-
-    const settings = await response.json();
-    // Loading browser notifications, channel ID:
-
-    // Destroy existing select if it exists
-    if (browserNotifyChannelSelect) {
-      browserNotifyChannelSelect.destroy();
-    }
-
-    // Initialize channel select with current value
-    browserNotifyChannelSelect = createCustomSelect({
-      container: '#browserNotifyChannelContainer',
-      name: 'browserNotifyChannel',
-      id: 'browserNotifyChannel',
-      placeholder: 'No announcement channel',
-      items: channelItems,
-      selected: settings.browser_notify_channel_id || '',
-      color: 'blue'
-    });
-    // Created select with channel ID:
-
-    // Load webhook URL from API
-    document.getElementById('webhookUrl').value = settings.webhook_url || '';
-  } catch (error) {
-    // Error loading browser notifications:
-  }
-}
-
-// Browser Notifications: Save settings
-async function saveBrowserNotifications() {
-  const channelId = browserNotifyChannelSelect?.getValue() || null;
-  // Saving browser notifications, channel ID:
-
-  const data = {
-    browser_notify_channel_id: channelId,
-    webhook_url: document.getElementById('webhookUrl').value.trim() || null
-  };
-  // Saving data:
-
-  try {
-    const response = await csrfFetch(`/api/guild/${guildId}/lfg/browser-notifications/`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-CSRFToken': csrfToken
-      },
-      body: JSON.stringify(data)
-    });
-
-    if (response.ok) {
-      alert('✅ Browser notification settings saved successfully!');
-      // Reload and stay on the browser-notifications tab
-      window.location.href = window.location.pathname + window.location.search + '#browser-notifications';
-    } else {
-      const error = await response.json();
-      alert(error.error || 'Error saving notification settings');
-    }
-  } catch (error) {
-    alert('Error saving notification settings');
-  }
-}
-
 // Audit Logs: Load audit log entries
 async function loadAuditLogs() {
   const container = document.getElementById('auditLogsContainer');
@@ -1897,7 +1946,7 @@ document.getElementById('searchQuery')?.addEventListener('keypress', function(e)
 // Initialize: Restore tab from URL hash on page load
 (function() {
   const hash = window.location.hash.substring(1); // Remove the '#'
-  const validTabs = ['games', 'browser-notifications', 'audit-logs', 'config', 'stats', 'blacklist'];
+  const validTabs = ['games', 'audit-logs', 'config', 'stats', 'blacklist'];
 
   if (hash && validTabs.includes(hash)) {
     showTab(hash);

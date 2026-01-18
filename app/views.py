@@ -99,6 +99,240 @@ def get_lfg_game_limit(guild):
     else:  # free tier
         return 5
 
+
+# =============================================================================
+# LFG Role Detection - Built-in game mappings for automatic role detection
+# =============================================================================
+
+# Built-in game identifiers (matched case-insensitive)
+_BUILTIN_GAMES = {
+    'wow': ['world of warcraft', 'wow'],
+    'ffxiv': ['final fantasy xiv', 'final fantasy 14', 'ffxiv', 'ff14'],
+    'pantheon': ['pantheon', 'pantheon: rise of the fallen'],
+}
+
+# WoW Specialization to Role mappings
+_WOW_ROLE_MAPPINGS = {
+    'tank': {'blood', 'vengeance', 'guardian', 'brewmaster', 'protection'},
+    'healer': {'restoration', 'preservation', 'mistweaver', 'holy', 'discipline'},
+    'dps': {'frost', 'unholy', 'havoc', 'balance', 'feral', 'devastation',
+            'beast mastery', 'marksmanship', 'survival', 'arcane', 'fire', 'windwalker',
+            'retribution', 'shadow', 'assassination', 'outlaw', 'subtlety',
+            'elemental', 'enhancement', 'affliction', 'demonology', 'destruction', 'arms', 'fury'},
+    'support': {'augmentation'},  # Evoker Augmentation is a support spec
+}
+
+# FFXIV Job to Role mappings
+_FFXIV_ROLE_MAPPINGS = {
+    'tank': {'paladin', 'pld', 'warrior', 'war', 'dark knight', 'drk', 'gunbreaker', 'gnb'},
+    'healer': {'white mage', 'whm', 'scholar', 'sch', 'astrologian', 'ast', 'sage', 'sge'},
+    'dps': {'monk', 'mnk', 'dragoon', 'drg', 'ninja', 'nin', 'samurai', 'sam', 'reaper', 'rpr',
+            'viper', 'vpr', 'bard', 'brd', 'machinist', 'mch', 'dancer', 'dnc',
+            'black mage', 'blm', 'summoner', 'smn', 'red mage', 'rdm', 'pictomancer', 'pct'},
+}
+
+# Pantheon Class to Role mappings
+_PANTHEON_ROLE_MAPPINGS = {
+    'tank': {'warrior', 'dire lord', 'paladin'},
+    'healer': {'cleric', 'shaman', 'druid'},
+    'dps': {'wizard', 'enchanter', 'summoner', 'rogue', 'ranger', 'monk'},
+    'support': {'bard', 'enchanter'},
+}
+
+
+def _get_builtin_game_type(game_name):
+    """Check if a game name matches a built-in game type."""
+    if not game_name:
+        return None
+    game_lower = game_name.lower().strip()
+    for game_type, aliases in _BUILTIN_GAMES.items():
+        for alias in aliases:
+            if alias in game_lower or game_lower in alias:
+                return game_type
+    return None
+
+
+def _get_builtin_game_templates(game_type):
+    """Get built-in class/spec templates for supported games."""
+    if game_type == 'wow':
+        return [
+            {
+                'name': 'Class',
+                'choices': [
+                    'Death Knight', 'Demon Hunter', 'Druid', 'Evoker', 'Hunter',
+                    'Mage', 'Monk', 'Paladin', 'Priest', 'Rogue', 'Shaman',
+                    'Warlock', 'Warrior'
+                ]
+            },
+            {
+                'name': 'Specialization',
+                'depends_on': 'Class',
+                'choices': {
+                    'Death Knight': ['Blood', 'Frost', 'Unholy'],
+                    'Demon Hunter': ['Havoc', 'Vengeance'],
+                    'Druid': ['Balance', 'Feral', 'Guardian', 'Restoration'],
+                    'Evoker': ['Devastation', 'Preservation', 'Augmentation'],
+                    'Hunter': ['Beast Mastery', 'Marksmanship', 'Survival'],
+                    'Mage': ['Arcane', 'Fire', 'Frost'],
+                    'Monk': ['Brewmaster', 'Mistweaver', 'Windwalker'],
+                    'Paladin': ['Holy', 'Protection', 'Retribution'],
+                    'Priest': ['Discipline', 'Holy', 'Shadow'],
+                    'Rogue': ['Assassination', 'Outlaw', 'Subtlety'],
+                    'Shaman': ['Elemental', 'Enhancement', 'Restoration'],
+                    'Warlock': ['Affliction', 'Demonology', 'Destruction'],
+                    'Warrior': ['Arms', 'Fury', 'Protection']
+                }
+            }
+        ]
+    elif game_type == 'ffxiv':
+        return [
+            {
+                'name': 'Job',
+                'choices': [
+                    # Tanks
+                    'Paladin', 'Warrior', 'Dark Knight', 'Gunbreaker',
+                    # Healers
+                    'White Mage', 'Scholar', 'Astrologian', 'Sage',
+                    # Melee DPS
+                    'Monk', 'Dragoon', 'Ninja', 'Samurai', 'Reaper', 'Viper',
+                    # Physical Ranged DPS
+                    'Bard', 'Machinist', 'Dancer',
+                    # Magical Ranged DPS
+                    'Black Mage', 'Summoner', 'Red Mage', 'Pictomancer'
+                ]
+            }
+        ]
+    elif game_type == 'pantheon':
+        return [
+            {
+                'name': 'Class',
+                'choices': [
+                    # Tanks
+                    'Warrior', 'Dire Lord', 'Paladin',
+                    # Healers
+                    'Cleric', 'Shaman', 'Druid',
+                    # DPS
+                    'Wizard', 'Enchanter', 'Summoner', 'Rogue', 'Ranger', 'Monk',
+                    # Support
+                    'Bard'
+                ]
+            }
+        ]
+    return None
+
+
+def _get_role_from_builtin(game_type, spec_or_class):
+    """Get the role for a spec/class using built-in mappings."""
+    if not spec_or_class:
+        return None
+    spec_lower = spec_or_class.lower().strip()
+
+    if game_type == 'wow':
+        mappings = _WOW_ROLE_MAPPINGS
+    elif game_type == 'ffxiv':
+        mappings = _FFXIV_ROLE_MAPPINGS
+    elif game_type == 'pantheon':
+        mappings = _PANTHEON_ROLE_MAPPINGS
+    else:
+        return None
+
+    for role, specs in mappings.items():
+        if spec_lower in specs:
+            return role
+        for spec in specs:
+            if spec in spec_lower or spec_lower in spec:
+                return role
+    return None
+
+
+def _detect_member_role(game_name, member_selections, selected_role, custom_options=None):
+    """
+    Detect a member's role using the priority system.
+
+    Priority:
+    1. Built-in mappings (for WoW, FFXIV, Pantheon)
+    2. Custom role tags in options
+    3. Explicit selected_role (generic mode)
+
+    Returns: Role string ('tank', 'healer', 'dps', 'support', 'flex') or None
+    """
+    # Step 1: Check for built-in game mappings (highest priority)
+    game_type = _get_builtin_game_type(game_name)
+
+    if game_type:
+        spec = None
+        cls = None
+
+        # Try common field names for spec
+        for key in ['Specialization', 'specialization', 'Spec', 'spec']:
+            if key in member_selections:
+                val = member_selections[key]
+                spec = val[0] if isinstance(val, list) else val
+                break
+
+        # Try common field names for class
+        for key in ['Class', 'class', 'Job', 'job']:
+            if key in member_selections:
+                val = member_selections[key]
+                cls = val[0] if isinstance(val, list) else val
+                break
+
+        # Try spec first, then class
+        if spec:
+            role = _get_role_from_builtin(game_type, spec)
+            if role:
+                return role
+
+        if cls:
+            role = _get_role_from_builtin(game_type, cls)
+            if role:
+                return role
+
+        # Built-in game but no matching spec/class = unassigned
+        return None
+
+    # Step 2: Check custom role tags from options
+    if custom_options and member_selections:
+        for option in custom_options:
+            option_name = option.get('name')
+            choices = option.get('choices', [])
+
+            if not option_name or not choices:
+                continue
+
+            member_value = member_selections.get(option_name)
+            if not member_value:
+                continue
+
+            if isinstance(member_value, list):
+                member_value = member_value[0] if member_value else None
+
+            if not member_value:
+                continue
+
+            for choice in choices:
+                if isinstance(choice, dict):
+                    if choice.get('value') == member_value and choice.get('role'):
+                        return choice['role']
+
+    # Step 3: Check for "Role" field in selections (common for GW2 etc.)
+    if member_selections:
+        role_value = member_selections.get('Role') or member_selections.get('role')
+        if role_value:
+            if isinstance(role_value, list):
+                role_value = role_value[0] if role_value else None
+            if role_value:
+                role_lower = role_value.lower()
+                if role_lower in ('tank', 'healer', 'dps', 'support', 'flex'):
+                    return role_lower
+
+    # Step 4: Use explicit selected_role (generic mode)
+    if selected_role and selected_role in ('tank', 'healer', 'dps', 'support', 'flex'):
+        return selected_role
+
+    return None
+
+
 def get_guilds_with_bot():
     """Get set of guild IDs where the bot is actually installed (queried from bot API with caching)."""
     global _guilds_cache
@@ -569,19 +803,6 @@ def send_lfg_browser_notification(guild_id, lfg_config, notification_type, embed
                             logger.warning(f"Failed to send LFG notification to channel: {response.status_code}")
                 except Exception as e:
                     logger.error(f"Error sending LFG channel notification: {e}")
-
-        # Send to webhook if configured
-        if lfg_config.webhook_url:
-            try:
-                response = requests.post(
-                    lfg_config.webhook_url,
-                    json={'embeds': [embed]},
-                    timeout=5
-                )
-                if response.status_code not in [200, 204]:
-                    logger.warning(f"Failed to send LFG webhook notification: {response.status_code}")
-            except Exception as e:
-                logger.error(f"Error sending LFG webhook notification: {e}")
 
     except Exception as e:
         logger.error(f"Error in send_lfg_browser_notification: {e}", exc_info=True)
@@ -2499,9 +2720,13 @@ def guild_dashboard(request, guild_id):
     # If not admin, show member landing page instead
     if not is_admin:
         # Get guild record for token name customization
-        from app.models import Guild as GuildModel
-        guild_record = GuildModel.objects.filter(guild_id=guild_id).first()
-        token_name = guild_record.token_name if guild_record and guild_record.token_name else "Hero Tokens"
+        from .db import get_db_session
+        from .models import Guild as GuildModel
+        token_name = "Hero Tokens"
+        with get_db_session() as db:
+            guild_record = db.query(GuildModel).filter_by(guild_id=int(guild_id)).first()
+            if guild_record and guild_record.token_name:
+                token_name = guild_record.token_name
 
         return render(request, 'questlog/member_portal.html', {
             'discord_user': discord_user,
@@ -8686,14 +8911,24 @@ def api_guild_channels(request, guild_id):
 
 
 @require_http_methods(["GET", "PATCH"])
-@api_auth_required
 @ratelimit(key='user_or_ip', rate='60/m', method='GET', block=True)
 def api_guild_roles(request, guild_id):
     """
-    GET /api/guild/<id>/roles/ - Get guild roles (cached).
-    PATCH /api/guild/<id>/roles/ - Update Discord role positions.
+    GET /api/guild/<id>/roles/ - Get guild roles (cached). Member access.
+    PATCH /api/guild/<id>/roles/ - Update Discord role positions. Admin access.
     """
+    # Method-specific auth: GET requires member, PATCH requires admin
     if request.method == 'GET':
+        # Member-level auth for reading roles
+        discord_user = request.session.get('discord_user')
+        if not discord_user:
+            return JsonResponse({'error': 'Not authenticated'}, status=401)
+
+        all_guilds = request.session.get('discord_all_guilds', [])
+        guild = next((g for g in all_guilds if str(g['id']) == str(guild_id)), None)
+        if not guild:
+            return JsonResponse({'error': 'No access to this guild'}, status=403)
+
         try:
             from .discord_resources import get_guild_roles
 
@@ -8720,6 +8955,39 @@ def api_guild_roles(request, guild_id):
             return JsonResponse({'error': 'Failed to fetch roles', 'roles': []}, status=500)
 
     elif request.method == 'PATCH':
+        # Admin-level auth for modifying role positions
+        from .discord_cache import get_cache
+        cache = get_cache()
+
+        discord_user = request.session.get('discord_user')
+        if not discord_user:
+            return JsonResponse({'error': 'Not authenticated'}, status=401)
+
+        # Check admin permissions
+        all_guilds = request.session.get('discord_all_guilds', [])
+        guild = next((g for g in all_guilds if str(g['id']) == str(guild_id)), None)
+        if not guild:
+            return JsonResponse({'error': 'Guild not found'}, status=404)
+
+        has_admin = False
+        permissions = guild.get('permissions', 0)
+        if isinstance(permissions, str):
+            permissions = int(permissions)
+        ADMIN_FLAG = 0x8
+        MANAGE_SERVER = 0x20
+        if (permissions & ADMIN_FLAG) or (permissions & MANAGE_SERVER):
+            has_admin = True
+
+        if not has_admin:
+            user_id = discord_user.get('id')
+            admin_role_ids = cache.get_guild_admin_roles(guild_id)
+            if admin_role_ids:
+                user_role_ids = cache.get_member_roles(guild_id, user_id)
+                if user_role_ids and set(user_role_ids) & set(admin_role_ids):
+                    has_admin = True
+
+        if not has_admin:
+            return JsonResponse({'error': 'Admin access required'}, status=403)
         try:
             import json
 
@@ -11420,15 +11688,49 @@ def api_discovery_network_lfg(request):
                         'display_name': member.display_name or 'Unknown',
                         'is_creator': member.is_creator,
                         'is_co_leader': member.is_co_leader,
-                        'avatar_url': avatar_url
+                        'avatar_url': avatar_url,
+                        'selected_role': member.selected_role,  # For generic role selection on raids
+                        'selections': {},  # Include full selections for Update Class modal
                     }
-                    # Add role info if available
+                    # Add class/spec info if available from selections
+                    # Note: We exclude 'Role' field as that's redundant (shown by role columns)
                     if member.selections:
                         try:
                             import json as json_lib
                             selections = json_lib.loads(member.selections)
-                            if selections.get('player_role'):
+                            # Store full selections for Update Class modal
+                            member_data['selections'] = selections
+                            # Build Class - Spec format for display
+                            cls = selections.get('Class')
+                            spec = selections.get('Specialization')
+                            job = selections.get('Job')
+
+                            if cls and spec:
+                                # WoW-style: "Death Knight - Blood"
+                                member_data['player_role'] = f"{cls} - {spec}"
+                            elif cls:
+                                member_data['player_role'] = cls
+                            elif spec:
+                                member_data['player_role'] = spec
+                            elif job:
+                                # FFXIV: just job name
+                                member_data['player_role'] = job
+                            elif selections.get('player_role'):
+                                # Legacy: player_role might already contain combined format
                                 member_data['player_role'] = selections['player_role']
+                            else:
+                                # For custom games, collect all selections except Activity and Role
+                                display_parts = []
+                                for key, value in selections.items():
+                                    key_lower = key.lower()
+                                    if key_lower in ('activity', 'role', 'player_role'):
+                                        continue
+                                    if isinstance(value, list) and value:
+                                        display_parts.append(value[0])
+                                    elif value and not isinstance(value, list):
+                                        display_parts.append(str(value))
+                                if display_parts:
+                                    member_data['player_role'] = ', '.join(display_parts)
                         except:
                             pass
                     members_list.append(member_data)
@@ -11469,9 +11771,12 @@ def api_discovery_network_lfg(request):
                     'member_count': lfg_group.member_count,
                     'max_group_size': lfg_group.max_group_size or game.max_group_size or 5,
                     'is_raid': lfg_group.is_raid or False,
+                    'has_role_composition': any([lfg_group.tanks_needed, lfg_group.healers_needed, lfg_group.dps_needed, lfg_group.support_needed]),
                     'tanks_needed': lfg_group.tanks_needed,
                     'healers_needed': lfg_group.healers_needed,
                     'dps_needed': lfg_group.dps_needed,
+                    'support_needed': lfg_group.support_needed,
+                    'enforce_role_limits': lfg_group.enforce_role_limits if hasattr(lfg_group, 'enforce_role_limits') else False,
                     'members': members_list,
                     'cover_url': game.cover_url if game else None,
                     'igdb_id': game.igdb_id if game else None,
@@ -11596,10 +11901,19 @@ def api_discovery_lfg_create(request):
                 ).first()
 
                 # Create new game entry for this guild
+                # Generate a short code (max 20 chars) - use abbreviation if name is long
+                game_short_raw = game_name.lower().replace(' ', '_').replace(':', '').replace('-', '_')
+                if len(game_short_raw) > 20:
+                    # Create abbreviation from first letters of words
+                    words = game_name.split()
+                    game_short_raw = ''.join(w[0].lower() for w in words if w)[:20]
+                    if len(game_short_raw) < 3:
+                        # Fallback: truncate and add number suffix for uniqueness
+                        game_short_raw = game_name.lower().replace(' ', '')[:17]
                 game = LFGGame(
                     guild_id=int(guild_id),
                     game_name=game_name,
-                    game_short=game_name.lower().replace(' ', '_')[:50],
+                    game_short=game_short_raw[:20],
                     enabled=True,
                     max_group_size=5,  # Default
                     # Copy IGDB data if found
@@ -11672,13 +11986,28 @@ def api_discovery_lfg_create(request):
             # Get user info from session (same pattern as api_lfg_browser_create)
             discord_user = request.session.get('discord_user', {})
             user_id = discord_user.get('id')
-            user_name = discord_user.get('username', 'Unknown')
+            # Use global_name (display name) preferring over username
+            user_name = discord_user.get('global_name') or discord_user.get('username', 'Unknown')
 
             if not user_id:
                 return JsonResponse({
                     'success': False,
                     'error': 'You must be logged in to create LFG posts'
                 }, status=401)
+
+            # Handle role composition (optional)
+            tanks_needed = data.get('tanks_needed')
+            healers_needed = data.get('healers_needed')
+            dps_needed = data.get('dps_needed')
+            support_needed = data.get('support_needed')
+            enforce_role_limits = data.get('enforce_role_limits', False)
+
+            # Calculate group size: if role composition enabled, sum roles, otherwise use group_size
+            if any([tanks_needed is not None, healers_needed is not None, dps_needed is not None, support_needed is not None]):
+                max_group_size = (int(tanks_needed or 0) + int(healers_needed or 0) +
+                                  int(dps_needed or 0) + int(support_needed or 0))
+            else:
+                max_group_size = int(data.get('group_size', game.max_group_size or 5))
 
             # Create LFG group (using a placeholder thread_id since this is web-based)
             # The bot will need to create actual Discord threads when users join
@@ -11692,12 +12021,18 @@ def api_discovery_lfg_create(request):
                 scheduled_time=scheduled_time,
                 description=description,
                 custom_data=json_lib.dumps(custom_data),
-                max_group_size=int(data.get('group_size', game.max_group_size or 5)),
+                max_group_size=max_group_size,
                 event_duration=int(data.get('event_duration')) if data.get('event_duration') else None,
                 is_active=True,
                 is_full=False,
                 member_count=1,  # Creator counts as first member
-                shared_to_network=True  # Discovery Network LFG posts are cross-server
+                shared_to_network=True,  # Discovery Network LFG posts are cross-server
+                # Role composition fields
+                tanks_needed=int(tanks_needed) if tanks_needed is not None else None,
+                healers_needed=int(healers_needed) if healers_needed is not None else None,
+                dps_needed=int(dps_needed) if dps_needed is not None else None,
+                support_needed=int(support_needed) if support_needed is not None else None,
+                enforce_role_limits=bool(enforce_role_limits)
             )
 
             db.add(lfg_group)
@@ -11710,6 +12045,20 @@ def api_discovery_lfg_create(request):
             creator_selections = {}
             if data.get('player_role'):
                 creator_selections['player_role'] = data.get('player_role')
+            # Store Class and Specialization for role detection system
+            if data.get('player_class'):
+                creator_selections['Class'] = data.get('player_class')
+            if data.get('player_spec'):
+                creator_selections['Specialization'] = data.get('player_spec')
+            # Store selected_role for generic role selection
+            if data.get('selected_role'):
+                creator_selections['selected_role'] = data.get('selected_role')
+            # Store Role field if provided (from dynamic options)
+            if data.get('Role'):
+                creator_selections['Role'] = data.get('Role')
+            # Store Classes field if provided (e.g., GW2)
+            if data.get('Classes'):
+                creator_selections['Classes'] = data.get('Classes')
 
             creator_member = LFGMember(
                 group_id=lfg_group.id,
@@ -11718,6 +12067,7 @@ def api_discovery_lfg_create(request):
                 is_creator=True,
                 is_co_leader=False,
                 selections=json_lib.dumps(creator_selections) if creator_selections else None,
+                selected_role=data.get('selected_role'),  # For generic role selection
                 joined_at=int(time.time())
             )
 
@@ -11756,7 +12106,8 @@ def api_discovery_lfg_join(request, post_id):
         # Get Discord user from session
         discord_user = request.session.get('discord_user', {})
         user_id = discord_user.get('id')
-        username = discord_user.get('username', 'Unknown')
+        # Use global_name (display name) preferring over username
+        username = discord_user.get('global_name') or discord_user.get('username', 'Unknown')
 
         if not user_id:
             return JsonResponse({
@@ -11789,18 +12140,83 @@ def api_discovery_lfg_join(request, post_id):
                     'error': 'This group is already full'
                 }, status=400)
 
-            # Check if user has any existing member record (active or left)
-            existing = db.query(LFGMember).filter_by(
-                group_id=group.id,
-                user_id=int(user_id)
-            ).first()
-
             # Extract rank if provided
             rank_value = options.get('rank')
 
             # Extract other selections (exclude 'rank' as it's stored separately)
             selections = {k: v for k, v in options.items() if k != 'rank'}
             selections_json = json_lib.dumps(selections) if selections else None
+
+            # Get selected_role from options (for generic role selection)
+            selected_role = options.get('selected_role')
+
+            # Get game info for role detection
+            from .models import LFGGame
+            game = db.query(LFGGame).filter_by(id=group.game_id).first()
+
+            # Check role limits if group has role composition and enforce_role_limits is True
+            has_role_composition = any([group.tanks_needed, group.healers_needed, group.dps_needed, group.support_needed])
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.info(f"[DISCOVERY LFG JOIN] group_id={group.id}, has_role_composition={has_role_composition}, enforce_role_limits={group.enforce_role_limits}")
+            logger.info(f"[DISCOVERY LFG JOIN] tanks={group.tanks_needed}, healers={group.healers_needed}, dps={group.dps_needed}, support={group.support_needed}")
+            logger.info(f"[DISCOVERY LFG JOIN] selections={selections}, selected_role={selected_role}")
+            logger.info(f"[DISCOVERY LFG JOIN] game_name={game.game_name if game else 'None'}, game_id={group.game_id}")
+
+            if has_role_composition and group.enforce_role_limits:
+                # Detect this user's role using the priority system
+                joiner_role = _detect_member_role(
+                    game_name=game.game_name if game else '',
+                    member_selections=selections,
+                    selected_role=selected_role,
+                    custom_options=json_lib.loads(game.custom_options) if game and game.custom_options else None
+                )
+                logger.info(f"[DISCOVERY LFG JOIN] joiner_role detected: {joiner_role}")
+
+                if joiner_role and joiner_role != 'flex':
+                    # Count current members by role
+                    active_members = db.query(LFGMember).filter(
+                        LFGMember.group_id == group.id,
+                        LFGMember.left_at == None
+                    ).all()
+
+                    role_counts = {'tank': 0, 'healer': 0, 'dps': 0, 'support': 0}
+                    for m in active_members:
+                        m_selections = json_lib.loads(m.selections) if m.selections else {}
+                        m_role = _detect_member_role(
+                            game_name=game.game_name if game else '',
+                            member_selections=m_selections,
+                            selected_role=m.selected_role,
+                            custom_options=json_lib.loads(game.custom_options) if game and game.custom_options else None
+                        )
+                        if m_role and m_role in role_counts:
+                            role_counts[m_role] += 1
+
+                    # Check if this role slot is full
+                    role_limits = {
+                        'tank': group.tanks_needed or 0,
+                        'healer': group.healers_needed or 0,
+                        'dps': group.dps_needed or 0,
+                        'support': group.support_needed or 0
+                    }
+                    logger.info(f"[DISCOVERY LFG JOIN] role_counts={role_counts}, role_limits={role_limits}")
+                    logger.info(f"[DISCOVERY LFG JOIN] checking: role_counts[{joiner_role}]={role_counts[joiner_role]} >= role_limits[{joiner_role}]={role_limits[joiner_role]}")
+
+                    if role_counts[joiner_role] >= role_limits[joiner_role]:
+                        role_label = joiner_role.upper() if joiner_role != 'dps' else 'DPS'
+                        logger.info(f"[DISCOVERY LFG JOIN] BLOCKING - slot full!")
+                        return JsonResponse({
+                            'success': False,
+                            'error': f'Cannot join as {role_label} - all {role_limits[joiner_role]} slot(s) filled. Try a different role or wait for a spot to open.'
+                        }, status=400)
+                    else:
+                        logger.info(f"[DISCOVERY LFG JOIN] ALLOWING - slot available")
+
+            # Check if user has any existing member record (active or left)
+            existing = db.query(LFGMember).filter_by(
+                group_id=group.id,
+                user_id=int(user_id)
+            ).first()
 
             if existing:
                 # Check if they're currently in the group
@@ -11814,6 +12230,7 @@ def api_discovery_lfg_join(request, post_id):
                 existing.display_name = username
                 existing.rank_value = rank_value
                 existing.selections = selections_json
+                existing.selected_role = selected_role  # For generic role selection
                 existing.joined_at = int(time.time())
                 existing.left_at = None  # Clear the left timestamp
 
@@ -11830,6 +12247,7 @@ def api_discovery_lfg_join(request, post_id):
                     is_creator=False,
                     rank_value=rank_value,
                     selections=selections_json,
+                    selected_role=selected_role,  # For generic role selection
                     joined_at=int(time.time())
                 )
                 db.add(new_member)
@@ -11916,6 +12334,19 @@ def api_discovery_lfg_update(request, post_id):
                 group.scheduled_time = data['scheduled_time']
             if 'event_duration' in data:
                 group.event_duration = data['event_duration']
+
+            # Handle role composition updates
+            if 'tanks_needed' in data:
+                group.tanks_needed = int(data['tanks_needed']) if data['tanks_needed'] is not None else None
+            if 'healers_needed' in data:
+                group.healers_needed = int(data['healers_needed']) if data['healers_needed'] is not None else None
+            if 'dps_needed' in data:
+                group.dps_needed = int(data['dps_needed']) if data['dps_needed'] is not None else None
+            if 'support_needed' in data:
+                group.support_needed = int(data['support_needed']) if data['support_needed'] is not None else None
+            if 'enforce_role_limits' in data:
+                group.enforce_role_limits = bool(data['enforce_role_limits'])
+
             if 'max_group_size' in data:
                 group.max_group_size = data['max_group_size']
                 # Update is_full status
@@ -12005,9 +12436,19 @@ def api_discovery_lfg_update_class(request, post_id):
                     'error': 'You are not a member of this group'
                 }, status=403)
 
-            # Update member's selections with player_role
+            # Update member's selections with player_role and class/spec
             selections = json_lib.loads(member.selections) if member.selections else {}
             selections['player_role'] = player_role
+
+            # Also update Class and Specialization if provided (for role detection)
+            player_class = data.get('Class') or data.get('player_class')
+            player_spec = data.get('Specialization') or data.get('player_spec')
+
+            if player_class:
+                selections['Class'] = player_class
+            if player_spec:
+                selections['Specialization'] = player_spec
+
             member.selections = json_lib.dumps(selections)
 
             db.commit()
@@ -12157,6 +12598,16 @@ def api_discovery_game_templates(request):
                 'success': False,
                 'error': 'Game name required'
             }, status=400)
+
+        # Check for built-in game templates (WoW, FFXIV, Pantheon)
+        game_type = _get_builtin_game_type(game_name)
+        if game_type:
+            builtin_templates = _get_builtin_game_templates(game_type)
+            if builtin_templates:
+                return JsonResponse({
+                    'success': True,
+                    'templates': builtin_templates
+                })
 
         with get_db_session() as db:
             from sqlalchemy import and_, or_
@@ -17345,6 +17796,7 @@ def api_lfg_browser_groups(request, guild_id):
             # Get filter parameters
             game_id = request.GET.get('game_id')
             status_filter = request.GET.get('status', 'active')  # active, full, all
+            sort_by = request.GET.get('sort', 'newest')  # newest, oldest, scheduled
 
             # Build query - only show server-only groups (not Discovery Network)
             query = db.query(LFGGroup).filter(
@@ -17363,9 +17815,14 @@ def api_lfg_browser_groups(request, guild_id):
             elif status_filter == 'full':
                 query = query.filter(LFGGroup.is_full == True)
 
-            # Get groups ordered by scheduled time (upcoming first)
+            # Sort groups
             current_time = int(time.time())
-            groups = query.order_by(LFGGroup.scheduled_time.asc()).all()
+            if sort_by == 'oldest':
+                groups = query.order_by(LFGGroup.created_at.asc()).all()
+            elif sort_by == 'scheduled':
+                groups = query.order_by(LFGGroup.scheduled_time.asc()).all()
+            else:  # newest (default)
+                groups = query.order_by(LFGGroup.created_at.desc()).all()
 
             # PERFORMANCE: Batch load all games and members to avoid N+1 queries
             group_ids = [g.id for g in groups]
@@ -17430,15 +17887,52 @@ def api_lfg_browser_groups(request, guild_id):
                         # Update the LFGMember record with the display name
                         m.display_name = display_name
 
-                    members_data.append({
+                    # Build member data with player_role format
+                    member_entry = {
                         'user_id': str(m.user_id),
                         'display_name': display_name,
                         'rank_value': m.rank_value,
                         'is_creator': m.is_creator,
                         'is_co_leader': m.is_co_leader,
                         'selections': json_lib.loads(m.selections) if m.selections else {},
+                        'selected_role': m.selected_role,  # For generic role selection on raids
                         'joined_at': m.joined_at,
-                    })
+                    }
+
+                    # Build Class - Spec format for display (same as Discovery Network LFG)
+                    selections = member_entry['selections']
+                    cls = selections.get('Class')
+                    spec = selections.get('Specialization')
+                    job = selections.get('Job')
+
+                    if cls and spec:
+                        # WoW-style: "Death Knight - Blood"
+                        member_entry['player_role'] = f"{cls} - {spec}"
+                    elif cls:
+                        member_entry['player_role'] = cls
+                    elif spec:
+                        member_entry['player_role'] = spec
+                    elif job:
+                        # FFXIV: just job name
+                        member_entry['player_role'] = job
+                    elif selections.get('player_role'):
+                        # Legacy: player_role might already contain combined format
+                        member_entry['player_role'] = selections['player_role']
+                    else:
+                        # For custom games, collect all selections except Activity and Role
+                        display_parts = []
+                        for key, value in selections.items():
+                            key_lower = key.lower()
+                            if key_lower in ('activity', 'role', 'player_role'):
+                                continue
+                            if isinstance(value, list) and value:
+                                display_parts.append(value[0])
+                            elif value and not isinstance(value, list):
+                                display_parts.append(str(value))
+                        if display_parts:
+                            member_entry['player_role'] = ', '.join(display_parts)
+
+                    members_data.append(member_entry)
 
                 # Commit any display name updates
                 db.commit()
@@ -17455,6 +17949,9 @@ def api_lfg_browser_groups(request, guild_id):
                 confirmed_attendance = attendance_by_group.get(group.id, [])
                 confirmed_ids = [a.user_id for a in confirmed_attendance]
 
+                # Determine if group has role composition configured
+                has_role_composition = any([group.tanks_needed, group.healers_needed, group.dps_needed, group.support_needed])
+
                 groups_data.append({
                     'id': group.id,
                     'game_id': group.game_id,
@@ -17469,10 +17966,13 @@ def api_lfg_browser_groups(request, guild_id):
                     'scheduled_time': group.scheduled_time,
                     'description': group.description,
                     'max_group_size': group.max_group_size or (game.max_group_size if game else 4),
-                    'is_raid': group.is_raid or False,
+                    'is_raid': group.is_raid or False,  # Legacy field
+                    'has_role_composition': has_role_composition,
                     'tanks_needed': group.tanks_needed,
                     'healers_needed': group.healers_needed,
                     'dps_needed': group.dps_needed,
+                    'support_needed': group.support_needed,
+                    'enforce_role_limits': group.enforce_role_limits if group.enforce_role_limits is not None else True,
                     'is_active': group.is_active,
                     'is_full': group.is_full,
                     'member_count': group.member_count,
@@ -17525,11 +18025,12 @@ def api_lfg_browser_create(request, guild_id):
         creator_options = data.get('creator_options', {})  # Creator's game-specific selections
         create_discord_thread = data.get('create_discord_thread', False)  # Whether to create Discord thread
 
-        # Raid composition fields (unified LFG/LFR system)
-        is_raid = data.get('is_raid', False)
+        # Role composition fields (works for any group type, not just raids)
         tanks_needed = data.get('tanks_needed')
         healers_needed = data.get('healers_needed')
         dps_needed = data.get('dps_needed')
+        support_needed = data.get('support_needed')
+        enforce_role_limits = data.get('enforce_role_limits', True)
 
         if not game_id:
             return JsonResponse({'error': 'Game ID required'}, status=400)
@@ -17543,7 +18044,8 @@ def api_lfg_browser_create(request, guild_id):
         # Get Discord user from session
         discord_user = request.session.get('discord_user', {})
         user_id = discord_user.get('id')
-        username = discord_user.get('username', 'Unknown')
+        # Use global_name (display name) preferring over username
+        username = discord_user.get('global_name') or discord_user.get('username', 'Unknown')
 
         if not user_id:
             return JsonResponse({'error': 'Not authenticated'}, status=401)
@@ -17559,6 +18061,9 @@ def api_lfg_browser_create(request, guild_id):
             if not game:
                 return JsonResponse({'error': 'Game not found'}, status=404)
 
+            # Determine if this is a role-based group (has any role slots defined)
+            has_role_composition = any([tanks_needed, healers_needed, dps_needed, support_needed])
+
             # Create group (note: thread_id will be 0 for web-created groups until bot creates thread)
             new_group = LFGGroup(
                 guild_id=int(guild_id),
@@ -17572,10 +18077,12 @@ def api_lfg_browser_create(request, guild_id):
                 event_duration=event_duration,
                 description=description,
                 max_group_size=max_group_size or game.max_group_size,
-                is_raid=is_raid,
+                is_raid=has_role_composition,  # Legacy: set is_raid=True if roles are configured
                 tanks_needed=tanks_needed,
                 healers_needed=healers_needed,
                 dps_needed=dps_needed,
+                support_needed=support_needed,
+                enforce_role_limits=enforce_role_limits if has_role_composition else True,
                 is_active=True,
                 is_full=False,
                 member_count=1,
@@ -17727,6 +18234,15 @@ def api_lfg_browser_create(request, guild_id):
                 if new_group.event_duration:
                     duration_text = f"{new_group.event_duration} hour{'s' if new_group.event_duration != 1 else ''}"
 
+                # Format Activity from creator_options (could be list or string)
+                activity_text = None
+                if creator_options and creator_options.get('Activity'):
+                    activity_value = creator_options.get('Activity')
+                    if isinstance(activity_value, list):
+                        activity_text = ", ".join(str(a) for a in activity_value)
+                    else:
+                        activity_text = str(activity_value)
+
                 embed_data = {
                     'title': f"{game.game_emoji or '🎮'} {title}",
                     'description': f"Group by <@{user_id}>",
@@ -17734,12 +18250,17 @@ def api_lfg_browser_create(request, guild_id):
                     'fields': [
                         {'name': 'Scheduled Time', 'value': scheduled_text, 'inline': True},
                         {'name': 'Event Duration ⏱️', 'value': duration_text, 'inline': True},
-                        {'name': 'Activity 🎮', 'value': 'No one currently playing', 'inline': True},
-                        {'name': f'Members ({member_count}/{new_group.max_group_size})', 'value': members_text, 'inline': False},
                     ],
                     'footer': {'text': f'Group ID: {new_group.id}'},
                     'group_id': new_group.id,  # For bot action processing
                 }
+
+                # Add Activity field only if activities were selected
+                if activity_text:
+                    embed_data['fields'].append({'name': '🎮 Activity', 'value': activity_text, 'inline': True})
+
+                # Add members field
+                embed_data['fields'].append({'name': f'Members ({member_count}/{new_group.max_group_size})', 'value': members_text, 'inline': False})
 
                 if description:
                     embed_data['fields'].insert(3, {'name': '📝 Description', 'value': description[:1024], 'inline': False})
@@ -17752,10 +18273,6 @@ def api_lfg_browser_create(request, guild_id):
                         'value': confirmed_attendance,
                         'inline': False
                     })
-
-                # Send webhook notification if configured
-                if lfg_config.webhook_url and lfg_config.notify_on_group_create:
-                    send_lfg_webhook_notification(lfg_config.webhook_url, embed_data)
 
             # Success message varies based on whether Discord thread was requested
             success_message = 'LFG group created!'
@@ -17792,7 +18309,8 @@ def api_lfg_browser_join(request, guild_id, group_id):
         # Get Discord user from session
         discord_user = request.session.get('discord_user', {})
         user_id = discord_user.get('id')
-        username = discord_user.get('username', 'Unknown')
+        # Use global_name (display name) preferring over username
+        username = discord_user.get('global_name') or discord_user.get('username', 'Unknown')
 
         if not user_id:
             return JsonResponse({'error': 'Not authenticated'}, status=401)
@@ -17800,6 +18318,7 @@ def api_lfg_browser_join(request, guild_id, group_id):
         # Parse request body for options
         data = json.loads(request.body) if request.body else {}
         options = data.get('options', {})
+        selected_role = data.get('selected_role')  # For generic role selection on raids
 
         with get_db_session() as db:
             # Get guild
@@ -17818,18 +18337,66 @@ def api_lfg_browser_join(request, guild_id, group_id):
             if group.is_full:
                 return JsonResponse({'error': 'Group is full'}, status=400)
 
-            # Check if user has any existing member record (active or left)
-            existing = db.query(LFGMember).filter_by(
-                group_id=group.id,
-                user_id=int(user_id)
-            ).first()
-
             # Extract rank if provided
             rank_value = options.get('rank')
 
             # Extract other selections (exclude 'rank' as it's stored separately)
             selections = {k: v for k, v in options.items() if k != 'rank'}
             selections_json = json.dumps(selections) if selections else None
+
+            # Get game info for role detection
+            from .models import LFGGame
+            game = db.query(LFGGame).filter_by(id=group.game_id).first()
+
+            # Check role limits if group has role composition and enforce_role_limits is True
+            has_role_composition = any([group.tanks_needed, group.healers_needed, group.dps_needed, group.support_needed])
+            if has_role_composition and group.enforce_role_limits:
+                # Detect this user's role using the priority system
+                joiner_role = _detect_member_role(
+                    game_name=game.game_name if game else '',
+                    member_selections=selections,
+                    selected_role=selected_role,
+                    custom_options=json_lib.loads(game.custom_options) if game and game.custom_options else None
+                )
+
+                if joiner_role and joiner_role != 'flex':
+                    # Count current members by role
+                    active_members = db.query(LFGMember).filter(
+                        LFGMember.group_id == group.id,
+                        LFGMember.left_at == None
+                    ).all()
+
+                    role_counts = {'tank': 0, 'healer': 0, 'dps': 0, 'support': 0}
+                    for m in active_members:
+                        m_selections = json_lib.loads(m.selections) if m.selections else {}
+                        m_role = _detect_member_role(
+                            game_name=game.game_name if game else '',
+                            member_selections=m_selections,
+                            selected_role=m.selected_role,
+                            custom_options=json_lib.loads(game.custom_options) if game and game.custom_options else None
+                        )
+                        if m_role and m_role in role_counts:
+                            role_counts[m_role] += 1
+
+                    # Check if this role slot is full
+                    role_limits = {
+                        'tank': group.tanks_needed or 0,
+                        'healer': group.healers_needed or 0,
+                        'dps': group.dps_needed or 0,
+                        'support': group.support_needed or 0
+                    }
+
+                    if role_counts[joiner_role] >= role_limits[joiner_role]:
+                        role_label = joiner_role.upper() if joiner_role != 'dps' else 'DPS'
+                        return JsonResponse({
+                            'error': f'Cannot join as {role_label} - all {role_limits[joiner_role]} slot(s) filled. Try a different role or wait for a spot to open.'
+                        }, status=400)
+
+            # Check if user has any existing member record (active or left)
+            existing = db.query(LFGMember).filter_by(
+                group_id=group.id,
+                user_id=int(user_id)
+            ).first()
 
             if existing:
                 # Check if they're currently in the group
@@ -17840,6 +18407,7 @@ def api_lfg_browser_join(request, guild_id, group_id):
                 existing.display_name = username
                 existing.rank_value = rank_value
                 existing.selections = selections_json
+                existing.selected_role = selected_role  # For generic role selection
                 existing.joined_at = int(time.time())
                 existing.left_at = None  # Clear the left timestamp
 
@@ -17856,6 +18424,7 @@ def api_lfg_browser_join(request, guild_id, group_id):
                     is_creator=False,
                     rank_value=rank_value,
                     selections=selections_json,
+                    selected_role=selected_role,  # For generic role selection
                     joined_at=int(time.time())
                 )
                 db.add(new_member)
@@ -17864,10 +18433,6 @@ def api_lfg_browser_join(request, guild_id, group_id):
                 group.member_count += 1
                 if group.member_count >= group.max_group_size:
                     group.is_full = True
-
-            # Get game info for notifications (before commit)
-            from .models import LFGGame
-            game = db.query(LFGGame).filter_by(id=group.game_id).first()
 
             # Auto-confirm attendance if attendance tracking is enabled (Pro/Premium/VIP only)
             from .models import LFGConfig
@@ -18277,22 +18842,27 @@ def api_lfg_browser_delete(request, guild_id, group_id):
                 game_name=game_name_snapshot
             )
 
-            # Queue bot action to delete thread and send cancellation notice
+            # Queue bot action to delete thread (always if thread exists)
             lfg_config = db.query(LFGConfig).filter_by(guild_id=int(guild_id)).first()
-            if lfg_config and lfg_config.browser_notify_channel_id and lfg_config.notify_on_group_delete:
+            if thread_id_snapshot:
                 import time as time_lib
+
+                # Determine notification channel (if configured and enabled)
+                notify_channel = None
+                if lfg_config and lfg_config.browser_notify_channel_id and lfg_config.notify_on_group_delete:
+                    notify_channel = str(lfg_config.browser_notify_channel_id)
 
                 action = PendingAction(
                     guild_id=int(guild_id),
                     action_type=ActionType.LFG_THREAD_DELETE,
                     payload=json.dumps({
                         'group_id': group.id,
-                        'thread_id': str(thread_id_snapshot) if thread_id_snapshot else None,
+                        'thread_id': str(thread_id_snapshot),
                         'thread_name': group_name_snapshot,
                         'game_name': game_name_snapshot,
                         'game_emoji': game_emoji,
                         'deleted_by_id': user_id,
-                        'channel_id': str(lfg_config.browser_notify_channel_id)
+                        'channel_id': notify_channel  # Will be None if notifications disabled
                     }),
                     status=ActionStatus.PENDING,
                     priority=1,  # High priority
@@ -18521,6 +19091,13 @@ def api_lfg_browser_update(request, guild_id, group_id):
         max_group_size = data.get('max_group_size')
         co_leader_ids = data.get('co_leader_ids')
 
+        # Role composition fields
+        tanks_needed = data.get('tanks_needed')
+        healers_needed = data.get('healers_needed')
+        dps_needed = data.get('dps_needed')
+        support_needed = data.get('support_needed')
+        enforce_role_limits = data.get('enforce_role_limits')
+
         with get_db_session() as db:
             # Get guild
             guild = db.query(Guild).filter_by(guild_id=int(guild_id)).first()
@@ -18584,6 +19161,71 @@ def api_lfg_browser_update(request, guild_id, group_id):
                 group.max_group_size = max_group_size
                 # Update is_full status based on new size
                 group.is_full = group.member_count >= max_group_size
+
+            # Update role composition fields
+            if 'tanks_needed' in data:
+                old_val = group.tanks_needed
+                group.tanks_needed = tanks_needed
+                if old_val != tanks_needed:
+                    log_lfg_audit(
+                        db=db, guild_id=guild_id, group_id=group.id, action='update',
+                        actor_id=user_id, actor_name=actor_name,
+                        field_changed='tanks_needed',
+                        old_value=str(old_val), new_value=str(tanks_needed),
+                        group_name=group_name_snapshot, game_name=game_name_snapshot
+                    )
+
+            if 'healers_needed' in data:
+                old_val = group.healers_needed
+                group.healers_needed = healers_needed
+                if old_val != healers_needed:
+                    log_lfg_audit(
+                        db=db, guild_id=guild_id, group_id=group.id, action='update',
+                        actor_id=user_id, actor_name=actor_name,
+                        field_changed='healers_needed',
+                        old_value=str(old_val), new_value=str(healers_needed),
+                        group_name=group_name_snapshot, game_name=game_name_snapshot
+                    )
+
+            if 'dps_needed' in data:
+                old_val = group.dps_needed
+                group.dps_needed = dps_needed
+                if old_val != dps_needed:
+                    log_lfg_audit(
+                        db=db, guild_id=guild_id, group_id=group.id, action='update',
+                        actor_id=user_id, actor_name=actor_name,
+                        field_changed='dps_needed',
+                        old_value=str(old_val), new_value=str(dps_needed),
+                        group_name=group_name_snapshot, game_name=game_name_snapshot
+                    )
+
+            if 'support_needed' in data:
+                old_val = group.support_needed
+                group.support_needed = support_needed
+                if old_val != support_needed:
+                    log_lfg_audit(
+                        db=db, guild_id=guild_id, group_id=group.id, action='update',
+                        actor_id=user_id, actor_name=actor_name,
+                        field_changed='support_needed',
+                        old_value=str(old_val), new_value=str(support_needed),
+                        group_name=group_name_snapshot, game_name=game_name_snapshot
+                    )
+
+            if 'enforce_role_limits' in data:
+                old_val = group.enforce_role_limits
+                group.enforce_role_limits = enforce_role_limits
+                if old_val != enforce_role_limits:
+                    log_lfg_audit(
+                        db=db, guild_id=guild_id, group_id=group.id, action='update',
+                        actor_id=user_id, actor_name=actor_name,
+                        field_changed='enforce_role_limits',
+                        old_value=str(old_val), new_value=str(enforce_role_limits),
+                        group_name=group_name_snapshot, game_name=game_name_snapshot
+                    )
+
+            # Update is_raid field based on role composition (for legacy compatibility)
+            has_role_composition = any([group.tanks_needed, group.healers_needed, group.dps_needed, group.support_needed])
+            group.is_raid = has_role_composition
 
             # Track removed co-leaders for thread management
             removed_co_leader_ids = []
@@ -18862,9 +19504,84 @@ def api_lfg_browser_update_class(request, guild_id, group_id):
             selections = {k: v for k, v in options.items() if k != 'rank'}
             selections_json = json_lib.dumps(selections) if selections else None
 
+            # Get game info for role detection
+            from .models import LFGGame
+            game = db.query(LFGGame).filter_by(id=group.game_id).first()
+
+            # Check role limits if group has role composition and enforce_role_limits is True
+            has_role_composition = any([group.tanks_needed, group.healers_needed, group.dps_needed, group.support_needed])
+            if has_role_composition and group.enforce_role_limits:
+                # Detect this user's NEW role using the updated selections
+                new_role = _detect_member_role(
+                    game_name=game.game_name if game else '',
+                    member_selections=selections,
+                    selected_role=member.selected_role,
+                    custom_options=json_lib.loads(game.custom_options) if game and game.custom_options else None
+                )
+
+                # Get the user's CURRENT role (before update)
+                current_selections = json_lib.loads(member.selections) if member.selections else {}
+                current_role = _detect_member_role(
+                    game_name=game.game_name if game else '',
+                    member_selections=current_selections,
+                    selected_role=member.selected_role,
+                    custom_options=json_lib.loads(game.custom_options) if game and game.custom_options else None
+                )
+
+                # Only check limits if the role is changing
+                if new_role and new_role != 'flex' and new_role != current_role:
+                    # Count current members by role (excluding this user)
+                    active_members = db.query(LFGMember).filter(
+                        LFGMember.group_id == group.id,
+                        LFGMember.left_at == None,
+                        LFGMember.user_id != int(user_id)  # Exclude current user
+                    ).all()
+
+                    role_counts = {'tank': 0, 'healer': 0, 'dps': 0, 'support': 0}
+                    for m in active_members:
+                        m_selections = json_lib.loads(m.selections) if m.selections else {}
+                        m_role = _detect_member_role(
+                            game_name=game.game_name if game else '',
+                            member_selections=m_selections,
+                            selected_role=m.selected_role,
+                            custom_options=json_lib.loads(game.custom_options) if game and game.custom_options else None
+                        )
+                        if m_role and m_role in role_counts:
+                            role_counts[m_role] += 1
+
+                    # Check if this role slot is full
+                    role_limits = {
+                        'tank': group.tanks_needed or 0,
+                        'healer': group.healers_needed or 0,
+                        'dps': group.dps_needed or 0,
+                        'support': group.support_needed or 0
+                    }
+
+                    if role_counts[new_role] >= role_limits[new_role]:
+                        role_label = new_role.upper() if new_role != 'dps' else 'DPS'
+                        return JsonResponse({
+                            'error': f'Cannot switch to {role_label} - all {role_limits[new_role]} slot(s) filled. Choose a different class/spec or wait for a spot to open.'
+                        }, status=400)
+
             # Update member's selections
             member.rank_value = rank_value
             member.selections = selections_json
+
+            # Queue bot action to update the Discord embed (only if thread exists)
+            if group.thread_id:
+                from .models import PendingAction, ActionType, ActionStatus
+                pending = PendingAction(
+                    guild_id=int(guild_id),
+                    action_type=ActionType.LFG_THREAD_UPDATE,
+                    payload=json_lib.dumps({
+                        'group_id': group.id,
+                        'thread_id': group.thread_id,
+                        'reason': 'member_class_update'
+                    }),
+                    status=ActionStatus.PENDING,
+                    created_at=int(time.time())
+                )
+                db.add(pending)
 
             db.commit()
 
@@ -18954,6 +19671,17 @@ def api_lfg_browser_notifications(request, guild_id):
         # POST: Save settings
         data = json.loads(request.body)
 
+        # Validate webhook URL if provided
+        webhook_url = data.get('webhook_url', '').strip()
+        if webhook_url:
+            import re
+            # Only allow valid Discord webhook URLs
+            webhook_pattern = r'^https://(discord\.com|discordapp\.com)/api/webhooks/\d+/[\w-]+$'
+            if not re.match(webhook_pattern, webhook_url):
+                return JsonResponse({
+                    'error': 'Invalid webhook URL. Must be a Discord webhook URL in the format: https://discord.com/api/webhooks/ID/TOKEN'
+                }, status=400)
+
         with get_db_session() as db:
             # Get guild
             guild = db.query(Guild).filter_by(guild_id=int(guild_id)).first()
@@ -18975,7 +19703,7 @@ def api_lfg_browser_notifications(request, guild_id):
             lfg_config.notify_on_member_leave = data.get('notify_on_member_leave', False)
             lfg_config.dm_members_on_update = data.get('dm_members_on_update', True)
             lfg_config.dm_members_on_delete = data.get('dm_members_on_delete', True)
-            lfg_config.webhook_url = data.get('webhook_url')
+            lfg_config.webhook_url = webhook_url if webhook_url else None
 
             db.commit()
 
