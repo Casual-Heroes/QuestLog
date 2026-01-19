@@ -95,30 +95,80 @@
     </div>
   </div>
 
-  <!-- Filter Tabs -->
-  <div class="border-b border-neutral-700">
-    <nav class="flex space-x-4">
-      <button onclick="filterApplications('pending')" id="filter-pending" class="admin-filter-btn admin-filter-active px-4 py-2 text-sm font-medium border-b-2 border-yellow-500 text-yellow-400">
-        Pending Review
+  <!-- Main Admin Tabs -->
+  <div class="border-b border-neutral-700 mb-6">
+    <nav class="flex space-x-8">
+      <button onclick="switchAdminSection('applications')" id="admin-section-applications" class="admin-section-btn admin-section-active px-4 py-3 text-sm font-medium border-b-2 border-indigo-500 text-indigo-400">
+        <i class="fas fa-file-alt mr-2"></i>Applications
       </button>
-      <button onclick="filterApplications('approved')" id="filter-approved" class="admin-filter-btn px-4 py-2 text-sm font-medium border-b-2 border-transparent text-gray-400 hover:text-gray-300">
-        Approved
-      </button>
-      <button onclick="filterApplications('denied')" id="filter-denied" class="admin-filter-btn px-4 py-2 text-sm font-medium border-b-2 border-transparent text-gray-400 hover:text-gray-300">
-        Denied
-      </button>
-      <button onclick="filterApplications('banned')" id="filter-banned" class="admin-filter-btn px-4 py-2 text-sm font-medium border-b-2 border-transparent text-gray-400 hover:text-gray-300">
-        Banned
+      <button onclick="switchAdminSection('servers')" id="admin-section-servers" class="admin-section-btn px-4 py-3 text-sm font-medium border-b-2 border-transparent text-gray-400 hover:text-gray-300">
+        <i class="fas fa-server mr-2"></i>Approved Servers
       </button>
     </nav>
   </div>
 
-  <!-- Applications List -->
-  <div id="applicationsList" class="space-y-4">
-    <!-- Loading state -->
-    <div class="text-center py-12">
-      <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500"></div>
-      <p class="text-gray-400 mt-4">Loading applications...</p>
+  <!-- Applications Section -->
+  <div id="admin-content-applications">
+    <!-- Filter Tabs -->
+    <div class="border-b border-neutral-700">
+      <nav class="flex space-x-4">
+        <button onclick="filterApplications('pending')" id="filter-pending" class="admin-filter-btn admin-filter-active px-4 py-2 text-sm font-medium border-b-2 border-yellow-500 text-yellow-400">
+          Pending Review
+        </button>
+        <button onclick="filterApplications('approved')" id="filter-approved" class="admin-filter-btn px-4 py-2 text-sm font-medium border-b-2 border-transparent text-gray-400 hover:text-gray-300">
+          Approved
+        </button>
+        <button onclick="filterApplications('denied')" id="filter-denied" class="admin-filter-btn px-4 py-2 text-sm font-medium border-b-2 border-transparent text-gray-400 hover:text-gray-300">
+          Denied
+        </button>
+        <button onclick="filterApplications('banned')" id="filter-banned" class="admin-filter-btn px-4 py-2 text-sm font-medium border-b-2 border-transparent text-gray-400 hover:text-gray-300">
+          Banned
+        </button>
+      </nav>
+    </div>
+
+    <!-- Applications List -->
+    <div id="applicationsList" class="space-y-4 mt-4">
+      <!-- Loading state -->
+      <div class="text-center py-12">
+        <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500"></div>
+        <p class="text-gray-400 mt-4">Loading applications...</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Servers Section -->
+  <div id="admin-content-servers" class="hidden">
+    <!-- Server Stats -->
+    <div class="grid md:grid-cols-3 gap-4 mb-6">
+      <div class="bg-neutral-900 border border-neutral-800 rounded-lg p-4">
+        <div class="text-sm text-gray-400 mb-1">Total Approved Servers</div>
+        <div class="text-3xl font-bold text-green-400" id="serversTotalCount">0</div>
+      </div>
+      <div class="bg-neutral-900 border border-neutral-800 rounded-lg p-4">
+        <div class="text-sm text-gray-400 mb-1">Active This Week</div>
+        <div class="text-3xl font-bold text-blue-400" id="serversActiveCount">0</div>
+      </div>
+      <div class="bg-neutral-900 border border-neutral-800 rounded-lg p-4">
+        <div class="text-sm text-gray-400 mb-1">Kicked/Removed</div>
+        <div class="text-3xl font-bold text-orange-400" id="serversKickedCount">0</div>
+      </div>
+    </div>
+
+    <!-- Search -->
+    <div class="mb-4">
+      <input type="text" id="serverSearchInput" placeholder="Search servers by name..."
+             onkeyup="filterServers()"
+             class="w-full md:w-96 bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2 text-white focus:border-indigo-500 focus:outline-none">
+    </div>
+
+    <!-- Servers List -->
+    <div id="serversList" class="space-y-4">
+      <!-- Loading state -->
+      <div class="text-center py-12">
+        <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500"></div>
+        <p class="text-gray-400 mt-4">Loading servers...</p>
+      </div>
     </div>
   </div>
 
@@ -647,6 +697,259 @@ async function banUser(appId, reason, violationType) {
   }
 }
 
+// ============================================
+// SERVER MANAGEMENT SECTION
+// ============================================
+
+let adminAllServers = [];  // Renamed to avoid conflict with directory.html
+let currentAdminSection = 'applications';
+
+// Switch between admin sections (Applications vs Servers)
+function switchAdminSection(section) {
+  currentAdminSection = section;
+
+  // Hide all sections
+  document.getElementById('admin-content-applications').classList.add('hidden');
+  document.getElementById('admin-content-servers').classList.add('hidden');
+
+  // Remove active class from all section buttons
+  document.querySelectorAll('.admin-section-btn').forEach(btn => {
+    btn.classList.remove('admin-section-active', 'border-indigo-500', 'text-indigo-400');
+    btn.classList.add('border-transparent', 'text-gray-400');
+  });
+
+  // Show selected section
+  document.getElementById('admin-content-' + section).classList.remove('hidden');
+
+  // Add active class to selected button
+  const activeBtn = document.getElementById('admin-section-' + section);
+  activeBtn.classList.add('admin-section-active', 'border-indigo-500', 'text-indigo-400');
+  activeBtn.classList.remove('border-transparent', 'text-gray-400');
+
+  // Load data for section
+  if (section === 'servers') {
+    loadServersData();
+  }
+}
+
+// Load approved servers data
+async function loadServersData() {
+  try {
+    const response = await csrfFetch('/api/discovery/admin/servers');
+    const data = await response.json();
+
+    if (!data.success) {
+      throw new Error(data.error || 'Failed to load servers');
+    }
+
+    adminAllServers = data.servers;
+
+    // Update stats
+    document.getElementById('serversTotalCount').textContent = data.stats.total;
+    document.getElementById('serversActiveCount').textContent = data.stats.active_this_week;
+    document.getElementById('serversKickedCount').textContent = data.stats.kicked;
+
+    // Render servers
+    renderServers();
+
+  } catch (error) {
+    document.getElementById('serversList').innerHTML = `
+      <div class="bg-red-900/20 border border-red-700 rounded-lg p-6 text-center">
+        <p class="text-red-300">Failed to load servers: ${error.message}</p>
+      </div>
+    `;
+  }
+}
+
+// Filter servers by search term
+function filterServers() {
+  renderServers();
+}
+
+// Render servers list
+function renderServers() {
+  const container = document.getElementById('serversList');
+  const searchTerm = document.getElementById('serverSearchInput').value.toLowerCase();
+
+  // Filter servers
+  let filtered = adminAllServers;
+  if (searchTerm) {
+    filtered = adminAllServers.filter(server =>
+      server.name.toLowerCase().includes(searchTerm) ||
+      (server.owner_name && server.owner_name.toLowerCase().includes(searchTerm))
+    );
+  }
+
+  if (filtered.length === 0) {
+    container.innerHTML = `
+      <div class="bg-neutral-900 border border-neutral-800 rounded-lg p-8 text-center">
+        <p class="text-gray-400">${searchTerm ? 'No servers match your search' : 'No approved servers found'}</p>
+      </div>
+    `;
+    return;
+  }
+
+  // Render server cards
+  container.innerHTML = filtered.map(server => {
+    const joinedDate = new Date(server.approved_at * 1000).toLocaleDateString();
+    const memberCount = server.member_count || 'N/A';
+    const isKicked = server.status === 'kicked' || server.status === 'left';
+
+    return `
+      <div class="bg-neutral-900 border ${isKicked ? 'border-orange-700' : 'border-neutral-800'} rounded-lg p-6">
+        <!-- Header -->
+        <div class="flex items-start justify-between mb-4">
+          <div class="flex items-center gap-4">
+            ${server.icon_url ? `<img src="${server.icon_url}" class="w-14 h-14 rounded-full">` : '<div class="w-14 h-14 rounded-full bg-neutral-700 flex items-center justify-center"><i class="fas fa-server text-gray-500"></i></div>'}
+            <div>
+              <h3 class="text-lg font-semibold text-white">${server.name}</h3>
+              <p class="text-sm text-gray-400">ID: ${server.guild_id}</p>
+              <p class="text-sm text-gray-400">${memberCount} members • Joined ${joinedDate}</p>
+            </div>
+          </div>
+          <div class="text-right">
+            ${isKicked ? `
+              <span class="px-3 py-1 bg-orange-900 border border-orange-700 rounded-lg text-orange-400 text-sm">
+                Removed
+              </span>
+            ` : `
+              <span class="px-3 py-1 bg-green-900 border border-green-700 rounded-lg text-green-400 text-sm">
+                Active
+              </span>
+            `}
+          </div>
+        </div>
+
+        <!-- Server Info -->
+        <div class="grid md:grid-cols-2 gap-4 mb-4 text-sm">
+          <div>
+            <p class="text-gray-400">Owner</p>
+            <p class="text-white">${server.owner_name || 'Unknown'} ${server.owner_id ? `<span class="text-gray-500">(${server.owner_id})</span>` : ''}</p>
+          </div>
+          <div>
+            <p class="text-gray-400">Application By</p>
+            <p class="text-white">${server.applicant_name || 'Unknown'}</p>
+          </div>
+        </div>
+
+        ${server.kick_reason ? `
+          <div class="mb-4 bg-orange-900/20 border border-orange-700 rounded p-3">
+            <p class="text-sm text-orange-300"><strong>Removal Reason:</strong> ${server.kick_reason}</p>
+          </div>
+        ` : ''}
+
+        <!-- Actions -->
+        ${!isKicked ? `
+          <div class="flex gap-2 pt-4 border-t border-neutral-700">
+            <button onclick="kickServer('${server.guild_id}', '${server.name.replace(/'/g, "\\'")}')" class="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg text-sm font-medium">
+              <i class="fas fa-user-slash mr-2"></i>Remove from Network
+            </button>
+            <button onclick="banServerOwner('${server.owner_id}', '${server.owner_name ? server.owner_name.replace(/'/g, "\\'") : 'Unknown'}')" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium">
+              <i class="fas fa-ban mr-2"></i>Ban Owner
+            </button>
+          </div>
+        ` : `
+          <div class="flex gap-2 pt-4 border-t border-neutral-700">
+            <button onclick="reinstateServer('${server.guild_id}', '${server.name.replace(/'/g, "\\'")}')" class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium">
+              <i class="fas fa-undo mr-2"></i>Reinstate Server
+            </button>
+          </div>
+        `}
+      </div>
+    `;
+  }).join('');
+}
+
+// Kick (remove) a server from the network
+async function kickServer(guildId, serverName) {
+  const reason = prompt(`Enter reason for removing "${serverName}" from the Discovery Network:`);
+  if (!reason) return;
+
+  if (!confirm(`Are you sure you want to remove "${serverName}" from the Discovery Network?\n\nThis will revoke their access to network features.`)) return;
+
+  try {
+    const response = await csrfFetch(`/api/discovery/admin/servers/${guildId}/kick`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reason })
+    });
+
+    const data = await response.json();
+
+    if (data.success) {
+      alert('Server removed from Discovery Network');
+      loadServersData(); // Reload
+      loadAdminData(); // Reload applications too to update stats
+    } else {
+      alert('Failed to remove server: ' + data.error);
+    }
+  } catch (error) {
+    alert('Failed to remove server');
+    console.error('Error:', error);
+  }
+}
+
+// Reinstate a kicked server
+async function reinstateServer(guildId, serverName) {
+  if (!confirm(`Are you sure you want to reinstate "${serverName}" to the Discovery Network?`)) return;
+
+  try {
+    const response = await csrfFetch(`/api/discovery/admin/servers/${guildId}/reinstate`, {
+      method: 'POST'
+    });
+
+    const data = await response.json();
+
+    if (data.success) {
+      alert('Server reinstated to Discovery Network');
+      loadServersData(); // Reload
+      loadAdminData(); // Reload applications too
+    } else {
+      alert('Failed to reinstate server: ' + data.error);
+    }
+  } catch (error) {
+    alert('Failed to reinstate server');
+    console.error('Error:', error);
+  }
+}
+
+// Ban a server owner (prevents them from adding any servers)
+async function banServerOwner(ownerId, ownerName) {
+  if (!ownerId) {
+    alert('Cannot ban: Owner ID unknown');
+    return;
+  }
+
+  const reason = prompt(`Enter reason for banning ${ownerName}:`);
+  if (!reason) return;
+
+  const violationType = prompt('Enter violation type (spam/harassment/illegal/other):', 'other');
+  if (!violationType) return;
+
+  if (!confirm(`Are you sure you want to BAN ${ownerName}?\n\nThis will:\n- Remove ALL their servers from the network\n- Prevent them from adding any new servers\n\nThis action is permanent.`)) return;
+
+  try {
+    const response = await csrfFetch(`/api/discovery/admin/users/${ownerId}/ban`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reason, violation_type: violationType })
+    });
+
+    const data = await response.json();
+
+    if (data.success) {
+      alert('User banned from Discovery Network');
+      loadServersData(); // Reload
+      loadAdminData(); // Reload applications too
+    } else {
+      alert('Failed to ban user: ' + data.error);
+    }
+  } catch (error) {
+    alert('Failed to ban user');
+    console.error('Error:', error);
+  }
+}
+
 // Load on tab switch
 if (document.getElementById('applicationsList')) {
   loadAdminData();
@@ -656,6 +959,9 @@ if (document.getElementById('applicationsList')) {
 
 <style>
 .admin-filter-active {
+  font-weight: 600;
+}
+.admin-section-active {
   font-weight: 600;
 }
 </style>

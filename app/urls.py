@@ -295,11 +295,15 @@ urlpatterns = [
     path('api/discovery/feature-creator', views.api_discovery_feature_creator, name='api_discovery_feature_creator'),
     path('api/discovery/network-creators', views.api_discovery_network_creators, name='api_discovery_network_creators'),
 
-    # Discovery Network Admin API Endpoints (Bot Owner Only)
+    # Discovery Network Admin API Endpoints (Discovery Approvers Only)
     path('api/discovery/admin/applications', views.api_discovery_network_admin_applications, name='api_discovery_network_admin_applications'),
     path('api/discovery/admin/applications/<int:application_id>/approve', views.api_discovery_network_admin_approve, name='api_discovery_network_admin_approve'),
     path('api/discovery/admin/applications/<int:application_id>/deny', views.api_discovery_network_admin_deny, name='api_discovery_network_admin_deny'),
     path('api/discovery/admin/applications/<int:application_id>/ban', views.api_discovery_network_admin_ban, name='api_discovery_network_admin_ban'),
+    path('api/discovery/admin/servers', views.api_discovery_network_admin_servers, name='api_discovery_network_admin_servers'),
+    path('api/discovery/admin/servers/<str:guild_id>/kick', views.api_discovery_network_admin_kick_server, name='api_discovery_network_admin_kick_server'),
+    path('api/discovery/admin/servers/<str:guild_id>/reinstate', views.api_discovery_network_admin_reinstate_server, name='api_discovery_network_admin_reinstate_server'),
+    path('api/discovery/admin/users/<str:user_id_to_ban>/ban', views.api_discovery_network_admin_ban_user, name='api_discovery_network_admin_ban_user'),
     path('api/guild/<str:guild_id>/discovery/searches/<int:search_id>/delete/', views.api_game_search_config_delete, name='api_game_search_config_delete'),
 
     # Action Status

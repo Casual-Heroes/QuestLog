@@ -605,7 +605,7 @@
               <div class="text-sm">
                 <span class="text-white font-medium" x-text="field.name"></span>
                 <span class="text-gray-500 text-xs ml-2">
-                  (<span x-text="typeof field.choices === 'object' && !Array.isArray(field.choices) ? 'Conditional - ' + Object.keys(field.choices).length + ' options' : (Array.isArray(field.choices) ? field.choices.length + ' choices' : '0 choices')"></span><span x-show="field.depends_on" class="text-purple-400"> • depends on <span x-text="field.depends_on"></span></span>)
+                  (<span x-text="typeof field.choices === 'object' && !Array.isArray(field.choices) ? 'Conditional - ' + Object.keys(field.choices).length + ' options' : (Array.isArray(field.choices) ? field.choices.length + ' choices' : '0 choices')"></span><span x-show="field.depends_on" class="text-purple-400"> • depends on <span x-text="field.depends_on"></span></span><span x-show="field.exclude_same_as" class="text-orange-400"> • excludes <span x-text="field.exclude_same_as"></span></span>)
                 </span>
               </div>
             </template>
@@ -624,6 +624,9 @@
               <option value="mmo-roles">🎯 MMO Roles with Tags (Tank, DPS, Healer) - for raids</option>
               <option value="mmo-classes">MMO Classes (Warrior, Mage, Rogue, etc.)</option>
               <option value="wow-class-spec">WoW Class + Spec (Death Knight - Blood, etc.)</option>
+              <option value="ffxiv-job">FFXIV Job (Paladin, White Mage, Dragoon, etc.)</option>
+              <option value="gw2-class-role">GW2 Class + Role (Guardian - Tank, etc.)</option>
+              <option value="eso-class-role">ESO Class + Role (Dragonknight - Tank, etc.)</option>
               <option value="class-subclass">Class + Subclass (Generic dual-class system)</option>
             </optgroup>
             <optgroup label="Combat & Weapons">
@@ -658,6 +661,7 @@
                         <i class="fas fa-link text-purple-400"></i>
                         <span class="text-purple-400 text-sm font-medium">Conditional Dropdown</span>
                         <span class="text-gray-500 text-xs" x-show="field.depends_on">(depends on: <span x-text="field.depends_on"></span>)</span>
+                        <span class="text-orange-400 text-xs" x-show="field.exclude_same_as">(excludes: <span x-text="field.exclude_same_as"></span>)</span>
                       </div>
                       <div class="text-gray-400 text-xs space-y-1">
                         <template x-for="[key, values] in Object.entries(field.choices)" :key="key">
@@ -886,6 +890,9 @@ function customOptionsBuilder() {
       'mmo-roles': 'MMO Roles',
       'mmo-classes': 'MMO Classes',
       'wow-class-spec': 'WoW Class + Spec',
+      'ffxiv-job': 'FFXIV Job',
+      'gw2-class-role': 'GW2 Class + Role',
+      'eso-class-role': 'ESO Class + Role',
       'class-subclass': 'Class + Subclass',
       'shooter-roles': 'Shooter Roles',
       'mh-weapons': 'Monster Hunter Weapons',
@@ -1085,6 +1092,58 @@ function customOptionsBuilder() {
             depends_on: 'Class'
           }
         ],
+        'ffxiv-job': {
+          name: 'Job',
+          choices: [
+            // Tanks
+            'Paladin', 'Warrior', 'Dark Knight', 'Gunbreaker',
+            // Healers
+            'White Mage', 'Scholar', 'Astrologian', 'Sage',
+            // Melee DPS
+            'Monk', 'Dragoon', 'Ninja', 'Samurai', 'Reaper', 'Viper',
+            // Physical Ranged DPS
+            'Bard', 'Machinist', 'Dancer',
+            // Magical Ranged DPS
+            'Black Mage', 'Summoner', 'Red Mage', 'Pictomancer'
+          ]
+        },
+        'gw2-class-role': [
+          {
+            name: 'Class',
+            choices: ['Warrior', 'Guardian', 'Revenant', 'Ranger', 'Thief', 'Engineer', 'Necromancer', 'Elementalist', 'Mesmer']
+          },
+          {
+            name: 'Role',
+            enableRoleTags: true,
+            choices: [
+              { value: 'Tank', role: 'tank' },
+              { value: 'Healer', role: 'healer' },
+              { value: 'DPS', role: 'dps' },
+              { value: 'Support', role: 'support' }
+            ]
+          }
+        ],
+        'eso-class-role': [
+          {
+            name: 'Class',
+            choices: ['Dragonknight', 'Sorcerer', 'Nightblade', 'Templar', 'Warden', 'Necromancer', 'Arcanist']
+          },
+          {
+            name: 'Subclass',
+            choices: ['Dragonknight', 'Sorcerer', 'Nightblade', 'Templar', 'Warden', 'Necromancer', 'Arcanist'],
+            exclude_same_as: 'Class'
+          },
+          {
+            name: 'Role',
+            enableRoleTags: true,
+            choices: [
+              { value: 'Tank', role: 'tank' },
+              { value: 'Healer', role: 'healer' },
+              { value: 'DPS', role: 'dps' },
+              { value: 'Support', role: 'support' }
+            ]
+          }
+        ],
         'class-subclass': [
           {
             name: 'Class',
@@ -1189,6 +1248,11 @@ function customOptionsBuilder() {
           // Preserve depends_on if it exists (critical for conditional dropdowns)
           if (field.depends_on) {
             result.depends_on = field.depends_on;
+          }
+
+          // Preserve exclude_same_as if it exists (e.g., ESO Subclass can't be same as Class)
+          if (field.exclude_same_as) {
+            result.exclude_same_as = field.exclude_same_as;
           }
 
           // Preserve max_select if it exists

@@ -790,8 +790,13 @@ function renderLFGPosts() {
               const BUILTIN_GAMES = {
                 'wow': ['world of warcraft', 'wow'],
                 'ffxiv': ['final fantasy xiv', 'final fantasy 14', 'ffxiv', 'ff14'],
-                'pantheon': ['pantheon', 'pantheon: rise of the fallen']
+                'pantheon': ['pantheon', 'pantheon: rise of the fallen'],
+                'gw2': ['guild wars 2', 'gw2'],
+                'eso': ['elder scrolls online', 'eso', 'teso']
               };
+
+              // Games with flexible role systems (user selects role, not auto-detected from class)
+              const FLEXIBLE_ROLE_GAMES = ['gw2', 'eso'];
 
               // WoW Role Mappings
               const WOW_ROLES = {
@@ -859,18 +864,40 @@ function renderLFGPosts() {
                 const gameType = getBuiltinGameType(gameName);
                 const playerRole = (member.player_role || '').toLowerCase();
 
-                // Priority 1: Check built-in game mappings using player_role (spec/class/job)
+                // Priority 1: Check for flexible role games (GW2/ESO) - role comes from user selection
+                if (gameType && FLEXIBLE_ROLE_GAMES.includes(gameType)) {
+                  // For GW2/ESO, check member's options for Role field first
+                  if (member.options) {
+                    const roleField = member.options['Role'] || member.options['role'];
+                    if (roleField) {
+                      const roleVal = Array.isArray(roleField) ? roleField[0] : roleField;
+                      if (roleVal) {
+                        const roleLower = roleVal.toLowerCase();
+                        if (['tank', 'healer', 'dps', 'support', 'flex'].includes(roleLower)) {
+                          return roleLower;
+                        }
+                      }
+                    }
+                  }
+                  // Fall through to selected_role for GW2/ESO
+                  if (member.selected_role && ['tank', 'healer', 'dps', 'support', 'flex'].includes(member.selected_role)) {
+                    return member.selected_role;
+                  }
+                  return null;
+                }
+
+                // Priority 2: Check built-in game mappings using player_role (spec/class/job)
                 if (gameType && playerRole) {
                   const role = getRoleFromBuiltin(gameType, playerRole);
                   if (role) return role;
                 }
 
-                // Priority 2: Check explicit selected_role
+                // Priority 3: Check explicit selected_role
                 if (member.selected_role && ['tank', 'healer', 'dps', 'support', 'flex'].includes(member.selected_role)) {
                   return member.selected_role;
                 }
 
-                // Priority 3: Legacy check - direct role keywords in player_role
+                // Priority 4: Legacy check - direct role keywords in player_role
                 if (playerRole) {
                   if (['tank'].includes(playerRole)) return 'tank';
                   if (['healer', 'healing'].includes(playerRole)) return 'healer';
@@ -880,6 +907,21 @@ function renderLFGPosts() {
                 }
 
                 return null;
+              }
+
+              // Helper to strip redundant role suffix from player_role display
+              // e.g., "Warrior - Tank" becomes "Warrior" when displayed in Tank column
+              function stripRoleSuffix(playerRole) {
+                if (!playerRole) return '';
+                const rolePatterns = [
+                  / - Tank$/i, / - Healer$/i, / - DPS$/i, / - Support$/i, / - Flex$/i,
+                  /, Tank$/i, /, Healer$/i, /, DPS$/i, /, Support$/i, /, Flex$/i
+                ];
+                let cleaned = playerRole;
+                for (const pattern of rolePatterns) {
+                  cleaned = cleaned.replace(pattern, '');
+                }
+                return cleaned.trim();
               }
 
               const gameName = post.game || post.game_name || '';
@@ -927,7 +969,7 @@ function renderLFGPosts() {
                           <span class="text-gray-500 w-3">${i+1}</span>
                           ${m.is_creator ? '<i class="fas fa-crown text-yellow-400 text-xs"></i>' : ''}
                           <span class="text-gray-200 truncate">${escapeHtml(m.display_name)}</span>
-                          ${m.player_role ? `<span class="text-gray-500 text-xs ml-1">• ${escapeHtml(m.player_role)}</span>` : ''}
+                          ${stripRoleSuffix(m.player_role) ? `<span class="text-gray-500 text-xs ml-1">• ${escapeHtml(stripRoleSuffix(m.player_role))}</span>` : ''}
                         </div>
                       `).join('') || '<span class="text-gray-600 text-xs">—</span>'}
                     </div>
@@ -946,7 +988,7 @@ function renderLFGPosts() {
                           <span class="text-gray-500 w-3">${i+1}</span>
                           ${m.is_creator ? '<i class="fas fa-crown text-yellow-400 text-xs"></i>' : ''}
                           <span class="text-gray-200 truncate">${escapeHtml(m.display_name)}</span>
-                          ${m.player_role ? `<span class="text-gray-500 text-xs ml-1">• ${escapeHtml(m.player_role)}</span>` : ''}
+                          ${stripRoleSuffix(m.player_role) ? `<span class="text-gray-500 text-xs ml-1">• ${escapeHtml(stripRoleSuffix(m.player_role))}</span>` : ''}
                         </div>
                       `).join('') || '<span class="text-gray-600 text-xs">—</span>'}
                     </div>
@@ -965,7 +1007,7 @@ function renderLFGPosts() {
                           <span class="text-gray-500 w-3">${i+1}</span>
                           ${m.is_creator ? '<i class="fas fa-crown text-yellow-400 text-xs"></i>' : ''}
                           <span class="text-gray-200 truncate">${escapeHtml(m.display_name)}</span>
-                          ${m.player_role ? `<span class="text-gray-500 text-xs ml-1">• ${escapeHtml(m.player_role)}</span>` : ''}
+                          ${stripRoleSuffix(m.player_role) ? `<span class="text-gray-500 text-xs ml-1">• ${escapeHtml(stripRoleSuffix(m.player_role))}</span>` : ''}
                         </div>
                       `).join('') || '<span class="text-gray-600 text-xs">—</span>'}
                     </div>
@@ -987,7 +1029,7 @@ function renderLFGPosts() {
                           <span class="text-gray-500 w-3">${i+1}</span>
                           ${m.is_creator ? '<i class="fas fa-crown text-yellow-400 text-xs"></i>' : ''}
                           <span class="text-gray-200">${escapeHtml(m.display_name)}</span>
-                          ${m.player_role ? `<span class="text-gray-500 text-xs ml-1">• ${escapeHtml(m.player_role)}</span>` : ''}
+                          ${stripRoleSuffix(m.player_role) ? `<span class="text-gray-500 text-xs ml-1">• ${escapeHtml(stripRoleSuffix(m.player_role))}</span>` : ''}
                         </div>
                       `).join('') || '<span class="text-gray-600 text-xs">—</span>'}
                     </div>
@@ -1005,7 +1047,7 @@ function renderLFGPosts() {
                         <div class="flex items-center gap-1 text-xs">
                           ${m.is_creator ? '<i class="fas fa-crown text-yellow-400 text-xs"></i>' : ''}
                           <span class="text-gray-200">${escapeHtml(m.display_name)}</span>
-                          ${m.player_role ? `<span class="text-gray-500 text-xs ml-1">• ${escapeHtml(m.player_role)}</span>` : ''}
+                          ${stripRoleSuffix(m.player_role) ? `<span class="text-gray-500 text-xs ml-1">• ${escapeHtml(stripRoleSuffix(m.player_role))}</span>` : ''}
                         </div>
                       `).join('')}
                     </div>
@@ -1349,7 +1391,6 @@ document.getElementById('createLFGForm').addEventListener('submit', async (e) =>
         const value = item.select.getValue();
         // Store by template name for backend role detection
         data[item.name] = value;
-        selectedValues.push(value);
 
         // Check if this is a Role field for selected_role
         if (item.name === 'Role') {
@@ -1357,10 +1398,14 @@ document.getElementById('createLFGForm').addEventListener('submit', async (e) =>
           if (['tank', 'healer', 'dps', 'support', 'flex'].includes(roleLower)) {
             data.selected_role = roleLower;
           }
+          // Don't include Role in selectedValues - it's redundant when shown in role columns
+        } else {
+          // Only add non-Role fields to display string
+          selectedValues.push(value);
         }
       }
     });
-    // Also set player_role as combined string for display
+    // Also set player_role as combined string for display (excludes Role field)
     if (selectedValues.length > 0) {
       data.player_role = selectedValues.join(', ');
     }
@@ -1454,7 +1499,7 @@ async function joinLFG(postId) {
       const classTemplate = data.templates.find(t => t.name === 'Class');
       const specTemplate = data.templates.find(t => t.depends_on === 'Class' || t.name === 'Specialization' || t.name === 'Subclass');
 
-      if (classTemplate && specTemplate && typeof specTemplate.choices === 'object') {
+      if (classTemplate && specTemplate && typeof specTemplate.choices === 'object' && !Array.isArray(specTemplate.choices)) {
         // Class + Spec system with custom selects
         optionsHtml += `
           <div class="space-y-3">
@@ -2389,7 +2434,7 @@ async function loadGameRoles(gameName) {
     const classTemplate = data.templates.find(t => t.name === 'Class');
     const specTemplate = data.templates.find(t => t.depends_on === 'Class' || t.name === 'Specialization' || t.name === 'Subclass');
 
-    if (classTemplate && specTemplate && specTemplate.choices && typeof specTemplate.choices === 'object') {
+    if (classTemplate && specTemplate && specTemplate.choices && typeof specTemplate.choices === 'object' && !Array.isArray(specTemplate.choices)) {
       loadClassSpecSystem(classTemplate, specTemplate);
     } else {
       loadSimpleRoleSystem(data.templates);
@@ -2520,6 +2565,9 @@ function loadSimpleRoleSystem(templates) {
     dynamicContainer.innerHTML = '';
   }
 
+  // Store templates for exclude_same_as handling
+  const templatesRef = templates;
+
   // Process each template as a separate dropdown (like regular LFG browser)
   templates.forEach((template, index) => {
     // Skip Activity - it has its own dedicated dropdown
@@ -2550,6 +2598,9 @@ function loadSimpleRoleSystem(templates) {
     const selectContainer = document.createElement('div');
     selectContainer.id = `dynamicOption${index}Container`;
     selectContainer.dataset.templateName = template.name;
+    if (template.exclude_same_as) {
+      selectContainer.dataset.excludeSameAs = template.exclude_same_as;
+    }
     optionDiv.appendChild(selectContainer);
 
     dynamicContainer.appendChild(optionDiv);
@@ -2560,16 +2611,20 @@ function loadSimpleRoleSystem(templates) {
       return { value: val, label: val, icon: getRoleIcon(val) };
     });
 
-    // Create the dropdown
+    // Create the dropdown with onSelect handler for exclude_same_as
     const select = createCustomSelect({
       container: selectContainer,
       name: `option_${template.name}`,
       placeholder: `Select ${template.name.toLowerCase()}...`,
       items: items,
-      color: 'indigo'
+      color: 'indigo',
+      onSelect: (value) => {
+        // Update any dropdowns that have exclude_same_as pointing to this field
+        updateExcludeSameAsDropdowns(template.name, value, templatesRef);
+      }
     });
 
-    dynamicOptionSelects.push({ name: template.name, select: select });
+    dynamicOptionSelects.push({ name: template.name, select: select, template: template });
   });
 
   // Show role selection container if we created any options
@@ -2577,6 +2632,53 @@ function loadSimpleRoleSystem(templates) {
   if (dynamicOptionSelects.length > 0) {
     document.getElementById('roleSelectionContainer').classList.remove('hidden');
   }
+}
+
+// Update dropdowns that have exclude_same_as pointing to the changed field
+function updateExcludeSameAsDropdowns(parentName, parentValue, templates) {
+  templates.forEach((template, index) => {
+    if (template.exclude_same_as === parentName) {
+      // Find the dropdown for this template
+      const selectObj = dynamicOptionSelects.find(s => s.name === template.name);
+      if (!selectObj) return;
+
+      const container = document.getElementById(`dynamicOption${index}Container`);
+      if (!container) return;
+
+      // Get current selection before rebuilding
+      const currentValue = selectObj.select.getValue();
+      const newCurrentValue = (currentValue === parentValue) ? '' : currentValue;
+
+      // Rebuild items excluding the parent's selected value
+      const newItems = template.choices
+        .filter(choice => {
+          const val = typeof choice === 'object' ? choice.value : choice;
+          return val !== parentValue;
+        })
+        .map(choice => {
+          const val = typeof choice === 'object' ? choice.value : choice;
+          return { value: val, label: val, icon: getRoleIcon(val) };
+        });
+
+      // Destroy old select and create new one
+      if (selectObj.select && selectObj.select.destroy) {
+        selectObj.select.destroy();
+      }
+      container.innerHTML = '';
+
+      const newSelect = createCustomSelect({
+        container: container,
+        name: `option_${template.name}`,
+        placeholder: `Select ${template.name.toLowerCase()}...`,
+        items: newItems,
+        selected: newCurrentValue,
+        color: 'indigo'
+      });
+
+      // Update the reference
+      selectObj.select = newSelect;
+    }
+  });
 }
 
 // Get icon for WoW/D&D style classes

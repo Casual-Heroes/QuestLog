@@ -109,6 +109,8 @@ _BUILTIN_GAMES = {
     'wow': ['world of warcraft', 'wow'],
     'ffxiv': ['final fantasy xiv', 'final fantasy 14', 'ffxiv', 'ff14'],
     'pantheon': ['pantheon', 'pantheon: rise of the fallen'],
+    'gw2': ['guild wars 2', 'gw2'],
+    'eso': ['elder scrolls online', 'eso', 'teso'],
 }
 
 # WoW Specialization to Role mappings
@@ -218,6 +220,58 @@ def _get_builtin_game_templates(game_type):
                 ]
             }
         ]
+    elif game_type == 'gw2':
+        # GW2 classes are flexible - any class can fill multiple roles
+        # User must also select their role separately
+        return [
+            {
+                'name': 'Class',
+                'choices': [
+                    'Warrior', 'Guardian', 'Revenant',
+                    'Ranger', 'Thief', 'Engineer',
+                    'Necromancer', 'Elementalist', 'Mesmer'
+                ]
+            },
+            {
+                'name': 'Role',
+                'choices': [
+                    {'value': 'Tank', 'role': 'tank'},
+                    {'value': 'Healer', 'role': 'healer'},
+                    {'value': 'DPS', 'role': 'dps'},
+                    {'value': 'Support', 'role': 'support'}
+                ]
+            }
+        ]
+    elif game_type == 'eso':
+        # ESO classes are flexible - any class can fill multiple roles
+        # User must also select their role separately
+        # ESO has Class + Subclass system where both can't be the same
+        return [
+            {
+                'name': 'Class',
+                'choices': [
+                    'Dragonknight', 'Sorcerer', 'Nightblade', 'Templar',
+                    'Warden', 'Necromancer', 'Arcanist'
+                ]
+            },
+            {
+                'name': 'Subclass',
+                'choices': [
+                    'Dragonknight', 'Sorcerer', 'Nightblade', 'Templar',
+                    'Warden', 'Necromancer', 'Arcanist'
+                ],
+                'exclude_same_as': 'Class'
+            },
+            {
+                'name': 'Role',
+                'choices': [
+                    {'value': 'Tank', 'role': 'tank'},
+                    {'value': 'Healer', 'role': 'healer'},
+                    {'value': 'DPS', 'role': 'dps'},
+                    {'value': 'Support', 'role': 'support'}
+                ]
+            }
+        ]
     return None
 
 
@@ -250,9 +304,10 @@ def _detect_member_role(game_name, member_selections, selected_role, custom_opti
     Detect a member's role using the priority system.
 
     Priority:
-    1. Built-in mappings (for WoW, FFXIV, Pantheon)
-    2. Custom role tags in options
-    3. Explicit selected_role (generic mode)
+    1. Built-in mappings (for WoW, FFXIV, Pantheon - class/spec determines role)
+    2. GW2 special case (class is flexible, user selects role separately)
+    3. Custom role tags in options
+    4. Explicit selected_role (generic mode)
 
     Returns: Role string ('tank', 'healer', 'dps', 'support', 'flex') or None
     """
@@ -260,36 +315,50 @@ def _detect_member_role(game_name, member_selections, selected_role, custom_opti
     game_type = _get_builtin_game_type(game_name)
 
     if game_type:
-        spec = None
-        cls = None
+        # GW2 and ESO special handling - classes are flexible, role is selected separately
+        if game_type in ('gw2', 'eso'):
+            # Check for Role field selection
+            for key in ['Role', 'role']:
+                if key in member_selections:
+                    val = member_selections[key]
+                    role_val = val[0] if isinstance(val, list) else val
+                    if role_val:
+                        role_lower = role_val.lower()
+                        if role_lower in ('tank', 'healer', 'dps', 'support', 'flex'):
+                            return role_lower
+            # Fall through to selected_role for GW2/ESO
+        else:
+            # WoW, FFXIV, Pantheon - class/spec determines role automatically
+            spec = None
+            cls = None
 
-        # Try common field names for spec
-        for key in ['Specialization', 'specialization', 'Spec', 'spec']:
-            if key in member_selections:
-                val = member_selections[key]
-                spec = val[0] if isinstance(val, list) else val
-                break
+            # Try common field names for spec
+            for key in ['Specialization', 'specialization', 'Spec', 'spec']:
+                if key in member_selections:
+                    val = member_selections[key]
+                    spec = val[0] if isinstance(val, list) else val
+                    break
 
-        # Try common field names for class
-        for key in ['Class', 'class', 'Job', 'job']:
-            if key in member_selections:
-                val = member_selections[key]
-                cls = val[0] if isinstance(val, list) else val
-                break
+            # Try common field names for class
+            for key in ['Class', 'class', 'Job', 'job']:
+                if key in member_selections:
+                    val = member_selections[key]
+                    cls = val[0] if isinstance(val, list) else val
+                    break
 
-        # Try spec first, then class
-        if spec:
-            role = _get_role_from_builtin(game_type, spec)
-            if role:
-                return role
+            # Try spec first, then class
+            if spec:
+                role = _get_role_from_builtin(game_type, spec)
+                if role:
+                    return role
 
-        if cls:
-            role = _get_role_from_builtin(game_type, cls)
-            if role:
-                return role
+            if cls:
+                role = _get_role_from_builtin(game_type, cls)
+                if role:
+                    return role
 
-        # Built-in game but no matching spec/class = unassigned
-        return None
+            # Built-in game but no matching spec/class = unassigned
+            return None
 
     # Step 2: Check custom role tags from options
     if custom_options and member_selections:
@@ -11468,6 +11537,8 @@ def guild_discovery_network(request, guild_id):
             'member_guilds': get_member_guilds(request),
             'is_admin': is_admin,
             'is_owner': False,
+            'is_bot_owner': False,
+            'is_discovery_approver': False,  # Ensure admin panel is hidden on error
             'has_discovery_module': False,
             'has_any_module': False,
             'active_page': 'discovery_network',
@@ -11700,18 +11771,20 @@ def api_discovery_network_lfg(request):
                             selections = json_lib.loads(member.selections)
                             # Store full selections for Update Class modal
                             member_data['selections'] = selections
-                            # Build Class - Spec format for display
+                            # Build Class - Spec/Subclass format for display
                             cls = selections.get('Class')
                             spec = selections.get('Specialization')
+                            subclass = selections.get('Subclass')
                             job = selections.get('Job')
+                            spec_or_subclass = spec or subclass
 
-                            if cls and spec:
+                            if cls and spec_or_subclass:
                                 # WoW-style: "Death Knight - Blood"
-                                member_data['player_role'] = f"{cls} - {spec}"
+                                member_data['player_role'] = f"{cls} - {spec_or_subclass}"
                             elif cls:
                                 member_data['player_role'] = cls
-                            elif spec:
-                                member_data['player_role'] = spec
+                            elif spec_or_subclass:
+                                member_data['player_role'] = spec_or_subclass
                             elif job:
                                 # FFXIV: just job name
                                 member_data['player_role'] = job
@@ -11961,10 +12034,15 @@ def api_discovery_lfg_create(request):
             # Add player role/class/spec info
             if data.get('player_role'):
                 custom_data['player_role'] = data.get('player_role')
-            if data.get('player_class'):
-                custom_data['player_class'] = data.get('player_class')
-            if data.get('player_spec'):
-                custom_data['player_spec'] = data.get('player_spec')
+            player_class = data.get('player_class') or data.get('Class')
+            player_spec = data.get('player_spec') or data.get('Specialization')
+            player_subclass = data.get('player_subclass') or data.get('Subclass')
+            if player_class:
+                custom_data['player_class'] = player_class
+            if player_spec:
+                custom_data['player_spec'] = player_spec
+            if player_subclass:
+                custom_data['player_subclass'] = player_subclass
 
             # Calculate scheduled_time from scheduled_time input (datetime-local from form)
             scheduled_time = None
@@ -12046,10 +12124,12 @@ def api_discovery_lfg_create(request):
             if data.get('player_role'):
                 creator_selections['player_role'] = data.get('player_role')
             # Store Class and Specialization for role detection system
-            if data.get('player_class'):
-                creator_selections['Class'] = data.get('player_class')
-            if data.get('player_spec'):
-                creator_selections['Specialization'] = data.get('player_spec')
+            if player_class:
+                creator_selections['Class'] = player_class
+            if player_spec:
+                creator_selections['Specialization'] = player_spec
+            if player_subclass:
+                creator_selections['Subclass'] = player_subclass
             # Store selected_role for generic role selection
             if data.get('selected_role'):
                 creator_selections['selected_role'] = data.get('selected_role')
@@ -12443,11 +12523,14 @@ def api_discovery_lfg_update_class(request, post_id):
             # Also update Class and Specialization if provided (for role detection)
             player_class = data.get('Class') or data.get('player_class')
             player_spec = data.get('Specialization') or data.get('player_spec')
+            player_subclass = data.get('Subclass') or data.get('player_subclass')
 
             if player_class:
                 selections['Class'] = player_class
             if player_spec:
                 selections['Specialization'] = player_spec
+            if player_subclass:
+                selections['Subclass'] = player_subclass
 
             member.selections = json_lib.dumps(selections)
 
@@ -14980,6 +15063,254 @@ def api_discovery_network_admin_ban(request, application_id):
             'success': False,
             'error': 'An internal error occurred. Please try again later.'
 
+        }, status=500)
+
+
+@csrf_exempt
+@discord_required
+@require_http_methods(["GET"])
+@discovery_approvers_required
+def api_discovery_network_admin_servers(request):
+    """Get all approved servers for admin management (DISCOVERY APPROVERS ONLY)."""
+    try:
+        from .db import get_db_session
+        from .models import DiscoveryNetworkApplication, Guild
+
+        with get_db_session() as db:
+            # Get all approved or kicked/left applications (these are the servers)
+            applications = db.query(DiscoveryNetworkApplication).filter(
+                DiscoveryNetworkApplication.guild_id.isnot(None),
+                DiscoveryNetworkApplication.status.in_(['approved', 'kicked', 'left'])
+            ).order_by(DiscoveryNetworkApplication.updated_at.desc()).all()
+
+            # Format servers data
+            servers_data = []
+            one_week_ago = int(time.time()) - (7 * 24 * 60 * 60)
+            active_count = 0
+            kicked_count = 0
+
+            for app in applications:
+                # Get guild info
+                guild = db.query(Guild).filter_by(guild_id=app.guild_id).first()
+
+                is_kicked = app.status in ['kicked', 'left']
+                if is_kicked:
+                    kicked_count += 1
+                elif app.updated_at and app.updated_at >= one_week_ago:
+                    active_count += 1
+
+                # Build icon URL from hash if available
+                icon_url = None
+                if guild and guild.guild_icon_hash:
+                    icon_url = f"https://cdn.discordapp.com/icons/{app.guild_id}/{guild.guild_icon_hash}.png"
+
+                servers_data.append({
+                    'guild_id': str(app.guild_id),
+                    'name': guild.guild_name if guild else f'Server {app.guild_id}',
+                    'icon_url': icon_url,
+                    'member_count': guild.member_count if guild else None,
+                    'owner_id': str(guild.owner_id) if guild and guild.owner_id else None,
+                    'owner_name': app.display_name,  # The person who applied
+                    'applicant_name': app.display_name,
+                    'status': app.status,
+                    'approved_at': app.updated_at if app.status == 'approved' else app.applied_at,
+                    'kick_reason': app.denial_reason if is_kicked else None,
+                })
+
+            return JsonResponse({
+                'success': True,
+                'servers': servers_data,
+                'stats': {
+                    'total': len([s for s in servers_data if s['status'] == 'approved']),
+                    'active_this_week': active_count,
+                    'kicked': kicked_count
+                }
+            })
+
+    except Exception as e:
+        logger.error('API error occurred', exc_info=True)
+        return JsonResponse({
+            'success': False,
+            'error': 'An internal error occurred. Please try again later.'
+        }, status=500)
+
+
+@csrf_exempt
+@discord_required
+@require_http_methods(["POST"])
+@discovery_approvers_required
+def api_discovery_network_admin_kick_server(request, guild_id):
+    """Kick (remove) a server from the Discovery Network (DISCOVERY APPROVERS ONLY)."""
+    try:
+        from .db import get_db_session
+        from .models import DiscoveryNetworkApplication
+
+        user = request.session.get('discord_user', {})
+        user_id = user.get('id')
+
+        data = json.loads(request.body) if request.body else {}
+        reason = data.get('reason', 'Removed by admin')
+
+        with get_db_session() as db:
+            # Find the application for this guild
+            application = db.query(DiscoveryNetworkApplication).filter_by(
+                guild_id=int(guild_id),
+                status='approved'
+            ).first()
+
+            if not application:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Server not found or not approved'
+                }, status=404)
+
+            # Update status to kicked
+            application.status = 'kicked'
+            application.denial_reason = reason
+            application.reviewed_by = int(user_id)
+            application.updated_at = int(time.time())
+
+            db.commit()
+
+            logger.info(f"[ADMIN] Server {guild_id} kicked from Discovery Network by {user_id}. Reason: {reason}")
+
+            return JsonResponse({
+                'success': True,
+                'message': 'Server removed from Discovery Network'
+            })
+
+    except Exception as e:
+        logger.error('API error occurred', exc_info=True)
+        return JsonResponse({
+            'success': False,
+            'error': 'An internal error occurred. Please try again later.'
+        }, status=500)
+
+
+@csrf_exempt
+@discord_required
+@require_http_methods(["POST"])
+@discovery_approvers_required
+def api_discovery_network_admin_reinstate_server(request, guild_id):
+    """Reinstate a kicked server to the Discovery Network (DISCOVERY APPROVERS ONLY)."""
+    try:
+        from .db import get_db_session
+        from .models import DiscoveryNetworkApplication
+
+        user = request.session.get('discord_user', {})
+        user_id = user.get('id')
+
+        with get_db_session() as db:
+            # Find the kicked application for this guild
+            application = db.query(DiscoveryNetworkApplication).filter_by(
+                guild_id=int(guild_id)
+            ).filter(
+                DiscoveryNetworkApplication.status.in_(['kicked', 'left'])
+            ).first()
+
+            if not application:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Server not found or not kicked'
+                }, status=404)
+
+            # Update status back to approved
+            application.status = 'approved'
+            application.denial_reason = None
+            application.reviewed_by = int(user_id)
+            application.updated_at = int(time.time())
+
+            db.commit()
+
+            logger.info(f"[ADMIN] Server {guild_id} reinstated to Discovery Network by {user_id}")
+
+            return JsonResponse({
+                'success': True,
+                'message': 'Server reinstated to Discovery Network'
+            })
+
+    except Exception as e:
+        logger.error('API error occurred', exc_info=True)
+        return JsonResponse({
+            'success': False,
+            'error': 'An internal error occurred. Please try again later.'
+        }, status=500)
+
+
+@csrf_exempt
+@discord_required
+@require_http_methods(["POST"])
+@discovery_approvers_required
+def api_discovery_network_admin_ban_user(request, user_id_to_ban):
+    """Ban a user from the Discovery Network (DISCOVERY APPROVERS ONLY).
+    This also kicks all their servers."""
+    try:
+        from .db import get_db_session
+        from .models import DiscoveryNetworkApplication, DiscoveryNetworkBan
+
+        user = request.session.get('discord_user', {})
+        admin_user_id = user.get('id')
+
+        data = json.loads(request.body) if request.body else {}
+        reason = data.get('reason', 'Banned by admin')
+        violation_type = data.get('violation_type', 'other')
+
+        with get_db_session() as db:
+            # Check if user is already banned
+            existing_ban = db.query(DiscoveryNetworkBan).filter_by(
+                user_id=int(user_id_to_ban)
+            ).first()
+
+            if existing_ban:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'User is already banned'
+                }, status=400)
+
+            # Get any application to get user info
+            application = db.query(DiscoveryNetworkApplication).filter_by(
+                user_id=int(user_id_to_ban)
+            ).first()
+
+            # Create ban record
+            ban = DiscoveryNetworkBan(
+                user_id=int(user_id_to_ban),
+                username=application.username if application else 'Unknown',
+                display_name=application.display_name if application else None,
+                reason=reason,
+                violation_type=violation_type,
+                banned_by=int(admin_user_id),
+                banned_at=int(time.time())
+            )
+            db.add(ban)
+
+            # Kick all servers owned/applied by this user
+            user_applications = db.query(DiscoveryNetworkApplication).filter_by(
+                user_id=int(user_id_to_ban),
+                status='approved'
+            ).all()
+
+            for app in user_applications:
+                app.status = 'kicked'
+                app.denial_reason = f'Owner banned: {reason}'
+                app.reviewed_by = int(admin_user_id)
+                app.updated_at = int(time.time())
+
+            db.commit()
+
+            logger.info(f"[ADMIN] User {user_id_to_ban} banned from Discovery Network by {admin_user_id}. "
+                       f"Reason: {reason}. {len(user_applications)} servers kicked.")
+
+            return JsonResponse({
+                'success': True,
+                'message': f'User banned and {len(user_applications)} server(s) removed'
+            })
+
+    except Exception as e:
+        logger.error('API error occurred', exc_info=True)
+        return JsonResponse({
+            'success': False,
+            'error': 'An internal error occurred. Please try again later.'
         }, status=500)
 
 
@@ -17899,19 +18230,21 @@ def api_lfg_browser_groups(request, guild_id):
                         'joined_at': m.joined_at,
                     }
 
-                    # Build Class - Spec format for display (same as Discovery Network LFG)
+                    # Build Class - Spec/Subclass format for display (same as Discovery Network LFG)
                     selections = member_entry['selections']
                     cls = selections.get('Class')
                     spec = selections.get('Specialization')
+                    subclass = selections.get('Subclass')
                     job = selections.get('Job')
+                    spec_or_subclass = spec or subclass
 
-                    if cls and spec:
+                    if cls and spec_or_subclass:
                         # WoW-style: "Death Knight - Blood"
-                        member_entry['player_role'] = f"{cls} - {spec}"
+                        member_entry['player_role'] = f"{cls} - {spec_or_subclass}"
                     elif cls:
                         member_entry['player_role'] = cls
-                    elif spec:
-                        member_entry['player_role'] = spec
+                    elif spec_or_subclass:
+                        member_entry['player_role'] = spec_or_subclass
                     elif job:
                         # FFXIV: just job name
                         member_entry['player_role'] = job
@@ -23078,4 +23411,3 @@ def api_raid_leave(request, guild_id, raid_id):
 # ============================================================================
 # RAID MANAGEMENT PAGE VIEW
 # ============================================================================
-

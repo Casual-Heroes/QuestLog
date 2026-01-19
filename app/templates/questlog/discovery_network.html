@@ -10,6 +10,11 @@
 <!-- CSRF Token for AJAX requests -->
 <div style="display:none;">{% csrf_token %}</div>
 
+<!-- Permission flags for JavaScript -->
+<script>
+  const IS_DISCOVERY_APPROVER = {% if is_discovery_approver %}true{% else %}false{% endif %};
+</script>
+
 <div class="space-y-6">
   <!-- Header -->
   <div class="flex justify-between items-center">
@@ -147,6 +152,20 @@
 
 <script>
 function switchTab(tabName) {
+  // Security check: Prevent non-approvers from accessing admin tab
+  if (tabName === 'admin' && !IS_DISCOVERY_APPROVER) {
+    console.warn('Access denied: Admin panel requires Discovery Approver permissions');
+    return;
+  }
+
+  // Check if tab content exists
+  const contentElement = document.getElementById('content-' + tabName);
+  const tabElement = document.getElementById('tab-' + tabName);
+  if (!contentElement || !tabElement) {
+    console.warn('Tab not found:', tabName);
+    return;
+  }
+
   // Hide all tab contents
   document.querySelectorAll('.tab-content').forEach(content => {
     content.classList.add('hidden');
@@ -159,12 +178,11 @@ function switchTab(tabName) {
   });
 
   // Show selected tab content
-  document.getElementById('content-' + tabName).classList.remove('hidden');
+  contentElement.classList.remove('hidden');
 
   // Add active class to selected tab
-  const activeTab = document.getElementById('tab-' + tabName);
-  activeTab.classList.add('tab-active', 'border-indigo-500', 'text-indigo-400');
-  activeTab.classList.remove('border-transparent', 'text-gray-400');
+  tabElement.classList.add('tab-active', 'border-indigo-500', 'text-indigo-400');
+  tabElement.classList.remove('border-transparent', 'text-gray-400');
 
   // Update URL hash without triggering a hashchange event or adding to history
   // This preserves the current tab when the page is refreshed
