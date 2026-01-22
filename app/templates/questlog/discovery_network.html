@@ -205,6 +205,9 @@ function switchTab(tabName) {
   if (tabName === 'lfg' && typeof initializeLFGPage === 'function') {
     initializeLFGPage();
   }
+  if (tabName === 'directory' && typeof loadServers === 'function') {
+    loadServers();
+  }
 }
 
 // Check for hash on page load to auto-switch tabs

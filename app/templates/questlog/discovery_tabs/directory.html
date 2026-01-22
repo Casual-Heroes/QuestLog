@@ -110,14 +110,28 @@ let filteredServers = [];
 // Load servers from API
 async function loadServers() {
   try {
-    const response = await fetch('/api/discovery/servers');
-    const data = await response.json();
-
-    if (data.success) {
-      allServers = data.servers;
-      filteredServers = allServers;
-      renderServers();
+    const response = await fetch('/api/discovery/servers', { credentials: 'same-origin' });
+    let data = null;
+    try {
+      data = await response.json();
+    } catch (err) {
+      showError('Failed to load servers. Please try again later.');
+      return;
     }
+
+    if (response.status === 401 && data && data.requires_reauth) {
+      window.location.href = data.redirect_url || '/auth/discord/login/';
+      return;
+    }
+
+    if (!response.ok || !data || !data.success) {
+      showError((data && data.error) || 'Failed to load servers. Please try again later.');
+      return;
+    }
+
+    allServers = data.servers || [];
+    filteredServers = allServers;
+    renderServers();
   } catch (error) {
     // Failed to load servers:
     showError('Failed to load servers. Please try again later.');
@@ -129,6 +143,8 @@ function renderServers() {
   const grid = document.getElementById('serverGrid');
   const emptyState = document.getElementById('emptyState');
   const serverCount = document.getElementById('serverCount');
+  if (!grid || !emptyState || !serverCount) return;
+  if (!Array.isArray(filteredServers)) return;
 
   // Update count
   serverCount.textContent = filteredServers.length;
@@ -230,7 +246,8 @@ function formatMemberCount(count) {
 
 // Get activity badge color
 function getActivityBadge(level) {
-  switch (level.toLowerCase()) {
+  const normalized = (level || '').toLowerCase();
+  switch (normalized) {
     case 'high': return 'bg-green-900/50 text-green-300';
     case 'medium': return 'bg-yellow-900/50 text-yellow-300';
     case 'low': return 'bg-gray-800 text-gray-400';
@@ -240,7 +257,8 @@ function getActivityBadge(level) {
 
 // Get activity dot color
 function getActivityDot(level) {
-  switch (level.toLowerCase()) {
+  const normalized = (level || '').toLowerCase();
+  switch (normalized) {
     case 'high': return 'bg-green-400';
     case 'medium': return 'bg-yellow-400';
     case 'low': return 'bg-gray-500';
@@ -250,7 +268,8 @@ function getActivityDot(level) {
 
 // Get activity tooltip text
 function getActivityTooltip(level) {
-  switch (level.toLowerCase()) {
+  const normalized = (level || '').toLowerCase();
+  switch (normalized) {
     case 'high': return 'Active daily - Members chat and play together every day';
     case 'medium': return 'Active weekly - Members regularly engage throughout the week';
     case 'low': return 'Casual activity - Members drop in occasionally';
@@ -336,10 +355,15 @@ function applyFilters() {
   const search = document.getElementById('serverSearch').value.toLowerCase();
 
   filteredServers = allServers.filter(server => {
+    const serverName = (server.name || '').toLowerCase();
+    const serverDescription = (server.description || '').toLowerCase();
+    const serverPrimaryGame = (server.primary_game || '').toLowerCase();
+    const serverTags = Array.isArray(server.tags) ? server.tags : [];
+    const serverActivityLevel = (server.activity_level || '').toLowerCase();
     // Search filter
-    if (search && !server.name.toLowerCase().includes(search) &&
-        !server.description.toLowerCase().includes(search) &&
-        !server.primary_game.toLowerCase().includes(search)) {
+    if (search && !serverName.includes(search) &&
+        !serverDescription.includes(search) &&
+        !serverPrimaryGame.includes(search)) {
       return false;
     }
 
@@ -348,12 +372,12 @@ function applyFilters() {
       if (Array.isArray(filterState.game) && filterState.game.length > 0) {
         // Check if server's game matches ANY selected game
         const matchesAny = filterState.game.some(selectedGame =>
-          server.primary_game.toLowerCase() === selectedGame.toLowerCase()
+          serverPrimaryGame === (selectedGame || '').toLowerCase()
         );
         if (!matchesAny) return false;
       } else if (typeof filterState.game === 'string' && filterState.game !== '') {
         // Single-select backwards compatibility
-        if (server.primary_game.toLowerCase() !== filterState.game) return false;
+        if (serverPrimaryGame !== filterState.game) return false;
       }
     }
 
@@ -367,7 +391,7 @@ function applyFilters() {
     }
 
     // Activity filter
-    if (filterState.activity && server.activity_level.toLowerCase() !== filterState.activity) {
+    if (filterState.activity && serverActivityLevel !== filterState.activity) {
       return false;
     }
 
@@ -376,12 +400,12 @@ function applyFilters() {
       if (Array.isArray(filterState.tags) && filterState.tags.length > 0) {
         // Check if server has ANY of the selected tags
         const matchesAny = filterState.tags.some(selectedTag =>
-          server.tags && server.tags.includes(selectedTag)
+          serverTags.includes(selectedTag)
         );
         if (!matchesAny) return false;
       } else if (typeof filterState.tags === 'string' && filterState.tags !== '') {
         // Single-select backwards compatibility
-        if (!server.tags.includes(filterState.tags)) return false;
+        if (!serverTags.includes(filterState.tags)) return false;
       }
     }
 
@@ -489,8 +513,16 @@ function initializeFilters() {
 async function loadGamesList() {
   try {
     // First check if there are any approved servers
-    const serversResponse = await fetch('/api/discovery/servers');
-    const serversData = await serversResponse.json();
+    const serversResponse = await fetch('/api/discovery/servers', { credentials: 'same-origin' });
+    let serversData = null;
+    try {
+      serversData = await serversResponse.json();
+    } catch (err) {
+      return;
+    }
+    if (!serversResponse.ok || !serversData || !serversData.success) {
+      return;
+    }
 
     // If no servers are approved, show empty game list
     if (!serversData.success || !serversData.servers || serversData.servers.length === 0) {
@@ -512,8 +544,16 @@ async function loadGamesList() {
     }
 
     // If servers exist, load games from API
-    const response = await fetch('/api/discovery/games');
-    const data = await response.json();
+    const response = await fetch('/api/discovery/games', { credentials: 'same-origin' });
+    let data = null;
+    try {
+      data = await response.json();
+    } catch (err) {
+      return;
+    }
+    if (!response.ok || !data || !data.success) {
+      return;
+    }
 
     if (data.success && data.games) {
       // Build items array for custom select (without "All Games" option for multi-select)
@@ -545,10 +585,21 @@ async function loadGamesList() {
 }
 
 // Event listeners
-document.getElementById('serverSearch').addEventListener('input', applyFilters);
+const serverSearchInput = document.getElementById('serverSearch');
+if (serverSearchInput) {
+  serverSearchInput.addEventListener('input', applyFilters);
+}
 
 // Load data on page load
-initializeFilters();
-loadGamesList();
-loadServers();
+try {
+  if (typeof createCustomSelect !== 'function') {
+    showError('Failed to load server filters. Please refresh the page.');
+  } else {
+    initializeFilters();
+    loadGamesList();
+    loadServers();
+  }
+} catch (err) {
+  showError('Failed to initialize server directory. Please refresh the page.');
+}
 </script>

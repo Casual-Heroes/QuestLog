@@ -22,6 +22,7 @@ from pathlib import Path
 from sqlalchemy import or_, and_
 import time
 from django_ratelimit.decorators import ratelimit
+from django.conf import settings
 from casualsite.settings import get_client_ip
 from .decorators import validate_json_schema, require_subscription_tier, bot_owner_required, discovery_approvers_required, server_owner_required
 
@@ -2741,7 +2742,7 @@ def user_profile(request):
         'admin_guilds': admin_guilds,
         'member_guilds': get_member_guilds(request),
         'all_guilds': all_guilds,
-        'all_guilds_json': json_lib.dumps(all_guilds),  # JSON-encoded for JavaScript
+        'all_guilds_json': json_lib.dumps(all_guilds).replace('</', '<\\/'),  # XSS-safe: escape all closing tags in script context
         'guild_count': len(all_guilds),
         'admin_guild_count': len(admin_guilds),
     }
@@ -2834,14 +2835,20 @@ def guild_dashboard(request, guild_id):
         )
         from datetime import datetime, timedelta
 
-        logger.info(f"[METRICS DEBUG] Loading dashboard for guild {guild_id}")
+        debug_logging = settings.DEBUG
+
+        def log_debug(message):
+            if debug_logging:
+                logger.info(message)
+
+        log_debug(f"[METRICS DEBUG] Loading dashboard for guild {guild_id}")
 
         with get_db_session() as db:
             # Check welcome messages
             welcome_config = db.query(WelcomeConfig).filter_by(guild_id=int(guild_id)).first()
             if welcome_config:
                 feature_status['welcome_enabled'] = welcome_config.enabled
-                logger.info(f"[METRICS DEBUG] Welcome: {welcome_config.enabled}")
+                log_debug(f"[METRICS DEBUG] Welcome: {welcome_config.enabled}")
 
             # Check discovery
             discovery_config = db.query(DiscoveryConfig).filter_by(guild_id=int(guild_id)).first()
@@ -2850,15 +2857,15 @@ def guild_dashboard(request, guild_id):
                 feature_status['creator_discovery_enabled'] = discovery_config.enabled
                 feature_status['game_discovery_enabled'] = discovery_config.game_discovery_enabled
                 feature_status['discovery_feature_interval'] = discovery_config.feature_interval_hours
-                logger.info(f"[METRICS DEBUG] Discovery - enabled: {discovery_config.enabled}, game_discovery: {discovery_config.game_discovery_enabled}, combined: {feature_status['discovery_enabled']}")
+                log_debug(f"[METRICS DEBUG] Discovery - enabled: {discovery_config.enabled}, game_discovery: {discovery_config.game_discovery_enabled}, combined: {feature_status['discovery_enabled']}")
             else:
-                logger.info(f"[METRICS DEBUG] No DiscoveryConfig found for guild {guild_id}")
+                log_debug(f"[METRICS DEBUG] No DiscoveryConfig found for guild {guild_id}")
 
             # Check verification
             verification_config = db.query(VerificationConfig).filter_by(guild_id=int(guild_id)).first()
             if verification_config:
                 feature_status['verification_enabled'] = verification_config.verification_type != VerificationType.NONE
-                logger.info(f"[METRICS DEBUG] Verification: {feature_status['verification_enabled']}")
+                log_debug(f"[METRICS DEBUG] Verification: {feature_status['verification_enabled']}")
 
             # Calculate metrics from Discord data (cached by bot)
             # Get guild record to access cached Discord stats
@@ -2867,11 +2874,11 @@ def guild_dashboard(request, guild_id):
 
             # Total Members (from Discord, cached by bot)
             metrics['total_members'] = guild_record.member_count if guild_record and guild_record.member_count else 0
-            logger.info(f"[METRICS DEBUG] Total members (from Discord cache): {metrics['total_members']}")
+            log_debug(f"[METRICS DEBUG] Total members (from Discord cache): {metrics['total_members']}")
 
             # Active Today = Currently Online (from Discord presence, cached by bot)
             metrics['active_today'] = guild_record.online_count if guild_record and guild_record.online_count else 0
-            logger.info(f"[METRICS DEBUG] Currently online: {metrics['active_today']}")
+            log_debug(f"[METRICS DEBUG] Currently online: {metrics['active_today']}")
 
             # Engagement Rate - Based on REAL activity (messages, voice, reactions, media)
             # Count members who were active in last 7 days (check timestamp columns)
@@ -2893,7 +2900,7 @@ def guild_dashboard(request, guild_id):
                 metrics['engagement_rate'] = round((engaged_members / metrics['total_members']) * 100, 1)
             else:
                 metrics['engagement_rate'] = 0
-            logger.info(f"[METRICS DEBUG] Engagement rate (7-day activity): {metrics['engagement_rate']}% ({engaged_members}/{metrics['total_members']})")
+            log_debug(f"[METRICS DEBUG] Engagement rate (7-day activity): {metrics['engagement_rate']}% ({engaged_members}/{metrics['total_members']})")
 
             # Get active members from DB for XP leaderboards (last 24h)
             today_start = int(time.time()) - 86400  # 24 hours ago
@@ -2916,7 +2923,7 @@ def guild_dashboard(request, guild_id):
                 }
             else:
                 metrics['top_xp_earner'] = None
-            logger.info(f"[METRICS DEBUG] Top XP earner: {metrics['top_xp_earner']}")
+            log_debug(f"[METRICS DEBUG] Top XP earner: {metrics['top_xp_earner']}")
 
             # Top Token Holder Today (among active members, excluding viewer)
             if eligible_members:
@@ -2927,7 +2934,7 @@ def guild_dashboard(request, guild_id):
                 }
             else:
                 metrics['top_token_holder'] = None
-            logger.info(f"[METRICS DEBUG] Top token holder: {metrics['top_token_holder']}")
+            log_debug(f"[METRICS DEBUG] Top token holder: {metrics['top_token_holder']}")
 
             # Warnings This Week
             week_start = int(time.time()) - (7 * 86400)  # 7 days ago
@@ -2936,7 +2943,7 @@ def guild_dashboard(request, guild_id):
                 Warning.issued_at >= week_start
             ).count()
             metrics['warnings_this_week'] = warnings_count
-            logger.info(f"[METRICS DEBUG] Warnings this week: {metrics['warnings_this_week']}")
+            log_debug(f"[METRICS DEBUG] Warnings this week: {metrics['warnings_this_week']}")
 
             # Module stats
             metrics['xp_tracked_members'] = metrics['total_members']  # All members tracked
@@ -2944,8 +2951,8 @@ def guild_dashboard(request, guild_id):
             metrics['reaction_role_menus'] = db.query(ReactRole).filter_by(guild_id=int(guild_id)).count()
             metrics['member_trackers'] = db.query(ChannelStatTracker).filter_by(guild_id=int(guild_id)).count()
 
-            logger.info(f"[METRICS DEBUG] Module stats - XP: {metrics['xp_tracked_members']}, LevelRoles: {metrics['level_roles']}, ReactionRoles: {metrics['reaction_role_menus']}, Trackers: {metrics['member_trackers']}")
-            logger.info(f"[METRICS DEBUG] Final metrics: {metrics}")
+            log_debug(f"[METRICS DEBUG] Module stats - XP: {metrics['xp_tracked_members']}, LevelRoles: {metrics['level_roles']}, ReactionRoles: {metrics['reaction_role_menus']}, Trackers: {metrics['member_trackers']}")
+            log_debug(f"[METRICS DEBUG] Final metrics: {metrics}")
 
     except Exception as e:
         logger.error(f"Could not fetch feature statuses or metrics for guild {guild_id}: {e}", exc_info=True)
@@ -11881,6 +11888,16 @@ def api_discovery_lfg_create(request):
         from .db import get_db_session
         from .models import LFGGroup, LFGGame, Guild, DiscoveryNetworkApplication
 
+        # Get Discord user from session
+        discord_user = request.session.get('discord_user', {})
+        user_id = discord_user.get('id')
+
+        if not user_id:
+            return JsonResponse({
+                'success': False,
+                'error': 'You must be logged in'
+            }, status=401)
+
         # Parse request body
         data = json_lib.loads(request.body)
 
@@ -11889,6 +11906,17 @@ def api_discovery_lfg_create(request):
         game_name = data.get('game')
         title = data.get('title', '').strip()
         description = data.get('description', '').strip()
+
+        # SECURITY: Verify user is a member of this guild (prevents IDOR)
+        # User must be in the guild to create LFG posts on its behalf
+        all_guilds = request.session.get('discord_all_guilds', [])
+        user_guild_ids = {str(g.get('id')) for g in all_guilds}
+
+        if str(guild_id) not in user_guild_ids:
+            return JsonResponse({
+                'success': False,
+                'error': 'You must be a member of this server to create LFG posts'
+            }, status=403)
 
         # Input length validation (prevent DoS)
         MAX_TITLE_LENGTH = 200
@@ -12061,17 +12089,8 @@ def api_discovery_lfg_create(request):
                 # No scheduled time provided, default to "now"
                 scheduled_time = int(time.time())
 
-            # Get user info from session (same pattern as api_lfg_browser_create)
-            discord_user = request.session.get('discord_user', {})
-            user_id = discord_user.get('id')
-            # Use global_name (display name) preferring over username
+            # Get user display name (user_id already validated at top of function)
             user_name = discord_user.get('global_name') or discord_user.get('username', 'Unknown')
-
-            if not user_id:
-                return JsonResponse({
-                    'success': False,
-                    'error': 'You must be logged in to create LFG posts'
-                }, status=401)
 
             # Handle role composition (optional)
             tanks_needed = data.get('tanks_needed')
@@ -12759,6 +12778,9 @@ def api_discovery_game_templates(request):
                             # Include depends_on if it exists (for Class + Spec systems)
                             if 'depends_on' in option:
                                 template_data['depends_on'] = option['depends_on']
+                            # Include exclude_same_as if it exists (e.g., ESO Subclass can't be same as Class)
+                            if 'exclude_same_as' in option:
+                                template_data['exclude_same_as'] = option['exclude_same_as']
                             templates.append(template_data)
                             logger.info(f"Added template: {template_name} with {len(option.get('choices', []) if isinstance(option.get('choices'), list) else option.get('choices', {}))} choices")
                 except Exception as e:
@@ -15135,7 +15157,6 @@ def api_discovery_network_admin_servers(request):
         }, status=500)
 
 
-@csrf_exempt
 @discord_required
 @require_http_methods(["POST"])
 @discovery_approvers_required
@@ -15187,7 +15208,6 @@ def api_discovery_network_admin_kick_server(request, guild_id):
         }, status=500)
 
 
-@csrf_exempt
 @discord_required
 @require_http_methods(["POST"])
 @discovery_approvers_required
@@ -15237,7 +15257,6 @@ def api_discovery_network_admin_reinstate_server(request, guild_id):
         }, status=500)
 
 
-@csrf_exempt
 @discord_required
 @require_http_methods(["POST"])
 @discovery_approvers_required
@@ -16501,6 +16520,13 @@ def guild_lfg_browser(request, guild_id):
                                     # Add depends_on if present
                                     if 'depends_on' in opt:
                                         option_obj['depends_on'] = opt['depends_on']
+
+                                    # Add exclude_same_as if present (e.g., ESO Subclass can't be same as Class)
+                                    if 'exclude_same_as' in opt:
+                                        option_obj['exclude_same_as'] = opt['exclude_same_as']
+                                    # Auto-inject for ESO Subclass if not present
+                                    elif opt['name'] == 'Subclass' and game.game_name and 'elder scrolls' in game.game_name.lower():
+                                        option_obj['exclude_same_as'] = 'Class'
 
                                     # Add choices (can be array or object for conditional dropdowns)
                                     choices = opt.get('choices', [])
@@ -19283,15 +19309,18 @@ def api_lfg_convert_to_thread(request, guild_id, group_id):
 
             # Check if user is server admin
             admin_guilds = request.session.get('discord_admin_guilds', [])
-            logger.info(f"DEBUG: admin_guilds from session: {admin_guilds}")
-            logger.info(f"DEBUG: guild_id checking: {guild_id} (type: {type(guild_id)})")
+            if settings.DEBUG:
+                logger.info(f"DEBUG: admin_guilds from session: {admin_guilds}")
+                logger.info(f"DEBUG: guild_id checking: {guild_id} (type: {type(guild_id)})")
 
             is_admin = str(guild_id) in [str(g['id']) for g in admin_guilds]
-            logger.info(f"DEBUG: is_admin result: {is_admin}")
+            if settings.DEBUG:
+                logger.info(f"DEBUG: is_admin result: {is_admin}")
 
             # Check if user is the group creator
             is_creator = group.creator_id == int(user_id)
-            logger.info(f"DEBUG: is_creator: {is_creator} (group.creator_id={group.creator_id}, user_id={user_id})")
+            if settings.DEBUG:
+                logger.info(f"DEBUG: is_creator: {is_creator} (group.creator_id={group.creator_id}, user_id={user_id})")
 
             # Check if user is a co-leader
             co_leader_member = db.query(LFGMember).filter_by(
@@ -19300,7 +19329,8 @@ def api_lfg_convert_to_thread(request, guild_id, group_id):
                 is_co_leader=True
             ).filter(LFGMember.left_at == None).first()
             is_co_leader = co_leader_member is not None
-            logger.info(f"DEBUG: is_co_leader: {is_co_leader}")
+            if settings.DEBUG:
+                logger.info(f"DEBUG: is_co_leader: {is_co_leader}")
 
             # Admin, creator, or co-leader can convert
             if not (is_admin or is_creator or is_co_leader):
@@ -20590,21 +20620,24 @@ def creator_profile_register(request, guild_id):
                 # Parse content categories (JSON array from custom_select)
                 categories_list = []
                 if content_categories:
-                    # DEBUG: Log raw POST data
-                    logger.info(f"[CATEGORY DEBUG] Raw content_categories from POST: {repr(content_categories)}")
+                    if settings.DEBUG:
+                        logger.info(f"[CATEGORY DEBUG] Raw content_categories from POST: {repr(content_categories)}")
 
                     try:
                         # Try parsing as JSON first (from custom_select multiselect)
                         if content_categories.startswith('['):
                             categories_list = json.loads(content_categories)
-                            logger.info(f"[CATEGORY DEBUG] After JSON parse: {repr(categories_list)}")
+                            if settings.DEBUG:
+                                logger.info(f"[CATEGORY DEBUG] After JSON parse: {repr(categories_list)}")
                         else:
                             # Fallback to comma-separated for backwards compatibility
                             categories_list = [cat.strip() for cat in content_categories.split(',') if cat.strip()]
-                            logger.info(f"[CATEGORY DEBUG] After CSV parse: {repr(categories_list)}")
+                            if settings.DEBUG:
+                                logger.info(f"[CATEGORY DEBUG] After CSV parse: {repr(categories_list)}")
                     except json.JSONDecodeError as e:
                         # If JSON parsing fails, treat as comma-separated
-                        logger.warning(f"[CATEGORY DEBUG] JSON parse failed: {e}, falling back to CSV")
+                        if settings.DEBUG:
+                            logger.warning(f"[CATEGORY DEBUG] JSON parse failed: {e}, falling back to CSV")
                         categories_list = [cat.strip() for cat in content_categories.split(',') if cat.strip()]
 
                     # Filter out empty strings, bracket-only strings, and limit to 10 categories
@@ -20612,10 +20645,12 @@ def creator_profile_register(request, guild_id):
                         cat for cat in categories_list
                         if cat and cat.strip() and cat.strip() not in ['[', ']', '[]', '[[', ']]']
                     ][:10]
-                    logger.info(f"[CATEGORY DEBUG] After filtering: {repr(categories_list)}")
+                    if settings.DEBUG:
+                        logger.info(f"[CATEGORY DEBUG] After filtering: {repr(categories_list)}")
 
                 categories_json = json.dumps(categories_list) if categories_list else None
-                logger.info(f"[CATEGORY DEBUG] Final JSON to save: {repr(categories_json)}")
+                if settings.DEBUG:
+                    logger.info(f"[CATEGORY DEBUG] Final JSON to save: {repr(categories_json)}")
 
                 # Create or update profile
                 if existing_profile:
@@ -21486,10 +21521,12 @@ def clear_network_creator_of_month(request):
 
 @csrf_exempt
 @require_http_methods(["POST"])
+@ratelimit(key='ip', rate='30/m', method='POST', block=True)
 def csp_violation_report(request):
     """
     Endpoint to receive CSP violation reports.
     Logs violations for security monitoring and analysis.
+    Rate limited to 30/minute per IP to prevent log spam attacks.
     """
     import json as json_lib
     try:

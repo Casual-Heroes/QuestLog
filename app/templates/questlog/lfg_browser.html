@@ -408,6 +408,7 @@
   const isAdmin = {{ is_admin|lower }};  // Server admin status - NEVER changes
   let canManageGroups = {{ can_manage_groups|lower }};  // LFG Manager status - can be updated
   let allGroups = [];
+  // Additional subclass support for player selections
   const gamesData = JSON.parse(document.getElementById('games-data').textContent);
 
   // Custom select instances for filters
@@ -823,17 +824,25 @@
       const selectionParts = [];
       let spec = '';
       let cls = '';
+      let subclass = '';
+      let job = '';
       let role = '';
 
       // Add all selections EXCEPT Activity and Role (role is redundant when shown in role columns)
       Object.entries(selections).forEach(([key, value]) => {
         const keyLower = key.toLowerCase();
-        if (value && keyLower !== 'activity' && keyLower !== 'role') {
-          if (!Array.isArray(value)) {
-            selectionParts.push(value);
-            // Track spec/class for categorization
-            if (keyLower === 'specialization') spec = value.toLowerCase();
-            if (keyLower === 'class') cls = value;
+        const normalizedValue = Array.isArray(value) ? (value[0] || '') : value;
+        if (normalizedValue && keyLower !== 'activity' && keyLower !== 'role' && keyLower !== 'player_role') {
+          if (keyLower === 'class') {
+            cls = normalizedValue;
+          } else if (keyLower === 'specialization') {
+            spec = normalizedValue;
+          } else if (keyLower === 'subclass') {
+            subclass = normalizedValue;
+          } else if (keyLower === 'job') {
+            job = normalizedValue;
+          } else {
+            selectionParts.push(normalizedValue);
           }
         }
         // Still track role for detection even though we don't display it
@@ -841,6 +850,14 @@
           role = value.toLowerCase();
         }
       });
+
+      const specOrSubclass = spec || subclass;
+      const combinedRole = cls && specOrSubclass
+        ? `${cls} - ${specOrSubclass}`
+        : (cls || specOrSubclass || job);
+      if (combinedRole) {
+        selectionParts.unshift(combinedRole);
+      }
 
       // Format: "Name (Role: Selection)" - cleaner display
       if (selectionParts.length > 0) {

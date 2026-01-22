@@ -750,7 +750,7 @@ async function loadServersData() {
     document.getElementById('serversKickedCount').textContent = data.stats.kicked;
 
     // Render servers
-    renderServers();
+    renderAdminServers();
 
   } catch (error) {
     document.getElementById('serversList').innerHTML = `
@@ -763,11 +763,11 @@ async function loadServersData() {
 
 // Filter servers by search term
 function filterServers() {
-  renderServers();
+  renderAdminServers();
 }
 
 // Render servers list
-function renderServers() {
+function renderAdminServers() {
   const container = document.getElementById('serversList');
   const searchTerm = document.getElementById('serverSearchInput').value.toLowerCase();
 
