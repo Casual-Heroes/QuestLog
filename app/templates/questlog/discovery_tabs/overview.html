@@ -78,42 +78,66 @@
 
       <!-- Server Tags -->
       <div>
-        <label class="block text-sm font-medium text-gray-300 mb-2">Server Tags (select all that apply)</label>
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <label class="block text-sm font-medium text-gray-300 mb-2">Server Tags (select up to 8)</label>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3" id="applicationTagsContainer">
           <label class="flex items-center bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 cursor-pointer hover:border-indigo-500 transition">
-            <input type="checkbox" name="tags" value="competitive" class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded">
-            <span class="ml-2 text-sm text-gray-300"><i class="fas fa-trophy text-gray-400 mr-1"></i> Competitive</span>
-          </label>
-          <label class="flex items-center bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 cursor-pointer hover:border-indigo-500 transition">
-            <input type="checkbox" name="tags" value="casual" class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded">
+            <input type="checkbox" name="tags" value="Casual" class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded app-tag-checkbox">
             <span class="ml-2 text-sm text-gray-300"><i class="fas fa-gamepad text-gray-400 mr-1"></i> Casual</span>
           </label>
           <label class="flex items-center bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 cursor-pointer hover:border-indigo-500 transition">
-            <input type="checkbox" name="tags" value="18+" class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded">
-            <span class="ml-2 text-sm text-gray-300"><i class="fas fa-exclamation-triangle text-gray-400 mr-1"></i> 18+ Only</span>
+            <input type="checkbox" name="tags" value="Competitive" class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded app-tag-checkbox">
+            <span class="ml-2 text-sm text-gray-300"><i class="fas fa-trophy text-gray-400 mr-1"></i> Competitive</span>
           </label>
           <label class="flex items-center bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 cursor-pointer hover:border-indigo-500 transition">
-            <input type="checkbox" name="tags" value="family-friendly" class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded">
-            <span class="ml-2 text-sm text-gray-300"><i class="fas fa-heart text-gray-400 mr-1"></i> Family Friendly</span>
+            <input type="checkbox" name="tags" value="PvE" class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded app-tag-checkbox">
+            <span class="ml-2 text-sm text-gray-300"><i class="fas fa-shield-alt text-gray-400 mr-1"></i> PvE</span>
           </label>
           <label class="flex items-center bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 cursor-pointer hover:border-indigo-500 transition">
-            <input type="checkbox" name="tags" value="lgbtq" class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded">
+            <input type="checkbox" name="tags" value="PvP" class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded app-tag-checkbox">
+            <span class="ml-2 text-sm text-gray-300"><i class="fas fa-crosshairs text-gray-400 mr-1"></i> PvP</span>
+          </label>
+          <label class="flex items-center bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 cursor-pointer hover:border-indigo-500 transition">
+            <input type="checkbox" name="tags" value="Raiding" class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded app-tag-checkbox">
+            <span class="ml-2 text-sm text-gray-300"><i class="fas fa-dragon text-gray-400 mr-1"></i> Raiding</span>
+          </label>
+          <label class="flex items-center bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 cursor-pointer hover:border-indigo-500 transition">
+            <input type="checkbox" name="tags" value="Social" class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded app-tag-checkbox">
+            <span class="ml-2 text-sm text-gray-300"><i class="fas fa-comments text-gray-400 mr-1"></i> Social</span>
+          </label>
+          <label class="flex items-center bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 cursor-pointer hover:border-indigo-500 transition">
+            <input type="checkbox" name="tags" value="Content Creators" class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded app-tag-checkbox">
+            <span class="ml-2 text-sm text-gray-300"><i class="fas fa-video text-gray-400 mr-1"></i> Content Creators</span>
+          </label>
+          <label class="flex items-center bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 cursor-pointer hover:border-indigo-500 transition">
+            <input type="checkbox" name="tags" value="eSports" class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded app-tag-checkbox">
+            <span class="ml-2 text-sm text-gray-300"><i class="fas fa-medal text-gray-400 mr-1"></i> eSports</span>
+          </label>
+          <label class="flex items-center bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 cursor-pointer hover:border-indigo-500 transition">
+            <input type="checkbox" name="tags" value="Beginners Welcome" class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded app-tag-checkbox">
+            <span class="ml-2 text-sm text-gray-300"><i class="fas fa-seedling text-gray-400 mr-1"></i> Beginners Welcome</span>
+          </label>
+          <label class="flex items-center bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 cursor-pointer hover:border-indigo-500 transition">
+            <input type="checkbox" name="tags" value="Adults Only (18+)" class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded app-tag-checkbox">
+            <span class="ml-2 text-sm text-gray-300"><i class="fas fa-exclamation-triangle text-gray-400 mr-1"></i> Adults Only (18+)</span>
+          </label>
+          <label class="flex items-center bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 cursor-pointer hover:border-indigo-500 transition">
+            <input type="checkbox" name="tags" value="LGBTQ+ Friendly" class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded app-tag-checkbox">
             <span class="ml-2 text-sm text-gray-300"><i class="fas fa-rainbow text-gray-400 mr-1"></i> LGBTQ+ Friendly</span>
           </label>
           <label class="flex items-center bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 cursor-pointer hover:border-indigo-500 transition">
-            <input type="checkbox" name="tags" value="streamer" class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded">
-            <span class="ml-2 text-sm text-gray-300"><i class="fas fa-video text-gray-400 mr-1"></i> Streamer Community</span>
+            <input type="checkbox" name="tags" value="Family Friendly" class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded app-tag-checkbox">
+            <span class="ml-2 text-sm text-gray-300"><i class="fas fa-heart text-gray-400 mr-1"></i> Family Friendly</span>
           </label>
           <label class="flex items-center bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 cursor-pointer hover:border-indigo-500 transition">
-            <input type="checkbox" name="tags" value="lfg" class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded">
+            <input type="checkbox" name="tags" value="Active LFG" class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded app-tag-checkbox">
             <span class="ml-2 text-sm text-gray-300"><i class="fas fa-users text-gray-400 mr-1"></i> Active LFG</span>
           </label>
           <label class="flex items-center bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 cursor-pointer hover:border-indigo-500 transition">
-            <input type="checkbox" name="tags" value="events" class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded">
+            <input type="checkbox" name="tags" value="Regular Events" class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded app-tag-checkbox">
             <span class="ml-2 text-sm text-gray-300"><i class="fas fa-calendar text-gray-400 mr-1"></i> Regular Events</span>
           </label>
         </div>
-        <p class="text-sm text-gray-500 mt-2">Tags help users find your server in the directory</p>
+        <p class="text-sm text-gray-500 mt-2"><span id="appTagsCount">0</span>/8 tags selected - Tags help users find your server in the directory</p>
       </div>
 
       <!-- Allow Join Toggle -->
@@ -285,6 +309,25 @@
 // Character counter for bio
 document.querySelector('textarea[name="bio"]')?.addEventListener('input', function() {
   document.getElementById('bioCount').textContent = this.value.length;
+});
+
+// Tag selection counter and limit (max 8)
+function updateAppTagCount() {
+  const checked = document.querySelectorAll('.app-tag-checkbox:checked').length;
+  const countEl = document.getElementById('appTagsCount');
+  if (countEl) countEl.textContent = checked;
+}
+
+document.querySelectorAll('.app-tag-checkbox').forEach(checkbox => {
+  checkbox.addEventListener('change', (e) => {
+    const checked = document.querySelectorAll('.app-tag-checkbox:checked').length;
+    if (checked > 8) {
+      e.target.checked = false;
+      alert('You can select a maximum of 8 tags');
+      return;
+    }
+    updateAppTagCount();
+  });
 });
 
 // Get CSRF token from cookies

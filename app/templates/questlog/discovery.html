@@ -28,6 +28,9 @@
     <button onclick="switchTab('games')" id="gamesTab" class="px-6 py-3 font-medium text-gray-400 hover:text-white border-b-2 border-transparent transition whitespace-nowrap">
       <i class="fas fa-gamepad mr-2"></i>Game Discovery
     </button>
+    <button onclick="switchTab('rss')" id="rssTab" class="px-6 py-3 font-medium text-gray-400 hover:text-white border-b-2 border-transparent transition whitespace-nowrap">
+      <i class="fas fa-rss mr-2"></i>RSS Feeds
+    </button>
     <button onclick="switchTab('twitch')" id="twitchTab" class="px-6 py-3 font-medium text-gray-400 hover:text-white border-b-2 border-transparent transition whitespace-nowrap">
       <i class="fab fa-twitch mr-2"></i>Twitch
     </button>
@@ -47,6 +50,9 @@
 
   <!-- YouTube Integration Tab Content -->
   {% include "questlog/partials/youtube_integration_tab.html" %}
+
+  <!-- RSS Feeds Tab Content -->
+  {% include "questlog/partials/rss_feeds_tab.html" %}
 
 </div>
 
@@ -552,6 +558,7 @@ function switchTab(tab) {
   document.getElementById('gamesContent').classList.add('hidden');
   document.getElementById('twitchContent').classList.add('hidden');
   document.getElementById('youtubeContent').classList.add('hidden');
+  document.getElementById('rssContent').classList.add('hidden');
 
   // Reset all tabs
   document.getElementById('creatorTab').classList.remove('text-white', 'border-orange-500');
@@ -562,6 +569,8 @@ function switchTab(tab) {
   document.getElementById('twitchTab').classList.add('text-gray-400', 'border-transparent');
   document.getElementById('youtubeTab').classList.remove('text-white', 'border-red-500');
   document.getElementById('youtubeTab').classList.add('text-gray-400', 'border-transparent');
+  document.getElementById('rssTab').classList.remove('text-white', 'border-orange-500');
+  document.getElementById('rssTab').classList.add('text-gray-400', 'border-transparent');
 
   // Show selected tab
   if (tab === 'creator') {
@@ -584,6 +593,15 @@ function switchTab(tab) {
     document.getElementById('youtubeTab').classList.add('text-white', 'border-red-500');
     document.getElementById('youtubeTab').classList.remove('text-gray-400', 'border-transparent');
     history.replaceState(null, null, '#youtube');
+  } else if (tab === 'rss') {
+    document.getElementById('rssContent').classList.remove('hidden');
+    document.getElementById('rssTab').classList.add('text-white', 'border-orange-500');
+    document.getElementById('rssTab').classList.remove('text-gray-400', 'border-transparent');
+    history.replaceState(null, null, '#rss');
+    // Initialize RSS feeds when tab is shown
+    if (typeof initRSSFeeds === 'function') {
+      initRSSFeeds();
+    }
   }
 }
 
@@ -976,6 +994,8 @@ document.addEventListener('DOMContentLoaded', function() {
     switchTab('twitch');
   } else if (hash === '#youtube') {
     switchTab('youtube');
+  } else if (hash === '#rss') {
+    switchTab('rss');
   } else if (hash === '#creator') {
     switchTab('creator');
   }
@@ -991,6 +1011,8 @@ window.addEventListener('hashchange', function() {
     switchTab('twitch');
   } else if (hash === '#youtube') {
     switchTab('youtube');
+  } else if (hash === '#rss') {
+    switchTab('rss');
   } else if (hash === '#creator') {
     switchTab('creator');
   }

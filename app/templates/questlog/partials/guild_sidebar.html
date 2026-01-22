@@ -144,6 +144,7 @@
           <span>Found Games</span>
         </a>
 
+
         <!-- Leaderboards -->
         <a href="{% url 'guild_leaderboards' guild.id %}"
            class="nav-item {% if active_page == 'leaderboards' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
@@ -166,6 +167,14 @@
           <i class="fas fa-ticket-alt text-gray-400 group-hover:text-yellow-400"></i>
           <span>Raffles</span>
         </a>
+
+        <!-- RSS Articles -->
+        <a href="{% url 'guild_rss_articles' guild.id %}"
+           class="nav-item {% if active_page == 'rss_articles' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          <i class="fas fa-newspaper text-gray-400 group-hover:text-orange-400"></i>
+          <span>RSS Articles</span>
+        </a>
+
 
         <!-- Your Profile -->
         <a href="{% url 'member_profile' guild.id %}"
@@ -286,6 +295,13 @@
               <i class="fas fa-globe w-4"></i>
               <span>QuestLog Network</span>
             </a>
+
+            <a href="{% url 'guild_discovery' guild.id %}#rss"
+              id="discovery-rss-nav-link"
+              class="sub-nav-item flex w-full items-center gap-2 px-3 py-1.5 rounded text-xs transition">
+              <i class="fas fa-rss w-4 shrink-0"></i>
+              <span class="whitespace-nowrap">RSS Feeds</span>
+            </a>
             
             <a href="{% url 'guild_discovery' guild.id %}#twitch"
               id="discovery-twitch-nav-link"
@@ -301,6 +317,7 @@
 
               <span class="whitespace-nowrap">YouTube</span>
             </a>
+
           </div>
         </div>
 
@@ -710,13 +727,15 @@ function updateHashBasedNav() {
   const discoveryGamesLink = document.getElementById('discovery-games-nav-link');
   const discoveryTwitchLink = document.getElementById('discovery-twitch-nav-link');
   const discoveryYoutubeLink = document.getElementById('discovery-youtube-nav-link');
+  const discoveryRssLink = document.getElementById('discovery-rss-nav-link');
 
-  if (discoveryCreatorLink && discoveryGamesLink && discoveryTwitchLink && discoveryYoutubeLink) {
+  if (discoveryCreatorLink && discoveryGamesLink && discoveryTwitchLink && discoveryYoutubeLink && discoveryRssLink) {
     // Remove active from all Discovery links first
     discoveryCreatorLink.classList.remove('active');
     discoveryGamesLink.classList.remove('active');
     discoveryTwitchLink.classList.remove('active');
     discoveryYoutubeLink.classList.remove('active');
+    discoveryRssLink.classList.remove('active');
 
     // Add active to the appropriate link based on hash
     if (hash === 'games') {
@@ -725,6 +744,8 @@ function updateHashBasedNav() {
       discoveryTwitchLink.classList.add('active');
     } else if (hash === 'youtube') {
       discoveryYoutubeLink.classList.add('active');
+    } else if (hash === 'rss') {
+      discoveryRssLink.classList.add('active');
     } else if (hash === 'creator' || window.location.pathname.includes('/discovery/')) {
       // Default to Creator Settings if on discovery page with no hash or #creator hash
       discoveryCreatorLink.classList.add('active');

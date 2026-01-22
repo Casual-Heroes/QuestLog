@@ -144,6 +144,9 @@ class ActionType(str, Enum):
     SYNC_ROLES = "sync_roles"
     SYNC_MEMBERS = "sync_members"
 
+    # RSS Feeds
+    RSS_TEST_SEND = "rss_test_send"
+
 
 # Guild
 
@@ -2923,4 +2926,105 @@ class SiteActivityGuildRole(Base):
         Index("idx_site_activity_guild_role_game", "game_id"),
         Index("idx_site_activity_guild_role_guild", "guild_id"),
         UniqueConstraint("game_id", "guild_id", "role_id", name="uq_game_guild_role"),
+    )
+
+
+# =============================================================================
+# RSS FEEDS - Discovery Module
+# =============================================================================
+
+class RSSFeed(Base):
+    """
+    RSS feed configuration for automated Discord posts.
+    Part of the Discovery module.
+
+    Billing:
+    - Free tier: 3 feeds max
+    - Discovery Module / Complete / Lifetime: Unlimited
+    """
+    __tablename__ = "rss_feeds"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    guild_id = Column(BigInteger, ForeignKey("guilds.guild_id", ondelete="CASCADE"), nullable=False)
+
+    # Feed configuration
+    name = Column(String(100), nullable=False)  # User-friendly name
+    feed_url = Column(String(500), nullable=False)  # RSS/Atom feed URL
+    enabled = Column(Boolean, default=True, nullable=False)
+
+    # Destination
+    channel_id = Column(BigInteger, nullable=False)  # Discord channel to post to
+    ping_role_id = Column(BigInteger, nullable=True)  # Optional role to ping when posting
+
+    # Polling configuration
+    poll_interval_minutes = Column(Integer, default=15, nullable=False)  # 5-60 minutes
+    last_polled_at = Column(BigInteger, nullable=True)  # Unix timestamp
+    last_entry_id = Column(String(500), nullable=True)  # GUID/link of last seen entry
+    last_entry_published = Column(BigInteger, nullable=True)  # Published date of last entry
+
+    # Embed customization (JSON)
+    # {
+    #   "title_prefix": "",
+    #   "title_suffix": "",
+    #   "color": "#5865F2",
+    #   "thumbnail_mode": "rss" | "custom" | "none",
+    #   "custom_thumbnail_url": "",
+    #   "footer_text": "",
+    #   "show_author": true,
+    #   "show_publish_date": true,
+    #   "show_categories": false,
+    #   "show_full_content": false,
+    #   "custom_emoji_prefix": ""
+    # }
+    embed_config = Column(Text, nullable=True)
+
+    # Error tracking
+    consecutive_failures = Column(Integer, default=0, nullable=False)
+    last_error = Column(String(500), nullable=True)
+    last_error_at = Column(BigInteger, nullable=True)
+
+    # Audit
+    created_by = Column(BigInteger, nullable=True)  # Discord user ID
+    created_at = Column(BigInteger, nullable=False, default=lambda: int(time.time()))
+    updated_at = Column(BigInteger, nullable=False, default=lambda: int(time.time()))
+
+    __table_args__ = (
+        Index("idx_rss_feed_guild", "guild_id"),
+        Index("idx_rss_feed_enabled", "guild_id", "enabled"),
+        Index("idx_rss_feed_poll", "enabled", "last_polled_at"),
+    )
+
+
+class RSSFeedEntry(Base):
+    """
+    Track posted RSS entries to prevent duplicates.
+    Also stores article content for the RSS Articles dashboard.
+    Entries older than 30 days are automatically cleaned up by the bot cog.
+    """
+    __tablename__ = "rss_feed_entries"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    feed_id = Column(Integer, ForeignKey("rss_feeds.id", ondelete="CASCADE"), nullable=False)
+
+    # Entry identification
+    entry_guid = Column(String(500), nullable=False)  # GUID or link from RSS
+    entry_link = Column(String(500), nullable=True)
+    entry_title = Column(String(500), nullable=True)
+
+    # Dashboard display fields
+    entry_summary = Column(Text, nullable=True)  # Cleaned summary/description (max 1000 chars)
+    entry_author = Column(String(256), nullable=True)  # Author name
+    entry_thumbnail = Column(String(500), nullable=True)  # Thumbnail/image URL
+    entry_categories = Column(Text, nullable=True)  # JSON array of category/tag strings
+
+    # Tracking
+    published_at = Column(BigInteger, nullable=True)  # Entry's publish date
+    posted_at = Column(BigInteger, nullable=False, default=lambda: int(time.time()))
+    message_id = Column(BigInteger, nullable=True)  # Discord message ID
+
+    __table_args__ = (
+        Index("idx_rss_entry_feed", "feed_id"),
+        Index("idx_rss_entry_guid", "feed_id", "entry_guid"),
+        Index("idx_rss_entry_posted", "posted_at"),
+        UniqueConstraint("feed_id", "entry_guid", name="uq_rss_feed_entry_guid"),
     )

@@ -72,12 +72,12 @@
       <button onclick="switchTab('overview')" id="tab-overview" class="tab-button tab-active border-b-2 border-indigo-500 py-4 px-1 text-sm font-medium text-indigo-400">
         Overview
       </button>
-      {% if enable_directory %}
-      <button onclick="switchTab('directory')" id="tab-directory" class="tab-button border-b-2 border-transparent py-4 px-1 text-sm font-medium text-gray-400 hover:text-gray-300">
-        Server Directory
-      </button>
-      {% endif %}
       {% if user_network_status == 'approved' %}
+        {% if enable_directory %}
+        <button onclick="switchTab('directory')" id="tab-directory" class="tab-button border-b-2 border-transparent py-4 px-1 text-sm font-medium text-gray-400 hover:text-gray-300">
+          Server Directory
+        </button>
+        {% endif %}
         {% if enable_lfg %}
         <button onclick="switchTab('lfg')" id="tab-lfg" class="tab-button border-b-2 border-transparent py-4 px-1 text-sm font-medium text-gray-400 hover:text-gray-300">
           Cross-Server LFG
@@ -112,13 +112,13 @@
     {% include 'questlog/discovery_tabs/overview.html' %}
   </div>
 
-  {% if enable_directory %}
-  <div id="content-directory" class="tab-content hidden">
-    {% include 'questlog/discovery_tabs/directory.html' %}
-  </div>
-  {% endif %}
-
   {% if user_network_status == 'approved' %}
+    {% if enable_directory %}
+    <div id="content-directory" class="tab-content hidden">
+      {% include 'questlog/discovery_tabs/directory.html' %}
+    </div>
+    {% endif %}
+
     {% if enable_lfg %}
     <div id="content-lfg" class="tab-content hidden">
       {% include 'questlog/discovery_tabs/lfg.html' %}

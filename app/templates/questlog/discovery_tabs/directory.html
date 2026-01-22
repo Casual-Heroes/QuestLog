@@ -168,9 +168,11 @@ function renderServers() {
   grid.innerHTML = pageServers.map(server => `
     <div class="bg-neutral-900 border border-neutral-800 rounded-lg overflow-hidden hover:border-indigo-600 transition">
       <!-- Server Icon/Banner -->
-      <div class="relative h-32 bg-gradient-to-br from-indigo-900 to-purple-900">
+      <div class="relative h-32 bg-gradient-to-br from-indigo-900/80 to-purple-900/80">
         ${server.icon_url ? `
-          <img src="${escapeHtml(server.icon_url)}" alt="${escapeHtml(server.name)}" class="w-full h-full object-cover">
+          <div class="absolute inset-0 flex items-center justify-center overflow-hidden">
+            <img src="${escapeHtml(server.icon_url)}" alt="${escapeHtml(server.name)}" class="max-h-full max-w-full object-contain drop-shadow-lg scale-125 rounded-md">
+          </div>
         ` : `
           <div class="flex items-center justify-center h-full">
             <span class="text-4xl font-bold text-white opacity-50">${escapeHtml(server.name.charAt(0))}</span>
@@ -194,7 +196,7 @@ function renderServers() {
       <!-- Server Info -->
       <div class="p-4">
         <h3 class="text-lg font-bold text-white mb-2 truncate">${escapeHtml(server.name)}</h3>
-        <p class="text-sm text-gray-400 mb-3 line-clamp-2">${escapeHtml(server.description || 'No description provided')}</p>
+        <p class="text-sm text-gray-400 mb-3 line-clamp-3">${escapeHtml(server.description || 'No description provided')}</p>
 
         <!-- Tags - Only show if tags exist -->
         ${server.tags && server.tags.length > 0 ? `

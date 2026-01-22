@@ -240,6 +240,11 @@ urlpatterns = [
     path('questlog/guild/<str:guild_id>/discovery-network/', views.guild_discovery_network, name='guild_discovery_network'),
     path('questlog/guild/<str:guild_id>/found-games/', views.guild_found_games, name='guild_found_games'),
 
+    # RSS Feeds (standalone page)
+    path('questlog/guild/<str:guild_id>/rss-feeds/', views.guild_rss_feeds, name='guild_rss_feeds'),
+    # RSS Articles (member dashboard - view all articles)
+    path('questlog/guild/<str:guild_id>/rss-articles/', views.guild_rss_articles, name='guild_rss_articles'),
+
     # Discovery API Endpoints
     path('api/guild/<str:guild_id>/discovery/config/update/', views.api_discovery_config_update, name='api_discovery_config_update'),
     path('api/guild/<str:guild_id>/discovery/pool/', views.api_discovery_pool, name='api_discovery_pool'),
@@ -305,6 +310,16 @@ urlpatterns = [
     path('api/discovery/admin/servers/<str:guild_id>/reinstate', views.api_discovery_network_admin_reinstate_server, name='api_discovery_network_admin_reinstate_server'),
     path('api/discovery/admin/users/<str:user_id_to_ban>/ban', views.api_discovery_network_admin_ban_user, name='api_discovery_network_admin_ban_user'),
     path('api/guild/<str:guild_id>/discovery/searches/<int:search_id>/delete/', views.api_game_search_config_delete, name='api_game_search_config_delete'),
+
+    # RSS Feed Management
+    path('api/guild/<str:guild_id>/rss/', views.api_rss_feeds_list, name='api_rss_feeds_list'),
+    path('api/guild/<str:guild_id>/rss/create/', views.api_rss_feed_create, name='api_rss_feed_create'),
+    path('api/guild/<str:guild_id>/rss/<int:feed_id>/', views.api_rss_feed_detail, name='api_rss_feed_detail'),
+    path('api/guild/<str:guild_id>/rss/<int:feed_id>/update/', views.api_rss_feed_update, name='api_rss_feed_update'),
+    path('api/guild/<str:guild_id>/rss/<int:feed_id>/delete/', views.api_rss_feed_delete, name='api_rss_feed_delete'),
+    path('api/guild/<str:guild_id>/rss/<int:feed_id>/test/', views.api_rss_feed_test, name='api_rss_feed_test'),
+    path('api/guild/<str:guild_id>/rss/<int:feed_id>/send-test/', views.api_rss_feed_send_test, name='api_rss_feed_send_test'),
+    path('api/guild/<str:guild_id>/rss/validate-url/', views.api_rss_validate_url, name='api_rss_validate_url'),
 
     # Action Status
     path('api/guild/<str:guild_id>/action/<str:action_id>/status/', views.api_action_status, name='api_action_status'),

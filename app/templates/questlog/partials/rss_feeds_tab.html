@@ -1,0 +1,1132 @@
+<!-- RSS Feeds Tab Content -->
+<div id="rssContent" class="hidden">
+  {% include 'questlog/partials/custom_select.html' %}
+
+  <div class="space-y-6">
+    <!-- Header -->
+    <div class="bg-neutral-900 border border-neutral-800 rounded-lg p-6">
+      <div class="flex justify-between items-start">
+        <div>
+          <h2 class="text-2xl font-bold text-white mb-2">RSS Feed Manager</h2>
+          <p class="text-gray-400">Automatically post content from RSS feeds to your Discord channels. Perfect for news, blog posts, patch notes, and more.</p>
+        </div>
+        <div class="text-right">
+          <button onclick="openCreateFeedModal()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition">
+            <i class="fas fa-plus mr-2"></i>Add RSS Feed
+          </button>
+          <div id="feedCountBadge" class="text-sm text-gray-400 mt-2"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Premium Upsell Banner (shown when at limit) -->
+    <div id="premiumBanner" class="hidden bg-gradient-to-r from-indigo-900/50 to-purple-900/50 border border-indigo-700 rounded-lg p-6">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center space-x-4">
+          <i class="fas fa-crown text-4xl text-yellow-400"></i>
+          <div>
+            <h3 class="text-lg font-semibold text-white">Unlock Unlimited RSS Feeds</h3>
+            <p class="text-gray-300">Free tier is limited to 3 RSS feeds. Upgrade to Discovery Module or Complete Edition for unlimited feeds!</p>
+          </div>
+        </div>
+        <a href="/questlog/guild/{{ guild.id }}/billing" class="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition whitespace-nowrap">
+          Upgrade Now
+        </a>
+      </div>
+    </div>
+
+    <!-- Feed Grid -->
+    <div id="feedGrid" class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <!-- Loading state -->
+      <div id="feedsLoading" class="col-span-full text-center py-12">
+        <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500"></div>
+        <p class="text-gray-400 mt-4">Loading RSS feeds...</p>
+      </div>
+    </div>
+
+    <!-- Empty State -->
+    <div id="emptyState" class="hidden bg-neutral-900 border border-neutral-800 rounded-lg p-12 text-center">
+      <i class="fas fa-rss text-6xl text-gray-600 mb-4"></i>
+      <h3 class="text-xl font-semibold text-white mb-2">No RSS Feeds Yet</h3>
+      <p class="text-gray-400 mb-6">Create your first RSS feed to automatically post content to your Discord channels.</p>
+      <button onclick="openCreateFeedModal()" class="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition">
+        <i class="fas fa-plus mr-2"></i>Add Your First RSS Feed
+      </button>
+    </div>
+  </div>
+
+  <!-- Create/Edit Feed Modal -->
+  <div id="rssFeedModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-start justify-center z-50 overflow-y-auto py-8">
+    <div class="bg-neutral-900 border border-neutral-700 rounded-lg p-6 w-full max-w-2xl mx-4 max-h-[calc(100vh-4rem)] overflow-y-auto">
+      <div class="flex justify-between items-center mb-6">
+        <h3 id="rssModalTitle" class="text-xl font-bold text-white">Add RSS Feed</h3>
+        <button onclick="closeFeedModal()" class="text-gray-400 hover:text-white">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+
+      <form id="rssFeedForm" class="space-y-6">
+        <input type="hidden" id="rssFeedId" value="">
+
+        <!-- Basic Settings -->
+        <div class="space-y-4">
+          <h4 class="text-lg font-semibold text-white border-b border-neutral-700 pb-2">Basic Settings</h4>
+
+          <!-- Feed Name -->
+          <div>
+            <label class="block text-sm font-medium text-gray-300 mb-2">Feed Name *</label>
+            <input type="text" id="rssFeedName" maxlength="100" required
+              class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500"
+              placeholder="e.g., Game News, Patch Notes, Blog Updates">
+          </div>
+
+          <!-- Feed URL with Validate Button -->
+          <div>
+            <label class="block text-sm font-medium text-gray-300 mb-2">RSS Feed URL *</label>
+            <div class="flex space-x-2">
+              <input type="url" id="rssFeedUrl" maxlength="500" required
+                class="flex-1 bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500"
+                placeholder="https://example.com/feed.xml">
+              <button type="button" onclick="validateFeedUrl()" class="px-4 py-2 bg-neutral-700 hover:bg-neutral-600 text-white rounded-lg transition">
+                <i class="fas fa-check mr-1"></i>Validate
+              </button>
+            </div>
+            <p id="rssUrlValidationResult" class="text-sm mt-1 hidden"></p>
+          </div>
+
+          <!-- Channel Selection -->
+          <div>
+            <label class="block text-sm font-medium text-gray-300 mb-2">Post to Channel *</label>
+            <div id="rssFeedChannelContainer"></div>
+          </div>
+
+          <!-- Poll Interval -->
+          <div>
+            <label class="block text-sm font-medium text-gray-300 mb-2">Check for Updates</label>
+            <div id="rssPollIntervalContainer"></div>
+          </div>
+
+          <!-- Ping Role -->
+          <div>
+            <label class="block text-sm font-medium text-gray-300 mb-2">Ping Role (Optional)</label>
+            <div id="rssPingRoleContainer"></div>
+            <p class="text-xs text-gray-500 mt-1">Select a role to mention when new posts are published</p>
+          </div>
+
+          <!-- Enabled Toggle -->
+          <div class="flex items-center justify-between p-4 bg-neutral-800 rounded-lg">
+            <div>
+              <h5 class="text-white font-medium">Enable Feed</h5>
+              <p class="text-sm text-gray-400">When enabled, new posts will be automatically sent to the channel</p>
+            </div>
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" id="rssFeedEnabled" class="sr-only peer" checked>
+              <div class="w-11 h-6 bg-neutral-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+            </label>
+          </div>
+        </div>
+
+        <!-- Embed Customization -->
+        <div class="space-y-4">
+          <h4 class="text-lg font-semibold text-white border-b border-neutral-700 pb-2">Embed Customization</h4>
+
+          <!-- Embed Color -->
+          <div>
+            <label class="block text-sm font-medium text-gray-300 mb-2">Embed Color</label>
+            <div class="flex items-center space-x-3">
+              <input type="color" id="rssEmbedColor" value="#5865F2"
+                class="w-12 h-10 rounded cursor-pointer bg-transparent border-0">
+              <input type="text" id="rssEmbedColorHex" maxlength="7"
+                class="w-28 bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500"
+                placeholder="#5865F2">
+            </div>
+          </div>
+
+          <!-- Title Customization -->
+          <div class="grid md:grid-cols-3 gap-4">
+            <div>
+              <label class="block text-sm font-medium text-gray-300 mb-2">Emoji Prefix</label>
+              <div id="rssEmojiPrefixContainer"></div>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-300 mb-2">Title Prefix</label>
+              <input type="text" id="rssTitlePrefix" maxlength="50"
+                class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500"
+                placeholder="e.g., [NEWS]">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-300 mb-2">Title Suffix</label>
+              <input type="text" id="rssTitleSuffix" maxlength="50"
+                class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500"
+                placeholder="e.g., - Read More">
+            </div>
+          </div>
+
+          <!-- Custom Description -->
+          <div>
+            <label class="block text-sm font-medium text-gray-300 mb-2">Custom Description (Optional)</label>
+            <textarea id="rssCustomDescription" maxlength="500" rows="2"
+              class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500 resize-none"
+              placeholder="Add a custom message that appears above the article content..."></textarea>
+            <p class="text-xs text-gray-500 mt-1">This text will appear at the top of each embed</p>
+          </div>
+
+          <!-- Footer Text -->
+          <div>
+            <label class="block text-sm font-medium text-gray-300 mb-2">Footer Text</label>
+            <input type="text" id="rssFooterText" maxlength="100"
+              class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500"
+              placeholder="e.g., Powered by QuestLog">
+          </div>
+
+          <!-- Thumbnail Mode -->
+          <div>
+            <label class="block text-sm font-medium text-gray-300 mb-2">Thumbnail</label>
+            <div id="rssThumbnailModeContainer"></div>
+          </div>
+
+          <!-- Custom Thumbnail URL (shown when thumbnailMode is 'custom') -->
+          <div id="rssCustomThumbnailContainer" class="hidden">
+            <label class="block text-sm font-medium text-gray-300 mb-2">Custom Thumbnail URL</label>
+            <input type="url" id="rssCustomThumbnailUrl" maxlength="500"
+              class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500"
+              placeholder="https://example.com/image.png">
+          </div>
+
+          <!-- Display Options -->
+          <div class="space-y-3">
+            <label class="flex items-center space-x-3 cursor-pointer">
+              <input type="checkbox" id="rssShowAuthor" checked class="w-4 h-4 text-indigo-600 bg-neutral-800 border-neutral-600 rounded focus:ring-indigo-500">
+              <span class="text-gray-300">Show author name</span>
+            </label>
+            <label class="flex items-center space-x-3 cursor-pointer">
+              <input type="checkbox" id="rssShowPublishDate" checked class="w-4 h-4 text-indigo-600 bg-neutral-800 border-neutral-600 rounded focus:ring-indigo-500">
+              <span class="text-gray-300">Show publish date</span>
+            </label>
+            <label class="flex items-center space-x-3 cursor-pointer">
+              <input type="checkbox" id="rssShowCategories" class="w-4 h-4 text-indigo-600 bg-neutral-800 border-neutral-600 rounded focus:ring-indigo-500">
+              <span class="text-gray-300">Show categories/tags</span>
+            </label>
+            <label class="flex items-center space-x-3 cursor-pointer">
+              <input type="checkbox" id="rssShowFullContent" class="w-4 h-4 text-indigo-600 bg-neutral-800 border-neutral-600 rounded focus:ring-indigo-500">
+              <span class="text-gray-300">Show full content (instead of summary)</span>
+            </label>
+          </div>
+
+          <!-- Summary Mode Option -->
+          <div class="mt-4 p-4 bg-neutral-800 rounded-lg">
+            <label class="flex items-start space-x-3 cursor-pointer">
+              <input type="checkbox" id="rssAlwaysSummary" class="w-4 h-4 mt-1 text-indigo-600 bg-neutral-800 border-neutral-600 rounded focus:ring-indigo-500">
+              <div>
+                <span class="text-gray-300 font-medium">Always use summary mode</span>
+                <p class="text-xs text-gray-500 mt-1">Instead of posting each article individually, send a single notification with a link to view all articles on the dashboard. Recommended for high-volume feeds like Google News.</p>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        <!-- Form Actions -->
+        <div class="flex justify-between items-center pt-4 border-t border-neutral-700">
+          <button type="button" id="rssTestFeedBtn" onclick="testFeed()" class="px-4 py-2 bg-neutral-700 hover:bg-neutral-600 text-white rounded-lg transition hidden">
+            <i class="fas fa-eye mr-2"></i>Preview
+          </button>
+          <div class="flex space-x-3 ml-auto">
+            <button type="button" onclick="closeFeedModal()" class="px-4 py-2 bg-neutral-700 hover:bg-neutral-600 text-white rounded-lg transition">
+              Cancel
+            </button>
+            <button type="submit" class="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition">
+              <span id="rssSubmitBtnText">Create Feed</span>
+            </button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Preview Modal -->
+  <div id="previewModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+    <div class="bg-neutral-900 border border-neutral-700 rounded-lg p-6 w-full max-w-lg mx-4">
+      <div class="flex justify-between items-center mb-4">
+        <h3 class="text-lg font-bold text-white">Embed Preview</h3>
+        <button onclick="closePreviewModal()" class="text-gray-400 hover:text-white">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+      <div id="previewFeedInfo" class="text-sm text-gray-400 mb-3"></div>
+      <div id="embedPreview" class="bg-[#2f3136] rounded-lg overflow-hidden">
+        <!-- Discord embed preview will be inserted here -->
+      </div>
+      <div class="mt-4 flex justify-end space-x-3">
+        <button onclick="closePreviewModal()" class="px-4 py-2 bg-neutral-700 hover:bg-neutral-600 text-white rounded-lg transition">
+          Close
+        </button>
+        <button onclick="sendTestFromPreview()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition">
+          <i class="fas fa-paper-plane mr-2"></i>Send to Discord
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Delete Confirmation Modal -->
+  <div id="deleteModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+    <div class="bg-neutral-900 border border-neutral-700 rounded-lg p-6 w-full max-w-md mx-4">
+      <div class="text-center">
+        <div class="w-16 h-16 mx-auto mb-4 bg-red-900/30 rounded-full flex items-center justify-center">
+          <i class="fas fa-trash text-2xl text-red-400"></i>
+        </div>
+        <h3 class="text-lg font-bold text-white mb-2">Delete Feed</h3>
+        <p class="text-gray-400 mb-6">Are you sure you want to delete "<span id="deleteFeedName" class="text-white"></span>"? This action cannot be undone.</p>
+        <div class="flex justify-center space-x-3">
+          <button onclick="closeDeleteModal()" class="px-4 py-2 bg-neutral-700 hover:bg-neutral-600 text-white rounded-lg transition">
+            Cancel
+          </button>
+          <button onclick="confirmDeleteFeed()" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition">
+            Delete Feed
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  // RSS Feeds Tab JavaScript
+  const RSS_GUILD_ID = '{{ guild.id }}';
+  let rssFeeds = [];
+  let rssFeedLimit = null;
+  let rssChannels = [];
+  let rssRoles = [];
+  let rssFeedToDelete = null;
+  let rssInitialized = false;
+  let currentPreviewFeedId = null;
+
+  // XSS Protection
+  function escapeHtml(text) {
+    if (text == null || text === undefined) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  }
+
+  // CSRF-aware fetch function for RSS
+  async function rssCsrfFetch(url, options = {}) {
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value ||
+                      document.cookie.split('; ').find(row => row.startsWith('csrftoken='))?.split('=')[1];
+    options.headers = options.headers || {};
+    if (!options.headers['X-CSRFToken']) {
+      options.headers['X-CSRFToken'] = csrfToken;
+    }
+    options.credentials = options.credentials || 'same-origin';
+    return fetch(url, options);
+  }
+
+  // Initialize RSS Feeds
+  async function initRSSFeeds() {
+    if (rssInitialized) return;
+    rssInitialized = true;
+
+    // Load channels and roles FIRST, then feeds (feeds depend on channels for display)
+    await Promise.all([loadRSSChannels(), loadRSSRoles()]);
+    await loadRSSFeeds();
+    initializeRSSCustomSelects();
+  }
+
+  // Load channels from API
+  async function loadRSSChannels() {
+    try {
+      const response = await fetch(`/api/guild/${RSS_GUILD_ID}/channels/`, { credentials: 'same-origin' });
+      const data = await response.json();
+      if (data.channels && Array.isArray(data.channels)) {
+        rssChannels = data.channels.filter(c => c.type == 0 || c.type === 'GUILD_TEXT');
+      }
+    } catch (error) {
+      // Silently fail - channels will show as "Unknown channel"
+    }
+  }
+
+  // Load roles from API
+  async function loadRSSRoles() {
+    try {
+      const response = await fetch(`/api/guild/${RSS_GUILD_ID}/roles/`, { credentials: 'same-origin' });
+      const data = await response.json();
+      if (data.roles && Array.isArray(data.roles)) {
+        // Filter out @everyone and managed roles, sort by position
+        rssRoles = data.roles
+          .filter(r => r.name !== '@everyone' && !r.managed)
+          .sort((a, b) => b.position - a.position);
+      }
+    } catch (error) {
+      // Silently fail - role picker will just be empty
+    }
+  }
+
+  // Load feeds from API
+  async function loadRSSFeeds() {
+    const loading = document.getElementById('feedsLoading');
+    const grid = document.getElementById('feedGrid');
+    const emptyState = document.getElementById('emptyState');
+    const premiumBanner = document.getElementById('premiumBanner');
+    const countBadge = document.getElementById('feedCountBadge');
+
+    try {
+      const response = await fetch(`/api/guild/${RSS_GUILD_ID}/rss/`, { credentials: 'same-origin' });
+
+      if (!response.ok) {
+        console.error('RSS API returned status:', response.status);
+        throw new Error(`Server returned ${response.status}`);
+      }
+
+      const data = await response.json();
+
+      if (loading) loading.classList.add('hidden');
+
+      if (data.feeds) {
+        rssFeeds = data.feeds;
+        rssFeedLimit = data.feed_limit;
+
+        // Update count badge
+        if (countBadge) {
+          if (rssFeedLimit !== null) {
+            countBadge.textContent = `${rssFeeds.length} / ${rssFeedLimit} feeds`;
+          } else {
+            countBadge.textContent = `${rssFeeds.length} feeds`;
+          }
+        }
+
+        // Show/hide premium banner based on limit
+        if (premiumBanner) {
+          if (rssFeedLimit !== null && rssFeeds.length >= rssFeedLimit) {
+            premiumBanner.classList.remove('hidden');
+          } else {
+            premiumBanner.classList.add('hidden');
+          }
+        }
+
+        if (rssFeeds.length === 0) {
+          if (emptyState) emptyState.classList.remove('hidden');
+          if (grid) grid.classList.add('hidden');
+        } else {
+          if (emptyState) emptyState.classList.add('hidden');
+          if (grid) grid.classList.remove('hidden');
+          renderRSSFeeds();
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load feeds:', error);
+      if (loading) {
+        loading.innerHTML = '<p class="text-red-400">Failed to load feeds. Please refresh the page.</p>';
+      }
+    }
+  }
+
+  // Render feeds
+  function renderRSSFeeds() {
+    const grid = document.getElementById('feedGrid');
+
+    grid.innerHTML = rssFeeds.map(feed => {
+      // Use String() to ensure type-safe comparison (channel IDs may be string or number)
+      const channel = rssChannels.find(c => String(c.id) === String(feed.channel_id));
+      const channelName = channel ? channel.name : 'Unknown channel';
+      const statusClass = feed.enabled ? 'bg-green-900 text-green-400' : 'bg-gray-800 text-gray-400';
+      const statusText = feed.enabled ? 'Active' : 'Disabled';
+
+      let errorHtml = '';
+      if (feed.consecutive_failures > 0) {
+        errorHtml = `<div class="mt-2 text-xs text-red-400"><i class="fas fa-exclamation-triangle mr-1"></i>${feed.consecutive_failures} failures</div>`;
+      }
+
+      return `
+        <div class="bg-neutral-800 border border-neutral-700 rounded-lg p-4 hover:border-neutral-600 transition">
+          <div class="flex justify-between items-start mb-3">
+            <h4 class="text-white font-medium truncate flex-1 mr-2">${escapeHtml(feed.name)}</h4>
+            <span class="px-2 py-1 text-xs rounded ${statusClass}">${statusText}</span>
+          </div>
+          <p class="text-sm text-gray-400 truncate mb-2" title="${escapeHtml(feed.feed_url)}">${escapeHtml(feed.feed_url)}</p>
+          <div class="flex items-center text-sm text-gray-500 mb-3">
+            <i class="fas fa-hashtag mr-1"></i>
+            <span>${escapeHtml(channelName)}</span>
+          </div>
+          ${errorHtml}
+          <div class="flex justify-end space-x-2 mt-3 pt-3 border-t border-neutral-700">
+            <button onclick="sendRSSTestToDiscord(${feed.id})" class="px-3 py-1.5 text-sm bg-indigo-900 hover:bg-indigo-800 text-indigo-400 rounded transition" title="Send test to Discord">
+              <i class="fas fa-paper-plane"></i>
+            </button>
+            <button onclick="testRSSFeedById(${feed.id})" class="px-3 py-1.5 text-sm bg-neutral-700 hover:bg-neutral-600 text-white rounded transition" title="Preview embed">
+              <i class="fas fa-eye"></i>
+            </button>
+            <button onclick="editRSSFeed(${feed.id})" class="px-3 py-1.5 text-sm bg-neutral-700 hover:bg-neutral-600 text-white rounded transition" title="Edit feed">
+              <i class="fas fa-edit"></i>
+            </button>
+            <button onclick="showRSSDeleteModal(${feed.id}, '${escapeHtml(feed.name).replace(/'/g, "\\'")}')" class="px-3 py-1.5 text-sm bg-red-900 hover:bg-red-800 text-red-400 rounded transition" title="Delete feed">
+              <i class="fas fa-trash"></i>
+            </button>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  // Initialize custom select components
+  function initializeRSSCustomSelects() {
+    const channelItems = rssChannels.map(c => ({
+      value: String(c.id),
+      label: '#' + c.name,
+      icon: 'hashtag'
+    }));
+
+    const roleItems = [
+      { value: '', label: 'No ping', icon: 'ban' },
+      ...rssRoles.map(r => ({
+        value: String(r.id),
+        label: '@' + r.name,
+        icon: 'at'
+      }))
+    ];
+
+    if (typeof createCustomSelect === 'function') {
+      createCustomSelect({
+        container: '#rssFeedChannelContainer',
+        name: 'rssFeedChannel',
+        id: 'rssFeedChannel',
+        placeholder: 'Select a channel...',
+        items: channelItems,
+        selected: '',
+        color: 'indigo'
+      });
+
+      createCustomSelect({
+        container: '#rssPollIntervalContainer',
+        name: 'rssPollInterval',
+        id: 'rssPollInterval',
+        placeholder: 'Select interval...',
+        items: [
+          { value: '5', label: 'Every 5 minutes', icon: 'clock' },
+          { value: '10', label: 'Every 10 minutes', icon: 'clock' },
+          { value: '15', label: 'Every 15 minutes', icon: 'clock' },
+          { value: '30', label: 'Every 30 minutes', icon: 'clock' },
+          { value: '60', label: 'Every hour', icon: 'clock' },
+          { value: '1440', label: 'Every day', icon: 'calendar' },
+          { value: '4320', label: 'Every 3 days', icon: 'calendar' },
+          { value: '10080', label: 'Every week', icon: 'calendar' }
+        ],
+        selected: '15',
+        color: 'indigo'
+      });
+
+      createCustomSelect({
+        container: '#rssPingRoleContainer',
+        name: 'rssPingRole',
+        id: 'rssPingRole',
+        placeholder: 'No ping',
+        items: roleItems,
+        selected: '',
+        color: 'indigo'
+      });
+
+      createCustomSelect({
+        container: '#rssThumbnailModeContainer',
+        name: 'rssThumbnailMode',
+        id: 'rssThumbnailMode',
+        placeholder: 'Select thumbnail mode...',
+        items: [
+          { value: 'rss', label: 'Use image from RSS feed', icon: 'image' },
+          { value: 'custom', label: 'Use custom image URL', icon: 'link' },
+          { value: 'none', label: 'No thumbnail', icon: 'ban' }
+        ],
+        selected: 'rss',
+        color: 'indigo',
+        onSelect: (value) => toggleCustomThumbnail(value)
+      });
+
+      createCustomSelect({
+        container: '#rssEmojiPrefixContainer',
+        name: 'rssEmojiPrefix',
+        id: 'rssEmojiPrefix',
+        placeholder: 'No emoji',
+        items: [
+          { value: '', label: 'No emoji' },
+          { value: '📰', label: '📰 Newspaper' },
+          { value: '📢', label: '📢 Loudspeaker' },
+          { value: '📣', label: '📣 Megaphone' },
+          { value: '🔔', label: '🔔 Bell' },
+          { value: '🚨', label: '🚨 Alert' },
+          { value: '⚡', label: '⚡ Lightning' },
+          { value: '🆕', label: '🆕 New' },
+          { value: '📌', label: '📌 Pinned' },
+          { value: '🔥', label: '🔥 Fire/Hot' },
+          { value: '⭐', label: '⭐ Star' },
+          { value: '✨', label: '✨ Sparkles' },
+          { value: '💡', label: '💡 Idea' },
+          { value: 'ℹ️', label: 'ℹ️ Info' },
+          { value: '🎮', label: '🎮 Gaming' },
+          { value: '🎯', label: '🎯 Target' },
+          { value: '📝', label: '📝 Notes' },
+          { value: '🗞️', label: '🗞️ Rolled News' },
+          { value: '📡', label: '📡 Broadcast' },
+          { value: '🌐', label: '🌐 Global' }
+        ],
+        selected: '',
+        color: 'indigo'
+      });
+    }
+  }
+
+  // Re-initialize selects with values
+  function reinitializeRSSSelectsWithValues(channelId, pollInterval, thumbnailMode, emojiPrefix, pingRoleId) {
+    const channelItems = rssChannels.map(c => ({
+      value: String(c.id),
+      label: '#' + c.name,
+      icon: 'hashtag'
+    }));
+
+    const roleItems = [
+      { value: '', label: 'No ping', icon: 'ban' },
+      ...rssRoles.map(r => ({
+        value: String(r.id),
+        label: '@' + r.name,
+        icon: 'at'
+      }))
+    ];
+
+    if (typeof createCustomSelect === 'function') {
+      createCustomSelect({
+        container: '#rssFeedChannelContainer',
+        name: 'rssFeedChannel',
+        id: 'rssFeedChannel',
+        placeholder: 'Select a channel...',
+        items: channelItems,
+        selected: String(channelId || ''),
+        color: 'indigo'
+      });
+
+      createCustomSelect({
+        container: '#rssPollIntervalContainer',
+        name: 'rssPollInterval',
+        id: 'rssPollInterval',
+        placeholder: 'Select interval...',
+        items: [
+          { value: '5', label: 'Every 5 minutes', icon: 'clock' },
+          { value: '10', label: 'Every 10 minutes', icon: 'clock' },
+          { value: '15', label: 'Every 15 minutes', icon: 'clock' },
+          { value: '30', label: 'Every 30 minutes', icon: 'clock' },
+          { value: '60', label: 'Every hour', icon: 'clock' },
+          { value: '1440', label: 'Every day', icon: 'calendar' },
+          { value: '4320', label: 'Every 3 days', icon: 'calendar' },
+          { value: '10080', label: 'Every week', icon: 'calendar' }
+        ],
+        selected: String(pollInterval || '15'),
+        color: 'indigo'
+      });
+
+      createCustomSelect({
+        container: '#rssPingRoleContainer',
+        name: 'rssPingRole',
+        id: 'rssPingRole',
+        placeholder: 'No ping',
+        items: roleItems,
+        selected: String(pingRoleId || ''),
+        color: 'indigo'
+      });
+
+      createCustomSelect({
+        container: '#rssThumbnailModeContainer',
+        name: 'rssThumbnailMode',
+        id: 'rssThumbnailMode',
+        placeholder: 'Select thumbnail mode...',
+        items: [
+          { value: 'rss', label: 'Use image from RSS feed', icon: 'image' },
+          { value: 'custom', label: 'Use custom image URL', icon: 'link' },
+          { value: 'none', label: 'No thumbnail', icon: 'ban' }
+        ],
+        selected: thumbnailMode || 'rss',
+        color: 'indigo',
+        onSelect: (value) => toggleCustomThumbnail(value)
+      });
+
+      createCustomSelect({
+        container: '#rssEmojiPrefixContainer',
+        name: 'rssEmojiPrefix',
+        id: 'rssEmojiPrefix',
+        placeholder: 'No emoji',
+        items: [
+          { value: '', label: 'No emoji' },
+          { value: '📰', label: '📰 Newspaper' },
+          { value: '📢', label: '📢 Loudspeaker' },
+          { value: '📣', label: '📣 Megaphone' },
+          { value: '🔔', label: '🔔 Bell' },
+          { value: '🚨', label: '🚨 Alert' },
+          { value: '⚡', label: '⚡ Lightning' },
+          { value: '🆕', label: '🆕 New' },
+          { value: '📌', label: '📌 Pinned' },
+          { value: '🔥', label: '🔥 Fire/Hot' },
+          { value: '⭐', label: '⭐ Star' },
+          { value: '✨', label: '✨ Sparkles' },
+          { value: '💡', label: '💡 Idea' },
+          { value: 'ℹ️', label: 'ℹ️ Info' },
+          { value: '🎮', label: '🎮 Gaming' },
+          { value: '🎯', label: '🎯 Target' },
+          { value: '📝', label: '📝 Notes' },
+          { value: '🗞️', label: '🗞️ Rolled News' },
+          { value: '📡', label: '📡 Broadcast' },
+          { value: '🌐', label: '🌐 Global' }
+        ],
+        selected: emojiPrefix || '',
+        color: 'indigo'
+      });
+    }
+  }
+
+  // Modal functions
+  function openCreateFeedModal() {
+    if (rssFeedLimit && rssFeeds.length >= rssFeedLimit) {
+      alert('You have reached your RSS feed limit. Upgrade to add more feeds.');
+      return;
+    }
+
+    document.getElementById('rssModalTitle').textContent = 'Add RSS Feed';
+    document.getElementById('rssSubmitBtnText').textContent = 'Create Feed';
+    document.getElementById('rssFeedId').value = '';
+    document.getElementById('rssFeedForm').reset();
+    document.getElementById('rssFeedEnabled').checked = true;
+    document.getElementById('rssEmbedColor').value = '#5865F2';
+    document.getElementById('rssEmbedColorHex').value = '#5865F2';
+    document.getElementById('rssCustomThumbnailContainer').classList.add('hidden');
+    document.getElementById('rssUrlValidationResult').classList.add('hidden');
+    document.getElementById('rssTestFeedBtn').classList.add('hidden');
+
+    reinitializeRSSSelectsWithValues('', '15', 'rss', '', '');
+
+    document.getElementById('rssFeedModal').classList.remove('hidden');
+    document.getElementById('rssFeedModal').classList.add('flex');
+  }
+
+  function editRSSFeed(feedId) {
+    const feed = rssFeeds.find(f => f.id === feedId);
+    if (!feed) return;
+
+    document.getElementById('rssModalTitle').textContent = 'Edit RSS Feed';
+    document.getElementById('rssSubmitBtnText').textContent = 'Save Changes';
+    document.getElementById('rssFeedId').value = feed.id;
+    document.getElementById('rssFeedName').value = feed.name;
+    document.getElementById('rssFeedUrl').value = feed.feed_url;
+    document.getElementById('rssFeedEnabled').checked = feed.enabled;
+    document.getElementById('rssTestFeedBtn').classList.remove('hidden');
+
+    const config = feed.embed_config || {};
+    document.getElementById('rssEmbedColor').value = config.color || '#5865F2';
+    document.getElementById('rssEmbedColorHex').value = config.color || '#5865F2';
+    document.getElementById('rssTitlePrefix').value = config.title_prefix || '';
+    document.getElementById('rssTitleSuffix').value = config.title_suffix || '';
+    document.getElementById('rssCustomDescription').value = config.custom_description || '';
+    document.getElementById('rssFooterText').value = config.footer_text || '';
+    document.getElementById('rssCustomThumbnailUrl').value = config.custom_thumbnail_url || '';
+    document.getElementById('rssShowAuthor').checked = config.show_author !== false;
+    document.getElementById('rssShowPublishDate').checked = config.show_publish_date !== false;
+    document.getElementById('rssShowCategories').checked = config.show_categories === true;
+    document.getElementById('rssShowFullContent').checked = config.show_full_content === true;
+    document.getElementById('rssAlwaysSummary').checked = config.always_use_summary === true;
+
+    const thumbnailMode = config.thumbnail_mode || 'rss';
+    const emojiPrefix = config.custom_emoji_prefix || '';
+    const pingRoleId = feed.ping_role_id || '';
+    reinitializeRSSSelectsWithValues(feed.channel_id || '', feed.poll_interval_minutes, thumbnailMode, emojiPrefix, pingRoleId);
+
+    toggleCustomThumbnail(thumbnailMode);
+
+    document.getElementById('rssUrlValidationResult').classList.add('hidden');
+    document.getElementById('rssFeedModal').classList.remove('hidden');
+    document.getElementById('rssFeedModal').classList.add('flex');
+  }
+
+  function closeFeedModal() {
+    document.getElementById('rssFeedModal').classList.add('hidden');
+    document.getElementById('rssFeedModal').classList.remove('flex');
+  }
+
+  function closePreviewModal() {
+    document.getElementById('previewModal').classList.add('hidden');
+    document.getElementById('previewModal').classList.remove('flex');
+  }
+
+  function showRSSDeleteModal(feedId, feedName) {
+    rssFeedToDelete = feedId;
+    document.getElementById('deleteFeedName').textContent = feedName;
+    document.getElementById('deleteModal').classList.remove('hidden');
+    document.getElementById('deleteModal').classList.add('flex');
+  }
+
+  function closeDeleteModal() {
+    document.getElementById('deleteModal').classList.add('hidden');
+    document.getElementById('deleteModal').classList.remove('flex');
+    rssFeedToDelete = null;
+  }
+
+  // Toggle custom thumbnail visibility
+  function toggleCustomThumbnail(mode) {
+    if (!mode) {
+      const hiddenInput = document.getElementById('rssThumbnailMode');
+      mode = hiddenInput ? hiddenInput.value : 'rss';
+    }
+    const container = document.getElementById('rssCustomThumbnailContainer');
+    if (mode === 'custom') {
+      container.classList.remove('hidden');
+    } else {
+      container.classList.add('hidden');
+    }
+  }
+
+  // Validate feed URL
+  async function validateFeedUrl() {
+    const url = document.getElementById('rssFeedUrl').value.trim();
+    const resultEl = document.getElementById('rssUrlValidationResult');
+
+    if (!url) {
+      resultEl.textContent = 'Please enter a URL';
+      resultEl.className = 'text-sm mt-1 text-red-400';
+      resultEl.classList.remove('hidden');
+      return;
+    }
+
+    resultEl.textContent = 'Validating...';
+    resultEl.className = 'text-sm mt-1 text-gray-400';
+    resultEl.classList.remove('hidden');
+
+    try {
+      const response = await rssCsrfFetch(`/api/guild/${RSS_GUILD_ID}/rss/validate-url/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url })
+      });
+
+      const data = await response.json();
+
+      if (data.valid) {
+        resultEl.textContent = `Valid feed: ${data.title || 'RSS Feed'} (${data.entry_count} entries)`;
+        resultEl.className = 'text-sm mt-1 text-green-400';
+      } else {
+        resultEl.textContent = data.error || 'Invalid feed URL';
+        resultEl.className = 'text-sm mt-1 text-red-400';
+      }
+    } catch (error) {
+      resultEl.textContent = 'Failed to validate URL';
+      resultEl.className = 'text-sm mt-1 text-red-400';
+    }
+  }
+
+  // Test feed preview
+  async function testRSSFeedById(feedId) {
+    currentPreviewFeedId = feedId;
+    try {
+      const response = await rssCsrfFetch(`/api/guild/${RSS_GUILD_ID}/rss/${feedId}/test/`, {
+        method: 'POST'
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        showRSSPreview(data.preview, data.feed_info);
+      } else {
+        alert(data.error || 'Failed to test feed');
+      }
+    } catch (error) {
+      alert('Failed to test feed. Please try again.');
+    }
+  }
+
+  async function testFeed() {
+    const feedId = document.getElementById('rssFeedId').value;
+    if (feedId) {
+      // First save the current form values, then test
+      // This ensures the test uses the current embed settings (color, etc.)
+      const saved = await saveCurrentFeedSettings(feedId);
+      if (saved) {
+        await testRSSFeedById(feedId);
+      }
+    }
+  }
+
+  // Helper to save current form settings without closing modal
+  async function saveCurrentFeedSettings(feedId) {
+    const name = document.getElementById('rssFeedName').value.trim();
+    const feed_url = document.getElementById('rssFeedUrl').value.trim();
+    const channel_id = document.getElementById('rssFeedChannel')?.value;
+
+    if (!name || !feed_url || !channel_id) {
+      alert('Please fill in all required fields before testing.');
+      return false;
+    }
+
+    const embedConfig = {
+      color: document.getElementById('rssEmbedColor').value,
+      title_prefix: document.getElementById('rssTitlePrefix').value,
+      title_suffix: document.getElementById('rssTitleSuffix').value,
+      custom_description: document.getElementById('rssCustomDescription').value,
+      footer_text: document.getElementById('rssFooterText').value,
+      thumbnail_mode: document.getElementById('rssThumbnailMode')?.value || 'rss',
+      custom_thumbnail_url: document.getElementById('rssCustomThumbnailUrl').value,
+      custom_emoji_prefix: document.getElementById('rssEmojiPrefix')?.value || '',
+      show_author: document.getElementById('rssShowAuthor').checked,
+      show_publish_date: document.getElementById('rssShowPublishDate').checked,
+      show_categories: document.getElementById('rssShowCategories').checked,
+      show_full_content: document.getElementById('rssShowFullContent').checked,
+      always_use_summary: document.getElementById('rssAlwaysSummary').checked
+    };
+
+    const pingRoleId = document.getElementById('rssPingRole')?.value || null;
+
+    const formData = {
+      name: name,
+      feed_url: feed_url,
+      channel_id: channel_id,
+      poll_interval_minutes: parseInt(document.getElementById('rssPollInterval')?.value || '15'),
+      enabled: document.getElementById('rssFeedEnabled').checked,
+      ping_role_id: pingRoleId || null,
+      embed_config: embedConfig
+    };
+
+    try {
+      const response = await rssCsrfFetch(`/api/guild/${RSS_GUILD_ID}/rss/${feedId}/update/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData)
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        // Update local cache
+        const index = rssFeeds.findIndex(f => f.id == feedId);
+        if (index !== -1) {
+          rssFeeds[index] = data.feed;
+        }
+        return true;
+      } else {
+        alert(data.error || 'Failed to save settings');
+        return false;
+      }
+    } catch (error) {
+      alert('Failed to save settings. Please try again.');
+      return false;
+    }
+  }
+
+  function showRSSPreview(preview, feedInfo) {
+    const previewEl = document.getElementById('embedPreview');
+    const feedInfoEl = document.getElementById('previewFeedInfo');
+
+    feedInfoEl.textContent = `Latest entry from: ${feedInfo?.title || 'RSS Feed'}`;
+
+    let html = `
+      <div class="flex">
+        <div class="w-1 rounded-l" style="background-color: ${escapeHtml(preview.color)}"></div>
+        <div class="flex-1 p-4">
+          ${preview.author ? `<p class="text-xs text-gray-400 mb-1">${escapeHtml(preview.author)}</p>` : ''}
+          <a href="${escapeHtml(preview.url)}" class="text-[#00aff4] font-semibold hover:underline" target="_blank">${escapeHtml(preview.title)}</a>
+          <p class="text-sm text-gray-300 mt-2 whitespace-pre-wrap">${escapeHtml(preview.description)}</p>
+          ${preview.thumbnail ? `<img src="${escapeHtml(preview.thumbnail)}" class="mt-3 max-w-xs rounded" alt="Thumbnail">` : ''}
+          ${preview.footer || preview.published ? `
+            <div class="flex items-center text-xs text-gray-500 mt-3">
+              ${preview.footer ? `<span>${escapeHtml(preview.footer)}</span>` : ''}
+              ${preview.footer && preview.published ? '<span class="mx-2">•</span>' : ''}
+              ${preview.published ? `<span>${escapeHtml(preview.published)}</span>` : ''}
+            </div>
+          ` : ''}
+        </div>
+      </div>
+    `;
+
+    previewEl.innerHTML = html;
+    document.getElementById('previewModal').classList.remove('hidden');
+    document.getElementById('previewModal').classList.add('flex');
+  }
+
+  // Send test to Discord
+  async function sendRSSTestToDiscord(feedId) {
+    const feed = rssFeeds.find(f => f.id === feedId);
+    if (!feed) {
+      alert('Feed not found');
+      return;
+    }
+
+    if (!feed.channel_id) {
+      alert('Please configure a channel for this feed first.');
+      return;
+    }
+
+    const confirmed = confirm(`Send a test message from "${feed.name}" to Discord?\n\nThis will post the latest RSS entry to the configured channel.`);
+    if (!confirmed) return;
+
+    try {
+      const response = await rssCsrfFetch(`/api/guild/${RSS_GUILD_ID}/rss/${feedId}/send-test/`, {
+        method: 'POST'
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        alert('Test message sent! Check your Discord channel.');
+      } else {
+        alert(data.error || 'Failed to send test message');
+      }
+    } catch (error) {
+      alert('Failed to send test message. Please try again.');
+    }
+  }
+
+  async function sendTestFromPreview() {
+    if (currentPreviewFeedId) {
+      closePreviewModal();
+      await sendRSSTestToDiscord(currentPreviewFeedId);
+    }
+  }
+
+  // Delete feed
+  async function confirmDeleteFeed() {
+    if (!rssFeedToDelete) return;
+
+    try {
+      const response = await rssCsrfFetch(`/api/guild/${RSS_GUILD_ID}/rss/${rssFeedToDelete}/delete/`, {
+        method: 'POST'
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        closeDeleteModal();
+        rssFeeds = rssFeeds.filter(f => f.id !== rssFeedToDelete);
+
+        // Update count badge with null check
+        const countBadge = document.getElementById('feedCountBadge');
+        const premiumBanner = document.getElementById('premiumBanner');
+        const emptyState = document.getElementById('emptyState');
+        const feedGrid = document.getElementById('feedGrid');
+
+        if (countBadge) {
+          if (rssFeedLimit !== null) {
+            countBadge.textContent = `${rssFeeds.length} / ${rssFeedLimit} feeds`;
+          } else {
+            countBadge.textContent = `${rssFeeds.length} feeds`;
+          }
+        }
+
+        // Hide premium banner if under limit
+        if (premiumBanner && rssFeedLimit !== null && rssFeeds.length < rssFeedLimit) {
+          premiumBanner.classList.add('hidden');
+        }
+
+        // Handle empty state vs grid visibility
+        if (rssFeeds.length === 0) {
+          if (emptyState) emptyState.classList.remove('hidden');
+          if (feedGrid) feedGrid.classList.add('hidden');
+        } else {
+          if (emptyState) emptyState.classList.add('hidden');
+          if (feedGrid) feedGrid.classList.remove('hidden');
+          renderRSSFeeds();
+        }
+      } else {
+        alert(data.error || 'Failed to delete feed');
+      }
+    } catch (error) {
+      alert('Failed to delete feed. Please try again.');
+    }
+  }
+
+  // Color sync
+  document.getElementById('rssEmbedColor')?.addEventListener('input', function() {
+    document.getElementById('rssEmbedColorHex').value = this.value;
+  });
+
+  document.getElementById('rssEmbedColorHex')?.addEventListener('input', function() {
+    if (/^#[0-9A-Fa-f]{6}$/.test(this.value)) {
+      document.getElementById('rssEmbedColor').value = this.value;
+    }
+  });
+
+  // Form submit
+  document.getElementById('rssFeedForm')?.addEventListener('submit', async function(e) {
+    e.preventDefault();
+
+    const feedId = document.getElementById('rssFeedId').value;
+    const isEdit = !!feedId;
+
+    // Get form values
+    const name = document.getElementById('rssFeedName').value.trim();
+    const feed_url = document.getElementById('rssFeedUrl').value.trim();
+    const channel_id = document.getElementById('rssFeedChannel')?.value;
+
+    // Client-side validation
+    if (!name) {
+      alert('Please enter a feed name.');
+      return;
+    }
+    if (!feed_url) {
+      alert('Please enter a feed URL.');
+      return;
+    }
+    if (!channel_id) {
+      alert('Please select a channel.');
+      return;
+    }
+
+    // Get color from both inputs
+    const colorPickerValue = document.getElementById('rssEmbedColor').value;
+    const colorHexValue = document.getElementById('rssEmbedColorHex').value;
+    const colorValue = /^#[0-9A-Fa-f]{6}$/i.test(colorHexValue) ? colorHexValue : colorPickerValue;
+
+    const embedConfig = {
+      color: colorValue,
+      title_prefix: document.getElementById('rssTitlePrefix').value,
+      title_suffix: document.getElementById('rssTitleSuffix').value,
+      custom_description: document.getElementById('rssCustomDescription').value,
+      footer_text: document.getElementById('rssFooterText').value,
+      thumbnail_mode: document.getElementById('rssThumbnailMode')?.value || 'rss',
+      custom_thumbnail_url: document.getElementById('rssCustomThumbnailUrl').value,
+      custom_emoji_prefix: document.getElementById('rssEmojiPrefix')?.value || '',
+      show_author: document.getElementById('rssShowAuthor').checked,
+      show_publish_date: document.getElementById('rssShowPublishDate').checked,
+      show_categories: document.getElementById('rssShowCategories').checked,
+      show_full_content: document.getElementById('rssShowFullContent').checked,
+      always_use_summary: document.getElementById('rssAlwaysSummary').checked
+    };
+
+    const pingRoleId = document.getElementById('rssPingRole')?.value || null;
+
+    const formData = {
+      name: name,
+      feed_url: feed_url,
+      channel_id: channel_id,
+      poll_interval_minutes: parseInt(document.getElementById('rssPollInterval')?.value || '15'),
+      enabled: document.getElementById('rssFeedEnabled').checked,
+      ping_role_id: pingRoleId || null,
+      embed_config: embedConfig
+    };
+
+    const url = isEdit
+      ? `/api/guild/${RSS_GUILD_ID}/rss/${feedId}/update/`
+      : `/api/guild/${RSS_GUILD_ID}/rss/create/`;
+
+    try {
+      const response = await rssCsrfFetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData)
+      });
+
+      const data = await response.json();
+
+      if (response.ok && (data.success || data.feed)) {
+        closeFeedModal();
+        await loadRSSFeeds();
+      } else if (data.limit_reached) {
+        alert(data.error);
+      } else {
+        alert(data.error || 'Failed to save feed');
+      }
+    } catch (error) {
+      alert('Failed to save feed. Please try again.');
+    }
+  });
+  </script>
+</div>

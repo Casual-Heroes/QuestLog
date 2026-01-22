@@ -1,0 +1,265 @@
+{% extends "questlog/base_guild.html" %}
+{% load static %}
+
+{% block title %}RSS Articles - {{ guild.name }}{% endblock %}
+
+{% block og_title %}{{ guild.name }} - RSS Articles | QuestLog{% endblock %}
+{% block og_description %}Browse RSS feed articles for {{ guild.name }}. Powered by QuestLog.{% endblock %}
+{% block og_url %}https://dashboard.casual-heroes.com/questlog/guild/{{ guild.id }}/rss-articles/{% endblock %}
+
+{% block guild_content %}
+<!-- Include custom select component -->
+{% include "questlog/partials/custom_select.html" %}
+
+<!-- Header -->
+<div class="bg-neutral-900/50 border-b border-neutral-800 -mx-1 px-6 py-6">
+    <div class="flex items-center justify-between flex-wrap gap-4">
+        <div>
+            <h1 class="text-3xl font-bold bg-gradient-to-r from-orange-400 to-red-400 bg-clip-text text-transparent">
+                RSS Articles
+            </h1>
+            <p class="text-gray-400 mt-2">
+                Latest articles from RSS feeds for <span class="text-white font-semibold">{{ guild.name }}</span>
+            </p>
+        </div>
+        {% if is_admin %}
+        <a href="{% url 'guild_discovery' guild.id %}#rss"
+           class="px-4 py-2 bg-neutral-800 hover:bg-neutral-700 rounded-lg border border-neutral-700 transition-colors">
+            <i class="fas fa-cog mr-2"></i>Manage Feeds
+        </a>
+        {% endif %}
+    </div>
+
+    <!-- Filter -->
+    {% if feeds %}
+    <div class="mt-6">
+        <div class="flex flex-col lg:flex-row gap-3 items-start lg:items-center">
+            <div id="feedFilterContainer" class="w-full lg:w-80"></div>
+            <button id="clearFilter"
+                    class="px-4 py-2 bg-neutral-700 hover:bg-neutral-600 text-white rounded-lg font-medium transition text-sm {% if not selected_feed_id %}hidden{% endif %}">
+                <i class="fas fa-times mr-1"></i>Clear Filter
+            </button>
+        </div>
+        <p class="text-xs text-gray-500 mt-2">
+            Filter articles by RSS feed source.
+        </p>
+    </div>
+    {% endif %}
+
+    <!-- Stats -->
+    <div class="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div class="bg-neutral-800/50 border border-neutral-700 rounded-lg p-4">
+            <div class="flex items-center gap-3">
+                <div class="text-orange-400 text-2xl">
+                    <i class="fas fa-newspaper"></i>
+                </div>
+                <div>
+                    <div class="text-2xl font-bold">{{ total_count }}</div>
+                    <div class="text-sm text-gray-400">Articles</div>
+                </div>
+            </div>
+        </div>
+        <div class="bg-neutral-800/50 border border-neutral-700 rounded-lg p-4">
+            <div class="flex items-center gap-3">
+                <div class="text-blue-400 text-2xl">
+                    <i class="fas fa-rss"></i>
+                </div>
+                <div>
+                    <div class="text-2xl font-bold">{{ feeds|length }}</div>
+                    <div class="text-sm text-gray-400">Active Feeds</div>
+                </div>
+            </div>
+        </div>
+        <div class="bg-neutral-800/50 border border-neutral-700 rounded-lg p-4">
+            <div class="flex items-center gap-3">
+                <div class="text-green-400 text-2xl">
+                    <i class="fas fa-clock"></i>
+                </div>
+                <div>
+                    <div class="text-2xl font-bold">30</div>
+                    <div class="text-sm text-gray-400">Days Retained</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Content -->
+<div class="px-6 py-8">
+    {% if not articles %}
+    <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-12 text-center">
+        <i class="fas fa-newspaper text-gray-500 text-5xl mb-4"></i>
+        <h2 class="text-xl font-bold text-gray-400 mb-2">No Articles Yet</h2>
+        {% if is_admin %}
+        <p class="text-gray-500">Set up RSS feeds to start collecting articles!</p>
+        <a href="{% url 'guild_discovery' guild.id %}#rss"
+           class="inline-block mt-4 px-6 py-3 bg-orange-600 hover:bg-orange-700 rounded-lg transition-colors">
+            <i class="fas fa-plus mr-2"></i>Add RSS Feed
+        </a>
+        {% else %}
+        <p class="text-gray-500">Ask your server admin to set up RSS feeds!</p>
+        <p class="text-gray-600 text-sm mt-2">Articles will appear here once feeds are configured.</p>
+        {% endif %}
+    </div>
+    {% else %}
+
+    {% if total_count > 100 %}
+    <p class="text-sm text-gray-500 mb-4">
+        <i class="fas fa-info-circle mr-1"></i>
+        Showing most recent 100 articles. Older articles are archived after 30 days.
+    </p>
+    {% endif %}
+
+    <!-- Articles Grid -->
+    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+        {% for article in articles %}
+        <article class="bg-neutral-900 border border-neutral-800 rounded-xl overflow-hidden hover:border-orange-500/50 transition-all duration-300 group flex flex-col">
+            <!-- Thumbnail -->
+            <div class="aspect-video bg-neutral-800 overflow-hidden flex-shrink-0">
+                {% if article.thumbnail %}
+                <img src="{{ article.thumbnail }}"
+                     alt="{{ article.title }}"
+                     class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                     onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                <div class="w-full h-full items-center justify-center text-orange-400 hidden">
+                    <i class="fas fa-newspaper text-5xl"></i>
+                </div>
+                {% else %}
+                <div class="w-full h-full flex items-center justify-center text-orange-400/50">
+                    <i class="fas fa-newspaper text-5xl"></i>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Content -->
+            <div class="p-5">
+                <!-- Feed Badge -->
+                <div class="flex items-center gap-2 mb-3">
+                    <span class="px-2 py-1 bg-orange-900/50 text-orange-400 text-xs font-medium rounded">
+                        <i class="fas fa-rss mr-1"></i>{{ article.feed_name }}
+                    </span>
+                    {% if article.published_at %}
+                    <span class="text-xs text-gray-500">{{ article.published_at }}</span>
+                    {% endif %}
+                </div>
+
+                <!-- Title -->
+                <h3 class="text-lg font-bold text-white mb-2 line-clamp-2 group-hover:text-orange-400 transition-colors">
+                    {% if article.link %}
+                    <a href="{{ article.link }}" target="_blank" rel="noopener noreferrer" class="hover:underline">
+                        {{ article.title }}
+                    </a>
+                    {% else %}
+                    {{ article.title }}
+                    {% endif %}
+                </h3>
+
+                <!-- Author -->
+                {% if article.author %}
+                <p class="text-sm text-gray-400 mb-2">
+                    <i class="fas fa-user mr-1"></i>{{ article.author }}
+                </p>
+                {% endif %}
+
+                <!-- Summary -->
+                {% if article.summary %}
+                <p class="text-sm text-gray-400 line-clamp-3 mb-3">
+                    {{ article.summary|truncatechars:200 }}
+                </p>
+                {% endif %}
+
+                <!-- Categories/Tags -->
+                {% if article.categories %}
+                <div class="flex flex-wrap gap-1 mb-3">
+                    {% for category in article.categories %}
+                    <span class="px-2 py-0.5 bg-neutral-800 text-gray-400 text-xs rounded">
+                        {{ category }}
+                    </span>
+                    {% endfor %}
+                </div>
+                {% endif %}
+
+                <!-- Actions -->
+                <div class="flex items-center justify-between pt-3 border-t border-neutral-800">
+                    {% if article.link %}
+                    <a href="{{ article.link }}"
+                       target="_blank"
+                       rel="noopener noreferrer"
+                       class="flex items-center gap-2 px-3 py-1.5 bg-orange-600 hover:bg-orange-700 text-white text-sm rounded-lg transition-colors">
+                        <i class="fas fa-external-link-alt"></i>
+                        Read Article
+                    </a>
+                    {% else %}
+                    <span class="text-gray-500 text-sm">No link available</span>
+                    {% endif %}
+
+                    {% if article.posted_at %}
+                    <span class="text-xs text-gray-500" title="Posted to Discord">
+                        <i class="fab fa-discord mr-1"></i>{{ article.posted_at }}
+                    </span>
+                    {% endif %}
+                </div>
+            </div>
+        </article>
+        {% endfor %}
+    </div>
+    {% endif %}
+</div>
+
+<!-- Safe JSON data for JavaScript -->
+{{ feeds|json_script:"feeds-data" }}
+
+<script>
+// XSS Protection
+function escapeHtml(text) {
+    if (text == null || text === undefined) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// Initialize feed filter
+document.addEventListener('DOMContentLoaded', function() {
+    // Parse feeds safely from json_script element
+    const feedsDataEl = document.getElementById('feeds-data');
+    const feeds = feedsDataEl ? JSON.parse(feedsDataEl.textContent) : [];
+    const selectedFeedId = '{{ selected_feed_id|default:"" }}';
+
+    if (feeds.length > 0 && typeof createCustomSelect === 'function') {
+        const feedItems = [
+            { value: '', label: 'All Feeds', icon: 'rss' },
+            ...feeds.map(f => ({
+                value: String(f.id),
+                label: escapeHtml(f.name),
+                icon: 'rss'
+            }))
+        ];
+
+        createCustomSelect({
+            container: '#feedFilterContainer',
+            name: 'feedFilter',
+            id: 'feedFilter',
+            placeholder: 'Filter by feed...',
+            items: feedItems,
+            selected: selectedFeedId,
+            color: 'orange',
+            onSelect: (value) => {
+                if (value) {
+                    window.location.href = `?feed_id=${value}`;
+                } else {
+                    window.location.href = window.location.pathname;
+                }
+            }
+        });
+    }
+
+    // Clear filter button
+    const clearBtn = document.getElementById('clearFilter');
+    if (clearBtn) {
+        clearBtn.addEventListener('click', () => {
+            window.location.href = window.location.pathname;
+        });
+    }
+});
+</script>
+{% endblock %}

@@ -5,7 +5,7 @@
     <h2 class="text-2xl font-bold text-white mb-2">QuestLog Network Preferences</h2>
     <p class="text-gray-400 mb-6">Customize your QuestLog Network experience. Choose which features to enable and how you want to see content.</p>
 
-    <form id="preferencesForm" method="POST" action="/api/discovery/preferences" class="space-y-8">
+    <form id="preferencesForm" method="POST" action="/api/guild/{{ guild.id }}/discovery/preferences/" class="space-y-8">
       {% csrf_token %}
 
       <!-- Feature Toggles -->
@@ -254,6 +254,139 @@
             </div>
             <p class="text-xs text-gray-500 mt-2">Enter just the code part (e.g., "abc123" from discord.gg/abc123)</p>
           </div>
+
+          <!-- Server Description -->
+          <div class="p-4 bg-neutral-800 rounded-lg">
+            <div class="flex items-center space-x-3 mb-2">
+              <span class="text-2xl">📝</span>
+              <h4 class="text-white font-semibold">Server Description</h4>
+            </div>
+            <p class="text-sm text-gray-400 mb-3">Describe your server to help others find you in the Discovery Network directory.</p>
+            <textarea
+              name="server_bio"
+              id="serverBioInput"
+              maxlength="500"
+              rows="3"
+              placeholder="Tell others what your server is about..."
+              class="w-full bg-neutral-900 border border-neutral-700 rounded px-3 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500 resize-none"
+            ></textarea>
+            <p class="text-xs text-gray-500 mt-2"><span id="serverBioCount">0</span>/500 characters</p>
+          </div>
+
+          <!-- Server Tags -->
+          <div class="p-4 bg-neutral-800 rounded-lg">
+            <div class="flex items-center space-x-3 mb-2">
+              <span class="text-2xl">🏷️</span>
+              <h4 class="text-white font-semibold">Server Tags</h4>
+            </div>
+            <p class="text-sm text-gray-400 mb-3">Add tags to help users find your server. Select up to 8 tags.</p>
+            <div class="flex flex-wrap gap-2" id="serverTagsContainer">
+              <label class="inline-flex items-center cursor-pointer">
+                <input type="checkbox" name="server_tags" value="Casual" class="sr-only peer server-tag-checkbox">
+                <span class="px-3 py-1 rounded-full text-sm border border-neutral-600 text-gray-400 peer-checked:bg-indigo-600 peer-checked:border-indigo-600 peer-checked:text-white transition">Casual</span>
+              </label>
+              <label class="inline-flex items-center cursor-pointer">
+                <input type="checkbox" name="server_tags" value="Competitive" class="sr-only peer server-tag-checkbox">
+                <span class="px-3 py-1 rounded-full text-sm border border-neutral-600 text-gray-400 peer-checked:bg-indigo-600 peer-checked:border-indigo-600 peer-checked:text-white transition">Competitive</span>
+              </label>
+              <label class="inline-flex items-center cursor-pointer">
+                <input type="checkbox" name="server_tags" value="PvE" class="sr-only peer server-tag-checkbox">
+                <span class="px-3 py-1 rounded-full text-sm border border-neutral-600 text-gray-400 peer-checked:bg-indigo-600 peer-checked:border-indigo-600 peer-checked:text-white transition">PvE</span>
+              </label>
+              <label class="inline-flex items-center cursor-pointer">
+                <input type="checkbox" name="server_tags" value="PvP" class="sr-only peer server-tag-checkbox">
+                <span class="px-3 py-1 rounded-full text-sm border border-neutral-600 text-gray-400 peer-checked:bg-indigo-600 peer-checked:border-indigo-600 peer-checked:text-white transition">PvP</span>
+              </label>
+              <label class="inline-flex items-center cursor-pointer">
+                <input type="checkbox" name="server_tags" value="Raiding" class="sr-only peer server-tag-checkbox">
+                <span class="px-3 py-1 rounded-full text-sm border border-neutral-600 text-gray-400 peer-checked:bg-indigo-600 peer-checked:border-indigo-600 peer-checked:text-white transition">Raiding</span>
+              </label>
+              <label class="inline-flex items-center cursor-pointer">
+                <input type="checkbox" name="server_tags" value="Social" class="sr-only peer server-tag-checkbox">
+                <span class="px-3 py-1 rounded-full text-sm border border-neutral-600 text-gray-400 peer-checked:bg-indigo-600 peer-checked:border-indigo-600 peer-checked:text-white transition">Social</span>
+              </label>
+              <label class="inline-flex items-center cursor-pointer">
+                <input type="checkbox" name="server_tags" value="Content Creators" class="sr-only peer server-tag-checkbox">
+                <span class="px-3 py-1 rounded-full text-sm border border-neutral-600 text-gray-400 peer-checked:bg-indigo-600 peer-checked:border-indigo-600 peer-checked:text-white transition">Content Creators</span>
+              </label>
+              <label class="inline-flex items-center cursor-pointer">
+                <input type="checkbox" name="server_tags" value="eSports" class="sr-only peer server-tag-checkbox">
+                <span class="px-3 py-1 rounded-full text-sm border border-neutral-600 text-gray-400 peer-checked:bg-indigo-600 peer-checked:border-indigo-600 peer-checked:text-white transition">eSports</span>
+              </label>
+              <label class="inline-flex items-center cursor-pointer">
+                <input type="checkbox" name="server_tags" value="Beginners Welcome" class="sr-only peer server-tag-checkbox">
+                <span class="px-3 py-1 rounded-full text-sm border border-neutral-600 text-gray-400 peer-checked:bg-indigo-600 peer-checked:border-indigo-600 peer-checked:text-white transition">Beginners Welcome</span>
+              </label>
+              <label class="inline-flex items-center cursor-pointer">
+                <input type="checkbox" name="server_tags" value="Adults Only (18+)" class="sr-only peer server-tag-checkbox">
+                <span class="px-3 py-1 rounded-full text-sm border border-neutral-600 text-gray-400 peer-checked:bg-indigo-600 peer-checked:border-indigo-600 peer-checked:text-white transition">Adults Only (18+)</span>
+              </label>
+              <label class="inline-flex items-center cursor-pointer">
+                <input type="checkbox" name="server_tags" value="LGBTQ+ Friendly" class="sr-only peer server-tag-checkbox">
+                <span class="px-3 py-1 rounded-full text-sm border border-neutral-600 text-gray-400 peer-checked:bg-indigo-600 peer-checked:border-indigo-600 peer-checked:text-white transition">LGBTQ+ Friendly</span>
+              </label>
+              <label class="inline-flex items-center cursor-pointer">
+                <input type="checkbox" name="server_tags" value="Family Friendly" class="sr-only peer server-tag-checkbox">
+                <span class="px-3 py-1 rounded-full text-sm border border-neutral-600 text-gray-400 peer-checked:bg-indigo-600 peer-checked:border-indigo-600 peer-checked:text-white transition">Family Friendly</span>
+              </label>
+              <label class="inline-flex items-center cursor-pointer">
+                <input type="checkbox" name="server_tags" value="Active LFG" class="sr-only peer server-tag-checkbox">
+                <span class="px-3 py-1 rounded-full text-sm border border-neutral-600 text-gray-400 peer-checked:bg-indigo-600 peer-checked:border-indigo-600 peer-checked:text-white transition">Active LFG</span>
+              </label>
+              <label class="inline-flex items-center cursor-pointer">
+                <input type="checkbox" name="server_tags" value="Regular Events" class="sr-only peer server-tag-checkbox">
+                <span class="px-3 py-1 rounded-full text-sm border border-neutral-600 text-gray-400 peer-checked:bg-indigo-600 peer-checked:border-indigo-600 peer-checked:text-white transition">Regular Events</span>
+              </label>
+            </div>
+            <p class="text-xs text-gray-500 mt-2"><span id="serverTagsCount">0</span>/8 tags selected</p>
+          </div>
+
+          <!-- Server Social Links -->
+          <div class="p-4 bg-neutral-800 rounded-lg">
+            <div class="flex items-center space-x-3 mb-2">
+              <span class="text-2xl">🔗</span>
+              <h4 class="text-white font-semibold">Social Links</h4>
+            </div>
+            <p class="text-sm text-gray-400 mb-3">Add your community's social media links (optional).</p>
+            <div class="space-y-3">
+              <div class="flex items-center space-x-2">
+                <span class="text-purple-400 w-6">
+                  <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M11.571 4.714h1.715v5.143H11.57zm4.715 0H18v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143l-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714Z"/></svg>
+                </span>
+                <input type="text" name="twitch_url" id="twitchUrlInput" placeholder="https://twitch.tv/yourchannel" maxlength="255" class="flex-1 bg-neutral-900 border border-neutral-700 rounded px-3 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500 text-sm">
+              </div>
+              <div class="flex items-center space-x-2">
+                <span class="text-red-500 w-6">
+                  <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>
+                </span>
+                <input type="text" name="youtube_url" id="youtubeUrlInput" placeholder="https://youtube.com/@yourchannel" maxlength="255" class="flex-1 bg-neutral-900 border border-neutral-700 rounded px-3 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500 text-sm">
+              </div>
+              <div class="flex items-center space-x-2">
+                <span class="text-blue-400 w-6">
+                  <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+                </span>
+                <input type="text" name="twitter_url" id="twitterUrlInput" placeholder="https://twitter.com/yourhandle" maxlength="255" class="flex-1 bg-neutral-900 border border-neutral-700 rounded px-3 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500 text-sm">
+              </div>
+              <div class="flex items-center space-x-2">
+                <span class="text-blue-500 w-6">
+                  <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z"/></svg>
+                </span>
+                <input type="text" name="instagram_url" id="instagramUrlInput" placeholder="https://instagram.com/yourhandle" maxlength="255" class="flex-1 bg-neutral-900 border border-neutral-700 rounded px-3 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500 text-sm">
+              </div>
+              <div class="flex items-center space-x-2">
+                <span class="text-sky-500 w-6">
+                  <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 10.8c-1.087-2.114-4.046-6.053-6.798-7.995C2.566.944 1.561 1.266.902 1.565.139 1.908 0 2.274 0 2.274s.097-.057.24-.057c.875 0 2.062.458 2.062.458s.553.146 1.178.442c2.07.981 3.31 2.166 4.52 3.706.29.369.515.654.515.654s-.172-.027-.515-.027c-.667 0-1.633.146-1.633.146s1.264.758 2.403 2.59c.752 1.21 1.23 2.59 1.23 2.59s-.08-.35-.08-.79c0-.658.178-1.452.178-1.452l.902 1.16s.08-.573.08-1.24c0-.722-.16-1.452-.16-1.452l.786.932s.143-.546.143-1.16c0-.65-.143-1.266-.143-1.266l.786.867s.108-.48.108-.974c0-.546-.108-1.025-.108-1.025l.786.788s.036-.334.036-.654c0-.293-.036-.573-.036-.573l.786.706s.045-.293.045-.546c0-.24-.045-.467-.045-.467l.76.654s.018-.213.018-.4c0-.2-.018-.387-.018-.387l.75.6s.01-.146.01-.293a4.4 4.4 0 00-.01-.28l.75.56s0-.107 0-.214c0-.12 0-.227 0-.227l.76.52s-.018-.08-.018-.173c0-.08.018-.16.018-.16l.75.48v-.12c0-.054 0-.107 0-.107l.76.44v-.053c0-.04 0-.067 0-.067l.75.4s-.009 0-.009 0c0-.027.01-.04.01-.04l.75.347s-.01 0-.01 0l.75.307.75.266.75.227.75.187.76.147.75.107.75.067.75.027h.75l.75-.04.75-.08.75-.12.76-.16.75-.2.75-.24.75-.28.75-.32.76-.36.75-.4.75-.44.75-.48.75-.52.76-.56.75-.6.75-.64.75-.68.75-.72.76-.76.75-.8.75-.84.75-.88.75-.92.76-.96.75-1 .75-1.04z"/></svg>
+                </span>
+                <input type="text" name="bsky_url" id="bskyUrlInput" placeholder="https://bsky.app/profile/yourhandle" maxlength="255" class="flex-1 bg-neutral-900 border border-neutral-700 rounded px-3 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500 text-sm">
+              </div>
+              <div class="flex items-center space-x-2">
+                <span class="text-pink-500 w-6">
+                  <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.49.18-1.9 1.12-3.72 2.58-4.96 1.66-1.44 3.98-2.13 6.15-1.72.02 1.48-.04 2.96-.04 4.44-.99-.32-2.15-.23-3.02.37-.63.41-1.11 1.04-1.36 1.75-.21.51-.15 1.07-.14 1.61.24 1.64 1.82 3.02 3.5 2.87 1.12-.01 2.19-.66 2.77-1.61.19-.33.4-.67.41-1.06.1-1.79.06-3.57.07-5.36.01-4.03-.01-8.05.02-12.07z"/></svg>
+                </span>
+                <input type="text" name="tiktok_url" id="tiktokUrlInput" placeholder="https://tiktok.com/@yourhandle" maxlength="255" class="flex-1 bg-neutral-900 border border-neutral-700 rounded px-3 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500 text-sm">
+              </div>
+            </div>
+          </div>
         </div>
       </div>
       {% endif %}
@@ -475,9 +608,8 @@ async function loadGamesList() {
 // Load current preferences
 async function loadPreferences() {
   try {
-    // SEC-005 fix: Guild ID now in URL
     const guildId = '{{ guild.id }}';
-    const response = await csrfFetch(`/api/guild/${guildId}/discovery/preferences/`);
+    const response = await fetch(`/api/guild/${guildId}/discovery/preferences/`);
     const data = await response.json();
 
     if (data.success) {
@@ -536,15 +668,87 @@ async function loadPreferences() {
       if (data.preferences.invite_code) {
         document.getElementById('inviteCodeInput').value = data.preferences.invite_code;
       }
+
+      // Also populate server_bio if present
+      const serverBioInput = document.getElementById('serverBioInput');
+      if (serverBioInput && data.preferences.server_bio) {
+        serverBioInput.value = data.preferences.server_bio;
+        document.getElementById('serverBioCount').textContent = data.preferences.server_bio.length;
+      }
+
+      // Populate server tags
+      if (data.preferences.server_tags) {
+        const tags = Array.isArray(data.preferences.server_tags) ? data.preferences.server_tags : [];
+        document.querySelectorAll('.server-tag-checkbox').forEach(checkbox => {
+          checkbox.checked = tags.includes(checkbox.value);
+        });
+        updateTagCount();
+      }
+
+      // Populate social URLs
+      if (data.preferences.twitch_url) {
+        const el = document.getElementById('twitchUrlInput');
+        if (el) el.value = data.preferences.twitch_url;
+      }
+      if (data.preferences.youtube_url) {
+        const el = document.getElementById('youtubeUrlInput');
+        if (el) el.value = data.preferences.youtube_url;
+      }
+      if (data.preferences.twitter_url) {
+        const el = document.getElementById('twitterUrlInput');
+        if (el) el.value = data.preferences.twitter_url;
+      }
+      if (data.preferences.instagram_url) {
+        const el = document.getElementById('instagramUrlInput');
+        if (el) el.value = data.preferences.instagram_url;
+      }
+      if (data.preferences.bsky_url) {
+        const el = document.getElementById('bskyUrlInput');
+        if (el) el.value = data.preferences.bsky_url;
+      }
+      if (data.preferences.tiktok_url) {
+        const el = document.getElementById('tiktokUrlInput');
+        if (el) el.value = data.preferences.tiktok_url;
+      }
     }
   } catch (error) {
-    // Failed to load preferences:
+    // Failed to load preferences - form will use defaults
   }
 }
 
+// Character counter for server bio
+const serverBioInput = document.getElementById('serverBioInput');
+if (serverBioInput) {
+  serverBioInput.addEventListener('input', () => {
+    document.getElementById('serverBioCount').textContent = serverBioInput.value.length;
+  });
+}
+
+// Tag selection counter and limit
+function updateTagCount() {
+  const checked = document.querySelectorAll('.server-tag-checkbox:checked').length;
+  const countEl = document.getElementById('serverTagsCount');
+  if (countEl) countEl.textContent = checked;
+}
+
+document.querySelectorAll('.server-tag-checkbox').forEach(checkbox => {
+  checkbox.addEventListener('change', (e) => {
+    const checked = document.querySelectorAll('.server-tag-checkbox:checked').length;
+    if (checked > 8) {
+      e.target.checked = false;
+      alert('You can select a maximum of 8 tags');
+      return;
+    }
+    updateTagCount();
+  });
+});
+
 // Save preferences
-document.getElementById('preferencesForm').addEventListener('submit', async (e) => {
-  e.preventDefault();
+const preferencesFormEl = document.getElementById('preferencesForm');
+if (preferencesFormEl) {
+  preferencesFormEl.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
   const formData = new FormData(e.target);
   const data = {};
 
@@ -580,6 +784,35 @@ document.getElementById('preferencesForm').addEventListener('submit', async (e) 
   if (inviteCodeInput) {
     data.invite_code = inviteCodeInput.value.trim() || null;
   }
+
+  // Add server_bio
+  const serverBioSaveInput = document.getElementById('serverBioInput');
+  if (serverBioSaveInput) {
+    data.server_bio = serverBioSaveInput.value.trim();
+  }
+
+  // Add server tags (collect checked tags)
+  const checkedTags = Array.from(document.querySelectorAll('.server-tag-checkbox:checked')).map(cb => cb.value);
+  data.server_tags = checkedTags;
+
+  // Add social URLs
+  const twitchInput = document.getElementById('twitchUrlInput');
+  if (twitchInput) data.twitch_url = twitchInput.value.trim() || null;
+
+  const youtubeInput = document.getElementById('youtubeUrlInput');
+  if (youtubeInput) data.youtube_url = youtubeInput.value.trim() || null;
+
+  const twitterInput = document.getElementById('twitterUrlInput');
+  if (twitterInput) data.twitter_url = twitterInput.value.trim() || null;
+
+  const instagramInput = document.getElementById('instagramUrlInput');
+  if (instagramInput) data.instagram_url = instagramInput.value.trim() || null;
+
+  const bskyInput = document.getElementById('bskyUrlInput');
+  if (bskyInput) data.bsky_url = bskyInput.value.trim() || null;
+
+  const tiktokInput = document.getElementById('tiktokUrlInput');
+  if (tiktokInput) data.tiktok_url = tiktokInput.value.trim() || null;
 
   // Handle custom selects
   if (preferredActivitiesSelect) {
@@ -619,7 +852,10 @@ document.getElementById('preferencesForm').addEventListener('submit', async (e) 
     // Failed to save preferences:
     alert('Failed to save preferences. Please try again.');
   }
-});
+  });
+} else {
+  console.error('preferencesForm element not found in DOM!');
+}
 
 // Reset preferences
 async function resetPreferences() {
@@ -698,17 +934,21 @@ async function confirmLeave() {
 
 // Load games list and preferences on page load
 async function initializePage() {
-  // Initialize custom selects BEFORE loading preferences
-  initPreferredActivitiesSelect();
-  initPreferredSkillLevelsSelect();
-  initPreferredGamesSelect();
-  initPreferredTagsSelect();
+  try {
+    // Initialize custom selects BEFORE loading preferences
+    initPreferredActivitiesSelect();
+    initPreferredSkillLevelsSelect();
+    initPreferredGamesSelect();
+    initPreferredTagsSelect();
 
-  // Load games list (will populate preferredGamesSelect)
-  await loadGamesList();
+    // Load games list (will populate preferredGamesSelect)
+    await loadGamesList();
 
-  // Load and apply preferences
-  await loadPreferences();
+    // Load and apply preferences
+    await loadPreferences();
+  } catch (error) {
+    // Initialization error - form will use defaults
+  }
 
   // Initialize any remaining custom-select components after data is loaded
   if (typeof initCustomSelect === 'function') {

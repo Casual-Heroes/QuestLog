@@ -11475,6 +11475,38 @@ def guild_discovery_network(request, guild_id):
                     if application.status == 'denied':
                         denial_reason = application.denial_reason
 
+                # Bot owner's MAIN server is auto-approved for Discovery Network
+                # Only the specific bot owner's main server is auto-approved, not every server they own
+                BOT_OWNER_MAIN_SERVER = os.environ.get('BOT_OWNER_MAIN_SERVER', '')
+                if is_bot_owner and BOT_OWNER_MAIN_SERVER and str(guild_id) == BOT_OWNER_MAIN_SERVER and server_network_status != 'approved':
+                    server_network_status = 'approved'
+                    discord_user = request.session.get('discord_user', {})
+                    # Build avatar URL from Discord user data
+                    avatar_hash = discord_user.get('avatar')
+                    avatar_url = f"https://cdn.discordapp.com/avatars/{user_id}/{avatar_hash}.png" if avatar_hash else None
+                    # Create application record if it doesn't exist (for consistency)
+                    if not application:
+                        auto_app = DiscoveryNetworkApplication(
+                            user_id=int(user_id),
+                            guild_id=int(guild_id),
+                            bio="Bot owner's server - auto-approved",
+                            username=discord_user.get('username', 'BotOwner'),
+                            display_name=discord_user.get('global_name'),
+                            avatar_url=avatar_url,
+                            account_created_at=int(time.time()),
+                            status='approved',
+                            reviewed_at=int(time.time()),
+                            reviewed_by=int(user_id)
+                        )
+                        db.add(auto_app)
+                        db.commit()
+                    elif application.status != 'approved':
+                        # Update existing application to approved
+                        application.status = 'approved'
+                        application.reviewed_at = int(time.time())
+                        application.reviewed_by = int(user_id)
+                        db.commit()
+
             # Check module access
             has_discovery_module = has_module_access(guild_id, 'discovery')
             has_any_module = has_any_module_access(guild_id)
@@ -11637,7 +11669,7 @@ def api_discovery_network_servers(request):
                 servers.append({
                     'id': str(guild.guild_id),
                     'name': guild.guild_name or 'QuestLog Community',
-                    'description': guild_app.bio[:200] if guild_app and guild_app.bio else 'A QuestLog gaming community',
+                    'description': guild_app.bio if guild_app and guild_app.bio else 'A QuestLog gaming community',
                     'icon_url': icon_url,  # Discord CDN URL or None
                     'member_count': member_count,  # From Guild model
                     'activity_level': activity_level,  # Calculated from guild activity
@@ -13129,20 +13161,42 @@ def api_discovery_network_preferences(request, guild_id):
             if request.method == 'GET':
                 prefs = db.query(DiscoveryNetworkPreferences).filter_by(user_id=int(user_id)).first()
 
-                # Also get allow_join and invite_code from the server's application (server setting, not user pref)
+                # Also get allow_join, invite_code, and bio from the server's application (server settings, not user pref)
                 from .models import DiscoveryNetworkApplication
                 # guild_id comes from URL parameter, validated by @api_auth_required
                 allow_join = False
                 invite_code = None
+                server_bio = ''
+                server_tags = []
+                twitch_url = ''
+                youtube_url = ''
+                twitter_url = ''
+                instagram_url = ''
+                bsky_url = ''
+                tiktok_url = ''
 
+                # Match POST behavior: load from most recent application regardless of status
                 application = db.query(DiscoveryNetworkApplication).filter_by(
-                    guild_id=int(guild_id),
-                    status='approved'
-                ).first()
+                    guild_id=int(guild_id)
+                ).order_by(DiscoveryNetworkApplication.applied_at.desc()).first()
 
                 if application:
                     allow_join = application.allow_join
                     invite_code = application.invite_code
+                    server_bio = application.bio or ''
+                    # Parse server tags from JSON
+                    if application.tags:
+                        try:
+                            server_tags = json_lib.loads(application.tags)
+                        except:
+                            server_tags = []
+                    # Get social URLs
+                    twitch_url = application.twitch_url or ''
+                    youtube_url = application.youtube_url or ''
+                    twitter_url = application.twitter_url or ''
+                    instagram_url = application.instagram_url or ''
+                    bsky_url = application.bsky_url or ''
+                    tiktok_url = application.tiktok_url or ''
 
                 if not prefs:
                     # Return default preferences
@@ -13170,7 +13224,15 @@ def api_discovery_network_preferences(request, guild_id):
                             'privacy_show_server': True,
                             'privacy_allow_dms': True,
                             'allow_join': allow_join,
-                            'invite_code': invite_code
+                            'invite_code': invite_code,
+                            'server_bio': server_bio,
+                            'server_tags': server_tags,
+                            'twitch_url': twitch_url,
+                            'youtube_url': youtube_url,
+                            'twitter_url': twitter_url,
+                            'instagram_url': instagram_url,
+                            'bsky_url': bsky_url,
+                            'tiktok_url': tiktok_url
                         }
                     })
 
@@ -13215,7 +13277,15 @@ def api_discovery_network_preferences(request, guild_id):
                         'privacy_show_server': prefs.privacy_show_server,
                         'privacy_allow_dms': prefs.privacy_allow_dms,
                         'allow_join': allow_join,
-                        'invite_code': invite_code
+                        'invite_code': invite_code,
+                        'server_bio': server_bio,
+                        'server_tags': server_tags,
+                        'twitch_url': twitch_url,
+                        'youtube_url': youtube_url,
+                        'twitter_url': twitter_url,
+                        'instagram_url': instagram_url,
+                        'bsky_url': bsky_url,
+                        'tiktok_url': tiktok_url
                     }
                 })
 
@@ -13282,17 +13352,19 @@ def api_discovery_network_preferences(request, guild_id):
                 # Update timestamp
                 prefs.updated_at = int(time.time())
 
-                # ALSO UPDATE ALLOW_JOIN AND INVITE_CODE IN THE APPLICATION TABLE (SERVER SETTINGS)
+                # ALSO UPDATE SERVER SETTINGS IN THE APPLICATION TABLE
                 # These are server settings, not user preferences, so they need to update the application
                 # guild_id comes from URL parameter and user is already validated as admin by @api_auth_required
-                if 'allow_join' in data or 'invite_code' in data:
+                server_setting_keys = ['allow_join', 'invite_code', 'server_bio', 'server_tags',
+                                       'twitch_url', 'youtube_url', 'twitter_url', 'instagram_url', 'bsky_url', 'tiktok_url']
+
+                if any(key in data for key in server_setting_keys):
                     from .models import DiscoveryNetworkApplication
 
-                    # Find the server's application
+                    # Find the server's application (any status - allow editing even if pending/etc)
                     application = db.query(DiscoveryNetworkApplication).filter_by(
-                        guild_id=int(guild_id),
-                        status='approved'
-                    ).first()
+                        guild_id=int(guild_id)
+                    ).order_by(DiscoveryNetworkApplication.applied_at.desc()).first()
 
                     if application:
                         if 'allow_join' in data:
@@ -13301,8 +13373,69 @@ def api_discovery_network_preferences(request, guild_id):
                             # Strip whitespace and set to None if empty
                             invite_code_value = str(data['invite_code']).strip() if data['invite_code'] else None
                             application.invite_code = invite_code_value if invite_code_value else None
-                        application.updated_at = int(time.time())
+                        if 'server_bio' in data:
+                            # Update server description (max 500 chars)
+                            bio_value = str(data['server_bio']).strip()[:500] if data['server_bio'] else ''
+                            application.bio = bio_value
+                        if 'server_tags' in data:
+                            # SECURITY: Validate tags against allowed list (prevent arbitrary input)
+                            ALLOWED_SERVER_TAGS = {
+                                'Casual', 'Competitive', 'PvE', 'PvP', 'Raiding', 'Social',
+                                'Content Creators', 'eSports', 'Beginners Welcome',
+                                'Adults Only (18+)', 'LGBTQ+ Friendly', 'Family Friendly',
+                                'Active LFG', 'Regular Events'
+                            }
+                            tags = data['server_tags'] if isinstance(data['server_tags'], list) else []
+                            # Only accept tags from allowed list, max 8
+                            valid_tags = [t for t in tags if t in ALLOWED_SERVER_TAGS][:8]
+                            application.tags = json_lib.dumps(valid_tags) if valid_tags else None
 
+                        # SECURITY: Validate social URLs against allowed domains
+                        def validate_social_url(url_value, allowed_domains):
+                            """Validate URL against allowed domains to prevent malicious links."""
+                            if not url_value:
+                                return None
+                            url = str(url_value).strip()[:255]
+                            if not url.startswith(('http://', 'https://')):
+                                return None
+                            # Check if URL contains one of the allowed domains
+                            from urllib.parse import urlparse
+                            try:
+                                parsed = urlparse(url)
+                                if parsed.netloc and any(d in parsed.netloc.lower() for d in allowed_domains):
+                                    return url
+                            except:
+                                pass
+                            return None
+
+                        if 'twitch_url' in data:
+                            application.twitch_url = validate_social_url(
+                                data['twitch_url'], ['twitch.tv', 'www.twitch.tv']
+                            )
+                        if 'youtube_url' in data:
+                            application.youtube_url = validate_social_url(
+                                data['youtube_url'], ['youtube.com', 'www.youtube.com', 'youtu.be']
+                            )
+                        if 'twitter_url' in data:
+                            application.twitter_url = validate_social_url(
+                                data['twitter_url'], ['twitter.com', 'www.twitter.com', 'x.com', 'www.x.com']
+                            )
+                        if 'instagram_url' in data:
+                            application.instagram_url = validate_social_url(
+                                data['instagram_url'], ['instagram.com', 'www.instagram.com']
+                            )
+                        if 'bsky_url' in data:
+                            application.bsky_url = validate_social_url(
+                                data['bsky_url'], ['bsky.app', 'bsky.social']
+                            )
+                        if 'tiktok_url' in data:
+                            application.tiktok_url = validate_social_url(
+                                data['tiktok_url'], ['tiktok.com', 'www.tiktok.com']
+                            )
+                        application.updated_at = int(time.time())
+                        db.add(application)
+
+                db.flush()
                 db.commit()
 
                 return JsonResponse({
@@ -22931,6 +23064,1256 @@ def test_streaming_notification(request, guild_id):
             'success': False,
             'error': 'Failed to send test notification'
         }, status=500)
+
+
+# ============================================================================
+# RSS FEED API ENDPOINTS
+# ============================================================================
+
+
+def get_rss_feed_limit(guild):
+    """
+    Get RSS feed limit based on guild subscription.
+
+    Billing:
+    - Free tier: 3 feeds max
+    - Discovery Module / Complete / Lifetime: Unlimited
+    """
+    from .module_utils import has_module_access
+
+    # VIP always gets unlimited
+    if guild.is_vip:
+        return None
+
+    # Complete tier (includes lifetime purchases)
+    if guild.subscription_tier == 'complete':
+        return None
+
+    # Discovery module grants unlimited
+    if has_module_access(guild.guild_id, 'discovery'):
+        return None
+
+    # Free tier = 3 feeds
+    return 3
+
+
+def validate_rss_url(url):
+    """
+    Validate RSS feed URL for security with comprehensive SSRF protections.
+
+    Blocks:
+    - Non-HTTP(S) schemes
+    - Localhost/loopback addresses (IPv4 and IPv6)
+    - Internal/private IP ranges (all resolved addresses)
+    - Link-local, reserved, and multicast addresses
+    - .local and internal domain patterns
+
+    Returns:
+        tuple: (is_valid: bool, error_message: str or None)
+    """
+    from urllib.parse import urlparse
+    import ipaddress
+    import socket
+
+    if not url:
+        return False, 'URL is required'
+
+    url = url.strip()
+
+    # URL length limit
+    if len(url) > 500:
+        return False, 'URL too long (max 500 characters)'
+
+    # Check scheme
+    try:
+        parsed = urlparse(url)
+    except Exception:
+        return False, 'Invalid URL format'
+
+    if parsed.scheme not in ('http', 'https'):
+        return False, 'URL must use HTTP or HTTPS'
+
+    if not parsed.netloc:
+        return False, 'Invalid URL - no host specified'
+
+    # Get hostname without port
+    hostname = parsed.hostname
+    if not hostname:
+        return False, 'Invalid URL - no hostname'
+
+    hostname_lower = hostname.lower()
+
+    # Block obvious localhost patterns (including IPv6 variants)
+    blocked_hosts = {
+        'localhost', '127.0.0.1', '::1', '0.0.0.0',
+        '[::1]', '[::ffff:127.0.0.1]', '[0:0:0:0:0:0:0:1]',
+        '0', '0.0', '0.0.0', '127.1', '127.0.1'
+    }
+    if hostname_lower in blocked_hosts:
+        return False, 'Localhost URLs are not allowed'
+
+    # Block .local domains and internal patterns
+    blocked_suffixes = ['.local', '.internal', '.private', '.corp', '.lan', '.intranet', '.localdomain']
+    for suffix in blocked_suffixes:
+        if hostname_lower.endswith(suffix):
+            return False, f'Internal domains ({suffix}) are not allowed'
+
+    # Block metadata endpoints (AWS, GCP, Azure, etc.)
+    metadata_hosts = ['169.254.169.254', 'metadata.google.internal', 'metadata.goog']
+    if hostname_lower in metadata_hosts:
+        return False, 'Cloud metadata endpoints are not allowed'
+
+    # Resolve ALL addresses (IPv4 and IPv6) and check each one
+    try:
+        # Use getaddrinfo to get all addresses
+        addr_info = socket.getaddrinfo(hostname, None, socket.AF_UNSPEC, socket.SOCK_STREAM)
+
+        if not addr_info:
+            return False, 'Could not resolve hostname'
+
+        for family, sock_type, proto, canonname, sockaddr in addr_info:
+            ip_str = sockaddr[0]
+
+            try:
+                ip_obj = ipaddress.ip_address(ip_str)
+
+                # Check all dangerous IP categories
+                if ip_obj.is_private:
+                    return False, f'Private IP address not allowed: {ip_str}'
+                if ip_obj.is_loopback:
+                    return False, f'Loopback address not allowed: {ip_str}'
+                if ip_obj.is_link_local:
+                    return False, f'Link-local address not allowed: {ip_str}'
+                if ip_obj.is_reserved:
+                    return False, f'Reserved address not allowed: {ip_str}'
+                if ip_obj.is_multicast:
+                    return False, f'Multicast address not allowed: {ip_str}'
+
+                # Additional check for IPv4-mapped IPv6 addresses (::ffff:x.x.x.x)
+                if isinstance(ip_obj, ipaddress.IPv6Address) and ip_obj.ipv4_mapped:
+                    mapped_v4 = ip_obj.ipv4_mapped
+                    if mapped_v4.is_private or mapped_v4.is_loopback or mapped_v4.is_link_local:
+                        return False, f'IPv4-mapped address not allowed: {ip_str}'
+
+            except ValueError:
+                # Invalid IP format - skip this address
+                continue
+
+    except socket.gaierror as e:
+        # DNS resolution failed - this could be a legitimate issue or a non-existent domain
+        # We'll let the actual fetch fail rather than blocking here
+        pass
+    except Exception:
+        pass
+
+    return True, None
+
+
+# RSS Feed Security Constants
+RSS_FETCH_TIMEOUT = 30  # seconds
+RSS_MAX_SIZE = 5 * 1024 * 1024  # 5MB max feed size
+RSS_MAX_REDIRECTS = 5
+
+
+def secure_fetch_rss(url, timeout=RSS_FETCH_TIMEOUT, max_size=RSS_MAX_SIZE):
+    """
+    Securely fetch and parse an RSS feed with SSRF protections.
+
+    - Validates URL before fetching
+    - Validates each redirect hop
+    - Enforces timeout and size limits
+    - Fetches content first, then parses (prevents feedparser from following redirects)
+
+    Returns:
+        tuple: (parsed_feed or None, error_message or None)
+    """
+    import requests
+    import feedparser
+
+    # Initial URL validation
+    is_valid, error = validate_rss_url(url)
+    if not is_valid:
+        return None, error
+
+    try:
+        current_url = url
+        redirect_count = 0
+
+        while redirect_count <= RSS_MAX_REDIRECTS:
+            # Fetch with timeout, streaming, and no auto-redirects
+            response = requests.get(
+                current_url,
+                timeout=timeout,
+                stream=True,
+                allow_redirects=False,
+                headers={
+                    'User-Agent': 'QuestLog RSS Bot/1.0 (+https://questlog.gg)',
+                    'Accept': 'application/rss+xml, application/xml, application/atom+xml, text/xml, */*'
+                }
+            )
+
+            # Handle redirects manually - validate each hop
+            if response.is_redirect or response.status_code in (301, 302, 303, 307, 308):
+                redirect_url = response.headers.get('Location')
+                if not redirect_url:
+                    return None, 'Redirect with no Location header'
+
+                # Handle relative redirects
+                if redirect_url.startswith('/'):
+                    from urllib.parse import urlparse, urlunparse
+                    parsed = urlparse(current_url)
+                    redirect_url = urlunparse((parsed.scheme, parsed.netloc, redirect_url, '', '', ''))
+
+                # Validate redirect target
+                is_valid, error = validate_rss_url(redirect_url)
+                if not is_valid:
+                    return None, f'Blocked redirect to: {error}'
+
+                current_url = redirect_url
+                redirect_count += 1
+                response.close()
+                continue
+
+            # Not a redirect - process the response
+            break
+        else:
+            return None, f'Too many redirects (max {RSS_MAX_REDIRECTS})'
+
+        # Check response status
+        if response.status_code != 200:
+            response.close()
+            return None, f'HTTP error: {response.status_code}'
+
+        # Check content length header if available
+        content_length = response.headers.get('Content-Length')
+        if content_length and int(content_length) > max_size:
+            response.close()
+            return None, f'Feed too large (max {max_size // 1024 // 1024}MB)'
+
+        # Read content with size limit
+        content = b''
+        for chunk in response.iter_content(chunk_size=8192):
+            content += chunk
+            if len(content) > max_size:
+                response.close()
+                return None, f'Feed too large (max {max_size // 1024 // 1024}MB)'
+
+        response.close()
+
+        # Parse the fetched content (feedparser won't make any network requests)
+        parsed = feedparser.parse(content)
+
+        # Check for parse errors
+        if parsed.bozo and not parsed.entries:
+            bozo_exception = str(parsed.get('bozo_exception', 'Unknown parse error'))
+            return None, f'Failed to parse feed: {bozo_exception}'
+
+        return parsed, None
+
+    except requests.Timeout:
+        return None, f'Request timed out after {timeout} seconds'
+    except requests.ConnectionError as e:
+        return None, f'Connection error: {str(e)}'
+    except requests.RequestException as e:
+        return None, f'Request failed: {str(e)}'
+    except Exception as e:
+        return None, f'Unexpected error: {str(e)}'
+
+
+@require_http_methods(["GET"])
+@api_auth_required
+@ratelimit(key='user_or_ip', rate='60/m', method='GET', block=True)
+def api_rss_feeds_list(request, guild_id):
+    """
+    GET /api/guild/<id>/rss/
+    List all RSS feeds for a guild.
+    """
+    try:
+        import json as json_lib
+        from .db import get_db_session
+        from .models import RSSFeed, Guild
+
+        with get_db_session() as db:
+            guild = db.query(Guild).filter_by(guild_id=int(guild_id)).first()
+            if not guild:
+                return JsonResponse({'error': 'Guild not found'}, status=404)
+
+            feeds = db.query(RSSFeed).filter_by(guild_id=int(guild_id)).order_by(RSSFeed.name).all()
+
+            # Get feed limit
+            feed_limit = get_rss_feed_limit(guild)
+
+            result = []
+            for feed in feeds:
+                embed_config = None
+                if feed.embed_config:
+                    try:
+                        embed_config = json_lib.loads(feed.embed_config)
+                    except:
+                        embed_config = {}
+
+                result.append({
+                    'id': feed.id,
+                    'name': feed.name,
+                    'feed_url': feed.feed_url,
+                    'enabled': feed.enabled,
+                    'channel_id': str(feed.channel_id) if feed.channel_id else None,
+                    'ping_role_id': str(feed.ping_role_id) if feed.ping_role_id else None,
+                    'poll_interval_minutes': feed.poll_interval_minutes,
+                    'last_polled_at': feed.last_polled_at,
+                    'last_entry_id': feed.last_entry_id,
+                    'last_entry_published': feed.last_entry_published,
+                    'embed_config': embed_config,
+                    'consecutive_failures': feed.consecutive_failures,
+                    'last_error': feed.last_error,
+                    'last_error_at': feed.last_error_at,
+                    'created_at': feed.created_at,
+                    'updated_at': feed.updated_at
+                })
+
+            return JsonResponse({
+                'success': True,
+                'feeds': result,
+                'feed_count': len(result),
+                'feed_limit': feed_limit,
+                'limit_reached': feed_limit is not None and len(result) >= feed_limit
+            })
+
+    except Exception as e:
+        logger.error('API error occurred', exc_info=True)
+        return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
+
+
+@require_http_methods(["POST"])
+@api_auth_required
+@ratelimit(key='user_or_ip', rate='10/h', method='POST', block=True)
+def api_rss_feed_create(request, guild_id):
+    """
+    POST /api/guild/<id>/rss/create/
+    Create a new RSS feed.
+
+    Billing:
+    - Free tier: 3 feeds max
+    - Discovery Module / Complete / Lifetime: Unlimited
+    """
+    try:
+        import json as json_lib
+        from .db import get_db_session
+        from .models import RSSFeed, Guild
+
+        data = json_lib.loads(request.body)
+
+        # Required fields
+        name = data.get('name', '').strip()
+        feed_url = data.get('feed_url', '').strip()
+        channel_id = data.get('channel_id')
+
+        if not name:
+            return JsonResponse({'error': 'Feed name is required'}, status=400)
+        if len(name) > 100:
+            return JsonResponse({'error': 'Feed name too long (max 100 characters)'}, status=400)
+
+        if not feed_url:
+            return JsonResponse({'error': 'Feed URL is required'}, status=400)
+
+        # Validate URL for security
+        is_valid, error_msg = validate_rss_url(feed_url)
+        if not is_valid:
+            return JsonResponse({'error': error_msg}, status=400)
+
+        if not channel_id:
+            return JsonResponse({'error': 'Channel is required'}, status=400)
+
+        # Optional fields
+        poll_interval = data.get('poll_interval_minutes', 15)
+        if poll_interval not in [5, 10, 15, 30, 60, 1440, 4320, 10080]:
+            poll_interval = 15
+
+        embed_config = data.get('embed_config', {})
+        enabled = data.get('enabled', True)
+        ping_role_id = data.get('ping_role_id')
+        if ping_role_id:
+            ping_role_id = int(ping_role_id)
+        else:
+            ping_role_id = None
+
+        with get_db_session() as db:
+            guild = db.query(Guild).filter_by(guild_id=int(guild_id)).first()
+            if not guild:
+                return JsonResponse({'error': 'Guild not found'}, status=404)
+
+            # Check feed limit
+            feed_limit = get_rss_feed_limit(guild)
+            if feed_limit is not None:
+                existing_count = db.query(RSSFeed).filter_by(guild_id=int(guild_id)).count()
+                if existing_count >= feed_limit:
+                    return JsonResponse({
+                        'error': f'Free tier limited to {feed_limit} RSS feeds. Upgrade to Discovery Module or Complete Edition for unlimited feeds.',
+                        'limit_reached': True,
+                        'current_count': existing_count,
+                        'max_allowed': feed_limit
+                    }, status=403)
+
+            # Get user ID from session
+            user = request.session.get('discord_user', {})
+            user_id = user.get('id')
+
+            # Create feed
+            feed = RSSFeed(
+                guild_id=int(guild_id),
+                name=name,
+                feed_url=feed_url,
+                enabled=bool(enabled),
+                channel_id=int(channel_id),
+                ping_role_id=ping_role_id,
+                poll_interval_minutes=poll_interval,
+                embed_config=json_lib.dumps(embed_config) if embed_config else None,
+                created_by=int(user_id) if user_id else None,
+                created_at=int(time.time()),
+                updated_at=int(time.time())
+            )
+
+            db.add(feed)
+            db.commit()
+            db.refresh(feed)
+
+            logger.info(f"[RSS] Created feed '{name}' (ID: {feed.id}) for guild {guild_id} by user {user_id}")
+
+            return JsonResponse({
+                'success': True,
+                'feed': {
+                    'id': feed.id,
+                    'name': feed.name,
+                    'feed_url': feed.feed_url,
+                    'enabled': feed.enabled,
+                    'channel_id': str(feed.channel_id),
+                    'ping_role_id': str(feed.ping_role_id) if feed.ping_role_id else None,
+                    'poll_interval_minutes': feed.poll_interval_minutes,
+                    'embed_config': embed_config,
+                    'created_at': feed.created_at
+                }
+            }, status=201)
+
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+    except Exception as e:
+        logger.error('API error occurred', exc_info=True)
+        return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
+
+
+@require_http_methods(["GET"])
+@api_auth_required
+@ratelimit(key='user_or_ip', rate='60/m', method='GET', block=True)
+def api_rss_feed_detail(request, guild_id, feed_id):
+    """
+    GET /api/guild/<id>/rss/<feed_id>/
+    Get details of a specific RSS feed.
+    """
+    try:
+        import json as json_lib
+        from .db import get_db_session
+        from .models import RSSFeed
+
+        with get_db_session() as db:
+            feed = db.query(RSSFeed).filter_by(
+                id=feed_id,
+                guild_id=int(guild_id)
+            ).first()
+
+            if not feed:
+                return JsonResponse({'error': 'Feed not found'}, status=404)
+
+            embed_config = None
+            if feed.embed_config:
+                try:
+                    embed_config = json_lib.loads(feed.embed_config)
+                except:
+                    embed_config = {}
+
+            return JsonResponse({
+                'success': True,
+                'feed': {
+                    'id': feed.id,
+                    'name': feed.name,
+                    'feed_url': feed.feed_url,
+                    'enabled': feed.enabled,
+                    'channel_id': str(feed.channel_id) if feed.channel_id else None,
+                    'ping_role_id': str(feed.ping_role_id) if feed.ping_role_id else None,
+                    'poll_interval_minutes': feed.poll_interval_minutes,
+                    'last_polled_at': feed.last_polled_at,
+                    'last_entry_id': feed.last_entry_id,
+                    'last_entry_published': feed.last_entry_published,
+                    'embed_config': embed_config,
+                    'consecutive_failures': feed.consecutive_failures,
+                    'last_error': feed.last_error,
+                    'last_error_at': feed.last_error_at,
+                    'created_by': str(feed.created_by) if feed.created_by else None,
+                    'created_at': feed.created_at,
+                    'updated_at': feed.updated_at
+                }
+            })
+
+    except Exception as e:
+        logger.error('API error occurred', exc_info=True)
+        return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
+
+
+@require_http_methods(["POST"])
+@api_auth_required
+@ratelimit(key='user_or_ip', rate='30/h', method='POST', block=True)
+def api_rss_feed_update(request, guild_id, feed_id):
+    """
+    POST /api/guild/<id>/rss/<feed_id>/update/
+    Update an RSS feed.
+    """
+    try:
+        import json as json_lib
+        from .db import get_db_session
+        from .models import RSSFeed
+
+        data = json_lib.loads(request.body)
+
+        with get_db_session() as db:
+            feed = db.query(RSSFeed).filter_by(
+                id=feed_id,
+                guild_id=int(guild_id)
+            ).first()
+
+            if not feed:
+                return JsonResponse({'error': 'Feed not found'}, status=404)
+
+            # Update fields if provided
+            if 'name' in data:
+                name = data['name'].strip()
+                if not name:
+                    return JsonResponse({'error': 'Feed name cannot be empty'}, status=400)
+                if len(name) > 100:
+                    return JsonResponse({'error': 'Feed name too long (max 100 characters)'}, status=400)
+                feed.name = name
+
+            if 'feed_url' in data:
+                feed_url = data['feed_url'].strip()
+                if not feed_url:
+                    return JsonResponse({'error': 'Feed URL cannot be empty'}, status=400)
+                # Validate URL for security
+                is_valid, error_msg = validate_rss_url(feed_url)
+                if not is_valid:
+                    return JsonResponse({'error': error_msg}, status=400)
+                feed.feed_url = feed_url
+                # Reset error tracking when URL changes
+                feed.consecutive_failures = 0
+                feed.last_error = None
+                feed.last_error_at = None
+
+            if 'enabled' in data:
+                feed.enabled = bool(data['enabled'])
+
+            if 'channel_id' in data:
+                channel_id = data['channel_id']
+                if not channel_id:
+                    return JsonResponse({'error': 'Channel is required'}, status=400)
+                feed.channel_id = int(channel_id)
+
+            if 'ping_role_id' in data:
+                ping_role_id = data['ping_role_id']
+                feed.ping_role_id = int(ping_role_id) if ping_role_id else None
+
+            if 'poll_interval_minutes' in data:
+                poll_interval = data['poll_interval_minutes']
+                if poll_interval not in [5, 10, 15, 30, 60, 1440, 4320, 10080]:
+                    poll_interval = 15
+                feed.poll_interval_minutes = poll_interval
+
+            if 'embed_config' in data:
+                embed_config = data['embed_config']
+                feed.embed_config = json_lib.dumps(embed_config) if embed_config else None
+
+            feed.updated_at = int(time.time())
+
+            db.add(feed)
+            db.commit()
+
+            logger.info(f"[RSS] Updated feed '{feed.name}' (ID: {feed.id}) for guild {guild_id}")
+
+            # Return updated feed
+            embed_config = None
+            if feed.embed_config:
+                try:
+                    embed_config = json_lib.loads(feed.embed_config)
+                except:
+                    embed_config = {}
+
+            return JsonResponse({
+                'success': True,
+                'feed': {
+                    'id': feed.id,
+                    'name': feed.name,
+                    'feed_url': feed.feed_url,
+                    'enabled': feed.enabled,
+                    'channel_id': str(feed.channel_id) if feed.channel_id else None,
+                    'ping_role_id': str(feed.ping_role_id) if feed.ping_role_id else None,
+                    'poll_interval_minutes': feed.poll_interval_minutes,
+                    'embed_config': embed_config,
+                    'updated_at': feed.updated_at
+                }
+            })
+
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+    except Exception as e:
+        logger.error('API error occurred', exc_info=True)
+        return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
+
+
+@require_http_methods(["POST"])
+@api_auth_required
+@ratelimit(key='user_or_ip', rate='10/h', method='POST', block=True)
+def api_rss_feed_delete(request, guild_id, feed_id):
+    """
+    POST /api/guild/<id>/rss/<feed_id>/delete/
+    Delete an RSS feed.
+    """
+    try:
+        from .db import get_db_session
+        from .models import RSSFeed, RSSFeedEntry
+
+        with get_db_session() as db:
+            feed = db.query(RSSFeed).filter_by(
+                id=feed_id,
+                guild_id=int(guild_id)
+            ).first()
+
+            if not feed:
+                return JsonResponse({'error': 'Feed not found'}, status=404)
+
+            feed_name = feed.name
+
+            # Delete associated entries first
+            db.query(RSSFeedEntry).filter_by(feed_id=feed_id).delete()
+
+            # Delete the feed
+            db.delete(feed)
+            db.commit()
+
+            logger.info(f"[RSS] Deleted feed '{feed_name}' (ID: {feed_id}) for guild {guild_id}")
+
+            return JsonResponse({
+                'success': True,
+                'message': f'Feed "{feed_name}" deleted successfully'
+            })
+
+    except Exception as e:
+        logger.error('API error occurred', exc_info=True)
+        return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
+
+
+@require_http_methods(["POST"])
+@api_auth_required
+@ratelimit(key='user_or_ip', rate='10/h', method='POST', block=True)
+def api_rss_feed_test(request, guild_id, feed_id):
+    """
+    POST /api/guild/<id>/rss/<feed_id>/test/
+    Test fetch an RSS feed and return preview data.
+    """
+    try:
+        import json as json_lib
+        from .db import get_db_session
+        from .models import RSSFeed
+        import html
+        import re
+
+        with get_db_session() as db:
+            feed = db.query(RSSFeed).filter_by(
+                id=feed_id,
+                guild_id=int(guild_id)
+            ).first()
+
+            if not feed:
+                return JsonResponse({'error': 'Feed not found'}, status=404)
+
+            # Securely fetch the feed with SSRF protections
+            parsed, error = secure_fetch_rss(feed.feed_url)
+            if error:
+                return JsonResponse({
+                    'success': False,
+                    'error': error
+                }, status=400)
+
+            if not parsed.entries:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Feed is empty or could not be parsed'
+                }, status=400)
+
+            # Get embed config
+            embed_config = {}
+            if feed.embed_config:
+                try:
+                    embed_config = json_lib.loads(feed.embed_config)
+                except:
+                    pass
+
+            # Build preview from first entry
+            entry = parsed.entries[0]
+
+            # Extract title
+            title = entry.get('title', 'No Title')
+            title_prefix = embed_config.get('title_prefix', '')
+            title_suffix = embed_config.get('title_suffix', '')
+            custom_emoji = embed_config.get('custom_emoji_prefix', '')
+
+            # Build title with proper spacing around prefix/suffix
+            if title_prefix:
+                title = f"{title_prefix} {title}"
+            if title_suffix:
+                title = f"{title} {title_suffix}"
+            if custom_emoji:
+                title = f"{custom_emoji} {title}"
+
+            # Truncate title for Discord (256 char limit)
+            if len(title) > 256:
+                title = title[:253] + '...'
+
+            # Extract description/summary
+            description = entry.get('summary', entry.get('description', ''))
+            # Strip HTML tags
+            description = re.sub(r'<[^>]+>', '', description)
+            # Decode HTML entities
+            description = html.unescape(description)
+            # Truncate for Discord (4096 char limit, but we use 500 for preview)
+            show_full = embed_config.get('show_full_content', False)
+            max_desc = 4000 if show_full else 500
+            if len(description) > max_desc:
+                description = description[:max_desc - 3] + '...'
+
+            # Extract link
+            link = entry.get('link', '')
+
+            # Extract author - try multiple possible fields
+            author = None
+            if embed_config.get('show_author', True):
+                # Try standard author field
+                author = entry.get('author')
+                # Try author_detail.name
+                if not author and entry.get('author_detail'):
+                    author = entry.get('author_detail', {}).get('name')
+                # Try dc:creator (Dublin Core)
+                if not author:
+                    author = entry.get('dc_creator')
+                # Try source.title for aggregated feeds (Google Alerts uses this)
+                if not author and entry.get('source'):
+                    author = entry.get('source', {}).get('title')
+
+            # Extract publish date
+            published = None
+            if embed_config.get('show_publish_date', True):
+                published = entry.get('published', entry.get('updated'))
+
+            # Extract categories/tags
+            categories = []
+            if embed_config.get('show_categories', False):
+                for tag in entry.get('tags', []):
+                    categories.append(tag.get('term', tag.get('label', '')))
+
+            # Extract thumbnail
+            thumbnail = None
+            thumbnail_mode = embed_config.get('thumbnail_mode', 'rss')
+
+            if thumbnail_mode == 'custom':
+                thumbnail = embed_config.get('custom_thumbnail_url', '')
+            elif thumbnail_mode == 'rss':
+                # Try to find image from feed entry
+                # Check media:thumbnail
+                if hasattr(entry, 'media_thumbnail') and entry.media_thumbnail:
+                    thumbnail = entry.media_thumbnail[0].get('url')
+                # Check media:content
+                elif hasattr(entry, 'media_content') and entry.media_content:
+                    for media in entry.media_content:
+                        if media.get('type', '').startswith('image/'):
+                            thumbnail = media.get('url')
+                            break
+                # Check enclosures
+                elif hasattr(entry, 'enclosures') and entry.enclosures:
+                    for enc in entry.enclosures:
+                        if enc.get('type', '').startswith('image/'):
+                            thumbnail = enc.get('href', enc.get('url'))
+                            break
+                # Try to extract from content
+                if not thumbnail and description:
+                    img_match = re.search(r'<img[^>]+src=["\']([^"\']+)["\']', entry.get('summary', entry.get('description', '')))
+                    if img_match:
+                        thumbnail = img_match.group(1)
+
+            # Get color
+            color = embed_config.get('color', '#5865F2')
+            # Convert hex to int for Discord
+            if color.startswith('#'):
+                color_int = int(color[1:], 16)
+            else:
+                color_int = 0x5865F2
+
+            # Get footer
+            footer = embed_config.get('footer_text', '')
+
+            # Feed metadata
+            feed_title = parsed.feed.get('title', 'RSS Feed')
+            feed_description = parsed.feed.get('description', '')
+
+            return JsonResponse({
+                'success': True,
+                'feed_info': {
+                    'title': feed_title,
+                    'description': feed_description[:200] + '...' if len(feed_description) > 200 else feed_description,
+                    'entry_count': len(parsed.entries)
+                },
+                'preview': {
+                    'title': title,
+                    'description': description,
+                    'url': link,
+                    'author': author,
+                    'published': published,
+                    'categories': categories[:5] if categories else None,
+                    'thumbnail': thumbnail,
+                    'color': color,
+                    'color_int': color_int,
+                    'footer': footer
+                }
+            })
+
+    except ImportError:
+        return JsonResponse({
+            'success': False,
+            'error': 'feedparser library not installed on server'
+        }, status=500)
+    except Exception as e:
+        logger.error('API error occurred', exc_info=True)
+        return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
+
+
+@require_http_methods(["POST"])
+@api_auth_required
+@ratelimit(key='user_or_ip', rate='5/h', method='POST', block=True)
+def api_rss_feed_send_test(request, guild_id, feed_id):
+    """
+    POST /api/guild/<id>/rss/<feed_id>/send-test/
+    Send a test RSS entry to the configured Discord channel.
+    This queues an action for the bot to actually post the embed.
+    """
+    try:
+        import json as json_lib
+        from .db import get_db_session
+        from .models import RSSFeed
+        from .actions import queue_action, ActionType
+        import html
+        import re
+
+        with get_db_session() as db:
+            feed = db.query(RSSFeed).filter_by(
+                id=feed_id,
+                guild_id=int(guild_id)
+            ).first()
+
+            if not feed:
+                return JsonResponse({'error': 'Feed not found'}, status=404)
+
+            if not feed.channel_id:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'No channel configured for this feed. Please select a channel first.'
+                }, status=400)
+
+            # Securely fetch the feed with SSRF protections
+            parsed, error = secure_fetch_rss(feed.feed_url)
+            if error:
+                return JsonResponse({
+                    'success': False,
+                    'error': error
+                }, status=400)
+
+            if not parsed.entries:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Feed is empty or could not be parsed'
+                }, status=400)
+
+            # Get embed config
+            embed_config = {}
+            if feed.embed_config:
+                try:
+                    embed_config = json_lib.loads(feed.embed_config)
+                except:
+                    pass
+
+            # Build embed data from first entry
+            entry = parsed.entries[0]
+
+            # Extract title
+            title = entry.get('title', 'No Title')
+            title_prefix = embed_config.get('title_prefix', '')
+            title_suffix = embed_config.get('title_suffix', '')
+            custom_emoji = embed_config.get('custom_emoji_prefix', '')
+
+            # Build title with proper spacing around prefix/suffix
+            if title_prefix:
+                title = f"{title_prefix} {title}"
+            if title_suffix:
+                title = f"{title} {title_suffix}"
+            if custom_emoji:
+                title = f"{custom_emoji} {title}"
+
+            # Truncate title for Discord (256 char limit)
+            if len(title) > 256:
+                title = title[:253] + '...'
+
+            # Extract description/summary
+            description = entry.get('summary', entry.get('description', ''))
+            # Strip HTML tags
+            description = re.sub(r'<[^>]+>', '', description)
+            # Decode HTML entities
+            description = html.unescape(description)
+            # Truncate for Discord
+            show_full = embed_config.get('show_full_content', False)
+            max_desc = 4000 if show_full else 500
+            if len(description) > max_desc:
+                description = description[:max_desc - 3] + '...'
+
+            # Extract link
+            link = entry.get('link', '')
+
+            # Extract author - try multiple possible fields
+            author = None
+            if embed_config.get('show_author', True):
+                # Try standard author field
+                author = entry.get('author')
+                # Try author_detail.name
+                if not author and entry.get('author_detail'):
+                    author = entry.get('author_detail', {}).get('name')
+                # Try dc:creator (Dublin Core)
+                if not author:
+                    author = entry.get('dc_creator')
+                # Try source.title for aggregated feeds (Google Alerts uses this)
+                if not author and entry.get('source'):
+                    author = entry.get('source', {}).get('title')
+
+            # Extract publish date
+            published = None
+            if embed_config.get('show_publish_date', True):
+                published = entry.get('published', entry.get('updated'))
+
+            # Extract categories/tags
+            categories = []
+            if embed_config.get('show_categories', False):
+                for tag in entry.get('tags', []):
+                    categories.append(tag.get('term', tag.get('label', '')))
+
+            # Extract thumbnail
+            thumbnail = None
+            thumbnail_mode = embed_config.get('thumbnail_mode', 'rss')
+
+            if thumbnail_mode == 'custom':
+                thumbnail = embed_config.get('custom_thumbnail_url', '')
+            elif thumbnail_mode == 'rss':
+                # Try to find image from feed entry
+                if hasattr(entry, 'media_thumbnail') and entry.media_thumbnail:
+                    thumbnail = entry.media_thumbnail[0].get('url')
+                elif hasattr(entry, 'media_content') and entry.media_content:
+                    for media in entry.media_content:
+                        if media.get('type', '').startswith('image/'):
+                            thumbnail = media.get('url')
+                            break
+                elif hasattr(entry, 'enclosures') and entry.enclosures:
+                    for enc in entry.enclosures:
+                        if enc.get('type', '').startswith('image/'):
+                            thumbnail = enc.get('href', enc.get('url'))
+                            break
+                # Try to extract from content
+                if not thumbnail and description:
+                    img_match = re.search(r'<img[^>]+src=["\']([^"\']+)["\']', entry.get('summary', entry.get('description', '')))
+                    if img_match:
+                        thumbnail = img_match.group(1)
+
+            # Get color - handle various formats
+            color = embed_config.get('color', '#5865F2')
+            color_int = 0x5865F2  # Default Discord blurple
+            if color:
+                try:
+                    if isinstance(color, str) and color.startswith('#'):
+                        color_int = int(color[1:], 16)
+                    elif isinstance(color, int):
+                        color_int = color
+                    elif isinstance(color, str):
+                        # Try to parse as hex without #
+                        color_int = int(color, 16)
+                except:
+                    pass  # Keep default color
+
+            # Get footer
+            footer = embed_config.get('footer_text', '')
+
+            # Get user info for audit trail
+            discord_user = request.session.get('discord_user', {})
+            triggered_by = int(discord_user.get('id', 0)) if discord_user.get('id') else None
+            triggered_by_name = discord_user.get('username', 'Unknown')
+
+            # Queue the action for the bot to send
+            action_id = queue_action(
+                guild_id=int(guild_id),
+                action_type=ActionType.RSS_TEST_SEND,
+                payload={
+                    'channel_id': int(feed.channel_id),
+                    'feed_id': feed.id,
+                    'feed_name': feed.name,
+                    'ping_role_id': int(feed.ping_role_id) if feed.ping_role_id else None,
+                    'embed': {
+                        'title': title,
+                        'description': description,
+                        'url': link,
+                        'author': author,
+                        'published': published,
+                        'categories': categories[:5] if categories else None,
+                        'thumbnail': thumbnail,
+                        'color': color_int,
+                        'footer': footer or f"Test from {feed.name}"
+                    }
+                },
+                triggered_by=triggered_by,
+                triggered_by_name=triggered_by_name,
+                source='website',
+                priority=3  # Higher priority for test messages
+            )
+
+            return JsonResponse({
+                'success': True,
+                'message': 'Test message queued successfully. It should appear in Discord shortly.',
+                'action_id': action_id
+            })
+
+    except ImportError:
+        return JsonResponse({
+            'success': False,
+            'error': 'feedparser library not installed on server'
+        }, status=500)
+    except Exception as e:
+        logger.error('API error occurred', exc_info=True)
+        return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
+
+
+@require_http_methods(["POST"])
+@api_auth_required
+@ratelimit(key='user_or_ip', rate='30/m', method='POST', block=True)
+def api_rss_validate_url(request, guild_id):
+    """
+    POST /api/guild/<id>/rss/validate-url/
+    Validate an RSS feed URL (security check + fetch test).
+    """
+    try:
+        import json as json_lib
+
+        data = json_lib.loads(request.body)
+        url = data.get('url', '').strip()
+
+        if not url:
+            return JsonResponse({'error': 'URL is required'}, status=400)
+
+        # Securely fetch and validate the feed with SSRF protections
+        parsed, error = secure_fetch_rss(url)
+        if error:
+            return JsonResponse({
+                'success': True,
+                'valid': False,
+                'error': error
+            })
+
+        if not parsed.entries:
+            return JsonResponse({
+                'success': True,
+                'valid': False,
+                'error': 'Feed is empty or could not be parsed'
+            })
+
+        # Feed is valid!
+        feed_title = parsed.feed.get('title', 'RSS Feed')
+
+        return JsonResponse({
+            'success': True,
+            'valid': True,
+            'feed_title': feed_title,
+            'entry_count': len(parsed.entries)
+        })
+
+    except ImportError:
+        return JsonResponse({
+            'success': False,
+            'error': 'feedparser library not installed on server'
+        }, status=500)
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+    except Exception as e:
+        logger.error('API error occurred', exc_info=True)
+        return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
+
+
+# RSS FEEDS PAGE VIEW
+@discord_required
+def guild_rss_feeds(request, guild_id):
+    """RSS Feeds management page - standalone, not part of Discovery Network."""
+    user_guilds = request.session.get('discord_admin_guilds', [])
+    admin_guilds = user_guilds
+    guild = next((g for g in user_guilds if str(g.get('id')) == str(guild_id)), None)
+
+    if not guild:
+        return redirect('questlog_dashboard')
+
+    # Check admin permission
+    permissions = int(guild.get('permissions', 0))
+    is_admin = (permissions & 0x8) == 0x8 or (permissions & 0x20) == 0x20
+    if not is_admin:
+        return redirect('questlog_dashboard')
+
+    # Get guild record for template
+    try:
+        from .db import get_db_session
+        from .models import Guild
+
+        with get_db_session() as db:
+            guild_record = db.query(Guild).filter_by(guild_id=int(guild_id)).first()
+    except Exception:
+        guild_record = None
+
+    return render(request, 'questlog/rss_feeds.html', {
+        'guild': guild,
+        'admin_guilds': admin_guilds,
+        'member_guilds': request.session.get('discord_member_guilds', []),
+        'is_admin': is_admin,
+        'active_page': 'rss_feeds',
+        'guild_record': guild_record
+    })
+
+
+# RSS ARTICLES DASHBOARD (Member view - read all articles from feeds)
+@discord_required
+def guild_rss_articles(request, guild_id):
+    """
+    GET /questlog/guild/<id>/rss-articles/
+    View all RSS articles from configured feeds.
+    Available to all guild members (not just admins).
+    """
+    import json as json_lib
+    from datetime import datetime
+
+    # Get guild from session - allow any guild member to view
+    all_guilds = request.session.get('discord_all_guilds', [])
+    admin_guilds = request.session.get('discord_admin_guilds', [])
+    guild = get_guild_with_permissions(guild_id, admin_guilds, all_guilds)
+
+    if not guild:
+        messages.error(request, "You are not a member of this server.")
+        return redirect('questlog_dashboard')
+
+    try:
+        from .db import get_db_session
+        from .models import Guild, RSSFeed, RSSFeedEntry
+
+        with get_db_session() as db:
+            # Get guild record
+            guild_record = db.query(Guild).filter_by(guild_id=int(guild_id)).first()
+
+            # Get filters from query params
+            feed_id = request.GET.get('feed_id')
+
+            # Get available feeds for this guild
+            available_feeds = db.query(RSSFeed).filter(
+                RSSFeed.guild_id == int(guild_id),
+                RSSFeed.enabled == True
+            ).order_by(RSSFeed.name).all()
+
+            # Query RSS entries
+            query = db.query(RSSFeedEntry).join(RSSFeed).filter(
+                RSSFeed.guild_id == int(guild_id)
+            )
+
+            if feed_id:
+                query = query.filter(RSSFeedEntry.feed_id == int(feed_id))
+
+            # Get recent entries (last 200)
+            entries_raw = query.order_by(RSSFeedEntry.posted_at.desc()).limit(200).all()
+
+            # Process entries for template
+            articles = []
+            for entry in entries_raw:
+                # Get the feed for this entry
+                feed = db.query(RSSFeed).filter_by(id=entry.feed_id).first()
+
+                # Parse categories
+                categories = []
+                if entry.entry_categories:
+                    try:
+                        categories = json_lib.loads(entry.entry_categories)
+                    except:
+                        pass
+
+                # Format published date
+                published_str = None
+                if entry.published_at:
+                    try:
+                        published_str = datetime.fromtimestamp(entry.published_at).strftime('%b %d, %Y')
+                    except:
+                        pass
+
+                # Format posted date
+                posted_str = None
+                if entry.posted_at:
+                    try:
+                        posted_str = datetime.fromtimestamp(entry.posted_at).strftime('%b %d, %Y at %I:%M %p')
+                    except:
+                        pass
+
+                # Sanitize link - only allow http/https schemes
+                safe_link = None
+                if entry.entry_link:
+                    link_lower = entry.entry_link.lower().strip()
+                    if link_lower.startswith('http://') or link_lower.startswith('https://'):
+                        safe_link = entry.entry_link
+                    # Block javascript:, data:, vbscript:, file:, etc.
+
+                articles.append({
+                    'id': entry.id,
+                    'title': entry.entry_title or 'Untitled',
+                    'link': safe_link,
+                    'summary': entry.entry_summary,
+                    'author': entry.entry_author,
+                    'thumbnail': entry.entry_thumbnail,
+                    'categories': categories[:5],  # Limit to 5 tags
+                    'published_at': published_str,
+                    'posted_at': posted_str,
+                    'feed_id': entry.feed_id,
+                    'feed_name': feed.name if feed else 'Unknown Feed'
+                })
+
+            # Prepare feeds for filter dropdown
+            feeds_list = [
+                {'id': f.id, 'name': f.name}
+                for f in available_feeds
+            ]
+
+            return render(request, 'questlog/rss_articles.html', {
+                'guild': guild,
+                'admin_guilds': admin_guilds,
+                'member_guilds': request.session.get('discord_member_guilds', []),
+                'is_admin': any(str(g.get('id')) == str(guild_id) for g in admin_guilds),
+                'active_page': 'rss_articles',
+                'guild_record': guild_record,
+                'articles': articles,
+                'feeds': feeds_list,
+                'feeds_json': json_lib.dumps(feeds_list),  # Safe JSON encoding for JS
+                'selected_feed_id': feed_id,
+                'total_count': len(articles)
+            })
+
+    except Exception as e:
+        logger.error(f'Error loading RSS articles: {e}', exc_info=True)
+        messages.error(request, "Failed to load RSS articles.")
+        return redirect('guild_dashboard', guild_id=guild_id)
 
 
 # ============================================================================
