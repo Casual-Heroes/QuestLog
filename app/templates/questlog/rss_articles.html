@@ -30,21 +30,33 @@
         {% endif %}
     </div>
 
-    <!-- Filter -->
-    {% if feeds %}
+    <!-- Search & Filter -->
     <div class="mt-6">
         <div class="flex flex-col lg:flex-row gap-3 items-start lg:items-center">
-            <div id="feedFilterContainer" class="w-full lg:w-80"></div>
+            <!-- Search Input -->
+            <div class="relative w-full lg:w-80">
+                <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-500"></i>
+                <input type="text"
+                       id="articleSearch"
+                       placeholder="Search articles..."
+                       class="w-full pl-10 pr-10 py-2.5 bg-neutral-800 border border-neutral-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-orange-500 transition-colors">
+                <button id="clearSearch" class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white hidden">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            {% if feeds %}
+            <!-- Feed Filter -->
+            <div id="feedFilterContainer" class="w-full lg:w-64"></div>
             <button id="clearFilter"
                     class="px-4 py-2 bg-neutral-700 hover:bg-neutral-600 text-white rounded-lg font-medium transition text-sm {% if not selected_feed_id %}hidden{% endif %}">
                 <i class="fas fa-times mr-1"></i>Clear Filter
             </button>
+            {% endif %}
         </div>
         <p class="text-xs text-gray-500 mt-2">
-            Filter articles by RSS feed source.
+            Search by title, summary, author, or tags{% if feeds %} • Filter by feed source{% endif %}
         </p>
     </div>
-    {% endif %}
 
     <!-- Stats -->
     <div class="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -110,10 +122,26 @@
     </p>
     {% endif %}
 
+    <!-- No Search Results Message (hidden by default) -->
+    <div id="noSearchResults" class="hidden bg-neutral-900 border border-neutral-800 rounded-xl p-12 text-center">
+        <i class="fas fa-search text-gray-500 text-5xl mb-4"></i>
+        <h2 class="text-xl font-bold text-gray-400 mb-2">No Articles Found</h2>
+        <p class="text-gray-500">No articles match your search. Try different keywords.</p>
+        <button onclick="document.getElementById('articleSearch').value=''; document.getElementById('articleSearch').dispatchEvent(new Event('input'));"
+                class="inline-block mt-4 px-6 py-3 bg-orange-600 hover:bg-orange-700 rounded-lg transition-colors cursor-pointer">
+            <i class="fas fa-times mr-2"></i>Clear Search
+        </button>
+    </div>
+
     <!-- Articles Grid -->
-    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+    <div id="articlesGrid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
         {% for article in articles %}
-        <article class="bg-neutral-900 border border-neutral-800 rounded-xl overflow-hidden hover:border-orange-500/50 transition-all duration-300 group flex flex-col">
+        <article class="article-card bg-neutral-900 border border-neutral-800 rounded-xl overflow-hidden hover:border-orange-500/50 transition-all duration-300 group flex flex-col"
+                 data-title="{{ article.title|lower }}"
+                 data-summary="{{ article.summary|default:''|lower }}"
+                 data-author="{{ article.author|default:''|lower }}"
+                 data-feed="{{ article.feed_name|lower }}"
+                 data-categories="{% for cat in article.categories %}{{ cat|lower }} {% endfor %}">
             <!-- Thumbnail -->
             <div class="aspect-video bg-neutral-800 overflow-hidden flex-shrink-0">
                 {% if article.thumbnail %}
@@ -218,7 +246,7 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
-// Initialize feed filter
+// Initialize feed filter and search
 document.addEventListener('DOMContentLoaded', function() {
     // Parse feeds safely from json_script element
     const feedsDataEl = document.getElementById('feeds-data');
@@ -258,6 +286,92 @@ document.addEventListener('DOMContentLoaded', function() {
     if (clearBtn) {
         clearBtn.addEventListener('click', () => {
             window.location.href = window.location.pathname;
+        });
+    }
+
+    // Article Search Functionality
+    const searchInput = document.getElementById('articleSearch');
+    const clearSearchBtn = document.getElementById('clearSearch');
+    const articlesGrid = document.getElementById('articlesGrid');
+    const noResultsMsg = document.getElementById('noSearchResults');
+    const articleCards = document.querySelectorAll('.article-card');
+
+    if (searchInput && articleCards.length > 0) {
+        // Debounce function for performance
+        let searchTimeout;
+
+        searchInput.addEventListener('input', function() {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => {
+                const query = this.value.toLowerCase().trim();
+
+                // Show/hide clear button
+                if (clearSearchBtn) {
+                    clearSearchBtn.classList.toggle('hidden', !query);
+                }
+
+                if (!query) {
+                    // Show all articles
+                    articleCards.forEach(card => card.classList.remove('hidden'));
+                    if (noResultsMsg) noResultsMsg.classList.add('hidden');
+                    if (articlesGrid) articlesGrid.classList.remove('hidden');
+                    return;
+                }
+
+                // Split query into words for multi-word search
+                const queryWords = query.split(/\s+/).filter(w => w.length > 0);
+                let visibleCount = 0;
+
+                articleCards.forEach(card => {
+                    // Get searchable content from data attributes
+                    const title = card.dataset.title || '';
+                    const summary = card.dataset.summary || '';
+                    const author = card.dataset.author || '';
+                    const feed = card.dataset.feed || '';
+                    const categories = card.dataset.categories || '';
+
+                    // Combine all searchable text
+                    const searchText = `${title} ${summary} ${author} ${feed} ${categories}`;
+
+                    // Check if ALL query words are found (AND search)
+                    const matches = queryWords.every(word => searchText.includes(word));
+
+                    if (matches) {
+                        card.classList.remove('hidden');
+                        visibleCount++;
+                    } else {
+                        card.classList.add('hidden');
+                    }
+                });
+
+                // Show/hide no results message
+                if (noResultsMsg && articlesGrid) {
+                    if (visibleCount === 0) {
+                        noResultsMsg.classList.remove('hidden');
+                        articlesGrid.classList.add('hidden');
+                    } else {
+                        noResultsMsg.classList.add('hidden');
+                        articlesGrid.classList.remove('hidden');
+                    }
+                }
+            }, 150); // 150ms debounce
+        });
+
+        // Clear search button
+        if (clearSearchBtn) {
+            clearSearchBtn.addEventListener('click', function() {
+                searchInput.value = '';
+                searchInput.dispatchEvent(new Event('input'));
+                searchInput.focus();
+            });
+        }
+
+        // Allow pressing Escape to clear search
+        searchInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                this.value = '';
+                this.dispatchEvent(new Event('input'));
+            }
         });
     }
 });

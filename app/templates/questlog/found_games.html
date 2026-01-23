@@ -144,8 +144,14 @@
                     </h3>
 
                     {% if game.release_date %}
-                    <div class="text-sm text-gray-400 mb-3">
+                    <div class="text-sm text-gray-400 mb-1">
                         <i class="far fa-calendar mr-1"></i>{{ game.release_date }}
+                    </div>
+                    {% endif %}
+
+                    {% if game.found_at %}
+                    <div class="text-xs text-gray-500 mb-3" title="When this game was discovered by QuestLog">
+                        <i class="fas fa-plus-circle mr-1 text-green-500"></i>Added {{ game.found_at }}
                     </div>
                     {% endif %}
 

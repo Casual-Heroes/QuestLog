@@ -13654,7 +13654,8 @@ def api_discovery_games_list(request):
                 AnnouncedGame.cover_url,
                 AnnouncedGame.igdb_slug,
                 AnnouncedGame.steam_id,
-                AnnouncedGame.created_at
+                AnnouncedGame.created_at,
+                AnnouncedGame.announced_at  # Use announced_at for auto-discovered games
             ).filter(
                 AnnouncedGame.guild_id.in_(approved_guild_ids)
             ).all()
@@ -13665,8 +13666,10 @@ def api_discovery_games_list(request):
                 games_data[game_name_lower]['genre'] = game.genre
                 # Track which servers announced this game
                 games_data[game_name_lower]['server_guild_ids'].add(game.guild_id)
-                if game.created_at and game.created_at > games_data[game_name_lower]['latest_timestamp']:
-                    games_data[game_name_lower]['latest_timestamp'] = game.created_at
+                # Use announced_at (auto-discovery) or created_at (manual shares) as timestamp
+                game_timestamp = game.announced_at or game.created_at
+                if game_timestamp and game_timestamp > games_data[game_name_lower]['latest_timestamp']:
+                    games_data[game_name_lower]['latest_timestamp'] = game_timestamp
                 # Use first non-null values found
                 if not games_data[game_name_lower]['cover_url'] and game.cover_url:
                     games_data[game_name_lower]['cover_url'] = game.cover_url
@@ -13697,7 +13700,8 @@ def api_discovery_games_list(request):
                 FoundGame.platforms,
                 FoundGame.hypes,
                 FoundGame.rating,
-                func.count(func.distinct(FoundGame.guild_id)).label('found_count')
+                func.count(func.distinct(FoundGame.guild_id)).label('found_count'),
+                func.max(FoundGame.found_at).label('found_at')  # When game was discovered
             ).join(
                 GameSearchConfig,
                 FoundGame.search_config_id == GameSearchConfig.id
@@ -13740,6 +13744,9 @@ def api_discovery_games_list(request):
                     games_data[game_name_lower]['hypes'] = game.hypes
                 if game.rating and not games_data[game_name_lower]['avg_rating']:
                     games_data[game_name_lower]['avg_rating'] = game.rating
+                # Use found_at as latest_timestamp if newer or not set
+                if game.found_at and game.found_at > games_data[game_name_lower]['latest_timestamp']:
+                    games_data[game_name_lower]['latest_timestamp'] = game.found_at
 
             # 3. Get active Cross-Server LFG count per game (only shared_to_network=True)
             active_lfgs = db.query(
@@ -13854,6 +13861,15 @@ def api_discovery_games_list(request):
                     except:
                         pass
 
+                # Format added/discovered date
+                added_date_str = None
+                if data['latest_timestamp']:
+                    try:
+                        from datetime import datetime
+                        added_date_str = datetime.fromtimestamp(data['latest_timestamp']).strftime('%b %d, %Y')
+                    except:
+                        pass
+
                 # Use description or fallback to summary from IGDB if available
                 summary = data['description']
 
@@ -13892,6 +13908,7 @@ def api_discovery_games_list(request):
                     'genre': data['genre'],
                     'summary': summary,
                     'release_date': release_date_str,
+                    'added_date': added_date_str,  # When game was discovered/added
                     'genres': genres_list,
                     'platforms': platforms_list,
                     'server_count': len(data['server_guild_ids']),  # Use actual count from set
