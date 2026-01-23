@@ -23352,6 +23352,14 @@ def api_rss_feeds_list(request, guild_id):
                     except:
                         embed_config = {}
 
+                # Parse category filters
+                category_filters = None
+                if feed.category_filters:
+                    try:
+                        category_filters = json_lib.loads(feed.category_filters)
+                    except:
+                        category_filters = []
+
                 result.append({
                     'id': feed.id,
                     'name': feed.name,
@@ -23364,6 +23372,8 @@ def api_rss_feeds_list(request, guild_id):
                     'last_entry_id': feed.last_entry_id,
                     'last_entry_published': feed.last_entry_published,
                     'embed_config': embed_config,
+                    'category_filter_mode': feed.category_filter_mode or 'none',
+                    'category_filters': category_filters or [],
                     'consecutive_failures': feed.consecutive_failures,
                     'last_error': feed.last_error,
                     'last_error_at': feed.last_error_at,
@@ -23458,6 +23468,14 @@ def api_rss_feed_create(request, guild_id):
             user = request.session.get('discord_user', {})
             user_id = user.get('id')
 
+            # Category filter settings
+            category_filter_mode = data.get('category_filter_mode', 'none')
+            if category_filter_mode not in ['none', 'include', 'exclude']:
+                category_filter_mode = 'none'
+            category_filters = data.get('category_filters', [])
+            if not isinstance(category_filters, list):
+                category_filters = []
+
             # Create feed
             feed = RSSFeed(
                 guild_id=int(guild_id),
@@ -23468,6 +23486,8 @@ def api_rss_feed_create(request, guild_id):
                 ping_role_id=ping_role_id,
                 poll_interval_minutes=poll_interval,
                 embed_config=json_lib.dumps(embed_config) if embed_config else None,
+                category_filter_mode=category_filter_mode,
+                category_filters=json_lib.dumps(category_filters) if category_filters else None,
                 created_by=int(user_id) if user_id else None,
                 created_at=int(time.time()),
                 updated_at=int(time.time())
@@ -23490,6 +23510,8 @@ def api_rss_feed_create(request, guild_id):
                     'ping_role_id': str(feed.ping_role_id) if feed.ping_role_id else None,
                     'poll_interval_minutes': feed.poll_interval_minutes,
                     'embed_config': embed_config,
+                    'category_filter_mode': category_filter_mode,
+                    'category_filters': category_filters,
                     'created_at': feed.created_at
                 }
             }, status=201)
@@ -23628,6 +23650,18 @@ def api_rss_feed_update(request, guild_id, feed_id):
                 embed_config = data['embed_config']
                 feed.embed_config = json_lib.dumps(embed_config) if embed_config else None
 
+            if 'category_filter_mode' in data:
+                category_filter_mode = data['category_filter_mode']
+                if category_filter_mode not in ['none', 'include', 'exclude']:
+                    category_filter_mode = 'none'
+                feed.category_filter_mode = category_filter_mode
+
+            if 'category_filters' in data:
+                category_filters = data['category_filters']
+                if not isinstance(category_filters, list):
+                    category_filters = []
+                feed.category_filters = json_lib.dumps(category_filters) if category_filters else None
+
             feed.updated_at = int(time.time())
 
             db.add(feed)
@@ -23643,6 +23677,13 @@ def api_rss_feed_update(request, guild_id, feed_id):
                 except:
                     embed_config = {}
 
+            category_filters = []
+            if feed.category_filters:
+                try:
+                    category_filters = json_lib.loads(feed.category_filters)
+                except:
+                    category_filters = []
+
             return JsonResponse({
                 'success': True,
                 'feed': {
@@ -23654,6 +23695,8 @@ def api_rss_feed_update(request, guild_id, feed_id):
                     'ping_role_id': str(feed.ping_role_id) if feed.ping_role_id else None,
                     'poll_interval_minutes': feed.poll_interval_minutes,
                     'embed_config': embed_config,
+                    'category_filter_mode': feed.category_filter_mode or 'none',
+                    'category_filters': category_filters,
                     'updated_at': feed.updated_at
                 }
             })
@@ -24134,11 +24177,24 @@ def api_rss_validate_url(request, guild_id):
         # Feed is valid!
         feed_title = parsed.feed.get('title', 'RSS Feed')
 
+        # Extract unique categories from all entries for filtering
+        all_categories = set()
+        for entry in parsed.entries:
+            tags = entry.get('tags', [])
+            for tag in tags:
+                category = tag.get('term', tag.get('label', ''))
+                if category and len(category) <= 100:  # Reasonable length limit
+                    all_categories.add(category)
+
+        # Sort categories alphabetically, limit to 100 most common
+        sorted_categories = sorted(all_categories, key=str.lower)[:100]
+
         return JsonResponse({
             'success': True,
             'valid': True,
             'feed_title': feed_title,
-            'entry_count': len(parsed.entries)
+            'entry_count': len(parsed.entries),
+            'categories': sorted_categories
         })
 
     except ImportError:

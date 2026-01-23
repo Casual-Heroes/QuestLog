@@ -227,6 +227,78 @@
           </div>
         </div>
 
+        <!-- Category Filtering -->
+        <div class="space-y-4">
+          <h4 class="text-lg font-semibold text-white border-b border-neutral-700 pb-2">Category Filtering</h4>
+          <p class="text-sm text-gray-400">Filter articles by category/tag. Validate the feed URL first to see available categories.</p>
+
+          <!-- Filter Mode -->
+          <div class="flex items-center space-x-4">
+            <label class="inline-flex items-center cursor-pointer">
+              <input type="radio" name="rssCategoryFilterMode" value="none" checked
+                class="w-4 h-4 text-indigo-600 bg-neutral-800 border-neutral-600 focus:ring-indigo-500"
+                onchange="toggleCategoryFilterMode('none')">
+              <span class="ml-2 text-gray-300">No filter</span>
+            </label>
+            <label class="inline-flex items-center cursor-pointer">
+              <input type="radio" name="rssCategoryFilterMode" value="include"
+                class="w-4 h-4 text-indigo-600 bg-neutral-800 border-neutral-600 focus:ring-indigo-500"
+                onchange="toggleCategoryFilterMode('include')">
+              <span class="ml-2 text-gray-300">Include only</span>
+            </label>
+            <label class="inline-flex items-center cursor-pointer">
+              <input type="radio" name="rssCategoryFilterMode" value="exclude"
+                class="w-4 h-4 text-indigo-600 bg-neutral-800 border-neutral-600 focus:ring-indigo-500"
+                onchange="toggleCategoryFilterMode('exclude')">
+              <span class="ml-2 text-gray-300">Exclude</span>
+            </label>
+          </div>
+
+          <!-- Category Selection (hidden until filter mode is selected) -->
+          <div id="rssCategoryFilterContainer" class="hidden space-y-3">
+            <!-- Custom Category Input -->
+            <div>
+              <label class="block text-sm font-medium text-gray-400 mb-1">Add Custom Category</label>
+              <div class="flex space-x-2">
+                <input type="text" id="rssCustomCategoryInput" maxlength="100"
+                  class="flex-1 bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500 text-sm"
+                  placeholder="e.g., Elder Scrolls Online, eso, ffxiv">
+                <button type="button" onclick="addCustomCategory()"
+                  class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition text-sm">
+                  <i class="fas fa-plus mr-1"></i>Add
+                </button>
+              </div>
+              <p class="text-xs text-gray-500 mt-1">Type a category name and click Add. Categories are case-insensitive when matching.</p>
+            </div>
+
+            <!-- Selected Categories -->
+            <div>
+              <label class="block text-sm font-medium text-gray-400 mb-1">Selected Categories</label>
+              <div id="rssSelectedCategoryList" class="flex flex-wrap gap-2 min-h-[40px] p-2 bg-neutral-900 border border-neutral-700 rounded-lg">
+                <span class="text-sm text-gray-500 italic" id="rssNoSelectedCategories">No categories selected</span>
+              </div>
+            </div>
+
+            <!-- Auto-detected Categories -->
+            <div>
+              <label class="block text-sm font-medium text-gray-400 mb-1">Detected from Feed <span class="text-gray-500 font-normal">(click to add)</span></label>
+              <div id="rssCategoryListLoading" class="hidden text-sm text-gray-400 p-2">
+                <i class="fas fa-spinner fa-spin mr-2"></i>Loading categories...
+              </div>
+              <div id="rssCategoryListEmpty" class="text-sm text-gray-500 italic p-2">
+                Validate the feed URL to load available categories.
+              </div>
+              <div id="rssCategoryList" class="flex flex-wrap gap-2 max-h-32 overflow-y-auto p-2 bg-neutral-800 rounded-lg hidden">
+                <!-- Category chips will be inserted here -->
+              </div>
+            </div>
+
+            <p id="rssCategoryFilterHelp" class="text-xs text-gray-500">
+              Click detected categories to add them, or type custom categories above.
+            </p>
+          </div>
+        </div>
+
         <!-- Form Actions -->
         <div class="flex justify-between items-center pt-4 border-t border-neutral-700">
           <button type="button" id="rssTestFeedBtn" onclick="testFeed()" class="px-4 py-2 bg-neutral-700 hover:bg-neutral-600 text-white rounded-lg transition hidden">
@@ -697,6 +769,11 @@
     document.getElementById('rssUrlValidationResult').classList.add('hidden');
     document.getElementById('rssTestFeedBtn').classList.add('hidden');
 
+    // Reset category filter state
+    rssAvailableCategories = [];
+    rssSelectedCategories = new Set();
+    setCategoryFilterMode('none');
+
     reinitializeRSSSelectsWithValues('', '15', 'rss', '', '');
 
     document.getElementById('rssFeedModal').classList.remove('hidden');
@@ -728,6 +805,16 @@
     document.getElementById('rssShowCategories').checked = config.show_categories === true;
     document.getElementById('rssShowFullContent').checked = config.show_full_content === true;
     document.getElementById('rssAlwaysSummary').checked = config.always_use_summary === true;
+
+    // Category filter settings
+    const filterMode = feed.category_filter_mode || 'none';
+    const filterCategories = feed.category_filters || [];
+    rssSelectedCategories = new Set(filterCategories);
+    // If there are saved filters, use them as available categories (will be updated when URL is validated)
+    if (filterCategories.length > 0) {
+      rssAvailableCategories = [...filterCategories];
+    }
+    setCategoryFilterMode(filterMode);
 
     const thumbnailMode = config.thumbnail_mode || 'rss';
     const emojiPrefix = config.custom_emoji_prefix || '';
@@ -779,6 +866,10 @@
   }
 
   // Validate feed URL
+  // Category filtering state
+  let rssAvailableCategories = [];
+  let rssSelectedCategories = new Set();
+
   async function validateFeedUrl() {
     const url = document.getElementById('rssFeedUrl').value.trim();
     const resultEl = document.getElementById('rssUrlValidationResult');
@@ -804,8 +895,17 @@
       const data = await response.json();
 
       if (data.valid) {
-        resultEl.textContent = `Valid feed: ${data.title || 'RSS Feed'} (${data.entry_count} entries)`;
+        resultEl.textContent = `Valid feed: ${escapeHtml(data.feed_title || 'RSS Feed')} (${data.entry_count} entries)`;
         resultEl.className = 'text-sm mt-1 text-green-400';
+
+        // Populate available categories
+        if (data.categories && data.categories.length > 0) {
+          rssAvailableCategories = data.categories;
+          renderAvailableCategories();
+        } else {
+          rssAvailableCategories = [];
+          renderAvailableCategories();
+        }
       } else {
         resultEl.textContent = data.error || 'Invalid feed URL';
         resultEl.className = 'text-sm mt-1 text-red-400';
@@ -814,6 +914,139 @@
       resultEl.textContent = 'Failed to validate URL';
       resultEl.className = 'text-sm mt-1 text-red-400';
     }
+  }
+
+  function toggleCategoryFilterMode(mode) {
+    const container = document.getElementById('rssCategoryFilterContainer');
+    const helpText = document.getElementById('rssCategoryFilterHelp');
+
+    if (mode === 'none') {
+      container.classList.add('hidden');
+      rssSelectedCategories.clear();
+      renderSelectedCategories();
+    } else {
+      container.classList.remove('hidden');
+      if (mode === 'include') {
+        helpText.textContent = 'Only articles with selected categories will be posted.';
+      } else {
+        helpText.textContent = 'Articles with selected categories will NOT be posted.';
+      }
+      renderSelectedCategories();
+      renderAvailableCategories();
+    }
+  }
+
+  function renderSelectedCategories() {
+    const listEl = document.getElementById('rssSelectedCategoryList');
+    const emptyEl = document.getElementById('rssNoSelectedCategories');
+
+    if (rssSelectedCategories.size === 0) {
+      listEl.innerHTML = '<span class="text-sm text-gray-500 italic" id="rssNoSelectedCategories">No categories selected</span>';
+      return;
+    }
+
+    const sorted = Array.from(rssSelectedCategories).sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
+    listEl.innerHTML = sorted.map(cat => {
+      return `<button type="button"
+        class="px-3 py-1 text-sm rounded-full border transition bg-indigo-600 text-white border-indigo-500 hover:bg-indigo-700 flex items-center gap-1"
+        onclick="removeCategory('${escapeHtml(cat).replace(/'/g, "\\'")}')">
+        ${escapeHtml(cat)}
+        <i class="fas fa-times text-xs"></i>
+      </button>`;
+    }).join('');
+  }
+
+  function renderAvailableCategories() {
+    const listEl = document.getElementById('rssCategoryList');
+    const emptyEl = document.getElementById('rssCategoryListEmpty');
+    const loadingEl = document.getElementById('rssCategoryListLoading');
+
+    loadingEl.classList.add('hidden');
+
+    if (rssAvailableCategories.length === 0) {
+      listEl.classList.add('hidden');
+      emptyEl.classList.remove('hidden');
+      return;
+    }
+
+    emptyEl.classList.add('hidden');
+    listEl.classList.remove('hidden');
+
+    // Filter out already selected categories
+    const availableNotSelected = rssAvailableCategories.filter(cat => !rssSelectedCategories.has(cat));
+
+    if (availableNotSelected.length === 0) {
+      listEl.innerHTML = '<span class="text-sm text-gray-500 italic">All detected categories are selected</span>';
+      return;
+    }
+
+    listEl.innerHTML = availableNotSelected.map(cat => {
+      return `<button type="button"
+        class="px-3 py-1 text-sm rounded-full border transition bg-neutral-700 text-gray-300 border-neutral-600 hover:bg-neutral-600"
+        onclick="addCategoryFromDetected('${escapeHtml(cat).replace(/'/g, "\\'")}')">
+        ${escapeHtml(cat)}
+      </button>`;
+    }).join('');
+  }
+
+  function addCategoryFromDetected(category) {
+    rssSelectedCategories.add(category);
+    renderSelectedCategories();
+    renderAvailableCategories();
+  }
+
+  function removeCategory(category) {
+    rssSelectedCategories.delete(category);
+    renderSelectedCategories();
+    renderAvailableCategories();
+  }
+
+  function addCustomCategory() {
+    const input = document.getElementById('rssCustomCategoryInput');
+    const category = input.value.trim();
+
+    if (!category) {
+      return;
+    }
+
+    if (category.length > 100) {
+      alert('Category name is too long (max 100 characters)');
+      return;
+    }
+
+    // Add to selected categories
+    rssSelectedCategories.add(category);
+
+    // Clear input
+    input.value = '';
+
+    // Re-render
+    renderSelectedCategories();
+    renderAvailableCategories();
+  }
+
+  // Allow pressing Enter to add custom category
+  document.getElementById('rssCustomCategoryInput')?.addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      addCustomCategory();
+    }
+  });
+
+  function getCategoryFilterMode() {
+    const radios = document.querySelectorAll('input[name="rssCategoryFilterMode"]');
+    for (const radio of radios) {
+      if (radio.checked) return radio.value;
+    }
+    return 'none';
+  }
+
+  function setCategoryFilterMode(mode) {
+    const radios = document.querySelectorAll('input[name="rssCategoryFilterMode"]');
+    for (const radio of radios) {
+      radio.checked = (radio.value === mode);
+    }
+    toggleCategoryFilterMode(mode);
   }
 
   // Test feed preview
@@ -884,7 +1117,9 @@
       poll_interval_minutes: parseInt(document.getElementById('rssPollInterval')?.value || '15'),
       enabled: document.getElementById('rssFeedEnabled').checked,
       ping_role_id: pingRoleId || null,
-      embed_config: embedConfig
+      embed_config: embedConfig,
+      category_filter_mode: getCategoryFilterMode(),
+      category_filters: Array.from(rssSelectedCategories)
     };
 
     try {
@@ -1100,7 +1335,9 @@
       poll_interval_minutes: parseInt(document.getElementById('rssPollInterval')?.value || '15'),
       enabled: document.getElementById('rssFeedEnabled').checked,
       ping_role_id: pingRoleId || null,
-      embed_config: embedConfig
+      embed_config: embedConfig,
+      category_filter_mode: getCategoryFilterMode(),
+      category_filters: Array.from(rssSelectedCategories)
     };
 
     const url = isEdit
