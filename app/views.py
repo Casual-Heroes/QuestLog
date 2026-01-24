@@ -4413,19 +4413,45 @@ def api_guild_resources(request, guild_id):
                 for role in guild.get('roles', [])
             ]
 
-        # Get cached members from database
+        # Get actual Discord members via bot API and cross-reference with DB for display names
         try:
-            with get_db_session() as db:
-                members = db.query(MemberModel).filter_by(
-                    guild_id=int(guild_id)
-                ).limit(1000).all()  # Limit to 1000 for performance
+            bot_session = get_bot_session(guild_id)
+            discord_member_ids = set()
 
-                response_data['members'] = [
-                    {'id': str(m.user_id), 'name': m.display_name or f'User {m.user_id}'}
-                    for m in members
-                ]
+            if bot_session:
+                # Fetch actual members from Discord (paginated, up to 1000)
+                try:
+                    discord_members_response = bot_session.get(f'/guilds/{guild_id}/members?limit=1000')
+                    if discord_members_response.status_code == 200:
+                        discord_members = discord_members_response.json()
+                        discord_member_ids = {str(m['user']['id']) for m in discord_members}
+                        logger.debug(f"Fetched {len(discord_member_ids)} members from Discord for guild {guild_id}")
+                except Exception as e:
+                    logger.warning(f"Could not fetch Discord members for {guild_id}: {e}")
+
+            with get_db_session() as db:
+                # Get members from DB
+                db_members = db.query(MemberModel).filter_by(
+                    guild_id=int(guild_id)
+                ).filter(
+                    MemberModel.left_at.is_(None)
+                ).limit(1000).all()
+
+                if discord_member_ids:
+                    # Cross-reference: only include members who are actually in Discord
+                    response_data['members'] = [
+                        {'id': str(m.user_id), 'name': m.display_name or f'User {m.user_id}'}
+                        for m in db_members
+                        if str(m.user_id) in discord_member_ids
+                    ]
+                else:
+                    # Fallback: if Discord API failed, use DB with left_at filter
+                    response_data['members'] = [
+                        {'id': str(m.user_id), 'name': m.display_name or f'User {m.user_id}'}
+                        for m in db_members
+                    ]
         except Exception as e:
-            logger.warning(f"Could not fetch members from DB: {e}")
+            logger.warning(f"Could not fetch members: {e}")
 
         return JsonResponse(response_data)
 
@@ -4438,21 +4464,53 @@ def api_guild_resources(request, guild_id):
 @api_member_auth_required
 @ratelimit(key='user_or_ip', rate='60/m', method='GET', block=True)
 def api_guild_members(request, guild_id):
-    """GET /api/guild/<id>/members/ - Fetch cached members (id + name)."""
+    """GET /api/guild/<id>/members/ - Fetch cached members (id + name), only those still in the server."""
     try:
         from .db import get_db_session
         from .models import GuildMember as MemberModel
 
+        # Get actual Discord members via bot API
+        bot_session = get_bot_session(guild_id)
+        discord_member_ids = set()
+
+        if bot_session:
+            try:
+                discord_members_response = bot_session.get(f'/guilds/{guild_id}/members?limit=1000')
+                if discord_members_response.status_code == 200:
+                    discord_members = discord_members_response.json()
+                    discord_member_ids = {str(m['user']['id']) for m in discord_members}
+            except Exception as e:
+                logger.warning(f"Could not fetch Discord members for {guild_id}: {e}")
+
         with get_db_session() as db:
-            members = db.query(MemberModel).filter_by(guild_id=int(guild_id)).limit(1000).all()
-            members_list = [
-                {
-                    'id': str(m.user_id),
-                    'username': m.display_name or f'User {m.user_id}',
-                    'display_name': m.display_name or f'User {m.user_id}'
-                }
-                for m in members
-            ]
+            # Filter to only members who haven't left (left_at is NULL)
+            db_members = db.query(MemberModel).filter_by(
+                guild_id=int(guild_id)
+            ).filter(
+                MemberModel.left_at.is_(None)
+            ).limit(1000).all()
+
+            if discord_member_ids:
+                # Cross-reference: only include members who are actually in Discord
+                members_list = [
+                    {
+                        'id': str(m.user_id),
+                        'username': m.display_name or f'User {m.user_id}',
+                        'display_name': m.display_name or f'User {m.user_id}'
+                    }
+                    for m in db_members
+                    if str(m.user_id) in discord_member_ids
+                ]
+            else:
+                # Fallback: if Discord API failed, use DB with left_at filter
+                members_list = [
+                    {
+                        'id': str(m.user_id),
+                        'username': m.display_name or f'User {m.user_id}',
+                        'display_name': m.display_name or f'User {m.user_id}'
+                    }
+                    for m in db_members
+                ]
         return JsonResponse({'success': True, 'members': members_list})
     except Exception as e:
         logger.error(f"Error fetching guild members for {guild_id}: {e}")
