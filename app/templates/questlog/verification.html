@@ -79,7 +79,13 @@
       <div>
         <label class="block text-sm text-gray-400 mb-2">Verified Role</label>
         <div id="verified_role_idContainer"></div>
-        
+      </div>
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+      <div>
+        <label class="block text-sm text-gray-400 mb-2">Quarantine Role <span class="text-gray-500">(optional)</span></label>
+        <div id="quarantine_role_idContainer"></div>
+        <p class="text-xs text-gray-500 mt-1">New members get this role until verified. Use to restrict channel access.</p>
       </div>
     </div>
   </div>
@@ -302,12 +308,14 @@ async function loadChannels() {
 
 // Load Discord roles and initialize custom select
 let verifiedRoleSelect;
+let quarantineRoleSelect;
 async function loadRoles() {
   try {
     const response = await csrfFetch(`/api/guild/${guildId}/roles/`);
     const data = await response.json();
 
-    const currentValue = '{{ verification_config.verified_role_id }}';
+    const currentVerified = '{{ verification_config.verified_role_id }}';
+    const currentQuarantine = '{{ verification_config.quarantine_role_id }}';
 
     if (data.roles) {
       const roleItems = data.roles.map(role => ({
@@ -322,8 +330,18 @@ async function loadRoles() {
         id: 'verified_role_id',
         placeholder: 'Select a role...',
         items: roleItems,
-        selected: currentValue || '',
+        selected: currentVerified || '',
         color: 'green'
+      });
+
+      quarantineRoleSelect = createCustomSelect({
+        container: '#quarantine_role_idContainer',
+        name: 'quarantine_role_id',
+        id: 'quarantine_role_id',
+        placeholder: 'Select a role (optional)...',
+        items: [{ value: '', label: 'None', icon: 'times' }, ...roleItems],
+        selected: currentQuarantine || '',
+        color: 'yellow'
       });
     }
   } catch (err) {
@@ -345,6 +363,7 @@ async function saveConfig() {
     verification_type: document.querySelector('input[name="verification_type"]:checked')?.value || 'button',
     verification_channel_id: verificationChannelSelect ? verificationChannelSelect.getValue() : '',
     verified_role_id: verifiedRoleSelect ? verifiedRoleSelect.getValue() : '',
+    quarantine_role_id: quarantineRoleSelect ? quarantineRoleSelect.getValue() : '',
     require_account_age: document.getElementById('require_account_age').checked,
     min_account_age_days: parseInt(document.getElementById('min_account_age_days').value) || 7,
     button_text: document.getElementById('button_text').value,

@@ -9199,6 +9199,7 @@ def guild_settings(request, guild_id):
                     'subscription_tier': guild_record.subscription_tier if guild_record.subscription_tier else 'free',
                     'billing_cycle': guild_record.billing_cycle,
                     'is_vip': guild_record.is_vip,
+                    'role_persistence_enabled': guild_record.role_persistence_enabled or False,
                 }
             else:
                 settings = {
@@ -9212,6 +9213,7 @@ def guild_settings(request, guild_id):
                     'subscription_tier': 'free',
                     'billing_cycle': None,
                     'is_vip': False,
+                    'role_persistence_enabled': False,
                 }
 
     except Exception as e:
@@ -9428,6 +9430,8 @@ def api_settings_update(request, guild_id):
             if 'admin_roles' in data:
                 # Store admin_roles as JSON string (already stringified from frontend)
                 guild_record.admin_roles = data['admin_roles'] if data['admin_roles'] else None
+            if 'role_persistence_enabled' in data:
+                guild_record.role_persistence_enabled = bool(data['role_persistence_enabled'])
 
             db.commit()
 
@@ -9804,6 +9808,7 @@ def guild_verification(request, guild_id):
                     'kick_on_timeout': config.kick_on_timeout,
                     'verification_channel_id': str(guild_record.verification_channel_id) if guild_record and guild_record.verification_channel_id else '',
                     'verified_role_id': str(guild_record.verified_role_id) if guild_record and guild_record.verified_role_id else '',
+                    'quarantine_role_id': str(guild_record.quarantine_role_id) if guild_record and guild_record.quarantine_role_id else '',
                 }
             else:
                 verification_config = {
@@ -9822,6 +9827,7 @@ def guild_verification(request, guild_id):
                     'kick_on_timeout': False,
                     'verification_channel_id': '',
                     'verified_role_id': '',
+                    'quarantine_role_id': '',
                 }
 
     except Exception as e:
@@ -9875,6 +9881,12 @@ def api_verification_config_update(request, guild_id):
             # Update fields
             if 'verification_type' in data:
                 config.verification_type = VerificationType(data['verification_type'])
+                # Auto-enable require_account_age when type is account_age
+                if data['verification_type'] == 'account_age':
+                    config.require_account_age = True
+                    # Ensure a default min age if not set
+                    if not config.min_account_age_days:
+                        config.min_account_age_days = 7  # Default to 7 days
             if 'require_account_age' in data:
                 config.require_account_age = bool(data['require_account_age'])
             if 'min_account_age_days' in data:
@@ -9905,6 +9917,34 @@ def api_verification_config_update(request, guild_id):
                 guild_record.verification_channel_id = int(data['verification_channel_id']) if data['verification_channel_id'] else None
             if 'verified_role_id' in data:
                 guild_record.verified_role_id = int(data['verified_role_id']) if data['verified_role_id'] else None
+            if 'quarantine_role_id' in data:
+                guild_record.quarantine_role_id = int(data['quarantine_role_id']) if data['quarantine_role_id'] else None
+
+            # Set verification_enabled based on type (enabled if not 'none')
+            if 'verification_type' in data:
+                new_enabled = data['verification_type'] != 'none'
+                was_enabled = guild_record.verification_enabled
+
+                # If enabling verification for the first time, grandfather in existing members
+                if new_enabled and not was_enabled:
+                    from .models import GuildMember
+                    import time
+
+                    # Mark all existing members as verified so they won't be kicked
+                    grandfathered = db.query(GuildMember).filter(
+                        GuildMember.guild_id == int(guild_id),
+                        GuildMember.is_verified == False
+                    ).update({
+                        'is_verified': True,
+                        'verified_at': int(time.time()),
+                        'verification_method': 'grandfathered',
+                        'is_quarantined': False,
+                        'quarantined_at': None
+                    }, synchronize_session=False)
+
+                    logger.info(f"Verification enabled for guild {guild_id} - grandfathered {grandfathered} existing members")
+
+                guild_record.verification_enabled = new_enabled
 
             return JsonResponse({'success': True})
 

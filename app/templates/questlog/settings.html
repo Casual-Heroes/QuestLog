@@ -69,6 +69,30 @@
     </div>
   </div>
 
+  <!-- Member Management -->
+  <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6 mb-6">
+    <h3 class="text-lg font-bold text-white mb-6">
+      <i class="fas fa-users text-green-400 mr-2"></i>Member Management
+    </h3>
+    <div class="space-y-6">
+      <!-- Role Persistence -->
+      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <p class="text-white font-medium">Role Persistence</p>
+          <p class="text-gray-500 text-sm">Restore roles when members leave and rejoin</p>
+        </div>
+        <label class="relative inline-flex items-center cursor-pointer">
+          <input type="checkbox" id="role_persistence_enabled" class="sr-only peer" {% if settings.role_persistence_enabled %}checked{% endif %}>
+          <div class="w-11 h-6 bg-neutral-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div>
+        </label>
+      </div>
+      <p class="text-gray-500 text-xs">
+        <i class="fas fa-info-circle text-blue-400 mr-1"></i>
+        When enabled, member roles are saved when they leave. If they rejoin, their previous roles are automatically restored (after verification if enabled).
+      </p>
+    </div>
+  </div>
+
   <!-- Token Customization -->
   <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6 mb-6">
     <h3 class="text-lg font-bold text-white mb-2">
@@ -290,6 +314,7 @@ async function saveSettings() {
     token_emoji: document.getElementById('token_emoji').value,
     mod_log_channel_id: modChannelSelect ? modChannelSelect.getValue() : '',
     admin_roles: adminRolesSelect ? JSON.stringify(adminRolesSelect.getValue()) : '[]',
+    role_persistence_enabled: document.getElementById('role_persistence_enabled').checked,
   };
 
   try {

@@ -195,6 +195,7 @@ class Guild(Base):
     audit_event_config = Column(Text, nullable=True)  # JSON map of event toggles
     mod_enabled = Column(Boolean, nullable=False, default=False, server_default='0')
     discovery_enabled = Column(Boolean, default=False)
+    role_persistence_enabled = Column(Boolean, default=False)  # Restore roles when members rejoin
 
     # AMP Integration (Casual Heroes Hosting Services)
     amp_instance_id = Column(String(255), nullable=True)  # AMP instance ID for game server access
@@ -359,6 +360,10 @@ class GuildMember(Base):
     quarantine_reason = Column(String(500), nullable=True)
     quarantined_roles = Column(Text, nullable=True)  # JSON array of role IDs to restore on unjail
     warn_count = Column(Integer, default=0)
+
+    # Role persistence (for when members leave and rejoin)
+    saved_roles = Column(Text, nullable=True)  # JSON array of role IDs saved when member left
+    left_at = Column(BigInteger, nullable=True)  # Timestamp when member left (for cleanup)
 
     # Timestamps
     first_seen = Column(BigInteger, default=lambda: int(time.time()))

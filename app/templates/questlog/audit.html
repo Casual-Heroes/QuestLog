@@ -341,11 +341,11 @@
       </table>
     </div>
 
-    {% if audit_logs|length >= 100 %}
+    {% if total_count > audit_logs|length %}
     <!-- Load More -->
-    <div class="p-4 bg-neutral-800/30 border-t border-neutral-800 text-center">
-      <button onclick="loadMore()" class="text-cyan-400 hover:text-cyan-300 font-medium text-sm transition">
-        <i class="fas fa-chevron-down mr-2"></i>Load More ({{ total_count }} total)
+    <div class="p-4 bg-neutral-800/30 border-t border-neutral-800 text-center" id="loadMoreContainer">
+      <button onclick="loadMore()" id="loadMoreBtn" class="text-cyan-400 hover:text-cyan-300 font-medium text-sm transition">
+        <i class="fas fa-chevron-down mr-2"></i>Load More (<span id="remainingCount">{{ total_count }}</span> remaining)
       </button>
     </div>
     {% endif %}
@@ -440,9 +440,182 @@ function exportLogs() {
   window.location.href = `/api/guild/${guildId}/audit/export/?${params.toString()}`;
 }
 
-function loadMore() {
-  // Implement pagination via AJAX
-  alert('Pagination coming soon!');
+// Pagination state
+let currentPage = 1;
+const perPage = 100;
+let isLoadingMore = false;
+const totalCount = {{ total_count }};
+const initialLoaded = {{ audit_logs|length }};
+let hasMorePages = totalCount > initialLoaded;
+
+// Update remaining count on page load
+document.addEventListener('DOMContentLoaded', function() {
+  const remainingEl = document.getElementById('remainingCount');
+  if (remainingEl) {
+    remainingEl.textContent = totalCount - initialLoaded;
+  }
+});
+
+async function loadMore() {
+  if (isLoadingMore || !hasMorePages) return;
+
+  isLoadingMore = true;
+  const loadMoreBtn = document.querySelector('[onclick="loadMore()"]');
+  const originalText = loadMoreBtn.innerHTML;
+  loadMoreBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Loading...';
+  loadMoreBtn.disabled = true;
+
+  try {
+    // Build URL with current filters
+    const params = new URLSearchParams(window.location.search);
+    params.set('page', currentPage + 1);
+    params.set('per_page', perPage);
+
+    const res = await csrfFetch(`/api/guild/${guildId}/audit/?${params.toString()}`);
+    const data = await res.json();
+
+    if (data.success && data.logs && data.logs.length > 0) {
+      currentPage++;
+
+      // Append new rows to the table
+      const tbody = document.querySelector('table tbody');
+      data.logs.forEach(log => {
+        const row = createAuditRow(log);
+        tbody.appendChild(row);
+      });
+
+      // Check if there are more pages
+      hasMorePages = currentPage < data.total_pages;
+
+      if (hasMorePages) {
+        const remaining = data.total - (currentPage * perPage);
+        loadMoreBtn.innerHTML = `<i class="fas fa-chevron-down mr-2"></i>Load More (${remaining > 0 ? remaining : 0} remaining)`;
+        loadMoreBtn.disabled = false;
+      } else {
+        // Hide load more section
+        loadMoreBtn.parentElement.innerHTML = '<span class="text-gray-500 text-sm">All logs loaded</span>';
+      }
+    } else {
+      hasMorePages = false;
+      loadMoreBtn.parentElement.innerHTML = '<span class="text-gray-500 text-sm">All logs loaded</span>';
+    }
+  } catch (err) {
+    console.error('Failed to load more logs:', err);
+    loadMoreBtn.innerHTML = '<i class="fas fa-exclamation-triangle mr-2 text-red-400"></i>Error loading - Click to retry';
+    loadMoreBtn.disabled = false;
+  }
+
+  isLoadingMore = false;
+}
+
+function createAuditRow(log) {
+  const tr = document.createElement('tr');
+  tr.className = 'hover:bg-neutral-800/30 transition';
+
+  // Determine category color
+  let categoryColor = 'neutral';
+  if (log.category === 'members') categoryColor = 'blue';
+  else if (log.category === 'roles') categoryColor = 'yellow';
+  else if (log.category === 'channels') categoryColor = 'purple';
+  else if (log.category === 'messages') categoryColor = 'gray';
+  else if (log.category === 'security') categoryColor = 'red';
+  else if (log.category === 'verification') categoryColor = 'green';
+
+  // Format timestamp
+  const date = new Date(log.timestamp * 1000);
+  const now = new Date();
+  const diff = (now - date) / 1000;
+  let timeAgo;
+  if (diff < 60) timeAgo = 'just now';
+  else if (diff < 3600) timeAgo = Math.floor(diff / 60) + 'm ago';
+  else if (diff < 86400) timeAgo = Math.floor(diff / 3600) + 'h ago';
+  else timeAgo = Math.floor(diff / 86400) + 'd ago';
+
+  // Actor HTML
+  let actorHtml;
+  if (log.actor_id) {
+    actorHtml = `
+      <div class="flex items-center gap-2">
+        <div class="w-6 h-6 bg-neutral-700 rounded-full flex items-center justify-center">
+          <i class="fas fa-user text-gray-400 text-xs"></i>
+        </div>
+        <div>
+          <p class="text-white text-sm">${escapeHtml(log.actor_name || 'Unknown')}</p>
+          <p class="text-gray-500 text-xs">${log.actor_id}</p>
+        </div>
+      </div>`;
+  } else {
+    actorHtml = '<span class="text-gray-500 text-sm"><i class="fas fa-robot mr-1"></i>System</span>';
+  }
+
+  // Target HTML
+  let targetHtml;
+  if (log.target_id) {
+    let iconClass = 'fa-circle';
+    let bgClass = 'bg-neutral-700';
+    let textClass = 'text-gray-400';
+
+    if (log.target_type === 'user') {
+      iconClass = 'fa-user';
+      bgClass = 'bg-blue-600/20';
+      textClass = 'text-blue-400';
+    } else if (log.target_type === 'role') {
+      iconClass = 'fa-tag';
+      bgClass = 'bg-yellow-600/20';
+      textClass = 'text-yellow-400';
+    } else if (log.target_type === 'channel') {
+      iconClass = 'fa-hashtag';
+      bgClass = 'bg-purple-600/20';
+      textClass = 'text-purple-400';
+    }
+
+    targetHtml = `
+      <div class="flex items-center gap-2">
+        <div class="w-6 h-6 ${bgClass} rounded-full flex items-center justify-center">
+          <i class="fas ${iconClass} ${textClass} text-xs"></i>
+        </div>
+        <div>
+          <p class="text-white text-sm">${escapeHtml(log.target_name || '-')}</p>
+          <p class="text-gray-500 text-xs">${log.target_id}</p>
+        </div>
+      </div>`;
+  } else {
+    targetHtml = '<span class="text-gray-500 text-sm">-</span>';
+  }
+
+  // Details HTML
+  let detailsHtml;
+  if (log.reason) {
+    detailsHtml = `<p class="text-gray-300 text-sm max-w-xs truncate" title="${escapeHtml(log.reason)}">${escapeHtml(log.reason)}</p>`;
+  } else if (log.details) {
+    detailsHtml = `<p class="text-gray-400 text-sm max-w-xs truncate" title="${escapeHtml(log.details)}">${escapeHtml(log.details)}</p>`;
+  } else {
+    detailsHtml = '<span class="text-gray-500 text-sm">-</span>';
+  }
+
+  tr.innerHTML = `
+    <td class="px-6 py-4 whitespace-nowrap">
+      <span class="text-gray-400 text-sm" title="${date.toLocaleString()}">${timeAgo}</span>
+    </td>
+    <td class="px-6 py-4">
+      <span class="inline-flex items-center gap-2">
+        <span class="w-2 h-2 bg-${categoryColor}-400 rounded-full"></span>
+        <span class="text-white text-sm font-medium">${escapeHtml(log.action_display)}</span>
+      </span>
+    </td>
+    <td class="px-6 py-4">${actorHtml}</td>
+    <td class="px-6 py-4">${targetHtml}</td>
+    <td class="px-6 py-4">${detailsHtml}</td>
+  `;
+
+  return tr;
+}
+
+function escapeHtml(str) {
+  if (!str) return '';
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
 }
 
 // Format timestamps to local time
