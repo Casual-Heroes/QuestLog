@@ -22,17 +22,50 @@
       {% endif %}
     </div>
 
-    <!-- Search & Filters -->
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-      <input
-        type="text"
-        id="gameSearchInput"
-        placeholder="Search games..."
-        class="bg-neutral-900 border border-neutral-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-indigo-500"
-      >
-      <div id="genreFilterContainer"></div>
-      <div id="sortByContainer"></div>
+    <!-- Search & Filters - Matching Found Games layout -->
+    <div class="flex flex-col lg:flex-row gap-3">
+      <!-- Game Name Search with Autocomplete -->
+      <div class="relative w-full lg:w-72">
+        <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-500"></i>
+        <input type="text" id="networkGameSearch" placeholder="Search by game name..."
+               autocomplete="off"
+               class="w-full bg-neutral-800 border border-neutral-700 rounded-lg pl-10 pr-4 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500 transition-colors">
+        <div id="networkGameSearchLoading" class="hidden absolute right-3 top-1/2 -translate-y-1/2">
+          <i class="fas fa-spinner fa-spin text-gray-500"></i>
+        </div>
+        <!-- Autocomplete Dropdown -->
+        <div id="networkGameDropdown" class="hidden absolute z-50 w-full mt-1 bg-neutral-800 border border-neutral-700 rounded-lg shadow-xl max-h-80 overflow-y-auto">
+          <!-- Results populated by JavaScript -->
+        </div>
+      </div>
+
+      <!-- Genre Filter (Checkbox Dropdown) -->
+      <div id="networkGenreFilterContainer" class="w-full lg:w-48"></div>
+
+      <!-- Sort Filter (Radio Dropdown) -->
+      <div id="networkSortFilterContainer" class="w-full lg:w-48"></div>
+
+      <!-- Game Modes Filter -->
+      <div id="networkModeFilterContainer" class="w-full lg:w-64"></div>
+
+      <!-- Min Hype Filter -->
+      <div class="flex items-center gap-2 w-full lg:w-auto">
+        <input type="number" id="networkMinHypeFilter" min="0" placeholder="Min follows"
+               class="w-28 bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white focus:border-indigo-500 focus:outline-none">
+        <button id="networkApplyFilters"
+                class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition text-sm">
+          Apply
+        </button>
+        <button id="networkClearFilters"
+                class="px-3 py-2 bg-neutral-700 hover:bg-neutral-600 text-gray-300 hover:text-white rounded-lg font-medium transition text-sm"
+                title="Clear all filters">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
     </div>
+    <p class="text-xs text-gray-500 mt-2">
+      Filter by game name, genre, game mode, or minimum pre-release follows (hype).
+    </p>
   </div>
 
   <!-- Game Grid -->
@@ -136,22 +169,50 @@ function escapeHtml(text) {
 }
 
 let currentGames = [];
-let genreFilterValue = '';
-let sortByValue = 'trending';
+let allNetworkGames = []; // Cache for autocomplete
+let networkSearchTimeout = null;
+
+// Filter state
+let networkFilters = {
+  search: '',
+  genre: '',
+  sort: 'release',
+  modes: new Set(),
+  minHype: ''
+};
+
+// Available modes for the filter (must match IGDB game modes)
+const availableModes = [
+  'Single player',
+  'Multiplayer',
+  'Co-operative',
+  'Split screen',
+  'Massively Multiplayer Online (MMO)',
+  'Battle Royale'
+];
 
 // Load games on page load
 async function loadGames() {
   try {
-    const searchTerm = document.getElementById('gameSearchInput').value;
-    const genre = genreFilterValue;
-    const sort = sortByValue;
-
     const guildId = '{{ guild.id }}';
-    const response = await csrfFetch(`/api/discovery/games-list?guild_id=${guildId}&search=${searchTerm}&genre=${genre}&sort=${sort}`);
+
+    // Build query params from filters
+    const params = new URLSearchParams();
+    params.set('guild_id', guildId);
+    if (networkFilters.search) params.set('search', networkFilters.search);
+    if (networkFilters.genre) params.set('genre', networkFilters.genre);
+    if (networkFilters.sort) params.set('sort', networkFilters.sort);
+    if (networkFilters.minHype) params.set('min_hype', networkFilters.minHype);
+    if (networkFilters.modes.size > 0) {
+      params.set('modes', Array.from(networkFilters.modes).join(','));
+    }
+
+    const response = await csrfFetch(`/api/discovery/games-list?${params.toString()}`);
     const data = await response.json();
 
     if (data.success) {
       currentGames = data.games || [];
+      allNetworkGames = data.games || []; // Cache for autocomplete
       renderGames();
     } else {
       document.getElementById('gamesGrid').innerHTML = `
@@ -179,7 +240,7 @@ function renderGames() {
       <div class="col-span-full text-center py-12">
         <i class="fas fa-gamepad text-6xl text-gray-600 mb-4"></i>
         <h3 class="text-xl font-bold text-white mb-2">No Games Found</h3>
-        <p class="text-gray-400">Be the first to share a game to the network!</p>
+        <p class="text-gray-400">Try adjusting your filters or be the first to share a game!</p>
       </div>
     `;
     return;
@@ -306,6 +367,133 @@ function renderGames() {
       </div>
     </div>
   `).join('');
+}
+
+// Game name autocomplete
+function initGameNameAutocomplete() {
+  const searchInput = document.getElementById('networkGameSearch');
+  const dropdown = document.getElementById('networkGameDropdown');
+  const loadingIndicator = document.getElementById('networkGameSearchLoading');
+
+  if (!searchInput) return;
+
+  searchInput.addEventListener('input', function(e) {
+    const query = e.target.value.trim().toLowerCase();
+
+    // Clear previous timeout
+    if (networkSearchTimeout) clearTimeout(networkSearchTimeout);
+
+    // If cleared, reset filter
+    if (query.length === 0 && networkFilters.search) {
+      networkFilters.search = '';
+      dropdown.classList.add('hidden');
+      loadingIndicator.classList.add('hidden');
+      networkSearchTimeout = setTimeout(() => loadGames(), 300);
+      return;
+    }
+
+    // Hide if too short
+    if (query.length < 2) {
+      dropdown.classList.add('hidden');
+      loadingIndicator.classList.add('hidden');
+      return;
+    }
+
+    // Show loading
+    loadingIndicator.classList.remove('hidden');
+
+    // Debounce search - filter from cached games
+    networkSearchTimeout = setTimeout(() => {
+      loadingIndicator.classList.add('hidden');
+
+      // Filter from allNetworkGames
+      const matches = allNetworkGames.filter(g =>
+        g.name.toLowerCase().includes(query)
+      ).slice(0, 10);
+
+      if (matches.length > 0) {
+        dropdown.innerHTML = matches.map(game => `
+          <div class="game-autocomplete-item flex items-center gap-3 p-2 hover:bg-neutral-700 cursor-pointer transition-colors"
+               data-name="${escapeHtml(game.name)}">
+            ${game.cover_url ?
+              `<img src="${escapeHtml(game.cover_url)}" alt="" class="w-10 h-14 object-cover rounded">` :
+              `<div class="w-10 h-14 bg-neutral-700 rounded flex items-center justify-center"><i class="fas fa-gamepad text-gray-500"></i></div>`
+            }
+            <div class="flex-1 min-w-0">
+              <div class="text-white font-medium truncate">${escapeHtml(game.name)}</div>
+              ${game.release_date ? `<div class="text-xs text-gray-400"><i class="far fa-calendar mr-1"></i>${escapeHtml(game.release_date)}</div>` : ''}
+            </div>
+          </div>
+        `).join('');
+
+        // Add click handlers
+        dropdown.querySelectorAll('.game-autocomplete-item').forEach(item => {
+          item.addEventListener('click', function() {
+            const name = this.dataset.name;
+            searchInput.value = name;
+            networkFilters.search = name;
+            dropdown.classList.add('hidden');
+            loadGames();
+          });
+        });
+
+        dropdown.classList.remove('hidden');
+      } else {
+        dropdown.innerHTML = `
+          <div class="p-3 text-center text-gray-400 text-sm">
+            <i class="fas fa-search mr-1"></i>No games found matching "${escapeHtml(query)}"
+          </div>
+        `;
+        dropdown.classList.remove('hidden');
+      }
+    }, 200);
+  });
+
+  // Close dropdown when clicking outside
+  document.addEventListener('click', function(e) {
+    if (!searchInput.contains(e.target) && !dropdown.contains(e.target)) {
+      dropdown.classList.add('hidden');
+    }
+  });
+
+  // Handle Enter key
+  searchInput.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      networkFilters.search = searchInput.value.trim();
+      dropdown.classList.add('hidden');
+      loadGames();
+    }
+    if (e.key === 'Escape') {
+      dropdown.classList.add('hidden');
+    }
+  });
+}
+
+// Build game modes multi-select using createCustomSelect
+function buildModeFilter() {
+  const container = document.getElementById('networkModeFilterContainer');
+  if (!container) return;
+
+  const modeItems = availableModes.map(mode => ({
+    value: mode,
+    label: mode,
+    icon: 'users'
+  }));
+
+  createCustomSelect({
+    container: container,
+    name: 'network_modes',
+    placeholder: 'Filter game modes...',
+    items: modeItems,
+    selected: Array.from(networkFilters.modes),
+    color: 'indigo',
+    multiSelect: true,
+    onSelect: (values, items) => {
+      networkFilters.modes = new Set(values);
+      loadGames();
+    }
+  });
 }
 
 // Share game modal state
@@ -536,61 +724,150 @@ async function submitSharedGame() {
   }
 }
 
-// Initialize custom selects and load games when ready
+// Available genres for the filter
+const availableGenres = [
+  { value: '', label: '🎮 All Genres' },
+  { value: 'action', label: 'Action' },
+  { value: 'adventure', label: 'Adventure' },
+  { value: 'rpg', label: 'RPG' },
+  { value: 'strategy', label: 'Strategy' },
+  { value: 'shooter', label: 'Shooter' },
+  { value: 'simulation', label: 'Simulation' },
+  { value: 'puzzle', label: 'Puzzle' },
+  { value: 'platformer', label: 'Platformer' },
+  { value: 'racing', label: 'Racing' },
+  { value: 'sports', label: 'Sports' },
+  { value: 'fighting', label: 'Fighting' },
+  { value: 'indie', label: 'Indie' }
+];
+
+// Available sort options
+const sortOptions = [
+  { value: 'release', label: '📅 Release Date' },
+  { value: 'found', label: '🕐 Recently Found' },
+  { value: 'hype', label: '🔥 Most Hyped' },
+  { value: 'name', label: '🔤 Name A-Z' },
+  { value: 'trending', label: '📈 Trending' },
+  { value: 'servers', label: '🖥️ Most Servers' },
+  { value: 'rating', label: '⭐ Highest Rated' }
+];
+
+// Build genre filter dropdown using createCustomSelect
+function buildGenreFilter() {
+  const container = document.getElementById('networkGenreFilterContainer');
+  if (!container) return;
+
+  const genreItems = availableGenres.map(g => ({
+    value: g.value,
+    label: g.label,
+    icon: g.value ? 'tag' : 'gamepad'
+  }));
+
+  createCustomSelect({
+    container: container,
+    name: 'network_genre',
+    placeholder: '🎮 All Genres',
+    items: genreItems,
+    selected: networkFilters.genre || '',
+    color: 'indigo',
+    onSelect: (value, item) => {
+      networkFilters.genre = value;
+      loadGames();
+    }
+  });
+}
+
+// Build sort filter dropdown using createCustomSelect
+function buildSortFilter() {
+  const container = document.getElementById('networkSortFilterContainer');
+  if (!container) return;
+
+  const sortItems = sortOptions.map(opt => ({
+    value: opt.value,
+    label: opt.label,
+    icon: opt.value === 'release' ? 'calendar' :
+          opt.value === 'found' ? 'clock' :
+          opt.value === 'hype' ? 'fire' :
+          opt.value === 'name' ? 'sort-alpha-down' :
+          opt.value === 'trending' ? 'chart-line' :
+          opt.value === 'servers' ? 'server' : 'star'
+  }));
+
+  createCustomSelect({
+    container: container,
+    name: 'network_sort',
+    placeholder: '📅 Release Date',
+    items: sortItems,
+    selected: networkFilters.sort || 'release',
+    color: 'indigo',
+    onSelect: (value, item) => {
+      networkFilters.sort = value;
+      loadGames();
+    }
+  });
+}
+
+// Initialize everything when ready
 function initGameDiscovery() {
   // Check if containers exist (tab might not be visible yet)
-  if (!document.getElementById('genreFilterContainer')) {
+  if (!document.getElementById('networkGenreFilterContainer')) {
     return;
   }
 
-  // Initialize custom selects
-  createCustomSelect({
-    container: '#genreFilterContainer',
-    name: 'genreFilter',
-    id: 'genreFilter',
-    placeholder: 'All Genres',
-    color: 'indigo',
-    items: [
-      { value: '', label: 'All Genres', icon: 'filter' },
-      { value: 'action', label: 'Action', icon: 'fist-raised' },
-      { value: 'adventure', label: 'Adventure', icon: 'compass' },
-      { value: 'rpg', label: 'RPG', icon: 'hat-wizard' },
-      { value: 'strategy', label: 'Strategy', icon: 'chess' },
-      { value: 'shooter', label: 'Shooter', icon: 'crosshairs' },
-      { value: 'mmo', label: 'MMO', icon: 'users' },
-      { value: 'survival', label: 'Survival', icon: 'heartbeat' },
-      { value: 'sports', label: 'Sports', icon: 'football-ball' }
-    ],
-    selected: '',
-    onSelect: (value) => {
-      genreFilterValue = value;
-      loadGames();
-    }
-  });
+  // Initialize autocomplete
+  initGameNameAutocomplete();
 
-  createCustomSelect({
-    container: '#sortByContainer',
-    name: 'sortBy',
-    id: 'sortBy',
-    placeholder: 'Sort by...',
-    color: 'indigo',
-    items: [
-      { value: 'trending', label: 'Trending', icon: 'fire' },
-      { value: 'servers', label: 'Most Servers', icon: 'server' },
-      { value: 'recent', label: 'Recently Added', icon: 'clock' },
-      { value: 'rating', label: 'Highest Rated', icon: 'star' }
-    ],
-    selected: 'trending',
-    onSelect: (value) => {
-      sortByValue = value;
-      loadGames();
-    }
-  });
+  // Build filter dropdowns
+  buildGenreFilter();
+  buildSortFilter();
+  buildModeFilter();
 
-  // Filter handler for search input
-  const searchInput = document.getElementById('gameSearchInput');
-  if (searchInput) {
-    searchInput.addEventListener('input', loadGames);
+  // Set up min hype filter event handlers
+  const minHypeFilter = document.getElementById('networkMinHypeFilter');
+  const applyBtn = document.getElementById('networkApplyFilters');
+
+  if (applyBtn) {
+    applyBtn.addEventListener('click', function() {
+      networkFilters.minHype = minHypeFilter ? minHypeFilter.value : '';
+      loadGames();
+    });
+  }
+
+  // Allow Enter key on min hype filter
+  if (minHypeFilter) {
+    minHypeFilter.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        networkFilters.minHype = this.value;
+        loadGames();
+      }
+    });
+  }
+
+  // Clear all filters button
+  const clearFiltersBtn = document.getElementById('networkClearFilters');
+  if (clearFiltersBtn) {
+    clearFiltersBtn.addEventListener('click', function() {
+      // Reset all filter values
+      networkFilters.search = '';
+      networkFilters.genre = '';
+      networkFilters.sort = 'release';
+      networkFilters.modes = new Set();
+      networkFilters.minHype = '';
+
+      // Clear input fields
+      const searchInput = document.getElementById('networkGameSearch');
+      if (searchInput) searchInput.value = '';
+      if (minHypeFilter) minHypeFilter.value = '';
+
+      // Rebuild dropdowns with cleared values
+      buildGenreFilter();
+      buildSortFilter();
+      buildModeFilter();
+
+      // Reload games with cleared filters
+      loadGames();
+    });
   }
 
   // Load games

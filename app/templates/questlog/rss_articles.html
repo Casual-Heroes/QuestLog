@@ -1,5 +1,6 @@
 {% extends "questlog/base_guild.html" %}
 {% load static %}
+{% load security_tags %}
 
 {% block title %}RSS Articles - {{ guild.name }}{% endblock %}
 
@@ -173,13 +174,15 @@
 
                 <!-- Title -->
                 <h3 class="text-lg font-bold text-white mb-2 line-clamp-2 group-hover:text-orange-400 transition-colors">
-                    {% if article.link %}
-                    <a href="{{ article.link }}" target="_blank" rel="noopener noreferrer" class="hover:underline">
+                    {% with safe_link=article.link|safe_url %}
+                    {% if safe_link %}
+                    <a href="{{ safe_link }}" target="_blank" rel="noopener noreferrer" class="hover:underline">
                         {{ article.title }}
                     </a>
                     {% else %}
                     {{ article.title }}
                     {% endif %}
+                    {% endwith %}
                 </h3>
 
                 <!-- Author -->
@@ -209,8 +212,9 @@
 
                 <!-- Actions -->
                 <div class="flex items-center justify-between pt-3 border-t border-neutral-800">
-                    {% if article.link %}
-                    <a href="{{ article.link }}"
+                    {% with safe_link=article.link|safe_url %}
+                    {% if safe_link %}
+                    <a href="{{ safe_link }}"
                        target="_blank"
                        rel="noopener noreferrer"
                        class="flex items-center gap-2 px-3 py-1.5 bg-orange-600 hover:bg-orange-700 text-white text-sm rounded-lg transition-colors">
@@ -220,6 +224,7 @@
                     {% else %}
                     <span class="text-gray-500 text-sm">No link available</span>
                     {% endif %}
+                    {% endwith %}
 
                     {% if article.posted_at %}
                     <span class="text-xs text-gray-500" title="Posted to Discord">

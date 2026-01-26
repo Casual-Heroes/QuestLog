@@ -656,6 +656,279 @@ async function saveGameGlobalSettings() {
 
 let currentEditingSearchId = null;
 
+// Track selected filters for the tag-based UI
+let selectedFilters = {
+  genre: [],
+  theme: [],
+  keyword: [],
+  mode: [],
+  platform: []
+};
+
+// Switch between filter tabs
+function switchFilterTab(tabName) {
+  // Update tab styles
+  document.querySelectorAll('.filter-tab').forEach(tab => {
+    tab.classList.remove('bg-purple-600', 'text-white');
+    tab.classList.add('text-gray-400');
+  });
+  const activeTab = document.getElementById(`tab_${tabName}`);
+  if (activeTab) {
+    activeTab.classList.add('bg-purple-600', 'text-white');
+    activeTab.classList.remove('text-gray-400');
+  }
+
+  // Show/hide panels
+  document.querySelectorAll('.filter-panel').forEach(panel => {
+    panel.classList.add('hidden');
+  });
+  const activePanel = document.getElementById(`panel_${tabName}`);
+  if (activePanel) {
+    activePanel.classList.remove('hidden');
+  }
+}
+
+// Toggle a filter tag selection
+function toggleFilterTag(type, value) {
+  const tag = document.querySelector(`.filter-tag-${type}[data-value="${CSS.escape(value)}"]`);
+  if (!tag) return;
+
+  const isSelected = tag.dataset.selected === 'true';
+
+  if (isSelected) {
+    // Deselect
+    tag.dataset.selected = 'false';
+    selectedFilters[type] = selectedFilters[type].filter(v => v !== value);
+  } else {
+    // Select
+    tag.dataset.selected = 'true';
+    selectedFilters[type].push(value);
+  }
+
+  updateSelectedFiltersDisplay();
+}
+
+// Update the selected filters summary display
+function updateSelectedFiltersDisplay() {
+  const container = document.getElementById('selected_filters_container');
+  const display = document.getElementById('selected_filters_display');
+
+  const allSelected = [
+    ...selectedFilters.genre.map(v => ({ type: 'genre', value: v, color: 'purple' })),
+    ...selectedFilters.theme.map(v => ({ type: 'theme', value: v, color: 'blue' })),
+    ...selectedFilters.keyword.map(v => ({ type: 'keyword', value: v, color: 'green' })),
+    ...selectedFilters.mode.map(v => ({ type: 'mode', value: v, color: 'orange' })),
+    ...selectedFilters.platform.map(v => ({ type: 'platform', value: v, color: 'cyan' })),
+  ];
+
+  if (allSelected.length === 0) {
+    container.classList.add('hidden');
+    return;
+  }
+
+  container.classList.remove('hidden');
+  display.innerHTML = allSelected.map(item => `
+    <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-sm font-medium bg-${item.color}-600 text-white">
+      ${item.value}
+      <button type="button" onclick="toggleFilterTag('${item.type}', '${item.value.replace(/'/g, "\\'")}')"
+              class="ml-1 hover:text-${item.color}-200 transition">
+        <i class="fas fa-times text-xs"></i>
+      </button>
+    </span>
+  `).join('');
+}
+
+// Clear all filter selections
+function clearAllFilterSelections() {
+  selectedFilters = { genre: [], theme: [], keyword: [], mode: [], platform: [] };
+  document.querySelectorAll('.filter-tag').forEach(tag => {
+    tag.dataset.selected = 'false';
+  });
+  updateSelectedFiltersDisplay();
+  renderSelectedKeywords();  // Clear keyword display
+  // Reset to first tab
+  switchFilterTab('genres');
+}
+
+// Filter search box for tags
+function initFilterSearch() {
+  const searchInput = document.getElementById('modal_filter_search');
+  if (!searchInput) return;
+
+  searchInput.addEventListener('input', (e) => {
+    const query = e.target.value.toLowerCase();
+    document.querySelectorAll('.filter-tag').forEach(tag => {
+      const value = tag.dataset.value.toLowerCase();
+      if (query === '' || value.includes(query)) {
+        tag.style.display = '';
+      } else {
+        tag.style.display = 'none';
+      }
+    });
+  });
+}
+
+// ============================================================================
+// KEYWORD AUTOCOMPLETE
+// ============================================================================
+let keywordSearchTimeout = null;
+
+function initKeywordAutocomplete() {
+  const input = document.getElementById('keyword_search_input');
+  const dropdown = document.getElementById('keyword_autocomplete_dropdown');
+  const loading = document.getElementById('keyword_search_loading');
+
+  if (!input || !dropdown) return;
+
+  // Debounced search on input
+  input.addEventListener('input', (e) => {
+    const query = e.target.value.trim();
+
+    // Clear previous timeout
+    if (keywordSearchTimeout) {
+      clearTimeout(keywordSearchTimeout);
+    }
+
+    // Hide dropdown if query too short
+    if (query.length < 2) {
+      dropdown.classList.add('hidden');
+      return;
+    }
+
+    // Debounce the search
+    keywordSearchTimeout = setTimeout(() => {
+      searchKeywords(query);
+    }, 300);
+  });
+
+  // Hide dropdown when clicking outside
+  document.addEventListener('click', (e) => {
+    if (!input.contains(e.target) && !dropdown.contains(e.target)) {
+      dropdown.classList.add('hidden');
+    }
+  });
+
+  // Handle keyboard navigation
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      dropdown.classList.add('hidden');
+    }
+  });
+}
+
+async function searchKeywords(query) {
+  const dropdown = document.getElementById('keyword_autocomplete_dropdown');
+  const loading = document.getElementById('keyword_search_loading');
+
+  loading.classList.remove('hidden');
+
+  try {
+    const response = await csrfFetch(`/api/guild/${guildId}/discovery/keywords/search/?q=${encodeURIComponent(query)}&limit=20`);
+    const data = await response.json();
+
+    loading.classList.add('hidden');
+
+    if (!data.keywords || data.keywords.length === 0) {
+      dropdown.innerHTML = `
+        <div class="px-4 py-3 text-gray-500 text-sm">
+          <i class="fas fa-search mr-2"></i>No keywords found matching "${query}"
+        </div>
+      `;
+      dropdown.classList.remove('hidden');
+      return;
+    }
+
+    // Filter out already selected keywords
+    const availableKeywords = data.keywords.filter(kw =>
+      !selectedFilters.keyword.includes(kw.name)
+    );
+
+    if (availableKeywords.length === 0) {
+      dropdown.innerHTML = `
+        <div class="px-4 py-3 text-gray-500 text-sm">
+          <i class="fas fa-check mr-2"></i>All matching keywords already selected
+        </div>
+      `;
+      dropdown.classList.remove('hidden');
+      return;
+    }
+
+    // Render results
+    dropdown.innerHTML = availableKeywords.map(kw => `
+      <button type="button" onclick="selectKeyword('${kw.name.replace(/'/g, "\\'")}')"
+              class="w-full px-4 py-2.5 text-left text-white hover:bg-neutral-700 transition flex items-center gap-2 border-b border-neutral-700/50 last:border-0">
+        <i class="fas fa-tag text-green-500 text-xs"></i>
+        <span>${highlightMatch(kw.name, query)}</span>
+      </button>
+    `).join('');
+
+    dropdown.classList.remove('hidden');
+
+  } catch (error) {
+    console.error('Keyword search error:', error);
+    loading.classList.add('hidden');
+    dropdown.innerHTML = `
+      <div class="px-4 py-3 text-red-400 text-sm">
+        <i class="fas fa-exclamation-triangle mr-2"></i>Search failed. Please try again.
+      </div>
+    `;
+    dropdown.classList.remove('hidden');
+  }
+}
+
+// Highlight matching text in search results
+function highlightMatch(text, query) {
+  const regex = new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+  return text.replace(regex, '<span class="text-green-400 font-semibold">$1</span>');
+}
+
+// Select a keyword from autocomplete
+function selectKeyword(name) {
+  if (!selectedFilters.keyword.includes(name)) {
+    selectedFilters.keyword.push(name);
+    renderSelectedKeywords();
+    updateSelectedFiltersDisplay();
+  }
+
+  // Clear input and hide dropdown
+  const input = document.getElementById('keyword_search_input');
+  const dropdown = document.getElementById('keyword_autocomplete_dropdown');
+  if (input) input.value = '';
+  if (dropdown) dropdown.classList.add('hidden');
+}
+
+// Remove a selected keyword
+function removeKeyword(name) {
+  selectedFilters.keyword = selectedFilters.keyword.filter(k => k !== name);
+  renderSelectedKeywords();
+  updateSelectedFiltersDisplay();
+}
+
+// Render selected keywords as tags
+function renderSelectedKeywords() {
+  const container = document.getElementById('selected_keywords_container');
+  if (!container) return;
+
+  if (selectedFilters.keyword.length === 0) {
+    container.innerHTML = `
+      <p class="text-gray-500 text-sm">
+        <i class="fas fa-info-circle mr-1"></i>No keywords selected. Search above to add keywords.
+      </p>
+    `;
+    return;
+  }
+
+  container.innerHTML = selectedFilters.keyword.map(name => `
+    <span class="inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-sm font-medium bg-green-600 text-white">
+      ${name}
+      <button type="button" onclick="removeKeyword('${name.replace(/'/g, "\\'")}')"
+              class="ml-1 hover:text-green-200 transition">
+        <i class="fas fa-times text-xs"></i>
+      </button>
+    </span>
+  `).join('');
+}
+
 // Open modal for adding new search
 function openAddSearchModal() {
   // Check limit before opening modal
@@ -674,11 +947,21 @@ function openAddSearchModal() {
   document.getElementById('modal_min_rating').value = '';
   document.getElementById('modal_show_on_website').checked = true;
 
-  // Uncheck all filters
-  document.querySelectorAll('.modal-genre-filter').forEach(el => el.checked = false);
-  document.querySelectorAll('.modal-theme-filter').forEach(el => el.checked = false);
-  document.querySelectorAll('.modal-mode-filter').forEach(el => el.checked = false);
-  document.querySelectorAll('.modal-platform-filter').forEach(el => el.checked = false);
+  // Clear all tag selections
+  clearAllFilterSelections();
+
+  // Clear search input
+  const searchInput = document.getElementById('modal_filter_search');
+  if (searchInput) searchInput.value = '';
+
+  // Clear keyword search input
+  const keywordInput = document.getElementById('keyword_search_input');
+  if (keywordInput) keywordInput.value = '';
+
+  // Initialize search functionality
+  initFilterSearch();
+  initKeywordAutocomplete();
+  renderSelectedKeywords();
 
   document.getElementById('searchModal').classList.remove('hidden');
 }
@@ -723,37 +1006,69 @@ async function editSearch(searchId) {
       autoJoinRoleSelect.setValue('');
     }
 
-    // Uncheck all first
-    document.querySelectorAll('.modal-genre-filter').forEach(el => el.checked = false);
-    document.querySelectorAll('.modal-theme-filter').forEach(el => el.checked = false);
-    document.querySelectorAll('.modal-mode-filter').forEach(el => el.checked = false);
-    document.querySelectorAll('.modal-platform-filter').forEach(el => el.checked = false);
+    // Clear all tag selections first
+    clearAllFilterSelections();
 
-    // Check selected filters
+    // Clear search input
+    const searchInput = document.getElementById('modal_filter_search');
+    if (searchInput) searchInput.value = '';
+
+    // Populate tag selections
     if (search.genres) {
       search.genres.forEach(genre => {
-        const checkbox = document.querySelector(`.modal-genre-filter[value="${genre}"]`);
-        if (checkbox) checkbox.checked = true;
+        const tag = document.querySelector(`.filter-tag-genre[data-value="${CSS.escape(genre)}"]`);
+        if (tag) {
+          tag.dataset.selected = 'true';
+          selectedFilters.genre.push(genre);
+        }
       });
     }
     if (search.themes) {
       search.themes.forEach(theme => {
-        const checkbox = document.querySelector(`.modal-theme-filter[value="${theme}"]`);
-        if (checkbox) checkbox.checked = true;
+        const tag = document.querySelector(`.filter-tag-theme[data-value="${CSS.escape(theme)}"]`);
+        if (tag) {
+          tag.dataset.selected = 'true';
+          selectedFilters.theme.push(theme);
+        }
       });
+    }
+    if (search.keywords) {
+      search.keywords.forEach(keyword => {
+        // Keywords now use autocomplete, just add to selectedFilters
+        selectedFilters.keyword.push(keyword);
+      });
+      // Render the selected keywords
+      renderSelectedKeywords();
     }
     if (search.game_modes) {
       search.game_modes.forEach(mode => {
-        const checkbox = document.querySelector(`.modal-mode-filter[value="${mode}"]`);
-        if (checkbox) checkbox.checked = true;
+        const tag = document.querySelector(`.filter-tag-mode[data-value="${CSS.escape(mode)}"]`);
+        if (tag) {
+          tag.dataset.selected = 'true';
+          selectedFilters.mode.push(mode);
+        }
       });
     }
     if (search.platforms) {
       search.platforms.forEach(platform => {
-        const checkbox = document.querySelector(`.modal-platform-filter[value="${platform}"]`);
-        if (checkbox) checkbox.checked = true;
+        const tag = document.querySelector(`.filter-tag-platform[data-value="${CSS.escape(platform)}"]`);
+        if (tag) {
+          tag.dataset.selected = 'true';
+          selectedFilters.platform.push(platform);
+        }
       });
     }
+
+    // Update the selected filters display
+    updateSelectedFiltersDisplay();
+
+    // Initialize search functionality
+    initFilterSearch();
+    initKeywordAutocomplete();
+
+    // Clear keyword search input
+    const keywordInput = document.getElementById('keyword_search_input');
+    if (keywordInput) keywordInput.value = '';
 
     document.getElementById('searchModal').classList.remove('hidden');
   } catch (err) {
@@ -775,11 +1090,12 @@ async function saveSearch() {
   btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Saving...';
   btn.disabled = true;
 
-  // Collect filters
-  const genres = Array.from(document.querySelectorAll('.modal-genre-filter:checked')).map(el => el.value);
-  const themes = Array.from(document.querySelectorAll('.modal-theme-filter:checked')).map(el => el.value);
-  const modes = Array.from(document.querySelectorAll('.modal-mode-filter:checked')).map(el => el.value);
-  const platforms = Array.from(document.querySelectorAll('.modal-platform-filter:checked')).map(el => el.value);
+  // Collect filters from tag selections
+  const genres = selectedFilters.genre;
+  const themes = selectedFilters.theme;
+  const keywords = selectedFilters.keyword;
+  const modes = selectedFilters.mode;
+  const platforms = selectedFilters.platform;
 
   const minHype = document.getElementById('modal_min_hype').value;
   const minRating = document.getElementById('modal_min_rating').value;
@@ -791,6 +1107,7 @@ async function saveSearch() {
     enabled: true,
     genres: genres.length > 0 ? genres : null,
     themes: themes.length > 0 ? themes : null,
+    keywords: keywords.length > 0 ? keywords : null,
     game_modes: modes.length > 0 ? modes : null,
     platforms: platforms.length > 0 ? platforms : null,
     min_hype: minHype ? parseInt(minHype) : null,

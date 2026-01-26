@@ -64,26 +64,26 @@ function createCustomSelect(config) {
       <!-- Trigger Button -->
       <button
         type="button"
-        class="custom-select-trigger w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white text-left focus:border-${color}-500 focus:outline-none flex items-center justify-between hover:bg-neutral-750 transition">
-        <span class="custom-select-label ${(!multiSelect && !selectedValue) || (multiSelect && selectedValues.length === 0) ? 'text-gray-400' : ''}">${multiSelect ? getMultiSelectLabel() : escapeHtml(selectedValue ? items.find(i => i.value === selectedValue)?.label || placeholder : placeholder)}</span>
-        <i class="fas fa-chevron-down text-gray-400 text-sm transition-transform custom-select-icon"></i>
+        class="custom-select-trigger w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2 text-white text-left focus:border-${color}-500 focus:outline-none flex items-center justify-between hover:bg-neutral-700/50 transition-colors">
+        <span class="custom-select-label text-sm ${(!multiSelect && !selectedValue) || (multiSelect && selectedValues.length === 0) ? 'text-gray-400' : ''}">${multiSelect ? getMultiSelectLabel() : escapeHtml(selectedValue ? items.find(i => i.value === selectedValue)?.label || placeholder : placeholder)}</span>
+        <i class="fas fa-chevron-down text-gray-400 text-xs transition-transform custom-select-icon"></i>
       </button>
 
       <!-- Hidden Input - value will be set via JavaScript after creation -->
       <input type="hidden" name="${escapeHtml(name)}" id="${escapeHtml(id)}" value="">
 
       <!-- Dropdown Panel -->
-      <div class="custom-select-dropdown hidden absolute z-50 w-full min-w-[260px] max-w-[420px] mt-2 bg-neutral-800 border border-neutral-700 rounded-lg shadow-2xl overflow-hidden">
+      <div class="custom-select-dropdown hidden absolute z-50 w-full min-w-[200px] mt-1 bg-neutral-800 border border-neutral-700 rounded-lg shadow-xl overflow-hidden">
         <!-- Search Input -->
-        <div class="p-3 border-b border-neutral-700">
+        <div class="p-2 border-b border-neutral-700">
           <input
             type="text"
-            class="custom-select-search w-full bg-neutral-900 border border-neutral-600 rounded px-3 py-2 text-white text-sm placeholder-gray-500 focus:border-${color}-500 focus:outline-none"
+            class="custom-select-search w-full bg-neutral-900 border border-neutral-600 rounded px-3 py-1.5 text-white text-sm placeholder-gray-500 focus:border-${color}-500 focus:outline-none"
             placeholder="Type to search...">
         </div>
 
         <!-- Options List -->
-        <div class="custom-select-options max-h-60 overflow-y-auto custom-scrollbar">
+        <div class="custom-select-options max-h-60 overflow-y-auto custom-scrollbar p-1">
           ${items.map(item => {
             if (multiSelect) {
               // Multi-select: render with checkboxes
@@ -92,9 +92,8 @@ function createCustomSelect(config) {
                 <button
                   type="button"
                   data-value="${escapeHtml(item.value)}"
-                  class="custom-select-option w-full px-4 py-2.5 text-left text-white hover:bg-neutral-700 transition flex items-center gap-2 text-sm ${isSelected ? 'bg-neutral-700' : ''}">
-                  <input type="checkbox" class="mr-2" ${isSelected ? 'checked' : ''} onclick="event.preventDefault()">
-                  ${item.iconHtml ? item.iconHtml : (item.icon ? `<i class="fas fa-${escapeHtml(item.icon)} text-gray-400"></i>` : '')}
+                  class="custom-select-option w-full px-3 py-2 text-left text-white hover:bg-neutral-700 transition-colors rounded flex items-center gap-2 text-sm ${isSelected ? 'bg-neutral-700' : ''}">
+                  <input type="checkbox" class="accent-${color}-500" ${isSelected ? 'checked' : ''} onclick="event.preventDefault()">
                   <span>${escapeHtml(item.label)}</span>
                 </button>
               `;
@@ -105,8 +104,7 @@ function createCustomSelect(config) {
                 <button
                   type="button"
                   data-value="${escapeHtml(item.value)}"
-                  class="custom-select-option w-full px-4 py-2.5 text-left text-white hover:bg-neutral-700 transition flex items-center gap-2 text-sm ${isSelected ? 'bg-neutral-700' : ''}">
-                  ${item.iconHtml ? item.iconHtml : (item.icon ? `<i class="fas fa-${escapeHtml(item.icon)} text-gray-400"></i>` : '')}
+                  class="custom-select-option w-full px-3 py-2 text-left text-white hover:bg-neutral-700 transition-colors rounded flex items-center gap-2 text-sm ${isSelected ? 'bg-neutral-700' : ''}">
                   <span>${escapeHtml(item.label)}</span>
                   ${isSelected ? '<i class="fas fa-check ml-auto text-green-400 text-xs"></i>' : ''}
                 </button>
@@ -115,7 +113,7 @@ function createCustomSelect(config) {
           }).join('')}
 
           <!-- No Results -->
-          <div class="custom-select-no-results hidden px-4 py-6 text-center text-gray-500 text-sm">
+          <div class="custom-select-no-results hidden px-3 py-4 text-center text-gray-500 text-sm">
             No results found
           </div>
         </div>

@@ -177,6 +177,9 @@
                       {% if search.themes_list %}
                       <span><i class="fas fa-paint-brush text-gray-500 mr-1"></i>{{ search.themes_list|length }} theme{{ search.themes_list|length|pluralize }}</span>
                       {% endif %}
+                      {% if search.keywords_list %}
+                      <span><i class="fas fa-tags text-green-500 mr-1"></i>{{ search.keywords_list|length }} keyword{{ search.keywords_list|length|pluralize }}</span>
+                      {% endif %}
                       {% if search.modes_list %}
                       <span><i class="fas fa-users text-gray-500 mr-1"></i>{{ search.modes_list|length }} mode{{ search.modes_list|length|pluralize }}</span>
                       {% endif %}
@@ -322,67 +325,137 @@
             <p class="text-gray-500 text-xs mt-1">How far ahead to announce games from this search</p>
           </div>
 
-          <!-- Genre Filters -->
-          <div>
-            <label class="block text-sm text-gray-400 mb-3">
-              <i class="fas fa-filter mr-1"></i>Genres
-              <span class="text-gray-600 ml-1">(optional - leave empty for all)</span>
-            </label>
-            <div class="grid grid-cols-2 md:grid-cols-3 gap-3 max-h-48 overflow-y-auto p-3 bg-neutral-800/50 rounded-lg">
-              {% for genre in available_genres %}
-              <label class="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" class="modal-genre-filter w-4 h-4 rounded border-neutral-600 bg-neutral-700 text-blue-600" value="{{ genre }}">
-                <span class="text-white text-sm">{{ genre }}</span>
-              </label>
-              {% endfor %}
+          <!-- IGDB Filters - Tabbed Tag UI -->
+          <div class="bg-neutral-800/30 rounded-xl border border-neutral-700/50 overflow-hidden">
+            <!-- Search Box -->
+            <div class="p-4 border-b border-neutral-700/50">
+              <div class="relative">
+                <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-500"></i>
+                <input type="text" id="modal_filter_search" placeholder="Search tags (e.g., Souls-like, JRPG, Co-op)..."
+                       class="w-full bg-neutral-800 border border-neutral-700 rounded-lg pl-10 pr-4 py-2.5 text-white placeholder-gray-500 focus:border-purple-500 focus:outline-none">
+              </div>
             </div>
-          </div>
 
-          <!-- Theme Filters -->
-          <div>
-            <label class="block text-sm text-gray-400 mb-3">
-              <i class="fas fa-paint-brush mr-1"></i>Themes
-              <span class="text-gray-600 ml-1">(optional)</span>
-            </label>
-            <div class="grid grid-cols-2 md:grid-cols-3 gap-3 max-h-48 overflow-y-auto p-3 bg-neutral-800/50 rounded-lg">
-              {% for theme in available_themes %}
-              <label class="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" class="modal-theme-filter w-4 h-4 rounded border-neutral-600 bg-neutral-700 text-purple-600" value="{{ theme }}">
-                <span class="text-white text-sm">{{ theme }}</span>
-              </label>
-              {% endfor %}
+            <!-- Filter Tabs -->
+            <div class="flex border-b border-neutral-700/50 overflow-x-auto">
+              <button type="button" onclick="switchFilterTab('genres')" id="tab_genres"
+                      class="filter-tab px-4 py-3 text-sm font-medium whitespace-nowrap transition bg-purple-600 text-white">
+                <i class="fas fa-gamepad mr-1.5"></i>Genres
+              </button>
+              <button type="button" onclick="switchFilterTab('themes')" id="tab_themes"
+                      class="filter-tab px-4 py-3 text-sm font-medium whitespace-nowrap transition text-gray-400 hover:text-white hover:bg-neutral-700/50">
+                <i class="fas fa-paint-brush mr-1.5"></i>Themes
+              </button>
+              <button type="button" onclick="switchFilterTab('keywords')" id="tab_keywords"
+                      class="filter-tab px-4 py-3 text-sm font-medium whitespace-nowrap transition text-gray-400 hover:text-white hover:bg-neutral-700/50">
+                <i class="fas fa-tags mr-1.5"></i>Keywords
+              </button>
+              <button type="button" onclick="switchFilterTab('modes')" id="tab_modes"
+                      class="filter-tab px-4 py-3 text-sm font-medium whitespace-nowrap transition text-gray-400 hover:text-white hover:bg-neutral-700/50">
+                <i class="fas fa-users mr-1.5"></i>Modes
+              </button>
+              <button type="button" onclick="switchFilterTab('platforms')" id="tab_platforms"
+                      class="filter-tab px-4 py-3 text-sm font-medium whitespace-nowrap transition text-gray-400 hover:text-white hover:bg-neutral-700/50">
+                <i class="fas fa-desktop mr-1.5"></i>Platforms
+              </button>
             </div>
-          </div>
 
-          <!-- Game Mode Filters -->
-          <div>
-            <label class="block text-sm text-gray-400 mb-3">
-              <i class="fas fa-users mr-1"></i>Game Modes
-              <span class="text-gray-600 ml-1">(optional)</span>
-            </label>
-            <div class="grid grid-cols-2 gap-3 p-3 bg-neutral-800/50 rounded-lg">
-              {% for mode in available_modes %}
-              <label class="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" class="modal-mode-filter w-4 h-4 rounded border-neutral-600 bg-neutral-700 text-blue-600" value="{{ mode }}">
-                <span class="text-white text-sm">{{ mode }}</span>
-              </label>
-              {% endfor %}
+            <!-- Tab Content -->
+            <div class="p-4 max-h-64 overflow-y-auto">
+              <!-- Genres Panel -->
+              <div id="panel_genres" class="filter-panel">
+                <div class="flex flex-wrap gap-2">
+                  {% for genre in available_genres %}
+                  <button type="button" onclick="toggleFilterTag('genre', '{{ genre }}')"
+                          class="filter-tag filter-tag-genre px-3 py-1.5 rounded-full text-sm font-medium transition
+                                 bg-neutral-700/50 text-gray-300 hover:bg-neutral-600 hover:text-white
+                                 data-[selected=true]:bg-purple-600 data-[selected=true]:text-white"
+                          data-value="{{ genre }}" data-selected="false">
+                    {{ genre }}
+                  </button>
+                  {% endfor %}
+                </div>
+              </div>
+
+              <!-- Themes Panel -->
+              <div id="panel_themes" class="filter-panel hidden">
+                <div class="flex flex-wrap gap-2">
+                  {% for theme in available_themes %}
+                  <button type="button" onclick="toggleFilterTag('theme', '{{ theme }}')"
+                          class="filter-tag filter-tag-theme px-3 py-1.5 rounded-full text-sm font-medium transition
+                                 bg-neutral-700/50 text-gray-300 hover:bg-neutral-600 hover:text-white
+                                 data-[selected=true]:bg-blue-600 data-[selected=true]:text-white"
+                          data-value="{{ theme }}" data-selected="false">
+                    {{ theme }}
+                  </button>
+                  {% endfor %}
+                </div>
+              </div>
+
+              <!-- Keywords Panel -->
+              <div id="panel_keywords" class="filter-panel hidden">
+                <p class="text-gray-500 text-xs mb-3">
+                  <i class="fas fa-info-circle mr-1"></i>Search IGDB's 7000+ keywords like "soulslike", "metroidvania", or "roguelike".
+                </p>
+                <!-- Keyword Search with Autocomplete -->
+                <div class="relative mb-4">
+                  <div class="relative">
+                    <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-500"></i>
+                    <input type="text" id="keyword_search_input" placeholder="Type to search keywords (e.g., souls, roguelike, horror)..."
+                           class="w-full bg-neutral-800 border border-neutral-700 rounded-lg pl-10 pr-4 py-2.5 text-white placeholder-gray-500 focus:border-green-500 focus:outline-none"
+                           autocomplete="off">
+                    <div id="keyword_search_loading" class="hidden absolute right-3 top-1/2 -translate-y-1/2">
+                      <i class="fas fa-spinner fa-spin text-gray-500"></i>
+                    </div>
+                  </div>
+                  <!-- Autocomplete Dropdown -->
+                  <div id="keyword_autocomplete_dropdown" class="hidden absolute z-50 w-full mt-1 bg-neutral-800 border border-neutral-700 rounded-lg shadow-xl max-h-64 overflow-y-auto">
+                    <!-- Results will be populated by JavaScript -->
+                  </div>
+                </div>
+                <!-- Selected Keywords Display -->
+                <div id="selected_keywords_container" class="flex flex-wrap gap-2">
+                  <!-- Selected keyword tags will appear here -->
+                </div>
+              </div>
+
+              <!-- Modes Panel -->
+              <div id="panel_modes" class="filter-panel hidden">
+                <div class="flex flex-wrap gap-2">
+                  {% for mode in available_modes %}
+                  <button type="button" onclick="toggleFilterTag('mode', '{{ mode }}')"
+                          class="filter-tag filter-tag-mode px-3 py-1.5 rounded-full text-sm font-medium transition
+                                 bg-neutral-700/50 text-gray-300 hover:bg-neutral-600 hover:text-white
+                                 data-[selected=true]:bg-orange-600 data-[selected=true]:text-white"
+                          data-value="{{ mode }}" data-selected="false">
+                    {{ mode }}
+                  </button>
+                  {% endfor %}
+                </div>
+              </div>
+
+              <!-- Platforms Panel -->
+              <div id="panel_platforms" class="filter-panel hidden">
+                <div class="flex flex-wrap gap-2">
+                  {% for platform in available_platforms %}
+                  <button type="button" onclick="toggleFilterTag('platform', '{{ platform }}')"
+                          class="filter-tag filter-tag-platform px-3 py-1.5 rounded-full text-sm font-medium transition
+                                 bg-neutral-700/50 text-gray-300 hover:bg-neutral-600 hover:text-white
+                                 data-[selected=true]:bg-cyan-600 data-[selected=true]:text-white"
+                          data-value="{{ platform }}" data-selected="false">
+                    {{ platform }}
+                  </button>
+                  {% endfor %}
+                </div>
+              </div>
             </div>
-          </div>
 
-          <!-- Platform Filters -->
-          <div>
-            <label class="block text-sm text-gray-400 mb-3">
-              <i class="fas fa-desktop mr-1"></i>Platforms
-              <span class="text-gray-600 ml-1">(optional)</span>
-            </label>
-            <div class="grid grid-cols-2 md:grid-cols-3 gap-3 max-h-48 overflow-y-auto p-3 bg-neutral-800/50 rounded-lg">
-              {% for platform in available_platforms %}
-              <label class="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" class="modal-platform-filter w-4 h-4 rounded border-neutral-600 bg-neutral-700 text-blue-600" value="{{ platform }}">
-                <span class="text-white text-sm">{{ platform }}</span>
-              </label>
-              {% endfor %}
+            <!-- Selected Filters Summary -->
+            <div id="selected_filters_container" class="hidden border-t border-neutral-700/50 p-4 bg-neutral-900/30">
+              <p class="text-xs text-gray-500 mb-2">Selected Filters:</p>
+              <div id="selected_filters_display" class="flex flex-wrap gap-2">
+                <!-- Selected tags will be rendered here -->
+              </div>
             </div>
           </div>
 

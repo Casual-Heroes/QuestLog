@@ -90,6 +90,45 @@ def is_safe_redirect(url):
     return is_safe
 
 
+def format_release_date_with_tbd(timestamp):
+    """
+    Format release date from Unix timestamp, detecting IGDB placeholder dates.
+
+    IGDB uses placeholder dates when exact release is unknown:
+    - December 31 = Year only known (TBD YEAR)
+    - Last day of any month = Month/Quarter only known (TBD YEAR)
+      Examples: Jan 31, Feb 28/29, Mar 31, Apr 30, Jun 30, etc.
+
+    Returns formatted string like "March 15, 2026" or "TBD 2026" for placeholders.
+    """
+    if not timestamp:
+        return None
+
+    try:
+        from datetime import datetime
+        import calendar
+        release_dt = datetime.fromtimestamp(timestamp)
+        year = release_dt.year
+        month = release_dt.month
+        day = release_dt.day
+
+        # Check for IGDB placeholder patterns
+        # December 30/31 = year only known
+        if month == 12 and day >= 30:
+            return f"TBD {year}"
+
+        # Check if this is the last day of the month (IGDB placeholder for month-only dates)
+        # This catches Q1/Q2/Q3/Q4 quarter placeholders AND month-only placeholders
+        last_day_of_month = calendar.monthrange(year, month)[1]
+        if day == last_day_of_month:
+            return f"TBD {year}"
+
+        # Real date - format normally
+        return release_dt.strftime('%B %d, %Y')
+    except (ValueError, TypeError, OSError):
+        return None
+
+
 # LFG Game Limits by Tier
 def get_lfg_game_limit(guild):
     """Get LFG game limit based on guild subscription tier."""
@@ -11307,6 +11346,17 @@ def guild_discovery(request, guild_id):
                 "Web browser",
             ]
 
+            # IGDB Keywords - loaded from database
+            # Run migrations/add_igdb_keywords_table.sql then scripts/import_igdb_keywords.py to populate
+            try:
+                keyword_rows = db.execute(
+                    text("SELECT name FROM igdb_keywords ORDER BY name")
+                ).fetchall()
+                available_keywords = [row[0] for row in keyword_rows]
+            except Exception:
+                # Fallback to empty list if table doesn't exist yet
+                available_keywords = []
+
             # Parse selected filters from JSON
             selected_genres = json_lib.loads(discovery_config.game_genres) if discovery_config.game_genres else []
             selected_themes = json_lib.loads(discovery_config.game_themes) if discovery_config.game_themes else []
@@ -11364,6 +11414,7 @@ def guild_discovery(request, guild_id):
                     'days_ahead': config.days_ahead,
                     'genres_list': json_lib.loads(config.genres) if config.genres else [],
                     'themes_list': json_lib.loads(config.themes) if config.themes else [],
+                    'keywords_list': json_lib.loads(config.keywords) if config.keywords else [],
                     'modes_list': json_lib.loads(config.game_modes) if config.game_modes else [],
                     'platforms_list': json_lib.loads(config.platforms) if config.platforms else [],
                     'min_hype': config.min_hype,
@@ -11404,6 +11455,7 @@ def guild_discovery(request, guild_id):
                 # Game Discovery
                 'available_genres': available_genres,
                 'available_themes': available_themes,
+                'available_keywords': available_keywords,
                 'available_modes': available_modes,
                 'available_platforms': available_platforms,
                 'selected_genres': selected_genres,
@@ -13690,7 +13742,22 @@ def api_discovery_games_list(request):
         guild_id = request.GET.get('guild_id')
         search_term = request.GET.get('search', '').strip().lower()
         genre_filter = request.GET.get('genre', '').strip().lower()
-        sort_by = request.GET.get('sort', 'trending')  # trending, servers, recent, rating
+        sort_by = request.GET.get('sort', 'release')  # release, found, hype, name, trending, servers, rating
+        min_hype = request.GET.get('min_hype', '').strip()
+        modes_filter = request.GET.get('modes', '').strip()  # Comma-separated list of modes
+
+        # Parse min_hype as int
+        min_hype_value = None
+        if min_hype:
+            try:
+                min_hype_value = int(min_hype)
+            except ValueError:
+                pass
+
+        # Parse modes filter
+        modes_list = []
+        if modes_filter:
+            modes_list = [m.strip().lower() for m in modes_filter.split(',') if m.strip()]
 
         with get_db_session() as db:
             # Verify guild is in Discovery Network (approved application)
@@ -13724,6 +13791,7 @@ def api_discovery_games_list(request):
                 'release_date': None,
                 'genres': None,
                 'platforms': None,
+                'game_modes': None,  # For mode filtering
                 'server_count': 0,
                 'server_guild_ids': set(),  # Track which servers announced this game
                 'lfg_count': 0,
@@ -13796,6 +13864,7 @@ def api_discovery_games_list(request):
                 FoundGame.summary,
                 FoundGame.genres,
                 FoundGame.platforms,
+                FoundGame.game_modes,
                 FoundGame.hypes,
                 FoundGame.rating,
                 func.count(func.distinct(FoundGame.guild_id)).label('found_count'),
@@ -13815,6 +13884,7 @@ def api_discovery_games_list(request):
                 FoundGame.summary,
                 FoundGame.genres,
                 FoundGame.platforms,
+                FoundGame.game_modes,
                 FoundGame.hypes,
                 FoundGame.rating
             ).all()
@@ -13838,6 +13908,8 @@ def api_discovery_games_list(request):
                     games_data[game_name_lower]['genres'] = game.genres
                 if not games_data[game_name_lower]['platforms'] and game.platforms:
                     games_data[game_name_lower]['platforms'] = game.platforms
+                if not games_data[game_name_lower]['game_modes'] and game.game_modes:
+                    games_data[game_name_lower]['game_modes'] = game.game_modes
                 if game.hypes:
                     games_data[game_name_lower]['hypes'] = game.hypes
                 if game.rating and not games_data[game_name_lower]['avg_rating']:
@@ -13921,8 +13993,53 @@ def api_discovery_games_list(request):
                 if search_term and search_term not in game_key:
                     continue
 
-                # Apply genre filter
-                if genre_filter and (not data['genre'] or data['genre'].lower() != genre_filter):
+                # Apply genre filter - check both single genre field and genres list
+                # Use flexible matching: filter value can match start or be contained in genre name
+                # e.g., "rpg" matches "Role-playing (RPG)", "mmo" matches "Massively Multiplayer Online (MMO)"
+                if genre_filter:
+                    genre_match = False
+                    # Check single genre field (from manually shared games)
+                    if data['genre']:
+                        genre_lower = data['genre'].lower()
+                        if genre_filter in genre_lower or genre_lower.startswith(genre_filter):
+                            genre_match = True
+                    # Check genres list (from found_games via IGDB)
+                    if not genre_match and data['genres']:
+                        try:
+                            genres_to_check = json.loads(data['genres']) if isinstance(data['genres'], str) else data['genres']
+                            for g in genres_to_check:
+                                g_lower = g.lower()
+                                if genre_filter in g_lower or g_lower.startswith(genre_filter):
+                                    genre_match = True
+                                    break
+                        except:
+                            pass
+                    if not genre_match:
+                        continue
+
+                # Apply min_hype filter
+                if min_hype_value is not None:
+                    game_hypes = data['hypes'] or 0
+                    if game_hypes < min_hype_value:
+                        continue
+
+                # Apply modes filter - check if game has any of the selected modes
+                if modes_list and data['game_modes']:
+                    try:
+                        game_modes_data = json.loads(data['game_modes']) if isinstance(data['game_modes'], str) else data['game_modes']
+                        game_modes_lower = [m.lower() for m in game_modes_data] if game_modes_data else []
+                        # Check if any selected mode matches
+                        mode_match = any(
+                            any(selected_mode in gm or gm.startswith(selected_mode) for gm in game_modes_lower)
+                            for selected_mode in modes_list
+                        )
+                        if not mode_match:
+                            continue
+                    except:
+                        # If can't parse modes, skip this game when modes filter is active
+                        continue
+                elif modes_list:
+                    # Modes filter active but game has no modes data - skip
                     continue
 
                 # Build IGDB URL
@@ -14006,6 +14123,7 @@ def api_discovery_games_list(request):
                     'genre': data['genre'],
                     'summary': summary,
                     'release_date': release_date_str,
+                    'release_date_raw': data['release_date'],  # Raw timestamp for sorting
                     'added_date': added_date_str,  # When game was discovered/added
                     'genres': genres_list,
                     'platforms': platforms_list,
@@ -14024,14 +14142,47 @@ def api_discovery_games_list(request):
                     'shared_by_server': shared_by_server
                 })
 
-            # Apply sorting
-            if sort_by == 'servers':
+            # Apply sorting - matching Found Games sort options
+            import calendar
+            from datetime import datetime
+
+            def is_tbd_date(timestamp):
+                """Check if release date is a TBD placeholder."""
+                if not timestamp:
+                    return True
+                try:
+                    dt = datetime.fromtimestamp(timestamp)
+                    year, month, day = dt.year, dt.month, dt.day
+                    if month == 12 and day >= 30:
+                        return True
+                    last_day = calendar.monthrange(year, month)[1]
+                    if day == last_day:
+                        return True
+                    return False
+                except:
+                    return True
+
+            if sort_by == 'release':
+                # Sort by release date, TBD dates after real dates
+                def release_sort_key(game):
+                    rd = game['release_date_raw']
+                    if rd is None:
+                        return (1, float('inf'))
+                    if is_tbd_date(rd):
+                        return (1, rd)  # TBD dates after real dates
+                    return (0, rd)
+                games_list.sort(key=release_sort_key)
+            elif sort_by == 'found' or sort_by == 'recent':
+                games_list.sort(key=lambda x: x['latest_timestamp'] or 0, reverse=True)
+            elif sort_by == 'hype':
+                games_list.sort(key=lambda x: x['hypes'] or 0, reverse=True)
+            elif sort_by == 'name':
+                games_list.sort(key=lambda x: x['name'].lower())
+            elif sort_by == 'servers':
                 games_list.sort(key=lambda x: x['server_count'], reverse=True)
-            elif sort_by == 'recent':
-                games_list.sort(key=lambda x: x['latest_timestamp'], reverse=True)
             elif sort_by == 'rating':
                 games_list.sort(key=lambda x: (x['rating'] or 0, x['review_count']), reverse=True)
-            else:  # trending (default)
+            elif sort_by == 'trending':
                 # Trending = combination of server count, LFG count, and recency
                 now = time.time()
                 for game in games_list:
@@ -14047,7 +14198,17 @@ def api_discovery_games_list(request):
                         (game['rating'] or 0) * 3
                     ) * recency_bonus
 
-                games_list.sort(key=lambda x: x['trending_score'], reverse=True)
+                games_list.sort(key=lambda x: x.get('trending_score', 0), reverse=True)
+            else:
+                # Default to release date
+                def release_sort_key(game):
+                    rd = game['release_date_raw']
+                    if rd is None:
+                        return (1, float('inf'))
+                    if is_tbd_date(rd):
+                        return (1, rd)
+                    return (0, rd)
+                games_list.sort(key=release_sort_key)
 
             return JsonResponse({
                 'success': True,
@@ -15611,6 +15772,8 @@ def guild_found_games(request, guild_id):
             mode_filters = request.GET.getlist('mode')  # Optional: filter by one or more game modes
             min_hype_param = request.GET.get('min_hype')
             min_hype = int(min_hype_param) if min_hype_param and min_hype_param.isdigit() else None
+            game_name_filter = request.GET.get('game_name', '').strip()  # Optional: filter by game name
+            sort_by = request.GET.get('sort', 'release')  # Default to release date (matches Discovery Network)
 
             # Get available search configs (only public ones shown on website)
             # Get ALL search configs for this guild (both public and private)
@@ -15631,17 +15794,25 @@ def guild_found_games(request, guild_id):
             # Pull a reasonable window for filtering and option building
             base_games_raw = query.order_by(FoundGame.found_at.desc()).limit(300).all()
 
-            # Build available game mode options from the base set
-            available_modes = set()
-            for game in base_games_raw:
-                game_modes = json_lib.loads(game.game_modes) if game.game_modes else []
-                for mode in game_modes:
-                    available_modes.add(mode)
+            # Static list of available game modes (matches IGDB game modes)
+            # Use static list so all filter options are always available
+            available_modes = [
+                "Single player",
+                "Multiplayer",
+                "Co-operative",
+                "Split screen",
+                "Massively Multiplayer Online (MMO)",
+                "Battle Royale",
+            ]
 
             # Apply filters in Python (game_modes stored as JSON text)
             filtered_games = []
             for game in base_games_raw:
                 game_modes = json_lib.loads(game.game_modes) if game.game_modes else []
+                # Game name filter (case-insensitive partial match)
+                if game_name_filter:
+                    if game_name_filter.lower() not in game.game_name.lower():
+                        continue
                 # Mode filter: require at least one selected mode to be present
                 if mode_filters:
                     if not any(mode in game_modes for mode in mode_filters):
@@ -15652,7 +15823,36 @@ def guild_found_games(request, guild_id):
                         continue
                 filtered_games.append((game, game_modes))
 
-            # Order already by found_at desc; trim to 100 for display
+            # Apply sorting based on sort_by parameter
+            if sort_by == 'release':
+                # Sort by release date ascending (soonest first), TBD dates last
+                def release_sort_key(item):
+                    game = item[0]
+                    if game.release_date is None:
+                        return (1, float('inf'))  # No date = last
+                    # Check if TBD placeholder (last day of month)
+                    import calendar
+                    dt = datetime.fromtimestamp(game.release_date)
+                    last_day = calendar.monthrange(dt.year, dt.month)[1]
+                    is_tbd = (dt.month == 12 and dt.day >= 30) or dt.day == last_day
+                    if is_tbd:
+                        return (1, game.release_date)  # TBD dates after real dates
+                    return (0, game.release_date)  # Real dates first
+                filtered_games.sort(key=release_sort_key)
+            elif sort_by == 'found':
+                # Sort by found_at descending (most recently discovered first)
+                filtered_games.sort(key=lambda x: x[0].found_at or 0, reverse=True)
+            elif sort_by == 'hype':
+                # Sort by hype descending (most hyped first)
+                filtered_games.sort(key=lambda x: x[0].hypes or 0, reverse=True)
+            elif sort_by == 'name':
+                # Sort alphabetically by game name
+                filtered_games.sort(key=lambda x: x[0].game_name.lower())
+            else:
+                # Default: release date
+                filtered_games.sort(key=lambda x: x[0].release_date or float('inf'))
+
+            # Trim to 100 for display
             filtered_games = filtered_games[:100]
 
             # Process games for template
@@ -15662,11 +15862,8 @@ def guild_found_games(request, guild_id):
                 themes = json_lib.loads(game.themes) if game.themes else []
                 platforms = json_lib.loads(game.platforms) if game.platforms else []
 
-                # Format release date
-                release_date_str = None
-                if game.release_date:
-                    release_dt = datetime.fromtimestamp(game.release_date)
-                    release_date_str = release_dt.strftime('%B %d, %Y')
+                # Format release date (with TBD detection for placeholders)
+                release_date_str = format_release_date_with_tbd(game.release_date)
 
                 # Format found date
                 found_dt = datetime.fromtimestamp(game.found_at)
@@ -15722,9 +15919,12 @@ def guild_found_games(request, guild_id):
                 'check_id': check_id,
                 'search_id': int(search_id) if search_id else None,
                 'search_configs': search_configs,
-                'available_modes': sorted(available_modes),
+                'search_configs_json': search_configs,  # For JS dropdown
+                'available_modes': available_modes,
                 'selected_modes': mode_filters,
                 'selected_min_hype': min_hype if min_hype is not None else '',
+                'selected_game_name': game_name_filter,
+                'selected_sort': sort_by,
                 'has_discovery_module': has_discovery_module,
                 'has_any_module': has_any_module,
                 'admin_guilds': admin_guilds,
@@ -15764,6 +15964,51 @@ def guild_found_games(request, guild_id):
             'is_admin': is_admin,
             'active_page': 'found_games',
         })
+
+
+@require_http_methods(["GET"])
+@ratelimit(key='user_or_ip', rate='60/m', method='GET', block=True)
+def api_found_games_search(request, guild_id):
+    """GET /api/guild/<id>/found-games/search/?q=query - Search found games by name for autocomplete."""
+    from .db import get_db_session
+    from .models import FoundGame
+
+    query = request.GET.get('q', '').strip()
+    if len(query) < 2:
+        return JsonResponse({'games': []})
+
+    try:
+        with get_db_session() as db:
+            # Search for games matching the query (case-insensitive using LIKE)
+            # Escape special LIKE characters in the query
+            search_term = query.replace('%', '\\%').replace('_', '\\_')
+            search_pattern = f'%{search_term}%'
+
+            games = db.query(
+                FoundGame.id,
+                FoundGame.game_name,
+                FoundGame.cover_url,
+                FoundGame.release_date
+            ).filter(
+                FoundGame.guild_id == int(guild_id),
+                FoundGame.game_name.ilike(search_pattern)
+            ).order_by(
+                FoundGame.game_name
+            ).limit(15).all()
+
+            results = [{
+                'id': g.id,
+                'name': g.game_name,
+                'cover_url': g.cover_url,
+                'release_date': format_release_date_with_tbd(g.release_date)
+            } for g in games]
+
+            return JsonResponse({'games': results})
+
+    except Exception as e:
+        import logging
+        logging.getLogger('ch-webserver').error(f"Error searching found games: {e}")
+        return JsonResponse({'error': 'Search failed'}, status=500)
 
 
 @require_http_methods(["POST"])
@@ -16328,6 +16573,7 @@ def api_game_search_configs_list(request, guild_id):
                     'enabled': search.enabled,
                     'genres': json_lib.loads(search.genres) if search.genres else [],
                     'themes': json_lib.loads(search.themes) if search.themes else [],
+                    'keywords': json_lib.loads(search.keywords) if search.keywords else [],
                     'game_modes': json_lib.loads(search.game_modes) if search.game_modes else [],
                     'platforms': json_lib.loads(search.platforms) if search.platforms else [],
                     'min_hype': search.min_hype,
@@ -16398,6 +16644,7 @@ def api_game_search_config_create(request, guild_id):
                 enabled=data.get('enabled', True),
                 genres=json_lib.dumps(data.get('genres', [])) if data.get('genres') else None,
                 themes=json_lib.dumps(data.get('themes', [])) if data.get('themes') else None,
+                keywords=json_lib.dumps(data.get('keywords', [])) if data.get('keywords') else None,
                 game_modes=json_lib.dumps(data.get('game_modes', [])) if data.get('game_modes') else None,
                 platforms=json_lib.dumps(data.get('platforms', [])) if data.get('platforms') else None,
                 min_hype=data.get('min_hype'),
@@ -16453,6 +16700,8 @@ def api_game_search_config_update(request, guild_id, search_id):
                 search.genres = json_lib.dumps(data['genres']) if data['genres'] else None
             if 'themes' in data:
                 search.themes = json_lib.dumps(data['themes']) if data['themes'] else None
+            if 'keywords' in data:
+                search.keywords = json_lib.dumps(data['keywords']) if data['keywords'] else None
             if 'game_modes' in data:
                 search.game_modes = json_lib.dumps(data['game_modes']) if data['game_modes'] else None
             if 'platforms' in data:
@@ -16511,6 +16760,37 @@ def api_game_search_config_delete(request, guild_id, search_id):
     except Exception as e:
         logger.error('API error occurred', exc_info=True)
         return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
+
+
+@require_http_methods(["GET"])
+@api_auth_required
+@ratelimit(key='user_or_ip', rate='120/m', method='GET', block=True)
+def api_igdb_keywords_search(request, guild_id):
+    """GET /api/guild/<id>/discovery/keywords/search/?q=souls - Search IGDB keywords for autocomplete."""
+    try:
+        from .db import get_db_session
+        from sqlalchemy import text
+
+        query = request.GET.get('q', '').strip().lower()
+        limit = min(int(request.GET.get('limit', 20)), 50)  # Cap at 50
+
+        if not query or len(query) < 2:
+            return JsonResponse({'keywords': []})
+
+        with get_db_session() as db:
+            # Search keywords that contain the query string
+            results = db.execute(
+                text("SELECT id, name FROM igdb_keywords WHERE LOWER(name) LIKE :query ORDER BY name LIMIT :limit"),
+                {'query': f'%{query}%', 'limit': limit}
+            ).fetchall()
+
+            keywords = [{'id': row[0], 'name': row[1]} for row in results]
+
+            return JsonResponse({'keywords': keywords})
+
+    except Exception as e:
+        logger.error(f'Keyword search error: {e}', exc_info=True)
+        return JsonResponse({'keywords': [], 'error': str(e)})
 
 
 @require_http_methods(["GET"])

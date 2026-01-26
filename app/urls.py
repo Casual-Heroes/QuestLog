@@ -239,6 +239,7 @@ urlpatterns = [
     path('questlog/guild/<str:guild_id>/discovery/', views.guild_discovery, name='guild_discovery'),
     path('questlog/guild/<str:guild_id>/discovery-network/', views.guild_discovery_network, name='guild_discovery_network'),
     path('questlog/guild/<str:guild_id>/found-games/', views.guild_found_games, name='guild_found_games'),
+    path('api/guild/<str:guild_id>/found-games/search/', views.api_found_games_search, name='api_found_games_search'),
 
     # RSS Feeds (standalone page)
     path('questlog/guild/<str:guild_id>/rss-feeds/', views.guild_rss_feeds, name='guild_rss_feeds'),
@@ -310,6 +311,7 @@ urlpatterns = [
     path('api/discovery/admin/servers/<str:guild_id>/reinstate', views.api_discovery_network_admin_reinstate_server, name='api_discovery_network_admin_reinstate_server'),
     path('api/discovery/admin/users/<str:user_id_to_ban>/ban', views.api_discovery_network_admin_ban_user, name='api_discovery_network_admin_ban_user'),
     path('api/guild/<str:guild_id>/discovery/searches/<int:search_id>/delete/', views.api_game_search_config_delete, name='api_game_search_config_delete'),
+    path('api/guild/<str:guild_id>/discovery/keywords/search/', views.api_igdb_keywords_search, name='api_igdb_keywords_search'),
 
     # RSS Feed Management
     path('api/guild/<str:guild_id>/rss/', views.api_rss_feeds_list, name='api_rss_feeds_list'),
