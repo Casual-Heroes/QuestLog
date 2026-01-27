@@ -9297,6 +9297,8 @@ def guild_settings(request, guild_id):
                     'billing_cycle': guild_record.billing_cycle,
                     'is_vip': guild_record.is_vip,
                     'role_persistence_enabled': guild_record.role_persistence_enabled or False,
+                    'channel_notify_channel_id': str(guild_record.channel_notify_channel_id) if guild_record.channel_notify_channel_id else '',
+                    'temp_voice_category_ids': guild_record.temp_voice_category_ids or '[]',
                 }
             else:
                 settings = {
@@ -9311,6 +9313,8 @@ def guild_settings(request, guild_id):
                     'billing_cycle': None,
                     'is_vip': False,
                     'role_persistence_enabled': False,
+                    'channel_notify_channel_id': '',
+                    'temp_voice_category_ids': '[]',
                 }
 
     except Exception as e:
@@ -9529,6 +9533,11 @@ def api_settings_update(request, guild_id):
                 guild_record.admin_roles = data['admin_roles'] if data['admin_roles'] else None
             if 'role_persistence_enabled' in data:
                 guild_record.role_persistence_enabled = bool(data['role_persistence_enabled'])
+            if 'channel_notify_channel_id' in data:
+                guild_record.channel_notify_channel_id = int(data['channel_notify_channel_id']) if data['channel_notify_channel_id'] else None
+            if 'temp_voice_category_ids' in data:
+                # Store as JSON string (already stringified from frontend)
+                guild_record.temp_voice_category_ids = data['temp_voice_category_ids'] if data['temp_voice_category_ids'] and data['temp_voice_category_ids'] != '[]' else None
 
             db.commit()
 
@@ -9562,6 +9571,8 @@ def api_settings_reset(request, guild_id):
                 guild_record.token_name = 'Hero Tokens'
                 guild_record.token_emoji = ':coin:'
                 guild_record.mod_log_channel_id = None
+                guild_record.channel_notify_channel_id = None
+                guild_record.temp_voice_category_ids = None
 
             return JsonResponse({'success': True})
 

@@ -151,8 +151,35 @@
       <div>
         <label class="block text-sm text-gray-400 mb-2">Mod Log Channel</label>
         <div id="mod_log_channel_idContainer"></div>
-        
+
         <p class="text-gray-500 text-xs mt-1">Warnings, bans, kicks, and other mod actions will be logged here</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Channel Notifications -->
+  <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6 mb-6">
+    <h3 class="text-lg font-bold text-white mb-2">
+      <i class="fas fa-bell text-blue-400 mr-2"></i>Channel Creation Notifications
+    </h3>
+    <p class="text-gray-400 text-sm mb-6">Get notified when new channels are created in your server</p>
+    <div class="space-y-6">
+      <div>
+        <label class="block text-sm text-gray-400 mb-2">Notification Channel</label>
+        <div id="channel_notify_channel_idContainer"></div>
+        <p class="text-gray-500 text-xs mt-1">New channel creations will be announced here (text, voice, forums, etc.)</p>
+      </div>
+
+      <div>
+        <label class="block text-sm text-gray-400 mb-2">
+          Excluded Categories
+          <span class="text-xs text-gray-500 ml-2">(Multi-select)</span>
+        </label>
+        <div id="temp_voice_category_idsContainer"></div>
+        <p class="text-gray-500 text-xs mt-1">
+          <i class="fas fa-info-circle text-blue-400 mr-1"></i>
+          Channels created in these categories won't trigger notifications. Useful for Mee6 temp voice channels or other automated systems.
+        </p>
       </div>
     </div>
   </div>
@@ -203,16 +230,31 @@ document.getElementById('token_name').addEventListener('input', updateTokenPrevi
 
 // Load Discord channels for custom select
 let modChannelSelect;
+let channelNotifySelect;
+let tempVoiceCategoriesSelect;
+
 async function loadChannels() {
   try {
     const response = await csrfFetch(`/api/guild/${guildId}/channels/`);
     const data = await response.json();
 
-    const currentValue = '{{ settings.mod_log_channel_id }}';
+    const modLogValue = '{{ settings.mod_log_channel_id }}';
+    const channelNotifyValue = '{{ settings.channel_notify_channel_id }}';
+
+    // Parse temp voice categories (JSON array)
+    let tempVoiceCategoryIds = [];
+    try {
+      const tempVoiceJson = '{{ settings.temp_voice_category_ids|escapejs }}';
+      if (tempVoiceJson) {
+        tempVoiceCategoryIds = JSON.parse(tempVoiceJson);
+      }
+    } catch (e) {
+      console.error('Failed to parse temp_voice_category_ids:', e);
+    }
 
     if (data.channels) {
+      // Text channels for mod log and notifications
       const textChannels = data.channels.filter(ch => ch.type === 0);
-
       const channelItems = textChannels.map(channel => {
         const label = channel.category_name
           ? `# ${channel.name} (${channel.category_name})`
@@ -225,18 +267,49 @@ async function loadChannels() {
         };
       });
 
+      // Mod log channel select
       modChannelSelect = createCustomSelect({
         container: '#mod_log_channel_idContainer',
         name: 'mod_log_channel_id',
         id: 'mod_log_channel_id',
         placeholder: 'Select a channel...',
         items: channelItems,
-        selected: currentValue || '',
+        selected: modLogValue || '',
         color: 'indigo'
+      });
+
+      // Channel notification channel select
+      channelNotifySelect = createCustomSelect({
+        container: '#channel_notify_channel_idContainer',
+        name: 'channel_notify_channel_id',
+        id: 'channel_notify_channel_id',
+        placeholder: 'Select a notification channel...',
+        items: channelItems,
+        selected: channelNotifyValue || '',
+        color: 'blue'
+      });
+
+      // Categories for temp voice exclusion (type 4 = category)
+      const categories = data.channels.filter(ch => ch.type === 4);
+      const categoryItems = categories.map(cat => ({
+        value: cat.id,
+        label: `📁 ${cat.name}`,
+        icon: 'folder'
+      }));
+
+      tempVoiceCategoriesSelect = createCustomSelect({
+        container: '#temp_voice_category_idsContainer',
+        name: 'temp_voice_category_ids',
+        id: 'temp_voice_category_ids',
+        placeholder: 'Select categories to exclude...',
+        items: categoryItems,
+        selected: tempVoiceCategoryIds,
+        color: 'blue',
+        multiSelect: true
       });
     }
   } catch (err) {
-    // Failed to load channels:
+    console.error('Failed to load channels:', err);
   }
 }
 
@@ -314,6 +387,8 @@ async function saveSettings() {
     token_emoji: document.getElementById('token_emoji').value,
     mod_log_channel_id: modChannelSelect ? modChannelSelect.getValue() : '',
     admin_roles: adminRolesSelect ? JSON.stringify(adminRolesSelect.getValue()) : '[]',
+    channel_notify_channel_id: channelNotifySelect ? channelNotifySelect.getValue() : '',
+    temp_voice_category_ids: tempVoiceCategoriesSelect ? JSON.stringify(tempVoiceCategoriesSelect.getValue()) : '[]',
     role_persistence_enabled: document.getElementById('role_persistence_enabled').checked,
   };
 

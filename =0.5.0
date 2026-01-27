@@ -1,0 +1,13 @@
+WARNING: Ignoring invalid distribution ~ilelock (/mnt/gamestoreage2/DiscordBots/wardenbot/wardenprj/lib/python3.11/site-packages)
+Collecting captcha
+  Downloading captcha-0.7.1-py3-none-any.whl.metadata (2.2 kB)
+Collecting Pillow (from captcha)
+  Downloading pillow-12.1.0-cp311-cp311-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl.metadata (8.8 kB)
+Downloading captcha-0.7.1-py3-none-any.whl (147 kB)
+Downloading pillow-12.1.0-cp311-cp311-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl (7.0 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 7.0/7.0 MB 11.1 MB/s  0:00:00
+WARNING: Ignoring invalid distribution ~ilelock (/mnt/gamestoreage2/DiscordBots/wardenbot/wardenprj/lib/python3.11/site-packages)
+Installing collected packages: Pillow, captcha
+
+WARNING: Ignoring invalid distribution ~ilelock (/mnt/gamestoreage2/DiscordBots/wardenbot/wardenprj/lib/python3.11/site-packages)
+Successfully installed Pillow-12.1.0 captcha-0.7.1

@@ -232,6 +232,10 @@ class Guild(Base):
     jail_channel_id = Column(BigInteger, nullable=True)  # Where jailed users go for review
     mod_log_channel_id = Column(BigInteger, nullable=True)  # Mod action log channel
 
+    # Channel Creation Notifications
+    channel_notify_channel_id = Column(BigInteger, nullable=True)  # Where to send new channel alerts
+    temp_voice_category_ids = Column(Text, nullable=True)  # JSON array of category IDs to ignore (Mee6 temp VCs)
+
     # Timestamps
     joined_at = Column(BigInteger, default=lambda: int(time.time()))
     updated_at = Column(BigInteger, default=lambda: int(time.time()), onupdate=lambda: int(time.time()))
