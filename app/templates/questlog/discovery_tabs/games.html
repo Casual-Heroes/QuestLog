@@ -22,50 +22,50 @@
       {% endif %}
     </div>
 
-    <!-- Search & Filters - Matching Found Games layout -->
-    <div class="flex flex-col lg:flex-row gap-3">
-      <!-- Game Name Search with Autocomplete -->
-      <div class="relative w-full lg:w-72">
-        <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-500"></i>
-        <input type="text" id="networkGameSearch" placeholder="Search by game name..."
+    <!-- Search & Filters -->
+    <div class="flex flex-wrap gap-3 items-center">
+      <!-- Game Name Search -->
+      <div class="relative flex-1 min-w-[200px] max-w-[280px]">
+        <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm"></i>
+        <input type="text" id="networkGameSearch" placeholder="Search games..."
                autocomplete="off"
-               class="w-full bg-neutral-800 border border-neutral-700 rounded-lg pl-10 pr-4 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500 transition-colors">
+               class="w-full bg-neutral-800 border border-neutral-600 rounded-lg pl-9 pr-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500 transition-colors">
         <div id="networkGameSearchLoading" class="hidden absolute right-3 top-1/2 -translate-y-1/2">
-          <i class="fas fa-spinner fa-spin text-gray-500"></i>
+          <i class="fas fa-spinner fa-spin text-gray-500 text-sm"></i>
         </div>
-        <!-- Autocomplete Dropdown -->
-        <div id="networkGameDropdown" class="hidden absolute z-50 w-full mt-1 bg-neutral-800 border border-neutral-700 rounded-lg shadow-xl max-h-80 overflow-y-auto">
-          <!-- Results populated by JavaScript -->
-        </div>
+        <div id="networkGameDropdown" class="hidden absolute z-50 w-full mt-1 bg-neutral-800 border border-neutral-700 rounded-lg shadow-xl max-h-80 overflow-y-auto"></div>
       </div>
 
-      <!-- Genre Filter (Checkbox Dropdown) -->
-      <div id="networkGenreFilterContainer" class="w-full lg:w-48"></div>
+      <!-- Genre -->
+      <div id="networkGenreFilterContainer" class="w-[160px]"></div>
 
-      <!-- Sort Filter (Radio Dropdown) -->
-      <div id="networkSortFilterContainer" class="w-full lg:w-48"></div>
+      <!-- Sort -->
+      <div id="networkSortFilterContainer" class="w-[160px]"></div>
 
-      <!-- Game Modes Filter -->
-      <div id="networkModeFilterContainer" class="w-full lg:w-64"></div>
+      <!-- Divider -->
+      <div class="hidden lg:block w-px h-8 bg-neutral-600"></div>
 
-      <!-- Min Hype Filter -->
-      <div class="flex items-center gap-2 w-full lg:w-auto">
-        <input type="number" id="networkMinHypeFilter" min="0" placeholder="Min follows"
-               class="w-28 bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white focus:border-indigo-500 focus:outline-none">
+      <!-- Game Modes -->
+      <div id="networkModeFilterContainer" class="w-[180px]"></div>
+
+      <!-- Keywords -->
+      <div id="networkKeywordFilterContainer" class="w-[180px]"></div>
+
+      <!-- Min Hype + Actions -->
+      <div class="flex items-center gap-2">
+        <input type="number" id="networkMinHypeFilter" min="0" placeholder="Min hype"
+               class="w-24 bg-neutral-800 border border-neutral-600 rounded-lg px-3 py-2 text-sm text-white focus:border-indigo-500 focus:outline-none">
         <button id="networkApplyFilters"
-                class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition text-sm">
-          Apply
+                class="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition text-sm">
+          <i class="fas fa-check"></i>
         </button>
         <button id="networkClearFilters"
-                class="px-3 py-2 bg-neutral-700 hover:bg-neutral-600 text-gray-300 hover:text-white rounded-lg font-medium transition text-sm"
+                class="px-3 py-2 bg-neutral-700 hover:bg-neutral-600 text-gray-300 hover:text-white rounded-lg transition text-sm"
                 title="Clear all filters">
           <i class="fas fa-times"></i>
         </button>
       </div>
     </div>
-    <p class="text-xs text-gray-500 mt-2">
-      Filter by game name, genre, game mode, or minimum pre-release follows (hype).
-    </p>
   </div>
 
   <!-- Game Grid -->
@@ -178,6 +178,7 @@ let networkFilters = {
   genre: '',
   sort: 'release',
   modes: new Set(),
+  keywords: new Set(),
   minHype: ''
 };
 
@@ -189,6 +190,30 @@ const availableModes = [
   'Split screen',
   'Massively Multiplayer Online (MMO)',
   'Battle Royale'
+];
+
+// Popular keywords for initial dropdown (must match igdb_keywords table exactly)
+const popularKeywords = [
+  'soulslike',
+  'metroidvania',
+  'roguelike',
+  'roguelite',
+  'action-adventure',
+  'action-rpg',
+  'atmospheric',
+  'story rich',
+  'crafting',
+  'exploration',
+  'dark fantasy',
+  'cyberpunk',
+  'post-apocalyptic',
+  'pixel art',
+  'dungeon crawler',
+  'bullet hell',
+  "hack'n'slash",
+  'turn-based',
+  'permadeath',
+  'procedural generation'
 ];
 
 // Load games on page load
@@ -206,8 +231,12 @@ async function loadGames() {
     if (networkFilters.modes.size > 0) {
       params.set('modes', Array.from(networkFilters.modes).join(','));
     }
+    if (networkFilters.keywords.size > 0) {
+      params.set('keywords', Array.from(networkFilters.keywords).join(','));
+    }
 
-    const response = await csrfFetch(`/api/discovery/games-list?${params.toString()}`);
+    const apiUrl = `/api/discovery/games-list?${params.toString()}`;
+    const response = await csrfFetch(apiUrl);
     const data = await response.json();
 
     if (data.success) {
@@ -492,6 +521,64 @@ function buildModeFilter() {
     onSelect: (values, items) => {
       networkFilters.modes = new Set(values);
       loadGames();
+    }
+  });
+}
+
+// Build keywords multi-select using createCustomSelect with dynamic search
+let keywordSearchTimeout = null;
+function buildKeywordFilter() {
+  const container = document.getElementById('networkKeywordFilterContainer');
+  if (!container) return;
+
+  const keywordItems = popularKeywords.map(kw => ({
+    value: kw,
+    label: kw,
+    icon: 'tag'
+  }));
+
+  createCustomSelect({
+    container: container,
+    name: 'network_keywords',
+    placeholder: 'Filter keywords...',
+    items: keywordItems,
+    selected: Array.from(networkFilters.keywords),
+    color: 'purple',
+    multiSelect: true,
+    onSelect: (values, items) => {
+      networkFilters.keywords = new Set(values);
+      loadGames();
+    },
+    onSearch: async (query) => {
+      // When user types, search the database for matching keywords
+      if (query.length < 1) return;
+
+      // Clear previous timeout
+      if (keywordSearchTimeout) clearTimeout(keywordSearchTimeout);
+
+      // Debounce the search
+      keywordSearchTimeout = setTimeout(async () => {
+        try {
+          const response = await fetch(`/api/discovery/keywords/?q=${encodeURIComponent(query)}`);
+          const data = await response.json();
+
+          if (data.keywords && data.keywords.length > 0) {
+            // Merge DB results with popular keywords (dedupe)
+            const allKeywords = new Set([...popularKeywords, ...data.keywords]);
+            const newItems = Array.from(allKeywords)
+              .filter(kw => kw.toLowerCase().includes(query.toLowerCase()))
+              .sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()))
+              .map(kw => ({
+                value: kw,
+                label: kw,
+                icon: 'tag'
+              }));
+            // Note: updateItems would need to be implemented in custom_select
+          }
+        } catch (error) {
+          console.error('Keyword search error:', error);
+        }
+      }, 300);
     }
   });
 }
@@ -821,6 +908,7 @@ function initGameDiscovery() {
   buildGenreFilter();
   buildSortFilter();
   buildModeFilter();
+  buildKeywordFilter();
 
   // Set up min hype filter event handlers
   const minHypeFilter = document.getElementById('networkMinHypeFilter');
@@ -853,6 +941,7 @@ function initGameDiscovery() {
       networkFilters.genre = '';
       networkFilters.sort = 'release';
       networkFilters.modes = new Set();
+      networkFilters.keywords = new Set();
       networkFilters.minHype = '';
 
       // Clear input fields
@@ -864,6 +953,7 @@ function initGameDiscovery() {
       buildGenreFilter();
       buildSortFilter();
       buildModeFilter();
+      buildKeywordFilter();
 
       // Reload games with cleared filters
       loadGames();

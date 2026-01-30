@@ -11333,12 +11333,19 @@ def guild_discovery(request, guild_id):
             ]
 
             available_modes = [
-                "Single player",
-                "Multiplayer",
-                "Co-operative",
-                "Split screen",
-                "Massively Multiplayer Online (MMO)",
+                "Auditory",
                 "Battle Royale",
+                "Bird view / Isometric",
+                "Co-operative",
+                "First Person",
+                "Massively Multiplayer Online (MMO)",
+                "Multiplayer",
+                "Single player",
+                "Split screen",
+                "Side View",
+                "Text",
+                "Third Person",
+                "Virtual Reality",
             ]
 
             available_platforms = [
@@ -13770,6 +13777,12 @@ def api_discovery_games_list(request):
         if modes_filter:
             modes_list = [m.strip().lower() for m in modes_filter.split(',') if m.strip()]
 
+        # Parse keywords filter
+        keywords_filter = request.GET.get('keywords', '').strip()
+        keywords_list = []
+        if keywords_filter:
+            keywords_list = [k.strip().lower() for k in keywords_filter.split(',') if k.strip()]
+
         with get_db_session() as db:
             # Verify guild is in Discovery Network (approved application)
             from .models import DiscoveryNetworkApplication
@@ -13803,6 +13816,7 @@ def api_discovery_games_list(request):
                 'genres': None,
                 'platforms': None,
                 'game_modes': None,  # For mode filtering
+                'keywords': None,  # For keyword filtering (soulslike, metroidvania, etc.)
                 'server_count': 0,
                 'server_guild_ids': set(),  # Track which servers announced this game
                 'lfg_count': 0,
@@ -13876,6 +13890,7 @@ def api_discovery_games_list(request):
                 FoundGame.genres,
                 FoundGame.platforms,
                 FoundGame.game_modes,
+                FoundGame.keywords,
                 FoundGame.hypes,
                 FoundGame.rating,
                 func.count(func.distinct(FoundGame.guild_id)).label('found_count'),
@@ -13896,6 +13911,7 @@ def api_discovery_games_list(request):
                 FoundGame.genres,
                 FoundGame.platforms,
                 FoundGame.game_modes,
+                FoundGame.keywords,
                 FoundGame.hypes,
                 FoundGame.rating
             ).all()
@@ -13921,6 +13937,8 @@ def api_discovery_games_list(request):
                     games_data[game_name_lower]['platforms'] = game.platforms
                 if not games_data[game_name_lower]['game_modes'] and game.game_modes:
                     games_data[game_name_lower]['game_modes'] = game.game_modes
+                if not games_data[game_name_lower]['keywords'] and game.keywords:
+                    games_data[game_name_lower]['keywords'] = game.keywords
                 if game.hypes:
                     games_data[game_name_lower]['hypes'] = game.hypes
                 if game.rating and not games_data[game_name_lower]['avg_rating']:
@@ -14053,6 +14071,25 @@ def api_discovery_games_list(request):
                     # Modes filter active but game has no modes data - skip
                     continue
 
+                # Apply keywords filter - check if game has any of the selected keywords (case-insensitive)
+                if keywords_list and data['keywords']:
+                    try:
+                        game_keywords_data = json.loads(data['keywords']) if isinstance(data['keywords'], str) else data['keywords']
+                        game_keywords_lower = [k.lower() for k in game_keywords_data] if game_keywords_data else []
+                        # Check if any selected keyword matches
+                        keyword_match = any(
+                            selected_kw in game_keywords_lower
+                            for selected_kw in keywords_list
+                        )
+                        if not keyword_match:
+                            continue
+                    except:
+                        # If can't parse keywords, skip this game when keywords filter is active
+                        continue
+                elif keywords_list:
+                    # Keywords filter active but game has no keywords data - skip
+                    continue
+
                 # Build IGDB URL
                 igdb_url = None
                 if data['igdb_slug']:
@@ -14064,7 +14101,6 @@ def api_discovery_games_list(request):
                     steam_url = f"https://store.steampowered.com/app/{data['steam_id']}"
 
                 # Parse JSON fields
-                import json
                 genres_list = None
                 platforms_list = None
                 if data['genres']:
@@ -15781,6 +15817,7 @@ def guild_found_games(request, guild_id):
             check_id = request.GET.get('check_id')  # Optional: filter to specific check
             search_id = request.GET.get('search_id')  # Optional: filter by search config
             mode_filters = request.GET.getlist('mode')  # Optional: filter by one or more game modes
+            keyword_filters = request.GET.getlist('keyword')  # Optional: filter by one or more keywords (Souls-like, etc.)
             min_hype_param = request.GET.get('min_hype')
             min_hype = int(min_hype_param) if min_hype_param and min_hype_param.isdigit() else None
             game_name_filter = request.GET.get('game_name', '').strip()  # Optional: filter by game name
@@ -15808,18 +15845,50 @@ def guild_found_games(request, guild_id):
             # Static list of available game modes (matches IGDB game modes)
             # Use static list so all filter options are always available
             available_modes = [
-                "Single player",
-                "Multiplayer",
-                "Co-operative",
-                "Split screen",
-                "Massively Multiplayer Online (MMO)",
+                "Auditory",
                 "Battle Royale",
+                "Bird view / Isometric",
+                "Co-operative",
+                "First Person",
+                "Massively Multiplayer Online (MMO)",
+                "Multiplayer",
+                "Single player",
+                "Split screen",
+                "Side View",
+                "Text",
+                "Third Person",
+                "Virtual Reality",
             ]
 
-            # Apply filters in Python (game_modes stored as JSON text)
+            # Popular/common keywords for initial dropdown (must match igdb_keywords table exactly)
+            popular_keywords = [
+                "soulslike",
+                "metroidvania",
+                "roguelike",
+                "roguelite",
+                "action-adventure",
+                "action-rpg",
+                "atmospheric",
+                "story rich",
+                "crafting",
+                "exploration",
+                "dark fantasy",
+                "cyberpunk",
+                "post-apocalyptic",
+                "pixel art",
+                "dungeon crawler",
+                "bullet hell",
+                "hack'n'slash",
+                "turn-based",
+                "permadeath",
+                "procedural generation",
+            ]
+
+            # Apply filters in Python (game_modes and keywords stored as JSON text)
             filtered_games = []
             for game in base_games_raw:
                 game_modes = json_lib.loads(game.game_modes) if game.game_modes else []
+                game_keywords = json_lib.loads(game.keywords) if game.keywords else []
                 # Game name filter (case-insensitive partial match)
                 if game_name_filter:
                     if game_name_filter.lower() not in game.game_name.lower():
@@ -15828,11 +15897,16 @@ def guild_found_games(request, guild_id):
                 if mode_filters:
                     if not any(mode in game_modes for mode in mode_filters):
                         continue
+                # Keyword filter: require at least one selected keyword to be present (case-insensitive)
+                if keyword_filters:
+                    game_keywords_lower = [k.lower() for k in game_keywords]
+                    if not any(kw.lower() in game_keywords_lower for kw in keyword_filters):
+                        continue
                 # Hype filter
                 if min_hype is not None:
                     if game.hypes is None or game.hypes < min_hype:
                         continue
-                filtered_games.append((game, game_modes))
+                filtered_games.append((game, game_modes, game_keywords))
 
             # Apply sorting based on sort_by parameter
             if sort_by == 'release':
@@ -15868,7 +15942,7 @@ def guild_found_games(request, guild_id):
 
             # Process games for template
             found_games = []
-            for game, game_modes in filtered_games:
+            for game, game_modes, game_keywords in filtered_games:
                 genres = json_lib.loads(game.genres) if game.genres else []
                 themes = json_lib.loads(game.themes) if game.themes else []
                 platforms = json_lib.loads(game.platforms) if game.platforms else []
@@ -15889,6 +15963,7 @@ def guild_found_games(request, guild_id):
                     'release_date': release_date_str,
                     'genres': genres,
                     'themes': themes,
+                    'keywords': game_keywords,
                     'game_modes': game_modes,
                     'platforms': platforms,
                     'cover_url': game.cover_url,
@@ -15933,6 +16008,8 @@ def guild_found_games(request, guild_id):
                 'search_configs_json': search_configs,  # For JS dropdown
                 'available_modes': available_modes,
                 'selected_modes': mode_filters,
+                'popular_keywords': popular_keywords,
+                'selected_keywords': keyword_filters,
                 'selected_min_hype': min_hype if min_hype is not None else '',
                 'selected_game_name': game_name_filter,
                 'selected_sort': sort_by,
@@ -16019,6 +16096,114 @@ def api_found_games_search(request, guild_id):
     except Exception as e:
         import logging
         logging.getLogger('ch-webserver').error(f"Error searching found games: {e}")
+        return JsonResponse({'error': 'Search failed'}, status=500)
+
+
+@require_http_methods(["GET"])
+@ratelimit(key='user_or_ip', rate='60/m', method='GET', block=True)
+def api_found_games_keywords(request, guild_id):
+    """GET /api/guild/<id>/found-games/keywords/?q=query - Search keywords from found games for autocomplete."""
+    from .db import get_db_session
+    from .models import FoundGame
+    import json as json_lib
+
+    query = request.GET.get('q', '').strip().lower()
+
+    try:
+        with get_db_session() as db:
+            # Get all unique keywords from found games for this guild
+            games_with_keywords = db.query(FoundGame.keywords).filter(
+                FoundGame.guild_id == int(guild_id),
+                FoundGame.keywords.isnot(None),
+                FoundGame.keywords != '[]',
+                FoundGame.keywords != ''
+            ).limit(500).all()
+
+            # Extract and deduplicate keywords
+            all_keywords = set()
+            for (keywords_json,) in games_with_keywords:
+                try:
+                    keywords = json_lib.loads(keywords_json) if keywords_json else []
+                    all_keywords.update(keywords)
+                except (json_lib.JSONDecodeError, TypeError):
+                    pass
+
+            # Filter by search query if provided
+            if query and len(query) >= 1:
+                matching = [kw for kw in all_keywords if query in kw.lower()]
+            else:
+                # Return all keywords (limited)
+                matching = list(all_keywords)
+
+            # Sort alphabetically and limit
+            matching.sort(key=str.lower)
+            matching = matching[:50]
+
+            return JsonResponse({'keywords': matching})
+
+    except Exception as e:
+        import logging
+        logging.getLogger('ch-webserver').error(f"Error searching keywords: {e}")
+        return JsonResponse({'error': 'Search failed'}, status=500)
+
+
+@require_http_methods(["GET"])
+@ratelimit(key='user_or_ip', rate='60/m', method='GET', block=True)
+def api_discovery_network_keywords(request):
+    """GET /api/discovery/keywords/?q=query - Search keywords from all Discovery Network games."""
+    from .db import get_db_session
+    from .models import FoundGame, DiscoveryNetworkApplication, GameSearchConfig
+    import json as json_lib
+
+    query = request.GET.get('q', '').strip().lower()
+
+    try:
+        with get_db_session() as db:
+            # Get all approved guilds
+            approved_apps = db.query(DiscoveryNetworkApplication.guild_id).filter(
+                DiscoveryNetworkApplication.status == 'approved'
+            ).all()
+            approved_guild_ids = [g[0] for g in approved_apps if g[0] is not None]
+
+            if not approved_guild_ids:
+                return JsonResponse({'keywords': []})
+
+            # Get keywords from found_games that are shared on website (public)
+            games_with_keywords = db.query(FoundGame.keywords).join(
+                GameSearchConfig,
+                FoundGame.search_config_id == GameSearchConfig.id
+            ).filter(
+                FoundGame.guild_id.in_(approved_guild_ids),
+                GameSearchConfig.show_on_website == True,
+                FoundGame.keywords.isnot(None),
+                FoundGame.keywords != '[]',
+                FoundGame.keywords != ''
+            ).limit(1000).all()
+
+            # Extract and deduplicate keywords
+            all_keywords = set()
+            for (keywords_json,) in games_with_keywords:
+                try:
+                    keywords = json_lib.loads(keywords_json) if keywords_json else []
+                    all_keywords.update(keywords)
+                except (json_lib.JSONDecodeError, TypeError):
+                    pass
+
+            # Filter by search query if provided
+            if query and len(query) >= 1:
+                matching = [kw for kw in all_keywords if query in kw.lower()]
+            else:
+                matching = list(all_keywords)
+
+            # Sort alphabetically and limit
+            matching.sort(key=str.lower)
+            matching = matching[:50]
+
+            return JsonResponse({'keywords': matching})
+
+    except Exception as e:
+        import logging
+        logging.getLogger('ch-webserver').error(f"Error searching network keywords: {e}")
         return JsonResponse({'error': 'Search failed'}, status=500)
 
 

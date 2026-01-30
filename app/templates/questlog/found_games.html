@@ -25,52 +25,55 @@
         </a>
     </div>
 
-    <!-- Filter Dropdown -->
+    <!-- Filter Section -->
     {% if search_configs %}
-    <div class="mt-6">
-        <div class="flex flex-col lg:flex-row gap-3">
-            <!-- Game Name Search with Autocomplete -->
-            <div class="relative w-full lg:w-72">
-                <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-500"></i>
-                <input type="text" id="gameNameSearch" placeholder="Search by game name..."
+    <div class="mt-6 bg-neutral-800/50 border border-neutral-700 rounded-lg p-4">
+        <!-- Row 1: Search + Primary Filters -->
+        <div class="flex flex-wrap gap-3 items-center">
+            <!-- Game Name Search -->
+            <div class="relative flex-1 min-w-[200px] max-w-[280px]">
+                <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm"></i>
+                <input type="text" id="gameNameSearch" placeholder="Search games..."
                        value="{{ selected_game_name|default:'' }}"
                        autocomplete="off"
-                       class="w-full bg-neutral-800 border border-neutral-700 rounded-lg pl-10 pr-4 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 transition-colors">
+                       class="w-full bg-neutral-900 border border-neutral-600 rounded-lg pl-9 pr-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 transition-colors">
                 <div id="gameNameSearchLoading" class="hidden absolute right-3 top-1/2 -translate-y-1/2">
-                    <i class="fas fa-spinner fa-spin text-gray-500"></i>
+                    <i class="fas fa-spinner fa-spin text-gray-500 text-sm"></i>
                 </div>
-                <!-- Autocomplete Dropdown -->
-                <div id="gameNameDropdown" class="hidden absolute z-50 w-full mt-1 bg-neutral-800 border border-neutral-700 rounded-lg shadow-xl max-h-80 overflow-y-auto">
-                    <!-- Results populated by JavaScript -->
-                </div>
+                <div id="gameNameDropdown" class="hidden absolute z-50 w-full mt-1 bg-neutral-800 border border-neutral-700 rounded-lg shadow-xl max-h-80 overflow-y-auto"></div>
             </div>
 
-            <!-- Search Config Filter (Checkbox Dropdown) -->
-            <div id="searchFilterContainer" class="w-full lg:w-64"></div>
+            <!-- Search Config -->
+            <div id="searchFilterContainer" class="w-[180px]"></div>
 
-            <!-- Sort Filter (Radio Dropdown) -->
-            <div id="sortFilterContainer" class="w-full lg:w-48"></div>
+            <!-- Sort -->
+            <div id="sortFilterContainer" class="w-[160px]"></div>
 
-            <div id="modeFilterContainer" class="w-full lg:w-80"></div>
+            <!-- Divider -->
+            <div class="hidden lg:block w-px h-8 bg-neutral-600"></div>
 
-            <div class="flex items-center gap-2 w-full lg:w-auto">
-                <input type="number" id="minHypeFilter" min="0" placeholder="Min follows (hype)"
+            <!-- Game Modes -->
+            <div id="modeFilterContainer" class="w-[180px]"></div>
+
+            <!-- Keywords -->
+            <div id="keywordFilterContainer" class="w-[180px]"></div>
+
+            <!-- Min Hype + Actions -->
+            <div class="flex items-center gap-2">
+                <input type="number" id="minHypeFilter" min="0" placeholder="Min hype"
                        value="{{ selected_min_hype }}"
-                       class="w-32 bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white focus:border-blue-500 focus:outline-none">
+                       class="w-24 bg-neutral-900 border border-neutral-600 rounded-lg px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none">
                 <button id="applyFilters"
-                        class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition text-sm">
-                    Apply
+                        class="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition text-sm">
+                    <i class="fas fa-check"></i>
                 </button>
                 <button id="clearFilters"
-                        class="px-3 py-2 bg-neutral-700 hover:bg-neutral-600 text-gray-300 hover:text-white rounded-lg font-medium transition text-sm"
+                        class="px-3 py-2 bg-neutral-700 hover:bg-neutral-600 text-gray-300 hover:text-white rounded-lg transition text-sm"
                         title="Clear all filters">
                     <i class="fas fa-times"></i>
                 </button>
             </div>
         </div>
-        <p class="text-xs text-gray-500 mt-2">
-            Filter by game name, search config, game mode, or minimum pre-release follows (hype).
-        </p>
     </div>
     {% endif %}
 
@@ -267,12 +270,15 @@
 {{ available_modes|json_script:"available-modes-data" }}
 {{ selected_modes|json_script:"preselected-modes-data" }}
 {{ search_configs_json|json_script:"search-configs-data" }}
+{{ popular_keywords|json_script:"popular-keywords-data" }}
+{{ selected_keywords|json_script:"preselected-keywords-data" }}
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const minHypeFilter = document.getElementById('minHypeFilter');
     const applyBtn = document.getElementById('applyFilters');
     const modeFilterContainer = document.getElementById('modeFilterContainer');
+    const keywordFilterContainer = document.getElementById('keywordFilterContainer');
     const searchFilterContainer = document.getElementById('searchFilterContainer');
     const sortFilterContainer = document.getElementById('sortFilterContainer');
 
@@ -478,6 +484,73 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    // Keywords filter with search
+    const popularKeywordsElement = document.getElementById('popular-keywords-data');
+    const preselectedKeywordsElement = document.getElementById('preselected-keywords-data');
+    const popularKeywords = popularKeywordsElement ? JSON.parse(popularKeywordsElement.textContent) : [];
+    const preselectedKeywords = preselectedKeywordsElement ? JSON.parse(preselectedKeywordsElement.textContent) : [];
+    let selectedKeywords = new Set(preselectedKeywords);
+    let keywordSelectInstance = null;
+    let keywordSearchTimeout = null;
+
+    // Build Keywords Filter using createCustomSelect with multi-select and dynamic search
+    if (keywordFilterContainer) {
+        const keywordItems = popularKeywords.map(kw => ({
+            value: kw,
+            label: kw,
+            icon: 'tag'
+        }));
+
+        keywordSelectInstance = createCustomSelect({
+            container: keywordFilterContainer,
+            name: 'keywords',
+            placeholder: 'Filter keywords...',
+            items: keywordItems,
+            selected: preselectedKeywords,
+            color: 'purple',
+            multiSelect: true,
+            onSelect: (values, items) => {
+                selectedKeywords = new Set(values);
+                applyFilters();
+            },
+            onSearch: async (query) => {
+                // When user types, search the database for matching keywords
+                if (query.length < 1) return;
+
+                // Clear previous timeout
+                if (keywordSearchTimeout) clearTimeout(keywordSearchTimeout);
+
+                // Debounce the search
+                keywordSearchTimeout = setTimeout(async () => {
+                    try {
+                        const response = await fetch(`/api/guild/${guildId}/found-games/keywords/?q=${encodeURIComponent(query)}`);
+                        const data = await response.json();
+
+                        if (data.keywords && data.keywords.length > 0) {
+                            // Merge DB results with popular keywords (dedupe)
+                            const allKeywords = new Set([...popularKeywords, ...data.keywords]);
+                            const newItems = Array.from(allKeywords)
+                                .filter(kw => kw.toLowerCase().includes(query.toLowerCase()))
+                                .sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()))
+                                .map(kw => ({
+                                    value: kw,
+                                    label: kw,
+                                    icon: 'tag'
+                                }));
+
+                            // Update dropdown items if instance supports it
+                            if (keywordSelectInstance && keywordSelectInstance.updateItems) {
+                                keywordSelectInstance.updateItems(newItems);
+                            }
+                        }
+                    } catch (error) {
+                        console.error('Keyword search error:', error);
+                    }
+                }, 300);
+            }
+        });
+    }
+
     function applyFilters() {
         const url = new URL(window.location);
         const minHype = minHypeFilter ? minHypeFilter.value : '';
@@ -487,6 +560,7 @@ document.addEventListener('DOMContentLoaded', function() {
         url.searchParams.delete('search_id');
         url.searchParams.delete('min_hype');
         url.searchParams.delete('mode');
+        url.searchParams.delete('keyword');
         url.searchParams.delete('game_name');
         url.searchParams.delete('sort');
 
@@ -503,6 +577,7 @@ document.addEventListener('DOMContentLoaded', function() {
             url.searchParams.set('sort', selectedSort);
         }
         selectedModes.forEach(mode => url.searchParams.append('mode', mode));
+        selectedKeywords.forEach(kw => url.searchParams.append('keyword', kw));
 
         window.location.href = url.toString();
     }

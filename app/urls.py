@@ -240,6 +240,8 @@ urlpatterns = [
     path('questlog/guild/<str:guild_id>/discovery-network/', views.guild_discovery_network, name='guild_discovery_network'),
     path('questlog/guild/<str:guild_id>/found-games/', views.guild_found_games, name='guild_found_games'),
     path('api/guild/<str:guild_id>/found-games/search/', views.api_found_games_search, name='api_found_games_search'),
+    path('api/guild/<str:guild_id>/found-games/keywords/', views.api_found_games_keywords, name='api_found_games_keywords'),
+    path('api/discovery/keywords/', views.api_discovery_network_keywords, name='api_discovery_network_keywords'),
 
     # RSS Feeds (standalone page)
     path('questlog/guild/<str:guild_id>/rss-feeds/', views.guild_rss_feeds, name='guild_rss_feeds'),
