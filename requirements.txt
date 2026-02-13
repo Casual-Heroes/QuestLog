@@ -33,7 +33,7 @@ pytz==2025.2
 requests==2.32.3
 six==1.17.0
 SQLAlchemy==2.0.40
-sqlparse==0.5.3
+sqlparse==0.5.4
 stripe==12.0.0
 typing_extensions==4.13.1
 tzdata==2025.2
