@@ -1,0 +1,172 @@
+{% extends "questlog_web/base_web.html" %}
+{% load static %}
+
+{% block title %}Community Details - QuestLog{% endblock %}
+
+{% block web_content %}
+<script>
+  function escapeHtml(text) {
+    if (text == null || text === undefined) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  }
+</script>
+
+<!-- Header -->
+<div class="bg-gradient-to-br from-neutral-900 to-neutral-950 border-b border-neutral-800 p-6 mb-6">
+  <div class="max-w-4xl mx-auto">
+    <a href="{% url 'questlog_web_communities' %}" class="text-gray-400 hover:text-white transition text-sm mb-2 inline-block">
+      <i class="fas fa-arrow-left mr-1"></i>Back to Communities
+    </a>
+    <div id="communityHeader">
+      <h1 class="text-3xl font-bold text-white flex items-center gap-3">
+        <i class="fas fa-server text-purple-400"></i>
+        <span id="communityName">Loading...</span>
+      </h1>
+    </div>
+  </div>
+</div>
+
+<div class="max-w-4xl mx-auto px-4 pb-8">
+  <!-- Loading -->
+  <div id="loadingState" class="text-center text-gray-500 py-12">
+    <i class="fas fa-spinner fa-spin text-4xl mb-2"></i>
+    <p>Loading community details...</p>
+  </div>
+
+  <!-- Content -->
+  <div id="communityContent" class="hidden space-y-6">
+    <!-- Banner + Info -->
+    <div class="bg-neutral-900/50 rounded-lg border border-neutral-800 overflow-hidden">
+      <div id="bannerSection" class="hidden h-40 bg-cover bg-center"></div>
+      <div class="p-6">
+        <div class="flex items-start gap-4">
+          <div id="communityIcon" class="w-16 h-16 bg-neutral-700 rounded-xl flex items-center justify-center flex-shrink-0">
+            <i class="fas fa-server text-gray-500 text-2xl"></i>
+          </div>
+          <div class="flex-1">
+            <h2 id="communityTitle" class="text-2xl font-bold text-white"></h2>
+            <div class="flex items-center gap-3 mt-1 text-sm text-gray-400">
+              <span id="communityPlatform"></span>
+              <span id="communityMembers"></span>
+            </div>
+            <p id="communityDescription" class="text-gray-300 mt-3"></p>
+          </div>
+          <div id="joinSection"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+      <div class="bg-neutral-900/50 rounded-lg border border-neutral-800 p-4 text-center">
+        <p class="text-2xl font-bold text-white" id="statMembers">0</p>
+        <p class="text-sm text-gray-400">Members</p>
+      </div>
+      <div class="bg-neutral-900/50 rounded-lg border border-neutral-800 p-4 text-center">
+        <p class="text-2xl font-bold text-white" id="statPlatform">-</p>
+        <p class="text-sm text-gray-400">Platform</p>
+      </div>
+      <div class="bg-neutral-900/50 rounded-lg border border-neutral-800 p-4 text-center">
+        <p class="text-2xl font-bold text-white" id="statActivity">-</p>
+        <p class="text-sm text-gray-400">Activity Level</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Error -->
+  <div id="errorState" class="hidden text-center text-red-400 py-12">
+    <i class="fas fa-exclamation-circle text-4xl mb-2"></i>
+    <p class="text-xl mb-2">Community not found</p>
+    <a href="{% url 'questlog_web_communities' %}" class="text-indigo-400 hover:text-indigo-300 transition">
+      <i class="fas fa-arrow-left mr-1"></i>Back to Communities
+    </a>
+  </div>
+</div>
+
+<script>
+const communityId = {{ community_id }};
+
+const platformIcons = {
+  discord: 'fab fa-discord text-indigo-400',
+  stoat: 'fas fa-comment-dots text-red-400',
+  revolt: 'fas fa-comment-dots text-red-400',
+  matrix: 'fas fa-cube text-green-400',
+  teamspeak: 'fas fa-headset text-blue-400',
+  guilded: 'fas fa-shield-alt text-yellow-400',
+  root: 'fas fa-tree text-emerald-400',
+  mumble: 'fas fa-microphone text-purple-400',
+  other: 'fas fa-globe text-gray-400'
+};
+
+document.addEventListener('DOMContentLoaded', loadCommunity);
+
+async function loadCommunity() {
+  try {
+    const response = await fetch('{% url "questlog_web_api_communities" %}');
+    const data = await response.json();
+    const community = (data.communities || []).find(c => c.id === communityId);
+
+    if (!community) {
+      document.getElementById('loadingState').classList.add('hidden');
+      document.getElementById('errorState').classList.remove('hidden');
+      return;
+    }
+
+    // Header
+    document.getElementById('communityName').textContent = community.name;
+    document.getElementById('communityTitle').textContent = community.name;
+
+    // Icon
+    if (community.icon_url) {
+      document.getElementById('communityIcon').innerHTML =
+        `<img src="${escapeHtml(community.icon_url)}" class="w-16 h-16 rounded-xl object-cover">`;
+    } else {
+      const iconClass = platformIcons[community.platform] || platformIcons.other;
+      document.getElementById('communityIcon').innerHTML = `<i class="${iconClass} text-2xl"></i>`;
+    }
+
+    // Platform badge
+    const iconClass = platformIcons[community.platform] || platformIcons.other;
+    document.getElementById('communityPlatform').innerHTML =
+      `<i class="${iconClass} mr-1"></i><span class="capitalize">${community.platform}</span>`;
+
+    // Members
+    document.getElementById('communityMembers').innerHTML =
+      `<i class="fas fa-users mr-1"></i>${community.member_count.toLocaleString()} members`;
+
+    // Description
+    if (community.short_description) {
+      document.getElementById('communityDescription').textContent = community.short_description;
+    }
+
+    // Join
+    if (community.allow_joins && community.invite_url) {
+      document.getElementById('joinSection').innerHTML = `
+        <a href="${escapeHtml(community.invite_url)}" target="_blank" rel="noopener"
+           class="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded-lg font-medium transition inline-block">
+          <i class="fas fa-sign-in-alt mr-2"></i>Join
+        </a>
+      `;
+    }
+
+    // Stats
+    document.getElementById('statMembers').textContent = community.member_count.toLocaleString();
+    document.getElementById('statPlatform').innerHTML =
+      `<span class="capitalize">${community.platform}</span>`;
+    document.getElementById('statActivity').textContent =
+      community.activity_level ? community.activity_level.charAt(0).toUpperCase() + community.activity_level.slice(1) : 'Unknown';
+
+    // Show
+    document.getElementById('loadingState').classList.add('hidden');
+    document.getElementById('communityContent').classList.remove('hidden');
+
+  } catch (error) {
+    console.error('Failed to load community:', error);
+    document.getElementById('loadingState').classList.add('hidden');
+    document.getElementById('errorState').classList.remove('hidden');
+  }
+}
+</script>
+{% endblock %}

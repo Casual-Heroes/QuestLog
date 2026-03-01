@@ -1,0 +1,308 @@
+<!-- Custom Select Dropdown Component
+     Usage: Call createCustomSelect(config) in JavaScript
+     Example:
+     createCustomSelect({
+       container: '#mySelectContainer',
+       name: 'channel_id',
+       placeholder: 'Select a channel...',
+       items: [{value: '123', label: '# general', icon: 'hashtag'}],
+       selected: '123',
+       color: 'blue'
+     });
+-->
+
+<script>
+function createCustomSelect(config) {
+  const {
+    container,
+    name,
+    id = name,
+    placeholder = 'Select an option...',
+    items = [],
+    selected = '',
+    color = 'blue',
+    onSelect = null,
+    multiSelect = false,
+    maxSelections = null
+  } = config;
+
+  const containerEl = typeof container === 'string' ? document.querySelector(container) : container;
+  if (!containerEl) {
+    // Container not found:
+    return;
+  }
+
+  let isOpen = false;
+  let searchQuery = '';
+  let selectedValue = multiSelect ? (Array.isArray(selected) ? selected : []) : selected;
+  let selectedValues = multiSelect ? (Array.isArray(selected) ? selected : []) : [];
+
+  // HTML Escaping function to prevent XSS
+  function escapeHtml(unsafe) {
+    if (unsafe === null || unsafe === undefined) return '';
+    return String(unsafe)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+  }
+
+  // Helper function to get label text for multi-select
+  function getMultiSelectLabel() {
+    if (selectedValues.length === 0) return placeholder;
+    if (selectedValues.length === 1) {
+      const item = items.find(i => i.value === selectedValues[0]);
+      return item ? item.label : placeholder;
+    }
+    return `${selectedValues.length} selected`;
+  }
+
+  // Build HTML - DO NOT set value in template, set it after DOM creation to avoid escaping issues
+  const html = `
+    <div class="custom-select-wrapper relative">
+      <!-- Trigger Button -->
+      <button
+        type="button"
+        class="custom-select-trigger w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2 text-white text-left focus:border-${color}-500 focus:outline-none flex items-center justify-between hover:bg-neutral-700/50 transition-colors">
+        <span class="custom-select-label text-sm ${(!multiSelect && !selectedValue) || (multiSelect && selectedValues.length === 0) ? 'text-gray-400' : ''}">${multiSelect ? getMultiSelectLabel() : escapeHtml(selectedValue ? items.find(i => i.value === selectedValue)?.label || placeholder : placeholder)}</span>
+        <i class="fas fa-chevron-down text-gray-400 text-xs transition-transform custom-select-icon"></i>
+      </button>
+
+      <!-- Hidden Input - value will be set via JavaScript after creation -->
+      <input type="hidden" name="${escapeHtml(name)}" id="${escapeHtml(id)}" value="">
+
+      <!-- Dropdown Panel -->
+      <div class="custom-select-dropdown hidden absolute z-50 w-full min-w-[200px] mt-1 bg-neutral-800 border border-neutral-700 rounded-lg shadow-xl overflow-hidden">
+        <!-- Search Input -->
+        <div class="p-2 border-b border-neutral-700">
+          <input
+            type="text"
+            class="custom-select-search w-full bg-neutral-900 border border-neutral-600 rounded px-3 py-1.5 text-white text-sm placeholder-gray-500 focus:border-${color}-500 focus:outline-none"
+            placeholder="Type to search...">
+        </div>
+
+        <!-- Options List -->
+        <div class="custom-select-options max-h-60 overflow-y-auto custom-scrollbar p-1">
+          ${items.map(item => {
+            if (multiSelect) {
+              // Multi-select: render with checkboxes
+              const isSelected = selectedValues.includes(item.value);
+              return `
+                <button
+                  type="button"
+                  data-value="${escapeHtml(item.value)}"
+                  class="custom-select-option w-full px-3 py-2 text-left text-white hover:bg-neutral-700 transition-colors rounded flex items-center gap-2 text-sm ${isSelected ? 'bg-neutral-700' : ''}">
+                  <input type="checkbox" class="accent-${color}-500" ${isSelected ? 'checked' : ''} onclick="event.preventDefault()">
+                  <span>${escapeHtml(item.label)}</span>
+                </button>
+              `;
+            } else {
+              // Single-select: render normally
+              const isSelected = selectedValue === item.value;
+              return `
+                <button
+                  type="button"
+                  data-value="${escapeHtml(item.value)}"
+                  class="custom-select-option w-full px-3 py-2 text-left text-white hover:bg-neutral-700 transition-colors rounded flex items-center gap-2 text-sm ${isSelected ? 'bg-neutral-700' : ''}">
+                  <span>${escapeHtml(item.label)}</span>
+                  ${isSelected ? '<i class="fas fa-check ml-auto text-green-400 text-xs"></i>' : ''}
+                </button>
+              `;
+            }
+          }).join('')}
+
+          <!-- No Results -->
+          <div class="custom-select-no-results hidden px-3 py-4 text-center text-gray-500 text-sm">
+            No results found
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  containerEl.innerHTML = html;
+
+  // Get elements
+  const trigger = containerEl.querySelector('.custom-select-trigger');
+  const dropdown = containerEl.querySelector('.custom-select-dropdown');
+  const search = containerEl.querySelector('.custom-select-search');
+  const options = containerEl.querySelector('.custom-select-options');
+  const hiddenInput = containerEl.querySelector(`#${id}`);
+  const label = containerEl.querySelector('.custom-select-label');
+  const icon = containerEl.querySelector('.custom-select-icon');
+  const noResults = containerEl.querySelector('.custom-select-no-results');
+
+  // Set initial value for hidden input (AFTER DOM creation to avoid HTML escaping issues)
+  if (multiSelect) {
+    hiddenInput.value = JSON.stringify(selectedValues);
+  } else {
+    hiddenInput.value = selectedValue || '';
+  }
+
+  // Toggle dropdown
+  function toggleDropdown() {
+    isOpen = !isOpen;
+    if (isOpen) {
+      dropdown.classList.remove('hidden');
+      icon.classList.add('rotate-180');
+      setTimeout(() => search.focus(), 100);
+    } else {
+      dropdown.classList.add('hidden');
+      icon.classList.remove('rotate-180');
+      search.value = '';
+      searchQuery = '';
+      filterOptions();
+    }
+  }
+
+  // Select option (handles both single and multi-select)
+  function selectOption(value) {
+    if (multiSelect) {
+      // Multi-select: toggle the value in selectedValues array
+      const index = selectedValues.indexOf(value);
+
+      if (index > -1) {
+        // Already selected, remove it
+        selectedValues.splice(index, 1);
+      } else {
+        // Not selected, add it (if under max limit)
+        if (!maxSelections || selectedValues.length < maxSelections) {
+          selectedValues.push(value);
+        } else {
+          // Max selections reached, show a brief visual feedback
+          return;
+        }
+      }
+
+      // Update hidden input with JSON array
+      hiddenInput.value = JSON.stringify(selectedValues);
+
+      // Update label
+      label.textContent = getMultiSelectLabel();
+      label.classList.toggle('text-gray-400', selectedValues.length === 0);
+
+      // Update checkboxes and styling
+      options.querySelectorAll('.custom-select-option').forEach(opt => {
+        const isSelected = selectedValues.includes(opt.dataset.value);
+        opt.classList.toggle('bg-neutral-700', isSelected);
+        const checkbox = opt.querySelector('input[type="checkbox"]');
+        if (checkbox) checkbox.checked = isSelected;
+      });
+
+      // Don't close dropdown in multi-select mode
+      // if (onSelect) onSelect(selectedValues, items.filter(i => selectedValues.includes(i.value)));
+      if (onSelect) onSelect(selectedValues, selectedValues.map(v => items.find(i => i.value === v)));
+
+    } else {
+      // Single-select: replace selectedValue
+      selectedValue = value;
+      hiddenInput.value = value;
+      const item = items.find(i => i.value === value);
+      label.textContent = item ? item.label : placeholder;
+      label.classList.toggle('text-gray-400', !value);
+
+      // Update selected styling
+      options.querySelectorAll('.custom-select-option').forEach(opt => {
+        const isSelected = opt.dataset.value === value;
+        opt.classList.toggle('bg-neutral-700', isSelected);
+        const check = opt.querySelector('.fa-check');
+        if (check) check.remove();
+        if (isSelected) {
+          opt.innerHTML += '<i class="fas fa-check ml-auto text-green-400 text-xs"></i>';
+        }
+      });
+
+      // Close dropdown in single-select mode
+      toggleDropdown();
+      if (onSelect) onSelect(value, item);
+    }
+  }
+
+  // Filter options
+  function filterOptions() {
+    const query = searchQuery.toLowerCase();
+    let visibleCount = 0;
+
+    options.querySelectorAll('.custom-select-option').forEach(opt => {
+      const label = opt.textContent.toLowerCase();
+      const matches = label.includes(query);
+      opt.style.display = matches ? '' : 'none';
+      if (matches) visibleCount++;
+    });
+
+    noResults.classList.toggle('hidden', visibleCount > 0);
+  }
+
+  // Event listeners
+  trigger.addEventListener('click', (e) => {
+    e.stopPropagation();
+    toggleDropdown();
+  });
+
+  search.addEventListener('input', (e) => {
+    searchQuery = e.target.value;
+    filterOptions();
+  });
+
+  search.addEventListener('click', (e) => e.stopPropagation());
+
+  options.querySelectorAll('.custom-select-option').forEach(opt => {
+    opt.addEventListener('click', () => selectOption(opt.dataset.value));
+  });
+
+  // Click outside to close
+  document.addEventListener('click', (e) => {
+    if (isOpen && !containerEl.contains(e.target)) {
+      toggleDropdown();
+    }
+  });
+
+  // Return API
+  return {
+    getValue: () => multiSelect ? selectedValues : selectedValue,
+    setValue: (value) => {
+      if (multiSelect) {
+        // For multi-select, value should be an array
+        if (Array.isArray(value)) {
+          selectedValues = value;
+          hiddenInput.value = JSON.stringify(selectedValues);
+          label.textContent = getMultiSelectLabel();
+          label.classList.toggle('text-gray-400', selectedValues.length === 0);
+
+          // Update checkboxes and styling
+          options.querySelectorAll('.custom-select-option').forEach(opt => {
+            const isSelected = selectedValues.includes(opt.dataset.value);
+            opt.classList.toggle('bg-neutral-700', isSelected);
+            const checkbox = opt.querySelector('input[type="checkbox"]');
+            if (checkbox) checkbox.checked = isSelected;
+          });
+        }
+      } else {
+        selectOption(value);
+      }
+    },
+    destroy: () => containerEl.innerHTML = ''
+  };
+}
+</script>
+
+<style>
+.custom-scrollbar::-webkit-scrollbar {
+  width: 8px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: #1f2937;
+  border-radius: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #4b5563;
+  border-radius: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #6b7280;
+}
+.rotate-180 {
+  transform: rotate(180deg);
+}
+</style>

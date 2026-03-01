@@ -1,0 +1,473 @@
+{% extends "questlog_web/base_web.html" %}
+{% load static %}
+
+{% block title %}Settings - QuestLog{% endblock %}
+
+{% block web_content %}
+<script>
+  const CSRF_TOKEN = '{{ csrf_token }}';
+  function csrfFetch(url, options = {}) {
+    if (!options.headers) options.headers = {};
+    if (CSRF_TOKEN && CSRF_TOKEN !== 'None') {
+      options.headers['X-CSRFToken'] = CSRF_TOKEN;
+    }
+    return fetch(url, options);
+  }
+</script>
+
+<!-- Header -->
+<div class="bg-gradient-to-br from-neutral-900 to-neutral-950 border-b border-neutral-800 p-6 mb-6">
+  <div class="max-w-4xl mx-auto">
+    <h1 class="text-3xl font-bold text-white flex items-center gap-3">
+      <i class="fas fa-cog text-gray-400"></i>
+      Settings
+    </h1>
+    <p class="text-gray-400 mt-1">Manage your account and preferences</p>
+  </div>
+</div>
+
+<div class="max-w-4xl mx-auto px-4 pb-8 space-y-6">
+  <!-- Profile Picture -->
+  <div class="bg-neutral-900/50 rounded-lg border border-neutral-800 p-6">
+    <h2 class="text-lg font-semibold text-white mb-4">
+      <i class="fas fa-camera text-purple-400 mr-2"></i>Profile Picture
+    </h2>
+    <div class="flex items-start gap-6">
+      <!-- Current Avatar -->
+      <div class="flex-shrink-0">
+        <div id="avatarPreviewWrap" class="w-20 h-20 rounded-xl overflow-hidden bg-neutral-800 border border-neutral-700{% if web_user.show_playing_status and web_user.current_game %} ring-2 ring-cyan-400 shadow-[0_0_14px_#22d3ee]{% endif %}">
+          {% if web_user.avatar_url %}
+          <img id="avatarPreview" src="{{ web_user.avatar_url }}" alt="avatar" class="w-full h-full object-cover">
+          {% else %}
+          <div id="avatarInitials" class="w-full h-full flex items-center justify-center text-2xl font-bold text-gray-400">
+            {{ web_user.username|slice:":2"|upper }}
+          </div>
+          {% endif %}
+        </div>
+        {% if web_user.show_playing_status and web_user.current_game %}
+        <div class="inline-flex items-center gap-2 bg-cyan-500/10 border border-cyan-500/30 px-2.5 py-1 rounded-full mt-2">
+          <span class="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse flex-shrink-0"></span>
+          <span class="text-cyan-400 text-[10px] font-semibold truncate max-w-[120px]">{{ web_user.current_game }}</span>
+        </div>
+        {% endif %}
+      </div>
+      <!-- Options -->
+      <div class="flex-1 space-y-3">
+        <!-- Upload -->
+        <div>
+          <label class="text-sm text-gray-400 block mb-1">Upload an image</label>
+          <div class="flex items-center gap-2">
+            <input type="file" id="avatarFileInput" accept="image/*" class="hidden" onchange="uploadAvatarFile(this)">
+            <button onclick="document.getElementById('avatarFileInput').click()"
+                    class="bg-neutral-700 hover:bg-neutral-600 text-white px-4 py-2 rounded-lg text-sm transition">
+              <i class="fas fa-upload mr-2"></i>Choose File
+            </button>
+            <span id="avatarFileName" class="text-xs text-gray-500">No file chosen</span>
+          </div>
+        </div>
+        <!-- Pull from linked accounts -->
+        <div class="flex flex-wrap gap-2">
+          {% if web_user.steam_avatar %}
+          <button onclick="pullAvatar('steam')"
+                  class="flex items-center gap-2 bg-blue-900/30 hover:bg-blue-900/50 border border-blue-800/40 text-blue-300 px-3 py-2 rounded-lg text-sm transition">
+            <i class="fab fa-steam"></i>Use Steam Avatar
+          </button>
+          {% endif %}
+          {% if web_user.discord_id %}
+          <button onclick="pullAvatar('discord')"
+                  class="flex items-center gap-2 bg-indigo-900/30 hover:bg-indigo-900/50 border border-indigo-800/40 text-indigo-300 px-3 py-2 rounded-lg text-sm transition">
+            <i class="fab fa-discord"></i>Use Discord Avatar
+          </button>
+          {% endif %}
+        </div>
+        <p id="avatarStatus" class="text-xs text-gray-500 hidden"></p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Privacy Settings -->
+  <div class="bg-neutral-900/50 rounded-lg border border-neutral-800 p-6">
+    <h2 class="text-lg font-semibold text-white mb-4">
+      <i class="fas fa-shield-alt text-green-400 mr-2"></i>Privacy
+    </h2>
+    <div class="space-y-3">
+      <label class="flex items-center gap-3 cursor-pointer">
+        <input type="checkbox" id="showSteamProfile"
+               {% if web_user.show_steam_profile %}checked{% endif %}
+               onchange="saveUserPrefs()"
+               class="rounded bg-neutral-700 border-neutral-600 text-green-500 focus:ring-green-500">
+        <span class="text-sm text-gray-300">Show my Steam profile link on my profile</span>
+      </label>
+      <label class="flex items-center gap-3 cursor-pointer">
+        <input type="checkbox" id="showActivity"
+               {% if web_user.show_activity %}checked{% endif %}
+               onchange="saveUserPrefs()"
+               class="rounded bg-neutral-700 border-neutral-600 text-green-500 focus:ring-green-500">
+        <span class="text-sm text-gray-300">Show my recent activity (groups joined, etc.)</span>
+      </label>
+      <label class="flex items-center gap-3 cursor-pointer">
+        <input type="checkbox" id="allowMessages"
+               {% if web_user.allow_messages %}checked{% endif %}
+               onchange="saveUserPrefs()"
+               class="rounded bg-neutral-700 border-neutral-600 text-green-500 focus:ring-green-500">
+        <span class="text-sm text-gray-300">Allow other users to message me</span>
+      </label>
+    </div>
+    <p id="userPrefsStatus" class="text-xs text-gray-500 mt-3 hidden"></p>
+  </div>
+
+  <!-- Notification Settings -->
+  <div class="bg-neutral-900/50 rounded-lg border border-neutral-800 p-6">
+    <h2 class="text-lg font-semibold text-white mb-1">
+      <i class="fas fa-bell text-yellow-400 mr-2"></i>Notifications
+    </h2>
+    <p class="text-xs text-gray-500 mb-5">Choose which in-site notifications you want to receive. Winning a giveaway is always delivered.</p>
+
+    <!-- Social -->
+    <p class="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-2">Social</p>
+    <div class="space-y-2 mb-5">
+      <label class="flex items-center gap-3 cursor-pointer">
+        <input type="checkbox" id="notifyFollows"
+               {% if web_user.notify_follows %}checked{% endif %}
+               onchange="saveUserPrefs()"
+               class="rounded bg-neutral-700 border-neutral-600 text-yellow-500 focus:ring-yellow-500">
+        <span class="text-sm text-gray-300">Someone follows me</span>
+      </label>
+      <label class="flex items-center gap-3 cursor-pointer">
+        <input type="checkbox" id="notifyLikes"
+               {% if web_user.notify_likes %}checked{% endif %}
+               onchange="saveUserPrefs()"
+               class="rounded bg-neutral-700 border-neutral-600 text-yellow-500 focus:ring-yellow-500">
+        <span class="text-sm text-gray-300">Someone likes my post</span>
+      </label>
+      <label class="flex items-center gap-3 cursor-pointer">
+        <input type="checkbox" id="notifyComments"
+               {% if web_user.notify_comments %}checked{% endif %}
+               onchange="saveUserPrefs()"
+               class="rounded bg-neutral-700 border-neutral-600 text-yellow-500 focus:ring-yellow-500">
+        <span class="text-sm text-gray-300">Comment or reply on my content</span>
+      </label>
+      <label class="flex items-center gap-3 cursor-pointer">
+        <input type="checkbox" id="notifyCommentLikes"
+               {% if web_user.notify_comment_likes %}checked{% endif %}
+               onchange="saveUserPrefs()"
+               class="rounded bg-neutral-700 border-neutral-600 text-yellow-500 focus:ring-yellow-500">
+        <span class="text-sm text-gray-300">Someone likes my comment</span>
+      </label>
+    </div>
+
+    <!-- Gaming -->
+    <p class="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-2">Gaming</p>
+    <div class="space-y-2 mb-5">
+      <label class="flex items-center gap-3 cursor-pointer">
+        <input type="checkbox" id="notifyLfgJoin"
+               {% if web_user.notify_lfg_join %}checked{% endif %}
+               onchange="saveUserPrefs()"
+               class="rounded bg-neutral-700 border-neutral-600 text-yellow-500 focus:ring-yellow-500">
+        <span class="text-sm text-gray-300">Someone joins my LFG group</span>
+      </label>
+      <label class="flex items-center gap-3 cursor-pointer">
+        <input type="checkbox" id="notifyLfgLeave"
+               {% if web_user.notify_lfg_leave %}checked{% endif %}
+               onchange="saveUserPrefs()"
+               class="rounded bg-neutral-700 border-neutral-600 text-yellow-500 focus:ring-yellow-500">
+        <span class="text-sm text-gray-300">Someone leaves my LFG group</span>
+      </label>
+      <label class="flex items-center gap-3 cursor-pointer">
+        <input type="checkbox" id="notifyLfgFull"
+               {% if web_user.notify_lfg_full %}checked{% endif %}
+               onchange="saveUserPrefs()"
+               class="rounded bg-neutral-700 border-neutral-600 text-yellow-500 focus:ring-yellow-500">
+        <span class="text-sm text-gray-300">My LFG group is full</span>
+      </label>
+    </div>
+
+    <!-- Platform -->
+    <p class="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-2">Platform</p>
+    <div class="space-y-2">
+      <label class="flex items-center gap-3 cursor-pointer">
+        <input type="checkbox" id="notifyGiveaways"
+               {% if web_user.notify_giveaways %}checked{% endif %}
+               onchange="saveUserPrefs()"
+               class="rounded bg-neutral-700 border-neutral-600 text-yellow-500 focus:ring-yellow-500">
+        <span class="text-sm text-gray-300">New giveaway launched</span>
+      </label>
+      <label class="flex items-center gap-3 cursor-pointer">
+        <input type="checkbox" id="notifyCommunity"
+               {% if web_user.notify_community_join %}checked{% endif %}
+               onchange="saveUserPrefs()"
+               class="rounded bg-neutral-700 border-neutral-600 text-yellow-500 focus:ring-yellow-500">
+        <span class="text-sm text-gray-300">New member joins my community</span>
+      </label>
+    </div>
+  </div>
+
+  <!-- Invite Friends -->
+  <div class="bg-neutral-900/50 rounded-lg border border-orange-900/40 p-6" id="inviteSection">
+    <h2 class="text-lg font-semibold text-white mb-1 flex items-center gap-2">
+      <i class="fas fa-user-friends text-orange-400"></i>Invite Friends
+      <span class="ml-auto text-xs text-gray-500 font-normal" id="inviteStats">Loading…</span>
+    </h2>
+    <p class="text-xs text-gray-500 mb-4">Share your invite link — earn <span class="text-orange-400 font-medium">+50 XP</span> for each friend who joins and verifies their email.</p>
+    <div class="flex items-center gap-2">
+      <input id="inviteLinkInput" type="text" readonly
+             class="flex-1 bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-gray-300 focus:outline-none select-all"
+             value="Loading…">
+      <button onclick="copyInviteLink()"
+              class="flex-shrink-0 bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition flex items-center gap-2">
+        <i class="fas fa-copy" id="copyIcon"></i><span id="copyLabel">Copy</span>
+      </button>
+    </div>
+    <p id="inviteCopyStatus" class="text-xs text-green-400 mt-2 hidden">Copied to clipboard!</p>
+  </div>
+
+  <!-- XP / Level / Flair summary — links to profile -->
+  <div class="bg-neutral-900/50 rounded-lg border border-yellow-900/40 p-5 flex items-center gap-5">
+    <div class="flex-1">
+      <h2 class="text-base font-semibold text-white flex items-center gap-2 mb-1">
+        <i class="fas fa-star text-yellow-400"></i>
+        <span>Level {{ web_user.web_level|default:1 }}</span>
+        <span class="text-yellow-400 font-bold ml-1">· {{ web_user.web_xp|default:0 }} XP</span>
+        <span class="text-purple-400 font-bold ml-1">· {{ web_user.hero_points|default:0 }} HP</span>
+      </h2>
+      <p class="text-xs text-gray-500">Visit <a href="{% url 'questlog_web_profile' %}" class="text-yellow-400 hover:underline">My Profile</a> to view your XP progress, buy flairs, and manage your equipped flair.</p>
+    </div>
+    <a href="{% url 'questlog_web_profile' %}" class="flex-shrink-0 bg-yellow-600 hover:bg-yellow-500 text-black text-sm font-semibold px-4 py-2 rounded-lg transition">
+      <i class="fas fa-palette mr-1"></i>Flairs &amp; XP
+    </a>
+  </div>
+
+  <!-- Danger Zone -->
+  <div class="bg-neutral-900/50 rounded-lg border border-red-900/50 p-6">
+    <h2 class="text-lg font-semibold text-red-400 mb-4">
+      <i class="fas fa-exclamation-triangle mr-2"></i>Danger Zone
+    </h2>
+    <div class="flex items-center justify-between">
+      <div>
+        <p class="text-white font-medium text-sm">Delete Account</p>
+        <p class="text-gray-400 text-xs">Permanently delete your account and all associated data. This cannot be undone.</p>
+      </div>
+      <button onclick="showDeleteConfirm()" id="deleteAccountBtn"
+              class="bg-red-600/20 hover:bg-red-600/30 text-red-400 px-4 py-2 rounded-lg text-sm font-medium transition border border-red-600/30">
+        <i class="fas fa-trash mr-1"></i>Delete Account
+      </button>
+    </div>
+    <!-- Type-to-confirm panel (hidden by default) -->
+    <div id="deleteConfirmPanel" class="hidden mt-4 border-t border-red-900/30 pt-4 space-y-3">
+      <p class="text-sm text-red-300">
+        This will permanently delete your account, posts, comments, follows, communities, and all uploaded images.
+        <strong class="text-white">There is no recovery.</strong>
+      </p>
+      <p class="text-xs text-gray-400">Type your username <span class="font-mono text-white">{{ web_user.username }}</span> to confirm:</p>
+      <input type="text" id="deleteConfirmInput" placeholder="Type your username…"
+             class="w-full bg-neutral-800 border border-red-800/50 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-red-500">
+      <div class="flex gap-3">
+        <button onclick="executeDeleteAccount()" id="executeDeleteBtn"
+                class="bg-red-600 hover:bg-red-700 text-white px-5 py-2 rounded-lg text-sm font-medium transition">
+          <i class="fas fa-trash mr-1"></i>Permanently Delete My Account
+        </button>
+        <button onclick="hideDeleteConfirm()"
+                class="bg-neutral-700 hover:bg-neutral-600 text-gray-300 px-4 py-2 rounded-lg text-sm transition">
+          Cancel
+        </button>
+      </div>
+      <p id="deleteStatus" class="text-xs text-red-400 hidden"></p>
+    </div>
+  </div>
+</div>
+
+<script>
+async function uploadAvatarFile(input) {
+  if (!input.files || !input.files[0]) return;
+  const file = input.files[0];
+  document.getElementById('avatarFileName').textContent = file.name;
+  const status = document.getElementById('avatarStatus');
+  status.textContent = 'Uploading...';
+  status.className = 'text-xs text-gray-400';
+  status.classList.remove('hidden');
+
+  const formData = new FormData();
+  formData.append('image', file);
+  try {
+    const res = await csrfFetch('/ql/api/upload/avatar/', { method: 'POST', body: formData });
+    const data = await res.json();
+    if (data.avatar_url) {
+      document.getElementById('avatarPreviewWrap').innerHTML =
+        `<img id="avatarPreview" src="${data.avatar_url}" alt="avatar" class="w-full h-full object-cover">`;
+      status.textContent = 'Profile picture updated!';
+      status.className = 'text-xs text-green-400';
+    } else {
+      status.textContent = data.error || 'Upload failed.';
+      status.className = 'text-xs text-red-400';
+    }
+  } catch(e) {
+    status.textContent = 'Upload failed. Please try again.';
+    status.className = 'text-xs text-red-400';
+  }
+}
+
+async function pullAvatar(source) {
+  const status = document.getElementById('avatarStatus');
+  status.textContent = `Pulling ${source} avatar...`;
+  status.className = 'text-xs text-gray-400';
+  status.classList.remove('hidden');
+  try {
+    const res = await csrfFetch('/ql/api/profile/pull-avatar/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ source })
+    });
+    const data = await res.json();
+    if (data.avatar_url) {
+      document.getElementById('avatarPreviewWrap').innerHTML =
+        `<img id="avatarPreview" src="${data.avatar_url}" alt="avatar" class="w-full h-full object-cover">`;
+      status.textContent = 'Profile picture updated!';
+      status.className = 'text-xs text-green-400';
+    } else {
+      status.textContent = data.error || 'Failed to pull avatar.';
+      status.className = 'text-xs text-red-400';
+    }
+  } catch(e) {
+    status.textContent = 'Failed. Please try again.';
+    status.className = 'text-xs text-red-400';
+  }
+}
+
+// ---- Invite link ----
+let _inviteUrl = '';
+
+async function loadInviteLink() {
+  try {
+    const res = await csrfFetch('/ql/api/invite/');
+    const data = await res.json();
+    if (data.invite_url) {
+      _inviteUrl = data.invite_url;
+      document.getElementById('inviteLinkInput').value = data.invite_url;
+      const completed = data.completed_referrals || 0;
+      const pending   = data.pending_referrals   || 0;
+      let stats = completed
+        ? `${completed} friend${completed !== 1 ? 's' : ''} joined`
+        : 'No referrals yet';
+      if (pending) stats += ` · ${pending} pending`;
+      document.getElementById('inviteStats').textContent = stats;
+    }
+  } catch(e) {
+    document.getElementById('inviteLinkInput').value = 'Failed to load invite link';
+  }
+}
+
+async function copyInviteLink() {
+  if (!_inviteUrl) return;
+  try {
+    await navigator.clipboard.writeText(_inviteUrl);
+  } catch(e) {
+    // Fallback for older browsers
+    document.getElementById('inviteLinkInput').select();
+    document.execCommand('copy');
+  }
+  const label = document.getElementById('copyLabel');
+  const icon  = document.getElementById('copyIcon');
+  const status = document.getElementById('inviteCopyStatus');
+  label.textContent = 'Copied!';
+  icon.className = 'fas fa-check';
+  status.classList.remove('hidden');
+  setTimeout(() => {
+    label.textContent = 'Copy';
+    icon.className = 'fas fa-copy';
+    status.classList.add('hidden');
+  }, 2500);
+}
+
+document.addEventListener('DOMContentLoaded', loadInviteLink);
+
+async function saveUserPrefs() {
+  const status = document.getElementById('userPrefsStatus');
+  const data = {
+    show_steam_profile:    document.getElementById('showSteamProfile').checked,
+    show_activity:         document.getElementById('showActivity').checked,
+    allow_messages:        document.getElementById('allowMessages').checked,
+    notify_follows:        document.getElementById('notifyFollows').checked,
+    notify_likes:          document.getElementById('notifyLikes').checked,
+    notify_comments:       document.getElementById('notifyComments').checked,
+    notify_comment_likes:  document.getElementById('notifyCommentLikes').checked,
+    notify_giveaways:      document.getElementById('notifyGiveaways').checked,
+    notify_lfg_join:       document.getElementById('notifyLfgJoin').checked,
+    notify_lfg_leave:      document.getElementById('notifyLfgLeave').checked,
+    notify_lfg_full:       document.getElementById('notifyLfgFull').checked,
+    notify_community_join: document.getElementById('notifyCommunity').checked,
+  };
+  try {
+    const res = await csrfFetch('/ql/api/profile/user-prefs/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    const result = await res.json();
+    if (result.success) {
+      status.textContent = 'Preferences saved.';
+      status.className = 'text-xs text-green-400 mt-3';
+    } else {
+      status.textContent = result.error || 'Failed to save.';
+      status.className = 'text-xs text-red-400 mt-3';
+    }
+    status.classList.remove('hidden');
+    setTimeout(() => status.classList.add('hidden'), 2500);
+  } catch(e) {
+    status.textContent = 'Failed to save. Please try again.';
+    status.className = 'text-xs text-red-400 mt-3';
+    status.classList.remove('hidden');
+  }
+}
+
+function showDeleteConfirm() {
+  document.getElementById('deleteConfirmPanel').classList.remove('hidden');
+  document.getElementById('deleteAccountBtn').classList.add('hidden');
+  document.getElementById('deleteConfirmInput').focus();
+}
+
+function hideDeleteConfirm() {
+  document.getElementById('deleteConfirmPanel').classList.add('hidden');
+  document.getElementById('deleteAccountBtn').classList.remove('hidden');
+  document.getElementById('deleteConfirmInput').value = '';
+  document.getElementById('deleteStatus').classList.add('hidden');
+}
+
+async function executeDeleteAccount() {
+  const input = document.getElementById('deleteConfirmInput').value.trim();
+  const expected = '{{ web_user.username }}';
+  const status = document.getElementById('deleteStatus');
+
+  if (input !== expected) {
+    status.textContent = 'Username does not match. Please type it exactly.';
+    status.classList.remove('hidden');
+    return;
+  }
+
+  const btn = document.getElementById('executeDeleteBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>Deleting…';
+
+  try {
+    const res = await csrfFetch('/ql/api/privacy/delete/', { method: 'POST' });
+    const data = await res.json();
+    if (data.success) {
+      btn.innerHTML = '<i class="fas fa-check mr-1"></i>Account deleted';
+      status.textContent = 'Your account has been deleted. Redirecting…';
+      status.className = 'text-xs text-green-400';
+      status.classList.remove('hidden');
+      setTimeout(() => { window.location.href = '/'; }, 2000);
+    } else {
+      status.textContent = data.error || 'Deletion failed. Please try again.';
+      status.classList.remove('hidden');
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fas fa-trash mr-1"></i>Permanently Delete My Account';
+    }
+  } catch(e) {
+    status.textContent = 'Request failed. Please try again.';
+    status.classList.remove('hidden');
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-trash mr-1"></i>Permanently Delete My Account';
+  }
+}
+</script>
+{% endblock %}

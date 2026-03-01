@@ -1,0 +1,954 @@
+{% extends "questlog_web/base_web.html" %}
+{% load static %}
+
+{% block title %}Feed - QuestLog Network{% endblock %}
+
+{% block web_content %}
+{% include "questlog_web/partials/post_card.html" %}
+
+<style>
+/* Feed-specific post card upgrades */
+.post-card {
+  background: rgb(23 23 23);
+  border-radius: 0.75rem;
+  border: 1px solid rgb(38 38 38);
+  transition: border-color 0.15s, transform 0.15s;
+}
+.post-card:hover {
+  border-color: rgb(55 55 55);
+  transform: translateY(-1px);
+}
+
+/* Feed tab active state */
+.tab-active {
+  background: rgb(67 56 202);
+  color: white;
+  font-weight: 600;
+}
+
+/* Composer focus glow */
+#composer-card:focus-within {
+  border-color: rgb(99 102 241 / 0.5);
+  box-shadow: 0 0 0 1px rgb(99 102 241 / 0.2);
+}
+
+/* Suggested user hover */
+.suggest-row:hover {
+  background: rgb(30 30 30);
+}
+
+/* Trending game row */
+.trending-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.375rem 0;
+  font-size: 0.8125rem;
+  color: rgb(156 163 175);
+  transition: color 0.15s;
+}
+.trending-row:hover { color: white; }
+.trending-rank {
+  width: 1.25rem;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: rgb(75 85 99);
+  font-size: 0.7rem;
+}
+</style>
+
+<!-- Hero Header -->
+<div class="relative overflow-hidden bg-gradient-to-br from-indigo-950 via-neutral-900 to-neutral-950 border-b border-neutral-800">
+  <div class="absolute -top-24 -left-24 w-72 h-72 bg-indigo-600/15 rounded-full blur-3xl pointer-events-none"></div>
+  <div class="absolute -bottom-12 right-32 w-56 h-56 bg-purple-700/10 rounded-full blur-3xl pointer-events-none"></div>
+  <div class="relative max-w-5xl mx-auto px-4 py-5">
+    <div class="flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        {% if web_user.avatar_url %}
+        <img src="{{ web_user.avatar_url }}" class="w-11 h-11 rounded-full object-cover ring-2 ring-indigo-500/40" alt="">
+        {% else %}
+        <div class="w-11 h-11 bg-indigo-900 rounded-full flex items-center justify-center ring-2 ring-indigo-500/40">
+          <span class="font-bold text-indigo-200">{{ web_user.username|slice:":2"|upper }}</span>
+        </div>
+        {% endif %}
+        <div>
+          <h1 class="text-lg font-bold text-white leading-tight">Your Feed</h1>
+          <p class="text-indigo-300/60 text-xs">Welcome back, {{ web_user.display_name|default:web_user.username }}</p>
+        </div>
+      </div>
+      <!-- Header stats -->
+      <div class="hidden sm:flex items-center gap-5">
+        <div class="text-center">
+          <div class="text-white font-bold text-base leading-tight" id="header-following-count">{{ web_user.following_count|default:"0" }}</div>
+          <div class="text-gray-500 text-xs">Following</div>
+        </div>
+        <div class="w-px h-7 bg-neutral-700"></div>
+        <div class="text-center">
+          <div class="text-white font-bold text-base leading-tight" id="header-follower-count">{{ web_user.follower_count|default:"0" }}</div>
+          <div class="text-gray-500 text-xs">Followers</div>
+        </div>
+        <div class="w-px h-7 bg-neutral-700"></div>
+        <div class="text-center">
+          <div class="text-white font-bold text-base leading-tight">{{ web_user.post_count|default:"0" }}</div>
+          <div class="text-gray-500 text-xs">Posts</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Main Layout -->
+<div class="max-w-5xl mx-auto px-4 py-5">
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+
+    <!-- ── LEFT: Feed ── -->
+    <div class="lg:col-span-2 space-y-4">
+
+      <!-- Composer -->
+      <div id="composer-card" class="bg-neutral-900 rounded-xl border border-neutral-800 transition-all duration-200">
+        <div class="bg-gradient-to-r from-indigo-950/40 to-transparent px-4 pt-4 pb-3 rounded-t-xl">
+          <div class="flex gap-3 items-start">
+            {% if web_user.avatar_url %}
+            <img src="{{ web_user.avatar_url }}" alt="" class="w-9 h-9 rounded-full object-cover flex-shrink-0 ring-1 ring-indigo-500/30">
+            {% else %}
+            <div class="w-9 h-9 bg-indigo-900/60 rounded-full flex items-center justify-center flex-shrink-0 ring-1 ring-indigo-500/30">
+              <span class="text-xs font-bold text-indigo-300">{{ web_user.username|slice:":2"|upper }}</span>
+            </div>
+            {% endif %}
+            <textarea id="post-content" rows="2" maxlength="2000"
+              placeholder="What are you playing? Share a moment… (paste a video link or image!)"
+              class="w-full bg-transparent border-0 text-sm text-white placeholder-gray-600 focus:outline-none resize-none leading-relaxed pt-1"
+              oninput="updateCharCount()" onpaste="handlePasteImage(event)"></textarea>
+          </div>
+        </div>
+
+        <!-- Tools bar -->
+        <div class="px-4 py-3 border-t border-neutral-800/50">
+          <div id="media-preview" class="hidden mb-3"></div>
+          <div id="game-tag-display" class="hidden mb-3 flex items-center gap-2">
+            <span class="inline-flex items-center gap-1 px-2 py-1 bg-indigo-500/20 text-indigo-300 rounded-full text-xs">
+              <i class="fas fa-gamepad"></i>
+              <span id="game-tag-name"></span>
+              <button onclick="clearGameTag()" class="ml-1 hover:text-red-400"><i class="fas fa-times text-xs"></i></button>
+            </span>
+          </div>
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-0.5">
+              <label class="cursor-pointer flex items-center gap-1.5 text-gray-500 hover:text-green-400 px-2.5 py-1.5 rounded-lg hover:bg-neutral-800 text-xs font-medium transition">
+                <i class="fas fa-image"></i><span class="hidden sm:inline">Photo</span>
+                <input type="file" id="image-input" accept="image/jpeg,image/png,image/gif,image/webp" multiple class="hidden" onchange="handleImageSelect(this)">
+              </label>
+              <button onclick="toggleGifPicker()" class="flex items-center gap-1.5 text-gray-500 hover:text-purple-400 px-2.5 py-1.5 rounded-lg hover:bg-neutral-800 text-xs font-bold transition">GIF</button>
+              <button onclick="toggleEmojiPicker()" class="flex items-center gap-1.5 text-gray-500 hover:text-yellow-400 px-2.5 py-1.5 rounded-lg hover:bg-neutral-800 text-xs transition">
+                <i class="far fa-smile"></i><span class="hidden sm:inline ml-1">Emoji</span>
+              </button>
+              <button onclick="toggleGameSearch()" class="flex items-center gap-1.5 text-gray-500 hover:text-indigo-400 px-2.5 py-1.5 rounded-lg hover:bg-neutral-800 text-xs transition">
+                <i class="fas fa-gamepad"></i><span class="hidden sm:inline ml-1">Game</span>
+              </button>
+              <span id="char-count" class="text-gray-600 text-xs ml-2">0/2000</span>
+            </div>
+            <button onclick="submitPost()" id="post-btn"
+              class="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-1.5 rounded-lg text-xs font-semibold transition disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5" disabled>
+              <i class="fas fa-paper-plane text-xs"></i>Post
+            </button>
+          </div>
+
+          <!-- Emoji Picker -->
+          <div id="emoji-picker" class="hidden mt-2 bg-neutral-800 border border-neutral-700 rounded-xl p-3 max-h-52 overflow-y-auto">
+            <div class="flex gap-1 mb-2 border-b border-neutral-700 pb-2 flex-wrap">
+              <button onclick="showEmojiCategory('gaming')" class="emoji-cat-btn text-xs px-2 py-1 rounded bg-neutral-700 text-white">🎮 Gaming</button>
+              <button onclick="showEmojiCategory('smileys')" class="emoji-cat-btn text-xs px-2 py-1 rounded text-gray-400 hover:bg-neutral-700">😀 Faces</button>
+              <button onclick="showEmojiCategory('hands')" class="emoji-cat-btn text-xs px-2 py-1 rounded text-gray-400 hover:bg-neutral-700">👍 Hands</button>
+              <button onclick="showEmojiCategory('hearts')" class="emoji-cat-btn text-xs px-2 py-1 rounded text-gray-400 hover:bg-neutral-700">❤️ React</button>
+              <button onclick="showEmojiCategory('objects')" class="emoji-cat-btn text-xs px-2 py-1 rounded text-gray-400 hover:bg-neutral-700">⚡ Misc</button>
+            </div>
+            <div id="emoji-grid" class="grid grid-cols-10 gap-0.5"></div>
+          </div>
+
+          <!-- GIF Picker -->
+          <div id="gif-picker" class="hidden mt-2 bg-neutral-800 border border-neutral-700 rounded-xl overflow-hidden">
+            <div class="p-2 border-b border-neutral-700">
+              <input type="text" id="gif-search-input" placeholder="Search GIFs…"
+                class="w-full bg-neutral-900 border border-neutral-600 rounded-lg px-3 py-1.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
+                oninput="searchGifs(this.value)">
+            </div>
+            <div id="gif-results" class="grid grid-cols-3 gap-1 p-2 max-h-64 overflow-y-auto">
+              <p class="col-span-3 text-gray-500 text-xs text-center py-4">Search or browse trending GIFs</p>
+            </div>
+            <div class="px-2 py-1 border-t border-neutral-700 text-right">
+              <span class="text-gray-600 text-xs">Powered by GIPHY</span>
+            </div>
+          </div>
+          <!-- Game Search Input -->
+          <div id="game-search-row" class="hidden mt-2 relative">
+            <input type="text" id="game-search-input" placeholder="Search for a game to tag…"
+              class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500"
+              oninput="searchGames(this.value)">
+            <div id="game-search-results" class="hidden absolute left-0 right-0 top-full mt-1 bg-neutral-900 border border-neutral-700 rounded-lg shadow-lg z-50 max-h-48 overflow-y-auto">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Suggested Gamers ───────────────────────────────────── -->
+      <div id="suggested-gamers-row" class="">
+        <div class="flex items-center justify-between mb-2.5">
+          <h3 class="text-sm font-semibold text-white flex items-center gap-2">
+            <i class="fas fa-users text-green-400"></i>Suggested Gamers
+          </h3>
+          <button onclick="hideSuggestedRow()" class="text-gray-600 hover:text-gray-400 text-xs px-1 transition" title="Dismiss"><i class="fas fa-times"></i></button>
+        </div>
+        <div id="suggested-gamers-main" class="flex gap-3 overflow-x-auto pb-2 snap-x" style="scrollbar-width:thin;scrollbar-color:#404040 transparent">
+          <p class="text-gray-600 text-xs py-3 px-1">Loading…</p>
+        </div>
+      </div>
+
+      <!-- Feed Tab Switcher -->
+      <div class="flex gap-1 bg-neutral-900/60 border border-neutral-800 rounded-xl p-1">
+        <button onclick="switchTab('following')" id="tab-following"
+          class="flex-1 py-2 px-4 rounded-lg text-sm font-medium transition tab-active">
+          <i class="fas fa-users mr-1.5 text-xs"></i>Following
+        </button>
+        <button onclick="switchTab('global')" id="tab-global"
+          class="flex-1 py-2 px-4 rounded-lg text-sm font-medium transition text-gray-400 hover:text-white hover:bg-neutral-800">
+          <i class="fas fa-globe mr-1.5 text-xs"></i>Global
+        </button>
+      </div>
+
+      <!-- Feed Posts -->
+      <div id="feed-container" class="space-y-3">
+        <!-- Skeleton loaders -->
+        <div class="skeleton-card bg-neutral-900 rounded-xl border border-neutral-800 p-4 animate-pulse">
+          <div class="flex gap-3 mb-4">
+            <div class="w-10 h-10 bg-neutral-800 rounded-full flex-shrink-0"></div>
+            <div class="flex-1 space-y-2 pt-1">
+              <div class="h-3 bg-neutral-800 rounded w-32"></div>
+              <div class="h-2 bg-neutral-800 rounded w-20"></div>
+            </div>
+          </div>
+          <div class="space-y-2">
+            <div class="h-3 bg-neutral-800 rounded"></div>
+            <div class="h-3 bg-neutral-800 rounded w-4/5"></div>
+          </div>
+        </div>
+        <div class="skeleton-card bg-neutral-900 rounded-xl border border-neutral-800 p-4 animate-pulse">
+          <div class="flex gap-3 mb-4">
+            <div class="w-10 h-10 bg-neutral-800 rounded-full flex-shrink-0"></div>
+            <div class="flex-1 space-y-2 pt-1">
+              <div class="h-3 bg-neutral-800 rounded w-40"></div>
+              <div class="h-2 bg-neutral-800 rounded w-24"></div>
+            </div>
+          </div>
+          <div class="space-y-2">
+            <div class="h-3 bg-neutral-800 rounded w-3/4"></div>
+            <div class="h-40 bg-neutral-800 rounded-lg mt-3"></div>
+          </div>
+        </div>
+        <div class="skeleton-card bg-neutral-900 rounded-xl border border-neutral-800 p-4 animate-pulse">
+          <div class="flex gap-3 mb-4">
+            <div class="w-10 h-10 bg-neutral-800 rounded-full flex-shrink-0"></div>
+            <div class="flex-1 space-y-2 pt-1">
+              <div class="h-3 bg-neutral-800 rounded w-28"></div>
+              <div class="h-2 bg-neutral-800 rounded w-16"></div>
+            </div>
+          </div>
+          <div class="space-y-2">
+            <div class="h-3 bg-neutral-800 rounded"></div>
+            <div class="h-3 bg-neutral-800 rounded w-2/3"></div>
+            <div class="h-3 bg-neutral-800 rounded w-4/5"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Load More -->
+      <div id="load-more" class="hidden text-center py-3">
+        <button onclick="loadMorePosts()"
+          class="bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-white px-8 py-2.5 rounded-xl text-sm font-medium transition">
+          Load More
+        </button>
+      </div>
+
+      <!-- Empty State: Following -->
+      <div id="empty-state" class="hidden">
+        <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-12 text-center">
+          <div class="w-16 h-16 bg-indigo-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+            <i class="fas fa-satellite-dish text-2xl text-indigo-400"></i>
+          </div>
+          <h3 class="text-lg font-bold text-white mb-2">Your following feed is empty</h3>
+          <p class="text-gray-500 text-sm mb-6">Follow gamers to see their posts here, or check out the global feed.</p>
+          <div class="flex items-center justify-center gap-3 flex-wrap">
+            <a href="{% url 'questlog_web_network' %}" class="bg-indigo-600 hover:bg-indigo-500 text-white px-5 py-2.5 rounded-lg text-sm font-medium transition">
+              <i class="fas fa-search mr-1.5"></i>Find Gamers
+            </a>
+            <button onclick="switchTab('global')" class="bg-neutral-800 hover:bg-neutral-700 text-white px-5 py-2.5 rounded-lg text-sm font-medium transition border border-neutral-700">
+              <i class="fas fa-globe mr-1.5"></i>Global Feed
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Empty State: Global (no posts at all) -->
+      <div id="empty-global" class="hidden">
+        <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-12 text-center">
+          <div class="w-16 h-16 bg-neutral-800 rounded-full flex items-center justify-center mx-auto mb-4">
+            <i class="fas fa-feather-alt text-2xl text-gray-500"></i>
+          </div>
+          <h3 class="text-lg font-bold text-white mb-2">Nothing posted yet</h3>
+          <p class="text-gray-500 text-sm">Be the first to share something!</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── RIGHT SIDEBAR ── -->
+    <div class="hidden lg:flex flex-col gap-4">
+
+      <!-- Platform Activity -->
+      <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-4">
+        <h3 class="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">Platform Activity</h3>
+        <div class="grid grid-cols-2 gap-2">
+          <div class="bg-neutral-800/60 rounded-lg p-3 text-center">
+            <div class="text-indigo-400 font-bold text-xl leading-tight" id="stat-posts-today">—</div>
+            <div class="text-gray-500 text-xs mt-0.5">Posts Today</div>
+          </div>
+          <div class="bg-neutral-800/60 rounded-lg p-3 text-center">
+            <div class="text-green-400 font-bold text-xl leading-tight" id="stat-active-users">—</div>
+            <div class="text-gray-500 text-xs mt-0.5">Active Today</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Who to Follow -->
+      <div class="bg-neutral-900 rounded-xl border border-neutral-800 overflow-hidden">
+        <div class="px-4 py-3 border-b border-neutral-800 flex items-center justify-between">
+          <h3 class="text-xs font-bold text-gray-500 uppercase tracking-widest">Who to Follow</h3>
+          <a href="{% url 'questlog_web_network' %}" class="text-indigo-400 hover:text-indigo-300 text-xs transition">See all</a>
+        </div>
+        <div id="suggested-users" class="divide-y divide-neutral-800/60">
+          {% for _ in "123" %}
+          <div class="p-3 flex items-center gap-3 animate-pulse">
+            <div class="w-9 h-9 bg-neutral-800 rounded-full flex-shrink-0"></div>
+            <div class="flex-1 space-y-1.5">
+              <div class="h-2.5 bg-neutral-800 rounded w-2/3"></div>
+              <div class="h-2 bg-neutral-800 rounded w-1/3"></div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+
+      <!-- Trending Games -->
+      <div class="bg-neutral-900 rounded-xl border border-neutral-800 overflow-hidden">
+        <div class="px-4 py-3 border-b border-neutral-800">
+          <h3 class="text-xs font-bold text-gray-500 uppercase tracking-widest">Trending Games</h3>
+        </div>
+        <div id="trending-games" class="px-4 py-3">
+          <div class="animate-pulse space-y-2.5">
+            <div class="h-2.5 bg-neutral-800 rounded w-3/4"></div>
+            <div class="h-2.5 bg-neutral-800 rounded w-1/2"></div>
+            <div class="h-2.5 bg-neutral-800 rounded w-2/3"></div>
+            <div class="h-2.5 bg-neutral-800 rounded w-3/5"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Quick Links -->
+      <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-4">
+        <h3 class="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">Explore</h3>
+        <div class="space-y-0.5">
+          <a href="{% url 'questlog_web_lfg_browse' %}" class="flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm text-gray-400 hover:text-white hover:bg-neutral-800 transition">
+            <i class="fas fa-users-rectangle w-4 text-center text-indigo-400 text-xs"></i>Find a Group (LFG)
+          </a>
+          <a href="{% url 'questlog_web_creators' %}" class="flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm text-gray-400 hover:text-white hover:bg-neutral-800 transition">
+            <i class="fas fa-crown w-4 text-center text-yellow-400 text-xs"></i>Featured Creators
+          </a>
+          <a href="{% url 'questlog_web_communities' %}" class="flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm text-gray-400 hover:text-white hover:bg-neutral-800 transition">
+            <i class="fas fa-shield-halved w-4 text-center text-green-400 text-xs"></i>Communities
+          </a>
+          <a href="{% url 'questlog_web_games' %}" class="flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm text-gray-400 hover:text-white hover:bg-neutral-800 transition">
+            <i class="fas fa-gamepad w-4 text-center text-purple-400 text-xs"></i>Games
+          </a>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+let currentPage = 1;
+let hasMore = true;
+let currentTab = 'following';
+let uploadedImages = [];
+let selectedGif = null;
+let selectedGameTag = null;
+let gifSearchTimeout = null;
+let gameSearchTimeout = null;
+
+const EMOJIS = {
+  gaming: ['🎮','🕹️','🎯','🏆','⚔️','🛡️','🎲','👾','🤖','💀','🔥','⭐','💎','🗡️','🏹','🧙','🐉','💣','🎪','🧩','🎰','🃏','♟️','🏅','🥇','🎖️','🏴‍☠️','👑','💪','🦾'],
+  smileys: ['😀','😂','🤣','😍','🥰','😎','🤔','😤','😭','🥺','😱','🤯','😈','👀','🫡','😴','🤮','🥶','🥵','😏','🤩','😇','🙄','😬','🤪','😵','🫠','🤡','💩','👻'],
+  hands: ['👍','👎','✌️','🤞','👊','✊','🫡','👋','🖐️','🤙','🫶','👏','🙌','🤝','🙏','🫰','🤘','🤟','🖖','✋','👆','👇','👈','👉','💪','🦾','🫵','✍️','🤳','💅'],
+  hearts: ['❤️','💜','💙','💚','🧡','💛','🖤','🤍','💔','❤️‍🔥','💯','✅','❌','⭕','💢','💥','✨','🌟','💫','🎉','🎊','🏳️‍🌈','🫂','💤','💭','💬','👁️‍🗨️','🔔','📢','🚀'],
+  objects: ['⚡','🔫','💰','🍕','🍺','🎵','🎧','📱','💻','🖥️','⌨️','🖱️','🕐','📸','🎬','📺','🔧','⚙️','🧪','🗺️','🌍','🌙','☀️','🌈','❄️','🔑','🏠','🚗','✈️','🛸']
+};
+
+document.addEventListener('DOMContentLoaded', () => {
+  loadFeedPosts();
+  loadSidebarData();
+  document.getElementById('post-content').addEventListener('input', updateCharCount);
+});
+
+// ── Tab switcher ──
+function switchTab(tab) {
+  if (tab === currentTab) return;
+  currentTab = tab;
+  currentPage = 1;
+  hasMore = true;
+
+  // Update tab styles
+  const following = document.getElementById('tab-following');
+  const global = document.getElementById('tab-global');
+  if (tab === 'following') {
+    following.className = 'flex-1 py-2 px-4 rounded-lg text-sm font-medium transition tab-active';
+    global.className = 'flex-1 py-2 px-4 rounded-lg text-sm font-medium transition text-gray-400 hover:text-white hover:bg-neutral-800';
+  } else {
+    global.className = 'flex-1 py-2 px-4 rounded-lg text-sm font-medium transition tab-active';
+    following.className = 'flex-1 py-2 px-4 rounded-lg text-sm font-medium transition text-gray-400 hover:text-white hover:bg-neutral-800';
+  }
+
+  document.getElementById('empty-state').classList.add('hidden');
+  document.getElementById('empty-global').classList.add('hidden');
+  document.getElementById('load-more').classList.add('hidden');
+  document.getElementById('feed-container').innerHTML = skeletonCards(2);
+  loadFeedPosts();
+}
+
+function skeletonCards(n) {
+  const heights = ['h-12', 'h-32', 'h-8'];
+  return Array.from({length: n}, (_, i) => `
+    <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-4 animate-pulse">
+      <div class="flex gap-3 mb-4">
+        <div class="w-10 h-10 bg-neutral-800 rounded-full flex-shrink-0"></div>
+        <div class="flex-1 space-y-2 pt-1">
+          <div class="h-3 bg-neutral-800 rounded w-32"></div>
+          <div class="h-2 bg-neutral-800 rounded w-20"></div>
+        </div>
+      </div>
+      <div class="space-y-2">
+        <div class="h-3 bg-neutral-800 rounded"></div>
+        <div class="h-3 bg-neutral-800 rounded w-3/4"></div>
+        ${i === 1 ? '<div class="h-36 bg-neutral-800 rounded-lg mt-2"></div>' : ''}
+      </div>
+    </div>`).join('');
+}
+
+// ── Feed loading ──
+async function loadFeedPosts() {
+  try {
+    const url = currentTab === 'following'
+      ? `/ql/api/posts/?page=${currentPage}&per_page=20`
+      : `/ql/api/posts/global/?page=${currentPage}&per_page=20`;
+
+    const res = await fetch(url);
+    const data = await res.json();
+    const container = document.getElementById('feed-container');
+
+    if (currentPage === 1) container.innerHTML = '';
+
+    if (data.posts.length === 0 && currentPage === 1) {
+      if (currentTab === 'following') {
+        container.classList.add('hidden');
+        document.getElementById('empty-state').classList.remove('hidden');
+      } else {
+        container.classList.add('hidden');
+        document.getElementById('empty-global').classList.remove('hidden');
+      }
+      return;
+    }
+
+    container.classList.remove('hidden');
+    data.posts.forEach(post => {
+      container.insertAdjacentHTML('beforeend', renderPostCard(post, {
+        showAuthor: true,
+        currentUserId: {{ web_user.id }}
+      }));
+    });
+
+    hasMore = data.has_more;
+    document.getElementById('load-more').classList.toggle('hidden', !hasMore);
+  } catch(e) {
+    console.error('Feed load error:', e);
+    document.getElementById('feed-container').innerHTML =
+      '<div class="bg-neutral-900 rounded-xl border border-neutral-800 p-8 text-center text-red-400 text-sm"><i class="fas fa-exclamation-triangle mr-2"></i>Failed to load feed</div>';
+  }
+}
+
+function loadMorePosts() {
+  currentPage++;
+  loadFeedPosts();
+}
+
+// ── Sidebar data ──
+async function loadSidebarData() {
+  try {
+    const res = await fetch('/ql/api/activity/');
+    const data = await res.json();
+
+    // Stats
+    document.getElementById('stat-posts-today').textContent = data.posts_today ?? '—';
+    document.getElementById('stat-active-users').textContent = data.active_posters_today ?? '—';
+
+    // Suggested users (sidebar + main row)
+    renderSuggestedMain(data.suggested_gamers || []);
+    renderSuggestedUsers(data.suggested_gamers || []);
+
+    // Trending games
+    renderTrendingGames(data.trending_games || []);
+  } catch(e) {
+    document.getElementById('suggested-users').innerHTML =
+      '<p class="text-gray-600 text-xs text-center py-4">Unable to load suggestions</p>';
+    document.getElementById('trending-games').innerHTML =
+      '<p class="text-gray-600 text-xs py-2">No data available</p>';
+  }
+}
+
+function esc(str) {
+  if (!str) return '';
+  const d = document.createElement('div');
+  d.textContent = str;
+  return d.innerHTML;
+}
+
+function hideSuggestedRow() {
+  const el = document.getElementById('suggested-gamers-row');
+  if (el) el.classList.add('hidden');
+  try { sessionStorage.setItem('ql_hide_suggested', '1'); } catch(e) {}
+}
+
+function renderSuggestedMain(gamers) {
+  const el = document.getElementById('suggested-gamers-main');
+  if (!el) return;
+  try { if (sessionStorage.getItem('ql_hide_suggested')) { document.getElementById('suggested-gamers-row')?.classList.add('hidden'); return; } } catch(e) {}
+  if (!gamers || !gamers.length) { document.getElementById('suggested-gamers-row')?.classList.add('hidden'); return; }
+  const pIcons = { PC:'fa-desktop', PS5:'fa-playstation', PS4:'fa-playstation', 'Xbox Series':'fa-xbox', 'Xbox One':'fa-xbox', Switch:'fa-gamepad', Mobile:'fa-mobile-alt', 'Steam Deck':'fa-steam' };
+  el.innerHTML = gamers.map(u => {
+    const av = u.avatar_url
+      ? `<img src="${esc(u.avatar_url)}" class="w-10 h-10 rounded-xl object-cover flex-shrink-0" alt="">`
+      : `<div class="w-10 h-10 rounded-xl bg-indigo-700 flex items-center justify-center flex-shrink-0 text-xs font-bold text-white">${esc((u.display_name||u.username||'?').slice(0,2).toUpperCase())}</div>`;
+    const styles = (Array.isArray(u.playstyle)?u.playstyle:(u.playstyle?[u.playstyle]:[])).slice(0,2)
+      .map(s=>`<span class="px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 text-[10px] whitespace-nowrap">${esc(s)}</span>`).join('');
+    const genres = (u.favorite_genres||[]).slice(0,2)
+      .map(g=>`<span class="px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 text-[10px] whitespace-nowrap">${esc(g)}</span>`).join('');
+    const plats = (u.gaming_platforms||[]).slice(0,3)
+      .map(p=>`<span class="text-gray-500 text-[10px]" title="${esc(p)}"><i class="fas ${pIcons[p]||'fa-gamepad'}"></i></span>`).join(' ');
+    const socials = [
+      u.twitch_username?`<a href="https://twitch.tv/${esc(u.twitch_username)}" target="_blank" rel="noopener" class="text-purple-400 hover:text-purple-300 text-xs"><i class="fab fa-twitch"></i></a>`:'',
+      u.youtube_channel_name?`<a href="https://youtube.com/@${esc(u.youtube_channel_name)}" target="_blank" rel="noopener" class="text-red-400 hover:text-red-300 text-xs"><i class="fab fa-youtube"></i></a>`:'',
+      u.twitter_url?`<a href="${esc(u.twitter_url)}" target="_blank" rel="noopener" class="text-sky-400 hover:text-sky-300 text-xs"><i class="fab fa-x-twitter"></i></a>`:'',
+      u.bluesky_url?`<a href="${esc(u.bluesky_url)}" target="_blank" rel="noopener" class="text-blue-400 hover:text-blue-300 text-xs"><i class="fas fa-cloud"></i></a>`:'',
+      u.tiktok_url?`<a href="${esc(u.tiktok_url)}" target="_blank" rel="noopener" class="text-pink-400 hover:text-pink-300 text-xs"><i class="fab fa-tiktok"></i></a>`:'',
+      u.instagram_url?`<a href="${esc(u.instagram_url)}" target="_blank" rel="noopener" class="text-rose-400 hover:text-rose-300 text-xs"><i class="fab fa-instagram"></i></a>`:'',
+    ].filter(Boolean).join('');
+    return `
+    <div class="snap-start flex-shrink-0 w-52 rounded-xl border border-neutral-800 hover:border-neutral-700 bg-neutral-900/70 hover:bg-neutral-800/60 transition p-3 flex flex-col gap-2">
+      <div class="flex items-center gap-2">
+        <a href="/ql/u/${esc(u.username)}/" class="flex-shrink-0">${av}</a>
+        <a href="/ql/u/${esc(u.username)}/" class="flex-1 min-w-0">
+          <p class="text-white text-xs font-semibold truncate leading-tight">${esc(u.display_name||u.username)}</p>
+          <p class="text-gray-500 text-[11px] truncate">@${esc(u.username)}</p>
+        </a>
+      </div>
+      ${u.bio?`<p class="text-gray-400 text-[11px] leading-relaxed line-clamp-2">${esc(u.bio)}</p>`:''}
+      ${(styles||genres)?`<div class="flex flex-wrap gap-1">${styles}${genres}</div>`:''}
+      <div class="flex items-center justify-between mt-auto pt-1">
+        <div class="flex items-center gap-1.5">${plats} ${socials}</div>
+        <button onclick="quickFollowSidebar(${u.id},this)" class="follow-sidebar-btn text-[11px] px-2.5 py-1 rounded-full bg-indigo-600 hover:bg-indigo-500 text-white transition font-medium flex-shrink-0"><i class="fas fa-plus mr-1"></i>Follow</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderSuggestedUsers(users) {
+  const container = document.getElementById('suggested-users');
+  if (!users.length) {
+    container.innerHTML = '<p class="text-gray-600 text-xs text-center py-5">No suggestions right now</p>';
+    return;
+  }
+  const platformIcons = { PC:'fa-desktop', PS5:'fa-playstation', PS4:'fa-playstation', 'Xbox Series':'fa-xbox', 'Xbox One':'fa-xbox', Switch:'fa-gamepad', Mobile:'fa-mobile-alt', 'Steam Deck':'fa-steam' };
+  container.innerHTML = users.slice(0, 5).map(u => {
+    const avatar = u.avatar_url
+      ? `<img src="${esc(u.avatar_url)}" class="w-10 h-10 rounded-xl object-cover flex-shrink-0" alt="">`
+      : `<div class="w-10 h-10 bg-indigo-700 rounded-xl flex items-center justify-center flex-shrink-0 text-xs font-bold text-white">${esc((u.display_name || u.username || '?').slice(0,2).toUpperCase())}</div>`;
+    const playstyleTags = (Array.isArray(u.playstyle) ? u.playstyle : (u.playstyle ? [u.playstyle] : []))
+      .slice(0,3).map(s => `<span class="px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 text-[10px]">${esc(s)}</span>`).join('');
+    const genreTags = (u.favorite_genres || []).slice(0,3)
+      .map(g => `<span class="px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 text-[10px]">${esc(g)}</span>`).join('');
+    const platformBadges = (u.gaming_platforms || []).slice(0,3)
+      .map(p => `<span class="text-gray-400 text-[10px]" title="${esc(p)}"><i class="fas ${platformIcons[p] || 'fa-gamepad'}"></i> ${esc(p)}</span>`).join('');
+    const socials = [
+      u.twitch_username ? `<a href="https://twitch.tv/${esc(u.twitch_username)}" target="_blank" rel="noopener" class="text-purple-400 hover:text-purple-300 text-xs" title="Twitch"><i class="fab fa-twitch"></i></a>` : '',
+      u.youtube_channel_name ? `<a href="https://youtube.com/@${esc(u.youtube_channel_name)}" target="_blank" rel="noopener" class="text-red-400 hover:text-red-300 text-xs" title="YouTube"><i class="fab fa-youtube"></i></a>` : '',
+      u.twitter_url ? `<a href="${esc(u.twitter_url)}" target="_blank" rel="noopener" class="text-sky-400 hover:text-sky-300 text-xs" title="X / Twitter"><i class="fab fa-x-twitter"></i></a>` : '',
+      u.bluesky_url ? `<a href="${esc(u.bluesky_url)}" target="_blank" rel="noopener" class="text-blue-400 hover:text-blue-300 text-xs" title="Bluesky"><i class="fas fa-cloud"></i></a>` : '',
+      u.tiktok_url ? `<a href="${esc(u.tiktok_url)}" target="_blank" rel="noopener" class="text-pink-400 hover:text-pink-300 text-xs" title="TikTok"><i class="fab fa-tiktok"></i></a>` : '',
+      u.instagram_url ? `<a href="${esc(u.instagram_url)}" target="_blank" rel="noopener" class="text-rose-400 hover:text-rose-300 text-xs" title="Instagram"><i class="fab fa-instagram"></i></a>` : '',
+      u.website_url ? `<a href="${esc(u.website_url)}" target="_blank" rel="noopener" class="text-green-400 hover:text-green-300 text-xs" title="Website"><i class="fas fa-globe"></i></a>` : '',
+    ].filter(Boolean).join('');
+    return `
+      <div class="rounded-lg border border-neutral-800 hover:border-neutral-700 bg-neutral-800/30 hover:bg-neutral-800/60 transition p-3">
+        <div class="flex items-start gap-2.5 mb-2">
+          <a href="/ql/u/${esc(u.username)}/" class="flex-shrink-0">${avatar}</a>
+          <div class="flex-1 min-w-0">
+            <a href="/ql/u/${esc(u.username)}/" class="block">
+              <p class="text-white text-xs font-semibold truncate leading-tight">${esc(u.display_name || u.username)}</p>
+              <p class="text-gray-500 text-[11px] truncate">@${esc(u.username)}</p>
+            </a>
+          </div>
+          <button onclick="quickFollowSidebar(${u.id}, this)"
+            class="follow-sidebar-btn flex-shrink-0 text-[11px] px-2 py-1 rounded-full bg-indigo-600 hover:bg-indigo-500 text-white transition font-medium">
+            <i class="fas fa-plus mr-1"></i>Follow
+          </button>
+        </div>
+        ${u.bio ? `<p class="text-gray-400 text-[11px] leading-relaxed line-clamp-2 mb-2">${esc(u.bio)}</p>` : ''}
+        ${(playstyleTags || genreTags) ? `<div class="flex flex-wrap gap-1 mb-1.5">${playstyleTags}${genreTags}</div>` : ''}
+        ${(platformBadges || socials) ? `<div class="flex items-center justify-between gap-2 mt-1"><div class="flex flex-wrap gap-2">${platformBadges}</div><div class="flex items-center gap-2">${socials}</div></div>` : ''}
+      </div>`;
+  }).join('');
+}
+
+function renderTrendingGames(games) {
+  const el = document.getElementById('trending-games');
+  if (!games.length) {
+    el.innerHTML = '<p class="text-gray-600 text-xs py-1">Nothing trending yet</p>';
+    return;
+  }
+  el.innerHTML = games.slice(0, 6).map((g, i) => `
+    <div class="trending-row">
+      <span class="trending-rank">${i + 1}</span>
+      <i class="fas fa-gamepad text-indigo-500/60 text-xs flex-shrink-0"></i>
+      <span class="truncate">${esc(g.name || g)}</span>
+    </div>`).join('');
+}
+
+async function quickFollowSidebar(userId, btn) {
+  btn.disabled = true;
+  btn.textContent = '…';
+  try {
+    const res = await csrfFetch(`/ql/api/follow/${userId}/`, { method: 'POST' });
+    const data = await res.json();
+    if (data.success) {
+      btn.textContent = 'Following';
+      btn.className = 'flex-shrink-0 text-xs px-2.5 py-1 rounded-full bg-neutral-700 text-gray-400 cursor-default font-medium';
+      btn.onclick = null;
+      btn.disabled = false;
+    } else {
+      btn.textContent = 'Follow';
+      btn.disabled = false;
+    }
+  } catch(e) {
+    btn.textContent = 'Follow';
+    btn.disabled = false;
+  }
+}
+
+// ── Char counter ──
+function updateCharCount() {
+  const textarea = document.getElementById('post-content');
+  const count = document.getElementById('char-count');
+  const btn = document.getElementById('post-btn');
+  const len = textarea.value.length;
+  count.textContent = `${len}/2000`;
+  count.className = len > 1800 ? 'text-red-400 text-xs ml-2' : 'text-gray-600 text-xs ml-2';
+  btn.disabled = (len === 0 && uploadedImages.length === 0 && !selectedGif);
+}
+
+// ── Emoji Picker ──
+function toggleEmojiPicker() {
+  const picker = document.getElementById('emoji-picker');
+  document.getElementById('gif-picker').classList.add('hidden');
+  document.getElementById('game-search-row').classList.add('hidden');
+  picker.classList.toggle('hidden');
+  if (!picker.classList.contains('hidden')) showEmojiCategory('gaming');
+}
+
+function showEmojiCategory(cat) {
+  document.querySelectorAll('.emoji-cat-btn').forEach(b => {
+    b.className = 'emoji-cat-btn text-xs px-2 py-1 rounded text-gray-400 hover:bg-neutral-700';
+  });
+  event.target.closest('.emoji-cat-btn').className = 'emoji-cat-btn text-xs px-2 py-1 rounded bg-neutral-700 text-white';
+  document.getElementById('emoji-grid').innerHTML = EMOJIS[cat].map(e =>
+    `<button onclick="insertEmoji('${e}')" class="text-xl hover:bg-neutral-700 rounded p-1 transition cursor-pointer">${e}</button>`
+  ).join('');
+}
+
+function insertEmoji(emoji) {
+  const ta = document.getElementById('post-content');
+  const start = ta.selectionStart, end = ta.selectionEnd;
+  ta.value = ta.value.substring(0, start) + emoji + ta.value.substring(end);
+  ta.selectionStart = ta.selectionEnd = start + emoji.length;
+  ta.focus();
+  updateCharCount();
+}
+
+// ── GIF Picker ──
+function toggleGifPicker() {
+  const picker = document.getElementById('gif-picker');
+  document.getElementById('emoji-picker').classList.add('hidden');
+  document.getElementById('game-search-row').classList.add('hidden');
+  picker.classList.toggle('hidden');
+  if (!picker.classList.contains('hidden')) {
+    document.getElementById('gif-search-input').focus();
+    loadTrendingGifs();
+  }
+}
+
+async function loadTrendingGifs() {
+  const container = document.getElementById('gif-results');
+  container.innerHTML = '<p class="col-span-3 text-gray-500 text-xs text-center py-4">Loading trending…</p>';
+  try {
+    const res = await fetch('/ql/api/gifs/trending/');
+    const data = await res.json();
+    renderGifResults(data.results || []);
+  } catch(e) {
+    container.innerHTML = '<p class="col-span-3 text-gray-500 text-xs text-center py-4">GIFs unavailable</p>';
+  }
+}
+
+function searchGifs(query) {
+  clearTimeout(gifSearchTimeout);
+  if (!query || query.length < 2) { loadTrendingGifs(); return; }
+  gifSearchTimeout = setTimeout(async () => {
+    const container = document.getElementById('gif-results');
+    container.innerHTML = '<p class="col-span-3 text-gray-500 text-xs text-center py-4">Searching…</p>';
+    try {
+      const res = await fetch(`/ql/api/gifs/search/?q=${encodeURIComponent(query)}`);
+      const data = await res.json();
+      renderGifResults(data.results || []);
+    } catch(e) {
+      container.innerHTML = '<p class="col-span-3 text-gray-500 text-xs text-center py-4">Search failed</p>';
+    }
+  }, 400);
+}
+
+function renderGifResults(gifs) {
+  const container = document.getElementById('gif-results');
+  if (!gifs.length) {
+    container.innerHTML = '<p class="col-span-3 text-gray-500 text-xs text-center py-4">No GIFs found</p>';
+    return;
+  }
+  container.innerHTML = gifs.map(g => `
+    <button onclick="selectGif('${esc(g.url)}', '${esc(g.preview)}')" class="overflow-hidden rounded hover:ring-2 hover:ring-purple-500 transition cursor-pointer">
+      <img src="${esc(g.preview)}" alt="GIF" class="w-full h-24 object-cover" loading="lazy">
+    </button>`).join('');
+}
+
+function selectGif(url, preview) {
+  selectedGif = { url, preview };
+  uploadedImages = [];
+  const mp = document.getElementById('media-preview');
+  mp.classList.remove('hidden');
+  mp.innerHTML = `<div class="relative inline-block">
+    <img src="${esc(preview)}" class="max-h-32 rounded-lg">
+    <button onclick="clearGif()" class="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white rounded-full text-xs flex items-center justify-center hover:bg-red-600">
+      <i class="fas fa-times"></i>
+    </button>
+  </div>`;
+  document.getElementById('gif-picker').classList.add('hidden');
+  updateCharCount();
+}
+
+function clearGif() {
+  selectedGif = null;
+  const mp = document.getElementById('media-preview');
+  mp.classList.add('hidden');
+  mp.innerHTML = '';
+  updateCharCount();
+}
+
+// ── Game Tag Search ──
+function toggleGameSearch() {
+  const row = document.getElementById('game-search-row');
+  document.getElementById('emoji-picker').classList.add('hidden');
+  document.getElementById('gif-picker').classList.add('hidden');
+  row.classList.toggle('hidden');
+  if (!row.classList.contains('hidden')) document.getElementById('game-search-input').focus();
+}
+
+function searchGames(query) {
+  clearTimeout(gameSearchTimeout);
+  const results = document.getElementById('game-search-results');
+  if (!query || query.length < 2) { results.classList.add('hidden'); return; }
+  gameSearchTimeout = setTimeout(async () => {
+    try {
+      const res = await fetch(`/ql/api/igdb/search/?q=${encodeURIComponent(query)}`);
+      const data = await res.json();
+      if (data.games && data.games.length > 0) {
+        results.classList.remove('hidden');
+        results.innerHTML = data.games.map(g => {
+          const platforms = g.platforms || '';
+          return `
+          <button onclick="selectGameTag(${g.id}, '${esc(g.name).replace(/'/g, "\\'")}', ${g.steam_id || 'null'})" class="w-full flex items-center gap-2 px-3 py-2 hover:bg-neutral-800 transition text-left">
+            ${g.cover_url ? `<img src="${esc(g.cover_url)}" class="w-8 h-8 rounded object-cover">` : `<div class="w-8 h-8 bg-neutral-800 rounded flex items-center justify-center"><i class="fas fa-gamepad text-gray-600 text-xs"></i></div>`}
+            <div class="flex-1 min-w-0">
+              <p class="text-white text-sm truncate">${esc(g.name)}</p>
+              ${platforms ? `<p class="text-gray-500 text-xs truncate">${esc(platforms)}</p>` : ''}
+            </div>
+            ${g.release_year ? `<span class="text-gray-600 text-xs flex-shrink-0">${g.release_year}</span>` : ''}
+          </button>`;
+        }).join('');
+      } else {
+        results.classList.remove('hidden');
+        results.innerHTML = '<p class="text-gray-500 text-xs p-3">No games found</p>';
+      }
+    } catch(e) { results.classList.add('hidden'); }
+  }, 400);
+}
+
+function selectGameTag(id, name, steamId) {
+  selectedGameTag = { id, name, steam_id: steamId };
+  document.getElementById('game-tag-name').textContent = name;
+  document.getElementById('game-tag-display').classList.remove('hidden');
+  document.getElementById('game-search-row').classList.add('hidden');
+  document.getElementById('game-search-results').classList.add('hidden');
+  document.getElementById('game-search-input').value = '';
+}
+
+function clearGameTag() {
+  selectedGameTag = null;
+  document.getElementById('game-tag-display').classList.add('hidden');
+}
+
+// ── Image handling ──
+async function handleImageSelect(input) {
+  if (selectedGif) clearGif();
+  const files = Array.from(input.files).slice(0, 4 - uploadedImages.length);
+  for (const file of files) {
+    if (uploadedImages.length >= 4) break;
+    const formData = new FormData();
+    formData.append('image', file);
+    try {
+      const res = await csrfFetch('/ql/api/upload/image/', { method: 'POST', body: formData });
+      const data = await res.json();
+      if (data.success) { uploadedImages.push(data); renderImagePreviews(); updateCharCount(); }
+      else { alert(data.error || 'Upload failed'); }
+    } catch(e) { alert('Upload failed'); }
+  }
+  input.value = '';
+}
+
+async function handlePasteImage(event) {
+  const items = Array.from(event.clipboardData?.items || []);
+  const imageItems = items.filter(item => item.kind === 'file' && item.type.startsWith('image/'));
+  if (!imageItems.length) return; // No image — let normal text paste proceed
+  event.preventDefault();
+  if (uploadedImages.length >= 4) return;
+  if (selectedGif) clearGif();
+  const preview = document.getElementById('media-preview');
+  preview.classList.remove('hidden');
+  preview.innerHTML = `<div class="text-xs text-gray-400 py-2"><i class="fas fa-spinner fa-spin mr-1"></i>Uploading…</div>`;
+  for (const item of imageItems) {
+    if (uploadedImages.length >= 4) break;
+    const file = item.getAsFile();
+    if (!file) continue;
+    const formData = new FormData();
+    formData.append('image', file);
+    try {
+      const res = await csrfFetch('/ql/api/upload/image/', { method: 'POST', body: formData });
+      const data = await res.json();
+      if (data.success) { uploadedImages.push(data); }
+      else { alert(data.error || 'Upload failed'); }
+    } catch(e) { alert('Upload failed'); }
+  }
+  renderImagePreviews();
+  updateCharCount();
+}
+
+function renderImagePreviews() {
+  const preview = document.getElementById('media-preview');
+  if (!uploadedImages.length) { preview.classList.add('hidden'); preview.innerHTML = ''; return; }
+  preview.classList.remove('hidden');
+  preview.innerHTML = `<div class="flex gap-2 flex-wrap">${uploadedImages.map((img, i) => `
+    <div class="relative">
+      <img src="${img.thumbnail_url}" class="w-20 h-20 object-cover rounded-lg">
+      <button onclick="removeImage(${i})" class="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white rounded-full text-xs flex items-center justify-center hover:bg-red-600"><i class="fas fa-times"></i></button>
+    </div>`).join('')}</div>`;
+}
+
+function removeImage(index) {
+  uploadedImages.splice(index, 1);
+  renderImagePreviews();
+  updateCharCount();
+}
+
+// ── Submit post ──
+async function submitPost() {
+  const content = document.getElementById('post-content').value.trim();
+  if (!content && !uploadedImages.length && !selectedGif) return;
+
+  const btn = document.getElementById('post-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+
+  let postType = 'text', body = { content };
+  if (selectedGif) {
+    postType = 'gif';
+    body.gif_url = selectedGif.url;
+    body.gif_thumbnail = selectedGif.preview;
+  } else if (uploadedImages.length > 0) {
+    postType = 'image';
+    body.media_urls = uploadedImages;
+  }
+  body.post_type = postType;
+  if (selectedGameTag) {
+    body.game_tag_id = selectedGameTag.id;
+    body.game_tag_name = selectedGameTag.name;
+    if (selectedGameTag.steam_id) body.game_tag_steam_id = selectedGameTag.steam_id;
+  }
+
+  try {
+    const res = await csrfFetch('/ql/api/posts/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (data.success) {
+      document.getElementById('post-content').value = '';
+      uploadedImages = []; selectedGif = null; selectedGameTag = null;
+      renderImagePreviews();
+      clearGameTag();
+      updateCharCount();
+      document.getElementById('media-preview').classList.add('hidden');
+      document.getElementById('media-preview').innerHTML = '';
+
+      if (currentTab === 'global') switchTab('following');
+      const container = document.getElementById('feed-container');
+      container.classList.remove('hidden');
+      document.getElementById('empty-state').classList.add('hidden');
+      document.getElementById('empty-global').classList.add('hidden');
+
+      // Flash the new card briefly
+      const html = renderPostCard(data.post, { showAuthor: true, currentUserId: {{ web_user.id }} });
+      container.insertAdjacentHTML('afterbegin', html);
+      const newCard = container.firstElementChild;
+      newCard.style.transition = 'background 0.4s';
+      newCard.style.background = 'rgb(49 46 129 / 0.3)';
+      setTimeout(() => { newCard.style.background = ''; }, 800);
+    } else { alert(data.error || 'Failed to create post'); }
+  } catch(e) { alert('Failed to create post'); }
+
+  btn.disabled = false;
+  btn.innerHTML = '<i class="fas fa-paper-plane text-xs"></i>Post';
+}
+
+// Close pickers on outside click
+document.addEventListener('click', (e) => {
+  ['emoji-picker','gif-picker','game-search-row'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el && !el.classList.contains('hidden') && !el.contains(e.target) && !e.target.closest('[onclick*="toggle"]')) {
+      el.classList.add('hidden');
+    }
+  });
+});
+</script>
+{% endblock %}

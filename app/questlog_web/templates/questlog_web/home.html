@@ -1,0 +1,978 @@
+{% extends "questlog_web/base_web.html" %}
+{% load static %}
+
+{% block title %}QuestLog Network - Your Gaming Hub{% endblock %}
+
+{% block web_content %}
+{% include "questlog_web/partials/post_card.html" %}
+
+<!-- Compact Hero -->
+<div class="bg-gradient-to-r from-indigo-900/30 via-purple-900/20 to-indigo-900/30 border-b border-neutral-800 px-6 py-5">
+  <div class="max-w-6xl mx-auto flex items-center justify-between">
+    <div>
+      <h1 class="text-2xl font-bold text-white flex items-center gap-2">
+        <i class="fas fa-scroll text-indigo-400"></i>
+        QuestLog Network
+      </h1>
+      <p class="text-gray-400 text-sm mt-0.5">See what gamers are up to right now</p>
+    </div>
+    {% if not web_user %}
+    <a href="{% url 'questlog_web_login' %}"
+       class="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-lg font-medium text-sm transition">
+      <i class="fas fa-gamepad"></i> Login to Casual Heroes
+    </a>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Live Stats Bar -->
+<div class="bg-neutral-900/80 border-b border-neutral-800 px-6 py-2.5">
+  <div class="max-w-6xl mx-auto flex items-center justify-center gap-8 text-xs">
+    <span class="flex items-center gap-1.5">
+      <span class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+      <span class="text-gray-400"><span class="text-white font-semibold" id="stat-users">-</span> Gamers</span>
+    </span>
+    <span class="text-gray-600">|</span>
+    <span class="text-gray-400"><span class="text-white font-semibold" id="stat-posts">-</span> Posts</span>
+    <span class="text-gray-600">|</span>
+    <span class="text-gray-400"><span class="text-green-400 font-semibold" id="stat-today">-</span> posts today</span>
+    <span class="text-gray-600">|</span>
+    <span class="text-gray-400"><span class="text-indigo-400 font-semibold" id="stat-active">-</span> active today</span>
+  </div>
+</div>
+
+<!-- Activity Ticker -->
+<div id="ticker-bar" class="hidden bg-neutral-950 border-b border-neutral-800 overflow-hidden relative" style="height: 32px;">
+  <div id="ticker-content" class="flex items-center gap-8 whitespace-nowrap animate-ticker absolute" style="animation: tickerScroll 30s linear infinite;">
+  </div>
+</div>
+<style>
+  @keyframes tickerScroll {
+    0% { transform: translateX(0); }
+    100% { transform: translateX(-50%); }
+  }
+  .animate-ticker { will-change: transform; }
+  #composer-card:focus-within {
+    border-color: rgb(99 102 241 / 0.5);
+    box-shadow: 0 0 0 1px rgb(99 102 241 / 0.2);
+  }
+</style>
+
+<!-- Main Content: Two Column Layout -->
+<div class="max-w-6xl mx-auto px-4 py-6">
+  <div class="flex gap-6">
+
+    <!-- Main Feed Column -->
+    <div class="flex-1 min-w-0">
+
+      {% if web_user %}
+      <!-- Post Composer -->
+      <div id="composer-card" class="bg-neutral-900 rounded-xl border border-neutral-800 transition-all duration-200 mb-5">
+        <div class="bg-gradient-to-r from-indigo-950/40 to-transparent px-4 pt-4 pb-3 rounded-t-xl">
+          <div class="flex gap-3 items-start">
+            {% if web_user.avatar_url %}
+            <img src="{{ web_user.avatar_url }}" alt="" class="w-9 h-9 rounded-full object-cover flex-shrink-0 ring-1 ring-indigo-500/30">
+            {% else %}
+            <div class="w-9 h-9 bg-indigo-900/60 rounded-full flex items-center justify-center flex-shrink-0 ring-1 ring-indigo-500/30">
+              <span class="text-xs font-bold text-indigo-300">{{ web_user.username|slice:":2"|upper }}</span>
+            </div>
+            {% endif %}
+            <textarea id="post-content" rows="2" maxlength="2000"
+              placeholder="What are you playing? Share a moment… (paste a video link or image!)"
+              class="w-full bg-transparent border-0 text-sm text-white placeholder-gray-600 focus:outline-none resize-none leading-relaxed pt-1"
+              oninput="updateCharCount()" onpaste="handlePasteImage(event)"></textarea>
+          </div>
+        </div>
+        <!-- Tools bar -->
+        <div class="px-4 py-3 border-t border-neutral-800/50">
+          <div id="media-preview" class="hidden mb-3"></div>
+          <div id="game-tag-display" class="hidden mb-3 flex items-center gap-2">
+            <span class="inline-flex items-center gap-1 px-2 py-1 bg-indigo-500/20 text-indigo-300 rounded-full text-xs">
+              <i class="fas fa-gamepad"></i>
+              <span id="game-tag-name"></span>
+              <button onclick="clearGameTag()" class="ml-1 hover:text-red-400"><i class="fas fa-times text-xs"></i></button>
+            </span>
+          </div>
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-0.5">
+              <label class="cursor-pointer flex items-center gap-1.5 text-gray-500 hover:text-green-400 px-2.5 py-1.5 rounded-lg hover:bg-neutral-800 text-xs font-medium transition">
+                <i class="fas fa-image"></i><span class="hidden sm:inline">Photo</span>
+                <input type="file" id="image-input" accept="image/jpeg,image/png,image/gif,image/webp" multiple class="hidden" onchange="handleImageSelect(this)">
+              </label>
+              <button onclick="toggleGifPicker()" class="flex items-center gap-1.5 text-gray-500 hover:text-purple-400 px-2.5 py-1.5 rounded-lg hover:bg-neutral-800 text-xs font-bold transition">GIF</button>
+              <button onclick="toggleEmojiPicker()" class="flex items-center gap-1.5 text-gray-500 hover:text-yellow-400 px-2.5 py-1.5 rounded-lg hover:bg-neutral-800 text-xs transition">
+                <i class="far fa-smile"></i><span class="hidden sm:inline ml-1">Emoji</span>
+              </button>
+              <button onclick="toggleGameSearch()" class="flex items-center gap-1.5 text-gray-500 hover:text-indigo-400 px-2.5 py-1.5 rounded-lg hover:bg-neutral-800 text-xs transition">
+                <i class="fas fa-gamepad"></i><span class="hidden sm:inline ml-1">Game</span>
+              </button>
+              <span id="char-count" class="text-gray-600 text-xs ml-2">0/2000</span>
+            </div>
+            <button onclick="submitPost()" id="post-btn"
+              class="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-1.5 rounded-lg text-xs font-semibold transition disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5" disabled>
+              <i class="fas fa-paper-plane text-xs"></i>Post
+            </button>
+          </div>
+          <!-- Emoji Picker -->
+          <div id="emoji-picker" class="hidden mt-2 bg-neutral-800 border border-neutral-700 rounded-xl p-3 max-h-52 overflow-y-auto">
+            <div class="flex gap-1 mb-2 border-b border-neutral-700 pb-2 flex-wrap">
+              <button onclick="showEmojiCategory('gaming')" class="emoji-cat-btn text-xs px-2 py-1 rounded bg-neutral-700 text-white">🎮 Gaming</button>
+              <button onclick="showEmojiCategory('smileys')" class="emoji-cat-btn text-xs px-2 py-1 rounded text-gray-400 hover:bg-neutral-700">😀 Faces</button>
+              <button onclick="showEmojiCategory('hands')" class="emoji-cat-btn text-xs px-2 py-1 rounded text-gray-400 hover:bg-neutral-700">👍 Hands</button>
+              <button onclick="showEmojiCategory('hearts')" class="emoji-cat-btn text-xs px-2 py-1 rounded text-gray-400 hover:bg-neutral-700">❤️ React</button>
+              <button onclick="showEmojiCategory('objects')" class="emoji-cat-btn text-xs px-2 py-1 rounded text-gray-400 hover:bg-neutral-700">⚡ Misc</button>
+            </div>
+            <div id="emoji-grid" class="grid grid-cols-10 gap-0.5"></div>
+          </div>
+          <!-- GIF Picker -->
+          <div id="gif-picker" class="hidden mt-2 bg-neutral-800 border border-neutral-700 rounded-xl overflow-hidden">
+            <div class="p-2 border-b border-neutral-700">
+              <input type="text" id="gif-search-input" placeholder="Search GIFs…"
+                class="w-full bg-neutral-900 border border-neutral-600 rounded-lg px-3 py-1.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
+                oninput="searchGifs(this.value)">
+            </div>
+            <div id="gif-results" class="grid grid-cols-3 gap-1 p-2 max-h-64 overflow-y-auto">
+              <p class="col-span-3 text-gray-500 text-xs text-center py-4">Search or browse trending GIFs</p>
+            </div>
+            <div class="px-2 py-1 border-t border-neutral-700 text-right">
+              <span class="text-gray-600 text-xs">Powered by GIPHY</span>
+            </div>
+          </div>
+          <!-- Game Search Input -->
+          <div id="game-search-row" class="hidden mt-2 relative">
+            <input type="text" id="game-search-input" placeholder="Search for a game to tag…"
+              class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500"
+              oninput="searchGames(this.value)">
+            <div id="game-search-results" class="hidden absolute left-0 right-0 top-full mt-1 bg-neutral-900 border border-neutral-700 rounded-lg shadow-lg z-50 max-h-48 overflow-y-auto">
+            </div>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- ── Suggested Gamers ───────────────────────────────────── -->
+      <div id="suggested-gamers-row" class="mb-5">
+        <div class="flex items-center justify-between mb-2.5">
+          <h3 class="text-sm font-semibold text-white flex items-center gap-2">
+            <i class="fas fa-users text-green-400"></i>Suggested Gamers
+          </h3>
+          <button onclick="hideSuggestedRow()" class="text-gray-600 hover:text-gray-400 text-xs px-1 transition" title="Dismiss"><i class="fas fa-times"></i></button>
+        </div>
+        <div id="suggested-gamers-main" class="flex gap-3 overflow-x-auto pb-2 snap-x" style="scrollbar-width:thin;scrollbar-color:#404040 transparent">
+          <p class="text-gray-600 text-xs py-3 px-1">Loading…</p>
+        </div>
+      </div>
+
+      <!-- Feed Tabs -->
+      <div class="flex items-center gap-1 mb-4 border-b border-neutral-800 pb-0">
+        <button onclick="switchFeedTab('global')" id="tab-global"
+          class="feed-tab px-4 py-2.5 text-sm font-medium border-b-2 border-indigo-500 text-white transition">
+          <i class="fas fa-fire mr-1.5 text-orange-400"></i>Happening Now
+        </button>
+        {% if web_user %}
+        <button onclick="switchFeedTab('following')" id="tab-following"
+          class="feed-tab px-4 py-2.5 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-white transition">
+          <i class="fas fa-user-friends mr-1.5"></i>Following
+        </button>
+        {% endif %}
+      </div>
+
+      <!-- Feed Container -->
+      <div id="feed-container" class="space-y-4">
+        <div class="text-center py-8">
+          <div class="animate-spin inline-block w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full mb-3"></div>
+          <p class="text-gray-500 text-sm">Loading feed...</p>
+        </div>
+      </div>
+
+      <!-- Load More -->
+      <div id="load-more" class="hidden text-center py-6">
+        <button onclick="loadMorePosts()" class="bg-neutral-800 hover:bg-neutral-700 text-white px-6 py-2 rounded-lg text-sm transition">
+          Load More
+        </button>
+      </div>
+
+      <!-- Empty State -->
+      <div id="empty-state" class="hidden text-center py-12">
+        <i class="fas fa-satellite-dish text-5xl text-gray-700 mb-4"></i>
+        <h2 class="text-lg font-bold text-white mb-2">No posts yet</h2>
+        <p class="text-gray-400 text-sm mb-4">Be the first to share something with the community!</p>
+        {% if not web_user %}
+        <a href="{% url 'questlog_web_login' %}" class="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded-lg text-sm font-medium transition">
+          <i class="fas fa-gamepad mr-1"></i>Login to Post
+        </a>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Right Sidebar -->
+    <div class="hidden lg:block w-80 flex-shrink-0 space-y-5">
+
+      <!-- Suggested Gamers -->
+      <div class="bg-neutral-900/50 rounded-lg border border-neutral-800 p-4">
+        <h3 class="text-sm font-semibold text-white mb-3 flex items-center gap-2">
+          <i class="fas fa-users text-green-400"></i>Suggested Gamers
+        </h3>
+        <div id="suggested-gamers" class="space-y-3">
+          <p class="text-gray-600 text-xs">Loading...</p>
+        </div>
+      </div>
+
+      <!-- Trending Games -->
+      <div id="trending-games-card" class="hidden bg-neutral-900/50 rounded-lg border border-neutral-800 p-4">
+        <h3 class="text-sm font-semibold text-white mb-3 flex items-center gap-2">
+          <i class="fas fa-fire-alt text-orange-400"></i>Trending Games
+        </h3>
+        <div id="trending-games" class="space-y-2"></div>
+      </div>
+
+      <!-- Active LFG Groups -->
+      <div class="bg-neutral-900/50 rounded-lg border border-neutral-800 p-4">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="text-sm font-semibold text-white flex items-center gap-2">
+            <i class="fas fa-users text-yellow-400"></i>Looking for Group
+          </h3>
+          {% if web_user %}<a href="{% url 'questlog_web_lfg_browse' %}" class="text-indigo-400 hover:text-indigo-300 text-xs">View All</a>{% endif %}
+        </div>
+        <div id="sidebar-lfg" class="space-y-2">
+          <p class="text-gray-600 text-xs">Loading...</p>
+        </div>
+      </div>
+
+      <!-- Communities -->
+      <div class="bg-neutral-900/50 rounded-lg border border-neutral-800 p-4">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="text-sm font-semibold text-white flex items-center gap-2">
+            <i class="fas fa-server text-purple-400"></i>Communities
+          </h3>
+          {% if web_user %}<a href="{% url 'questlog_web_communities' %}" class="text-indigo-400 hover:text-indigo-300 text-xs">View All</a>{% endif %}
+        </div>
+        <div id="sidebar-communities" class="space-y-2">
+          <p class="text-gray-600 text-xs">Loading...</p>
+        </div>
+      </div>
+
+      <!-- Latest News -->
+      <div class="bg-neutral-900/50 rounded-lg border border-neutral-800 p-4">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="text-sm font-semibold text-white flex items-center gap-2">
+            <i class="fas fa-newspaper text-orange-400"></i>Gaming News
+          </h3>
+          <a href="{% url 'questlog_web_articles' %}" class="text-indigo-400 hover:text-indigo-300 text-xs">View All</a>
+        </div>
+        <div id="sidebar-news" class="space-y-2">
+          <p class="text-gray-600 text-xs">Loading...</p>
+        </div>
+      </div>
+
+      <!-- Quick Links -->
+      <div class="bg-neutral-900/50 rounded-lg border border-neutral-800 p-4">
+        <h3 class="text-sm font-semibold text-white mb-3 flex items-center gap-2">
+          <i class="fas fa-compass text-indigo-400"></i>Explore
+        </h3>
+        <div class="grid grid-cols-2 gap-2">
+          {% if web_user %}
+          <a href="{% url 'questlog_web_network' %}" class="flex items-center gap-2 px-3 py-2 bg-neutral-800 hover:bg-neutral-700 rounded-lg text-xs text-gray-300 transition">
+            <i class="fas fa-search text-indigo-400"></i>Find Gamers
+          </a>
+          <a href="{% url 'questlog_web_games' %}" class="flex items-center gap-2 px-3 py-2 bg-neutral-800 hover:bg-neutral-700 rounded-lg text-xs text-gray-300 transition">
+            <i class="fas fa-gamepad text-green-400"></i>Games
+          </a>
+          <a href="{% url 'questlog_web_creators' %}" class="flex items-center gap-2 px-3 py-2 bg-neutral-800 hover:bg-neutral-700 rounded-lg text-xs text-gray-300 transition">
+            <i class="fas fa-star text-yellow-400"></i>Creators
+          </a>
+          <a href="{% url 'questlog_web_lfg_browse' %}" class="flex items-center gap-2 px-3 py-2 bg-neutral-800 hover:bg-neutral-700 rounded-lg text-xs text-gray-300 transition">
+            <i class="fas fa-users text-purple-400"></i>LFG
+          </a>
+          {% else %}
+          <a href="{% url 'questlog_web_articles' %}" class="col-span-2 flex items-center gap-2 px-3 py-2 bg-neutral-800 hover:bg-neutral-700 rounded-lg text-xs text-gray-300 transition">
+            <i class="fas fa-newspaper text-orange-400"></i>Gaming News
+          </a>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+let currentPage = 1;
+let hasMore = true;
+let currentTab = 'global';
+let uploadedImages = [];
+let selectedGif = null;
+let selectedGameTag = null;
+let gameSearchTimeout = null;
+let gifSearchTimeout = null;
+const CURRENT_USER_ID = {{ web_user.id|default:"null" }};
+
+// Emoji data by category
+const EMOJIS = {
+  gaming: ['🎮','🕹️','🎯','🏆','⚔️','🛡️','🎲','👾','🤖','💀','🔥','⭐','💎','🗡️','🏹','🧙','🐉','💣','🎪','🧩','🎰','🃏','♟️','🏅','🥇','🎖️','🏴‍☠️','👑','💪','🦾'],
+  smileys: ['😀','😂','🤣','😍','🥰','😎','🤔','😤','😭','🥺','😱','🤯','😈','👀','🫡','😴','🤮','🥶','🥵','😏','🤩','😇','🙄','😬','🤪','😵','🫠','🤡','💩','👻'],
+  hands: ['👍','👎','✌️','🤞','👊','✊','🫡','👋','🖐️','🤙','🫶','👏','🙌','🤝','🙏','🫰','🤘','🤟','🖖','✋','👆','👇','👈','👉','💪','🦾','🫵','✍️','🤳','💅'],
+  hearts: ['❤️','💜','💙','💚','🧡','💛','🖤','🤍','💔','❤️‍🔥','💯','✅','❌','⭕','💢','💥','✨','🌟','💫','🎉','🎊','🏳️‍🌈','🫂','💤','💭','💬','👁️‍🗨️','🔔','📢','🚀'],
+  objects: ['⚡','🔫','💰','🍕','🍺','🎵','🎧','📱','💻','🖥️','⌨️','🖱️','🕐','📸','🎬','📺','🔧','⚙️','🧪','🗺️','🌍','🌙','☀️','🌈','❄️','🔑','🏠','🚗','✈️','🛸']
+};
+
+document.addEventListener('DOMContentLoaded', () => {
+  loadGlobalFeed();
+  loadActivity();
+  loadSidebarContent();
+
+  const postContent = document.getElementById('post-content');
+  if (postContent) postContent.addEventListener('input', updateCharCount);
+});
+
+// ========== FEED TABS ==========
+
+function switchFeedTab(tab) {
+  currentTab = tab;
+  currentPage = 1;
+  hasMore = true;
+
+  document.querySelectorAll('.feed-tab').forEach(btn => {
+    btn.classList.remove('border-indigo-500', 'text-white');
+    btn.classList.add('border-transparent', 'text-gray-500');
+  });
+  const activeBtn = document.getElementById(`tab-${tab}`);
+  activeBtn.classList.remove('border-transparent', 'text-gray-500');
+  activeBtn.classList.add('border-indigo-500', 'text-white');
+
+  document.getElementById('feed-container').innerHTML = `
+    <div class="text-center py-8">
+      <div class="animate-spin inline-block w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full mb-3"></div>
+      <p class="text-gray-500 text-sm">Loading...</p>
+    </div>`;
+
+  if (tab === 'global') loadGlobalFeed();
+  else loadFollowingFeed();
+}
+
+async function loadGlobalFeed() {
+  try {
+    const res = await fetch(`/ql/api/posts/global/?page=${currentPage}&per_page=15`);
+    const data = await res.json();
+    renderFeedPosts(data);
+  } catch(e) {
+    console.error('Feed error:', e);
+    document.getElementById('feed-container').innerHTML =
+      '<p class="text-red-400 text-center py-8">Failed to load feed</p>';
+  }
+}
+
+async function loadFollowingFeed() {
+  try {
+    const res = await fetch(`/ql/api/posts/?page=${currentPage}&per_page=15`);
+    const data = await res.json();
+    renderFeedPosts(data);
+  } catch(e) {
+    console.error('Feed error:', e);
+    document.getElementById('feed-container').innerHTML =
+      '<p class="text-red-400 text-center py-8">Failed to load feed</p>';
+  }
+}
+
+function renderFeedPosts(data) {
+  const container = document.getElementById('feed-container');
+  if (currentPage === 1) container.innerHTML = '';
+
+  if (data.posts.length === 0 && currentPage === 1) {
+    container.classList.add('hidden');
+    document.getElementById('empty-state').classList.remove('hidden');
+    document.getElementById('load-more').classList.add('hidden');
+    return;
+  }
+
+  container.classList.remove('hidden');
+  document.getElementById('empty-state').classList.add('hidden');
+
+  data.posts.forEach(post => {
+    container.insertAdjacentHTML('beforeend', renderPostCard(post, {
+      showAuthor: true,
+      currentUserId: CURRENT_USER_ID
+    }));
+  });
+
+  hasMore = data.has_more;
+  document.getElementById('load-more').classList.toggle('hidden', !hasMore);
+}
+
+function loadMorePosts() {
+  currentPage++;
+  if (currentTab === 'global') loadGlobalFeed();
+  else loadFollowingFeed();
+}
+
+// ========== ACTIVITY, SIDEBAR & TICKER ==========
+
+function esc(str) {
+  if (!str) return '';
+  const d = document.createElement('div');
+  d.textContent = str;
+  return d.innerHTML;
+}
+
+function tickerTimeAgo(ts) {
+  const s = Math.floor(Date.now() / 1000) - ts;
+  if (s < 60) return 'just now';
+  if (s < 3600) return Math.floor(s / 60) + 'm ago';
+  if (s < 86400) return Math.floor(s / 3600) + 'h ago';
+  return Math.floor(s / 86400) + 'd ago';
+}
+
+// ── Suggested Gamers main row ──────────────────────────────────
+function hideSuggestedRow() {
+  const el = document.getElementById('suggested-gamers-row');
+  if (el) el.classList.add('hidden');
+  try { sessionStorage.setItem('ql_hide_suggested', '1'); } catch(e) {}
+}
+
+function renderSuggestedMain(gamers) {
+  const el = document.getElementById('suggested-gamers-main');
+  if (!el) return;
+  if (!gamers || !gamers.length) {
+    document.getElementById('suggested-gamers-row')?.classList.add('hidden');
+    return;
+  }
+  // Hide if dismissed this session
+  try { if (sessionStorage.getItem('ql_hide_suggested')) { document.getElementById('suggested-gamers-row')?.classList.add('hidden'); return; } } catch(e) {}
+  const pIcons = { PC:'fa-desktop', PS5:'fa-playstation', PS4:'fa-playstation', 'Xbox Series':'fa-xbox', 'Xbox One':'fa-xbox', Switch:'fa-gamepad', Mobile:'fa-mobile-alt', 'Steam Deck':'fa-steam' };
+  el.innerHTML = gamers.map(u => {
+    const av = u.avatar_url
+      ? `<img src="${esc(u.avatar_url)}" class="w-10 h-10 rounded-xl object-cover flex-shrink-0" alt="">`
+      : `<div class="w-10 h-10 rounded-xl bg-indigo-700 flex items-center justify-center flex-shrink-0 text-xs font-bold text-white">${esc((u.display_name||u.username||'?').slice(0,2).toUpperCase())}</div>`;
+    const styles = (Array.isArray(u.playstyle)?u.playstyle:(u.playstyle?[u.playstyle]:[])).slice(0,2)
+      .map(s=>`<span class="px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 text-[10px] whitespace-nowrap">${esc(s)}</span>`).join('');
+    const genres = (u.favorite_genres||[]).slice(0,2)
+      .map(g=>`<span class="px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 text-[10px] whitespace-nowrap">${esc(g)}</span>`).join('');
+    const plats = (u.gaming_platforms||[]).slice(0,3)
+      .map(p=>`<span class="text-gray-500 text-[10px]" title="${esc(p)}"><i class="fas ${pIcons[p]||'fa-gamepad'}"></i></span>`).join(' ');
+    const socials = [
+      u.twitch_username?`<a href="https://twitch.tv/${esc(u.twitch_username)}" target="_blank" rel="noopener" class="text-purple-400 hover:text-purple-300 text-xs" title="Twitch"><i class="fab fa-twitch"></i></a>`:'',
+      u.youtube_channel_name?`<a href="https://youtube.com/@${esc(u.youtube_channel_name)}" target="_blank" rel="noopener" class="text-red-400 hover:text-red-300 text-xs" title="YouTube"><i class="fab fa-youtube"></i></a>`:'',
+      u.twitter_url?`<a href="${esc(u.twitter_url)}" target="_blank" rel="noopener" class="text-sky-400 hover:text-sky-300 text-xs" title="X"><i class="fab fa-x-twitter"></i></a>`:'',
+      u.bluesky_url?`<a href="${esc(u.bluesky_url)}" target="_blank" rel="noopener" class="text-blue-400 hover:text-blue-300 text-xs" title="Bluesky"><i class="fas fa-cloud"></i></a>`:'',
+      u.tiktok_url?`<a href="${esc(u.tiktok_url)}" target="_blank" rel="noopener" class="text-pink-400 hover:text-pink-300 text-xs" title="TikTok"><i class="fab fa-tiktok"></i></a>`:'',
+      u.instagram_url?`<a href="${esc(u.instagram_url)}" target="_blank" rel="noopener" class="text-rose-400 hover:text-rose-300 text-xs" title="Instagram"><i class="fab fa-instagram"></i></a>`:'',
+    ].filter(Boolean).join('');
+    return `
+    <div class="snap-start flex-shrink-0 w-52 rounded-xl border border-neutral-800 hover:border-neutral-700 bg-neutral-900/70 hover:bg-neutral-800/60 transition p-3 flex flex-col gap-2">
+      <div class="flex items-center gap-2">
+        <a href="/ql/u/${esc(u.username)}/" class="flex-shrink-0">${av}</a>
+        <a href="/ql/u/${esc(u.username)}/" class="flex-1 min-w-0">
+          <p class="text-white text-xs font-semibold truncate leading-tight">${esc(u.display_name||u.username)}</p>
+          <p class="text-gray-500 text-[11px] truncate">@${esc(u.username)}</p>
+        </a>
+      </div>
+      ${u.bio?`<p class="text-gray-400 text-[11px] leading-relaxed line-clamp-2">${esc(u.bio)}</p>`:''}
+      ${(styles||genres)?`<div class="flex flex-wrap gap-1">${styles}${genres}</div>`:''}
+      <div class="flex items-center justify-between mt-auto pt-1">
+        <div class="flex items-center gap-1.5">${plats} ${socials}</div>
+        ${CURRENT_USER_ID?`<button onclick="sidebarFollow(${u.id},this)" class="text-[11px] px-2.5 py-1 rounded-full bg-indigo-600 hover:bg-indigo-500 text-white transition font-medium flex-shrink-0"><i class="fas fa-plus mr-1"></i>Follow</button>`:''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function loadActivity() {
+  try {
+    const res = await fetch('/ql/api/activity/');
+    const data = await res.json();
+
+    document.getElementById('stat-users').textContent = data.total_users || 0;
+    document.getElementById('stat-posts').textContent = data.total_posts || 0;
+    document.getElementById('stat-today').textContent = data.posts_today || 0;
+    document.getElementById('stat-active').textContent = data.active_posters_today || 0;
+    renderSuggestedMain(data.suggested_gamers || []);
+
+    // Suggested Gamers
+    const gamerEl = document.getElementById('suggested-gamers');
+    const gamers = data.suggested_gamers && data.suggested_gamers.length > 0
+      ? data.suggested_gamers : data.new_members || [];
+
+    if (gamers.length > 0) {
+      const platformIcons = { PC:'fa-desktop', PS5:'fa-playstation', PS4:'fa-playstation', 'Xbox Series':'fa-xbox', 'Xbox One':'fa-xbox', Switch:'fa-gamepad', Mobile:'fa-mobile-alt', 'Steam Deck':'fa-steam' };
+      gamerEl.innerHTML = gamers.map(u => {
+        const playstyleTags = (Array.isArray(u.playstyle) ? u.playstyle : (u.playstyle ? [u.playstyle] : []))
+          .slice(0,3).map(s => `<span class="px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 text-[10px]">${esc(s)}</span>`).join('');
+        const genreTags = (u.favorite_genres || []).slice(0,3)
+          .map(g => `<span class="px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 text-[10px]">${esc(g)}</span>`).join('');
+        const platformBadges = (u.gaming_platforms || []).slice(0,4)
+          .map(p => `<span class="text-gray-400 text-[11px]" title="${esc(p)}"><i class="fas ${platformIcons[p] || 'fa-gamepad'}"></i> <span class="text-[10px]">${esc(p)}</span></span>`).join('');
+        const socials = [
+          u.twitch_username ? `<a href="https://twitch.tv/${esc(u.twitch_username)}" target="_blank" rel="noopener" class="text-purple-400 hover:text-purple-300 text-xs" title="Twitch"><i class="fab fa-twitch"></i></a>` : '',
+          u.youtube_channel_name ? `<a href="https://youtube.com/@${esc(u.youtube_channel_name)}" target="_blank" rel="noopener" class="text-red-400 hover:text-red-300 text-xs" title="YouTube"><i class="fab fa-youtube"></i></a>` : '',
+          u.twitter_url ? `<a href="${esc(u.twitter_url)}" target="_blank" rel="noopener" class="text-sky-400 hover:text-sky-300 text-xs" title="X / Twitter"><i class="fab fa-x-twitter"></i></a>` : '',
+          u.bluesky_url ? `<a href="${esc(u.bluesky_url)}" target="_blank" rel="noopener" class="text-blue-400 hover:text-blue-300 text-xs" title="Bluesky"><i class="fas fa-cloud"></i></a>` : '',
+          u.tiktok_url ? `<a href="${esc(u.tiktok_url)}" target="_blank" rel="noopener" class="text-pink-400 hover:text-pink-300 text-xs" title="TikTok"><i class="fab fa-tiktok"></i></a>` : '',
+          u.instagram_url ? `<a href="${esc(u.instagram_url)}" target="_blank" rel="noopener" class="text-rose-400 hover:text-rose-300 text-xs" title="Instagram"><i class="fab fa-instagram"></i></a>` : '',
+          u.website_url ? `<a href="${esc(u.website_url)}" target="_blank" rel="noopener" class="text-green-400 hover:text-green-300 text-xs" title="Website"><i class="fas fa-globe"></i></a>` : '',
+        ].filter(Boolean).join('');
+        return `
+        <div class="rounded-lg border border-neutral-800 hover:border-neutral-700 bg-neutral-800/30 hover:bg-neutral-800/60 transition p-3">
+          <div class="flex items-start gap-2.5 mb-2">
+            <a href="/ql/u/${esc(u.username)}/" class="flex-shrink-0">
+              ${avatarHtml(u.username, u.avatar_url, 'w-10 h-10')}
+            </a>
+            <div class="flex-1 min-w-0">
+              <a href="/ql/u/${esc(u.username)}/" class="block">
+                <p class="text-white text-xs font-semibold truncate leading-tight">${esc(u.display_name || u.username)}</p>
+                <p class="text-gray-500 text-[11px] truncate">@${esc(u.username)}</p>
+              </a>
+            </div>
+            ${CURRENT_USER_ID ? `<button onclick="sidebarFollow(${u.id}, this)" class="flex-shrink-0 text-[11px] px-2 py-1 rounded-full bg-indigo-600 hover:bg-indigo-500 text-white transition font-medium"><i class="fas fa-plus mr-1"></i>Follow</button>` : ''}
+          </div>
+          ${u.bio ? `<p class="text-gray-400 text-[11px] leading-relaxed line-clamp-2 mb-2">${esc(u.bio)}</p>` : ''}
+          ${(playstyleTags || genreTags) ? `<div class="flex flex-wrap gap-1 mb-1.5">${playstyleTags}${genreTags}</div>` : ''}
+          ${(platformBadges || socials) ? `<div class="flex items-center justify-between gap-2 mt-1.5">
+            <div class="flex flex-wrap gap-2">${platformBadges}</div>
+            <div class="flex items-center gap-2 flex-shrink-0">${socials}</div>
+          </div>` : ''}
+        </div>`;
+      }).join('');
+    } else {
+      gamerEl.innerHTML = '<p class="text-gray-600 text-xs text-center py-4">No suggestions yet</p>';
+    }
+
+    // Trending Games
+    if (data.trending_games && data.trending_games.length > 0) {
+      document.getElementById('trending-games-card').classList.remove('hidden');
+      document.getElementById('trending-games').innerHTML = data.trending_games.map(g => `
+        <div class="flex items-center gap-2 p-1.5 rounded-lg hover:bg-neutral-800 transition">
+          ${g.cover_url
+            ? `<img src="${esc(g.cover_url)}" alt="" class="w-8 h-8 rounded-lg object-cover">`
+            : `<div class="w-8 h-8 bg-neutral-700 rounded-lg flex items-center justify-center"><i class="fas fa-gamepad text-gray-600 text-xs"></i></div>`}
+          <div class="flex-1 min-w-0">
+            <p class="text-white text-xs font-medium truncate">${esc(g.name)}</p>
+            <p class="text-gray-500 text-xs">${g.post_count} post${g.post_count !== 1 ? 's' : ''} this week</p>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    // Activity Ticker
+    if (data.ticker && data.ticker.length > 0) {
+      const tickerBar = document.getElementById('ticker-bar');
+      const tickerContent = document.getElementById('ticker-content');
+      const icons = { post: 'fa-pen', follow: 'fa-heart', join: 'fa-door-open' };
+      const colors = { post: 'text-indigo-400', follow: 'text-pink-400', join: 'text-green-400' };
+
+      const items = data.ticker.map(t => `
+        <span class="inline-flex items-center gap-1.5 text-xs">
+          ${avatarHtml(t.username, t.avatar_url, 'w-4 h-4')}
+          <a href="/ql/u/${esc(t.username)}/" class="text-white font-medium hover:underline">${esc(t.display_name)}</a>
+          <span class="${colors[t.type] || 'text-gray-400'}"><i class="fas ${icons[t.type] || 'fa-circle'} text-xs"></i></span>
+          <span class="text-gray-400">${esc(t.message)}</span>
+          <span class="text-gray-600">${tickerTimeAgo(t.timestamp)}</span>
+        </span>
+      `).join('<span class="text-neutral-700 mx-3">|</span>');
+
+      tickerContent.innerHTML = items + '<span class="text-neutral-700 mx-3">|</span>' + items;
+      tickerBar.classList.remove('hidden');
+    }
+  } catch(e) {
+    console.error('Activity error:', e);
+  }
+}
+
+async function sidebarFollow(userId, btn) {
+  try {
+    const res = await csrfFetch(`/ql/api/follow/${userId}/`, { method: 'POST' });
+    const data = await res.json();
+    if (data.success) {
+      const card = btn.closest('.sidebar-gamer-card');
+      if (card) {
+        card.style.transition = 'opacity 0.2s';
+        card.style.opacity = '0';
+        setTimeout(() => {
+          card.remove();
+          const container = document.getElementById('suggested-gamers');
+          if (container && container.querySelectorAll('.sidebar-gamer-card').length === 0) {
+            container.innerHTML = '<p class="text-gray-600 text-xs text-center py-2">You are all caught up!</p>';
+          }
+        }, 200);
+      }
+    }
+  } catch(e) { console.error('Follow error:', e); }
+}
+
+async function loadSidebarContent() {
+  // LFG
+  try {
+    const res = await fetch('{% url "questlog_web_api_lfg" %}');
+    const data = await res.json();
+    const el = document.getElementById('sidebar-lfg');
+    const groups = (data.groups || []).slice(0, 4);
+    if (groups.length > 0) {
+      el.innerHTML = groups.map(g => `
+        <a href="/ql/lfg/${g.id}/" class="block p-2 rounded-lg hover:bg-neutral-800 transition">
+          <div class="flex items-center justify-between">
+            <span class="text-white text-xs font-medium truncate">${esc(g.title)}</span>
+            <span class="text-xs px-1.5 py-0.5 rounded ${g.status === 'open' ? 'bg-green-600/20 text-green-400' : 'bg-yellow-600/20 text-yellow-400'}">${g.current_size}/${g.group_size}</span>
+          </div>
+          <p class="text-gray-500 text-xs mt-0.5">${esc(g.game_name)}</p>
+        </a>
+      `).join('');
+    } else { el.innerHTML = '<p class="text-gray-600 text-xs text-center py-2">No active groups</p>'; }
+  } catch(e) { document.getElementById('sidebar-lfg').innerHTML = '<p class="text-gray-600 text-xs">-</p>'; }
+
+  // Communities
+  try {
+    const res = await fetch('{% url "questlog_web_api_communities" %}');
+    const data = await res.json();
+    const el = document.getElementById('sidebar-communities');
+    const comms = (data.communities || []).slice(0, 4);
+    if (comms.length > 0) {
+      el.innerHTML = comms.map(c => `
+        <a href="/ql/communities/${c.id}/" class="flex items-center gap-2 p-2 rounded-lg hover:bg-neutral-800 transition">
+          ${c.icon_url ? `<img src="${esc(c.icon_url)}" class="w-7 h-7 rounded-lg">` : `<div class="w-7 h-7 bg-neutral-700 rounded-lg flex items-center justify-center"><i class="fas fa-server text-gray-600 text-xs"></i></div>`}
+          <div class="flex-1 min-w-0">
+            <p class="text-white text-xs font-medium truncate">${esc(c.name)}</p>
+            <p class="text-gray-500 text-xs">${c.member_count || 0} members</p>
+          </div>
+        </a>
+      `).join('');
+    } else { el.innerHTML = '<p class="text-gray-600 text-xs text-center py-2">No communities yet</p>'; }
+  } catch(e) { document.getElementById('sidebar-communities').innerHTML = '<p class="text-gray-600 text-xs">-</p>'; }
+
+  // News
+  try {
+    const res = await fetch('{% url "questlog_web_api_articles" %}');
+    const data = await res.json();
+    const el = document.getElementById('sidebar-news');
+    const articles = (data.articles || []).slice(0, 4);
+    if (articles.length > 0) {
+      el.innerHTML = articles.map(a => `
+        <a href="${esc(a.url)}" target="_blank" rel="noopener" class="block p-2 rounded-lg hover:bg-neutral-800 transition">
+          <p class="text-white text-xs font-medium line-clamp-2">${esc(a.title)}</p>
+          <p class="text-gray-500 text-xs mt-0.5">${a.source_name || 'News'}</p>
+        </a>
+      `).join('');
+    } else { el.innerHTML = '<p class="text-gray-600 text-xs text-center py-2">No articles</p>'; }
+  } catch(e) { document.getElementById('sidebar-news').innerHTML = '<p class="text-gray-600 text-xs">-</p>'; }
+}
+
+// ========== POST COMPOSER ==========
+
+function updateCharCount() {
+  const textarea = document.getElementById('post-content');
+  const count = document.getElementById('char-count');
+  const btn = document.getElementById('post-btn');
+  const len = textarea.value.length;
+  count.textContent = `${len}/2000`;
+  count.className = len > 1800 ? 'text-red-400 text-xs ml-2' : 'text-gray-600 text-xs ml-2';
+  btn.disabled = (len === 0 && uploadedImages.length === 0 && !selectedGif);
+}
+
+// --- Emoji Picker ---
+function toggleEmojiPicker() {
+  const picker = document.getElementById('emoji-picker');
+  document.getElementById('gif-picker').classList.add('hidden');
+  document.getElementById('game-search-row').classList.add('hidden');
+  picker.classList.toggle('hidden');
+  if (!picker.classList.contains('hidden')) showEmojiCategory('gaming');
+}
+
+function showEmojiCategory(cat) {
+  document.querySelectorAll('.emoji-cat-btn').forEach(b => {
+    b.className = 'emoji-cat-btn text-xs px-2 py-1 rounded text-gray-400 hover:bg-neutral-700';
+  });
+  event.target.closest('.emoji-cat-btn').className = 'emoji-cat-btn text-xs px-2 py-1 rounded bg-neutral-700 text-white';
+
+  const grid = document.getElementById('emoji-grid');
+  grid.innerHTML = EMOJIS[cat].map(e =>
+    `<button onclick="insertEmoji('${e}')" class="text-xl hover:bg-neutral-700 rounded p-1 transition cursor-pointer">${e}</button>`
+  ).join('');
+}
+
+function insertEmoji(emoji) {
+  const ta = document.getElementById('post-content');
+  const start = ta.selectionStart;
+  const end = ta.selectionEnd;
+  ta.value = ta.value.substring(0, start) + emoji + ta.value.substring(end);
+  ta.selectionStart = ta.selectionEnd = start + emoji.length;
+  ta.focus();
+  updateCharCount();
+}
+
+// --- GIF Picker (GIPHY) ---
+function toggleGifPicker() {
+  const picker = document.getElementById('gif-picker');
+  document.getElementById('emoji-picker').classList.add('hidden');
+  document.getElementById('game-search-row').classList.add('hidden');
+  picker.classList.toggle('hidden');
+  if (!picker.classList.contains('hidden')) {
+    document.getElementById('gif-search-input').focus();
+    loadTrendingGifs();
+  }
+}
+
+async function loadTrendingGifs() {
+  const container = document.getElementById('gif-results');
+  container.innerHTML = '<p class="col-span-3 text-gray-500 text-xs text-center py-4">Loading trending...</p>';
+  try {
+    const res = await fetch('/ql/api/gifs/trending/');
+    const data = await res.json();
+    renderGifResults(data.results || []);
+  } catch(e) {
+    container.innerHTML = '<p class="col-span-3 text-gray-500 text-xs text-center py-4">GIFs unavailable</p>';
+  }
+}
+
+function searchGifs(query) {
+  clearTimeout(gifSearchTimeout);
+  if (!query || query.length < 2) {
+    loadTrendingGifs();
+    return;
+  }
+  gifSearchTimeout = setTimeout(async () => {
+    const container = document.getElementById('gif-results');
+    container.innerHTML = '<p class="col-span-3 text-gray-500 text-xs text-center py-4">Searching...</p>';
+    try {
+      const res = await fetch(`/ql/api/gifs/search/?q=${encodeURIComponent(query)}`);
+      const data = await res.json();
+      renderGifResults(data.results || []);
+    } catch(e) {
+      container.innerHTML = '<p class="col-span-3 text-gray-500 text-xs text-center py-4">Search failed</p>';
+    }
+  }, 400);
+}
+
+function renderGifResults(gifs) {
+  const container = document.getElementById('gif-results');
+  if (gifs.length === 0) {
+    container.innerHTML = '<p class="col-span-3 text-gray-500 text-xs text-center py-4">No GIFs found</p>';
+    return;
+  }
+  container.innerHTML = gifs.map(g => `
+    <button onclick="selectGif('${esc(g.url)}', '${esc(g.preview)}')" class="overflow-hidden rounded hover:ring-2 hover:ring-purple-500 transition cursor-pointer">
+      <img src="${esc(g.preview)}" alt="GIF" class="w-full h-24 object-cover" loading="lazy">
+    </button>
+  `).join('');
+}
+
+function selectGif(url, preview) {
+  selectedGif = { url, preview };
+  uploadedImages = []; // Clear images if selecting GIF
+
+  const mediaPreview = document.getElementById('media-preview');
+  mediaPreview.classList.remove('hidden');
+  mediaPreview.innerHTML = `
+    <div class="relative inline-block">
+      <img src="${esc(preview)}" class="max-h-32 rounded-lg">
+      <button onclick="clearGif()" class="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white rounded-full text-xs flex items-center justify-center hover:bg-red-600">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>`;
+
+  document.getElementById('gif-picker').classList.add('hidden');
+  updateCharCount();
+}
+
+function clearGif() {
+  selectedGif = null;
+  const mediaPreview = document.getElementById('media-preview');
+  mediaPreview.classList.add('hidden');
+  mediaPreview.innerHTML = '';
+  updateCharCount();
+}
+
+// --- Game Tag Search ---
+function toggleGameSearch() {
+  const row = document.getElementById('game-search-row');
+  document.getElementById('emoji-picker').classList.add('hidden');
+  document.getElementById('gif-picker').classList.add('hidden');
+  row.classList.toggle('hidden');
+  if (!row.classList.contains('hidden')) document.getElementById('game-search-input').focus();
+}
+
+function searchGames(query) {
+  clearTimeout(gameSearchTimeout);
+  const results = document.getElementById('game-search-results');
+  if (!query || query.length < 2) { results.classList.add('hidden'); return; }
+  gameSearchTimeout = setTimeout(async () => {
+    try {
+      const res = await fetch(`/ql/api/igdb/search/?q=${encodeURIComponent(query)}`);
+      const data = await res.json();
+      if (data.games && data.games.length > 0) {
+        results.classList.remove('hidden');
+        results.innerHTML = data.games.map(g => {
+          const platforms = g.platforms || '';
+          return `
+          <button onclick="selectGameTag(${g.id}, '${esc(g.name).replace(/'/g, "\\'")}', ${g.steam_id || 'null'})" class="w-full flex items-center gap-2 px-3 py-2 hover:bg-neutral-800 transition text-left">
+            ${g.cover_url ? `<img src="${esc(g.cover_url)}" class="w-8 h-8 rounded object-cover">` : `<div class="w-8 h-8 bg-neutral-800 rounded flex items-center justify-center"><i class="fas fa-gamepad text-gray-600 text-xs"></i></div>`}
+            <div class="flex-1 min-w-0">
+              <p class="text-white text-sm truncate">${esc(g.name)}</p>
+              ${platforms ? `<p class="text-gray-500 text-xs truncate">${esc(platforms)}</p>` : ''}
+            </div>
+            ${g.release_year ? `<span class="text-gray-600 text-xs flex-shrink-0">${g.release_year}</span>` : ''}
+          </button>`;
+        }).join('');
+      } else {
+        results.classList.remove('hidden');
+        results.innerHTML = '<p class="text-gray-500 text-xs p-3">No games found</p>';
+      }
+    } catch(e) { results.classList.add('hidden'); }
+  }, 400);
+}
+
+function selectGameTag(id, name, steamId) {
+  selectedGameTag = { id, name, steam_id: steamId };
+  document.getElementById('game-tag-name').textContent = name;
+  document.getElementById('game-tag-display').classList.remove('hidden');
+  document.getElementById('game-search-row').classList.add('hidden');
+  document.getElementById('game-search-results').classList.add('hidden');
+  document.getElementById('game-search-input').value = '';
+  updateCharCount();
+}
+
+function clearGameTag() {
+  selectedGameTag = null;
+  document.getElementById('game-tag-display').classList.add('hidden');
+}
+
+// --- Image handling ---
+async function handleImageSelect(input) {
+  if (selectedGif) { clearGif(); }
+  const files = Array.from(input.files).slice(0, 4 - uploadedImages.length);
+  if (files.length === 0) return;
+  for (const file of files) {
+    if (uploadedImages.length >= 4) break;
+    const formData = new FormData();
+    formData.append('image', file);
+    try {
+      const res = await csrfFetch('/ql/api/upload/image/', { method: 'POST', body: formData });
+      const data = await res.json();
+      if (data.success) { uploadedImages.push(data); renderImagePreviews(); updateCharCount(); }
+      else { alert(data.error || 'Upload failed'); }
+    } catch(e) { alert('Upload failed'); }
+  }
+  input.value = '';
+}
+
+async function handlePasteImage(event) {
+  const items = Array.from(event.clipboardData?.items || []);
+  const imageItems = items.filter(item => item.kind === 'file' && item.type.startsWith('image/'));
+  if (!imageItems.length) return; // No image — let normal text paste proceed
+  event.preventDefault();
+  if (uploadedImages.length >= 4) return;
+  if (selectedGif) clearGif();
+  const preview = document.getElementById('media-preview');
+  preview.classList.remove('hidden');
+  preview.innerHTML = `<div class="text-xs text-gray-400 py-2"><i class="fas fa-spinner fa-spin mr-1"></i>Uploading…</div>`;
+  for (const item of imageItems) {
+    if (uploadedImages.length >= 4) break;
+    const file = item.getAsFile();
+    if (!file) continue;
+    const formData = new FormData();
+    formData.append('image', file);
+    try {
+      const res = await csrfFetch('/ql/api/upload/image/', { method: 'POST', body: formData });
+      const data = await res.json();
+      if (data.success) { uploadedImages.push(data); }
+      else { alert(data.error || 'Upload failed'); }
+    } catch(e) { alert('Upload failed'); }
+  }
+  renderImagePreviews();
+  updateCharCount();
+}
+
+function renderImagePreviews() {
+  const preview = document.getElementById('media-preview');
+  if (uploadedImages.length === 0) { preview.classList.add('hidden'); preview.innerHTML = ''; return; }
+  preview.classList.remove('hidden');
+  preview.innerHTML = `<div class="flex gap-2 flex-wrap">${uploadedImages.map((img, i) => `
+    <div class="relative">
+      <img src="${img.thumbnail_url}" class="w-16 h-16 object-cover rounded-lg">
+      <button onclick="removeImage(${i})" class="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white rounded-full text-xs flex items-center justify-center hover:bg-red-600"><i class="fas fa-times"></i></button>
+    </div>
+  `).join('')}</div>`;
+}
+
+function removeImage(index) {
+  uploadedImages.splice(index, 1);
+  renderImagePreviews();
+  updateCharCount();
+}
+
+// --- Submit post ---
+async function submitPost() {
+  const content = document.getElementById('post-content').value.trim();
+  if (!content && uploadedImages.length === 0 && !selectedGif) return;
+
+  const btn = document.getElementById('post-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>Posting...';
+
+  let postType = 'text';
+  let body = { content };
+
+  if (selectedGif) {
+    postType = 'gif';
+    body.gif_url = selectedGif.url;
+    body.gif_thumbnail = selectedGif.preview;
+  } else if (uploadedImages.length > 0) {
+    postType = 'image';
+    body.media_urls = uploadedImages;
+  }
+  // Video URLs are auto-detected on the backend - just send as text!
+  body.post_type = postType;
+
+  if (selectedGameTag) {
+    body.game_tag_id = selectedGameTag.id;
+    body.game_tag_name = selectedGameTag.name;
+    if (selectedGameTag.steam_id) body.game_tag_steam_id = selectedGameTag.steam_id;
+  }
+
+  try {
+    const res = await csrfFetch('/ql/api/posts/', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (data.success) {
+      document.getElementById('post-content').value = '';
+      uploadedImages = [];
+      selectedGif = null;
+      selectedGameTag = null;
+      renderImagePreviews();
+      clearGameTag();
+      updateCharCount();
+      document.getElementById('media-preview').classList.add('hidden');
+      document.getElementById('media-preview').innerHTML = '';
+
+      const container = document.getElementById('feed-container');
+      container.classList.remove('hidden');
+      document.getElementById('empty-state').classList.add('hidden');
+      container.insertAdjacentHTML('afterbegin', renderPostCard(data.post, {
+        showAuthor: true,
+        currentUserId: CURRENT_USER_ID
+      }));
+    } else { alert(data.error || 'Failed to create post'); }
+  } catch(e) { alert('Failed to create post'); }
+
+  btn.disabled = false;
+  btn.innerHTML = '<i class="fas fa-paper-plane mr-1"></i>Post';
+}
+
+// Close pickers when clicking outside
+document.addEventListener('click', (e) => {
+  const searchRow = document.getElementById('game-search-row');
+  if (searchRow && !searchRow.contains(e.target)) {
+    const btn = e.target.closest('button');
+    if (!btn || !btn.textContent.includes('Game')) {
+      document.getElementById('game-search-results')?.classList.add('hidden');
+    }
+  }
+  // Close emoji picker when clicking outside
+  const emojiPicker = document.getElementById('emoji-picker');
+  if (emojiPicker && !emojiPicker.classList.contains('hidden')) {
+    if (!emojiPicker.contains(e.target) && !e.target.closest('button')?.textContent?.includes('Emoji')) {
+      emojiPicker.classList.add('hidden');
+    }
+  }
+});
+</script>
+{% endblock %}
