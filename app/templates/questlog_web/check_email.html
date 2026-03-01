@@ -1,0 +1,157 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Check Your Email — QuestLog{% endblock %}
+
+{% block extra_css %}
+<style>
+.ql-login-page {
+    min-height: calc(100vh - 200px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 16px;
+}
+
+.ql-login-card {
+    background: #0f0f1a;
+    border: 1px solid #1e1e3a;
+    border-radius: 16px;
+    padding: 48px 40px;
+    width: 100%;
+    max-width: 480px;
+    text-align: center;
+}
+
+.ql-check-icon {
+    font-size: 3.5rem;
+    margin-bottom: 16px;
+}
+
+.ql-login-title {
+    font-size: 1.6rem;
+    font-weight: 800;
+    color: #fff;
+    margin-bottom: 10px;
+}
+
+.ql-check-text {
+    font-size: 0.95rem;
+    color: #9ca3af;
+    line-height: 1.6;
+    margin-bottom: 8px;
+}
+
+.ql-check-email {
+    color: #818cf8;
+    font-weight: 600;
+}
+
+.ql-check-hint {
+    font-size: 0.82rem;
+    color: #4b5563;
+    margin-top: 20px;
+    margin-bottom: 20px;
+    line-height: 1.5;
+}
+
+.ql-btn-primary {
+    display: inline-block;
+    padding: 12px 28px;
+    background: #4f46e5;
+    color: #fff;
+    font-size: 0.95rem;
+    font-weight: 700;
+    border-radius: 10px;
+    border: none;
+    cursor: pointer;
+    transition: background 0.15s ease, transform 0.1s ease;
+    text-align: center;
+}
+
+.ql-btn-primary:hover {
+    background: #4338ca;
+    transform: translateY(-1px);
+}
+
+.ql-btn-secondary {
+    display: inline-block;
+    padding: 10px 24px;
+    background: transparent;
+    color: #6b7280;
+    font-size: 0.85rem;
+    font-weight: 600;
+    border-radius: 8px;
+    border: 1px solid #1f2937;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    text-decoration: none;
+}
+
+.ql-btn-secondary:hover {
+    color: #9ca3af;
+    border-color: #374151;
+}
+
+.ql-messages {
+    margin-bottom: 20px;
+    text-align: left;
+}
+
+.ql-alert {
+    padding: 10px 14px;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    margin-bottom: 8px;
+}
+
+.ql-alert-error   { background: rgba(220, 38, 38, 0.1); border: 1px solid rgba(220, 38, 38, 0.3); color: #fca5a5; }
+.ql-alert-success { background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); color: #6ee7b7; }
+.ql-alert-info    { background: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.3); color: #93c5fd; }
+.ql-alert-warning { background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.3); color: #fcd34d; }
+
+@media (max-width: 480px) {
+    .ql-login-card { padding: 36px 20px; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="ql-login-page">
+  <div class="ql-login-card">
+
+    <div class="ql-check-icon">📬</div>
+    <h1 class="ql-login-title">Check your email</h1>
+
+    {% if messages %}
+    <div class="ql-messages">
+      {% for msg in messages %}
+      <div class="ql-alert ql-alert-{{ msg.tags }}">{{ msg }}</div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    <p class="ql-check-text">
+      We sent a verification link to
+      {% if email %}<span class="ql-check-email">{{ email }}</span>{% else %}your email{% endif %}.
+    </p>
+    <p class="ql-check-text">
+      Click the link in the email to activate your account.
+    </p>
+
+    <p class="ql-check-hint">
+      Didn't get it? Check your spam folder, or click below to resend.
+    </p>
+
+    <div style="display: flex; flex-direction: column; gap: 12px; align-items: center;">
+      <form method="post" action="{% url 'site_check_email' %}">
+        {% csrf_token %}
+        <button type="submit" class="ql-btn-primary">Resend Verification Email</button>
+      </form>
+
+      <a href="/ql/login/" class="ql-btn-secondary">Back to Sign In</a>
+    </div>
+
+  </div>
+</div>
+{% endblock %}

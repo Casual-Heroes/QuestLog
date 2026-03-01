@@ -100,8 +100,6 @@ class IGDBClient:
         try:
             token = await self.get_access_token()
 
-            # IGDB uses Apicalypse query language
-            # Search for games matching the query, including cover art, platform info, and Steam ID
             query_body = f"""
                 search "{query}";
                 fields name, slug, summary, cover.image_id, platforms.name, first_release_date, external_games.category, external_games.uid;

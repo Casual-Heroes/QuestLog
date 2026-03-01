@@ -1,14 +1,101 @@
 """
-Security Middleware - Block suspicious requests and path traversal attacks
+Blocks probe requests for common attack targets before they reach Django.
+Stops path traversal, WordPress scanners, config file snooping, etc.
 """
 from django.http import HttpResponseNotFound
+from django.shortcuts import render
 import logging
+import os
 
 logger = logging.getLogger(__name__)
 
-# List of suspicious file patterns that should never be accessible
+# Maintenance mode flag file — if this file exists, the site is in maintenance mode
+# Override with MAINTENANCE_FLAG env var for custom deployment paths
+import pathlib as _pathlib
+MAINTENANCE_FLAG = os.getenv(
+    'MAINTENANCE_FLAG',
+    str(_pathlib.Path(__file__).resolve().parent.parent / '.maintenance')
+)
+
+# Paths that bypass maintenance mode (admin + auth always accessible)
+MAINTENANCE_EXEMPT_PREFIXES = [
+    '/ql/admin',          # admin panel + admin API
+    '/ql/api/admin',
+    '/ql/admin-login',    # hardened admin-only login (replaces /ql/login)
+    '/ql/auth',           # OAuth callbacks (Steam etc.)
+    '/ql/verify-email',
+    '/ql/api/igdb/',      # public read-only game search — no reason to block
+    # '/ql/login',        # disabled — public login removed in closed-access mode
+    # '/login/',          # disabled — public login removed in closed-access mode
+    '/logout/',
+    '/static/',
+    '/media/',
+    '/questchat/',
+    '/auth/discord/',     # Discord OAuth flow must complete before we can check identity
+    '/questlog/login/',   # Discord OAuth entry point — must be reachable to initiate auth
+]
+
+# Dashboard paths only the bot owner / site admin can access during maintenance
+DASHBOARD_PREFIXES = [
+    '/questlog/',
+    '/dashboard/',
+]
+
+BOT_OWNER_ID = os.getenv('BOT_OWNER_ID', '')
+
+
+class MaintenanceMiddleware:
+    """
+    If .maintenance flag file exists, serve 503 maintenance page for all
+    public paths. Site admins always get full access to review changes.
+    """
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        if os.path.exists(MAINTENANCE_FLAG):
+            # Site admins always get full access during maintenance.
+            # Re-validate against DB on each request - session flag alone is not
+            # sufficient because admin status may have changed since login.
+            if request.session.get('web_user_is_admin') and request.session.get('web_user_id'):
+                user_id = request.session['web_user_id']
+                try:
+                    from app.db import get_db_session
+                    from app.questlog_web.models import WebUser as _WU
+                    with get_db_session() as _db:
+                        _u = _db.query(_WU).filter_by(
+                            id=user_id, is_admin=True, is_banned=False, is_disabled=False
+                        ).first()
+                    if _u:
+                        return self.get_response(request)
+                except Exception:
+                    pass  # on any DB error, fall through to maintenance page
+
+            path = request.path
+
+            # Standard exempt paths (auth callbacks, static, etc.)
+            if any(path.startswith(p) for p in MAINTENANCE_EXEMPT_PREFIXES):
+                return self.get_response(request)
+
+            # Discord bot dashboard — only the bot owner can access during maintenance
+            if any(path.startswith(p) for p in DASHBOARD_PREFIXES):
+                discord_user = request.session.get('discord_user', {})
+                discord_id = str(discord_user.get('id', ''))
+                if BOT_OWNER_ID and discord_id == BOT_OWNER_ID:
+                    return self.get_response(request)
+                # Not the owner — send to maintenance page (not Discord login)
+                response = render(request, 'questlog_web/maintenance.html', status=503)
+                response['Retry-After'] = '3600'
+                return response
+
+            response = render(request, 'questlog_web/maintenance.html', status=503)
+            response['Retry-After'] = '3600'
+            return response
+        return self.get_response(request)
+
+
 BLOCKED_PATTERNS = [
-    # Environment and config files
+    # Config / secrets
     '.env', '.git', '.svn', '.hg', '.DS_Store',
     'web.config', 'htaccess', 'htpasswd',
     '.bak', '.backup', '.old', '.save', '.swp', '.tmp',
@@ -18,82 +105,63 @@ BLOCKED_PATTERNS = [
     'id_rsa', 'id_dsa', 'authorized_keys',
     'database.yml', 'settings.py.bak',
 
-    # WordPress (common attack target)
+    # WordPress
     'wp-login', 'wp-admin', 'wp-content', 'wp-includes',
     'xmlrpc.php', 'wp-cron.php', 'wp-config',
 
-    # PHP files
+    # PHP shells / admin panels
     'phpinfo', 'phpmyadmin', 'pma', 'admin.php',
     'shell.php', 'c99.php', 'r57.php', 'backdoor.php',
 
-    # Common exploits
+    # Java / .NET frameworks
     'solr/admin', 'jenkins', 'struts',
     'console/', 'actuator/', 'jmx-console',
     'manager/html', 'tomcat',
 
-    # ColdFusion (common attack target)
+    # ColdFusion
     'cfide', 'cfide/', 'administrator/login',
     'cfformgateway', 'railo-context',
 
-    # API abuse attempts
+    # API spec probing
     'graphql', 'swagger', 'api-docs',
 
-    # Well-known paths (often probed)
+    # Misc well-known probes
     '.well-known/discord',
 ]
 
-# Blocked directory traversal patterns
 BLOCKED_DIRS = [
     '../', '..\\', '%2e%2e/', '%2e%2e\\',
     '..%2f', '..%5c', '%252e%252e',
 ]
 
-class SecurityMiddleware:
-    """
-    Custom security middleware to block access to sensitive files and
-    detect path traversal attacks.
-    """
 
+class SecurityMiddleware:
     def __init__(self, get_response):
         self.get_response = get_response
 
     def __call__(self, request):
-        # Get the request path
         path = request.path.lower()
 
-        # Block Django admin access (but allow /admin/analytics and /admin_tools/)
+        # Block the Django admin entirely (except admin_tools assets)
         if path.startswith('/admin/') and not path.startswith('/admin/analytics') and not path.startswith('/admin_tools/'):
-            logger.warning(
-                f"Blocked Django admin access from {self.get_client_ip(request)}: {request.path}"
-            )
+            logger.warning(f"Blocked Django admin access from {self._client_ip(request)}: {request.path}")
             return HttpResponseNotFound()
 
-        # Check for blocked file patterns
         for pattern in BLOCKED_PATTERNS:
             if pattern in path:
-                logger.warning(
-                    f"Blocked suspicious request from {self.get_client_ip(request)}: {request.path}"
-                )
+                logger.warning(f"Blocked probe from {self._client_ip(request)}: {request.path}")
                 return HttpResponseNotFound()
 
-        # Check for path traversal attempts
         for pattern in BLOCKED_DIRS:
-            if pattern in request.path or pattern in request.path.lower():
-                logger.warning(
-                    f"Blocked path traversal attempt from {self.get_client_ip(request)}: {request.path}"
-                )
+            if pattern in request.path or pattern in path:
+                logger.warning(f"Blocked traversal from {self._client_ip(request)}: {request.path}")
                 return HttpResponseNotFound()
 
-        # Continue processing request
-        response = self.get_response(request)
-        return response
+        return self.get_response(request)
 
     @staticmethod
-    def get_client_ip(request):
-        """Get the client's real IP address."""
-        x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
-        if x_forwarded_for:
-            ip = x_forwarded_for.split(',')[0]
-        else:
-            ip = request.META.get('REMOTE_ADDR')
-        return ip
+    def _client_ip(request):
+        xff = request.META.get('HTTP_X_FORWARDED_FOR')
+        if xff:
+            return xff.split(',')[0].strip()
+        return request.META.get('REMOTE_ADDR', '?')

@@ -1,0 +1,1 @@
+/srv/ch-webserver/app/questlog_web/management/commands/run_steam_searches.py

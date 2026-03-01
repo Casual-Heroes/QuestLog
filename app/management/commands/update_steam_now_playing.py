@@ -1,0 +1,1 @@
+/srv/ch-webserver/app/questlog_web/management/commands/update_steam_now_playing.py

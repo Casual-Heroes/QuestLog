@@ -1,0 +1,223 @@
+{% extends "questlog_web/base_web.html" %}
+{% load static %}
+
+{% block title %}Giveaways - QuestLog{% endblock %}
+
+{% block web_content %}
+<div class="max-w-3xl mx-auto px-4 py-6">
+
+  <!-- Header -->
+  <div class="mb-6">
+    <h1 class="text-2xl font-bold text-white flex items-center gap-2">
+      <i class="fas fa-gift text-indigo-400"></i> Giveaways
+    </h1>
+    <p class="text-gray-400 text-sm mt-1">Enter active giveaways for a chance to win prizes from Casual Heroes.</p>
+  </div>
+
+  <!-- Giveaway list -->
+  <div id="giveaway-list" class="space-y-4">
+    <div class="text-center text-gray-500 py-12">
+      <i class="fas fa-spinner fa-spin text-3xl mb-3"></i>
+      <p>Loading giveaways...</p>
+    </div>
+  </div>
+
+</div>
+
+<script>
+(function () {
+  const isLoggedIn = {% if web_user %}true{% else %}false{% endif %};
+
+  function esc(s) {
+    if (!s) return '';
+    const d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
+  }
+
+  function timeLeft(endsAt) {
+    if (!endsAt) return '';
+    const diff = endsAt - Math.floor(Date.now() / 1000);
+    if (diff <= 0) return 'Ended';
+    if (diff < 3600) return Math.floor(diff / 60) + 'm left';
+    if (diff < 86400) return Math.floor(diff / 3600) + 'h left';
+    return Math.floor(diff / 86400) + 'd left';
+  }
+
+  function statusLabel(g) {
+    if (g.status === 'active') return '<span class="text-xs bg-green-500/20 text-green-400 px-2 py-0.5 rounded-full font-semibold">Active</span>';
+    if (g.status === 'closed') return '<span class="text-xs bg-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-full font-semibold">Closed</span>';
+    if (g.status === 'winner_selected') return '<span class="text-xs bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded-full font-semibold">Winner Selected</span>';
+    return '';
+  }
+
+  function renderCard(g) {
+    const isActive = g.status === 'active';
+    const tl = g.ends_at ? timeLeft(g.ends_at) : '';
+    const ticketCount = g.ticket_count || 0;
+    const entered = ticketCount > 0;
+    const maxEntries = g.max_entries_per_user || 1;
+    const hpRate = g.hp_per_extra_ticket || 0;
+    const maxWinners = g.max_winners || 1;
+    const multiEntryEnabled = hpRate > 0 && maxEntries > 1;
+
+    // Winners section
+    const winners = g.winners && g.winners.length ? g.winners : (g.winner ? [g.winner] : []);
+    const winnersHtml = winners.length
+      ? `<div class="mt-3 flex flex-wrap gap-2">
+          ${winners.map(w => `
+            <div class="flex items-center gap-2 text-sm text-indigo-300 font-medium">
+              <i class="fas fa-trophy text-yellow-400"></i>
+              <a href="/ql/u/${esc(w.username)}/" class="hover:underline">${esc(w.display_name || w.username)}</a>
+            </div>`).join('')}
+         </div>` : '';
+
+    // Entry controls
+    let entryHtml = '';
+    if (isActive && isLoggedIn) {
+      const enterBtn = `
+        <button id="enter-btn-${g.id}" onclick="enterGiveaway(${g.id}, this)"
+          class="text-sm px-4 py-2 rounded-lg font-semibold transition ${entered
+            ? 'bg-neutral-700 text-gray-300 hover:bg-red-900/40 hover:text-red-300'
+            : 'bg-indigo-600 hover:bg-indigo-700 text-white'}">
+          ${entered ? '<i class="fas fa-check mr-1"></i>Entered' : '<i class="fas fa-plus mr-1"></i>Enter Free'}
+        </button>`;
+
+      // Extra ticket button shown when: multi-entry is on, user is entered, has room for more
+      const canBuyMore = multiEntryEnabled && entered && ticketCount < maxEntries;
+      const extraBtn = canBuyMore
+        ? `<button onclick="buyExtraTicket(${g.id}, ${hpRate}, ${maxEntries})"
+            class="text-sm px-3 py-2 rounded-lg font-semibold transition bg-amber-600/20 hover:bg-amber-600/30 text-amber-400 border border-amber-600/30">
+            <i class="fas fa-ticket-alt mr-1"></i>+1 Ticket (-${hpRate} HP)
+           </button>` : '';
+
+      entryHtml = `<div class="flex gap-2 items-center flex-wrap">${enterBtn}${extraBtn}</div>`;
+    } else if (isActive && !isLoggedIn) {
+      entryHtml = `<a href="/ql/login/" class="text-sm px-4 py-2 rounded-lg font-semibold bg-indigo-600 hover:bg-indigo-700 text-white transition">Sign in to Enter</a>`;
+    }
+
+    // Ticket / HP info row
+    const infoItems = [];
+    if (maxWinners > 1) infoItems.push(`<i class="fas fa-trophy text-yellow-400"></i> ${maxWinners} winners`);
+    if (multiEntryEnabled) infoItems.push(`<i class="fas fa-ticket-alt text-amber-400"></i> Extra tickets: ${hpRate} HP each`);
+    if (entered && multiEntryEnabled) infoItems.push(`<span class="text-amber-300">Your tickets: ${ticketCount}/${maxEntries}</span>`);
+    const infoHtml = infoItems.length
+      ? `<div class="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500 mt-2">${infoItems.join('')}</div>` : '';
+
+    return `
+    <div class="bg-neutral-900 rounded-xl border border-neutral-800 overflow-hidden" id="giveaway-card-${g.id}" data-ticket-count="${ticketCount}" data-max-entries="${maxEntries}" data-hp-rate="${hpRate}">
+      ${g.image_url ? `<img src="${esc(g.image_url)}" alt="" class="w-full h-40 object-cover">` : ''}
+      <div class="p-5">
+        <div class="flex items-start justify-between gap-3 mb-2">
+          <div class="min-w-0">
+            <h2 class="text-white font-bold text-lg leading-tight">${esc(g.title)}</h2>
+            <div class="flex items-center gap-2 mt-1 flex-wrap">
+              ${statusLabel(g)}
+              ${tl ? `<span class="text-xs text-gray-500">${esc(tl)}</span>` : ''}
+              <span class="text-xs text-gray-500 entry-count-label">${g.entry_count} ${g.entry_count === 1 ? 'entrant' : 'entrants'}</span>
+            </div>
+            ${infoHtml}
+          </div>
+          <div class="flex-shrink-0">
+            ${entryHtml}
+          </div>
+        </div>
+        ${g.description ? `<p class="text-gray-400 text-sm mt-2 whitespace-pre-wrap">${esc(g.description)}</p>` : ''}
+        <div class="mt-3 flex items-center gap-2 text-sm">
+          <i class="fas fa-gift text-indigo-400"></i>
+          <span class="text-indigo-300 font-medium">${esc(g.prize)}</span>
+        </div>
+        ${winnersHtml}
+      </div>
+    </div>`;
+  }
+
+  async function loadGiveaways() {
+    const list = document.getElementById('giveaway-list');
+    try {
+      const res = await fetch('/ql/api/giveaways/');
+      const data = await res.json();
+      if (!data.giveaways || data.giveaways.length === 0) {
+        list.innerHTML = `
+          <div class="text-center text-gray-500 py-16">
+            <i class="fas fa-gift text-4xl mb-4 text-gray-700"></i>
+            <p class="text-lg font-medium">No active giveaways right now</p>
+            <p class="text-sm mt-1">Check back soon!</p>
+          </div>`;
+        return;
+      }
+      list.innerHTML = data.giveaways.map(renderCard).join('');
+    } catch (e) {
+      list.innerHTML = '<p class="text-red-400 text-center py-8">Failed to load giveaways.</p>';
+    }
+  }
+
+  async function enterGiveaway(giveawayId, btn) {
+    const card = document.getElementById(`giveaway-card-${giveawayId}`);
+    const currentTickets = parseInt(card.dataset.ticketCount) || 0;
+    const entered = currentTickets > 0;
+    const method = entered ? 'DELETE' : 'POST';
+    btn.disabled = true;
+    try {
+      const res = await csrfFetch(`/ql/api/giveaways/${giveawayId}/enter/`, { method });
+      const data = await res.json();
+      if (data.success) {
+        const newTickets = data.ticket_count || 0;
+        card.dataset.ticketCount = newTickets;
+        if (newTickets > 0) {
+          btn.className = 'text-sm px-4 py-2 rounded-lg font-semibold transition bg-neutral-700 text-gray-300 hover:bg-red-900/40 hover:text-red-300';
+          btn.innerHTML = '<i class="fas fa-check mr-1"></i>Entered';
+        } else {
+          btn.className = 'text-sm px-4 py-2 rounded-lg font-semibold transition bg-indigo-600 hover:bg-indigo-700 text-white';
+          btn.innerHTML = '<i class="fas fa-plus mr-1"></i>Enter Free';
+        }
+        updateCardMeta(card, data.entry_count, newTickets);
+      } else {
+        alert(data.error || 'Could not update entry');
+      }
+    } catch (e) {
+      alert('Request failed. Please try again.');
+    }
+    btn.disabled = false;
+  }
+
+  async function buyExtraTicket(giveawayId, hpCost, maxEntries) {
+    const card = document.getElementById(`giveaway-card-${giveawayId}`);
+    const currentTickets = parseInt(card.dataset.ticketCount) || 0;
+    if (currentTickets >= maxEntries) { alert('You have the maximum number of tickets.'); return; }
+    if (!confirm(`Buy 1 extra ticket for ${hpCost} HP? No refunds.`)) return;
+    const desired = currentTickets + 1;
+    try {
+      const res = await csrfFetch(`/ql/api/giveaways/${giveawayId}/enter/`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({tickets: desired}),
+      });
+      const data = await res.json();
+      if (data.success) {
+        const newTickets = data.ticket_count || desired;
+        card.dataset.ticketCount = newTickets;
+        updateCardMeta(card, data.entry_count, newTickets);
+        // Reload to refresh ticket buttons accurately
+        loadGiveaways();
+      } else {
+        alert(data.error || 'Could not buy ticket');
+      }
+    } catch (e) {
+      alert('Request failed. Please try again.');
+    }
+  }
+
+  function updateCardMeta(card, entryCount, ticketCount) {
+    const countEl = card.querySelector('.entry-count-label');
+    if (countEl && entryCount != null) {
+      countEl.textContent = entryCount + (entryCount === 1 ? ' entrant' : ' entrants');
+    }
+  }
+
+  window.enterGiveaway = enterGiveaway;
+  window.buyExtraTicket = buyExtraTicket;
+  loadGiveaways();
+})();
+</script>
+{% endblock %}

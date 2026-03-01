@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Game Servers | Casual Heroes{% endblock %}
+{% block og_title %}Casual Heroes Game Servers{% endblock %}
+{% block og_description %}Public game servers hosted by Casual Heroes. Join our 7 Days to Die, V Rising, and more — open to everyone, no sign-up required.{% endblock %}
+{% block og_image %}https://casual-heroes.com/static/img/siteassets/homepage/CHLogoFinal.png{% endblock %}
+{% block og_url %}https://casual-heroes.com/gameservers{% endblock %}
+{% block content %}
+<section class="mt-16">
+
+  <div class="text-center mb-10">
+    <h1 class="text-4xl font-extrabold mb-3">Games We Host</h1>
+    <p class="text-gray-400 text-sm max-w-xl mx-auto">
+      These are public game servers we run for the community. Open to everyone — no membership required.
+      Jump in, have fun, and say hi in Discord if you run into any of us.
+    </p>
+  </div>
+
+  {% if games %}
+  <div class="max-w-screen-xl mx-auto px-4">
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+      {% for game in games %}
+        <div class="relative rounded-2xl overflow-hidden border border-neutral-800 bg-neutral-900 group hover:shadow-[0_0_20px_#6366f1] transition-shadow duration-300 min-h-[210px]">
+
+          <!-- Banner image -->
+          {% if game.custom_img %}
+          <img src="{{ game.custom_img }}" alt="{{ game.name }}"
+               class="w-full object-cover object-[20%] group-hover:scale-105 transition duration-500 z-10 h-[215px]" />
+          {% elif game.steam_header_url %}
+          <img src="{{ game.steam_header_url }}" alt="{{ game.name }}"
+               class="w-full object-cover object-[20%] group-hover:scale-105 transition duration-500 z-10 h-[215px]" />
+          {% elif game.steam_appid %}
+          <img src="https://cdn.cloudflare.steamstatic.com/steam/apps/{{ game.steam_appid }}/header.jpg"
+               alt="{{ game.name }}"
+               class="w-full object-cover object-[20%] group-hover:scale-105 transition duration-500 z-10 h-[215px]" />
+          {% else %}
+          <img src="{% static 'img/games/wow/dwarf.webp' %}" alt="{{ game.name }}"
+               class="w-full object-cover object-[20%] group-hover:scale-105 transition duration-500 z-10 h-[215px]" />
+          {% endif %}
+
+          <!-- Gradient overlay -->
+          <div class="absolute inset-0 bg-gradient-to-t from-black/40 via-black/20 to-transparent z-10 rounded-2xl"></div>
+
+          <!-- Content -->
+          <div class="absolute inset-0 bg-black/60 backdrop-blur-[1px] text-white px-4 pt-3 pb-2 flex flex-col justify-start z-20 space-y-[0.35rem] text-[13px] leading-[1.35rem]">
+
+            <!-- Title + status -->
+            <div class="flex items-center justify-between">
+              <h3 class="font-extrabold text-indigo-300 uppercase tracking-wide text-[16px]">{{ game.name }}</h3>
+              {% if game.status_label %}
+              <span class="text-xs font-bold {% if 'Online' in game.status_label %}text-green-400{% else %}text-red-500{% endif %}">
+                {{ game.status_label }}
+              </span>
+              {% endif %}
+            </div>
+
+            <!-- Description -->
+            <p>
+              <span class="text-indigo-300 font-semibold">Description:</span>
+              <span class="text-white font-medium">{{ game.description }}</span>
+            </p>
+
+            <!-- Player count -->
+            <p>
+              <span class="text-indigo-300 font-semibold">Players:</span>
+              <span class="text-white font-bold">{{ game.online }}/{{ game.max }}</span>
+            </p>
+
+            <!-- Connect info -->
+            {% if game.ip %}
+            <div class="space-y-1">
+              <p class="text-indigo-300 font-semibold">Connect:</p>
+              <div class="flex items-center gap-1">
+                <span class="text-indigo-400 font-bold">IP:</span>
+                <span class="text-white text-xs">{{ game.ip }}</span>
+                <button onclick="copyText('{{ game.ip }}')" class="hover:text-indigo-400" title="Copy IP">
+                  <i class="fas fa-copy text-xs"></i>
+                </button>
+              </div>
+              {% if game.connect_pw %}
+              <div class="flex items-center gap-1">
+                <span class="text-indigo-400 font-bold">PW:</span>
+                <span class="text-white text-xs">{{ game.connect_pw }}</span>
+                <button onclick="copyText('{{ game.connect_pw }}')" class="hover:text-indigo-400" title="Copy password">
+                  <i class="fas fa-copy text-xs"></i>
+                </button>
+              </div>
+              {% endif %}
+            </div>
+            {% endif %}
+
+            <!-- Discord -->
+            {% if game.discord_invite %}
+            <a href="{{ game.discord_invite }}" target="_blank" class="text-indigo-400 font-semibold hover:underline text-xs">
+              Join Discord ↗
+            </a>
+            {% endif %}
+
+            <!-- Steam / view link -->
+            {% if game.steam_link %}
+            <a href="{{ game.steam_link }}" target="_blank" class="text-indigo-400 font-semibold hover:underline text-xs pt-1">
+              {{ game.link_label }} ↗
+            </a>
+            {% endif %}
+
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  {% else %}
+  <div class="text-center py-20 text-gray-500">
+    <i class="fas fa-server text-4xl mb-4 block"></i>
+    <p class="text-lg font-semibold">No servers online right now.</p>
+    <p class="text-sm mt-1">Check back soon or hop in Discord to see what's up.</p>
+  </div>
+  {% endif %}
+
+</section>
+
+<!-- Copy toast -->
+<div id="copy-toast" class="hidden fixed bottom-5 right-5 bg-indigo-600 text-white px-4 py-2 rounded-xl shadow-xl z-50">
+  Copied!
+</div>
+
+<script>
+  function copyText(text) {
+    navigator.clipboard.writeText(text).then(() => {
+      const toast = document.getElementById('copy-toast');
+      toast.classList.remove('hidden');
+      setTimeout(() => toast.classList.add('hidden'), 2000);
+    });
+  }
+
+  setInterval(() => { location.reload(); }, 30000);
+</script>
+{% endblock %}

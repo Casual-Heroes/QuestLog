@@ -1,0 +1,1336 @@
+{% extends "questlog_web/base_web.html" %}
+{% load static %}
+
+{% block title %}Find Groups - QuestLog{% endblock %}
+
+{% block web_content %}
+{% include 'questlog/partials/custom_select.html' %}
+
+<script>
+  // CSRF setup
+  const CSRF_TOKEN = '{{ csrf_token }}';
+  function csrfFetch(url, options = {}) {
+    if (!options.headers) options.headers = {};
+    if (CSRF_TOKEN && CSRF_TOKEN !== 'None') {
+      options.headers['X-CSRFToken'] = CSRF_TOKEN;
+    }
+    return fetch(url, options);
+  }
+
+  // XSS Protection
+  function escapeHtml(text) {
+    if (text == null || text === undefined) return '';
+    const div = document.createElement('div');
+    div.textContent = String(text);
+    return div.innerHTML;
+  }
+</script>
+
+<!-- Header -->
+<div class="bg-gradient-to-br from-neutral-900 to-neutral-950 border-b border-neutral-800 p-6 mb-6">
+  <div class="max-w-7xl mx-auto">
+    <div class="flex items-center justify-between">
+      <div>
+        <h1 class="text-3xl font-bold text-white flex items-center gap-3">
+          <i class="fas fa-users text-green-400"></i>
+          Find Groups
+        </h1>
+        <p class="text-gray-400 mt-1">Browse and join LFG groups across all games</p>
+      </div>
+      <div class="flex gap-2">
+        {% if web_user %}
+        <a href="{% url 'questlog_web_lfg_create' %}" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium transition text-sm">
+          <i class="fas fa-plus mr-2"></i>Create Group
+        </a>
+        {% else %}
+        <a href="{% url 'questlog_web_login' %}" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium transition text-sm">
+          <i class="fas fa-gamepad mr-2"></i>Login to Create
+        </a>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Filters -->
+<div class="max-w-7xl mx-auto px-4">
+  <div class="bg-neutral-900/50 rounded-lg border border-neutral-800 p-4 mb-4">
+    <!-- Game search filter (full width) -->
+    <div class="mb-4">
+      <label class="text-sm text-gray-300 mb-2 block">Filter by Game</label>
+      <div class="relative">
+        <div class="relative">
+          <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm pointer-events-none"></i>
+          <input id="gameFilterInput" type="text" placeholder="Search for a game..."
+                 autocomplete="off"
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded-lg pl-9 pr-4 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-green-500 transition">
+        </div>
+        <!-- Search results dropdown -->
+        <div id="gameFilterDropdown" class="hidden absolute z-30 mt-1 w-full bg-neutral-800 border border-neutral-700 rounded-lg shadow-xl overflow-hidden">
+          <div id="gameFilterResults" class="max-h-64 overflow-y-auto"></div>
+        </div>
+      </div>
+      <!-- Selected game chip -->
+      <div id="gameFilterSelected" class="hidden mt-2 flex items-center gap-2 bg-green-900/30 border border-green-700/50 rounded-lg px-3 py-2">
+        <img id="gameFilterCover" src="" alt="" class="w-8 h-8 rounded object-cover hidden flex-shrink-0">
+        <div id="gameFilterNoCover" class="w-8 h-8 bg-neutral-700 rounded flex items-center justify-center flex-shrink-0 hidden">
+          <i class="fas fa-gamepad text-gray-500 text-xs"></i>
+        </div>
+        <span id="gameFilterName" class="text-sm text-green-300 flex-1 truncate font-medium"></span>
+        <button onclick="clearGameFilter()" class="text-gray-400 hover:text-white transition flex-shrink-0" title="Clear filter">
+          <i class="fas fa-times text-xs"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- Quick game chips (from active groups) -->
+    <div id="gameChipsRow" class="hidden mb-4">
+      <p class="text-xs text-gray-500 mb-2">Active games:</p>
+      <div id="gameChips" class="flex flex-wrap gap-2"></div>
+    </div>
+
+    <!-- Other filters row -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div>
+        <label class="text-sm text-gray-300 mb-2 block">Status</label>
+        <div id="statusFilterContainer"></div>
+      </div>
+      <div>
+        <label class="text-sm text-gray-300 mb-2 block">Time</label>
+        <div id="timeFilterContainer"></div>
+      </div>
+      <div>
+        <label class="text-sm text-gray-300 mb-2 block">Sort By</label>
+        <div id="sortFilterContainer"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Active filter summary -->
+  <div id="filterSummary" class="hidden mb-4 text-sm text-gray-400">
+    Showing groups for <span id="filterSummaryGame" class="text-green-400 font-medium"></span>
+    <button onclick="clearGameFilter()" class="ml-2 text-gray-500 hover:text-white transition">
+      <i class="fas fa-times-circle"></i> Clear
+    </button>
+  </div>
+
+  <!-- Groups List -->
+  <div id="groupsList" class="space-y-4 mb-8">
+    <div class="text-center text-gray-500 py-12">
+      <i class="fas fa-spinner fa-spin text-4xl mb-2"></i>
+      <p>Loading groups...</p>
+    </div>
+  </div>
+</div>
+
+<!-- Join Group Modal -->
+<div id="joinGroupModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 hidden">
+  <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-6 max-w-lg w-full mx-4">
+    <div class="flex items-center justify-between mb-4">
+      <h2 id="joinModalTitle" class="text-2xl font-bold text-white">Join Group</h2>
+      <button onclick="closeJoinModal()" class="text-gray-400 hover:text-white">
+        <i class="fas fa-times text-xl"></i>
+      </button>
+    </div>
+
+    <div id="joinGroupContent" class="space-y-4">
+      <!-- Content will be dynamically populated -->
+    </div>
+  </div>
+</div>
+
+<!-- Toast Container -->
+<div id="toast-container" class="fixed bottom-4 right-4 z-50 space-y-2"></div>
+
+<script>
+let allGroups = [];
+const isLoggedIn = {{ web_user|yesno:"true,false" }};
+const currentUserId = {{ web_user.id|default:"null" }};
+
+let statusFilterSelect, timeFilterSelect, sortFilterSelect;
+let selectedGameFilter = null; // { name, game_id, cover_url }
+let joinBrowseMode = 'join'; // 'join' or 'update'
+let gameFilterDebounce;
+let joinTemplates = [];
+const joinSelects = {}; // registry: field name → custom_select API
+
+// ─── Toast ─────────────────────────────────────────────────────────────────
+
+function showToast(message, type = 'success') {
+  const container = document.getElementById('toast-container');
+  const toast = document.createElement('div');
+  const bg = type === 'error' ? 'bg-red-600' : type === 'info' ? 'bg-blue-600' : 'bg-green-600';
+  toast.className = `${bg} text-white px-5 py-3 rounded-lg shadow-lg text-sm font-medium transition-opacity duration-300`;
+  toast.textContent = message;
+  container.appendChild(toast);
+  setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 300); }, 3000);
+}
+
+// ─── Game filter search ────────────────────────────────────────────────────
+
+const gameFilterInput    = document.getElementById('gameFilterInput');
+const gameFilterDropdown = document.getElementById('gameFilterDropdown');
+const gameFilterResults  = document.getElementById('gameFilterResults');
+const gameFilterSelected = document.getElementById('gameFilterSelected');
+const gameFilterCover    = document.getElementById('gameFilterCover');
+const gameFilterNoCover  = document.getElementById('gameFilterNoCover');
+const gameFilterName     = document.getElementById('gameFilterName');
+
+gameFilterInput.addEventListener('input', function() {
+  clearTimeout(gameFilterDebounce);
+  const q = this.value.trim();
+  if (!q) {
+    gameFilterDropdown.classList.add('hidden');
+    return;
+  }
+  gameFilterDebounce = setTimeout(() => searchGameFilter(q), 250);
+});
+
+gameFilterInput.addEventListener('focus', function() {
+  if (this.value.trim()) {
+    gameFilterDropdown.classList.remove('hidden');
+  }
+});
+
+document.addEventListener('click', function(e) {
+  if (!e.target.closest('#gameFilterInput') && !e.target.closest('#gameFilterDropdown')) {
+    gameFilterDropdown.classList.add('hidden');
+  }
+});
+
+async function searchGameFilter(q) {
+  gameFilterResults.innerHTML = '<div class="px-3 py-3 text-gray-500 text-sm">Searching...</div>';
+  gameFilterDropdown.classList.remove('hidden');
+
+  try {
+    const res = await fetch(`/ql/api/igdb/search/?q=${encodeURIComponent(q)}&limit=8`);
+    const data = await res.json();
+    const igdbGames = data.games || [];
+
+    // Also check local groups for any matches not in IGDB results
+    const igdbNames = new Set(igdbGames.map(g => g.name.toLowerCase()));
+    const localOnly = [];
+    const seen = new Set();
+    for (const g of allGroups) {
+      const key = g.game_name.toLowerCase();
+      if (!seen.has(key) && key.includes(q.toLowerCase()) && !igdbNames.has(key)) {
+        seen.add(key);
+        localOnly.push({ name: g.game_name, game_id: g.game_id || null, cover_url: g.game_image_url || null });
+      }
+    }
+
+    const combined = [
+      ...igdbGames.map(g => ({ name: g.name, game_id: String(g.id || ''), cover_url: g.cover_url || null })),
+      ...localOnly
+    ].slice(0, 10);
+
+    if (!combined.length) {
+      gameFilterResults.innerHTML = '<div class="px-3 py-3 text-gray-500 text-sm">No games found</div>';
+      return;
+    }
+
+    gameFilterResults.innerHTML = combined.map((g, i) => `
+      <button onclick="selectGameFilter(${i})" id="gfr-${i}"
+              class="w-full flex items-center gap-3 px-3 py-2 hover:bg-neutral-700 transition text-left">
+        ${g.cover_url
+          ? `<img src="${escapeHtml(g.cover_url)}" alt="" class="w-8 h-11 rounded object-cover flex-shrink-0">`
+          : `<div class="w-8 h-11 bg-neutral-700 rounded flex items-center justify-center flex-shrink-0"><i class="fas fa-gamepad text-gray-500 text-xs"></i></div>`
+        }
+        <div class="min-w-0">
+          <span class="text-sm text-white truncate block">${escapeHtml(g.name)}</span>
+          ${g.platforms ? `<span class="text-xs text-gray-500">${escapeHtml(g.platforms)}</span>` : ''}
+        </div>
+        ${!g.game_id ? '<span class="text-xs text-gray-600 ml-auto flex-shrink-0">local</span>' : ''}
+      </button>
+    `).join('');
+
+    // Store results for click access
+    gameFilterInput._results = combined;
+
+  } catch (err) {
+    gameFilterResults.innerHTML = '<div class="px-3 py-3 text-red-400 text-sm">Search failed</div>';
+  }
+}
+
+function selectGameFilter(index) {
+  const game = gameFilterInput._results && gameFilterInput._results[index];
+  if (!game) return;
+
+  selectedGameFilter = game;
+  gameFilterInput.value = '';
+  gameFilterInput.placeholder = 'Game selected (click × to clear)';
+  gameFilterDropdown.classList.add('hidden');
+
+  // Show selected chip
+  gameFilterSelected.classList.remove('hidden');
+  gameFilterName.textContent = game.name;
+  if (game.cover_url) {
+    gameFilterCover.src = game.cover_url;
+    gameFilterCover.classList.remove('hidden');
+    gameFilterNoCover.classList.add('hidden');
+  } else {
+    gameFilterCover.classList.add('hidden');
+    gameFilterNoCover.classList.remove('hidden');
+  }
+
+  // Show filter summary
+  document.getElementById('filterSummary').classList.remove('hidden');
+  document.getElementById('filterSummaryGame').textContent = game.name;
+
+  filterGroups();
+}
+
+function clearGameFilter() {
+  selectedGameFilter = null;
+  gameFilterInput.value = '';
+  gameFilterInput.placeholder = 'Search for a game...';
+  gameFilterDropdown.classList.add('hidden');
+  gameFilterSelected.classList.add('hidden');
+  document.getElementById('filterSummary').classList.add('hidden');
+
+  // Deactivate any chip
+  document.querySelectorAll('.game-chip').forEach(c => {
+    c.classList.remove('border-green-500', 'bg-green-900/30', 'text-green-300');
+    c.classList.add('border-neutral-700', 'text-gray-300');
+  });
+
+  filterGroups();
+}
+
+function selectGameChipFromEl(el) {
+  const info = JSON.parse(decodeURIComponent(el.dataset.gameInfo));
+  selectGameChip(info.name, info.game_id, info.cover_url, el);
+}
+
+function selectGameChip(name, game_id, cover_url, chipEl) {
+  // Toggle: clicking active chip clears the filter
+  if (selectedGameFilter && selectedGameFilter.name === name) {
+    clearGameFilter();
+    return;
+  }
+
+  selectedGameFilter = { name, game_id, cover_url };
+  gameFilterInput.value = '';
+  gameFilterInput.placeholder = 'Game selected (click × to clear)';
+  gameFilterDropdown.classList.add('hidden');
+
+  // Show selected chip bar
+  gameFilterSelected.classList.remove('hidden');
+  gameFilterName.textContent = name;
+  if (cover_url) {
+    gameFilterCover.src = cover_url;
+    gameFilterCover.classList.remove('hidden');
+    gameFilterNoCover.classList.add('hidden');
+  } else {
+    gameFilterCover.classList.add('hidden');
+    gameFilterNoCover.classList.remove('hidden');
+  }
+
+  // Show filter summary
+  document.getElementById('filterSummary').classList.remove('hidden');
+  document.getElementById('filterSummaryGame').textContent = name;
+
+  // Highlight active chip
+  document.querySelectorAll('.game-chip').forEach(c => {
+    c.classList.remove('border-green-500', 'bg-green-900/30', 'text-green-300');
+    c.classList.add('border-neutral-700', 'text-gray-300');
+  });
+  chipEl.classList.remove('border-neutral-700', 'text-gray-300');
+  chipEl.classList.add('border-green-500', 'bg-green-900/30', 'text-green-300');
+
+  filterGroups();
+}
+
+// ─── Other filters ─────────────────────────────────────────────────────────
+
+statusFilterSelect = createCustomSelect({
+  container: '#statusFilterContainer',
+  name: 'statusFilter',
+  placeholder: 'All Statuses',
+  items: [
+    { value: '', label: 'All Statuses' },
+    { value: 'open', label: 'Open' },
+    { value: 'full', label: 'Full' }
+  ],
+  selected: '',
+  color: 'green',
+  onSelect: function() { filterGroups(); }
+});
+
+timeFilterSelect = createCustomSelect({
+  container: '#timeFilterContainer',
+  name: 'timeFilter',
+  placeholder: 'Any Time',
+  items: [
+    { value: '', label: 'Any Time' },
+    { value: 'now', label: 'Playing Now' },
+    { value: 'today', label: 'Today' },
+    { value: 'week', label: 'This Week' }
+  ],
+  selected: '',
+  color: 'green',
+  onSelect: function() { filterGroups(); }
+});
+
+sortFilterSelect = createCustomSelect({
+  container: '#sortFilterContainer',
+  name: 'sortFilter',
+  placeholder: 'Newest First',
+  items: [
+    { value: 'created', label: 'Newest First' },
+    { value: 'scheduled', label: 'Starting Soon' },
+    { value: 'slots', label: 'Most Slots Available' }
+  ],
+  selected: 'created',
+  color: 'green',
+  onSelect: function() { filterGroups(); }
+});
+
+// ─── Load groups ────────────────────────────────────────────────────────────
+
+document.addEventListener('DOMContentLoaded', () => {
+  loadGroups();
+});
+
+async function loadGroups() {
+  try {
+    const response = await fetch('{% url "questlog_web_api_lfg" %}');
+    const data = await response.json();
+    allGroups = data.groups || [];
+
+    // Build quick game chips from active groups
+    buildGameChips();
+
+    filterGroups();
+  } catch (error) {
+    console.error('Failed to load groups:', error);
+    document.getElementById('groupsList').innerHTML = `
+      <div class="text-center text-red-400 py-12">
+        <i class="fas fa-exclamation-circle text-4xl mb-2"></i>
+        <p>Failed to load groups. Please try again later.</p>
+      </div>
+    `;
+  }
+}
+
+function buildGameChips() {
+  const chipsContainer = document.getElementById('gameChips');
+  const chipsRow = document.getElementById('gameChipsRow');
+
+  // Dedupe games, keep highest-quality cover_url
+  const gameMap = new Map();
+  for (const g of allGroups) {
+    if (!gameMap.has(g.game_name)) {
+      gameMap.set(g.game_name, { name: g.game_name, game_id: g.game_id || null, cover_url: g.game_image_url || null });
+    } else if (!gameMap.get(g.game_name).cover_url && g.game_image_url) {
+      gameMap.get(g.game_name).cover_url = g.game_image_url;
+    }
+  }
+
+  const games = [...gameMap.values()].sort((a, b) => a.name.localeCompare(b.name));
+  if (!games.length) return;
+
+  chipsContainer.innerHTML = games.map(g => {
+    const info = encodeURIComponent(JSON.stringify({name: g.name, game_id: g.game_id || null, cover_url: g.cover_url || null}));
+    return `
+      <button class="game-chip inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-neutral-700 text-gray-300 text-xs hover:border-green-500 hover:text-green-300 hover:bg-green-900/30 transition"
+              data-game-info="${info}"
+              onclick="selectGameChipFromEl(this)">
+        ${g.cover_url
+          ? `<img src="${escapeHtml(g.cover_url)}" alt="" class="w-4 h-4 rounded object-cover">`
+          : `<i class="fas fa-gamepad text-current opacity-60"></i>`
+        }
+        ${escapeHtml(g.name)}
+      </button>
+    `;
+  }).join('');
+
+  chipsRow.classList.remove('hidden');
+}
+
+// ─── Filter & render ────────────────────────────────────────────────────────
+
+function filterGroups() {
+  const statusFilter = statusFilterSelect ? statusFilterSelect.getValue() : '';
+  const timeFilter   = timeFilterSelect   ? timeFilterSelect.getValue()   : '';
+  const sortFilter   = sortFilterSelect   ? sortFilterSelect.getValue()   : 'created';
+
+  let filtered = [...allGroups];
+
+  // Game filter: match on game_id if available, fall back to name
+  if (selectedGameFilter) {
+    filtered = filtered.filter(g => {
+      if (selectedGameFilter.game_id && g.game_id) {
+        return g.game_id === selectedGameFilter.game_id;
+      }
+      return g.game_name.toLowerCase() === selectedGameFilter.name.toLowerCase();
+    });
+  }
+
+  if (statusFilter) {
+    filtered = filtered.filter(g => g.status === statusFilter);
+  }
+
+  if (timeFilter) {
+    const now = Date.now() / 1000;
+    const today = new Date();
+    today.setHours(23, 59, 59, 999);
+    const endOfDay  = today.getTime() / 1000;
+    const endOfWeek = endOfDay + (7 * 24 * 60 * 60);
+
+    if (timeFilter === 'now') {
+      filtered = filtered.filter(g => !g.scheduled_time || g.scheduled_time <= now);
+    } else if (timeFilter === 'today') {
+      filtered = filtered.filter(g => !g.scheduled_time || g.scheduled_time <= endOfDay);
+    } else if (timeFilter === 'week') {
+      filtered = filtered.filter(g => !g.scheduled_time || g.scheduled_time <= endOfWeek);
+    }
+  }
+
+  if (sortFilter === 'created') {
+    filtered.sort((a, b) => b.created_at - a.created_at);
+  } else if (sortFilter === 'scheduled') {
+    filtered.sort((a, b) => (a.scheduled_time || Infinity) - (b.scheduled_time || Infinity));
+  } else if (sortFilter === 'slots') {
+    filtered.sort((a, b) => (b.group_size - b.current_size) - (a.group_size - a.current_size));
+  }
+
+  renderGroups(filtered);
+}
+
+function renderGroups(groups) {
+  const container = document.getElementById('groupsList');
+
+  if (!groups || !groups.length) {
+    container.innerHTML = `
+      <div class="text-center text-gray-500 py-12">
+        <i class="fas fa-users text-6xl mb-4 opacity-50"></i>
+        <p class="text-xl mb-2">No groups found</p>
+        <p class="text-sm">${selectedGameFilter ? `No active groups for <span class="text-green-400">${escapeHtml(selectedGameFilter.name)}</span> right now.` : 'Be the first to create a group!'}</p>
+        ${isLoggedIn ? `<a href="{% url 'questlog_web_lfg_create' %}" class="inline-block mt-4 bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg font-medium transition">
+          <i class="fas fa-plus mr-2"></i>Create Group
+        </a>` : ''}
+      </div>
+    `;
+    return;
+  }
+
+  container.innerHTML = groups.map(renderGroup).join('');
+}
+
+// ─── Helper: time display ────────────────────────────────────────────────────
+
+function formatTime(timestamp) {
+  const date = new Date(timestamp * 1000);
+  const now = new Date();
+  const diff = date - now;
+
+  if (diff < 24 * 60 * 60 * 1000 && diff > 0) {
+    const hours = Math.floor(diff / (60 * 60 * 1000));
+    const minutes = Math.floor((diff % (60 * 60 * 1000)) / (60 * 1000));
+    if (hours > 0) return `In ${hours}h ${minutes}m`;
+    return `In ${minutes}m`;
+  }
+
+  return date.toLocaleDateString('en-US', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit'
+  });
+}
+
+// ─── Role Detection System (verbatim from Discord dashboard) ─────────────────
+// Mirrors lfg_role_mappings.py — determines tank/healer/dps/support from class+spec
+
+const BUILTIN_GAMES = {
+  'wow':      ['world of warcraft', 'wow'],
+  'ffxiv':    ['final fantasy xiv', 'final fantasy 14', 'ffxiv', 'ff14'],
+  'pantheon': ['pantheon', 'pantheon: rise of the fallen'],
+  'gw2':      ['guild wars 2', 'gw2'],
+  'eso':      ['elder scrolls online', 'eso', 'teso'],
+};
+
+// Games where role comes from user selection, not class detection
+const FLEXIBLE_ROLE_GAMES = ['gw2', 'eso'];
+
+const WOW_ROLES = {
+  'tank':    ['blood', 'vengeance', 'guardian', 'brewmaster', 'protection'],
+  'healer':  ['restoration', 'preservation', 'mistweaver', 'holy', 'discipline'],
+  'dps':     ['frost', 'unholy', 'havoc', 'balance', 'feral', 'devastation',
+              'beast mastery', 'marksmanship', 'survival', 'arcane', 'fire',
+              'windwalker', 'retribution', 'shadow', 'assassination', 'outlaw', 'subtlety',
+              'elemental', 'enhancement', 'affliction', 'demonology', 'destruction', 'arms', 'fury'],
+  'support': ['augmentation'],
+};
+
+const FFXIV_ROLES = {
+  'tank':   ['paladin', 'pld', 'warrior', 'war', 'dark knight', 'drk', 'gunbreaker', 'gnb'],
+  'healer': ['white mage', 'whm', 'scholar', 'sch', 'astrologian', 'ast', 'sage', 'sge'],
+  'dps':    ['monk', 'mnk', 'dragoon', 'drg', 'ninja', 'nin', 'samurai', 'sam', 'reaper', 'rpr', 'viper', 'vpr',
+             'bard', 'brd', 'machinist', 'mch', 'dancer', 'dnc',
+             'black mage', 'blm', 'summoner', 'smn', 'red mage', 'rdm', 'pictomancer', 'pct'],
+};
+
+const PANTHEON_ROLES = {
+  'tank':    ['warrior', 'dire lord', 'paladin'],
+  'healer':  ['cleric', 'shaman', 'druid'],
+  'dps':     ['wizard', 'enchanter', 'summoner', 'rogue', 'ranger', 'monk'],
+  'support': ['bard', 'enchanter'],
+};
+
+function getBuiltinGameType(gameName) {
+  if (!gameName) return null;
+  const nameLower = gameName.toLowerCase().trim();
+  for (const [gameType, aliases] of Object.entries(BUILTIN_GAMES)) {
+    for (const alias of aliases) {
+      if (nameLower.includes(alias) || alias.includes(nameLower)) return gameType;
+    }
+  }
+  return null;
+}
+
+function getRoleFromBuiltin(gameType, specOrClass) {
+  if (!specOrClass) return null;
+  const specLower = specOrClass.toLowerCase().trim();
+  let mappings;
+  if (gameType === 'wow') mappings = WOW_ROLES;
+  else if (gameType === 'ffxiv') mappings = FFXIV_ROLES;
+  else if (gameType === 'pantheon') mappings = PANTHEON_ROLES;
+  else return null;
+
+  for (const [role, specs] of Object.entries(mappings)) {
+    if (specs.some(s => specLower.includes(s) || s.includes(specLower))) return role;
+  }
+  return null;
+}
+
+function detectRole(gameName, selections, selectedRole) {
+  // Priority 1: Built-in game mappings
+  const gameType = getBuiltinGameType(gameName);
+  if (gameType) {
+    // GW2 and ESO: role comes from user's explicit selection, not class
+    if (FLEXIBLE_ROLE_GAMES.includes(gameType)) {
+      const roleVal = selections['Role'] || selections['role'];
+      if (roleVal) {
+        const roleLower = (Array.isArray(roleVal) ? roleVal[0] : roleVal).toLowerCase();
+        if (['tank', 'healer', 'dps', 'support', 'flex'].includes(roleLower)) return roleLower;
+      }
+      if (selectedRole && ['tank', 'healer', 'dps', 'support', 'flex'].includes(selectedRole)) return selectedRole;
+      return null;
+    }
+
+    // WoW, FFXIV, Pantheon: class/spec determines role
+    const spec = selections['Specialization'] || selections['specialization'] || selections['Spec'] || selections['spec'];
+    const cls  = selections['Class'] || selections['class'];
+    const job  = selections['Job']   || selections['job'];
+    const specVal = Array.isArray(spec) ? spec[0] : spec;
+    const clsVal  = Array.isArray(cls)  ? cls[0]  : cls;
+    const jobVal  = Array.isArray(job)  ? job[0]  : job;
+
+    if (specVal) { const r = getRoleFromBuiltin(gameType, specVal); if (r) return r; }
+    if (clsVal)  { const r = getRoleFromBuiltin(gameType, clsVal);  if (r) return r; }
+    if (jobVal)  { const r = getRoleFromBuiltin(gameType, jobVal);  if (r) return r; }
+    return null;
+  }
+
+  // Priority 2: Explicit selected_role (generic mode)
+  if (selectedRole && ['tank', 'healer', 'dps', 'support', 'flex'].includes(selectedRole)) return selectedRole;
+
+  // Priority 3: Role field in selections
+  const roleVal = selections['Role'] || selections['role'];
+  if (roleVal) {
+    const roleLower = (Array.isArray(roleVal) ? roleVal[0] : roleVal).toLowerCase();
+    if (['tank', 'healer', 'dps', 'support', 'flex'].includes(roleLower)) return roleLower;
+  }
+
+  return null;
+}
+
+function stripRoleSuffix(playerRole) {
+  if (!playerRole) return '';
+  const rolePatterns = [
+    / - Tank$/i, / - Healer$/i, / - DPS$/i, / - Support$/i, / - Flex$/i,
+    /, Tank$/i,  /, Healer$/i,  /, DPS$/i,  /, Support$/i,  /, Flex$/i,
+  ];
+  let cleaned = playerRole;
+  for (const pattern of rolePatterns) cleaned = cleaned.replace(pattern, '');
+  return cleaned.trim();
+}
+
+// ─── Kick / Leave ────────────────────────────────────────────────────────────
+
+async function kickMember(groupId, userId, username) {
+  if (!confirm(`Kick ${username} from the group?`)) return;
+  try {
+    const res = await csrfFetch(`/ql/api/lfg/${groupId}/kick/${userId}/`, { method: 'POST' });
+    const data = await res.json();
+    if (data.success) { showToast('Member removed from group'); loadGroups(); }
+    else showToast(data.error || 'Failed to kick member', 'error');
+  } catch (e) {
+    showToast('Failed to kick member', 'error');
+  }
+}
+
+async function leaveGroup(groupId) {
+  if (!confirm('Leave this group?')) return;
+  try {
+    const res = await csrfFetch(`/ql/lfg/${groupId}/leave/`, { method: 'POST' });
+    const data = await res.json();
+    if (data.success) { showToast('Left group'); loadGroups(); }
+    else showToast(data.error || 'Failed to leave group', 'error');
+  } catch (e) {
+    showToast('Failed to leave group', 'error');
+  }
+}
+
+// ─── Main group card renderer (ported from Discord dashboard) ─────────────────
+
+function renderGroup(group) {
+  const isFull = group.current_size >= group.group_size;
+  const members = group.members || [];
+
+  const isMember   = isLoggedIn && currentUserId != null && members.some(m => m.user_id === currentUserId);
+  const isCreator  = isLoggedIn && group.creator_id === currentUserId;
+  const isCoLeader = isLoggedIn && members.some(m => m.user_id === currentUserId && m.is_co_leader);
+  const canManage  = isCreator || isCoLeader;
+
+  const now = Date.now() / 1000;
+  const scheduledDate = group.scheduled_time ? new Date(group.scheduled_time * 1000) : null;
+  const formattedDate = scheduledDate ? scheduledDate.toLocaleString('en-US', {
+    dateStyle: 'medium', timeStyle: 'short'
+  }) : 'Now / Flexible';
+
+  // Time status badge (Active Now for playing/scheduled groups without future time)
+  let timeStatusBadge = '';
+  if (!group.scheduled_time || group.scheduled_time <= now) {
+    timeStatusBadge = '<span class="px-2 py-1 text-xs rounded bg-green-600 text-white"><i class="fas fa-circle mr-1 animate-pulse"></i>Active Now</span>';
+  }
+
+  // Collect activity badges from member selections
+  const allActivities = new Set();
+  members.forEach(m => {
+    const sel = m.selections || {};
+    Object.entries(sel).forEach(([key, value]) => {
+      if (key.toLowerCase() === 'activity' && value) {
+        let v = value;
+        if (typeof v === 'string' && v.startsWith('[')) {
+          try { v = JSON.parse(v); } catch (e) { /* keep as string */ }
+        }
+        if (Array.isArray(v)) v.forEach(a => allActivities.add(a));
+        else allActivities.add(v);
+      }
+    });
+  });
+
+  const activityBadges = allActivities.size > 0 ? `
+    <div class="flex flex-wrap gap-2 mb-3">
+      ${Array.from(allActivities).map(a => `
+        <span class="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-purple-900/50 text-purple-300">
+          ${escapeHtml(String(a))}
+        </span>
+      `).join('')}
+    </div>
+  ` : '';
+
+  // ── Categorise members by role for role-composition groups ──────────────
+  const tanksList      = [];
+  const healersList    = [];
+  const dpsList        = [];
+  const supportList    = [];
+  const flexList       = [];
+  const unassignedList = [];
+
+  const membersList = members.map((m, idx) => {
+    let icon  = 'fa-user';
+    let color = 'text-gray-300';
+    if (m.is_creator)   { icon = 'fa-crown'; color = 'text-yellow-400'; }
+    else if (m.is_co_leader) { icon = 'fa-star';  color = 'text-blue-400'; }
+
+    const sel = m.selections || {};
+    const selectionParts = [];
+    let spec = '', cls = '', subclass = '', job = '';
+
+    Object.entries(sel).forEach(([key, value]) => {
+      const kl = key.toLowerCase();
+      const nv = Array.isArray(value) ? (value[0] || '') : value;
+      if (nv && kl !== 'activity' && kl !== 'role' && kl !== 'player_role') {
+        if (kl === 'class')          cls      = nv;
+        else if (kl === 'specialization') spec = nv;
+        else if (kl === 'subclass')  subclass = nv;
+        else if (kl === 'job')       job      = nv;
+        else selectionParts.push(nv);
+      }
+    });
+
+    const specOrSubclass = spec || subclass;
+    const combined = cls && specOrSubclass ? `${cls} - ${specOrSubclass}` : (cls || specOrSubclass || job);
+    if (combined) selectionParts.unshift(combined);
+
+    const displayText = selectionParts.length > 0
+      ? `${escapeHtml(m.display_name)} <span class="text-gray-500">(${escapeHtml(selectionParts.join(', '))})</span>`
+      : escapeHtml(m.display_name);
+
+    // Categorise for role roster
+    if (group.has_role_composition) {
+      const memberEntry = {
+        displayText,
+        icon,
+        color,
+        is_creator:   m.is_creator,
+        is_co_leader: m.is_co_leader,
+        user_id:      m.user_id,
+        display_name: m.display_name,
+        idx:          idx + 1,
+        spec:         selectionParts.length > 0 ? selectionParts.join(', ') : null,
+      };
+      const detectedRole = detectRole(group.game_name || '', sel, m.role);
+      if      (detectedRole === 'tank')    tanksList.push(memberEntry);
+      else if (detectedRole === 'healer')  healersList.push(memberEntry);
+      else if (detectedRole === 'dps')     dpsList.push(memberEntry);
+      else if (detectedRole === 'support') supportList.push(memberEntry);
+      else if (detectedRole === 'flex')    flexList.push(memberEntry);
+      else                                 unassignedList.push(memberEntry);
+    }
+
+    const canRemoveMember = canManage && !m.is_creator;
+    const removeBtn = canRemoveMember ? `
+      <button onclick="kickMember(${group.id}, ${m.user_id}, '${escapeHtml(m.display_name).replace(/'/g, '&#39;')}')"
+              class="ml-2 text-red-400 hover:text-red-300 transition" title="Remove from group">
+        <i class="fas fa-times text-sm"></i>
+      </button>` : '';
+
+    return `
+      <div class="flex items-center gap-2 text-sm ${color}">
+        <i class="fas ${icon} text-xs flex-shrink-0"></i>
+        <span class="min-w-0">${displayText}</span>
+        ${removeBtn}
+      </div>`;
+  }).join('');
+
+  // ── Role roster member renderer (for Tank/Healer/DPS columns) ───────────
+  const renderRoleMember = (m, canRemove) => {
+    const leaderIcon = m.is_creator   ? '<i class="fas fa-crown text-yellow-400 mr-1"></i>'
+                     : m.is_co_leader ? '<i class="fas fa-star text-blue-400 mr-1"></i>' : '';
+    const removeBtn = canRemove && !m.is_creator ? `
+      <button onclick="kickMember(${group.id}, ${m.user_id}, '${escapeHtml(m.display_name).replace(/'/g, '&#39;')}')"
+              class="ml-auto text-red-400 hover:text-red-300 transition opacity-0 group-hover:opacity-100"
+              title="Remove">
+        <i class="fas fa-times text-xs"></i>
+      </button>` : '';
+    const cleanedSpec = stripRoleSuffix(m.spec);
+    return `
+      <div class="flex items-center gap-1 text-sm py-1 group">
+        <span class="text-gray-500 text-xs w-4 flex-shrink-0">${m.idx}</span>
+        ${leaderIcon}
+        <span class="text-gray-200">${escapeHtml(m.display_name)}</span>
+        ${cleanedSpec ? `<span class="text-gray-500 text-xs ml-1">• ${escapeHtml(cleanedSpec)}</span>` : ''}
+        ${removeBtn}
+      </div>`;
+  };
+
+  // ── Build role roster HTML ─────────────────────────────────────────────
+  const assignedCount = tanksList.length + healersList.length + dpsList.length + supportList.length + flexList.length;
+  const totalNeeded   = (group.tanks_needed || 0) + (group.healers_needed || 0) + (group.dps_needed || 0) + (group.support_needed || 0);
+  const hasSupport = (group.support_needed || 0) > 0 || supportList.length > 0;
+  const hasFlex    = flexList.length > 0;
+
+  const roleRosterHtml = group.has_role_composition ? `
+    <div class="grid grid-cols-3 gap-3">
+      <div class="bg-neutral-900/70 rounded-lg p-3 border border-blue-900/50">
+        <div class="flex items-center gap-2 mb-2 pb-2 border-b border-neutral-700">
+          <i class="fas fa-shield-alt text-blue-400"></i>
+          <span class="text-sm font-semibold text-blue-400">Tank</span>
+          <span class="text-xs text-gray-400 ml-auto">${tanksList.length}/${group.tanks_needed || 0}</span>
+        </div>
+        <div class="space-y-0.5 min-h-[40px]">
+          ${tanksList.length > 0 ? tanksList.map(m => renderRoleMember(m, canManage)).join('') : '<span class="text-gray-500 text-xs italic">—</span>'}
+        </div>
+      </div>
+
+      <div class="bg-neutral-900/70 rounded-lg p-3 border border-green-900/50">
+        <div class="flex items-center gap-2 mb-2 pb-2 border-b border-neutral-700">
+          <i class="fas fa-heart text-green-400"></i>
+          <span class="text-sm font-semibold text-green-400">Healer</span>
+          <span class="text-xs text-gray-400 ml-auto">${healersList.length}/${group.healers_needed || 0}</span>
+        </div>
+        <div class="space-y-0.5 min-h-[40px]">
+          ${healersList.length > 0 ? healersList.map(m => renderRoleMember(m, canManage)).join('') : '<span class="text-gray-500 text-xs italic">—</span>'}
+        </div>
+      </div>
+
+      <div class="bg-neutral-900/70 rounded-lg p-3 border border-red-900/50">
+        <div class="flex items-center gap-2 mb-2 pb-2 border-b border-neutral-700">
+          <i class="fas fa-bolt text-red-400"></i>
+          <span class="text-sm font-semibold text-red-400">DPS</span>
+          <span class="text-xs text-gray-400 ml-auto">${dpsList.length}/${group.dps_needed || 0}</span>
+        </div>
+        <div class="space-y-0.5 min-h-[40px]">
+          ${dpsList.length > 0 ? dpsList.map(m => renderRoleMember(m, canManage)).join('') : '<span class="text-gray-500 text-xs italic">—</span>'}
+        </div>
+      </div>
+    </div>
+
+    ${hasSupport || hasFlex ? `
+    <div class="grid grid-cols-3 gap-3 mt-3">
+      ${hasSupport ? `
+      <div class="bg-neutral-900/70 rounded-lg p-3 border border-yellow-900/50">
+        <div class="flex items-center gap-2 mb-2 pb-2 border-b border-neutral-700">
+          <i class="fas fa-music text-yellow-400"></i>
+          <span class="text-sm font-semibold text-yellow-400">Support</span>
+          <span class="text-xs text-gray-400 ml-auto">${supportList.length}/${group.support_needed || 0}</span>
+        </div>
+        <div class="space-y-0.5 min-h-[40px]">
+          ${supportList.length > 0 ? supportList.map(m => renderRoleMember(m, canManage)).join('') : '<span class="text-gray-500 text-xs italic">—</span>'}
+        </div>
+      </div>` : '<div></div>'}
+
+      ${hasFlex ? `
+      <div class="bg-neutral-900/70 rounded-lg p-3 border border-cyan-900/50">
+        <div class="flex items-center gap-2 mb-2 pb-2 border-b border-neutral-700">
+          <i class="fas fa-sync-alt text-cyan-400"></i>
+          <span class="text-sm font-semibold text-cyan-400">Flex</span>
+          <span class="text-xs text-gray-400 ml-auto">${flexList.length}</span>
+        </div>
+        <div class="space-y-0.5 min-h-[40px]">
+          ${flexList.map(m => renderRoleMember(m, canManage)).join('')}
+        </div>
+      </div>` : '<div></div>'}
+
+      <div></div>
+    </div>` : ''}
+
+    ${unassignedList.length > 0 ? `
+    <div class="mt-3 bg-neutral-900/70 rounded-lg p-3 border border-orange-900/50">
+      <div class="flex items-center gap-2 mb-2 pb-2 border-b border-neutral-700">
+        <i class="fas fa-question-circle text-orange-400"></i>
+        <span class="text-sm font-semibold text-orange-400">Unassigned</span>
+        <span class="text-xs text-gray-400 ml-auto">${unassignedList.length}</span>
+      </div>
+      <div class="grid grid-cols-3 gap-2">
+        ${unassignedList.map(m => renderRoleMember(m, canManage)).join('')}
+      </div>
+    </div>` : ''}
+
+    <div class="mt-2 text-center">
+      <span class="text-sm text-gray-400">
+        <i class="fas fa-users mr-1"></i>Roster:
+        <span class="text-white font-semibold">${assignedCount}</span>
+        <span class="text-gray-500">/</span>
+        <span class="text-gray-400">${totalNeeded}</span>
+        ${unassignedList.length > 0 ? `<span class="text-orange-400 ml-2">• ${unassignedList.length} unassigned</span>` : ''}
+      </span>
+    </div>` : '';
+
+  // ── Final card HTML ────────────────────────────────────────────────────
+  return `
+    <div class="bg-neutral-800 border border-neutral-700 rounded-xl p-5 hover:border-green-600/50 transition">
+      <div class="flex flex-col md:flex-row gap-4">
+
+        <!-- Game Cover (tall portrait, matching dashboard) -->
+        <div class="flex-shrink-0">
+          ${group.game_image_url
+            ? `<img src="${escapeHtml(group.game_image_url)}" alt="${escapeHtml(group.game_name)}" class="w-24 h-32 object-cover rounded-lg border border-neutral-700">`
+            : `<div class="w-24 h-32 bg-neutral-900 rounded-lg border border-neutral-700 flex items-center justify-center"><i class="fas fa-gamepad text-gray-500 text-3xl"></i></div>`
+          }
+        </div>
+
+        <!-- Group Info -->
+        <div class="flex-1 min-w-0">
+          <div class="flex items-start justify-between mb-2">
+            <div class="min-w-0">
+              <h3 class="text-2xl font-bold text-white mb-1 flex items-center gap-2 flex-wrap">
+                ${escapeHtml(group.title)}
+                ${group.has_role_composition ? '<span class="px-2 py-1 text-xs rounded bg-purple-600 text-white"><i class="fas fa-users-cog mr-1"></i>ROLES</span>' : ''}
+                ${timeStatusBadge}
+              </h3>
+              <p class="text-sm text-gray-400">${escapeHtml(group.game_name)}</p>
+            </div>
+            ${isFull
+              ? `<span class="ml-3 flex-shrink-0 px-3 py-1 rounded-lg bg-red-600/20 text-red-400 text-sm font-medium">Full</span>`
+              : `<span class="ml-3 flex-shrink-0 px-3 py-1 rounded-lg bg-green-600/20 text-green-400 text-sm font-medium">Open</span>`
+            }
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+            <div class="text-sm">
+              <span class="text-gray-400"><i class="far fa-clock mr-2"></i>Time:</span>
+              <span class="text-white">${formattedDate}</span>
+            </div>
+            ${group.has_role_composition ? `
+              <div class="text-sm">
+                <span class="text-gray-400"><i class="fas fa-users-cog mr-2"></i>Composition:</span>
+                <div class="flex gap-3 mt-1 flex-wrap">
+                  ${(group.tanks_needed || 0) > 0 ? `<span class="text-blue-400"><i class="fas fa-shield mr-1"></i>${group.tanks_needed} Tank${group.tanks_needed > 1 ? 's' : ''}</span>` : ''}
+                  ${(group.healers_needed || 0) > 0 ? `<span class="text-green-400"><i class="fas fa-heart mr-1"></i>${group.healers_needed} Healer${group.healers_needed > 1 ? 's' : ''}</span>` : ''}
+                  ${(group.dps_needed || 0) > 0 ? `<span class="text-red-400"><i class="fas fa-bolt mr-1"></i>${group.dps_needed} DPS</span>` : ''}
+                  ${(group.support_needed || 0) > 0 ? `<span class="text-yellow-400"><i class="fas fa-music mr-1"></i>${group.support_needed} Support</span>` : ''}
+                </div>
+              </div>
+            ` : `
+              <div class="text-sm">
+                <span class="text-gray-400"><i class="fas fa-users mr-2"></i>Members:</span>
+                <span class="text-white">${group.current_size} / ${group.group_size}</span>
+              </div>
+            `}
+          </div>
+
+          ${group.description ? `<p class="text-gray-300 text-sm mb-3 italic">"${escapeHtml(group.description)}"</p>` : ''}
+
+          ${activityBadges}
+
+          <!-- Members / Role Roster -->
+          ${group.has_role_composition ? `
+            <div class="mb-3">
+              ${roleRosterHtml}
+            </div>
+          ` : (members.length ? `
+            <div class="bg-neutral-900/50 rounded-lg p-3 mb-3 border border-neutral-700">
+              <div class="flex items-center gap-2 mb-2">
+                <i class="fas fa-users text-gray-400 text-sm"></i>
+                <span class="text-sm font-medium text-gray-300">Group Members</span>
+              </div>
+              <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
+                ${membersList}
+              </div>
+            </div>
+          ` : '')}
+
+          <!-- Actions -->
+          <div class="flex gap-2 flex-wrap">
+            ${isMember ? (
+              isCreator ? `
+                <span class="px-4 py-2 bg-yellow-600/20 text-yellow-400 rounded-lg text-sm font-medium">
+                  <i class="fas fa-crown mr-2"></i>You're the Leader
+                </span>
+                <button onclick="openEditClassModal(${group.id})" class="px-4 py-2 bg-indigo-600/60 hover:bg-indigo-600 text-white rounded-lg text-sm font-medium transition">
+                  <i class="fas fa-pencil-alt mr-2"></i>Edit Class
+                </button>` :
+              isCoLeader ? `
+                <span class="px-4 py-2 bg-blue-600/20 text-blue-400 rounded-lg text-sm font-medium">
+                  <i class="fas fa-star mr-2"></i>You're a Co-Leader
+                </span>
+                <button onclick="openEditClassModal(${group.id})" class="px-4 py-2 bg-indigo-600/60 hover:bg-indigo-600 text-white rounded-lg text-sm font-medium transition">
+                  <i class="fas fa-pencil-alt mr-2"></i>Edit Class
+                </button>` : `
+                <button onclick="openEditClassModal(${group.id})" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium transition">
+                  <i class="fas fa-pencil-alt mr-2"></i>Edit Class
+                </button>
+                <button onclick="leaveGroup(${group.id})" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition">
+                  <i class="fas fa-sign-out-alt mr-2"></i>Leave Group
+                </button>`
+            ) : (
+              !isFull ? (
+                isLoggedIn ? `
+                <button onclick="openJoinModal(${group.id})" class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition">
+                  <i class="fas fa-plus mr-2"></i>Join Group
+                </button>` : `
+                <a href="{% url 'questlog_web_login' %}" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium transition">
+                  <i class="fas fa-gamepad mr-2"></i>Login to Join
+                </a>`
+              ) : `
+                <span class="px-4 py-2 bg-gray-700/50 text-gray-500 rounded-lg text-sm font-medium cursor-not-allowed">
+                  <i class="fas fa-lock mr-2"></i>Group Full
+                </span>`
+            )}
+            ${canManage ? `
+            <a href="/ql/lfg/${group.id}/" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium transition">
+              <i class="fas fa-edit mr-2"></i>Edit Group
+            </a>
+            <button onclick="deleteGroupFromBrowse(${group.id})" class="px-4 py-2 bg-red-600/20 hover:bg-red-600 text-red-400 hover:text-white rounded-lg text-sm font-medium transition">
+              <i class="fas fa-trash mr-2"></i>Delete
+            </button>` : ''}
+          </div>
+        </div>
+      </div>
+    </div>`;
+}
+
+// ─── Game templates for join modal (mirrors lfg_create.html) ─────────────────
+
+const GAME_TEMPLATES = {
+  wow: [
+    { name: 'Class', choices: ['Death Knight','Demon Hunter','Druid','Evoker','Hunter','Mage','Monk','Paladin','Priest','Rogue','Shaman','Warlock','Warrior'] },
+    { name: 'Specialization', depends_on: 'Class', choices: {
+        'Death Knight':['Blood','Frost','Unholy'], 'Demon Hunter':['Havoc','Vengeance'],
+        'Druid':['Balance','Feral','Guardian','Restoration'], 'Evoker':['Devastation','Preservation','Augmentation'],
+        'Hunter':['Beast Mastery','Marksmanship','Survival'], 'Mage':['Arcane','Fire','Frost'],
+        'Monk':['Brewmaster','Mistweaver','Windwalker'], 'Paladin':['Holy','Protection','Retribution'],
+        'Priest':['Discipline','Holy','Shadow'], 'Rogue':['Assassination','Outlaw','Subtlety'],
+        'Shaman':['Elemental','Enhancement','Restoration'], 'Warlock':['Affliction','Demonology','Destruction'],
+        'Warrior':['Arms','Fury','Protection'],
+    }},
+  ],
+  ffxiv: [
+    { name: 'Job', choices: ['Paladin','Warrior','Dark Knight','Gunbreaker','White Mage','Scholar','Astrologian','Sage','Monk','Dragoon','Ninja','Samurai','Reaper','Viper','Bard','Machinist','Dancer','Black Mage','Summoner','Red Mage','Pictomancer'] },
+  ],
+  pantheon: [
+    { name: 'Class', choices: ['Warrior','Dire Lord','Paladin','Cleric','Shaman','Druid','Wizard','Enchanter','Summoner','Rogue','Ranger','Monk','Bard'] },
+  ],
+  gw2: [
+    { name: 'Class', choices: ['Warrior','Guardian','Revenant','Ranger','Thief','Engineer','Necromancer','Elementalist','Mesmer'] },
+    { name: 'Role', choices: [{value:'Tank',role:'tank'},{value:'Healer',role:'healer'},{value:'DPS',role:'dps'},{value:'Support',role:'support'}] },
+  ],
+  eso: [
+    { name: 'Class', choices: ['Dragonknight','Sorcerer','Nightblade','Templar','Warden','Necromancer','Arcanist'] },
+    { name: 'Subclass', exclude_same_as: 'Class', choices: ['Dragonknight','Sorcerer','Nightblade','Templar','Warden','Necromancer','Arcanist'] },
+    { name: 'Role', choices: [{value:'Tank',role:'tank'},{value:'Healer',role:'healer'},{value:'DPS',role:'dps'},{value:'Support',role:'support'}] },
+  ],
+};
+
+// detectGameType reuses getBuiltinGameType (defined above in role detection section)
+function detectGameType(name) {
+  return getBuiltinGameType(name);
+}
+
+// ─── Custom-select based join field system ────────────────────────────────────
+
+// Renders a wrapper+container div for a game template field.
+// Dependent fields (depends_on) start hidden; shown when parent has a value.
+function renderJoinFieldContainer(field) {
+  const hiddenClass = field.depends_on ? 'hidden' : '';
+  return `<div id="jopt_wrapper_${field.name}" class="${hiddenClass}">
+    <label class="text-sm text-gray-300 mb-1 block">${escapeHtml(field.name)} <span class="text-gray-500 text-xs">(optional)</span></label>
+    <div id="jopt_cs_${field.name}"></div>
+  </div>`;
+}
+
+// Creates (or re-creates) a custom_select inside the pre-rendered container div.
+function _makeJoinSelect(fieldName, items, selected) {
+  if (joinSelects[fieldName]) {
+    joinSelects[fieldName].destroy();
+    delete joinSelects[fieldName];
+  }
+  const containerEl = document.getElementById(`jopt_cs_${fieldName}`);
+  if (!containerEl) return;
+
+  joinSelects[fieldName] = createCustomSelect({
+    container: containerEl,
+    name: `jopt_${fieldName}`,
+    id: `jopt_${fieldName}`,
+    placeholder: `Select ${fieldName.toLowerCase()}...`,
+    items,
+    selected: selected || '',
+    color: 'green',
+    onSelect: () => {
+      _updateDependentJoinSelects(fieldName);
+      _updateExcludedJoinSelects(fieldName);
+    },
+  });
+}
+
+// Shows/rebuilds dependent fields when their parent field's value changes.
+function _updateDependentJoinSelects(changedFieldName, currentSelections) {
+  for (const field of joinTemplates) {
+    if (field.depends_on !== changedFieldName) continue;
+    const parentVal = joinSelects[changedFieldName] ? joinSelects[changedFieldName].getValue() : '';
+    const choices = parentVal && typeof field.choices === 'object' && !Array.isArray(field.choices)
+      ? (field.choices[parentVal] || []) : [];
+    const wrapperEl = document.getElementById(`jopt_wrapper_${field.name}`);
+    if (!choices.length) {
+      if (wrapperEl) wrapperEl.classList.add('hidden');
+      if (joinSelects[field.name]) { joinSelects[field.name].destroy(); delete joinSelects[field.name]; }
+    } else {
+      if (wrapperEl) wrapperEl.classList.remove('hidden');
+      const prevSelected = currentSelections ? (currentSelections[field.name] || '') : '';
+      _makeJoinSelect(field.name, choices.map(c => ({ value: c, label: c })), prevSelected);
+    }
+  }
+}
+
+// Rebuilds excluded fields when a parent field changes (ESO Subclass excludes selected Class).
+function _updateExcludedJoinSelects(changedFieldName, currentSelections) {
+  for (const field of joinTemplates) {
+    if (field.exclude_same_as !== changedFieldName) continue;
+    const excludeVal = joinSelects[changedFieldName] ? joinSelects[changedFieldName].getValue() : '';
+    const currentVal = currentSelections
+      ? (currentSelections[field.name] || '')
+      : (joinSelects[field.name] ? joinSelects[field.name].getValue() : '');
+    const allChoices = Array.isArray(field.choices) ? field.choices : [];
+    const filteredItems = allChoices
+      .filter(c => (typeof c === 'object' ? c.value : c) !== excludeVal)
+      .map(c => { const v = typeof c === 'object' ? c.value : c; return { value: v, label: v }; });
+    _makeJoinSelect(field.name, filteredItems, currentVal === excludeVal ? '' : currentVal);
+  }
+}
+
+// Initializes all custom selects for the current joinTemplates.
+function initJoinCustomSelects(currentSelections) {
+  // Destroy any existing selects
+  for (const name of Object.keys(joinSelects)) {
+    if (joinSelects[name]) joinSelects[name].destroy();
+    delete joinSelects[name];
+  }
+
+  // Create selects for non-dependent fields
+  for (const field of joinTemplates) {
+    if (field.depends_on) continue;
+    const choices = Array.isArray(field.choices) ? field.choices : [];
+    const items = choices.map(c => { const v = typeof c === 'object' ? c.value : c; return { value: v, label: v }; });
+    _makeJoinSelect(field.name, items, (currentSelections && currentSelections[field.name]) || '');
+  }
+
+  // Trigger dependent / excluded field population for pre-selected parent values
+  for (const field of joinTemplates) {
+    if (field.depends_on) continue;
+    if (joinSelects[field.name] && joinSelects[field.name].getValue()) {
+      _updateDependentJoinSelects(field.name, currentSelections);
+      _updateExcludedJoinSelects(field.name, currentSelections);
+    }
+  }
+}
+
+// Collects selections from the joinSelects registry.
+function collectJoinSelections() {
+  const out = {};
+  for (const [name, api] of Object.entries(joinSelects)) {
+    const val = api.getValue();
+    if (val) out[name] = val;
+  }
+  return out;
+}
+
+// ─── Join modal ───────────────────────────────────────────────────────────────
+
+function buildJoinModalContent(group, currentSelections, currentRole) {
+  const gameType = detectGameType(group.game_name);
+  joinTemplates = gameType ? (GAME_TEMPLATES[gameType] || []) : [];
+
+  // Render containers for all template fields (dependent ones start hidden)
+  const fieldsHtml = joinTemplates.map(f => renderJoinFieldContainer(f)).join('');
+
+  // Role picker for generic role-composition groups (no game-specific template handles it)
+  let roleHtml = '';
+  if (group.has_role_composition && !gameType) {
+    roleHtml = `<div>
+      <label class="text-sm text-gray-300 mb-1 block">Role <span class="text-gray-500 text-xs">(optional)</span></label>
+      <div id="jopt_cs_role"></div>
+    </div>`;
+  }
+
+  const isUpdate = joinBrowseMode === 'update';
+  const content = document.getElementById('joinGroupContent');
+  content.innerHTML = `
+    <div class="flex items-center gap-3 mb-4">
+      ${group.game_image_url
+        ? `<img src="${escapeHtml(group.game_image_url)}" alt="" class="w-10 h-14 rounded object-cover flex-shrink-0">`
+        : `<div class="w-10 h-14 bg-neutral-700 rounded flex items-center justify-center flex-shrink-0"><i class="fas fa-gamepad text-gray-500"></i></div>`}
+      <div>
+        <p class="text-green-400 text-sm font-medium">${escapeHtml(group.game_name)}</p>
+        <h3 class="text-lg text-white font-semibold">${escapeHtml(group.title)}</h3>
+        <p class="text-gray-500 text-xs">${group.current_size}/${group.group_size} members</p>
+      </div>
+    </div>
+    ${fieldsHtml || roleHtml
+      ? `<div class="space-y-3">${fieldsHtml}${roleHtml}</div>`
+      : (isUpdate ? '<p class="text-gray-500 text-sm">No game-specific options to update for this group.</p>' : '')}
+    <div class="flex gap-3 mt-4">
+      <button onclick="submitJoin(${group.id})" class="flex-1 ${isUpdate ? 'bg-indigo-600 hover:bg-indigo-700' : 'bg-green-600 hover:bg-green-700'} text-white rounded-lg py-2 font-semibold transition">
+        <i class="fas ${isUpdate ? 'fa-save' : 'fa-check'} mr-2"></i>${isUpdate ? 'Save Changes' : 'Join Group'}
+      </button>
+      <button onclick="closeJoinModal()" class="px-6 bg-neutral-800 hover:bg-neutral-700 text-white rounded-lg py-2 font-semibold transition">
+        Cancel
+      </button>
+    </div>`;
+
+  // Initialize all template field selects (handles pre-population for update mode)
+  initJoinCustomSelects(currentSelections || {});
+
+  // Generic role select (not in joinSelects registry — read via hidden input jopt_role)
+  if (document.getElementById('jopt_cs_role')) {
+    createCustomSelect({
+      container: '#jopt_cs_role',
+      name: 'jopt_role',
+      id: 'jopt_role',
+      placeholder: 'Select role...',
+      items: [
+        { value: 'tank',    label: 'Tank'    },
+        { value: 'healer',  label: 'Healer'  },
+        { value: 'dps',     label: 'DPS'     },
+        { value: 'support', label: 'Support' },
+        { value: 'flex',    label: 'Flex'    },
+      ],
+      selected: currentRole || '',
+      color: 'green',
+    });
+  }
+}
+
+function openJoinModal(groupId) {
+  joinBrowseMode = 'join';
+  const group = allGroups.find(g => g.id === groupId);
+  if (!group) return;
+
+  document.getElementById('joinModalTitle').textContent = 'Join Group';
+  buildJoinModalContent(group, {}, null);
+  document.getElementById('joinGroupModal').classList.remove('hidden');
+}
+
+function openEditClassModal(groupId) {
+  joinBrowseMode = 'update';
+  const group = allGroups.find(g => g.id === groupId);
+  if (!group) return;
+
+  const myMember = group.members.find(m => m.user_id === currentUserId);
+  const currentSelections = myMember ? (myMember.selections || {}) : {};
+  const currentRole = myMember ? (myMember.role || null) : null;
+
+  document.getElementById('joinModalTitle').textContent = 'Edit Class';
+  buildJoinModalContent(group, currentSelections, currentRole);
+  document.getElementById('joinGroupModal').classList.remove('hidden');
+}
+
+function closeJoinModal() {
+  document.getElementById('joinGroupModal').classList.add('hidden');
+}
+
+async function deleteGroupFromBrowse(groupId) {
+  const group = allGroups.find(g => g.id === groupId);
+  const title = group ? group.title : 'this group';
+  if (!confirm(`Delete "${title}"? This cannot be undone.`)) return;
+  try {
+    const res = await csrfFetch(`/ql/lfg/${groupId}/delete/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    const data = await res.json();
+    if (data.success) { showToast('Group deleted'); loadGroups(); }
+    else showToast(data.error || 'Failed to delete', 'error');
+  } catch (e) {
+    showToast('Failed to delete group', 'error');
+  }
+}
+
+async function submitJoin(groupId) {
+  const selections = collectJoinSelections();
+  const roleEl = document.getElementById('jopt_role');
+  const role = roleEl ? roleEl.value || null : null;
+  delete selections['__role'];
+
+  const url = joinBrowseMode === 'update'
+    ? `/ql/lfg/${groupId}/update-member/`
+    : `/ql/lfg/${groupId}/join/`;
+  const successMsg = joinBrowseMode === 'update' ? 'Class updated!' : 'Successfully joined group!';
+  const failMsg    = joinBrowseMode === 'update' ? 'Failed to update class' : 'Failed to join group';
+
+  try {
+    const response = await csrfFetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ role, selections })
+    });
+    const data = await response.json();
+    if (data.success) {
+      closeJoinModal();
+      showToast(successMsg);
+      loadGroups();
+    } else {
+      showToast(data.error || failMsg, 'error');
+    }
+  } catch (error) {
+    showToast(failMsg + '. Please try again.', 'error');
+  }
+}
+</script>
+{% endblock %}

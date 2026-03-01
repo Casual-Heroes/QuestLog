@@ -1,0 +1,417 @@
+<!-- Post Card Partial - Renders a single post in the feed -->
+<!-- Used by: feed.html, public_profile.html -->
+<!-- Expects JS context: post object with author, content, images, embed, likes, comments -->
+
+<script>
+function renderPostCard(post, options = {}) {
+  const showAuthor = options.showAuthor !== false;
+  const currentUserId = options.currentUserId || null;
+
+  function escapePost(str) {
+    if (!str) return '';
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  function timeAgo(timestamp) {
+    const seconds = Math.floor(Date.now() / 1000) - timestamp;
+    if (seconds < 60) return 'just now';
+    if (seconds < 3600) return Math.floor(seconds / 60) + 'm ago';
+    if (seconds < 86400) return Math.floor(seconds / 3600) + 'h ago';
+    if (seconds < 604800) return Math.floor(seconds / 86400) + 'd ago';
+    return new Date(timestamp * 1000).toLocaleDateString();
+  }
+
+  function renderEmbed(post) {
+    if (post.embed_platform === 'youtube' && post.embed_id) {
+      return `<div class="relative w-full" style="padding-bottom:56.25%">
+        <iframe src="https://www.youtube.com/embed/${escapePost(post.embed_id)}" class="absolute inset-0 w-full h-full rounded-lg" frameborder="0" allowfullscreen loading="lazy"></iframe>
+      </div>`;
+    }
+    if (post.embed_platform === 'twitch' && post.embed_id) {
+      const isClip = !/^\d+$/.test(post.embed_id);
+      const src = isClip
+        ? `https://clips.twitch.tv/embed?clip=${escapePost(post.embed_id)}&parent=${location.hostname}`
+        : `https://player.twitch.tv/?video=${escapePost(post.embed_id)}&parent=${location.hostname}`;
+      return `<div class="relative w-full" style="padding-bottom:56.25%">
+        <iframe src="${src}" class="absolute inset-0 w-full h-full rounded-lg" frameborder="0" allowfullscreen loading="lazy"></iframe>
+      </div>`;
+    }
+    if (post.embed_platform === 'tiktok' && post.embed_id) {
+      return `<div class="bg-neutral-800 rounded-lg p-4 flex items-center gap-3">
+        <i class="fab fa-tiktok text-2xl text-pink-400"></i>
+        <a href="${escapePost(post.media_url)}" target="_blank" rel="noopener" class="text-blue-400 hover:underline text-sm">View on TikTok</a>
+      </div>`;
+    }
+    if (post.embed_platform === 'instagram' && post.embed_id) {
+      return `<div class="bg-neutral-800 rounded-lg p-4 flex items-center gap-3">
+        <i class="fab fa-instagram text-2xl text-pink-500"></i>
+        <a href="${escapePost(post.media_url)}" target="_blank" rel="noopener" class="text-blue-400 hover:underline text-sm">View on Instagram</a>
+      </div>`;
+    }
+    if (post.embed_platform === 'twitter' && post.embed_id) {
+      return `<div class="bg-neutral-800 rounded-lg p-4 flex items-center gap-3">
+        <i class="fab fa-x-twitter text-2xl text-white"></i>
+        <a href="${escapePost(post.media_url)}" target="_blank" rel="noopener" class="text-blue-400 hover:underline text-sm">View on X</a>
+      </div>`;
+    }
+    if (post.embed_platform === 'kick' && post.embed_id) {
+      return `<div class="bg-neutral-800 rounded-lg p-4 flex items-center gap-3">
+        <span class="text-2xl font-bold text-green-400">K</span>
+        <a href="${escapePost(post.media_url)}" target="_blank" rel="noopener" class="text-blue-400 hover:underline text-sm">View on Kick</a>
+      </div>`;
+    }
+    return '';
+  }
+
+  function renderImages(images) {
+    if (!images || images.length === 0) return '';
+    const count = images.length;
+
+    // Single image: natural aspect ratio, centered, max-height cap
+    if (count === 1) {
+      return `<div class="rounded-lg overflow-hidden flex justify-center bg-neutral-950/50">` +
+        `<img src="${escapePost(images[0].image_url)}" alt="Post image"` +
+        ` class="max-w-full max-h-[520px] object-contain cursor-pointer hover:opacity-90 transition rounded-lg"` +
+        ` onclick="window.open('${escapePost(images[0].image_url)}', '_blank')"` +
+        ` loading="lazy"></div>`;
+    }
+
+    // 2+ images: grid with fixed-height crop (like Twitter)
+    let gridClass = 'grid gap-1 rounded-lg overflow-hidden';
+    gridClass += count === 2 ? ' grid-cols-2' : ' grid-cols-2';
+    let html = `<div class="${gridClass}">`;
+    images.forEach((img, i) => {
+      const span = (count === 3 && i === 0) ? 'col-span-1 row-span-2' : '';
+      const h = count === 2 ? 'h-64' : 'h-48';
+      html += `<img src="${escapePost(img.image_url)}" alt="Post image"` +
+        ` class="w-full ${h} object-cover cursor-pointer hover:opacity-90 transition ${span}"` +
+        ` onclick="window.open('${escapePost(img.image_url)}', '_blank')"` +
+        ` loading="lazy">`;
+    });
+    html += '</div>';
+    return html;
+  }
+
+  // Format content with line breaks and linkify URLs
+  function formatContent(text) {
+    if (!text) return '';
+    let html = escapePost(text);
+    html = html.replace(/\n/g, '<br>');
+    html = html.replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener" class="text-blue-400 hover:underline">$1</a>');
+    return html;
+  }
+
+  // Follow button: show on global feed for users you don't follow (and not yourself)
+  const showFollowBtn = showAuthor && post.author && currentUserId
+    && post.author.id !== currentUserId && !post.author._following;
+
+  const authorHtml = showAuthor && post.author ? (() => {
+    const a = post.author;
+    const flairBadge = a.flair_emoji
+      ? `<span class="text-xs text-yellow-300 font-medium ml-1" title="${escapePost(a.flair_name || '')}">${escapePost(a.flair_emoji)}</span>`
+      : '';
+    const rankBadge = a.rank_title
+      ? `<span class="text-xs text-amber-400/70 font-medium ml-1">· ${escapePost(a.rank_title)}</span>`
+      : '';
+    // Only show VIP badge if no equipped flair (avoids duplicate ⭐)
+    const vipBadge = a.is_vip && !a.flair_emoji
+      ? `<span class="text-xs text-purple-300 font-semibold ml-1" title="Early Tester">⭐</span>`
+      : '';
+    const isPlaying = !!a.current_game;
+    const avatarGlow = isPlaying
+      ? 'ring-2 ring-cyan-400 shadow-[0_0_10px_#22d3ee]'
+      : '';
+    const playingBadge = isPlaying
+      ? `<span class="inline-flex items-center gap-1 text-[10px] text-cyan-400 font-semibold mt-0.5"><i class="fas fa-gamepad text-[9px]"></i>Playing Now &middot; <span class="truncate max-w-[120px]" title="${escapePost(a.current_game)}">${escapePost(a.current_game)}</span></span>`
+      : '';
+    const avatarEl = a.avatar_url
+      ? `<img src="${escapePost(a.avatar_url)}" alt="" class="w-10 h-10 rounded-full object-cover flex-shrink-0 ${avatarGlow}">`
+      : `<div class="w-10 h-10 rounded-full bg-indigo-700 flex items-center justify-center text-white font-bold text-sm flex-shrink-0 select-none ${avatarGlow}">${escapePost((a.display_name || a.username || '?').charAt(0).toUpperCase())}</div>`;
+    return `
+    <div class="flex items-center gap-3 mb-3">
+      <a href="/ql/u/${escapePost(a.username)}/">
+        ${avatarEl}
+      </a>
+      <div class="flex-1 min-w-0">
+        <div class="flex items-center flex-wrap gap-x-1">
+          <a href="/ql/u/${escapePost(a.username)}/" class="text-white font-semibold text-sm hover:underline">
+            ${escapePost(a.display_name || a.username)}
+          </a>${flairBadge}${rankBadge}${vipBadge}
+        </div>
+        <p class="text-gray-500 text-xs">@${escapePost(a.username)} &middot; ${timeAgo(post.created_at)}</p>
+        ${playingBadge}
+      </div>
+      ${post.is_pinned ? '<span class="text-yellow-400 text-xs"><i class="fas fa-thumbtack"></i></span>' : ''}
+      ${showFollowBtn ? `<button onclick="quickFollow(${a.id}, this)" class="follow-card-btn text-xs px-2.5 py-1 rounded-full bg-indigo-600 hover:bg-indigo-700 text-white transition"><i class="fas fa-plus mr-1"></i>Follow</button>` : ''}
+    </div>`;
+  })() : '';
+
+  const gameTagHtml = post.game_tag_name ? (() => {
+    const steamId = post.game_tag_steam_id;
+    const gameName = escapePost(post.game_tag_name);
+    const inner = `<i class="fas fa-gamepad"></i><span>${gameName}</span><i class="fab fa-steam text-gray-500 ml-0.5"></i>`;
+    const steamUrl = steamId
+      ? `https://store.steampowered.com/app/${steamId}/`
+      : `https://store.steampowered.com/search/?term=${encodeURIComponent(post.game_tag_name)}`;
+    return `<a href="${steamUrl}" target="_blank" rel="noopener"
+      class="inline-flex items-center gap-1 px-2 py-1 bg-indigo-500/20 text-indigo-300 hover:bg-indigo-500/30 hover:text-indigo-200 rounded-full text-xs mb-2 transition cursor-pointer"
+      title="${steamId ? 'View on Steam' : 'Search on Steam'}">${inner}</a>`;
+  })() : '';
+
+  // For text posts that contain a video URL, extract and embed client-side
+  // (handles posts stored before server-side parsing supported the URL format)
+  function extractEmbedFromText(content) {
+    if (!content) return null;
+    let m = content.match(/(?:youtube\.com\/(?:watch\?v=|live\/|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
+    if (m) return { embed_platform: 'youtube', embed_id: m[1] };
+    m = content.match(/twitch\.tv\/videos\/(\d+)/);
+    if (m) return { embed_platform: 'twitch', embed_id: m[1] };
+    m = content.match(/clips\.twitch\.tv\/([a-zA-Z0-9_-]+)/);
+    if (m) return { embed_platform: 'twitch', embed_id: m[1] };
+    return null;
+  }
+
+  const _embedSource = post.embed_platform ? post
+    : (!post.images?.length && !post.media_url ? extractEmbedFromText(post.content) : null);
+
+  // If the content is only the video URL and we're embedding it, hide the redundant raw link
+  const _isContentJustUrl = post.content && /^https?:\/\/\S+$/.test(post.content.trim());
+  const _showContent = post.content && !(_embedSource && _isContentJustUrl);
+  const contentHtml = _showContent ? `<div class="text-gray-200 text-sm whitespace-pre-wrap mb-3">${formatContent(post.content)}</div>` : '';
+
+  const mediaHtml = post.post_type === 'gif' && post.media_url
+    ? `<img src="${escapePost(post.media_url)}" alt="GIF" class="rounded-lg max-h-80 w-auto" loading="lazy">`
+    : (_embedSource ? renderEmbed(_embedSource) : renderImages(post.images || []));
+
+  const likedClass = post.liked_by_me ? 'text-red-400' : 'text-gray-500 hover:text-red-400';
+  const likeIcon = post.liked_by_me ? 'fas fa-heart' : 'far fa-heart';
+
+  return `
+    <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-4 post-card" data-post-id="${post.id}" data-author-id="${post.author ? post.author.id : ''}">
+      ${authorHtml}
+      ${gameTagHtml}
+      ${contentHtml}
+      ${mediaHtml ? `<div class="mb-3">${mediaHtml}</div>` : ''}
+      <div class="flex items-center gap-5 pt-2 border-t border-neutral-800/50">
+        <button onclick="toggleLike(${post.id}, this)" class="${likedClass} flex items-center gap-1.5 text-sm transition">
+          <i class="${likeIcon}"></i>
+          <span class="like-count">${post.like_count || 0}</span>
+        </button>
+        <button onclick="toggleComments(${post.id})" class="text-gray-500 hover:text-blue-400 flex items-center gap-1.5 text-sm transition">
+          <i class="far fa-comment"></i>
+          <span>${post.comment_count || 0}</span>
+        </button>
+        <button onclick="sharePost(${post.id})" class="text-gray-500 hover:text-green-400 flex items-center gap-1.5 text-sm transition">
+          <i class="fas fa-share-alt"></i>
+        </button>
+        <span class="text-gray-600 text-xs ml-auto">${timeAgo(post.created_at)}</span>
+      </div>
+      <div id="comments-${post.id}" class="hidden mt-3 border-t border-neutral-800 pt-3"></div>
+    </div>`;
+}
+
+// Like toggle
+async function toggleLike(postId, btn) {
+  const isLiked = btn.classList.contains('text-red-400');
+  const method = isLiked ? 'DELETE' : 'POST';
+  try {
+    const res = await csrfFetch(`/ql/api/posts/${postId}/like/`, { method });
+    const data = await res.json();
+    if (data.success) {
+      const icon = btn.querySelector('i');
+      const count = btn.querySelector('.like-count');
+      if (data.liked) {
+        btn.classList.remove('text-gray-500', 'hover:text-red-400');
+        btn.classList.add('text-red-400');
+        icon.className = 'fas fa-heart';
+      } else {
+        btn.classList.remove('text-red-400');
+        btn.classList.add('text-gray-500', 'hover:text-red-400');
+        icon.className = 'far fa-heart';
+      }
+      count.textContent = data.like_count;
+    }
+  } catch(e) { console.error('Like error:', e); }
+}
+
+// Comments toggle
+async function toggleComments(postId) {
+  const container = document.getElementById(`comments-${postId}`);
+  if (container.classList.contains('hidden')) {
+    container.classList.remove('hidden');
+    await loadComments(postId);
+  } else {
+    container.classList.add('hidden');
+  }
+}
+
+async function loadComments(postId) {
+  const container = document.getElementById(`comments-${postId}`);
+  container.innerHTML = '<p class="text-gray-500 text-sm">Loading...</p>';
+
+  try {
+    const res = await fetch(`/ql/api/posts/${postId}/comments/`);
+    const data = await res.json();
+
+    let html = `
+      <form onsubmit="submitComment(event, ${postId})" class="flex gap-2 mb-3">
+        <input type="text" id="comment-input-${postId}" placeholder="Write a comment..."
+          class="flex-1 bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500" maxlength="500">
+        <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded-lg text-sm transition">
+          <i class="fas fa-paper-plane"></i>
+        </button>
+      </form>`;
+
+    if (data.comments && data.comments.length > 0) {
+      data.comments.forEach(c => {
+        html += renderComment(c);
+        if (c.replies) {
+          c.replies.forEach(r => {
+            html += renderComment(r, true);
+          });
+        }
+      });
+    } else {
+      html += '<p class="text-gray-500 text-sm text-center">No comments yet</p>';
+    }
+    container.innerHTML = html;
+  } catch(e) {
+    container.innerHTML = '<p class="text-red-400 text-sm">Failed to load comments</p>';
+  }
+}
+
+function renderComment(comment, isReply = false) {
+  function esc(s) { if (!s) return ''; const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+  const indent = isReply ? 'ml-8' : '';
+  const author = comment.author || {};
+  const likedClass = comment.liked_by_me ? 'text-red-400' : 'text-gray-500';
+  const likeIcon = comment.liked_by_me ? 'fas fa-heart' : 'far fa-heart';
+
+  const cmtFlairBadge = author.flair_emoji
+    ? `<span class="text-xs text-yellow-300 ml-0.5" title="${esc(author.flair_name || '')}">${esc(author.flair_emoji)}</span>`
+    : '';
+  const cmtRankBadge = author.rank_title
+    ? `<span class="text-xs text-amber-400/60 ml-0.5">· ${esc(author.rank_title)}</span>`
+    : '';
+  // Only show VIP badge if no equipped flair (avoids duplicate ⭐)
+  const cmtVipBadge = author.is_vip && !author.flair_emoji
+    ? `<span class="text-xs text-purple-300 ml-0.5" title="Early Tester">⭐</span>`
+    : '';
+  const cmtAvatarEl = author.avatar_url
+    ? `<img src="${esc(author.avatar_url)}" alt="" class="w-7 h-7 rounded-full object-cover flex-shrink-0 mt-0.5">`
+    : `<div class="w-7 h-7 rounded-full bg-indigo-700 flex items-center justify-center text-white font-bold text-xs flex-shrink-0 mt-0.5 select-none">${esc((author.display_name || author.username || '?').charAt(0).toUpperCase())}</div>`;
+
+  return `
+    <div class="flex gap-2 mb-2 ${indent}">
+      ${cmtAvatarEl}
+      <div class="flex-1 min-w-0">
+        <div class="bg-neutral-800/50 rounded-lg px-3 py-2">
+          <span class="inline-flex items-center flex-wrap gap-x-0.5">
+            <a href="/ql/u/${esc(author.username)}/" class="text-white text-xs font-semibold hover:underline">${esc(author.display_name || author.username)}</a>${cmtFlairBadge}${cmtRankBadge}${cmtVipBadge}
+          </span>
+          <p class="text-gray-300 text-sm">${esc(comment.content)}</p>
+        </div>
+        <div class="flex items-center gap-3 mt-1 px-1">
+          <button onclick="toggleCommentLike(${comment.id}, this)" class="${likedClass} text-xs transition hover:text-red-400">
+            <i class="${likeIcon}"></i> ${comment.like_count || 0}
+          </button>
+          ${!isReply ? `<button onclick="showReplyInput(${comment.id})" class="text-gray-500 text-xs hover:text-blue-400">Reply</button>` : ''}
+        </div>
+      </div>
+    </div>`;
+}
+
+async function submitComment(event, postId) {
+  event.preventDefault();
+  const input = document.getElementById(`comment-input-${postId}`);
+  const content = input.value.trim();
+  if (!content) return;
+
+  try {
+    const res = await csrfFetch(`/ql/api/posts/${postId}/comments/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content }),
+    });
+    const data = await res.json();
+    if (data.success) {
+      input.value = '';
+      await loadComments(postId);
+      // Update comment count in UI
+      const card = document.querySelector(`[data-post-id="${postId}"]`);
+      if (card) {
+        const commentBtn = card.querySelector('button:nth-child(2) span');
+        if (commentBtn) commentBtn.textContent = parseInt(commentBtn.textContent || '0') + 1;
+      }
+    }
+  } catch(e) { console.error('Comment error:', e); }
+}
+
+async function toggleCommentLike(commentId, btn) {
+  const isLiked = btn.classList.contains('text-red-400');
+  const method = isLiked ? 'DELETE' : 'POST';
+  try {
+    const res = await csrfFetch(`/ql/api/comments/${commentId}/like/`, { method });
+    const data = await res.json();
+    if (data.success) {
+      if (data.liked) {
+        btn.classList.remove('text-gray-500');
+        btn.classList.add('text-red-400');
+        btn.querySelector('i').className = 'fas fa-heart';
+      } else {
+        btn.classList.remove('text-red-400');
+        btn.classList.add('text-gray-500');
+        btn.querySelector('i').className = 'far fa-heart';
+      }
+      btn.innerHTML = `<i class="${data.liked ? 'fas' : 'far'} fa-heart"></i> ${data.like_count}`;
+    }
+  } catch(e) { console.error('Comment like error:', e); }
+}
+
+// Quick follow from post card
+async function quickFollow(userId, btn) {
+  try {
+    const res = await csrfFetch(`/ql/api/follow/${userId}/`, { method: 'POST' });
+    const data = await res.json();
+    if (data.success) {
+      btn.innerHTML = '<i class="fas fa-check mr-1"></i>Following';
+      btn.className = 'follow-card-btn text-xs px-2.5 py-1 rounded-full bg-neutral-700 text-gray-300 cursor-default';
+      btn.onclick = null;
+    }
+  } catch(e) { console.error('Follow error:', e); }
+}
+
+// Share / copy link
+function sharePost(postId) {
+  const url = `${location.origin}/ql/api/posts/${postId}/`;
+  const profileUrl = `${location.origin}/ql/`;
+
+  // Use a nicer share URL - just a permalink
+  const shareUrl = `${location.origin}/ql/post/${postId}/`;
+
+  if (navigator.share) {
+    navigator.share({ title: 'QuestLog Post', url: shareUrl }).catch(() => {});
+  } else if (navigator.clipboard) {
+    navigator.clipboard.writeText(shareUrl).then(() => {
+      showToast('Link copied to clipboard!');
+    }).catch(() => {
+      showToast('Could not copy link');
+    });
+  }
+}
+
+// Simple toast notification
+function showToast(message) {
+  const existing = document.getElementById('toast-notif');
+  if (existing) existing.remove();
+
+  const toast = document.createElement('div');
+  toast.id = 'toast-notif';
+  toast.className = 'fixed bottom-6 left-1/2 -translate-x-1/2 bg-neutral-800 border border-neutral-700 text-white px-4 py-2 rounded-lg text-sm shadow-lg z-50 transition-opacity';
+  toast.textContent = message;
+  document.body.appendChild(toast);
+  setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 300); }, 2500);
+}
+</script>

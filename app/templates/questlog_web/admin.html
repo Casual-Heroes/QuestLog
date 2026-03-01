@@ -1,0 +1,2594 @@
+{% extends "questlog_web/base_web.html" %}
+{% load static %}
+
+{% block title %}Admin Panel - QuestLog{% endblock %}
+
+{% block web_content %}
+{% include 'questlog/partials/custom_select.html' %}
+
+<script>
+  const CSRF_TOKEN = '{{ csrf_token }}';
+  function csrfFetch(url, options = {}) {
+    if (!options.headers) options.headers = {};
+    if (CSRF_TOKEN && CSRF_TOKEN !== 'None') {
+      options.headers['X-CSRFToken'] = CSRF_TOKEN;
+    }
+    options.headers['Accept'] = 'application/json';
+    return fetch(url, options).then(async r => {
+      if (!r.ok) {
+        const ct = r.headers.get('content-type') || '';
+        if (!ct.includes('application/json')) {
+          // HTML response means CSRF expiry, session timeout, or server error
+          if (r.status === 403) throw new Error('Session expired — please reload the page and try again.');
+          if (r.status === 500) throw new Error('Server error — please try again or check the logs.');
+          throw new Error(`Request failed (${r.status}) — please reload the page.`);
+        }
+      }
+      return r;
+    });
+  }
+  function escapeHtml(text) {
+    if (text == null || text === undefined) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  }
+  function formatTimestamp(ts) {
+    if (!ts) return 'Never';
+    return new Date(ts * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  }
+</script>
+
+<!-- Header -->
+<div class="bg-gradient-to-br from-neutral-900 to-neutral-950 border-b border-neutral-800 p-6 mb-6">
+  <div class="max-w-7xl mx-auto">
+    <h1 class="text-3xl font-bold text-white flex items-center gap-3">
+      <i class="fas fa-shield-alt text-yellow-400"></i>
+      Admin Panel
+    </h1>
+    <p class="text-gray-400 mt-1">Manage Casual Heroes</p>
+  </div>
+</div>
+
+<div class="max-w-7xl mx-auto px-4 pb-8">
+
+  <!-- ===== EMERGENCY MAINTENANCE BANNER ===== -->
+  <div id="maintenanceBanner" class="hidden mb-4 rounded-lg border border-red-600 bg-red-900/30 px-4 py-3 flex items-center gap-3 text-red-200 text-sm font-medium">
+    <svg class="w-5 h-5 text-red-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/>
+    </svg>
+    <span>⚠ MAINTENANCE MODE IS ACTIVE — Public pages are offline. Only admins can access the site.</span>
+    <button onclick="toggleMaintenance()" class="ml-auto px-3 py-1 bg-green-700 hover:bg-green-600 text-white text-xs rounded font-bold transition">BRING BACK ONLINE</button>
+  </div>
+
+  <!-- ===== OH SHIT BUTTON ===== -->
+  <div class="mb-3 rounded-xl border border-neutral-800 bg-neutral-900/60 p-4 flex flex-col sm:flex-row items-start sm:items-center gap-4">
+    <div class="flex items-center gap-3 flex-1 min-w-0">
+      <div id="maintenanceStatusDot" class="w-3 h-3 rounded-full bg-green-500 flex-shrink-0" title="Site status"></div>
+      <div class="min-w-0">
+        <p class="text-sm font-semibold text-white" id="maintenanceStatusLabel">Site is Online</p>
+        <p class="text-xs text-neutral-500 truncate">Emergency kill switch — disables all public pages instantly.</p>
+      </div>
+    </div>
+    <button id="ohShitBtn" onclick="toggleMaintenance()"
+      class="flex-shrink-0 px-5 py-2.5 rounded-lg font-bold text-sm transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-neutral-900 bg-red-700 hover:bg-red-600 text-white focus:ring-red-500 border border-red-600">
+      🚨 OH SHIT — TAKE SITE OFFLINE
+    </button>
+  </div>
+
+  <!-- ===== LOGIN LOCK ===== -->
+  <div class="mb-6 rounded-xl border border-neutral-800 bg-neutral-900/60 p-4 flex flex-col sm:flex-row items-start sm:items-center gap-4">
+    <div class="flex items-center gap-3 flex-1 min-w-0">
+      <div id="loginLockDot" class="w-3 h-3 rounded-full bg-green-500 flex-shrink-0" title="Login status"></div>
+      <div class="min-w-0">
+        <p class="text-sm font-semibold text-white" id="loginLockLabel">Logins Open</p>
+        <p class="text-xs text-neutral-500 truncate">Blocks login + registration — use during traffic spikes or influx events.</p>
+      </div>
+    </div>
+    <button id="loginLockBtn" onclick="toggleLoginLock()"
+      class="flex-shrink-0 px-5 py-2.5 rounded-lg font-bold text-sm transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-neutral-900 bg-yellow-700 hover:bg-yellow-600 text-white focus:ring-yellow-500 border border-yellow-600">
+      🔒 LOCK LOGINS
+    </button>
+  </div>
+
+  <!-- Quick Stats -->
+  <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 mb-6">
+    <div class="bg-neutral-900/50 rounded-lg border border-neutral-800 p-3 text-center">
+      <p class="text-2xl font-bold text-white" id="statUsers">-</p>
+      <p class="text-xs text-gray-400">Users</p>
+    </div>
+    <div class="bg-neutral-900/50 rounded-lg border border-neutral-800 p-3 text-center">
+      <p class="text-2xl font-bold text-white" id="statGroups">-</p>
+      <p class="text-xs text-gray-400">LFG Groups</p>
+    </div>
+    <div class="bg-neutral-900/50 rounded-lg border border-neutral-800 p-3 text-center">
+      <p class="text-2xl font-bold text-white" id="statCommunities">-</p>
+      <p class="text-xs text-gray-400">Communities</p>
+    </div>
+    <div class="bg-neutral-900/50 rounded-lg border border-neutral-800 p-3 text-center">
+      <p class="text-2xl font-bold text-orange-400" id="statPending">-</p>
+      <p class="text-xs text-gray-400">Pending</p>
+    </div>
+    <div class="bg-neutral-900/50 rounded-lg border border-neutral-800 p-3 text-center">
+      <p class="text-2xl font-bold text-white" id="statCreators">-</p>
+      <p class="text-xs text-gray-400">Creators</p>
+    </div>
+    <div class="bg-neutral-900/50 rounded-lg border border-neutral-800 p-3 text-center">
+      <p class="text-2xl font-bold text-green-400" id="statFoundGames">-</p>
+      <p class="text-xs text-gray-400">Found Games</p>
+    </div>
+  </div>
+
+  <!-- Tab Navigation -->
+  <div class="flex flex-wrap gap-1 mb-6 bg-neutral-900/50 rounded-lg border border-neutral-800 p-1">
+    <button onclick="switchTab('lfg')" id="tab-lfg" class="admin-tab px-4 py-2 rounded-md text-sm font-medium transition">
+      <i class="fas fa-users-cog mr-1"></i>LFG Games
+    </button>
+    <button onclick="switchTab('communities')" id="tab-communities" class="admin-tab px-4 py-2 rounded-md text-sm font-medium transition">
+      <i class="fas fa-server mr-1"></i>Communities
+    </button>
+    <button onclick="switchTab('creators')" id="tab-creators" class="admin-tab px-4 py-2 rounded-md text-sm font-medium transition">
+      <i class="fas fa-star mr-1"></i>Creators
+    </button>
+    <button onclick="switchTab('steam')" id="tab-steam" class="admin-tab px-4 py-2 rounded-md text-sm font-medium transition">
+      <i class="fab fa-steam mr-1"></i>Steam Searches
+    </button>
+    <button onclick="switchTab('games')" id="tab-games" class="admin-tab px-4 py-2 rounded-md text-sm font-medium transition">
+      <i class="fas fa-gamepad mr-1"></i>Found Games
+    </button>
+
+    <button onclick="switchTab('rss')" id="tab-rss" class="admin-tab px-4 py-2 rounded-md text-sm font-medium transition">
+      <i class="fas fa-rss mr-1"></i>RSS Feeds
+    </button>
+    <button onclick="switchTab('users')" id="tab-users" class="admin-tab px-4 py-2 rounded-md text-sm font-medium transition">
+      <i class="fas fa-user-shield mr-1"></i>Users
+    </button>
+    <button onclick="switchTab('posts')" id="tab-posts" class="admin-tab px-4 py-2 rounded-md text-sm font-medium transition">
+      <i class="fas fa-scroll mr-1"></i>Content Mod
+    </button>
+    <button onclick="switchTab('audit')" id="tab-audit" class="admin-tab px-4 py-2 rounded-md text-sm font-medium transition">
+      <i class="fas fa-clipboard-list mr-1"></i>Audit Log
+    </button>
+    <button onclick="switchTab('flairs')" id="tab-flairs" class="admin-tab px-4 py-2 rounded-md text-sm font-medium transition">
+      <i class="fas fa-palette mr-1"></i>Flairs &amp; XP
+    </button>
+    <button onclick="switchTab('polls')" id="tab-polls" class="admin-tab px-4 py-2 rounded-md text-sm font-medium transition">
+      <i class="fas fa-vote-yea mr-1"></i>Server Polls
+    </button>
+    <button onclick="switchTab('giveaways')" id="tab-giveaways" class="admin-tab px-4 py-2 rounded-md text-sm font-medium transition">
+      <i class="fas fa-gift mr-1"></i>Giveaways
+    </button>
+    <a href="/ql/admin/games-tracker/" class="admin-tab px-4 py-2 rounded-md text-sm font-medium transition inline-flex items-center  hover:border-neutral-500">
+      <i class="fas fa-gamepad mr-1"></i>Games We Play
+    </a>
+  </div>
+
+  <!-- Tab Content Panels -->
+
+  <!-- LFG Games Tab -->
+  <div id="panel-lfg" class="admin-panel hidden">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-lg font-semibold text-white"><i class="fas fa-users-cog text-blue-400 mr-2"></i>LFG Game Configurations</h2>
+      <button onclick="showAddLFGGameModal()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition">
+        <i class="fas fa-plus mr-1"></i>Add Game
+      </button>
+    </div>
+    <p class="text-gray-400 text-sm mb-4">Configure which games are available for LFG group creation, their default sizes, and role composition modes.</p>
+    <div id="lfgGamesList" class="space-y-3">
+      <div class="text-center text-gray-500 py-8"><i class="fas fa-spinner fa-spin text-2xl"></i></div>
+    </div>
+  </div>
+
+  <!-- Communities Tab -->
+  <div id="panel-communities" class="admin-panel hidden">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-lg font-semibold text-white"><i class="fas fa-server text-purple-400 mr-2"></i>Community Management</h2>
+    </div>
+
+    <!-- Pending Applications -->
+    <div class="mb-6">
+      <h3 class="text-sm font-semibold text-orange-400 mb-3 flex items-center gap-2">
+        <i class="fas fa-clock"></i>Pending Applications
+        <span id="pendingCommCount" class="bg-orange-600/30 text-orange-300 text-xs px-2 py-0.5 rounded-full">0</span>
+      </h3>
+      <div id="pendingCommunitiesList" class="space-y-3">
+        <div class="text-center text-gray-500 py-4 text-sm">Loading...</div>
+      </div>
+    </div>
+
+    <!-- All Communities -->
+    <h3 class="text-sm font-semibold text-gray-400 mb-3 flex items-center gap-2"><i class="fas fa-list"></i>All Communities</h3>
+    <div id="adminCommunitiesList" class="space-y-3">
+      <div class="text-center text-gray-500 py-8"><i class="fas fa-spinner fa-spin text-2xl"></i></div>
+    </div>
+  </div>
+
+  <!-- Creators Tab -->
+  <div id="panel-creators" class="admin-panel hidden">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-lg font-semibold text-white"><i class="fas fa-star text-yellow-400 mr-2"></i>Creator Management</h2>
+    </div>
+    <p class="text-gray-400 text-sm mb-4">Verify creators, set COTW/COTM, or remove profiles.</p>
+
+    <!-- COTW/COTM Rotation Controls -->
+    <div class="bg-neutral-900/70 border border-neutral-700 rounded-lg p-4 mb-5">
+      <h3 class="text-sm font-semibold text-gray-300 mb-3 flex items-center gap-2">
+        <i class="fas fa-sync-alt text-yellow-400"></i>Spotlight Rotation
+      </h3>
+      <div class="flex flex-wrap gap-3">
+        <div class="flex-1 min-w-48 bg-yellow-900/20 border border-yellow-700/30 rounded-lg p-3">
+          <p class="text-xs text-yellow-400 font-semibold mb-1"><i class="fas fa-star mr-1"></i>Creator of the Week</p>
+          <p id="cotwStatus" class="text-xs text-gray-400 mb-2">Loading...</p>
+          <button onclick="rotateCOTW()" class="bg-yellow-600/20 hover:bg-yellow-600/30 text-yellow-400 text-xs px-3 py-1.5 rounded transition font-medium">
+            <i class="fas fa-random mr-1"></i>Auto-Rotate COTW
+          </button>
+        </div>
+        <div class="flex-1 min-w-48 bg-purple-900/20 border border-purple-700/30 rounded-lg p-3">
+          <p class="text-xs text-purple-400 font-semibold mb-1"><i class="fas fa-crown mr-1"></i>Creator of the Month</p>
+          <p id="cotmStatus" class="text-xs text-gray-400 mb-2">Loading...</p>
+          <button onclick="rotateCOTM()" class="bg-purple-600/20 hover:bg-purple-600/30 text-purple-400 text-xs px-3 py-1.5 rounded transition font-medium">
+            <i class="fas fa-random mr-1"></i>Auto-Rotate COTM
+          </button>
+        </div>
+      </div>
+      <p class="text-xs text-gray-500 mt-2">Auto-rotate picks a random eligible creator. Anti-double-dip: can't hold both COTW and COTM simultaneously. You can also manually set/unset via each creator below.</p>
+    </div>
+
+    <div id="adminCreatorsList" class="space-y-3">
+      <div class="text-center text-gray-500 py-8"><i class="fas fa-spinner fa-spin text-2xl"></i></div>
+    </div>
+  </div>
+
+  <!-- Steam Searches Tab -->
+  <div id="panel-steam" class="admin-panel hidden">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-lg font-semibold text-white"><i class="fab fa-steam text-blue-400 mr-2"></i>Steam Search Configurations</h2>
+      <button onclick="showAddSteamSearchModal()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition">
+        <i class="fas fa-plus mr-1"></i>Add Search
+      </button>
+    </div>
+    <p class="text-gray-400 text-sm mb-4">Configure Steam tag-based game searches. These run periodically to discover new games.</p>
+    <div id="steamSearchesList" class="space-y-3">
+      <div class="text-center text-gray-500 py-8"><i class="fas fa-spinner fa-spin text-2xl"></i></div>
+    </div>
+  </div>
+
+  <!-- Found Games Tab -->
+  <div id="panel-games" class="admin-panel hidden">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-lg font-semibold text-white"><i class="fas fa-gamepad text-green-400 mr-2"></i>Found Games</h2>
+    </div>
+    <p class="text-gray-400 text-sm mb-4">Manage discovered games. Feature, hide, or remove entries.</p>
+    <div id="adminFoundGamesList" class="space-y-3">
+      <div class="text-center text-gray-500 py-8"><i class="fas fa-spinner fa-spin text-2xl"></i></div>
+    </div>
+  </div>
+
+
+  <!-- RSS Feeds Tab -->
+  <div id="panel-rss" class="admin-panel hidden">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-lg font-semibold text-white"><i class="fas fa-rss text-orange-400 mr-2"></i>RSS Feed Management</h2>
+      <button onclick="showAddRSSModal()" class="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition">
+        <i class="fas fa-plus mr-1"></i>Add Feed
+      </button>
+    </div>
+    <p class="text-gray-400 text-sm mb-4">Manage RSS feeds that populate the gaming news page.</p>
+    <div id="adminRSSList" class="space-y-3">
+      <div class="text-center text-gray-500 py-8"><i class="fas fa-spinner fa-spin text-2xl"></i></div>
+    </div>
+  </div>
+
+  <!-- Users Tab -->
+  <div id="panel-users" class="admin-panel hidden">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-lg font-semibold text-white"><i class="fas fa-user-shield text-cyan-400 mr-2"></i>User Management</h2>
+    </div>
+    <p class="text-gray-400 text-sm mb-4">View users, ban/unban accounts, manage admin privileges, and set hero points.</p>
+    <div class="mb-4">
+      <input type="text" id="userSearchInput" placeholder="Search users..." class="w-full md:w-64 bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2 text-white text-sm focus:border-cyan-500 focus:outline-none hover:bg-neutral-700/50 transition-colors">
+    </div>
+    <div id="adminUsersList" class="space-y-3">
+      <div class="text-center text-gray-500 py-8"><i class="fas fa-spinner fa-spin text-2xl"></i></div>
+    </div>
+  </div>
+
+  <!-- Content Moderation Tab -->
+  <div id="panel-posts" class="admin-panel hidden">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-lg font-semibold text-white"><i class="fas fa-scroll text-orange-400 mr-2"></i>Content Moderation</h2>
+      <div class="flex items-center gap-2">
+        <label class="flex items-center gap-2 cursor-pointer text-sm text-gray-400">
+          <input type="checkbox" id="showHiddenPosts" onchange="tabLoaded.posts = false; loadAdminPosts()" class="rounded bg-neutral-700">
+          Hidden only
+        </label>
+        <button onclick="tabLoaded.posts = false; loadAdminPosts()" class="text-xs bg-neutral-700 text-gray-300 hover:bg-neutral-600 px-3 py-1.5 rounded transition">
+          <i class="fas fa-sync-alt mr-1"></i>Refresh
+        </button>
+      </div>
+    </div>
+    <p class="text-gray-400 text-sm mb-4">Review and moderate posts. Hide posts that violate guidelines, or permanently delete them. Note: post content is public and not encrypted.</p>
+    <div id="adminPostsList" class="space-y-3">
+      <div class="text-center text-gray-500 py-8"><i class="fas fa-spinner fa-spin text-2xl"></i></div>
+    </div>
+    <div id="adminPostsPagination" class="flex justify-center gap-2 mt-4 hidden">
+      <button id="postsPagePrev" onclick="loadAdminPosts(-1)" class="text-xs bg-neutral-700 text-gray-300 hover:bg-neutral-600 px-3 py-1.5 rounded transition">
+        <i class="fas fa-chevron-left"></i> Prev
+      </button>
+      <span id="postsPageInfo" class="text-xs text-gray-400 px-3 py-1.5"></span>
+      <button id="postsPageNext" onclick="loadAdminPosts(1)" class="text-xs bg-neutral-700 text-gray-300 hover:bg-neutral-600 px-3 py-1.5 rounded transition">
+        Next <i class="fas fa-chevron-right"></i>
+      </button>
+    </div>
+  </div>
+
+  <!-- Audit Log Tab -->
+  <div id="panel-audit" class="admin-panel hidden">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-lg font-semibold text-white"><i class="fas fa-clipboard-list text-red-400 mr-2"></i>Admin Audit Log</h2>
+      <button onclick="tabLoaded.audit = false; loadAuditLog()" class="text-xs bg-neutral-700 text-gray-300 hover:bg-neutral-600 px-3 py-1.5 rounded transition">
+        <i class="fas fa-sync-alt mr-1"></i>Refresh
+      </button>
+    </div>
+    <p class="text-gray-400 text-sm mb-4">Every admin action is logged here with IP address and timestamp. Failed login attempts are also recorded.</p>
+    <div id="adminAuditList" class="space-y-2">
+      <div class="text-center text-gray-500 py-8"><i class="fas fa-spinner fa-spin text-2xl"></i></div>
+    </div>
+  </div>
+
+  <!-- Flairs & XP Tab -->
+  <div id="panel-flairs" class="admin-panel hidden">
+    <!-- XP Leaderboard -->
+    <div class="mb-8">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-lg font-semibold text-white"><i class="fas fa-trophy text-yellow-400 mr-2"></i>XP Leaderboard</h2>
+        <button onclick="loadXpLeaderboard()" class="text-xs bg-neutral-700 text-gray-300 hover:bg-neutral-600 px-3 py-1.5 rounded transition">
+          <i class="fas fa-sync-alt mr-1"></i>Refresh
+        </button>
+      </div>
+      <div id="xpLeaderboard" class="space-y-2">
+        <div class="text-center text-gray-500 py-4"><i class="fas fa-spinner fa-spin"></i></div>
+      </div>
+    </div>
+
+    <!-- Rank Titles -->
+    <div class="mb-8">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-lg font-semibold text-white"><i class="fas fa-scroll text-amber-400 mr-2"></i>Rank Titles</h2>
+        <button onclick="showAddRankTitleModal()" class="bg-amber-600 hover:bg-amber-700 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition">
+          <i class="fas fa-plus mr-1"></i>Add Title
+        </button>
+      </div>
+      <p class="text-gray-400 text-sm mb-4">Milestone rank titles awarded to users based on their level. Users get the highest title their level has unlocked.</p>
+      <div id="rankTitlesList" class="space-y-2">
+        <div class="text-center text-gray-500 py-4"><i class="fas fa-spinner fa-spin"></i></div>
+      </div>
+    </div>
+
+    <!-- Flairs -->
+    <div>
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-lg font-semibold text-white"><i class="fas fa-palette text-pink-400 mr-2"></i>Flairs</h2>
+        <button onclick="showAddFlairModal()" class="bg-pink-600 hover:bg-pink-700 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition">
+          <i class="fas fa-plus mr-1"></i>Add Flair
+        </button>
+      </div>
+      <p class="text-gray-400 text-sm mb-4">Users spend Hero Points to purchase flairs. One flair can be equipped at a time and shows on their posts and profile.</p>
+      <div id="flairsList" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+        <div class="text-center text-gray-500 py-4 col-span-3"><i class="fas fa-spinner fa-spin"></i></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Server Polls Tab -->
+  <div id="panel-polls" class="admin-panel hidden">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-lg font-semibold text-white"><i class="fas fa-vote-yea text-green-400 mr-2"></i>Server Rotation Polls</h2>
+      <button onclick="showCreatePollModal()" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition">
+        <i class="fas fa-plus mr-1"></i>Create Poll
+      </button>
+    </div>
+    <p class="text-gray-400 text-sm mb-4">Create polls to let members vote on the next game server rotation. Only one poll can be active at a time. Members can change their vote anytime while the poll is open.</p>
+    <div id="adminPollsList" class="space-y-4">
+      <div class="text-center text-gray-500 py-8"><i class="fas fa-spinner fa-spin text-2xl"></i></div>
+    </div>
+  </div>
+
+  <!-- Giveaways Tab -->
+  <div id="panel-giveaways" class="admin-panel hidden">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-lg font-semibold text-white"><i class="fas fa-gift text-indigo-400 mr-2"></i>Giveaways</h2>
+      <button onclick="showCreateGiveawayModal()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition">
+        <i class="fas fa-plus mr-1"></i>Create Giveaway
+      </button>
+    </div>
+    <p class="text-gray-400 text-sm mb-4">Create and launch giveaways. When you launch, all users get a notification. Pick a winner randomly from entries.</p>
+    <div id="adminGiveawayList" class="space-y-4">
+      <div class="text-center text-gray-500 py-8"><i class="fas fa-spinner fa-spin text-2xl"></i></div>
+    </div>
+  </div>
+</div>
+
+
+<!-- Generic Modal -->
+<div id="adminModal" class="fixed inset-0 bg-black/70 z-50 hidden flex items-center justify-center p-4">
+  <div class="bg-neutral-900 border border-neutral-700 rounded-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+    <div class="flex items-center justify-between p-4 border-b border-neutral-800">
+      <h3 id="modalTitle" class="text-lg font-semibold text-white"></h3>
+      <button onclick="closeModal()" class="text-gray-400 hover:text-white transition"><i class="fas fa-times"></i></button>
+    </div>
+    <div id="modalBody" class="p-4"></div>
+    <div id="modalFooter" class="p-4 border-t border-neutral-800 flex justify-end gap-2"></div>
+  </div>
+</div>
+
+<style>
+  .admin-tab { color: #9ca3af; }
+  .admin-tab:hover { color: #fff; background: rgba(255,255,255,0.05); }
+  .admin-tab.active { color: #fbbf24; background: rgba(251,191,36,0.1); }
+</style>
+
+<script>
+// ============================================================
+// TAB MANAGEMENT
+// ============================================================
+let currentTab = 'lfg';
+const tabLoaded = {};
+
+function switchTab(tab) {
+  document.querySelectorAll('.admin-panel').forEach(p => p.classList.add('hidden'));
+  document.querySelectorAll('.admin-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('panel-' + tab).classList.remove('hidden');
+  document.getElementById('tab-' + tab).classList.add('active');
+  currentTab = tab;
+
+  if (!tabLoaded[tab]) {
+    tabLoaded[tab] = true;
+    loadTabData(tab);
+  }
+}
+
+function loadTabData(tab) {
+  const loaders = {
+    lfg: loadLFGGames,
+    communities: loadAdminCommunities,
+    creators: loadAdminCreators,
+    steam: loadSteamSearches,
+    games: loadFoundGames,
+
+    rss: loadRSSFeeds,
+    users: loadUsers,
+    posts: loadAdminPosts,
+    audit: loadAuditLog,
+    flairs: loadFlairsTab,
+    polls: loadServerPolls,
+    giveaways: loadAdminGiveaways,
+  };
+  if (loaders[tab]) loaders[tab]();
+}
+
+// ============================================================
+// MODAL HELPERS
+// ============================================================
+function showModal(title, bodyHtml, footerHtml) {
+  document.getElementById('modalTitle').textContent = title;
+  document.getElementById('modalBody').innerHTML = bodyHtml;
+  document.getElementById('modalFooter').innerHTML = footerHtml || '';
+  document.getElementById('adminModal').classList.remove('hidden');
+}
+function closeModal() {
+  document.getElementById('adminModal').classList.add('hidden');
+}
+function inputField(id, label, placeholder, value, type) {
+  type = type || 'text';
+  return `<div class="mb-3">
+    <label class="text-sm text-gray-300 mb-1 block">${label}</label>
+    <input type="${type}" id="${id}" value="${escapeHtml(value || '')}" placeholder="${placeholder}"
+      class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2 text-white text-sm focus:border-yellow-500 focus:outline-none hover:bg-neutral-700/50 transition-colors">
+  </div>`;
+}
+function checkboxField(id, label, checked) {
+  return `<label class="flex items-center gap-2 mb-3 cursor-pointer">
+    <input type="checkbox" id="${id}" ${checked ? 'checked' : ''} class="rounded bg-neutral-700 border-neutral-600 text-yellow-500">
+    <span class="text-sm text-gray-300">${label}</span>
+  </label>`;
+}
+
+// ============================================================
+// MAINTENANCE MODE (OH SHIT BUTTON)
+// ============================================================
+async function loadMaintenanceStatus() {
+  try {
+    const r = await fetch('{% url "questlog_web_api_admin_maintenance_status" %}');
+    const d = await r.json();
+    setMaintenanceUI(d.enabled);
+  } catch(e) { console.error('Maintenance status check failed:', e); }
+}
+
+function setMaintenanceUI(enabled) {
+  const dot    = document.getElementById('maintenanceStatusDot');
+  const label  = document.getElementById('maintenanceStatusLabel');
+  const btn    = document.getElementById('ohShitBtn');
+  const banner = document.getElementById('maintenanceBanner');
+
+  if (enabled) {
+    dot.className    = 'w-3 h-3 rounded-full bg-red-500 flex-shrink-0 animate-pulse';
+    label.textContent = '⚠ Site is OFFLINE (Maintenance Mode)';
+    label.className   = 'text-sm font-semibold text-red-400';
+    btn.textContent   = '✅ BRING SITE BACK ONLINE';
+    btn.className     = btn.className.replace('bg-red-700 hover:bg-red-600 text-white focus:ring-red-500 border border-red-600',
+                                              'bg-green-700 hover:bg-green-600 text-white focus:ring-green-500 border border-green-600');
+    banner.classList.remove('hidden');
+  } else {
+    dot.className    = 'w-3 h-3 rounded-full bg-green-500 flex-shrink-0';
+    label.textContent = 'Site is Online';
+    label.className   = 'text-sm font-semibold text-white';
+    btn.textContent   = '🚨 OH SHIT — TAKE SITE OFFLINE';
+    btn.className     = btn.className.replace('bg-green-700 hover:bg-green-600 text-white focus:ring-green-500 border border-green-600',
+                                              'bg-red-700 hover:bg-red-600 text-white focus:ring-red-500 border border-red-600');
+    banner.classList.add('hidden');
+  }
+}
+
+async function toggleMaintenance() {
+  const btn = document.getElementById('ohShitBtn');
+  const isOnline = btn.textContent.includes('OH SHIT');
+
+  if (isOnline) {
+    const confirmed = confirm('⚠️ EMERGENCY SHUTDOWN\n\nThis will:\n• Take ALL public pages offline (503 maintenance page)\n• DISABLE every non-admin user account (no posting, no activity)\n• Admin panel stays accessible\n\nUser accounts will be automatically re-enabled when you bring the site back online.\n\nAre you sure?');
+    if (!confirmed) return;
+  } else {
+    const confirmed = confirm('Bring site back online?\n\nThis will:\n• Remove maintenance mode (public pages go live)\n• Re-enable all user accounts that were disabled by maintenance\n\nProceed?');
+    if (!confirmed) return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = 'Working…';
+  try {
+    const r = await csrfFetch('{% url "questlog_web_api_admin_maintenance" %}', { method: 'POST' });
+    const d = await r.json();
+    setMaintenanceUI(d.enabled);
+    if (d.enabled) {
+      alert(`🔴 Maintenance mode ENABLED.\nPublic pages are now offline.\n${d.users_disabled} user account(s) have been temporarily disabled.`);
+    } else {
+      alert(`🟢 Maintenance mode DISABLED.\nSite is back online.\n${d.users_restored} user account(s) have been re-enabled.`);
+    }
+  } catch(e) {
+    alert('Failed: ' + e.message);
+    await loadMaintenanceStatus(); // re-sync state
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// ============================================================
+// LOGIN LOCK
+// ============================================================
+async function loadLoginLockStatus() {
+  try {
+    const r = await fetch('{% url "questlog_web_api_admin_logins_status" %}');
+    const d = await r.json();
+    setLoginLockUI(d.logins_disabled);
+  } catch(e) { console.error('Login lock status check failed:', e); }
+}
+
+function setLoginLockUI(disabled) {
+  const dot   = document.getElementById('loginLockDot');
+  const label = document.getElementById('loginLockLabel');
+  const btn   = document.getElementById('loginLockBtn');
+  if (disabled) {
+    dot.className    = 'w-3 h-3 rounded-full bg-yellow-500 flex-shrink-0 animate-pulse';
+    label.textContent = '🔒 Logins are LOCKED — access temporarily disabled';
+    label.className   = 'text-sm font-semibold text-yellow-400';
+    btn.textContent   = '🔓 UNLOCK LOGINS';
+    btn.className     = btn.className.replace('bg-yellow-700 hover:bg-yellow-600 text-white focus:ring-yellow-500 border border-yellow-600',
+                                              'bg-green-700 hover:bg-green-600 text-white focus:ring-green-500 border border-green-600');
+  } else {
+    dot.className    = 'w-3 h-3 rounded-full bg-green-500 flex-shrink-0';
+    label.textContent = 'Logins Open';
+    label.className   = 'text-sm font-semibold text-white';
+    btn.textContent   = '🔒 LOCK LOGINS';
+    btn.className     = btn.className.replace('bg-green-700 hover:bg-green-600 text-white focus:ring-green-500 border border-green-600',
+                                              'bg-yellow-700 hover:bg-yellow-600 text-white focus:ring-yellow-500 border border-yellow-600');
+  }
+}
+
+async function toggleLoginLock() {
+  const btn = document.getElementById('loginLockBtn');
+  const locking = btn.textContent.includes('LOCK LOGINS');
+  const confirmed = confirm(locking
+    ? 'Lock logins and registrations?\n\nLogin and registration will show a "temporarily closed" message.\nExisting sessions are unaffected.'
+    : 'Unlock logins and registrations?\n\nAccess will be restored immediately.');
+  if (!confirmed) return;
+  btn.disabled = true;
+  btn.textContent = 'Working…';
+  try {
+    const r = await csrfFetch('{% url "questlog_web_api_admin_toggle_logins" %}', { method: 'POST' });
+    const d = await r.json();
+    setLoginLockUI(d.logins_disabled);
+  } catch(e) {
+    alert('Failed: ' + e.message);
+    await loadLoginLockStatus();
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// ============================================================
+// STATS
+// ============================================================
+async function loadStats() {
+  try {
+    const r = await fetch('{% url "questlog_web_api_admin_stats" %}');
+    const d = await r.json();
+    document.getElementById('statUsers').textContent = d.users || 0;
+    document.getElementById('statGroups').textContent = d.lfg_groups || 0;
+    document.getElementById('statCommunities').textContent = d.communities || 0;
+    document.getElementById('statPending').textContent = d.pending_communities || 0;
+    document.getElementById('statCreators').textContent = d.creators || 0;
+    document.getElementById('statFoundGames').textContent = d.found_games || 0;
+
+  } catch(e) { console.error('Stats load failed:', e); }
+}
+
+// ============================================================
+// LFG GAMES
+// ============================================================
+let lfgGames = [];
+
+async function loadLFGGames() {
+  try {
+    const r = await fetch('{% url "questlog_web_api_admin_lfg_games" %}');
+    const d = await r.json();
+    lfgGames = d.games || [];
+    renderLFGGames();
+  } catch(e) {
+    document.getElementById('lfgGamesList').innerHTML = '<div class="text-red-400 text-center py-4">Failed to load</div>';
+  }
+}
+
+function renderLFGGames() {
+  const c = document.getElementById('lfgGamesList');
+  if (!lfgGames.length) {
+    c.innerHTML = '<div class="text-gray-500 text-center py-8"><i class="fas fa-gamepad text-4xl mb-2 opacity-50"></i><p>No LFG games configured yet. Add one to get started.</p></div>';
+    return;
+  }
+  c.innerHTML = lfgGames.map(g => `
+    <div class="bg-neutral-900/50 border border-neutral-800 rounded-lg p-4 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        ${g.cover_url ? `<img src="${escapeHtml(g.cover_url)}" class="w-10 h-14 rounded object-cover">` : '<div class="w-10 h-14 bg-neutral-700 rounded flex items-center justify-center"><i class="fas fa-gamepad text-gray-500"></i></div>'}
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="text-white font-medium">${escapeHtml(g.game_name)}</span>
+            ${g.game_short ? `<span class="text-xs text-gray-500 bg-neutral-800 px-1.5 py-0.5 rounded">${escapeHtml(g.game_short)}</span>` : ''}
+            <span class="text-xs ${g.enabled ? 'text-green-400' : 'text-red-400'}">${g.enabled ? 'Active' : 'Disabled'}</span>
+          </div>
+          <div class="text-xs text-gray-500 mt-0.5">Size: ${g.default_group_size}-${g.max_group_size} | Roles: ${g.role_mode}${g.steam_app_id ? ' | Steam: ' + g.steam_app_id : ''}</div>
+        </div>
+      </div>
+      <div class="flex gap-2">
+        <button onclick="editLFGGame(${g.id})" class="text-gray-400 hover:text-yellow-400 transition text-sm"><i class="fas fa-edit"></i></button>
+        <button onclick="deleteLFGGame(${g.id}, '${escapeHtml(g.game_name)}')" class="text-gray-400 hover:text-red-400 transition text-sm"><i class="fas fa-trash"></i></button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function showAddLFGGameModal() {
+  showModal('Add LFG Game',
+    inputField('lfgGameName', 'Game Name *', 'e.g. Monster Hunter Wilds', '') +
+    inputField('lfgGameShort', 'Short Code', 'e.g. MHW', '') +
+    inputField('lfgSteamAppId', 'Steam App ID', 'e.g. 2246340', '', 'number') +
+    inputField('lfgCoverUrl', 'Cover URL', 'Direct link to cover image', '') +
+    '<div class="grid grid-cols-2 gap-3">' +
+      inputField('lfgDefaultSize', 'Default Group Size', '4', '4', 'number') +
+      inputField('lfgMaxSize', 'Max Group Size', '25', '25', 'number') +
+    '</div>' +
+    '<div class="mb-3"><label class="text-sm text-gray-300 mb-1 block">Role Mode</label><div id="lfgRoleModeContainer"></div></div>' +
+    checkboxField('lfgEnabled', 'Enabled', true),
+    `<button onclick="closeModal()" class="px-4 py-2 text-gray-400 hover:text-white transition text-sm">Cancel</button>
+     <button onclick="saveLFGGame()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition">Save Game</button>`
+  );
+  createCustomSelect({ container: '#lfgRoleModeContainer', name: 'lfgRoleMode', placeholder: 'None', items: [
+    { value: 'none', label: 'None' }, { value: 'generic', label: 'Generic (Tank/Healer/DPS/Support)' }, { value: 'custom', label: 'Custom Roles' }
+  ], selected: 'none', color: 'yellow' });
+}
+
+async function saveLFGGame() {
+  const name = document.getElementById('lfgGameName').value.trim();
+  if (!name) return alert('Game name is required');
+  const body = {
+    game_name: name,
+    game_short: document.getElementById('lfgGameShort').value.trim() || null,
+    steam_app_id: parseInt(document.getElementById('lfgSteamAppId').value) || null,
+    cover_url: document.getElementById('lfgCoverUrl').value.trim() || null,
+    default_group_size: parseInt(document.getElementById('lfgDefaultSize').value) || 4,
+    max_group_size: parseInt(document.getElementById('lfgMaxSize').value) || 25,
+    role_mode: document.querySelector('#lfgRoleModeContainer [data-value]')?.getAttribute('data-value') || 'none',
+    enabled: document.getElementById('lfgEnabled').checked,
+  };
+  try {
+    const r = await csrfFetch('{% url "questlog_web_api_admin_lfg_games" %}', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+    const d = await r.json();
+    if (d.success) { closeModal(); tabLoaded.lfg = false; loadLFGGames(); }
+    else alert(d.error || 'Failed to save');
+  } catch(e) { alert('Failed to save game'); }
+}
+
+async function deleteLFGGame(id, name) {
+  if (!confirm(`Delete LFG game "${name}"?`)) return;
+  try {
+    await csrfFetch(`/ql/api/admin/lfg-games/${id}/`, { method: 'DELETE', headers: {'Content-Type':'application/json'} });
+    tabLoaded.lfg = false; loadLFGGames();
+  } catch(e) { alert('Failed to delete'); }
+}
+
+// ============================================================
+// COMMUNITIES
+// ============================================================
+let adminCommunities = [];
+
+async function loadAdminCommunities() {
+  try {
+    const r = await fetch('{% url "questlog_web_api_admin_communities" %}');
+    const d = await r.json();
+    adminCommunities = d.communities || [];
+    renderAdminCommunities();
+  } catch(e) {
+    document.getElementById('adminCommunitiesList').innerHTML = '<div class="text-red-400 text-center py-4">Failed to load</div>';
+    document.getElementById('pendingCommunitiesList').innerHTML = '';
+  }
+}
+
+function renderAdminCommunities() {
+  const pending = adminCommunities.filter(c => c.network_status === 'pending');
+  const rest = adminCommunities.filter(c => c.network_status !== 'pending');
+
+  // Pending counter badge
+  document.getElementById('pendingCommCount').textContent = pending.length;
+
+  // Pending queue
+  const pEl = document.getElementById('pendingCommunitiesList');
+  if (!pending.length) {
+    pEl.innerHTML = '<div class="text-gray-500 text-sm text-center py-4 border border-dashed border-neutral-700 rounded-lg">No pending applications</div>';
+  } else {
+    pEl.innerHTML = pending.map(comm => {
+      const desc = comm.description || comm.short_description || '';
+      const tags = (comm.tags || []).map(t => `<span class="text-xs bg-neutral-800 text-gray-400 px-2 py-0.5 rounded-full">${escapeHtml(t)}</span>`).join('');
+      const socials = [
+        comm.twitch_url   ? `<a href="${escapeHtml(comm.twitch_url)}" target="_blank" class="text-purple-400 hover:underline text-xs"><i class="fab fa-twitch mr-1"></i>Twitch</a>` : '',
+        comm.youtube_url  ? `<a href="${escapeHtml(comm.youtube_url)}" target="_blank" class="text-red-400 hover:underline text-xs"><i class="fab fa-youtube mr-1"></i>YouTube</a>` : '',
+        comm.twitter_url  ? `<a href="${escapeHtml(comm.twitter_url)}" target="_blank" class="text-sky-400 hover:underline text-xs"><i class="fab fa-twitter mr-1"></i>Twitter</a>` : '',
+        comm.website_url  ? `<a href="${escapeHtml(comm.website_url)}" target="_blank" class="text-gray-400 hover:underline text-xs"><i class="fas fa-globe mr-1"></i>Website</a>` : '',
+        comm.invite_url   ? `<a href="${escapeHtml(comm.invite_url)}" target="_blank" class="text-green-400 hover:underline text-xs"><i class="fas fa-door-open mr-1"></i>Invite Link</a>` : '',
+      ].filter(Boolean).join('<span class="text-gray-700 mx-1">·</span>');
+      return `
+      <div class="bg-orange-900/10 border border-orange-600/40 rounded-lg overflow-hidden">
+        ${comm.banner_url ? `<img src="${escapeHtml(comm.banner_url)}" class="w-full h-24 object-cover opacity-80">` : ''}
+        <div class="p-4">
+          <div class="flex items-start justify-between gap-3 mb-3">
+            <div class="flex items-center gap-3 min-w-0">
+              ${comm.icon_url ? `<img src="${escapeHtml(comm.icon_url)}" class="w-10 h-10 rounded-lg object-cover flex-shrink-0">` : ''}
+              <div class="min-w-0">
+                <div class="flex items-center gap-2 flex-wrap">
+                  <span class="text-white font-semibold">${escapeHtml(comm.name)}</span>
+                  <span class="text-xs px-1.5 py-0.5 rounded bg-neutral-700 text-gray-300 capitalize">${comm.platform}</span>
+                  <span class="text-xs px-1.5 py-0.5 rounded bg-orange-600/20 text-orange-400">Pending</span>
+                </div>
+                <div class="text-xs text-gray-500 mt-0.5">
+                  ${comm.member_count} members &nbsp;·&nbsp; Submitted: ${formatTimestamp(comm.created_at)}
+                </div>
+              </div>
+            </div>
+            <div class="flex gap-2 flex-shrink-0">
+              <button onclick="communityAction(${comm.id}, 'approve')"
+                class="text-xs bg-green-600/20 text-green-400 hover:bg-green-600/40 border border-green-600/30 px-3 py-1.5 rounded transition font-medium">
+                <i class="fas fa-check mr-1"></i>Approve
+              </button>
+              <button onclick="communityAction(${comm.id}, 'deny')"
+                class="text-xs bg-red-600/20 text-red-400 hover:bg-red-600/40 border border-red-600/30 px-3 py-1.5 rounded transition font-medium">
+                <i class="fas fa-times mr-1"></i>Deny
+              </button>
+            </div>
+          </div>
+          ${desc ? `<p class="text-gray-300 text-sm mb-3 leading-relaxed">${escapeHtml(desc)}</p>` : '<p class="text-gray-600 text-xs mb-3 italic">No description provided</p>'}
+          ${tags ? `<div class="flex flex-wrap gap-1 mb-3">${tags}</div>` : ''}
+          ${socials ? `<div class="flex flex-wrap gap-3">${socials}</div>` : ''}
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  // All communities list
+  const c = document.getElementById('adminCommunitiesList');
+  if (!adminCommunities.length) {
+    c.innerHTML = '<div class="text-gray-500 text-center py-8">No communities registered yet.</div>';
+    return;
+  }
+  const statusBadge = s => {
+    if (s === 'approved') return '<span class="text-xs px-1.5 py-0.5 rounded bg-green-600/20 text-green-400">Approved</span>';
+    if (s === 'pending') return '<span class="text-xs px-1.5 py-0.5 rounded bg-orange-600/20 text-orange-400">Pending</span>';
+    if (s === 'denied') return '<span class="text-xs px-1.5 py-0.5 rounded bg-red-600/20 text-red-400">Denied</span>';
+    if (s === 'banned') return '<span class="text-xs px-1.5 py-0.5 rounded bg-red-700/30 text-red-300">Banned</span>';
+    return '';
+  };
+  c.innerHTML = adminCommunities.map(comm => `
+    <div class="bg-neutral-900/50 border border-neutral-800 rounded-lg p-4">
+      <div class="flex items-center justify-between">
+        <div>
+          <div class="flex items-center gap-2 flex-wrap">
+            <span class="text-white font-medium">${escapeHtml(comm.name)}</span>
+            <span class="text-xs px-1.5 py-0.5 rounded capitalize bg-neutral-700 text-gray-300">${comm.platform}</span>
+            ${statusBadge(comm.network_status)}
+          </div>
+          <div class="text-xs text-gray-500 mt-1">${comm.member_count} members | Discovery: ${comm.allow_discovery ? 'On' : 'Off'} | ${formatTimestamp(comm.created_at)}</div>
+        </div>
+        <div class="flex gap-1 flex-shrink-0">
+          ${comm.network_status === 'pending' ? `<button onclick="communityAction(${comm.id}, 'approve')" class="text-xs bg-green-600/20 text-green-400 hover:bg-green-600/30 px-2 py-1 rounded transition">Approve</button><button onclick="communityAction(${comm.id}, 'deny')" class="text-xs bg-red-600/20 text-red-400 hover:bg-red-600/30 px-2 py-1 rounded transition">Deny</button>` : ''}
+          ${comm.network_status === 'denied' ? `<button onclick="communityAction(${comm.id}, 'approve')" class="text-xs bg-green-600/20 text-green-400 hover:bg-green-600/30 px-2 py-1 rounded transition">Re-approve</button>` : ''}
+          ${!comm.is_banned ? `<button onclick="communityAction(${comm.id}, 'ban')" class="text-xs bg-red-600/20 text-red-400 hover:bg-red-600/30 px-2 py-1 rounded transition">Ban</button>` : `<button onclick="communityAction(${comm.id}, 'unban')" class="text-xs bg-green-600/20 text-green-400 hover:bg-green-600/30 px-2 py-1 rounded transition">Unban</button>`}
+          <button onclick="communityAction(${comm.id}, 'toggle_discovery')" class="text-xs bg-neutral-700 text-gray-300 hover:bg-neutral-600 px-2 py-1 rounded transition">${comm.allow_discovery ? 'Hide' : 'Show'}</button>
+          <button onclick="if(confirm('Permanently delete this community?')) communityAction(${comm.id}, 'purge')" class="text-xs bg-red-600/20 text-red-400 hover:bg-red-600/30 px-2 py-1 rounded transition"><i class="fas fa-trash"></i></button>
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+async function communityAction(id, action) {
+  const body = { action };
+  if (action === 'ban') {
+    const reason = prompt('Ban reason (optional):');
+    if (reason === null) return;
+    body.reason = reason;
+  }
+  try {
+    await csrfFetch(`/ql/api/admin/communities/${id}/action/`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+    tabLoaded.communities = false; loadAdminCommunities(); loadStats();
+  } catch(e) { alert('Action failed'); }
+}
+
+// ============================================================
+// CREATORS
+// ============================================================
+let adminCreators = [];
+
+async function loadAdminCreators() {
+  try {
+    const r = await fetch('{% url "questlog_web_api_admin_creators" %}');
+    const d = await r.json();
+    adminCreators = d.creators || [];
+    renderAdminCreators();
+    updateSpotlightStatus();
+  } catch(e) {
+    document.getElementById('adminCreatorsList').innerHTML = '<div class="text-red-400 text-center py-4">Failed to load</div>';
+  }
+}
+
+function updateSpotlightStatus() {
+  const cotw = adminCreators.find(c => c.is_current_cotw);
+  const cotm = adminCreators.find(c => c.is_current_cotm);
+  const cotwEl = document.getElementById('cotwStatus');
+  const cotmEl = document.getElementById('cotmStatus');
+  if (cotwEl) cotwEl.textContent = cotw ? `Current: ${cotw.display_name}` : 'No current COTW';
+  if (cotmEl) cotmEl.textContent = cotm ? `Current: ${cotm.display_name}` : 'No current COTM';
+}
+
+function renderAdminCreators() {
+  const c = document.getElementById('adminCreatorsList');
+  if (!adminCreators.length) {
+    c.innerHTML = '<div class="text-gray-500 text-center py-8">No creators registered yet.</div>';
+    return;
+  }
+  c.innerHTML = adminCreators.map(cr => `
+    <div class="bg-neutral-900/50 border ${cr.is_current_cotm ? 'border-purple-700/50' : cr.is_current_cotw ? 'border-yellow-700/50' : 'border-neutral-800'} rounded-lg p-4 flex items-center justify-between gap-3">
+      <div class="flex items-center gap-3 min-w-0 flex-1">
+        ${avatarHtml(cr.username, cr.avatar_url, 'w-10 h-10')}
+        <div class="min-w-0">
+          <div class="flex items-center gap-2 flex-wrap">
+            <span class="text-white font-medium">${escapeHtml(cr.display_name)}</span>
+            ${cr.is_verified ? '<i class="fas fa-check-circle text-blue-400" title="Verified"></i>' : ''}
+            ${cr.is_current_cotm ? '<span class="text-xs px-1.5 py-0.5 rounded bg-purple-600/20 text-purple-400"><i class="fas fa-crown mr-1"></i>COTM</span>' : ''}
+            ${cr.is_current_cotw ? '<span class="text-xs px-1.5 py-0.5 rounded bg-yellow-600/20 text-yellow-400"><i class="fas fa-star mr-1"></i>COTW</span>' : ''}
+            ${!cr.allow_discovery ? '<span class="text-xs px-1.5 py-0.5 rounded bg-neutral-700 text-gray-400">Hidden</span>' : ''}
+          </div>
+          <div class="text-xs text-gray-500 mt-0.5">
+            ${cr.follower_count} followers | Featured ${cr.times_featured}x
+            ${cr.cotw_last_featured ? ' | Last COTW: ' + formatTimestamp(cr.cotw_last_featured) : ''}
+            ${cr.cotm_last_featured ? ' | Last COTM: ' + formatTimestamp(cr.cotm_last_featured) : ''}
+            ${cr.twitch_url ? ' <i class="fab fa-twitch text-purple-400"></i>' : ''}${cr.youtube_url ? ' <i class="fab fa-youtube text-red-400"></i>' : ''}
+          </div>
+        </div>
+      </div>
+      <div class="flex flex-wrap gap-1 flex-shrink-0">
+        ${!cr.is_verified ? `<button onclick="creatorAction(${cr.id}, 'verify')" class="text-xs bg-blue-600/20 text-blue-400 hover:bg-blue-600/30 px-2 py-1 rounded transition">Verify</button>` : `<button onclick="creatorAction(${cr.id}, 'unverify')" class="text-xs bg-neutral-700 text-gray-300 hover:bg-neutral-600 px-2 py-1 rounded transition">Unverify</button>`}
+        ${!cr.is_current_cotw ? `<button onclick="creatorAction(${cr.id}, 'set_cotw')" class="text-xs bg-yellow-600/20 text-yellow-400 hover:bg-yellow-600/30 px-2 py-1 rounded transition" title="Set as COTW"><i class="fas fa-star"></i></button>` : `<button onclick="creatorAction(${cr.id}, 'unset_cotw')" class="text-xs bg-yellow-600/30 text-yellow-300 hover:bg-yellow-600/40 px-2 py-1 rounded transition" title="Remove COTW"><i class="fas fa-star"></i> Remove</button>`}
+        ${!cr.is_current_cotm ? `<button onclick="creatorAction(${cr.id}, 'set_cotm')" class="text-xs bg-purple-600/20 text-purple-400 hover:bg-purple-600/30 px-2 py-1 rounded transition" title="Set as COTM"><i class="fas fa-crown"></i></button>` : `<button onclick="creatorAction(${cr.id}, 'unset_cotm')" class="text-xs bg-purple-600/30 text-purple-300 hover:bg-purple-600/40 px-2 py-1 rounded transition" title="Remove COTM"><i class="fas fa-crown"></i> Remove</button>`}
+        <button onclick="if(confirm('Delete this creator profile?')) creatorAction(${cr.id}, 'delete')" class="text-xs bg-red-600/20 text-red-400 hover:bg-red-600/30 px-2 py-1 rounded transition"><i class="fas fa-trash"></i></button>
+      </div>
+    </div>
+  `).join('');
+}
+
+async function creatorAction(id, action) {
+  try {
+    await csrfFetch(`/ql/api/admin/creators/${id}/action/`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ action }) });
+    tabLoaded.creators = false; loadAdminCreators(); loadStats();
+  } catch(e) { alert('Action failed: ' + e.message); }
+}
+
+async function rotateCOTW() {
+  if (!confirm('Auto-rotate Creator of the Week? This will clear the current COTW and randomly select a new one.')) return;
+  try {
+    const r = await csrfFetch('/ql/api/admin/creators/rotate-cotw/', { method: 'POST', headers: {'Content-Type':'application/json'} });
+    const d = await r.json();
+    if (d.new_cotw) {
+      alert(`New Creator of the Week: ${d.new_cotw}`);
+    } else {
+      alert(d.message || 'No eligible creators for COTW.');
+    }
+    tabLoaded.creators = false; loadAdminCreators();
+  } catch(e) { alert('Rotation failed'); }
+}
+
+async function rotateCOTM() {
+  if (!confirm('Auto-rotate Creator of the Month? This will clear the current COTM and randomly select a new one.')) return;
+  try {
+    const r = await csrfFetch('/ql/api/admin/creators/rotate-cotm/', { method: 'POST', headers: {'Content-Type':'application/json'} });
+    const d = await r.json();
+    if (d.new_cotm) {
+      alert(`New Creator of the Month: ${d.new_cotm}`);
+    } else {
+      alert(d.message || 'No eligible creators for COTM.');
+    }
+    tabLoaded.creators = false; loadAdminCreators();
+  } catch(e) { alert('Rotation failed'); }
+}
+
+// ============================================================
+// STEAM SEARCHES
+// ============================================================
+let steamSearches = [];
+
+async function loadSteamSearches() {
+  try {
+    const r = await fetch('{% url "questlog_web_api_admin_steam_searches" %}');
+    const d = await r.json();
+    steamSearches = d.searches || [];
+    renderSteamSearches();
+  } catch(e) {
+    document.getElementById('steamSearchesList').innerHTML = '<div class="text-red-400 text-center py-4">Failed to load</div>';
+  }
+}
+
+function _intervalLabel(minutes) {
+  if (!minutes) return '24h';
+  if (minutes < 60) return minutes + ' min';
+  if (minutes < 1440) return (minutes / 60) + 'h';
+  if (minutes < 10080) return (minutes / 1440) + ' day' + (minutes === 1440 ? '' : 's');
+  return (minutes / 10080) + ' week' + (minutes === 10080 ? '' : 's');
+}
+
+function renderSteamSearches() {
+  const c = document.getElementById('steamSearchesList');
+  if (!steamSearches.length) {
+    c.innerHTML = '<div class="text-gray-500 text-center py-8"><i class="fab fa-steam text-4xl mb-2 opacity-50"></i><p>No Steam searches configured. Create one to start discovering games.</p></div>';
+    return;
+  }
+  c.innerHTML = steamSearches.map(s => {
+    const tags = s.steam_tags || [];
+    return `
+    <div class="bg-neutral-900/50 border border-neutral-800 rounded-lg p-4">
+      <div class="flex items-center justify-between mb-2">
+        <div class="flex items-center gap-2 flex-wrap">
+          <span class="text-white font-medium">${escapeHtml(s.name)}</span>
+          <span class="text-xs px-1.5 py-0.5 rounded ${s.enabled ? 'bg-green-600/20 text-green-400' : 'bg-red-600/20 text-red-400'}">${s.enabled ? 'Active' : 'Disabled'}</span>
+          ${s.include_consoles ? '<span class="text-xs px-1.5 py-0.5 rounded bg-purple-600/20 text-purple-400"><i class="fas fa-gamepad mr-1"></i>+ Consoles</span>' : ''}
+          <span class="text-xs text-gray-500">every ${_intervalLabel(s.fetch_interval)}</span>
+        </div>
+        <div class="flex gap-1">
+          <button onclick="runSteamSearchNow(${s.id})" id="ss-run-${s.id}"
+            class="text-gray-400 hover:text-green-400 transition text-sm px-2 py-1 rounded hover:bg-green-600/10" title="Run now">
+            <i class="fas fa-play"></i>
+          </button>
+          <button onclick="runSteamSearchNow(${s.id}, true)" id="ss-clear-${s.id}"
+            class="text-gray-400 hover:text-orange-400 transition text-sm px-2 py-1 rounded hover:bg-orange-600/10" title="Purge all games and re-run">
+            <i class="fas fa-broom"></i>
+          </button>
+          <button onclick="showEditSteamSearchModal(${s.id})"
+            class="text-gray-400 hover:text-blue-400 transition text-sm px-2 py-1 rounded hover:bg-blue-600/10" title="Edit">
+            <i class="fas fa-edit"></i>
+          </button>
+          <button onclick="deleteSteamSearch(${s.id}, '${escapeHtml(s.name)}')"
+            class="text-gray-400 hover:text-red-400 transition text-sm px-2 py-1 rounded hover:bg-red-600/10" title="Delete">
+            <i class="fas fa-trash"></i>
+          </button>
+        </div>
+      </div>
+      <div class="flex flex-wrap gap-1 mb-2">
+        ${tags.map(t => `<span class="text-xs px-2 py-0.5 bg-blue-600/20 text-blue-400 rounded">${escapeHtml(t)}</span>`).join('')}
+        ${!tags.length ? '<span class="text-xs text-gray-500">No tags configured</span>' : ''}
+      </div>
+      <div class="text-xs text-gray-500 flex flex-wrap gap-x-3">
+        <span>${s.coming_soon_only ? 'Coming Soon Only' : 'All Games'}</span>
+        <span>Max: ${s.max_results}</span>
+        ${s.last_run_at
+          ? `<span>Last run: ${formatTimestamp(s.last_run_at)} &middot; ${s.last_result_count} found</span>`
+          : '<span class="text-yellow-500/70">Never run</span>'}
+        ${s.last_error ? `<span class="text-red-400">Error: ${escapeHtml(s.last_error)}</span>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── Steam Search form HTML (shared by add + edit) ─────────────────────────────
+
+function _steamFormHtml(data) {
+  const v   = (k, def) => data ? (data[k] !== undefined ? data[k] : def) : def;
+  const esc = s => escapeHtml(String(s == null ? '' : s));
+  const sel = (k, opt, def) => parseInt(v(k, def)) === opt ? 'selected' : '';
+  const chk = (k, def) => v(k, def) ? 'checked' : '';
+
+  const tagsStr    = Array.isArray(v('steam_tags', [])) ? v('steam_tags', []).join(', ') : v('steam_tags', '');
+  const excludeStr = Array.isArray(v('exclude_tags', [])) ? v('exclude_tags', []).join(', ') : v('exclude_tags', '');
+
+  return `
+  <div class="space-y-4">
+    <div>
+      <label class="text-sm text-gray-300 mb-1 block">Search Name *</label>
+      <input type="text" id="ssName" value="${esc(v('name',''))}" placeholder="e.g. Upcoming RPGs"
+        class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-blue-500 focus:outline-none">
+    </div>
+    <div>
+      <label class="text-sm text-gray-300 mb-1 block">Steam Tags <span class="text-gray-500">(comma-separated)</span></label>
+      <input type="text" id="ssTags" value="${esc(tagsStr)}" placeholder="e.g. RPG, Open World, Fantasy"
+        class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-blue-500 focus:outline-none">
+      <p class="text-xs text-gray-500 mt-1">Games must match ALL tags (intersection)</p>
+    </div>
+    <div>
+      <label class="text-sm text-gray-300 mb-1 block">Exclude Tags <span class="text-gray-500">(comma-separated)</span></label>
+      <input type="text" id="ssExclude" value="${esc(excludeStr)}" placeholder="e.g. VR, Early Access"
+        class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-blue-500 focus:outline-none">
+    </div>
+    <div class="grid grid-cols-2 gap-3">
+      <div>
+        <label class="text-sm text-gray-300 mb-1 block">Max Results</label>
+        <input type="number" id="ssMaxResults" value="${esc(v('max_results', 50))}" min="1" max="500"
+          class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-blue-500 focus:outline-none">
+      </div>
+      <div>
+        <label class="text-sm text-gray-300 mb-1 block">Min Reviews</label>
+        <input type="number" id="ssMinReviews" value="${esc(v('min_reviews', 0))}" min="0"
+          class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-blue-500 focus:outline-none">
+      </div>
+    </div>
+    <div>
+      <label class="text-sm text-gray-300 mb-1 block">Search Interval</label>
+      <select id="ssFetchInterval"
+        class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-blue-500 focus:outline-none">
+        <option value="15"   ${sel('fetch_interval', 15,   1440)}>Every 15 minutes</option>
+        <option value="30"   ${sel('fetch_interval', 30,   1440)}>Every 30 minutes</option>
+        <option value="60"   ${sel('fetch_interval', 60,   1440)}>Every hour</option>
+        <option value="360"  ${sel('fetch_interval', 360,  1440)}>Every 6 hours</option>
+        <option value="720"  ${sel('fetch_interval', 720,  1440)}>Every 12 hours</option>
+        <option value="1440" ${sel('fetch_interval', 1440, 1440)}>Every 24 hours</option>
+        <option value="4320" ${sel('fetch_interval', 4320, 1440)}>Every 3 days</option>
+        <option value="10080"${sel('fetch_interval',10080, 1440)}>Every 7 days</option>
+      </select>
+    </div>
+    <!-- Toggles -->
+    <div class="space-y-2">
+      <label class="flex items-center justify-between bg-neutral-800/50 rounded-lg px-3 py-3 cursor-pointer">
+        <div>
+          <p class="text-sm text-white font-medium">Coming Soon Only</p>
+          <p class="text-xs text-gray-400">Only include games that haven't released yet</p>
+        </div>
+        <input type="checkbox" id="ssComingSoon" ${chk('coming_soon_only', false)}
+          class="w-5 h-5 rounded bg-neutral-700 border-neutral-600 text-blue-500 focus:ring-blue-500 cursor-pointer">
+      </label>
+      <label class="flex items-center justify-between bg-neutral-800/50 rounded-lg px-3 py-3 cursor-pointer">
+        <div>
+          <p class="text-sm text-white font-medium">Include Console Platforms via IGDB</p>
+          <p class="text-xs text-gray-400">For each game found, look up PS5 / Xbox / Switch availability on IGDB (slower)</p>
+        </div>
+        <input type="checkbox" id="ssConsoles" ${chk('include_consoles', false)}
+          class="w-5 h-5 rounded bg-neutral-700 border-neutral-600 text-purple-500 focus:ring-purple-500 cursor-pointer">
+      </label>
+      <label class="flex items-center justify-between bg-neutral-800/50 rounded-lg px-3 py-3 cursor-pointer">
+        <div>
+          <p class="text-sm text-white font-medium">Show on Site</p>
+          <p class="text-xs text-gray-400">Games from this search appear on /ql/games/</p>
+        </div>
+        <input type="checkbox" id="ssShowOnSite" ${chk('show_on_site', true)}
+          class="w-5 h-5 rounded bg-neutral-700 border-neutral-600 text-blue-500 focus:ring-blue-500 cursor-pointer">
+      </label>
+      <label class="flex items-center justify-between bg-neutral-800/50 rounded-lg px-3 py-3 cursor-pointer">
+        <div>
+          <p class="text-sm text-white font-medium">Enabled</p>
+          <p class="text-xs text-gray-400">When disabled, this search won't run automatically</p>
+        </div>
+        <input type="checkbox" id="ssEnabled" ${chk('enabled', true)}
+          class="w-5 h-5 rounded bg-neutral-700 border-neutral-600 text-green-500 focus:ring-green-500 cursor-pointer">
+      </label>
+    </div>
+  </div>`;
+}
+
+function _steamBodyFromForm() {
+  const tagsStr    = document.getElementById('ssTags').value.trim();
+  const excludeStr = document.getElementById('ssExclude').value.trim();
+  return {
+    name:             document.getElementById('ssName').value.trim(),
+    steam_tags:       tagsStr    ? tagsStr.split(',').map(t => t.trim()).filter(Boolean)    : [],
+    exclude_tags:     excludeStr ? excludeStr.split(',').map(t => t.trim()).filter(Boolean) : [],
+    max_results:      parseInt(document.getElementById('ssMaxResults').value)   || 50,
+    min_reviews:      parseInt(document.getElementById('ssMinReviews').value)   || 0,
+    fetch_interval:   parseInt(document.getElementById('ssFetchInterval').value) || 1440,
+    coming_soon_only: document.getElementById('ssComingSoon').checked,
+    include_consoles: document.getElementById('ssConsoles').checked,
+    show_on_site:     document.getElementById('ssShowOnSite').checked,
+    enabled:          document.getElementById('ssEnabled').checked,
+  };
+}
+
+function showAddSteamSearchModal() {
+  showModal('Create Steam Search', _steamFormHtml(null),
+    `<button onclick="closeModal()" class="px-4 py-2 text-gray-400 hover:text-white transition text-sm">Cancel</button>
+     <button onclick="saveSteamSearch()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition">Create Search</button>`
+  );
+}
+
+function showEditSteamSearchModal(id) {
+  const s = steamSearches.find(x => x.id === id);
+  if (!s) return;
+  showModal('Edit Steam Search', _steamFormHtml(s),
+    `<button onclick="closeModal()" class="px-4 py-2 text-gray-400 hover:text-white transition text-sm">Cancel</button>
+     <button onclick="updateSteamSearch(${id})" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition">Save Changes</button>`
+  );
+}
+
+async function saveSteamSearch() {
+  const body = _steamBodyFromForm();
+  if (!body.name) return alert('Search name is required');
+  try {
+    const r = await csrfFetch('{% url "questlog_web_api_admin_steam_searches" %}',
+      { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+    const d = await r.json();
+    if (d.success) { closeModal(); tabLoaded.steam = false; loadSteamSearches(); }
+    else alert(d.error || 'Failed to save');
+  } catch(e) { alert('Failed to save search'); }
+}
+
+async function updateSteamSearch(id) {
+  const body = _steamBodyFromForm();
+  if (!body.name) return alert('Search name is required');
+  try {
+    const r = await csrfFetch(`/ql/api/admin/steam-searches/${id}/`,
+      { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+    const d = await r.json();
+    if (d.success) { closeModal(); tabLoaded.steam = false; loadSteamSearches(); }
+    else alert(d.error || 'Failed to update');
+  } catch(e) { alert('Failed to update search'); }
+}
+
+async function runSteamSearchNow(id, clear = false) {
+  const runBtn   = document.getElementById(`ss-run-${id}`);
+  const clearBtn = document.getElementById(`ss-clear-${id}`);
+  if (clear) {
+    if (!confirm('Purge all games from this search and re-run from scratch?')) return;
+    if (clearBtn) { clearBtn.disabled = true; clearBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>'; }
+  } else {
+    if (runBtn) { runBtn.disabled = true; runBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>'; }
+  }
+  const url = `/ql/api/admin/steam-searches/${id}/run/${clear ? '?clear=1' : ''}`;
+  try {
+    const r = await csrfFetch(url, { method: 'POST', headers: {'Content-Type':'application/json'} });
+    const d = await r.json();
+    if (d.success) {
+      tabLoaded.steam = false; tabLoaded.games = false;
+      loadSteamSearches(); loadFoundGames();
+    } else {
+      alert(d.error || 'Run failed');
+      if (runBtn)   { runBtn.disabled = false;   runBtn.innerHTML   = '<i class="fas fa-play"></i>'; }
+      if (clearBtn) { clearBtn.disabled = false; clearBtn.innerHTML = '<i class="fas fa-broom"></i>'; }
+    }
+  } catch(e) {
+    alert('Failed to run search');
+    if (runBtn)   { runBtn.disabled = false;   runBtn.innerHTML   = '<i class="fas fa-play"></i>'; }
+    if (clearBtn) { clearBtn.disabled = false; clearBtn.innerHTML = '<i class="fas fa-broom"></i>'; }
+  }
+}
+
+async function deleteSteamSearch(id, name) {
+  if (!confirm(`Delete search "${name}"?`)) return;
+  try {
+    await csrfFetch(`/ql/api/admin/steam-searches/${id}/`, { method: 'DELETE', headers: {'Content-Type':'application/json'} });
+    tabLoaded.steam = false; loadSteamSearches();
+  } catch(e) { alert('Failed to delete'); }
+}
+
+// ============================================================
+// FOUND GAMES
+// ============================================================
+let adminFoundGames = [];
+
+async function loadFoundGames() {
+  try {
+    const r = await fetch('{% url "questlog_web_api_admin_found_games" %}');
+    const d = await r.json();
+    adminFoundGames = d.games || [];
+    renderFoundGames();
+  } catch(e) {
+    document.getElementById('adminFoundGamesList').innerHTML = '<div class="text-red-400 text-center py-4">Failed to load</div>';
+  }
+}
+
+function renderFoundGames() {
+  const c = document.getElementById('adminFoundGamesList');
+  if (!adminFoundGames.length) {
+    c.innerHTML = '<div class="text-gray-500 text-center py-8"><i class="fas fa-gamepad text-4xl mb-2 opacity-50"></i><p>No games found yet. Configure Steam searches first.</p></div>';
+    return;
+  }
+  c.innerHTML = adminFoundGames.map(g => `
+    <div class="bg-neutral-900/50 border border-neutral-800 rounded-lg p-4 flex items-center justify-between ${g.is_hidden ? 'opacity-50' : ''}">
+      <div class="flex items-center gap-3">
+        ${g.cover_url ? `<img src="${escapeHtml(g.cover_url)}" class="w-10 h-14 rounded object-cover">` : '<div class="w-10 h-14 bg-neutral-700 rounded flex items-center justify-center"><i class="fas fa-gamepad text-gray-500"></i></div>'}
+        <div>
+          <div class="flex items-center gap-2">
+            <a href="${escapeHtml(g.steam_url)}" target="_blank" rel="noopener" class="text-white font-medium hover:text-blue-400 transition">${escapeHtml(g.name)}</a>
+            ${g.is_featured ? '<span class="text-xs px-1.5 py-0.5 rounded bg-yellow-600/20 text-yellow-400">Featured</span>' : ''}
+            ${g.is_hidden ? '<span class="text-xs px-1.5 py-0.5 rounded bg-red-600/20 text-red-400">Hidden</span>' : ''}
+          </div>
+          <div class="text-xs text-gray-500 mt-0.5">
+            ${g.developer || ''} ${g.release_date ? '| ' + g.release_date : ''} ${g.review_score ? '| Score: ' + g.review_score + '%' : ''}
+            | Found: ${formatTimestamp(g.found_at)}
+          </div>
+        </div>
+      </div>
+      <div class="flex gap-1">
+        ${!g.is_featured ? `<button onclick="foundGameAction(${g.id}, 'feature')" class="text-xs bg-yellow-600/20 text-yellow-400 hover:bg-yellow-600/30 px-2 py-1 rounded transition"><i class="fas fa-star"></i></button>` : `<button onclick="foundGameAction(${g.id}, 'unfeature')" class="text-xs bg-neutral-700 text-gray-300 hover:bg-neutral-600 px-2 py-1 rounded transition"><i class="far fa-star"></i></button>`}
+        ${!g.is_hidden ? `<button onclick="foundGameAction(${g.id}, 'hide')" class="text-xs bg-neutral-700 text-gray-300 hover:bg-neutral-600 px-2 py-1 rounded transition"><i class="fas fa-eye-slash"></i></button>` : `<button onclick="foundGameAction(${g.id}, 'unhide')" class="text-xs bg-green-600/20 text-green-400 hover:bg-green-600/30 px-2 py-1 rounded transition"><i class="fas fa-eye"></i></button>`}
+        <button onclick="if(confirm('Delete this game?')) foundGameAction(${g.id}, 'delete')" class="text-xs bg-red-600/20 text-red-400 hover:bg-red-600/30 px-2 py-1 rounded transition"><i class="fas fa-trash"></i></button>
+      </div>
+    </div>
+  `).join('');
+}
+
+async function foundGameAction(id, action) {
+  try {
+    await csrfFetch(`/ql/api/admin/found-games/${id}/action/`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ action }) });
+    tabLoaded.games = false; loadFoundGames(); loadStats();
+  } catch(e) { alert('Action failed'); }
+}
+
+// ============================================================
+// RSS FEEDS
+// ============================================================
+let adminRSSFeeds = [];
+
+async function loadRSSFeeds() {
+  try {
+    const r = await fetch('{% url "questlog_web_api_admin_rss_feeds" %}');
+    const d = await r.json();
+    adminRSSFeeds = d.feeds || [];
+    renderRSSFeeds();
+  } catch(e) {
+    document.getElementById('adminRSSList').innerHTML = '<div class="text-red-400 text-center py-4">Failed to load</div>';
+  }
+}
+
+async function fetchRSSFeedNow(id, clear = false) {
+  const btn = document.getElementById(`rss-fetch-${id}`);
+  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>'; }
+  try {
+    const url = `/ql/api/admin/rss-feeds/${id}/fetch-now/${clear ? '?clear=1' : ''}`;
+    const r = await csrfFetch(url, { method: 'POST', headers: {'Content-Type':'application/json'} });
+    const d = await r.json();
+    if (d.success) {
+      tabLoaded.rss = false;
+      await loadRSSFeeds();
+      if (btn) btn.title = `Done — ${d.new_articles} new article${d.new_articles !== 1 ? 's' : ''}`;
+    } else {
+      alert('Fetch failed: ' + (d.error || 'Unknown error'));
+    }
+  } catch(e) { alert('Fetch request failed'); }
+  if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-sync-alt"></i>'; }
+}
+
+function renderRSSFeeds() {
+  const c = document.getElementById('adminRSSList');
+  if (!adminRSSFeeds.length) {
+    c.innerHTML = '<div class="text-gray-500 text-center py-8"><i class="fas fa-rss text-4xl mb-2 opacity-50"></i><p>No RSS feeds added. Add gaming news feeds to populate the articles page.</p></div>';
+    return;
+  }
+  c.innerHTML = adminRSSFeeds.map(f => `
+    <div class="bg-neutral-900/50 border border-neutral-800 rounded-lg p-4 flex items-center justify-between">
+      <div class="min-w-0 flex-1">
+        <div class="flex items-center gap-2">
+          ${f.icon_url ? `<img src="${escapeHtml(f.icon_url)}" class="w-5 h-5 rounded object-cover" onerror="this.style.display='none'">` : ''}
+          <span class="text-white font-medium">${f.emoji_prefix ? escapeHtml(f.emoji_prefix) + ' ' : ''}${escapeHtml(f.name)}</span>
+          <span class="text-xs ${f.is_active ? 'text-green-400' : 'text-red-400'}">${f.is_active ? 'Active' : 'Disabled'}</span>
+          ${f.last_error ? '<span class="text-xs text-red-400">⚠ Error</span>' : ''}
+        </div>
+        <div class="text-xs text-gray-500 mt-0.5 truncate max-w-md">${escapeHtml(f.url)}</div>
+        <div class="text-xs text-gray-500 mt-0.5">${f.article_count} articles · every ${f.fetch_interval}min · last fetched: ${formatTimestamp(f.last_fetched_at)}</div>
+      </div>
+      <div class="flex gap-2 ml-3 flex-shrink-0">
+        <button onclick="fetchRSSFeedNow(${f.id})" id="rss-fetch-${f.id}" class="text-gray-400 hover:text-green-400 transition text-sm" title="Fetch new articles"><i class="fas fa-sync-alt"></i></button>
+        <button onclick="if(confirm('Clear all cached articles and re-fetch from scratch?')) fetchRSSFeedNow(${f.id}, true)" class="text-gray-400 hover:text-orange-400 transition text-sm" title="Clear &amp; re-fetch"><i class="fas fa-broom"></i></button>
+        <button onclick="showEditRSSModal(${f.id})" class="text-gray-400 hover:text-blue-400 transition text-sm" title="Edit"><i class="fas fa-edit"></i></button>
+        <button onclick="toggleRSSFeed(${f.id}, ${!f.is_active})" class="text-gray-400 hover:text-yellow-400 transition text-sm" title="${f.is_active ? 'Pause' : 'Enable'}"><i class="fas fa-${f.is_active ? 'pause' : 'play'}"></i></button>
+        <button onclick="if(confirm('Delete this feed and all its articles?')) deleteRSSFeed(${f.id})" class="text-gray-400 hover:text-red-400 transition text-sm" title="Delete"><i class="fas fa-trash"></i></button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function _rssFormHtml(f) {
+  // f = existing feed object (for edit), or null (for add)
+  const v = (key, def) => f ? (f[key] !== undefined ? f[key] : def) : def;
+  const checked = (key, def) => v(key, def) ? 'checked' : '';
+  const sel = (key, val, def) => v(key, def) === val ? 'selected' : '';
+  const esc = s => escapeHtml(String(s || ''));
+
+  return `
+  <div class="space-y-4">
+    <!-- Feed basics -->
+    <div class="grid grid-cols-1 gap-3">
+      <div>
+        <label class="text-sm text-gray-300 mb-1 block">Feed Name *</label>
+        <input type="text" id="rssName" value="${esc(v('name',''))}" placeholder="e.g. PC Gamer"
+          class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-yellow-500 focus:outline-none">
+      </div>
+      <div>
+        <label class="text-sm text-gray-300 mb-1 block">Feed URL *</label>
+        <div class="flex gap-2">
+          <input type="text" id="rssUrl" value="${esc(v('url',''))}" placeholder="https://www.pcgamer.com/rss/"
+            class="flex-1 bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-yellow-500 focus:outline-none">
+          <button onclick="validateRSSUrl()" id="rssValidateBtn"
+            class="flex-shrink-0 bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-lg text-sm font-medium transition flex items-center gap-1">
+            <i class="fas fa-check-circle"></i> Validate
+          </button>
+        </div>
+        <p id="rssValidateStatus" class="text-xs mt-1 hidden"></p>
+      </div>
+      <div>
+        <label class="text-sm text-gray-300 mb-1 block">Description</label>
+        <input type="text" id="rssDesc" value="${esc(v('description',''))}" placeholder="Optional description"
+          class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-yellow-500 focus:outline-none">
+      </div>
+      <div>
+        <label class="text-sm text-gray-300 mb-1 block">Icon URL</label>
+        <input type="text" id="rssIcon" value="${esc(v('icon_url',''))}" placeholder="Optional icon for the feed"
+          class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-yellow-500 focus:outline-none">
+      </div>
+      <div>
+        <label class="text-sm text-gray-300 mb-1 block">Check for Updates</label>
+        <select id="rssFetchInterval"
+          class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-yellow-500 focus:outline-none">
+          <option value="15" ${sel('fetch_interval',15,15)}>Every 15 minutes</option>
+          <option value="30" ${sel('fetch_interval',30,15)}>Every 30 minutes</option>
+          <option value="60" ${sel('fetch_interval',60,15)}>Every hour</option>
+          <option value="360" ${sel('fetch_interval',360,15)}>Every 6 hours</option>
+          <option value="1440" ${sel('fetch_interval',1440,15)}>Every 24 hours</option>
+        </select>
+      </div>
+      <label class="flex items-center justify-between bg-neutral-800/50 rounded-lg px-3 py-3 cursor-pointer">
+        <div>
+          <p class="text-sm text-white font-medium">Enable Feed</p>
+          <p class="text-xs text-gray-400">When enabled, articles will be fetched and published automatically</p>
+        </div>
+        <input type="checkbox" id="rssActive" ${checked('is_active', true)}
+          class="w-5 h-5 rounded bg-neutral-700 border-neutral-600 text-blue-500 focus:ring-blue-500 focus:ring-offset-neutral-900 cursor-pointer">
+      </label>
+    </div>
+
+  </div>`;
+}
+
+function _rssBodyFromForm() {
+  return {
+    name:           document.getElementById('rssName').value.trim(),
+    url:            document.getElementById('rssUrl').value.trim(),
+    description:    document.getElementById('rssDesc').value.trim() || null,
+    icon_url:       document.getElementById('rssIcon').value.trim() || null,
+    is_active:      document.getElementById('rssActive').checked,
+    fetch_interval: parseInt(document.getElementById('rssFetchInterval').value, 10),
+  };
+}
+
+async function validateRSSUrl() {
+  const url = document.getElementById('rssUrl').value.trim();
+  const statusEl = document.getElementById('rssValidateStatus');
+  const btn = document.getElementById('rssValidateBtn');
+  if (!url) { statusEl.textContent = 'Enter a URL first.'; statusEl.className = 'text-xs mt-1 text-red-400'; statusEl.classList.remove('hidden'); return; }
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+  statusEl.classList.add('hidden');
+  try {
+    const r = await csrfFetch('/ql/api/admin/rss-feeds/validate/', {
+      method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ url }),
+    });
+    const d = await r.json();
+    if (d.valid) {
+      statusEl.textContent = `✓ Valid feed${d.title ? ': ' + d.title : ''} (${d.entry_count} items)`;
+      statusEl.className = 'text-xs mt-1 text-green-400';
+    } else {
+      statusEl.textContent = '✗ ' + (d.error || 'Not a valid RSS/Atom feed');
+      statusEl.className = 'text-xs mt-1 text-red-400';
+    }
+    statusEl.classList.remove('hidden');
+  } catch(e) {
+    statusEl.textContent = 'Validation request failed.';
+    statusEl.className = 'text-xs mt-1 text-red-400';
+    statusEl.classList.remove('hidden');
+  }
+  btn.disabled = false;
+  btn.innerHTML = '<i class="fas fa-check-circle"></i> Validate';
+}
+
+function showAddRSSModal() {
+  showModal('Add RSS Feed', _rssFormHtml(null),
+    `<button onclick="closeModal()" class="px-4 py-2 text-gray-400 hover:text-white transition text-sm">Cancel</button>
+     <button onclick="saveRSSFeed()" class="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition">Add Feed</button>`
+  );
+}
+
+function showEditRSSModal(id) {
+  const f = adminRSSFeeds.find(x => x.id === id);
+  if (!f) return;
+  showModal('Edit RSS Feed', _rssFormHtml(f),
+    `<button onclick="closeModal()" class="px-4 py-2 text-gray-400 hover:text-white transition text-sm">Cancel</button>
+     <button onclick="updateRSSFeed(${id})" class="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition">Save Changes</button>`
+  );
+}
+
+async function saveRSSFeed() {
+  const body = _rssBodyFromForm();
+  if (!body.name || !body.url) return alert('Name and URL are required');
+  try {
+    const r = await csrfFetch('{% url "questlog_web_api_admin_rss_feeds" %}', {
+      method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body),
+    });
+    const d = await r.json();
+    if (d.success) { closeModal(); tabLoaded.rss = false; loadRSSFeeds(); loadStats(); }
+    else alert(d.error || 'Failed to save');
+  } catch(e) { alert('Failed to save feed'); }
+}
+
+async function updateRSSFeed(id) {
+  const body = _rssBodyFromForm();
+  if (!body.name || !body.url) return alert('Name and URL are required');
+  try {
+    const r = await csrfFetch(`/ql/api/admin/rss-feeds/${id}/`, {
+      method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body),
+    });
+    const d = await r.json();
+    if (d.success) { closeModal(); tabLoaded.rss = false; loadRSSFeeds(); }
+    else alert(d.error || 'Failed to update');
+  } catch(e) { alert('Failed to update feed'); }
+}
+
+async function toggleRSSFeed(id, active) {
+  try {
+    await csrfFetch(`/ql/api/admin/rss-feeds/${id}/`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ is_active: active }) });
+    tabLoaded.rss = false; loadRSSFeeds();
+  } catch(e) { alert('Failed to update feed'); }
+}
+
+async function deleteRSSFeed(id) {
+  try {
+    await csrfFetch(`/ql/api/admin/rss-feeds/${id}/`, { method: 'DELETE', headers: {'Content-Type':'application/json'} });
+    tabLoaded.rss = false; loadRSSFeeds(); loadStats();
+  } catch(e) { alert('Failed to delete'); }
+}
+
+// ============================================================
+// USERS
+// ============================================================
+let adminUsers = [];
+let userSearchListenerAdded = false;
+
+async function loadUsers() {
+  try {
+    const q = (document.getElementById('userSearchInput').value || '').trim();
+    const url = q ? `{% url "questlog_web_api_admin_users" %}?q=${encodeURIComponent(q)}` : '{% url "questlog_web_api_admin_users" %}';
+    const r = await fetch(url);
+    const d = await r.json();
+    adminUsers = d.users || [];
+    renderUsers();
+    if (!userSearchListenerAdded) {
+      userSearchListenerAdded = true;
+      let searchTimer;
+      document.getElementById('userSearchInput').addEventListener('input', () => {
+        clearTimeout(searchTimer);
+        searchTimer = setTimeout(() => { tabLoaded.users = false; loadUsers(); }, 400);
+      });
+    }
+  } catch(e) {
+    document.getElementById('adminUsersList').innerHTML = '<div class="text-red-400 text-center py-4">Failed to load</div>';
+  }
+}
+
+function renderUsers() {
+  const now = Math.floor(Date.now() / 1000);
+  const c = document.getElementById('adminUsersList');
+  if (!adminUsers.length) {
+    c.innerHTML = '<div class="text-gray-500 text-center py-8">No users found.</div>';
+    return;
+  }
+  c.innerHTML = adminUsers.map(u => {
+    const isTimedOut = u.posting_timeout_until && u.posting_timeout_until > now;
+    return `
+    <div class="bg-neutral-900/50 border ${u.is_banned ? 'border-red-800/50' : u.is_disabled ? 'border-orange-800/50' : 'border-neutral-800'} rounded-lg p-4">
+      <div class="flex items-start justify-between gap-3">
+        <div class="flex items-center gap-3 min-w-0 flex-1">
+          ${avatarHtml(u.username, u.avatar_url, 'w-10 h-10')}
+          <div class="min-w-0">
+            <div class="flex items-center gap-2 flex-wrap">
+              <span class="text-white font-medium">${escapeHtml(u.username)}</span>
+              ${u.display_name && u.display_name !== u.username ? `<span class="text-gray-400 text-xs">(${escapeHtml(u.display_name)})</span>` : ''}
+              ${u.is_admin ? '<span class="text-xs px-1.5 py-0.5 rounded bg-yellow-600/20 text-yellow-400">Admin</span>' : ''}
+              ${u.is_vip ? '<span class="text-xs px-1.5 py-0.5 rounded bg-purple-600/20 text-purple-300">⭐ VIP</span>' : ''}
+              ${u.is_banned ? '<span class="text-xs px-1.5 py-0.5 rounded bg-red-600/20 text-red-400">Banned</span>' : ''}
+              ${u.is_disabled ? '<span class="text-xs px-1.5 py-0.5 rounded bg-orange-600/20 text-orange-400">Disabled</span>' : ''}
+              ${isTimedOut ? `<span class="text-xs px-1.5 py-0.5 rounded bg-blue-600/20 text-blue-400" title="Timeout until ${formatTimestamp(u.posting_timeout_until)}">Timed Out</span>` : ''}
+            </div>
+            <div class="text-xs text-gray-500 mt-0.5">
+              ID: ${u.id} | Posts: ${u.post_count || 0} | XP: ${u.web_xp} Lvl ${u.web_level}
+              ${u.email ? ` | ${escapeHtml(u.email)}` : ''}
+              | Last login: ${formatTimestamp(u.last_login_at)}
+            </div>
+            ${u.ban_reason ? `<div class="text-xs text-red-400 mt-0.5">Ban reason: ${escapeHtml(u.ban_reason)}</div>` : ''}
+          </div>
+        </div>
+        <div class="flex flex-wrap gap-1 flex-shrink-0">
+          ${!u.is_vip ? `<button onclick="userAction(${u.id}, 'grant_vip')" class="text-xs bg-purple-600/20 text-purple-300 hover:bg-purple-600/30 px-2 py-1 rounded transition" title="Grant VIP / Early Tester">⭐ VIP</button>` : `<button onclick="userAction(${u.id}, 'revoke_vip')" class="text-xs bg-neutral-700 text-gray-400 hover:bg-neutral-600 px-2 py-1 rounded transition" title="Revoke VIP">⭐ Revoke</button>`}
+          ${!u.is_admin ? `<button onclick="userAction(${u.id}, 'make_admin')" class="text-xs bg-yellow-600/20 text-yellow-400 hover:bg-yellow-600/30 px-2 py-1 rounded transition" title="Make Admin"><i class="fas fa-crown"></i></button>` : `<button onclick="userAction(${u.id}, 'remove_admin')" class="text-xs bg-neutral-700 text-gray-300 hover:bg-neutral-600 px-2 py-1 rounded transition" title="Remove Admin"><i class="fas fa-crown"></i></button>`}
+          ${!u.is_disabled ? `<button onclick="userAction(${u.id}, 'disable')" class="text-xs bg-orange-600/20 text-orange-400 hover:bg-orange-600/30 px-2 py-1 rounded transition" title="Disable Account">Disable</button>` : `<button onclick="userAction(${u.id}, 'enable')" class="text-xs bg-green-600/20 text-green-400 hover:bg-green-600/30 px-2 py-1 rounded transition">Enable</button>`}
+          ${!u.is_banned ? `<button onclick="userAction(${u.id}, 'ban')" class="text-xs bg-red-600/20 text-red-400 hover:bg-red-600/30 px-2 py-1 rounded transition">Ban</button>` : `<button onclick="userAction(${u.id}, 'unban')" class="text-xs bg-green-600/20 text-green-400 hover:bg-green-600/30 px-2 py-1 rounded transition">Unban</button>`}
+          ${!isTimedOut ? `<button onclick="timeoutUser(${u.id})" class="text-xs bg-blue-600/20 text-blue-400 hover:bg-blue-600/30 px-2 py-1 rounded transition" title="Posting Timeout"><i class="fas fa-clock"></i></button>` : `<button onclick="userAction(${u.id}, 'clear_timeout')" class="text-xs bg-neutral-700 text-gray-300 hover:bg-neutral-600 px-2 py-1 rounded transition" title="Clear Timeout"><i class="fas fa-clock"></i> Clear</button>`}
+          <button onclick="if(confirm('Delete ALL posts by this user? This cannot be undone.')) userAction(${u.id}, 'delete_posts')" class="text-xs bg-red-600/20 text-red-400 hover:bg-red-600/30 px-2 py-1 rounded transition" title="Delete All Posts"><i class="fas fa-trash-alt"></i></button>
+          <button onclick="purgeUser(${u.id}, '${escapeHtml(u.username)}')" class="text-xs bg-red-900/50 text-red-300 hover:bg-red-800/60 border border-red-800/50 px-2 py-1 rounded transition font-bold" title="Purge Account (complete wipe — frees username)">PURGE</button>
+          <button onclick="setHeroPoints(${u.id}, ${u.hero_points})" class="text-xs bg-purple-600/20 text-purple-400 hover:bg-purple-600/30 px-2 py-1 rounded transition" title="Set Hero Points"><i class="fas fa-gem"></i></button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function userAction(id, action) {
+  const body = { action };
+  if (action === 'ban') {
+    const reason = prompt('Ban reason (optional):');
+    if (reason === null) return;
+    body.reason = reason;
+  }
+  try {
+    const r = await csrfFetch(`/ql/api/admin/users/${id}/action/`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+    const d = await r.json();
+    if (!d.success) { alert(d.error || 'Action failed'); return; }
+    tabLoaded.users = false; loadUsers(); loadStats();
+  } catch(e) { alert('Action failed: ' + e.message); }
+}
+
+async function purgeUser(id, username) {
+  if (!confirm(`PURGE "${username}"?\n\nThis permanently deletes:\n• All posts, comments, likes\n• All follows, notifications\n• The account itself\n• The username (frees it for re-registration)\n\nThis CANNOT be undone.`)) return;
+  const reason = prompt('Reason for purge (required):');
+  if (!reason) return;
+  try {
+    const r = await csrfFetch(`/ql/api/admin/users/${id}/action/`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ action: 'purge_user', reason }) });
+    const d = await r.json();
+    if (!d.success) { alert(d.error || 'Purge failed'); return; }
+    tabLoaded.users = false; loadUsers(); loadStats();
+  } catch(e) { alert('Purge failed: ' + e.message); }
+}
+
+async function timeoutUser(id) {
+  const hours = prompt('Timeout duration in hours (1–720):', '24');
+  if (hours === null) return;
+  const h = parseInt(hours);
+  if (!h || h < 1 || h > 720) return alert('Enter a valid number of hours (1–720)');
+  const reason = prompt('Timeout reason (optional):');
+  if (reason === null) return;
+  try {
+    const r = await csrfFetch(`/ql/api/admin/users/${id}/action/`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ action: 'timeout', hours: h, reason }) });
+    const d = await r.json();
+    if (!d.success) { alert(d.error || 'Failed to set timeout'); return; }
+    tabLoaded.users = false; loadUsers();
+  } catch(e) { alert('Action failed'); }
+}
+
+async function setHeroPoints(id, current) {
+  const pts = prompt('Set hero points:', current);
+  if (pts === null) return;
+  try {
+    await csrfFetch(`/ql/api/admin/users/${id}/action/`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ action: 'set_hero_points', hero_points: parseInt(pts) || 0 }) });
+    tabLoaded.users = false; loadUsers();
+  } catch(e) { alert('Action failed'); }
+}
+
+// ============================================================
+// CONTENT MODERATION
+// ============================================================
+let adminPostsPage = 1;
+const adminPostsPerPage = 25;
+
+async function loadAdminPosts(pageDelta) {
+  if (pageDelta) adminPostsPage = Math.max(1, adminPostsPage + pageDelta);
+  else adminPostsPage = 1;
+
+  const showHidden = document.getElementById('showHiddenPosts')?.checked;
+  const params = new URLSearchParams({
+    page: adminPostsPage,
+    per_page: adminPostsPerPage,
+    hidden: showHidden ? 'true' : 'false',
+  });
+
+  try {
+    const r = await fetch(`{% url "questlog_web_api_admin_posts" %}?${params}`);
+    const d = await r.json();
+    renderAdminPosts(d.posts || [], d.total || 0);
+  } catch(e) {
+    document.getElementById('adminPostsList').innerHTML = '<div class="text-red-400 text-center py-4">Failed to load posts</div>';
+  }
+}
+
+function renderAdminPosts(posts, total) {
+  const c = document.getElementById('adminPostsList');
+  const pagination = document.getElementById('adminPostsPagination');
+  const pageInfo = document.getElementById('postsPageInfo');
+  const prevBtn = document.getElementById('postsPagePrev');
+  const nextBtn = document.getElementById('postsPageNext');
+
+  if (!posts.length) {
+    c.innerHTML = '<div class="text-gray-500 text-center py-8"><i class="fas fa-check-circle text-4xl mb-2 opacity-50"></i><p>No posts to moderate.</p></div>';
+    pagination.classList.add('hidden');
+    return;
+  }
+
+  const totalPages = Math.ceil(total / adminPostsPerPage);
+  if (totalPages > 1) {
+    pagination.classList.remove('hidden');
+    pageInfo.textContent = `Page ${adminPostsPage} of ${totalPages} (${total} posts)`;
+    prevBtn.disabled = adminPostsPage <= 1;
+    prevBtn.classList.toggle('opacity-50', adminPostsPage <= 1);
+    nextBtn.disabled = adminPostsPage >= totalPages;
+    nextBtn.classList.toggle('opacity-50', adminPostsPage >= totalPages);
+  } else {
+    pagination.classList.add('hidden');
+  }
+
+  c.innerHTML = posts.map(p => `
+    <div class="bg-neutral-900/50 border ${p.is_hidden ? 'border-orange-800/50' : 'border-neutral-800'} rounded-lg p-4">
+      <div class="flex items-start justify-between gap-3 mb-2">
+        <div class="flex items-center gap-2 min-w-0">
+          <a href="/ql/u/${escapeHtml(p.author?.username || '')}" class="text-blue-400 hover:text-blue-300 text-sm font-medium">@${escapeHtml(p.author?.username || 'unknown')}</a>
+          <span class="text-gray-500 text-xs">${formatTimestamp(p.created_at)}</span>
+          ${p.is_hidden ? '<span class="text-xs px-1.5 py-0.5 rounded bg-orange-600/20 text-orange-400">Hidden</span>' : ''}
+          ${p.is_deleted ? '<span class="text-xs px-1.5 py-0.5 rounded bg-red-600/20 text-red-400">Deleted</span>' : ''}
+          <span class="text-xs px-1.5 py-0.5 rounded bg-neutral-700 text-gray-400">${p.post_type || 'text'}</span>
+        </div>
+        <div class="flex gap-1 flex-shrink-0">
+          ${!p.is_hidden ? `<button onclick="adminPostAction(${p.id}, 'hide')" class="text-xs bg-orange-600/20 text-orange-400 hover:bg-orange-600/30 px-2 py-1 rounded transition">Hide</button>` : `<button onclick="adminPostAction(${p.id}, 'unhide')" class="text-xs bg-green-600/20 text-green-400 hover:bg-green-600/30 px-2 py-1 rounded transition">Unhide</button>`}
+          ${!p.is_deleted ? `<button onclick="if(confirm('Permanently delete this post?')) adminPostAction(${p.id}, 'delete')" class="text-xs bg-red-600/20 text-red-400 hover:bg-red-600/30 px-2 py-1 rounded transition"><i class="fas fa-trash"></i></button>` : ''}
+        </div>
+      </div>
+      ${p.content ? `<p class="text-gray-300 text-sm line-clamp-3">${escapeHtml(p.content)}</p>` : ''}
+      ${p.media_url ? `<p class="text-xs text-gray-500 mt-1"><i class="fas fa-image mr-1"></i>Has media</p>` : ''}
+      ${p.embed_platform ? `<p class="text-xs text-gray-500 mt-1"><i class="fas fa-video mr-1"></i>${p.embed_platform} embed</p>` : ''}
+      <div class="text-xs text-gray-600 mt-1">❤ ${p.like_count || 0} likes · 💬 ${p.comment_count || 0} comments · Post #${p.id}</div>
+    </div>
+  `).join('');
+}
+
+async function adminPostAction(id, action) {
+  try {
+    const r = await csrfFetch(`/ql/api/admin/social-posts/${id}/action/`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ action }) });
+    const d = await r.json();
+    if (!d.success) { alert(d.error || 'Action failed'); return; }
+    tabLoaded.posts = false; loadAdminPosts();
+  } catch(e) { alert('Action failed'); }
+}
+
+// ============================================================
+// AUDIT LOG
+// ============================================================
+let auditEntries = [];
+
+async function loadAuditLog() {
+  try {
+    const r = await fetch('{% url "questlog_web_api_admin_audit_log" %}?limit=200');
+    const d = await r.json();
+    auditEntries = d.entries || [];
+    renderAuditLog();
+  } catch(e) {
+    document.getElementById('adminAuditList').innerHTML = '<div class="text-red-400 text-center py-4">Failed to load audit log</div>';
+  }
+}
+
+function renderAuditLog() {
+  const c = document.getElementById('adminAuditList');
+  if (!auditEntries.length) {
+    c.innerHTML = '<div class="text-gray-500 text-center py-8"><i class="fas fa-clipboard-list text-4xl mb-2 opacity-50"></i><p>No admin actions logged yet.</p></div>';
+    return;
+  }
+
+  const actionColors = {
+    admin_login: 'text-green-400', admin_login_failed: 'text-red-400',
+    make_admin_user: 'text-yellow-400', remove_admin_user: 'text-orange-400',
+    ban_user: 'text-red-400', unban_user: 'text-green-400',
+    purge_community: 'text-red-400', delete_creator: 'text-red-400',
+    delete_raffle: 'text-red-400', delete_rss_feed: 'text-red-400',
+  };
+
+  c.innerHTML = auditEntries.map(e => {
+    const color = actionColors[e.action] || 'text-blue-400';
+    const isFailed = e.action.includes('failed');
+    return `
+    <div class="bg-neutral-900/50 border ${isFailed ? 'border-red-800/50' : 'border-neutral-800'} rounded-lg px-4 py-3 flex items-start justify-between gap-4">
+      <div class="flex-1 min-w-0">
+        <div class="flex items-center gap-2 flex-wrap">
+          <span class="text-sm font-medium text-white">${escapeHtml(e.admin_username)}</span>
+          <span class="text-sm ${color} font-mono">${escapeHtml(e.action)}</span>
+          ${e.target_type ? `<span class="text-xs text-gray-500">${e.target_type}${e.target_id ? '#' + e.target_id : ''}</span>` : ''}
+        </div>
+        ${e.details ? `<div class="text-xs text-gray-500 mt-1 truncate">${escapeHtml(JSON.stringify(e.details))}</div>` : ''}
+      </div>
+      <div class="text-right shrink-0">
+        <div class="text-xs text-gray-500">${formatTimestamp(e.created_at)}</div>
+        <div class="text-xs text-gray-600 font-mono">${escapeHtml(e.ip_address)}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ============================================================
+// FLAIRS & XP TAB
+// ============================================================
+async function loadFlairsTab() {
+  await Promise.all([loadXpLeaderboard(), loadRankTitles(), loadFlairs()]);
+}
+
+async function loadXpLeaderboard() {
+  const el = document.getElementById('xpLeaderboard');
+  try {
+    const res = await csrfFetch('/ql/api/admin/xp-leaderboard/');
+    const data = await res.json();
+    if (!data.leaderboard || !data.leaderboard.length) {
+      el.innerHTML = '<p class="text-gray-500 text-sm text-center py-4">No users yet.</p>';
+      return;
+    }
+    el.innerHTML = data.leaderboard.map((u, i) => `
+      <div class="flex items-center gap-3 p-3 bg-neutral-800/40 rounded-lg">
+        <span class="text-gray-400 text-sm w-6 text-right">${i + 1}</span>
+        ${avatarHtml(u.username, u.avatar_url, 'w-8 h-8')}
+        <div class="flex-1">
+          <p class="text-white text-sm font-medium">${escapeHtml(u.display_name)}</p>
+          <p class="text-gray-500 text-xs">Lv.${u.web_level} · ${u.web_xp} XP · ${u.hero_points} HP</p>
+        </div>
+      </div>`).join('');
+  } catch(e) { el.innerHTML = '<p class="text-red-400 text-sm">Failed to load.</p>'; }
+}
+
+async function loadRankTitles() {
+  const el = document.getElementById('rankTitlesList');
+  try {
+    const res = await csrfFetch('/ql/api/admin/rank-titles/');
+    const data = await res.json();
+    if (!data.rank_titles || !data.rank_titles.length) {
+      el.innerHTML = '<p class="text-gray-500 text-sm">No rank titles.</p>';
+      return;
+    }
+    el.innerHTML = data.rank_titles.map(t => `
+      <div class="flex items-center gap-3 p-3 bg-neutral-800/40 rounded-lg">
+        <span class="text-amber-400 w-16 text-sm font-bold">Lv.${t.level}</span>
+        <span class="text-white text-sm flex-1">${escapeHtml(t.title)}</span>
+        ${t.icon ? `<i class="${escapeHtml(t.icon)} text-gray-400"></i>` : ''}
+        <button onclick="editRankTitle(${t.id}, ${t.level}, '${escapeHtml(t.title)}', '${escapeHtml(t.icon)}')"
+          class="text-xs bg-neutral-700 hover:bg-neutral-600 text-gray-300 px-2 py-1 rounded transition">Edit</button>
+        <button onclick="deleteRankTitle(${t.id})"
+          class="text-xs bg-red-900/40 hover:bg-red-800/60 text-red-400 px-2 py-1 rounded transition">Del</button>
+      </div>`).join('');
+  } catch(e) { el.innerHTML = '<p class="text-red-400 text-sm">Failed to load.</p>'; }
+}
+
+async function loadFlairs() {
+  const el = document.getElementById('flairsList');
+  try {
+    const res = await csrfFetch('/ql/api/admin/flairs/');
+    const data = await res.json();
+    if (!data.flairs || !data.flairs.length) {
+      el.innerHTML = '<p class="text-gray-500 text-sm col-span-3 text-center py-4">No flairs yet. Create one!</p>';
+      return;
+    }
+    el.innerHTML = data.flairs.map(f => `
+      <div class="bg-neutral-800/60 border border-neutral-700 rounded-lg p-4 flex flex-col">
+        <div class="flex items-start justify-between mb-2">
+          <div class="flex items-center gap-2">
+            <span class="text-2xl">${f.emoji || '🎖️'}</span>
+            <div>
+              <p class="text-white font-medium text-sm">${escapeHtml(f.name)}</p>
+              <p class="text-xs text-gray-500 capitalize">${f.flair_type} · ${f.hp_cost} HP</p>
+            </div>
+          </div>
+          <span class="text-xs px-1.5 py-0.5 rounded ${f.enabled ? 'bg-green-800/50 text-green-400' : 'bg-neutral-700 text-gray-500'}">${f.enabled ? 'On' : 'Off'}</span>
+        </div>
+        ${f.description ? `<p class="text-xs text-gray-400 mb-3 flex-1">${escapeHtml(f.description)}</p>` : ''}
+        <p class="text-xs text-gray-600 mb-3">${f.owner_count} owner(s)</p>
+        <div class="flex gap-2">
+          <button onclick="editFlairModal(${f.id}, ${JSON.stringify(f).replace(/"/g,'&quot;')})"
+            class="flex-1 text-xs bg-neutral-700 hover:bg-neutral-600 text-gray-300 py-1.5 rounded transition">Edit</button>
+          <button onclick="deleteFlair(${f.id})"
+            class="text-xs bg-red-900/40 hover:bg-red-800/60 text-red-400 px-3 py-1.5 rounded transition">Del</button>
+        </div>
+      </div>`).join('');
+  } catch(e) { el.innerHTML = '<p class="text-red-400 text-sm col-span-3">Failed to load.</p>'; }
+}
+
+// ---- Flair CRUD ----
+function showAddFlairModal() {
+  showModal('Add Flair', `
+    <div class="space-y-3">
+      <div><label class="block text-sm text-gray-400 mb-1">Name</label>
+        <input id="fm-name" type="text" maxlength="100" class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white text-sm" placeholder="Shadow Knight"></div>
+      <div><label class="block text-sm text-gray-400 mb-1">Emoji</label>
+        <input id="fm-emoji" type="text" maxlength="8" class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white text-sm" placeholder="⚔️"></div>
+      <div><label class="block text-sm text-gray-400 mb-1">Description</label>
+        <input id="fm-desc" type="text" maxlength="300" class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white text-sm" placeholder="Optional short description"></div>
+      <div class="grid grid-cols-2 gap-3">
+        <div><label class="block text-sm text-gray-400 mb-1">Type</label>
+          <select id="fm-type" class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white text-sm">
+            <option value="normal">Normal</option>
+            <option value="seasonal">Seasonal</option>
+            <option value="exclusive">Exclusive</option>
+          </select></div>
+        <div><label class="block text-sm text-gray-400 mb-1">HP Cost</label>
+          <input id="fm-cost" type="number" min="0" value="100" class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white text-sm"></div>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div><label class="block text-sm text-gray-400 mb-1">Display Order</label>
+          <input id="fm-order" type="number" value="0" class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white text-sm"></div>
+        <div class="flex items-end pb-2">
+          <label class="flex items-center gap-2 text-sm text-gray-300">
+            <input id="fm-enabled" type="checkbox" checked class="rounded">Enabled
+          </label>
+        </div>
+      </div>
+      <div id="fm-error" class="text-red-400 text-sm hidden"></div>
+    </div>`,
+    `<button onclick="closeModal()" class="bg-neutral-700 text-gray-300 hover:bg-neutral-600 px-4 py-2 rounded-lg text-sm transition">Cancel</button>
+     <button onclick="saveFlair()" class="bg-pink-600 hover:bg-pink-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition">Create Flair</button>`);
+}
+
+function editFlairModal(id, f) {
+  showModal('Edit Flair', `
+    <input type="hidden" id="fm-id" value="${id}">
+    <div class="space-y-3">
+      <div><label class="block text-sm text-gray-400 mb-1">Name</label>
+        <input id="fm-name" type="text" maxlength="100" value="${escapeHtml(f.name)}" class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white text-sm"></div>
+      <div><label class="block text-sm text-gray-400 mb-1">Emoji</label>
+        <input id="fm-emoji" type="text" maxlength="8" value="${escapeHtml(f.emoji)}" class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white text-sm"></div>
+      <div><label class="block text-sm text-gray-400 mb-1">Description</label>
+        <input id="fm-desc" type="text" maxlength="300" value="${escapeHtml(f.description || '')}" class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white text-sm"></div>
+      <div class="grid grid-cols-2 gap-3">
+        <div><label class="block text-sm text-gray-400 mb-1">Type</label>
+          <select id="fm-type" class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white text-sm">
+            <option value="normal" ${f.flair_type==='normal'?'selected':''}>Normal</option>
+            <option value="seasonal" ${f.flair_type==='seasonal'?'selected':''}>Seasonal</option>
+            <option value="exclusive" ${f.flair_type==='exclusive'?'selected':''}>Exclusive</option>
+          </select></div>
+        <div><label class="block text-sm text-gray-400 mb-1">HP Cost</label>
+          <input id="fm-cost" type="number" min="0" value="${f.hp_cost}" class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white text-sm"></div>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div><label class="block text-sm text-gray-400 mb-1">Display Order</label>
+          <input id="fm-order" type="number" value="${f.display_order}" class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white text-sm"></div>
+        <div class="flex items-end pb-2">
+          <label class="flex items-center gap-2 text-sm text-gray-300">
+            <input id="fm-enabled" type="checkbox" ${f.enabled?'checked':''} class="rounded">Enabled
+          </label>
+        </div>
+      </div>
+      <div id="fm-error" class="text-red-400 text-sm hidden"></div>
+    </div>`,
+    `<button onclick="closeModal()" class="bg-neutral-700 text-gray-300 hover:bg-neutral-600 px-4 py-2 rounded-lg text-sm transition">Cancel</button>
+     <button onclick="saveFlair(true)" class="bg-pink-600 hover:bg-pink-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition">Save Changes</button>`);
+}
+
+async function saveFlair(isEdit = false) {
+  const idEl = document.getElementById('fm-id');
+  const id = idEl ? idEl.value : null;
+  const body = {
+    name: document.getElementById('fm-name').value.trim(),
+    emoji: document.getElementById('fm-emoji').value.trim(),
+    description: document.getElementById('fm-desc').value.trim(),
+    flair_type: document.getElementById('fm-type').value,
+    hp_cost: parseInt(document.getElementById('fm-cost').value) || 0,
+    display_order: parseInt(document.getElementById('fm-order').value) || 0,
+    enabled: document.getElementById('fm-enabled').checked,
+  };
+  if (!body.name) { document.getElementById('fm-error').textContent = 'Name required.'; document.getElementById('fm-error').classList.remove('hidden'); return; }
+  const url = isEdit ? `/ql/api/admin/flairs/${id}/` : '/ql/api/admin/flairs/';
+  const method = isEdit ? 'PUT' : 'POST';
+  const res = await csrfFetch(url, {method, body: JSON.stringify(body)});
+  const data = await res.json();
+  if (data.success) { closeModal(); tabLoaded.flairs = false; loadFlairs(); }
+  else { document.getElementById('fm-error').textContent = data.error || 'Error'; document.getElementById('fm-error').classList.remove('hidden'); }
+}
+
+async function deleteFlair(id) {
+  if (!confirm('Delete this flair? Users who own it will keep it but it won\'t appear in the shop.')) return;
+  const res = await csrfFetch(`/ql/api/admin/flairs/${id}/`, {method: 'DELETE'});
+  const data = await res.json();
+  if (data.success) { tabLoaded.flairs = false; loadFlairs(); }
+  else alert(data.error || 'Error deleting flair');
+}
+
+// ---- Rank Title CRUD ----
+function showAddRankTitleModal(id, level, title, icon) {
+  const isEdit = !!id;
+  showModal(isEdit ? 'Edit Rank Title' : 'Add Rank Title', `
+    ${isEdit ? `<input type="hidden" id="rt-id" value="${id}">` : ''}
+    <div class="space-y-3">
+      <div><label class="block text-sm text-gray-400 mb-1">Level (milestone)</label>
+        <input id="rt-level" type="number" min="1" max="99" value="${level||''}" class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white text-sm" ${isEdit?'readonly':''}></div>
+      <div><label class="block text-sm text-gray-400 mb-1">Title</label>
+        <input id="rt-title" type="text" maxlength="100" value="${escapeHtml(title||'')}" class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white text-sm" placeholder="Ember Knight"></div>
+      <div><label class="block text-sm text-gray-400 mb-1">Icon (FontAwesome class)</label>
+        <input id="rt-icon" type="text" maxlength="50" value="${escapeHtml(icon||'')}" class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white text-sm" placeholder="fas fa-fire"></div>
+      <div id="rt-error" class="text-red-400 text-sm hidden"></div>
+    </div>`,
+    `<button onclick="closeModal()" class="bg-neutral-700 text-gray-300 hover:bg-neutral-600 px-4 py-2 rounded-lg text-sm transition">Cancel</button>
+     <button onclick="saveRankTitle(${isEdit})" class="bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition">${isEdit?'Save':'Create'}</button>`);
+}
+
+function editRankTitle(id, level, title, icon) {
+  showAddRankTitleModal(id, level, title, icon);
+}
+
+async function saveRankTitle(isEdit) {
+  const idEl = document.getElementById('rt-id');
+  const id = idEl ? idEl.value : null;
+  const body = {
+    level: parseInt(document.getElementById('rt-level').value),
+    title: document.getElementById('rt-title').value.trim(),
+    icon: document.getElementById('rt-icon').value.trim(),
+  };
+  if (!body.title || !body.level) { document.getElementById('rt-error').textContent = 'Level and title required.'; document.getElementById('rt-error').classList.remove('hidden'); return; }
+  const url = isEdit ? `/ql/api/admin/rank-titles/${id}/` : '/ql/api/admin/rank-titles/';
+  const method = isEdit ? 'PUT' : 'POST';
+  const res = await csrfFetch(url, {method, body: JSON.stringify(body)});
+  const data = await res.json();
+  if (data.success) { closeModal(); tabLoaded.flairs = false; loadRankTitles(); }
+  else { document.getElementById('rt-error').textContent = data.error || 'Error'; document.getElementById('rt-error').classList.remove('hidden'); }
+}
+
+async function deleteRankTitle(id) {
+  if (!confirm('Delete this rank title?')) return;
+  const res = await csrfFetch(`/ql/api/admin/rank-titles/${id}/`, {method: 'DELETE'});
+  const data = await res.json();
+  if (data.success) { tabLoaded.flairs = false; loadRankTitles(); }
+  else alert(data.error || 'Error');
+}
+
+// ============================================================
+// SERVER ROTATION POLLS
+// ============================================================
+let pollsData = [];
+
+async function loadServerPolls() {
+  const el = document.getElementById('adminPollsList');
+  el.innerHTML = '<div class="text-center text-gray-500 py-8"><i class="fas fa-spinner fa-spin text-2xl"></i></div>';
+  try {
+    const res = await csrfFetch('/ql/api/admin/server-polls/');
+    const d = await res.json();
+    pollsData = d.polls || [];
+    renderPollsList();
+  } catch (e) {
+    el.innerHTML = '<p class="text-red-400 text-center py-8">Failed to load polls.</p>';
+  }
+}
+
+function renderPollsList() {
+  const el = document.getElementById('adminPollsList');
+  if (!pollsData.length) {
+    el.innerHTML = '<div class="text-center text-gray-500 py-12"><i class="fas fa-poll text-4xl mb-3 block"></i><p>No polls yet. Create one to get started.</p></div>';
+    return;
+  }
+  el.innerHTML = pollsData.map(p => {
+    const statusBadge = p.is_ended
+      ? '<span class="px-2 py-0.5 rounded text-xs bg-gray-700 text-gray-300">Ended</span>'
+      : p.is_active
+        ? '<span class="px-2 py-0.5 rounded text-xs bg-green-700 text-green-200 animate-pulse">Active</span>'
+        : '<span class="px-2 py-0.5 rounded text-xs bg-neutral-700 text-gray-400">Draft</span>';
+    const totalVotes = p.total_votes || 0;
+    const winnerOpt = p.winner_option_id ? p.options.find(o => o.id === p.winner_option_id) : null;
+    return `
+    <div class="bg-neutral-800/60 border border-neutral-700 rounded-xl p-4">
+      <div class="flex items-start justify-between gap-3 mb-3">
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-2 flex-wrap mb-1">
+            ${statusBadge}
+            <h3 class="text-white font-semibold truncate">${escapeHtml(p.title)}</h3>
+          </div>
+          ${p.description ? `<p class="text-gray-400 text-xs mt-0.5">${escapeHtml(p.description)}</p>` : ''}
+          ${winnerOpt ? `<p class="text-green-400 text-xs font-semibold mt-1">🏆 Winner: ${escapeHtml(winnerOpt.game_name)}</p>` : ''}
+          <p class="text-gray-500 text-xs mt-1">${totalVotes} vote${totalVotes !== 1 ? 's' : ''} · ${p.options.length} option${p.options.length !== 1 ? 's' : ''}</p>
+        </div>
+        <div class="flex items-center gap-2 flex-shrink-0">
+          ${!p.is_ended ? `<button onclick="togglePollActive(${p.id}, ${!p.is_active})"
+            class="text-xs px-3 py-1.5 rounded font-medium transition ${p.is_active ? 'bg-yellow-700 hover:bg-yellow-600 text-white' : 'bg-green-700 hover:bg-green-600 text-white'}">
+            ${p.is_active ? 'Pause' : 'Activate'}
+          </button>` : ''}
+          <button onclick="showEditPollModal(${p.id})" class="text-xs px-3 py-1.5 rounded font-medium bg-neutral-700 hover:bg-neutral-600 text-gray-200 transition">
+            Edit
+          </button>
+          <button onclick="deletePoll(${p.id})" class="text-xs px-3 py-1.5 rounded font-medium bg-red-900/50 hover:bg-red-800 text-red-300 transition">
+            Delete
+          </button>
+        </div>
+      </div>
+
+      <!-- Options tally -->
+      <div class="space-y-2">
+        ${p.options.map(o => {
+          const pct = totalVotes > 0 ? Math.round((o.vote_count / totalVotes) * 100) : 0;
+          const isWinner = o.id === p.winner_option_id;
+          const imgSrc = o.image_url || (o.steam_appid ? `https://cdn.cloudflare.steamstatic.com/steam/apps/${o.steam_appid}/header.jpg` : '');
+          return `
+          <div class="flex items-center gap-3 bg-neutral-900/60 rounded-lg p-2">
+            ${imgSrc ? `<img src="${escapeHtml(imgSrc)}" class="w-14 h-9 object-cover rounded flex-shrink-0" onerror="this.style.display='none'">` : '<div class="w-14 h-9 bg-neutral-800 rounded flex-shrink-0 flex items-center justify-center"><i class="fas fa-gamepad text-neutral-600"></i></div>'}
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center justify-between mb-1">
+                <span class="text-sm font-medium text-white truncate">${escapeHtml(o.game_name)} ${isWinner ? '🏆' : ''}</span>
+                <span class="text-xs text-gray-400 ml-2 flex-shrink-0">${o.vote_count} (${pct}%)</span>
+              </div>
+              <div class="w-full bg-neutral-700 rounded-full h-1.5">
+                <div class="h-1.5 rounded-full transition-all duration-500 ${isWinner ? 'bg-green-400' : 'bg-indigo-500'}" style="width:${pct}%"></div>
+              </div>
+            </div>
+            ${!p.is_ended ? `<button onclick="removePollOption(${p.id}, ${o.id})" class="text-red-500 hover:text-red-400 text-xs flex-shrink-0 ml-1" title="Remove option"><i class="fas fa-times"></i></button>` : ''}
+            ${!p.is_ended && !p.winner_option_id ? `<button onclick="declareWinner(${p.id}, ${o.id}, '${escapeHtml(o.game_name).replace(/'/g,"\\'")}') " class="text-green-500 hover:text-green-400 text-xs flex-shrink-0" title="Declare winner"><i class="fas fa-trophy"></i></button>` : ''}
+          </div>`;
+        }).join('')}
+        ${!p.is_ended ? `<button onclick="showAddOptionModal(${p.id})" class="mt-1 text-xs text-indigo-400 hover:text-indigo-300 transition">
+          <i class="fas fa-plus mr-1"></i>Add Option
+        </button>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function showCreatePollModal() {
+  showModal('Create Server Rotation Poll',
+    `<div class="space-y-4">
+      <div>
+        <label class="block text-xs text-gray-400 mb-1">Poll Title <span class="text-red-400">*</span></label>
+        <input id="pollTitle" type="text" placeholder="e.g. What should our next server be?" maxlength="300"
+          class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-indigo-500 focus:outline-none">
+      </div>
+      <div>
+        <label class="block text-xs text-gray-400 mb-1">Description (optional)</label>
+        <textarea id="pollDescription" rows="2" placeholder="Tell members what this vote is about..."
+          class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-indigo-500 focus:outline-none resize-none"></textarea>
+      </div>
+      <div class="flex items-center justify-between">
+        <label class="flex items-center gap-2 cursor-pointer">
+          <input type="checkbox" id="pollShowResults" checked class="rounded bg-neutral-700">
+          <span class="text-sm text-gray-300">Show live results to voters</span>
+        </label>
+        <label class="flex items-center gap-2 cursor-pointer">
+          <input type="checkbox" id="pollActive" class="rounded bg-neutral-700">
+          <span class="text-sm text-gray-300">Active immediately</span>
+        </label>
+      </div>
+      <div>
+        <label class="block text-xs text-gray-400 mb-1">Game Options (add up to 4)</label>
+        <div id="pollOptionsList" class="space-y-2"></div>
+        <button onclick="addPollOptionRow()" class="mt-2 text-xs text-indigo-400 hover:text-indigo-300 transition">
+          <i class="fas fa-plus mr-1"></i>Add Game Option
+        </button>
+      </div>
+    </div>`,
+    `<button onclick="closeModal()" class="px-4 py-2 rounded-lg bg-neutral-700 hover:bg-neutral-600 text-sm text-gray-200 transition">Cancel</button>
+     <button onclick="createPoll()" class="px-4 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-sm text-white font-medium transition">Create Poll</button>`
+  );
+  // Pre-add 3 option rows
+  addPollOptionRow();
+  addPollOptionRow();
+  addPollOptionRow();
+}
+
+let optionRowCount = 0;
+
+function addPollOptionRow() {
+  const existing = document.querySelectorAll('.poll-option-row').length;
+  if (existing >= 4) return;
+  optionRowCount++;
+  const uid = 'por' + optionRowCount;
+  const row = document.createElement('div');
+  row.className = 'poll-option-row';
+  row.dataset.rowId = uid;
+  row.innerHTML = `
+    <div class="flex gap-2 items-start">
+      <!-- Preview thumbnail -->
+      <div class="flex-shrink-0">
+        <img id="prev-${uid}" class="w-16 h-10 object-cover rounded-lg hidden" alt="">
+        <div id="prev-placeholder-${uid}" class="w-16 h-10 rounded-lg bg-neutral-800 border border-neutral-700 flex items-center justify-center">
+          <i class="fas fa-gamepad text-neutral-600 text-xs"></i>
+        </div>
+      </div>
+      <!-- Inputs -->
+      <div class="flex-1 relative">
+        <input type="text" placeholder="Type a game name to search Steam..." maxlength="300"
+          class="poll-opt-name w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-1.5 text-white text-sm focus:border-indigo-500 focus:outline-none"
+          autocomplete="off">
+        <!-- Autocomplete dropdown -->
+        <div id="drop-${uid}" class="absolute left-0 right-0 top-full mt-1 bg-neutral-800 border border-neutral-700 rounded-lg shadow-xl z-50 hidden max-h-56 overflow-y-auto"></div>
+        <!-- Hidden appid field — filled by selection or manually -->
+        <input type="hidden" class="poll-opt-appid">
+        <!-- Manual fallback: show after picking or if no results -->
+        <div id="manual-${uid}" class="mt-1 hidden">
+          <input type="text" placeholder="Steam App ID (optional)"
+            class="poll-opt-appid-manual w-full bg-neutral-800 border border-dashed border-neutral-600 rounded-lg px-3 py-1 text-gray-400 text-xs focus:border-indigo-500 focus:outline-none"
+            autocomplete="off">
+          <p class="text-neutral-600 text-[10px] mt-0.5">No Steam match found — enter App ID manually if you know it, or leave blank.</p>
+        </div>
+      </div>
+      <button onclick="this.closest('.poll-option-row').remove()" class="text-red-500 hover:text-red-400 mt-1.5 flex-shrink-0">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>`;
+  document.getElementById('pollOptionsList').appendChild(row);
+
+  // Wire up Steam search autocomplete on the name input
+  const nameInput = row.querySelector('.poll-opt-name');
+  const drop = row.querySelector(`#drop-${uid}`);
+  let searchTimer = null;
+
+  nameInput.addEventListener('input', () => {
+    clearTimeout(searchTimer);
+    const q = nameInput.value.trim();
+    if (q.length < 2) { drop.classList.add('hidden'); return; }
+    searchTimer = setTimeout(() => steamGameSearch(q, uid, row), 380);
+  });
+
+  // Hide dropdown on blur (small delay so click on item fires first)
+  nameInput.addEventListener('blur', () => setTimeout(() => drop.classList.add('hidden'), 180));
+}
+
+async function steamGameSearch(query, uid, row) {
+  const drop = document.getElementById('drop-' + uid);
+  drop.innerHTML = '<div class="px-3 py-2 text-gray-500 text-xs"><i class="fas fa-spinner fa-spin mr-1"></i>Searching Steam...</div>';
+  drop.classList.remove('hidden');
+  try {
+    const res = await csrfFetch(`/ql/api/admin/steam-game-search/?q=${encodeURIComponent(query)}`);
+    const d = await res.json();
+    const results = d.results || [];
+    if (!results.length) {
+      drop.innerHTML = '<div class="px-3 py-2 text-gray-500 text-xs">No Steam results — you can still add this game manually.</div>';
+      // Show manual App ID fallback after a moment
+      setTimeout(() => {
+        drop.classList.add('hidden');
+        document.getElementById('manual-' + uid).classList.remove('hidden');
+      }, 1800);
+      return;
+    }
+    drop.innerHTML = results.map(r => `
+      <div class="steam-result flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-neutral-700 transition"
+           data-appid="${escapeHtml(r.appid)}"
+           data-name="${escapeHtml(r.name)}"
+           data-header="${escapeHtml(r.header_url)}"
+           data-tiny="${escapeHtml(r.tiny_image)}">
+        ${r.tiny_image ? `<img src="${escapeHtml(r.tiny_image)}" class="w-8 h-5 object-cover rounded flex-shrink-0" alt="">` : '<div class="w-8 h-5 bg-neutral-700 rounded flex-shrink-0"></div>'}
+        <span class="text-white text-sm truncate">${escapeHtml(r.name)}</span>
+        <span class="text-gray-500 text-xs ml-auto flex-shrink-0">${escapeHtml(r.appid)}</span>
+      </div>`).join('');
+    // Attach click handlers
+    drop.querySelectorAll('.steam-result').forEach(item => {
+      item.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        selectSteamResult(uid, row, {
+          appid: item.dataset.appid,
+          name: item.dataset.name,
+          header: item.dataset.header,
+        });
+      });
+    });
+  } catch (e) {
+    drop.innerHTML = '<div class="px-3 py-2 text-red-400 text-xs">Search failed.</div>';
+  }
+}
+
+function selectSteamResult(uid, row, { appid, name, header }) {
+  const drop = document.getElementById('drop-' + uid);
+  const prevImg = document.getElementById('prev-' + uid);
+  const prevPlaceholder = document.getElementById('prev-placeholder-' + uid);
+  const nameInput = row.querySelector('.poll-opt-name');
+  const appidInput = row.querySelector('.poll-opt-appid');
+  const manualDiv = document.getElementById('manual-' + uid);
+
+  nameInput.value = name;
+  appidInput.value = appid;
+  drop.classList.add('hidden');
+  manualDiv.classList.add('hidden'); // hide manual fallback since we have a Steam match
+
+  // Show header preview
+  if (header) {
+    prevImg.src = header;
+    prevImg.classList.remove('hidden');
+    prevPlaceholder.classList.add('hidden');
+    prevImg.onerror = () => { prevImg.classList.add('hidden'); prevPlaceholder.classList.remove('hidden'); };
+  }
+}
+
+async function createPoll() {
+  const title = document.getElementById('pollTitle').value.trim();
+  if (!title) { alert('Title is required'); return; }
+  const opts = [];
+  document.querySelectorAll('.poll-option-row').forEach((row, i) => {
+    const name = row.querySelector('.poll-opt-name').value.trim();
+    // Prefer the hidden auto-filled appid; fall back to manual input
+    const appidHidden = (row.querySelector('.poll-opt-appid').value || '').trim();
+    const appidManual = (row.querySelector('.poll-opt-appid-manual')?.value || '').trim();
+    const appid = appidHidden || appidManual || null;
+    if (name) opts.push({ game_name: name, steam_appid: appid, sort_order: i });
+  });
+  try {
+    const res = await csrfFetch('/ql/api/admin/server-polls/', {
+      method: 'POST',
+      body: JSON.stringify({
+        title,
+        description: document.getElementById('pollDescription').value.trim(),
+        show_results_before_end: document.getElementById('pollShowResults').checked,
+        is_active: document.getElementById('pollActive').checked,
+        options: opts,
+      }),
+    });
+    const d = await res.json();
+    if (d.success) { closeModal(); tabLoaded.polls = false; loadServerPolls(); }
+    else alert(d.error || 'Failed');
+  } catch (e) { alert('Request failed'); }
+}
+
+function showEditPollModal(pollId) {
+  const p = pollsData.find(x => x.id === pollId);
+  if (!p) return;
+  showModal(`Edit Poll: ${p.title}`,
+    `<div class="space-y-4">
+      <div>
+        <label class="block text-xs text-gray-400 mb-1">Title</label>
+        <input id="editPollTitle" type="text" value="${escapeHtml(p.title)}" maxlength="300"
+          class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-indigo-500 focus:outline-none">
+      </div>
+      <div>
+        <label class="block text-xs text-gray-400 mb-1">Description</label>
+        <textarea id="editPollDesc" rows="2"
+          class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-indigo-500 focus:outline-none resize-none">${escapeHtml(p.description || '')}</textarea>
+      </div>
+      <div class="flex items-center justify-between">
+        <label class="flex items-center gap-2 cursor-pointer">
+          <input type="checkbox" id="editPollShowResults" ${p.show_results_before_end ? 'checked' : ''} class="rounded bg-neutral-700">
+          <span class="text-sm text-gray-300">Show live results</span>
+        </label>
+        <label class="flex items-center gap-2 cursor-pointer">
+          <input type="checkbox" id="editPollEnded" ${p.is_ended ? 'checked' : ''} class="rounded bg-neutral-700">
+          <span class="text-sm text-gray-300">Mark as ended</span>
+        </label>
+      </div>
+    </div>`,
+    `<button onclick="closeModal()" class="px-4 py-2 rounded-lg bg-neutral-700 hover:bg-neutral-600 text-sm text-gray-200 transition">Cancel</button>
+     <button onclick="savePollEdit(${pollId})" class="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-sm text-white font-medium transition">Save</button>`
+  );
+}
+
+async function savePollEdit(pollId) {
+  const title = document.getElementById('editPollTitle').value.trim();
+  if (!title) { alert('Title required'); return; }
+  try {
+    const res = await csrfFetch(`/ql/api/admin/server-polls/${pollId}/`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        title,
+        description: document.getElementById('editPollDesc').value.trim(),
+        show_results_before_end: document.getElementById('editPollShowResults').checked,
+        is_ended: document.getElementById('editPollEnded').checked,
+      }),
+    });
+    const d = await res.json();
+    if (d.success) { closeModal(); tabLoaded.polls = false; loadServerPolls(); }
+    else alert(d.error || 'Failed');
+  } catch (e) { alert('Request failed'); }
+}
+
+async function togglePollActive(pollId, makeActive) {
+  if (makeActive && !confirm('Activating this poll will pause any currently active poll. Continue?')) return;
+  try {
+    const res = await csrfFetch(`/ql/api/admin/server-polls/${pollId}/`, {
+      method: 'PUT', body: JSON.stringify({ is_active: makeActive }),
+    });
+    const d = await res.json();
+    if (d.success) { tabLoaded.polls = false; loadServerPolls(); }
+    else alert(d.error || 'Failed');
+  } catch (e) { alert('Request failed'); }
+}
+
+async function deletePoll(pollId) {
+  if (!confirm('Delete this poll and all its votes? This cannot be undone.')) return;
+  try {
+    const res = await csrfFetch(`/ql/api/admin/server-polls/${pollId}/`, { method: 'DELETE' });
+    const d = await res.json();
+    if (d.success) { tabLoaded.polls = false; loadServerPolls(); }
+    else alert(d.error || 'Failed');
+  } catch (e) { alert('Request failed'); }
+}
+
+function showAddOptionModal(pollId) {
+  showModal('Add Game Option',
+    `<div class="space-y-3">
+      <div>
+        <label class="block text-xs text-gray-400 mb-1">Game Name <span class="text-red-400">*</span></label>
+        <input id="newOptName" type="text" placeholder="e.g. 7 Days to Die" maxlength="300"
+          class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-indigo-500 focus:outline-none">
+      </div>
+      <div>
+        <label class="block text-xs text-gray-400 mb-1">Steam App ID (optional)</label>
+        <input id="newOptAppid" type="text" placeholder="e.g. 251570"
+          class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-indigo-500 focus:outline-none">
+        <p class="text-xs text-gray-500 mt-1">Automatically loads the game banner image from Steam.</p>
+      </div>
+      <div>
+        <label class="block text-xs text-gray-400 mb-1">Description (optional)</label>
+        <textarea id="newOptDesc" rows="2" placeholder="Short description for voters..."
+          class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-indigo-500 focus:outline-none resize-none"></textarea>
+      </div>
+    </div>`,
+    `<button onclick="closeModal()" class="px-4 py-2 rounded-lg bg-neutral-700 hover:bg-neutral-600 text-sm text-gray-200 transition">Cancel</button>
+     <button onclick="addPollOption(${pollId})" class="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-sm text-white font-medium transition">Add Option</button>`
+  );
+}
+
+async function addPollOption(pollId) {
+  const name = document.getElementById('newOptName').value.trim();
+  if (!name) { alert('Game name required'); return; }
+  try {
+    const res = await csrfFetch(`/ql/api/admin/server-polls/${pollId}/options/`, {
+      method: 'POST',
+      body: JSON.stringify({
+        game_name: name,
+        steam_appid: document.getElementById('newOptAppid').value.trim() || null,
+        description: document.getElementById('newOptDesc').value.trim() || null,
+      }),
+    });
+    const d = await res.json();
+    if (d.success) { closeModal(); tabLoaded.polls = false; loadServerPolls(); }
+    else alert(d.error || 'Failed');
+  } catch (e) { alert('Request failed'); }
+}
+
+async function removePollOption(pollId, optionId) {
+  if (!confirm('Remove this option? Any existing votes for it will also be removed.')) return;
+  try {
+    const res = await csrfFetch(`/ql/api/admin/server-polls/${pollId}/options/${optionId}/`, { method: 'DELETE' });
+    const d = await res.json();
+    if (d.success) { tabLoaded.polls = false; loadServerPolls(); }
+    else alert(d.error || 'Failed');
+  } catch (e) { alert('Request failed'); }
+}
+
+async function declareWinner(pollId, optionId, gameName) {
+  if (!confirm(`Declare "${gameName}" as the winner and close this poll?`)) return;
+  try {
+    const res = await csrfFetch(`/ql/api/admin/server-polls/${pollId}/declare-winner/`, {
+      method: 'POST', body: JSON.stringify({ option_id: optionId }),
+    });
+    const d = await res.json();
+    if (d.success) { tabLoaded.polls = false; loadServerPolls(); }
+    else alert(d.error || 'Failed');
+  } catch (e) { alert('Request failed'); }
+}
+
+// ============================================================
+// INIT
+// ============================================================
+document.addEventListener('DOMContentLoaded', () => {
+  loadMaintenanceStatus();
+  loadLoginLockStatus();
+  loadStats();
+  switchTab('lfg');
+});
+
+// ============================================================
+// GIVEAWAYS
+// ============================================================
+
+async function loadAdminGiveaways() {
+  const list = document.getElementById('adminGiveawayList');
+  try {
+    const res = await csrfFetch('/ql/api/admin/giveaways/');
+    const data = await res.json();
+    if (!data.giveaways || data.giveaways.length === 0) {
+      list.innerHTML = '<p class="text-gray-500 text-sm text-center py-8">No giveaways yet. Create one above.</p>';
+      return;
+    }
+    list.innerHTML = data.giveaways.map(g => {
+      const statusColor = {draft:'text-gray-400', active:'text-green-400', closed:'text-yellow-400', winner_selected:'text-indigo-300'}[g.status] || 'text-gray-400';
+      const actions = [];
+      if (g.status === 'draft') {
+        actions.push(`<button onclick="adminLaunchGiveaway(${g.id})" class="text-xs px-3 py-1 bg-green-600 hover:bg-green-700 text-white rounded-lg transition"><i class="fas fa-rocket mr-1"></i>Launch</button>`);
+        actions.push(`<button onclick="adminEditGiveaway(${g.id})" class="text-xs px-3 py-1 bg-yellow-600 hover:bg-yellow-700 text-white rounded-lg transition"><i class="fas fa-edit mr-1"></i>Edit</button>`);
+        actions.push(`<button onclick="adminDeleteGiveaway(${g.id})" class="text-xs px-3 py-1 bg-red-700 hover:bg-red-800 text-white rounded-lg transition"><i class="fas fa-trash mr-1"></i>Delete</button>`);
+      }
+      if (g.status === 'active') {
+        actions.push(`<button onclick="adminCloseGiveaway(${g.id})" class="text-xs px-3 py-1 bg-yellow-600 hover:bg-yellow-700 text-white rounded-lg transition"><i class="fas fa-stop mr-1"></i>Close Entries</button>`);
+      }
+      if (g.status === 'active' || g.status === 'closed') {
+        const winnerLabel = g.max_winners > 1 ? `Pick ${g.max_winners} Winners` : 'Pick Winner';
+        actions.push(`<button onclick="adminPickWinner(${g.id})" class="text-xs px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition"><i class="fas fa-trophy mr-1"></i>${winnerLabel}</button>`);
+      }
+      const winnersHtml = (g.winners && g.winners.length)
+        ? g.winners.map((w, i) => `<span class="text-indigo-300 text-xs"><i class="fas fa-trophy text-yellow-400 mr-1"></i>${i > 0 ? ' ' : ''}${escapeHtml(w.display_name || w.username)}</span>`).join('')
+        : (g.winner ? `<span class="text-indigo-300 text-xs"><i class="fas fa-trophy text-yellow-400 mr-1"></i>${escapeHtml(g.winner.display_name || g.winner.username)}</span>` : '');
+      const metaHtml = [
+        `${g.entry_count} ${g.entry_count === 1 ? 'entrant' : 'entrants'}`,
+        `${g.max_winners} winner${g.max_winners !== 1 ? 's' : ''}`,
+        g.max_entries_per_user > 1 ? `${g.max_entries_per_user} tickets/user` : null,
+        g.hp_per_extra_ticket > 0 ? `${g.hp_per_extra_ticket} HP/extra ticket` : null,
+      ].filter(Boolean).join(' · ');
+      return `
+        <div class="bg-neutral-800 border border-neutral-700 rounded-xl p-4">
+          <div class="flex items-start justify-between gap-4 flex-wrap">
+            <div>
+              <p class="text-white font-semibold">${escapeHtml(g.title)}</p>
+              <p class="text-gray-400 text-sm mt-0.5">${escapeHtml(g.prize)}</p>
+              <div class="flex items-center gap-3 mt-1 flex-wrap">
+                <span class="${statusColor} text-xs font-semibold uppercase">${g.status.replace('_', ' ')}</span>
+                <span class="text-gray-500 text-xs">${metaHtml}</span>
+                ${winnersHtml}
+              </div>
+            </div>
+            <div class="flex gap-2 flex-wrap">${actions.join('')}</div>
+          </div>
+        </div>`;
+    }).join('');
+  } catch (e) {
+    list.innerHTML = '<p class="text-red-400 text-sm text-center py-4">Failed to load giveaways.</p>';
+  }
+}
+
+function showCreateGiveawayModal(editId, prefill) {
+  const isEdit = !!editId;
+  const p = prefill || {};
+  const winnerOptions = [1,2,3,5,10,25].map(n => ({value: String(n), label: n + (n === 1 ? ' winner' : ' winners')}));
+  const entryOptions = [
+    {value: '1', label: '1 entry only (no multi-entry)'},
+    {value: '2', label: '2 entries max'},
+    {value: '3', label: '3 entries max'},
+    {value: '5', label: '5 entries max'},
+    {value: '10', label: '10 entries max'},
+    {value: '25', label: '25 entries max'},
+    {value: '50', label: '50 entries max'},
+  ];
+  showModal(isEdit ? 'Edit Giveaway' : 'Create Giveaway',
+    inputField('gTitle', 'Title *', 'e.g. Steam Game Giveaway', p.title || '') +
+    inputField('gPrize', 'Prize *', 'e.g. $20 Steam Gift Card', p.prize || '') +
+    inputField('gDesc', 'Description', 'Optional details...', p.description || '') +
+    inputField('gImage', 'Image URL', 'https://...', p.image_url || '') +
+    `<div class="grid grid-cols-2 gap-3 mb-1">
+      <div>
+        <label class="text-sm text-gray-300 mb-1 block">Max Winners</label>
+        <div id="gMaxWinnersContainer"></div>
+      </div>
+      <div>
+        <label class="text-sm text-gray-300 mb-1 block">Max Entries / User</label>
+        <div id="gMaxEntriesContainer"></div>
+      </div>
+    </div>` +
+    `<div class="mb-3">
+      <label class="text-sm text-gray-300 mb-1 block">HP per Extra Ticket <span class="text-gray-500 font-normal text-xs">(0 = disabled - 1 free entry only)</span></label>
+      <input type="number" id="gHpPerTicket" value="${p.hp_per_extra_ticket || 0}" min="0" placeholder="0"
+        class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2 text-white text-sm focus:border-indigo-500 focus:outline-none hover:bg-neutral-700/50 transition-colors">
+    </div>` +
+    inputField('gEndsAt', 'Ends At (optional)', '', '', 'datetime-local'),
+    `<button onclick="closeModal()" class="px-4 py-2 text-sm text-gray-400 hover:text-white transition">Cancel</button>
+     <button onclick="submitCreateGiveaway(${editId || ''})" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium transition">${isEdit ? 'Save Changes' : 'Create Draft'}</button>`
+  );
+  // Set end date if editing
+  if (p.ends_at) {
+    const dt = new Date(p.ends_at * 1000);
+    document.getElementById('gEndsAt').value = dt.toISOString().slice(0, 16);
+  }
+  // Init custom selects
+  createCustomSelect({
+    container: '#gMaxWinnersContainer', name: 'gMaxWinners', id: 'gMaxWinners',
+    items: winnerOptions, selected: String(p.max_winners || 1), color: 'indigo',
+  });
+  createCustomSelect({
+    container: '#gMaxEntriesContainer', name: 'gMaxEntries', id: 'gMaxEntries',
+    items: entryOptions, selected: String(p.max_entries_per_user || 1), color: 'indigo',
+  });
+}
+
+async function submitCreateGiveaway(editId) {
+  const title = document.getElementById('gTitle').value.trim();
+  const prize = document.getElementById('gPrize').value.trim();
+  const desc = document.getElementById('gDesc').value.trim();
+  const image = document.getElementById('gImage').value.trim();
+  const endsAtRaw = document.getElementById('gEndsAt').value;
+  const endsAt = endsAtRaw ? Math.floor(new Date(endsAtRaw).getTime() / 1000) : null;
+  const maxWinners = parseInt(document.getElementById('gMaxWinners').value) || 1;
+  const maxEntries = parseInt(document.getElementById('gMaxEntries').value) || 1;
+  const hpPerTicket = parseInt(document.getElementById('gHpPerTicket').value) || 0;
+  if (!title || !prize) { alert('Title and prize are required.'); return; }
+  try {
+    const url = editId ? `/ql/api/admin/giveaways/${editId}/` : '/ql/api/admin/giveaways/';
+    const method = editId ? 'PUT' : 'POST';
+    const res = await csrfFetch(url, {
+      method,
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({title, prize, description: desc || null, image_url: image || null, ends_at: endsAt, max_winners: maxWinners, max_entries_per_user: maxEntries, hp_per_extra_ticket: hpPerTicket}),
+    });
+    const data = await res.json();
+    if (data.success) { closeModal(); tabLoaded.giveaways = false; loadAdminGiveaways(); }
+    else alert(data.error || 'Failed to save giveaway');
+  } catch(e) { alert('Request failed: ' + e.message); }
+}
+
+async function adminLaunchGiveaway(id) {
+  if (!confirm('Launch this giveaway? All users will receive a notification.')) return;
+  const res = await csrfFetch(`/ql/api/admin/giveaways/${id}/launch/`, {method: 'POST'});
+  const data = await res.json();
+  if (data.success) { showToastAdmin(`Launched! ${data.notified} users notified.`); tabLoaded.giveaways = false; loadAdminGiveaways(); }
+  else alert(data.error || 'Failed to launch');
+}
+
+async function adminCloseGiveaway(id) {
+  if (!confirm('Close entries for this giveaway?')) return;
+  const res = await csrfFetch(`/ql/api/admin/giveaways/${id}/close/`, {method: 'POST'});
+  const data = await res.json();
+  if (data.success) { tabLoaded.giveaways = false; loadAdminGiveaways(); }
+  else alert(data.error || 'Failed to close');
+}
+
+async function adminPickWinner(id) {
+  if (!confirm('Pick winner(s) randomly from all entries? Tickets give extra chances. This cannot be undone.')) return;
+  const res = await csrfFetch(`/ql/api/admin/giveaways/${id}/pick-winner/`, {method: 'POST'});
+  const data = await res.json();
+  if (data.success) {
+    const winners = data.giveaway.winners || [];
+    const names = winners.length
+      ? winners.map(w => w.display_name || w.username).join(', ')
+      : (data.giveaway.winner ? (data.giveaway.winner.display_name || data.giveaway.winner.username) : 'Unknown');
+    alert(`Winner${winners.length > 1 ? 's' : ''}: ${names}`);
+    tabLoaded.giveaways = false;
+    loadAdminGiveaways();
+  } else alert(data.error || 'Failed to pick winner');
+}
+
+async function adminDeleteGiveaway(id) {
+  if (!confirm('Delete this giveaway draft?')) return;
+  const res = await csrfFetch(`/ql/api/admin/giveaways/${id}/`, {method: 'DELETE'});
+  const data = await res.json();
+  if (data.success) { tabLoaded.giveaways = false; loadAdminGiveaways(); }
+  else alert(data.error || 'Failed to delete');
+}
+
+async function adminEditGiveaway(id) {
+  try {
+    const res = await csrfFetch(`/ql/api/admin/giveaways/${id}/`);
+    const data = await res.json();
+    if (data.giveaway) showCreateGiveawayModal(id, data.giveaway);
+    else alert(data.error || 'Could not load giveaway');
+  } catch(e) { alert('Failed to load giveaway'); }
+}
+
+function showToastAdmin(msg) {
+  const t = document.createElement('div');
+  t.className = 'fixed bottom-6 left-1/2 -translate-x-1/2 bg-neutral-800 border border-neutral-700 text-white px-4 py-2 rounded-lg text-sm shadow-lg z-50';
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 3000);
+}
+</script>
+{% endblock %}

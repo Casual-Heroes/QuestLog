@@ -40,46 +40,35 @@
 <script>
   const form = document.getElementById('suggestionForm');
   const success = document.getElementById('successMessage');
-  const webhookURL = 'https://discordapp.com/api/webhooks/1363505947598917713/UOzn8uYeN4AR4SsigHr5ROtOavMnRs9uo8fY5xbihNq_k_0K6QIJARMfhsPq5-Isc1Px';
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
 
-    const gameTitle = document.getElementById('gameTitle').value;
-    const whySupport = document.getElementById('whySupport').value;
-    const discordUser = document.getElementById('discordUser').value || 'Anonymous';
+    const gameTitle = document.getElementById('gameTitle').value.trim();
+    const whySupport = document.getElementById('whySupport').value.trim();
+    const discordUser = document.getElementById('discordUser').value.trim() || 'Anonymous';
 
-    const payload = {
-      embeds: [
-        {
-          title: `New Game Suggestion: ${gameTitle}`,
-          description: whySupport,
-          color: 32896,
-          footer: {
-            text: `Suggested by ${discordUser}`
-          },
-          timestamp: new Date().toISOString()
-        }
-      ]
-    };
+    if (!gameTitle || !whySupport) {
+      alert('Please fill in all required fields.');
+      return;
+    }
 
     try {
-      const res = await fetch(webhookURL, {
+      const res = await csrfFetch('/api/gamesuggest/', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(payload)
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ gameTitle, whySupport, discordUser })
       });
 
       if (res.ok) {
         form.reset();
         success.classList.remove('hidden');
       } else {
-        alert('There was an error sending your suggestion.');
+        const err = await res.json().catch(() => ({}));
+        alert(err.error || 'There was an error sending your suggestion.');
       }
     } catch (err) {
-      alert('Something went wrong.');
+      alert('Something went wrong. Please try again.');
     }
   });
 </script>

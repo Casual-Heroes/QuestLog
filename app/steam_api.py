@@ -188,7 +188,8 @@ class SteamAPI:
         # Normalize the data to match our expected format
         return self._normalize_game_data(game)
 
-    def _normalize_game_data(self, game: Dict) -> Dict:
+    @staticmethod
+    def _normalize_game_data(game: Dict) -> Dict:  # noqa: C901
         """
         Convert Steam game data to our normalized format.
 
@@ -239,7 +240,10 @@ class SteamAPI:
             'steam_url': f"https://store.steampowered.com/app/{game.get('steam_appid')}",
             'platforms': platforms,
             'tags': tags,
-            'price': game.get('price_overview', {}).get('final_formatted', 'Free') if game.get('is_free') is False else 'Free',
+            'price': (
+                'Free' if game.get('is_free') is True
+                else ((game.get('price_overview') or {}).get('final_formatted') or None)
+            ),
             'is_free': game.get('is_free', False),
             'developers': game.get('developers', []),
             'publishers': game.get('publishers', []),

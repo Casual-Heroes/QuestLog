@@ -25,8 +25,9 @@
   <title>{% block title %}Casual Heroes{% endblock %}</title>
 
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- Alpine.js 3.14.1 -->
+  <!-- Alpine.js 3.14.1 with SRI -->
   <script defer src="https://unpkg.com/alpinejs@3.14.1/dist/cdn.min.js"
+          integrity="sha384-l8f0VcPi/M1iHPv8egOnY/15TDwqgbOR1anMIJWvU6nLRgZVLTLSaNqi/TOoT5Fh"
           crossorigin="anonymous"></script>
   <!-- Font Awesome 6.5.0 with SRI -->
   <link rel="stylesheet"
@@ -49,129 +50,372 @@
   <!-- XSS Protection: DOMPurify library -->
   <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.6/dist/purify.min.js" integrity="sha384-cwS6YdhLI7XS60eoDiC+egV0qHp8zI+Cms46R0nbn8JrmoAzV9uFL60etMZhAnSu" crossorigin="anonymous"></script>
   <script src="{% static 'js/xss-protection.js' %}"></script>
+  {% block extra_css %}{% endblock %}
 </head>
 
 <body class="bg-[#0a0a1a] text-white font-sans">
-  <div class="max-w-7xl mx-auto px-6">
-    <header class="py-6">
-      <div class="flex flex-col md:flex-row items-center justify-center gap-6">
-        <img src="{% static 'img/siteassets/homepage/CHLogoFinal.png' %}" alt="Casual Heroes Logo" class="h-12 rounded-full" />
+  <div class="max-w-7xl mx-auto px-4 sm:px-6">
 
-        <nav class="flex flex-wrap justify-center gap-6 text-sm md:text-base" x-data="{ activeDropdown: null }">
+    <header class="py-4" x-data="{ mobileOpen: false, activeDropdown: null }">
+
+      <!-- ===== TOP BAR ===== -->
+      <div class="flex items-center justify-between gap-4">
+
+        <!-- Logo -->
+        <a href="https://casual-heroes.com/" class="flex-shrink-0">
+          <img src="{% static 'img/siteassets/homepage/CHLogoFinal.png' %}" alt="Casual Heroes" class="h-10 rounded-full" />
+        </a>
+
+        <!-- Desktop nav (lg+) -->
+        <nav class="hidden lg:flex items-center gap-5 text-sm flex-wrap">
+
           <a href="https://casual-heroes.com/" class="hover:text-indigo-400 transition">Home</a>
 
-          <!-- Games Dropdown -->
+          <!-- Games -->
           <div class="relative">
-            <button @click="activeDropdown = activeDropdown === 'games' ? null : 'games'" class="font-semibold hover:text-indigo-400 transition flex items-center gap-1">
-              Games ▾
+            <button @click="activeDropdown = activeDropdown === 'games' ? null : 'games'"
+                    class="font-semibold hover:text-indigo-400 transition flex items-center gap-1">
+              Games <span class="text-[10px] opacity-70">▾</span>
             </button>
             <div x-show="activeDropdown === 'games'" @click.outside="activeDropdown = null" x-transition
-              class="absolute left-0 mt-2 bg-neutral-900 border border-neutral-800 rounded-lg shadow-lg w-[20rem] max-w-none z-50 text-base py-4">
-
-              <!-- Community Favorites -->
-              <div class="px-4 py-1 text-xs uppercase text-gray-400 tracking-wider">Community Favorites</div>
-              <a href="https://casual-heroes.com/gamesweplay" class="block px-4 py-2 hover:bg-neutral-800">Current Games</a>
-              <a href="https://casual-heroes.com/gameshype" class="block px-4 py-2 hover:bg-neutral-800">Games We're Hyped For</a>
-              <a href="https://casual-heroes.com/gamesuggest" class="block px-4 py-2 hover:bg-neutral-800">Suggest a Game</a>
-
-              <!-- Hosted by CHHS -->
-              <!-- <div class="px-4 py-1 mt-2 text-xs uppercase text-gray-400 tracking-wider">Hosted by Casual Heroes Hosting Services</div>
-              <a href="https://casual-heroes.com/7dtd" class="flex items-center gap-2 px-4 py-2 hover:bg-neutral-800">
-                <img src="{% static 'img/siteassets/homepage/7DTD.png' %}" alt="7DTD" class="w-4 h-4" />
-                7 Days to Die <span class="text-xs text-gray-500">(Coming Soon)</span>
-              </a>
-              <a href="https://casual-heroes.com/dragonwilds" class="flex items-center gap-2 px-4 py-2 hover:bg-neutral-800">
-                <img src="{% static 'img/siteassets/homepage/dragonwilds-1.png' %}" alt="Dragonwilds" class="w-4 h-4" />
-                Dragonwilds <span class="text-xs text-gray-500">(Coming Soon)</span>
-              </a> -->
-              <!-- <a href="https://casual-heroes.com/enshrouded" class="flex items-center gap-2 px-4 py-2 hover:bg-neutral-800">
-                <img src="{% static 'img/siteassets/homepage/enshrouded.png' %}" alt="Enshrouded" class="w-4 h-4" />
-                Enshrouded
-              </a> -->
-              <!-- <a href="https://casual-heroes.com/vrising" class="flex items-center gap-2 px-4 py-2 hover:bg-neutral-800">
-                <img src="{% static 'img/siteassets/homepage/virsing.png' %}" alt="V Rising" class="w-4 h-4" />
-                V Rising
-              </a> -->
-
-              <!-- Guilds -->
-              <div class="px-4 py-1 mt-2 text-xs uppercase text-gray-400 tracking-wider">Casual Heroes Guilds</div>
-              <a href="https://casual-heroes.com/wow" class="flex items-center gap-2 px-4 py-2 hover:bg-neutral-800">
+                 class="absolute left-0 mt-2 bg-neutral-900 border border-neutral-800 rounded-lg shadow-xl w-72 z-50 py-3">
+              <div class="px-4 py-1 text-xs uppercase text-gray-500 tracking-wider">Community</div>
+              <a href="https://casual-heroes.com/gamesweplay" class="block px-4 py-2 hover:bg-neutral-800 hover:text-indigo-400 transition">Games We Play</a>
+              <a href="https://casual-heroes.com/gameshype"   class="block px-4 py-2 hover:bg-neutral-800 hover:text-indigo-400 transition">Games We're Hyped For</a>
+              <a href="https://casual-heroes.com/gamesuggest" class="block px-4 py-2 hover:bg-neutral-800 hover:text-indigo-400 transition">Suggest a Game</a>
+              <div class="px-4 pt-2 pb-1 text-xs uppercase text-gray-500 tracking-wider border-t border-neutral-800 mt-1">Game Servers</div>
+              <a href="https://casual-heroes.com/gameservers" class="block px-4 py-2 hover:bg-neutral-800 hover:text-indigo-400 transition">Games We Host</a>
+              <span class="flex items-center justify-between px-4 py-2 text-gray-600 cursor-not-allowed select-none">
+                Rent a Server
+                <span class="text-[10px] bg-indigo-900/60 text-indigo-400 px-1.5 py-0.5 rounded font-mono tracking-wide">Soon™</span>
+              </span>
+              <div class="px-4 pt-2 pb-1 text-xs uppercase text-gray-500 tracking-wider border-t border-neutral-800 mt-1">Guilds</div>
+              <a href="https://casual-heroes.com/wow" class="flex items-center gap-2 px-4 py-2 hover:bg-neutral-800 transition">
                 <img src="{% static 'img/games/guilds/WoWlogo.png' %}" alt="WoW" class="w-4 h-4" />
                 World of Warcraft
               </a>
-
-              <a href="https://casual-heroes.com/eso" class="flex items-center gap-2 px-4 py-2 hover:bg-neutral-800">
+              <a href="https://casual-heroes.com/eso" class="flex items-center gap-2 px-4 py-2 hover:bg-neutral-800 transition">
                 <img src="{% static 'img/games/guilds/esoguild.png' %}" alt="ESO" class="w-4 h-4" />
                 Elder Scrolls Online
               </a>
             </div>
           </div>
 
-
-          <a href="https://casual-heroes.com/guides" class="hover:text-indigo-400 transition">Game Guides</a>
+          <a href="https://casual-heroes.com/guides"  class="hover:text-indigo-400 transition">Game Guides</a>
           <a href="https://casual-heroes.com/features" class="hover:text-indigo-400 transition">Features</a>
-          <a href="https://casual-heroes.com/content" class="hover:text-indigo-400 transition">Casual Heroes Content</a>
+          <a href="https://casual-heroes.com/content"  class="hover:text-indigo-400 transition">Casual Heroes Content</a>
 
-          <!-- QuestLog Dropdown -->
+          <!-- QuestLog -->
           <div class="relative">
-            <button @click="activeDropdown = activeDropdown === 'questlog' ? null : 'questlog'" class="text-indigo-400 font-semibold flex items-center gap-1 hover:text-indigo-400">
-              QuestLog ▾
+            <button @click="activeDropdown = activeDropdown === 'questlog' ? null : 'questlog'"
+                    class="text-indigo-400 font-semibold flex items-center gap-1 hover:text-indigo-300 transition">
+              QuestLog <span class="text-[10px] opacity-70">▾</span>
             </button>
             <div x-show="activeDropdown === 'questlog'" @click.outside="activeDropdown = null" x-transition
-              class="absolute left-0 mt-2 bg-neutral-900 border border-neutral-800 rounded-lg shadow-lg w-56 z-50 text-sm">
-              <a href="https://casual-heroes.com/questlog/overview" class="flex items-center gap-2 px-4 py-2 hover:bg-neutral-800">
-                <i class="fas fa-book w-4 h-4"></i> Overview
-              </a>
-              <a href="https://casual-heroes.com/questlog/login" class="flex items-center gap-2 px-4 py-2 hover:bg-neutral-800">
-                <i class="fas fa-sign-in-alt w-4 h-4"></i> Login to Dashboard
-              </a>
-              <a href="/profile/" class="flex items-center gap-2 px-4 py-2 hover:bg-neutral-800">
-                <i class="fas fa-user-cog w-4 h-4"></i> Profile Settings
-              </a>
-            </div>
-          </div>
-
-          <!-- Admin Dropdown (Bot Owner Only) -->
-          {% if request.session.discord_user.id == "1442643999713394831" %}
-          <div class="relative">
-            <button @click="activeDropdown = activeDropdown === 'admin' ? null : 'admin'" class="text-yellow-400 font-semibold flex items-center gap-1 hover:text-yellow-300">
-              <i class="fas fa-shield-alt"></i> Admin ▾
-            </button>
-            <div x-show="activeDropdown === 'admin'" @click.outside="activeDropdown = null" x-transition
-              class="absolute left-0 mt-2 bg-neutral-900 border border-neutral-800 rounded-lg shadow-lg w-64 z-50 text-sm">
-              <div class="px-4 py-2 text-xs uppercase text-yellow-400 tracking-wider border-b border-neutral-800">
-                <i class="fas fa-crown mr-1"></i>Bot Owner Tools
+                 class="absolute left-0 mt-2 bg-neutral-900 border border-neutral-800 rounded-lg shadow-xl w-64 z-50">
+              <div class="px-4 py-2 text-xs uppercase text-indigo-400 tracking-wider border-b border-neutral-800">
+                <i class="fas fa-globe mr-1"></i>Social Hub
               </div>
-              <a href="/admin/site-activity-tracker/" class="flex items-center gap-2 px-4 py-3 hover:bg-neutral-800">
-                <i class="fas fa-chart-line text-indigo-400 w-4 h-4"></i>
-                <div>
-                  <div class="text-white">Activity Tracker</div>
-                  <div class="text-xs text-gray-500">Discord game tracking config</div>
-                </div>
+              <a href="/ql/" class="flex items-center gap-2 px-4 py-3 hover:bg-neutral-800 transition">
+                <i class="fas fa-home text-indigo-400 w-4"></i>
+                <div><div class="text-white text-sm">QuestLog Home</div><div class="text-xs text-gray-500">Your gaming social hub</div></div>
+              </a>
+              <a href="/ql/lfg/" class="flex items-center gap-2 px-4 py-3 hover:bg-neutral-800 transition">
+                <i class="fas fa-users text-yellow-400 w-4"></i>
+                <div><div class="text-white text-sm">Looking for Group</div><div class="text-xs text-gray-500">Find players for any game</div></div>
+              </a>
+              <a href="/ql/network/" class="flex items-center gap-2 px-4 py-3 hover:bg-neutral-800 transition">
+                <i class="fas fa-user-friends text-purple-400 w-4"></i>
+                <div><div class="text-white text-sm">Network</div><div class="text-xs text-gray-500">Discover gamers</div></div>
               </a>
             </div>
           </div>
-          {% endif %}
 
-          <!-- Hosting Dropdown -->
-          <!-- <div class="relative">
-            <button @click="activeDropdown = activeDropdown === 'hosting' ? null : 'hosting'" class="text-indigo-400 font-semibold flex items-center gap-1 hover:text-indigo-400">
-              Hosting ▾
+          <!-- QuestChat -->
+          <div class="relative">
+            <button @click="activeDropdown = activeDropdown === 'questchat' ? null : 'questchat'"
+                    class="text-teal-400 font-semibold flex items-center gap-1 hover:text-teal-300 transition">
+              QuestChat <span class="text-[10px] opacity-70">▾</span>
             </button>
-            <div x-show="activeDropdown === 'hosting'" @click.outside="activeDropdown = null" x-transition
-              class="absolute left-0 mt-2 bg-neutral-900 border border-neutral-800 rounded-lg shadow-lg w-56 z-50 text-sm">
-              <a href="https://casual-heroes.com/hosting" class="flex items-center gap-2 px-4 py-2 hover:bg-neutral-800">
-                <span class="w-4 h-4"></span> Hosting Overview
+            <div x-show="activeDropdown === 'questchat'" @click.outside="activeDropdown = null" x-transition
+                 class="absolute left-0 mt-2 bg-neutral-900 border border-neutral-800 rounded-lg shadow-xl w-64 z-50">
+              <div class="px-4 py-2 text-xs uppercase text-teal-400 tracking-wider border-b border-neutral-800">
+                <i class="fas fa-comments mr-1"></i>Matrix Chat
+              </div>
+              <a href="/questchat/" class="flex items-center gap-2 px-4 py-3 hover:bg-neutral-800 transition">
+                <i class="fas fa-door-open text-teal-400 w-4"></i>
+                <div><div class="text-white text-sm">QuestChat Home</div><div class="text-xs text-gray-500">Join the conversation</div></div>
               </a>
-              <a href="https://casual-heroes.com/login" class="flex items-center gap-2 px-4 py-2 hover:bg-neutral-800">
-                <span class="w-4 h-4"></span> Login to Hosting Panel
+              <a href="https://chat.casual-heroes.com/#/login" class="flex items-center gap-2 px-4 py-3 hover:bg-neutral-800 transition">
+                <i class="fas fa-desktop text-indigo-400 w-4"></i>
+                <div><div class="text-white text-sm">Launch QuestChat</div><div class="text-xs text-gray-500">Chat in your browser</div></div>
               </a>
+              <a href="https://chat.casual-heroes.com/#/register" class="flex items-center gap-2 px-4 py-3 hover:bg-neutral-800 transition">
+                <i class="fas fa-user-plus text-green-400 w-4"></i>
+                <div><div class="text-white text-sm">Sign Up / Account</div><div class="text-xs text-gray-500">Create or manage your account</div></div>
+              </a>
+              <div class="border-t border-neutral-800 mx-3 my-1"></div>
+              <div class="px-4 py-1 text-xs uppercase text-gray-500 tracking-wider">Self-Hosting</div>
+              <a href="/self-host/" class="flex items-center gap-2 px-4 py-3 hover:bg-neutral-800 transition">
+                <i class="fas fa-book-open text-teal-400 w-4"></i>
+                <div><div class="text-white text-sm">How To Host Your Own</div><div class="text-xs text-gray-500">Written guide</div></div>
+              </a>
+              <span class="flex items-center gap-2 px-4 py-3 select-none opacity-50 cursor-not-allowed">
+                <i class="fab fa-youtube text-red-400 w-4"></i>
+                <div>
+                  <div class="flex items-center gap-2 text-white text-sm">Video Guide <span class="text-[10px] bg-indigo-900/60 text-indigo-400 px-1.5 py-0.5 rounded font-mono tracking-wide">Soon™</span></div>
+                  <div class="text-xs text-gray-500">Coming soon</div>
+                </div>
+              </span>
             </div>
-          </div> -->
+          </div>
+
+          <!-- QuestLogBot -->
+          <div class="relative">
+            <button @click="activeDropdown = activeDropdown === 'questlogbot' ? null : 'questlogbot'"
+                    class="text-amber-400 font-semibold flex items-center gap-1 hover:text-amber-300 transition">
+              QuestLogBot <span class="text-[10px] opacity-70">▾</span>
+            </button>
+            <div x-show="activeDropdown === 'questlogbot'" @click.outside="activeDropdown = null" x-transition
+                 class="absolute left-0 mt-2 bg-neutral-900 border border-neutral-800 rounded-lg shadow-xl w-64 z-50">
+              <div class="px-4 py-2 text-xs uppercase text-amber-400 tracking-wider border-b border-neutral-800">
+                <i class="fas fa-robot mr-1"></i>Quest Bot
+              </div>
+              <div class="px-4 py-3 text-xs text-gray-500">More features coming soon.</div>
+            </div>
+          </div>
 
           <a href="https://casual-heroes.com/aboutus" class="hover:text-indigo-400 transition">About Us</a>
+
+          <a href="https://ko-fi.com/casualheroes" target="_blank" rel="noopener"
+             class="flex items-center gap-1.5 text-orange-400 hover:text-orange-300 transition"
+             title="Support Casual Heroes on Ko-fi">
+            <i class="fas fa-mug-hot text-xs"></i> Support Us
+          </a>
+
+          <!-- Account (AFTER About Us) -->
+          {% if request.session.web_user_id %}
+          <div class="relative">
+            <button @click="activeDropdown = activeDropdown === 'qluser' ? null : 'qluser'"
+                    class="flex items-center gap-2 text-sm font-semibold text-indigo-300 hover:text-indigo-200 transition">
+              {% if request.session.web_user_avatar %}
+              <img src="{{ request.session.web_user_avatar }}" alt="avatar" id="nav-avatar-desktop"
+                   class="w-7 h-7 rounded-full object-cover ring-1 {% if web_user and web_user.show_playing_status and web_user.current_game %}ring-cyan-400 shadow-[0_0_8px_#22d3ee]{% else %}ring-indigo-700{% endif %}" />
+              {% else %}
+              <i class="fas fa-user-circle text-lg text-indigo-400"></i>
+              {% endif %}
+              <span>{{ request.session.web_user_name }}</span>
+              <span class="text-[10px] opacity-70">▾</span>
+            </button>
+            <div x-show="activeDropdown === 'qluser'" @click.outside="activeDropdown = null" x-transition
+                 class="absolute right-0 mt-2 bg-neutral-900 border border-neutral-800 rounded-lg shadow-xl w-56 z-50 text-sm">
+              <div class="px-4 py-2 text-xs uppercase text-indigo-400 tracking-wider border-b border-neutral-800">
+                <i class="fas fa-user mr-1"></i>My Account
+              </div>
+              <a href="/ql/" class="flex items-center gap-2 px-4 py-3 hover:bg-neutral-800 transition">
+                <i class="fas fa-home text-indigo-400 w-4"></i><span>QuestLog Home</span>
+              </a>
+              <a href="/ql/profile/" class="flex items-center gap-2 px-4 py-3 hover:bg-neutral-800 transition">
+                <i class="fas fa-id-card text-indigo-400 w-4"></i><span>My Profile</span>
+              </a>
+              <a href="/ql/settings/" class="flex items-center gap-2 px-4 py-3 hover:bg-neutral-800 transition">
+                <i class="fas fa-cog text-gray-400 w-4"></i><span>Settings</span>
+              </a>
+              {% if request.session.web_user_is_admin %}
+              <div class="border-t border-neutral-800 my-1"></div>
+              <a href="/ql/admin-login/" class="flex items-center gap-2 px-4 py-3 hover:bg-neutral-800 transition text-yellow-400">
+                <i class="fas fa-crown w-4"></i><span>Admin Panel</span>
+              </a>
+              {% endif %}
+              <div class="border-t border-neutral-800 my-1"></div>
+              <a href="/logout/" class="flex items-center gap-2 px-4 py-3 hover:bg-neutral-800 transition text-red-400">
+                <i class="fas fa-sign-out-alt w-4"></i><span>Sign Out</span>
+              </a>
+            </div>
+          </div>
+          {% else %}
+          <a href="/ql/login/" class="text-sm font-semibold text-indigo-400 hover:text-indigo-300 transition">
+            Sign In
+          </a>
+          {% endif %}
+
         </nav>
-      </div>
+
+        <!-- Mobile: account avatar or sign-in + hamburger -->
+        <div class="flex lg:hidden items-center gap-3">
+          {% if request.session.web_user_id %}
+          <a href="/ql/" class="flex items-center gap-1.5 text-sm text-indigo-300">
+            {% if request.session.web_user_avatar %}
+            <img src="{{ request.session.web_user_avatar }}" alt="avatar" class="w-7 h-7 rounded-full object-cover ring-1 ring-indigo-700" />
+            {% else %}
+            <i class="fas fa-user-circle text-indigo-400 text-lg"></i>
+            {% endif %}
+          </a>
+          {% else %}
+          <a href="/ql/login/" class="text-sm font-semibold text-indigo-400 hover:text-indigo-300 transition">Sign In</a>
+          {% endif %}
+
+          <!-- Hamburger -->
+          <button @click="mobileOpen = !mobileOpen"
+                  class="p-2 rounded-md text-gray-300 hover:text-white hover:bg-neutral-800 transition"
+                  :aria-expanded="mobileOpen" aria-label="Toggle navigation menu">
+            <svg x-show="!mobileOpen" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
+            </svg>
+            <svg x-show="mobileOpen" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+          </button>
+        </div>
+
+      </div><!-- /top bar -->
+
+      <!-- ===== MOBILE MENU ===== -->
+      <div x-show="mobileOpen"
+           x-transition:enter="transition ease-out duration-200"
+           x-transition:enter-start="opacity-0 -translate-y-2"
+           x-transition:enter-end="opacity-100 translate-y-0"
+           x-transition:leave="transition ease-in duration-150"
+           x-transition:leave-start="opacity-100 translate-y-0"
+           x-transition:leave-end="opacity-0 -translate-y-2"
+           class="lg:hidden mt-3 rounded-xl border border-neutral-800 bg-neutral-900/95 overflow-hidden">
+
+        <div class="divide-y divide-neutral-800 text-sm">
+
+          <a href="https://casual-heroes.com/" class="flex items-center gap-3 px-4 py-3 hover:bg-neutral-800 transition">
+            <i class="fas fa-home w-4 text-gray-400"></i> Home
+          </a>
+
+          <!-- Games accordion -->
+          <div x-data="{ open: false }">
+            <button @click="open = !open"
+                    class="w-full flex items-center justify-between px-4 py-3 hover:bg-neutral-800 transition font-semibold text-left">
+              <span class="flex items-center gap-3"><i class="fas fa-gamepad w-4 text-gray-400"></i> Games</span>
+              <span class="text-xs opacity-50" x-text="open ? '▲' : '▾'"></span>
+            </button>
+            <div x-show="open" class="bg-neutral-950/50 pl-10 pr-4 pb-2 text-gray-300">
+              <a href="https://casual-heroes.com/gamesweplay" class="block py-2 hover:text-indigo-400 transition">Games We Play</a>
+              <a href="https://casual-heroes.com/gameshype"   class="block py-2 hover:text-indigo-400 transition">Games We're Hyped For</a>
+              <a href="https://casual-heroes.com/gamesuggest" class="block py-2 hover:text-indigo-400 transition">Suggest a Game</a>
+              <div class="text-xs uppercase text-gray-600 tracking-wider pt-2 pb-1">Game Servers</div>
+              <a href="https://casual-heroes.com/gameservers" class="block py-2 hover:text-indigo-400 transition">Games We Host</a>
+              <span class="flex items-center justify-between py-2 text-gray-600 cursor-not-allowed select-none">
+                Rent a Server
+                <span class="text-[10px] bg-indigo-900/60 text-indigo-400 px-1.5 py-0.5 rounded font-mono tracking-wide">Soon™</span>
+              </span>
+              <div class="text-xs uppercase text-gray-600 tracking-wider pt-2 pb-1">Guilds</div>
+              <a href="https://casual-heroes.com/wow" class="flex items-center gap-2 py-2 hover:text-indigo-400 transition">
+                <img src="{% static 'img/games/guilds/WoWlogo.png' %}" class="w-4 h-4" alt="WoW"> World of Warcraft
+              </a>
+              <a href="https://casual-heroes.com/eso" class="flex items-center gap-2 py-2 hover:text-indigo-400 transition">
+                <img src="{% static 'img/games/guilds/esoguild.png' %}" class="w-4 h-4" alt="ESO"> Elder Scrolls Online
+              </a>
+            </div>
+          </div>
+
+          <a href="https://casual-heroes.com/guides" class="flex items-center gap-3 px-4 py-3 hover:bg-neutral-800 transition">
+            <i class="fas fa-book w-4 text-gray-400"></i> Game Guides
+          </a>
+          <a href="https://casual-heroes.com/features" class="flex items-center gap-3 px-4 py-3 hover:bg-neutral-800 transition">
+            <i class="fas fa-star w-4 text-gray-400"></i> Features
+          </a>
+          <a href="https://casual-heroes.com/content" class="flex items-center gap-3 px-4 py-3 hover:bg-neutral-800 transition">
+            <i class="fas fa-play w-4 text-gray-400"></i> Casual Heroes Content
+          </a>
+
+          <!-- QuestLog accordion -->
+          <div x-data="{ open: false }">
+            <button @click="open = !open"
+                    class="w-full flex items-center justify-between px-4 py-3 hover:bg-neutral-800 transition font-semibold text-indigo-400 text-left">
+              <span class="flex items-center gap-3"><i class="fas fa-globe w-4"></i> QuestLog</span>
+              <span class="text-xs opacity-50" x-text="open ? '▲' : '▾'"></span>
+            </button>
+            <div x-show="open" class="bg-neutral-950/50 pl-10 pr-4 pb-2 text-gray-300">
+              <a href="/ql/"         class="block py-2 hover:text-indigo-400 transition">QuestLog Home</a>
+              <a href="/ql/lfg/"     class="block py-2 hover:text-indigo-400 transition">Looking for Group</a>
+              <a href="/ql/network/" class="block py-2 hover:text-indigo-400 transition">Network</a>
+            </div>
+          </div>
+
+          <!-- QuestChat accordion -->
+          <div x-data="{ open: false }">
+            <button @click="open = !open"
+                    class="w-full flex items-center justify-between px-4 py-3 hover:bg-neutral-800 transition font-semibold text-teal-400 text-left">
+              <span class="flex items-center gap-3"><i class="fas fa-comments w-4"></i> QuestChat</span>
+              <span class="text-xs opacity-50" x-text="open ? '▲' : '▾'"></span>
+            </button>
+            <div x-show="open" class="bg-neutral-950/50 pl-10 pr-4 pb-2 text-gray-300">
+              <a href="/questchat/"              class="block py-2 hover:text-teal-400 transition">QuestChat Home</a>
+              <a href="https://chat.casual-heroes.com/#/login" class="block py-2 hover:text-teal-400 transition">Launch QuestChat</a>
+              <a href="https://chat.casual-heroes.com/#/register" class="block py-2 hover:text-teal-400 transition">Sign Up / Account</a>
+              <div class="text-xs uppercase text-gray-600 tracking-wider pt-2 pb-1">Self-Hosting</div>
+              <a href="/self-host/" class="block py-2 hover:text-teal-400 transition">How To Host Your Own</a>
+              <span class="flex items-center justify-between py-2 text-gray-600 cursor-not-allowed select-none">
+                Video Guide
+                <span class="text-[10px] bg-indigo-900/60 text-indigo-400 px-1.5 py-0.5 rounded font-mono tracking-wide">Soon™</span>
+              </span>
+            </div>
+          </div>
+
+          <!-- QuestLogBot accordion -->
+          <div x-data="{ open: false }">
+            <button @click="open = !open"
+                    class="w-full flex items-center justify-between px-4 py-3 hover:bg-neutral-800 transition font-semibold text-amber-400 text-left">
+              <span class="flex items-center gap-3"><i class="fas fa-robot w-4"></i> QuestLogBot</span>
+              <span class="text-xs opacity-50" x-text="open ? '▲' : '▾'"></span>
+            </button>
+            <div x-show="open" class="bg-neutral-950/50 pl-10 pr-4 pb-2 text-gray-400 text-xs">
+              More features coming soon.
+            </div>
+          </div>
+
+          <a href="https://casual-heroes.com/aboutus" class="flex items-center gap-3 px-4 py-3 hover:bg-neutral-800 transition">
+            <i class="fas fa-info-circle w-4 text-gray-400"></i> About Us
+          </a>
+
+          <a href="https://ko-fi.com/casualheroes" target="_blank" rel="noopener"
+             class="flex items-center gap-3 px-4 py-3 hover:bg-neutral-800 transition text-orange-400">
+            <i class="fas fa-mug-hot w-4"></i> Support Us on Ko-fi
+          </a>
+
+          <!-- Account section at bottom of mobile menu -->
+          {% if request.session.web_user_id %}
+          <div class="px-4 py-3 bg-neutral-950/30">
+            <div class="flex items-center gap-3 mb-3">
+              {% if request.session.web_user_avatar %}
+              <img src="{{ request.session.web_user_avatar }}" id="nav-avatar-mobile"
+                   class="w-8 h-8 rounded-full ring-1 {% if web_user and web_user.show_playing_status and web_user.current_game %}ring-cyan-400 shadow-[0_0_8px_#22d3ee]{% else %}ring-indigo-700{% endif %}" alt="avatar">
+              {% else %}
+              <i class="fas fa-user-circle text-indigo-400 text-xl"></i>
+              {% endif %}
+              <span class="text-sm font-semibold text-indigo-300">{{ request.session.web_user_name }}</span>
+            </div>
+            <div class="grid grid-cols-2 gap-2 text-xs">
+              <a href="/ql/profile/" class="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-neutral-800 hover:bg-neutral-700 transition text-gray-300">
+                <i class="fas fa-id-card text-indigo-400"></i> My Profile
+              </a>
+              <a href="/ql/settings/" class="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-neutral-800 hover:bg-neutral-700 transition text-gray-300">
+                <i class="fas fa-cog text-gray-400"></i> Settings
+              </a>
+              {% if request.session.web_user_is_admin %}
+              <a href="/ql/admin-login/" class="col-span-2 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-yellow-900/30 hover:bg-yellow-900/50 transition text-yellow-400 border border-yellow-800/40">
+                <i class="fas fa-crown"></i> Admin Panel
+              </a>
+              {% endif %}
+              <a href="/logout/" class="col-span-2 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-red-900/30 hover:bg-red-900/50 transition text-red-400 border border-red-800/40">
+                <i class="fas fa-sign-out-alt"></i> Sign Out
+              </a>
+            </div>
+          </div>
+          {% else %}
+          <a href="/ql/login/" class="flex items-center justify-center gap-2 px-4 py-3.5 text-sm font-semibold text-indigo-400 hover:text-indigo-300 hover:bg-neutral-800 transition">
+            <i class="fas fa-sign-in-alt"></i> Sign In
+          </a>
+          {% endif %}
+
+        </div>
+      </div><!-- /mobile menu -->
+
     </header>
 
     {% block content %}{% endblock %}
@@ -303,5 +547,34 @@
   </script>
 
   {% block extra_js %}{% endblock %}
+
+  <script>
+  /* Global helper: render an avatar img OR a coloured initials fallback.
+     avatarHtml(username, avatarUrl, sizeClass)
+     sizeClass defaults to 'w-10 h-10'. */
+  function avatarHtml(username, avatarUrl, sizeClass) {
+    sizeClass = sizeClass || 'w-10 h-10';
+    var _esc = function(s) {
+      if (!s) return '';
+      var d = document.createElement('div');
+      d.textContent = s;
+      return d.innerHTML;
+    };
+    if (avatarUrl) {
+      return '<img src="' + _esc(avatarUrl) + '" alt="" class="' + sizeClass + ' rounded-full object-cover flex-shrink-0">';
+    }
+    var palette = [
+      'bg-indigo-500', 'bg-purple-500', 'bg-pink-500',
+      'bg-rose-500',   'bg-orange-500', 'bg-amber-500',
+      'bg-teal-500',   'bg-cyan-500',   'bg-green-500',
+      'bg-sky-500',
+    ];
+    var color = palette[(username || '?').charCodeAt(0) % palette.length];
+    var initials = (username || '?').slice(0, 2).toUpperCase();
+    return '<div class="' + sizeClass + ' ' + color + ' rounded-full flex items-center justify-center flex-shrink-0">'
+         + '<span class="text-white text-xs font-bold">' + _esc(initials) + '</span>'
+         + '</div>';
+  }
+  </script>
 </body>
 </html>

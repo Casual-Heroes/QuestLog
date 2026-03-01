@@ -1,0 +1,192 @@
+{% extends "questlog_web/base_web.html" %}
+{% load static %}
+
+{% block title %}My Groups - QuestLog{% endblock %}
+
+{% block web_content %}
+<script>
+  const CSRF_TOKEN = '{{ csrf_token }}';
+  function csrfFetch(url, options = {}) {
+    if (!options.headers) options.headers = {};
+    if (CSRF_TOKEN && CSRF_TOKEN !== 'None') {
+      options.headers['X-CSRFToken'] = CSRF_TOKEN;
+    }
+    return fetch(url, options);
+  }
+  function escapeHtml(text) {
+    if (text == null || text === undefined) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  }
+</script>
+
+<!-- Header -->
+<div class="bg-gradient-to-br from-neutral-900 to-neutral-950 border-b border-neutral-800 p-6 mb-6">
+  <div class="max-w-7xl mx-auto">
+    <div class="flex items-center justify-between">
+      <div>
+        <h1 class="text-3xl font-bold text-white flex items-center gap-3">
+          <i class="fas fa-user-friends text-blue-400"></i>
+          My Groups
+        </h1>
+        <p class="text-gray-400 mt-1">Groups you've created or joined</p>
+      </div>
+      <a href="{% url 'questlog_web_lfg_create' %}" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium transition text-sm">
+        <i class="fas fa-plus mr-2"></i>Create Group
+      </a>
+    </div>
+  </div>
+</div>
+
+<div class="max-w-7xl mx-auto px-4">
+  <!-- Tabs -->
+  <div class="flex gap-4 mb-6 border-b border-neutral-800">
+    <button id="tabCreated" onclick="switchTab('created')" class="pb-3 px-1 text-sm font-medium border-b-2 border-green-500 text-white transition">
+      <i class="fas fa-crown mr-1 text-yellow-400"></i>Groups I Created
+    </button>
+    <button id="tabJoined" onclick="switchTab('joined')" class="pb-3 px-1 text-sm font-medium border-b-2 border-transparent text-gray-400 hover:text-white transition">
+      <i class="fas fa-sign-in-alt mr-1"></i>Groups I Joined
+    </button>
+  </div>
+
+  <!-- Groups List -->
+  <div id="myGroupsList" class="space-y-4 mb-8">
+    <div class="text-center text-gray-500 py-12">
+      <i class="fas fa-spinner fa-spin text-4xl mb-2"></i>
+      <p>Loading your groups...</p>
+    </div>
+  </div>
+</div>
+
+<script>
+let myCreatedGroups = [];
+let myJoinedGroups = [];
+let activeTab = 'created';
+
+document.addEventListener('DOMContentLoaded', () => {
+  loadMyGroups();
+});
+
+function switchTab(tab) {
+  activeTab = tab;
+
+  // Update tab styling
+  document.getElementById('tabCreated').classList.toggle('border-green-500', tab === 'created');
+  document.getElementById('tabCreated').classList.toggle('text-white', tab === 'created');
+  document.getElementById('tabCreated').classList.toggle('border-transparent', tab !== 'created');
+  document.getElementById('tabCreated').classList.toggle('text-gray-400', tab !== 'created');
+
+  document.getElementById('tabJoined').classList.toggle('border-green-500', tab === 'joined');
+  document.getElementById('tabJoined').classList.toggle('text-white', tab === 'joined');
+  document.getElementById('tabJoined').classList.toggle('border-transparent', tab !== 'joined');
+  document.getElementById('tabJoined').classList.toggle('text-gray-400', tab !== 'joined');
+
+  renderMyGroups();
+}
+
+async function loadMyGroups() {
+  try {
+    const response = await fetch('{% url "questlog_web_api_lfg" %}?mine=true');
+    const data = await response.json();
+    const allGroups = data.groups || [];
+
+    const userId = {{ web_user.id }};
+    myCreatedGroups = allGroups.filter(g => g.creator_id === userId);
+    myJoinedGroups = allGroups.filter(g => g.creator_id !== userId);
+
+    renderMyGroups();
+  } catch (error) {
+    console.error('Failed to load groups:', error);
+    document.getElementById('myGroupsList').innerHTML = `
+      <div class="text-center text-red-400 py-12">
+        <i class="fas fa-exclamation-circle text-4xl mb-2"></i>
+        <p>Failed to load your groups. Please try again later.</p>
+      </div>
+    `;
+  }
+}
+
+function renderMyGroups() {
+  const container = document.getElementById('myGroupsList');
+  const groups = activeTab === 'created' ? myCreatedGroups : myJoinedGroups;
+
+  if (!groups.length) {
+    const emptyMsg = activeTab === 'created'
+      ? "You haven't created any groups yet."
+      : "You haven't joined any groups yet.";
+    container.innerHTML = `
+      <div class="text-center text-gray-500 py-12">
+        <i class="fas fa-users text-6xl mb-4 opacity-50"></i>
+        <p class="text-xl mb-2">${emptyMsg}</p>
+        <div class="flex gap-3 justify-center mt-4">
+          ${activeTab === 'created' ? `
+            <a href="{% url 'questlog_web_lfg_create' %}" class="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg font-medium transition">
+              <i class="fas fa-plus mr-2"></i>Create Group
+            </a>
+          ` : `
+            <a href="{% url 'questlog_web_lfg_browse' %}" class="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg font-medium transition">
+              <i class="fas fa-search mr-2"></i>Browse Groups
+            </a>
+          `}
+        </div>
+      </div>
+    `;
+    return;
+  }
+
+  container.innerHTML = groups.map(group => {
+    const slotsAvailable = group.group_size - group.current_size;
+    const statusColor = group.status === 'open' ? 'text-green-400' : group.status === 'full' ? 'text-yellow-400' : 'text-gray-400';
+
+    return `
+      <div class="bg-neutral-900/50 border border-neutral-800 rounded-lg p-4 hover:border-blue-500/30 transition">
+        <div class="flex items-start justify-between gap-4">
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-2 mb-1">
+              <span class="text-sm font-medium text-green-400">${escapeHtml(group.game_name)}</span>
+              <span class="text-xs px-2 py-0.5 rounded-full bg-neutral-800 ${statusColor} capitalize">${group.status}</span>
+            </div>
+            <h3 class="text-white font-semibold">${escapeHtml(group.title)}</h3>
+            <div class="flex items-center gap-4 text-sm text-gray-400 mt-2">
+              <span><i class="fas fa-users mr-1"></i>${group.current_size}/${group.group_size}</span>
+              <span><i class="fas fa-clock mr-1"></i>${group.scheduled_time ? new Date(group.scheduled_time * 1000).toLocaleDateString() : 'Now'}</span>
+            </div>
+          </div>
+          <div class="flex gap-2">
+            <a href="/ql/lfg/${group.id}/" class="bg-neutral-700 hover:bg-neutral-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition">
+              <i class="fas fa-eye mr-1"></i>View
+            </a>
+            ${activeTab === 'joined' ? `
+              <button onclick="leaveGroup(${group.id})" class="bg-red-600/20 hover:bg-red-600/30 text-red-400 px-4 py-2 rounded-lg text-sm font-medium transition">
+                <i class="fas fa-sign-out-alt mr-1"></i>Leave
+              </button>
+            ` : ''}
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+async function leaveGroup(groupId) {
+  if (!confirm('Are you sure you want to leave this group?')) return;
+
+  try {
+    const response = await csrfFetch(`/ql/lfg/${groupId}/leave/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    const data = await response.json();
+    if (data.success) {
+      loadMyGroups();
+    } else {
+      alert(data.error || 'Failed to leave group');
+    }
+  } catch (error) {
+    console.error('Failed to leave group:', error);
+    alert('Failed to leave group. Please try again.');
+  }
+}
+</script>
+{% endblock %}

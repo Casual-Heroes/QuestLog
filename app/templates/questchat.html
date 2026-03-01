@@ -1,0 +1,585 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}QuestChat - Casual Heroes Community Chat{% endblock %}
+
+{% block og_title %}QuestChat - Casual Heroes Community Chat{% endblock %}
+{% block og_description %}Join QuestChat, the self-hosted, encrypted Matrix chat for the Casual Heroes community. Open in your browser or install as a PWA for a native desktop experience - no downloads needed.{% endblock %}
+{% block og_url %}https://chat.casual-heroes.com{% endblock %}
+{% block og_image %}https://dashboard.casual-heroes.com/static/img/siteassets/homepage/CHLogoFinal.png{% endblock %}
+
+{% block twitter_title %}QuestChat - Casual Heroes Community Chat{% endblock %}
+{% block twitter_description %}Join QuestChat, the self-hosted, encrypted Matrix chat server for the Casual Heroes community.{% endblock %}
+
+{% block extra_css %}
+<style>
+/* QuestChat landing page styles - qc- prefix to avoid class collisions */
+
+.qc-page {
+    padding: 40px 24px 64px;
+}
+
+.qc-container {
+    max-width: 860px;
+    margin: 0 auto;
+}
+
+/* Hero */
+.qc-hero {
+    text-align: center;
+    margin-bottom: 48px;
+}
+
+.qc-hero h1 {
+    font-size: 2.8rem;
+    font-weight: 800;
+    line-height: 1.15;
+    letter-spacing: -0.5px;
+    margin-bottom: 12px;
+    color: #ffffff;
+}
+
+.qc-subtitle {
+    font-size: 1.05rem;
+    color: #9ca3af;
+    max-width: 520px;
+    margin: 0 auto;
+}
+
+/* Cards */
+.qc-card {
+    background-color: #0f0f1a;
+    border: 1px solid #1a1a2e;
+    border-radius: 12px;
+    padding: 36px 32px;
+    margin-bottom: 16px;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.qc-card:hover {
+    border-color: rgba(79, 70, 229, 0.6);
+    box-shadow: 0 0 0 1px rgba(79, 70, 229, 0.15),
+                0 20px 40px -8px rgba(0, 0, 0, 0.7);
+}
+
+.qc-card-icon {
+    font-size: 2.2rem;
+    margin-bottom: 12px;
+    display: block;
+    text-align: center;
+}
+
+.qc-card h2 {
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: #ffffff;
+    text-align: center;
+    margin-bottom: 24px;
+}
+
+.qc-card-actions {
+    text-align: center;
+    margin-bottom: 8px;
+}
+
+/* Buttons */
+.qc-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 11px 22px;
+    margin: 5px;
+    border-radius: 10px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    text-decoration: none;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: background-color 0.15s ease, box-shadow 0.15s ease, transform 0.1s ease;
+    white-space: nowrap;
+}
+
+.qc-btn-primary {
+    background-color: #4f46e5;
+    color: #ffffff;
+    border-color: #4f46e5;
+}
+
+.qc-btn-primary:hover {
+    background-color: #4338ca;
+    border-color: #4338ca;
+    color: #ffffff;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 14px rgba(79, 70, 229, 0.45);
+}
+
+.qc-btn-secondary {
+    background-color: transparent;
+    border-color: #374151;
+    color: #d1d5db;
+}
+
+.qc-btn-secondary:hover {
+    background-color: #1f2937;
+    border-color: #4b5563;
+    color: #ffffff;
+    transform: translateY(-1px);
+}
+
+/* Info box */
+.qc-info-box {
+    margin-top: 24px;
+    padding: 18px 22px;
+    background-color: rgba(0, 0, 0, 0.35);
+    border-radius: 8px;
+    border-left: 3px solid #4f46e5;
+    font-size: 0.88rem;
+    color: #9ca3af;
+    line-height: 1.9;
+}
+
+.qc-info-box strong {
+    color: #e5e7eb;
+    font-weight: 600;
+}
+
+/* Inline code */
+.qc-page code {
+    background-color: rgba(79, 70, 229, 0.15);
+    padding: 2px 7px;
+    border-radius: 5px;
+    color: #a5b4fc;
+    font-family: 'SF Mono', 'Menlo', 'Monaco', 'Courier New', monospace;
+    font-size: 0.85em;
+    border: 1px solid rgba(79, 70, 229, 0.25);
+}
+
+/* CTA section */
+.qc-cta {
+    background-color: #0f0f1a;
+    border: 1px solid #1a1a2e;
+    border-radius: 12px;
+    padding: 44px 32px;
+    text-align: center;
+    margin-top: 16px;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.qc-cta:hover {
+    border-color: rgba(79, 70, 229, 0.4);
+    box-shadow: 0 0 0 1px rgba(79, 70, 229, 0.1),
+                0 20px 40px -8px rgba(0, 0, 0, 0.6);
+}
+
+.qc-cta p {
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: #ffffff;
+    margin-bottom: 20px;
+}
+
+/* Help text */
+.qc-help-text {
+    text-align: center;
+    margin-top: 28px;
+    padding-top: 20px;
+    border-top: 1px solid #1a1a2e;
+    font-size: 0.82rem;
+    color: #4b5563;
+}
+
+/* Device visibility - toggled by questchat-device.js */
+.qc-desktop-only,
+.qc-mobile-only {
+    display: none;
+}
+
+
+/* Collapsible client card */
+.qc-collapsible {
+    cursor: pointer;
+}
+
+.qc-collapsible-summary {
+    list-style: none;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    padding: 0;
+}
+
+.qc-collapsible-summary::-webkit-details-marker {
+    display: none;
+}
+
+.qc-summary-content {
+    flex: 1;
+}
+
+.qc-summary-content h2 {
+    text-align: left;
+    margin-bottom: 10px;
+}
+
+.qc-chevron {
+    font-size: 1.5rem;
+    color: #60a5fa;
+    transition: transform 0.2s ease;
+    flex-shrink: 0;
+}
+
+.qc-collapsible[open] .qc-chevron {
+    transform: rotate(90deg);
+}
+
+.qc-collapsible summary:hover {
+    opacity: 0.9;
+}
+
+/* Client grid */
+.qc-clients-grid-wrapper {
+    margin-top: 30px;
+    padding-top: 30px;
+    border-top: 1px solid #334155;
+}
+
+.qc-clients-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 20px;
+}
+
+.qc-client-card {
+    background: #1e293b;
+    border: 2px solid #334155;
+    border-radius: 8px;
+    padding: 20px;
+    transition: all 0.2s ease;
+}
+
+.qc-client-card:hover {
+    border-color: #60a5fa;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(96, 165, 250, 0.2);
+}
+
+.qc-client-card h3 {
+    color: #60a5fa;
+    margin: 0 0 10px 0;
+    font-size: 1.2em;
+    font-weight: 700;
+}
+
+.qc-client-card p {
+    color: #94a3b8;
+    font-size: 0.9em;
+    margin-bottom: 15px;
+    line-height: 1.5;
+}
+
+.qc-client-links {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.qc-client-links a {
+    color: #60a5fa;
+    text-decoration: none;
+    font-weight: 600;
+    transition: color 0.15s ease;
+}
+
+.qc-client-links a:hover {
+    color: #93bbfd;
+    text-decoration: underline;
+}
+
+.qc-clients-footer {
+    text-align: center;
+    color: #64748b;
+    margin-top: 30px;
+    font-style: italic;
+    font-size: 0.9em;
+}
+
+/* Download buttons */
+.qc-divider {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 24px 0 20px;
+    color: #4b5563;
+    font-size: 0.8rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+.qc-divider::before,
+.qc-divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: #1f2937;
+}
+
+.qc-download-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: center;
+}
+
+.qc-dl-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    text-decoration: none;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid #374151;
+    color: #d1d5db;
+    transition: all 0.15s ease;
+    white-space: nowrap;
+}
+
+.qc-dl-btn:hover {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: #4b5563;
+    color: #ffffff;
+    transform: translateY(-1px);
+}
+
+.qc-dl-btn svg {
+    flex-shrink: 0;
+    opacity: 0.7;
+}
+
+/* Homeserver chip */
+.qc-homeserver-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 20px;
+    padding: 5px 14px;
+    border-radius: 20px;
+    background: rgba(79, 70, 229, 0.08);
+    border: 1px solid rgba(79, 70, 229, 0.25);
+    color: #9ca3af;
+    font-size: 0.8rem;
+    font-weight: 500;
+    letter-spacing: 0.01em;
+}
+
+.qc-homeserver-chip svg {
+    flex-shrink: 0;
+    color: #818cf8;
+}
+
+/* Mobile responsive */
+@media (max-width: 600px) {
+    .qc-hero h1 { font-size: 2rem; }
+    .qc-card { padding: 24px 18px; }
+    .qc-cta { padding: 32px 18px; }
+    .qc-page { padding: 36px 16px 48px; }
+    .qc-btn { display: block; width: 100%; margin: 5px 0; }
+    .qc-clients-grid { grid-template-columns: 1fr; }
+    .qc-collapsible-summary { flex-wrap: wrap; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="qc-page">
+  <div class="qc-container">
+
+    <!-- Hero -->
+    <div class="qc-hero">
+      <h1>🎮 QuestChat</h1>
+      <p class="qc-subtitle">Secure, self-hosted chat for the Casual Heroes community</p>
+    </div>
+
+    <!-- Desktop card (shown by questchat-device.js on non-mobile) -->
+    <div class="qc-card qc-desktop-only" id="desktop-content">
+      <span class="qc-card-icon">💻</span>
+      <h2>Desktop &amp; Laptop</h2>
+
+      <!-- Desktop app downloads - primary recommendation -->
+      <p style="text-align:center;font-size:0.88rem;color:#9ca3af;margin-bottom:16px;">
+        Download the Element desktop app for the best experience
+      </p>
+
+      <div class="qc-download-grid">
+        <a href="https://packages.element.io/desktop/install/macos/Element.dmg"
+           class="qc-dl-btn" rel="noopener noreferrer">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/></svg>
+          Mac
+        </a>
+        <a href="https://packages.element.io/desktop/install/win32/x64/Element%20Setup.exe"
+           class="qc-dl-btn" rel="noopener noreferrer">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.9-1.801"/></svg>
+          Windows 64-bit
+        </a>
+        <a href="https://packages.element.io/desktop/install/win32/arm64/Element%20Setup.exe"
+           class="qc-dl-btn" rel="noopener noreferrer">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.9-1.801"/></svg>
+          Windows ARM
+        </a>
+        <a href="https://element.io/download#linux"
+           class="qc-dl-btn" target="_blank" rel="noopener noreferrer">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M20.581 19.049c-.55-.446-.336-1.431-.907-1.917.553-3.365-.997-6.966-4.274-8.667a6.928 6.928 0 0 0-2.908-.632c-.706 0-1.39.098-2.049.314-2.986.921-5.049 3.708-5.049 6.835 0 .498.056.988.16 1.459-.428.517-.684 1.131-.684 1.79 0 1.621 1.379 2.936 3.081 2.936.482 0 .937-.113 1.344-.314.315.072.626.108.942.108.316 0 .627-.036.942-.108.407.201.862.314 1.344.314 1.702 0 3.081-1.315 3.081-2.936 0-.659-.256-1.273-.684-1.79.104-.471.16-.961.16-1.459 0-3.127-2.063-5.914-5.049-6.835A6.928 6.928 0 0 0 7.824 8.3a6.928 6.928 0 0 0-2.908.632C1.639 10.633.089 14.234.642 17.599c-.571.486-.357 1.471-.907 1.917C-.6 20.895-.6 24 2.489 24c1.561 0 2.278-.818 3.62-.818.438 0 .909.115 1.403.328.494.213.958.328 1.433.328.476 0 .94-.115 1.434-.328.494-.213.964-.328 1.403-.328 1.342 0 2.059.818 3.62.818C18.598 24 18.598 20.895 20.581 19.049z"/></svg>
+          Linux
+        </a>
+      </div>
+
+      <p style="text-align:center;font-size:0.75rem;color:#4b5563;margin-top:14px;">
+        Desktop app requires entering homeserver: <code style="color:#818cf8;background:rgba(129,140,248,.1);padding:1px 6px;border-radius:4px;">matrix.casual-heroes.com</code>
+      </p>
+
+      <!-- Web app fallback -->
+      <div class="qc-divider">or use the web app</div>
+
+      <div class="qc-card-actions">
+        <div style="display:flex;justify-content:center;margin-bottom:4px;">
+          <div class="qc-homeserver-chip">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+            matrix.casual-heroes.com
+          </div>
+        </div>
+        <a href="https://chat.casual-heroes.com/#/login"
+           class="qc-btn qc-btn-primary"
+           target="_blank" rel="noopener noreferrer">
+          Sign In
+        </a>
+        <a href="https://chat.casual-heroes.com/#/login"
+           onclick="try{document.cookie='ch_reg=1; domain=.casual-heroes.com; path=/; max-age=60; SameSite=Lax';}catch(e){}"
+           class="qc-btn qc-btn-secondary"
+           target="_blank" rel="noopener noreferrer">
+          Create Account
+        </a>
+      </div>
+
+      <div class="qc-info-box">
+        <strong>Use as a PWA (no download needed)</strong><br>
+        Sign in above, then click the install icon in your browser's address bar. Opens in its own window just like a native app. Works in Chrome, Edge, Arc, and Brave.
+      </div>
+    </div>
+
+    <!-- Mobile card (shown by questchat-device.js on mobile) -->
+    <div class="qc-card qc-mobile-only" id="mobile-content">
+      <span class="qc-card-icon">📱</span>
+      <h2>Mobile</h2>
+
+      <div class="qc-card-actions">
+        <a href="https://apps.apple.com/app/element-x/id6451237871"
+           class="qc-btn qc-btn-primary"
+           target="_blank" rel="noopener noreferrer">
+          Element X for iPhone
+        </a>
+        <a href="https://play.google.com/store/apps/details?id=io.element.android.x"
+           class="qc-btn qc-btn-primary"
+           target="_blank" rel="noopener noreferrer">
+          Element X for Android
+        </a>
+      </div>
+
+      <div class="qc-info-box">
+        <strong>Setup</strong><br>
+        1. Install Element X from your app store<br>
+        2. Enter homeserver: <code>matrix.casual-heroes.com</code><br>
+        3. Sign in with your Casual Heroes account
+      </div>
+    </div>
+
+    <!-- Alternative Matrix clients - collapsible -->
+    <details class="qc-card qc-collapsible" style="margin-top: 60px; background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);">
+      <summary class="qc-collapsible-summary">
+        <span class="qc-card-icon">🎨</span>
+        <div class="qc-summary-content">
+          <h2 style="margin: 0;">More Client Options</h2>
+          <p style="color: #94a3b8; margin: 10px 0 0 0; font-size: 0.95em;">
+            Matrix is an open protocol - use any client you prefer! Click to see alternatives to Element.
+          </p>
+        </div>
+        <span class="qc-chevron">›</span>
+      </summary>
+
+      <div class="qc-clients-grid-wrapper">
+        <div class="qc-clients-grid">
+
+          <div class="qc-client-card">
+            <h3>Commet</h3>
+            <p>Discord-like UI, modern feel. Up-and-coming with great potential.</p>
+            <div class="qc-client-links">
+              <a href="https://commet.chat/" target="_blank" rel="noopener noreferrer">Download →</a>
+              <a href="https://app.commet.chat" target="_blank" rel="noopener noreferrer">Use Web App →</a>
+            </div>
+          </div>
+
+          <div class="qc-client-card">
+            <h3>Nheko</h3>
+            <p>Lightweight desktop client. Fast, native C++/Qt app for power users.</p>
+            <div class="qc-client-links">
+              <a href="https://nheko-reborn.github.io/" target="_blank" rel="noopener noreferrer">Download →</a>
+            </div>
+          </div>
+
+          <div class="qc-client-card">
+            <h3>Cinny</h3>
+            <p>Simple, elegant web client. Clean interface focused on ease of use.</p>
+            <div class="qc-client-links">
+              <a href="https://github.com/cinnyapp/cinny-desktop?tab=readme-ov-file" target="_blank" rel="noopener noreferrer">Download →</a>
+            </div>
+            <div class="qc-client-links">
+              <a href="https://cinny.in/" target="_blank" rel="noopener noreferrer">Use Web App →</a>
+            </div>
+          </div>
+
+          <div class="qc-client-card">
+            <h3>FluffyChat</h3>
+            <p>"The cutest messenger in Matrix." Great mobile UX, WhatsApp-like feel.</p>
+            <div class="qc-client-links">
+              <a href="https://fluffychat.im/" target="_blank" rel="noopener noreferrer">Download →</a>
+            </div>
+          </div>
+
+          <div class="qc-client-card">
+            <h3>SchildiChat-Revenge</h3>
+            <p><b>In Early Alpha.</b> Element fork with extra customization. Available for desktop &amp; mobile.</p>
+            <div class="qc-client-links">
+              <a href="https://schildi.chat/revenge/" target="_blank" rel="noopener noreferrer">Download Desktop App →</a>
+              <a href="https://schildi.chat/next/" target="_blank" rel="noopener noreferrer">Download Android App →</a>
+            </div>
+          </div>
+
+          <div class="qc-client-card">
+            <h3>Syphon</h3>
+            <p><b>In Early Alpha.</b> Privacy-focused mobile client. Clean, minimal interface built with Flutter.</p>
+            <div class="qc-client-links">
+              <a href="https://syphon.org/" target="_blank" rel="noopener noreferrer">Download →</a>
+            </div>
+          </div>
+
+        </div>
+
+        <p class="qc-clients-footer">
+          All clients work with matrix.casual-heroes.com - choose based on your preferences! 🎮
+        </p>
+      </div>
+    </details>
+
+    <p class="qc-help-text">
+      Questions? Join <code>#just-haning:casual-heroes.com</code> after logging in
+    </p>
+
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/questchat-device-v2.js' %}"></script>
+{% endblock %}
