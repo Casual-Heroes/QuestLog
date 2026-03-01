@@ -1,4 +1,4 @@
-# Casual Heroes - Platform
+# Casual Heroes - QuestLog
 
 A full-stack web platform for gaming communities. Includes a public-facing site, the QuestLog social platform (profiles, posts, communities, LFG, game discovery, XP/flair system), game server management via AMP, Discord bot integration, and admin tooling.
 
