@@ -284,6 +284,14 @@ platform/
 - **Rate limiting**: `django-ratelimit` on all write/auth endpoints.
 - **Images**: Uploaded images are Pillow-validated, EXIF-stripped, and converted to WebP before saving to `media/uploads/`. Videos are embed-only (YouTube, Twitch, TikTok, Kick, X, Instagram).
 - **Secrets**: Never in the repo. In development use `.env`. In production place at `/etc/your-org/secrets.env` (owner root, group www-data, mode 640).
+- **Template directories**: `settings.py` is gitignored. After cloning, ensure `casualsite/settings.py` has both template paths in `DIRS`:
+  ```python
+  'DIRS': [
+      os.path.join(BASE_DIR, 'app', 'templates'),
+      os.path.join(BASE_DIR, 'app', 'questlog_web', 'templates'),
+  ],
+  ```
+  The main site templates live in `app/templates/` and the QuestLog app templates live in `app/questlog_web/templates/`. Both are required.
 
 ---
 
