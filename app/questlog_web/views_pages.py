@@ -1269,6 +1269,16 @@ def gamers(request):
 
 
 @add_web_user_context
+def gamers(request):
+    """Gamers directory - searchable list of QuestLog members."""
+    context = {
+        'web_user': request.web_user,
+        'active_page': 'gamers',
+    }
+    return render(request, 'questlog_web/gamers.html', context)
+
+
+@add_web_user_context
 def articles(request):
     """RSS Articles."""
     context = {
