@@ -157,4 +157,4 @@ See [LICENSE](../LICENSE).
 ## Related
 
 - [Casual Heroes](https://casual-heroes.com) - The community this was built for
-- [WardenBot](https://github.com/CasualHeroes/WardenBot) - The Discord bot that pairs with QuestLog
+- [QuestLog Bot](https://github.com/Casual-Heroes/QuestLog-Bot) - The Discord bot that pairs with QuestLog
