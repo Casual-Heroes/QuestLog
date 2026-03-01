@@ -1,0 +1,243 @@
+{% extends "questlog_web/base_web.html" %}
+{% load static %}
+
+{% block title %}Find Gamers - QuestLog{% endblock %}
+
+{% block web_content %}
+
+<script>
+  function esc(text) {
+    if (text == null) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  }
+  function avatarHtml(username, avatarUrl, size) {
+    size = size || 'w-12 h-12';
+    if (avatarUrl) {
+      return `<img src="${esc(avatarUrl)}" alt="" class="${size} rounded-full object-cover flex-shrink-0">`;
+    }
+    const initials = (username || '?')[0].toUpperCase();
+    return `<div class="${size} rounded-full bg-indigo-600 flex items-center justify-center flex-shrink-0 text-white font-bold text-sm">${initials}</div>`;
+  }
+  const PLATFORM_ICONS = {
+    pc: '<i class="fas fa-desktop" title="PC"></i>',
+    ps5: '<i class="fab fa-playstation" title="PlayStation"></i>',
+    ps4: '<i class="fab fa-playstation" title="PlayStation"></i>',
+    xbox: '<i class="fab fa-xbox" title="Xbox"></i>',
+    switch: '<i class="fas fa-gamepad" title="Nintendo Switch"></i>',
+    mobile: '<i class="fas fa-mobile-alt" title="Mobile"></i>',
+  };
+</script>
+
+<!-- Header -->
+<div class="bg-gradient-to-br from-neutral-900 to-neutral-950 border-b border-neutral-800 p-6 mb-6">
+  <div class="max-w-7xl mx-auto">
+    <h1 class="text-3xl font-bold text-white flex items-center gap-3">
+      <i class="fas fa-users text-indigo-400"></i>
+      Find Gamers
+    </h1>
+    <p class="text-gray-400 mt-1">Discover players to game with, follow, and connect with</p>
+  </div>
+</div>
+
+<!-- Filters -->
+<div class="max-w-7xl mx-auto px-4">
+  <div class="bg-neutral-900/50 rounded-lg border border-neutral-800 p-4 mb-6">
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div class="md:col-span-2">
+        <label class="text-sm text-gray-400 mb-2 block">Search</label>
+        <input type="text" id="searchInput" placeholder="Search by username, name, or bio..."
+          class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2 text-white text-sm focus:border-indigo-500 focus:outline-none hover:bg-neutral-700/50 transition-colors">
+      </div>
+      <div>
+        <label class="text-sm text-gray-400 mb-2 block">Platform</label>
+        <select id="platformFilter" class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-indigo-500 focus:outline-none">
+          <option value="">All Platforms</option>
+          <option value="pc">PC</option>
+          <option value="ps5">PlayStation</option>
+          <option value="xbox">Xbox</option>
+          <option value="switch">Nintendo Switch</option>
+          <option value="mobile">Mobile</option>
+        </select>
+      </div>
+      <div>
+        <label class="text-sm text-gray-400 mb-2 block">Sort By</label>
+        <select id="sortFilter" class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-indigo-500 focus:outline-none">
+          <option value="followers">Most Followed</option>
+          <option value="new">Newest</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <!-- Results count -->
+  <div class="flex items-center justify-between mb-4">
+    <p id="resultsCount" class="text-gray-500 text-sm"></p>
+  </div>
+
+  <!-- Grid -->
+  <div id="gamersGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mb-8"></div>
+
+  <!-- Loading skeleton -->
+  <div id="loadingSkeleton" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mb-8">
+    {% for _ in "12345678" %}
+    <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-4 animate-pulse">
+      <div class="flex items-center gap-3 mb-3">
+        <div class="w-12 h-12 bg-neutral-800 rounded-full flex-shrink-0"></div>
+        <div class="flex-1 space-y-2">
+          <div class="h-3 bg-neutral-800 rounded w-2/3"></div>
+          <div class="h-2.5 bg-neutral-800 rounded w-1/3"></div>
+        </div>
+      </div>
+      <div class="space-y-1.5">
+        <div class="h-2 bg-neutral-800 rounded w-full"></div>
+        <div class="h-2 bg-neutral-800 rounded w-4/5"></div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- Empty state -->
+  <div id="emptyState" class="hidden text-center py-16">
+    <i class="fas fa-user-slash text-4xl text-gray-700 mb-4"></i>
+    <p class="text-gray-400 text-lg font-medium">No gamers found</p>
+    <p class="text-gray-600 text-sm mt-1">Try adjusting your search or filters</p>
+  </div>
+
+  <!-- Pagination -->
+  <div id="pagination" class="flex items-center justify-center gap-2 pb-8 hidden">
+    <button id="prevBtn" onclick="changePage(-1)"
+      class="px-4 py-2 bg-neutral-800 hover:bg-neutral-700 text-white rounded-lg text-sm transition disabled:opacity-40 disabled:cursor-not-allowed">
+      <i class="fas fa-chevron-left mr-1"></i> Prev
+    </button>
+    <span id="pageInfo" class="text-gray-400 text-sm px-3"></span>
+    <button id="nextBtn" onclick="changePage(1)"
+      class="px-4 py-2 bg-neutral-800 hover:bg-neutral-700 text-white rounded-lg text-sm transition disabled:opacity-40 disabled:cursor-not-allowed">
+      Next <i class="fas fa-chevron-right ml-1"></i>
+    </button>
+  </div>
+</div>
+
+<script>
+let currentPage = 1;
+let totalPages = 1;
+let searchTimeout = null;
+
+function buildCard(u) {
+  const platforms = (u.gaming_platforms || []).map(p => {
+    const icon = PLATFORM_ICONS[p.toLowerCase()] || '';
+    return icon ? `<span class="text-gray-500 text-xs">${icon}</span>` : '';
+  }).join('');
+
+  const playstyle = (u.playstyle || []).slice(0, 2).map(ps =>
+    `<span class="px-1.5 py-0.5 bg-neutral-800 text-gray-400 text-xs rounded">${esc(ps)}</span>`
+  ).join('');
+
+  const streaming = [];
+  if (u.twitch_username) streaming.push(`<a href="https://twitch.tv/${esc(u.twitch_username)}" target="_blank" rel="noopener" class="text-purple-400 hover:text-purple-300 text-xs transition"><i class="fab fa-twitch"></i></a>`);
+  if (u.youtube_channel_name) streaming.push(`<span class="text-red-400 text-xs"><i class="fab fa-youtube"></i></span>`);
+
+  return `
+    <div class="bg-neutral-900 rounded-xl border border-neutral-800 hover:border-neutral-700 transition p-4 flex flex-col gap-3">
+      <div class="flex items-start gap-3">
+        <a href="/ql/u/${esc(u.username)}/">
+          ${avatarHtml(u.username, u.avatar_url, 'w-12 h-12')}
+        </a>
+        <div class="flex-1 min-w-0">
+          <a href="/ql/u/${esc(u.username)}/" class="font-semibold text-white hover:text-indigo-400 transition text-sm block truncate">${esc(u.display_name)}</a>
+          <p class="text-gray-500 text-xs truncate">@${esc(u.username)}</p>
+          <div class="flex items-center gap-2 mt-1 flex-wrap">
+            <span class="text-gray-600 text-xs">Lv.${u.web_level}</span>
+            ${platforms}
+            ${streaming.join('')}
+          </div>
+        </div>
+      </div>
+      ${u.bio ? `<p class="text-gray-400 text-xs leading-relaxed line-clamp-2">${esc(u.bio)}</p>` : ''}
+      <div class="flex items-center justify-between mt-auto pt-1">
+        <div class="flex gap-2 flex-wrap">${playstyle}</div>
+        <div class="flex items-center gap-3 text-gray-500 text-xs flex-shrink-0">
+          <span><i class="fas fa-heart text-pink-500/60 mr-1"></i>${u.follower_count}</span>
+          <span><i class="fas fa-pen text-indigo-500/60 mr-1"></i>${u.post_count}</span>
+        </div>
+      </div>
+      {% if web_user %}
+      <a href="/ql/u/${esc(u.username)}/" class="w-full text-center py-1.5 bg-indigo-600/20 hover:bg-indigo-600/40 text-indigo-400 hover:text-indigo-300 rounded-lg text-xs font-medium transition">
+        View Profile
+      </a>
+      {% endif %}
+    </div>
+  `;
+}
+
+async function load() {
+  const q = document.getElementById('searchInput').value.trim();
+  const platform = document.getElementById('platformFilter').value;
+  const sort = document.getElementById('sortFilter').value;
+
+  const skeleton = document.getElementById('loadingSkeleton');
+  const grid = document.getElementById('gamersGrid');
+  const empty = document.getElementById('emptyState');
+  const pagination = document.getElementById('pagination');
+  const countEl = document.getElementById('resultsCount');
+
+  skeleton.classList.remove('hidden');
+  grid.classList.add('hidden');
+  empty.classList.add('hidden');
+  pagination.classList.add('hidden');
+
+  try {
+    const params = new URLSearchParams({ page: currentPage, sort });
+    if (q) params.set('q', q);
+    if (platform) params.set('platform', platform);
+
+    const res = await fetch(`/ql/api/gamers/?${params}`);
+    const data = await res.json();
+
+    skeleton.classList.add('hidden');
+
+    if (!data.users || data.users.length === 0) {
+      empty.classList.remove('hidden');
+      countEl.textContent = '';
+      return;
+    }
+
+    totalPages = data.pages || 1;
+    const total = data.total || 0;
+    countEl.textContent = `${total} gamer${total !== 1 ? 's' : ''} found`;
+
+    grid.innerHTML = data.users.map(buildCard).join('');
+    grid.classList.remove('hidden');
+
+    if (totalPages > 1) {
+      pagination.classList.remove('hidden');
+      document.getElementById('pageInfo').textContent = `Page ${currentPage} of ${totalPages}`;
+      document.getElementById('prevBtn').disabled = currentPage <= 1;
+      document.getElementById('nextBtn').disabled = currentPage >= totalPages;
+    }
+  } catch(e) {
+    skeleton.classList.add('hidden');
+    empty.classList.remove('hidden');
+  }
+}
+
+function changePage(dir) {
+  const next = currentPage + dir;
+  if (next < 1 || next > totalPages) return;
+  currentPage = next;
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+  load();
+}
+
+document.getElementById('searchInput').addEventListener('input', () => {
+  clearTimeout(searchTimeout);
+  searchTimeout = setTimeout(() => { currentPage = 1; load(); }, 350);
+});
+document.getElementById('platformFilter').addEventListener('change', () => { currentPage = 1; load(); });
+document.getElementById('sortFilter').addEventListener('change', () => { currentPage = 1; load(); });
+
+load();
+</script>
+
+{% endblock %}

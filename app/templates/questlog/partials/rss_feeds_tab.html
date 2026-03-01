@@ -19,22 +19,6 @@
       </div>
     </div>
 
-    <!-- Premium Upsell Banner (shown when at limit) -->
-    <div id="premiumBanner" class="hidden bg-gradient-to-r from-indigo-900/50 to-purple-900/50 border border-indigo-700 rounded-lg p-6">
-      <div class="flex items-center justify-between">
-        <div class="flex items-center space-x-4">
-          <i class="fas fa-crown text-4xl text-yellow-400"></i>
-          <div>
-            <h3 class="text-lg font-semibold text-white">Unlock Unlimited RSS Feeds</h3>
-            <p class="text-gray-300">Free tier is limited to 3 RSS feeds. Upgrade to Discovery Module or Complete Edition for unlimited feeds!</p>
-          </div>
-        </div>
-        <a href="/questlog/guild/{{ guild.id }}/billing" class="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition whitespace-nowrap">
-          Upgrade Now
-        </a>
-      </div>
-    </div>
-
     <!-- Feed Grid -->
     <div id="feedGrid" class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
       <!-- Loading state -->
@@ -754,7 +738,7 @@
   // Modal functions
   function openCreateFeedModal() {
     if (rssFeedLimit && rssFeeds.length >= rssFeedLimit) {
-      alert('You have reached your RSS feed limit. Upgrade to add more feeds.');
+      alert('You have reached the maximum number of RSS feeds.');
       return;
     }
 

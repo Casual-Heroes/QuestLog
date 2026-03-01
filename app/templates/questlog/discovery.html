@@ -63,25 +63,10 @@
 const guildId = '{{ guild.id }}';
 const csrfToken = '{{ csrf_token }}';
 
-// Tier limit info
-const currentTier = "{{ guild_record.subscription_tier }}";
-const isVIP = {{ guild_record.is_vip|lower }};
 const totalSearchConfigs = {{ total_search_configs }};
 
 // Check if user can add more search configs
 function canAddSearchConfig() {
-  // VIP or has Discovery module = unlimited
-  const hasDiscoveryModule = {{ has_discovery_module|lower }};
-  if (isVIP || hasDiscoveryModule || currentTier === 'lifetime') {
-    return true;
-  }
-
-  // Free = 3 limit
-  if (totalSearchConfigs >= 3) {
-    alert('⚠️ Search Configuration Limit Reached\n\nYou\'ve reached your limit of 3 search configurations.\n\nUpgrade to Discovery Module or get Complete Suite for $12.99/mo for unlimited searches!');
-    return false;
-  }
-
   return true;
 }
 

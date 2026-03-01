@@ -94,48 +94,6 @@
     </div>
   </div>
 
-  <!-- Tier Limits Info -->
-  <div class="mb-6 bg-gradient-to-r from-blue-900/30 to-purple-900/30 border border-blue-700/50 rounded-xl p-5">
-    <div class="flex items-start gap-4">
-      <div class="w-12 h-12 bg-blue-600/20 rounded-lg flex items-center justify-center flex-shrink-0">
-        <i class="fas fa-info-circle text-blue-400 text-xl"></i>
-      </div>
-      <div class="flex-1">
-        <h3 class="text-white font-bold mb-2">Bulk Operation Limits (Daily)</h3>
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-          <div>
-            <p class="text-gray-300 font-medium mb-1">
-              <i class="fas fa-circle text-gray-500 mr-2 text-xs"></i>Free Tier
-            </p>
-            <p class="text-gray-400 ml-5">6 items per day for Bulk Edit & Import</p>
-          </div>
-          <div>
-            <p class="text-orange-300 font-medium mb-1">
-              <i class="fas fa-fire text-orange-500 mr-2 text-xs"></i>Engagement Module
-            </p>
-            <p class="text-gray-400 ml-5">Unlimited bulk operations</p>
-          </div>
-          <div>
-            <p class="text-purple-300 font-medium mb-1">
-              <i class="fas fa-crown text-purple-500 mr-2 text-xs"></i>Complete Suite
-            </p>
-            <p class="text-gray-400 ml-5">Unlimited bulk operations</p>
-          </div>
-        </div>
-        {% if has_engagement_module or guild_record.is_vip or guild_record.subscription_tier == 'complete' or guild_record.billing_cycle == 'lifetime' %}
-        <p class="text-green-400 text-xs mt-3">
-          <i class="fas fa-check-circle mr-1"></i>
-          You have unlimited bulk operations! Process as many items as you need.
-        </p>
-        {% else %}
-        <p class="text-blue-400 text-xs mt-3">
-          <i class="fas fa-lightbulb mr-1"></i>
-          Daily limits reset at midnight. <a href="{% url 'guild_billing' guild.id %}" class="text-indigo-400 hover:text-indigo-300 underline">Upgrade to Engagement Module or get Complete for $12.99/mo</a> for unlimited bulk operations.
-        </p>
-        {% endif %}
-      </div>
-    </div>
-  </div>
 
   <!-- Stats Overview -->
   <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
@@ -891,30 +849,11 @@
       </p>
     </div>
     <button onclick="openCreateBoostModal()"
-            class="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg font-medium transition flex items-center gap-2
-                   {% if not has_engagement_module %}opacity-50 cursor-not-allowed{% endif %}"
-            {% if not has_engagement_module %}disabled{% endif %}>
+            class="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg font-medium transition flex items-center gap-2">
       <i class="fas fa-plus"></i>
       <span>Create Custom Event</span>
     </button>
   </div>
-
-  <!-- Tier Info Banner -->
-  {% if not has_engagement_module %}
-  <div class="mb-6 bg-gradient-to-r from-orange-900/30 to-red-900/30 border border-orange-700/50 rounded-xl p-5">
-    <div class="flex items-center gap-4">
-      <div class="w-12 h-12 bg-orange-600/20 rounded-lg flex items-center justify-center flex-shrink-0">
-        <i class="fas fa-lock text-orange-400 text-xl"></i>
-      </div>
-      <div>
-        <h3 class="text-white font-bold mb-1">FREE Tier: 3 Boost Events</h3>
-        <p class="text-gray-400 text-sm">
-          Upgrade to <a href="{% url 'guild_billing' guild.id %}" class="text-orange-400 hover:text-orange-300">Engagement Module</a> or <a href="{% url 'guild_billing' guild.id %}" class="text-orange-400 hover:text-orange-300">Complete Suite</a> for unlimited events and custom creation.
-        </p>
-      </div>
-    </div>
-  </div>
-  {% endif %}
 
   <!-- Boost Events Grid -->
   <div id="boostEventsLoading" class="flex items-center justify-center py-12">
@@ -935,8 +874,7 @@
       <h3 class="text-xl font-bold text-white mb-2">No Boost Events Yet</h3>
       <p class="text-gray-400 mb-6">Get started by creating your first XP boost event!</p>
       <button onclick="openCreateBoostModal()"
-              class="px-6 py-3 bg-orange-600 hover:bg-orange-700 text-white rounded-lg font-medium transition"
-              {% if not has_engagement_module %}disabled{% endif %}>
+              class="px-6 py-3 bg-orange-600 hover:bg-orange-700 text-white rounded-lg font-medium transition">
         <i class="fas fa-plus mr-2"></i>Create Your First Event
       </button>
     </div>
@@ -1085,7 +1023,7 @@
           <input type="text" id="edit-boost-name" required maxlength="255"
                  class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
           <p class="text-xs text-gray-500 mt-1" id="edit-name-readonly-hint" style="display: none;">
-            <i class="fas fa-lock mr-1"></i>Requires Engagement Module to edit default event details
+            <i class="fas fa-lock mr-1"></i>Read-only for default events
           </p>
         </div>
 
@@ -1095,7 +1033,7 @@
           <textarea id="edit-boost-description" rows="3" maxlength="500"
                     class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea>
           <p class="text-xs text-gray-500 mt-1" id="edit-description-readonly-hint" style="display: none;">
-            <i class="fas fa-lock mr-1"></i>Requires Engagement Module to edit default event details
+            <i class="fas fa-lock mr-1"></i>Read-only for default events
           </p>
         </div>
 
@@ -1192,57 +1130,13 @@
 const GUILD_ID = '{{ guild.id }}';
 const API_BASE = `/api/guild/${GUILD_ID}/xp`;
 
-// Tier and daily limit info
-const currentTier = "{{ guild_record.subscription_tier }}";
-const isVIP = {{ guild_record.is_vip|lower }};
-const bulkEditItemsToday = {{ bulk_edit_items_today }};
-const importItemsToday = {{ import_items_today }};
-
 // Check daily limits for bulk edit
 function canBulkEdit() {
-  // VIP or Premium = unlimited
-  if (isVIP || currentTier === 'premium') {
-    return true;
-  }
-
-  // Pro = 10 items per day
-  if (currentTier === 'pro') {
-    if (bulkEditItemsToday >= 10) {
-      alert('⚠️ Daily Bulk Edit Limit Reached\n\nYou\'ve already edited 10 items today.\n\nUpgrade to Premium for unlimited bulk edits!');
-      return false;
-    }
-  } else {
-    // Free = 6 items per day
-    if (bulkEditItemsToday >= 6) {
-      alert('⚠️ Daily Bulk Edit Limit Reached\n\nYou\'ve already edited 6 items today.\n\nUpgrade to Pro (10/day) or Premium (unlimited) for more!');
-      return false;
-    }
-  }
-
   return true;
 }
 
 // Check daily limits for import
 function canImport() {
-  // VIP or Premium = unlimited
-  if (isVIP || currentTier === 'premium') {
-    return true;
-  }
-
-  // Pro = 10 items per day
-  if (currentTier === 'pro') {
-    if (importItemsToday >= 10) {
-      alert('⚠️ Daily Import Limit Reached\n\nYou\'ve already imported 10 items today.\n\nUpgrade to Premium for unlimited imports!');
-      return false;
-    }
-  } else {
-    // Free = 6 items per day
-    if (importItemsToday >= 6) {
-      alert('⚠️ Daily Import Limit Reached\n\nYou\'ve already imported 6 items today.\n\nUpgrade to Pro (10/day) or Premium (unlimited) for more!');
-      return false;
-    }
-  }
-
   return true;
 }
 
@@ -2024,7 +1918,7 @@ document.addEventListener('click', (e) => {
 });
 
 // XP Boost Events Functionality
-const HAS_ENGAGEMENT_MODULE = {{ has_engagement_module|yesno:"true,false" }};
+const HAS_ENGAGEMENT_MODULE = true;
 let boostEventsData = [];
 let guildChannels = [];
 let guildRoles = [];
@@ -2271,7 +2165,7 @@ function createBoostEventCard(event) {
         ${!isDefault ? `
         <button onclick="deleteBoostEvent(${event.id})"
                 class="p-2 text-red-400 hover:text-red-300 hover:bg-red-900/20 rounded-lg transition"
-                ${!HAS_ENGAGEMENT_MODULE ? 'disabled' : ''}>
+>
           <i class="fas fa-trash"></i>
         </button>
         ` : ''}
@@ -2336,11 +2230,6 @@ async function deleteBoostEvent(eventId) {
 }
 
 async function openCreateBoostModal() {
-  if (!HAS_ENGAGEMENT_MODULE) {
-    showToast('Engagement Module required to create custom boost events', 'error');
-    return;
-  }
-
   // Fetch resources if not already loaded
   if (guildChannels.length === 0) {
     await fetchGuildResources();
@@ -2505,46 +2394,25 @@ async function openEditBoostModal(event) {
   editChannelSelect = initChannelSelect('edit-boost-announcement-channel-select', 'edit-boost-announcement-channel', event.announcement_channel_id || '');
   editRoleSelect = initRoleSelect('edit-boost-announcement-role-select', 'edit-boost-announcement-role', event.announcement_role_id || '');
 
-  // For default events, make name/description/multiplier/scope read-only ONLY if user doesn't have Engagement Module
-  // If user has Engagement Module or Complete Suite, they get full control over defaults too
+  // All features are available - full control over all events
   const nameInput = document.getElementById('edit-boost-name');
   const descriptionInput = document.getElementById('edit-boost-description');
   const multiplierInput = document.getElementById('edit-boost-multiplier');
   const scopeInput = document.getElementById('edit-boost-scope');
 
-  const shouldLockFields = isDefault && !HAS_ENGAGEMENT_MODULE;
+  nameInput.removeAttribute('readonly');
+  nameInput.classList.remove('bg-neutral-800/50', 'cursor-not-allowed');
+  document.getElementById('edit-name-readonly-hint').style.display = 'none';
 
-  if (shouldLockFields) {
-    // FREE tier - lock default event core fields
-    nameInput.setAttribute('readonly', true);
-    nameInput.classList.add('bg-neutral-800/50', 'cursor-not-allowed');
-    document.getElementById('edit-name-readonly-hint').style.display = 'block';
+  descriptionInput.removeAttribute('readonly');
+  descriptionInput.classList.remove('bg-neutral-800/50', 'cursor-not-allowed');
+  document.getElementById('edit-description-readonly-hint').style.display = 'none';
 
-    descriptionInput.setAttribute('readonly', true);
-    descriptionInput.classList.add('bg-neutral-800/50', 'cursor-not-allowed');
-    document.getElementById('edit-description-readonly-hint').style.display = 'block';
+  multiplierInput.removeAttribute('readonly');
+  multiplierInput.classList.remove('bg-neutral-800/50', 'cursor-not-allowed');
 
-    multiplierInput.setAttribute('readonly', true);
-    multiplierInput.classList.add('bg-neutral-800/50', 'cursor-not-allowed');
-
-    scopeInput.setAttribute('disabled', true);
-    scopeInput.classList.add('bg-neutral-800/50', 'cursor-not-allowed');
-  } else {
-    // Engagement Module / Complete Suite - full control over everything
-    nameInput.removeAttribute('readonly');
-    nameInput.classList.remove('bg-neutral-800/50', 'cursor-not-allowed');
-    document.getElementById('edit-name-readonly-hint').style.display = 'none';
-
-    descriptionInput.removeAttribute('readonly');
-    descriptionInput.classList.remove('bg-neutral-800/50', 'cursor-not-allowed');
-    document.getElementById('edit-description-readonly-hint').style.display = 'none';
-
-    multiplierInput.removeAttribute('readonly');
-    multiplierInput.classList.remove('bg-neutral-800/50', 'cursor-not-allowed');
-
-    scopeInput.removeAttribute('disabled');
-    scopeInput.classList.remove('bg-neutral-800/50', 'cursor-not-allowed');
-  }
+  scopeInput.removeAttribute('disabled');
+  scopeInput.classList.remove('bg-neutral-800/50', 'cursor-not-allowed');
 
   // Show modal
   modal.classList.remove('hidden');
@@ -2585,9 +2453,8 @@ async function submitEditBoost(event) {
   // Collect form data
   const updateData = {};
 
-  // For custom events OR if user has Engagement Module, allow name/description/multiplier/scope changes
-  // Engagement Module gets full control over default events too
-  if (!isDefault || HAS_ENGAGEMENT_MODULE) {
+  // All users have full control over all events
+  if (true) {
     updateData.name = document.getElementById('edit-boost-name').value.trim();
     updateData.description = document.getElementById('edit-boost-description').value.trim();
     updateData.multiplier = parseFloat(document.getElementById('edit-boost-multiplier').value);

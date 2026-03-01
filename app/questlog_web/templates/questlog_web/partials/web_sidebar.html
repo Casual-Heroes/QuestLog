@@ -109,6 +109,11 @@
         <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wider">Discovery</h3>
       </div>
       <div class="space-y-1">
+        <a href="{% url 'questlog_web_gamers' %}"
+           class="nav-item {% if active_page == 'gamers' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          <i class="fas fa-users text-gray-400 group-hover:text-indigo-400"></i>
+          <span>Find Gamers</span>
+        </a>
         <a href="{% url 'questlog_web_network' %}"
            class="nav-item {% if active_page == 'network' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
           <i class="fas fa-globe text-gray-400 group-hover:text-indigo-400"></i>
