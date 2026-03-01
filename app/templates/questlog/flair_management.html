@@ -37,35 +37,14 @@
       <!-- Toast Container -->
       <div id="toast-container" class="fixed top-4 right-4 z-50 space-y-2"></div>
 
-      <!-- Engagement Module Banner (Free Tier Only) -->
-      {% if not has_engagement_module %}
-      <div class="bg-gradient-to-r from-purple-900/30 to-indigo-900/30 border border-purple-700/50 rounded-xl p-6 mb-6">
-        <div class="flex items-start gap-4">
-          <i class="fas fa-crown text-yellow-500 text-3xl"></i>
-          <div class="flex-1">
-            <h3 class="text-xl font-bold text-white mb-2">Engagement Module Feature</h3>
-            <p class="text-gray-300 mb-4">Flair management requires the Engagement Module. Customize your flair store, adjust prices, and create unlimited custom flairs!</p>
-            <a href="{% url 'guild_billing' guild.id %}"
-               class="inline-flex items-center gap-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white px-6 py-2 rounded-lg font-medium transition">
-              <i class="fas fa-arrow-up"></i>Upgrade to Engagement Module or get Complete for $12.99/mo
-            </a>
-          </div>
-        </div>
-      </div>
-      {% endif %}
-
       <!-- Action Buttons -->
       <div class="flex gap-3 mb-6">
         <button onclick="openCreateFlairModal()"
-                class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium transition
-                       {% if not has_engagement_module %}opacity-50 cursor-not-allowed{% endif %}"
-                {% if not has_engagement_module %}disabled{% endif %}>
+                class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium transition">
           <i class="fas fa-plus mr-2"></i>Create Custom Flair
         </button>
         <button onclick="saveAllChanges()"
-                class="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white px-4 py-2 rounded-lg font-medium transition
-                       {% if not has_engagement_module %}opacity-50 cursor-not-allowed{% endif %}"
-                {% if not has_engagement_module %}disabled{% endif %}>
+                class="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white px-4 py-2 rounded-lg font-medium transition">
           <i class="fas fa-save mr-2"></i>Save All Changes
         </button>
         <button onclick="createDefaultFlairRoles()"
@@ -230,7 +209,7 @@
   </div>
 
   <script>
-    const HAS_ENGAGEMENT_MODULE = {{ has_engagement_module|yesno:"true,false" }};
+    const HAS_ENGAGEMENT_MODULE = true;
     const API_BASE = '/api/guild/{{ guild.id }}/flairs';
     const CSRF_TOKEN = '{{ csrf_token }}';
 
@@ -343,7 +322,7 @@
       row.className = 'hover:bg-neutral-800/50 transition';
       row.dataset.flairId = flair.id;
 
-      const isReadonly = !HAS_ENGAGEMENT_MODULE ? 'readonly disabled' : '';
+      const isReadonly = '';
       const discordPosition = getDiscordRolePosition(flair.flair_name);
       // Discord roles have "Flair: " prefix
       const roleName = `Flair: ${flair.flair_name}`;
@@ -355,14 +334,14 @@
                  ${flair.enabled ? 'checked' : ''}
                  ${isReadonly}
                  onchange="updateFlair(${flair.id}, 'enabled', this.checked)"
-                 class="w-5 h-5 text-indigo-600 bg-neutral-700 border-neutral-600 rounded focus:ring-2 focus:ring-indigo-500 ${!HAS_ENGAGEMENT_MODULE ? 'opacity-50 cursor-not-allowed' : ''}">
+                 class="w-5 h-5 text-indigo-600 bg-neutral-700 border-neutral-600 rounded focus:ring-2 focus:ring-indigo-500">
         </td>
         <td class="p-3">
           <input type="text"
                  value="${flair.flair_name}"
                  ${isReadonly}
                  onchange="updateFlair(${flair.id}, 'flair_name', this.value)"
-                 class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-1.5 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 ${!HAS_ENGAGEMENT_MODULE ? 'opacity-50 cursor-not-allowed' : ''}">
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-1.5 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
         </td>
         <td class="p-3">
           <input type="number"
@@ -370,7 +349,7 @@
                  min="0"
                  ${isReadonly}
                  onchange="updateFlair(${flair.id}, 'cost', parseInt(this.value))"
-                 class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-1.5 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 ${!HAS_ENGAGEMENT_MODULE ? 'opacity-50 cursor-not-allowed' : ''}">
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-1.5 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
         </td>
         <td class="p-3">
           <input type="number"
@@ -378,7 +357,7 @@
                  min="0"
                  ${isReadonly}
                  onchange="updateFlair(${flair.id}, 'display_order', parseInt(this.value))"
-                 class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-1.5 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 ${!HAS_ENGAGEMENT_MODULE ? 'opacity-50 cursor-not-allowed' : ''}">
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-1.5 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
         </td>
         <td class="p-3">
           ${role ? `
@@ -393,8 +372,7 @@
         ${flair.flair_type === 'custom' ? `
           <td class="p-3">
             <button onclick="deleteFlair(${flair.id})"
-                    ${!HAS_ENGAGEMENT_MODULE ? 'disabled' : ''}
-                    class="text-red-400 hover:text-red-300 transition ${!HAS_ENGAGEMENT_MODULE ? 'opacity-50 cursor-not-allowed' : ''}">
+                    class="text-red-400 hover:text-red-300 transition">
               <i class="fas fa-trash"></i>
             </button>
           </td>
@@ -422,11 +400,6 @@
     }
 
     async function saveAllChanges() {
-      if (!HAS_ENGAGEMENT_MODULE) {
-        showToast('Engagement Module required', 'error');
-        return;
-      }
-
       try {
         const response = await csrfFetch(API_BASE + '/bulk-update/', {
           method: 'POST',
@@ -460,10 +433,6 @@
     }
 
     function openCreateFlairModal() {
-      if (!HAS_ENGAGEMENT_MODULE) {
-        showToast('Engagement Module required', 'error');
-        return;
-      }
       document.getElementById('create-flair-modal').classList.remove('hidden');
       document.getElementById('new-flair-name').value = '';
       document.getElementById('new-flair-cost').value = 100;
@@ -529,11 +498,6 @@
     }
 
     async function deleteFlair(flairId) {
-      if (!HAS_ENGAGEMENT_MODULE) {
-        showToast('Engagement Module required', 'error');
-        return;
-      }
-
       if (!confirm('Are you sure you want to delete this custom flair?')) {
         return;
       }

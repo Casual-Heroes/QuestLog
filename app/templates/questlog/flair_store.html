@@ -171,21 +171,12 @@
     <div class="flex items-center justify-between mb-4">
       <h2 class="text-xl font-bold text-white flex items-center">
         <i class="fas fa-crown text-yellow-500 mr-2"></i>Custom Flairs
-        {% if is_vip %}
-        <span class="ml-2 text-xs bg-yellow-500 text-black px-2 py-1 rounded-full font-bold">VIP</span>
-        {% elif is_pro %}
-        <span class="ml-2 text-xs bg-purple-500 text-white px-2 py-1 rounded-full font-bold">PRO</span>
-        {% else %}
-        <span class="ml-2 text-xs bg-blue-500 text-white px-2 py-1 rounded-full font-bold">PREMIUM</span>
-        {% endif %}
       </h2>
 
-      {% if is_premium %}
       <a href="{% url 'flair_management' guild.id %}"
          class="text-xs text-purple-400 hover:text-purple-300 flex items-center gap-1">
         <i class="fas fa-cog mr-1"></i>Manage Flairs
       </a>
-      {% endif %}
     </div>
 
     <p class="text-gray-300 mb-6 text-sm">Exclusive server-specific flairs created by your admins</p>
@@ -233,30 +224,16 @@
       {% endfor %}
     </div>
   </div>
-  {% elif has_engagement_module %}
-  <!-- No Custom Flairs Yet (Has Engagement Module but no custom flairs) -->
+  {% else %}
+  <!-- No Custom Flairs Yet -->
   <div class="bg-gradient-to-br from-purple-900/20 to-pink-900/20 border border-purple-700/50 rounded-xl p-6 mb-8">
     <h2 class="text-xl font-bold text-white mb-4 flex items-center">
       <i class="fas fa-crown text-yellow-500 mr-2"></i>Custom Flairs
-      <span class="ml-2 text-xs bg-gradient-to-r from-orange-500 to-pink-500 text-white px-3 py-1 rounded-full font-bold">ENGAGEMENT MODULE</span>
     </h2>
     <p class="text-gray-300 mb-4">No custom flairs have been created yet. Create unique flairs for your server!</p>
     <a href="{% url 'flair_management' guild.id %}"
        class="inline-flex items-center gap-2 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-medium py-2 px-6 rounded-lg transition">
       <i class="fas fa-cog mr-1"></i>Manage Flairs
-    </a>
-  </div>
-  {% else %}
-  <!-- Upgrade to Complete Suite Banner (Free Tier) -->
-  <div class="bg-gradient-to-br from-purple-900/20 to-pink-900/20 border border-purple-700/50 rounded-xl p-6 mb-8">
-    <h2 class="text-xl font-bold text-white mb-4 flex items-center">
-      <i class="fas fa-crown text-yellow-500 mr-2"></i>Custom Flairs
-      <span class="ml-2 text-xs bg-gradient-to-r from-orange-500 to-pink-500 text-white px-3 py-1 rounded-full font-bold">ENGAGEMENT MODULE</span>
-    </h2>
-    <p class="text-gray-300 mb-4">Create your own unique custom flairs and stand out from the crowd!</p>
-    <a href="{% url 'guild_billing' guild.id %}"
-       class="inline-flex items-center gap-2 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-medium py-2 px-6 rounded-lg transition">
-      <i class="fas fa-arrow-up mr-1"></i>View Subscription Options
     </a>
   </div>
   {% endif %}
@@ -273,9 +250,7 @@
       <li><i class="fas fa-check text-green-500 mr-2"></i>Flairs appear as special roles in Discord with the "Flair: " prefix</li>
       <li><i class="fas fa-check text-green-500 mr-2"></i>You can only have one flair equipped at a time</li>
       <li><i class="fas fa-check text-green-500 mr-2"></i>The free "[🕹️ Gamer]" flair is available to everyone!</li>
-      {% if is_premium %}
-      <li><i class="fas fa-check text-yellow-500 mr-2"></i><strong>Premium:</strong> Admins can create and customize flairs in the management dashboard!</li>
-      {% endif %}
+      <li><i class="fas fa-check text-green-500 mr-2"></i>Admins can create and customize flairs in the management dashboard!</li>
     </ul>
   </div>
 

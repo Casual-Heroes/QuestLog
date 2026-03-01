@@ -15,55 +15,13 @@
     </div>
   </div>
 
-  <!-- Tier Limits Info -->
-  <div class="mb-6 bg-gradient-to-r from-blue-900/30 to-purple-900/30 border border-blue-700/50 rounded-xl p-5">
-    <div class="flex items-start gap-4">
-      <div class="w-12 h-12 bg-blue-600/20 rounded-lg flex items-center justify-center flex-shrink-0">
-        <i class="fas fa-info-circle text-blue-400 text-xl"></i>
-      </div>
-      <div class="flex-1">
-        <h3 class="text-white font-bold mb-2">Template Limits</h3>
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-          <div>
-            <p class="text-gray-300 font-medium mb-1">
-              <i class="fas fa-circle text-gray-500 mr-2 text-xs"></i>Free Tier
-            </p>
-            <p class="text-gray-400 ml-5">Up to 3 templates (combined)</p>
-          </div>
-          <div>
-            <p class="text-purple-300 font-medium mb-1">
-              <i class="fas fa-user-tag text-purple-500 mr-2 text-xs"></i>Role Module
-            </p>
-            <p class="text-gray-400 ml-5">Unlimited templates</p>
-          </div>
-          <div>
-            <p class="text-purple-300 font-medium mb-1">
-              <i class="fas fa-crown text-purple-500 mr-2 text-xs"></i>Complete Suite
-            </p>
-            <p class="text-gray-400 ml-5">Unlimited templates</p>
-          </div>
-        </div>
-        {% if has_roles_module or guild_record.is_vip or guild_record.subscription_tier == 'complete' or guild_record.billing_cycle == 'lifetime' %}
-        <p class="text-green-400 text-xs mt-3">
-          <i class="fas fa-check-circle mr-1"></i>
-          You have unlimited templates! Save as many configurations as you need.
-        </p>
-        {% else %}
-        <p class="text-blue-400 text-xs mt-3">
-          <i class="fas fa-lightbulb mr-1"></i>
-          You can create up to 3 templates (role + channel combined). <a href="{% url 'guild_billing' guild.id %}" class="text-indigo-400 hover:text-indigo-300 underline">Upgrade to unlock unlimited templates!
-        </p>
-        {% endif %}
-      </div>
-    </div>
-  </div>
 
   <!-- Current Usage -->
   <div class="mb-6 bg-neutral-900 rounded-xl border border-neutral-800 p-5">
     <div class="flex items-center justify-between">
       <div>
         <p class="text-gray-400 text-sm">Templates Used</p>
-        <p class="text-2xl font-bold text-white mt-1">{{ total_templates }} / {% if guild_record.is_vip or guild_record.subscription_tier == 'complete' or guild_record.billing_cycle == 'lifetime' %}∞{% else %}5{% endif %}</p>
+        <p class="text-2xl font-bold text-white mt-1">{{ total_templates }} / ∞</p>
       </div>
       <div class="text-right">
         <p class="text-gray-400 text-sm">Channel Templates: <span class="text-white font-medium">{{ channel_templates|length }}</span></p>
@@ -253,8 +211,6 @@
 <script>
 const guildId = '{{ guild.id }}';
 const csrfToken = '{{ csrf_token }}';
-const currentTier = '{{ guild_record.subscription_tier }}';
-const isVIP = {{ guild_record.is_vip|lower }};
 const totalTemplates = {{ total_templates }};
 
 let channelCounter = 0;
@@ -273,19 +229,6 @@ async function csrfFetch(url, options = {}) {
 }
 
 function canCreateTemplate() {
-  let limit;
-  if (isVIP || currentTier === 'premium') {
-    return true; // Unlimited
-  } else if (currentTier === 'pro') {
-    limit = 10;
-  } else {
-    limit = 5;
-  }
-
-  if (totalTemplates >= limit) {
-    alert(`You've reached your template limit (${limit} templates). ${currentTier === 'pro' ? 'Upgrade to Premium for unlimited templates!' : 'Upgrade to Pro for 10 templates or Premium for unlimited!'}`);
-    return false;
-  }
   return true;
 }
 

@@ -562,3 +562,91 @@ def api_igdb_search(request):
     except Exception as e:
         logger.error(f"IGDB search error: {e}", exc_info=True)
         return JsonResponse({'games': []})
+
+
+@add_web_user_context
+@require_http_methods(["GET"])
+@ratelimit(key='ip', rate='60/m', block=True)
+def api_gamers(request):
+    """API: Searchable gamers directory.
+    ?q=<search>          - search username/display_name/bio
+    ?platform=<val>      - filter by gaming_platforms (pc, ps5, xbox, mobile, switch)
+    ?playstyle=<val>     - filter by playstyle (casual, competitive, etc.)
+    ?sort=followers|new  - sort order (default: followers)
+    ?page=<n>            - pagination (20 per page)
+    """
+    q = request.GET.get('q', '').strip()
+    platform_filter = request.GET.get('platform', '').strip().lower()
+    playstyle_filter = request.GET.get('playstyle', '').strip().lower()
+    sort = request.GET.get('sort', 'followers')
+    page = safe_int(request.GET.get('page', 1) or 1, default=1, min_val=1, max_val=500)
+    per_page = 20
+
+    try:
+        with get_db_session() as db:
+            current_uid = request.web_user.id if request.web_user else None
+
+            query = db.query(WebUser).filter(
+                WebUser.is_banned == False,
+                WebUser.is_disabled == False,
+                WebUser.email_verified == True,
+                WebUser.allow_discovery == True,
+            )
+
+            if current_uid:
+                query = query.filter(WebUser.id != current_uid)
+
+            if q:
+                like = f'%{q}%'
+                from sqlalchemy import or_
+                query = query.filter(or_(
+                    WebUser.username.ilike(like),
+                    WebUser.display_name.ilike(like),
+                    WebUser.bio.ilike(like),
+                ))
+
+            if platform_filter:
+                query = query.filter(WebUser.gaming_platforms.ilike(f'%{platform_filter}%'))
+
+            if playstyle_filter:
+                query = query.filter(WebUser.playstyle.ilike(f'%{playstyle_filter}%'))
+
+            if sort == 'new':
+                query = query.order_by(WebUser.created_at.desc())
+            else:
+                query = query.order_by(WebUser.follower_count.desc(), WebUser.created_at.desc())
+
+            total = query.count()
+            offset = (page - 1) * per_page
+            users = query.offset(offset).limit(per_page).all()
+
+            data = []
+            for u in users:
+                data.append({
+                    'id': u.id,
+                    'username': u.username,
+                    'display_name': u.display_name or u.username,
+                    'avatar_url': u.avatar_url or '',
+                    'bio': (u.bio or '')[:120],
+                    'follower_count': u.follower_count or 0,
+                    'post_count': u.post_count or 0,
+                    'web_level': u.web_level or 1,
+                    'gaming_platforms': json.loads(u.gaming_platforms) if u.gaming_platforms else [],
+                    'playstyle': (
+                        json.loads(u.playstyle) if u.playstyle and u.playstyle.startswith('[')
+                        else ([u.playstyle] if u.playstyle else [])
+                    ),
+                    'twitch_username': u.twitch_username or '',
+                    'youtube_channel_name': u.youtube_channel_name or '',
+                })
+
+            return JsonResponse({
+                'users': data,
+                'total': total,
+                'page': page,
+                'pages': max(1, (total + per_page - 1) // per_page),
+            })
+
+    except Exception as e:
+        logger.error(f"api_gamers error: {e}", exc_info=True)
+        return JsonResponse({'users': [], 'total': 0, 'page': 1, 'pages': 1})

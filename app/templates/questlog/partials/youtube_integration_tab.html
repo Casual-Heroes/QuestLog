@@ -1,5 +1,4 @@
 <div id="youtubeContent" class="hidden">
-  {% if has_discovery_module or guild_record.is_vip or guild_record.subscription_tier == 'complete' or guild_record.billing_cycle == 'lifetime' %}
 
   <!-- Header -->
   <div class="bg-gradient-to-r from-red-900/40 to-pink-900/40 rounded-xl border-2 border-red-500/50 p-6 mb-8">
@@ -226,31 +225,6 @@
     </div>
   </div>
 
-  {% else %}
-  <!-- Upgrade Required Banner -->
-  <div class="bg-gradient-to-r from-red-900/20 to-pink-900/20 rounded-xl border-2 border-red-500/30 p-8 text-center">
-    <div class="inline-block p-4 bg-red-600/10 rounded-full mb-4">
-      <i class="fas fa-lock text-red-400 text-5xl"></i>
-    </div>
-    <h2 class="text-2xl font-bold text-white mb-3">
-      YouTube Integration
-      <span class="ml-3 px-3 py-1 text-sm bg-orange-600/30 text-orange-300 border border-orange-500/40 rounded-full">Premium Feature</span>
-    </h2>
-    <p class="text-gray-400 text-lg mb-6 max-w-2xl mx-auto">
-      YouTube streaming notifications are included with the Discovery module
-    </p>
-    <div class="flex flex-col sm:flex-row gap-3 justify-center">
-      <a href="{% url 'guild_billing' guild.id %}" class="inline-flex items-center gap-2 px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg font-bold transition">
-        <i class="fas fa-crown"></i>
-        Upgrade to Discovery Module
-      </a>
-      <a href="{% url 'guild_billing' guild.id %}" class="inline-flex items-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-bold transition">
-        <i class="fas fa-sparkles"></i>
-        Get Complete Suite
-      </a>
-    </div>
-  </div>
-  {% endif %}
 </div>
 
 <script>
@@ -454,7 +428,6 @@
 
   // Load approved streamers
   async function loadApprovedStreamers() {
-    // Skip if premium elements don't exist (upgrade banner shown instead)
     const container = document.getElementById('approvedStreamersList');
     if (!container) return;
 

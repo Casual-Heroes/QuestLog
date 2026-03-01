@@ -835,11 +835,11 @@ def _get_recent_activity(request):
                 })
 
         ticker = []
-        two_hours_ago = now - 7200
+        two_days_ago = now - 172800
         recent_posts = db.query(WebPost).filter(
             WebPost.is_deleted == False,
             WebPost.is_hidden == False,
-            WebPost.created_at >= two_hours_ago,
+            WebPost.created_at >= two_days_ago,
         ).order_by(WebPost.created_at.desc()).limit(10).all()
         for p in recent_posts:
             author = p.author
@@ -862,7 +862,7 @@ def _get_recent_activity(request):
                 })
 
         recent_follows = db.query(WebFollow).filter(
-            WebFollow.created_at >= two_hours_ago,
+            WebFollow.created_at >= two_days_ago,
         ).order_by(WebFollow.created_at.desc()).limit(10).all()
         for f in recent_follows:
             follower = db.query(WebUser).filter_by(id=f.follower_id).first()

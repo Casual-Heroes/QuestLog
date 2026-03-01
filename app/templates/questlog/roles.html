@@ -34,7 +34,6 @@
         <button onclick="openInteractiveBulkAssignModal(); toggleRoleActions(true);" class="w-full text-left px-4 py-2 text-sm text-white hover:bg-neutral-800 flex items-center gap-2">
           <i class="fas fa-users-cog text-indigo-300"></i><span>Bulk Assign</span>
         </button>
-        {% if has_roles_module %}
         <button onclick="exportTemplate(); toggleRoleActions(true);" class="w-full text-left px-4 py-2 text-sm text-white hover:bg-neutral-800 flex items-center gap-2">
           <i class="fas fa-download text-gray-300"></i><span>Export Template</span>
         </button>
@@ -47,11 +46,6 @@
         <button onclick="openBulkCreateModal(); toggleRoleActions(true);" class="w-full text-left px-4 py-2 text-sm text-white hover:bg-neutral-800 flex items-center gap-2 border-b border-neutral-800">
           <i class="fas fa-layer-group text-green-300"></i><span>Bulk Create</span>
         </button>
-        {% else %}
-        <button onclick="showUpgradePrompt(); toggleRoleActions(true);" class="w-full text-left px-4 py-2 text-sm text-white hover:bg-neutral-800 flex items-center gap-2 border-b border-neutral-800">
-          <i class="fas fa-crown text-yellow-300"></i><span>Import / Bulk (Roles Module)</span>
-        </button>
-        {% endif %}
         <button onclick="triggerSync(); toggleRoleActions(true);" class="w-full text-left px-4 py-2 text-sm text-white hover:bg-neutral-800 flex items-center gap-2">
           <i class="fas fa-sync-alt text-gray-300"></i><span>Sync Data</span>
         </button>
@@ -59,70 +53,6 @@
     </div>
   </div>
 
-  <!-- Role Management Module Feature Banner -->
-  {% if not has_roles_module %}
-  <div class="bg-gradient-to-r from-purple-600/20 to-indigo-600/20 rounded-xl p-6 border border-purple-500/30 mb-8">
-    <div class="flex items-start gap-4">
-      <div class="w-12 h-12 bg-purple-600/20 rounded-lg flex items-center justify-center flex-shrink-0">
-        <i class="fas fa-crown text-purple-400 text-xl"></i>
-      </div>
-      <div class="flex-1">
-        <h3 class="text-lg font-bold text-white mb-1">Unlock XLSX Import & Advanced Features</h3>
-        <p class="text-gray-300 text-sm mb-3">
-          Upgrade to the Role Management Module to import XLSX files with hundreds of users for mass role assignments.
-          Perfect for migrating from other bots or managing large communities. Unlocks advanced bulk operations!
-        </p>
-        <a href="{% url 'guild_billing' guild.id %}" class="inline-flex items-center gap-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition">
-          <i class="fas fa-rocket"></i>Upgrade to Role Management Module or get Complete for $12.99/mo
-        </a>
-      </div>
-    </div>
-  </div>
-  {% endif %}
-
-  <!-- Tier Limits Info -->
-  <div class="mb-6 bg-gradient-to-r from-blue-900/30 to-purple-900/30 border border-blue-700/50 rounded-xl p-5">
-    <div class="flex items-start gap-4">
-      <div class="w-12 h-12 bg-blue-600/20 rounded-lg flex items-center justify-center flex-shrink-0">
-        <i class="fas fa-info-circle text-blue-400 text-xl"></i>
-      </div>
-      <div class="flex-1">
-        <h3 class="text-white font-bold mb-2">Bulk Operation Limits (Daily)</h3>
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-          <div>
-            <p class="text-gray-300 font-medium mb-1">
-              <i class="fas fa-circle text-gray-500 mr-2 text-xs"></i>Free Tier
-            </p>
-            <p class="text-gray-400 ml-5">6 items per day for Bulk Assign & Create</p>
-          </div>
-          <div>
-            <p class="text-purple-300 font-medium mb-1">
-              <i class="fas fa-user-tag text-purple-500 mr-2 text-xs"></i>Role Module
-            </p>
-            <p class="text-gray-400 ml-5">Unlimited bulk operations</p>
-          </div>
-          <div>
-            <p class="text-purple-300 font-medium mb-1">
-              <i class="fas fa-crown text-purple-500 mr-2 text-xs"></i>Complete Suite
-            </p>
-            <p class="text-gray-400 ml-5">Unlimited bulk operations</p>
-          </div>
-        </div>
-        {% if has_roles_module or guild_record.is_vip or guild_record.subscription_tier == 'complete' or guild_record.billing_cycle == 'lifetime' %}
-        <p class="text-green-400 text-xs mt-3">
-          <i class="fas fa-check-circle mr-1"></i>
-          You have unlimited bulk operations! Assign roles to as many users as you need.
-        </p>
-        </p>
-        {% else %}
-        <p class="text-blue-400 text-xs mt-3">
-          <i class="fas fa-lightbulb mr-1"></i>
-          Daily limits reset at midnight. <a href="{% url 'guild_billing' guild.id %}" class="text-indigo-400 hover:text-indigo-300 underline">Upgrade to Role Management Module or get Complete for $12.99/mo</a> for unlimited bulk operations.
-        </p>
-        {% endif %}
-      </div>
-    </div>
-  </div>
 
   <!-- How It Works -->
   <div class="grid md:grid-cols-2 gap-6 mb-8">
@@ -168,7 +98,7 @@
     <!-- XLSX Import (Pro/Premium) -->
     <div class="bg-neutral-900 rounded-xl p-6 border border-neutral-800">
       <h3 class="text-lg font-bold text-white mb-4">
-        <i class="fas fa-file-excel text-purple-400 mr-2"></i>XLSX Import {% if not has_roles_module %}<span class="text-purple-400 text-xs">(Roles Module)</span>{% endif %}
+        <i class="fas fa-file-excel text-purple-400 mr-2"></i>XLSX Import
       </h3>
       <p class="text-gray-400 text-sm mb-4">
         Import hundreds of users from spreadsheet files.
@@ -202,14 +132,6 @@
           </div>
         </div>
       </div>
-      {% if not has_roles_module %}
-      <div class="mt-4 p-3 bg-purple-900/20 border border-purple-700/30 rounded-lg">
-        <p class="text-purple-200 text-xs">
-          <i class="fas fa-crown mr-1"></i>
-          Upgrade to Role Management Module or get Complete for $12.99/mo to unlock XLSX import for mass operations.
-        </p>
-      </div>
-      {% endif %}
     </div>
   </div>
 
@@ -295,11 +217,9 @@
           <div class="p-8 text-center">
             <i class="fas fa-file-excel text-4xl text-gray-600 mb-3"></i>
             <p class="text-gray-400">No bulk imports yet</p>
-            {% if has_roles_module %}
             <button onclick="openBulkImportModal()" class="text-indigo-400 hover:text-indigo-300 text-sm mt-2">
               <i class="fas fa-upload mr-1"></i>Import your first XLSX
             </button>
-            {% endif %}
           </div>
         {% endif %}
       </div>
@@ -1027,10 +947,6 @@ function closeBulkImportModal() {
 function updateFileName(input) {
   const fileName = input.files[0]?.name || 'Click to select XLSX file';
   document.getElementById('file-name').textContent = fileName;
-}
-
-function showUpgradePrompt() {
-  showToast('XLSX import requires Role Management Module - upgrade or get Complete for $12.99/mo', 'info');
 }
 
 // Interactive Bulk Assign Modal

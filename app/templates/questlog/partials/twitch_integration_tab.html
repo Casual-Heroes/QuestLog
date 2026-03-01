@@ -1,6 +1,5 @@
 <!-- Twitch Integration Tab Content -->
 <div id="twitchContent" class="hidden">
-{% if has_discovery_module or guild_record.is_vip or guild_record.subscription_tier == 'complete' or guild_record.billing_cycle == 'lifetime' %}
 
 <!-- Include custom select component -->
 {% include 'questlog/partials/custom_select.html' %}
@@ -163,31 +162,6 @@
   </div>
 </div>
 
-{% else %}
-<!-- Upgrade Required Banner -->
-<div class="bg-gradient-to-r from-purple-900/20 to-indigo-900/20 rounded-xl border-2 border-purple-500/30 p-8 text-center">
-  <div class="inline-block p-4 bg-purple-600/10 rounded-full mb-4">
-    <i class="fas fa-lock text-purple-400 text-5xl"></i>
-  </div>
-  <h2 class="text-2xl font-bold text-white mb-3">
-    Twitch Integration
-    <span class="ml-3 px-3 py-1 text-sm bg-orange-600/30 text-orange-300 border border-orange-500/40 rounded-full">Premium Feature</span>
-  </h2>
-  <p class="text-gray-400 text-lg mb-6 max-w-2xl mx-auto">
-    Twitch streaming notifications are included with the Discovery module
-  </p>
-  <div class="flex flex-col sm:flex-row gap-3 justify-center">
-    <a href="{% url 'guild_billing' guild.id %}" class="inline-flex items-center gap-2 px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-bold transition">
-      <i class="fas fa-crown"></i>
-      Upgrade to Discovery Module
-    </a>
-    <a href="{% url 'guild_billing' guild.id %}" class="inline-flex items-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-bold transition">
-      <i class="fas fa-sparkles"></i>
-      Get Complete Suite
-    </a>
-  </div>
-</div>
-{% endif %}
 </div>
 
 <script>
@@ -215,7 +189,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // Load Twitch configuration
 async function loadTwitchConfiguration() {
-  // Skip if premium elements don't exist (upgrade banner shown instead)
   const enabledToggle = document.getElementById('twitch-enabled');
   if (!enabledToggle) return;
 
@@ -407,7 +380,6 @@ async function sendTwitchTestNotification() {
 
 // Load approved streamers
 async function loadTwitchApprovedStreamers() {
-  // Skip if premium elements don't exist (upgrade banner shown instead)
   const container = document.getElementById('twitch-approved-streamers-list');
   if (!container) return;
 

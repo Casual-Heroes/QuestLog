@@ -15,7 +15,7 @@ from .views_pages import (
     home,
     lfg_browse, lfg_create, lfg_my_groups, lfg_group_detail,
     lfg_join, lfg_leave, lfg_edit, lfg_update_member, lfg_delete, lfg_kick, lfg_set_co_leader,
-    network, games, creators, articles,
+    network, games, creators, articles, gamers,
     communities, community_register, community_detail,
     profile, profile_edit, creator_register, settings, hero_shop,
     game_servers_ql,
@@ -53,7 +53,7 @@ from .views_admin import (
 from .views_discovery import (
     api_lfg_list, api_lfg_detail,
     api_communities, api_community_detail, api_creators, api_games, api_articles,
-    api_igdb_search,
+    api_igdb_search, api_gamers,
 )
 from .views_uploads import (
     api_upload_image, api_upload_avatar, api_upload_banner,
@@ -131,6 +131,7 @@ urlpatterns = [
     path('games/', games, name='questlog_web_games'),
     path('creators/', creators, name='questlog_web_creators'),
     path('articles/', articles, name='questlog_web_articles'),
+    path('gamers/', gamers, name='questlog_web_gamers'),
 
     # Communities
     path('communities/', communities, name='questlog_web_communities'),
@@ -158,6 +159,7 @@ urlpatterns = [
     path('api/games/', api_games, name='questlog_web_api_games'),
     path('api/igdb/search/', api_igdb_search, name='questlog_web_api_igdb_search'),
     path('api/articles/', api_articles, name='questlog_web_api_articles'),
+    path('api/gamers/', api_gamers, name='questlog_web_api_gamers'),
 
     # Admin API endpoints
     path('api/admin/stats/', api_admin_stats, name='questlog_web_api_admin_stats'),

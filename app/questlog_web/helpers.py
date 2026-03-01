@@ -315,6 +315,17 @@ def award_xp(user_id, action_type, source='web', ref_id=None):
 
     try:
         with get_db_session() as db:
+            # If a ref_id is provided, XP for this action can only be earned once
+            # per unique ref (prevents like/unlike/like exploit on the same post/user)
+            if ref_id is not None:
+                already = db.query(WebXpEvent).filter(
+                    WebXpEvent.user_id == user_id,
+                    WebXpEvent.action_type == action_type,
+                    WebXpEvent.ref_id == str(ref_id),
+                ).first()
+                if already:
+                    return 0
+
             # Enforce daily cap
             if daily_max is not None:
                 count_today = db.query(WebXpEvent).filter(

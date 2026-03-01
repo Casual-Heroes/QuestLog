@@ -187,21 +187,6 @@
 
     <!-- Admin Only Sections -->
     {% if is_admin %}
-    <!-- Billing (Server Owner Only) -->
-    {% if guild.owner %}
-    <div>
-      <div class="flex items-center justify-between px-3 mb-2">
-        <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wider">Billing</h3>
-      </div>
-      <div class="space-y-1">
-        <a href="{% url 'guild_billing' guild.id %}"
-           class="nav-item {% if active_page == 'billing' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
-          <i class="fas fa-credit-card text-gray-400 group-hover:text-indigo-400"></i>
-          <span>Billing & Subscriptions</span>
-        </a>
-      </div>
-    </div>
-    {% endif %}
 
     <!-- Engagement Section -->
     <div>
@@ -252,14 +237,11 @@
               <i class="fas fa-cog w-4"></i>
               <span>LFG Settings</span>
             </a>
-            {% is_premium guild.id as is_premium %}
-            {% if is_premium %}
             <a href="{% url 'guild_attendance' guild.id %}"
                class="sub-nav-item {% if active_page == 'attendance' %}active{% endif %} flex items-center gap-2 px-3 py-1.5 rounded text-xs transition">
               <i class="fas fa-clipboard-check w-4"></i>
               <span>Attendance</span>
             </a>
-            {% endif %}
             <a href="{% url 'guild_lfg_browser' guild.id %}"
                class="sub-nav-item {% if active_page == 'lfg_browser' %}active{% endif %} flex items-center gap-2 px-3 py-1.5 rounded text-xs transition">
               <i class="fas fa-users w-4"></i>
