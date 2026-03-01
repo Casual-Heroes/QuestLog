@@ -569,6 +569,9 @@
 {% endblock %}
 
 {% block extra_js %}
+{{ playstyle_list|default:"[]"|json_script:"profile-playstyle-data" }}
+{{ gaming_platforms_list|default:"[]"|json_script:"profile-platforms-data" }}
+{{ favorite_genres_list|default:"[]"|json_script:"profile-genres-data" }}
 {% include "questlog/partials/custom_select.html" %}
 <script>
 (function() {
@@ -650,7 +653,7 @@
     name:         'pe-playstyle', id: 'pe-playstyle',
     placeholder:  'Pick your playstyle(s)…',
     items:        _playstyleChoices.map(s => ({ value: s, label: s })),
-    selected:     {{ playstyle_list|default:"[]"|safe }},
+    selected:     JSON.parse(document.getElementById('profile-playstyle-data').textContent),
     color:        'indigo',
     multiSelect:  true,
   });
@@ -660,7 +663,7 @@
     name:         'pe-platforms', id: 'pe-platforms',
     placeholder:  'Select your platforms…',
     items:        _platformChoices.map(p => ({ value: p, label: p })),
-    selected:     {{ gaming_platforms_list|default:"[]"|safe }},
+    selected:     JSON.parse(document.getElementById('profile-platforms-data').textContent),
     color:        'indigo',
     multiSelect:  true,
   });
@@ -670,7 +673,7 @@
     name:         'pe-genres', id: 'pe-genres',
     placeholder:  'Select your favourite genres…',
     items:        _genreChoices.map(g => ({ value: g, label: g })),
-    selected:     {{ favorite_genres_list|default:"[]"|safe }},
+    selected:     JSON.parse(document.getElementById('profile-genres-data').textContent),
     color:        'purple',
     multiSelect:  true,
   });

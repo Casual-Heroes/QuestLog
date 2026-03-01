@@ -16,6 +16,7 @@ from django.contrib.auth import authenticate, login as django_login, logout as d
 from django.contrib.auth.models import User as DjangoUser
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
+from django.db import IntegrityError, transaction
 from django.core import signing
 from django.core.mail import send_mail
 from django.conf import settings as django_settings
@@ -148,7 +149,7 @@ def ql_login(request):
 
         django_user = authenticate(request, username=username, password=password)
         if django_user is None:
-            logger.warning("Failed login attempt for '%s' from %s", username, _get_remote_ip(request))
+            logger.warning("Failed login attempt from %s", _get_remote_ip(request))
             # Check if this is an unverified account (inactive but correct password)
             try:
                 pending = DjangoUser.objects.get(username__iexact=username)
@@ -285,7 +286,7 @@ def ql_admin_login(request):
         # Authenticate
         django_user = authenticate(request, username=username, password=password)
         if django_user is None:
-            logger.warning(f"Admin login auth failed for '{username}' from {_get_remote_ip(request)}")
+            logger.warning(f"Admin login auth failed from {_get_remote_ip(request)}")
             messages.error(request, "Invalid credentials.")
             return render(request, 'questlog_web/admin_login.html', ctx)
 
@@ -293,7 +294,7 @@ def ql_admin_login(request):
         with get_db_session() as db:
             user = db.query(WebUser).filter_by(username=django_user.username).first()
             if not user or not user.is_admin or user.is_banned or user.is_disabled:
-                logger.warning(f"Non-admin/banned account blocked at admin login: '{username}' from {_get_remote_ip(request)}")
+                logger.warning(f"Non-admin/banned account blocked at admin login from {_get_remote_ip(request)}")
                 messages.error(request, "Invalid credentials.")
                 return render(request, 'questlog_web/admin_login.html', ctx)
 
@@ -421,12 +422,20 @@ def ql_register(request):
                 'turnstile_site_key': django_settings.TURNSTILE_SITE_KEY,
             })
 
-        # Account stays inactive until email verified
-        django_user = DjangoUser.objects.create_user(
-            username=username, email=email, password=password
-        )
-        django_user.is_active = False
-        django_user.save()
+        # Account stays inactive until email verified.
+        # Wrapped in atomic to prevent race condition between email uniqueness check and insert.
+        try:
+            with transaction.atomic():
+                django_user = DjangoUser.objects.create_user(
+                    username=username, email=email, password=password
+                )
+                django_user.is_active = False
+                django_user.save()
+        except IntegrityError:
+            # Another request registered this email/username between our check and insert.
+            # Anti-enumeration: return same success message so attacker can't enumerate.
+            messages.success(request, "Account created! Check your email for a verification link.")
+            return redirect('questlog_web_login')
 
         with get_db_session() as db:
             now = int(time.time())

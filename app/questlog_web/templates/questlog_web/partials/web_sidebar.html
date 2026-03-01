@@ -274,10 +274,10 @@
     <div class="flex items-center justify-between text-xs text-gray-500">
       <span>QuestLog Web</span>
       <div class="flex items-center gap-2">
-        <a href="https://discord.gg/casualheroes" target="_blank" class="hover:text-indigo-400 transition">
+        {% if DISCORD_INVITE_URL %}<a href="{{ DISCORD_INVITE_URL }}" target="_blank" class="hover:text-indigo-400 transition">
           <i class="fab fa-discord"></i>
-        </a>
-        <a href="https://github.com/casualheroes/questlog" target="_blank" class="hover:text-white transition">
+        </a>{% endif %}
+        <a href="https://github.com/CasualHeroes/platform" target="_blank" class="hover:text-white transition">
           <i class="fab fa-github"></i>
         </a>
       </div>

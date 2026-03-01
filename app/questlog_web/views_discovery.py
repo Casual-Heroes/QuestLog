@@ -385,7 +385,9 @@ def api_community_detail(request, community_id):
 
 @add_web_user_context
 def api_creators(request):
-    """API: List creators (GET) or save creator profile (POST)."""
+    """API: List creators (GET) or save creator profile (POST).
+    GET is intentionally public (no login required) - discovery is open browsing.
+    POST requires login (enforced below via request.web_user check)."""
     if request.method == 'POST':
         if not request.web_user:
             return JsonResponse({'error': 'Login required'}, status=401)
@@ -467,7 +469,8 @@ def api_creators(request):
 
 @add_web_user_context
 def api_games(request):
-    """API: List/search found games. Returns full data for client-side filtering."""
+    """API: List/search found games. Returns full data for client-side filtering.
+    Intentionally public - no login required (read-only discovery endpoint)."""
     with get_db_session() as db:
         games = (
             db.query(WebFoundGame)
@@ -502,7 +505,7 @@ def api_games(request):
 
 @add_web_user_context
 def api_articles(request):
-    """API: List RSS articles."""
+    """API: List RSS articles. Intentionally public - no login required (read-only)."""
     with get_db_session() as db:
         articles = db.query(WebRSSArticle).order_by(
             WebRSSArticle.published_at.desc()

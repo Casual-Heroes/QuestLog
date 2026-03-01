@@ -51,6 +51,10 @@ def _safe_int(value, default=0, min_val=None, max_val=None):
 DISCORD_BOT_API_URL = os.getenv('DISCORD_BOT_API_URL', 'http://localhost:8001')
 DISCORD_BOT_API_TOKEN = os.getenv('DISCORD_BOT_API_TOKEN', 'development-token')
 
+# Site configuration
+DISCORD_INVITE_URL = os.getenv('DISCORD_INVITE_URL', '')
+SITE_LOGO_URL = os.getenv('SITE_LOGO_URL', '')
+
 # Cache for guilds_with_bot to prevent excessive API calls
 _guilds_cache = {'data': None, 'timestamp': 0}
 GUILDS_CACHE_TTL = 300  # Cache for 5 minutes (300 seconds) to prevent Discord API rate limiting
@@ -1192,7 +1196,7 @@ STATIC_GAME_INFO = {
     "CH-7DTD01": {
         "display_name": "Dynamic Horde Protocol (PvE)",
         "description": "A custom survival world where biomes bite back. Bots spawn threats, buffs twist the rules, nothing is predictable, and that’s the point.",
-        "discord_invite": "https://discord.gg/ECwJWppSjQ",
+        "discord_invite": DISCORD_INVITE_URL,
         "steam_link": "https://store.steampowered.com/app/251570/7_Days_to_Die/",
         "steam_appid": "251570",
         "connect_pw": "Join our Discord to gain access!"
@@ -1200,7 +1204,7 @@ STATIC_GAME_INFO = {
     "CH-Icarus01": {
         "display_name": "Prospectors Lounge",
         "description": "Custom server, No Lifing is Optional",
-        "discord_invite": "https://discord.gg/ECwJWppSjQ",
+        "discord_invite": DISCORD_INVITE_URL,
         "steam_link": "https://store.steampowered.com/app/1149460/ICARUS/",
         "steam_appid": "1149460",
         "connect_pw": "Join our Discord to gain access!"
@@ -1208,7 +1212,7 @@ STATIC_GAME_INFO = {
     "CH-Palworld01": {
         "display_name": "Pal Sanctuary",
         "description": "Where we catch Pals and ignore responsibilities together!",
-        "discord_invite": "https://discord.gg/ECwJWppSjQ",
+        "discord_invite": DISCORD_INVITE_URL,
         "steam_link": "https://store.steampowered.com/app/1623730/Palworld/",
         "steam_appid": "1623730",
         "connect_pw": "Join our Discord to gain access!"
@@ -1251,13 +1255,13 @@ STATIC_GAME_INFO = {
 DISCORD_GAME_STATIC_INFO = {
     "WoW": {
         "steam_link": "https://worldofwarcraft.blizzard.com/en-us/",
-        "discord_invite": "https://discord.gg/ECwJWppSjQ",
+        "discord_invite": DISCORD_INVITE_URL,
         "custom_img": "/static/img/games/wow/dwarf.webp",
         "link_label": "View Site"
     },
     "ESO": {
         "steam_link": "https://store.steampowered.com/app/306130/The_Elder_Scrolls_Online/",
-        "discord_invite": "https://discord.gg/ECwJWppSjQ",
+        "discord_invite": DISCORD_INVITE_URL,
         "steam_appid": "306130",
         "link_label": "View on Steam"
     },
@@ -1327,7 +1331,7 @@ DISCORD_GAMES = [
         "name": "World of Warcraft",
         "description": "Teaming up with longtime friend Eldronox and his legendary community 'Eternal Legends', we're building a World of Warcraft guild called <Casual Legends>. A chill, zero-drama space for adventurers who play at their own pace..",
         "steam_link": "https://worldofwarcraft.blizzard.com/en-us/",
-        "discord_invite": "https://discord.gg/ECwJWppSjQ",
+        "discord_invite": DISCORD_INVITE_URL,
         "custom_img": "/static/img/games/wow/dwarf.webp",
         "online": "-",
         "max": "-",
@@ -1338,7 +1342,7 @@ DISCORD_GAMES = [
         "name": "Elder Scrolls Online",
         "description": "Casual Legends is building a PC-NA ESO guild for adults who want chill runs and real progress—without the drama or sweaty expectations. New and returning players welcome. We learn together, gear up together, and push harder content when we’re ready.",
         "steam_link": "https://store.steampowered.com/app/306130/The_Elder_Scrolls_Online/",
-        "discord_invite": "https://discord.gg/ECwJWppSjQ",
+        "discord_invite": DISCORD_INVITE_URL,
         "steam_appid": "306130",
         "online": "-",
         "max": "-",
@@ -3263,7 +3267,7 @@ def force_sync_guild(request, guild_id):
 
     try:
         # Call bot API to trigger sync
-        bot_api_url = os.getenv('WARDEN_BOT_API_URL', 'http://localhost:8001')
+        bot_api_url = DISCORD_BOT_API_URL
         bot_api_token = os.getenv('DISCORD_BOT_API_TOKEN')
         response = requests.post(
             f'{bot_api_url}/api/sync/{guild_id}',
@@ -21926,7 +21930,7 @@ def set_creator_of_week(request, guild_id):
                     try:
                         import requests
                         import os
-                        bot_api_url = "http://localhost:8001/api/delete-message"
+                        bot_api_url = f"{DISCORD_BOT_API_URL}/api/delete-message"
                         api_token = os.getenv('DISCORD_BOT_API_TOKEN')
                         headers = {'Authorization': f'Bearer {api_token}'} if api_token else {}
                         payload = {
@@ -21962,7 +21966,7 @@ def set_creator_of_week(request, guild_id):
                 try:
                     import requests
                     import os
-                    bot_api_url = "http://localhost:8001/api/announce-cotw"
+                    bot_api_url = f"{DISCORD_BOT_API_URL}/api/announce-cotw"
                     api_token = os.getenv('DISCORD_BOT_API_TOKEN')
                     headers = {'Authorization': f'Bearer {api_token}'} if api_token else {}
                     payload = {
@@ -22032,7 +22036,7 @@ def clear_creator_of_week(request, guild_id):
                 try:
                     import requests
                     import os
-                    bot_api_url = "http://localhost:8001/api/delete-message"
+                    bot_api_url = f"{DISCORD_BOT_API_URL}/api/delete-message"
                     api_token = os.getenv('DISCORD_BOT_API_TOKEN')
                     headers = {'Authorization': f'Bearer {api_token}'} if api_token else {}
                     payload = {
@@ -22104,7 +22108,7 @@ def clear_creator_of_month(request, guild_id):
                 try:
                     import requests
                     import os
-                    bot_api_url = "http://localhost:8001/api/delete-message"
+                    bot_api_url = f"{DISCORD_BOT_API_URL}/api/delete-message"
                     api_token = os.getenv('DISCORD_BOT_API_TOKEN')
                     headers = {'Authorization': f'Bearer {api_token}'} if api_token else {}
                     payload = {
@@ -22181,7 +22185,7 @@ def set_creator_of_month(request, guild_id):
                     try:
                         import requests
                         import os
-                        bot_api_url = "http://localhost:8001/api/delete-message"
+                        bot_api_url = f"{DISCORD_BOT_API_URL}/api/delete-message"
                         api_token = os.getenv('DISCORD_BOT_API_TOKEN')
                         headers = {'Authorization': f'Bearer {api_token}'} if api_token else {}
                         payload = {
@@ -22217,7 +22221,7 @@ def set_creator_of_month(request, guild_id):
                 try:
                     import requests
                     import os
-                    bot_api_url = "http://localhost:8001/api/announce-cotm"
+                    bot_api_url = f"{DISCORD_BOT_API_URL}/api/announce-cotm"
                     api_token = os.getenv('DISCORD_BOT_API_TOKEN')
                     headers = {'Authorization': f'Bearer {api_token}'} if api_token else {}
                     payload = {
@@ -22302,7 +22306,7 @@ def set_network_creator_of_week(request):
             try:
                 import requests
                 import os
-                bot_api_url = "http://localhost:8001/api/announce-network-cotw"
+                bot_api_url = f"{DISCORD_BOT_API_URL}/api/announce-network-cotw"
                 api_token = os.getenv('DISCORD_BOT_API_TOKEN')
                 headers = {'Authorization': f'Bearer {api_token}'} if api_token else {}
                 payload = {
@@ -22380,7 +22384,7 @@ def set_network_creator_of_month(request):
             try:
                 import requests
                 import os
-                bot_api_url = "http://localhost:8001/api/announce-network-cotm"
+                bot_api_url = f"{DISCORD_BOT_API_URL}/api/announce-network-cotm"
                 api_token = os.getenv('DISCORD_BOT_API_TOKEN')
                 headers = {'Authorization': f'Bearer {api_token}'} if api_token else {}
                 payload = {
@@ -23848,7 +23852,7 @@ def test_streaming_notification(request, guild_id):
                     'icon_url': footer_icon
                 },
                 'thumbnail': {
-                    'url': 'https://cdn.casual-heroes.com/static/img/logo.png'
+                    'url': SITE_LOGO_URL
                 }
             }
 
