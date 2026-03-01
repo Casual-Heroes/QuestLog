@@ -1,0 +1,249 @@
+{% extends "questlog_web/base_web.html" %}
+{% load static %}
+
+{% block title %}Edit Profile - QuestLog{% endblock %}
+
+{% block web_content %}
+<script>
+  const CSRF_TOKEN = '{{ csrf_token }}';
+  function csrfFetch(url, options = {}) {
+    if (!options.headers) options.headers = {};
+    if (CSRF_TOKEN && CSRF_TOKEN !== 'None') {
+      options.headers['X-CSRFToken'] = CSRF_TOKEN;
+    }
+    return fetch(url, options);
+  }
+</script>
+
+<!-- Header -->
+<div class="bg-gradient-to-br from-neutral-900 to-neutral-950 border-b border-neutral-800 p-6 mb-6">
+  <div class="max-w-4xl mx-auto">
+    <div class="flex items-center gap-3">
+      <a href="{% url 'questlog_web_profile' %}" class="text-gray-400 hover:text-white transition">
+        <i class="fas fa-arrow-left"></i>
+      </a>
+      <div>
+        <h1 class="text-3xl font-bold text-white flex items-center gap-3">
+          <i class="fas fa-user-edit text-blue-400"></i>
+          Edit Profile
+        </h1>
+        <p class="text-gray-400 mt-1">Update your profile information</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="max-w-4xl mx-auto px-4 pb-8">
+  <form id="editProfileForm" class="space-y-6">
+    <!-- Avatar & Name -->
+    <div class="bg-neutral-900/50 rounded-lg border border-neutral-800 p-6">
+      <h2 class="text-lg font-semibold text-white mb-4">
+        <i class="fas fa-id-card text-blue-400 mr-2"></i>Identity
+      </h2>
+      <div class="flex items-start gap-6">
+        <div class="flex-shrink-0">
+          {% if web_user.avatar_url %}
+          <img src="{{ web_user.avatar_url }}" alt="{{ web_user.username }}" class="w-20 h-20 rounded-xl object-cover" id="avatarPreview">
+          {% else %}
+          <div class="w-20 h-20 bg-neutral-700 rounded-xl flex items-center justify-center" id="avatarPreview">
+            <span class="text-xl font-bold text-gray-400">{{ web_user.username|slice:":2"|upper }}</span>
+          </div>
+          {% endif %}
+        </div>
+        <div class="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label class="text-sm text-gray-300 mb-2 block">Username</label>
+            <input type="text" id="username" value="{{ web_user.username }}"
+                   class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white focus:border-blue-500 focus:outline-none">
+          </div>
+          <div>
+            <label class="text-sm text-gray-300 mb-2 block">Display Name</label>
+            <input type="text" id="displayName" value="{{ web_user.display_name|default:web_user.username }}"
+                   class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white focus:border-blue-500 focus:outline-none">
+          </div>
+          <div class="md:col-span-2">
+            <label class="text-sm text-gray-300 mb-2 block">Avatar URL</label>
+            <input type="url" id="avatarUrl" value="{{ web_user.avatar_url|default:'' }}"
+                   placeholder="Direct link to your profile image"
+                   class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white focus:border-blue-500 focus:outline-none">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bio -->
+    <div class="bg-neutral-900/50 rounded-lg border border-neutral-800 p-6">
+      <h2 class="text-lg font-semibold text-white mb-4">
+        <i class="fas fa-comment text-green-400 mr-2"></i>About You
+      </h2>
+      <textarea id="bio" rows="4" placeholder="Tell people about yourself, what games you play, your gaming style..."
+                class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white focus:border-green-500 focus:outline-none resize-none">{{ web_user.bio|default:"" }}</textarea>
+    </div>
+
+    <!-- Submit -->
+    <div class="flex items-center justify-between">
+      <a href="{% url 'questlog_web_profile' %}" class="text-gray-400 hover:text-white transition">
+        <i class="fas fa-arrow-left mr-2"></i>Back to Profile
+      </a>
+      <button type="submit" id="submitBtn" class="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-lg font-semibold transition">
+        <i class="fas fa-save mr-2"></i>Save Changes
+      </button>
+    </div>
+  </form>
+
+  <!-- Data & Privacy -->
+  <div class="mt-10 bg-neutral-900/50 rounded-lg border border-neutral-800 p-6">
+    <h2 class="text-lg font-semibold text-white mb-1">
+      <i class="fas fa-shield-alt text-indigo-400 mr-2"></i>Your Data
+    </h2>
+    <p class="text-gray-400 text-sm mb-5">Your data is yours. Download a full copy or permanently delete your account and everything associated with it.</p>
+
+    <div class="flex flex-wrap gap-3">
+      <button onclick="downloadMyData()" id="downloadBtn"
+        class="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-5 py-2.5 rounded-lg text-sm font-medium transition">
+        <i class="fas fa-download"></i>Download My Data
+      </button>
+      <button onclick="confirmDeleteAccount()"
+        class="flex items-center gap-2 bg-red-900/40 hover:bg-red-800/60 text-red-400 hover:text-red-300 border border-red-700/40 px-5 py-2.5 rounded-lg text-sm font-medium transition">
+        <i class="fas fa-trash-alt"></i>Delete My Account
+      </button>
+    </div>
+
+    <div id="dataFeedback" class="hidden mt-4 p-3 rounded-lg text-sm"></div>
+  </div>
+</div>
+
+<!-- Delete confirmation modal -->
+<div id="deleteModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">
+  <div class="bg-neutral-900 border border-red-700/50 rounded-xl p-6 max-w-md w-full">
+    <h3 class="text-white font-bold text-lg mb-2 flex items-center gap-2">
+      <i class="fas fa-exclamation-triangle text-red-400"></i>Delete Your Account
+    </h3>
+    <p class="text-gray-300 text-sm mb-3 leading-relaxed">
+      This permanently deletes your account and everything tied to it: posts, comments, likes, follows, uploads, and all profile data.
+      <strong class="text-white">This cannot be undone.</strong>
+    </p>
+    <p class="text-gray-400 text-sm mb-5">Type <span class="text-red-400 font-mono font-semibold">DELETE</span> to confirm:</p>
+    <input type="text" id="deleteConfirmInput" placeholder="Type DELETE here"
+      class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm mb-4 focus:border-red-500 focus:outline-none">
+    <div class="flex gap-3">
+      <button onclick="document.getElementById('deleteModal').classList.add('hidden')"
+        class="flex-1 bg-neutral-700 hover:bg-neutral-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition">
+        Cancel
+      </button>
+      <button onclick="executeDelete()" id="deleteConfirmBtn"
+        class="flex-1 bg-red-700 hover:bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition">
+        <i class="fas fa-trash-alt mr-1"></i>Permanently Delete
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+async function downloadMyData() {
+  const btn = document.getElementById('downloadBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Preparing…';
+  const feedback = document.getElementById('dataFeedback');
+  try {
+    const res = await csrfFetch('{% url "questlog_web_api_privacy_export" %}');
+    if (res.status === 429) {
+      feedback.className = 'mt-4 p-3 rounded-lg text-sm bg-yellow-900/30 text-yellow-300';
+      feedback.textContent = 'You can only download your data once per day. Try again tomorrow.';
+      feedback.classList.remove('hidden');
+    } else if (res.ok) {
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'questlog_data_export.json';
+      a.click();
+      URL.revokeObjectURL(url);
+      feedback.className = 'mt-4 p-3 rounded-lg text-sm bg-green-900/30 text-green-300';
+      feedback.textContent = 'Download started. Check your downloads folder.';
+      feedback.classList.remove('hidden');
+    } else {
+      throw new Error('Request failed');
+    }
+  } catch(e) {
+    feedback.className = 'mt-4 p-3 rounded-lg text-sm bg-red-900/30 text-red-300';
+    feedback.textContent = 'Failed to download data. Please try again.';
+    feedback.classList.remove('hidden');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-download mr-2"></i>Download My Data';
+  }
+}
+
+function confirmDeleteAccount() {
+  document.getElementById('deleteConfirmInput').value = '';
+  document.getElementById('deleteModal').classList.remove('hidden');
+  setTimeout(() => document.getElementById('deleteConfirmInput').focus(), 50);
+}
+
+async function executeDelete() {
+  const input = document.getElementById('deleteConfirmInput').value.trim();
+  if (input !== 'DELETE') {
+    document.getElementById('deleteConfirmInput').classList.add('border-red-500');
+    document.getElementById('deleteConfirmInput').focus();
+    return;
+  }
+  const btn = document.getElementById('deleteConfirmBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>Deleting…';
+  try {
+    const res = await csrfFetch('{% url "questlog_web_api_privacy_delete" %}', { method: 'POST' });
+    const data = await res.json();
+    if (data.success) {
+      document.getElementById('deleteModal').classList.add('hidden');
+      window.location.href = '/';
+    } else {
+      alert(data.error || 'Deletion failed. Please try again.');
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fas fa-trash-alt mr-1"></i>Permanently Delete';
+    }
+  } catch(e) {
+    alert('An error occurred. Please try again.');
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-trash-alt mr-1"></i>Permanently Delete';
+  }
+}
+
+document.getElementById('editProfileForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+
+  const btn = document.getElementById('submitBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Saving...';
+
+  const data = {
+    username: document.getElementById('username').value,
+    display_name: document.getElementById('displayName').value,
+    avatar_url: document.getElementById('avatarUrl').value || null,
+    bio: document.getElementById('bio').value || null,
+  };
+
+  try {
+    const response = await csrfFetch('/ql/api/profile/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+
+    const result = await response.json();
+    if (result.success) {
+      window.location.href = '{% url "questlog_web_profile" %}';
+    } else {
+      alert(result.error || 'Failed to save profile');
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fas fa-save mr-2"></i>Save Changes';
+    }
+  } catch (error) {
+    console.error('Failed to save profile:', error);
+    alert('Failed to save profile. Please try again.');
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-save mr-2"></i>Save Changes';
+  }
+});
+</script>
+{% endblock %}

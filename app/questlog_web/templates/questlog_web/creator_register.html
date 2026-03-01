@@ -1,0 +1,389 @@
+{% extends "questlog_web/base_web.html" %}
+{% load static %}
+
+{% block title %}Creator Profile - QuestLog{% endblock %}
+
+{% block web_content %}
+<script>
+  const CSRF_TOKEN = '{{ csrf_token }}';
+  function csrfFetch(url, options = {}) {
+    if (!options.headers) options.headers = {};
+    if (CSRF_TOKEN && CSRF_TOKEN !== 'None') {
+      options.headers['X-CSRFToken'] = CSRF_TOKEN;
+    }
+    return fetch(url, options);
+  }
+
+  async function disconnectPlatform(url, name) {
+    if (!confirm('Disconnect ' + name + '? You can reconnect anytime.')) return;
+    try {
+      const resp = await csrfFetch(url, { method: 'POST' });
+      if (resp.ok || resp.redirected) {
+        window.location.reload();
+      } else {
+        alert('Failed to disconnect ' + name + '. Please try again.');
+      }
+    } catch (e) {
+      alert('Failed to disconnect ' + name + '. Please try again.');
+    }
+  }
+</script>
+
+<!-- Header -->
+<div class="bg-gradient-to-br from-neutral-900 to-neutral-950 border-b border-neutral-800 p-6 mb-6">
+  <div class="max-w-4xl mx-auto">
+    <div class="flex items-center gap-3">
+      <a href="{% url 'questlog_web_creators' %}" class="text-gray-400 hover:text-white transition">
+        <i class="fas fa-arrow-left"></i>
+      </a>
+      <div>
+        <h1 class="text-3xl font-bold text-white flex items-center gap-3">
+          <i class="fas fa-video text-red-400"></i>
+          Creator Profile
+        </h1>
+        <p class="text-gray-400 mt-1">{% if profile %}Edit your creator profile{% else %}Set up your creator profile{% endif %}</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Messages -->
+{% if messages %}
+<div class="max-w-4xl mx-auto px-4 mb-4">
+  {% for msg in messages %}
+  <div class="p-3 rounded-lg text-sm mb-2
+    {% if msg.tags == 'error' %}bg-red-900/30 border border-red-700/50 text-red-300
+    {% elif msg.tags == 'success' %}bg-green-900/30 border border-green-700/50 text-green-300
+    {% else %}bg-blue-900/30 border border-blue-700/50 text-blue-300{% endif %}">
+    {{ msg }}
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<!-- Form -->
+<div class="max-w-4xl mx-auto px-4 pb-8">
+  <form id="creatorForm" class="space-y-6">
+
+    <!-- Connected Platforms (OAuth) -->
+    <div class="bg-neutral-900/50 rounded-lg border border-neutral-800 p-6">
+      <h2 class="text-lg font-semibold text-white mb-4">
+        <i class="fas fa-plug text-indigo-400 mr-2"></i>Connected Platforms
+      </h2>
+      <p class="text-sm text-gray-400 mb-4">Connect your accounts to automatically sync your channel info and enable live stream tracking.</p>
+
+      <div class="space-y-3">
+        <!-- Twitch -->
+        <div class="flex items-center justify-between p-4 bg-neutral-800/50 rounded-lg border border-neutral-700/50">
+          <div class="flex items-center gap-3">
+            <i class="fab fa-twitch text-2xl text-purple-400"></i>
+            <div>
+              <p class="text-white font-medium">Twitch</p>
+              {% if profile and profile.twitch_user_id %}
+              <p class="text-sm text-purple-300">{{ profile.twitch_display_name }} &middot; {{ profile.twitch_follower_count|default:0 }} followers</p>
+              {% else %}
+              <p class="text-xs text-gray-500">Connect to import your channel info &amp; enable live alerts</p>
+              {% endif %}
+            </div>
+          </div>
+          {% if profile and profile.twitch_user_id %}
+          <div class="flex items-center gap-3">
+            <span class="text-green-400 text-sm"><i class="fas fa-check-circle mr-1"></i>Connected</span>
+            <button type="button" onclick="disconnectPlatform('{% url 'questlog_web_twitch_unlink' %}', 'Twitch')" class="text-red-400 hover:text-red-300 text-xs font-medium transition">Disconnect</button>
+          </div>
+          {% elif twitch_configured %}
+          <div class="flex items-center gap-3">
+            {% if web_user.twitch_username %}
+            <span class="text-gray-400 text-xs"><i class="fas fa-link mr-1"></i>{{ web_user.twitch_username }}</span>
+            {% endif %}
+            <a href="{% url 'questlog_web_twitch_link' %}" class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition">
+              <i class="fab fa-twitch mr-1"></i>{% if web_user.twitch_username %}Upgrade to OAuth{% else %}Connect{% endif %}
+            </a>
+          </div>
+          {% else %}
+          {% if web_user.twitch_username %}
+          <span class="text-gray-400 text-xs"><i class="fas fa-link mr-1"></i>{{ web_user.twitch_username }} (from profile)</span>
+          {% else %}
+          <span class="text-gray-500 text-sm">Not configured</span>
+          {% endif %}
+          {% endif %}
+        </div>
+
+        <!-- YouTube -->
+        <div class="flex items-center justify-between p-4 bg-neutral-800/50 rounded-lg border border-neutral-700/50">
+          <div class="flex items-center gap-3">
+            <i class="fab fa-youtube text-2xl text-red-500"></i>
+            <div>
+              <p class="text-white font-medium">YouTube</p>
+              {% if profile and profile.youtube_channel_id %}
+              <p class="text-sm text-red-300">{{ profile.youtube_channel_name }} &middot; {{ profile.youtube_subscriber_count|default:0 }} subscribers</p>
+              {% else %}
+              <p class="text-xs text-gray-500">Connect to import your channel info &amp; enable live alerts</p>
+              {% endif %}
+            </div>
+          </div>
+          {% if profile and profile.youtube_channel_id %}
+          <div class="flex items-center gap-3">
+            <span class="text-green-400 text-sm"><i class="fas fa-check-circle mr-1"></i>Connected</span>
+            <button type="button" onclick="disconnectPlatform('{% url 'questlog_web_youtube_unlink' %}', 'YouTube')" class="text-red-400 hover:text-red-300 text-xs font-medium transition">Disconnect</button>
+          </div>
+          {% elif youtube_configured %}
+          <div class="flex items-center gap-3">
+            {% if web_user.youtube_channel_name %}
+            <span class="text-gray-400 text-xs"><i class="fas fa-link mr-1"></i>{{ web_user.youtube_channel_name }}</span>
+            {% endif %}
+            <a href="{% url 'questlog_web_youtube_link' %}" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition">
+              <i class="fab fa-youtube mr-1"></i>{% if web_user.youtube_channel_name %}Upgrade to OAuth{% else %}Connect{% endif %}
+            </a>
+          </div>
+          {% else %}
+          {% if web_user.youtube_channel_name %}
+          <span class="text-gray-400 text-xs"><i class="fas fa-link mr-1"></i>{{ web_user.youtube_channel_name }} (from profile)</span>
+          {% else %}
+          <span class="text-gray-500 text-sm">Not configured</span>
+          {% endif %}
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Basic Info -->
+    <div class="bg-neutral-900/50 rounded-lg border border-neutral-800 p-6">
+      <h2 class="text-lg font-semibold text-white mb-4">
+        <i class="fas fa-user text-blue-400 mr-2"></i>About You
+      </h2>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label class="text-sm text-gray-300 mb-2 block">Display Name <span class="text-red-400">*</span></label>
+          <input type="text" id="displayName" name="display_name" required
+                 value="{{ profile.display_name|default:web_user.display_name|default:web_user.username }}"
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white focus:border-red-500 focus:outline-none">
+        </div>
+        <div>
+          <label class="text-sm text-gray-300 mb-2 block">Avatar URL</label>
+          <input type="url" id="avatarUrl" name="avatar_url"
+                 value="{{ profile.avatar_url|default:web_user.avatar_url|default:'' }}"
+                 placeholder="Direct link to your profile image"
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white focus:border-red-500 focus:outline-none">
+        </div>
+      </div>
+      <div class="mt-4">
+        <label class="text-sm text-gray-300 mb-2 block">Bio</label>
+        <textarea id="bio" name="bio" rows="3"
+                  placeholder="Tell people about yourself, what you stream/create, etc."
+                  class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white focus:border-red-500 focus:outline-none resize-none">{{ profile.bio|default:"" }}</textarea>
+      </div>
+    </div>
+
+    <!-- Social Links -->
+    <div class="bg-neutral-900/50 rounded-lg border border-neutral-800 p-6">
+      <h2 class="text-lg font-semibold text-white mb-4">
+        <i class="fas fa-share-alt text-purple-400 mr-2"></i>Social Links
+      </h2>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {% if not profile or not profile.twitch_user_id %}
+        <div>
+          <label class="text-sm text-gray-300 mb-2 block">
+            <i class="fab fa-twitch text-purple-400 mr-1"></i>Twitch URL
+          </label>
+          <input type="url" id="twitchUrl" name="twitch_url"
+                 value="{{ profile.twitch_url|default:'' }}"
+                 placeholder="https://twitch.tv/yourchannel"
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white focus:border-purple-500 focus:outline-none">
+          <p class="text-xs text-gray-500 mt-1">Or connect via OAuth above to auto-fill</p>
+        </div>
+        {% endif %}
+        {% if not profile or not profile.youtube_channel_id %}
+        <div>
+          <label class="text-sm text-gray-300 mb-2 block">
+            <i class="fab fa-youtube text-red-400 mr-1"></i>YouTube URL
+          </label>
+          <input type="url" id="youtubeUrl" name="youtube_url"
+                 value="{{ profile.youtube_url|default:'' }}"
+                 placeholder="https://youtube.com/@yourchannel"
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white focus:border-red-500 focus:outline-none">
+          <p class="text-xs text-gray-500 mt-1">Or connect via OAuth above to auto-fill</p>
+        </div>
+        {% endif %}
+        <div>
+          <label class="text-sm text-gray-300 mb-2 block">
+            <i class="fab fa-twitter text-blue-400 mr-1"></i>Twitter/X URL
+          </label>
+          <input type="url" id="twitterUrl" name="twitter_url"
+                 value="{{ profile.twitter_url|default:'' }}"
+                 placeholder="https://twitter.com/yourhandle"
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white focus:border-blue-500 focus:outline-none">
+        </div>
+        <div>
+          <label class="text-sm text-gray-300 mb-2 block">
+            <i class="fab fa-tiktok text-pink-400 mr-1"></i>TikTok URL
+          </label>
+          <input type="url" id="tiktokUrl" name="tiktok_url"
+                 value="{{ profile.tiktok_url|default:'' }}"
+                 placeholder="https://tiktok.com/@yourhandle"
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white focus:border-pink-500 focus:outline-none">
+        </div>
+        <div>
+          <label class="text-sm text-gray-300 mb-2 block">
+            <i class="fas fa-globe text-gray-400 mr-1"></i>Website
+          </label>
+          <input type="url" id="websiteUrl" name="website_url"
+                 value="{{ profile.website_url|default:'' }}"
+                 placeholder="https://yourwebsite.com"
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white focus:border-gray-500 focus:outline-none">
+        </div>
+        <div>
+          <label class="text-sm text-gray-300 mb-2 block">
+            <i class="fab fa-discord text-indigo-400 mr-1"></i>Discord Server
+          </label>
+          <input type="url" id="discordUrl" name="discord_url"
+                 value="{{ profile.discord_url|default:'' }}"
+                 placeholder="https://discord.gg/yourinvite"
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white focus:border-indigo-500 focus:outline-none">
+        </div>
+        <div>
+          <label class="text-sm text-gray-300 mb-2 block">
+            <i class="fas fa-hashtag text-teal-400 mr-1"></i>Matrix Room
+          </label>
+          <input type="url" id="matrixUrl" name="matrix_url"
+                 value="{{ profile.matrix_url|default:'' }}"
+                 placeholder="https://matrix.to/#/#room:server.com"
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white focus:border-teal-500 focus:outline-none">
+        </div>
+        <div>
+          <label class="text-sm text-gray-300 mb-2 block">
+            <i class="fas fa-shield-alt text-orange-400 mr-1"></i>valour
+          </label>
+          <input type="url" id="valourUrl" name="valour_url"
+                 value="{{ profile.valour_url|default:'' }}"
+                 placeholder="https://valour.gg/yourinvite"
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white focus:border-orange-500 focus:outline-none">
+        </div>
+        <div>
+          <label class="text-sm text-gray-300 mb-2 block">
+            <i class="fas fa-bolt text-yellow-400 mr-1"></i>Fluxer
+          </label>
+          <input type="url" id="fluxerUrl" name="fluxer_url"
+                 value="{{ profile.fluxer_url|default:'' }}"
+                 placeholder="https://fluxer.app/yourinvite"
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white focus:border-yellow-500 focus:outline-none">
+        </div>
+        <div>
+          <label class="text-sm text-gray-300 mb-2 block">
+            <i class="fas fa-mask text-violet-400 mr-1"></i>Kloak
+          </label>
+          <input type="url" id="kloakUrl" name="kloak_url"
+                 value="{{ profile.kloak_url|default:'' }}"
+                 placeholder="https://kloak.app/yourinvite"
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white focus:border-violet-500 focus:outline-none">
+        </div>
+        <div>
+          <label class="text-sm text-gray-300 mb-2 block">
+            <i class="fas fa-headset text-blue-300 mr-1"></i>TeamSpeak
+          </label>
+          <input type="url" id="teamspeakUrl" name="teamspeak_url"
+                 value="{{ profile.teamspeak_url|default:'' }}"
+                 placeholder="ts3server://yourserver.com"
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white focus:border-blue-300 focus:outline-none">
+        </div>
+        <div>
+          <label class="text-sm text-gray-300 mb-2 block">
+            <i class="fas fa-comment-dots text-amber-400 mr-1"></i>Stoat
+          </label>
+          <input type="url" id="revoltUrl" name="revolt_url"
+                 value="{{ profile.revolt_url|default:'' }}"
+                 placeholder="https://stoat.chat/yourinvite"
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white focus:border-amber-400 focus:outline-none">
+        </div>
+      </div>
+    </div>
+
+    <!-- Discovery Settings -->
+    <div class="bg-neutral-900/50 rounded-lg border border-neutral-800 p-6">
+      <h2 class="text-lg font-semibold text-white mb-4">
+        <i class="fas fa-eye text-green-400 mr-2"></i>Discovery
+      </h2>
+      <label class="flex items-center gap-3 cursor-pointer">
+        <input type="checkbox" id="allowDiscovery" name="allow_discovery"
+               {% if not profile or profile.allow_discovery %}checked{% endif %}
+               class="rounded bg-neutral-700 border-neutral-600 text-red-500 focus:ring-red-500">
+        <span class="text-sm text-gray-300">Show my creator profile in the Featured Creators directory</span>
+      </label>
+    </div>
+
+    <!-- Submit -->
+    <div class="flex items-center justify-between">
+      <a href="{% url 'questlog_web_creators' %}" class="text-gray-400 hover:text-white transition">
+        <i class="fas fa-arrow-left mr-2"></i>Back to Creators
+      </a>
+      <button type="submit" id="submitBtn" class="bg-red-600 hover:bg-red-700 text-white px-8 py-3 rounded-lg font-semibold transition">
+        <i class="fas fa-save mr-2"></i>{% if profile %}Update{% else %}Save{% endif %} Creator Profile
+      </button>
+    </div>
+  </form>
+</div>
+
+<script>
+document.getElementById('creatorForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+
+  const btn = document.getElementById('submitBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Saving...';
+
+  const val = (id) => { const el = document.getElementById(id); return el ? (el.value || null) : undefined; };
+  const formData = {
+    display_name: document.getElementById('displayName').value,
+    avatar_url: document.getElementById('avatarUrl').value || null,
+    bio: document.getElementById('bio').value || null,
+    twitter_url: val('twitterUrl'),
+    tiktok_url: val('tiktokUrl'),
+    website_url: val('websiteUrl'),
+    discord_url: val('discordUrl'),
+    matrix_url: val('matrixUrl'),
+    valour_url: val('valourUrl'),
+    fluxer_url: val('fluxerUrl'),
+    kloak_url: val('kloakUrl'),
+    teamspeak_url: val('teamspeakUrl'),
+    revolt_url: val('revoltUrl'),
+    allow_discovery: document.getElementById('allowDiscovery').checked,
+  };
+  // Only send twitch/youtube URLs if the manual fields exist (not OAuth-connected)
+  const twitchUrl = val('twitchUrl');
+  if (twitchUrl !== undefined) formData.twitch_url = twitchUrl;
+  const youtubeUrl = val('youtubeUrl');
+  if (youtubeUrl !== undefined) formData.youtube_url = youtubeUrl;
+
+  try {
+    const response = await csrfFetch('{% url "questlog_web_api_creators" %}', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(formData)
+    });
+
+    const data = await response.json();
+
+    if (data.success || data.id) {
+      btn.innerHTML = '<i class="fas fa-check mr-2"></i>Saved!';
+      btn.classList.remove('bg-red-600', 'hover:bg-red-700');
+      btn.classList.add('bg-green-600');
+      setTimeout(() => {
+        btn.innerHTML = '<i class="fas fa-save mr-2"></i>Update Creator Profile';
+        btn.classList.remove('bg-green-600');
+        btn.classList.add('bg-red-600', 'hover:bg-red-700');
+        btn.disabled = false;
+      }, 2000);
+    } else {
+      alert(data.error || 'Failed to save creator profile');
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fas fa-save mr-2"></i>Save Creator Profile';
+    }
+  } catch (error) {
+    console.error('Failed to save creator profile:', error);
+    alert('Failed to save creator profile. Please try again.');
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-save mr-2"></i>Save Creator Profile';
+  }
+});
+</script>
+{% endblock %}

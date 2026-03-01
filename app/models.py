@@ -2871,8 +2871,11 @@ class SiteActivityGame(Base):
     display_name = Column(String(255), nullable=False)  # e.g., "World of Warcraft"
     description = Column(Text, nullable=True)
 
-    # Game Type
+    # Game Type (data source)
     game_type = Column(String(20), default="discord")  # 'discord', 'amp', or 'both'
+
+    # Display destination — which public page(s) this game appears on
+    display_on = Column(String(20), default="gamesweplay")  # 'gamesweplay', 'gameservers', or 'both'
 
     # AMP Server (if game_type = 'amp' or 'both')
     amp_instance_id = Column(String(255), nullable=True)  # e.g., "CH-7DTD01"
@@ -2880,6 +2883,7 @@ class SiteActivityGame(Base):
     # Static Info (Steam, Discord, Images)
     steam_appid = Column(String(50), nullable=True)  # e.g., "251570"
     steam_link = Column(String(500), nullable=True)  # e.g., "https://store.steampowered.com/..."
+    steam_header_url = Column(String(500), nullable=True)  # Fetched from Steam API (actual header image URL)
     discord_invite = Column(String(500), nullable=True)  # e.g., "https://discord.gg/..."
     custom_img = Column(String(500), nullable=True)  # e.g., "/static/img/games/wow/dwarf.webp"
     link_label = Column(String(100), default="View Site")  # e.g., "View on Steam", "View Site"

@@ -1,5 +1,7 @@
 from django.urls import path, include
+from django.views.generic import RedirectView
 from . import views
+from .questlog_web import views as ql_views
 
 urlpatterns = [
     # SEO and crawlers
@@ -7,6 +9,7 @@ urlpatterns = [
 
     path('', views.home, name='home'),
     path('gamesweplay/', views.games_we_play, name='games_we_play'),
+    path('gameservers/', RedirectView.as_view(url='/ql/gameservers/', permanent=False)),
 
     # Site Activity Tracker (Bot Owner Only - in QuestLog Guild Dashboard)
     path('questlog/guild/<str:guild_id>/site-activity-tracker/', views.site_activity_tracker_admin, name='site_activity_tracker_admin'),
@@ -17,6 +20,7 @@ urlpatterns = [
 
     path('gameshype/', views.gameshype, name='gameshype'),
     path('gamesuggest/', views.gamesuggest, name='gamesuggest'),
+    path('api/gamesuggest/', views.api_gamesuggest, name='api_gamesuggest'),
     path('hosting/', views.hosting, name='hosting'),
     path('7dtd/', views.sevendtd, name='7dtd'),
     path('dragonwilds/', views.dragonwilds, name='dragonwilds'),
@@ -32,20 +36,39 @@ urlpatterns = [
     path('guides/', views.guides, name='guides'),
     path('content/', views.content, name='content'),
     path('aboutus/', views.aboutus, name='aboutus'),
+    path('questchat/', views.questchat, name='questchat'),
+    path('self-host/', views.self_host, name='self_host'),
     path('privacy/', views.privacy, name='privacy'),
     path('terms/', views.terms, name='terms'),
     path('contactus/', views.contactus, name='contactus'),
     path('faq/', views.faq, name='faq'),
-    path('login/', views.login_view, name='login'),
+    # =========================================================================
+    # SITE-WIDE AUTH
+    # =========================================================================
+    # path('login/', ql_views.ql_login, name='site_login'),  # disabled — closed-access mode
+    path('register/', ql_views.ql_register, name='site_register'),
+    path('verify-email/<str:token>/', ql_views.verify_email, name='site_verify_email'),
+    path('resend-verification/',      ql_views.resend_verification, name='site_resend_verification'),
+    path('logout/',   ql_views.logout,      name='site_logout'),
+
+    # Steam — optional connection (game features)
+    path('auth/steam/link/',     ql_views.steam_link,          name='site_steam_link'),
+    path('auth/steam/callback/', ql_views.steam_link_callback, name='site_steam_callback'),
+
     path("dashboard/", views.dashboard, name="dashboard"),
 
-    # QuestLog
+    # QuestLog Web (web-native, no Discord dependency)
+    # casual-heroes.com/ql/ — distinct from dashboard.casual-heroes.com/questlog/
+    path('ql/', include('app.questlog_web.urls')),
+
+    # QuestLog (Discord bot dashboard - on dashboard.casual-heroes.com)
     path('questlog/overview/', views.questlog_overview, name='questlog_overview'),
     path('questlog/login/', views.questlog_login, name='questlog_login'),
     path('questlog/creatorofthemonth/', views.creator_of_the_month_page, name='creator_of_the_month'),
     path('questlog/creatoroftheweek/', views.creator_of_the_week_page, name='creator_of_the_week'),
 
-    # Discord OAuth2 Authentication
+    # Discord auth — re-enabled for dashboard.casual-heroes.com (Discord bot dashboard)
+    # Matrix SSO runs separately for casual-heroes.com/ql
     path('auth/discord/login/', views.discord_login, name='discord_login'),
     path('auth/discord/callback/', views.discord_callback, name='discord_callback'),
     path('auth/discord/logout/', views.discord_logout, name='discord_logout'),

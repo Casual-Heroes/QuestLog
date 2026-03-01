@@ -1,0 +1,468 @@
+{% load static %}
+
+<!-- Web QuestLog Sidebar Navigation (No Discord dependency) -->
+<div id="web-sidebar" class="fixed inset-y-0 left-0 z-50 w-64 bg-neutral-900 border-r border-neutral-800 transform -translate-x-full lg:translate-x-0 transition-transform duration-300 ease-in-out overflow-y-auto">
+  <!-- User Profile / Login -->
+  <div class="p-4 border-b border-neutral-800">
+    {% if web_user %}
+    <div class="flex items-center gap-3 mb-2 p-2">
+      {% if web_user.avatar_url %}
+      <img src="{{ web_user.avatar_url }}"
+           alt="{{ web_user.username }}"
+           id="sidebar-avatar"
+           class="w-10 h-10 rounded-lg flex-shrink-0{% if web_user.show_playing_status and web_user.current_game %} ring-2 ring-cyan-400 shadow-[0_0_10px_#22d3ee]{% endif %}">
+      {% else %}
+      <div id="sidebar-avatar"
+           class="w-10 h-10 bg-neutral-700 rounded-lg flex items-center justify-center flex-shrink-0{% if web_user.show_playing_status and web_user.current_game %} ring-2 ring-cyan-400 shadow-[0_0_10px_#22d3ee]{% endif %}">
+        <span class="text-sm font-bold text-gray-400">{{ web_user.username|slice:":2"|upper }}</span>
+      </div>
+      {% endif %}
+      <div class="flex-1 min-w-0 text-left">
+        <div class="flex items-center gap-1.5">
+          <h2 class="text-white font-semibold text-sm truncate">{{ web_user.display_name|default:web_user.username }}</h2>
+          {% if web_user.flair_emoji %}<span class="text-sm leading-none" title="{{ web_user.flair_name }}">{{ web_user.flair_emoji }}</span>{% endif %}
+        </div>
+        <p class="text-gray-500 text-xs">
+          {% if web_user.steam_id %}
+          <i class="fab fa-steam text-blue-400 mr-1"></i>Steam
+          {% endif %}
+          {% if web_user.discord_id %}
+          <i class="fab fa-discord text-indigo-400 mr-1"></i>Discord
+          {% endif %}
+        </p>
+        <p id="sidebar-playing-badge"
+           class="text-cyan-400 text-[10px] font-semibold truncate mt-0.5{% if not web_user.show_playing_status or not web_user.current_game %} hidden{% endif %}">
+          <i class="fas fa-gamepad mr-1"></i><span id="sidebar-playing-game">{{ web_user.current_game }}</span>
+        </p>
+      </div>
+    </div>
+    {% else %}
+    <a href="{% url 'questlog_web_login' %}"
+       class="w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white py-2 px-4 rounded-lg transition">
+      <i class="fas fa-gamepad"></i>
+      <span>Login to Casual Heroes</span>
+    </a>
+    {% endif %}
+  </div>
+
+  <!-- Navigation Menu -->
+  <nav class="p-3 space-y-6">
+    <!-- Home -->
+    <div>
+      <a href="{% url 'questlog_web_home' %}"
+         class="nav-item {% if active_page == 'home' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition group">
+        <i class="fas fa-home text-gray-400 group-hover:text-indigo-400"></i>
+        <span>Home</span>
+      </a>
+    </div>
+
+    {% if web_user %}
+    <!-- Social Feed -->
+    <div>
+      <div class="flex items-center justify-between px-3 mb-2">
+        <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wider">Social</h3>
+      </div>
+      <div class="space-y-1">
+        <a href="{% url 'questlog_web_feed' %}"
+           class="nav-item {% if active_page == 'feed' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          <i class="fas fa-stream text-gray-400 group-hover:text-indigo-400"></i>
+          <span>Feed</span>
+        </a>
+        <a href="#" onclick="event.preventDefault(); toggleNotifPanel()"
+           class="nav-item flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group relative">
+          <i class="fas fa-bell text-gray-400 group-hover:text-yellow-400"></i>
+          <span>Notifications</span>
+          <span id="notif-badge" class="hidden absolute right-2 top-1/2 -translate-y-1/2 bg-red-500 text-white text-xs font-bold w-5 h-5 flex items-center justify-center rounded-full">0</span>
+        </a>
+      </div>
+    </div>
+    {% endif %}
+
+    {% if web_user %}
+    <!-- LFG Section (login required) -->
+    <div>
+      <div class="flex items-center justify-between px-3 mb-2">
+        <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wider">Looking For Group</h3>
+      </div>
+      <div class="space-y-1">
+        <a href="{% url 'questlog_web_lfg_browse' %}"
+           class="nav-item {% if active_page == 'lfg_browse' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          <i class="fas fa-users text-gray-400 group-hover:text-green-400"></i>
+          <span>Browse Groups</span>
+        </a>
+        <a href="{% url 'questlog_web_lfg_create' %}"
+           class="nav-item {% if active_page == 'lfg_create' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          <i class="fas fa-plus text-gray-400 group-hover:text-green-400"></i>
+          <span>Create Group</span>
+        </a>
+        <a href="{% url 'questlog_web_lfg_my_groups' %}"
+           class="nav-item {% if active_page == 'lfg_my_groups' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          <i class="fas fa-user-friends text-gray-400 group-hover:text-blue-400"></i>
+          <span>My Groups</span>
+        </a>
+      </div>
+    </div>
+
+    <!-- Discovery Section (login required) -->
+    <div>
+      <div class="flex items-center justify-between px-3 mb-2">
+        <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wider">Discovery</h3>
+      </div>
+      <div class="space-y-1">
+        <a href="{% url 'questlog_web_network' %}"
+           class="nav-item {% if active_page == 'network' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          <i class="fas fa-globe text-gray-400 group-hover:text-indigo-400"></i>
+          <span>QuestLog Network</span>
+        </a>
+        <a href="{% url 'questlog_web_games' %}"
+           class="nav-item {% if active_page == 'games' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          <i class="fas fa-gamepad text-gray-400 group-hover:text-green-400"></i>
+          <span>Found Games</span>
+        </a>
+        <a href="{% url 'questlog_web_creators' %}"
+           class="nav-item {% if active_page == 'creators' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          <i class="fas fa-star text-yellow-400 group-hover:text-yellow-300"></i>
+          <span>Featured Creators</span>
+        </a>
+        <a href="{% url 'questlog_web_gameservers' %}"
+           class="nav-item {% if active_page == 'game_servers' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          <i class="fas fa-server text-gray-400 group-hover:text-indigo-400"></i>
+          <span>Game Servers</span>
+        </a>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- RSS Articles (public) -->
+    <div>
+      <div class="flex items-center justify-between px-3 mb-2">
+        <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wider">News</h3>
+      </div>
+      <div class="space-y-1">
+        <a href="{% url 'questlog_web_articles' %}"
+           class="nav-item {% if active_page == 'articles' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          <i class="fas fa-newspaper text-gray-400 group-hover:text-orange-400"></i>
+          <span>Gaming News</span>
+        </a>
+      </div>
+    </div>
+
+    {% if web_user %}
+    <!-- Community Section (login required) -->
+    <div>
+      <div class="flex items-center justify-between px-3 mb-2">
+        <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wider">Community</h3>
+      </div>
+      <div class="space-y-1">
+        <!-- Community Directory -->
+        <a href="{% url 'questlog_web_communities' %}"
+           class="nav-item {% if active_page == 'communities' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          <i class="fas fa-server text-gray-400 group-hover:text-purple-400"></i>
+          <span>Communities</span>
+        </a>
+
+        <!-- Register Community -->
+        <a href="{% url 'questlog_web_community_register' %}"
+           class="nav-item {% if active_page == 'community_register' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          <i class="fas fa-plus-circle text-gray-400 group-hover:text-purple-400"></i>
+          <span>Register Community</span>
+        </a>
+      </div>
+    </div>
+    {% endif %}
+
+    {% if web_user %}
+    <!-- XP / Level / HP quick-stat widget -->
+    <a href="{% url 'questlog_web_shop' %}" class="block mx-2 mb-1 bg-neutral-800/60 hover:bg-neutral-700/60 border border-neutral-700/50 rounded-lg px-3 py-2.5 transition group">
+      <div class="flex items-center justify-between mb-1.5">
+        <span class="text-xs text-gray-400 group-hover:text-white transition font-medium">
+          <i class="fas fa-star text-yellow-400 mr-1"></i>Lv.{{ web_user.web_level|default:1 }}
+        </span>
+        <span class="text-xs text-purple-400 font-medium"><i class="fas fa-gem mr-0.5"></i>{{ web_user.hero_points|default:0 }} HP</span>
+      </div>
+      <!-- XP bar -->
+      <div class="w-full bg-neutral-700 rounded-full h-1.5">
+        <div class="bg-gradient-to-r from-yellow-500 to-amber-400 h-1.5 rounded-full" id="sidebar-xp-bar" style="width:0%"></div>
+      </div>
+      <p class="text-xs text-gray-500 mt-1">{{ web_user.web_xp|default:0 }} XP · <span class="text-purple-400/80">Hero Shop →</span></p>
+    </a>
+
+    <!-- Profile Section -->
+    <div>
+      <div class="flex items-center justify-between px-3 mb-2">
+        <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wider">Your Profile</h3>
+      </div>
+      <div class="space-y-1">
+        <a href="{% url 'questlog_web_shop' %}"
+           class="nav-item {% if active_page == 'shop' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          <i class="fas fa-gem text-gray-400 group-hover:text-purple-400"></i>
+          <span>Hero Shop</span>
+        </a>
+
+        <a href="{% url 'questlog_web_giveaways' %}"
+           class="nav-item {% if active_page == 'giveaways' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          <i class="fas fa-gift text-gray-400 group-hover:text-indigo-400"></i>
+          <span>Giveaways</span>
+        </a>
+
+        <a href="{% url 'questlog_web_profile' %}"
+           class="nav-item {% if active_page == 'profile' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          <i class="fas fa-user-circle text-gray-400 group-hover:text-blue-400"></i>
+          <span>My Profile</span>
+        </a>
+
+        <a href="/ql/u/{{ web_user.username }}/"
+           class="nav-item flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          <i class="fas fa-external-link-alt text-gray-400 group-hover:text-blue-400"></i>
+          <span>Public Profile</span>
+        </a>
+
+        <a href="{% url 'questlog_web_creator_register' %}"
+           class="nav-item {% if active_page == 'creator_register' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          <i class="fas fa-video text-gray-400 group-hover:text-red-400"></i>
+          <span>Creator Profile</span>
+        </a>
+
+      </div>
+    </div>
+    {% endif %}
+
+    <script>
+    (function(){
+      const xp = {{ web_user.web_xp|default:0 }};
+      const lvl = {{ web_user.web_level|default:1 }};
+      // Matches Python: threshold for level n = sum of int(7*(i+1)^1.5) for i=1..n-1
+      function xpForLevel(l) { let t=0; for(let i=1;i<l;i++) t+=Math.trunc(7*Math.pow(i+1,1.5)); return t; }
+      const start = xpForLevel(lvl), end = xpForLevel(lvl+1);
+      const pct = end>start ? Math.min(100, Math.round(((xp-start)/(end-start))*100)) : 100;
+      const bar = document.getElementById('sidebar-xp-bar');
+      if (bar) bar.style.width = pct + '%';
+    })();
+    </script>
+
+    {% if web_user.is_admin or request.session.web_user_is_admin %}
+    <!-- Admin Section -->
+    <div>
+      <div class="flex items-center justify-between px-3 mb-2">
+        <h3 class="text-xs font-bold text-yellow-500 uppercase tracking-wider">
+          <i class="fas fa-crown mr-1"></i>Admin
+        </h3>
+      </div>
+      <div class="space-y-1">
+        <a href="{% url 'questlog_web_admin' %}"
+           class="nav-item {% if active_page == 'admin' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          <i class="fas fa-shield-alt text-yellow-400 group-hover:text-yellow-300"></i>
+          <span>Admin Panel</span>
+        </a>
+      </div>
+    </div>
+    {% endif %}
+  </nav>
+
+  <!-- Footer -->
+  <div class="p-4 border-t border-neutral-800 mt-auto space-y-3">
+    {% if web_user %}
+    <!-- Logout Button -->
+    <a href="{% url 'questlog_web_logout' %}"
+       class="flex items-center justify-center gap-2 w-full py-2 px-3 rounded-lg text-sm font-medium text-gray-400 hover:text-white hover:bg-neutral-800 transition group">
+      <i class="fas fa-sign-out-alt"></i>
+      <span>Logout</span>
+    </a>
+    {% endif %}
+
+    <!-- Footer Branding -->
+    <div class="flex items-center justify-between text-xs text-gray-500">
+      <span>QuestLog Web</span>
+      <div class="flex items-center gap-2">
+        {% if DISCORD_INVITE_URL %}<a href="{{ DISCORD_INVITE_URL }}" target="_blank" class="hover:text-indigo-400 transition">
+          <i class="fab fa-discord"></i>
+        </a>{% endif %}
+        <a href="https://github.com/CasualHeroes/platform" target="_blank" class="hover:text-white transition">
+          <i class="fab fa-github"></i>
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Mobile Overlay -->
+<div id="sidebar-overlay" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 lg:hidden hidden" onclick="toggleSidebar()"></div>
+
+<!-- Mobile Menu Button -->
+<button onclick="toggleSidebar()" type="button"
+        class="fixed top-4 left-4 z-50 lg:hidden bg-neutral-900 border border-neutral-800 text-white p-2 rounded-lg shadow-lg hover:bg-neutral-800 transition">
+  <i class="fas fa-bars"></i>
+</button>
+
+<style>
+/* Active nav item */
+.nav-item.active {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.2), rgba(139, 92, 246, 0.2));
+  color: white;
+  border-left: 3px solid #6366f1;
+}
+
+.nav-item.active i {
+  color: #6366f1;
+}
+
+.nav-item:not(.active) {
+  color: #9ca3af;
+}
+
+.nav-item:not(.active):hover {
+  background: rgba(55, 65, 81, 0.5);
+  color: white;
+}
+
+/* Smooth scrollbar */
+#web-sidebar::-webkit-scrollbar {
+  width: 6px;
+}
+
+#web-sidebar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+#web-sidebar::-webkit-scrollbar-thumb {
+  background: #374151;
+  border-radius: 3px;
+}
+
+#web-sidebar::-webkit-scrollbar-thumb:hover {
+  background: #4b5563;
+}
+</style>
+
+<!-- Notification Panel (slide-in overlay) -->
+<div id="notif-panel" class="fixed inset-y-0 left-64 z-50 w-80 bg-neutral-900 border-r border-neutral-800 transform -translate-x-full opacity-0 transition-all duration-300 ease-in-out overflow-y-auto hidden">
+  <div class="p-4 border-b border-neutral-800 flex items-center justify-between">
+    <h3 class="text-white font-semibold">Notifications</h3>
+    <div class="flex items-center gap-2">
+      <button onclick="markAllRead()" class="text-xs text-gray-400 hover:text-indigo-400 transition">Mark all read</button>
+      <button onclick="toggleNotifPanel()" class="text-gray-500 hover:text-white transition">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+  </div>
+  <div id="notif-list" class="p-2 space-y-1"></div>
+</div>
+
+<script>
+function toggleSidebar() {
+  const sidebar = document.getElementById('web-sidebar');
+  const overlay = document.getElementById('sidebar-overlay');
+
+  sidebar.classList.toggle('-translate-x-full');
+  overlay.classList.toggle('hidden');
+}
+
+// Notification system
+let notifPanelOpen = false;
+
+function toggleNotifPanel() {
+  const panel = document.getElementById('notif-panel');
+  notifPanelOpen = !notifPanelOpen;
+  if (notifPanelOpen) {
+    panel.classList.remove('hidden', '-translate-x-full', 'opacity-0');
+    panel.classList.add('translate-x-0', 'opacity-100');
+    loadNotifications();
+  } else {
+    panel.classList.add('-translate-x-full', 'opacity-0');
+    panel.classList.remove('translate-x-0', 'opacity-100');
+    setTimeout(() => panel.classList.add('hidden'), 300);
+  }
+}
+
+async function pollNotifCount() {
+  try {
+    const res = await fetch('/ql/api/notifications/count/');
+    const data = await res.json();
+    const badge = document.getElementById('notif-badge');
+    if (badge) {
+      if (data.unread_count > 0) {
+        badge.textContent = data.unread_count > 99 ? '99+' : data.unread_count;
+        badge.classList.remove('hidden');
+      } else {
+        badge.classList.add('hidden');
+      }
+    }
+  } catch(e) {}
+}
+
+async function loadNotifications() {
+  const list = document.getElementById('notif-list');
+  list.innerHTML = '<p class="text-gray-500 text-sm p-2">Loading...</p>';
+  try {
+    const res = await fetch('/ql/api/notifications/?per_page=30');
+    const data = await res.json();
+    if (data.notifications.length === 0) {
+      list.innerHTML = '<p class="text-gray-500 text-sm text-center py-8">No notifications</p>';
+      return;
+    }
+    list.innerHTML = data.notifications.map(n => {
+      const esc = s => { if (!s) return ''; const d = document.createElement('div'); d.textContent = s; return d.innerHTML; };
+      const actor = n.actor || {};
+      const unread = !n.is_read ? 'bg-indigo-500/10 border-indigo-500/20' : 'bg-neutral-800/30 border-transparent';
+      const icon = {
+        follow: 'fas fa-user-plus text-blue-400',
+        like: 'fas fa-heart text-red-400',
+        comment: 'fas fa-comment text-green-400',
+        comment_like: 'fas fa-heart text-pink-400',
+        mention: 'fas fa-at text-yellow-400',
+      }[n.type] || 'fas fa-bell text-gray-400';
+
+      let link = '#';
+      if (n.target_type === 'post') link = '#';
+      if (n.target_type === 'user') link = `/ql/u/${esc(actor.username)}/`;
+
+      return `
+        <div class="flex items-start gap-2 p-2 rounded-lg border ${unread} cursor-pointer hover:bg-neutral-800/50 transition"
+             onclick="markRead(${n.id})">
+          <i class="${icon} mt-1 text-sm"></i>
+          <div class="flex-1 min-w-0">
+            <p class="text-sm text-gray-300">
+              <a href="/ql/u/${esc(actor.username)}/" class="text-white font-medium hover:underline">${esc(actor.display_name || actor.username)}</a>
+              ${esc(n.message || n.type)}
+            </p>
+            <p class="text-xs text-gray-600">${timeAgoNotif(n.created_at)}</p>
+          </div>
+        </div>`;
+    }).join('');
+  } catch(e) {
+    list.innerHTML = '<p class="text-red-400 text-sm p-2">Failed to load</p>';
+  }
+}
+
+function timeAgoNotif(ts) {
+  const s = Math.floor(Date.now() / 1000) - ts;
+  if (s < 60) return 'just now';
+  if (s < 3600) return Math.floor(s / 60) + 'm ago';
+  if (s < 86400) return Math.floor(s / 3600) + 'h ago';
+  return Math.floor(s / 86400) + 'd ago';
+}
+
+async function markRead(id) {
+  try {
+    await csrfFetch(`/ql/api/notifications/${id}/read/`, { method: 'POST' });
+    pollNotifCount();
+    loadNotifications();
+  } catch(e) {}
+}
+
+async function markAllRead() {
+  try {
+    await csrfFetch('/ql/api/notifications/read/', { method: 'POST' });
+    pollNotifCount();
+    loadNotifications();
+  } catch(e) {}
+}
+
+// Poll for notifications every 30 seconds (only if logged in)
+{% if web_user %}
+document.addEventListener('DOMContentLoaded', () => {
+  pollNotifCount();
+  setInterval(pollNotifCount, 30000);
+});
+{% endif %}
+</script>

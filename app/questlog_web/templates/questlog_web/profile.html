@@ -1,0 +1,944 @@
+{% extends "questlog_web/base_web.html" %}
+{% load static %}
+
+{% block title %}My Profile - QuestLog{% endblock %}
+
+{% block web_content %}
+<div x-data="{ tab: window.location.hash === '#edit' ? 'edit' : 'overview' }" class="max-w-4xl mx-auto px-4 pb-10">
+
+  <!-- ── Profile Header ─────────────────────────────────────────── -->
+  <!-- Banner -->
+  <div class="relative rounded-xl overflow-hidden mb-0 h-36 bg-gradient-to-br from-indigo-900/60 via-purple-900/40 to-neutral-900">
+    {% if web_user.banner_url %}
+    <img src="{{ web_user.banner_url }}" alt="banner" class="w-full h-full object-cover absolute inset-0">
+    {% endif %}
+  </div>
+
+  <!-- Avatar + name row -->
+  <div class="bg-neutral-900/80 border border-neutral-800 border-t-0 rounded-b-xl px-6 pb-5 mb-6">
+    <div class="flex items-end gap-4 -mt-10 mb-4">
+      <!-- Avatar -->
+      {% if web_user.avatar_url %}
+      <img src="{{ web_user.avatar_url }}" alt="{{ web_user.username }}"
+           class="w-20 h-20 rounded-xl object-cover ring-4 ring-neutral-900 flex-shrink-0">
+      {% else %}
+      <div class="w-20 h-20 rounded-xl ring-4 ring-neutral-900 flex-shrink-0 bg-indigo-600 flex items-center justify-center">
+        <span class="text-2xl font-bold text-white">{{ web_user.username|slice:":2"|upper }}</span>
+      </div>
+      {% endif %}
+
+      <div class="flex-1 min-w-0 pt-12">
+        <div class="flex flex-wrap items-center gap-2 mb-0.5">
+          <h1 class="text-xl font-bold text-white">{{ web_user.display_name|default:web_user.username }}</h1>
+          {% if web_user.is_admin %}
+          <span class="px-2 py-0.5 bg-yellow-500/20 text-yellow-400 text-xs rounded-full font-medium"><i class="fas fa-crown mr-1"></i>Admin</span>
+          {% endif %}
+          {% if web_user.is_vip %}
+          <span class="px-2 py-0.5 bg-purple-500/20 text-purple-300 text-xs rounded-full font-medium" title="Early Tester">⭐ Early Tester</span>
+          {% endif %}
+          <span id="profile-flair-badge" class="text-sm text-yellow-300 font-medium"></span>
+        </div>
+        <p class="text-gray-500 text-sm">@{{ web_user.username }}</p>
+        <p id="profile-rank-title" class="text-xs text-amber-400 font-medium mt-0.5"></p>
+      </div>
+
+      <!-- Tab switcher (desktop) -->
+      <div class="hidden sm:flex items-center gap-2 ml-auto pt-12">
+        <button @click="tab='overview'; history.replaceState(null,'',location.pathname)"
+                :class="tab==='overview' ? 'bg-indigo-600 text-white' : 'bg-neutral-800 text-gray-400 hover:text-white'"
+                class="px-4 py-2 rounded-lg text-sm font-medium transition">
+          <i class="fas fa-user mr-1"></i>Overview
+        </button>
+        <button @click="tab='edit'; history.replaceState(null,'',location.pathname+'#edit')"
+                :class="tab==='edit' ? 'bg-indigo-600 text-white' : 'bg-neutral-800 text-gray-400 hover:text-white'"
+                class="px-4 py-2 rounded-lg text-sm font-medium transition">
+          <i class="fas fa-edit mr-1"></i>Edit Profile
+        </button>
+      </div>
+    </div>
+
+    <!-- Stats row -->
+    <div class="flex flex-wrap gap-4 text-sm border-t border-neutral-800 pt-4">
+      <span class="text-white font-semibold">{{ web_user.post_count|default:"0" }} <span class="text-gray-500 font-normal">Posts</span></span>
+      <span class="text-white font-semibold">{{ web_user.follower_count|default:"0" }} <span class="text-gray-500 font-normal">Followers</span></span>
+      <span class="text-white font-semibold">{{ web_user.following_count|default:"0" }} <span class="text-gray-500 font-normal">Following</span></span>
+      <span class="text-white font-semibold">{{ web_user.hero_points|default:"0" }} <span class="text-gray-500 font-normal">Hero Points</span></span>
+      <span class="text-white font-semibold">Level {{ web_user.web_level|default:"1" }} <span class="text-gray-500 font-normal">/ {{ web_user.web_xp|default:"0" }} XP</span></span>
+    </div>
+  </div>
+
+  <!-- Mobile tab switcher -->
+  <div class="flex sm:hidden gap-2 mb-5">
+    <button @click="tab='overview'; history.replaceState(null,'',location.pathname)"
+            :class="tab==='overview' ? 'bg-indigo-600 text-white' : 'bg-neutral-800 text-gray-400'"
+            class="flex-1 py-2 rounded-lg text-sm font-medium transition">Overview</button>
+    <button @click="tab='edit'; history.replaceState(null,'',location.pathname+'#edit')"
+            :class="tab==='edit' ? 'bg-indigo-600 text-white' : 'bg-neutral-800 text-gray-400'"
+            class="flex-1 py-2 rounded-lg text-sm font-medium transition">Edit Profile</button>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════ -->
+  <!-- OVERVIEW TAB                                                   -->
+  <!-- ══════════════════════════════════════════════════════════════ -->
+  <div x-show="tab==='overview'" class="space-y-5">
+
+    <!-- XP bar -->
+    <div class="bg-neutral-900/50 rounded-lg border border-neutral-800 p-5">
+      <div class="flex items-center justify-between mb-2">
+        <span class="text-white font-semibold flex items-center gap-2">
+          <i class="fas fa-star text-yellow-400"></i>Level <span id="user-level">{{ web_user.web_level|default:"1" }}</span>
+        </span>
+        <span id="xp-label" class="text-xs text-gray-400">{{ web_user.web_xp|default:"0" }} XP total</span>
+      </div>
+      <div class="w-full bg-neutral-800 rounded-full h-2.5">
+        <div id="xp-bar" class="bg-gradient-to-r from-yellow-500 to-amber-400 h-2.5 rounded-full transition-all duration-500" style="width:0%"></div>
+      </div>
+      <p id="xp-next-label" class="text-xs text-gray-500 mt-1.5"></p>
+    </div>
+
+    <!-- About (bio + gaming info merged) -->
+    <div class="bg-neutral-900/50 rounded-lg border border-neutral-800 p-5">
+      <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">About</h3>
+      {% if web_user.bio %}
+      <p class="text-gray-300 text-sm leading-relaxed mb-4">{{ web_user.bio }}</p>
+      {% endif %}
+      {% if playstyle_list or gaming_platforms_list or favorite_genres_list %}
+      <div class="space-y-2 {% if web_user.bio %}border-t border-neutral-800 pt-4{% endif %}">
+        {% if playstyle_list %}
+        <div class="flex items-center gap-2">
+          <i class="fas fa-gamepad text-indigo-400 text-xs w-4 flex-shrink-0"></i>
+          <div class="flex flex-wrap gap-1">
+            {% for s in playstyle_list %}
+            <span class="px-2 py-0.5 bg-indigo-900/30 text-indigo-300 text-xs rounded">{{ s }}</span>
+            {% endfor %}
+          </div>
+        </div>
+        {% endif %}
+        {% if gaming_platforms_list %}
+        <div class="flex items-center gap-2">
+          <i class="fas fa-desktop text-gray-500 text-xs w-4"></i>
+          <div class="flex flex-wrap gap-1">
+            {% for p in gaming_platforms_list %}
+            <span class="px-2 py-0.5 bg-neutral-700 text-gray-300 text-xs rounded">{{ p }}</span>
+            {% endfor %}
+          </div>
+        </div>
+        {% endif %}
+        {% if favorite_genres_list %}
+        <div class="flex items-center gap-2">
+          <i class="fas fa-tag text-gray-500 text-xs w-4"></i>
+          <div class="flex flex-wrap gap-1">
+            {% for g in favorite_genres_list %}
+            <span class="px-2 py-0.5 bg-indigo-900/40 text-indigo-300 text-xs rounded">{{ g }}</span>
+            {% endfor %}
+          </div>
+        </div>
+        {% endif %}
+      </div>
+      {% endif %}
+      {% if not web_user.bio and not playstyle_list and not gaming_platforms_list and not favorite_genres_list %}
+      <p class="text-gray-600 text-sm italic">Nothing here yet. <button @click="tab='edit'" class="text-indigo-400 hover:underline">Edit your profile</button></p>
+      {% endif %}
+    </div>
+
+    <!-- Active Flair -->
+    <div class="bg-neutral-900/50 rounded-lg border border-neutral-800 p-5">
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-2"><i class="fas fa-gem text-purple-400"></i>Active Flair</h3>
+        <a href="{% url 'questlog_web_shop' %}" class="text-xs bg-purple-600 hover:bg-purple-500 text-white px-3 py-1.5 rounded-lg transition"><i class="fas fa-store mr-1"></i>Hero Shop</a>
+      </div>
+      <div id="flair-loading" class="text-gray-500 text-sm"><i class="fas fa-spinner fa-spin mr-1"></i>Loading…</div>
+      <div id="flair-equipped" class="hidden flex items-center gap-4 p-3 bg-yellow-900/20 border border-yellow-700/40 rounded-lg">
+        <span id="flair-emoji-display" class="text-3xl"></span>
+        <div><p id="flair-name-display" class="text-white font-semibold"></p><p id="flair-desc-display" class="text-xs text-gray-400"></p></div>
+        <button onclick="unequipFlair()" class="ml-auto text-xs bg-neutral-700 hover:bg-neutral-600 text-gray-300 px-3 py-1.5 rounded-lg transition">Unequip</button>
+      </div>
+      <p id="flair-none" class="hidden text-gray-500 text-sm">No flair equipped. <a href="{% url 'questlog_web_shop' %}" class="text-purple-400 hover:underline">Visit the Hero Shop</a></p>
+      <div id="flair-feedback" class="mt-3 hidden"></div>
+    </div>
+
+    <!-- Social & Connected Accounts -->
+    <div class="bg-neutral-900/50 rounded-lg border border-neutral-800 p-5">
+      <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3"><i class="fas fa-link text-indigo-400 mr-1"></i>Connected Accounts</h3>
+      <div class="space-y-2">
+        <!-- Steam -->
+        <div class="bg-neutral-800/50 rounded-lg overflow-hidden">
+          <div class="flex items-center justify-between p-3">
+            <div class="flex items-center gap-3">
+              <i class="fab fa-steam text-xl text-blue-400"></i>
+              <div>
+                <p class="text-white text-sm font-medium">Steam</p>
+                {% if web_user.steam_id %}<p class="text-xs text-gray-400">{{ web_user.steam_username|default:web_user.steam_id }}</p>{% else %}<p class="text-xs text-gray-500">Not connected</p>{% endif %}
+              </div>
+            </div>
+            {% if web_user.steam_id %}
+            <div class="flex items-center gap-3">
+              <span class="text-green-400 text-xs"><i class="fas fa-check-circle mr-1"></i>Connected</span>
+              <form method="post" action="{% url 'questlog_web_steam_unlink' %}" onsubmit="return confirm('Disconnect Steam? You can re-link anytime.');" class="inline">
+                {% csrf_token %}
+                <button type="submit" class="text-red-400 hover:text-red-300 text-xs font-medium transition">Disconnect</button>
+              </form>
+            </div>
+            {% else %}
+            <a href="{% url 'questlog_web_steam_link' %}" class="text-xs bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg transition">Connect</a>
+            {% endif %}
+          </div>
+          {% if web_user.steam_id %}
+          <div class="border-t border-neutral-700/50 px-4 py-3 bg-neutral-900/30">
+            <p class="text-xs text-gray-400 mb-2 flex items-center gap-1"><i class="fas fa-star text-yellow-500 text-xs"></i>Steam tracking — earn XP automatically</p>
+            <div class="space-y-1.5">
+              <label class="flex items-center gap-2 cursor-pointer group">
+                <input type="checkbox" id="trackAchievements" {% if web_user.track_achievements %}checked{% endif %}
+                       onchange="saveSteamPrefs()" class="rounded bg-neutral-700 border-neutral-600 text-yellow-500">
+                <span class="text-xs text-gray-300 group-hover:text-white transition">Track achievements <span class="text-yellow-500">+5 XP each</span></span>
+              </label>
+              <label class="flex items-center gap-2 cursor-pointer group">
+                <input type="checkbox" id="trackHoursPlayed" {% if web_user.track_hours_played %}checked{% endif %}
+                       onchange="saveSteamPrefs()" class="rounded bg-neutral-700 border-neutral-600 text-yellow-500">
+                <span class="text-xs text-gray-300 group-hover:text-white transition">Track hours played <span class="text-yellow-500">+1 XP / hour</span></span>
+              </label>
+              <label class="flex items-center gap-2 cursor-pointer group">
+                <input type="checkbox" id="showPlayingStatus" {% if web_user.show_playing_status %}checked{% endif %}
+                       onchange="saveSteamPrefs()" class="rounded bg-neutral-700 border-neutral-600 text-cyan-500">
+                <span class="text-xs text-gray-300 group-hover:text-white transition">Show currently playing game <span class="text-cyan-400">neon glow</span></span>
+              </label>
+            </div>
+            <p id="steamPrefsStatus" class="text-xs text-gray-500 mt-1.5 hidden"></p>
+          </div>
+          {% endif %}
+        </div>
+        <!-- Discord -->
+        <div class="flex items-center justify-between p-3 bg-neutral-800/50 rounded-lg">
+          <div class="flex items-center gap-3">
+            <i class="fab fa-discord text-xl text-indigo-400"></i>
+            <div>
+              <p class="text-white text-sm font-medium">Discord</p>
+              {% if web_user.discord_id %}<p class="text-xs text-gray-400">{{ web_user.discord_username|default:"Connected" }}</p>{% else %}<p class="text-xs text-gray-500">Not connected</p>{% endif %}
+            </div>
+          </div>
+          {% if web_user.discord_id %}
+          <div class="flex items-center gap-3">
+            <span class="text-green-400 text-xs"><i class="fas fa-check-circle mr-1"></i>Connected</span>
+            <form method="post" action="{% url 'questlog_web_discord_unlink' %}" onsubmit="return confirm('Disconnect Discord?');" class="inline">
+              {% csrf_token %}
+              <button type="submit" class="text-red-400 hover:text-red-300 text-xs font-medium transition">Disconnect</button>
+            </form>
+          </div>
+          {% else %}
+          <a href="{% url 'questlog_web_discord_link' %}" class="text-xs bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-lg transition">Connect</a>
+          {% endif %}
+        </div>
+        <!-- Twitch -->
+        <div class="flex items-center justify-between p-3 bg-neutral-800/50 rounded-lg">
+          <div class="flex items-center gap-3">
+            <i class="fab fa-twitch text-xl text-purple-400"></i>
+            <div>
+              <p class="text-white text-sm font-medium">Twitch</p>
+              {% if creator_profile and creator_profile.twitch_user_id %}
+              <p class="text-xs text-purple-300">{{ creator_profile.twitch_display_name }} &middot; {{ creator_profile.twitch_follower_count|default:0 }} followers</p>
+              {% elif web_user.twitch_username %}
+              <p class="text-xs text-gray-400">{{ web_user.twitch_username }}</p>
+              {% else %}
+              <p class="text-xs text-gray-500">Not connected</p>
+              {% endif %}
+            </div>
+          </div>
+          {% if creator_profile and creator_profile.twitch_user_id %}
+          <a href="{% url 'questlog_web_creator_register' %}" class="text-xs text-purple-400 hover:text-purple-300">Manage <i class="fas fa-external-link-alt ml-1"></i></a>
+          {% elif web_user.twitch_username %}
+          <div class="flex items-center gap-3">
+            <span class="text-green-400 text-xs"><i class="fas fa-check-circle mr-1"></i>Connected</span>
+            <a href="https://twitch.tv/{{ web_user.twitch_username }}" target="_blank" rel="noopener" class="text-xs text-purple-400 hover:text-purple-300">View <i class="fas fa-external-link-alt ml-1"></i></a>
+          </div>
+          {% else %}
+          <a href="{% url 'questlog_web_creator_register' %}" class="text-xs bg-neutral-700 hover:bg-neutral-600 text-gray-300 px-3 py-1.5 rounded-lg transition">Connect</a>
+          {% endif %}
+        </div>
+        <!-- YouTube -->
+        <div class="flex items-center justify-between p-3 bg-neutral-800/50 rounded-lg">
+          <div class="flex items-center gap-3">
+            <i class="fab fa-youtube text-xl text-red-500"></i>
+            <div>
+              <p class="text-white text-sm font-medium">YouTube</p>
+              {% if creator_profile and creator_profile.youtube_channel_id %}
+              <p class="text-xs text-red-300">{{ creator_profile.youtube_channel_name }} &middot; {{ creator_profile.youtube_subscriber_count|default:0 }} subs</p>
+              {% elif web_user.youtube_channel_name %}
+              <p class="text-xs text-gray-400">{{ web_user.youtube_channel_name }}</p>
+              {% else %}
+              <p class="text-xs text-gray-500">Not connected</p>
+              {% endif %}
+            </div>
+          </div>
+          {% if creator_profile and creator_profile.youtube_channel_id %}
+          <a href="{% url 'questlog_web_creator_register' %}" class="text-xs text-red-400 hover:text-red-300">Manage <i class="fas fa-external-link-alt ml-1"></i></a>
+          {% elif web_user.youtube_channel_name %}
+          <div class="flex items-center gap-3">
+            <span class="text-green-400 text-xs"><i class="fas fa-check-circle mr-1"></i>Connected</span>
+            <a href="https://youtube.com/@{{ web_user.youtube_channel_name }}" target="_blank" rel="noopener" class="text-xs text-red-400 hover:text-red-300">View <i class="fas fa-external-link-alt ml-1"></i></a>
+          </div>
+          {% else %}
+          <button @click="tab='edit'" class="text-xs bg-neutral-700 hover:bg-neutral-600 text-gray-300 px-3 py-1.5 rounded-lg transition">Add</button>
+          {% endif %}
+        </div>
+        <!-- Creator social links -->
+        {% if creator_profile %}
+          {% if creator_profile.twitter_url %}
+          <div class="flex items-center justify-between p-3 bg-neutral-800/50 rounded-lg">
+            <div class="flex items-center gap-3">
+              <i class="fab fa-x-twitter text-xl text-gray-300"></i>
+              <p class="text-white text-sm font-medium">X / Twitter</p>
+            </div>
+            <a href="{{ creator_profile.twitter_url }}" target="_blank" rel="noopener" class="text-xs text-gray-400 hover:text-white">Open <i class="fas fa-external-link-alt ml-1"></i></a>
+          </div>
+          {% endif %}
+          {% if creator_profile.bluesky_url %}
+          <div class="flex items-center justify-between p-3 bg-neutral-800/50 rounded-lg">
+            <div class="flex items-center gap-3">
+              <i class="fas fa-cloud text-xl text-sky-400"></i>
+              <p class="text-white text-sm font-medium">Bluesky</p>
+            </div>
+            <a href="{{ creator_profile.bluesky_url }}" target="_blank" rel="noopener" class="text-xs text-sky-400 hover:text-sky-300">Open <i class="fas fa-external-link-alt ml-1"></i></a>
+          </div>
+          {% endif %}
+          {% if creator_profile.tiktok_url %}
+          <div class="flex items-center justify-between p-3 bg-neutral-800/50 rounded-lg">
+            <div class="flex items-center gap-3">
+              <i class="fab fa-tiktok text-xl text-pink-400"></i>
+              <p class="text-white text-sm font-medium">TikTok</p>
+            </div>
+            <a href="{{ creator_profile.tiktok_url }}" target="_blank" rel="noopener" class="text-xs text-pink-400 hover:text-pink-300">Open <i class="fas fa-external-link-alt ml-1"></i></a>
+          </div>
+          {% endif %}
+          {% if creator_profile.instagram_url %}
+          <div class="flex items-center justify-between p-3 bg-neutral-800/50 rounded-lg">
+            <div class="flex items-center gap-3">
+              <i class="fab fa-instagram text-xl text-pink-500"></i>
+              <p class="text-white text-sm font-medium">Instagram</p>
+            </div>
+            <a href="{{ creator_profile.instagram_url }}" target="_blank" rel="noopener" class="text-xs text-pink-400 hover:text-pink-300">Open <i class="fas fa-external-link-alt ml-1"></i></a>
+          </div>
+          {% endif %}
+          {% if creator_profile.website_url %}
+          <div class="flex items-center justify-between p-3 bg-neutral-800/50 rounded-lg">
+            <div class="flex items-center gap-3">
+              <i class="fas fa-globe text-xl text-green-400"></i>
+              <p class="text-white text-sm font-medium">Website</p>
+            </div>
+            <a href="{{ creator_profile.website_url }}" target="_blank" rel="noopener" class="text-xs text-green-400 hover:text-green-300">Open <i class="fas fa-external-link-alt ml-1"></i></a>
+          </div>
+          {% endif %}
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Invite Friends -->
+    <div class="bg-neutral-900/50 rounded-lg border border-orange-900/30 p-4">
+      <div class="flex items-center justify-between gap-3 mb-2">
+        <span class="text-sm font-semibold text-white flex items-center gap-2">
+          <i class="fas fa-user-plus text-orange-400"></i>Invite Friends
+        </span>
+        <span class="text-xs text-gray-500" id="inviteStats">Loading…</span>
+      </div>
+      <p class="text-xs text-gray-500 mb-3">Earn <span class="text-orange-400 font-medium">+50 XP</span> for each friend who joins and verifies their email.</p>
+      <div class="flex items-center gap-2">
+        <input id="inviteLinkInput" type="text" readonly
+               class="flex-1 bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-gray-300 focus:outline-none"
+               value="Loading…">
+        <button onclick="copyInviteLink()"
+                class="flex-shrink-0 bg-orange-600 hover:bg-orange-500 text-white px-4 py-2 rounded-lg text-sm font-medium transition flex items-center gap-2">
+          <i class="fas fa-copy" id="copyIcon"></i><span id="copyLabel">Copy</span>
+        </button>
+      </div>
+      <p id="inviteCopyStatus" class="text-xs text-green-400 mt-2 hidden">Copied!</p>
+    </div>
+
+  </div><!-- /overview -->
+
+  <!-- ══════════════════════════════════════════════════════════════ -->
+  <!-- EDIT PROFILE TAB                                               -->
+  <!-- ══════════════════════════════════════════════════════════════ -->
+  <div x-show="tab==='edit'" class="space-y-5">
+
+    <!-- Identity -->
+    <div class="bg-neutral-900/50 rounded-lg border border-neutral-800 p-6">
+      <h2 class="text-base font-semibold text-white mb-4"><i class="fas fa-id-card text-blue-400 mr-2"></i>Identity</h2>
+      <div class="flex items-start gap-5 mb-4">
+        <div class="flex-shrink-0">
+          {% if web_user.avatar_url %}
+          <img src="{{ web_user.avatar_url }}" id="avatarPreview" class="w-20 h-20 rounded-xl object-cover">
+          {% else %}
+          <div id="avatarPreview" class="w-20 h-20 rounded-xl bg-indigo-600 flex items-center justify-center">
+            <span class="text-xl font-bold text-white">{{ web_user.username|slice:":2"|upper }}</span>
+          </div>
+          {% endif %}
+        </div>
+        <div class="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="text-xs text-gray-400 mb-1 block">Username</label>
+            <input type="text" id="pe-username" value="{{ web_user.username }}"
+                   class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-blue-500 focus:outline-none">
+          </div>
+          <div>
+            <label class="text-xs text-gray-400 mb-1 block">Display Name</label>
+            <input type="text" id="pe-displayName" value="{{ web_user.display_name|default:web_user.username }}"
+                   class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-blue-500 focus:outline-none">
+          </div>
+          <div class="sm:col-span-2">
+            <label class="text-xs text-gray-400 mb-1 block">Profile Picture</label>
+            <div class="flex flex-wrap items-center gap-2 mb-2">
+              <input type="file" id="avatarFileInput" accept="image/*" class="hidden" onchange="uploadAvatarFile(this)">
+              <button type="button" onclick="document.getElementById('avatarFileInput').click()"
+                      class="bg-neutral-700 hover:bg-neutral-600 text-white px-3 py-1.5 rounded-lg text-xs transition">
+                <i class="fas fa-upload mr-1"></i>Upload
+              </button>
+              {% if web_user.steam_avatar %}
+              <button type="button" onclick="pullAvatar('steam')"
+                      class="flex items-center gap-1.5 bg-blue-900/30 hover:bg-blue-900/50 border border-blue-800/40 text-blue-300 px-3 py-1.5 rounded-lg text-xs transition">
+                <i class="fab fa-steam"></i>Use Steam
+              </button>
+              {% endif %}
+              {% if web_user.discord_id %}
+              <button type="button" onclick="pullAvatar('discord')"
+                      class="flex items-center gap-1.5 bg-indigo-900/30 hover:bg-indigo-900/50 border border-indigo-800/40 text-indigo-300 px-3 py-1.5 rounded-lg text-xs transition">
+                <i class="fab fa-discord"></i>Use Discord
+              </button>
+              {% endif %}
+              <span id="avatarUploadStatus" class="text-xs text-gray-500"></span>
+            </div>
+            <input type="url" id="pe-avatarUrl" value="{{ web_user.avatar_url|default:'' }}"
+                   placeholder="Or paste a URL directly..."
+                   oninput="previewAvatar(this.value)"
+                   class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-blue-500 focus:outline-none">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- About -->
+    <div class="bg-neutral-900/50 rounded-lg border border-neutral-800 p-6">
+      <h2 class="text-base font-semibold text-white mb-4"><i class="fas fa-comment text-green-400 mr-2"></i>About</h2>
+      <textarea id="pe-bio" rows="4" placeholder="Tell people about yourself..."
+                class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-green-500 focus:outline-none resize-y min-h-[80px]">{{ web_user.bio|default:"" }}</textarea>
+    </div>
+
+    <!-- Gaming Profile -->
+    <div class="bg-neutral-900/50 rounded-lg border border-neutral-800 p-6">
+      <h2 class="text-base font-semibold text-white mb-4"><i class="fas fa-gamepad text-indigo-400 mr-2"></i>Gaming Profile</h2>
+      <div class="space-y-4">
+        <div>
+          <label class="text-xs text-gray-400 mb-2 block">Playstyle <span class="text-gray-600 font-normal">(pick all that apply)</span></label>
+          <div id="playstyle-select-container"></div>
+        </div>
+        <div>
+          <label class="text-xs text-gray-400 mb-2 block">Gaming Platforms</label>
+          <div id="platform-select-container"></div>
+        </div>
+        <div>
+          <label class="text-xs text-gray-400 mb-2 block">Favourite Genres</label>
+          <div id="genre-select-container"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Creator Profile -->
+    <div class="bg-neutral-900/50 rounded-lg border border-neutral-800 p-6">
+      <div class="flex items-center justify-between gap-4">
+        <div>
+          {% if creator_profile %}
+          <p class="text-sm text-white font-semibold flex items-center gap-2"><i class="fas fa-star text-yellow-400"></i>Creator Profile active</p>
+          <p class="text-xs text-gray-500 mt-1">Manage your full creator listing — Twitch, YouTube, Twitter, Bluesky, TikTok, Instagram and more.</p>
+          {% else %}
+          <p class="text-sm text-white font-semibold">Want to appear in Creator Discovery?</p>
+          <p class="text-xs text-gray-500 mt-1">Register a Creator Profile to add your content channels, get featured, and show up in the community directory.</p>
+          {% endif %}
+        </div>
+        <a href="{% url 'questlog_web_creator_register' %}"
+           class="flex-shrink-0 px-4 py-2 rounded-lg text-sm font-medium transition
+                  {% if creator_profile %}bg-neutral-700 hover:bg-neutral-600 text-white{% else %}bg-purple-600 hover:bg-purple-500 text-white{% endif %}">
+          {% if creator_profile %}<i class="fas fa-edit mr-1"></i>Manage{% else %}<i class="fas fa-plus mr-1"></i>Register{% endif %}
+        </a>
+      </div>
+    </div>
+
+    <!-- Privacy -->
+    <div class="bg-neutral-900/50 rounded-lg border border-neutral-800 p-6">
+      <h2 class="text-base font-semibold text-white mb-4"><i class="fas fa-eye text-gray-400 mr-2"></i>Privacy</h2>
+      <div class="space-y-3">
+        <label class="flex items-center gap-3 cursor-pointer">
+          <input type="checkbox" id="pe-discovery" {% if web_user.allow_discovery %}checked{% endif %}
+                 class="w-4 h-4 accent-indigo-500">
+          <div>
+            <p class="text-white text-sm">Show me in community discovery</p>
+            <p class="text-gray-500 text-xs">Hides you from Suggested Gamers, new member lists, and network search.</p>
+          </div>
+        </label>
+        <label class="flex items-center gap-3 cursor-pointer">
+          <input type="checkbox" id="showSteamProfile" {% if web_user.show_steam_profile %}checked{% endif %}
+                 onchange="saveUserPrefs()" class="w-4 h-4 accent-green-500">
+          <p class="text-white text-sm">Show my Steam profile link on my public profile</p>
+        </label>
+        <label class="flex items-center gap-3 cursor-pointer">
+          <input type="checkbox" id="showActivity" {% if web_user.show_activity %}checked{% endif %}
+                 onchange="saveUserPrefs()" class="w-4 h-4 accent-green-500">
+          <p class="text-white text-sm">Show my recent activity (groups joined, etc.)</p>
+        </label>
+        <label class="flex items-center gap-3 cursor-pointer">
+          <input type="checkbox" id="allowMessages" {% if web_user.allow_messages %}checked{% endif %}
+                 onchange="saveUserPrefs()" class="w-4 h-4 accent-green-500">
+          <p class="text-white text-sm">Allow other users to message me</p>
+        </label>
+      </div>
+      <p id="userPrefsStatus" class="text-xs mt-3 hidden"></p>
+    </div>
+
+    <!-- Notifications -->
+    <div class="bg-neutral-900/50 rounded-lg border border-neutral-800 p-6">
+      <h2 class="text-base font-semibold text-white mb-4"><i class="fas fa-bell text-yellow-400 mr-2"></i>Notifications</h2>
+      <div class="space-y-3">
+        <label class="flex items-center gap-3 cursor-pointer">
+          <input type="checkbox" id="notifyLfgJoin" {% if web_user.notify_lfg_join %}checked{% endif %}
+                 onchange="saveUserPrefs()" class="w-4 h-4 accent-yellow-500">
+          <p class="text-white text-sm">Someone joins my LFG group</p>
+        </label>
+        <label class="flex items-center gap-3 cursor-pointer">
+          <input type="checkbox" id="notifyLfgFull" {% if web_user.notify_lfg_full %}checked{% endif %}
+                 onchange="saveUserPrefs()" class="w-4 h-4 accent-yellow-500">
+          <p class="text-white text-sm">My LFG group is full</p>
+        </label>
+        <label class="flex items-center gap-3 cursor-pointer">
+          <input type="checkbox" id="notifyCommunity" {% if web_user.notify_community_join %}checked{% endif %}
+                 onchange="saveUserPrefs()" class="w-4 h-4 accent-yellow-500">
+          <p class="text-white text-sm">New member joins my community</p>
+        </label>
+      </div>
+    </div>
+
+    <!-- Save -->
+    <div class="flex justify-end">
+      <button id="pe-save" onclick="saveProfile()"
+              class="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-3 rounded-lg font-semibold text-sm transition">
+        <i class="fas fa-save mr-2"></i>Save Changes
+      </button>
+    </div>
+    <div id="pe-feedback" class="hidden p-3 rounded-lg text-sm"></div>
+
+    <!-- Data & Privacy -->
+    <div class="bg-neutral-900/50 rounded-lg border border-red-900/30 p-6 mt-4">
+      <h2 class="text-base font-semibold text-white mb-1"><i class="fas fa-shield-alt text-indigo-400 mr-2"></i>Your Data</h2>
+      <p class="text-gray-400 text-sm mb-4">Your data is yours. Download a full copy or permanently delete your account.</p>
+      <div class="flex flex-wrap gap-3">
+        <button onclick="downloadMyData()" id="downloadBtn"
+                class="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-lg text-sm font-medium transition">
+          <i class="fas fa-download"></i>Download My Data
+        </button>
+        <button onclick="confirmDeleteAccount()"
+                class="flex items-center gap-2 bg-red-900/40 hover:bg-red-800/60 text-red-400 border border-red-700/40 px-4 py-2 rounded-lg text-sm font-medium transition">
+          <i class="fas fa-trash-alt"></i>Delete My Account
+        </button>
+      </div>
+      <div id="dataFeedback" class="hidden mt-4 p-3 rounded-lg text-sm"></div>
+    </div>
+
+  </div><!-- /edit -->
+
+</div><!-- /x-data -->
+
+<!-- Delete modal -->
+<div id="deleteModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">
+  <div class="bg-neutral-900 border border-red-700/50 rounded-xl p-6 max-w-md w-full">
+    <h3 class="text-white font-bold text-lg mb-2 flex items-center gap-2">
+      <i class="fas fa-exclamation-triangle text-red-400"></i>Delete Your Account
+    </h3>
+    <p class="text-gray-300 text-sm mb-3 leading-relaxed">
+      This permanently deletes your account and everything tied to it: posts, comments, likes, follows, uploads, and all profile data.
+      <strong class="text-white">This cannot be undone.</strong>
+    </p>
+    <p class="text-gray-400 text-sm mb-5">Type <span class="text-red-400 font-mono font-semibold">DELETE</span> to confirm:</p>
+    <input type="text" id="deleteConfirmInput" placeholder="Type DELETE here"
+           class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm mb-4 focus:border-red-500 focus:outline-none">
+    <div class="flex gap-3">
+      <button onclick="document.getElementById('deleteModal').classList.add('hidden')"
+              class="flex-1 bg-neutral-700 hover:bg-neutral-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition">Cancel</button>
+      <button onclick="executeDelete()" id="deleteConfirmBtn"
+              class="flex-1 bg-red-700 hover:bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition">
+        <i class="fas fa-trash-alt mr-1"></i>Permanently Delete
+      </button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{{ playstyle_list|default:"[]"|json_script:"profile-playstyle-data" }}
+{{ gaming_platforms_list|default:"[]"|json_script:"profile-platforms-data" }}
+{{ favorite_genres_list|default:"[]"|json_script:"profile-genres-data" }}
+{% include "questlog/partials/custom_select.html" %}
+<script>
+(function() {
+  // ── XP bar ────────────────────────────────────────────────────
+  const currentXp  = {{ web_user.web_xp|default:0 }};
+  const currentLvl = {{ web_user.web_level|default:1 }};
+  // Matches Python: threshold for level n = sum of int(7*(i+1)^1.5) for i=1..n-1
+  function xpForLevel(lvl) {
+    let t = 0; for (let i = 1; i < lvl; i++) t += Math.trunc(7 * Math.pow(i + 1, 1.5)); return t;
+  }
+  const xpStart  = xpForLevel(currentLvl);
+  const xpEnd    = xpForLevel(currentLvl + 1);
+  const xpInLvl  = currentXp - xpStart;
+  const xpNeeded = xpEnd - xpStart;
+  const pct      = xpNeeded > 0 ? Math.min(100, Math.round((xpInLvl / xpNeeded) * 100)) : 100;
+  document.getElementById('xp-bar').style.width = pct + '%';
+  document.getElementById('xp-next-label').textContent =
+    currentLvl < 99 ? `${xpInLvl} / ${xpNeeded} XP to Level ${currentLvl + 1}` : 'Max level reached!';
+
+  // ── Rank title ────────────────────────────────────────────────
+  const RANK_MILESTONES = [
+    [99,'The Fated One'],[80,'Mythic Wraith'],[65,'Undying Sovereign'],[50,'Elden Seeker'],
+    [40,'Sovereign of Cinder'],[30,'Ashen Lord'],[20,'Phantom Blade'],[15,'Soul Bearer'],
+    [10,'Cursed Champion'],[5,'Ember Knight'],[1,'Hollow Wanderer'],
+  ];
+  const rankEntry = RANK_MILESTONES.find(([l]) => currentLvl >= l);
+  if (rankEntry) document.getElementById('profile-rank-title').textContent = rankEntry[1];
+
+  // ── Active flair ──────────────────────────────────────────────
+  async function loadActiveFlair() {
+    try {
+      const res  = await csrfFetch('/ql/api/flairs/');
+      const data = await res.json();
+      document.getElementById('flair-loading').classList.add('hidden');
+      const eq   = data.flairs && data.flairs.find(f => f.equipped);
+      if (eq) {
+        document.getElementById('flair-emoji-display').textContent  = eq.emoji || '';
+        document.getElementById('flair-name-display').textContent   = eq.name;
+        document.getElementById('flair-desc-display').textContent   = eq.description || '';
+        document.getElementById('flair-equipped').classList.remove('hidden');
+        document.getElementById('profile-flair-badge').textContent  = (eq.emoji ? eq.emoji + ' ' : '') + eq.name;
+      } else {
+        document.getElementById('flair-none').classList.remove('hidden');
+      }
+    } catch(e) {
+      document.getElementById('flair-loading').textContent = '';
+      document.getElementById('flair-none').classList.remove('hidden');
+    }
+  }
+  loadActiveFlair();
+
+  window.unequipFlair = async function() {
+    try {
+      const res  = await csrfFetch('/ql/api/flairs/unequip/', { method: 'POST' });
+      const data = await res.json();
+      if (data.success) {
+        document.getElementById('profile-flair-badge').textContent = '';
+        document.getElementById('flair-equipped').classList.add('hidden');
+        document.getElementById('flair-none').classList.remove('hidden');
+        showFlairFeedback('Flair removed.', true);
+      }
+    } catch(e) { showFlairFeedback('Error removing flair.', false); }
+  };
+  function showFlairFeedback(msg, ok) {
+    const el = document.getElementById('flair-feedback');
+    el.className = `mt-3 p-3 rounded text-sm ${ok ? 'bg-green-900/40 text-green-300' : 'bg-red-900/40 text-red-300'}`;
+    el.textContent = msg;
+    el.classList.remove('hidden');
+    setTimeout(() => el.classList.add('hidden'), 4000);
+  }
+
+  // ── Gaming Profile custom selects ────────────────────────────
+  const _playstyleChoices = ['Casual','Hardcore','Competitive','Completionist','Explorer','Social'];
+  const _platformChoices  = ['PC','PS5','PS4','Xbox Series','Xbox One','Switch','Mobile','Steam Deck'];
+  const _genreChoices     = ['RPG','FPS','MOBA','MMO','Strategy','Simulation','Survival','Horror','Souls-like','Platformer','Roguelike','Sports','Racing','Fighting','Puzzle'];
+
+  const playstyleSelect = createCustomSelect({
+    container:    '#playstyle-select-container',
+    name:         'pe-playstyle', id: 'pe-playstyle',
+    placeholder:  'Pick your playstyle(s)…',
+    items:        _playstyleChoices.map(s => ({ value: s, label: s })),
+    selected:     JSON.parse(document.getElementById('profile-playstyle-data').textContent),
+    color:        'indigo',
+    multiSelect:  true,
+  });
+
+  const platformSelect = createCustomSelect({
+    container:    '#platform-select-container',
+    name:         'pe-platforms', id: 'pe-platforms',
+    placeholder:  'Select your platforms…',
+    items:        _platformChoices.map(p => ({ value: p, label: p })),
+    selected:     JSON.parse(document.getElementById('profile-platforms-data').textContent),
+    color:        'indigo',
+    multiSelect:  true,
+  });
+
+  const genreSelect = createCustomSelect({
+    container:    '#genre-select-container',
+    name:         'pe-genres', id: 'pe-genres',
+    placeholder:  'Select your favourite genres…',
+    items:        _genreChoices.map(g => ({ value: g, label: g })),
+    selected:     JSON.parse(document.getElementById('profile-genres-data').textContent),
+    color:        'purple',
+    multiSelect:  true,
+  });
+
+  // ── Avatar preview ─────────────────────────────────────────────
+  window.previewAvatar = function(url) {
+    const el = document.getElementById('avatarPreview');
+    if (url && url.startsWith('http')) {
+      el.outerHTML = `<img id="avatarPreview" src="${url}" class="w-20 h-20 rounded-xl object-cover">`;
+    }
+  };
+
+  // ── Save profile ──────────────────────────────────────────────
+  window.saveProfile = async function() {
+    const btn = document.getElementById('pe-save');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Saving...';
+    const feedback = document.getElementById('pe-feedback');
+    feedback.classList.add('hidden');
+
+    const payload = {
+      username:         document.getElementById('pe-username').value.trim(),
+      display_name:     document.getElementById('pe-displayName').value.trim(),
+      avatar_url:       document.getElementById('pe-avatarUrl').value.trim() || null,
+      bio:              document.getElementById('pe-bio').value.trim() || null,
+      playstyle:        playstyleSelect.getValue(),
+      gaming_platforms: platformSelect.getValue(),
+      favorite_genres:  genreSelect.getValue(),
+      allow_discovery:  document.getElementById('pe-discovery').checked,
+    };
+
+    try {
+      const res  = await csrfFetch('/ql/api/profile/update/', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (data.success) {
+        feedback.className = 'p-3 rounded-lg text-sm bg-green-900/40 text-green-300';
+        feedback.textContent = 'Profile saved!';
+        feedback.classList.remove('hidden');
+        setTimeout(() => location.reload(), 1000);
+      } else {
+        feedback.className = 'p-3 rounded-lg text-sm bg-red-900/40 text-red-300';
+        feedback.textContent = data.error || 'Failed to save profile.';
+        feedback.classList.remove('hidden');
+      }
+    } catch(e) {
+      feedback.className = 'p-3 rounded-lg text-sm bg-red-900/40 text-red-300';
+      feedback.textContent = 'Network error. Please try again.';
+      feedback.classList.remove('hidden');
+    }
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-save mr-2"></i>Save Changes';
+  };
+
+  // ── Steam prefs ───────────────────────────────────────────────
+  window.saveSteamPrefs = async function() {
+    const status = document.getElementById('steamPrefsStatus');
+    const data = {
+      track_achievements:  document.getElementById('trackAchievements').checked,
+      track_hours_played:  document.getElementById('trackHoursPlayed').checked,
+      show_playing_status: document.getElementById('showPlayingStatus').checked,
+    };
+    try {
+      const res    = await csrfFetch('/ql/api/profile/steam-prefs/', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(data) });
+      const result = await res.json();
+      status.textContent  = result.success ? 'Saved!' : (result.error || 'Failed.');
+      status.className    = `text-xs mt-1.5 ${result.success ? 'text-green-400' : 'text-red-400'}`;
+    } catch(e) {
+      status.textContent = 'Failed. Please try again.';
+      status.className   = 'text-xs mt-1.5 text-red-400';
+    }
+    status.classList.remove('hidden');
+    setTimeout(() => status.classList.add('hidden'), 2500);
+  };
+
+  // ── Upload avatar file ────────────────────────────────────────
+  window.uploadAvatarFile = async function(input) {
+    if (!input.files || !input.files[0]) return;
+    const status = document.getElementById('avatarUploadStatus');
+    status.textContent = 'Uploading…';
+    const formData = new FormData();
+    formData.append('avatar', input.files[0]);
+    try {
+      const res  = await csrfFetch('/ql/api/profile/upload-avatar/', { method: 'POST', body: formData });
+      const data = await res.json();
+      if (data.success && data.url) {
+        document.getElementById('pe-avatarUrl').value = data.url;
+        const preview = document.getElementById('avatarPreview');
+        if (preview.tagName === 'IMG') {
+          preview.src = data.url;
+        } else {
+          preview.outerHTML = `<img id="avatarPreview" src="${data.url}" class="w-20 h-20 rounded-xl object-cover">`;
+        }
+        status.textContent = 'Uploaded!';
+        status.className   = 'text-xs text-green-400';
+      } else {
+        status.textContent = data.error || 'Upload failed.';
+        status.className   = 'text-xs text-red-400';
+      }
+    } catch(e) {
+      status.textContent = 'Upload failed.';
+      status.className   = 'text-xs text-red-400';
+    }
+    setTimeout(() => { status.textContent = ''; }, 3000);
+  };
+
+  // ── Pull avatar from Steam / Discord ─────────────────────────
+  window.pullAvatar = async function(source) {
+    const status = document.getElementById('avatarUploadStatus');
+    status.textContent = 'Pulling…';
+    try {
+      const res  = await csrfFetch('/ql/api/profile/pull-avatar/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ source }),
+      });
+      const data = await res.json();
+      if (data.success && data.url) {
+        document.getElementById('pe-avatarUrl').value = data.url;
+        const preview = document.getElementById('avatarPreview');
+        if (preview.tagName === 'IMG') {
+          preview.src = data.url;
+        } else {
+          preview.outerHTML = `<img id="avatarPreview" src="${data.url}" class="w-20 h-20 rounded-xl object-cover">`;
+        }
+        status.textContent = 'Done!';
+        status.className   = 'text-xs text-green-400';
+      } else {
+        status.textContent = data.error || 'Failed.';
+        status.className   = 'text-xs text-red-400';
+      }
+    } catch(e) {
+      status.textContent = 'Failed.';
+      status.className   = 'text-xs text-red-400';
+    }
+    setTimeout(() => { status.textContent = ''; }, 3000);
+  };
+
+  // ── Save user prefs (privacy + notifications) ─────────────────
+  window.saveUserPrefs = async function() {
+    const status = document.getElementById('userPrefsStatus');
+    const payload = {
+      show_steam_profile:    document.getElementById('showSteamProfile')?.checked ?? false,
+      show_activity:         document.getElementById('showActivity')?.checked ?? false,
+      allow_messages:        document.getElementById('allowMessages')?.checked ?? false,
+      notify_lfg_join:       document.getElementById('notifyLfgJoin')?.checked ?? false,
+      notify_lfg_full:       document.getElementById('notifyLfgFull')?.checked ?? false,
+      notify_community_join: document.getElementById('notifyCommunity')?.checked ?? false,
+    };
+    try {
+      const res  = await csrfFetch('/ql/api/profile/user-prefs/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (status) {
+        status.textContent = data.success ? 'Saved!' : (data.error || 'Failed.');
+        status.className   = `text-xs mt-3 ${data.success ? 'text-green-400' : 'text-red-400'}`;
+        status.classList.remove('hidden');
+        setTimeout(() => status.classList.add('hidden'), 2500);
+      }
+    } catch(e) {
+      if (status) {
+        status.textContent = 'Failed.';
+        status.className   = 'text-xs mt-3 text-red-400';
+        status.classList.remove('hidden');
+        setTimeout(() => status.classList.add('hidden'), 2500);
+      }
+    }
+  };
+
+  // ── Invite link ───────────────────────────────────────────────
+  async function loadInviteLink() {
+    try {
+      const res  = await csrfFetch('/ql/api/invite/');
+      const data = await res.json();
+      if (data.invite_url) {
+        document.getElementById('inviteLinkInput').value = data.invite_url;
+      }
+      const stats = document.getElementById('inviteStats');
+      if (stats && data.completed_referrals !== undefined) {
+        stats.textContent = `${data.completed_referrals} joined · ${data.pending_referrals || 0} pending`;
+      }
+    } catch(e) {
+      const el = document.getElementById('inviteLinkInput');
+      if (el) el.value = 'Failed to load.';
+    }
+  }
+
+  window.copyInviteLink = function() {
+    const input = document.getElementById('inviteLinkInput');
+    if (!input || !input.value || input.value === 'Loading…') return;
+    navigator.clipboard.writeText(input.value).then(() => {
+      document.getElementById('copyLabel').textContent = 'Copied!';
+      document.getElementById('copyIcon').className    = 'fas fa-check';
+      const status = document.getElementById('inviteCopyStatus');
+      if (status) status.classList.remove('hidden');
+      setTimeout(() => {
+        document.getElementById('copyLabel').textContent = 'Copy';
+        document.getElementById('copyIcon').className    = 'fas fa-copy';
+        if (status) status.classList.add('hidden');
+      }, 2000);
+    });
+  };
+
+  // Load invite link on overview (always visible there now)
+  loadInviteLink();
+
+  // ── Download / Delete ─────────────────────────────────────────
+  window.downloadMyData = async function() {
+    const btn      = document.getElementById('downloadBtn');
+    const feedback = document.getElementById('dataFeedback');
+    btn.disabled   = true;
+    btn.innerHTML  = '<i class="fas fa-spinner fa-spin mr-2"></i>Preparing…';
+    try {
+      const res = await csrfFetch('{% url "questlog_web_api_privacy_export" %}');
+      if (res.status === 429) {
+        feedback.className = 'mt-4 p-3 rounded-lg text-sm bg-yellow-900/30 text-yellow-300';
+        feedback.textContent = 'You can only download once per day.';
+        feedback.classList.remove('hidden');
+      } else if (res.ok) {
+        const blob = await res.blob();
+        const url  = URL.createObjectURL(blob);
+        const a    = document.createElement('a');
+        a.href     = url; a.download = 'questlog_data_export.json'; a.click();
+        URL.revokeObjectURL(url);
+        feedback.className   = 'mt-4 p-3 rounded-lg text-sm bg-green-900/30 text-green-300';
+        feedback.textContent = 'Download started.';
+        feedback.classList.remove('hidden');
+      }
+    } catch(e) {
+      feedback.className   = 'mt-4 p-3 rounded-lg text-sm bg-red-900/30 text-red-300';
+      feedback.textContent = 'Failed. Please try again.';
+      feedback.classList.remove('hidden');
+    }
+    btn.disabled  = false;
+    btn.innerHTML = '<i class="fas fa-download mr-2"></i>Download My Data';
+  };
+
+  window.confirmDeleteAccount = function() {
+    document.getElementById('deleteConfirmInput').value = '';
+    document.getElementById('deleteModal').classList.remove('hidden');
+    setTimeout(() => document.getElementById('deleteConfirmInput').focus(), 50);
+  };
+
+  window.executeDelete = async function() {
+    const input = document.getElementById('deleteConfirmInput').value.trim();
+    if (input !== 'DELETE') {
+      document.getElementById('deleteConfirmInput').classList.add('border-red-500');
+      return;
+    }
+    const btn    = document.getElementById('deleteConfirmBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>Deleting…';
+    try {
+      const res  = await csrfFetch('{% url "questlog_web_api_privacy_delete" %}', { method: 'POST' });
+      const data = await res.json();
+      if (data.success) { document.getElementById('deleteModal').classList.add('hidden'); window.location.href = '/'; }
+      else { alert(data.error || 'Deletion failed.'); btn.disabled = false; btn.innerHTML = '<i class="fas fa-trash-alt mr-1"></i>Permanently Delete'; }
+    } catch(e) { alert('An error occurred.'); btn.disabled = false; btn.innerHTML = '<i class="fas fa-trash-alt mr-1"></i>Permanently Delete'; }
+  };
+})();
+</script>
+{% endblock %}

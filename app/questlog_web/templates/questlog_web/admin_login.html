@@ -1,0 +1,175 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Access — QuestLog{% endblock %}
+
+{% block extra_css %}
+<style>
+.ql-login-page {
+    min-height: calc(100vh - 200px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 16px;
+}
+
+.ql-login-card {
+    background: #0f0f1a;
+    border: 1px solid #1e1e3a;
+    border-radius: 16px;
+    padding: 48px 40px;
+    width: 100%;
+    max-width: 420px;
+}
+
+.ql-login-logo {
+    font-size: 2rem;
+    margin-bottom: 8px;
+    text-align: center;
+}
+
+.ql-login-title {
+    font-size: 1.4rem;
+    font-weight: 800;
+    color: #fff;
+    margin-bottom: 6px;
+    text-align: center;
+}
+
+.ql-login-subtitle {
+    font-size: 0.85rem;
+    color: #4b5563;
+    margin-bottom: 32px;
+    text-align: center;
+}
+
+.ql-field {
+    margin-bottom: 16px;
+}
+
+.ql-field label {
+    display: block;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: #9ca3af;
+    margin-bottom: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.ql-field input {
+    width: 100%;
+    padding: 11px 14px;
+    background: #111827;
+    border: 1px solid #1f2937;
+    border-radius: 8px;
+    color: #e5e7eb;
+    font-size: 0.95rem;
+    outline: none;
+    transition: border-color 0.15s ease;
+    box-sizing: border-box;
+}
+
+.ql-field input:focus { border-color: #4f46e5; }
+.ql-field input::placeholder { color: #4b5563; }
+
+.ql-btn-primary {
+    display: block;
+    width: 100%;
+    padding: 13px 20px;
+    background: #4f46e5;
+    color: #fff;
+    font-size: 1rem;
+    font-weight: 700;
+    border-radius: 10px;
+    border: none;
+    cursor: pointer;
+    transition: background 0.15s ease, transform 0.1s ease;
+    margin-top: 8px;
+    text-align: center;
+}
+
+.ql-btn-primary:hover {
+    background: #4338ca;
+    transform: translateY(-1px);
+}
+
+.ql-messages { margin-bottom: 20px; }
+
+.ql-alert {
+    padding: 10px 14px;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    margin-bottom: 8px;
+}
+
+.ql-alert-error   { background: rgba(220, 38, 38, 0.1); border: 1px solid rgba(220, 38, 38, 0.3); color: #fca5a5; }
+.ql-alert-success { background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); color: #6ee7b7; }
+.ql-alert-warning { background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.3); color: #fcd34d; }
+
+@media (max-width: 480px) {
+    .ql-login-card { padding: 36px 20px; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="ql-login-page">
+  <div class="ql-login-card">
+
+    <div class="ql-login-logo">🔐</div>
+    <h1 class="ql-login-title">Restricted Access</h1>
+    <p class="ql-login-subtitle">Authorised personnel only</p>
+
+    {% if messages %}
+    <div class="ql-messages">
+      {% for msg in messages %}
+      <div class="ql-alert ql-alert-{{ msg.tags }}">{{ msg }}</div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    <form id="admin-login-form" method="post" action="{% url 'questlog_web_admin_login' %}" autocomplete="off">
+      {% csrf_token %}
+
+      <!-- Anti-bot: timing -->
+      <input type="hidden" name="_ts" value="0">
+
+      <!-- Honeypot -->
+      <div style="position:absolute;left:-9999px;top:-9999px;" aria-hidden="true">
+        <label for="id_al_website">Leave blank</label>
+        <input type="text" id="id_al_website" name="website" tabindex="-1" autocomplete="off">
+      </div>
+
+      <div class="ql-field">
+        <label for="id_username">Username</label>
+        <input type="text" id="id_username" name="username" placeholder="username" autocomplete="off" autofocus required>
+      </div>
+
+      <div class="ql-field">
+        <label for="id_password">Password</label>
+        <input type="password" id="id_password" name="password" placeholder="••••••••••••" autocomplete="off" required>
+      </div>
+
+      {% if turnstile_site_key %}
+      <div class="cf-turnstile" data-sitekey="{{ turnstile_site_key }}" style="margin: 14px 0 6px;"></div>
+      {% endif %}
+
+      <button type="submit" class="ql-btn-primary">Continue</button>
+    </form>
+
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{% if turnstile_site_key %}
+<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+{% endif %}
+<script>
+  document.addEventListener('DOMContentLoaded', function () {
+    var ts = document.querySelector('#admin-login-form [name="_ts"]');
+    if (ts) ts.value = Math.floor(Date.now() / 1000);
+  });
+</script>
+{% endblock %}

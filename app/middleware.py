@@ -2,21 +2,20 @@
 Custom middleware for Casual Heroes Django site
 """
 from django.shortcuts import redirect
+from django.conf import settings
 
 
 class DashboardDomainMiddleware:
     """
-    Redirect dashboard.casual-heroes.com to the Warden dashboard
+    Redirect the dashboard subdomain root to the Warden dashboard.
     """
     def __init__(self, get_response):
         self.get_response = get_response
 
     def __call__(self, request):
-        # Check if the request is for dashboard subdomain
         host = request.get_host().lower()
 
-        if 'dashboard.casual-heroes.com' in host:
-            # If at root path, redirect to warden dashboard
+        if settings.DASHBOARD_DOMAIN in host:
             if request.path == '/':
                 return redirect('/questlog/')
 

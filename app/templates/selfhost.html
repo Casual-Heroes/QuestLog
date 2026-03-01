@@ -1,0 +1,594 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}How To Host Your Own Matrix Server - Casual Heroes{% endblock %}
+{% block og_title %}Self-Host Your Own Matrix Server{% endblock %}
+{% block og_description %}A complete production guide to running Synapse, MAS auth, CoTURN, and Element Web on your own server.{% endblock %}
+{% block og_url %}https://casual-heroes.com/self-host/{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+<style>
+/* =============================================
+   PAGE LAYOUT
+   ============================================= */
+.sh-layout {
+    display: grid;
+    grid-template-columns: 260px 1fr;
+    gap: 40px;
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 40px 24px 80px;
+    align-items: start;
+}
+
+/* =============================================
+   SIDEBAR / TOC
+   ============================================= */
+.sh-sidebar {
+    position: sticky;
+    top: 24px;
+    max-height: calc(100vh - 48px);
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: #374151 transparent;
+}
+
+.sh-sidebar::-webkit-scrollbar { width: 4px; }
+.sh-sidebar::-webkit-scrollbar-thumb { background: #374151; border-radius: 2px; }
+
+.sh-toc-header {
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: #4b5563;
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #1f2937;
+}
+
+/* Inject TOC styles - the markdown TOC extension generates a div.toc > ul */
+.sh-sidebar .toc {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.sh-sidebar .toc ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.sh-sidebar .toc li {
+    margin: 0;
+}
+
+.sh-sidebar .toc > ul > li > a {
+    display: block;
+    padding: 5px 8px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #9ca3af;
+    text-decoration: none;
+    border-radius: 6px;
+    border-left: 2px solid transparent;
+    transition: all 0.15s ease;
+    line-height: 1.4;
+}
+
+.sh-sidebar .toc > ul > li > a:hover {
+    color: #e5e7eb;
+    background: rgba(79, 70, 229, 0.08);
+    border-left-color: #4f46e5;
+}
+
+.sh-sidebar .toc > ul > li > a.sh-toc-active {
+    color: #818cf8;
+    background: rgba(79, 70, 229, 0.12);
+    border-left-color: #818cf8;
+}
+
+/* Sub-items (H3) */
+.sh-sidebar .toc > ul > li > ul > li > a {
+    display: block;
+    padding: 3px 8px 3px 20px;
+    font-size: 0.75rem;
+    color: #6b7280;
+    text-decoration: none;
+    border-radius: 4px;
+    border-left: 2px solid transparent;
+    transition: all 0.15s ease;
+}
+
+.sh-sidebar .toc > ul > li > ul > li > a:hover {
+    color: #9ca3af;
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.sh-sidebar .toc > ul > li > ul > li > a.sh-toc-active {
+    color: #818cf8;
+    border-left-color: rgba(129, 140, 248, 0.5);
+}
+
+/* Reading progress bar */
+.sh-progress {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 2px;
+    background: linear-gradient(90deg, #4f46e5, #818cf8);
+    z-index: 100;
+    transition: width 0.1s linear;
+    width: 0%;
+}
+
+/* =============================================
+   MAIN CONTENT
+   ============================================= */
+.sh-content {
+    min-width: 0;
+}
+
+/* Hero bar at top of content */
+.sh-hero {
+    background: linear-gradient(135deg, rgba(79, 70, 229, 0.12) 0%, rgba(129, 140, 248, 0.05) 100%);
+    border: 1px solid rgba(79, 70, 229, 0.2);
+    border-radius: 12px;
+    padding: 28px 32px;
+    margin-bottom: 40px;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+}
+
+.sh-hero-icon {
+    font-size: 2.5rem;
+    flex-shrink: 0;
+}
+
+.sh-hero h1 {
+    font-size: 1.6rem;
+    font-weight: 800;
+    color: #fff;
+    margin: 0 0 6px;
+}
+
+.sh-hero p {
+    color: #9ca3af;
+    font-size: 0.9rem;
+    margin: 0;
+}
+
+/* Mobile TOC toggle */
+.sh-mobile-toc {
+    display: none;
+    margin-bottom: 24px;
+    background: #0f0f1a;
+    border: 1px solid #1f2937;
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.sh-mobile-toc summary {
+    padding: 14px 18px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #9ca3af;
+    cursor: pointer;
+    list-style: none;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    user-select: none;
+}
+
+.sh-mobile-toc summary::-webkit-details-marker { display: none; }
+
+.sh-mobile-toc[open] summary { color: #e5e7eb; border-bottom: 1px solid #1f2937; }
+
+.sh-mobile-toc .toc {
+    padding: 12px 18px 16px;
+}
+
+.sh-mobile-toc .toc ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.sh-mobile-toc .toc a {
+    display: block;
+    padding: 4px 0;
+    font-size: 0.82rem;
+    color: #6b7280;
+    text-decoration: none;
+}
+
+.sh-mobile-toc .toc a:hover { color: #818cf8; }
+
+.sh-mobile-toc .toc > ul > li > ul > li > a {
+    padding-left: 16px;
+    font-size: 0.78rem;
+}
+
+/* =============================================
+   MARKDOWN CONTENT STYLES
+   ============================================= */
+.sh-body {
+    font-size: 0.95rem;
+    line-height: 1.8;
+    color: #d1d5db;
+}
+
+.sh-body h1 {
+    font-size: 2rem;
+    font-weight: 800;
+    color: #ffffff;
+    margin: 0 0 8px;
+    letter-spacing: -0.3px;
+}
+
+.sh-body h2 {
+    font-size: 1.35rem;
+    font-weight: 700;
+    color: #ffffff;
+    margin: 52px 0 16px;
+    padding-top: 52px;
+    border-top: 1px solid #1f2937;
+    scroll-margin-top: 24px;
+}
+
+/* First h2 doesn't need top margin */
+.sh-body h2:first-of-type {
+    margin-top: 24px;
+    padding-top: 0;
+    border-top: none;
+}
+
+.sh-body h3 {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: #e5e7eb;
+    margin: 32px 0 12px;
+    scroll-margin-top: 24px;
+}
+
+.sh-body h4 {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: #9ca3af;
+    margin: 24px 0 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-size: 0.78rem;
+}
+
+.sh-body p {
+    margin: 0 0 16px;
+}
+
+.sh-body strong {
+    color: #e5e7eb;
+    font-weight: 600;
+}
+
+.sh-body em {
+    color: #a1a1aa;
+    font-style: italic;
+}
+
+.sh-body a {
+    color: #818cf8;
+    text-decoration: none;
+    border-bottom: 1px solid rgba(129, 140, 248, 0.3);
+    transition: border-color 0.15s ease, color 0.15s ease;
+}
+
+.sh-body a:hover {
+    color: #a5b4fc;
+    border-bottom-color: #818cf8;
+}
+
+/* Lists */
+.sh-body ul, .sh-body ol {
+    margin: 0 0 16px 0;
+    padding-left: 24px;
+}
+
+.sh-body li {
+    margin-bottom: 6px;
+}
+
+.sh-body ul li { list-style-type: disc; }
+.sh-body ul li::marker { color: #4f46e5; }
+.sh-body ol li::marker { color: #818cf8; font-weight: 600; }
+
+/* Nested lists */
+.sh-body ul ul, .sh-body ol ul {
+    margin-top: 6px;
+    margin-bottom: 6px;
+}
+
+/* Horizontal rule */
+.sh-body hr {
+    border: none;
+    border-top: 1px solid #1f2937;
+    margin: 40px 0;
+}
+
+/* Inline code */
+.sh-body code {
+    background: rgba(79, 70, 229, 0.12);
+    color: #a5b4fc;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-family: 'SF Mono', 'Menlo', 'Monaco', 'Courier New', monospace;
+    font-size: 0.85em;
+    border: 1px solid rgba(79, 70, 229, 0.2);
+}
+
+/* Code blocks */
+.sh-body pre {
+    position: relative;
+    margin: 20px 0;
+    border-radius: 10px;
+    overflow: hidden;
+    border: 1px solid #1f2937;
+}
+
+.sh-body pre code {
+    background: transparent;
+    color: inherit;
+    padding: 0;
+    border: none;
+    border-radius: 0;
+    font-size: 0.85rem;
+    display: block;
+    padding: 20px;
+    overflow-x: auto;
+}
+
+/* Copy button */
+.sh-copy-btn {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    padding: 4px 10px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 5px;
+    color: #9ca3af;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    font-family: inherit;
+}
+
+.sh-copy-btn:hover {
+    background: rgba(79, 70, 229, 0.2);
+    border-color: rgba(129, 140, 248, 0.4);
+    color: #e5e7eb;
+}
+
+.sh-copy-btn.copied {
+    background: rgba(16, 185, 129, 0.15);
+    border-color: rgba(16, 185, 129, 0.4);
+    color: #34d399;
+}
+
+/* Language badge on code blocks */
+.sh-code-lang {
+    position: absolute;
+    top: 10px;
+    left: 16px;
+    font-size: 0.68rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #4b5563;
+    font-family: inherit;
+}
+
+/* Tables */
+.sh-body table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 20px 0;
+    font-size: 0.88rem;
+}
+
+.sh-body thead th {
+    background: rgba(79, 70, 229, 0.1);
+    color: #e5e7eb;
+    font-weight: 600;
+    text-align: left;
+    padding: 10px 14px;
+    border-bottom: 1px solid rgba(79, 70, 229, 0.3);
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+
+.sh-body tbody td {
+    padding: 10px 14px;
+    border-bottom: 1px solid #1f2937;
+    color: #d1d5db;
+    vertical-align: top;
+}
+
+.sh-body tbody tr:last-child td { border-bottom: none; }
+
+.sh-body tbody tr:hover td {
+    background: rgba(255, 255, 255, 0.02);
+}
+
+/* Blockquotes (we use for warnings/notes) */
+.sh-body blockquote {
+    margin: 20px 0;
+    padding: 14px 18px;
+    background: rgba(245, 158, 11, 0.06);
+    border-left: 3px solid #f59e0b;
+    border-radius: 0 8px 8px 0;
+    color: #d1d5db;
+}
+
+.sh-body blockquote strong {
+    color: #fbbf24;
+}
+
+.sh-body blockquote p {
+    margin: 0;
+}
+
+/* =============================================
+   MOBILE
+   ============================================= */
+@media (max-width: 900px) {
+    .sh-layout {
+        grid-template-columns: 1fr;
+        padding: 24px 16px 60px;
+        gap: 0;
+    }
+    .sh-sidebar { display: none; }
+    .sh-mobile-toc { display: block; }
+    .sh-hero { flex-direction: column; text-align: center; padding: 24px 20px; gap: 12px; }
+    .sh-body h2 { font-size: 1.2rem; }
+    .sh-body pre code { font-size: 0.8rem; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="sh-progress" id="sh-progress"></div>
+
+<div class="sh-layout">
+
+  <!-- Sidebar TOC -->
+  <aside class="sh-sidebar">
+    <div class="sh-toc-header">Contents</div>
+    {{ toc|safe }}
+  </aside>
+
+  <!-- Main content -->
+  <main class="sh-content">
+
+    <!-- Hero -->
+    <div class="sh-hero">
+      <div class="sh-hero-icon">🖥️</div>
+      <div>
+        <h1>Self-Host Your Own Matrix Server</h1>
+        <p>A complete production guide - Synapse, MAS auth, CoTURN, and Element Web on your own hardware.</p>
+      </div>
+    </div>
+
+    <!-- Mobile TOC -->
+    <details class="sh-mobile-toc">
+      <summary>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        Table of Contents
+      </summary>
+      {{ toc|safe }}
+    </details>
+
+    <!-- Rendered Markdown -->
+    <div class="sh-body">
+      {{ content|safe }}
+    </div>
+
+    <!-- Footer CTA -->
+    <div style="margin-top:60px;padding:28px 32px;background:linear-gradient(135deg,rgba(79,70,229,.1),rgba(129,140,248,.05));border:1px solid rgba(79,70,229,.2);border-radius:12px;text-align:center;">
+      <p style="font-size:1rem;font-weight:700;color:#e5e7eb;margin:0 0 8px;">Questions or stuck?</p>
+      <p style="color:#9ca3af;font-size:0.88rem;margin:0 0 18px;">Drop into QuestChat - we run this exact stack and can help debug.</p>
+      <a href="https://chat.casual-heroes.com/#/login" target="_blank" rel="noopener noreferrer"
+         style="display:inline-flex;align-items:center;gap:8px;padding:10px 22px;background:#4f46e5;color:#fff;border-radius:8px;font-weight:600;font-size:0.88rem;text-decoration:none;transition:background 0.2s ease;"
+         onmouseover="this.style.background='#4338ca'" onmouseout="this.style.background='#4f46e5'">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+        Open QuestChat
+      </a>
+    </div>
+
+  </main>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script>
+(function() {
+    // Syntax highlighting
+    document.querySelectorAll('.sh-body pre code').forEach(function(block) {
+        hljs.highlightElement(block);
+
+        var pre = block.parentElement;
+        pre.style.position = 'relative';
+
+        // Detect language from class (hljs adds language-xxx)
+        var lang = '';
+        block.classList.forEach(function(cls) {
+            if (cls.startsWith('language-')) {
+                lang = cls.replace('language-', '');
+            }
+        });
+
+        // Language badge
+        if (lang && lang !== 'plaintext') {
+            var badge = document.createElement('span');
+            badge.className = 'sh-code-lang';
+            badge.textContent = lang;
+            pre.appendChild(badge);
+        }
+
+        // Copy button
+        var btn = document.createElement('button');
+        btn.className = 'sh-copy-btn';
+        btn.textContent = 'Copy';
+        btn.addEventListener('click', function() {
+            var text = block.innerText;
+            navigator.clipboard.writeText(text).then(function() {
+                btn.textContent = 'Copied!';
+                btn.classList.add('copied');
+                setTimeout(function() {
+                    btn.textContent = 'Copy';
+                    btn.classList.remove('copied');
+                }, 2000);
+            });
+        });
+        pre.appendChild(btn);
+    });
+
+    // Reading progress bar
+    var progressBar = document.getElementById('sh-progress');
+    window.addEventListener('scroll', function() {
+        var scrollTop = window.scrollY || document.documentElement.scrollTop;
+        var docHeight = document.documentElement.scrollHeight - window.innerHeight;
+        var pct = docHeight > 0 ? (scrollTop / docHeight) * 100 : 0;
+        progressBar.style.width = pct + '%';
+    });
+
+    // TOC active section highlighting
+    var headings = document.querySelectorAll('.sh-body h2[id], .sh-body h3[id]');
+    var tocLinks = document.querySelectorAll('.sh-sidebar .toc a');
+
+    if (headings.length && tocLinks.length) {
+        var observer = new IntersectionObserver(function(entries) {
+            entries.forEach(function(entry) {
+                if (entry.isIntersecting) {
+                    var id = entry.target.id;
+                    tocLinks.forEach(function(link) {
+                        link.classList.remove('sh-toc-active');
+                        if (link.getAttribute('href') === '#' + id) {
+                            link.classList.add('sh-toc-active');
+                        }
+                    });
+                }
+            });
+        }, { rootMargin: '-10% 0px -80% 0px' });
+
+        headings.forEach(function(h) { observer.observe(h); });
+    }
+})();
+</script>
+{% endblock %}

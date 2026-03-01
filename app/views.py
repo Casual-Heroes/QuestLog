@@ -31,13 +31,67 @@ load_dotenv()
 # Configure logger for views
 logger = logging.getLogger(__name__)
 
+# Discord webhook for game suggestions (server-side only — never exposed to clients)
+GAME_SUGGESTION_WEBHOOK = os.getenv('GAME_SUGGESTION_WEBHOOK', '')
+
+
+def _safe_int(value, default=0, min_val=None, max_val=None):
+    """Parse an integer from a request param safely, returning default on ValueError."""
+    try:
+        result = int(value)
+    except (TypeError, ValueError):
+        result = default
+    if min_val is not None:
+        result = max(min_val, result)
+    if max_val is not None:
+        result = min(max_val, result)
+    return result
+
 # Discord bot API configuration
 DISCORD_BOT_API_URL = os.getenv('DISCORD_BOT_API_URL', 'http://localhost:8001')
 DISCORD_BOT_API_TOKEN = os.getenv('DISCORD_BOT_API_TOKEN', 'development-token')
 
+# Site configuration
+DISCORD_INVITE_URL = os.getenv('DISCORD_INVITE_URL', '')
+SITE_LOGO_URL = os.getenv('SITE_LOGO_URL', '')
+
 # Cache for guilds_with_bot to prevent excessive API calls
 _guilds_cache = {'data': None, 'timestamp': 0}
 GUILDS_CACHE_TTL = 300  # Cache for 5 minutes (300 seconds) to prevent Discord API rate limiting
+
+
+def fetch_steam_header_url(steam_appid: str) -> str:
+    """
+    Fetch the actual header image URL from Steam API.
+    Steam changed their CDN structure, so we need to get the real URL from the API.
+
+    Args:
+        steam_appid: The Steam App ID (e.g., "2362060")
+
+    Returns:
+        The header image URL, or None if not found
+    """
+    if not steam_appid:
+        return None
+
+    try:
+        response = requests.get(
+            f"https://store.steampowered.com/api/appdetails?appids={steam_appid}",
+            timeout=5
+        )
+        if response.status_code == 200:
+            data = response.json()
+            app_data = data.get(str(steam_appid), {})
+            if app_data.get('success'):
+                header_url = app_data.get('data', {}).get('header_image')
+                if header_url:
+                    logger.info(f"Fetched Steam header URL for app {steam_appid}: {header_url}")
+                    return header_url
+    except Exception as e:
+        logger.warning(f"Failed to fetch Steam header for app {steam_appid}: {e}")
+
+    return None
+
 
 # Security Helper Functions
 def is_safe_redirect(url):
@@ -1142,7 +1196,7 @@ STATIC_GAME_INFO = {
     "CH-7DTD01": {
         "display_name": "Dynamic Horde Protocol (PvE)",
         "description": "A custom survival world where biomes bite back. Bots spawn threats, buffs twist the rules, nothing is predictable, and that’s the point.",
-        "discord_invite": "https://discord.gg/ECwJWppSjQ",
+        "discord_invite": DISCORD_INVITE_URL,
         "steam_link": "https://store.steampowered.com/app/251570/7_Days_to_Die/",
         "steam_appid": "251570",
         "connect_pw": "Join our Discord to gain access!"
@@ -1150,7 +1204,7 @@ STATIC_GAME_INFO = {
     "CH-Icarus01": {
         "display_name": "Prospectors Lounge",
         "description": "Custom server, No Lifing is Optional",
-        "discord_invite": "https://discord.gg/ECwJWppSjQ",
+        "discord_invite": DISCORD_INVITE_URL,
         "steam_link": "https://store.steampowered.com/app/1149460/ICARUS/",
         "steam_appid": "1149460",
         "connect_pw": "Join our Discord to gain access!"
@@ -1158,7 +1212,7 @@ STATIC_GAME_INFO = {
     "CH-Palworld01": {
         "display_name": "Pal Sanctuary",
         "description": "Where we catch Pals and ignore responsibilities together!",
-        "discord_invite": "https://discord.gg/ECwJWppSjQ",
+        "discord_invite": DISCORD_INVITE_URL,
         "steam_link": "https://store.steampowered.com/app/1623730/Palworld/",
         "steam_appid": "1623730",
         "connect_pw": "Join our Discord to gain access!"
@@ -1201,13 +1255,13 @@ STATIC_GAME_INFO = {
 DISCORD_GAME_STATIC_INFO = {
     "WoW": {
         "steam_link": "https://worldofwarcraft.blizzard.com/en-us/",
-        "discord_invite": "https://discord.gg/ECwJWppSjQ",
+        "discord_invite": DISCORD_INVITE_URL,
         "custom_img": "/static/img/games/wow/dwarf.webp",
         "link_label": "View Site"
     },
     "ESO": {
         "steam_link": "https://store.steampowered.com/app/306130/The_Elder_Scrolls_Online/",
-        "discord_invite": "https://discord.gg/ECwJWppSjQ",
+        "discord_invite": DISCORD_INVITE_URL,
         "steam_appid": "306130",
         "link_label": "View on Steam"
     },
@@ -1277,7 +1331,7 @@ DISCORD_GAMES = [
         "name": "World of Warcraft",
         "description": "Teaming up with longtime friend Eldronox and his legendary community 'Eternal Legends', we're building a World of Warcraft guild called <Casual Legends>. A chill, zero-drama space for adventurers who play at their own pace..",
         "steam_link": "https://worldofwarcraft.blizzard.com/en-us/",
-        "discord_invite": "https://discord.gg/ECwJWppSjQ",
+        "discord_invite": DISCORD_INVITE_URL,
         "custom_img": "/static/img/games/wow/dwarf.webp",
         "online": "-",
         "max": "-",
@@ -1288,7 +1342,7 @@ DISCORD_GAMES = [
         "name": "Elder Scrolls Online",
         "description": "Casual Legends is building a PC-NA ESO guild for adults who want chill runs and real progress—without the drama or sweaty expectations. New and returning players welcome. We learn together, gear up together, and push harder content when we’re ready.",
         "steam_link": "https://store.steampowered.com/app/306130/The_Elder_Scrolls_Online/",
-        "discord_invite": "https://discord.gg/ECwJWppSjQ",
+        "discord_invite": DISCORD_INVITE_URL,
         "steam_appid": "306130",
         "online": "-",
         "max": "-",
@@ -1528,8 +1582,15 @@ def games_we_play(request):
         from .models import SiteActivityGame
 
         with get_db_session() as db:
-            # Load all active games from database
-            db_games = db.query(SiteActivityGame).filter_by(is_active=True).order_by(SiteActivityGame.sort_order).all()
+            db_games = (
+                db.query(SiteActivityGame)
+                .filter(
+                    SiteActivityGame.is_active == True,
+                    SiteActivityGame.display_on.in_(['gamesweplay', 'both']),
+                )
+                .order_by(SiteActivityGame.sort_order)
+                .all()
+            )
 
             # Collect AMP instance names to fetch in parallel
             amp_instance_names = []
@@ -1554,6 +1615,7 @@ def games_we_play(request):
                     "title": db_game.display_name,
                     "description": db_game.description or "",
                     "steam_appid": db_game.steam_appid,
+                    "steam_header_url": db_game.steam_header_url,
                     "custom_img": db_game.custom_img,
                     "steam_link": db_game.steam_link,
                     "discord_invite": db_game.discord_invite,
@@ -1593,6 +1655,75 @@ def games_we_play(request):
         all_games = []
 
     return render(request, 'gamesweplay.html', { 'games': all_games })
+
+
+def game_servers(request):
+    """
+    Public-facing hosted game servers page (casual-heroes.com/gameservers/).
+    Shows games where display_on is 'gameservers' or 'both'.
+    """
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+
+    hosted_games = []
+
+    try:
+        from .db import get_db_session
+        from .models import SiteActivityGame
+
+        with get_db_session() as db:
+            db_games = (
+                db.query(SiteActivityGame)
+                .filter(
+                    SiteActivityGame.is_active == True,
+                    SiteActivityGame.display_on.in_(['gameservers', 'both']),
+                )
+                .order_by(SiteActivityGame.sort_order)
+                .all()
+            )
+
+            amp_instance_names = [g.amp_instance_id for g in db_games if g.amp_instance_id]
+            amp_data_map = {}
+            if amp_instance_names:
+                amp_results = loop.run_until_complete(asyncio.gather(
+                    *(fetch_instance_data(name) for name in amp_instance_names),
+                    return_exceptions=True
+                ))
+                amp_data_map = {g.get('id'): g for g in amp_results if isinstance(g, dict)}
+
+            for db_game in db_games:
+                game_dict = {
+                    'id': db_game.game_key,
+                    'name': db_game.display_name,
+                    'description': db_game.description or '',
+                    'steam_appid': db_game.steam_appid,
+                    'steam_header_url': db_game.steam_header_url,
+                    'custom_img': db_game.custom_img,
+                    'steam_link': db_game.steam_link,
+                    'discord_invite': db_game.discord_invite,
+                    'link_label': db_game.link_label or 'View on Steam',
+                    'online': '-',
+                    'max': '-',
+                    'live_now': False,
+                }
+                amp_data = amp_data_map.get(db_game.amp_instance_id)
+                if amp_data:
+                    game_dict.update({
+                        'source': 'amp',
+                        'online': amp_data.get('online', '-'),
+                        'max': amp_data.get('max', '-'),
+                        'live_now': amp_data.get('live_now', False),
+                        'ip': amp_data.get('ip', 'Unavailable'),
+                        'connect_pw': amp_data.get('connect_pw', ''),
+                        'status_label': amp_data.get('status_label', 'Unknown'),
+                    })
+                hosted_games.append(game_dict)
+
+    except Exception as e:
+        logger.error(f"Failed to load hosted game servers: {e}")
+        hosted_games = []
+
+    return render(request, 'gameservers.html', {'games': hosted_games})
 
 
 # ============================================================================
@@ -1702,6 +1833,7 @@ def api_site_activity_games(request, guild_id, game_id=None):
                     'amp_instance_id': game.amp_instance_id,
                     'steam_appid': game.steam_appid,
                     'steam_link': game.steam_link,
+                    'steam_header_url': game.steam_header_url,
                     'discord_invite': game.discord_invite,
                     'custom_img': game.custom_img,
                     'link_label': game.link_label,
@@ -1730,6 +1862,7 @@ def api_site_activity_games(request, guild_id, game_id=None):
                         'amp_instance_id': g.amp_instance_id,
                         'steam_appid': g.steam_appid,
                         'steam_link': g.steam_link,
+                        'steam_header_url': g.steam_header_url,
                         'discord_invite': g.discord_invite,
                         'custom_img': g.custom_img,
                         'link_label': g.link_label,
@@ -1752,14 +1885,19 @@ def api_site_activity_games(request, guild_id, game_id=None):
             if existing:
                 return JsonResponse({'error': 'Game with this key already exists'}, status=400)
 
+            # Fetch Steam header URL if steam_appid is provided
+            steam_appid = data.get('steam_appid')
+            steam_header_url = fetch_steam_header_url(steam_appid) if steam_appid else None
+
             game = SiteActivityGame(
                 game_key=data['game_key'],
                 display_name=data['display_name'],
                 description=data.get('description', ''),
                 game_type=data.get('game_type', 'discord'),
                 amp_instance_id=data.get('amp_instance_id'),
-                steam_appid=data.get('steam_appid'),
+                steam_appid=steam_appid,
                 steam_link=data.get('steam_link'),
+                steam_header_url=steam_header_url,
                 discord_invite=data.get('discord_invite'),
                 custom_img=data.get('custom_img'),
                 link_label=data.get('link_label', 'View Site'),
@@ -1822,6 +1960,11 @@ def api_site_activity_games(request, guild_id, game_id=None):
                 game.amp_instance_id = data['amp_instance_id']
             if 'steam_appid' in data:
                 game.steam_appid = data['steam_appid']
+                # Re-fetch Steam header URL when steam_appid changes
+                if data['steam_appid']:
+                    game.steam_header_url = fetch_steam_header_url(data['steam_appid'])
+                else:
+                    game.steam_header_url = None
             if 'steam_link' in data:
                 game.steam_link = data['steam_link']
             if 'discord_invite' in data:
@@ -2219,8 +2362,9 @@ def login_view(request):
 
 from django.contrib.auth.decorators import login_required
 
-@login_required
 def dashboard(request):
+    if not request.session.get('discord_user'):
+        return redirect(f"/questlog/login/?next={request.path}")
     return render(request, "dashboard.html")
 
 def hosting(request):
@@ -2242,6 +2386,55 @@ def gameshype(request):
 
 def gamesuggest(request):
     return render(request, 'gamesuggest.html')
+
+
+@require_http_methods(["POST"])
+@ratelimit(key='ip', rate='5/h', method='POST', block=True)
+def api_gamesuggest(request):
+    """
+    POST /api/gamesuggest/ - Proxy game suggestions to Discord webhook.
+    Keeps the webhook token server-side and adds CSRF + rate-limit protection.
+    """
+    import html as _html
+
+    if not GAME_SUGGESTION_WEBHOOK:
+        logger.error("GAME_SUGGESTION_WEBHOOK env var not set - game suggestions disabled")
+        return JsonResponse({'error': 'Suggestions are temporarily unavailable.'}, status=503)
+
+    try:
+        data = json.loads(request.body)
+    except (ValueError, TypeError):
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+    game_title = str(data.get('gameTitle', '')).strip()[:200]
+    why_support = str(data.get('whySupport', '')).strip()[:1000]
+    discord_user = str(data.get('discordUser', 'Anonymous')).strip()[:100] or 'Anonymous'
+
+    if not game_title:
+        return JsonResponse({'error': 'Game title is required'}, status=400)
+    if not why_support:
+        return JsonResponse({'error': 'Please tell us why we should support it'}, status=400)
+
+    payload = {
+        'embeds': [{
+            'title': f'New Game Suggestion: {_html.escape(game_title)}',
+            'description': _html.escape(why_support),
+            'color': 32896,
+            'footer': {'text': f'Suggested by {_html.escape(discord_user)}'},
+            'timestamp': __import__('datetime').datetime.utcnow().isoformat() + 'Z',
+        }]
+    }
+
+    try:
+        resp = requests.post(GAME_SUGGESTION_WEBHOOK, json=payload, timeout=10)
+        if resp.status_code in (200, 204):
+            return JsonResponse({'success': True})
+        logger.warning(f"Discord webhook returned {resp.status_code} for game suggestion")
+        return JsonResponse({'error': 'Could not deliver suggestion.'}, status=502)
+    except requests.RequestException as exc:
+        logger.error(f"Game suggestion webhook error: {exc}")
+        return JsonResponse({'error': 'Could not deliver suggestion.'}, status=502)
+
 
 def enshrouded(request):
     # enshrouded_instance = asyncio.run(fetch_instance_data("Enshrouded01"))
@@ -2279,6 +2472,53 @@ def content(request):
 def aboutus(request):
     return render(request, 'aboutus.html')
 
+def questchat(request):
+    return render(request, 'questchat.html')
+
+def self_host(request):
+    import markdown
+    import bleach
+    import os
+
+    md_path = os.path.join(os.path.dirname(__file__), 'docs', 'selfhost.md')
+    with open(md_path, 'r', encoding='utf-8') as f:
+        content = f.read()
+
+    md = markdown.Markdown(extensions=['tables', 'fenced_code', 'toc'])
+    html_content = md.convert(content)
+    toc = md.toc
+
+    # Sanitize rendered HTML - allow standard markdown output tags only.
+    # Headings must keep their id attributes - the TOC extension generates
+    # id="slug" on every heading and the sidebar TOC links href="#slug" to them.
+    _ALLOWED_TAGS = [
+        'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+        'p', 'br', 'hr',
+        'ul', 'ol', 'li',
+        'strong', 'em', 'b', 'i', 'code', 'pre', 'blockquote',
+        'a', 'img',
+        'table', 'thead', 'tbody', 'tr', 'th', 'td',
+        'div', 'span',
+    ]
+    _heading_tags = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6']
+    _ALLOWED_ATTRS = {
+        **{h: ['id'] for h in _heading_tags},   # TOC anchor targets
+        'a': ['href', 'title', 'rel'],
+        'img': ['src', 'alt', 'title', 'width', 'height'],
+        'th': ['align'], 'td': ['align'],
+        'code': ['class'],  # syntax highlight class
+        'div': ['class', 'id'],
+        'span': ['class'],
+        'li': ['class'],
+    }
+    html_content = bleach.clean(html_content, tags=_ALLOWED_TAGS, attributes=_ALLOWED_ATTRS, strip=True)
+    toc = bleach.clean(toc, tags=['a', 'ul', 'li', 'div'], attributes={'a': ['href'], 'div': ['class'], 'li': ['class']}, strip=True)
+
+    return render(request, 'selfhost.html', {
+        'content': html_content,
+        'toc': toc,
+    })
+
 def privacy(request):
     return render(request, 'privacy.html')
 
@@ -2314,7 +2554,7 @@ def questlog_login(request):
 
                 # If token is valid, redirect to dashboard
                 if validate_response.status_code == 200:
-                    return redirect('https://dashboard.casual-heroes.com/questlog/')
+                    return redirect(f'https://{settings.DASHBOARD_DOMAIN}/questlog/')
 
                 # If token expired (401), clear session and continue to re-auth below
                 if validate_response.status_code == 401:
@@ -2323,14 +2563,14 @@ def questlog_login(request):
             except requests.RequestException:
                 # Network error - fail open and redirect to dashboard
                 # Dashboard will handle auth validation
-                return redirect('https://dashboard.casual-heroes.com/questlog/')
+                return redirect(f'https://{settings.DASHBOARD_DOMAIN}/questlog/')
 
     # Generate a state token for CSRF protection
     state = secrets.token_urlsafe(32)
     request.session['discord_oauth_state'] = state
 
     # Set the next URL to the dashboard subdomain
-    request.session['discord_login_next'] = 'https://dashboard.casual-heroes.com/questlog/'
+    request.session['discord_login_next'] = f'https://{settings.DASHBOARD_DOMAIN}/questlog/'
 
     # Force session save before OAuth redirect
     request.session.modified = True
@@ -2519,10 +2759,11 @@ def discord_callback(request):
                 user.email = discord_user['email']
                 user.save()
 
-            # Log in the Django user
-            from django.contrib.auth import login as auth_login
-            # Specify backend to avoid "multiple backends" error
-            auth_login(request, user, backend='django.contrib.auth.backends.ModelBackend')
+            # Only log in the Django user if not already authenticated via QuestLog web
+            # (avoids overwriting the admin session when accessing the Discord bot dashboard)
+            if not request.user.is_authenticated:
+                from django.contrib.auth import login as auth_login
+                auth_login(request, user, backend='django.contrib.auth.backends.ModelBackend')
         except Exception as e:
             # Even if Django user creation fails, session-based auth works
             logger.warning(f"Could not create Django user: {e}")
@@ -2600,7 +2841,7 @@ def discord_refresh_guilds(request):
                 return JsonResponse({
                     'error': 'Session expired',
                     'requires_reauth': True,
-                    'redirect_url': '/auth/discord/login/'
+                    'redirect_url': '/login/'
                 }, status=401)
 
             return JsonResponse({'error': 'Failed to fetch guilds from Discord'}, status=guilds_response.status_code)
@@ -2679,8 +2920,8 @@ def discord_required(view_func):
                 from django.http import JsonResponse
                 return JsonResponse({'error': 'Not authenticated'}, status=401)
             # For page views, redirect to login
-            messages.warning(request, "Please log in with Discord to access this page.")
-            return redirect(f"/auth/discord/login/?next={request.path}")
+            messages.warning(request, "Please log in to access this page.")
+            return redirect(f"/questlog/login/?next={request.path}")
 
         # Validate token is still valid by making a lightweight Discord API call
         access_token = discord_user.get('access_token')
@@ -2704,12 +2945,12 @@ def discord_required(view_func):
                         return JsonResponse({
                             'error': 'Session expired',
                             'requires_reauth': True,
-                            'redirect_url': '/auth/discord/login/'
+                            'redirect_url': '/questlog/login/'
                         }, status=401)
 
                     # For page views, redirect to login with message
-                    messages.warning(request, "Your Discord session has expired. Please log in again.")
-                    return redirect(f"/auth/discord/login/?next={request.path}")
+                    messages.warning(request, "Your session has expired. Please log in again.")
+                    return redirect(f"/questlog/login/?next={request.path}")
             except requests.RequestException:
                 # If validation fails due to network error, allow through (fail open for availability)
                 # The actual API calls will fail and handle appropriately
@@ -2761,8 +3002,8 @@ def discord_required_read_only(view_func):
                 from django.http import JsonResponse
                 return JsonResponse({'error': 'Not authenticated'}, status=401)
             # For page views, redirect to login
-            messages.warning(request, "Please log in with Discord to access this page.")
-            return redirect(f"/auth/discord/login/?next={request.path}")
+            messages.warning(request, "Please log in to access this page.")
+            return redirect(f"/questlog/login/?next={request.path}")
         return view_func(request, *args, **kwargs)
     return wrapper
 
@@ -3026,7 +3267,7 @@ def force_sync_guild(request, guild_id):
 
     try:
         # Call bot API to trigger sync
-        bot_api_url = os.getenv('WARDEN_BOT_API_URL', 'http://localhost:8001')
+        bot_api_url = DISCORD_BOT_API_URL
         bot_api_token = os.getenv('DISCORD_BOT_API_TOKEN')
         response = requests.post(
             f'{bot_api_url}/api/sync/{guild_id}',
@@ -8183,7 +8424,7 @@ def guild_audit_logs(request, guild_id):
     action_filter = request.GET.get('action', '')
     actor_filter = request.GET.get('actor', '')
     target_filter = request.GET.get('target', '')
-    days = int(request.GET.get('days', 7))
+    days = _safe_int(request.GET.get('days', 7), default=7, min_val=1, max_val=365)
 
     # Fetch audit logs from database
     audit_logs = []
@@ -11536,20 +11777,20 @@ def guild_discovery_network(request, guild_id):
 <head>
     <meta property="og:title" content="QuestLog Dashboard - Casual Heroes">
     <meta property="og:description" content="Discover gaming communities, find groups, and connect with players across the Casual Heroes network. Manage your Discord server with powerful moderation, leveling, and discovery tools.">
-    <meta property="og:image" content="https://dashboard.casual-heroes.com/static/img/siteassets/homepage/CHLogoFinal.png">
-    <meta property="og:url" content="https://dashboard.casual-heroes.com/questlog/guild/{guild_id}/discovery-network/">
+    <meta property="og:image" content="https://{settings.DASHBOARD_DOMAIN}/static/img/siteassets/homepage/CHLogoFinal.png">
+    <meta property="og:url" content="https://{settings.DASHBOARD_DOMAIN}/questlog/guild/{guild_id}/discovery-network/">
     <meta property="og:type" content="website">
     <meta property="article:author" content="Ryven">
     <meta name="author" content="Ryven">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="QuestLog Dashboard - Casual Heroes">
     <meta name="twitter:description" content="Discover gaming communities, find groups, and connect with players across the Casual Heroes network.">
-    <meta name="twitter:image" content="https://dashboard.casual-heroes.com/static/img/siteassets/homepage/CHLogoFinal.png">
+    <meta name="twitter:image" content="https://{settings.DASHBOARD_DOMAIN}/static/img/siteassets/homepage/CHLogoFinal.png">
     <meta name="twitter:creator" content="@Ryven">
 </head>
 <body>
     <h1>QuestLog Dashboard - Casual Heroes</h1>
-    <p>Visit <a href="https://dashboard.casual-heroes.com/">Casual Heroes</a> to explore gaming communities.</p>
+    <p>Visit <a href="https://{settings.DASHBOARD_DOMAIN}/">Casual Heroes</a> to explore gaming communities.</p>
 </body>
 </html>"""
         return HttpResponse(og_html)
@@ -21204,7 +21445,7 @@ Allow: /
 Disallow: /api/admin/
 Disallow: /admin/
 
-Sitemap: https://dashboard.casual-heroes.com/sitemap.xml
+Sitemap: https://{settings.DASHBOARD_DOMAIN}/sitemap.xml
 """
 
     return HttpResponse(robots_content, content_type='text/plain')
@@ -21689,7 +21930,7 @@ def set_creator_of_week(request, guild_id):
                     try:
                         import requests
                         import os
-                        bot_api_url = "http://localhost:8001/api/delete-message"
+                        bot_api_url = f"{DISCORD_BOT_API_URL}/api/delete-message"
                         api_token = os.getenv('DISCORD_BOT_API_TOKEN')
                         headers = {'Authorization': f'Bearer {api_token}'} if api_token else {}
                         payload = {
@@ -21725,7 +21966,7 @@ def set_creator_of_week(request, guild_id):
                 try:
                     import requests
                     import os
-                    bot_api_url = "http://localhost:8001/api/announce-cotw"
+                    bot_api_url = f"{DISCORD_BOT_API_URL}/api/announce-cotw"
                     api_token = os.getenv('DISCORD_BOT_API_TOKEN')
                     headers = {'Authorization': f'Bearer {api_token}'} if api_token else {}
                     payload = {
@@ -21795,7 +22036,7 @@ def clear_creator_of_week(request, guild_id):
                 try:
                     import requests
                     import os
-                    bot_api_url = "http://localhost:8001/api/delete-message"
+                    bot_api_url = f"{DISCORD_BOT_API_URL}/api/delete-message"
                     api_token = os.getenv('DISCORD_BOT_API_TOKEN')
                     headers = {'Authorization': f'Bearer {api_token}'} if api_token else {}
                     payload = {
@@ -21867,7 +22108,7 @@ def clear_creator_of_month(request, guild_id):
                 try:
                     import requests
                     import os
-                    bot_api_url = "http://localhost:8001/api/delete-message"
+                    bot_api_url = f"{DISCORD_BOT_API_URL}/api/delete-message"
                     api_token = os.getenv('DISCORD_BOT_API_TOKEN')
                     headers = {'Authorization': f'Bearer {api_token}'} if api_token else {}
                     payload = {
@@ -21944,7 +22185,7 @@ def set_creator_of_month(request, guild_id):
                     try:
                         import requests
                         import os
-                        bot_api_url = "http://localhost:8001/api/delete-message"
+                        bot_api_url = f"{DISCORD_BOT_API_URL}/api/delete-message"
                         api_token = os.getenv('DISCORD_BOT_API_TOKEN')
                         headers = {'Authorization': f'Bearer {api_token}'} if api_token else {}
                         payload = {
@@ -21980,7 +22221,7 @@ def set_creator_of_month(request, guild_id):
                 try:
                     import requests
                     import os
-                    bot_api_url = "http://localhost:8001/api/announce-cotm"
+                    bot_api_url = f"{DISCORD_BOT_API_URL}/api/announce-cotm"
                     api_token = os.getenv('DISCORD_BOT_API_TOKEN')
                     headers = {'Authorization': f'Bearer {api_token}'} if api_token else {}
                     payload = {
@@ -22065,7 +22306,7 @@ def set_network_creator_of_week(request):
             try:
                 import requests
                 import os
-                bot_api_url = "http://localhost:8001/api/announce-network-cotw"
+                bot_api_url = f"{DISCORD_BOT_API_URL}/api/announce-network-cotw"
                 api_token = os.getenv('DISCORD_BOT_API_TOKEN')
                 headers = {'Authorization': f'Bearer {api_token}'} if api_token else {}
                 payload = {
@@ -22143,7 +22384,7 @@ def set_network_creator_of_month(request):
             try:
                 import requests
                 import os
-                bot_api_url = "http://localhost:8001/api/announce-network-cotm"
+                bot_api_url = f"{DISCORD_BOT_API_URL}/api/announce-network-cotm"
                 api_token = os.getenv('DISCORD_BOT_API_TOKEN')
                 headers = {'Authorization': f'Bearer {api_token}'} if api_token else {}
                 payload = {
@@ -23611,7 +23852,7 @@ def test_streaming_notification(request, guild_id):
                     'icon_url': footer_icon
                 },
                 'thumbnail': {
-                    'url': 'https://cdn.casual-heroes.com/static/img/logo.png'
+                    'url': SITE_LOGO_URL
                 }
             }
 

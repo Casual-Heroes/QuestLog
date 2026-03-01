@@ -1,0 +1,252 @@
+{% extends "questlog_web/base_web.html" %}
+{% load static %}
+
+{% block title %}Featured Creators - QuestLog{% endblock %}
+
+{% block web_content %}
+{% include 'questlog/partials/custom_select.html' %}
+
+<script>
+  function escapeHtml(text) {
+    if (text == null || text === undefined) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  }
+</script>
+
+<!-- Header -->
+<div class="bg-gradient-to-br from-neutral-900 to-neutral-950 border-b border-neutral-800 p-6 mb-6">
+  <div class="max-w-7xl mx-auto">
+    <div class="flex items-center justify-between">
+      <div>
+        <h1 class="text-3xl font-bold text-white flex items-center gap-3">
+          <i class="fas fa-star text-yellow-400"></i>
+          Featured Creators
+        </h1>
+        <p class="text-gray-400 mt-1">Discover content creators, streamers, and YouTubers</p>
+      </div>
+      {% if web_user %}
+      <a href="{% url 'questlog_web_creator_register' %}" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg font-medium transition text-sm">
+        <i class="fas fa-video mr-2"></i>Register as Creator
+      </a>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- Filters -->
+<div class="max-w-7xl mx-auto px-4">
+  <div class="bg-neutral-900/50 rounded-lg border border-neutral-800 p-4 mb-6">
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div>
+        <label class="text-sm text-gray-300 mb-2 block">Search</label>
+        <input type="text" id="searchFilter" placeholder="Search by name..." class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2 text-white text-sm focus:border-yellow-500 focus:outline-none hover:bg-neutral-700/50 transition-colors">
+      </div>
+      <div>
+        <label class="text-sm text-gray-300 mb-2 block">Platform</label>
+        <div id="platformFilterContainer"></div>
+      </div>
+      <div>
+        <label class="text-sm text-gray-300 mb-2 block">Sort By</label>
+        <div id="sortFilterContainer"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- COTM/COTW spotlight (shown only when active) -->
+  <div id="spotlightSection" class="mb-8 hidden">
+    <h2 class="text-lg font-semibold text-white mb-3 flex items-center gap-2">
+      <i class="fas fa-trophy text-yellow-400"></i>Creator Spotlight
+    </h2>
+    <div id="spotlightCards" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+  </div>
+
+  <div id="creatorsList" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
+    <div class="col-span-full text-center text-gray-500 py-12">
+      <i class="fas fa-spinner fa-spin text-4xl mb-2"></i>
+      <p>Loading creators...</p>
+    </div>
+  </div>
+</div>
+
+<script>
+let allCreators = [];
+let platformFilterSelect, sortFilterSelect;
+
+platformFilterSelect = createCustomSelect({
+  container: '#platformFilterContainer',
+  name: 'platformFilter',
+  placeholder: 'All Platforms',
+  items: [
+    { value: '', label: 'All Platforms' },
+    { value: 'twitch', label: 'Twitch' },
+    { value: 'youtube', label: 'YouTube' },
+    { value: 'tiktok', label: 'TikTok' },
+    { value: 'twitter', label: 'Twitter/X' }
+  ],
+  selected: '',
+  color: 'yellow',
+  onSelect: function() { filterCreators(); }
+});
+
+sortFilterSelect = createCustomSelect({
+  container: '#sortFilterContainer',
+  name: 'sortFilter',
+  placeholder: 'Featured First',
+  items: [
+    { value: 'featured', label: 'Featured First' },
+    { value: 'followers', label: 'Most Followers' },
+    { value: 'name', label: 'Name (A-Z)' }
+  ],
+  selected: 'featured',
+  color: 'yellow',
+  onSelect: function() { filterCreators(); }
+});
+
+document.addEventListener('DOMContentLoaded', () => {
+  loadCreators();
+  document.getElementById('searchFilter').addEventListener('input', filterCreators);
+});
+
+async function loadCreators() {
+  try {
+    const response = await fetch('{% url "questlog_web_api_creators" %}');
+    const data = await response.json();
+    allCreators = data.creators || [];
+    renderSpotlight();
+    filterCreators();
+  } catch (error) {
+    console.error('Failed to load creators:', error);
+    document.getElementById('creatorsList').innerHTML = `
+      <div class="col-span-full text-center text-red-400 py-12">
+        <i class="fas fa-exclamation-circle text-4xl mb-2"></i>
+        <p>Failed to load creators. Please try again later.</p>
+      </div>
+    `;
+  }
+}
+
+function renderSpotlight() {
+  const cotm = allCreators.find(c => c.is_current_cotm);
+  const cotw = allCreators.find(c => c.is_current_cotw);
+  const section = document.getElementById('spotlightSection');
+  const cards = document.getElementById('spotlightCards');
+
+  if (!cotm && !cotw) {
+    section.classList.add('hidden');
+    return;
+  }
+  section.classList.remove('hidden');
+
+  const spotlightItems = [];
+  if (cotm) spotlightItems.push({ creator: cotm, label: 'Creator of the Month', icon: 'fas fa-crown', color: 'purple' });
+  if (cotw) spotlightItems.push({ creator: cotw, label: 'Creator of the Week', icon: 'fas fa-star', color: 'yellow' });
+
+  cards.innerHTML = spotlightItems.map(({ creator, label, icon, color }) => `
+    <div class="bg-gradient-to-br from-${color}-900/30 to-neutral-900 border border-${color}-500/40 rounded-xl p-5 flex items-center gap-4">
+      ${creator.avatar_url
+        ? `<img src="${escapeHtml(creator.avatar_url)}" class="w-16 h-16 rounded-full object-cover ring-2 ring-${color}-500/50">`
+        : avatarHtml(creator.username, null, 'w-16 h-16 ring-2 ring-' + color + '-500/50')
+      }
+      <div class="flex-1 min-w-0">
+        <div class="flex items-center gap-2 mb-1">
+          <i class="${icon} text-${color}-400 text-sm"></i>
+          <span class="text-${color}-400 text-xs font-semibold uppercase tracking-wider">${label}</span>
+        </div>
+        <h3 class="text-white font-bold text-lg truncate">${escapeHtml(creator.display_name)}</h3>
+        ${creator.bio ? `<p class="text-gray-400 text-sm line-clamp-1 mt-0.5">${escapeHtml(creator.bio)}</p>` : ''}
+        <div class="flex gap-2 mt-2">
+          ${creator.twitch_url ? `<a href="${escapeHtml(creator.twitch_url)}" target="_blank" rel="noopener" class="text-purple-400 hover:text-purple-300 text-sm"><i class="fab fa-twitch"></i></a>` : ''}
+          ${creator.youtube_url ? `<a href="${escapeHtml(creator.youtube_url)}" target="_blank" rel="noopener" class="text-red-400 hover:text-red-300 text-sm"><i class="fab fa-youtube"></i></a>` : ''}
+          ${creator.twitter_url ? `<a href="${escapeHtml(creator.twitter_url)}" target="_blank" rel="noopener" class="text-blue-400 hover:text-blue-300 text-sm"><i class="fab fa-twitter"></i></a>` : ''}
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function filterCreators() {
+  const search = document.getElementById('searchFilter').value.toLowerCase();
+  const platform = platformFilterSelect ? platformFilterSelect.getValue() : '';
+  const sort = sortFilterSelect ? sortFilterSelect.getValue() : 'featured';
+
+  let filtered = [...allCreators];
+
+  if (search) {
+    filtered = filtered.filter(c =>
+      c.display_name.toLowerCase().includes(search) ||
+      (c.bio && c.bio.toLowerCase().includes(search))
+    );
+  }
+  if (platform) {
+    filtered = filtered.filter(c => {
+      if (platform === 'twitch') return c.twitch_url;
+      if (platform === 'youtube') return c.youtube_url;
+      if (platform === 'tiktok') return c.tiktok_url;
+      if (platform === 'twitter') return c.twitter_url;
+      return false;
+    });
+  }
+
+  if (sort === 'featured') {
+    filtered.sort((a, b) => {
+      const aScore = (a.is_current_cotm ? 4 : 0) + (a.is_current_cotw ? 2 : 0) + (a.is_verified ? 1 : 0);
+      const bScore = (b.is_current_cotm ? 4 : 0) + (b.is_current_cotw ? 2 : 0) + (b.is_verified ? 1 : 0);
+      return bScore - aScore;
+    });
+  } else if (sort === 'followers') {
+    filtered.sort((a, b) => (b.follower_count || 0) - (a.follower_count || 0));
+  } else if (sort === 'name') {
+    filtered.sort((a, b) => a.display_name.localeCompare(b.display_name));
+  }
+
+  renderCreators(filtered);
+}
+
+function creatorCard(creator) {
+  const badges = [];
+  if (creator.is_current_cotm) badges.push(`<span class="inline-flex items-center gap-1 px-2 py-0.5 bg-purple-600/20 text-purple-400 rounded text-xs font-semibold"><i class="fas fa-crown text-xs"></i>COTM</span>`);
+  if (creator.is_current_cotw) badges.push(`<span class="inline-flex items-center gap-1 px-2 py-0.5 bg-yellow-600/20 text-yellow-400 rounded text-xs font-semibold"><i class="fas fa-star text-xs"></i>COTW</span>`);
+
+  return `
+    <div class="bg-neutral-900/50 border ${creator.is_current_cotm ? 'border-purple-500/40' : creator.is_current_cotw ? 'border-yellow-500/40' : 'border-neutral-800'} rounded-lg p-4 hover:border-yellow-500/30 transition">
+      <div class="flex items-start gap-3 mb-3">
+        ${avatarHtml(creator.username, creator.avatar_url, 'w-14 h-14')}
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-2 flex-wrap">
+            <h3 class="text-white font-semibold truncate">${escapeHtml(creator.display_name)}</h3>
+            ${creator.is_verified ? '<i class="fas fa-check-circle text-blue-400" title="Verified"></i>' : ''}
+            ${badges.join('')}
+          </div>
+          ${creator.bio ? `<p class="text-gray-400 text-sm line-clamp-2 mt-1">${escapeHtml(creator.bio)}</p>` : ''}
+        </div>
+      </div>
+      <div class="flex flex-wrap gap-2">
+        ${creator.twitch_url ? `<a href="${escapeHtml(creator.twitch_url)}" target="_blank" rel="noopener" class="inline-flex items-center gap-1 px-3 py-1.5 bg-purple-600/20 text-purple-400 rounded-lg text-sm hover:bg-purple-600/30 transition"><i class="fab fa-twitch"></i><span>Twitch</span></a>` : ''}
+        ${creator.youtube_url ? `<a href="${escapeHtml(creator.youtube_url)}" target="_blank" rel="noopener" class="inline-flex items-center gap-1 px-3 py-1.5 bg-red-600/20 text-red-400 rounded-lg text-sm hover:bg-red-600/30 transition"><i class="fab fa-youtube"></i><span>YouTube</span></a>` : ''}
+        ${creator.twitter_url ? `<a href="${escapeHtml(creator.twitter_url)}" target="_blank" rel="noopener" class="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-600/20 text-blue-400 rounded-lg text-sm hover:bg-blue-600/30 transition"><i class="fab fa-twitter"></i><span>Twitter</span></a>` : ''}
+        ${creator.tiktok_url ? `<a href="${escapeHtml(creator.tiktok_url)}" target="_blank" rel="noopener" class="inline-flex items-center gap-1 px-3 py-1.5 bg-pink-600/20 text-pink-400 rounded-lg text-sm hover:bg-pink-600/30 transition"><i class="fab fa-tiktok"></i><span>TikTok</span></a>` : ''}
+      </div>
+    </div>
+  `;
+}
+
+function renderCreators(creators) {
+  const container = document.getElementById('creatorsList');
+
+  if (!creators.length) {
+    container.innerHTML = `
+      <div class="col-span-full text-center text-gray-500 py-12">
+        <i class="fas fa-video text-6xl mb-4 opacity-50"></i>
+        <p class="text-xl mb-2">No creators found</p>
+        <p class="text-sm">Be the first to register as a creator!</p>
+      </div>
+    `;
+    return;
+  }
+
+  container.innerHTML = creators.map(creatorCard).join('');
+}
+</script>
+{% endblock %}

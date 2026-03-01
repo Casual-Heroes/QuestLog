@@ -1,0 +1,289 @@
+{% extends "questlog_web/base_web.html" %}
+{% load static %}
+
+{% block title %}Hero Shop - QuestLog{% endblock %}
+
+{% block web_content %}
+<!-- Header -->
+<div class="bg-gradient-to-br from-neutral-900 via-purple-950/20 to-neutral-950 border-b border-neutral-800 p-6 mb-6">
+  <div class="max-w-5xl mx-auto">
+    <div class="flex items-center justify-between flex-wrap gap-4">
+      <div>
+        <h1 class="text-3xl font-bold text-white flex items-center gap-3">
+          <i class="fas fa-gem text-purple-400"></i>
+          Hero Shop
+        </h1>
+        <p class="text-gray-400 mt-1">Spend your Hero Points on flairs displayed beside your name</p>
+      </div>
+      <!-- HP Balance -->
+      <div class="flex items-center gap-4">
+        <div class="bg-purple-900/40 border border-purple-700/50 rounded-xl px-5 py-3 text-center">
+          <p class="text-2xl font-bold text-white" id="hp-balance">{{ web_user.hero_points|default:0 }}</p>
+          <p class="text-xs text-purple-300 font-medium"><i class="fas fa-gem mr-1"></i>Hero Points</p>
+        </div>
+        <div class="bg-neutral-800/60 border border-neutral-700/50 rounded-xl px-5 py-3 text-center">
+          <p class="text-2xl font-bold text-yellow-400">{{ web_user.web_level|default:1 }}</p>
+          <p class="text-xs text-gray-400 font-medium"><i class="fas fa-star mr-1 text-yellow-500"></i>Level</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="max-w-5xl mx-auto px-4 pb-10">
+
+  <!-- Currently Equipped -->
+  <div id="equipped-banner" class="hidden mb-6 bg-yellow-900/20 border border-yellow-700/40 rounded-xl p-4 flex items-center gap-4">
+    <span id="equipped-emoji" class="text-4xl"></span>
+    <div>
+      <p class="text-xs text-yellow-500 font-semibold uppercase tracking-wider mb-0.5">Currently Equipped</p>
+      <p id="equipped-name" class="text-white font-semibold text-lg"></p>
+      <p id="equipped-desc" class="text-gray-400 text-sm"></p>
+    </div>
+    <button onclick="unequipFlair()" class="ml-auto bg-neutral-700 hover:bg-neutral-600 text-white text-sm px-4 py-2 rounded-lg transition">
+      <i class="fas fa-times mr-1"></i>Unequip
+    </button>
+  </div>
+
+  <!-- Filter Tabs -->
+  <div class="flex items-center gap-2 mb-5 flex-wrap">
+    <button onclick="filterFlairs('all')" id="tab-all"
+      class="tab-btn active px-4 py-2 rounded-lg text-sm font-medium transition bg-indigo-600 text-white">
+      All
+    </button>
+    <button onclick="filterFlairs('normal')" id="tab-normal"
+      class="tab-btn px-4 py-2 rounded-lg text-sm font-medium transition bg-neutral-800 text-gray-400 hover:text-white hover:bg-neutral-700">
+      Standard
+    </button>
+    <button onclick="filterFlairs('seasonal')" id="tab-seasonal"
+      class="tab-btn px-4 py-2 rounded-lg text-sm font-medium transition bg-neutral-800 text-gray-400 hover:text-white hover:bg-neutral-700">
+      <i class="fas fa-snowflake text-blue-400 mr-1"></i>Seasonal
+    </button>
+    <button onclick="filterFlairs('exclusive')" id="tab-exclusive"
+      class="tab-btn px-4 py-2 rounded-lg text-sm font-medium transition bg-neutral-800 text-gray-400 hover:text-white hover:bg-neutral-700">
+      <i class="fas fa-crown text-purple-400 mr-1"></i>Exclusive
+    </button>
+    <button onclick="filterFlairs('owned')" id="tab-owned"
+      class="tab-btn px-4 py-2 rounded-lg text-sm font-medium transition bg-neutral-800 text-gray-400 hover:text-white hover:bg-neutral-700">
+      <i class="fas fa-check-circle text-green-400 mr-1"></i>Owned
+    </button>
+  </div>
+
+  <!-- Loading / Grid -->
+  <div id="shop-loading" class="text-center py-16 text-gray-500">
+    <i class="fas fa-spinner fa-spin text-2xl mb-3 block"></i>Loading shop…
+  </div>
+  <div id="shop-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-4 hidden"></div>
+  <p id="shop-empty" class="hidden text-center text-gray-500 py-16">No flairs in this category yet.</p>
+
+  <!-- Feedback toast -->
+  <div id="shop-feedback" class="hidden fixed bottom-6 right-6 z-50 px-5 py-3 rounded-xl text-sm font-medium shadow-xl transition-all"></div>
+
+  <!-- How to earn HP -->
+  <div class="mt-10 bg-neutral-900/50 border border-neutral-800 rounded-xl p-6">
+    <h3 class="text-white font-semibold text-lg mb-4 flex items-center gap-2">
+      <i class="fas fa-bolt text-yellow-400"></i>How to Earn Hero Points
+    </h3>
+    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 text-sm">
+      <div class="flex items-center gap-3 bg-neutral-800/50 rounded-lg p-3">
+        <i class="fas fa-pen text-indigo-400 text-lg w-6 text-center"></i>
+        <div><p class="text-white font-medium">Post in the Feed</p><p class="text-gray-500">+5 XP per post</p></div>
+      </div>
+      <div class="flex items-center gap-3 bg-neutral-800/50 rounded-lg p-3">
+        <i class="fas fa-comment text-green-400 text-lg w-6 text-center"></i>
+        <div><p class="text-white font-medium">Leave a Comment</p><p class="text-gray-500">+2 XP per comment</p></div>
+      </div>
+      <div class="flex items-center gap-3 bg-neutral-800/50 rounded-lg p-3">
+        <i class="fas fa-heart text-red-400 text-lg w-6 text-center"></i>
+        <div><p class="text-white font-medium">Receive a Like</p><p class="text-gray-500">+1 XP per like</p></div>
+      </div>
+      <div class="flex items-center gap-3 bg-neutral-800/50 rounded-lg p-3">
+        <i class="fas fa-user-plus text-blue-400 text-lg w-6 text-center"></i>
+        <div><p class="text-white font-medium">Follow Someone</p><p class="text-gray-500">+3 XP per follow</p></div>
+      </div>
+      <div class="flex items-center gap-3 bg-neutral-800/50 rounded-lg p-3">
+        <i class="fab fa-steam text-blue-400 text-lg w-6 text-center"></i>
+        <div><p class="text-white font-medium">Connect Steam</p><p class="text-gray-500">+50 XP one-time</p></div>
+      </div>
+      <div class="flex items-center gap-3 bg-neutral-800/50 rounded-lg p-3">
+        <i class="fas fa-level-up-alt text-yellow-400 text-lg w-6 text-center"></i>
+        <div><p class="text-white font-medium">Level Up</p><p class="text-gray-500">+5 HP per level gained</p></div>
+      </div>
+    </div>
+    <p class="text-xs text-gray-600 mt-4">Every 50 XP automatically converts to 10 Hero Points.</p>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function escapeHtml(s) {
+  if (!s) return '';
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
+}
+(function() {
+  let allFlairs = [];
+  let currentFilter = 'all';
+  let currentHp = {{ web_user.hero_points|default:0 }};
+
+  async function loadShop() {
+    try {
+      const res = await csrfFetch('/ql/api/flairs/');
+      const data = await res.json();
+      document.getElementById('shop-loading').classList.add('hidden');
+
+      if (!data.flairs || data.flairs.length === 0) {
+        document.getElementById('shop-empty').classList.remove('hidden');
+        return;
+      }
+
+      allFlairs = data.flairs;
+
+      // Show equipped banner
+      const equipped = allFlairs.find(f => f.equipped);
+      if (equipped) {
+        document.getElementById('equipped-banner').classList.remove('hidden');
+        document.getElementById('equipped-emoji').textContent = equipped.emoji || '🎖️';
+        document.getElementById('equipped-name').textContent = equipped.name;
+        document.getElementById('equipped-desc').textContent = equipped.description || '';
+      }
+
+      renderGrid(allFlairs);
+    } catch(e) {
+      document.getElementById('shop-loading').textContent = 'Failed to load shop.';
+    }
+  }
+
+  function renderGrid(flairs) {
+    const grid = document.getElementById('shop-grid');
+    const empty = document.getElementById('shop-empty');
+    if (flairs.length === 0) {
+      grid.classList.add('hidden');
+      empty.classList.remove('hidden');
+    } else {
+      empty.classList.add('hidden');
+      grid.innerHTML = flairs.map(renderCard).join('');
+      grid.classList.remove('hidden');
+    }
+  }
+
+  function renderCard(f) {
+    const owned = f.owned;
+    const equipped = f.equipped;
+    const canAfford = currentHp >= f.hp_cost || f.hp_cost === 0;
+
+    const borderClass = equipped ? 'border-yellow-500/60 bg-yellow-900/10'
+      : f.flair_type === 'exclusive' ? 'border-purple-500/50 bg-purple-950/10'
+      : f.flair_type === 'seasonal'  ? 'border-blue-500/40 bg-blue-950/10'
+      : 'border-neutral-700 bg-neutral-800/50';
+
+    let badge = '';
+    if (equipped) badge = '<span class="absolute top-2 right-2 bg-yellow-500 text-black text-xs px-1.5 py-0.5 rounded font-bold">ON</span>';
+    else if (owned) badge = '<span class="absolute top-2 right-2 bg-green-700 text-white text-xs px-1.5 py-0.5 rounded font-bold">Owned</span>';
+    else if (f.flair_type === 'exclusive') badge = '<span class="absolute top-2 right-2 bg-purple-700 text-white text-xs px-1.5 py-0.5 rounded font-bold"><i class="fas fa-crown"></i></span>';
+    else if (f.flair_type === 'seasonal')  badge = '<span class="absolute top-2 right-2 bg-blue-700 text-white text-xs px-1.5 py-0.5 rounded font-bold"><i class="fas fa-snowflake"></i></span>';
+
+    let btn = '';
+    if (equipped) {
+      btn = `<button onclick="doUnequip()" class="w-full py-2 bg-neutral-700 hover:bg-neutral-600 text-white text-xs rounded-lg transition font-medium">
+               <i class="fas fa-times mr-1"></i>Unequip
+             </button>`;
+    } else if (owned) {
+      btn = `<button onclick="doEquip(${f.id})" class="w-full py-2 bg-yellow-600 hover:bg-yellow-500 text-black text-xs rounded-lg transition font-semibold">
+               <i class="fas fa-check mr-1"></i>Equip
+             </button>`;
+    } else if (canAfford) {
+      btn = `<button onclick="doBuy(${f.id}, ${f.hp_cost})" class="w-full py-2 bg-purple-600 hover:bg-purple-500 text-white text-xs rounded-lg transition font-medium">
+               <i class="fas fa-gem mr-1"></i>${f.hp_cost > 0 ? f.hp_cost + ' HP' : 'Free'}
+             </button>`;
+    } else {
+      btn = `<button disabled class="w-full py-2 bg-neutral-900 text-gray-600 text-xs rounded-lg cursor-not-allowed">
+               <i class="fas fa-lock mr-1"></i>${f.hp_cost} HP needed
+             </button>`;
+    }
+
+    return `
+      <div id="flair-card-${f.id}" class="relative border ${borderClass} rounded-xl p-4 flex flex-col items-center text-center gap-1">
+        ${badge}
+        <span class="text-4xl mb-1">${f.emoji || '🎖️'}</span>
+        <p class="text-white font-semibold text-sm leading-tight">${escapeHtml(f.name)}</p>
+        ${f.description ? `<p class="text-xs text-gray-500 leading-snug">${escapeHtml(f.description)}</p>` : ''}
+        <div class="w-full mt-2">${btn}</div>
+      </div>`;
+  }
+
+  window.filterFlairs = function(type) {
+    currentFilter = type;
+    // Update tab styles
+    document.querySelectorAll('.tab-btn').forEach(b => {
+      b.classList.remove('bg-indigo-600', 'text-white');
+      b.classList.add('bg-neutral-800', 'text-gray-400');
+    });
+    const active = document.getElementById('tab-' + type);
+    if (active) {
+      active.classList.remove('bg-neutral-800', 'text-gray-400');
+      active.classList.add('bg-indigo-600', 'text-white');
+    }
+    const filtered = type === 'all'    ? allFlairs
+      : type === 'owned'   ? allFlairs.filter(f => f.owned)
+      : allFlairs.filter(f => f.flair_type === type);
+    renderGrid(filtered);
+  };
+
+  function showToast(msg, ok) {
+    const el = document.getElementById('shop-feedback');
+    el.className = `fixed bottom-6 right-6 z-50 px-5 py-3 rounded-xl text-sm font-medium shadow-xl ${ok ? 'bg-green-800 text-green-200' : 'bg-red-900 text-red-300'}`;
+    el.textContent = msg;
+    el.classList.remove('hidden');
+    clearTimeout(el._t);
+    el._t = setTimeout(() => el.classList.add('hidden'), 3000);
+  }
+
+  window.doBuy = async function(flairId, cost) {
+    try {
+      const res = await csrfFetch(`/ql/api/flairs/${flairId}/buy/`, { method: 'POST' });
+      const data = await res.json();
+      if (data.success) {
+        currentHp = data.hero_points;
+        document.getElementById('hp-balance').textContent = currentHp;
+        showToast('Flair purchased! Tap Equip to wear it.', true);
+        loadShop();
+      } else {
+        showToast(data.error || 'Could not buy flair.', false);
+      }
+    } catch(e) { showToast('Error buying flair.', false); }
+  };
+
+  window.doEquip = async function(flairId) {
+    try {
+      const res = await csrfFetch(`/ql/api/flairs/${flairId}/equip/`, { method: 'POST' });
+      const data = await res.json();
+      if (data.success) {
+        showToast('Flair equipped! It now shows on your posts.', true);
+        loadShop();
+      } else {
+        showToast(data.error || 'Could not equip flair.', false);
+      }
+    } catch(e) { showToast('Error equipping flair.', false); }
+  };
+
+  window.doUnequip = async function() {
+    try {
+      const res = await csrfFetch('/ql/api/flairs/unequip/', { method: 'POST' });
+      const data = await res.json();
+      if (data.success) {
+        document.getElementById('equipped-banner').classList.add('hidden');
+        showToast('Flair removed.', true);
+        loadShop();
+      }
+    } catch(e) { showToast('Error removing flair.', false); }
+  };
+
+  // alias used by the unequip button in the equipped banner
+  window.unequipFlair = window.doUnequip;
+
+  loadShop();
+})();
+</script>
+{% endblock %}

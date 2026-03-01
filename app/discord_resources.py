@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 # Bot's internal API endpoint (if it has one)
 # Otherwise, we'll need to query the database for cached resources
-BOT_API_URL = os.getenv('WARDEN_BOT_API_URL', 'http://localhost:8001')
+BOT_API_URL = os.getenv('DISCORD_BOT_API_URL', 'http://localhost:8001')
 BOT_API_TOKEN = os.getenv('WARDEN_BOT_API_TOKEN', '')
 
 
