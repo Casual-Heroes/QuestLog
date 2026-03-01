@@ -75,7 +75,7 @@ Built with Django 5.2 and SQLAlchemy on top of MySQL/MariaDB.
 
 ## Related Repos
 
-- [CasualHeroes/WardenBot](https://github.com/CasualHeroes/WardenBot) - Discord bot that pairs with this platform
+- [Casual-Heroes/QuestLog-Bot](https://github.com/Casual-Heroes/QuestLog-Bot) - Discord bot that pairs with this platform
 
 ---
 
@@ -90,8 +90,8 @@ Built with Django 5.2 and SQLAlchemy on top of MySQL/MariaDB.
 ### 1. Clone and install
 
 ```bash
-git clone https://github.com/CasualHeroes/platform.git
-cd platform
+git clone https://github.com/Casual-Heroes/QuestLog.git
+cd QuestLog
 python -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt

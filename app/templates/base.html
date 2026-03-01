@@ -177,11 +177,48 @@
               QuestLogBot <span class="text-[10px] opacity-70">▾</span>
             </button>
             <div x-show="activeDropdown === 'questlogbot'" @click.outside="activeDropdown = null" x-transition
-                 class="absolute left-0 mt-2 bg-neutral-900 border border-neutral-800 rounded-lg shadow-xl w-64 z-50">
+                 class="absolute left-0 mt-2 bg-neutral-900 border border-neutral-800 rounded-lg shadow-xl w-72 z-50">
               <div class="px-4 py-2 text-xs uppercase text-amber-400 tracking-wider border-b border-neutral-800">
-                <i class="fas fa-robot mr-1"></i>Quest Bot
+                <i class="fas fa-robot mr-1"></i>Open Source Bot
               </div>
-              <div class="px-4 py-3 text-xs text-gray-500">More features coming soon.</div>
+              <a href="https://dashboard.casual-heroes.com" target="_blank" rel="noopener"
+                 class="flex items-center gap-2 px-4 py-3 hover:bg-neutral-800 transition">
+                <i class="fas fa-gauge-high text-amber-400 w-4"></i>
+                <div><div class="text-white text-sm">Bot Dashboard</div><div class="text-xs text-gray-500">Manage your server settings</div></div>
+              </a>
+              <a href="https://github.com/Casual-Heroes/QuestLog-Bot" target="_blank" rel="noopener"
+                 class="flex items-center gap-2 px-4 py-3 hover:bg-neutral-800 transition">
+                <i class="fab fa-github text-amber-400 w-4"></i>
+                <div><div class="text-white text-sm">Source Code</div><div class="text-xs text-gray-500">Free &amp; open source on GitHub</div></div>
+              </a>
+              <a href="https://github.com/Casual-Heroes/QuestLog-Bot#features" target="_blank" rel="noopener"
+                 class="flex items-center gap-2 px-4 py-3 hover:bg-neutral-800 transition">
+                <i class="fas fa-list-check text-yellow-400 w-4"></i>
+                <div><div class="text-white text-sm">What's Included</div><div class="text-xs text-gray-500">Security, XP, LFG, discovery &amp; more</div></div>
+              </a>
+              <span class="flex items-center gap-2 px-4 py-3 select-none opacity-50 cursor-not-allowed">
+                <i class="fas fa-book-open text-amber-400 w-4"></i>
+                <div>
+                  <div class="flex items-center gap-2 text-white text-sm">Setup Guide <span class="text-[10px] bg-indigo-900/60 text-indigo-400 px-1.5 py-0.5 rounded font-mono tracking-wide">Soon™</span></div>
+                  <div class="text-xs text-gray-500">Self-hosting walkthrough</div>
+                </div>
+              </span>
+              <div class="border-t border-neutral-800 mx-3 my-1"></div>
+              <div class="px-4 py-1 text-xs uppercase text-gray-500 tracking-wider">Coming Soon</div>
+              <span class="flex items-center gap-2 px-4 py-3 select-none opacity-50 cursor-not-allowed">
+                <i class="fas fa-bolt text-purple-400 w-4"></i>
+                <div>
+                  <div class="flex items-center gap-2 text-white text-sm">Fluxer Bot <span class="text-[10px] bg-indigo-900/60 text-indigo-400 px-1.5 py-0.5 rounded font-mono tracking-wide">Soon™</span></div>
+                  <div class="text-xs text-gray-500">QuestLog Bot ported to Fluxer</div>
+                </div>
+              </span>
+              <span class="flex items-center gap-2 px-4 py-3 select-none opacity-50 cursor-not-allowed">
+                <i class="fas fa-matrix text-green-400 w-4"></i>
+                <div>
+                  <div class="flex items-center gap-2 text-white text-sm">Matrix Bot <span class="text-[10px] bg-indigo-900/60 text-indigo-400 px-1.5 py-0.5 rounded font-mono tracking-wide">Soon™</span></div>
+                  <div class="text-xs text-gray-500">QuestLog Bot ported to Matrix</div>
+                </div>
+              </span>
             </div>
           </div>
 
@@ -364,8 +401,29 @@
               <span class="flex items-center gap-3"><i class="fas fa-robot w-4"></i> QuestLogBot</span>
               <span class="text-xs opacity-50" x-text="open ? '▲' : '▾'"></span>
             </button>
-            <div x-show="open" class="bg-neutral-950/50 pl-10 pr-4 pb-2 text-gray-400 text-xs">
-              More features coming soon.
+            <div x-show="open" class="bg-neutral-950/50 pl-10 pr-4 pb-2 text-gray-300">
+              <a href="https://dashboard.casual-heroes.com" target="_blank" rel="noopener"
+                 class="flex items-center gap-2 py-2 hover:text-amber-400 transition">
+                <i class="fas fa-gauge-high w-4"></i> Bot Dashboard
+              </a>
+              <a href="https://github.com/Casual-Heroes/QuestLog-Bot" target="_blank" rel="noopener"
+                 class="flex items-center gap-2 py-2 hover:text-amber-400 transition">
+                <i class="fab fa-github w-4"></i> Source Code
+              </a>
+              <a href="https://github.com/Casual-Heroes/QuestLog-Bot#features" target="_blank" rel="noopener"
+                 class="flex items-center gap-2 py-2 hover:text-amber-400 transition">
+                <i class="fas fa-list-check w-4"></i> What's Included
+              </a>
+              <div class="text-xs uppercase text-gray-600 tracking-wider pt-2 pb-1">Coming Soon</div>
+              <span class="flex items-center justify-between py-2 text-gray-600 cursor-not-allowed select-none">
+                Setup Guide <span class="text-[10px] bg-indigo-900/60 text-indigo-400 px-1.5 py-0.5 rounded font-mono tracking-wide">Soon™</span>
+              </span>
+              <span class="flex items-center justify-between py-2 text-gray-600 cursor-not-allowed select-none">
+                Fluxer Bot <span class="text-[10px] bg-indigo-900/60 text-indigo-400 px-1.5 py-0.5 rounded font-mono tracking-wide">Soon™</span>
+              </span>
+              <span class="flex items-center justify-between py-2 text-gray-600 cursor-not-allowed select-none">
+                Matrix Bot <span class="text-[10px] bg-indigo-900/60 text-indigo-400 px-1.5 py-0.5 rounded font-mono tracking-wide">Soon™</span>
+              </span>
             </div>
           </div>
 
