@@ -367,4 +367,8 @@ Discord can optionally be linked for account features. The admin panel uses a se
 
 ## License
 
-See [LICENSE](LICENSE).
+This project is licensed under the **GNU Affero General Public License v3.0 (AGPL-3.0)**.
+
+This means you can use, modify, and self-host QuestLog freely. If you run a modified version as a network service, you must release your modifications under the same license. You may not sell or relicense this software under proprietary terms.
+
+See [LICENSE](LICENSE) for the full license text.
