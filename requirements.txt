@@ -11,7 +11,7 @@ certifi==2025.1.31
 cffi==1.17.1
 charset-normalizer==3.4.1
 dataclass-wizard==0.35.0
-Django==5.2.11
+Django==5.2.12
 django-admin-tools==0.9.3
 et_xmlfile==2.0.0
 feedparser==6.0.11
