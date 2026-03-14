@@ -249,7 +249,7 @@ function renderPostCard(post, options = {}) {
     : '';
 
   return `
-    <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-4 post-card cursor-pointer" data-post-id="${post.id}" data-author-id="${post.author ? post.author.id : ''}" onclick="postCardClick(event, ${post.id})">
+    <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-4 post-card cursor-pointer" data-post-id="${post.id}" data-author-id="${post.author ? post.author.id : ''}" onclick="postCardClick(event, ${post.id}, '${post.public_id || post.id}')">
       ${authorHtml}
       ${gameTagHtml}
       <div class="post-content-wrap">
@@ -338,7 +338,7 @@ function renderPostCard(post, options = {}) {
           <i class="far fa-comment"></i>
           <span>${post.comment_count || 0}</span>
         </button>
-        <button onclick="sharePost(${post.id})" class="text-gray-500 hover:text-green-400 flex items-center gap-1.5 text-sm transition">
+        <button onclick="sharePost('${post.public_id || post.id}')" class="text-gray-500 hover:text-green-400 flex items-center gap-1.5 text-sm transition">
           <i class="fas fa-share-alt"></i>
         </button>
         ${isOwnerOrAdmin ? `
@@ -361,11 +361,11 @@ function renderPostCard(post, options = {}) {
 }
 
 // Post card click - navigate to permalink unless clicking a button/link/input
-function postCardClick(event, postId) {
+function postCardClick(event, postId, publicId) {
   if (event.target.closest('button, a, input, textarea, [onclick]:not(.post-card)')) return;
-  // Don't navigate if already on the post detail page
-  if (window.location.pathname === `/ql/post/${postId}/`) return;
-  window.location.href = `/ql/post/${postId}/`;
+  const slug = publicId || postId;
+  if (window.location.pathname === `/ql/post/${slug}/`) return;
+  window.location.href = `/ql/post/${slug}/`;
 }
 
 // Pin toggle
@@ -726,7 +726,7 @@ async function deletePost(event, postId) {
         setTimeout(() => card.remove(), 300);
       }
       // If on the post detail page, go back to feed
-      if (window.location.pathname === `/ql/post/${postId}/`) {
+      if (window.location.pathname.startsWith('/ql/post/')) {
         window.location.href = '/ql/';
       }
       showToast('Post deleted');
@@ -963,12 +963,8 @@ async function quickFollow(userId, btn) {
 }
 
 // Share / copy link
-function sharePost(postId) {
-  const url = `${location.origin}/ql/api/posts/${postId}/`;
-  const profileUrl = `${location.origin}/ql/`;
-
-  // Use a nicer share URL - just a permalink
-  const shareUrl = `${location.origin}/ql/post/${postId}/`;
+function sharePost(publicId) {
+  const shareUrl = `${location.origin}/ql/post/${publicId}/`;
 
   if (navigator.share) {
     navigator.share({ title: 'QuestLog Post', url: shareUrl }).catch(() => {});

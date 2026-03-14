@@ -401,7 +401,7 @@ urlpatterns = [
 
     # Social Feed
     path('feed/', social_feed, name='questlog_web_feed'),
-    path('post/<int:post_id>/', post_detail_page, name='questlog_web_post_detail'),
+    path('post/<str:public_id>/', post_detail_page, name='questlog_web_post_detail'),
 
     # Follow API
     path('api/follow/<int:user_id>/', api_follow, name='questlog_web_api_follow'),

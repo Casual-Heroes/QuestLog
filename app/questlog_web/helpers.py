@@ -50,6 +50,13 @@ if not AUDIT_LOG_SALT:
     AUDIT_LOG_SALT = secrets.token_hex(32)
 
 
+_PUBLIC_ID_CHARS = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
+
+def generate_post_public_id():
+    """Generate a random 8-char alphanumeric public ID for posts."""
+    return ''.join(secrets.choice(_PUBLIC_ID_CHARS) for _ in range(8))
+
+
 def safe_int(value, default=1, min_val=None, max_val=None):
     """Parse an integer from a request param safely, returning default on ValueError."""
     try:
@@ -1575,6 +1582,7 @@ def serialize_post(post, current_user_id=None, db=None, following_ids=None):
 
     data = {
         'id': post.id,
+        'public_id': post.public_id,
         'author': author_data,
         'content': post.content,
         'post_type': post.post_type,

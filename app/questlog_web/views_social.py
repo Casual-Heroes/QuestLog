@@ -27,7 +27,7 @@ from .helpers import (
     is_blocked, create_notification,
     sanitize_text, parse_embed_url, reconstruct_embed_url, _is_valid_giphy_url,
     serialize_user_brief, serialize_post, award_hero_points, safe_int, EXCLUDED_USER_IDS,
-    fetch_link_preview,
+    fetch_link_preview, generate_post_public_id,
 )
 
 logger = logging.getLogger(__name__)
@@ -393,6 +393,7 @@ def api_posts(request):
             now = int(time.time())
             post = WebPost(
                 author_id=request.web_user.id,
+                public_id=generate_post_public_id(),
                 content=content,
                 post_type=post_type,
                 created_at=now,
@@ -1759,10 +1760,10 @@ def api_giveaway_enter(request, giveaway_id):
 
 @add_web_user_context
 @require_http_methods(["GET"])
-def post_detail_page(request, post_id):
+def post_detail_page(request, public_id):
     """Shareable permalink page for a single post."""
     with get_db_session() as db:
-        post = db.query(WebPost).filter_by(id=post_id, is_deleted=False).first()
+        post = db.query(WebPost).filter_by(public_id=public_id, is_deleted=False).first()
         if not post or post.is_hidden:
             return render(request, 'questlog_web/post_detail.html', {
                 'web_user': request.web_user,

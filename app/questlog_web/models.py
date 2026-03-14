@@ -918,6 +918,7 @@ class WebPost(Base):
     __tablename__ = 'web_posts'
 
     id = Column(Integer, primary_key=True, autoincrement=True)
+    public_id = Column(String(12), nullable=True, unique=True, index=True)  # Short random ID for public URLs
     author_id = Column(Integer, ForeignKey('web_users.id'), nullable=False)
 
     # Content
