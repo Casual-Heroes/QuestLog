@@ -1800,12 +1800,12 @@ def post_detail_page(request, public_id):
     return render(request, 'questlog_web/post_detail.html', {
         'web_user': request.web_user,
         'post_json': post_json,
-        'post_id': post_id,
+        'post_id': public_id,
         'post_author': post_author,
         'og_title': og_title,
         'og_desc': og_desc,
         'og_image': og_image,
-        'og_url': f"https://casual-heroes.com/ql/post/{post_id}/",
+        'og_url': f"https://casual-heroes.com/ql/post/{public_id}/",
         'active_page': 'feed',
     })
 
