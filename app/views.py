@@ -2472,6 +2472,46 @@ def content(request):
 def aboutus(request):
     return render(request, 'aboutus.html')
 
+
+def bot_discord(request):
+    import os
+    features = [
+        {'icon': '⭐', 'title': 'XP & Leveling', 'desc': 'Earn XP for messages, reactions, voice chat, invites, and gaming activity. Configurable rates, cooldowns, boost events, and level roles.'},
+        {'icon': '📅', 'title': 'LFG Scheduling', 'desc': 'Create and browse group finder posts with game, activity, date/time, and player cap. Members RSVP and get reminders.'},
+        {'icon': '🛡️', 'title': 'Moderation', 'desc': 'Auto-mod, timeout, ban, kick, warn, and full audit logging. Anti-raid detection and configurable thresholds.'},
+        {'icon': '📡', 'title': 'RSS Feeds', 'desc': 'Subscribe to any RSS/Atom feed and push new articles to a channel. Per-feed filters, formatting, and max age settings.'},
+        {'icon': '🔴', 'title': 'Live Alerts', 'desc': 'Post to a channel when a streamer goes live on Twitch, YouTube, or Kick. Per-streamer message templates.'},
+        {'icon': '🎟️', 'title': 'Raffles', 'desc': 'Run giveaways with ticket-based entry. Members earn extra tickets with Hero Points. Multi-winner support.'},
+        {'icon': '✅', 'title': 'Verification', 'desc': 'Gate new members behind a CAPTCHA or reaction-based verification step before they can access your server.'},
+        {'icon': '🎭', 'title': 'Reaction Roles', 'desc': 'Let members self-assign roles by reacting to a message. Supports single-choice and multi-select modes.'},
+        {'icon': '📰', 'title': 'Scheduled Messages', 'desc': 'Post recurring announcements, reminders, or rotating tips to any channel on a custom schedule.'},
+        {'icon': '🏅', 'title': 'Flairs & Ranks', 'desc': 'Members earn flairs and rank titles as they level up. Admins can create custom flairs purchasable with Hero Points.'},
+        {'icon': '🌐', 'title': 'QuestLog Network', 'desc': 'Approve your server to the QuestLog Network. Members\' Discord XP flows into their unified QuestLog profile.'},
+        {'icon': '🔓', 'title': 'Open Source', 'desc': 'Fully open source under AGPL-3.0. Self-host your own instance or contribute on GitHub.'},
+    ]
+    client_id = os.getenv('DISCORD_CLIENT_ID', '')
+    invite_url = f"https://discord.com/oauth2/authorize?client_id={client_id}&scope=bot+applications.commands&permissions=8" if client_id else '#'
+    return render(request, 'bot_discord.html', {'features': features, 'invite_url': invite_url})
+
+
+def bot_fluxer(request):
+    features = [
+        {'icon': '⭐', 'title': 'XP & Leveling', 'desc': 'Earn XP for messages, media, reactions, and voice. Configurable rates, cooldowns, boost events, and level roles. Syncs to your unified QuestLog profile.'},
+        {'icon': '📅', 'title': 'LFG Scheduling', 'desc': 'Create and browse group finder posts directly on Fluxer. Members RSVP, get reminders, and sessions show up in the QuestLog web calendar.'},
+        {'icon': '🛡️', 'title': 'Moderation', 'desc': 'Warn, mute, kick, and ban with full audit logging. Configurable thresholds and mod log channel.'},
+        {'icon': '📡', 'title': 'RSS Feeds', 'desc': 'Subscribe to any RSS/Atom feed and push new articles to a channel. Per-feed filters, max age, and formatting.'},
+        {'icon': '🔴', 'title': 'Live Alerts', 'desc': 'Post to a channel when a streamer goes live on Twitch, YouTube, or Kick. Per-streamer message templates.'},
+        {'icon': '🎭', 'title': 'Welcome Messages', 'desc': 'Greet new members with a fully customizable welcome message. Supports user mention, avatar, join count, and server name variables.'},
+        {'icon': '🏅', 'title': 'Flairs & Ranks', 'desc': 'Members earn flairs and rank titles as they level up. Synced with the QuestLog site flair shop.'},
+        {'icon': '🔗', 'title': 'Bridge', 'desc': 'Relay messages between Fluxer, Discord, and Matrix channels. One conversation, all platforms.'},
+        {'icon': '🖥️', 'title': 'Web Dashboard', 'desc': 'Every feature has a matching web UI at casual-heroes.com. Configure everything from the browser without slash commands.'},
+        {'icon': '🌐', 'title': 'QuestLog Network', 'desc': 'Approve your server to the QuestLog Network. Members\' Fluxer XP flows into their unified QuestLog profile alongside Discord activity.'},
+        {'icon': '📊', 'title': 'Member Stats', 'desc': 'Track message counts, voice minutes, reactions, and XP per member. Full leaderboard visible in the web dashboard.'},
+        {'icon': '🔓', 'title': 'Open Source', 'desc': 'Fully open source under AGPL-3.0. Self-host your own instance or contribute on GitHub.'},
+    ]
+    invite_url = 'https://fluxer.app'  # update when Fluxer has a proper bot invite URL
+    return render(request, 'bot_fluxer.html', {'features': features, 'invite_url': invite_url})
+
 def questchat(request):
     return render(request, 'questchat.html')
 
@@ -21830,6 +21870,8 @@ def sitemap_xml(request):
         ('https://casual-heroes.com/ql/creators/', '0.7', 'weekly'),
         ('https://casual-heroes.com/ql/articles/', '0.7', 'weekly'),
         ('https://casual-heroes.com/ql/leaderboard/', '0.7', 'weekly'),
+        ('https://casual-heroes.com/bot/discord/', '0.7', 'monthly'),
+        ('https://casual-heroes.com/bot/fluxer/', '0.7', 'monthly'),
         ('https://casual-heroes.com/ql/register/', '0.6', 'monthly'),
         ('https://casual-heroes.com/ql/login/', '0.5', 'monthly'),
         ('https://casual-heroes.com/privacy', '0.5', 'monthly'),
