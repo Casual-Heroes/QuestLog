@@ -2509,7 +2509,7 @@ def bot_fluxer(request):
         {'icon': '📊', 'title': 'Member Stats', 'desc': 'Track message counts, voice minutes, reactions, and XP per member. Full leaderboard visible in the web dashboard.'},
         {'icon': '🔓', 'title': 'Open Source', 'desc': 'Fully open source under AGPL-3.0. Self-host your own instance or contribute on GitHub.'},
     ]
-    invite_url = 'https://fluxer.app'  # update when Fluxer has a proper bot invite URL
+    invite_url = 'https://web.fluxer.app/oauth2/authorize?client_id=1478501650237887115&scope=bot&permissions=6756638430588119'
     return render(request, 'bot_fluxer.html', {'features': features, 'invite_url': invite_url})
 
 def questchat(request):
