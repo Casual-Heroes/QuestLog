@@ -894,6 +894,15 @@ def _get_recent_activity(request):
 
         ticker = []
         two_days_ago = now - 172800
+
+        # Helper: check if a user has opted out of a specific ticker category
+        def ticker_allowed(user, pref_attr):
+            return bool(getattr(user, pref_attr, True))
+
+        def _user_ok(u):
+            return u and not u.is_banned and not u.is_disabled and u.allow_discovery
+
+        # Posts
         recent_posts = db.query(WebPost).filter(
             WebPost.is_deleted == False,
             WebPost.is_hidden == False,
@@ -1791,12 +1800,12 @@ def post_detail_page(request, public_id):
     return render(request, 'questlog_web/post_detail.html', {
         'web_user': request.web_user,
         'post_json': post_json,
-        'post_id': post_id,
+        'post_id': public_id,
         'post_author': post_author,
         'og_title': og_title,
         'og_desc': og_desc,
         'og_image': og_image,
-        'og_url': f"https://casual-heroes.com/ql/post/{post_id}/",
+        'og_url': f"https://casual-heroes.com/ql/post/{public_id}/",
         'active_page': 'feed',
     })
 

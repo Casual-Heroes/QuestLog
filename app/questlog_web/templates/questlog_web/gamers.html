@@ -12,13 +12,14 @@
     div.textContent = text;
     return div.innerHTML;
   }
-  function avatarHtml(username, avatarUrl, size) {
+  function avatarHtml(username, avatarUrl, size, ringClass) {
     size = size || 'w-12 h-12';
+    const ring = ringClass ? ` ${ringClass}` : '';
     if (avatarUrl) {
-      return `<img src="${esc(avatarUrl)}" alt="" class="${size} rounded-full object-cover flex-shrink-0">`;
+      return `<img src="${esc(avatarUrl)}" alt="" class="${size} rounded-full object-cover flex-shrink-0${ring}">`;
     }
     const initials = (username || '?')[0].toUpperCase();
-    return `<div class="${size} rounded-full bg-indigo-600 flex items-center justify-center flex-shrink-0 text-white font-bold text-sm">${initials}</div>`;
+    return `<div class="${size} rounded-full bg-indigo-600 flex items-center justify-center flex-shrink-0 text-white font-bold text-sm${ring}">${initials}</div>`;
   }
   const PLATFORM_ICONS = {
     pc: '<i class="fas fa-desktop" title="PC"></i>',
@@ -52,21 +53,11 @@
       </div>
       <div>
         <label class="text-sm text-gray-400 mb-2 block">Platform</label>
-        <select id="platformFilter" class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-indigo-500 focus:outline-none">
-          <option value="">All Platforms</option>
-          <option value="pc">PC</option>
-          <option value="ps5">PlayStation</option>
-          <option value="xbox">Xbox</option>
-          <option value="switch">Nintendo Switch</option>
-          <option value="mobile">Mobile</option>
-        </select>
+        <div id="platformFilterContainer"></div>
       </div>
       <div>
         <label class="text-sm text-gray-400 mb-2 block">Sort By</label>
-        <select id="sortFilter" class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-indigo-500 focus:outline-none">
-          <option value="followers">Most Followed</option>
-          <option value="new">Newest</option>
-        </select>
+        <div id="sortFilterContainer"></div>
       </div>
     </div>
   </div>
@@ -138,11 +129,33 @@ function buildCard(u) {
   if (u.twitch_username) streaming.push(`<a href="https://twitch.tv/${esc(u.twitch_username)}" target="_blank" rel="noopener" class="text-purple-400 hover:text-purple-300 text-xs transition"><i class="fab fa-twitch"></i></a>`);
   if (u.youtube_channel_name) streaming.push(`<span class="text-red-400 text-xs"><i class="fab fa-youtube"></i></span>`);
 
+  const isLive = !!u.is_live;
+  const isPlaying = !!(u.current_game);
+  const ringClass = isLive
+    ? 'ring-2 ring-rose-500 shadow-[0_0_8px_#f43f5e]'
+    : isPlaying ? 'ring-2 ring-cyan-400 shadow-[0_0_8px_#22d3ee]' : '';
+  const cardBorder = isLive ? 'border-rose-900 hover:border-rose-800' : 'border-neutral-800 hover:border-neutral-700';
+
+  const steamUrl = isPlaying
+    ? (u.current_game_appid
+        ? `https://store.steampowered.com/app/${u.current_game_appid}/`
+        : `https://store.steampowered.com/search/?term=${encodeURIComponent(u.current_game)}`)
+    : '';
+  const playingBadge = isPlaying
+    ? `<span class="inline-flex items-center gap-1 text-[10px] text-cyan-400 font-semibold"><i class="fas fa-gamepad text-[9px]"></i>Playing &middot; <a href="${steamUrl}" target="_blank" rel="noopener" class="truncate max-w-[100px] hover:underline">${esc(u.current_game)}</a></span>`
+    : '';
+  const liveUrl = u.live_url ? esc(u.live_url) : '#';
+  const livePlatform = u.live_platform === 'youtube' ? '<i class="fab fa-youtube mr-1"></i>' : (u.live_platform === 'twitch' ? '<i class="fab fa-twitch mr-1"></i>' : '<i class="fas fa-broadcast-tower mr-1"></i>');
+  const liveBadge = isLive
+    ? `<span class="inline-flex items-center gap-1 text-[10px] text-rose-400 font-semibold"><a href="${liveUrl}" target="_blank" rel="noopener" class="inline-flex items-center gap-1 hover:underline">${livePlatform}LIVE</a></span>`
+    : '';
+  const statusBadges = (playingBadge || liveBadge) ? `<div class="flex flex-col gap-0 mt-0.5">${playingBadge}${liveBadge}</div>` : '';
+
   return `
-    <div class="bg-neutral-900 rounded-xl border border-neutral-800 hover:border-neutral-700 transition p-4 flex flex-col gap-3">
+    <div class="bg-neutral-900 rounded-xl border ${cardBorder} transition p-4 flex flex-col gap-3">
       <div class="flex items-start gap-3">
         <a href="/ql/u/${esc(u.username)}/">
-          ${avatarHtml(u.username, u.avatar_url, 'w-12 h-12')}
+          ${avatarHtml(u.username, u.avatar_url, 'w-12 h-12', ringClass)}
         </a>
         <div class="flex-1 min-w-0">
           <a href="/ql/u/${esc(u.username)}/" class="font-semibold text-white hover:text-indigo-400 transition text-sm block truncate">${esc(u.display_name)}</a>
@@ -152,6 +165,7 @@ function buildCard(u) {
             ${platforms}
             ${streaming.join('')}
           </div>
+          ${statusBadges}
         </div>
       </div>
       ${u.bio ? `<p class="text-gray-400 text-xs leading-relaxed line-clamp-2">${esc(u.bio)}</p>` : ''}
@@ -173,8 +187,8 @@ function buildCard(u) {
 
 async function load() {
   const q = document.getElementById('searchInput').value.trim();
-  const platform = document.getElementById('platformFilter').value;
-  const sort = document.getElementById('sortFilter').value;
+  const platform = document.getElementById('platformFilterContainer')?.querySelector('input[type=hidden]')?.value || '';
+  const sort = document.getElementById('sortFilterContainer')?.querySelector('input[type=hidden]')?.value || 'followers';
 
   const skeleton = document.getElementById('loadingSkeleton');
   const grid = document.getElementById('gamersGrid');
@@ -234,10 +248,38 @@ document.getElementById('searchInput').addEventListener('input', () => {
   clearTimeout(searchTimeout);
   searchTimeout = setTimeout(() => { currentPage = 1; load(); }, 350);
 });
-document.getElementById('platformFilter').addEventListener('change', () => { currentPage = 1; load(); });
-document.getElementById('sortFilter').addEventListener('change', () => { currentPage = 1; load(); });
-
-load();
+document.addEventListener('DOMContentLoaded', function() {
+  createCustomSelect({
+    container: document.getElementById('platformFilterContainer'),
+    name: 'platformFilter',
+    placeholder: 'All Platforms',
+    items: [
+      {value: '', label: 'All Platforms'},
+      {value: 'pc', label: 'PC'},
+      {value: 'ps5', label: 'PlayStation'},
+      {value: 'xbox', label: 'Xbox'},
+      {value: 'switch', label: 'Nintendo Switch'},
+      {value: 'mobile', label: 'Mobile'},
+    ],
+    selected: '',
+    color: 'indigo',
+    onSelect: () => { currentPage = 1; load(); },
+  });
+  createCustomSelect({
+    container: document.getElementById('sortFilterContainer'),
+    name: 'sortFilter',
+    placeholder: 'Sort By...',
+    items: [
+      {value: 'followers', label: 'Most Followed'},
+      {value: 'new', label: 'Newest'},
+    ],
+    selected: 'followers',
+    color: 'indigo',
+    onSelect: () => { currentPage = 1; load(); },
+  });
+  load();
+});
 </script>
 
+{% include "questlog_web/partials/custom_select.html" %}
 {% endblock %}
