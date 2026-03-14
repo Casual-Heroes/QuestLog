@@ -1059,6 +1059,27 @@ function updateGameSpecificOptions(gameName) {
         onSelect: (val) => { _setDataField('Activity', val); },
       });
     }
+
+    if (!choices.length) { wrapper.classList.add('hidden'); return; }
+    wrapper.classList.remove('hidden');
+
+    const containerId = `opt_cs_container_${field.name}`;
+    wrapper.innerHTML = `<div id="${containerId}"></div>`;
+    const items = [
+      { value: '', label: `Select ${field.name.toLowerCase()}...` },
+      ...choices.map(c => ({ value: c, label: c })),
+    ];
+    const inst = createCustomSelect({
+      container: `#${containerId}`,
+      name: `opt_${field.name}`,
+      label: field.name,
+      placeholder: `Select ${field.name.toLowerCase()}...`,
+      items,
+      selected: '',
+      color: 'green',
+      onSelect: (val) => { _setDataField(field.name, val); },
+    });
+    conditionalSelects[field.name] = inst;
   }
 }
 

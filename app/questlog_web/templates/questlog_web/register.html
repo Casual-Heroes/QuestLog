@@ -241,6 +241,16 @@
       {% endif %}
 
       <div class="ql-field">
+        <label for="id_invite_code">Invite Code {% if not early_access_mode %}<span style="color:#4b5563;font-weight:400;text-transform:none;letter-spacing:0;">(optional)</span>{% endif %}</label>
+        <input type="text" id="id_invite_code" name="invite_code" value="{{ invite_code|default:'' }}"
+          placeholder="XXXXXXXXXX" autocomplete="off" maxlength="16"
+          style="text-transform: uppercase; letter-spacing: 0.15em; font-family: monospace; font-size: 1.05rem;">
+        <div class="ql-field-hint">
+          {% if early_access_mode %}Required during Early Access - get yours in our Fluxer or Discord community.{% else %}Have an invite code from a community event or bot? Enter it here.{% endif %}
+        </div>
+      </div>
+
+      <div class="ql-field">
         <label for="id_username">Username</label>
         <input type="text" id="id_username" name="username" value="{{ username|default:'' }}" placeholder="pick a username" autocomplete="username" autofocus required minlength="3" maxlength="30">
         <div class="ql-field-hint">3–30 characters. Letters, numbers, hyphens, underscores.</div>

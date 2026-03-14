@@ -115,6 +115,15 @@
         </a>
         {% endif %}
       </div>
+      {% if profile_user.is_live %}
+      <a id="profile-live-pill" href="{{ profile_user.live_url }}" target="_blank" rel="noopener"
+         class="inline-flex items-center gap-2 bg-rose-500/10 border border-rose-500/30 px-3 py-1.5 rounded-full mt-1 hover:bg-rose-500/20 transition">
+        <span class="w-2 h-2 rounded-full bg-rose-500 animate-pulse flex-shrink-0"></span>
+        <span class="text-rose-400 text-xs font-semibold">Live on {{ profile_user.live_platform|title }}</span>
+      </a>
+      {% else %}
+      <a id="profile-live-pill" class="hidden"></a>
+      {% endif %}
     </div>
 
     <!-- Stats row -->

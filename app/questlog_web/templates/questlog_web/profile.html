@@ -191,6 +191,36 @@
         {% if web_user.twitch_username %}<span class="flex items-center gap-1.5 px-2.5 py-1 bg-purple-900/30 border border-purple-800/40 rounded-lg text-xs text-purple-300"><i class="fab fa-twitch"></i>Twitch</span>{% endif %}
         {% if not web_user.steam_id and not web_user.discord_id and not web_user.fluxer_id %}<p class="text-gray-600 text-xs">No accounts connected yet. <button @click="tab='connected'" class="text-indigo-400 hover:underline">Connect one</button></p>{% endif %}
       </div>
+
+      {% if user_communities|length >= 1 %}
+      <!-- Primary Community picker - shown when user belongs to 1+ communities -->
+      <div class="mt-3 pt-3 border-t border-neutral-700/50">
+        <p class="text-sm text-white font-medium flex items-center gap-1.5 mb-1">
+          <i class="fas fa-star text-yellow-400 text-xs"></i>Primary Community
+        </p>
+        <p class="text-xs text-gray-500 mb-2">Shown on your profile and sidebar</p>
+        <div id="primaryCommunityContainer"></div>
+        <p id="primaryCommunityStatus" class="text-xs mt-1.5 hidden"></p>
+      </div>
+      <script>
+      document.addEventListener('DOMContentLoaded', function() {
+        const communityItems = [
+          {value: '', label: 'None'},
+          {% for c in user_communities %}{value: '{{ c.id }}', label: '{{ c.name }} ({{ c.platform }})'},
+          {% endfor %}
+        ];
+        createCustomSelect({
+          container: document.getElementById('primaryCommunityContainer'),
+          name: 'primaryCommunityId',
+          items: communityItems,
+          selected: '{{ web_user.primary_community_id|default:"" }}',
+          color: 'yellow',
+          placeholder: 'Select community...',
+          onSelect: (val) => savePrimaryCommunity(val),
+        });
+      });
+      </script>
+      {% endif %}
     </div>
 
     <!-- Invite Friends -->

@@ -31,6 +31,19 @@ from .fluxer_webhooks import notify_lfg_post as _fluxer_lfg_post, build_lfg_embe
 
 logger = logging.getLogger(__name__)
 
+_VOICE_LINK_SCHEMES = ('https://',)
+_VOICE_LINK_MAX = 500
+
+
+def _validate_voice_link(url):
+    """Only allow https:// voice links to prevent javascript: / file: URI injection."""
+    if not url or not isinstance(url, str):
+        return None
+    url = url.strip()[:_VOICE_LINK_MAX]
+    if not any(url.startswith(s) for s in _VOICE_LINK_SCHEMES):
+        return None
+    return url or None
+
 
 def _calc_activity_level(db, community):
     """

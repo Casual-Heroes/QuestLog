@@ -522,6 +522,15 @@ def api_posts(request):
             db.commit()
             award_hero_points(request.web_user.id, 'post', ref_id=str(post.id))
 
+            # Notify Fluxer channel
+            _post_url = f"https://casual-heroes.com/ql/profile/{request.web_user.username}/"
+            _fluxer_new_post(
+                username=request.web_user.username,
+                game=post.game_tag_name or '',
+                content=post.content or '',
+                post_url=_post_url,
+            )
+
             # Refetch to populate relationships (author, images)
             post = db.query(WebPost).filter_by(id=post.id).first()
             post_data = serialize_post(post, request.web_user.id, db)

@@ -480,6 +480,15 @@ def discover(request):
     return render(request, 'questlog_web/discover.html', context)
 
 
+@add_web_user_context
+def community_guidelines(request):
+    """QuestLog Network community guidelines page."""
+    return render(request, 'questlog_web/community_guidelines.html', {
+        'web_user': request.web_user,
+        'active_page': 'community_guidelines',
+    })
+
+
 # =============================================================================
 # LFG VIEWS
 # =============================================================================
