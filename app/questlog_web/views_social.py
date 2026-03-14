@@ -894,15 +894,6 @@ def _get_recent_activity(request):
 
         ticker = []
         two_days_ago = now - 172800
-
-        # Helper: check if a user has opted out of a specific ticker category
-        def ticker_allowed(user, pref_attr):
-            return bool(getattr(user, pref_attr, True))
-
-        def _user_ok(u):
-            return u and not u.is_banned and not u.is_disabled and u.allow_discovery
-
-        # Posts
         recent_posts = db.query(WebPost).filter(
             WebPost.is_deleted == False,
             WebPost.is_hidden == False,
