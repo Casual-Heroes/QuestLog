@@ -1,0 +1,813 @@
+{% extends "questlog_web/matrix_base_guild.html" %}
+{% load static %}
+
+{% block title %}XP &amp; Leveling - {{ space_name }}{% endblock %}
+
+{% block guild_content %}
+
+{% include "questlog/partials/custom_select.html" %}
+
+<!-- XP Tabs -->
+<div class="flex items-center gap-6 border-b border-neutral-800 mb-4 px-6 pt-4">
+  <button id="xpTabSettingsBtn"
+          class="pb-3 text-sm font-semibold border-b-2 flex items-center gap-2"
+          onclick="switchXpTab('settings', true)">
+    <i class="fas fa-cog text-yellow-400"></i> XP Settings
+  </button>
+  <button id="xpTabLevelupBtn"
+          class="pb-3 text-sm font-semibold border-b-2 flex items-center gap-2"
+          onclick="switchXpTab('levelup', true)">
+    <i class="fas fa-comment text-blue-400"></i> Level-Up Messages
+  </button>
+  <button id="xpTabBoostsBtn"
+          class="pb-3 text-sm font-semibold border-b-2 flex items-center gap-2"
+          onclick="switchXpTab('boosts', true)">
+    <i class="fas fa-bolt text-orange-400"></i> XP Boost Events
+  </button>
+</div>
+
+<div class="px-6 pb-8">
+
+<!-- ===== XP SETTINGS TAB ===== -->
+<div id="xpTabSettings">
+
+<!-- XP System Toggle Banner -->
+<div class="mb-6 bg-gradient-to-r from-yellow-900/30 to-amber-900/30 border border-yellow-700/50 rounded-xl p-5">
+  <div class="flex items-center justify-between">
+    <div class="flex items-center gap-4">
+      <div class="w-12 h-12 bg-yellow-600/20 rounded-lg flex items-center justify-center flex-shrink-0">
+        <i class="fas fa-power-off text-yellow-400 text-xl"></i>
+      </div>
+      <div>
+        <h3 class="text-white font-bold mb-1">XP System Status</h3>
+        <p class="text-gray-400 text-sm">
+          XP tracking is currently <span id="xpStatusLabel" class="font-semibold">{% if settings.xp_enabled %}enabled{% else %}disabled{% endif %}</span>
+        </p>
+      </div>
+    </div>
+    <label class="relative inline-flex items-center cursor-pointer">
+      <input type="checkbox" id="xpEnabledToggle" class="sr-only peer" {% if settings.xp_enabled %}checked{% endif %} onchange="toggleXPSystem()">
+      <div class="w-14 h-7 bg-gray-700 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-yellow-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[4px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-yellow-600"></div>
+      <span class="ml-3 text-sm font-medium text-white">Enable XP</span>
+    </label>
+  </div>
+</div>
+
+<!-- Header -->
+<div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+  <div>
+    <h1 class="text-3xl font-bold text-white">
+      <i class="fas fa-star text-yellow-400 mr-3"></i>XP &amp; Leveling System
+    </h1>
+    <p class="text-gray-400 mt-2">Configure XP rates, level roles, and manage member progression for {{ space_name }}</p>
+  </div>
+  <div class="relative">
+    <button onclick="toggleXpActions()" id="xpActionsBtn"
+            class="px-4 py-2 bg-neutral-800 hover:bg-neutral-700 text-white rounded-lg border border-neutral-700 flex items-center gap-2">
+      <i class="fas fa-ellipsis-h"></i>
+      <span>XP Actions</span>
+      <i class="fas fa-chevron-down text-xs"></i>
+    </button>
+    <div id="xpActionsMenu" class="hidden absolute right-0 mt-2 w-56 bg-neutral-900 border border-neutral-800 rounded-lg shadow-xl z-20">
+      <button onclick="openConfigModal(); toggleXpActions(true);" class="w-full text-left px-4 py-2 text-sm text-white hover:bg-neutral-800 flex items-center gap-2">
+        <i class="fas fa-sliders-h text-yellow-400"></i><span>XP Settings</span>
+      </button>
+      <button onclick="openLevelRoleModal(); toggleXpActions(true);" class="w-full text-left px-4 py-2 text-sm text-white hover:bg-neutral-800 flex items-center gap-2">
+        <i class="fas fa-plus text-blue-300"></i><span>Add Level Role</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Stats Overview -->
+<div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+  <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-5">
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 bg-indigo-600/20 rounded-lg flex items-center justify-center">
+        <i class="fas fa-users text-indigo-400"></i>
+      </div>
+      <div>
+        <p class="text-gray-400 text-sm">Total Members</p>
+        <p class="text-white text-xl font-bold" id="stat-total-members">{{ member_count }}</p>
+      </div>
+    </div>
+  </div>
+  <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-5">
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 bg-yellow-600/20 rounded-lg flex items-center justify-center">
+        <i class="fas fa-star text-yellow-400"></i>
+      </div>
+      <div>
+        <p class="text-gray-400 text-sm">Message XP</p>
+        <p class="text-white text-xl font-bold" id="stat-message-xp">{{ settings.xp_per_message|default:2 }}</p>
+      </div>
+    </div>
+  </div>
+  <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-5">
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 bg-blue-600/20 rounded-lg flex items-center justify-center">
+        <i class="fas fa-clock text-blue-400"></i>
+      </div>
+      <div>
+        <p class="text-gray-400 text-sm">Cooldown (s)</p>
+        <p class="text-white text-xl font-bold">{{ settings.xp_cooldown_secs|default:60 }}</p>
+      </div>
+    </div>
+  </div>
+  <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-5">
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 bg-purple-600/20 rounded-lg flex items-center justify-center">
+        <i class="fas fa-crown text-purple-400"></i>
+      </div>
+      <div>
+        <p class="text-gray-400 text-sm">Level Roles</p>
+        <p class="text-white text-xl font-bold">{{ level_roles|length }}</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Two Column Layout -->
+<div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
+
+  <!-- Level Roles + Ignored Rooms -->
+  <div class="xl:col-span-1">
+    <div class="bg-neutral-900 rounded-xl border border-neutral-800 overflow-hidden mb-6">
+      <div class="p-5 border-b border-neutral-800 flex items-center justify-between">
+        <div>
+          <h3 class="text-lg font-bold text-white">
+            <i class="fas fa-crown text-purple-400 mr-2"></i>Level Roles
+          </h3>
+          <p class="text-gray-400 text-sm mt-1">Adjust power levels when members level up</p>
+        </div>
+        <button onclick="openLevelRoleModal()" class="text-teal-400 hover:text-teal-300 text-sm">
+          <i class="fas fa-plus mr-1"></i>Add
+        </button>
+      </div>
+      <div id="level-roles-container" class="divide-y divide-neutral-800">
+        {% if level_roles %}
+          {% for lr in level_roles %}
+          <div class="level-role-item p-4 flex items-center justify-between" data-id="{{ lr.id }}">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 bg-purple-600/20 rounded-lg flex items-center justify-center">
+                <span class="text-purple-400 font-bold text-sm">{{ lr.level }}</span>
+              </div>
+              <div>
+                <p class="text-white font-medium">Level {{ lr.level }}</p>
+                <p class="text-gray-500 text-sm">Power Level {{ lr.power_level }}{% if lr.label %} - {{ lr.label }}{% endif %}</p>
+              </div>
+            </div>
+            <button onclick="deleteLevelRole({{ lr.id }})"
+                    class="text-red-400 hover:text-red-300 transition p-2">
+              <i class="fas fa-trash"></i>
+            </button>
+          </div>
+          {% endfor %}
+        {% else %}
+          <div id="level-roles-empty" class="p-8 text-center">
+            <i class="fas fa-crown text-4xl text-gray-600 mb-3"></i>
+            <p class="text-gray-400">No level roles configured</p>
+            <button onclick="openLevelRoleModal()" class="text-teal-400 hover:text-teal-300 text-sm mt-2">
+              <i class="fas fa-plus mr-1"></i>Add your first level role
+            </button>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Ignored Rooms -->
+    <div class="bg-neutral-900 rounded-xl border border-neutral-800 overflow-hidden">
+      <div class="p-5 border-b border-neutral-800">
+        <h3 class="text-lg font-bold text-white">
+          <i class="fas fa-ban text-red-400 mr-2"></i>Ignored Rooms
+        </h3>
+        <p class="text-gray-400 text-sm mt-1">Rooms that earn no XP</p>
+      </div>
+      <div class="p-5">
+        <div id="cs-ignored-rooms-display"></div>
+        <p class="text-gray-500 text-xs mt-2">Messages in ignored rooms do not earn XP. Update in XP Settings.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Leaderboard -->
+  <div class="xl:col-span-2">
+    <div class="bg-neutral-900 rounded-xl border border-neutral-800 overflow-hidden">
+      <div class="p-5 border-b border-neutral-800 flex items-center justify-between">
+        <div>
+          <h3 class="text-lg font-bold text-white">
+            <i class="fas fa-trophy text-yellow-400 mr-2"></i>XP Leaderboard
+          </h3>
+          <p class="text-gray-400 text-sm mt-1">Top members by XP in this space</p>
+        </div>
+        <div class="flex items-center gap-2">
+          <input type="text" id="search-members" placeholder="Search..."
+                 oninput="filterLeaderboard(this.value)"
+                 class="bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-1.5 text-sm text-white focus:border-teal-500 focus:outline-none w-48">
+        </div>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full min-w-[500px]">
+          <thead class="bg-neutral-800/50">
+            <tr>
+              <th class="text-left text-gray-400 text-xs uppercase tracking-wider px-5 py-3">#</th>
+              <th class="text-left text-gray-400 text-xs uppercase tracking-wider px-5 py-3">Member</th>
+              <th class="text-right text-gray-400 text-xs uppercase tracking-wider px-5 py-3">Level</th>
+              <th class="text-right text-gray-400 text-xs uppercase tracking-wider px-5 py-3">XP</th>
+              <th class="text-center text-gray-400 text-xs uppercase tracking-wider px-5 py-3">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="leaderboard-body" class="divide-y divide-neutral-800">
+            <tr>
+              <td colspan="5" class="px-5 py-10 text-center text-gray-400">
+                <i class="fas fa-users text-3xl mb-3 opacity-50 block"></i>
+                <button onclick="loadLeaderboard()" class="text-teal-400 hover:text-teal-300 text-sm">Load leaderboard</button>
+                <p class="text-xs text-gray-500 mt-1">Data appears once the bot begins tracking XP</p>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+</div><!-- end xpTabSettings -->
+
+
+<!-- ===== LEVEL-UP MESSAGES TAB ===== -->
+<div id="xpTabLevelup" class="hidden">
+  <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+    <div>
+      <h1 class="text-3xl font-bold text-white">
+        <i class="fas fa-comment text-blue-400 mr-3"></i>Level-Up Messages
+      </h1>
+      <p class="text-gray-400 mt-2">Configure what happens when a member levels up</p>
+    </div>
+    <button onclick="saveLevelUpConfig()" id="levelup-save-btn"
+            class="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition flex items-center gap-2">
+      <i class="fas fa-save"></i>Save Settings
+    </button>
+  </div>
+
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6 space-y-6">
+      <div class="flex items-center justify-between">
+        <div>
+          <p class="text-white font-medium">Enable Level-Up Messages</p>
+          <p class="text-gray-400 text-sm mt-0.5">Send a message when a member levels up</p>
+        </div>
+        <label class="relative inline-flex items-center cursor-pointer">
+          <input type="checkbox" id="lu-enabled" class="sr-only peer" {% if settings.level_up_enabled %}checked{% endif %}>
+          <div class="w-11 h-6 bg-gray-700 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+        </label>
+      </div>
+
+      <div>
+        <label class="text-gray-400 text-sm block mb-2">Level-Up Announcement Room</label>
+        <div id="cs-lu-room"></div>
+      </div>
+
+      <div>
+        <label class="text-gray-400 text-sm block mb-2">Message Template</label>
+        <textarea id="lu-message" rows="4" placeholder="Leave blank for default message"
+                  class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white focus:border-blue-500 focus:outline-none resize-none text-sm">{{ settings.level_up_message|default:'' }}</textarea>
+        <p class="text-gray-500 text-xs mt-2">Variables: <code class="text-blue-400">{user}</code>, <code class="text-blue-400">{level}</code>, <code class="text-blue-400">{xp}</code></p>
+      </div>
+    </div>
+
+    <div class="space-y-4">
+      <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6">
+        <h4 class="text-white font-medium mb-3"><i class="fas fa-eye text-gray-400 mr-2"></i>Preview</h4>
+        <div class="bg-neutral-800 rounded-lg p-4 border border-neutral-700">
+          <p id="lu-preview" class="text-gray-300 text-sm">Your preview will appear here.</p>
+        </div>
+        <button onclick="updateLuPreview()" class="mt-3 text-blue-400 hover:text-blue-300 text-xs transition">
+          <i class="fas fa-refresh mr-1"></i>Update preview
+        </button>
+      </div>
+      <div class="bg-blue-900/20 border border-blue-700/50 rounded-xl p-5">
+        <p class="text-blue-400 text-sm font-medium mb-2">Default message template:</p>
+        <p class="text-gray-300 text-sm font-mono">"GG {user}, you just reached <strong>Level {level}</strong>! Keep chatting to level up further."</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ===== XP BOOST EVENTS TAB ===== -->
+<div id="xpTabBoosts" class="hidden">
+  <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+    <div>
+      <h1 class="text-3xl font-bold text-white">
+        <i class="fas fa-bolt text-orange-400 mr-3"></i>XP Boost Events
+      </h1>
+      <p class="text-gray-400 mt-2">Temporarily multiply XP gains to reward your community during events</p>
+    </div>
+    <button onclick="openBoostModal()"
+            class="px-4 py-2.5 bg-orange-600 hover:bg-orange-700 text-white rounded-lg font-medium transition flex items-center gap-2">
+      <i class="fas fa-plus"></i>New Boost Event
+    </button>
+  </div>
+
+  <div id="active-boost-banner" class="hidden mb-6 bg-gradient-to-r from-orange-900/30 to-yellow-900/30 border border-orange-700/50 rounded-xl p-4">
+    <div class="flex items-center gap-3">
+      <i class="fas fa-bolt text-orange-400 text-xl"></i>
+      <div>
+        <p class="text-white font-bold" id="active-boost-label">XP Boost Active!</p>
+        <p class="text-orange-300 text-sm" id="active-boost-detail"></p>
+      </div>
+    </div>
+  </div>
+
+  <div class="bg-neutral-900 rounded-xl border border-neutral-800 overflow-hidden">
+    <div class="p-5 border-b border-neutral-800">
+      <h3 class="text-white font-bold"><i class="fas fa-list text-gray-400 mr-2"></i>Boost Events</h3>
+    </div>
+    <div id="boosts-list" class="divide-y divide-neutral-800">
+      {% if boosts %}
+        {% for b in boosts %}
+        <div class="flex items-center gap-4 p-4 {% if b.ends_at <= now %}opacity-50{% endif %}">
+          <div class="w-10 h-10 bg-orange-600/20 rounded-lg flex items-center justify-center flex-shrink-0">
+            <i class="fas fa-bolt text-orange-400"></i>
+          </div>
+          <div class="flex-1 min-w-0">
+            <p class="text-white font-medium">{{ b.multiplier }}x XP Boost</p>
+            <p class="text-gray-500 text-sm">
+              {% if b.label %}{{ b.label }} &middot; {% endif %}Ends: <span class="font-mono text-xs" data-ts="{{ b.ends_at }}">{{ b.ends_at }}</span>
+            </p>
+          </div>
+          <div class="flex items-center gap-2">
+            {% if b.ends_at > now %}
+            <span class="text-xs bg-orange-600/20 text-orange-400 px-2 py-0.5 rounded-full border border-orange-700/30">Active</span>
+            {% else %}
+            <span class="text-xs text-gray-600">Expired</span>
+            {% endif %}
+            <button onclick="deleteBoost({{ b.id }})"
+                    class="text-gray-600 hover:text-red-400 transition p-1.5 rounded-lg hover:bg-red-600/10">
+              <i class="fas fa-trash text-xs"></i>
+            </button>
+          </div>
+        </div>
+        {% endfor %}
+      {% else %}
+        <div id="boosts-empty" class="p-10 text-center text-gray-400">
+          <i class="fas fa-bolt text-4xl mb-3 opacity-30 block"></i>
+          <p>No boosts configured.</p>
+          <p class="text-sm text-gray-500 mt-1">Add a boost to temporarily increase XP rates.</p>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+</div><!-- end px-6 pb-8 -->
+
+
+<!-- ===== XP CONFIG MODAL ===== -->
+<div id="config-modal" class="fixed inset-0 z-50 hidden">
+  <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" onclick="closeConfigModal()"></div>
+  <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-lg max-h-[90vh] overflow-y-auto">
+    <div class="bg-neutral-900 rounded-xl border border-neutral-700 shadow-2xl">
+      <div class="p-5 border-b border-neutral-800 flex items-center justify-between">
+        <h3 class="text-lg font-bold text-white">
+          <i class="fas fa-cog text-yellow-400 mr-2"></i>XP Configuration
+        </h3>
+        <button onclick="closeConfigModal()" class="text-gray-400 hover:text-white">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <form id="config-form" class="p-5 space-y-6" onsubmit="return false;">
+        <div>
+          <h4 class="text-white font-medium mb-3">XP Rates</h4>
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="text-gray-400 text-sm">XP per Message</label>
+              <input type="number" id="modal-xp-message" min="0" max="100"
+                     class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white mt-1">
+            </div>
+            <div>
+              <label class="text-gray-400 text-sm">Message Cooldown (seconds)</label>
+              <input type="number" id="modal-cooldown" min="0" max="3600"
+                     class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white mt-1">
+            </div>
+          </div>
+        </div>
+        <div>
+          <h4 class="text-white font-medium mb-3">Ignored Rooms</h4>
+          <div id="modal-ignored-rooms"></div>
+          <p class="text-gray-500 text-xs mt-1">Messages in these rooms earn no XP.</p>
+        </div>
+        <div class="flex justify-end gap-3 pt-4 border-t border-neutral-800">
+          <button type="button" onclick="closeConfigModal()"
+                  class="px-4 py-2 text-gray-400 hover:text-white transition">Cancel</button>
+          <button type="button" onclick="saveXpConfig()"
+                  class="bg-teal-600 hover:bg-teal-500 text-white px-6 py-2 rounded-lg font-medium transition">
+            <i class="fas fa-save mr-2"></i>Save Changes
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- ===== ADD LEVEL ROLE MODAL ===== -->
+<div id="level-role-modal" class="fixed inset-0 z-50 hidden">
+  <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" onclick="closeLevelRoleModal()"></div>
+  <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md">
+    <div class="bg-neutral-900 rounded-xl border border-neutral-700 shadow-2xl">
+      <div class="p-5 border-b border-neutral-800 flex items-center justify-between">
+        <h3 class="text-lg font-bold text-white">
+          <i class="fas fa-crown text-purple-400 mr-2"></i>Add Level Role
+        </h3>
+        <button onclick="closeLevelRoleModal()" class="text-gray-400 hover:text-white">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <form id="level-role-form" class="p-5 space-y-4" onsubmit="return false;">
+        <div>
+          <label class="text-gray-400 text-sm block mb-1">Level Required</label>
+          <input type="number" id="lr-level" min="1" max="9999" placeholder="e.g., 5" required
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white">
+        </div>
+        <div>
+          <label class="text-gray-400 text-sm block mb-1">Set Power Level <span class="text-gray-500 text-xs">(0=member, 50=mod, 100=admin)</span></label>
+          <input type="number" id="lr-power-level" min="0" max="100" placeholder="e.g., 50" required
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white">
+        </div>
+        <div>
+          <label class="text-gray-400 text-sm block mb-1">Label (optional)</label>
+          <input type="text" id="lr-label" placeholder="e.g., Trusted Member"
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white">
+        </div>
+        <div class="flex justify-end gap-3 pt-4">
+          <button type="button" onclick="closeLevelRoleModal()"
+                  class="px-4 py-2 text-gray-400 hover:text-white transition">Cancel</button>
+          <button type="button" onclick="submitLevelRole()"
+                  class="bg-teal-600 hover:bg-teal-500 text-white px-6 py-2 rounded-lg font-medium transition">
+            <i class="fas fa-plus mr-2"></i>Add Role
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- ===== BOOST MODAL ===== -->
+<div id="boost-modal" class="fixed inset-0 z-50 hidden">
+  <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" onclick="closeBoostModal()"></div>
+  <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md">
+    <div class="bg-neutral-900 rounded-xl border border-neutral-700 shadow-2xl">
+      <div class="p-5 border-b border-neutral-800 flex items-center justify-between">
+        <h3 class="text-lg font-bold text-white">
+          <i class="fas fa-bolt text-orange-400 mr-2"></i>New Boost Event
+        </h3>
+        <button onclick="closeBoostModal()" class="text-gray-400 hover:text-white">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <form class="p-5 space-y-4" onsubmit="return false;">
+        <div>
+          <label class="text-gray-400 text-sm block mb-1">Multiplier <span class="text-red-400">*</span></label>
+          <input type="number" id="boostMultiplier" placeholder="e.g. 2" min="1.1" max="10" step="0.1"
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white">
+        </div>
+        <div>
+          <label class="text-gray-400 text-sm block mb-1">Duration (hours) <span class="text-red-400">*</span></label>
+          <input type="number" id="boostHours" placeholder="e.g. 24" min="1" max="720"
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white">
+        </div>
+        <div>
+          <label class="text-gray-400 text-sm block mb-1">Label (optional)</label>
+          <input type="text" id="boostLabel" placeholder="e.g. Weekend boost"
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white">
+        </div>
+        <div class="flex justify-end gap-3 pt-4">
+          <button type="button" onclick="closeBoostModal()"
+                  class="px-4 py-2 text-gray-400 hover:text-white transition">Cancel</button>
+          <button type="button" onclick="submitBoost()"
+                  class="bg-orange-600 hover:bg-orange-700 text-white px-6 py-2 rounded-lg font-medium transition">
+            <i class="fas fa-plus mr-2"></i>Add Boost
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toast" class="fixed bottom-6 right-6 z-50 hidden">
+  <div class="bg-neutral-800 border border-neutral-700 text-white text-sm px-4 py-3 rounded-xl shadow-xl flex items-center gap-2">
+    <i id="toastIcon" class="fas fa-check text-teal-400"></i>
+    <span id="toastMsg"></span>
+  </div>
+</div>
+
+<script>
+const SPACE_ID_URL = '{{ space_id_url }}';
+const SETTINGS = JSON.parse('{{ settings_json|escapejs }}');
+const ROOMS = JSON.parse('{{ rooms_json|escapejs }}');
+
+const roomsWithBlank = [{value: '', label: '-- None (silent level-up) --'}, ...ROOMS];
+let _csIgnoredRooms = null;
+let _csModalIgnoredRooms = null;
+let _csLuRoom = null;
+
+document.addEventListener('DOMContentLoaded', function() {
+  // Format boost timestamps
+  document.querySelectorAll('[data-ts]').forEach(el => {
+    const ts = parseInt(el.dataset.ts);
+    if (!isNaN(ts) && ts > 0) el.textContent = new Date(ts * 1000).toLocaleString();
+  });
+
+  // XP toggle status label color
+  updateXpStatusLabel(document.getElementById('xpEnabledToggle').checked);
+
+  // Ignored rooms display (sidebar)
+  const ignoredIds = SETTINGS.xp_ignored_rooms || [];
+  _csIgnoredRooms = createCustomSelect({
+    container: document.getElementById('cs-ignored-rooms-display'),
+    name: 'xp_ignored_rooms_display',
+    items: ROOMS,
+    selected: ignoredIds,
+    placeholder: 'No rooms ignored...',
+    color: 'red',
+    multiSelect: true,
+    readonly: true,
+  });
+
+  // Level-up room (tab)
+  _csLuRoom = createCustomSelect({
+    container: document.getElementById('cs-lu-room'),
+    name: 'level_up_room_id',
+    items: roomsWithBlank,
+    selected: SETTINGS.level_up_room_id || '',
+    placeholder: 'Select a room...',
+    color: 'blue',
+  });
+
+  updateLuPreview();
+
+  // Activate tab from hash
+  const hash = window.location.hash.replace('#', '') || 'settings';
+  switchXpTab(hash, false);
+});
+
+// ---- Tabs ----
+function switchXpTab(tab, pushHash) {
+  const tabs = ['settings', 'levelup', 'boosts'];
+  tabs.forEach(t => {
+    const content = document.getElementById('xpTab' + t.charAt(0).toUpperCase() + t.slice(1));
+    const btn = document.getElementById('xpTab' + t.charAt(0).toUpperCase() + t.slice(1) + 'Btn');
+    if (!content || !btn) return;
+    const active = (t === tab);
+    content.classList.toggle('hidden', !active);
+    btn.classList.toggle('border-teal-500', active);
+    btn.classList.toggle('text-white', active);
+    btn.classList.toggle('border-transparent', !active);
+    btn.classList.toggle('text-gray-400', !active);
+  });
+  if (pushHash) window.location.hash = tab;
+}
+
+// ---- Toast ----
+function showToast(msg, type='success') {
+  const t = document.getElementById('toast');
+  document.getElementById('toastMsg').textContent = msg;
+  const ok = type !== 'error';
+  document.getElementById('toastIcon').className = ok ? 'fas fa-check text-teal-400' : 'fas fa-times text-red-400';
+  t.classList.remove('hidden');
+  setTimeout(() => t.classList.add('hidden'), 3500);
+}
+
+// ---- XP Toggle ----
+function toggleXPSystem() {
+  const enabled = document.getElementById('xpEnabledToggle').checked;
+  updateXpStatusLabel(enabled);
+  csrfFetch('/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/xp/', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({xp_enabled: enabled}),
+  }).then(r => r.json()).then(d => {
+    if (d.ok) showToast('XP system ' + (enabled ? 'enabled' : 'disabled') + '.');
+    else showToast(d.error || 'Error', 'error');
+  }).catch(() => showToast('Request failed.', 'error'));
+}
+function updateXpStatusLabel(enabled) {
+  const el = document.getElementById('xpStatusLabel');
+  if (!el) return;
+  el.textContent = enabled ? 'enabled' : 'disabled';
+  el.className = 'font-semibold ' + (enabled ? 'text-teal-400' : 'text-red-400');
+}
+
+// ---- XP Actions dropdown ----
+function toggleXpActions(forceClose) {
+  const menu = document.getElementById('xpActionsMenu');
+  if (forceClose) { menu.classList.add('hidden'); return; }
+  menu.classList.toggle('hidden');
+}
+document.addEventListener('click', function(e) {
+  const btn = document.getElementById('xpActionsBtn');
+  const menu = document.getElementById('xpActionsMenu');
+  if (btn && menu && !btn.contains(e.target) && !menu.contains(e.target)) {
+    menu.classList.add('hidden');
+  }
+});
+
+// ---- Config Modal ----
+function openConfigModal() {
+  document.getElementById('modal-xp-message').value = SETTINGS.xp_per_message || 2;
+  document.getElementById('modal-cooldown').value = SETTINGS.xp_cooldown_secs || 60;
+  // Build ignored rooms multi-select inside modal
+  const container = document.getElementById('modal-ignored-rooms');
+  container.innerHTML = '';
+  _csModalIgnoredRooms = createCustomSelect({
+    container,
+    name: 'modal_ignored_rooms',
+    items: ROOMS,
+    selected: SETTINGS.xp_ignored_rooms || [],
+    placeholder: 'Select rooms to ignore...',
+    color: 'red',
+    multiSelect: true,
+  });
+  document.getElementById('config-modal').classList.remove('hidden');
+}
+function closeConfigModal() {
+  document.getElementById('config-modal').classList.add('hidden');
+}
+function saveXpConfig() {
+  const ignored = _csModalIgnoredRooms ? (_csModalIgnoredRooms.getValue() || []) : [];
+  const data = {
+    xp_per_message: parseInt(document.getElementById('modal-xp-message').value) || 2,
+    xp_cooldown_secs: parseInt(document.getElementById('modal-cooldown').value) || 60,
+    xp_ignored_rooms: Array.isArray(ignored) ? ignored : [ignored].filter(Boolean),
+  };
+  csrfFetch('/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/xp/', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(data),
+  }).then(r => r.json()).then(d => {
+    if (d.ok) { showToast('XP settings saved.'); closeConfigModal(); }
+    else showToast(d.error || 'Error', 'error');
+  }).catch(() => showToast('Request failed.', 'error'));
+}
+
+// ---- Level Role Modal ----
+function openLevelRoleModal() {
+  document.getElementById('lr-level').value = '';
+  document.getElementById('lr-power-level').value = '';
+  document.getElementById('lr-label').value = '';
+  document.getElementById('level-role-modal').classList.remove('hidden');
+}
+function closeLevelRoleModal() {
+  document.getElementById('level-role-modal').classList.add('hidden');
+}
+function submitLevelRole() {
+  const level = parseInt(document.getElementById('lr-level').value);
+  const power_level = parseInt(document.getElementById('lr-power-level').value);
+  const label = document.getElementById('lr-label').value.trim();
+  if (!level || isNaN(power_level)) { showToast('Level and power level required.', 'error'); return; }
+  csrfFetch('/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/xp/level-roles/', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({level, power_level, label: label || null}),
+  }).then(r => r.json()).then(d => {
+    if (d.ok) { showToast('Level role added.'); location.reload(); }
+    else showToast(d.error || 'Error', 'error');
+  }).catch(() => showToast('Request failed.', 'error'));
+}
+function deleteLevelRole(id) {
+  if (!confirm('Remove this level role rule?')) return;
+  csrfFetch('/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/xp/level-roles/' + id + '/', {
+    method: 'DELETE',
+  }).then(r => r.json()).then(d => {
+    if (d.ok) { showToast('Rule removed.'); location.reload(); }
+    else showToast(d.error || 'Error', 'error');
+  }).catch(() => showToast('Request failed.', 'error'));
+}
+
+// ---- Level-Up Messages ----
+function saveLevelUpConfig() {
+  const data = {
+    level_up_enabled: document.getElementById('lu-enabled').checked,
+    level_up_room_id: _csLuRoom ? (_csLuRoom.getValue() || null) : null,
+    level_up_message: document.getElementById('lu-message').value.trim(),
+  };
+  const btn = document.getElementById('levelup-save-btn');
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Saving...';
+  btn.disabled = true;
+  csrfFetch('/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/xp/', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(data),
+  }).then(r => r.json()).then(d => {
+    if (d.ok) showToast('Level-up settings saved.');
+    else showToast(d.error || 'Error', 'error');
+    btn.innerHTML = '<i class="fas fa-save mr-2"></i>Save Settings';
+    btn.disabled = false;
+  }).catch(() => {
+    showToast('Request failed.', 'error');
+    btn.innerHTML = '<i class="fas fa-save mr-2"></i>Save Settings';
+    btn.disabled = false;
+  });
+}
+function updateLuPreview() {
+  const msg = document.getElementById('lu-message');
+  if (!msg) return;
+  const template = msg.value.trim() || 'GG {user}, you just reached Level {level}! Keep chatting to level up further.';
+  document.getElementById('lu-preview').textContent = template
+    .replace('{user}', '@ryven:casual-heroes.com')
+    .replace('{level}', '5')
+    .replace('{xp}', '350');
+}
+document.addEventListener('DOMContentLoaded', () => {
+  const msg = document.getElementById('lu-message');
+  if (msg) msg.addEventListener('input', updateLuPreview);
+});
+
+// ---- Boost Modal ----
+function openBoostModal() { document.getElementById('boost-modal').classList.remove('hidden'); }
+function closeBoostModal() { document.getElementById('boost-modal').classList.add('hidden'); }
+function submitBoost() {
+  const multiplier = parseFloat(document.getElementById('boostMultiplier').value);
+  const hours = parseInt(document.getElementById('boostHours').value);
+  const label = document.getElementById('boostLabel').value.trim();
+  if (!multiplier || !hours) { showToast('Multiplier and duration required.', 'error'); return; }
+  csrfFetch('/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/xp/boosts/', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({multiplier, hours, label: label || null}),
+  }).then(r => r.json()).then(d => {
+    if (d.ok) { showToast('Boost added.'); location.reload(); }
+    else showToast(d.error || 'Error', 'error');
+  }).catch(() => showToast('Request failed.', 'error'));
+}
+function deleteBoost(id) {
+  if (!confirm('Remove this boost?')) return;
+  csrfFetch('/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/xp/boosts/' + id + '/', {
+    method: 'DELETE',
+  }).then(r => r.json()).then(d => {
+    if (d.ok) { showToast('Boost removed.'); location.reload(); }
+    else showToast(d.error || 'Error', 'error');
+  }).catch(() => showToast('Request failed.', 'error'));
+}
+
+// ---- Leaderboard ----
+let _allEntries = [];
+function loadLeaderboard() {
+  const tbody = document.getElementById('leaderboard-body');
+  tbody.innerHTML = '<tr><td colspan="5" class="px-5 py-8 text-center text-gray-400"><i class="fas fa-spinner fa-spin text-2xl"></i></td></tr>';
+  csrfFetch('/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/xp/leaderboard/')
+    .then(r => r.json()).then(d => {
+      _allEntries = d.entries || [];
+      renderLeaderboard(_allEntries);
+    }).catch(() => {
+      tbody.innerHTML = '<tr><td colspan="5" class="px-5 py-8 text-center text-red-400">Failed to load leaderboard.</td></tr>';
+    });
+}
+function renderLeaderboard(entries) {
+  const tbody = document.getElementById('leaderboard-body');
+  if (!entries.length) {
+    tbody.innerHTML = '<tr><td colspan="5" class="px-5 py-10 text-center text-gray-400">No XP data yet.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = entries.map((e, i) => {
+    const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `<span class="text-gray-500">${i+1}</span>`;
+    return `<tr class="hover:bg-neutral-800/30 transition">
+      <td class="px-5 py-3 text-sm">${medal}</td>
+      <td class="px-5 py-3">
+        <p class="text-white text-sm font-medium truncate">${escapeHtml(e.display_name || e.matrix_id)}</p>
+        <p class="text-gray-500 text-xs font-mono truncate">${escapeHtml(e.matrix_id)}</p>
+      </td>
+      <td class="px-5 py-3 text-right text-gray-300 text-sm">${e.level}</td>
+      <td class="px-5 py-3 text-right text-teal-400 font-bold text-sm">${e.total_xp.toLocaleString()}</td>
+      <td class="px-5 py-3 text-center">
+        <button onclick="openEditMember('${escapeHtml(e.matrix_id)}', ${e.total_xp})"
+                class="text-gray-500 hover:text-teal-400 transition p-1"><i class="fas fa-pen text-xs"></i></button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+function filterLeaderboard(q) {
+  if (!q) { renderLeaderboard(_allEntries); return; }
+  const lq = q.toLowerCase();
+  renderLeaderboard(_allEntries.filter(e =>
+    (e.matrix_id || '').toLowerCase().includes(lq) ||
+    (e.display_name || '').toLowerCase().includes(lq)
+  ));
+}
+function openEditMember(matrixId, xp) {
+  const newXp = prompt(`Set XP for ${matrixId}:`, xp);
+  if (newXp === null) return;
+  const parsed = parseInt(newXp);
+  if (isNaN(parsed) || parsed < 0) { showToast('Invalid XP value.', 'error'); return; }
+  csrfFetch('/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/xp/members/', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({matrix_id: matrixId, xp: parsed}),
+  }).then(r => r.json()).then(d => {
+    if (d.ok) { showToast('XP updated.'); loadLeaderboard(); }
+    else showToast(d.error || 'Error', 'error');
+  }).catch(() => showToast('Request failed.', 'error'));
+}
+</script>
+{% endblock %}

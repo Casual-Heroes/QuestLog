@@ -360,13 +360,6 @@
   let currentPreviewFeedId = null;
 
   // XSS Protection
-  function escapeHtml(text) {
-    if (text == null || text === undefined) return '';
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-  }
-
   // CSRF-aware fetch function for RSS
   async function rssCsrfFetch(url, options = {}) {
     const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value ||

@@ -1,0 +1,206 @@
+{% extends "questlog_web/matrix_base_guild.html" %}
+{% load static %}
+{% block title %}Verification - {{ space_name }}{% endblock %}
+
+{% block guild_content %}
+
+{% include "questlog/partials/custom_select.html" %}
+
+  <!-- Header -->
+  <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 p-6 pb-0 mb-8">
+    <div>
+      <h1 class="text-3xl font-bold text-white">
+        <i class="fas fa-check-circle text-green-400 mr-3"></i>Verification
+      </h1>
+      <p class="text-gray-400 mt-1">Configure how new members verify themselves in {{ space_name }}</p>
+    </div>
+    <button onclick="saveVerification()" id="saveBtn" class="bg-teal-600 hover:bg-teal-500 text-white px-4 py-2 rounded-lg font-medium transition text-sm">
+      <i class="fas fa-save mr-2"></i>Save Changes
+    </button>
+  </div>
+
+  <!-- Save status -->
+  <div id="save-msg" class="hidden mx-6 mb-4 px-4 py-3 rounded-lg text-sm font-medium"></div>
+
+  <!-- Pending notice -->
+  <div class="mx-6 bg-yellow-900/20 border border-yellow-700/40 rounded-xl px-4 py-3 mb-6 flex items-start gap-3">
+    <i class="fas fa-info-circle text-yellow-400 mt-0.5 flex-shrink-0"></i>
+    <p class="text-yellow-300 text-sm">Verification enforcement requires bot support. Configure your settings here - they will activate once the QuestLogMatrix bot implements this module.</p>
+  </div>
+
+  <div class="px-6 pb-8 space-y-6">
+
+  <!-- Verification Type -->
+  <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6">
+    <h3 class="text-lg font-bold text-white mb-4">
+      <i class="fas fa-key text-gray-400 mr-2"></i>Verification Type
+    </h3>
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <label class="relative cursor-pointer">
+        <input type="radio" name="verification_type" value="none" class="sr-only peer" id="vtype-none">
+        <div class="p-4 bg-neutral-800 rounded-xl border-2 border-transparent peer-checked:border-teal-500 hover:bg-neutral-700 transition text-center">
+          <i class="fas fa-times text-2xl text-gray-400 mb-2"></i>
+          <p class="text-white font-medium text-sm">None</p>
+        </div>
+      </label>
+      <label class="relative cursor-pointer">
+        <input type="radio" name="verification_type" value="button" class="sr-only peer" id="vtype-button">
+        <div class="p-4 bg-neutral-800 rounded-xl border-2 border-transparent peer-checked:border-teal-500 hover:bg-neutral-700 transition text-center">
+          <i class="fas fa-hand-pointer text-2xl text-green-400 mb-2"></i>
+          <p class="text-white font-medium text-sm">Button</p>
+        </div>
+      </label>
+      <label class="relative cursor-pointer">
+        <input type="radio" name="verification_type" value="age" class="sr-only peer" id="vtype-age">
+        <div class="p-4 bg-neutral-800 rounded-xl border-2 border-transparent peer-checked:border-teal-500 hover:bg-neutral-700 transition text-center">
+          <i class="fas fa-clock text-2xl text-yellow-400 mb-2"></i>
+          <p class="text-white font-medium text-sm">Age Only</p>
+        </div>
+      </label>
+      <label class="relative cursor-pointer">
+        <input type="radio" name="verification_type" value="captcha" class="sr-only peer" id="vtype-captcha">
+        <div class="p-4 bg-neutral-800 rounded-xl border-2 border-transparent peer-checked:border-teal-500 hover:bg-neutral-700 transition text-center">
+          <i class="fas fa-robot text-2xl text-blue-400 mb-2"></i>
+          <p class="text-white font-medium text-sm">CAPTCHA</p>
+        </div>
+      </label>
+    </div>
+  </div>
+
+  <!-- Rooms -->
+  <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6">
+    <h3 class="text-lg font-bold text-white mb-4">
+      <i class="fas fa-door-open text-gray-400 mr-2"></i>Rooms
+    </h3>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div>
+        <label class="block text-sm text-gray-400 mb-2">Verification Room</label>
+        <div id="cs-verification-room"></div>
+        <p class="text-gray-500 text-xs mt-1">Room where the bot posts the verification prompt</p>
+      </div>
+      <div>
+        <label class="block text-sm text-gray-400 mb-2">Quarantine Room <span class="text-gray-500">(optional)</span></label>
+        <p class="text-gray-500 text-xs">New members can be restricted to this room until verified.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Account Age Requirement -->
+  <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6">
+    <div class="flex items-center justify-between mb-4">
+      <div>
+        <h3 class="text-lg font-bold text-white">
+          <i class="fas fa-calendar text-yellow-400 mr-2"></i>Account Age Requirement
+        </h3>
+        <p class="text-gray-400 text-sm">Block new Matrix accounts below a minimum age</p>
+      </div>
+    </div>
+    <div>
+      <label class="block text-sm text-gray-400 mb-2">Minimum Account Age (days)</label>
+      <div class="flex items-center gap-3">
+        <input type="number" id="account-age-days" min="1" max="365" value="7"
+               class="w-32 bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:border-teal-500 focus:outline-none">
+        <span class="text-gray-400 text-sm">days</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Messages -->
+  <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6">
+    <h3 class="text-lg font-bold text-white mb-4">
+      <i class="fas fa-comment-dots text-gray-400 mr-2"></i>Messages
+    </h3>
+    <div class="space-y-4">
+      <div>
+        <label class="block text-sm text-gray-400 mb-2">Verified Message</label>
+        <textarea id="verification-verified-msg" rows="2"
+                  class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:border-teal-500 focus:outline-none resize-y"
+                  placeholder="You have been verified! Welcome to {space}."></textarea>
+        <p class="text-gray-500 text-xs mt-1">Variables: <code class="text-teal-400">{user}</code> <code class="text-teal-400">{space}</code></p>
+      </div>
+      <div>
+        <label class="block text-sm text-gray-400 mb-2">Failed / Too New Message</label>
+        <textarea id="verification-failed-msg" rows="2"
+                  class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:border-teal-500 focus:outline-none resize-y"
+                  placeholder="Your account must be at least {min_days} days old to join {space}."></textarea>
+        <p class="text-gray-500 text-xs mt-1">Variables: <code class="text-teal-400">{user}</code> <code class="text-teal-400">{min_days}</code> <code class="text-teal-400">{space}</code></p>
+      </div>
+    </div>
+  </div>
+
+  </div>
+
+<script>
+const SPACE_ID_URL = '{{ space_id_url }}';
+const ROOMS = JSON.parse('{{ rooms_json|escapejs }}');
+const SETTINGS = JSON.parse('{{ settings_json|escapejs }}');
+const API_URL = '/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/settings/';
+
+const roomsWithBlank = [{value: '', label: '-- None --'}, ...ROOMS];
+
+let csVerifRoom = null;
+
+document.addEventListener('DOMContentLoaded', function() {
+  csVerifRoom = createCustomSelect({
+    container: document.getElementById('cs-verification-room'),
+    name: 'verification_room_id',
+    items: roomsWithBlank,
+    selected: SETTINGS.verification_room_id || '',
+    placeholder: 'Select a room...',
+    color: 'teal',
+  });
+
+  const savedType = SETTINGS.verification_type || 'none';
+  const typeInput = document.querySelector(`input[name="verification_type"][value="${savedType}"]`);
+  if (typeInput) typeInput.checked = true;
+  document.getElementById('account-age-days').value = SETTINGS.verification_account_age_days || 7;
+  document.getElementById('verification-verified-msg').value = SETTINGS.verification_verified_message || '';
+  document.getElementById('verification-failed-msg').value = SETTINGS.verification_failed_message || '';
+});
+
+async function saveVerification() {
+  const btn = document.getElementById('saveBtn');
+  const msg = document.getElementById('save-msg');
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Saving...';
+  btn.disabled = true;
+
+  const payload = {
+    verification_type: document.querySelector('input[name="verification_type"]:checked')?.value || 'none',
+    verification_room_id: csVerifRoom ? (csVerifRoom.getValue() || null) : null,
+    verification_account_age_days: parseInt(document.getElementById('account-age-days').value || '7'),
+    verification_verified_message: document.getElementById('verification-verified-msg').value,
+    verification_failed_message: document.getElementById('verification-failed-msg').value,
+  };
+  try {
+    const resp = await csrfFetch(API_URL, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload),
+    });
+    const data = await resp.json();
+    if (resp.ok && data.ok) {
+      msg.textContent = 'Verification settings saved.';
+      msg.className = 'mx-6 mb-4 px-4 py-3 rounded-lg text-sm font-medium bg-green-900/40 text-green-400 border border-green-700/40';
+      btn.innerHTML = '<i class="fas fa-check mr-2"></i>Saved!';
+    } else {
+      msg.textContent = data.error || 'Save failed.';
+      msg.className = 'mx-6 mb-4 px-4 py-3 rounded-lg text-sm font-medium bg-red-900/40 text-red-400 border border-red-700/40';
+      btn.innerHTML = '<i class="fas fa-save mr-2"></i>Save Changes';
+      btn.disabled = false;
+    }
+    msg.classList.remove('hidden');
+    setTimeout(() => {
+      msg.classList.add('hidden');
+      btn.innerHTML = '<i class="fas fa-save mr-2"></i>Save Changes';
+      btn.disabled = false;
+    }, 4000);
+  } catch (e) {
+    msg.textContent = 'Network error.';
+    msg.className = 'mx-6 mb-4 px-4 py-3 rounded-lg text-sm font-medium bg-red-900/40 text-red-400 border border-red-700/40';
+    msg.classList.remove('hidden');
+    btn.innerHTML = '<i class="fas fa-save mr-2"></i>Save Changes';
+    btn.disabled = false;
+  }
+}
+</script>
+{% endblock %}

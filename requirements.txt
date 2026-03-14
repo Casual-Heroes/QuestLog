@@ -11,7 +11,7 @@ certifi==2025.1.31
 cffi==1.17.1
 charset-normalizer==3.4.1
 dataclass-wizard==0.35.0
-Django==5.2.11
+Django==5.2.12
 django-admin-tools==0.9.3
 et_xmlfile==2.0.0
 feedparser==6.0.11
@@ -42,8 +42,8 @@ urllib3==2.6.3
 yarl==1.20.0
 django-ratelimit==4.1.0
 django-csp==3.8
-# django-allauth==65.13.1  # ARCHIVED: Discord OAuth removed, kept for reference
-authlib==1.6.7
+# django-allauth==65.15.0  # ARCHIVED: Discord OAuth removed, kept for reference
+authlib==1.6.9
 mysqlclient==2.2.7
 Pillow==12.1.1
 cryptography==46.0.5

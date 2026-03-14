@@ -8,31 +8,6 @@
 
 <script>
   const CSRF_TOKEN = '{{ csrf_token }}';
-  function csrfFetch(url, options = {}) {
-    if (!options.headers) options.headers = {};
-    if (CSRF_TOKEN && CSRF_TOKEN !== 'None') {
-      options.headers['X-CSRFToken'] = CSRF_TOKEN;
-    }
-    options.headers['Accept'] = 'application/json';
-    return fetch(url, options).then(async r => {
-      if (!r.ok) {
-        const ct = r.headers.get('content-type') || '';
-        if (!ct.includes('application/json')) {
-          // HTML response means CSRF expiry, session timeout, or server error
-          if (r.status === 403) throw new Error('Session expired — please reload the page and try again.');
-          if (r.status === 500) throw new Error('Server error — please try again or check the logs.');
-          throw new Error(`Request failed (${r.status}) — please reload the page.`);
-        }
-      }
-      return r;
-    });
-  }
-  function escapeHtml(text) {
-    if (text == null || text === undefined) return '';
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-  }
   function formatTimestamp(ts) {
     if (!ts) return 'Never';
     return new Date(ts * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
@@ -121,46 +96,54 @@
 
   <!-- Tab Navigation -->
   <div class="flex flex-wrap gap-1 mb-6 bg-neutral-900/50 rounded-lg border border-neutral-800 p-1">
-    <button onclick="switchTab('lfg')" id="tab-lfg" class="admin-tab px-4 py-2 rounded-md text-sm font-medium transition">
-      <i class="fas fa-users-cog mr-1"></i>LFG Games
+    <button onclick="switchTab('audit')" id="tab-audit" class="admin-tab px-4 py-2 rounded-md text-sm font-medium transition">
+      <i class="fas fa-clipboard-list mr-1"></i>Audit Log
+    </button>
+    <button onclick="switchTab('bot-network')" id="tab-bot-network" class="admin-tab px-4 py-2 rounded-md text-sm font-medium transition">
+      <i class="fas fa-network-wired mr-1"></i>Bot Network
     </button>
     <button onclick="switchTab('communities')" id="tab-communities" class="admin-tab px-4 py-2 rounded-md text-sm font-medium transition">
       <i class="fas fa-server mr-1"></i>Communities
     </button>
-    <button onclick="switchTab('creators')" id="tab-creators" class="admin-tab px-4 py-2 rounded-md text-sm font-medium transition">
-      <i class="fas fa-star mr-1"></i>Creators
-    </button>
-    <button onclick="switchTab('steam')" id="tab-steam" class="admin-tab px-4 py-2 rounded-md text-sm font-medium transition">
-      <i class="fab fa-steam mr-1"></i>Steam Searches
-    </button>
-    <button onclick="switchTab('games')" id="tab-games" class="admin-tab px-4 py-2 rounded-md text-sm font-medium transition">
-      <i class="fas fa-gamepad mr-1"></i>Found Games
-    </button>
-
-    <button onclick="switchTab('rss')" id="tab-rss" class="admin-tab px-4 py-2 rounded-md text-sm font-medium transition">
-      <i class="fas fa-rss mr-1"></i>RSS Feeds
-    </button>
-    <button onclick="switchTab('users')" id="tab-users" class="admin-tab px-4 py-2 rounded-md text-sm font-medium transition">
-      <i class="fas fa-user-shield mr-1"></i>Users
-    </button>
     <button onclick="switchTab('posts')" id="tab-posts" class="admin-tab px-4 py-2 rounded-md text-sm font-medium transition">
       <i class="fas fa-scroll mr-1"></i>Content Mod
     </button>
-    <button onclick="switchTab('audit')" id="tab-audit" class="admin-tab px-4 py-2 rounded-md text-sm font-medium transition">
-      <i class="fas fa-clipboard-list mr-1"></i>Audit Log
+    <button onclick="switchTab('creators')" id="tab-creators" class="admin-tab px-4 py-2 rounded-md text-sm font-medium transition">
+      <i class="fas fa-star mr-1"></i>Creators
+    </button>
+    <button onclick="switchTab('early-access')" id="tab-early-access" class="admin-tab px-4 py-2 rounded-md text-sm font-medium transition">
+      <i class="fas fa-ticket-alt mr-1"></i>Early Access
+    </button>
+    <button onclick="switchTab('emoji')" id="tab-emoji" class="admin-tab px-4 py-2 rounded-md text-sm font-medium transition">
+      <i class="fas fa-smile mr-1"></i>Emoji &amp; Stickers
     </button>
     <button onclick="switchTab('flairs')" id="tab-flairs" class="admin-tab px-4 py-2 rounded-md text-sm font-medium transition">
       <i class="fas fa-palette mr-1"></i>Flairs &amp; XP
     </button>
-    <button onclick="switchTab('polls')" id="tab-polls" class="admin-tab px-4 py-2 rounded-md text-sm font-medium transition">
-      <i class="fas fa-vote-yea mr-1"></i>Server Polls
+    <button onclick="switchTab('games')" id="tab-games" class="admin-tab px-4 py-2 rounded-md text-sm font-medium transition">
+      <i class="fas fa-gamepad mr-1"></i>Found Games
     </button>
+    <a href="/ql/admin/games-tracker/" class="admin-tab px-4 py-2 rounded-md text-sm font-medium transition inline-flex items-center hover:border-neutral-500">
+      <i class="fas fa-gamepad mr-1"></i>Games We Play
+    </a>
     <button onclick="switchTab('giveaways')" id="tab-giveaways" class="admin-tab px-4 py-2 rounded-md text-sm font-medium transition">
       <i class="fas fa-gift mr-1"></i>Giveaways
     </button>
-    <a href="/ql/admin/games-tracker/" class="admin-tab px-4 py-2 rounded-md text-sm font-medium transition inline-flex items-center  hover:border-neutral-500">
-      <i class="fas fa-gamepad mr-1"></i>Games We Play
-    </a>
+    <button onclick="switchTab('hero-subs')" id="tab-hero-subs" class="admin-tab px-4 py-2 rounded-md text-sm font-medium transition">
+      <i class="fas fa-crown mr-1"></i>Hero Subs
+    </button>
+    <button onclick="switchTab('rss')" id="tab-rss" class="admin-tab px-4 py-2 rounded-md text-sm font-medium transition">
+      <i class="fas fa-rss mr-1"></i>RSS Feeds
+    </button>
+    <button onclick="switchTab('polls')" id="tab-polls" class="admin-tab px-4 py-2 rounded-md text-sm font-medium transition">
+      <i class="fas fa-vote-yea mr-1"></i>Server Polls
+    </button>
+    <button onclick="switchTab('steam')" id="tab-steam" class="admin-tab px-4 py-2 rounded-md text-sm font-medium transition">
+      <i class="fab fa-steam mr-1"></i>Steam Searches
+    </button>
+    <button onclick="switchTab('users')" id="tab-users" class="admin-tab px-4 py-2 rounded-md text-sm font-medium transition">
+      <i class="fas fa-user-shield mr-1"></i>Users
+    </button>
   </div>
 
   <!-- Tab Content Panels -->
@@ -394,6 +377,349 @@
     </div>
   </div>
 
+  <!-- Emoji & Stickers Tab -->
+  <div id="panel-emoji" class="admin-panel hidden">
+    <div class="flex items-center justify-between mb-4">
+      <div>
+        <h2 class="text-lg font-semibold text-white"><i class="fas fa-smile text-yellow-400 mr-2"></i>Emoji &amp; Stickers</h2>
+        <p class="text-gray-400 text-sm mt-1">Upload custom emoji (128x128, use as <code class="text-yellow-300">:shortcode:</code>) or stickers (512x512, larger fun images).</p>
+      </div>
+      <div class="flex gap-2">
+        <button onclick="openEmojiUploadModal(false)"
+                class="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition">
+          <i class="fas fa-plus mr-1"></i>Add Emoji
+        </button>
+        <button onclick="openEmojiUploadModal(true)"
+                class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition">
+          <i class="fas fa-plus mr-1"></i>Add Sticker
+        </button>
+      </div>
+    </div>
+
+    <!-- Tabs: Emoji / Stickers -->
+    <div class="flex gap-2 mb-4 border-b border-neutral-800">
+      <button onclick="switchEmojiFilter('emoji')" id="ef-emoji"
+              class="px-4 py-2 text-sm font-medium text-white border-b-2 border-yellow-500">Emoji</button>
+      <button onclick="switchEmojiFilter('sticker')" id="ef-sticker"
+              class="px-4 py-2 text-sm font-medium text-gray-400 hover:text-white border-b-2 border-transparent transition">Stickers</button>
+    </div>
+
+    <div id="emojiGrid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+      <div class="col-span-6 text-center text-gray-500 py-8"><i class="fas fa-spinner fa-spin text-2xl"></i></div>
+    </div>
+  </div>
+
+  <!-- Emoji Bulk Upload Modal -->
+  <div id="emojiUploadModal" class="hidden fixed inset-0 bg-black/70 z-50 flex items-center justify-center px-4">
+    <div class="bg-neutral-900 border border-neutral-800 rounded-xl w-full max-w-2xl p-6 max-h-[90vh] flex flex-col">
+      <div class="flex items-center justify-between mb-4 flex-shrink-0">
+        <div>
+          <h3 class="text-white font-bold" id="emojiModalTitle">Upload Emoji</h3>
+          <p class="text-gray-500 text-xs mt-0.5" id="emojiModalHint">Drop multiple files - shortcodes auto-filled from filenames</p>
+        </div>
+        <button onclick="closeEmojiModal()" class="text-gray-400 hover:text-white"><i class="fas fa-times"></i></button>
+      </div>
+
+      <!-- Drop zone -->
+      <div id="emojiDropZone"
+           class="flex-shrink-0 border-2 border-dashed border-neutral-700 hover:border-yellow-500 rounded-xl p-6 text-center cursor-pointer transition mb-4"
+           onclick="document.getElementById('emojiBulkFile').click()"
+           ondragover="event.preventDefault(); this.classList.add('border-yellow-500')"
+           ondragleave="this.classList.remove('border-yellow-500')"
+           ondrop="handleEmojiDrop(event)">
+        <i class="fas fa-cloud-upload-alt text-2xl text-gray-500 mb-2"></i>
+        <p class="text-gray-400 text-sm">Click or drag &amp; drop images here</p>
+        <p class="text-gray-600 text-xs mt-1" id="emojiDropHint">PNG / GIF / WebP</p>
+        <input type="file" id="emojiBulkFile" multiple accept="image/png,image/gif,image/webp" class="hidden" onchange="handleEmojiFiles(this.files)">
+      </div>
+
+      <!-- Queue list -->
+      <div id="emojiQueue" class="flex-1 overflow-y-auto space-y-2 min-h-0"></div>
+
+      <div id="emojiBulkError" class="hidden text-red-400 text-sm mt-2 flex-shrink-0"></div>
+
+      <div class="flex justify-between items-center mt-4 flex-shrink-0">
+        <span class="text-xs text-gray-500" id="emojiQueueCount"></span>
+        <div class="flex gap-3">
+          <button onclick="closeEmojiModal()" class="px-4 py-2 text-gray-400 hover:text-white text-sm">Cancel</button>
+          <button onclick="submitAllEmoji()" id="emojiSubmitBtn"
+                  class="bg-yellow-600 hover:bg-yellow-700 text-white px-5 py-2 rounded-lg text-sm font-medium transition disabled:opacity-50">
+            <i class="fas fa-upload mr-1"></i>Upload All
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Early Access Invite Codes Tab -->
+  <div id="panel-early-access" class="admin-panel hidden">
+
+    <div class="flex items-center justify-between mb-4">
+      <div>
+        <h2 class="text-lg font-semibold text-white"><i class="fas fa-ticket-alt text-indigo-400 mr-2"></i>Early Access Invite Codes</h2>
+        <p class="text-xs text-gray-400 mt-0.5">Generate codes for your Fluxer and Discord communities. Enable gating via <code class="text-indigo-300">EARLY_ACCESS_ENABLED=1</code> in secrets.env.</p>
+      </div>
+    </div>
+
+    <!-- Stats row -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6" id="eacStats">
+      <div class="bg-neutral-900/50 border border-neutral-800 rounded-lg p-3 text-center">
+        <p class="text-2xl font-bold text-white" id="eacTotal">-</p>
+        <p class="text-xs text-gray-400">Total</p>
+      </div>
+      <div class="bg-neutral-900/50 border border-neutral-800 rounded-lg p-3 text-center">
+        <p class="text-2xl font-bold text-green-400" id="eacUnused">-</p>
+        <p class="text-xs text-gray-400">Available</p>
+      </div>
+      <div class="bg-neutral-900/50 border border-neutral-800 rounded-lg p-3 text-center">
+        <p class="text-2xl font-bold text-indigo-400" id="eacUsed">-</p>
+        <p class="text-xs text-gray-400">Used</p>
+      </div>
+      <div class="bg-neutral-900/50 border border-neutral-800 rounded-lg p-3 text-center">
+        <p class="text-2xl font-bold text-red-400" id="eacRevoked">-</p>
+        <p class="text-xs text-gray-400">Revoked</p>
+      </div>
+    </div>
+
+    <!-- Generate form -->
+    <div class="bg-neutral-900/50 border border-neutral-800 rounded-xl p-5 mb-6">
+      <h3 class="text-sm font-semibold text-white mb-3"><i class="fas fa-plus mr-1 text-indigo-400"></i>Generate Codes</h3>
+      <div class="flex flex-wrap gap-3 items-end">
+        <div>
+          <label class="block text-xs text-gray-400 mb-1">Count</label>
+          <input type="number" id="eacGenCount" value="10" min="1" max="100"
+            class="w-24 bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500">
+        </div>
+        <div>
+          <label class="block text-xs text-gray-400 mb-1">Platform</label>
+          <div id="eacGenPlatformContainer"></div>
+        </div>
+        <div class="flex-1 min-w-40">
+          <label class="block text-xs text-gray-400 mb-1">Notes (optional)</label>
+          <input type="text" id="eacGenNotes" placeholder="e.g. March 2026 batch"
+            class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500">
+        </div>
+        <button onclick="generateInviteCodes()"
+          class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg transition">
+          <i class="fas fa-plus mr-1"></i>Generate
+        </button>
+      </div>
+    </div>
+
+    <!-- Bulk action toolbar -->
+    <div class="flex flex-wrap items-center gap-2 mb-3">
+      <label class="flex items-center gap-2 text-sm text-gray-400 cursor-pointer select-none">
+        <input type="checkbox" id="eacSelectAll" onchange="eacToggleAll(this.checked)"
+          class="w-4 h-4 rounded border-neutral-600 bg-neutral-800 accent-indigo-500">
+        Select all unused
+      </label>
+      <span class="text-gray-700 text-xs hidden" id="eacSelectedCount"></span>
+      <div class="ml-auto flex gap-2">
+        <button id="eacRevokeSelectedBtn" onclick="eacRevokeSelected()"
+          class="hidden px-3 py-1.5 bg-orange-700 hover:bg-orange-600 text-white text-xs font-semibold rounded-lg transition">
+          <i class="fas fa-ban mr-1"></i>Revoke Selected
+        </button>
+        <button onclick="eacRevokeAllUnused()"
+          class="px-3 py-1.5 bg-red-900/60 hover:bg-red-800 border border-red-700/40 text-red-300 text-xs font-semibold rounded-lg transition">
+          <i class="fas fa-trash mr-1"></i>Revoke All Unused
+        </button>
+      </div>
+    </div>
+
+    <!-- Code list -->
+    <div id="eacCodeList" class="space-y-1.5">
+      <div class="text-center text-gray-500 py-8"><i class="fas fa-spinner fa-spin text-2xl"></i></div>
+    </div>
+  </div>
+
+  <!-- Hero Subscribers Tab -->
+  <div id="panel-hero-subs" class="admin-panel hidden">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-lg font-semibold text-white"><i class="fas fa-crown text-yellow-400 mr-2"></i>Hero Subscribers</h2>
+    </div>
+    <!-- Stat cards -->
+    <div id="heroSubStats" class="grid grid-cols-3 gap-4 mb-6">
+      <div class="bg-neutral-800 border border-neutral-700 rounded-lg p-4 text-center">
+        <div id="heroStatTotal" class="text-2xl font-bold text-white">-</div>
+        <div class="text-xs text-gray-400 mt-1">Active Heroes</div>
+      </div>
+      <div class="bg-neutral-800 border border-neutral-700 rounded-lg p-4 text-center">
+        <div id="heroStatMRR" class="text-2xl font-bold text-green-400">-</div>
+        <div class="text-xs text-gray-400 mt-1">Est. MRR</div>
+      </div>
+      <div class="bg-neutral-800 border border-neutral-700 rounded-lg p-4 text-center">
+        <div id="heroStatRevenue" class="text-2xl font-bold text-indigo-400">-</div>
+        <div class="text-xs text-gray-400 mt-1">Total Revenue</div>
+      </div>
+    </div>
+    <!-- Subscriber table -->
+    <div id="heroSubList" class="space-y-2">
+      <div class="text-center text-gray-500 py-8"><i class="fas fa-spinner fa-spin text-2xl"></i></div>
+    </div>
+  </div>
+
+  <!-- Bot Network Tab -->
+  <div id="panel-bot-network" class="admin-panel hidden">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-lg font-semibold text-white"><i class="fas fa-network-wired text-indigo-400 mr-2"></i>Bot Network</h2>
+    </div>
+
+    <!-- Sub-tabs -->
+    <div class="flex gap-2 mb-6 border-b border-neutral-700 pb-3">
+      <button onclick="showBotNetTab('discord')" id="bnt-discord" class="px-3 py-1.5 rounded text-sm font-medium bg-indigo-600 text-white">Discord Guilds</button>
+      <button onclick="showBotNetTab('fluxer')" id="bnt-fluxer" class="px-3 py-1.5 rounded text-sm font-medium text-gray-400 hover:text-white">Fluxer Guilds</button>
+      <button onclick="showBotNetTab('matrix')" id="bnt-matrix" class="px-3 py-1.5 rounded text-sm font-medium text-gray-400 hover:text-white">Matrix Spaces</button>
+      <button onclick="showBotNetTab('network')" id="bnt-network" class="px-3 py-1.5 rounded text-sm font-medium text-gray-400 hover:text-white">Network Subs</button>
+      <button onclick="showBotNetTab('bridge')" id="bnt-bridge" class="px-3 py-1.5 rounded text-sm font-medium text-gray-400 hover:text-white">Bridge</button>
+    </div>
+
+    <!-- Discord guilds panel -->
+    <div id="bnt-panel-discord">
+      <div id="botNetDiscordList" class="space-y-2">
+        <div class="text-center text-gray-500 py-8"><i class="fas fa-spinner fa-spin text-2xl"></i></div>
+      </div>
+    </div>
+
+    <!-- Fluxer guilds panel -->
+    <div id="bnt-panel-fluxer" class="hidden">
+      <div id="botNetFluxerList" class="space-y-2">
+        <div class="text-center text-gray-500 py-8"><i class="fas fa-spinner fa-spin text-2xl"></i></div>
+      </div>
+    </div>
+
+    <!-- Matrix spaces panel -->
+    <div id="bnt-panel-matrix" class="hidden">
+      <div id="botNetMatrixList" class="space-y-2">
+        <div class="text-center text-gray-500 py-8"><i class="fas fa-spinner fa-spin text-2xl"></i></div>
+      </div>
+    </div>
+
+    <!-- Network subscriptions panel -->
+    <div id="bnt-panel-network" class="hidden">
+      <div id="botNetConfigList" class="space-y-2">
+        <div class="text-center text-gray-500 py-8"><i class="fas fa-spinner fa-spin text-2xl"></i></div>
+      </div>
+    </div>
+
+    <!-- Bridge configs panel -->
+    <div id="bnt-panel-bridge" class="hidden">
+      <div class="flex items-center justify-between mb-5">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 bg-purple-600/20 rounded-xl flex items-center justify-center">
+            <i class="fas fa-satellite-dish text-purple-400"></i>
+          </div>
+          <div>
+            <p class="text-sm text-gray-300 font-medium">Chat Bridge</p>
+            <p class="text-xs text-gray-500">Bidirectional Discord, Fluxer, and Matrix message bridges</p>
+          </div>
+        </div>
+        <button onclick="openBridgeModal()"
+                class="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm rounded-lg font-medium transition">
+          <i class="fas fa-plus"></i>New Bridge
+        </button>
+      </div>
+      <div id="botNetBridgeList" class="space-y-3">
+        <div class="text-center text-gray-500 py-8"><i class="fas fa-spinner fa-spin text-2xl"></i></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bridge Create/Edit Modal -->
+  <div id="bridgeAdminModal" class="fixed inset-0 bg-black/70 z-[60] hidden flex items-center justify-center p-4">
+    <div class="bg-neutral-900 border border-neutral-800 rounded-xl w-full max-w-lg">
+      <div class="flex items-center justify-between p-5 border-b border-neutral-800">
+        <h3 id="bridgeAdminModalTitle" class="text-lg font-semibold text-white">
+          <i class="fas fa-plus text-purple-400 mr-2"></i>New Bridge
+        </h3>
+        <button onclick="closeBridgeModal()" class="text-gray-400 hover:text-white transition"><i class="fas fa-times"></i></button>
+      </div>
+      <div class="p-5 space-y-4">
+        <input type="hidden" id="br_edit_id" value="">
+        <div>
+          <label class="block text-sm text-gray-400 mb-1">Bridge Name <span class="text-gray-600 text-xs">(optional)</span></label>
+          <input id="br_name" type="text" placeholder="e.g. general-chat, lfg-channel"
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-purple-500">
+        </div>
+        <!-- Discord -->
+        <div class="bg-neutral-800/50 rounded-lg p-3 border border-indigo-900/30">
+          <p class="text-xs font-semibold text-indigo-400 uppercase mb-2"><i class="fab fa-discord mr-1"></i>Discord</p>
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="block text-xs text-gray-500 mb-1">Server</label>
+              <div id="br_discord_guild_container"></div>
+            </div>
+            <div>
+              <label class="block text-xs text-gray-500 mb-1">Channel</label>
+              <div id="br_discord_ch_container"></div>
+            </div>
+          </div>
+        </div>
+        <!-- Fluxer -->
+        <div class="bg-neutral-800/50 rounded-lg p-3 border border-purple-900/30">
+          <p class="text-xs font-semibold text-purple-400 uppercase mb-2"><i class="fas fa-satellite-dish mr-1"></i>Fluxer</p>
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="block text-xs text-gray-500 mb-1">Server</label>
+              <div id="br_fluxer_guild_container"></div>
+            </div>
+            <div>
+              <label class="block text-xs text-gray-500 mb-1">Channel</label>
+              <div id="br_fluxer_ch_container"></div>
+            </div>
+          </div>
+        </div>
+        <div class="bg-neutral-800 rounded-lg p-3 space-y-2">
+          <p class="text-xs text-gray-500 uppercase font-semibold mb-2">Relay Direction</p>
+          <label class="flex items-center gap-2 cursor-pointer">
+            <input id="br_d2f" type="checkbox" checked class="rounded border-neutral-600 bg-neutral-700 text-indigo-500">
+            <span class="text-sm text-gray-300"><i class="fas fa-arrow-right text-indigo-400 mr-1"></i>Discord to Fluxer</span>
+          </label>
+          <label class="flex items-center gap-2 cursor-pointer">
+            <input id="br_f2d" type="checkbox" checked class="rounded border-neutral-600 bg-neutral-700 text-purple-500">
+            <span class="text-sm text-gray-300"><i class="fas fa-arrow-left text-purple-400 mr-1"></i>Fluxer to Discord</span>
+          </label>
+        </div>
+        <!-- Matrix -->
+        <div class="bg-neutral-800/50 rounded-lg p-3 border border-cyan-900/30">
+          <p class="text-xs font-semibold text-cyan-400 uppercase mb-2"><span class="font-mono text-[11px]">[M]</span> Matrix</p>
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="block text-xs text-gray-500 mb-1">Space</label>
+              <div id="br_matrix_space_container"></div>
+            </div>
+            <div>
+              <label class="block text-xs text-gray-500 mb-1">Room</label>
+              <div id="br_matrix_room_container"></div>
+            </div>
+          </div>
+          <div class="mt-2 space-y-1">
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input id="br_matrix_out" type="checkbox" checked class="rounded border-neutral-600 bg-neutral-700 text-cyan-500">
+              <span class="text-xs text-gray-400"><i class="fas fa-arrow-right text-cyan-500 mr-1"></i>Matrix to Discord/Fluxer</span>
+            </label>
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input id="br_matrix_in" type="checkbox" checked class="rounded border-neutral-600 bg-neutral-700 text-cyan-500">
+              <span class="text-xs text-gray-400"><i class="fas fa-arrow-left text-cyan-400 mr-1"></i>Discord/Fluxer to Matrix</span>
+            </label>
+          </div>
+        </div>
+        <div>
+          <label class="block text-sm text-gray-400 mb-1">Max Message Length</label>
+          <input id="br_max_len" type="number" value="1000" min="50" max="2000"
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-purple-500">
+        </div>
+        <div id="brFormError" class="text-red-400 text-sm hidden"></div>
+      </div>
+      <div class="flex justify-end gap-3 p-5 border-t border-neutral-800">
+        <button onclick="closeBridgeModal()" class="px-4 py-2 text-gray-400 hover:text-white transition">Cancel</button>
+        <button id="br_save_btn" onclick="saveBridgeConfig()"
+                class="px-6 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm rounded-lg font-medium transition">
+          <i class="fas fa-save mr-2"></i>Save Bridge
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- Giveaways Tab -->
   <div id="panel-giveaways" class="admin-panel hidden">
     <div class="flex items-center justify-between mb-4">
@@ -432,7 +758,7 @@
 // ============================================================
 // TAB MANAGEMENT
 // ============================================================
-let currentTab = 'lfg';
+let currentTab = 'audit';
 const tabLoaded = {};
 
 function switchTab(tab) {
@@ -463,6 +789,10 @@ function loadTabData(tab) {
     flairs: loadFlairsTab,
     polls: loadServerPolls,
     giveaways: loadAdminGiveaways,
+    'early-access': loadInviteCodes,
+    'hero-subs': loadHeroSubs,
+    'bot-network': loadBotNetwork,
+    'emoji': loadEmoji,
   };
   if (loaders[tab]) loaders[tab]();
 }
@@ -821,13 +1151,14 @@ function renderAdminCommunities() {
             <span class="text-xs px-1.5 py-0.5 rounded capitalize bg-neutral-700 text-gray-300">${comm.platform}</span>
             ${statusBadge(comm.network_status)}
           </div>
-          <div class="text-xs text-gray-500 mt-1">${comm.member_count} members | Discovery: ${comm.allow_discovery ? 'On' : 'Off'} | ${formatTimestamp(comm.created_at)}</div>
+          <div class="text-xs text-gray-500 mt-1">${comm.member_count} members | Discovery: ${comm.allow_discovery ? 'On' : 'Off'} | Unified XP: ${comm.site_xp_to_guild ? '<span class="text-blue-400">On</span>' : 'Off'}${comm.site_xp_to_guild === false && comm.network_status === 'pending' ? ' <span class="text-yellow-400">(requested)</span>' : ''} | ${formatTimestamp(comm.created_at)}</div>
         </div>
         <div class="flex gap-1 flex-shrink-0">
           ${comm.network_status === 'pending' ? `<button onclick="communityAction(${comm.id}, 'approve')" class="text-xs bg-green-600/20 text-green-400 hover:bg-green-600/30 px-2 py-1 rounded transition">Approve</button><button onclick="communityAction(${comm.id}, 'deny')" class="text-xs bg-red-600/20 text-red-400 hover:bg-red-600/30 px-2 py-1 rounded transition">Deny</button>` : ''}
           ${comm.network_status === 'denied' ? `<button onclick="communityAction(${comm.id}, 'approve')" class="text-xs bg-green-600/20 text-green-400 hover:bg-green-600/30 px-2 py-1 rounded transition">Re-approve</button>` : ''}
           ${!comm.is_banned ? `<button onclick="communityAction(${comm.id}, 'ban')" class="text-xs bg-red-600/20 text-red-400 hover:bg-red-600/30 px-2 py-1 rounded transition">Ban</button>` : `<button onclick="communityAction(${comm.id}, 'unban')" class="text-xs bg-green-600/20 text-green-400 hover:bg-green-600/30 px-2 py-1 rounded transition">Unban</button>`}
-          <button onclick="communityAction(${comm.id}, 'toggle_discovery')" class="text-xs bg-neutral-700 text-gray-300 hover:bg-neutral-600 px-2 py-1 rounded transition">${comm.allow_discovery ? 'Hide' : 'Show'}</button>
+          <button onclick="communityAction(${comm.id}, 'toggle_discovery')" class="text-xs bg-neutral-700 text-gray-300 hover:bg-neutral-600 px-2 py-1 rounded transition">${comm.allow_discovery ? 'Hide' : 'Show'} Dir</button>
+          <button onclick="communityAction(${comm.id}, 'toggle_unified_xp')" class="text-xs ${comm.site_xp_to_guild ? 'bg-blue-600/20 text-blue-400 hover:bg-blue-600/30' : 'bg-neutral-700 text-gray-300 hover:bg-neutral-600'} px-2 py-1 rounded transition">${comm.site_xp_to_guild ? 'XP On' : 'XP Off'}</button>
           <button onclick="if(confirm('Permanently delete this community?')) communityAction(${comm.id}, 'purge')" class="text-xs bg-red-600/20 text-red-400 hover:bg-red-600/30 px-2 py-1 rounded transition"><i class="fas fa-trash"></i></button>
         </div>
       </div>
@@ -2396,7 +2727,20 @@ document.addEventListener('DOMContentLoaded', () => {
   loadMaintenanceStatus();
   loadLoginLockStatus();
   loadStats();
-  switchTab('lfg');
+  switchTab('audit');
+  createCustomSelect({
+    container: document.getElementById('eacGenPlatformContainer'),
+    name: 'eacGenPlatform',
+    id: 'eacGenPlatform',
+    items: [
+      {value: '', label: 'Any'},
+      {value: 'fluxer', label: 'Fluxer'},
+      {value: 'discord', label: 'Discord'},
+    ],
+    selected: '',
+    color: 'indigo',
+    placeholder: 'Any',
+  });
 });
 
 // ============================================================
@@ -2589,6 +2933,800 @@ function showToastAdmin(msg) {
   t.textContent = msg;
   document.body.appendChild(t);
   setTimeout(() => t.remove(), 3000);
+}
+
+// ============================================================
+// FLUXER WEBHOOKS
+// ============================================================
+const EVENT_TYPE_ICONS = {
+  lfg_announce:    'fas fa-users text-orange-400',
+  new_post:        'fas fa-pen text-blue-400',
+  new_member:      'fas fa-user-plus text-green-400',
+  giveaway_start:  'fas fa-gift text-pink-400',
+  giveaway_winner: 'fas fa-trophy text-yellow-400',
+};
+
+
+// =====================================================================
+// EARLY ACCESS INVITE CODES
+// =====================================================================
+
+async function loadInviteCodes() {
+  const data = await csrfFetch('/ql/api/admin/invite-codes/').then(r => r.json());
+  const s = data.stats;
+  document.getElementById('eacTotal').textContent = s.total;
+  document.getElementById('eacUnused').textContent = s.unused;
+  document.getElementById('eacUsed').textContent = s.used;
+  document.getElementById('eacRevoked').textContent = s.revoked;
+
+  // Reset selection state
+  document.getElementById('eacSelectAll').checked = false;
+  document.getElementById('eacRevokeSelectedBtn').classList.add('hidden');
+  document.getElementById('eacSelectedCount').classList.add('hidden');
+
+  const list = document.getElementById('eacCodeList');
+  if (!data.codes.length) {
+    list.innerHTML = '<p class="text-center text-gray-500 py-8 text-sm">No codes yet. Generate some above.</p>';
+    return;
+  }
+
+  const platformColor = { fluxer: 'text-purple-400', discord: 'text-indigo-400', '': 'text-gray-400' };
+
+  list.innerHTML = data.codes.map(c => {
+    const isUnused = !c.used_at && !c.is_revoked;
+    const checkbox = isUnused
+      ? `<input type="checkbox" class="eac-checkbox w-4 h-4 rounded border-neutral-600 bg-neutral-800 accent-indigo-500 flex-shrink-0" data-id="${c.id}" onchange="eacUpdateSelected()">`
+      : `<span class="w-4 flex-shrink-0"></span>`;
+
+    const statusBadge = c.used_at
+      ? `<span class="text-[10px] bg-indigo-900/40 text-indigo-300 border border-indigo-700/40 px-2 py-0.5 rounded-full font-medium">
+           <i class="fas fa-user text-[8px] mr-0.5"></i>Used by <a href="/ql/u/${escapeHtml(c.used_by_username || '')}/" class="underline hover:text-indigo-200">${escapeHtml(c.used_by_username || '?')}</a>
+         </span>`
+      : c.is_revoked
+        ? `<span class="text-[10px] bg-red-900/40 text-red-300 border border-red-700/40 px-2 py-0.5 rounded-full">Revoked</span>`
+        : `<span class="text-[10px] bg-green-900/40 text-green-300 border border-green-700/40 px-2 py-0.5 rounded-full">Available</span>`;
+
+    const revokeBtn = isUnused
+      ? `<button onclick="revokeInviteCode(${c.id}, this)" class="text-xs text-red-500 hover:text-red-400 transition flex-shrink-0" title="Revoke"><i class="fas fa-ban"></i></button>`
+      : '';
+    const platLabel = c.platform ? `<span class="${platformColor[c.platform] || 'text-gray-400'} text-xs font-medium capitalize">${escapeHtml(c.platform)}</span>` : '';
+    return `<div class="flex items-center gap-3 bg-neutral-900/40 border border-neutral-800 rounded-lg px-3 py-2.5">
+      ${checkbox}
+      <code class="text-sm font-mono text-white tracking-widest flex-shrink-0 select-all">${escapeHtml(c.code)}</code>
+      <div class="flex-1 min-w-0 flex items-center gap-2 flex-wrap">
+        ${platLabel}
+        ${c.notes ? `<span class="text-xs text-gray-500 truncate">${escapeHtml(c.notes)}</span>` : ''}
+        ${statusBadge}
+      </div>
+      <span class="text-xs text-gray-600 flex-shrink-0">${formatTimestamp(c.created_at)}</span>
+      ${revokeBtn}
+    </div>`;
+  }).join('');
+}
+
+function eacToggleAll(checked) {
+  document.querySelectorAll('.eac-checkbox').forEach(cb => cb.checked = checked);
+  eacUpdateSelected();
+}
+
+function eacUpdateSelected() {
+  const checked = document.querySelectorAll('.eac-checkbox:checked');
+  const btn = document.getElementById('eacRevokeSelectedBtn');
+  const countEl = document.getElementById('eacSelectedCount');
+  if (checked.length > 0) {
+    btn.classList.remove('hidden');
+    countEl.textContent = `${checked.length} selected`;
+    countEl.classList.remove('hidden');
+  } else {
+    btn.classList.add('hidden');
+    countEl.classList.add('hidden');
+  }
+}
+
+async function eacRevokeSelected() {
+  const ids = Array.from(document.querySelectorAll('.eac-checkbox:checked')).map(cb => parseInt(cb.dataset.id, 10));
+  if (!ids.length) return;
+  if (!confirm(`Revoke ${ids.length} selected code(s)? They will no longer be usable.`)) return;
+  const data = await csrfFetch('/ql/api/admin/invite-codes/bulk-revoke/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ids }),
+  }).then(r => r.json());
+  if (data.revoked !== undefined) {
+    showToastAdmin(`Revoked ${data.revoked} code(s).`);
+    loadInviteCodes();
+  } else {
+    showToastAdmin('Error: ' + (data.error || 'Revoke failed.'));
+  }
+}
+
+async function eacRevokeAllUnused() {
+  if (!confirm('Revoke ALL unused invite codes? This cannot be undone.')) return;
+  const data = await csrfFetch('/ql/api/admin/invite-codes/bulk-revoke/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ revoke_all_unused: true }),
+  }).then(r => r.json());
+  if (data.revoked !== undefined) {
+    showToastAdmin(`Revoked ${data.revoked} unused code(s).`);
+    loadInviteCodes();
+  } else {
+    showToastAdmin('Error: ' + (data.error || 'Revoke failed.'));
+  }
+}
+
+async function generateInviteCodes() {
+  const count = parseInt(document.getElementById('eacGenCount').value, 10) || 10;
+  const platform = document.getElementById('eacGenPlatform').value;
+  const notes = document.getElementById('eacGenNotes').value.trim();
+  const data = await csrfFetch('/ql/api/admin/invite-codes/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ count, platform: platform || null, notes: notes || null }),
+  }).then(r => r.json());
+  if (data.created) {
+    showToastAdmin(`Generated ${data.created.length} invite code(s).`);
+    loadInviteCodes();
+  } else {
+    showToastAdmin('Error: ' + (data.error || 'Unknown error'));
+  }
+}
+
+async function revokeInviteCode(codeId, btn) {
+  if (!confirm('Revoke this invite code? It will no longer be usable.')) return;
+  btn.disabled = true;
+  const data = await csrfFetch(`/ql/api/admin/invite-codes/${codeId}/`, {
+    method: 'DELETE',
+  }).then(r => r.json());
+  if (data.success) {
+    showToastAdmin('Code revoked.');
+    loadInviteCodes();
+  } else {
+    btn.disabled = false;
+    showToastAdmin('Error: ' + (data.error || 'Revoke failed.'));
+  }
+}
+
+// ============================================================
+// HERO SUBSCRIBERS
+// ============================================================
+function esc(s) { var d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+
+async function loadHeroSubs() {
+  const r = await csrfFetch('/ql/api/admin/hero-subscribers/');
+  const data = await r.json();
+  const stats = data.stats || {};
+
+  document.getElementById('heroStatTotal').textContent = stats.total_active ?? '-';
+  document.getElementById('heroStatMRR').textContent = stats.mrr_cents ? ('$' + (stats.mrr_cents / 100).toFixed(2)) : '$0';
+  document.getElementById('heroStatRevenue').textContent = stats.total_revenue_cents ? ('$' + (stats.total_revenue_cents / 100).toFixed(2)) : '$0';
+
+  const list = document.getElementById('heroSubList');
+  const subs = data.subscribers || [];
+  if (!subs.length) {
+    list.innerHTML = '<div class="text-center text-gray-500 py-8">No active Hero subscribers yet.</div>';
+    return;
+  }
+
+  list.innerHTML = subs.map(function(u) {
+    const exp = u.hero_expires_at ? new Date(u.hero_expires_at * 1000).toLocaleDateString() : '-';
+    const expiredBadge = u.is_expired ? '<span class="text-red-400 text-xs ml-2">(Expired)</span>' : '';
+    return '<div class="flex items-center gap-3 bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3">' +
+      '<img src="' + esc(u.avatar_url || '') + '" class="w-8 h-8 rounded-full bg-neutral-700" onerror="this.src=\'\';">' +
+      '<div class="flex-1">' +
+        '<div class="text-sm font-semibold text-white">' + esc(u.display_name) + ' <span class="text-gray-400 font-normal">@' + esc(u.username) + '</span></div>' +
+        '<div class="text-xs text-gray-500">Stripe: ' + esc(u.stripe_customer_id || 'N/A') + '</div>' +
+      '</div>' +
+      '<div class="text-right text-xs text-gray-400">Expires ' + esc(exp) + expiredBadge + '</div>' +
+    '</div>';
+  }).join('');
+}
+
+// ============================================================
+// BOT NETWORK
+// ============================================================
+let _botNetData = null;
+
+async function loadBotNetwork() {
+  const r = await csrfFetch('/ql/api/admin/bot-network/');
+  _botNetData = await r.json();
+  showBotNetTab('discord');
+}
+
+function showBotNetTab(tab) {
+  ['discord', 'fluxer', 'matrix', 'network', 'bridge'].forEach(function(t) {
+    document.getElementById('bnt-panel-' + t).classList.add('hidden');
+    document.getElementById('bnt-' + t).classList.remove('bg-indigo-600', 'text-white');
+    document.getElementById('bnt-' + t).classList.add('text-gray-400');
+  });
+  document.getElementById('bnt-panel-' + tab).classList.remove('hidden');
+  document.getElementById('bnt-' + tab).classList.add('bg-indigo-600', 'text-white');
+  document.getElementById('bnt-' + tab).classList.remove('text-gray-400');
+
+  if (!_botNetData) return;
+  if (tab === 'discord') renderDiscordGuilds();
+  if (tab === 'fluxer') renderFluxerGuilds();
+  if (tab === 'matrix') renderMatrixSpaces();
+  if (tab === 'network') renderNetworkConfigs();
+  if (tab === 'bridge') renderBridgeConfigs();
+}
+
+function renderDiscordGuilds() {
+  const guilds = (_botNetData || {}).discord_guilds || [];
+  const el = document.getElementById('botNetDiscordList');
+  if (!guilds.length) {
+    el.innerHTML = '<div class="text-center text-gray-500 py-8">No Discord guilds found.</div>';
+    return;
+  }
+  el.innerHTML = guilds.map(function(g) {
+    return '<div class="flex items-center gap-3 bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3">' +
+      '<i class="fab fa-discord text-indigo-400 text-lg w-6"></i>' +
+      '<div class="flex-1"><div class="text-sm font-semibold text-white">' + esc(g.guild_name) + '</div>' +
+        '<div class="text-xs text-gray-500">ID: ' + esc(g.guild_id) + ' | ' + (g.member_count || 0) + ' members | ' + (g.subscription_tier || 'free') + '</div>' +
+      '</div>' +
+      '<a href="' + esc(g.dashboard_url) + '" target="_blank" class="text-xs text-indigo-400 hover:text-indigo-300">Dashboard &rarr;</a>' +
+    '</div>';
+  }).join('');
+}
+
+function renderFluxerGuilds() {
+  const guilds = (_botNetData || {}).fluxer_guilds || [];
+  const el = document.getElementById('botNetFluxerList');
+  if (!guilds.length) {
+    el.innerHTML = '<div class="text-center text-gray-500 py-8">No Fluxer guilds found.</div>';
+    return;
+  }
+  el.innerHTML = guilds.map(function(g) {
+    return '<div class="flex items-center gap-3 bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3">' +
+      '<i class="fas fa-satellite-dish text-purple-400 text-lg w-6"></i>' +
+      '<div class="flex-1"><div class="text-sm font-semibold text-white">' + esc(g.guild_name || g.guild_id) + '</div>' +
+        '<div class="text-xs text-gray-500">ID: ' + esc(g.guild_id) + ' | ' + (g.channel_count || 0) + ' channels</div>' +
+      '</div>' +
+      '<a href="/ql/dashboard/fluxer/' + esc(g.guild_id) + '/" class="text-xs text-purple-400 hover:text-purple-300">Configure &rarr;</a>' +
+    '</div>';
+  }).join('');
+}
+
+function renderMatrixSpaces() {
+  const spaces = (_botNetData || {}).matrix_spaces || [];
+  const el = document.getElementById('botNetMatrixList');
+  if (!spaces.length) {
+    el.innerHTML = '<div class="text-center text-gray-500 py-8">No Matrix spaces found.</div>';
+    return;
+  }
+  el.innerHTML = spaces.map(function(s) {
+    return '<div class="flex items-center gap-3 bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3">' +
+      '<i class="fas fa-matrix-org text-green-400 text-lg w-6" style="font-style:normal">&#91;m&#93;</i>' +
+      '<div class="flex-1"><div class="text-sm font-semibold text-white">' + esc(s.space_name || s.space_id) + '</div>' +
+        '<div class="text-xs text-gray-500">ID: ' + esc(s.space_id) + ' | ' + (s.member_count || 0) + ' members</div>' +
+      '</div>' +
+      '<a href="/ql/dashboard/matrix/' + encodeURIComponent(s.space_id) + '/" class="text-xs text-green-400 hover:text-green-300">Dashboard &rarr;</a>' +
+    '</div>';
+  }).join('');
+}
+
+function renderNetworkConfigs() {
+  const configs = (_botNetData || {}).network_configs || [];
+  const el = document.getElementById('botNetConfigList');
+  if (!configs.length) {
+    el.innerHTML = '<div class="text-center text-gray-500 py-8">No network subscriptions yet.</div>';
+    return;
+  }
+  el.innerHTML = configs.map(function(c) {
+    const badge = c.is_enabled
+      ? '<span class="text-green-400 text-xs font-semibold">Active</span>'
+      : '<span class="text-gray-500 text-xs font-semibold">Disabled</span>';
+    return '<div class="flex items-center gap-3 bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3">' +
+      '<div class="flex-1"><div class="text-sm font-semibold text-white">' + esc(c.guild_name) + ' <span class="text-gray-400 font-normal text-xs">(' + esc(c.platform) + ')</span></div>' +
+        '<div class="text-xs text-gray-500">' + esc(c.event_type) + ' | ch: ' + esc(c.channel_name) + '</div>' +
+      '</div>' + badge +
+    '</div>';
+  }).join('');
+}
+
+let _bridgesMap = {};
+
+function renderBridgeConfigs() {
+  const bridges = (_botNetData || {}).bridges || [];
+  const el = document.getElementById('botNetBridgeList');
+  _bridgesMap = {};
+  if (!bridges.length) {
+    el.innerHTML = `
+      <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-10 text-center">
+        <div class="w-14 h-14 bg-purple-700/20 rounded-full flex items-center justify-center mx-auto mb-4">
+          <i class="fas fa-satellite-dish text-purple-400/50 text-2xl"></i>
+        </div>
+        <h3 class="text-white font-semibold mb-2">No Bridges Configured</h3>
+        <p class="text-gray-500 text-sm max-w-sm mx-auto">Click "New Bridge" to connect Discord, Fluxer, or Matrix channels.</p>
+      </div>`;
+    return;
+  }
+  bridges.forEach(function(b) { _bridgesMap[b.id] = b; });
+  el.innerHTML = bridges.map(function(b) {
+    const enabledBadge = b.enabled
+      ? '<span class="text-xs bg-green-600/20 text-green-400 border border-green-700/30 px-2 py-0.5 rounded-full">Active</span>'
+      : '<span class="text-xs bg-neutral-700 text-gray-500 border border-neutral-600 px-2 py-0.5 rounded-full">Disabled</span>';
+    const label = b.name ? esc(b.name) : ('Bridge #' + b.id);
+    const rows = [];
+    if (b.discord_channel_id) rows.push('<div><span class="text-gray-600">Discord:</span> <span class="text-indigo-300 font-mono text-xs">' + esc(b.discord_guild_id) + ' / ' + esc(b.discord_channel_id) + '</span></div>');
+    if (b.fluxer_channel_id && b.fluxer_channel_id !== '0') rows.push('<div><span class="text-gray-600">Fluxer:</span> <span class="text-purple-300 font-mono text-xs">' + esc(b.fluxer_guild_id) + ' / ' + esc(b.fluxer_channel_id) + '</span></div>');
+    if (b.matrix_room_id) rows.push('<div><span class="text-gray-600">Matrix:</span> <span class="text-cyan-300 font-mono text-xs">' + esc(b.matrix_room_id) + '</span></div>');
+    const dirs = [];
+    if (b.relay_discord_to_fluxer) dirs.push('<span class="text-indigo-400"><i class="fas fa-arrow-right mr-1"></i>Discord-&gt;Fluxer</span>');
+    if (b.relay_fluxer_to_discord) dirs.push('<span class="text-purple-400"><i class="fas fa-arrow-left mr-1"></i>Fluxer-&gt;Discord</span>');
+    if (b.relay_matrix_outbound) dirs.push('<span class="text-cyan-400"><i class="fas fa-arrow-right mr-1"></i>[M]-&gt;Other</span>');
+    if (b.relay_matrix_inbound) dirs.push('<span class="text-cyan-300"><i class="fas fa-arrow-left mr-1"></i>Other-&gt;[M]</span>');
+    return '<div class="bg-neutral-900 rounded-xl border border-neutral-800 p-4">' +
+      '<div class="flex items-start justify-between gap-3">' +
+        '<div class="flex-1 min-w-0">' +
+          '<div class="flex items-center gap-2 mb-2">' +
+            '<h3 class="text-white font-semibold text-sm">' + label + '</h3>' +
+            enabledBadge +
+          '</div>' +
+          '<div class="space-y-1 text-xs text-gray-500 mb-2">' + (rows.join('') || '<div class="text-gray-600">No endpoints configured</div>') + '</div>' +
+          (dirs.length ? '<div class="flex items-center gap-3 text-xs">' + dirs.join('') + '</div>' : '') +
+        '</div>' +
+        '<div class="flex gap-2 flex-shrink-0">' +
+          '<button onclick="toggleBridgeEnabled(' + b.id + ',' + !b.enabled + ')" class="text-xs px-3 py-1.5 rounded border border-neutral-700 bg-neutral-800 hover:bg-neutral-700 text-gray-300 transition">' + (b.enabled ? 'Disable' : 'Enable') + '</button>' +
+          '<button onclick="editBridgeConfig(' + b.id + ')" class="text-xs px-3 py-1.5 rounded border border-neutral-700 bg-neutral-800 hover:bg-neutral-700 text-gray-300 transition"><i class="fas fa-edit"></i></button>' +
+          '<button onclick="deleteBridgeConfig(' + b.id + ')" class="text-xs px-3 py-1.5 rounded border border-red-800/50 bg-red-900/20 hover:bg-red-900/40 text-red-400 transition"><i class="fas fa-trash"></i></button>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+}
+
+// Bridge modal custom selects - recreated each time the modal opens
+let _brDiscordGuildSel = null, _brDiscordChSel = null;
+let _brFluxerGuildSel  = null, _brFluxerChSel  = null;
+let _brMatrixSpaceSel  = null, _brMatrixRoomSel = null;
+
+function _makeBrDiscordGuildSel(selected) {
+  const items = ((_botNetData || {}).discord_guilds || []).map(g => ({
+    value: g.guild_id, label: g.guild_name || g.guild_id
+  }));
+  if (_brDiscordGuildSel) _brDiscordGuildSel.destroy();
+  _brDiscordGuildSel = createCustomSelect({
+    container: '#br_discord_guild_container', name: 'br_discord_guild_id',
+    id: 'br_discord_guild', placeholder: 'Select server...', items: items,
+    selected: selected || '', color: 'indigo',
+    onSelect: function(val) { _onBrDiscordGuildChange(val); }
+  });
+}
+
+function _makeBrFluxerGuildSel(selected) {
+  const items = ((_botNetData || {}).fluxer_guilds || []).map(g => ({
+    value: g.guild_id, label: g.guild_name || g.guild_id
+  }));
+  if (_brFluxerGuildSel) _brFluxerGuildSel.destroy();
+  _brFluxerGuildSel = createCustomSelect({
+    container: '#br_fluxer_guild_container', name: 'br_fluxer_guild_id',
+    id: 'br_fluxer_guild', placeholder: 'Select server...', items: items,
+    selected: selected || '', color: 'purple',
+    onSelect: function(val) { _onBrFluxerGuildChange(val); }
+  });
+}
+
+function _makeBrDiscordChSel(items, selected) {
+  if (_brDiscordChSel) _brDiscordChSel.destroy();
+  _brDiscordChSel = createCustomSelect({
+    container: '#br_discord_ch_container', name: 'br_discord_ch_id',
+    id: 'br_discord_ch', placeholder: 'Select channel...', items: items || [],
+    selected: selected || '', color: 'indigo'
+  });
+}
+
+function _makeBrFluxerChSel(items, selected) {
+  if (_brFluxerChSel) _brFluxerChSel.destroy();
+  _brFluxerChSel = createCustomSelect({
+    container: '#br_fluxer_ch_container', name: 'br_fluxer_ch_id',
+    id: 'br_fluxer_ch', placeholder: 'Select channel...', items: items || [],
+    selected: selected || '', color: 'purple'
+  });
+}
+
+function _makeBrMatrixSpaceSel(selected) {
+  const items = [{ value: '', label: '-- None --' }].concat(
+    ((_botNetData || {}).matrix_spaces || []).map(s => ({ value: s.space_id, label: s.space_name || s.space_id }))
+  );
+  if (_brMatrixSpaceSel) _brMatrixSpaceSel.destroy();
+  _brMatrixSpaceSel = createCustomSelect({
+    container: '#br_matrix_space_container', name: 'br_matrix_space_id',
+    id: 'br_matrix_space', placeholder: 'Select space...', items: items,
+    selected: selected || '', color: 'cyan',
+    onSelect: function(val) { _onBrMatrixSpaceChange(val); }
+  });
+}
+
+function _makeBrMatrixRoomSel(items, selected) {
+  if (_brMatrixRoomSel) _brMatrixRoomSel.destroy();
+  _brMatrixRoomSel = createCustomSelect({
+    container: '#br_matrix_room_container', name: 'br_matrix_room_id',
+    id: 'br_matrix_room', placeholder: 'Select room...', items: items || [],
+    selected: selected || '', color: 'cyan'
+  });
+}
+
+async function _onBrMatrixSpaceChange(spaceId) {
+  _makeBrMatrixRoomSel([{ value: '', label: 'Loading...' }], '');
+  if (!spaceId) { _makeBrMatrixRoomSel([], ''); return; }
+  try {
+    const r = await csrfFetch('/ql/api/admin/matrix-space/' + encodeURIComponent(spaceId) + '/rooms/');
+    const data = await r.json();
+    const items = [{ value: '', label: '-- Select room --' }].concat(
+      (data.rooms || []).map(rm => ({ value: rm.id, label: rm.name || rm.id }))
+    );
+    _makeBrMatrixRoomSel(items, '');
+  } catch(e) { _makeBrMatrixRoomSel([], ''); }
+}
+
+async function _onBrDiscordGuildChange(guildId) {
+  _makeBrDiscordChSel([{ value: '', label: 'Loading...' }], '');
+  if (!guildId) { _makeBrDiscordChSel([], ''); return; }
+  try {
+    const r = await csrfFetch('/ql/api/admin/discord-guild/' + encodeURIComponent(guildId) + '/channels/');
+    const data = await r.json();
+    const items = (data.channels || []).map(c => ({ value: String(c.id), label: '#' + c.name }));
+    _makeBrDiscordChSel(items, '');
+  } catch(e) { _makeBrDiscordChSel([], ''); }
+}
+
+async function _onBrFluxerGuildChange(guildId) {
+  _makeBrFluxerChSel([{ value: '', label: 'Loading...' }], '');
+  if (!guildId) { _makeBrFluxerChSel([], ''); return; }
+  try {
+    const r = await csrfFetch('/ql/api/admin/fluxer-guild/' + encodeURIComponent(guildId) + '/channels/');
+    const data = await r.json();
+    const items = (data.channels || []).map(c => ({ value: String(c.id), label: '#' + c.name }));
+    _makeBrFluxerChSel(items, '');
+  } catch(e) { _makeBrFluxerChSel([], ''); }
+}
+
+function openBridgeModal() {
+  _makeBrDiscordGuildSel('');
+  _makeBrFluxerGuildSel('');
+  _makeBrDiscordChSel([], '');
+  _makeBrFluxerChSel([], '');
+  _makeBrMatrixSpaceSel('');
+  _makeBrMatrixRoomSel([], '');
+  document.getElementById('br_edit_id').value = '';
+  document.getElementById('br_name').value = '';
+  document.getElementById('br_d2f').checked = true;
+  document.getElementById('br_f2d').checked = true;
+  document.getElementById('br_matrix_out').checked = true;
+  document.getElementById('br_matrix_in').checked = true;
+  document.getElementById('br_max_len').value = 1000;
+  document.getElementById('brFormError').classList.add('hidden');
+  document.getElementById('bridgeAdminModalTitle').innerHTML = '<i class="fas fa-plus text-purple-400 mr-2"></i>New Bridge';
+  document.getElementById('br_save_btn').textContent = 'Save Bridge';
+  document.getElementById('bridgeAdminModal').classList.remove('hidden');
+}
+
+async function editBridgeConfig(id) {
+  const b = _bridgesMap[id];
+  if (!b) return;
+  const dg = b.discord_guild_id || '';
+  const dc = b.discord_channel_id || '';
+  const fg = (b.fluxer_guild_id && b.fluxer_guild_id !== '0') ? b.fluxer_guild_id : '';
+  const fc = (b.fluxer_channel_id && b.fluxer_channel_id !== '0') ? b.fluxer_channel_id : '';
+  const ms = b.matrix_space_id || '';
+  const mr = b.matrix_room_id || '';
+
+  // Build guild/space selects with pre-selected value
+  _makeBrDiscordGuildSel(dg);
+  _makeBrFluxerGuildSel(fg);
+  _makeBrDiscordChSel([], '');
+  _makeBrFluxerChSel([], '');
+  _makeBrMatrixSpaceSel(ms);
+  _makeBrMatrixRoomSel([], '');
+
+  document.getElementById('br_edit_id').value = b.id;
+  document.getElementById('br_name').value = b.name || '';
+  document.getElementById('br_d2f').checked = !!b.relay_discord_to_fluxer;
+  document.getElementById('br_f2d').checked = !!b.relay_fluxer_to_discord;
+  document.getElementById('br_matrix_out').checked = b.relay_matrix_outbound !== false;
+  document.getElementById('br_matrix_in').checked = b.relay_matrix_inbound !== false;
+  document.getElementById('br_max_len').value = b.max_msg_len || 1000;
+  document.getElementById('brFormError').classList.add('hidden');
+  document.getElementById('bridgeAdminModalTitle').innerHTML = '<i class="fas fa-edit text-purple-400 mr-2"></i>Edit Bridge';
+  document.getElementById('br_save_btn').textContent = 'Update Bridge';
+  document.getElementById('bridgeAdminModal').classList.remove('hidden');
+
+  // Load channels/rooms and pre-select after modal is visible
+  const loadDiscord = dg ? csrfFetch('/ql/api/admin/discord-guild/' + encodeURIComponent(dg) + '/channels/')
+    .then(r => r.json()).then(data => {
+      const items = (data.channels || []).map(c => ({ value: String(c.id), label: '#' + c.name }));
+      _makeBrDiscordChSel(items, dc);
+    }).catch(() => {}) : Promise.resolve();
+
+  const loadFluxer = fg ? csrfFetch('/ql/api/admin/fluxer-guild/' + encodeURIComponent(fg) + '/channels/')
+    .then(r => r.json()).then(data => {
+      const items = (data.channels || []).map(c => ({ value: String(c.id), label: '#' + c.name }));
+      _makeBrFluxerChSel(items, fc);
+    }).catch(() => {}) : Promise.resolve();
+
+  const loadMatrix = ms ? csrfFetch('/ql/api/admin/matrix-space/' + encodeURIComponent(ms) + '/rooms/')
+    .then(r => r.json()).then(data => {
+      const items = [{ value: '', label: '-- Select room --' }].concat(
+        (data.rooms || []).map(rm => ({ value: rm.id, label: rm.name || rm.id }))
+      );
+      _makeBrMatrixRoomSel(items, mr);
+    }).catch(() => {}) : Promise.resolve();
+
+  await Promise.all([loadDiscord, loadFluxer, loadMatrix]);
+}
+
+function closeBridgeModal() {
+  document.getElementById('bridgeAdminModal').classList.add('hidden');
+}
+
+async function saveBridgeConfig() {
+  const editId = document.getElementById('br_edit_id').value;
+  const errEl = document.getElementById('brFormError');
+  errEl.classList.add('hidden');
+  const body = {
+    name: document.getElementById('br_name').value.trim(),
+    discord_guild_id: _brDiscordGuildSel ? (_brDiscordGuildSel.getValue() || '') : '',
+    discord_channel_id: _brDiscordChSel ? (_brDiscordChSel.getValue() || '') : '',
+    fluxer_guild_id: _brFluxerGuildSel ? (_brFluxerGuildSel.getValue() || '') : '',
+    fluxer_channel_id: _brFluxerChSel ? (_brFluxerChSel.getValue() || '') : '',
+    matrix_space_id: _brMatrixSpaceSel ? (_brMatrixSpaceSel.getValue() || '') : '',
+    matrix_room_id: _brMatrixRoomSel ? (_brMatrixRoomSel.getValue() || '') : '',
+    relay_discord_to_fluxer: document.getElementById('br_d2f').checked,
+    relay_fluxer_to_discord: document.getElementById('br_f2d').checked,
+    relay_matrix_outbound: document.getElementById('br_matrix_out').checked,
+    relay_matrix_inbound: document.getElementById('br_matrix_in').checked,
+    max_msg_len: parseInt(document.getElementById('br_max_len').value || '1000'),
+  };
+  if (!body.discord_channel_id && !body.fluxer_channel_id && !body.matrix_room_id) {
+    errEl.textContent = 'At least one channel endpoint is required.';
+    errEl.classList.remove('hidden');
+    return;
+  }
+
+  let r, data;
+  if (editId) {
+    r = await csrfFetch('/ql/api/admin/bridge-configs/' + editId + '/', { method: 'PATCH', body: JSON.stringify(body) });
+    data = await r.json();
+    if (r.ok) showToastAdmin('Bridge updated.');
+  } else {
+    r = await csrfFetch('/ql/api/admin/bridge-configs/', { method: 'POST', body: JSON.stringify(body) });
+    data = await r.json();
+    if (r.ok) showToastAdmin('Bridge created.');
+  }
+
+  if (r.ok) {
+    closeBridgeModal();
+    _botNetData = null;
+    await loadBotNetwork();
+    showBotNetTab('bridge');
+  } else {
+    errEl.textContent = 'Error: ' + ((data && data.error) || 'Failed');
+    errEl.classList.remove('hidden');
+  }
+}
+
+async function toggleBridgeEnabled(id, newVal) {
+  await csrfFetch('/ql/api/admin/bridge-configs/' + id + '/', {
+    method: 'PATCH', body: JSON.stringify({ enabled: newVal })
+  });
+  _botNetData = null;
+  await loadBotNetwork();
+  showBotNetTab('bridge');
+}
+
+async function deleteBridgeConfig(id) {
+  if (!confirm('Delete this bridge? Pending relay messages will also be deleted.')) return;
+  await csrfFetch('/ql/api/admin/bridge-configs/' + id + '/', { method: 'DELETE' });
+  _botNetData = null;
+  await loadBotNetwork();
+  showBotNetTab('bridge');
+}
+
+// ============================================================
+// EMOJI & STICKERS
+// ============================================================
+let _emojiFilter = 'emoji';
+let _emojiIsSticker = false;
+
+function switchEmojiFilter(type) {
+  _emojiFilter = type;
+  document.getElementById('ef-emoji').className = type === 'emoji'
+    ? 'px-4 py-2 text-sm font-medium text-white border-b-2 border-yellow-500'
+    : 'px-4 py-2 text-sm font-medium text-gray-400 hover:text-white border-b-2 border-transparent transition';
+  document.getElementById('ef-sticker').className = type === 'sticker'
+    ? 'px-4 py-2 text-sm font-medium text-white border-b-2 border-yellow-500'
+    : 'px-4 py-2 text-sm font-medium text-gray-400 hover:text-white border-b-2 border-transparent transition';
+  renderEmojiGrid();
+}
+
+let _emojiData = null;
+
+async function loadEmoji() {
+  const grid = document.getElementById('emojiGrid');
+  grid.innerHTML = '<div class="col-span-6 text-center text-gray-500 py-8"><i class="fas fa-spinner fa-spin text-2xl"></i></div>';
+  const res = await csrfFetch('/ql/api/admin/emoji/');
+  const data = await res.json();
+  _emojiData = data.emoji || [];
+  renderEmojiGrid();
+}
+
+function renderEmojiGrid() {
+  const grid = document.getElementById('emojiGrid');
+  const items = (_emojiData || []).filter(e => _emojiFilter === 'sticker' ? e.is_sticker : !e.is_sticker);
+  if (!items.length) {
+    grid.innerHTML = '<div class="col-span-6 text-center text-gray-500 py-8">No ' + (_emojiFilter === 'sticker' ? 'stickers' : 'emoji') + ' uploaded yet.</div>';
+    return;
+  }
+  grid.innerHTML = items.map(e => `
+    <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-3 flex flex-col items-center gap-2 group relative">
+      <img src="${escapeHtml(e.image_url)}" alt=":${escapeHtml(e.shortcode)}:"
+           class="${e.is_sticker ? 'w-20 h-20' : 'w-12 h-12'} object-contain rounded">
+      <p class="text-xs text-gray-300 font-mono text-center truncate w-full">:${escapeHtml(e.shortcode)}:</p>
+      ${e.is_animated ? '<span class="text-[10px] text-cyan-400 font-semibold">GIF</span>' : ''}
+      <button onclick="deleteEmoji(${e.id}, '${escapeHtml(e.shortcode)}')"
+              class="absolute top-1.5 right-1.5 hidden group-hover:flex w-6 h-6 bg-red-700 hover:bg-red-600 rounded-full items-center justify-center transition">
+        <i class="fas fa-times text-[10px] text-white"></i>
+      </button>
+    </div>
+  `).join('');
+}
+
+// Bulk emoji upload state
+let _emojiQueue = []; // [{file, shortcode, objectUrl, status: 'pending'|'ok'|'error', error: ''}]
+
+function openEmojiUploadModal(isSticker) {
+  _emojiIsSticker = isSticker;
+  _emojiQueue = [];
+  document.getElementById('emojiModalTitle').textContent = isSticker ? 'Upload Stickers' : 'Upload Emoji';
+  document.getElementById('emojiModalHint').textContent = isSticker
+    ? 'Drop sticker images - shortcodes auto-filled from filenames (max 2MB each)'
+    : 'Drop emoji images - shortcodes auto-filled from filenames (max 512KB each)';
+  document.getElementById('emojiDropHint').textContent = isSticker ? 'PNG / GIF / WebP - up to 512x512px' : 'PNG / GIF / WebP - up to 128x128px';
+  document.getElementById('emojiBulkFile').value = '';
+  document.getElementById('emojiBulkError').classList.add('hidden');
+  renderEmojiQueue();
+  document.getElementById('emojiUploadModal').classList.remove('hidden');
+}
+
+function closeEmojiModal() {
+  // Revoke object URLs to free memory
+  _emojiQueue.forEach(item => { if (item.objectUrl) URL.revokeObjectURL(item.objectUrl); });
+  _emojiQueue = [];
+  document.getElementById('emojiUploadModal').classList.add('hidden');
+}
+
+function handleEmojiDrop(event) {
+  event.preventDefault();
+  document.getElementById('emojiDropZone').classList.remove('border-yellow-500');
+  const files = Array.from(event.dataTransfer.files).filter(f => f.type.startsWith('image/'));
+  if (files.length) handleEmojiFiles(files);
+}
+
+function handleEmojiFiles(files) {
+  const fileArr = files instanceof FileList ? Array.from(files) : files;
+  fileArr.forEach(file => {
+    // Derive shortcode from filename: strip extension, lowercase, replace non-alphanumeric with _
+    const base = file.name.replace(/\.[^.]+$/, '').toLowerCase().replace(/[^a-z0-9_-]/g, '_').replace(/^_+|_+$/g, '').slice(0, 50);
+    // Avoid duplicate shortcodes in queue
+    let shortcode = base || 'emoji_' + _emojiQueue.length;
+    const existing = new Set(_emojiQueue.map(q => q.shortcode));
+    if (existing.has(shortcode)) {
+      let i = 2;
+      while (existing.has(shortcode + '_' + i)) i++;
+      shortcode = shortcode + '_' + i;
+    }
+    _emojiQueue.push({ file, shortcode, objectUrl: URL.createObjectURL(file), status: 'pending', error: '' });
+  });
+  renderEmojiQueue();
+}
+
+function renderEmojiQueue() {
+  const queueEl = document.getElementById('emojiQueue');
+  const countEl = document.getElementById('emojiQueueCount');
+  if (!_emojiQueue.length) {
+    queueEl.innerHTML = '<p class="text-center text-gray-600 text-sm py-4">No files added yet</p>';
+    countEl.textContent = '';
+    return;
+  }
+  const pending = _emojiQueue.filter(q => q.status === 'pending').length;
+  const done = _emojiQueue.filter(q => q.status === 'ok').length;
+  const errors = _emojiQueue.filter(q => q.status === 'error').length;
+  countEl.textContent = `${_emojiQueue.length} file${_emojiQueue.length !== 1 ? 's' : ''} queued` + (done ? ` - ${done} uploaded` : '') + (errors ? ` - ${errors} failed` : '');
+
+  queueEl.innerHTML = _emojiQueue.map((item, idx) => {
+    const statusIcon = item.status === 'ok'
+      ? '<i class="fas fa-check-circle text-green-400"></i>'
+      : item.status === 'error'
+        ? `<span class="text-red-400 text-xs">${escapeHtml(item.error)}</span>`
+        : '';
+    return `
+      <div class="flex items-center gap-3 bg-neutral-800 rounded-lg px-3 py-2">
+        <img src="${item.objectUrl}" class="${_emojiIsSticker ? 'w-12 h-12' : 'w-8 h-8'} object-contain rounded flex-shrink-0" alt="">
+        <input type="text" value="${escapeHtml(item.shortcode)}"
+               onchange="_emojiQueue[${idx}].shortcode = this.value.trim().toLowerCase()"
+               oninput="_emojiQueue[${idx}].shortcode = this.value.trim().toLowerCase()"
+               class="flex-1 bg-neutral-700 border border-neutral-600 text-white text-sm rounded px-2 py-1 font-mono focus:outline-none focus:border-yellow-500 min-w-0"
+               placeholder="shortcode" ${item.status !== 'pending' ? 'disabled' : ''}>
+        <div class="flex items-center gap-2 flex-shrink-0">
+          ${statusIcon}
+          ${item.status === 'pending' ? `<button onclick="removeEmojiQueueItem(${idx})" class="text-gray-500 hover:text-red-400 transition"><i class="fas fa-times text-xs"></i></button>` : ''}
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function removeEmojiQueueItem(idx) {
+  const item = _emojiQueue[idx];
+  if (item && item.objectUrl) URL.revokeObjectURL(item.objectUrl);
+  _emojiQueue.splice(idx, 1);
+  renderEmojiQueue();
+}
+
+async function submitAllEmoji() {
+  const pending = _emojiQueue.filter(q => q.status === 'pending');
+  if (!pending.length) return;
+
+  const errEl = document.getElementById('emojiBulkError');
+  errEl.classList.add('hidden');
+
+  const btn = document.getElementById('emojiSubmitBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>Uploading...';
+
+  let anyError = false;
+  for (const item of pending) {
+    if (!item.shortcode) {
+      item.status = 'error';
+      item.error = 'Shortcode required';
+      anyError = true;
+      renderEmojiQueue();
+      continue;
+    }
+    const form = new FormData();
+    form.append('shortcode', item.shortcode);
+    form.append('is_sticker', _emojiIsSticker ? '1' : '0');
+    form.append('image', item.file);
+    try {
+      const res = await csrfFetch('/ql/api/admin/emoji/', { method: 'POST', body: form });
+      const data = await res.json();
+      if (data.success) {
+        item.status = 'ok';
+      } else {
+        item.status = 'error';
+        item.error = data.error || 'Failed';
+        anyError = true;
+      }
+    } catch(e) {
+      item.status = 'error';
+      item.error = 'Network error';
+      anyError = true;
+    }
+    renderEmojiQueue();
+  }
+
+  btn.disabled = false;
+  btn.innerHTML = '<i class="fas fa-upload mr-1"></i>Upload All';
+
+  // Refresh grid
+  _emojiData = null;
+  tabLoaded['emoji'] = false;
+  loadEmoji();
+
+  if (!anyError) {
+    // All succeeded - close after short delay
+    setTimeout(closeEmojiModal, 800);
+  }
+}
+
+async function deleteEmoji(id, shortcode) {
+  if (!confirm('Delete :' + shortcode + ':? This cannot be undone.')) return;
+  const res = await csrfFetch('/ql/api/admin/emoji/' + id + '/', { method: 'DELETE' });
+  const data = await res.json();
+  if (data.success) {
+    _emojiData = (_emojiData || []).filter(e => e.id !== id);
+    renderEmojiGrid();
+  }
 }
 </script>
 {% endblock %}

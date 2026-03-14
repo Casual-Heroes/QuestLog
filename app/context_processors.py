@@ -1,6 +1,30 @@
 """
 Custom context processors for adding data to all templates
 """
+import json
+import time
+
+_emoji_cache = None
+_emoji_cache_at = 0
+_EMOJI_TTL = 300  # 5 minutes
+
+def _get_emoji_map_json():
+    global _emoji_cache, _emoji_cache_at
+    now = time.time()
+    if _emoji_cache is not None and now - _emoji_cache_at < _EMOJI_TTL:
+        return _emoji_cache
+    try:
+        from .db import get_db_session
+        from .questlog_web.models import WebCustomEmoji
+        with get_db_session() as db:
+            rows = db.query(WebCustomEmoji).all()
+            m = {e.shortcode: e.image_url for e in rows}
+        _emoji_cache = json.dumps(m)
+        _emoji_cache_at = now
+    except Exception:
+        _emoji_cache = '{}'
+    return _emoji_cache
+
 
 def subscription_info(request):
     """Add subscription tier information to all template contexts."""
@@ -22,6 +46,7 @@ def subscription_info(request):
         'is_vip': False,
         'subscription_tier': 'free',
         'user_network_status': None,
+        'custom_emoji_map_json': _get_emoji_map_json(),
     }
 
     # If we have a guild_id, fetch the subscription info and network status

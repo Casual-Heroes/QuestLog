@@ -28,14 +28,23 @@ from .models import (
     WebServerPoll, WebServerPollOption, WebServerPollVote,
     WebUserTOTP,
     WebGiveaway, WebGiveawayEntry,
+    WebFluxerWebhookConfig,
+    WebCommunityBotConfig,
+    WebEarlyAccessCode,
+    WebSubscriptionEvent,
+    WebBridgeConfig, WebBridgeRelayQueue,
+    WebFluxerGuildChannel,
+    WebCustomEmoji,
 )
 from app.security_middleware import MAINTENANCE_FLAG
 from app.db import get_db_session
+from .fluxer_webhooks import notify_giveaway_start as _fluxer_giveaway_start, notify_giveaway_winner as _fluxer_giveaway_winner
 from app.models import SiteActivityGame, SiteActivityGuildRole
 from .helpers import (
     web_login_required, web_admin_required, log_admin_action,
     serialize_post, fetch_rss_feed, create_notification,
     serialize_user_brief, safe_int, validate_admin_image_url,
+    process_uploaded_image,
 )
 
 logger = logging.getLogger(__name__)
@@ -201,6 +210,7 @@ def api_admin_communities(request):
             'allow_discovery': c.allow_discovery,
             'allow_joins': c.allow_joins,
             'network_status': c.network_status,
+            'site_xp_to_guild': bool(c.site_xp_to_guild),
             'is_active': c.is_active,
             'is_banned': c.is_banned,
             'ban_reason': c.ban_reason,
@@ -219,7 +229,7 @@ def api_admin_community_action(request, community_id):
         return JsonResponse({'error': 'Invalid JSON'}, status=400)
 
     action = body.get('action')
-    if action not in ('approve', 'deny', 'ban', 'unban', 'purge', 'toggle_discovery'):
+    if action not in ('approve', 'deny', 'ban', 'unban', 'purge', 'toggle_discovery', 'remove_from_network', 'toggle_unified_xp'):
         return JsonResponse({'error': 'Invalid action'}, status=400)
 
     with get_db_session() as db:
@@ -245,6 +255,11 @@ def api_admin_community_action(request, community_id):
             community.network_status = 'none'
         elif action == 'toggle_discovery':
             community.allow_discovery = not community.allow_discovery
+        elif action == 'toggle_unified_xp':
+            community.site_xp_to_guild = not community.site_xp_to_guild
+        elif action == 'remove_from_network':
+            community.network_status = 'none'
+            community.network_member = False
         elif action == 'purge':
             community_name = community.name
             db.query(WebCommunityMember).filter_by(community_id=community_id).delete()
@@ -321,8 +336,11 @@ def api_admin_creator_action(request, creator_id):
             log_admin_action(request, 'delete_creator', 'creator', creator_id, {'name': creator_name})
             return JsonResponse({'success': True, 'deleted': True})
         elif action == 'set_cotw':
-            # Clear existing COTW — a creator can't hold both titles at once
+            # Clear all existing COTW holders
             db.query(WebCreatorProfile).filter(WebCreatorProfile.is_current_cotw == True).update({'is_current_cotw': False})
+            # Anti-double-dip: strip COTM from this person if they hold it
+            if creator.is_current_cotm:
+                creator.is_current_cotm = False
             creator.is_current_cotw = True
             creator.cotw_last_featured = now
             creator.times_featured = (creator.times_featured or 0) + 1
@@ -330,8 +348,11 @@ def api_admin_creator_action(request, creator_id):
         elif action == 'unset_cotw':
             creator.is_current_cotw = False
         elif action == 'set_cotm':
-            # Same anti-double-dip logic as COTW
+            # Clear all existing COTM holders
             db.query(WebCreatorProfile).filter(WebCreatorProfile.is_current_cotm == True).update({'is_current_cotm': False})
+            # Anti-double-dip: strip COTW from this person if they hold it
+            if creator.is_current_cotw:
+                creator.is_current_cotw = False
             creator.is_current_cotm = True
             creator.cotm_last_featured = now
             creator.times_featured = (creator.times_featured or 0) + 1
@@ -2171,6 +2192,13 @@ def api_admin_giveaway_launch(request, giveaway_id):
         db.commit()
         log_admin_action(request, 'launch_giveaway', 'giveaway', giveaway_id,
                          {'title': g.title, 'notified': notif_count})
+
+        # Notify Fluxer channel
+        _fluxer_giveaway_start(
+            title=g.title,
+            prize=g.prize or '',
+            giveaway_url="https://casual-heroes.com/ql/giveaways/",
+        )
         return JsonResponse({'success': True, 'notified': notif_count, 'giveaway': _giveaway_dict(g, db)})
 
 
@@ -2244,7 +2272,1051 @@ def api_admin_giveaway_pick_winner(request, giveaway_id):
                     message=f'You won the {g.title} giveaway! Prize: {g.prize}',
                 )
 
+        # Collect winner usernames before session closes
+        winner_usernames = []
+        for w_entry in winners:
+            wu = db.query(WebUser).filter_by(id=w_entry.user_id).first()
+            if wu:
+                winner_usernames.append(wu.username)
+
         db.commit()
         log_admin_action(request, 'pick_giveaway_winner', 'giveaway', giveaway_id,
                          {'winner_ids': [w.user_id for w in winners]})
+
+        # Notify Fluxer channel
+        if winner_usernames:
+            _fluxer_giveaway_winner(
+                title=g.title,
+                winner_names=winner_usernames,
+                giveaway_url="https://casual-heroes.com/ql/giveaways/",
+            )
         return JsonResponse({'success': True, 'giveaway': _giveaway_dict(g, db, include_entries=False)})
+
+
+# =============================================================================
+# FLUXER WEBHOOK CONFIGURATION
+# =============================================================================
+
+def _fluxer_config_dict(cfg: WebFluxerWebhookConfig) -> dict:
+    return {
+        'id': cfg.id,
+        'event_type': cfg.event_type,
+        'label': cfg.label,
+        'is_enabled': cfg.is_enabled,
+        'guild_id': cfg.guild_id or '',
+        'channel_id': cfg.channel_id or '',
+        'channel_name': cfg.channel_name or '',
+        'embed_color': cfg.embed_color or '',
+        'message_template': cfg.message_template or '',
+        'embed_title': cfg.embed_title or '',
+        'embed_footer': cfg.embed_footer or '',
+        'updated_at': cfg.updated_at,
+    }
+
+
+@web_admin_required
+@require_http_methods(['GET'])
+def api_admin_fluxer_webhooks(request):
+    """List all Fluxer webhook configs."""
+    with get_db_session() as db:
+        configs = db.query(WebFluxerWebhookConfig).order_by(WebFluxerWebhookConfig.id).all()
+        return JsonResponse({'configs': [_fluxer_config_dict(c) for c in configs]})
+
+
+@web_admin_required
+@require_http_methods(['GET'])
+def api_admin_fluxer_guilds(request):
+    """
+    List Fluxer guilds the bot has synced channels for.
+    For any guild where guild_name is blank, fetches from the Fluxer API and caches it.
+    """
+    import requests as _req
+    from django.conf import settings as _settings
+    from sqlalchemy import text as sa_text
+
+    bot_token  = getattr(_settings, 'FLUXER_BOT_TOKEN', '')
+    api_base   = getattr(_settings, 'FLUXER_API_BASE', 'https://api.fluxer.app')
+    api_ver    = getattr(_settings, 'FLUXER_API_VERSION', '1')
+
+    with get_db_session() as db:
+        rows = db.execute(sa_text("""
+            SELECT guild_id,
+                   COALESCE(NULLIF(MAX(guild_name), ''), '') AS guild_name
+            FROM web_fluxer_guild_channels
+            GROUP BY guild_id
+        """)).fetchall()
+
+        guilds = []
+        needs_cache = []   # guild_ids where name is missing
+
+        for r in rows:
+            if r.guild_name:
+                guilds.append({'id': r.guild_id, 'name': r.guild_name})
+            else:
+                needs_cache.append(r.guild_id)
+
+        # Fetch missing names from the Fluxer API and update DB cache
+        if needs_cache and bot_token:
+            headers = {'Authorization': f'Bot {bot_token}'}
+            for guild_id in needs_cache:
+                name = guild_id   # fallback to ID
+                try:
+                    resp = _req.get(
+                        f'{api_base}/v{api_ver}/guilds/{guild_id}',
+                        headers=headers,
+                        timeout=5,
+                    )
+                    if resp.status_code == 200:
+                        name = resp.json().get('name') or guild_id
+                        db.execute(sa_text(
+                            "UPDATE web_fluxer_guild_channels "
+                            "SET guild_name = :name WHERE guild_id = :gid"
+                        ), {'name': name, 'gid': guild_id})
+                except Exception as _e:
+                    logger.warning(f'api_admin_fluxer_guilds: Fluxer API failed for {guild_id}: {_e}')
+                guilds.append({'id': guild_id, 'name': name})
+            db.commit()
+        elif needs_cache:
+            # No token - fall back to showing ID
+            guilds.extend({'id': gid, 'name': gid} for gid in needs_cache)
+
+    guilds.sort(key=lambda g: g['name'].lower())
+    return JsonResponse({'guilds': guilds})
+
+
+@web_admin_required
+@require_http_methods(['PUT'])
+def api_admin_fluxer_webhook_detail(request, config_id):
+    """Update a Fluxer notification config (channel, color, enabled)."""
+    try:
+        data = json.loads(request.body)
+    except (json.JSONDecodeError, AttributeError):
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+    guild_id        = data.get('guild_id', '').strip()[:32]
+    channel_id      = data.get('channel_id', '').strip()[:32]
+    channel_name    = data.get('channel_name', '').strip()[:200]
+    embed_color     = data.get('embed_color', '').strip()[:7]
+    message_template = (data.get('message_template') or '').strip()[:4000]
+    embed_title     = (data.get('embed_title') or '').strip()[:255]
+    embed_footer    = (data.get('embed_footer') or '').strip()[:255]
+    is_enabled      = bool(data.get('is_enabled', False))
+
+    if embed_color and not (embed_color.startswith('#') and len(embed_color) == 7):
+        return JsonResponse({'error': 'embed_color must be #RRGGBB format'}, status=400)
+
+    with get_db_session() as db:
+        cfg = db.query(WebFluxerWebhookConfig).filter_by(id=config_id).first()
+        if not cfg:
+            return JsonResponse({'error': 'Config not found'}, status=404)
+
+        cfg.guild_id         = guild_id or cfg.guild_id
+        cfg.channel_id       = channel_id or cfg.channel_id
+        cfg.channel_name     = channel_name or cfg.channel_name
+        cfg.embed_color      = embed_color or cfg.embed_color
+        cfg.message_template = message_template or cfg.message_template
+        cfg.embed_title      = embed_title or cfg.embed_title
+        cfg.embed_footer     = embed_footer or cfg.embed_footer
+        cfg.is_enabled       = is_enabled and bool(cfg.channel_id)
+        cfg.updated_at       = int(time.time())
+        db.commit()
+
+        log_admin_action(request, 'update_fluxer_webhook', 'fluxer_webhook', config_id,
+                         {'event_type': cfg.event_type, 'is_enabled': cfg.is_enabled})
+        return JsonResponse({'success': True, 'config': _fluxer_config_dict(cfg)})
+
+
+@web_admin_required
+@require_http_methods(['POST'])
+def api_admin_fluxer_webhook_test(request, config_id):
+    """Queue a test embed for the bot to send to the configured channel."""
+    with get_db_session() as db:
+        cfg = db.query(WebFluxerWebhookConfig).filter_by(id=config_id).first()
+        if not cfg:
+            return JsonResponse({'error': 'Config not found'}, status=404)
+        if not cfg.channel_id:
+            return JsonResponse({'error': 'No channel configured'}, status=400)
+
+        from sqlalchemy import text as sa_text
+        import json as _json
+        from .fluxer_webhooks import _hex_to_int, _format_template
+
+        # Defaults per event type
+        _default_colors = {
+            'lfg_announce': 0xFF7043,
+            'new_post':     0x5865F2,
+            'new_member':   0x57F287,
+            'giveaway_start':  0xEB459E,
+            'giveaway_winner': 0xFEE75C,
+            'go_live':         0xF43F5E,
+        }
+        _default_titles = {
+            'lfg_announce':    'New LFG: Test Group',
+            'new_post':        'TestUser posted on QuestLog',
+            'new_member':      cfg.embed_title or 'New Member Joined QuestLog!',
+            'giveaway_start':  'Giveaway Started: Test Prize',
+            'giveaway_winner': 'Giveaway Ended: Test Prize',
+            'go_live':         '\U0001f534 TestUser is live on Twitch!',
+        }
+        _default_descriptions = {
+            'lfg_announce':    'A new group is looking for players!\n\n*This is a test LFG announcement.*',
+            'new_post':        'Check out this awesome post about gaming!\n\n*This is a test post notification.*',
+            'new_member':      None,  # built from message_template below
+            'giveaway_start':  '**Prize:** Test Game Key\n\n[Enter the Giveaway](https://casual-heroes.com/ql/giveaways/)',
+            'giveaway_winner': 'Congratulations to **TestWinner**!\n\n[View Giveaway](https://casual-heroes.com/ql/giveaways/)',
+            'go_live':         '**Test Stream Title**\n\n[Watch Stream](https://www.twitch.tv/testuser) | [QuestLog Profile](https://casual-heroes.com/ql/u/testuser/)',
+        }
+        _default_fields = {
+            'lfg_announce': [
+                {"name": "Game",       "value": "Test Game",  "inline": True},
+                {"name": "Group Size", "value": "1/5",        "inline": True},
+                {"name": "Scheduled",  "value": "Tonight 8pm","inline": True},
+            ],
+        }
+
+        admin_username = request.web_user.username if hasattr(request, 'web_user') else 'Admin'
+
+        # Build description - use configured template for new_member
+        if cfg.event_type == 'new_member' and cfg.message_template:
+            description = _format_template(
+                cfg.message_template,
+                username=admin_username,
+                profile=f'https://casual-heroes.com/ql/u/{admin_username}/',
+            )
+        else:
+            description = _default_descriptions.get(cfg.event_type, '*Test notification.*')
+
+        embed = {
+            "title": _default_titles.get(cfg.event_type, f'Test - {cfg.label}'),
+            "description": description,
+            "color": _hex_to_int(cfg.embed_color, _default_colors.get(cfg.event_type, 0x5865F2)),
+            "footer": cfg.embed_footer or f"QuestLog - casual-heroes.com/ql/",
+        }
+        if cfg.event_type in _default_fields:
+            embed["fields"] = _default_fields[cfg.event_type]
+        if cfg.event_type == 'lfg_announce':
+            embed["url"] = "https://casual-heroes.com/ql/lfg/"
+
+        test_payload = _json.dumps(embed)
+
+        db.execute(sa_text("""
+            INSERT INTO fluxer_pending_broadcasts (guild_id, channel_id, payload, created_at)
+            VALUES (:guild_id, :channel_id, :payload, :now)
+        """), {
+            'guild_id': int(cfg.guild_id) if cfg.guild_id else 0,
+            'channel_id': int(cfg.channel_id),
+            'payload': test_payload,
+            'now': int(time.time()),
+        })
+        db.commit()
+
+        log_admin_action(request, 'test_fluxer_webhook', 'fluxer_webhook', config_id,
+                         {'event_type': cfg.event_type})
+        return JsonResponse({'success': True, 'message': 'Test embed queued - bot will post it within 5 seconds.'})
+
+
+def _subscriber_dict(cfg: WebCommunityBotConfig) -> dict:
+    return {
+        'id': cfg.id,
+        'community_id': cfg.community_id,
+        'platform': cfg.platform,
+        'guild_id': cfg.guild_id,
+        'guild_name': cfg.guild_name or '',
+        'channel_id': cfg.channel_id or '',
+        'channel_name': cfg.channel_name or '',
+        'webhook_url': cfg.webhook_url or '',
+        'event_type': cfg.event_type,
+        'is_enabled': cfg.is_enabled,
+        'created_at': cfg.created_at,
+        'updated_at': cfg.updated_at,
+    }
+
+
+@web_admin_required
+@require_http_methods(['GET', 'POST'])
+def api_admin_fluxer_subscribers(request):
+    """
+    GET  - list all community bot configs with aggregate stats
+    POST - manually create a new subscriber config
+    """
+    from sqlalchemy import text as _text, func
+
+    if request.method == 'GET':
+        with get_db_session() as db:
+            configs = db.query(WebCommunityBotConfig).order_by(
+                WebCommunityBotConfig.updated_at.desc()
+            ).all()
+            configs_data = [_subscriber_dict(c) for c in configs]
+
+            total_guilds = db.query(func.count(func.distinct(WebCommunityBotConfig.guild_id))).scalar() or 0
+            active_count = db.query(func.count(WebCommunityBotConfig.id)).filter_by(is_enabled=True).scalar() or 0
+
+            # Stats from bot tables (best-effort)
+            try:
+                members_tracked = db.execute(_text(
+                    "SELECT COUNT(*) FROM fluxer_member_xp"
+                )).scalar() or 0
+            except Exception:
+                members_tracked = 0
+            try:
+                lfg_total = db.execute(_text(
+                    "SELECT COUNT(*) FROM fluxer_lfg_posts"
+                )).scalar() or 0
+            except Exception:
+                lfg_total = 0
+
+        return JsonResponse({
+            'configs': configs_data,
+            'stats': {
+                'total_guilds': total_guilds,
+                'active_subscribers': active_count,
+                'members_tracked': members_tracked,
+                'lfg_posts_total': lfg_total,
+            },
+        })
+
+    # POST - create manually
+    try:
+        data = json.loads(request.body)
+    except (json.JSONDecodeError, AttributeError):
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+    platform = data.get('platform', 'fluxer').strip()
+    guild_id = data.get('guild_id', '').strip()
+    guild_name = data.get('guild_name', '').strip()
+    channel_name = data.get('channel_name', '').strip()
+    webhook_url = data.get('webhook_url', '').strip()
+    event_type = data.get('event_type', 'lfg_announce').strip()
+
+    if not guild_id:
+        return JsonResponse({'error': 'guild_id is required'}, status=400)
+    if platform not in ('discord', 'fluxer'):
+        return JsonResponse({'error': 'Invalid platform'}, status=400)
+    if event_type not in ('lfg_announce',):
+        return JsonResponse({'error': 'Invalid event_type'}, status=400)
+    if webhook_url and not webhook_url.startswith('https://'):
+        return JsonResponse({'error': 'Webhook URL must start with https://'}, status=400)
+
+    now = int(time.time())
+    with get_db_session() as db:
+        existing = db.query(WebCommunityBotConfig).filter_by(
+            platform=platform, guild_id=guild_id, event_type=event_type
+        ).first()
+        if existing:
+            return JsonResponse({'error': 'Config already exists for this guild/event'}, status=409)
+
+        cfg = WebCommunityBotConfig(
+            platform=platform,
+            guild_id=guild_id,
+            guild_name=guild_name or None,
+            channel_name=channel_name or None,
+            webhook_url=webhook_url or None,
+            event_type=event_type,
+            is_enabled=bool(webhook_url),
+            created_at=now,
+            updated_at=now,
+        )
+        db.add(cfg)
+        db.commit()
+        db.refresh(cfg)
+        log_admin_action(request, 'create_fluxer_subscriber', 'fluxer_subscriber', cfg.id,
+                         {'guild_id': guild_id, 'event_type': event_type})
+        return JsonResponse({'success': True, 'config': _subscriber_dict(cfg)}, status=201)
+
+
+@web_admin_required
+@require_http_methods(['PUT', 'DELETE'])
+def api_admin_fluxer_subscriber_detail(request, config_id):
+    """PUT to update, DELETE to remove a community bot config."""
+    with get_db_session() as db:
+        cfg = db.query(WebCommunityBotConfig).filter_by(id=config_id).first()
+        if not cfg:
+            return JsonResponse({'error': 'Not found'}, status=404)
+
+        if request.method == 'DELETE':
+            db.delete(cfg)
+            db.commit()
+            log_admin_action(request, 'delete_fluxer_subscriber', 'fluxer_subscriber', config_id, {})
+            return JsonResponse({'success': True})
+
+        # PUT
+        try:
+            data = json.loads(request.body)
+        except (json.JSONDecodeError, AttributeError):
+            return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+        webhook_url = data.get('webhook_url', cfg.webhook_url or '')
+        if isinstance(webhook_url, str):
+            webhook_url = webhook_url.strip()
+        if webhook_url and not webhook_url.startswith('https://'):
+            return JsonResponse({'error': 'Webhook URL must start with https://'}, status=400)
+
+        cfg.webhook_url = webhook_url or None
+        cfg.guild_name = data.get('guild_name', cfg.guild_name)
+        cfg.channel_name = data.get('channel_name', cfg.channel_name)
+        if 'channel_id' in data and data['channel_id']:
+            cfg.channel_id = str(data['channel_id']).strip()
+        cfg.is_enabled = bool(data.get('is_enabled', cfg.is_enabled))
+        cfg.updated_at = int(time.time())
+        db.commit()
+        log_admin_action(request, 'update_fluxer_subscriber', 'fluxer_subscriber', config_id,
+                         {'is_enabled': cfg.is_enabled})
+        return JsonResponse({'success': True, 'config': _subscriber_dict(cfg)})
+
+
+@web_admin_required
+@require_http_methods(['GET'])
+def api_admin_fluxer_guild_channels(request, guild_id):
+    """GET cached Fluxer text channels for a guild - used by channel picker in admin panel."""
+    from sqlalchemy import text as sa_text
+    with get_db_session() as db:
+        rows = db.execute(
+            sa_text(
+                "SELECT channel_id, channel_name FROM web_fluxer_guild_channels "
+                "WHERE guild_id = :gid ORDER BY channel_name ASC"
+            ),
+            {"gid": str(guild_id)},
+        ).fetchall()
+    channels = [{'id': r.channel_id, 'name': r.channel_name} for r in rows]
+    return JsonResponse({'channels': channels})
+
+
+@web_admin_required
+@require_http_methods(['GET'])
+def api_admin_fluxer_guild_detail(request, config_id):
+    """GET guild-level detail: config info + active LFG posts + member count."""
+    with get_db_session() as db:
+        cfg = db.query(WebCommunityBotConfig).filter_by(id=config_id).first()
+        if not cfg:
+            return JsonResponse({'error': 'Not found'}, status=404)
+
+        guild_id = cfg.guild_id
+        now_ts = int(time.time())
+
+        # Member count from fluxer_member_xp
+        try:
+            member_row = db.execute(
+                text("SELECT COUNT(DISTINCT user_id) FROM fluxer_member_xp WHERE guild_id = :g"),
+                {"g": guild_id},
+            ).fetchone()
+            member_count = member_row[0] if member_row else 0
+        except Exception:
+            member_count = 0
+
+        # Top XP earner
+        try:
+            top_row = db.execute(
+                text(
+                    "SELECT username, xp FROM fluxer_member_xp "
+                    "WHERE guild_id = :g ORDER BY xp DESC LIMIT 1"
+                ),
+                {"g": guild_id},
+            ).fetchone()
+            top_member = {'username': top_row[0], 'xp': top_row[1]} if top_row else None
+        except Exception:
+            top_member = None
+
+        # Active LFG posts for this guild
+        try:
+            lfg_rows = db.execute(
+                text(
+                    "SELECT id, username, game, description, group_size, "
+                    "voice_platform, created_at, expires_at "
+                    "FROM fluxer_lfg_posts "
+                    "WHERE guild_id = :g AND is_active = 1 AND expires_at > :now "
+                    "ORDER BY created_at DESC LIMIT 10"
+                ),
+                {"g": guild_id, "now": now_ts},
+            ).fetchall()
+            lfg_posts = [
+                {
+                    'id': r[0],
+                    'username': r[1],
+                    'game': r[2],
+                    'description': r[3],
+                    'group_size': r[4],
+                    'voice_platform': r[5],
+                    'created_at': r[6],
+                    'expires_at': r[7],
+                }
+                for r in lfg_rows
+            ]
+        except Exception:
+            lfg_posts = []
+
+        # Total LFG posts ever
+        try:
+            total_row = db.execute(
+                text("SELECT COUNT(*) FROM fluxer_lfg_posts WHERE guild_id = :g"),
+                {"g": guild_id},
+            ).fetchone()
+            total_lfg = total_row[0] if total_row else 0
+        except Exception:
+            total_lfg = 0
+
+    return JsonResponse({
+        'config': _subscriber_dict(cfg),
+        'guild_id': guild_id,
+        'member_count': member_count,
+        'top_member': top_member,
+        'active_lfg': lfg_posts,
+        'total_lfg_posts': total_lfg,
+    })
+
+
+# =============================================================================
+# EARLY ACCESS INVITE CODES
+# =============================================================================
+
+import secrets as _secrets
+
+_EAC_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'  # no O/0 or I/1 to avoid confusion
+
+
+def _gen_invite_code() -> str:
+    return ''.join(_secrets.choice(_EAC_ALPHABET) for _ in range(10))
+
+
+def _eac_dict(code: WebEarlyAccessCode) -> dict:
+    return {
+        'id': code.id,
+        'code': code.code,
+        'platform': code.platform or '',
+        'notes': code.notes or '',
+        'created_at': code.created_at,
+        'used_at': code.used_at,
+        'used_by_username': code.used_by_user.username if code.used_by_user else None,
+        'is_revoked': code.is_revoked,
+    }
+
+
+@web_admin_required
+@require_http_methods(['GET', 'POST'])
+def api_admin_invite_codes(request):
+    """
+    GET  - list all invite codes (most recent first)
+    POST - generate N new codes  body: {count, platform, notes}
+    """
+    if request.method == 'GET':
+        with get_db_session() as db:
+            codes = db.query(WebEarlyAccessCode).order_by(
+                WebEarlyAccessCode.created_at.desc()
+            ).limit(500).all()
+            total = db.query(WebEarlyAccessCode).count()
+            used = db.query(WebEarlyAccessCode).filter(
+                WebEarlyAccessCode.used_by_user_id != None
+            ).count()
+            revoked = db.query(WebEarlyAccessCode).filter_by(is_revoked=True).count()
+            result = [_eac_dict(c) for c in codes]
+        return JsonResponse({
+            'codes': result,
+            'stats': {'total': total, 'used': used, 'revoked': revoked, 'unused': total - used - revoked},
+        })
+
+    # POST - generate codes
+    try:
+        data = json.loads(request.body)
+    except (json.JSONDecodeError, AttributeError):
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+    count = safe_int(data.get('count', 1), default=1, min_val=1, max_val=100)
+    platform = (data.get('platform') or '').strip()[:20] or None
+    notes = (data.get('notes') or '').strip()[:200] or None
+    now = int(time.time())
+
+    created = []
+    with get_db_session() as db:
+        for _ in range(count):
+            # Retry until unique
+            for _attempt in range(10):
+                code_str = _gen_invite_code()
+                if not db.query(WebEarlyAccessCode).filter_by(code=code_str).first():
+                    break
+            obj = WebEarlyAccessCode(
+                code=code_str,
+                platform=platform,
+                notes=notes,
+                created_at=now,
+            )
+            db.add(obj)
+            db.commit()
+            db.refresh(obj)
+            created.append(_eac_dict(obj))
+
+    log_admin_action(request, 'generate_invite_codes', 'invite_code', None,
+                     f'Generated {count} invite codes (platform={platform})')
+    return JsonResponse({'created': created}, status=201)
+
+
+@web_admin_required
+@require_http_methods(['DELETE'])
+def api_admin_invite_code_detail(request, code_id):
+    """DELETE - revoke a single invite code."""
+    with get_db_session() as db:
+        code = db.query(WebEarlyAccessCode).filter_by(id=code_id).first()
+        if not code:
+            return JsonResponse({'error': 'Not found'}, status=404)
+        if code.used_by_user_id:
+            return JsonResponse({'error': 'Cannot revoke a code that has already been used'}, status=400)
+        code.is_revoked = True
+        db.commit()
+
+    log_admin_action(request, 'revoke_invite_code', 'invite_code', code_id,
+                     f'Revoked invite code {code.code}')
+    return JsonResponse({'success': True})
+
+
+@web_admin_required
+@require_http_methods(['POST'])
+def api_admin_invite_codes_bulk_revoke(request):
+    """
+    POST body: {"ids": [1,2,3]}  - revoke specific unused codes by ID
+          OR   {"revoke_all_unused": true}  - revoke every unused+unrevoked code
+    Used codes are always skipped (never revoke a code someone already claimed).
+    """
+    try:
+        data = json.loads(request.body)
+    except (json.JSONDecodeError, AttributeError):
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+    with get_db_session() as db:
+        if data.get('revoke_all_unused'):
+            codes = db.query(WebEarlyAccessCode).filter_by(
+                is_revoked=False
+            ).filter(WebEarlyAccessCode.used_by_user_id == None).all()
+        else:
+            ids = [int(i) for i in (data.get('ids') or []) if str(i).isdigit()]
+            if not ids:
+                return JsonResponse({'error': 'No IDs provided'}, status=400)
+            codes = db.query(WebEarlyAccessCode).filter(
+                WebEarlyAccessCode.id.in_(ids),
+                WebEarlyAccessCode.is_revoked == False,
+                WebEarlyAccessCode.used_by_user_id == None,
+            ).all()
+
+        count = len(codes)
+        for code in codes:
+            code.is_revoked = True
+        db.commit()
+
+    log_admin_action(request, 'bulk_revoke_invite_codes', 'invite_code', None,
+                     f'Bulk revoked {count} invite codes')
+    return JsonResponse({'revoked': count})
+
+
+# =============================================================================
+# HERO SUBSCRIBERS
+# =============================================================================
+
+@web_admin_required
+@require_http_methods(['GET'])
+def api_admin_hero_subscribers(request):
+    """GET - list active Hero subscribers + aggregate stats."""
+    with get_db_session() as db:
+        heroes = (
+            db.query(WebUser)
+            .filter(WebUser.is_hero == 1)
+            .order_by(WebUser.hero_expires_at.desc())
+            .all()
+        )
+        total_active = len(heroes)
+
+        # Total revenue from subscription events
+        from sqlalchemy import func
+        rev_row = db.query(func.sum(WebSubscriptionEvent.amount_cents)).filter(
+            WebSubscriptionEvent.event_type == 'renewed',
+            WebSubscriptionEvent.amount_cents != None,
+        ).scalar()
+        total_revenue_cents = int(rev_row or 0)
+
+        now = int(time.time())
+        result = []
+        for u in heroes:
+            result.append({
+                'id': u.id,
+                'username': u.username,
+                'display_name': u.display_name or u.username,
+                'avatar_url': u.avatar_url,
+                'is_hero': bool(u.is_hero),
+                'hero_expires_at': u.hero_expires_at,
+                'is_expired': bool(u.hero_expires_at and u.hero_expires_at < now),
+                'stripe_customer_id': u.stripe_customer_id,
+                'created_at': u.created_at,
+            })
+
+    return JsonResponse({
+        'subscribers': result,
+        'stats': {
+            'total_active': total_active,
+            'total_revenue_cents': total_revenue_cents,
+            'mrr_cents': total_active * 500,  # $5/mo estimate
+        },
+    })
+
+
+# =============================================================================
+# BOT NETWORK OVERVIEW
+# =============================================================================
+
+@web_admin_required
+@require_http_methods(['GET'])
+def api_admin_bot_network(request):
+    """GET - overview of all Discord guilds, Fluxer guilds, and network configs."""
+    from sqlalchemy import text, func
+
+    with get_db_session() as db:
+        # Fluxer guilds: grouped from channel cache
+        fluxer_rows = db.execute(text(
+            "SELECT guild_id, COALESCE(NULLIF(MAX(guild_name), ''), guild_id) AS guild_name, COUNT(*) as channel_count "
+            "FROM web_fluxer_guild_channels "
+            "GROUP BY guild_id "
+            "ORDER BY guild_name"
+        )).fetchall()
+        fluxer_guilds = [
+            {'guild_id': r[0], 'guild_name': r[1], 'channel_count': r[2]}
+            for r in fluxer_rows
+        ]
+
+        # Network subscriptions (community bot configs)
+        configs = db.query(WebCommunityBotConfig).order_by(WebCommunityBotConfig.platform, WebCommunityBotConfig.guild_name).all()
+        network_configs = [
+            {
+                'id': c.id,
+                'platform': c.platform,
+                'guild_id': c.guild_id,
+                'guild_name': c.guild_name,
+                'channel_id': c.channel_id,
+                'channel_name': c.channel_name,
+                'event_type': c.event_type,
+                'is_enabled': bool(c.is_enabled),
+            }
+            for c in configs
+        ]
+
+        # Bridge configs
+        bridges = db.query(WebBridgeConfig).order_by(WebBridgeConfig.id).all()
+        bridge_list = [_admin_bridge_dict(b) for b in bridges]
+
+        # Discord guilds from the main guilds table (WardenBot)
+        discord_guilds = []
+        try:
+            discord_rows = db.execute(text(
+                "SELECT guild_id, guild_name, subscription_tier, "
+                "       (SELECT COUNT(*) FROM guild_members gm WHERE gm.guild_id = g.guild_id) as member_count "
+                "FROM guilds g ORDER BY guild_name LIMIT 200"
+            )).fetchall()
+            discord_guilds = [
+                {
+                    'guild_id': str(r[0]),
+                    'guild_name': r[1],
+                    'subscription_tier': r[2],
+                    'member_count': r[3],
+                    'dashboard_url': f'/questlog/guild/{r[0]}/',
+                }
+                for r in discord_rows
+            ]
+        except Exception as e:
+            logger.warning(f"api_admin_bot_network: guilds table query failed: {e}")
+
+        # Matrix spaces
+        matrix_spaces = []
+        try:
+            from .models import WebMatrixSpaceSettings as _MatrixSpace
+            space_rows = db.query(_MatrixSpace).filter_by(bot_present=1).order_by(
+                _MatrixSpace.space_name
+            ).all()
+            matrix_spaces = [
+                {'space_id': r.space_id, 'space_name': r.space_name or r.space_id}
+                for r in space_rows
+            ]
+        except Exception as e:
+            logger.warning(f"api_admin_bot_network: matrix spaces query failed: {e}")
+
+    return JsonResponse({
+        'discord_guilds': discord_guilds,
+        'fluxer_guilds': fluxer_guilds,
+        'matrix_spaces': matrix_spaces,
+        'network_configs': network_configs,
+        'bridges': bridge_list,
+    })
+
+
+@web_admin_required
+@require_http_methods(['GET'])
+def api_admin_discord_guild_channels(request, guild_id):
+    """GET cached Discord channels for a guild from guilds.cached_channels."""
+    from sqlalchemy import text as sa_text
+    with get_db_session() as db:
+        row = db.execute(
+            sa_text("SELECT cached_channels FROM guilds WHERE guild_id = :gid LIMIT 1"),
+            {"gid": int(guild_id)},
+        ).fetchone()
+    channels = []
+    if row and row[0]:
+        try:
+            raw = json.loads(row[0])
+            # Include text channels (type 0) and unknown types; exclude categories (4) and voice (2)
+            channels = [
+                {'id': str(c.get('id')), 'name': c.get('name', ''), 'type': c.get('type')}
+                for c in raw
+                if c.get('type') not in (2, 4)
+            ]
+            channels.sort(key=lambda c: c['name'])
+        except Exception:
+            pass
+    return JsonResponse({'channels': channels})
+
+
+# =============================================================================
+# MATRIX SPACE / ROOM LOOKUPS (for bridge pickers)
+# =============================================================================
+
+@web_admin_required
+@require_http_methods(['GET'])
+def api_admin_matrix_spaces(request):
+    """GET all Matrix spaces the bot is in - for bridge space picker."""
+    from .models import WebMatrixSpaceSettings
+    from sqlalchemy import text as sa_text
+    with get_db_session() as db:
+        rows = db.query(WebMatrixSpaceSettings).filter_by(bot_present=1).order_by(
+            WebMatrixSpaceSettings.space_name
+        ).all()
+        spaces = [
+            {'id': r.space_id, 'name': r.space_name or r.space_id}
+            for r in rows
+        ]
+    return JsonResponse({'spaces': spaces})
+
+
+@web_admin_required
+@require_http_methods(['GET'])
+def api_admin_matrix_space_rooms(request, space_id):
+    """GET cached rooms for a Matrix space - for bridge room picker."""
+    from .models import WebMatrixRoom
+    import urllib.parse as _urlparse
+    space_id = _urlparse.unquote(space_id)
+    with get_db_session() as db:
+        rows = db.query(WebMatrixRoom).filter_by(space_id=space_id, is_space=0).order_by(
+            WebMatrixRoom.room_name
+        ).all()
+        rooms = [
+            {'id': r.room_id, 'name': r.room_name}
+            for r in rows
+            if r.room_name and r.room_name != r.room_id
+        ]
+    return JsonResponse({'rooms': rooms})
+
+
+# =============================================================================
+# BRIDGE CONFIG CRUD
+# =============================================================================
+
+def _admin_bridge_dict(b):
+    return {
+        'id': b.id,
+        'name': b.name or '',
+        'discord_guild_id': b.discord_guild_id or '',
+        'discord_channel_id': b.discord_channel_id or '',
+        'fluxer_guild_id': b.fluxer_guild_id or '',
+        'fluxer_channel_id': b.fluxer_channel_id or '',
+        'matrix_space_id': b.matrix_space_id or '',
+        'matrix_room_id': b.matrix_room_id or '',
+        'relay_discord_to_fluxer': bool(b.relay_discord_to_fluxer),
+        'relay_fluxer_to_discord': bool(b.relay_fluxer_to_discord),
+        'relay_matrix_outbound': bool(getattr(b, 'relay_matrix_outbound', 1)),
+        'relay_matrix_inbound': bool(getattr(b, 'relay_matrix_inbound', 1)),
+        'max_msg_len': b.max_msg_len,
+        'enabled': bool(b.enabled),
+        'created_at': b.created_at,
+    }
+
+
+@web_admin_required
+@require_http_methods(['GET', 'POST'])
+def api_admin_bridge_configs(request):
+    """GET list / POST create bridge config."""
+    if request.method == 'GET':
+        with get_db_session() as db:
+            bridges = db.query(WebBridgeConfig).order_by(WebBridgeConfig.id).all()
+            return JsonResponse({'bridges': [_admin_bridge_dict(b) for b in bridges]})
+
+    try:
+        data = json.loads(request.body)
+    except (json.JSONDecodeError, AttributeError):
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+    discord_channel_id = str(data.get('discord_channel_id', '') or '').strip()[:20]
+    fluxer_channel_id = str(data.get('fluxer_channel_id', '') or '').strip()[:20]
+    matrix_room_id = str(data.get('matrix_room_id', '') or '').strip()[:255]
+
+    if not discord_channel_id and not fluxer_channel_id and not matrix_room_id:
+        return JsonResponse({'error': 'At least one channel endpoint is required'}, status=400)
+
+    now = int(time.time())
+    with get_db_session() as db:
+        bridge = WebBridgeConfig(
+            name=str(data.get('name', '') or '').strip()[:100] or None,
+            discord_guild_id=str(data.get('discord_guild_id', '') or '').strip()[:20] or None,
+            discord_channel_id=discord_channel_id or None,
+            fluxer_guild_id=str(data.get('fluxer_guild_id', '') or '').strip()[:20] or None,
+            fluxer_channel_id=fluxer_channel_id or None,
+            matrix_space_id=str(data.get('matrix_space_id', '') or '').strip()[:255] or None,
+            matrix_room_id=matrix_room_id or None,
+            relay_discord_to_fluxer=1 if data.get('relay_discord_to_fluxer', True) else 0,
+            relay_fluxer_to_discord=1 if data.get('relay_fluxer_to_discord', True) else 0,
+            relay_matrix_outbound=1 if data.get('relay_matrix_outbound', True) else 0,
+            relay_matrix_inbound=1 if data.get('relay_matrix_inbound', True) else 0,
+            max_msg_len=safe_int(data.get('max_msg_len', 1000), default=1000, min_val=50, max_val=2000),
+            enabled=1,
+            created_at=now,
+        )
+        db.add(bridge)
+        db.commit()
+        db.refresh(bridge)
+        bridge_id = bridge.id
+
+    log_admin_action(request, 'create_bridge_config', 'bridge', bridge_id,
+                     f"Discord {discord_channel_id} <-> Fluxer {fluxer_channel_id} <-> Matrix {matrix_room_id}")
+    return JsonResponse({'id': bridge_id, 'success': True}, status=201)
+
+
+@web_admin_required
+@require_http_methods(['PATCH', 'DELETE'])
+def api_admin_bridge_config_detail(request, config_id):
+    """PATCH update / DELETE remove bridge config."""
+    with get_db_session() as db:
+        bridge = db.query(WebBridgeConfig).filter_by(id=config_id).first()
+        if not bridge:
+            return JsonResponse({'error': 'Not found'}, status=404)
+
+        if request.method == 'DELETE':
+            db.query(WebBridgeRelayQueue).filter_by(bridge_id=config_id).delete()
+            db.delete(bridge)
+            db.commit()
+            log_admin_action(request, 'delete_bridge_config', 'bridge', config_id, '')
+            return JsonResponse({'success': True})
+
+        # PATCH
+        try:
+            data = json.loads(request.body)
+        except (json.JSONDecodeError, AttributeError):
+            return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+        if 'name' in data:
+            bridge.name = str(data['name'] or '').strip()[:100] or None
+        if 'enabled' in data:
+            bridge.enabled = 1 if data['enabled'] else 0
+        if 'relay_discord_to_fluxer' in data:
+            bridge.relay_discord_to_fluxer = 1 if data['relay_discord_to_fluxer'] else 0
+        if 'relay_fluxer_to_discord' in data:
+            bridge.relay_fluxer_to_discord = 1 if data['relay_fluxer_to_discord'] else 0
+        if 'max_msg_len' in data:
+            bridge.max_msg_len = safe_int(data['max_msg_len'], default=1000, min_val=50, max_val=2000)
+        if 'discord_channel_id' in data:
+            bridge.discord_channel_id = str(data['discord_channel_id'] or '')[:20] or None
+        if 'fluxer_channel_id' in data:
+            bridge.fluxer_channel_id = str(data['fluxer_channel_id'] or '')[:20] or None
+        if 'discord_guild_id' in data:
+            bridge.discord_guild_id = str(data['discord_guild_id'] or '')[:20] or None
+        if 'fluxer_guild_id' in data:
+            bridge.fluxer_guild_id = str(data['fluxer_guild_id'] or '')[:20] or None
+        if 'matrix_space_id' in data:
+            bridge.matrix_space_id = str(data['matrix_space_id'] or '')[:255] or None
+        if 'matrix_room_id' in data:
+            bridge.matrix_room_id = str(data['matrix_room_id'] or '')[:255] or None
+        if 'relay_matrix_outbound' in data:
+            bridge.relay_matrix_outbound = 1 if data['relay_matrix_outbound'] else 0
+        if 'relay_matrix_inbound' in data:
+            bridge.relay_matrix_inbound = 1 if data['relay_matrix_inbound'] else 0
+        db.commit()
+
+    return JsonResponse({'success': True})
+
+
+# ── Custom Emoji & Stickers ──────────────────────────────────────────────────
+
+@web_admin_required
+@require_http_methods(["GET", "POST"])
+def api_admin_emoji(request):
+    """GET: list all emoji/stickers. POST: upload new one (multipart form)."""
+    if request.method == 'GET':
+        with get_db_session() as db:
+            rows = db.query(WebCustomEmoji).order_by(WebCustomEmoji.created_at.desc()).all()
+            return JsonResponse({'emoji': [
+                {
+                    'id': e.id,
+                    'shortcode': e.shortcode,
+                    'image_url': e.image_url,
+                    'is_animated': bool(e.is_animated),
+                    'is_sticker': bool(e.is_sticker),
+                    'created_at': e.created_at,
+                }
+                for e in rows
+            ]})
+
+    # POST - upload
+    shortcode = (request.POST.get('shortcode') or '').strip().lower()
+    is_sticker = request.POST.get('is_sticker') == '1'
+
+    if not shortcode:
+        return JsonResponse({'error': 'Shortcode is required.'}, status=400)
+    if not shortcode.replace('_', '').replace('-', '').isalnum():
+        return JsonResponse({'error': 'Shortcode may only contain letters, numbers, hyphens, and underscores.'}, status=400)
+    if len(shortcode) > 50:
+        return JsonResponse({'error': 'Shortcode too long (max 50 chars).'}, status=400)
+    if 'image' not in request.FILES:
+        return JsonResponse({'error': 'No image file provided.'}, status=400)
+
+    # Size caps: emoji 512KB, sticker 2MB
+    max_bytes = 2 * 1024 * 1024 if is_sticker else 512 * 1024
+    try:
+        result = process_uploaded_image(
+            request.FILES['image'],
+            dest_subdir='emoji',
+            max_size_bytes=max_bytes,
+            max_gif_size=max_bytes,
+            max_dimension=512 if is_sticker else 128,
+        )
+    except ValueError as e:
+        return JsonResponse({'error': str(e)}, status=400)
+    except Exception as e:
+        logger.error(f"Emoji upload error: {e}")
+        return JsonResponse({'error': 'Upload failed.'}, status=500)
+
+    is_animated = result.get('image_url', '').endswith('.gif')
+
+    with get_db_session() as db:
+        existing = db.query(WebCustomEmoji).filter_by(shortcode=shortcode).first()
+        if existing:
+            return JsonResponse({'error': f'Shortcode :{shortcode}: is already taken.'}, status=400)
+        emoji = WebCustomEmoji(
+            shortcode=shortcode,
+            image_url=result['image_url'],
+            is_animated=is_animated,
+            is_sticker=is_sticker,
+            created_by=request.web_user.id,
+        )
+        db.add(emoji)
+        db.commit()
+        db.refresh(emoji)
+        return JsonResponse({'success': True, 'emoji': {
+            'id': emoji.id,
+            'shortcode': emoji.shortcode,
+            'image_url': emoji.image_url,
+            'is_animated': bool(emoji.is_animated),
+            'is_sticker': bool(emoji.is_sticker),
+            'created_at': emoji.created_at,
+        }})
+
+
+@web_admin_required
+@require_http_methods(["DELETE"])
+def api_admin_emoji_detail(request, emoji_id):
+    """DELETE: remove a custom emoji/sticker."""
+    with get_db_session() as db:
+        emoji = db.query(WebCustomEmoji).filter_by(id=emoji_id).first()
+        if not emoji:
+            return JsonResponse({'error': 'Not found.'}, status=404)
+        db.delete(emoji)
+        db.commit()
+    return JsonResponse({'success': True})

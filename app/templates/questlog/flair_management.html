@@ -213,11 +213,13 @@
     const API_BASE = '/api/guild/{{ guild.id }}/flairs';
     const CSRF_TOKEN = '{{ csrf_token }}';
 
-    // CSRF-aware fetch helper
+    // CSRF-aware fetch helper (inline - this page doesn't extend base.html)
     async function csrfFetch(url, options = {}) {
       options.headers = options.headers || {};
-      if (!options.headers['X-CSRFToken']) {
-        options.headers['X-CSRFToken'] = CSRF_TOKEN;
+      options.headers['X-CSRFToken'] = CSRF_TOKEN;
+      if (options.body && typeof options.body === 'object' && !(options.body instanceof FormData)) {
+        options.headers['Content-Type'] = 'application/json';
+        options.body = JSON.stringify(options.body);
       }
       return fetch(url, options);
     }

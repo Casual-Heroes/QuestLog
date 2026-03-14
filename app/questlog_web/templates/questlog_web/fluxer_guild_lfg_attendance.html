@@ -1,0 +1,331 @@
+{% extends "questlog_web/fluxer_base_guild.html" %}
+{% load static %}
+{% block title %}LFG Attendance - {{ guild_name }}{% endblock %}
+
+{% block guild_content %}
+<div class="p-6">
+
+<!-- Header -->
+<div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
+  <div>
+    <h1 class="text-3xl font-bold text-white">
+      <i class="fas fa-clipboard-list text-blue-400 mr-3"></i>LFG Attendance
+    </h1>
+    <p class="text-gray-400 mt-1">Track group attendance, reliability scores, and flagged members</p>
+  </div>
+  <div class="flex gap-3">
+    <button onclick="exportCsv()" class="bg-neutral-700 hover:bg-neutral-600 text-white px-4 py-2 rounded-lg font-medium transition text-sm">
+      <i class="fas fa-download mr-2"></i>Export CSV
+    </button>
+    <a href="/ql/dashboard/fluxer/{{ guild_id }}/lfg/" class="bg-neutral-700 hover:bg-neutral-600 text-white px-4 py-2 rounded-lg font-medium transition text-sm flex items-center gap-2">
+      <i class="fas fa-arrow-left"></i><span>LFG Settings</span>
+    </a>
+  </div>
+</div>
+
+<!-- Config Summary Cards -->
+{% if lfg_config %}
+<div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+  <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-4 text-center">
+    <p class="text-2xl font-bold text-white">{{ lfg_config.auto_noshow_hours }}h</p>
+    <p class="text-gray-400 text-xs mt-1">Auto No-Show</p>
+  </div>
+  <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-4 text-center">
+    <p class="text-2xl font-bold text-yellow-400">{{ lfg_config.warn_at_reliability }}%</p>
+    <p class="text-gray-400 text-xs mt-1">Warn Below</p>
+  </div>
+  <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-4 text-center">
+    <p class="text-2xl font-bold text-red-400">{{ lfg_config.min_required_score }}%</p>
+    <p class="text-gray-400 text-xs mt-1">Min Score to Join</p>
+  </div>
+  <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-4 text-center">
+    <p class="text-2xl font-bold {% if lfg_config.auto_blacklist_noshow %}text-red-400{% else %}text-gray-500{% endif %}">
+      {% if lfg_config.auto_blacklist_noshow %}ON{% else %}OFF{% endif %}
+    </p>
+    <p class="text-gray-400 text-xs mt-1">Auto-Blacklist</p>
+  </div>
+</div>
+{% endif %}
+
+<!-- Filters -->
+<div class="bg-neutral-900 border border-neutral-800 rounded-xl p-4 mb-6">
+  <div class="flex flex-wrap gap-3 items-end">
+    <div>
+      <label class="block text-xs text-gray-400 mb-1">Game</label>
+      <select id="filter-game" onchange="loadAttendance()" class="bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-blue-500 focus:outline-none">
+        <option value="">All Games</option>
+      </select>
+    </div>
+    <div>
+      <label class="block text-xs text-gray-400 mb-1">Member</label>
+      <input id="filter-user" type="text" placeholder="Search name..." oninput="debounceLoad()"
+             class="bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-blue-500 focus:outline-none w-44">
+    </div>
+    <div>
+      <label class="block text-xs text-gray-400 mb-1">Date Range</label>
+      <select id="filter-days" onchange="loadAttendance()" class="bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-blue-500 focus:outline-none">
+        <option value="7">Last 7 days</option>
+        <option value="14">Last 14 days</option>
+        <option value="30" selected>Last 30 days</option>
+        <option value="60">Last 60 days</option>
+        <option value="90">Last 90 days</option>
+        <option value="0">All time</option>
+      </select>
+    </div>
+    <div>
+      <label class="block text-xs text-gray-400 mb-1">Status</label>
+      <select id="filter-status" onchange="loadAttendance()" class="bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-blue-500 focus:outline-none">
+        <option value="">All Statuses</option>
+        <option value="showed">Showed</option>
+        <option value="no_show">No Show</option>
+        <option value="late">Late</option>
+        <option value="cancelled">Cancelled</option>
+        <option value="pardoned">Pardoned</option>
+      </select>
+    </div>
+    <button onclick="loadAttendance()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition">
+      <i class="fas fa-sync mr-1"></i>Refresh
+    </button>
+  </div>
+</div>
+
+<!-- Main 2-col grid -->
+<div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
+
+  <!-- Left: Recent Groups (2/3 width) -->
+  <div class="xl:col-span-2">
+    <h2 class="text-lg font-bold text-white mb-4">
+      <i class="fas fa-users text-blue-400 mr-2"></i>Recent Groups
+    </h2>
+    <div id="groups-container">
+      <div class="text-center text-gray-500 py-16">
+        <i class="fas fa-spinner fa-spin text-2xl mb-3 block"></i>
+        Loading attendance data...
+      </div>
+    </div>
+  </div>
+
+  <!-- Right: Member Stats Panels (1/3 width) -->
+  <div class="space-y-6">
+    <!-- Top Reliable Members -->
+    <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-5">
+      <h3 class="text-base font-bold text-white mb-4">
+        <i class="fas fa-trophy text-yellow-400 mr-2"></i>Most Reliable
+      </h3>
+      <div id="panel-reliable">
+        <p class="text-gray-500 text-sm">Loading...</p>
+      </div>
+    </div>
+
+    <!-- Nearing Warning -->
+    <div class="bg-neutral-900 border border-amber-800/30 rounded-xl p-5">
+      <h3 class="text-base font-bold text-white mb-4">
+        <i class="fas fa-exclamation-triangle text-yellow-400 mr-2"></i>Nearing Warning
+      </h3>
+      <div id="panel-warn">
+        <p class="text-gray-500 text-sm">Loading...</p>
+      </div>
+    </div>
+
+    <!-- Below Threshold -->
+    <div class="bg-neutral-900 border border-red-800/30 rounded-xl p-5">
+      <h3 class="text-base font-bold text-white mb-4">
+        <i class="fas fa-user-slash text-red-400 mr-2"></i>Below Threshold
+      </h3>
+      <div id="panel-below">
+        <p class="text-gray-500 text-sm">Loading...</p>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+</div><!-- /p-6 -->
+
+<script>
+const GUILD_ID = '{{ guild_id }}';
+const ATTENDANCE_API = '/ql/api/dashboard/fluxer/' + GUILD_ID + '/lfg/attendance/';
+const EXPORT_API = '/ql/api/dashboard/fluxer/' + GUILD_ID + '/lfg/attendance/export/';
+const GAMES = JSON.parse('{{ games_json|escapejs }}');
+const LFG_CONFIG = JSON.parse('{{ lfg_config_json|escapejs }}');
+
+const STATUS_COLORS = {
+  showed:    'bg-green-500/20 text-green-300 border-green-500/30',
+  confirmed: 'bg-blue-500/20 text-blue-300 border-blue-500/30',
+  pending:   'bg-neutral-500/20 text-gray-300 border-neutral-500/30',
+  late:      'bg-yellow-500/20 text-yellow-300 border-yellow-500/30',
+  no_show:   'bg-red-500/20 text-red-300 border-red-500/30',
+  cancelled: 'bg-neutral-500/20 text-gray-400 border-neutral-500/30',
+  pardoned:  'bg-purple-500/20 text-purple-300 border-purple-500/30',
+};
+const STATUS_LABELS = {
+  showed: 'Showed', confirmed: 'Confirmed', pending: 'Pending',
+  late: 'Late', no_show: 'No Show', cancelled: 'Cancelled', pardoned: 'Pardoned',
+};
+
+// Populate game filter
+(function() {
+  const sel = document.getElementById('filter-game');
+  GAMES.forEach(g => {
+    const opt = document.createElement('option');
+    opt.value = g.id;
+    opt.textContent = g.name;
+    sel.appendChild(opt);
+  });
+})();
+
+let _debounceTimer = null;
+function debounceLoad() {
+  clearTimeout(_debounceTimer);
+  _debounceTimer = setTimeout(loadAttendance, 400);
+}
+
+function getFilters() {
+  return {
+    game_id: document.getElementById('filter-game').value,
+    user:    document.getElementById('filter-user').value,
+    days:    document.getElementById('filter-days').value,
+    status:  document.getElementById('filter-status').value,
+  };
+}
+
+function buildQueryString(params) {
+  return Object.entries(params)
+    .filter(([, v]) => v !== '')
+    .map(([k, v]) => encodeURIComponent(k) + '=' + encodeURIComponent(v))
+    .join('&');
+}
+
+function fmtDate(ts) {
+  if (!ts) return 'TBD';
+  return new Date(ts * 1000).toLocaleString(undefined, {
+    month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+  });
+}
+
+function statusBadge(status) {
+  const cls = STATUS_COLORS[status] || 'bg-neutral-500/20 text-gray-300 border-neutral-500/30';
+  const label = STATUS_LABELS[status] || status;
+  return `<span class="text-xs px-2 py-0.5 rounded border ${cls}">${escapeHtml(label)}</span>`;
+}
+
+function renderGroups(groups) {
+  const container = document.getElementById('groups-container');
+  if (!groups.length) {
+    container.innerHTML = '<div class="text-center text-gray-500 py-16"><i class="fas fa-search text-2xl mb-3 block"></i>No attendance records found</div>';
+    return;
+  }
+
+  const html = groups.map(g => {
+    const memberRows = g.members.map(m => `
+      <tr class="border-t border-neutral-800">
+        <td class="py-2 px-3 text-sm text-gray-200">${escapeHtml(m.display_name)}</td>
+        <td class="py-2 px-3">${statusBadge(m.status)}</td>
+      </tr>
+    `).join('');
+
+    return `
+      <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-5 mb-4">
+        <div class="flex items-start justify-between gap-3 mb-3">
+          <div>
+            <span class="inline-block bg-blue-600/20 text-blue-300 text-xs px-2 py-0.5 rounded border border-blue-600/30 mb-1">${escapeHtml(g.game_name)}</span>
+            <h4 class="text-white font-semibold">${escapeHtml(g.title)}</h4>
+            <p class="text-gray-500 text-xs mt-0.5">${fmtDate(g.scheduled_time)}</p>
+          </div>
+          ${statusBadge(g.status)}
+        </div>
+        <table class="w-full">
+          <thead>
+            <tr class="text-xs text-gray-500">
+              <th class="text-left py-1 px-3">Member</th>
+              <th class="text-left py-1 px-3">Status</th>
+            </tr>
+          </thead>
+          <tbody>${memberRows}</tbody>
+        </table>
+      </div>`;
+  }).join('');
+
+  container.innerHTML = html;
+}
+
+function computeMemberStats(groups) {
+  const stats = {};
+  groups.forEach(g => {
+    g.members.forEach(m => {
+      const name = m.display_name;
+      if (!stats[name]) stats[name] = { name, showed: 0, no_show: 0, late: 0, total: 0 };
+      stats[name].total++;
+      if (m.status === 'showed') stats[name].showed++;
+      if (m.status === 'no_show') stats[name].no_show++;
+      if (m.status === 'late') stats[name].late++;
+    });
+  });
+  return Object.values(stats).map(s => {
+    const denom = s.showed + s.no_show + s.late;
+    s.score = denom > 0 ? Math.round((s.showed / denom) * 100) : 100;
+    return s;
+  });
+}
+
+function renderSidePanels(groups) {
+  const stats = computeMemberStats(groups).filter(s => s.total >= 3);
+  const warnThreshold = LFG_CONFIG.warn_at_reliability;
+  const minScore = LFG_CONFIG.min_required_score;
+
+  // Top reliable (score >= 80, top 5)
+  const reliable = [...stats].filter(s => s.score >= 80).sort((a, b) => b.score - a.score).slice(0, 5);
+  document.getElementById('panel-reliable').innerHTML = reliable.length
+    ? reliable.map(s => `
+        <div class="flex items-center justify-between py-1.5 border-b border-neutral-800 last:border-0">
+          <span class="text-sm text-gray-200">${escapeHtml(s.name)}</span>
+          <span class="text-xs font-bold text-green-400">${s.score}%</span>
+        </div>`).join('')
+    : '<p class="text-gray-500 text-sm">No data yet (need 3+ events)</p>';
+
+  // Nearing warning (between minScore and warnThreshold)
+  const warn = [...stats].filter(s => s.score < warnThreshold && s.score >= minScore).sort((a, b) => a.score - b.score).slice(0, 8);
+  document.getElementById('panel-warn').innerHTML = warn.length
+    ? warn.map(s => `
+        <div class="flex items-center justify-between py-1.5 border-b border-neutral-800 last:border-0">
+          <span class="text-sm text-gray-200">${escapeHtml(s.name)}</span>
+          <span class="text-xs font-bold text-yellow-400">${s.score}%</span>
+        </div>`).join('')
+    : '<p class="text-gray-500 text-sm">No members near warning threshold</p>';
+
+  // Below threshold
+  const below = [...stats].filter(s => s.score < minScore).sort((a, b) => a.score - b.score).slice(0, 8);
+  document.getElementById('panel-below').innerHTML = below.length
+    ? below.map(s => `
+        <div class="flex items-center justify-between py-1.5 border-b border-neutral-800 last:border-0">
+          <span class="text-sm text-gray-200">${escapeHtml(s.name)}</span>
+          <span class="text-xs font-bold text-red-400">${s.score}%</span>
+        </div>`).join('')
+    : '<p class="text-gray-500 text-sm">No members below threshold</p>';
+}
+
+async function loadAttendance() {
+  const params = getFilters();
+  const qs = buildQueryString(params);
+  const container = document.getElementById('groups-container');
+  container.innerHTML = '<div class="text-center text-gray-500 py-12"><i class="fas fa-spinner fa-spin text-xl block mb-2"></i>Loading...</div>';
+  try {
+    const res = await fetch(ATTENDANCE_API + '?' + qs);
+    const data = await res.json();
+    renderGroups(data.groups || []);
+    renderSidePanels(data.groups || []);
+  } catch (e) {
+    container.innerHTML = '<div class="text-center text-red-400 py-12"><i class="fas fa-exclamation-circle text-xl block mb-2"></i>Error loading data</div>';
+  }
+}
+
+function exportCsv() {
+  const params = getFilters();
+  const qs = buildQueryString(params);
+  window.location.href = EXPORT_API + '?' + qs;
+}
+
+// Load on page ready
+document.addEventListener('DOMContentLoaded', loadAttendance);
+</script>
+{% endblock %}

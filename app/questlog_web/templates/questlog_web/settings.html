@@ -6,13 +6,6 @@
 {% block web_content %}
 <script>
   const CSRF_TOKEN = '{{ csrf_token }}';
-  function csrfFetch(url, options = {}) {
-    if (!options.headers) options.headers = {};
-    if (CSRF_TOKEN && CSRF_TOKEN !== 'None') {
-      options.headers['X-CSRFToken'] = CSRF_TOKEN;
-    }
-    return fetch(url, options);
-  }
 </script>
 
 <!-- Header -->
@@ -112,8 +105,67 @@
                class="rounded bg-neutral-700 border-neutral-600 text-green-500 focus:ring-green-500">
         <span class="text-sm text-gray-300">Allow other users to message me</span>
       </label>
+      {% if web_user.is_hero %}
+      <label class="flex items-center gap-3 cursor-pointer">
+        <input type="checkbox" id="showAsChampion"
+               {% if web_user.show_as_champion %}checked{% endif %}
+               onchange="saveUserPrefs()"
+               class="rounded bg-neutral-700 border-neutral-600 text-amber-500 focus:ring-amber-500">
+        <span class="text-sm text-gray-300">
+          <i class="fas fa-shield-alt text-amber-400 mr-1"></i>
+          List me on the public Champions page
+          <span class="text-gray-500 text-xs ml-1">(Champion only)</span>
+        </span>
+      </label>
+      {% endif %}
     </div>
     <p id="userPrefsStatus" class="text-xs text-gray-500 mt-3 hidden"></p>
+  </div>
+
+  <!-- Activity Feed / Ticker Opt-Outs -->
+  <div class="bg-neutral-900/50 rounded-lg border border-neutral-800 p-6">
+    <h2 class="text-lg font-semibold text-white mb-1">
+      <i class="fas fa-broadcast-tower text-indigo-400 mr-2"></i>Activity Feed
+    </h2>
+    <p class="text-xs text-gray-500 mb-5">Control what shows about you in the public activity marquee on the home page. Unchecking hides your activity from that category.</p>
+    <div class="space-y-3">
+      <label class="flex items-center gap-3 cursor-pointer">
+        <input type="checkbox" id="tickerShowLive"
+               {% if web_user.ticker_show_live %}checked{% endif %}
+               onchange="saveUserPrefs()"
+               class="rounded bg-neutral-700 border-neutral-600 text-indigo-500 focus:ring-indigo-500">
+        <span class="text-sm text-gray-300">Show when I go live <span class="text-gray-500">(Twitch / YouTube)</span></span>
+      </label>
+      <label class="flex items-center gap-3 cursor-pointer">
+        <input type="checkbox" id="tickerShowPlaying"
+               {% if web_user.ticker_show_playing %}checked{% endif %}
+               onchange="saveUserPrefs()"
+               class="rounded bg-neutral-700 border-neutral-600 text-indigo-500 focus:ring-indigo-500">
+        <span class="text-sm text-gray-300">Show when I start playing a game</span>
+      </label>
+      <label class="flex items-center gap-3 cursor-pointer">
+        <input type="checkbox" id="tickerShowPosts"
+               {% if web_user.ticker_show_posts %}checked{% endif %}
+               onchange="saveUserPrefs()"
+               class="rounded bg-neutral-700 border-neutral-600 text-indigo-500 focus:ring-indigo-500">
+        <span class="text-sm text-gray-300">Show when I create a post</span>
+      </label>
+      <label class="flex items-center gap-3 cursor-pointer">
+        <input type="checkbox" id="tickerShowFollows"
+               {% if web_user.ticker_show_follows %}checked{% endif %}
+               onchange="saveUserPrefs()"
+               class="rounded bg-neutral-700 border-neutral-600 text-indigo-500 focus:ring-indigo-500">
+        <span class="text-sm text-gray-300">Show when I follow someone</span>
+      </label>
+      <label class="flex items-center gap-3 cursor-pointer">
+        <input type="checkbox" id="tickerShowLfg"
+               {% if web_user.ticker_show_lfg %}checked{% endif %}
+               onchange="saveUserPrefs()"
+               class="rounded bg-neutral-700 border-neutral-600 text-indigo-500 focus:ring-indigo-500">
+        <span class="text-sm text-gray-300">Show LFG activity <span class="text-gray-500">(creating, joining, or leaving groups)</span></span>
+      </label>
+    </div>
+    <p id="userPrefsStatusTicker" class="text-xs text-gray-500 mt-3 hidden"></p>
   </div>
 
   <!-- Notification Settings -->
@@ -154,6 +206,20 @@
                class="rounded bg-neutral-700 border-neutral-600 text-yellow-500 focus:ring-yellow-500">
         <span class="text-sm text-gray-300">Someone likes my comment</span>
       </label>
+      <label class="flex items-center gap-3 cursor-pointer">
+        <input type="checkbox" id="notifyShares"
+               {% if web_user.notify_shares %}checked{% endif %}
+               onchange="saveUserPrefs()"
+               class="rounded bg-neutral-700 border-neutral-600 text-yellow-500 focus:ring-yellow-500">
+        <span class="text-sm text-gray-300">Someone shares my post</span>
+      </label>
+      <label class="flex items-center gap-3 cursor-pointer">
+        <input type="checkbox" id="notifyMentions"
+               {% if web_user.notify_mentions %}checked{% endif %}
+               onchange="saveUserPrefs()"
+               class="rounded bg-neutral-700 border-neutral-600 text-yellow-500 focus:ring-yellow-500">
+        <span class="text-sm text-gray-300">Someone mentions me (<span class="text-gray-500">@you</span>)</span>
+      </label>
     </div>
 
     <!-- Gaming -->
@@ -180,6 +246,13 @@
                class="rounded bg-neutral-700 border-neutral-600 text-yellow-500 focus:ring-yellow-500">
         <span class="text-sm text-gray-300">My LFG group is full</span>
       </label>
+      <label class="flex items-center gap-3 cursor-pointer">
+        <input type="checkbox" id="notifyNowPlaying"
+               {% if web_user.notify_now_playing %}checked{% endif %}
+               onchange="saveUserPrefs()"
+               class="rounded bg-neutral-700 border-neutral-600 text-yellow-500 focus:ring-yellow-500">
+        <span class="text-sm text-gray-300">Someone I follow starts playing a game</span>
+      </label>
     </div>
 
     <!-- Platform -->
@@ -198,6 +271,13 @@
                onchange="saveUserPrefs()"
                class="rounded bg-neutral-700 border-neutral-600 text-yellow-500 focus:ring-yellow-500">
         <span class="text-sm text-gray-300">New member joins my community</span>
+      </label>
+      <label class="flex items-center gap-3 cursor-pointer">
+        <input type="checkbox" id="notifyLevelUp"
+               {% if web_user.notify_level_up %}checked{% endif %}
+               onchange="saveUserPrefs()"
+               class="rounded bg-neutral-700 border-neutral-600 text-yellow-500 focus:ring-yellow-500">
+        <span class="text-sm text-gray-300">Level up <span class="text-gray-500">(XP milestones)</span></span>
       </label>
     </div>
   </div>
@@ -386,15 +466,25 @@ async function saveUserPrefs() {
     show_steam_profile:    document.getElementById('showSteamProfile').checked,
     show_activity:         document.getElementById('showActivity').checked,
     allow_messages:        document.getElementById('allowMessages').checked,
+    show_as_champion:      document.getElementById('showAsChampion') ? document.getElementById('showAsChampion').checked : false,
+    ticker_show_live:      document.getElementById('tickerShowLive').checked,
+    ticker_show_playing:   document.getElementById('tickerShowPlaying').checked,
+    ticker_show_posts:     document.getElementById('tickerShowPosts').checked,
+    ticker_show_follows:   document.getElementById('tickerShowFollows').checked,
+    ticker_show_lfg:       document.getElementById('tickerShowLfg').checked,
     notify_follows:        document.getElementById('notifyFollows').checked,
     notify_likes:          document.getElementById('notifyLikes').checked,
     notify_comments:       document.getElementById('notifyComments').checked,
     notify_comment_likes:  document.getElementById('notifyCommentLikes').checked,
+    notify_shares:         document.getElementById('notifyShares').checked,
+    notify_mentions:       document.getElementById('notifyMentions').checked,
     notify_giveaways:      document.getElementById('notifyGiveaways').checked,
     notify_lfg_join:       document.getElementById('notifyLfgJoin').checked,
     notify_lfg_leave:      document.getElementById('notifyLfgLeave').checked,
     notify_lfg_full:       document.getElementById('notifyLfgFull').checked,
     notify_community_join: document.getElementById('notifyCommunity').checked,
+    notify_now_playing:    document.getElementById('notifyNowPlaying').checked,
+    notify_level_up:       document.getElementById('notifyLevelUp').checked,
   };
   try {
     const res = await csrfFetch('/ql/api/profile/user-prefs/', {

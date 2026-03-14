@@ -23,13 +23,17 @@ from sqlalchemy import or_, and_
 from .models import (
     WebUser, WebUserBlock, WebNotification, WebLike, WebPost,
     AdminAuditLog, WebHeroPointEvent, WebRSSFeed, WebRSSArticle,
-    WebXpEvent, WebFlair, WebUserFlair, WebRankTitle,
+    WebXpEvent, WebFlair, WebUserFlair, WebRankTitle, WebCommunity,
 )
 from app.db import get_db_session
 
 logger = logging.getLogger(__name__)
 
 STEAM_API_KEY = os.getenv('STEAM_API_KEY', '')
+
+# User IDs excluded from all public listings (leaderboards, suggestions, search, gamers directory)
+# Add internal/test accounts here. ID 4 = RyvenTest
+EXCLUDED_USER_IDS = {4}
 
 # IP addresses in audit logs are SHA-256 hashed with this salt (never stored raw)
 AUDIT_LOG_SALT = os.getenv('AUDIT_LOG_SALT', '')
@@ -44,6 +48,13 @@ if not AUDIT_LOG_SALT:
     # Dev/test only: use a transient salt (IP hashes reset on restart, acceptable for local dev)
     logger.warning("AUDIT_LOG_SALT not set - using transient salt (dev mode). Set it in production.")
     AUDIT_LOG_SALT = secrets.token_hex(32)
+
+
+_PUBLIC_ID_CHARS = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
+
+def generate_post_public_id():
+    """Generate a random 8-char alphanumeric public ID for posts."""
+    return ''.join(secrets.choice(_PUBLIC_ID_CHARS) for _ in range(8))
 
 
 def safe_int(value, default=1, min_val=None, max_val=None):
@@ -92,6 +103,10 @@ def safe_redirect_url(next_url, default='/ql/'):
 
 
 def get_client_ip(request):
+    # Prefer CF-Connecting-IP (set by Cloudflare, not spoofable when behind CF)
+    cf_ip = request.META.get('HTTP_CF_CONNECTING_IP', '').strip()
+    if cf_ip:
+        return cf_ip
     x_forwarded = request.META.get('HTTP_X_FORWARDED_FOR')
     if x_forwarded:
         return x_forwarded.split(',')[0].strip()
@@ -170,7 +185,6 @@ def web_login_required(view_func):
     def wrapper(request, *args, **kwargs):
         web_user = get_web_user(request)
         if not web_user:
-            messages.warning(request, "Please log in to access this page.")
             login_url = reverse('questlog_web_login')
             return redirect(f'{login_url}?next={quote(request.get_full_path())}')
         request.web_user = web_user
@@ -179,7 +193,7 @@ def web_login_required(view_func):
 
 
 def web_admin_required(view_func):
-    """Requires Django superuser + active WebUser. Logs all denied attempts."""
+    """Requires Django superuser + active WebUser with is_admin=True (re-verified from DB each request)."""
     @wraps(view_func)
     def wrapper(request, *args, **kwargs):
         web_user = get_web_user(request)
@@ -194,6 +208,18 @@ def web_admin_required(view_func):
             logger.warning(
                 f"ADMIN ACCESS DENIED: User {web_user.username} (id={web_user.id}) "
                 f"- not a superuser. IP: {get_client_ip(request)}"
+            )
+            if request.headers.get('Accept', '').find('application/json') >= 0:
+                return JsonResponse({'error': 'Access denied'}, status=403)
+            messages.error(request, "Access denied.")
+            return redirect('questlog_web_home')
+
+        # Re-verify is_admin from DB on every request (not just session flag)
+        # Prevents a revoked admin from retaining access for up to 7 days via session
+        if not web_user.is_admin:
+            logger.warning(
+                f"ADMIN ACCESS DENIED: User {web_user.username} (id={web_user.id}) "
+                f"- is_admin=False in DB. IP: {get_client_ip(request)}"
             )
             if request.headers.get('Accept', '').find('application/json') >= 0:
                 return JsonResponse({'error': 'Access denied'}, status=403)
@@ -215,10 +241,185 @@ def web_admin_required(view_func):
     return wrapper
 
 
+def fluxer_guild_required(view_func):
+    """
+    Fluxer bot dashboard access guard. Requires login plus one of:
+    - Django superuser (site admins always allowed), OR
+    - The user's fluxer_id matches the guild's owner_id in WebFluxerGuildSettings, OR
+    - The user's fluxer_id appears in cached_members with one of the guild's admin_roles.
+    If no guild_id kwarg, falls back to superuser-only (for the guild list page).
+    Returns JSON 403 for API requests (Accept: application/json).
+    """
+    @wraps(view_func)
+    def wrapper(request, *args, **kwargs):
+        from .models import WebFluxerGuildSettings
+
+        web_user = get_web_user(request)
+        is_json = 'application/json' in request.headers.get('Accept', '')
+
+        if not web_user:
+            if is_json:
+                return JsonResponse({'error': 'Authentication required'}, status=401)
+            login_url = reverse('questlog_web_login')
+            return redirect(f'{login_url}?next={quote(request.get_full_path())}')
+
+        if web_user.is_banned:
+            if is_json:
+                return JsonResponse({'error': 'Account suspended'}, status=403)
+            messages.error(request, "Your account has been suspended.")
+            return redirect('questlog_web_home')
+
+        if not request.user.is_superuser:
+            guild_id = kwargs.get('guild_id', '').strip() if kwargs.get('guild_id') else ''
+            if not guild_id:
+                # No guild context - admin-only (e.g. guild list page)
+                if is_json:
+                    return JsonResponse({'error': 'Access denied'}, status=403)
+                messages.error(request, "Access denied.")
+                return redirect('questlog_web_home')
+
+            # Fluxer uses fluxer_id (not discord_id) for guild membership
+            user_fluxer_id = str(getattr(web_user, 'fluxer_id', None) or '')
+            if not user_fluxer_id:
+                if is_json:
+                    return JsonResponse({'error': 'No Fluxer account linked'}, status=403)
+                messages.error(request, "Link your Fluxer account to access the bot dashboard.")
+                return redirect('questlog_web_fluxer_link')
+
+            with get_db_session() as db:
+                s = db.query(WebFluxerGuildSettings).filter_by(guild_id=guild_id).first()
+
+            if not s:
+                if is_json:
+                    return JsonResponse({'error': 'Access denied'}, status=403)
+                messages.error(request, "You don't have access to this guild's dashboard.")
+                return redirect('questlog_web_home')
+
+            # Check 1: owner
+            if str(s.owner_id or '') == user_fluxer_id:
+                request.web_user = web_user
+                return view_func(request, *args, **kwargs)
+
+            # Check 2: user holds one of the configured admin roles
+            granted = False
+            try:
+                admin_role_ids = json.loads(s.admin_roles) if s.admin_roles else []
+                if admin_role_ids and s.cached_members:
+                    members = json.loads(s.cached_members)
+                    user_data = next((m for m in members if str(m.get('id')) == user_fluxer_id), None)
+                    if user_data:
+                        user_roles = user_data.get('roles', [])
+                        granted = any(str(r) in [str(ar) for ar in admin_role_ids] for r in user_roles)
+            except (json.JSONDecodeError, TypeError, AttributeError):
+                granted = False
+
+            if not granted:
+                logger.warning(
+                    f"FLUXER GUILD ACCESS DENIED: user={web_user.username} "
+                    f"fluxer={user_fluxer_id} guild={guild_id} owner={s.owner_id}"
+                )
+                if is_json:
+                    return JsonResponse({'error': 'Access denied'}, status=403)
+                messages.error(request, "You don't have access to this guild's dashboard.")
+                return redirect('questlog_web_home')
+
+        request.web_user = web_user
+        return view_func(request, *args, **kwargs)
+    return wrapper
+
+
+def matrix_space_required(view_func):
+    """
+    Matrix bot dashboard access guard. Requires login plus one of:
+    - Django superuser (site admins always allowed), OR
+    - The user's matrix_id matches the space's owner_matrix_id in WebMatrixSpaceSettings, OR
+    - The user's matrix_id appears in the space's admin_matrix_ids JSON list.
+    If no space_id kwarg, falls back to superuser-only (for the space list page).
+    Returns JSON 403 for API requests (Accept: application/json).
+    """
+    @wraps(view_func)
+    def wrapper(request, *args, **kwargs):
+        from .models import WebMatrixSpaceSettings
+        import urllib.parse as _urlparse
+
+        # URL-decode space_id so DB lookups work regardless of whether the URL
+        # arrived encoded (%21room%3Aserver) or plain (!room:server).
+        if 'space_id' in kwargs:
+            kwargs['space_id'] = _urlparse.unquote(kwargs['space_id'])
+
+        web_user = get_web_user(request)
+        is_json = 'application/json' in request.headers.get('Accept', '')
+
+        if not web_user:
+            if is_json:
+                return JsonResponse({'error': 'Authentication required'}, status=401)
+            login_url = reverse('questlog_web_login')
+            return redirect(f'{login_url}?next={quote(request.get_full_path())}')
+
+        if web_user.is_banned:
+            if is_json:
+                return JsonResponse({'error': 'Account suspended'}, status=403)
+            messages.error(request, "Your account has been suspended.")
+            return redirect('questlog_web_home')
+
+        if not request.user.is_superuser:
+            space_id = kwargs.get('space_id', '').strip() if kwargs.get('space_id') else ''
+            if not space_id:
+                if is_json:
+                    return JsonResponse({'error': 'Access denied'}, status=403)
+                messages.error(request, "Access denied.")
+                return redirect('questlog_web_home')
+
+            user_matrix_id = str(getattr(web_user, 'matrix_id', None) or '')
+            if not user_matrix_id:
+                if is_json:
+                    return JsonResponse({'error': 'No Matrix account linked'}, status=403)
+                messages.error(request, "Link your Matrix account to access the bot dashboard.")
+                return redirect('questlog_web_matrix_link')
+
+            with get_db_session() as db:
+                s = db.query(WebMatrixSpaceSettings).filter_by(space_id=space_id).first()
+
+            if not s:
+                if is_json:
+                    return JsonResponse({'error': 'Access denied'}, status=403)
+                messages.error(request, "You don't have access to this space's dashboard.")
+                return redirect('questlog_web_home')
+
+            # Check 1: space owner
+            if str(s.owner_matrix_id or '') == user_matrix_id:
+                request.web_user = web_user
+                return view_func(request, *args, **kwargs)
+
+            # Check 2: in admin_matrix_ids list
+            granted = False
+            try:
+                admin_ids = json.loads(s.admin_matrix_ids) if s.admin_matrix_ids else []
+                granted = user_matrix_id in [str(a) for a in admin_ids]
+            except (json.JSONDecodeError, TypeError, AttributeError):
+                granted = False
+
+            if not granted:
+                logger.warning(
+                    f"MATRIX SPACE ACCESS DENIED: user={web_user.username} "
+                    f"matrix={user_matrix_id} space={space_id} owner={s.owner_matrix_id}"
+                )
+                if is_json:
+                    return JsonResponse({'error': 'Access denied'}, status=403)
+                messages.error(request, "You don't have access to this space's dashboard.")
+                return redirect('questlog_web_home')
+
+        request.web_user = web_user
+        return view_func(request, *args, **kwargs)
+    return wrapper
+
+
 def add_web_user_context(view_func):
     @wraps(view_func)
     def wrapper(request, *args, **kwargs):
-        request.web_user = get_web_user(request)
+        # Reuse web_user if already set by web_login_required to avoid a double DB fetch
+        if not hasattr(request, 'web_user') or request.web_user is None:
+            request.web_user = get_web_user(request)
         # Award daily visit HP once per calendar day (tracked via session to avoid per-request DB hits)
         if request.web_user:
             today_str = datetime.now(timezone.utc).strftime('%Y-%m-%d')
@@ -226,6 +427,211 @@ def add_web_user_context(view_func):
             if not request.session.get(session_key):
                 award_hero_points(request.web_user.id, 'daily_visit')
                 request.session[session_key] = True
+            # Community owner check for sidebar Community Admin section
+            try:
+                from sqlalchemy import text as sa_text
+                with get_db_session() as _db:
+                    count = _db.execute(
+                        sa_text("SELECT COUNT(*) FROM web_communities WHERE owner_id=:id AND is_active=1"),
+                        {'id': request.web_user.id}
+                    ).scalar()
+                request.web_user.has_community = bool(count)
+            except Exception:
+                request.web_user.has_community = False
+
+            # Resolve primary community name + icon for sidebar display.
+            # If primary_community_id is not set, auto-detect: if the user belongs to
+            # exactly 1 approved community, auto-set it (and persist). If multiple, leave
+            # NULL so they choose from the picker in profile edit.
+            try:
+                from sqlalchemy import text as sa_text
+                _pc_id = getattr(request.web_user, 'primary_community_id', None)
+                if not _pc_id:
+                    with get_db_session() as _db:
+                        # Check communities the user is a member of
+                        _auto = _db.execute(
+                            sa_text(
+                                "SELECT c.id FROM web_communities c "
+                                "JOIN web_community_members m ON m.community_id = c.id "
+                                "WHERE m.user_id = :uid AND c.is_active = 1 "
+                                "AND c.network_status = 'approved' LIMIT 2"
+                            ),
+                            {'uid': request.web_user.id}
+                        ).fetchall()
+                        if not _auto:
+                            # Fall back to owned communities (owner is implicitly a member)
+                            _auto = _db.execute(
+                                sa_text(
+                                    "SELECT id FROM web_communities "
+                                    "WHERE owner_id = :uid AND is_active = 1 "
+                                    "AND network_status = 'approved' LIMIT 2"
+                                ),
+                                {'uid': request.web_user.id}
+                            ).fetchall()
+                        if not _auto:
+                            # Fall back to Fluxer bot activity
+                            _fluxer_id = getattr(request.web_user, 'fluxer_id', None)
+                            if _fluxer_id:
+                                _auto = _db.execute(
+                                    sa_text(
+                                        "SELECT c.id FROM web_communities c "
+                                        "JOIN fluxer_member_xp x ON x.guild_id = c.platform_id "
+                                        "WHERE x.user_id = :uid AND c.platform = 'fluxer' "
+                                        "AND c.is_active = 1 AND c.network_status = 'approved' LIMIT 2"
+                                    ),
+                                    {'uid': _fluxer_id}
+                                ).fetchall()
+                        if not _auto:
+                            # Fall back to Discord bot activity
+                            _discord_id_auto = getattr(request.web_user, 'discord_id', None)
+                            if _discord_id_auto:
+                                _auto = _db.execute(
+                                    sa_text(
+                                        "SELECT c.id FROM web_communities c "
+                                        "JOIN guild_members gm ON gm.guild_id = c.platform_id "
+                                        "WHERE gm.user_id = :uid AND c.platform = 'discord' "
+                                        "AND c.is_active = 1 AND c.network_status = 'approved' LIMIT 2"
+                                    ),
+                                    {'uid': _discord_id_auto}
+                                ).fetchall()
+                    # Auto-set only when user belongs to exactly 1 approved community.
+                    # Community owners with multiple communities must pick from the profile edit page.
+                    if len(_auto) == 1:
+                        _pc_id = _auto[0][0]
+                        # Persist so we don't re-query every request
+                        try:
+                            with get_db_session() as _db:
+                                _db.execute(
+                                    sa_text("UPDATE web_users SET primary_community_id = :cid WHERE id = :uid"),
+                                    {'cid': _pc_id, 'uid': request.web_user.id}
+                                )
+                                _db.commit()
+                            request.web_user.primary_community_id = _pc_id
+                        except Exception:
+                            pass
+                if _pc_id:
+                    with get_db_session() as _db:
+                        _pc_row = _db.execute(
+                            sa_text(
+                                "SELECT name, icon_url, platform FROM web_communities "
+                                "WHERE id=:id AND is_active=1 LIMIT 1"
+                            ),
+                            {'id': _pc_id}
+                        ).fetchone()
+                    if _pc_row:
+                        _plat_raw = _pc_row[2]
+                        request.web_user.primary_community_name = _pc_row[0]
+                        request.web_user.primary_community_icon = _pc_row[1]
+                        request.web_user.primary_community_platform = _plat_raw.value if hasattr(_plat_raw, 'value') else str(_plat_raw)
+                    else:
+                        request.web_user.primary_community_name = None
+                        request.web_user.primary_community_icon = None
+                        request.web_user.primary_community_platform = None
+                else:
+                    request.web_user.primary_community_name = None
+                    request.web_user.primary_community_icon = None
+                    request.web_user.primary_community_platform = None
+            except Exception:
+                request.web_user.primary_community_name = None
+                request.web_user.primary_community_icon = None
+                request.web_user.primary_community_platform = None
+
+            from sqlalchemy import text as sa_text
+            _discord_id = getattr(request.web_user, 'discord_id', None)
+            _fluxer_id  = getattr(request.web_user, 'fluxer_id',  None)
+            _web_uid    = request.web_user.id
+
+            # --- FLUXER (uses fluxer_id ONLY - completely separate platform from Discord) ---
+            try:
+                if _fluxer_id:
+                    _fid_str = str(_fluxer_id)
+                    with get_db_session() as _db:
+                        # Owned: web_fluxer_guild_settings.owner_id is a Fluxer user ID
+                        owned_rows = _db.execute(
+                            sa_text(
+                                "SELECT guild_id, COALESCE(NULLIF(guild_name,''), guild_id) as name, guild_icon_hash "
+                                "FROM web_fluxer_guild_settings WHERE owner_id = :fid LIMIT 10"
+                            ),
+                            {'fid': _fid_str}
+                        ).fetchall()
+                        # Web-panel admin/mod via web_community_members (platform='fluxer')
+                        admin_rows = _db.execute(
+                            sa_text(
+                                "SELECT c.platform_id, COALESCE(NULLIF(s.guild_name,''), c.platform_id) as name, s.guild_icon_hash "
+                                "FROM web_community_members cm "
+                                "JOIN web_communities c ON c.id = cm.community_id "
+                                "LEFT JOIN web_fluxer_guild_settings s ON s.guild_id = c.platform_id "
+                                "WHERE cm.user_id = :uid AND cm.role IN ('admin','moderator','owner') "
+                                "AND c.platform = 'fluxer' AND c.is_active = 1 LIMIT 10"
+                            ),
+                            {'uid': _web_uid}
+                        ).fetchall()
+                        # Member: fluxer_member_xp.user_id is a Fluxer user ID
+                        member_rows = _db.execute(
+                            sa_text(
+                                "SELECT x.guild_id, COALESCE(NULLIF(s.guild_name,''), x.guild_id) as name, s.guild_icon_hash "
+                                "FROM (SELECT DISTINCT guild_id FROM fluxer_member_xp WHERE user_id = :fid) x "
+                                "LEFT JOIN web_fluxer_guild_settings s ON s.guild_id = x.guild_id "
+                                "LIMIT 15"
+                            ),
+                            {'fid': _fid_str}
+                        ).fetchall()
+
+                    # Normalize all keys to str to avoid int/str type mismatch in set lookup
+                    _owned_f = {str(r[0]): {'id': str(r[0]), 'name': r[1], 'icon_hash': r[2] or ''} for r in owned_rows}
+                    _admin_f = {str(r[0]): {'id': str(r[0]), 'name': r[1], 'icon_hash': r[2] or ''} for r in admin_rows}
+                    _admin_f.update(_owned_f)
+                    _member_f = {str(r[0]): {'id': str(r[0]), 'name': r[1], 'icon_hash': r[2] or ''} for r in member_rows}
+
+                    request.web_user.owned_fluxer_guilds = list(_admin_f.values())
+                    request.web_user.member_fluxer_guilds = [
+                        g for gid, g in _member_f.items() if gid not in _admin_f
+                    ]
+                else:
+                    request.web_user.owned_fluxer_guilds = []
+                    request.web_user.member_fluxer_guilds = []
+            except Exception:
+                request.web_user.owned_fluxer_guilds = []
+                request.web_user.member_fluxer_guilds = []
+
+            # --- DISCORD (uses discord_id ONLY - WardenBot tables) ---
+            try:
+                import json as _json
+                if _discord_id:
+                    _did_int = int(_discord_id)
+                    with get_db_session() as _db:
+                        # Fetch guilds where bot is present; use owner_id to classify admin vs member
+                        all_guild_rows = _db.execute(
+                            sa_text(
+                                "SELECT g.guild_id, COALESCE(NULLIF(g.guild_name,''), CAST(g.guild_id AS CHAR)) as name, "
+                                "g.guild_icon_hash, g.owner_id "
+                                "FROM guild_members gm JOIN guilds g ON g.guild_id = gm.guild_id "
+                                "WHERE gm.user_id = :uid AND gm.left_at IS NULL AND g.bot_present = 1 LIMIT 20"
+                            ),
+                            {'uid': _did_int}
+                        ).fetchall()
+
+                    _admin_d = {}
+                    _member_d = {}
+                    for row in all_guild_rows:
+                        gid, gname, icon_hash, owner_id = row
+                        gid_str = str(gid)
+                        entry = {'id': gid_str, 'name': gname, 'icon_hash': icon_hash or ''}
+
+                        if str(owner_id) == _discord_id:
+                            _admin_d[gid_str] = entry
+                        else:
+                            _member_d[gid_str] = entry
+
+                    request.web_user.owned_discord_guilds = list(_admin_d.values())
+                    request.web_user.member_discord_guilds = list(_member_d.values())
+                else:
+                    request.web_user.owned_discord_guilds = []
+                    request.web_user.member_discord_guilds = []
+            except Exception:
+                request.web_user.owned_discord_guilds = []
+                request.web_user.member_discord_guilds = []
+
         return view_func(request, *args, **kwargs)
     return wrapper
 
@@ -243,7 +649,20 @@ XP_ACTIONS = {
     'post':              {'xp': 5,  'daily_max': 5},
     'steam_achievement': {'xp': 5,  'daily_max': None},
     'steam_hours':       {'xp': 1,  'daily_max': None},
+    'steam_game_launch': {'xp': 2,  'daily_max': None},  # cooldown enforced in update_steam_now_playing (30 min)
     'invite':            {'xp': 50, 'daily_max': None},
+    'champion_sub':      {'xp': 100, 'daily_max': 1},  # one-time bonus on first Champion sub
+    # Fluxer bot activity - cooldowns enforced by bot, no daily caps
+    'fluxer_message':    {'xp': 2,  'daily_max': None},
+    'fluxer_reaction':   {'xp': 1,  'daily_max': None},
+    'fluxer_voice':      {'xp': 3,  'daily_max': None},
+    'fluxer_migration':  {'xp': 1,  'daily_max': None},  # one-time historical XP import
+    # Discord (WardenBot) activity - cooldowns enforced by bot, no daily caps
+    'discord_message':   {'xp': 2,  'daily_max': None},
+    'discord_media':     {'xp': 2,  'daily_max': None},
+    'discord_reaction':  {'xp': 1,  'daily_max': None},
+    'discord_voice':     {'xp': 3,  'daily_max': None},
+    'discord_gaming':    {'xp': 2,  'daily_max': None},
 }
 
 # HP conversion: every XP_TO_HP_THRESHOLD XP earns HP_PER_THRESHOLD HP
@@ -351,6 +770,14 @@ def award_xp(user_id, action_type, source='web', ref_id=None):
                 db.commit()
                 return xp_amount
 
+            # Hero +25% XP multiplier for active subscribers
+            if (
+                getattr(user, 'is_hero', 0)
+                and getattr(user, 'hero_expires_at', None)
+                and user.hero_expires_at > now
+            ):
+                xp_amount = max(1, int(xp_amount * 1.25))
+
             old_xp = user.web_xp or 0
             new_xp = old_xp + xp_amount
             user.web_xp = new_xp
@@ -389,10 +816,64 @@ def award_xp(user_id, action_type, source='web', ref_id=None):
                 ))
 
             db.commit()
+
+            # Back-write to primary guild leaderboard if user has one and guild opts in
+            _backwrite_xp_to_guild(db, user, xp_amount)
+
             return xp_amount
     except Exception as e:
         logger.error(f"award_xp failed for user {user_id} action {action_type}: {e}")
         return 0
+
+
+def _backwrite_xp_to_guild(db, user, xp_amount):
+    """
+    If the user has a primary community with site_xp_to_guild enabled (admin-approved),
+    write the site XP into that guild's local leaderboard.
+    Silently no-ops if anything is missing - never blocks the main XP award.
+    """
+    try:
+        if not user.primary_community_id:
+            return
+
+        community = db.query(WebCommunity).filter_by(
+            id=user.primary_community_id,
+            is_active=True,
+            network_status='approved',
+            site_xp_to_guild=True,
+        ).first()
+        if not community:
+            return
+
+        from sqlalchemy import text
+        platform = community.platform.value if hasattr(community.platform, 'value') else community.platform
+        guild_id = community.platform_id
+        if not guild_id:
+            return
+
+        if platform == 'fluxer' and user.fluxer_id:
+            now_ts = int(time.time())
+            db.execute(
+                text(
+                    "INSERT INTO fluxer_member_xp "
+                    "(guild_id, user_id, username, xp, level, message_count, last_message_ts, first_seen, last_active) "
+                    "VALUES (:gid, :uid, :uname, :xp, 1, 0, :now, :now, :now) "
+                    "ON DUPLICATE KEY UPDATE xp = xp + :xp, last_active = :now"
+                ),
+                {"gid": guild_id, "uid": str(user.fluxer_id),
+                 "uname": user.username, "xp": xp_amount, "now": now_ts}
+            )
+            db.commit()
+
+        elif platform == 'discord' and user.discord_id:
+            db.execute(
+                text("UPDATE guild_members SET xp = xp + :xp WHERE guild_id = :gid AND user_id = :uid"),
+                {"xp": xp_amount, "gid": int(guild_id), "uid": int(user.discord_id)}
+            )
+            db.commit()
+
+    except Exception as e:
+        logger.warning(f"_backwrite_xp_to_guild failed for user {user.id}: {e}")
 
 
 def award_hero_points(user_id, action_type, source='web', ref_id=None):
@@ -496,14 +977,15 @@ def validate_admin_image_url(url):
         hostname = parsed.hostname
         if not hostname or not parsed.netloc:
             return None
-        # Block internal/loopback/private addresses
+        # Block internal/loopback/private addresses.
+        # On DNS failure, reject - we cannot verify the URL is safe.
         try:
             for _, _, _, _, sockaddr in _socket.getaddrinfo(hostname, None):
                 ip = ipaddress.ip_address(sockaddr[0])
                 if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved:
                     return None
         except Exception:
-            pass  # DNS failure or unresolvable - allow through (not a local address)
+            return None  # DNS failure - reject rather than allow through unverified
         return url
     except Exception:
         return None
@@ -519,6 +1001,157 @@ def _is_valid_giphy_url(url):
     except Exception as e:
         logger.debug("_is_valid_giphy_url: url parse error for %r: %s", url, e)
         return False
+
+
+import ipaddress as _ipaddress
+
+_BLOCKED_NETWORKS = [
+    _ipaddress.ip_network(cidr) for cidr in (
+        # IPv4
+        '0.0.0.0/8',         # this network (includes 0.x.x.x)
+        '127.0.0.0/8',       # loopback
+        '10.0.0.0/8',        # private
+        '172.16.0.0/12',     # private
+        '192.168.0.0/16',    # private
+        '100.64.0.0/10',     # shared address (CGNAT)
+        '192.0.0.0/24',      # IETF protocol
+        '169.254.0.0/16',    # link-local
+        '192.88.99.0/24',    # 6to4 relay
+        '198.18.0.0/15',     # benchmarking
+        '192.0.2.0/24',      # TEST-NET-1
+        '198.51.100.0/24',   # TEST-NET-2
+        '203.0.113.0/24',    # TEST-NET-3
+        '224.0.0.0/4',       # multicast
+        '240.0.0.0/4',       # reserved
+        '255.255.255.255/32', # broadcast
+        # IPv6
+        '::/128',            # unspecified
+        '::1/128',           # loopback
+        'fe80::/10',         # link-local
+        'fc00::/7',          # unique local
+        '2001:db8::/32',     # documentation
+        'ff00::/8',          # multicast
+        'fec0::/10',         # deprecated site-local
+        '64:ff9b::/96',      # IPv4-mapped (NAT64)
+    )
+]
+
+
+def _is_blocked_ip(addr_str):
+    """Return True if the resolved IP falls in any blocked network range."""
+    try:
+        ip = _ipaddress.ip_address(addr_str)
+        return any(ip in net for net in _BLOCKED_NETWORKS)
+    except ValueError:
+        return True  # unparseable = block it
+
+
+def fetch_link_preview(url):
+    """Fetch Open Graph metadata for a URL. Returns a dict or None.
+    Security hardening:
+    - HTTPS only, no HTTP
+    - No redirects followed (prevents SSRF via redirect chaining)
+    - DNS resolved before connect; all RFC-reserved ranges blocked
+    - 3s timeout, 500KB cap
+    - OG values stripped of HTML tags and length-capped
+    """
+    import socket
+    import html as _html
+    from urllib.request import urlopen, Request, HTTPRedirectHandler, build_opener
+    from urllib.error import HTTPError
+
+    # Subclass that blocks ALL redirects
+    class _NoRedirect(HTTPRedirectHandler):
+        def redirect_request(self, req, fp, code, msg, headers, newurl):
+            return None  # never follow
+
+    try:
+        if not url or not isinstance(url, str):
+            return None
+        url = url.strip()
+        parsed = urlparse(url)
+        if parsed.scheme != 'https':
+            return None
+        host = parsed.hostname  # properly handles IPv6 brackets, ports
+        if not host:
+            return None
+
+        # Resolve DNS and block all RFC-reserved ranges (pre-connect SSRF guard)
+        try:
+            addr = socket.gethostbyname(host)
+            if _is_blocked_ip(addr):
+                return None
+        except Exception:
+            return None
+
+        req = Request(url, headers={
+            'User-Agent': 'Mozilla/5.0 (compatible; QuestLogBot/1.0)',
+            'Accept': 'text/html',
+        })
+        opener = build_opener(_NoRedirect())
+        try:
+            resp = opener.open(req, timeout=3)
+        except HTTPError as e:
+            # 3xx responses raise HTTPError when redirects are blocked - that's fine
+            if e.code in (301, 302, 303, 307, 308):
+                return None
+            raise
+        with resp:
+            content_type = resp.headers.get('Content-Type', '').lower()
+            if 'html' not in content_type:
+                return None
+            raw = resp.read(524288).decode('utf-8', errors='replace')
+
+        def _clean_og(val, max_len=300):
+            """Strip tags, decode HTML entities, cap length."""
+            if not val:
+                return ''
+            # Strip any HTML tags
+            val = re.sub(r'<[^>]+>', '', val)
+            # Decode HTML entities (&amp; &lt; etc.)
+            val = _html.unescape(val)
+            return val.strip()[:max_len]
+
+        og = {}
+        for prop in ('title', 'description', 'image', 'url', 'site_name'):
+            m = re.search(
+                r'<meta[^>]+(?:property=["\']og:' + prop + r'["\']|name=["\']og:' + prop + r'["\'])[^>]+content=["\']([^"\']{1,500})["\']',
+                raw, re.IGNORECASE
+            )
+            if m:
+                cleaned = _clean_og(m.group(1))
+                if cleaned:
+                    og[prop] = cleaned
+
+        # Fallback to <title> if no og:title
+        if 'title' not in og:
+            m = re.search(r'<title[^>]*>([^<]{1,200})</title>', raw, re.IGNORECASE)
+            if m:
+                og['title'] = _clean_og(m.group(1), max_len=200)
+
+        if not og.get('title') and not og.get('description'):
+            return None
+
+        # Validate og:image - HTTPS only, no private IPs, not embedded data URIs
+        img = og.get('image', '')
+        if img:
+            try:
+                img_parsed = urlparse(img)
+                if img_parsed.scheme != 'https' or not img_parsed.hostname:
+                    og.pop('image', None)
+                else:
+                    img_addr = socket.gethostbyname(img_parsed.hostname)
+                    if _is_blocked_ip(img_addr):
+                        og.pop('image', None)
+            except Exception:
+                og.pop('image', None)
+
+        og['source_url'] = url
+        return og
+
+    except Exception as e:
+        logger.debug("fetch_link_preview failed for %r: %s", url, e)
+        return None
 
 
 def sanitize_text(text_input, max_length=2000):
@@ -564,17 +1197,24 @@ def check_posting_timeout(request):
 
 
 # Maps notification_type -> WebUser preference column name.
-# Types NOT listed here (e.g. giveaway_win) are always delivered.
+# Types NOT listed here (e.g. giveaway_win, level_up system) are always delivered.
 _NOTIF_PREF_FIELD = {
-    'follow':        'notify_follows',
-    'like':          'notify_likes',
-    'comment':       'notify_comments',
-    'comment_like':  'notify_comment_likes',
-    'giveaway':      'notify_giveaways',
-    'lfg_join':      'notify_lfg_join',
-    'lfg_leave':     'notify_lfg_leave',
-    'lfg_full':      'notify_lfg_full',
+    # Social
+    'follow':         'notify_follows',
+    'like':           'notify_likes',
+    'comment':        'notify_comments',
+    'comment_like':   'notify_comment_likes',
+    'share':          'notify_shares',
+    'mention':        'notify_mentions',
+    # Gaming
+    'lfg_join':       'notify_lfg_join',
+    'lfg_leave':      'notify_lfg_leave',
+    'lfg_full':       'notify_lfg_full',
+    'now_playing':    'notify_now_playing',
+    # Platform
+    'giveaway':       'notify_giveaways',
     'community_join': 'notify_community_join',
+    # level_up is NOT listed - always delivered (system notification)
 }
 
 
@@ -768,6 +1408,10 @@ def serialize_user_brief(user):
     """Serialize a WebUser to a brief dict for public API responses.
     Does NOT include steam_id or other sensitive identifiers."""
     flair_emoji, flair_name, rank_title = get_user_flair_and_title(user)
+    # Second flair slot (Champions only)
+    flair2_emoji, flair2_name = '', ''
+    if getattr(user, 'active_flair2_id', None) and getattr(user, 'is_hero', 0):
+        flair2_emoji, flair2_name = _get_flair_from_cache(user.active_flair2_id)
     return {
         'id': user.id,
         'username': user.username,
@@ -779,7 +1423,14 @@ def serialize_user_brief(user):
         'rank_title': rank_title,
         'flair_emoji': flair_emoji,
         'flair_name': flair_name,
+        'flair2_emoji': flair2_emoji,
+        'flair2_name': flair2_name,
         'current_game': user.current_game if getattr(user, 'show_playing_status', False) else None,
+        'current_game_appid': (getattr(user, 'current_game_appid', None) if getattr(user, 'show_playing_status', False) else None),
+        'is_live': bool(getattr(user, 'is_live', 0)),
+        'live_platform': getattr(user, 'live_platform', None) or '',
+        'live_url': getattr(user, 'live_url', None) or '',
+        'is_hero': bool(getattr(user, 'is_hero', 0)),
     }
 
 
@@ -931,6 +1582,7 @@ def serialize_post(post, current_user_id=None, db=None, following_ids=None):
 
     data = {
         'id': post.id,
+        'public_id': post.public_id,
         'author': author_data,
         'content': post.content,
         'post_type': post.post_type,
@@ -942,6 +1594,9 @@ def serialize_post(post, current_user_id=None, db=None, following_ids=None):
         'game_tag_name': post.game_tag_name,
         'game_tag_steam_id': post.game_tag_steam_id,
         'is_pinned': post.is_pinned,
+        'edited_at': post.edited_at,
+        'edit_count': post.edit_count or 0,
+        'link_preview': json.loads(post.link_preview) if post.link_preview else None,
         'like_count': post.like_count,
         'comment_count': post.comment_count,
         'repost_count': post.repost_count,

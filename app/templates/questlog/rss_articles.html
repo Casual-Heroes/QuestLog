@@ -244,13 +244,6 @@
 
 <script>
 // XSS Protection
-function escapeHtml(text) {
-    if (text == null || text === undefined) return '';
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-}
-
 // Initialize feed filter and search
 document.addEventListener('DOMContentLoaded', function() {
     // Parse feeds safely from json_script element

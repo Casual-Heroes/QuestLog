@@ -1,0 +1,450 @@
+{% extends "questlog_web/fluxer_base_guild.html" %}
+{% load static %}
+{% block title %}Audit Logs - {{ guild_name }}{% endblock %}
+
+{% block guild_content %}
+
+{% include "questlog/partials/custom_select.html" %}
+
+  <!-- Header -->
+  <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
+    <div>
+      <h1 class="text-3xl font-bold text-white">
+        <i class="fas fa-clipboard-list text-cyan-400 mr-3"></i>Audit Logs
+      </h1>
+      <p class="text-gray-400 mt-1">Track all server events and moderation actions</p>
+    </div>
+    <div class="flex gap-3">
+      <button onclick="openAuditSettings()" class="bg-neutral-800 hover:bg-neutral-700 text-white px-4 py-2 rounded-lg font-medium transition text-sm">
+        <i class="fas fa-sliders-h mr-2"></i>Settings
+      </button>
+      <button onclick="window.location.reload()" class="bg-neutral-800 hover:bg-neutral-700 text-white px-4 py-2 rounded-lg font-medium transition text-sm">
+        <i class="fas fa-sync-alt mr-2"></i>Refresh
+      </button>
+    </div>
+  </div>
+
+  <!-- Save status -->
+  <div id="save-msg" class="hidden mb-4 px-4 py-3 rounded-lg text-sm font-medium"></div>
+
+  <!-- Pending notice -->
+  <div class="bg-yellow-900/20 border border-yellow-700/40 rounded-xl px-4 py-3 mb-6 flex items-start gap-3">
+    <i class="fas fa-info-circle text-yellow-400 mt-0.5 flex-shrink-0"></i>
+    <p class="text-yellow-300 text-sm">Audit log event collection requires bot support. Configure your log channel here - events will populate once the Fluxer bot implements this module.</p>
+  </div>
+
+  <!-- Audit Event Settings Modal -->
+  <div id="auditSettingsModal" class="fixed inset-0 bg-black/70 hidden items-center justify-center z-50 px-3 py-6">
+    <div class="bg-neutral-900 border border-neutral-800 rounded-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto p-6">
+      <div class="flex items-start justify-between mb-4">
+        <div>
+          <h3 class="text-xl font-bold text-white">
+            <i class="fas fa-sliders-h text-cyan-400 mr-2"></i>Audit Event Settings
+          </h3>
+          <p class="text-gray-400 text-sm">Choose which events are captured. Toggle off to stop logging specific actions.</p>
+        </div>
+        <button onclick="closeAuditSettings()" class="text-gray-400 hover:text-white">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="bg-neutral-800/60 border border-neutral-700 rounded-lg p-4">
+          <h4 class="text-white font-semibold mb-2">Moderation Events</h4>
+          <div class="space-y-2" id="cat_moderation"></div>
+        </div>
+        <div class="bg-neutral-800/60 border border-neutral-700 rounded-lg p-4">
+          <h4 class="text-white font-semibold mb-2">Message Events</h4>
+          <div class="space-y-2" id="cat_messages"></div>
+        </div>
+        <div class="bg-neutral-800/60 border border-neutral-700 rounded-lg p-4">
+          <h4 class="text-white font-semibold mb-2">Member Events</h4>
+          <div class="space-y-2" id="cat_members"></div>
+        </div>
+        <div class="bg-neutral-800/60 border border-neutral-700 rounded-lg p-4">
+          <h4 class="text-white font-semibold mb-2">Role Events</h4>
+          <div class="space-y-2" id="cat_roles"></div>
+        </div>
+        <div class="bg-neutral-800/60 border border-neutral-700 rounded-lg p-4">
+          <h4 class="text-white font-semibold mb-2">Channel Events</h4>
+          <div class="space-y-2" id="cat_channels"></div>
+        </div>
+        <div class="bg-neutral-800/60 border border-neutral-700 rounded-lg p-4">
+          <h4 class="text-white font-semibold mb-2">Security / Verification</h4>
+          <div class="space-y-2" id="cat_security"></div>
+        </div>
+      </div>
+
+      <div class="flex justify-end gap-3 pt-4">
+        <button onclick="closeAuditSettings()" class="px-4 py-2 text-gray-400 hover:text-white">Cancel</button>
+        <button onclick="saveAuditSettings()" class="bg-cyan-600 hover:bg-cyan-700 text-white px-6 py-2 rounded-lg font-medium transition">
+          <i class="fas fa-save mr-2"></i>Save Settings
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Audit Log Channel Configuration -->
+  <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6 mb-6">
+    <div class="flex items-start justify-between mb-4">
+      <div>
+        <h3 class="text-lg font-bold text-white">
+          <i class="fas fa-hashtag text-cyan-400 mr-2"></i>Audit Log Channel
+        </h3>
+        <p class="text-gray-400 text-sm mt-1">Choose where audit log messages will be sent in Discord</p>
+        <div class="mt-3 flex items-center gap-3">
+          <label class="relative inline-flex items-center cursor-pointer">
+            <input type="checkbox" id="audit-enabled" class="sr-only peer">
+            <div class="w-11 h-6 bg-neutral-700 rounded-full peer peer-checked:bg-cyan-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full"></div>
+          </label>
+          <span class="text-sm text-gray-300">Enable audit logging</span>
+        </div>
+      </div>
+      <button onclick="saveAudit()" id="saveAuditBtn" class="bg-cyan-600 hover:bg-cyan-700 text-white px-4 py-2 rounded-lg font-medium transition text-sm">
+        <i class="fas fa-save mr-2"></i>Save Channel
+      </button>
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div>
+        <label class="block text-sm text-gray-400 mb-2">Audit Log Channel</label>
+        <div id="cs-audit-channel"></div>
+        <p class="text-gray-500 text-xs mt-1">All guild actions will be logged to this channel</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Stats Cards -->
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+    <div class="bg-neutral-900 rounded-xl p-4 border border-neutral-800">
+      <p class="text-gray-400 text-sm">Total Events</p>
+      <p class="text-2xl font-bold text-white mt-1">-</p>
+    </div>
+    <div class="bg-neutral-900 rounded-xl p-4 border border-neutral-800">
+      <p class="text-gray-400 text-sm">Time Range</p>
+      <p class="text-2xl font-bold text-cyan-400 mt-1">- days</p>
+    </div>
+    <div class="bg-neutral-900 rounded-xl p-4 border border-neutral-800">
+      <p class="text-gray-400 text-sm">Showing</p>
+      <p class="text-2xl font-bold text-green-400 mt-1">0</p>
+    </div>
+    <div class="bg-neutral-900 rounded-xl p-4 border border-neutral-800">
+      <p class="text-gray-400 text-sm">Filters Active</p>
+      <p class="text-2xl font-bold text-yellow-400 mt-1">0</p>
+    </div>
+  </div>
+
+  <!-- Filters -->
+  <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6 mb-6">
+    <h3 class="text-lg font-bold text-white mb-4">
+      <i class="fas fa-filter text-gray-400 mr-2"></i>Filters
+    </h3>
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <!-- Action Type -->
+      <div>
+        <label class="block text-sm text-gray-400 mb-2">Action Type</label>
+        <select class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white focus:border-cyan-500 focus:outline-none" disabled>
+          <option value="">All Actions</option>
+          <optgroup label="Members">
+            <option value="member_join">Member Join</option>
+            <option value="member_leave">Member Leave</option>
+            <option value="member_ban">Member Ban</option>
+            <option value="member_unban">Member Unban</option>
+            <option value="member_kick">Member Kick</option>
+            <option value="member_timeout">Member Timeout</option>
+          </optgroup>
+          <optgroup label="Roles">
+            <option value="role_add">Role Add</option>
+            <option value="role_remove">Role Remove</option>
+            <option value="role_create">Role Create</option>
+            <option value="role_delete">Role Delete</option>
+          </optgroup>
+          <optgroup label="Channels">
+            <option value="channel_create">Channel Create</option>
+            <option value="channel_delete">Channel Delete</option>
+            <option value="channel_update">Channel Update</option>
+          </optgroup>
+          <optgroup label="Messages">
+            <option value="message_delete">Message Delete</option>
+            <option value="message_bulk_delete">Bulk Delete</option>
+          </optgroup>
+          <optgroup label="Security">
+            <option value="raid_detected">Raid Detected</option>
+            <option value="lockdown_activated">Lockdown On</option>
+            <option value="lockdown_deactivated">Lockdown Off</option>
+          </optgroup>
+          <optgroup label="Verification">
+            <option value="verification_passed">Verified</option>
+            <option value="verification_failed">Verification Failed</option>
+          </optgroup>
+        </select>
+      </div>
+
+      <!-- Time Range -->
+      <div>
+        <label class="block text-sm text-gray-400 mb-2">Time Range</label>
+        <select class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white focus:border-cyan-500 focus:outline-none" disabled>
+          <option value="1">Last 24 hours</option>
+          <option value="3">Last 3 days</option>
+          <option value="7" selected>Last 7 days</option>
+          <option value="14">Last 14 days</option>
+          <option value="30">Last 30 days</option>
+          <option value="90">Last 90 days</option>
+        </select>
+      </div>
+
+      <!-- Actor ID -->
+      <div>
+        <label class="block text-sm text-gray-400 mb-2">Actor (User ID)</label>
+        <input type="text" placeholder="Enter User ID" disabled
+               class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white focus:border-cyan-500 focus:outline-none opacity-50">
+      </div>
+
+      <!-- Target ID -->
+      <div>
+        <label class="block text-sm text-gray-400 mb-2">Target (User ID)</label>
+        <input type="text" placeholder="Enter User ID" disabled
+               class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white focus:border-cyan-500 focus:outline-none opacity-50">
+      </div>
+
+      <!-- Buttons -->
+      <div class="md:col-span-4 flex gap-3">
+        <button class="bg-neutral-700 text-gray-400 px-6 py-2 rounded-lg font-medium cursor-not-allowed text-sm" disabled>
+          <i class="fas fa-search mr-2"></i>Apply Filters
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Audit Log Table -->
+  <div class="bg-neutral-900 rounded-xl border border-neutral-800 overflow-hidden">
+    <div class="overflow-x-auto">
+      <table class="w-full">
+        <thead class="bg-neutral-800/50">
+          <tr>
+            <th class="text-left text-gray-400 font-medium text-sm px-6 py-4">Time</th>
+            <th class="text-left text-gray-400 font-medium text-sm px-6 py-4">Action</th>
+            <th class="text-left text-gray-400 font-medium text-sm px-6 py-4">Actor</th>
+            <th class="text-left text-gray-400 font-medium text-sm px-6 py-4">Target</th>
+            <th class="text-left text-gray-400 font-medium text-sm px-6 py-4">Details</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-neutral-800">
+          <tr>
+            <td colspan="5" class="px-6 py-12 text-center">
+              <div class="flex flex-col items-center gap-3">
+                <div class="w-16 h-16 bg-neutral-800 rounded-full flex items-center justify-center">
+                  <i class="fas fa-clipboard-list text-gray-600 text-2xl"></i>
+                </div>
+                <p class="text-gray-400">No audit logs found</p>
+                <p class="text-gray-500 text-sm">Events will appear here once the Fluxer audit module is active.</p>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Legend -->
+  <div class="mt-6 flex flex-wrap gap-6 text-sm text-gray-400">
+    <span class="flex items-center gap-2">
+      <span class="w-2 h-2 bg-blue-400 rounded-full"></span> Members
+    </span>
+    <span class="flex items-center gap-2">
+      <span class="w-2 h-2 bg-yellow-400 rounded-full"></span> Roles
+    </span>
+    <span class="flex items-center gap-2">
+      <span class="w-2 h-2 bg-purple-400 rounded-full"></span> Channels
+    </span>
+    <span class="flex items-center gap-2">
+      <span class="w-2 h-2 bg-gray-400 rounded-full"></span> Messages
+    </span>
+    <span class="flex items-center gap-2">
+      <span class="w-2 h-2 bg-red-400 rounded-full"></span> Security
+    </span>
+    <span class="flex items-center gap-2">
+      <span class="w-2 h-2 bg-green-400 rounded-full"></span> Verification
+    </span>
+  </div>
+
+<script>
+const GUILD_ID = '{{ guild_id }}';
+const SETTINGS = JSON.parse('{{ settings_json|escapejs }}');
+const CHANNELS = JSON.parse('{{ channels_json|escapejs }}');
+const API_URL = '/ql/api/dashboard/fluxer/' + GUILD_ID + '/settings/';
+
+const channelsWithBlank = [{value: '', label: '-- None --'}, ...CHANNELS];
+
+const csAuditChannel = createCustomSelect({
+  container: document.getElementById('cs-audit-channel'),
+  name: 'audit_log_channel_id',
+  items: channelsWithBlank,
+  selected: SETTINGS.audit_log_channel_id || '',
+  placeholder: 'Select a channel...',
+});
+
+document.getElementById('audit-enabled').checked = !!SETTINGS.audit_log_enabled;
+
+async function saveAudit() {
+  const btn = document.getElementById('saveAuditBtn');
+  const msg = document.getElementById('save-msg');
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Saving...';
+  btn.disabled = true;
+
+  const payload = {
+    audit_log_channel_id: csAuditChannel.getValue() || '',
+    audit_log_enabled: document.getElementById('audit-enabled').checked,
+    audit_event_config: auditEventConfig,
+  };
+  try {
+    const resp = await csrfFetch(API_URL, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload),
+    });
+    const data = await resp.json();
+    if (resp.ok && data.success) {
+      msg.textContent = 'Audit log settings saved.';
+      msg.className = 'mb-4 px-4 py-3 rounded-lg text-sm font-medium bg-green-900/40 text-green-400 border border-green-700/40';
+      btn.innerHTML = '<i class="fas fa-check mr-2"></i>Saved!';
+    } else {
+      msg.textContent = data.error || 'Save failed.';
+      msg.className = 'mb-4 px-4 py-3 rounded-lg text-sm font-medium bg-red-900/40 text-red-400 border border-red-700/40';
+      btn.innerHTML = '<i class="fas fa-save mr-2"></i>Save Channel';
+      btn.disabled = false;
+    }
+    msg.classList.remove('hidden');
+    setTimeout(() => {
+      msg.classList.add('hidden');
+      btn.innerHTML = '<i class="fas fa-save mr-2"></i>Save Channel';
+      btn.disabled = false;
+    }, 4000);
+  } catch (e) {
+    msg.textContent = 'Network error.';
+    msg.className = 'mb-4 px-4 py-3 rounded-lg text-sm font-medium bg-red-900/40 text-red-400 border border-red-700/40';
+    msg.classList.remove('hidden');
+    btn.innerHTML = '<i class="fas fa-save mr-2"></i>Save Channel';
+    btn.disabled = false;
+  }
+}
+
+// Audit Event Settings
+const AUDIT_EVENT_DEFS = {
+  moderation: [
+    { key: 'member_ban', label: 'Member banned' },
+    { key: 'member_unban', label: 'Member unbanned' },
+    { key: 'member_kick', label: 'Member kicked' },
+    { key: 'member_timeout', label: 'Member timed out' },
+  ],
+  messages: [
+    { key: 'message_delete', label: 'Message deleted' },
+    { key: 'message_bulk_delete', label: 'Bulk messages deleted' },
+  ],
+  members: [
+    { key: 'member_join', label: 'Member joined' },
+    { key: 'member_leave', label: 'Member left' },
+    { key: 'verification_passed', label: 'Verification passed' },
+    { key: 'verification_failed', label: 'Verification failed' },
+  ],
+  roles: [
+    { key: 'role_add', label: 'Role added to member' },
+    { key: 'role_remove', label: 'Role removed from member' },
+    { key: 'role_create', label: 'Role created' },
+    { key: 'role_delete', label: 'Role deleted' },
+  ],
+  channels: [
+    { key: 'channel_create', label: 'Channel created' },
+    { key: 'channel_delete', label: 'Channel deleted' },
+    { key: 'channel_update', label: 'Channel updated' },
+    { key: 'permission_update', label: 'Permissions updated' },
+  ],
+  security: [
+    { key: 'raid_detected', label: 'Raid detected' },
+    { key: 'lockdown_activated', label: 'Lockdown activated' },
+    { key: 'lockdown_deactivated', label: 'Lockdown deactivated' },
+  ]
+};
+
+function buildDefaultEventConfig() {
+  const cfg = {};
+  Object.values(AUDIT_EVENT_DEFS).forEach(arr => {
+    arr.forEach(item => cfg[item.key] = true);
+  });
+  return cfg;
+}
+
+let auditEventConfig = buildDefaultEventConfig();
+
+// Load saved event config from SETTINGS if present
+try {
+  const saved = SETTINGS.audit_event_config;
+  if (saved && typeof saved === 'object') {
+    auditEventConfig = Object.assign(buildDefaultEventConfig(), saved);
+  }
+} catch (e) {}
+
+function renderAuditEventToggles() {
+  Object.entries(AUDIT_EVENT_DEFS).forEach(([cat, items]) => {
+    const container = document.getElementById('cat_' + cat);
+    if (!container) return;
+    container.innerHTML = items.map(item => `
+      <label class="flex items-center justify-between bg-neutral-800 px-3 py-2 rounded border border-neutral-700">
+        <span class="text-sm text-gray-200">${item.label}</span>
+        <label class="relative inline-flex items-center cursor-pointer">
+          <input type="checkbox" data-event-key="${item.key}" class="sr-only peer" ${auditEventConfig[item.key] === false ? '' : 'checked'}>
+          <div class="w-10 h-5 bg-neutral-700 rounded-full peer peer-checked:bg-cyan-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-full"></div>
+        </label>
+      </label>
+    `).join('');
+  });
+}
+
+function openAuditSettings() {
+  renderAuditEventToggles();
+  document.getElementById('auditSettingsModal').classList.remove('hidden');
+  document.getElementById('auditSettingsModal').classList.add('flex');
+}
+
+function closeAuditSettings() {
+  document.getElementById('auditSettingsModal').classList.add('hidden');
+  document.getElementById('auditSettingsModal').classList.remove('flex');
+}
+
+async function saveAuditSettings() {
+  const toggles = document.querySelectorAll('[data-event-key]');
+  const cfg = {};
+  toggles.forEach(t => {
+    cfg[t.getAttribute('data-event-key')] = t.checked;
+  });
+  auditEventConfig = cfg;
+
+  const msg = document.getElementById('save-msg');
+  try {
+    const resp = await csrfFetch(API_URL, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        audit_log_channel_id: csAuditChannel.getValue() || '',
+        audit_log_enabled: document.getElementById('audit-enabled').checked,
+        audit_event_config: cfg,
+      }),
+    });
+    const data = await resp.json();
+    if (resp.ok && data.success) {
+      msg.textContent = 'Audit event settings saved.';
+      msg.className = 'mb-4 px-4 py-3 rounded-lg text-sm font-medium bg-green-900/40 text-green-400 border border-green-700/40';
+      closeAuditSettings();
+    } else {
+      msg.textContent = data.error || 'Save failed.';
+      msg.className = 'mb-4 px-4 py-3 rounded-lg text-sm font-medium bg-red-900/40 text-red-400 border border-red-700/40';
+    }
+    msg.classList.remove('hidden');
+    setTimeout(() => msg.classList.add('hidden'), 4000);
+  } catch (e) {
+    msg.textContent = 'Network error.';
+    msg.className = 'mb-4 px-4 py-3 rounded-lg text-sm font-medium bg-red-900/40 text-red-400 border border-red-700/40';
+    msg.classList.remove('hidden');
+  }
+}
+</script>
+{% endblock %}

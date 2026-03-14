@@ -1,0 +1,177 @@
+{% extends "questlog_web/fluxer_member_base.html" %}
+{% load static %}
+
+{% block title %}Flair Store - {{ guild_name }} - QuestLog{% endblock %}
+
+{% block guild_content %}
+
+<!-- Page Header -->
+<div class="mb-8 flex items-center justify-between flex-wrap gap-4">
+  <div>
+    <h1 class="text-3xl font-bold text-white flex items-center gap-3">
+      <i class="fas fa-palette text-purple-400"></i>
+      {{ guild_name }} Flair Store
+    </h1>
+    <p class="text-gray-400 mt-1">Purchase and equip server flairs using Hero Points. Flairs appear as roles in Fluxer.</p>
+  </div>
+  <div class="flex items-center gap-2 bg-yellow-900/30 border border-yellow-700/50 px-4 py-2 rounded-lg">
+    <i class="fas fa-coins text-yellow-400"></i>
+    <span class="text-white font-bold" id="hp-display">{{ hero_points }}</span>
+    <span class="text-gray-400 text-sm">HP</span>
+  </div>
+</div>
+
+<!-- Status Message -->
+<div id="flair-msg" class="hidden mb-4 p-3 rounded-lg text-sm"></div>
+
+{% if guild_flairs %}
+
+<!-- Flair Grid -->
+<div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
+  {% for flair in guild_flairs %}
+  <div class="bg-neutral-900 rounded-xl border
+              {% if flair.id == equipped_flair_id %}border-purple-500{% elif flair.id in owned_flair_ids %}border-green-500/50{% else %}border-neutral-800{% endif %}
+              hover:border-purple-500/50 transition p-5 flex flex-col"
+       id="flair-card-{{ flair.id }}">
+
+    <!-- Emoji + Name -->
+    <div class="text-center mb-3">
+      <div class="text-4xl mb-2">{{ flair.emoji }}</div>
+      <h3 class="text-white font-bold text-sm">{{ flair.flair_name }}</h3>
+    </div>
+
+    <!-- Flair Type Badge -->
+    <div class="flex justify-center mb-3">
+      {% if flair.flair_type == 'seasonal' %}
+      <span class="px-2 py-1 bg-orange-500/20 text-orange-400 text-xs rounded-full">
+        <i class="fas fa-leaf mr-1"></i>Seasonal
+      </span>
+      {% elif flair.flair_type == 'custom' %}
+      <span class="px-2 py-1 bg-blue-500/20 text-blue-400 text-xs rounded-full">
+        <i class="fas fa-star mr-1"></i>Custom
+      </span>
+      {% else %}
+      <span class="px-2 py-1 bg-neutral-700 text-gray-400 text-xs rounded-full">Standard</span>
+      {% endif %}
+    </div>
+
+    <div class="mt-auto">
+      {% if flair.id == equipped_flair_id %}
+      <!-- Currently Equipped -->
+      <div class="w-full py-2 bg-purple-600/20 border border-purple-500 text-purple-400 text-xs font-bold rounded-lg text-center mb-2">
+        <i class="fas fa-check mr-1"></i>Equipped
+      </div>
+      <button onclick="unequipFlair({{ flair.id }})"
+              class="w-full py-2 bg-neutral-800 hover:bg-neutral-700 text-gray-400 text-xs rounded-lg transition">
+        Unequip
+      </button>
+
+      {% elif flair.id in owned_flair_ids %}
+      <!-- Owned, not equipped -->
+      <span class="block text-center text-green-400 text-xs mb-2"><i class="fas fa-check-circle mr-1"></i>Owned</span>
+      <button onclick="equipFlair({{ flair.id }})"
+              class="w-full py-2 bg-purple-600 hover:bg-purple-500 text-white text-sm font-bold rounded-lg transition">
+        Equip
+      </button>
+
+      {% else %}
+      <!-- Not owned -->
+      {% if flair.hp_cost %}
+      <div class="flex items-center justify-center gap-1 mb-2">
+        <i class="fas fa-coins text-yellow-400 text-xs"></i>
+        <span class="text-yellow-400 font-bold text-sm">{{ flair.hp_cost }} HP</span>
+      </div>
+      <button onclick="buyFlair({{ flair.id }}, {{ flair.hp_cost }})"
+              class="w-full py-2 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white text-sm font-bold rounded-lg transition">
+        <i class="fas fa-shopping-cart mr-1"></i>Buy
+      </button>
+      {% else %}
+      <div class="flex items-center justify-center gap-1 mb-2">
+        <span class="text-green-400 font-bold text-sm">Free</span>
+      </div>
+      <button onclick="buyFlair({{ flair.id }}, 0)"
+              class="w-full py-2 bg-green-600 hover:bg-green-500 text-white text-sm font-bold rounded-lg transition">
+        <i class="fas fa-gift mr-1"></i>Claim
+      </button>
+      {% endif %}
+      {% endif %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+{% else %}
+<!-- Empty State -->
+<div class="bg-neutral-900 rounded-xl border border-neutral-800 p-16 text-center">
+  <div class="w-16 h-16 bg-neutral-800 rounded-2xl flex items-center justify-center mx-auto mb-4">
+    <i class="fas fa-palette text-3xl text-gray-600"></i>
+  </div>
+  <h3 class="text-white font-bold text-xl mb-2">No Flairs Available</h3>
+  <p class="text-gray-400 text-sm max-w-md mx-auto">
+    No flairs have been set up for this server yet. Admins can create flairs from the
+    <a href="/ql/dashboard/fluxer/{{ guild_id }}/flairs/" class="text-purple-400 hover:text-purple-300">dashboard flair manager</a>.
+  </p>
+</div>
+{% endif %}
+
+<!-- Info Card -->
+<div class="mt-8 bg-purple-900/20 border border-purple-700/50 rounded-xl p-5">
+  <h3 class="text-purple-400 font-semibold mb-1 flex items-center gap-2">
+    <i class="fas fa-info-circle"></i>About Server Flairs
+  </h3>
+  <p class="text-gray-400 text-sm">
+    Server flairs appear as roles in {{ guild_name }} on Fluxer. Earn Hero Points by being active in the server
+    and spend them here. Only one flair can be equipped at a time per server.
+  </p>
+</div>
+
+<script>
+const GUILD_ID = '{{ guild_id }}';
+const BASE_API = `/ql/api/fluxer/${GUILD_ID}/flairs/`;
+
+function showMsg(text, ok) {
+  const el = document.getElementById('flair-msg');
+  el.textContent = text;
+  el.className = `mb-4 p-3 rounded-lg text-sm ${ok ? 'bg-green-900/30 border border-green-700 text-green-400' : 'bg-red-900/30 border border-red-700 text-red-400'}`;
+  el.classList.remove('hidden');
+  setTimeout(() => el.classList.add('hidden'), 4000);
+}
+
+async function buyFlair(id, cost) {
+  const res = await csrfFetch(`${BASE_API}${id}/buy/`, {method: 'POST'});
+  const data = await res.json();
+  if (res.ok) {
+    showMsg('Flair purchased! Equip it to show it on Fluxer.', true);
+    if (data.hero_points !== undefined) {
+      document.getElementById('hp-display').textContent = data.hero_points;
+    }
+    setTimeout(() => location.reload(), 1000);
+  } else {
+    showMsg(data.error || 'Purchase failed', false);
+  }
+}
+
+async function equipFlair(id) {
+  const res = await csrfFetch(`${BASE_API}${id}/equip/`, {method: 'POST'});
+  const data = await res.json();
+  if (res.ok) {
+    showMsg('Flair equipped! Your Fluxer role will update within 10 seconds.', true);
+    setTimeout(() => location.reload(), 1200);
+  } else {
+    showMsg(data.error || 'Failed to equip', false);
+  }
+}
+
+async function unequipFlair(id) {
+  const res = await csrfFetch(`${BASE_API}${id}/unequip/`, {method: 'POST'});
+  const data = await res.json();
+  if (res.ok) {
+    showMsg('Flair unequipped. Fluxer role will be removed within 10 seconds.', true);
+    setTimeout(() => location.reload(), 1200);
+  } else {
+    showMsg(data.error || 'Failed to unequip', false);
+  }
+}
+</script>
+
+{% endblock %}

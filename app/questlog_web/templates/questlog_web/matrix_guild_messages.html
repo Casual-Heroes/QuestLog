@@ -1,0 +1,241 @@
+{% extends "questlog_web/matrix_base_guild.html" %}
+{% load static %}
+{% block title %}Message Tools - {{ space_name }}{% endblock %}
+
+{% block guild_content %}
+{% include "questlog/partials/custom_select.html" %}
+
+  <!-- Header -->
+  <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 p-6 pb-0 mb-6">
+    <div>
+      <h1 class="text-3xl font-bold text-white">
+        <i class="fas fa-paper-plane text-yellow-400 mr-3"></i>Message Tools
+      </h1>
+      <p class="text-gray-400 mt-1">Send announcements, formatted messages, and DMs from the dashboard.</p>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="flex gap-2 px-6 mb-6 border-b border-neutral-800 overflow-x-auto">
+    <button onclick="switchTab('room')" id="tab-room"
+            class="px-5 py-3 font-medium text-white border-b-2 border-yellow-500 transition whitespace-nowrap text-sm">
+      <i class="fas fa-hashtag mr-2"></i>Send to Room
+    </button>
+    <button onclick="switchTab('dm')" id="tab-dm"
+            class="px-5 py-3 font-medium text-gray-400 hover:text-white border-b-2 border-transparent transition whitespace-nowrap text-sm">
+      <i class="fas fa-envelope mr-2"></i>Direct Message
+    </button>
+    <button onclick="switchTab('broadcast')" id="tab-broadcast"
+            class="px-5 py-3 font-medium text-gray-400 hover:text-white border-b-2 border-transparent transition whitespace-nowrap text-sm">
+      <i class="fas fa-broadcast-tower mr-2"></i>Broadcast All Rooms
+    </button>
+  </div>
+
+  <div class="px-6 pb-8">
+
+  <!-- Send to Room panel -->
+  <div id="panel-room">
+    <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-5">
+      <div class="space-y-4">
+        <div>
+          <label class="block text-sm text-gray-400 mb-2">Target Room <span class="text-red-400">*</span></label>
+          <div id="cs-msg-room"></div>
+        </div>
+        <div>
+          <label class="block text-sm text-gray-400 mb-2">Message <span class="text-red-400">*</span></label>
+          <textarea id="msgContent" rows="6" placeholder="Your message..."
+                    class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white text-sm placeholder-gray-500 focus:outline-none focus:border-yellow-600 resize-none font-mono"></textarea>
+        </div>
+        <div class="flex items-center justify-between">
+          <label class="flex items-center gap-3 cursor-pointer">
+            <div class="relative">
+              <input type="checkbox" id="msgHtml" class="sr-only peer">
+              <div class="w-9 h-5 bg-neutral-700 rounded-full peer-checked:bg-yellow-600 transition"></div>
+              <div class="absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition peer-checked:translate-x-4"></div>
+            </div>
+            <span class="text-sm text-gray-300">Send as formatted HTML</span>
+          </label>
+          <button onclick="sendRoomMessage()"
+                  class="bg-yellow-600 hover:bg-yellow-700 text-white text-sm font-semibold px-5 py-2 rounded-lg transition flex items-center gap-2">
+            <i class="fas fa-paper-plane"></i> Send
+          </button>
+        </div>
+      </div>
+      <div class="mt-4 pt-4 border-t border-neutral-800">
+        <p class="text-gray-500 text-xs mb-2">Quick HTML templates:</p>
+        <div class="flex flex-wrap gap-2">
+          <button onclick="insertTemplate('announcement')"
+                  class="text-xs text-gray-400 hover:text-white bg-neutral-800 hover:bg-neutral-700 px-2 py-1 rounded-lg transition">Announcement</button>
+          <button onclick="insertTemplate('bold')"
+                  class="text-xs text-gray-400 hover:text-white bg-neutral-800 hover:bg-neutral-700 px-2 py-1 rounded-lg transition">Bold text</button>
+          <button onclick="insertTemplate('list')"
+                  class="text-xs text-gray-400 hover:text-white bg-neutral-800 hover:bg-neutral-700 px-2 py-1 rounded-lg transition">Bullet list</button>
+          <button onclick="insertTemplate('code')"
+                  class="text-xs text-gray-400 hover:text-white bg-neutral-800 hover:bg-neutral-700 px-2 py-1 rounded-lg transition">Code block</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- DM panel -->
+  <div id="panel-dm" class="hidden">
+    <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-5">
+      <div class="space-y-4">
+        <div>
+          <label class="block text-sm text-gray-400 mb-2">Recipient Matrix ID <span class="text-red-400">*</span></label>
+          <input type="text" id="dmUserId" placeholder="@user:server.com"
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white text-sm placeholder-gray-500 focus:outline-none focus:border-blue-600">
+        </div>
+        <div>
+          <label class="block text-sm text-gray-400 mb-2">Message <span class="text-red-400">*</span></label>
+          <textarea id="dmContent" rows="6" placeholder="Your direct message..."
+                    class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white text-sm placeholder-gray-500 focus:outline-none focus:border-blue-600 resize-none"></textarea>
+        </div>
+        <div class="flex justify-end">
+          <button onclick="sendDm()"
+                  class="bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-5 py-2 rounded-lg transition flex items-center gap-2">
+            <i class="fas fa-paper-plane"></i> Send DM
+          </button>
+        </div>
+      </div>
+      <div class="mt-4 pt-4 border-t border-neutral-800 bg-neutral-800/30 rounded-xl p-3">
+        <p class="text-gray-500 text-xs flex items-start gap-2">
+          <i class="fas fa-info-circle text-teal-400 mt-0.5 flex-shrink-0"></i>
+          The bot opens a DM room with the user and sends the message. If a DM room already exists, it reuses it.
+          The user must not have blocked the bot.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Broadcast panel -->
+  <div id="panel-broadcast" class="hidden">
+    <div class="bg-neutral-900 rounded-xl border border-red-800/30 p-5">
+      <h3 class="text-white font-semibold flex items-center gap-2 mb-1">
+        <i class="fas fa-broadcast-tower text-red-400"></i> Broadcast to All Rooms
+      </h3>
+      <p class="text-gray-500 text-sm mb-4">Posts the same message to every room in the space simultaneously.</p>
+      <div class="bg-red-900/10 border border-red-800/20 rounded-xl p-3 mb-4">
+        <p class="text-red-400 text-xs flex items-center gap-2">
+          <i class="fas fa-exclamation-triangle"></i>
+          This sends to ALL {{ rooms|length }} room{{ rooms|length|pluralize }} in the space. Use sparingly.
+        </p>
+      </div>
+      <div class="space-y-4">
+        <div>
+          <label class="block text-sm text-gray-400 mb-2">Broadcast Message <span class="text-red-400">*</span></label>
+          <textarea id="broadcastContent" rows="4" placeholder="Important announcement..."
+                    class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white text-sm placeholder-gray-500 focus:outline-none focus:border-red-600 resize-none"></textarea>
+        </div>
+        <div class="flex items-center justify-between">
+          <label class="flex items-center gap-3 cursor-pointer">
+            <div class="relative">
+              <input type="checkbox" id="broadcastHtml" class="sr-only peer">
+              <div class="w-9 h-5 bg-neutral-700 rounded-full peer-checked:bg-red-600 transition"></div>
+              <div class="absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition peer-checked:translate-x-4"></div>
+            </div>
+            <span class="text-sm text-gray-300">Send as HTML</span>
+          </label>
+          <button onclick="confirmBroadcast()"
+                  class="bg-red-700 hover:bg-red-800 text-white text-sm font-semibold px-5 py-2 rounded-lg transition flex items-center gap-2">
+            <i class="fas fa-broadcast-tower"></i> Broadcast
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  </div>
+
+<div id="toast" class="fixed bottom-6 right-6 z-50 hidden">
+  <div class="bg-neutral-800 border border-neutral-700 text-white text-sm px-4 py-3 rounded-xl shadow-xl flex items-center gap-2">
+    <i id="toastIcon" class="fas fa-check text-teal-400"></i>
+    <span id="toastMsg"></span>
+  </div>
+</div>
+
+<script>
+const SPACE_ID_URL = '{{ space_id_url }}';
+const ROOMS = JSON.parse('{{ rooms_json|escapejs }}');
+let csMsgRoom = null;
+
+function showToast(msg, ok=true) {
+  const t = document.getElementById('toast');
+  document.getElementById('toastMsg').textContent = msg;
+  document.getElementById('toastIcon').className = ok ? 'fas fa-check text-teal-400' : 'fas fa-times text-red-400';
+  t.classList.remove('hidden');
+  setTimeout(() => t.classList.add('hidden'), 3500);
+}
+
+function switchTab(name) {
+  ['room','dm','broadcast'].forEach(t => {
+    document.getElementById(`panel-${t}`).classList.add('hidden');
+    document.getElementById(`tab-${t}`).className = 'px-5 py-3 font-medium text-gray-400 hover:text-white border-b-2 border-transparent transition whitespace-nowrap text-sm';
+  });
+  document.getElementById(`panel-${name}`).classList.remove('hidden');
+  const cols = {room: 'yellow', dm: 'blue', broadcast: 'red'};
+  document.getElementById(`tab-${name}`).className = `px-5 py-3 font-medium text-white border-b-2 border-${cols[name]}-500 transition whitespace-nowrap text-sm`;
+}
+
+function sendRoomMessage() {
+  const room_id = csMsgRoom ? csMsgRoom.getValue() : '';
+  const content = document.getElementById('msgContent').value.trim();
+  const as_html = document.getElementById('msgHtml').checked;
+  if (!room_id || !content) { showToast('Room and message required.', false); return; }
+  csrfFetch('/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/messages/', {
+    method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({room_id, content, as_html})
+  }).then(r => r.json()).then(d => {
+    if (d.ok) { showToast('Message queued.'); document.getElementById('msgContent').value = ''; }
+    else showToast(d.error || 'Error', false);
+  }).catch(() => showToast('Request failed.', false));
+}
+
+function sendDm() {
+  const matrix_id = document.getElementById('dmUserId').value.trim();
+  const content = document.getElementById('dmContent').value.trim();
+  if (!matrix_id || !content) { showToast('Recipient and message required.', false); return; }
+  csrfFetch('/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/messages/', {
+    method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({matrix_id, content, is_dm: true})
+  }).then(r => r.json()).then(d => {
+    if (d.ok) { showToast('DM queued.'); document.getElementById('dmContent').value = ''; }
+    else showToast(d.error || 'Error', false);
+  }).catch(() => showToast('Request failed.', false));
+}
+
+function confirmBroadcast() {
+  const content = document.getElementById('broadcastContent').value.trim();
+  if (!content) { showToast('Message required.', false); return; }
+  if (!confirm('Broadcast this message to ALL {{ rooms|length }} room{{ rooms|length|pluralize }}?')) return;
+  const as_html = document.getElementById('broadcastHtml').checked;
+  csrfFetch('/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/messages/', {
+    method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({content, as_html, broadcast_all: true})
+  }).then(r => r.json()).then(d => {
+    if (d.ok) { showToast('Broadcast queued.'); document.getElementById('broadcastContent').value = ''; }
+    else showToast(d.error || 'Error', false);
+  }).catch(() => showToast('Request failed.', false));
+}
+
+const TEMPLATES = {
+  announcement: '<h3>Announcement</h3>\n<p>Your message here.</p>',
+  bold: '<strong>Bold text here</strong>',
+  list: '<ul>\n  <li>Item one</li>\n  <li>Item two</li>\n  <li>Item three</li>\n</ul>',
+  code: '<pre><code>Your code here</code></pre>',
+};
+function insertTemplate(type) {
+  const ta = document.getElementById('msgContent');
+  ta.value = TEMPLATES[type] || '';
+  document.getElementById('msgHtml').checked = true;
+  ta.focus();
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  csMsgRoom = createCustomSelect({
+    container: document.getElementById('cs-msg-room'),
+    name: 'msg_room_id',
+    items: ROOMS,
+    selected: '',
+    placeholder: 'Select a room...',
+  });
+});
+</script>
+{% endblock %}

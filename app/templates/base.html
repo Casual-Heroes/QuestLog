@@ -13,7 +13,7 @@
   <meta property="og:type" content="website">
   <meta property="article:author" content="Ryven">
   <meta name="author" content="Ryven">
-  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:card" content="{% block twitter_card %}summary_large_image{% endblock %}">
   <meta name="twitter:title" content="{% block twitter_title %}Casual Heroes - Game Servers & Community{% endblock %}">
   <meta name="twitter:description" content="{% block twitter_description %}Join our friendly, mod-loving community. Explore servers, suggest games, and play your way.{% endblock %}">
   <meta name="twitter:image" content="{% block twitter_image %}https://dashboard.casual-heroes.com/static/img/siteassets/homepage/CHLogoFinal.png{% endblock %}">
@@ -109,7 +109,7 @@
           <div class="relative">
             <button @click="activeDropdown = activeDropdown === 'questlog' ? null : 'questlog'"
                     class="text-indigo-400 font-semibold flex items-center gap-1 hover:text-indigo-300 transition">
-              QuestLog <span class="text-[10px] opacity-70">▾</span>
+              QuestLog <span class="text-[9px] bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 px-1.5 py-0.5 rounded-full font-semibold">BETA</span> <span class="text-[10px] opacity-70">▾</span>
             </button>
             <div x-show="activeDropdown === 'questlog'" @click.outside="activeDropdown = null" x-transition
                  class="absolute left-0 mt-2 bg-neutral-900 border border-neutral-800 rounded-lg shadow-xl w-64 z-50">
@@ -140,33 +140,26 @@
             <div x-show="activeDropdown === 'questchat'" @click.outside="activeDropdown = null" x-transition
                  class="absolute left-0 mt-2 bg-neutral-900 border border-neutral-800 rounded-lg shadow-xl w-64 z-50">
               <div class="px-4 py-2 text-xs uppercase text-teal-400 tracking-wider border-b border-neutral-800">
-                <i class="fas fa-comments mr-1"></i>Matrix Chat
+                <i class="fas fa-comments mr-1"></i>Community Chat
               </div>
               <a href="/questchat/" class="flex items-center gap-2 px-4 py-3 hover:bg-neutral-800 transition">
                 <i class="fas fa-door-open text-teal-400 w-4"></i>
-                <div><div class="text-white text-sm">QuestChat Home</div><div class="text-xs text-gray-500">Join the conversation</div></div>
+                <div><div class="text-white text-sm">QuestChat Home</div><div class="text-xs text-gray-500">See all chat options</div></div>
               </a>
-              <a href="https://chat.casual-heroes.com/#/login" class="flex items-center gap-2 px-4 py-3 hover:bg-neutral-800 transition">
-                <i class="fas fa-desktop text-indigo-400 w-4"></i>
-                <div><div class="text-white text-sm">Launch QuestChat</div><div class="text-xs text-gray-500">Chat in your browser</div></div>
-              </a>
-              <a href="https://chat.casual-heroes.com/#/register" class="flex items-center gap-2 px-4 py-3 hover:bg-neutral-800 transition">
-                <i class="fas fa-user-plus text-green-400 w-4"></i>
-                <div><div class="text-white text-sm">Sign Up / Account</div><div class="text-xs text-gray-500">Create or manage your account</div></div>
+              <a href="https://fluxer.gg/PhPvQTGp" class="flex items-center gap-2 px-4 py-3 hover:bg-neutral-800 transition" target="_blank" rel="noopener noreferrer">
+                <i class="fas fa-bolt text-teal-400 w-4"></i>
+                <div><div class="text-white text-sm">Join on Fluxer</div><div class="text-xs text-gray-500">Primary community hub</div></div>
               </a>
               <div class="border-t border-neutral-800 mx-3 my-1"></div>
-              <div class="px-4 py-1 text-xs uppercase text-gray-500 tracking-wider">Self-Hosting</div>
-              <a href="/self-host/" class="flex items-center gap-2 px-4 py-3 hover:bg-neutral-800 transition">
-                <i class="fas fa-book-open text-teal-400 w-4"></i>
-                <div><div class="text-white text-sm">How To Host Your Own</div><div class="text-xs text-gray-500">Written guide</div></div>
+              <div class="px-4 py-1 text-xs uppercase text-gray-500 tracking-wider">Power Users</div>
+              <a href="https://chat.casual-heroes.com/#/login" class="flex items-center gap-2 px-4 py-3 hover:bg-neutral-800 transition" target="_blank" rel="noopener noreferrer">
+                <i class="fas fa-lock text-indigo-400 w-4"></i>
+                <div><div class="text-white text-sm">Matrix (Self-Hosted)</div><div class="text-xs text-gray-500">Privacy-focused, encrypted, open protocol</div></div>
               </a>
-              <span class="flex items-center gap-2 px-4 py-3 select-none opacity-50 cursor-not-allowed">
-                <i class="fab fa-youtube text-red-400 w-4"></i>
-                <div>
-                  <div class="flex items-center gap-2 text-white text-sm">Video Guide <span class="text-[10px] bg-indigo-900/60 text-indigo-400 px-1.5 py-0.5 rounded font-mono tracking-wide">Soon™</span></div>
-                  <div class="text-xs text-gray-500">Coming soon</div>
-                </div>
-              </span>
+              <a href="/self-host/" class="flex items-center gap-2 px-4 py-3 hover:bg-neutral-800 transition">
+                <i class="fas fa-book-open text-gray-400 w-4"></i>
+                <div><div class="text-white text-sm">Self-Host Guide</div><div class="text-xs text-gray-500">Run your own instance</div></div>
+              </a>
             </div>
           </div>
 
@@ -382,15 +375,11 @@
               <span class="text-xs opacity-50" x-text="open ? '▲' : '▾'"></span>
             </button>
             <div x-show="open" class="bg-neutral-950/50 pl-10 pr-4 pb-2 text-gray-300">
-              <a href="/questchat/"              class="block py-2 hover:text-teal-400 transition">QuestChat Home</a>
-              <a href="https://chat.casual-heroes.com/#/login" class="block py-2 hover:text-teal-400 transition">Launch QuestChat</a>
-              <a href="https://chat.casual-heroes.com/#/register" class="block py-2 hover:text-teal-400 transition">Sign Up / Account</a>
-              <div class="text-xs uppercase text-gray-600 tracking-wider pt-2 pb-1">Self-Hosting</div>
-              <a href="/self-host/" class="block py-2 hover:text-teal-400 transition">How To Host Your Own</a>
-              <span class="flex items-center justify-between py-2 text-gray-600 cursor-not-allowed select-none">
-                Video Guide
-                <span class="text-[10px] bg-indigo-900/60 text-indigo-400 px-1.5 py-0.5 rounded font-mono tracking-wide">Soon™</span>
-              </span>
+              <a href="/questchat/" class="block py-2 hover:text-teal-400 transition">QuestChat Home</a>
+              <a href="https://fluxer.gg/PhPvQTGp" target="_blank" rel="noopener noreferrer" class="block py-2 hover:text-teal-400 transition">Join on Fluxer</a>
+              <div class="text-xs uppercase text-gray-600 tracking-wider pt-2 pb-1">Power Users</div>
+              <a href="https://chat.casual-heroes.com/#/login" target="_blank" rel="noopener noreferrer" class="block py-2 hover:text-teal-400 transition">Matrix (Self-Hosted)</a>
+              <a href="/self-host/" class="block py-2 hover:text-teal-400 transition">Self-Host Guide</a>
             </div>
           </div>
 
@@ -567,6 +556,21 @@
     window.getCsrfToken = getCsrfToken;
 
     /**
+     * Canonical HTML escaping utility - single source of truth.
+     * Use this everywhere instead of local copies to prevent XSS.
+     */
+    function escapeHtml(s) {
+      if (s === null || s === undefined) return '';
+      return String(s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+    window.escapeHtml = escapeHtml;
+
+    /**
      * Global ESC key handler to close modals
      * Finds any modal with class 'fixed' that is not 'hidden' and tries to close it
      */
@@ -605,6 +609,11 @@
   </script>
 
   {% block extra_js %}{% endblock %}
+
+  <script>
+  // Emoji map injected server-side - always available synchronously
+  window._customEmojiMap = {{ custom_emoji_map_json|safe }};
+  </script>
 
   <script>
   /* Global helper: render an avatar img OR a coloured initials fallback.

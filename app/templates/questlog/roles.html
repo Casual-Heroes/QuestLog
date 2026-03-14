@@ -829,13 +829,6 @@
 
 <script>
 // XSS Protection: HTML escape function
-function escapeHtml(text) {
-  if (text == null || text === undefined) return '';
-  const div = document.createElement('div');
-  div.textContent = text;
-  return div.innerHTML;
-}
-
 const GUILD_ID = '{{ guild.id }}';
 const API_BASE = `/api/guild/${GUILD_ID}/roles`;
 

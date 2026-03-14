@@ -1,0 +1,378 @@
+{% extends "questlog_web/matrix_base_guild.html" %}
+{% load static %}
+{% block title %}Ban Lists - {{ space_name }}{% endblock %}
+
+{% block guild_content %}
+
+  <!-- Header -->
+  <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 p-6 pb-0 mb-8">
+    <div>
+      <h1 class="text-3xl font-bold text-white">
+        <i class="fas fa-shield-alt text-orange-400 mr-3"></i>Ban Lists
+      </h1>
+      <p class="text-gray-400 mt-1">Draupnir-style shareable ban lists for {{ space_name }}</p>
+    </div>
+    <div class="flex gap-2">
+      <button onclick="openSubscribeModal()"
+              class="bg-neutral-700 hover:bg-neutral-600 text-white text-sm font-semibold px-4 py-2 rounded-lg transition flex items-center gap-2">
+        <i class="fas fa-link"></i> Subscribe
+      </button>
+      <button onclick="openCreateList()"
+              class="bg-orange-600 hover:bg-orange-700 text-white text-sm font-semibold px-4 py-2 rounded-lg transition flex items-center gap-2">
+        <i class="fas fa-plus"></i> New List
+      </button>
+    </div>
+  </div>
+
+  <div class="px-6 pb-8">
+
+  <!-- Info banner -->
+  <div class="bg-teal-900/20 border border-teal-700/30 rounded-xl p-4 mb-6 text-sm text-teal-300 flex items-start gap-3">
+    <i class="fas fa-info-circle mt-0.5 flex-shrink-0"></i>
+    <div>
+      <strong>How ban lists work:</strong> Create a list and add Matrix user IDs to it.
+      The bot enforces the list across all rooms in the space. You can share lists with other QuestLogMatrix spaces,
+      and subscribe to external lists by providing their list ID.
+    </div>
+  </div>
+
+  <!-- Ban Lists -->
+  <div id="banListsContainer">
+    {% if ban_lists %}
+    {% for bl in ban_lists %}
+    <div class="bg-neutral-900 rounded-xl border border-neutral-800 overflow-hidden mb-4">
+      <div class="p-4 border-b border-neutral-800 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="w-9 h-9 bg-orange-600/20 rounded-lg flex items-center justify-center flex-shrink-0">
+            <i class="fas fa-shield-alt text-orange-400"></i>
+          </div>
+          <div>
+            <div class="flex items-center gap-2">
+              <h3 class="text-white font-semibold">{{ bl.list_name }}</h3>
+              {% if bl.is_subscribed %}
+                {% if bl.sync_paused %}
+                <span class="text-xs bg-yellow-600/20 text-yellow-400 px-2 py-0.5 rounded-full border border-yellow-700/30">Paused</span>
+                {% else %}
+                <span class="text-xs bg-blue-600/20 text-blue-400 px-2 py-0.5 rounded-full border border-blue-700/30">Subscribed</span>
+                {% endif %}
+              {% else %}
+              <span class="text-xs bg-teal-600/20 text-teal-400 px-2 py-0.5 rounded-full border border-teal-700/30">Local</span>
+              {% endif %}
+              {% if bl.last_synced_at and not bl.sync_paused %}
+              <span class="text-xs text-gray-600">Last sync: <span data-ts="{{ bl.last_synced_at }}"></span></span>
+              {% endif %}
+            </div>
+            {% if bl.description %}
+            <p class="text-gray-500 text-xs mt-0.5">{{ bl.description }}</p>
+            {% endif %}
+          </div>
+        </div>
+        <div class="flex items-center gap-2">
+          {% if bl.is_subscribed %}
+          {% if bl.sync_paused %}
+          <button onclick="togglePause({{ bl.id }}, false)"
+                  class="text-green-400 hover:text-green-300 text-sm px-3 py-1.5 rounded-lg bg-green-600/10 hover:bg-green-600/20 transition">
+            <i class="fas fa-play mr-1 text-xs"></i> Resume
+          </button>
+          {% else %}
+          <button onclick="togglePause({{ bl.id }}, true)"
+                  class="text-yellow-400 hover:text-yellow-300 text-sm px-3 py-1.5 rounded-lg bg-yellow-600/10 hover:bg-yellow-600/20 transition">
+            <i class="fas fa-pause mr-1 text-xs"></i> Pause
+          </button>
+          {% endif %}
+          {% endif %}
+          <button onclick="openAddEntry({{ bl.id }}, '{{ bl.list_name|escapejs }}')"
+                  class="text-teal-400 hover:text-teal-300 text-sm px-3 py-1.5 rounded-lg bg-teal-600/10 hover:bg-teal-600/20 transition">
+            <i class="fas fa-plus mr-1 text-xs"></i> Add Entry
+          </button>
+          <button onclick="deleteList({{ bl.id }}, '{{ bl.list_name|escapejs }}')"
+                  class="text-gray-600 hover:text-red-400 transition p-1.5 rounded-lg hover:bg-red-600/10">
+            <i class="fas fa-trash text-sm"></i>
+          </button>
+        </div>
+      </div>
+      {% if bl.entries %}
+      <div class="divide-y divide-neutral-800/60">
+        {% for entry in bl.entries %}
+        <div class="flex items-center gap-4 p-3 px-4">
+          <div class="flex-1 min-w-0">
+            <p class="text-white font-mono text-sm truncate">@*:{{ entry.target_matrix_id_server }}</p>
+            {% if entry.reason %}<p class="text-gray-500 text-xs mt-0.5">{{ entry.reason }}</p>{% endif %}
+          </div>
+          <button onclick="removeEntry({{ entry.id }})"
+                  class="text-gray-600 hover:text-red-400 transition p-1.5 rounded-lg hover:bg-red-600/10 text-xs">
+            <i class="fas fa-times"></i> Remove
+          </button>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="p-6 text-center text-gray-600 text-sm">
+        No entries in this list yet.
+        <button onclick="openAddEntry({{ bl.id }}, '{{ bl.list_name|escapejs }}')"
+                class="text-teal-400 hover:text-teal-300 transition ml-1">Add the first entry</button>
+      </div>
+      {% endif %}
+    </div>
+    {% endfor %}
+    {% else %}
+    <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-10 text-center">
+      <div class="w-14 h-14 bg-orange-600/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
+        <i class="fas fa-shield-alt text-orange-400 text-2xl"></i>
+      </div>
+      <h3 class="text-white font-semibold mb-2">No Ban Lists Yet</h3>
+      <p class="text-gray-500 text-sm mb-4">Create a ban list to start tracking and enforcing bans across rooms.</p>
+      <button onclick="openCreateList()"
+              class="bg-orange-600 hover:bg-orange-700 text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition">
+        Create First List
+      </button>
+    </div>
+    {% endif %}
+  </div>
+
+  </div>
+
+<!-- Subscribe to External List Modal -->
+<div id="subscribeModal" class="fixed inset-0 z-50 hidden">
+  <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" onclick="document.getElementById('subscribeModal').classList.add('hidden')"></div>
+  <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md">
+    <div class="bg-neutral-900 rounded-xl border border-neutral-700 shadow-2xl">
+      <div class="p-5 border-b border-neutral-800 flex items-center justify-between">
+        <h2 class="text-lg font-bold text-white">Subscribe to External Ban List</h2>
+        <button onclick="document.getElementById('subscribeModal').classList.add('hidden')" class="text-gray-400 hover:text-white"><i class="fas fa-times"></i></button>
+      </div>
+      <div class="p-5 space-y-4">
+        <div class="bg-blue-900/20 border border-blue-700/30 rounded-lg p-3 text-xs text-blue-300">
+          <i class="fas fa-info-circle mr-1"></i>
+          Enter the Matrix room ID of a policy list (e.g. from another QuestLog server or Draupnir). The bot will join the room and sync bans every 5 minutes.
+        </div>
+        <div>
+          <label class="block text-sm text-gray-400 mb-1">List Name <span class="text-red-400">*</span></label>
+          <input type="text" id="subListName" placeholder="e.g. Community Shared Bans"
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm placeholder-gray-500 focus:outline-none focus:border-orange-600">
+        </div>
+        <div>
+          <label class="block text-sm text-gray-400 mb-1">Policy Room ID <span class="text-red-400">*</span></label>
+          <input type="text" id="subRoomId" placeholder="!roomid:server.com"
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm font-mono placeholder-gray-500 focus:outline-none focus:border-orange-600">
+        </div>
+        <div>
+          <label class="block text-sm text-gray-400 mb-1">Description (optional)</label>
+          <input type="text" id="subDescription" placeholder="Where this list comes from"
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm placeholder-gray-500 focus:outline-none focus:border-orange-600">
+        </div>
+        <div class="flex justify-end gap-3 pt-2 border-t border-neutral-800">
+          <button onclick="document.getElementById('subscribeModal').classList.add('hidden')" class="px-4 py-2 text-gray-400 hover:text-white transition">Cancel</button>
+          <button onclick="submitSubscribe()" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium transition">
+            Subscribe
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Create List Modal -->
+<div id="createListModal" class="fixed inset-0 z-50 hidden">
+  <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" onclick="document.getElementById('createListModal').classList.add('hidden')"></div>
+  <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md">
+    <div class="bg-neutral-900 rounded-xl border border-neutral-700 shadow-2xl">
+      <div class="p-5 border-b border-neutral-800 flex items-center justify-between">
+        <h2 class="text-lg font-bold text-white">Create Ban List</h2>
+        <button onclick="document.getElementById('createListModal').classList.add('hidden')" class="text-gray-400 hover:text-white"><i class="fas fa-times"></i></button>
+      </div>
+      <div class="p-5 space-y-4">
+        <div>
+          <label class="block text-sm text-gray-400 mb-1">List Name <span class="text-red-400">*</span></label>
+          <input type="text" id="listName" placeholder="e.g. spammers, bad-actors"
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm placeholder-gray-500 focus:outline-none focus:border-orange-600">
+        </div>
+        <div>
+          <label class="block text-sm text-gray-400 mb-1">Description (optional)</label>
+          <input type="text" id="listDescription" placeholder="What this list is for"
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm placeholder-gray-500 focus:outline-none focus:border-orange-600">
+        </div>
+        <div class="flex items-center justify-between p-4 bg-neutral-800/50 rounded-lg">
+          <div>
+            <p class="text-white font-medium text-sm">Public (shareable)</p>
+            <p class="text-gray-500 text-xs">Other spaces can subscribe to this list</p>
+          </div>
+          <label class="relative inline-flex items-center cursor-pointer">
+            <input type="checkbox" id="listPublic" class="sr-only peer">
+            <div class="w-11 h-6 bg-neutral-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-orange-600"></div>
+          </label>
+        </div>
+        <div class="flex justify-end gap-3 pt-2 border-t border-neutral-800">
+          <button onclick="document.getElementById('createListModal').classList.add('hidden')" class="px-4 py-2 text-gray-400 hover:text-white transition">Cancel</button>
+          <button onclick="submitCreateList()" class="bg-orange-600 hover:bg-orange-700 text-white px-6 py-2 rounded-lg font-medium transition">
+            Create List
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Add Entry Modal -->
+<div id="addEntryModal" class="fixed inset-0 z-50 hidden">
+  <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" onclick="document.getElementById('addEntryModal').classList.add('hidden')"></div>
+  <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md">
+    <div class="bg-neutral-900 rounded-xl border border-neutral-700 shadow-2xl">
+      <div class="p-5 border-b border-neutral-800 flex items-center justify-between">
+        <h2 class="text-lg font-bold text-white">Add Ban List Entry</h2>
+        <button onclick="document.getElementById('addEntryModal').classList.add('hidden')" class="text-gray-400 hover:text-white"><i class="fas fa-times"></i></button>
+      </div>
+      <div class="p-5 space-y-4">
+        <p class="text-gray-400 text-sm">Adding to: <strong class="text-white" id="addEntryListName"></strong></p>
+        <input type="hidden" id="addEntryListId">
+        <div>
+          <label class="block text-sm text-gray-400 mb-1">Matrix ID <span class="text-red-400">*</span></label>
+          <input type="text" id="entryMatrixId" placeholder="@user:server.com"
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm placeholder-gray-500 focus:outline-none focus:border-orange-600">
+        </div>
+        <div>
+          <label class="block text-sm text-gray-400 mb-1">Reason <span class="text-red-400">*</span></label>
+          <input type="text" id="entryReason" placeholder="Why this user is banned"
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm placeholder-gray-500 focus:outline-none focus:border-orange-600">
+        </div>
+        <div class="flex items-center justify-between p-4 bg-neutral-800/50 rounded-lg">
+          <div>
+            <p class="text-white font-medium text-sm">Also ban from all rooms now</p>
+            <p class="text-gray-500 text-xs">Queues a ban action immediately</p>
+          </div>
+          <label class="relative inline-flex items-center cursor-pointer">
+            <input type="checkbox" id="entryBanNow" class="sr-only peer">
+            <div class="w-11 h-6 bg-neutral-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-orange-600"></div>
+          </label>
+        </div>
+        <div class="flex justify-end gap-3 pt-2 border-t border-neutral-800">
+          <button onclick="document.getElementById('addEntryModal').classList.add('hidden')" class="px-4 py-2 text-gray-400 hover:text-white transition">Cancel</button>
+          <button onclick="submitAddEntry()" class="bg-orange-600 hover:bg-orange-700 text-white px-6 py-2 rounded-lg font-medium transition">
+            Add to List
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="fixed bottom-6 right-6 z-50 hidden">
+  <div class="bg-neutral-800 border border-neutral-700 text-white text-sm px-4 py-3 rounded-xl shadow-xl flex items-center gap-2">
+    <i id="toastIcon" class="fas fa-check text-teal-400"></i>
+    <span id="toastMsg"></span>
+  </div>
+</div>
+
+<script>
+const SPACE_ID_URL = '{{ space_id_url }}';
+
+document.addEventListener('DOMContentLoaded', function() {
+  document.querySelectorAll('[data-ts]').forEach(el => {
+    const ts = parseInt(el.dataset.ts);
+    if (ts) el.textContent = new Date(ts * 1000).toLocaleString();
+  });
+});
+
+function showToast(msg, ok=true) {
+  const t = document.getElementById('toast');
+  document.getElementById('toastMsg').textContent = msg;
+  document.getElementById('toastIcon').className = ok ? 'fas fa-check text-teal-400' : 'fas fa-times text-red-400';
+  t.classList.remove('hidden');
+  setTimeout(() => t.classList.add('hidden'), 3500);
+}
+
+function openCreateList() { document.getElementById('createListModal').classList.remove('hidden'); }
+
+function openSubscribeModal() {
+  document.getElementById('subListName').value = '';
+  document.getElementById('subRoomId').value = '';
+  document.getElementById('subDescription').value = '';
+  document.getElementById('subscribeModal').classList.remove('hidden');
+}
+
+function submitSubscribe() {
+  const name = document.getElementById('subListName').value.trim();
+  const source_room_id = document.getElementById('subRoomId').value.trim();
+  const description = document.getElementById('subDescription').value.trim();
+  if (!name) { showToast('List name required.', false); return; }
+  if (!source_room_id || !source_room_id.startsWith('!')) { showToast('Valid policy room ID required (starts with !).', false); return; }
+  csrfFetch('/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/ban-lists/', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({name, description, source_room_id, is_subscribed: true})
+  }).then(r => r.json()).then(d => {
+    if (d.ok) {
+      showToast('Subscribed! Bot will sync bans within 5 minutes.');
+      document.getElementById('subscribeModal').classList.add('hidden');
+      location.reload();
+    } else showToast(d.error || 'Error', false);
+  }).catch(() => showToast('Request failed.', false));
+}
+
+function openAddEntry(listId, listName) {
+  document.getElementById('addEntryListId').value = listId;
+  document.getElementById('addEntryListName').textContent = listName;
+  document.getElementById('entryMatrixId').value = '';
+  document.getElementById('entryReason').value = '';
+  document.getElementById('addEntryModal').classList.remove('hidden');
+}
+
+function submitCreateList() {
+  const name = document.getElementById('listName').value.trim();
+  const description = document.getElementById('listDescription').value.trim();
+  const is_public = document.getElementById('listPublic').checked;
+  if (!name) { showToast('List name required.', false); return; }
+  csrfFetch('/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/ban-lists/', {
+    method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({name, description, is_public})
+  }).then(r => r.json()).then(d => {
+    if (d.ok) { showToast('Ban list created.'); document.getElementById('createListModal').classList.add('hidden'); location.reload(); }
+    else showToast(d.error || 'Error', false);
+  }).catch(() => showToast('Request failed.', false));
+}
+
+function deleteList(id, name) {
+  if (!confirm('Delete ban list "' + name + '"? This removes all entries.')) return;
+  csrfFetch('/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/ban-lists/' + id + '/', {method: 'DELETE'})
+    .then(r => r.json()).then(d => {
+      if (d.ok) { showToast('List deleted.'); location.reload(); }
+      else showToast(d.error || 'Error', false);
+    }).catch(() => showToast('Request failed.', false));
+}
+
+function submitAddEntry() {
+  const list_id = document.getElementById('addEntryListId').value;
+  const matrix_id = document.getElementById('entryMatrixId').value.trim();
+  const reason = document.getElementById('entryReason').value.trim();
+  const ban_now = document.getElementById('entryBanNow').checked;
+  if (!matrix_id || !reason) { showToast('Matrix ID and reason required.', false); return; }
+  csrfFetch('/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/ban-lists/' + list_id + '/entries/', {
+    method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({matrix_id, reason, ban_now})
+  }).then(r => r.json()).then(d => {
+    if (d.ok) { showToast('Entry added.'); document.getElementById('addEntryModal').classList.add('hidden'); location.reload(); }
+    else showToast(d.error || 'Error', false);
+  }).catch(() => showToast('Request failed.', false));
+}
+
+function removeEntry(entryId) {
+  if (!confirm('Remove this ban list entry?')) return;
+  csrfFetch('/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/ban-lists/entries/' + entryId + '/', {method: 'DELETE'})
+    .then(r => r.json()).then(d => {
+      if (d.ok) { showToast('Entry removed.'); location.reload(); }
+      else showToast(d.error || 'Error', false);
+    }).catch(() => showToast('Request failed.', false));
+}
+
+function togglePause(listId, pause) {
+  csrfFetch('/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/ban-lists/' + listId + '/', {
+    method: 'PATCH',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({sync_paused: pause})
+  }).then(r => r.json()).then(d => {
+    if (d.ok) {
+      showToast(pause ? 'Sync paused. Bot will stop processing this list.' : 'Sync resumed.');
+      location.reload();
+    } else showToast(d.error || 'Error', false);
+  }).catch(() => showToast('Request failed.', false));
+}
+</script>
+{% endblock %}

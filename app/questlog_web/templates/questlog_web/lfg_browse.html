@@ -9,21 +9,7 @@
 <script>
   // CSRF setup
   const CSRF_TOKEN = '{{ csrf_token }}';
-  function csrfFetch(url, options = {}) {
-    if (!options.headers) options.headers = {};
-    if (CSRF_TOKEN && CSRF_TOKEN !== 'None') {
-      options.headers['X-CSRFToken'] = CSRF_TOKEN;
-    }
-    return fetch(url, options);
-  }
-
   // XSS Protection
-  function escapeHtml(text) {
-    if (text == null || text === undefined) return '';
-    const div = document.createElement('div');
-    div.textContent = String(text);
-    return div.innerHTML;
-  }
 </script>
 
 <!-- Header -->
@@ -90,7 +76,7 @@
     </div>
 
     <!-- Other filters row -->
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
       <div>
         <label class="text-sm text-gray-300 mb-2 block">Status</label>
         <div id="statusFilterContainer"></div>
@@ -102,6 +88,10 @@
       <div>
         <label class="text-sm text-gray-300 mb-2 block">Sort By</label>
         <div id="sortFilterContainer"></div>
+      </div>
+      <div>
+        <label class="text-sm text-gray-300 mb-2 block">Community</label>
+        <div id="communityFilterContainer"></div>
       </div>
     </div>
   </div>
@@ -121,9 +111,127 @@
       <p>Loading groups...</p>
     </div>
   </div>
+
+  <!-- My Closed Fluxer Groups (shown only when logged in) -->
+  {% if web_user %}
+  <div id="myClosedGroupsSection" class="hidden mt-4">
+    <div class="flex items-center gap-3 mb-3">
+      <h3 class="text-lg font-semibold text-gray-400">
+        <i class="fas fa-lock mr-2 text-gray-500"></i>My Closed Fluxer Groups
+      </h3>
+      <button onclick="loadMyClosedGroups()" class="text-xs text-gray-500 hover:text-gray-300 transition">
+        <i class="fas fa-sync mr-1"></i>Refresh
+      </button>
+    </div>
+    <div id="myClosedGroupsList" class="space-y-2"></div>
+  </div>
+  <div id="myClosedToggleRow" class="text-center mt-2">
+    <button onclick="toggleMyClosedGroups()"
+            class="text-sm text-gray-500 hover:text-gray-300 transition">
+      <i class="fas fa-history mr-1"></i>Show my closed Fluxer groups
+    </button>
+  </div>
+  {% endif %}
 </div>
 
 <!-- Join Group Modal -->
+<!-- Fluxer LFG Edit Modal -->
+<div id="fluxerEditModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 hidden">
+  <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-6 max-w-lg w-full mx-4">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-xl font-bold text-white"><i class="fab fa-discord text-purple-400 mr-2"></i>Edit Fluxer LFG</h2>
+      <button onclick="closeFluxerEditModal()" class="text-gray-400 hover:text-white"><i class="fas fa-times text-xl"></i></button>
+    </div>
+    <div class="space-y-4">
+      <div>
+        <label class="block text-sm font-medium text-gray-300 mb-1">Description / Notes</label>
+        <textarea id="fluxerEditDesc" rows="3" maxlength="500" placeholder="What are you doing? Any requirements?"
+          class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-purple-500 resize-none"></textarea>
+      </div>
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-300 mb-1">Group Size</label>
+          <input id="fluxerEditSize" type="number" min="2" max="40" value="4"
+            class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-purple-500">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-300 mb-1">Time / Schedule</label>
+          <input id="fluxerEditTime" type="text" maxlength="100" placeholder="tonight 8pm EST"
+            class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-purple-500">
+        </div>
+      </div>
+    </div>
+    <div class="flex gap-3 mt-5">
+      <button onclick="submitFluxerEdit()" class="flex-1 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm font-medium transition">
+        <i class="fas fa-save mr-2"></i>Save Changes
+      </button>
+      <button onclick="closeFluxerEditModal()" class="px-4 py-2 bg-neutral-700 hover:bg-neutral-600 text-white rounded-lg text-sm transition">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Fluxer Guild: Edit Group Modal ─────────────────────────────── -->
+<div id="fgEditGroupModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 hidden">
+  <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-6 max-w-lg w-full mx-4">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-xl font-bold text-white"><i class="fas fa-edit text-indigo-400 mr-2"></i>Edit Group</h2>
+      <button onclick="closeFgEditGroupModal()" class="text-gray-400 hover:text-white text-2xl leading-none">&times;</button>
+    </div>
+    <input type="hidden" id="fgEditGroupId">
+    <div class="space-y-4">
+      <div>
+        <label class="text-sm text-gray-300 mb-1 block">Title <span class="text-red-400">*</span></label>
+        <input id="fgEditTitle" type="text" maxlength="200"
+               class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500 transition">
+      </div>
+      <div>
+        <label class="text-sm text-gray-300 mb-1 block">Scheduled Time (optional)</label>
+        <input id="fgEditScheduled" type="datetime-local"
+               class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500 transition">
+        <button onclick="document.getElementById('fgEditScheduled').value=''" class="text-xs text-gray-500 hover:text-gray-300 mt-1">Clear time</button>
+      </div>
+      <div>
+        <label class="text-sm text-gray-300 mb-1 block">Max Group Size</label>
+        <input id="fgEditMaxSize" type="number" min="2" max="100"
+               class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500 transition">
+      </div>
+      <div>
+        <label class="text-sm text-gray-300 mb-1 block">Description</label>
+        <textarea id="fgEditDesc" rows="3" maxlength="2000"
+                  class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500 transition resize-none"></textarea>
+      </div>
+      <div id="fgEditGroupErr" class="hidden text-red-400 text-sm bg-red-900/20 border border-red-700/30 rounded-lg px-3 py-2"></div>
+    </div>
+    <div class="flex gap-3 mt-5">
+      <button onclick="closeFgEditGroupModal()" class="flex-1 bg-neutral-700 hover:bg-neutral-600 text-white px-4 py-2 rounded-lg text-sm transition">Cancel</button>
+      <button onclick="submitFgEditGroup()" id="fgEditGroupBtn"
+              class="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-lg font-medium text-sm transition">
+        <i class="fas fa-save mr-2"></i>Save Changes
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Fluxer Guild: Edit Class Modal ─────────────────────────────── -->
+<div id="fgEditClassModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 hidden">
+  <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-6 max-w-lg w-full mx-4">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-xl font-bold text-white"><i class="fas fa-pencil-alt text-indigo-400 mr-2"></i>Update Class</h2>
+      <button onclick="closeFgEditClassModal()" class="text-gray-400 hover:text-white text-2xl leading-none">&times;</button>
+    </div>
+    <input type="hidden" id="fgEditClassGroupId">
+    <div id="fgEditClassBody" class="space-y-3"></div>
+    <div id="fgEditClassErr" class="hidden text-red-400 text-sm bg-red-900/20 border border-red-700/30 rounded-lg px-3 py-2 mt-3"></div>
+    <div class="flex gap-3 mt-5">
+      <button onclick="closeFgEditClassModal()" class="flex-1 bg-neutral-700 hover:bg-neutral-600 text-white px-4 py-2 rounded-lg text-sm transition">Cancel</button>
+      <button onclick="submitFgEditClass()" id="fgEditClassBtn"
+              class="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-lg font-medium text-sm transition">
+        <i class="fas fa-save mr-2"></i>Update
+      </button>
+    </div>
+  </div>
+</div>
+
 <div id="joinGroupModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 hidden">
   <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-6 max-w-lg w-full mx-4">
     <div class="flex items-center justify-between mb-4">
@@ -147,8 +255,9 @@ let allGroups = [];
 const isLoggedIn = {{ web_user|yesno:"true,false" }};
 const currentUserId = {{ web_user.id|default:"null" }};
 
-let statusFilterSelect, timeFilterSelect, sortFilterSelect;
+let statusFilterSelect, timeFilterSelect, sortFilterSelect, communityFilterSelect;
 let selectedGameFilter = null; // { name, game_id, cover_url }
+let selectedGuildFilter = null; // guild_id string or null
 let joinBrowseMode = 'join'; // 'join' or 'update'
 let gameFilterDebounce;
 let joinTemplates = [];
@@ -386,10 +495,50 @@ sortFilterSelect = createCustomSelect({
   onSelect: function() { filterGroups(); }
 });
 
+communityFilterSelect = createCustomSelect({
+  container: '#communityFilterContainer',
+  name: 'communityFilter',
+  placeholder: 'All Communities',
+  items: [{ value: '', label: 'All Communities' }],
+  selected: '',
+  color: 'green',
+  onSelect: function(val) {
+    selectedGuildFilter = val || null;
+    filterGroups();
+  }
+});
+
+async function loadCommunityGuilds() {
+  try {
+    const res = await fetch('/ql/api/lfg/community-guilds/');
+    const data = await res.json();
+    const guilds = data.guilds || [];
+    if (!guilds.length) return;
+    const items = [
+      { value: '', label: 'All Communities' },
+      ...guilds.map(g => ({ value: g.guild_id, label: g.guild_name }))
+    ];
+    communityFilterSelect.destroy();
+    communityFilterSelect = createCustomSelect({
+      container: '#communityFilterContainer',
+      name: 'communityFilter',
+      placeholder: 'All Communities',
+      items,
+      selected: '',
+      color: 'green',
+      onSelect: function(val) {
+        selectedGuildFilter = val || null;
+        filterGroups();
+      }
+    });
+  } catch (e) { /* silently skip */ }
+}
+
 // ─── Load groups ────────────────────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', () => {
   loadGroups();
+  loadCommunityGuilds();
 });
 
 async function loadGroups() {
@@ -467,6 +616,10 @@ function filterGroups() {
     });
   }
 
+  if (selectedGuildFilter) {
+    filtered = filtered.filter(g => g.platform === 'fluxer' && g.fluxer_guild_id === selectedGuildFilter);
+  }
+
   if (statusFilter) {
     filtered = filtered.filter(g => g.status === statusFilter);
   }
@@ -477,13 +630,14 @@ function filterGroups() {
     today.setHours(23, 59, 59, 999);
     const endOfDay  = today.getTime() / 1000;
     const endOfWeek = endOfDay + (7 * 24 * 60 * 60);
-
+    // Only apply time filter to numeric timestamps (web groups); Fluxer groups use text
+    const numericSched = g => typeof g.scheduled_time === 'number' ? g.scheduled_time : null;
     if (timeFilter === 'now') {
-      filtered = filtered.filter(g => !g.scheduled_time || g.scheduled_time <= now);
+      filtered = filtered.filter(g => { const s = numericSched(g); return s == null || s <= now; });
     } else if (timeFilter === 'today') {
-      filtered = filtered.filter(g => !g.scheduled_time || g.scheduled_time <= endOfDay);
+      filtered = filtered.filter(g => { const s = numericSched(g); return s == null || s <= endOfDay; });
     } else if (timeFilter === 'week') {
-      filtered = filtered.filter(g => !g.scheduled_time || g.scheduled_time <= endOfWeek);
+      filtered = filtered.filter(g => { const s = numericSched(g); return s == null || s <= endOfWeek; });
     }
   }
 
@@ -685,6 +839,71 @@ async function leaveGroup(groupId) {
   }
 }
 
+// ─── Fluxer LFG management ─────────────────────────────────────────────────────
+
+let fluxerEditPostId = null;
+
+function openFluxerEditModal(postId) {
+  fluxerEditPostId = postId;
+  const modal = document.getElementById('fluxerEditModal');
+  if (modal) modal.classList.remove('hidden');
+}
+
+function closeFluxerEditModal() {
+  fluxerEditPostId = null;
+  const modal = document.getElementById('fluxerEditModal');
+  if (modal) modal.classList.add('hidden');
+}
+
+async function submitFluxerEdit() {
+  if (!fluxerEditPostId) return;
+  const desc = document.getElementById('fluxerEditDesc')?.value?.trim() || '';
+  const size = parseInt(document.getElementById('fluxerEditSize')?.value || '4', 10);
+  const time = document.getElementById('fluxerEditTime')?.value?.trim() || '';
+  try {
+    const res = await csrfFetch(`/ql/api/lfg/fluxer/${fluxerEditPostId}/edit/`, {
+      method: 'POST',
+      body: JSON.stringify({ description: desc || null, group_size: size, scheduled_time: time || null }),
+    });
+    const data = await res.json();
+    if (data.success) { showToast('Group updated'); closeFluxerEditModal(); loadGroups(); }
+    else showToast(data.error || 'Update failed', 'error');
+  } catch (e) { showToast('Update failed', 'error'); }
+}
+
+async function fluxerMarkFull(postId, btn) {
+  if (!confirm('Mark this group as full? It will be closed.')) return;
+  btn.disabled = true;
+  try {
+    const res = await csrfFetch(`/ql/api/lfg/fluxer/${postId}/mark-full/`, { method: 'POST' });
+    const data = await res.json();
+    if (data.success) { showToast('Group marked full'); loadGroups(); }
+    else { showToast(data.error || 'Failed', 'error'); btn.disabled = false; }
+  } catch (e) { showToast('Failed', 'error'); btn.disabled = false; }
+}
+
+async function fluxerClose(postId, btn) {
+  if (!confirm('Close and remove this LFG post?')) return;
+  btn.disabled = true;
+  try {
+    const res = await csrfFetch(`/ql/api/lfg/fluxer/${postId}/close/`, { method: 'POST' });
+    const data = await res.json();
+    if (data.success) { showToast('Group closed'); loadGroups(); }
+    else { showToast(data.error || 'Failed', 'error'); btn.disabled = false; }
+  } catch (e) { showToast('Failed', 'error'); btn.disabled = false; }
+}
+
+async function fluxerGuildClose(groupId, btn) {
+  if (!confirm('Close this group? It will be removed from the LFG browser.')) return;
+  btn.disabled = true;
+  try {
+    const res = await csrfFetch(`/ql/api/lfg/fluxer-guild/${groupId}/close/`, { method: 'POST' });
+    const data = await res.json();
+    if (data.success) { showToast('Group closed'); loadGroups(); }
+    else { showToast(data.error || 'Failed', 'error'); btn.disabled = false; }
+  } catch (e) { showToast('Failed', 'error'); btn.disabled = false; }
+}
+
 // ─── Main group card renderer (ported from Discord dashboard) ─────────────────
 
 function renderGroup(group) {
@@ -697,10 +916,14 @@ function renderGroup(group) {
   const canManage  = isCreator || isCoLeader;
 
   const now = Date.now() / 1000;
-  const scheduledDate = group.scheduled_time ? new Date(group.scheduled_time * 1000) : null;
-  const formattedDate = scheduledDate ? scheduledDate.toLocaleString('en-US', {
-    dateStyle: 'medium', timeStyle: 'short'
-  }) : 'Now / Flexible';
+  let formattedDate = 'Now / Flexible';
+  if (group.scheduled_time) {
+    if (typeof group.scheduled_time === 'number') {
+      formattedDate = new Date(group.scheduled_time * 1000).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' });
+    } else {
+      formattedDate = String(group.scheduled_time); // Fluxer free-text time
+    }
+  }
 
   // Time status badge (Active Now for playing/scheduled groups without future time)
   let timeStatusBadge = '';
@@ -942,10 +1165,22 @@ function renderGroup(group) {
             <div class="min-w-0">
               <h3 class="text-2xl font-bold text-white mb-1 flex items-center gap-2 flex-wrap">
                 ${escapeHtml(group.title)}
+                ${(function() {
+                  // Use origin_platform (where posted from) first, then creator's linked platform
+                  const p = group.origin_platform || group.creator_platform || '';
+                  if (group.platform === 'fluxer' || group.platform === 'fluxer_guild' || p === 'fluxer') {
+                    return '<span class="px-2 py-1 text-xs rounded bg-purple-700 text-purple-200"><i class="fas fa-satellite-dish mr-1"></i>Fluxer</span>';
+                  } else if (p === 'discord') {
+                    return '<span class="px-2 py-1 text-xs rounded bg-indigo-700 text-indigo-200"><i class="fab fa-discord mr-1"></i>Discord</span>';
+                  } else if (p === 'matrix') {
+                    return '<span class="px-2 py-1 text-xs rounded bg-blue-700 text-blue-200"><i class="fas fa-comments mr-1"></i>Matrix</span>';
+                  }
+                  return '<span class="px-2 py-1 text-xs rounded bg-green-800 text-green-200"><i class="fas fa-globe mr-1"></i>QuestLog</span>';
+                })()}
                 ${group.has_role_composition ? '<span class="px-2 py-1 text-xs rounded bg-purple-600 text-white"><i class="fas fa-users-cog mr-1"></i>ROLES</span>' : ''}
                 ${timeStatusBadge}
               </h3>
-              <p class="text-sm text-gray-400">${escapeHtml(group.game_name)}</p>
+              <p class="text-sm text-gray-400">${escapeHtml(group.game_name)} <span class="text-gray-600 text-xs ml-1">#${group.platform === 'fluxer_guild' ? group.guild_lfg_id : group.id}</span></p>
             </div>
             ${isFull
               ? `<span class="ml-3 flex-shrink-0 px-3 py-1 rounded-lg bg-red-600/20 text-red-400 text-sm font-medium">Full</span>`
@@ -997,6 +1232,100 @@ function renderGroup(group) {
             </div>
           ` : '')}
 
+          <!-- Fluxer post: show poster + join instruction + owner controls -->
+          ${group.platform === 'fluxer' ? `
+          <div class="flex items-center gap-3 mb-3">
+            <div class="bg-purple-900/30 border border-purple-700/50 rounded-lg px-3 py-2 text-sm text-gray-300 flex-1">
+              <i class="fas fa-user text-purple-400 mr-2"></i>
+              Posted by <span class="text-white font-medium">${escapeHtml(group.fluxer_username || 'Unknown')}</span>
+              via Fluxer
+            </div>
+          </div>
+          <div class="flex gap-2 flex-wrap">
+            <div class="bg-neutral-900/60 border border-neutral-700 rounded-lg px-4 py-2 text-sm text-gray-300">
+              <i class="fas fa-comment text-purple-400 mr-2"></i>
+              Join in Fluxer: <code class="text-purple-300 bg-neutral-800 px-1.5 py-0.5 rounded text-xs">!lfgjoin ${group.fluxer_post_id}</code>
+            </div>
+            ${group.can_manage ? `
+            <button onclick="openFluxerEditModal(${group.fluxer_post_id})" class="px-3 py-2 bg-indigo-600/70 hover:bg-indigo-600 text-white rounded-lg text-sm font-medium transition">
+              <i class="fas fa-pencil-alt mr-1"></i>Edit
+            </button>
+            <button onclick="fluxerMarkFull(${group.fluxer_post_id}, this)" class="px-3 py-2 bg-yellow-600/70 hover:bg-yellow-600 text-white rounded-lg text-sm font-medium transition">
+              <i class="fas fa-user-check mr-1"></i>Mark Full
+            </button>
+            <button onclick="fluxerClose(${group.fluxer_post_id}, this)" class="px-3 py-2 bg-red-600/70 hover:bg-red-600 text-white rounded-lg text-sm font-medium transition">
+              <i class="fas fa-times mr-1"></i>Close
+            </button>
+            ` : ''}
+          </div>
+          ` : group.platform === 'fluxer_guild' ? `
+          <div class="bg-purple-900/20 border border-purple-700/40 rounded-lg px-3 py-2 text-sm text-gray-300 mb-3">
+            <i class="fas fa-satellite-dish text-purple-400 mr-2"></i>
+            From <span class="text-white font-medium">${escapeHtml(group.guild_name || 'Unknown Server')}</span>
+            ${group.creator_name ? ` - posted by <span class="text-gray-300">${escapeHtml(group.creator_name)}</span>` : ''}
+          </div>
+          <div class="flex gap-2 flex-wrap">
+            ${group.is_creator ? `
+              <span class="px-4 py-2 bg-yellow-600/20 text-yellow-400 rounded-lg text-sm font-medium">
+                <i class="fas fa-crown mr-2"></i>You're the Leader
+              </span>
+              <button onclick="openFluxerGuildEditGroupModal(${group.guild_lfg_id})"
+                      class="px-4 py-2 bg-indigo-600/70 hover:bg-indigo-600 text-white rounded-lg text-sm font-medium transition">
+                <i class="fas fa-edit mr-2"></i>Edit Group
+              </button>
+              <button onclick="openFluxerGuildEditClassModal('${group.id}')"
+                      class="px-4 py-2 bg-indigo-600/50 hover:bg-indigo-600 text-white rounded-lg text-sm font-medium transition">
+                <i class="fas fa-pencil-alt mr-2"></i>Edit Class
+              </button>
+              <button onclick="fluxerGuildClose(${group.guild_lfg_id}, this)"
+                      class="px-4 py-2 bg-red-600/20 hover:bg-red-600 text-red-400 hover:text-white rounded-lg text-sm font-medium transition">
+                <i class="fas fa-lock mr-2"></i>Close Group
+              </button>
+            ` : group.is_member ? `
+              <span class="px-4 py-2 bg-green-600/20 text-green-400 rounded-lg text-sm font-medium">
+                <i class="fas fa-check mr-2"></i>You're a Member
+              </span>
+              <button onclick="openFluxerGuildEditClassModal('${group.id}')"
+                      class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium transition">
+                <i class="fas fa-pencil-alt mr-2"></i>Update Class
+              </button>
+            ` : !isFull ? `
+              <a href="/ql/fluxer/${escapeHtml(String(group.guild_id))}/lfg/" target="_blank"
+                 class="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm font-medium transition">
+                <i class="fas fa-satellite-dish mr-2"></i>Join on Fluxer
+              </a>
+            ` : `
+              <span class="px-4 py-2 bg-gray-700/50 text-gray-500 rounded-lg text-sm font-medium cursor-not-allowed">
+                <i class="fas fa-lock mr-2"></i>Group Full
+              </span>
+            `}
+          </div>
+          ` : group.platform === 'guild_lfg' ? `
+          <div class="bg-indigo-900/20 border border-indigo-700/40 rounded-lg px-3 py-2 text-sm text-gray-300 mb-3">
+            <i class="fab fa-discord text-indigo-400 mr-2"></i>
+            From <span class="text-white font-medium">${escapeHtml(group.guild_name || 'Unknown Server')}</span>
+            ${group.creator_name ? ` - created by <span class="text-gray-300">${escapeHtml(group.creator_name)}</span>` : ''}
+          </div>
+          <div class="bg-neutral-900/60 border border-neutral-700 rounded-lg px-4 py-2 text-sm text-gray-400">
+            <i class="fab fa-discord text-indigo-400 mr-2"></i>
+            Join via Discord in the <span class="text-white font-medium">${escapeHtml(group.guild_name || 'server')}</span> Discord server
+          </div>
+          ` : `
+          <!-- Creator info for web-native groups -->
+          ${group.creator_name ? (function() {
+            const cp = group.origin_platform || group.creator_platform || '';
+            let icon = 'fas fa-globe', color = 'text-green-400', platformLabel = 'QuestLog';
+            if (cp === 'discord') { icon = 'fab fa-discord'; color = 'text-indigo-400'; platformLabel = 'Discord'; }
+            else if (cp === 'fluxer') { icon = 'fas fa-satellite-dish'; color = 'text-purple-400'; platformLabel = 'Fluxer'; }
+            else if (cp === 'matrix') { icon = 'fas fa-comments'; color = 'text-blue-400'; platformLabel = 'Matrix'; }
+            const guildPart = group.origin_guild_name
+              ? ` in <span class="text-gray-200">${escapeHtml(group.origin_guild_name)}</span>`
+              : '';
+            return `<div class="bg-neutral-800/60 border border-neutral-700/60 rounded-lg px-3 py-2 text-sm text-gray-300 mb-3">
+              <i class="${icon} ${color} mr-2"></i>
+              Posted by <span class="text-white font-medium">${escapeHtml(group.creator_name)}</span> via <span class="${color} font-medium">${platformLabel}</span>${guildPart}
+            </div>`;
+          })() : ''}
           <!-- Actions -->
           <div class="flex gap-2 flex-wrap">
             ${isMember ? (
@@ -1027,7 +1356,7 @@ function renderGroup(group) {
                   <i class="fas fa-plus mr-2"></i>Join Group
                 </button>` : `
                 <a href="{% url 'questlog_web_login' %}" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium transition">
-                  <i class="fas fa-gamepad mr-2"></i>Login to Join
+                  <i class="fas fa-sign-in-alt mr-2"></i>Login to Join
                 </a>`
               ) : `
                 <span class="px-4 py-2 bg-gray-700/50 text-gray-500 rounded-lg text-sm font-medium cursor-not-allowed">
@@ -1042,6 +1371,7 @@ function renderGroup(group) {
               <i class="fas fa-trash mr-2"></i>Delete
             </button>` : ''}
           </div>
+          `}
         </div>
       </div>
     </div>`;
@@ -1330,6 +1660,255 @@ async function submitJoin(groupId) {
     }
   } catch (error) {
     showToast(failMsg + '. Please try again.', 'error');
+  }
+}
+
+// ─── Fluxer Guild: Edit Group Modal ──────────────────────────────────────────
+
+function tsToDatetimeLocal(ts) {
+  if (!ts) return '';
+  const d = new Date(ts * 1000);
+  const pad = n => String(n).padStart(2, '0');
+  return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) +
+         'T' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+}
+function datetimeLocalToTs(val) {
+  if (!val) return null;
+  return Math.floor(new Date(val).getTime() / 1000);
+}
+
+function openFluxerGuildEditGroupModal(groupId) {
+  // groupId here is guild_lfg_id (integer)
+  const group = allGroups.find(g => g.guild_lfg_id === groupId);
+  if (!group) return;
+
+  document.getElementById('fgEditGroupId').value = groupId;
+  document.getElementById('fgEditTitle').value = group.title || '';
+  document.getElementById('fgEditScheduled').value = group.scheduled_time ? tsToDatetimeLocal(group.scheduled_time) : '';
+  document.getElementById('fgEditMaxSize').value = group.group_size || 4;
+  document.getElementById('fgEditDesc').value = group.description || '';
+  document.getElementById('fgEditGroupErr').classList.add('hidden');
+  document.getElementById('fgEditGroupModal').classList.remove('hidden');
+}
+
+function closeFgEditGroupModal() {
+  document.getElementById('fgEditGroupModal').classList.add('hidden');
+}
+
+async function submitFgEditGroup() {
+  const btn = document.getElementById('fgEditGroupBtn');
+  const errEl = document.getElementById('fgEditGroupErr');
+  const groupId = document.getElementById('fgEditGroupId').value;
+  const title = document.getElementById('fgEditTitle').value.trim();
+  if (!title) { errEl.textContent = 'Title is required.'; errEl.classList.remove('hidden'); return; }
+
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Saving...';
+
+  try {
+    const resp = await csrfFetch(`/ql/api/lfg/fluxer-guild/${groupId}/edit/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title,
+        description: document.getElementById('fgEditDesc').value.trim() || null,
+        max_size: parseInt(document.getElementById('fgEditMaxSize').value) || 4,
+        scheduled_time: datetimeLocalToTs(document.getElementById('fgEditScheduled').value),
+      }),
+    });
+    const data = await resp.json();
+    if (resp.ok && data.success) {
+      closeFgEditGroupModal();
+      showToast('Group updated');
+      loadGroups();
+    } else {
+      errEl.textContent = data.error || 'Failed to save.';
+      errEl.classList.remove('hidden');
+    }
+  } catch (e) {
+    errEl.textContent = 'Network error.';
+    errEl.classList.remove('hidden');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-save mr-2"></i>Save Changes';
+  }
+}
+
+// ─── Fluxer Guild: Edit Class Modal ──────────────────────────────────────────
+
+function openFluxerGuildEditClassModal(groupCompositeId) {
+  // groupCompositeId is the group's `id` field e.g. 'guild_lfg_5'
+  const group = allGroups.find(g => g.id === groupCompositeId);
+  if (!group) return;
+
+  const guildLfgId = group.guild_lfg_id;
+  document.getElementById('fgEditClassGroupId').value = guildLfgId;
+  document.getElementById('fgEditClassErr').classList.add('hidden');
+
+  // Find my membership record
+  const myMember = group.members.find(m =>
+    (m.web_user_id && currentUserId && m.web_user_id === currentUserId) ||
+    (m.fluxer_user_id && window._currentFluxerId && m.fluxer_user_id === window._currentFluxerId)
+  );
+  const curSelections = myMember ? (myMember.selections || {}) : {};
+  const curRole = myMember ? (myMember.role || '') : '';
+
+  const opts = group.game_options || [];
+  const hasRoles = group.has_role_composition;
+  let html = '';
+
+  if (hasRoles) {
+    html += `<div>
+      <label class="text-sm text-gray-300 mb-1 block"><i class="fas fa-users-cog text-purple-400 mr-1"></i>Role</label>
+      <select id="fgClassRole" class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500 transition">
+        <option value="">-- No role --</option>
+        ${['tank','healer','dps','support'].map(r => `<option value="${r}" ${curRole === r ? 'selected' : ''}>${r.charAt(0).toUpperCase()+r.slice(1)}</option>`).join('')}
+      </select>
+    </div>`;
+  }
+
+  if (opts.length > 0) {
+    opts.forEach((opt, idx) => {
+      const choices = Array.isArray(opt.choices)
+        ? opt.choices.map(c => typeof c === 'string' ? c : (c.label || c.name || String(c)))
+        : Object.keys(opt.choices || {});
+      const curVal = curSelections[opt.name] || '';
+      html += `<div>
+        <label class="text-sm text-gray-300 mb-1 block">${escapeHtml(opt.name)}</label>
+        <select id="fgClassOpt_${idx}" data-opt-name="${escapeHtml(opt.name)}"
+                class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500 transition">
+          <option value="">-- None --</option>
+          ${choices.map(c => `<option value="${escapeHtml(c)}" ${curVal === c ? 'selected' : ''}>${escapeHtml(c)}</option>`).join('')}
+        </select>
+      </div>`;
+    });
+    window._fgClassOpts = opts;
+  } else {
+    window._fgClassOpts = [];
+    if (!hasRoles) {
+      html = '<p class="text-sm text-gray-400">No class options configured for this game.</p>';
+    }
+  }
+
+  document.getElementById('fgEditClassBody').innerHTML = html;
+  document.getElementById('fgEditClassModal').classList.remove('hidden');
+}
+
+function closeFgEditClassModal() {
+  document.getElementById('fgEditClassModal').classList.add('hidden');
+}
+
+async function submitFgEditClass() {
+  const btn = document.getElementById('fgEditClassBtn');
+  const errEl = document.getElementById('fgEditClassErr');
+  const groupId = document.getElementById('fgEditClassGroupId').value;
+
+  const roleEl = document.getElementById('fgClassRole');
+  const role = roleEl ? (roleEl.value || 'member') : 'member';
+
+  const selections = {};
+  (window._fgClassOpts || []).forEach((opt, idx) => {
+    const sel = document.getElementById('fgClassOpt_' + idx);
+    if (sel && sel.value) selections[opt.name] = sel.value;
+  });
+
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Updating...';
+
+  try {
+    const resp = await csrfFetch(`/ql/api/lfg/fluxer-guild/${groupId}/update-member/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ role, selections }),
+    });
+    const data = await resp.json();
+    if (resp.ok && data.success) {
+      closeFgEditClassModal();
+      showToast('Class updated!');
+      loadGroups();
+    } else {
+      errEl.textContent = data.error || 'Failed to update.';
+      errEl.classList.remove('hidden');
+    }
+  } catch (e) {
+    errEl.textContent = 'Network error.';
+    errEl.classList.remove('hidden');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-save mr-2"></i>Update';
+  }
+}
+
+// ─── My Closed Fluxer Groups ─────────────────────────────────────────────────
+
+let _closedGroupsLoaded = false;
+
+function toggleMyClosedGroups() {
+  const section = document.getElementById('myClosedGroupsSection');
+  const toggle = document.getElementById('myClosedToggleRow');
+  if (!section) return;
+  if (section.classList.contains('hidden')) {
+    section.classList.remove('hidden');
+    toggle.querySelector('button').innerHTML = '<i class="fas fa-chevron-up mr-1"></i>Hide my closed Fluxer groups';
+    if (!_closedGroupsLoaded) loadMyClosedGroups();
+  } else {
+    section.classList.add('hidden');
+    toggle.querySelector('button').innerHTML = '<i class="fas fa-history mr-1"></i>Show my closed Fluxer groups';
+  }
+}
+
+async function loadMyClosedGroups() {
+  _closedGroupsLoaded = true;
+  const listEl = document.getElementById('myClosedGroupsList');
+  if (!listEl) return;
+  listEl.innerHTML = '<p class="text-gray-500 text-sm">Loading...</p>';
+  try {
+    const resp = await fetch('/ql/api/lfg/fluxer-guild/my-closed/');
+    const data = await resp.json();
+    const groups = data.groups || [];
+    if (!groups.length) {
+      listEl.innerHTML = '<p class="text-gray-500 text-sm">No closed groups in the last 30 days.</p>';
+      return;
+    }
+    listEl.innerHTML = groups.map(g => {
+      const cover = g.game_image_url
+        ? `<img src="${escapeHtml(g.game_image_url)}" class="w-12 h-16 object-cover rounded flex-shrink-0">`
+        : `<div class="w-12 h-16 bg-neutral-700 rounded flex-shrink-0 flex items-center justify-center"><i class="fas fa-gamepad text-gray-500"></i></div>`;
+      const ts = g.scheduled_time ? new Date(g.scheduled_time * 1000).toLocaleDateString() : '';
+      return `<div class="flex items-center gap-3 bg-neutral-900 border border-neutral-800 rounded-lg p-3">
+        ${cover}
+        <div class="flex-1 min-w-0">
+          <p class="text-sm font-medium text-gray-300 truncate">${escapeHtml(g.title)}</p>
+          <p class="text-xs text-gray-500">${escapeHtml(g.game_name)} - ${escapeHtml(g.guild_name)}${ts ? ' - ' + ts : ''}</p>
+          <p class="text-xs text-gray-600">${g.current_size}/${g.group_size} members</p>
+        </div>
+        <button onclick="fluxerGuildReopen(${g.guild_lfg_id}, this)"
+                class="flex-shrink-0 px-3 py-1.5 bg-green-700/50 hover:bg-green-600 text-green-300 hover:text-white rounded-lg text-xs font-medium transition">
+          <i class="fas fa-unlock mr-1"></i>Reopen
+        </button>
+      </div>`;
+    }).join('');
+  } catch (e) {
+    listEl.innerHTML = '<p class="text-red-400 text-sm">Failed to load.</p>';
+  }
+}
+
+async function fluxerGuildReopen(groupId, btn) {
+  btn.disabled = true;
+  try {
+    const resp = await csrfFetch(`/ql/api/lfg/fluxer-guild/${groupId}/reopen/`, { method: 'POST' });
+    const data = await resp.json();
+    if (data.success) {
+      showToast('Group reopened!');
+      loadMyClosedGroups();
+      loadGroups();
+    } else {
+      showToast(data.error || 'Failed to reopen', 'error');
+      btn.disabled = false;
+    }
+  } catch (e) {
+    showToast('Network error', 'error');
+    btn.disabled = false;
   }
 }
 </script>

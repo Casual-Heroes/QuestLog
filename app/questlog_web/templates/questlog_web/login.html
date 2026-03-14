@@ -152,14 +152,17 @@
 
     {% if logins_disabled %}
     <div style="background: linear-gradient(135deg, rgba(99,102,241,0.12), rgba(139,92,246,0.12)); border: 1px solid rgba(99,102,241,0.4); border-radius: 12px; padding: 20px 24px; margin-bottom: 24px; text-align: center;">
-      <p style="color: #a78bfa; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.15em; text-transform: uppercase; margin: 0 0 6px 0;">🚀 Coming 3/16/2026</p>
+      <p style="color: #a78bfa; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.15em; text-transform: uppercase; margin: 0 0 6px 0;">Coming 3/16/2026</p>
       <p style="color: #fff; font-size: 1.15rem; font-weight: 800; margin: 0 0 8px 0;">QuestLog Beta is almost here!</p>
-      <p style="color: #c4b5fd; font-size: 0.85rem; margin: 0 0 10px 0;">A social network built for gamers! Posts, profiles, game and steramer discovery, and more. Be first in.</p>
+      <p style="color: #c4b5fd; font-size: 0.85rem; margin: 0 0 10px 0;">A social network built for gamers! Posts, profiles, game and streamer discovery, and more. Be first in.</p>
       <div style="display: inline-flex; align-items: center; gap: 6px; background: rgba(99,102,241,0.2); border: 1px solid rgba(99,102,241,0.4); border-radius: 999px; padding: 5px 14px;">
         <span style="width: 7px; height: 7px; border-radius: 50%; background: #818cf8; display: inline-block; animation: pulse 2s infinite;"></span>
         <span style="color: #a5b4fc; font-size: 0.78rem; font-weight: 600;">Early access opens March 16th</span>
       </div>
     </div>
+    <p style="text-align: center; font-size: 0.82rem; color: #4b5563; margin-top: 8px;">
+      Already a member? <a href="/ql/earlyaccess/login/" style="color: #6366f1;">Sign in here</a>
+    </p>
     {% else %}
 
     {% if messages %}
@@ -184,7 +187,7 @@
     </div>
     {% endif %}
 
-    <form method="post" action="{% url 'questlog_web_login' %}{% if next %}?next={{ next }}{% endif %}" autocomplete="on">
+    <form method="post" action="{% if early_access_bypass %}{% url 'questlog_web_earlyaccess_login' %}{% else %}{% url 'questlog_web_login' %}{% endif %}{% if next %}?next={{ next }}{% endif %}" autocomplete="on">
       {% csrf_token %}
       <input type="hidden" name="next" value="{{ next }}">
 
@@ -198,11 +201,19 @@
         <input type="password" id="id_password" name="password" placeholder="••••••••" autocomplete="current-password" required>
       </div>
 
+      {% if turnstile_site_key %}
+      <div class="cf-turnstile" data-sitekey="{{ turnstile_site_key }}" style="margin: 14px 0 6px;"></div>
+      {% endif %}
+
       <button type="submit" class="ql-btn-primary">Sign In</button>
     </form>
 
-    <p class="ql-footer-links" style="margin-top: 20px;">
-      Don't have an account? <a href="/register/" style="color: #6366f1;">Create one</a>
+    <p class="ql-footer-links" style="margin-top: 16px;">
+      <a href="{% url 'questlog_web_password_reset' %}" style="color: #6b7280;">Forgot your password?</a>
+    </p>
+
+    <p class="ql-footer-links" style="margin-top: 8px;">
+      Don't have an account yet? <a href="/ql/register/" style="color: #6366f1;">Register with invite code</a>
     </p>
 
     <p class="ql-footer-links" style="margin-top: 24px; font-size: 0.78rem;">
@@ -215,4 +226,7 @@
 
   </div>
 </div>
+{% if turnstile_site_key %}
+<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+{% endif %}
 {% endblock %}

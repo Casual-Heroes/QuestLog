@@ -12,6 +12,14 @@
 -->
 
 <script>
+// Ensure escapeHtml is available even before base.html's global script runs
+if (typeof window.escapeHtml !== 'function') {
+  window.escapeHtml = function(s) {
+    if (s === null || s === undefined) return '';
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+  };
+}
+
 function createCustomSelect(config) {
   const {
     container,
@@ -38,16 +46,6 @@ function createCustomSelect(config) {
   let selectedValues = multiSelect ? (Array.isArray(selected) ? selected : []) : [];
 
   // HTML Escaping function to prevent XSS
-  function escapeHtml(unsafe) {
-    if (unsafe === null || unsafe === undefined) return '';
-    return String(unsafe)
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;")
-      .replace(/'/g, "&#039;");
-  }
-
   // Helper function to get label text for multi-select
   function getMultiSelectLabel() {
     if (selectedValues.length === 0) return placeholder;
@@ -157,7 +155,8 @@ function createCustomSelect(config) {
   }
 
   // Select option (handles both single and multi-select)
-  function selectOption(value) {
+  // silent=true skips the dropdown toggle and onSelect callback (used by setValue API)
+  function selectOption(value, silent = false) {
     if (multiSelect) {
       // Multi-select: toggle the value in selectedValues array
       const index = selectedValues.indexOf(value);
@@ -213,8 +212,11 @@ function createCustomSelect(config) {
         }
       });
 
-      // Close dropdown in single-select mode
-      toggleDropdown();
+      if (!silent) {
+        // Close dropdown on user click
+        if (isOpen) toggleDropdown();
+      }
+      // Always fire onSelect so UI state (e.g. show/hide rows) stays correct
       if (onSelect) onSelect(value, item);
     }
   }
@@ -279,8 +281,38 @@ function createCustomSelect(config) {
           });
         }
       } else {
-        selectOption(value);
+        selectOption(value, true);
       }
+    },
+    close: () => { if (isOpen) toggleDropdown(); },
+    // Replace all options without destroying the whole component
+    setItems: (newItems) => {
+      items = newItems;
+      const currentVal = multiSelect ? selectedValues : selectedValue;
+      options.innerHTML = newItems.map(item => {
+        if (multiSelect) {
+          const isSelected = selectedValues.includes(item.value);
+          return `
+            <button type="button" data-value="${escapeHtml(item.value)}"
+              class="custom-select-option w-full px-3 py-2 text-left text-white hover:bg-neutral-700 transition-colors rounded flex items-center gap-2 text-sm ${isSelected ? 'bg-neutral-700' : ''}">
+              <input type="checkbox" class="accent-${color}-500" ${isSelected ? 'checked' : ''} onclick="event.preventDefault()">
+              <span>${escapeHtml(item.label)}</span>
+            </button>`;
+        } else {
+          const isSelected = selectedValue === item.value;
+          return `
+            <button type="button" data-value="${escapeHtml(item.value)}"
+              class="custom-select-option w-full px-3 py-2 text-left text-white hover:bg-neutral-700 transition-colors rounded flex items-center gap-2 text-sm ${isSelected ? 'bg-neutral-700' : ''}">
+              <span>${escapeHtml(item.label)}</span>
+              ${isSelected ? '<i class="fas fa-check ml-auto text-green-400 text-xs"></i>' : ''}
+            </button>`;
+        }
+      }).join('') + `<div class="custom-select-no-results hidden px-3 py-4 text-center text-gray-500 text-sm">No results found</div>`;
+
+      // Re-bind click events on new options
+      options.querySelectorAll('.custom-select-option').forEach(opt => {
+        opt.addEventListener('click', () => selectOption(opt.dataset.value));
+      });
     },
     destroy: () => containerEl.innerHTML = ''
   };
