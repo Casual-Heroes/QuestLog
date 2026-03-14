@@ -1,0 +1,804 @@
+{% extends "questlog_web/matrix_base_guild.html" %}
+{% load static %}
+
+{% block title %}Room Management - {{ space_name }}{% endblock %}
+
+{% block guild_content %}
+{% include "questlog/partials/custom_select.html" %}
+
+  <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 p-6 pb-0 mb-8">
+    <div>
+      <h1 class="text-3xl font-bold text-white">
+        <i class="fas fa-door-open text-teal-400 mr-3"></i>Room Management
+      </h1>
+      <p class="text-gray-400 mt-1">Create rooms, update topics, rename, and send messages directly.</p>
+    </div>
+    <button onclick="openCreateRoom()"
+            class="bg-teal-600 hover:bg-teal-500 text-white text-sm font-semibold px-4 py-2 rounded-lg transition flex items-center gap-2">
+      <i class="fas fa-plus"></i> Create Room
+    </button>
+  </div>
+
+  <div class="px-6 pb-8">
+
+    <!-- Room list -->
+    <div class="bg-neutral-900 rounded-xl border border-neutral-800 overflow-hidden">
+      <div class="p-4 border-b border-neutral-800 flex items-center gap-3">
+        <div class="relative flex-1">
+          <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm"></i>
+          <input type="text" id="roomSearch" placeholder="Search rooms..."
+                 oninput="filterRooms(this.value)"
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded-lg pl-9 pr-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-teal-600">
+        </div>
+        <span class="text-gray-500 text-sm" id="roomCount">{{ rooms|length }} room{{ rooms|length|pluralize }}</span>
+      </div>
+
+      {% if rooms %}
+      <div id="roomList" class="divide-y divide-neutral-800/60">
+        {% for room in rooms %}
+        <div class="room-row flex items-center gap-4 p-4 hover:bg-neutral-800/40 transition"
+             data-name="{{ room.room_name|lower }}" data-alias="{{ room.room_alias|lower }}">
+          <div class="w-9 h-9 bg-teal-700/20 rounded-lg flex items-center justify-center flex-shrink-0 border border-teal-800/20">
+            <i class="fas fa-hashtag text-teal-500 text-sm"></i>
+          </div>
+          <div class="flex-1 min-w-0 cursor-pointer" onclick="openRoomPanel('{{ room.room_id|escapejs }}', '{{ room.room_name|default:room.room_id|escapejs }}', '{{ room.topic|default:''|escapejs }}')">
+            <div class="flex items-center gap-2">
+              <p class="text-white font-medium truncate hover:text-teal-300 transition">{{ room.room_name|default:room.room_id }}</p>
+              {% if room.room_alias %}
+              <span class="text-xs text-gray-500 font-mono">{{ room.room_alias }}</span>
+              {% endif %}
+            </div>
+            <p class="text-gray-600 text-xs font-mono truncate">{{ room.room_id }}</p>
+            {% if room.topic %}
+            <p class="text-gray-500 text-xs truncate mt-0.5">{{ room.topic }}</p>
+            {% endif %}
+          </div>
+          <div class="flex items-center gap-2 flex-shrink-0">
+            <span class="text-xs text-gray-600">{{ room.member_count }} members</span>
+            <button onclick="openRoomPanel('{{ room.room_id|escapejs }}', '{{ room.room_name|default:room.room_id|escapejs }}', '{{ room.topic|default:''|escapejs }}')"
+                    class="text-gray-500 hover:text-teal-400 transition p-2 rounded-lg hover:bg-teal-600/10" title="Manage room">
+              <i class="fas fa-sliders-h text-sm"></i>
+            </button>
+            <button onclick="openSendMessage('{{ room.room_id|escapejs }}', '{{ room.room_name|default:room.room_id|escapejs }}')"
+                    class="text-gray-500 hover:text-yellow-400 transition p-2 rounded-lg hover:bg-yellow-600/10" title="Send message">
+              <i class="fas fa-paper-plane text-sm"></i>
+            </button>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="p-10 text-center text-gray-600">
+        <i class="fas fa-door-open text-3xl mb-3 block"></i>
+        No rooms found. The bot will sync rooms automatically when present in the space.
+      </div>
+      {% endif %}
+    </div>
+
+  </div>
+
+  <!-- Action History -->
+  <div class="bg-neutral-900 rounded-xl border border-neutral-800 overflow-hidden mt-6">
+    <div class="p-4 border-b border-neutral-800 flex items-center justify-between">
+      <h3 class="text-white font-semibold flex items-center gap-2">
+        <i class="fas fa-history text-teal-400 text-sm"></i>
+        Recent Actions
+      </h3>
+      <button onclick="loadActionHistory()" class="text-gray-400 hover:text-teal-400 text-sm transition">
+        <i class="fas fa-sync-alt mr-1"></i>Refresh
+      </button>
+    </div>
+    <div id="actionHistoryBody" class="divide-y divide-neutral-800 text-sm">
+      <div class="p-4 text-center text-gray-500 text-sm">Loading...</div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ============================================================
+     Room Management Panel (full-screen slide-over)
+     ============================================================ -->
+<div id="roomPanel" class="fixed inset-0 z-50 hidden">
+  <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" onclick="closeRoomPanel()"></div>
+  <div class="absolute inset-y-0 right-0 w-full max-w-2xl flex flex-col bg-neutral-950 border-l border-neutral-800 shadow-2xl">
+
+    <!-- Panel header -->
+    <div class="flex items-center justify-between p-5 border-b border-neutral-800 flex-shrink-0">
+      <div class="flex items-center gap-3 min-w-0">
+        <div class="w-9 h-9 bg-teal-700/20 rounded-lg flex items-center justify-center flex-shrink-0 border border-teal-800/20">
+          <i class="fas fa-hashtag text-teal-500 text-sm"></i>
+        </div>
+        <div class="min-w-0">
+          <h2 class="text-lg font-bold text-white truncate" id="panelRoomName">Room</h2>
+          <p class="text-gray-500 text-xs font-mono truncate" id="panelRoomId"></p>
+        </div>
+      </div>
+      <button onclick="closeRoomPanel()" class="text-gray-400 hover:text-white ml-4 flex-shrink-0">
+        <i class="fas fa-times text-lg"></i>
+      </button>
+    </div>
+
+    <!-- Panel tabs -->
+    <div class="flex border-b border-neutral-800 flex-shrink-0">
+      <button onclick="switchPanelTab('members')" id="tab-members"
+              class="panel-tab px-5 py-3 text-sm font-medium border-b-2 border-teal-500 text-teal-300 transition">
+        <i class="fas fa-users mr-1.5"></i>Members
+      </button>
+      <button onclick="switchPanelTab('settings')" id="tab-settings"
+              class="panel-tab px-5 py-3 text-sm font-medium border-b-2 border-transparent text-gray-400 hover:text-white transition">
+        <i class="fas fa-pencil mr-1.5"></i>Edit Room
+      </button>
+      <button onclick="switchPanelTab('message')" id="tab-message"
+              class="panel-tab px-5 py-3 text-sm font-medium border-b-2 border-transparent text-gray-400 hover:text-white transition">
+        <i class="fas fa-paper-plane mr-1.5"></i>Send Message
+      </button>
+      <button onclick="switchPanelTab('invite')" id="tab-invite"
+              class="panel-tab px-5 py-3 text-sm font-medium border-b-2 border-transparent text-gray-400 hover:text-white transition">
+        <i class="fas fa-user-plus mr-1.5"></i>Invite
+      </button>
+    </div>
+
+    <!-- Tab: Members -->
+    <div id="panelTab-members" class="flex-1 overflow-y-auto flex flex-col">
+      <!-- Bulk action bar -->
+      <div id="panelBulkBar" class="hidden px-4 py-2 bg-teal-900/20 border-b border-teal-800/30 flex items-center gap-3 flex-shrink-0">
+        <span id="panelBulkCount" class="text-teal-300 text-sm font-medium">0 selected</span>
+        <button onclick="panelBulkKick()"
+                class="bg-neutral-800 hover:bg-red-600/20 text-red-400 border border-neutral-700 hover:border-red-600/40 text-xs px-3 py-1.5 rounded-lg transition">
+          <i class="fas fa-user-times mr-1"></i>Kick from Room
+        </button>
+        <button onclick="panelBulkBan()"
+                class="bg-neutral-800 hover:bg-red-700/20 text-red-500 border border-neutral-700 hover:border-red-700/40 text-xs px-3 py-1.5 rounded-lg transition">
+          <i class="fas fa-ban mr-1"></i>Ban from Space
+        </button>
+        <button onclick="panelClearSelection()" class="ml-auto text-gray-500 hover:text-white text-xs transition">
+          <i class="fas fa-times mr-1"></i>Clear
+        </button>
+      </div>
+
+      <!-- Search + select-all -->
+      <div class="p-4 border-b border-neutral-800 flex items-center gap-3 flex-shrink-0">
+        <label class="flex items-center gap-2 cursor-pointer flex-shrink-0">
+          <input type="checkbox" id="panelSelectAll" onchange="panelToggleAll(this.checked)"
+                 class="w-4 h-4 rounded accent-teal-500">
+          <span class="text-gray-500 text-xs">All</span>
+        </label>
+        <div class="relative flex-1">
+          <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-xs"></i>
+          <input type="text" id="panelMemberSearch" placeholder="Search members..."
+                 oninput="panelFilterMembers(this.value)"
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded-lg pl-8 pr-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-teal-600">
+        </div>
+        <button onclick="loadPanelMembers()"
+                class="text-gray-400 hover:text-teal-400 transition text-sm px-3 py-2 rounded-lg hover:bg-teal-600/10" title="Refresh">
+          <i class="fas fa-sync-alt"></i>
+        </button>
+      </div>
+
+      <div id="panelMemberList" class="flex-1">
+        <div class="p-8 text-center text-gray-600 text-sm">Loading...</div>
+      </div>
+    </div>
+
+    <!-- Tab: Edit Room -->
+    <div id="panelTab-settings" class="hidden flex-1 overflow-y-auto p-5 space-y-4">
+      <input type="hidden" id="panelEditRoomId">
+      <div>
+        <label class="block text-sm text-gray-400 mb-2">Room Name</label>
+        <input type="text" id="panelEditName"
+               class="w-full bg-neutral-800 border border-neutral-700 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-teal-600">
+      </div>
+      <div>
+        <label class="block text-sm text-gray-400 mb-2">Topic / Description</label>
+        <textarea id="panelEditTopic" rows="4" placeholder="Room topic or description"
+                  class="w-full bg-neutral-800 border border-neutral-700 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-teal-600 resize-none"></textarea>
+      </div>
+      <div class="flex justify-end gap-3 pt-2 border-t border-neutral-800">
+        <button onclick="submitPanelEdit()"
+                class="bg-teal-600 hover:bg-teal-500 text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition">
+          <i class="fas fa-save mr-2"></i>Save Changes
+        </button>
+      </div>
+    </div>
+
+    <!-- Tab: Send Message -->
+    <div id="panelTab-message" class="hidden flex-1 overflow-y-auto p-5 space-y-4">
+      <div>
+        <label class="block text-sm text-gray-400 mb-2">Message</label>
+        <textarea id="panelMsgContent" rows="6" placeholder="Your message..."
+                  class="w-full bg-neutral-800 border border-neutral-700 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-teal-600 resize-none"></textarea>
+      </div>
+      <label class="flex items-center gap-3 cursor-pointer">
+        <div class="relative">
+          <input type="checkbox" id="panelMsgHtml" class="sr-only peer">
+          <div class="w-9 h-5 bg-neutral-700 rounded-full peer-checked:bg-teal-600 transition"></div>
+          <div class="absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition peer-checked:translate-x-4"></div>
+        </div>
+        <span class="text-sm text-gray-300">Send as formatted HTML</span>
+      </label>
+      <div class="flex justify-end gap-3 pt-2 border-t border-neutral-800">
+        <button onclick="submitPanelMessage()"
+                class="bg-yellow-600 hover:bg-yellow-500 text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition">
+          <i class="fas fa-paper-plane mr-2"></i>Send Message
+        </button>
+      </div>
+    </div>
+
+    <!-- Tab: Invite -->
+    <div id="panelTab-invite" class="hidden flex-1 overflow-y-auto p-5 space-y-4">
+      <p class="text-gray-400 text-sm">Invite a Matrix user to this room. They will receive an invite from the bot.</p>
+      <div>
+        <label class="block text-sm text-gray-400 mb-2">Matrix ID <span class="text-red-400">*</span></label>
+        <input type="text" id="panelInviteId" placeholder="@user:server.com"
+               class="w-full bg-neutral-800 border border-neutral-700 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-teal-600">
+      </div>
+      <div class="flex justify-end gap-3 pt-2 border-t border-neutral-800">
+        <button onclick="submitPanelInvite()"
+                class="bg-teal-600 hover:bg-teal-500 text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition">
+          <i class="fas fa-user-plus mr-2"></i>Invite User
+        </button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Create Room Modal -->
+<div id="createRoomModal" class="fixed inset-0 z-50 hidden">
+  <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" onclick="closeCreateRoom()"></div>
+  <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-lg">
+    <div class="bg-neutral-900 rounded-xl border border-neutral-700 shadow-2xl">
+      <div class="p-5 border-b border-neutral-800 flex items-center justify-between">
+        <h2 class="text-lg font-bold text-white">Create Room</h2>
+        <button onclick="closeCreateRoom()" class="text-gray-400 hover:text-white"><i class="fas fa-times"></i></button>
+      </div>
+      <div class="p-5 space-y-4">
+        <div>
+          <label class="block text-xs text-gray-400 mb-1">Room Name <span class="text-red-400">*</span></label>
+          <input type="text" id="createRoomName" placeholder="e.g. general"
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded-xl px-3 py-2.5 text-white text-sm placeholder-gray-500 focus:outline-none focus:border-teal-600">
+        </div>
+        <div>
+          <label class="block text-xs text-gray-400 mb-1">Topic (optional)</label>
+          <input type="text" id="createRoomTopic" placeholder="Room topic or description"
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded-xl px-3 py-2.5 text-white text-sm placeholder-gray-500 focus:outline-none focus:border-teal-600">
+        </div>
+        <div>
+          <label class="flex items-center gap-3 cursor-pointer">
+            <div class="relative">
+              <input type="checkbox" id="createRoomPrivate" class="sr-only peer">
+              <div class="w-9 h-5 bg-neutral-700 rounded-full peer-checked:bg-teal-600 transition"></div>
+              <div class="absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition peer-checked:translate-x-4"></div>
+            </div>
+            <span class="text-sm text-gray-300">Private room (invite only)</span>
+          </label>
+        </div>
+        <div class="flex justify-end gap-3 pt-2 border-t border-neutral-800">
+          <button onclick="closeCreateRoom()" class="text-gray-400 hover:text-white text-sm px-4 py-2 transition">Cancel</button>
+          <button onclick="submitCreateRoom()"
+                  class="bg-teal-600 hover:bg-teal-500 text-white text-sm font-semibold px-5 py-2 rounded-xl transition">
+            Create Room
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Send Message Modal (from room list row) -->
+<div id="sendMsgModal" class="fixed inset-0 z-50 hidden">
+  <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" onclick="closeSendMessage()"></div>
+  <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-lg">
+    <div class="bg-neutral-900 rounded-xl border border-neutral-700 shadow-2xl">
+      <div class="p-5 border-b border-neutral-800 flex items-center justify-between">
+        <h2 class="text-lg font-bold text-white">Send Message</h2>
+        <button onclick="closeSendMessage()" class="text-gray-400 hover:text-white"><i class="fas fa-times"></i></button>
+      </div>
+      <div class="p-5 space-y-4">
+        <input type="hidden" id="sendMsgRoomId">
+        <p class="text-gray-400 text-sm">Sending to: <strong class="text-teal-300" id="sendMsgRoomName"></strong></p>
+        <div>
+          <label class="block text-xs text-gray-400 mb-1">Message (supports HTML)</label>
+          <textarea id="sendMsgContent" rows="4" placeholder="Your message..."
+                    class="w-full bg-neutral-800 border border-neutral-700 rounded-xl px-3 py-2.5 text-white text-sm placeholder-gray-500 focus:outline-none focus:border-teal-600 resize-none"></textarea>
+        </div>
+        <label class="flex items-center gap-3 cursor-pointer">
+          <div class="relative">
+            <input type="checkbox" id="sendMsgHtml" class="sr-only peer">
+            <div class="w-9 h-5 bg-neutral-700 rounded-full peer-checked:bg-teal-600 transition"></div>
+            <div class="absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition peer-checked:translate-x-4"></div>
+          </div>
+          <span class="text-sm text-gray-300">Send as formatted HTML</span>
+        </label>
+        <div class="flex justify-end gap-3 pt-2 border-t border-neutral-800">
+          <button onclick="closeSendMessage()" class="text-gray-400 hover:text-white text-sm px-4 py-2 transition">Cancel</button>
+          <button onclick="submitSendMessage()"
+                  class="bg-yellow-600 hover:bg-yellow-500 text-white text-sm font-semibold px-5 py-2 rounded-xl transition">
+            <i class="fas fa-paper-plane mr-1"></i> Send
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Kick confirm modal (panel) -->
+<div id="panelKickModal" class="fixed inset-0 z-[60] hidden">
+  <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" onclick="document.getElementById('panelKickModal').classList.add('hidden')"></div>
+  <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md">
+    <div class="bg-neutral-900 rounded-xl border border-neutral-700 shadow-2xl">
+      <div class="p-5 border-b border-neutral-800 flex items-center justify-between">
+        <h2 class="text-lg font-bold text-white" id="panelKickTitle">Kick from Room</h2>
+        <button onclick="document.getElementById('panelKickModal').classList.add('hidden')" class="text-gray-400 hover:text-white"><i class="fas fa-times"></i></button>
+      </div>
+      <div class="p-5 space-y-3">
+        <p class="text-gray-400 text-sm" id="panelKickDesc"></p>
+        <div>
+          <label class="block text-xs text-gray-400 mb-1">Reason (optional)</label>
+          <input type="text" id="panelKickReason" placeholder="Reason for kick"
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-red-600">
+        </div>
+        <div class="flex justify-end gap-3 pt-2 border-t border-neutral-800">
+          <button onclick="document.getElementById('panelKickModal').classList.add('hidden')" class="text-gray-400 hover:text-white text-sm px-4 py-2 transition">Cancel</button>
+          <button onclick="submitPanelKick()" id="panelKickSubmit"
+                  class="bg-red-600 hover:bg-red-500 text-white text-sm font-semibold px-5 py-2 rounded-xl transition">
+            Kick
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Ban confirm modal (panel) -->
+<div id="panelBanModal" class="fixed inset-0 z-[60] hidden">
+  <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" onclick="document.getElementById('panelBanModal').classList.add('hidden')"></div>
+  <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md">
+    <div class="bg-neutral-900 rounded-xl border border-neutral-700 shadow-2xl">
+      <div class="p-5 border-b border-neutral-800 flex items-center justify-between">
+        <h2 class="text-lg font-bold text-white" id="panelBanTitle">Ban from Space</h2>
+        <button onclick="document.getElementById('panelBanModal').classList.add('hidden')" class="text-gray-400 hover:text-white"><i class="fas fa-times"></i></button>
+      </div>
+      <div class="p-5 space-y-3">
+        <p class="text-gray-400 text-sm" id="panelBanDesc"></p>
+        <div>
+          <label class="block text-xs text-gray-400 mb-1">Reason (optional)</label>
+          <input type="text" id="panelBanReason" placeholder="Reason for ban"
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-red-700">
+        </div>
+        <div class="flex justify-end gap-3 pt-2 border-t border-neutral-800">
+          <button onclick="document.getElementById('panelBanModal').classList.add('hidden')" class="text-gray-400 hover:text-white text-sm px-4 py-2 transition">Cancel</button>
+          <button onclick="submitPanelBan()" id="panelBanSubmit"
+                  class="bg-red-700 hover:bg-red-600 text-white text-sm font-semibold px-5 py-2 rounded-xl transition">
+            Ban User
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="fixed bottom-6 right-6 z-[70] hidden">
+  <div class="bg-neutral-800 border border-neutral-700 text-white text-sm px-4 py-3 rounded-xl shadow-xl flex items-center gap-2">
+    <i id="toastIcon" class="fas fa-check text-teal-400"></i>
+    <span id="toastMsg"></span>
+  </div>
+</div>
+
+<script>
+const SPACE_ID_URL = '{{ space_id_url }}';
+
+// Current room panel state
+let _panelRoomId = '';
+let _panelRoomName = '';
+let _panelMembers = [];
+let _panelSelected = new Set();
+let _panelBulkAction = ''; // 'kick' or 'ban'
+let _panelSingleTarget = ''; // for single-user kick/ban
+
+document.addEventListener('DOMContentLoaded', function() {});
+
+function showToast(msg, ok=true) {
+  const t = document.getElementById('toast');
+  document.getElementById('toastMsg').textContent = msg;
+  document.getElementById('toastIcon').className = ok ? 'fas fa-check text-teal-400' : 'fas fa-times text-red-400';
+  t.classList.remove('hidden');
+  setTimeout(() => t.classList.add('hidden'), 3500);
+}
+
+// ---- Room list filter ----
+function filterRooms(query) {
+  const q = query.toLowerCase();
+  let count = 0;
+  document.querySelectorAll('.room-row').forEach(row => {
+    const match = row.dataset.name.includes(q) || row.dataset.alias.includes(q);
+    row.style.display = match ? '' : 'none';
+    if (match) count++;
+  });
+  document.getElementById('roomCount').textContent = count + ' room' + (count !== 1 ? 's' : '');
+}
+
+// ============================================================
+// Room Management Panel
+// ============================================================
+
+function openRoomPanel(roomId, roomName, topic) {
+  _panelRoomId = roomId;
+  _panelRoomName = roomName;
+  _panelMembers = [];
+  _panelSelected.clear();
+
+  document.getElementById('panelRoomName').textContent = roomName;
+  document.getElementById('panelRoomId').textContent = roomId;
+  document.getElementById('panelEditRoomId').value = roomId;
+  document.getElementById('panelEditName').value = roomName;
+  document.getElementById('panelEditTopic').value = topic;
+  document.getElementById('panelMsgContent').value = '';
+  document.getElementById('panelInviteId').value = '';
+  document.getElementById('panelMemberSearch').value = '';
+  document.getElementById('panelKickReason').value = '';
+  document.getElementById('panelBanReason').value = '';
+
+  switchPanelTab('members');
+  document.getElementById('roomPanel').classList.remove('hidden');
+  loadPanelMembers();
+}
+
+function closeRoomPanel() {
+  document.getElementById('roomPanel').classList.add('hidden');
+  _panelRoomId = '';
+  _panelMembers = [];
+  _panelSelected.clear();
+}
+
+function switchPanelTab(tab) {
+  ['members', 'settings', 'message', 'invite'].forEach(t => {
+    const el = document.getElementById('panelTab-' + t);
+    const btn = document.getElementById('tab-' + t);
+    if (t === tab) {
+      el.classList.remove('hidden');
+      btn.classList.add('border-teal-500', 'text-teal-300');
+      btn.classList.remove('border-transparent', 'text-gray-400');
+    } else {
+      el.classList.add('hidden');
+      btn.classList.remove('border-teal-500', 'text-teal-300');
+      btn.classList.add('border-transparent', 'text-gray-400');
+    }
+  });
+}
+
+// ---- Member list ----
+function loadPanelMembers() {
+  const list = document.getElementById('panelMemberList');
+  list.innerHTML = '<div class="p-8 text-center text-gray-500 text-sm"><i class="fas fa-spinner fa-spin mr-2"></i>Loading...</div>';
+  _panelSelected.clear();
+  updatePanelBulkBar();
+
+  const roomParam = _panelRoomId ? '&room_id=' + encodeURIComponent(_panelRoomId) : '';
+  csrfFetch('/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/members/?per_page=500' + roomParam)
+    .then(r => r.json()).then(d => {
+      _panelMembers = d.members || [];
+      renderPanelMembers(_panelMembers);
+    }).catch(() => {
+      list.innerHTML = '<div class="p-6 text-center text-red-400 text-sm">Failed to load members.</div>';
+    });
+}
+
+function panelFilterMembers(q) {
+  const lq = q.toLowerCase();
+  const filtered = lq ? _panelMembers.filter(m =>
+    (m.matrix_id || '').toLowerCase().includes(lq) ||
+    (m.display_name || '').toLowerCase().includes(lq)
+  ) : _panelMembers;
+  renderPanelMembers(filtered);
+}
+
+function renderPanelMembers(members) {
+  const list = document.getElementById('panelMemberList');
+  if (!members.length) {
+    list.innerHTML = '<div class="p-6 text-center text-gray-600 text-sm">No members found.</div>';
+    return;
+  }
+
+  let html = '<div class="divide-y divide-neutral-800/60">';
+  members.forEach(m => {
+    const pl = m.power_level || 0;
+    const plColor = pl >= 100 ? 'text-teal-400' : pl >= 50 ? 'text-yellow-400' : pl < 0 ? 'text-red-400' : 'text-gray-500';
+    const isSelected = _panelSelected.has(m.matrix_id);
+    html += `<div class="flex items-center gap-3 px-4 py-3 hover:bg-neutral-800/40 transition${isSelected ? ' bg-teal-900/10' : ''}">
+      <input type="checkbox" class="panel-member-chk w-4 h-4 rounded accent-teal-500 cursor-pointer flex-shrink-0"
+             value="${escapeHtml(m.matrix_id)}" ${isSelected ? 'checked' : ''}
+             onchange="panelToggleMember(this.value, this.checked)">
+      <div class="w-8 h-8 bg-blue-700/20 rounded-full flex items-center justify-center flex-shrink-0 border border-blue-800/20">
+        <i class="fas fa-user text-blue-400 text-xs"></i>
+      </div>
+      <div class="flex-1 min-w-0">
+        <p class="text-white text-sm font-medium truncate">${escapeHtml(m.display_name || m.matrix_id)}</p>
+        <p class="text-gray-500 text-xs font-mono truncate">${escapeHtml(m.matrix_id)}</p>
+      </div>
+      <span class="text-xs ${plColor} flex-shrink-0">PL:${pl}</span>
+      <button onclick="singleKick('${escapeHtml(m.matrix_id)}')"
+              class="text-gray-500 hover:text-red-400 transition p-1.5 rounded-lg hover:bg-red-600/10 text-xs flex-shrink-0" title="Kick from room">
+        <i class="fas fa-user-times"></i>
+      </button>
+      <button onclick="singleBan('${escapeHtml(m.matrix_id)}')"
+              class="text-gray-500 hover:text-red-600 transition p-1.5 rounded-lg hover:bg-red-600/10 text-xs flex-shrink-0" title="Ban from space">
+        <i class="fas fa-ban"></i>
+      </button>
+    </div>`;
+  });
+  html += '</div>';
+  list.innerHTML = html;
+
+  const allChk = document.getElementById('panelSelectAll');
+  const visibleIds = members.map(m => m.matrix_id);
+  allChk.checked = visibleIds.length > 0 && visibleIds.every(id => _panelSelected.has(id));
+  allChk.indeterminate = !allChk.checked && visibleIds.some(id => _panelSelected.has(id));
+}
+
+// ---- Selection ----
+function panelToggleMember(matrixId, checked) {
+  if (checked) _panelSelected.add(matrixId);
+  else _panelSelected.delete(matrixId);
+  updatePanelBulkBar();
+  const boxes = document.querySelectorAll('.panel-member-chk');
+  const total = boxes.length, checkedCount = [...boxes].filter(c => c.checked).length;
+  const allChk = document.getElementById('panelSelectAll');
+  allChk.checked = total > 0 && checkedCount === total;
+  allChk.indeterminate = checkedCount > 0 && checkedCount < total;
+}
+
+function panelToggleAll(checked) {
+  document.querySelectorAll('.panel-member-chk').forEach(chk => {
+    chk.checked = checked;
+    if (checked) _panelSelected.add(chk.value);
+    else _panelSelected.delete(chk.value);
+  });
+  updatePanelBulkBar();
+}
+
+function panelClearSelection() {
+  _panelSelected.clear();
+  document.querySelectorAll('.panel-member-chk').forEach(c => c.checked = false);
+  const allChk = document.getElementById('panelSelectAll');
+  allChk.checked = false; allChk.indeterminate = false;
+  updatePanelBulkBar();
+}
+
+function updatePanelBulkBar() {
+  const bar = document.getElementById('panelBulkBar');
+  document.getElementById('panelBulkCount').textContent = _panelSelected.size + ' selected';
+  bar.classList.toggle('hidden', _panelSelected.size === 0);
+}
+
+// ---- Single user actions ----
+function singleKick(matrixId) {
+  _panelBulkAction = 'single_kick';
+  _panelSingleTarget = matrixId;
+  document.getElementById('panelKickTitle').textContent = 'Kick from Room';
+  document.getElementById('panelKickDesc').textContent = matrixId + ' will be removed from this room.';
+  document.getElementById('panelKickReason').value = '';
+  document.getElementById('panelKickModal').classList.remove('hidden');
+}
+
+function singleBan(matrixId) {
+  _panelBulkAction = 'single_ban';
+  _panelSingleTarget = matrixId;
+  document.getElementById('panelBanTitle').textContent = 'Ban from Space';
+  document.getElementById('panelBanDesc').textContent = matrixId + ' will be banned from all rooms and the space.';
+  document.getElementById('panelBanReason').value = '';
+  document.getElementById('panelBanModal').classList.remove('hidden');
+}
+
+// ---- Bulk actions ----
+function panelBulkKick() {
+  _panelBulkAction = 'bulk_kick';
+  document.getElementById('panelKickTitle').textContent = 'Kick from Room';
+  document.getElementById('panelKickDesc').textContent = _panelSelected.size + ' selected member(s) will be removed from this room.';
+  document.getElementById('panelKickReason').value = '';
+  document.getElementById('panelKickModal').classList.remove('hidden');
+}
+
+function panelBulkBan() {
+  _panelBulkAction = 'bulk_ban';
+  document.getElementById('panelBanTitle').textContent = 'Ban from Space';
+  document.getElementById('panelBanDesc').textContent = _panelSelected.size + ' selected member(s) will be banned from all rooms and the space.';
+  document.getElementById('panelBanReason').value = '';
+  document.getElementById('panelBanModal').classList.remove('hidden');
+}
+
+function submitPanelKick() {
+  const reason = document.getElementById('panelKickReason').value.trim();
+  document.getElementById('panelKickModal').classList.add('hidden');
+
+  const ids = _panelBulkAction === 'single_kick' ? [_panelSingleTarget] : [..._panelSelected];
+  if (!ids.length) return;
+
+  let done = 0;
+  ids.forEach(matrix_id => {
+    csrfFetch('/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/members/kick/', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ matrix_id, room_id: _panelRoomId, reason, all_rooms: false }),
+    }).then(r => r.json()).then(d => {
+      done++;
+      if (done === ids.length) {
+        showToast('Kick queued for ' + ids.length + ' member(s).');
+        if (_panelBulkAction !== 'single_kick') panelClearSelection();
+        setTimeout(() => { loadActionHistory(); setTimeout(loadPanelMembers, 1000); }, 2000);
+      }
+    }).catch(() => { done++; });
+  });
+}
+
+function submitPanelBan() {
+  const reason = document.getElementById('panelBanReason').value.trim();
+  document.getElementById('panelBanModal').classList.add('hidden');
+
+  const ids = _panelBulkAction === 'single_ban' ? [_panelSingleTarget] : [..._panelSelected];
+  if (!ids.length) return;
+
+  let done = 0;
+  ids.forEach(matrix_id => {
+    csrfFetch('/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/members/ban/', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ matrix_id, reason }),
+    }).then(r => r.json()).then(d => {
+      done++;
+      if (done === ids.length) {
+        showToast('Ban queued for ' + ids.length + ' member(s).');
+        if (_panelBulkAction !== 'single_ban') panelClearSelection();
+        setTimeout(() => { loadActionHistory(); setTimeout(loadPanelMembers, 1000); }, 2000);
+      }
+    }).catch(() => { done++; });
+  });
+}
+
+// ---- Edit room ----
+function submitPanelEdit() {
+  const room_id = document.getElementById('panelEditRoomId').value;
+  const name = document.getElementById('panelEditName').value.trim();
+  const topic = document.getElementById('panelEditTopic').value.trim();
+  csrfFetch('/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/rooms/' + encodeURIComponent(room_id) + '/', {
+    method: 'PATCH',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ name, topic }),
+  }).then(r => r.json()).then(d => {
+    if (d.ok) { showToast('Room update queued.'); setTimeout(loadActionHistory, 2000); }
+    else showToast(d.error || 'Error', false);
+  }).catch(() => showToast('Request failed.', false));
+}
+
+// ---- Send message (panel) ----
+function submitPanelMessage() {
+  const content = document.getElementById('panelMsgContent').value.trim();
+  const as_html = document.getElementById('panelMsgHtml').checked;
+  if (!content) { showToast('Message cannot be empty.', false); return; }
+  csrfFetch('/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/messages/', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ room_id: _panelRoomId, content, as_html }),
+  }).then(r => r.json()).then(d => {
+    if (d.ok) { showToast('Message queued.'); document.getElementById('panelMsgContent').value = ''; setTimeout(loadActionHistory, 2000); }
+    else showToast(d.error || 'Error', false);
+  }).catch(() => showToast('Request failed.', false));
+}
+
+// ---- Invite (panel) ----
+function submitPanelInvite() {
+  const user_id = document.getElementById('panelInviteId').value.trim();
+  if (!user_id.startsWith('@')) { showToast('Enter a valid Matrix ID (e.g. @user:server.com)', false); return; }
+  csrfFetch('/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/members/invite/', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ user_id, room_id: _panelRoomId }),
+  }).then(r => r.json()).then(d => {
+    if (d.ok) { showToast('Invite queued.'); document.getElementById('panelInviteId').value = ''; setTimeout(loadActionHistory, 2000); }
+    else showToast(d.error || 'Error', false);
+  }).catch(() => showToast('Request failed.', false));
+}
+
+// ============================================================
+// Create room (from header button)
+// ============================================================
+
+function openCreateRoom() { document.getElementById('createRoomModal').classList.remove('hidden'); }
+function closeCreateRoom() { document.getElementById('createRoomModal').classList.add('hidden'); }
+
+function submitCreateRoom() {
+  const name = document.getElementById('createRoomName').value.trim();
+  const topic = document.getElementById('createRoomTopic').value.trim();
+  const is_private = document.getElementById('createRoomPrivate').checked;
+  if (!name) { showToast('Room name is required.', false); return; }
+  csrfFetch('/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/rooms/create/', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ name, topic, is_private }),
+  }).then(r => r.json()).then(d => {
+    if (d.ok) { showToast('Room creation queued.'); closeCreateRoom(); }
+    else showToast(d.error || 'Error', false);
+  }).catch(() => showToast('Request failed.', false));
+}
+
+// ============================================================
+// Send message (from row icon - opens quick modal)
+// ============================================================
+
+function openSendMessage(roomId, roomName) {
+  document.getElementById('sendMsgRoomId').value = roomId;
+  document.getElementById('sendMsgRoomName').textContent = roomName;
+  document.getElementById('sendMsgContent').value = '';
+  document.getElementById('sendMsgModal').classList.remove('hidden');
+}
+function closeSendMessage() { document.getElementById('sendMsgModal').classList.add('hidden'); }
+
+function submitSendMessage() {
+  const room_id = document.getElementById('sendMsgRoomId').value;
+  const content = document.getElementById('sendMsgContent').value.trim();
+  const as_html = document.getElementById('sendMsgHtml').checked;
+  if (!content) { showToast('Message cannot be empty.', false); return; }
+  csrfFetch('/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/messages/', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ room_id, content, as_html }),
+  }).then(r => r.json()).then(d => {
+    if (d.ok) { showToast('Message queued.'); closeSendMessage(); setTimeout(loadActionHistory, 2000); }
+    else showToast(d.error || 'Error', false);
+  }).catch(() => showToast('Request failed.', false));
+}
+
+// --- Action History ---
+const ACTION_LABELS = {
+  kick_user: 'Kick (room)', kick_all_rooms: 'Kick (all rooms)',
+  ban_user: 'Ban (room)', ban_all_rooms: 'Ban (all rooms)',
+  unban_user: 'Unban', set_power_level: 'Set Power Level',
+  invite_user: 'Invite', send_message: 'Send Message',
+  set_room_name: 'Rename Room', set_room_topic: 'Set Topic',
+  create_room: 'Create Room', sync_space: 'Sync Space',
+};
+
+function fmtTs(ts) {
+  if (!ts) return '-';
+  return new Date(ts * 1000).toLocaleString();
+}
+
+function loadActionHistory() {
+  const body = document.getElementById('actionHistoryBody');
+  body.innerHTML = '<div class="p-4 text-center text-gray-500 text-sm">Loading...</div>';
+  fetch('/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/actions/?limit=50')
+    .then(r => r.json())
+    .then(d => {
+      if (!d.actions || d.actions.length === 0) {
+        body.innerHTML = '<div class="p-4 text-center text-gray-500 text-sm">No actions yet.</div>';
+        return;
+      }
+      body.innerHTML = d.actions.map(a => {
+        const statusColor = a.status === 'done' ? 'text-teal-400' : a.status === 'failed' ? 'text-red-400' : 'text-yellow-400';
+        const statusIcon = a.status === 'done' ? 'fa-check-circle' : a.status === 'failed' ? 'fa-times-circle' : 'fa-clock';
+        const label = ACTION_LABELS[a.action_type] || a.action_type;
+        const user = escapeHtml(a.user_id || '');
+        const room = escapeHtml(a.room_name || a.room_id || '');
+        let resultText = '';
+        if (a.result) {
+          if (a.result.rooms !== undefined) resultText = `${a.result.ok}/${a.result.rooms} rooms`;
+          else if (a.result.error) resultText = escapeHtml(String(a.result.error).substring(0, 80));
+        }
+        return `<div class="px-4 py-3 flex flex-col md:flex-row md:items-center gap-1 md:gap-4 hover:bg-neutral-800/40">
+          <span class="${statusColor} w-5 text-center flex-shrink-0"><i class="fas ${statusIcon}"></i></span>
+          <span class="text-gray-300 font-medium w-32 flex-shrink-0 text-xs">${escapeHtml(label)}</span>
+          <span class="text-gray-400 text-xs flex-1 truncate" title="${user}">${user || ''}</span>
+          <span class="text-gray-600 text-xs flex-1 truncate" title="${room}">${room || ''}</span>
+          ${resultText ? `<span class="text-gray-500 text-xs">${resultText}</span>` : ''}
+          <span class="text-gray-600 text-xs flex-shrink-0">${fmtTs(a.created_at)}</span>
+        </div>`;
+      }).join('');
+    })
+    .catch(() => { body.innerHTML = '<div class="p-4 text-center text-red-400 text-sm">Failed to load.</div>'; });
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  loadActionHistory();
+});
+</script>
+{% endblock %}

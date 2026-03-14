@@ -2920,7 +2920,6 @@ def discord_required(view_func):
                 from django.http import JsonResponse
                 return JsonResponse({'error': 'Not authenticated'}, status=401)
             # For page views, redirect to login
-            messages.warning(request, "Please log in to access this page.")
             return redirect(f"/questlog/login/?next={request.path}")
 
         # Validate token is still valid by making a lightweight Discord API call
@@ -3002,7 +3001,6 @@ def discord_required_read_only(view_func):
                 from django.http import JsonResponse
                 return JsonResponse({'error': 'Not authenticated'}, status=401)
             # For page views, redirect to login
-            messages.warning(request, "Please log in to access this page.")
             return redirect(f"/questlog/login/?next={request.path}")
         return view_func(request, *args, **kwargs)
     return wrapper
@@ -3713,6 +3711,8 @@ def guild_leaderboards(request, guild_id):
     message_leaders = []
     token_name = "Hero Tokens"
     token_emoji = ":coin:"
+    is_unified = False
+    guild_record = None
 
     try:
         with get_db_session() as db:
@@ -3720,19 +3720,61 @@ def guild_leaderboards(request, guild_id):
             token_name = guild_record.token_name if guild_record and guild_record.token_name else "Hero Tokens"
             token_emoji = guild_record.token_emoji if guild_record and guild_record.token_emoji else ":coin:"
 
-            # Top 10 by XP
-            xp_leaders = db.query(GuildMember).filter_by(
-                guild_id=int(guild_id),
-                is_bot=False
-            ).order_by(GuildMember.xp.desc()).limit(10).all()
+            # Check if this Discord guild is opted in to unified XP
+            from sqlalchemy import text
+            community = db.execute(text(
+                "SELECT site_xp_to_guild FROM web_communities "
+                "WHERE platform='discord' AND platform_id=:g AND network_status='approved' AND is_active=1 LIMIT 1"
+            ), {'g': str(guild_id)}).fetchone()
+            is_unified = bool(community and community[0])
 
-            # Top 10 by Tokens
+            if is_unified:
+                # Unified leaderboard: linked members from web_unified_leaderboard,
+                # unlinked members from guild_members. Merge and sort by XP, take top 50.
+                linked_rows = db.execute(text(
+                    "SELECT wu.username, ul.xp_total, wu.web_level, "
+                    "       ul.messages, ul.voice_mins, COALESCE(wu.hero_points, 0) AS hero_points, "
+                    "       wu.discord_id "
+                    "FROM web_unified_leaderboard ul "
+                    "JOIN web_users wu ON wu.id = ul.user_id "
+                    "WHERE ul.guild_id = :g AND ul.platform = 'discord'"
+                ), {'g': str(guild_id)}).fetchall()
+                linked_discord_ids = {str(r[6]) for r in linked_rows}
+
+                # Unlinked members: in guild_members but not in web_unified_leaderboard
+                unlinked_rows = db.execute(text(
+                    "SELECT gm.display_name, gm.xp, gm.level, gm.message_count, "
+                    "       gm.voice_minutes, gm.hero_tokens, CAST(gm.user_id AS CHAR) "
+                    "FROM guild_members gm "
+                    "WHERE gm.guild_id = :g AND gm.is_bot = 0 AND gm.xp > 0 "
+                    "AND CAST(gm.user_id AS CHAR) NOT IN :linked_ids"
+                ), {'g': int(guild_id), 'linked_ids': tuple(linked_discord_ids) or ('__none__',)}).fetchall()
+
+                all_entries = [
+                    {'display_name': r[0], 'username': r[0], 'xp': int(r[1] or 0),
+                     'level': int(r[2] or 1), 'message_count': int(r[3] or 0),
+                     'voice_minutes': int(r[4] or 0), 'hero_points': int(r[5] or 0)}
+                    for r in linked_rows
+                ] + [
+                    {'display_name': r[0], 'username': r[0], 'xp': int(r[1] or 0),
+                     'level': int(r[2] or 1), 'message_count': int(r[3] or 0),
+                     'voice_minutes': int(r[4] or 0), 'hero_points': int(r[5] or 0)}
+                    for r in unlinked_rows
+                ]
+                xp_leaders = sorted(all_entries, key=lambda x: x['xp'], reverse=True)[:50]
+            else:
+                # Top 10 by XP from guild_members
+                xp_leaders = db.query(GuildMember).filter_by(
+                    guild_id=int(guild_id),
+                    is_bot=False
+                ).order_by(GuildMember.xp.desc()).limit(10).all()
+
+            # Token and message leaderboards always from guild_members (not unified)
             token_leaders = db.query(GuildMember).filter_by(
                 guild_id=int(guild_id),
                 is_bot=False
             ).order_by(GuildMember.hero_tokens.desc()).limit(10).all()
 
-            # Top 10 by Messages
             message_leaders = db.query(GuildMember).filter_by(
                 guild_id=int(guild_id),
                 is_bot=False
@@ -3744,7 +3786,7 @@ def guild_leaderboards(request, guild_id):
     context = {
         'discord_user': discord_user,
         'guild': guild,
-        'guild_record': guild_record,  # Add for sidebar navigation
+        'guild_record': guild_record,
         'admin_guilds': admin_guilds,
         'member_guilds': get_member_guilds(request),
         'is_admin': is_admin,
@@ -3754,6 +3796,7 @@ def guild_leaderboards(request, guild_id):
         'token_name': token_name,
         'token_emoji': token_emoji,
         'active_page': 'leaderboards',
+        'is_unified': is_unified,
     }
     return render(request, 'questlog/leaderboards.html', context)
 
@@ -5146,6 +5189,7 @@ def guild_xp(request, guild_id):
     level_roles = []
     total_members = 0
     guild_record = None
+    is_unified = False
 
     try:
         from .db import get_db_session
@@ -5184,24 +5228,66 @@ def guild_xp(request, guild_id):
                     'track_game_launch': config.track_game_launch,
                 }
 
-            # Get top 50 leaderboard
-            members = db.query(GuildMember).filter_by(
-                guild_id=int(guild_id)
-            ).order_by(GuildMember.xp.desc()).limit(50).all()
+            # Check if this guild is opted in to unified XP
+            from sqlalchemy import text as sa_text
+            community_row = db.execute(sa_text(
+                "SELECT site_xp_to_guild FROM web_communities "
+                "WHERE platform='discord' AND platform_id=:g "
+                "AND network_status='approved' AND is_active=1 LIMIT 1"
+            ), {'g': str(guild_id)}).fetchone()
+            is_unified = bool(community_row and community_row[0])
 
-            leaderboard = [
-                {
-                    'user_id': str(m.user_id),
-                    'display_name': m.display_name or f'User {m.user_id}',
-                    'username': m.username,
-                    'xp': round(m.xp, 1),
-                    'level': m.level,
-                    'hero_tokens': m.hero_tokens,
-                    'message_count': m.message_count,
-                    'voice_minutes': m.voice_minutes,
-                }
-                for m in members
-            ]
+            if is_unified:
+                # Linked members from web_unified_leaderboard
+                linked_rows = db.execute(sa_text(
+                    "SELECT wu.username, ul.xp_total, wu.web_level, "
+                    "       ul.messages, ul.voice_mins, COALESCE(wu.hero_points,0), wu.discord_id "
+                    "FROM web_unified_leaderboard ul "
+                    "JOIN web_users wu ON wu.id = ul.user_id "
+                    "WHERE ul.guild_id=:g AND ul.platform='discord'"
+                ), {'g': str(guild_id)}).fetchall()
+                linked_discord_ids = {str(r[6]) for r in linked_rows}
+
+                # Unlinked members still in guild_members
+                unlinked_rows = db.execute(sa_text(
+                    "SELECT gm.display_name, gm.xp, gm.level, gm.message_count, "
+                    "       gm.voice_minutes, gm.hero_tokens, CAST(gm.user_id AS CHAR) "
+                    "FROM guild_members gm "
+                    "WHERE gm.guild_id=:g AND gm.is_bot=0 AND gm.xp>0 "
+                    "AND CAST(gm.user_id AS CHAR) NOT IN :linked_ids"
+                ), {'g': int(guild_id), 'linked_ids': tuple(linked_discord_ids) or ('__none__',)}).fetchall()
+
+                all_entries = [
+                    {'user_id': '', 'display_name': r[0], 'username': r[0],
+                     'xp': round(float(r[1] or 0), 1), 'level': int(r[2] or 1),
+                     'message_count': int(r[3] or 0), 'voice_minutes': int(r[4] or 0),
+                     'hero_tokens': int(r[5] or 0)}
+                    for r in linked_rows
+                ] + [
+                    {'user_id': str(r[6]), 'display_name': r[0], 'username': r[0],
+                     'xp': round(float(r[1] or 0), 1), 'level': int(r[2] or 1),
+                     'message_count': int(r[3] or 0), 'voice_minutes': int(r[4] or 0),
+                     'hero_tokens': int(r[5] or 0)}
+                    for r in unlinked_rows
+                ]
+                leaderboard = sorted(all_entries, key=lambda x: x['xp'], reverse=True)[:50]
+            else:
+                members = db.query(GuildMember).filter_by(
+                    guild_id=int(guild_id)
+                ).order_by(GuildMember.xp.desc()).limit(50).all()
+                leaderboard = [
+                    {
+                        'user_id': str(m.user_id),
+                        'display_name': m.display_name or f'User {m.user_id}',
+                        'username': m.username,
+                        'xp': round(m.xp, 1),
+                        'level': m.level,
+                        'hero_tokens': m.hero_tokens,
+                        'message_count': m.message_count,
+                        'voice_minutes': m.voice_minutes,
+                    }
+                    for m in members
+                ]
 
             total_members = db.query(GuildMember).filter_by(
                 guild_id=int(guild_id)
@@ -5268,6 +5354,7 @@ def guild_xp(request, guild_id):
         'bulk_edit_items_today': bulk_edit_items_today,
         'import_items_today': import_items_today,
         'token_name': token_name,
+        'is_unified': is_unified,
     }
     return render(request, 'questlog/xp.html', context)
 
@@ -7795,6 +7882,235 @@ def guild_raffles(request, guild_id):
         'has_any_module': has_any_module,
         'active_page': 'raffles',
     })
+
+
+@login_required
+def guild_bridge(request, guild_id):
+    """Discord guild bridge management page."""
+    from .db import get_db_session
+
+    admin_guilds = request.session.get('discord_admin_guilds', [])
+    guild = next((g for g in admin_guilds if str(g.get('id')) == str(guild_id)), None)
+    if not guild:
+        messages.error(request, "You don't have permission to manage bridges.")
+        return redirect('questlog_dashboard')
+
+    permissions = int(guild.get('permissions', 0))
+    is_admin = (permissions & 0x8) == 0x8 or (permissions & 0x20) == 0x20
+    if not is_admin:
+        messages.error(request, "You need Admin or Manage Server permission.")
+        return redirect('questlog_dashboard')
+
+    guild_record = None
+    fluxer_guilds_json = '[]'
+    matrix_spaces_json = '[]'
+    try:
+        import json as _json
+        with get_db_session() as db:
+            from .models import Guild as GuildModel
+            guild_record = db.query(GuildModel).filter_by(guild_id=int(guild_id)).first()
+
+            # Fluxer guilds + channels for cascading picker
+            from .questlog_web.models import WebFluxerGuildSettings, WebFluxerGuildChannel
+            from sqlalchemy import text as _sa_text
+            fluxer_rows = db.execute(_sa_text(
+                "SELECT DISTINCT s.guild_id, s.guild_name "
+                "FROM web_fluxer_guild_settings s ORDER BY s.guild_name LIMIT 200"
+            )).fetchall()
+            fluxer_guilds = []
+            for r in fluxer_rows:
+                ch_rows = db.execute(_sa_text(
+                    "SELECT channel_id, channel_name FROM web_fluxer_guild_channels "
+                    "WHERE guild_id = :g ORDER BY channel_name"
+                ), {'g': r[0]}).fetchall()
+                channels = [{'value': str(c[0]), 'label': c[1] or str(c[0])} for c in ch_rows]
+                fluxer_guilds.append({'id': str(r[0]), 'name': r[1] or str(r[0]), 'channels': channels})
+            fluxer_guilds_json = _json.dumps(fluxer_guilds)
+
+            # Matrix spaces + rooms
+            from .questlog_web.models import WebMatrixSpaceSettings, WebMatrixRoom
+            space_rows = db.query(WebMatrixSpaceSettings).filter_by(bot_present=1).order_by(
+                WebMatrixSpaceSettings.space_name
+            ).all()
+            matrix_spaces = []
+            for s in space_rows:
+                room_rows = db.query(WebMatrixRoom).filter_by(space_id=s.space_id, is_space=0).order_by(
+                    WebMatrixRoom.room_name
+                ).all()
+                rooms = [{'value': r.room_id, 'label': r.room_name} for r in room_rows if r.room_name and r.room_name != r.room_id]
+                matrix_spaces.append({'id': s.space_id, 'name': s.space_name or s.space_id, 'channels': rooms})
+            matrix_spaces_json = _json.dumps(matrix_spaces)
+    except Exception:
+        pass
+
+    return render(request, 'questlog/guild_bridge.html', {
+        'guild': guild,
+        'guild_record': guild_record,
+        'admin_guilds': admin_guilds,
+        'member_guilds': get_member_guilds(request),
+        'discord_user': request.session.get('discord_user', {}),
+        'is_admin': True,
+        'active_page': 'bridge',
+        'fluxer_guilds_json': fluxer_guilds_json,
+        'matrix_spaces_json': matrix_spaces_json,
+    })
+
+
+def _is_guild_admin(request, guild_id):
+    """Return True if logged-in Discord user is admin/manage-server for guild_id."""
+    admin_guilds = request.session.get('discord_admin_guilds', [])
+    guild = next((g for g in admin_guilds if str(g.get('id')) == str(guild_id)), None)
+    if not guild:
+        return False
+    perms = int(guild.get('permissions', 0))
+    return (perms & 0x8) == 0x8 or (perms & 0x20) == 0x20
+
+
+def _discord_bridge_dict(b):
+    return {
+        'id': b.id,
+        'name': b.name or '',
+        'discord_guild_id': b.discord_guild_id or '',
+        'discord_channel_id': b.discord_channel_id or '',
+        'fluxer_guild_id': b.fluxer_guild_id or '',
+        'fluxer_channel_id': b.fluxer_channel_id or '',
+        'matrix_space_id': b.matrix_space_id or '',
+        'matrix_room_id': b.matrix_room_id or '',
+        'relay_discord_to_fluxer': bool(b.relay_discord_to_fluxer),
+        'relay_fluxer_to_discord': bool(b.relay_fluxer_to_discord),
+        'relay_matrix_outbound': bool(getattr(b, 'relay_matrix_outbound', 1)),
+        'relay_matrix_inbound': bool(getattr(b, 'relay_matrix_inbound', 1)),
+        'max_msg_len': b.max_msg_len,
+        'enabled': bool(b.enabled),
+        'created_at': b.created_at,
+    }
+
+
+@login_required
+@require_http_methods(['GET', 'POST'])
+def api_discord_guild_bridges(request, guild_id):
+    """GET list / POST create bridge configs for this Discord guild."""
+    import json as _json, time as _time
+    from .db import get_db_session
+    from django.http import JsonResponse
+
+    if not _is_guild_admin(request, guild_id):
+        return JsonResponse({'error': 'Permission denied'}, status=403)
+
+    if request.method == 'GET':
+        with get_db_session() as db:
+            from .questlog_web.models import WebBridgeConfig
+            bridges = db.query(WebBridgeConfig).filter_by(
+                discord_guild_id=str(guild_id)
+            ).order_by(WebBridgeConfig.id).all()
+            return JsonResponse({'success': True, 'bridges': [_discord_bridge_dict(b) for b in bridges]})
+
+    # POST - create
+    try:
+        data = _json.loads(request.body)
+    except (_json.JSONDecodeError, AttributeError):
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+    discord_channel_id = str(data.get('discord_channel_id', '') or '').strip()[:20]
+    fluxer_guild_id = str(data.get('fluxer_guild_id', '') or '').strip()[:20]
+    fluxer_channel_id = str(data.get('fluxer_channel_id', '') or '').strip()[:20]
+    matrix_space_id = str(data.get('matrix_space_id', '') or '').strip()[:255]
+    matrix_room_id = str(data.get('matrix_room_id', '') or '').strip()[:255]
+
+    if not discord_channel_id:
+        return JsonResponse({'error': 'discord_channel_id is required'}, status=400)
+
+    now = int(_time.time())
+    with get_db_session() as db:
+        from .questlog_web.models import WebBridgeConfig, WebMatrixRoom
+        # If matrix_room_id is set, resolve the correct space_id from web_matrix_rooms
+        if matrix_room_id and not matrix_space_id:
+            room_row = db.query(WebMatrixRoom).filter_by(room_id=matrix_room_id).first()
+            if room_row:
+                matrix_space_id = room_row.space_id
+        bridge = WebBridgeConfig(
+            name=str(data.get('name', '') or '').strip()[:100] or None,
+            discord_guild_id=str(guild_id),
+            discord_channel_id=discord_channel_id,
+            fluxer_guild_id=fluxer_guild_id or None,
+            fluxer_channel_id=fluxer_channel_id or None,
+            matrix_space_id=matrix_space_id or None,
+            matrix_room_id=matrix_room_id or None,
+            relay_discord_to_fluxer=1 if data.get('relay_discord_to_fluxer', True) else 0,
+            relay_fluxer_to_discord=1 if data.get('relay_fluxer_to_discord', True) else 0,
+            relay_matrix_outbound=1 if data.get('relay_matrix_outbound', True) else 0,
+            relay_matrix_inbound=1 if data.get('relay_matrix_inbound', True) else 0,
+            max_msg_len=max(50, min(2000, int(data.get('max_msg_len', 1000) or 1000))),
+            enabled=1,
+            created_at=now,
+        )
+        db.add(bridge)
+        db.commit()
+        db.refresh(bridge)
+        return JsonResponse({'success': True, 'bridge': _discord_bridge_dict(bridge)}, status=201)
+
+
+@login_required
+@require_http_methods(['GET', 'PATCH', 'DELETE'])
+def api_discord_guild_bridge_detail(request, guild_id, bridge_id):
+    """GET / PATCH / DELETE a single Discord guild bridge config."""
+    import json as _json
+    from .db import get_db_session
+    from django.http import JsonResponse
+
+    if not _is_guild_admin(request, guild_id):
+        return JsonResponse({'error': 'Permission denied'}, status=403)
+
+    with get_db_session() as db:
+        from .questlog_web.models import WebBridgeConfig, WebBridgeRelayQueue
+        bridge = db.query(WebBridgeConfig).filter_by(
+            id=int(bridge_id), discord_guild_id=str(guild_id)
+        ).first()
+        if not bridge:
+            return JsonResponse({'error': 'Bridge not found'}, status=404)
+
+        if request.method == 'GET':
+            return JsonResponse({'success': True, 'bridge': _discord_bridge_dict(bridge)})
+
+        if request.method == 'DELETE':
+            db.query(WebBridgeRelayQueue).filter_by(bridge_id=int(bridge_id)).delete()
+            db.delete(bridge)
+            db.commit()
+            return JsonResponse({'success': True})
+
+        # PATCH
+        try:
+            data = _json.loads(request.body)
+        except (_json.JSONDecodeError, AttributeError):
+            return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+        if 'name' in data:
+            bridge.name = str(data['name'] or '').strip()[:100] or None
+        if 'enabled' in data:
+            bridge.enabled = 1 if data['enabled'] else 0
+        if 'relay_discord_to_fluxer' in data:
+            bridge.relay_discord_to_fluxer = 1 if data['relay_discord_to_fluxer'] else 0
+        if 'relay_fluxer_to_discord' in data:
+            bridge.relay_fluxer_to_discord = 1 if data['relay_fluxer_to_discord'] else 0
+        if 'max_msg_len' in data:
+            bridge.max_msg_len = max(50, min(2000, int(data['max_msg_len'] or 1000)))
+        if 'discord_channel_id' in data:
+            bridge.discord_channel_id = str(data['discord_channel_id'] or '')[:20] or None
+        if 'fluxer_guild_id' in data:
+            bridge.fluxer_guild_id = str(data['fluxer_guild_id'] or '')[:20] or None
+        if 'fluxer_channel_id' in data:
+            bridge.fluxer_channel_id = str(data['fluxer_channel_id'] or '')[:20] or None
+        if 'matrix_space_id' in data:
+            bridge.matrix_space_id = str(data['matrix_space_id'] or '')[:255] or None
+        if 'matrix_room_id' in data:
+            bridge.matrix_room_id = str(data['matrix_room_id'] or '')[:255] or None
+        if 'relay_matrix_outbound' in data:
+            bridge.relay_matrix_outbound = 1 if data['relay_matrix_outbound'] else 0
+        if 'relay_matrix_inbound' in data:
+            bridge.relay_matrix_inbound = 1 if data['relay_matrix_inbound'] else 0
+        db.commit()
+        db.refresh(bridge)
+        return JsonResponse({'success': True, 'bridge': _discord_bridge_dict(bridge)})
 
 
 @discord_required
@@ -11760,10 +12076,13 @@ def guild_discovery(request, guild_id):
 
 @discord_required
 def guild_discovery_network(request, guild_id):
-    """Discovery Network dashboard - cross-server creator discovery."""
-    from .module_utils import has_module_access, has_any_module_access
+    """
+    Retired: Discovery Network has moved to casual-heroes.com/ql/network/
+    Redirect all visitors there. Keep OG tags for crawlers so old Discord links still preview.
+    """
+    from django.http import HttpResponse
 
-    # Serve Open Graph meta tags for social media crawlers (no auth required)
+    # Serve Open Graph meta tags for social media crawlers
     user_agent = request.META.get('HTTP_USER_AGENT', '').lower()
     is_crawler = any(bot in user_agent for bot in [
         'facebookexternalhit', 'twitterbot', 'linkedinbot', 'discordbot',
@@ -11771,31 +12090,28 @@ def guild_discovery_network(request, guild_id):
     ])
 
     if is_crawler:
-        from django.http import HttpResponse
-        og_html = f"""<!DOCTYPE html>
+        og_html = """<!DOCTYPE html>
 <html>
 <head>
-    <meta property="og:title" content="QuestLog Dashboard - Casual Heroes">
-    <meta property="og:description" content="Discover gaming communities, find groups, and connect with players across the Casual Heroes network. Manage your Discord server with powerful moderation, leveling, and discovery tools.">
-    <meta property="og:image" content="https://{settings.DASHBOARD_DOMAIN}/static/img/siteassets/homepage/CHLogoFinal.png">
-    <meta property="og:url" content="https://{settings.DASHBOARD_DOMAIN}/questlog/guild/{guild_id}/discovery-network/">
+    <meta http-equiv="refresh" content="0; url=https://casual-heroes.com/ql/network/">
+    <meta property="og:title" content="QuestLog Network - Casual Heroes">
+    <meta property="og:description" content="Discover gaming communities, find LFG groups, and connect with creators across the QuestLog Network.">
+    <meta property="og:url" content="https://casual-heroes.com/ql/network/">
     <meta property="og:type" content="website">
-    <meta property="article:author" content="Ryven">
-    <meta name="author" content="Ryven">
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="QuestLog Dashboard - Casual Heroes">
-    <meta name="twitter:description" content="Discover gaming communities, find groups, and connect with players across the Casual Heroes network.">
-    <meta name="twitter:image" content="https://{settings.DASHBOARD_DOMAIN}/static/img/siteassets/homepage/CHLogoFinal.png">
-    <meta name="twitter:creator" content="@Ryven">
+    <meta name="twitter:title" content="QuestLog Network - Casual Heroes">
+    <meta name="twitter:description" content="Discover gaming communities, find LFG groups, and connect with creators across the QuestLog Network.">
 </head>
 <body>
-    <h1>QuestLog Dashboard - Casual Heroes</h1>
-    <p>Visit <a href="https://{settings.DASHBOARD_DOMAIN}/">Casual Heroes</a> to explore gaming communities.</p>
+    <p>The QuestLog Network has moved. <a href="https://casual-heroes.com/ql/network/">Visit the new page</a>.</p>
 </body>
 </html>"""
         return HttpResponse(og_html)
 
-    # Check if user is admin of this guild
+    # All real visitors go to the new QuestLog Network on the site
+    return redirect('https://casual-heroes.com/ql/network/')
+
+    # The code below is retired - kept for reference only
     admin_guilds = request.session.get('discord_admin_guilds', [])
     guild = next((g for g in admin_guilds if str(g.get('id')) == str(guild_id)), None)
 
@@ -19348,6 +19664,7 @@ def api_lfg_browser_create(request, guild_id):
         co_leader_ids = data.get('co_leader_ids', [])  # List of user IDs
         creator_options = data.get('creator_options', {})  # Creator's game-specific selections
         create_discord_thread = data.get('create_discord_thread', False)  # Whether to create Discord thread
+        post_to_network = data.get('post_to_network', False)  # Whether to also post to QuestLog Network
 
         # Role composition fields (works for any group type, not just raids)
         tanks_needed = data.get('tanks_needed')
@@ -19603,6 +19920,116 @@ def api_lfg_browser_create(request, guild_id):
             if create_discord_thread:
                 success_message = 'LFG group created! Bot will create a Discord thread shortly.'
 
+            # Snapshot ORM scalar values while session is still open - avoids DetachedInstanceError
+            _snap_group_id = new_group.id
+            _snap_group_size = new_group.max_group_size
+            _snap_game_name = game.game_name
+            _snap_game_cover = (data.get('game_cover_url') or '').strip()[:500] or (game.cover_url if hasattr(game, 'cover_url') else None)
+            _snap_guild_name = guild.guild_name if guild else None
+
+            # Post to QuestLog Network if requested - fire and forget, never fails the main response
+            network_group_id = None
+            if post_to_network:
+                try:
+                    from .questlog_web.models import WebUser, WebLFGGroup, WebLFGMember
+                    from .questlog_web.views_discovery import api_lfg_broadcast_network as _broadcast
+                    import time as _time
+
+                    with get_db_session() as web_db:
+                        # Find the linked QuestLog account via discord_id
+                        web_user = web_db.execute(
+                            __import__('sqlalchemy').text(
+                                "SELECT id, username, display_name FROM web_users WHERE discord_id=:did LIMIT 1"
+                            ),
+                            {"did": str(user_id)}
+                        ).fetchone()
+
+                        if web_user:
+                            now_ts = int(_time.time())
+                            web_group = WebLFGGroup(
+                                creator_id=web_user.id,
+                                title=title,
+                                description=description[:2000] if description else None,
+                                game_name=_snap_game_name,
+                                game_image_url=_snap_game_cover,
+                                group_size=_snap_group_size,
+                                current_size=1,
+                                use_roles=bool(tanks_needed or healers_needed or dps_needed or support_needed),
+                                tanks_needed=tanks_needed or 0,
+                                healers_needed=healers_needed or 0,
+                                dps_needed=dps_needed or 0,
+                                support_needed=support_needed or 0,
+                                scheduled_time=scheduled_time,
+                                status='open',
+                                created_at=now_ts,
+                                updated_at=now_ts,
+                                origin_platform='discord',
+                                origin_group_id=_snap_group_id,
+                                origin_guild_id=str(guild_id),
+                                origin_guild_name=_snap_guild_name,
+                            )
+                            web_db.add(web_group)
+                            web_db.flush()
+                            web_db.add(WebLFGMember(
+                                group_id=web_group.id,
+                                user_id=web_user.id,
+                                is_creator=True,
+                                status='joined',
+                                joined_at=now_ts,
+                            ))
+
+                            # Queue broadcasts to all subscribed communities
+                            from sqlalchemy import text as _text
+                            import json as _json
+                            creator_display = web_user.display_name or web_user.username
+                            embed_data = {
+                                "title": f"LFG: {title}",
+                                "description": (description[:300] + '...') if description and len(description) > 300 else (description or f"Posted by **{creator_display}**"),
+                                "url": f"https://casual-heroes.com/ql/lfg/{web_group.id}/",
+                                "color": 0xFEE75C,
+                                "fields": [
+                                    {"name": "Game", "value": _snap_game_name, "inline": True},
+                                    {"name": "Group Size", "value": f"1/{_snap_group_size}", "inline": True},
+                                    {"name": "Posted by", "value": creator_display, "inline": True},
+                                ],
+                                "footer": "QuestLog Network - casual-heroes.com/ql/lfg/",
+                            }
+                            if scheduled_time:
+                                from datetime import datetime, timezone as _tz
+                                try:
+                                    dt = datetime.fromtimestamp(int(scheduled_time), tz=_tz.utc)
+                                    embed_data["fields"].append({"name": "Scheduled", "value": dt.strftime("%a, %b %-d at %-I:%M %p UTC"), "inline": True})
+                                except (ValueError, TypeError, OSError):
+                                    pass
+
+                            payload_json = _json.dumps(embed_data)
+                            broadcast_now = int(_time.time())
+
+                            from .questlog_web.models import WebCommunityBotConfig
+                            configs = web_db.query(WebCommunityBotConfig).filter_by(
+                                event_type='lfg_announce', is_enabled=True
+                            ).filter(WebCommunityBotConfig.channel_id.isnot(None)).all()
+
+                            for cfg in configs:
+                                if cfg.platform == 'discord':
+                                    web_db.execute(_text(
+                                        "INSERT INTO discord_pending_broadcasts (guild_id, channel_id, payload, created_at) "
+                                        "VALUES (:gid, :cid, :payload, :now)"
+                                    ), {"gid": int(cfg.guild_id), "cid": int(cfg.channel_id), "payload": payload_json, "now": broadcast_now})
+                                else:
+                                    web_db.execute(_text(
+                                        "INSERT INTO fluxer_pending_broadcasts (guild_id, channel_id, payload, created_at) "
+                                        "VALUES (:gid, :cid, :payload, :now)"
+                                    ), {"gid": cfg.guild_id, "cid": cfg.channel_id, "payload": payload_json, "now": broadcast_now})
+
+                            web_db.commit()
+                            network_group_id = web_group.id
+                            success_message = 'LFG group created and posted to QuestLog Network!'
+                            if create_discord_thread:
+                                success_message = 'LFG group created, Discord thread coming, and posted to QuestLog Network!'
+                except Exception as _e:
+                    logger.warning(f"[LFG] Network post failed for Discord group {_snap_group_id}: {_e}")
+
             return JsonResponse({
                 'success': True,
                 'message': success_message,
@@ -19611,6 +20038,7 @@ def api_lfg_browser_create(request, guild_id):
                     'game_name': game.game_name,
                     'scheduled_time': new_group.scheduled_time,
                     'co_leaders': co_leaders_added,
+                    'network_group_id': network_group_id,
                 }
             })
 
@@ -21385,6 +21813,31 @@ def guild_cotm(request, guild_id):
     return redirect('creator_of_the_month')
 
 
+def sitemap_xml(request):
+    from django.http import HttpResponse
+    from django.utils.timezone import now
+    today = now().strftime('%Y-%m-%d')
+    urls = [
+        ('https://casual-heroes.com/', '1.0', 'weekly'),
+        ('https://casual-heroes.com/ql/', '0.9', 'daily'),
+        ('https://casual-heroes.com/ql/lfg/', '0.8', 'daily'),
+        ('https://casual-heroes.com/ql/network/', '0.7', 'weekly'),
+        ('https://casual-heroes.com/ql/creators/', '0.7', 'weekly'),
+        ('https://casual-heroes.com/ql/register/', '0.6', 'monthly'),
+        ('https://casual-heroes.com/privacy', '0.5', 'monthly'),
+        ('https://casual-heroes.com/terms', '0.5', 'monthly'),
+        ('https://casual-heroes.com/aboutus', '0.5', 'monthly'),
+        ('https://casual-heroes.com/gamesweplay', '0.6', 'weekly'),
+        ('https://casual-heroes.com/gameservers', '0.6', 'weekly'),
+    ]
+    xml = '<?xml version="1.0" encoding="UTF-8"?>\n'
+    xml += '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+    for loc, priority, changefreq in urls:
+        xml += f'  <url><loc>{loc}</loc><lastmod>{today}</lastmod><changefreq>{changefreq}</changefreq><priority>{priority}</priority></url>\n'
+    xml += '</urlset>'
+    return HttpResponse(xml, content_type='application/xml')
+
+
 def robots_txt(request):
     """Serve robots.txt with proper headers for social media and search engine crawlers."""
     from django.http import HttpResponse
@@ -21445,7 +21898,7 @@ Allow: /
 Disallow: /api/admin/
 Disallow: /admin/
 
-Sitemap: https://{settings.DASHBOARD_DOMAIN}/sitemap.xml
+Sitemap: https://casual-heroes.com/sitemap.xml
 """
 
     return HttpResponse(robots_content, content_type='text/plain')

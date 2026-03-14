@@ -220,14 +220,6 @@ let guildRoles = []; // Will be populated when creating channel template
 let editingTemplateId = null;
 
 // CSRF-aware fetch function
-async function csrfFetch(url, options = {}) {
-  options.headers = options.headers || {};
-  if (!options.headers['X-CSRFToken']) {
-    options.headers['X-CSRFToken'] = csrfToken;
-  }
-  return fetch(url, options);
-}
-
 function canCreateTemplate() {
   return true;
 }

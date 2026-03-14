@@ -1,0 +1,412 @@
+{% extends "questlog_web/fluxer_base_guild.html" %}
+{% load static %}
+{% block title %}Server Settings - {{ guild_name }}{% endblock %}
+
+{% block guild_content %}
+
+{% include "questlog/partials/custom_select.html" %}
+
+  <!-- Header -->
+  <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
+    <div>
+      <h1 class="text-3xl font-bold text-white">
+        <i class="fas fa-cog text-gray-400 mr-3"></i>Server Settings
+      </h1>
+      <p class="text-gray-400 mt-1">Configure bot behavior for {{ guild_name }}</p>
+    </div>
+    <div class="flex gap-3 items-center">
+      <button onclick="saveSettings()" id="saveBtn" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium transition text-sm">
+        <i class="fas fa-save mr-2"></i>Save Changes
+      </button>
+    </div>
+  </div>
+
+  <!-- Save status -->
+  <div id="save-msg" class="hidden mb-4 px-4 py-3 rounded-lg text-sm font-medium"></div>
+
+  <!-- General Settings -->
+  <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6 mb-6">
+    <h3 class="text-lg font-bold text-white mb-6">
+      <i class="fas fa-sliders-h text-gray-400 mr-2"></i>General
+    </h3>
+    <div class="space-y-6">
+      <!-- Command Prefix -->
+      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <p class="text-white font-medium">Command Prefix</p>
+          <p class="text-gray-500 text-sm">Prefix for text commands (e.g. ! for !ban)</p>
+        </div>
+        <input type="text" id="bot_prefix" value="{{ settings.bot_prefix|default:'!' }}" maxlength="10"
+               class="w-full md:w-32 bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white focus:border-indigo-500 focus:outline-none font-mono text-sm">
+      </div>
+
+      <!-- Language -->
+      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <p class="text-white font-medium">Language</p>
+          <p class="text-gray-500 text-sm">Bot response language</p>
+        </div>
+        <div id="cs-language" class="w-full md:w-48"></div>
+      </div>
+
+      <!-- Timezone -->
+      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <p class="text-white font-medium">Timezone</p>
+          <p class="text-gray-500 text-sm">Used for scheduled messages and logs</p>
+        </div>
+        <div id="cs-timezone" class="w-full md:w-64"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Member Management -->
+  <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6 mb-6">
+    <h3 class="text-lg font-bold text-white mb-6">
+      <i class="fas fa-users text-green-400 mr-2"></i>Member Management
+    </h3>
+    <div class="space-y-6">
+      <!-- Role Persistence -->
+      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <p class="text-white font-medium">Role Persistence</p>
+          <p class="text-gray-500 text-sm">Restore roles when members leave and rejoin</p>
+        </div>
+        <label class="relative inline-flex items-center cursor-pointer">
+          <input type="checkbox" id="role_persistence_enabled" class="sr-only peer" {% if settings.role_persistence_enabled %}checked{% endif %}>
+          <div class="w-11 h-6 bg-neutral-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div>
+        </label>
+      </div>
+      <p class="text-gray-500 text-xs">
+        <i class="fas fa-info-circle text-blue-400 mr-1"></i>
+        When enabled, member roles are saved when they leave. If they rejoin, their previous roles are automatically restored (after verification if enabled).
+      </p>
+    </div>
+  </div>
+
+  <!-- Token Customization -->
+  <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6 mb-6">
+    <h3 class="text-lg font-bold text-white mb-2">
+      <i class="fas fa-coins text-yellow-400 mr-2"></i>Token Customization
+    </h3>
+    <p class="text-gray-400 text-sm mb-6">Rename "Hero Tokens" to match your server's theme</p>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div>
+        <label class="block text-sm text-gray-400 mb-2">Token Name</label>
+        <input type="text" id="token_name" value="{{ settings.token_name|default:'Hero Tokens' }}" maxlength="50"
+               placeholder="e.g., Gold Coins, Stars, Points"
+               class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:border-yellow-500 focus:outline-none">
+        <p class="text-gray-500 text-xs mt-1">Used in all bot messages and commands</p>
+      </div>
+      <div>
+        <label class="block text-sm text-gray-400 mb-2">Token Emoji</label>
+        <input type="text" id="token_emoji" value="{{ settings.token_emoji|default:':coin:' }}" maxlength="20"
+               placeholder="e.g., :coin: or custom emoji ID"
+               class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:border-yellow-500 focus:outline-none">
+        <p class="text-gray-500 text-xs mt-1">Discord emoji or custom emoji</p>
+      </div>
+    </div>
+    <div class="mt-4 p-4 bg-neutral-800/50 rounded-lg">
+      <p class="text-gray-400 text-sm">
+        <i class="fas fa-info-circle text-blue-400 mr-2"></i>
+        Preview: <span class="text-white" id="tokenPreview">{{ settings.token_emoji|default:':coin:' }} 100 {{ settings.token_name|default:'Hero Tokens' }}</span>
+      </p>
+    </div>
+  </div>
+
+  <!-- Dashboard Admin Roles -->
+  <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6 mb-6">
+    <h3 class="text-lg font-bold text-white mb-2">
+      <i class="fas fa-user-shield text-indigo-400 mr-2"></i>Dashboard Admin Roles
+    </h3>
+    <p class="text-gray-400 text-sm mb-6">Select which roles can manage the bot dashboard (in addition to server administrators)</p>
+    <div>
+      <label class="block text-sm text-gray-400 mb-2">
+        Admin Roles
+        <span class="text-xs text-gray-500 ml-2">(Multi-select)</span>
+      </label>
+      <div id="cs-admin-roles"></div>
+      <p class="text-gray-500 text-xs mt-2">
+        <i class="fas fa-info-circle text-blue-400 mr-1"></i>
+        Users with these roles will have full access to the dashboard. Changes take effect within 30 seconds.
+      </p>
+    </div>
+  </div>
+
+  <!-- Moderation Channels -->
+  <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6 mb-6">
+    <h3 class="text-lg font-bold text-white mb-6">
+      <i class="fas fa-hashtag text-gray-400 mr-2"></i>Moderation Channels
+    </h3>
+    <div class="space-y-6">
+      <div>
+        <label class="block text-sm text-gray-400 mb-2">Mod Log Channel</label>
+        <div id="cs-mod-log"></div>
+        <p class="text-gray-500 text-xs mt-1">Warnings, bans, kicks, and other mod actions will be logged here</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Channel Creation Notifications -->
+  <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6 mb-6">
+    <h3 class="text-lg font-bold text-white mb-2">
+      <i class="fas fa-bell text-blue-400 mr-2"></i>Channel Creation Notifications
+    </h3>
+    <p class="text-gray-400 text-sm mb-6">Get notified when new channels are created in your server</p>
+    <div class="space-y-6">
+      <div>
+        <label class="block text-sm text-gray-400 mb-2">Notification Channel</label>
+        <div id="cs-channel-notify"></div>
+        <p class="text-gray-500 text-xs mt-1">New channel creations will be announced here (text, voice, forums, etc.)</p>
+      </div>
+      <div>
+        <label class="block text-sm text-gray-400 mb-2">
+          Excluded Categories
+          <span class="text-xs text-gray-500 ml-2">(Multi-select)</span>
+        </label>
+        <div id="cs-temp-voice-cats"></div>
+        <p class="text-gray-500 text-xs mt-2">
+          <i class="fas fa-info-circle text-blue-400 mr-1"></i>
+          Channels created in these categories won't trigger notifications. Useful for temp voice bots or other automated systems.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Server Info (read-only) -->
+  <div class="bg-neutral-900/50 border border-neutral-800 rounded-xl p-5 mb-6">
+    <h3 class="text-gray-400 font-semibold mb-3 text-sm uppercase tracking-wider">Server Info</h3>
+    <div class="grid grid-cols-2 gap-3 text-sm">
+      <div>
+        <p class="text-gray-500 text-xs">Guild ID</p>
+        <p class="text-white font-mono text-xs">{{ guild_id }}</p>
+      </div>
+      <div>
+        <p class="text-gray-500 text-xs">Guild Name</p>
+        <p class="text-white">{{ guild_name }}</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Danger Zone -->
+  <div class="bg-red-900/20 rounded-xl p-6 border border-red-900/50">
+    <h3 class="text-lg font-bold text-red-400 mb-4">
+      <i class="fas fa-exclamation-triangle mr-2"></i>Danger Zone
+    </h3>
+    <p class="text-gray-400 text-xs mb-4">These destructive actions cannot be undone</p>
+    <div class="space-y-4">
+      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <p class="text-white font-medium">Reset All Settings</p>
+          <p class="text-gray-400 text-sm">Reset all Fluxer settings for this server to defaults</p>
+        </div>
+        <button onclick="confirmReset()" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg font-medium transition text-sm whitespace-nowrap">
+          Reset Settings
+        </button>
+      </div>
+      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 pt-4 border-t border-red-900/30">
+        <div>
+          <p class="text-white font-medium">Remove All Guild Data</p>
+          <p class="text-gray-400 text-sm">Permanently delete all Fluxer data for this server (XP, settings, warnings, etc.)</p>
+        </div>
+        <button onclick="confirmRemove()" class="bg-red-800 hover:bg-red-900 text-white px-4 py-2 rounded-lg font-medium transition text-sm whitespace-nowrap">
+          Remove Data
+        </button>
+      </div>
+    </div>
+  </div>
+
+<script>
+const GUILD_ID = '{{ guild_id }}';
+const SETTINGS = JSON.parse('{{ settings_json|escapejs }}');
+const CHANNELS = JSON.parse('{{ channels_json|escapejs }}');
+const ROLES_JSON = JSON.parse('{{ roles_json|escapejs }}');
+const API_URL = '/ql/api/dashboard/fluxer/' + GUILD_ID + '/settings/';
+
+const langItems = [
+  {value: 'en', label: 'English'},
+  {value: 'es', label: 'Spanish'},
+  {value: 'fr', label: 'French'},
+  {value: 'de', label: 'German'},
+  {value: 'pt', label: 'Portuguese'},
+  {value: 'ja', label: 'Japanese'},
+];
+
+const tzItems = [
+  {value: 'UTC', label: 'UTC'},
+  {value: 'America/New_York', label: 'Eastern Time (ET)'},
+  {value: 'America/Chicago', label: 'Central Time (CT)'},
+  {value: 'America/Denver', label: 'Mountain Time (MT)'},
+  {value: 'America/Los_Angeles', label: 'Pacific Time (PT)'},
+  {value: 'America/Anchorage', label: 'Alaska (AKT)'},
+  {value: 'Pacific/Honolulu', label: 'Hawaii (HT)'},
+  {value: 'Europe/London', label: 'London (GMT/BST)'},
+  {value: 'Europe/Paris', label: 'Central European (CET)'},
+  {value: 'Europe/Berlin', label: 'Berlin (CET/CEST)'},
+  {value: 'Europe/Amsterdam', label: 'Amsterdam (CET/CEST)'},
+  {value: 'Europe/Helsinki', label: 'Helsinki (EET)'},
+  {value: 'Asia/Tokyo', label: 'Tokyo (JST)'},
+  {value: 'Asia/Seoul', label: 'Seoul (KST)'},
+  {value: 'Asia/Shanghai', label: 'Shanghai (CST)'},
+  {value: 'Asia/Singapore', label: 'Singapore (SGT)'},
+  {value: 'Australia/Sydney', label: 'Sydney (AEDT)'},
+  {value: 'Australia/Melbourne', label: 'Melbourne (AEST)'},
+];
+
+const channelsWithBlank = [{value: '', label: '-- None --'}, ...CHANNELS];
+
+const csLang = createCustomSelect({
+  container: document.getElementById('cs-language'),
+  name: 'language',
+  items: langItems,
+  selected: SETTINGS.language || 'en',
+});
+const csTz = createCustomSelect({
+  container: document.getElementById('cs-timezone'),
+  name: 'timezone',
+  items: tzItems,
+  selected: SETTINGS.timezone || 'UTC',
+});
+const csModLog = createCustomSelect({
+  container: document.getElementById('cs-mod-log'),
+  name: 'mod_log_channel_id',
+  items: channelsWithBlank,
+  selected: SETTINGS.mod_log_channel_id || '',
+  placeholder: 'Select a channel...',
+  color: 'indigo'
+});
+const csChannelNotify = createCustomSelect({
+  container: document.getElementById('cs-channel-notify'),
+  name: 'channel_notify_channel_id',
+  items: channelsWithBlank,
+  selected: SETTINGS.channel_notify_channel_id || '',
+  placeholder: 'Select a notification channel...',
+  color: 'blue'
+});
+
+// Categories are channels that represent categories - we store them as channel IDs
+// We only have channel data, so use all channels as potential categories for exclusion
+const csTempVoiceCats = createCustomSelect({
+  container: document.getElementById('cs-temp-voice-cats'),
+  name: 'temp_voice_category_ids',
+  items: CHANNELS.map(c => ({value: c.value || c.id, label: c.label})),
+  selected: SETTINGS.temp_voice_category_ids || [],
+  placeholder: 'Select categories to exclude...',
+  color: 'blue',
+  multiSelect: true,
+});
+
+// Admin roles multi-select
+const roleItems = (ROLES_JSON || []).map(r => ({value: String(r.value || ''), label: r.label || r.value || ''}));
+const csAdminRoles = createCustomSelect({
+  container: document.getElementById('cs-admin-roles'),
+  name: 'admin_roles',
+  items: roleItems,
+  selected: SETTINGS.admin_roles || [],
+  placeholder: 'Select admin roles...',
+  color: 'indigo',
+  multiSelect: true,
+});
+
+// Token preview
+function updateTokenPreview() {
+  const emoji = document.getElementById('token_emoji').value || ':coin:';
+  const name = document.getElementById('token_name').value || 'Hero Tokens';
+  document.getElementById('tokenPreview').textContent = `${emoji} 100 ${name}`;
+}
+document.getElementById('token_emoji').addEventListener('input', updateTokenPreview);
+document.getElementById('token_name').addEventListener('input', updateTokenPreview);
+
+async function saveSettings() {
+  const btn = document.getElementById('saveBtn');
+  const msg = document.getElementById('save-msg');
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Saving...';
+  btn.disabled = true;
+
+  const payload = {
+    bot_prefix: document.getElementById('bot_prefix').value.trim() || '!',
+    language: csLang.getValue() || 'en',
+    timezone: csTz.getValue() || 'UTC',
+    token_name: document.getElementById('token_name').value.trim(),
+    token_emoji: document.getElementById('token_emoji').value.trim(),
+    role_persistence_enabled: document.getElementById('role_persistence_enabled').checked,
+    admin_roles: csAdminRoles.getValue() || [],
+    mod_log_channel_id: csModLog.getValue() || '',
+    channel_notify_channel_id: csChannelNotify.getValue() || '',
+    temp_voice_category_ids: csTempVoiceCats.getValue() || [],
+  };
+  try {
+    const resp = await csrfFetch(API_URL, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload),
+    });
+    const data = await resp.json();
+    if (resp.ok && data.success) {
+      msg.textContent = 'Settings saved.';
+      msg.className = 'mb-4 px-4 py-3 rounded-lg text-sm font-medium bg-green-900/40 text-green-400 border border-green-700/40';
+      btn.innerHTML = '<i class="fas fa-check mr-2"></i>Saved!';
+    } else {
+      msg.textContent = data.error || 'Save failed.';
+      msg.className = 'mb-4 px-4 py-3 rounded-lg text-sm font-medium bg-red-900/40 text-red-400 border border-red-700/40';
+      btn.innerHTML = '<i class="fas fa-save mr-2"></i>Save Changes';
+      btn.disabled = false;
+    }
+    msg.classList.remove('hidden');
+    setTimeout(() => {
+      msg.classList.add('hidden');
+      btn.innerHTML = '<i class="fas fa-save mr-2"></i>Save Changes';
+      btn.disabled = false;
+    }, 4000);
+  } catch (e) {
+    msg.textContent = 'Network error.';
+    msg.className = 'mb-4 px-4 py-3 rounded-lg text-sm font-medium bg-red-900/40 text-red-400 border border-red-700/40';
+    msg.classList.remove('hidden');
+    btn.innerHTML = '<i class="fas fa-save mr-2"></i>Save Changes';
+    btn.disabled = false;
+  }
+}
+
+async function confirmReset() {
+  if (!confirm('Reset all Fluxer settings for this server to defaults? This cannot be undone.')) return;
+  try {
+    const resp = await csrfFetch(API_URL, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({_action: 'reset'}),
+    });
+    const data = await resp.json();
+    if (resp.ok && data.success) {
+      alert('Settings reset to defaults.');
+      window.location.reload();
+    } else {
+      alert('Error: ' + (data.error || 'Unknown error'));
+    }
+  } catch (e) {
+    alert('Network error.');
+  }
+}
+
+async function confirmRemove() {
+  if (!confirm('Permanently delete ALL Fluxer data for this server (XP, settings, warnings, etc.)? This cannot be undone.')) return;
+  const confirmation = prompt('Type DELETE to confirm:');
+  if (confirmation !== 'DELETE') { alert('Cancelled.'); return; }
+  try {
+    const resp = await csrfFetch(API_URL, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({_action: 'remove_data'}),
+    });
+    const data = await resp.json();
+    if (resp.ok && data.success) {
+      alert('All guild data removed.');
+      window.location.href = '/ql/dashboard/fluxer/';
+    } else {
+      alert('Error: ' + (data.error || 'Unknown error'));
+    }
+  } catch (e) {
+    alert('Network error.');
+  }
+}
+</script>
+{% endblock %}

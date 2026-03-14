@@ -8,17 +8,6 @@
 
 <script>
   const CSRF_TOKEN = '{{ csrf_token }}';
-  function csrfFetch(url, options = {}) {
-    if (!options.headers) options.headers = {};
-    if (CSRF_TOKEN && CSRF_TOKEN !== 'None') options.headers['X-CSRFToken'] = CSRF_TOKEN;
-    return fetch(url, options);
-  }
-  function escapeHtml(text) {
-    if (text == null) return '';
-    const d = document.createElement('div');
-    d.textContent = text;
-    return d.innerHTML;
-  }
 </script>
 
 <!-- Header -->

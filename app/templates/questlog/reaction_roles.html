@@ -7,17 +7,6 @@
 
 <script>
 const csrfToken = '{{ csrf_token }}';
-async function csrfFetch(url, options = {}) {
-  const opts = { ...options };
-  opts.headers = opts.headers || {};
-  opts.headers['X-CSRFToken'] = csrfToken;
-
-  if (!(opts.body instanceof FormData) && opts.method && opts.method.toUpperCase() !== 'GET' && !opts.headers['Content-Type']) {
-    opts.headers['Content-Type'] = 'application/json';
-  }
-
-  return fetch(url, opts);
-}
 </script>
 {% include "questlog/partials/discord_resource_selects.html" %}
 {% include "questlog/partials/custom_select.html" %}
@@ -159,10 +148,6 @@ let roleOptions = [];
 let channelSelectInstance = null;
 let emojiOptions = [];
 let guildEmojis = [];
-
-function escapeHtml(str) {
-  return (str || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-}
 
 function channelName(id) {
   const found = channels.find(c => c.id === String(id));

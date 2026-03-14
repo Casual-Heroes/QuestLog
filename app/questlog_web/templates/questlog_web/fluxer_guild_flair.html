@@ -1,0 +1,626 @@
+{% extends "questlog_web/fluxer_base_guild.html" %}
+{% load static %}
+
+{% block title %}Flair Management - {{ guild_name }} - Fluxer Dashboard{% endblock %}
+
+{% block guild_content %}
+<!-- Header -->
+<div class="bg-gradient-to-br from-neutral-900 to-neutral-950 border-b border-neutral-800 p-6">
+  <div class="max-w-7xl mx-auto">
+    <div class="flex items-center justify-between flex-wrap gap-4">
+      <div>
+        <h1 class="text-3xl font-bold bg-gradient-to-r from-pink-400 to-purple-400 bg-clip-text text-transparent">
+          <i class="fas fa-palette mr-2"></i>Flair Management
+        </h1>
+        <p class="text-gray-400 mt-1">Customize flair names, costs, and availability for your server</p>
+      </div>
+      <div class="flex items-center gap-3 flex-wrap">
+        <button onclick="openCreateFlairModal()"
+                class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium transition text-sm">
+          <i class="fas fa-plus mr-2"></i>Create Custom Flair
+        </button>
+        <button onclick="openBulkCreateFlairModal()"
+                class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium transition text-sm">
+          <i class="fas fa-layer-group mr-2"></i>Bulk Create Flairs
+        </button>
+        <button onclick="saveAllChanges()" id="save-btn"
+                class="bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-700 hover:to-purple-700 text-white px-4 py-2 rounded-lg font-medium transition text-sm flex items-center gap-2">
+          <i class="fas fa-save"></i>Save All Changes
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Main Content -->
+<div class="p-6 max-w-7xl mx-auto">
+  <!-- Toast Container -->
+  <div id="toast-container" class="fixed top-4 right-4 z-50 space-y-2"></div>
+
+  <!-- Info banner -->
+  <div class="mb-6 p-4 rounded-xl bg-purple-900/20 border border-purple-700/40 flex items-start gap-3">
+    <i class="fas fa-info-circle text-purple-400 mt-0.5 flex-shrink-0"></i>
+    <div class="text-sm text-gray-300">
+      <p>Flairs are cosmetic badges that members can equip. Enable or disable flairs for your server, adjust HP costs, and create custom flairs unique to your community. Changes apply to all new purchases in your Fluxer guild.</p>
+    </div>
+  </div>
+
+  <!-- Flair Table -->
+  <div class="bg-neutral-900 rounded-xl border border-neutral-800 overflow-hidden">
+    <!-- Loading state -->
+    <div id="loading-state" class="flex items-center justify-center py-16">
+      <div class="text-center">
+        <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-pink-400 mx-auto mb-4"></div>
+        <p class="text-gray-400">Loading flairs...</p>
+      </div>
+    </div>
+
+    <!-- Flairs table (hidden until loaded) -->
+    <div id="flairs-container" class="hidden">
+
+      <!-- Normal Flairs Section -->
+      <div class="border-b border-neutral-800 p-4 bg-neutral-800/50">
+        <h3 class="text-lg font-bold text-white">
+          <i class="fas fa-star text-yellow-400 mr-2"></i>Normal Flairs
+        </h3>
+        <p class="text-sm text-gray-400 mt-1">Default flairs available to all members</p>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full">
+          <thead class="bg-neutral-800 text-gray-300 text-sm">
+            <tr>
+              <th class="text-left p-3 font-medium w-16">Enabled</th>
+              <th class="text-left p-3 font-medium">Flair Name</th>
+              <th class="text-left p-3 font-medium w-32">Cost (HP)</th>
+              <th class="text-left p-3 font-medium w-28" title="Admin-only flairs are hidden from the member store and must be manually assigned">Admin Only</th>
+              <th class="text-left p-3 font-medium w-32">Display Order</th>
+            </tr>
+          </thead>
+          <tbody id="normal-flairs-body" class="divide-y divide-neutral-700/50">
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Seasonal Flairs Section -->
+      <div class="border-y border-neutral-800 p-4 bg-neutral-800/50 mt-2">
+        <h3 class="text-lg font-bold text-white">
+          <i class="fas fa-snowflake text-blue-400 mr-2"></i>Seasonal Flairs
+        </h3>
+        <p class="text-sm text-gray-400 mt-1">Limited-time event flairs</p>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full">
+          <thead class="bg-neutral-800 text-gray-300 text-sm">
+            <tr>
+              <th class="text-left p-3 font-medium w-16">Enabled</th>
+              <th class="text-left p-3 font-medium">Flair Name</th>
+              <th class="text-left p-3 font-medium w-32">Cost (HP)</th>
+              <th class="text-left p-3 font-medium w-28" title="Admin-only flairs are hidden from the member store and must be manually assigned">Admin Only</th>
+              <th class="text-left p-3 font-medium w-32">Display Order</th>
+            </tr>
+          </thead>
+          <tbody id="seasonal-flairs-body" class="divide-y divide-neutral-700/50">
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Custom Flairs Section -->
+      <div class="border-y border-neutral-800 p-4 bg-neutral-800/50 mt-2">
+        <h3 class="text-lg font-bold text-white">
+          <i class="fas fa-crown text-yellow-400 mr-2"></i>Custom Flairs
+        </h3>
+        <p class="text-sm text-gray-400 mt-1">Server-specific flairs created for this community</p>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full">
+          <thead class="bg-neutral-800 text-gray-300 text-sm">
+            <tr>
+              <th class="text-left p-3 font-medium w-16">Enabled</th>
+              <th class="text-left p-3 font-medium">Flair Name</th>
+              <th class="text-left p-3 font-medium w-32">Cost (HP)</th>
+              <th class="text-left p-3 font-medium w-28" title="Admin-only flairs are hidden from the member store and must be manually assigned">Admin Only</th>
+              <th class="text-left p-3 font-medium w-32">Display Order</th>
+              <th class="text-left p-3 font-medium w-24">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="custom-flairs-body" class="divide-y divide-neutral-700/50">
+          </tbody>
+        </table>
+      </div>
+
+    </div><!-- /flairs-container -->
+  </div><!-- /bg-neutral-900 card -->
+</div><!-- /p-6 -->
+
+<!-- Create Custom Flair Modal -->
+<div id="create-flair-modal" class="fixed inset-0 z-50 hidden">
+  <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" onclick="closeCreateFlairModal()"></div>
+  <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-lg px-4">
+    <div class="bg-neutral-900 rounded-xl border border-neutral-700 shadow-2xl p-6">
+      <div class="flex items-center justify-between mb-5">
+        <h3 class="text-lg font-bold text-white">
+          <i class="fas fa-plus text-green-400 mr-2"></i>Create Custom Flair
+        </h3>
+        <button onclick="closeCreateFlairModal()" class="text-gray-400 hover:text-white transition">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+
+      <form onsubmit="createFlair(event)" class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-300 mb-1.5">
+            Flair Name
+            <i class="fas fa-info-circle text-gray-500 text-xs ml-1"
+               title="Include emoji for best results, e.g. [🎯 Marksman]"></i>
+          </label>
+          <input type="text"
+                 id="new-flair-name"
+                 placeholder="e.g. [🎯 Marksman]"
+                 maxlength="100"
+                 required
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-pink-500">
+          <p class="text-xs text-gray-500 mt-1">Tip: Use emoji and brackets for the best look. E.g. [🔥 Pyromancer]</p>
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-gray-300 mb-1.5">Cost (Hero Points)</label>
+          <input type="number"
+                 id="new-flair-cost"
+                 placeholder="100"
+                 min="0"
+                 value="100"
+                 required
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-pink-500">
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-gray-300 mb-1.5">Display Order</label>
+          <input type="number"
+                 id="new-flair-order"
+                 placeholder="0"
+                 min="0"
+                 value="0"
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-pink-500">
+          <p class="text-xs text-gray-500 mt-1">Lower numbers appear first in the shop</p>
+        </div>
+
+        <div class="flex gap-3 pt-2">
+          <button type="button"
+                  onclick="closeCreateFlairModal()"
+                  class="flex-1 px-4 py-2 bg-neutral-800 hover:bg-neutral-700 text-white rounded-lg transition text-sm">
+            Cancel
+          </button>
+          <button type="submit"
+                  class="flex-1 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition text-sm font-medium">
+            <i class="fas fa-plus mr-2"></i>Create
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Bulk Create Flairs Modal -->
+<div id="bulk-create-flair-modal" class="fixed inset-0 z-50 hidden">
+  <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" onclick="closeBulkCreateFlairModal()"></div>
+  <div class="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-2xl max-h-screen overflow-y-auto py-6 px-4">
+    <div class="bg-neutral-900 rounded-xl border border-neutral-700 shadow-2xl">
+      <div class="p-5 border-b border-neutral-800 flex items-center justify-between sticky top-0 bg-neutral-900 z-10 rounded-t-xl">
+        <h3 class="text-lg font-bold text-white">
+          <i class="fas fa-layer-group text-indigo-400 mr-2"></i>Bulk Create Custom Flairs
+        </h3>
+        <div class="flex items-center gap-3">
+          <button onclick="addBulkFlairRow()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition">
+            <i class="fas fa-plus mr-1"></i>Add Flair
+          </button>
+          <button onclick="closeBulkCreateFlairModal()" class="text-gray-400 hover:text-white">
+            <i class="fas fa-times text-xl"></i>
+          </button>
+        </div>
+      </div>
+      <div class="p-5">
+        <p class="text-gray-400 text-sm mb-4">Build multiple custom flairs at once. Each row is one flair.</p>
+
+        <div class="grid grid-cols-12 gap-2 mb-2 px-1">
+          <div class="col-span-5 text-xs text-gray-500 font-medium uppercase tracking-wide">Flair Name <span class="text-red-400">*</span></div>
+          <div class="col-span-3 text-xs text-gray-500 font-medium uppercase tracking-wide">Cost (HP)</div>
+          <div class="col-span-2 text-xs text-gray-500 font-medium uppercase tracking-wide">Order</div>
+          <div class="col-span-2"></div>
+        </div>
+
+        <div id="bulk-flair-rows" class="space-y-2 mb-5">
+          <!-- rows injected by JS -->
+        </div>
+
+        <div id="bulk-flair-result" class="hidden p-3 rounded-lg text-sm mb-4"></div>
+
+        <div class="bg-neutral-800 rounded-lg p-3 text-xs text-gray-500 mb-4">
+          <i class="fas fa-lightbulb text-yellow-400 mr-1"></i>
+          Include emoji in the name for best results - e.g. <span class="text-pink-400">[🔥 Pyromancer]</span>
+        </div>
+
+        <div class="flex justify-end gap-3 pt-4 border-t border-neutral-800">
+          <button onclick="closeBulkCreateFlairModal()" class="px-4 py-2 text-gray-400 hover:text-white transition">Cancel</button>
+          <button onclick="submitBulkFlairCreate()" id="bulk-flair-create-btn"
+                  class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-lg font-medium transition">
+            <i class="fas fa-layer-group mr-2"></i>Create All Flairs
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const GUILD_ID = '{{ guild_id }}';
+const FLAIRS_API = '/ql/api/dashboard/fluxer/' + GUILD_ID + '/flairs/';
+const CREATE_API = '/ql/api/dashboard/fluxer/' + GUILD_ID + '/flairs/create/';
+
+let flairsData = [];
+let unsavedChanges = false;
+
+document.addEventListener('DOMContentLoaded', loadFlairs);
+
+// ---- Load ----
+
+async function loadFlairs() {
+  try {
+    const res = await csrfFetch(FLAIRS_API);
+    const data = await res.json();
+    if (data.success) {
+      flairsData = data.flairs;
+      renderFlairs();
+      document.getElementById('loading-state').classList.add('hidden');
+      document.getElementById('flairs-container').classList.remove('hidden');
+    } else {
+      showToast('Failed to load flairs', 'error');
+    }
+  } catch (e) {
+    showToast('Error loading flairs', 'error');
+  }
+}
+
+// ---- Render ----
+
+function renderFlairs() {
+  const normalBody   = document.getElementById('normal-flairs-body');
+  const seasonalBody = document.getElementById('seasonal-flairs-body');
+  const customBody   = document.getElementById('custom-flairs-body');
+
+  normalBody.innerHTML = '';
+  seasonalBody.innerHTML = '';
+  customBody.innerHTML = '';
+
+  flairsData.forEach(flair => {
+    const row = buildRow(flair);
+    if (flair.flair_type === 'seasonal') {
+      seasonalBody.appendChild(row);
+    } else if (flair.flair_type === 'custom') {
+      customBody.appendChild(row);
+    } else {
+      normalBody.appendChild(row);
+    }
+  });
+
+  if (!flairsData.some(f => f.flair_type === 'normal')) {
+    normalBody.innerHTML = '<tr><td colspan="4" class="p-8 text-center text-gray-500"><i class="fas fa-inbox text-3xl mb-3 block"></i>No normal flairs found.</td></tr>';
+  }
+  if (!flairsData.some(f => f.flair_type === 'seasonal')) {
+    seasonalBody.innerHTML = '<tr><td colspan="4" class="p-8 text-center text-gray-500"><i class="fas fa-inbox text-3xl mb-3 block"></i>No seasonal flairs configured.</td></tr>';
+  }
+  if (!flairsData.some(f => f.flair_type === 'custom')) {
+    customBody.innerHTML = '<tr><td colspan="5" class="p-8 text-center text-gray-500"><i class="fas fa-palette text-3xl mb-3 block"></i>No custom flairs yet. Click "Create Custom Flair" to add one!</td></tr>';
+  }
+}
+
+function buildRow(flair) {
+  const isCustom = flair.flair_type === 'custom';
+  const tr = document.createElement('tr');
+  tr.className = 'hover:bg-neutral-800/30 transition';
+  tr.dataset.id = flair.id;
+
+  const nameDisplay = flair.emoji ? `${flair.emoji} ${escapeHtml(flair.flair_name)}` : escapeHtml(flair.flair_name);
+
+  tr.innerHTML = `
+    <td class="p-3">
+      <input type="checkbox"
+             ${flair.enabled ? 'checked' : ''}
+             onchange="updateFlair(${flair.id}, 'enabled', this.checked)"
+             class="w-5 h-5 text-pink-500 bg-neutral-700 border-neutral-600 rounded focus:ring-2 focus:ring-pink-500 cursor-pointer">
+    </td>
+    <td class="p-3">
+      <div class="flex items-center gap-2">
+        <span class="text-xs bg-neutral-700 text-gray-400 px-2 py-0.5 rounded font-mono hidden id-badge">#${flair.id}</span>
+        <input type="text"
+               value="${nameDisplay}"
+               data-flair-id="${flair.id}"
+               onchange="updateFlair(${flair.id}, 'flair_name', this.value)"
+               class="flex-1 min-w-0 bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-1.5 text-white text-sm focus:outline-none focus:ring-2 focus:ring-pink-500">
+      </div>
+    </td>
+    <td class="p-3">
+      <input type="number"
+             value="${flair.hp_cost}"
+             min="0"
+             onchange="updateFlair(${flair.id}, 'hp_cost', parseInt(this.value) || 0)"
+             class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-1.5 text-white text-sm focus:outline-none focus:ring-2 focus:ring-pink-500">
+    </td>
+    <td class="p-3 text-center">
+      <input type="checkbox"
+             ${flair.admin_only ? 'checked' : ''}
+             onchange="updateFlair(${flair.id}, 'admin_only', this.checked)"
+             title="Hide from member store - admin assigns only"
+             class="w-5 h-5 text-orange-500 bg-neutral-700 border-neutral-600 rounded focus:ring-2 focus:ring-orange-500 cursor-pointer">
+    </td>
+    <td class="p-3">
+      <input type="number"
+             value="${flair.display_order}"
+             min="0"
+             onchange="updateFlair(${flair.id}, 'display_order', parseInt(this.value) || 0)"
+             class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-1.5 text-white text-sm focus:outline-none focus:ring-2 focus:ring-pink-500">
+    </td>
+    ${isCustom ? `
+    <td class="p-3">
+      <button onclick="deleteFlair(${flair.id})"
+              class="text-red-400 hover:text-red-300 transition p-1 rounded hover:bg-red-900/20" title="Delete">
+        <i class="fas fa-trash text-sm"></i>
+      </button>
+    </td>` : ''}
+  `;
+  return tr;
+}
+
+// ---- Local state update ----
+
+function updateFlair(flairId, field, value) {
+  const flair = flairsData.find(f => f.id === flairId);
+  if (!flair) return;
+  flair[field] = value;
+  unsavedChanges = true;
+  markUnsaved();
+}
+
+function markUnsaved() {
+  const btn = document.getElementById('save-btn');
+  if (btn && !btn.querySelector('.unsaved-dot')) {
+    const dot = document.createElement('span');
+    dot.className = 'unsaved-dot inline-block w-2 h-2 bg-yellow-400 rounded-full';
+    btn.prepend(dot);
+  }
+}
+
+// ---- Save all ----
+
+async function saveAllChanges() {
+  const btn = document.getElementById('save-btn');
+  const origHTML = btn.innerHTML;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+  btn.disabled = true;
+
+  try {
+    const res = await csrfFetch(FLAIRS_API, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({flairs: flairsData}),
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast(`Saved ${data.updated} flair${data.updated !== 1 ? 's' : ''} successfully`, 'success');
+      unsavedChanges = false;
+      btn.innerHTML = origHTML;
+      btn.disabled = false;
+      // Remove unsaved dot
+      btn.querySelectorAll('.unsaved-dot').forEach(el => el.remove());
+    } else {
+      showToast(data.error || 'Failed to save', 'error');
+      btn.innerHTML = origHTML;
+      btn.disabled = false;
+    }
+  } catch (e) {
+    showToast('Error saving changes', 'error');
+    btn.innerHTML = origHTML;
+    btn.disabled = false;
+  }
+}
+
+// ---- Create custom flair ----
+
+function openCreateFlairModal() {
+  document.getElementById('create-flair-modal').classList.remove('hidden');
+  document.getElementById('new-flair-name').value = '';
+  document.getElementById('new-flair-cost').value = 100;
+  document.getElementById('new-flair-order').value = 0;
+  setTimeout(() => document.getElementById('new-flair-name').focus(), 50);
+}
+
+function closeCreateFlairModal() {
+  document.getElementById('create-flair-modal').classList.add('hidden');
+}
+
+// ---- Bulk create custom flairs ----
+
+let bulkFlairCounter = 0;
+
+function openBulkCreateFlairModal() {
+  document.getElementById('bulk-create-flair-modal').classList.remove('hidden');
+  document.getElementById('bulk-flair-rows').innerHTML = '';
+  document.getElementById('bulk-flair-result').classList.add('hidden');
+  bulkFlairCounter = 0;
+  for (let i = 0; i < 5; i++) addBulkFlairRow();
+}
+
+function closeBulkCreateFlairModal() {
+  document.getElementById('bulk-create-flair-modal').classList.add('hidden');
+  document.getElementById('bulk-flair-rows').innerHTML = '';
+  document.getElementById('bulk-flair-result').classList.add('hidden');
+  bulkFlairCounter = 0;
+}
+
+function addBulkFlairRow() {
+  const id = bulkFlairCounter++;
+  const html = `
+    <div class="grid grid-cols-12 gap-2 items-center" id="bulk-flair-row-${id}">
+      <div class="col-span-5">
+        <input type="text" class="bulk-flair-name w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-indigo-500 focus:outline-none"
+               placeholder="[🎯 Marksman]" maxlength="100">
+      </div>
+      <div class="col-span-3">
+        <input type="number" class="bulk-flair-cost w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-indigo-500 focus:outline-none"
+               value="100" min="0" max="100000">
+      </div>
+      <div class="col-span-2">
+        <input type="number" class="bulk-flair-order w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-indigo-500 focus:outline-none"
+               value="0" min="0" max="9999">
+      </div>
+      <div class="col-span-2 flex justify-end">
+        <button type="button" onclick="removeBulkFlairRow(${id})" class="text-red-400 hover:text-red-300 px-2">
+          <i class="fas fa-trash text-sm"></i>
+        </button>
+      </div>
+    </div>
+  `;
+  document.getElementById('bulk-flair-rows').insertAdjacentHTML('beforeend', html);
+}
+
+function removeBulkFlairRow(id) {
+  document.getElementById(`bulk-flair-row-${id}`)?.remove();
+}
+
+async function submitBulkFlairCreate() {
+  const rows = document.querySelectorAll('#bulk-flair-rows > div[id^="bulk-flair-row-"]');
+  if (rows.length === 0) { alert('Add at least one flair'); return; }
+
+  const flairs = [];
+  rows.forEach(row => {
+    const name = row.querySelector('.bulk-flair-name')?.value.trim();
+    if (!name) return;
+    const cost = parseInt(row.querySelector('.bulk-flair-cost')?.value) || 0;
+    const order = parseInt(row.querySelector('.bulk-flair-order')?.value) || 0;
+    flairs.push({ flair_name: name, cost, display_order: order });
+  });
+
+  if (flairs.length === 0) { alert('At least one flair needs a name'); return; }
+
+  const btn = document.getElementById('bulk-flair-create-btn');
+  const resultDiv = document.getElementById('bulk-flair-result');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Creating...';
+
+  let created = 0;
+  let failed = 0;
+  for (const flair of flairs) {
+    try {
+      const res = await csrfFetch(CREATE_API, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(flair),
+      });
+      const data = await res.json();
+      if (data.success) created++;
+      else failed++;
+    } catch (e) {
+      failed++;
+    }
+  }
+
+  resultDiv.className = failed > 0
+    ? 'p-3 rounded-lg text-sm bg-yellow-600/20 text-yellow-400'
+    : 'p-3 rounded-lg text-sm bg-green-600/20 text-green-400';
+  resultDiv.innerHTML = `<i class="fas fa-check-circle mr-2"></i>Created ${created} flair(s)${failed > 0 ? `, ${failed} failed` : ''}!`;
+  resultDiv.classList.remove('hidden');
+
+  if (created > 0) {
+    await loadFlairs();
+    if (failed === 0) setTimeout(() => closeBulkCreateFlairModal(), 1500);
+  }
+
+  btn.disabled = false;
+  btn.innerHTML = '<i class="fas fa-layer-group mr-2"></i>Create All Flairs';
+}
+
+async function createFlair(event) {
+  event.preventDefault();
+  const name = document.getElementById('new-flair-name').value.trim();
+  const cost = parseInt(document.getElementById('new-flair-cost').value) || 0;
+  const order = parseInt(document.getElementById('new-flair-order').value) || 0;
+
+  if (!name) {
+    showToast('Flair name is required', 'error');
+    return;
+  }
+
+  try {
+    const res = await csrfFetch(CREATE_API, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({flair_name: name, cost, display_order: order}),
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast('Custom flair created!', 'success');
+      closeCreateFlairModal();
+      await loadFlairs();
+    } else {
+      showToast(data.error || 'Failed to create flair', 'error');
+    }
+  } catch (e) {
+    showToast('Error creating flair', 'error');
+  }
+}
+
+// ---- Delete custom flair ----
+
+async function deleteFlair(flairId) {
+  if (!confirm('Delete this custom flair? This cannot be undone.')) return;
+  try {
+    const res = await csrfFetch(FLAIRS_API + flairId + '/', {method: 'DELETE'});
+    const data = await res.json();
+    if (data.success) {
+      showToast('Flair deleted', 'success');
+      await loadFlairs();
+    } else {
+      showToast(data.error || 'Failed to delete flair', 'error');
+    }
+  } catch (e) {
+    showToast('Error deleting flair', 'error');
+  }
+}
+
+// ---- Toast ----
+
+function showToast(message, type) {
+  const container = document.getElementById('toast-container');
+  const id = 'toast-' + Date.now();
+  const bg = type === 'success' ? 'bg-green-600' : type === 'error' ? 'bg-red-600' : 'bg-blue-600';
+  const icon = type === 'success' ? 'fa-check-circle' : type === 'error' ? 'fa-exclamation-circle' : 'fa-info-circle';
+  const el = document.createElement('div');
+  el.id = id;
+  el.className = `${bg} text-white px-5 py-3 rounded-lg shadow-xl flex items-center gap-3 transform transition-all duration-300 translate-x-full max-w-sm`;
+  el.innerHTML = `
+    <i class="fas ${icon}"></i>
+    <span class="flex-1 text-sm font-medium">${escapeHtml(message)}</span>
+    <button onclick="removeToast('${id}')" class="hover:bg-white/20 rounded p-0.5 ml-1">
+      <i class="fas fa-times text-xs"></i>
+    </button>
+  `;
+  container.appendChild(el);
+  requestAnimationFrame(() => el.classList.remove('translate-x-full'));
+  setTimeout(() => removeToast(id), 4500);
+}
+
+function removeToast(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.classList.add('translate-x-full');
+  setTimeout(() => el.remove(), 300);
+}
+
+// Warn on unsaved changes
+window.addEventListener('beforeunload', e => {
+  if (unsavedChanges) {
+    e.preventDefault();
+    e.returnValue = '';
+  }
+});
+</script>
+{% endblock %}

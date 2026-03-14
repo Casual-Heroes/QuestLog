@@ -1,0 +1,567 @@
+{% extends "questlog_web/fluxer_base_guild.html" %}
+{% load static %}
+{% block title %}Welcome Messages - {{ guild_name }}{% endblock %}
+
+{% block guild_content %}
+
+{% include "questlog/partials/custom_select.html" %}
+
+  <!-- Header -->
+  <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
+    <div>
+      <h1 class="text-3xl font-bold text-white">
+        <i class="fas fa-hand-wave text-blue-400 mr-3"></i>Welcome &amp; Goodbye
+      </h1>
+      <p class="text-gray-400 mt-1">Configure messages for new and departing members in {{ guild_name }}</p>
+    </div>
+    <div class="flex gap-3 flex-wrap">
+      <button onclick="openTestModal('welcome')" class="bg-neutral-800 hover:bg-neutral-700 text-white px-4 py-2 rounded-lg font-medium transition text-sm">
+        <i class="fas fa-vial mr-2"></i>Test Welcome
+      </button>
+      <button onclick="openTestModal('goodbye')" class="bg-neutral-800 hover:bg-neutral-700 text-white px-4 py-2 rounded-lg font-medium transition text-sm">
+        <i class="fas fa-vial mr-2"></i>Test Goodbye
+      </button>
+      <button onclick="saveConfig()" id="saveBtn" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition text-sm">
+        <i class="fas fa-save mr-2"></i>Save Changes
+      </button>
+    </div>
+  </div>
+
+  <!-- Save status -->
+  <div id="save-msg" class="hidden mb-4 px-4 py-3 rounded-lg text-sm font-medium"></div>
+
+  <!-- Master Toggle -->
+  <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6 mb-6">
+    <div class="flex items-center justify-between">
+      <div>
+        <h3 class="text-lg font-bold text-white">Welcome System</h3>
+        <p class="text-gray-400 text-sm mt-1">Enable or disable all welcome/goodbye messages</p>
+      </div>
+      <label class="relative inline-flex items-center cursor-pointer">
+        <input type="checkbox" id="enabled" class="sr-only peer">
+        <div class="w-14 h-7 bg-neutral-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[4px] after:bg-white after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-blue-600"></div>
+      </label>
+    </div>
+  </div>
+
+  <!-- Channel + Auto-Role -->
+  <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6 mb-6">
+    <h3 class="text-lg font-bold text-white mb-4">
+      <i class="fas fa-hashtag text-gray-400 mr-2"></i>Welcome Channel &amp; Auto-Role
+    </h3>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div>
+        <label class="block text-sm text-gray-400 mb-2">Welcome Channel</label>
+        <div id="welcome_channel_idContainer"></div>
+        <p class="text-gray-500 text-xs mt-1">Channel where welcome messages will be sent</p>
+      </div>
+      <div>
+        <label class="block text-sm text-gray-400 mb-2">Auto-Role on Join (optional)</label>
+        <div id="auto_role_idContainer"></div>
+        <p class="text-gray-500 text-xs mt-1">New members will receive this role automatically</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Welcome Message Section -->
+  <div class="bg-neutral-900 rounded-xl border border-neutral-800 overflow-hidden mb-6">
+    <div class="p-6 border-b border-neutral-800">
+      <div class="flex items-center justify-between">
+        <div>
+          <h3 class="text-lg font-bold text-white">
+            <i class="fas fa-comment-dots text-green-400 mr-2"></i>Welcome Message
+          </h3>
+          <p class="text-gray-400 text-sm mt-1">Sent to the welcome channel when a member joins</p>
+        </div>
+        <label class="relative inline-flex items-center cursor-pointer">
+          <input type="checkbox" id="channel_message_enabled" class="sr-only peer">
+          <div class="w-11 h-6 bg-neutral-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div>
+        </label>
+      </div>
+    </div>
+    <div class="p-6 space-y-4">
+      <div>
+        <div class="flex items-center justify-between mb-2 flex-wrap gap-2">
+          <label class="block text-sm text-gray-400">Message</label>
+          <div class="flex gap-2 text-xs items-center flex-wrap">
+            <button type="button" onclick="insertVariable('channel_message', '{user}')"
+                    class="px-2 py-1 bg-neutral-700 hover:bg-neutral-600 text-gray-300 rounded transition">+{user}</button>
+            <button type="button" onclick="insertVariable('channel_message', '{username}')"
+                    class="px-2 py-1 bg-neutral-700 hover:bg-neutral-600 text-gray-300 rounded transition">+{username}</button>
+            <button type="button" onclick="insertVariable('channel_message', '{server}')"
+                    class="px-2 py-1 bg-neutral-700 hover:bg-neutral-600 text-gray-300 rounded transition">+{server}</button>
+            <button type="button" onclick="insertVariable('channel_message', '{member_count}')"
+                    class="px-2 py-1 bg-neutral-700 hover:bg-neutral-600 text-gray-300 rounded transition">+{member_count}</button>
+            <button type="button" onclick="insertVariable('channel_message', '{member_count_ord}')"
+                    class="px-2 py-1 bg-neutral-700 hover:bg-neutral-600 text-gray-300 rounded transition">+{member_count_ord}</button>
+          </div>
+        </div>
+        <textarea id="channel_message" rows="3"
+                  class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:border-blue-500 focus:outline-none resize-y font-mono"></textarea>
+        <p class="text-gray-500 text-xs mt-1">
+          Supports variables: <code class="text-indigo-400">{user} {username} {server} {member_count} {member_count_ord}</code>
+        </p>
+      </div>
+
+      <!-- Embed Toggle -->
+      <div class="flex items-center justify-between p-4 bg-neutral-800/50 rounded-lg">
+        <div>
+          <p class="text-white font-medium">Use Embed</p>
+          <p class="text-gray-500 text-sm">Display as a rich embed instead of plain text</p>
+        </div>
+        <label class="relative inline-flex items-center cursor-pointer">
+          <input type="checkbox" id="channel_embed_enabled" class="sr-only peer">
+          <div class="w-11 h-6 bg-neutral-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+        </label>
+      </div>
+
+      <!-- Embed Options -->
+      <div id="embedOptions" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label class="block text-sm text-gray-400 mb-2">Embed Title</label>
+          <input type="text" id="channel_embed_title" placeholder="Welcome!"
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:border-blue-500 focus:outline-none">
+        </div>
+        <div>
+          <label class="block text-sm text-gray-400 mb-2">Embed Color</label>
+          <div class="flex gap-2">
+            <input type="color" id="channel_embed_color_picker" value="#5865F2"
+                   class="h-12 w-12 bg-neutral-800 border border-neutral-700 rounded-lg cursor-pointer">
+            <input type="text" id="channel_embed_color" placeholder="#5865F2"
+                   class="flex-1 bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:border-blue-500 focus:outline-none">
+          </div>
+        </div>
+        <div>
+          <label class="block text-sm text-gray-400 mb-2">Footer Text (optional)</label>
+          <input type="text" id="channel_embed_footer" placeholder="e.g., Enjoy your stay!"
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:border-blue-500 focus:outline-none">
+        </div>
+        <div class="flex items-center gap-4 p-4 bg-neutral-800/30 rounded-lg">
+          <input type="checkbox" id="channel_embed_thumbnail" class="w-5 h-5 rounded border-neutral-600 bg-neutral-700 text-blue-600 focus:ring-blue-500">
+          <div>
+            <p class="text-white font-medium">Show User Avatar</p>
+            <p class="text-gray-500 text-sm">Display the new member's avatar in the embed</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- DM Welcome Message -->
+  <div class="bg-neutral-900 rounded-xl border border-neutral-800 overflow-hidden mb-6">
+    <div class="p-6 border-b border-neutral-800">
+      <div class="flex items-center justify-between">
+        <div>
+          <h3 class="text-lg font-bold text-white">
+            <i class="fas fa-envelope text-purple-400 mr-2"></i>Welcome DM
+          </h3>
+          <p class="text-gray-400 text-sm mt-1">Send a private message to new members</p>
+        </div>
+        <label class="relative inline-flex items-center cursor-pointer">
+          <input type="checkbox" id="dm_enabled" class="sr-only peer">
+          <div class="w-11 h-6 bg-neutral-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
+        </label>
+      </div>
+    </div>
+    <div class="p-6">
+      <div class="flex items-center justify-between mb-2 flex-wrap gap-2">
+        <label class="block text-sm text-gray-400">DM Message</label>
+        <div class="flex gap-2 text-xs flex-wrap">
+          <button type="button" onclick="insertVariable('dm_message', '{user}')"
+                  class="px-2 py-1 bg-neutral-700 hover:bg-neutral-600 text-gray-300 rounded transition">+{user}</button>
+          <button type="button" onclick="insertVariable('dm_message', '{username}')"
+                  class="px-2 py-1 bg-neutral-700 hover:bg-neutral-600 text-gray-300 rounded transition">+{username}</button>
+          <button type="button" onclick="insertVariable('dm_message', '{server}')"
+                  class="px-2 py-1 bg-neutral-700 hover:bg-neutral-600 text-gray-300 rounded transition">+{server}</button>
+          <button type="button" onclick="insertVariable('dm_message', '{member_count}')"
+                  class="px-2 py-1 bg-neutral-700 hover:bg-neutral-600 text-gray-300 rounded transition">+{member_count}</button>
+        </div>
+      </div>
+      <textarea id="dm_message" rows="3"
+                class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:border-blue-500 focus:outline-none resize-y font-mono"></textarea>
+      <p class="text-gray-500 text-xs mt-1">
+        Variables: <code class="text-indigo-400">{user} {username} {server} {member_count}</code>
+      </p>
+      <p class="text-yellow-500 text-xs mt-2">
+        <i class="fas fa-exclamation-triangle mr-1"></i>
+        Some users have DMs disabled. These messages may not be delivered.
+      </p>
+    </div>
+  </div>
+
+  <!-- Goodbye Message -->
+  <div class="bg-neutral-900 rounded-xl border border-neutral-800 overflow-hidden mb-6">
+    <div class="p-6 border-b border-neutral-800">
+      <div class="flex items-center justify-between">
+        <div>
+          <h3 class="text-lg font-bold text-white">
+            <i class="fas fa-door-open text-red-400 mr-2"></i>Goodbye Message
+          </h3>
+          <p class="text-gray-400 text-sm mt-1">Sent when a member leaves the server</p>
+        </div>
+        <label class="relative inline-flex items-center cursor-pointer">
+          <input type="checkbox" id="goodbye_enabled" class="sr-only peer">
+          <div class="w-11 h-6 bg-neutral-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-red-600"></div>
+        </label>
+      </div>
+    </div>
+    <div class="p-6 space-y-4">
+      <div>
+        <label class="block text-sm text-gray-400 mb-2">Goodbye Channel</label>
+        <div id="goodbye_channel_idContainer"></div>
+        <p class="text-gray-500 text-xs mt-1">Where goodbye messages will be sent</p>
+      </div>
+
+      <div>
+        <div class="flex items-center justify-between mb-2 flex-wrap gap-2">
+          <label class="block text-sm text-gray-400">Message</label>
+          <div class="flex gap-2 text-xs flex-wrap">
+            <button type="button" onclick="insertVariable('goodbye_message', '{user}')"
+                    class="px-2 py-1 bg-neutral-700 hover:bg-neutral-600 text-gray-300 rounded transition">+{user}</button>
+            <button type="button" onclick="insertVariable('goodbye_message', '{username}')"
+                    class="px-2 py-1 bg-neutral-700 hover:bg-neutral-600 text-gray-300 rounded transition">+{username}</button>
+            <button type="button" onclick="insertVariable('goodbye_message', '{server}')"
+                    class="px-2 py-1 bg-neutral-700 hover:bg-neutral-600 text-gray-300 rounded transition">+{server}</button>
+            <button type="button" onclick="insertVariable('goodbye_message', '{member_count}')"
+                    class="px-2 py-1 bg-neutral-700 hover:bg-neutral-600 text-gray-300 rounded transition">+{member_count}</button>
+          </div>
+        </div>
+        <textarea id="goodbye_message" rows="2"
+                  class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:border-blue-500 focus:outline-none resize-y font-mono"></textarea>
+        <p class="text-gray-500 text-xs mt-1">
+          Variables: <code class="text-indigo-400">{user} {username} {server} {member_count}</code>
+        </p>
+      </div>
+
+      <!-- Emoji Selector Helper -->
+      <div class="bg-neutral-800/30 rounded-lg p-4">
+        <label class="block text-sm text-gray-400 mb-2">Quick Emoji Insert</label>
+        <select id="goodbye_emoji_picker" onchange="insertEmoji('goodbye_message', this)"
+                class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2 text-white focus:border-red-500 focus:outline-none">
+          <option value="">Select an emoji to insert...</option>
+          <option value="👋">👋 Waving Hand</option>
+          <option value="😢">😢 Crying</option>
+          <option value="💔">💔 Broken Heart</option>
+          <option value="🚪">🚪 Door</option>
+          <option value="✌️">✌️ Peace</option>
+          <option value="🙏">🙏 Pray</option>
+          <option value="❤️">❤️ Heart</option>
+          <option value="😔">😔 Pensive</option>
+        </select>
+        <p class="text-gray-500 text-xs mt-2">
+          For custom server emojis, use format: <code class="text-indigo-400">&lt;:emoji_name:emoji_id&gt;</code>
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Variables Reference -->
+  <div class="bg-neutral-800/50 rounded-xl border border-neutral-700 p-6 mb-6">
+    <h3 class="text-lg font-bold text-white mb-4">
+      <i class="fas fa-code text-gray-400 mr-2"></i>Available Variables
+    </h3>
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+      <div class="bg-neutral-900 rounded-lg p-3">
+        <code class="text-blue-400">{user}</code>
+        <p class="text-gray-500 mt-1">@mention</p>
+      </div>
+      <div class="bg-neutral-900 rounded-lg p-3">
+        <code class="text-blue-400">{username}</code>
+        <p class="text-gray-500 mt-1">Display name</p>
+      </div>
+      <div class="bg-neutral-900 rounded-lg p-3">
+        <code class="text-blue-400">{server}</code>
+        <p class="text-gray-500 mt-1">Server name</p>
+      </div>
+      <div class="bg-neutral-900 rounded-lg p-3">
+        <code class="text-blue-400">{member_count}</code>
+        <p class="text-gray-500 mt-1">Total members</p>
+      </div>
+      <div class="bg-neutral-900 rounded-lg p-3">
+        <code class="text-blue-400">{member_count_ord}</code>
+        <p class="text-gray-500 mt-1">Ordinal (1st, 2nd...)</p>
+      </div>
+      <div class="bg-neutral-900 rounded-lg p-3">
+        <code class="text-blue-400">{user_id}</code>
+        <p class="text-gray-500 mt-1">User ID</p>
+      </div>
+      <div class="bg-neutral-900 rounded-lg p-3">
+        <code class="text-blue-400">{avatar_url}</code>
+        <p class="text-gray-500 mt-1">Avatar URL</p>
+      </div>
+      <div class="bg-neutral-900 rounded-lg p-3">
+        <code class="text-blue-400">{created_at}</code>
+        <p class="text-gray-500 mt-1">Account creation</p>
+      </div>
+    </div>
+  </div>
+
+<!-- Test Message Modal -->
+<div id="testModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm hidden items-center justify-center z-50">
+  <div class="bg-neutral-900 rounded-xl border border-neutral-700 w-full max-w-md mx-4 overflow-hidden">
+    <div class="p-6 border-b border-neutral-800">
+      <h2 class="text-xl font-bold text-white" id="testModalTitle">
+        <i class="fas fa-vial text-blue-400 mr-2"></i>Send Test Message
+      </h2>
+    </div>
+    <div class="p-6 space-y-4">
+      <input type="hidden" id="testModalType">
+      <p class="text-gray-400 text-sm">Choose which channel to send the test message to. The bot will send it with your current saved message text.</p>
+      <div>
+        <label class="block text-sm text-gray-400 mb-2">Send to Channel</label>
+        <div id="testChannelContainer"></div>
+      </div>
+      <div id="testResult" class="hidden px-3 py-2 rounded-lg text-sm font-medium"></div>
+    </div>
+    <div class="p-4 bg-neutral-800 border-t border-neutral-700 flex justify-end gap-3">
+      <button onclick="closeTestModal()" class="bg-neutral-700 hover:bg-neutral-600 text-white px-4 py-2 rounded-lg transition text-sm">
+        Cancel
+      </button>
+      <button onclick="sendTest()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition text-sm">
+        <i class="fas fa-paper-plane mr-2"></i>Send Test
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+const GUILD_ID = '{{ guild_id }}';
+const CHANNELS = JSON.parse('{{ channels_json|escapejs }}');
+const WELCOME_CONFIG = JSON.parse('{{ welcome_config_json|escapejs }}');
+const WELCOME_API = '/ql/api/dashboard/fluxer/' + GUILD_ID + '/welcome/';
+const ROLES_API = '/ql/api/dashboard/fluxer/' + GUILD_ID + '/roles/list/';
+
+// Color picker sync
+const colorPicker = document.getElementById('channel_embed_color_picker');
+const colorInput = document.getElementById('channel_embed_color');
+
+colorPicker.addEventListener('input', (e) => {
+  colorInput.value = e.target.value;
+});
+
+// Insert variable into message field
+function insertVariable(fieldId, variable) {
+  const field = document.getElementById(fieldId);
+  const cursorPos = field.selectionStart;
+  field.value = field.value.substring(0, cursorPos) + variable + field.value.substring(cursorPos);
+  field.selectionStart = field.selectionEnd = cursorPos + variable.length;
+  field.focus();
+}
+
+// Insert emoji from picker
+function insertEmoji(fieldId, selectElement) {
+  const emoji = selectElement.value;
+  if (!emoji) return;
+  insertVariable(fieldId, emoji);
+  selectElement.value = '';
+}
+
+// Toggle embed options visibility
+document.getElementById('channel_embed_enabled').addEventListener('change', function() {
+  document.getElementById('embedOptions').style.opacity = this.checked ? '1' : '0.5';
+});
+
+// Channel selects - initialized in DOMContentLoaded so escapeHtml is available
+const channelsWithBlank = [{id: '', value: '', label: '-- None --'}, ...CHANNELS];
+let welcomeChannelSelect = null;
+let goodbyeChannelSelect = null;
+
+// Auto-role select - populated from roles API
+let autoRoleSelect = null;
+
+async function loadRoles() {
+  try {
+    const resp = await csrfFetch(ROLES_API);
+    const data = await resp.json();
+    const roles = data.roles || [];
+    const rolesWithBlank = [{id: '', value: '', label: '-- None --'}, ...roles];
+    autoRoleSelect = createCustomSelect({
+      container: document.getElementById('auto_role_idContainer'),
+      name: 'auto_role_id',
+      items: rolesWithBlank,
+      selected: WELCOME_CONFIG.auto_role_id || '',
+      placeholder: 'Select a role...',
+    });
+  } catch (e) {
+    document.getElementById('auto_role_idContainer').innerHTML =
+      '<p class="text-gray-500 text-sm">Roles not synced yet. The bot needs to sync role data.</p>';
+  }
+}
+
+// Populate form from WELCOME_CONFIG on load
+function populateForm() {
+  document.getElementById('enabled').checked = WELCOME_CONFIG.enabled;
+  document.getElementById('channel_message_enabled').checked = WELCOME_CONFIG.welcome_message !== '' || false;
+  document.getElementById('channel_message').value = WELCOME_CONFIG.welcome_message || '';
+  document.getElementById('channel_embed_enabled').checked = WELCOME_CONFIG.welcome_embed_enabled;
+  document.getElementById('channel_embed_title').value = WELCOME_CONFIG.welcome_embed_title || '';
+  const color = WELCOME_CONFIG.welcome_embed_color || '#5865F2';
+  colorInput.value = color;
+  colorPicker.value = color.startsWith('#') ? color : '#5865F2';
+  document.getElementById('channel_embed_footer').value = WELCOME_CONFIG.welcome_embed_footer || '';
+  document.getElementById('channel_embed_thumbnail').checked = WELCOME_CONFIG.welcome_embed_thumbnail;
+  document.getElementById('dm_enabled').checked = WELCOME_CONFIG.dm_enabled;
+  document.getElementById('dm_message').value = WELCOME_CONFIG.dm_message || '';
+  document.getElementById('goodbye_enabled').checked = WELCOME_CONFIG.goodbye_enabled;
+  document.getElementById('goodbye_message').value = WELCOME_CONFIG.goodbye_message || '';
+  // Update embed options opacity
+  document.getElementById('embedOptions').style.opacity = WELCOME_CONFIG.welcome_embed_enabled ? '1' : '0.5';
+}
+
+async function saveConfig() {
+  const btn = document.getElementById('saveBtn');
+  const msg = document.getElementById('save-msg');
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Saving...';
+  btn.disabled = true;
+
+  const payload = {
+    enabled: document.getElementById('enabled').checked,
+    welcome_channel_id: welcomeChannelSelect ? welcomeChannelSelect.getValue() : '',
+    auto_role_id: autoRoleSelect ? autoRoleSelect.getValue() : '',
+    welcome_message: document.getElementById('channel_message').value,
+    welcome_embed_enabled: document.getElementById('channel_embed_enabled').checked,
+    welcome_embed_title: document.getElementById('channel_embed_title').value,
+    welcome_embed_color: colorInput.value || '#5865F2',
+    welcome_embed_footer: document.getElementById('channel_embed_footer').value,
+    welcome_embed_thumbnail: document.getElementById('channel_embed_thumbnail').checked,
+    dm_enabled: document.getElementById('dm_enabled').checked,
+    dm_message: document.getElementById('dm_message').value,
+    goodbye_enabled: document.getElementById('goodbye_enabled').checked,
+    goodbye_message: document.getElementById('goodbye_message').value,
+    goodbye_channel_id: goodbyeChannelSelect ? goodbyeChannelSelect.getValue() : '',
+  };
+
+  try {
+    const resp = await csrfFetch(WELCOME_API, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload),
+    });
+    const data = await resp.json();
+    if (resp.ok && data.success) {
+      msg.textContent = 'Welcome settings saved.';
+      msg.className = 'mb-4 px-4 py-3 rounded-lg text-sm font-medium bg-green-900/40 text-green-400 border border-green-700/40';
+      btn.innerHTML = '<i class="fas fa-check mr-2"></i>Saved!';
+      btn.classList.remove('bg-blue-600', 'hover:bg-blue-700');
+      btn.classList.add('bg-green-600');
+      // Update local config so test messages use current values
+      Object.assign(WELCOME_CONFIG, data.config || payload);
+      setTimeout(() => {
+        btn.innerHTML = '<i class="fas fa-save mr-2"></i>Save Changes';
+        btn.classList.remove('bg-green-600');
+        btn.classList.add('bg-blue-600', 'hover:bg-blue-700');
+        btn.disabled = false;
+      }, 2000);
+    } else {
+      throw new Error(data.error || 'Failed to save');
+    }
+  } catch (err) {
+    msg.textContent = err.message || 'Save failed.';
+    msg.className = 'mb-4 px-4 py-3 rounded-lg text-sm font-medium bg-red-900/40 text-red-400 border border-red-700/40';
+    btn.innerHTML = '<i class="fas fa-times mr-2"></i>Error';
+    btn.classList.remove('bg-blue-600', 'hover:bg-blue-700');
+    btn.classList.add('bg-red-600');
+    setTimeout(() => {
+      btn.innerHTML = '<i class="fas fa-save mr-2"></i>Save Changes';
+      btn.classList.remove('bg-red-600');
+      btn.classList.add('bg-blue-600', 'hover:bg-blue-700');
+      btn.disabled = false;
+    }, 2000);
+  }
+  msg.classList.remove('hidden');
+  setTimeout(() => msg.classList.add('hidden'), 5000);
+}
+
+// Test message modal
+let testChannelSelect = null;
+
+function openTestModal(type) {
+  document.getElementById('testModalType').value = type;
+  document.getElementById('testModalTitle').innerHTML =
+    `<i class="fas fa-vial text-blue-400 mr-2"></i>Send Test ${type === 'welcome' ? 'Welcome' : 'Goodbye'} Message`;
+  document.getElementById('testResult').classList.add('hidden');
+
+  // Pre-select the appropriate channel
+  const preselect = type === 'welcome'
+    ? (welcomeChannelSelect ? welcomeChannelSelect.getValue() : '')
+    : (goodbyeChannelSelect ? goodbyeChannelSelect.getValue() : '');
+
+  const container = document.getElementById('testChannelContainer');
+  container.innerHTML = '';
+  testChannelSelect = createCustomSelect({
+    container: container,
+    name: 'test_channel_id',
+    items: channelsWithBlank,
+    selected: preselect || '',
+    placeholder: 'Select a channel...',
+  });
+
+  const modal = document.getElementById('testModal');
+  modal.classList.remove('hidden');
+  modal.classList.add('flex');
+}
+
+function closeTestModal() {
+  const modal = document.getElementById('testModal');
+  modal.classList.add('hidden');
+  modal.classList.remove('flex');
+}
+
+async function sendTest() {
+  const type = document.getElementById('testModalType').value;
+  const channelId = testChannelSelect ? testChannelSelect.getValue() : '';
+  const resultEl = document.getElementById('testResult');
+
+  if (!channelId) {
+    resultEl.textContent = 'Please select a channel first.';
+    resultEl.className = 'px-3 py-2 rounded-lg text-sm font-medium bg-red-900/30 text-red-400 border border-red-700/30';
+    resultEl.classList.remove('hidden');
+    return;
+  }
+
+  try {
+    const resp = await csrfFetch(WELCOME_API + 'test/', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({type, channel_id: channelId}),
+    });
+    const data = await resp.json();
+    if (resp.ok && data.success) {
+      resultEl.textContent = data.message || 'Test message queued!';
+      resultEl.className = 'px-3 py-2 rounded-lg text-sm font-medium bg-green-900/30 text-green-400 border border-green-700/30';
+    } else {
+      resultEl.textContent = data.error || 'Failed to send test.';
+      resultEl.className = 'px-3 py-2 rounded-lg text-sm font-medium bg-red-900/30 text-red-400 border border-red-700/30';
+    }
+  } catch (e) {
+    resultEl.textContent = 'Network error.';
+    resultEl.className = 'px-3 py-2 rounded-lg text-sm font-medium bg-red-900/30 text-red-400 border border-red-700/30';
+  }
+  resultEl.classList.remove('hidden');
+}
+
+// Close modal on backdrop click
+document.getElementById('testModal').addEventListener('click', function(e) {
+  if (e.target === this) closeTestModal();
+});
+
+document.addEventListener('DOMContentLoaded', () => {
+  welcomeChannelSelect = createCustomSelect({
+    container: document.getElementById('welcome_channel_idContainer'),
+    name: 'welcome_channel_id',
+    items: channelsWithBlank,
+    selected: WELCOME_CONFIG.welcome_channel_id || '',
+    placeholder: 'Select a channel...',
+  });
+  goodbyeChannelSelect = createCustomSelect({
+    container: document.getElementById('goodbye_channel_idContainer'),
+    name: 'goodbye_channel_id',
+    items: channelsWithBlank,
+    selected: WELCOME_CONFIG.goodbye_channel_id || '',
+    placeholder: 'Select a channel...',
+  });
+  populateForm();
+  loadRoles();
+});
+</script>
+{% endblock %}

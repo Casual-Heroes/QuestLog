@@ -1,0 +1,466 @@
+{% extends "questlog_web/fluxer_base_guild.html" %}
+{% load static %}
+{% block title %}Moderation - {{ guild_name }}{% endblock %}
+
+{% block guild_content %}
+{% include "questlog/partials/custom_select.html" %}
+
+  <!-- Header -->
+  <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
+    <div>
+      <h1 class="text-3xl font-bold text-white">
+        <i class="fas fa-gavel text-red-400 mr-3"></i>Moderation
+      </h1>
+      <p class="text-gray-400 mt-1">Warnings, bans, and timeout management for {{ guild_name }}</p>
+    </div>
+    <div class="flex gap-3 items-center">
+      <div class="flex items-center gap-2 bg-neutral-800 px-3 py-2 rounded-lg border border-neutral-700">
+        <label class="relative inline-flex items-center cursor-pointer">
+          <input type="checkbox" id="mod_enabled_toggle" class="sr-only peer" {% if settings.mod_enabled %}checked{% endif %} onchange="saveModEnabled()">
+          <div class="w-11 h-6 bg-neutral-700 rounded-full peer peer-checked:bg-red-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full"></div>
+        </label>
+        <span class="text-sm text-gray-200">Enable moderation</span>
+      </div>
+      <button onclick="openSettingsModal()" class="bg-neutral-800 hover:bg-neutral-700 text-white px-4 py-2 rounded-lg font-medium transition text-sm">
+        <i class="fas fa-cog mr-2"></i>Settings
+      </button>
+      <button onclick="refreshWarnings()" class="bg-neutral-800 hover:bg-neutral-700 text-white px-4 py-2 rounded-lg font-medium transition text-sm">
+        <i class="fas fa-sync-alt mr-2"></i>Refresh
+      </button>
+    </div>
+  </div>
+
+  <!-- Save status -->
+  <div id="save-msg" class="hidden mb-4 px-4 py-3 rounded-lg text-sm font-medium"></div>
+
+  <!-- Stats -->
+  <div class="grid grid-cols-3 gap-4 mb-8">
+    <div class="bg-neutral-900 rounded-xl p-4 border border-neutral-800">
+      <p class="text-gray-400 text-sm">Total Warnings</p>
+      <p class="text-2xl font-bold text-white mt-1" id="stat-total">-</p>
+    </div>
+    <div class="bg-neutral-900 rounded-xl p-4 border border-neutral-800">
+      <p class="text-gray-400 text-sm">Active Warnings</p>
+      <p class="text-2xl font-bold text-red-400 mt-1" id="stat-active">-</p>
+    </div>
+    <div class="bg-neutral-900 rounded-xl p-4 border border-neutral-800">
+      <p class="text-gray-400 text-sm">This Week</p>
+      <p class="text-2xl font-bold text-yellow-400 mt-1" id="stat-week">-</p>
+    </div>
+  </div>
+
+  <!-- Filters + Issue Warning -->
+  <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-4 mb-6">
+    <div class="flex flex-wrap gap-4 items-center justify-between">
+      <div class="flex flex-wrap gap-4 items-center">
+        <div>
+          <input type="text" id="userFilter" placeholder="Filter by User ID"
+                 class="bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-red-500 focus:outline-none w-48">
+        </div>
+        <label class="flex items-center gap-2 text-sm text-gray-400 cursor-pointer">
+          <input type="checkbox" id="activeOnly" class="w-4 h-4 rounded border-neutral-600 bg-neutral-700 text-red-600">
+          Active only
+        </label>
+        <button onclick="applyFilters()" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition">
+          <i class="fas fa-filter mr-2"></i>Filter
+        </button>
+      </div>
+      <button onclick="openIssueWarningModal()" class="bg-red-700 hover:bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition">
+        <i class="fas fa-exclamation-triangle mr-2"></i>Issue Warning
+      </button>
+    </div>
+  </div>
+
+  <!-- Moderation Warnings Table -->
+  <div class="bg-neutral-900 rounded-xl border border-neutral-800 overflow-hidden">
+    <div class="overflow-x-auto">
+      <table class="w-full">
+        <thead class="bg-neutral-800/50">
+          <tr>
+            <th class="text-left text-gray-400 font-medium text-sm px-6 py-4">User</th>
+            <th class="text-left text-gray-400 font-medium text-sm px-6 py-4">Severity</th>
+            <th class="text-left text-gray-400 font-medium text-sm px-6 py-4">Reason</th>
+            <th class="text-left text-gray-400 font-medium text-sm px-6 py-4">Moderator</th>
+            <th class="text-left text-gray-400 font-medium text-sm px-6 py-4">Date</th>
+            <th class="text-left text-gray-400 font-medium text-sm px-6 py-4">Status</th>
+            <th class="text-left text-gray-400 font-medium text-sm px-6 py-4">Actions</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-neutral-800" id="actionsTable">
+          <tr>
+            <td colspan="7" class="px-6 py-12 text-center">
+              <i class="fas fa-spinner fa-spin text-gray-500 text-2xl"></i>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+<!-- Issue Warning Modal -->
+<div id="issueWarningModal" class="fixed inset-0 z-50 hidden">
+  <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" onclick="closeIssueWarningModal()"></div>
+  <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-lg">
+    <div class="bg-neutral-900 rounded-xl border border-neutral-700 shadow-2xl">
+      <div class="p-5 border-b border-neutral-800 flex items-center justify-between">
+        <h3 class="text-lg font-bold text-white">
+          <i class="fas fa-exclamation-triangle text-red-400 mr-2"></i>Issue Warning
+        </h3>
+        <button onclick="closeIssueWarningModal()" class="text-gray-400 hover:text-white">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <div class="p-5 space-y-4">
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-sm text-gray-400 mb-1">User ID <span class="text-red-400">*</span></label>
+            <input type="text" id="warn-user-id" placeholder="Discord/Fluxer user ID"
+                   class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-red-500 focus:outline-none">
+          </div>
+          <div>
+            <label class="block text-sm text-gray-400 mb-1">Username</label>
+            <input type="text" id="warn-username" placeholder="Display name"
+                   class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-red-500 focus:outline-none">
+          </div>
+        </div>
+        <div>
+          <label class="block text-sm text-gray-400 mb-1">Severity</label>
+          <select id="warn-severity" class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-red-500 focus:outline-none">
+            <option value="1">1 - Minor</option>
+            <option value="2">2 - Moderate</option>
+            <option value="3">3 - Severe</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm text-gray-400 mb-1">Reason</label>
+          <textarea id="warn-reason" rows="3" placeholder="Reason for the warning..."
+                    class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-red-500 focus:outline-none resize-none"></textarea>
+        </div>
+        <div id="issue-warn-msg" class="hidden text-sm px-3 py-2 rounded-lg"></div>
+        <div class="flex justify-end gap-3 pt-2 border-t border-neutral-800">
+          <button onclick="closeIssueWarningModal()" class="px-4 py-2 text-gray-400 hover:text-white transition">Cancel</button>
+          <button onclick="submitWarning()" class="bg-red-600 hover:bg-red-700 text-white px-6 py-2 rounded-lg font-medium transition">
+            <i class="fas fa-gavel mr-2"></i>Issue Warning
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Moderation Settings Modal -->
+<div id="settingsModal" class="fixed inset-0 z-50 hidden">
+  <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" onclick="closeSettingsModal()"></div>
+  <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-lg">
+    <div class="bg-neutral-900 rounded-xl border border-neutral-700 shadow-2xl">
+      <div class="p-5 border-b border-neutral-800 flex items-center justify-between">
+        <h3 class="text-lg font-bold text-white">
+          <i class="fas fa-cog text-red-400 mr-2"></i>Moderation Settings
+        </h3>
+        <button onclick="closeSettingsModal()" class="text-gray-400 hover:text-white">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <div class="p-5 space-y-4">
+        <!-- Mod Log Channel -->
+        <div>
+          <label class="block text-sm text-gray-400 mb-2">Mod Log Channel</label>
+          <div id="cs-modlog-modal"></div>
+          <p class="text-gray-500 text-xs mt-1">Warnings, bans, kicks, and other mod actions will be logged here</p>
+        </div>
+        <!-- Warning Settings -->
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-sm text-gray-400 mb-2">Warnings Before Action</label>
+            <div id="cs-warn-threshold-modal"></div>
+          </div>
+          <div class="flex items-center justify-between p-4 bg-neutral-800 rounded-lg">
+            <div>
+              <p class="text-white text-sm font-medium">Auto-ban on Threshold</p>
+              <p class="text-gray-500 text-xs mt-0.5">Ban when limit is reached.</p>
+            </div>
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" id="auto-ban" class="sr-only peer" {% if settings.auto_ban_after_warns %}checked{% endif %}>
+              <div class="w-11 h-6 bg-neutral-700 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-red-600"></div>
+            </label>
+          </div>
+        </div>
+        <!-- Available Commands info -->
+        <div class="bg-neutral-800/50 rounded-lg p-4">
+          <p class="text-xs text-gray-400 font-medium uppercase tracking-wider mb-2">Available Commands</p>
+          <div class="grid grid-cols-2 gap-2 text-xs text-gray-500 font-mono">
+            <span><span class="text-gray-300">!ban</span> @user [reason]</span>
+            <span><span class="text-gray-300">!tempban</span> @user &lt;hours&gt; [reason]</span>
+            <span><span class="text-gray-300">!kick</span> @user [reason]</span>
+            <span><span class="text-gray-300">!timeout</span> @user &lt;minutes&gt; [reason]</span>
+            <span><span class="text-gray-300">!warn</span> @user [reason]</span>
+            <span><span class="text-gray-300">!warnings</span> @user</span>
+          </div>
+        </div>
+
+        <div class="flex justify-end gap-3 pt-4 border-t border-neutral-800">
+          <button onclick="closeSettingsModal()"
+                  class="px-4 py-2 text-gray-400 hover:text-white transition">Cancel</button>
+          <button onclick="saveModalSettings()"
+                  class="bg-red-600 hover:bg-red-700 text-white px-6 py-2 rounded-lg font-medium transition">
+            <i class="fas fa-save mr-2"></i>Save Settings
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const GUILD_ID = '{{ guild_id }}';
+const SETTINGS = JSON.parse('{{ settings_json|escapejs }}');
+const CHANNELS = JSON.parse('{{ channels_json|escapejs }}');
+const API_URL = '/ql/api/dashboard/fluxer/' + GUILD_ID + '/settings/';
+const WARNINGS_API = '/ql/api/dashboard/fluxer/' + GUILD_ID + '/warnings/';
+
+const channelsWithBlank = [{id: '', value: '', label: '-- None --'}, ...CHANNELS];
+const warnItems = [
+  {id:'1',value:'1',label:'1 warning'},{id:'2',value:'2',label:'2 warnings'},
+  {id:'3',value:'3',label:'3 warnings'},{id:'4',value:'4',label:'4 warnings'},
+  {id:'5',value:'5',label:'5 warnings'},{id:'7',value:'7',label:'7 warnings'},
+  {id:'10',value:'10',label:'10 warnings'}
+];
+
+let allWarnings = [];
+let csModlogModal = null;
+let csWarnThresholdModal = null;
+
+function formatDate(ts) {
+  if (!ts) return '-';
+  return new Date(ts * 1000).toLocaleString();
+}
+
+function severityBadge(sev) {
+  const map = {
+    1: 'bg-yellow-600/20 text-yellow-400',
+    2: 'bg-orange-600/20 text-orange-400',
+    3: 'bg-red-600/20 text-red-400',
+  };
+  const labels = {1: 'Minor', 2: 'Moderate', 3: 'Severe'};
+  return `<span class="px-2 py-1 rounded text-xs font-medium ${map[sev] || 'bg-neutral-700 text-gray-400'}">${labels[sev] || sev}</span>`;
+}
+
+function renderWarnings(warnings) {
+  const tbody = document.getElementById('actionsTable');
+  if (!warnings || warnings.length === 0) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="7" class="px-6 py-12 text-center">
+          <div class="flex flex-col items-center gap-3">
+            <div class="w-16 h-16 bg-neutral-800 rounded-full flex items-center justify-center">
+              <i class="fas fa-check-circle text-green-600 text-2xl"></i>
+            </div>
+            <p class="text-gray-400">No warnings found</p>
+          </div>
+        </td>
+      </tr>`;
+    return;
+  }
+  tbody.innerHTML = warnings.map(w => `
+    <tr class="hover:bg-neutral-800/30 transition" data-warning-id="${w.id}">
+      <td class="px-6 py-4">
+        <div>
+          <span class="text-white text-sm font-medium">${escapeHtml(w.target_username || 'Unknown')}</span>
+          <span class="text-gray-500 text-xs block">ID: ${escapeHtml(w.target_user_id)}</span>
+        </div>
+      </td>
+      <td class="px-6 py-4">${severityBadge(w.severity)}</td>
+      <td class="px-6 py-4 text-gray-300 text-sm max-w-xs truncate">${escapeHtml(w.reason || '-')}</td>
+      <td class="px-6 py-4">
+        <span class="text-gray-300 text-sm">${escapeHtml(w.moderator_username || '-')}</span>
+      </td>
+      <td class="px-6 py-4 text-gray-400 text-sm">${formatDate(w.created_at)}</td>
+      <td class="px-6 py-4">
+        ${w.is_active
+          ? '<span class="px-2 py-1 bg-red-600/20 text-red-400 rounded text-xs font-medium">Active</span>'
+          : '<span class="px-2 py-1 bg-neutral-700 text-gray-400 rounded text-xs font-medium">Pardoned</span>'}
+      </td>
+      <td class="px-6 py-4">
+        ${w.is_active ? `<button onclick="pardonWarning(${w.id})" class="text-yellow-400 hover:text-yellow-300 text-sm font-medium">
+          <i class="fas fa-hand-paper mr-1"></i>Pardon
+        </button>` : '<span class="text-gray-600 text-sm">-</span>'}
+      </td>
+    </tr>
+  `).join('');
+}
+
+async function refreshWarnings() {
+  const userFilter = document.getElementById('userFilter').value.trim();
+  const activeOnly = document.getElementById('activeOnly').checked;
+  const tbody = document.getElementById('actionsTable');
+  tbody.innerHTML = '<tr><td colspan="7" class="px-6 py-8 text-center"><i class="fas fa-spinner fa-spin text-gray-500 text-2xl"></i></td></tr>';
+
+  try {
+    let url = WARNINGS_API;
+    const params = new URLSearchParams();
+    if (userFilter) params.set('user_id', userFilter);
+    if (activeOnly) params.set('active_only', '1');
+    if (params.toString()) url += '?' + params.toString();
+
+    const resp = await csrfFetch(url);
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || 'Failed to load warnings');
+
+    allWarnings = data.warnings || [];
+    const now = Math.floor(Date.now() / 1000);
+    const weekAgo = now - 7 * 86400;
+    document.getElementById('stat-total').textContent = allWarnings.length;
+    document.getElementById('stat-active').textContent = allWarnings.filter(w => w.is_active).length;
+    document.getElementById('stat-week').textContent = allWarnings.filter(w => w.created_at >= weekAgo).length;
+    renderWarnings(allWarnings);
+  } catch (e) {
+    tbody.innerHTML = `<tr><td colspan="7" class="px-6 py-8 text-center text-red-400">Failed to load warnings: ${escapeHtml(e.message)}</td></tr>`;
+  }
+}
+
+function applyFilters() {
+  refreshWarnings();
+}
+
+async function pardonWarning(warningId) {
+  if (!confirm('Pardon this warning? This will mark it as inactive.')) return;
+  try {
+    const resp = await csrfFetch(`${WARNINGS_API}${warningId}/pardon/`, { method: 'POST' });
+    const data = await resp.json();
+    if (!resp.ok || !data.success) throw new Error(data.error || 'Failed to pardon');
+    await refreshWarnings();
+  } catch (e) {
+    alert('Error: ' + e.message);
+  }
+}
+
+function openIssueWarningModal() {
+  document.getElementById('warn-user-id').value = '';
+  document.getElementById('warn-username').value = '';
+  document.getElementById('warn-severity').value = '1';
+  document.getElementById('warn-reason').value = '';
+  document.getElementById('issue-warn-msg').classList.add('hidden');
+  document.getElementById('issueWarningModal').classList.remove('hidden');
+}
+
+function closeIssueWarningModal() {
+  document.getElementById('issueWarningModal').classList.add('hidden');
+}
+
+async function submitWarning() {
+  const userId = document.getElementById('warn-user-id').value.trim();
+  const username = document.getElementById('warn-username').value.trim();
+  const severity = parseInt(document.getElementById('warn-severity').value);
+  const reason = document.getElementById('warn-reason').value.trim();
+  const msgEl = document.getElementById('issue-warn-msg');
+
+  if (!userId) {
+    msgEl.textContent = 'User ID is required.';
+    msgEl.className = 'text-sm px-3 py-2 rounded-lg bg-red-900/40 text-red-400 border border-red-700/40';
+    msgEl.classList.remove('hidden');
+    return;
+  }
+
+  try {
+    const resp = await csrfFetch(WARNINGS_API, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        target_user_id: userId,
+        target_username: username || undefined,
+        severity,
+        reason: reason || undefined,
+      }),
+    });
+    const data = await resp.json();
+    if (!resp.ok || !data.success) throw new Error(data.error || 'Failed to issue warning');
+    closeIssueWarningModal();
+    await refreshWarnings();
+  } catch (e) {
+    msgEl.textContent = e.message;
+    msgEl.className = 'text-sm px-3 py-2 rounded-lg bg-red-900/40 text-red-400 border border-red-700/40';
+    msgEl.classList.remove('hidden');
+  }
+}
+
+function openSettingsModal() {
+  if (!csModlogModal) {
+    csModlogModal = createCustomSelect({
+      container: document.getElementById('cs-modlog-modal'),
+      name: 'mod_log_channel_id',
+      items: channelsWithBlank,
+      selected: SETTINGS.mod_log_channel_id || '',
+      placeholder: 'Select mod log channel...',
+    });
+    csWarnThresholdModal = createCustomSelect({
+      container: document.getElementById('cs-warn-threshold-modal'),
+      name: 'warn_threshold',
+      items: warnItems,
+      selected: String(SETTINGS.warn_threshold || '3'),
+    });
+  }
+  document.getElementById('settingsModal').classList.remove('hidden');
+}
+
+function closeSettingsModal() {
+  document.getElementById('settingsModal').classList.add('hidden');
+}
+
+async function saveModalSettings() {
+  const msg = document.getElementById('save-msg');
+  const payload = {
+    mod_log_channel_id: csModlogModal ? csModlogModal.getValue() : '',
+    warn_threshold: parseInt(csWarnThresholdModal ? csWarnThresholdModal.getValue() : '3'),
+    auto_ban_after_warns: document.getElementById('auto-ban').checked,
+  };
+  try {
+    const resp = await csrfFetch(API_URL, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload),
+    });
+    const data = await resp.json();
+    if (resp.ok && data.success) {
+      msg.textContent = 'Moderation settings saved.';
+      msg.className = 'mb-4 px-4 py-3 rounded-lg text-sm font-medium bg-green-900/40 text-green-400 border border-green-700/40';
+      closeSettingsModal();
+    } else {
+      msg.textContent = data.error || 'Save failed.';
+      msg.className = 'mb-4 px-4 py-3 rounded-lg text-sm font-medium bg-red-900/40 text-red-400 border border-red-700/40';
+    }
+    msg.classList.remove('hidden');
+    setTimeout(() => msg.classList.add('hidden'), 4000);
+  } catch (e) {
+    msg.textContent = 'Network error.';
+    msg.className = 'mb-4 px-4 py-3 rounded-lg text-sm font-medium bg-red-900/40 text-red-400 border border-red-700/40';
+    msg.classList.remove('hidden');
+  }
+}
+
+async function saveModEnabled() {
+  const msg = document.getElementById('save-msg');
+  const enabled = document.getElementById('mod_enabled_toggle').checked;
+  try {
+    const resp = await csrfFetch(API_URL, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ mod_enabled: enabled }),
+    });
+    const data = await resp.json();
+    if (resp.ok && data.success) {
+      msg.textContent = enabled ? 'Moderation enabled.' : 'Moderation disabled.';
+      msg.className = 'mb-4 px-4 py-3 rounded-lg text-sm font-medium bg-green-900/40 text-green-400 border border-green-700/40';
+    } else {
+      msg.textContent = data.error || 'Save failed.';
+      msg.className = 'mb-4 px-4 py-3 rounded-lg text-sm font-medium bg-red-900/40 text-red-400 border border-red-700/40';
+    }
+    msg.classList.remove('hidden');
+    setTimeout(() => msg.classList.add('hidden'), 3000);
+  } catch (e) {
+    // ignore
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => { refreshWarnings(); });
+</script>
+{% endblock %}

@@ -1,0 +1,26 @@
+{% extends "questlog_web/fluxer_base_guild.html" %}
+{% load static %}
+{% block title %}{{ feature.name }} - {{ guild_name }} - QuestLog{% endblock %}
+
+{% block guild_content %}
+<div class="p-6 flex items-center justify-center min-h-[60vh]">
+  <div class="text-center max-w-md">
+    <div class="w-20 h-20 bg-{{ feature.color }}-600/20 rounded-full flex items-center justify-center mx-auto mb-6">
+      <i class="{{ feature.icon }} text-{{ feature.color }}-400 text-3xl"></i>
+    </div>
+    <div class="inline-flex items-center gap-2 bg-yellow-600/10 border border-yellow-700/20 text-yellow-400 text-xs px-3 py-1.5 rounded-full mb-4">
+      <i class="fas fa-clock"></i> Coming Soon
+    </div>
+    <h1 class="text-3xl font-bold text-white mb-3">{{ feature.name }}</h1>
+    <p class="text-gray-400 mb-8">{{ feature.desc }}</p>
+    <div class="bg-neutral-900/50 border border-neutral-800 rounded-xl p-4 text-sm text-gray-500">
+      <i class="fas fa-info-circle text-gray-600 mr-1"></i>
+      This feature is being developed. Settings saved here will be applied when the bot update ships.
+    </div>
+    <a href="/ql/dashboard/fluxer/{{ guild_id }}/"
+       class="inline-flex items-center gap-2 mt-6 text-sm text-gray-400 hover:text-white transition">
+      <i class="fas fa-arrow-left text-xs"></i> Back to Dashboard
+    </a>
+  </div>
+</div>
+{% endblock %}

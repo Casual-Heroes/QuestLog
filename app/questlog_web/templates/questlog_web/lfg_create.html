@@ -8,21 +8,7 @@
 
 <script>
   const CSRF_TOKEN = '{{ csrf_token }}';
-  function csrfFetch(url, options = {}) {
-    if (!options.headers) options.headers = {};
-    if (CSRF_TOKEN && CSRF_TOKEN !== 'None') {
-      options.headers['X-CSRFToken'] = CSRF_TOKEN;
-    }
-    return fetch(url, options);
-  }
-
   // XSS protection — was missing, causing silent autocomplete failure
-  function escapeHtml(text) {
-    if (text == null || text === undefined) return '';
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-  }
 </script>
 
 <!-- Header -->
@@ -189,6 +175,24 @@
                  class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2 text-white text-sm focus:border-green-500 focus:outline-none hover:bg-neutral-700/50 transition-colors">
         </div>
       </div>
+    </div>
+
+    <!-- QuestLog Network broadcast opt-in -->
+    <div class="bg-neutral-800 border border-purple-700/40 rounded-xl p-4">
+      <label class="flex items-start gap-3 cursor-pointer">
+        <input type="checkbox" id="broadcastNetwork" name="broadcast_network"
+               class="mt-0.5 rounded bg-neutral-700 border-neutral-600 text-purple-500 focus:ring-purple-500">
+        <div>
+          <span class="text-white font-medium flex items-center gap-2">
+            <i class="fas fa-satellite-dish text-purple-400"></i>
+            Broadcast to QuestLog Network
+          </span>
+          <p class="text-gray-400 text-xs mt-0.5">
+            Announce this LFG to all communities subscribed to the QuestLog Network.
+            Your group will appear in their Fluxer and Discord servers automatically.
+          </p>
+        </div>
+      </label>
     </div>
 
     <!-- Submit -->
@@ -458,10 +462,10 @@ function updateGameSpecificOptions(gameName) {
   const templates = currentGameType ? GAME_TEMPLATES[currentGameType] : [];
   let html = '';
 
-  // Render non-conditional fields
+  // Render wrapper divs for non-conditional fields (custom selects injected after innerHTML set)
   for (const field of templates) {
-    if (field.depends_on) continue; // rendered dynamically on parent change
-    html += renderOptionField(field);
+    if (field.depends_on) continue;
+    html += `<div id="opt_wrapper_${field.name}"><div id="opt_cs_container_${field.name}"></div></div>`;
   }
 
   // Activity list: game-specific where we have one, generic for everything else
@@ -470,125 +474,142 @@ function updateGameSpecificOptions(gameName) {
                      : currentGameType === 'eso'   ? ESO_ACTIVITY_CHOICES
                      : currentGameType === 'gw2'   ? GW2_ACTIVITY_CHOICES
                      : ACTIVITY_CHOICES;
-  html += `
-    <div>
-      <label class="text-sm text-gray-300 mb-2 block">Activity <span class="text-gray-500 text-xs font-normal">(optional)</span></label>
-      <select id="opt_Activity" data-field="Activity"
-              class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2 text-white text-sm focus:border-green-500 focus:outline-none hover:bg-neutral-700/50 transition-colors">
-        <option value="">Any activity</option>
-        ${activityList.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('')}
-      </select>
-    </div>
-  `;
+
+  // Activity gets its own wrapper div - custom select injected after innerHTML set
+  html += `<div id="opt_wrapper_Activity"><div id="activitySelectContainer"></div></div>`;
 
   container.innerHTML = html;
   section.classList.remove('hidden');
 
-  // Wire up conditional fields (e.g., WoW Spec depends on Class)
+  // Build all custom selects for static (non-conditional) fields
   for (const field of templates) {
-    if (!field.depends_on) {
-      const el = document.getElementById(`opt_${field.name}`);
-      if (el) {
-        el.addEventListener('change', () => updateConditionalFields(templates));
-      }
-    }
+    if (field.depends_on) continue;
+    _buildCustomSelectForField(field, templates);
   }
 
-  // Wire up exclude_same_as (e.g., ESO Subclass can't equal Class)
-  for (const field of templates) {
-    if (!field.exclude_same_as) continue;
-    const parentEl = document.getElementById(`opt_${field.exclude_same_as}`);
-    if (parentEl) {
-      parentEl.addEventListener('change', () => updateExcludedOptions(templates));
-    }
-  }
+  // Activity custom select
+  createCustomSelect({
+    container: '#activitySelectContainer',
+    name: 'opt_Activity',
+    label: 'Activity',
+    placeholder: 'Any activity',
+    items: [{ value: '', label: 'Any activity' }, ...activityList.map(c => ({ value: c, label: c }))],
+    selected: '',
+    color: 'green',
+    onSelect: (val) => { _setDataField('Activity', val); },
+  });
 }
 
-function updateExcludedOptions(templates) {
-  for (const field of templates) {
-    if (!field.exclude_same_as) continue;
-    const parentEl = document.getElementById(`opt_${field.exclude_same_as}`);
-    const selfEl   = document.getElementById(`opt_${field.name}`);
-    if (!parentEl || !selfEl) continue;
-
-    const excludeVal = parentEl.value;
-    const prev = selfEl.value;
-    const allChoices = Array.isArray(field.choices) ? field.choices : [];
-
-    selfEl.innerHTML = `<option value="">Select ${escapeHtml(field.name.toLowerCase())}...</option>`
-      + allChoices
-          .filter(c => {
-            const val = typeof c === 'object' ? c.value : c;
-            return val !== excludeVal;
-          })
-          .map(c => {
-            const val = typeof c === 'object' ? c.value : c;
-            return `<option value="${escapeHtml(val)}" ${val === prev ? 'selected' : ''}>${escapeHtml(val)}</option>`;
-          }).join('');
-    // Clear selection if the previously chosen value is now excluded
-    if (selfEl.value === excludeVal) selfEl.value = '';
+function _setDataField(name, val) {
+  // Store value on a hidden input so collectSelections() still works
+  let hidden = document.getElementById(`opt_${name}`);
+  if (!hidden) {
+    hidden = document.createElement('input');
+    hidden.type = 'hidden';
+    hidden.id = `opt_${name}`;
+    hidden.dataset.field = name;
+    document.getElementById('gameSpecificOptions').appendChild(hidden);
   }
+  hidden.value = val;
 }
 
-function renderOptionField(field) {
+function _buildCustomSelectForField(field, templates) {
+  const wrapperId = `opt_wrapper_${field.name}`;
+  const containerId = `opt_cs_container_${field.name}`;
+  const wrapper = document.getElementById(wrapperId);
+  if (!wrapper) return;
+
   const choices = Array.isArray(field.choices) ? field.choices : [];
-  const options = choices.map(c => {
-    const val = typeof c === 'object' ? c.value : c;
-    return `<option value="${escapeHtml(val)}">${escapeHtml(val)}</option>`;
-  }).join('');
+  const items = [
+    { value: '', label: `Select ${field.name.toLowerCase()}...` },
+    ...choices.map(c => {
+      const val = typeof c === 'object' ? c.value : c;
+      return { value: val, label: val };
+    }),
+  ];
 
-  return `
-    <div id="opt_wrapper_${field.name}">
-      <label class="text-sm text-gray-300 mb-2 block">${escapeHtml(field.name)} <span class="text-gray-500 text-xs font-normal">(optional)</span></label>
-      <select id="opt_${field.name}" data-field="${escapeHtml(field.name)}"
-              class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2 text-white text-sm focus:border-green-500 focus:outline-none hover:bg-neutral-700/50 transition-colors">
-        <option value="">Select ${escapeHtml(field.name.toLowerCase())}...</option>
-        ${options}
-      </select>
-    </div>
-  `;
+  wrapper.innerHTML = `<div id="${containerId}"></div>`;
+
+  const inst = createCustomSelect({
+    container: `#${containerId}`,
+    name: `opt_${field.name}`,
+    label: field.name,
+    placeholder: `Select ${field.name.toLowerCase()}...`,
+    items,
+    selected: '',
+    color: 'green',
+    onSelect: (val) => {
+      _setDataField(field.name, val);
+      if (templates.some(f => f.depends_on === field.name)) {
+        _updateConditionalCustomFields(field.name, val, templates);
+      }
+      if (templates.some(f => f.exclude_same_as === field.name)) {
+        _updateExcludedCustomFields(field.name, val, templates);
+      }
+    },
+  });
+  conditionalSelects[field.name] = inst;
 }
 
-function updateConditionalFields(templates) {
+function _updateConditionalCustomFields(parentName, parentVal, templates) {
   for (const field of templates) {
-    if (!field.depends_on) continue;
-    const parentEl = document.getElementById(`opt_${field.depends_on}`);
-    const wrapperEl = document.getElementById(`opt_wrapper_${field.name}`);
-
-    const parentVal = parentEl ? parentEl.value : '';
+    if (field.depends_on !== parentName) continue;
+    const wrapperId = `opt_wrapper_${field.name}`;
+    let wrapper = document.getElementById(wrapperId);
     const choices = parentVal && typeof field.choices === 'object' && !Array.isArray(field.choices)
-      ? (field.choices[parentVal] || [])
-      : [];
+      ? (field.choices[parentVal] || []) : [];
 
-    if (!wrapperEl) {
+    if (!wrapper) {
       // Insert after parent wrapper
-      const parentWrapper = document.getElementById(`opt_wrapper_${field.depends_on}`);
-      if (parentWrapper && choices.length) {
-        const div = document.createElement('div');
-        div.id = `opt_wrapper_${field.name}`;
-        div.innerHTML = `
-          <label class="text-sm text-gray-300 mb-2 block">${escapeHtml(field.name)} <span class="text-gray-500 text-xs font-normal">(optional)</span></label>
-          <select id="opt_${field.name}" data-field="${escapeHtml(field.name)}"
-                  class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2 text-white text-sm focus:border-green-500 focus:outline-none hover:bg-neutral-700/50 transition-colors">
-            <option value="">Select ${escapeHtml(field.name.toLowerCase())}...</option>
-            ${choices.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('')}
-          </select>
-        `;
-        parentWrapper.insertAdjacentElement('afterend', div);
-      }
-    } else if (choices.length) {
-      const sel = document.getElementById(`opt_${field.name}`);
-      if (sel) {
-        const prev = sel.value;
-        sel.innerHTML = `<option value="">Select ${escapeHtml(field.name.toLowerCase())}...</option>`
-          + choices.map(c => `<option value="${escapeHtml(c)}" ${c === prev ? 'selected' : ''}>${escapeHtml(c)}</option>`).join('');
-        wrapperEl.classList.remove('hidden');
-      }
-    } else {
-      wrapperEl.classList.add('hidden');
+      const parentWrapper = document.getElementById(`opt_wrapper_${parentName}`);
+      if (!parentWrapper || !choices.length) continue;
+      wrapper = document.createElement('div');
+      wrapper.id = wrapperId;
+      parentWrapper.insertAdjacentElement('afterend', wrapper);
     }
+
+    if (!choices.length) { wrapper.classList.add('hidden'); return; }
+    wrapper.classList.remove('hidden');
+
+    const containerId = `opt_cs_container_${field.name}`;
+    wrapper.innerHTML = `<div id="${containerId}"></div>`;
+    const items = [
+      { value: '', label: `Select ${field.name.toLowerCase()}...` },
+      ...choices.map(c => ({ value: c, label: c })),
+    ];
+    const inst = createCustomSelect({
+      container: `#${containerId}`,
+      name: `opt_${field.name}`,
+      label: field.name,
+      placeholder: `Select ${field.name.toLowerCase()}...`,
+      items,
+      selected: '',
+      color: 'green',
+      onSelect: (val) => { _setDataField(field.name, val); },
+    });
+    conditionalSelects[field.name] = inst;
   }
 }
+
+function _updateExcludedCustomFields(parentName, parentVal, templates) {
+  for (const field of templates) {
+    if (field.exclude_same_as !== parentName) continue;
+    const inst = conditionalSelects[field.name];
+    if (!inst) continue;
+    const allChoices = Array.isArray(field.choices) ? field.choices : [];
+    const filtered = allChoices.filter(c => {
+      const val = typeof c === 'object' ? c.value : c;
+      return val !== parentVal;
+    });
+    const items = [
+      { value: '', label: `Select ${field.name.toLowerCase()}...` },
+      ...filtered.map(c => { const val = typeof c === 'object' ? c.value : c; return { value: val, label: val }; }),
+    ];
+    inst.setItems(items);
+    if (inst.getValue() === parentVal) inst.setValue('');
+  }
+}
+
 
 function collectSelections() {
   const out = {};
@@ -719,6 +740,14 @@ document.getElementById('createGroupForm').addEventListener('submit', async (e) 
     const data = await response.json();
 
     if (data.success || data.id) {
+      // Broadcast to QuestLog Network if opted in
+      const broadcastChecked = document.getElementById('broadcastNetwork') && document.getElementById('broadcastNetwork').checked;
+      const newLfgId = data.id || (data.group && data.group.id);
+      if (broadcastChecked && newLfgId) {
+        try {
+          await csrfFetch(`/ql/api/lfg/${newLfgId}/broadcast-network/`, { method: 'POST' });
+        } catch (_) { /* broadcast is best-effort, don't block redirect */ }
+      }
       window.location.href = '{% url "questlog_web_lfg_browse" %}';
     } else {
       alert(data.error || 'Failed to create group');

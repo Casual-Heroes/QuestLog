@@ -6,6 +6,7 @@ from .questlog_web import views as ql_views
 urlpatterns = [
     # SEO and crawlers
     path('robots.txt', views.robots_txt, name='robots_txt'),
+    path('sitemap.xml', views.sitemap_xml, name='sitemap_xml'),
 
     path('', views.home, name='home'),
     path('gamesweplay/', views.games_we_play, name='games_we_play'),
@@ -436,4 +437,41 @@ urlpatterns = [
 
     # CSP Violation Reporting
     path('csp-violations/', views.csp_violation_report, name='csp_violations'),
+
+    # =========================================================================
+    # UNIFIED DISCORD DASHBOARD ALIASES
+    # /ql/dashboard/discord/<guild_id>/ mirrors /questlog/guild/<guild_id>/
+    # Same views, same templates - just accessible from the QuestLog site nav.
+    # API endpoints (/api/guild/<id>/...) don't need aliasing - JS calls them directly.
+    # =========================================================================
+    path('ql/dashboard/discord/<str:guild_id>/',                   views.guild_dashboard,          name='ql_discord_guild_dashboard'),
+    path('ql/dashboard/discord/<str:guild_id>/xp/',                views.guild_xp,                 name='ql_discord_guild_xp'),
+    path('ql/dashboard/discord/<str:guild_id>/welcome/',           views.guild_welcome,            name='ql_discord_guild_welcome'),
+    path('ql/dashboard/discord/<str:guild_id>/levelup/',           views.guild_levelup,            name='ql_discord_guild_levelup'),
+    path('ql/dashboard/discord/<str:guild_id>/moderation/',        views.guild_moderation,         name='ql_discord_guild_moderation'),
+    path('ql/dashboard/discord/<str:guild_id>/moderation/settings/', views.guild_moderation_settings, name='ql_discord_guild_moderation_settings'),
+    path('ql/dashboard/discord/<str:guild_id>/roles/',             views.guild_roles,              name='ql_discord_guild_roles'),
+    path('ql/dashboard/discord/<str:guild_id>/reaction-roles/',    views.guild_reaction_roles,     name='ql_discord_guild_reaction_roles'),
+    path('ql/dashboard/discord/<str:guild_id>/verification/',      views.guild_verification,       name='ql_discord_guild_verification'),
+    path('ql/dashboard/discord/<str:guild_id>/raffles/',           views.guild_raffles,            name='ql_discord_guild_raffles'),
+    path('ql/dashboard/discord/<str:guild_id>/raffle-browser/',    views.guild_raffle_browser,     name='ql_discord_guild_raffle_browser'),
+    path('ql/dashboard/discord/<str:guild_id>/audit/',             views.guild_audit_logs,         name='ql_discord_guild_audit'),
+    path('ql/dashboard/discord/<str:guild_id>/templates/',         views.guild_templates,          name='ql_discord_guild_templates'),
+    path('ql/dashboard/discord/<str:guild_id>/messages/',          views.guild_messages,           name='ql_discord_guild_messages'),
+    path('ql/dashboard/discord/<str:guild_id>/settings/',          views.guild_settings,           name='ql_discord_guild_settings'),
+    path('ql/dashboard/discord/<str:guild_id>/rss-feeds/',         views.guild_rss_feeds,          name='ql_discord_guild_rss_feeds'),
+    path('ql/dashboard/discord/<str:guild_id>/rss-articles/',      views.guild_rss_articles,       name='ql_discord_guild_rss_articles'),
+    path('ql/dashboard/discord/<str:guild_id>/lfg/',               views.guild_lfg,                name='ql_discord_guild_lfg'),
+    path('ql/dashboard/discord/<str:guild_id>/lfg/browser/',       views.guild_lfg_browser,        name='ql_discord_guild_lfg_browser'),
+    path('ql/dashboard/discord/<str:guild_id>/attendance/',        views.guild_attendance,         name='ql_discord_guild_attendance'),
+    path('ql/dashboard/discord/<str:guild_id>/trackers/',          views.guild_trackers,           name='ql_discord_guild_trackers'),
+    path('ql/dashboard/discord/<str:guild_id>/discovery/',         views.guild_discovery,          name='ql_discord_guild_discovery'),
+    path('ql/dashboard/discord/<str:guild_id>/leaderboards/',      views.guild_leaderboards,       name='ql_discord_guild_leaderboards'),
+    path('ql/dashboard/discord/<str:guild_id>/profile/',           views.member_profile,           name='ql_discord_guild_profile'),
+    path('ql/dashboard/discord/<str:guild_id>/flair-management/',  views.flair_management,         name='ql_discord_guild_flair_management'),
+    path('ql/dashboard/discord/<str:guild_id>/featured-creators/', views.guild_featured_creators,  name='ql_discord_guild_featured_creators'),
+    path('ql/dashboard/discord/<str:guild_id>/bridge/',            views.guild_bridge,             name='ql_discord_guild_bridge'),
+    # Bridge API (guild-scoped, Discord auth)
+    path('ql/api/discord/<str:guild_id>/bridges/',                 views.api_discord_guild_bridges,      name='api_discord_guild_bridges'),
+    path('ql/api/discord/<str:guild_id>/bridges/<int:bridge_id>/', views.api_discord_guild_bridge_detail, name='api_discord_guild_bridge_detail'),
 ]

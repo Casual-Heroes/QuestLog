@@ -1,0 +1,297 @@
+{% extends "questlog_web/base_web.html" %}
+{% load static %}
+
+{% block title %}QuestLog Network Leaderboard{% endblock %}
+{% block og_title %}QuestLog Network Leaderboard{% endblock %}
+
+{% block web_content %}
+
+<!-- Header -->
+<div class="bg-gradient-to-br from-yellow-900/20 to-amber-900/20 border-b border-neutral-800 p-8 mb-6">
+  <div class="max-w-4xl mx-auto text-center">
+    <h1 class="text-4xl font-bold text-white mb-3">
+      <i class="fas fa-trophy text-yellow-400 mr-3"></i>QuestLog Network Leaderboard
+    </h1>
+    <p class="text-gray-300 text-lg">
+      Unified rankings across Discord, Fluxer, and the QuestLog site.
+    </p>
+    {% if my_rank and web_user %}
+    <div class="mt-4 inline-flex items-center gap-2 bg-indigo-900/40 border border-indigo-600/40 px-4 py-2 rounded-full text-sm text-indigo-300">
+      <i class="fas fa-user text-xs"></i>
+      You are ranked <strong class="text-white">#{{ my_rank }}</strong> on the network
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<div class="max-w-4xl mx-auto px-4">
+
+  <!-- Top 3 podium -->
+  {% if entries|length >= 3 %}
+  <div class="grid grid-cols-3 gap-4 mb-8">
+    <!-- 2nd place -->
+    <div class="flex flex-col items-center pt-6">
+      <div class="text-3xl mb-2">🥈</div>
+      <div class="relative mb-2">
+        {% if entries.1.avatar_url %}
+        <img src="{{ entries.1.avatar_url }}" alt="{{ entries.1.username }}"
+             class="w-14 h-14 rounded-xl border-2 border-gray-500 {% if entries.1.is_live %}ring-2 ring-rose-500{% elif entries.1.current_game %}ring-2 ring-cyan-500{% endif %}">
+        {% else %}
+        <div class="w-14 h-14 bg-gray-700 rounded-xl border-2 border-gray-500 flex items-center justify-center {% if entries.1.is_live %}ring-2 ring-rose-500{% elif entries.1.current_game %}ring-2 ring-cyan-500{% endif %}">
+          <span class="text-white font-bold text-lg">{{ entries.1.username|slice:":1"|upper }}</span>
+        </div>
+        {% endif %}
+        {% if entries.1.is_live %}<span class="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-rose-500 animate-pulse border border-neutral-900"></span>{% endif %}
+      </div>
+      <a href="/ql/u/{{ entries.1.username }}/"
+         class="text-white font-semibold text-sm hover:text-indigo-400 transition truncate max-w-[100px] text-center">
+        {{ entries.1.username }}
+      </a>
+      <p class="text-gray-400 text-xs">Level {{ entries.1.level }}</p>
+      {% if entries.1.current_game and not entries.1.is_live %}<p class="text-cyan-400 text-[10px] truncate max-w-[90px] text-center"><i class="fas fa-gamepad text-[9px] mr-1"></i>{{ entries.1.current_game }}</p>{% endif %}
+      <p class="text-yellow-400 text-sm font-bold mt-1">{{ entries.1.xp|stringformat:"d" }} XP</p>
+      <div class="w-full bg-gray-700 rounded-t-lg mt-3 h-16 flex items-center justify-center">
+        <span class="text-gray-400 text-xs font-semibold">#2</span>
+      </div>
+    </div>
+    <!-- 1st place -->
+    <div class="flex flex-col items-center">
+      <div class="text-4xl mb-2">🥇</div>
+      <div class="relative mb-2">
+        {% if entries.0.avatar_url %}
+        <img src="{{ entries.0.avatar_url }}" alt="{{ entries.0.username }}"
+             class="w-16 h-16 rounded-xl border-2 border-yellow-500 shadow-lg shadow-yellow-500/20 {% if entries.0.is_live %}ring-2 ring-rose-500{% elif entries.0.current_game %}ring-2 ring-cyan-500{% endif %}">
+        {% else %}
+        <div class="w-16 h-16 bg-indigo-700 rounded-xl border-2 border-yellow-500 flex items-center justify-center {% if entries.0.is_live %}ring-2 ring-rose-500{% elif entries.0.current_game %}ring-2 ring-cyan-500{% endif %}">
+          <span class="text-white font-bold text-xl">{{ entries.0.username|slice:":1"|upper }}</span>
+        </div>
+        {% endif %}
+        {% if entries.0.is_live %}<span class="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-rose-500 animate-pulse border border-neutral-900"></span>{% endif %}
+      </div>
+      <a href="/ql/u/{{ entries.0.username }}/"
+         class="text-white font-bold hover:text-yellow-400 transition truncate max-w-[100px] text-center">
+        {{ entries.0.username }}
+      </a>
+      <p class="text-gray-400 text-xs">Level {{ entries.0.level }}</p>
+      {% if entries.0.current_game and not entries.0.is_live %}<p class="text-cyan-400 text-[10px] truncate max-w-[90px] text-center"><i class="fas fa-gamepad text-[9px] mr-1"></i>{{ entries.0.current_game }}</p>{% endif %}
+      <p class="text-yellow-400 font-bold mt-1">{{ entries.0.xp|stringformat:"d" }} XP</p>
+      <div class="w-full bg-yellow-700/40 border border-yellow-600/30 rounded-t-lg mt-3 h-24 flex items-center justify-center">
+        <span class="text-yellow-400 text-xs font-semibold">#1</span>
+      </div>
+    </div>
+    <!-- 3rd place -->
+    <div class="flex flex-col items-center pt-8">
+      <div class="text-3xl mb-2">🥉</div>
+      <div class="relative mb-2">
+        {% if entries.2.avatar_url %}
+        <img src="{{ entries.2.avatar_url }}" alt="{{ entries.2.username }}"
+             class="w-14 h-14 rounded-xl border-2 border-amber-700 {% if entries.2.is_live %}ring-2 ring-rose-500{% elif entries.2.current_game %}ring-2 ring-cyan-500{% endif %}">
+        {% else %}
+        <div class="w-14 h-14 bg-amber-900 rounded-xl border-2 border-amber-700 flex items-center justify-center {% if entries.2.is_live %}ring-2 ring-rose-500{% elif entries.2.current_game %}ring-2 ring-cyan-500{% endif %}">
+          <span class="text-white font-bold text-lg">{{ entries.2.username|slice:":1"|upper }}</span>
+        </div>
+        {% endif %}
+        {% if entries.2.is_live %}<span class="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-rose-500 animate-pulse border border-neutral-900"></span>{% endif %}
+      </div>
+      <a href="/ql/u/{{ entries.2.username }}/"
+         class="text-white font-semibold text-sm hover:text-indigo-400 transition truncate max-w-[100px] text-center">
+        {{ entries.2.username }}
+      </a>
+      <p class="text-gray-400 text-xs">Level {{ entries.2.level }}</p>
+      {% if entries.2.current_game and not entries.2.is_live %}<p class="text-cyan-400 text-[10px] truncate max-w-[90px] text-center"><i class="fas fa-gamepad text-[9px] mr-1"></i>{{ entries.2.current_game }}</p>{% endif %}
+      <p class="text-yellow-400 text-sm font-bold mt-1">{{ entries.2.xp|stringformat:"d" }} XP</p>
+      <div class="w-full bg-amber-900/30 rounded-t-lg mt-3 h-10 flex items-center justify-center">
+        <span class="text-amber-600 text-xs font-semibold">#3</span>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Full leaderboard table -->
+  <div class="bg-neutral-900 rounded-2xl border border-neutral-800 overflow-hidden mb-8">
+    <div class="p-5 border-b border-neutral-800 flex items-center justify-between">
+      <div>
+        <h2 class="text-lg font-bold text-white flex items-center gap-2">
+          <i class="fas fa-list-ol text-indigo-400"></i> Full Rankings
+        </h2>
+        <p class="text-gray-500 text-sm mt-0.5">{{ total }} players ranked on the network</p>
+      </div>
+      <div class="flex items-center gap-2 text-xs text-indigo-300 bg-indigo-900/30 border border-indigo-700/40 px-3 py-1.5 rounded-full">
+        <i class="fas fa-globe text-xs"></i> Unified XP
+      </div>
+    </div>
+
+    <div class="divide-y divide-neutral-800">
+      {% for entry in entries %}
+      <div class="flex items-center gap-4 px-5 py-3 hover:bg-neutral-800/40 transition
+                  {% if web_user and entry.user_id == web_user.id %}bg-indigo-900/20{% endif %}">
+        <!-- Rank -->
+        <div class="w-8 text-center flex-shrink-0">
+          {% if entry.rank == 1 %}
+          <span class="text-xl">🥇</span>
+          {% elif entry.rank == 2 %}
+          <span class="text-xl">🥈</span>
+          {% elif entry.rank == 3 %}
+          <span class="text-xl">🥉</span>
+          {% else %}
+          <span class="text-gray-500 text-sm font-mono">#{{ entry.rank }}</span>
+          {% endif %}
+        </div>
+        <!-- Avatar -->
+        <div class="relative flex-shrink-0">
+          {% if entry.avatar_url %}
+          <img src="{{ entry.avatar_url }}" alt="{{ entry.username }}"
+               class="w-9 h-9 rounded-lg {% if entry.is_live %}ring-2 ring-rose-500{% elif entry.current_game %}ring-2 ring-cyan-500{% endif %}">
+          {% else %}
+          <div class="w-9 h-9 bg-indigo-800 rounded-lg flex items-center justify-center {% if entry.is_live %}ring-2 ring-rose-500{% elif entry.current_game %}ring-2 ring-cyan-500{% endif %}">
+            <span class="text-white text-sm font-bold">{{ entry.username|slice:":1"|upper }}</span>
+          </div>
+          {% endif %}
+          {% if entry.is_live %}
+          <span class="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse border border-neutral-900"></span>
+          {% endif %}
+        </div>
+        <!-- Name + rank title + now playing -->
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-2 flex-wrap">
+            <a href="/ql/u/{{ entry.username }}/"
+               class="text-white font-medium text-sm hover:text-indigo-400 transition truncate">
+              {{ entry.username }}
+            </a>
+            {% if web_user and entry.user_id == web_user.id %}
+            <span class="text-indigo-400 text-xs">(you)</span>
+            {% endif %}
+            {% if entry.is_live %}
+            <a href="{{ entry.live_url }}" target="_blank" rel="noopener"
+               class="inline-flex items-center gap-1 text-[10px] text-rose-400 font-semibold hover:text-rose-300">
+              <span class="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse"></span>LIVE
+            </a>
+            {% endif %}
+          </div>
+          {% if entry.rank_title %}
+          <p class="text-gray-500 text-xs truncate">{{ entry.rank_title }}</p>
+          {% endif %}
+          {% if entry.current_game and not entry.is_live %}
+          <p class="text-cyan-400 text-[10px] truncate flex items-center gap-1 mt-0.5">
+            <i class="fas fa-gamepad text-[9px]"></i>
+            <a href="{% if entry.current_game_appid %}https://store.steampowered.com/app/{{ entry.current_game_appid }}/{% else %}https://store.steampowered.com/search/?term={{ entry.current_game|urlencode }}{% endif %}"
+               target="_blank" rel="noopener" class="hover:underline truncate">{{ entry.current_game }}</a>
+          </p>
+          {% endif %}
+        </div>
+        <!-- Level -->
+        <div class="text-center flex-shrink-0 w-16">
+          <p class="text-indigo-400 font-bold text-sm">{{ entry.level }}</p>
+          <p class="text-gray-600 text-xs">level</p>
+        </div>
+        <!-- XP -->
+        <div class="text-right flex-shrink-0 w-24">
+          <p class="text-yellow-400 font-bold text-sm">{{ entry.xp|stringformat:"d" }}</p>
+          <p class="text-gray-600 text-xs">XP</p>
+        </div>
+      </div>
+      {% empty %}
+      <div class="px-5 py-12 text-center text-gray-500">
+        <i class="fas fa-trophy text-4xl mb-3 opacity-30"></i>
+        <p>No ranked players yet. Start earning XP to appear here!</p>
+      </div>
+      {% endfor %}
+    </div>
+
+    <!-- Pagination -->
+    {% if has_prev or has_next %}
+    <div class="p-4 border-t border-neutral-800 flex items-center justify-between">
+      {% if has_prev %}
+      <a href="?page={{ page|add:'-1' }}"
+         class="flex items-center gap-2 text-sm text-gray-400 hover:text-white transition">
+        <i class="fas fa-chevron-left text-xs"></i> Previous
+      </a>
+      {% else %}
+      <span></span>
+      {% endif %}
+      <span class="text-gray-500 text-sm">Page {{ page }}</span>
+      {% if has_next %}
+      <a href="?page={{ page|add:'1' }}"
+         class="flex items-center gap-2 text-sm text-gray-400 hover:text-white transition">
+        Next <i class="fas fa-chevron-right text-xs"></i>
+      </a>
+      {% else %}
+      <span></span>
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Top Communities -->
+  {% if top_communities %}
+  <div class="bg-neutral-900 rounded-2xl border border-neutral-800 overflow-hidden mb-8">
+    <div class="p-5 border-b border-neutral-800 flex items-center justify-between">
+      <div>
+        <h2 class="text-lg font-bold text-white flex items-center gap-2">
+          <i class="fas fa-server text-purple-400"></i> Most Active Communities
+        </h2>
+        <p class="text-gray-500 text-sm mt-0.5">Communities ranked by total unified XP earned</p>
+      </div>
+      <a href="{% url 'questlog_web_communities' %}"
+         class="text-xs text-indigo-400 hover:text-indigo-300 transition flex items-center gap-1">
+        All Communities <i class="fas fa-arrow-right text-xs"></i>
+      </a>
+    </div>
+    <div class="divide-y divide-neutral-800">
+      {% for c in top_communities %}
+      <div class="flex items-start gap-4 px-5 py-4 hover:bg-neutral-800/40 transition">
+        <span class="text-gray-500 text-sm font-mono w-5 text-center flex-shrink-0 mt-1">#{{ forloop.counter }}</span>
+        {% if c.icon_url %}
+        <img src="{{ c.icon_url }}" alt="{{ c.name }}" class="w-9 h-9 rounded-lg flex-shrink-0 mt-0.5">
+        {% else %}
+        <div class="w-9 h-9 bg-neutral-700 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
+          <i class="fas fa-server text-gray-600 text-sm"></i>
+        </div>
+        {% endif %}
+        <div class="flex-1 min-w-0">
+          <a href="{% url 'questlog_web_community_detail' c.id %}"
+             class="text-white font-medium text-sm hover:text-indigo-400 transition truncate block">
+            {{ c.name }}
+          </a>
+          <p class="text-gray-500 text-xs mb-2">{{ c.platform|capfirst }} &middot; {{ c.active_members }} member{{ c.active_members|pluralize }}</p>
+          <!-- Activity stats row -->
+          <div class="flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-gray-600">
+            {% if c.total_messages %}
+            <span><i class="fas fa-comment text-xs mr-0.5 text-indigo-700"></i>{{ c.total_messages|stringformat:"d" }} msgs</span>
+            {% endif %}
+            {% if c.total_media %}
+            <span><i class="fas fa-image text-xs mr-0.5 text-purple-700"></i>{{ c.total_media|stringformat:"d" }} media</span>
+            {% endif %}
+            {% if c.total_voice_hours %}
+            <span><i class="fas fa-microphone text-xs mr-0.5 text-green-700"></i>{{ c.total_voice_hours }}h voice</span>
+            {% endif %}
+            {% if c.total_reactions %}
+            <span><i class="fas fa-star text-xs mr-0.5 text-amber-700"></i>{{ c.total_reactions|stringformat:"d" }} reactions</span>
+            {% endif %}
+          </div>
+        </div>
+        <div class="text-right flex-shrink-0">
+          <p class="text-purple-400 font-bold text-sm">{{ c.total_xp|stringformat:"d" }}</p>
+          <p class="text-gray-600 text-xs">total XP</p>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Info box -->
+  <div class="bg-neutral-900/50 border border-neutral-800 rounded-xl p-5 mb-8 text-sm text-gray-400">
+    <p class="flex items-start gap-2">
+      <i class="fas fa-info-circle text-indigo-400 mt-0.5 flex-shrink-0"></i>
+      <span>
+        This leaderboard shows unified XP earned across Discord, Fluxer, and the QuestLog site.
+        Only players from communities that have opted in to the QuestLog Network are included.
+        XP resets are reflected here immediately.
+      </span>
+    </p>
+  </div>
+
+</div>
+
+{% endblock %}

@@ -52,6 +52,10 @@
        class="px-4 py-2 bg-neutral-800 hover:bg-orange-600/20 text-gray-300 hover:text-orange-400 rounded-lg transition">
       <i class="fas fa-newspaper mr-2"></i>News
     </a>
+    <a href="{% url 'questlog_web_leaderboard' %}"
+       class="px-4 py-2 bg-yellow-600/20 hover:bg-yellow-600/30 text-yellow-400 rounded-lg transition font-medium">
+      <i class="fas fa-trophy mr-2"></i>Leaderboard
+    </a>
   </div>
 </div>
 
@@ -162,21 +166,22 @@
   <h2 class="text-xl font-bold text-white text-center mb-6">Supported Platforms</h2>
 
   <div class="flex flex-wrap justify-center gap-4">
+
+    <div class="flex items-center gap-2 px-4 py-2 bg-neutral-800 rounded-lg">
+      <i class="fas fa-bolt text-yellow-400 text-xl"></i>
+      <span class="text-gray-300">Fluxer</span>
+    </div>
     <div class="flex items-center gap-2 px-4 py-2 bg-neutral-800 rounded-lg">
       <i class="fab fa-discord text-indigo-400 text-xl"></i>
       <span class="text-gray-300">Discord</span>
-    </div>
-    <div class="flex items-center gap-2 px-4 py-2 bg-neutral-800 rounded-lg">
-      <i class="fas fa-comment-dots text-red-400 text-xl"></i>
-      <span class="text-gray-300">Stoat</span>
     </div>
     <div class="flex items-center gap-2 px-4 py-2 bg-neutral-800 rounded-lg">
       <i class="fas fa-cube text-green-400 text-xl"></i>
       <span class="text-gray-300">Matrix</span>
     </div>
     <div class="flex items-center gap-2 px-4 py-2 bg-neutral-800 rounded-lg">
-      <i class="fas fa-headset text-blue-400 text-xl"></i>
-      <span class="text-gray-300">TeamSpeak</span>
+      <i class="fas fa-comment-dots text-red-400 text-xl"></i>
+      <span class="text-gray-300">Stoat</span>
     </div>
     <div class="flex items-center gap-2 px-4 py-2 bg-neutral-800 rounded-lg">
       <i class="fas fa-tree text-emerald-400 text-xl"></i>
@@ -186,29 +191,25 @@
 </div>
 
 <script>
-function escapeHtml(text) {
-  if (!text) return '';
-  const div = document.createElement('div');
-  div.textContent = text;
-  return div.innerHTML;
-}
-
 document.addEventListener('DOMContentLoaded', async () => {
   // Load stats
   try {
-    const [groupsRes, commRes, creatorsRes] = await Promise.all([
+    const [groupsRes, commRes, creatorsRes, gamesRes] = await Promise.all([
       fetch('{% url "questlog_web_api_lfg" %}'),
       fetch('{% url "questlog_web_api_communities" %}'),
-      fetch('{% url "questlog_web_api_creators" %}')
+      fetch('{% url "questlog_web_api_creators" %}'),
+      fetch('{% url "questlog_web_api_games" %}')
     ]);
 
     const groupsData = await groupsRes.json();
     const commData = await commRes.json();
     const creatorsData = await creatorsRes.json();
+    const gamesData = await gamesRes.json();
 
     document.getElementById('stat-groups').textContent = groupsData.groups?.length || 0;
     document.getElementById('stat-communities').textContent = commData.communities?.length || 0;
     document.getElementById('stat-creators').textContent = creatorsData.creators?.length || 0;
+    document.getElementById('stat-games').textContent = gamesData.games?.length || 0;
 
     // Render recent groups
     const groupsContainer = document.getElementById('recent-groups');

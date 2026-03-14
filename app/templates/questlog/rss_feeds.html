@@ -260,13 +260,6 @@
 const GUILD_ID = '{{ guild.id }}';
 
 // XSS Protection
-function escapeHtml(text) {
-  if (text == null || text === undefined) return '';
-  const div = document.createElement('div');
-  div.textContent = text;
-  return div.innerHTML;
-}
-
 // State
 let feeds = [];
 let feedLimit = null;
@@ -282,16 +275,6 @@ function getCsrfToken() {
 }
 
 // CSRF-aware fetch function
-async function csrfFetch(url, options = {}) {
-  const csrfToken = getCsrfToken();
-  options.headers = options.headers || {};
-  if (!options.headers['X-CSRFToken']) {
-    options.headers['X-CSRFToken'] = csrfToken;
-  }
-  options.credentials = options.credentials || 'same-origin';
-  return fetch(url, options);
-}
-
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', async function() {
   await Promise.all([loadChannels(), loadFeeds()]);

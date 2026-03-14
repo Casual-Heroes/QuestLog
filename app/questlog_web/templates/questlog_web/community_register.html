@@ -4,71 +4,310 @@
 {% block title %}Register Community - QuestLog{% endblock %}
 
 {% block web_content %}
-{% include 'questlog/partials/custom_select.html' %}
-
 <script>
   const CSRF_TOKEN = '{{ csrf_token }}';
-  function csrfFetch(url, options = {}) {
-    if (!options.headers) options.headers = {};
-    if (CSRF_TOKEN && CSRF_TOKEN !== 'None') {
-      options.headers['X-CSRFToken'] = CSRF_TOKEN;
-    }
-    return fetch(url, options);
-  }
 </script>
 
 <!-- Header -->
 <div class="bg-gradient-to-br from-neutral-900 to-neutral-950 border-b border-neutral-800 p-6 mb-6">
-  <div class="max-w-3xl mx-auto">
+  <div class="max-w-4xl mx-auto">
     <div class="flex items-center gap-3">
       <a href="{% url 'questlog_web_communities' %}" class="text-gray-400 hover:text-white transition">
         <i class="fas fa-arrow-left"></i>
       </a>
       <div>
-        <h1 class="text-2xl font-bold text-white flex items-center gap-3">
+        <h1 class="text-3xl font-bold text-white flex items-center gap-3">
           <i class="fas fa-plus-circle text-purple-400"></i>
           Register Your Community
         </h1>
-        <p class="text-gray-400 mt-1">Add your community to the QuestLog directory</p>
+        <p class="text-gray-400 mt-1">Add your community to the QuestLog Network</p>
       </div>
     </div>
   </div>
 </div>
 
-<div class="max-w-3xl mx-auto px-4 pb-12 space-y-6">
+<div class="max-w-4xl mx-auto px-4 pb-12 space-y-6">
 
-  <!-- Images -->
-  <div class="bg-neutral-900/50 rounded-xl border border-neutral-800 overflow-hidden">
-    <!-- Banner preview area -->
-    <div id="bannerPreviewArea" class="w-full h-32 bg-neutral-800 flex items-center justify-center relative group cursor-pointer" onclick="document.getElementById('regBannerFile').click()">
-      <img id="regBannerPreview" src="" class="hidden w-full h-full object-cover absolute inset-0 z-20">
-      <div id="bannerOverlayText" class="relative z-10 text-center text-gray-500 group-hover:text-gray-300 transition">
-        <i class="fas fa-image text-2xl mb-1 block"></i>
-        <span class="text-xs">Click to add banner <span class="text-gray-600">(max 5MB)</span></span>
-      </div>
-      <input type="file" id="regBannerFile" accept="image/jpeg,image/png,image/webp" class="hidden" onchange="previewRegImage('regBannerFile','regBannerPreview','bannerOverlayText')">
+{% if show_status_page %}
+<!-- ── STATUS PAGE ────────────────────────────────────────────────────────── -->
+
+<!-- Summary banner -->
+{% if has_approved %}
+<div class="bg-neutral-900/50 rounded-lg border border-green-700/40 p-6">
+  <div class="flex items-start gap-4">
+    <div class="w-12 h-12 bg-green-500/20 border border-green-500/40 rounded-lg flex items-center justify-center flex-shrink-0">
+      <i class="fas fa-check-circle text-green-400 text-lg"></i>
     </div>
-    <div class="p-4 flex items-center gap-4">
-      <!-- Icon -->
-      <div class="relative flex-shrink-0 cursor-pointer" onclick="document.getElementById('regIconFile').click()" title="Upload icon">
-        <div id="regIconPlaceholder" class="w-16 h-16 rounded-xl bg-neutral-700 border-2 border-dashed border-neutral-600 flex items-center justify-center hover:border-purple-500 transition">
-          <i class="fas fa-camera text-gray-500 text-xl"></i>
-        </div>
-        <img id="regIconPreview" src="" class="hidden w-16 h-16 rounded-xl object-cover border-2 border-purple-500">
-        <input type="file" id="regIconFile" accept="image/jpeg,image/png,image/webp" class="hidden" onchange="previewRegImage('regIconFile','regIconPreview','regIconPlaceholder')">
-      </div>
-      <div class="text-sm text-gray-400">
-        <p class="text-white font-medium">Profile Icon &amp; Banner</p>
-        <p class="text-xs text-gray-500">Icon: max 2MB · Banner: max 5MB</p>
-        <p class="text-xs text-gray-500">You can also add/change these later</p>
-      </div>
+    <div class="flex-1">
+      <h2 class="text-xl font-bold text-white mb-1">You're in the Network!</h2>
+      <p class="text-gray-400 text-sm">Your registered communities are approved and visible in the directory.</p>
     </div>
   </div>
+</div>
+{% elif active_communities %}
+<div class="bg-neutral-900/50 rounded-lg border border-orange-700/40 p-6">
+  <div class="flex items-start gap-4">
+    <div class="w-12 h-12 bg-orange-500/20 border border-orange-500/40 rounded-lg flex items-center justify-center flex-shrink-0">
+      <i class="fas fa-clock text-orange-400 text-lg"></i>
+    </div>
+    <div class="flex-1">
+      <h2 class="text-xl font-bold text-white mb-1">Application Pending Review</h2>
+      <p class="text-gray-400 text-sm">Your application is being reviewed against our guidelines. This usually takes 24-48 hours.</p>
+    </div>
+  </div>
+</div>
+{% else %}
+<div class="bg-neutral-900/50 rounded-lg border border-indigo-700/40 p-6">
+  <div class="flex items-start gap-4">
+    <div class="w-12 h-12 bg-indigo-500/20 border border-indigo-500/40 rounded-lg flex items-center justify-center flex-shrink-0">
+      <i class="fas fa-undo text-indigo-400 text-lg"></i>
+    </div>
+    <div class="flex-1">
+      <h2 class="text-xl font-bold text-white mb-1">Welcome Back!</h2>
+      <p class="text-gray-400 text-sm">You can rejoin the network without a new application within 90 days of leaving.</p>
+    </div>
+  </div>
+</div>
+{% endif %}
 
-  <!-- Basic Info -->
-  <div class="bg-neutral-900/50 rounded-xl border border-neutral-800 p-6">
-    <h2 class="text-base font-semibold text-white mb-4"><i class="fas fa-server text-purple-400 mr-2"></i>Community Info</h2>
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+<!-- Communities list -->
+<div class="bg-neutral-900/50 rounded-lg border border-neutral-800 p-6">
+  <h2 class="text-lg font-semibold text-white mb-4">
+    <i class="fas fa-server text-gray-400 mr-2"></i>Your Communities
+  </h2>
+  <div class="space-y-3" {% if active_communities %}data-community-name="{{ active_communities.0.name|escapejs }}"{% endif %}>
+
+    {% for c in active_communities %}
+    <div class="flex items-center gap-4 p-3 rounded-lg {% if c.is_primary %}bg-purple-900/20 border border-purple-700/40{% else %}bg-neutral-800/50 border border-neutral-700{% endif %}">
+      {% if c.icon_url %}
+      <img src="{{ c.icon_url }}" alt="{{ c.name }}" class="w-12 h-12 rounded-lg flex-shrink-0">
+      {% else %}
+      <div class="w-12 h-12 bg-neutral-700 rounded-lg flex items-center justify-center flex-shrink-0">
+        <i class="fas fa-server text-gray-500"></i>
+      </div>
+      {% endif %}
+      <div class="flex-1 min-w-0">
+        <div class="flex items-center gap-2 flex-wrap">
+          <p class="text-white font-semibold truncate">{{ c.name }}</p>
+          {% if c.is_primary %}<span class="px-2 py-0.5 bg-purple-600/30 border border-purple-600/50 text-purple-300 text-xs rounded-full">Primary</span>{% endif %}
+        </div>
+        <p class="text-gray-500 text-sm">{{ c.platform.value|capfirst }}</p>
+      </div>
+      <div class="flex items-center gap-2 flex-shrink-0">
+        {% if c.network_status == 'approved' %}
+        <span class="px-2.5 py-1 bg-green-500/20 border border-green-500/40 text-green-400 text-xs font-semibold rounded-lg">Approved</span>
+        {% else %}
+        <span class="px-2.5 py-1 bg-orange-500/20 border border-orange-500/40 text-orange-400 text-xs font-semibold rounded-lg">Pending</span>
+        {% endif %}
+        {% if not c.is_primary %}
+        <button onclick="setPrimary({{ c.id }})"
+                class="px-2.5 py-1 bg-neutral-700 hover:bg-purple-600/30 hover:border-purple-600/50 border border-neutral-600 text-gray-400 hover:text-purple-300 text-xs rounded-lg transition">
+          Set Primary
+        </button>
+        {% endif %}
+        {% if c.network_status == 'approved' %}
+        <button onclick="leaveNetwork({{ c.id }})"
+                class="px-2.5 py-1 bg-red-900/20 hover:bg-red-900/40 border border-red-700/40 text-red-400 text-xs rounded-lg transition">
+          Leave
+        </button>
+        {% else %}
+        <button onclick="leaveNetwork({{ c.id }})"
+                class="px-2.5 py-1 bg-red-900/20 hover:bg-red-900/40 border border-red-700/40 text-red-400 text-xs rounded-lg transition">
+          Withdraw
+        </button>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+
+    {% for c in rejoinable_communities %}
+    <div class="flex items-center gap-4 p-3 rounded-lg bg-neutral-800/50 border border-neutral-700 opacity-75">
+      {% if c.icon_url %}
+      <img src="{{ c.icon_url }}" alt="{{ c.name }}" class="w-12 h-12 rounded-lg flex-shrink-0">
+      {% else %}
+      <div class="w-12 h-12 bg-neutral-700 rounded-lg flex items-center justify-center flex-shrink-0">
+        <i class="fas fa-server text-gray-500"></i>
+      </div>
+      {% endif %}
+      <div class="flex-1 min-w-0">
+        <p class="text-white font-semibold truncate">{{ c.name }}</p>
+        <p class="text-gray-500 text-sm">{{ c.platform.value|capfirst }}</p>
+      </div>
+      <div class="flex items-center gap-2 flex-shrink-0">
+        <span class="px-2.5 py-1 bg-neutral-700 text-gray-400 text-xs font-semibold rounded-lg">Left</span>
+        <button onclick="rejoinNetwork({{ c.id }})"
+                class="px-2.5 py-1 bg-indigo-600/30 hover:bg-indigo-600/50 border border-indigo-600/40 text-indigo-300 text-xs font-semibold rounded-lg transition">
+          Rejoin
+        </button>
+      </div>
+    </div>
+    {% endfor %}
+
+  </div>
+</div>
+
+<!-- Actions -->
+<div class="flex flex-wrap gap-3">
+  <a href="{% url 'questlog_web_communities' %}"
+     class="flex items-center gap-2 bg-purple-600 hover:bg-purple-500 text-white px-5 py-2.5 rounded-lg text-sm font-medium transition">
+    <i class="fas fa-compass"></i>View Directory
+  </a>
+  <button onclick="document.getElementById('addPlatformSection').classList.toggle('hidden')"
+          class="flex items-center gap-2 bg-neutral-700 hover:bg-neutral-600 border border-neutral-600 text-gray-300 px-5 py-2.5 rounded-lg text-sm font-medium transition">
+    <i class="fas fa-plus"></i>Add Platform
+  </button>
+</div>
+
+<!-- Add platform form (hidden by default) -->
+<div id="addPlatformSection" class="hidden space-y-6">
+  <div class="bg-neutral-900/50 rounded-lg border border-purple-700/40 p-5">
+    <h2 class="text-lg font-semibold text-white mb-1">
+      <i class="fas fa-plus-circle text-purple-400 mr-2"></i>Add Another Platform
+    </h2>
+    <p class="text-sm text-gray-500 mb-5">Link an additional platform to an existing community registration.</p>
+
+    <!-- Fluxer servers -->
+    <div id="addFluxerPickerSection" class="hidden mb-5">
+      <p class="text-xs text-cyan-400 font-semibold uppercase tracking-wider mb-3">
+        <i class="fas fa-bolt mr-1"></i>Fluxer Servers
+      </p>
+      <div id="addFluxerPickerGrid" class="grid grid-cols-1 sm:grid-cols-2 gap-3"></div>
+      <button type="button" id="addClearFluxerBtn" onclick="addClearFluxer()" class="hidden mt-2 text-xs text-gray-500 hover:text-gray-300 underline transition">Clear selection</button>
+    </div>
+
+    <!-- Discord servers -->
+    <div id="addDiscordPickerSection" class="hidden mb-5">
+      <p class="text-xs text-indigo-400 font-semibold uppercase tracking-wider mb-3">
+        <i class="fab fa-discord mr-1"></i>Discord Servers
+      </p>
+      <div id="addDiscordPickerGrid" class="grid grid-cols-1 sm:grid-cols-2 gap-3"></div>
+      <button type="button" id="addClearDiscordBtn" onclick="addClearDiscord()" class="hidden mt-2 text-xs text-gray-500 hover:text-gray-300 underline transition">Clear selection</button>
+    </div>
+
+    <!-- Matrix spaces -->
+    <div id="addMatrixPickerSection" class="hidden mb-5">
+      <p class="text-xs text-green-400 font-semibold uppercase tracking-wider mb-3">
+        <i class="fas fa-comments mr-1"></i>Matrix Spaces
+      </p>
+      <div id="addMatrixPickerGrid" class="grid grid-cols-1 sm:grid-cols-2 gap-3"></div>
+      <button type="button" id="addClearMatrixBtn" onclick="addClearMatrix()" class="hidden mt-2 text-xs text-gray-500 hover:text-gray-300 underline transition">Clear selection</button>
+    </div>
+
+    <div id="addPlatformError" class="hidden bg-red-900/20 border border-red-700/40 rounded-lg p-4 text-red-400 text-sm mb-4"></div>
+    <div id="addPlatformInviteSection" class="hidden space-y-3 mb-4">
+      <div id="addFluxerInviteRow" class="hidden">
+        <label class="text-sm text-gray-300 mb-1.5 block">Fluxer Invite URL <span class="text-gray-500 font-normal">(optional)</span></label>
+        <input type="url" id="addFluxerInviteUrl" placeholder="https://fluxer.gg/invite/..."
+               class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-cyan-500 focus:outline-none">
+      </div>
+      <div id="addDiscordInviteRow" class="hidden">
+        <label class="text-sm text-gray-300 mb-1.5 block">Discord Invite URL <span class="text-gray-500 font-normal">(optional)</span></label>
+        <input type="url" id="addDiscordInviteUrl" placeholder="https://discord.gg/..."
+               class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-indigo-500 focus:outline-none">
+      </div>
+      <div id="addMatrixInviteRow" class="hidden">
+        <label class="text-sm text-gray-300 mb-1.5 block">Matrix Space Invite URL <span class="text-gray-500 font-normal">(optional)</span></label>
+        <input type="url" id="addMatrixInviteUrl" placeholder="https://matrix.to/#/!..."
+               class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-green-500 focus:outline-none">
+      </div>
+    </div>
+    <button id="addPlatformBtn" onclick="submitAddPlatform()" class="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white px-6 py-2.5 rounded-lg font-semibold text-sm transition">
+      <i class="fas fa-link"></i>Link Platform
+    </button>
+  </div>
+</div>
+
+{% else %}
+<!-- ── REGISTRATION FORM ──────────────────────────────────────────────────── -->
+{% include 'questlog/partials/custom_select.html' %}
+<script>
+  const FLUXER_GUILDS = {{ fluxer_guilds_json|safe }};
+  const DISCORD_GUILDS = {{ discord_guilds_json|safe }};
+  const MATRIX_SPACES = {{ matrix_spaces_json|safe }};
+  const REGISTERED_FLUXER_IDS = new Set({{ registered_fluxer_ids_json|safe }});
+  const REGISTERED_DISCORD_IDS = new Set({{ registered_discord_ids_json|safe }});
+  const REGISTERED_MATRIX_IDS = new Set({{ registered_matrix_ids_json|safe }});
+</script>
+
+<!-- Step 1: Select server(s) -->
+<div class="bg-neutral-900/50 rounded-lg border border-neutral-800 p-6">
+  <h2 class="text-lg font-semibold text-white mb-1">
+    <i class="fas fa-server text-purple-400 mr-2"></i>Select Your Server
+  </h2>
+  <p class="text-sm text-gray-500 mb-5">Pick one or both platforms - icon will be pulled from the bot automatically.</p>
+
+  {% if fluxer_guilds_json == '[]' and discord_guilds_json == '[]' and matrix_spaces_json == '[]' %}
+  <div class="bg-yellow-900/20 border border-yellow-700/40 rounded-lg p-4 text-sm text-gray-400">
+    <i class="fas fa-info-circle text-yellow-400 mr-2"></i>
+    No servers found. Make sure you have linked your Discord, Fluxer, or Matrix account in
+    <a href="/ql/settings/" class="text-purple-400 hover:text-purple-300 underline">Settings</a>
+    and that the QuestLog bot is in your server.
+  </div>
+  {% endif %}
+
+  <!-- Fluxer servers -->
+  <div id="fluxerPickerSection" class="hidden mb-5">
+    <p class="text-xs text-cyan-400 font-semibold uppercase tracking-wider mb-3">
+      <i class="fas fa-bolt mr-1"></i>Fluxer Servers
+    </p>
+    <div id="fluxerPickerGrid" class="grid grid-cols-1 sm:grid-cols-2 gap-3"></div>
+    <button type="button" id="clearFluxerBtn" onclick="clearFluxerSelection()"
+            class="hidden mt-2 text-xs text-gray-500 hover:text-gray-300 underline transition">
+      Clear selection
+    </button>
+  </div>
+
+  <!-- Discord servers -->
+  <div id="discordPickerSection" class="hidden">
+    <p class="text-xs text-indigo-400 font-semibold uppercase tracking-wider mb-3">
+      <i class="fab fa-discord mr-1"></i>Discord Servers
+    </p>
+    <div id="discordPickerGrid" class="grid grid-cols-1 sm:grid-cols-2 gap-3"></div>
+    <button type="button" id="clearDiscordBtn" onclick="clearDiscordSelection()"
+            class="hidden mt-2 text-xs text-gray-500 hover:text-gray-300 underline transition">
+      Clear selection
+    </button>
+  </div>
+
+  <!-- Matrix spaces -->
+  <div id="matrixPickerSection" class="hidden mt-5">
+    <p class="text-xs text-green-400 font-semibold uppercase tracking-wider mb-3">
+      <i class="fas fa-comments mr-1"></i>Matrix Spaces
+    </p>
+    <div id="matrixPickerGrid" class="grid grid-cols-1 sm:grid-cols-2 gap-3"></div>
+    <button type="button" id="clearMatrixBtn" onclick="clearMatrixSelection()"
+            class="hidden mt-2 text-xs text-gray-500 hover:text-gray-300 underline transition">
+      Clear selection
+    </button>
+  </div>
+</div>
+
+<!-- Steps 2-5: hidden until server selected -->
+<div id="formSection" class="hidden space-y-6">
+
+  <!-- Selection summary -->
+  <div id="selectionSummary" class="bg-neutral-800/50 rounded-lg border border-neutral-700 p-4 flex flex-wrap gap-3 items-center">
+    <span class="text-xs text-gray-500 uppercase tracking-wider font-semibold">Linking:</span>
+    <span id="summaryFluxer" class="hidden items-center gap-2 bg-cyan-900/30 border border-cyan-700/50 text-cyan-300 text-xs px-3 py-1 rounded-full">
+      <i class="fas fa-bolt text-xs"></i>
+      <span id="summaryFluxerName"></span>
+    </span>
+    <span id="summaryDiscord" class="hidden items-center gap-2 bg-indigo-900/30 border border-indigo-700/50 text-indigo-300 text-xs px-3 py-1 rounded-full">
+      <i class="fab fa-discord text-xs"></i>
+      <span id="summaryDiscordName"></span>
+    </span>
+    <span id="summaryMatrix" class="hidden items-center gap-2 bg-green-900/30 border border-green-700/50 text-green-300 text-xs px-3 py-1 rounded-full">
+      <i class="fas fa-comments text-xs"></i>
+      <span id="summaryMatrixName"></span>
+    </span>
+  </div>
+
+  <!-- Community info -->
+  <div class="bg-neutral-900/50 rounded-lg border border-neutral-800 p-6">
+    <h2 class="text-lg font-semibold text-white mb-4">
+      <i class="fas fa-info-circle text-purple-400 mr-2"></i>Community Info
+    </h2>
+    <div class="space-y-4">
       <div>
         <label class="text-sm text-gray-300 mb-1.5 block">Community Name <span class="text-red-400">*</span></label>
         <input type="text" id="communityName" maxlength="200" required
@@ -76,147 +315,362 @@
                class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-purple-500 focus:outline-none">
       </div>
       <div>
-        <label class="text-sm text-gray-300 mb-1.5 block">Platform <span class="text-red-400">*</span></label>
-        <div id="communityPlatformContainer"></div>
+        <label class="text-sm text-gray-300 mb-1.5 block">Short Tagline <span class="text-gray-500 font-normal">(shown in directory listing)</span></label>
+        <input type="text" id="shortDescription" maxlength="200"
+               placeholder="A quick one-liner about your community"
+               class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-purple-500 focus:outline-none">
       </div>
-    </div>
-    <div class="mb-4">
-      <label class="text-sm text-gray-300 mb-1.5 block">Short Tagline <span class="text-gray-500">(shown in directory listing)</span></label>
-      <input type="text" id="shortDescription" maxlength="200"
-             placeholder="A quick one-liner about your community"
-             class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-purple-500 focus:outline-none">
-    </div>
-    <div>
-      <label class="text-sm text-gray-300 mb-1.5 block">About Your Community <span class="text-red-400">*</span></label>
-      <textarea id="fullDescription" rows="5" minlength="100" maxlength="1000"
-                placeholder="Tell us about yourself, your content, what you do in gaming communities... (100-1000 characters)"
-                oninput="updateCharCount()"
-                class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-purple-500 focus:outline-none resize-none"></textarea>
-      <p id="charCount" class="text-xs text-gray-500 mt-1">0/1000 characters (minimum 100)</p>
+      <div>
+        <label class="text-sm text-gray-300 mb-1.5 block">About Your Community <span class="text-red-400">*</span></label>
+        <textarea id="fullDescription" rows="5" minlength="100" maxlength="1000"
+                  placeholder="Tell us about your community, what you play, what kind of gamers you're looking for... (100-1000 characters)"
+                  oninput="updateCharCount()"
+                  class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-purple-500 focus:outline-none resize-none"></textarea>
+        <p id="charCount" class="text-xs text-gray-500 mt-1">0 / 1000 characters (minimum 100)</p>
+      </div>
     </div>
   </div>
 
-  <!-- Social Links -->
-  <div class="bg-neutral-900/50 rounded-xl border border-neutral-800 p-6">
-    <h2 class="text-base font-semibold text-white mb-4"><i class="fas fa-link text-blue-400 mr-2"></i>Links</h2>
+  <!-- Social links -->
+  <div class="bg-neutral-900/50 rounded-lg border border-neutral-800 p-6">
+    <h2 class="text-lg font-semibold text-white mb-4">
+      <i class="fas fa-link text-purple-400 mr-2"></i>Links <span class="text-gray-500 font-normal text-sm">(all optional)</span>
+    </h2>
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
       <div>
-        <label class="text-sm text-gray-300 mb-1.5 block">Twitch <span class="text-gray-500">(optional)</span></label>
+        <label class="text-sm text-gray-300 mb-1.5 block">Twitch</label>
         <input type="url" id="twitchUrl" placeholder="https://twitch.tv/yourchannel"
                class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-purple-500 focus:outline-none">
       </div>
       <div>
-        <label class="text-sm text-gray-300 mb-1.5 block">YouTube <span class="text-gray-500">(optional)</span></label>
+        <label class="text-sm text-gray-300 mb-1.5 block">YouTube</label>
         <input type="url" id="youtubeUrl" placeholder="https://youtube.com/@yourchannel"
                class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-purple-500 focus:outline-none">
       </div>
       <div>
-        <label class="text-sm text-gray-300 mb-1.5 block">Twitter/X <span class="text-gray-500">(optional)</span></label>
-        <input type="url" id="twitterUrl" placeholder="https://twitter.com/yourhandle"
+        <label class="text-sm text-gray-300 mb-1.5 block">Twitter / X</label>
+        <input type="url" id="twitterUrl" placeholder="https://x.com/yourhandle"
                class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-purple-500 focus:outline-none">
       </div>
       <div>
-        <label class="text-sm text-gray-300 mb-1.5 block">Website <span class="text-gray-500">(optional)</span></label>
+        <label class="text-sm text-gray-300 mb-1.5 block">Website</label>
         <input type="url" id="websiteUrl" placeholder="https://yourcommunity.com"
                class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-purple-500 focus:outline-none">
       </div>
       <div>
-        <label class="text-sm text-gray-300 mb-1.5 block">Invite / Join URL <span class="text-gray-500">(optional)</span></label>
-        <input type="url" id="inviteUrl" placeholder="https://..."
+        <label class="text-sm text-gray-300 mb-1.5 block">Bluesky</label>
+        <input type="url" id="blueskyUrl" placeholder="https://bsky.app/profile/yourhandle"
                class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-purple-500 focus:outline-none">
       </div>
       <div>
-        <label class="text-sm text-gray-300 mb-1.5 block">Member Count <span class="text-gray-500">(optional)</span></label>
-        <input type="number" id="memberCount" min="0" value="0"
+        <label class="text-sm text-gray-300 mb-1.5 block">TikTok</label>
+        <input type="url" id="tiktokUrl" placeholder="https://tiktok.com/@yourhandle"
                class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-purple-500 focus:outline-none">
+      </div>
+      <div>
+        <label class="text-sm text-gray-300 mb-1.5 block">Instagram</label>
+        <input type="url" id="instagramUrl" placeholder="https://instagram.com/yourhandle"
+               class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-purple-500 focus:outline-none">
+      </div>
+    </div>
+
+    <!-- Platform invite + member count (shown when server selected) -->
+    <div id="fluxerInviteField" class="hidden mt-4 pt-4 border-t border-neutral-800">
+      <p class="text-xs text-cyan-400 font-semibold uppercase tracking-wider mb-3"><i class="fas fa-bolt mr-1"></i>Fluxer</p>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label class="text-sm text-gray-300 mb-1.5 block">Fluxer Invite URL</label>
+          <input type="url" id="fluxerInviteUrl" placeholder="https://fluxer.gg/invite/..."
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-cyan-500 focus:outline-none">
+        </div>
+        <div>
+          <label class="text-sm text-gray-300 mb-1.5 block">Fluxer Member Count</label>
+          <input type="number" id="fluxerMemberCount" min="0" value=""
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-cyan-500 focus:outline-none">
+        </div>
+      </div>
+    </div>
+
+    <div id="discordInviteField" class="hidden mt-4 pt-4 border-t border-neutral-800">
+      <p class="text-xs text-indigo-400 font-semibold uppercase tracking-wider mb-3"><i class="fab fa-discord mr-1"></i>Discord</p>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label class="text-sm text-gray-300 mb-1.5 block">Discord Invite URL</label>
+          <input type="url" id="discordInviteUrl" placeholder="https://discord.gg/..."
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-indigo-500 focus:outline-none">
+        </div>
+        <div>
+          <label class="text-sm text-gray-300 mb-1.5 block">Discord Member Count</label>
+          <input type="number" id="discordMemberCount" min="0" value=""
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-indigo-500 focus:outline-none">
+        </div>
+      </div>
+    </div>
+
+    <div id="matrixInviteField" class="hidden mt-4 pt-4 border-t border-neutral-800">
+      <p class="text-xs text-green-400 font-semibold uppercase tracking-wider mb-3"><i class="fas fa-comments mr-1"></i>Matrix</p>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label class="text-sm text-gray-300 mb-1.5 block">Matrix Space Invite URL</label>
+          <input type="url" id="matrixInviteUrl" placeholder="https://matrix.to/#/!..."
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-green-500 focus:outline-none">
+        </div>
+        <div>
+          <label class="text-sm text-gray-300 mb-1.5 block">Matrix Member Count</label>
+          <input type="number" id="matrixMemberCount" min="0" value=""
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-green-500 focus:outline-none">
+        </div>
       </div>
     </div>
   </div>
 
   <!-- Tags -->
-  <div class="bg-neutral-900/50 rounded-xl border border-neutral-800 p-6">
-    <h2 class="text-base font-semibold text-white mb-1"><i class="fas fa-tags text-yellow-400 mr-2"></i>Community Tags <span class="text-gray-500 font-normal">(select up to 8)</span></h2>
-    <p class="text-xs text-gray-500 mb-4">Tags help users find your community in the directory</p>
-    <div id="tagGrid" class="grid grid-cols-2 md:grid-cols-4 gap-2">
-    </div>
-    <p id="tagCount" class="text-xs text-gray-500 mt-3">0/8 tags selected</p>
+  <div class="bg-neutral-900/50 rounded-lg border border-neutral-800 p-6">
+    <h2 class="text-lg font-semibold text-white mb-1">
+      <i class="fas fa-tags text-purple-400 mr-2"></i>Community Tags <span class="text-gray-500 font-normal text-sm">(up to 8)</span>
+    </h2>
+    <p class="text-sm text-gray-500 mb-4">Tags help players find your community in the directory.</p>
+    <div id="tagGrid" class="grid grid-cols-2 md:grid-cols-4 gap-2"></div>
+    <p id="tagCount" class="text-xs text-gray-500 mt-3">0 / 8 selected</p>
   </div>
 
-  <!-- Discovery Settings -->
-  <div class="border border-indigo-500/30 bg-indigo-500/5 rounded-xl p-5">
-    <label class="flex items-start gap-3 cursor-pointer">
-      <input type="checkbox" id="allowJoins" class="mt-0.5 rounded bg-neutral-700 border-neutral-600 text-indigo-500 focus:ring-indigo-500">
-      <div>
-        <p class="text-white font-medium text-sm">Allow others to join this community via the Directory</p>
-        <p class="text-gray-400 text-xs mt-0.5">If enabled, your invite link will be shown publicly. You can disable this at any time.</p>
-      </div>
-    </label>
-  </div>
-
-  <!-- Guidelines -->
-  <div class="border border-yellow-600/40 bg-yellow-600/5 rounded-xl p-5">
-    <h3 class="text-yellow-400 font-semibold text-sm mb-3"><i class="fas fa-clipboard-check mr-2"></i>Required Guidelines</h3>
-    <div class="space-y-3">
+  <!-- Discovery settings -->
+  <div class="bg-neutral-900/50 rounded-lg border border-neutral-800 p-6">
+    <h2 class="text-lg font-semibold text-white mb-4">
+      <i class="fas fa-eye text-purple-400 mr-2"></i>Discovery Settings
+    </h2>
+    <div class="space-y-4">
       <label class="flex items-start gap-3 cursor-pointer">
-        <input type="checkbox" id="agreeGuidelines" class="mt-0.5 rounded bg-neutral-700 border-neutral-600 text-yellow-500">
-        <span class="text-sm text-gray-300">I have read and agree to follow the <a href="/ql/community-guidelines/" class="text-yellow-400 hover:text-yellow-300 underline" target="_blank">Casual Heroes Community Guidelines</a></span>
+        <input type="checkbox" id="allowDiscovery" class="mt-0.5 w-4 h-4 rounded bg-neutral-700 border-neutral-600 text-purple-500 focus:ring-purple-500">
+        <div>
+          <p class="text-white text-sm font-medium">Show in public directory</p>
+          <p class="text-gray-500 text-xs mt-0.5">Your community will appear in the community browser.</p>
+        </div>
       </label>
       <label class="flex items-start gap-3 cursor-pointer">
-        <input type="checkbox" id="agreeToS" class="mt-0.5 rounded bg-neutral-700 border-neutral-600 text-yellow-500">
-        <span class="text-sm text-gray-300">I accept the <a href="/terms/" class="text-yellow-400 hover:text-yellow-300 underline" target="_blank">QuestLog Terms of Service</a></span>
+        <input type="checkbox" id="allowJoins" class="mt-0.5 w-4 h-4 rounded bg-neutral-700 border-neutral-600 text-purple-500 focus:ring-purple-500">
+        <div>
+          <p class="text-white text-sm font-medium">Allow players to join via the directory</p>
+          <p class="text-gray-500 text-xs mt-0.5">Your invite link will be shown publicly. You can disable this at any time.</p>
+        </div>
+      </label>
+      <label class="flex items-start gap-3 cursor-pointer">
+        <input type="checkbox" id="siteXpToGuild" class="mt-0.5 w-4 h-4 rounded bg-neutral-700 border-neutral-600 text-blue-500 focus:ring-blue-500">
+        <div>
+          <p class="text-white text-sm font-medium">Enable Unified XP <span class="text-blue-400 text-xs ml-1">requires approval</span></p>
+          <p class="text-gray-500 text-xs mt-0.5">XP members earn on QuestLog will also count toward your server's leaderboard. Activated once your community is approved.</p>
+        </div>
+      </label>
+    </div>
+  </div>
+
+  <!-- Guidelines + ToS -->
+  <div class="bg-yellow-900/10 border border-yellow-700/40 rounded-lg p-5">
+    <h3 class="text-yellow-400 font-semibold text-sm mb-3">
+      <i class="fas fa-clipboard-check mr-2"></i>Required - please read before submitting
+    </h3>
+    <div class="space-y-3">
+      <label class="flex items-start gap-3 cursor-pointer">
+        <input type="checkbox" id="agreeGuidelines" class="mt-0.5 w-4 h-4 rounded bg-neutral-700 border-neutral-600 text-yellow-500">
+        <span class="text-sm text-gray-300">I have read and agree to the <a href="/ql/community-guidelines/" class="text-yellow-400 hover:text-yellow-300 underline" target="_blank">Community Guidelines</a></span>
+      </label>
+      <label class="flex items-start gap-3 cursor-pointer">
+        <input type="checkbox" id="agreeToS" class="mt-0.5 w-4 h-4 rounded bg-neutral-700 border-neutral-600 text-yellow-500">
+        <span class="text-sm text-gray-300">I accept the <a href="/terms/" class="text-yellow-400 hover:text-yellow-300 underline" target="_blank">Terms of Service</a></span>
       </label>
     </div>
   </div>
 
   <!-- Important notice -->
-  <div class="border border-orange-600/40 bg-orange-600/5 rounded-xl p-5">
-    <h3 class="text-orange-400 font-semibold text-sm mb-2"><i class="fas fa-exclamation-triangle mr-2"></i>Important</h3>
+  <div class="bg-orange-900/10 border border-orange-700/40 rounded-lg p-5">
+    <h3 class="text-orange-400 font-semibold text-sm mb-2">
+      <i class="fas fa-exclamation-triangle mr-2"></i>Important
+    </h3>
     <ul class="text-sm text-gray-400 space-y-1 list-disc list-inside">
-      <li>Your community listing may be reviewed before appearing publicly</li>
-      <li>Communities must comply with the Casual Heroes Community Guidelines</li>
-      <li>NSFW content in your listing = automatic removal</li>
+      <li>All listings are reviewed before appearing publicly</li>
+      <li>Communities must comply with the Community Guidelines</li>
+      <li>NSFW content in your listing will result in automatic removal</li>
       <li>Violations may result in a permanent ban from the directory</li>
     </ul>
   </div>
 
   <!-- Submit -->
-  <div class="flex items-center justify-between">
-    <label class="flex items-center gap-2 cursor-pointer text-sm text-gray-400">
-      <input type="checkbox" id="allowDiscovery" checked class="rounded bg-neutral-700 border-neutral-600 text-purple-500">
-      Show in public directory
-    </label>
+  <div class="flex justify-end">
     <button id="submitBtn" onclick="submitForm()"
-            class="bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white px-8 py-3 rounded-lg font-semibold transition">
-      Submit Application
+            class="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white px-8 py-3 rounded-lg font-semibold text-sm transition">
+      <i class="fas fa-paper-plane"></i>Submit Application
     </button>
   </div>
+  <div id="submitError" class="hidden bg-red-900/20 border border-red-700/40 rounded-lg p-4 text-red-400 text-sm"></div>
 
-</div>
+</div><!-- end #formSection -->
 
 <script>
-// ── Platform selector ──────────────────────────────────────────
-const platformSelect = createCustomSelect({
-  container: '#communityPlatformContainer',
-  name: 'platform',
-  placeholder: 'Select platform...',
-  items: [
-    {% for value, label in platform_types %}
-    { value: '{{ value }}', label: '{{ label }}' }{% if not forloop.last %},{% endif %}
-    {% endfor %}
-  ],
-  selected: 'discord',
-  color: 'purple'
-});
+// ── Server pickers ──────────────────────────────────────────────────────────
+let selectedFluxerId = null, selectedFluxerName = null;
+let selectedDiscordId = null, selectedDiscordName = null;
+let selectedMatrixId = null, selectedMatrixName = null;
 
-// ── Character counter ──────────────────────────────────────────
+function buildPickerGrid(guilds, registeredIds, gridId, sectionId, onSelectFn, accentColor) {
+  if (!guilds || guilds.length === 0) return;
+  document.getElementById(sectionId).classList.remove('hidden');
+  const grid = document.getElementById(gridId);
+  grid.innerHTML = guilds.map(function(g) {
+    const alreadyReg = registeredIds.has(String(g.id));
+    const initials = (g.name || '?').slice(0, 2).toUpperCase();
+    return `<button type="button" data-guild-id="${escapeHtml(String(g.id))}"
+        data-guild-name="${escapeHtml(g.name)}"
+        data-member-count="${parseInt(g.member_count) || 0}"
+        data-already-reg="${alreadyReg ? '1' : ''}"
+        onclick="${onSelectFn}(this)"
+        ${alreadyReg ? 'disabled' : ''}
+        class="picker-card-${accentColor} flex items-center gap-3 p-3 rounded-lg border text-left transition
+               ${alreadyReg
+                 ? 'border-neutral-700 bg-neutral-800/30 opacity-50 cursor-not-allowed'
+                 : 'border-neutral-700 bg-neutral-800 hover:border-' + accentColor + '-500/50 cursor-pointer'}">
+      <div class="w-10 h-10 rounded-lg bg-neutral-700 flex items-center justify-center flex-shrink-0 text-white font-bold text-sm">
+        ${escapeHtml(initials)}
+      </div>
+      <div class="min-w-0 flex-1">
+        <p class="text-white font-medium text-sm truncate">${escapeHtml(g.name)}</p>
+        <p class="text-gray-500 text-xs">${parseInt(g.member_count) || 0} members</p>
+      </div>
+      ${alreadyReg
+        ? '<span class="text-xs text-orange-400 font-medium flex-shrink-0">Registered</span>'
+        : '<i class="fas fa-chevron-right text-gray-600 text-xs flex-shrink-0"></i>'}
+    </button>`;
+  }).join('');
+}
+
+buildPickerGrid(FLUXER_GUILDS, REGISTERED_FLUXER_IDS, 'fluxerPickerGrid', 'fluxerPickerSection', 'selectFluxer', 'cyan');
+buildPickerGrid(DISCORD_GUILDS, REGISTERED_DISCORD_IDS, 'discordPickerGrid', 'discordPickerSection', 'selectDiscord', 'indigo');
+buildPickerGrid(MATRIX_SPACES, REGISTERED_MATRIX_IDS, 'matrixPickerGrid', 'matrixPickerSection', 'selectMatrix', 'green');
+
+function updateFormVisibility() {
+  const hasSelection = selectedFluxerId || selectedDiscordId || selectedMatrixId;
+  document.getElementById('formSection').classList.toggle('hidden', !hasSelection);
+  const sf = document.getElementById('summaryFluxer');
+  const sd = document.getElementById('summaryDiscord');
+  const sm = document.getElementById('summaryMatrix');
+  if (selectedFluxerId) {
+    document.getElementById('summaryFluxerName').textContent = selectedFluxerName;
+    sf.classList.remove('hidden'); sf.classList.add('inline-flex');
+  } else {
+    sf.classList.add('hidden'); sf.classList.remove('inline-flex');
+  }
+  if (selectedDiscordId) {
+    document.getElementById('summaryDiscordName').textContent = selectedDiscordName;
+    sd.classList.remove('hidden'); sd.classList.add('inline-flex');
+  } else {
+    sd.classList.add('hidden'); sd.classList.remove('inline-flex');
+  }
+  if (selectedMatrixId) {
+    document.getElementById('summaryMatrixName').textContent = selectedMatrixName;
+    sm.classList.remove('hidden'); sm.classList.add('inline-flex');
+  } else {
+    sm.classList.add('hidden'); sm.classList.remove('inline-flex');
+  }
+}
+
+function selectFluxer(btn) {
+  if (btn.dataset.alreadyReg) return;
+  document.querySelectorAll('.picker-card-cyan').forEach(function(c) {
+    c.classList.remove('border-cyan-500', 'bg-cyan-500/10');
+    c.classList.add('border-neutral-700', 'bg-neutral-800');
+  });
+  btn.classList.add('border-cyan-500', 'bg-cyan-500/10');
+  btn.classList.remove('border-neutral-700', 'bg-neutral-800');
+  selectedFluxerId = btn.dataset.guildId;
+  selectedFluxerName = btn.dataset.guildName;
+  if (!document.getElementById('communityName').value.trim())
+    document.getElementById('communityName').value = selectedFluxerName || '';
+  const fmc = document.getElementById('fluxerMemberCount');
+  if (!fmc.value) fmc.value = btn.dataset.memberCount || '';
+  document.getElementById('fluxerInviteField').classList.remove('hidden');
+  document.getElementById('clearFluxerBtn').classList.remove('hidden');
+  updateFormVisibility();
+}
+
+function clearFluxerSelection() {
+  selectedFluxerId = null; selectedFluxerName = null;
+  document.querySelectorAll('.picker-card-cyan').forEach(function(c) {
+    c.classList.remove('border-cyan-500', 'bg-cyan-500/10');
+    c.classList.add('border-neutral-700', 'bg-neutral-800');
+  });
+  document.getElementById('fluxerInviteField').classList.add('hidden');
+  document.getElementById('clearFluxerBtn').classList.add('hidden');
+  updateFormVisibility();
+}
+
+function selectDiscord(btn) {
+  if (btn.dataset.alreadyReg) return;
+  document.querySelectorAll('.picker-card-indigo').forEach(function(c) {
+    c.classList.remove('border-indigo-500', 'bg-indigo-500/10');
+    c.classList.add('border-neutral-700', 'bg-neutral-800');
+  });
+  btn.classList.add('border-indigo-500', 'bg-indigo-500/10');
+  btn.classList.remove('border-neutral-700', 'bg-neutral-800');
+  selectedDiscordId = btn.dataset.guildId;
+  selectedDiscordName = btn.dataset.guildName;
+  if (!document.getElementById('communityName').value.trim())
+    document.getElementById('communityName').value = selectedDiscordName || '';
+  const dmc = document.getElementById('discordMemberCount');
+  if (!dmc.value) dmc.value = btn.dataset.memberCount || '';
+  document.getElementById('discordInviteField').classList.remove('hidden');
+  document.getElementById('clearDiscordBtn').classList.remove('hidden');
+  updateFormVisibility();
+}
+
+function clearDiscordSelection() {
+  selectedDiscordId = null; selectedDiscordName = null;
+  document.querySelectorAll('.picker-card-indigo').forEach(function(c) {
+    c.classList.remove('border-indigo-500', 'bg-indigo-500/10');
+    c.classList.add('border-neutral-700', 'bg-neutral-800');
+  });
+  document.getElementById('discordInviteField').classList.add('hidden');
+  document.getElementById('clearDiscordBtn').classList.add('hidden');
+  updateFormVisibility();
+}
+
+function selectMatrix(btn) {
+  if (btn.dataset.alreadyReg) return;
+  document.querySelectorAll('.picker-card-green').forEach(function(c) {
+    c.classList.remove('border-green-500', 'bg-green-500/10');
+    c.classList.add('border-neutral-700', 'bg-neutral-800');
+  });
+  btn.classList.add('border-green-500', 'bg-green-500/10');
+  btn.classList.remove('border-neutral-700', 'bg-neutral-800');
+  selectedMatrixId = btn.dataset.guildId;
+  selectedMatrixName = btn.dataset.guildName;
+  if (!document.getElementById('communityName').value.trim())
+    document.getElementById('communityName').value = selectedMatrixName || '';
+  const mmc = document.getElementById('matrixMemberCount');
+  if (!mmc.value) mmc.value = btn.dataset.memberCount || '';
+  document.getElementById('matrixInviteField').classList.remove('hidden');
+  document.getElementById('clearMatrixBtn').classList.remove('hidden');
+  updateFormVisibility();
+}
+
+function clearMatrixSelection() {
+  selectedMatrixId = null; selectedMatrixName = null;
+  document.querySelectorAll('.picker-card-green').forEach(function(c) {
+    c.classList.remove('border-green-500', 'bg-green-500/10');
+    c.classList.add('border-neutral-700', 'bg-neutral-800');
+  });
+  document.getElementById('matrixInviteField').classList.add('hidden');
+  document.getElementById('clearMatrixBtn').classList.add('hidden');
+  updateFormVisibility();
+}
+
+// ── Char counter ────────────────────────────────────────────────────────────
 function updateCharCount() {
   const len = document.getElementById('fullDescription').value.length;
   const el = document.getElementById('charCount');
-  el.textContent = `${len}/1000 characters (minimum 100)`;
+  el.textContent = `${len} / 1000 characters (minimum 100)`;
   el.className = len < 100 ? 'text-xs text-red-400 mt-1' : 'text-xs text-green-400 mt-1';
 }
 
-// ── Tags ──────────────────────────────────────────────────────
+// ── Tags ────────────────────────────────────────────────────────────────────
 const TAGS = [
   { label: 'Casual',            icon: 'fas fa-couch' },
   { label: 'Competitive',       icon: 'fas fa-trophy' },
@@ -238,10 +692,9 @@ const selectedTags = new Set();
 function buildTagGrid() {
   const grid = document.getElementById('tagGrid');
   grid.innerHTML = TAGS.map(t => `
-    <button type="button" data-tag="${t.label}"
-      onclick="toggleTag(this)"
+    <button type="button" data-tag="${t.label}" onclick="toggleTag(this)"
       class="tag-btn flex items-center gap-2 px-3 py-2 rounded-lg border border-neutral-700 bg-neutral-800 text-gray-300 text-sm hover:border-purple-500/50 transition text-left">
-      <input type="checkbox" class="rounded pointer-events-none" style="flex-shrink:0">
+      <input type="checkbox" class="rounded pointer-events-none flex-shrink-0">
       <i class="${t.icon} text-xs w-4 text-center"></i>
       <span>${t.label}</span>
     </button>
@@ -263,69 +716,70 @@ function toggleTag(btn) {
     btn.classList.remove('border-neutral-700', 'bg-neutral-800', 'text-gray-300');
     cb.checked = true;
   }
-  document.getElementById('tagCount').textContent = `${selectedTags.size}/8 tags selected`;
+  document.getElementById('tagCount').textContent = `${selectedTags.size} / 8 selected`;
 }
 
 buildTagGrid();
 
-// ── Image preview (CSP-safe via FileReader) ───────────────────
-function previewRegImage(inputId, previewId, placeholderId) {
-  const file = document.getElementById(inputId).files[0];
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = e => {
-    const preview = document.getElementById(previewId);
-    preview.src = e.target.result;
-    preview.classList.remove('hidden');
-    if (placeholderId) {
-      const placeholder = document.getElementById(placeholderId);
-      if (placeholder) placeholder.classList.add('hidden');
-    }
-  };
-  reader.readAsDataURL(file);
+// ── Submit ──────────────────────────────────────────────────────────────────
+function showSubmitError(msg) {
+  const el = document.getElementById('submitError');
+  el.textContent = msg;
+  el.classList.remove('hidden');
+  el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
-async function uploadRegImage(communityId, field, fileInputId) {
-  const input = document.getElementById(fileInputId);
-  if (!input || !input.files[0]) return;
-  const fd = new FormData();
-  fd.append('image', input.files[0]);
-  const r = await csrfFetch(`/ql/api/upload/community/${communityId}/${field}/`, { method: 'POST', body: fd });
-  if (r.status === 413) throw new Error(`Image too large`);
-  const ct = r.headers.get('content-type') || '';
-  if (!ct.includes('application/json')) throw new Error(`Upload failed (${r.status})`);
-  const d = await r.json();
-  if (!r.ok) throw new Error(d.error || 'Upload failed');
-}
-
-// ── Submit ────────────────────────────────────────────────────
 async function submitForm() {
+  document.getElementById('submitError').classList.add('hidden');
   const name = document.getElementById('communityName').value.trim();
   const description = document.getElementById('fullDescription').value.trim();
 
-  if (!name) { alert('Community name is required.'); return; }
-  if (description.length < 100) { alert('Description must be at least 100 characters.'); return; }
-  if (!document.getElementById('agreeGuidelines').checked) { alert('Please agree to the Community Guidelines.'); return; }
-  if (!document.getElementById('agreeToS').checked) { alert('Please accept the Terms of Service.'); return; }
+  if (!selectedFluxerId && !selectedDiscordId && !selectedMatrixId) { showSubmitError('Please select at least one server.'); return; }
+  if (!name) { showSubmitError('Community name is required.'); return; }
+  if (description.length < 100) { showSubmitError('Description must be at least 100 characters.'); return; }
+  if (!document.getElementById('agreeGuidelines').checked) { showSubmitError('Please agree to the Community Guidelines.'); return; }
+  if (!document.getElementById('agreeToS').checked) { showSubmitError('Please accept the Terms of Service.'); return; }
 
   const btn = document.getElementById('submitBtn');
   btn.disabled = true;
   btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Submitting...';
 
+  const platforms = [];
+  if (selectedFluxerId) platforms.push({
+    platform: 'fluxer',
+    platform_id: selectedFluxerId,
+    invite_url: document.getElementById('fluxerInviteUrl').value.trim() || null,
+    member_count: parseInt(document.getElementById('fluxerMemberCount').value) || 0,
+  });
+  if (selectedDiscordId) platforms.push({
+    platform: 'discord',
+    platform_id: selectedDiscordId,
+    invite_url: document.getElementById('discordInviteUrl').value.trim() || null,
+    member_count: parseInt(document.getElementById('discordMemberCount').value) || 0,
+  });
+  if (selectedMatrixId) platforms.push({
+    platform: 'matrix',
+    platform_id: selectedMatrixId,
+    invite_url: document.getElementById('matrixInviteUrl').value.trim() || null,
+    member_count: parseInt(document.getElementById('matrixMemberCount').value) || 0,
+  });
+
   const payload = {
     name,
-    platform: platformSelect.getValue(),
+    platforms,
     short_description: document.getElementById('shortDescription').value.trim() || null,
     description,
-    twitch_url: document.getElementById('twitchUrl').value.trim() || null,
-    youtube_url: document.getElementById('youtubeUrl').value.trim() || null,
-    twitter_url: document.getElementById('twitterUrl').value.trim() || null,
-    website_url: document.getElementById('websiteUrl').value.trim() || null,
-    invite_url: document.getElementById('inviteUrl').value.trim() || null,
-    member_count: parseInt(document.getElementById('memberCount').value) || 0,
-    tags: [...selectedTags],
-    allow_discovery: document.getElementById('allowDiscovery').checked,
-    allow_joins: document.getElementById('allowJoins').checked,
+    twitch_url:    document.getElementById('twitchUrl').value.trim() || null,
+    youtube_url:   document.getElementById('youtubeUrl').value.trim() || null,
+    twitter_url:   document.getElementById('twitterUrl').value.trim() || null,
+    website_url:   document.getElementById('websiteUrl').value.trim() || null,
+    bluesky_url:   document.getElementById('blueskyUrl').value.trim() || null,
+    tiktok_url:    document.getElementById('tiktokUrl').value.trim() || null,
+    instagram_url: document.getElementById('instagramUrl').value.trim() || null,
+    tags:          [...selectedTags],
+    allow_discovery:  document.getElementById('allowDiscovery').checked,
+    allow_joins:      document.getElementById('allowJoins').checked,
+    site_xp_to_guild: document.getElementById('siteXpToGuild').checked,
   };
 
   try {
@@ -336,42 +790,173 @@ async function submitForm() {
     });
     const d = await r.json();
     if (d.id) {
-      // Upload images after creation
-      btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Uploading images...';
-      try {
-        await uploadRegImage(d.id, 'icon', 'regIconFile');
-        await uploadRegImage(d.id, 'banner', 'regBannerFile');
-      } catch (imgErr) {
-        console.warn('Image upload failed:', imgErr);
-      }
-      // Show pending confirmation instead of redirecting
-      document.querySelector('.max-w-3xl').innerHTML = `
-        <div class="text-center py-16 px-4">
-          <div class="w-20 h-20 bg-orange-500/10 border border-orange-500/30 rounded-full flex items-center justify-center mx-auto mb-6">
-            <i class="fas fa-clock text-orange-400 text-4xl"></i>
-          </div>
-          <h2 class="text-2xl font-bold text-white mb-3">Application Submitted!</h2>
-          <p class="text-gray-400 mb-2 max-w-md mx-auto">
-            Your community application is now <span class="text-orange-400 font-semibold">pending review</span>.
-            We'll check it against our guidelines before it appears in the directory.
-          </p>
-          <p class="text-gray-500 text-sm mb-8">This usually happens within 24–48 hours.</p>
-          <a href="{% url 'questlog_web_communities' %}"
-             class="inline-flex items-center gap-2 bg-neutral-800 hover:bg-neutral-700 text-gray-300 px-6 py-3 rounded-lg transition text-sm">
-            <i class="fas fa-arrow-left"></i>Back to Directory
-          </a>
-        </div>
-      `;
+      window.location.reload();
     } else {
-      alert(d.error || 'Failed to register community');
+      showSubmitError(d.error || 'Failed to register community.');
       btn.disabled = false;
-      btn.innerHTML = 'Submit Application';
+      btn.innerHTML = '<i class="fas fa-paper-plane mr-2"></i>Submit Application';
     }
   } catch (e) {
-    alert('Failed to submit. Please try again.');
+    showSubmitError('Failed to submit. Please try again.');
     btn.disabled = false;
-    btn.innerHTML = 'Submit Application';
+    btn.innerHTML = '<i class="fas fa-paper-plane mr-2"></i>Submit Application';
   }
 }
 </script>
+
+{% endif %}{# end status block #}
+
+<script>
+// ── Add Platform (status page) ───────────────────────────────────────────────
+const ADD_FLUXER_GUILDS = {{ fluxer_guilds_json|safe }};
+const ADD_DISCORD_GUILDS = {{ discord_guilds_json|safe }};
+const ADD_MATRIX_SPACES = {{ matrix_spaces_json|safe }};
+const ADD_REG_FLUXER = new Set({{ registered_fluxer_ids_json|safe }});
+const ADD_REG_DISCORD = new Set({{ registered_discord_ids_json|safe }});
+const ADD_REG_MATRIX = new Set({{ registered_matrix_ids_json|safe }});
+
+let addFluxerId = null, addFluxerName = null;
+let addDiscordId = null, addDiscordName = null;
+let addMatrixId = null, addMatrixName = null;
+
+function buildAddPickerGrid(guilds, registeredIds, gridId, sectionId, onSelectFn, accentColor) {
+  if (!guilds || guilds.length === 0) return;
+  const section = document.getElementById(sectionId);
+  if (!section) return;
+  section.classList.remove('hidden');
+  const grid = document.getElementById(gridId);
+  if (!grid) return;
+  grid.innerHTML = guilds.map(function(g) {
+    const alreadyReg = registeredIds.has(String(g.id));
+    const initials = (g.name || '?').slice(0, 2).toUpperCase();
+    return `<button type="button" data-guild-id="${escapeHtml(String(g.id))}"
+        data-guild-name="${escapeHtml(g.name)}"
+        data-member-count="${parseInt(g.member_count) || 0}"
+        data-already-reg="${alreadyReg ? '1' : ''}"
+        onclick="${onSelectFn}(this)"
+        ${alreadyReg ? 'disabled' : ''}
+        class="add-picker-${accentColor} flex items-center gap-3 p-3 rounded-lg border text-left transition
+               ${alreadyReg
+                 ? 'border-neutral-700 bg-neutral-800/30 opacity-50 cursor-not-allowed'
+                 : 'border-neutral-700 bg-neutral-800 hover:border-' + accentColor + '-500/50 cursor-pointer'}">
+      <div class="w-10 h-10 rounded-lg bg-neutral-700 flex items-center justify-center flex-shrink-0 text-white font-bold text-sm">
+        ${escapeHtml(initials)}
+      </div>
+      <div class="min-w-0 flex-1">
+        <p class="text-white font-medium text-sm truncate">${escapeHtml(g.name)}</p>
+        <p class="text-gray-500 text-xs">${parseInt(g.member_count) || 0} members</p>
+      </div>
+      ${alreadyReg
+        ? '<span class="text-xs text-orange-400 font-medium flex-shrink-0">Registered</span>'
+        : '<i class="fas fa-chevron-right text-gray-600 text-xs flex-shrink-0"></i>'}
+    </button>`;
+  }).join('');
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  buildAddPickerGrid(ADD_FLUXER_GUILDS, ADD_REG_FLUXER, 'addFluxerPickerGrid', 'addFluxerPickerSection', 'addSelectFluxer', 'cyan');
+  buildAddPickerGrid(ADD_DISCORD_GUILDS, ADD_REG_DISCORD, 'addDiscordPickerGrid', 'addDiscordPickerSection', 'addSelectDiscord', 'indigo');
+  buildAddPickerGrid(ADD_MATRIX_SPACES, ADD_REG_MATRIX, 'addMatrixPickerGrid', 'addMatrixPickerSection', 'addSelectMatrix', 'green');
+});
+
+function addSelectFluxer(btn) {
+  if (btn.dataset.alreadyReg) return;
+  document.querySelectorAll('.add-picker-cyan').forEach(c => { c.classList.remove('border-cyan-500','bg-cyan-500/10'); c.classList.add('border-neutral-700','bg-neutral-800'); });
+  btn.classList.add('border-cyan-500','bg-cyan-500/10'); btn.classList.remove('border-neutral-700','bg-neutral-800');
+  addFluxerId = btn.dataset.guildId; addFluxerName = btn.dataset.guildName;
+  document.getElementById('addFluxerInviteRow').classList.remove('hidden');
+  document.getElementById('addPlatformInviteSection').classList.remove('hidden');
+  document.getElementById('addClearFluxerBtn').classList.remove('hidden');
+}
+function addClearFluxer() {
+  addFluxerId = null; addFluxerName = null;
+  document.querySelectorAll('.add-picker-cyan').forEach(c => { c.classList.remove('border-cyan-500','bg-cyan-500/10'); c.classList.add('border-neutral-700','bg-neutral-800'); });
+  document.getElementById('addFluxerInviteRow').classList.add('hidden');
+  document.getElementById('addClearFluxerBtn').classList.add('hidden');
+  if (!addDiscordId && !addMatrixId) document.getElementById('addPlatformInviteSection').classList.add('hidden');
+}
+function addSelectDiscord(btn) {
+  if (btn.dataset.alreadyReg) return;
+  document.querySelectorAll('.add-picker-indigo').forEach(c => { c.classList.remove('border-indigo-500','bg-indigo-500/10'); c.classList.add('border-neutral-700','bg-neutral-800'); });
+  btn.classList.add('border-indigo-500','bg-indigo-500/10'); btn.classList.remove('border-neutral-700','bg-neutral-800');
+  addDiscordId = btn.dataset.guildId; addDiscordName = btn.dataset.guildName;
+  document.getElementById('addDiscordInviteRow').classList.remove('hidden');
+  document.getElementById('addPlatformInviteSection').classList.remove('hidden');
+  document.getElementById('addClearDiscordBtn').classList.remove('hidden');
+}
+function addClearDiscord() {
+  addDiscordId = null; addDiscordName = null;
+  document.querySelectorAll('.add-picker-indigo').forEach(c => { c.classList.remove('border-indigo-500','bg-indigo-500/10'); c.classList.add('border-neutral-700','bg-neutral-800'); });
+  document.getElementById('addDiscordInviteRow').classList.add('hidden');
+  document.getElementById('addClearDiscordBtn').classList.add('hidden');
+  if (!addFluxerId && !addMatrixId) document.getElementById('addPlatformInviteSection').classList.add('hidden');
+}
+function addSelectMatrix(btn) {
+  if (btn.dataset.alreadyReg) return;
+  document.querySelectorAll('.add-picker-green').forEach(c => { c.classList.remove('border-green-500','bg-green-500/10'); c.classList.add('border-neutral-700','bg-neutral-800'); });
+  btn.classList.add('border-green-500','bg-green-500/10'); btn.classList.remove('border-neutral-700','bg-neutral-800');
+  addMatrixId = btn.dataset.guildId; addMatrixName = btn.dataset.guildName;
+  document.getElementById('addMatrixInviteRow').classList.remove('hidden');
+  document.getElementById('addPlatformInviteSection').classList.remove('hidden');
+  document.getElementById('addClearMatrixBtn').classList.remove('hidden');
+}
+function addClearMatrix() {
+  addMatrixId = null; addMatrixName = null;
+  document.querySelectorAll('.add-picker-green').forEach(c => { c.classList.remove('border-green-500','bg-green-500/10'); c.classList.add('border-neutral-700','bg-neutral-800'); });
+  document.getElementById('addMatrixInviteRow').classList.add('hidden');
+  document.getElementById('addClearMatrixBtn').classList.add('hidden');
+  if (!addFluxerId && !addDiscordId) document.getElementById('addPlatformInviteSection').classList.add('hidden');
+}
+
+async function submitAddPlatform() {
+  const errEl = document.getElementById('addPlatformError');
+  errEl.classList.add('hidden');
+  if (!addFluxerId && !addDiscordId && !addMatrixId) {
+    errEl.textContent = 'Select at least one platform to add.';
+    errEl.classList.remove('hidden');
+    return;
+  }
+  const btn = document.getElementById('addPlatformBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Linking...';
+  const platforms = [];
+  if (addFluxerId) platforms.push({ platform: 'fluxer', platform_id: addFluxerId, invite_url: document.getElementById('addFluxerInviteUrl').value.trim() || null, member_count: 0 });
+  if (addDiscordId) platforms.push({ platform: 'discord', platform_id: addDiscordId, invite_url: document.getElementById('addDiscordInviteUrl').value.trim() || null, member_count: 0 });
+  if (addMatrixId) platforms.push({ platform: 'matrix', platform_id: addMatrixId, invite_url: document.getElementById('addMatrixInviteUrl').value.trim() || null, member_count: 0 });
+  try {
+    const r = await csrfFetch('{% url "questlog_web_api_communities" %}', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: document.querySelector('.space-y-3[data-community-name]')?.dataset.communityName || (addMatrixName || addDiscordName || addFluxerName || 'Community'), platforms, description: 'Additional platform entry.', tags: [] }),
+    });
+    const d = await r.json();
+    if (d.id) { window.location.reload(); }
+    else { errEl.textContent = d.error || 'Failed to add platform.'; errEl.classList.remove('hidden'); btn.disabled = false; btn.innerHTML = '<i class="fas fa-link mr-2"></i>Link Platform'; }
+  } catch(e) { errEl.textContent = 'Failed. Please try again.'; errEl.classList.remove('hidden'); btn.disabled = false; btn.innerHTML = '<i class="fas fa-link mr-2"></i>Link Platform'; }
+}
+
+async function leaveNetwork(communityId) {
+  if (!confirm('Are you sure? You can rejoin within 90 days without reapplying.')) return;
+  const res = await csrfFetch(`/ql/api/communities/${communityId}/leave-network/`, { method: 'POST' });
+  const d = await res.json();
+  if (d.success) { window.location.reload(); }
+  else { alert(d.error || 'Failed to leave network.'); }
+}
+
+async function rejoinNetwork(communityId) {
+  const res = await csrfFetch(`/ql/api/communities/${communityId}/rejoin-network/`, { method: 'POST' });
+  const d = await res.json();
+  if (d.success) { window.location.reload(); }
+  else { alert(d.error || 'Failed to rejoin network.'); }
+}
+
+async function setPrimary(communityId) {
+  const res = await csrfFetch(`/ql/api/communities/${communityId}/set-primary/`, { method: 'POST' });
+  const d = await res.json();
+  if (d.success) { window.location.reload(); }
+  else { alert(d.error || 'Failed to set primary.'); }
+}
+</script>
+
+</div>
 {% endblock %}

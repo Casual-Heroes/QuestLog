@@ -20,61 +20,39 @@
 <script>
 (function() {
   const MY_ID = {{ web_user.id }};
-  const GLOW = 'ring-2 ring-cyan-400 shadow-[0_0_10px_#22d3ee]';
-
-  const NAV_GLOW = ['ring-cyan-400', 'shadow-[0_0_8px_#22d3ee]'];
+  const PLAY_GLOW = ['ring-2', 'ring-cyan-400', 'shadow-[0_0_10px_#22d3ee]'];
+  const LIVE_GLOW = ['ring-2', 'ring-rose-500', 'shadow-[0_0_10px_#f43f5e]'];
+  const NAV_PLAY_GLOW = ['ring-cyan-400', 'shadow-[0_0_8px_#22d3ee]'];
+  const NAV_LIVE_GLOW = ['ring-rose-500', 'shadow-[0_0_8px_#f43f5e]'];
   const NAV_DEFAULT = ['ring-indigo-700'];
 
-  function applyNowPlaying(game) {
+  function applyStatus(game, isLive) {
+    const activeGlow = isLive ? LIVE_GLOW : (game ? PLAY_GLOW : []);
+    const navActiveGlow = isLive ? NAV_LIVE_GLOW : (game ? NAV_PLAY_GLOW : []);
+
     // --- Sidebar avatar glow ---
     const avatar = document.getElementById('sidebar-avatar');
     if (avatar) {
-      GLOW.split(' ').forEach(cls => avatar.classList.toggle(cls, !!game));
+      [...PLAY_GLOW, ...LIVE_GLOW].forEach(cls => avatar.classList.remove(cls));
+      activeGlow.forEach(cls => avatar.classList.add(cls));
     }
 
     // --- Top nav avatars (desktop + mobile) ---
     ['nav-avatar-desktop', 'nav-avatar-mobile'].forEach(id => {
       const el = document.getElementById(id);
       if (!el) return;
-      if (game) {
-        NAV_DEFAULT.forEach(c => el.classList.remove(c));
-        NAV_GLOW.forEach(c => el.classList.add(c));
-      } else {
-        NAV_GLOW.forEach(c => el.classList.remove(c));
-        NAV_DEFAULT.forEach(c => el.classList.add(c));
-      }
+      [...NAV_PLAY_GLOW, ...NAV_LIVE_GLOW, ...NAV_DEFAULT].forEach(c => el.classList.remove(c));
+      if (navActiveGlow.length) navActiveGlow.forEach(c => el.classList.add(c));
+      else NAV_DEFAULT.forEach(c => el.classList.add(c));
     });
 
     // --- Sidebar game name badge ---
     const badge = document.getElementById('sidebar-playing-badge');
     const gameName = document.getElementById('sidebar-playing-game');
     if (badge && gameName) {
-      if (game) {
-        gameName.textContent = game;
-        badge.classList.remove('hidden');
-      } else {
-        badge.classList.add('hidden');
-      }
+      if (game) { gameName.textContent = game; badge.classList.remove('hidden'); }
+      else { badge.classList.add('hidden'); }
     }
-
-    // --- Post cards by this user on the current page ---
-    document.querySelectorAll(`.post-card[data-author-id="${MY_ID}"]`).forEach(card => {
-      const img = card.querySelector('img.rounded-full');
-      if (img) GLOW.split(' ').forEach(cls => img.classList.toggle(cls, !!game));
-
-      let pb = card.querySelector('.post-playing-badge');
-      if (game) {
-        if (!pb) {
-          pb = document.createElement('span');
-          pb.className = 'post-playing-badge inline-flex items-center gap-1 text-[10px] text-cyan-400 font-semibold mt-0.5';
-          const authorMeta = card.querySelector('p.text-gray-500.text-xs');
-          if (authorMeta) authorMeta.after(pb);
-        }
-        pb.innerHTML = `<i class="fas fa-gamepad text-[9px]"></i>Playing Now &middot; <span class="truncate max-w-[120px]">${game.replace(/</g,'&lt;')}</span>`;
-      } else if (pb) {
-        pb.remove();
-      }
-    });
   }
 
   async function pollNowPlaying() {
@@ -82,11 +60,10 @@
       const res = await fetch('/ql/api/me/now-playing/', { credentials: 'same-origin' });
       if (!res.ok) return;
       const data = await res.json();
-      applyNowPlaying(data.current_game || null);
+      applyStatus(data.current_game || null, !!data.is_live);
     } catch (_) {}
   }
 
-  // Poll immediately on load, then every 30 seconds
   pollNowPlaying();
   setInterval(pollNowPlaying, 30000);
 })();

@@ -1,0 +1,201 @@
+{% extends "questlog_web/fluxer_member_base.html" %}
+{% load static %}
+
+{% block title %}Your Profile - {{ guild_name }} - QuestLog{% endblock %}
+
+{% block guild_content %}
+
+<!-- Page Header -->
+<div class="mb-8">
+  <h1 class="text-3xl font-bold text-white flex items-center gap-3">
+    <i class="fas fa-user text-blue-400"></i>
+    Your Profile
+  </h1>
+  <p class="text-gray-400 mt-1">Your stats and activity in {{ guild_name }}</p>
+</div>
+
+<!-- Profile Card -->
+<div class="bg-neutral-900 rounded-2xl border border-neutral-800 overflow-hidden mb-6">
+  <div class="h-24 bg-gradient-to-r from-blue-600/30 via-indigo-600/30 to-purple-600/30"></div>
+  <div class="px-6 pb-6">
+    <div class="-mt-10 mb-4 flex items-end gap-4">
+      {% if web_user.avatar_url %}
+      <img src="{{ web_user.avatar_url }}" alt="{{ web_user.username }}"
+           class="w-20 h-20 rounded-2xl border-4 border-neutral-900 shadow-lg">
+      {% else %}
+      <div class="w-20 h-20 bg-indigo-700 rounded-2xl border-4 border-neutral-900 shadow-lg flex items-center justify-center">
+        <span class="text-2xl font-bold text-white">{{ web_user.username|slice:":1"|upper }}</span>
+      </div>
+      {% endif %}
+      <div class="pb-1">
+        <h2 class="text-2xl font-bold text-white">{{ web_user.username }}</h2>
+        <p class="text-gray-400 text-sm">
+          <i class="fas fa-server text-indigo-400 mr-1"></i>{{ guild_name }} Member
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% if is_network_approved %}
+<!-- QuestLog Network Banner -->
+<div class="bg-indigo-900/30 border border-indigo-600/50 rounded-xl p-4 mb-6 flex items-center gap-3">
+  <div class="w-9 h-9 bg-indigo-600 rounded-lg flex items-center justify-center flex-shrink-0">
+    <i class="fas fa-globe text-white text-sm"></i>
+  </div>
+  <div class="flex-1">
+    <p class="text-indigo-300 font-semibold text-sm">QuestLog Network Member</p>
+    <p class="text-indigo-400/70 text-xs mt-0.5">Your XP is unified across Discord and QuestLog - one profile, one level.</p>
+  </div>
+  <a href="/ql/profile/{{ web_user.username }}/"
+     class="flex-shrink-0 text-indigo-400 hover:text-indigo-300 text-xs font-medium flex items-center gap-1 transition">
+    Full Profile <i class="fas fa-arrow-right text-xs"></i>
+  </a>
+</div>
+{% endif %}
+
+<!-- Stats Grid -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+
+{% if is_network_approved %}
+  <!-- Unified QuestLog XP -->
+  <div class="bg-neutral-900 rounded-xl border border-indigo-700/40 p-6">
+    <div class="flex items-center gap-3 mb-3">
+      <div class="w-10 h-10 bg-gradient-to-br from-indigo-500 to-purple-500 rounded-lg flex items-center justify-center">
+        <i class="fas fa-star text-white"></i>
+      </div>
+      <h3 class="text-gray-400 text-sm font-medium uppercase tracking-wider">QuestLog XP</h3>
+    </div>
+    <p class="text-3xl font-bold text-white">{{ unified_xp|default:"0" }}</p>
+    <p class="text-indigo-400 text-xs mt-1 flex items-center gap-1">
+      <i class="fas fa-globe text-xs"></i> Unified across all platforms
+    </p>
+  </div>
+
+  <!-- Unified Level -->
+  <div class="bg-neutral-900 rounded-xl border border-indigo-700/40 p-6">
+    <div class="flex items-center gap-3 mb-3">
+      <div class="w-10 h-10 bg-gradient-to-br from-green-500 to-emerald-500 rounded-lg flex items-center justify-center">
+        <i class="fas fa-level-up-alt text-white"></i>
+      </div>
+      <h3 class="text-gray-400 text-sm font-medium uppercase tracking-wider">Level</h3>
+    </div>
+    <p class="text-3xl font-bold text-white">{{ unified_level|default:"1" }}</p>
+    <p class="text-indigo-400 text-xs mt-1 flex items-center gap-1">
+      <i class="fas fa-globe text-xs"></i> QuestLog level
+    </p>
+  </div>
+
+{% else %}
+  <!-- Guild-local XP -->
+  <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6">
+    <div class="flex items-center gap-3 mb-3">
+      <div class="w-10 h-10 bg-gradient-to-br from-indigo-500 to-purple-500 rounded-lg flex items-center justify-center">
+        <i class="fas fa-star text-white"></i>
+      </div>
+      <h3 class="text-gray-400 text-sm font-medium uppercase tracking-wider">Guild XP</h3>
+    </div>
+    <p class="text-3xl font-bold text-white">{{ guild_xp|default:"0" }}</p>
+    <p class="text-gray-500 text-xs mt-1">Earned in {{ guild_name }}</p>
+  </div>
+
+  <!-- QuestLog Level -->
+  <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6">
+    <div class="flex items-center gap-3 mb-3">
+      <div class="w-10 h-10 bg-gradient-to-br from-green-500 to-emerald-500 rounded-lg flex items-center justify-center">
+        <i class="fas fa-level-up-alt text-white"></i>
+      </div>
+      <h3 class="text-gray-400 text-sm font-medium uppercase tracking-wider">QL Level</h3>
+    </div>
+    <p class="text-3xl font-bold text-white">{{ web_user.web_level|default:"1" }}</p>
+    <p class="text-gray-500 text-xs mt-1">{{ web_user.web_xp|default:"0" }} total XP</p>
+  </div>
+
+{% endif %}
+
+  <!-- Hero Points (always shown) -->
+  <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6">
+    <div class="flex items-center gap-3 mb-3">
+      <div class="w-10 h-10 bg-gradient-to-br from-yellow-500 to-amber-500 rounded-lg flex items-center justify-center">
+        <i class="fas fa-coins text-white"></i>
+      </div>
+      <h3 class="text-gray-400 text-sm font-medium uppercase tracking-wider">Hero Points</h3>
+    </div>
+    <p class="text-3xl font-bold text-white">{{ web_user.hero_points|default:"0" }}</p>
+    <p class="text-gray-500 text-xs mt-1">Spend on flairs &amp; giveaways</p>
+  </div>
+
+</div>
+
+<!-- LFG Stats -->
+{% if lfg_stats %}
+<div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6 mb-6">
+  <h3 class="text-lg font-bold text-white mb-4 flex items-center gap-2">
+    <i class="fas fa-users text-green-400"></i>
+    LFG Attendance
+  </h3>
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+    <div class="text-center">
+      <p class="text-2xl font-bold text-white">{{ lfg_stats.total_joined|default:"0" }}</p>
+      <p class="text-gray-500 text-xs mt-1">Groups Joined</p>
+    </div>
+    <div class="text-center">
+      <p class="text-2xl font-bold text-green-400">{{ lfg_stats.attended|default:"0" }}</p>
+      <p class="text-gray-500 text-xs mt-1">Attended</p>
+    </div>
+    <div class="text-center">
+      <p class="text-2xl font-bold text-red-400">{{ lfg_stats.no_showed|default:"0" }}</p>
+      <p class="text-gray-500 text-xs mt-1">No-Shows</p>
+    </div>
+    <div class="text-center">
+      {% if lfg_stats.total_joined and lfg_stats.total_joined > 0 %}
+      {% with pct=lfg_stats.attended|floatformat:0 %}
+      <p class="text-2xl font-bold text-indigo-400">{{ lfg_stats.attendance_score|default:"0" }}%</p>
+      {% endwith %}
+      {% else %}
+      <p class="text-2xl font-bold text-indigo-400">-</p>
+      {% endif %}
+      <p class="text-gray-500 text-xs mt-1">Score</p>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- Active Flair -->
+{% if web_user.active_flair_id %}
+<div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6 mb-6">
+  <h3 class="text-lg font-bold text-white mb-3 flex items-center gap-2">
+    <i class="fas fa-palette text-purple-400"></i>
+    Active Flair
+  </h3>
+  <p class="text-gray-400 text-sm">
+    You have an active flair equipped.
+    <a href="/ql/fluxer/{{ guild_id }}/flairs/" class="text-purple-400 hover:text-purple-300 ml-1">
+      Manage in Flair Store <i class="fas fa-arrow-right ml-1 text-xs"></i>
+    </a>
+  </p>
+</div>
+{% endif %}
+
+<!-- Quick Links -->
+<div class="bg-blue-900/20 border border-blue-700/50 rounded-xl p-6">
+  <h3 class="text-blue-400 font-semibold mb-3 flex items-center gap-2">
+    <i class="fas fa-info-circle"></i>Quick Actions
+  </h3>
+  <div class="flex flex-wrap gap-3">
+    <a href="/ql/fluxer/{{ guild_id }}/lfg/"
+       class="flex items-center gap-2 bg-green-600/20 hover:bg-green-600/30 border border-green-600/40 text-green-400 px-4 py-2 rounded-lg text-sm font-medium transition">
+      <i class="fas fa-users"></i>Find Groups
+    </a>
+    <a href="/ql/fluxer/{{ guild_id }}/flairs/"
+       class="flex items-center gap-2 bg-purple-600/20 hover:bg-purple-600/30 border border-purple-600/40 text-purple-400 px-4 py-2 rounded-lg text-sm font-medium transition">
+      <i class="fas fa-palette"></i>Flair Store
+    </a>
+    <a href="/ql/fluxer/{{ guild_id }}/raffles/"
+       class="flex items-center gap-2 bg-yellow-600/20 hover:bg-yellow-600/30 border border-yellow-600/40 text-yellow-400 px-4 py-2 rounded-lg text-sm font-medium transition">
+      <i class="fas fa-ticket-alt"></i>Giveaways
+    </a>
+  </div>
+</div>
+
+{% endblock %}

@@ -13,88 +13,108 @@
   {% if games %}
   <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
     {% for game in games %}
-    <div class="relative rounded-2xl overflow-hidden border border-neutral-800 bg-neutral-900 group hover:shadow-[0_0_20px_#6366f1] transition-shadow duration-300 min-h-[210px]">
+    <div class="rounded-2xl overflow-hidden border border-neutral-800 bg-neutral-900 group hover:shadow-[0_0_20px_#6366f1] hover:border-indigo-700/50 transition-all duration-300 flex flex-col">
 
       <!-- Banner image -->
-      {% if game.custom_img %}
-      <img src="{{ game.custom_img }}" alt="{{ game.name }}"
-           class="w-full object-cover object-[20%] group-hover:scale-105 transition duration-500 h-[215px]" />
-      {% elif game.steam_header_url %}
-      <img src="{{ game.steam_header_url }}" alt="{{ game.name }}"
-           class="w-full object-cover object-[20%] group-hover:scale-105 transition duration-500 h-[215px]" />
-      {% elif game.steam_appid %}
-      <img src="https://cdn.cloudflare.steamstatic.com/steam/apps/{{ game.steam_appid }}/header.jpg"
-           alt="{{ game.name }}"
-           class="w-full object-cover object-[20%] group-hover:scale-105 transition duration-500 h-[215px]" />
-      {% else %}
-      <img src="{% static 'img/games/wow/dwarf.webp' %}" alt="{{ game.name }}"
-           class="w-full object-cover object-[20%] group-hover:scale-105 transition duration-500 h-[215px]" />
-      {% endif %}
-
-      <!-- Gradient overlay -->
-      <div class="absolute inset-0 bg-gradient-to-t from-black/40 via-black/20 to-transparent z-10 rounded-2xl"></div>
+      <div class="relative h-44 overflow-hidden flex-shrink-0">
+        {% if game.custom_img %}
+        <img src="{{ game.custom_img }}" alt="{{ game.name }}"
+             class="w-full h-full object-cover group-hover:scale-105 transition duration-500" />
+        {% elif game.steam_header_url %}
+        <img src="{{ game.steam_header_url }}" alt="{{ game.name }}"
+             class="w-full h-full object-cover group-hover:scale-105 transition duration-500" />
+        {% elif game.steam_appid %}
+        <img src="https://cdn.cloudflare.steamstatic.com/steam/apps/{{ game.steam_appid }}/header.jpg"
+             alt="{{ game.name }}"
+             class="w-full h-full object-cover group-hover:scale-105 transition duration-500" />
+        {% else %}
+        <img src="{% static 'img/games/wow/dwarf.webp' %}" alt="{{ game.name }}"
+             class="w-full h-full object-cover group-hover:scale-105 transition duration-500" />
+        {% endif %}
+        <!-- Status badge -->
+        {% if game.status_label %}
+        <span class="absolute top-3 right-3 text-xs font-bold px-2 py-1 rounded-full bg-black/60 backdrop-blur-sm {% if 'Online' in game.status_label %}text-green-400{% else %}text-red-400{% endif %}">
+          <span class="inline-block w-1.5 h-1.5 rounded-full mr-1 align-middle {% if 'Online' in game.status_label %}bg-green-400{% else %}bg-red-400{% endif %}"></span>{{ game.status_label }}
+        </span>
+        {% endif %}
+      </div>
 
       <!-- Content -->
-      <div class="absolute inset-0 bg-black/60 backdrop-blur-[1px] text-white px-4 pt-3 pb-2 flex flex-col justify-start z-20 space-y-[0.35rem] text-[13px] leading-[1.35rem]">
+      <div class="p-5 flex flex-col gap-3 flex-1">
 
-        <!-- Title + status -->
-        <div class="flex items-center justify-between">
-          <h3 class="font-extrabold text-indigo-300 uppercase tracking-wide text-[16px]">{{ game.name }}</h3>
-          {% if game.status_label %}
-          <span class="text-xs font-bold {% if 'Online' in game.status_label %}text-green-400{% else %}text-red-500{% endif %}">
-            {{ game.status_label }}
-          </span>
-          {% endif %}
-        </div>
+        <!-- Title -->
+        <h3 class="font-extrabold text-white uppercase tracking-wide text-base leading-tight">{{ game.name }}</h3>
 
         <!-- Description -->
-        <p>
-          <span class="text-indigo-300 font-semibold">Description:</span>
-          <span class="text-white font-medium">{{ game.description }}</span>
-        </p>
+        {% if game.description %}
+        <p class="text-gray-400 text-sm leading-snug">{{ game.description }}</p>
+        {% endif %}
 
-        <!-- Player count -->
-        <p>
-          <span class="text-indigo-300 font-semibold">Players:</span>
-          <span class="text-white font-bold">{{ game.online }}/{{ game.max }}</span>
-        </p>
+        <!-- Stats row -->
+        <div class="flex items-center gap-4 text-sm">
+          <span class="text-gray-500">
+            <i class="fas fa-users text-indigo-400 mr-1"></i>
+            <span class="text-white font-semibold">{{ game.online }}/{{ game.max }}</span>
+            <span class="text-gray-500 ml-1">players</span>
+          </span>
+        </div>
 
         <!-- Connect info -->
         {% if game.ip %}
-        <div class="space-y-1">
-          <p class="text-indigo-300 font-semibold">Connect:</p>
-          <div class="flex items-center gap-1">
-            <span class="text-indigo-400 font-bold">IP:</span>
-            <span class="text-white text-xs">{{ game.ip }}</span>
-            <button onclick="copyText('{{ game.ip|escapejs }}')" class="hover:text-indigo-400" title="Copy IP">
+        <div class="bg-neutral-800 rounded-xl p-3 space-y-1.5 text-sm">
+          <div class="flex items-center gap-2">
+            <span class="text-indigo-400 font-semibold w-6">IP</span>
+            <span class="text-white font-mono text-xs flex-1">{{ game.ip }}</span>
+            <button onclick="copyText('{{ game.ip|escapejs }}')" class="text-gray-500 hover:text-indigo-400 transition" title="Copy IP">
               <i class="fas fa-copy text-xs"></i>
             </button>
           </div>
           {% if game.connect_pw %}
-          <div class="flex items-center gap-1">
-            <span class="text-indigo-400 font-bold">PW:</span>
-            <span class="text-white text-xs">{{ game.connect_pw }}</span>
-            <button onclick="copyText('{{ game.connect_pw|escapejs }}')" class="hover:text-indigo-400" title="Copy password">
+          <div class="flex items-center gap-2">
+            <span class="text-indigo-400 font-semibold w-6">PW</span>
+            <span class="text-white font-mono text-xs flex-1">{{ game.connect_pw }}</span>
+            <button onclick="copyText('{{ game.connect_pw|escapejs }}')" class="text-gray-500 hover:text-indigo-400 transition" title="Copy password">
               <i class="fas fa-copy text-xs"></i>
             </button>
           </div>
           {% endif %}
         </div>
+        {% else %}
+        <div class="bg-neutral-800/50 rounded-xl px-3 py-2 text-sm text-gray-500">
+          <i class="fas fa-plug mr-1"></i>Connection info unavailable
+        </div>
         {% endif %}
 
-        <!-- Discord -->
-        {% if game.discord_invite %}
-        <a href="{{ game.discord_invite }}" target="_blank" class="text-indigo-400 font-semibold hover:underline text-xs">
-          Join Discord ↗
-        </a>
-        {% endif %}
-
-        <!-- Steam / view link -->
-        {% if game.steam_link %}
-        <a href="{{ game.steam_link }}" target="_blank" class="text-indigo-400 font-semibold hover:underline text-xs pt-1">
-          {{ game.link_label }} ↗
-        </a>
-        {% endif %}
+        <!-- Links -->
+        <div class="flex flex-wrap gap-2 mt-auto pt-1">
+          {% if game.discord_invite %}
+          {% with url=game.discord_invite %}
+          {% if "discord" in url %}
+          <a href="{{ url }}" target="_blank" class="flex items-center gap-1.5 text-xs font-semibold bg-indigo-600/20 hover:bg-indigo-600/30 border border-indigo-600/40 text-indigo-400 px-3 py-1.5 rounded-lg transition">
+            <i class="fab fa-discord"></i>Discord
+          </a>
+          {% elif "fluxer" in url %}
+          <a href="{{ url }}" target="_blank" class="flex items-center gap-1.5 text-xs font-semibold bg-yellow-600/20 hover:bg-yellow-600/30 border border-yellow-600/40 text-yellow-400 px-3 py-1.5 rounded-lg transition">
+            <i class="fas fa-bolt"></i>Fluxer
+          </a>
+          {% elif "matrix" in url or "element" in url %}
+          <a href="{{ url }}" target="_blank" class="flex items-center gap-1.5 text-xs font-semibold bg-green-600/20 hover:bg-green-600/30 border border-green-600/40 text-green-400 px-3 py-1.5 rounded-lg transition">
+            <i class="fas fa-cube"></i>Matrix
+          </a>
+          {% else %}
+          <a href="{{ url }}" target="_blank" class="flex items-center gap-1.5 text-xs font-semibold bg-indigo-600/20 hover:bg-indigo-600/30 border border-indigo-600/40 text-indigo-400 px-3 py-1.5 rounded-lg transition">
+            <i class="fas fa-sign-in-alt"></i>Join
+          </a>
+          {% endif %}
+          {% endwith %}
+          {% endif %}
+          {% if game.steam_link %}
+          <a href="{{ game.steam_link }}" target="_blank"
+             class="flex items-center gap-1.5 text-xs font-semibold bg-neutral-700/50 hover:bg-neutral-700 border border-neutral-600/40 text-gray-300 px-3 py-1.5 rounded-lg transition">
+            <i class="fas fa-external-link-alt text-xs"></i>{{ game.link_label }}
+          </a>
+          {% endif %}
+        </div>
 
       </div>
     </div>

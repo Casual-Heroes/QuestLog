@@ -1,17 +1,9 @@
 {% extends "questlog_web/base_web.html" %}
 {% load static %}
 
-{% block title %}Community Details - QuestLog{% endblock %}
+{% block title %}Community - QuestLog{% endblock %}
 
 {% block web_content %}
-<script>
-  function escapeHtml(text) {
-    if (text == null || text === undefined) return '';
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-  }
-</script>
 
 <!-- Header -->
 <div class="bg-gradient-to-br from-neutral-900 to-neutral-950 border-b border-neutral-800 p-6 mb-6">
@@ -19,60 +11,72 @@
     <a href="{% url 'questlog_web_communities' %}" class="text-gray-400 hover:text-white transition text-sm mb-2 inline-block">
       <i class="fas fa-arrow-left mr-1"></i>Back to Communities
     </a>
-    <div id="communityHeader">
-      <h1 class="text-3xl font-bold text-white flex items-center gap-3">
-        <i class="fas fa-server text-purple-400"></i>
-        <span id="communityName">Loading...</span>
-      </h1>
-    </div>
+    <h1 class="text-3xl font-bold text-white flex items-center gap-3 mt-1">
+      <i id="headerIcon" class="fas fa-server text-purple-400"></i>
+      <span id="communityName">Loading...</span>
+    </h1>
   </div>
 </div>
 
 <div class="max-w-4xl mx-auto px-4 pb-8">
+
   <!-- Loading -->
   <div id="loadingState" class="text-center text-gray-500 py-12">
     <i class="fas fa-spinner fa-spin text-4xl mb-2"></i>
-    <p>Loading community details...</p>
+    <p>Loading community...</p>
   </div>
 
   <!-- Content -->
   <div id="communityContent" class="hidden space-y-6">
-    <!-- Banner + Info -->
-    <div class="bg-neutral-900/50 rounded-lg border border-neutral-800 overflow-hidden">
-      <div id="bannerSection" class="hidden h-40 bg-cover bg-center"></div>
-      <div class="p-6">
-        <div class="flex items-start gap-4">
-          <div id="communityIcon" class="w-16 h-16 bg-neutral-700 rounded-xl flex items-center justify-center flex-shrink-0">
-            <i class="fas fa-server text-gray-500 text-2xl"></i>
-          </div>
-          <div class="flex-1">
-            <h2 id="communityTitle" class="text-2xl font-bold text-white"></h2>
-            <div class="flex items-center gap-3 mt-1 text-sm text-gray-400">
-              <span id="communityPlatform"></span>
-              <span id="communityMembers"></span>
-            </div>
-            <p id="communityDescription" class="text-gray-300 mt-3"></p>
-          </div>
-          <div id="joinSection"></div>
+
+    <!-- Banner + Profile Card -->
+    <div class="bg-neutral-900 rounded-2xl border border-neutral-800 overflow-hidden">
+      <!-- Banner (hidden until populated by JS) -->
+      <div id="bannerSection" class="hidden h-48 bg-cover bg-center bg-neutral-800"></div>
+      <!-- Icon row - sits just below banner -->
+      <div class="px-6 pt-4 pb-0 flex items-end gap-4">
+        <div id="communityIcon" class="w-20 h-20 bg-neutral-700 rounded-xl flex items-center justify-center flex-shrink-0 border-4 border-neutral-900 -mt-12 shadow-lg">
+          <i class="fas fa-server text-gray-500 text-3xl"></i>
         </div>
+        <div id="joinSection" class="flex-shrink-0 pb-1 ml-auto"></div>
+      </div>
+      <!-- Text content -->
+      <div class="px-6 pt-3 pb-6">
+        <h2 id="communityTitle" class="text-2xl font-bold text-white"></h2>
+        <div class="flex flex-wrap items-center gap-3 mt-1 text-sm text-gray-400">
+          <span id="communityPlatform"></span>
+          <span id="communityMembers"></span>
+          <span id="communityActivity"></span>
+        </div>
+        <p id="communityShortDesc" class="text-gray-400 text-sm mt-2 font-medium hidden"></p>
+        <p id="communityDescription" class="text-gray-300 mt-3 text-sm leading-relaxed hidden"></p>
       </div>
     </div>
 
-    <!-- Stats -->
-    <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
-      <div class="bg-neutral-900/50 rounded-lg border border-neutral-800 p-4 text-center">
-        <p class="text-2xl font-bold text-white" id="statMembers">0</p>
-        <p class="text-sm text-gray-400">Members</p>
+    <!-- Tags -->
+    <div id="tagsSection" class="hidden">
+      <div id="tagsList" class="flex flex-wrap gap-2"></div>
+    </div>
+
+    <!-- Social Links -->
+    <div id="socialSection" class="hidden flex flex-wrap gap-3"></div>
+
+    <!-- Stats Grid -->
+    <div class="grid grid-cols-3 gap-4">
+      <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-4 text-center">
+        <p class="text-2xl font-bold text-white" id="statMembers">-</p>
+        <p class="text-sm text-gray-400 mt-1">Members</p>
       </div>
-      <div class="bg-neutral-900/50 rounded-lg border border-neutral-800 p-4 text-center">
-        <p class="text-2xl font-bold text-white" id="statPlatform">-</p>
-        <p class="text-sm text-gray-400">Platform</p>
+      <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-4 text-center">
+        <p class="text-xl font-bold text-white" id="statPlatform">-</p>
+        <p class="text-sm text-gray-400 mt-1">Platform</p>
       </div>
-      <div class="bg-neutral-900/50 rounded-lg border border-neutral-800 p-4 text-center">
-        <p class="text-2xl font-bold text-white" id="statActivity">-</p>
-        <p class="text-sm text-gray-400">Activity Level</p>
+      <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-4 text-center">
+        <p class="text-xl font-bold" id="statActivity">-</p>
+        <p class="text-sm text-gray-400 mt-1">Activity</p>
       </div>
     </div>
+
   </div>
 
   <!-- Error -->
@@ -86,84 +90,134 @@
 </div>
 
 <script>
+document.addEventListener('DOMContentLoaded', loadCommunity);
+
 const communityId = {{ community_id }};
 
-const platformIcons = {
-  discord: 'fab fa-discord text-indigo-400',
-  stoat: 'fas fa-comment-dots text-red-400',
-  revolt: 'fas fa-comment-dots text-red-400',
-  matrix: 'fas fa-cube text-green-400',
+const PLATFORM_ICONS = {
+  discord:   'fab fa-discord text-indigo-400',
+  fluxer:    'fas fa-bolt text-yellow-400',
+  matrix:    'fas fa-cube text-green-400',
+  kloak:     'fas fa-user-shield text-slate-400',
+  stoat:     'fas fa-network-wired text-teal-400',
   teamspeak: 'fas fa-headset text-blue-400',
-  guilded: 'fas fa-shield-alt text-yellow-400',
-  root: 'fas fa-tree text-emerald-400',
-  mumble: 'fas fa-microphone text-purple-400',
-  other: 'fas fa-globe text-gray-400'
+  mumble:    'fas fa-microphone text-purple-400',
+  guilded:   'fas fa-shield-alt text-yellow-400',
+  root:      'fas fa-tree text-emerald-400',
+  other:     'fas fa-globe text-gray-400',
 };
 
-document.addEventListener('DOMContentLoaded', loadCommunity);
+const ACTIVITY_TIERS = {
+  dormant:   { label: 'Dormant',   icon: 'fas fa-moon',      color: 'text-gray-400' },
+  squire:    { label: 'Squire',    icon: 'fas fa-shield-alt', color: 'text-amber-600' },
+  champion:  { label: 'Champion',  icon: 'fas fa-star',       color: 'text-blue-400' },
+  legendary: { label: 'Legendary', icon: 'fas fa-dragon',     color: 'text-purple-400' },
+  mythic:    { label: 'Mythic',    icon: 'fas fa-crown',      color: 'text-yellow-400' },
+};
+
+const SOCIAL_BUTTONS = [
+  { key: 'twitch_url',  label: 'Twitch',    icon: 'fab fa-twitch',    cls: 'bg-purple-600/20 border-purple-600/40 text-purple-400 hover:bg-purple-600/30' },
+  { key: 'youtube_url', label: 'YouTube',   icon: 'fab fa-youtube',   cls: 'bg-red-600/20 border-red-600/40 text-red-400 hover:bg-red-600/30' },
+  { key: 'twitter_url', label: 'Twitter/X', icon: 'fab fa-twitter',   cls: 'bg-sky-600/20 border-sky-600/40 text-sky-400 hover:bg-sky-600/30' },
+  { key: 'website_url', label: 'Website',   icon: 'fas fa-globe',     cls: 'bg-neutral-700/40 border-neutral-600/40 text-gray-300 hover:bg-neutral-700/60' },
+];
 
 async function loadCommunity() {
   try {
-    const response = await fetch('{% url "questlog_web_api_communities" %}');
-    const data = await response.json();
-    const community = (data.communities || []).find(c => c.id === communityId);
+    const r = await fetch(`/ql/api/communities/${communityId}/`);
+    if (!r.ok) throw new Error('not found');
+    const c = await r.json();
 
-    if (!community) {
-      document.getElementById('loadingState').classList.add('hidden');
-      document.getElementById('errorState').classList.remove('hidden');
-      return;
+    // Page title
+    document.title = `${c.name} - QuestLog`;
+    document.getElementById('communityName').textContent = c.name;
+    document.getElementById('communityTitle').textContent = c.name;
+
+    // Header icon (platform-based)
+    const iconClass = PLATFORM_ICONS[c.platform] || PLATFORM_ICONS.other;
+    document.getElementById('headerIcon').className = iconClass + ' text-2xl';
+
+    // Banner
+    if (c.banner_url) {
+      const banner = document.getElementById('bannerSection');
+      banner.style.backgroundImage = `url('${c.banner_url}')`;
+      banner.classList.remove('hidden');
     }
 
-    // Header
-    document.getElementById('communityName').textContent = community.name;
-    document.getElementById('communityTitle').textContent = community.name;
-
-    // Icon
-    if (community.icon_url) {
-      document.getElementById('communityIcon').innerHTML =
-        `<img src="${escapeHtml(community.icon_url)}" class="w-16 h-16 rounded-xl object-cover">`;
+    // Community icon
+    const iconEl = document.getElementById('communityIcon');
+    iconEl.classList.remove('hidden-unless-banner');
+    if (c.icon_url) {
+      iconEl.innerHTML = `<img src="${escapeHtml(c.icon_url)}" class="w-20 h-20 rounded-xl object-cover">`;
     } else {
-      const iconClass = platformIcons[community.platform] || platformIcons.other;
-      document.getElementById('communityIcon').innerHTML = `<i class="${iconClass} text-2xl"></i>`;
+      iconEl.innerHTML = `<i class="${escapeHtml(iconClass)} text-3xl"></i>`;
     }
 
-    // Platform badge
-    const iconClass = platformIcons[community.platform] || platformIcons.other;
+    // Platform + members + activity inline badges
     document.getElementById('communityPlatform').innerHTML =
-      `<i class="${iconClass} mr-1"></i><span class="capitalize">${community.platform}</span>`;
-
-    // Members
+      `<i class="${escapeHtml(iconClass)} mr-1"></i><span class="capitalize">${escapeHtml(c.platform)}</span>`;
     document.getElementById('communityMembers').innerHTML =
-      `<i class="fas fa-users mr-1"></i>${community.member_count.toLocaleString()} members`;
+      `<i class="fas fa-users mr-1"></i>${c.member_count.toLocaleString()} members`;
 
-    // Description
-    if (community.short_description) {
-      document.getElementById('communityDescription').textContent = community.short_description;
+    const tier = ACTIVITY_TIERS[c.activity_level] || { label: 'Unknown', icon: 'fas fa-question', color: 'text-gray-500' };
+    document.getElementById('communityActivity').innerHTML =
+      `<i class="${escapeHtml(tier.icon)} ${escapeHtml(tier.color)} mr-1"></i><span class="${escapeHtml(tier.color)}">${escapeHtml(tier.label)}</span>`;
+
+    // Short description
+    if (c.short_description) {
+      const el = document.getElementById('communityShortDesc');
+      el.textContent = c.short_description;
+      el.classList.remove('hidden');
     }
 
-    // Join
-    if (community.allow_joins && community.invite_url) {
+    // Full description
+    if (c.description) {
+      const el = document.getElementById('communityDescription');
+      el.textContent = c.description;
+      el.classList.remove('hidden');
+    }
+
+    // Join button
+    if (c.allow_joins && c.invite_url) {
       document.getElementById('joinSection').innerHTML = `
-        <a href="${escapeHtml(community.invite_url)}" target="_blank" rel="noopener"
-           class="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded-lg font-medium transition inline-block">
-          <i class="fas fa-sign-in-alt mr-2"></i>Join
-        </a>
-      `;
+        <a href="${escapeHtml(c.invite_url)}" target="_blank" rel="noopener"
+           class="flex items-center gap-2 bg-green-600 hover:bg-green-500 text-white px-6 py-2.5 rounded-xl font-semibold transition">
+          <i class="fas fa-sign-in-alt"></i>Join Community
+        </a>`;
+    }
+
+    // Tags
+    if (c.tags && c.tags.length) {
+      document.getElementById('tagsSection').classList.remove('hidden');
+      document.getElementById('tagsList').innerHTML = c.tags.map(t =>
+        `<span class="text-sm bg-neutral-800 border border-neutral-700 text-gray-300 px-3 py-1 rounded-full">${escapeHtml(t)}</span>`
+      ).join('');
+    }
+
+    // Social links
+    const socials = SOCIAL_BUTTONS.filter(s => c[s.key]);
+    if (socials.length) {
+      document.getElementById('socialSection').classList.remove('hidden');
+      document.getElementById('socialSection').innerHTML = socials.map(s =>
+        `<a href="${escapeHtml(c[s.key])}" target="_blank" rel="noopener"
+            class="flex items-center gap-2 border px-4 py-2 rounded-lg text-sm font-medium transition ${s.cls}">
+           <i class="${s.icon}"></i>${escapeHtml(s.label)}
+         </a>`
+      ).join('');
     }
 
     // Stats
-    document.getElementById('statMembers').textContent = community.member_count.toLocaleString();
-    document.getElementById('statPlatform').innerHTML =
-      `<span class="capitalize">${community.platform}</span>`;
-    document.getElementById('statActivity').textContent =
-      community.activity_level ? community.activity_level.charAt(0).toUpperCase() + community.activity_level.slice(1) : 'Unknown';
+    document.getElementById('statMembers').textContent = c.member_count.toLocaleString();
+    document.getElementById('statPlatform').innerHTML = `<span class="capitalize">${escapeHtml(c.platform)}</span>`;
+    document.getElementById('statActivity').innerHTML =
+      `<i class="${escapeHtml(tier.icon)} mr-1"></i>${escapeHtml(tier.label)}`;
+    document.getElementById('statActivity').className = `text-xl font-bold ${tier.color}`;
 
-    // Show
     document.getElementById('loadingState').classList.add('hidden');
     document.getElementById('communityContent').classList.remove('hidden');
 
-  } catch (error) {
-    console.error('Failed to load community:', error);
+  } catch (e) {
+    console.error(e);
     document.getElementById('loadingState').classList.add('hidden');
     document.getElementById('errorState').classList.remove('hidden');
   }

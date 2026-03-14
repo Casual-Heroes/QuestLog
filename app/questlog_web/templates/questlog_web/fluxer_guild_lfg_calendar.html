@@ -1,0 +1,560 @@
+{% extends "questlog_web/fluxer_base_guild.html" %}
+{% load static %}
+{% block title %}LFG Calendar - {{ guild_name }}{% endblock %}
+
+{% block guild_content %}
+<div class="p-6">
+
+<!-- Header -->
+<div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
+  <div>
+    <h1 class="text-3xl font-bold text-white">
+      <i class="fas fa-calendar-alt text-purple-400 mr-3"></i>LFG Calendar
+    </h1>
+    <p class="text-gray-400 mt-1">Scheduled events for {{ guild_name }}</p>
+  </div>
+  <div class="flex gap-3">
+    <a href="/ql/dashboard/fluxer/{{ guild_id }}/lfg/attendance/" class="bg-neutral-700 hover:bg-neutral-600 text-white px-4 py-2 rounded-lg font-medium transition text-sm flex items-center gap-2">
+      <i class="fas fa-clipboard-list"></i><span>Attendance</span>
+    </a>
+    <a href="/ql/dashboard/fluxer/{{ guild_id }}/lfg/" class="bg-neutral-700 hover:bg-neutral-600 text-white px-4 py-2 rounded-lg font-medium transition text-sm flex items-center gap-2">
+      <i class="fas fa-cog"></i><span>LFG Settings</span>
+    </a>
+  </div>
+</div>
+
+<!-- Main Layout: Calendar + Sidebar -->
+<div class="grid grid-cols-1 xl:grid-cols-4 gap-6">
+
+  <!-- Calendar (3/4) -->
+  <div class="xl:col-span-3">
+    <div class="bg-neutral-900 border border-neutral-800 rounded-xl overflow-hidden">
+      <!-- Calendar Nav -->
+      <div class="flex items-center justify-between px-6 py-4 border-b border-neutral-800">
+        <button onclick="prevMonth()" class="p-2 rounded-lg hover:bg-neutral-800 text-gray-400 hover:text-white transition">
+          <i class="fas fa-chevron-left"></i>
+        </button>
+        <div class="flex items-center gap-4">
+          <h2 id="cal-month-label" class="text-lg font-bold text-white"></h2>
+          <button onclick="goToday()" class="text-xs bg-purple-600/20 hover:bg-purple-600/40 text-purple-300 px-3 py-1 rounded-full border border-purple-600/30 transition">
+            Today
+          </button>
+        </div>
+        <button onclick="nextMonth()" class="p-2 rounded-lg hover:bg-neutral-800 text-gray-400 hover:text-white transition">
+          <i class="fas fa-chevron-right"></i>
+        </button>
+      </div>
+
+      <!-- Day-of-week headers -->
+      <div class="grid grid-cols-7 border-b border-neutral-800">
+        <div class="text-center py-2 text-xs font-bold text-gray-500 uppercase tracking-wider">Sun</div>
+        <div class="text-center py-2 text-xs font-bold text-gray-500 uppercase tracking-wider">Mon</div>
+        <div class="text-center py-2 text-xs font-bold text-gray-500 uppercase tracking-wider">Tue</div>
+        <div class="text-center py-2 text-xs font-bold text-gray-500 uppercase tracking-wider">Wed</div>
+        <div class="text-center py-2 text-xs font-bold text-gray-500 uppercase tracking-wider">Thu</div>
+        <div class="text-center py-2 text-xs font-bold text-gray-500 uppercase tracking-wider">Fri</div>
+        <div class="text-center py-2 text-xs font-bold text-gray-500 uppercase tracking-wider">Sat</div>
+      </div>
+
+      <!-- Calendar Grid -->
+      <div id="cal-grid" class="grid grid-cols-7 min-h-64"></div>
+    </div>
+  </div>
+
+  <!-- Right sidebar (1/4) -->
+  <div>
+    <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-5">
+      <div class="flex items-center justify-between mb-4">
+        <h3 id="sidebar-title" class="text-base font-bold text-white">
+          <i class="fas fa-clock text-purple-400 mr-2"></i>Upcoming Events
+        </h3>
+        <button id="sidebar-back-btn" onclick="showUpcomingPanel()" class="hidden text-xs text-gray-400 hover:text-white transition">
+          <i class="fas fa-arrow-left mr-1"></i>All
+        </button>
+      </div>
+      <div id="upcoming-list" class="space-y-3">
+        <p class="text-gray-500 text-sm">No upcoming events</p>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Event Detail Modal -->
+<div id="cal-event-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+  <div class="bg-neutral-900 border border-neutral-700 rounded-2xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
+    <div class="flex items-center justify-between p-5 border-b border-neutral-800">
+      <div id="modal-badges" class="flex items-center gap-2 flex-wrap"></div>
+      <button onclick="closeEventModal()" class="text-gray-400 hover:text-white text-2xl leading-none ml-4">&times;</button>
+    </div>
+    <div class="p-5 space-y-4">
+      <div>
+        <h3 id="modal-title" class="text-xl font-bold text-white mb-1"></h3>
+        <p id="modal-game" class="text-purple-300 text-sm font-medium"></p>
+      </div>
+      <div class="grid grid-cols-2 gap-3 text-sm">
+        <div class="bg-neutral-800/50 rounded-lg p-3">
+          <div class="text-gray-400 text-xs mb-1"><i class="far fa-clock mr-1"></i>Scheduled</div>
+          <div id="modal-time" class="text-white font-medium"></div>
+        </div>
+        <div class="bg-neutral-800/50 rounded-lg p-3">
+          <div class="text-gray-400 text-xs mb-1"><i class="fas fa-users mr-1"></i>Members</div>
+          <div id="modal-size" class="text-white font-medium"></div>
+        </div>
+      </div>
+      <div id="modal-description" class="hidden text-sm text-gray-300 italic bg-neutral-800/30 rounded-lg p-3"></div>
+      <!-- Edit Class panel (shown when member clicks Edit Class) -->
+      <div id="modal-edit-class" class="hidden bg-neutral-800/50 rounded-lg p-3">
+        <p class="text-xs text-gray-400 mb-2 font-medium">Your Role in this Group</p>
+        <div class="flex gap-2">
+          <select id="modal-role-select" class="flex-1 bg-neutral-700 text-white text-sm rounded px-2 py-1.5 border border-neutral-600 focus:outline-none focus:border-purple-500">
+            <option value="member">Member</option>
+            <option value="tank">Tank</option>
+            <option value="healer">Healer</option>
+            <option value="dps">DPS</option>
+            <option value="support">Support</option>
+          </select>
+          <button onclick="saveClass()" class="text-sm bg-purple-600 hover:bg-purple-700 text-white px-3 py-1.5 rounded transition">
+            Save
+          </button>
+        </div>
+        <p id="modal-edit-class-msg" class="hidden text-xs mt-2"></p>
+      </div>
+      <div id="modal-actions" class="flex gap-2 flex-wrap"></div>
+    </div>
+  </div>
+</div>
+
+</div><!-- /p-6 -->
+
+<script>
+const GUILD_ID = '{{ guild_id }}';
+const LFG_BROWSER_URL = '/ql/fluxer/' + GUILD_ID + '/lfg/';
+const LFG_BROWSE_ADMIN_URL = '/ql/dashboard/fluxer/' + GUILD_ID + '/lfg/browse/';
+const EVENTS = JSON.parse('{{ events_json|escapejs }}');
+const MY_GROUP_IDS = new Set(JSON.parse('{{ my_group_ids_json|escapejs }}'));
+const MY_CREATOR_IDS = new Set(JSON.parse('{{ my_creator_ids_json|escapejs }}'));
+let _currentEventId = null;
+
+// Expand recurring events into virtual occurrences for calendar display
+function expandRecurring(events) {
+  const result = events.slice();
+  const now = Math.floor(Date.now() / 1000);
+  const maxFuture = now + 365 * 86400;
+  events.forEach(function(e) {
+    if (!e.recurrence || e.recurrence === 'none' || !e.ts) return;
+    let maxOcc = e.recurrence === 'daily' ? 30 : e.recurrence === 'weekly' ? 13 : 6;
+    for (let n = 1; n <= maxOcc; n++) {
+      let nextTs;
+      if (e.recurrence === 'daily') {
+        nextTs = e.ts + n * 86400;
+      } else if (e.recurrence === 'weekly') {
+        nextTs = e.ts + n * 7 * 86400;
+      } else {
+        const d = new Date(e.ts * 1000);
+        d.setMonth(d.getMonth() + n);
+        nextTs = Math.floor(d.getTime() / 1000);
+      }
+      if (nextTs > maxFuture) break;
+      result.push(Object.assign({}, e, {
+        id: 'r-' + e.id + '-' + n,
+        ts: nextTs,
+        is_virtual: true,
+        original_id: e.id,
+      }));
+    }
+  });
+  return result;
+}
+
+const ALL_EVENTS = expandRecurring(EVENTS);
+
+const STATUS_CHIP = {
+  open:   'bg-green-500/20 text-green-300 border-green-500/30',
+  full:   'bg-yellow-500/20 text-yellow-300 border-yellow-500/30',
+  closed: 'bg-neutral-600/40 text-gray-400 border-neutral-600/30',
+};
+
+let _curYear, _curMonth;
+
+function _today() {
+  const d = new Date();
+  return { y: d.getFullYear(), m: d.getMonth() };
+}
+
+function init() {
+  const t = _today();
+  _curYear = t.y;
+  _curMonth = t.m;
+  renderCalendar();
+  renderUpcoming();
+}
+
+function prevMonth() {
+  _curMonth--;
+  if (_curMonth < 0) { _curMonth = 11; _curYear--; }
+  renderCalendar();
+}
+
+function nextMonth() {
+  _curMonth++;
+  if (_curMonth > 11) { _curMonth = 0; _curYear++; }
+  renderCalendar();
+}
+
+function goToday() {
+  const t = _today();
+  _curYear = t.y;
+  _curMonth = t.m;
+  renderCalendar();
+}
+
+function fmtTs(ts) {
+  if (!ts) return '';
+  return new Date(ts * 1000).toLocaleString(undefined, {
+    month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+  });
+}
+
+function fmtRelative(ts) {
+  if (!ts) return '';
+  const diff = ts * 1000 - Date.now();
+  const abs = Math.abs(diff);
+  const mins = Math.floor(abs / 60000);
+  const hours = Math.floor(abs / 3600000);
+  const days = Math.floor(abs / 86400000);
+  const past = diff < 0;
+  if (days > 0) return past ? `${days}d ago` : `in ${days}d`;
+  if (hours > 0) return past ? `${hours}h ago` : `in ${hours}h`;
+  return past ? `${mins}m ago` : `in ${mins}m`;
+}
+
+function eventsForDay(year, month, day) {
+  return ALL_EVENTS.filter(e => {
+    if (!e.ts) return false;
+    const d = new Date(e.ts * 1000);
+    return d.getFullYear() === year && d.getMonth() === month && d.getDate() === day;
+  });
+}
+
+function renderCalendar() {
+  const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  document.getElementById('cal-month-label').textContent = MONTHS[_curMonth] + ' ' + _curYear;
+
+  const grid = document.getElementById('cal-grid');
+  const firstDay = new Date(_curYear, _curMonth, 1).getDay(); // 0=Sun
+  const daysInMonth = new Date(_curYear, _curMonth + 1, 0).getDate();
+  const todayD = new Date();
+  const isCurrentMonth = todayD.getFullYear() === _curYear && todayD.getMonth() === _curMonth;
+
+  let cells = '';
+
+  // Leading empty cells
+  for (let i = 0; i < firstDay; i++) {
+    cells += '<div class="min-h-20 border-b border-r border-neutral-800 bg-neutral-950/50"></div>';
+  }
+
+  for (let d = 1; d <= daysInMonth; d++) {
+    const isToday = isCurrentMonth && d === todayD.getDate();
+    const dayEvents = eventsForDay(_curYear, _curMonth, d);
+    const todayCls = isToday ? 'bg-purple-600/10 border-purple-600/30' : '';
+    const eventChips = dayEvents.slice(0, 3).map(e => {
+      const chipCls = STATUS_CHIP[e.status] || STATUS_CHIP.closed;
+      const recurIcon = e.recurrence && e.recurrence !== 'none'
+        ? '<i class="fas fa-redo text-xs opacity-70 mr-0.5"></i>' : '';
+      const eid = String(e.id);
+      return `<div class="text-xs px-1.5 py-0.5 rounded border ${chipCls} truncate cursor-pointer hover:opacity-80 transition"
+                   onclick="event.stopPropagation(); showEventModal('${eid}')">${recurIcon}${escapeHtml(e.title)}</div>`;
+    }).join('');
+    const more = dayEvents.length > 3
+      ? `<div class="text-xs text-gray-500 mt-0.5">+${dayEvents.length - 3} more</div>`
+      : '';
+
+    const hasEvents = dayEvents.length > 0;
+    cells += `
+      <div class="min-h-20 border-b border-r border-neutral-800 p-1.5 ${todayCls} ${hasEvents ? 'cursor-pointer hover:bg-neutral-800/30' : ''}"
+           onclick="${hasEvents ? `showDayPanel(${_curYear}, ${_curMonth}, ${d})` : ''}">
+        <div class="flex justify-end mb-1">
+          <span class="text-xs ${isToday ? 'bg-purple-600 text-white w-5 h-5 flex items-center justify-center rounded-full font-bold' : 'text-gray-500'}">${d}</span>
+        </div>
+        <div class="space-y-0.5">${eventChips}${more}</div>
+      </div>`;
+  }
+
+  // Trailing cells to complete last row
+  const totalCells = firstDay + daysInMonth;
+  const remainder = totalCells % 7;
+  if (remainder !== 0) {
+    for (let i = 0; i < 7 - remainder; i++) {
+      cells += '<div class="min-h-20 border-b border-r border-neutral-800 bg-neutral-950/50"></div>';
+    }
+  }
+
+  grid.innerHTML = cells;
+}
+
+const RECUR_LABELS = { daily: 'Daily', weekly: 'Weekly', monthly: 'Monthly' };
+
+function showEventModal(eventId) {
+  const e = ALL_EVENTS.find(x => String(x.id) === String(eventId));
+  if (!e) return;
+  _currentEventId = String(eventId);
+
+  const realId = e.is_virtual ? e.original_id : e.id;
+  const isMember = MY_GROUP_IDS.has(realId) || MY_GROUP_IDS.has(String(realId));
+  const isCreator = MY_CREATOR_IDS.has(realId) || MY_CREATOR_IDS.has(String(realId));
+  const chipCls = STATUS_CHIP[e.status] || STATUS_CHIP.closed;
+
+  // Badges row
+  let badges = `<span class="text-xs px-2 py-0.5 rounded border ${chipCls}">${escapeHtml(e.status)}</span>`;
+  if (e.recurrence && e.recurrence !== 'none') {
+    badges += `<span class="text-xs bg-indigo-900/40 text-indigo-300 border border-indigo-700/40 px-2 py-0.5 rounded">
+      <i class="fas fa-redo mr-1"></i>${RECUR_LABELS[e.recurrence] || e.recurrence}</span>`;
+  }
+  if (e.is_virtual) {
+    badges += `<span class="text-xs bg-neutral-700 text-gray-400 px-2 py-0.5 rounded">Recurring occurrence</span>`;
+  }
+  if (isMember) {
+    badges += `<span class="text-xs bg-green-900/40 text-green-300 border border-green-700/40 px-2 py-0.5 rounded"><i class="fas fa-check-circle mr-1"></i>Joined</span>`;
+  }
+  document.getElementById('modal-badges').innerHTML = badges;
+  document.getElementById('modal-title').textContent = e.title || e.game_name;
+  document.getElementById('modal-game').textContent = e.game_name || '';
+  document.getElementById('modal-time').textContent = fmtTs(e.ts) || 'Not set';
+  document.getElementById('modal-size').textContent = `${e.current_size} / ${e.max_size} members`;
+
+  const descEl = document.getElementById('modal-description');
+  if (e.description) {
+    descEl.textContent = '"' + e.description + '"';
+    descEl.classList.remove('hidden');
+  } else {
+    descEl.classList.add('hidden');
+  }
+
+  // Reset edit-class panel
+  document.getElementById('modal-edit-class').classList.add('hidden');
+  document.getElementById('modal-edit-class-msg').classList.add('hidden');
+
+  // Build action buttons
+  let actions = '';
+
+  if (!e.is_virtual) {
+    if (isMember && !isCreator) {
+      actions += `<button onclick="leaveGroup(${realId})" id="modal-leave-btn"
+        class="text-sm bg-red-700/80 hover:bg-red-700 text-white px-4 py-2 rounded-lg transition font-medium">
+        <i class="fas fa-sign-out-alt mr-1"></i>Leave
+      </button>`;
+    }
+    if (isMember) {
+      actions += `<button onclick="toggleEditClass()" id="modal-edit-class-btn"
+        class="text-sm bg-neutral-700 hover:bg-neutral-600 text-white px-4 py-2 rounded-lg transition font-medium">
+        <i class="fas fa-edit mr-1"></i>Edit Class
+      </button>`;
+    }
+    if (!isMember && e.status === 'open') {
+      actions += `<button onclick="joinGroup(${realId})" id="modal-join-btn"
+        class="text-sm bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg transition font-medium">
+        <i class="fas fa-plus mr-1"></i>Join
+      </button>`;
+    }
+  }
+
+  actions += `<a href="${LFG_BROWSE_ADMIN_URL}" target="_blank"
+     class="text-sm bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg transition font-medium">
+    <i class="fas fa-users mr-1"></i>Browse
+  </a>
+  <a href="${LFG_BROWSER_URL}" target="_blank"
+     class="text-sm bg-neutral-700 hover:bg-neutral-600 text-white px-3 py-2 rounded-lg transition" title="Public LFG page">
+    <i class="fas fa-external-link-alt"></i>
+  </a>`;
+
+  document.getElementById('modal-actions').innerHTML = actions;
+  document.getElementById('cal-event-modal').classList.remove('hidden');
+}
+
+async function joinGroup(groupId) {
+  const btn = document.getElementById('modal-join-btn');
+  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>Joining...'; }
+  try {
+    const resp = await csrfFetch(`/ql/api/lfg/fluxer-guild/${groupId}/join/`, { method: 'POST' });
+    const data = await resp.json();
+    if (data.success) {
+      MY_GROUP_IDS.add(groupId);
+      // Update event data
+      const ev = ALL_EVENTS.find(x => x.id === groupId || x.original_id === groupId);
+      if (ev) { ev.current_size = data.new_size; ev.status = data.status; }
+      showEventModal(String(groupId));
+      renderCalendar();
+    } else {
+      if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-plus mr-1"></i>Join'; }
+      alert(data.error || 'Failed to join');
+    }
+  } catch (err) {
+    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-plus mr-1"></i>Join'; }
+  }
+}
+
+async function leaveGroup(groupId) {
+  if (!confirm('Leave this group?')) return;
+  const btn = document.getElementById('modal-leave-btn');
+  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>Leaving...'; }
+  try {
+    const resp = await csrfFetch(`/ql/api/lfg/fluxer-guild/${groupId}/leave/`, { method: 'POST' });
+    const data = await resp.json();
+    if (data.success) {
+      MY_GROUP_IDS.delete(groupId);
+      MY_GROUP_IDS.delete(String(groupId));
+      const ev = ALL_EVENTS.find(x => x.id === groupId || x.original_id === groupId);
+      if (ev) { ev.current_size = data.new_size; ev.status = data.status; }
+      showEventModal(String(groupId));
+      renderCalendar();
+    } else {
+      if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Leave'; }
+      alert(data.error || 'Failed to leave');
+    }
+  } catch (err) {
+    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-sign-out-alt mr-1"></i>Leave'; }
+  }
+}
+
+function toggleEditClass() {
+  const panel = document.getElementById('modal-edit-class');
+  panel.classList.toggle('hidden');
+}
+
+async function saveClass() {
+  if (!_currentEventId) return;
+  const e = ALL_EVENTS.find(x => String(x.id) === String(_currentEventId));
+  if (!e) return;
+  const realId = e.is_virtual ? e.original_id : e.id;
+  const role = document.getElementById('modal-role-select').value;
+  const msgEl = document.getElementById('modal-edit-class-msg');
+  try {
+    const resp = await csrfFetch(`/ql/api/lfg/fluxer-guild/${realId}/update-member/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ role }),
+    });
+    const data = await resp.json();
+    msgEl.className = 'text-xs mt-2 ' + (data.success ? 'text-green-400' : 'text-red-400');
+    msgEl.textContent = data.success ? 'Role updated!' : (data.error || 'Failed to update');
+    msgEl.classList.remove('hidden');
+    setTimeout(() => msgEl.classList.add('hidden'), 2000);
+  } catch (err) {
+    msgEl.className = 'text-xs mt-2 text-red-400';
+    msgEl.textContent = 'Error saving';
+    msgEl.classList.remove('hidden');
+  }
+}
+
+function closeEventModal() {
+  document.getElementById('cal-event-modal').classList.add('hidden');
+}
+
+document.getElementById('cal-event-modal').addEventListener('click', function(e) {
+  if (e.target === this) closeEventModal();
+});
+
+// Day panel: show all events for a specific day in the sidebar
+function showDayPanel(year, month, day) {
+  const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const dayEvents = eventsForDay(year, month, day);
+  const title = document.getElementById('sidebar-title');
+  title.innerHTML = `<i class="fas fa-calendar-day text-purple-400 mr-2"></i>${MONTHS[month]} ${day}`;
+  document.getElementById('sidebar-back-btn').classList.remove('hidden');
+
+  const container = document.getElementById('upcoming-list');
+  if (!dayEvents.length) {
+    container.innerHTML = '<p class="text-gray-500 text-sm">No events this day</p>';
+    return;
+  }
+  container.innerHTML = dayEvents.map(e => {
+    const chipCls = STATUS_CHIP[e.status] || STATUS_CHIP.closed;
+    const eid = String(e.id);
+    const recurTag = e.recurrence && e.recurrence !== 'none'
+      ? `<span class="text-xs text-indigo-400"><i class="fas fa-redo mr-0.5"></i>${RECUR_LABELS[e.recurrence]}</span>` : '';
+    return `
+      <div class="bg-neutral-800/50 rounded-lg p-3 cursor-pointer hover:bg-neutral-800 transition"
+           onclick="showEventModal('${eid}')">
+        <div class="flex items-start justify-between gap-2 mb-1">
+          <span class="text-xs text-gray-400">${fmtTs(e.ts)}</span>
+          <span class="text-xs px-1.5 py-0.5 rounded border ${chipCls} flex-shrink-0">${e.status}</span>
+        </div>
+        <p class="text-sm text-white font-medium truncate">${escapeHtml(e.title)}</p>
+        <p class="text-xs text-purple-300">${escapeHtml(e.game_name)}</p>
+        <div class="flex items-center justify-between mt-1">
+          <span class="text-xs text-gray-500">${e.current_size}/${e.max_size} <i class="fas fa-user ml-0.5"></i></span>
+          ${recurTag}
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function showUpcomingPanel() {
+  document.getElementById('sidebar-title').innerHTML =
+    '<i class="fas fa-clock text-purple-400 mr-2"></i>Upcoming Events';
+  document.getElementById('sidebar-back-btn').classList.add('hidden');
+  renderUpcoming();
+}
+
+function renderUpcoming() {
+  const now = Math.floor(Date.now() / 1000);
+  const upcoming = ALL_EVENTS
+    .filter(e => e.ts && e.ts >= now)
+    .sort((a, b) => a.ts - b.ts)
+    .slice(0, 20);
+
+  const container = document.getElementById('upcoming-list');
+  if (!upcoming.length) {
+    container.innerHTML = '<p class="text-gray-500 text-sm">No upcoming events scheduled</p>';
+    return;
+  }
+
+  const RECUR_LABELS = { daily: 'Daily', weekly: 'Weekly', monthly: 'Monthly' };
+  container.innerHTML = upcoming.map(e => {
+    const chipCls = STATUS_CHIP[e.status] || STATUS_CHIP.closed;
+    const eid = String(e.id);
+    const recurTag = e.recurrence && e.recurrence !== 'none'
+      ? `<span class="text-xs text-indigo-400 ml-1"><i class="fas fa-redo"></i> ${RECUR_LABELS[e.recurrence] || ''}</span>` : '';
+    return `
+      <div class="bg-neutral-800/50 rounded-lg p-3 cursor-pointer hover:bg-neutral-800 transition"
+           onclick="showEventModal('${eid}'); jumpToEvent('${eid}')">
+        <div class="flex items-start justify-between gap-2 mb-1">
+          <span class="text-xs text-gray-400">${fmtRelative(e.ts)}</span>
+          <span class="text-xs px-1.5 py-0.5 rounded border ${chipCls} flex-shrink-0">${e.status}</span>
+        </div>
+        <p class="text-sm text-white font-medium truncate">${escapeHtml(e.title)}${recurTag}</p>
+        <p class="text-xs text-purple-300">${escapeHtml(e.game_name)}</p>
+        <div class="flex items-center justify-between mt-2">
+          <span class="text-xs text-gray-500">${e.current_size}/${e.max_size} <i class="fas fa-user ml-0.5"></i></span>
+          <button onclick="copyLink(event)" data-url="${LFG_BROWSER_URL}"
+                  class="text-xs text-gray-500 hover:text-white transition">
+            <i class="fas fa-link"></i>
+          </button>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function jumpToEvent(eventId) {
+  const e = ALL_EVENTS.find(x => String(x.id) === String(eventId));
+  if (!e || !e.ts) return;
+  const d = new Date(e.ts * 1000);
+  _curYear = d.getFullYear();
+  _curMonth = d.getMonth();
+  renderCalendar();
+}
+
+function copyLink(event) {
+  event.stopPropagation();
+  const url = event.currentTarget.dataset.url;
+  navigator.clipboard.writeText(window.location.origin + url).then(() => {
+    const btn = event.currentTarget;
+    btn.innerHTML = '<i class="fas fa-check text-green-400"></i>';
+    setTimeout(() => { btn.innerHTML = '<i class="fas fa-link"></i>'; }, 1500);
+  });
+}
+
+document.addEventListener('DOMContentLoaded', init);
+</script>
+{% endblock %}

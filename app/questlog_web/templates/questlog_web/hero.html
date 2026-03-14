@@ -1,0 +1,421 @@
+{% extends "questlog_web/base_web.html" %}
+{% load static %}
+
+{% block title %}QuestLog Champion - Support the Community{% endblock %}
+{% block og_title %}QuestLog Champion{% endblock %}
+{% block og_description %}Become a QuestLog Champion. Support the community and unlock exclusive perks.{% endblock %}
+
+{% block extra_css %}
+<style>
+.champion-page {
+    max-width: 700px;
+    margin: 0 auto;
+    padding: 48px 16px 80px;
+}
+
+.champion-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: linear-gradient(135deg, rgba(245,158,11,0.15), rgba(217,119,6,0.15));
+    border: 1px solid rgba(245,158,11,0.4);
+    border-radius: 999px;
+    padding: 4px 14px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #fcd34d;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 20px;
+}
+
+.champion-title {
+    font-size: 2.4rem;
+    font-weight: 900;
+    color: #fff;
+    line-height: 1.15;
+    margin-bottom: 12px;
+}
+
+.champion-title span {
+    background: linear-gradient(135deg, #fbbf24, #f59e0b);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.champion-subtitle {
+    font-size: 1rem;
+    color: #9ca3af;
+    margin-bottom: 40px;
+    max-width: 560px;
+}
+
+.champion-card {
+    background: linear-gradient(135deg, #0f0f1a, #1a1205);
+    border: 1px solid rgba(245,158,11,0.35);
+    border-radius: 20px;
+    padding: 40px;
+    margin-bottom: 28px;
+}
+
+.price-row {
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.price-amount {
+    font-size: 3.2rem;
+    font-weight: 900;
+    color: #fff;
+    line-height: 1;
+}
+
+.price-period {
+    font-size: 1rem;
+    color: #6b7280;
+    margin-bottom: 6px;
+}
+
+.price-note {
+    font-size: 0.8rem;
+    color: #6b7280;
+    margin-bottom: 28px;
+}
+
+.perks-list {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 32px 0;
+}
+
+.perks-list li {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 10px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    font-size: 0.92rem;
+    color: #d1d5db;
+}
+
+.perks-list li:last-child {
+    border-bottom: none;
+}
+
+.perk-icon {
+    flex-shrink: 0;
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    background: rgba(245,158,11,0.12);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.85rem;
+}
+
+.perk-label {
+    font-weight: 600;
+    color: #e5e7eb;
+}
+
+.perk-desc {
+    font-size: 0.8rem;
+    color: #6b7280;
+    margin-top: 1px;
+}
+
+.champion-btn {
+    display: block;
+    width: 100%;
+    padding: 16px 24px;
+    background: linear-gradient(135deg, #d97706, #b45309);
+    color: #fff;
+    font-size: 1.05rem;
+    font-weight: 700;
+    border-radius: 12px;
+    border: none;
+    cursor: pointer;
+    transition: opacity 0.15s ease, transform 0.1s ease;
+    text-align: center;
+}
+
+.champion-btn:hover {
+    opacity: 0.9;
+    transform: translateY(-1px);
+}
+
+.champion-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.already-champion {
+    background: linear-gradient(135deg, rgba(245,158,11,0.08), rgba(217,119,6,0.08));
+    border: 1px solid rgba(245,158,11,0.3);
+    border-radius: 12px;
+    padding: 16px 20px;
+    color: #fcd34d;
+    font-size: 0.9rem;
+    margin-bottom: 16px;
+    text-align: center;
+}
+
+.manage-link {
+    display: block;
+    text-align: center;
+    font-size: 0.82rem;
+    color: #6b7280;
+    margin-top: 12px;
+    cursor: pointer;
+}
+
+.manage-link:hover {
+    color: #9ca3af;
+}
+
+.champion-faq {
+    margin-top: 40px;
+}
+
+.faq-item {
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    padding: 16px 0;
+}
+
+.faq-q {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #e5e7eb;
+    margin-bottom: 6px;
+}
+
+.faq-a {
+    font-size: 0.83rem;
+    color: #6b7280;
+    line-height: 1.6;
+}
+
+.toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    background: #1e1e3a;
+    border: 1px solid #2d2d4a;
+    border-radius: 10px;
+    padding: 12px 18px;
+    color: #e5e7eb;
+    font-size: 0.88rem;
+    z-index: 9999;
+    display: none;
+}
+</style>
+{% endblock %}
+
+{% block web_content %}
+<div class="champion-page">
+
+  <div class="champion-badge">
+    <span style="width:7px;height:7px;border-radius:50%;background:#fbbf24;display:inline-block;"></span>
+    QuestLog Champion
+  </div>
+
+  <h1 class="champion-title">Keep it independent,<br><span>earn your place.</span></h1>
+  <p class="champion-subtitle">QuestLog is built by gamers, for gamers - no ads, no investor nonsense. Champions keep the lights on. In return you get perks, recognition, and a direct line to what's coming.</p>
+
+  {% if web_user and web_user.is_hero %}
+  <div class="already-champion">
+    <i class="fas fa-shield-alt mr-2"></i>You're a Champion! Your support means everything.
+    {% if web_user.hero_expires_at %}
+    <div style="font-size:0.78rem;color:#fbbf24;margin-top:4px;">
+      Renews: {{ web_user.hero_expires_at|date:"N j, Y" }}
+    </div>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <div class="champion-card">
+    <div class="price-row">
+      <span class="price-amount">$4.99</span>
+      <span class="price-period">/month</span>
+    </div>
+    <p class="price-note">Cancel anytime. Price never increases.</p>
+
+    <ul class="perks-list">
+      <li>
+        <div class="perk-icon"><i class="fas fa-shield-alt" style="color:#fbbf24;font-size:0.75rem;"></i></div>
+        <div>
+          <div class="perk-label">Champion Badge</div>
+          <div class="perk-desc">Gold badge on your profile, posts, and comments - visible to the whole community.</div>
+        </div>
+      </li>
+      <li>
+        <div class="perk-icon"><i class="fas fa-star" style="color:#a78bfa;font-size:0.75rem;"></i></div>
+        <div>
+          <div class="perk-label">Two Flair Slots</div>
+          <div class="perk-desc">Equip two flairs at once instead of one. Plus access to Champion-exclusive flairs not available to free members.</div>
+        </div>
+      </li>
+      <li>
+        <div class="perk-icon"><i class="fas fa-hashtag" style="color:#34d399;font-size:0.75rem;"></i></div>
+        <div>
+          <div class="perk-label">Champions Channel on Fluxer</div>
+          <div class="perk-desc">Auto-unlocks the #champions category on Fluxer - behind the scenes, first looks at new features, and a direct line to share feedback.</div>
+        </div>
+      </li>
+      <li>
+        <div class="perk-icon"><i class="fas fa-align-left" style="color:#60a5fa;font-size:0.75rem;"></i></div>
+        <div>
+          <div class="perk-label">Extended Posts</div>
+          <div class="perk-desc">3,000 character limit on posts (vs 1,000 for free) and up to 8 images per post (vs 4).</div>
+        </div>
+      </li>
+      <li>
+        <div class="perk-icon"><i class="fas fa-users" style="color:#f87171;font-size:0.75rem;"></i></div>
+        <div>
+          <div class="perk-label">Champions Listing (opt-in)</div>
+          <div class="perk-desc">Opt-in to be listed publicly on the Champions page. Show the community you helped build this - toggle it on or off from your profile settings anytime.</div>
+        </div>
+      </li>
+      <li>
+        <div class="perk-icon"><i class="fas fa-scroll" style="color:#fbbf24;font-size:0.75rem;"></i></div>
+        <div>
+          <div class="perk-label">Name in the Credits</div>
+          <div class="perk-desc">Your username goes in the site credits - part of QuestLog's history. <a href="#credits" style="color:#fbbf24;">See the credits</a></div>
+        </div>
+      </li>
+      <li>
+        <div class="perk-icon"><i class="fas fa-heart" style="color:#f87171;font-size:0.75rem;"></i></div>
+        <div>
+          <div class="perk-label">Keeping This Ad-Free</div>
+          <div class="perk-desc">Your support matters! No trackers. No promoted posts. No selling data. Ever - we don't believe in bending any knees.</div>
+        </div>
+      </li>
+    </ul>
+
+    {% if web_user and web_user.is_hero %}
+    <form method="post" action="{% url 'questlog_web_hero_portal' %}" style="margin:0;">
+      {% csrf_token %}
+      <button type="submit" class="champion-btn" style="background: linear-gradient(135deg, #374151, #4b5563);">
+        Manage Subscription
+      </button>
+    </form>
+    {% elif stripe_publishable_key and hero_price_id %}
+    <button id="checkout-btn" class="champion-btn" onclick="startCheckout()">
+      Become a Champion - $4.99/mo
+    </button>
+    <p class="manage-link" style="margin-top:8px;font-size:0.78rem;color:#4b5563;">
+      Secured by Stripe. Cancel any time from your subscription portal.
+    </p>
+    {% else %}
+    <button class="champion-btn" disabled>
+      Champion Subscriptions Coming Soon
+    </button>
+    {% endif %}
+
+    <div style="margin-top:16px;font-size:0.8rem;color:#4b5563;text-align:center;padding:10px 16px;border:1px solid rgba(255,255,255,0.04);border-radius:10px;background:rgba(255,255,255,0.01);">
+      Prefer a one-time tip?
+      <a href="https://ko-fi.com/casualheroes" target="_blank" rel="noopener" style="color:#f59e0b;text-decoration:none;">Ko-fi</a>
+      is always open - no account needed.
+    </div>
+  </div>
+
+
+  <!-- Credits -->
+  <div id="credits" style="margin-bottom:40px;scroll-margin-top:24px;">
+    <h2 style="font-size:1.1rem;font-weight:700;color:#fff;margin-bottom:4px;">
+      <i class="fas fa-scroll text-amber-400 mr-2"></i>Site Credits
+    </h2>
+    <p style="font-size:0.82rem;color:#6b7280;margin-bottom:16px;">These Champions helped build QuestLog. Thank you, Hero! Your support helps cover server costs, electricity, and keeps this community alive. Without you, none of this would be possible.</p>
+    {% if champions %}
+    <div style="display:flex;flex-wrap:wrap;gap:8px;">
+      {% for c in champions %}
+      <a href="/ql/u/{{ c.username }}/" style="display:inline-flex;align-items:center;gap:6px;background:rgba(245,158,11,0.06);border:1px solid rgba(245,158,11,0.18);border-radius:8px;padding:5px 12px;text-decoration:none;">
+        {% if c.avatar_url %}
+        <img src="{{ c.avatar_url }}" alt="{{ c.username }}" style="width:18px;height:18px;border-radius:4px;object-fit:cover;">
+        {% endif %}
+        <span style="font-size:0.82rem;color:#fcd34d;font-weight:600;">{{ c.username }}</span>
+      </a>
+      {% endfor %}
+    </div>
+    <p style="font-size:0.75rem;color:#4b5563;margin-top:10px;">Want to be listed here? <a href="#" onclick="document.getElementById('checkout-btn')?.scrollIntoView({behavior:'smooth'});return false;" style="color:#d97706;">Become a Champion</a> and opt in from Profile Settings.</p>
+    {% else %}
+    <div style="background:rgba(245,158,11,0.04);border:1px solid rgba(245,158,11,0.1);border-radius:12px;padding:20px;text-align:center;">
+      <p style="color:#6b7280;font-size:0.88rem;margin:0;">Be the first in the credits. <a href="#" onclick="window.scrollTo({top:0,behavior:'smooth'});return false;" style="color:#d97706;">Become a Champion</a></p>
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="champion-faq">
+    <h2 style="font-size:1.1rem;font-weight:700;color:#fff;margin-bottom:4px;">FAQ</h2>
+
+    <div class="faq-item">
+      <div class="faq-q">Can I cancel any time?</div>
+      <div class="faq-a">Yes. Cancel from the Stripe customer portal anytime. Your perks stay active until the end of your billing period.</div>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-q">Will the price ever go up?</div>
+      <div class="faq-a">No. $4.99/month is the price, period. If you're already subscribed when you read this, that's your rate forever.</div>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-q">What happens to my Champion flairs if I cancel?</div>
+      <div class="faq-a">You keep any flairs you purchased - they're yours. You lose the second flair slot and the ability to buy new Champion-exclusive flairs going forward.</div>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-q">Do you store my card details?</div>
+      <div class="faq-a">No. All payment processing is handled by Stripe. QuestLog never sees or stores your card number.</div>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-q">What's Ko-fi for vs this?</div>
+      <div class="faq-a">Ko-fi is for one-time tips if you want to show support without a recurring sub. Champion perks are only via the Stripe subscription above.</div>
+    </div>
+  </div>
+
+</div>
+
+<div id="toast" class="toast"></div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function showToast(msg, color) {
+  var t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.borderColor = color || '#d97706';
+  t.style.display = 'block';
+  setTimeout(function() { t.style.display = 'none'; }, 4000);
+}
+
+function startCheckout() {
+  var btn = document.getElementById('checkout-btn');
+  if (!btn) return;
+  btn.disabled = true;
+  btn.textContent = 'Redirecting to Stripe...';
+
+  csrfFetch('/ql/api/billing/checkout/', { method: 'POST' })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        showToast(data.error || 'Something went wrong. Please try again.', '#dc2626');
+        btn.disabled = false;
+        btn.textContent = 'Become a Champion - $4.99/mo';
+      }
+    })
+    .catch(function() {
+      showToast('Network error. Please try again.', '#dc2626');
+      btn.disabled = false;
+      btn.textContent = 'Become a Champion - $4.99/mo';
+    });
+}
+</script>
+{% endblock %}

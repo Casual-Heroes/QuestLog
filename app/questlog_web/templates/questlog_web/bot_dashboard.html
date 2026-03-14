@@ -1,0 +1,71 @@
+{% extends "questlog_web/base_web.html" %}
+{% load static %}
+
+{% block title %}Fluxer Bot Dashboard - QuestLog{% endblock %}
+
+{% block web_content %}
+<div class="max-w-6xl mx-auto px-6 py-10">
+
+  <!-- Header -->
+  <div class="mb-10">
+    <div class="inline-flex items-center gap-2 bg-purple-600/20 px-4 py-2 rounded-full mb-4">
+      <i class="fas fa-satellite-dish text-purple-400 text-sm"></i>
+      <span class="text-purple-400 font-medium text-sm">Fluxer Bot</span>
+    </div>
+    <h1 class="text-3xl font-bold text-white">Fluxer Servers</h1>
+    <p class="text-gray-400 mt-2">Manage QuestLog Bot settings across your Fluxer communities.</p>
+  </div>
+
+  {% if guilds %}
+  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+    {% for guild in guilds %}
+    <a href="/ql/dashboard/fluxer/{{ guild.guild_id }}/"
+       class="bg-neutral-900 rounded-2xl overflow-hidden border border-neutral-800 hover:border-purple-500/50 transition-all duration-200 group block">
+
+      <!-- Banner -->
+      <div class="h-20 bg-gradient-to-br from-purple-600/20 to-indigo-600/20 relative">
+        <div class="absolute -bottom-7 left-5">
+          <div class="w-14 h-14 bg-purple-700/30 rounded-xl border-4 border-neutral-900 flex items-center justify-center shadow-lg">
+            <span class="text-purple-300 font-bold text-lg">{{ guild.guild_name|slice:":2"|upper }}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Info -->
+      <div class="pt-10 pb-5 px-5">
+        <h3 class="text-lg font-bold text-white truncate group-hover:text-purple-300 transition">
+          {{ guild.guild_name }}
+        </h3>
+
+        <div class="flex items-center gap-4 mt-3 text-sm text-gray-400">
+          <span><i class="fas fa-hashtag mr-1 text-xs text-gray-500"></i>{{ guild.channel_count }} channel{{ guild.channel_count|pluralize }}</span>
+          <span><i class="fas fa-users mr-1 text-xs text-gray-500"></i>{{ guild.member_count }} member{{ guild.member_count|pluralize }}</span>
+        </div>
+
+        <div class="mt-4 pt-4 border-t border-neutral-800 flex items-center justify-between">
+          <span class="text-purple-400 text-sm font-medium">
+            <i class="fas fa-cog mr-1 text-xs"></i>Manage Server
+          </span>
+          <i class="fas fa-arrow-right text-xs text-gray-600 group-hover:text-purple-400 group-hover:translate-x-1 transition-all"></i>
+        </div>
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+
+  {% else %}
+  <!-- Empty state -->
+  <div class="bg-neutral-900 rounded-2xl p-16 border border-neutral-800 text-center">
+    <div class="w-20 h-20 bg-purple-700/20 rounded-full flex items-center justify-center mx-auto mb-6">
+      <i class="fas fa-satellite-dish text-purple-400 text-3xl"></i>
+    </div>
+    <h3 class="text-2xl font-bold text-white mb-3">No Fluxer Servers Found</h3>
+    <p class="text-gray-400 max-w-md mx-auto">
+      The QuestLog Fluxer bot is not currently in any servers, or no guild data has synced yet.
+      Add the bot to a Fluxer server and it will appear here automatically.
+    </p>
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

@@ -3,6 +3,14 @@
 
 {% block title %}{% if profile_user %}{{ profile_user.display_name|default:profile_user.username }} - QuestLog{% else %}User Not Found{% endif %}{% endblock %}
 
+{% block og_title %}{% if og_title %}{{ og_title }}{% else %}QuestLog{% endif %}{% endblock %}
+{% block og_description %}{% if og_desc %}{{ og_desc }}{% else %}View this profile on QuestLog{% endif %}{% endblock %}
+{% block og_image %}{% if og_image %}{{ og_image }}{% else %}https://dashboard.casual-heroes.com/static/img/siteassets/homepage/CHLogoFinal.png{% endif %}{% endblock %}
+{% block og_url %}{% if og_url %}{{ og_url }}{% else %}https://casual-heroes.com/ql/{% endif %}{% endblock %}
+{% block twitter_title %}{% if og_title %}{{ og_title }}{% else %}QuestLog{% endif %}{% endblock %}
+{% block twitter_description %}{% if og_desc %}{{ og_desc }}{% else %}View this profile on QuestLog{% endif %}{% endblock %}
+{% block twitter_image %}{% if og_image %}{{ og_image }}{% else %}https://dashboard.casual-heroes.com/static/img/siteassets/homepage/CHLogoFinal.png{% endif %}{% endblock %}
+
 {% block web_content %}
 {% include "questlog_web/partials/post_card.html" %}
 
@@ -32,9 +40,9 @@
     <div class="flex-shrink-0">
       {% if profile_user.avatar_url %}
       <img src="{{ profile_user.avatar_url }}" alt="{{ profile_user.username }}" id="profile-avatar"
-           class="w-28 h-28 rounded-xl border-4 border-neutral-900 object-cover shadow-xl{% if profile_user.show_playing_status and profile_user.current_game %} ring-2 ring-cyan-400 shadow-[0_0_18px_#22d3ee]{% endif %}">
+           class="w-28 h-28 rounded-xl border-4 border-neutral-900 object-cover shadow-xl{% if profile_user.is_live %} ring-2 ring-rose-500 shadow-[0_0_18px_#f43f5e]{% elif profile_user.show_playing_status and profile_user.current_game %} ring-2 ring-cyan-400 shadow-[0_0_18px_#22d3ee]{% endif %}">
       {% else %}
-      <div id="profile-avatar" class="w-28 h-28 rounded-xl border-4 border-neutral-900 bg-neutral-700 flex items-center justify-center shadow-xl{% if profile_user.show_playing_status and profile_user.current_game %} ring-2 ring-cyan-400 shadow-[0_0_18px_#22d3ee]{% endif %}">
+      <div id="profile-avatar" class="w-28 h-28 rounded-xl border-4 border-neutral-900 bg-neutral-700 flex items-center justify-center shadow-xl{% if profile_user.is_live %} ring-2 ring-rose-500 shadow-[0_0_18px_#f43f5e]{% elif profile_user.show_playing_status and profile_user.current_game %} ring-2 ring-cyan-400 shadow-[0_0_18px_#22d3ee]{% endif %}">
         <span class="text-3xl font-bold text-gray-400">{{ profile_user.username|slice:":2"|upper }}</span>
       </div>
       {% endif %}
@@ -58,8 +66,17 @@
       <p class="text-gray-500 text-sm">@{{ profile_user.username }}</p>
       <div id="profile-playing-pill" class="inline-flex items-center gap-2 bg-cyan-500/10 border border-cyan-500/30 px-3 py-1.5 rounded-full mt-2{% if not profile_user.show_playing_status or not profile_user.current_game %} hidden{% endif %}">
         <span class="w-2 h-2 rounded-full bg-cyan-400 animate-pulse flex-shrink-0"></span>
-        <span class="text-cyan-400 text-xs font-semibold">Playing Now &middot; <span id="profile-playing-game">{{ profile_user.current_game }}</span></span>
+        <span class="text-cyan-400 text-xs font-semibold">Playing Now &middot; <a id="profile-playing-game" href="{% if profile_user.current_game_appid %}https://store.steampowered.com/app/{{ profile_user.current_game_appid }}/{% else %}https://store.steampowered.com/search/?term={{ profile_user.current_game|urlencode }}{% endif %}" target="_blank" rel="noopener" class="hover:underline">{{ profile_user.current_game }}</a></span>
       </div>
+      {% if profile_user.is_live %}
+      <a id="profile-live-pill" href="{{ profile_user.live_url }}" target="_blank" rel="noopener"
+         class="inline-flex items-center gap-2 bg-rose-500/10 border border-rose-500/30 px-3 py-1.5 rounded-full mt-1 hover:bg-rose-500/20 transition">
+        <span class="w-2 h-2 rounded-full bg-rose-500 animate-pulse flex-shrink-0"></span>
+        <span class="text-rose-400 text-xs font-semibold">Live on {{ profile_user.live_platform|title }}</span>
+      </a>
+      {% else %}
+      <a id="profile-live-pill" class="hidden"></a>
+      {% endif %}
     </div>
 
     <!-- Action Buttons -->
@@ -93,10 +110,6 @@
 
   <!-- Stats Row -->
   <div class="flex items-center gap-6 mb-4">
-    <span class="text-sm">
-      <span class="text-white font-bold">{{ profile_user.post_count|default:"0" }}</span>
-      <span class="text-gray-500">Posts</span>
-    </span>
     <button onclick="showTab('followers')" class="text-sm hover:underline">
       <span class="text-white font-bold">{{ profile_user.follower_count|default:"0" }}</span>
       <span class="text-gray-500">Followers</span>
@@ -126,9 +139,9 @@
     {% endfor %}
   </div>
 
-  <!-- Social Links -->
+  <!-- Social Links - all connected accounts -->
   {% with cp=creator_profile %}
-  {% if profile_user.steam_profile_url or profile_user.twitch_username or profile_user.youtube_channel_name or cp %}
+  {% if profile_user.steam_profile_url or profile_user.twitch_username or profile_user.youtube_channel_name or profile_user.discord_username or profile_user.fluxer_username or profile_user.matrix_id or cp %}
   <div class="flex flex-wrap items-center gap-3 text-sm mb-6">
     {% if profile_user.steam_profile_url %}
     <a href="{{ profile_user.steam_profile_url }}" target="_blank" rel="noopener"
@@ -136,8 +149,28 @@
       <i class="fab fa-steam"></i><span>Steam</span>
     </a>
     {% endif %}
+    {% if profile_user.discord_username %}
+    <span class="flex items-center gap-1.5 px-3 py-1.5 bg-neutral-800 rounded-lg text-indigo-400 cursor-default" title="{{ profile_user.discord_username }}">
+      <i class="fab fa-discord"></i><span>{{ profile_user.discord_username }}</span>
+    </span>
+    {% endif %}
+    {% if profile_user.fluxer_username %}
+    <span class="flex items-center gap-1.5 px-3 py-1.5 bg-neutral-800 rounded-lg text-violet-400 cursor-default" title="{{ profile_user.fluxer_username }}">
+      <i class="fas fa-bolt"></i><span>{{ profile_user.fluxer_username }}</span>
+    </span>
+    {% endif %}
+    {% if profile_user.matrix_id %}
+    <span class="flex items-center gap-1.5 px-3 py-1.5 bg-neutral-800 rounded-lg text-emerald-400 cursor-default" title="{{ profile_user.matrix_id }}">
+      <i class="fas fa-matrix-org" style="font-style:normal;font-weight:bold">[m]</i><span>Matrix</span>
+    </span>
+    {% endif %}
     {% if profile_user.twitch_username %}
     <a href="https://twitch.tv/{{ profile_user.twitch_username }}" target="_blank" rel="noopener"
+       class="flex items-center gap-1.5 px-3 py-1.5 bg-neutral-800 hover:bg-neutral-700 rounded-lg text-purple-400 hover:text-purple-300 transition">
+      <i class="fab fa-twitch"></i><span>Twitch</span>
+    </a>
+    {% elif cp.twitch_url %}
+    <a href="{{ cp.twitch_url }}" target="_blank" rel="noopener"
        class="flex items-center gap-1.5 px-3 py-1.5 bg-neutral-800 hover:bg-neutral-700 rounded-lg text-purple-400 hover:text-purple-300 transition">
       <i class="fab fa-twitch"></i><span>Twitch</span>
     </a>
@@ -147,8 +180,19 @@
        class="flex items-center gap-1.5 px-3 py-1.5 bg-neutral-800 hover:bg-neutral-700 rounded-lg text-red-400 hover:text-red-300 transition">
       <i class="fab fa-youtube"></i><span>YouTube</span>
     </a>
+    {% elif cp.youtube_url %}
+    <a href="{{ cp.youtube_url }}" target="_blank" rel="noopener"
+       class="flex items-center gap-1.5 px-3 py-1.5 bg-neutral-800 hover:bg-neutral-700 rounded-lg text-red-400 hover:text-red-300 transition">
+      <i class="fab fa-youtube"></i><span>YouTube</span>
+    </a>
     {% endif %}
     {% if cp %}
+      {% if cp.kick_url %}
+      <a href="{{ cp.kick_url }}" target="_blank" rel="noopener"
+         class="flex items-center gap-1.5 px-3 py-1.5 bg-neutral-800 hover:bg-neutral-700 rounded-lg text-green-400 hover:text-green-300 transition">
+        <span class="font-bold text-sm leading-none">K</span><span>Kick</span>
+      </a>
+      {% endif %}
       {% if cp.twitter_url %}
       <a href="{{ cp.twitter_url }}" target="_blank" rel="noopener"
          class="flex items-center gap-1.5 px-3 py-1.5 bg-neutral-800 hover:bg-neutral-700 rounded-lg text-gray-300 hover:text-white transition">
@@ -188,43 +232,29 @@
 <!-- Tabs -->
 <div class="max-w-3xl mx-auto px-4 mb-4">
   <div class="flex border-b border-neutral-800">
-    <button onclick="showTab('posts')" id="tab-posts" class="tab-btn px-4 py-3 text-sm font-medium border-b-2 border-indigo-500 text-white">Posts</button>
-    <button onclick="showTab('followers')" id="tab-followers" class="tab-btn px-4 py-3 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-white transition">Followers</button>
+    <button onclick="showTab('followers')" id="tab-followers" class="tab-btn px-4 py-3 text-sm font-medium border-b-2 border-indigo-500 text-white">Followers</button>
     <button onclick="showTab('following')" id="tab-following" class="tab-btn px-4 py-3 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-white transition">Following</button>
   </div>
 </div>
 
 <!-- Tab Content -->
 <div class="max-w-3xl mx-auto px-4 pb-8">
-  <!-- Posts Tab -->
-  <div id="panel-posts" class="space-y-4"></div>
-
   <!-- Followers Tab -->
-  <div id="panel-followers" class="hidden space-y-2"></div>
+  <div id="panel-followers" class="space-y-2"></div>
 
   <!-- Following Tab -->
   <div id="panel-following" class="hidden space-y-2"></div>
 </div>
 
-{{ posts|json_script:"posts-data" }}
 <script>
 const PROFILE_USER_ID = {{ profile_user.id }};
 const IS_OWN = {{ is_own_profile|yesno:"true,false" }};
 let isFollowing = {{ is_following|yesno:"true,false" }};
-let postsData = JSON.parse(document.getElementById('posts-data').textContent);
 
-// Init: render posts
-document.addEventListener('DOMContentLoaded', () => {
-  const container = document.getElementById('panel-posts');
-  if (postsData.length === 0) {
-    container.innerHTML = '<p class="text-gray-500 text-center py-8">No posts yet</p>';
-  } else {
-    container.innerHTML = postsData.map(p => renderPostCard(p, { showAuthor: false })).join('');
-  }
-});
+document.addEventListener('DOMContentLoaded', () => loadFollowers());
 
 function showTab(tab) {
-  ['posts', 'followers', 'following'].forEach(t => {
+  ['followers', 'following'].forEach(t => {
     document.getElementById(`panel-${t}`).classList.toggle('hidden', t !== tab);
     const btn = document.getElementById(`tab-${t}`);
     btn.classList.toggle('border-indigo-500', t === tab);
@@ -312,17 +342,36 @@ function showBlockMenu() {
 {% if profile_user and profile_user.show_playing_status %}
 <script>
 (function() {
-  const GLOW = ['ring-2', 'ring-cyan-400', 'shadow-[0_0_18px_#22d3ee]'];
+  const PLAY_GLOW = ['ring-2', 'ring-cyan-400', 'shadow-[0_0_18px_#22d3ee]'];
+  const LIVE_GLOW = ['ring-2', 'ring-rose-500', 'shadow-[0_0_18px_#f43f5e]'];
 
-  function applyProfilePlaying(game) {
+  function applyProfileStatus(game, isLive, liveUrl, livePlatform, gameAppid) {
     const avatar = document.getElementById('profile-avatar');
-    if (avatar) GLOW.forEach(c => avatar.classList.toggle(c, !!game));
+    if (avatar) {
+      [...PLAY_GLOW, ...LIVE_GLOW].forEach(c => avatar.classList.remove(c));
+      if (isLive) LIVE_GLOW.forEach(c => avatar.classList.add(c));
+      else if (game) PLAY_GLOW.forEach(c => avatar.classList.add(c));
+    }
 
     const pill = document.getElementById('profile-playing-pill');
     const gameName = document.getElementById('profile-playing-game');
     if (pill && gameName) {
-      if (game) { gameName.textContent = game; pill.classList.remove('hidden'); }
-      else { pill.classList.add('hidden'); }
+      if (game) {
+        gameName.textContent = game;
+        gameName.href = gameAppid
+          ? `https://store.steampowered.com/app/${gameAppid}/`
+          : `https://store.steampowered.com/search/?term=${encodeURIComponent(game)}`;
+        pill.classList.remove('hidden');
+      } else { pill.classList.add('hidden'); }
+    }
+
+    const livePill = document.getElementById('profile-live-pill');
+    if (livePill) {
+      if (isLive && liveUrl) {
+        livePill.href = liveUrl;
+        livePill.querySelector('span:last-child').textContent = `Live on ${livePlatform.charAt(0).toUpperCase() + livePlatform.slice(1)}`;
+        livePill.classList.remove('hidden');
+      } else { livePill.classList.add('hidden'); }
     }
   }
 
@@ -331,7 +380,7 @@ function showBlockMenu() {
       const res = await fetch('/ql/api/u/{{ profile_user.username|escapejs }}/now-playing/', { credentials: 'same-origin' });
       if (!res.ok) return;
       const data = await res.json();
-      applyProfilePlaying(data.current_game || null);
+      applyProfileStatus(data.current_game || null, !!data.is_live, data.live_url || '', data.live_platform || '', data.current_game_appid || null);
     } catch (_) {}
   }
 

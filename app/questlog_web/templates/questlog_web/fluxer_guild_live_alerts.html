@@ -1,0 +1,591 @@
+{% extends "questlog_web/fluxer_base_guild.html" %}
+{% load static %}
+{% block title %}Live Alerts - {{ guild_name }}{% endblock %}
+
+{% block guild_content %}
+{% include "questlog/partials/custom_select.html" %}
+
+  <!-- Header -->
+  <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
+    <div>
+      <h1 class="text-3xl font-bold text-white">
+        <i class="fas fa-broadcast-tower text-rose-400 mr-3"></i>Live Alerts
+      </h1>
+      <p class="text-gray-400 mt-1">Get notified in your server when a streamer goes live on Twitch or YouTube</p>
+    </div>
+    <button onclick="openAddModal()"
+      class="bg-rose-600 hover:bg-rose-700 text-white px-4 py-2 rounded-lg font-medium transition text-sm flex items-center gap-2">
+      <i class="fas fa-plus"></i> Add Streamer Alert
+    </button>
+  </div>
+
+  <!-- Status bar -->
+  <div id="status-bar" class="hidden mb-4 px-4 py-3 rounded-lg text-sm font-medium"></div>
+
+  <!-- Info card -->
+  <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-5 mb-6 flex gap-4 items-start">
+    <i class="fas fa-info-circle text-indigo-400 mt-0.5 flex-shrink-0"></i>
+    <div class="text-sm text-gray-400 leading-relaxed">
+      <p>Subscribe to any Twitch channel or YouTube channel and the bot will post an embed in your chosen channel the moment they go live. Supports up to <strong class="text-white">25 active alerts</strong> per server.</p>
+      <p class="mt-1">Live status is checked every minute. The alert fires once per stream session - it won't re-ping while the stream is still running.</p>
+    </div>
+  </div>
+
+  <!-- QuestLog Featured Creators -->
+  {% if featured_creators_json != "[]" %}
+  <div class="bg-neutral-900 border border-neutral-800 rounded-xl overflow-hidden mb-6">
+    <div class="flex items-center justify-between px-6 py-4 border-b border-neutral-800">
+      <div>
+        <h2 class="text-lg font-bold text-white">QuestLog Creators</h2>
+        <p class="text-xs text-gray-500 mt-0.5">Streamers registered on QuestLog - one click to subscribe</p>
+      </div>
+    </div>
+    <div id="ql-creators-grid" class="p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3"></div>
+  </div>
+  {% endif %}
+
+  <!-- Quick-subscribe channel picker modal -->
+  <div id="quick-modal" class="fixed inset-0 bg-black/70 flex items-center justify-center z-50 hidden" onclick="closeQuickModal(event)">
+    <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-6 w-full max-w-md mx-4 shadow-2xl" onclick="event.stopPropagation()">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-lg font-bold text-white" id="quick-modal-title">Subscribe to Streamer</h3>
+        <button onclick="closeQuickModal()" class="text-gray-500 hover:text-white transition"><i class="fas fa-times"></i></button>
+      </div>
+      <p class="text-sm text-gray-400 mb-4">Pick which channel the live alert embed will be posted in.</p>
+      <div id="quick_channel_idContainer"></div>
+      <div id="quick-error" class="hidden mt-3 text-red-400 text-sm"></div>
+      <div class="flex gap-3 mt-5">
+        <button onclick="closeQuickModal()" class="flex-1 bg-neutral-800 hover:bg-neutral-700 text-white py-2.5 rounded-lg text-sm font-medium transition">Cancel</button>
+        <button onclick="submitQuick()" id="quick-btn" class="flex-1 bg-rose-600 hover:bg-rose-700 text-white py-2.5 rounded-lg text-sm font-medium transition">
+          <i class="fas fa-bell mr-2"></i>Subscribe
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Active subs list -->
+  <div class="bg-neutral-900 border border-neutral-800 rounded-xl overflow-hidden">
+    <div class="flex items-center justify-between px-6 py-4 border-b border-neutral-800">
+      <h2 class="text-lg font-bold text-white">Active Streamer Alerts</h2>
+      <span id="sub-count" class="text-sm text-gray-500">Loading...</span>
+    </div>
+
+    <div id="subs-loading" class="py-12 text-center text-gray-500 text-sm">
+      <i class="fas fa-spinner fa-spin text-2xl mb-3 block text-gray-700"></i>Loading...
+    </div>
+
+    <div id="subs-empty" class="hidden py-12 text-center text-gray-500">
+      <i class="fas fa-broadcast-tower text-4xl mb-3 block text-gray-700"></i>
+      <p class="font-medium text-gray-400">No live alerts yet</p>
+      <p class="text-sm mt-1">Click "Add Streamer Alert" to subscribe to your first streamer</p>
+    </div>
+
+    <div id="subs-list" class="hidden divide-y divide-neutral-800"></div>
+  </div>
+
+
+<!-- Add Modal -->
+<div id="add-modal" class="fixed inset-0 bg-black/70 flex items-center justify-center z-50 hidden" onclick="closeAddModal(event)">
+  <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-6 w-full max-w-lg mx-4 shadow-2xl" onclick="event.stopPropagation()">
+    <div class="flex items-center justify-between mb-5">
+      <h3 class="text-lg font-bold text-white"><i class="fas fa-plus text-rose-400 mr-2"></i>Add Streamer Alert</h3>
+      <button onclick="closeAddModal()" class="text-gray-500 hover:text-white transition"><i class="fas fa-times"></i></button>
+    </div>
+
+    <div class="space-y-4">
+      <!-- Platform -->
+      <div>
+        <label class="block text-sm text-gray-400 mb-2">Platform</label>
+        <div class="flex gap-3">
+          <label class="flex-1 flex items-center gap-3 bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 cursor-pointer has-[:checked]:border-purple-500 transition">
+            <input type="radio" name="platform" value="twitch" checked class="accent-purple-500">
+            <i class="fab fa-twitch text-purple-400"></i>
+            <span class="text-white text-sm font-medium">Twitch</span>
+          </label>
+          <label class="flex-1 flex items-center gap-3 bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 cursor-pointer has-[:checked]:border-red-500 transition">
+            <input type="radio" name="platform" value="youtube" class="accent-red-500">
+            <i class="fab fa-youtube text-red-400"></i>
+            <span class="text-white text-sm font-medium">YouTube</span>
+          </label>
+        </div>
+      </div>
+
+      <!-- Handle -->
+      <div>
+        <label class="block text-sm text-gray-400 mb-2">Channel Handle / Username</label>
+        <input type="text" id="add-handle"
+          placeholder="e.g. shroud (Twitch) or UCxxxxxx (YouTube channel ID)"
+          class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2.5 text-white text-sm focus:border-rose-500 focus:outline-none placeholder-gray-600">
+        <p class="text-gray-600 text-xs mt-1">For YouTube use the channel ID (starts with UC...) found in the channel URL</p>
+      </div>
+
+      <!-- Display name -->
+      <div>
+        <label class="block text-sm text-gray-400 mb-2">Display Name <span class="text-gray-600">(optional)</span></label>
+        <input type="text" id="add-display-name"
+          placeholder="e.g. Shroud"
+          class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2.5 text-white text-sm focus:border-rose-500 focus:outline-none placeholder-gray-600">
+        <p class="text-gray-600 text-xs mt-1">Shown in the alert embed title. Falls back to handle if blank</p>
+      </div>
+
+      <!-- Notify channel -->
+      <div>
+        <label class="block text-sm text-gray-400 mb-2">Notification Channel</label>
+        <div id="notify_channel_idContainer"></div>
+        <p class="text-gray-600 text-xs mt-1">The bot will post the live alert embed in this channel</p>
+      </div>
+
+      <!-- Custom message -->
+      <div>
+        <label class="block text-sm text-gray-400 mb-2">Custom Message <span class="text-gray-600">(optional)</span></label>
+        <input type="text" id="add-custom-message"
+          placeholder="{streamer} is live! Go check it out!"
+          class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2.5 text-white text-sm focus:border-rose-500 focus:outline-none placeholder-gray-600">
+        <p class="text-gray-600 text-xs mt-1">Variables: <code class="text-gray-500">{streamer}</code> <code class="text-gray-500">{title}</code> <code class="text-gray-500">{url}</code></p>
+      </div>
+    </div>
+
+    <div class="flex gap-3 mt-6">
+      <button onclick="closeAddModal()" class="flex-1 bg-neutral-800 hover:bg-neutral-700 text-white py-2.5 rounded-lg text-sm font-medium transition">Cancel</button>
+      <button onclick="submitAdd()" id="add-btn" class="flex-1 bg-rose-600 hover:bg-rose-700 text-white py-2.5 rounded-lg text-sm font-medium transition">
+        <i class="fas fa-plus mr-2"></i>Add Alert
+      </button>
+    </div>
+    <div id="add-error" class="hidden mt-3 text-red-400 text-sm"></div>
+  </div>
+</div>
+
+<!-- Edit Modal -->
+<div id="edit-modal" class="fixed inset-0 bg-black/70 flex items-center justify-center z-50 hidden" onclick="closeEditModal(event)">
+  <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-6 w-full max-w-lg mx-4 shadow-2xl" onclick="event.stopPropagation()">
+    <div class="flex items-center justify-between mb-5">
+      <h3 class="text-lg font-bold text-white"><i class="fas fa-edit text-indigo-400 mr-2"></i>Edit Alert</h3>
+      <button onclick="closeEditModal()" class="text-gray-500 hover:text-white transition"><i class="fas fa-times"></i></button>
+    </div>
+    <input type="hidden" id="edit-sub-id">
+
+    <div class="space-y-4">
+      <div>
+        <label class="block text-sm text-gray-400 mb-2">Display Name</label>
+        <input type="text" id="edit-display-name"
+          class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2.5 text-white text-sm focus:border-indigo-500 focus:outline-none">
+      </div>
+      <div>
+        <label class="block text-sm text-gray-400 mb-2">Notification Channel</label>
+        <div id="edit_notify_channel_idContainer"></div>
+      </div>
+      <div>
+        <label class="block text-sm text-gray-400 mb-2">Custom Message</label>
+        <input type="text" id="edit-custom-message"
+          class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2.5 text-white text-sm focus:border-indigo-500 focus:outline-none placeholder-gray-600"
+          placeholder="{streamer} is live! {url}">
+      </div>
+      <div class="flex items-center justify-between">
+        <span class="text-sm text-gray-400">Active</span>
+        <label class="relative inline-flex items-center cursor-pointer">
+          <input type="checkbox" id="edit-is-active" class="sr-only peer">
+          <div class="w-11 h-6 bg-neutral-700 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-rose-600"></div>
+        </label>
+      </div>
+    </div>
+
+    <div class="flex gap-3 mt-6">
+      <button onclick="closeEditModal()" class="flex-1 bg-neutral-800 hover:bg-neutral-700 text-white py-2.5 rounded-lg text-sm font-medium transition">Cancel</button>
+      <button onclick="submitEdit()" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white py-2.5 rounded-lg text-sm font-medium transition">
+        <i class="fas fa-save mr-2"></i>Save
+      </button>
+    </div>
+    <div id="edit-error" class="hidden mt-3 text-red-400 text-sm"></div>
+  </div>
+</div>
+
+
+<script>
+const GUILD_ID = '{{ guild_id }}';
+const API_BASE = `/ql/api/dashboard/fluxer/${GUILD_ID}/streamer-subs/`;
+// channels_json has shape {id, value, label} - already filtered to text channels by _get_fluxer_guild_context
+const CHANNELS = {{ channels_json|default:"[]"|safe }};
+const FEATURED_CREATORS = {{ featured_creators_json|default:"[]"|safe }};
+
+let addChannelSelect = null;
+let editChannelSelect = null;
+let quickChannelSelect = null;
+let quickPending = null; // {platform, handle, display_name} waiting for channel pick
+let subsData = [];
+
+// channels_json is already {value, label} - pass directly to createCustomSelect
+const channelOpts = CHANNELS.map(c => ({ value: c.value || c.id, label: c.label }));
+
+function esc(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function showStatus(msg, ok=true) {
+  const el = document.getElementById('status-bar');
+  el.textContent = msg;
+  el.className = `mb-4 px-4 py-3 rounded-lg text-sm font-medium ${ok ? 'bg-green-900/40 text-green-300 border border-green-800' : 'bg-red-900/40 text-red-300 border border-red-800'}`;
+  el.classList.remove('hidden');
+  setTimeout(() => el.classList.add('hidden'), 4000);
+}
+
+function platformBadge(p) {
+  return p === 'twitch'
+    ? `<span class="inline-flex items-center gap-1 px-2 py-0.5 bg-purple-900/40 text-purple-300 text-xs rounded-full border border-purple-800"><i class="fab fa-twitch text-[10px]"></i> Twitch</span>`
+    : `<span class="inline-flex items-center gap-1 px-2 py-0.5 bg-red-900/40 text-red-300 text-xs rounded-full border border-red-800"><i class="fab fa-youtube text-[10px]"></i> YouTube</span>`;
+}
+
+function liveBadge(s) {
+  return s.is_currently_live
+    ? `<span class="inline-flex items-center gap-1 text-xs text-rose-400 font-semibold"><span class="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse"></span>LIVE</span>`
+    : `<span class="text-xs text-gray-600">Offline</span>`;
+}
+
+function channelName(id) {
+  const ch = CHANNELS.find(c => (c.value || c.id) === id);
+  return ch ? ch.label : `#${id}`;
+}
+
+function renderSubs(subs) {
+  const list = document.getElementById('subs-list');
+  const empty = document.getElementById('subs-empty');
+  const count = document.getElementById('sub-count');
+
+  count.textContent = `${subs.length} / 25`;
+
+  if (!subs.length) {
+    list.classList.add('hidden');
+    empty.classList.remove('hidden');
+    return;
+  }
+
+  empty.classList.add('hidden');
+  list.classList.remove('hidden');
+  list.innerHTML = subs.map(s => `
+    <div class="flex items-center justify-between gap-4 px-6 py-4 hover:bg-neutral-800/40 transition" data-sub-id="${s.id}">
+      <div class="flex items-center gap-4 min-w-0">
+        <div class="flex-shrink-0 w-10 h-10 rounded-full bg-neutral-800 border border-neutral-700 flex items-center justify-center text-gray-400">
+          <i class="fa${s.streamer_platform === 'twitch' ? 'b fa-twitch text-purple-400' : 'b fa-youtube text-red-400'}"></i>
+        </div>
+        <div class="min-w-0">
+          <div class="flex items-center gap-2 flex-wrap">
+            <span class="font-semibold text-white text-sm">${esc(s.streamer_display_name)}</span>
+            ${platformBadge(s.streamer_platform)}
+            ${liveBadge(s)}
+            ${!s.is_active ? '<span class="text-xs text-gray-600 italic">Paused</span>' : ''}
+          </div>
+          <p class="text-gray-500 text-xs mt-0.5">@${esc(s.streamer_handle)} - alerts to ${channelName(s.notify_channel_id)}</p>
+          ${s.custom_message ? `<p class="text-gray-600 text-xs mt-0.5 italic truncate max-w-xs">"${esc(s.custom_message)}"</p>` : ''}
+        </div>
+      </div>
+      <div class="flex items-center gap-2 flex-shrink-0">
+        <button onclick="openEditModal(${s.id})"
+          class="p-2 text-gray-500 hover:text-white hover:bg-neutral-700 rounded-lg transition text-sm" title="Edit">
+          <i class="fas fa-edit"></i>
+        </button>
+        <button onclick="deleteSub(${s.id})"
+          class="p-2 text-gray-500 hover:text-rose-400 hover:bg-neutral-700 rounded-lg transition text-sm" title="Remove">
+          <i class="fas fa-trash"></i>
+        </button>
+      </div>
+    </div>
+  `).join('');
+}
+
+async function loadSubs() {
+  try {
+    const res = await csrfFetch(API_BASE, {
+      headers: { 'Accept': 'application/json' }
+    });
+    const text = await res.text();
+    let data;
+    try { data = JSON.parse(text); }
+    catch (_) {
+      document.getElementById('subs-loading').innerHTML =
+        `<p class="text-red-400 text-sm px-4">Failed to load alerts (non-JSON response, status ${res.status})</p>`;
+      return;
+    }
+    if (!res.ok) {
+      document.getElementById('subs-loading').innerHTML =
+        `<p class="text-red-400 text-sm px-4">Error ${res.status}: ${data.error || 'Unknown error'}</p>`;
+      return;
+    }
+    subsData = data.subs || [];
+    document.getElementById('subs-loading').classList.add('hidden');
+    renderSubs(subsData);
+  } catch (e) {
+    document.getElementById('subs-loading').innerHTML =
+      `<p class="text-red-400 text-sm px-4">Failed to load alerts: ${e.message}</p>`;
+  }
+}
+
+// --- Add Modal ---
+function openAddModal() {
+  document.getElementById('add-modal').classList.remove('hidden');
+  document.getElementById('add-handle').value = '';
+  document.getElementById('add-display-name').value = '';
+  document.getElementById('add-custom-message').value = '';
+  document.getElementById('add-error').classList.add('hidden');
+  document.querySelector('input[name="platform"][value="twitch"]').checked = true;
+
+  if (!addChannelSelect) {
+    addChannelSelect = createCustomSelect({
+      container: document.getElementById('notify_channel_idContainer'),
+      name: 'notify_channel_id',
+      items: channelOpts,
+      placeholder: 'Select channel...',
+    });
+  } else {
+    addChannelSelect.setValue('');
+  }
+}
+function closeAddModal(e) {
+  if (e && e.target !== document.getElementById('add-modal')) return;
+  document.getElementById('add-modal').classList.add('hidden');
+}
+
+async function submitAdd() {
+  const platform = document.querySelector('input[name="platform"]:checked').value;
+  const handle = document.getElementById('add-handle').value.trim();
+  const displayName = document.getElementById('add-display-name').value.trim();
+  const channelId = addChannelSelect ? addChannelSelect.getValue() : '';
+  const customMessage = document.getElementById('add-custom-message').value.trim();
+  const errEl = document.getElementById('add-error');
+
+  errEl.classList.add('hidden');
+  if (!handle) { errEl.textContent = 'Streamer handle is required'; errEl.classList.remove('hidden'); return; }
+  if (!channelId) { errEl.textContent = 'Select a notification channel'; errEl.classList.remove('hidden'); return; }
+
+  const btn = document.getElementById('add-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Adding...';
+
+  try {
+    const res = await csrfFetch(API_BASE, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        streamer_platform: platform,
+        streamer_handle: handle,
+        streamer_display_name: displayName || null,
+        notify_channel_id: channelId,
+        custom_message: customMessage || null,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      errEl.textContent = data.error || 'Failed to add alert';
+      errEl.classList.remove('hidden');
+      return;
+    }
+    subsData.unshift(data.sub);
+    renderSubs(subsData);
+    document.getElementById('add-modal').classList.add('hidden');
+    showStatus('Live alert added!');
+  } catch (e) {
+    errEl.textContent = 'Network error - try again';
+    errEl.classList.remove('hidden');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-plus mr-2"></i>Add Alert';
+  }
+}
+
+// --- Edit Modal ---
+function openEditModal(subId) {
+  const s = subsData.find(x => x.id === subId);
+  if (!s) return;
+
+  document.getElementById('edit-sub-id').value = subId;
+  document.getElementById('edit-display-name').value = s.streamer_display_name || '';
+  document.getElementById('edit-custom-message').value = s.custom_message || '';
+  document.getElementById('edit-is-active').checked = s.is_active;
+  document.getElementById('edit-error').classList.add('hidden');
+  document.getElementById('edit-modal').classList.remove('hidden');
+
+  if (!editChannelSelect) {
+    editChannelSelect = createCustomSelect({
+      container: document.getElementById('edit_notify_channel_idContainer'),
+      name: 'edit_notify_channel_id',
+      items: channelOpts,
+      placeholder: 'Select channel...',
+    });
+  }
+  editChannelSelect.setValue(s.notify_channel_id);
+}
+function closeEditModal(e) {
+  if (e && e.target !== document.getElementById('edit-modal')) return;
+  document.getElementById('edit-modal').classList.add('hidden');
+}
+
+async function submitEdit() {
+  const subId = document.getElementById('edit-sub-id').value;
+  const displayName = document.getElementById('edit-display-name').value.trim();
+  const channelId = editChannelSelect ? editChannelSelect.getValue() : '';
+  const customMessage = document.getElementById('edit-custom-message').value.trim();
+  const isActive = document.getElementById('edit-is-active').checked;
+  const errEl = document.getElementById('edit-error');
+
+  errEl.classList.add('hidden');
+  if (!channelId) { errEl.textContent = 'Select a notification channel'; errEl.classList.remove('hidden'); return; }
+
+  try {
+    const res = await csrfFetch(`${API_BASE}${subId}/`, {
+      method: 'PATCH',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        streamer_display_name: displayName || null,
+        notify_channel_id: channelId,
+        custom_message: customMessage || null,
+        is_active: isActive,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      errEl.textContent = data.error || 'Failed to save';
+      errEl.classList.remove('hidden');
+      return;
+    }
+    const idx = subsData.findIndex(x => x.id === parseInt(subId));
+    if (idx !== -1) subsData[idx] = data.sub;
+    renderSubs(subsData);
+    document.getElementById('edit-modal').classList.add('hidden');
+    showStatus('Alert updated!');
+  } catch (e) {
+    errEl.textContent = 'Network error - try again';
+    errEl.classList.remove('hidden');
+  }
+}
+
+async function deleteSub(subId) {
+  if (!confirm('Remove this live alert?')) return;
+  try {
+    const res = await csrfFetch(`${API_BASE}${subId}/`, { method: 'DELETE' });
+    if (res.ok) {
+      subsData = subsData.filter(x => x.id !== subId);
+      renderSubs(subsData);
+      showStatus('Alert removed');
+    }
+  } catch (e) {
+    showStatus('Failed to remove alert', false);
+  }
+}
+
+// --- QuestLog Creators Grid ---
+function renderCreatorsGrid() {
+  const grid = document.getElementById('ql-creators-grid');
+  if (!grid || !FEATURED_CREATORS.length) return;
+
+  grid.innerHTML = FEATURED_CREATORS.map(c => {
+    const platformColor = c.platform === 'twitch' ? 'purple' : 'red';
+    const platformIcon = c.platform === 'twitch' ? 'fab fa-twitch' : 'fab fa-youtube';
+    const followers = c.follower_count >= 1000
+      ? (c.follower_count / 1000).toFixed(1) + 'K'
+      : String(c.follower_count);
+    const alreadySubbed = subsData.some(s => s.streamer_platform === c.platform && s.streamer_handle === c.handle);
+    const avatar = c.avatar_url
+      ? `<img src="${esc(c.avatar_url)}" alt="" class="w-10 h-10 rounded-full object-cover border border-neutral-700">`
+      : `<div class="w-10 h-10 rounded-full bg-neutral-800 border border-neutral-700 flex items-center justify-center text-gray-400"><i class="${platformIcon}"></i></div>`;
+
+    return `
+      <div class="flex items-center gap-3 p-3 bg-neutral-800/50 border border-neutral-700 rounded-lg hover:border-neutral-600 transition">
+        <a href="${esc(c.profile_url)}" target="_blank" class="flex-shrink-0">${avatar}</a>
+        <div class="min-w-0 flex-1">
+          <div class="flex items-center gap-1.5 flex-wrap">
+            <span class="font-medium text-white text-sm truncate">${esc(c.display_name)}</span>
+            <span class="inline-flex items-center gap-1 px-1.5 py-0.5 bg-${platformColor}-900/40 text-${platformColor}-300 text-xs rounded border border-${platformColor}-800">
+              <i class="${platformIcon} text-[9px]"></i>
+            </span>
+          </div>
+          ${c.follower_count ? `<p class="text-gray-500 text-xs mt-0.5">${followers} followers</p>` : ''}
+        </div>
+        ${alreadySubbed
+          ? `<span class="text-xs text-green-400 flex-shrink-0"><i class="fas fa-check mr-1"></i>Subbed</span>`
+          : `<button data-creator='${JSON.stringify(c).replace(/'/g, "&#39;")}'
+               class="ql-sub-btn flex-shrink-0 text-xs bg-rose-700/60 hover:bg-rose-600 text-white px-2.5 py-1 rounded-lg transition whitespace-nowrap">
+               <i class="fas fa-bell mr-1"></i>Subscribe
+             </button>`
+        }
+      </div>`;
+  }).join('');
+}
+
+// --- Quick Subscribe Modal ---
+function openQuickModal(creator) {
+  quickPending = creator;
+  document.getElementById('quick-modal-title').textContent = `Subscribe to ${creator.display_name}`;
+  document.getElementById('quick-error').classList.add('hidden');
+  document.getElementById('quick-modal').classList.remove('hidden');
+
+  if (!quickChannelSelect) {
+    quickChannelSelect = createCustomSelect({
+      container: document.getElementById('quick_channel_idContainer'),
+      name: 'quick_channel_id',
+      items: channelOpts,
+      placeholder: 'Select channel...',
+    });
+  } else {
+    quickChannelSelect.setValue('');
+  }
+}
+
+function closeQuickModal(e) {
+  if (e && e.target !== document.getElementById('quick-modal')) return;
+  document.getElementById('quick-modal').classList.add('hidden');
+  quickPending = null;
+}
+
+async function submitQuick() {
+  if (!quickPending) return;
+  const channelId = quickChannelSelect ? quickChannelSelect.getValue() : '';
+  const errEl = document.getElementById('quick-error');
+  errEl.classList.add('hidden');
+  if (!channelId) { errEl.textContent = 'Select a notification channel'; errEl.classList.remove('hidden'); return; }
+
+  const btn = document.getElementById('quick-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Subscribing...';
+
+  try {
+    const res = await csrfFetch(API_BASE, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        streamer_platform: quickPending.platform,
+        streamer_handle: quickPending.handle,
+        streamer_display_name: quickPending.display_name,
+        notify_channel_id: channelId,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      errEl.textContent = data.error || 'Failed to subscribe';
+      errEl.classList.remove('hidden');
+      return;
+    }
+    subsData.unshift(data.sub);
+    renderSubs(subsData);
+    renderCreatorsGrid(); // refresh to show "Subbed" state
+    document.getElementById('quick-modal').classList.add('hidden');
+    quickPending = null;
+    showStatus(`Subscribed to ${data.sub.streamer_display_name || data.sub.streamer_handle}!`);
+  } catch (e) {
+    errEl.textContent = 'Network error - try again';
+    errEl.classList.remove('hidden');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-bell mr-2"></i>Subscribe';
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  const grid = document.getElementById('ql-creators-grid');
+  if (grid) {
+    grid.addEventListener('click', e => {
+      const btn = e.target.closest('.ql-sub-btn');
+      if (btn) openQuickModal(JSON.parse(btn.dataset.creator));
+    });
+  }
+  loadSubs().then(() => renderCreatorsGrid());
+});
+</script>
+{% endblock %}

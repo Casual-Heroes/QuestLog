@@ -73,3 +73,5 @@ app/test_auth_decorators.py
 app/test_sec002_003.py
 app/test_security_fixes.py
 app/utils/encryption.py
+logs/
+.well-known/

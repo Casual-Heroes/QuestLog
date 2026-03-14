@@ -94,12 +94,21 @@ function renderPostCard(post, options = {}) {
     return html;
   }
 
-  // Format content with line breaks and linkify URLs
+  // Format content with line breaks, linkify URLs, and render custom emoji shortcodes
   function formatContent(text) {
     if (!text) return '';
     let html = escapePost(text);
     html = html.replace(/\n/g, '<br>');
     html = html.replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener" class="text-blue-400 hover:underline">$1</a>');
+    // Replace :shortcode: with custom emoji images
+    if (window._customEmojiMap) {
+      html = html.replace(/:([a-zA-Z0-9_-]+):/g, (match, code) => {
+        const url = window._customEmojiMap[code];
+        return url
+          ? `<img src="${url}" alt="${match}" title="${match}" class="inline-block w-6 h-6 object-contain align-middle" style="vertical-align:-4px">`
+          : match;
+      });
+    }
     return html;
   }
 
@@ -120,11 +129,22 @@ function renderPostCard(post, options = {}) {
       ? `<span class="text-xs text-purple-300 font-semibold ml-1" title="Early Tester">⭐</span>`
       : '';
     const isPlaying = !!a.current_game;
-    const avatarGlow = isPlaying
-      ? 'ring-2 ring-cyan-400 shadow-[0_0_10px_#22d3ee]'
-      : '';
+    const isLive = !!a.is_live;
+    // Live takes priority for ring color, but both badges show
+    const avatarGlow = isLive
+      ? 'ring-2 ring-rose-500 shadow-[0_0_10px_#f43f5e]'
+      : isPlaying
+        ? 'ring-2 ring-cyan-400 shadow-[0_0_10px_#22d3ee]'
+        : '';
+    const steamUrl = a.current_game_appid
+      ? `https://store.steampowered.com/app/${a.current_game_appid}/`
+      : `https://store.steampowered.com/search/?term=${encodeURIComponent(a.current_game || '')}`;
     const playingBadge = isPlaying
-      ? `<span class="inline-flex items-center gap-1 text-[10px] text-cyan-400 font-semibold mt-0.5"><i class="fas fa-gamepad text-[9px]"></i>Playing Now &middot; <span class="truncate max-w-[120px]" title="${escapePost(a.current_game)}">${escapePost(a.current_game)}</span></span>`
+      ? `<span class="inline-flex items-center gap-1 text-[10px] text-cyan-400 font-semibold mt-0.5"><i class="fas fa-gamepad text-[9px]"></i>Playing Now &middot; <a href="${steamUrl}" target="_blank" rel="noopener" class="truncate max-w-[120px] hover:underline" title="View on Steam">${escapePost(a.current_game)}</a></span>`
+      : '';
+    const livePlatformLabel = a.live_platform === 'twitch' ? 'Twitch' : a.live_platform === 'youtube' ? 'YouTube' : (a.live_platform || 'Live');
+    const liveBadge = isLive
+      ? `<a href="${escapePost(a.live_url || '#')}" target="_blank" rel="noopener" class="inline-flex items-center gap-1 text-[10px] text-rose-500 font-semibold mt-0.5 hover:text-rose-400"><span class="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse flex-shrink-0"></span>Live on ${escapePost(livePlatformLabel)}</a>`
       : '';
     const avatarEl = a.avatar_url
       ? `<img src="${escapePost(a.avatar_url)}" alt="" class="w-10 h-10 rounded-full object-cover flex-shrink-0 ${avatarGlow}">`
@@ -141,9 +161,9 @@ function renderPostCard(post, options = {}) {
           </a>${flairBadge}${rankBadge}${vipBadge}
         </div>
         <p class="text-gray-500 text-xs">@${escapePost(a.username)} &middot; ${timeAgo(post.created_at)}</p>
-        ${playingBadge}
+        ${(playingBadge || liveBadge) ? `<div class="flex flex-col gap-0">${playingBadge}${liveBadge}</div>` : ''}
       </div>
-      ${post.is_pinned ? '<span class="text-yellow-400 text-xs"><i class="fas fa-thumbtack"></i></span>' : ''}
+      ${post.is_pinned ? '<span class="text-yellow-400 text-xs font-semibold"><i class="fas fa-thumbtack mr-0.5"></i>Pinned</span>' : ''}
       ${showFollowBtn ? `<button onclick="quickFollow(${a.id}, this)" class="follow-card-btn text-xs px-2.5 py-1 rounded-full bg-indigo-600 hover:bg-indigo-700 text-white transition"><i class="fas fa-plus mr-1"></i>Follow</button>` : ''}
     </div>`;
   })() : '';
@@ -179,22 +199,137 @@ function renderPostCard(post, options = {}) {
   // If the content is only the video URL and we're embedding it, hide the redundant raw link
   const _isContentJustUrl = post.content && /^https?:\/\/\S+$/.test(post.content.trim());
   const _showContent = post.content && !(_embedSource && _isContentJustUrl);
-  const contentHtml = _showContent ? `<div class="text-gray-200 text-sm whitespace-pre-wrap mb-3">${formatContent(post.content)}</div>` : '';
+  const contentHtml = _showContent ? `<div class="post-content-text text-gray-200 text-sm whitespace-pre-wrap mb-3">${formatContent(post.content)}</div>` : '';
 
   const mediaHtml = post.post_type === 'gif' && post.media_url
     ? `<img src="${escapePost(post.media_url)}" alt="GIF" class="rounded-lg max-h-80 w-auto" loading="lazy">`
     : (_embedSource ? renderEmbed(_embedSource) : renderImages(post.images || []));
 
+  // Link preview card (OG metadata) - only shown on text posts with no other media
+  function renderLinkPreview(lp) {
+    if (!lp || !lp.title) return '';
+    // Don't show a preview that has no image and no description - just a bare title looks broken
+    if (!lp.image && !lp.description) return '';
+    const title = escapePost(lp.title);
+    const desc = lp.description ? `<p class="text-gray-400 text-xs mt-0.5 line-clamp-2">${escapePost(lp.description)}</p>` : '';
+    const siteName = lp.site_name ? `<p class="text-gray-500 text-xs mt-1 uppercase tracking-wide">${escapePost(lp.site_name)}</p>` : '';
+    // Only allow https:// image URLs (server already validated, but double-check client-side)
+    const imgSrc = (lp.image && /^https:\/\//i.test(lp.image)) ? lp.image : null;
+    const imgHtml = imgSrc
+      ? `<img src="${escapePost(imgSrc)}" alt="" class="w-full h-36 object-cover" loading="lazy">`
+      : '';
+    // Only allow https:// hrefs - block javascript:, data:, etc.
+    const rawHref = lp.source_url || '';
+    const href = /^https:\/\//i.test(rawHref) ? escapePost(rawHref) : '#';
+    return `<a href="${href}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()"
+      class="block rounded-xl border border-neutral-700 overflow-hidden hover:border-neutral-500 transition mt-1 mb-2 no-underline">
+      ${imgHtml}
+      <div class="px-3 py-2 bg-neutral-800/60">
+        <p class="text-white text-sm font-semibold leading-snug">${title}</p>
+        ${desc}
+        ${siteName}
+      </div>
+    </a>`;
+  }
+
+  const linkPreviewHtml = (!mediaHtml && !_embedSource && post.link_preview)
+    ? renderLinkPreview(post.link_preview)
+    : '';
+
   const likedClass = post.liked_by_me ? 'text-red-400' : 'text-gray-500 hover:text-red-400';
   const likeIcon = post.liked_by_me ? 'fas fa-heart' : 'far fa-heart';
 
+  const isOwnerOrAdmin = currentUserId && (post.author && post.author.id === currentUserId || options.isAdmin);
+
+  // "Edited" badge - shows timestamp of last edit, clickable to reveal history
+  const editedBadge = post.edited_at
+    ? `<button onclick="showEditHistory(event, ${post.id})" class="text-gray-500 hover:text-gray-300 text-xs transition" title="View edit history">
+        <i class="fas fa-pencil-alt text-[10px] mr-0.5"></i>edited ${timeAgo(post.edited_at)}
+       </button>`
+    : '';
+
   return `
-    <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-4 post-card" data-post-id="${post.id}" data-author-id="${post.author ? post.author.id : ''}">
+    <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-4 post-card cursor-pointer" data-post-id="${post.id}" data-author-id="${post.author ? post.author.id : ''}" onclick="postCardClick(event, ${post.id}, '${post.public_id || post.id}')">
       ${authorHtml}
       ${gameTagHtml}
-      ${contentHtml}
-      ${mediaHtml ? `<div class="mb-3">${mediaHtml}</div>` : ''}
-      <div class="flex items-center gap-5 pt-2 border-t border-neutral-800/50">
+      <div class="post-content-wrap">
+        ${contentHtml}
+        ${linkPreviewHtml}
+        ${mediaHtml ? `<div class="mb-3">${mediaHtml}</div>` : ''}
+      </div>
+      <div id="edit-area-${post.id}" class="hidden mb-3">
+        <textarea id="edit-textarea-${post.id}"
+          class="w-full bg-neutral-800 border border-indigo-500 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none resize-none"
+          rows="4" maxlength="3000"
+          oninput="autoExpandTextarea(this)">${escapePost(post.content || '')}</textarea>
+        <!-- Edit toolbar - matches composer bar -->
+        <div class="mt-2 border-t border-neutral-700 pt-2">
+          <!-- Game tag display -->
+          <div id="edit-game-tag-${post.id}" class="hidden mb-2 flex items-center gap-2">
+            <span class="inline-flex items-center gap-1 px-2 py-1 bg-indigo-500/20 text-indigo-300 rounded-full text-xs">
+              <i class="fas fa-gamepad"></i>
+              <span id="edit-game-tag-name-${post.id}"></span>
+              <button onclick="clearEditGameTag(${post.id})" class="ml-1 hover:text-red-400"><i class="fas fa-times text-xs"></i></button>
+            </span>
+          </div>
+          <!-- GIF preview -->
+          <div id="edit-gif-preview-${post.id}" class="hidden mb-2"></div>
+          <!-- Emoji picker -->
+          <div id="edit-emoji-picker-${post.id}" class="hidden mb-2 bg-neutral-800 border border-neutral-700 rounded-xl p-3 max-h-52 overflow-y-auto">
+            <div class="flex gap-1 mb-2 border-b border-neutral-700 pb-2 flex-wrap">
+              <button onclick="showEditEmojiCat(${post.id},'gaming',this)" class="edit-emoji-cat-${post.id} edit-emoji-cat text-xs px-2 py-1 rounded bg-neutral-700 text-white">🎮 Gaming</button>
+              <button onclick="showEditEmojiCat(${post.id},'smileys',this)" class="edit-emoji-cat-${post.id} edit-emoji-cat text-xs px-2 py-1 rounded text-gray-400 hover:bg-neutral-700">😀 Faces</button>
+              <button onclick="showEditEmojiCat(${post.id},'hands',this)" class="edit-emoji-cat-${post.id} edit-emoji-cat text-xs px-2 py-1 rounded text-gray-400 hover:bg-neutral-700">👍 Hands</button>
+              <button onclick="showEditEmojiCat(${post.id},'hearts',this)" class="edit-emoji-cat-${post.id} edit-emoji-cat text-xs px-2 py-1 rounded text-gray-400 hover:bg-neutral-700">❤️ React</button>
+              <button onclick="showEditEmojiCat(${post.id},'objects',this)" class="edit-emoji-cat-${post.id} edit-emoji-cat text-xs px-2 py-1 rounded text-gray-400 hover:bg-neutral-700">⚡ Misc</button>
+              <button onclick="showEditEmojiCat(${post.id},'custom',this)" class="edit-emoji-cat-${post.id} edit-emoji-cat text-xs px-2 py-1 rounded text-gray-400 hover:bg-neutral-700">✨ Custom</button>
+            </div>
+            <div id="edit-emoji-grid-${post.id}" class="grid grid-cols-10 gap-0.5"></div>
+            <div id="edit-custom-emoji-grid-${post.id}" class="hidden grid grid-cols-8 gap-1"></div>
+          </div>
+          <!-- GIF picker -->
+          <div id="edit-gif-picker-${post.id}" class="hidden mb-2 bg-neutral-800 border border-neutral-700 rounded-xl overflow-hidden">
+            <div class="p-2 border-b border-neutral-700">
+              <input type="text" placeholder="Search GIFs…" id="edit-gif-search-${post.id}"
+                class="w-full bg-neutral-900 border border-neutral-600 rounded-lg px-3 py-1.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
+                oninput="searchEditGifs(${post.id}, this.value)">
+            </div>
+            <div id="edit-gif-results-${post.id}" class="grid grid-cols-3 gap-1 p-2 max-h-48 overflow-y-auto">
+              <p class="col-span-3 text-gray-500 text-xs text-center py-4">Search or browse trending GIFs</p>
+            </div>
+            <div class="px-2 py-1 border-t border-neutral-700 text-right"><span class="text-gray-600 text-xs">Powered by GIPHY</span></div>
+          </div>
+          <!-- Game search -->
+          <div id="edit-game-search-${post.id}" class="hidden mb-2 relative">
+            <input type="text" placeholder="Search for a game to tag…" id="edit-game-input-${post.id}"
+              class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500"
+              oninput="searchEditGames(${post.id}, this.value)">
+            <div id="edit-game-results-${post.id}" class="hidden absolute left-0 right-0 top-full mt-1 bg-neutral-900 border border-neutral-700 rounded-lg shadow-lg z-50 max-h-48 overflow-y-auto"></div>
+          </div>
+          <!-- Bottom bar -->
+          <div class="flex items-center justify-between gap-1">
+            <div class="flex items-center gap-0.5">
+              <label class="cursor-pointer flex items-center gap-1.5 text-gray-500 hover:text-green-400 px-2.5 py-1.5 rounded-lg hover:bg-neutral-800 text-xs font-medium transition">
+                <i class="fas fa-image"></i><span>Photo</span>
+                <input type="file" accept="image/jpeg,image/png,image/gif,image/webp" multiple class="hidden" onchange="handleEditImageSelect(${post.id}, this)">
+              </label>
+              <button onclick="toggleEditGifPicker(${post.id})" class="flex items-center gap-1.5 text-gray-500 hover:text-purple-400 px-2.5 py-1.5 rounded-lg hover:bg-neutral-800 text-xs font-bold transition">GIF</button>
+              <button onclick="toggleEditEmojiPicker(${post.id})" class="flex items-center gap-1.5 text-gray-500 hover:text-yellow-400 px-2.5 py-1.5 rounded-lg hover:bg-neutral-800 text-xs transition">
+                <i class="far fa-smile"></i><span class="ml-1">Emoji</span>
+              </button>
+              <button onclick="toggleEditGameSearch(${post.id})" class="flex items-center gap-1.5 text-gray-500 hover:text-indigo-400 px-2.5 py-1.5 rounded-lg hover:bg-neutral-800 text-xs transition">
+                <i class="fas fa-gamepad"></i><span class="ml-1">Game</span>
+              </button>
+              <span class="text-gray-600 text-xs ml-2" id="edit-char-count-${post.id}">${(post.content || '').length}/3000</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <button onclick="cancelPostEdit(${post.id})" class="text-gray-400 hover:text-white text-xs px-3 py-1.5 rounded-lg transition">Cancel</button>
+              <button onclick="savePostEdit(${post.id})" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs px-3 py-1.5 rounded-lg transition flex items-center gap-1.5"><i class="fas fa-paper-plane text-xs"></i>Save</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="flex items-center gap-4 pt-2 border-t border-neutral-800/50 flex-wrap">
         <button onclick="toggleLike(${post.id}, this)" class="${likedClass} flex items-center gap-1.5 text-sm transition">
           <i class="${likeIcon}"></i>
           <span class="like-count">${post.like_count || 0}</span>
@@ -203,14 +338,458 @@ function renderPostCard(post, options = {}) {
           <i class="far fa-comment"></i>
           <span>${post.comment_count || 0}</span>
         </button>
-        <button onclick="sharePost(${post.id})" class="text-gray-500 hover:text-green-400 flex items-center gap-1.5 text-sm transition">
+        <button onclick="sharePost('${post.public_id || post.id}')" class="text-gray-500 hover:text-green-400 flex items-center gap-1.5 text-sm transition">
           <i class="fas fa-share-alt"></i>
         </button>
-        <span class="text-gray-600 text-xs ml-auto">${timeAgo(post.created_at)}</span>
+        ${isOwnerOrAdmin ? `
+        <button onclick="startPostEdit(event, ${post.id}, this)" id="edit-btn-${post.id}" class="text-gray-500 hover:text-indigo-400 flex items-center gap-1.5 text-sm transition" title="Edit post">
+          <i class="fas fa-pencil-alt"></i>
+        </button>
+        <button onclick="deletePost(event, ${post.id})" class="text-gray-500 hover:text-red-400 flex items-center gap-1.5 text-sm transition" title="Delete post">
+          <i class="fas fa-trash"></i>
+        </button>
+        <button onclick="togglePin(${post.id}, this)" class="${post.is_pinned ? 'text-yellow-400' : 'text-gray-500 hover:text-yellow-400'} flex items-center gap-1.5 text-sm transition" title="${post.is_pinned ? 'Unpin post' : 'Pin post'}">
+          <i class="fas fa-thumbtack"></i>
+        </button>` : ''}
+        <span class="ml-auto flex items-center gap-2">
+          <span class="edited-badge-slot">${editedBadge}</span>
+          <span class="text-gray-600 text-xs">${timeAgo(post.created_at)}</span>
+        </span>
       </div>
       <div id="comments-${post.id}" class="hidden mt-3 border-t border-neutral-800 pt-3"></div>
     </div>`;
 }
+
+// Post card click - navigate to permalink unless clicking a button/link/input
+function postCardClick(event, postId, publicId) {
+  if (event.target.closest('button, a, input, textarea, [onclick]:not(.post-card)')) return;
+  const slug = publicId || postId;
+  if (window.location.pathname === `/ql/post/${slug}/`) return;
+  window.location.href = `/ql/post/${slug}/`;
+}
+
+// Pin toggle
+async function togglePin(postId, btn) {
+  try {
+    const res = await csrfFetch(`/ql/api/posts/${postId}/pin/`, { method: 'POST' });
+    const data = await res.json();
+    if (data.success) {
+      const card = btn.closest('.post-card');
+      if (data.is_pinned) {
+        btn.classList.remove('text-gray-500', 'hover:text-yellow-400');
+        btn.classList.add('text-yellow-400');
+        btn.title = 'Unpin post';
+        // Update pinned badge in header
+        const header = card?.querySelector('.pinned-badge-slot');
+        if (header) header.innerHTML = '<span class="text-yellow-400 text-xs font-semibold"><i class="fas fa-thumbtack mr-0.5"></i>Pinned</span>';
+      } else {
+        btn.classList.remove('text-yellow-400');
+        btn.classList.add('text-gray-500', 'hover:text-yellow-400');
+        btn.title = 'Pin post';
+        const header = card?.querySelector('.pinned-badge-slot');
+        if (header) header.innerHTML = '';
+      }
+    }
+  } catch(e) { console.error('Pin error:', e); }
+}
+
+// Post edit - enter inline edit mode
+function startPostEdit(event, postId, btn) {
+  event.stopPropagation();
+  const card = btn.closest('.post-card');
+  const contentWrap = card.querySelector('.post-content-wrap');
+  const editArea = document.getElementById(`edit-area-${postId}`);
+  const textarea = document.getElementById(`edit-textarea-${postId}`);
+  if (!editArea || !textarea) return;
+  contentWrap.classList.add('hidden');
+  editArea.classList.remove('hidden');
+  textarea.focus();
+  textarea.selectionStart = textarea.selectionEnd = textarea.value.length;
+  autoExpandTextarea(textarea);
+  // char count
+  const counter = document.getElementById(`edit-char-count-${postId}`);
+  if (counter) counter.textContent = `${textarea.value.length} / 3000`;
+  textarea.addEventListener('input', () => {
+    if (counter) counter.textContent = `${textarea.value.length} / 3000`;
+  });
+}
+
+function cancelPostEdit(postId) {
+  const card = document.querySelector(`.post-card[data-post-id="${postId}"]`);
+  if (!card) return;
+  card.querySelector('.post-content-wrap').classList.remove('hidden');
+  document.getElementById(`edit-area-${postId}`).classList.add('hidden');
+  _closeEditPickers(postId);
+  // Reset edit btn
+  const editBtn = document.getElementById(`edit-btn-${postId}`);
+  if (editBtn) { editBtn.disabled = false; editBtn.innerHTML = '<i class="fas fa-pencil-alt"></i>'; }
+}
+
+// ---- Edit toolbar state (per post) ----
+const _editState = {}; // { [postId]: { gif: null, gameTag: null, gifSearchTimeout: null } }
+function _editStateFor(postId) {
+  if (!_editState[postId]) _editState[postId] = { gif: null, gameTag: null, gifSearchTimeout: null };
+  return _editState[postId];
+}
+
+const _EDIT_EMOJIS = {
+  gaming: ['🎮','🕹️','👾','🏆','⚔️','🛡️','🎯','💣','🔫','🧙','🐉','🗺️','🌟','💀','🔥','⚡','🌙','🎲','🃏','🎰'],
+  smileys: ['😀','😂','🤣','😊','😍','🥰','😎','🤔','😅','😭','😤','😡','🥲','🤯','🤩','😴','🥴','🤢','😇','😈'],
+  hands: ['👍','👎','👏','🙌','🤝','✌️','🤞','🤟','🤙','👋','🖐️','✋','🫶','💪','🫂','🙏','👌','🤌','🖖','☝️'],
+  hearts: ['❤️','🧡','💛','💚','💙','💜','🖤','🤍','💔','❣️','💕','💞','💓','💗','💖','💘','💝','💟','♥️','🫀'],
+  objects: ['⚡','🔥','💥','✨','🌈','🎉','🎊','🏅','🥇','🚀','🌍','💡','🔑','🎵','🎶','📱','💻','🕐','📸','🎁'],
+};
+
+function _closeEditPickers(postId) {
+  ['edit-emoji-picker-', 'edit-gif-picker-', 'edit-game-search-'].forEach(prefix => {
+    const el = document.getElementById(prefix + postId);
+    if (el) el.classList.add('hidden');
+  });
+}
+
+function toggleEditEmojiPicker(postId) {
+  const picker = document.getElementById(`edit-emoji-picker-${postId}`);
+  if (!picker) return;
+  const opening = picker.classList.contains('hidden');
+  _closeEditPickers(postId);
+  if (opening) {
+    picker.classList.remove('hidden');
+    showEditEmojiCat(postId, 'gaming', picker.querySelector('.edit-emoji-cat'));
+  }
+}
+
+function toggleEditGifPicker(postId) {
+  const picker = document.getElementById(`edit-gif-picker-${postId}`);
+  if (!picker) return;
+  const opening = picker.classList.contains('hidden');
+  _closeEditPickers(postId);
+  if (opening) {
+    picker.classList.remove('hidden');
+    loadEditTrendingGifs(postId);
+    setTimeout(() => document.getElementById(`edit-gif-search-${postId}`)?.focus(), 50);
+  }
+}
+
+function toggleEditGameSearch(postId) {
+  const row = document.getElementById(`edit-game-search-${postId}`);
+  if (!row) return;
+  const opening = row.classList.contains('hidden');
+  _closeEditPickers(postId);
+  if (opening) {
+    row.classList.remove('hidden');
+    setTimeout(() => document.getElementById(`edit-game-input-${postId}`)?.focus(), 50);
+  }
+}
+
+function showEditEmojiCat(postId, cat, btn) {
+  const grid = document.getElementById(`edit-emoji-grid-${postId}`);
+  const customGrid = document.getElementById(`edit-custom-emoji-grid-${postId}`);
+  document.querySelectorAll(`.edit-emoji-cat-${postId}`).forEach(b => {
+    b.className = b.className.replace('bg-neutral-700 text-white', 'text-gray-400 hover:bg-neutral-700');
+  });
+  if (btn) btn.className = btn.className.replace('text-gray-400 hover:bg-neutral-700', 'bg-neutral-700 text-white');
+  if (cat === 'custom') {
+    grid.classList.add('hidden');
+    customGrid.classList.remove('hidden');
+    const map = window._customEmojiMap || {};
+    const items = Object.entries(map);
+    customGrid.innerHTML = items.length
+      ? items.map(([code, url]) => `<button onclick="insertEditEmoji(${postId},':${code}:')" title=":${code}:" class="flex items-center justify-center hover:bg-neutral-700 rounded p-1 transition cursor-pointer"><img src="${url}" alt=":${code}:" class="w-7 h-7 object-contain"></button>`).join('')
+      : '<p class="col-span-8 text-center text-gray-500 text-xs py-3">No custom emoji yet.</p>';
+  } else {
+    grid.classList.remove('hidden');
+    customGrid.classList.add('hidden');
+    grid.innerHTML = (_EDIT_EMOJIS[cat] || []).map(e =>
+      `<button onclick="insertEditEmoji(${postId},'${e}')" class="text-xl hover:bg-neutral-700 rounded p-1 transition cursor-pointer">${e}</button>`
+    ).join('');
+  }
+}
+
+function insertEditEmoji(postId, emoji) {
+  const ta = document.getElementById(`edit-textarea-${postId}`);
+  if (!ta) return;
+  const start = ta.selectionStart, end = ta.selectionEnd;
+  ta.value = ta.value.substring(0, start) + emoji + ta.value.substring(end);
+  ta.selectionStart = ta.selectionEnd = start + emoji.length;
+  ta.focus();
+  autoExpandTextarea(ta);
+  const counter = document.getElementById(`edit-char-count-${postId}`);
+  if (counter) counter.textContent = ta.value.length + '/3000';
+}
+
+// GIF for edit
+async function loadEditTrendingGifs(postId) {
+  const container = document.getElementById(`edit-gif-results-${postId}`);
+  if (!container) return;
+  container.innerHTML = '<p class="col-span-3 text-gray-500 text-xs text-center py-4">Loading...</p>';
+  try {
+    const res = await fetch('/ql/api/gifs/trending/');
+    const data = await res.json();
+    renderEditGifs(postId, data.results || []);
+  } catch(e) {
+    container.innerHTML = '<p class="col-span-3 text-gray-500 text-xs text-center py-4">Failed to load GIFs</p>';
+  }
+}
+
+function searchEditGifs(postId, query) {
+  const state = _editStateFor(postId);
+  clearTimeout(state.gifSearchTimeout);
+  if (!query || query.length < 2) { loadEditTrendingGifs(postId); return; }
+  state.gifSearchTimeout = setTimeout(async () => {
+    try {
+      const res = await fetch(`/ql/api/gifs/search/?q=${encodeURIComponent(query)}`);
+      const data = await res.json();
+      renderEditGifs(postId, data.results || []);
+    } catch(e) {}
+  }, 400);
+}
+
+function renderEditGifs(postId, gifs) {
+  const esc = s => { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; };
+  const container = document.getElementById(`edit-gif-results-${postId}`);
+  if (!container) return;
+  container.innerHTML = gifs.length
+    ? gifs.map(g => `<button onclick="selectEditGif(${postId},'${esc(g.url)}','${esc(g.preview)}')" class="overflow-hidden rounded hover:ring-2 hover:ring-purple-500 transition cursor-pointer"><img src="${esc(g.preview)}" class="w-full h-20 object-cover" loading="lazy"></button>`).join('')
+    : '<p class="col-span-3 text-gray-500 text-xs text-center py-4">No GIFs found</p>';
+}
+
+function selectEditGif(postId, url, preview) {
+  const esc = s => { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; };
+  _editStateFor(postId).gif = { url, preview };
+  const previewEl = document.getElementById(`edit-gif-preview-${postId}`);
+  previewEl.classList.remove('hidden');
+  previewEl.innerHTML = `<div class="relative inline-block"><img src="${esc(preview)}" class="max-h-32 rounded-lg"><button onclick="clearEditGif(${postId})" class="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white rounded-full text-xs flex items-center justify-center hover:bg-red-600"><i class="fas fa-times"></i></button></div>`;
+  document.getElementById(`edit-gif-picker-${postId}`).classList.add('hidden');
+}
+
+function clearEditGif(postId) {
+  _editStateFor(postId).gif = null;
+  const el = document.getElementById(`edit-gif-preview-${postId}`);
+  el.classList.add('hidden');
+  el.innerHTML = '';
+}
+
+// Game tag for edit
+let _editGameSearchTimeout = {};
+function searchEditGames(postId, query) {
+  clearTimeout(_editGameSearchTimeout[postId]);
+  const results = document.getElementById(`edit-game-results-${postId}`);
+  if (!query || query.length < 2) { results.classList.add('hidden'); return; }
+  _editGameSearchTimeout[postId] = setTimeout(async () => {
+    try {
+      const res = await fetch(`/ql/api/igdb/search/?q=${encodeURIComponent(query)}`);
+      const data = await res.json();
+      const esc = s => { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; };
+      if (data.games && data.games.length > 0) {
+        results.classList.remove('hidden');
+        results.innerHTML = data.games.map(g => `
+          <button onclick="selectEditGameTag(${postId},${g.id},'${esc(g.name).replace(/'/g,"\\'")}',${g.steam_id||'null'})"
+            class="w-full flex items-center gap-2 px-3 py-2 hover:bg-neutral-800 transition text-left">
+            ${g.cover_url ? `<img src="${esc(g.cover_url)}" class="w-8 h-8 rounded object-cover">` : `<div class="w-8 h-8 bg-neutral-800 rounded flex items-center justify-center"><i class="fas fa-gamepad text-gray-600 text-xs"></i></div>`}
+            <div class="flex-1 min-w-0"><p class="text-white text-sm truncate">${esc(g.name)}</p></div>
+            ${g.release_year ? `<span class="text-gray-600 text-xs flex-shrink-0">${g.release_year}</span>` : ''}
+          </button>`).join('');
+      } else {
+        results.classList.remove('hidden');
+        results.innerHTML = '<p class="text-gray-500 text-xs p-3">No games found</p>';
+      }
+    } catch(e) { document.getElementById(`edit-game-results-${postId}`).classList.add('hidden'); }
+  }, 400);
+}
+
+function selectEditGameTag(postId, id, name, steamId) {
+  _editStateFor(postId).gameTag = { id, name, steam_id: steamId };
+  document.getElementById(`edit-game-tag-name-${postId}`).textContent = name;
+  document.getElementById(`edit-game-tag-${postId}`).classList.remove('hidden');
+  document.getElementById(`edit-game-search-${postId}`).classList.add('hidden');
+}
+
+function clearEditGameTag(postId) {
+  _editStateFor(postId).gameTag = null;
+  document.getElementById(`edit-game-tag-${postId}`).classList.add('hidden');
+}
+
+// Photo upload for edit
+function handleEditImageSelect(postId, input) {
+  if (!input.files || !input.files.length) return;
+  // Reuse the existing upload flow - store files for savePostEdit to pick up
+  _editStateFor(postId).newImages = Array.from(input.files);
+  const esc = s => { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; };
+  const preview = document.getElementById(`edit-gif-preview-${postId}`); // reuse preview area
+  preview.classList.remove('hidden');
+  preview.innerHTML = Array.from(input.files).map(f => {
+    const url = URL.createObjectURL(f);
+    return `<img src="${esc(url)}" class="max-h-24 rounded-lg inline-block mr-1">`;
+  }).join('') + `<button onclick="clearEditImages(${postId})" class="ml-1 text-red-400 hover:text-red-300 text-xs"><i class="fas fa-times"></i> Clear</button>`;
+}
+
+function clearEditImages(postId) {
+  _editStateFor(postId).newImages = null;
+  const el = document.getElementById(`edit-gif-preview-${postId}`);
+  el.classList.add('hidden');
+  el.innerHTML = '';
+}
+
+async function savePostEdit(postId) {
+  const textarea = document.getElementById(`edit-textarea-${postId}`);
+  if (!textarea) return;
+  const newContent = textarea.value.trim();
+  if (!newContent) return;
+  const state = _editStateFor(postId);
+  const saveBtn = document.querySelector(`#edit-area-${postId} button[onclick^="savePostEdit"]`);
+  if (saveBtn) { saveBtn.disabled = true; saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin text-xs"></i> Saving...'; }
+  try {
+    const body = { content: newContent };
+    if (state.gameTag) { body.game_tag_id = state.gameTag.id; body.game_tag_name = state.gameTag.name; if (state.gameTag.steam_id) body.game_tag_steam_id = state.gameTag.steam_id; }
+    if (state.gif) { body.media_url = state.gif.url; body.post_type = 'gif'; }
+
+    // If new images selected, upload them first via FormData
+    if (state.newImages && state.newImages.length) {
+      const fd = new FormData();
+      fd.append('content', newContent);
+      state.newImages.forEach(f => fd.append('images', f));
+      if (state.gameTag) { fd.append('game_tag_id', state.gameTag.id); fd.append('game_tag_name', state.gameTag.name); }
+      const uploadRes = await csrfFetch(`/ql/api/posts/${postId}/edit/`, { method: 'PUT', body: fd });
+      const uploadData = await uploadRes.json();
+      if (uploadData.success && uploadData.post) {
+        _finishEditUpdate(postId, uploadData.post);
+        delete _editState[postId];
+        cancelPostEdit(postId);
+      } else { showToast(uploadData.error || 'Save failed', true); }
+      if (saveBtn) { saveBtn.disabled = false; saveBtn.innerHTML = '<i class="fas fa-paper-plane text-xs"></i>Save'; }
+      return;
+    }
+
+    const res = await csrfFetch(`/ql/api/posts/${postId}/edit/`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (data.success && data.post) {
+      // Re-render just the content area and edited badge
+      const card = document.querySelector(`.post-card[data-post-id="${postId}"]`);
+      if (card) {
+        const contentWrap = card.querySelector('.post-content-wrap');
+        // Update displayed text
+        const textEl = contentWrap.querySelector('.text-gray-200');
+        _finishEditUpdate(postId, data.post);
+      }
+      delete _editState[postId];
+      cancelPostEdit(postId);
+      showToast('Post updated');
+    } else {
+      showToast(data.error || 'Failed to save', true);
+      if (saveBtn) { saveBtn.disabled = false; saveBtn.innerHTML = '<i class="fas fa-paper-plane text-xs"></i>Save'; }
+    }
+  } catch(e) {
+    showToast('Failed to save edit', true);
+    if (saveBtn) { saveBtn.disabled = false; saveBtn.innerHTML = '<i class="fas fa-paper-plane text-xs"></i>Save'; }
+  }
+}
+
+function _finishEditUpdate(postId, post) {
+  const card = document.querySelector(`.post-card[data-post-id="${postId}"]`);
+  if (!card) return;
+  const contentWrap = card.querySelector('.post-content-wrap');
+  const textEl = contentWrap?.querySelector('.post-content-text');
+  if (textEl) {
+    const div = document.createElement('div');
+    div.textContent = post.content || '';
+    textEl.innerHTML = div.innerHTML.replace(/\n/g, '<br>').replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener" class="text-blue-400 hover:underline">$1</a>');
+    // Re-apply emoji rendering
+    if (window._customEmojiMap) {
+      textEl.innerHTML = textEl.innerHTML.replace(/:([a-zA-Z0-9_-]+):/g, (m, code) => {
+        const url = window._customEmojiMap[code];
+        return url ? `<img src="${url}" alt="${m}" title="${m}" class="inline-block w-6 h-6 object-contain align-middle" style="vertical-align:-4px">` : m;
+      });
+    }
+  }
+  const badgeSlot = card.querySelector('.edited-badge-slot');
+  if (badgeSlot && post.edited_at) {
+    badgeSlot.innerHTML = `<button onclick="showEditHistory(event, ${postId})" class="text-gray-500 hover:text-gray-300 text-xs transition"><i class="fas fa-pencil-alt text-[10px] mr-0.5"></i>edited just now</button>`;
+  }
+}
+
+// Delete post
+async function deletePost(event, postId) {
+  event.stopPropagation();
+  if (!confirm('Delete this post? This cannot be undone.')) return;
+  try {
+    const res = await csrfFetch(`/ql/api/posts/${postId}/`, { method: 'DELETE' });
+    const data = await res.json();
+    if (data.success) {
+      const card = document.querySelector(`.post-card[data-post-id="${postId}"]`);
+      if (card) {
+        card.style.transition = 'opacity 0.3s';
+        card.style.opacity = '0';
+        setTimeout(() => card.remove(), 300);
+      }
+      // If on the post detail page, go back to feed
+      if (window.location.pathname.startsWith('/ql/post/')) {
+        window.location.href = '/ql/';
+      }
+      showToast('Post deleted');
+    } else {
+      showToast(data.error || 'Failed to delete', true);
+    }
+  } catch(e) { showToast('Failed to delete post', true); }
+}
+
+// Show edit history modal
+async function showEditHistory(event, postId) {
+  event.stopPropagation();
+  try {
+    const res = await fetch(`/ql/api/posts/${postId}/edit-history/`);
+    const data = await res.json();
+    if (!data.history) return;
+
+    function esc(s) { if (!s) return ''; const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+    function ago(ts) {
+      const s = Math.floor(Date.now() / 1000) - ts;
+      if (s < 60) return 'just now';
+      if (s < 3600) return Math.floor(s / 60) + 'm ago';
+      if (s < 86400) return Math.floor(s / 3600) + 'h ago';
+      return new Date(ts * 1000).toLocaleString();
+    }
+
+    let versionsHtml = '';
+    // Reverse so newest is first
+    [...data.history].reverse().forEach(v => {
+      const label = v.is_current
+        ? `<span class="text-indigo-400 font-semibold text-xs">Current version</span>`
+        : `<span class="text-gray-500 text-xs">Version ${v.version} &middot; ${ago(v.edited_at)}</span>`;
+      versionsHtml += `
+        <div class="border border-neutral-700 rounded-lg p-3 ${v.is_current ? 'border-indigo-500/50 bg-indigo-500/5' : 'bg-neutral-800/40'}">
+          <div class="mb-1.5">${label}</div>
+          <p class="text-gray-200 text-sm whitespace-pre-wrap">${esc(v.content_before)}</p>
+        </div>`;
+    });
+
+    // Build and show modal
+    const existing = document.getElementById('edit-history-modal');
+    if (existing) existing.remove();
+
+    const modal = document.createElement('div');
+    modal.id = 'edit-history-modal';
+    modal.className = 'fixed inset-0 z-50 flex items-center justify-center p-4';
+    modal.innerHTML = `
+      <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" onclick="document.getElementById('edit-history-modal').remove()"></div>
+      <div class="relative bg-neutral-900 border border-neutral-700 rounded-2xl w-full max-w-lg max-h-[80vh] flex flex-col shadow-2xl">
+        <div class="flex items-center justify-between px-5 py-4 border-b border-neutral-800">
+          <h3 class="text-white font-semibold">Edit History <span class="text-gray-500 text-sm font-normal">(${data.edit_count} edit${data.edit_count !== 1 ? 's' : ''})</span></h3>
+          <button onclick="document.getElementById('edit-history-modal').remove()" class="text-gray-500 hover:text-white transition">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        <div class="overflow-y-auto p-4 flex flex-col gap-3">
+          ${versionsHtml}
+        </div>
+      </div>`;
+    document.body.appendChild(modal);
+  } catch(e) { console.error('Edit history error:', e); }
+}
+
 
 // Like toggle
 async function toggleLike(postId, btn) {
@@ -311,7 +890,7 @@ function renderComment(comment, isReply = false) {
           <span class="inline-flex items-center flex-wrap gap-x-0.5">
             <a href="/ql/u/${esc(author.username)}/" class="text-white text-xs font-semibold hover:underline">${esc(author.display_name || author.username)}</a>${cmtFlairBadge}${cmtRankBadge}${cmtVipBadge}
           </span>
-          <p class="text-gray-300 text-sm">${esc(comment.content)}</p>
+          <p class="comment-content-text text-gray-300 text-sm">${formatContent(comment.content)}</p>
         </div>
         <div class="flex items-center gap-3 mt-1 px-1">
           <button onclick="toggleCommentLike(${comment.id}, this)" class="${likedClass} text-xs transition hover:text-red-400">
@@ -384,12 +963,8 @@ async function quickFollow(userId, btn) {
 }
 
 // Share / copy link
-function sharePost(postId) {
-  const url = `${location.origin}/ql/api/posts/${postId}/`;
-  const profileUrl = `${location.origin}/ql/`;
-
-  // Use a nicer share URL - just a permalink
-  const shareUrl = `${location.origin}/ql/post/${postId}/`;
+function sharePost(publicId) {
+  const shareUrl = `${location.origin}/ql/post/${publicId}/`;
 
   if (navigator.share) {
     navigator.share({ title: 'QuestLog Post', url: shareUrl }).catch(() => {});

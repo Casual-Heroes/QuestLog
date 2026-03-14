@@ -1,0 +1,303 @@
+{% extends "questlog_web/fluxer_base_guild.html" %}
+{% load static %}
+{% block title %}Message Tools - {{ guild_name }} - QuestLog{% endblock %}
+
+{% block guild_content %}
+{% include "questlog/partials/custom_select.html" %}
+<div class="p-6 max-w-4xl">
+
+  <!-- Page header -->
+  <div class="flex items-center gap-3 mb-6">
+    <div class="w-12 h-12 bg-blue-600/20 rounded-xl flex items-center justify-center">
+      <i class="fas fa-comment-dots text-blue-400"></i>
+    </div>
+    <div>
+      <h1 class="text-2xl font-bold text-white">Message Tools</h1>
+      <p class="text-gray-500 text-sm">Scheduled messages, embeds, and automated announcements.</p>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="flex gap-2 mb-6 border-b border-neutral-800 overflow-x-auto">
+    <button onclick="switchTab('schedule')" id="tab-schedule"
+            class="px-5 py-3 font-medium text-white border-b-2 border-blue-500 transition whitespace-nowrap text-sm">
+      <i class="fas fa-clock mr-2"></i>Scheduled Messages
+    </button>
+    <button onclick="switchTab('embed')" id="tab-embed"
+            class="px-5 py-3 font-medium text-gray-400 hover:text-white border-b-2 border-transparent transition whitespace-nowrap text-sm">
+      <i class="fas fa-layer-group mr-2"></i>Send Embed
+    </button>
+    <button onclick="switchTab('broadcast')" id="tab-broadcast"
+            class="px-5 py-3 font-medium text-gray-400 hover:text-white border-b-2 border-transparent transition whitespace-nowrap text-sm">
+      <i class="fas fa-bullhorn mr-2"></i>Broadcast
+    </button>
+  </div>
+
+  <!-- Scheduled Messages tab -->
+  <div id="panel-schedule">
+    <div class="flex justify-end mb-4">
+      <button onclick="openScheduleModal()"
+              class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition flex items-center gap-2">
+        <i class="fas fa-plus"></i> Schedule Message
+      </button>
+    </div>
+    <div class="bg-neutral-900 rounded-xl border border-neutral-800">
+      <div class="flex gap-2 px-4 py-3 border-b border-neutral-800">
+        <button onclick="switchScheduleFilter('upcoming')" id="sf-upcoming"
+                class="px-3 py-1 rounded-lg text-xs font-medium bg-blue-600/20 text-blue-400 border border-blue-600/30">Upcoming</button>
+        <button onclick="switchScheduleFilter('sent')" id="sf-sent"
+                class="px-3 py-1 rounded-lg text-xs font-medium text-gray-500 hover:text-gray-300 transition">Sent</button>
+        <button onclick="switchScheduleFilter('recurring')" id="sf-recurring"
+                class="px-3 py-1 rounded-lg text-xs font-medium text-gray-500 hover:text-gray-300 transition">Recurring</button>
+      </div>
+      <div id="schedule-list" class="py-12 text-center">
+        <div class="w-12 h-12 bg-blue-700/20 rounded-full flex items-center justify-center mx-auto mb-3">
+          <i class="fas fa-clock text-blue-400"></i>
+        </div>
+        <p class="text-gray-400 font-medium text-sm">No scheduled messages</p>
+        <p class="text-gray-600 text-xs mt-1">Schedule messages to be sent at a specific time or recurring interval.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Send Embed tab -->
+  <div id="panel-embed" class="hidden">
+    <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-5 mb-4">
+      <h3 class="text-white font-semibold mb-4">Build &amp; Send Embed</h3>
+      <div class="grid md:grid-cols-2 gap-4">
+        <div class="space-y-3">
+          <div>
+            <label class="block text-xs text-gray-400 mb-1.5">Title</label>
+            <input type="text" id="embed-title" placeholder="Embed title..."
+                   class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm">
+          </div>
+          <div>
+            <label class="block text-xs text-gray-400 mb-1.5">Description</label>
+            <textarea id="embed-desc" rows="4" placeholder="Embed description..."
+                      class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm resize-none"></textarea>
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs text-gray-400 mb-1.5">Color</label>
+              <input type="color" id="embed-color" value="#8b5cf6"
+                     class="w-full h-10 bg-neutral-800 border border-neutral-700 rounded-lg px-1 cursor-pointer">
+            </div>
+            <div>
+              <label class="block text-xs text-gray-400 mb-1.5">Channel</label>
+              <div id="cs-embed-channel"></div>
+            </div>
+          </div>
+          <div>
+            <label class="block text-xs text-gray-400 mb-1.5">Footer Text</label>
+            <input type="text" id="embed-footer" placeholder="Footer text..."
+                   class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm">
+          </div>
+        </div>
+        <!-- Live preview -->
+        <div>
+          <label class="block text-xs text-gray-400 mb-1.5">Preview</label>
+          <div class="bg-neutral-800 rounded-lg p-4 border-l-4" id="embed-preview" style="border-color: #8b5cf6;">
+            <p class="text-white font-semibold text-sm" id="preview-title">Embed Title</p>
+            <p class="text-gray-400 text-xs mt-1 whitespace-pre-wrap" id="preview-desc">Embed description goes here...</p>
+            <p class="text-gray-600 text-xs mt-3 border-t border-neutral-700 pt-2" id="preview-footer"></p>
+          </div>
+        </div>
+      </div>
+      <button id="send-embed-btn" onclick="sendEmbed()"
+              class="mt-4 bg-orange-700 hover:bg-orange-600 text-white px-5 py-2 rounded-lg text-sm font-medium transition flex items-center gap-2">
+        <i class="fas fa-paper-plane"></i> Send Embed
+      </button>
+    </div>
+  </div>
+
+  <!-- Broadcast tab -->
+  <div id="panel-broadcast" class="hidden">
+    <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-5">
+      <h3 class="text-white font-semibold mb-4">Broadcast to Category</h3>
+      <p class="text-gray-500 text-sm mb-4">Send a message to all text channels in a selected category.</p>
+      <div class="space-y-3">
+        <div>
+          <label class="block text-xs text-gray-400 mb-1.5">Target Channel / Category</label>
+          <div id="cs-broadcast-channel"></div>
+        </div>
+        <div>
+          <label class="block text-xs text-gray-400 mb-1.5">Message</label>
+          <textarea id="broadcast-msg" rows="4" placeholder="Your broadcast message..."
+                    class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm resize-none"></textarea>
+        </div>
+      </div>
+      <button onclick="sendBroadcast()" disabled
+              class="mt-4 bg-neutral-700 text-neutral-500 px-5 py-2 rounded-lg text-sm font-medium cursor-not-allowed flex items-center gap-2">
+        <i class="fas fa-broadcast-tower"></i> Send Broadcast (Bot pending)
+      </button>
+    </div>
+  </div>
+
+</div>
+
+<!-- Schedule Modal -->
+<div id="schedule-modal" class="fixed inset-0 bg-black/70 hidden items-center justify-center z-50 px-4">
+  <div class="bg-neutral-900 border border-neutral-800 rounded-xl w-full max-w-lg p-6">
+    <div class="flex items-center justify-between mb-5">
+      <h3 class="text-white font-bold">Schedule Message</h3>
+      <button onclick="closeScheduleModal()" class="text-gray-400 hover:text-white"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="space-y-4">
+      <div>
+        <label class="block text-xs text-gray-400 mb-1.5">Channel</label>
+        <div id="cs-sched-channel"></div>
+      </div>
+      <div>
+        <label class="block text-xs text-gray-400 mb-1.5">Message</label>
+        <textarea id="sched-msg" rows="3" placeholder="Your message..."
+                  class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm resize-none"></textarea>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-xs text-gray-400 mb-1.5">Send At</label>
+          <input type="datetime-local" id="sched-time"
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm">
+        </div>
+        <div>
+          <label class="block text-xs text-gray-400 mb-1.5">Repeat</label>
+          <div id="schedRepeatContainer"></div>
+          <script>
+          document.addEventListener('DOMContentLoaded', function() {
+            createCustomSelect({
+              container: document.getElementById('schedRepeatContainer'),
+              name: 'sched-repeat',
+              id: 'sched-repeat',
+              items: [
+                {value: '', label: 'Once'},
+                {value: 'daily', label: 'Daily'},
+                {value: 'weekly', label: 'Weekly'},
+                {value: 'monthly', label: 'Monthly'},
+              ],
+              selected: '',
+              color: 'blue',
+            });
+          });
+          </script>
+        </div>
+      </div>
+    </div>
+    <div class="flex justify-end gap-3 mt-5">
+      <button onclick="closeScheduleModal()" class="px-4 py-2 text-gray-400 hover:text-white text-sm">Cancel</button>
+      <button disabled
+              class="bg-neutral-700 text-neutral-500 px-5 py-2 rounded-lg text-sm font-medium cursor-not-allowed">
+        Schedule (Bot pending)
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+const GUILD_ID = '{{ guild_id }}';
+const CHANNELS = JSON.parse('{{ channels_json|escapejs }}');
+
+let csEmbedChannel, csBroadcastChannel, csSchedChannel;
+
+function switchTab(name) {
+  ['schedule','embed','broadcast'].forEach(t => {
+    document.getElementById(`panel-${t}`).classList.add('hidden');
+    document.getElementById(`tab-${t}`).className = 'px-5 py-3 font-medium text-gray-400 hover:text-white border-b-2 border-transparent transition whitespace-nowrap text-sm';
+  });
+  document.getElementById(`panel-${name}`).classList.remove('hidden');
+  document.getElementById(`tab-${name}`).className = 'px-5 py-3 font-medium text-white border-b-2 border-blue-500 transition whitespace-nowrap text-sm';
+
+  if (name === 'embed' && !csEmbedChannel) {
+    csEmbedChannel = createCustomSelect({
+      container: document.getElementById('cs-embed-channel'),
+      name: 'embed_channel_id', items: CHANNELS, selected: [], placeholder: 'Select channel...',
+    });
+  }
+  if (name === 'broadcast' && !csBroadcastChannel) {
+    csBroadcastChannel = createCustomSelect({
+      container: document.getElementById('cs-broadcast-channel'),
+      name: 'broadcast_channel_id', items: CHANNELS, selected: [], placeholder: 'Select channel...',
+    });
+  }
+}
+
+function switchScheduleFilter(f) {
+  ['upcoming','sent','recurring'].forEach(sf => {
+    const btn = document.getElementById(`sf-${sf}`);
+    btn.className = sf === f
+      ? 'px-3 py-1 rounded-lg text-xs font-medium bg-blue-600/20 text-blue-400 border border-blue-600/30'
+      : 'px-3 py-1 rounded-lg text-xs font-medium text-gray-500 hover:text-gray-300 transition';
+  });
+}
+
+function openScheduleModal() {
+  if (!csSchedChannel) {
+    csSchedChannel = createCustomSelect({
+      container: document.getElementById('cs-sched-channel'),
+      name: 'sched_channel_id', items: CHANNELS, selected: [], placeholder: 'Select channel...',
+    });
+  }
+  document.getElementById('schedule-modal').classList.remove('hidden');
+  document.getElementById('schedule-modal').classList.add('flex');
+}
+function closeScheduleModal() {
+  document.getElementById('schedule-modal').classList.add('hidden');
+  document.getElementById('schedule-modal').classList.remove('flex');
+}
+
+// Embed preview live update
+['embed-title','embed-desc','embed-footer','embed-color'].forEach(id => {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener('input', updateEmbedPreview);
+});
+function updateEmbedPreview() {
+  const title = document.getElementById('embed-title').value || 'Embed Title';
+  const desc = document.getElementById('embed-desc').value || 'Embed description goes here...';
+  const footer = document.getElementById('embed-footer').value;
+  const color = document.getElementById('embed-color').value;
+  const preview = document.getElementById('embed-preview');
+  document.getElementById('preview-title').textContent = title;
+  document.getElementById('preview-desc').textContent = desc;
+  document.getElementById('preview-footer').textContent = footer;
+  document.getElementById('preview-footer').style.display = footer ? '' : 'none';
+  preview.style.borderColor = color;
+}
+
+async function sendEmbed() {
+  const channel_id = csEmbedChannel ? csEmbedChannel.getValue() : '';
+  if (!channel_id) { alert('Please select a channel.'); return; }
+  const title = document.getElementById('embed-title').value.trim();
+  const description = document.getElementById('embed-desc').value.trim();
+  if (!title && !description) { alert('Please enter a title or description.'); return; }
+  const color = document.getElementById('embed-color').value;
+  const footer = document.getElementById('embed-footer').value.trim();
+
+  const btn = document.getElementById('send-embed-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Sending...';
+
+  try {
+    const resp = await csrfFetch(`/ql/api/dashboard/fluxer/${GUILD_ID}/messages/send-embed/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ channel_id, title, description, color, footer }),
+    });
+    const data = await resp.json();
+    if (data.success) {
+      btn.innerHTML = '<i class="fas fa-check mr-2"></i>Queued!';
+      setTimeout(() => {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-paper-plane mr-2"></i>Send Embed';
+      }, 3000);
+    } else {
+      alert(data.error || 'Failed to send embed.');
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fas fa-paper-plane mr-2"></i>Send Embed';
+    }
+  } catch (e) {
+    alert('Network error. Please try again.');
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-paper-plane mr-2"></i>Send Embed';
+  }
+}
+function sendBroadcast() {}
+</script>
+{% endblock %}

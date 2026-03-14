@@ -7,12 +7,6 @@
 {% include 'questlog/partials/custom_select.html' %}
 
 <script>
-  function escapeHtml(text) {
-    if (text == null || text === undefined) return '';
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-  }
 </script>
 
 <!-- Header -->
@@ -173,6 +167,17 @@ function filterCommunities() {
   renderCommunities(filtered);
 }
 
+const ACTIVITY_TIERS = {
+  dormant:   { label: 'Dormant',   icon: 'fas fa-moon',      color: 'text-gray-400' },
+  squire:    { label: 'Squire',    icon: 'fas fa-shield-alt', color: 'text-amber-600' },
+  champion:  { label: 'Champion',  icon: 'fas fa-star',       color: 'text-blue-400' },
+  legendary: { label: 'Legendary', icon: 'fas fa-dragon',     color: 'text-purple-400' },
+  mythic:    { label: 'Mythic',    icon: 'fas fa-crown',      color: 'text-yellow-400' },
+};
+function activityTier(level) {
+  return ACTIVITY_TIERS[level] || { label: 'Unknown', icon: 'fas fa-question', color: 'text-gray-500' };
+}
+
 function renderCommunities(communities) {
   const container = document.getElementById('communitiesList');
 
@@ -210,7 +215,7 @@ function renderCommunities(communities) {
            <i class="${platformIcons[comm.platform] || platformIcons.other} text-xl"></i>
          </div>`;
     return `
-    <div class="bg-neutral-900/50 border border-neutral-800 rounded-lg overflow-hidden hover:border-purple-500/30 transition cursor-pointer" onclick="openDetailModal(${comm.id})">
+    <div class="bg-neutral-900/50 border border-neutral-800 rounded-lg overflow-hidden hover:border-purple-500/30 transition cursor-pointer" onclick="window.location='/ql/communities/${comm.id}/'">
       ${comm.banner_url ? `<img src="${escapeHtml(comm.banner_url)}" class="w-full h-20 object-cover">` : ''}
       <div class="p-4">
         <div class="flex items-start gap-3 mb-3">
@@ -237,10 +242,15 @@ function renderCommunities(communities) {
         </div>` : ''}
         <div class="flex items-center justify-between text-sm">
           <span class="text-gray-400"><i class="fas fa-users mr-1"></i>${comm.member_count.toLocaleString()} members</span>
+          <span class="${activityTier(comm.activity_level).color} text-xs font-medium">
+            <i class="${activityTier(comm.activity_level).icon} mr-1"></i>${activityTier(comm.activity_level).label}
+          </span>
+        </div>
+        <div class="mt-2 flex justify-end">
           ${comm.allow_joins && comm.invite_url
             ? `<a href="${escapeHtml(comm.invite_url)}" target="_blank" rel="noopener" onclick="event.stopPropagation();"
-                class="text-green-400 hover:text-green-300 transition"><i class="fas fa-door-open mr-1"></i>Open</a>`
-            : `<span class="text-gray-500"><i class="fas fa-lock mr-1"></i>Invite Only</span>`
+                class="text-green-400 hover:text-green-300 transition text-sm"><i class="fas fa-door-open mr-1"></i>Open</a>`
+            : `<span class="text-gray-500 text-sm"><i class="fas fa-lock mr-1"></i>Invite Only</span>`
           }
         </div>
       </div>
@@ -289,6 +299,13 @@ async function openEditModal(communityId) {
   document.getElementById('editMemberCount').value = c.member_count || 0;
   document.getElementById('editAllowDiscovery').checked = !!c.allow_discovery;
   document.getElementById('editAllowJoins').checked = !!c.allow_joins;
+  const xpRow = document.getElementById('editUnifiedXpRow');
+  if (c.site_xp_to_guild) {
+    xpRow.style.display = '';
+    document.getElementById('editSiteXpToGuild').checked = true;
+  } else {
+    xpRow.style.display = 'none';
+  }
   document.getElementById('editPlatform').value = c.platform || 'discord';
 
   // Build tag grid with current selections
@@ -379,6 +396,7 @@ async function saveEditCommunity() {
       member_count: parseInt(document.getElementById('editMemberCount').value) || 0,
       allow_discovery: document.getElementById('editAllowDiscovery').checked,
       allow_joins: document.getElementById('editAllowJoins').checked,
+      site_xp_to_guild: document.getElementById('editSiteXpToGuild').checked,
       tags: [...editSelectedTags],
     };
     const r = await csrfFetch(`/ql/api/communities/${communityId}/`, {
@@ -405,13 +423,6 @@ function previewImage(inputId, previewId) {
   const reader = new FileReader();
   reader.onload = e => { preview.src = e.target.result; preview.classList.remove('hidden'); };
   reader.readAsDataURL(file);
-}
-
-function csrfFetch(url, options = {}) {
-  const csrfToken = document.cookie.split(';').map(c => c.trim()).find(c => c.startsWith('csrftoken='));
-  options.headers = options.headers || {};
-  options.headers['X-CSRFToken'] = csrfToken ? csrfToken.split('=')[1] : '';
-  return fetch(url, options);
 }
 
 // ============================================================
@@ -652,7 +663,7 @@ function closeDetailModal() {
         <p id="editTagCount" class="text-xs text-gray-500 mt-2">0/8 selected</p>
       </div>
 
-      <div class="flex gap-6">
+      <div class="flex gap-6 flex-wrap">
         <label class="flex items-center gap-2 cursor-pointer">
           <input type="checkbox" id="editAllowDiscovery" class="rounded bg-neutral-700 border-neutral-600 text-purple-500">
           <span class="text-sm text-gray-300">Show in directory</span>
@@ -660,6 +671,10 @@ function closeDetailModal() {
         <label class="flex items-center gap-2 cursor-pointer">
           <input type="checkbox" id="editAllowJoins" class="rounded bg-neutral-700 border-neutral-600 text-purple-500">
           <span class="text-sm text-gray-300">Show invite link publicly</span>
+        </label>
+        <label class="flex items-center gap-2 cursor-pointer" id="editUnifiedXpRow" style="display:none">
+          <input type="checkbox" id="editSiteXpToGuild" class="rounded bg-neutral-700 border-neutral-600 text-blue-500">
+          <span class="text-sm text-gray-300">Unified XP <span class="text-blue-400 text-xs">(admin-enabled)</span></span>
         </label>
       </div>
     </div>

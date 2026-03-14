@@ -6,19 +6,6 @@
 {% block web_content %}
 <script>
   const CSRF_TOKEN = '{{ csrf_token }}';
-  function csrfFetch(url, options = {}) {
-    if (!options.headers) options.headers = {};
-    if (CSRF_TOKEN && CSRF_TOKEN !== 'None') {
-      options.headers['X-CSRFToken'] = CSRF_TOKEN;
-    }
-    return fetch(url, options);
-  }
-  function escapeHtml(text) {
-    if (text == null || text === undefined) return '';
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-  }
 </script>
 
 <!-- Header -->
@@ -92,8 +79,8 @@ async function loadMyGroups() {
     const allGroups = data.groups || [];
 
     const userId = {{ web_user.id }};
-    myCreatedGroups = allGroups.filter(g => g.creator_id === userId);
-    myJoinedGroups = allGroups.filter(g => g.creator_id !== userId);
+    myCreatedGroups = allGroups.filter(g => g.is_creator === true || g.creator_id === userId);
+    myJoinedGroups = allGroups.filter(g => !(g.is_creator === true || g.creator_id === userId));
 
     renderMyGroups();
   } catch (error) {
@@ -151,17 +138,24 @@ function renderMyGroups() {
             <div class="flex items-center gap-4 text-sm text-gray-400 mt-2">
               <span><i class="fas fa-users mr-1"></i>${group.current_size}/${group.group_size}</span>
               <span><i class="fas fa-clock mr-1"></i>${group.scheduled_time ? new Date(group.scheduled_time * 1000).toLocaleDateString() : 'Now'}</span>
+              <span class="text-gray-600 text-xs">#${group.platform === 'fluxer_guild' ? group.guild_lfg_id : group.id}</span>
             </div>
           </div>
           <div class="flex gap-2">
-            <a href="/ql/lfg/${group.id}/" class="bg-neutral-700 hover:bg-neutral-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition">
-              <i class="fas fa-eye mr-1"></i>View
-            </a>
-            ${activeTab === 'joined' ? `
-              <button onclick="leaveGroup(${group.id})" class="bg-red-600/20 hover:bg-red-600/30 text-red-400 px-4 py-2 rounded-lg text-sm font-medium transition">
-                <i class="fas fa-sign-out-alt mr-1"></i>Leave
-              </button>
-            ` : ''}
+            ${group.platform === 'fluxer_guild' ? `
+              <a href="/ql/fluxer/${encodeURIComponent(group.guild_id)}/lfg/" class="bg-neutral-700 hover:bg-neutral-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition">
+                <i class="fas fa-eye mr-1"></i>View
+              </a>
+            ` : `
+              <a href="/ql/lfg/${group.id}/" class="bg-neutral-700 hover:bg-neutral-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition">
+                <i class="fas fa-eye mr-1"></i>View
+              </a>
+              ${activeTab === 'joined' ? `
+                <button onclick="leaveGroup(${group.id})" class="bg-red-600/20 hover:bg-red-600/30 text-red-400 px-4 py-2 rounded-lg text-sm font-medium transition">
+                  <i class="fas fa-sign-out-alt mr-1"></i>Leave
+                </button>
+              ` : ''}
+            `}
           </div>
         </div>
       </div>

@@ -1,0 +1,516 @@
+<!-- Fluxer Guild Sidebar - ported from app/templates/questlog/partials/guild_sidebar.html -->
+<aside id="fl-sidebar"
+       class="fixed inset-y-0 left-0 z-50 w-64 bg-neutral-900 border-r border-neutral-800 flex flex-col transition-all duration-300 -translate-x-full lg:translate-x-0">
+
+  <!-- Mobile toggle -->
+  <button onclick="toggleFluxerSidebar()"
+          class="lg:hidden absolute top-4 -right-12 bg-neutral-800 p-2 rounded-r-lg border border-l-0 border-neutral-700 z-10">
+    <i class="fas fa-bars text-gray-400"></i>
+  </button>
+
+  <!-- Server Selector -->
+  <div class="p-3 border-b border-neutral-800">
+    <div class="relative" id="fl-server-selector">
+      <button onclick="toggleFluxerServerDropdown()"
+              class="w-full flex items-center gap-3 p-2 rounded-xl hover:bg-neutral-800 transition group">
+        <div class="w-10 h-10 bg-purple-700/30 rounded-xl flex items-center justify-center flex-shrink-0 border border-purple-700/40">
+          <span class="text-purple-300 font-bold text-sm fl-sidebar-label">{{ guild_name|slice:":2"|upper }}</span>
+          <i class="fas fa-satellite-dish text-purple-400 hidden fl-sidebar-icon-only text-sm"></i>
+        </div>
+        <div class="flex-1 min-w-0 text-left fl-sidebar-label">
+          <h2 class="text-white font-semibold text-sm truncate">{{ guild_name }}</h2>
+          <span class="text-xs text-purple-400 font-medium">Admin</span>
+        </div>
+        <i class="fas fa-chevron-down text-gray-500 text-xs flex-shrink-0 transition-transform fl-sidebar-label"
+           id="fl-server-chevron"></i>
+      </button>
+
+      <!-- Server dropdown -->
+      <div id="fl-server-dropdown"
+           class="hidden absolute top-full left-0 right-0 mt-1 bg-neutral-800 border border-neutral-700 rounded-xl shadow-xl z-50 max-h-64 overflow-y-auto">
+        <div class="p-1">
+          <a href="/ql/dashboard/fluxer/"
+             class="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-neutral-700 transition text-sm text-gray-400 hover:text-white">
+            <i class="fas fa-th-large text-xs w-4 text-center"></i>
+            <span>All Servers</span>
+          </a>
+          <div class="border-t border-neutral-700 my-1"></div>
+          {% for g in all_guilds %}
+          <a href="/ql/dashboard/fluxer/{{ g.guild_id }}/"
+             class="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-neutral-700 transition text-sm {% if g.guild_id == guild_id %}text-purple-400 bg-purple-600/10{% else %}text-gray-300{% endif %}">
+            <div class="w-6 h-6 bg-neutral-700 rounded-md flex items-center justify-center flex-shrink-0 text-xs font-bold text-gray-400">
+              {{ g.guild_name|slice:":1"|upper }}
+            </div>
+            <span class="truncate">{{ g.guild_name }}</span>
+          </a>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Navigation -->
+  <nav class="flex-1 overflow-y-auto p-3 space-y-4">
+
+    <!-- Dashboard -->
+    <div>
+      <a href="/ql/dashboard/fluxer/{{ guild_id }}/"
+         class="fl-nav-item {% if active_section == 'overview' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition group">
+        <i class="fas fa-home text-gray-400 group-hover:text-white w-4 text-center"></i>
+        <span class="fl-sidebar-label">Dashboard</span>
+      </a>
+    </div>
+
+    <!-- Member Features -->
+    <div>
+      <p class="px-3 mb-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider fl-sidebar-label">Member Features</p>
+      <div class="space-y-0.5">
+        <a href="/ql/dashboard/fluxer/{{ guild_id }}/lfg/browse/"
+           class="fl-nav-item {% if active_section == 'lfg_browse' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          <i class="fas fa-users text-gray-400 group-hover:text-green-400 w-4 text-center"></i>
+          <span class="fl-sidebar-label">Find Groups</span>
+        </a>
+        <a href="/ql/fluxer/{{ guild_id }}/games/"
+           class="fl-nav-item {% if active_section == 'games' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          <i class="fas fa-gamepad text-gray-400 group-hover:text-green-400 w-4 text-center"></i>
+          <span class="fl-sidebar-label">Found Games</span>
+        </a>
+        <a href="/ql/fluxer/{{ guild_id }}/flairs/"
+           class="fl-nav-item {% if active_section == 'member_flairs' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          <i class="fas fa-palette text-gray-400 group-hover:text-pink-400 w-4 text-center"></i>
+          <span class="fl-sidebar-label">Flair Store</span>
+        </a>
+        <a href="/ql/fluxer/{{ guild_id }}/raffles/"
+           class="fl-nav-item {% if active_section == 'member_raffles' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          <i class="fas fa-ticket-alt text-gray-400 group-hover:text-yellow-400 w-4 text-center"></i>
+          <span class="fl-sidebar-label">Giveaways</span>
+        </a>
+        <a href="/ql/fluxer/{{ guild_id }}/rss/"
+           class="fl-nav-item {% if active_section == 'member_rss' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          <i class="fas fa-newspaper text-gray-400 group-hover:text-orange-400 w-4 text-center"></i>
+          <span class="fl-sidebar-label">RSS Articles</span>
+        </a>
+        {% if is_network_approved %}
+        <a href="/ql/network/"
+           class="fl-nav-item flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          <i class="fas fa-globe text-gray-400 group-hover:text-indigo-400 w-4 text-center"></i>
+          <span class="fl-sidebar-label flex-1">QuestLog Network</span>
+          <i class="fas fa-external-link-alt text-gray-600 text-xs fl-sidebar-label"></i>
+        </a>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Engagement -->
+    <div>
+      <p class="px-3 mb-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider fl-sidebar-label">Engagement</p>
+      <div class="space-y-0.5">
+        <!-- XP System (collapsible) -->
+        <div>
+          <button onclick="toggleXpSection()"
+                  class="fl-nav-item {% if active_section == 'xp' %}active{% endif %} w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+            <i class="fas fa-star text-gray-400 group-hover:text-yellow-400 w-4 text-center flex-shrink-0"></i>
+            <span class="fl-sidebar-label flex-1 text-left">XP &amp; Leveling</span>
+            <i id="xp-chevron" class="fas fa-chevron-down text-xs fl-sidebar-label transition-transform"></i>
+          </button>
+          <div id="xp-submenu" class="hidden pl-6 space-y-0.5 mt-0.5">
+            <a href="/ql/dashboard/fluxer/{{ guild_id }}/xp/#settings"
+               class="fl-nav-item {% if active_section == 'xp' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+              <i class="fas fa-cog text-gray-500 group-hover:text-yellow-400 w-3 text-center"></i>
+              <span class="fl-sidebar-label">XP Settings</span>
+            </a>
+            <a href="/ql/dashboard/fluxer/{{ guild_id }}/xp/#levelup"
+               class="fl-nav-item flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+              <i class="fas fa-comment text-gray-500 group-hover:text-blue-400 w-3 text-center"></i>
+              <span class="fl-sidebar-label">Level-Up Messages</span>
+            </a>
+            <a href="/ql/dashboard/fluxer/{{ guild_id }}/xp/#boosts"
+               class="fl-nav-item flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+              <i class="fas fa-bolt text-gray-500 group-hover:text-orange-400 w-3 text-center"></i>
+              <span class="fl-sidebar-label">XP Boost Events</span>
+            </a>
+          </div>
+        </div>
+        <!-- LFG System (collapsible) -->
+        <div>
+          <button onclick="toggleLfgSection()"
+                  class="fl-nav-item {% if active_section in 'lfg,lfg_attendance,lfg_calendar' %}active{% endif %} w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+            <i class="fas fa-users text-gray-400 group-hover:text-green-400 w-4 text-center flex-shrink-0"></i>
+            <span class="fl-sidebar-label flex-1 text-left">LFG System</span>
+            <i id="lfg-chevron" class="fas fa-chevron-down text-xs fl-sidebar-label transition-transform"></i>
+          </button>
+          <div id="lfg-submenu" class="hidden pl-6 space-y-0.5 mt-0.5">
+            <a href="/ql/dashboard/fluxer/{{ guild_id }}/lfg/"
+               class="fl-nav-item {% if active_section == 'lfg' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+              <i class="fas fa-cog text-gray-500 group-hover:text-green-400 w-3 text-center"></i>
+              <span class="fl-sidebar-label">LFG Settings</span>
+            </a>
+            <a href="/ql/dashboard/fluxer/{{ guild_id }}/lfg/attendance/"
+               class="fl-nav-item {% if active_section == 'lfg_attendance' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+              <i class="fas fa-clipboard-list text-gray-500 group-hover:text-blue-400 w-3 text-center"></i>
+              <span class="fl-sidebar-label">Attendance</span>
+            </a>
+            <a href="/ql/dashboard/fluxer/{{ guild_id }}/lfg/calendar/"
+               class="fl-nav-item {% if active_section == 'lfg_calendar' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+              <i class="fas fa-calendar-alt text-gray-500 group-hover:text-purple-400 w-3 text-center"></i>
+              <span class="fl-sidebar-label">Calendar</span>
+            </a>
+          </div>
+        </div>
+        <!-- Discovery System (collapsible) -->
+        <div>
+          <button onclick="toggleDiscoverySection()"
+                  class="fl-nav-item {% if active_section == 'discovery' %}active{% endif %} w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+            <i class="fas fa-bullhorn text-gray-400 group-hover:text-orange-400 w-4 text-center flex-shrink-0"></i>
+            <span class="fl-sidebar-label flex-1 text-left">Discovery</span>
+            <i id="discovery-chevron" class="fas fa-chevron-down text-xs fl-sidebar-label transition-transform"></i>
+          </button>
+          <div id="discovery-submenu" class="hidden pl-6 space-y-0.5 mt-0.5">
+            <a href="/ql/dashboard/fluxer/{{ guild_id }}/discovery/?tab=creator"
+               class="fl-nav-item {% if active_section == 'discovery' and active_tab == 'creator' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+              <i class="fas fa-user text-gray-500 group-hover:text-orange-400 w-3 text-center"></i>
+              <span class="fl-sidebar-label">Creator Settings</span>
+            </a>
+            <a href="/ql/dashboard/fluxer/{{ guild_id }}/discovery/?tab=games"
+               class="fl-nav-item {% if active_section == 'discovery' and active_tab == 'games' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+              <i class="fas fa-gamepad text-gray-500 group-hover:text-orange-400 w-3 text-center"></i>
+              <span class="fl-sidebar-label">Game Settings</span>
+            </a>
+            <a href="/ql/dashboard/fluxer/{{ guild_id }}/discovery/?tab=network"
+               class="fl-nav-item {% if active_section == 'discovery' and active_tab == 'network' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+              <i class="fas fa-globe text-gray-500 group-hover:text-indigo-400 w-3 text-center"></i>
+              <span class="fl-sidebar-label">QuestLog Network</span>
+            </a>
+            <a href="/ql/dashboard/fluxer/{{ guild_id }}/discovery/?tab=rss"
+               class="fl-nav-item {% if active_section == 'discovery' and active_tab == 'rss' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+              <i class="fas fa-rss text-gray-500 group-hover:text-orange-400 w-3 text-center"></i>
+              <span class="fl-sidebar-label">RSS Feeds</span>
+            </a>
+            <a href="/ql/dashboard/fluxer/{{ guild_id }}/discovery/?tab=twitch"
+               class="fl-nav-item fl-nav-soon flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+              <i class="fab fa-twitch text-gray-500 group-hover:text-purple-400 w-3 text-center"></i>
+              <span class="fl-sidebar-label flex-1">Twitch</span>
+              <span class="fl-soon-badge fl-sidebar-label">Soon</span>
+            </a>
+            <a href="/ql/dashboard/fluxer/{{ guild_id }}/discovery/?tab=youtube"
+               class="fl-nav-item fl-nav-soon flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+              <i class="fab fa-youtube text-gray-500 group-hover:text-red-400 w-3 text-center"></i>
+              <span class="fl-sidebar-label flex-1">YouTube</span>
+              <span class="fl-soon-badge fl-sidebar-label">Soon</span>
+            </a>
+          </div>
+        </div>
+        <a href="/ql/dashboard/fluxer/{{ guild_id }}/raffles/"
+           class="fl-nav-item {% if active_section == 'guild_raffles' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          <i class="fas fa-ticket-alt text-gray-400 group-hover:text-yellow-400 w-4 text-center"></i>
+          <span class="fl-sidebar-label">Raffles</span>
+        </a>
+        <a href="/ql/dashboard/fluxer/{{ guild_id }}/trackers/"
+           class="fl-nav-item {% if active_section == 'trackers' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          <i class="fas fa-chart-bar text-gray-400 group-hover:text-orange-400 w-4 text-center"></i>
+          <span class="fl-sidebar-label">Trackers</span>
+        </a>
+      </div>
+    </div>
+
+    <!-- Moderation -->
+    <div>
+      <p class="px-3 mb-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider fl-sidebar-label">Moderation</p>
+      <div class="space-y-0.5">
+        <a href="/ql/dashboard/fluxer/{{ guild_id }}/moderation/"
+           class="fl-nav-item {% if active_section == 'moderation' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          <i class="fas fa-gavel text-gray-400 group-hover:text-red-400 w-4 text-center"></i>
+          <span class="fl-sidebar-label">Moderation</span>
+        </a>
+        <a href="/ql/dashboard/fluxer/{{ guild_id }}/verification/"
+           class="fl-nav-item {% if active_section == 'verification' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          <i class="fas fa-user-check text-gray-400 group-hover:text-green-400 w-4 text-center"></i>
+          <span class="fl-sidebar-label">Verification</span>
+        </a>
+        <a href="/ql/dashboard/fluxer/{{ guild_id }}/audit/"
+           class="fl-nav-item {% if active_section == 'audit' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          <i class="fas fa-history text-gray-400 group-hover:text-yellow-400 w-4 text-center"></i>
+          <span class="fl-sidebar-label">Audit Log</span>
+        </a>
+      </div>
+    </div>
+
+    <!-- Message System -->
+    <div>
+      <p class="px-3 mb-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider fl-sidebar-label">Message System</p>
+      <div class="space-y-0.5">
+        <a href="/ql/dashboard/fluxer/{{ guild_id }}/welcome/"
+           class="fl-nav-item {% if active_section == 'welcome' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          <i class="fas fa-hand-wave text-gray-400 group-hover:text-blue-400 w-4 text-center"></i>
+          <span class="fl-sidebar-label">Welcome Messages</span>
+        </a>
+        <a href="/ql/dashboard/fluxer/{{ guild_id }}/reaction-roles/"
+           class="fl-nav-item {% if active_section == 'reaction_roles' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          <i class="fas fa-smile text-gray-400 group-hover:text-yellow-400 w-4 text-center"></i>
+          <span class="fl-sidebar-label">Reaction Roles</span>
+        </a>
+        <a href="/ql/dashboard/fluxer/{{ guild_id }}/messages/"
+           class="fl-nav-item {% if active_section == 'messages' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          <i class="fas fa-comment-dots text-gray-400 group-hover:text-blue-400 w-4 text-center"></i>
+          <span class="fl-sidebar-label">Message Tools</span>
+        </a>
+        <a href="/ql/dashboard/fluxer/{{ guild_id }}/live-alerts/"
+           class="fl-nav-item {% if active_section == 'live_alerts' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          <i class="fas fa-broadcast-tower text-gray-400 group-hover:text-rose-400 w-4 text-center"></i>
+          <span class="fl-sidebar-label">Live Alerts</span>
+        </a>
+      </div>
+    </div>
+
+    <!-- Customization -->
+    <div>
+      <p class="px-3 mb-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider fl-sidebar-label">Customization</p>
+      <div class="space-y-0.5">
+        <a href="/ql/dashboard/fluxer/{{ guild_id }}/roles/"
+           class="fl-nav-item {% if active_section == 'roles' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          <i class="fas fa-user-tag text-gray-400 group-hover:text-indigo-400 w-4 text-center"></i>
+          <span class="fl-sidebar-label">Role Management</span>
+        </a>
+        <a href="/ql/dashboard/fluxer/{{ guild_id }}/flairs/"
+           class="fl-nav-item {% if active_section == 'flair' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          <i class="fas fa-palette text-gray-400 group-hover:text-pink-400 w-4 text-center"></i>
+          <span class="fl-sidebar-label">Flair Management</span>
+        </a>
+        <a href="/ql/dashboard/fluxer/{{ guild_id }}/templates/"
+           class="fl-nav-item {% if active_section == 'templates' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          <i class="fas fa-copy text-gray-400 group-hover:text-pink-400 w-4 text-center"></i>
+          <span class="fl-sidebar-label">Templates</span>
+        </a>
+        <a href="/ql/dashboard/fluxer/{{ guild_id }}/settings/"
+           class="fl-nav-item {% if active_section == 'settings' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          <i class="fas fa-sliders-h text-gray-400 group-hover:text-gray-200 w-4 text-center"></i>
+          <span class="fl-sidebar-label">Settings</span>
+        </a>
+      </div>
+    </div>
+
+    <!-- Bridge -->
+    <div>
+      <p class="px-3 mb-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider fl-sidebar-label">Bridge</p>
+      <div class="space-y-0.5">
+        <a href="/ql/dashboard/fluxer/{{ guild_id }}/bridge/"
+           class="fl-nav-item {% if active_section == 'bridge' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          <i class="fas fa-satellite-dish text-gray-400 group-hover:text-purple-400 w-4 text-center"></i>
+          <span class="fl-sidebar-label">Chat Bridge</span>
+        </a>
+      </div>
+    </div>
+
+    <!-- My Servers (always visible) -->
+    <div>
+      <p class="px-3 mb-1.5 text-xs font-bold text-purple-400 uppercase tracking-wider fl-sidebar-label">My Servers</p>
+      <div class="space-y-0.5">
+        <a href="/ql/dashboard/fluxer/"
+           class="fl-nav-item flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          <i class="fas fa-th-large text-gray-400 group-hover:text-purple-400 w-4 text-center"></i>
+          <span class="fl-sidebar-label">All Servers</span>
+        </a>
+        {% for g in all_guilds %}
+        {% if g.guild_id != guild_id %}
+        <a href="/ql/dashboard/fluxer/{{ g.guild_id }}/"
+           class="fl-nav-item flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          <i class="fas fa-satellite-dish text-cyan-600 group-hover:text-cyan-400 w-4 text-center flex-shrink-0"></i>
+          <div class="flex flex-col min-w-0 fl-sidebar-label">
+            <span class="truncate leading-tight">{{ g.guild_name }}</span>
+            <span class="text-[10px] text-cyan-700 leading-tight">Fluxer</span>
+          </div>
+        </a>
+        {% endif %}
+        {% endfor %}
+      </div>
+    </div>
+
+  </nav>
+
+  <!-- Footer -->
+  <div class="p-3 border-t border-neutral-800 space-y-1">
+    <a href="/ql/dashboard/fluxer/"
+       class="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-neutral-800 transition text-sm text-gray-400 hover:text-white">
+      <i class="fas fa-th-large text-xs w-4 text-center"></i>
+      <span class="fl-sidebar-label">All Servers</span>
+    </a>
+    <button onclick="toggleFluxerSidebarCollapse()"
+            class="hidden lg:flex items-center gap-2 w-full px-3 py-2 rounded-lg hover:bg-neutral-800 transition text-sm text-gray-500 hover:text-white">
+      <i class="fas fa-compress-alt text-xs w-4 text-center" id="fl-collapse-icon"></i>
+      <span class="fl-sidebar-label">Collapse</span>
+    </button>
+  </div>
+</aside>
+
+<!-- Mobile overlay -->
+<div id="fl-sidebar-overlay" onclick="toggleFluxerSidebar()"
+     class="lg:hidden fixed inset-0 bg-black/60 z-40 hidden"></div>
+
+<!-- Mobile open button -->
+<button onclick="toggleFluxerSidebar()"
+        class="lg:hidden fixed top-4 left-4 z-30 bg-neutral-800 p-2 rounded-lg border border-neutral-700 shadow-lg">
+  <i class="fas fa-bars text-gray-300"></i>
+</button>
+
+<style>
+.fl-nav-item {
+  color: #9ca3af;
+  display: flex;
+  align-items: center;
+  font-weight: 500;
+}
+.fl-nav-item:hover {
+  background: rgba(55, 65, 81, 0.5);
+  color: #f9fafb;
+}
+.fl-nav-item.active {
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.2), rgba(99, 102, 241, 0.15));
+  color: white;
+  border-left: 3px solid #8b5cf6;
+  padding-left: calc(0.75rem - 3px);
+}
+.fl-nav-item.active i {
+  color: #a78bfa;
+}
+.fl-nav-soon {
+  opacity: 0.6;
+}
+.fl-soon-badge {
+  font-size: 0.625rem;
+  background: rgba(234, 179, 8, 0.15);
+  color: #facc15;
+  padding: 0.125rem 0.375rem;
+  border-radius: 9999px;
+  white-space: nowrap;
+}
+
+/* Scrollbar */
+#fl-sidebar::-webkit-scrollbar { width: 6px; }
+#fl-sidebar::-webkit-scrollbar-track { background: transparent; }
+#fl-sidebar::-webkit-scrollbar-thumb { background: #374151; border-radius: 3px; }
+#fl-sidebar::-webkit-scrollbar-thumb:hover { background: #4b5563; }
+
+/* Collapsed state */
+#fl-sidebar.collapsed {
+  width: 4rem;
+}
+#fl-sidebar.collapsed .fl-sidebar-label {
+  display: none;
+}
+#fl-sidebar.collapsed #fl-server-selector > button {
+  justify-content: center;
+}
+#fl-sidebar.collapsed .fl-nav-item {
+  justify-content: center;
+  padding-left: 0.5rem !important;
+  padding-right: 0.5rem;
+}
+#fl-sidebar.collapsed .fl-nav-item i {
+  margin: 0 !important;
+}
+</style>
+
+<script>
+function toggleFluxerSidebar() {
+  const sidebar = document.getElementById('fl-sidebar');
+  const overlay = document.getElementById('fl-sidebar-overlay');
+  sidebar.classList.toggle('-translate-x-full');
+  overlay.classList.toggle('hidden');
+}
+
+function toggleFluxerServerDropdown() {
+  const dd = document.getElementById('fl-server-dropdown');
+  const chevron = document.getElementById('fl-server-chevron');
+  dd.classList.toggle('hidden');
+  if (chevron) chevron.classList.toggle('rotate-180');
+}
+
+function toggleFluxerSidebarCollapse() {
+  const sidebar = document.getElementById('fl-sidebar');
+  const main = document.getElementById('fl-main-content');
+  const icon = document.getElementById('fl-collapse-icon');
+  const isCollapsed = sidebar.classList.toggle('collapsed');
+  if (main) main.style.marginLeft = isCollapsed ? '4rem' : '';
+  if (icon) icon.className = isCollapsed
+    ? 'fas fa-expand-alt text-xs w-4 text-center'
+    : 'fas fa-compress-alt text-xs w-4 text-center';
+  localStorage.setItem('fluxerSidebarCollapsed', isCollapsed ? 'true' : 'false');
+}
+
+// LFG collapsible section
+function toggleLfgSection() {
+  const menu = document.getElementById('lfg-submenu');
+  const chevron = document.getElementById('lfg-chevron');
+  const expanded = !menu.classList.contains('hidden');
+  menu.classList.toggle('hidden');
+  if (chevron) chevron.classList.toggle('rotate-180', !expanded);
+  localStorage.setItem('fluxerLfgExpanded', !expanded ? 'true' : 'false');
+}
+
+// Auto-expand LFG submenu if on an LFG page or previously expanded
+(function() {
+  const isLfgActive = {% if active_section == 'lfg' or active_section == 'lfg_attendance' or active_section == 'lfg_calendar' %}true{% else %}false{% endif %};
+  const wasSaved = localStorage.getItem('fluxerLfgExpanded') === 'true';
+  if (isLfgActive || wasSaved) {
+    const menu = document.getElementById('lfg-submenu');
+    const chevron = document.getElementById('lfg-chevron');
+    if (menu) menu.classList.remove('hidden');
+    if (chevron) chevron.classList.add('rotate-180');
+  }
+})();
+
+// XP collapsible section
+function toggleXpSection() {
+  const menu = document.getElementById('xp-submenu');
+  const chevron = document.getElementById('xp-chevron');
+  const expanded = !menu.classList.contains('hidden');
+  menu.classList.toggle('hidden');
+  if (chevron) chevron.classList.toggle('rotate-180', !expanded);
+  localStorage.setItem('fluxerXpExpanded', !expanded ? 'true' : 'false');
+}
+
+// Auto-expand XP submenu if on XP page or previously expanded
+(function() {
+  const isXpActive = {% if active_section == 'xp' %}true{% else %}false{% endif %};
+  const wasSaved = localStorage.getItem('fluxerXpExpanded') === 'true';
+  if (isXpActive || wasSaved) {
+    const menu = document.getElementById('xp-submenu');
+    const chevron = document.getElementById('xp-chevron');
+    if (menu) menu.classList.remove('hidden');
+    if (chevron) chevron.classList.add('rotate-180');
+  }
+})();
+
+// Discovery collapsible section
+function toggleDiscoverySection() {
+  const menu = document.getElementById('discovery-submenu');
+  const chevron = document.getElementById('discovery-chevron');
+  const expanded = !menu.classList.contains('hidden');
+  menu.classList.toggle('hidden');
+  if (chevron) chevron.classList.toggle('rotate-180', !expanded);
+  localStorage.setItem('fluxerDiscoveryExpanded', !expanded ? 'true' : 'false');
+}
+
+// Auto-expand Discovery submenu if on a discovery page or previously expanded
+(function() {
+  const isDiscoveryActive = {% if active_section == 'discovery' %}true{% else %}false{% endif %};
+  const wasSaved = localStorage.getItem('fluxerDiscoveryExpanded') === 'true';
+  if (isDiscoveryActive || wasSaved) {
+    const menu = document.getElementById('discovery-submenu');
+    const chevron = document.getElementById('discovery-chevron');
+    if (menu) menu.classList.remove('hidden');
+    if (chevron) chevron.classList.add('rotate-180');
+  }
+})();
+
+// Close server dropdown on outside click
+document.addEventListener('click', function(e) {
+  const selector = document.getElementById('fl-server-selector');
+  const dd = document.getElementById('fl-server-dropdown');
+  if (selector && dd && !selector.contains(e.target)) {
+    dd.classList.add('hidden');
+    const chevron = document.getElementById('fl-server-chevron');
+    if (chevron) chevron.classList.remove('rotate-180');
+  }
+});
+</script>

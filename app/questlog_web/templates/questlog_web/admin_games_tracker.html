@@ -174,11 +174,7 @@
         </h3>
         <div>
           <label class="block text-sm text-gray-400 mb-2">Type <span class="text-red-400">*</span></label>
-          <select id="gameType" onchange="toggleGameTypeSections()" class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2 text-white focus:border-indigo-500 focus:outline-none">
-            <option value="discord">Discord Only (Activity Tracking)</option>
-            <option value="amp">AMP Server Only (Live Server Status)</option>
-            <option value="both">Both (AMP + Discord)</option>
-          </select>
+          <div id="gameTypeContainer"></div>
         </div>
       </div>
 
@@ -260,8 +256,8 @@
           <input type="url" id="steamLink" class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2 text-white focus:border-indigo-500 focus:outline-none" placeholder="https://store.steampowered.com/app/...">
         </div>
         <div>
-          <label class="block text-sm text-gray-400 mb-2">Discord Invite</label>
-          <input type="url" id="discordInvite" class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2 text-white focus:border-indigo-500 focus:outline-none" placeholder="https://discord.gg/...">
+          <label class="block text-sm text-gray-400 mb-2">Platform Invite <span class="text-gray-600 text-xs">(Discord, Fluxer, Matrix, etc.)</span></label>
+          <input type="url" id="discordInvite" class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2 text-white focus:border-indigo-500 focus:outline-none" placeholder="https://discord.gg/ or https://fluxer.app/invite/...">
         </div>
         <div>
           <label class="block text-sm text-gray-400 mb-2">Link Button Label</label>
@@ -276,11 +272,7 @@
         </h3>
         <div>
           <label class="block text-sm text-gray-400 mb-2">Show On <span class="text-red-400">*</span></label>
-          <select id="displayOn" class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2 text-white focus:border-indigo-500 focus:outline-none">
-            <option value="gamesweplay">Games We Play (casual-heroes.com/gamesweplay/)</option>
-            <option value="gameservers">Game Servers (casual-heroes.com/gameservers/)</option>
-            <option value="both">Both Pages</option>
-          </select>
+          <div id="displayOnContainer"></div>
         </div>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
@@ -348,11 +340,6 @@
 </div>
 
 <script>
-function escapeHtml(s) {
-  if (s == null) return '';
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
-}
-
 // ── Steam game search autocomplete ──────────────────────────────────────────
 let _steamSearchTimer = null;
 
@@ -460,7 +447,7 @@ function showToast(message, type = 'success') {
 }
 
 function toggleGameTypeSections() {
-  const gameType = document.getElementById('gameType').value;
+  const gameType = document.getElementById('gameType')?.value || 'discord';
   document.getElementById('ampSection').classList.toggle('hidden', gameType === 'discord');
   document.getElementById('discordSection').classList.toggle('hidden', gameType === 'amp');
 }
@@ -489,8 +476,8 @@ function editGame(gameId) {
       document.getElementById('gameKey').value = game.game_key;
       document.getElementById('displayName').value = game.display_name;
       document.getElementById('description').value = game.description || '';
-      document.getElementById('gameType').value = game.game_type || 'discord';
-      document.getElementById('displayOn').value = game.display_on || 'gamesweplay';
+      _gameTypeSelect && _gameTypeSelect.setValue(game.game_type || 'discord');
+      _displayOnSelect && _displayOnSelect.setValue(game.display_on || 'gamesweplay');
       document.getElementById('ampInstanceId').value = game.amp_instance_id || '';
       // Populate steam search UI
       const appid = game.steam_appid || '';
@@ -640,5 +627,37 @@ function deleteRoleMapping(roleId) {
     })
     .catch(() => showToast('Network error', 'error'));
 }
+
+let _gameTypeSelect = null;
+let _displayOnSelect = null;
+
+document.addEventListener('DOMContentLoaded', function() {
+  _gameTypeSelect = createCustomSelect({
+    container: document.getElementById('gameTypeContainer'),
+    name: 'gameType',
+    id: 'gameType',
+    items: [
+      {value: 'discord', label: 'Discord Only (Activity Tracking)'},
+      {value: 'amp', label: 'AMP Server Only (Live Server Status)'},
+      {value: 'both', label: 'Both (AMP + Discord)'},
+    ],
+    selected: 'discord',
+    color: 'indigo',
+    onSelect: () => toggleGameTypeSections(),
+  });
+  _displayOnSelect = createCustomSelect({
+    container: document.getElementById('displayOnContainer'),
+    name: 'displayOn',
+    id: 'displayOn',
+    items: [
+      {value: 'gamesweplay', label: 'Games We Play'},
+      {value: 'gameservers', label: 'Game Servers'},
+      {value: 'both', label: 'Both Pages'},
+    ],
+    selected: 'gamesweplay',
+    color: 'indigo',
+  });
+});
 </script>
+{% include "questlog_web/partials/custom_select.html" %}
 {% endblock %}

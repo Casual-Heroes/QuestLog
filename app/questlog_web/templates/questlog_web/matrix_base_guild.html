@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ space_name }} - Matrix Dashboard - QuestLog{% endblock %}
+
+{% block content %}
+<!-- Break out of base.html's max-w-7xl px-4 sm:px-6 container -->
+<div class="-mx-4 sm:-mx-6">
+<div class="flex min-h-screen bg-gradient-to-br from-neutral-950 via-neutral-900 to-neutral-950">
+  {% include "questlog_web/partials/matrix_guild_sidebar.html" %}
+
+  <!-- Main Content Area -->
+  <div id="mx-main-content" class="flex-1 lg:ml-64 min-w-0 transition-all duration-300 overflow-x-hidden">
+    {% block guild_content %}{% endblock %}
+  </div>
+</div>
+</div>
+
+<script>
+// Restore sidebar collapse state on load
+(function() {
+  if (localStorage.getItem('matrixSidebarCollapsed') === 'true') {
+    const sidebar = document.getElementById('mx-sidebar');
+    const main = document.getElementById('mx-main-content');
+    const icon = document.getElementById('mx-collapse-icon');
+    if (sidebar) sidebar.classList.add('collapsed');
+    if (main) main.style.marginLeft = '4rem';
+    if (icon) icon.className = 'fas fa-expand-alt text-xs';
+  }
+})();
+</script>
+{% endblock %}

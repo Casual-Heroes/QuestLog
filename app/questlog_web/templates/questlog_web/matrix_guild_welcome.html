@@ -1,0 +1,390 @@
+{% extends "questlog_web/matrix_base_guild.html" %}
+{% load static %}
+{% block title %}Welcome Messages - {{ space_name }}{% endblock %}
+
+{% block guild_content %}
+{% include "questlog/partials/custom_select.html" %}
+
+  <!-- Header -->
+  <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 p-6 pb-0 mb-8">
+    <div>
+      <h1 class="text-3xl font-bold text-white">
+        <i class="fas fa-hand-wave text-cyan-400 mr-3"></i>Welcome &amp; Goodbye
+      </h1>
+      <p class="text-gray-400 mt-1">Configure messages for new and departing members in {{ space_name }}</p>
+    </div>
+    <div class="flex gap-3 flex-wrap">
+      <button onclick="saveConfig()" id="saveBtn" class="bg-cyan-600 hover:bg-cyan-700 text-white px-4 py-2 rounded-lg font-medium transition text-sm">
+        <i class="fas fa-save mr-2"></i>Save Changes
+      </button>
+    </div>
+  </div>
+
+  <!-- Save status -->
+  <div id="save-msg" class="hidden mx-6 mb-4 px-4 py-3 rounded-lg text-sm font-medium"></div>
+
+  <div class="px-6 space-y-6 pb-8">
+
+  <!-- Master Toggle -->
+  <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6">
+    <div class="flex items-center justify-between">
+      <div>
+        <h3 class="text-lg font-bold text-white">Welcome System</h3>
+        <p class="text-gray-400 text-sm mt-1">Enable or disable all welcome/goodbye messages</p>
+      </div>
+      <label class="relative inline-flex items-center cursor-pointer">
+        <input type="checkbox" id="welcomeEnabled" class="sr-only peer"
+               {% if welcome_config and welcome_config.enabled %}checked{% endif %}>
+        <div class="w-14 h-7 bg-neutral-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[4px] after:bg-white after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-cyan-600"></div>
+      </label>
+    </div>
+  </div>
+
+  <!-- Welcome Room + DM -->
+  <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6">
+    <h3 class="text-lg font-bold text-white mb-4">
+      <i class="fas fa-hashtag text-gray-400 mr-2"></i>Welcome Room &amp; DM
+    </h3>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div>
+        <label class="block text-sm text-gray-400 mb-2">Welcome Room</label>
+        <div id="welcomeRoomContainer"></div>
+        <p class="text-gray-500 text-xs mt-1">Room where welcome announcements will be posted</p>
+      </div>
+      <div class="flex items-center justify-between p-4 bg-neutral-800/50 rounded-lg">
+        <div>
+          <p class="text-white font-medium">Also Send Welcome DM</p>
+          <p class="text-gray-500 text-sm">Bot opens a DM room and sends privately</p>
+        </div>
+        <label class="relative inline-flex items-center cursor-pointer">
+          <input type="checkbox" id="welcomeDm" class="sr-only peer"
+                 {% if welcome_config and welcome_config.dm_enabled %}checked{% endif %}>
+          <div class="w-11 h-6 bg-neutral-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-cyan-600"></div>
+        </label>
+      </div>
+    </div>
+  </div>
+
+  <!-- Welcome Message -->
+  <div class="bg-neutral-900 rounded-xl border border-neutral-800 overflow-hidden">
+    <div class="p-6 border-b border-neutral-800">
+      <div class="flex items-center justify-between">
+        <div>
+          <h3 class="text-lg font-bold text-white">
+            <i class="fas fa-comment-dots text-green-400 mr-2"></i>Welcome Message
+          </h3>
+          <p class="text-gray-400 text-sm mt-1">Sent to the welcome room when a member joins the space</p>
+        </div>
+      </div>
+    </div>
+    <div class="p-6 space-y-4">
+      <div>
+        <div class="flex items-center justify-between mb-2 flex-wrap gap-2">
+          <label class="block text-sm text-gray-400">Message</label>
+          <div class="flex gap-2 text-xs items-center flex-wrap">
+            <button type="button" onclick="insertVariable('welcomeMessage', '{user}')"
+                    class="px-2 py-1 bg-neutral-700 hover:bg-neutral-600 text-gray-300 rounded transition">+{user}</button>
+            <button type="button" onclick="insertVariable('welcomeMessage', '{user_id}')"
+                    class="px-2 py-1 bg-neutral-700 hover:bg-neutral-600 text-gray-300 rounded transition">+{user_id}</button>
+            <button type="button" onclick="insertVariable('welcomeMessage', '{space}')"
+                    class="px-2 py-1 bg-neutral-700 hover:bg-neutral-600 text-gray-300 rounded transition">+{space}</button>
+            <button type="button" onclick="insertVariable('welcomeMessage', '{member_count}')"
+                    class="px-2 py-1 bg-neutral-700 hover:bg-neutral-600 text-gray-300 rounded transition">+{member_count}</button>
+          </div>
+        </div>
+        <textarea id="welcomeMessage" rows="4"
+                  class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:border-cyan-500 focus:outline-none resize-y font-mono">{% if welcome_config %}{{ welcome_config.welcome_message|default:'' }}{% endif %}</textarea>
+        <p class="text-gray-500 text-xs mt-1">
+          Variables: <code class="text-cyan-400">{user} {user_id} {space} {member_count} {room}</code>
+        </p>
+      </div>
+
+      <div>
+        <div class="flex items-center justify-between mb-2">
+          <label class="block text-sm text-gray-400">DM Message (if different from above)</label>
+        </div>
+        <textarea id="welcomeDmMessage" rows="3"
+                  placeholder="Leave blank to use the same welcome message above."
+                  class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:border-cyan-500 focus:outline-none resize-y font-mono">{% if welcome_config %}{{ welcome_config.dm_message|default:'' }}{% endif %}</textarea>
+        <p class="text-yellow-500 text-xs mt-2">
+          <i class="fas fa-exclamation-triangle mr-1"></i>
+          Some users have DMs disabled or restricted. These messages may not always be delivered.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Auto-invite Rooms -->
+  <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6">
+    <h3 class="text-lg font-bold text-white mb-1">
+      <i class="fas fa-door-open text-teal-400 mr-2"></i>Auto-invite to Rooms on Join
+    </h3>
+    <p class="text-gray-400 text-sm mb-4">Automatically invite new members to these rooms when they join the space.</p>
+    <div id="autoInviteContainer"></div>
+    <p class="text-gray-500 text-xs mt-2">Invites are sent automatically when a user joins the space.</p>
+  </div>
+
+  <!-- Goodbye Message -->
+  <div class="bg-neutral-900 rounded-xl border border-neutral-800 overflow-hidden">
+    <div class="p-6 border-b border-neutral-800">
+      <div class="flex items-center justify-between">
+        <div>
+          <h3 class="text-lg font-bold text-white">
+            <i class="fas fa-door-open text-red-400 mr-2"></i>Goodbye Message
+          </h3>
+          <p class="text-gray-400 text-sm mt-1">Sent when a member leaves or is kicked</p>
+        </div>
+        <label class="relative inline-flex items-center cursor-pointer">
+          <input type="checkbox" id="leaveEnabled" class="sr-only peer"
+                 {% if welcome_config and welcome_config.goodbye_enabled %}checked{% endif %}>
+          <div class="w-11 h-6 bg-neutral-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-red-600"></div>
+        </label>
+      </div>
+    </div>
+    <div class="p-6 space-y-4">
+      <div>
+        <label class="block text-sm text-gray-400 mb-2">Goodbye Room</label>
+        <div id="goodbyeRoomContainer"></div>
+        <p class="text-gray-500 text-xs mt-1">Where goodbye messages will be sent</p>
+      </div>
+      <div>
+        <div class="flex items-center justify-between mb-2 flex-wrap gap-2">
+          <label class="block text-sm text-gray-400">Message</label>
+          <div class="flex gap-2 text-xs flex-wrap">
+            <button type="button" onclick="insertVariable('leaveMessage', '{user}')"
+                    class="px-2 py-1 bg-neutral-700 hover:bg-neutral-600 text-gray-300 rounded transition">+{user}</button>
+            <button type="button" onclick="insertVariable('leaveMessage', '{user_id}')"
+                    class="px-2 py-1 bg-neutral-700 hover:bg-neutral-600 text-gray-300 rounded transition">+{user_id}</button>
+            <button type="button" onclick="insertVariable('leaveMessage', '{space}')"
+                    class="px-2 py-1 bg-neutral-700 hover:bg-neutral-600 text-gray-300 rounded transition">+{space}</button>
+          </div>
+        </div>
+        <textarea id="leaveMessage" rows="3"
+                  placeholder="Goodbye {user}, we hope to see you again!"
+                  class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:border-red-500 focus:outline-none resize-y font-mono">{% if welcome_config %}{{ welcome_config.goodbye_message|default:'' }}{% endif %}</textarea>
+        <p class="text-gray-500 text-xs mt-1">
+          Variables: <code class="text-red-400">{user} {user_id} {space}</code>
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Send / Test -->
+  <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6">
+    <h3 class="text-lg font-bold text-white mb-1">
+      <i class="fas fa-paper-plane text-teal-400 mr-2"></i>Send Welcome Message
+    </h3>
+    <p class="text-gray-400 text-sm mb-5">Send the saved welcome message to a room right now, or fire a test with your own Matrix ID as the recipient.</p>
+    <div class="space-y-4">
+      <div>
+        <label class="block text-sm text-gray-400 mb-2">Target Room</label>
+        <div id="sendRoomContainer"></div>
+      </div>
+      <div id="send-result" class="hidden text-sm px-4 py-3 rounded-lg font-medium"></div>
+      <div class="flex gap-3 flex-wrap">
+        <button onclick="sendWelcomeTest()"
+                class="bg-neutral-700 hover:bg-neutral-600 text-white px-4 py-2 rounded-lg font-medium transition text-sm flex items-center gap-2">
+          <i class="fas fa-flask"></i>Test (send to me)
+        </button>
+        <button onclick="sendWelcomeNow()"
+                class="bg-teal-600 hover:bg-teal-500 text-white px-4 py-2 rounded-lg font-medium transition text-sm flex items-center gap-2">
+          <i class="fas fa-paper-plane"></i>Send Now
+        </button>
+      </div>
+      <p class="text-gray-600 text-xs">Test uses your Matrix ID as <code class="text-cyan-400">{user}</code>. Send Now posts the message exactly as saved.</p>
+    </div>
+  </div>
+
+  <!-- Variables Reference -->
+  <div class="bg-neutral-800/50 rounded-xl border border-neutral-700 p-6">
+    <h3 class="text-lg font-bold text-white mb-4">
+      <i class="fas fa-code text-gray-400 mr-2"></i>Available Variables
+    </h3>
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+      <div class="bg-neutral-900 rounded-lg p-3">
+        <code class="text-cyan-400">{user}</code>
+        <p class="text-gray-500 mt-1">Display name</p>
+      </div>
+      <div class="bg-neutral-900 rounded-lg p-3">
+        <code class="text-cyan-400">{user_id}</code>
+        <p class="text-gray-500 mt-1">Matrix ID</p>
+      </div>
+      <div class="bg-neutral-900 rounded-lg p-3">
+        <code class="text-cyan-400">{space}</code>
+        <p class="text-gray-500 mt-1">Space name</p>
+      </div>
+      <div class="bg-neutral-900 rounded-lg p-3">
+        <code class="text-cyan-400">{member_count}</code>
+        <p class="text-gray-500 mt-1">Total members</p>
+      </div>
+      <div class="bg-neutral-900 rounded-lg p-3">
+        <code class="text-cyan-400">{room}</code>
+        <p class="text-gray-500 mt-1">Room name</p>
+      </div>
+    </div>
+  </div>
+
+  </div>
+
+<script>
+const SPACE_ID_URL = '{{ space_id_url }}';
+const WELCOME_API = '/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/welcome/';
+
+let welcomeRoomSelect = null;
+let goodbyeRoomSelect = null;
+let autoInviteSelect = null;
+
+function insertVariable(fieldId, variable) {
+  const field = document.getElementById(fieldId);
+  const cursorPos = field.selectionStart;
+  field.value = field.value.substring(0, cursorPos) + variable + field.value.substring(cursorPos);
+  field.selectionStart = field.selectionEnd = cursorPos + variable.length;
+  field.focus();
+}
+
+async function saveConfig() {
+  const btn = document.getElementById('saveBtn');
+  const msg = document.getElementById('save-msg');
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Saving...';
+  btn.disabled = true;
+
+  const payload = {
+    enabled: document.getElementById('welcomeEnabled').checked,
+    welcome_room_id: welcomeRoomSelect ? (welcomeRoomSelect.getValue() || null) : null,
+    welcome_message: document.getElementById('welcomeMessage').value.trim(),
+    dm_enabled: document.getElementById('welcomeDm').checked,
+    dm_message: document.getElementById('welcomeDmMessage').value.trim() || null,
+    auto_invite_room_ids: autoInviteSelect ? autoInviteSelect.getValue() : [],
+    goodbye_enabled: document.getElementById('leaveEnabled').checked,
+    goodbye_room_id: goodbyeRoomSelect ? (goodbyeRoomSelect.getValue() || null) : null,
+    goodbye_message: document.getElementById('leaveMessage').value.trim(),
+  };
+
+  try {
+    const resp = await csrfFetch(WELCOME_API, {
+      method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload)
+    });
+    const data = await resp.json();
+    if (resp.ok && data.ok) {
+      msg.textContent = 'Welcome settings saved.';
+      msg.className = 'mb-4 px-4 py-3 rounded-lg text-sm font-medium bg-green-900/40 text-green-400 border border-green-700/40';
+      btn.innerHTML = '<i class="fas fa-check mr-2"></i>Saved!';
+      setTimeout(() => {
+        btn.innerHTML = '<i class="fas fa-save mr-2"></i>Save Changes';
+        btn.disabled = false;
+      }, 2000);
+    } else {
+      throw new Error(data.error || 'Failed to save');
+    }
+  } catch (err) {
+    msg.textContent = err.message || 'Save failed.';
+    msg.className = 'mb-4 px-4 py-3 rounded-lg text-sm font-medium bg-red-900/40 text-red-400 border border-red-700/40';
+    btn.innerHTML = '<i class="fas fa-save mr-2"></i>Save Changes';
+    btn.disabled = false;
+  }
+  msg.classList.remove('hidden');
+  setTimeout(() => msg.classList.add('hidden'), 5000);
+}
+
+const VIEWER_MATRIX_ID = '{{ viewer_matrix_id|escapejs }}';
+const MESSAGES_API = '/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/messages/';
+
+let sendRoomSelect = null;
+let ROOMS = [];
+
+document.addEventListener('DOMContentLoaded', function() {
+  ROOMS = JSON.parse('{{ rooms_json|escapejs }}');
+  const WELCOME_CONFIG = JSON.parse('{{ welcome_config_json|escapejs }}');
+  const roomsWithBlank = [{value: '', label: '-- None --'}, ...ROOMS];
+
+  welcomeRoomSelect = createCustomSelect({
+    container: document.getElementById('welcomeRoomContainer'),
+    name: 'welcome_room_id',
+    items: roomsWithBlank,
+    selected: WELCOME_CONFIG.welcome_room_id || '',
+    placeholder: 'Select a room...',
+  });
+  goodbyeRoomSelect = createCustomSelect({
+    container: document.getElementById('goodbyeRoomContainer'),
+    name: 'goodbye_room_id',
+    items: roomsWithBlank,
+    selected: WELCOME_CONFIG.goodbye_room_id || '',
+    placeholder: 'Select a room...',
+  });
+  const autoInviteItems = ROOMS.map(r => ({value: r.value, label: r.label}));
+  autoInviteSelect = createCustomSelect({
+    container: document.getElementById('autoInviteContainer'),
+    name: 'auto_invite_room_ids',
+    items: autoInviteItems,
+    selected: WELCOME_CONFIG.auto_invite_room_ids || [],
+    placeholder: 'Select rooms to auto-invite into...',
+    multi: true,
+  });
+  sendRoomSelect = createCustomSelect({
+    container: document.getElementById('sendRoomContainer'),
+    name: 'send_room_id',
+    items: roomsWithBlank,
+    selected: WELCOME_CONFIG.welcome_room_id || '',
+    placeholder: 'Select a room...',
+    color: 'teal',
+  });
+});
+
+function _showSendResult(msg, ok) {
+  const el = document.getElementById('send-result');
+  el.textContent = msg;
+  el.className = ok
+    ? 'text-sm px-4 py-3 rounded-lg font-medium bg-green-900/40 text-green-400 border border-green-700/40'
+    : 'text-sm px-4 py-3 rounded-lg font-medium bg-red-900/40 text-red-400 border border-red-700/40';
+  el.classList.remove('hidden');
+  setTimeout(() => el.classList.add('hidden'), 5000);
+}
+
+async function sendWelcomeTest() {
+  const room_id = sendRoomSelect ? sendRoomSelect.getValue() : '';
+  if (!room_id) { _showSendResult('Select a room first.', false); return; }
+  const rawMsg = document.getElementById('welcomeMessage').value.trim();
+  if (!rawMsg) { _showSendResult('No welcome message saved yet. Save one first.', false); return; }
+  const userName = VIEWER_MATRIX_ID.split(':')[0].replace('@', '') || 'TestUser';
+  const body = rawMsg
+    .replace(/{user}/g, userName)
+    .replace(/{user_id}/g, VIEWER_MATRIX_ID || '@you:server')
+    .replace(/{space}/g, '{{ space_name|escapejs }}')
+    .replace(/{member_count}/g, '?')
+    .replace(/{room}/g, room_id);
+  try {
+    const resp = await csrfFetch(MESSAGES_API, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({room_id, content: body}),
+    });
+    const data = await resp.json();
+    if (resp.ok && data.ok) _showSendResult('Test message queued - check the room in Matrix.', true);
+    else _showSendResult(data.error || 'Failed to queue message.', false);
+  } catch (e) {
+    _showSendResult('Network error.', false);
+  }
+}
+
+async function sendWelcomeNow() {
+  const room_id = sendRoomSelect ? sendRoomSelect.getValue() : '';
+  if (!room_id) { _showSendResult('Select a room first.', false); return; }
+  const body = document.getElementById('welcomeMessage').value.trim();
+  if (!body) { _showSendResult('No welcome message saved yet. Save one first.', false); return; }
+  const roomName = (ROOMS.find(r => r.value === room_id) || {}).label || room_id;
+  if (!confirm('Send the welcome message as-is (with unresolved variables) to "' + roomName + '"?')) return;
+  try {
+    const resp = await csrfFetch(MESSAGES_API, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({room_id, content: body}),
+    });
+    const data = await resp.json();
+    if (resp.ok && data.ok) _showSendResult('Message queued - check the room in Matrix.', true);
+    else _showSendResult(data.error || 'Failed to queue message.', false);
+  } catch (e) {
+    _showSendResult('Network error.', false);
+  }
+}
+</script>
+{% endblock %}

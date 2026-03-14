@@ -1,0 +1,2093 @@
+{% extends "questlog_web/fluxer_base_guild.html" %}
+{% load static %}
+{% block title %}Discovery - {{ guild_name }} - QuestLog{% endblock %}
+
+{% block guild_content %}
+{% include "questlog/partials/custom_select.html" %}
+<div class="p-6 max-w-4xl">
+
+  <!-- Page header -->
+  <div class="flex items-center gap-3 mb-6">
+    <div class="w-12 h-12 bg-orange-600/20 rounded-xl flex items-center justify-center">
+      <i class="fas fa-bullhorn text-orange-400"></i>
+    </div>
+    <div>
+      <h1 class="text-2xl font-bold text-white">Discovery</h1>
+      <p class="text-gray-500 text-sm">Feature creators and announce upcoming games to your community.</p>
+    </div>
+  </div>
+
+  <!-- Save status -->
+  <div id="save-msg" class="hidden mb-4 px-4 py-3 rounded-lg text-sm font-medium"></div>
+
+  <!-- Tabs -->
+  <div class="flex gap-2 mb-6 border-b border-neutral-800 overflow-x-auto">
+    <button onclick="switchTab('creator')" id="tab-creator"
+            class="px-5 py-3 font-medium text-white border-b-2 border-orange-500 transition whitespace-nowrap text-sm">
+      <i class="fas fa-user mr-2"></i>Creator Discovery
+    </button>
+    <button onclick="switchTab('games')" id="tab-games"
+            class="px-5 py-3 font-medium text-gray-400 hover:text-white border-b-2 border-transparent transition whitespace-nowrap text-sm">
+      <i class="fas fa-gamepad mr-2"></i>Game Discovery
+    </button>
+    <button onclick="switchTab('rss')" id="tab-rss"
+            class="px-5 py-3 font-medium text-gray-400 hover:text-white border-b-2 border-transparent transition whitespace-nowrap text-sm">
+      <i class="fas fa-rss mr-2"></i>RSS Feeds
+    </button>
+    <button onclick="switchTab('network')" id="tab-network"
+            class="px-5 py-3 font-medium text-gray-400 hover:text-white border-b-2 border-transparent transition whitespace-nowrap text-sm">
+      <i class="fas fa-globe mr-2"></i>QuestLog Network
+    </button>
+    <button onclick="switchTab('twitch')" id="tab-twitch"
+            class="px-5 py-3 font-medium text-gray-400 hover:text-white border-b-2 border-transparent transition whitespace-nowrap text-sm">
+      <i class="fab fa-twitch mr-2"></i>Twitch
+    </button>
+    <button onclick="switchTab('youtube')" id="tab-youtube"
+            class="px-5 py-3 font-medium text-gray-400 hover:text-white border-b-2 border-transparent transition whitespace-nowrap text-sm">
+      <i class="fab fa-youtube mr-2"></i>YouTube
+    </button>
+  </div>
+
+  <!-- ===== Creator Discovery panel ===== -->
+  <div id="panel-creator">
+
+    <!-- How Creator Discovery Works -->
+    <div class="bg-gradient-to-r from-orange-900/20 to-yellow-900/20 rounded-xl border border-orange-800/30 p-5 mb-4">
+      <h3 class="text-white font-semibold mb-3">
+        <i class="fas fa-info-circle text-orange-400 mr-2"></i>How Creator Discovery Works
+      </h3>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-3">
+        <div>
+          <div class="w-10 h-10 bg-orange-600/20 rounded-full flex items-center justify-center mb-2">
+            <i class="fas fa-hashtag text-orange-400"></i>
+          </div>
+          <p class="text-white text-sm font-medium mb-1">Self-Promo Channel</p>
+          <p class="text-gray-400 text-xs">Members post "I'm live" announcements in a designated channel. Creators are automatically featured based on activity.</p>
+        </div>
+        <div>
+          <div class="w-10 h-10 bg-yellow-600/20 rounded-full flex items-center justify-center mb-2">
+            <i class="fas fa-star text-yellow-400"></i>
+          </div>
+          <p class="text-white text-sm font-medium mb-1">Creator Profiles</p>
+          <p class="text-gray-400 text-xs">Members create rich profiles with bios and social links on the <a href="/ql/creators/" target="_blank" class="text-orange-400 hover:text-orange-300">Featured Creators</a> page at casual-heroes.com.</p>
+        </div>
+      </div>
+      <div class="bg-neutral-800/50 rounded-lg px-4 py-2.5 border border-neutral-700">
+        <p class="text-gray-300 text-xs">
+          <i class="fas fa-star text-yellow-400 mr-2"></i>
+          <strong class="text-white">Creator of the Week/Month:</strong> Admin controls, automated rotation, and network-wide featuring are all included.
+        </p>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+
+      <!-- Left column: Settings -->
+      <div class="lg:col-span-2 space-y-4">
+
+        <!-- Enable Discovery -->
+        <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-5">
+          <div class="flex items-center justify-between">
+            <div>
+              <h3 class="text-white font-semibold"><i class="fas fa-power-off text-gray-400 mr-2"></i>Enable Discovery</h3>
+              <p class="text-gray-500 text-sm mt-0.5">Turn on Creator Discovery for this guild.</p>
+            </div>
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" id="creator-enabled" class="sr-only peer">
+              <div class="w-11 h-6 bg-neutral-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-orange-600"></div>
+            </label>
+          </div>
+        </div>
+
+        <!-- Channel Discovery -->
+        <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-5">
+          <div class="flex items-center justify-between mb-4">
+            <div>
+              <h3 class="text-white font-semibold"><i class="fas fa-hashtag text-orange-400 mr-2"></i>Channel Discovery</h3>
+              <p class="text-gray-500 text-sm mt-0.5">Designate channels for self-promotion and feature announcements.</p>
+            </div>
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" id="channel-discovery-enabled" class="sr-only peer"
+                     onchange="document.getElementById('channelDiscoverySettings').classList.toggle('hidden', !this.checked)">
+              <div class="w-11 h-6 bg-neutral-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-orange-600"></div>
+            </label>
+          </div>
+          <div id="channelDiscoverySettings" class="hidden space-y-4">
+            <div>
+              <label class="block text-xs text-gray-400 mb-1.5">Self-Promo Channel</label>
+              <div id="cs-selfpromo-channel"></div>
+              <p class="text-xs text-gray-600 mt-1">Members post their streams/content here.</p>
+            </div>
+            <div>
+              <label class="block text-xs text-gray-400 mb-1.5">Feature Announcement Channel</label>
+              <div id="cs-feature-channel"></div>
+              <p class="text-xs text-gray-600 mt-1">Featured creator announcements posted here.</p>
+            </div>
+            <div>
+              <label class="block text-xs text-gray-400 mb-1.5">Bot Response Channel</label>
+              <div id="cs-response-channel"></div>
+              <p class="text-xs text-gray-600 mt-1">Bot responses sent here - keeps self-promo clean.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Timings -->
+        <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-5">
+          <h3 class="text-white font-semibold mb-4"><i class="fas fa-clock text-blue-400 mr-2"></i>Timings &amp; Cooldowns</h3>
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="block text-xs text-gray-400 mb-1.5">Feature Interval (hours)</label>
+              <input type="number" id="creator-interval" min="1" max="8760" value="3"
+                     class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-orange-500">
+              <p class="text-xs text-gray-600 mt-1">How often to feature someone.</p>
+            </div>
+            <div>
+              <label class="block text-xs text-gray-400 mb-1.5">Feature Cooldown (hours)</label>
+              <input type="number" id="creator-cooldown" min="0" max="8760" value="72"
+                     class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-orange-500">
+              <p class="text-xs text-gray-600 mt-1">Time before a creator can be featured again.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Announcement Template -->
+        <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-5">
+          <h3 class="text-white font-semibold mb-4"><i class="fas fa-comment-dots text-indigo-400 mr-2"></i>Announcement Message</h3>
+          <div>
+            <label class="block text-xs text-gray-400 mb-1.5">Feature Announcement Template</label>
+            <textarea id="creator-msg" rows="3"
+                      class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm resize-none focus:outline-none focus:border-orange-500"
+                      placeholder="Check out {creator}! They stream {game}. {link}"></textarea>
+            <p class="text-xs text-gray-600 mt-1">Variables: <code class="text-orange-400">{creator}</code> <code class="text-orange-400">{game}</code> <code class="text-orange-400">{link}</code></p>
+          </div>
+        </div>
+
+        <button onclick="saveDiscovery('creator')"
+                class="bg-orange-700 hover:bg-orange-600 text-white px-5 py-2 rounded-lg text-sm font-medium transition flex items-center gap-2">
+          <i class="fas fa-save"></i> Save Creator Settings
+        </button>
+      </div>
+
+      <!-- Right column: Featured Creators + Network -->
+      <div class="space-y-4">
+
+        <!-- COTW / COTM -->
+        <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-5">
+          <div class="flex items-center gap-3 mb-4">
+            <div class="w-10 h-10 bg-yellow-600/20 rounded-xl flex items-center justify-center flex-shrink-0">
+              <i class="fas fa-star text-yellow-400"></i>
+            </div>
+            <div>
+              <h3 class="text-white font-semibold">Featured Creators</h3>
+              <a href="/ql/creators/" target="_blank" class="text-orange-400 hover:text-orange-300 text-xs flex items-center gap-1">Browse <i class="fas fa-external-link-alt text-xs"></i></a>
+            </div>
+          </div>
+
+          <!-- COTW -->
+          <div class="p-3 bg-neutral-800/50 rounded-lg border border-yellow-700/30 mb-3">
+            <div class="flex items-center justify-between mb-2">
+              <div>
+                <p class="text-white text-sm font-semibold">Creator of the Week</p>
+                <p class="text-gray-400 text-xs">Weekly featured creator</p>
+              </div>
+              <label class="relative inline-flex items-center cursor-pointer">
+                <input type="checkbox" id="cotw-enabled" class="sr-only peer"
+                       onchange="document.getElementById('cotwSettings').classList.toggle('hidden', !this.checked)">
+                <div class="w-11 h-6 bg-neutral-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-yellow-600"></div>
+              </label>
+            </div>
+            <div id="cotwSettings" class="hidden space-y-2">
+              <div id="cs-cotw-channel"></div>
+              <div class="flex items-center justify-between p-2 bg-neutral-900/60 rounded border border-neutral-700">
+                <div>
+                  <p class="text-white text-xs font-medium">Auto-Rotation</p>
+                  <p class="text-gray-500 text-xs">Auto-select weekly</p>
+                </div>
+                <label class="relative inline-flex items-center cursor-pointer">
+                  <input type="checkbox" id="cotw-auto-rotate" class="sr-only peer"
+                         onchange="document.getElementById('cotwDayRow').classList.toggle('hidden', !this.checked)">
+                  <div class="w-11 h-6 bg-neutral-700 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div>
+                </label>
+              </div>
+              <div id="cotwDayRow" class="hidden">
+                <label class="block text-xs text-gray-400 mb-1">Rotation Day</label>
+                <select id="cotw-rotation-day" class="w-full bg-neutral-800 border border-neutral-700 rounded px-2 py-1.5 text-white text-xs focus:outline-none focus:border-green-500">
+                  <option value="0">Monday</option><option value="1">Tuesday</option>
+                  <option value="2">Wednesday</option><option value="3">Thursday</option>
+                  <option value="4">Friday</option><option value="5">Saturday</option><option value="6">Sunday</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- COTM -->
+          <div class="p-3 bg-neutral-800/50 rounded-lg border border-yellow-700/30">
+            <div class="flex items-center justify-between mb-2">
+              <div>
+                <p class="text-white text-sm font-semibold">Creator of the Month</p>
+                <p class="text-gray-400 text-xs">Monthly featured creator</p>
+              </div>
+              <label class="relative inline-flex items-center cursor-pointer">
+                <input type="checkbox" id="cotm-enabled" class="sr-only peer"
+                       onchange="document.getElementById('cotmSettings').classList.toggle('hidden', !this.checked)">
+                <div class="w-11 h-6 bg-neutral-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-yellow-600"></div>
+              </label>
+            </div>
+            <div id="cotmSettings" class="hidden space-y-2">
+              <div id="cs-cotm-channel"></div>
+              <div class="flex items-center justify-between p-2 bg-neutral-900/60 rounded border border-neutral-700">
+                <div>
+                  <p class="text-white text-xs font-medium">Auto-Rotation</p>
+                  <p class="text-gray-500 text-xs">Auto-select monthly</p>
+                </div>
+                <label class="relative inline-flex items-center cursor-pointer">
+                  <input type="checkbox" id="cotm-auto-rotate" class="sr-only peer"
+                         onchange="document.getElementById('cotmDayRow').classList.toggle('hidden', !this.checked)">
+                  <div class="w-11 h-6 bg-neutral-700 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div>
+                </label>
+              </div>
+              <div id="cotmDayRow" class="hidden">
+                <label class="block text-xs text-gray-400 mb-1">Day of Month</label>
+                <select id="cotm-rotation-day" class="w-full bg-neutral-800 border border-neutral-700 rounded px-2 py-1.5 text-white text-xs focus:outline-none focus:border-green-500">
+                  {% for d in "123456789" %}
+                  <option value="{{ d }}">{{ d }}</option>
+                  {% endfor %}
+                  <option value="10">10</option><option value="15">15</option>
+                  <option value="20">20</option><option value="28">28</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Discovery Network -->
+        <div class="bg-gradient-to-r from-indigo-900/20 to-purple-900/20 rounded-xl border border-indigo-800/30 p-5">
+          <h3 class="text-white font-semibold mb-2"><i class="fas fa-globe text-indigo-400 mr-2"></i>Discovery Network</h3>
+          <p class="text-gray-500 text-xs mb-3">Allow your creators to be featured across the QuestLog network.</p>
+          <div class="bg-indigo-900/20 border border-indigo-700/30 rounded-lg p-3 mb-3">
+            <p class="text-xs text-indigo-300"><i class="fas fa-info-circle mr-2"></i>Creators who check "Share to Network" on their profile can be featured as Network COTW/COTM across all QuestLog servers.</p>
+          </div>
+          <div class="bg-neutral-800/50 rounded-lg p-3">
+            <p class="text-gray-300 text-xs mb-2"><i class="fas fa-user-plus text-purple-400 mr-2"></i><strong>How members opt-in:</strong></p>
+            <ol class="text-xs text-gray-400 space-y-1 ml-4 list-decimal">
+              <li>Register at <a href="/ql/creator/register/" target="_blank" class="text-purple-400 hover:text-purple-300">Featured Creators</a></li>
+              <li>Check "Share to Discovery Network"</li>
+              <li>Profile becomes eligible for Network COTW/COTM</li>
+            </ol>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== Game Discovery panel ===== -->
+  <div id="panel-games" class="hidden">
+
+    <!-- Action Buttons -->
+    <div class="flex justify-between items-center mb-6">
+      <div class="flex gap-3">
+        <button onclick="saveGameGlobalSettings()" id="saveGameBtn"
+                class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium transition text-sm">
+          <i class="fas fa-save mr-2"></i>Save Global Settings
+        </button>
+      </div>
+      <button onclick="openGameSearchModal()"
+              class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium transition text-sm">
+        <i class="fas fa-plus mr-2"></i>Add Search
+      </button>
+    </div>
+
+    <!-- Global Settings Card -->
+    <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-5 mb-6">
+      <h3 class="text-base font-semibold text-white mb-4 flex items-center gap-2">
+        <i class="fas fa-cog text-gray-400"></i> Announcement Settings
+      </h3>
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
+        <!-- Enable toggle -->
+        <div class="flex items-center gap-3 pb-2">
+          <label class="relative inline-flex items-center cursor-pointer">
+            <input type="checkbox" id="gdEnabled" class="sr-only peer" {% if game_discovery_enabled %}checked{% endif %}>
+            <div class="w-11 h-6 bg-neutral-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div>
+          </label>
+          <span class="text-sm text-gray-300">Enabled</span>
+        </div>
+        <!-- Announcement channel -->
+        <div>
+          <label class="block text-xs text-gray-400 mb-1">Announcement Channel</label>
+          <div id="cs-gd-channel"></div>
+        </div>
+        <!-- Ping role -->
+        <div>
+          <label class="block text-xs text-gray-400 mb-1">Ping Role <span class="text-gray-600">(optional)</span></label>
+          <div id="cs-gd-pingrole"></div>
+        </div>
+        <!-- Check interval -->
+        <div>
+          <label class="block text-xs text-gray-400 mb-1">Check Interval (hours)</label>
+          <input type="number" id="gdInterval" value="{{ game_check_interval_hours }}" min="1" max="168"
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-orange-500 focus:outline-none">
+        </div>
+      </div>
+      <div class="flex items-center justify-between mt-4 pt-3 border-t border-neutral-800">
+        <p class="text-xs text-gray-500">
+          <i class="fas fa-info-circle mr-1"></i>
+          Bot checks IGDB every 15 min but only runs per-guild at the interval above.
+          After a force run the bot waits the full interval before running again.
+        </p>
+        <button onclick="forceCheckGames()" id="forceCheckBtn"
+                class="flex-shrink-0 ml-4 bg-orange-600 hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-2 rounded-lg font-medium transition text-sm flex items-center gap-2">
+          <i class="fas fa-bolt"></i> Force Run Now
+        </button>
+      </div>
+    </div>
+
+    <!-- Search Configs Counter -->
+    <div class="bg-neutral-900/50 rounded-lg border border-neutral-800 p-4 mb-6">
+      <div class="flex items-center justify-between">
+        <div>
+          <h3 class="text-sm font-medium text-gray-400">Game Searches Configured</h3>
+          <p class="text-3xl font-bold text-white mt-1">
+            {{ total_search_configs }}
+            <span class="text-lg text-gray-500">/ <i class="fas fa-infinity text-green-400"></i></span>
+          </p>
+        </div>
+        <div class="text-right">
+          <p class="text-xs text-gray-400"><span class="text-green-400"><i class="fas fa-infinity mr-1"></i>Unlimited</span></p>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <!-- Settings Column -->
+      <div class="lg:col-span-2 space-y-6">
+
+        <!-- Configured Searches -->
+        <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6">
+          <h3 class="text-lg font-bold text-white mb-4">
+            <i class="fas fa-search text-gray-400 mr-2"></i>Configured Searches
+            <span class="text-gray-500 text-sm font-normal ml-2" id="gameSearchCount">({{ search_configs|length }} search{{ search_configs|length|pluralize:"es" }})</span>
+          </h3>
+          <div id="gameSearchConfigsList">
+            {% if search_configs %}
+            <div class="space-y-4">
+              {% for search in search_configs %}
+              <div class="bg-neutral-800 rounded-lg p-4" data-search-id="{{ search.id }}">
+                <div class="flex items-center justify-between">
+                  <div class="flex-grow">
+                    <div class="flex items-center gap-2 mb-2">
+                      <h4 class="text-white font-bold">{{ search.name }}</h4>
+                      {% if not search.enabled %}
+                      <span class="text-xs px-2 py-0.5 rounded bg-red-600 text-white">Disabled</span>
+                      {% endif %}
+                    </div>
+                    <div class="flex flex-wrap gap-2 text-sm text-gray-400">
+                      {% if search.genres_list %}<span><i class="fas fa-gamepad text-gray-500 mr-1"></i>{{ search.genres_list|length }} genre{{ search.genres_list|length|pluralize }}</span>{% endif %}
+                      {% if search.themes_list %}<span><i class="fas fa-paint-brush text-gray-500 mr-1"></i>{{ search.themes_list|length }} theme{{ search.themes_list|length|pluralize }}</span>{% endif %}
+                      {% if search.keywords_list %}<span><i class="fas fa-tags text-green-500 mr-1"></i>{{ search.keywords_list|length }} keyword{{ search.keywords_list|length|pluralize }}</span>{% endif %}
+                      {% if search.modes_list %}<span><i class="fas fa-users text-gray-500 mr-1"></i>{{ search.modes_list|length }} mode{{ search.modes_list|length|pluralize }}</span>{% endif %}
+                      {% if search.platforms_list %}<span><i class="fas fa-desktop text-gray-500 mr-1"></i>{{ search.platforms_list|length }} platform{{ search.platforms_list|length|pluralize }}</span>{% endif %}
+                      <span><i class="fas fa-calendar text-gray-500 mr-1"></i>{{ search.days_ahead }} days ahead</span>
+                    </div>
+                  </div>
+                  <div class="flex gap-2 flex-shrink-0 ml-4">
+                    <label class="relative inline-flex items-center cursor-pointer" title="Enable/Disable">
+                      <input type="checkbox" class="gs-enabled-toggle sr-only peer" data-search-id="{{ search.id }}" {% if search.enabled %}checked{% endif %}>
+                      <div class="w-11 h-6 bg-neutral-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div>
+                    </label>
+                    <button onclick="editGameSearch({{ search.id }})" class="bg-neutral-700 hover:bg-neutral-600 text-white px-3 py-2 rounded-lg transition text-sm"><i class="fas fa-edit"></i></button>
+                    <button onclick="deleteGameSearch({{ search.id }}, '{{ search.name }}')" class="bg-red-600/20 hover:bg-red-600 text-red-400 hover:text-white px-3 py-2 rounded-lg transition text-sm"><i class="fas fa-trash"></i></button>
+                  </div>
+                </div>
+              </div>
+              {% endfor %}
+            </div>
+            {% else %}
+            <div class="text-center py-12">
+              <i class="fas fa-search text-4xl text-gray-600 mb-4"></i>
+              <p class="text-gray-400">No searches configured yet</p>
+              <p class="text-gray-500 text-sm mt-2">Click "Add Search" to create your first game search!</p>
+            </div>
+            {% endif %}
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Info Column -->
+      <div class="space-y-6">
+        <!-- Stats -->
+        <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6">
+          <h3 class="text-lg font-bold text-white mb-4"><i class="fas fa-chart-bar text-gray-400 mr-2"></i>Stats</h3>
+          <div class="space-y-3">
+            <div class="flex justify-between">
+              <span class="text-gray-400">Games Found</span>
+              <span class="text-white">{{ found_games_count|default:0 }}</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-gray-400">Active Searches</span>
+              <span class="text-white">{{ total_search_configs|default:0 }}</span>
+            </div>
+          </div>
+          {% if found_games_count %}
+          <a href="{% url 'questlog_web_fluxer_member_games' guild_id %}"
+             class="mt-4 flex items-center gap-2 text-orange-400 hover:text-orange-300 text-sm font-medium transition">
+            <i class="fas fa-external-link-alt"></i> View Member Games Page
+          </a>
+          {% endif %}
+        </div>
+
+        <!-- Recent Found Games -->
+        <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6">
+          <h3 class="text-lg font-bold text-white mb-4"><i class="fas fa-history text-gray-400 mr-2"></i>Recently Found</h3>
+          {% if recent_found_games %}
+          <div class="space-y-3 max-h-96 overflow-y-auto">
+            {% for game in recent_found_games %}
+            <div class="p-3 bg-neutral-800/50 rounded-lg">
+              <div class="flex items-start justify-between">
+                <p class="text-white text-sm font-medium">{{ game.game_name }}</p>
+                {% if game.igdb_url %}
+                <a href="{{ game.igdb_url }}" target="_blank" rel="noopener noreferrer" class="text-blue-400 hover:text-blue-300 ml-2 flex-shrink-0" title="View on IGDB">
+                  <i class="fas fa-external-link-alt text-xs"></i>
+                </a>
+                {% endif %}
+              </div>
+              <p class="text-gray-500 text-xs">{{ game.formatted_date }}</p>
+              {% if game.genres_list %}
+              <div class="flex flex-wrap gap-1 mt-1">
+                {% for genre in game.genres_list %}
+                <span class="text-xs px-2 py-0.5 bg-blue-600/20 text-blue-400 rounded">{{ genre }}</span>
+                {% endfor %}
+              </div>
+              {% endif %}
+            </div>
+            {% endfor %}
+          </div>
+          {% else %}
+          <div class="text-center py-8">
+            <div class="w-12 h-12 bg-neutral-800 rounded-full flex items-center justify-center mx-auto mb-3">
+              <i class="fas fa-inbox text-gray-600 text-xl"></i>
+            </div>
+            <p class="text-gray-400 text-sm">No games found yet</p>
+            <p class="text-gray-500 text-xs mt-1">Add a search config and the bot will surface matching upcoming games</p>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Add/Edit Game Search Modal -->
+    <div id="gameSearchModal" class="hidden fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+      <div class="bg-neutral-900 rounded-xl border border-neutral-800 max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+        <div class="sticky top-0 bg-neutral-900 border-b border-neutral-800 p-6 flex items-center justify-between">
+          <h3 class="text-xl font-bold text-white" id="gameSearchModalTitle">
+            <i class="fas fa-plus text-green-400 mr-2"></i>Add Game Search
+          </h3>
+          <button onclick="closeGameSearchModal()" class="text-gray-400 hover:text-white transition">
+            <i class="fas fa-times text-xl"></i>
+          </button>
+        </div>
+        <div class="p-6 space-y-6">
+          <!-- Search Name -->
+          <div>
+            <label class="block text-sm text-gray-400 mb-2">Search Name *</label>
+            <input type="text" id="gs_modal_name" placeholder="e.g., Souls-like RPGs, MMO Games, Indie Puzzle" maxlength="100"
+                   class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:border-blue-500 focus:outline-none">
+            <p class="text-gray-500 text-xs mt-1">Give this search a descriptive name</p>
+          </div>
+
+          <!-- Days Ahead -->
+          <div>
+            <label class="block text-sm text-gray-400 mb-2">Announcement Window *</label>
+            <select id="gs_modal_days_ahead" class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:border-blue-500 focus:outline-none">
+              <option value="7">7 days before release</option>
+              <option value="14">14 days before release</option>
+              <option value="30" selected>30 days before release</option>
+              <option value="60">60 days before release</option>
+              <option value="90">90 days before release</option>
+            </select>
+          </div>
+
+          <!-- IGDB Filters - Tabbed UI -->
+          <div class="bg-neutral-800/30 rounded-xl border border-neutral-700/50 overflow-hidden">
+            <div class="p-4 border-b border-neutral-700/50">
+              <div class="relative">
+                <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-500"></i>
+                <input type="text" id="gs_filter_search" placeholder="Search tags..."
+                       class="w-full bg-neutral-800 border border-neutral-700 rounded-lg pl-10 pr-4 py-2.5 text-white placeholder-gray-500 focus:border-purple-500 focus:outline-none">
+              </div>
+            </div>
+            <div class="flex border-b border-neutral-700/50 overflow-x-auto">
+              <button type="button" onclick="gsFilterTab('genres')" id="gs_tab_genres"
+                      class="gs-filter-tab px-4 py-3 text-sm font-medium whitespace-nowrap transition bg-purple-600 text-white">
+                <i class="fas fa-gamepad mr-1.5"></i>Genres
+              </button>
+              <button type="button" onclick="gsFilterTab('themes')" id="gs_tab_themes"
+                      class="gs-filter-tab px-4 py-3 text-sm font-medium whitespace-nowrap transition text-gray-400 hover:text-white hover:bg-neutral-700/50">
+                <i class="fas fa-paint-brush mr-1.5"></i>Themes
+              </button>
+              <button type="button" onclick="gsFilterTab('keywords')" id="gs_tab_keywords"
+                      class="gs-filter-tab px-4 py-3 text-sm font-medium whitespace-nowrap transition text-gray-400 hover:text-white hover:bg-neutral-700/50">
+                <i class="fas fa-tags mr-1.5"></i>Keywords
+              </button>
+              <button type="button" onclick="gsFilterTab('modes')" id="gs_tab_modes"
+                      class="gs-filter-tab px-4 py-3 text-sm font-medium whitespace-nowrap transition text-gray-400 hover:text-white hover:bg-neutral-700/50">
+                <i class="fas fa-users mr-1.5"></i>Modes
+              </button>
+              <button type="button" onclick="gsFilterTab('platforms')" id="gs_tab_platforms"
+                      class="gs-filter-tab px-4 py-3 text-sm font-medium whitespace-nowrap transition text-gray-400 hover:text-white hover:bg-neutral-700/50">
+                <i class="fas fa-desktop mr-1.5"></i>Platforms
+              </button>
+            </div>
+            <div class="p-4 max-h-64 overflow-y-auto">
+              <div id="gs_panel_genres" class="gs-filter-panel">
+                <div class="flex flex-wrap gap-2">
+                  {% for genre in available_genres %}
+                  <button type="button" onclick="gsToggleTag('genre', '{{ genre }}')"
+                          class="gs-filter-tag gs-tag-genre px-3 py-1.5 rounded-full text-sm font-medium transition bg-neutral-700/50 text-gray-300 hover:bg-neutral-600 hover:text-white"
+                          data-value="{{ genre }}" data-selected="false">{{ genre }}</button>
+                  {% endfor %}
+                </div>
+              </div>
+              <div id="gs_panel_themes" class="gs-filter-panel hidden">
+                <div class="flex flex-wrap gap-2">
+                  {% for theme in available_themes %}
+                  <button type="button" onclick="gsToggleTag('theme', '{{ theme }}')"
+                          class="gs-filter-tag gs-tag-theme px-3 py-1.5 rounded-full text-sm font-medium transition bg-neutral-700/50 text-gray-300 hover:bg-neutral-600 hover:text-white"
+                          data-value="{{ theme }}" data-selected="false">{{ theme }}</button>
+                  {% endfor %}
+                </div>
+              </div>
+              <div id="gs_panel_keywords" class="gs-filter-panel hidden">
+                <p class="text-gray-500 text-xs mb-3"><i class="fas fa-info-circle mr-1"></i>Search IGDB keywords like "soulslike", "metroidvania", or "roguelike".</p>
+                <div class="relative mb-4">
+                  <div class="relative">
+                    <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-500"></i>
+                    <input type="text" id="gs_keyword_input" placeholder="Type to search keywords..."
+                           class="w-full bg-neutral-800 border border-neutral-700 rounded-lg pl-10 pr-4 py-2.5 text-white placeholder-gray-500 focus:border-green-500 focus:outline-none"
+                           autocomplete="off">
+                    <div id="gs_keyword_loading" class="hidden absolute right-3 top-1/2 -translate-y-1/2">
+                      <i class="fas fa-spinner fa-spin text-gray-500"></i>
+                    </div>
+                  </div>
+                  <div id="gs_keyword_dropdown" class="hidden absolute z-50 w-full mt-1 bg-neutral-800 border border-neutral-700 rounded-lg shadow-xl max-h-64 overflow-y-auto"></div>
+                </div>
+                <div id="gs_selected_keywords" class="flex flex-wrap gap-2">
+                  <p class="text-gray-500 text-sm"><i class="fas fa-info-circle mr-1"></i>No keywords selected.</p>
+                </div>
+              </div>
+              <div id="gs_panel_modes" class="gs-filter-panel hidden">
+                <div class="flex flex-wrap gap-2">
+                  {% for mode in available_modes %}
+                  <button type="button" onclick="gsToggleTag('mode', '{{ mode }}')"
+                          class="gs-filter-tag gs-tag-mode px-3 py-1.5 rounded-full text-sm font-medium transition bg-neutral-700/50 text-gray-300 hover:bg-neutral-600 hover:text-white"
+                          data-value="{{ mode }}" data-selected="false">{{ mode }}</button>
+                  {% endfor %}
+                </div>
+              </div>
+              <div id="gs_panel_platforms" class="gs-filter-panel hidden">
+                <div class="flex flex-wrap gap-2">
+                  {% for platform in available_platforms %}
+                  <button type="button" onclick="gsToggleTag('platform', '{{ platform }}')"
+                          class="gs-filter-tag gs-tag-platform px-3 py-1.5 rounded-full text-sm font-medium transition bg-neutral-700/50 text-gray-300 hover:bg-neutral-600 hover:text-white"
+                          data-value="{{ platform }}" data-selected="false">{{ platform }}</button>
+                  {% endfor %}
+                </div>
+              </div>
+            </div>
+            <div id="gs_selected_filters_container" class="hidden border-t border-neutral-700/50 p-4 bg-neutral-900/30">
+              <p class="text-xs text-gray-500 mb-2">Selected Filters:</p>
+              <div id="gs_selected_filters_display" class="flex flex-wrap gap-2"></div>
+            </div>
+          </div>
+
+          <!-- Quality Filters -->
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <label class="block text-sm text-gray-400 mb-2"><i class="fas fa-fire mr-1"></i>Minimum Hype <span class="text-gray-600 ml-1">(optional)</span></label>
+              <div class="flex items-center gap-2">
+                <input type="number" id="gs_modal_min_hype" min="0" placeholder="No minimum"
+                       class="w-32 bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-center focus:border-blue-500 focus:outline-none">
+                <span class="text-gray-400">follows</span>
+              </div>
+              <p class="text-gray-500 text-xs mt-1">IGDB pre-release follows count</p>
+            </div>
+            <div>
+              <label class="block text-sm text-gray-400 mb-2"><i class="fas fa-star mr-1"></i>Minimum Rating <span class="text-gray-600 ml-1">(optional)</span></label>
+              <div class="flex items-center gap-2">
+                <input type="number" id="gs_modal_min_rating" min="0" step="0.1" placeholder="No minimum"
+                       class="w-32 bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-center focus:border-blue-500 focus:outline-none">
+                <span class="text-gray-400">IGDB score</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Show on member portal -->
+          <div class="bg-neutral-800/30 border border-neutral-700/50 rounded-lg p-4">
+            <div class="flex items-start gap-3">
+              <input type="checkbox" id="gs_modal_show_on_website" checked
+                     class="mt-1 w-5 h-5 rounded border-neutral-600 bg-neutral-700 text-blue-600 focus:ring-blue-500 focus:ring-offset-neutral-900">
+              <div class="flex-1">
+                <label for="gs_modal_show_on_website" class="block text-sm font-medium text-white mb-1">
+                  <i class="fas fa-globe mr-2 text-blue-400"></i>Show on Member Portal
+                </label>
+                <p class="text-gray-400 text-xs leading-relaxed">
+                  When enabled, found games from this search appear on your community's member games page.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="sticky bottom-0 bg-neutral-900 border-t border-neutral-800 p-6 flex justify-end gap-3">
+          <button onclick="closeGameSearchModal()" class="bg-neutral-700 hover:bg-neutral-600 text-white px-6 py-2 rounded-lg font-medium transition">Cancel</button>
+          <button onclick="saveGameSearch()" id="saveGameSearchBtn" class="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg font-medium transition">
+            <i class="fas fa-save mr-2"></i>Save Search
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ===== QuestLog Network panel ===== -->
+  <div id="panel-network" class="hidden space-y-4">
+
+    <!-- Guild Discovery -->
+    <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-5">
+      <div class="flex items-start justify-between gap-4 mb-4">
+        <div>
+          <h3 class="text-white font-semibold">Guild Visibility</h3>
+          <p class="text-gray-500 text-sm mt-0.5">Allow this guild to appear in the QuestLog Network directory so players can find and join your community.</p>
+        </div>
+        <label class="relative inline-flex items-center cursor-pointer flex-shrink-0 mt-0.5">
+          <input type="checkbox" id="network-discovery-enabled" class="sr-only peer">
+          <div class="w-11 h-6 bg-neutral-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-orange-600"></div>
+        </label>
+      </div>
+
+      <div class="border-t border-neutral-800 pt-4 flex items-start justify-between gap-4 mb-4">
+        <div>
+          <h3 class="text-white font-semibold">LFG Network</h3>
+          <p class="text-gray-500 text-sm mt-0.5">Share open LFG groups to the cross-guild browser at <a href="/ql/fluxer/lfg/" target="_blank" class="text-orange-400 hover:text-orange-300">casual-heroes.com/ql/fluxer/lfg/</a> so players from any guild can find your groups.</p>
+        </div>
+        <label class="relative inline-flex items-center cursor-pointer flex-shrink-0 mt-0.5">
+          <input type="checkbox" id="network-publish-lfg" class="sr-only peer">
+          <div class="w-11 h-6 bg-neutral-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-orange-600"></div>
+        </label>
+      </div>
+
+      <!-- LFG Stats -->
+      <div class="grid grid-cols-3 gap-3 mb-4">
+        <div class="bg-neutral-800/60 rounded-lg p-3 text-center">
+          <p class="text-2xl font-bold text-white">{{ total_groups }}</p>
+          <p class="text-xs text-gray-500 mt-0.5">Total Groups</p>
+        </div>
+        <div class="bg-neutral-800/60 rounded-lg p-3 text-center">
+          <p class="text-2xl font-bold text-green-400">{{ open_groups }}</p>
+          <p class="text-xs text-gray-500 mt-0.5">Open Now</p>
+        </div>
+        <div class="bg-neutral-800/60 rounded-lg p-3 text-center">
+          <p class="text-2xl font-bold text-blue-400">{{ active_members }}</p>
+          <p class="text-xs text-gray-500 mt-0.5">Active Members</p>
+        </div>
+      </div>
+
+      <button onclick="saveNetworkSettings()"
+              class="bg-orange-700 hover:bg-orange-600 text-white px-5 py-2 rounded-lg text-sm font-medium transition flex items-center gap-2">
+        <i class="fas fa-save"></i> Save Network Settings
+      </button>
+    </div>
+
+    <!-- Creator Hub -->
+    <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-5">
+      <div class="flex items-center gap-3 mb-4">
+        <div class="w-10 h-10 bg-orange-600/20 rounded-xl flex items-center justify-center flex-shrink-0">
+          <i class="fas fa-video text-orange-400"></i>
+        </div>
+        <div>
+          <h3 class="text-white font-semibold">Creator Hub</h3>
+          <p class="text-gray-500 text-sm">The QuestLog Creator Program lets streamers and content creators link their profiles for discovery.</p>
+        </div>
+      </div>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <a href="/ql/creators/" target="_blank"
+           class="flex items-center gap-3 bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 rounded-xl px-4 py-3 transition group">
+          <div class="w-9 h-9 bg-indigo-600/20 rounded-lg flex items-center justify-center flex-shrink-0 group-hover:bg-indigo-600/30 transition">
+            <i class="fas fa-users text-indigo-400"></i>
+          </div>
+          <div>
+            <p class="text-white text-sm font-medium">Browse Creators</p>
+            <p class="text-gray-500 text-xs">Find creators in the network</p>
+          </div>
+          <i class="fas fa-external-link-alt text-gray-600 text-xs ml-auto"></i>
+        </a>
+        <a href="/ql/creator/register/" target="_blank"
+           class="flex items-center gap-3 bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 rounded-xl px-4 py-3 transition group">
+          <div class="w-9 h-9 bg-orange-600/20 rounded-lg flex items-center justify-center flex-shrink-0 group-hover:bg-orange-600/30 transition">
+            <i class="fas fa-plus text-orange-400"></i>
+          </div>
+          <div>
+            <p class="text-white text-sm font-medium">Become a Creator</p>
+            <p class="text-gray-500 text-xs">Register your creator profile</p>
+          </div>
+          <i class="fas fa-external-link-alt text-gray-600 text-xs ml-auto"></i>
+        </a>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ===== RSS Feeds panel ===== -->
+  <div id="panel-rss" class="hidden">
+    <div class="flex items-center justify-between mb-5">
+      <div>
+        <h3 class="text-white font-semibold">RSS Feed Subscriptions</h3>
+        <p class="text-gray-500 text-sm mt-0.5">Subscribe to RSS feeds and have the bot post updates to a channel.</p>
+      </div>
+      <div class="flex items-center gap-3">
+        <span id="rss-count" class="text-xs text-gray-500">0 feeds</span>
+        <button onclick="openRssModal()"
+                class="bg-orange-700 hover:bg-orange-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition whitespace-nowrap flex items-center gap-2">
+          <i class="fas fa-plus"></i> Add Feed
+        </button>
+      </div>
+    </div>
+    <div id="rss-list" class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+      <!-- feed cards rendered by JS -->
+    </div>
+  </div>
+
+  <!-- ===== Twitch panel ===== -->
+  <div id="panel-twitch" class="hidden">
+    <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-10 text-center">
+      <div class="w-14 h-14 bg-purple-700/20 rounded-full flex items-center justify-center mx-auto mb-4">
+        <i class="fab fa-twitch text-purple-400 text-2xl"></i>
+      </div>
+      <h3 class="text-white font-semibold text-lg mb-2">Twitch Integration</h3>
+      <p class="text-gray-400 text-sm mb-4 max-w-sm mx-auto">Connect your Twitch account to automatically post live notifications, track stream stats, and feature top streamers in your community.</p>
+      <span class="inline-flex items-center gap-2 bg-yellow-900/20 text-yellow-400 border border-yellow-700/40 px-4 py-2 rounded-lg text-sm font-medium">
+        <i class="fas fa-clock"></i> Coming Soon
+      </span>
+    </div>
+  </div>
+
+  <!-- ===== YouTube panel ===== -->
+  <div id="panel-youtube" class="hidden">
+    <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-10 text-center">
+      <div class="w-14 h-14 bg-red-700/20 rounded-full flex items-center justify-center mx-auto mb-4">
+        <i class="fab fa-youtube text-red-400 text-2xl"></i>
+      </div>
+      <h3 class="text-white font-semibold text-lg mb-2">YouTube Integration</h3>
+      <p class="text-gray-400 text-sm mb-4 max-w-sm mx-auto">Subscribe to YouTube channels and auto-post new video releases to your community channels with rich embeds and notifications.</p>
+      <span class="inline-flex items-center gap-2 bg-yellow-900/20 text-yellow-400 border border-yellow-700/40 px-4 py-2 rounded-lg text-sm font-medium">
+        <i class="fas fa-clock"></i> Coming Soon
+      </span>
+    </div>
+  </div>
+
+</div>
+
+<!-- ===== RSS Embed Preview modal ===== -->
+<div id="rss-preview-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
+  <div class="bg-neutral-900 border border-neutral-800 rounded-xl w-full max-w-lg">
+    <div class="flex items-center justify-between px-5 py-4 border-b border-neutral-800">
+      <h3 class="text-white font-semibold"><i class="fas fa-eye text-blue-400 mr-2"></i>Embed Preview</h3>
+      <button onclick="closeRssPreviewModal()" class="text-gray-500 hover:text-white transition"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="p-5" id="rss-preview-body">
+      <div class="text-center py-8 text-gray-500 text-sm"><i class="fas fa-spinner fa-spin mr-2"></i>Fetching latest entry...</div>
+    </div>
+    <div class="px-5 pb-4 flex gap-2">
+      <button id="rss-preview-send-btn" onclick="forceSendFromPreview()" class="flex-1 bg-orange-700 hover:bg-orange-600 text-white py-2 rounded-lg text-sm font-medium transition hidden">
+        <i class="fas fa-paper-plane mr-2"></i>Send to Fluxer
+      </button>
+      <button onclick="closeRssPreviewModal()" class="flex-1 bg-neutral-800 hover:bg-neutral-700 text-gray-300 py-2 rounded-lg text-sm font-medium transition">
+        Close
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Add RSS Feed modal ===== -->
+<div id="rss-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
+  <div class="bg-neutral-900 border border-neutral-800 rounded-xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+    <!-- Header -->
+    <div class="flex items-center justify-between px-6 py-4 border-b border-neutral-800 flex-shrink-0">
+      <h3 id="rss-modal-title" class="text-white font-semibold text-lg"><i class="fas fa-rss text-orange-400 mr-2"></i>Add RSS Feed</h3>
+      <button onclick="closeRssModal()" class="text-gray-500 hover:text-white transition"><i class="fas fa-times"></i></button>
+    </div>
+    <!-- Scrollable body -->
+    <div class="overflow-y-auto flex-1 px-6 py-4 space-y-5">
+
+      <!-- Core -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="md:col-span-2">
+          <label class="block text-xs text-gray-400 mb-1.5">Feed URL <span class="text-red-400">*</span></label>
+          <input type="url" id="rss-url" placeholder="https://example.com/feed.xml"
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-orange-500">
+        </div>
+        <div class="md:col-span-2">
+          <label class="block text-xs text-gray-400 mb-1.5">Feed Label <span class="text-gray-600">(optional display name)</span></label>
+          <input type="text" id="rss-label" placeholder="e.g. Patch Notes"
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-orange-500">
+        </div>
+        <div>
+          <label class="block text-xs text-gray-400 mb-1.5">Post to Channel <span class="text-red-400">*</span></label>
+          <div id="cs-rss-channel"></div>
+        </div>
+        <div>
+          <label class="block text-xs text-gray-400 mb-1.5">Ping Role <span class="text-gray-600">(optional)</span></label>
+          <div id="cs-rss-ping-role"></div>
+        </div>
+      </div>
+
+      <!-- Polling + Age Filter row -->
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-xs text-gray-400 mb-1.5">Poll Interval</label>
+          <div id="cs-rss-poll-interval"></div>
+          <p class="text-gray-600 text-xs mt-1">How often the bot checks for new articles.</p>
+        </div>
+        <div>
+          <label class="block text-xs text-gray-400 mb-1.5">Max Article Age</label>
+          <div id="cs-rss-max-age"></div>
+          <p class="text-gray-600 text-xs mt-1">Skip articles older than this. Prevents flooding on first-run.</p>
+        </div>
+      </div>
+
+      <!-- Enable Feed toggle -->
+      <div class="flex items-center justify-between p-4 bg-neutral-800 rounded-lg">
+        <div>
+          <h5 class="text-white font-medium text-sm">Enable Feed</h5>
+          <p class="text-xs text-gray-400 mt-0.5">When enabled, new posts will be automatically sent to the channel</p>
+        </div>
+        <label class="relative inline-flex items-center cursor-pointer flex-shrink-0 ml-4">
+          <input type="checkbox" id="rss-enabled" checked class="sr-only peer">
+          <div class="w-11 h-6 bg-neutral-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-orange-600"></div>
+        </label>
+      </div>
+
+      <!-- Category filter -->
+      <div>
+        <label class="block text-xs text-gray-400 mb-2">Category Filter</label>
+        <div id="cs-rss-cat-mode"></div>
+        <div id="rss-cat-filter-row" class="hidden mt-2">
+          <input type="text" id="rss-category-filters" placeholder="e.g. Guild Wars 2, News (comma-separated)"
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-orange-500">
+          <p class="text-gray-600 text-xs mt-1">Comma-separated category names to include or exclude.</p>
+        </div>
+      </div>
+
+      <!-- Embed customization (collapsible) -->
+      <div>
+        <button type="button" onclick="toggleRssEmbedSection()"
+                class="flex items-center gap-2 text-sm text-gray-400 hover:text-white transition w-full text-left">
+          <i class="fas fa-palette text-orange-400"></i>
+          <span>Embed Customization</span>
+          <i id="rss-embed-chevron" class="fas fa-chevron-down text-xs ml-auto transition-transform"></i>
+        </button>
+        <div id="rss-embed-section" class="hidden mt-3 space-y-4 pl-2 border-l-2 border-neutral-800">
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs text-gray-400 mb-1.5">Embed Color</label>
+              <div class="flex items-center gap-2">
+                <input type="color" id="rss-color" value="#ea580c"
+                       class="w-10 h-8 rounded cursor-pointer bg-transparent border-0">
+                <input type="text" id="rss-color-hex" value="#ea580c" maxlength="7"
+                       class="flex-1 bg-neutral-800 border border-neutral-700 rounded px-2 py-1.5 text-white text-xs focus:outline-none focus:border-orange-500">
+              </div>
+            </div>
+            <div>
+              <label class="block text-xs text-gray-400 mb-1.5">Emoji Prefix</label>
+              <input type="text" id="rss-emoji" placeholder="e.g. 📰"
+                     class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-orange-500">
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs text-gray-400 mb-1.5">Title Prefix</label>
+              <input type="text" id="rss-title-prefix" placeholder="e.g. [Update]"
+                     class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-orange-500">
+            </div>
+            <div>
+              <label class="block text-xs text-gray-400 mb-1.5">Title Suffix</label>
+              <input type="text" id="rss-title-suffix" placeholder="e.g. - Official"
+                     class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-orange-500">
+            </div>
+          </div>
+          <div>
+            <label class="block text-xs text-gray-400 mb-1.5">Custom Message <span class="text-gray-600">(prepended to each post)</span></label>
+            <textarea id="rss-custom-desc" rows="2" placeholder="e.g. New patch notes just dropped!"
+                      class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-orange-500 resize-none"></textarea>
+          </div>
+          <div>
+            <label class="block text-xs text-gray-400 mb-1.5">Footer Text</label>
+            <input type="text" id="rss-footer" placeholder="e.g. Powered by QuestLog"
+                   class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-orange-500">
+          </div>
+          <div>
+            <label class="block text-xs text-gray-400 mb-1.5">Thumbnail Mode</label>
+            <div id="cs-rss-thumbnail-mode"></div>
+          </div>
+          <div id="rss-custom-thumb-row" class="hidden">
+            <label class="block text-xs text-gray-400 mb-1.5">Custom Thumbnail URL</label>
+            <input type="url" id="rss-custom-thumb" placeholder="https://..."
+                   class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-orange-500">
+          </div>
+          <div>
+            <label class="block text-xs text-gray-400 mb-1.5">Max Individual Posts</label>
+            <div id="cs-rss-max-posts"></div>
+            <p class="text-gray-600 text-xs mt-1">If more than this many new articles arrive at once, post a summary instead. Set to 0 for always summary.</p>
+          </div>
+          <div class="space-y-2">
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" id="rss-show-author" checked class="w-4 h-4 rounded bg-neutral-800 border-neutral-600 text-orange-600 focus:ring-orange-500">
+              <span class="text-sm text-gray-300">Show article author</span>
+            </label>
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" id="rss-show-date" checked class="w-4 h-4 rounded bg-neutral-800 border-neutral-600 text-orange-600 focus:ring-orange-500">
+              <span class="text-sm text-gray-300">Show publish date</span>
+            </label>
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" id="rss-show-categories" class="w-4 h-4 rounded bg-neutral-800 border-neutral-600 text-orange-600 focus:ring-orange-500">
+              <span class="text-sm text-gray-300">Show categories/tags</span>
+            </label>
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" id="rss-full-content" class="w-4 h-4 rounded bg-neutral-800 border-neutral-600 text-orange-600 focus:ring-orange-500">
+              <span class="text-sm text-gray-300">Show full article content (truncates at 4000 chars)</span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+    </div>
+    <!-- Footer -->
+    <div class="flex gap-3 px-6 py-4 border-t border-neutral-800 flex-shrink-0">
+      <button onclick="addRssFeed()" id="rss-save-btn"
+              class="flex-1 bg-orange-700 hover:bg-orange-600 text-white py-2 rounded-lg text-sm font-medium transition">
+        <i class="fas fa-plus mr-2"></i>Add Feed
+      </button>
+      <button onclick="closeRssModal()"
+              class="flex-1 bg-neutral-800 hover:bg-neutral-700 text-gray-300 py-2 rounded-lg text-sm font-medium transition">
+        Cancel
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+function showToast(message, type = 'success') {
+  const colors = { success: 'bg-green-900/90 text-green-300 border-green-700/50', error: 'bg-red-900/90 text-red-300 border-red-700/50', info: 'bg-blue-900/90 text-blue-300 border-blue-700/50' };
+  const t = document.createElement('div');
+  t.className = `fixed bottom-4 right-4 z-[9999] px-4 py-3 rounded-lg border text-sm font-medium shadow-lg transition-opacity duration-300 ${colors[type] || colors.info}`;
+  t.textContent = message;
+  document.body.appendChild(t);
+  setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.remove(), 300); }, 3500);
+}
+
+const GUILD_ID = '{{ guild_id }}';
+const SETTINGS = JSON.parse('{{ settings_json|escapejs }}');
+const CHANNELS = JSON.parse('{{ channels_json|escapejs }}');
+const API_URL = '/ql/api/dashboard/fluxer/' + GUILD_ID + '/settings/';
+const DISCOVERY_API = '/ql/api/dashboard/fluxer/' + GUILD_ID + '/discovery/';
+const LFG_CONFIG_API = '/ql/api/dashboard/fluxer/' + GUILD_ID + '/lfg-config/';
+const NETWORK = {
+  discovery_enabled: {{ discovery_enabled|yesno:"true,false" }},
+  publish_to_network: {{ publish_to_network|yesno:"true,false" }},
+};
+
+const TABS = ['creator', 'games', 'rss', 'network', 'twitch', 'youtube'];
+const ACTIVE_TAB = '{{ active_tab|default:"creator" }}';
+let csCreatorChannel, csSelfpromoChannel, csFeatureChannel, csResponseChannel;
+let csCOTWChannel, csCOTMChannel;
+let csGamesChannel, csRssChannel;
+let csGdChannel, csGdPingRole;
+const GD_ROLES_API = '/ql/api/dashboard/fluxer/' + GUILD_ID + '/roles/list/';
+
+// ---- Tab switching ----
+function switchTab(name) {
+  TABS.forEach(t => {
+    document.getElementById('panel-' + t).classList.add('hidden');
+    document.getElementById('tab-' + t).className = 'px-5 py-3 font-medium text-gray-400 hover:text-white border-b-2 border-transparent transition whitespace-nowrap text-sm';
+  });
+  document.getElementById('panel-' + name).classList.remove('hidden');
+  document.getElementById('tab-' + name).className = 'px-5 py-3 font-medium text-white border-b-2 border-orange-500 transition whitespace-nowrap text-sm';
+
+  if (name === 'games' && !csGamesChannel) { initGamesTab(); }
+  if (name === 'rss' && !csRssChannel) { initRssTab(); }
+  if (name === 'network') { initNetworkTab(); }
+}
+
+function makeSelect(containerId, name, selected) {
+  const el = document.getElementById(containerId);
+  if (!el) return null;
+  return createCustomSelect({ container: el, name, items: CHANNELS, selected: selected || '', placeholder: 'Select channel...' });
+}
+
+// ---- Creator tab init (runs on load since it's the default tab) ----
+function initCreatorTab() {
+  const S = SETTINGS;
+
+  // Main toggles
+  const _set = (id, val) => { const el = document.getElementById(id); if (el) el.checked = !!val; };
+  const _val = (id, val) => { const el = document.getElementById(id); if (el && val !== undefined && val !== '') el.value = val; };
+
+  _set('creator-enabled', S.creator_enabled);
+
+  // Channel Discovery
+  _set('channel-discovery-enabled', S.creator_channel_discovery_enabled);
+  if (S.creator_channel_discovery_enabled) {
+    document.getElementById('channelDiscoverySettings')?.classList.remove('hidden');
+  }
+  csSelfpromoChannel = makeSelect('cs-selfpromo-channel', 'creator_selfpromo_channel_id', S.creator_selfpromo_channel_id);
+  csFeatureChannel   = makeSelect('cs-feature-channel',   'creator_feature_channel_id',   S.creator_feature_channel_id);
+  csResponseChannel  = makeSelect('cs-response-channel',  'creator_response_channel_id',  S.creator_response_channel_id);
+
+  // Timings
+  _val('creator-interval', S.creator_feature_interval_hours || 3);
+  _val('creator-cooldown', S.creator_cooldown_hours || 72);
+
+  // Message
+  const msgEl = document.getElementById('creator-msg');
+  if (msgEl && S.creator_announcement_template) msgEl.value = S.creator_announcement_template;
+
+  // COTW
+  _set('cotw-enabled', S.creator_cotw_enabled);
+  if (S.creator_cotw_enabled) document.getElementById('cotwSettings')?.classList.remove('hidden');
+  csCOTWChannel = makeSelect('cs-cotw-channel', 'creator_cotw_channel_id', S.creator_cotw_channel_id);
+  _set('cotw-auto-rotate', S.creator_cotw_auto_rotate);
+  if (S.creator_cotw_auto_rotate) document.getElementById('cotwDayRow')?.classList.remove('hidden');
+  _val('cotw-rotation-day', S.creator_cotw_rotation_day || 0);
+
+  // COTM
+  _set('cotm-enabled', S.creator_cotm_enabled);
+  if (S.creator_cotm_enabled) document.getElementById('cotmSettings')?.classList.remove('hidden');
+  csCOTMChannel = makeSelect('cs-cotm-channel', 'creator_cotm_channel_id', S.creator_cotm_channel_id);
+  _set('cotm-auto-rotate', S.creator_cotm_auto_rotate);
+  if (S.creator_cotm_auto_rotate) document.getElementById('cotmDayRow')?.classList.remove('hidden');
+  _val('cotm-rotation-day', S.creator_cotm_rotation_day || 1);
+}
+
+// ---- Games tab init ----
+async function initGamesTab() {
+  csGamesChannel = createCustomSelect({
+    container: document.getElementById('cs-games-channel'),
+    name: 'game_announcements_channel_id',
+    items: CHANNELS,
+    selected: SETTINGS.game_announcements_channel_id || '',
+    placeholder: 'Select channel...',
+  });
+
+  // Announcement channel select (global game discovery settings)
+  csGdChannel = createCustomSelect({
+    container: document.getElementById('cs-gd-channel'),
+    name: 'game_discovery_channel_id',
+    items: [{value: '', label: '-- None --'}, ...CHANNELS],
+    selected: '{{ game_discovery_channel_id|escapejs }}',
+    placeholder: 'Select channel...',
+  });
+
+  // Ping role select - loaded via API
+  try {
+    const resp = await csrfFetch(GD_ROLES_API);
+    const data = await resp.json();
+    const roles = data.roles || [];
+    csGdPingRole = createCustomSelect({
+      container: document.getElementById('cs-gd-pingrole'),
+      name: 'game_discovery_ping_role_id',
+      items: [{value: '', label: '-- None --'}, ...roles],
+      selected: '{{ game_discovery_ping_role_id|escapejs }}',
+      placeholder: 'Select role...',
+    });
+  } catch (e) {
+    document.getElementById('cs-gd-pingrole').innerHTML =
+      '<p class="text-gray-500 text-sm py-2">Roles not synced yet.</p>';
+  }
+
+  const enabledEl = document.getElementById('games-enabled');
+  if (enabledEl) enabledEl.checked = !!SETTINGS.game_announcements_enabled;
+
+  const intervalEl = document.getElementById('games-interval');
+  if (intervalEl && SETTINGS.game_check_interval_hours) intervalEl.value = SETTINGS.game_check_interval_hours;
+
+  const maxEl = document.getElementById('games-max');
+  if (maxEl && SETTINGS.game_max_announcements) maxEl.value = SETTINGS.game_max_announcements;
+}
+
+// ---- RSS tab init ----
+function initRssTab() {
+  loadRssFeeds();
+}
+
+// ---- Network tab init ----
+let _networkInited = false;
+function initNetworkTab() {
+  if (_networkInited) return;
+  _networkInited = true;
+  const discoveryEl = document.getElementById('network-discovery-enabled');
+  const publishEl = document.getElementById('network-publish-lfg');
+  if (discoveryEl) discoveryEl.checked = NETWORK.discovery_enabled;
+  if (publishEl) publishEl.checked = NETWORK.publish_to_network;
+}
+
+// ---- RSS custom select instances ----
+let csRssPingRole = null, csRssPollInterval = null, csRssMaxAge = null, csRssCatMode = null, csRssThumbnailMode = null, csRssMaxPosts = null;
+let currentEditingRssId = null;
+let currentPreviewFeedId = null;
+
+const RSS_POLL_ITEMS = [
+  {value: '5',     label: 'Every 5 minutes'},
+  {value: '10',    label: 'Every 10 minutes'},
+  {value: '15',    label: 'Every 15 minutes'},
+  {value: '30',    label: 'Every 30 minutes'},
+  {value: '60',    label: 'Every hour'},
+  {value: '360',   label: 'Every 6 hours'},
+  {value: '720',   label: 'Every 12 hours'},
+  {value: '1440',  label: 'Daily (every 24 hours)'},
+  {value: '10080', label: 'Weekly'},
+];
+const RSS_MAX_AGE_ITEMS = [
+  {value: '0',   label: 'No limit (all articles)'},
+  {value: '1',   label: 'Last 24 hours'},
+  {value: '3',   label: 'Last 3 days'},
+  {value: '7',   label: 'Last 7 days'},
+  {value: '14',  label: 'Last 2 weeks'},
+  {value: '30',  label: 'Last 30 days'},
+  {value: '90',  label: 'Last 90 days'},
+];
+const RSS_CAT_MODE_ITEMS = [
+  {value: 'none',    label: 'No filter (all articles)'},
+  {value: 'include', label: 'Include only matching categories'},
+  {value: 'exclude', label: 'Exclude matching categories'},
+];
+const RSS_THUMB_ITEMS = [
+  {value: 'rss',    label: 'From article (auto-detect)'},
+  {value: 'custom', label: 'Custom URL'},
+  {value: 'none',   label: 'No thumbnail'},
+];
+const RSS_MAX_POSTS_ITEMS = [
+  {value: '0',  label: 'Always summary'},
+  {value: '1',  label: '1 post then summary'},
+  {value: '3',  label: 'Up to 3 posts'},
+  {value: '5',  label: 'Up to 5 posts'},
+  {value: '10', label: 'Up to 10 posts'},
+  {value: '20', label: 'Up to 20 posts'},
+];
+
+function toggleRssEmbedSection() {
+  const sec = document.getElementById('rss-embed-section');
+  const chev = document.getElementById('rss-embed-chevron');
+  sec.classList.toggle('hidden');
+  chev.classList.toggle('rotate-180');
+}
+
+// ---- RSS modal ----
+async function openRssModal() {
+  currentEditingRssId = null;
+  document.getElementById('rss-modal-title').innerHTML = '<i class="fas fa-rss text-orange-400 mr-2"></i>Add RSS Feed';
+  document.getElementById('rss-save-btn').innerHTML = '<i class="fas fa-plus mr-2"></i>Add Feed';
+  document.getElementById('rss-url').value = '';
+  document.getElementById('rss-label').value = '';
+  document.getElementById('rss-category-filters').value = '';
+  document.getElementById('rss-emoji').value = '';
+  document.getElementById('rss-title-prefix').value = '';
+  document.getElementById('rss-title-suffix').value = '';
+  document.getElementById('rss-custom-desc').value = '';
+  document.getElementById('rss-footer').value = '';
+  document.getElementById('rss-color').value = '#ea580c';
+  document.getElementById('rss-color-hex').value = '#ea580c';
+  document.getElementById('rss-enabled').checked = true;
+  document.getElementById('rss-show-author').checked = true;
+  document.getElementById('rss-show-date').checked = true;
+  document.getElementById('rss-show-categories').checked = false;
+  document.getElementById('rss-full-content').checked = false;
+  document.getElementById('rss-custom-thumb').value = '';
+  document.getElementById('rss-cat-filter-row').classList.add('hidden');
+  document.getElementById('rss-custom-thumb-row').classList.add('hidden');
+  document.getElementById('rss-embed-section').classList.add('hidden');
+  document.getElementById('rss-embed-chevron').classList.remove('rotate-180');
+
+  if (!csRssChannel) {
+    csRssChannel = createCustomSelect({
+      container: document.getElementById('cs-rss-channel'),
+      name: 'rss_channel_id',
+      items: CHANNELS,
+      selected: '',
+      placeholder: 'Select channel...',
+      color: 'orange',
+    });
+  } else { csRssChannel.setValue(''); }
+
+  if (!csRssPollInterval) {
+    csRssPollInterval = createCustomSelect({
+      container: document.getElementById('cs-rss-poll-interval'),
+      name: 'rss_poll_interval',
+      items: RSS_POLL_ITEMS,
+      selected: '15',
+      color: 'orange',
+    });
+  } else { csRssPollInterval.setValue('15'); }
+
+  if (!csRssMaxAge) {
+    csRssMaxAge = createCustomSelect({
+      container: document.getElementById('cs-rss-max-age'),
+      name: 'rss_max_age',
+      items: RSS_MAX_AGE_ITEMS,
+      selected: '7',
+      color: 'orange',
+    });
+  } else { csRssMaxAge.setValue('7'); }
+
+  if (!csRssCatMode) {
+    csRssCatMode = createCustomSelect({
+      container: document.getElementById('cs-rss-cat-mode'),
+      name: 'rss_cat_mode',
+      items: RSS_CAT_MODE_ITEMS,
+      selected: 'none',
+      color: 'orange',
+      onSelect: (v) => document.getElementById('rss-cat-filter-row').classList.toggle('hidden', v === 'none'),
+    });
+  } else { csRssCatMode.setValue('none'); }
+
+  if (!csRssThumbnailMode) {
+    csRssThumbnailMode = createCustomSelect({
+      container: document.getElementById('cs-rss-thumbnail-mode'),
+      name: 'rss_thumbnail_mode',
+      items: RSS_THUMB_ITEMS,
+      selected: 'rss',
+      color: 'orange',
+      onSelect: (v) => document.getElementById('rss-custom-thumb-row').classList.toggle('hidden', v !== 'custom'),
+    });
+  } else { csRssThumbnailMode.setValue('rss'); }
+
+  if (!csRssMaxPosts) {
+    csRssMaxPosts = createCustomSelect({
+      container: document.getElementById('cs-rss-max-posts'),
+      name: 'rss_max_posts',
+      items: RSS_MAX_POSTS_ITEMS,
+      selected: '5',
+      color: 'orange',
+    });
+  } else { csRssMaxPosts.setValue('5'); }
+
+  // Ping role - load from API
+  try {
+    const resp = await csrfFetch(GD_ROLES_API);
+    const data = await resp.json();
+    const roleItems = [{value: '', label: '-- No ping --'}, ...(data.roles || [])];
+    if (!csRssPingRole) {
+      csRssPingRole = createCustomSelect({
+        container: document.getElementById('cs-rss-ping-role'),
+        name: 'rss_ping_role_id',
+        items: roleItems,
+        selected: '',
+        placeholder: 'No role ping...',
+        color: 'orange',
+      });
+    } else { csRssPingRole.setValue(''); }
+  } catch (e) {
+    document.getElementById('cs-rss-ping-role').innerHTML = '<p class="text-gray-500 text-xs py-2">Roles not synced.</p>';
+  }
+
+  // Color sync
+  document.getElementById('rss-color').addEventListener('input', function() {
+    document.getElementById('rss-color-hex').value = this.value;
+  });
+  document.getElementById('rss-color-hex').addEventListener('input', function() {
+    if (/^#[0-9a-fA-F]{6}$/.test(this.value)) document.getElementById('rss-color').value = this.value;
+  });
+
+  document.getElementById('rss-modal').classList.remove('hidden');
+}
+
+function closeRssModal() {
+  document.getElementById('rss-modal').classList.add('hidden');
+}
+
+// Close modal on backdrop click
+document.getElementById('rss-modal').addEventListener('click', function(e) {
+  if (e.target === this) closeRssModal();
+});
+
+// ---- RSS API calls ----
+async function loadRssFeeds() {
+  const listEl = document.getElementById('rss-list');
+  const countEl = document.getElementById('rss-count');
+  listEl.innerHTML = '<div class="py-8 text-center text-gray-500 text-sm"><i class="fas fa-spinner fa-spin mr-2"></i>Loading feeds...</div>';
+
+  try {
+    const resp = await csrfFetch(DISCOVERY_API + 'rss/', {
+      headers: { 'Accept': 'application/json' },
+    });
+    const data = await resp.json();
+    if (!resp.ok) {
+      listEl.innerHTML = `<div class="py-8 text-center text-red-400 text-sm"><i class="fas fa-exclamation-triangle mr-2"></i>${escapeHtml(data.error || 'Access denied.')}</div>`;
+      return;
+    }
+    const feeds = data.feeds || [];
+    countEl.textContent = feeds.length + ' feed' + (feeds.length !== 1 ? 's' : '');
+    renderRssFeeds(feeds);
+  } catch (e) {
+    listEl.innerHTML = '<div class="py-8 text-center text-red-400 text-sm"><i class="fas fa-exclamation-triangle mr-2"></i>Failed to load feeds.</div>';
+  }
+}
+
+function renderRssFeeds(feeds) {
+  const el = document.getElementById('rss-list');
+  if (!feeds || !feeds.length) {
+    el.className = '';
+    el.innerHTML = `<div class="py-12 text-center col-span-full">
+      <div class="w-12 h-12 bg-orange-700/20 rounded-full flex items-center justify-center mx-auto mb-3">
+        <i class="fas fa-rss text-orange-400"></i>
+      </div>
+      <p class="text-gray-400 text-sm font-medium">No RSS feeds subscribed</p>
+      <p class="text-gray-600 text-xs mt-1">Add a feed URL and select a channel for the bot to post updates.</p>
+    </div>`;
+    return;
+  }
+  el.className = 'grid gap-4 md:grid-cols-2 lg:grid-cols-3';
+  el.innerHTML = feeds.map(f => {
+    const failures = f.consecutive_failures || 0;
+    const statusClass = f.enabled ? 'bg-green-900 text-green-400' : 'bg-neutral-700 text-gray-400';
+    const statusText = f.enabled ? 'Active' : 'Disabled';
+    const errorHtml = failures > 0
+      ? `<div class="mt-2 text-xs text-red-400"><i class="fas fa-exclamation-triangle mr-1"></i>${failures} failure${failures !== 1 ? 's' : ''}</div>`
+      : '';
+    return `
+    <div class="bg-neutral-800 border border-neutral-700 rounded-lg p-4 hover:border-neutral-600 transition">
+      <div class="flex justify-between items-start mb-3">
+        <h4 class="text-white font-medium truncate flex-1 mr-2">${escapeHtml(f.label || f.url)}</h4>
+        <span class="px-2 py-1 text-xs rounded ${statusClass}">${statusText}</span>
+      </div>
+      <p class="text-sm text-gray-400 truncate mb-2" title="${escapeHtml(f.url)}">${escapeHtml(f.url)}</p>
+      <div class="flex items-center text-sm text-gray-500 mb-3">
+        <i class="fas fa-hashtag mr-1"></i>
+        <span>${escapeHtml(f.channel_name || f.channel_id || 'No channel')}</span>
+      </div>
+      ${errorHtml}
+      <div class="flex justify-end space-x-2 mt-3 pt-3 border-t border-neutral-700">
+        <button onclick="forceSendRssFeed(${f.id})" title="Send to Fluxer"
+                class="px-3 py-1.5 text-sm bg-orange-900/60 hover:bg-orange-800 text-orange-400 rounded transition">
+          <i class="fas fa-paper-plane"></i>
+        </button>
+        <button onclick="previewRssFeed(${f.id})" title="Preview embed"
+                class="px-3 py-1.5 text-sm bg-neutral-700 hover:bg-neutral-600 text-white rounded transition">
+          <i class="fas fa-eye"></i>
+        </button>
+        <button onclick="editRssFeed(${f.id})" title="Edit feed"
+                class="px-3 py-1.5 text-sm bg-neutral-700 hover:bg-neutral-600 text-white rounded transition">
+          <i class="fas fa-edit"></i>
+        </button>
+        <button onclick="removeRssFeed(${f.id})" title="Delete feed"
+                class="px-3 py-1.5 text-sm bg-red-900 hover:bg-red-800 text-red-400 rounded transition">
+          <i class="fas fa-trash"></i>
+        </button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function addRssFeed() {
+  const url = document.getElementById('rss-url').value.trim();
+  if (!url || !url.startsWith('http')) { showToast('Please enter a valid RSS URL.', 'error'); return; }
+  const channel_id = csRssChannel ? csRssChannel.getValue() : '';
+  if (!channel_id) { showToast('Please select a channel.', 'error'); return; }
+
+  const catFiltersRaw = document.getElementById('rss-category-filters').value.trim();
+  const catFilters = catFiltersRaw ? catFiltersRaw.split(',').map(s => s.trim()).filter(Boolean) : [];
+  const colorHex = document.getElementById('rss-color-hex').value.trim() || '#ea580c';
+
+  const payload = {
+    url,
+    channel_id,
+    label: document.getElementById('rss-label').value.trim(),
+    enabled: document.getElementById('rss-enabled').checked,
+    ping_role_id: csRssPingRole ? csRssPingRole.getValue() : '',
+    poll_interval_minutes: parseInt(csRssPollInterval ? csRssPollInterval.getValue() : '15') || 15,
+    max_age_days: parseInt(csRssMaxAge ? csRssMaxAge.getValue() : '7') || 0,
+    category_filter_mode: csRssCatMode ? csRssCatMode.getValue() : 'none',
+    category_filters: catFilters,
+    embed_config: {
+      color: colorHex,
+      custom_emoji_prefix: document.getElementById('rss-emoji').value.trim(),
+      title_prefix: document.getElementById('rss-title-prefix').value.trim(),
+      title_suffix: document.getElementById('rss-title-suffix').value.trim(),
+      custom_description: document.getElementById('rss-custom-desc').value.trim(),
+      footer_text: document.getElementById('rss-footer').value.trim(),
+      thumbnail_mode: csRssThumbnailMode ? csRssThumbnailMode.getValue() : 'rss',
+      custom_thumbnail_url: document.getElementById('rss-custom-thumb').value.trim(),
+      show_author: document.getElementById('rss-show-author').checked,
+      show_publish_date: document.getElementById('rss-show-date').checked,
+      show_categories: document.getElementById('rss-show-categories').checked,
+      show_full_content: document.getElementById('rss-full-content').checked,
+      max_individual_posts: parseInt(csRssMaxPosts ? csRssMaxPosts.getValue() : '5') || 5,
+    },
+  };
+
+  const btn = document.getElementById('rss-save-btn');
+  const isEdit = !!currentEditingRssId;
+  btn.disabled = true;
+  btn.innerHTML = `<i class="fas fa-spinner fa-spin mr-2"></i>${isEdit ? 'Saving...' : 'Adding...'}`;
+
+  try {
+    const apiUrl = isEdit ? DISCOVERY_API + 'rss/' + currentEditingRssId + '/' : DISCOVERY_API + 'rss/';
+    const method = isEdit ? 'PATCH' : 'POST';
+    const resp = await csrfFetch(apiUrl, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const data = await resp.json();
+    btn.disabled = false;
+    btn.innerHTML = isEdit ? '<i class="fas fa-save mr-2"></i>Save Changes' : '<i class="fas fa-plus mr-2"></i>Add Feed';
+    if (resp.ok && data.success) {
+      closeRssModal();
+      loadRssFeeds();
+      showToast(isEdit ? 'RSS feed updated!' : 'RSS feed added!', 'success');
+    } else {
+      showToast(data.error || (isEdit ? 'Failed to update feed.' : 'Failed to add feed.'), 'error');
+    }
+  } catch (e) {
+    btn.disabled = false;
+    btn.innerHTML = isEdit ? '<i class="fas fa-save mr-2"></i>Save Changes' : '<i class="fas fa-plus mr-2"></i>Add Feed';
+    showToast('Network error.', 'error');
+  }
+}
+
+async function removeRssFeed(id) {
+  if (!confirm('Remove this RSS feed?')) return;
+  try {
+    const resp = await csrfFetch(DISCOVERY_API + 'rss/' + id + '/', { method: 'DELETE' });
+    const data = await resp.json();
+    if (resp.ok && data.success) {
+      loadRssFeeds();
+      showToast('Feed removed.', 'success');
+    } else {
+      showToast(data.error || 'Failed to remove feed.', 'error');
+    }
+  } catch (e) {
+    showToast('Network error.', 'error');
+  }
+}
+
+async function previewRssFeed(id) {
+  currentPreviewFeedId = id;
+  const modal = document.getElementById('rss-preview-modal');
+  const body = document.getElementById('rss-preview-body');
+  const sendBtn = document.getElementById('rss-preview-send-btn');
+  body.innerHTML = '<div class="text-center py-8 text-gray-500 text-sm"><i class="fas fa-spinner fa-spin mr-2"></i>Fetching latest entry...</div>';
+  sendBtn.classList.add('hidden');
+  modal.classList.remove('hidden');
+
+  try {
+    const resp = await csrfFetch(DISCOVERY_API + 'rss/' + id + '/preview/', {
+      headers: { 'Accept': 'application/json' },
+    });
+    const data = await resp.json();
+    if (!resp.ok || !data.success) {
+      body.innerHTML = `<div class="text-center py-8 text-red-400 text-sm"><i class="fas fa-exclamation-triangle mr-2"></i>${escapeHtml(data.error || 'Failed to fetch feed.')}</div>`;
+      return;
+    }
+    const e = data.embed;
+    const colorStyle = e.color ? `border-color:${escapeHtml(e.color)}` : 'border-color:#ea580c';
+    body.innerHTML = `
+      <p class="text-gray-400 text-xs mb-2"><i class="fas fa-rss mr-1"></i>${escapeHtml(data.feed_label || '')}</p>
+      <div class="rounded-lg bg-neutral-800 border-l-4 p-4" style="${colorStyle}">
+        ${e.author ? `<p class="text-gray-400 text-xs mb-1"><i class="fas fa-user mr-1"></i>${escapeHtml(e.author)}</p>` : ''}
+        <p class="text-white font-semibold text-sm mb-1">${escapeHtml(e.title || 'No title')}</p>
+        ${e.description ? `<p class="text-gray-300 text-xs mb-2 line-clamp-4">${escapeHtml(e.description)}</p>` : ''}
+        ${e.url ? `<a href="${escapeHtml(e.url)}" target="_blank" class="text-blue-400 text-xs hover:underline truncate block mb-2">${escapeHtml(e.url)}</a>` : ''}
+        ${e.published ? `<p class="text-gray-500 text-xs mb-1"><i class="fas fa-calendar mr-1"></i>${escapeHtml(e.published)}</p>` : ''}
+        ${e.footer ? `<p class="text-gray-600 text-xs mt-2 border-t border-neutral-700 pt-2">${escapeHtml(e.footer)}</p>` : ''}
+      </div>
+    `;
+    sendBtn.classList.remove('hidden');
+  } catch (err) {
+    body.innerHTML = '<div class="text-center py-8 text-red-400 text-sm"><i class="fas fa-exclamation-triangle mr-2"></i>Network error.</div>';
+  }
+}
+
+function closeRssPreviewModal() {
+  document.getElementById('rss-preview-modal').classList.add('hidden');
+  currentPreviewFeedId = null;
+}
+
+async function forceSendFromPreview() {
+  if (!currentPreviewFeedId) return;
+  await forceSendRssFeed(currentPreviewFeedId);
+  closeRssPreviewModal();
+}
+
+async function forceSendRssFeed(id) {
+  try {
+    const resp = await csrfFetch(DISCOVERY_API + 'rss/' + id + '/force-send/', { method: 'POST' });
+    const data = await resp.json();
+    if (resp.ok && data.success) {
+      showToast('Force send queued - bot will post shortly.', 'success');
+    } else {
+      showToast(data.error || 'Failed to queue force send.', 'error');
+    }
+  } catch (e) {
+    showToast('Network error.', 'error');
+  }
+}
+
+async function editRssFeed(id) {
+  try {
+    const resp = await csrfFetch(DISCOVERY_API + 'rss/' + id + '/', {
+      headers: { 'Accept': 'application/json' },
+    });
+    if (!resp.ok) {
+      let errMsg = 'Failed to load feed.';
+      try { const d = await resp.json(); errMsg = d.error || errMsg; } catch (_) {}
+      showToast(errMsg, 'error'); return;
+    }
+    const data = await resp.json();
+    if (!data.feed) { showToast('Feed data missing.', 'error'); return; }
+    const f = data.feed;
+    const ec = f.embed_config || {};
+
+    // Open modal (initializes custom selects + loads roles)
+    await openRssModal();
+
+    // Set editing state
+    currentEditingRssId = id;
+    document.getElementById('rss-modal-title').innerHTML = '<i class="fas fa-edit text-orange-400 mr-2"></i>Edit RSS Feed';
+    document.getElementById('rss-save-btn').innerHTML = '<i class="fas fa-save mr-2"></i>Save Changes';
+
+    // Populate fields
+    document.getElementById('rss-url').value = f.url || '';
+    document.getElementById('rss-label').value = f.label || '';
+    document.getElementById('rss-category-filters').value = (f.category_filters || []).join(', ');
+    document.getElementById('rss-emoji').value = ec.custom_emoji_prefix || '';
+    document.getElementById('rss-title-prefix').value = ec.title_prefix || '';
+    document.getElementById('rss-title-suffix').value = ec.title_suffix || '';
+    document.getElementById('rss-custom-desc').value = ec.custom_description || '';
+    document.getElementById('rss-footer').value = ec.footer_text || '';
+    document.getElementById('rss-custom-thumb').value = ec.custom_thumbnail_url || '';
+    const col = ec.color || '#ea580c';
+    document.getElementById('rss-color').value = col;
+    document.getElementById('rss-color-hex').value = col;
+    document.getElementById('rss-enabled').checked = f.enabled !== false;
+    document.getElementById('rss-show-author').checked = ec.show_author !== false;
+    document.getElementById('rss-show-date').checked = ec.show_publish_date !== false;
+    document.getElementById('rss-show-categories').checked = !!ec.show_categories;
+    document.getElementById('rss-full-content').checked = !!ec.show_full_content;
+
+    if (csRssChannel) csRssChannel.setValue(f.channel_id || '');
+    if (csRssPingRole) csRssPingRole.setValue(f.ping_role_id || '');
+    if (csRssPollInterval) csRssPollInterval.setValue(String(f.poll_interval_minutes || 15));
+    if (csRssMaxAge) csRssMaxAge.setValue(String(f.max_age_days || 0));
+    if (csRssCatMode) {
+      csRssCatMode.setValue(f.category_filter_mode || 'none');
+      document.getElementById('rss-cat-filter-row').classList.toggle('hidden', (f.category_filter_mode || 'none') === 'none');
+    }
+    if (csRssThumbnailMode) {
+      const thumbMode = ec.thumbnail_mode || 'rss';
+      csRssThumbnailMode.setValue(thumbMode);
+      document.getElementById('rss-custom-thumb-row').classList.toggle('hidden', thumbMode !== 'custom');
+    }
+    if (csRssMaxPosts) csRssMaxPosts.setValue(String(ec.max_individual_posts ?? 5));
+
+    // Auto-expand embed section if any custom config exists
+    if (ec.color || ec.custom_emoji_prefix || ec.title_prefix || ec.footer_text) {
+      document.getElementById('rss-embed-section').classList.remove('hidden');
+      document.getElementById('rss-embed-chevron').classList.add('rotate-180');
+    }
+  } catch (e) {
+    showToast('Network error loading feed.', 'error');
+  }
+}
+
+// Close preview modal on backdrop click
+document.getElementById('rss-preview-modal').addEventListener('click', function(e) {
+  if (e.target === this) closeRssPreviewModal();
+});
+
+// ---- Save settings ----
+async function saveDiscovery(type) {
+  const msg = document.getElementById('save-msg');
+  const payload = {};
+
+  if (type === 'creator') {
+    const _chk = id => !!document.getElementById(id)?.checked;
+    const _int = (id, def) => parseInt(document.getElementById(id)?.value) || def;
+    const _sel = cs => cs ? cs.getValue() : '';
+    payload.creator_enabled = _chk('creator-enabled');
+    payload.creator_channel_discovery_enabled = _chk('channel-discovery-enabled');
+    payload.creator_selfpromo_channel_id = _sel(csSelfpromoChannel);
+    payload.creator_feature_channel_id = _sel(csFeatureChannel);
+    payload.creator_response_channel_id = _sel(csResponseChannel);
+    payload.creator_feature_interval_hours = _int('creator-interval', 3);
+    payload.creator_cooldown_hours = _int('creator-cooldown', 72);
+    payload.creator_announcement_template = document.getElementById('creator-msg')?.value || '';
+    payload.creator_cotw_enabled = _chk('cotw-enabled');
+    payload.creator_cotw_channel_id = _sel(csCOTWChannel);
+    payload.creator_cotw_auto_rotate = _chk('cotw-auto-rotate');
+    payload.creator_cotw_rotation_day = _int('cotw-rotation-day', 0);
+    payload.creator_cotm_enabled = _chk('cotm-enabled');
+    payload.creator_cotm_channel_id = _sel(csCOTMChannel);
+    payload.creator_cotm_auto_rotate = _chk('cotm-auto-rotate');
+    payload.creator_cotm_rotation_day = _int('cotm-rotation-day', 1);
+    // Legacy compat fields
+    payload.creator_spotlight_enabled = payload.creator_enabled;
+    payload.creator_spotlight_message = payload.creator_announcement_template;
+    payload.creator_feature_cooldown_hours = payload.creator_cooldown_hours;
+  } else if (type === 'games') {
+    payload.game_announcements_channel_id = csGamesChannel ? csGamesChannel.getValue() : '';
+    payload.game_announcements_enabled = document.getElementById('games-enabled').checked;
+    payload.game_check_interval_hours = parseInt(document.getElementById('games-interval').value) || 24;
+    payload.game_max_announcements = parseInt(document.getElementById('games-max').value) || 5;
+  }
+
+  try {
+    const resp = await csrfFetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const data = await resp.json();
+    if (resp.ok && data.success) {
+      msg.textContent = 'Settings saved.';
+      msg.className = 'mb-4 px-4 py-3 rounded-lg text-sm font-medium bg-green-900/40 text-green-400 border border-green-700/40';
+    } else {
+      msg.textContent = data.error || 'Save failed.';
+      msg.className = 'mb-4 px-4 py-3 rounded-lg text-sm font-medium bg-red-900/40 text-red-400 border border-red-700/40';
+    }
+    msg.classList.remove('hidden');
+    setTimeout(() => msg.classList.add('hidden'), 4000);
+  } catch (e) {
+    msg.textContent = 'Network error.';
+    msg.className = 'mb-4 px-4 py-3 rounded-lg text-sm font-medium bg-red-900/40 text-red-400 border border-red-700/40';
+    msg.classList.remove('hidden');
+  }
+}
+
+// ---- Save network settings ----
+async function saveNetworkSettings() {
+  const msg = document.getElementById('save-msg');
+  const discoveryEnabled = document.getElementById('network-discovery-enabled').checked;
+  const publishLfg = document.getElementById('network-publish-lfg').checked;
+
+  try {
+    // Save discovery_enabled to main settings
+    const r1 = await csrfFetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ discovery_enabled: discoveryEnabled }),
+    });
+    // Save publish_to_network to LFG config
+    const r2 = await csrfFetch(LFG_CONFIG_API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ publish_to_network: publishLfg }),
+    });
+
+    const d1 = await r1.json();
+    const d2 = await r2.json();
+
+    if ((r1.ok && d1.success) && (r2.ok && d2.success)) {
+      NETWORK.discovery_enabled = discoveryEnabled;
+      NETWORK.publish_to_network = publishLfg;
+      msg.textContent = 'Network settings saved.';
+      msg.className = 'mb-4 px-4 py-3 rounded-lg text-sm font-medium bg-green-900/40 text-green-400 border border-green-700/40';
+    } else {
+      msg.textContent = d1.error || d2.error || 'Save failed.';
+      msg.className = 'mb-4 px-4 py-3 rounded-lg text-sm font-medium bg-red-900/40 text-red-400 border border-red-700/40';
+    }
+    msg.classList.remove('hidden');
+    setTimeout(() => msg.classList.add('hidden'), 4000);
+  } catch (e) {
+    msg.textContent = 'Network error.';
+    msg.className = 'mb-4 px-4 py-3 rounded-lg text-sm font-medium bg-red-900/40 text-red-400 border border-red-700/40';
+    msg.classList.remove('hidden');
+  }
+}
+
+// Init active tab on load - must run after DOMContentLoaded so csrfFetch is defined
+document.addEventListener('DOMContentLoaded', function() {
+  if (ACTIVE_TAB === 'creator' || ACTIVE_TAB === '') {
+    initCreatorTab();
+  } else {
+    switchTab(ACTIVE_TAB);
+  }
+});
+
+// =============================================================================
+// GAME DISCOVERY - Search Config Management
+// =============================================================================
+
+const GS_SEARCH_API = '/ql/api/dashboard/fluxer/' + GUILD_ID + '/game-search-configs/';
+const GS_KEYWORDS_API = '/ql/api/dashboard/fluxer/' + GUILD_ID + '/igdb-keywords/';
+
+let gsCurrentEditingId = null;
+let gsSelectedFilters = { genre: [], theme: [], keyword: [], mode: [], platform: [] };
+let gsKeywordTimeout = null;
+
+// --- Tab switching inside modal ---
+function gsFilterTab(name) {
+  document.querySelectorAll('.gs-filter-tab').forEach(t => {
+    t.classList.remove('bg-purple-600', 'text-white');
+    t.classList.add('text-gray-400');
+  });
+  const active = document.getElementById('gs_tab_' + name);
+  if (active) { active.classList.add('bg-purple-600', 'text-white'); active.classList.remove('text-gray-400'); }
+  document.querySelectorAll('.gs-filter-panel').forEach(p => p.classList.add('hidden'));
+  const panel = document.getElementById('gs_panel_' + name);
+  if (panel) panel.classList.remove('hidden');
+}
+
+// --- Toggle a filter tag ---
+function gsToggleTag(type, value) {
+  const tag = document.querySelector('.gs-tag-' + type + '[data-value="' + CSS.escape(value) + '"]');
+  if (!tag) return;
+  const isSelected = tag.dataset.selected === 'true';
+  if (isSelected) {
+    tag.dataset.selected = 'false';
+    tag.classList.remove('bg-purple-600', 'bg-blue-600', 'bg-orange-600', 'bg-cyan-600', 'text-white');
+    tag.classList.add('bg-neutral-700/50', 'text-gray-300');
+    gsSelectedFilters[type] = gsSelectedFilters[type].filter(v => v !== value);
+  } else {
+    tag.dataset.selected = 'true';
+    tag.classList.add('text-white');
+    tag.classList.remove('bg-neutral-700/50', 'text-gray-300');
+    const colorMap = { genre: 'bg-purple-600', theme: 'bg-blue-600', mode: 'bg-orange-600', platform: 'bg-cyan-600' };
+    if (colorMap[type]) tag.classList.add(colorMap[type]);
+    gsSelectedFilters[type].push(value);
+  }
+  gsUpdateFiltersDisplay();
+}
+
+function gsUpdateFiltersDisplay() {
+  const container = document.getElementById('gs_selected_filters_container');
+  const display = document.getElementById('gs_selected_filters_display');
+  const all = [
+    ...gsSelectedFilters.genre.map(v => ({ type: 'genre', value: v, color: 'purple' })),
+    ...gsSelectedFilters.theme.map(v => ({ type: 'theme', value: v, color: 'blue' })),
+    ...gsSelectedFilters.keyword.map(v => ({ type: 'keyword', value: v, color: 'green' })),
+    ...gsSelectedFilters.mode.map(v => ({ type: 'mode', value: v, color: 'orange' })),
+    ...gsSelectedFilters.platform.map(v => ({ type: 'platform', value: v, color: 'cyan' })),
+  ];
+  if (all.length === 0) { container.classList.add('hidden'); return; }
+  container.classList.remove('hidden');
+  display.innerHTML = all.map(item => `
+    <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-sm font-medium bg-${item.color}-600 text-white">
+      ${escapeHtml(item.value)}
+      <button type="button" onclick="gsRemoveFilter('${item.type}','${item.value.replace(/'/g, "\\'")}')" class="ml-1 hover:opacity-75 transition"><i class="fas fa-times text-xs"></i></button>
+    </span>`).join('');
+}
+
+function gsRemoveFilter(type, value) {
+  if (type === 'keyword') { gsRemoveKeyword(value); return; }
+  gsSelectedFilters[type] = gsSelectedFilters[type].filter(v => v !== value);
+  const tag = document.querySelector('.gs-tag-' + type + '[data-value="' + CSS.escape(value) + '"]');
+  if (tag) { tag.dataset.selected = 'false'; tag.classList.remove('bg-purple-600','bg-blue-600','bg-orange-600','bg-cyan-600','text-white'); tag.classList.add('bg-neutral-700/50','text-gray-300'); }
+  gsUpdateFiltersDisplay();
+}
+
+function gsClearFilters() {
+  gsSelectedFilters = { genre: [], theme: [], keyword: [], mode: [], platform: [] };
+  document.querySelectorAll('.gs-filter-tag').forEach(tag => {
+    tag.dataset.selected = 'false';
+    tag.classList.remove('bg-purple-600','bg-blue-600','bg-orange-600','bg-cyan-600','text-white');
+    tag.classList.add('bg-neutral-700/50','text-gray-300');
+  });
+  gsUpdateFiltersDisplay();
+  gsRenderSelectedKeywords();
+}
+
+// --- Tag filter search box ---
+function gsInitFilterSearch() {
+  const inp = document.getElementById('gs_filter_search');
+  if (!inp) return;
+  inp.addEventListener('input', e => {
+    const q = e.target.value.toLowerCase();
+    document.querySelectorAll('.gs-filter-tag').forEach(tag => {
+      tag.style.display = (q === '' || tag.dataset.value.toLowerCase().includes(q)) ? '' : 'none';
+    });
+  });
+}
+
+// --- Keyword autocomplete ---
+function gsInitKeywordAutocomplete() {
+  const inp = document.getElementById('gs_keyword_input');
+  const dropdown = document.getElementById('gs_keyword_dropdown');
+  if (!inp || !dropdown) return;
+  inp.addEventListener('input', e => {
+    const q = e.target.value.trim();
+    if (gsKeywordTimeout) clearTimeout(gsKeywordTimeout);
+    if (q.length < 2) { dropdown.classList.add('hidden'); return; }
+    gsKeywordTimeout = setTimeout(() => gsSearchKeywords(q), 300);
+  });
+  document.addEventListener('click', e => {
+    if (!inp.contains(e.target) && !dropdown.contains(e.target)) dropdown.classList.add('hidden');
+  });
+}
+
+async function gsSearchKeywords(q) {
+  const dropdown = document.getElementById('gs_keyword_dropdown');
+  const loading = document.getElementById('gs_keyword_loading');
+  loading.classList.remove('hidden');
+  try {
+    const resp = await csrfFetch(GS_KEYWORDS_API + '?q=' + encodeURIComponent(q) + '&limit=20');
+    const data = await resp.json();
+    loading.classList.add('hidden');
+    const available = (data.keywords || []).filter(kw => !gsSelectedFilters.keyword.includes(kw.name));
+    if (available.length === 0) {
+      dropdown.innerHTML = '<div class="px-4 py-3 text-gray-500 text-sm">No results or all already selected</div>';
+    } else {
+      dropdown.innerHTML = available.map(kw => `
+        <button type="button" onclick="gsSelectKeyword('${kw.name.replace(/'/g, "\\'")}')"
+                class="w-full px-4 py-2.5 text-left text-white hover:bg-neutral-700 transition flex items-center gap-2 border-b border-neutral-700/50 last:border-0">
+          <i class="fas fa-tag text-green-500 text-xs"></i>${escapeHtml(kw.name)}
+        </button>`).join('');
+    }
+    dropdown.classList.remove('hidden');
+  } catch(err) {
+    loading.classList.add('hidden');
+    dropdown.innerHTML = '<div class="px-4 py-3 text-red-400 text-sm">Search failed. Please try again.</div>';
+    dropdown.classList.remove('hidden');
+  }
+}
+
+function gsSelectKeyword(name) {
+  if (!gsSelectedFilters.keyword.includes(name)) {
+    gsSelectedFilters.keyword.push(name);
+    gsRenderSelectedKeywords();
+    gsUpdateFiltersDisplay();
+  }
+  const inp = document.getElementById('gs_keyword_input');
+  const dropdown = document.getElementById('gs_keyword_dropdown');
+  if (inp) inp.value = '';
+  if (dropdown) dropdown.classList.add('hidden');
+}
+
+function gsRemoveKeyword(name) {
+  gsSelectedFilters.keyword = gsSelectedFilters.keyword.filter(k => k !== name);
+  gsRenderSelectedKeywords();
+  gsUpdateFiltersDisplay();
+}
+
+function gsRenderSelectedKeywords() {
+  const container = document.getElementById('gs_selected_keywords');
+  if (!container) return;
+  if (gsSelectedFilters.keyword.length === 0) {
+    container.innerHTML = '<p class="text-gray-500 text-sm"><i class="fas fa-info-circle mr-1"></i>No keywords selected.</p>';
+    return;
+  }
+  container.innerHTML = gsSelectedFilters.keyword.map(name => `
+    <span class="inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-sm font-medium bg-green-600 text-white">
+      ${escapeHtml(name)}
+      <button type="button" onclick="gsRemoveKeyword('${name.replace(/'/g, "\\'")}')" class="ml-1 hover:text-green-200 transition"><i class="fas fa-times text-xs"></i></button>
+    </span>`).join('');
+}
+
+// --- Modal open/close ---
+function openGameSearchModal() {
+  gsCurrentEditingId = null;
+  document.getElementById('gameSearchModalTitle').innerHTML = '<i class="fas fa-plus text-green-400 mr-2"></i>Add Game Search';
+  document.getElementById('saveGameSearchBtn').innerHTML = '<i class="fas fa-save mr-2"></i>Save Search';
+  document.getElementById('gs_modal_name').value = '';
+  document.getElementById('gs_modal_days_ahead').value = '30';
+  document.getElementById('gs_modal_min_hype').value = '';
+  document.getElementById('gs_modal_min_rating').value = '';
+  document.getElementById('gs_modal_show_on_website').checked = true;
+  gsClearFilters();
+  gsFilterTab('genres');
+  gsInitFilterSearch();
+  gsInitKeywordAutocomplete();
+  document.getElementById('gameSearchModal').classList.remove('hidden');
+}
+
+function closeGameSearchModal() {
+  document.getElementById('gameSearchModal').classList.add('hidden');
+  gsCurrentEditingId = null;
+}
+
+// --- Edit existing search ---
+async function editGameSearch(searchId) {
+  gsCurrentEditingId = searchId;
+  document.getElementById('gameSearchModalTitle').innerHTML = '<i class="fas fa-edit text-blue-400 mr-2"></i>Edit Game Search';
+  document.getElementById('saveGameSearchBtn').innerHTML = '<i class="fas fa-save mr-2"></i>Update Search';
+  try {
+    const resp = await csrfFetch(GS_SEARCH_API);
+    const data = await resp.json();
+    if (!data.success) throw new Error(data.error || 'Load failed');
+    const search = data.searches.find(s => s.id === searchId);
+    if (!search) throw new Error('Search not found');
+    document.getElementById('gs_modal_name').value = search.name;
+    document.getElementById('gs_modal_days_ahead').value = search.days_ahead || 30;
+    document.getElementById('gs_modal_min_hype').value = search.min_hype || '';
+    document.getElementById('gs_modal_min_rating').value = search.min_rating || '';
+    document.getElementById('gs_modal_show_on_website').checked = search.show_on_website !== false;
+    gsClearFilters();
+    (search.genres || []).forEach(v => { gsSelectedFilters.genre.push(v); const t = document.querySelector('.gs-tag-genre[data-value="'+CSS.escape(v)+'"]'); if(t){t.dataset.selected='true';t.classList.add('bg-purple-600','text-white');t.classList.remove('bg-neutral-700/50','text-gray-300');} });
+    (search.themes || []).forEach(v => { gsSelectedFilters.theme.push(v); const t = document.querySelector('.gs-tag-theme[data-value="'+CSS.escape(v)+'"]'); if(t){t.dataset.selected='true';t.classList.add('bg-blue-600','text-white');t.classList.remove('bg-neutral-700/50','text-gray-300');} });
+    (search.keywords || []).forEach(v => { gsSelectedFilters.keyword.push(v); });
+    (search.game_modes || []).forEach(v => { gsSelectedFilters.mode.push(v); const t = document.querySelector('.gs-tag-mode[data-value="'+CSS.escape(v)+'"]'); if(t){t.dataset.selected='true';t.classList.add('bg-orange-600','text-white');t.classList.remove('bg-neutral-700/50','text-gray-300');} });
+    (search.platforms || []).forEach(v => { gsSelectedFilters.platform.push(v); const t = document.querySelector('.gs-tag-platform[data-value="'+CSS.escape(v)+'"]'); if(t){t.dataset.selected='true';t.classList.add('bg-cyan-600','text-white');t.classList.remove('bg-neutral-700/50','text-gray-300');} });
+    gsRenderSelectedKeywords();
+    gsUpdateFiltersDisplay();
+    gsFilterTab('genres');
+    gsInitFilterSearch();
+    gsInitKeywordAutocomplete();
+    document.getElementById('gameSearchModal').classList.remove('hidden');
+  } catch(err) {
+    alert('Error loading search: ' + err.message);
+  }
+}
+
+// --- Save (create or update) ---
+async function saveGameSearch() {
+  const name = document.getElementById('gs_modal_name').value.trim();
+  if (!name) { alert('Please enter a search name'); return; }
+  const btn = document.getElementById('saveGameSearchBtn');
+  const orig = btn.innerHTML;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Saving...';
+  btn.disabled = true;
+  const minHype = document.getElementById('gs_modal_min_hype').value;
+  const minRating = document.getElementById('gs_modal_min_rating').value;
+  const payload = {
+    name,
+    enabled: true,
+    genres: gsSelectedFilters.genre.length > 0 ? gsSelectedFilters.genre : null,
+    themes: gsSelectedFilters.theme.length > 0 ? gsSelectedFilters.theme : null,
+    keywords: gsSelectedFilters.keyword.length > 0 ? gsSelectedFilters.keyword : null,
+    game_modes: gsSelectedFilters.mode.length > 0 ? gsSelectedFilters.mode : null,
+    platforms: gsSelectedFilters.platform.length > 0 ? gsSelectedFilters.platform : null,
+    min_hype: minHype ? parseInt(minHype) : null,
+    min_rating: minRating ? parseFloat(minRating) : null,
+    days_ahead: parseInt(document.getElementById('gs_modal_days_ahead').value) || 30,
+    show_on_website: document.getElementById('gs_modal_show_on_website').checked,
+  };
+  try {
+    let url = GS_SEARCH_API;
+    let method = 'POST';
+    if (gsCurrentEditingId) { url = GS_SEARCH_API + gsCurrentEditingId + '/'; method = 'PUT'; }
+    const resp = await csrfFetch(url, { method, headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+    const result = await resp.json();
+    if (!result.success) throw new Error(result.error || 'Save failed');
+    closeGameSearchModal();
+    window.location.search = '?tab=games';
+  } catch(err) {
+    btn.innerHTML = orig;
+    btn.disabled = false;
+    alert('Error: ' + err.message);
+  }
+}
+
+// --- Delete ---
+async function deleteGameSearch(searchId, name) {
+  if (!confirm('Delete search "' + name + '"?\n\nAlready found games will not be affected.')) return;
+  try {
+    const resp = await csrfFetch(GS_SEARCH_API + searchId + '/', { method: 'DELETE' });
+    const result = await resp.json();
+    if (!result.success) throw new Error(result.error || 'Delete failed');
+    window.location.search = '?tab=games';
+  } catch(err) {
+    alert('Error: ' + err.message);
+  }
+}
+
+// --- Save global settings ---
+const GS_GLOBAL_API = '/ql/api/dashboard/fluxer/' + GUILD_ID + '/game-discovery-settings/';
+
+async function saveGameGlobalSettings() {
+  const btn = document.getElementById('saveGameBtn');
+  const enabled = document.getElementById('gdEnabled').checked;
+  const channelId = csGdChannel ? csGdChannel.getValue() : '';
+  const pingRoleId = csGdPingRole ? csGdPingRole.getValue() : '';
+  const interval = parseInt(document.getElementById('gdInterval').value) || 24;
+
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Saving...';
+
+  try {
+    const resp = await csrfFetch(GS_GLOBAL_API, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        game_discovery_enabled: enabled,
+        game_discovery_channel_id: channelId,
+        game_discovery_ping_role_id: pingRoleId,
+        game_check_interval_hours: interval,
+      }),
+    });
+    const result = await resp.json();
+    if (!result.success) throw new Error(result.error || 'Save failed');
+    btn.innerHTML = '<i class="fas fa-check mr-2"></i>Saved!';
+    btn.classList.replace('bg-indigo-600', 'bg-green-600');
+    setTimeout(() => {
+      btn.innerHTML = '<i class="fas fa-save mr-2"></i>Save Global Settings';
+      btn.classList.replace('bg-green-600', 'bg-indigo-600');
+      btn.disabled = false;
+    }, 1800);
+  } catch(err) {
+    alert('Error saving settings: ' + err.message);
+    btn.innerHTML = '<i class="fas fa-save mr-2"></i>Save Global Settings';
+    btn.disabled = false;
+  }
+}
+
+async function forceCheckGames() {
+  const btn = document.getElementById('forceCheckBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Queuing...';
+  try {
+    const resp = await csrfFetch('/ql/api/dashboard/fluxer/' + GUILD_ID + '/force-check-games/', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: '{}',
+    });
+    const result = await resp.json();
+    if (!result.success) throw new Error(result.error || 'Failed');
+    btn.innerHTML = '<i class="fas fa-check mr-2"></i>Queued!';
+    btn.classList.replace('bg-orange-600', 'bg-green-600');
+    setTimeout(() => {
+      btn.innerHTML = '<i class="fas fa-bolt mr-2"></i>Force Run Now';
+      btn.classList.replace('bg-green-600', 'bg-orange-600');
+      btn.disabled = false;
+    }, 3000);
+  } catch(err) {
+    alert('Error: ' + err.message);
+    btn.innerHTML = '<i class="fas fa-bolt mr-2"></i>Force Run Now';
+    btn.disabled = false;
+  }
+}
+
+// --- Enable/disable toggle ---
+document.addEventListener('DOMContentLoaded', function() {
+  document.querySelectorAll('.gs-enabled-toggle').forEach(toggle => {
+    toggle.addEventListener('change', async function() {
+      const sid = this.getAttribute('data-search-id');
+      const enabled = this.checked;
+      try {
+        const resp = await csrfFetch(GS_SEARCH_API + sid + '/', {
+          method: 'PUT', headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({ enabled })
+        });
+        const result = await resp.json();
+        if (!result.success) throw new Error(result.error || 'Update failed');
+        const card = document.querySelector('[data-search-id="' + sid + '"]');
+        if (card) {
+          const badge = card.querySelector('.bg-red-600.text-xs');
+          if (enabled && badge) badge.remove();
+          else if (!enabled && !badge) {
+            const nameEl = card.querySelector('h4');
+            if (nameEl) {
+              const b = document.createElement('span');
+              b.className = 'text-xs px-2 py-0.5 rounded bg-red-600 text-white';
+              b.textContent = 'Disabled';
+              nameEl.parentElement.appendChild(b);
+            }
+          }
+        }
+      } catch(err) {
+        alert('Error: ' + err.message);
+        this.checked = !enabled;
+      }
+    });
+  });
+});
+</script>
+{% endblock %}

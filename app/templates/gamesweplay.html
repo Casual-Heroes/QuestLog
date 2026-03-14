@@ -1,130 +1,168 @@
 {% extends "base.html" %}
 {% load static %}
 {% block title %}Games We Play{% endblock %}
-{% block head_extra %}{% endblock %}
-{% block og_title %}Welcome to Casual Heroes{% endblock %}
-{% block og_description %}Join the Casual Heroes community — modded servers, friendly vibes, and endless co-op adventures.{% endblock %}
+{% block og_title %}Games We Play - Casual Heroes{% endblock %}
+{% block og_description %}Join the Casual Heroes community - modded servers, friendly vibes, and endless co-op adventures.{% endblock %}
 {% block og_image %}https://casual-heroes.com/static/img/siteassets/homepage/CHLogoFinal.png{% endblock %}
-{% block og_url %}https://casual-heroes.com/{% endblock %}
+{% block og_url %}https://casual-heroes.com/gamesweplay/{% endblock %}
+
 {% block content %}
-<section class="mt-16">
-  <h1 class="text-4xl font-extrabold text-center mb-12">Games We Play </h1>
+<div class="max-w-screen-xl mx-auto px-4 py-10">
 
-  <div class="max-w-screen-xl mx-auto px-4">
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-      {% for game in games %}
-        <div class="relative rounded-2xl overflow-hidden border border-neutral-800 bg-neutral-900 group hover:shadow-[0_0_20px_#6366f1] transition-shadow duration-300 min-h-[210px]">
+  <div class="mb-8">
+    <h1 class="text-3xl font-extrabold text-white mb-1">Games We Play</h1>
+    <p class="text-gray-400 text-sm">Hosted servers and Discord activity - jump in and say hi.</p>
+  </div>
 
-          <!-- Banner Image with fallback logic -->
-          {% if game.custom_amp_img %}
-          <img src="{{ game.custom_amp_img }}"
-               alt="{{ game.name }} Banner"
-               class="w-full object-cover object-[20%] group-hover:scale-105 transition duration-500 z-10 h-[215px]" />
-        {% elif game.custom_img %}
-          <img src="{{ game.custom_img }}"
-               alt="{{ game.name }} Custom Image"
-               class="w-full object-cover object-[20%] group-hover:scale-105 transition duration-500 z-10 h-[215px]" />
+  {% if games %}
+  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+    {% for game in games %}
+    <div class="rounded-2xl overflow-hidden border border-neutral-800 bg-neutral-900 group hover:shadow-[0_0_20px_#6366f1] hover:border-indigo-700/50 transition-all duration-300 flex flex-col">
+
+      <!-- Banner image -->
+      <div class="relative h-44 overflow-hidden flex-shrink-0">
+        {% if game.custom_img %}
+        <img src="{{ game.custom_img }}" alt="{{ game.name }}"
+             class="w-full h-full object-cover group-hover:scale-105 transition duration-500" />
         {% elif game.steam_header_url %}
-          <img src="{{ game.steam_header_url }}"
-               alt="{{ game.name }} Steam Banner"
-               class="w-full object-cover object-[20%] group-hover:scale-105 transition duration-500 z-10 h-[215px]" />
+        <img src="{{ game.steam_header_url }}" alt="{{ game.name }}"
+             class="w-full h-full object-cover group-hover:scale-105 transition duration-500" />
         {% elif game.steam_appid %}
-          <img src="https://cdn.cloudflare.steamstatic.com/steam/apps/{{ game.steam_appid }}/header.jpg"
-               alt="{{ game.name }} Steam Banner"
-               class="w-full object-cover object-[20%] group-hover:scale-105 transition duration-500 z-10 h-[215px]" />
+        <img src="https://cdn.cloudflare.steamstatic.com/steam/apps/{{ game.steam_appid }}/header.jpg"
+             alt="{{ game.name }}"
+             class="w-full h-full object-cover group-hover:scale-105 transition duration-500" />
         {% else %}
-          <img src="{% static 'img/games/wow/dwarf.webp' %}"
-               alt="{{ game.name }} Placeholder"
-               class="w-full object-cover object-[20%] group-hover:scale-105 transition duration-500 z-10 h-[215px]" />
+        <img src="{% static 'img/games/wow/dwarf.webp' %}" alt="{{ game.name }}"
+             class="w-full h-full object-cover group-hover:scale-105 transition duration-500" />
         {% endif %}
 
-          <!-- Overlay Gradient -->
-          <div class="absolute inset-0 bg-gradient-to-t from-black/40 via-black/20 to-transparent z-10 rounded-2xl"></div>
+        <!-- Source badge: Hosted vs Discord -->
+        {% if game.source == 'amp' %}
+        <span class="absolute top-3 left-3 text-xs font-bold px-2 py-1 rounded-full bg-black/60 backdrop-blur-sm text-indigo-300">
+          <i class="fas fa-server mr-1"></i>Hosted
+        </span>
+        {% elif game.source == 'discord' %}
+        <span class="absolute top-3 left-3 text-xs font-bold px-2 py-1 rounded-full bg-black/60 backdrop-blur-sm text-indigo-300">
+          <i class="fab fa-discord mr-1"></i>Discord
+        </span>
+        {% endif %}
 
-          <!-- Content Overlay -->
-          <div class="absolute inset-0 bg-black/60 backdrop-blur-[1px] text-white px-4 pt-3 pb-2 flex flex-col justify-start z-20 text-shadow space-y-[0.35rem] text-[13px] leading-[1.35rem]">
+        <!-- Status badge (hosted servers only) -->
+        {% if game.status_label %}
+        <span class="absolute top-3 right-3 text-xs font-bold px-2 py-1 rounded-full bg-black/60 backdrop-blur-sm {% if 'Online' in game.status_label %}text-green-400{% else %}text-red-400{% endif %}">
+          <span class="inline-block w-1.5 h-1.5 rounded-full mr-1 align-middle {% if 'Online' in game.status_label %}bg-green-400{% else %}bg-red-400{% endif %}"></span>{{ game.status_label }}
+        </span>
+        {% endif %}
+      </div>
 
-            <!-- Game Title + Status -->
-            <div class="flex items-center justify-between">
-              <h3 class="font-extrabold text-indigo-300 uppercase tracking-wide text-[16px]">
-                {{ game.name }}
-              </h3>
-              {% if game.status_label %}
-                <span class="text-xs font-bold {% if 'Online' in game.status_label %}text-green-400{% else %}text-red-500{% endif %}">{{ game.status_label }}</span>
-              {% endif %}
-            </div>
+      <!-- Content -->
+      <div class="p-5 flex flex-col gap-3 flex-1">
 
-            <!-- Description -->
-            <p>
-              <span class="text-indigo-300 font-semibold">Description:</span>
-              <span class="text-white font-medium">{{ game.description }}</span>
-            </p>
+        <!-- Title -->
+        <h3 class="font-extrabold text-white uppercase tracking-wide text-base leading-tight">{{ game.name }}</h3>
 
-            <!-- Active Players -->
-            <p>
-              <span class="text-indigo-300 font-semibold">Active Players:</span>
-              <span class="text-white font-bold">{{ game.online }}/{{ game.max }}</span>
-            </p>
+        <!-- Description -->
+        {% if game.description %}
+        <p class="text-gray-400 text-sm leading-snug">{{ game.description }}</p>
+        {% endif %}
 
-            <!-- Connect Info -->
-            {% if game.ip or game.pw %}
-            <div class="space-y-1">
-              <p class="text-indigo-300 font-semibold">Connect Info:</p>
-              {% if game.ip %}
-              <div class="flex items-center gap-1">
-                <span class="text-indigo-400 font-bold">IP:</span>
-                <span class="text-white text-xs">{{ game.ip }}</span>
-                <button onclick="copyText('{{ game.ip }}')" class="hover:text-indigo-400" title="Copy IP">
-                  <i class="fas fa-copy text-xs"></i>
-                </button>
-              </div>
-              {% endif %}
-              {% if game.pw %}
-              <div class="flex items-center gap-1">
-                <span class="text-indigo-400 font-bold">PW:</span>
-                <span class="text-white text-xs">{{ game.pw }}</span>
-                <button onclick="copyText('{{ game.pw }}')" class="hover:text-indigo-400" title="Copy PW">
-                  <i class="fas fa-copy text-xs"></i>
-                </button>
-              </div>
-              {% endif %}
-            </div>
-            {% endif %}
-
-            <!-- Join Discord (Optional) -->
-            {% if game.discord_invite %}
-              <a href="{{ game.discord_invite }}" target="_blank" class="text-indigo-400 font-semibold :underline text-xs">
-                Join Discord ↗
-              </a>
-            {% endif %}
-
-            <!-- View Link -->
-            <a href="{{ game.steam_link }}" target="_blank" class="text-indigo-400 font-semibold hover:underline text-xs pt-1">
-              {{ game.link_label|default:"View on Steam" }} ↗
-            </a>
-          </div>
+        <!-- Player count -->
+        <div class="flex items-center gap-2 text-sm">
+          <i class="fas fa-users text-indigo-400"></i>
+          <span class="text-white font-semibold">{{ game.online }}/{{ game.max }}</span>
+          <span class="text-gray-500">{% if game.source == 'discord' %}playing in Discord{% else %}players{% endif %}</span>
+          {% if game.live_now %}
+          <span class="ml-auto text-xs text-green-400 font-semibold flex items-center gap-1">
+            <span class="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse inline-block"></span>Live
+          </span>
+          {% endif %}
         </div>
-      {% endfor %}
+
+        <!-- Connect info (hosted only) -->
+        {% if game.ip %}
+        <div class="bg-neutral-800 rounded-xl p-3 space-y-1.5 text-sm">
+          <div class="flex items-center gap-2">
+            <span class="text-indigo-400 font-semibold w-6">IP</span>
+            <span class="text-white font-mono text-xs flex-1">{{ game.ip }}</span>
+            <button onclick="copyText('{{ game.ip|escapejs }}')" class="text-gray-500 hover:text-indigo-400 transition" title="Copy IP">
+              <i class="fas fa-copy text-xs"></i>
+            </button>
+          </div>
+          {% if game.connect_pw %}
+          <div class="flex items-center gap-2">
+            <span class="text-indigo-400 font-semibold w-6">PW</span>
+            <span class="text-white font-mono text-xs flex-1">{{ game.connect_pw }}</span>
+            <button onclick="copyText('{{ game.connect_pw|escapejs }}')" class="text-gray-500 hover:text-indigo-400 transition" title="Copy password">
+              <i class="fas fa-copy text-xs"></i>
+            </button>
+          </div>
+          {% endif %}
+        </div>
+        {% elif game.source == 'amp' %}
+        <div class="bg-neutral-800/50 rounded-xl px-3 py-2 text-sm text-gray-500">
+          <i class="fas fa-plug mr-1"></i>Connection info unavailable
+        </div>
+        {% endif %}
+
+        <!-- Links -->
+        <div class="flex flex-wrap gap-2 mt-auto pt-1">
+          {% if game.discord_invite %}
+          {% with url=game.discord_invite %}
+          {% if "discord" in url %}
+          <a href="{{ url }}" target="_blank" class="flex items-center gap-1.5 text-xs font-semibold bg-indigo-600/20 hover:bg-indigo-600/30 border border-indigo-600/40 text-indigo-400 px-3 py-1.5 rounded-lg transition">
+            <i class="fab fa-discord"></i>Discord
+          </a>
+          {% elif "fluxer" in url %}
+          <a href="{{ url }}" target="_blank" class="flex items-center gap-1.5 text-xs font-semibold bg-yellow-600/20 hover:bg-yellow-600/30 border border-yellow-600/40 text-yellow-400 px-3 py-1.5 rounded-lg transition">
+            <i class="fas fa-bolt"></i>Fluxer
+          </a>
+          {% elif "matrix" in url or "element" in url %}
+          <a href="{{ url }}" target="_blank" class="flex items-center gap-1.5 text-xs font-semibold bg-green-600/20 hover:bg-green-600/30 border border-green-600/40 text-green-400 px-3 py-1.5 rounded-lg transition">
+            <i class="fas fa-cube"></i>Matrix
+          </a>
+          {% else %}
+          <a href="{{ url }}" target="_blank" class="flex items-center gap-1.5 text-xs font-semibold bg-indigo-600/20 hover:bg-indigo-600/30 border border-indigo-600/40 text-indigo-400 px-3 py-1.5 rounded-lg transition">
+            <i class="fas fa-sign-in-alt"></i>Join
+          </a>
+          {% endif %}
+          {% endwith %}
+          {% endif %}
+          {% if game.steam_link %}
+          <a href="{{ game.steam_link }}" target="_blank"
+             class="flex items-center gap-1.5 text-xs font-semibold bg-neutral-700/50 hover:bg-neutral-700 border border-neutral-600/40 text-gray-300 px-3 py-1.5 rounded-lg transition">
+            <i class="fas fa-external-link-alt text-xs"></i>{{ game.link_label|default:"View Site" }}
+          </a>
+          {% endif %}
+        </div>
+
+      </div>
     </div>
+    {% endfor %}
   </div>
-</section>
+
+  {% else %}
+  <div class="text-center py-20 text-gray-500">
+    <i class="fas fa-gamepad text-4xl mb-4 block"></i>
+    <p class="text-lg font-semibold">No games listed right now.</p>
+    <p class="text-sm mt-1">Check back soon or hop in Discord to see what's up.</p>
+  </div>
+  {% endif %}
+
+</div>
 
 <!-- Copy toast -->
 <div id="copy-toast" class="hidden fixed bottom-5 right-5 bg-indigo-600 text-white px-4 py-2 rounded-xl shadow-xl z-50">
-  Copied to clipboard!
+  Copied!
 </div>
 
 <script>
   function copyText(text) {
     navigator.clipboard.writeText(text).then(() => {
-      const toast = document.getElementById("copy-toast");
-      toast.classList.remove("hidden");
-      setTimeout(() => toast.classList.add("hidden"), 2000);
+      const toast = document.getElementById('copy-toast');
+      toast.classList.remove('hidden');
+      setTimeout(() => toast.classList.add('hidden'), 2000);
     });
   }
-
- setInterval(() => {
-   location.reload();
- }, 30000);
+  setInterval(() => { location.reload(); }, 30000);
 </script>
 {% endblock %}

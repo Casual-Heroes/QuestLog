@@ -1,0 +1,167 @@
+{% extends "questlog_web/fluxer_member_base.html" %}
+{% load static %}
+
+{% block title %}Found Games - {{ guild_name }} - QuestLog{% endblock %}
+
+{% block guild_content %}
+
+<!-- Page Header -->
+<div class="mb-6">
+  <h1 class="text-3xl font-bold text-white flex items-center gap-3">
+    <i class="fas fa-gamepad text-orange-400"></i>
+    Found Games
+  </h1>
+  <p class="text-gray-400 mt-1">Upcoming games discovered for the {{ guild_name }} community</p>
+</div>
+
+{% if total_found %}
+<!-- Filters Bar -->
+<form method="get" class="bg-neutral-900 rounded-xl border border-neutral-800 p-4 mb-6">
+  <div class="flex flex-wrap gap-3 items-end">
+    <div class="flex-1 min-w-48">
+      <label class="block text-xs text-gray-400 mb-1">Search</label>
+      <input type="text" name="game_name" value="{{ game_name_filter }}" placeholder="Game name..."
+             class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-orange-500 focus:outline-none">
+    </div>
+    {% if search_configs %}
+    <div class="min-w-40">
+      <label class="block text-xs text-gray-400 mb-1">Search Config</label>
+      <select name="search_id" class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-orange-500 focus:outline-none">
+        <option value="">All searches</option>
+        {% for sc in search_configs %}
+        <option value="{{ sc.id }}">{{ sc.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    {% endif %}
+    <div class="min-w-32">
+      <label class="block text-xs text-gray-400 mb-1">Sort by</label>
+      <select name="sort" class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-orange-500 focus:outline-none">
+        <option value="release" {% if sort_by == 'release' %}selected{% endif %}>Release Date</option>
+        <option value="found" {% if sort_by == 'found' %}selected{% endif %}>Recently Found</option>
+        <option value="hype" {% if sort_by == 'hype' %}selected{% endif %}>Most Hyped</option>
+        <option value="name" {% if sort_by == 'name' %}selected{% endif %}>Name (A-Z)</option>
+      </select>
+    </div>
+    <div class="min-w-28">
+      <label class="block text-xs text-gray-400 mb-1">Min Hype</label>
+      <input type="number" name="min_hype" value="{{ min_hype_param }}" min="0" placeholder="Any"
+             class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-orange-500 focus:outline-none">
+    </div>
+    <button type="submit"
+            class="bg-orange-600 hover:bg-orange-500 text-white px-4 py-2 rounded-lg text-sm font-medium transition flex items-center gap-2">
+      <i class="fas fa-search"></i> Filter
+    </button>
+    {% if game_name_filter or min_hype_param %}
+    <a href="?sort={{ sort_by }}"
+       class="bg-neutral-700 hover:bg-neutral-600 text-gray-300 px-4 py-2 rounded-lg text-sm font-medium transition flex items-center gap-2">
+      <i class="fas fa-times"></i> Clear
+    </a>
+    {% endif %}
+  </div>
+</form>
+{% endif %}
+
+{% if games %}
+<!-- Stats Row -->
+<div class="flex items-center gap-4 mb-4 text-sm text-gray-500">
+  <span><i class="fas fa-gamepad mr-1 text-orange-400"></i><strong class="text-white">{{ games|length }}</strong> games shown</span>
+  {% if total_found != games|length %}
+  <span>({{ total_found }} total found)</span>
+  {% endif %}
+</div>
+
+<!-- Games Grid -->
+<div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
+  {% for game in games %}
+  <div class="bg-neutral-900 rounded-xl border border-neutral-800 hover:border-orange-500/40 transition overflow-hidden flex flex-col">
+    <!-- Cover Art -->
+    {% if game.cover_url %}
+    <div class="aspect-[3/4] overflow-hidden bg-neutral-800 flex-shrink-0">
+      <img src="{{ game.cover_url }}" alt="{{ game.game_name }}"
+           class="w-full h-full object-cover hover:scale-105 transition-transform duration-300">
+    </div>
+    {% else %}
+    <div class="aspect-[3/4] bg-gradient-to-br from-neutral-800 to-neutral-900 flex items-center justify-center flex-shrink-0">
+      <i class="fas fa-gamepad text-5xl text-neutral-600"></i>
+    </div>
+    {% endif %}
+
+    <!-- Info -->
+    <div class="p-4 flex flex-col flex-1">
+      <h3 class="text-white font-semibold text-sm leading-tight mb-1">{{ game.game_name }}</h3>
+
+      <p class="text-gray-500 text-xs mb-2 flex items-center gap-1">
+        <i class="fas fa-calendar-alt text-xs"></i> {{ game.release_date_fmt }}
+      </p>
+
+      <!-- Genres -->
+      {% if game.genres %}
+      <div class="flex flex-wrap gap-1 mb-2">
+        {% for genre in game.genres|slice:":3" %}
+        <span class="text-xs px-2 py-0.5 bg-blue-600/20 text-blue-400 rounded">{{ genre }}</span>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      {% if game.hypes %}
+      <p class="text-gray-500 text-xs mb-2">
+        <i class="fas fa-fire text-orange-500 mr-1"></i>{{ game.hypes }} hype
+        {% if game.rating %} &middot; <i class="fas fa-star text-yellow-400 mr-1"></i>{{ game.rating|floatformat:0 }}{% endif %}
+      </p>
+      {% endif %}
+
+      {% if game.summary %}
+      <p class="text-gray-500 text-xs leading-relaxed mb-3 line-clamp-3 flex-1">{{ game.summary }}</p>
+      {% else %}
+      <div class="flex-1"></div>
+      {% endif %}
+
+      <!-- Links -->
+      <div class="flex gap-2 mt-auto pt-2">
+        {% if game.steam_url %}
+        <a href="{{ game.steam_url }}" target="_blank" rel="noopener noreferrer"
+           class="flex-1 flex items-center justify-center gap-1.5 bg-neutral-700 hover:bg-blue-800 text-gray-300 hover:text-white px-3 py-1.5 rounded-lg text-xs font-medium transition">
+          <i class="fab fa-steam"></i> Steam
+        </a>
+        {% endif %}
+        {% if game.igdb_url %}
+        <a href="{{ game.igdb_url }}" target="_blank" rel="noopener noreferrer"
+           class="flex-1 flex items-center justify-center gap-1.5 bg-neutral-700 hover:bg-purple-800 text-gray-300 hover:text-white px-3 py-1.5 rounded-lg text-xs font-medium transition">
+          <i class="fas fa-database"></i> IGDB
+        </a>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+
+{% elif total_found %}
+<!-- Filters returned no results -->
+<div class="bg-neutral-900 rounded-xl border border-neutral-800 p-16 text-center">
+  <div class="w-16 h-16 bg-neutral-800 rounded-2xl flex items-center justify-center mx-auto mb-4">
+    <i class="fas fa-search text-3xl text-gray-600"></i>
+  </div>
+  <h3 class="text-white font-bold text-xl mb-2">No Games Match</h3>
+  <p class="text-gray-400 text-sm max-w-md mx-auto">Try adjusting your filters.</p>
+  <a href="?" class="inline-flex items-center gap-2 mt-6 bg-neutral-700 hover:bg-neutral-600 text-white px-5 py-2 rounded-lg text-sm font-medium transition">
+    <i class="fas fa-times"></i> Clear Filters
+  </a>
+</div>
+
+{% else %}
+<!-- No games at all -->
+<div class="bg-neutral-900 rounded-xl border border-neutral-800 p-16 text-center">
+  <div class="w-16 h-16 bg-neutral-800 rounded-2xl flex items-center justify-center mx-auto mb-4">
+    <i class="fas fa-gamepad text-3xl text-gray-600"></i>
+  </div>
+  <h3 class="text-white font-bold text-xl mb-2">No Games Found Yet</h3>
+  <p class="text-gray-400 text-sm max-w-md mx-auto">
+    {{ guild_name }}'s admin hasn't configured game discovery yet, or no upcoming games have been surfaced. Check back soon!
+  </p>
+</div>
+{% endif %}
+
+{% endblock %}
