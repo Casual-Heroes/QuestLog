@@ -13,7 +13,7 @@
   <meta property="og:type" content="website">
   <meta property="article:author" content="Ryven">
   <meta name="author" content="Ryven">
-  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:card" content="{% block twitter_card %}summary_large_image{% endblock %}">
   <meta name="twitter:title" content="{% block twitter_title %}Casual Heroes - Game Servers & Community{% endblock %}">
   <meta name="twitter:description" content="{% block twitter_description %}Join our friendly, mod-loving community. Explore servers, suggest games, and play your way.{% endblock %}">
   <meta name="twitter:image" content="{% block twitter_image %}https://dashboard.casual-heroes.com/static/img/siteassets/homepage/CHLogoFinal.png{% endblock %}">
@@ -109,7 +109,7 @@
           <div class="relative">
             <button @click="activeDropdown = activeDropdown === 'questlog' ? null : 'questlog'"
                     class="text-indigo-400 font-semibold flex items-center gap-1 hover:text-indigo-300 transition">
-              QuestLog <span class="text-[10px] opacity-70">▾</span>
+              QuestLog <span class="text-[9px] bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 px-1.5 py-0.5 rounded-full font-semibold">BETA</span> <span class="text-[10px] opacity-70">▾</span>
             </button>
             <div x-show="activeDropdown === 'questlog'" @click.outside="activeDropdown = null" x-transition
                  class="absolute left-0 mt-2 bg-neutral-900 border border-neutral-800 rounded-lg shadow-xl w-64 z-50">
@@ -556,6 +556,21 @@
     window.getCsrfToken = getCsrfToken;
 
     /**
+     * Canonical HTML escaping utility - single source of truth.
+     * Use this everywhere instead of local copies to prevent XSS.
+     */
+    function escapeHtml(s) {
+      if (s === null || s === undefined) return '';
+      return String(s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+    window.escapeHtml = escapeHtml;
+
+    /**
      * Global ESC key handler to close modals
      * Finds any modal with class 'fixed' that is not 'hidden' and tries to close it
      */
@@ -594,6 +609,11 @@
   </script>
 
   {% block extra_js %}{% endblock %}
+
+  <script>
+  // Emoji map injected server-side - always available synchronously
+  window._customEmojiMap = {{ custom_emoji_map_json|safe }};
+  </script>
 
   <script>
   /* Global helper: render an avatar img OR a coloured initials fallback.

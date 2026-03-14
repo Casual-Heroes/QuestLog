@@ -1,0 +1,198 @@
+{% extends "questlog_web/fluxer_member_base.html" %}
+{% load static %}
+
+{% block title %}{{ guild_name }} - Member Portal - QuestLog{% endblock %}
+
+{% block guild_content %}
+
+<!-- Guild Header -->
+<div class="bg-neutral-900 rounded-2xl overflow-hidden border border-neutral-800 mb-8">
+  <div class="h-32 bg-gradient-to-r from-indigo-600/30 via-purple-600/30 to-pink-600/30 relative">
+    <div class="absolute -bottom-10 left-8">
+      {% if guild_icon_url %}
+      <img src="{{ guild_icon_url }}"
+           alt="{{ guild_name }}"
+           class="w-20 h-20 rounded-2xl border-4 border-neutral-900 shadow-lg">
+      {% else %}
+      <div class="w-20 h-20 bg-neutral-700 rounded-2xl border-4 border-neutral-900 shadow-lg flex items-center justify-center">
+        <span class="text-2xl font-bold text-gray-400">{{ guild_name|slice:":2"|upper }}</span>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="pt-14 pb-6 px-8 flex items-end justify-between flex-wrap gap-3">
+    <div>
+      <h1 class="text-3xl font-bold text-white">{{ guild_name }}</h1>
+      <p class="text-gray-400 mt-1">
+        <i class="fas fa-user text-indigo-400 mr-1"></i>Member Portal
+        {% if is_network_approved %}
+        <span class="ml-2 px-2 py-0.5 bg-indigo-600/20 border border-indigo-600/40 text-indigo-400 text-xs rounded-full">
+          <i class="fas fa-globe mr-1"></i>QuestLog Network
+        </span>
+        {% endif %}
+      </p>
+    </div>
+    <div class="flex items-center gap-3 flex-wrap">
+      <!-- XP Badge -->
+      {% if is_network_approved %}
+      <a href="/ql/fluxer/{{ guild_id }}/profile/"
+         class="flex items-center gap-2 bg-indigo-600/20 border border-indigo-600/40 text-indigo-300 px-4 py-2 rounded-lg text-sm font-medium transition hover:bg-indigo-600/30">
+        <i class="fas fa-star"></i>{{ unified_xp }} XP
+      </a>
+      {% elif user_xp %}
+      <a href="/ql/fluxer/{{ guild_id }}/profile/"
+         class="flex items-center gap-2 bg-neutral-800 border border-neutral-700 text-gray-300 px-4 py-2 rounded-lg text-sm font-medium transition hover:bg-neutral-700">
+        <i class="fas fa-star text-indigo-400"></i>{{ user_xp }} Server XP
+      </a>
+      {% endif %}
+      {% if open_lfg_count > 0 %}
+      <a href="/ql/fluxer/{{ guild_id }}/lfg/"
+         class="flex items-center gap-2 bg-green-600/20 hover:bg-green-600/30 border border-green-600/40 text-green-400 px-4 py-2 rounded-lg text-sm font-medium transition">
+        <i class="fas fa-users"></i>
+        {{ open_lfg_count }} open group{{ open_lfg_count|pluralize }}
+      </a>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- Member Features -->
+<h2 class="text-xl font-bold text-white mb-4 flex items-center">
+  <i class="fas fa-palette text-purple-500 mr-2"></i>Member Features
+</h2>
+
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+
+  <!-- Find Groups (server LFG) -->
+  <a href="/ql/fluxer/{{ guild_id }}/lfg/"
+     class="group bg-neutral-900 rounded-xl p-6 border border-neutral-800 hover:border-green-500 transition-all hover:shadow-lg hover:shadow-green-500/20">
+    <div class="flex items-start justify-between mb-4">
+      <div class="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-500 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
+        <i class="fas fa-users text-white text-xl"></i>
+      </div>
+      {% if open_lfg_count > 0 %}
+      <span class="px-2 py-1 bg-green-500/20 text-green-400 text-xs rounded-full font-medium">{{ open_lfg_count }} open</span>
+      {% else %}
+      <span class="px-2 py-1 bg-green-500/20 text-green-400 text-xs rounded-full">Active</span>
+      {% endif %}
+    </div>
+    <h3 class="text-lg font-bold text-white mb-2 group-hover:text-green-400 transition-colors">Find Groups</h3>
+    <p class="text-gray-400 text-sm mb-4">Find and join groups in {{ guild_name }} - team up for raids, ranked, or casual sessions</p>
+    <div class="flex items-center text-green-400 text-sm font-medium">
+      Browse Groups <i class="fas fa-arrow-right ml-2 group-hover:translate-x-1 transition-transform"></i>
+    </div>
+  </a>
+
+  <!-- Found Games (server games) -->
+  <a href="/ql/fluxer/{{ guild_id }}/games/"
+     class="group bg-neutral-900 rounded-xl p-6 border border-neutral-800 hover:border-green-500 transition-all hover:shadow-lg hover:shadow-green-500/20">
+    <div class="flex items-start justify-between mb-4">
+      <div class="w-12 h-12 bg-gradient-to-br from-green-500 to-teal-500 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
+        <i class="fas fa-gamepad text-white text-xl"></i>
+      </div>
+      <span class="px-2 py-1 bg-green-500/20 text-green-400 text-xs rounded-full">Active</span>
+    </div>
+    <h3 class="text-lg font-bold text-white mb-2 group-hover:text-green-400 transition-colors">Found Games</h3>
+    <p class="text-gray-400 text-sm mb-4">Games tracked in {{ guild_name }} - see what the community is playing</p>
+    <div class="flex items-center text-green-400 text-sm font-medium">
+      View Games <i class="fas fa-arrow-right ml-2 group-hover:translate-x-1 transition-transform"></i>
+    </div>
+  </a>
+
+  <!-- Flair Store (server flairs) -->
+  <a href="/ql/fluxer/{{ guild_id }}/flairs/"
+     class="group bg-neutral-900 rounded-xl p-6 border border-neutral-800 hover:border-purple-500 transition-all hover:shadow-lg hover:shadow-purple-500/20">
+    <div class="flex items-start justify-between mb-4">
+      <div class="w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
+        <i class="fas fa-palette text-white text-xl"></i>
+      </div>
+      <span class="px-2 py-1 bg-purple-500/20 text-purple-400 text-xs rounded-full">Active</span>
+    </div>
+    <h3 class="text-lg font-bold text-white mb-2 group-hover:text-purple-400 transition-colors">Flair Store</h3>
+    <p class="text-gray-400 text-sm mb-4">Purchase and equip flairs for {{ guild_name }} using your Hero Points</p>
+    <div class="flex items-center text-purple-400 text-sm font-medium">
+      Browse Store <i class="fas fa-arrow-right ml-2 group-hover:translate-x-1 transition-transform"></i>
+    </div>
+  </a>
+
+  <!-- Giveaways (server raffles) -->
+  <a href="/ql/fluxer/{{ guild_id }}/raffles/"
+     class="group bg-neutral-900 rounded-xl p-6 border border-neutral-800 hover:border-yellow-500 transition-all hover:shadow-lg hover:shadow-yellow-500/20">
+    <div class="flex items-start justify-between mb-4">
+      <div class="w-12 h-12 bg-gradient-to-br from-yellow-500 to-amber-500 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
+        <i class="fas fa-ticket-alt text-white text-xl"></i>
+      </div>
+      <span class="px-2 py-1 bg-yellow-500/20 text-yellow-400 text-xs rounded-full">Active</span>
+    </div>
+    <h3 class="text-lg font-bold text-white mb-2 group-hover:text-yellow-400 transition-colors">Giveaways</h3>
+    <p class="text-gray-400 text-sm mb-4">Enter raffles and giveaways in {{ guild_name }} - win prizes with Hero Points</p>
+    <div class="flex items-center text-yellow-400 text-sm font-medium">
+      View Giveaways <i class="fas fa-arrow-right ml-2 group-hover:translate-x-1 transition-transform"></i>
+    </div>
+  </a>
+
+  <!-- RSS Articles (server feeds) -->
+  <a href="/ql/fluxer/{{ guild_id }}/rss/"
+     class="group bg-neutral-900 rounded-xl p-6 border border-neutral-800 hover:border-orange-500 transition-all hover:shadow-lg hover:shadow-orange-500/20">
+    <div class="flex items-start justify-between mb-4">
+      <div class="w-12 h-12 bg-gradient-to-br from-orange-500 to-red-500 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
+        <i class="fas fa-newspaper text-white text-xl"></i>
+      </div>
+      <span class="px-2 py-1 bg-orange-500/20 text-orange-400 text-xs rounded-full">Active</span>
+    </div>
+    <h3 class="text-lg font-bold text-white mb-2 group-hover:text-orange-400 transition-colors">RSS Articles</h3>
+    <p class="text-gray-400 text-sm mb-4">News and articles from {{ guild_name }}'s configured RSS feeds</p>
+    <div class="flex items-center text-orange-400 text-sm font-medium">
+      Read Articles <i class="fas fa-arrow-right ml-2 group-hover:translate-x-1 transition-transform"></i>
+    </div>
+  </a>
+
+  <!-- Your Profile (server profile) -->
+  <a href="/ql/fluxer/{{ guild_id }}/profile/"
+     class="group bg-neutral-900 rounded-xl p-6 border border-neutral-800 hover:border-blue-500 transition-all hover:shadow-lg hover:shadow-blue-500/20">
+    <div class="flex items-start justify-between mb-4">
+      <div class="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
+        <i class="fas fa-user text-white text-xl"></i>
+      </div>
+      <span class="px-2 py-1 bg-blue-500/20 text-blue-400 text-xs rounded-full">Active</span>
+    </div>
+    <h3 class="text-lg font-bold text-white mb-2 group-hover:text-blue-400 transition-colors">Your Profile</h3>
+    <p class="text-gray-400 text-sm mb-4">Your XP, level, and activity stats in {{ guild_name }}</p>
+    <div class="flex items-center text-blue-400 text-sm font-medium">
+      View Profile <i class="fas fa-arrow-right ml-2 group-hover:translate-x-1 transition-transform"></i>
+    </div>
+  </a>
+
+  <!-- QuestLog Network - only shown if this guild is approved in the community directory -->
+  {% if is_network_approved %}
+  <a href="{% url 'questlog_web_communities' %}"
+     class="group bg-neutral-900 rounded-xl p-6 border border-neutral-800 hover:border-indigo-500 transition-all hover:shadow-lg hover:shadow-indigo-500/20">
+    <div class="flex items-start justify-between mb-4">
+      <div class="w-12 h-12 bg-gradient-to-br from-indigo-500 to-blue-600 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
+        <i class="fas fa-globe text-white text-xl"></i>
+      </div>
+      <span class="px-2 py-1 bg-indigo-500/20 text-indigo-400 text-xs rounded-full">Active</span>
+    </div>
+    <h3 class="text-lg font-bold text-white mb-2 group-hover:text-indigo-400 transition-colors">QuestLog Network</h3>
+    <p class="text-gray-400 text-sm mb-4">Browse all communities in the QuestLog network</p>
+    <div class="flex items-center text-indigo-400 text-sm font-medium">
+      Browse Network <i class="fas fa-arrow-right ml-2 group-hover:translate-x-1 transition-transform"></i>
+    </div>
+  </a>
+  {% endif %}
+
+</div>
+
+<!-- Help Section -->
+<div class="mt-8 bg-blue-900/20 border border-blue-700/50 rounded-xl p-6">
+  <h3 class="text-blue-400 font-semibold mb-2 flex items-center">
+    <i class="fas fa-info-circle mr-2"></i>Member Portal
+  </h3>
+  <p class="text-gray-300 text-sm">
+    Welcome to the {{ guild_name }} member portal! Access all server features from here.
+    Earn Hero Points by being active and spend them on flairs and giveaway entries.
+  </p>
+</div>
+
+{% endblock %}

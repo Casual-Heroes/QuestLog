@@ -5,7 +5,7 @@
   <!-- User Profile / Login -->
   <div class="p-4 border-b border-neutral-800">
     {% if web_user %}
-    <div class="flex items-center gap-3 mb-2 p-2">
+    <a href="{% url 'questlog_web_profile' %}" class="flex items-center gap-3 mb-2 p-2 rounded-lg hover:bg-neutral-800 transition group">
       {% if web_user.avatar_url %}
       <img src="{{ web_user.avatar_url }}"
            alt="{{ web_user.username }}"
@@ -19,23 +19,44 @@
       {% endif %}
       <div class="flex-1 min-w-0 text-left">
         <div class="flex items-center gap-1.5">
-          <h2 class="text-white font-semibold text-sm truncate">{{ web_user.display_name|default:web_user.username }}</h2>
+          <h2 class="text-white font-semibold text-sm truncate group-hover:text-indigo-300 transition">{{ web_user.display_name|default:web_user.username }}</h2>
           {% if web_user.flair_emoji %}<span class="text-sm leading-none" title="{{ web_user.flair_name }}">{{ web_user.flair_emoji }}</span>{% endif %}
         </div>
-        <p class="text-gray-500 text-xs">
-          {% if web_user.steam_id %}
-          <i class="fab fa-steam text-blue-400 mr-1"></i>Steam
-          {% endif %}
-          {% if web_user.discord_id %}
-          <i class="fab fa-discord text-indigo-400 mr-1"></i>Discord
+        <p class="text-gray-500 text-xs flex items-center gap-2 flex-wrap">
+          {% if web_user.steam_id %}<span><i class="fab fa-steam text-blue-400 mr-0.5"></i>Steam</span>{% endif %}
+          {% if web_user.primary_community_platform == 'discord' %}<span><i class="fab fa-discord text-indigo-400 mr-0.5"></i>Discord</span>
+          {% elif web_user.primary_community_platform == 'fluxer' %}<span><i class="fas fa-satellite-dish text-cyan-500 mr-0.5"></i>Fluxer</span>
+          {% elif web_user.primary_community_platform == 'matrix' %}<span><i class="fas fa-comments text-green-400 mr-0.5"></i>Matrix</span>
           {% endif %}
         </p>
+        {% if web_user.primary_community_name %}
+<p class="text-[10px] text-gray-400 truncate mt-0.5 flex items-center gap-1">
+          {% if web_user.primary_community_platform == 'discord' %}
+          <i class="fab fa-discord text-[9px] text-indigo-400 flex-shrink-0"></i>
+          {% elif web_user.primary_community_platform == 'fluxer' %}
+          <i class="fas fa-satellite-dish text-[9px] text-cyan-500 flex-shrink-0"></i>
+          {% elif web_user.primary_community_platform == 'matrix' %}
+          <i class="fas fa-comments text-[9px] text-green-400 flex-shrink-0"></i>
+          {% elif web_user.primary_community_icon %}
+          <img src="{{ web_user.primary_community_icon }}" class="w-3 h-3 rounded-sm flex-shrink-0" alt="">
+          {% else %}
+          <i class="fas fa-shield-alt text-[9px] text-indigo-400 flex-shrink-0"></i>
+          {% endif %}
+          {{ web_user.primary_community_name }}
+        </p>
+        {% endif %}
         <p id="sidebar-playing-badge"
            class="text-cyan-400 text-[10px] font-semibold truncate mt-0.5{% if not web_user.show_playing_status or not web_user.current_game %} hidden{% endif %}">
           <i class="fas fa-gamepad mr-1"></i><span id="sidebar-playing-game">{{ web_user.current_game }}</span>
         </p>
+        {% if web_user.is_live %}
+        <span class="inline-flex items-center gap-1 text-rose-500 text-[10px] font-semibold mt-0.5 truncate">
+          <span class="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse flex-shrink-0"></span>
+          Live on {{ web_user.live_platform|title }}
+        </span>
+        {% endif %}
       </div>
-    </div>
+    </a>
     {% else %}
     <a href="{% url 'questlog_web_login' %}"
        class="w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white py-2 px-4 rounded-lg transition">
@@ -74,6 +95,11 @@
           <span>Notifications</span>
           <span id="notif-badge" class="hidden absolute right-2 top-1/2 -translate-y-1/2 bg-red-500 text-white text-xs font-bold w-5 h-5 flex items-center justify-center rounded-full">0</span>
         </a>
+        <a href="{% url 'questlog_web_leaderboard' %}"
+           class="nav-item {% if active_page == 'leaderboard' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          <i class="fas fa-trophy text-gray-400 group-hover:text-yellow-400"></i>
+          <span>Leaderboard</span>
+        </a>
       </div>
     </div>
     {% endif %}
@@ -99,6 +125,11 @@
            class="nav-item {% if active_page == 'lfg_my_groups' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
           <i class="fas fa-user-friends text-gray-400 group-hover:text-blue-400"></i>
           <span>My Groups</span>
+        </a>
+        <a href="{% url 'questlog_web_lfg_calendar' %}"
+           class="nav-item {% if active_page == 'lfg_calendar' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          <i class="fas fa-calendar-alt text-gray-400 group-hover:text-purple-400"></i>
+          <span>Calendar</span>
         </a>
       </div>
     </div>
@@ -172,6 +203,46 @@
           <i class="fas fa-plus-circle text-gray-400 group-hover:text-purple-400"></i>
           <span>Register Community</span>
         </a>
+
+        <!-- My Servers (member guilds - excludes owned, shows both platforms) -->
+        {% if web_user.member_fluxer_guilds or web_user.member_discord_guilds %}
+        <div class="pt-2 mt-1 border-t border-neutral-800">
+          <p class="px-3 mb-1 text-xs text-gray-600 uppercase tracking-wider font-semibold">My Servers</p>
+          {% for guild in web_user.member_fluxer_guilds %}
+          <a href="/ql/fluxer/{{ guild.id }}/"
+             class="nav-item {% if active_page == 'dashboard' and guild_id == guild.id %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+            {% if guild.icon_hash %}
+            <img src="https://media.revolt.chat/icons/{{ guild.id }}/{{ guild.icon_hash }}"
+                 alt="{{ guild.name }}"
+                 class="w-5 h-5 rounded flex-shrink-0">
+            {% else %}
+            <i class="fas fa-satellite-dish text-cyan-500 group-hover:text-cyan-400 flex-shrink-0"></i>
+            {% endif %}
+            <div class="flex flex-col min-w-0">
+              <span class="truncate leading-tight">{{ guild.name }}</span>
+              <span class="text-[10px] text-cyan-600 leading-tight">Fluxer</span>
+            </div>
+          </a>
+          {% endfor %}
+          {% for guild in web_user.member_discord_guilds %}
+          <a href="/questlog/guild/{{ guild.id }}/"
+             class="nav-item flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+            {% if guild.icon_hash %}
+            <img src="https://cdn.discordapp.com/icons/{{ guild.id }}/{{ guild.icon_hash }}.png?size=32"
+                 alt="{{ guild.name }}"
+                 class="w-5 h-5 rounded flex-shrink-0">
+            {% else %}
+            <i class="fab fa-discord text-indigo-400 group-hover:text-indigo-300 flex-shrink-0"></i>
+            {% endif %}
+            <div class="flex flex-col min-w-0">
+              <span class="truncate leading-tight">{{ guild.name }}</span>
+              <span class="text-[10px] text-indigo-500 leading-tight">Discord</span>
+            </div>
+          </a>
+          {% endfor %}
+        </div>
+        {% endif %}
+
       </div>
     </div>
     {% endif %}
@@ -203,6 +274,22 @@
           <i class="fas fa-gem text-gray-400 group-hover:text-purple-400"></i>
           <span>Hero Shop</span>
         </a>
+        <a href="{% url 'questlog_web_hero_subscribe' %}"
+           class="nav-item {% if active_page == 'hero' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          <i class="fas fa-shield-alt text-gray-400 group-hover:text-amber-400"></i>
+          <span>{% if web_user.is_hero %}Champion{% else %}Become a Champion{% endif %}</span>
+          {% if not web_user.is_hero %}<span class="ml-auto text-[10px] bg-amber-600/30 text-amber-400 px-1.5 py-0.5 rounded font-semibold">$4.99</span>{% endif %}
+        </a>
+        {% if web_user.is_hero %}
+        <form method="post" action="{% url 'questlog_web_hero_portal' %}">
+          {% csrf_token %}
+          <button type="submit"
+                  class="nav-item w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+            <i class="fas fa-credit-card text-gray-400 group-hover:text-amber-400"></i>
+            <span>Manage Subscription</span>
+          </button>
+        </form>
+        {% endif %}
 
         <a href="{% url 'questlog_web_giveaways' %}"
            class="nav-item {% if active_page == 'giveaways' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
@@ -217,7 +304,7 @@
         </a>
 
         <a href="/ql/u/{{ web_user.username }}/"
-           class="nav-item flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+           class="nav-item {% if active_page == 'public_profile' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
           <i class="fas fa-external-link-alt text-gray-400 group-hover:text-blue-400"></i>
           <span>Public Profile</span>
         </a>
@@ -244,6 +331,72 @@
       if (bar) bar.style.width = pct + '%';
     })();
     </script>
+
+    {% if web_user.is_hero or web_user.is_admin %}
+    <!-- Early Access - Champion Only -->
+    <div>
+      <div class="flex items-center justify-between px-3 mb-2">
+        <h3 class="text-xs font-bold text-amber-500 uppercase tracking-wider">
+          <i class="fas fa-flask mr-1"></i>Early Access
+        </h3>
+        <span class="text-[10px] bg-amber-600/20 text-amber-400 px-1.5 py-0.5 rounded font-semibold">Champion</span>
+      </div>
+      <div class="space-y-1">
+        <!-- Early access features will appear here as they are built -->
+        <p class="px-3 py-2 text-xs text-gray-600 italic">New features coming soon - you'll see them here first.</p>
+      </div>
+    </div>
+    {% endif %}
+
+    {% if web_user.owned_fluxer_guilds or web_user.owned_discord_guilds %}
+    <!-- Server Admin Section (owned guilds - both platforms) -->
+    <div>
+      <div class="flex items-center justify-between px-3 mb-2">
+        <h3 class="text-xs font-bold text-purple-400 uppercase tracking-wider">
+          <i class="fas fa-server mr-1"></i>Server Admin
+        </h3>
+      </div>
+      <div class="space-y-1">
+        <a href="/ql/dashboard/"
+           class="nav-item {% if active_page == 'dashboard' and not guild_id %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          <i class="fas fa-th-large text-gray-400 group-hover:text-purple-400"></i>
+          <span>All Servers</span>
+        </a>
+        {% for guild in web_user.owned_fluxer_guilds %}
+        <a href="/ql/dashboard/fluxer/{{ guild.id }}/"
+           class="nav-item flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          {% if guild.icon_hash %}
+          <img src="https://media.revolt.chat/icons/{{ guild.id }}/{{ guild.icon_hash }}"
+               alt="{{ guild.name }}"
+               class="w-5 h-5 rounded flex-shrink-0">
+          {% else %}
+          <i class="fas fa-satellite-dish text-cyan-500 group-hover:text-cyan-400 flex-shrink-0"></i>
+          {% endif %}
+          <div class="flex flex-col min-w-0">
+            <span class="truncate leading-tight">{{ guild.name }}</span>
+            <span class="text-[10px] text-cyan-600 leading-tight">Fluxer</span>
+          </div>
+        </a>
+        {% endfor %}
+        {% for guild in web_user.owned_discord_guilds %}
+        <a href="/ql/dashboard/discord/{{ guild.id }}/"
+           class="nav-item flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          {% if guild.icon_hash %}
+          <img src="https://cdn.discordapp.com/icons/{{ guild.id }}/{{ guild.icon_hash }}.png?size=32"
+               alt="{{ guild.name }}"
+               class="w-5 h-5 rounded flex-shrink-0">
+          {% else %}
+          <i class="fab fa-discord text-indigo-400 group-hover:text-indigo-300 flex-shrink-0"></i>
+          {% endif %}
+          <div class="flex flex-col min-w-0">
+            <span class="truncate leading-tight">{{ guild.name }}</span>
+            <span class="text-[10px] text-indigo-500 leading-tight">Discord</span>
+          </div>
+        </a>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
 
     {% if web_user.is_admin or request.session.web_user_is_admin %}
     <!-- Admin Section -->
@@ -277,7 +430,7 @@
 
     <!-- Footer Branding -->
     <div class="flex items-center justify-between text-xs text-gray-500">
-      <span>QuestLog Web</span>
+      <span>QuestLog Web <span class="text-[9px] bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 px-1.5 py-0.5 rounded-full font-semibold ml-1">BETA</span></span>
       <div class="flex items-center gap-2">
         {% if DISCORD_INVITE_URL %}<a href="{{ DISCORD_INVITE_URL }}" target="_blank" class="hover:text-indigo-400 transition">
           <i class="fab fa-discord"></i>
@@ -341,12 +494,21 @@
 
 <!-- Notification Panel (slide-in overlay) -->
 <div id="notif-panel" class="fixed inset-y-0 left-64 z-50 w-80 bg-neutral-900 border-r border-neutral-800 transform -translate-x-full opacity-0 transition-all duration-300 ease-in-out overflow-y-auto hidden">
-  <div class="p-4 border-b border-neutral-800 flex items-center justify-between">
-    <h3 class="text-white font-semibold">Notifications</h3>
-    <div class="flex items-center gap-2">
-      <button onclick="markAllRead()" class="text-xs text-gray-400 hover:text-indigo-400 transition">Mark all read</button>
+  <div class="p-4 border-b border-neutral-800">
+    <div class="flex items-center justify-between mb-2">
+      <h3 class="text-white font-semibold">Notifications</h3>
       <button onclick="toggleNotifPanel()" class="text-gray-500 hover:text-white transition">
         <i class="fas fa-times"></i>
+      </button>
+    </div>
+    <div class="flex items-center gap-2">
+      <button onclick="markAllRead()"
+              class="flex-1 text-xs text-gray-400 hover:text-indigo-400 border border-neutral-700 hover:border-indigo-500/50 rounded-lg py-1.5 transition">
+        <i class="fas fa-check-double mr-1"></i>Mark all read
+      </button>
+      <button onclick="clearAllNotifs()"
+              class="flex-1 text-xs text-gray-400 hover:text-red-400 border border-neutral-700 hover:border-red-500/50 rounded-lg py-1.5 transition">
+        <i class="fas fa-trash mr-1"></i>Clear all
       </button>
     </div>
   </div>
@@ -395,43 +557,58 @@ async function pollNotifCount() {
   } catch(e) {}
 }
 
+const NOTIF_ICONS = {
+  follow:       'fas fa-user-plus text-blue-400',
+  like:         'fas fa-heart text-red-400',
+  comment:      'fas fa-comment text-green-400',
+  comment_like: 'fas fa-heart text-pink-400',
+  share:        'fas fa-share-nodes text-cyan-400',
+  mention:      'fas fa-at text-yellow-400',
+  lfg_join:     'fas fa-users text-emerald-400',
+  lfg_leave:    'fas fa-user-minus text-orange-400',
+  lfg_full:     'fas fa-users text-purple-400',
+  now_playing:  'fas fa-gamepad text-green-400',
+  giveaway:     'fas fa-ticket-alt text-yellow-400',
+  giveaway_win: 'fas fa-trophy text-amber-400',
+  community_join: 'fas fa-globe text-indigo-400',
+  level_up:     'fas fa-level-up-alt text-purple-400',
+};
+
 async function loadNotifications() {
   const list = document.getElementById('notif-list');
   list.innerHTML = '<p class="text-gray-500 text-sm p-2">Loading...</p>';
   try {
-    const res = await fetch('/ql/api/notifications/?per_page=30');
+    const res = await fetch('/ql/api/notifications/?per_page=40');
     const data = await res.json();
-    if (data.notifications.length === 0) {
+    if (!data.notifications || data.notifications.length === 0) {
       list.innerHTML = '<p class="text-gray-500 text-sm text-center py-8">No notifications</p>';
       return;
     }
+    const esc = s => { if (!s) return ''; const d = document.createElement('div'); d.textContent = s; return d.innerHTML; };
     list.innerHTML = data.notifications.map(n => {
-      const esc = s => { if (!s) return ''; const d = document.createElement('div'); d.textContent = s; return d.innerHTML; };
       const actor = n.actor || {};
       const unread = !n.is_read ? 'bg-indigo-500/10 border-indigo-500/20' : 'bg-neutral-800/30 border-transparent';
-      const icon = {
-        follow: 'fas fa-user-plus text-blue-400',
-        like: 'fas fa-heart text-red-400',
-        comment: 'fas fa-comment text-green-400',
-        comment_like: 'fas fa-heart text-pink-400',
-        mention: 'fas fa-at text-yellow-400',
-      }[n.type] || 'fas fa-bell text-gray-400';
+      const icon = NOTIF_ICONS[n.type] || 'fas fa-bell text-gray-400';
+      const isSystem = !actor.username;
 
-      let link = '#';
-      if (n.target_type === 'post') link = '#';
-      if (n.target_type === 'user') link = `/ql/u/${esc(actor.username)}/`;
+      // Build link based on target
+      let href = '#';
+      if (n.target_type === 'post' && n.target_id) href = `/ql/post/${n.target_id}/`;
+      else if (n.target_type === 'user' && actor.username) href = `/ql/u/${esc(actor.username)}/`;
+
+      const actorHtml = isSystem
+        ? ''
+        : `<a href="/ql/u/${esc(actor.username)}/" class="text-white font-medium hover:underline" onclick="event.stopPropagation()">${esc(actor.display_name || actor.username)}</a> `;
 
       return `
         <div class="flex items-start gap-2 p-2 rounded-lg border ${unread} cursor-pointer hover:bg-neutral-800/50 transition"
-             onclick="markRead(${n.id})">
-          <i class="${icon} mt-1 text-sm"></i>
+             onclick="markReadAndGo(${n.id}, '${href}')">
+          <i class="${icon} mt-1 text-sm flex-shrink-0"></i>
           <div class="flex-1 min-w-0">
-            <p class="text-sm text-gray-300">
-              <a href="/ql/u/${esc(actor.username)}/" class="text-white font-medium hover:underline">${esc(actor.display_name || actor.username)}</a>
-              ${esc(n.message || n.type)}
-            </p>
-            <p class="text-xs text-gray-600">${timeAgoNotif(n.created_at)}</p>
+            <p class="text-sm text-gray-300 leading-snug">${actorHtml}${esc(n.message || n.type)}</p>
+            <p class="text-xs text-gray-600 mt-0.5">${timeAgoNotif(n.created_at)}</p>
           </div>
+          ${!n.is_read ? '<span class="w-2 h-2 rounded-full bg-indigo-400 flex-shrink-0 mt-1.5"></span>' : ''}
         </div>`;
     }).join('');
   } catch(e) {
@@ -447,17 +624,29 @@ function timeAgoNotif(ts) {
   return Math.floor(s / 86400) + 'd ago';
 }
 
-async function markRead(id) {
+async function markReadAndGo(id, href) {
   try {
     await csrfFetch(`/ql/api/notifications/${id}/read/`, { method: 'POST' });
     pollNotifCount();
-    loadNotifications();
+    if (href && href !== '#') {
+      window.location.href = href;
+    } else {
+      loadNotifications();
+    }
   } catch(e) {}
 }
 
 async function markAllRead() {
   try {
     await csrfFetch('/ql/api/notifications/read/', { method: 'POST' });
+    pollNotifCount();
+    loadNotifications();
+  } catch(e) {}
+}
+
+async function clearAllNotifs() {
+  try {
+    await csrfFetch('/ql/api/notifications/clear/', { method: 'POST' });
     pollNotifCount();
     loadNotifications();
   } catch(e) {}

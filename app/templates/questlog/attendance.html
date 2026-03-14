@@ -678,14 +678,6 @@ const guildId = '{{ guild.id }}';
 const csrfToken = '{{ csrf_token }}';
 
 // CSRF-aware fetch function
-async function csrfFetch(url, options = {}) {
-  options.headers = options.headers || {};
-  if (!options.headers['X-CSRFToken']) {
-    options.headers['X-CSRFToken'] = csrfToken;
-  }
-  return fetch(url, options);
-}
-
 /**
  * Update attendance status via AJAX
  */

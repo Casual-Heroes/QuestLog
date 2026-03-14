@@ -100,7 +100,7 @@ BLOCKED_PATTERNS = [
     'web.config', 'htaccess', 'htpasswd',
     '.bak', '.backup', '.old', '.save', '.swp', '.tmp',
     'config.php', 'wp-config.php', 'configuration.php',
-    'credentials', 'secrets', 'password',
+    'credentials', 'secrets',
     '.npmrc', '.dockerenv', 'docker-compose',
     'id_rsa', 'id_dsa', 'authorized_keys',
     'database.yml', 'settings.py.bak',
@@ -157,10 +157,22 @@ class SecurityMiddleware:
                 logger.warning(f"Blocked traversal from {self._client_ip(request)}: {request.path}")
                 return HttpResponseNotFound()
 
-        return self.get_response(request)
+        response = self.get_response(request)
+        response['Permissions-Policy'] = (
+            'camera=(), microphone=(), geolocation=(), payment=(), usb=(), '
+            'interest-cohort=()'
+        )
+        response['X-Content-Type-Options'] = 'nosniff'
+        response['X-Frame-Options'] = 'SAMEORIGIN'
+        response['X-XSS-Protection'] = '1; mode=block'
+        response['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+        return response
 
     @staticmethod
     def _client_ip(request):
+        cf_ip = request.META.get('HTTP_CF_CONNECTING_IP', '').strip()
+        if cf_ip:
+            return cf_ip
         xff = request.META.get('HTTP_X_FORWARDED_FOR')
         if xff:
             return xff.split(',')[0].strip()

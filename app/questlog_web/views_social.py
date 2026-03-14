@@ -7,23 +7,27 @@ import random
 import logging
 
 from django.http import JsonResponse
+from django.shortcuts import render
 from django.views.decorators.http import require_http_methods
 from django_ratelimit.decorators import ratelimit
 from sqlalchemy import or_, and_, func, case
 
 from .models import (
-    WebUser, WebFollow, WebPost, WebPostImage, WebLike,
+    WebUser, WebFollow, WebPost, WebPostEdit, WebPostImage, WebLike,
     WebComment, WebCommentLike, WebNotification, WebUserBlock,
     WebFoundGame, WebCreatorProfile,
     WebGiveaway, WebGiveawayEntry,
+    WebLFGGroup, WebLFGMember, WebCommunity, WebCommunityMember,
 )
 from app.db import get_db_session
+from .fluxer_webhooks import notify_new_post as _fluxer_new_post
 from .helpers import (
     web_login_required, add_web_user_context,
     check_banned, check_posting_timeout,
     is_blocked, create_notification,
     sanitize_text, parse_embed_url, reconstruct_embed_url, _is_valid_giphy_url,
-    serialize_user_brief, serialize_post, award_hero_points, safe_int,
+    serialize_user_brief, serialize_post, award_hero_points, safe_int, EXCLUDED_USER_IDS,
+    fetch_link_preview,
 )
 
 logger = logging.getLogger(__name__)
@@ -147,7 +151,7 @@ def api_follow(request, user_id):
         return JsonResponse({'error': 'Cannot follow yourself'}, status=400)
 
     with get_db_session() as db:
-        target = db.query(WebUser).filter_by(id=user_id).first()
+        target = db.query(WebUser).filter_by(id=user_id).with_for_update().first()
         if not target:
             return JsonResponse({'error': 'User not found'}, status=404)
 
@@ -173,7 +177,7 @@ def api_follow(request, user_id):
             )
             db.add(follow)
 
-            me = db.query(WebUser).filter_by(id=request.web_user.id).first()
+            me = db.query(WebUser).filter_by(id=request.web_user.id).with_for_update().first()
             if me:
                 me.following_count = (me.following_count or 0) + 1
             target.follower_count = (target.follower_count or 0) + 1
@@ -202,7 +206,7 @@ def api_follow(request, user_id):
             ).first()
             if follow:
                 db.delete(follow)
-                me = db.query(WebUser).filter_by(id=request.web_user.id).first()
+                me = db.query(WebUser).filter_by(id=request.web_user.id).with_for_update().first()
                 if me and me.following_count and me.following_count > 0:
                     me.following_count -= 1
                 if target.follower_count and target.follower_count > 0:
@@ -367,7 +371,10 @@ def api_posts(request):
     except (json.JSONDecodeError, ValueError):
         return JsonResponse({'error': 'Invalid JSON'}, status=400)
 
-    content = sanitize_text(data.get('content', ''), max_length=2000)
+    is_champion = bool(getattr(request.web_user, 'is_hero', 0))
+    is_admin = bool(getattr(request.web_user, 'is_admin', 0))
+    char_limit = 6000 if is_admin else (3000 if is_champion else 1000)
+    content = sanitize_text(data.get('content', ''), max_length=char_limit)
     post_type = data.get('post_type', 'text')
     if post_type not in ('text', 'image', 'video_embed', 'game_tag', 'gif'):
         return JsonResponse({'error': 'Invalid post type'}, status=400)
@@ -424,6 +431,15 @@ def api_posts(request):
                             post.post_type = 'video_embed'
                         break
 
+            # Fetch link preview for first non-video URL in text posts
+            if post_type in ('text', 'game_tag') and content and not post.embed_platform:
+                urls = re.findall(r'https?://[^\s<]+', content)
+                for preview_url in urls:
+                    preview = fetch_link_preview(preview_url)
+                    if preview:
+                        post.link_preview = json.dumps(preview)
+                        break
+
             # Handle game tag (supports both WebFoundGame IDs and IGDB IDs)
             if game_tag_id:
                 game_tag_name_input = data.get('game_tag_name', '').strip()
@@ -446,8 +462,9 @@ def api_posts(request):
             db.flush()  # Get post.id
 
             # media_urls are pre-uploaded via /api/upload/image/ — just store the references
+            max_images = 8 if (is_champion or is_admin) else 4
             if media_urls and post_type == 'image':
-                for i, img_data in enumerate(media_urls[:4]):
+                for i, img_data in enumerate(media_urls[:max_images]):
                     if isinstance(img_data, dict) and img_data.get('image_url'):
                         post_image = WebPostImage(
                             post_id=post.id,
@@ -471,6 +488,15 @@ def api_posts(request):
 
             db.commit()
             award_hero_points(request.web_user.id, 'post', ref_id=str(post.id))
+
+            # Notify Fluxer channel
+            _post_url = f"https://casual-heroes.com/ql/profile/{request.web_user.username}/"
+            _fluxer_new_post(
+                username=request.web_user.username,
+                game=post.game_tag_name or '',
+                content=post.content or '',
+                post_url=_post_url,
+            )
 
             # Refetch to populate relationships (author, images)
             post = db.query(WebPost).filter_by(id=post.id).first()
@@ -515,7 +541,7 @@ def _get_feed_posts(request):
             query = query.filter(~WebPost.author_id.in_(blocked_ids))
 
         total = query.count()
-        posts = query.order_by(WebPost.created_at.desc()).offset(offset).limit(per_page).all()
+        posts = query.order_by(WebPost.is_pinned.desc(), WebPost.created_at.desc()).offset(offset).limit(per_page).all()
 
         data = [serialize_post(p, request.web_user.id, db, following_ids=following_ids_set) for p in posts]
 
@@ -523,6 +549,35 @@ def _get_feed_posts(request):
         'posts': data, 'total': total, 'page': page,
         'has_more': (offset + per_page) < total,
     })
+
+
+@web_login_required
+@add_web_user_context
+@require_http_methods(["POST"])
+def api_post_pin(request, post_id):
+    """POST: Toggle pin on a post. Author can pin their own (profile pin). Admin can pin to site-wide feed."""
+    with get_db_session() as db:
+        post = db.query(WebPost).filter_by(id=post_id, is_deleted=False).first()
+        if not post:
+            return JsonResponse({'error': 'Post not found'}, status=404)
+
+        is_author = post.author_id == request.web_user.id
+        is_admin = bool(request.web_user.is_admin)
+
+        if not is_author and not is_admin:
+            return JsonResponse({'error': 'Not authorized'}, status=403)
+
+        # If author (non-admin) is pinning: unpin any other post they have pinned first (one pin per profile)
+        if is_author and not is_admin and not post.is_pinned:
+            db.query(WebPost).filter(
+                WebPost.author_id == request.web_user.id,
+                WebPost.is_pinned == True,
+            ).update({'is_pinned': False}, synchronize_session=False)
+
+        post.is_pinned = not post.is_pinned
+        post.updated_at = int(time.time())
+        db.commit()
+        return JsonResponse({'success': True, 'is_pinned': post.is_pinned})
 
 
 @add_web_user_context
@@ -605,7 +660,7 @@ def api_user_posts(request, user_id):
             WebPost.is_hidden == False,
         )
         total = query.count()
-        posts = query.order_by(WebPost.created_at.desc()).offset(offset).limit(per_page).all()
+        posts = query.order_by(WebPost.is_pinned.desc(), WebPost.created_at.desc()).offset(offset).limit(per_page).all()
 
         current_uid = request.web_user.id if request.web_user else None
         data = [serialize_post(p, current_uid, db) for p in posts]
@@ -652,7 +707,7 @@ def api_global_posts(request):
                 query = query.filter(~WebPost.author_id.in_(blocked_ids))
 
         total = query.count()
-        posts = query.order_by(WebPost.created_at.desc()).offset(offset).limit(per_page).all()
+        posts = query.order_by(WebPost.is_pinned.desc(), WebPost.created_at.desc()).offset(offset).limit(per_page).all()
 
         current_uid = request.web_user.id if request.web_user else None
         global_following_ids = None
@@ -720,6 +775,7 @@ def _get_recent_activity(request):
             WebUser.is_banned == False,
             WebUser.allow_discovery == True,
             WebUser.post_count > 0,
+            ~WebUser.id.in_(EXCLUDED_USER_IDS),
         )
         if current_uid:
             following_ids = [f[0] for f in db.query(WebFollow.following_id).filter_by(
@@ -786,6 +842,7 @@ def _get_recent_activity(request):
             WebUser.is_disabled == False,
             WebUser.email_verified == True,
             WebUser.allow_discovery == True,
+            ~WebUser.id.in_(EXCLUDED_USER_IDS),
         )
         if current_uid:
             new_members_q = new_members_q.filter(~WebUser.id.in_(following_ids))
@@ -836,6 +893,15 @@ def _get_recent_activity(request):
 
         ticker = []
         two_days_ago = now - 172800
+
+        # Helper: check if a user has opted out of a specific ticker category
+        def ticker_allowed(user, pref_attr):
+            return bool(getattr(user, pref_attr, True))
+
+        def _user_ok(u):
+            return u and not u.is_banned and not u.is_disabled and u.allow_discovery
+
+        # Posts
         recent_posts = db.query(WebPost).filter(
             WebPost.is_deleted == False,
             WebPost.is_hidden == False,
@@ -843,8 +909,8 @@ def _get_recent_activity(request):
         ).order_by(WebPost.created_at.desc()).limit(10).all()
         for p in recent_posts:
             author = p.author
-            if author and not author.is_banned and not author.is_disabled and author.allow_discovery:
-                msg = f"posted"
+            if _user_ok(author) and ticker_allowed(author, 'ticker_show_posts'):
+                msg = "posted"
                 if p.game_tag_name:
                     msg += f" about {p.game_tag_name}"
                 elif p.post_type == 'video_embed':
@@ -861,13 +927,15 @@ def _get_recent_activity(request):
                     'post_id': p.id,
                 })
 
+        # Follows
         recent_follows = db.query(WebFollow).filter(
             WebFollow.created_at >= two_days_ago,
         ).order_by(WebFollow.created_at.desc()).limit(10).all()
         for f in recent_follows:
             follower = db.query(WebUser).filter_by(id=f.follower_id).first()
             followed = db.query(WebUser).filter_by(id=f.following_id).first()
-            if follower and followed and not follower.is_banned and not followed.is_banned and follower.allow_discovery and followed.allow_discovery:
+            if (_user_ok(follower) and _user_ok(followed)
+                    and ticker_allowed(follower, 'ticker_show_follows')):
                 ticker.append({
                     'type': 'follow',
                     'username': follower.username,
@@ -877,6 +945,7 @@ def _get_recent_activity(request):
                     'timestamp': f.created_at,
                 })
 
+        # New signups
         recent_signups = db.query(WebUser).filter(
             WebUser.created_at >= day_ago,
             WebUser.is_banned == False,
@@ -894,8 +963,168 @@ def _get_recent_activity(request):
                 'timestamp': u.created_at,
             })
 
+        # Go live events (users who went live in the last 2 days)
+        live_users = db.query(WebUser).filter(
+            WebUser.is_live == 1,
+            WebUser.live_checked_at >= two_days_ago,
+            WebUser.is_banned == False,
+            WebUser.is_disabled == False,
+            WebUser.allow_discovery == True,
+        ).order_by(WebUser.live_checked_at.desc()).limit(8).all()
+        for u in live_users:
+            if ticker_allowed(u, 'ticker_show_live') and u.live_platform and u.live_url:
+                platform_label = 'Twitch' if u.live_platform == 'twitch' else 'YouTube'
+                ticker.append({
+                    'type': 'live',
+                    'username': u.username,
+                    'display_name': u.display_name or u.username,
+                    'avatar_url': u.avatar_url or '',
+                    'message': f"went live on {platform_label}",
+                    'live_url': u.live_url,
+                    'live_platform': u.live_platform,
+                    'live_title': u.live_title or '',
+                    'timestamp': u.live_checked_at,
+                })
+
+        # Now playing events (users currently playing a game - fresh within 2 min window)
+        playing_users = db.query(WebUser).filter(
+            WebUser.current_game.isnot(None),
+            WebUser.show_playing_status == True,
+            WebUser.is_banned == False,
+            WebUser.is_disabled == False,
+            WebUser.allow_discovery == True,
+        ).order_by(WebUser.id.desc()).limit(10).all()
+        for u in playing_users:
+            if ticker_allowed(u, 'ticker_show_playing') and u.current_game:
+                steam_url = (
+                    f'https://store.steampowered.com/app/{u.current_game_appid}/'
+                    if getattr(u, 'current_game_appid', None)
+                    else f'https://store.steampowered.com/search/?term={u.current_game}'
+                )
+                ticker.append({
+                    'type': 'playing',
+                    'username': u.username,
+                    'display_name': u.display_name or u.username,
+                    'avatar_url': u.avatar_url or '',
+                    'message': f"is playing {u.current_game}",
+                    'game': u.current_game,
+                    'steam_url': steam_url,
+                    'timestamp': now - 60,  # approximate - no written-at column
+                })
+
+        # LFG group created (last 2 days)
+        recent_lfg = db.query(WebLFGGroup).filter(
+            WebLFGGroup.created_at >= two_days_ago,
+            WebLFGGroup.status.in_(['open', 'full']),
+            WebLFGGroup.allow_network_discovery == True,
+        ).order_by(WebLFGGroup.created_at.desc()).limit(8).all()
+        for g in recent_lfg:
+            try:
+                creator = db.query(WebUser).filter_by(id=g.creator_id).first()
+                if _user_ok(creator) and ticker_allowed(creator, 'ticker_show_lfg'):
+                    ticker.append({
+                        'type': 'lfg_create',
+                        'username': creator.username,
+                        'display_name': creator.display_name or creator.username,
+                        'avatar_url': creator.avatar_url or '',
+                        'message': f"created a group for {g.game_name}",
+                        'group_id': g.id,
+                        'group_title': g.title,
+                        'game_name': g.game_name,
+                        'timestamp': g.created_at,
+                    })
+            except Exception:
+                pass
+
+        # LFG joins/leaves (last 2 days, non-creator members)
+        recent_lfg_members = db.query(WebLFGMember).filter(
+            WebLFGMember.joined_at >= two_days_ago,
+            WebLFGMember.is_creator == False,
+            WebLFGMember.status.in_(['joined', 'confirmed']),
+        ).order_by(WebLFGMember.joined_at.desc()).limit(8).all()
+        for m in recent_lfg_members:
+            try:
+                member_user = db.query(WebUser).filter_by(id=m.user_id).first()
+                grp = db.query(WebLFGGroup).filter_by(id=m.group_id).first()
+                if (_user_ok(member_user) and grp and ticker_allowed(member_user, 'ticker_show_lfg')):
+                    ticker.append({
+                        'type': 'lfg_join',
+                        'username': member_user.username,
+                        'display_name': member_user.display_name or member_user.username,
+                        'avatar_url': member_user.avatar_url or '',
+                        'message': f"joined a group for {grp.game_name}",
+                        'group_id': grp.id,
+                        'game_name': grp.game_name,
+                        'timestamp': m.joined_at,
+                    })
+            except Exception:
+                pass
+
+        recent_lfg_leaves = db.query(WebLFGMember).filter(
+            WebLFGMember.left_at >= two_days_ago,
+            WebLFGMember.is_creator == False,
+            WebLFGMember.status == 'left',
+        ).order_by(WebLFGMember.left_at.desc()).limit(5).all()
+        for m in recent_lfg_leaves:
+            try:
+                member_user = db.query(WebUser).filter_by(id=m.user_id).first()
+                grp = db.query(WebLFGGroup).filter_by(id=m.group_id).first()
+                if (_user_ok(member_user) and grp and ticker_allowed(member_user, 'ticker_show_lfg')):
+                    ticker.append({
+                        'type': 'lfg_leave',
+                        'username': member_user.username,
+                        'display_name': member_user.display_name or member_user.username,
+                        'avatar_url': member_user.avatar_url or '',
+                        'message': f"left a group for {grp.game_name}",
+                        'group_id': grp.id,
+                        'game_name': grp.game_name,
+                        'timestamp': m.left_at,
+                    })
+            except Exception:
+                pass
+
+        # Community joins (last 2 days)
+        recent_comm_joins = db.query(WebCommunityMember).filter(
+            WebCommunityMember.joined_at >= two_days_ago,
+        ).order_by(WebCommunityMember.joined_at.desc()).limit(8).all()
+        for cm in recent_comm_joins:
+            try:
+                member_user = db.query(WebUser).filter_by(id=cm.user_id).first()
+                community = db.query(WebCommunity).filter_by(id=cm.community_id).first()
+                if (_user_ok(member_user) and community
+                        and community.network_status == 'approved'
+                        and ticker_allowed(member_user, 'ticker_show_lfg')):
+                    ticker.append({
+                        'type': 'community_join',
+                        'username': member_user.username,
+                        'display_name': member_user.display_name or member_user.username,
+                        'avatar_url': member_user.avatar_url or '',
+                        'message': f"joined {community.name}",
+                        'community_id': community.id,
+                        'community_name': community.name,
+                        'timestamp': cm.joined_at,
+                    })
+            except Exception:
+                pass
+
+        # Network approvals (communities that recently joined the network, last 7 days)
+        recent_approvals = db.query(WebCommunity).filter(
+            WebCommunity.network_status == 'approved',
+            WebCommunity.updated_at >= week_ago,
+        ).order_by(WebCommunity.updated_at.desc()).limit(3).all()
+        for c in recent_approvals:
+            ticker.append({
+                'type': 'network_approved',
+                'username': '',
+                'display_name': c.name,
+                'avatar_url': c.banner_url or '',
+                'message': f"{c.name} joined the QuestLog Network",
+                'community_id': c.id,
+                'timestamp': c.updated_at,
+            })
+
         ticker.sort(key=lambda x: x['timestamp'], reverse=True)
-        ticker = ticker[:15]
+        ticker = ticker[:20]
 
     return JsonResponse({
         'total_users': total_users,
@@ -923,7 +1152,7 @@ def api_post_like(request, post_id):
         return banned
 
     with get_db_session() as db:
-        post = db.query(WebPost).filter_by(id=post_id).first()
+        post = db.query(WebPost).filter_by(id=post_id).with_for_update().first()
         if not post or post.is_deleted:
             return JsonResponse({'error': 'Post not found'}, status=404)
 
@@ -976,11 +1205,11 @@ def api_post_like(request, post_id):
 # COMMENT API
 # =============================================================================
 
-@web_login_required
+@add_web_user_context
 @require_http_methods(["GET", "POST"])
 @ratelimit(key='user', rate='30/h', method='POST', block=True)
 def api_comments(request, post_id):
-    """GET: List comments for a post. POST: Create comment."""
+    """GET: List comments for a post (public). POST: Create comment (login required)."""
     with get_db_session() as db:
         post = db.query(WebPost).filter_by(id=post_id).first()
         if not post or post.is_deleted:
@@ -988,6 +1217,9 @@ def api_comments(request, post_id):
 
         if request.method == 'GET':
             return _get_comments(request, db, post_id)
+
+        if not request.web_user:
+            return JsonResponse({'error': 'Login required'}, status=401)
 
         banned = check_banned(request)
         if banned:
@@ -1193,7 +1425,7 @@ def api_comment_like(request, comment_id):
         return banned
 
     with get_db_session() as db:
-        comment = db.query(WebComment).filter_by(id=comment_id).first()
+        comment = db.query(WebComment).filter_by(id=comment_id).with_for_update().first()
         if not comment or comment.is_deleted:
             return JsonResponse({'error': 'Comment not found'}, status=404)
 
@@ -1336,6 +1568,18 @@ def api_notification_mark_read(request, notification_id):
     return JsonResponse({'success': True})
 
 
+@web_login_required
+@require_http_methods(["POST"])
+def api_notifications_clear_all(request):
+    """POST: Delete all notifications for the current user."""
+    with get_db_session() as db:
+        deleted = db.query(WebNotification).filter_by(
+            user_id=request.web_user.id
+        ).delete(synchronize_session=False)
+        db.commit()
+    return JsonResponse({'success': True, 'deleted_count': deleted})
+
+
 # =============================================================================
 # SHARE API
 # =============================================================================
@@ -1438,7 +1682,7 @@ def api_giveaway_enter(request, giveaway_id):
         return banned
 
     with get_db_session() as db:
-        g = db.query(WebGiveaway).filter_by(id=giveaway_id).first()
+        g = db.query(WebGiveaway).filter_by(id=giveaway_id).with_for_update().first()
         if not g:
             return JsonResponse({'error': 'Giveaway not found'}, status=404)
         if g.status != 'active':
@@ -1448,7 +1692,7 @@ def api_giveaway_enter(request, giveaway_id):
 
         existing = db.query(WebGiveawayEntry).filter_by(
             giveaway_id=giveaway_id, user_id=request.web_user.id
-        ).first()
+        ).with_for_update().first()
 
         if request.method == 'POST':
             # Parse desired ticket count (1 = free entry, >1 = buy extras with HP)
@@ -1511,3 +1755,158 @@ def api_giveaway_enter(request, giveaway_id):
                     g.entry_count -= 1
                 db.commit()
             return JsonResponse({'success': True, 'entered': False, 'ticket_count': 0, 'entry_count': g.entry_count or 0})
+
+
+@add_web_user_context
+@require_http_methods(["GET"])
+def post_detail_page(request, post_id):
+    """Shareable permalink page for a single post."""
+    with get_db_session() as db:
+        post = db.query(WebPost).filter_by(id=post_id, is_deleted=False).first()
+        if not post or post.is_hidden:
+            return render(request, 'questlog_web/post_detail.html', {
+                'web_user': request.web_user,
+                'post': None,
+                'active_page': 'feed',
+            })
+
+        if request.web_user and is_blocked(db, request.web_user.id, post.author_id):
+            return render(request, 'questlog_web/post_detail.html', {
+                'web_user': request.web_user,
+                'post': None,
+                'active_page': 'feed',
+            })
+
+        current_uid = request.web_user.id if request.web_user else None
+        post_data = serialize_post(post, current_uid, db)
+        post_json = json.dumps(post_data)
+
+        author = post_data.get('author') or {}
+        post_author = author.get('display_name') or author.get('username', 'Unknown')
+
+        # OG meta for social unfurls
+        og_title = f"{post_author} on QuestLog"
+        og_desc = (post.content or '')[:200].strip() or "View this post on QuestLog"
+        # Use post image if available, else link preview image, else default
+        og_image = None
+        if post_data.get('images'):
+            og_image = post_data['images'][0].get('image_url')
+        elif post_data.get('thumbnail_url'):
+            og_image = post_data['thumbnail_url']
+        elif post_data.get('link_preview') and post_data['link_preview'].get('image'):
+            og_image = post_data['link_preview']['image']
+
+    return render(request, 'questlog_web/post_detail.html', {
+        'web_user': request.web_user,
+        'post_json': post_json,
+        'post_id': post_id,
+        'post_author': post_author,
+        'og_title': og_title,
+        'og_desc': og_desc,
+        'og_image': og_image,
+        'og_url': f"https://casual-heroes.com/ql/post/{post_id}/",
+        'active_page': 'feed',
+    })
+
+
+# =============================================================================
+# POST EDIT
+# =============================================================================
+
+@web_login_required
+@require_http_methods(["PUT"])
+@ratelimit(key='user', rate='30/h', block=True)
+def api_post_edit(request, post_id):
+    """Edit a post. Saves previous content to edit history first."""
+    banned = check_banned(request)
+    if banned:
+        return banned
+
+    try:
+        data = json.loads(request.body)
+    except (json.JSONDecodeError, ValueError):
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+    with get_db_session() as db:
+        post = db.query(WebPost).filter_by(id=post_id, is_deleted=False).first()
+        if not post:
+            return JsonResponse({'error': 'Post not found'}, status=404)
+
+        is_author = post.author_id == request.web_user.id
+        is_admin = request.web_user.is_admin
+        if not is_author and not is_admin:
+            return JsonResponse({'error': 'Not authorized'}, status=403)
+
+        is_champion = bool(getattr(request.web_user, 'is_hero', 0))
+        char_limit = 6000 if is_admin else (3000 if is_champion else 1000)
+        new_content = sanitize_text(data.get('content', ''), max_length=char_limit)
+        if not new_content:
+            return JsonResponse({'error': 'Post cannot be empty'}, status=400)
+
+        if new_content == post.content:
+            return JsonResponse({'error': 'No changes made'}, status=400)
+
+        now = int(time.time())
+
+        # Save old content to history before overwriting
+        edit_record = WebPostEdit(
+            post_id=post.id,
+            content_before=post.content or '',
+            edited_at=now,
+        )
+        db.add(edit_record)
+
+        # Re-fetch link preview if content changed and post has no media
+        new_preview = post.link_preview
+        if post.post_type in ('text', 'game_tag') and not post.embed_platform and not post.images:
+            urls = re.findall(r'https?://[^\s<]+', new_content)
+            new_preview = None
+            for preview_url in urls:
+                preview = fetch_link_preview(preview_url)
+                if preview:
+                    new_preview = json.dumps(preview)
+                    break
+
+        post.content = new_content
+        post.edited_at = now
+        post.edit_count = (post.edit_count or 0) + 1
+        post.updated_at = now
+        post.link_preview = new_preview
+
+        db.commit()
+
+        # Refetch to serialize cleanly
+        post = db.query(WebPost).filter_by(id=post.id).first()
+        post_data = serialize_post(post, request.web_user.id, db)
+
+    return JsonResponse({'success': True, 'post': post_data})
+
+
+@add_web_user_context
+@require_http_methods(["GET"])
+def api_post_edit_history(request, post_id):
+    """Return full edit history for a post (public - anyone can see edit history)."""
+    with get_db_session() as db:
+        post = db.query(WebPost).filter_by(id=post_id, is_deleted=False).first()
+        if not post or post.is_hidden:
+            return JsonResponse({'error': 'Post not found'}, status=404)
+
+        edits = db.query(WebPostEdit).filter_by(post_id=post_id)\
+            .order_by(WebPostEdit.edited_at.asc()).all()
+
+        history = []
+        for i, e in enumerate(edits):
+            history.append({
+                'version': i + 1,
+                'content_before': e.content_before,
+                'edited_at': e.edited_at,
+            })
+        # Add current version as the last entry
+        history.append({
+            'version': len(edits) + 1,
+            'content_before': post.content or '',
+            'edited_at': post.edited_at or post.created_at,
+            'is_current': True,
+        })
+
+    return JsonResponse({'history': history, 'edit_count': post.edit_count or 0})

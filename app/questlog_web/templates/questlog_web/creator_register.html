@@ -6,14 +6,6 @@
 {% block web_content %}
 <script>
   const CSRF_TOKEN = '{{ csrf_token }}';
-  function csrfFetch(url, options = {}) {
-    if (!options.headers) options.headers = {};
-    if (CSRF_TOKEN && CSRF_TOKEN !== 'None') {
-      options.headers['X-CSRFToken'] = CSRF_TOKEN;
-    }
-    return fetch(url, options);
-  }
-
   async function disconnectPlatform(url, name) {
     if (!confirm('Disconnect ' + name + '? You can reconnect anytime.')) return;
     try {
@@ -109,6 +101,33 @@
           {% endif %}
         </div>
 
+        <!-- Kick -->
+        <div class="flex items-center justify-between p-4 bg-neutral-800/50 rounded-lg border border-neutral-700/50">
+          <div class="flex items-center gap-3">
+            <i class="fas fa-bolt text-2xl text-green-400"></i>
+            <div>
+              <p class="text-white font-medium">Kick</p>
+              {% if profile and profile.kick_user_id %}
+              <p class="text-sm text-green-300">{{ profile.kick_display_name }} &middot; {{ profile.kick_follower_count|default:0 }} followers</p>
+              {% else %}
+              <p class="text-xs text-gray-500">Connect to import your channel info &amp; enable live alerts</p>
+              {% endif %}
+            </div>
+          </div>
+          {% if profile and profile.kick_user_id %}
+          <div class="flex items-center gap-3">
+            <span class="text-green-400 text-sm"><i class="fas fa-check-circle mr-1"></i>Connected</span>
+            <button type="button" onclick="disconnectPlatform('{% url 'questlog_web_kick_unlink' %}', 'Kick')" class="text-red-400 hover:text-red-300 text-xs font-medium transition">Disconnect</button>
+          </div>
+          {% elif kick_configured %}
+          <a href="{% url 'questlog_web_kick_link' %}" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition">
+            <i class="fas fa-bolt mr-1"></i>Connect
+          </a>
+          {% else %}
+          <span class="text-gray-500 text-sm">Not configured</span>
+          {% endif %}
+        </div>
+
         <!-- YouTube -->
         <div class="flex items-center justify-between p-4 bg-neutral-800/50 rounded-lg border border-neutral-700/50">
           <div class="flex items-center gap-3">
@@ -166,134 +185,123 @@
                  placeholder="Direct link to your profile image"
                  class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white focus:border-red-500 focus:outline-none">
         </div>
+        <div class="md:col-span-2">
+          <label class="text-sm text-gray-300 mb-2 block">Profile Banner URL</label>
+          <input type="url" id="bannerUrl" name="banner_url"
+                 value="{{ profile.banner_url|default:'' }}"
+                 placeholder="Paste any image URL"
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white focus:border-red-500 focus:outline-none">
+          {% if profile and profile.banner_url %}
+          <div class="mt-2 rounded-lg overflow-hidden h-16 bg-neutral-800">
+            <img src="{{ profile.banner_url }}" class="w-full h-full object-cover" onerror="this.parentElement.style.display='none'">
+          </div>
+          {% endif %}
+        </div>
       </div>
       <div class="mt-4">
         <label class="text-sm text-gray-300 mb-2 block">Bio</label>
-        <textarea id="bio" name="bio" rows="3"
+        <textarea id="bio" name="bio" rows="10"
                   placeholder="Tell people about yourself, what you stream/create, etc."
-                  class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white focus:border-red-500 focus:outline-none resize-none">{{ profile.bio|default:"" }}</textarea>
+                  class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white focus:border-red-500 focus:outline-none resize-y">{{ profile.bio|default:"" }}</textarea>
       </div>
     </div>
 
     <!-- Social Links -->
     <div class="bg-neutral-900/50 rounded-lg border border-neutral-800 p-6">
-      <h2 class="text-lg font-semibold text-white mb-4">
+      <h2 class="text-lg font-semibold text-white mb-5">
         <i class="fas fa-share-alt text-purple-400 mr-2"></i>Social Links
       </h2>
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {% if not profile or not profile.twitch_user_id %}
+
+      <!-- Streaming - Twitch/YouTube are OAuth-only. Kick manual until OAuth is configured. -->
+      <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Streaming</p>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
         <div>
-          <label class="text-sm text-gray-300 mb-2 block">
-            <i class="fab fa-twitch text-purple-400 mr-1"></i>Twitch URL
-          </label>
-          <input type="url" id="twitchUrl" name="twitch_url"
-                 value="{{ profile.twitch_url|default:'' }}"
-                 placeholder="https://twitch.tv/yourchannel"
-                 class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white focus:border-purple-500 focus:outline-none">
-          <p class="text-xs text-gray-500 mt-1">Or connect via OAuth above to auto-fill</p>
+          <label class="text-sm text-gray-300 mb-2 block"><i class="fas fa-bolt text-green-400 mr-1"></i>Kick URL</label>
+          <input type="url" id="kickUrl" name="kick_url" value="{{ profile.kick_url|default:'' }}"
+                 placeholder="https://kick.com/yourchannel"
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white focus:border-green-500 focus:outline-none">
         </div>
-        {% endif %}
-        {% if not profile or not profile.youtube_channel_id %}
+      </div>
+
+      <!-- Community Servers -->
+      <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Community Servers</p>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
         <div>
-          <label class="text-sm text-gray-300 mb-2 block">
-            <i class="fab fa-youtube text-red-400 mr-1"></i>YouTube URL
-          </label>
-          <input type="url" id="youtubeUrl" name="youtube_url"
-                 value="{{ profile.youtube_url|default:'' }}"
-                 placeholder="https://youtube.com/@yourchannel"
-                 class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white focus:border-red-500 focus:outline-none">
-          <p class="text-xs text-gray-500 mt-1">Or connect via OAuth above to auto-fill</p>
-        </div>
-        {% endif %}
-        <div>
-          <label class="text-sm text-gray-300 mb-2 block">
-            <i class="fab fa-twitter text-blue-400 mr-1"></i>Twitter/X URL
-          </label>
-          <input type="url" id="twitterUrl" name="twitter_url"
-                 value="{{ profile.twitter_url|default:'' }}"
-                 placeholder="https://twitter.com/yourhandle"
-                 class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white focus:border-blue-500 focus:outline-none">
+          <label class="text-sm text-gray-300 mb-2 block"><i class="fas fa-bolt text-yellow-400 mr-1"></i>Fluxer</label>
+          <input type="url" id="fluxerUrl" name="fluxer_url" value="{{ profile.fluxer_url|default:'' }}"
+                 placeholder="https://fluxer.gg/yourinvite"
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white focus:border-yellow-500 focus:outline-none">
         </div>
         <div>
-          <label class="text-sm text-gray-300 mb-2 block">
-            <i class="fab fa-tiktok text-pink-400 mr-1"></i>TikTok URL
-          </label>
-          <input type="url" id="tiktokUrl" name="tiktok_url"
-                 value="{{ profile.tiktok_url|default:'' }}"
-                 placeholder="https://tiktok.com/@yourhandle"
-                 class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white focus:border-pink-500 focus:outline-none">
-        </div>
-        <div>
-          <label class="text-sm text-gray-300 mb-2 block">
-            <i class="fas fa-globe text-gray-400 mr-1"></i>Website
-          </label>
-          <input type="url" id="websiteUrl" name="website_url"
-                 value="{{ profile.website_url|default:'' }}"
-                 placeholder="https://yourwebsite.com"
-                 class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white focus:border-gray-500 focus:outline-none">
-        </div>
-        <div>
-          <label class="text-sm text-gray-300 mb-2 block">
-            <i class="fab fa-discord text-indigo-400 mr-1"></i>Discord Server
-          </label>
-          <input type="url" id="discordUrl" name="discord_url"
-                 value="{{ profile.discord_url|default:'' }}"
+          <label class="text-sm text-gray-300 mb-2 block"><i class="fab fa-discord text-indigo-400 mr-1"></i>Discord Server</label>
+          <input type="url" id="discordUrl" name="discord_url" value="{{ profile.discord_url|default:'' }}"
                  placeholder="https://discord.gg/yourinvite"
                  class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white focus:border-indigo-500 focus:outline-none">
         </div>
         <div>
-          <label class="text-sm text-gray-300 mb-2 block">
-            <i class="fas fa-hashtag text-teal-400 mr-1"></i>Matrix Room
-          </label>
-          <input type="url" id="matrixUrl" name="matrix_url"
-                 value="{{ profile.matrix_url|default:'' }}"
+          <label class="text-sm text-gray-300 mb-2 block"><i class="fas fa-cube text-teal-400 mr-1"></i>Matrix Room</label>
+          <input type="url" id="matrixUrl" name="matrix_url" value="{{ profile.matrix_url|default:'' }}"
                  placeholder="https://matrix.to/#/#room:server.com"
                  class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white focus:border-teal-500 focus:outline-none">
         </div>
         <div>
-          <label class="text-sm text-gray-300 mb-2 block">
-            <i class="fas fa-shield-alt text-orange-400 mr-1"></i>valour
-          </label>
-          <input type="url" id="valourUrl" name="valour_url"
-                 value="{{ profile.valour_url|default:'' }}"
-                 placeholder="https://valour.gg/yourinvite"
-                 class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white focus:border-orange-500 focus:outline-none">
+          <label class="text-sm text-gray-300 mb-2 block"><i class="fas fa-comment-dots text-amber-400 mr-1"></i>Stoat</label>
+          <input type="url" id="revoltUrl" name="revolt_url" value="{{ profile.revolt_url|default:'' }}"
+                 placeholder="https://stoat.chat/yourinvite"
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white focus:border-amber-400 focus:outline-none">
         </div>
         <div>
-          <label class="text-sm text-gray-300 mb-2 block">
-            <i class="fas fa-bolt text-yellow-400 mr-1"></i>Fluxer
-          </label>
-          <input type="url" id="fluxerUrl" name="fluxer_url"
-                 value="{{ profile.fluxer_url|default:'' }}"
-                 placeholder="https://fluxer.app/yourinvite"
-                 class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white focus:border-yellow-500 focus:outline-none">
-        </div>
-        <div>
-          <label class="text-sm text-gray-300 mb-2 block">
-            <i class="fas fa-mask text-violet-400 mr-1"></i>Kloak
-          </label>
-          <input type="url" id="kloakUrl" name="kloak_url"
-                 value="{{ profile.kloak_url|default:'' }}"
+          <label class="text-sm text-gray-300 mb-2 block"><i class="fas fa-mask text-violet-400 mr-1"></i>Kloak</label>
+          <input type="url" id="kloakUrl" name="kloak_url" value="{{ profile.kloak_url|default:'' }}"
                  placeholder="https://kloak.app/yourinvite"
                  class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white focus:border-violet-500 focus:outline-none">
         </div>
         <div>
-          <label class="text-sm text-gray-300 mb-2 block">
-            <i class="fas fa-headset text-blue-300 mr-1"></i>TeamSpeak
-          </label>
-          <input type="url" id="teamspeakUrl" name="teamspeak_url"
-                 value="{{ profile.teamspeak_url|default:'' }}"
+          <label class="text-sm text-gray-300 mb-2 block"><i class="fas fa-headset text-blue-300 mr-1"></i>TeamSpeak</label>
+          <input type="url" id="teamspeakUrl" name="teamspeak_url" value="{{ profile.teamspeak_url|default:'' }}"
                  placeholder="ts3server://yourserver.com"
                  class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white focus:border-blue-300 focus:outline-none">
         </div>
         <div>
-          <label class="text-sm text-gray-300 mb-2 block">
-            <i class="fas fa-comment-dots text-amber-400 mr-1"></i>Stoat
-          </label>
-          <input type="url" id="revoltUrl" name="revolt_url"
-                 value="{{ profile.revolt_url|default:'' }}"
-                 placeholder="https://stoat.chat/yourinvite"
-                 class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white focus:border-amber-400 focus:outline-none">
+          <label class="text-sm text-gray-300 mb-2 block"><i class="fas fa-shield-alt text-orange-400 mr-1"></i>Valour</label>
+          <input type="url" id="valourUrl" name="valour_url" value="{{ profile.valour_url|default:'' }}"
+                 placeholder="https://valour.gg/yourinvite"
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white focus:border-orange-500 focus:outline-none">
+        </div>
+      </div>
+
+      <!-- Other Socials -->
+      <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Other Socials</p>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label class="text-sm text-gray-300 mb-2 block"><i class="fab fa-twitter text-blue-400 mr-1"></i>Twitter / X</label>
+          <input type="url" id="twitterUrl" name="twitter_url" value="{{ profile.twitter_url|default:'' }}"
+                 placeholder="https://x.com/yourhandle"
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white focus:border-blue-500 focus:outline-none">
+        </div>
+        <div>
+          <label class="text-sm text-gray-300 mb-2 block"><i class="fab fa-tiktok text-pink-400 mr-1"></i>TikTok</label>
+          <input type="url" id="tiktokUrl" name="tiktok_url" value="{{ profile.tiktok_url|default:'' }}"
+                 placeholder="https://tiktok.com/@yourhandle"
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white focus:border-pink-500 focus:outline-none">
+        </div>
+        <div>
+          <label class="text-sm text-gray-300 mb-2 block"><i class="fab fa-instagram text-pink-500 mr-1"></i>Instagram</label>
+          <input type="url" id="instagramUrl" name="instagram_url" value="{{ profile.instagram_url|default:'' }}"
+                 placeholder="https://instagram.com/yourhandle"
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white focus:border-pink-500 focus:outline-none">
+        </div>
+        <div>
+          <label class="text-sm text-gray-300 mb-2 block"><i class="fab fa-facebook text-blue-500 mr-1"></i>Facebook</label>
+          <input type="url" id="facebookUrl" name="facebook_url" value="{{ profile.facebook_url|default:'' }}"
+                 placeholder="https://facebook.com/yourpage"
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white focus:border-blue-600 focus:outline-none">
+        </div>
+        <div>
+          <label class="text-sm text-gray-300 mb-2 block"><i class="fas fa-globe text-gray-400 mr-1"></i>Website</label>
+          <input type="url" id="websiteUrl" name="website_url" value="{{ profile.website_url|default:'' }}"
+                 placeholder="https://yourwebsite.com"
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white focus:border-gray-500 focus:outline-none">
         </div>
       </div>
     </div>
@@ -301,14 +309,25 @@
     <!-- Discovery Settings -->
     <div class="bg-neutral-900/50 rounded-lg border border-neutral-800 p-6">
       <h2 class="text-lg font-semibold text-white mb-4">
-        <i class="fas fa-eye text-green-400 mr-2"></i>Discovery
+        <i class="fas fa-eye text-green-400 mr-2"></i>Discovery &amp; Privacy
       </h2>
-      <label class="flex items-center gap-3 cursor-pointer">
-        <input type="checkbox" id="allowDiscovery" name="allow_discovery"
-               {% if not profile or profile.allow_discovery %}checked{% endif %}
-               class="rounded bg-neutral-700 border-neutral-600 text-red-500 focus:ring-red-500">
-        <span class="text-sm text-gray-300">Show my creator profile in the Featured Creators directory</span>
-      </label>
+      <div class="space-y-3">
+        <label class="flex items-center gap-3 cursor-pointer">
+          <input type="checkbox" id="allowDiscovery" name="allow_discovery"
+                 {% if not profile or profile.allow_discovery %}checked{% endif %}
+                 class="rounded bg-neutral-700 border-neutral-600 text-red-500 focus:ring-red-500">
+          <span class="text-sm text-gray-300">Show my creator profile in the Featured Creators directory</span>
+        </label>
+        <label class="flex items-center gap-3 cursor-pointer">
+          <input type="checkbox" id="showSteamOnProfile" name="show_steam_on_profile"
+                 {% if profile and profile.show_steam_on_profile %}checked{% endif %}
+                 class="rounded bg-neutral-700 border-neutral-600 text-blue-500 focus:ring-blue-500">
+          <div>
+            <span class="text-sm text-gray-300"><i class="fab fa-steam text-blue-400 mr-1"></i>Show current Steam game on my creator card</span>
+            <p class="text-xs text-gray-500 mt-0.5">When you're playing a game on Steam, it will appear on your public creator card</p>
+          </div>
+        </label>
+      </div>
     </div>
 
     <!-- Submit -->
@@ -335,9 +354,12 @@ document.getElementById('creatorForm').addEventListener('submit', async (e) => {
   const formData = {
     display_name: document.getElementById('displayName').value,
     avatar_url: document.getElementById('avatarUrl').value || null,
+    banner_url: document.getElementById('bannerUrl') ? (document.getElementById('bannerUrl').value || null) : undefined,
     bio: document.getElementById('bio').value || null,
     twitter_url: val('twitterUrl'),
     tiktok_url: val('tiktokUrl'),
+    instagram_url: val('instagramUrl'),
+    facebook_url: val('facebookUrl'),
     website_url: val('websiteUrl'),
     discord_url: val('discordUrl'),
     matrix_url: val('matrixUrl'),
@@ -347,12 +369,11 @@ document.getElementById('creatorForm').addEventListener('submit', async (e) => {
     teamspeak_url: val('teamspeakUrl'),
     revolt_url: val('revoltUrl'),
     allow_discovery: document.getElementById('allowDiscovery').checked,
+    show_steam_on_profile: document.getElementById('showSteamOnProfile').checked,
   };
-  // Only send twitch/youtube URLs if the manual fields exist (not OAuth-connected)
-  const twitchUrl = val('twitchUrl');
-  if (twitchUrl !== undefined) formData.twitch_url = twitchUrl;
-  const youtubeUrl = val('youtubeUrl');
-  if (youtubeUrl !== undefined) formData.youtube_url = youtubeUrl;
+  // Only send kick URL if the manual field exists (not OAuth-connected)
+  const kickUrl = val('kickUrl');
+  if (kickUrl !== undefined) formData.kick_url = kickUrl;
 
   try {
     const response = await csrfFetch('{% url "questlog_web_api_creators" %}', {

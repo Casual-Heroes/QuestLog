@@ -1,0 +1,332 @@
+{% extends "questlog_web/matrix_base_guild.html" %}
+{% load static %}
+{% block title %}Space Settings - {{ space_name }}{% endblock %}
+
+{% block guild_content %}
+
+{% include "questlog/partials/custom_select.html" %}
+
+  <!-- Header -->
+  <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 p-6 pb-0 mb-6">
+    <div>
+      <h1 class="text-3xl font-bold text-white">
+        <i class="fas fa-sliders-h text-gray-400 mr-3"></i>Space Settings
+      </h1>
+      <p class="text-gray-400 mt-1">Configure bot behavior for {{ space_name }}</p>
+    </div>
+    <div class="flex gap-3 items-center">
+      <button onclick="saveSettings()" id="saveBtn"
+              class="bg-teal-600 hover:bg-teal-500 text-white px-4 py-2 rounded-lg font-medium transition text-sm">
+        <i class="fas fa-save mr-2"></i>Save Changes
+      </button>
+    </div>
+  </div>
+
+  <!-- Save status -->
+  <div id="save-msg" class="hidden mx-6 mb-4 px-4 py-3 rounded-lg text-sm font-medium"></div>
+
+  <div class="px-6 space-y-6 pb-8">
+
+    <!-- General Settings -->
+    <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6">
+      <h3 class="text-lg font-bold text-white mb-6">
+        <i class="fas fa-cog text-gray-400 mr-2"></i>General
+      </h3>
+      <div class="space-y-6">
+
+        <!-- Command Prefix -->
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <p class="text-white font-medium">Command Prefix</p>
+            <p class="text-gray-500 text-sm">Prefix for bot commands (e.g. ! for !ban)</p>
+          </div>
+          <input type="text" id="bot_prefix" value="{{ settings.bot_prefix|default:'!' }}" maxlength="10"
+                 class="w-full md:w-32 bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white focus:border-teal-500 focus:outline-none font-mono text-sm">
+        </div>
+
+        <!-- Language -->
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <p class="text-white font-medium">Language</p>
+            <p class="text-gray-500 text-sm">Bot response language</p>
+          </div>
+          <div id="cs-language" class="w-full md:w-48"></div>
+        </div>
+
+        <!-- Timezone -->
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <p class="text-white font-medium">Timezone</p>
+            <p class="text-gray-500 text-sm">Used for scheduled messages and logs</p>
+          </div>
+          <div id="cs-timezone" class="w-full md:w-64"></div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Access Control -->
+    <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6">
+      <h3 class="text-lg font-bold text-white mb-2">
+        <i class="fas fa-lock text-teal-400 mr-2"></i>Access Control
+      </h3>
+      <p class="text-gray-400 text-sm mb-6">Control who can manage this space via the web dashboard.</p>
+      <div class="space-y-6">
+
+        <div>
+          <label class="block text-sm text-gray-400 mb-2">Owner Matrix ID</label>
+          <input type="text" id="owner_matrix_id"
+                 value="{{ settings.owner_matrix_id|default:'' }}"
+                 placeholder="@owner:casual-heroes.com"
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white font-mono text-sm placeholder-gray-600 focus:border-teal-500 focus:outline-none">
+          <p class="text-gray-500 text-xs mt-1">Full admin access. Auto-set when the bot is invited to the space.</p>
+        </div>
+
+        <div>
+          <label class="block text-sm text-gray-400 mb-2">
+            Admin Matrix IDs
+            <span class="text-xs text-gray-500 ml-2">(one per line)</span>
+          </label>
+          <textarea id="admin_matrix_ids" rows="3"
+                    placeholder="@mod1:casual-heroes.com&#10;@mod2:casual-heroes.com"
+                    class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white font-mono text-sm placeholder-gray-600 focus:border-teal-500 focus:outline-none resize-none">{% for admin in admin_matrix_ids_list %}{{ admin }}
+{% endfor %}</textarea>
+          <p class="text-gray-500 text-xs mt-1">These users can manage the space dashboard.</p>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Moderation Channels -->
+    <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6">
+      <h3 class="text-lg font-bold text-white mb-6">
+        <i class="fas fa-gavel text-red-400 mr-2"></i>Moderation
+      </h3>
+      <div class="space-y-6">
+
+        <div>
+          <label class="block text-sm text-gray-400 mb-2">Mod Log Room</label>
+          <div id="cs-mod-log"></div>
+          <p class="text-gray-500 text-xs mt-1">All moderation actions (kicks, bans, warns) are posted here.</p>
+        </div>
+
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <p class="text-white font-medium">Warn Threshold</p>
+            <p class="text-gray-500 text-sm">Auto-ban after this many warnings. Set to 0 to disable.</p>
+          </div>
+          <input type="number" id="warn_threshold" min="0" max="20"
+                 value="{{ settings.warn_threshold|default:'3' }}"
+                 class="w-full md:w-24 bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-teal-500 focus:outline-none">
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Space Info (read-only) -->
+    <div class="bg-neutral-900/50 border border-neutral-800 rounded-xl p-5">
+      <h3 class="text-gray-400 font-semibold mb-4 text-sm uppercase tracking-wider">Bot Status</h3>
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+        <div class="bg-neutral-800/50 rounded-xl p-3">
+          <p class="text-gray-500 text-xs">Bot Present</p>
+          <p class="font-bold {% if settings.bot_present %}text-teal-400{% else %}text-red-400{% endif %} mt-1">
+            {% if settings.bot_present %}Yes{% else %}No{% endif %}
+          </p>
+        </div>
+        <div class="bg-neutral-800/50 rounded-xl p-3">
+          <p class="text-gray-500 text-xs">Space</p>
+          <p class="text-white font-medium text-xs mt-1 truncate" title="{{ space_id }}">{{ space_name }}</p>
+        </div>
+        <div class="bg-neutral-800/50 rounded-xl p-3">
+          <p class="text-gray-500 text-xs">Rooms Tracked</p>
+          <p class="text-white font-bold mt-1">{{ rooms|length }}</p>
+        </div>
+        <div class="bg-neutral-800/50 rounded-xl p-3">
+          <p class="text-gray-500 text-xs">Last Sync</p>
+          <p class="text-white text-xs mt-1" id="lastSyncTime">
+            {% if settings.updated_at %}{{ settings.updated_at }}{% else %}Never{% endif %}
+          </p>
+        </div>
+      </div>
+      <div class="mt-4 pt-4 border-t border-neutral-800">
+        <p class="text-gray-600 text-xs font-mono break-all">{{ space_id }}</p>
+        <button onclick="requestSync()"
+                class="mt-2 text-teal-400 hover:text-teal-300 text-sm transition flex items-center gap-2">
+          <i class="fas fa-sync-alt"></i> Request Space Sync
+        </button>
+        <p class="text-gray-600 text-xs mt-1">Queues a sync to update rooms and member list from the Matrix server.</p>
+      </div>
+    </div>
+
+    <!-- Danger Zone -->
+    <div class="bg-red-900/20 rounded-xl p-6 border border-red-900/50">
+      <h3 class="text-lg font-bold text-red-400 mb-4">
+        <i class="fas fa-exclamation-triangle mr-2"></i>Danger Zone
+      </h3>
+      <p class="text-gray-400 text-xs mb-4">These actions cannot be undone.</p>
+      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <p class="text-white font-medium">Remove Space from Dashboard</p>
+          <p class="text-gray-400 text-sm">Remove this space from QuestLog. The bot will remain in your rooms.</p>
+        </div>
+        <button onclick="confirmRemove()"
+                class="bg-red-800 hover:bg-red-900 text-white px-4 py-2 rounded-lg font-medium transition text-sm whitespace-nowrap">
+          Remove Space
+        </button>
+      </div>
+    </div>
+
+  </div>
+
+<div id="toast" class="fixed bottom-6 right-6 z-50 hidden">
+  <div class="bg-neutral-800 border border-neutral-700 text-white text-sm px-4 py-3 rounded-xl shadow-xl flex items-center gap-2">
+    <i id="toastIcon" class="fas fa-check text-teal-400"></i>
+    <span id="toastMsg"></span>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  // Format last sync timestamp
+  const el = document.getElementById('lastSyncTime');
+  if (el) {
+    const ts = parseInt(el.textContent.trim());
+    if (!isNaN(ts) && ts > 0) {
+      el.textContent = new Date(ts * 1000).toLocaleString();
+    }
+  }
+
+  const SETTINGS = JSON.parse('{{ settings_json|escapejs }}');
+  const ROOMS = JSON.parse('{{ rooms_json|escapejs }}');
+  const roomsWithBlank = [{value: '', label: '-- None --'}, ...ROOMS];
+
+  const langItems = [
+    {value: 'en', label: 'English'},
+    {value: 'es', label: 'Spanish'},
+    {value: 'fr', label: 'French'},
+    {value: 'de', label: 'German'},
+    {value: 'pt', label: 'Portuguese'},
+    {value: 'ja', label: 'Japanese'},
+  ];
+  const tzItems = [
+    {value: 'UTC', label: 'UTC'},
+    {value: 'America/New_York', label: 'Eastern Time (ET)'},
+    {value: 'America/Chicago', label: 'Central Time (CT)'},
+    {value: 'America/Denver', label: 'Mountain Time (MT)'},
+    {value: 'America/Los_Angeles', label: 'Pacific Time (PT)'},
+    {value: 'America/Anchorage', label: 'Alaska (AKT)'},
+    {value: 'Pacific/Honolulu', label: 'Hawaii (HT)'},
+    {value: 'Europe/London', label: 'London (GMT/BST)'},
+    {value: 'Europe/Paris', label: 'Central European (CET)'},
+    {value: 'Europe/Berlin', label: 'Berlin (CET/CEST)'},
+    {value: 'Europe/Amsterdam', label: 'Amsterdam (CET/CEST)'},
+    {value: 'Asia/Tokyo', label: 'Tokyo (JST)'},
+    {value: 'Asia/Seoul', label: 'Seoul (KST)'},
+    {value: 'Asia/Shanghai', label: 'Shanghai (CST)'},
+    {value: 'Australia/Sydney', label: 'Sydney (AEDT)'},
+  ];
+
+  window._csLang = createCustomSelect({
+    container: document.getElementById('cs-language'),
+    name: 'language',
+    items: langItems,
+    selected: SETTINGS.language || 'en',
+  });
+  window._csTz = createCustomSelect({
+    container: document.getElementById('cs-timezone'),
+    name: 'timezone',
+    items: tzItems,
+    selected: SETTINGS.timezone || 'UTC',
+  });
+  window._csModLog = createCustomSelect({
+    container: document.getElementById('cs-mod-log'),
+    name: 'mod_log_room_id',
+    items: roomsWithBlank,
+    selected: SETTINGS.mod_log_room_id || '',
+    placeholder: 'Select a room...',
+    color: 'red',
+  });
+});
+
+const SPACE_ID_URL = '{{ space_id_url }}';
+
+function showToast(msg, ok=true) {
+  const t = document.getElementById('toast');
+  document.getElementById('toastMsg').textContent = msg;
+  document.getElementById('toastIcon').className = ok ? 'fas fa-check text-teal-400' : 'fas fa-times text-red-400';
+  t.classList.remove('hidden');
+  setTimeout(() => t.classList.add('hidden'), 3500);
+}
+
+async function saveSettings() {
+  const btn = document.getElementById('saveBtn');
+  const msg = document.getElementById('save-msg');
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Saving...';
+  btn.disabled = true;
+
+  const adminLines = document.getElementById('admin_matrix_ids').value
+    .split('\n').map(s => s.trim()).filter(s => s.startsWith('@'));
+
+  const payload = {
+    bot_prefix: document.getElementById('bot_prefix').value.trim() || '!',
+    language: window._csLang ? window._csLang.getValue() : 'en',
+    timezone: window._csTz ? window._csTz.getValue() : 'UTC',
+    mod_log_room_id: window._csModLog ? (window._csModLog.getValue() || null) : null,
+    warn_threshold: parseInt(document.getElementById('warn_threshold').value) || 3,
+    owner_matrix_id: document.getElementById('owner_matrix_id').value.trim() || null,
+    admin_matrix_ids: adminLines,
+  };
+
+  try {
+    const resp = await csrfFetch('/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/settings/', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload),
+    });
+    const data = await resp.json();
+    if (resp.ok && data.ok) {
+      msg.textContent = 'Settings saved.';
+      msg.className = 'mb-4 px-4 py-3 rounded-lg text-sm font-medium bg-green-900/40 text-green-400 border border-green-700/40';
+      btn.innerHTML = '<i class="fas fa-check mr-2"></i>Saved!';
+    } else {
+      msg.textContent = data.error || 'Save failed.';
+      msg.className = 'mb-4 px-4 py-3 rounded-lg text-sm font-medium bg-red-900/40 text-red-400 border border-red-700/40';
+      btn.innerHTML = '<i class="fas fa-save mr-2"></i>Save Changes';
+      btn.disabled = false;
+    }
+    msg.classList.remove('hidden');
+    setTimeout(() => {
+      msg.classList.add('hidden');
+      btn.innerHTML = '<i class="fas fa-save mr-2"></i>Save Changes';
+      btn.disabled = false;
+    }, 4000);
+  } catch (e) {
+    msg.textContent = 'Network error.';
+    msg.className = 'mb-4 px-4 py-3 rounded-lg text-sm font-medium bg-red-900/40 text-red-400 border border-red-700/40';
+    msg.classList.remove('hidden');
+    btn.innerHTML = '<i class="fas fa-save mr-2"></i>Save Changes';
+    btn.disabled = false;
+  }
+}
+
+function requestSync() {
+  csrfFetch('/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/sync/', {method: 'POST'})
+    .then(r => r.json()).then(d => {
+      if (d.ok) showToast('Sync queued. Bot will update shortly.');
+      else showToast(d.error || 'Error', false);
+    }).catch(() => showToast('Request failed.', false));
+}
+
+function confirmRemove() {
+  if (!confirm('Remove this space from the QuestLog dashboard? The bot will remain in your Matrix rooms.')) return;
+  csrfFetch('/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/settings/', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({_action: 'remove_space'}),
+  }).then(r => r.json()).then(d => {
+    if (d.ok) { window.location.href = '/ql/dashboard/matrix/'; }
+    else showToast(d.error || 'Error', false);
+  }).catch(() => showToast('Request failed.', false));
+}
+</script>
+{% endblock %}

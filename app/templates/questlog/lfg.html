@@ -739,22 +739,7 @@ const guildId = "{{ guild.id }}";
 const csrfToken = "{{ csrf_token }}";
 
 // CSRF-aware fetch function
-async function csrfFetch(url, options = {}) {
-  options.headers = options.headers || {};
-  if (!options.headers['X-CSRFToken']) {
-    options.headers['X-CSRFToken'] = csrfToken;
-  }
-  return fetch(url, options);
-}
-
 // XSS Protection: HTML escape function
-function escapeHtml(text) {
-  if (text == null || text === undefined) return '';
-  const div = document.createElement('div');
-  div.textContent = text;
-  return div.innerHTML;
-}
-
 const totalLFGGames = {{ total_lfg_games }};
 
 // Custom select instances

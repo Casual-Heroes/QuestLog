@@ -1,0 +1,684 @@
+{% extends "questlog_web/matrix_base_guild.html" %}
+{% load static %}
+{% block title %}Moderation - {{ space_name }}{% endblock %}
+
+{% block guild_content %}
+{% include "questlog/partials/custom_select.html" %}
+
+  <!-- Header -->
+  <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 p-6 pb-0 mb-8">
+    <div>
+      <h1 class="text-3xl font-bold text-white">
+        <i class="fas fa-gavel text-red-400 mr-3"></i>Moderation
+      </h1>
+      <p class="text-gray-400 mt-1">Warnings, bans, mutes, and moderation actions for {{ space_name }}</p>
+    </div>
+    <div class="flex gap-3 items-center">
+      <button onclick="openSettingsModal()" class="bg-neutral-800 hover:bg-neutral-700 text-white px-4 py-2 rounded-lg font-medium transition text-sm">
+        <i class="fas fa-cog mr-2"></i>Settings
+      </button>
+      <button onclick="refreshWarnings()" class="bg-neutral-800 hover:bg-neutral-700 text-white px-4 py-2 rounded-lg font-medium transition text-sm">
+        <i class="fas fa-sync-alt mr-2"></i>Refresh
+      </button>
+      <button onclick="openWarnModal()" class="bg-red-700 hover:bg-red-600 text-white px-4 py-2 rounded-lg font-medium transition text-sm">
+        <i class="fas fa-exclamation-triangle mr-2"></i>Issue Warning
+      </button>
+    </div>
+  </div>
+
+  <!-- Save status -->
+  <div id="save-msg" class="hidden mx-6 mb-4 px-4 py-3 rounded-lg text-sm font-medium"></div>
+
+  <div class="px-6 space-y-6 pb-8">
+
+  <!-- Stats -->
+  <div class="grid grid-cols-3 gap-4">
+    <div class="bg-neutral-900 rounded-xl p-4 border border-neutral-800">
+      <p class="text-gray-400 text-sm">Total Warnings</p>
+      <p class="text-2xl font-bold text-white mt-1" id="stat-total">-</p>
+    </div>
+    <div class="bg-neutral-900 rounded-xl p-4 border border-neutral-800">
+      <p class="text-gray-400 text-sm">Active Warnings</p>
+      <p class="text-2xl font-bold text-red-400 mt-1" id="stat-active">-</p>
+    </div>
+    <div class="bg-neutral-900 rounded-xl p-4 border border-neutral-800">
+      <p class="text-gray-400 text-sm">This Week</p>
+      <p class="text-2xl font-bold text-yellow-400 mt-1" id="stat-week">-</p>
+    </div>
+  </div>
+
+  <!-- Quick Actions -->
+  <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
+    <button onclick="openKickModal()"
+            class="bg-neutral-900 border border-neutral-800 hover:border-orange-600/40 rounded-xl p-4 text-left transition group">
+      <div class="w-8 h-8 bg-orange-600/10 rounded-lg flex items-center justify-center mb-2">
+        <i class="fas fa-user-times text-orange-400 text-sm"></i>
+      </div>
+      <p class="text-white text-sm font-medium group-hover:text-orange-300 transition">Kick User</p>
+      <p class="text-gray-600 text-xs mt-0.5">Remove from a room or all rooms</p>
+    </button>
+    <button onclick="openBanModal()"
+            class="bg-neutral-900 border border-neutral-800 hover:border-red-600/40 rounded-xl p-4 text-left transition group">
+      <div class="w-8 h-8 bg-red-700/10 rounded-lg flex items-center justify-center mb-2">
+        <i class="fas fa-ban text-red-500 text-sm"></i>
+      </div>
+      <p class="text-white text-sm font-medium group-hover:text-red-300 transition">Ban from Space</p>
+      <p class="text-gray-600 text-xs mt-0.5">Permanent ban from all rooms</p>
+    </button>
+    <button onclick="openUnbanModal()"
+            class="bg-neutral-900 border border-neutral-800 hover:border-green-600/40 rounded-xl p-4 text-left transition group">
+      <div class="w-8 h-8 bg-green-600/10 rounded-lg flex items-center justify-center mb-2">
+        <i class="fas fa-user-check text-green-400 text-sm"></i>
+      </div>
+      <p class="text-white text-sm font-medium group-hover:text-green-300 transition">Unban User</p>
+      <p class="text-gray-600 text-xs mt-0.5">Lift a ban from the space</p>
+    </button>
+    <button onclick="openMuteModal()"
+            class="bg-neutral-900 border border-neutral-800 hover:border-gray-500/40 rounded-xl p-4 text-left transition group">
+      <div class="w-8 h-8 bg-gray-700/30 rounded-lg flex items-center justify-center mb-2">
+        <i class="fas fa-volume-mute text-gray-400 text-sm"></i>
+      </div>
+      <p class="text-white text-sm font-medium group-hover:text-gray-300 transition">Mute User</p>
+      <p class="text-gray-600 text-xs mt-0.5">Set power level -1 for N minutes</p>
+    </button>
+    <button onclick="openAllRoomsModal()"
+            class="bg-neutral-900 border border-neutral-800 hover:border-red-700/40 rounded-xl p-4 text-left transition group">
+      <div class="w-8 h-8 bg-red-900/20 rounded-lg flex items-center justify-center mb-2">
+        <i class="fas fa-broadcast-tower text-red-500 text-sm"></i>
+      </div>
+      <p class="text-white text-sm font-medium group-hover:text-red-400 transition">All Rooms Action</p>
+      <p class="text-gray-600 text-xs mt-0.5">Kick/ban across every room</p>
+    </button>
+  </div>
+
+  <!-- Filters -->
+  <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-4">
+    <div class="flex flex-wrap gap-4 items-center">
+      <input type="text" id="userFilter" placeholder="Filter by Matrix ID"
+             class="bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-red-500 focus:outline-none w-64">
+      <label class="flex items-center gap-2 text-sm text-gray-400 cursor-pointer">
+        <input type="checkbox" id="activeOnly" class="w-4 h-4 rounded border-neutral-600 bg-neutral-700 text-red-600">
+        Active only
+      </label>
+      <button onclick="applyFilters()" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition">
+        <i class="fas fa-filter mr-2"></i>Filter
+      </button>
+    </div>
+  </div>
+
+  <!-- Warnings Table -->
+  <div class="bg-neutral-900 rounded-xl border border-neutral-800 overflow-hidden">
+    <div class="overflow-x-auto">
+      <table class="w-full">
+        <thead class="bg-neutral-800/50">
+          <tr>
+            <th class="text-left text-gray-400 font-medium text-sm px-6 py-4">User</th>
+            <th class="text-left text-gray-400 font-medium text-sm px-6 py-4">Severity</th>
+            <th class="text-left text-gray-400 font-medium text-sm px-6 py-4">Reason</th>
+            <th class="text-left text-gray-400 font-medium text-sm px-6 py-4">Moderator</th>
+            <th class="text-left text-gray-400 font-medium text-sm px-6 py-4">Date</th>
+            <th class="text-left text-gray-400 font-medium text-sm px-6 py-4">Status</th>
+            <th class="text-left text-gray-400 font-medium text-sm px-6 py-4">Actions</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-neutral-800" id="actionsTable">
+          <tr>
+            <td colspan="7" class="px-6 py-12 text-center">
+              <i class="fas fa-spinner fa-spin text-gray-500 text-2xl"></i>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  </div>
+
+<!-- Issue Warning Modal -->
+<div id="warnModal" class="fixed inset-0 z-50 hidden">
+  <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" onclick="closeWarnModal()"></div>
+  <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-lg">
+    <div class="bg-neutral-900 rounded-xl border border-neutral-700 shadow-2xl">
+      <div class="p-5 border-b border-neutral-800 flex items-center justify-between">
+        <h3 class="text-lg font-bold text-white">
+          <i class="fas fa-exclamation-triangle text-yellow-400 mr-2"></i>Issue Warning
+        </h3>
+        <button onclick="closeWarnModal()" class="text-gray-400 hover:text-white"><i class="fas fa-times"></i></button>
+      </div>
+      <div class="p-5 space-y-4">
+        <div>
+          <label class="block text-sm text-gray-400 mb-1">Matrix ID <span class="text-red-400">*</span></label>
+          <input type="text" id="warnUserId" placeholder="@user:server.com"
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-yellow-500 focus:outline-none">
+        </div>
+        <div>
+          <label class="block text-sm text-gray-400 mb-1">Reason <span class="text-red-400">*</span></label>
+          <textarea id="warnReason" rows="3" placeholder="Reason for the warning..."
+                    class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-yellow-500 focus:outline-none resize-none"></textarea>
+        </div>
+        <div>
+          <label class="block text-sm text-gray-400 mb-1">Room (optional)</label>
+          <div id="cs-warn-room"></div>
+        </div>
+        <div id="warn-msg" class="hidden text-sm px-3 py-2 rounded-lg"></div>
+        <div class="flex justify-end gap-3 pt-2 border-t border-neutral-800">
+          <button onclick="closeWarnModal()" class="px-4 py-2 text-gray-400 hover:text-white transition">Cancel</button>
+          <button onclick="submitWarn()" class="bg-yellow-600 hover:bg-yellow-700 text-white px-6 py-2 rounded-lg font-medium transition">
+            <i class="fas fa-gavel mr-2"></i>Issue Warning
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Kick Modal -->
+<div id="kickModal" class="fixed inset-0 z-50 hidden">
+  <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" onclick="document.getElementById('kickModal').classList.add('hidden')"></div>
+  <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md">
+    <div class="bg-neutral-900 rounded-xl border border-neutral-700 shadow-2xl">
+      <div class="p-5 border-b border-neutral-800 flex items-center justify-between">
+        <h3 class="text-lg font-bold text-white"><i class="fas fa-user-times text-orange-400 mr-2"></i>Kick User</h3>
+        <button onclick="document.getElementById('kickModal').classList.add('hidden')" class="text-gray-400 hover:text-white"><i class="fas fa-times"></i></button>
+      </div>
+      <div class="p-5 space-y-4">
+        <div>
+          <label class="block text-sm text-gray-400 mb-1">Matrix ID <span class="text-red-400">*</span></label>
+          <input type="text" id="kickModUserId" placeholder="@user:server.com"
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-orange-500 focus:outline-none">
+        </div>
+        <div>
+          <label class="block text-sm text-gray-400 mb-1">Room (blank = all rooms)</label>
+          <div id="cs-kick-room"></div>
+        </div>
+        <div>
+          <label class="block text-sm text-gray-400 mb-1">Reason (optional)</label>
+          <input type="text" id="kickModReason" placeholder="Reason for kick"
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-orange-500 focus:outline-none">
+        </div>
+        <div class="flex justify-end gap-3 pt-2 border-t border-neutral-800">
+          <button onclick="document.getElementById('kickModal').classList.add('hidden')" class="px-4 py-2 text-gray-400 hover:text-white transition">Cancel</button>
+          <button onclick="submitKick()" class="bg-orange-600 hover:bg-orange-700 text-white px-6 py-2 rounded-lg font-medium transition">
+            Kick
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Ban Modal -->
+<div id="banModModal" class="fixed inset-0 z-50 hidden">
+  <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" onclick="document.getElementById('banModModal').classList.add('hidden')"></div>
+  <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md">
+    <div class="bg-neutral-900 rounded-xl border border-neutral-700 shadow-2xl">
+      <div class="p-5 border-b border-neutral-800 flex items-center justify-between">
+        <h3 class="text-lg font-bold text-white"><i class="fas fa-ban text-red-400 mr-2"></i>Ban from Space</h3>
+        <button onclick="document.getElementById('banModModal').classList.add('hidden')" class="text-gray-400 hover:text-white"><i class="fas fa-times"></i></button>
+      </div>
+      <div class="p-5 space-y-4">
+        <p class="text-gray-400 text-sm">User will be banned from all rooms and the space itself.</p>
+        <div>
+          <label class="block text-sm text-gray-400 mb-1">Matrix ID <span class="text-red-400">*</span></label>
+          <input type="text" id="banModUserId" placeholder="@user:server.com"
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-red-500 focus:outline-none">
+        </div>
+        <div>
+          <label class="block text-sm text-gray-400 mb-1">Reason (optional)</label>
+          <input type="text" id="banModReason" placeholder="Reason for ban"
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-red-500 focus:outline-none">
+        </div>
+        <div class="flex justify-end gap-3 pt-2 border-t border-neutral-800">
+          <button onclick="document.getElementById('banModModal').classList.add('hidden')" class="px-4 py-2 text-gray-400 hover:text-white transition">Cancel</button>
+          <button onclick="submitBanMod()" class="bg-red-600 hover:bg-red-700 text-white px-6 py-2 rounded-lg font-medium transition">
+            Ban User
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Unban Modal -->
+<div id="unbanModal" class="fixed inset-0 z-50 hidden">
+  <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" onclick="document.getElementById('unbanModal').classList.add('hidden')"></div>
+  <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md">
+    <div class="bg-neutral-900 rounded-xl border border-neutral-700 shadow-2xl">
+      <div class="p-5 border-b border-neutral-800 flex items-center justify-between">
+        <h3 class="text-lg font-bold text-white"><i class="fas fa-user-check text-green-400 mr-2"></i>Unban User</h3>
+        <button onclick="document.getElementById('unbanModal').classList.add('hidden')" class="text-gray-400 hover:text-white"><i class="fas fa-times"></i></button>
+      </div>
+      <div class="p-5 space-y-4">
+        <div>
+          <label class="block text-sm text-gray-400 mb-1">Matrix ID <span class="text-red-400">*</span></label>
+          <input type="text" id="unbanUserId" placeholder="@user:server.com"
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-green-500 focus:outline-none">
+        </div>
+        <div class="flex justify-end gap-3 pt-2 border-t border-neutral-800">
+          <button onclick="document.getElementById('unbanModal').classList.add('hidden')" class="px-4 py-2 text-gray-400 hover:text-white transition">Cancel</button>
+          <button onclick="submitUnban()" class="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg font-medium transition">
+            Unban
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Mute Modal -->
+<div id="muteModal" class="fixed inset-0 z-50 hidden">
+  <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" onclick="document.getElementById('muteModal').classList.add('hidden')"></div>
+  <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md">
+    <div class="bg-neutral-900 rounded-xl border border-neutral-700 shadow-2xl">
+      <div class="p-5 border-b border-neutral-800 flex items-center justify-between">
+        <h3 class="text-lg font-bold text-white"><i class="fas fa-volume-mute text-gray-400 mr-2"></i>Mute User</h3>
+        <button onclick="document.getElementById('muteModal').classList.add('hidden')" class="text-gray-400 hover:text-white"><i class="fas fa-times"></i></button>
+      </div>
+      <div class="p-5 space-y-4">
+        <p class="text-gray-400 text-sm">Sets power level to -1 in all rooms for the specified duration.</p>
+        <div>
+          <label class="block text-sm text-gray-400 mb-1">Matrix ID <span class="text-red-400">*</span></label>
+          <input type="text" id="muteUserId" placeholder="@user:server.com"
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-gray-500 focus:outline-none">
+        </div>
+        <div>
+          <label class="block text-sm text-gray-400 mb-1">Duration (minutes) <span class="text-red-400">*</span></label>
+          <input type="number" id="muteDuration" placeholder="e.g. 30" min="1" max="10080"
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-gray-500 focus:outline-none">
+        </div>
+        <div>
+          <label class="block text-sm text-gray-400 mb-1">Reason (optional)</label>
+          <input type="text" id="muteReason"
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-gray-500 focus:outline-none">
+        </div>
+        <div class="flex justify-end gap-3 pt-2 border-t border-neutral-800">
+          <button onclick="document.getElementById('muteModal').classList.add('hidden')" class="px-4 py-2 text-gray-400 hover:text-white transition">Cancel</button>
+          <button onclick="submitMute()" class="bg-gray-600 hover:bg-gray-700 text-white px-6 py-2 rounded-lg font-medium transition">
+            Mute
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- All Rooms Modal -->
+<div id="allRoomsModal" class="fixed inset-0 z-50 hidden">
+  <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" onclick="document.getElementById('allRoomsModal').classList.add('hidden')"></div>
+  <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md">
+    <div class="bg-neutral-900 rounded-xl border border-neutral-700 shadow-2xl">
+      <div class="p-5 border-b border-neutral-800 flex items-center justify-between">
+        <h3 class="text-lg font-bold text-white"><i class="fas fa-broadcast-tower text-red-500 mr-2"></i>All Rooms Action</h3>
+        <button onclick="document.getElementById('allRoomsModal').classList.add('hidden')" class="text-gray-400 hover:text-white"><i class="fas fa-times"></i></button>
+      </div>
+      <div class="p-5 space-y-4">
+        <p class="text-gray-400 text-sm">Execute a kick or ban across ALL rooms in this space simultaneously.</p>
+        <div class="bg-red-900/20 border border-red-800/30 rounded-xl p-3">
+          <p class="text-red-400 text-xs flex items-center gap-2">
+            <i class="fas fa-exclamation-triangle"></i>
+            This action affects every room in the space. Use with caution.
+          </p>
+        </div>
+        <div>
+          <label class="block text-sm text-gray-400 mb-1">Matrix ID <span class="text-red-400">*</span></label>
+          <input type="text" id="allRoomsUserId" placeholder="@user:server.com"
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-red-500 focus:outline-none">
+        </div>
+        <div>
+          <label class="block text-sm text-gray-400 mb-1">Action <span class="text-red-400">*</span></label>
+          <select id="allRoomsAction" class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-red-500">
+            <option value="kick">Kick from all rooms</option>
+            <option value="ban">Ban from all rooms</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm text-gray-400 mb-1">Reason (optional)</label>
+          <input type="text" id="allRoomsReason"
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-red-500 focus:outline-none">
+        </div>
+        <div class="flex justify-end gap-3 pt-2 border-t border-neutral-800">
+          <button onclick="document.getElementById('allRoomsModal').classList.add('hidden')" class="px-4 py-2 text-gray-400 hover:text-white transition">Cancel</button>
+          <button onclick="submitAllRooms()" class="bg-red-700 hover:bg-red-800 text-white px-6 py-2 rounded-lg font-medium transition">
+            <i class="fas fa-broadcast-tower mr-2"></i>Execute
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Moderation Settings Modal -->
+<div id="settingsModal" class="fixed inset-0 z-50 hidden">
+  <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" onclick="closeSettingsModal()"></div>
+  <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-lg">
+    <div class="bg-neutral-900 rounded-xl border border-neutral-700 shadow-2xl">
+      <div class="p-5 border-b border-neutral-800 flex items-center justify-between">
+        <h3 class="text-lg font-bold text-white">
+          <i class="fas fa-cog text-red-400 mr-2"></i>Moderation Settings
+        </h3>
+        <button onclick="closeSettingsModal()" class="text-gray-400 hover:text-white"><i class="fas fa-times"></i></button>
+      </div>
+      <div class="p-5 space-y-4">
+        <div>
+          <label class="block text-sm text-gray-400 mb-2">Mod Log Room</label>
+          <div id="cs-modlog-modal"></div>
+          <p class="text-gray-500 text-xs mt-1">All moderation actions will be posted here</p>
+        </div>
+        <div>
+          <label class="block text-sm text-gray-400 mb-2">Warn Threshold (auto-ban)</label>
+          <div id="cs-warn-threshold-modal"></div>
+          <p class="text-gray-500 text-xs mt-1">Set to 0 to disable auto-ban on warnings</p>
+        </div>
+        <!-- Available commands reference -->
+        <div class="bg-neutral-800/50 rounded-lg p-4">
+          <p class="text-xs text-gray-400 font-medium uppercase tracking-wider mb-2">Available Bot Commands</p>
+          <div class="grid grid-cols-2 gap-2 text-xs text-gray-500 font-mono">
+            <span><span class="text-gray-300">!warn</span> @user reason</span>
+            <span><span class="text-gray-300">!warnings</span> @user</span>
+            <span><span class="text-gray-300">!kick</span> @user [reason]</span>
+            <span><span class="text-gray-300">!ban</span> @user [reason]</span>
+            <span><span class="text-gray-300">!unban</span> @user</span>
+            <span><span class="text-gray-300">!mute</span> @user &lt;mins&gt;</span>
+            <span><span class="text-gray-300">!allrooms</span> kick/ban @user</span>
+          </div>
+        </div>
+        <div class="flex justify-end gap-3 pt-4 border-t border-neutral-800">
+          <button onclick="closeSettingsModal()" class="px-4 py-2 text-gray-400 hover:text-white transition">Cancel</button>
+          <button onclick="saveModalSettings()" class="bg-red-600 hover:bg-red-700 text-white px-6 py-2 rounded-lg font-medium transition">
+            <i class="fas fa-save mr-2"></i>Save Settings
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="fixed bottom-6 right-6 z-50 hidden">
+  <div class="bg-neutral-800 border border-neutral-700 text-white text-sm px-4 py-3 rounded-xl shadow-xl flex items-center gap-2">
+    <i id="toastIcon" class="fas fa-check text-teal-400"></i>
+    <span id="toastMsg"></span>
+  </div>
+</div>
+
+<script>
+const SPACE_ID_URL = '{{ space_id_url }}';
+const SETTINGS = JSON.parse('{{ settings_json|escapejs }}');
+const ROOMS = JSON.parse('{{ rooms_json|escapejs }}');
+const API_URL = '/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/settings/';
+const WARNINGS_API = '/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/warnings/';
+
+const roomsWithBlank = [{value: '', label: '-- None --'}, ...ROOMS];
+const warnItems = [
+  {value:'0',label:'0 - Disabled'},{value:'1',label:'1 warning'},{value:'2',label:'2 warnings'},
+  {value:'3',label:'3 warnings'},{value:'4',label:'4 warnings'},{value:'5',label:'5 warnings'},
+  {value:'7',label:'7 warnings'},{value:'10',label:'10 warnings'}
+];
+
+let allWarnings = [];
+let csModlogModal = null;
+let csWarnThresholdModal = null;
+let csWarnRoomSelect = null;
+let csKickRoomSelect = null;
+
+function showToast(msg, ok=true) {
+  const t = document.getElementById('toast');
+  document.getElementById('toastMsg').textContent = msg;
+  document.getElementById('toastIcon').className = ok ? 'fas fa-check text-teal-400' : 'fas fa-times text-red-400';
+  t.classList.remove('hidden');
+  setTimeout(() => t.classList.add('hidden'), 3500);
+}
+
+function formatDate(ts) {
+  if (!ts) return '-';
+  return new Date(ts * 1000).toLocaleString();
+}
+
+function severityBadge(sev) {
+  const map = {1: 'bg-yellow-600/20 text-yellow-400', 2: 'bg-orange-600/20 text-orange-400', 3: 'bg-red-600/20 text-red-400'};
+  const labels = {1: 'Minor', 2: 'Moderate', 3: 'Severe'};
+  return `<span class="px-2 py-1 rounded text-xs font-medium ${map[sev] || 'bg-neutral-700 text-gray-400'}">${labels[sev] || sev}</span>`;
+}
+
+function renderWarnings(warnings) {
+  const tbody = document.getElementById('actionsTable');
+  if (!warnings || warnings.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="7" class="px-6 py-12 text-center">
+      <div class="flex flex-col items-center gap-3">
+        <div class="w-16 h-16 bg-neutral-800 rounded-full flex items-center justify-center">
+          <i class="fas fa-check-circle text-green-600 text-2xl"></i>
+        </div>
+        <p class="text-gray-400">No warnings found</p>
+      </div></td></tr>`;
+    return;
+  }
+  tbody.innerHTML = warnings.map(w => `
+    <tr class="hover:bg-neutral-800/30 transition">
+      <td class="px-6 py-4">
+        <span class="text-white text-sm font-mono">${escapeHtml(w.target_matrix_id || w.target_user_id || '-')}</span>
+      </td>
+      <td class="px-6 py-4">${severityBadge(w.severity || 1)}</td>
+      <td class="px-6 py-4 text-gray-300 text-sm max-w-xs truncate">${escapeHtml(w.reason || '-')}</td>
+      <td class="px-6 py-4"><span class="text-gray-300 text-sm font-mono">${escapeHtml(w.moderator_matrix_id || '-')}</span></td>
+      <td class="px-6 py-4 text-gray-400 text-sm">${formatDate(w.created_at)}</td>
+      <td class="px-6 py-4">
+        ${w.is_active
+          ? '<span class="px-2 py-1 bg-red-600/20 text-red-400 rounded text-xs font-medium">Active</span>'
+          : '<span class="px-2 py-1 bg-neutral-700 text-gray-400 rounded text-xs font-medium">Pardoned</span>'}
+      </td>
+      <td class="px-6 py-4">
+        ${w.is_active ? `<button onclick="pardonWarning(${w.id})" class="text-yellow-400 hover:text-yellow-300 text-sm font-medium">
+          <i class="fas fa-hand-paper mr-1"></i>Pardon
+        </button>` : '<span class="text-gray-600 text-sm">-</span>'}
+      </td>
+    </tr>
+  `).join('');
+}
+
+async function refreshWarnings() {
+  const userFilter = document.getElementById('userFilter').value.trim();
+  const activeOnly = document.getElementById('activeOnly').checked;
+  const tbody = document.getElementById('actionsTable');
+  tbody.innerHTML = '<tr><td colspan="7" class="px-6 py-8 text-center"><i class="fas fa-spinner fa-spin text-gray-500 text-2xl"></i></td></tr>';
+  try {
+    let url = WARNINGS_API;
+    const params = new URLSearchParams();
+    if (userFilter) params.set('matrix_id', userFilter);
+    if (activeOnly) params.set('active_only', '1');
+    if (params.toString()) url += '?' + params.toString();
+    const resp = await csrfFetch(url);
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || 'Failed');
+    allWarnings = data.warnings || [];
+    const now = Math.floor(Date.now() / 1000);
+    const weekAgo = now - 7 * 86400;
+    document.getElementById('stat-total').textContent = allWarnings.length;
+    document.getElementById('stat-active').textContent = allWarnings.filter(w => w.is_active).length;
+    document.getElementById('stat-week').textContent = allWarnings.filter(w => w.created_at >= weekAgo).length;
+    renderWarnings(allWarnings);
+  } catch (e) {
+    tbody.innerHTML = `<tr><td colspan="7" class="px-6 py-8 text-center text-red-400">Failed to load: ${escapeHtml(e.message)}</td></tr>`;
+  }
+}
+
+function applyFilters() { refreshWarnings(); }
+
+async function pardonWarning(id) {
+  if (!confirm('Pardon this warning?')) return;
+  const resp = await csrfFetch(WARNINGS_API + id + '/pardon/', {method: 'POST'});
+  const data = await resp.json();
+  if (data.ok) { showToast('Warning pardoned.'); refreshWarnings(); }
+  else showToast(data.error || 'Error', false);
+}
+
+function openWarnModal() {
+  if (!csWarnRoomSelect) {
+    csWarnRoomSelect = createCustomSelect({
+      container: document.getElementById('cs-warn-room'),
+      name: 'warn_room_id',
+      items: roomsWithBlank,
+      selected: '',
+      placeholder: 'All rooms context...',
+    });
+  }
+  document.getElementById('warnUserId').value = '';
+  document.getElementById('warnReason').value = '';
+  document.getElementById('warn-msg').classList.add('hidden');
+  document.getElementById('warnModal').classList.remove('hidden');
+}
+function closeWarnModal() { document.getElementById('warnModal').classList.add('hidden'); }
+
+async function submitWarn() {
+  const matrix_id = document.getElementById('warnUserId').value.trim();
+  const reason = document.getElementById('warnReason').value.trim();
+  const room_id = csWarnRoomSelect ? (csWarnRoomSelect.getValue() || null) : null;
+  const msgEl = document.getElementById('warn-msg');
+  if (!matrix_id || !reason) {
+    msgEl.textContent = 'Matrix ID and reason required.';
+    msgEl.className = 'text-sm px-3 py-2 rounded-lg bg-red-900/40 text-red-400 border border-red-700/40';
+    msgEl.classList.remove('hidden');
+    return;
+  }
+  const resp = await csrfFetch(WARNINGS_API, {method: 'POST', body: JSON.stringify({matrix_id, reason, room_id})});
+  const data = await resp.json();
+  if (data.ok) { closeWarnModal(); showToast('Warning issued.'); refreshWarnings(); }
+  else {
+    msgEl.textContent = data.error || 'Error';
+    msgEl.className = 'text-sm px-3 py-2 rounded-lg bg-red-900/40 text-red-400 border border-red-700/40';
+    msgEl.classList.remove('hidden');
+  }
+}
+
+function openKickModal() {
+  if (!csKickRoomSelect) {
+    csKickRoomSelect = createCustomSelect({
+      container: document.getElementById('cs-kick-room'),
+      name: 'kick_room_id',
+      items: roomsWithBlank,
+      selected: '',
+      placeholder: 'All rooms...',
+    });
+  }
+  document.getElementById('kickModal').classList.remove('hidden');
+}
+function openBanModal() { document.getElementById('banModModal').classList.remove('hidden'); }
+function openUnbanModal() { document.getElementById('unbanModal').classList.remove('hidden'); }
+function openMuteModal() { document.getElementById('muteModal').classList.remove('hidden'); }
+function openAllRoomsModal() { document.getElementById('allRoomsModal').classList.remove('hidden'); }
+
+function submitKick() {
+  const matrix_id = document.getElementById('kickModUserId').value.trim();
+  const room_id = csKickRoomSelect ? (csKickRoomSelect.getValue() || null) : null;
+  const reason = document.getElementById('kickModReason').value.trim();
+  if (!matrix_id) { showToast('Matrix ID required.', false); return; }
+  csrfFetch('/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/members/kick/', {
+    method: 'POST', body: JSON.stringify({matrix_id, room_id, reason, all_rooms: !room_id})
+  }).then(r => r.json()).then(d => {
+    if (d.ok) { showToast('Kick queued.'); document.getElementById('kickModal').classList.add('hidden'); }
+    else showToast(d.error || 'Error', false);
+  }).catch(() => showToast('Request failed.', false));
+}
+
+function submitBanMod() {
+  const matrix_id = document.getElementById('banModUserId').value.trim();
+  const reason = document.getElementById('banModReason').value.trim();
+  if (!matrix_id) { showToast('Matrix ID required.', false); return; }
+  csrfFetch('/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/members/ban/', {
+    method: 'POST', body: JSON.stringify({matrix_id, reason})
+  }).then(r => r.json()).then(d => {
+    if (d.ok) { showToast('Ban queued.'); document.getElementById('banModModal').classList.add('hidden'); }
+    else showToast(d.error || 'Error', false);
+  }).catch(() => showToast('Request failed.', false));
+}
+
+function submitUnban() {
+  const matrix_id = document.getElementById('unbanUserId').value.trim();
+  if (!matrix_id) { showToast('Matrix ID required.', false); return; }
+  csrfFetch('/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/members/ban/', {
+    method: 'DELETE', body: JSON.stringify({matrix_id})
+  }).then(r => r.json()).then(d => {
+    if (d.ok) { showToast('Unban queued.'); document.getElementById('unbanModal').classList.add('hidden'); }
+    else showToast(d.error || 'Error', false);
+  }).catch(() => showToast('Request failed.', false));
+}
+
+function submitMute() {
+  const matrix_id = document.getElementById('muteUserId').value.trim();
+  const duration = parseInt(document.getElementById('muteDuration').value);
+  const reason = document.getElementById('muteReason').value.trim();
+  if (!matrix_id || !duration) { showToast('Matrix ID and duration required.', false); return; }
+  csrfFetch('/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/members/powerlevel/', {
+    method: 'POST', body: JSON.stringify({matrix_id, level: -1, duration_minutes: duration, reason})
+  }).then(r => r.json()).then(d => {
+    if (d.ok) { showToast('Mute queued.'); document.getElementById('muteModal').classList.add('hidden'); }
+    else showToast(d.error || 'Error', false);
+  }).catch(() => showToast('Request failed.', false));
+}
+
+function submitAllRooms() {
+  const matrix_id = document.getElementById('allRoomsUserId').value.trim();
+  const action = document.getElementById('allRoomsAction').value;
+  const reason = document.getElementById('allRoomsReason').value.trim();
+  if (!matrix_id) { showToast('Matrix ID required.', false); return; }
+  if (!confirm('Execute "' + action + ' from all rooms" for ' + matrix_id + '?')) return;
+  const url = action === 'ban'
+    ? '/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/members/ban/'
+    : '/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/members/kick/';
+  csrfFetch(url, {method: 'POST', body: JSON.stringify({matrix_id, reason, all_rooms: true})})
+    .then(r => r.json()).then(d => {
+      if (d.ok) { showToast('Action queued.'); document.getElementById('allRoomsModal').classList.add('hidden'); }
+      else showToast(d.error || 'Error', false);
+    }).catch(() => showToast('Request failed.', false));
+}
+
+function openSettingsModal() {
+  if (!csModlogModal) {
+    csModlogModal = createCustomSelect({
+      container: document.getElementById('cs-modlog-modal'),
+      name: 'mod_log_room_id',
+      items: roomsWithBlank,
+      selected: SETTINGS.mod_log_room_id || '',
+      placeholder: 'Select mod log room...',
+      color: 'red',
+    });
+    csWarnThresholdModal = createCustomSelect({
+      container: document.getElementById('cs-warn-threshold-modal'),
+      name: 'warn_threshold',
+      items: warnItems,
+      selected: String(SETTINGS.warn_threshold || '3'),
+    });
+  }
+  document.getElementById('settingsModal').classList.remove('hidden');
+}
+function closeSettingsModal() { document.getElementById('settingsModal').classList.add('hidden'); }
+
+async function saveModalSettings() {
+  const msg = document.getElementById('save-msg');
+  const payload = {
+    mod_log_room_id: csModlogModal ? (csModlogModal.getValue() || null) : null,
+    warn_threshold: parseInt(csWarnThresholdModal ? csWarnThresholdModal.getValue() : '3'),
+  };
+  try {
+    const resp = await csrfFetch(API_URL, {
+      method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload)
+    });
+    const data = await resp.json();
+    if (resp.ok && data.ok) {
+      msg.textContent = 'Moderation settings saved.';
+      msg.className = 'mb-4 px-4 py-3 rounded-lg text-sm font-medium bg-green-900/40 text-green-400 border border-green-700/40';
+      closeSettingsModal();
+    } else {
+      msg.textContent = data.error || 'Save failed.';
+      msg.className = 'mb-4 px-4 py-3 rounded-lg text-sm font-medium bg-red-900/40 text-red-400 border border-red-700/40';
+    }
+    msg.classList.remove('hidden');
+    setTimeout(() => msg.classList.add('hidden'), 4000);
+  } catch (e) {
+    msg.textContent = 'Network error.';
+    msg.className = 'mb-4 px-4 py-3 rounded-lg text-sm font-medium bg-red-900/40 text-red-400 border border-red-700/40';
+    msg.classList.remove('hidden');
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => { refreshWarnings(); });
+</script>
+{% endblock %}

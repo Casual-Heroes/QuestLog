@@ -7,13 +7,6 @@
 <script>
   const CSRF_TOKEN = '{{ csrf_token }}';
   // Global helper so discord_resource_selects can use it
-  async function csrfFetch(url, options = {}) {
-    options.headers = options.headers || {};
-    if (!options.headers['X-CSRFToken']) {
-      options.headers['X-CSRFToken'] = CSRF_TOKEN;
-    }
-    return fetch(url, options);
-  }
 </script>
 
 <div class="bg-gradient-to-br from-neutral-900 to-neutral-950 border-b border-neutral-800 p-6">

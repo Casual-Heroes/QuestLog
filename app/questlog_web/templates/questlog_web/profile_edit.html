@@ -6,13 +6,6 @@
 {% block web_content %}
 <script>
   const CSRF_TOKEN = '{{ csrf_token }}';
-  function csrfFetch(url, options = {}) {
-    if (!options.headers) options.headers = {};
-    if (CSRF_TOKEN && CSRF_TOKEN !== 'None') {
-      options.headers['X-CSRFToken'] = CSRF_TOKEN;
-    }
-    return fetch(url, options);
-  }
 </script>
 
 <!-- Header -->
@@ -66,6 +59,17 @@
             <input type="url" id="avatarUrl" value="{{ web_user.avatar_url|default:'' }}"
                    placeholder="Direct link to your profile image"
                    class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white focus:border-blue-500 focus:outline-none">
+          </div>
+          <div class="md:col-span-2">
+            <label class="text-sm text-gray-300 mb-2 block">Profile Banner URL</label>
+            <input type="url" id="bannerUrl" value="{{ web_user.banner_url|default:'' }}"
+                   placeholder="Paste any image URL for your profile banner"
+                   class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white focus:border-blue-500 focus:outline-none">
+            {% if web_user.banner_url %}
+            <div class="mt-2 rounded-lg overflow-hidden h-16 bg-neutral-800">
+              <img src="{{ web_user.banner_url }}" class="w-full h-full object-cover" onerror="this.parentElement.style.display='none'">
+            </div>
+            {% endif %}
           </div>
         </div>
       </div>
@@ -216,11 +220,14 @@ document.getElementById('editProfileForm').addEventListener('submit', async (e) 
   btn.disabled = true;
   btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Saving...';
 
+  const primaryEl = document.getElementById('primaryCommunityId');
   const data = {
     username: document.getElementById('username').value,
     display_name: document.getElementById('displayName').value,
     avatar_url: document.getElementById('avatarUrl').value || null,
+    banner_url: document.getElementById('bannerUrl').value || null,
     bio: document.getElementById('bio').value || null,
+    primary_community_id: primaryEl ? (primaryEl.value || null) : undefined,
   };
 
   try {
@@ -245,5 +252,24 @@ document.getElementById('editProfileForm').addEventListener('submit', async (e) 
     btn.innerHTML = '<i class="fas fa-save mr-2"></i>Save Changes';
   }
 });
+
+document.addEventListener('DOMContentLoaded', function() {
+  {% if user_communities|length > 1 %}
+  createCustomSelect({
+    container: document.getElementById('primaryCommunityContainer'),
+    name: 'primaryCommunityId',
+    id: 'primaryCommunityId',
+    items: [
+      {value: '', label: 'None'},
+      {% for c in user_communities %}{value: '{{ c.id }}', label: '{{ c.name }} ({{ c.platform }})'},
+      {% endfor %}
+    ],
+    selected: '{{ web_user.primary_community_id|default:"" }}',
+    color: 'blue',
+    placeholder: 'Select community...',
+  });
+  {% endif %}
+});
 </script>
+{% include "questlog_web/partials/custom_select.html" %}
 {% endblock %}

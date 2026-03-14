@@ -1,0 +1,338 @@
+<!-- Matrix Guild Sidebar - QuestLogMatrix Bot Dashboard -->
+<aside id="mx-sidebar"
+       class="fixed inset-y-0 left-0 z-50 w-64 bg-neutral-900 border-r border-neutral-800 flex flex-col transition-all duration-300 -translate-x-full lg:translate-x-0">
+
+  <!-- Mobile toggle -->
+  <button onclick="toggleMatrixSidebar()"
+          class="lg:hidden absolute top-4 -right-12 bg-neutral-800 p-2 rounded-r-lg border border-l-0 border-neutral-700 z-10">
+    <i class="fas fa-bars text-gray-400"></i>
+  </button>
+
+  <!-- Space Selector -->
+  <div class="p-3 border-b border-neutral-800">
+    <div class="relative" id="mx-server-selector">
+      <button onclick="toggleMatrixServerDropdown()"
+              class="w-full flex items-center gap-3 p-2 rounded-xl hover:bg-neutral-800 transition group">
+        <div class="w-10 h-10 bg-teal-700/30 rounded-xl flex items-center justify-center flex-shrink-0 border border-teal-700/40">
+          <span class="text-teal-300 font-bold text-sm mx-sidebar-label">{{ space_name|slice:":2"|upper }}</span>
+          <i class="fas fa-atom text-teal-400 hidden mx-sidebar-icon-only text-sm"></i>
+        </div>
+        <div class="flex-1 min-w-0 text-left mx-sidebar-label">
+          <h2 class="text-white font-semibold text-sm truncate">{{ space_name }}</h2>
+          <span class="text-xs text-teal-400 font-medium">Matrix Admin</span>
+        </div>
+        <i class="fas fa-chevron-down text-gray-500 text-xs flex-shrink-0 transition-transform mx-sidebar-label"
+           id="mx-server-chevron"></i>
+      </button>
+
+      <!-- Space dropdown -->
+      <div id="mx-server-dropdown"
+           class="hidden absolute top-full left-0 right-0 mt-1 bg-neutral-800 border border-neutral-700 rounded-xl shadow-xl z-50 max-h-64 overflow-y-auto">
+        <div class="p-1">
+          <a href="/ql/dashboard/matrix/"
+             class="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-neutral-700 transition text-sm text-gray-400 hover:text-white">
+            <i class="fas fa-th-large text-xs w-4 text-center"></i>
+            <span>All Spaces</span>
+          </a>
+          <div class="border-t border-neutral-700 my-1"></div>
+          {% for s in all_spaces %}
+          <a href="/ql/dashboard/matrix/{{ s.space_id_url }}/"
+             class="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-neutral-700 transition text-sm {% if s.space_id == space_id %}text-teal-400 bg-teal-600/10{% else %}text-gray-300{% endif %}">
+            <div class="w-6 h-6 bg-neutral-700 rounded-md flex items-center justify-center flex-shrink-0 text-xs font-bold text-gray-400">
+              {{ s.space_name|slice:":1"|upper }}
+            </div>
+            <span class="truncate">{{ s.space_name }}</span>
+          </a>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Navigation -->
+  <nav class="flex-1 overflow-y-auto p-3 space-y-4">
+
+    <!-- Dashboard -->
+    <div>
+      <a href="/ql/dashboard/matrix/{{ space_id_url }}/"
+         class="mx-nav-item {% if active_section == 'overview' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition group">
+        <i class="fas fa-home text-gray-400 group-hover:text-white w-4 text-center"></i>
+        <span class="mx-sidebar-label">Dashboard</span>
+      </a>
+    </div>
+
+    <!-- Space Management (Matrix-exclusive) -->
+    <div>
+      <p class="px-3 mb-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider mx-sidebar-label">Space Management</p>
+      <div class="space-y-0.5">
+        <a href="/ql/dashboard/matrix/{{ space_id_url }}/rooms/"
+           class="mx-nav-item {% if active_section == 'rooms' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          <i class="fas fa-door-open text-gray-400 group-hover:text-teal-400 w-4 text-center"></i>
+          <span class="mx-sidebar-label">Rooms</span>
+        </a>
+        <a href="/ql/dashboard/matrix/{{ space_id_url }}/members/"
+           class="mx-nav-item {% if active_section == 'members' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          <i class="fas fa-users text-gray-400 group-hover:text-teal-400 w-4 text-center"></i>
+          <span class="mx-sidebar-label">Members</span>
+        </a>
+      </div>
+    </div>
+
+    <!-- Engagement -->
+    <div>
+      <p class="px-3 mb-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider mx-sidebar-label">Engagement</p>
+      <div class="space-y-0.5">
+        <!-- XP & Leveling collapsible -->
+        <button onclick="toggleMxSection('xp-section')"
+                class="mx-nav-item w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          <i class="fas fa-star text-gray-400 group-hover:text-yellow-400 w-4 text-center"></i>
+          <span class="mx-sidebar-label flex-1 text-left">XP &amp; Leveling</span>
+          <i class="fas fa-chevron-down text-gray-500 text-xs mx-sidebar-label transition-transform" id="mx-xp-chevron"></i>
+        </button>
+        <div id="xp-section" class="hidden pl-4 space-y-0.5">
+          <a href="/ql/dashboard/matrix/{{ space_id_url }}/xp/#settings"
+             class="mx-nav-item {% if active_section == 'xp' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+            <i class="fas fa-sliders-h text-gray-500 w-3 text-center"></i>
+            <span class="mx-sidebar-label">XP Settings</span>
+          </a>
+          <a href="/ql/dashboard/matrix/{{ space_id_url }}/xp/#boosts"
+             class="mx-nav-item flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+            <i class="fas fa-bolt text-gray-500 w-3 text-center"></i>
+            <span class="mx-sidebar-label">XP Boosts</span>
+          </a>
+          <a href="/ql/dashboard/matrix/{{ space_id_url }}/xp/#leaderboard"
+             class="mx-nav-item flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+            <i class="fas fa-trophy text-gray-500 w-3 text-center"></i>
+            <span class="mx-sidebar-label">Leaderboard</span>
+          </a>
+        </div>
+
+        <a href="/ql/dashboard/matrix/{{ space_id_url }}/rss/"
+           class="mx-nav-item {% if active_section == 'rss' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          <i class="fas fa-rss text-gray-400 group-hover:text-orange-400 w-4 text-center"></i>
+          <span class="mx-sidebar-label">RSS Feeds</span>
+        </a>
+      </div>
+    </div>
+
+    <!-- Moderation -->
+    <div>
+      <p class="px-3 mb-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider mx-sidebar-label">Moderation</p>
+      <div class="space-y-0.5">
+        <a href="/ql/dashboard/matrix/{{ space_id_url }}/moderation/"
+           class="mx-nav-item {% if active_section == 'moderation' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          <i class="fas fa-shield-alt text-gray-400 group-hover:text-red-400 w-4 text-center"></i>
+          <span class="mx-sidebar-label">Moderation</span>
+        </a>
+        <a href="/ql/dashboard/matrix/{{ space_id_url }}/ban-lists/"
+           class="mx-nav-item {% if active_section == 'ban_lists' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          <i class="fas fa-ban text-gray-400 group-hover:text-red-400 w-4 text-center"></i>
+          <span class="mx-sidebar-label">Ban Lists</span>
+        </a>
+        <a href="/ql/dashboard/matrix/{{ space_id_url }}/verification/"
+           class="mx-nav-item {% if active_section == 'verification' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          <i class="fas fa-user-check text-gray-400 group-hover:text-green-400 w-4 text-center"></i>
+          <span class="mx-sidebar-label">Verification</span>
+        </a>
+        <a href="/ql/dashboard/matrix/{{ space_id_url }}/audit/"
+           class="mx-nav-item {% if active_section == 'audit' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          <i class="fas fa-history text-gray-400 group-hover:text-yellow-400 w-4 text-center"></i>
+          <span class="mx-sidebar-label">Audit Log</span>
+        </a>
+      </div>
+    </div>
+
+    <!-- Message System -->
+    <div>
+      <p class="px-3 mb-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider mx-sidebar-label">Message System</p>
+      <div class="space-y-0.5">
+        <a href="/ql/dashboard/matrix/{{ space_id_url }}/welcome/"
+           class="mx-nav-item {% if active_section == 'welcome' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          <i class="fas fa-hand-wave text-gray-400 group-hover:text-green-400 w-4 text-center"></i>
+          <span class="mx-sidebar-label">Welcome Messages</span>
+        </a>
+        <a href="/ql/dashboard/matrix/{{ space_id_url }}/messages/"
+           class="mx-nav-item {% if active_section == 'messages' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          <i class="fas fa-paper-plane text-gray-400 group-hover:text-blue-400 w-4 text-center"></i>
+          <span class="mx-sidebar-label">Message Tools</span>
+        </a>
+      </div>
+    </div>
+
+    <!-- Customization -->
+    <div>
+      <p class="px-3 mb-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider mx-sidebar-label">Customization</p>
+      <div class="space-y-0.5">
+        <a href="#" class="mx-nav-item mx-nav-soon flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          <i class="fas fa-palette text-gray-500 w-4 text-center"></i>
+          <span class="mx-sidebar-label flex-1">Flair Management</span>
+          <span class="mx-soon-badge mx-sidebar-label">Soon</span>
+        </a>
+        <a href="#" class="mx-nav-item mx-nav-soon flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          <i class="fas fa-chart-bar text-gray-500 w-4 text-center"></i>
+          <span class="mx-sidebar-label flex-1">Trackers</span>
+          <span class="mx-soon-badge mx-sidebar-label">Soon</span>
+        </a>
+      </div>
+    </div>
+
+    <!-- Integration (Soon) -->
+    <div>
+      <p class="px-3 mb-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider mx-sidebar-label">Integration</p>
+      <div class="space-y-0.5">
+        <a href="/ql/dashboard/matrix/{{ space_id_url }}/bridge/"
+           class="mx-nav-item {% if active_section == 'bridge' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          <i class="fas fa-satellite-dish text-gray-400 group-hover:text-purple-400 w-4 text-center"></i>
+          <span class="mx-sidebar-label">Chat Bridge</span>
+        </a>
+        <a href="#" class="mx-nav-item mx-nav-soon flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          <i class="fab fa-twitch text-gray-500 w-4 text-center"></i>
+          <span class="mx-sidebar-label flex-1">Live Alerts</span>
+          <span class="mx-soon-badge mx-sidebar-label">Soon</span>
+        </a>
+      </div>
+    </div>
+
+    <!-- Settings -->
+    <div>
+      <p class="px-3 mb-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider mx-sidebar-label">Configuration</p>
+      <div class="space-y-0.5">
+        <a href="/ql/dashboard/matrix/{{ space_id_url }}/settings/"
+           class="mx-nav-item {% if active_section == 'settings' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          <i class="fas fa-cog text-gray-400 group-hover:text-teal-400 w-4 text-center"></i>
+          <span class="mx-sidebar-label">Settings</span>
+        </a>
+      </div>
+    </div>
+
+  </nav>
+
+  <!-- Sidebar Footer -->
+  <div class="p-3 border-t border-neutral-800">
+    <a href="/ql/dashboard/matrix/" class="flex items-center gap-3 px-3 py-2 text-gray-500 hover:text-gray-300 text-sm transition mx-sidebar-label">
+      <i class="fas fa-th-large w-4 text-center"></i>
+      <span>All Spaces</span>
+    </a>
+    <a href="/ql/" class="flex items-center gap-3 px-3 py-2 text-gray-500 hover:text-gray-300 text-sm transition mx-sidebar-label">
+      <i class="fas fa-arrow-left w-4 text-center"></i>
+      <span>Back to QuestLog</span>
+    </a>
+    <button onclick="toggleMxSidebarCollapse()"
+            class="w-full flex items-center justify-center gap-2 mt-2 px-3 py-1.5 text-gray-600 hover:text-gray-400 text-xs transition rounded-lg hover:bg-neutral-800">
+      <i id="mx-collapse-icon" class="fas fa-compress-alt text-xs"></i>
+      <span class="mx-sidebar-label">Collapse</span>
+    </button>
+  </div>
+
+</aside>
+
+<!-- Mobile overlay -->
+<div id="mx-sidebar-overlay" onclick="toggleMatrixSidebar()"
+     class="lg:hidden fixed inset-0 bg-black/60 z-40 hidden"></div>
+
+<!-- Mobile open button -->
+<button onclick="toggleMatrixSidebar()"
+        class="lg:hidden fixed top-4 left-4 z-30 bg-neutral-800 p-2 rounded-lg border border-neutral-700 shadow-lg">
+  <i class="fas fa-bars text-gray-300"></i>
+</button>
+
+<style>
+.mx-nav-item {
+  color: #9ca3af;
+  display: flex;
+  align-items: center;
+  font-weight: 500;
+}
+.mx-nav-item:hover {
+  background: rgba(55, 65, 81, 0.5);
+  color: #f9fafb;
+}
+.mx-nav-item.active {
+  background: linear-gradient(135deg, rgba(20, 184, 166, 0.2), rgba(6, 182, 212, 0.15));
+  color: white;
+  border-left: 3px solid #14b8a6;
+  padding-left: calc(0.75rem - 3px);
+}
+.mx-nav-item.active i {
+  color: #2dd4bf;
+}
+.mx-nav-soon {
+  opacity: 0.6;
+}
+.mx-soon-badge {
+  font-size: 0.625rem;
+  background: rgba(234, 179, 8, 0.15);
+  color: #facc15;
+  padding: 0.125rem 0.375rem;
+  border-radius: 9999px;
+  white-space: nowrap;
+}
+
+/* Scrollbar */
+#mx-sidebar::-webkit-scrollbar { width: 6px; }
+#mx-sidebar::-webkit-scrollbar-track { background: transparent; }
+#mx-sidebar::-webkit-scrollbar-thumb { background: #374151; border-radius: 3px; }
+#mx-sidebar::-webkit-scrollbar-thumb:hover { background: #4b5563; }
+
+/* Collapsed state */
+#mx-sidebar.collapsed { width: 4rem; }
+#mx-sidebar.collapsed .mx-sidebar-label { display: none; }
+#mx-sidebar.collapsed #mx-server-selector > button { justify-content: center; }
+#mx-sidebar.collapsed .mx-nav-item {
+  justify-content: center;
+  padding-left: 0.5rem !important;
+  padding-right: 0.5rem;
+}
+#mx-sidebar.collapsed .mx-nav-item i { margin: 0 !important; }
+</style>
+
+<script>
+function toggleMatrixSidebar() {
+  const sidebar = document.getElementById('mx-sidebar');
+  const overlay = document.getElementById('mx-sidebar-overlay');
+  sidebar.classList.toggle('-translate-x-full');
+  overlay.classList.toggle('hidden');
+}
+
+function toggleMatrixServerDropdown() {
+  const dd = document.getElementById('mx-server-dropdown');
+  const chevron = document.getElementById('mx-server-chevron');
+  dd.classList.toggle('hidden');
+  if (chevron) chevron.style.transform = dd.classList.contains('hidden') ? '' : 'rotate(180deg)';
+}
+
+function toggleMxSection(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.classList.toggle('hidden');
+}
+
+function toggleMxSidebarCollapse() {
+  const sidebar = document.getElementById('mx-sidebar');
+  const main = document.getElementById('mx-main-content');
+  const icon = document.getElementById('mx-collapse-icon');
+  const collapsed = sidebar.classList.toggle('collapsed');
+  if (main) main.style.marginLeft = collapsed ? '4rem' : '';
+  if (icon) icon.className = collapsed ? 'fas fa-expand-alt text-xs' : 'fas fa-compress-alt text-xs';
+  localStorage.setItem('matrixSidebarCollapsed', collapsed);
+}
+
+// Close server dropdown when clicking outside
+document.addEventListener('click', function(e) {
+  const sel = document.getElementById('mx-server-selector');
+  const dd = document.getElementById('mx-server-dropdown');
+  if (sel && dd && !sel.contains(e.target)) {
+    dd.classList.add('hidden');
+    const chevron = document.getElementById('mx-server-chevron');
+    if (chevron) chevron.style.transform = '';
+  }
+});
+
+// Auto-expand XP section if active
+{% if active_section == 'xp' %}
+document.addEventListener('DOMContentLoaded', function() {
+  const el = document.getElementById('xp-section');
+  if (el) el.classList.remove('hidden');
+});
+{% endif %}
+</script>

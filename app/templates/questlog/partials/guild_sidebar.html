@@ -154,10 +154,11 @@
 
         <!-- QuestLog Network (Members can see if guild is approved) -->
         {% if user_network_status == 'approved' %}
-        <a href="{% url 'guild_discovery_network' guild.id %}"
-           class="nav-item {% if active_page == 'discovery_network' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+        <a href="https://casual-heroes.com/ql/network/" target="_blank"
+           class="nav-item flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
           <i class="fas fa-globe text-gray-400 group-hover:text-indigo-400"></i>
           <span>QuestLog Network</span>
+          <i class="fas fa-external-link-alt text-gray-600 text-xs ml-auto"></i>
         </a>
         {% endif %}
 
@@ -272,10 +273,11 @@
               <span>Game Settings</span>
             </a>
 
-            <a href="{% url 'guild_discovery_network' guild.id %}"
-               class="sub-nav-item {% if active_page == 'discovery_network' %}active{% endif %} flex items-center gap-2 px-3 py-1.5 rounded text-xs transition">
+            <a href="https://casual-heroes.com/ql/network/" target="_blank"
+               class="sub-nav-item flex items-center gap-2 px-3 py-1.5 rounded text-xs transition">
               <i class="fas fa-globe w-4"></i>
               <span>QuestLog Network</span>
+              <i class="fas fa-external-link-alt text-gray-600 text-[9px] ml-auto"></i>
             </a>
 
             <a href="{% url 'guild_discovery' guild.id %}#rss"
@@ -374,6 +376,20 @@
       </div>
     </div>
 
+    <!-- Bridge Section -->
+    <div>
+      <div class="flex items-center justify-between px-3 mb-2">
+        <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wider">Bridge</h3>
+      </div>
+      <div class="space-y-1">
+        <a href="{% url 'ql_discord_guild_bridge' guild.id %}"
+           class="nav-item {% if active_page == 'bridge' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          <i class="fas fa-satellite-dish text-gray-400 group-hover:text-purple-400"></i>
+          <span>Chat Bridge</span>
+        </a>
+      </div>
+    </div>
+
     <!-- Customization Section -->
     <div>
       <div class="flex items-center justify-between px-3 mb-2">
@@ -427,6 +443,56 @@
 
     {% endif %}
     <!-- End Admin Only Sections -->
+
+    <!-- All Servers Quick Nav (always visible) -->
+    <div>
+      <div class="flex items-center justify-between px-3 mb-2">
+        <h3 class="text-xs font-bold text-purple-400 uppercase tracking-wider">
+          <i class="fas fa-server mr-1"></i>My Servers
+        </h3>
+      </div>
+      <div class="space-y-1">
+        <a href="{% url 'questlog_dashboard' %}"
+           class="nav-item flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          <i class="fas fa-th-large text-gray-400 group-hover:text-purple-400"></i>
+          <span>All Servers</span>
+        </a>
+        {% for g in admin_guilds %}
+        {% if g.id != guild.id %}
+        <a href="{% url 'guild_dashboard' g.id %}"
+           class="nav-item flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          {% if g.icon %}
+          <img src="https://cdn.discordapp.com/icons/{{ g.id }}/{{ g.icon }}.png?size=32"
+               alt="{{ g.name }}" class="w-5 h-5 rounded flex-shrink-0">
+          {% else %}
+          <i class="fab fa-discord text-indigo-400 flex-shrink-0"></i>
+          {% endif %}
+          <div class="flex flex-col min-w-0">
+            <span class="truncate leading-tight">{{ g.name }}</span>
+            <span class="text-[10px] text-indigo-500 leading-tight">{% if g.owner %}Owner{% else %}Admin{% endif %}</span>
+          </div>
+        </a>
+        {% endif %}
+        {% endfor %}
+        {% for g in member_guilds %}
+        {% if g.id != guild.id %}
+        <a href="{% url 'guild_dashboard' g.id %}"
+           class="nav-item flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          {% if g.icon %}
+          <img src="https://cdn.discordapp.com/icons/{{ g.id }}/{{ g.icon }}.png?size=32"
+               alt="{{ g.name }}" class="w-5 h-5 rounded flex-shrink-0">
+          {% else %}
+          <i class="fab fa-discord text-indigo-400 flex-shrink-0"></i>
+          {% endif %}
+          <div class="flex flex-col min-w-0">
+            <span class="truncate leading-tight">{{ g.name }}</span>
+            <span class="text-[10px] text-gray-500 leading-tight">Member</span>
+          </div>
+        </a>
+        {% endif %}
+        {% endfor %}
+      </div>
+    </div>
 
     <!-- Bot Owner Only Section -->
     {% if request.session.discord_user.id == "141890558045061120" %}

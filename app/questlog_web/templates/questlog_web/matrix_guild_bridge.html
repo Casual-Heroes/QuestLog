@@ -1,0 +1,495 @@
+{% extends "questlog_web/matrix_base_guild.html" %}
+{% load static %}
+{% block title %}Chat Bridge - {{ space_name }}{% endblock %}
+
+{% block guild_content %}
+{% include "questlog/partials/custom_select.html" %}
+<div class="p-6 max-w-3xl">
+
+  <!-- Page header -->
+  <div class="flex items-center justify-between gap-3 mb-6">
+    <div class="flex items-center gap-3">
+      <div class="w-12 h-12 bg-purple-600/20 rounded-xl flex items-center justify-center">
+        <i class="fas fa-satellite-dish text-purple-400"></i>
+      </div>
+      <div>
+        <h1 class="text-2xl font-bold text-white">Chat Bridge</h1>
+        <p class="text-gray-500 text-sm">Relay messages between Matrix rooms and Discord/Fluxer channels.</p>
+      </div>
+    </div>
+    <button onclick="openCreateModal()"
+            class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-medium transition text-sm">
+      <i class="fas fa-plus mr-2"></i>New Bridge
+    </button>
+  </div>
+
+  <!-- How it works -->
+  <div class="bg-purple-900/10 border border-purple-800/30 rounded-xl p-4 mb-5">
+    <div class="flex items-start gap-3">
+      <i class="fas fa-info-circle text-purple-400 mt-0.5"></i>
+      <div class="text-sm text-gray-300">
+        <p>The Chat Bridge relays messages between a Matrix room and Discord/Fluxer channels in real time.</p>
+        <p class="mt-2 text-gray-400">Messages show platform tags: <code class="text-purple-300 text-xs">**[M] Name:**</code> from Matrix, <code class="text-purple-300 text-xs">**[D] Name:**</code> from Discord, <code class="text-purple-300 text-xs">**[F] Name:**</code> from Fluxer.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bridge list -->
+  <div id="bridgeList" class="space-y-3 mb-6">
+    <div class="text-gray-500 text-sm">Loading...</div>
+  </div>
+
+</div>
+
+<!-- Create/Edit Modal -->
+<div id="bridgeModal" class="fixed inset-0 bg-black/70 hidden items-center justify-center z-50 px-3 py-6">
+  <div class="bg-neutral-900 border border-neutral-800 rounded-xl w-full max-w-lg p-6 overflow-y-auto max-h-full">
+    <div class="flex items-start justify-between mb-5">
+      <h3 class="text-xl font-bold text-white" id="modalTitle">
+        <i class="fas fa-plus text-purple-400 mr-2"></i>New Bridge
+      </h3>
+      <button onclick="closeModal()" class="text-gray-400 hover:text-white">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+
+    <form id="bridgeForm" class="space-y-4" onsubmit="saveBridge(event)">
+      <input type="hidden" id="bridgeId">
+
+      <div>
+        <label class="block text-sm text-gray-400 mb-1">Bridge Name (optional)</label>
+        <input id="bridgeName" type="text" placeholder="e.g. general-chat"
+               class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm">
+      </div>
+
+      <div>
+        <label class="block text-sm text-gray-400 mb-1">Matrix Room</label>
+        <div id="matrixRoomSelect"></div>
+      </div>
+
+      <!-- Discord section -->
+      <div class="border-t border-neutral-800 pt-3">
+        <p class="text-xs text-gray-500 uppercase font-semibold mb-3"><i class="fab fa-discord text-indigo-400 mr-1"></i>Discord (optional)</p>
+        {% if discord_guilds_json != '[]' %}
+        <div class="mb-3">
+          <label class="block text-xs text-gray-400 mb-1">Discord Server</label>
+          <div id="discordGuildSelect"></div>
+        </div>
+        <div id="discordChannelWrap" class="hidden">
+          <label class="block text-xs text-gray-400 mb-1">Discord Channel</label>
+          <div id="discordChannelSelect"></div>
+        </div>
+        {% else %}
+        <p class="text-xs text-gray-500 italic">No Discord servers found. Link your Discord account and make sure the bot is in your server.</p>
+        {% endif %}
+        <input type="hidden" id="discordGuildId">
+        <input type="hidden" id="discordChannelId">
+      </div>
+
+      <!-- Fluxer section -->
+      <div class="border-t border-neutral-800 pt-3">
+        <p class="text-xs text-gray-500 uppercase font-semibold mb-3"><i class="fas fa-bolt text-purple-400 mr-1"></i>Fluxer (optional)</p>
+        {% if fluxer_guilds_json != '[]' %}
+        <div class="mb-3">
+          <label class="block text-xs text-gray-400 mb-1">Fluxer Server</label>
+          <div id="fluxerGuildSelect"></div>
+        </div>
+        <div id="fluxerChannelWrap" class="hidden">
+          <label class="block text-xs text-gray-400 mb-1">Fluxer Channel</label>
+          <div id="fluxerChannelSelect"></div>
+        </div>
+        {% else %}
+        <p class="text-xs text-gray-500 italic">No Fluxer servers found. Make sure the QuestLog bot is in your Fluxer server.</p>
+        {% endif %}
+        <input type="hidden" id="fluxerGuildId">
+        <input type="hidden" id="fluxerChannelId">
+      </div>
+
+      <div class="bg-neutral-800 rounded-lg p-3 space-y-2">
+        <p class="text-xs text-gray-500 uppercase font-semibold mb-2">Relay Direction</p>
+        <label class="flex items-center gap-2 cursor-pointer">
+          <input id="relayOutbound" type="checkbox" checked class="rounded border-neutral-600 bg-neutral-700 text-purple-500">
+          <span class="text-sm text-gray-300"><i class="fas fa-arrow-right text-purple-400 mr-1"></i>Matrix to Discord/Fluxer</span>
+        </label>
+        <label class="flex items-center gap-2 cursor-pointer">
+          <input id="relayInbound" type="checkbox" checked class="rounded border-neutral-600 bg-neutral-700 text-indigo-500">
+          <span class="text-sm text-gray-300"><i class="fas fa-arrow-left text-indigo-400 mr-1"></i>Discord/Fluxer to Matrix</span>
+        </label>
+      </div>
+
+      <div>
+        <label class="block text-sm text-gray-400 mb-1">Max Message Length</label>
+        <input id="maxMsgLen" type="number" value="1000" min="50" max="2000"
+               class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm">
+      </div>
+
+      <div id="formError" class="text-red-400 text-sm hidden"></div>
+
+      <div class="flex justify-end gap-3 pt-2">
+        <button type="button" onclick="closeModal()" class="px-4 py-2 text-gray-400 hover:text-white">Cancel</button>
+        <button type="submit" class="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded-lg font-medium transition">
+          <i class="fas fa-save mr-2"></i>Save
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+const SPACE_ID = '{{ space_id_url }}';
+const ROOMS = JSON.parse('{{ rooms_json|escapejs }}');
+const DISCORD_GUILDS = JSON.parse('{{ discord_guilds_json|escapejs }}');
+const FLUXER_GUILDS = JSON.parse('{{ fluxer_guilds_json|escapejs }}');
+const BRIDGES_API = '/ql/api/dashboard/matrix/' + SPACE_ID + '/bridges/';
+
+let matrixRoomSelect = null;
+let discordGuildSelect = null;
+let discordChannelSelect = null;
+let fluxerGuildSelect = null;
+let fluxerChannelSelect = null;
+let bridgesMap = {};
+
+// Build guild items for guild picker
+function _guildItems(guilds) {
+  const items = [{value: '', label: '-- None --'}];
+  guilds.forEach(g => items.push({value: g.id, label: g.name}));
+  return items;
+}
+
+// Build channel items for a given guild from either DISCORD_GUILDS or FLUXER_GUILDS
+function _channelItems(guilds, guildId) {
+  if (!guildId) return [{value: '', label: '-- Select server first --'}];
+  const g = guilds.find(x => x.id === guildId);
+  if (!g || !g.channels || !g.channels.length) return [{value: '', label: '-- No channels found --'}];
+  const items = [{value: '', label: '-- Select channel --'}];
+  g.channels.forEach(c => items.push({value: c.value, label: '#' + c.label}));
+  return items;
+}
+
+function initSelects() {
+  if (matrixRoomSelect) return;
+
+  matrixRoomSelect = createCustomSelect({
+    container: '#matrixRoomSelect',
+    name: 'matrix_room_id',
+    id: 'matrix_room_id',
+    placeholder: 'Select a Matrix room...',
+    items: (ROOMS || []).map(r => ({value: r.value, label: r.label, icon: 'hashtag'})),
+    selected: '',
+    color: 'cyan',
+  });
+
+  if (DISCORD_GUILDS.length) {
+    discordGuildSelect = createCustomSelect({
+      container: '#discordGuildSelect',
+      name: 'discord_guild_picker',
+      id: 'discord_guild_picker',
+      placeholder: 'Select a Discord server...',
+      items: _guildItems(DISCORD_GUILDS),
+      selected: '',
+      color: 'indigo',
+      onSelect: function(val) {
+        document.getElementById('discordGuildId').value = val || '';
+        document.getElementById('discordChannelId').value = '';
+        const wrap = document.getElementById('discordChannelWrap');
+        if (val) {
+          wrap.classList.remove('hidden');
+          if (discordChannelSelect) { discordChannelSelect.destroy(); discordChannelSelect = null; }
+          discordChannelSelect = createCustomSelect({
+            container: '#discordChannelSelect',
+            name: 'discord_channel_picker',
+            id: 'discord_channel_picker',
+            placeholder: 'Select a channel...',
+            items: _channelItems(DISCORD_GUILDS, val),
+            selected: '',
+            color: 'indigo',
+            onSelect: function(cval) { document.getElementById('discordChannelId').value = cval || ''; },
+          });
+        } else {
+          wrap.classList.add('hidden');
+        }
+      },
+    });
+  }
+
+  if (FLUXER_GUILDS.length) {
+    fluxerGuildSelect = createCustomSelect({
+      container: '#fluxerGuildSelect',
+      name: 'fluxer_guild_picker',
+      id: 'fluxer_guild_picker',
+      placeholder: 'Select a Fluxer server...',
+      items: _guildItems(FLUXER_GUILDS),
+      selected: '',
+      color: 'purple',
+      onSelect: function(val) {
+        document.getElementById('fluxerGuildId').value = val || '';
+        document.getElementById('fluxerChannelId').value = '';
+        const wrap = document.getElementById('fluxerChannelWrap');
+        if (val) {
+          wrap.classList.remove('hidden');
+          if (fluxerChannelSelect) { fluxerChannelSelect.destroy(); fluxerChannelSelect = null; }
+          fluxerChannelSelect = createCustomSelect({
+            container: '#fluxerChannelSelect',
+            name: 'fluxer_channel_picker',
+            id: 'fluxer_channel_picker',
+            placeholder: 'Select a channel...',
+            items: _channelItems(FLUXER_GUILDS, val),
+            selected: '',
+            color: 'purple',
+            onSelect: function(cval) { document.getElementById('fluxerChannelId').value = cval || ''; },
+          });
+        } else {
+          wrap.classList.add('hidden');
+        }
+      },
+    });
+  }
+}
+
+function _resetDiscordPicker(guildId, channelId) {
+  if (!DISCORD_GUILDS.length) return;
+  if (discordGuildSelect) discordGuildSelect.setValue(guildId || '');
+  document.getElementById('discordGuildId').value = guildId || '';
+  document.getElementById('discordChannelId').value = channelId || '';
+  const wrap = document.getElementById('discordChannelWrap');
+  if (guildId) {
+    wrap.classList.remove('hidden');
+    if (discordChannelSelect) { discordChannelSelect.destroy(); discordChannelSelect = null; }
+    discordChannelSelect = createCustomSelect({
+      container: '#discordChannelSelect',
+      name: 'discord_channel_picker',
+      id: 'discord_channel_picker',
+      placeholder: 'Select a channel...',
+      items: _channelItems(DISCORD_GUILDS, guildId),
+      selected: channelId || '',
+      color: 'indigo',
+      onSelect: function(cval) { document.getElementById('discordChannelId').value = cval || ''; },
+    });
+  } else {
+    wrap.classList.add('hidden');
+  }
+}
+
+function _resetFluxerPicker(guildId, channelId) {
+  if (!FLUXER_GUILDS.length) return;
+  if (fluxerGuildSelect) fluxerGuildSelect.setValue(guildId || '');
+  document.getElementById('fluxerGuildId').value = guildId || '';
+  document.getElementById('fluxerChannelId').value = channelId || '';
+  const wrap = document.getElementById('fluxerChannelWrap');
+  if (guildId) {
+    wrap.classList.remove('hidden');
+    if (fluxerChannelSelect) { fluxerChannelSelect.destroy(); fluxerChannelSelect = null; }
+    fluxerChannelSelect = createCustomSelect({
+      container: '#fluxerChannelSelect',
+      name: 'fluxer_channel_picker',
+      id: 'fluxer_channel_picker',
+      placeholder: 'Select a channel...',
+      items: _channelItems(FLUXER_GUILDS,guildId),
+      selected: channelId || '',
+      color: 'purple',
+      onSelect: function(cval) { document.getElementById('fluxerChannelId').value = cval || ''; },
+    });
+  } else {
+    wrap.classList.add('hidden');
+  }
+}
+
+function loadBridges() {
+  const listEl = document.getElementById('bridgeList');
+  csrfFetch(BRIDGES_API)
+    .then(r => r.json())
+    .then(data => {
+      const bridges = data.bridges || [];
+      bridgesMap = {};
+      bridges.forEach(b => { bridgesMap[b.id] = b; });
+
+      if (!bridges.length) {
+        listEl.innerHTML = `
+          <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-10 text-center">
+            <div class="w-14 h-14 bg-purple-700/20 rounded-full flex items-center justify-center mx-auto mb-4">
+              <i class="fas fa-satellite-dish text-purple-400/50 text-2xl"></i>
+            </div>
+            <h3 class="text-white font-semibold mb-2">No Bridges Configured</h3>
+            <p class="text-gray-500 text-sm max-w-sm mx-auto">Click "New Bridge" to connect a Matrix room to Discord or Fluxer.</p>
+          </div>`;
+        return;
+      }
+
+      listEl.innerHTML = bridges.map(b => {
+        const targets = [];
+        if (b.discord_channel_id) {
+          const dg = DISCORD_GUILDS.find(g => g.id === b.discord_guild_id);
+          const dc = dg ? (dg.channels || []).find(c => c.value === b.discord_channel_id) : null;
+          const dcLabel = dc ? '#' + dc.label : b.discord_channel_id;
+          const dgLabel = dg ? dg.name : (b.discord_guild_id || '');
+          targets.push(`<span class="text-indigo-400"><i class="fab fa-discord mr-1"></i>${escapeHtml(dgLabel)} / ${escapeHtml(dcLabel)}</span>`);
+        }
+        if (b.fluxer_channel_id) {
+          const fg = FLUXER_GUILDS.find(g => g.id === b.fluxer_guild_id);
+          const fc = fg ? fg.channels.find(c => c.value === b.fluxer_channel_id) : null;
+          const fcLabel = fc ? '#' + fc.label : b.fluxer_channel_id;
+          const fgLabel = fg ? fg.name : (b.fluxer_guild_id || '');
+          targets.push(`<span class="text-purple-400"><i class="fas fa-bolt mr-1"></i>${escapeHtml(fgLabel)} / ${escapeHtml(fcLabel)}</span>`);
+        }
+        const roomLabel = ROOMS.find(r => r.value === b.matrix_room_id);
+        return `
+        <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-4">
+          <div class="flex items-start justify-between gap-3">
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2 mb-2">
+                <h3 class="text-white font-semibold text-sm">${escapeHtml(b.name || 'Unnamed Bridge')}</h3>
+                <span class="text-xs ${b.enabled ? 'bg-green-600/20 text-green-400 border-green-700/30' : 'bg-neutral-700 text-gray-500 border-neutral-600'} px-2 py-0.5 rounded-full border">
+                  ${b.enabled ? 'Active' : 'Disabled'}
+                </span>
+              </div>
+              <div class="text-xs text-gray-400 mb-2">
+                <i class="fas fa-hashtag text-cyan-500 mr-1"></i>
+                <span class="text-gray-300">${escapeHtml(roomLabel ? roomLabel.label : b.matrix_room_id)}</span>
+              </div>
+              <div class="flex flex-wrap gap-3 text-xs">
+                ${targets.join('')}
+              </div>
+              <div class="flex items-center gap-3 mt-2 text-xs text-gray-500">
+                ${b.relay_matrix_outbound ? '<span class="text-purple-400"><i class="fas fa-arrow-right mr-1"></i>Matrix out</span>' : ''}
+                ${b.relay_matrix_inbound ? '<span class="text-indigo-400"><i class="fas fa-arrow-left mr-1"></i>Matrix in</span>' : ''}
+              </div>
+            </div>
+            <div class="flex gap-2 flex-shrink-0">
+              <button onclick="toggleEnabled(${b.id}, ${b.enabled})"
+                      class="text-xs px-3 py-1.5 rounded border border-neutral-700 bg-neutral-800 hover:bg-neutral-700 text-gray-300 transition">
+                ${b.enabled ? 'Disable' : 'Enable'}
+              </button>
+              <button onclick="openEditModal(${b.id})"
+                      class="text-xs px-3 py-1.5 rounded border border-neutral-700 bg-neutral-800 hover:bg-neutral-700 text-gray-300 transition">
+                <i class="fas fa-edit"></i>
+              </button>
+              <button onclick="deleteBridge(${b.id})"
+                      class="text-xs px-3 py-1.5 rounded border border-red-800/50 bg-red-900/20 hover:bg-red-900/40 text-red-400 transition">
+                <i class="fas fa-trash"></i>
+              </button>
+            </div>
+          </div>
+        </div>`;
+      }).join('');
+    })
+    .catch(err => {
+      listEl.innerHTML = `<div class="text-red-400 text-sm">Error: ${escapeHtml(err.message)}</div>`;
+    });
+}
+
+function openCreateModal() {
+  initSelects();
+  document.getElementById('bridgeId').value = '';
+  document.getElementById('bridgeName').value = '';
+  document.getElementById('relayOutbound').checked = true;
+  document.getElementById('relayInbound').checked = true;
+  document.getElementById('maxMsgLen').value = 1000;
+  document.getElementById('formError').classList.add('hidden');
+  if (matrixRoomSelect) matrixRoomSelect.setValue('');
+  _resetDiscordPicker('', '');
+  _resetFluxerPicker('', '');
+  document.getElementById('modalTitle').innerHTML = '<i class="fas fa-plus text-purple-400 mr-2"></i>New Bridge';
+  document.getElementById('bridgeModal').classList.remove('hidden');
+  document.getElementById('bridgeModal').classList.add('flex');
+}
+
+function openEditModal(id) {
+  const b = bridgesMap[id];
+  if (!b) return;
+  initSelects();
+  document.getElementById('bridgeId').value = b.id;
+  document.getElementById('bridgeName').value = b.name || '';
+  document.getElementById('relayOutbound').checked = !!b.relay_matrix_outbound;
+  document.getElementById('relayInbound').checked = !!b.relay_matrix_inbound;
+  document.getElementById('maxMsgLen').value = b.max_msg_len || 1000;
+  document.getElementById('formError').classList.add('hidden');
+  if (matrixRoomSelect) matrixRoomSelect.setValue(b.matrix_room_id || '');
+  _resetDiscordPicker(b.discord_guild_id || '', b.discord_channel_id || '');
+  _resetFluxerPicker(b.fluxer_guild_id || '', b.fluxer_channel_id || '');
+  document.getElementById('modalTitle').innerHTML = '<i class="fas fa-edit text-purple-400 mr-2"></i>Edit Bridge';
+  document.getElementById('bridgeModal').classList.remove('hidden');
+  document.getElementById('bridgeModal').classList.add('flex');
+}
+
+function closeModal() {
+  document.getElementById('bridgeModal').classList.add('hidden');
+  document.getElementById('bridgeModal').classList.remove('flex');
+}
+
+async function saveBridge(e) {
+  e.preventDefault();
+  const errEl = document.getElementById('formError');
+  errEl.classList.add('hidden');
+
+  const bridgeId = document.getElementById('bridgeId').value;
+  const matrixRoomId = matrixRoomSelect ? matrixRoomSelect.getValue() : '';
+
+  if (!matrixRoomId) {
+    errEl.textContent = 'Matrix room is required.';
+    errEl.classList.remove('hidden');
+    return;
+  }
+
+  const payload = {
+    name: document.getElementById('bridgeName').value.trim(),
+    matrix_room_id: matrixRoomId,
+    discord_guild_id: document.getElementById('discordGuildId').value || null,
+    discord_channel_id: document.getElementById('discordChannelId').value || null,
+    fluxer_guild_id: document.getElementById('fluxerGuildId').value || null,
+    fluxer_channel_id: document.getElementById('fluxerChannelId').value || null,
+    relay_matrix_outbound: document.getElementById('relayOutbound').checked,
+    relay_matrix_inbound: document.getElementById('relayInbound').checked,
+    max_msg_len: parseInt(document.getElementById('maxMsgLen').value || '1000'),
+  };
+
+  try {
+    const url = bridgeId ? `${BRIDGES_API}${bridgeId}/` : BRIDGES_API;
+    const method = bridgeId ? 'PATCH' : 'POST';
+    const resp = await csrfFetch(url, { method, body: JSON.stringify(payload) });
+    const data = await resp.json();
+    if (!resp.ok) {
+      errEl.textContent = data.error || 'Failed to save bridge.';
+      errEl.classList.remove('hidden');
+      return;
+    }
+    closeModal();
+    loadBridges();
+  } catch (err) {
+    errEl.textContent = err.message || 'An error occurred.';
+    errEl.classList.remove('hidden');
+  }
+}
+
+async function toggleEnabled(id, currentEnabled) {
+  try {
+    const resp = await csrfFetch(`${BRIDGES_API}${id}/`, {
+      method: 'PATCH',
+      body: JSON.stringify({ enabled: !currentEnabled }),
+    });
+    if (resp.ok) loadBridges();
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+async function deleteBridge(id) {
+  if (!confirm('Delete this bridge? This will remove all queued relay messages too.')) return;
+  try {
+    const resp = await csrfFetch(`${BRIDGES_API}${id}/`, { method: 'DELETE' });
+    if (resp.ok) loadBridges();
+    else {
+      const data = await resp.json();
+      alert(data.error || 'Failed to delete.');
+    }
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  initSelects();
+  loadBridges();
+});
+</script>
+
+{% endblock %}

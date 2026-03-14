@@ -6,7 +6,83 @@
 {% block web_content %}
 {% include "questlog_web/partials/post_card.html" %}
 
-<!-- Compact Hero -->
+{% if request.GET.champion %}
+<div class="mx-auto max-w-2xl mt-4 mb-2 px-4">
+  <div class="flex items-center gap-3 bg-amber-500/10 border border-amber-500/30 text-amber-300 rounded-xl px-4 py-3 text-sm font-medium">
+    <i class="fas fa-shield-alt text-amber-400 text-lg"></i>
+    <span>You're a Champion! Your perks are now active - thank you for supporting QuestLog.</span>
+    <button onclick="this.parentElement.parentElement.remove()" class="ml-auto text-amber-500 hover:text-amber-300"><i class="fas fa-times"></i></button>
+  </div>
+</div>
+{% endif %}
+
+{% if not web_user %}
+<!-- Full landing hero for visitors -->
+<div class="bg-gradient-to-b from-indigo-950/60 via-neutral-950 to-neutral-950 border-b border-neutral-800">
+  <div class="max-w-4xl mx-auto px-6 py-16 text-center">
+    <div class="inline-flex items-center gap-2 bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 text-xs font-semibold px-3 py-1 rounded-full mb-6">
+      <span class="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse"></span>
+      Now in Beta - Powered by Casual Heroes
+    </div>
+    <h1 class="text-4xl sm:text-5xl font-extrabold text-white leading-tight tracking-tight mb-3">
+      The gaming network for adults with real lives.
+    </h1>
+    <p class="text-xl font-semibold text-indigo-300 mb-5">Aging, but still looting.</p>
+    <p class="text-lg text-gray-400 max-w-2xl mx-auto leading-relaxed mb-8">
+      LFG, community discovery, social posts, and cross-platform tools - all in one place.
+      No pressure. Just real gamers, finding each other.
+    </p>
+    <div class="flex flex-col sm:flex-row gap-3 justify-center mb-10">
+      <a href="{% url 'questlog_web_register' %}"
+         class="inline-flex items-center justify-center bg-indigo-600 hover:bg-indigo-500 text-white px-7 py-3 rounded-xl font-semibold text-sm transition">
+        <i class="fas fa-user-plus mr-2"></i>Create Free Account
+      </a>
+      <a href="{% url 'questlog_web_register' %}#invite"
+         class="inline-flex items-center justify-center bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/40 text-amber-300 px-7 py-3 rounded-xl font-semibold text-sm transition">
+        <i class="fas fa-ticket-alt mr-2"></i>Early Access Invite
+      </a>
+      <a href="{% url 'questlog_web_login' %}"
+         class="inline-flex items-center justify-center bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-white px-7 py-3 rounded-xl font-semibold text-sm transition">
+        Sign In
+      </a>
+    </div>
+    <!-- Feature highlights -->
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 max-w-2xl mx-auto text-center">
+      <div class="bg-neutral-900/60 border border-neutral-800 rounded-lg px-3 py-4">
+        <div class="text-2xl mb-1.5"><i class="fas fa-users text-green-400"></i></div>
+        <div class="text-xs text-gray-300 font-medium">Find Your People</div>
+        <div class="text-xs text-gray-600 mt-0.5">LFG across all games</div>
+      </div>
+      <div class="bg-neutral-900/60 border border-neutral-800 rounded-lg px-3 py-4">
+        <div class="text-2xl mb-1.5"><i class="fas fa-calendar-alt text-indigo-400"></i></div>
+        <div class="text-xs text-gray-300 font-medium">Events & Sessions</div>
+        <div class="text-xs text-gray-600 mt-0.5">Plan runs that fit your life</div>
+      </div>
+      <div class="bg-neutral-900/60 border border-neutral-800 rounded-lg px-3 py-4">
+        <div class="text-2xl mb-1.5"><i class="fas fa-scroll text-purple-400"></i></div>
+        <div class="text-xs text-gray-300 font-medium">Social Feed</div>
+        <div class="text-xs text-gray-600 mt-0.5">Share moments, follow gamers</div>
+      </div>
+      <div class="bg-neutral-900/60 border border-neutral-800 rounded-lg px-3 py-4">
+        <div class="text-2xl mb-1.5"><i class="fas fa-network-wired text-yellow-400"></i></div>
+        <div class="text-xs text-gray-300 font-medium">Community Tools</div>
+        <div class="text-xs text-gray-600 mt-0.5">Discord + Matrix + Fluxer</div>
+      </div>
+    </div>
+    <!-- Legal links -->
+    <p class="mt-6 text-xs text-gray-600">
+      <a href="/privacy" class="hover:text-gray-400 transition underline">Privacy Policy</a>
+      &nbsp;&bull;&nbsp;
+      <a href="/terms" class="hover:text-gray-400 transition underline">Terms of Service</a>
+    </p>
+  </div>
+  <!-- Live network activity preview label -->
+  <div class="border-t border-neutral-800/60 py-3 px-6 text-center">
+    <p class="text-xs text-gray-500">Live network activity below - <a href="{% url 'questlog_web_register' %}" class="text-indigo-400 hover:text-indigo-300 transition">join to participate</a></p>
+  </div>
+</div>
+{% else %}
+<!-- Compact header for logged-in users -->
 <div class="bg-gradient-to-r from-indigo-900/30 via-purple-900/20 to-indigo-900/30 border-b border-neutral-800 px-6 py-5">
   <div class="max-w-6xl mx-auto flex items-center justify-between">
     <div>
@@ -16,14 +92,9 @@
       </h1>
       <p class="text-gray-400 text-sm mt-0.5">See what gamers are up to right now</p>
     </div>
-    {% if not web_user %}
-    <a href="{% url 'questlog_web_login' %}"
-       class="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-lg font-medium text-sm transition">
-      <i class="fas fa-gamepad"></i> Login to Casual Heroes
-    </a>
-    {% endif %}
   </div>
 </div>
+{% endif %}
 
 <!-- Live Stats Bar -->
 <div class="bg-neutral-900/80 border-b border-neutral-800 px-6 py-2.5">
@@ -43,7 +114,7 @@
 
 <!-- Activity Ticker -->
 <div id="ticker-bar" class="hidden bg-neutral-950 border-b border-neutral-800 overflow-hidden relative" style="height: 32px;">
-  <div id="ticker-content" class="flex items-center gap-8 whitespace-nowrap animate-ticker absolute" style="animation: tickerScroll 30s linear infinite;">
+  <div id="ticker-content" class="flex items-center gap-8 whitespace-nowrap animate-ticker absolute" style="animation: tickerScroll 60s linear infinite;">
   </div>
 </div>
 <style>
@@ -77,10 +148,10 @@
               <span class="text-xs font-bold text-indigo-300">{{ web_user.username|slice:":2"|upper }}</span>
             </div>
             {% endif %}
-            <textarea id="post-content" rows="2" maxlength="2000"
+            <textarea id="post-content" rows="2" maxlength="{% if web_user.is_admin %}6000{% elif web_user.is_hero %}3000{% else %}1000{% endif %}"
               placeholder="What are you playing? Share a moment… (paste a video link or image!)"
-              class="w-full bg-transparent border-0 text-sm text-white placeholder-gray-600 focus:outline-none resize-none leading-relaxed pt-1"
-              oninput="updateCharCount()" onpaste="handlePasteImage(event)"></textarea>
+              class="w-full bg-transparent border-0 text-sm text-white placeholder-gray-600 focus:outline-none resize-none leading-relaxed pt-1 overflow-hidden"
+              oninput="updateCharCount(); autoExpandTextarea(this)" onpaste="handlePasteImage(event)"></textarea>
           </div>
         </div>
         <!-- Tools bar -->
@@ -106,7 +177,7 @@
               <button onclick="toggleGameSearch()" class="flex items-center gap-1.5 text-gray-500 hover:text-indigo-400 px-2.5 py-1.5 rounded-lg hover:bg-neutral-800 text-xs transition">
                 <i class="fas fa-gamepad"></i><span class="hidden sm:inline ml-1">Game</span>
               </button>
-              <span id="char-count" class="text-gray-600 text-xs ml-2">0/2000</span>
+              <span id="char-count" class="text-gray-600 text-xs ml-2">0/{% if web_user.is_admin %}6000{% elif web_user.is_hero %}3000{% else %}1000{% endif %}</span>
             </div>
             <button onclick="submitPost()" id="post-btn"
               class="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-1.5 rounded-lg text-xs font-semibold transition disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5" disabled>
@@ -121,8 +192,10 @@
               <button onclick="showEmojiCategory('hands')" class="emoji-cat-btn text-xs px-2 py-1 rounded text-gray-400 hover:bg-neutral-700">👍 Hands</button>
               <button onclick="showEmojiCategory('hearts')" class="emoji-cat-btn text-xs px-2 py-1 rounded text-gray-400 hover:bg-neutral-700">❤️ React</button>
               <button onclick="showEmojiCategory('objects')" class="emoji-cat-btn text-xs px-2 py-1 rounded text-gray-400 hover:bg-neutral-700">⚡ Misc</button>
+              <button onclick="showEmojiCategory('custom')" id="customEmojiTabBtn" class="emoji-cat-btn text-xs px-2 py-1 rounded text-gray-400 hover:bg-neutral-700 flex items-center gap-1"><span id="customEmojiTabIcon">✨</span> Custom</button>
             </div>
             <div id="emoji-grid" class="grid grid-cols-10 gap-0.5"></div>
+            <div id="custom-emoji-grid" class="hidden grid grid-cols-8 gap-1"></div>
           </div>
           <!-- GIF Picker -->
           <div id="gif-picker" class="hidden mt-2 bg-neutral-800 border border-neutral-700 rounded-xl overflow-hidden">
@@ -265,6 +338,19 @@
         </div>
       </div>
 
+      <!-- Network Leaderboard -->
+      <div class="bg-neutral-900/50 rounded-lg border border-yellow-700/30 p-4">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="text-sm font-semibold text-white flex items-center gap-2">
+            <i class="fas fa-trophy text-yellow-400"></i>Top Players
+          </h3>
+          <a href="{% url 'questlog_web_leaderboard' %}" class="text-yellow-400 hover:text-yellow-300 text-xs">Full Leaderboard</a>
+        </div>
+        <div id="sidebar-leaderboard" class="space-y-2">
+          <p class="text-gray-600 text-xs">Loading...</p>
+        </div>
+      </div>
+
       <!-- Quick Links -->
       <div class="bg-neutral-900/50 rounded-lg border border-neutral-800 p-4">
         <h3 class="text-sm font-semibold text-white mb-3 flex items-center gap-2">
@@ -296,6 +382,13 @@
   </div>
 </div>
 
+<!-- Privacy/Terms - required for Google OAuth consent screen verification -->
+<div class="text-center py-4 text-xs text-gray-500">
+  <a href="/privacy" class="hover:text-gray-300 transition underline">Privacy Policy</a>
+  &nbsp;&bull;&nbsp;
+  <a href="/terms" class="hover:text-gray-300 transition underline">Terms of Service</a>
+</div>
+
 <script>
 let currentPage = 1;
 let hasMore = true;
@@ -306,6 +399,7 @@ let selectedGameTag = null;
 let gameSearchTimeout = null;
 let gifSearchTimeout = null;
 const CURRENT_USER_ID = {{ web_user.id|default:"null" }};
+const CURRENT_USER_IS_ADMIN = {{ web_user.is_admin|default:"false"|lower }};
 
 // Emoji data by category
 const EMOJIS = {
@@ -391,7 +485,8 @@ function renderFeedPosts(data) {
   data.posts.forEach(post => {
     container.insertAdjacentHTML('beforeend', renderPostCard(post, {
       showAuthor: true,
-      currentUserId: CURRENT_USER_ID
+      currentUserId: CURRENT_USER_ID,
+      isAdmin: CURRENT_USER_IS_ADMIN
     }));
   });
 
@@ -556,20 +651,51 @@ async function loadActivity() {
     if (data.ticker && data.ticker.length > 0) {
       const tickerBar = document.getElementById('ticker-bar');
       const tickerContent = document.getElementById('ticker-content');
-      const icons = { post: 'fa-pen', follow: 'fa-heart', join: 'fa-door-open' };
-      const colors = { post: 'text-indigo-400', follow: 'text-pink-400', join: 'text-green-400' };
 
-      const items = data.ticker.map(t => `
-        <span class="inline-flex items-center gap-1.5 text-xs">
-          ${avatarHtml(t.username, t.avatar_url, 'w-4 h-4')}
-          <a href="/ql/u/${esc(t.username)}/" class="text-white font-medium hover:underline">${esc(t.display_name)}</a>
-          <span class="${colors[t.type] || 'text-gray-400'}"><i class="fas ${icons[t.type] || 'fa-circle'} text-xs"></i></span>
-          <span class="text-gray-400">${esc(t.message)}</span>
+      const TICKER_ICONS = {
+        post:             { icon: 'fa-pen',            color: 'text-indigo-400' },
+        follow:           { icon: 'fa-heart',          color: 'text-pink-400' },
+        join:             { icon: 'fa-door-open',      color: 'text-green-400' },
+        live:             { icon: 'fa-broadcast-tower',color: 'text-rose-400' },
+        playing:          { icon: 'fa-gamepad',        color: 'text-cyan-400' },
+        lfg_create:       { icon: 'fa-users',          color: 'text-orange-400' },
+        lfg_join:         { icon: 'fa-user-plus',      color: 'text-orange-400' },
+        lfg_leave:        { icon: 'fa-user-minus',     color: 'text-gray-500' },
+        community_join:   { icon: 'fa-building',       color: 'text-teal-400' },
+        network_approved: { icon: 'fa-network-wired',  color: 'text-indigo-400' },
+      };
+
+      function buildTickerItem(t) {
+        const meta = TICKER_ICONS[t.type] || { icon: 'fa-circle', color: 'text-gray-400' };
+        const userLink = t.username
+          ? `<a href="/ql/u/${esc(t.username)}/" class="text-white font-medium hover:underline">${esc(t.display_name)}</a>`
+          : `<span class="text-white font-medium">${esc(t.display_name)}</span>`;
+
+        // Message with clickable extras
+        let msgHtml = esc(t.message);
+        if (t.type === 'live' && t.live_url) {
+          msgHtml = `<a href="${esc(t.live_url)}" target="_blank" rel="noopener" class="text-rose-400 hover:underline">${esc(t.message)}</a>`;
+        } else if (t.type === 'playing' && t.steam_url) {
+          msgHtml = `is playing <a href="${esc(t.steam_url)}" target="_blank" rel="noopener" class="text-cyan-400 hover:underline">${esc(t.game)}</a>`;
+        } else if ((t.type === 'lfg_create' || t.type === 'lfg_join' || t.type === 'lfg_leave') && t.group_id) {
+          msgHtml = `${t.type === 'lfg_create' ? 'created' : t.type === 'lfg_join' ? 'joined' : 'left'} a group for <a href="/ql/lfg/${t.group_id}/" class="text-orange-400 hover:underline">${esc(t.game_name)}</a>`;
+        } else if (t.type === 'community_join' && t.community_id) {
+          msgHtml = `joined <a href="/ql/communities/" class="text-teal-400 hover:underline">${esc(t.community_name)}</a>`;
+        }
+
+        return `<span class="inline-flex items-center gap-1.5 text-xs">
+          ${avatarHtml(t.username || t.display_name, t.avatar_url, 'w-4 h-4')}
+          ${userLink}
+          <span class="${meta.color}"><i class="fas ${meta.icon} text-xs"></i></span>
+          <span class="text-gray-400">${msgHtml}</span>
           <span class="text-gray-600">${tickerTimeAgo(t.timestamp)}</span>
-        </span>
-      `).join('<span class="text-neutral-700 mx-3">|</span>');
+        </span>`;
+      }
 
+      const items = data.ticker.map(buildTickerItem).join('<span class="text-neutral-700 mx-3">|</span>');
       tickerContent.innerHTML = items + '<span class="text-neutral-700 mx-3">|</span>' + items;
+      const duration = Math.max(60, data.ticker.length * 8);
+      tickerContent.style.animationDuration = duration + 's';
       tickerBar.classList.remove('hidden');
     }
   } catch(e) {
@@ -637,6 +763,28 @@ async function loadSidebarContent() {
     } else { el.innerHTML = '<p class="text-gray-600 text-xs text-center py-2">No communities yet</p>'; }
   } catch(e) { document.getElementById('sidebar-communities').innerHTML = '<p class="text-gray-600 text-xs">-</p>'; }
 
+  // Leaderboard
+  try {
+    const res = await fetch('{% url "questlog_web_api_leaderboard_top" %}?limit=5');
+    const data = await res.json();
+    const el = document.getElementById('sidebar-leaderboard');
+    const entries = data.entries || [];
+    const medals = ['🥇','🥈','🥉'];
+    if (entries.length > 0) {
+      el.innerHTML = entries.map((e, i) => `
+        <a href="/ql/u/${esc(e.username)}/" class="flex items-center gap-2 p-1.5 rounded-lg hover:bg-neutral-800 transition">
+          <span class="text-sm w-5 text-center flex-shrink-0">${medals[i] || `<span class="text-gray-500 text-xs">#${e.rank}</span>`}</span>
+          ${e.avatar_url ? `<img src="${esc(e.avatar_url)}" class="w-6 h-6 rounded flex-shrink-0">` : `<div class="w-6 h-6 bg-indigo-800 rounded flex items-center justify-center flex-shrink-0"><span class="text-white text-xs font-bold">${esc(e.username.slice(0,1).toUpperCase())}</span></div>`}
+          <div class="flex-1 min-w-0">
+            <p class="text-white text-xs font-medium truncate">${esc(e.username)}</p>
+            <p class="text-gray-600 text-xs">Lv.${e.level}</p>
+          </div>
+          <span class="text-yellow-400 text-xs font-bold flex-shrink-0">${e.xp.toLocaleString()}</span>
+        </a>
+      `).join('');
+    } else { el.innerHTML = '<p class="text-gray-600 text-xs text-center py-2">No ranked players yet</p>'; }
+  } catch(e) { document.getElementById('sidebar-leaderboard').innerHTML = '<p class="text-gray-600 text-xs">-</p>'; }
+
   // News
   try {
     const res = await fetch('{% url "questlog_web_api_articles" %}');
@@ -660,10 +808,23 @@ function updateCharCount() {
   const textarea = document.getElementById('post-content');
   const count = document.getElementById('char-count');
   const btn = document.getElementById('post-btn');
+  const maxLen = parseInt(textarea.maxLength) || 1000;
   const len = textarea.value.length;
-  count.textContent = `${len}/2000`;
-  count.className = len > 1800 ? 'text-red-400 text-xs ml-2' : 'text-gray-600 text-xs ml-2';
+  count.textContent = `${len}/${maxLen}`;
+  count.className = len > maxLen * 0.9 ? 'text-red-400 text-xs ml-2' : 'text-gray-600 text-xs ml-2';
   btn.disabled = (len === 0 && uploadedImages.length === 0 && !selectedGif);
+}
+
+function autoExpandTextarea(el) {
+  el.style.height = 'auto';
+  const newHeight = el.scrollHeight;
+  if (newHeight > 300) {
+    el.style.height = '300px';
+    el.style.overflowY = 'auto';
+  } else {
+    el.style.height = newHeight + 'px';
+    el.style.overflowY = 'hidden';
+  }
 }
 
 // --- Emoji Picker ---
@@ -675,6 +836,20 @@ function toggleEmojiPicker() {
   if (!picker.classList.contains('hidden')) showEmojiCategory('gaming');
 }
 
+let _customEmojiCache = null;
+
+// Fetch custom emoji once and make available globally for post rendering
+window._customEmojiMap = {};
+fetch('/ql/api/emoji/').then(r => r.json()).then(data => {
+  _customEmojiCache = data.emoji || [];
+  data.emoji.forEach(e => { window._customEmojiMap[e.shortcode] = e.image_url; });
+  const lolUrl = window._customEmojiMap['lol'];
+  const iconEl = document.getElementById('customEmojiTabIcon');
+  if (lolUrl && iconEl) {
+    iconEl.innerHTML = `<img src="${lolUrl}" class="w-4 h-4 object-contain inline-block" alt=":lol:" style="vertical-align:-2px">`;
+  }
+}).catch(() => {});
+
 function showEmojiCategory(cat) {
   document.querySelectorAll('.emoji-cat-btn').forEach(b => {
     b.className = 'emoji-cat-btn text-xs px-2 py-1 rounded text-gray-400 hover:bg-neutral-700';
@@ -682,9 +857,51 @@ function showEmojiCategory(cat) {
   event.target.closest('.emoji-cat-btn').className = 'emoji-cat-btn text-xs px-2 py-1 rounded bg-neutral-700 text-white';
 
   const grid = document.getElementById('emoji-grid');
-  grid.innerHTML = EMOJIS[cat].map(e =>
-    `<button onclick="insertEmoji('${e}')" class="text-xl hover:bg-neutral-700 rounded p-1 transition cursor-pointer">${e}</button>`
+  const customGrid = document.getElementById('custom-emoji-grid');
+
+  if (cat === 'custom') {
+    grid.classList.add('hidden');
+    customGrid.classList.remove('hidden');
+    if (_customEmojiCache) {
+      renderCustomEmoji(_customEmojiCache);
+    } else {
+      customGrid.innerHTML = '<p class="col-span-8 text-center text-gray-500 text-xs py-3">Loading...</p>';
+      fetch('/ql/api/emoji/').then(r => r.json()).then(data => {
+        _customEmojiCache = data.emoji || [];
+        renderCustomEmoji(_customEmojiCache);
+      });
+    }
+  } else {
+    grid.classList.remove('hidden');
+    customGrid.classList.add('hidden');
+    grid.innerHTML = EMOJIS[cat].map(e =>
+      `<button onclick="insertEmoji('${e}')" class="text-xl hover:bg-neutral-700 rounded p-1 transition cursor-pointer">${e}</button>`
+    ).join('');
+  }
+}
+
+function renderCustomEmoji(items) {
+  const customGrid = document.getElementById('custom-emoji-grid');
+  if (!items.length) {
+    customGrid.innerHTML = '<p class="col-span-8 text-center text-gray-500 text-xs py-3">No custom emoji yet.</p>';
+    return;
+  }
+  customGrid.innerHTML = items.filter(e => !e.is_sticker).map(e =>
+    `<button onclick="insertCustomEmoji(':${e.shortcode}:')" title=":${e.shortcode}:"
+             class="flex items-center justify-center hover:bg-neutral-700 rounded p-1 transition cursor-pointer">
+       <img src="${e.image_url}" alt=":${e.shortcode}:" class="w-7 h-7 object-contain">
+     </button>`
   ).join('');
+}
+
+function insertCustomEmoji(shortcode) {
+  const ta = document.getElementById('post-content');
+  const start = ta.selectionStart;
+  const end = ta.selectionEnd;
+  ta.value = ta.value.substring(0, start) + shortcode + ta.value.substring(end);
+  ta.selectionStart = ta.selectionEnd = start + shortcode.length;
+  ta.focus();
+  updateCharCount();
 }
 
 function insertEmoji(emoji) {
@@ -933,7 +1150,9 @@ async function submitPost() {
     });
     const data = await res.json();
     if (data.success) {
-      document.getElementById('post-content').value = '';
+      const ta = document.getElementById('post-content');
+      ta.value = '';
+      ta.style.height = 'auto';
       uploadedImages = [];
       selectedGif = null;
       selectedGameTag = null;
@@ -946,10 +1165,12 @@ async function submitPost() {
       const container = document.getElementById('feed-container');
       container.classList.remove('hidden');
       document.getElementById('empty-state').classList.add('hidden');
-      container.insertAdjacentHTML('afterbegin', renderPostCard(data.post, {
-        showAuthor: true,
-        currentUserId: CURRENT_USER_ID
-      }));
+      const newHtml = renderPostCard(data.post, { showAuthor: true, currentUserId: CURRENT_USER_ID, isAdmin: CURRENT_USER_IS_ADMIN });
+      container.insertAdjacentHTML('afterbegin', newHtml);
+      const newCard = container.firstElementChild;
+      newCard.style.transition = 'background 0.4s';
+      newCard.style.background = 'rgb(49 46 129 / 0.3)';
+      setTimeout(() => { newCard.style.background = ''; }, 800);
     } else { alert(data.error || 'Failed to create post'); }
   } catch(e) { alert('Failed to create post'); }
 

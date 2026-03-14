@@ -421,15 +421,6 @@ const AUDIT_EVENT_DEFS = {
 let auditEventConfig = {};
 
 // CSRF-aware fetch function
-async function csrfFetch(url, options = {}) {
-  const csrfToken = '{{ csrf_token }}';
-  options.headers = options.headers || {};
-  if (!options.headers['X-CSRFToken']) {
-    options.headers['X-CSRFToken'] = csrfToken;
-  }
-  return fetch(url, options);
-}
-
 function refreshLogs() {
   window.location.reload();
 }
@@ -609,13 +600,6 @@ function createAuditRow(log) {
   `;
 
   return tr;
-}
-
-function escapeHtml(str) {
-  if (!str) return '';
-  const div = document.createElement('div');
-  div.textContent = str;
-  return div.innerHTML;
 }
 
 // Format timestamps to local time

@@ -154,13 +154,6 @@
 
 <script>
 // XSS Protection: HTML escape function
-function escapeHtml(text) {
-  if (text == null || text === undefined) return '';
-  const div = document.createElement('div');
-  div.textContent = text;
-  return div.innerHTML;
-}
-
 let currentGames = [];
 let allNetworkGames = []; // Cache for autocomplete
 let networkSearchTimeout = null;
@@ -366,7 +359,7 @@ function renderGames() {
         <!-- Action Buttons -->
         <div class="flex gap-2 mt-auto pt-2">
           ${game.lfg_count > 0 ? `
-          <a href="/questlog/guild/{{ guild.id }}/discovery-network/#lfg?game=${encodeURIComponent(game.name)}"
+          <a href="https://casual-heroes.com/ql/lfg/browse/?game=${encodeURIComponent(game.name)}" target="_blank"
              class="flex-1 px-3 py-2 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 rounded-lg text-center text-sm font-semibold transition-all shadow-lg hover:shadow-green-500/50">
             <i class="fas fa-users mr-1"></i>View LFG
           </a>

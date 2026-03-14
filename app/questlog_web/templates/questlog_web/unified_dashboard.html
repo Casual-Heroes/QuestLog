@@ -1,0 +1,270 @@
+{% extends "questlog_web/base_web.html" %}
+{% load static %}
+
+{% block title %}Server Dashboard - QuestLog{% endblock %}
+
+{% block web_content %}
+<div class="max-w-6xl mx-auto px-6 py-10">
+
+  <!-- Header -->
+  <div class="mb-10">
+    <h1 class="text-3xl font-bold text-white">Server Dashboard</h1>
+    <p class="text-gray-400 mt-2">Manage QuestLog Bot settings across all your communities - Discord, Fluxer, and Matrix.</p>
+  </div>
+
+  <!-- Platform sections -->
+
+  <!-- ================================================================
+       DISCORD
+  ================================================================ -->
+  <section class="mb-12">
+    <div class="flex items-center justify-between mb-5">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 bg-indigo-600/20 rounded-xl flex items-center justify-center">
+          <i class="fab fa-discord text-indigo-400"></i>
+        </div>
+        <div>
+          <h2 class="text-lg font-bold text-white">Discord</h2>
+          <p class="text-xs text-gray-500">Managed by WardenBot</p>
+        </div>
+      </div>
+      {% if not has_discord %}
+      <a href="/ql/settings/#connections"
+         class="text-xs text-indigo-400 hover:text-indigo-300 transition flex items-center gap-1">
+        <i class="fas fa-link text-[10px]"></i> Link Discord account
+      </a>
+      {% endif %}
+    </div>
+
+    {% if not has_discord %}
+    <div class="bg-neutral-900 border border-dashed border-neutral-700 rounded-2xl p-10 text-center">
+      <div class="w-14 h-14 bg-indigo-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+        <i class="fab fa-discord text-indigo-400 text-2xl"></i>
+      </div>
+      <p class="text-white font-semibold mb-1">No Discord account linked</p>
+      <p class="text-gray-500 text-sm mb-4">Link your Discord account in Settings to manage your Discord servers here.</p>
+      <a href="/ql/settings/#connections"
+         class="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium transition">
+        <i class="fas fa-link"></i> Link Discord
+      </a>
+    </div>
+
+    {% elif not discord_guilds %}
+    <div class="bg-neutral-900 border border-dashed border-neutral-700 rounded-2xl p-10 text-center">
+      <div class="w-14 h-14 bg-indigo-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+        <i class="fab fa-discord text-indigo-400 text-2xl"></i>
+      </div>
+      <p class="text-white font-semibold mb-1">No Discord servers found</p>
+      <p class="text-gray-500 text-sm">WardenBot isn't in any of your servers yet, or your server data hasn't synced. Add the bot and it will appear here.</p>
+    </div>
+
+    {% else %}
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+      {% for guild in discord_guilds %}
+      <a href="/ql/dashboard/discord/{{ guild.id }}/"
+         class="bg-neutral-900 rounded-2xl overflow-hidden border border-neutral-800 hover:border-indigo-500/50 transition-all duration-200 group block">
+        <div class="h-16 bg-gradient-to-br from-indigo-600/20 to-blue-600/20 relative flex-shrink-0">
+          <div class="absolute -bottom-6 left-4">
+            {% if guild.icon_hash %}
+            <img src="https://cdn.discordapp.com/icons/{{ guild.id }}/{{ guild.icon_hash }}.png?size=64"
+                 alt="{{ guild.name }}"
+                 class="w-12 h-12 rounded-xl border-4 border-neutral-900 object-cover shadow-lg">
+            {% else %}
+            <div class="w-12 h-12 bg-indigo-700/40 rounded-xl border-4 border-neutral-900 flex items-center justify-center shadow-lg">
+              <span class="text-indigo-300 font-bold text-sm">{{ guild.name|slice:":2"|upper }}</span>
+            </div>
+            {% endif %}
+          </div>
+        </div>
+        <div class="pt-9 pb-4 px-4">
+          <h3 class="text-base font-bold text-white truncate group-hover:text-indigo-300 transition">{{ guild.name }}</h3>
+          <p class="text-gray-600 text-xs font-mono mt-0.5 truncate">{{ guild.id }}</p>
+          <div class="mt-3 pt-3 border-t border-neutral-800 flex items-center justify-between">
+            <span class="text-indigo-400 text-sm font-medium flex items-center gap-1.5">
+              <i class="fas fa-cog text-xs"></i> Manage Server
+            </span>
+            <i class="fas fa-arrow-right text-xs text-gray-600 group-hover:text-indigo-400 group-hover:translate-x-1 transition-all"></i>
+          </div>
+        </div>
+      </a>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </section>
+
+  <!-- ================================================================
+       FLUXER
+  ================================================================ -->
+  <section class="mb-12">
+    <div class="flex items-center justify-between mb-5">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 bg-purple-600/20 rounded-xl flex items-center justify-center">
+          <i class="fas fa-satellite-dish text-purple-400"></i>
+        </div>
+        <div>
+          <h2 class="text-lg font-bold text-white">Fluxer</h2>
+          <p class="text-xs text-gray-500">Managed by QuestLogFluxer</p>
+        </div>
+      </div>
+      {% if not has_fluxer %}
+      <a href="/ql/settings/#connections"
+         class="text-xs text-purple-400 hover:text-purple-300 transition flex items-center gap-1">
+        <i class="fas fa-link text-[10px]"></i> Link Fluxer account
+      </a>
+      {% endif %}
+    </div>
+
+    {% if not has_fluxer %}
+    <div class="bg-neutral-900 border border-dashed border-neutral-700 rounded-2xl p-10 text-center">
+      <div class="w-14 h-14 bg-purple-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+        <i class="fas fa-satellite-dish text-purple-400 text-2xl"></i>
+      </div>
+      <p class="text-white font-semibold mb-1">No Fluxer account linked</p>
+      <p class="text-gray-500 text-sm mb-4">Link your Fluxer account in Settings to manage your Fluxer servers here.</p>
+      <a href="/ql/settings/#connections"
+         class="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm font-medium transition">
+        <i class="fas fa-link"></i> Link Fluxer
+      </a>
+    </div>
+
+    {% elif not fluxer_guilds %}
+    <div class="bg-neutral-900 border border-dashed border-neutral-700 rounded-2xl p-10 text-center">
+      <div class="w-14 h-14 bg-purple-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+        <i class="fas fa-satellite-dish text-purple-400 text-2xl"></i>
+      </div>
+      <p class="text-white font-semibold mb-1">No Fluxer servers found</p>
+      <p class="text-gray-500 text-sm">Add QuestLogFluxer to a Fluxer server and it will appear here.</p>
+    </div>
+
+    {% else %}
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+      {% for guild in fluxer_guilds %}
+      <a href="/ql/dashboard/fluxer/{{ guild.id }}/"
+         class="bg-neutral-900 rounded-2xl overflow-hidden border border-neutral-800 hover:border-purple-500/50 transition-all duration-200 group block">
+        <div class="h-16 bg-gradient-to-br from-purple-600/20 to-indigo-600/20 relative">
+          <div class="absolute -bottom-6 left-4">
+            {% if guild.icon_hash %}
+            <img src="https://cdn.discordapp.com/icons/{{ guild.id }}/{{ guild.icon_hash }}.png?size=64"
+                 alt="{{ guild.name }}"
+                 class="w-12 h-12 rounded-xl border-4 border-neutral-900 object-cover shadow-lg">
+            {% else %}
+            <div class="w-12 h-12 bg-purple-700/40 rounded-xl border-4 border-neutral-900 flex items-center justify-center shadow-lg">
+              <span class="text-purple-300 font-bold text-sm">{{ guild.name|slice:":2"|upper }}</span>
+            </div>
+            {% endif %}
+          </div>
+        </div>
+        <div class="pt-9 pb-4 px-4">
+          <h3 class="text-base font-bold text-white truncate group-hover:text-purple-300 transition">{{ guild.name }}</h3>
+          <p class="text-gray-600 text-xs font-mono mt-0.5 truncate">{{ guild.id }}</p>
+          <div class="mt-3 pt-3 border-t border-neutral-800 flex items-center justify-between">
+            <span class="text-purple-400 text-sm font-medium flex items-center gap-1.5">
+              <i class="fas fa-cog text-xs"></i> Manage Server
+            </span>
+            <i class="fas fa-arrow-right text-xs text-gray-600 group-hover:text-purple-400 group-hover:translate-x-1 transition-all"></i>
+          </div>
+        </div>
+      </a>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </section>
+
+  <!-- ================================================================
+       MATRIX
+  ================================================================ -->
+  <section class="mb-12">
+    <div class="flex items-center justify-between mb-5">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 bg-emerald-600/20 rounded-xl flex items-center justify-center">
+          <span class="text-emerald-400 font-bold text-sm font-mono">[M]</span>
+        </div>
+        <div>
+          <h2 class="text-lg font-bold text-white">Matrix</h2>
+          <p class="text-xs text-gray-500">Open protocol - no one can take it away</p>
+        </div>
+      </div>
+      {% if not has_matrix %}
+      <a href="/ql/settings/#connections"
+         class="text-xs text-emerald-400 hover:text-emerald-300 transition flex items-center gap-1">
+        <i class="fas fa-link text-[10px]"></i> Link Matrix account
+      </a>
+      {% endif %}
+    </div>
+
+    {% if not has_matrix %}
+    <div class="bg-neutral-900 border border-dashed border-neutral-700 rounded-2xl p-10 text-center">
+      <div class="w-14 h-14 bg-emerald-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+        <span class="text-emerald-400 font-bold text-2xl font-mono">[M]</span>
+      </div>
+      <p class="text-white font-semibold mb-1">No Matrix account linked</p>
+      <p class="text-gray-500 text-sm mb-4">Link your Matrix account in Settings to manage your Matrix spaces here.</p>
+      <a href="/ql/settings/#connections"
+         class="inline-flex items-center gap-2 px-4 py-2 bg-emerald-700 hover:bg-emerald-600 text-white rounded-lg text-sm font-medium transition">
+        <i class="fas fa-link"></i> Link Matrix
+      </a>
+    </div>
+
+    {% elif not matrix_spaces %}
+    <div class="bg-neutral-900 border border-dashed border-neutral-700 rounded-2xl p-10 text-center">
+      <div class="w-14 h-14 bg-emerald-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+        <span class="text-emerald-400 font-bold text-2xl font-mono">[M]</span>
+      </div>
+      <p class="text-white font-semibold mb-1">No Matrix spaces found</p>
+      <p class="text-gray-500 text-sm">Invite QuestLogMatrix bot to a Matrix space and it will appear here.</p>
+    </div>
+
+    {% else %}
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+      {% for space in matrix_spaces %}
+      <a href="/ql/dashboard/matrix/{{ space.id|urlencode }}/"
+         class="bg-neutral-900 rounded-2xl overflow-hidden border border-neutral-800 hover:border-emerald-500/50 transition-all duration-200 group block">
+        <div class="h-16 bg-gradient-to-br from-emerald-600/20 to-teal-600/20 relative">
+          <div class="absolute -bottom-6 left-4">
+            <div class="w-12 h-12 bg-emerald-700/40 rounded-xl border-4 border-neutral-900 flex items-center justify-center shadow-lg">
+              <span class="text-emerald-300 font-bold text-sm font-mono">[M]</span>
+            </div>
+          </div>
+        </div>
+        <div class="pt-9 pb-4 px-4">
+          <h3 class="text-base font-bold text-white truncate group-hover:text-emerald-300 transition">{{ space.name }}</h3>
+          <p class="text-gray-600 text-xs font-mono mt-0.5 truncate">{{ space.id }}</p>
+          <div class="flex items-center gap-3 mt-2 text-xs text-gray-600">
+            {% if space.room_count %}<span>{{ space.room_count }} rooms</span>{% endif %}
+            {% if space.member_count %}<span>{{ space.member_count }} members</span>{% endif %}
+          </div>
+          <div class="mt-3 pt-3 border-t border-neutral-800 flex items-center justify-between">
+            <span class="text-emerald-400 text-sm font-medium flex items-center gap-1.5">
+              <i class="fas fa-cog text-xs"></i> Manage Space
+            </span>
+            <i class="fas fa-arrow-right text-xs text-gray-600 group-hover:text-emerald-400 group-hover:translate-x-1 transition-all"></i>
+          </div>
+        </div>
+      </a>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </section>
+
+  <!-- Platform linking status footer -->
+  <div class="bg-neutral-900/50 border border-neutral-800 rounded-xl p-5 flex flex-wrap gap-4 items-center justify-between">
+    <div class="text-sm text-gray-400">
+      <i class="fas fa-link text-gray-600 mr-2"></i>
+      Connected platforms:
+      <span class="{% if has_discord %}text-indigo-400{% else %}text-gray-600{% endif %} ml-2">
+        <i class="fab fa-discord mr-1"></i>Discord{% if not has_discord %} (not linked){% endif %}
+      </span>
+      <span class="{% if has_fluxer %}text-purple-400{% else %}text-gray-600{% endif %} ml-3">
+        <i class="fas fa-satellite-dish mr-1"></i>Fluxer{% if not has_fluxer %} (not linked){% endif %}
+      </span>
+      <span class="{% if has_matrix %}text-emerald-400{% else %}text-gray-600{% endif %} ml-3">
+        <span class="font-mono text-[11px]">[M]</span> Matrix{% if not has_matrix %} (not linked){% endif %}
+      </span>
+    </div>
+    <a href="/ql/settings/#connections" class="text-xs text-gray-500 hover:text-white transition flex items-center gap-1">
+      <i class="fas fa-cog text-[10px]"></i> Manage connections
+    </a>
+  </div>
+
+</div>
+{% endblock %}

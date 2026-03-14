@@ -192,11 +192,16 @@
         <div class="p-5 border-b border-neutral-800 flex items-center justify-between">
           <div>
             <h3 class="text-lg font-bold text-white">
-              <i class="fas fa-trophy text-yellow-400 mr-2"></i>XP Leaderboard
+              <i class="fas fa-trophy text-yellow-400 mr-2"></i>{% if is_unified %}Unified XP Leaderboard{% else %}XP Leaderboard{% endif %}
             </h3>
-            <p class="text-gray-400 text-sm mt-1">Top members by XP</p>
+            <p class="text-gray-400 text-sm mt-1">{% if is_unified %}Top members by unified QuestLog XP (site + all platforms){% else %}Top members by XP{% endif %}</p>
           </div>
           <div class="flex items-center gap-2">
+            {% if is_unified %}
+            <span class="flex items-center gap-1 text-xs font-semibold text-indigo-300 bg-indigo-900/40 border border-indigo-600/40 px-2 py-1 rounded-full">
+              <i class="fas fa-globe text-xs"></i> Unified
+            </span>
+            {% endif %}
             <input type="text" id="search-members" placeholder="Search..."
                    class="bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-1.5 text-sm text-white focus:border-indigo-500 focus:outline-none w-48">
           </div>
@@ -208,7 +213,7 @@
                 <th class="text-left text-gray-400 text-xs uppercase tracking-wider px-5 py-3">#</th>
                 <th class="text-left text-gray-400 text-xs uppercase tracking-wider px-5 py-3">Member</th>
                 <th class="text-right text-gray-400 text-xs uppercase tracking-wider px-5 py-3">Level</th>
-                <th class="text-right text-gray-400 text-xs uppercase tracking-wider px-5 py-3">XP</th>
+                <th class="text-right text-gray-400 text-xs uppercase tracking-wider px-5 py-3">{% if is_unified %}Unified XP{% else %}XP{% endif %}</th>
                 <th class="text-right text-gray-400 text-xs uppercase tracking-wider px-5 py-3">Tokens</th>
                 <th class="text-right text-gray-400 text-xs uppercase tracking-wider px-5 py-3">Messages</th>
                 <th class="text-center text-gray-400 text-xs uppercase tracking-wider px-5 py-3">Actions</th>
@@ -1831,14 +1836,6 @@ function getCookie(name) {
 }
 
 // Helper: Fetch with CSRF token
-async function csrfFetch(url, options = {}) {
-  options.headers = options.headers || {};
-  if (!options.headers['X-CSRFToken']) {
-    options.headers['X-CSRFToken'] = getCookie('csrftoken');
-  }
-  return fetch(url, options);
-}
-
 // Search Members
 document.getElementById('search-members').addEventListener('input', (e) => {
   const query = e.target.value.toLowerCase();

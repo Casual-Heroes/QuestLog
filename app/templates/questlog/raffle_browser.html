@@ -8,15 +8,6 @@
 
 <script>
 const csrfToken = '{{ csrf_token }}';
-async function csrfFetch(url, options = {}) {
-  const opts = { ...options };
-  opts.headers = opts.headers || {};
-  opts.headers['X-CSRFToken'] = csrfToken;
-  if (!(opts.body instanceof FormData) && opts.method && opts.method.toUpperCase() !== 'GET' && !opts.headers['Content-Type']) {
-    opts.headers['Content-Type'] = 'application/json';
-  }
-  return fetch(url, opts);
-}
 </script>
 
 <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">

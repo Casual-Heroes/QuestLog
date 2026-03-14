@@ -1,0 +1,1662 @@
+{% extends "questlog_web/fluxer_base_guild.html" %}
+{% load static %}
+
+{% block title %}XP &amp; Leveling - {{ guild_name }}{% endblock %}
+{% block og_title %}XP &amp; Leveling - {{ guild_name }}{% endblock %}
+
+{% block guild_content %}
+
+{% include "questlog/partials/custom_select.html" %}
+
+<!-- XP Tabs -->
+<div class="flex items-center gap-6 border-b border-neutral-800 mb-4">
+  <button id="xpTabSettingsBtn"
+          class="pb-3 text-sm font-semibold border-b-2 flex items-center gap-2"
+          onclick="switchXpTab('settings', true)">
+    <i class="fas fa-cog text-yellow-400"></i> XP Settings
+  </button>
+  <button id="xpTabLevelupBtn"
+          class="pb-3 text-sm font-semibold border-b-2 flex items-center gap-2"
+          onclick="switchXpTab('levelup', true)">
+    <i class="fas fa-comment text-blue-400"></i> Level-Up Messages
+  </button>
+  <button id="xpTabBoostsBtn"
+          class="pb-3 text-sm font-semibold border-b-2 flex items-center gap-2"
+          onclick="switchXpTab('boosts', true)">
+    <i class="fas fa-bolt text-orange-400"></i> XP Boost Events
+  </button>
+</div>
+
+<div id="xpTabSettings">
+<!-- XP System Toggle Banner -->
+<div class="mb-6 bg-gradient-to-r from-yellow-900/30 to-amber-900/30 border border-yellow-700/50 rounded-xl p-5">
+  <div class="flex items-center justify-between">
+    <div class="flex items-center gap-4">
+      <div class="w-12 h-12 bg-yellow-600/20 rounded-lg flex items-center justify-center flex-shrink-0">
+        <i class="fas fa-power-off text-yellow-400 text-xl"></i>
+      </div>
+      <div>
+        <h3 class="text-white font-bold mb-1">XP System Status</h3>
+        <p class="text-gray-400 text-sm" id="xpStatusText">
+          XP tracking is currently <span id="xpStatusLabel" class="font-semibold">disabled</span>
+        </p>
+      </div>
+    </div>
+    <label class="relative inline-flex items-center cursor-pointer">
+      <input type="checkbox" id="xpEnabledToggle" class="sr-only peer" onchange="toggleXPSystem()">
+      <div class="w-14 h-7 bg-gray-700 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-yellow-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[4px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-yellow-600"></div>
+      <span class="ml-3 text-sm font-medium text-white">Enable XP</span>
+    </label>
+  </div>
+</div>
+
+<!-- Header -->
+<div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+  <div>
+    <h1 class="text-3xl font-bold text-white">
+      <i class="fas fa-star text-yellow-400 mr-3"></i>XP &amp; Leveling System
+    </h1>
+    <p class="text-gray-400 mt-2">
+      Configure XP rates, level roles, and manage member progression for {{ guild_name }}
+    </p>
+  </div>
+  <div class="relative">
+    <button onclick="toggleXpActions()" id="xpActionsBtn"
+            class="px-4 py-2 bg-neutral-800 hover:bg-neutral-700 text-white rounded-lg border border-neutral-700 flex items-center gap-2">
+      <i class="fas fa-ellipsis-h"></i>
+      <span>XP Actions</span>
+      <i class="fas fa-chevron-down text-xs"></i>
+    </button>
+    <div id="xpActionsMenu" class="hidden absolute right-0 mt-2 w-56 bg-neutral-900 border border-neutral-800 rounded-lg shadow-xl z-20">
+      <button onclick="openConfigModal(); toggleXpActions(true);" class="w-full text-left px-4 py-2 text-sm text-white hover:bg-neutral-800 flex items-center gap-2">
+        <i class="fas fa-sliders-h text-yellow-400"></i><span>XP Settings</span>
+      </button>
+      <button onclick="openLevelRoleModal(); toggleXpActions(true);" class="w-full text-left px-4 py-2 text-sm text-white hover:bg-neutral-800 flex items-center gap-2">
+        <i class="fas fa-plus text-blue-300"></i><span>Add Level Role</span>
+      </button>
+      <button onclick="openBulkLevelRoleModal(); toggleXpActions(true);" class="w-full text-left px-4 py-2 text-sm text-white hover:bg-neutral-800 flex items-center gap-2">
+        <i class="fas fa-layer-group text-purple-300"></i><span>Bulk Add</span>
+      </button>
+      <button onclick="openAddMemberModal(); toggleXpActions(true);" class="w-full text-left px-4 py-2 text-sm text-white hover:bg-neutral-800 flex items-center gap-2">
+        <i class="fas fa-user-plus text-green-300"></i><span>Add Member</span>
+      </button>
+      <button onclick="openBulkEditModal(); toggleXpActions(true);" class="w-full text-left px-4 py-2 text-sm text-white hover:bg-neutral-800 flex items-center gap-2">
+        <i class="fas fa-users-cog text-blue-300"></i><span>Bulk Edit XP</span>
+      </button>
+      <button onclick="showToast('Import coming soon.','info'); toggleXpActions(true);" class="w-full text-left px-4 py-2 text-sm text-white hover:bg-neutral-800 flex items-center gap-2 border-t border-neutral-800">
+        <i class="fas fa-file-import text-green-300"></i><span>Import Excel</span>
+      </button>
+      <button onclick="showToast('Export coming soon.','info'); toggleXpActions(true);" class="w-full text-left px-4 py-2 text-sm text-white hover:bg-neutral-800 flex items-center gap-2">
+        <i class="fas fa-file-excel text-purple-300"></i><span>Export Excel</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Stats Overview -->
+<div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+  <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-5">
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 bg-indigo-600/20 rounded-lg flex items-center justify-center">
+        <i class="fas fa-users text-indigo-400"></i>
+      </div>
+      <div>
+        <p class="text-gray-400 text-sm">Total Members</p>
+        <p class="text-white text-xl font-bold" id="stat-total-members">-</p>
+      </div>
+    </div>
+  </div>
+  <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-5">
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 bg-yellow-600/20 rounded-lg flex items-center justify-center">
+        <i class="fas fa-star text-yellow-400"></i>
+      </div>
+      <div>
+        <p class="text-gray-400 text-sm">Message XP</p>
+        <p class="text-white text-xl font-bold" id="stat-message-xp">-</p>
+      </div>
+    </div>
+  </div>
+  <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-5">
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 bg-green-600/20 rounded-lg flex items-center justify-center">
+        <i class="fas fa-microphone text-green-400"></i>
+      </div>
+      <div>
+        <p class="text-gray-400 text-sm">Voice XP/hr</p>
+        <p class="text-white text-xl font-bold" id="stat-voice-xp">-</p>
+      </div>
+    </div>
+  </div>
+  <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-5">
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 bg-purple-600/20 rounded-lg flex items-center justify-center">
+        <i class="fas fa-layer-group text-purple-400"></i>
+      </div>
+      <div>
+        <p class="text-gray-400 text-sm">Level Roles</p>
+        <p class="text-white text-xl font-bold">{{ level_roles|length }}</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Two Column Layout -->
+<div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
+  <!-- Level Roles -->
+  <div class="xl:col-span-1">
+    <div class="bg-neutral-900 rounded-xl border border-neutral-800 overflow-hidden mb-6">
+      <div class="p-5 border-b border-neutral-800 flex items-center justify-between">
+        <div>
+          <h3 class="text-lg font-bold text-white">
+            <i class="fas fa-layer-group text-purple-400 mr-2"></i>Level Roles
+          </h3>
+          <p class="text-gray-400 text-sm mt-1">Automatically assign roles at levels</p>
+        </div>
+        <button onclick="openLevelRoleModal()" class="text-indigo-400 hover:text-indigo-300 text-sm">
+          <i class="fas fa-plus mr-1"></i>Add
+        </button>
+      </div>
+      <div id="level-roles-container" class="divide-y divide-neutral-800">
+        {% if level_roles %}
+          {% for role in level_roles %}
+          <div class="level-role-item p-4 flex items-center justify-between" data-id="{{ role.id }}">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 bg-indigo-600/20 rounded-lg flex items-center justify-center">
+                <span class="text-indigo-400 font-bold text-sm">{{ role.level_required }}</span>
+              </div>
+              <div>
+                <p class="text-white font-medium">Level {{ role.level_required }}</p>
+                <p class="text-gray-500 text-sm level-role-name" data-role-id="{{ role.role_id }}" data-role-name="{{ role.role_name }}">{{ role.role_name|default:role.role_id }}</p>
+              </div>
+            </div>
+            <button onclick="deleteLevelRole({{ role.id }})"
+                    class="text-red-400 hover:text-red-300 transition p-2">
+              <i class="fas fa-trash"></i>
+            </button>
+          </div>
+          {% endfor %}
+        {% else %}
+          <div id="level-roles-empty" class="p-8 text-center">
+            <i class="fas fa-layer-group text-4xl text-gray-600 mb-3"></i>
+            <p class="text-gray-400">No level roles configured</p>
+            <button onclick="openLevelRoleModal()" class="text-indigo-400 hover:text-indigo-300 text-sm mt-2">
+              <i class="fas fa-plus mr-1"></i>Add your first level role
+            </button>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Ignored Channels -->
+    <div class="bg-neutral-900 rounded-xl border border-neutral-800 overflow-hidden">
+      <div class="p-5 border-b border-neutral-800">
+        <h3 class="text-lg font-bold text-white">
+          <i class="fas fa-ban text-red-400 mr-2"></i>Ignored Channels
+        </h3>
+        <p class="text-gray-400 text-sm mt-1">Channels that earn no XP</p>
+      </div>
+      <div class="p-5">
+        <div id="cs-ignored-channels-display"></div>
+        <p class="text-gray-500 text-xs mt-2">Messages in ignored channels do not earn XP. Update in XP Settings.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Leaderboard -->
+  <div class="xl:col-span-2">
+    <div class="bg-neutral-900 rounded-xl border border-neutral-800 overflow-hidden">
+      <div class="p-5 border-b border-neutral-800 flex items-center justify-between">
+        <div>
+          <h3 class="text-lg font-bold text-white" id="leaderboard-title">
+            <i class="fas fa-trophy text-yellow-400 mr-2"></i>XP Leaderboard
+          </h3>
+          <p class="text-gray-400 text-sm mt-1" id="leaderboard-subtitle">Top members by XP (data loaded from bot)</p>
+        </div>
+        <div class="flex items-center gap-2">
+          <span id="leaderboard-unified-badge" class="hidden items-center gap-1 text-xs font-semibold text-indigo-300 bg-indigo-900/40 border border-indigo-600/40 px-2 py-1 rounded-full">
+            <i class="fas fa-globe text-xs"></i> Unified
+          </span>
+          <input type="text" id="search-members" placeholder="Search..."
+                 class="bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-1.5 text-sm text-white focus:border-indigo-500 focus:outline-none w-48">
+        </div>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full min-w-[600px]">
+          <thead class="bg-neutral-800/50">
+            <tr>
+              <th class="text-left text-gray-400 text-xs uppercase tracking-wider px-5 py-3">#</th>
+              <th class="text-left text-gray-400 text-xs uppercase tracking-wider px-5 py-3">Member</th>
+              <th class="text-right text-gray-400 text-xs uppercase tracking-wider px-5 py-3">Level</th>
+              <th class="text-right text-gray-400 text-xs uppercase tracking-wider px-5 py-3">XP</th>
+              <th class="text-center text-gray-400 text-xs uppercase tracking-wider px-5 py-3">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="leaderboard-body" class="divide-y divide-neutral-800">
+            <tr>
+              <td colspan="5" class="px-5 py-8 text-center text-gray-400">
+                <i class="fas fa-users text-3xl mb-3 opacity-50"></i>
+                <p>No leaderboard data yet</p>
+                <p class="text-xs text-gray-500 mt-1">Data appears once the Fluxer bot begins tracking XP</p>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+</div><!-- end xpTabSettings -->
+
+<!-- XP Config Modal -->
+<div id="config-modal" class="fixed inset-0 z-50 hidden">
+  <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" onclick="closeConfigModal()"></div>
+  <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+    <div class="bg-neutral-900 rounded-xl border border-neutral-700 shadow-2xl">
+      <div class="p-5 border-b border-neutral-800 flex items-center justify-between">
+        <h3 class="text-lg font-bold text-white">
+          <i class="fas fa-cog text-indigo-400 mr-2"></i>XP Configuration
+        </h3>
+        <button onclick="closeConfigModal()" class="text-gray-400 hover:text-white">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <form id="config-form" class="p-5 space-y-6">
+        <!-- XP Rates -->
+        <div>
+          <h4 class="text-white font-medium mb-3">XP Rates</h4>
+          <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+            <div>
+              <label class="text-gray-400 text-sm">XP per Message</label>
+              <input type="number" name="xp_per_message" step="1" min="0" max="50"
+                     class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white mt-1"
+                     id="modal-xp-message">
+            </div>
+            <div>
+              <label class="text-gray-400 text-sm">XP per Reaction</label>
+              <input type="number" name="xp_per_reaction" step="1" min="0" max="20"
+                     class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white mt-1"
+                     id="modal-xp-reaction">
+            </div>
+            <div>
+              <label class="text-gray-400 text-sm">XP per Voice Hour</label>
+              <input type="number" name="xp_per_voice_minute" step="1" min="0" max="20"
+                     class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white mt-1"
+                     id="modal-xp-voice">
+            </div>
+            <div>
+              <label class="text-gray-400 text-sm">XP per Media Post</label>
+              <input type="number" name="xp_per_media" step="1" min="0" max="50"
+                     class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white mt-1"
+                     id="modal-xp-media">
+            </div>
+            <div>
+              <label class="text-gray-400 text-sm">XP per Gaming Hour</label>
+              <input type="number" name="xp_per_gaming_hour" step="1" min="0" max="100"
+                     class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white mt-1"
+                     id="modal-xp-gaming">
+            </div>
+          </div>
+        </div>
+
+        <!-- Cooldowns -->
+        <div>
+          <h4 class="text-white font-medium mb-3">Cooldowns</h4>
+          <p class="text-gray-400 text-sm mb-3">Minimum seconds between XP awards for each activity type per user.</p>
+          <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+            <div>
+              <label class="text-gray-400 text-sm">Message Cooldown (seconds)</label>
+              <input type="number" name="xp_cooldown_secs" min="10" max="3600"
+                     class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white mt-1"
+                     id="modal-cooldown">
+            </div>
+            <div>
+              <label class="text-gray-400 text-sm">Media Cooldown (seconds)</label>
+              <input type="number" name="xp_media_cooldown_secs" min="10" max="3600"
+                     class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white mt-1"
+                     id="modal-media-cooldown">
+            </div>
+            <div>
+              <label class="text-gray-400 text-sm">Reaction Cooldown (seconds)</label>
+              <input type="number" name="xp_reaction_cooldown_secs" min="10" max="3600"
+                     class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white mt-1"
+                     id="modal-reaction-cooldown">
+            </div>
+          </div>
+        </div>
+
+        <!-- XP Source Toggles -->
+        <div>
+          <h4 class="text-white font-medium mb-3">
+            <i class="fas fa-toggle-on text-green-400 mr-2"></i>XP Sources
+          </h4>
+          <p class="text-gray-400 text-sm mb-3">Enable or disable specific XP earning methods</p>
+          <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+            <label class="flex items-center justify-between bg-neutral-800 rounded-lg px-4 py-3 cursor-pointer transition">
+              <div class="flex items-center gap-2">
+                <i class="fas fa-comment text-blue-400"></i>
+                <span class="text-white text-sm">Messages</span>
+              </div>
+              <input type="checkbox" name="track_messages" id="modal-track-messages"
+                     class="w-5 h-5 text-blue-600 bg-neutral-700 border-neutral-600 rounded focus:ring-blue-500 focus:ring-2">
+            </label>
+            <label class="flex items-center justify-between bg-neutral-800 rounded-lg px-4 py-3 cursor-pointer transition">
+              <div class="flex items-center gap-2">
+                <i class="fas fa-image text-purple-400"></i>
+                <span class="text-white text-sm">Media/Images</span>
+              </div>
+              <input type="checkbox" name="track_media" id="modal-track-media"
+                     class="w-5 h-5 text-purple-600 bg-neutral-700 border-neutral-600 rounded focus:ring-purple-500 focus:ring-2">
+            </label>
+            <label class="flex items-center justify-between bg-neutral-800 rounded-lg px-4 py-3 cursor-pointer transition">
+              <div class="flex items-center gap-2">
+                <i class="fas fa-heart text-red-400"></i>
+                <span class="text-white text-sm">Reactions</span>
+              </div>
+              <input type="checkbox" name="track_reactions" id="modal-track-reactions"
+                     class="w-5 h-5 text-red-600 bg-neutral-700 border-neutral-600 rounded focus:ring-red-500 focus:ring-2">
+            </label>
+            <label class="flex items-center justify-between bg-neutral-800 rounded-lg px-4 py-3 cursor-pointer transition">
+              <div class="flex items-center gap-2">
+                <i class="fas fa-microphone text-green-400"></i>
+                <span class="text-white text-sm">Voice Chat</span>
+              </div>
+              <input type="checkbox" name="track_voice" id="modal-track-voice"
+                     class="w-5 h-5 text-green-600 bg-neutral-700 border-neutral-600 rounded focus:ring-green-500 focus:ring-2">
+            </label>
+            <label class="flex items-center justify-between bg-neutral-800 rounded-lg px-4 py-3 cursor-pointer transition">
+              <div class="flex items-center gap-2">
+                <i class="fas fa-gamepad text-orange-400"></i>
+                <span class="text-white text-sm">Gaming Activity</span>
+              </div>
+              <input type="checkbox" name="track_gaming" id="modal-track-gaming"
+                     class="w-5 h-5 text-orange-600 bg-neutral-700 border-neutral-600 rounded focus:ring-orange-500 focus:ring-2">
+            </label>
+          </div>
+        </div>
+
+        <!-- Ignored Channels -->
+        <div>
+          <h4 class="text-white font-medium mb-3">Ignored Channels</h4>
+          <div id="modal-ignored-channels"></div>
+          <p class="text-gray-500 text-xs mt-1">Messages in these channels earn no XP.</p>
+        </div>
+
+        <div class="flex justify-end gap-3 pt-4 border-t border-neutral-800">
+          <button type="button" onclick="closeConfigModal()"
+                  class="px-4 py-2 text-gray-400 hover:text-white transition">Cancel</button>
+          <button type="submit"
+                  class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-lg font-medium transition">
+            <i class="fas fa-save mr-2"></i>Save Changes
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Add Level Role Modal -->
+<div id="level-role-modal" class="fixed inset-0 z-50 hidden">
+  <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" onclick="closeLevelRoleModal()"></div>
+  <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md">
+    <div class="bg-neutral-900 rounded-xl border border-neutral-700 shadow-2xl">
+      <div class="p-5 border-b border-neutral-800 flex items-center justify-between">
+        <h3 class="text-lg font-bold text-white">
+          <i class="fas fa-layer-group text-purple-400 mr-2"></i>Add Level Role
+        </h3>
+        <button onclick="closeLevelRoleModal()" class="text-gray-400 hover:text-white">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <form id="level-role-form" class="p-5 space-y-4">
+        <div>
+          <label class="text-gray-400 text-sm block mb-1">Level Required</label>
+          <input type="number" id="lr-level" name="level_required" min="1" max="9999" placeholder="e.g., 5" required
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white">
+        </div>
+        <div>
+          <label class="text-gray-400 text-sm block mb-1">Role</label>
+          <div id="cs-lr-role"></div>
+          <p class="text-gray-500 text-xs mt-1">Select a role to assign at this level</p>
+        </div>
+        <div>
+          <label class="text-gray-400 text-sm block mb-1">Role Name (optional label)</label>
+          <input type="text" id="lr-role-name" name="role_name" placeholder="e.g., Hero"
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white">
+        </div>
+        <div class="flex items-center gap-2">
+          <input type="checkbox" name="remove_previous" id="lr-remove-previous"
+                 class="w-4 h-4 rounded bg-neutral-800 border-neutral-700 text-indigo-600 focus:ring-indigo-500">
+          <label for="lr-remove-previous" class="text-gray-400 text-sm">Remove previous level role when assigning this one</label>
+        </div>
+        <div class="flex justify-end gap-3 pt-4">
+          <button type="button" onclick="closeLevelRoleModal()"
+                  class="px-4 py-2 text-gray-400 hover:text-white transition">Cancel</button>
+          <button type="submit"
+                  class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-lg font-medium transition">
+            <i class="fas fa-plus mr-2"></i>Add Role
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Bulk Add Level Roles Modal -->
+<div id="bulk-level-role-modal" class="fixed inset-0 z-50 hidden">
+  <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" onclick="closeBulkLevelRoleModal()"></div>
+  <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-3xl max-h-[90vh] overflow-hidden">
+    <div class="bg-neutral-900 rounded-xl border border-neutral-700 shadow-2xl flex flex-col max-h-[90vh]">
+      <div class="p-5 border-b border-neutral-800 flex items-center justify-between flex-shrink-0">
+        <div>
+          <h3 class="text-lg font-bold text-white">
+            <i class="fas fa-layer-group text-purple-400 mr-2"></i>Bulk Add Level Roles
+          </h3>
+          <p class="text-sm text-gray-400 mt-1">Configure multiple level roles at once</p>
+        </div>
+        <button onclick="closeBulkLevelRoleModal()" class="text-gray-400 hover:text-white">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <div class="p-5 space-y-4 overflow-y-auto flex-1">
+        <div class="bg-blue-900/20 border border-blue-700 rounded-lg p-4">
+          <p class="text-blue-400 text-sm">
+            <i class="fas fa-info-circle mr-2"></i>
+            Add all your level roles at once. Members will automatically receive roles when they reach the configured level.
+          </p>
+        </div>
+        <div class="bg-neutral-800 rounded-lg border border-neutral-700 overflow-hidden">
+          <table class="w-full">
+            <thead class="bg-neutral-900 border-b border-neutral-700">
+              <tr>
+                <th class="text-left p-3 text-gray-400 font-medium text-sm">Level</th>
+                <th class="text-left p-3 text-gray-400 font-medium text-sm">Role ID</th>
+                <th class="text-left p-3 text-gray-400 font-medium text-sm">Role Name</th>
+                <th class="text-center p-3 text-gray-400 font-medium text-sm w-24">Remove Prev</th>
+                <th class="text-center p-3 text-gray-400 font-medium text-sm w-16">Del</th>
+              </tr>
+            </thead>
+            <tbody id="bulk-level-role-table" class="divide-y divide-neutral-700">
+            </tbody>
+          </table>
+        </div>
+        <button onclick="addBulkLevelRoleRow()"
+                class="w-full bg-neutral-800 hover:bg-neutral-700 text-gray-300 px-4 py-3 rounded-lg transition border border-neutral-700 border-dashed">
+          <i class="fas fa-plus mr-2"></i>Add Another Role
+        </button>
+      </div>
+      <div class="p-5 border-t border-neutral-800 flex gap-2 flex-shrink-0">
+        <button type="button" onclick="closeBulkLevelRoleModal()"
+                class="flex-1 px-4 py-2 bg-neutral-800 hover:bg-neutral-700 text-white rounded-lg transition">
+          Cancel
+        </button>
+        <button onclick="saveBulkLevelRoles()"
+                class="flex-1 px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white rounded-lg transition">
+          <i class="fas fa-save mr-2"></i>Save All Level Roles
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Add Member Modal -->
+<div id="add-member-modal" class="fixed inset-0 z-50 hidden">
+  <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" onclick="closeAddMemberModal()"></div>
+  <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md">
+    <div class="bg-neutral-900 rounded-xl border border-neutral-700 shadow-2xl">
+      <div class="p-5 border-b border-neutral-800 flex items-center justify-between">
+        <h3 class="text-lg font-bold text-white">
+          <i class="fas fa-user-plus text-green-400 mr-2"></i>Add Member XP
+        </h3>
+        <button onclick="closeAddMemberModal()" class="text-gray-400 hover:text-white">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <form id="add-member-form" class="p-5 space-y-4">
+        <div>
+          <label class="text-gray-400 text-sm block mb-1">User ID (Fluxer/Discord ID)</label>
+          <input type="text" id="am-user-id" name="user_id" placeholder="e.g., 123456789012345678" required
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white font-mono">
+        </div>
+        <div>
+          <label class="text-gray-400 text-sm block mb-1">Starting XP</label>
+          <input type="number" id="am-xp" name="xp" value="0" min="0"
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white">
+        </div>
+        <p class="text-gray-500 text-xs">
+          <i class="fas fa-info-circle text-blue-400 mr-1"></i>
+          This manually adds a member to the XP leaderboard. The bot will auto-track members once they send a message.
+        </p>
+        <div class="flex justify-end gap-3 pt-4">
+          <button type="button" onclick="closeAddMemberModal()"
+                  class="px-4 py-2 text-gray-400 hover:text-white transition">Cancel</button>
+          <button type="submit"
+                  class="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg font-medium transition">
+            <i class="fas fa-user-plus mr-2"></i>Add Member
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Bulk Edit XP Modal -->
+<div id="bulk-edit-modal" class="fixed inset-0 z-50 hidden">
+  <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" onclick="closeBulkEditModal()"></div>
+  <div class="absolute inset-4 md:inset-8 flex flex-col">
+    <div class="bg-neutral-900 rounded-xl border border-neutral-700 shadow-2xl flex flex-col h-full max-h-full">
+      <!-- Header -->
+      <div class="p-5 border-b border-neutral-800 flex items-center justify-between flex-shrink-0">
+        <div>
+          <h3 class="text-lg font-bold text-white">
+            <i class="fas fa-users-cog text-blue-400 mr-2"></i>Bulk Edit XP
+          </h3>
+          <p class="text-gray-400 text-sm mt-0.5">Edit XP and HP for any member. Changes take effect immediately.</p>
+        </div>
+        <div class="flex items-center gap-3">
+          <input type="text" id="bulk-xp-search" placeholder="Search members..."
+                 class="bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-1.5 text-sm text-white focus:border-indigo-500 focus:outline-none w-44">
+          <button onclick="closeBulkEditModal()" class="text-gray-400 hover:text-white">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+      </div>
+      <!-- Loading state -->
+      <div id="bulk-xp-loading" class="p-8 text-center text-gray-400 flex-shrink-0">
+        <i class="fas fa-spinner fa-spin text-2xl mb-3"></i>
+        <p>Loading member data...</p>
+      </div>
+      <!-- Empty state -->
+      <div id="bulk-xp-empty" class="p-8 text-center text-gray-400 hidden flex-shrink-0">
+        <i class="fas fa-users text-3xl mb-3 opacity-50"></i>
+        <p>No members tracked yet</p>
+        <p class="text-xs text-gray-500 mt-1">Members appear once the bot starts tracking XP</p>
+      </div>
+      <!-- Table -->
+      <div class="overflow-y-auto flex-1 min-h-0">
+        <table class="w-full" id="bulk-xp-table-wrap" style="display:none">
+          <thead class="bg-neutral-800/80 sticky top-0">
+            <tr>
+              <th class="text-left text-gray-400 text-xs uppercase tracking-wider px-5 py-3">#</th>
+              <th class="text-left text-gray-400 text-xs uppercase tracking-wider px-5 py-3">Member</th>
+              <th class="text-right text-gray-400 text-xs uppercase tracking-wider px-5 py-3">Msgs</th>
+              <th class="text-right text-gray-400 text-xs uppercase tracking-wider px-5 py-3 w-36">Set XP</th>
+              <th class="text-right text-gray-400 text-xs uppercase tracking-wider px-5 py-3 w-36">Set HP</th>
+            </tr>
+          </thead>
+          <tbody id="bulk-xp-tbody" class="divide-y divide-neutral-800"></tbody>
+        </table>
+      </div>
+      <!-- Footer -->
+      <div class="p-5 border-t border-neutral-800 flex items-center justify-between flex-shrink-0">
+        <div id="bulk-xp-result" class="text-sm hidden"></div>
+        <div class="flex gap-2 ml-auto">
+          <button onclick="closeBulkEditModal()"
+                  class="px-4 py-2 bg-neutral-800 hover:bg-neutral-700 text-white rounded-lg transition">
+            Cancel
+          </button>
+          <button onclick="saveBulkXP()" id="bulk-xp-save-btn"
+                  class="px-6 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-lg font-medium transition disabled:opacity-50">
+            <i class="fas fa-save mr-2"></i>Save Changes
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Level-Up Messages Tab -->
+<div id="xpTabLevelup" class="hidden">
+  <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+    <div>
+      <h1 class="text-3xl font-bold text-white">
+        <i class="fas fa-comment text-blue-400 mr-3"></i>Level-Up Messages
+      </h1>
+      <p class="text-gray-400 mt-2">Configure what happens when a member levels up</p>
+    </div>
+    <button onclick="saveLevelUpConfig()" id="levelup-save-btn"
+            class="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition flex items-center gap-2">
+      <i class="fas fa-save"></i>Save Settings
+    </button>
+  </div>
+
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <!-- Config form -->
+    <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6 space-y-6">
+      <!-- Enable toggle -->
+      <div class="flex items-center justify-between">
+        <div>
+          <p class="text-white font-medium">Enable Level-Up Messages</p>
+          <p class="text-gray-400 text-sm mt-0.5">Send a message when a member levels up</p>
+        </div>
+        <label class="relative inline-flex items-center cursor-pointer">
+          <input type="checkbox" id="lu-enabled" class="sr-only peer">
+          <div class="w-11 h-6 bg-gray-700 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+        </label>
+      </div>
+
+      <!-- Destination -->
+      <div>
+        <label class="text-gray-400 text-sm block mb-2">Where to send the message</label>
+        <div id="cs-lu-destination"></div>
+      </div>
+
+      <!-- Channel picker (shown when destination=channel) -->
+      <div id="lu-channel-row" class="hidden">
+        <label class="text-gray-400 text-sm block mb-2">Level-Up Channel</label>
+        <div id="cs-lu-channel"></div>
+      </div>
+
+      <!-- Message template -->
+      <div>
+        <label class="text-gray-400 text-sm block mb-2">Message Template</label>
+        <textarea id="lu-message" rows="4" placeholder="Leave blank for default message"
+                  class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white focus:border-blue-500 focus:outline-none resize-none text-sm"></textarea>
+        <p class="text-gray-500 text-xs mt-2">Available variables: <code class="text-blue-400">{user}</code> mention, <code class="text-blue-400">{username}</code>, <code class="text-blue-400">{level}</code>, <code class="text-blue-400">{server}</code></p>
+      </div>
+    </div>
+
+    <!-- Preview + default -->
+    <div class="space-y-4">
+      <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6">
+        <h4 class="text-white font-medium mb-3"><i class="fas fa-eye text-gray-400 mr-2"></i>Preview</h4>
+        <div class="bg-neutral-800 rounded-lg p-4 border border-neutral-700">
+          <p id="lu-preview" class="text-gray-300 text-sm"></p>
+        </div>
+        <button onclick="updateLuPreview()" class="mt-3 text-blue-400 hover:text-blue-300 text-xs transition">
+          <i class="fas fa-refresh mr-1"></i>Update preview
+        </button>
+      </div>
+      <div class="bg-blue-900/20 border border-blue-700/50 rounded-xl p-5">
+        <p class="text-blue-400 text-sm font-medium mb-2">Default message template:</p>
+        <p class="text-gray-300 text-sm font-mono">"GG {user}, you just reached <strong>Level {level}</strong>! Keep chatting to level up further."</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- XP Boost Events Tab -->
+<div id="xpTabBoosts" class="hidden">
+  <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+    <div>
+      <h1 class="text-3xl font-bold text-white">
+        <i class="fas fa-bolt text-orange-400 mr-3"></i>XP Boost Events
+      </h1>
+      <p class="text-gray-400 mt-2">
+        Temporarily multiply XP gains to reward your community during events
+      </p>
+    </div>
+    <button onclick="openBoostModal()"
+            class="px-4 py-2.5 bg-orange-600 hover:bg-orange-700 text-white rounded-lg font-medium transition flex items-center gap-2">
+      <i class="fas fa-plus"></i>New Boost Event
+    </button>
+  </div>
+
+  <!-- Active boost banner -->
+  <div id="active-boost-banner" class="hidden mb-6 bg-gradient-to-r from-orange-900/30 to-yellow-900/30 border border-orange-700/50 rounded-xl p-4">
+    <div class="flex items-center gap-3">
+      <i class="fas fa-bolt text-orange-400 text-xl"></i>
+      <div>
+        <p class="text-white font-bold" id="active-boost-label">XP Boost Active!</p>
+        <p class="text-orange-300 text-sm" id="active-boost-detail"></p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Boost events list -->
+  <div class="bg-neutral-900 rounded-xl border border-neutral-800 overflow-hidden">
+    <div class="p-5 border-b border-neutral-800">
+      <h3 class="text-white font-bold"><i class="fas fa-list text-gray-400 mr-2"></i>Boost Events</h3>
+    </div>
+    <div id="boosts-list" class="divide-y divide-neutral-800">
+      <div id="boosts-empty" class="p-10 text-center text-gray-400">
+        <i class="fas fa-bolt text-4xl mb-3 opacity-30"></i>
+        <p>No boost events yet</p>
+        <p class="text-sm text-gray-500 mt-1">Create a boost event to multiply XP gains for a period</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Boost Create/Edit Modal -->
+<div id="boost-modal" class="fixed inset-0 z-50 hidden">
+  <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" onclick="closeBoostModal()"></div>
+  <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md">
+    <div class="bg-neutral-900 rounded-xl border border-neutral-700 shadow-2xl">
+      <div class="p-5 border-b border-neutral-800 flex items-center justify-between">
+        <h3 class="text-lg font-bold text-white" id="boost-modal-title">
+          <i class="fas fa-bolt text-orange-400 mr-2"></i>New Boost Event
+        </h3>
+        <button onclick="closeBoostModal()" class="text-gray-400 hover:text-white"><i class="fas fa-times"></i></button>
+      </div>
+      <div class="p-5 space-y-4">
+        <input type="hidden" id="boost-edit-id" value="">
+        <div>
+          <label class="text-gray-400 text-sm block mb-1">Event Name</label>
+          <input type="text" id="boost-name" placeholder="e.g., Weekend Double XP"
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white focus:border-orange-500 focus:outline-none">
+        </div>
+        <div>
+          <label class="text-gray-400 text-sm block mb-1">XP Multiplier</label>
+          <div id="cs-boost-multiplier"></div>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="text-gray-400 text-sm block mb-1">Start (optional)</label>
+            <input type="datetime-local" id="boost-start"
+                   class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white focus:border-orange-500 focus:outline-none text-sm">
+          </div>
+          <div>
+            <label class="text-gray-400 text-sm block mb-1">End (optional)</label>
+            <input type="datetime-local" id="boost-end"
+                   class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white focus:border-orange-500 focus:outline-none text-sm">
+          </div>
+        </div>
+        <div class="flex items-center gap-2">
+          <input type="checkbox" id="boost-active" class="w-4 h-4 rounded bg-neutral-800 border-neutral-700 text-orange-600 focus:ring-orange-500">
+          <label for="boost-active" class="text-gray-300 text-sm">Activate immediately</label>
+        </div>
+        <p class="text-gray-500 text-xs">Leave start/end blank for a manual on/off boost with no time limit.</p>
+      </div>
+      <div class="p-5 border-t border-neutral-800 flex gap-2">
+        <button onclick="closeBoostModal()" class="flex-1 px-4 py-2 bg-neutral-800 hover:bg-neutral-700 text-white rounded-lg transition">Cancel</button>
+        <button onclick="saveBoost()" id="boost-save-btn"
+                class="flex-1 px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg font-medium transition">
+          <i class="fas fa-save mr-2"></i>Save
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const GUILD_ID = '{{ guild_id }}';
+const SETTINGS = JSON.parse('{{ settings_json|escapejs }}');
+const CHANNELS = JSON.parse('{{ channels_json|escapejs }}');
+const ROLES_JSON = JSON.parse('{{ roles_json|escapejs }}');
+const BOOSTS_JSON = JSON.parse('{{ boosts_json|escapejs }}');
+const LEVELUP_CONFIG = JSON.parse('{{ levelup_config_json|escapejs }}');
+const API_URL = '/ql/api/dashboard/fluxer/' + GUILD_ID + '/settings/';
+const LEVEL_ROLES_API = '/ql/api/dashboard/fluxer/' + GUILD_ID + '/level-roles/';
+const LEVEL_ROLES_BULK_API = '/ql/api/dashboard/fluxer/' + GUILD_ID + '/level-roles/bulk/';
+const LEVELUP_API = '/ql/api/dashboard/fluxer/' + GUILD_ID + '/levelup-config/';
+const BOOSTS_API = '/ql/api/dashboard/fluxer/' + GUILD_ID + '/xp-boosts/';
+
+// Init stats
+document.addEventListener('DOMContentLoaded', () => {
+  const xpEnabled = SETTINGS.xp_enabled;
+  document.getElementById('stat-message-xp').textContent = SETTINGS.xp_per_message ?? '-';
+  document.getElementById('stat-voice-xp').textContent = SETTINGS.xp_per_voice_minute ?? '-';
+  const toggle = document.getElementById('xpEnabledToggle');
+  if (toggle) { toggle.checked = !!xpEnabled; updateXPStatusUI(!!xpEnabled); }
+
+  // Fix any existing level role rows that show a raw ID instead of a name
+  document.querySelectorAll('.level-role-item').forEach(item => {
+    const nameEl = item.querySelector('.level-role-name');
+    if (nameEl && nameEl.dataset.roleId && !nameEl.dataset.roleName) {
+      const match = (ROLES_JSON || []).find(r => r.id === nameEl.dataset.roleId);
+      if (match) nameEl.textContent = match.name || match.id;
+    }
+  });
+
+  // Ignored channels display (read-only)
+  const ignored = SETTINGS.xp_ignored_channels || [];
+  const display = document.getElementById('cs-ignored-channels-display');
+  if (display) {
+    if (ignored.length === 0) {
+      display.innerHTML = '<p class="text-gray-500 text-sm">No channels ignored</p>';
+    } else {
+      const names = ignored.map(id => {
+        const ch = CHANNELS.find(c => c.id === id);
+        return escapeHtml(ch ? ch.label : id);
+      });
+      display.innerHTML = names.map(n => `<span class="inline-block bg-neutral-800 text-gray-300 rounded px-2 py-1 text-xs mr-1 mb-1"># ${n}</span>`).join('');
+    }
+  }
+});
+
+// XP System Toggle
+function updateXPStatusUI(enabled) {
+  const toggle = document.getElementById('xpEnabledToggle');
+  const statusLabel = document.getElementById('xpStatusLabel');
+  toggle.checked = enabled;
+  statusLabel.textContent = enabled ? 'enabled' : 'disabled';
+  statusLabel.className = enabled ? 'font-semibold text-green-400' : 'font-semibold text-red-400';
+}
+
+async function toggleXPSystem() {
+  const toggle = document.getElementById('xpEnabledToggle');
+  const newState = toggle.checked;
+  try {
+    const resp = await csrfFetch(API_URL, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ xp_enabled: newState })
+    });
+    const data = await resp.json();
+    if (data.success) {
+      updateXPStatusUI(newState);
+      showToast(newState ? 'XP system enabled!' : 'XP system disabled.', 'success');
+    } else {
+      toggle.checked = !newState;
+      showToast(data.error || 'Failed to update XP status', 'error');
+    }
+  } catch (err) {
+    toggle.checked = !newState;
+    showToast('Error updating XP system', 'error');
+  }
+}
+
+// Config Modal
+let csIgnoredModal = null;
+
+function openConfigModal() {
+  document.getElementById('modal-xp-message').value = SETTINGS.xp_per_message ?? 2;
+  document.getElementById('modal-xp-reaction').value = SETTINGS.xp_per_reaction ?? 1;
+  document.getElementById('modal-xp-voice').value = SETTINGS.xp_per_voice_minute ?? 1;
+  document.getElementById('modal-xp-media').value = SETTINGS.xp_per_media ?? 3;
+  document.getElementById('modal-xp-gaming').value = SETTINGS.xp_per_gaming_hour ?? 10;
+  document.getElementById('modal-cooldown').value = SETTINGS.xp_cooldown_secs ?? 60;
+  document.getElementById('modal-media-cooldown').value = SETTINGS.xp_media_cooldown_secs ?? 60;
+  document.getElementById('modal-reaction-cooldown').value = SETTINGS.xp_reaction_cooldown_secs ?? 60;
+  document.getElementById('modal-track-messages').checked = SETTINGS.track_messages !== false;
+  document.getElementById('modal-track-media').checked = SETTINGS.track_media !== false;
+  document.getElementById('modal-track-reactions').checked = SETTINGS.track_reactions !== false;
+  document.getElementById('modal-track-voice').checked = SETTINGS.track_voice !== false;
+  document.getElementById('modal-track-gaming').checked = !!SETTINGS.track_gaming;
+
+  if (!csIgnoredModal) {
+    csIgnoredModal = createCustomSelect({
+      container: document.getElementById('modal-ignored-channels'),
+      name: 'xp_ignored_channels',
+      items: CHANNELS,
+      selected: SETTINGS.xp_ignored_channels || [],
+      multiSelect: true,
+      placeholder: 'Select channels to ignore...',
+    });
+  }
+  document.getElementById('config-modal').classList.remove('hidden');
+}
+
+function closeConfigModal() { document.getElementById('config-modal').classList.add('hidden'); }
+
+document.getElementById('config-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const form = e.target;
+  const payload = {
+    xp_per_message: parseInt(form.xp_per_message.value) || 2,
+    xp_per_reaction: parseInt(form.xp_per_reaction.value) || 1,
+    xp_per_voice_minute: parseInt(form.xp_per_voice_minute.value) || 1,
+    xp_per_media: parseInt(form.xp_per_media.value) || 3,
+    xp_per_gaming_hour: parseInt(form.xp_per_gaming_hour.value) || 10,
+    xp_cooldown_secs: parseInt(form.xp_cooldown_secs.value) || 60,
+    xp_media_cooldown_secs: parseInt(form.xp_media_cooldown_secs.value) || 60,
+    xp_reaction_cooldown_secs: parseInt(form.xp_reaction_cooldown_secs.value) || 60,
+    track_messages: form.track_messages.checked,
+    track_media: form.track_media.checked,
+    track_reactions: form.track_reactions.checked,
+    track_voice: form.track_voice.checked,
+    track_gaming: form.track_gaming.checked,
+    xp_ignored_channels: csIgnoredModal ? csIgnoredModal.getValue() : [],
+  };
+  try {
+    const resp = await csrfFetch(API_URL, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload)
+    });
+    const result = await resp.json();
+    if (result.success) {
+      closeConfigModal();
+      showToast('XP configuration saved!', 'success');
+      setTimeout(() => location.reload(), 1000);
+    } else {
+      showToast(result.error || 'Failed to save', 'error');
+    }
+  } catch (err) {
+    showToast('Error saving configuration', 'error');
+  }
+});
+
+// Level Role Modal
+let csLrRole = null;
+
+function openLevelRoleModal() {
+  document.getElementById('lr-level').value = '';
+  document.getElementById('lr-role-name').value = '';
+  document.getElementById('lr-remove-previous').checked = false;
+  if (!csLrRole) {
+    const roleItems = (ROLES_JSON || []).map(r => ({value: r.id, label: r.name || r.id}));
+    csLrRole = createCustomSelect({
+      container: document.getElementById('cs-lr-role'),
+      name: 'role_id',
+      items: [{value: '', label: '-- Select a role --'}, ...roleItems],
+      selected: '',
+      placeholder: 'Select a role...',
+      onSelect: (val, item) => {
+        const nameField = document.getElementById('lr-role-name');
+        if (item && item.label && item.label !== '-- Select a role --') {
+          nameField.value = item.label;
+        } else {
+          nameField.value = '';
+        }
+      },
+    });
+  }
+  document.getElementById('level-role-modal').classList.remove('hidden');
+}
+
+function closeLevelRoleModal() { document.getElementById('level-role-modal').classList.add('hidden'); }
+
+document.getElementById('level-role-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const level = parseInt(document.getElementById('lr-level').value);
+  const roleId = csLrRole ? csLrRole.getValue() : '';
+  const roleName = document.getElementById('lr-role-name').value.trim();
+  const removePrev = document.getElementById('lr-remove-previous').checked;
+
+  if (!level || !roleId) { showToast('Level and Role are required.', 'error'); return; }
+
+  try {
+    const resp = await csrfFetch(LEVEL_ROLES_API, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ level_required: level, role_id: roleId, role_name: roleName, remove_previous: removePrev })
+    });
+    const data = await resp.json();
+    if (resp.ok && data.success) {
+      closeLevelRoleModal();
+      showToast('Level role added!', 'success');
+      appendLevelRoleRow(data.level_role);
+    } else {
+      showToast(data.error || 'Failed to add level role', 'error');
+    }
+  } catch (err) {
+    showToast('Network error', 'error');
+  }
+});
+
+function appendLevelRoleRow(lr) {
+  const container = document.getElementById('level-roles-container');
+  const empty = document.getElementById('level-roles-empty');
+  if (empty) empty.remove();
+  const div = document.createElement('div');
+  div.className = 'level-role-item p-4 flex items-center justify-between';
+  div.dataset.id = lr.id;
+  div.innerHTML = `<div class="flex items-center gap-3">
+    <div class="w-10 h-10 bg-indigo-600/20 rounded-lg flex items-center justify-center">
+      <span class="text-indigo-400 font-bold text-sm">${escapeHtml(String(lr.level_required))}</span>
+    </div>
+    <div>
+      <p class="text-white font-medium">Level ${escapeHtml(String(lr.level_required))}</p>
+      <p class="text-gray-500 text-sm">${escapeHtml(lr.role_name || (ROLES_JSON || []).find(r => r.id === lr.role_id)?.name || lr.role_id)}</p>
+    </div>
+  </div>
+  <button onclick="deleteLevelRole(${lr.id})" class="text-red-400 hover:text-red-300 transition p-2">
+    <i class="fas fa-trash"></i>
+  </button>`;
+  container.appendChild(div);
+}
+
+async function deleteLevelRole(lrId) {
+  if (!confirm('Remove this level role?')) return;
+  try {
+    const resp = await csrfFetch('/ql/api/dashboard/fluxer/' + GUILD_ID + '/level-roles/' + lrId + '/', {
+      method: 'DELETE',
+    });
+    const data = await resp.json();
+    if (resp.ok && data.success) {
+      const el = document.querySelector(`.level-role-item[data-id="${lrId}"]`);
+      if (el) el.remove();
+      showToast('Level role removed.', 'success');
+    } else {
+      showToast(data.error || 'Failed to remove', 'error');
+    }
+  } catch (err) {
+    showToast('Network error', 'error');
+  }
+}
+
+// Bulk Level Role Modal
+function openBulkLevelRoleModal() {
+  const tbody = document.getElementById('bulk-level-role-table');
+  tbody.innerHTML = '';
+  addBulkLevelRoleRow();
+  document.getElementById('bulk-level-role-modal').classList.remove('hidden');
+}
+
+function closeBulkLevelRoleModal() { document.getElementById('bulk-level-role-modal').classList.add('hidden'); }
+
+let bulkRowCount = 0;
+function addBulkLevelRoleRow() {
+  const tbody = document.getElementById('bulk-level-role-table');
+  const idx = bulkRowCount++;
+  const roleOptions = (ROLES_JSON || []).map(r =>
+    `<option value="${escapeHtml(r.id)}">${escapeHtml(r.name || r.id)}</option>`
+  ).join('');
+  const tr = document.createElement('tr');
+  tr.dataset.idx = idx;
+  tr.innerHTML = `
+    <td class="p-2"><input type="number" class="bulk-level w-20 bg-neutral-700 border border-neutral-600 rounded px-2 py-1 text-white text-sm" min="1" max="9999" placeholder="5"></td>
+    <td class="p-2"><select class="bulk-role w-full bg-neutral-700 border border-neutral-600 rounded px-2 py-1 text-white text-sm"><option value="">-- Select --</option>${roleOptions}</select></td>
+    <td class="p-2"><input type="text" class="bulk-role-name w-full bg-neutral-700 border border-neutral-600 rounded px-2 py-1 text-white text-sm" placeholder="e.g., Hero"></td>
+    <td class="p-2 text-center"><input type="checkbox" class="bulk-remove-prev w-4 h-4"></td>
+    <td class="p-2 text-center"><button type="button" onclick="this.closest('tr').remove()" class="text-red-400 hover:text-red-300"><i class="fas fa-trash text-xs"></i></button></td>
+  `;
+  tbody.appendChild(tr);
+}
+
+async function saveBulkLevelRoles() {
+  const rows = document.querySelectorAll('#bulk-level-role-table tr');
+  const entries = [];
+  for (const row of rows) {
+    const level = parseInt(row.querySelector('.bulk-level')?.value);
+    const roleId = row.querySelector('.bulk-role')?.value;
+    const roleName = row.querySelector('.bulk-role-name')?.value || '';
+    const removePrev = row.querySelector('.bulk-remove-prev')?.checked || false;
+    if (level && roleId) {
+      entries.push({ level_required: level, role_id: roleId, role_name: roleName, remove_previous: removePrev });
+    }
+  }
+  if (entries.length === 0) { showToast('No valid rows to save.', 'error'); return; }
+  try {
+    const resp = await csrfFetch(LEVEL_ROLES_BULK_API, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ level_roles: entries })
+    });
+    const data = await resp.json();
+    if (resp.ok && data.success) {
+      closeBulkLevelRoleModal();
+      showToast(`${data.saved} level role(s) saved!`, 'success');
+      setTimeout(() => location.reload(), 1000);
+    } else {
+      showToast(data.error || 'Failed to save', 'error');
+    }
+  } catch (err) {
+    showToast('Network error', 'error');
+  }
+}
+
+// Add Member Modal
+function openAddMemberModal() { document.getElementById('add-member-modal').classList.remove('hidden'); }
+function closeAddMemberModal() { document.getElementById('add-member-modal').classList.add('hidden'); }
+
+document.getElementById('add-member-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  showToast('Add Member will be available once bot XP tracking is live.', 'info');
+  closeAddMemberModal();
+});
+
+// Bulk Edit XP Modal
+const MEMBER_XP_API = '/ql/api/dashboard/fluxer/' + GUILD_ID + '/member-xp/';
+let _bulkXpMembers = [];  // full list loaded from API
+
+async function openBulkEditModal() {
+  document.getElementById('bulk-edit-modal').classList.remove('hidden');
+  document.getElementById('bulk-xp-loading').classList.remove('hidden');
+  document.getElementById('bulk-xp-empty').classList.add('hidden');
+  document.getElementById('bulk-xp-table-wrap').style.display = 'none';
+  document.getElementById('bulk-xp-result').classList.add('hidden');
+  document.getElementById('bulk-xp-search').value = '';
+  _bulkXpMembers = [];
+
+  try {
+    const resp = await csrfFetch(MEMBER_XP_API, { method: 'GET' });
+    const data = await resp.json();
+    document.getElementById('bulk-xp-loading').classList.add('hidden');
+    if (!data.success) { showToast(data.error || 'Failed to load members', 'error'); return; }
+    _bulkXpMembers = data.members || [];
+    if (_bulkXpMembers.length === 0) {
+      document.getElementById('bulk-xp-empty').classList.remove('hidden');
+      return;
+    }
+    renderBulkXpTable(_bulkXpMembers);
+    document.getElementById('bulk-xp-table-wrap').style.display = '';
+  } catch (err) {
+    document.getElementById('bulk-xp-loading').classList.add('hidden');
+    showToast('Network error loading members', 'error');
+  }
+}
+
+function closeBulkEditModal() {
+  document.getElementById('bulk-edit-modal').classList.add('hidden');
+}
+
+function renderBulkXpTable(members) {
+  const tbody = document.getElementById('bulk-xp-tbody');
+  tbody.innerHTML = '';
+  members.forEach((m, idx) => {
+    const tr = document.createElement('tr');
+    tr.className = 'bulk-xp-row hover:bg-neutral-800/30 transition';
+    tr.dataset.userId = m.user_id;
+    tr.dataset.username = (m.username || '').toLowerCase();
+    const hpLinked = m.hero_points !== null && m.hero_points !== undefined;
+    const hpVal = hpLinked ? m.hero_points : 0;
+    tr.innerHTML = `
+      <td class="px-5 py-3 text-gray-500 text-sm">${idx + 1}</td>
+      <td class="px-5 py-3">
+        <div>
+          <p class="text-white text-sm font-medium">${escapeHtml(m.username || m.user_id)}</p>
+          <p class="text-gray-500 text-xs font-mono">${escapeHtml(m.user_id)}</p>
+        </div>
+      </td>
+      <td class="px-5 py-3 text-right text-gray-400 text-sm">${m.message_count.toLocaleString()}</td>
+      <td class="px-5 py-3 text-right">
+        <input type="number" class="bulk-xp-input w-28 bg-neutral-800 border border-neutral-700 rounded px-2 py-1 text-white text-sm text-right focus:border-indigo-500 focus:outline-none"
+               value="${m.xp}" min="0" data-original="${m.xp}" data-uid="${escapeHtml(m.user_id)}">
+      </td>
+      <td class="px-5 py-3 text-right">
+        <input type="number" class="bulk-hp-input w-28 bg-neutral-800 border border-neutral-700 rounded px-2 py-1 text-sm text-right focus:border-yellow-500 focus:outline-none ${hpLinked ? 'text-white' : 'text-gray-500'}"
+               value="${hpVal}" min="0" data-original="${hpVal}" data-uid="${escapeHtml(m.user_id)}"
+               ${hpLinked ? '' : 'title="User has not linked their QuestLog account" placeholder="not linked"'}>
+      </td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  const searchEl = document.getElementById('bulk-xp-search');
+  if (searchEl) {
+    searchEl.addEventListener('input', () => {
+      const q = searchEl.value.toLowerCase();
+      document.querySelectorAll('.bulk-xp-row').forEach(row => {
+        row.style.display = row.dataset.username.includes(q) ? '' : 'none';
+      });
+    });
+  }
+});
+
+async function saveBulkXP() {
+  // Collect XP changes
+  const xpMap = {};
+  document.querySelectorAll('.bulk-xp-input').forEach(inp => {
+    const newVal = parseInt(inp.value);
+    const orig = parseInt(inp.dataset.original);
+    if (!isNaN(newVal) && newVal !== orig) {
+      xpMap[inp.dataset.uid] = { xp: Math.max(0, newVal) };
+    }
+  });
+  // Collect HP changes - merge into same update objects
+  document.querySelectorAll('.bulk-hp-input').forEach(inp => {
+    const newVal = parseInt(inp.value);
+    const orig = parseInt(inp.dataset.original);
+    if (!isNaN(newVal) && newVal !== orig && !inp.hasAttribute('placeholder')) {
+      xpMap[inp.dataset.uid] = xpMap[inp.dataset.uid] || {};
+      xpMap[inp.dataset.uid].hp = Math.max(0, newVal);
+    }
+  });
+  const updates = Object.entries(xpMap).map(([uid, fields]) => ({ user_id: uid, ...fields }));
+
+  if (updates.length === 0) {
+    showToast('No changes to save', 'info');
+    return;
+  }
+
+  const btn = document.getElementById('bulk-xp-save-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Saving...';
+
+  try {
+    const resp = await csrfFetch(MEMBER_XP_API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ updates }),
+    });
+    const data = await resp.json();
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-save mr-2"></i>Save Changes';
+
+    if (data.success) {
+      // Update original values so re-save doesn't re-send
+      document.querySelectorAll('.bulk-xp-input, .bulk-hp-input').forEach(inp => { inp.dataset.original = inp.value; });
+      const resultEl = document.getElementById('bulk-xp-result');
+      resultEl.textContent = `Saved ${data.updated} member${data.updated !== 1 ? 's' : ''} successfully.`;
+      resultEl.className = 'text-sm text-green-400';
+      resultEl.classList.remove('hidden');
+      showToast(`XP updated for ${data.updated} member${data.updated !== 1 ? 's' : ''}`, 'success');
+    } else {
+      showToast(data.error || 'Save failed', 'error');
+    }
+  } catch (err) {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-save mr-2"></i>Save Changes';
+    showToast('Network error', 'error');
+  }
+}
+
+// Leaderboard search
+document.getElementById('search-members').addEventListener('input', (e) => {
+  const query = e.target.value.toLowerCase();
+  document.querySelectorAll('.member-row').forEach(row => {
+    const name = row.querySelector('.text-white')?.textContent.toLowerCase() || '';
+    row.style.display = name.includes(query) ? '' : 'none';
+  });
+});
+
+// Leaderboard: load from API on page load
+async function loadLeaderboard() {
+  try {
+    const resp = await csrfFetch(MEMBER_XP_API, { method: 'GET' });
+    const data = await resp.json();
+    if (!data.success || !data.members || data.members.length === 0) return;
+
+    // Update header if unified leaderboard is active
+    if (data.unified) {
+      document.getElementById('leaderboard-title').innerHTML =
+        '<i class="fas fa-trophy text-yellow-400 mr-2"></i>Unified XP Leaderboard';
+      document.getElementById('leaderboard-subtitle').textContent =
+        'Top members by unified QuestLog XP (site + all platforms)';
+      const badge = document.getElementById('leaderboard-unified-badge');
+      badge.classList.remove('hidden');
+      badge.classList.add('flex');
+    }
+
+    const tbody = document.getElementById('leaderboard-body');
+    tbody.innerHTML = '';
+    data.members.slice(0, 50).forEach((m, idx) => {
+      const medal = idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `${idx + 1}`;
+      const tr = document.createElement('tr');
+      tr.className = 'member-row hover:bg-neutral-800/30 transition';
+      tr.innerHTML = `
+        <td class="px-5 py-3 text-gray-400 text-sm">${medal}</td>
+        <td class="px-5 py-3">
+          <div>
+            <p class="text-white text-sm font-medium">${escapeHtml(m.username || m.user_id)}</p>
+            <p class="text-gray-500 text-xs font-mono">${escapeHtml(m.user_id)}</p>
+          </div>
+        </td>
+        <td class="px-5 py-3 text-right text-indigo-400 font-medium">${m.level}</td>
+        <td class="px-5 py-3 text-right text-yellow-400 font-medium">${m.xp.toLocaleString()}</td>
+        <td class="px-5 py-3 text-center">
+          <button onclick="editLeaderboardMember('${escapeHtml(m.user_id)}','${escapeHtml(m.username || m.user_id)}')"
+                  class="text-gray-500 hover:text-white transition text-xs"><i class="fas fa-edit"></i></button>
+        </td>`;
+      tbody.appendChild(tr);
+    });
+    // DB count shown as fallback until live info loads
+    const el = document.getElementById('stat-total-members');
+    if (el && el.textContent === '-') el.textContent = data.members.length;
+  } catch (err) {
+    // silent - leaderboard is non-critical
+  }
+}
+
+function editLeaderboardMember(userId, username) {
+  openBulkEditModal();
+}
+
+// Toast
+function showToast(message, type = 'info') {
+  const toast = document.createElement('div');
+  const bgColor = type === 'success' ? 'bg-green-600' : type === 'error' ? 'bg-red-600' : 'bg-indigo-600';
+  toast.className = `fixed bottom-4 right-4 ${bgColor} text-white px-6 py-3 rounded-lg shadow-lg z-50 text-sm`;
+  toast.textContent = message;
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 3000);
+}
+
+// ---------- Level-Up Config ----------
+
+const LU_DEST_ITEMS = [
+  {value: 'current', label: 'Same channel where they leveled up'},
+  {value: 'channel', label: 'Specific channel'},
+  {value: 'dm',      label: 'Direct message to member'},
+  {value: 'none',    label: 'Silent (no message)'},
+];
+const LU_CHANNEL_ITEMS = [
+  {value: '', label: '-- Select a channel --'},
+  ...CHANNELS.map(c => ({value: c.id, label: '# ' + (c.label || c.id)})),
+];
+
+let csLuDest = null;
+let csLuChannel = null;
+let csBoostMultiplier = null;
+
+const BOOST_MULTIPLIER_ITEMS = [2,3,4,5].map(n => ({value: String(n), label: n + 'x XP'}));
+
+function initLevelUpTab() {
+  document.getElementById('lu-enabled').checked = !!LEVELUP_CONFIG.level_up_enabled;
+  document.getElementById('lu-message').value = LEVELUP_CONFIG.level_up_message || '';
+
+  if (!csLuDest) {
+    csLuDest = createCustomSelect({
+      container: document.getElementById('cs-lu-destination'),
+      name: 'lu_destination',
+      items: LU_DEST_ITEMS,
+      selected: LEVELUP_CONFIG.level_up_destination || 'current',
+      color: 'blue',
+      onSelect: () => toggleLuChannel(),
+    });
+  } else {
+    csLuDest.setValue(LEVELUP_CONFIG.level_up_destination || 'current');
+  }
+
+  if (!csLuChannel) {
+    csLuChannel = createCustomSelect({
+      container: document.getElementById('cs-lu-channel'),
+      name: 'lu_channel_id',
+      items: LU_CHANNEL_ITEMS,
+      selected: LEVELUP_CONFIG.level_up_channel_id || '',
+      color: 'blue',
+    });
+  } else {
+    csLuChannel.setValue(LEVELUP_CONFIG.level_up_channel_id || '');
+  }
+
+  toggleLuChannel();
+  updateLuPreview();
+}
+
+function toggleLuChannel() {
+  const dest = csLuDest ? csLuDest.getValue() : 'current';
+  const row = document.getElementById('lu-channel-row');
+  if (row) row.classList.toggle('hidden', dest !== 'channel');
+}
+
+function updateLuPreview() {
+  const tmpl = document.getElementById('lu-message').value.trim() ||
+    'GG {user}, you just reached **Level {level}**! Keep chatting to level up further.';
+  const preview = tmpl
+    .replace('{user}', '<strong>@YourName</strong>')
+    .replace('{username}', 'YourName')
+    .replace('{level}', '5')
+    .replace('{server}', '{{ guild_name }}');
+  document.getElementById('lu-preview').innerHTML = preview;
+}
+document.addEventListener('DOMContentLoaded', () => {
+  const msgEl = document.getElementById('lu-message');
+  if (msgEl) msgEl.addEventListener('input', updateLuPreview);
+});
+
+async function saveLevelUpConfig() {
+  const btn = document.getElementById('levelup-save-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Saving...';
+  const payload = {
+    level_up_enabled: document.getElementById('lu-enabled').checked,
+    level_up_destination: csLuDest ? csLuDest.getValue() : 'current',
+    level_up_channel_id: csLuChannel ? csLuChannel.getValue() : '',
+    level_up_message: document.getElementById('lu-message').value.trim(),
+  };
+  try {
+    const resp = await csrfFetch(LEVELUP_API, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload),
+    });
+    const data = await resp.json();
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-save mr-2"></i>Save Settings';
+    if (data.success) {
+      showToast('Level-up settings saved!', 'success');
+    } else {
+      showToast(data.error || 'Save failed', 'error');
+    }
+  } catch (err) {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-save mr-2"></i>Save Settings';
+    showToast('Network error', 'error');
+  }
+}
+
+// ---------- XP Boost Events ----------
+
+let _boosts = [...BOOSTS_JSON];
+
+function renderBoosts() {
+  const list = document.getElementById('boosts-list');
+  const empty = document.getElementById('boosts-empty');
+  const banner = document.getElementById('active-boost-banner');
+
+  const active = _boosts.filter(b => b.is_active);
+  if (active.length > 0) {
+    banner.classList.remove('hidden');
+    const names = active.map(b => `${b.name} (${b.multiplier}x)`).join(', ');
+    document.getElementById('active-boost-label').textContent = `XP Boost Active: ${active.map(b => b.multiplier + 'x').join(' + ')} total`;
+    document.getElementById('active-boost-detail').textContent = names;
+  } else {
+    banner.classList.add('hidden');
+  }
+
+  if (_boosts.length === 0) {
+    if (empty) empty.classList.remove('hidden');
+    return;
+  }
+  if (empty) empty.classList.add('hidden');
+
+  // Remove old rendered rows (keep empty placeholder)
+  list.querySelectorAll('.boost-row').forEach(el => el.remove());
+
+  _boosts.forEach(b => {
+    const div = document.createElement('div');
+    div.className = 'boost-row p-4 flex items-center justify-between';
+    div.dataset.id = b.id;
+    const statusDot = b.is_active
+      ? '<span class="inline-block w-2 h-2 rounded-full bg-green-400 mr-2"></span>'
+      : '<span class="inline-block w-2 h-2 rounded-full bg-gray-600 mr-2"></span>';
+    const timeStr = b.end_time
+      ? `Ends ${new Date(b.end_time * 1000).toLocaleDateString()}`
+      : 'No expiry';
+    div.innerHTML = `
+      <div class="flex items-center gap-4">
+        <div class="w-12 h-12 bg-orange-600/20 rounded-lg flex items-center justify-center flex-shrink-0">
+          <span class="text-orange-400 font-bold">${b.multiplier}x</span>
+        </div>
+        <div>
+          <p class="text-white font-medium flex items-center">${statusDot}${escapeHtml(b.name)}</p>
+          <p class="text-gray-500 text-sm">${timeStr}</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-2">
+        <button onclick="toggleBoostActive(${b.id}, ${!b.is_active})"
+                class="px-3 py-1.5 text-xs rounded-lg font-medium transition ${b.is_active ? 'bg-red-700/40 hover:bg-red-700/60 text-red-300' : 'bg-green-700/40 hover:bg-green-700/60 text-green-300'}">
+          ${b.is_active ? 'Deactivate' : 'Activate'}
+        </button>
+        <button onclick="editBoost(${b.id})" class="text-gray-400 hover:text-white transition p-1.5"><i class="fas fa-edit text-sm"></i></button>
+        <button onclick="deleteBoost(${b.id})" class="text-red-400 hover:text-red-300 transition p-1.5"><i class="fas fa-trash text-sm"></i></button>
+      </div>`;
+    list.appendChild(div);
+  });
+}
+
+function openBoostModal(editId = null) {
+  document.getElementById('boost-edit-id').value = editId || '';
+  document.getElementById('boost-modal-title').innerHTML =
+    `<i class="fas fa-bolt text-orange-400 mr-2"></i>${editId ? 'Edit' : 'New'} Boost Event`;
+  document.getElementById('boost-name').value = '';
+  document.getElementById('boost-start').value = '';
+  document.getElementById('boost-end').value = '';
+  document.getElementById('boost-active').checked = false;
+
+  // Init or reset custom select for multiplier
+  const csContainer = document.getElementById('cs-boost-multiplier');
+  if (!csBoostMultiplier) {
+    csBoostMultiplier = createCustomSelect({
+      container: csContainer,
+      name: 'boost_multiplier',
+      items: BOOST_MULTIPLIER_ITEMS,
+      selected: '2',
+      color: 'orange',
+    });
+  } else {
+    csBoostMultiplier.setValue('2');
+  }
+
+  if (editId) {
+    const b = _boosts.find(x => x.id == editId);
+    if (b) {
+      document.getElementById('boost-name').value = b.name;
+      csBoostMultiplier.setValue(String(b.multiplier));
+      document.getElementById('boost-active').checked = b.is_active;
+      if (b.start_time) {
+        const d = new Date(b.start_time * 1000);
+        document.getElementById('boost-start').value = d.toISOString().slice(0, 16);
+      }
+      if (b.end_time) {
+        const d = new Date(b.end_time * 1000);
+        document.getElementById('boost-end').value = d.toISOString().slice(0, 16);
+      }
+    }
+  }
+  document.getElementById('boost-modal').classList.remove('hidden');
+}
+
+function closeBoostModal() { document.getElementById('boost-modal').classList.add('hidden'); }
+
+function editBoost(id) { openBoostModal(id); }
+
+async function saveBoost() {
+  const editId = document.getElementById('boost-edit-id').value;
+  const name = document.getElementById('boost-name').value.trim();
+  if (!name) { showToast('Event name required', 'error'); return; }
+
+  const toTs = val => val ? Math.floor(new Date(val).getTime() / 1000) : null;
+  const payload = {
+    name,
+    multiplier: parseInt(csBoostMultiplier ? csBoostMultiplier.getValue() : '2') || 2,
+    is_active: document.getElementById('boost-active').checked,
+    start_time: toTs(document.getElementById('boost-start').value),
+    end_time: toTs(document.getElementById('boost-end').value),
+  };
+
+  const btn = document.getElementById('boost-save-btn');
+  btn.disabled = true;
+  try {
+    let resp;
+    if (editId) {
+      resp = await csrfFetch(BOOSTS_API + editId + '/', {
+        method: 'PATCH',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(payload),
+      });
+    } else {
+      resp = await csrfFetch(BOOSTS_API, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(payload),
+      });
+    }
+    const data = await resp.json();
+    btn.disabled = false;
+    if (data.success) {
+      closeBoostModal();
+      if (editId) {
+        const idx = _boosts.findIndex(b => b.id == editId);
+        if (idx >= 0) _boosts[idx] = data.boost;
+      } else {
+        _boosts.unshift(data.boost);
+      }
+      renderBoosts();
+      showToast(editId ? 'Boost updated!' : 'Boost created!', 'success');
+    } else {
+      showToast(data.error || 'Save failed', 'error');
+    }
+  } catch (err) {
+    btn.disabled = false;
+    showToast('Network error', 'error');
+  }
+}
+
+async function toggleBoostActive(id, newActive) {
+  try {
+    const resp = await csrfFetch(BOOSTS_API + id + '/', {
+      method: 'PATCH',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ is_active: newActive }),
+    });
+    const data = await resp.json();
+    if (data.success) {
+      const idx = _boosts.findIndex(b => b.id == id);
+      if (idx >= 0) _boosts[idx] = data.boost;
+      renderBoosts();
+      showToast(newActive ? 'Boost activated!' : 'Boost deactivated.', 'success');
+    } else {
+      showToast(data.error || 'Failed', 'error');
+    }
+  } catch (err) {
+    showToast('Network error', 'error');
+  }
+}
+
+async function deleteBoost(id) {
+  if (!confirm('Delete this boost event?')) return;
+  try {
+    const resp = await csrfFetch(BOOSTS_API + id + '/', { method: 'DELETE' });
+    const data = await resp.json();
+    if (data.success) {
+      _boosts = _boosts.filter(b => b.id != id);
+      renderBoosts();
+      showToast('Boost deleted.', 'success');
+    } else {
+      showToast(data.error || 'Delete failed', 'error');
+    }
+  } catch (err) {
+    showToast('Network error', 'error');
+  }
+}
+
+// ---------- Tab switching ----------
+
+function switchXpTab(tab, setHash = false) {
+  const TAB_COLORS = { settings: 'border-yellow-500', levelup: 'border-blue-500', boosts: 'border-orange-500' };
+  const tabs = ['settings', 'levelup', 'boosts'];
+  tabs.forEach(key => {
+    const section = document.getElementById(`xpTab${key.charAt(0).toUpperCase() + key.slice(1)}`);
+    const btn = document.getElementById(`xpTab${key.charAt(0).toUpperCase() + key.slice(1)}Btn`);
+    if (section) section.classList.toggle('hidden', key !== tab);
+    if (btn) {
+      const active = key === tab;
+      btn.classList.remove('text-white', 'text-gray-400', ...Object.values(TAB_COLORS), 'border-transparent');
+      btn.classList.add(active ? 'text-white' : 'text-gray-400');
+      btn.classList.add(active ? TAB_COLORS[key] : 'border-transparent');
+    }
+  });
+  if (setHash) window.location.hash = tab === 'settings' ? '' : `#${tab}`;
+}
+
+function toggleXpActions(forceClose = false) {
+  const menu = document.getElementById('xpActionsMenu');
+  if (!menu) return;
+  const isOpen = !menu.classList.contains('hidden');
+  if (forceClose || isOpen) { menu.classList.add('hidden'); } else { menu.classList.remove('hidden'); }
+}
+
+document.addEventListener('click', (e) => {
+  const menu = document.getElementById('xpActionsMenu');
+  const btn = document.getElementById('xpActionsBtn');
+  if (!menu || !btn) return;
+  if (!menu.contains(e.target) && !btn.contains(e.target)) { menu.classList.add('hidden'); }
+});
+
+// Init on load
+const hash = (window.location.hash || '').replace('#', '');
+const initialTab = ['settings', 'levelup', 'boosts'].includes(hash) ? hash : 'settings';
+switchXpTab(initialTab);
+window.addEventListener('hashchange', () => {
+  const newHash = (window.location.hash || '').replace('#', '');
+  switchXpTab(['settings', 'levelup', 'boosts'].includes(newHash) ? newHash : 'settings');
+});
+
+async function loadLiveInfo() {
+  try {
+    const resp = await csrfFetch('/ql/api/dashboard/fluxer/' + GUILD_ID + '/live-info/', { method: 'GET' });
+    const data = await resp.json();
+    const el = document.getElementById('stat-total-members');
+    if (data.success && el) {
+      el.textContent = data.member_count.toLocaleString();
+    }
+  } catch (err) {
+    // silent - non-critical
+  }
+}
+
+// Load leaderboard data and init level-up tab after full page parse (csrfFetch defined in base.html after block content)
+document.addEventListener('DOMContentLoaded', () => {
+  loadLeaderboard();
+  loadLiveInfo();
+  initLevelUpTab();
+  renderBoosts();
+});
+</script>
+{% endblock %}

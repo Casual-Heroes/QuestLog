@@ -1,0 +1,70 @@
+{% extends "questlog_web/base_web.html" %}
+{% load static %}
+
+{% block title %}{% if post_author %}Post by {{ post_author }} - QuestLog{% else %}Post Not Found - QuestLog{% endif %}{% endblock %}
+
+{% block og_title %}{% if og_title %}{{ og_title }}{% else %}QuestLog{% endif %}{% endblock %}
+{% block og_description %}{% if og_desc %}{{ og_desc }}{% else %}View this post on QuestLog{% endif %}{% endblock %}
+{% block og_image %}{% if og_image %}{{ og_image }}{% else %}https://dashboard.casual-heroes.com/static/img/siteassets/homepage/CHLogoFinal.png{% endif %}{% endblock %}
+{% block og_url %}{% if og_url %}{{ og_url }}{% else %}https://casual-heroes.com/ql/{% endif %}{% endblock %}
+{% block twitter_card %}{% if og_image %}summary_large_image{% else %}summary{% endif %}{% endblock %}
+{% block twitter_title %}{% if og_title %}{{ og_title }}{% else %}QuestLog{% endif %}{% endblock %}
+{% block twitter_description %}{% if og_desc %}{{ og_desc }}{% else %}View this post on QuestLog{% endif %}{% endblock %}
+{% block twitter_image %}{% if og_image %}{{ og_image }}{% else %}https://dashboard.casual-heroes.com/static/img/siteassets/homepage/CHLogoFinal.png{% endif %}{% endblock %}
+
+{% block web_content %}
+{% include "questlog_web/partials/post_card.html" %}
+
+<div class="max-w-2xl mx-auto px-4 py-6">
+
+  <a href="javascript:history.back()" class="inline-flex items-center gap-2 text-gray-500 hover:text-white text-sm mb-5 transition">
+    <i class="fas fa-arrow-left"></i> Back
+  </a>
+
+  {% if not post_json %}
+  <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-8 text-center">
+    <i class="fas fa-ghost text-4xl text-gray-600 mb-3"></i>
+    <p class="text-white font-semibold mb-1">Post not found</p>
+    <p class="text-gray-500 text-sm">This post may have been deleted or is not available.</p>
+    <a href="/ql/" class="mt-4 inline-block text-indigo-400 hover:text-indigo-300 text-sm">Go to Home</a>
+  </div>
+  {% else %}
+
+  <div id="post-container" class="mb-4"></div>
+
+
+  <script>
+  // Runs after base.html scripts (which define renderPostCard, csrfFetch, etc.)
+  window._postDetailData = {{ post_json|safe }};
+  window._postDetailId = {{ post_id }};
+  window._postDetailUserId = {{ web_user.id|default:"null" }};
+  window._postDetailIsAdmin = {{ web_user.is_admin|default:"false"|lower }};
+  </script>
+
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{% if post_json %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const container = document.getElementById('post-container');
+  if (container && window._postDetailData) {
+    container.innerHTML = renderPostCard(window._postDetailData, {
+      showAuthor: true,
+      currentUserId: window._postDetailUserId,
+      isAdmin: window._postDetailIsAdmin,
+    });
+    // Show the comments section inside the card (hidden by default)
+    const commentsDiv = document.getElementById(`comments-${window._postDetailId}`);
+    if (commentsDiv) {
+      commentsDiv.classList.remove('hidden');
+      loadComments(window._postDetailId);
+    }
+  }
+});
+
+</script>
+{% endif %}
+{% endblock %}

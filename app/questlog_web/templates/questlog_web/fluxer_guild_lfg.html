@@ -1,0 +1,1854 @@
+{% extends "questlog_web/fluxer_base_guild.html" %}
+{% load static %}
+{% block title %}LFG System - {{ guild_name }}{% endblock %}
+
+{% block guild_content %}
+{% include "questlog/partials/custom_select.html" %}
+
+<!-- Header -->
+<div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
+  <div>
+    <h1 class="text-3xl font-bold text-white">
+      <i class="fas fa-users text-green-400 mr-3"></i>Looking For Group
+    </h1>
+    <p class="text-gray-400 mt-1">Set up LFG for any game with IGDB integration</p>
+  </div>
+  <div class="flex gap-3">
+    <button onclick="openSearchModal()" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium transition text-sm">
+      <i class="fas fa-search mr-2"></i>Search IGDB
+    </button>
+    <button onclick="openCustomGameModal()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium transition text-sm">
+      <i class="fas fa-plus mr-2"></i>Custom Game
+    </button>
+  </div>
+</div>
+
+<!-- Save status banner -->
+<div id="save-msg" class="hidden mb-4 px-4 py-3 rounded-lg text-sm font-medium"></div>
+
+<!-- LFG Channel Banner -->
+<div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6 mb-6">
+  <div class="flex flex-col md:flex-row md:items-end gap-4">
+    <div class="flex-grow">
+      <h3 class="text-base font-bold text-white mb-1">
+        <i class="fas fa-hashtag text-green-400 mr-2"></i>Default LFG Channel
+      </h3>
+      <p class="text-gray-500 text-sm mb-3">Used when a game has no channel configured. Games without a channel are disabled until one is set.</p>
+      <div id="cs-lfg-ch-banner"></div>
+    </div>
+    <button onclick="saveLfgChannel()" class="bg-green-600 hover:bg-green-700 text-white px-5 py-2.5 rounded-lg font-medium transition text-sm flex-shrink-0">
+      <i class="fas fa-save mr-2"></i>Save Channel
+    </button>
+  </div>
+</div>
+
+<!-- How It Works -->
+<div class="bg-gradient-to-r from-green-900/20 to-emerald-900/20 rounded-xl border border-green-800/30 p-6 mb-8">
+  <h3 class="text-lg font-bold text-white mb-4">
+    <i class="fas fa-info-circle text-green-400 mr-2"></i>How LFG Works
+  </h3>
+  <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+    <div class="text-center">
+      <div class="w-12 h-12 bg-green-600/20 rounded-full flex items-center justify-center mx-auto mb-3">
+        <span class="text-green-400 font-bold text-lg">1</span>
+      </div>
+      <p class="text-white font-medium">Add Games</p>
+      <p class="text-gray-400 text-sm mt-1">Search IGDB for games to add to your LFG system</p>
+    </div>
+    <div class="text-center">
+      <div class="w-12 h-12 bg-green-600/20 rounded-full flex items-center justify-center mx-auto mb-3">
+        <span class="text-green-400 font-bold text-lg">2</span>
+      </div>
+      <p class="text-white font-medium">Configure Channel</p>
+      <p class="text-gray-400 text-sm mt-1">Set which channel LFG threads are created in</p>
+    </div>
+    <div class="text-center">
+      <div class="w-12 h-12 bg-green-600/20 rounded-full flex items-center justify-center mx-auto mb-3">
+        <span class="text-green-400 font-bold text-lg">3</span>
+      </div>
+      <p class="text-white font-medium">Members Use /lfg</p>
+      <p class="text-gray-400 text-sm mt-1">Users create groups with the /lfg command</p>
+    </div>
+    <div class="text-center">
+      <div class="w-12 h-12 bg-green-600/20 rounded-full flex items-center justify-center mx-auto mb-3">
+        <span class="text-green-400 font-bold text-lg">4</span>
+      </div>
+      <p class="text-white font-medium">Auto-Threads</p>
+      <p class="text-gray-400 text-sm mt-1">Groups get their own thread to coordinate</p>
+    </div>
+  </div>
+</div>
+
+<!-- Tab Navigation -->
+<div class="flex gap-2 mb-6 border-b border-neutral-800 pb-4 flex-wrap">
+  <button onclick="showTab('games')" id="tab-games" class="tab-btn px-4 py-2 rounded-lg text-sm font-medium transition bg-green-600 text-white">
+    <i class="fas fa-gamepad mr-2"></i>Games
+  </button>
+  <button onclick="showTab('config')" id="tab-config" class="tab-btn px-4 py-2 rounded-lg text-sm font-medium transition bg-neutral-700 text-gray-300 hover:bg-neutral-600">
+    <i class="fas fa-cog mr-2"></i>Attendance Config
+  </button>
+  <button onclick="showTab('stats')" id="tab-stats" class="tab-btn px-4 py-2 rounded-lg text-sm font-medium transition bg-neutral-700 text-gray-300 hover:bg-neutral-600">
+    <i class="fas fa-chart-bar mr-2"></i>Reliability Stats
+  </button>
+  <button onclick="showTab('blacklist')" id="tab-blacklist" class="tab-btn px-4 py-2 rounded-lg text-sm font-medium transition bg-neutral-700 text-gray-300 hover:bg-neutral-600">
+    <i class="fas fa-ban mr-2"></i>Blacklist
+  </button>
+</div>
+
+<!-- Games Tab -->
+<div id="panel-games" class="tab-panel">
+  <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6">
+    <h3 class="text-lg font-bold text-white mb-4">
+      <i class="fas fa-gamepad text-gray-400 mr-2"></i>Configured Games
+      <span id="games-count-label" class="text-gray-500 text-sm font-normal ml-2"></span>
+    </h3>
+
+    <div id="games-loading" class="text-center py-12">
+      <i class="fas fa-spinner fa-spin text-green-400 text-3xl mb-3"></i>
+      <p class="text-gray-400">Loading games...</p>
+    </div>
+
+    <div id="games-empty" class="hidden text-center py-12">
+      <i class="fas fa-gamepad text-4xl text-gray-600 mb-4"></i>
+      <p class="text-gray-400">No games configured yet</p>
+      <p class="text-gray-500 text-sm mt-2">Click "Search IGDB" to add your first game!</p>
+    </div>
+
+    <div id="games-list" class="hidden space-y-4"></div>
+
+    <!-- QuestLog Network: per-group opt-in note -->
+    <div class="mt-6 pt-6 border-t border-neutral-800">
+      <p class="text-sm text-gray-400">
+        <i class="fas fa-globe text-yellow-400 mr-2"></i>
+        Members can post individual LFG groups to the QuestLog Network when creating a group in the
+        <a href="/ql/dashboard/fluxer/{{ guild_id }}/lfg/browse/" class="text-yellow-400 hover:text-yellow-300 underline">LFG Browser</a>.
+        Network publishing is opt-in per group, not server-wide.
+      </p>
+    </div>
+  </div>
+</div>
+
+<!-- Attendance Config Tab -->
+<div id="panel-config" class="tab-panel hidden">
+  <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6">
+    <h3 class="text-lg font-bold text-white mb-6">
+      <i class="fas fa-cog text-purple-400 mr-2"></i>Attendance Tracking Configuration
+    </h3>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div>
+        <label class="flex items-center gap-3 cursor-pointer">
+          <input type="checkbox" id="attendanceEnabled" class="w-5 h-5 rounded bg-neutral-700 border-neutral-600 text-purple-500 focus:ring-purple-500">
+          <span class="text-white font-medium">Enable Attendance Tracking</span>
+        </label>
+        <p class="text-gray-400 text-sm mt-2 ml-8">Track who shows up and who doesn't for LFG events</p>
+      </div>
+
+      <div>
+        <label class="flex items-center gap-3 cursor-pointer">
+          <input type="checkbox" id="requireConfirmation" class="w-5 h-5 rounded bg-neutral-700 border-neutral-600 text-purple-500 focus:ring-purple-500">
+          <span class="text-white font-medium">Require Confirmation</span>
+        </label>
+        <p class="text-gray-400 text-sm mt-2 ml-8">Members must confirm they're attending before event starts</p>
+      </div>
+
+      <div>
+        <label class="block text-sm text-gray-400 mb-2">Auto No-Show Timer (hours)</label>
+        <input type="number" id="autoNoshowHours" value="1" min="0" max="24"
+               class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:border-purple-500 focus:outline-none">
+        <p class="text-gray-500 text-xs mt-1">Hours after event to auto-mark no-shows (0 = disabled)</p>
+      </div>
+
+      <div>
+        <label class="block text-sm text-gray-400 mb-2">Minimum Reliability Score</label>
+        <input type="number" id="minReliability" value="0" min="0" max="100"
+               class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:border-purple-500 focus:outline-none">
+        <p class="text-gray-500 text-xs mt-1">Min score to join groups (0 = no restriction)</p>
+      </div>
+
+      <div>
+        <label class="block text-sm text-gray-400 mb-2">Warn at Reliability Score</label>
+        <input type="number" id="warnAtReliability" value="50" min="0" max="100"
+               class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:border-purple-500 focus:outline-none">
+        <p class="text-gray-500 text-xs mt-1">Show warning when member's score drops below this</p>
+      </div>
+
+      <div>
+        <label class="block text-sm text-gray-400 mb-2">Auto-Blacklist After No-Shows</label>
+        <input type="number" id="autoBlacklist" value="0" min="0" max="20"
+               class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:border-purple-500 focus:outline-none">
+        <p class="text-gray-500 text-xs mt-1">Auto-blacklist after X no-shows (0 = disabled)</p>
+      </div>
+    </div>
+
+    <div class="mt-6 pt-6 border-t border-neutral-700">
+      <button onclick="saveConfig()" class="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded-lg font-medium transition">
+        <i class="fas fa-save mr-2"></i>Save Configuration
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Reliability Stats Tab -->
+<div id="panel-stats" class="tab-panel hidden">
+  <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6">
+    <div class="flex items-center justify-between mb-6">
+      <h3 class="text-lg font-bold text-white">
+        <i class="fas fa-chart-bar text-blue-400 mr-2"></i>Member Reliability Stats
+      </h3>
+      <div class="flex gap-2">
+        <select id="statsSort" onchange="loadStats()" class="bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none">
+          <option value="reliability">Most Reliable</option>
+          <option value="active">Most Active</option>
+          <option value="flaky">Flakiest</option>
+        </select>
+      </div>
+    </div>
+
+    <div id="statsTable" class="space-y-2">
+      <p class="text-gray-400 text-center py-8">Switch to this tab to load stats.</p>
+    </div>
+  </div>
+</div>
+
+<!-- Blacklist Tab -->
+<div id="panel-blacklist" class="tab-panel hidden">
+  <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6">
+    <h3 class="text-lg font-bold text-white mb-6">
+      <i class="fas fa-ban text-red-400 mr-2"></i>Blacklisted Members
+    </h3>
+
+    <div id="blacklistTable" class="space-y-2">
+      <p class="text-gray-400 text-center py-8">Switch to this tab to load the blacklist.</p>
+    </div>
+  </div>
+</div>
+
+<!-- Search Modal -->
+<div id="searchModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm hidden items-center justify-center z-50">
+  <div class="bg-neutral-900 rounded-xl border border-neutral-700 w-full max-w-2xl mx-4 overflow-hidden">
+    <div class="p-6 border-b border-neutral-800">
+      <h2 class="text-xl font-bold text-white">
+        <i class="fas fa-search text-green-400 mr-2"></i>Search IGDB for Games
+      </h2>
+    </div>
+    <div class="p-6">
+      <div class="flex gap-3 mb-6">
+        <input type="text" id="searchQuery" placeholder="Search for a game..."
+               class="flex-grow bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:border-green-500 focus:outline-none">
+        <button onclick="searchGames()" class="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg font-medium transition">
+          Search
+        </button>
+      </div>
+      <div id="searchResults" class="space-y-3 max-h-96 overflow-y-auto">
+        <p class="text-gray-400 text-center py-8">Enter a game name to search</p>
+      </div>
+    </div>
+    <div class="p-4 bg-neutral-800 border-t border-neutral-700 flex justify-end">
+      <button onclick="closeSearchModal()" class="bg-neutral-700 hover:bg-neutral-600 text-white px-4 py-2 rounded-lg transition">
+        Close
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Add Game Modal (IGDB) -->
+<div id="addGameModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm hidden items-center justify-center z-50">
+  <div class="bg-neutral-900 rounded-xl border border-neutral-700 w-full max-w-lg mx-4 overflow-hidden">
+    <div class="p-6 border-b border-neutral-800">
+      <h2 class="text-xl font-bold text-white" id="addGameTitle">Add Game</h2>
+    </div>
+    <div class="p-6 space-y-4">
+      <input type="hidden" id="addIgdbId">
+      <input type="hidden" id="addGameName">
+      <input type="hidden" id="addCoverUrl">
+      <input type="hidden" id="addPlatforms">
+
+      <!-- Game cover preview -->
+      <div id="addGamePreview" class="hidden flex items-center gap-4 bg-neutral-800 rounded-lg p-3">
+        <div class="w-15 h-20 bg-neutral-700 rounded overflow-hidden flex-shrink-0" id="addGameCoverWrap">
+          <img id="addGameCoverImg" src="" alt="" class="w-full h-full object-cover">
+        </div>
+        <div>
+          <p class="text-white font-medium" id="addGameNameDisplay"></p>
+          <p class="text-gray-400 text-xs mt-1" id="addGamePlatformsDisplay"></p>
+        </div>
+      </div>
+
+      <div>
+        <label class="block text-sm text-gray-400 mb-2">Short Code (for commands)</label>
+        <input type="text" id="addShortCode" placeholder="e.g. MHW"
+               class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:border-green-500 focus:outline-none uppercase">
+        <p class="text-gray-500 text-xs mt-1">Members will use /lfg and select this game (max 8 chars)</p>
+      </div>
+
+      <div>
+        <label class="block text-sm text-gray-400 mb-2">LFG Channel <span class="text-gray-600 text-xs font-normal">(optional - can configure later)</span></label>
+        <div id="addGameChannelContainer"></div>
+        <p class="text-gray-500 text-xs mt-1">Game will be disabled until a channel is configured</p>
+      </div>
+
+      <div>
+        <label class="block text-sm text-gray-400 mb-2">Notify Role ID (optional)</label>
+        <input type="text" id="addNotifyRoleId" placeholder="Discord role ID"
+               class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:border-green-500 focus:outline-none">
+      </div>
+
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="block text-sm text-gray-400 mb-2">Max Group Size</label>
+          <input type="number" id="addMaxSize" value="4" min="2" max="50"
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:border-green-500 focus:outline-none">
+        </div>
+        <div>
+          <label class="block text-sm text-gray-400 mb-2">Auto-Archive Duration</label>
+          <select id="addArchiveHours" class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:border-green-500 focus:outline-none">
+            <option value="1">1 Hour</option>
+            <option value="24" selected>24 Hours</option>
+            <option value="72">3 Days</option>
+            <option value="168">1 Week</option>
+          </select>
+        </div>
+      </div>
+
+      <div>
+        <label class="flex items-center gap-3 cursor-pointer">
+          <input type="checkbox" id="addEnabled" checked class="w-5 h-5 rounded bg-neutral-700 border-neutral-600 text-green-500 focus:ring-green-500">
+          <span class="text-white font-medium">Enabled</span>
+        </label>
+      </div>
+    </div>
+    <div class="p-4 bg-neutral-800 border-t border-neutral-700 flex justify-end gap-3">
+      <button onclick="closeAddGameModal()" class="bg-neutral-700 hover:bg-neutral-600 text-white px-4 py-2 rounded-lg transition">
+        Cancel
+      </button>
+      <button onclick="submitAddGame()" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg transition">
+        Add Game
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Custom Game Modal -->
+<div id="customGameModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm hidden items-center justify-center z-50">
+  <div class="bg-neutral-900 rounded-xl border border-neutral-700 w-full max-w-lg mx-4 overflow-hidden">
+    <div class="p-6 border-b border-neutral-800">
+      <h2 class="text-xl font-bold text-white">
+        <i class="fas fa-gamepad text-indigo-400 mr-2"></i>Add Custom Game
+      </h2>
+    </div>
+    <div class="p-6 space-y-4">
+      <div>
+        <label class="block text-sm text-gray-400 mb-2">Game Name <span class="text-red-400">*</span></label>
+        <input type="text" id="customGameName" placeholder="e.g. My Custom Game"
+               class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:border-indigo-500 focus:outline-none">
+      </div>
+
+      <div>
+        <label class="block text-sm text-gray-400 mb-2">Short Code <span class="text-red-400">*</span></label>
+        <input type="text" id="customShortCode" placeholder="e.g. MCG"
+               class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:border-indigo-500 focus:outline-none uppercase">
+        <p class="text-gray-500 text-xs mt-1">Max 8 characters, uppercase</p>
+      </div>
+
+      <div>
+        <label class="block text-sm text-gray-400 mb-2">Cover Art URL (optional)</label>
+        <input type="text" id="customCoverUrl" placeholder="https://..."
+               class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:border-indigo-500 focus:outline-none">
+      </div>
+
+      <div>
+        <label class="block text-sm text-gray-400 mb-2">LFG Channel <span class="text-gray-600 text-xs font-normal">(optional - can configure later)</span></label>
+        <div id="customGameChannelContainer"></div>
+        <p class="text-gray-500 text-xs mt-1">Game will be disabled until a channel is configured</p>
+      </div>
+
+      <div>
+        <label class="block text-sm text-gray-400 mb-2">Notify Role ID (optional)</label>
+        <input type="text" id="customNotifyRoleId" placeholder="Discord role ID"
+               class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:border-indigo-500 focus:outline-none">
+      </div>
+
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="block text-sm text-gray-400 mb-2">Max Group Size</label>
+          <input type="number" id="customMaxSize" value="4" min="2" max="50"
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:border-indigo-500 focus:outline-none">
+        </div>
+        <div>
+          <label class="block text-sm text-gray-400 mb-2">Auto-Archive Duration</label>
+          <select id="customArchiveHours" class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:border-indigo-500 focus:outline-none">
+            <option value="1">1 Hour</option>
+            <option value="24" selected>24 Hours</option>
+            <option value="72">3 Days</option>
+            <option value="168">1 Week</option>
+          </select>
+        </div>
+      </div>
+    </div>
+    <div class="p-4 bg-neutral-800 border-t border-neutral-700 flex justify-end gap-3">
+      <button onclick="closeCustomGameModal()" class="bg-neutral-700 hover:bg-neutral-600 text-white px-4 py-2 rounded-lg transition">
+        Cancel
+      </button>
+      <button onclick="submitCustomGame()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg transition">
+        Add Custom Game
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Game Modal -->
+<div id="editGameModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm hidden items-center justify-center z-50">
+  <div class="bg-neutral-900 rounded-xl border border-neutral-700 w-full max-w-lg mx-4 overflow-hidden max-h-[90vh] overflow-y-auto">
+    <div class="p-6 border-b border-neutral-800">
+      <h2 class="text-xl font-bold text-white" id="editGameTitle">
+        <i class="fas fa-cog text-gray-400 mr-2"></i>Edit Game
+      </h2>
+    </div>
+    <div class="p-6 space-y-4">
+      <input type="hidden" id="editGameId">
+
+      <div>
+        <label class="block text-sm text-gray-400 mb-2">Game Name</label>
+        <input type="text" id="editGameName" class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:border-green-500 focus:outline-none">
+      </div>
+
+      <div>
+        <label class="block text-sm text-gray-400 mb-2">LFG Channel</label>
+        <div id="editGameChannelContainer"></div>
+      </div>
+
+      <div>
+        <label class="block text-sm text-gray-400 mb-2">Notify Role ID (optional)</label>
+        <input type="text" id="editNotifyRoleId" placeholder="Discord role ID"
+               class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:border-green-500 focus:outline-none">
+      </div>
+
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="block text-sm text-gray-400 mb-2">Max Group Size</label>
+          <input type="number" id="editMaxSize" min="2" max="50" class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:border-green-500 focus:outline-none">
+        </div>
+        <div>
+          <label class="block text-sm text-gray-400 mb-2">Auto-Archive Duration</label>
+          <select id="editArchiveHours" class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:border-green-500 focus:outline-none">
+            <option value="1">1 Hour</option>
+            <option value="24">24 Hours</option>
+            <option value="72">3 Days</option>
+            <option value="168">1 Week</option>
+          </select>
+        </div>
+      </div>
+
+      <div>
+        <label class="flex items-center gap-3 cursor-pointer">
+          <input type="checkbox" id="editEnabled" class="w-5 h-5 rounded bg-neutral-700 border-neutral-600 text-green-500 focus:ring-green-500">
+          <span class="text-white font-medium">Enabled</span>
+        </label>
+      </div>
+
+      <div class="border-t border-neutral-700 pt-4 mt-4">
+        <h4 class="text-white font-medium mb-3">Rank Requirement</h4>
+        <div class="space-y-3">
+          <label class="flex items-center gap-3 cursor-pointer">
+            <input type="checkbox" id="editRequireRank" class="w-5 h-5 rounded bg-neutral-700 border-neutral-600 text-yellow-500 focus:ring-yellow-500">
+            <span class="text-gray-300">Require rank/level input</span>
+          </label>
+          <div class="grid grid-cols-3 gap-3">
+            <div>
+              <label class="block text-xs text-gray-500 mb-1">Label</label>
+              <input type="text" id="editRankLabel" placeholder="Rank" class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-yellow-500 focus:outline-none">
+            </div>
+            <div>
+              <label class="block text-xs text-gray-500 mb-1">Min</label>
+              <input type="number" id="editRankMin" placeholder="1" class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-yellow-500 focus:outline-none">
+            </div>
+            <div>
+              <label class="block text-xs text-gray-500 mb-1">Max</label>
+              <input type="number" id="editRankMax" placeholder="999" class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-yellow-500 focus:outline-none">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="border-t border-neutral-700 pt-4 mt-4" x-data="customOptionsBuilder()">
+        <div class="flex items-center justify-between mb-3">
+          <h4 class="text-white font-medium">Custom Dropdowns</h4>
+          <button type="button" @click="addField()" class="text-sm bg-purple-600 hover:bg-purple-700 text-white px-3 py-1 rounded transition">
+            <i class="fas fa-plus mr-1"></i>Add Field
+          </button>
+        </div>
+
+        <!-- Current Configuration Summary -->
+        <div x-show="fields.length > 0" class="mb-4 bg-neutral-900 border border-green-500/30 rounded-lg p-4">
+          <div class="flex items-center justify-between mb-2">
+            <div class="flex items-center gap-2">
+              <i class="fas fa-check-circle text-green-400"></i>
+              <span class="text-green-400 font-medium text-sm">Current Configuration</span>
+              <span x-show="selectedTemplate" class="text-xs text-gray-400">
+                - Template: <span class="text-purple-400" x-text="templateNames[selectedTemplate] || selectedTemplate"></span>
+              </span>
+            </div>
+            <button type="button" @click="if(confirm('Clear all custom fields?')) { fields = []; selectedTemplate = ''; updateJSON(); }" class="text-xs text-red-400 hover:text-red-300">
+              <i class="fas fa-trash mr-1"></i>Clear All
+            </button>
+          </div>
+          <div class="space-y-2">
+            <template x-for="(field, index) in fields" :key="index">
+              <div class="text-sm">
+                <span class="text-white font-medium" x-text="field.name"></span>
+                <span class="text-gray-500 text-xs ml-2">
+                  (<span x-text="typeof field.choices === 'object' && !Array.isArray(field.choices) ? 'Conditional - ' + Object.keys(field.choices).length + ' options' : (Array.isArray(field.choices) ? field.choices.length + ' choices' : '0 choices')"></span><span x-show="field.depends_on" class="text-purple-400"> - depends on <span x-text="field.depends_on"></span></span><span x-show="field.exclude_same_as" class="text-orange-400"> - excludes <span x-text="field.exclude_same_as"></span></span>)
+                </span>
+              </div>
+            </template>
+          </div>
+        </div>
+
+        <!-- Template Selector -->
+        <div class="mb-4">
+          <label class="block text-xs text-gray-500 mb-2">Quick Templates <span class="text-gray-600">(select to add fields)</span></label>
+          <select @change="loadTemplate($event.target.value); $event.target.value = ''" class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-purple-500 focus:outline-none">
+            <option value="">Select a template...</option>
+            <optgroup label="General">
+              <option value="activity">Activity Type (PvP, Raid, Dungeon, etc.)</option>
+            </optgroup>
+            <optgroup label="Roles and Classes">
+              <option value="mmo-roles">MMO Roles with Tags (Tank, DPS, Healer) - for raids</option>
+              <option value="mmo-classes">MMO Classes (Warrior, Mage, Rogue, etc.)</option>
+              <option value="wow-class-spec">WoW Class + Spec (Death Knight - Blood, etc.)</option>
+              <option value="ffxiv-job">FFXIV Job (Paladin, White Mage, Dragoon, etc.)</option>
+              <option value="gw2-class-role">GW2 Class + Role (Guardian - Tank, etc.)</option>
+              <option value="eso-class-role">ESO Class + Role (Dragonknight - Tank, etc.)</option>
+              <option value="class-subclass">Class + Subclass (Generic dual-class system)</option>
+            </optgroup>
+            <optgroup label="Combat and Weapons">
+              <option value="shooter-roles">Shooter Roles (Assault, Sniper, Support)</option>
+              <option value="mh-weapons">Monster Hunter Weapons</option>
+            </optgroup>
+            <optgroup label="ARPG and Looters">
+              <option value="arpg-build-activity">ARPG Build + Activity (Diablo, PoE, Grim Dawn, etc.)</option>
+              <option value="borderlands4-vh-skill">Borderlands 4 Vault Hunter + Skill Tree</option>
+            </optgroup>
+            <optgroup label="Difficulty">
+              <option value="difficulty">Difficulty Levels</option>
+            </optgroup>
+          </select>
+        </div>
+
+        <!-- Custom Fields Builder -->
+        <div class="space-y-4">
+          <template x-for="(field, index) in fields" :key="index">
+            <div class="bg-neutral-900 border border-neutral-700 rounded-lg p-4">
+              <div class="flex items-start gap-3">
+                <div class="flex-grow space-y-3">
+                  <!-- Field Name -->
+                  <input type="text" x-model="field.name" @input="updateJSON()" placeholder="Field name (e.g. Class)"
+                         :readonly="field.name === 'Activity'"
+                         :class="field.name === 'Activity' ? 'w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white text-sm focus:border-purple-500 focus:outline-none cursor-not-allowed opacity-75' : 'w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white text-sm focus:border-purple-500 focus:outline-none'">
+
+                  <!-- Conditional Dropdown (Object-based choices) -->
+                  <template x-if="typeof field.choices === 'object' && !Array.isArray(field.choices)">
+                    <div class="bg-neutral-800 border border-purple-500/30 rounded p-3">
+                      <div class="flex items-center gap-2 mb-2">
+                        <i class="fas fa-link text-purple-400"></i>
+                        <span class="text-purple-400 text-sm font-medium">Conditional Dropdown</span>
+                        <span class="text-gray-500 text-xs" x-show="field.depends_on">(depends on: <span x-text="field.depends_on"></span>)</span>
+                        <span class="text-orange-400 text-xs" x-show="field.exclude_same_as">(excludes: <span x-text="field.exclude_same_as"></span>)</span>
+                      </div>
+                      <div class="text-gray-400 text-xs space-y-1">
+                        <template x-for="[key, values] in Object.entries(field.choices)" :key="key">
+                          <div>
+                            <span class="text-white" x-text="key"></span>:
+                            <span x-text="Array.isArray(values) ? values.join(', ') : values"></span>
+                          </div>
+                        </template>
+                      </div>
+                      <p class="text-yellow-400 text-xs mt-2">
+                        <i class="fas fa-info-circle"></i> To edit, delete this field and reapply the template
+                      </p>
+                    </div>
+                  </template>
+
+                  <!-- Simple Array Choices -->
+                  <template x-if="Array.isArray(field.choices)">
+                    <div class="space-y-2">
+                      <!-- Role tagging toggle for this field -->
+                      <div class="flex items-center gap-2 mb-2 pb-2 border-b border-neutral-700" x-show="field.name !== 'Activity'">
+                        <label class="flex items-center gap-2 cursor-pointer">
+                          <input type="checkbox" x-model="field.enableRoleTags" @change="toggleRoleTags(index)"
+                                 class="w-4 h-4 rounded bg-neutral-700 border-neutral-600 text-green-500 focus:ring-green-500">
+                          <span class="text-xs text-gray-400">Enable role tags for raid composition</span>
+                        </label>
+                        <span class="text-xs text-gray-500" x-show="field.enableRoleTags">
+                          <i class="fas fa-info-circle"></i> Tag choices as Tank/Healer/DPS/Support
+                        </span>
+                      </div>
+
+                      <template x-for="(choice, choiceIndex) in field.choices" :key="choiceIndex">
+                        <div class="flex gap-2">
+                          <!-- Choice value input -->
+                          <input type="text"
+                                 :value="getChoiceValue(choice)"
+                                 @input="setChoiceValue(index, choiceIndex, $event.target.value)"
+                                 placeholder="Choice option"
+                                 class="flex-grow bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white text-sm focus:border-purple-500 focus:outline-none">
+
+                          <!-- Role tag selector (shown when role tags are enabled) -->
+                          <select x-show="field.enableRoleTags"
+                                  :value="getChoiceRole(choice)"
+                                  @change="setChoiceRole(index, choiceIndex, $event.target.value)"
+                                  class="w-28 bg-neutral-800 border border-neutral-700 rounded px-2 py-2 text-white text-xs focus:border-green-500 focus:outline-none">
+                            <option value="">No role</option>
+                            <option value="tank">Tank</option>
+                            <option value="healer">Healer</option>
+                            <option value="dps">DPS</option>
+                            <option value="support">Support</option>
+                          </select>
+
+                          <!-- Role indicator badge (when role is set) -->
+                          <span x-show="field.enableRoleTags && getChoiceRole(choice)"
+                                class="flex items-center px-2 py-1 rounded text-xs"
+                                :class="{
+                                  'bg-blue-900/50 text-blue-300': getChoiceRole(choice) === 'tank',
+                                  'bg-green-900/50 text-green-300': getChoiceRole(choice) === 'healer',
+                                  'bg-red-900/50 text-red-300': getChoiceRole(choice) === 'dps',
+                                  'bg-purple-900/50 text-purple-300': getChoiceRole(choice) === 'support'
+                                }">
+                            <span x-text="getRoleEmoji(getChoiceRole(choice))"></span>
+                          </span>
+
+                          <button type="button" @click="removeChoice(index, choiceIndex)" class="bg-red-600/20 hover:bg-red-600 text-red-400 hover:text-white px-3 py-2 rounded transition text-sm">
+                            <i class="fas fa-times"></i>
+                          </button>
+                        </div>
+                      </template>
+                      <!-- Hide "Add Choice" button for Activity field (standardized list) -->
+                      <button type="button" @click="addChoice(index)" class="text-sm text-purple-400 hover:text-purple-300" x-show="field.name !== 'Activity'">
+                        <i class="fas fa-plus mr-1"></i>Add Choice
+                      </button>
+                      <p x-show="field.name === 'Activity'" class="text-xs text-yellow-400 mt-2">
+                        <i class="fas fa-lock mr-1"></i>Activity choices are standardized across the network. You can remove unwanted choices but cannot add new ones.
+                      </p>
+                    </div>
+                  </template>
+                </div>
+
+                <!-- Remove Field Button -->
+                <button type="button" @click="removeField(index)" class="bg-red-600/20 hover:bg-red-600 text-red-400 hover:text-white px-3 py-2 rounded transition text-sm mt-1">
+                  <i class="fas fa-trash"></i>
+                </button>
+              </div>
+            </div>
+          </template>
+        </div>
+
+        <p class="text-gray-500 text-xs mt-3">Add custom dropdowns that users will see when creating an LFG group (e.g. Class, Weapon, Role)</p>
+
+        <!-- Hidden JSON textarea -->
+        <textarea id="editCustomOptions" x-model="jsonOutput" class="hidden"></textarea>
+      </div>
+    </div>
+    <div class="p-4 bg-neutral-800 border-t border-neutral-700 flex justify-end gap-3">
+      <button onclick="closeEditGameModal()" class="bg-neutral-700 hover:bg-neutral-600 text-white px-4 py-2 rounded-lg transition">
+        Cancel
+      </button>
+      <button onclick="submitEditGame()" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg transition">
+        Save Changes
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+const GUILD_ID = '{{ guild_id }}';
+const GAMES_API = '/ql/api/dashboard/fluxer/' + GUILD_ID + '/lfg-games/';
+const IGDB_API = '/ql/api/igdb/search/';
+const CONFIG_API = '/ql/api/dashboard/fluxer/' + GUILD_ID + '/lfg-config/';
+const STATS_API = '/ql/api/dashboard/fluxer/' + GUILD_ID + '/lfg-stats/';
+const BLACKLIST_API = '/ql/api/dashboard/fluxer/' + GUILD_ID + '/lfg-blacklist/';
+const SETTINGS_API = '/ql/api/dashboard/fluxer/' + GUILD_ID + '/settings/';
+const CHANNELS = JSON.parse('{{ channels_json|escapejs }}');
+const SETTINGS = JSON.parse('{{ settings_json|escapejs }}');
+
+// Build channel items for custom selects
+const channelItems = [{id: '', value: '', label: '-- None --'}].concat(
+  CHANNELS.map(ch => ({ id: String(ch.id || ch.value || ''), value: String(ch.id || ch.value || ''), label: ch.label || ch.name || ch.id }))
+);
+
+// LFG default channel selector in banner
+let csBannerLfgCh = createCustomSelect({
+  container: '#cs-lfg-ch-banner',
+  name: 'lfg_channel_id_banner',
+  id: 'lfg_channel_id_banner',
+  placeholder: 'Select default LFG channel...',
+  items: channelItems,
+  selected: SETTINGS.lfg_channel_id || '',
+  color: 'green'
+});
+
+// Add game channel select instances
+let addGameChannelSelect = null;
+let editGameChannelSelect = null;
+let customGameChannelSelect = null;
+
+// Local games cache
+let gamesData = [];
+
+// -------------------------
+// Save status banner
+// -------------------------
+function showSaveMsg(ok, text) {
+  const msg = document.getElementById('save-msg');
+  msg.textContent = text;
+  if (ok) {
+    msg.className = 'mb-4 px-4 py-3 rounded-lg text-sm font-medium bg-green-900/40 text-green-400 border border-green-700/40';
+  } else {
+    msg.className = 'mb-4 px-4 py-3 rounded-lg text-sm font-medium bg-red-900/40 text-red-400 border border-red-700/40';
+  }
+  msg.classList.remove('hidden');
+  setTimeout(() => msg.classList.add('hidden'), 4000);
+}
+
+// -------------------------
+// LFG channel banner save
+// -------------------------
+async function saveLfgChannel() {
+  const payload = { lfg_channel_id: csBannerLfgCh.getValue() || '' };
+  try {
+    const resp = await csrfFetch(SETTINGS_API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const data = await resp.json();
+    if (resp.ok && data.success) {
+      showSaveMsg(true, 'LFG channel saved.');
+    } else {
+      showSaveMsg(false, data.error || 'Save failed.');
+    }
+  } catch (e) {
+    showSaveMsg(false, 'Network error.');
+  }
+}
+
+// -------------------------
+// Tab switching
+// -------------------------
+function showTab(tabName) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.add('hidden'));
+  document.querySelectorAll('.tab-btn').forEach(b => {
+    b.classList.remove('bg-green-600', 'bg-purple-600', 'bg-blue-600', 'bg-red-600', 'text-white');
+    b.classList.add('bg-neutral-700', 'text-gray-300', 'hover:bg-neutral-600');
+  });
+
+  const panel = document.getElementById('panel-' + tabName);
+  if (panel) panel.classList.remove('hidden');
+
+  const btn = document.getElementById('tab-' + tabName);
+  if (btn) {
+    btn.classList.remove('bg-neutral-700', 'text-gray-300', 'hover:bg-neutral-600');
+    const colors = {
+      games: 'bg-green-600',
+      config: 'bg-purple-600',
+      stats: 'bg-blue-600',
+      blacklist: 'bg-red-600'
+    };
+    btn.classList.add(colors[tabName] || 'bg-green-600', 'text-white');
+  }
+
+  if (tabName === 'games') { loadGames(); loadConfig(); }
+  if (tabName === 'config') loadConfig();
+  if (tabName === 'stats') loadStats();
+  if (tabName === 'blacklist') loadBlacklist();
+}
+
+// -------------------------
+// Channel name lookup
+// -------------------------
+function channelName(id) {
+  if (!id) return null;
+  const ch = CHANNELS.find(c => String(c.id || c.value || '') === String(id));
+  return ch ? (ch.label || ch.name || id) : id;
+}
+
+// -------------------------
+// Games Tab
+// -------------------------
+async function loadGames() {
+  document.getElementById('games-loading').classList.remove('hidden');
+  document.getElementById('games-list').classList.add('hidden');
+  document.getElementById('games-empty').classList.add('hidden');
+
+  try {
+    const resp = await fetch(GAMES_API, { headers: { 'Accept': 'application/json' } });
+    if (!resp.ok) { throw new Error('HTTP ' + resp.status); }
+    const data = await resp.json();
+    if (data.success) {
+      gamesData = data.games || [];
+      renderGames();
+    } else {
+      document.getElementById('games-loading').innerHTML =
+        '<p class="text-red-400 text-sm">' + escapeHtml(data.error || 'Failed to load games') + '</p>';
+    }
+  } catch (e) {
+    document.getElementById('games-loading').innerHTML =
+      '<p class="text-red-400 text-sm">Error loading games: ' + (e && e.message ? e.message : 'check console') + '</p>';
+  }
+}
+
+function renderGames() {
+  document.getElementById('games-loading').classList.add('hidden');
+  const label = document.getElementById('games-count-label');
+  label.textContent = '(' + gamesData.length + ' game' + (gamesData.length !== 1 ? 's' : '') + ')';
+
+  if (!gamesData.length) {
+    document.getElementById('games-empty').classList.remove('hidden');
+    return;
+  }
+
+  const list = document.getElementById('games-list');
+  list.innerHTML = gamesData.map(g => {
+    const coverHtml = g.cover_url
+      ? `<img src="${escapeHtml(g.cover_url)}" alt="${escapeHtml(g.game_name || g.name)}" class="w-full h-full object-cover">`
+      : `<div class="w-full h-full flex items-center justify-center text-gray-500"><i class="fas fa-gamepad text-2xl"></i></div>`;
+
+    const igdbBadge = g.is_custom_game
+      ? `<span class="text-xs px-2 py-0.5 rounded bg-purple-600 text-white">Custom</span>`
+      : `<span class="text-xs px-2 py-0.5 rounded bg-green-600 text-white">IGDB</span>`;
+
+    const disabledBadge = (g.enabled === false)
+      ? `<span class="text-xs px-2 py-0.5 rounded bg-red-600 text-white">Disabled</span>`
+      : '';
+
+    const chId = g.lfg_channel_id || g.channel_id || null;
+    const chLabel = chId ? channelName(chId) : null;
+    const channelHtml = chLabel
+      ? `<span class="text-indigo-400">#${escapeHtml(chLabel)}</span>`
+      : `<span class="text-red-400">No channel set</span>`;
+
+    const platforms = g.platforms
+      ? `<span class="text-gray-600 mx-2">|</span><span class="text-gray-500">${escapeHtml(g.platforms)}</span>`
+      : '';
+
+    const customOptsBadge = g.custom_options && (Array.isArray(g.custom_options) ? g.custom_options.length : Object.keys(g.custom_options).length) > 0
+      ? `<span class="text-purple-400"><i class="fas fa-sliders-h mr-1"></i>Has options</span>`
+      : '';
+
+    const rankBadge = g.require_rank
+      ? `<span class="text-yellow-400"><i class="fas fa-trophy mr-1"></i>${escapeHtml(g.rank_label || 'Rank')}</span>`
+      : '';
+
+    return `<div class="bg-neutral-800 rounded-lg p-4 flex items-center gap-4">
+      <div class="w-16 h-20 bg-neutral-700 rounded-lg overflow-hidden flex-shrink-0">
+        ${coverHtml}
+      </div>
+      <div class="flex-grow">
+        <div class="flex items-center gap-2 flex-wrap">
+          <h4 class="text-white font-bold">${escapeHtml(g.game_name || g.name)}</h4>
+          ${igdbBadge}
+          ${disabledBadge}
+        </div>
+        <p class="text-gray-400 text-sm mt-1">
+          <span class="text-gray-500">Code:</span> <code class="text-green-400">${escapeHtml(g.game_short || g.short_code || '')}</code>
+          ${platforms}
+        </p>
+        <div class="flex items-center gap-4 mt-2 text-sm flex-wrap">
+          <span class="text-gray-400">
+            <i class="fas fa-hashtag text-gray-500 mr-1"></i>${channelHtml}
+          </span>
+          <span class="text-gray-400">
+            <i class="fas fa-users text-gray-500 mr-1"></i>Max: ${escapeHtml(String(g.max_group_size || g.max_size || 4))}
+          </span>
+          ${customOptsBadge}
+          ${rankBadge}
+        </div>
+      </div>
+      <div class="flex gap-2 flex-shrink-0">
+        <button onclick="editGame(${g.id})" class="bg-neutral-700 hover:bg-neutral-600 text-white px-3 py-2 rounded-lg transition text-sm" title="Edit">
+          <i class="fas fa-cog"></i>
+        </button>
+        <button onclick="removeGame(${g.id}, '${escapeHtml(g.game_name || g.name).replace(/'/g, "\\'")}')" class="bg-red-600/20 hover:bg-red-600 text-red-400 hover:text-white px-3 py-2 rounded-lg transition text-sm" title="Remove">
+          <i class="fas fa-trash"></i>
+        </button>
+      </div>
+    </div>`;
+  }).join('');
+  list.classList.remove('hidden');
+}
+
+// -------------------------
+// Search Modal
+// -------------------------
+function openSearchModal() {
+  const el = document.getElementById('searchModal');
+  el.classList.remove('hidden');
+  el.classList.add('flex');
+  setTimeout(() => document.getElementById('searchQuery').focus(), 100);
+}
+
+function closeSearchModal() {
+  const el = document.getElementById('searchModal');
+  el.classList.add('hidden');
+  el.classList.remove('flex');
+  document.getElementById('searchResults').innerHTML = '<p class="text-gray-400 text-center py-8">Enter a game name to search</p>';
+  document.getElementById('searchQuery').value = '';
+}
+
+async function searchGames() {
+  const query = document.getElementById('searchQuery').value.trim();
+  if (!query) return;
+
+  const resultsDiv = document.getElementById('searchResults');
+  resultsDiv.innerHTML = '<p class="text-gray-400 text-center py-8"><i class="fas fa-spinner fa-spin mr-2"></i>Searching...</p>';
+
+  try {
+    const resp = await fetch(IGDB_API + '?q=' + encodeURIComponent(query) + '&limit=10');
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const data = await resp.json();
+
+    if (data.games && data.games.length > 0) {
+      resultsDiv.innerHTML = data.games.map(game => `
+        <div class="bg-neutral-800 rounded-lg p-4 flex items-center gap-4 cursor-pointer hover:bg-neutral-700 transition"
+             onclick="addGameFromIgdb(${game.id}, '${escapeHtml(game.name).replace(/'/g, "\\'")}', '${escapeHtml(game.cover_url || '').replace(/'/g, "\\'")}', '${escapeHtml(game.platforms || '').replace(/'/g, "\\'")}')">
+          <div class="w-12 h-16 bg-neutral-700 rounded overflow-hidden flex-shrink-0">
+            ${game.cover_url
+              ? `<img src="${escapeHtml(game.cover_url)}" alt="${escapeHtml(game.name)}" class="w-full h-full object-cover">`
+              : `<div class="w-full h-full flex items-center justify-center text-gray-500"><i class="fas fa-gamepad"></i></div>`}
+          </div>
+          <div class="flex-grow">
+            <h4 class="text-white font-medium">${escapeHtml(game.name)}</h4>
+            <p class="text-gray-400 text-sm">${escapeHtml(game.platforms || 'Unknown platforms')}${game.release_year ? ' (' + game.release_year + ')' : ''}</p>
+          </div>
+          <i class="fas fa-chevron-right text-gray-500"></i>
+        </div>
+      `).join('');
+    } else {
+      resultsDiv.innerHTML = `
+        <div class="text-center py-8">
+          <p class="text-gray-400">No games found for "${escapeHtml(query)}"</p>
+          <button onclick="closeSearchModal(); openCustomGameModal();" class="mt-4 text-indigo-400 hover:text-indigo-300">
+            <i class="fas fa-plus mr-2"></i>Add as custom game instead
+          </button>
+        </div>
+      `;
+    }
+  } catch (error) {
+    resultsDiv.innerHTML = '<p class="text-red-400 text-center py-8">Error searching games</p>';
+  }
+}
+
+// -------------------------
+// Add Game Modal (IGDB)
+// -------------------------
+function addGameFromIgdb(igdbId, name, coverUrl, platforms) {
+  closeSearchModal();
+
+  document.getElementById('addIgdbId').value = igdbId;
+  document.getElementById('addGameName').value = name;
+  document.getElementById('addCoverUrl').value = coverUrl;
+  document.getElementById('addPlatforms').value = platforms;
+  document.getElementById('addGameTitle').textContent = 'Add: ' + name;
+
+  // Game preview
+  const preview = document.getElementById('addGamePreview');
+  preview.classList.remove('hidden');
+  document.getElementById('addGameNameDisplay').textContent = name;
+  document.getElementById('addGamePlatformsDisplay').textContent = platforms || '';
+  const img = document.getElementById('addGameCoverImg');
+  if (coverUrl) {
+    img.src = coverUrl;
+    img.alt = name;
+  } else {
+    img.src = '';
+  }
+
+  // Auto-generate short code
+  const words = name.split(/\s+/).filter(w => w.length > 0);
+  const suggested = words.slice(0, 4).map(w => w[0].toUpperCase()).join('').substring(0, 8);
+  document.getElementById('addShortCode').value = suggested || name.substring(0, 3).toUpperCase();
+
+  addGameChannelSelect = createCustomSelect({
+    container: '#addGameChannelContainer',
+    name: 'addChannel',
+    id: 'addChannel',
+    placeholder: 'Select a channel...',
+    items: channelItems,
+    selected: '',
+    color: 'green'
+  });
+
+  document.getElementById('addNotifyRoleId').value = '';
+  document.getElementById('addMaxSize').value = '4';
+  document.getElementById('addArchiveHours').value = '24';
+  document.getElementById('addEnabled').checked = true;
+
+  openAddGameModal();
+}
+
+function openAddGameModal() {
+  const el = document.getElementById('addGameModal');
+  el.classList.remove('hidden');
+  el.classList.add('flex');
+}
+
+function closeAddGameModal() {
+  const el = document.getElementById('addGameModal');
+  el.classList.add('hidden');
+  el.classList.remove('flex');
+  document.getElementById('addGamePreview').classList.add('hidden');
+}
+
+async function submitAddGame() {
+  const shortCode = document.getElementById('addShortCode').value.trim().toUpperCase();
+  if (!shortCode) {
+    alert('Please fill in a short code.');
+    return;
+  }
+
+  const payload = {
+    igdb_id: document.getElementById('addIgdbId').value || null,
+    name: document.getElementById('addGameName').value,
+    game_short: shortCode,
+    cover_url: document.getElementById('addCoverUrl').value || null,
+    platforms: document.getElementById('addPlatforms').value || null,
+    channel_id: addGameChannelSelect ? addGameChannelSelect.getValue() : '',
+    notify_role_id: document.getElementById('addNotifyRoleId').value.trim() || null,
+    max_group_size: parseInt(document.getElementById('addMaxSize').value) || 4,
+    auto_archive_hours: parseInt(document.getElementById('addArchiveHours').value) || 24,
+    enabled: document.getElementById('addEnabled').checked,
+    is_custom_game: false
+  };
+
+  try {
+    const resp = await csrfFetch(GAMES_API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const data = await resp.json();
+    if (resp.ok && data.success) {
+      closeAddGameModal();
+      await loadGames();
+      showTab('games');
+      showSaveMsg(true, 'Game added successfully.');
+    } else {
+      alert(data.error || 'Error adding game.');
+    }
+  } catch (e) {
+    alert('Network error adding game.');
+  }
+}
+
+// -------------------------
+// Custom Game Modal
+// -------------------------
+function openCustomGameModal() {
+  document.getElementById('customGameName').value = '';
+  document.getElementById('customShortCode').value = '';
+  document.getElementById('customCoverUrl').value = '';
+  document.getElementById('customNotifyRoleId').value = '';
+  document.getElementById('customMaxSize').value = '4';
+  document.getElementById('customArchiveHours').value = '24';
+
+  customGameChannelSelect = createCustomSelect({
+    container: '#customGameChannelContainer',
+    name: 'customChannel',
+    id: 'customChannel',
+    placeholder: 'Select a channel...',
+    items: channelItems,
+    selected: '',
+    color: 'indigo'
+  });
+
+  const el = document.getElementById('customGameModal');
+  el.classList.remove('hidden');
+  el.classList.add('flex');
+  setTimeout(() => document.getElementById('customGameName').focus(), 100);
+}
+
+function closeCustomGameModal() {
+  const el = document.getElementById('customGameModal');
+  el.classList.add('hidden');
+  el.classList.remove('flex');
+}
+
+async function submitCustomGame() {
+  const gameName = document.getElementById('customGameName').value.trim();
+  const shortCode = document.getElementById('customShortCode').value.trim().toUpperCase();
+
+  if (!gameName || !shortCode) {
+    alert('Please fill in game name and short code.');
+    return;
+  }
+
+  const payload = {
+    name: gameName,
+    game_short: shortCode,
+    cover_url: document.getElementById('customCoverUrl').value.trim() || null,
+    channel_id: customGameChannelSelect ? customGameChannelSelect.getValue() : '',
+    notify_role_id: document.getElementById('customNotifyRoleId').value.trim() || null,
+    max_group_size: parseInt(document.getElementById('customMaxSize').value) || 4,
+    auto_archive_hours: parseInt(document.getElementById('customArchiveHours').value) || 24,
+    enabled: true,
+    is_custom_game: true
+  };
+
+  try {
+    const resp = await csrfFetch(GAMES_API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const data = await resp.json();
+    if (resp.ok && data.success) {
+      closeCustomGameModal();
+      await loadGames();
+      showTab('games');
+      showSaveMsg(true, 'Custom game added successfully.');
+    } else {
+      alert(data.error || 'Error adding custom game.');
+    }
+  } catch (e) {
+    alert('Network error adding custom game.');
+  }
+}
+
+// -------------------------
+// Edit Game Modal
+// -------------------------
+async function editGame(gameId) {
+  try {
+    const game = gamesData.find(g => g.id === gameId);
+    if (!game) {
+      alert('Game not found in local data. Refreshing...');
+      await loadGames();
+      return;
+    }
+
+    document.getElementById('editGameId').value = gameId;
+    document.getElementById('editGameTitle').innerHTML =
+      '<i class="fas fa-cog text-gray-400 mr-2"></i>Edit: ' + escapeHtml(game.game_name || game.name);
+    document.getElementById('editGameName').value = game.game_name || game.name || '';
+    document.getElementById('editNotifyRoleId').value = game.notify_role_id || '';
+    document.getElementById('editMaxSize').value = game.max_group_size || game.max_size || 4;
+
+    const archiveHours = game.thread_auto_archive_hours || 24;
+    let normalizedHours = 24;
+    if (archiveHours <= 1) normalizedHours = 1;
+    else if (archiveHours <= 24) normalizedHours = 24;
+    else if (archiveHours <= 72) normalizedHours = 72;
+    else normalizedHours = 168;
+    document.getElementById('editArchiveHours').value = normalizedHours;
+
+    document.getElementById('editEnabled').checked = game.enabled !== false;
+    document.getElementById('editRequireRank').checked = game.require_rank || false;
+    document.getElementById('editRankLabel').value = game.rank_label || 'Rank';
+    document.getElementById('editRankMin').value = game.rank_min || 1;
+    document.getElementById('editRankMax').value = game.rank_max || 999;
+
+    const customOptionsJSON = game.custom_options
+      ? JSON.stringify(game.custom_options, null, 2)
+      : '';
+    document.getElementById('editCustomOptions').value = customOptionsJSON;
+
+    const chId = game.lfg_channel_id || game.channel_id || '';
+    editGameChannelSelect = createCustomSelect({
+      container: '#editGameChannelContainer',
+      name: 'editChannel',
+      id: 'editChannel',
+      placeholder: 'Select a channel...',
+      items: channelItems,
+      selected: chId,
+      color: 'green'
+    });
+
+    // Show modal first so Alpine can initialize
+    const el = document.getElementById('editGameModal');
+    el.classList.remove('hidden');
+    el.classList.add('flex');
+
+    // Wait for Alpine to initialize, then load custom options JSON
+    setTimeout(() => {
+      const customOptionsEl = document.querySelector('[x-data*="customOptionsBuilder"]');
+      if (customOptionsEl) {
+        const alpineData = customOptionsEl._x_dataStack ? customOptionsEl._x_dataStack[0] : null;
+        if (alpineData && typeof alpineData.loadFromJSON === 'function') {
+          alpineData.loadFromJSON(customOptionsJSON);
+        }
+      }
+    }, 500);
+
+  } catch (error) {
+    alert('Error opening edit modal: ' + error.message);
+  }
+}
+
+function closeEditGameModal() {
+  const el = document.getElementById('editGameModal');
+  el.classList.add('hidden');
+  el.classList.remove('flex');
+}
+
+async function submitEditGame() {
+  const gameId = document.getElementById('editGameId').value;
+  let customOptions = null;
+
+  try {
+    const optionsText = document.getElementById('editCustomOptions').value.trim();
+    if (optionsText) {
+      customOptions = JSON.parse(optionsText);
+    }
+  } catch (e) {
+    alert('Invalid JSON in custom options!');
+    return;
+  }
+
+  const payload = {
+    name: document.getElementById('editGameName').value,
+    channel_id: editGameChannelSelect ? editGameChannelSelect.getValue() : null,
+    notify_role_id: document.getElementById('editNotifyRoleId').value.trim() || null,
+    max_group_size: parseInt(document.getElementById('editMaxSize').value) || 4,
+    auto_archive_hours: parseInt(document.getElementById('editArchiveHours').value) || 24,
+    enabled: document.getElementById('editEnabled').checked,
+    require_rank: document.getElementById('editRequireRank').checked,
+    rank_label: document.getElementById('editRankLabel').value || 'Rank',
+    rank_min: parseInt(document.getElementById('editRankMin').value) || 1,
+    rank_max: parseInt(document.getElementById('editRankMax').value) || 999,
+    custom_options: customOptions
+  };
+
+  try {
+    const resp = await csrfFetch(GAMES_API + gameId + '/', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const data = await resp.json();
+    if (resp.ok && data.success) {
+      closeEditGameModal();
+      await loadGames();
+      showSaveMsg(true, 'Game updated successfully.');
+    } else {
+      alert(data.error || 'Error updating game.');
+    }
+  } catch (e) {
+    alert('Network error updating game.');
+  }
+}
+
+async function removeGame(gameId, gameName) {
+  if (!confirm('Are you sure you want to remove "' + gameName + '" from LFG?')) return;
+
+  try {
+    const resp = await csrfFetch(GAMES_API + gameId + '/', {
+      method: 'DELETE'
+    });
+    if (resp.ok) {
+      gamesData = gamesData.filter(g => g.id !== gameId);
+      renderGames();
+      showSaveMsg(true, gameName + ' removed.');
+    } else {
+      const data = await resp.json();
+      alert(data.error || 'Error removing game.');
+    }
+  } catch (e) {
+    alert('Network error removing game.');
+  }
+}
+
+// -------------------------
+// Attendance Config Tab
+// -------------------------
+async function loadConfig() {
+  try {
+    const resp = await csrfFetch(CONFIG_API);
+    const data = await resp.json();
+    const config = (data && data.config) ? data.config : {};
+
+    document.getElementById('attendanceEnabled').checked = config.attendance_tracking_enabled || config.attendance_enabled || false;
+    document.getElementById('requireConfirmation').checked = config.require_confirmation || false;
+    document.getElementById('autoNoshowHours').value = config.auto_noshow_hours || 1;
+    document.getElementById('minReliability').value = config.min_reliability_score || config.min_required_score || 0;
+    document.getElementById('warnAtReliability').value = config.warn_at_reliability || 50;
+    document.getElementById('autoBlacklist').value = config.auto_blacklist_noshows || config.auto_blacklist_noshow || 0;
+  } catch (e) {
+    // Config load failed silently - form retains defaults
+  }
+}
+
+async function saveConfig() {
+  const payload = {
+    attendance_enabled: document.getElementById('attendanceEnabled').checked,
+    require_confirmation: document.getElementById('requireConfirmation').checked,
+    auto_noshow_hours: parseInt(document.getElementById('autoNoshowHours').value) || 0,
+    min_required_score: parseInt(document.getElementById('minReliability').value) || 0,
+    warn_at_reliability: parseInt(document.getElementById('warnAtReliability').value) || 50,
+    auto_blacklist_noshow: parseInt(document.getElementById('autoBlacklist').value) || 0,
+  };
+
+  try {
+    const resp = await csrfFetch(CONFIG_API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const data = await resp.json();
+    if (resp.ok && data.success) {
+      showSaveMsg(true, 'Attendance config saved.');
+    } else {
+      showSaveMsg(false, data.error || 'Save failed.');
+    }
+  } catch (e) {
+    showSaveMsg(false, 'Network error.');
+  }
+}
+
+// -------------------------
+// Reliability Stats Tab
+// -------------------------
+async function loadStats() {
+  const sort = document.getElementById('statsSort') ? document.getElementById('statsSort').value : 'reliability';
+  const container = document.getElementById('statsTable');
+  container.innerHTML = '<p class="text-gray-400 text-center py-8"><i class="fas fa-spinner fa-spin mr-2"></i>Loading stats...</p>';
+
+  try {
+    const resp = await csrfFetch(STATS_API + '?sort=' + encodeURIComponent(sort) + '&limit=50');
+    const data = await resp.json();
+
+    if (data.error) {
+      container.innerHTML = '<p class="text-gray-400 text-center py-8">' + escapeHtml(data.error) + '</p>';
+      return;
+    }
+
+    if (!data.members || data.members.length === 0) {
+      container.innerHTML = '<p class="text-gray-400 text-center py-8">No member stats yet. Start tracking attendance!</p>';
+      return;
+    }
+
+    container.innerHTML = data.members.map((m, i) => {
+      const medal = i === 0 ? '1st' : i === 1 ? '2nd' : i === 2 ? '3rd' : (i + 1) + 'th';
+      const scoreColor = m.reliability_score >= 80 ? 'text-green-400' : m.reliability_score >= 50 ? 'text-yellow-400' : 'text-red-400';
+      const barColor = m.reliability_score >= 80 ? 'bg-green-500' : m.reliability_score >= 50 ? 'bg-yellow-500' : 'bg-red-500';
+      const blacklisted = m.is_blacklisted
+        ? '<span class="text-xs bg-red-600 px-2 py-0.5 rounded ml-2">Blacklisted</span>'
+        : '';
+
+      return `
+        <div class="bg-neutral-800 rounded-lg p-4 flex items-center gap-4">
+          <span class="text-gray-400 text-sm w-10 text-center">${medal}</span>
+          <div class="flex-grow">
+            <div class="flex items-center flex-wrap gap-1">
+              <span class="text-white font-medium">${escapeHtml(m.username)}</span>
+              ${blacklisted}
+            </div>
+            <div class="flex gap-4 mt-1 text-sm text-gray-400 flex-wrap">
+              <span>Signups: ${m.total_signups}</span>
+              <span class="text-green-400">Showed: ${m.total_showed}</span>
+              <span class="text-red-400">No-Shows: ${m.total_no_shows}</span>
+              <span class="text-yellow-400">Late: ${m.total_late}</span>
+            </div>
+            <div class="mt-2 flex items-center gap-2">
+              <div class="flex-grow bg-neutral-700 rounded-full h-1.5">
+                <div class="${barColor} h-1.5 rounded-full" style="width: ${Math.min(100, m.reliability_score || 0)}%"></div>
+              </div>
+              <span class="text-xs ${scoreColor} font-bold w-10 text-right">${m.reliability_score}%</span>
+            </div>
+          </div>
+          ${!m.is_blacklisted ? `
+          <button onclick="blacklistAction('${escapeHtml(String(m.user_id))}', 'add', '')"
+                  class="bg-red-600/20 hover:bg-red-600 text-red-400 hover:text-white px-3 py-2 rounded-lg transition text-xs flex-shrink-0">
+            <i class="fas fa-ban mr-1"></i>Blacklist
+          </button>` : `
+          <button onclick="blacklistAction('${escapeHtml(String(m.user_id))}', 'remove', '')"
+                  class="bg-green-600/20 hover:bg-green-600 text-green-400 hover:text-white px-3 py-2 rounded-lg transition text-xs flex-shrink-0">
+            <i class="fas fa-user-check mr-1"></i>Pardon
+          </button>`}
+        </div>
+      `;
+    }).join('');
+
+  } catch (e) {
+    container.innerHTML = '<p class="text-red-400 text-center py-8">Error loading stats.</p>';
+  }
+}
+
+// -------------------------
+// Blacklist Tab
+// -------------------------
+async function loadBlacklist() {
+  const container = document.getElementById('blacklistTable');
+  container.innerHTML = '<p class="text-gray-400 text-center py-8"><i class="fas fa-spinner fa-spin mr-2"></i>Loading blacklist...</p>';
+
+  try {
+    const resp = await csrfFetch(BLACKLIST_API);
+    const data = await resp.json();
+
+    if (data.error) {
+      container.innerHTML = '<p class="text-gray-400 text-center py-8">' + escapeHtml(data.error) + '</p>';
+      return;
+    }
+
+    if (!data.members || data.members.length === 0) {
+      container.innerHTML = '<p class="text-gray-400 text-center py-8">No blacklisted members.</p>';
+      return;
+    }
+
+    container.innerHTML = data.members.map(m => `
+      <div class="bg-neutral-800 rounded-lg p-4 flex items-center gap-4">
+        <div class="w-10 h-10 bg-red-600/20 rounded-full flex items-center justify-center flex-shrink-0">
+          <i class="fas fa-ban text-red-400"></i>
+        </div>
+        <div class="flex-grow">
+          <div class="flex items-center gap-2 flex-wrap">
+            <span class="text-white font-medium">${escapeHtml(m.username)}</span>
+            <span class="text-gray-500 text-xs">${escapeHtml(m.formatted_date || '')}</span>
+          </div>
+          <p class="text-gray-400 text-sm mt-1">${escapeHtml(m.blacklist_reason || 'No reason provided')}</p>
+        </div>
+        <div class="text-right flex-shrink-0 mr-2">
+          <span class="text-red-400 font-bold">${escapeHtml(String(m.reliability_score || 0))}%</span>
+          <p class="text-gray-500 text-xs">${escapeHtml(String(m.total_no_shows || 0))} no-shows</p>
+        </div>
+        <div class="flex gap-2 flex-shrink-0">
+          <button onclick="blacklistAction('${escapeHtml(String(m.user_id))}', 'remove', '')"
+                  class="bg-green-600/20 hover:bg-green-600 text-green-400 hover:text-white px-3 py-2 rounded-lg transition text-sm"
+                  title="Unblacklist">
+            <i class="fas fa-user-check"></i>
+          </button>
+          <button onclick="blacklistAction('${escapeHtml(String(m.user_id))}', 'pardon', '')"
+                  class="bg-blue-600/20 hover:bg-blue-600 text-blue-400 hover:text-white px-3 py-2 rounded-lg transition text-sm"
+                  title="Pardon (clear no-show record)">
+            <i class="fas fa-eraser"></i>
+          </button>
+        </div>
+      </div>
+    `).join('');
+
+  } catch (e) {
+    container.innerHTML = '<p class="text-red-400 text-center py-8">Error loading blacklist.</p>';
+  }
+}
+
+async function blacklistAction(userId, action, reason) {
+  if (action === 'add') {
+    const r = prompt('Reason for blacklisting (optional):');
+    if (r === null) return; // cancelled
+    reason = r;
+  } else {
+    if (!confirm('Are you sure?')) return;
+  }
+
+  try {
+    const resp = await csrfFetch(BLACKLIST_API + userId + '/' + action + '/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reason: reason })
+    });
+    const data = await resp.json();
+    if (resp.ok && data.success) {
+      showSaveMsg(true, 'Blacklist updated.');
+      loadBlacklist();
+      loadStats();
+    } else {
+      alert(data.error || 'Error updating blacklist.');
+    }
+  } catch (e) {
+    alert('Network error.');
+  }
+}
+
+// -------------------------
+// Alpine.js Custom Options Builder
+// -------------------------
+function customOptionsBuilder() {
+  return {
+    fields: [],
+    jsonOutput: '',
+    selectedTemplate: '',
+    templateNames: {
+      'activity': 'Activity Type',
+      'mmo-roles': 'MMO Roles',
+      'mmo-classes': 'MMO Classes',
+      'wow-class-spec': 'WoW Class + Spec',
+      'ffxiv-job': 'FFXIV Job',
+      'gw2-class-role': 'GW2 Class + Role',
+      'eso-class-role': 'ESO Class + Role',
+      'class-subclass': 'Class + Subclass',
+      'shooter-roles': 'Shooter Roles',
+      'mh-weapons': 'Monster Hunter Weapons',
+      'borderlands4-vh-skill': 'Borderlands 4 VH + Skill Tree',
+      'arpg-build-activity': 'ARPG Build + Activity',
+      'difficulty': 'Difficulty Levels'
+    },
+
+    init() {
+      const existingJSON = document.getElementById('editCustomOptions')?.value;
+      if (existingJSON && existingJSON.trim()) {
+        try {
+          this.fields = JSON.parse(existingJSON);
+          this.fields.forEach(field => {
+            if (this.hasRoleTags(field)) {
+              field.enableRoleTags = true;
+            }
+          });
+          this.updateJSON();
+        } catch (e) {
+          this.fields = [];
+        }
+      }
+    },
+
+    addField() {
+      this.fields.push({ name: '', choices: [''] });
+      this.updateJSON();
+    },
+
+    removeField(index) {
+      this.fields.splice(index, 1);
+      this.updateJSON();
+    },
+
+    addChoice(fieldIndex) {
+      this.fields[fieldIndex].choices.push('');
+      this.updateJSON();
+    },
+
+    removeChoice(fieldIndex, choiceIndex) {
+      if (this.fields[fieldIndex].choices.length > 1) {
+        this.fields[fieldIndex].choices.splice(choiceIndex, 1);
+        this.updateJSON();
+      }
+    },
+
+    getChoiceValue(choice) {
+      if (typeof choice === 'object' && choice !== null) {
+        return choice.value || '';
+      }
+      return choice || '';
+    },
+
+    getChoiceRole(choice) {
+      if (typeof choice === 'object' && choice !== null) {
+        return choice.role || '';
+      }
+      return '';
+    },
+
+    setChoiceValue(fieldIndex, choiceIndex, value) {
+      const field = this.fields[fieldIndex];
+      const choice = field.choices[choiceIndex];
+      if (field.enableRoleTags) {
+        if (typeof choice === 'object' && choice !== null) {
+          field.choices[choiceIndex] = { ...choice, value: value };
+        } else {
+          field.choices[choiceIndex] = { value: value, role: '' };
+        }
+      } else {
+        field.choices[choiceIndex] = value;
+      }
+      this.updateJSON();
+    },
+
+    setChoiceRole(fieldIndex, choiceIndex, role) {
+      const field = this.fields[fieldIndex];
+      const choice = field.choices[choiceIndex];
+      if (typeof choice === 'object' && choice !== null) {
+        field.choices[choiceIndex] = { ...choice, role: role || undefined };
+      } else {
+        field.choices[choiceIndex] = { value: choice || '', role: role || undefined };
+      }
+      this.updateJSON();
+    },
+
+    toggleRoleTags(fieldIndex) {
+      const field = this.fields[fieldIndex];
+      if (field.enableRoleTags) {
+        field.choices = field.choices.map(choice => {
+          if (typeof choice === 'string') {
+            return { value: choice, role: '' };
+          }
+          return choice;
+        });
+      } else {
+        field.choices = field.choices.map(choice => {
+          if (typeof choice === 'object' && choice !== null) {
+            return choice.value || '';
+          }
+          return choice;
+        });
+      }
+      this.updateJSON();
+    },
+
+    getRoleEmoji(role) {
+      const emojis = { 'tank': 'T', 'healer': 'H', 'dps': 'D', 'support': 'S' };
+      return emojis[role] || '';
+    },
+
+    hasRoleTags(field) {
+      if (!Array.isArray(field.choices)) return false;
+      return field.choices.some(choice =>
+        typeof choice === 'object' && choice !== null && 'value' in choice
+      );
+    },
+
+    loadTemplate(templateName) {
+      if (!templateName) return;
+      this.selectedTemplate = templateName;
+
+      const templates = {
+        'activity': {
+          name: 'Activity',
+          choices: ['PvP', 'Raid', 'Dungeon', 'Casual', 'Story', 'Endgame', 'Leveling', 'Farming', 'Social', 'Event', 'Achievement', 'Roleplay']
+        },
+        'mmo-roles': {
+          name: 'Role',
+          enableRoleTags: true,
+          choices: [
+            { value: 'Tank', role: 'tank' },
+            { value: 'DPS', role: 'dps' },
+            { value: 'Healer', role: 'healer' },
+            { value: 'Support', role: 'support' }
+          ]
+        },
+        'mmo-classes': {
+          name: 'Class',
+          choices: ['Warrior', 'Mage', 'Rogue', 'Priest', 'Paladin', 'Hunter', 'Warlock', 'Shaman', 'Druid']
+        },
+        'wow-class-spec': [
+          {
+            name: 'Class',
+            choices: ['Death Knight', 'Demon Hunter', 'Druid', 'Evoker', 'Hunter', 'Mage', 'Monk', 'Paladin', 'Priest', 'Rogue', 'Shaman', 'Warlock', 'Warrior']
+          },
+          {
+            name: 'Specialization',
+            choices: {
+              'Death Knight': ['Blood', 'Frost', 'Unholy'],
+              'Demon Hunter': ['Havoc', 'Vengeance'],
+              'Druid': ['Balance', 'Feral', 'Guardian', 'Restoration'],
+              'Evoker': ['Devastation', 'Preservation', 'Augmentation'],
+              'Hunter': ['Beast Mastery', 'Marksmanship', 'Survival'],
+              'Mage': ['Arcane', 'Fire', 'Frost'],
+              'Monk': ['Brewmaster', 'Mistweaver', 'Windwalker'],
+              'Paladin': ['Holy', 'Protection', 'Retribution'],
+              'Priest': ['Discipline', 'Holy', 'Shadow'],
+              'Rogue': ['Assassination', 'Outlaw', 'Subtlety'],
+              'Shaman': ['Elemental', 'Enhancement', 'Restoration'],
+              'Warlock': ['Affliction', 'Demonology', 'Destruction'],
+              'Warrior': ['Arms', 'Fury', 'Protection']
+            },
+            depends_on: 'Class'
+          }
+        ],
+        'ffxiv-job': {
+          name: 'Job',
+          choices: [
+            'Paladin', 'Warrior', 'Dark Knight', 'Gunbreaker',
+            'White Mage', 'Scholar', 'Astrologian', 'Sage',
+            'Monk', 'Dragoon', 'Ninja', 'Samurai', 'Reaper', 'Viper',
+            'Bard', 'Machinist', 'Dancer',
+            'Black Mage', 'Summoner', 'Red Mage', 'Pictomancer'
+          ]
+        },
+        'gw2-class-role': [
+          {
+            name: 'Class',
+            choices: ['Warrior', 'Guardian', 'Revenant', 'Ranger', 'Thief', 'Engineer', 'Necromancer', 'Elementalist', 'Mesmer']
+          },
+          {
+            name: 'Role',
+            enableRoleTags: true,
+            choices: [
+              { value: 'Tank', role: 'tank' },
+              { value: 'Healer', role: 'healer' },
+              { value: 'DPS', role: 'dps' },
+              { value: 'Support', role: 'support' }
+            ]
+          }
+        ],
+        'eso-class-role': [
+          {
+            name: 'Class',
+            choices: ['Dragonknight', 'Sorcerer', 'Nightblade', 'Templar', 'Warden', 'Necromancer', 'Arcanist']
+          },
+          {
+            name: 'Subclass',
+            choices: ['Dragonknight', 'Sorcerer', 'Nightblade', 'Templar', 'Warden', 'Necromancer', 'Arcanist'],
+            exclude_same_as: 'Class'
+          },
+          {
+            name: 'Role',
+            enableRoleTags: true,
+            choices: [
+              { value: 'Tank', role: 'tank' },
+              { value: 'Healer', role: 'healer' },
+              { value: 'DPS', role: 'dps' },
+              { value: 'Support', role: 'support' }
+            ]
+          }
+        ],
+        'class-subclass': [
+          {
+            name: 'Class',
+            choices: ['Fighter', 'Mage', 'Rogue', 'Cleric', 'Ranger', 'Barbarian', 'Bard', 'Druid', 'Monk', 'Paladin', 'Sorcerer', 'Warlock', 'Wizard']
+          },
+          {
+            name: 'Subclass',
+            choices: ['Archetype 1', 'Archetype 2', 'Archetype 3', 'Archetype 4', 'Archetype 5']
+          }
+        ],
+        'shooter-roles': {
+          name: 'Role',
+          choices: ['Assault', 'Sniper', 'Support', 'Recon', 'Engineer', 'Medic']
+        },
+        'mh-weapons': {
+          name: 'Weapon',
+          choices: ['Great Sword', 'Long Sword', 'Sword & Shield', 'Dual Blades', 'Hammer', 'Hunting Horn', 'Lance', 'Gunlance', 'Switch Axe', 'Charge Blade', 'Insect Glaive', 'Bow', 'Light Bowgun', 'Heavy Bowgun']
+        },
+        'borderlands4-vh-skill': [
+          {
+            name: 'Vault Hunter',
+            choices: ['Vex', 'Rafa', 'Amon', 'Harlone']
+          },
+          {
+            name: 'Skill Tree',
+            choices: {
+              'Vex': ['THE FOURTH SEAL', 'VEXCALATION', 'HERE COMES TROUBLE'],
+              'Rafa': ['PEOPLE PERSON', 'REMOTE AGENT', "THIS YEAR'S GIMMICK"],
+              'Amon': ['CALAMITY', 'VENGEANCE', 'CYBERNETICS'],
+              'Harlone': ['CREATIVE BURSTS', 'Seize the Day', 'Cosmic Brilliance']
+            },
+            depends_on: 'Vault Hunter'
+          }
+        ],
+        'arpg-build-activity': [
+          {
+            name: 'Build Type',
+            choices: ['Melee', 'Ranged', 'Caster', 'Summoner', 'Hybrid', 'Tank', 'Support']
+          },
+          {
+            name: 'Activity',
+            choices: ['Campaign', 'Leveling', 'Endgame', 'Boss Runs', 'Farming', 'Raids', 'Rifts/Maps', 'Trading']
+          }
+        ],
+        'difficulty': {
+          name: 'Difficulty',
+          choices: ['Easy', 'Normal', 'Hard', 'Expert', 'Master']
+        }
+      };
+
+      const template = templates[templateName];
+      if (template) {
+        if (Array.isArray(template)) {
+          template.forEach(field => {
+            this.fields.push(JSON.parse(JSON.stringify(field)));
+          });
+        } else {
+          this.fields.push(JSON.parse(JSON.stringify(template)));
+        }
+        this.updateJSON();
+      }
+    },
+
+    updateJSON() {
+      const validFields = this.fields
+        .filter(field => field.name && field.name.trim())
+        .map(field => {
+          const result = { name: field.name.trim() };
+
+          if (typeof field.choices === 'object' && !Array.isArray(field.choices)) {
+            result.choices = field.choices;
+          } else if (Array.isArray(field.choices)) {
+            result.choices = field.choices
+              .filter(c => {
+                if (typeof c === 'object' && c !== null) {
+                  return c.value && c.value.trim();
+                }
+                return c && c.trim();
+              })
+              .map(c => {
+                if (typeof c === 'object' && c !== null) {
+                  const choice = { value: c.value.trim() };
+                  if (c.role) choice.role = c.role;
+                  return choice;
+                }
+                return c.trim();
+              });
+          }
+
+          if (field.depends_on) result.depends_on = field.depends_on;
+          if (field.exclude_same_as) result.exclude_same_as = field.exclude_same_as;
+          if (field.max_select) result.max_select = field.max_select;
+
+          return result;
+        })
+        .filter(field => {
+          if (Array.isArray(field.choices)) return field.choices.length > 0;
+          else if (typeof field.choices === 'object') return Object.keys(field.choices).length > 0;
+          return false;
+        });
+
+      this.jsonOutput = validFields.length > 0 ? JSON.stringify(validFields, null, 2) : '';
+    },
+
+    loadFromJSON(jsonString) {
+      if (!jsonString || !jsonString.trim()) {
+        this.fields = [];
+        this.selectedTemplate = '';
+        this.jsonOutput = '';
+        return;
+      }
+      try {
+        const parsed = JSON.parse(jsonString);
+        this.fields = parsed;
+        this.selectedTemplate = '';
+        this.fields.forEach(field => {
+          if (this.hasRoleTags(field)) {
+            field.enableRoleTags = true;
+          }
+        });
+        this.updateJSON();
+      } catch (e) {
+        this.fields = [];
+        this.selectedTemplate = '';
+        this.jsonOutput = '';
+      }
+    }
+  };
+}
+
+// -------------------------
+// Keyboard shortcuts
+// -------------------------
+document.getElementById('searchQuery')?.addEventListener('keypress', function(e) {
+  if (e.key === 'Enter') searchGames();
+});
+
+// Close modals on backdrop click
+['searchModal', 'addGameModal', 'customGameModal', 'editGameModal'].forEach(id => {
+  const el = document.getElementById(id);
+  if (el) {
+    el.addEventListener('click', function(e) {
+      if (e.target === this) {
+        this.classList.add('hidden');
+        this.classList.remove('flex');
+      }
+    });
+  }
+});
+
+// -------------------------
+// Initialize on load
+// -------------------------
+(function() {
+  const hash = window.location.hash.substring(1);
+  const validTabs = ['games', 'config', 'stats', 'blacklist'];
+  if (hash && validTabs.includes(hash)) {
+    showTab(hash);
+  } else {
+    showTab('games');
+  }
+})();
+</script>
+{% endblock %}

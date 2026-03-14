@@ -11,12 +11,12 @@ from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_http_methods
 from django_ratelimit.decorators import ratelimit
 from django.conf import settings as django_settings
-from sqlalchemy import func, or_
+from sqlalchemy import func, or_, text as sa_text
 
 from .models import (
     WebUser, WebFollow, WebPost, WebPostImage, WebLike,
     WebComment, WebCommentLike, WebNotification, WebUserBlock,
-    WebCommunityMember, WebLFGMember, WebRaffleEntry, WebCreatorProfile,
+    WebCommunity, WebCommunityMember, WebLFGMember, WebRaffleEntry, WebCreatorProfile,
     WebReferral, WebFlair, WebUserFlair, WebRankTitle, WebHeroPointEvent,
 )
 from app.db import get_db_session
@@ -28,6 +28,23 @@ from .helpers import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _queue_flair_role_update(web_user_id: int, action: str, flair_emoji: str | None, flair_name: str | None):
+    """Insert a row into fluxer_pending_role_updates so the bot can sync flair roles."""
+    try:
+        from .models import WebFluxerRoleUpdate
+        with get_db_session() as db:
+            db.add(WebFluxerRoleUpdate(
+                web_user_id=web_user_id,
+                action=action,
+                flair_emoji=flair_emoji,
+                flair_name=flair_name,
+                created_at=int(time.time()),
+            ))
+            db.commit()
+    except Exception as exc:
+        logger.warning(f'_queue_flair_role_update: failed for user {web_user_id}: {exc}')
 
 
 # =============================================================================
@@ -105,6 +122,15 @@ def api_profile_update(request):
         if 'bio' in data:
             user.bio = sanitize_text(data['bio'], max_length=500)
 
+        if 'banner_url' in data:
+            url = (data['banner_url'] or '').strip()
+            if not url:
+                user.banner_url = None
+            else:
+                from .helpers import validate_admin_image_url
+                if validate_admin_image_url(url):
+                    user.banner_url = url[:500]
+
         if 'twitch_username' in data:
             val = sanitize_text(data['twitch_username'], max_length=50).strip()
             user.twitch_username = val if val else None
@@ -156,6 +182,44 @@ def api_profile_update(request):
 
         if 'allow_discovery' in data:
             user.allow_discovery = bool(data['allow_discovery'])
+
+        if 'primary_community_id' in data:
+            val = data['primary_community_id']
+            if val is None or val == '':
+                user.primary_community_id = None
+            else:
+                try:
+                    cid = int(val)
+                    # Must be a community the user is a member of, owns, or is active in via bot
+                    allowed = False
+                    community = db.query(WebCommunity).filter_by(
+                        id=cid, is_active=True, network_status='approved'
+                    ).first()
+                    if community:
+                        if db.query(WebCommunityMember).filter_by(user_id=user.id, community_id=cid).first():
+                            allowed = True
+                        elif db.query(WebCommunity).filter_by(id=cid, owner_id=user.id).first():
+                            allowed = True
+                        else:
+                            _plat = community.platform.value if hasattr(community.platform, 'value') else community.platform
+                            if _plat == 'fluxer' and user.fluxer_id:
+                                row = db.execute(
+                                    sa_text("SELECT 1 FROM fluxer_member_xp WHERE user_id=:uid AND guild_id=:gid LIMIT 1"),
+                                    {'uid': user.fluxer_id, 'gid': community.platform_id}
+                                ).fetchone()
+                                if row:
+                                    allowed = True
+                            elif _plat == 'discord' and user.discord_id:
+                                row = db.execute(
+                                    sa_text("SELECT 1 FROM guild_members WHERE user_id=:uid AND guild_id=:gid LIMIT 1"),
+                                    {'uid': user.discord_id, 'gid': community.platform_id}
+                                ).fetchone()
+                                if row:
+                                    allowed = True
+                    if allowed:
+                        user.primary_community_id = cid
+                except (ValueError, TypeError):
+                    pass
 
         user.updated_at = int(time.time())
         db.commit()
@@ -242,14 +306,6 @@ def public_profile(request, username):
                     follower_id=profile_user.id, following_id=request.web_user.id
                 ).first() is not None
 
-        posts_query = db.query(WebPost).filter(
-            WebPost.author_id == profile_user.id,
-            WebPost.is_deleted == False,
-            WebPost.is_hidden == False,
-        ).order_by(WebPost.created_at.desc()).limit(20).all()
-
-        posts = [serialize_post(p, request.web_user.id if request.web_user else None, db) for p in posts_query]
-
         genres = json.loads(profile_user.favorite_genres) if profile_user.favorite_genres else []
         fav_games = json.loads(profile_user.favorite_games) if profile_user.favorite_games else []
         platforms = json.loads(profile_user.gaming_platforms) if profile_user.gaming_platforms else []
@@ -265,19 +321,25 @@ def public_profile(request, username):
 
         db.expunge(profile_user)
 
+    og_name = profile_user.display_name or profile_user.username
+    og_desc = (profile_user.bio or f"{og_name}'s profile on QuestLog")[:200]
+
     return render(request, 'questlog_web/public_profile.html', {
         'web_user': request.web_user,
         'profile_user': profile_user,
         'is_own_profile': is_own,
         'is_following': is_following,
         'is_mutual': is_mutual,
-        'posts': posts,
         'genres': genres,
         'favorite_games': fav_games,
         'gaming_platforms': platforms,
         'playstyle_list': playstyle_list,
         'creator_profile': creator_profile,
-        'active_page': 'profile',
+        'active_page': 'public_profile',
+        'og_title': f"{og_name} on QuestLog",
+        'og_desc': og_desc,
+        'og_image': profile_user.avatar_url or None,
+        'og_url': f"https://casual-heroes.com/ql/u/{profile_user.username}/",
     })
 
 
@@ -417,7 +479,7 @@ def api_privacy_data_summary(request):
                 'Gaming preferences (genres, platforms, playstyle)',
             ],
             'not_stored': [
-                'Passwords (we use Steam OAuth)',
+                'Passwords in plaintext (stored as PBKDF2 hashes via Django auth)',
                 'Payment information (Stripe handles this)',
                 'IP addresses (hashed in admin audit logs only)',
                 'Browsing history or tracking data',
@@ -638,12 +700,25 @@ def api_save_user_prefs(request):
             user.show_activity = bool(data['show_activity'])
         if 'allow_messages' in data:
             user.allow_messages = bool(data['allow_messages'])
+        # Champion opt-in listing (only Champions can enable this)
+        if 'show_as_champion' in data and user.is_hero:
+            user.show_as_champion = 1 if data['show_as_champion'] else 0
+
+        # Activity feed / ticker opt-outs
+        _ticker_fields = [
+            'ticker_show_live', 'ticker_show_playing', 'ticker_show_posts',
+            'ticker_show_follows', 'ticker_show_lfg',
+        ]
+        for field in _ticker_fields:
+            if field in data:
+                setattr(user, field, bool(data[field]))
 
         # Notifications
         _notif_fields = [
             'notify_follows', 'notify_likes', 'notify_comments', 'notify_comment_likes',
+            'notify_shares', 'notify_mentions',
             'notify_giveaways', 'notify_lfg_join', 'notify_lfg_leave', 'notify_lfg_full',
-            'notify_community_join',
+            'notify_community_join', 'notify_now_playing', 'notify_level_up',
         ]
         for field in _notif_fields:
             if field in data:
@@ -657,6 +732,7 @@ def api_save_user_prefs(request):
             'show_steam_profile': user.show_steam_profile,
             'show_activity': user.show_activity,
             'allow_messages': user.allow_messages,
+            'show_as_champion': bool(user.show_as_champion),
             **{f: getattr(user, f) for f in _notif_fields},
         })
 
@@ -691,6 +767,12 @@ def api_save_steam_prefs(request):
             # Clear current_game immediately when opting out
             if not user.show_playing_status:
                 user.current_game = None
+        if 'track_game_launches' in data:
+            user.track_game_launches = bool(data['track_game_launches'])
+        if 'fluxer_sync_custom_status' in data:
+            # Only allow if Fluxer is actually linked and we have a stored token
+            if user.fluxer_id and user.fluxer_access_token_enc:
+                user.fluxer_sync_custom_status = bool(data['fluxer_sync_custom_status'])
 
         user.updated_at = int(time.time())
         db.commit()
@@ -700,6 +782,8 @@ def api_save_steam_prefs(request):
         'track_achievements': user.track_achievements,
         'track_hours_played': user.track_hours_played,
         'show_playing_status': user.show_playing_status,
+        'track_game_launches': user.track_game_launches,
+        'fluxer_sync_custom_status': user.fluxer_sync_custom_status,
     })
 
 
@@ -714,9 +798,16 @@ def api_me_now_playing(request):
     with get_db_session() as db:
         user = db.query(WebUser).filter_by(id=request.web_user.id).first()
         if not user:
-            return JsonResponse({'current_game': None})
+            return JsonResponse({'current_game': None, 'is_live': False})
         game = user.current_game if user.show_playing_status else None
-    return JsonResponse({'current_game': game})
+        game_appid = user.current_game_appid if game else None
+    return JsonResponse({
+        'current_game': game,
+        'current_game_appid': game_appid,
+        'is_live': bool(user.is_live),
+        'live_platform': user.live_platform or '',
+        'live_url': user.live_url or '',
+    })
 
 
 @require_http_methods(["GET"])
@@ -726,9 +817,17 @@ def api_user_now_playing(request, username):
         user = db.query(WebUser).filter_by(
             username=username, is_banned=False, is_disabled=False,
         ).first()
-        if not user or not user.show_playing_status:
-            return JsonResponse({'current_game': None})
-    return JsonResponse({'current_game': user.current_game})
+        if not user:
+            return JsonResponse({'current_game': None, 'is_live': False})
+        game = user.current_game if user.show_playing_status else None
+        game_appid = user.current_game_appid if game else None
+    return JsonResponse({
+        'current_game': game,
+        'current_game_appid': game_appid,
+        'is_live': bool(user.is_live),
+        'live_platform': user.live_platform or '',
+        'live_url': user.live_url or '',
+    })
 
 
 # =============================================================================
@@ -803,6 +902,7 @@ def api_flairs(request):
             .all()
         }
         equipped_id = request.web_user.active_flair_id
+        equipped_id2 = getattr(request.web_user, 'active_flair2_id', None)
 
         # Count owners of each flair so we can hide capped exclusives (e.g. Founding Member)
         from sqlalchemy import func as sqlfunc
@@ -814,16 +914,34 @@ def api_flairs(request):
 
         from app.questlog_web.views_auth import FOUNDING_FLAIR_LIMIT, FOUNDING_FLAIR_NAME
 
+        now_ts = int(time.time())
         data = []
         for f in flairs:
             is_owned = f.id in owned_ids
-            # Exclusive flairs (e.g. Early Tester) are admin-granted only — hide from shop
+            # Exclusive flairs (e.g. Early Tester) are admin-granted only — hide from shop unless owned
             if f.flair_type == 'exclusive' and not is_owned:
-                continue
-            # Hide Founding Member from shop if capped and user doesn't own it
-            if f.name == FOUNDING_FLAIR_NAME and not is_owned:
-                if owner_counts.get(f.id, 0) >= FOUNDING_FLAIR_LIMIT:
+                # Exception: show time-gated exclusives so people know they exist / can claim during window
+                has_window = f.available_from or f.available_until
+                if not has_window:
                     continue
+                # Window closed - hide
+                if f.available_until and now_ts > f.available_until:
+                    continue
+
+            # Determine availability status for the UI
+            available = True
+            available_from_ts = None
+            available_until_ts = None
+            available_from_label = None
+            if f.available_from and now_ts < f.available_from:
+                available = False
+                available_from_ts = f.available_from
+                from datetime import datetime, timezone as tz
+                dt = datetime.fromtimestamp(f.available_from, tz=tz.utc)
+                available_from_label = f"Available {dt.strftime('%b %-d, %Y')}"
+            if f.available_until:
+                available_until_ts = f.available_until
+
             data.append({
                 'id': f.id,
                 'name': f.name,
@@ -833,6 +951,11 @@ def api_flairs(request):
                 'hp_cost': f.hp_cost,
                 'owned': is_owned,
                 'equipped': f.id == equipped_id,
+                'equipped_slot2': f.id == equipped_id2 if equipped_id2 else False,
+                'available': available,
+                'available_from': available_from_ts,
+                'available_from_label': available_from_label,
+                'available_until': available_until_ts,
             })
 
     return JsonResponse({'flairs': data})
@@ -857,6 +980,26 @@ def api_flair_buy(request, flair_id):
         ).first()
         if already:
             return JsonResponse({'error': 'You already own this flair.'}, status=400)
+
+        # Time-gate check: flair has a limited availability window
+        now_ts = int(time.time())
+        if flair.available_from and now_ts < flair.available_from:
+            return JsonResponse({'error': 'This flair is not yet available.'}, status=403)
+        if flair.available_until and now_ts > flair.available_until:
+            return JsonResponse({'error': 'This flair is no longer available.'}, status=403)
+
+        # Hero-exclusive flairs require an active Hero subscription (admins bypass)
+        if flair.flair_type == 'hero':
+            now_ts = int(time.time())
+            check_user = db.query(WebUser).filter_by(id=request.web_user.id).first()
+            is_admin = bool(getattr(check_user, 'is_admin', 0))
+            if not is_admin and not (
+                check_user
+                and getattr(check_user, 'is_hero', 0)
+                and getattr(check_user, 'hero_expires_at', None)
+                and check_user.hero_expires_at > now_ts
+            ):
+                return JsonResponse({'error': 'This flair is exclusive to Hero subscribers.'}, status=403)
 
         # Use with_for_update() to lock the row and prevent race condition
         # (two concurrent requests both passing the HP check and double-spending)
@@ -891,18 +1034,36 @@ def api_flair_buy(request, flair_id):
 @add_web_user_context
 @require_http_methods(['POST'])
 def api_flair_equip(request, flair_id):
-    """Equip (or unequip if already equipped) a flair the user owns."""
+    """Equip (or unequip) a flair the user owns.
+    Champions can use slot=2 in the request body to equip a second flair simultaneously.
+    Slot 1 is always available; slot 2 requires is_hero=1.
+    """
+    try:
+        body = json.loads(request.body) if request.body else {}
+    except (json.JSONDecodeError, ValueError):
+        body = {}
+    slot = 2 if str(body.get('slot', '1')) == '2' else 1
+
     with get_db_session() as db:
         user = db.query(WebUser).filter_by(id=request.web_user.id).first()
+        is_champion = bool(user.is_hero) or bool(user.is_admin)
+
+        # Champions and admins only for slot 2
+        if slot == 2 and not is_champion:
+            return JsonResponse({'error': 'Second flair slot requires Champion status.'}, status=403)
 
         if flair_id == 0:
-            # Unequip
-            user.active_flair_id = None
-            db.query(WebUserFlair).filter_by(
-                user_id=user.id, is_equipped=True
-            ).update({'is_equipped': False})
+            # Unequip the requested slot
+            if slot == 2:
+                user.active_flair2_id = None
+            else:
+                user.active_flair_id = None
+                db.query(WebUserFlair).filter_by(
+                    user_id=user.id, is_equipped=True
+                ).update({'is_equipped': False})
+                _queue_flair_role_update(user.id, 'clear_flair', None, None)
             db.commit()
-            return JsonResponse({'success': True, 'equipped_flair_id': None})
+            return JsonResponse({'success': True, 'slot': slot, 'equipped_flair_id': None})
 
         uf = db.query(WebUserFlair).filter_by(
             user_id=user.id, flair_id=flair_id
@@ -910,10 +1071,19 @@ def api_flair_equip(request, flair_id):
         if not uf:
             return JsonResponse({'error': 'You do not own this flair.'}, status=403)
 
-        # Unequip all, then equip this one
-        db.query(WebUserFlair).filter_by(user_id=user.id, is_equipped=True).update({'is_equipped': False})
-        uf.is_equipped = True
-        user.active_flair_id = flair_id
+        flair = db.query(WebFlair).filter_by(id=flair_id).first()
+        flair_emoji = flair.emoji if flair else ''
+        flair_name  = flair.name  if flair else ''
+
+        if slot == 2:
+            # Slot 2: just assign, don't touch slot 1
+            user.active_flair2_id = flair_id
+        else:
+            # Slot 1: unequip all is_equipped flags, equip this one
+            db.query(WebUserFlair).filter_by(user_id=user.id, is_equipped=True).update({'is_equipped': False})
+            uf.is_equipped = True
+            user.active_flair_id = flair_id
+            _queue_flair_role_update(user.id, 'set_flair', flair_emoji, flair_name)
         db.commit()
 
-    return JsonResponse({'success': True, 'equipped_flair_id': flair_id})
+    return JsonResponse({'success': True, 'slot': slot, 'equipped_flair_id': flair_id})

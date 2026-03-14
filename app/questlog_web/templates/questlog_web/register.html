@@ -165,19 +165,47 @@
     {% endif %}
 
     {% if registrations_disabled %}
+    <!-- Coming soon teaser -->
     <div style="background: linear-gradient(135deg, rgba(99,102,241,0.12), rgba(139,92,246,0.12)); border: 1px solid rgba(99,102,241,0.4); border-radius: 12px; padding: 20px 24px; margin-bottom: 24px; text-align: center;">
-      <p style="color: #a78bfa; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.15em; text-transform: uppercase; margin: 0 0 6px 0;">🚀 Coming 3/16/2026</p>
+      <p style="color: #a78bfa; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.15em; text-transform: uppercase; margin: 0 0 6px 0;">Coming 3/16/2026</p>
       <p style="color: #fff; font-size: 1.15rem; font-weight: 800; margin: 0 0 8px 0;">QuestLog Beta is almost here!</p>
-      <p style="color: #c4b5fd; font-size: 0.85rem; margin: 0 0 10px 0;">A social network built for gamers! Posts, profiles, game and steramer discovery, and more. Be first in.</p>
+      <p style="color: #c4b5fd; font-size: 0.85rem; margin: 0 0 10px 0;">A social network built for gamers! Posts, profiles, game and streamer discovery, and more. Be first in.</p>
       <div style="display: inline-flex; align-items: center; gap: 6px; background: rgba(99,102,241,0.2); border: 1px solid rgba(99,102,241,0.4); border-radius: 999px; padding: 5px 14px;">
         <span style="width: 7px; height: 7px; border-radius: 50%; background: #818cf8; display: inline-block; animation: pulse 2s infinite;"></span>
         <span style="color: #a5b4fc; font-size: 0.78rem; font-weight: 600;">Early access opens March 16th</span>
       </div>
     </div>
-    <div class="opacity-40 pointer-events-none select-none">
+
+    <!-- Invite code gate -->
+    <div id="invite-gate">
+      <p style="color: #9ca3af; font-size: 0.82rem; text-align: center; margin: 0 0 16px 0;">
+        Have an early access invite code? Enter it below to unlock registration.
+      </p>
+      <div class="ql-field">
+        <label for="gate-code-input">Invite Code</label>
+        <input type="text" id="gate-code-input" placeholder="XXXXXXXXXX" autocomplete="off" maxlength="16"
+          style="text-transform: uppercase; letter-spacing: 0.15em; font-family: monospace; font-size: 1.05rem;">
+      </div>
+      <p id="gate-error" style="color: #fca5a5; font-size: 0.82rem; margin: -8px 0 12px 0; display: none;"></p>
+      <button id="gate-submit" class="ql-btn-primary" style="margin-top: 0;">Unlock Early Access</button>
+      <p style="color: #4b5563; font-size: 0.75rem; text-align: center; margin-top: 12px;">
+        Get an invite code in our Fluxer or Discord community by running <code style="background:#1f2937;padding:1px 5px;border-radius:4px;color:#a5b4fc;">!invite</code>.
+      </p>
+    </div>
+
+    {% else %}
+
+    {% if early_access_mode %}
+    <div style="background: linear-gradient(135deg, rgba(99,102,241,0.10), rgba(139,92,246,0.10)); border: 1px solid rgba(99,102,241,0.35); border-radius: 12px; padding: 14px 18px; margin-bottom: 20px; display: flex; align-items: flex-start; gap: 12px;">
+      <span style="font-size: 1.4rem; flex-shrink: 0; line-height: 1;">🎟</span>
+      <div>
+        <p style="color: #c4b5fd; font-size: 0.82rem; font-weight: 700; margin: 0 0 2px 0;">Early Access Only</p>
+        <p style="color: #9ca3af; font-size: 0.77rem; margin: 0;">An invite code is required to create an account. Get yours in our <strong style="color: #a78bfa;">Fluxer</strong> or <strong style="color: #818cf8;">Discord</strong> community by running <code style="background:#1f2937;padding:1px 5px;border-radius:4px;color:#a5b4fc;">!invite</code> in the bot chat.</p>
+      </div>
+    </div>
     {% endif %}
 
-    <form id="reg-form" method="post" action="{% url 'site_register' %}" autocomplete="on">
+    <form id="reg-form" method="post" action="{% url 'questlog_web_register' %}" autocomplete="on">
       {% csrf_token %}
 
       <!-- Anti-bot: timing (filled by JS on page load) -->
@@ -187,6 +215,16 @@
       <div style="position:absolute;left:-9999px;top:-9999px;" aria-hidden="true">
         <label for="id_website">Leave this blank</label>
         <input type="text" id="id_website" name="website" tabindex="-1" autocomplete="off">
+      </div>
+
+      <div class="ql-field">
+        <label for="id_invite_code">Invite Code {% if not early_access_mode %}<span style="color:#4b5563;font-weight:400;text-transform:none;letter-spacing:0;">(optional)</span>{% endif %}</label>
+        <input type="text" id="id_invite_code" name="invite_code" value="{{ invite_code|default:'' }}"
+          placeholder="XXXXXXXXXX" autocomplete="off" maxlength="16"
+          style="text-transform: uppercase; letter-spacing: 0.15em; font-family: monospace; font-size: 1.05rem;">
+        <div class="ql-field-hint">
+          {% if early_access_mode %}Required during Early Access - get yours in our Fluxer or Discord community.{% else %}Have an invite code from a community event or bot? Enter it here.{% endif %}
+        </div>
       </div>
 
       <div class="ql-field">
@@ -217,10 +255,10 @@
       <button type="submit" class="ql-btn-primary">Create Account</button>
     </form>
 
-    {% if registrations_disabled %}</div>{% endif %}
+    {% endif %}{# registrations_disabled #}
 
     <p class="ql-footer-links" style="margin-top: 20px;">
-      Already have an account? <a href="/ql/login/">Sign in</a>
+      Already have an account? <a href="/ql/earlyaccess/login/">Sign in</a>
     </p>
 
     <p class="ql-footer-links" style="margin-top: 24px; font-size: 0.78rem;">
@@ -239,8 +277,63 @@
 {% endif %}
 <script>
   document.addEventListener('DOMContentLoaded', function () {
+    // Timing anti-bot field
     var ts = document.querySelector('#reg-form [name="_ts"]');
     if (ts) ts.value = Math.floor(Date.now() / 1000);
+
+    // Auto-focus invite code field when linked from #invite on landing page
+    if (window.location.hash === '#invite') {
+      var inviteField = document.getElementById('gate-code-input') || document.getElementById('id_invite_code');
+      if (inviteField) {
+        inviteField.scrollIntoView({behavior: 'smooth', block: 'center'});
+        inviteField.focus();
+      }
+    }
+
+    // Invite code gate
+    var gateSubmit = document.getElementById('gate-submit');
+    var gateInput  = document.getElementById('gate-code-input');
+    var gateError  = document.getElementById('gate-error');
+    if (gateSubmit && gateInput) {
+      function doGateCheck() {
+        var code = gateInput.value.trim();
+        if (!code) { showGateError('Enter an invite code.'); return; }
+        gateSubmit.disabled = true;
+        gateSubmit.textContent = 'Checking...';
+        csrfFetch('/ql/api/register/check-invite/', {
+          method: 'POST',
+          body: JSON.stringify({code: code})
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          if (data.valid && data.redirect) {
+            window.location.href = data.redirect;
+          } else {
+            showGateError(data.error || 'Invalid code. Please try again.');
+            gateSubmit.disabled = false;
+            gateSubmit.textContent = 'Unlock Early Access';
+          }
+        })
+        .catch(function() {
+          showGateError('Network error. Please try again.');
+          gateSubmit.disabled = false;
+          gateSubmit.textContent = 'Unlock Early Access';
+        });
+      }
+      function showGateError(msg) {
+        gateError.textContent = msg;
+        gateError.style.display = 'block';
+        gateInput.style.borderColor = 'rgba(220,38,38,0.6)';
+      }
+      gateSubmit.addEventListener('click', doGateCheck);
+      gateInput.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') { e.preventDefault(); doGateCheck(); }
+      });
+      gateInput.addEventListener('input', function() {
+        gateError.style.display = 'none';
+        gateInput.style.borderColor = '';
+      });
+    }
   });
 </script>
 {% endblock %}

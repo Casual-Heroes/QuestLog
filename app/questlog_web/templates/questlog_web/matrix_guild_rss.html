@@ -1,0 +1,232 @@
+{% extends "questlog_web/matrix_base_guild.html" %}
+{% load static %}
+{% block title %}RSS Feeds - {{ space_name }}{% endblock %}
+
+{% block guild_content %}
+{% include "questlog/partials/custom_select.html" %}
+
+  <!-- Header -->
+  <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 p-6 pb-0 mb-8">
+    <div>
+      <h1 class="text-3xl font-bold text-white">
+        <i class="fas fa-rss text-purple-400 mr-3"></i>RSS Feeds
+      </h1>
+      <p class="text-gray-400 mt-1">Auto-post articles and news to Matrix rooms on a schedule.</p>
+    </div>
+    <div class="flex gap-3">
+      <span class="text-gray-500 text-sm self-center">{{ rss_feeds|length }} feed{{ rss_feeds|length|pluralize }}</span>
+      <button onclick="openAddFeed()"
+              class="bg-purple-600 hover:bg-purple-700 text-white text-sm font-semibold px-4 py-2 rounded-lg transition flex items-center gap-2">
+        <i class="fas fa-plus"></i> Add Feed
+      </button>
+    </div>
+  </div>
+
+  <div class="px-6 pb-8">
+
+  <!-- Feed list -->
+  <div class="bg-neutral-900 rounded-xl border border-neutral-800 overflow-hidden">
+    {% if rss_feeds %}
+    <div class="divide-y divide-neutral-800/60">
+      {% for feed in rss_feeds %}
+      <div class="flex items-start gap-4 p-4 hover:bg-neutral-800/30 transition">
+        <div class="w-9 h-9 bg-purple-600/20 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
+          <i class="fas fa-rss text-purple-400 text-sm"></i>
+        </div>
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-2 flex-wrap">
+            <p class="text-white font-medium">{{ feed.label|default:"Unnamed Feed" }}</p>
+            {% if feed.enabled %}
+            <span class="text-xs bg-teal-600/20 text-teal-400 px-2 py-0.5 rounded-full border border-teal-700/30">Active</span>
+            {% else %}
+            <span class="text-xs bg-neutral-700 text-gray-500 px-2 py-0.5 rounded-full">Disabled</span>
+            {% endif %}
+          </div>
+          <p class="text-gray-500 text-xs mt-0.5 truncate">{{ feed.url }}</p>
+          <div class="flex items-center gap-3 mt-1 text-xs text-gray-600">
+            <span>Room: {% if feed.room_id %}{{ feed.room_id }}{% else %}Not set{% endif %}</span>
+            <span>Every {{ feed.poll_interval_minutes|default:60 }} min</span>
+            {% if feed.max_age_days %}<span>Max age: {{ feed.max_age_days }}d</span>{% endif %}
+          </div>
+        </div>
+        <div class="flex items-center gap-1 flex-shrink-0">
+          <button onclick="toggleFeed({{ feed.id }}, {{ feed.enabled|yesno:'true,false' }})"
+                  class="{% if feed.enabled %}text-teal-400 hover:text-gray-400{% else %}text-gray-500 hover:text-teal-400{% endif %} transition p-1.5 rounded-lg hover:bg-neutral-700"
+                  title="{% if feed.enabled %}Disable{% else %}Enable{% endif %}">
+            <i class="fas fa-{% if feed.enabled %}pause{% else %}play{% endif %} text-sm"></i>
+          </button>
+          <button onclick="openEditFeed({{ feed.id }}, '{{ feed.label|escapejs }}', '{{ feed.url|escapejs }}', '{{ feed.room_id|default:''|escapejs }}', {{ feed.poll_interval_minutes|default:60 }}, {{ feed.max_age_days|default:0 }})"
+                  class="text-gray-500 hover:text-purple-400 transition p-1.5 rounded-lg hover:bg-purple-600/10">
+            <i class="fas fa-pencil text-sm"></i>
+          </button>
+          <button onclick="deleteFeed({{ feed.id }}, '{{ feed.label|escapejs }}')"
+                  class="text-gray-500 hover:text-red-400 transition p-1.5 rounded-lg hover:bg-red-600/10">
+            <i class="fas fa-trash text-sm"></i>
+          </button>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="p-10 text-center">
+      <div class="w-14 h-14 bg-purple-600/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
+        <i class="fas fa-rss text-purple-400 text-2xl"></i>
+      </div>
+      <h3 class="text-white font-semibold mb-2">No RSS Feeds</h3>
+      <p class="text-gray-500 text-sm mb-4">Add a feed to automatically post articles to any room in your space.</p>
+      <button onclick="openAddFeed()"
+              class="bg-purple-600 hover:bg-purple-700 text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition">
+        Add First Feed
+      </button>
+    </div>
+    {% endif %}
+  </div>
+
+  </div>
+
+<!-- Add / Edit Feed Modal -->
+<div id="feedModal" class="fixed inset-0 z-50 hidden">
+  <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" onclick="closeFeedModal()"></div>
+  <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-lg">
+    <div class="bg-neutral-900 rounded-xl border border-neutral-700 shadow-2xl">
+      <div class="p-5 border-b border-neutral-800 flex items-center justify-between">
+        <h2 class="text-lg font-bold text-white" id="feedModalTitle">Add RSS Feed</h2>
+        <button onclick="closeFeedModal()" class="text-gray-500 hover:text-white transition"><i class="fas fa-times"></i></button>
+      </div>
+      <div class="p-5 space-y-4">
+        <input type="hidden" id="feedId">
+        <div>
+          <label class="block text-sm text-gray-400 mb-1">Feed Name <span class="text-red-400">*</span></label>
+          <input type="text" id="feedName" placeholder="e.g. Gaming News"
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm placeholder-gray-500 focus:outline-none focus:border-purple-600">
+        </div>
+        <div>
+          <label class="block text-sm text-gray-400 mb-1">Feed URL <span class="text-red-400">*</span></label>
+          <input type="url" id="feedUrl" placeholder="https://example.com/feed.xml"
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm placeholder-gray-500 focus:outline-none focus:border-purple-600">
+        </div>
+        <div>
+          <label class="block text-sm text-gray-400 mb-1">Post to Room <span class="text-red-400">*</span></label>
+          <div id="cs-feed-room"></div>
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-sm text-gray-400 mb-1">Check Interval (minutes)</label>
+            <input type="number" id="feedInterval" placeholder="60" min="5" max="1440" value="60"
+                   class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-purple-600">
+          </div>
+          <div>
+            <label class="block text-sm text-gray-400 mb-1">Max Age (days, 0=unlimited)</label>
+            <input type="number" id="feedMaxAge" placeholder="0" min="0" max="365" value="0"
+                   class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-purple-600">
+          </div>
+        </div>
+        <div class="flex justify-end gap-3 pt-4 border-t border-neutral-800">
+          <button onclick="closeFeedModal()" class="px-4 py-2 text-gray-400 hover:text-white transition">Cancel</button>
+          <button onclick="submitFeed()"
+                  class="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded-lg font-medium transition">
+            <span id="feedSubmitLabel">Add Feed</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="fixed bottom-6 right-6 z-50 hidden">
+  <div class="bg-neutral-800 border border-neutral-700 text-white text-sm px-4 py-3 rounded-xl shadow-xl flex items-center gap-2">
+    <i id="toastIcon" class="fas fa-check text-teal-400"></i>
+    <span id="toastMsg"></span>
+  </div>
+</div>
+
+<script>
+const SPACE_ID_URL = '{{ space_id_url }}';
+const ROOMS = JSON.parse('{{ rooms_json|escapejs }}');
+let csFeedRoom = null;
+
+function showToast(msg, ok=true) {
+  const t = document.getElementById('toast');
+  document.getElementById('toastMsg').textContent = msg;
+  document.getElementById('toastIcon').className = ok ? 'fas fa-check text-teal-400' : 'fas fa-times text-red-400';
+  t.classList.remove('hidden');
+  setTimeout(() => t.classList.add('hidden'), 3500);
+}
+
+function openAddFeed() {
+  document.getElementById('feedId').value = '';
+  document.getElementById('feedModalTitle').textContent = 'Add RSS Feed';
+  document.getElementById('feedSubmitLabel').textContent = 'Add Feed';
+  document.getElementById('feedName').value = '';
+  document.getElementById('feedUrl').value = '';
+  document.getElementById('feedInterval').value = '60';
+  document.getElementById('feedMaxAge').value = '0';
+  if (csFeedRoom) csFeedRoom.setValue('');
+  document.getElementById('feedModal').classList.remove('hidden');
+}
+
+function openEditFeed(id, name, url, roomId, interval, maxAge) {
+  document.getElementById('feedId').value = id;
+  document.getElementById('feedModalTitle').textContent = 'Edit RSS Feed';
+  document.getElementById('feedSubmitLabel').textContent = 'Save Changes';
+  document.getElementById('feedName').value = name;
+  document.getElementById('feedUrl').value = url;
+  document.getElementById('feedInterval').value = interval;
+  document.getElementById('feedMaxAge').value = maxAge;
+  if (csFeedRoom) csFeedRoom.setValue(roomId);
+  document.getElementById('feedModal').classList.remove('hidden');
+}
+
+function closeFeedModal() { document.getElementById('feedModal').classList.add('hidden'); }
+
+function submitFeed() {
+  const id = document.getElementById('feedId').value;
+  const data = {
+    name: document.getElementById('feedName').value.trim(),
+    url: document.getElementById('feedUrl').value.trim(),
+    room_id: csFeedRoom ? csFeedRoom.getValue() : '',
+    interval: parseInt(document.getElementById('feedInterval').value) || 60,
+    max_age_days: parseInt(document.getElementById('feedMaxAge').value) || 0,
+  };
+  if (!data.name || !data.url || !data.room_id) { showToast('Name, URL, and room required.', false); return; }
+  const method = id ? 'PATCH' : 'POST';
+  const url = id
+    ? '/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/rss/' + id + '/'
+    : '/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/rss/';
+  csrfFetch(url, {method, headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data)})
+    .then(r => r.json()).then(d => {
+      if (d.ok) { showToast(id ? 'Feed updated.' : 'Feed added.'); closeFeedModal(); location.reload(); }
+      else showToast(d.error || 'Error', false);
+    }).catch(() => showToast('Request failed.', false));
+}
+
+function toggleFeed(id, enabled) {
+  csrfFetch('/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/rss/' + id + '/', {
+    method: 'PATCH', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({enabled: !enabled})
+  }).then(r => r.json()).then(d => {
+    if (d.ok) { showToast(enabled ? 'Feed disabled.' : 'Feed enabled.'); location.reload(); }
+    else showToast(d.error || 'Error', false);
+  }).catch(() => showToast('Request failed.', false));
+}
+
+function deleteFeed(id, name) {
+  if (!confirm('Delete feed "' + name + '"?')) return;
+  csrfFetch('/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/rss/' + id + '/', {method: 'DELETE'})
+    .then(r => r.json()).then(d => {
+      if (d.ok) { showToast('Feed deleted.'); location.reload(); }
+      else showToast(d.error || 'Error', false);
+    }).catch(() => showToast('Request failed.', false));
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  csFeedRoom = createCustomSelect({
+    container: document.getElementById('cs-feed-room'),
+    name: 'feed_room_id',
+    items: ROOMS,
+    selected: '',
+    placeholder: 'Select a room...',
+    color: 'purple',
+  });
+});
+</script>
+{% endblock %}

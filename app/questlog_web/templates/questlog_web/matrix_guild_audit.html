@@ -1,0 +1,564 @@
+{% extends "questlog_web/matrix_base_guild.html" %}
+{% load static %}
+{% block title %}Audit Logs - {{ space_name }}{% endblock %}
+
+{% block guild_content %}
+
+{% include "questlog/partials/custom_select.html" %}
+
+  <!-- Header -->
+  <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 p-6 pb-0 mb-6">
+    <div>
+      <h1 class="text-3xl font-bold text-white">
+        <i class="fas fa-clipboard-list text-cyan-400 mr-3"></i>Audit Logs
+      </h1>
+      <p class="text-gray-400 mt-1">All space events - members, rooms, moderation, security</p>
+    </div>
+    <div class="flex gap-3">
+      <button onclick="openAuditSettings()" class="bg-neutral-800 hover:bg-neutral-700 text-white px-4 py-2 rounded-lg font-medium transition text-sm">
+        <i class="fas fa-sliders-h mr-2"></i>Log Room
+      </button>
+      <button onclick="loadLogs(true)" class="bg-neutral-800 hover:bg-neutral-700 text-white px-4 py-2 rounded-lg font-medium transition text-sm">
+        <i class="fas fa-sync-alt mr-2"></i>Refresh
+      </button>
+    </div>
+  </div>
+
+  <!-- Save status -->
+  <div id="save-msg" class="hidden mx-6 mb-4 px-4 py-3 rounded-lg text-sm font-medium"></div>
+
+  <!-- Audit Log Room Config Modal -->
+  <div id="auditSettingsModal" class="fixed inset-0 z-50 hidden">
+    <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" onclick="closeAuditSettings()"></div>
+    <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-3xl max-h-[90vh] overflow-y-auto">
+      <div class="bg-neutral-900 border border-neutral-700 rounded-xl shadow-2xl p-6">
+        <div class="flex items-start justify-between mb-6">
+          <div>
+            <h3 class="text-xl font-bold text-white"><i class="fas fa-door-open text-cyan-400 mr-2"></i>Audit Log Room</h3>
+            <p class="text-gray-400 text-sm mt-1">Choose which room receives live audit log messages from the bot.</p>
+          </div>
+          <button onclick="closeAuditSettings()" class="text-gray-400 hover:text-white"><i class="fas fa-times"></i></button>
+        </div>
+
+        <div class="space-y-6">
+          <!-- Enable toggle -->
+          <div class="flex items-center justify-between bg-neutral-800/60 border border-neutral-700 rounded-lg p-4">
+            <div>
+              <p class="text-white font-medium">Enable Audit Logging</p>
+              <p class="text-gray-500 text-sm">Capture and store all space events in the database.</p>
+            </div>
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" id="audit-enabled" class="sr-only peer">
+              <div class="w-11 h-6 bg-neutral-700 rounded-full peer peer-checked:bg-cyan-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full"></div>
+            </label>
+          </div>
+
+          <!-- Log room picker -->
+          <div>
+            <label class="block text-sm text-gray-400 mb-2">Log Room <span class="text-gray-600 text-xs">(bot posts live messages here)</span></label>
+            <div id="cs-audit-room"></div>
+          </div>
+
+          <!-- Per-event toggles -->
+          <div>
+            <p class="text-white font-semibold mb-3">Event Filters <span class="text-gray-500 text-xs font-normal">(toggle off to stop logging)</span></p>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div class="bg-neutral-800/60 border border-neutral-700 rounded-lg p-4">
+                <h4 class="text-cyan-400 font-semibold text-sm mb-2">Member Events</h4>
+                <div class="space-y-2" id="cat_member"></div>
+              </div>
+              <div class="bg-neutral-800/60 border border-neutral-700 rounded-lg p-4">
+                <h4 class="text-red-400 font-semibold text-sm mb-2">Moderation Events</h4>
+                <div class="space-y-2" id="cat_moderation"></div>
+              </div>
+              <div class="bg-neutral-800/60 border border-neutral-700 rounded-lg p-4">
+                <h4 class="text-orange-400 font-semibold text-sm mb-2">Room Events</h4>
+                <div class="space-y-2" id="cat_room"></div>
+              </div>
+              <div class="bg-neutral-800/60 border border-neutral-700 rounded-lg p-4">
+                <h4 class="text-yellow-400 font-semibold text-sm mb-2">Message Events</h4>
+                <div class="space-y-2" id="cat_message"></div>
+              </div>
+              <div class="bg-neutral-800/60 border border-neutral-700 rounded-lg p-4 md:col-span-2">
+                <h4 class="text-green-400 font-semibold text-sm mb-2">Security / Verification</h4>
+                <div class="space-y-2 grid grid-cols-2 gap-2" id="cat_security"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div id="modal-toast" class="hidden px-4 py-3 rounded-lg text-sm font-medium mb-2"></div>
+        <div class="flex flex-col gap-3 pt-2">
+          <div class="bg-neutral-800/60 border border-neutral-700 rounded-lg p-3 flex items-center justify-between gap-4">
+            <div>
+              <p class="text-white text-sm font-medium">Apply to all my spaces</p>
+              <p class="text-gray-500 text-xs">Copies enabled toggle, log room, and event filters to all your spaces. All subspaces will log to this same room.</p>
+            </div>
+            <button onclick="saveAndPropagateAudit()" class="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg font-medium transition text-sm whitespace-nowrap">
+              <i class="fas fa-broadcast-tower mr-2"></i>Save + Apply All
+            </button>
+          </div>
+          <div class="flex justify-end gap-3">
+            <button onclick="closeAuditSettings()" class="px-4 py-2 text-gray-400 hover:text-white">Cancel</button>
+            <button onclick="saveAuditSettings()" class="bg-cyan-600 hover:bg-cyan-700 text-white px-6 py-2 rounded-lg font-medium transition">
+              <i class="fas fa-save mr-2"></i>Save Settings
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="px-6 pb-8 space-y-6">
+
+    <!-- Filter bar -->
+    <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-4">
+      <div class="flex flex-wrap gap-3 items-end">
+        <div>
+          <label class="block text-xs text-gray-500 mb-1">Category</label>
+          <select id="filter-category" onchange="loadLogs(true)"
+                  class="bg-neutral-800 border border-neutral-700 text-white text-sm rounded-lg px-3 py-2 focus:border-cyan-500 focus:outline-none">
+            <option value="">All</option>
+            <option value="member">Member</option>
+            <option value="moderation">Moderation</option>
+            <option value="room">Room</option>
+            <option value="message">Message</option>
+            <option value="security">Security</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs text-gray-500 mb-1">Action</label>
+          <select id="filter-action" onchange="loadLogs(true)"
+                  class="bg-neutral-800 border border-neutral-700 text-white text-sm rounded-lg px-3 py-2 focus:border-cyan-500 focus:outline-none">
+            <option value="">All actions</option>
+            <optgroup label="Member">
+              <option value="member_join">member_join</option>
+              <option value="member_leave">member_leave</option>
+              <option value="member_kick">member_kick</option>
+              <option value="member_ban">member_ban</option>
+              <option value="member_unban">member_unban</option>
+              <option value="member_invite">member_invite</option>
+              <option value="member_mute">member_mute</option>
+              <option value="member_power_change">member_power_change</option>
+            </optgroup>
+            <optgroup label="Moderation">
+              <option value="warn_issued">warn_issued</option>
+              <option value="warn_pardoned">warn_pardoned</option>
+              <option value="auto_ban">auto_ban</option>
+            </optgroup>
+            <optgroup label="Room">
+              <option value="room_create">room_create</option>
+              <option value="room_delete">room_delete</option>
+              <option value="room_rename">room_rename</option>
+              <option value="room_topic">room_topic</option>
+              <option value="room_avatar">room_avatar</option>
+              <option value="room_encryption">room_encryption</option>
+            </optgroup>
+            <optgroup label="Message">
+              <option value="message_delete">message_delete</option>
+              <option value="bot_message_sent">bot_message_sent</option>
+            </optgroup>
+            <optgroup label="Security">
+              <option value="verification_passed">verification_passed</option>
+              <option value="verification_failed">verification_failed</option>
+            </optgroup>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs text-gray-500 mb-1">Actor (Matrix ID)</label>
+          <input type="text" id="filter-actor" placeholder="@user:server" oninput="_debounceLoad()"
+                 class="bg-neutral-800 border border-neutral-700 text-white text-sm rounded-lg px-3 py-2 w-48 focus:border-cyan-500 focus:outline-none font-mono">
+        </div>
+        <div>
+          <label class="block text-xs text-gray-500 mb-1">Target (Matrix ID)</label>
+          <input type="text" id="filter-target" placeholder="@user:server" oninput="_debounceLoad()"
+                 class="bg-neutral-800 border border-neutral-700 text-white text-sm rounded-lg px-3 py-2 w-48 focus:border-cyan-500 focus:outline-none font-mono">
+        </div>
+        <button onclick="clearFilters()" class="text-gray-500 hover:text-white text-sm py-2 px-3 rounded-lg border border-neutral-700 hover:border-neutral-600 transition ml-auto">
+          <i class="fas fa-times mr-1"></i>Clear
+        </button>
+      </div>
+    </div>
+
+    <!-- Log table -->
+    <div class="bg-neutral-900 rounded-xl border border-neutral-800">
+      <div class="flex items-center justify-between px-5 py-3 border-b border-neutral-800">
+        <p class="text-white font-semibold text-sm"><i class="fas fa-list text-cyan-400 mr-2"></i>Events</p>
+        <p id="log-total" class="text-gray-500 text-xs"></p>
+      </div>
+
+      <div id="log-loading" class="hidden px-5 py-8 text-center">
+        <i class="fas fa-spinner fa-spin text-cyan-400 text-2xl"></i>
+        <p class="text-gray-400 mt-2 text-sm">Loading...</p>
+      </div>
+      <div id="log-empty" class="hidden px-5 py-8 text-center">
+        <i class="fas fa-clipboard text-gray-600 text-3xl mb-2"></i>
+        <p class="text-gray-500 text-sm">No events yet. Enable audit logging and configure a log room in settings.</p>
+      </div>
+
+      <div id="log-table-wrap" class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="text-gray-500 text-xs uppercase tracking-wider border-b border-neutral-800">
+              <th class="text-left px-4 py-3">Time</th>
+              <th class="text-left px-4 py-3">Event</th>
+              <th class="text-left px-4 py-3">Actor</th>
+              <th class="text-left px-4 py-3">Target</th>
+              <th class="text-left px-4 py-3">Room</th>
+              <th class="text-left px-4 py-3">Details</th>
+            </tr>
+          </thead>
+          <tbody id="log-tbody"></tbody>
+        </table>
+      </div>
+
+      <!-- Pagination -->
+      <div class="flex items-center justify-between px-5 py-3 border-t border-neutral-800">
+        <button id="btn-prev" onclick="prevPage()" disabled
+                class="text-sm text-gray-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition">
+          <i class="fas fa-chevron-left mr-1"></i>Prev
+        </button>
+        <p id="page-info" class="text-gray-500 text-xs"></p>
+        <button id="btn-next" onclick="nextPage()" disabled
+                class="text-sm text-gray-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition">
+          Next<i class="fas fa-chevron-right ml-1"></i>
+        </button>
+      </div>
+    </div>
+
+  </div>
+
+<script>
+const SPACE_ID_URL = '{{ space_id_url }}';
+const AUDIT_API  = '/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/audit-log/';
+const SETTINGS_API = '/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/settings/';
+const PROPAGATE_API = '/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/audit-propagate/';
+
+let ROOMS = [];
+let SETTINGS = {};
+let csAuditRoom = null;
+let auditEventConfig = {};
+let _currentOffset = 0;
+const PAGE_SIZE = 50;
+let _totalEntries = 0;
+let _debounceTimer = null;
+
+// Action -> emoji + color
+const ACTION_META = {
+  member_join:         {emoji: '📥', color: 'text-green-400'},
+  member_leave:        {emoji: '📤', color: 'text-yellow-400'},
+  member_kick:         {emoji: '👢', color: 'text-orange-400'},
+  member_ban:          {emoji: '🔨', color: 'text-red-400'},
+  member_unban:        {emoji: '🔓', color: 'text-green-400'},
+  member_invite:       {emoji: '✉️',  color: 'text-cyan-400'},
+  member_mute:         {emoji: '🔇', color: 'text-orange-400'},
+  member_power_change: {emoji: '⚡', color: 'text-yellow-400'},
+  room_create:         {emoji: '📁', color: 'text-green-400'},
+  room_delete:         {emoji: '🗑️', color: 'text-red-400'},
+  room_rename:         {emoji: '✏️',  color: 'text-cyan-400'},
+  room_topic:          {emoji: '📋', color: 'text-cyan-400'},
+  room_avatar:         {emoji: '🖼️', color: 'text-cyan-400'},
+  room_encryption:     {emoji: '🔐', color: 'text-purple-400'},
+  message_delete:      {emoji: '🗑️', color: 'text-orange-400'},
+  bot_message_sent:    {emoji: '🤖', color: 'text-gray-400'},
+  warn_issued:         {emoji: '⚠️',  color: 'text-yellow-400'},
+  warn_pardoned:       {emoji: '✅', color: 'text-green-400'},
+  auto_ban:            {emoji: '🚫', color: 'text-red-400'},
+  verification_passed: {emoji: '✅', color: 'text-green-400'},
+  verification_failed: {emoji: '❌', color: 'text-red-400'},
+};
+
+const AUDIT_EVENT_DEFS = {
+  member: [
+    {key: 'member_join', label: 'Member joined'},
+    {key: 'member_leave', label: 'Member left'},
+    {key: 'member_kick', label: 'Member kicked'},
+    {key: 'member_ban', label: 'Member banned'},
+    {key: 'member_unban', label: 'Member unbanned'},
+    {key: 'member_invite', label: 'Member invited'},
+    {key: 'member_mute', label: 'Member muted'},
+    {key: 'member_power_change', label: 'Power level changed'},
+  ],
+  moderation: [
+    {key: 'warn_issued', label: 'Warning issued'},
+    {key: 'warn_pardoned', label: 'Warning pardoned'},
+    {key: 'auto_ban', label: 'Auto-ban triggered'},
+  ],
+  room: [
+    {key: 'room_create', label: 'Room created'},
+    {key: 'room_delete', label: 'Room deleted'},
+    {key: 'room_rename', label: 'Room renamed'},
+    {key: 'room_topic', label: 'Room topic changed'},
+    {key: 'room_avatar', label: 'Room avatar changed'},
+    {key: 'room_encryption', label: 'Encryption enabled'},
+  ],
+  message: [
+    {key: 'message_delete', label: 'Message deleted'},
+    {key: 'bot_message_sent', label: 'Bot message sent'},
+  ],
+  security: [
+    {key: 'verification_passed', label: 'Verification passed'},
+    {key: 'verification_failed', label: 'Verification failed'},
+  ],
+};
+
+document.addEventListener('DOMContentLoaded', function() {
+  ROOMS = JSON.parse('{{ rooms_json|escapejs }}');
+  SETTINGS = JSON.parse('{{ settings_json|escapejs }}');
+  const roomsWithBlank = [{value: '', label: '-- None --'}, ...ROOMS];
+
+  csAuditRoom = createCustomSelect({
+    container: document.getElementById('cs-audit-room'),
+    name: 'audit_log_room_id',
+    items: roomsWithBlank,
+    selected: SETTINGS.audit_log_room_id || '',
+    placeholder: 'Select a room...',
+    color: 'cyan',
+  });
+
+  document.getElementById('audit-enabled').checked = !!SETTINGS.audit_log_enabled;
+
+  // Load per-event config
+  try {
+    const saved = SETTINGS.audit_event_config;
+    if (saved && typeof saved === 'object') {
+      auditEventConfig = saved;
+    }
+  } catch (e) {}
+
+  // Build default config (all true)
+  Object.values(AUDIT_EVENT_DEFS).forEach(arr => arr.forEach(item => {
+    if (!(item.key in auditEventConfig)) auditEventConfig[item.key] = true;
+  }));
+
+  loadLogs(true);
+});
+
+function _debounceLoad() {
+  clearTimeout(_debounceTimer);
+  _debounceTimer = setTimeout(() => loadLogs(true), 400);
+}
+
+async function loadLogs(reset) {
+  if (reset) _currentOffset = 0;
+  const category = document.getElementById('filter-category').value;
+  const action   = document.getElementById('filter-action').value;
+  const actor    = document.getElementById('filter-actor').value.trim();
+  const target   = document.getElementById('filter-target').value.trim();
+
+  const params = new URLSearchParams({limit: PAGE_SIZE, offset: _currentOffset});
+  if (category) params.set('category', category);
+  if (action)   params.set('action', action);
+  if (actor)    params.set('actor', actor);
+  if (target)   params.set('target', target);
+
+  document.getElementById('log-loading').classList.remove('hidden');
+  document.getElementById('log-table-wrap').classList.add('hidden');
+  document.getElementById('log-empty').classList.add('hidden');
+
+  try {
+    const resp = await csrfFetch(AUDIT_API + '?' + params.toString());
+    const data = await resp.json();
+    _totalEntries = data.total || 0;
+    renderTable(data.entries || []);
+    updatePagination();
+  } catch (e) {
+    document.getElementById('log-loading').classList.add('hidden');
+    showToast('Failed to load audit logs.', false);
+  }
+}
+
+function renderTable(entries) {
+  document.getElementById('log-loading').classList.add('hidden');
+
+  if (!entries.length) {
+    document.getElementById('log-empty').classList.remove('hidden');
+    document.getElementById('log-table-wrap').classList.add('hidden');
+    document.getElementById('log-total').textContent = '';
+    return;
+  }
+
+  document.getElementById('log-table-wrap').classList.remove('hidden');
+  document.getElementById('log-total').textContent = `${_totalEntries.toLocaleString()} total`;
+
+  const tbody = document.getElementById('log-tbody');
+  tbody.innerHTML = '';
+
+  for (const e of entries) {
+    const meta = ACTION_META[e.action] || {emoji: '📋', color: 'text-gray-400'};
+    const label = e.action.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+    const timeStr = e.created_at ? new Date(e.created_at * 1000).toLocaleString() : '-';
+    const actor = escapeHtml(e.actor_display_name || e.actor_matrix_id || '-');
+    const actorSub = e.actor_matrix_id && e.actor_display_name && e.actor_display_name !== e.actor_matrix_id
+      ? `<br><span class="text-gray-600 text-xs font-mono">${escapeHtml(e.actor_matrix_id)}</span>` : '';
+    const target = escapeHtml(e.target_display_name || e.target_matrix_id || '-');
+    const targetSub = e.target_matrix_id && e.target_display_name && e.target_display_name !== e.target_matrix_id
+      ? `<br><span class="text-gray-600 text-xs font-mono">${escapeHtml(e.target_matrix_id)}</span>` : '';
+    const roomName = escapeHtml(e.room_name || '-');
+    const details = [];
+    if (e.reason) details.push(`<span class="text-gray-400">Reason: ${escapeHtml(e.reason)}</span>`);
+    if (e.details) details.push(`<span class="text-gray-500">${escapeHtml(e.details)}</span>`);
+
+    const tr = document.createElement('tr');
+    tr.className = 'border-b border-neutral-800/60 hover:bg-neutral-800/30 transition';
+    tr.innerHTML = `
+      <td class="px-4 py-3 text-gray-400 text-xs whitespace-nowrap">${escapeHtml(timeStr)}</td>
+      <td class="px-4 py-3">
+        <span class="${meta.color} font-medium text-sm">${meta.emoji} ${escapeHtml(label)}</span>
+        <br><span class="text-gray-600 text-xs">${escapeHtml(e.category || '')}</span>
+      </td>
+      <td class="px-4 py-3 text-white text-sm">${actor}${actorSub}</td>
+      <td class="px-4 py-3 text-white text-sm">${target}${targetSub}</td>
+      <td class="px-4 py-3 text-gray-300 text-sm">${roomName}</td>
+      <td class="px-4 py-3 text-sm">${details.join('<br>') || '<span class="text-gray-600">-</span>'}</td>
+    `;
+    tbody.appendChild(tr);
+  }
+}
+
+function updatePagination() {
+  const page = Math.floor(_currentOffset / PAGE_SIZE) + 1;
+  const totalPages = Math.ceil(_totalEntries / PAGE_SIZE) || 1;
+  document.getElementById('page-info').textContent = `Page ${page} of ${totalPages}`;
+  document.getElementById('btn-prev').disabled = _currentOffset === 0;
+  document.getElementById('btn-next').disabled = (_currentOffset + PAGE_SIZE) >= _totalEntries;
+}
+
+function prevPage() {
+  if (_currentOffset === 0) return;
+  _currentOffset = Math.max(0, _currentOffset - PAGE_SIZE);
+  loadLogs(false);
+}
+
+function nextPage() {
+  if (_currentOffset + PAGE_SIZE >= _totalEntries) return;
+  _currentOffset += PAGE_SIZE;
+  loadLogs(false);
+}
+
+function clearFilters() {
+  document.getElementById('filter-category').value = '';
+  document.getElementById('filter-action').value = '';
+  document.getElementById('filter-actor').value = '';
+  document.getElementById('filter-target').value = '';
+  loadLogs(true);
+}
+
+// ---- Settings modal ----
+
+function openAuditSettings() {
+  renderEventToggles();
+  document.getElementById('auditSettingsModal').classList.remove('hidden');
+}
+
+function closeAuditSettings() {
+  document.getElementById('auditSettingsModal').classList.add('hidden');
+}
+
+function renderEventToggles() {
+  Object.entries(AUDIT_EVENT_DEFS).forEach(([cat, items]) => {
+    const container = document.getElementById('cat_' + cat);
+    if (!container) return;
+    container.innerHTML = items.map(item => `
+      <label class="flex items-center justify-between bg-neutral-800 px-3 py-2 rounded border border-neutral-700 col-span-1">
+        <span class="text-sm text-gray-200">${escapeHtml(item.label)}</span>
+        <label class="relative inline-flex items-center cursor-pointer ml-2">
+          <input type="checkbox" data-event-key="${escapeHtml(item.key)}" class="sr-only peer" ${auditEventConfig[item.key] === false ? '' : 'checked'}>
+          <div class="w-9 h-5 bg-neutral-700 rounded-full peer peer-checked:bg-cyan-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-full"></div>
+        </label>
+      </label>
+    `).join('');
+  });
+}
+
+async function saveAuditSettings() {
+  // Collect event config from toggles
+  const toggles = document.querySelectorAll('[data-event-key]');
+  const cfg = {};
+  toggles.forEach(t => { cfg[t.getAttribute('data-event-key')] = t.checked; });
+  auditEventConfig = cfg;
+
+  const payload = {
+    audit_log_enabled: document.getElementById('audit-enabled').checked,
+    audit_log_room_id: csAuditRoom ? (csAuditRoom.getValue() || null) : null,
+    audit_event_config: cfg,
+  };
+
+  try {
+    const resp = await csrfFetch(SETTINGS_API, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload),
+    });
+    const data = await resp.json();
+    if (resp.ok && data.ok) {
+      SETTINGS.audit_log_enabled = payload.audit_log_enabled;
+      SETTINGS.audit_log_room_id = payload.audit_log_room_id || '';
+      SETTINGS.audit_event_config = cfg;
+      showModalToast('Audit settings saved.', true);
+      setTimeout(closeAuditSettings, 800);
+    } else {
+      showModalToast(data.error || 'Save failed.', false);
+    }
+  } catch (e) {
+    showModalToast('Network error.', false);
+  }
+}
+
+async function saveAndPropagateAudit() {
+  if (!confirm('Save these audit settings and apply them to ALL your other spaces? This will overwrite their current audit configuration.')) return;
+  // Save current space first
+  const toggles = document.querySelectorAll('[data-event-key]');
+  const cfg = {};
+  toggles.forEach(t => { cfg[t.getAttribute('data-event-key')] = t.checked; });
+  auditEventConfig = cfg;
+  const payload = {
+    audit_log_enabled: document.getElementById('audit-enabled').checked,
+    audit_log_room_id: csAuditRoom ? (csAuditRoom.getValue() || null) : null,
+    audit_event_config: cfg,
+  };
+  try {
+    const r1 = await csrfFetch(SETTINGS_API, {
+      method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload),
+    });
+    if (!r1.ok) { showToast('Save failed.', false); return; }
+    SETTINGS.audit_log_enabled = payload.audit_log_enabled;
+    SETTINGS.audit_log_room_id = payload.audit_log_room_id || '';
+    SETTINGS.audit_event_config = cfg;
+
+    const r2 = await csrfFetch(PROPAGATE_API, {
+      method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}',
+    });
+    const d2 = await r2.json();
+    if (r2.ok && d2.ok) {
+      showModalToast(`Saved and applied to ${d2.updated} other space${d2.updated !== 1 ? 's' : ''}.`, true);
+      setTimeout(closeAuditSettings, 1200);
+    } else {
+      showModalToast(d2.error || 'Propagation failed.', false);
+    }
+  } catch(e) {
+    showModalToast('Network error.', false);
+  }
+}
+
+function showModalToast(msg, ok=true) {
+  const el = document.getElementById('modal-toast');
+  if (!el) { showToast(msg, ok); return; }
+  el.textContent = msg;
+  el.className = ok
+    ? 'px-4 py-3 rounded-lg text-sm font-medium bg-green-900/40 text-green-400 border border-green-700/40'
+    : 'px-4 py-3 rounded-lg text-sm font-medium bg-red-900/40 text-red-400 border border-red-700/40';
+  el.classList.remove('hidden');
+}
+
+function showToast(msg, ok=true) {
+  const el = document.getElementById('save-msg');
+  el.textContent = msg;
+  el.className = ok
+    ? 'mb-4 px-4 py-3 rounded-lg text-sm font-medium bg-green-900/40 text-green-400 border border-green-700/40'
+    : 'mb-4 px-4 py-3 rounded-lg text-sm font-medium bg-red-900/40 text-red-400 border border-red-700/40';
+  el.classList.remove('hidden');
+  setTimeout(() => el.classList.add('hidden'), 4000);
+}
+</script>
+{% endblock %}

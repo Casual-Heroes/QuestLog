@@ -1,0 +1,201 @@
+{% extends "questlog_web/base_web.html" %}
+{% load static %}
+
+{% block title %}Find Groups{% if guild_name and guild_id %} - {{ guild_name }}{% endif %} - QuestLog{% endblock %}
+
+{% block web_content %}
+
+<!-- Groups data injected safely via json_script -->
+{{ groups_json|json_script:"groups-data" }}
+{{ games_json|json_script:"games-data" }}
+
+<!-- Header -->
+<div class="bg-gradient-to-br from-neutral-900 to-neutral-950 border-b border-neutral-800 p-6 mb-6">
+  <div class="max-w-7xl mx-auto">
+    <div class="flex items-center justify-between flex-wrap gap-4">
+      <div>
+        <h1 class="text-3xl font-bold text-white flex items-center gap-3">
+          <i class="fas fa-users text-green-400"></i>
+          Find Groups
+        </h1>
+        <p class="text-gray-400 mt-1">
+          {% if guild_id %}Browse open LFG groups in {{ guild_name }}{% else %}Browse open LFG groups across Fluxer{% endif %}
+          {% if group_count > 0 %}
+          <span class="text-green-400 ml-2 text-sm font-medium">{{ group_count }} open</span>
+          {% endif %}
+        </p>
+      </div>
+      <div class="flex gap-2">
+        <a href="{% url 'questlog_web_lfg_browse' %}"
+           class="bg-neutral-700 hover:bg-neutral-600 text-white px-4 py-2 rounded-lg font-medium transition text-sm">
+          <i class="fas fa-globe mr-2"></i>QuestLog LFG
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="max-w-7xl mx-auto px-4">
+
+  <!-- Filters -->
+  <div class="bg-neutral-900/50 rounded-lg border border-neutral-800 p-4 mb-6">
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div>
+        <label class="text-sm text-gray-300 mb-2 block">Filter by Game</label>
+        <select id="gameFilter"
+                class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-green-500 transition">
+          <option value="">All Games</option>
+        </select>
+      </div>
+      <div>
+        <label class="text-sm text-gray-300 mb-2 block">Sort By</label>
+        <select id="sortFilter"
+                class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-green-500 transition">
+          <option value="newest">Newest First</option>
+          <option value="slots">Most Slots Available</option>
+          <option value="soon">Starting Soon</option>
+        </select>
+      </div>
+      <div class="flex items-end">
+        <button onclick="applyFilters()"
+                class="w-full bg-green-700 hover:bg-green-600 text-white px-4 py-2 rounded-lg font-medium transition text-sm">
+          <i class="fas fa-filter mr-2"></i>Apply Filters
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Groups list -->
+  <div id="groupsList" class="space-y-4">
+    <div class="text-center text-gray-500 py-12">
+      <i class="fas fa-spinner fa-spin text-4xl mb-4 text-green-500"></i>
+      <p>Loading groups...</p>
+    </div>
+  </div>
+
+</div>
+
+<script>
+(function () {
+  // escapeHtml guard - base.html defines it after the content block so it may not exist yet
+  if (typeof window.escapeHtml !== 'function') {
+    window.escapeHtml = function(s) {
+      if (s == null) return '';
+      return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+    };
+  }
+  const escapeHtml = window.escapeHtml;
+
+  const GROUPS = JSON.parse(document.getElementById('groups-data').textContent);
+  const GAMES = JSON.parse(document.getElementById('games-data').textContent);
+
+  function timeAgo(ts) {
+    if (!ts) return '';
+    const diff = Math.floor(Date.now() / 1000) - ts;
+    if (diff < 60) return 'just now';
+    if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
+    if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
+    return Math.floor(diff / 86400) + 'd ago';
+  }
+
+  function formatScheduled(ts) {
+    if (!ts) return '';
+    const d = new Date(ts * 1000);
+    return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
+  }
+
+  function slotsAvailable(g) {
+    return Math.max(0, g.max_size - g.current_size);
+  }
+
+  // Populate game filter dropdown
+  const gameFilter = document.getElementById('gameFilter');
+  GAMES.forEach(function (gm) {
+    const opt = document.createElement('option');
+    opt.value = String(gm.id);
+    opt.textContent = (gm.emoji ? gm.emoji + ' ' : '') + gm.name;
+    gameFilter.appendChild(opt);
+  });
+
+  let filteredGroups = GROUPS.slice();
+
+  function applyFilters() {
+    const gameId = gameFilter.value;
+    const sort = document.getElementById('sortFilter').value;
+
+    filteredGroups = GROUPS.filter(function (g) {
+      if (gameId && String(g.game_id) !== gameId) return false;
+      return true;
+    });
+
+    if (sort === 'slots') {
+      filteredGroups.sort(function (a, b) { return slotsAvailable(b) - slotsAvailable(a); });
+    } else if (sort === 'soon') {
+      filteredGroups.sort(function (a, b) {
+        const ta = a.scheduled_time || 9999999999;
+        const tb = b.scheduled_time || 9999999999;
+        return ta - tb;
+      });
+    } else {
+      // newest first
+      filteredGroups.sort(function (a, b) { return (b.created_at || 0) - (a.created_at || 0); });
+    }
+
+    renderGroups();
+  }
+
+  function renderGroups() {
+    const list = document.getElementById('groupsList');
+    if (filteredGroups.length === 0) {
+      list.innerHTML = '<div class="text-center py-16">' +
+        '<i class="fas fa-users-slash text-5xl text-gray-700 mb-4"></i>' +
+        '<p class="text-gray-400 text-lg">No open groups found</p>' +
+        '<p class="text-gray-600 text-sm mt-2">Check back later or adjust your filters</p>' +
+        '</div>';
+      return;
+    }
+
+    list.innerHTML = filteredGroups.map(function (g) {
+      const slots = slotsAvailable(g);
+      const isFull = slots === 0;
+      const coverHtml = g.cover_url
+        ? '<img src="' + escapeHtml(g.cover_url) + '" alt="' + escapeHtml(g.game_name) + '" class="w-20 h-28 object-cover rounded-lg border border-neutral-700 flex-shrink-0">'
+        : '<div class="w-20 h-28 bg-neutral-800 rounded-lg border border-neutral-700 flex items-center justify-center flex-shrink-0"><i class="fas fa-gamepad text-gray-600 text-2xl"></i></div>';
+
+      return '<div class="bg-neutral-800 border border-neutral-700 rounded-xl p-5 hover:border-purple-600/40 transition">' +
+        '<div class="flex gap-4">' +
+          coverHtml +
+          '<div class="flex-1 min-w-0">' +
+            '<div class="flex items-start justify-between gap-2 mb-1">' +
+              '<div>' +
+                '<h3 class="text-white font-bold text-xl leading-tight">' + escapeHtml(g.title || g.game_name) + '</h3>' +
+                '<p class="text-sm text-gray-400 mt-0.5">' + escapeHtml(g.game_name) + ' <span class="text-gray-600 text-xs">#' + g.id + '</span></p>' +
+              '</div>' +
+              '<span class="flex-shrink-0 px-3 py-1 rounded-lg text-sm font-medium ' + (isFull ? 'bg-red-600/20 text-red-400' : 'bg-green-600/20 text-green-400') + '">' + (isFull ? 'Full' : 'Open') + '</span>' +
+            '</div>' +
+            (g.description ? '<p class="text-gray-300 text-sm mb-2 italic">&ldquo;' + escapeHtml(g.description) + '&rdquo;</p>' : '') +
+            '<div class="grid grid-cols-2 gap-2 text-sm mb-3">' +
+              '<div><span class="text-gray-400"><i class="far fa-clock mr-1"></i>Time:</span> <span class="text-white">' + (g.scheduled_time ? escapeHtml(formatScheduled(g.scheduled_time)) : 'Now / Flexible') + '</span></div>' +
+              '<div><span class="text-gray-400"><i class="fas fa-users mr-1"></i>Members:</span> <span class="text-white">' + g.current_size + ' / ' + g.max_size + '</span></div>' +
+            '</div>' +
+            '<div class="flex items-center justify-between">' +
+              '<div class="text-xs text-gray-500"><i class="fas fa-satellite-dish text-purple-400 mr-1"></i>Posted by <span class="text-gray-300">' + escapeHtml(g.creator_name) + '</span> via Fluxer &bull; ' + escapeHtml(timeAgo(g.created_at)) + '</div>' +
+              (!isFull ? '<a href="/ql/fluxer/' + escapeHtml(String(g.guild_id)) + '/lfg/" class="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm font-medium transition"><i class="fas fa-satellite-dish mr-1"></i>Join on Fluxer</a>' : '<span class="px-4 py-2 bg-gray-700/50 text-gray-500 rounded-lg text-sm font-medium cursor-not-allowed">Full</span>') +
+            '</div>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+  }
+
+  // Initial render
+  applyFilters();
+
+  // Re-render when sort changes
+  document.getElementById('sortFilter').addEventListener('change', applyFilters);
+  document.getElementById('gameFilter').addEventListener('change', applyFilters);
+
+})();
+</script>
+
+{% endblock %}

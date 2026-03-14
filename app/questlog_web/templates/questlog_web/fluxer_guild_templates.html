@@ -1,0 +1,798 @@
+{% extends "questlog_web/fluxer_base_guild.html" %}
+{% load static %}
+
+{% block title %}Templates - {{ guild_name }} - QuestLog{% endblock %}
+
+{% block guild_content %}
+
+<div class="p-6">
+
+  <!-- Header -->
+  <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
+    <div>
+      <h1 class="text-3xl font-bold text-white">
+        <i class="fas fa-copy text-indigo-400 mr-3"></i>Templates
+      </h1>
+      <p class="text-gray-400 mt-1">Save and reuse channel and role configurations</p>
+    </div>
+  </div>
+
+  <!-- Current Usage (loaded dynamically) -->
+  <div class="mb-6 bg-neutral-900 rounded-xl border border-neutral-800 p-5">
+    <div class="flex items-center justify-between">
+      <div>
+        <p class="text-gray-400 text-sm">Templates Used</p>
+        <p class="text-2xl font-bold text-white mt-1" id="totalTemplatesDisplay">- / ∞</p>
+      </div>
+      <div class="text-right">
+        <p class="text-gray-400 text-sm">Channel Templates: <span class="text-white font-medium" id="channelTemplatesCount">-</span></p>
+        <p class="text-gray-400 text-sm">Role Templates: <span class="text-white font-medium" id="roleTemplatesCount">-</span></p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Channel Templates -->
+  <div class="mb-12">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-xl font-bold text-white">
+        <i class="fas fa-hashtag text-purple-400 mr-2"></i>Channel Templates
+      </h2>
+      <button onclick="openCreateModal('channel')" class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-medium transition text-sm">
+        <i class="fas fa-plus mr-2"></i>New Template
+      </button>
+    </div>
+
+    <div id="channelTemplatesGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div class="col-span-full bg-neutral-900 rounded-xl border border-neutral-800 p-8 text-center">
+        <i class="fas fa-spinner fa-spin text-gray-600 text-2xl mb-4"></i>
+        <p class="text-gray-400">Loading channel templates...</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Role Templates -->
+  <div>
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-xl font-bold text-white">
+        <i class="fas fa-user-tag text-yellow-400 mr-2"></i>Role Templates
+      </h2>
+      <button onclick="openCreateModal('role')" class="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded-lg font-medium transition text-sm">
+        <i class="fas fa-plus mr-2"></i>New Template
+      </button>
+    </div>
+
+    <div id="roleTemplatesGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div class="col-span-full bg-neutral-900 rounded-xl border border-neutral-800 p-8 text-center">
+        <i class="fas fa-spinner fa-spin text-gray-600 text-2xl mb-4"></i>
+        <p class="text-gray-400">Loading role templates...</p>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Create/Edit Template Modal -->
+<div id="createModal" class="hidden fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+  <div class="bg-neutral-900 rounded-xl border border-neutral-800 w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+    <!-- Modal Header -->
+    <div class="p-6 border-b border-neutral-800 flex-shrink-0">
+      <div class="flex items-center justify-between">
+        <h3 class="text-xl font-bold text-white" id="modalTitle">
+          <i class="fas fa-plus mr-2"></i>Create Template
+        </h3>
+        <button onclick="closeCreateModal()" class="text-gray-400 hover:text-white">
+          <i class="fas fa-times text-xl"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- Modal Body - Scrollable -->
+    <div class="flex-1 overflow-y-auto p-6">
+      <input type="hidden" id="templateType">
+
+      <!-- Basic Info -->
+      <div class="space-y-4 mb-6">
+        <div>
+          <label class="block text-sm text-gray-400 mb-2">Template Name <span class="text-red-400">*</span></label>
+          <input type="text" id="templateName" maxlength="100" required
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:border-indigo-500 focus:outline-none"
+                 placeholder="e.g., Gaming Community Setup">
+        </div>
+        <div>
+          <label class="block text-sm text-gray-400 mb-2">Description (optional)</label>
+          <textarea id="templateDescription" rows="2" maxlength="500"
+                    class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:border-indigo-500 focus:outline-none resize-y"
+                    placeholder="Describe what this template includes..."></textarea>
+        </div>
+      </div>
+
+      <!-- Channel Template Builder (Category-First) -->
+      <div id="channelBuilder" class="hidden">
+        <div class="bg-blue-900/20 border border-blue-700/30 rounded-lg p-4 mb-4">
+          <div class="flex items-start gap-3">
+            <i class="fas fa-info-circle text-blue-400 mt-1"></i>
+            <div>
+              <h5 class="text-blue-300 font-semibold mb-1">Category-First Builder</h5>
+              <p class="text-blue-200/80 text-sm">Set role permissions once at the category level, then add channels that inherit those permissions.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex items-center justify-between mb-4">
+          <h4 class="text-lg font-bold text-white">
+            <i class="fas fa-folder text-purple-400 mr-2"></i>Categories and Channels
+          </h4>
+          <button type="button" onclick="addCategory()" class="bg-purple-600 hover:bg-purple-700 text-white px-3 py-2 rounded-lg text-sm transition">
+            <i class="fas fa-plus mr-1"></i>Add Category
+          </button>
+        </div>
+        <div id="categoriesList" class="space-y-4">
+          <!-- Categories will be added here -->
+        </div>
+      </div>
+
+      <!-- Role Template Builder -->
+      <div id="roleBuilder" class="hidden">
+        <div class="flex items-center justify-between mb-4">
+          <h4 class="text-lg font-bold text-white">
+            <i class="fas fa-user-tag text-yellow-400 mr-2"></i>Roles
+          </h4>
+          <button type="button" onclick="addRoleRow()" class="bg-yellow-600 hover:bg-yellow-700 text-white px-3 py-2 rounded-lg text-sm transition">
+            <i class="fas fa-plus mr-1"></i>Add Role
+          </button>
+        </div>
+        <div id="rolesList" class="space-y-3">
+          <!-- Role rows will be added here -->
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal Footer -->
+    <div class="p-6 border-t border-neutral-800 flex gap-3 justify-end flex-shrink-0">
+      <button onclick="closeCreateModal()" class="bg-neutral-700 hover:bg-neutral-600 text-white px-6 py-2 rounded-lg font-medium transition">
+        Cancel
+      </button>
+      <button id="saveTemplateBtn" onclick="saveTemplate()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-lg font-medium transition">
+        <i class="fas fa-save mr-2"></i>Create Template
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+const GUILD_ID = '{{ guild_id }}';
+const TEMPLATES_API = `/ql/api/dashboard/fluxer/${GUILD_ID}/templates`;
+
+let channelCounter = 0;
+let roleCounter = 0;
+let roleOverrideCounter = 0;
+let categoryCounter = 0;
+let guildRoles = [];
+let editingTemplateId = null;
+
+// Fluxer Channel Permissions
+const CHANNEL_PERMISSIONS = {
+  // Channel Access
+  'view_channel': 'View Channel',
+  'manage_channels': 'Manage Channel',
+  'manage_permissions': 'Manage Permissions',
+  'manage_webhooks': 'Manage Webhooks',
+  'create_instant_invite': 'Create Invite Links',
+  // Messages & Media
+  'send_messages': 'Send Messages',
+  'embed_links': 'Embed Links',
+  'attach_files': 'Attach Files',
+  'add_reactions': 'Add Reactions',
+  'use_external_emojis': 'Use External Emoji',
+  'use_external_stickers': 'Use External Stickers',
+  'mention_everyone': 'Use @everyone/@here and @roles',
+  'manage_messages': 'Manage Messages',
+  'read_message_history': 'Read Message History',
+  'send_tts_messages': 'Send TTS Messages',
+  // Audio & Video
+  'connect': 'Connect',
+  'speak': 'Speak',
+  'stream': 'Video',
+  'use_voice_activation': 'Use Voice Activity',
+  'priority_speaker': 'Priority Speaker',
+  'mute_members': 'Mute Members',
+  'deafen_members': 'Deafen Members',
+  'move_members': 'Move Members',
+};
+
+// Fluxer Role Permissions
+const ROLE_PERMISSIONS = {
+  'administrator': 'Administrator',
+  'manage_guild': 'Manage Community',
+  'manage_roles': 'Manage Roles',
+  'manage_channels': 'Manage Channels',
+  'kick_members': 'Kick Members',
+  'ban_members': 'Ban Members',
+  'create_instant_invite': 'Create Invite Links',
+  'change_nickname': 'Change Own Nickname',
+  'manage_nicknames': 'Manage Nicknames',
+  'manage_emojis_and_stickers': 'Manage Emoji & Stickers',
+  'manage_webhooks': 'Manage Webhooks',
+  'view_audit_log': 'View Activity Log',
+  'view_channel': 'View Channels',
+  'send_messages': 'Send Messages',
+  'manage_messages': 'Manage Messages',
+  'embed_links': 'Embed Links',
+  'attach_files': 'Attach Files',
+  'read_message_history': 'Read Message History',
+  'mention_everyone': 'Use @everyone/@here and @roles',
+  'use_external_emojis': 'Use External Emoji',
+  'add_reactions': 'Add Reactions',
+  'connect': 'Connect',
+  'speak': 'Speak',
+  'stream': 'Video',
+  'use_voice_activation': 'Use Voice Activity',
+  'priority_speaker': 'Priority Speaker',
+  'mute_members': 'Mute Members',
+  'deafen_members': 'Deafen Members',
+  'move_members': 'Move Members',
+  'moderate_members': 'Timeout Members',
+};
+
+async function loadTemplates() {
+  try {
+    const resp = await csrfFetch(`${TEMPLATES_API}/list/`);
+    const data = await resp.json();
+
+    const channelTemplates = data.channel_templates || [];
+    const roleTemplates = data.role_templates || [];
+
+    document.getElementById('totalTemplatesDisplay').textContent = `${channelTemplates.length + roleTemplates.length} / ∞`;
+    document.getElementById('channelTemplatesCount').textContent = channelTemplates.length;
+    document.getElementById('roleTemplatesCount').textContent = roleTemplates.length;
+
+    renderTemplateGrid('channelTemplatesGrid', channelTemplates, 'channel', 'purple', 'hashtag');
+    renderTemplateGrid('roleTemplatesGrid', roleTemplates, 'role', 'yellow', 'user-tag');
+  } catch (err) {
+    document.getElementById('channelTemplatesGrid').innerHTML = '<div class="col-span-full text-center text-red-400 py-8">Failed to load templates</div>';
+    document.getElementById('roleTemplatesGrid').innerHTML = '';
+  }
+}
+
+function renderTemplateGrid(containerId, templates, type, color, icon) {
+  const container = document.getElementById(containerId);
+  if (!templates || templates.length === 0) {
+    container.innerHTML = `
+      <div class="col-span-full bg-neutral-900 rounded-xl border border-neutral-800 p-8 text-center">
+        <div class="w-16 h-16 bg-neutral-800 rounded-full flex items-center justify-center mx-auto mb-4">
+          <i class="fas fa-${icon} text-gray-600 text-2xl"></i>
+        </div>
+        <p class="text-gray-400">No ${type} templates yet</p>
+        <p class="text-gray-500 text-sm mt-1">Create one to save your ${type} setup</p>
+      </div>
+    `;
+    return;
+  }
+
+  container.innerHTML = templates.map(template => `
+    <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-4 hover:border-${color}-500/50 transition">
+      <div class="flex items-start justify-between mb-3">
+        <div class="flex-1">
+          <h3 class="text-white font-medium">${escapeHtml(template.name)}</h3>
+          <p class="text-gray-500 text-sm">${escapeHtml((template.description || 'No description').substring(0, 50))}</p>
+        </div>
+        <span class="text-gray-500 text-xs">${template.use_count || 0} uses</span>
+      </div>
+      <div class="flex gap-2">
+        <button onclick="applyTemplate('${type === 'channel' ? 'channels' : 'roles'}', ${template.id})" class="flex-1 bg-${color}-600/20 hover:bg-${color}-600/30 text-${color}-400 py-2 rounded-lg text-sm font-medium transition">
+          <i class="fas fa-play mr-1"></i>Apply
+        </button>
+        <button onclick="editTemplate('${type === 'channel' ? 'channels' : 'roles'}', ${template.id})" class="bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 px-3 py-2 rounded-lg text-sm transition">
+          <i class="fas fa-edit"></i>
+        </button>
+        <button onclick="deleteTemplate('${type === 'channel' ? 'channels' : 'roles'}', ${template.id})" class="bg-red-600/20 hover:bg-red-600/30 text-red-400 px-3 py-2 rounded-lg text-sm transition">
+          <i class="fas fa-trash"></i>
+        </button>
+      </div>
+    </div>
+  `).join('');
+}
+
+async function openCreateModal(type) {
+  editingTemplateId = null;
+  document.getElementById('templateType').value = type;
+  document.getElementById('modalTitle').innerHTML = `<i class="fas fa-plus mr-2"></i>Create ${type === 'channel' ? 'Channel' : 'Role'} Template`;
+  document.getElementById('saveTemplateBtn').innerHTML = '<i class="fas fa-save mr-2"></i>Create Template';
+  document.getElementById('templateName').value = '';
+  document.getElementById('templateDescription').value = '';
+
+  const channelBuilder = document.getElementById('channelBuilder');
+  const roleBuilder = document.getElementById('roleBuilder');
+
+  if (type === 'channel') {
+    try {
+      const response = await csrfFetch(`/ql/api/dashboard/fluxer/${GUILD_ID}/roles/list/`);
+      const data = await response.json();
+      if (data.roles) guildRoles = data.roles;
+    } catch (err) {
+      guildRoles = [];
+    }
+    channelBuilder.classList.remove('hidden');
+    roleBuilder.classList.add('hidden');
+    document.getElementById('categoriesList').innerHTML = '';
+    channelCounter = 0;
+    categoryCounter = 0;
+    roleOverrideCounter = 0;
+    addCategory();
+  } else {
+    roleBuilder.classList.remove('hidden');
+    channelBuilder.classList.add('hidden');
+    document.getElementById('rolesList').innerHTML = '';
+    roleCounter = 0;
+    addRoleRow();
+  }
+
+  document.getElementById('createModal').classList.remove('hidden');
+}
+
+function closeCreateModal() {
+  document.getElementById('createModal').classList.add('hidden');
+  editingTemplateId = null;
+}
+
+function addCategory() {
+  const catId = categoryCounter++;
+  const html = `
+    <div class="bg-neutral-800 rounded-xl p-5 border-2 border-purple-700/30" id="category-${catId}">
+      <div class="flex items-center justify-between mb-4">
+        <div class="flex-1">
+          <label class="text-xs text-gray-400 mb-1 block">Category Name <span class="text-red-400">*</span></label>
+          <input type="text" class="category-name w-full bg-neutral-900 border border-neutral-600 rounded-lg px-3 py-2 text-white font-medium"
+                 placeholder="e.g., Community Chat, Gaming Channels, Staff Area" required>
+        </div>
+        <button type="button" onclick="removeCategory(${catId})" class="text-red-400 hover:text-red-300 ml-3">
+          <i class="fas fa-trash text-lg"></i>
+        </button>
+      </div>
+
+      <div class="bg-neutral-900 rounded-lg p-4 mb-4 border border-neutral-700">
+        <div class="flex items-center justify-between mb-3">
+          <label class="text-sm font-medium text-purple-300">
+            <i class="fas fa-shield-alt mr-2"></i>Category Role Permissions
+          </label>
+          <button type="button" onclick="addCategoryRoleOverride(${catId})" class="bg-purple-600 hover:bg-purple-700 text-white px-3 py-1.5 rounded text-xs transition">
+            <i class="fas fa-plus mr-1"></i>Add Role
+          </button>
+        </div>
+        <p class="text-xs text-gray-500 mb-3">
+          <i class="fas fa-magic text-purple-400 mr-1"></i>
+          Set permissions once here - all channels in this category inherit them automatically.
+        </p>
+        <div class="category-role-overrides space-y-2" id="category-${catId}-overrides"></div>
+      </div>
+
+      <div class="bg-neutral-900/50 rounded-lg p-4 border border-neutral-600">
+        <div class="flex items-center justify-between mb-3">
+          <label class="text-sm font-medium text-blue-300">
+            <i class="fas fa-hashtag mr-2"></i>Channels in this Category
+          </label>
+          <button type="button" onclick="addChannelToCategory(${catId})" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded text-xs transition">
+            <i class="fas fa-plus mr-1"></i>Add Channel
+          </button>
+        </div>
+        <p class="text-xs text-gray-500 mb-3">Channels automatically inherit the category's role permissions above.</p>
+        <div class="category-channels space-y-2" id="category-${catId}-channels"></div>
+      </div>
+    </div>
+  `;
+  document.getElementById('categoriesList').insertAdjacentHTML('beforeend', html);
+}
+
+function removeCategory(catId) {
+  if (confirm('Remove this entire category and all its channels?')) {
+    document.getElementById(`category-${catId}`)?.remove();
+  }
+}
+
+function addChannelToCategory(catId) {
+  const channelId = channelCounter++;
+  const html = `
+    <div class="bg-neutral-800 rounded-lg p-3 border border-neutral-600 flex items-center gap-3" id="channel-${channelId}">
+      <div class="flex-1 grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div>
+          <label class="text-xs text-gray-400 mb-1 block">Channel Name <span class="text-red-400">*</span></label>
+          <input type="text" class="channel-name w-full bg-neutral-900 border border-neutral-600 rounded px-3 py-2 text-white text-sm"
+                 placeholder="general" required>
+        </div>
+        <div>
+          <label class="text-xs text-gray-400 mb-1 block">Type</label>
+          <select class="channel-type w-full bg-neutral-900 border border-neutral-600 rounded px-3 py-2 text-white text-sm">
+            <option value="text">Text Channel</option>
+            <option value="voice">Voice Channel</option>
+            <option value="announcement">Announcement</option>
+            <option value="forum">Forum</option>
+            <option value="stage">Stage Channel</option>
+          </select>
+        </div>
+        <div>
+          <label class="text-xs text-gray-400 mb-1 block">Topic (optional)</label>
+          <input type="text" class="channel-topic w-full bg-neutral-900 border border-neutral-600 rounded px-3 py-2 text-white text-sm"
+                 placeholder="Channel topic">
+        </div>
+      </div>
+      <button type="button" onclick="removeChannelFromCategory(${channelId})" class="text-red-400 hover:text-red-300">
+        <i class="fas fa-trash"></i>
+      </button>
+    </div>
+  `;
+  document.querySelector(`#category-${catId}-channels`).insertAdjacentHTML('beforeend', html);
+}
+
+function removeChannelFromCategory(channelId) {
+  document.getElementById(`channel-${channelId}`)?.remove();
+}
+
+function addCategoryRoleOverride(catId) {
+  const overrideId = roleOverrideCounter++;
+  const roleOptions = guildRoles.map(role =>
+    `<option value="${escapeHtml(String(role.id))}">${escapeHtml(role.name)}</option>`
+  ).join('');
+
+  const permissionCheckboxes = Object.entries(CHANNEL_PERMISSIONS).map(([key, label]) => `
+    <div class="flex items-center justify-between py-1 hover:bg-neutral-700/30 px-2 rounded text-xs">
+      <span class="text-gray-300">${escapeHtml(label)}</span>
+      <div class="flex gap-2">
+        <label class="flex items-center gap-1 cursor-pointer">
+          <input type="radio" name="perm-${overrideId}-${key}" value="allow" class="text-green-500">
+          <span class="text-green-400">allow</span>
+        </label>
+        <label class="flex items-center gap-1 cursor-pointer">
+          <input type="radio" name="perm-${overrideId}-${key}" value="deny" class="text-red-500">
+          <span class="text-red-400">deny</span>
+        </label>
+        <label class="flex items-center gap-1 cursor-pointer">
+          <input type="radio" name="perm-${overrideId}-${key}" value="neutral" checked class="text-gray-500">
+          <span class="text-gray-500">neutral</span>
+        </label>
+      </div>
+    </div>
+  `).join('');
+
+  const html = `
+    <div class="bg-neutral-800 rounded border border-neutral-500 p-3" id="override-${overrideId}">
+      <div class="flex items-start gap-3">
+        <div class="flex-1 space-y-3">
+          <div>
+            <label class="text-xs text-gray-400 mb-1 block">Select Role</label>
+            <select class="override-role w-full bg-neutral-900 border border-neutral-600 rounded px-3 py-2 text-white text-sm">
+              ${roleOptions || '<option value="">No roles loaded</option>'}
+            </select>
+          </div>
+          <div>
+            <label class="text-xs text-gray-400 mb-2 block">Permissions (allow / deny / neutral)</label>
+            <div class="max-h-48 overflow-y-auto bg-neutral-900 rounded border border-neutral-600 p-2">
+              ${permissionCheckboxes}
+            </div>
+          </div>
+        </div>
+        <button type="button" onclick="removeCategoryRoleOverride(${overrideId})" class="text-red-400 hover:text-red-300">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+    </div>
+  `;
+  document.querySelector(`#category-${catId}-overrides`).insertAdjacentHTML('beforeend', html);
+}
+
+function removeCategoryRoleOverride(id) {
+  document.getElementById(`override-${id}`)?.remove();
+}
+
+function addRoleRow() {
+  const id = roleCounter++;
+  const permissionsOptions = Object.entries(ROLE_PERMISSIONS).map(([key, label]) =>
+    `<option value="${key}">${escapeHtml(label)}</option>`
+  ).join('');
+
+  const html = `
+    <div class="bg-neutral-800 rounded-lg p-4 border border-neutral-700" id="role-${id}">
+      <div class="flex items-start gap-3">
+        <div class="flex-1 space-y-3">
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div>
+              <label class="text-xs text-gray-400">Role Name <span class="text-red-400">*</span></label>
+              <input type="text" class="role-name w-full bg-neutral-900 border border-neutral-600 rounded px-3 py-2 text-white text-sm mt-1"
+                     placeholder="Member" required>
+            </div>
+            <div>
+              <label class="text-xs text-gray-400">Color</label>
+              <input type="color" class="role-color w-full bg-neutral-900 border border-neutral-600 rounded px-3 py-2 h-10 mt-1"
+                     value="#99aab5">
+            </div>
+            <div class="flex items-end gap-3">
+              <label class="flex items-center gap-2 text-sm text-gray-400">
+                <input type="checkbox" class="role-hoisted">
+                <span>Hoisted</span>
+              </label>
+              <label class="flex items-center gap-2 text-sm text-gray-400">
+                <input type="checkbox" class="role-mentionable">
+                <span>Mentionable</span>
+              </label>
+            </div>
+          </div>
+          <div>
+            <label class="text-xs text-gray-400 mb-2 block">
+              Role Permissions <span class="text-gray-500">(server-wide)</span>
+            </label>
+            <select multiple class="role-permissions w-full bg-neutral-900 border border-neutral-600 rounded px-3 py-2 text-white text-sm"
+                    style="min-height: 120px;">
+              ${permissionsOptions}
+            </select>
+            <p class="text-xs text-gray-500 mt-1">Hold Ctrl/Cmd to select multiple. Leave empty for no special permissions.</p>
+          </div>
+        </div>
+        <button type="button" onclick="removeRole(${id})" class="text-red-400 hover:text-red-300 mt-6">
+          <i class="fas fa-trash"></i>
+        </button>
+      </div>
+    </div>
+  `;
+  document.getElementById('rolesList').insertAdjacentHTML('beforeend', html);
+}
+
+function removeRole(id) {
+  document.getElementById(`role-${id}`)?.remove();
+}
+
+async function saveTemplate() {
+  const type = document.getElementById('templateType').value;
+  const name = document.getElementById('templateName').value.trim();
+  const description = document.getElementById('templateDescription').value.trim();
+
+  if (!name) {
+    alert('Please enter a template name');
+    return;
+  }
+
+  let data = [];
+
+  if (type === 'channel') {
+    const categories = document.querySelectorAll('#categoriesList > div');
+    if (categories.length === 0) {
+      alert('Please add at least one category with channels');
+      return;
+    }
+    categories.forEach(categoryDiv => {
+      const categoryName = categoryDiv.querySelector('.category-name').value.trim();
+      if (!categoryName) return;
+
+      const categoryRoleOverrides = [];
+      const overridesContainer = categoryDiv.querySelector('.category-role-overrides');
+      if (overridesContainer) {
+        overridesContainer.querySelectorAll('[id^="override-"]').forEach(overrideDiv => {
+          const roleSelect = overrideDiv.querySelector('.override-role');
+          const roleId = roleSelect.value;
+          const roleName = roleSelect.selectedOptions[0]?.text || '';
+          const allow = [];
+          const deny = [];
+          Object.keys(CHANNEL_PERMISSIONS).forEach(permKey => {
+            overrideDiv.querySelectorAll(`input[name^="perm-"][name$="-${permKey}"]`).forEach(radio => {
+              if (radio.checked) {
+                if (radio.value === 'allow') allow.push(permKey);
+                else if (radio.value === 'deny') deny.push(permKey);
+              }
+            });
+          });
+          if (allow.length > 0 || deny.length > 0) {
+            categoryRoleOverrides.push({ role_id: roleId, role_name: roleName, allow, deny });
+          }
+        });
+      }
+
+      const channels = [];
+      const channelContainer = categoryDiv.querySelector('.category-channels');
+      if (channelContainer) {
+        channelContainer.querySelectorAll('[id^="channel-"]').forEach(channelDiv => {
+          const nameInput = channelDiv.querySelector('.channel-name');
+          if (!nameInput || !nameInput.value.trim()) return;
+          channels.push({
+            name: nameInput.value.trim(),
+            type: channelDiv.querySelector('.channel-type').value,
+            topic: channelDiv.querySelector('.channel-topic')?.value.trim() || null,
+          });
+        });
+      }
+
+      if (channels.length > 0) {
+        data.push({
+          category_name: categoryName,
+          role_overrides: categoryRoleOverrides.length > 0 ? categoryRoleOverrides : null,
+          channels
+        });
+      }
+    });
+  } else {
+    const roles = document.querySelectorAll('#rolesList > div');
+    if (roles.length === 0) {
+      alert('Please add at least one role');
+      return;
+    }
+    roles.forEach(roleDiv => {
+      const nameInput = roleDiv.querySelector('.role-name');
+      if (!nameInput.value.trim()) return;
+      const permissionsSelect = roleDiv.querySelector('.role-permissions');
+      const selectedPermissions = Array.from(permissionsSelect.selectedOptions).map(opt => opt.value);
+      data.push({
+        name: nameInput.value.trim(),
+        color: roleDiv.querySelector('.role-color').value,
+        hoist: roleDiv.querySelector('.role-hoisted').checked,
+        mentionable: roleDiv.querySelector('.role-mentionable').checked,
+        permissions: selectedPermissions.length > 0 ? selectedPermissions : null,
+      });
+    });
+  }
+
+  if (data.length === 0) {
+    alert(`Please add at least one ${type}`);
+    return;
+  }
+
+  const isEditing = editingTemplateId !== null;
+  const endpoint = isEditing
+    ? `${TEMPLATES_API}/${type === 'channel' ? 'channels' : 'roles'}/${editingTemplateId}/`
+    : `${TEMPLATES_API}/${type === 'channel' ? 'channels' : 'roles'}/`;
+
+  try {
+    const response = await csrfFetch(endpoint, {
+      method: isEditing ? 'PUT' : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name,
+        description: description || null,
+        [type === 'channel' ? 'channels' : 'roles']: data,
+      }),
+    });
+    const result = await response.json();
+    if (result.success) {
+      closeCreateModal();
+      loadTemplates();
+    } else {
+      alert('Error: ' + (result.error || 'Failed to save template'));
+    }
+  } catch (err) {
+    alert('Error: ' + err.message);
+  }
+}
+
+async function applyTemplate(type, id) {
+  if (!confirm(`Apply this template? This will create new ${type} in your server.`)) return;
+  try {
+    const response = await csrfFetch(`${TEMPLATES_API}/${type}/${id}/apply/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    const result = await response.json();
+    if (result.success) {
+      alert('Template queued for application! Check your Discord server.');
+      loadTemplates();
+    } else {
+      throw new Error(result.error);
+    }
+  } catch (err) {
+    alert('Error: ' + err.message);
+  }
+}
+
+async function deleteTemplate(type, id) {
+  if (!confirm('Delete this template? This cannot be undone.')) return;
+  try {
+    const response = await csrfFetch(`${TEMPLATES_API}/${type}/${id}/`, { method: 'DELETE' });
+    const result = await response.json();
+    if (result.success) {
+      loadTemplates();
+    } else {
+      throw new Error(result.error);
+    }
+  } catch (err) {
+    alert('Error: ' + err.message);
+  }
+}
+
+async function editTemplate(type, id) {
+  try {
+    const response = await csrfFetch(`${TEMPLATES_API}/${type}/${id}/`);
+    const template = await response.json();
+    if (!template || !template.name) {
+      alert('Failed to load template');
+      return;
+    }
+    editingTemplateId = id;
+
+    const templateType = type === 'channels' ? 'channel' : 'role';
+    document.getElementById('templateType').value = templateType;
+    document.getElementById('modalTitle').innerHTML = `<i class="fas fa-edit mr-2"></i>Edit ${templateType === 'channel' ? 'Channel' : 'Role'} Template`;
+    document.getElementById('saveTemplateBtn').innerHTML = '<i class="fas fa-check mr-2"></i>Update Template';
+    document.getElementById('templateName').value = template.name;
+    document.getElementById('templateDescription').value = template.description || '';
+
+    const channelBuilder = document.getElementById('channelBuilder');
+    const roleBuilder = document.getElementById('roleBuilder');
+
+    if (type === 'channels') {
+      try {
+        const rolesResponse = await csrfFetch(`/ql/api/dashboard/fluxer/${GUILD_ID}/roles/list/`);
+        const rolesData = await rolesResponse.json();
+        if (rolesData.roles) guildRoles = rolesData.roles;
+      } catch (err) {
+        guildRoles = [];
+      }
+      channelBuilder.classList.remove('hidden');
+      roleBuilder.classList.add('hidden');
+      document.getElementById('categoriesList').innerHTML = '';
+      channelCounter = 0;
+      categoryCounter = 0;
+      roleOverrideCounter = 0;
+
+      const templateData = JSON.parse(template.template_data || '[]');
+      const categories = Array.isArray(templateData) ? templateData : [];
+
+      categories.forEach(categoryData => {
+        addCategory();
+        const lastCategory = document.querySelector('#categoriesList > div:last-child');
+        const categoryId = lastCategory.id.split('-')[1];
+        lastCategory.querySelector('.category-name').value = categoryData.category_name || '';
+
+        if (categoryData.role_overrides && categoryData.role_overrides.length > 0) {
+          categoryData.role_overrides.forEach(override => {
+            addCategoryRoleOverride(categoryId);
+            const lastOverride = document.querySelector(`#category-${categoryId}-overrides > div:last-child`);
+            const roleSelect = lastOverride.querySelector('.override-role');
+            if (roleSelect) roleSelect.value = override.role_id;
+            (override.allow || []).forEach(perm => {
+              const allowRadio = lastOverride.querySelector(`input[name$="-${perm}"][value="allow"]`);
+              if (allowRadio) allowRadio.checked = true;
+            });
+            (override.deny || []).forEach(perm => {
+              const denyRadio = lastOverride.querySelector(`input[name$="-${perm}"][value="deny"]`);
+              if (denyRadio) denyRadio.checked = true;
+            });
+          });
+        }
+
+        (categoryData.channels || []).forEach(channelData => {
+          addChannelToCategory(categoryId);
+          const lastChannel = document.querySelector(`#category-${categoryId}-channels > div:last-child`);
+          lastChannel.querySelector('.channel-name').value = channelData.name || '';
+          lastChannel.querySelector('.channel-type').value = channelData.type || 'text';
+          if (channelData.topic) lastChannel.querySelector('.channel-topic').value = channelData.topic;
+        });
+      });
+    } else {
+      roleBuilder.classList.remove('hidden');
+      channelBuilder.classList.add('hidden');
+      document.getElementById('rolesList').innerHTML = '';
+      roleCounter = 0;
+      const roles = JSON.parse(template.template_data || '[]');
+      roles.forEach(roleData => {
+        addRoleRow();
+        const lastRole = document.querySelector('#rolesList > div:last-child');
+        lastRole.querySelector('.role-name').value = roleData.name || '';
+        lastRole.querySelector('.role-color').value = roleData.color || '#99aab5';
+        lastRole.querySelector('.role-hoisted').checked = roleData.hoist || false;
+        lastRole.querySelector('.role-mentionable').checked = roleData.mentionable || false;
+        if (roleData.permissions) {
+          const permSelect = lastRole.querySelector('.role-permissions');
+          roleData.permissions.forEach(perm => {
+            const option = Array.from(permSelect.options).find(opt => opt.value === perm);
+            if (option) option.selected = true;
+          });
+        }
+      });
+    }
+
+    document.getElementById('createModal').classList.remove('hidden');
+  } catch (err) {
+    alert('Error loading template: ' + err.message);
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  loadTemplates();
+});
+</script>
+{% endblock guild_content %}

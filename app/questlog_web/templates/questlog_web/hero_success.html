@@ -1,0 +1,28 @@
+{% extends "questlog_web/base_web.html" %}
+{% load static %}
+
+{% block title %}Welcome, Champion! - QuestLog{% endblock %}
+
+{% block web_content %}
+<div style="max-width:500px;margin:80px auto;padding:0 16px;text-align:center;">
+  <div style="font-size:3.5rem;margin-bottom:16px;"><i class="fas fa-shield-alt" style="color:#fbbf24;"></i></div>
+  <h1 style="font-size:2rem;font-weight:900;color:#fff;margin-bottom:8px;">You're a Champion!</h1>
+  <p style="color:#9ca3af;font-size:0.95rem;margin-bottom:32px;">
+    Thank you for supporting QuestLog. Your perks are now active - thank you for keeping this ad-free and independent.
+  </p>
+  <div style="background:linear-gradient(135deg,rgba(245,158,11,0.08),rgba(217,119,6,0.08));border:1px solid rgba(245,158,11,0.3);border-radius:16px;padding:24px 28px;margin-bottom:28px;text-align:left;">
+    <p style="color:#fcd34d;font-size:0.8rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;margin:0 0 10px;">Your Champion perks</p>
+    <ul style="list-style:none;padding:0;margin:0;color:#d1d5db;font-size:0.88rem;line-height:2;">
+      <li><i class="fas fa-shield-alt text-amber-400 mr-2"></i>Champion badge on your profile and posts</li>
+      <li><i class="fas fa-star text-purple-400 mr-2"></i>Two flair slots + Champion-exclusive flairs</li>
+      <li><i class="fas fa-hashtag text-green-400 mr-2"></i>Champion role in Fluxer (syncs shortly)</li>
+      <li><i class="fas fa-align-left text-blue-400 mr-2"></i>3,000 char posts, 8 images per post</li>
+      <li><i class="fas fa-users text-red-400 mr-2"></i>Opt-in listing on the Champions page (check settings)</li>
+    </ul>
+  </div>
+  <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
+    <a href="/ql/" style="display:inline-block;padding:11px 24px;background:#d97706;color:#fff;font-weight:700;border-radius:10px;font-size:0.9rem;text-decoration:none;">Go to Home</a>
+    <a href="/ql/shop/" style="display:inline-block;padding:11px 24px;background:#1f2937;color:#e5e7eb;font-weight:700;border-radius:10px;font-size:0.9rem;text-decoration:none;">Visit Flair Shop</a>
+  </div>
+</div>
+{% endblock %}

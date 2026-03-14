@@ -269,3 +269,15 @@ def api_gif_trending(request):
     except Exception as e:
         logger.error(f"GIPHY trending error: {e}")
         return JsonResponse({'results': []})
+
+
+@require_http_methods(["GET"])
+def api_custom_emoji_list(request):
+    """GET: public list of all custom emoji and stickers."""
+    from .models import WebCustomEmoji
+    with get_db_session() as db:
+        rows = db.query(WebCustomEmoji).order_by(WebCustomEmoji.is_sticker, WebCustomEmoji.shortcode).all()
+        return JsonResponse({'emoji': [
+            {'shortcode': e.shortcode, 'image_url': e.image_url, 'is_sticker': bool(e.is_sticker), 'is_animated': bool(e.is_animated)}
+            for e in rows
+        ]})

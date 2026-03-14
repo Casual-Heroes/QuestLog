@@ -1,0 +1,677 @@
+{% extends "questlog_web/matrix_base_guild.html" %}
+{% load static %}
+
+{% block title %}Member Management - {{ space_name }}{% endblock %}
+
+{% block guild_content %}
+{% include "questlog/partials/custom_select.html" %}
+
+  <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 p-6 pb-0 mb-8">
+    <div>
+      <h1 class="text-3xl font-bold text-white">
+        <i class="fas fa-users text-blue-400 mr-3"></i>Member Management
+      </h1>
+      <p class="text-gray-400 mt-1">All members across all rooms in {{ space_name }}. Individual room member counts are shown on the Rooms page.</p>
+    </div>
+    <div class="flex items-center gap-3">
+      <button onclick="loadAllMembers()"
+              class="bg-teal-600 hover:bg-teal-500 text-white px-4 py-2 rounded-lg font-medium transition text-sm">
+        <i class="fas fa-sync-alt mr-2"></i>Load All Members
+      </button>
+    </div>
+  </div>
+
+  <div class="px-6 pb-8">
+
+    <!-- Power Level Reference -->
+    <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-4 mb-6">
+      <h3 class="text-white font-semibold text-sm mb-3 flex items-center gap-2">
+        <i class="fas fa-info-circle text-teal-400"></i> Power Level Reference
+      </h3>
+      <div class="flex flex-wrap gap-3 text-xs">
+        <span class="bg-neutral-800 text-gray-300 px-3 py-1 rounded-full border border-neutral-700">0 - Member (default)</span>
+        <span class="bg-yellow-600/10 text-yellow-400 px-3 py-1 rounded-full border border-yellow-800/30">50 - Moderator</span>
+        <span class="bg-teal-600/10 text-teal-400 px-3 py-1 rounded-full border border-teal-800/30">100 - Admin/Owner</span>
+        <span class="bg-red-600/10 text-red-400 px-3 py-1 rounded-full border border-red-800/30">-1 - Muted</span>
+      </div>
+    </div>
+
+    <!-- Member Table -->
+    <div class="bg-neutral-900 rounded-xl border border-neutral-800 overflow-hidden">
+
+      <!-- Search + Filter bar -->
+      <div class="p-4 border-b border-neutral-800 flex flex-col md:flex-row items-center gap-3">
+        <div class="relative flex-1 w-full">
+          <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm"></i>
+          <input type="text" id="memberSearch" placeholder="Search by Matrix ID or display name..."
+                 oninput="filterMembers(this.value)"
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded-lg pl-9 pr-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-teal-600">
+        </div>
+      </div>
+
+      <!-- Bulk action bar (shown when items selected) -->
+      <div id="bulkBar" class="hidden p-3 bg-teal-900/20 border-b border-teal-800/30 flex items-center gap-3">
+        <span id="bulkCount" class="text-teal-300 text-sm font-medium">0 selected</span>
+        <div class="flex items-center gap-2 ml-2">
+          <button onclick="bulkKick()"
+                  class="bg-neutral-800 hover:bg-red-600/20 text-red-400 border border-neutral-700 hover:border-red-600/40 text-xs px-3 py-1.5 rounded-lg transition">
+            <i class="fas fa-user-times mr-1"></i>Kick from All Rooms
+          </button>
+          <button onclick="bulkBan()"
+                  class="bg-neutral-800 hover:bg-red-700/20 text-red-500 border border-neutral-700 hover:border-red-700/40 text-xs px-3 py-1.5 rounded-lg transition">
+            <i class="fas fa-ban mr-1"></i>Ban from Space
+          </button>
+        </div>
+        <button onclick="clearSelection()" class="ml-auto text-gray-500 hover:text-white text-xs transition">
+          <i class="fas fa-times mr-1"></i>Clear
+        </button>
+      </div>
+
+      <!-- Select all row (shown when members loaded) -->
+      <div id="selectAllRow" class="hidden p-3 border-b border-neutral-800 flex items-center gap-3">
+        <label class="flex items-center gap-2 cursor-pointer text-sm text-gray-400 hover:text-white transition">
+          <input type="checkbox" id="selectAllChk" onchange="toggleSelectAll(this.checked)"
+                 class="w-4 h-4 rounded accent-teal-500 cursor-pointer">
+          Select all
+        </label>
+        <span id="memberCountLabel" class="text-gray-500 text-xs ml-auto"></span>
+      </div>
+
+      <div id="memberResults">
+        <div class="p-8 text-center text-gray-600">
+          <i class="fas fa-users text-3xl mb-3 block text-gray-700"></i>
+          <p class="text-sm mb-3">Click <strong class="text-gray-400">Load All Members</strong> to browse space members,<br>or type a Matrix ID to search.</p>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Action History -->
+  <div class="bg-neutral-900 rounded-xl border border-neutral-800 overflow-hidden mt-6">
+    <div class="p-4 border-b border-neutral-800 flex items-center justify-between">
+      <h3 class="text-white font-semibold flex items-center gap-2">
+        <i class="fas fa-history text-teal-400 text-sm"></i>
+        Recent Actions
+      </h3>
+      <button onclick="loadActionHistory()" class="text-gray-400 hover:text-teal-400 text-sm transition">
+        <i class="fas fa-sync-alt mr-1"></i>Refresh
+      </button>
+    </div>
+    <div id="actionHistoryBody" class="divide-y divide-neutral-800 text-sm">
+      <div class="p-4 text-center text-gray-500 text-sm">Loading...</div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Kick All Rooms Modal -->
+<div id="kickAllModal" class="fixed inset-0 z-50 hidden">
+  <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" onclick="document.getElementById('kickAllModal').classList.add('hidden')"></div>
+  <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md">
+    <div class="bg-neutral-900 rounded-xl border border-neutral-700 shadow-2xl">
+      <div class="p-5 border-b border-neutral-800 flex items-center justify-between">
+        <h2 class="text-lg font-bold text-white">Kick from All Rooms</h2>
+        <button onclick="document.getElementById('kickAllModal').classList.add('hidden')" class="text-gray-400 hover:text-white"><i class="fas fa-times"></i></button>
+      </div>
+      <div class="p-5 space-y-3">
+        <p id="kickAllModalDesc" class="text-gray-400 text-sm">The user(s) will be removed from every room in the space.</p>
+        <div id="kickAllSingleFields">
+          <div>
+            <label class="block text-xs text-gray-400 mb-1">Matrix ID <span class="text-red-400">*</span></label>
+            <input type="text" id="kickUserId" placeholder="@user:server.com"
+                   class="w-full bg-neutral-800 border border-neutral-700 rounded-xl px-3 py-2.5 text-white text-sm placeholder-gray-500 focus:outline-none focus:border-red-600">
+          </div>
+        </div>
+        <div>
+          <label class="block text-xs text-gray-400 mb-1">Reason (optional)</label>
+          <input type="text" id="kickReason" placeholder="Reason for kick"
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded-xl px-3 py-2.5 text-white text-sm placeholder-gray-500 focus:outline-none focus:border-red-600">
+        </div>
+        <div class="flex justify-end gap-3 pt-2 border-t border-neutral-800">
+          <button onclick="document.getElementById('kickAllModal').classList.add('hidden')" class="text-gray-400 hover:text-white text-sm px-4 py-2 transition">Cancel</button>
+          <button onclick="submitKickAll()"
+                  class="bg-red-600 hover:bg-red-500 text-white text-sm font-semibold px-5 py-2 rounded-xl transition">
+            Kick from All Rooms
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Ban Modal -->
+<div id="banModal" class="fixed inset-0 z-50 hidden">
+  <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" onclick="document.getElementById('banModal').classList.add('hidden')"></div>
+  <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md">
+    <div class="bg-neutral-900 rounded-xl border border-neutral-700 shadow-2xl">
+      <div class="p-5 border-b border-neutral-800 flex items-center justify-between">
+        <h2 class="text-lg font-bold text-white">Ban from Space</h2>
+        <button onclick="document.getElementById('banModal').classList.add('hidden')" class="text-gray-400 hover:text-white"><i class="fas fa-times"></i></button>
+      </div>
+      <div class="p-5 space-y-3">
+        <p id="banModalDesc" class="text-gray-400 text-sm">User will be banned from all rooms and the space itself.</p>
+        <div id="banSingleFields">
+          <div>
+            <label class="block text-xs text-gray-400 mb-1">Matrix ID <span class="text-red-400">*</span></label>
+            <input type="text" id="banUserId" placeholder="@user:server.com"
+                   class="w-full bg-neutral-800 border border-neutral-700 rounded-xl px-3 py-2.5 text-white text-sm placeholder-gray-500 focus:outline-none focus:border-red-600">
+          </div>
+        </div>
+        <div>
+          <label class="block text-xs text-gray-400 mb-1">Reason (optional)</label>
+          <input type="text" id="banReason" placeholder="Reason for ban"
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded-xl px-3 py-2.5 text-white text-sm placeholder-gray-500 focus:outline-none focus:border-red-600">
+        </div>
+        <div class="flex justify-end gap-3 pt-2 border-t border-neutral-800">
+          <button onclick="document.getElementById('banModal').classList.add('hidden')" class="text-gray-400 hover:text-white text-sm px-4 py-2 transition">Cancel</button>
+          <button onclick="submitBan()"
+                  class="bg-red-700 hover:bg-red-600 text-white text-sm font-semibold px-5 py-2 rounded-xl transition">
+            Ban User
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Power Level Modal -->
+<div id="powerLevelModal" class="fixed inset-0 z-50 hidden">
+  <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" onclick="document.getElementById('powerLevelModal').classList.add('hidden')"></div>
+  <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md">
+    <div class="bg-neutral-900 rounded-xl border border-neutral-700 shadow-2xl">
+      <div class="p-5 border-b border-neutral-800 flex items-center justify-between">
+        <h2 class="text-lg font-bold text-white">Set Power Level</h2>
+        <button onclick="document.getElementById('powerLevelModal').classList.add('hidden')" class="text-gray-400 hover:text-white"><i class="fas fa-times"></i></button>
+      </div>
+      <div class="p-5 space-y-3">
+        <p class="text-gray-400 text-sm">Change a user's power level in a specific room.</p>
+        <div>
+          <label class="block text-xs text-gray-400 mb-1">Matrix ID <span class="text-red-400">*</span></label>
+          <input type="text" id="plUserId" placeholder="@user:server.com"
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded-xl px-3 py-2.5 text-white text-sm placeholder-gray-500 focus:outline-none focus:border-teal-600">
+        </div>
+        <div>
+          <label class="block text-xs text-gray-400 mb-1">Room ID <span class="text-red-400">*</span></label>
+          <div id="cs-pl-room"></div>
+        </div>
+        <div>
+          <label class="block text-xs text-gray-400 mb-1">Power Level <span class="text-red-400">*</span></label>
+          <input type="number" id="plLevel" placeholder="0-100 (or -1 to mute)" min="-1" max="100"
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded-xl px-3 py-2.5 text-white text-sm placeholder-gray-500 focus:outline-none focus:border-teal-600">
+        </div>
+        <div class="flex justify-end gap-3 pt-2 border-t border-neutral-800">
+          <button onclick="document.getElementById('powerLevelModal').classList.add('hidden')" class="text-gray-400 hover:text-white text-sm px-4 py-2 transition">Cancel</button>
+          <button onclick="submitPowerLevel()"
+                  class="bg-teal-600 hover:bg-teal-500 text-white text-sm font-semibold px-5 py-2 rounded-xl transition">
+            Set Level
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- DM Modal -->
+<div id="dmModal" class="fixed inset-0 z-50 hidden">
+  <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" onclick="document.getElementById('dmModal').classList.add('hidden')"></div>
+  <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md">
+    <div class="bg-neutral-900 rounded-xl border border-neutral-700 shadow-2xl">
+      <div class="p-5 border-b border-neutral-800 flex items-center justify-between">
+        <h2 class="text-lg font-bold text-white">Send DM</h2>
+        <button onclick="document.getElementById('dmModal').classList.add('hidden')" class="text-gray-400 hover:text-white"><i class="fas fa-times"></i></button>
+      </div>
+      <div class="p-5 space-y-3">
+        <p class="text-gray-400 text-sm">The bot will open a DM room with the user and send the message.</p>
+        <div>
+          <label class="block text-xs text-gray-400 mb-1">Matrix ID <span class="text-red-400">*</span></label>
+          <input type="text" id="dmUserId" placeholder="@user:server.com"
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded-xl px-3 py-2.5 text-white text-sm placeholder-gray-500 focus:outline-none focus:border-blue-600">
+        </div>
+        <div>
+          <label class="block text-xs text-gray-400 mb-1">Message <span class="text-red-400">*</span></label>
+          <textarea id="dmContent" rows="3" placeholder="Your message..."
+                    class="w-full bg-neutral-800 border border-neutral-700 rounded-xl px-3 py-2.5 text-white text-sm placeholder-gray-500 focus:outline-none focus:border-blue-600 resize-none"></textarea>
+        </div>
+        <div class="flex justify-end gap-3 pt-2 border-t border-neutral-800">
+          <button onclick="document.getElementById('dmModal').classList.add('hidden')" class="text-gray-400 hover:text-white text-sm px-4 py-2 transition">Cancel</button>
+          <button onclick="submitDm()"
+                  class="bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold px-5 py-2 rounded-xl transition">
+            Send DM
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="fixed bottom-6 right-6 z-50 hidden">
+  <div class="bg-neutral-800 border border-neutral-700 text-white text-sm px-4 py-3 rounded-xl shadow-xl flex items-center gap-2">
+    <i id="toastIcon" class="fas fa-check text-teal-400"></i>
+    <span id="toastMsg"></span>
+  </div>
+</div>
+
+<script>
+const SPACE_ID_URL = '{{ space_id_url }}';
+const ROOMS = JSON.parse('{{ rooms_json|escapejs }}');
+
+let csPlRoom = null;
+let allMembers = [];
+let selectedIds = new Set();
+let bulkMode = false; // true when modal opened for bulk
+
+function showToast(msg, ok=true) {
+  const t = document.getElementById('toast');
+  document.getElementById('toastMsg').textContent = msg;
+  document.getElementById('toastIcon').className = ok ? 'fas fa-check text-teal-400' : 'fas fa-times text-red-400';
+  t.classList.remove('hidden');
+  setTimeout(() => t.classList.add('hidden'), 3500);
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  document.getElementById('memberSearch').addEventListener('input', function() {
+    if (allMembers.length > 0) {
+      filterMembers(this.value);
+    } else {
+      const q = this.value.trim();
+      if (q.length >= 3) searchMembers(q);
+    }
+  });
+});
+
+// ---- Load all members ----
+function loadAllMembers() {
+  const container = document.getElementById('memberResults');
+  container.innerHTML = '<div class="p-6 text-center text-gray-500 text-sm"><i class="fas fa-spinner fa-spin mr-2"></i>Loading live members from all rooms...</div>';
+  csrfFetch('/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/members/?live=1&per_page=500')
+    .then(r => r.json()).then(d => {
+      allMembers = d.members || [];
+      selectedIds.clear();
+      updateBulkBar();
+      renderMembers(allMembers);
+    }).catch(() => {
+      container.innerHTML = '<div class="p-6 text-center text-red-400 text-sm">Failed to load members.</div>';
+    });
+}
+
+// ---- Search fallback (when no members loaded) ----
+function searchMembers(query) {
+  const q = query.trim();
+  if (!q) return;
+  const container = document.getElementById('memberResults');
+  container.innerHTML = '<div class="p-6 text-center text-gray-500 text-sm"><i class="fas fa-spinner fa-spin mr-2"></i>Searching...</div>';
+  csrfFetch('/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/members/?q=' + encodeURIComponent(q))
+    .then(r => r.json()).then(d => {
+      const results = d.members || [];
+      if (!results.length) {
+        document.getElementById('memberResults').innerHTML = '<div class="p-6 text-center text-gray-600 text-sm">No members found.</div>';
+        document.getElementById('selectAllRow').classList.add('hidden');
+        return;
+      }
+      allMembers = results;
+      selectedIds.clear();
+      updateBulkBar();
+      renderMembers(allMembers);
+    }).catch(() => {
+      document.getElementById('memberResults').innerHTML = '<div class="p-6 text-center text-red-400 text-sm">Search failed.</div>';
+    });
+}
+
+// ---- Filter in-memory ----
+function filterMembers(q) {
+  const lq = q.trim().toLowerCase();
+  const filtered = lq ? allMembers.filter(m =>
+    (m.matrix_id || '').toLowerCase().includes(lq) ||
+    (m.display_name || '').toLowerCase().includes(lq)
+  ) : allMembers;
+  renderMembers(filtered);
+}
+
+// ---- Render member rows ----
+function renderMembers(members) {
+  const container = document.getElementById('memberResults');
+  const selectAllRow = document.getElementById('selectAllRow');
+  const countLabel = document.getElementById('memberCountLabel');
+
+  if (!members.length) {
+    container.innerHTML = '<div class="p-6 text-center text-gray-600 text-sm">No members found.</div>';
+    selectAllRow.classList.add('hidden');
+    return;
+  }
+
+  selectAllRow.classList.remove('hidden');
+  countLabel.textContent = members.length + ' member' + (members.length !== 1 ? 's' : '');
+
+  let html = '<div class="divide-y divide-neutral-800/60">';
+  members.forEach(m => {
+    const pl = m.power_level || 0;
+    const plColor = pl >= 100 ? 'text-teal-400' : pl >= 50 ? 'text-yellow-400' : pl < 0 ? 'text-red-400' : 'text-gray-400';
+    const plBadge = pl >= 100 ? 'Admin' : pl >= 50 ? 'Mod' : pl < 0 ? 'Muted' : '';
+    const isSelected = selectedIds.has(m.matrix_id);
+    html += `<div class="flex items-center gap-4 p-4 hover:bg-neutral-800/40 transition member-row${isSelected ? ' bg-teal-900/10' : ''}" data-id="${escapeHtml(m.matrix_id)}">
+      <input type="checkbox" class="member-chk w-4 h-4 rounded accent-teal-500 cursor-pointer flex-shrink-0"
+             value="${escapeHtml(m.matrix_id)}" ${isSelected ? 'checked' : ''}
+             onchange="toggleMember(this.value, this.checked)">
+      <div class="w-9 h-9 bg-blue-700/20 rounded-full flex items-center justify-center flex-shrink-0 border border-blue-800/20">
+        <i class="fas fa-user text-blue-400 text-sm"></i>
+      </div>
+      <div class="flex-1 min-w-0">
+        <p class="text-white font-medium truncate">${escapeHtml(m.display_name || m.matrix_id)}</p>
+        <p class="text-gray-500 text-xs font-mono">${escapeHtml(m.matrix_id)}</p>
+        ${m.rooms && m.rooms.length ? `<p class="text-gray-600 text-xs truncate">${m.rooms.map(r => escapeHtml(r)).join(', ')}</p>` : ''}
+      </div>
+      <div class="flex items-center gap-3 flex-shrink-0">
+        <span class="text-xs ${plColor}">PL: ${pl}${plBadge ? ' <span class="text-gray-600">('+plBadge+')</span>' : ''}</span>
+        <button onclick="prefillKick('${escapeHtml(m.matrix_id)}')"
+                class="text-gray-500 hover:text-red-400 transition p-1.5 rounded-lg hover:bg-red-600/10 text-xs" title="Kick from all rooms">
+          <i class="fas fa-user-times"></i>
+        </button>
+        <button onclick="prefillBan('${escapeHtml(m.matrix_id)}')"
+                class="text-gray-500 hover:text-red-600 transition p-1.5 rounded-lg hover:bg-red-600/10 text-xs" title="Ban">
+          <i class="fas fa-ban"></i>
+        </button>
+        <button onclick="prefillPL('${escapeHtml(m.matrix_id)}')"
+                class="text-gray-500 hover:text-teal-400 transition p-1.5 rounded-lg hover:bg-teal-600/10 text-xs" title="Set power level">
+          <i class="fas fa-bolt"></i>
+        </button>
+        <button onclick="prefillDm('${escapeHtml(m.matrix_id)}')"
+                class="text-gray-500 hover:text-blue-400 transition p-1.5 rounded-lg hover:bg-blue-600/10 text-xs" title="Send DM">
+          <i class="fas fa-envelope"></i>
+        </button>
+      </div>
+    </div>`;
+  });
+  html += '</div>';
+  container.innerHTML = html;
+
+  // Sync select-all checkbox
+  const allChk = document.getElementById('selectAllChk');
+  if (allChk) {
+    const visibleIds = members.map(m => m.matrix_id);
+    allChk.checked = visibleIds.length > 0 && visibleIds.every(id => selectedIds.has(id));
+    allChk.indeterminate = !allChk.checked && visibleIds.some(id => selectedIds.has(id));
+  }
+}
+
+// ---- Selection ----
+function toggleMember(matrixId, checked) {
+  if (checked) selectedIds.add(matrixId);
+  else selectedIds.delete(matrixId);
+  updateBulkBar();
+  // update select-all state
+  const allChk = document.getElementById('selectAllChk');
+  if (allChk) {
+    const checkboxes = document.querySelectorAll('.member-chk');
+    const total = checkboxes.length;
+    const checkedCount = [...checkboxes].filter(c => c.checked).length;
+    allChk.checked = total > 0 && checkedCount === total;
+    allChk.indeterminate = checkedCount > 0 && checkedCount < total;
+  }
+}
+
+function toggleSelectAll(checked) {
+  const checkboxes = document.querySelectorAll('.member-chk');
+  checkboxes.forEach(chk => {
+    chk.checked = checked;
+    if (checked) selectedIds.add(chk.value);
+    else selectedIds.delete(chk.value);
+  });
+  updateBulkBar();
+}
+
+function clearSelection() {
+  selectedIds.clear();
+  document.querySelectorAll('.member-chk').forEach(c => c.checked = false);
+  const allChk = document.getElementById('selectAllChk');
+  if (allChk) { allChk.checked = false; allChk.indeterminate = false; }
+  updateBulkBar();
+}
+
+function updateBulkBar() {
+  const bar = document.getElementById('bulkBar');
+  const count = document.getElementById('bulkCount');
+  if (selectedIds.size > 0) {
+    bar.classList.remove('hidden');
+    count.textContent = selectedIds.size + ' selected';
+  } else {
+    bar.classList.add('hidden');
+  }
+}
+
+// ---- Bulk actions ----
+function bulkKick() {
+  bulkMode = true;
+  document.getElementById('kickAllModalDesc').textContent = selectedIds.size + ' selected member(s) will be removed from every room in the space.';
+  document.getElementById('kickAllSingleFields').classList.add('hidden');
+  document.getElementById('kickReason').value = '';
+  document.getElementById('kickAllModal').classList.remove('hidden');
+}
+
+function bulkBan() {
+  bulkMode = true;
+  document.getElementById('banModalDesc').textContent = selectedIds.size + ' selected member(s) will be banned from all rooms and the space.';
+  document.getElementById('banSingleFields').classList.add('hidden');
+  document.getElementById('banReason').value = '';
+  document.getElementById('banModal').classList.remove('hidden');
+}
+
+// ---- Single prefill ----
+function prefillKick(userId) {
+  bulkMode = false;
+  document.getElementById('kickAllModalDesc').textContent = 'The user will be removed from every room in the space.';
+  document.getElementById('kickAllSingleFields').classList.remove('hidden');
+  document.getElementById('kickUserId').value = userId;
+  document.getElementById('kickReason').value = '';
+  document.getElementById('kickAllModal').classList.remove('hidden');
+}
+function prefillBan(userId) {
+  bulkMode = false;
+  document.getElementById('banModalDesc').textContent = 'User will be banned from all rooms and the space itself.';
+  document.getElementById('banSingleFields').classList.remove('hidden');
+  document.getElementById('banUserId').value = userId;
+  document.getElementById('banReason').value = '';
+  document.getElementById('banModal').classList.remove('hidden');
+}
+function prefillPL(userId) {
+  document.getElementById('plUserId').value = userId;
+  openPowerLevelModal();
+}
+function prefillDm(userId) {
+  document.getElementById('dmUserId').value = userId;
+  document.getElementById('dmContent').value = '';
+  document.getElementById('dmModal').classList.remove('hidden');
+}
+
+function openPowerLevelModal() {
+  if (!csPlRoom) {
+    csPlRoom = createCustomSelect({
+      container: document.getElementById('cs-pl-room'),
+      name: 'pl_room_id',
+      items: ROOMS,
+      selected: '',
+      placeholder: 'Select a room...',
+      color: 'teal',
+    });
+  }
+  document.getElementById('powerLevelModal').classList.remove('hidden');
+}
+
+// ---- Submit actions ----
+function submitKickAll() {
+  const reason = document.getElementById('kickReason').value.trim();
+  if (bulkMode) {
+    const ids = [...selectedIds];
+    if (!ids.length) { showToast('No members selected.', false); return; }
+    let done = 0;
+    ids.forEach(matrix_id => {
+      csrfFetch('/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/members/kick/', {
+        method: 'POST', body: JSON.stringify({ matrix_id, reason, all_rooms: true })
+      }).then(r => r.json()).then(d => {
+        done++;
+        if (done === ids.length) {
+          showToast('Kick queued for ' + ids.length + ' member(s).');
+          allMembers = allMembers.filter(m => !ids.includes(m.matrix_id));
+          clearSelection();
+          filterMembers(document.getElementById('memberSearch').value);
+          setTimeout(loadActionHistory, 3000);
+        }
+      });
+    });
+    document.getElementById('kickAllModal').classList.add('hidden');
+  } else {
+    const matrix_id = document.getElementById('kickUserId').value.trim();
+    if (!matrix_id) { showToast('Matrix ID required.', false); return; }
+    csrfFetch('/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/members/kick/', {
+      method: 'POST', body: JSON.stringify({ matrix_id, reason, all_rooms: true })
+    }).then(r => r.json()).then(d => {
+      if (d.ok) {
+        showToast('Kick queued.');
+        document.getElementById('kickAllModal').classList.add('hidden');
+        allMembers = allMembers.filter(m => m.matrix_id !== matrix_id);
+        filterMembers(document.getElementById('memberSearch').value);
+        setTimeout(loadActionHistory, 3000);
+      }
+      else showToast(d.error || 'Error', false);
+    }).catch(() => showToast('Request failed.', false));
+  }
+}
+
+function submitBan() {
+  const reason = document.getElementById('banReason').value.trim();
+  if (bulkMode) {
+    const ids = [...selectedIds];
+    if (!ids.length) { showToast('No members selected.', false); return; }
+    let done = 0;
+    ids.forEach(matrix_id => {
+      csrfFetch('/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/members/ban/', {
+        method: 'POST', body: JSON.stringify({ matrix_id, reason })
+      }).then(r => r.json()).then(d => {
+        done++;
+        if (done === ids.length) {
+          showToast('Ban queued for ' + ids.length + ' member(s).');
+          allMembers = allMembers.filter(m => !ids.includes(m.matrix_id));
+          clearSelection();
+          filterMembers(document.getElementById('memberSearch').value);
+          setTimeout(loadActionHistory, 3000);
+        }
+      });
+    });
+    document.getElementById('banModal').classList.add('hidden');
+  } else {
+    const matrix_id = document.getElementById('banUserId').value.trim();
+    if (!matrix_id) { showToast('Matrix ID required.', false); return; }
+    csrfFetch('/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/members/ban/', {
+      method: 'POST', body: JSON.stringify({ matrix_id, reason })
+    }).then(r => r.json()).then(d => {
+      if (d.ok) {
+        showToast('Ban queued.');
+        document.getElementById('banModal').classList.add('hidden');
+        const banId = document.getElementById('banUserId').value.trim();
+        allMembers = allMembers.filter(m => m.matrix_id !== banId);
+        filterMembers(document.getElementById('memberSearch').value);
+        setTimeout(loadActionHistory, 3000);
+      }
+      else showToast(d.error || 'Error', false);
+    }).catch(() => showToast('Request failed.', false));
+  }
+}
+
+function submitPowerLevel() {
+  const matrix_id = document.getElementById('plUserId').value.trim();
+  const room_id = csPlRoom ? csPlRoom.getValue() : '';
+  const level = parseInt(document.getElementById('plLevel').value);
+  if (!matrix_id || !room_id) { showToast('Matrix ID and room required.', false); return; }
+  if (isNaN(level) || level < -1 || level > 100) { showToast('Level must be -1 to 100.', false); return; }
+  csrfFetch('/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/members/powerlevel/', {
+    method: 'POST',
+    body: JSON.stringify({ matrix_id, room_id, level })
+  }).then(r => r.json()).then(d => {
+    if (d.ok) { showToast('Power level update queued.'); document.getElementById('powerLevelModal').classList.add('hidden'); }
+    else showToast(d.error || 'Error', false);
+  }).catch(() => showToast('Request failed.', false));
+}
+
+function submitDm() {
+  const matrix_id = document.getElementById('dmUserId').value.trim();
+  const content = document.getElementById('dmContent').value.trim();
+  if (!matrix_id || !content) { showToast('Matrix ID and message required.', false); return; }
+  csrfFetch('/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/messages/', {
+    method: 'POST',
+    body: JSON.stringify({ matrix_id, content, is_dm: true })
+  }).then(r => r.json()).then(d => {
+    if (d.ok) { showToast('DM queued.'); document.getElementById('dmModal').classList.add('hidden'); }
+    else showToast(d.error || 'Error', false);
+  }).catch(() => showToast('Request failed.', false));
+}
+
+// --- Action History ---
+const ACTION_LABELS = {
+  kick_user: 'Kick (room)',
+  kick_all_rooms: 'Kick (all rooms)',
+  ban_user: 'Ban (room)',
+  ban_all_rooms: 'Ban (all rooms)',
+  unban_user: 'Unban',
+  set_power_level: 'Set Power Level',
+  invite_user: 'Invite',
+  send_message: 'Send Message',
+  set_room_name: 'Rename Room',
+  set_room_topic: 'Set Topic',
+  create_room: 'Create Room',
+  sync_space: 'Sync Space',
+};
+
+function fmtTs(ts) {
+  if (!ts) return '-';
+  const d = new Date(ts * 1000);
+  return d.toLocaleString();
+}
+
+function loadActionHistory() {
+  const body = document.getElementById('actionHistoryBody');
+  body.innerHTML = '<div class="p-4 text-center text-gray-500 text-sm">Loading...</div>';
+  fetch('/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/actions/?limit=50')
+    .then(r => r.json())
+    .then(d => {
+      if (!d.actions || d.actions.length === 0) {
+        body.innerHTML = '<div class="p-4 text-center text-gray-500 text-sm">No actions yet.</div>';
+        return;
+      }
+      body.innerHTML = d.actions.map(a => {
+        const statusColor = a.status === 'done' ? 'text-teal-400' :
+                            a.status === 'failed' ? 'text-red-400' : 'text-yellow-400';
+        const statusIcon = a.status === 'done' ? 'fa-check-circle' :
+                           a.status === 'failed' ? 'fa-times-circle' : 'fa-clock';
+        const label = ACTION_LABELS[a.action_type] || a.action_type;
+        const user = escapeHtml(a.user_id || '');
+        const room = escapeHtml(a.room_name || a.room_id || '');
+        let resultText = '';
+        if (a.status === 'done' && a.result) {
+          if (a.result.ok !== undefined && a.result.rooms !== undefined) {
+            resultText = `${a.result.ok}/${a.result.rooms} rooms`;
+          } else if (a.result.error) {
+            resultText = escapeHtml(String(a.result.error).substring(0, 80));
+          }
+        } else if (a.status === 'failed' && a.result && a.result.error) {
+          resultText = escapeHtml(String(a.result.error).substring(0, 100));
+        }
+        return `<div class="px-4 py-3 flex flex-col md:flex-row md:items-center gap-1 md:gap-4 hover:bg-neutral-800/40">
+          <span class="${statusColor} w-5 text-center flex-shrink-0"><i class="fas ${statusIcon}"></i></span>
+          <span class="text-gray-300 font-medium w-32 flex-shrink-0 text-xs">${escapeHtml(label)}</span>
+          <span class="text-gray-400 text-xs flex-1 truncate" title="${user}">${user || '<span class="text-gray-600">-</span>'}</span>
+          <span class="text-gray-600 text-xs flex-1 truncate" title="${room}">${room || ''}</span>
+          ${resultText ? `<span class="text-gray-500 text-xs">${resultText}</span>` : ''}
+          <span class="text-gray-600 text-xs flex-shrink-0">${fmtTs(a.created_at)}</span>
+        </div>`;
+      }).join('');
+    })
+    .catch(() => {
+      body.innerHTML = '<div class="p-4 text-center text-red-400 text-sm">Failed to load.</div>';
+    });
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  loadActionHistory();
+});
+</script>
+{% endblock %}

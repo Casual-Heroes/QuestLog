@@ -176,15 +176,6 @@
 
 <script>
 // CSRF fetch helper
-async function csrfFetch(url, options = {}) {
-  const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
-  options.headers = options.headers || {};
-  if (!options.headers['X-CSRFToken']) {
-    options.headers['X-CSRFToken'] = csrfToken;
-  }
-  return fetch(url, options);
-}
-
 let currentFilter = 'pending';
 let allApplications = [];
 let allBans = [];

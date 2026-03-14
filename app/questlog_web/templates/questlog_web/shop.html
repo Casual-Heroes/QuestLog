@@ -33,17 +33,31 @@
 <div class="max-w-5xl mx-auto px-4 pb-10">
 
   <!-- Currently Equipped -->
-  <div id="equipped-banner" class="hidden mb-6 bg-yellow-900/20 border border-yellow-700/40 rounded-xl p-4 flex items-center gap-4">
+  <div id="equipped-banner" class="hidden mb-3 bg-yellow-900/20 border border-yellow-700/40 rounded-xl p-4 flex items-center gap-4">
     <span id="equipped-emoji" class="text-4xl"></span>
     <div>
-      <p class="text-xs text-yellow-500 font-semibold uppercase tracking-wider mb-0.5">Currently Equipped</p>
+      <p class="text-xs text-yellow-500 font-semibold uppercase tracking-wider mb-0.5">Slot 1 - Equipped</p>
       <p id="equipped-name" class="text-white font-semibold text-lg"></p>
       <p id="equipped-desc" class="text-gray-400 text-sm"></p>
     </div>
-    <button onclick="unequipFlair()" class="ml-auto bg-neutral-700 hover:bg-neutral-600 text-white text-sm px-4 py-2 rounded-lg transition">
+    <button onclick="unequipFlair(1)" class="ml-auto bg-neutral-700 hover:bg-neutral-600 text-white text-sm px-4 py-2 rounded-lg transition">
       <i class="fas fa-times mr-1"></i>Unequip
     </button>
   </div>
+  {% if web_user.is_hero %}
+  <!-- Champion Slot 2 -->
+  <div id="equipped-banner-2" class="hidden mb-3 bg-amber-900/20 border border-amber-600/40 rounded-xl p-4 flex items-center gap-4">
+    <span id="equipped-emoji-2" class="text-4xl"></span>
+    <div>
+      <p class="text-xs text-amber-400 font-semibold uppercase tracking-wider mb-0.5">Slot 2 - Champion</p>
+      <p id="equipped-name-2" class="text-white font-semibold text-lg"></p>
+      <p id="equipped-desc-2" class="text-gray-400 text-sm"></p>
+    </div>
+    <button onclick="unequipFlair(2)" class="ml-auto bg-neutral-700 hover:bg-neutral-600 text-white text-sm px-4 py-2 rounded-lg transition">
+      <i class="fas fa-times mr-1"></i>Unequip
+    </button>
+  </div>
+  {% endif %}
 
   <!-- Filter Tabs -->
   <div class="flex items-center gap-2 mb-5 flex-wrap">
@@ -118,14 +132,11 @@
 
 {% block extra_js %}
 <script>
-function escapeHtml(s) {
-  if (!s) return '';
-  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
-}
 (function() {
   let allFlairs = [];
   let currentFilter = 'all';
   let currentHp = {{ web_user.hero_points|default:0 }};
+  const isChampion = {{ web_user.is_hero|yesno:"true,false" }};
 
   async function loadShop() {
     try {
@@ -140,13 +151,29 @@ function escapeHtml(s) {
 
       allFlairs = data.flairs;
 
-      // Show equipped banner
+      // Show slot 1 equipped banner
       const equipped = allFlairs.find(f => f.equipped);
       if (equipped) {
         document.getElementById('equipped-banner').classList.remove('hidden');
         document.getElementById('equipped-emoji').textContent = equipped.emoji || '🎖️';
         document.getElementById('equipped-name').textContent = equipped.name;
         document.getElementById('equipped-desc').textContent = equipped.description || '';
+      } else {
+        document.getElementById('equipped-banner').classList.add('hidden');
+      }
+
+      // Show slot 2 equipped banner (Champions only)
+      if (isChampion) {
+        const equipped2 = allFlairs.find(f => f.equipped_slot2);
+        const banner2 = document.getElementById('equipped-banner-2');
+        if (equipped2 && banner2) {
+          banner2.classList.remove('hidden');
+          document.getElementById('equipped-emoji-2').textContent = equipped2.emoji || '🎖️';
+          document.getElementById('equipped-name-2').textContent = equipped2.name;
+          document.getElementById('equipped-desc-2').textContent = equipped2.description || '';
+        } else if (banner2) {
+          banner2.classList.add('hidden');
+        }
       }
 
       renderGrid(allFlairs);
@@ -171,28 +198,38 @@ function escapeHtml(s) {
   function renderCard(f) {
     const owned = f.owned;
     const equipped = f.equipped;
+    const equipped2 = f.equipped_slot2;
     const canAfford = currentHp >= f.hp_cost || f.hp_cost === 0;
 
-    const borderClass = equipped ? 'border-yellow-500/60 bg-yellow-900/10'
+    const borderClass = (equipped || equipped2) ? 'border-yellow-500/60 bg-yellow-900/10'
       : f.flair_type === 'exclusive' ? 'border-purple-500/50 bg-purple-950/10'
       : f.flair_type === 'seasonal'  ? 'border-blue-500/40 bg-blue-950/10'
       : 'border-neutral-700 bg-neutral-800/50';
 
     let badge = '';
-    if (equipped) badge = '<span class="absolute top-2 right-2 bg-yellow-500 text-black text-xs px-1.5 py-0.5 rounded font-bold">ON</span>';
+    if (equipped && equipped2) badge = '<span class="absolute top-2 right-2 bg-yellow-500 text-black text-xs px-1.5 py-0.5 rounded font-bold">S1+S2</span>';
+    else if (equipped) badge = '<span class="absolute top-2 right-2 bg-yellow-500 text-black text-xs px-1.5 py-0.5 rounded font-bold">Slot 1</span>';
+    else if (equipped2) badge = '<span class="absolute top-2 right-2 bg-amber-500 text-black text-xs px-1.5 py-0.5 rounded font-bold">Slot 2</span>';
     else if (owned) badge = '<span class="absolute top-2 right-2 bg-green-700 text-white text-xs px-1.5 py-0.5 rounded font-bold">Owned</span>';
     else if (f.flair_type === 'exclusive') badge = '<span class="absolute top-2 right-2 bg-purple-700 text-white text-xs px-1.5 py-0.5 rounded font-bold"><i class="fas fa-crown"></i></span>';
     else if (f.flair_type === 'seasonal')  badge = '<span class="absolute top-2 right-2 bg-blue-700 text-white text-xs px-1.5 py-0.5 rounded font-bold"><i class="fas fa-snowflake"></i></span>';
 
+    // Availability note for time-gated flairs not yet purchasable
+    let availNote = '';
+    if (f.available_from_label && !owned) {
+      availNote = `<p class="text-xs text-amber-400 mt-1"><i class="fas fa-clock mr-1"></i>${escapeHtml(f.available_from_label)}</p>`;
+    }
+
     let btn = '';
-    if (equipped) {
-      btn = `<button onclick="doUnequip()" class="w-full py-2 bg-neutral-700 hover:bg-neutral-600 text-white text-xs rounded-lg transition font-medium">
-               <i class="fas fa-times mr-1"></i>Unequip
-             </button>`;
+    if (equipped || equipped2) {
+      const unequipBtns = [];
+      if (equipped) unequipBtns.push(`<button onclick="doUnequip(1)" class="flex-1 py-2 bg-neutral-700 hover:bg-neutral-600 text-white text-xs rounded-lg transition font-medium"><i class="fas fa-times mr-1"></i>S1</button>`);
+      if (equipped2) unequipBtns.push(`<button onclick="doUnequip(2)" class="flex-1 py-2 bg-neutral-700 hover:bg-neutral-600 text-white text-xs rounded-lg transition font-medium"><i class="fas fa-times mr-1"></i>S2</button>`);
+      btn = `<div class="flex gap-1 w-full">${unequipBtns.join('')}</div>`;
     } else if (owned) {
-      btn = `<button onclick="doEquip(${f.id})" class="w-full py-2 bg-yellow-600 hover:bg-yellow-500 text-black text-xs rounded-lg transition font-semibold">
-               <i class="fas fa-check mr-1"></i>Equip
-             </button>`;
+      const equipBtns = [`<button onclick="doEquip(${f.id}, 1)" class="flex-1 py-2 bg-yellow-600 hover:bg-yellow-500 text-black text-xs rounded-lg transition font-semibold"><i class="fas fa-check mr-1"></i>Slot 1</button>`];
+      if (isChampion) equipBtns.push(`<button onclick="doEquip(${f.id}, 2)" class="flex-1 py-2 bg-amber-700 hover:bg-amber-600 text-white text-xs rounded-lg transition font-semibold"><i class="fas fa-crown mr-1"></i>Slot 2</button>`);
+      btn = `<div class="flex gap-1 w-full">${equipBtns.join('')}</div>`;
     } else if (canAfford) {
       btn = `<button onclick="doBuy(${f.id}, ${f.hp_cost})" class="w-full py-2 bg-purple-600 hover:bg-purple-500 text-white text-xs rounded-lg transition font-medium">
                <i class="fas fa-gem mr-1"></i>${f.hp_cost > 0 ? f.hp_cost + ' HP' : 'Free'}
@@ -209,6 +246,7 @@ function escapeHtml(s) {
         <span class="text-4xl mb-1">${f.emoji || '🎖️'}</span>
         <p class="text-white font-semibold text-sm leading-tight">${escapeHtml(f.name)}</p>
         ${f.description ? `<p class="text-xs text-gray-500 leading-snug">${escapeHtml(f.description)}</p>` : ''}
+        ${availNote}
         <div class="w-full mt-2">${btn}</div>
       </div>`;
   }
@@ -255,12 +293,17 @@ function escapeHtml(s) {
     } catch(e) { showToast('Error buying flair.', false); }
   };
 
-  window.doEquip = async function(flairId) {
+  window.doEquip = async function(flairId, slot) {
+    slot = slot || 1;
     try {
-      const res = await csrfFetch(`/ql/api/flairs/${flairId}/equip/`, { method: 'POST' });
+      const res = await csrfFetch(`/ql/api/flairs/${flairId}/equip/`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({slot: slot}),
+      });
       const data = await res.json();
       if (data.success) {
-        showToast('Flair equipped! It now shows on your posts.', true);
+        showToast(`Flair equipped in slot ${slot}! It now shows on your posts.`, true);
         loadShop();
       } else {
         showToast(data.error || 'Could not equip flair.', false);
@@ -268,12 +311,22 @@ function escapeHtml(s) {
     } catch(e) { showToast('Error equipping flair.', false); }
   };
 
-  window.doUnequip = async function() {
+  window.doUnequip = async function(slot) {
+    slot = slot || 1;
     try {
-      const res = await csrfFetch('/ql/api/flairs/unequip/', { method: 'POST' });
+      const res = await csrfFetch('/ql/api/flairs/unequip/', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({slot: slot}),
+      });
       const data = await res.json();
       if (data.success) {
-        document.getElementById('equipped-banner').classList.add('hidden');
+        if (slot === 2) {
+          const b2 = document.getElementById('equipped-banner-2');
+          if (b2) b2.classList.add('hidden');
+        } else {
+          document.getElementById('equipped-banner').classList.add('hidden');
+        }
         showToast('Flair removed.', true);
         loadShop();
       }
