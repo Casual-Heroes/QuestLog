@@ -170,43 +170,56 @@
               QuestLogBot <span class="text-[10px] opacity-70">▾</span>
             </button>
             <div x-show="activeDropdown === 'questlogbot'" @click.outside="activeDropdown = null" x-transition
-                 class="absolute left-0 mt-2 bg-neutral-900 border border-neutral-800 rounded-lg shadow-xl w-72 z-50">
-              <div class="px-4 py-2 text-xs uppercase text-amber-400 tracking-wider border-b border-neutral-800">
-                <i class="fas fa-robot mr-1"></i>Open Source Bot
-              </div>
-              <!-- <a href="https://dashboard.casual-heroes.com" target="_blank" rel="noopener"
-                 class="flex items-center gap-2 px-4 py-3 hover:bg-neutral-800 transition">
-                <i class="fas fa-gauge-high text-amber-400 w-4"></i>
-                <div><div class="text-white text-sm">Bot Dashboard</div><div class="text-xs text-gray-500">Manage your server settings</div></div>
-              </a> -->
-              <a href="/bot/fluxer/"
-                 class="flex items-center gap-2 px-4 py-3 hover:bg-neutral-800 transition">
-                <i class="fas fa-bolt text-purple-400 w-4"></i>
-                <div><div class="text-white text-sm">QuestLog Fluxer</div><div class="text-xs text-gray-500">QuestLogBot for Fluxer</div></div>
+                 class="absolute left-0 mt-2 bg-neutral-900 border border-neutral-800 rounded-lg shadow-xl w-80 z-50">
+
+              <!-- Overview -->
+              <div class="px-4 py-2 text-xs uppercase text-gray-500 tracking-wider">Overview</div>
+              <a href="/bot/fluxer/" class="flex items-center gap-3 px-4 py-2.5 hover:bg-neutral-800 transition">
+                <i class="fas fa-bolt text-purple-400 w-4 text-center"></i>
+                <div><div class="text-white text-sm font-medium">QuestLog Fluxer</div><div class="text-xs text-gray-500">Features, install, and how it works</div></div>
               </a>
-              <a href="/bot/discord/"
-                 class="flex items-center gap-2 px-4 py-3 hover:bg-neutral-800 transition">
-                <i class="fab fa-discord text-indigo-400 w-4"></i>
-                <div><div class="text-white text-sm">QuestLog Discord</div><div class="text-xs text-gray-500">QuestLogBot for Discord</div></div>
+              <a href="/bot/discord/" class="flex items-center gap-3 px-4 py-2.5 hover:bg-neutral-800 transition">
+                <i class="fab fa-discord text-indigo-400 w-4 text-center"></i>
+                <div><div class="text-white text-sm font-medium">QuestLog Discord</div><div class="text-xs text-gray-500">Features, install, and how it works</div></div>
               </a>
-              <span class="flex items-center gap-2 px-4 py-3 select-none opacity-50 cursor-not-allowed">
-                <i class="fas fa-lock text-green-400 w-4"></i>
+              <span class="flex items-center gap-3 px-4 py-2.5 opacity-40 cursor-not-allowed select-none">
+                <i class="fas fa-lock text-green-400 w-4 text-center"></i>
                 <div>
-                  <div class="flex items-center gap-2 text-white text-sm">QuestLog Matrix <span class="text-[10px] bg-indigo-900/60 text-indigo-400 px-1.5 py-0.5 rounded font-mono tracking-wide">Soon™</span></div>
-                  <div class="text-xs text-gray-500">QuestLog Bot ported to Matrix</div>
+                  <div class="flex items-center gap-2 text-white text-sm font-medium">QuestLog Matrix <span class="text-[10px] bg-indigo-900/60 text-indigo-400 px-1.5 py-0.5 rounded font-mono">Soon™</span></div>
+                  <div class="text-xs text-gray-500">QuestLog Bot for Matrix</div>
                 </div>
               </span>
+
+              <!-- Manage -->
               <div class="border-t border-neutral-800 mx-3 my-1"></div>
-              <a href="https://github.com/Casual-Heroes/QuestLog-Bot" target="_blank" rel="noopener"
-                 class="flex items-center gap-2 px-4 py-3 hover:bg-neutral-800 transition">
-                <i class="fab fa-github text-amber-400 w-4"></i>
-                <div><div class="text-white text-sm">Source Code</div><div class="text-xs text-gray-500">Free &amp; open source on GitHub</div></div>
+              <div class="px-4 py-2 text-xs uppercase text-gray-500 tracking-wider">Manage Your Server</div>
+              <a href="/ql/dashboard/fluxer/" class="flex items-center gap-3 px-4 py-2.5 hover:bg-neutral-800 transition">
+                <i class="fas fa-gauge-high text-purple-400 w-4 text-center"></i>
+                <div><div class="text-white text-sm font-medium">Fluxer Dashboard</div><div class="text-xs text-gray-500">Configure your Fluxer server</div></div>
               </a>
-              <span class="flex items-center gap-2 px-4 py-3 select-none opacity-50 cursor-not-allowed">
-                <i class="fas fa-book-open text-amber-400 w-4"></i>
+              <a href="/ql/dashboard/discord/" class="flex items-center gap-3 px-4 py-2.5 hover:bg-neutral-800 transition">
+                <i class="fas fa-gauge-high text-indigo-400 w-4 text-center"></i>
+                <div><div class="text-white text-sm font-medium">Discord Dashboard</div><div class="text-xs text-gray-500">Configure your Discord server</div></div>
+              </a>
+
+              <!-- Resources -->
+              <div class="border-t border-neutral-800 mx-3 my-1"></div>
+              <div class="px-4 py-2 text-xs uppercase text-gray-500 tracking-wider">Resources</div>
+              <a href="https://github.com/Casual-Heroes/QuestLog-Bot" target="_blank" rel="noopener"
+                 class="flex items-center gap-3 px-4 py-2.5 hover:bg-neutral-800 transition">
+                <i class="fab fa-github text-indigo-400 w-4 text-center"></i>
+                <div><div class="text-white text-sm font-medium">Discord Source Code</div><div class="text-xs text-gray-500">QuestLog-Bot on GitHub</div></div>
+              </a>
+              <a href="https://github.com/Casual-Heroes/QuestLogBot-Fluxer" target="_blank" rel="noopener"
+                 class="flex items-center gap-3 px-4 py-2.5 hover:bg-neutral-800 transition">
+                <i class="fab fa-github text-purple-400 w-4 text-center"></i>
+                <div><div class="text-white text-sm font-medium">Fluxer Source Code</div><div class="text-xs text-gray-500">QuestLogBot-Fluxer on GitHub</div></div>
+              </a>
+              <span class="flex items-center gap-3 px-4 py-2.5 opacity-40 cursor-not-allowed select-none mb-1">
+                <i class="fas fa-book-open text-amber-400 w-4 text-center"></i>
                 <div>
-                  <div class="flex items-center gap-2 text-white text-sm">Self-Hosting Guide <span class="text-[10px] bg-indigo-900/60 text-indigo-400 px-1.5 py-0.5 rounded font-mono tracking-wide">Soon™</span></div>
-                  <div class="text-xs text-gray-500">Self-hosting walkthrough</div>
+                  <div class="flex items-center gap-2 text-white text-sm font-medium">Self-Hosting Guide <span class="text-[10px] bg-indigo-900/60 text-indigo-400 px-1.5 py-0.5 rounded font-mono">Soon™</span></div>
+                  <div class="text-xs text-gray-500">Run your own instance</div>
                 </div>
               </span>
             </div>
