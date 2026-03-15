@@ -164,6 +164,7 @@ from .views_admin import (
     api_admin_bot_network,
     api_admin_bridge_configs, api_admin_bridge_config_detail,
     api_admin_emoji, api_admin_emoji_detail,
+    api_admin_bot_stats,
 )
 from .views_discovery import (
     api_lfg_list, api_lfg_detail,
@@ -356,6 +357,7 @@ urlpatterns = [
 
     # Admin API endpoints
     path('api/admin/stats/', api_admin_stats, name='questlog_web_api_admin_stats'),
+    path('api/admin/bot-stats/', api_admin_bot_stats, name='questlog_web_api_admin_bot_stats'),
 
     # Admin: LFG Game Configs
     path('api/admin/lfg-games/', api_admin_lfg_games, name='questlog_web_api_admin_lfg_games'),

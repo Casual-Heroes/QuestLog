@@ -10,7 +10,7 @@ from django.shortcuts import render, redirect
 from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
 from django.contrib import messages
-from sqlalchemy import or_
+from sqlalchemy import or_, text as sa_text
 
 from django.contrib.auth.models import User as DjangoUser
 
@@ -35,6 +35,9 @@ from .models import (
     WebBridgeConfig, WebBridgeRelayQueue,
     WebFluxerGuildChannel,
     WebCustomEmoji,
+    WebFluxerGuildSettings, WebFluxerLfgGroup, WebFluxerRssFeed,
+    WebFluxerReactionRole, WebFluxerWelcomeConfig, WebFluxerXpBoostEvent,
+    WebFluxerRaffle, WebFluxerStreamerSub,
 )
 from app.security_middleware import MAINTENANCE_FLAG
 from app.db import get_db_session
@@ -89,6 +92,97 @@ def api_admin_stats(request):
             'active_rss_feeds': db.query(WebRSSFeed).filter_by(is_active=True).count(),
         }
     return JsonResponse(stats)
+
+
+@web_admin_required
+def api_admin_bot_stats(request):
+    """API: Bot usage stats for admin panel."""
+    now = int(time.time())
+    thirty_days_ago = now - (30 * 24 * 3600)
+
+    with get_db_session() as db:
+        # ── Fluxer ──────────────────────────────────────────────
+        f_total   = db.query(WebFluxerGuildSettings).count()
+        f_active  = db.query(WebFluxerGuildSettings).filter_by(bot_present=1).count()
+        f_members = db.execute(sa_text(
+            "SELECT COALESCE(SUM(member_count),0) FROM web_fluxer_guild_settings"
+        )).scalar() or 0
+        f_xp_30d  = db.execute(sa_text(
+            "SELECT COUNT(*) FROM fluxer_member_xp WHERE updated_at >= :ts"
+        ), {'ts': thirty_days_ago}).scalar() or 0
+        f_lfg_total  = db.query(WebFluxerLfgGroup).count()
+        f_lfg_active = db.query(WebFluxerLfgGroup).filter_by(status='open').count()
+        f_xp_enabled = db.query(WebFluxerGuildSettings).filter_by(xp_enabled=1).count()
+        f_lfg_cfg    = db.execute(sa_text(
+            "SELECT COUNT(DISTINCT guild_id) FROM web_fluxer_lfg_config"
+        )).scalar() or 0
+        f_live_alerts = db.query(WebFluxerStreamerSub).count()
+        f_rss        = db.query(WebFluxerRssFeed).count()
+        f_rr         = db.query(WebFluxerReactionRole).count()
+        f_welcome    = db.query(WebFluxerWelcomeConfig).filter_by(enabled=1).count()
+        f_xp_boosts  = db.query(WebFluxerXpBoostEvent).filter_by(is_active=1).count()
+        f_raffles    = db.query(WebFluxerRaffle).count()
+        f_top_guilds = db.execute(sa_text(
+            "SELECT guild_id, guild_name, member_count, bot_present "
+            "FROM web_fluxer_guild_settings ORDER BY member_count DESC LIMIT 10"
+        )).fetchall()
+
+        # ── Discord (WardenBot tables) ───────────────────────────
+        disc_total   = db.execute(sa_text("SELECT COUNT(*) FROM guilds")).scalar() or 0
+        disc_active  = db.execute(sa_text("SELECT COUNT(*) FROM guilds WHERE bot_present=1")).scalar() or 0
+        disc_members = db.execute(sa_text("SELECT COALESCE(SUM(member_count),0) FROM guilds")).scalar() or 0
+        disc_xp_30d  = db.execute(sa_text(
+            "SELECT COUNT(*) FROM guild_member_xp WHERE updated_at >= :ts"
+        ), {'ts': thirty_days_ago}).scalar() or 0
+        disc_lfg_total  = db.execute(sa_text("SELECT COUNT(*) FROM lfg_groups")).scalar() or 0
+        disc_lfg_active = db.execute(sa_text("SELECT COUNT(*) FROM lfg_groups WHERE status='open'")).scalar() or 0
+        disc_rss        = db.execute(sa_text("SELECT COUNT(*) FROM rss_feeds")).scalar() or 0
+        disc_lfg_cfg    = db.execute(sa_text("SELECT COUNT(DISTINCT guild_id) FROM lfg_config")).scalar() or 0
+        disc_raffles    = db.execute(sa_text("SELECT COUNT(*) FROM raffles")).scalar() or 0
+
+        # ── Bridge ───────────────────────────────────────────────
+        bridge_active = db.query(WebBridgeConfig).filter_by(enabled=1).count()
+        bridge_msgs   = db.execute(sa_text(
+            "SELECT COUNT(*) FROM web_bridge_relay_queue WHERE created_at >= :ts"
+        ), {'ts': thirty_days_ago}).scalar() or 0
+
+    return JsonResponse({
+        'fluxer': {
+            'total_guilds':    f_total,
+            'active_guilds':   f_active,
+            'total_members':   int(f_members),
+            'xp_events_30d':   int(f_xp_30d),
+            'lfg_groups_total':  f_lfg_total,
+            'lfg_groups_active': f_lfg_active,
+            'xp_enabled':      f_xp_enabled,
+            'lfg_configured':  int(f_lfg_cfg),
+            'live_alerts':     f_live_alerts,
+            'rss_feeds':       f_rss,
+            'reaction_roles':  f_rr,
+            'welcome_enabled': f_welcome,
+            'xp_boosts_active': f_xp_boosts,
+            'raffles_total':   f_raffles,
+            'top_guilds': [
+                {'guild_id': r[0], 'guild_name': r[1], 'member_count': r[2] or 0, 'bot_present': bool(r[3])}
+                for r in f_top_guilds
+            ],
+        },
+        'discord': {
+            'total_guilds':    int(disc_total),
+            'active_guilds':   int(disc_active),
+            'total_members':   int(disc_members),
+            'xp_events_30d':   int(disc_xp_30d),
+            'lfg_groups_total':  int(disc_lfg_total),
+            'lfg_groups_active': int(disc_lfg_active),
+            'rss_feeds':       int(disc_rss),
+            'lfg_configured':  int(disc_lfg_cfg),
+            'raffles_total':   int(disc_raffles),
+        },
+        'bridge': {
+            'active_bridges': bridge_active,
+            'messages_30d':   int(bridge_msgs),
+        },
+    })
 
 
 # --- LFG Game Config Admin ---
