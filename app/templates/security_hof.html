@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Security Hall of Fame | Casual Heroes{% endblock %}
+{% block og_title %}Security Hall of Fame - Casual Heroes{% endblock %}
+{% block og_description %}Recognising the security researchers who have helped keep Casual Heroes safe.{% endblock %}
+
+{% block content %}
+<div style="max-width: 760px; margin: 0 auto; padding: 80px 24px 100px;">
+
+  <!-- Header -->
+  <div style="text-align: center; margin-bottom: 56px;">
+    <div style="font-size: 3rem; margin-bottom: 16px;">🏆</div>
+    <h1 style="font-size: 2rem; font-weight: 900; color: #fff; margin: 0 0 12px;">Security Hall of Fame</h1>
+    <p style="color: #6b7280; font-size: 0.95rem; max-width: 520px; margin: 0 auto 24px;">
+      We're grateful to the security researchers who have responsibly disclosed vulnerabilities and helped us keep Casual Heroes safe for everyone.
+    </p>
+    <a href="/security/" style="display: inline-flex; align-items: center; gap: 6px; background: rgba(16,185,129,0.1); border: 1px solid rgba(16,185,129,0.3); color: #34d399; font-size: 0.82rem; font-weight: 600; padding: 8px 18px; border-radius: 8px; text-decoration: none;">
+      <i class="fas fa-shield-halved"></i> View Security Policy
+    </a>
+  </div>
+
+  {% if researchers %}
+  <!-- Researcher list -->
+  <div style="display: flex; flex-direction: column; gap: 12px;">
+    {% for r in researchers %}
+    <div style="background: #0f0f1a; border: 1px solid #1e1e3a; border-radius: 12px; padding: 20px 24px; display: flex; align-items: center; gap: 16px;">
+      <div style="font-size: 1.8rem; flex-shrink: 0;">{{ r.badge_emoji }}</div>
+      <div style="flex: 1; min-width: 0;">
+        <div style="font-size: 1rem; font-weight: 700; color: #fff;">{{ r.display_name }}</div>
+        {% if r.finding %}
+        <div style="font-size: 0.82rem; color: #6b7280; margin-top: 2px;">{{ r.finding }}</div>
+        {% endif %}
+      </div>
+      <div style="text-align: right; flex-shrink: 0;">
+        <span style="display: inline-block; font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; padding: 3px 10px; border-radius: 999px;
+          {% if r.severity == 'Critical' %}background: rgba(220,38,38,0.15); color: #fca5a5; border: 1px solid rgba(220,38,38,0.3);
+          {% elif r.severity == 'High' %}background: rgba(245,158,11,0.12); color: #fcd34d; border: 1px solid rgba(245,158,11,0.25);
+          {% elif r.severity == 'Medium' %}background: rgba(99,102,241,0.12); color: #a5b4fc; border: 1px solid rgba(99,102,241,0.25);
+          {% else %}background: rgba(107,114,128,0.12); color: #9ca3af; border: 1px solid rgba(107,114,128,0.2);
+          {% endif %}">
+          {{ r.severity }}
+        </span>
+        <div style="font-size: 0.72rem; color: #4b5563; margin-top: 4px;">{{ r.disclosed_date }}</div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  {% else %}
+  <!-- Empty state -->
+  <div style="background: #0f0f1a; border: 1px solid #1e1e3a; border-radius: 16px; padding: 60px 40px; text-align: center;">
+    <div style="font-size: 2.5rem; margin-bottom: 16px;">🔍</div>
+    <p style="color: #fff; font-weight: 700; font-size: 1rem; margin: 0 0 8px;">No entries yet</p>
+    <p style="color: #4b5563; font-size: 0.85rem; margin: 0 0 24px;">Be the first researcher to responsibly disclose a vulnerability and earn your spot here.</p>
+    <a href="mailto:security@casual-heroes.com" style="display: inline-flex; align-items: center; gap: 6px; background: rgba(16,185,129,0.1); border: 1px solid rgba(16,185,129,0.3); color: #34d399; font-size: 0.85rem; font-weight: 600; padding: 10px 20px; border-radius: 8px; text-decoration: none;">
+      <i class="fas fa-envelope"></i> Report a Vulnerability
+    </a>
+  </div>
+  {% endif %}
+
+  <!-- Footer note -->
+  <p style="text-align: center; color: #374151; font-size: 0.78rem; margin-top: 40px;">
+    Listings are published with the researcher's consent. <a href="/security/" style="color: #6b7280;">Read our security policy.</a>
+  </p>
+
+</div>
+{% endblock %}

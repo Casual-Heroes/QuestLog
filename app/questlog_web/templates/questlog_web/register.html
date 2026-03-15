@@ -188,9 +188,22 @@
       </div>
       <p id="gate-error" style="color: #fca5a5; font-size: 0.82rem; margin: -8px 0 12px 0; display: none;"></p>
       <button id="gate-submit" class="ql-btn-primary" style="margin-top: 0;">Unlock Early Access</button>
-      <p style="color: #4b5563; font-size: 0.75rem; text-align: center; margin-top: 12px;">
-        Get an invite code in our Fluxer or Discord community by running <code style="background:#1f2937;padding:1px 5px;border-radius:4px;color:#a5b4fc;">!invite</code>.
-      </p>
+      <!-- How to get a code -->
+      <div style="background: rgba(167,139,250,0.08); border: 1px solid rgba(167,139,250,0.25); border-radius: 10px; padding: 14px 18px; margin-top: 14px; display: flex; align-items: flex-start; gap: 12px;">
+        <span style="font-size: 1.2rem; flex-shrink: 0;">🎟</span>
+        <div>
+          <p style="color: #c4b5fd; font-size: 0.82rem; font-weight: 700; margin: 0 0 4px 0;">Don't have a code?</p>
+          <p style="color: #9ca3af; font-size: 0.78rem; margin: 0 0 8px 0;">Join our Fluxer or Discord server and run <code style="background:#1f2937;padding:1px 5px;border-radius:4px;color:#a5b4fc;">!invite</code> in any channel to get yours instantly.</p>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <a href="/bot/fluxer/" style="display: inline-flex; align-items: center; gap: 5px; background: rgba(124,58,237,0.2); border: 1px solid rgba(124,58,237,0.4); color: #c4b5fd; font-size: 0.75rem; font-weight: 600; padding: 5px 12px; border-radius: 6px; text-decoration: none;">
+              <i class="fas fa-bolt" style="font-size: 0.7rem;"></i> Join Fluxer
+            </a>
+            <a href="/bot/discord/" style="display: inline-flex; align-items: center; gap: 5px; background: rgba(88,101,242,0.2); border: 1px solid rgba(88,101,242,0.4); color: #a5b4fc; font-size: 0.75rem; font-weight: 600; padding: 5px 12px; border-radius: 6px; text-decoration: none;">
+              <i class="fab fa-discord" style="font-size: 0.7rem;"></i> Join Discord
+            </a>
+          </div>
+        </div>
+      </div>
     </div>
 
     {% else %}

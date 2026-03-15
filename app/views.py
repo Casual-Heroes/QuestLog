@@ -2559,6 +2559,62 @@ def self_host(request):
         'toc': toc,
     })
 
+def _render_md_doc(request, md_filename, template, extra_ctx=None):
+    """Shared helper: load a markdown file from app/docs/, render it, return response."""
+    import markdown
+    import bleach
+    md_path = os.path.join(os.path.dirname(__file__), 'docs', md_filename)
+    with open(md_path, 'r', encoding='utf-8') as f:
+        content = f.read()
+    md = markdown.Markdown(extensions=['tables', 'fenced_code', 'toc'])
+    html_content = md.convert(content)
+    toc = md.toc
+    _ALLOWED_TAGS = [
+        'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+        'p', 'br', 'hr',
+        'ul', 'ol', 'li',
+        'strong', 'em', 'b', 'i', 'code', 'pre', 'blockquote',
+        'a', 'img',
+        'table', 'thead', 'tbody', 'tr', 'th', 'td',
+        'div', 'span',
+    ]
+    _heading_tags = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6']
+    _ALLOWED_ATTRS = {
+        **{h: ['id'] for h in _heading_tags},
+        'a': ['href', 'title', 'rel'],
+        'img': ['src', 'alt', 'title', 'width', 'height'],
+        'th': ['align'], 'td': ['align'],
+        'code': ['class'],
+        'div': ['class', 'id'],
+        'span': ['class'],
+        'li': ['class'],
+    }
+    html_content = bleach.clean(html_content, tags=_ALLOWED_TAGS, attributes=_ALLOWED_ATTRS, strip=True)
+    toc = bleach.clean(toc, tags=['a', 'ul', 'li', 'div'], attributes={'a': ['href'], 'div': ['class'], 'li': ['class']}, strip=True)
+    ctx = {'content': html_content, 'toc': toc}
+    if extra_ctx:
+        ctx.update(extra_ctx)
+    return render(request, template, ctx)
+
+
+def guide_fluxer(request):
+    return _render_md_doc(request, 'guide_fluxer.md', 'guide_fluxer.html')
+
+
+def guide_discord(request):
+    return _render_md_doc(request, 'guide_discord.md', 'guide_discord.html')
+
+
+def security_policy(request):
+    return _render_md_doc(request, 'security.md', 'security.html')
+
+
+def security_hof(request):
+    # researchers list - add entries here as disclosures are made
+    researchers = []
+    return render(request, 'security_hof.html', {'researchers': researchers})
+
+
 def privacy(request):
     return render(request, 'privacy.html')
 

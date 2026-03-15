@@ -38,13 +38,17 @@ urlpatterns = [
     path('content/', views.content, name='content'),
     path('aboutus/', views.aboutus, name='aboutus'),
     path('bot/discord/', views.bot_discord, name='bot_discord'),
+    path('bot/discord/guide/', views.guide_discord, name='guide_discord'),
     path('bot/fluxer/', views.bot_fluxer, name='bot_fluxer'),
+    path('bot/fluxer/guide/', views.guide_fluxer, name='guide_fluxer'),
     path('questchat/', views.questchat, name='questchat'),
     path('self-host/', views.self_host, name='self_host'),
     path('privacy/', views.privacy, name='privacy'),
     path('terms/', views.terms, name='terms'),
     path('contactus/', views.contactus, name='contactus'),
     path('faq/', views.faq, name='faq'),
+    path('security/', views.security_policy, name='security_policy'),
+    path('security/hall-of-fame/', views.security_hof, name='security_hof'),
     # =========================================================================
     # SITE-WIDE AUTH
     # =========================================================================
