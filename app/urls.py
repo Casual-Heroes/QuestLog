@@ -47,6 +47,8 @@ urlpatterns = [
     path('terms/', views.terms, name='terms'),
     path('contactus/', views.contactus, name='contactus'),
     path('faq/', views.faq, name='faq'),
+    path('security/', views.security_policy, name='security_policy'),
+    path('security/hall-of-fame/', views.security_hof, name='security_hof'),
     # =========================================================================
     # SITE-WIDE AUTH
     # =========================================================================

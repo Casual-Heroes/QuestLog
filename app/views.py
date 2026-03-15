@@ -2605,6 +2605,16 @@ def guide_discord(request):
     return _render_md_doc(request, 'guide_discord.md', 'guide_discord.html')
 
 
+def security_policy(request):
+    return _render_md_doc(request, 'security.md', 'security.html')
+
+
+def security_hof(request):
+    # researchers list - add entries here as disclosures are made
+    researchers = []
+    return render(request, 'security_hof.html', {'researchers': researchers})
+
+
 def privacy(request):
     return render(request, 'privacy.html')
 
