@@ -148,7 +148,7 @@ def api_admin_bot_stats(request):
             "SELECT COALESCE(SUM(member_count),0) FROM web_matrix_space_settings"
         )).scalar() or 0
         m_xp_30d  = db.query(WebMatrixXpEvent).filter(
-            WebMatrixXpEvent.created_at >= thirty_days_ago
+            WebMatrixXpEvent.last_message_at >= thirty_days_ago
         ).count()
         m_rooms   = db.query(WebMatrixRoom).count()
         m_rss     = db.query(WebMatrixRssFeed).count()
