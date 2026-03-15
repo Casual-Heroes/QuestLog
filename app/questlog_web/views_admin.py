@@ -108,7 +108,7 @@ def api_admin_bot_stats(request):
             "SELECT COALESCE(SUM(member_count),0) FROM web_fluxer_guild_settings"
         )).scalar() or 0
         f_xp_30d  = db.execute(sa_text(
-            "SELECT COUNT(*) FROM fluxer_member_xp WHERE updated_at >= :ts"
+            "SELECT COUNT(*) FROM fluxer_member_xp WHERE last_active >= :ts"
         ), {'ts': thirty_days_ago}).scalar() or 0
         f_lfg_total  = db.query(WebFluxerLfgGroup).count()
         f_lfg_active = db.query(WebFluxerLfgGroup).filter_by(status='open').count()
@@ -132,12 +132,12 @@ def api_admin_bot_stats(request):
         disc_active  = db.execute(sa_text("SELECT COUNT(*) FROM guilds WHERE bot_present=1")).scalar() or 0
         disc_members = db.execute(sa_text("SELECT COALESCE(SUM(member_count),0) FROM guilds")).scalar() or 0
         disc_xp_30d  = db.execute(sa_text(
-            "SELECT COUNT(*) FROM guild_member_xp WHERE updated_at >= :ts"
+            "SELECT COUNT(*) FROM guild_members WHERE last_active >= :ts"
         ), {'ts': thirty_days_ago}).scalar() or 0
         disc_lfg_total  = db.execute(sa_text("SELECT COUNT(*) FROM lfg_groups")).scalar() or 0
         disc_lfg_active = db.execute(sa_text("SELECT COUNT(*) FROM lfg_groups WHERE status='open'")).scalar() or 0
         disc_rss        = db.execute(sa_text("SELECT COUNT(*) FROM rss_feeds")).scalar() or 0
-        disc_lfg_cfg    = db.execute(sa_text("SELECT COUNT(DISTINCT guild_id) FROM lfg_config")).scalar() or 0
+        disc_lfg_cfg    = db.execute(sa_text("SELECT COUNT(DISTINCT guild_id) FROM lfg_configs")).scalar() or 0
         disc_raffles    = db.execute(sa_text("SELECT COUNT(*) FROM raffles")).scalar() or 0
 
         # ── Bridge ───────────────────────────────────────────────
