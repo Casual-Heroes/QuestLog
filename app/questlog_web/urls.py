@@ -11,6 +11,8 @@ from .views_auth import (
     steam_link, steam_link_callback, steam_unlink,
     discord_link, discord_link_callback, discord_unlink,
     fluxer_link, fluxer_link_callback, fluxer_unlink,
+    fluxer_dashboard_login, fluxer_dashboard_callback,
+    discord_dashboard_login, discord_dashboard_callback,
     twitch_oauth_initiate, twitch_oauth_callback, twitch_disconnect,
     youtube_oauth_initiate, youtube_oauth_callback, youtube_disconnect,
     kick_oauth_initiate, kick_oauth_callback, kick_disconnect,
@@ -236,6 +238,12 @@ urlpatterns = [
     path('auth/fluxer/link/',          fluxer_link,          name='questlog_web_fluxer_link'),
     path('auth/fluxer/link/callback/', fluxer_link_callback, name='questlog_web_fluxer_link_callback'),
     path('auth/fluxer/unlink/',        fluxer_unlink,        name='questlog_web_fluxer_unlink'),
+
+    # Fluxer / Discord — standalone dashboard OAuth (no QL account required)
+    path('auth/fluxer/dashboard/login/',    fluxer_dashboard_login,    name='questlog_web_fluxer_dashboard_login'),
+    path('auth/fluxer/dashboard/callback/', fluxer_dashboard_callback, name='questlog_web_fluxer_dashboard_callback'),
+    path('auth/discord/dashboard/login/',    discord_dashboard_login,    name='questlog_web_discord_dashboard_login'),
+    path('auth/discord/dashboard/callback/', discord_dashboard_callback, name='questlog_web_discord_dashboard_callback'),
 
     # Twitch OAuth — creator profile integration
     path('auth/twitch/link/',     twitch_oauth_initiate, name='questlog_web_twitch_link'),

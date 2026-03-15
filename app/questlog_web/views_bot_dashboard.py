@@ -46,7 +46,7 @@ from .models import (
     FluxerChannelStatTracker,
 )
 from django_ratelimit.decorators import ratelimit
-from .helpers import web_admin_required, web_login_required, fluxer_guild_required, add_web_user_context, safe_int, sanitize_text
+from .helpers import web_admin_required, web_login_required, fluxer_guild_required, fluxer_login_required, discord_guild_required, discord_login_required, add_web_user_context, safe_int, sanitize_text
 
 logger = logging.getLogger(__name__)
 
@@ -400,15 +400,23 @@ def unified_dashboard(request):
     """
     Unified server dashboard landing page.
     Shows all servers the logged-in user owns/admins across Discord, Fluxer, and Matrix.
+    Accepts full QL session or lite Discord OAuth session.
     Each platform section links to the appropriate per-guild dashboard.
     """
     wu = request.web_user
+    discord_id = str(getattr(wu, 'discord_id', None) or '')
 
-    # --- Fluxer guilds (already computed by add_web_user_context) ---
-    fluxer_owned = getattr(wu, 'owned_fluxer_guilds', [])
+    # --- Fluxer guilds (from QL account if linked) ---
+    fluxer_owned = getattr(wu, 'owned_fluxer_guilds', []) if wu else []
 
-    # --- Discord guilds (already computed by add_web_user_context) ---
-    discord_owned = getattr(wu, 'owned_discord_guilds', [])
+    # --- Discord guilds: from QL account ---
+    discord_owned = getattr(wu, 'owned_discord_guilds', []) if wu else []
+    if not discord_owned and discord_id:
+        with get_db_session() as db:
+            rows = db.execute(text(
+                "SELECT guild_id, guild_name FROM guilds WHERE owner_id = :uid ORDER BY guild_name"
+            ), {'uid': int(discord_id)}).fetchall()
+            discord_owned = [{'guild_id': str(r[0]), 'guild_name': r[1] or str(r[0])} for r in rows]
 
     # --- Linked platform status ---
     has_discord = bool(getattr(wu, 'discord_id', None))
@@ -452,7 +460,7 @@ def unified_dashboard(request):
     })
 
 
-@web_login_required
+@discord_guild_required
 @add_web_user_context
 def discord_guild_dashboard(request, guild_id):
     """
@@ -464,17 +472,32 @@ def discord_guild_dashboard(request, guild_id):
     return _guild_dashboard(request, guild_id=guild_id)
 
 
-@fluxer_guild_required
+@fluxer_login_required
 def fluxer_dashboard(request):
-    """Admin-only: list all Fluxer guilds for the per-guild dashboard."""
+    """List Fluxer guilds the current user owns. Works with lite session or full QL account."""
+    fluxer_id = request.fluxer_id
+    is_superuser = request.user.is_authenticated and request.user.is_superuser
+
     with get_db_session() as db:
-        rows = db.execute(text(
-            "SELECT c.guild_id, "
-            "  COALESCE(NULLIF(s.guild_name, ''), NULLIF(MAX(c.guild_name), ''), '') as guild_name "
-            "FROM web_fluxer_guild_channels c "
-            "LEFT JOIN web_fluxer_guild_settings s ON s.guild_id = c.guild_id "
-            "GROUP BY c.guild_id, s.guild_name"
-        )).fetchall()
+        if is_superuser:
+            # Superusers see all guilds
+            rows = db.execute(text(
+                "SELECT c.guild_id, "
+                "  COALESCE(NULLIF(s.guild_name, ''), NULLIF(MAX(c.guild_name), ''), '') as guild_name "
+                "FROM web_fluxer_guild_channels c "
+                "LEFT JOIN web_fluxer_guild_settings s ON s.guild_id = c.guild_id "
+                "GROUP BY c.guild_id, s.guild_name"
+            )).fetchall()
+        else:
+            # Only guilds this Fluxer user owns or has admin roles in
+            rows = db.execute(text(
+                "SELECT c.guild_id, "
+                "  COALESCE(NULLIF(s.guild_name, ''), NULLIF(MAX(c.guild_name), ''), '') as guild_name "
+                "FROM web_fluxer_guild_channels c "
+                "LEFT JOIN web_fluxer_guild_settings s ON s.guild_id = c.guild_id "
+                "WHERE s.owner_id = :uid "
+                "GROUP BY c.guild_id, s.guild_name"
+            ), {'uid': fluxer_id}).fetchall()
 
         guilds = []
         for row in rows:

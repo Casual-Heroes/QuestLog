@@ -1257,6 +1257,218 @@ def fluxer_unlink(request):
     return redirect('questlog_web_profile')
 
 
+# --- Fluxer dashboard login (no QL account required) -------------------------
+
+@ratelimit(key='ip', rate='20/h', block=True)
+def fluxer_dashboard_login(request):
+    """Start Fluxer OAuth2 for dashboard access without requiring a QL account.
+    Stores a lite session (fluxer_id + username only). Redirects to the guild
+    dashboard after auth, or to the Fluxer guild list if no next param."""
+    if not _FLUXER_CLIENT_ID:
+        messages.error(request, "Fluxer login is not configured on this server.")
+        return redirect('questlog_web_home')
+
+    state = secrets.token_urlsafe(32)
+    next_url = request.GET.get('next', '')
+    request.session['fluxer_dash_state'] = state
+    request.session['fluxer_dash_ts']    = int(time.time())
+    request.session['fluxer_dash_next']  = next_url
+
+    from urllib.parse import urlencode
+    from django.conf import settings as _s
+    redirect_uri = getattr(_s, 'FLUXER_REDIRECT_URI_DASHBOARD', _FLUXER_REDIRECT_URI_QL)
+    params = {
+        'client_id':     _FLUXER_CLIENT_ID,
+        'redirect_uri':  redirect_uri,
+        'response_type': 'code',
+        'scope':         'identify',
+        'state':         state,
+    }
+    return redirect(f"{_FLUXER_AUTH_URL}?{urlencode(params)}")
+
+
+@ratelimit(key='ip', rate='20/h', block=True)
+def fluxer_dashboard_callback(request):
+    """Fluxer redirects here after dashboard login. Creates a lite session -
+    no QL account needed. All OWASP checks preserved (state, timing, CSRF)."""
+    error = request.GET.get('error')
+    if error:
+        messages.error(request, f"Fluxer login failed: {error}")
+        return redirect('questlog_web_home')
+
+    code  = request.GET.get('code',  '')
+    state = request.GET.get('state', '')
+
+    stored_state = request.session.pop('fluxer_dash_state', None)
+    stored_ts    = request.session.pop('fluxer_dash_ts', 0)
+    next_url     = request.session.pop('fluxer_dash_next', '')
+
+    # OWASP: validate state token to prevent CSRF
+    if not state or not stored_state or not hmac.compare_digest(state, stored_state):
+        messages.error(request, "Invalid login state. Please try again.")
+        return redirect('questlog_web_home')
+
+    # OWASP: expire OAuth sessions after 10 minutes
+    if int(time.time()) - stored_ts > 600:
+        messages.error(request, "Login session expired. Please try again.")
+        return redirect('questlog_web_home')
+
+    if not code:
+        messages.error(request, "No authorisation code received.")
+        return redirect('questlog_web_home')
+
+    from django.conf import settings as _s
+    redirect_uri = getattr(_s, 'FLUXER_REDIRECT_URI_DASHBOARD', _FLUXER_REDIRECT_URI_QL)
+
+    try:
+        token_resp = _requests.post(_FLUXER_TOKEN_URL, data={
+            'grant_type':    'authorization_code',
+            'code':          code,
+            'redirect_uri':  redirect_uri,
+            'client_id':     _FLUXER_CLIENT_ID,
+            'client_secret': _FLUXER_CLIENT_SECRET,
+        }, timeout=10)
+        token_resp.raise_for_status()
+        access_token = token_resp.json().get('access_token')
+    except Exception as e:
+        logger.error(f"fluxer_dashboard_callback: token exchange failed: {e}")
+        messages.error(request, "Failed to connect to Fluxer. Please try again.")
+        return redirect('questlog_web_home')
+
+    try:
+        user_resp = _requests.get(
+            _FLUXER_USERINFO_URL,
+            headers={'Authorization': f'Bearer {access_token}'},
+            timeout=10,
+        )
+        user_resp.raise_for_status()
+        fluxer_data = user_resp.json()
+    except Exception as e:
+        logger.error(f"fluxer_dashboard_callback: user info fetch failed: {e}")
+        messages.error(request, "Failed to retrieve Fluxer profile. Please try again.")
+        return redirect('questlog_web_home')
+
+    fluxer_id       = str(fluxer_data.get('id', ''))
+    fluxer_username = fluxer_data.get('global_name') or fluxer_data.get('username', '')
+
+    if not fluxer_id:
+        messages.error(request, "Could not read Fluxer ID. Please try again.")
+        return redirect('questlog_web_home')
+
+    # Store lite session - no QL account created or required
+    request.session['fluxer_session_id']       = fluxer_id
+    request.session['fluxer_session_username'] = fluxer_username
+    request.session['fluxer_session_ts']       = int(time.time())
+
+    from .helpers import safe_redirect_url
+    safe_next = safe_redirect_url(next_url, default='/ql/dashboard/fluxer/')
+    return redirect(safe_next)
+
+
+# --- Discord dashboard login (no QL account required) ------------------------
+
+@ratelimit(key='ip', rate='20/h', block=True)
+def discord_dashboard_login(request):
+    """Start Discord OAuth2 for dashboard access without requiring a QL account."""
+    if not _DISCORD_CLIENT_ID:
+        messages.error(request, "Discord login is not configured on this server.")
+        return redirect('questlog_web_home')
+
+    state = secrets.token_urlsafe(32)
+    next_url = request.GET.get('next', '')
+    request.session['discord_dash_state'] = state
+    request.session['discord_dash_ts']    = int(time.time())
+    request.session['discord_dash_next']  = next_url
+
+    from urllib.parse import urlencode
+    from django.conf import settings as _s
+    redirect_uri = getattr(_s, 'DISCORD_REDIRECT_URI_DASHBOARD', _DISCORD_REDIRECT_URI_QL)
+    params = {
+        'client_id':     _DISCORD_CLIENT_ID,
+        'redirect_uri':  redirect_uri,
+        'response_type': 'code',
+        'scope':         'identify',
+        'state':         state,
+    }
+    return redirect(f"{_DISCORD_AUTH_URL}?{urlencode(params)}")
+
+
+@ratelimit(key='ip', rate='20/h', block=True)
+def discord_dashboard_callback(request):
+    """Discord redirects here after dashboard login. Creates a lite session -
+    no QL account needed. All OWASP checks preserved."""
+    error = request.GET.get('error')
+    if error:
+        messages.error(request, f"Discord login failed: {error}")
+        return redirect('questlog_web_home')
+
+    code  = request.GET.get('code',  '')
+    state = request.GET.get('state', '')
+
+    stored_state = request.session.pop('discord_dash_state', None)
+    stored_ts    = request.session.pop('discord_dash_ts', 0)
+    next_url     = request.session.pop('discord_dash_next', '')
+
+    if not state or not stored_state or not hmac.compare_digest(state, stored_state):
+        messages.error(request, "Invalid login state. Please try again.")
+        return redirect('questlog_web_home')
+
+    if int(time.time()) - stored_ts > 600:
+        messages.error(request, "Login session expired. Please try again.")
+        return redirect('questlog_web_home')
+
+    if not code:
+        messages.error(request, "No authorisation code received.")
+        return redirect('questlog_web_home')
+
+    from django.conf import settings as _s
+    redirect_uri = getattr(_s, 'DISCORD_REDIRECT_URI_DASHBOARD', _DISCORD_REDIRECT_URI_QL)
+
+    try:
+        token_resp = _requests.post(_DISCORD_TOKEN_URL, data={
+            'grant_type':    'authorization_code',
+            'code':          code,
+            'redirect_uri':  redirect_uri,
+            'client_id':     _DISCORD_CLIENT_ID,
+            'client_secret': _DISCORD_CLIENT_SECRET,
+        }, timeout=10)
+        token_resp.raise_for_status()
+        access_token = token_resp.json().get('access_token')
+    except Exception as e:
+        logger.error(f"discord_dashboard_callback: token exchange failed: {e}")
+        messages.error(request, "Failed to connect to Discord. Please try again.")
+        return redirect('questlog_web_home')
+
+    try:
+        user_resp = _requests.get(
+            'https://discord.com/api/users/@me',
+            headers={'Authorization': f'Bearer {access_token}'},
+            timeout=10,
+        )
+        user_resp.raise_for_status()
+        discord_data = user_resp.json()
+    except Exception as e:
+        logger.error(f"discord_dashboard_callback: user info fetch failed: {e}")
+        messages.error(request, "Failed to retrieve Discord profile. Please try again.")
+        return redirect('questlog_web_home')
+
+    discord_id       = str(discord_data.get('id', ''))
+    discord_username = discord_data.get('global_name') or discord_data.get('username', '')
+
+    if not discord_id:
+        messages.error(request, "Could not read Discord ID. Please try again.")
+        return redirect('questlog_web_home')
+
+    # Store lite session - no QL account created or required
+    request.session['discord_session_id']       = discord_id
+    request.session['discord_session_username'] = discord_username
+    request.session['discord_session_ts']       = int(time.time())
+
+    from .helpers import safe_redirect_url
+    safe_next = safe_redirect_url(next_url, default='/ql/dashboard/discord/')
+    return redirect(safe_next)
+
+
 # --- Twitch OAuth (creator profile) -----------------------------------------
 
 @web_login_required

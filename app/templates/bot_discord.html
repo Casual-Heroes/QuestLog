@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}QuestLog Discord Bot | Casual Heroes{% endblock %}
+{% block og_title %}QuestLog Discord Bot{% endblock %}
+{% block og_description %}A free, open source Discord bot for gaming communities. XP, LFG, moderation, RSS feeds, live alerts, raffles, and more.{% endblock %}
+
+{% block content %}
+<div style="max-width: 860px; margin: 0 auto; padding: 80px 20px 60px;">
+
+  <!-- Hero -->
+  <div style="text-align: center; margin-bottom: 56px;">
+    <div style="display: inline-flex; align-items: center; gap: 10px; background: rgba(88,101,242,0.12); border: 1px solid rgba(88,101,242,0.35); border-radius: 999px; padding: 6px 18px; margin-bottom: 20px;">
+      <i class="fab fa-discord" style="color: #5865f2; font-size: 1.1rem;"></i>
+      <span style="color: #a5b4fc; font-size: 0.78rem; font-weight: 600; letter-spacing: 0.05em;">Official Discord Bot</span>
+    </div>
+    <h1 style="font-size: 2.6rem; font-weight: 900; color: #fff; margin: 0 0 16px 0; line-height: 1.15;">QuestLog Bot for Discord</h1>
+    <p style="font-size: 1.05rem; color: #9ca3af; max-width: 580px; margin: 0 auto 32px auto; line-height: 1.6;">
+      A free, open source community bot for gaming guilds. XP and leveling, LFG scheduling, moderation, live stream alerts, RSS feeds, raffles, and full QuestLog Network integration.
+    </p>
+    <div style="display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;">
+      <a href="{{ invite_url }}" target="_blank"
+         style="display: inline-flex; align-items: center; gap: 8px; background: #5865f2; color: #fff; font-weight: 700; font-size: 0.95rem; padding: 12px 24px; border-radius: 10px; text-decoration: none; transition: background 0.15s;">
+        <i class="fab fa-discord"></i> Add to Discord
+      </a>
+      <a href="https://github.com/Casual-Heroes/QuestLog-Bot" target="_blank"
+         style="display: inline-flex; align-items: center; gap: 8px; background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.12); color: #e5e7eb; font-weight: 600; font-size: 0.95rem; padding: 12px 24px; border-radius: 10px; text-decoration: none; transition: background 0.15s;">
+        <i class="fab fa-github"></i> Source Code
+      </a>
+    </div>
+  </div>
+
+  <!-- Feature grid -->
+  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; margin-bottom: 56px;">
+
+    {% for feat in features %}
+    <div style="background: #0f0f1a; border: 1px solid #1e1e3a; border-radius: 14px; padding: 22px 22px 20px;">
+      <div style="font-size: 1.6rem; margin-bottom: 10px;">{{ feat.icon }}</div>
+      <h3 style="font-size: 0.95rem; font-weight: 700; color: #fff; margin: 0 0 6px 0;">{{ feat.title }}</h3>
+      <p style="font-size: 0.82rem; color: #6b7280; margin: 0; line-height: 1.55;">{{ feat.desc }}</p>
+    </div>
+    {% endfor %}
+
+  </div>
+
+  <!-- How it works -->
+  <div style="margin-bottom: 48px;">
+    <h2 style="font-size: 1.3rem; font-weight: 800; color: #fff; text-align: center; margin: 0 0 28px 0;">How it works</h2>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px;">
+      <div style="background: #0f0f1a; border: 1px solid #1e1e3a; border-radius: 14px; padding: 24px 22px;">
+        <div style="font-size: 0.7rem; font-weight: 800; color: #818cf8; letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 10px;">Step 1</div>
+        <h3 style="font-size: 0.95rem; font-weight: 700; color: #fff; margin: 0 0 8px 0;">Add the bot, use the dashboard</h3>
+        <p style="font-size: 0.82rem; color: #6b7280; margin: 0; line-height: 1.55;">Full XP, LFG, moderation, RSS, live alerts - everything works out of the box. No QuestLog account needed.</p>
+      </div>
+      <div style="background: #0f0f1a; border: 1px solid #1e1e3a; border-radius: 14px; padding: 24px 22px;">
+        <div style="font-size: 0.7rem; font-weight: 800; color: #818cf8; letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 10px;">Step 2</div>
+        <h3 style="font-size: 0.95rem; font-weight: 700; color: #fff; margin: 0 0 8px 0;">Apply to the QuestLog Network</h3>
+        <p style="font-size: 0.82rem; color: #6b7280; margin: 0; line-height: 1.55;">One application unifies your server with the QuestLog platform. Your guild gets a public profile and appears in the community directory.</p>
+      </div>
+      <div style="background: #0f0f1a; border: 1px solid #1e1e3a; border-radius: 14px; padding: 24px 22px;">
+        <div style="font-size: 0.7rem; font-weight: 800; color: #818cf8; letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 10px;">Step 3</div>
+        <h3 style="font-size: 0.95rem; font-weight: 700; color: #fff; margin: 0 0 8px 0;">Members link their accounts</h3>
+        <p style="font-size: 0.82rem; color: #6b7280; margin: 0; line-height: 1.55;">Discord XP merges into a unified QuestLog profile. One leaderboard, one level, across every platform they play on.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- QuestLog Network callout -->
+  <div style="background: linear-gradient(135deg, rgba(99,102,241,0.12), rgba(139,92,246,0.10)); border: 1px solid rgba(99,102,241,0.35); border-radius: 16px; padding: 28px 32px; margin-bottom: 16px; display: flex; align-items: flex-start; gap: 20px;">
+    <span style="font-size: 2rem; flex-shrink: 0;">🌐</span>
+    <div>
+      <h3 style="font-size: 1.05rem; font-weight: 800; color: #c4b5fd; margin: 0 0 6px 0;">QuestLog Network Integration</h3>
+      <p style="font-size: 0.85rem; color: #9ca3af; margin: 0 0 12px 0; line-height: 1.6;">
+        When your server joins the QuestLog Network, Discord XP flows into your members' unified QuestLog profiles. One profile, one leaderboard, across Discord and Fluxer.
+        Members can view their stats at <strong style="color: #a5b4fc;">casual-heroes.com/ql/</strong>.
+      </p>
+      <a href="/ql/communities/" style="color: #818cf8; font-size: 0.82rem; font-weight: 600; text-decoration: none;">Learn about the QuestLog Network -></a>
+    </div>
+  </div>
+
+  <!-- Web Dashboard callout -->
+  <div style="background: linear-gradient(135deg, rgba(88,101,242,0.12), rgba(99,102,241,0.08)); border: 1px solid rgba(88,101,242,0.35); border-radius: 16px; padding: 28px 32px; margin-bottom: 16px; display: flex; align-items: flex-start; gap: 20px;">
+    <span style="font-size: 2rem; flex-shrink: 0;">🖥️</span>
+    <div>
+      <h3 style="font-size: 1.05rem; font-weight: 800; color: #c7d2fe; margin: 0 0 6px 0;">Full Web Dashboard</h3>
+      <p style="font-size: 0.85rem; color: #9ca3af; margin: 0 0 12px 0; line-height: 1.6;">
+        Every bot feature has a matching web interface at <strong style="color: #a5b4fc;">casual-heroes.com/ql/dashboard/</strong>.
+        Configure XP settings, manage LFG, set up live alerts, moderate members, and view leaderboards - all from the browser with no slash commands required.
+      </p>
+      <a href="/ql/dashboard/discord/" style="color: #818cf8; font-size: 0.82rem; font-weight: 600; text-decoration: none;">Go to Discord Dashboard -></a>
+    </div>
+  </div>
+
+  <!-- Connect to QuestLog callout -->
+  <div style="background: linear-gradient(135deg, rgba(245,158,11,0.08), rgba(217,119,6,0.06)); border: 1px solid rgba(245,158,11,0.25); border-radius: 16px; padding: 28px 32px; margin-bottom: 56px; display: flex; align-items: flex-start; gap: 20px;">
+    <span style="font-size: 2rem; flex-shrink: 0;">🔗</span>
+    <div>
+      <h3 style="font-size: 1.05rem; font-weight: 800; color: #fcd34d; margin: 0 0 6px 0;">Already have a server on QuestLog?</h3>
+      <p style="font-size: 0.85rem; color: #9ca3af; margin: 0 0 12px 0; line-height: 1.6;">
+        If your community is already registered on the QuestLog Network, connect your Discord server to unify XP, leaderboards, and member profiles across all platforms. One application links everything together.
+      </p>
+      <a href="/ql/communities/register/" style="color: #f59e0b; font-size: 0.82rem; font-weight: 600; text-decoration: none;">Connect your server to QuestLog -></a>
+    </div>
+  </div>
+
+  <!-- Self-hosting -->
+  <div style="background: #0f0f1a; border: 1px solid #1e1e3a; border-radius: 16px; padding: 28px 32px; margin-bottom: 56px;">
+    <h2 style="font-size: 1.2rem; font-weight: 800; color: #fff; margin: 0 0 10px 0;">Self-Hosting</h2>
+    <p style="font-size: 0.85rem; color: #6b7280; margin: 0 0 16px 0; line-height: 1.6;">
+      QuestLog Bot is fully open source under the AGPL-3.0 license. Clone the repo, set your token, point it at a MySQL database, and you are running your own instance. Full setup instructions are in the README.
+    </p>
+    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+      <a href="https://github.com/Casual-Heroes/QuestLog-Bot" target="_blank"
+         style="display: inline-flex; align-items: center; gap: 6px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); color: #e5e7eb; font-size: 0.82rem; font-weight: 600; padding: 8px 16px; border-radius: 8px; text-decoration: none;">
+        <i class="fab fa-github"></i> GitHub Repo
+      </a>
+      <a href="https://github.com/Casual-Heroes/QuestLog-Bot/blob/main/README.md" target="_blank"
+         style="display: inline-flex; align-items: center; gap: 6px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); color: #e5e7eb; font-size: 0.82rem; font-weight: 600; padding: 8px 16px; border-radius: 8px; text-decoration: none;">
+        <i class="fas fa-book"></i> Setup Guide
+      </a>
+    </div>
+  </div>
+
+  <!-- Footer CTA -->
+  <div style="text-align: center;">
+    <p style="color: #4b5563; font-size: 0.82rem; margin-bottom: 12px;">Also available on Fluxer</p>
+    <a href="/bot/fluxer/" style="color: #a78bfa; font-size: 0.85rem; font-weight: 600; text-decoration: none;">
+      <i class="fas fa-bolt mr-1"></i> QuestLog Bot for Fluxer ->
+    </a>
+  </div>
+
+</div>
+{% endblock %}

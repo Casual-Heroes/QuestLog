@@ -37,6 +37,8 @@ urlpatterns = [
     path('guides/', views.guides, name='guides'),
     path('content/', views.content, name='content'),
     path('aboutus/', views.aboutus, name='aboutus'),
+    path('bot/discord/', views.bot_discord, name='bot_discord'),
+    path('bot/fluxer/', views.bot_fluxer, name='bot_fluxer'),
     path('questchat/', views.questchat, name='questchat'),
     path('self-host/', views.self_host, name='self_host'),
     path('privacy/', views.privacy, name='privacy'),
@@ -440,10 +442,12 @@ urlpatterns = [
 
     # =========================================================================
     # UNIFIED DISCORD DASHBOARD ALIASES
+    # /ql/dashboard/discord/ is the guild list (same as /questlog/)
     # /ql/dashboard/discord/<guild_id>/ mirrors /questlog/guild/<guild_id>/
     # Same views, same templates - just accessible from the QuestLog site nav.
     # API endpoints (/api/guild/<id>/...) don't need aliasing - JS calls them directly.
     # =========================================================================
+    path('ql/dashboard/discord/',                                      views.questlog_dashboard,       name='ql_discord_dashboard'),
     path('ql/dashboard/discord/<str:guild_id>/',                   views.guild_dashboard,          name='ql_discord_guild_dashboard'),
     path('ql/dashboard/discord/<str:guild_id>/xp/',                views.guild_xp,                 name='ql_discord_guild_xp'),
     path('ql/dashboard/discord/<str:guild_id>/welcome/',           views.guild_welcome,            name='ql_discord_guild_welcome'),

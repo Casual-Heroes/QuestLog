@@ -241,50 +241,122 @@ def web_admin_required(view_func):
     return wrapper
 
 
+def fluxer_login_required(view_func):
+    """
+    Lightweight Fluxer identity check for list/landing pages (no guild_id needed).
+    Accepts a full QL web_user with fluxer_id OR a lite Fluxer OAuth session.
+    Sets request.fluxer_id and request.web_user.
+    Redirects to fluxer_dashboard_login if neither is present.
+    """
+    @wraps(view_func)
+    def wrapper(request, *args, **kwargs):
+        web_user = get_web_user(request)
+        user_fluxer_id = None
+
+        if web_user:
+            if web_user.is_banned:
+                messages.error(request, "Your account has been suspended.")
+                return redirect('questlog_web_home')
+            user_fluxer_id = str(getattr(web_user, 'fluxer_id', None) or '')
+
+        if not user_fluxer_id:
+            lite_id = request.session.get('fluxer_session_id', '')
+            lite_ts = request.session.get('fluxer_session_ts', 0)
+            if lite_id and (int(time.time()) - lite_ts) < 604800:
+                user_fluxer_id = str(lite_id)
+
+        if not user_fluxer_id and not (request.user.is_authenticated and request.user.is_superuser):
+            login_url = reverse('questlog_web_fluxer_dashboard_login')
+            return redirect(f'{login_url}?next={quote(request.get_full_path())}')
+
+        request.web_user = web_user
+        request.fluxer_id = user_fluxer_id or ''
+        return view_func(request, *args, **kwargs)
+    return wrapper
+
+
+def discord_login_required(view_func):
+    """
+    Lightweight Discord identity check for list/landing pages (no guild_id needed).
+    Accepts a full QL web_user with discord_id OR a lite Discord OAuth session.
+    Sets request.discord_id and request.web_user.
+    Redirects to discord_dashboard_login if neither is present.
+    """
+    @wraps(view_func)
+    def wrapper(request, *args, **kwargs):
+        web_user = get_web_user(request)
+        user_discord_id = None
+
+        if web_user:
+            if web_user.is_banned:
+                messages.error(request, "Your account has been suspended.")
+                return redirect('questlog_web_home')
+            user_discord_id = str(getattr(web_user, 'discord_id', None) or '')
+
+        if not user_discord_id:
+            lite_id = request.session.get('discord_session_id', '')
+            lite_ts = request.session.get('discord_session_ts', 0)
+            if lite_id and (int(time.time()) - lite_ts) < 604800:
+                user_discord_id = str(lite_id)
+
+        if not user_discord_id and not (request.user.is_authenticated and request.user.is_superuser):
+            login_url = reverse('questlog_web_discord_dashboard_login')
+            return redirect(f'{login_url}?next={quote(request.get_full_path())}')
+
+        request.web_user = web_user
+        request.discord_id = user_discord_id or ''
+        return view_func(request, *args, **kwargs)
+    return wrapper
+
+
 def fluxer_guild_required(view_func):
     """
-    Fluxer bot dashboard access guard. Requires login plus one of:
-    - Django superuser (site admins always allowed), OR
-    - The user's fluxer_id matches the guild's owner_id in WebFluxerGuildSettings, OR
-    - The user's fluxer_id appears in cached_members with one of the guild's admin_roles.
-    If no guild_id kwarg, falls back to superuser-only (for the guild list page).
+    Fluxer bot dashboard access guard. Accepts either:
+    - A full QL web_user session with fluxer_id linked, OR
+    - A lite Fluxer OAuth session (fluxer_session_id) - no QL account needed.
+    Also allows Django superuser always.
+    Checks: owner_id match OR admin role membership in cached_members.
     Returns JSON 403 for API requests (Accept: application/json).
     """
     @wraps(view_func)
     def wrapper(request, *args, **kwargs):
         from .models import WebFluxerGuildSettings
 
-        web_user = get_web_user(request)
         is_json = 'application/json' in request.headers.get('Accept', '')
 
-        if not web_user:
+        # Resolve Fluxer identity - full QL account OR lite session
+        web_user = get_web_user(request)
+        user_fluxer_id = None
+
+        if web_user:
+            if web_user.is_banned:
+                if is_json:
+                    return JsonResponse({'error': 'Account suspended'}, status=403)
+                messages.error(request, "Your account has been suspended.")
+                return redirect('questlog_web_home')
+            user_fluxer_id = str(getattr(web_user, 'fluxer_id', None) or '')
+
+        # Lite session fallback - Fluxer OAuth without a QL account
+        if not user_fluxer_id:
+            lite_id = request.session.get('fluxer_session_id', '')
+            lite_ts = request.session.get('fluxer_session_ts', 0)
+            # Lite sessions expire after 7 days
+            if lite_id and (int(time.time()) - lite_ts) < 604800:
+                user_fluxer_id = str(lite_id)
+
+        if not user_fluxer_id and not (request.user.is_authenticated and request.user.is_superuser):
             if is_json:
                 return JsonResponse({'error': 'Authentication required'}, status=401)
-            login_url = reverse('questlog_web_login')
+            login_url = reverse('questlog_web_fluxer_dashboard_login')
             return redirect(f'{login_url}?next={quote(request.get_full_path())}')
-
-        if web_user.is_banned:
-            if is_json:
-                return JsonResponse({'error': 'Account suspended'}, status=403)
-            messages.error(request, "Your account has been suspended.")
-            return redirect('questlog_web_home')
 
         if not request.user.is_superuser:
             guild_id = kwargs.get('guild_id', '').strip() if kwargs.get('guild_id') else ''
             if not guild_id:
-                # No guild context - admin-only (e.g. guild list page)
                 if is_json:
                     return JsonResponse({'error': 'Access denied'}, status=403)
                 messages.error(request, "Access denied.")
                 return redirect('questlog_web_home')
-
-            # Fluxer uses fluxer_id (not discord_id) for guild membership
-            user_fluxer_id = str(getattr(web_user, 'fluxer_id', None) or '')
-            if not user_fluxer_id:
-                if is_json:
-                    return JsonResponse({'error': 'No Fluxer account linked'}, status=403)
-                messages.error(request, "Link your Fluxer account to access the bot dashboard.")
-                return redirect('questlog_web_fluxer_link')
 
             with get_db_session() as db:
                 s = db.query(WebFluxerGuildSettings).filter_by(guild_id=guild_id).first()
@@ -298,6 +370,7 @@ def fluxer_guild_required(view_func):
             # Check 1: owner
             if str(s.owner_id or '') == user_fluxer_id:
                 request.web_user = web_user
+                request.fluxer_id = user_fluxer_id
                 return view_func(request, *args, **kwargs)
 
             # Check 2: user holds one of the configured admin roles
@@ -315,8 +388,7 @@ def fluxer_guild_required(view_func):
 
             if not granted:
                 logger.warning(
-                    f"FLUXER GUILD ACCESS DENIED: user={web_user.username} "
-                    f"fluxer={user_fluxer_id} guild={guild_id} owner={s.owner_id}"
+                    f"FLUXER GUILD ACCESS DENIED: fluxer_id={user_fluxer_id} guild={guild_id} owner={s.owner_id}"
                 )
                 if is_json:
                     return JsonResponse({'error': 'Access denied'}, status=403)
@@ -324,6 +396,101 @@ def fluxer_guild_required(view_func):
                 return redirect('questlog_web_home')
 
         request.web_user = web_user
+        request.fluxer_id = user_fluxer_id
+        return view_func(request, *args, **kwargs)
+    return wrapper
+
+
+def discord_guild_required(view_func):
+    """
+    Discord bot dashboard access guard. Accepts either:
+    - A full QL web_user session with discord_id linked, OR
+    - A lite Discord OAuth session (discord_session_id) - no QL account needed.
+    Also allows Django superuser always.
+    Verifies guild ownership via the guilds table (owner_id) or admin_roles JSON.
+    Returns JSON 403 for API requests (Accept: application/json).
+    """
+    @wraps(view_func)
+    def wrapper(request, *args, **kwargs):
+        is_json = 'application/json' in request.headers.get('Accept', '')
+
+        web_user = get_web_user(request)
+        user_discord_id = None
+
+        if web_user:
+            if web_user.is_banned:
+                if is_json:
+                    return JsonResponse({'error': 'Account suspended'}, status=403)
+                messages.error(request, "Your account has been suspended.")
+                return redirect('questlog_web_home')
+            user_discord_id = str(getattr(web_user, 'discord_id', None) or '')
+
+        # Lite session fallback - Discord OAuth without a QL account
+        if not user_discord_id:
+            lite_id = request.session.get('discord_session_id', '')
+            lite_ts = request.session.get('discord_session_ts', 0)
+            if lite_id and (int(time.time()) - lite_ts) < 604800:
+                user_discord_id = str(lite_id)
+
+        if not user_discord_id and not (request.user.is_authenticated and request.user.is_superuser):
+            if is_json:
+                return JsonResponse({'error': 'Authentication required'}, status=401)
+            login_url = reverse('questlog_web_discord_dashboard_login')
+            return redirect(f'{login_url}?next={quote(request.get_full_path())}')
+
+        if not request.user.is_superuser:
+            guild_id = kwargs.get('guild_id', '').strip() if kwargs.get('guild_id') else ''
+            if not guild_id:
+                if is_json:
+                    return JsonResponse({'error': 'Access denied'}, status=403)
+                messages.error(request, "Access denied.")
+                return redirect('questlog_web_home')
+
+            with get_db_session() as db:
+                row = db.execute(
+                    text("SELECT owner_id, admin_roles FROM guilds WHERE guild_id = :g LIMIT 1"),
+                    {'g': int(guild_id)}
+                ).fetchone()
+
+            if not row:
+                if is_json:
+                    return JsonResponse({'error': 'Access denied'}, status=403)
+                messages.error(request, "You don't have access to this guild's dashboard.")
+                return redirect('questlog_web_home')
+
+            # Check 1: owner
+            if str(row[0] or '') == user_discord_id:
+                request.web_user = web_user
+                request.discord_id = user_discord_id
+                return view_func(request, *args, **kwargs)
+
+            # Check 2: admin roles
+            granted = False
+            try:
+                admin_role_ids = json.loads(row[1]) if row[1] else []
+                if admin_role_ids:
+                    with get_db_session() as db:
+                        member = db.execute(
+                            text("SELECT roles FROM guild_members WHERE guild_id=:g AND user_id=:u LIMIT 1"),
+                            {'g': int(guild_id), 'u': int(user_discord_id)}
+                        ).fetchone()
+                    if member and member[0]:
+                        user_roles = json.loads(member[0])
+                        granted = any(str(r) in [str(ar) for ar in admin_role_ids] for r in user_roles)
+            except (json.JSONDecodeError, TypeError, AttributeError, ValueError):
+                granted = False
+
+            if not granted:
+                logger.warning(
+                    f"DISCORD GUILD ACCESS DENIED: discord_id={user_discord_id} guild={guild_id} owner={row[0]}"
+                )
+                if is_json:
+                    return JsonResponse({'error': 'Access denied'}, status=403)
+                messages.error(request, "You don't have access to this guild's dashboard.")
+                return redirect('questlog_web_home')
+
+        request.web_user = web_user
+        request.discord_id = user_discord_id
         return view_func(request, *args, **kwargs)
     return wrapper
 
