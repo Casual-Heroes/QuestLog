@@ -45,7 +45,7 @@ from app.db import get_db_session
 from .fluxer_webhooks import notify_giveaway_start as _fluxer_giveaway_start, notify_giveaway_winner as _fluxer_giveaway_winner
 from app.models import SiteActivityGame, SiteActivityGuildRole
 from .helpers import (
-    web_login_required, web_admin_required, log_admin_action,
+    web_login_required, web_admin_required, add_web_user_context, log_admin_action,
     serialize_post, fetch_rss_feed, create_notification,
     serialize_user_brief, safe_int, validate_admin_image_url,
     process_uploaded_image,
@@ -64,6 +64,7 @@ def admin_verify_pin(request):
 
 
 @web_admin_required
+@add_web_user_context
 def admin_panel(request):
     """Admin panel — Django superusers only."""
     context = {
