@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}QuestLog Bot for Discord - Complete Guide | Casual Heroes{% endblock %}
+{% block og_title %}QuestLog Bot for Discord - Complete Guide{% endblock %}
+{% block og_description %}Everything you need to know to set up and use every feature of QuestLog Bot on your Discord server. XP, LFG, verification, moderation, RSS, live alerts, and more.{% endblock %}
+
+{% block extra_css %}
+<style>
+.sh-layout { display: grid; grid-template-columns: 260px 1fr; gap: 40px; max-width: 1100px; margin: 0 auto; padding: 40px 24px 80px; align-items: start; }
+.sh-sidebar { position: sticky; top: 24px; max-height: calc(100vh - 48px); overflow-y: auto; scrollbar-width: thin; scrollbar-color: #374151 transparent; }
+.sh-sidebar::-webkit-scrollbar { width: 4px; }
+.sh-sidebar::-webkit-scrollbar-thumb { background: #374151; border-radius: 2px; }
+.sh-toc-header { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.12em; color: #4b5563; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid #1f2937; }
+.sh-sidebar .toc { list-style: none; padding: 0; margin: 0; }
+.sh-sidebar .toc ul { list-style: none; padding: 0; margin: 0; }
+.sh-sidebar .toc li { margin: 0; }
+.sh-sidebar .toc > ul > li > a { display: block; padding: 5px 8px; font-size: 0.8rem; font-weight: 600; color: #9ca3af; text-decoration: none; border-radius: 6px; border-left: 2px solid transparent; transition: all 0.15s; line-height: 1.4; }
+.sh-sidebar .toc > ul > li > a:hover { color: #e5e7eb; background: rgba(88,101,242,0.08); border-left-color: #5865f2; }
+.sh-sidebar .toc > ul > li > a.sh-toc-active { color: #a5b4fc; background: rgba(88,101,242,0.12); border-left-color: #5865f2; }
+.sh-sidebar .toc > ul > li > ul > li > a { display: block; padding: 3px 8px 3px 20px; font-size: 0.75rem; color: #6b7280; text-decoration: none; border-radius: 4px; border-left: 2px solid transparent; transition: all 0.15s; }
+.sh-sidebar .toc > ul > li > ul > li > a:hover { color: #9ca3af; }
+.sh-sidebar .toc > ul > li > ul > li > a.sh-toc-active { color: #818cf8; border-left-color: rgba(88,101,242,0.5); }
+.sh-progress { position: fixed; top: 0; left: 0; height: 2px; background: linear-gradient(90deg, #5865f2, #818cf8); z-index: 100; transition: width 0.1s linear; width: 0%; }
+.sh-content { min-width: 0; }
+.sh-hero { background: linear-gradient(135deg, rgba(88,101,242,0.12) 0%, rgba(129,140,248,0.05) 100%); border: 1px solid rgba(88,101,242,0.25); border-radius: 12px; padding: 28px 32px; margin-bottom: 40px; display: flex; align-items: center; gap: 20px; }
+.sh-hero-icon { font-size: 2.5rem; flex-shrink: 0; }
+.sh-hero h1 { font-size: 1.6rem; font-weight: 800; color: #fff; margin: 0 0 6px; }
+.sh-hero p { color: #9ca3af; font-size: 0.9rem; margin: 0; }
+.sh-mobile-toc { display: none; margin-bottom: 24px; background: #0f0f1a; border: 1px solid #1f2937; border-radius: 10px; overflow: hidden; }
+.sh-mobile-toc summary { padding: 14px 18px; font-size: 0.85rem; font-weight: 600; color: #9ca3af; cursor: pointer; list-style: none; display: flex; align-items: center; gap: 8px; }
+.sh-mobile-toc summary::-webkit-details-marker { display: none; }
+.sh-mobile-toc[open] summary { color: #e5e7eb; border-bottom: 1px solid #1f2937; }
+.sh-mobile-toc .toc { padding: 12px 18px 16px; }
+.sh-mobile-toc .toc ul { list-style: none; padding: 0; margin: 0; }
+.sh-mobile-toc .toc a { display: block; padding: 4px 0; font-size: 0.82rem; color: #6b7280; text-decoration: none; }
+.sh-mobile-toc .toc a:hover { color: #818cf8; }
+.sh-mobile-toc .toc > ul > li > ul > li > a { padding-left: 16px; font-size: 0.78rem; }
+.sh-body { font-size: 0.95rem; line-height: 1.8; color: #d1d5db; }
+.sh-body h1 { font-size: 2rem; font-weight: 800; color: #fff; margin: 0 0 8px; }
+.sh-body h2 { font-size: 1.35rem; font-weight: 700; color: #fff; margin: 52px 0 16px; padding-top: 52px; border-top: 1px solid #1f2937; scroll-margin-top: 24px; }
+.sh-body h2:first-of-type { margin-top: 24px; padding-top: 0; border-top: none; }
+.sh-body h3 { font-size: 1.05rem; font-weight: 700; color: #e5e7eb; margin: 32px 0 12px; scroll-margin-top: 24px; }
+.sh-body h4 { font-size: 0.78rem; font-weight: 700; color: #9ca3af; margin: 24px 0 8px; text-transform: uppercase; letter-spacing: 0.06em; }
+.sh-body p { margin: 0 0 16px; }
+.sh-body strong { color: #e5e7eb; font-weight: 600; }
+.sh-body a { color: #818cf8; text-decoration: none; border-bottom: 1px solid rgba(129,140,248,0.3); transition: border-color 0.15s, color 0.15s; }
+.sh-body a:hover { color: #a5b4fc; border-bottom-color: #818cf8; }
+.sh-body ul, .sh-body ol { margin: 0 0 16px; padding-left: 24px; }
+.sh-body li { margin-bottom: 6px; }
+.sh-body ul li { list-style-type: disc; }
+.sh-body ul li::marker { color: #5865f2; }
+.sh-body ol li::marker { color: #818cf8; font-weight: 600; }
+.sh-body ul ul, .sh-body ol ul { margin-top: 6px; margin-bottom: 6px; }
+.sh-body hr { border: none; border-top: 1px solid #1f2937; margin: 40px 0; }
+.sh-body code { background: rgba(88,101,242,0.12); color: #a5b4fc; padding: 2px 6px; border-radius: 4px; font-family: 'SF Mono','Menlo','Monaco','Courier New',monospace; font-size: 0.85em; border: 1px solid rgba(88,101,242,0.2); }
+.sh-body pre { position: relative; margin: 20px 0; border-radius: 10px; overflow: hidden; border: 1px solid #1f2937; }
+.sh-body pre code { background: transparent; color: inherit; padding: 20px; border: none; border-radius: 0; font-size: 0.85rem; display: block; overflow-x: auto; }
+.sh-body table { width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 0.88rem; }
+.sh-body thead th { background: rgba(88,101,242,0.1); color: #e5e7eb; font-weight: 600; text-align: left; padding: 10px 14px; border-bottom: 1px solid rgba(88,101,242,0.3); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.06em; }
+.sh-body tbody td { padding: 10px 14px; border-bottom: 1px solid #1f2937; color: #d1d5db; vertical-align: top; }
+.sh-body tbody tr:last-child td { border-bottom: none; }
+.sh-body tbody tr:hover td { background: rgba(255,255,255,0.02); }
+.sh-body blockquote { margin: 20px 0; padding: 14px 18px; background: rgba(245,158,11,0.06); border-left: 3px solid #f59e0b; border-radius: 0 8px 8px 0; color: #d1d5db; }
+.sh-body blockquote p { margin: 0; }
+@media (max-width: 900px) { .sh-layout { grid-template-columns: 1fr; padding: 24px 16px 60px; gap: 0; } .sh-sidebar { display: none; } .sh-mobile-toc { display: block; } .sh-hero { flex-direction: column; text-align: center; padding: 24px 20px; gap: 12px; } }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="sh-progress" id="sh-progress"></div>
+<div class="sh-layout">
+  <aside class="sh-sidebar">
+    <div class="sh-toc-header">Contents</div>
+    {{ toc|safe }}
+  </aside>
+  <main class="sh-content">
+    <div class="sh-hero">
+      <div class="sh-hero-icon"><i class="fab fa-discord" style="color:#5865f2;"></i></div>
+      <div>
+        <h1>QuestLog Bot for Discord</h1>
+        <p>Complete guide to every feature - setup, configuration, and day-to-day usage.</p>
+        <div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;">
+          <a href="/bot/discord/" style="display:inline-flex;align-items:center;gap:6px;padding:8px 16px;background:#5865f2;color:#fff;border-radius:8px;font-weight:600;font-size:0.82rem;text-decoration:none;border:none;">
+            <i class="fab fa-discord"></i> Add to Discord
+          </a>
+          <a href="/ql/dashboard/discord/" style="display:inline-flex;align-items:center;gap:6px;padding:8px 16px;background:rgba(88,101,242,0.1);border:1px solid rgba(88,101,242,0.3);color:#a5b4fc;border-radius:8px;font-weight:600;font-size:0.82rem;text-decoration:none;">
+            <i class="fas fa-gauge-high"></i> Open Dashboard
+          </a>
+        </div>
+      </div>
+    </div>
+    <details class="sh-mobile-toc">
+      <summary>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        Table of Contents
+      </summary>
+      {{ toc|safe }}
+    </details>
+    <div class="sh-body">{{ content|safe }}</div>
+    <div style="margin-top:60px;padding:28px 32px;background:linear-gradient(135deg,rgba(88,101,242,.1),rgba(129,140,248,.05));border:1px solid rgba(88,101,242,.25);border-radius:12px;text-align:center;">
+      <p style="font-size:1rem;font-weight:700;color:#e5e7eb;margin:0 0 8px;">Ready to get started?</p>
+      <p style="color:#9ca3af;font-size:0.88rem;margin:0 0 18px;">Add the bot to your server and open the dashboard - everything configures from the browser.</p>
+      <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
+        <a href="/bot/discord/" style="display:inline-flex;align-items:center;gap:8px;padding:10px 22px;background:#5865f2;color:#fff;border-radius:8px;font-weight:600;font-size:0.88rem;text-decoration:none;">
+          <i class="fab fa-discord"></i> Add to Discord
+        </a>
+        <a href="/ql/dashboard/discord/" style="display:inline-flex;align-items:center;gap:8px;padding:10px 22px;background:rgba(88,101,242,0.1);border:1px solid rgba(88,101,242,0.3);color:#a5b4fc;border-radius:8px;font-weight:600;font-size:0.88rem;text-decoration:none;">
+          <i class="fas fa-gauge-high"></i> Open Dashboard
+        </a>
+      </div>
+    </div>
+  </main>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function() {
+    var progressBar = document.getElementById('sh-progress');
+    window.addEventListener('scroll', function() {
+        var scrollTop = window.scrollY || document.documentElement.scrollTop;
+        var docHeight = document.documentElement.scrollHeight - window.innerHeight;
+        progressBar.style.width = (docHeight > 0 ? (scrollTop / docHeight) * 100 : 0) + '%';
+    });
+    var headings = document.querySelectorAll('.sh-body h2[id], .sh-body h3[id]');
+    var tocLinks = document.querySelectorAll('.sh-sidebar .toc a');
+    if (headings.length && tocLinks.length) {
+        var observer = new IntersectionObserver(function(entries) {
+            entries.forEach(function(entry) {
+                if (entry.isIntersecting) {
+                    var id = entry.target.id;
+                    tocLinks.forEach(function(link) {
+                        link.classList.remove('sh-toc-active');
+                        if (link.getAttribute('href') === '#' + id) link.classList.add('sh-toc-active');
+                    });
+                }
+            });
+        }, { rootMargin: '-10% 0px -80% 0px' });
+        headings.forEach(function(h) { observer.observe(h); });
+    }
+})();
+</script>
+{% endblock %}

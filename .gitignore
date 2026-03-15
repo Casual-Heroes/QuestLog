@@ -57,6 +57,7 @@ teststats.py
 **/wsgi.py
 *.sql
 *.md
+!app/docs/*.md
 
 # Ignore environments
 .env
