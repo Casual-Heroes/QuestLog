@@ -38,6 +38,7 @@ from .models import (
     WebFluxerGuildSettings, WebFluxerLfgGroup, WebFluxerRssFeed,
     WebFluxerReactionRole, WebFluxerWelcomeConfig, WebFluxerXpBoostEvent,
     WebFluxerRaffle, WebFluxerStreamerSub,
+    WebMatrixSpaceSettings, WebMatrixRoom, WebMatrixMember, WebMatrixXpEvent, WebMatrixRssFeed,
 )
 from app.security_middleware import MAINTENANCE_FLAG
 from app.db import get_db_session
@@ -135,10 +136,26 @@ def api_admin_bot_stats(request):
             "SELECT COUNT(*) FROM guild_members WHERE last_active >= :ts"
         ), {'ts': thirty_days_ago}).scalar() or 0
         disc_lfg_total  = db.execute(sa_text("SELECT COUNT(*) FROM lfg_groups")).scalar() or 0
-        disc_lfg_active = db.execute(sa_text("SELECT COUNT(*) FROM lfg_groups WHERE status='open'")).scalar() or 0
+        disc_lfg_active = db.execute(sa_text("SELECT COUNT(*) FROM lfg_groups WHERE is_active=1")).scalar() or 0
         disc_rss        = db.execute(sa_text("SELECT COUNT(*) FROM rss_feeds")).scalar() or 0
         disc_lfg_cfg    = db.execute(sa_text("SELECT COUNT(DISTINCT guild_id) FROM lfg_configs")).scalar() or 0
         disc_raffles    = db.execute(sa_text("SELECT COUNT(*) FROM raffles")).scalar() or 0
+
+        # ── Matrix ───────────────────────────────────────────────
+        m_total   = db.query(WebMatrixSpaceSettings).count()
+        m_active  = db.query(WebMatrixSpaceSettings).filter_by(bot_present=1).count()
+        m_members = db.execute(sa_text(
+            "SELECT COALESCE(SUM(member_count),0) FROM web_matrix_space_settings"
+        )).scalar() or 0
+        m_xp_30d  = db.query(WebMatrixXpEvent).filter(
+            WebMatrixXpEvent.created_at >= thirty_days_ago
+        ).count()
+        m_rooms   = db.query(WebMatrixRoom).count()
+        m_rss     = db.query(WebMatrixRssFeed).count()
+        m_xp_enabled = db.query(WebMatrixSpaceSettings).filter_by(xp_enabled=1).count()
+        m_welcome = db.query(WebMatrixSpaceSettings).filter(
+            WebMatrixSpaceSettings.welcome_room_id.isnot(None)
+        ).count()
 
         # ── Bridge ───────────────────────────────────────────────
         bridge_active = db.query(WebBridgeConfig).filter_by(enabled=1).count()
@@ -177,6 +194,15 @@ def api_admin_bot_stats(request):
             'rss_feeds':       int(disc_rss),
             'lfg_configured':  int(disc_lfg_cfg),
             'raffles_total':   int(disc_raffles),
+        },
+        'matrix': {
+            'total_spaces':  m_total,
+            'active_spaces': m_active,
+            'total_members': int(m_members),
+            'xp_events_30d': m_xp_30d,
+            'rss_feeds':     m_rss,
+            'xp_enabled':    m_xp_enabled,
+            'welcome_set':   m_welcome,
         },
         'bridge': {
             'active_bridges': bridge_active,
