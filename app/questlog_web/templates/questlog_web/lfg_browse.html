@@ -1637,6 +1637,45 @@ const GAME_TEMPLATES = {
       {value:'Builder', role:'support'},
     ]},
   ],
+  // Survival games - sub-choices map to tank/healer/dps/support parent sections
+  palworld: [
+    { name: 'Role', choices: [
+      {value:'Tank/Defender',   role:'tank'},
+      {value:'Support/Healer',  role:'healer'},
+      {value:'Combat (Melee)',  role:'dps'},
+      {value:'Combat (Ranged)', role:'dps'},
+      {value:'Scout/Explorer',  role:'dps'},
+      {value:'Builder',         role:'support'},
+      {value:'Gatherer',        role:'support'},
+      {value:'Tamer/Breeder',   role:'support'},
+      {value:'Crafter',         role:'support'},
+    ]},
+  ],
+  enshrouded: [
+    { name: 'Role', choices: [
+      {value:'Tank',    role:'tank'},
+      {value:'Healer',  role:'healer'},
+      {value:'DPS',     role:'dps'},
+      {value:'Support', role:'support'},
+    ]},
+  ],
+  valheim: [
+    { name: 'Role', choices: [
+      {value:'Tank',    role:'tank'},
+      {value:'Healer',  role:'healer'},
+      {value:'DPS',     role:'dps'},
+      {value:'Support', role:'support'},
+    ]},
+  ],
+  rust: [
+    { name: 'Role', choices: [
+      {value:'Raider',  role:'tank'},
+      {value:'Medic',   role:'healer'},
+      {value:'Fighter', role:'dps'},
+      {value:'Farmer',  role:'support'},
+      {value:'Builder', role:'support'},
+    ]},
+  ],
 };
 
 // detectGameType reuses getBuiltinGameType (defined above in role detection section)

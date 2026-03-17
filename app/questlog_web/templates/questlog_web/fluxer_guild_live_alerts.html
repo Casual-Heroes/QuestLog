@@ -200,6 +200,8 @@
 </div>
 
 
+{{ channels_json|default:"[]"|json_script:"channels-data" }}
+{{ featured_creators_json|default:"[]"|json_script:"featured-creators-data" }}
 <script>
 const GUILD_ID = '{{ guild_id }}';
 const API_BASE = `api/dashboard/fluxer/${GUILD_ID}/streamer-subs/`;

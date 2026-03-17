@@ -565,6 +565,53 @@ def notify_member_signup_log(username: str, profile_url: str):
         logger.error(f"Failed to queue member signup log: {e}")
 
 
+def queue_lfg_embed_edit_for_group(group_id: int, group_platform: str = 'web',
+                                   pin_state: str | None = None):
+    """
+    Rebuild the full LFG embed from DB and queue an in-place edit to every
+    channel/thread that has a stored message for this group.
+    Call this after any join, leave, or status change.
+    """
+    try:
+        from app.questlog_web.models import WebLFGGroup, WebUser as _WU
+        with get_db_session() as db:
+            if group_platform == 'web':
+                group = db.query(WebLFGGroup).filter_by(id=group_id).first()
+                if not group:
+                    return
+                creator_row = db.query(_WU).filter_by(id=group.creator_id).first()
+                creator_name = (creator_row.display_name or creator_row.username) if creator_row else 'Unknown'
+                lfg_url = f"https://casual-heroes.com/ql/lfg/{group.share_token or group.id}/"
+                is_full = group.status == 'full'
+
+                from app.questlog_web.views_discovery import _parse_role_schema
+                embed_data = build_lfg_embed_data(
+                    creator=creator_name,
+                    game_name=group.game_name,
+                    title=group.title,
+                    description=group.description or '',
+                    group_size=group.group_size,
+                    current_size=group.current_size,
+                    scheduled_time=group.scheduled_time,
+                    lfg_url=lfg_url,
+                    game_image_url=group.game_image_url,
+                    use_roles=group.use_roles or False,
+                    tanks_needed=group.tanks_needed or 0,
+                    healers_needed=group.healers_needed or 0,
+                    dps_needed=group.dps_needed or 0,
+                    support_needed=group.support_needed or 0,
+                    role_schema=_parse_role_schema(group.role_schema),
+                    duration_hours=group.duration_hours,
+                    voice_link=group.voice_link,
+                    group_id=group_id,
+                    group_platform=group_platform,
+                    is_full=is_full,
+                )
+        queue_lfg_embed_edit(group_id, group_platform, embed_data, pin_state=pin_state)
+    except Exception as e:
+        logger.error(f"queue_lfg_embed_edit_for_group failed for group {group_id}: {e}")
+
+
 def notify_new_member(username: str, profile_url: str):
     """Queue an embed when a new user registers on QuestLog."""
     try:

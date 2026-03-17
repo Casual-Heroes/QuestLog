@@ -34,6 +34,123 @@ logger = logging.getLogger(__name__)
 _VOICE_LINK_SCHEMES = ('https://',)
 _VOICE_LINK_MAX = 500
 
+# ── Survival game sub-choices (mirrors lfg_browse.html GAME_TEMPLATES) ───────
+_SURVIVAL_SUB_CHOICES = {
+    'palworld':   [
+        ('Tank/Defender',  'tank'), ('Support/Healer', 'healer'),
+        ('Combat (Melee)', 'dps'),  ('Combat (Ranged)', 'dps'), ('Scout/Explorer', 'dps'),
+        ('Builder', 'support'), ('Gatherer', 'support'), ('Tamer/Breeder', 'support'), ('Crafter', 'support'),
+    ],
+    'enshrouded': [
+        ('Tank', 'tank'), ('Healer', 'healer'),
+        ('Ranger (DPS)', 'dps'), ('Mage (DPS)', 'dps'), ('Fighter (DPS)', 'dps'),
+        ('Builder', 'support'), ('Crafter', 'support'),
+    ],
+    'valheim': [
+        ('Berserker (Tank)', 'tank'), ('Healer/Support', 'healer'),
+        ('Archer (DPS)', 'dps'), ('Warrior (DPS)', 'dps'),
+        ('Builder', 'support'), ('Gatherer', 'support'),
+    ],
+    'rust': [
+        ('Raider', 'tank'), ('Medic/Support', 'healer'),
+        ('Gunner (DPS)', 'dps'), ('Scout', 'dps'),
+        ('Builder', 'support'), ('Farmer/Gatherer', 'support'),
+    ],
+}
+
+_SURVIVAL_GAME_NAMES = {
+    'palworld': ['palworld'], 'enshrouded': ['enshrouded'],
+    'valheim': ['valheim'], 'rust': ['rust'],
+}
+
+def _detect_survival_game_type(game_name):
+    """Return survival game key if game_name matches, else None."""
+    if not game_name:
+        return None
+    nl = game_name.lower()
+    for key, aliases in _SURVIVAL_GAME_NAMES.items():
+        if any(a in nl for a in aliases):
+            return key
+    return None
+
+def _is_survival_schema(role_schema_raw):
+    """Return True if the stored role_schema is the survival variant."""
+    import json as _json
+    if not role_schema_raw:
+        return False
+    try:
+        schema = _json.loads(role_schema_raw)
+    except (ValueError, TypeError):
+        return False
+    if not isinstance(schema, list):
+        return False
+    return any(
+        r.get('slot') == 'tank' and (r.get('label') == 'Combat' or r.get('color') == 'orange')
+        for r in schema
+    )
+
+# ── Role schema helpers ───────────────────────────────────────────────────────
+
+_DEFAULT_ROLE_SCHEMA = [
+    {'slot': 'tank',    'label': 'Tank',    'color': 'blue',   'icon': 'shield-alt'},
+    {'slot': 'healer',  'label': 'Healer',  'color': 'green',  'icon': 'heart'},
+    {'slot': 'dps',     'label': 'DPS',     'color': 'red',    'icon': 'bolt'},
+    {'slot': 'support', 'label': 'Support', 'color': 'yellow', 'icon': 'music'},
+]
+_VALID_SLOTS = {'tank', 'healer', 'dps', 'support'}
+_VALID_COLORS = {'blue', 'green', 'red', 'yellow', 'orange', 'cyan', 'pink', 'purple', 'gray'}
+
+
+def _parse_role_schema(raw_json):
+    """Parse role_schema Text column. Returns list of 4 dicts with slot/label/color/icon.
+    Falls back to default if null, invalid JSON, wrong structure, or bad slot keys."""
+    if not raw_json:
+        return _DEFAULT_ROLE_SCHEMA
+    try:
+        schema = json.loads(raw_json)
+    except (ValueError, TypeError):
+        return _DEFAULT_ROLE_SCHEMA
+    if not isinstance(schema, list) or len(schema) != 4:
+        return _DEFAULT_ROLE_SCHEMA
+    seen_slots = set()
+    result = []
+    for entry in schema:
+        if not isinstance(entry, dict):
+            return _DEFAULT_ROLE_SCHEMA
+        slot = entry.get('slot', '')
+        if slot not in _VALID_SLOTS or slot in seen_slots:
+            return _DEFAULT_ROLE_SCHEMA
+        seen_slots.add(slot)
+        label = str(entry.get('label', slot))[:30]
+        color = str(entry.get('color', 'gray'))[:20]
+        if color not in _VALID_COLORS:
+            color = 'gray'
+        icon = str(entry.get('icon', 'circle'))[:40]
+        result.append({'slot': slot, 'label': label, 'color': color, 'icon': icon})
+    return result
+
+
+def _validate_role_schema(raw):
+    """Validate incoming role_schema from client (list or JSON string).
+    Returns JSON string to store, or None if default/invalid."""
+    if not raw:
+        return None
+    if isinstance(raw, list):
+        raw_json = json.dumps(raw)
+    elif isinstance(raw, str):
+        raw_json = raw
+    else:
+        return None
+    parsed = _parse_role_schema(raw_json)
+    # Store None if it matches the default (keeps DB clean)
+    if all(
+        parsed[i]['slot'] == _DEFAULT_ROLE_SCHEMA[i]['slot'] and
+        parsed[i]['label'] == _DEFAULT_ROLE_SCHEMA[i]['label']
+        for i in range(4)
+    ):
+        return None
+    return json.dumps(parsed)
+
 
 def _validate_voice_link(url):
     """Only allow https:// voice links to prevent javascript: / file: URI injection."""

@@ -1345,6 +1345,22 @@ def api_internal_bridge_pending_deletions(request, platform):
     return JsonResponse({'deletions': deletions})
 
 
+# DISABLED - typing relay not shipped yet
+# @csrf_exempt
+# @require_http_methods(['POST'])
+# def api_internal_bridge_typing(request):
+#     POST /ql/api/internal/bridge/typing/
+#     Called by bots when a user starts typing in a bridged channel.
+#     Returns the target channel IDs so the bot can fire the typing indicator there.
+#     ... full implementation below, re-enable when ready ...
+#
+@csrf_exempt
+@require_http_methods(['POST'])
+def api_internal_bridge_typing(request):
+    """Typing relay - disabled, not shipped yet."""
+    return JsonResponse({'error': 'Not available'}, status=404)
+
+
 @csrf_exempt
 @require_http_methods(['POST'])
 def api_internal_bridge_edit(request):

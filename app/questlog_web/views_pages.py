@@ -3603,6 +3603,133 @@ def api_fluxer_member_lfg_ban(request, guild_id, group_id, member_id):
     return JsonResponse({'success': True})
 
 
+@fluxer_login_required
+@require_http_methods(['POST'])
+def api_fluxer_member_lfg_kick(request, guild_id, group_id, member_id):
+    """POST kick a member (leader or co-leader; co-leader cannot kick the leader)."""
+    guild_id = guild_id.strip()
+    group_id = safe_int(group_id, default=0, min_val=1)
+    member_id = safe_int(member_id, default=0, min_val=1)
+    if not group_id or not member_id:
+        return JsonResponse({'error': 'Invalid group or member'}, status=400)
+
+    now = int(time.time())
+
+    with get_db_session() as db:
+        group = db.query(WebFluxerLfgGroup).filter_by(id=group_id, guild_id=guild_id).first()
+        if not group:
+            return JsonResponse({'error': 'Group not found'}, status=404)
+
+        requester_q = db.query(WebFluxerLfgMember).filter(
+            WebFluxerLfgMember.group_id == group_id,
+            WebFluxerLfgMember.left_at.is_(None),
+        )
+        requester = _lfg_member_filter(requester_q, request).first()
+        if not requester:
+            return JsonResponse({'error': 'You are not in this group'}, status=403)
+        is_leader = bool(requester.is_creator)
+        is_co_leader = (requester.role or '') == 'co_leader'
+        if not is_leader and not is_co_leader:
+            return JsonResponse({'error': 'Only leaders and co-leaders can kick members'}, status=403)
+
+        target = db.query(WebFluxerLfgMember).filter_by(
+            id=member_id, group_id=group_id
+        ).filter(WebFluxerLfgMember.left_at.is_(None)).first()
+        if not target:
+            return JsonResponse({'error': 'Member not found'}, status=404)
+        if _lfg_is_me(target, request):
+            return JsonResponse({'error': 'Cannot kick yourself'}, status=400)
+        if target.is_creator and not is_leader:
+            return JsonResponse({'error': 'Co-leaders cannot kick the group leader'}, status=403)
+
+        target.left_at = now
+        group.current_size = max(0, (group.current_size or 1) - 1)
+        if group.status == 'full':
+            group.status = 'open'
+        db.commit()
+
+    return JsonResponse({'success': True})
+
+
+@fluxer_login_required
+@require_http_methods(['POST'])
+def api_fluxer_member_lfg_ban(request, guild_id, group_id, member_id):
+    """POST ban a member from LFG in this guild (leader only; co-leaders cannot ban)."""
+    guild_id = guild_id.strip()
+    group_id = safe_int(group_id, default=0, min_val=1)
+    member_id = safe_int(member_id, default=0, min_val=1)
+    if not group_id or not member_id:
+        return JsonResponse({'error': 'Invalid group or member'}, status=400)
+
+    now = int(time.time())
+
+    try:
+        data = json.loads(request.body)
+    except (json.JSONDecodeError, AttributeError):
+        data = {}
+    from .helpers import sanitize_text
+    ban_reason = sanitize_text(data.get('reason', '') or '').strip()[:200] or 'Banned from LFG group by group leader'
+
+    with get_db_session() as db:
+        group = db.query(WebFluxerLfgGroup).filter_by(id=group_id, guild_id=guild_id).first()
+        if not group:
+            return JsonResponse({'error': 'Group not found'}, status=404)
+
+        requester_q = db.query(WebFluxerLfgMember).filter(
+            WebFluxerLfgMember.group_id == group_id,
+            WebFluxerLfgMember.left_at.is_(None),
+        )
+        requester = _lfg_member_filter(requester_q, request).first()
+        if not requester or not requester.is_creator:
+            return JsonResponse({'error': 'Only the group leader can ban members'}, status=403)
+
+        target = db.query(WebFluxerLfgMember).filter_by(
+            id=member_id, group_id=group_id
+        ).filter(WebFluxerLfgMember.left_at.is_(None)).first()
+        if not target:
+            return JsonResponse({'error': 'Member not found'}, status=404)
+        if _lfg_is_me(target, request):
+            return JsonResponse({'error': 'Cannot ban yourself'}, status=400)
+
+        # Prefer the target's own fluxer_user_id; fall back to resolving via web_user
+        target_fluxer_id = target.fluxer_user_id or None
+        if not target_fluxer_id and target.web_user_id:
+            from .models import WebUser
+            target_wu = db.query(WebUser).filter_by(id=target.web_user_id).first()
+            if target_wu:
+                target_fluxer_id = target_wu.fluxer_id
+
+        target.left_at = now
+        group.current_size = max(0, (group.current_size or 1) - 1)
+        if group.status == 'full':
+            group.status = 'open'
+
+        if target_fluxer_id:
+            from .models import WebFluxerLfgMemberStats
+            stats = db.query(WebFluxerLfgMemberStats).filter_by(
+                guild_id=guild_id, fluxer_user_id=str(target_fluxer_id)
+            ).first()
+            if stats:
+                stats.is_blacklisted = 1
+                stats.blacklist_reason = ban_reason
+                stats.blacklisted_at = now
+                stats.updated_at = now
+            else:
+                db.add(WebFluxerLfgMemberStats(
+                    guild_id=guild_id,
+                    fluxer_user_id=str(target_fluxer_id),
+                    is_blacklisted=1,
+                    blacklist_reason=ban_reason,
+                    blacklisted_at=now,
+                    updated_at=now,
+                    reliability_score=100,
+                ))
+
+        db.commit()
+
+    return JsonResponse({'success': True})
+
+
 # =============================================================================
 # FLUXER GUILD FLAIR STORE - BUY / EQUIP / UNEQUIP
 # =============================================================================

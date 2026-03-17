@@ -4825,6 +4825,22 @@ def api_fluxer_guild_lfg_groups(request, guild_id):
         if use_roles:
             max_size = (tanks_needed + healers_needed + dps_needed + support_needed) or max_size
 
+        # Role composition
+        use_roles = bool(data.get('use_roles', False))
+        tanks_needed = safe_int(data.get('tanks_needed'), default=0, min_val=0, max_val=50) if use_roles else 0
+        healers_needed = safe_int(data.get('healers_needed'), default=0, min_val=0, max_val=50) if use_roles else 0
+        dps_needed = safe_int(data.get('dps_needed'), default=0, min_val=0, max_val=200) if use_roles else 0
+        support_needed = safe_int(data.get('support_needed'), default=0, min_val=0, max_val=50) if use_roles else 0
+        enforce_role_limits = bool(data.get('enforce_role_limits', True))
+        role_schema_raw = data.get('role_schema')
+        # Survival games: no slot counts - role_schema stores opt-in flag for card display
+        if use_roles and not role_schema_raw and not (tanks_needed or healers_needed or dps_needed or support_needed):
+            role_schema = '{"survival":true}'
+        else:
+            role_schema = json.dumps(role_schema_raw) if role_schema_raw and isinstance(role_schema_raw, list) else None
+        if use_roles:
+            max_size = (tanks_needed + healers_needed + dps_needed + support_needed) or max_size
+
         # Resolve guild name for origin tracking
         guild_settings = db.query(WebFluxerGuildSettings).filter_by(guild_id=guild_id).first()
         guild_display_name = (guild_settings.guild_name if guild_settings and guild_settings.guild_name else None)

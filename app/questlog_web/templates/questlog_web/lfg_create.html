@@ -325,6 +325,77 @@ const GAME_TEMPLATES = {
     { name: 'Server Type', multi: true, maxSelections: 5, choices: ['PvE','PvP','PvE-C','Modded','Official','Private','Hardcore','Community/Social','Roleplay','Boosted Rates','Open Join','Vanilla','No Wipe','Seasonal Wipe'] },
     { name: 'Server Info', freetext: true },
   ],
+  palworld: [
+    { name: 'Role', choices: [
+      {value:'Tank/Defender',   role:'tank'},
+      {value:'Support/Healer',  role:'healer'},
+      {value:'Combat (Melee)',  role:'dps'},
+      {value:'Combat (Ranged)', role:'dps'},
+      {value:'Scout/Explorer',  role:'dps'},
+      {value:'Builder',         role:'support'},
+      {value:'Gatherer',        role:'support'},
+      {value:'Tamer/Breeder',   role:'support'},
+      {value:'Crafter',         role:'support'},
+    ]},
+    { name: 'Activity', multi: true, maxSelections: 3, choices: ['Boss','Dungeon','Base Building','Resource Farming','Breeding','PvP','Raid','Casual Co-op'] },
+    { name: 'Platform', choices: ['PC','Xbox','PlayStation','Cross-platform'] },
+    { name: 'Level Range', choices: ['Early (1-20)','Mid (21-40)','End (41+)'] },
+    { name: 'Experience', choices: ['New/Learning','Casual','Experienced','Hardcore'] },
+    { name: 'Server Type', choices: ['PvE','PvP','PvE-C','Modded','Official','Private'] },
+  ],
+  enshrouded: [
+    { name: 'Role', choices: [
+      {value:'Tank',           role:'tank'},
+      {value:'Healer',         role:'healer'},
+      {value:'Ranger (DPS)',   role:'dps'},
+      {value:'Mage (DPS)',     role:'dps'},
+      {value:'Fighter (DPS)',  role:'dps'},
+      {value:'Builder',        role:'support'},
+      {value:'Crafter',        role:'support'},
+    ]},
+    { name: 'Activity', multi: true, maxSelections: 3, choices: ['Story','Base Building','Dungeon','Boss','Resource Farming','Casual Co-op'] },
+    { name: 'Platform', choices: ['PC','Xbox','PlayStation','Cross-platform'] },
+    { name: 'Level Range', choices: ['Early (1-20)','Mid (21-40)','End (41+)'] },
+    { name: 'Experience', choices: ['New/Learning','Casual','Experienced','Hardcore'] },
+    { name: 'Server Type', choices: ['PvE','PvP','PvE-C','Modded','Official','Private'] },
+  ],
+  vrising: [
+    { name: 'Activity', multi: true, maxSelections: 3, choices: ['Leveling','Castle Building','Boss Hunting','PvP','Farming/Resources','Clan Content','Casual Co-op'] },
+    { name: 'Platform', choices: ['PC','PlayStation','Cross-platform'] },
+    { name: 'Level Range', choices: ['Early (1-20)','Mid (21-40)','End (41+)'] },
+    { name: 'Experience', choices: ['New/Learning','Casual','Experienced','Hardcore'] },
+    { name: 'Server Type', choices: ['PvE','PvP','PvE-C','Modded','Official','Private'] },
+  ],
+  valheim: [
+    { name: 'Role', choices: [
+      {value:'Berserker (Tank)', role:'tank'},
+      {value:'Healer/Support',   role:'healer'},
+      {value:'Archer (DPS)',     role:'dps'},
+      {value:'Warrior (DPS)',    role:'dps'},
+      {value:'Builder',          role:'support'},
+      {value:'Gatherer',         role:'support'},
+    ]},
+    { name: 'Activity', multi: true, maxSelections: 3, choices: ['Boss','Exploration','Base Building','Resource Farming','Casual Co-op'] },
+    { name: 'Platform', choices: ['PC','Xbox','Cross-platform'] },
+    { name: 'Level Range', choices: ['Early (1-20)','Mid (21-40)','End (41+)'] },
+    { name: 'Experience', choices: ['New/Learning','Casual','Experienced','Hardcore'] },
+    { name: 'Server Type', choices: ['PvE','PvP','Modded','Official','Private'] },
+  ],
+  rust: [
+    { name: 'Role', choices: [
+      {value:'Raider',           role:'tank'},
+      {value:'Medic/Support',    role:'healer'},
+      {value:'Gunner (DPS)',     role:'dps'},
+      {value:'Scout',            role:'dps'},
+      {value:'Builder',          role:'support'},
+      {value:'Farmer/Gatherer',  role:'support'},
+    ]},
+    { name: 'Activity', multi: true, maxSelections: 3, choices: ['Raiding','Base Building','PvP','Farming','Casual Co-op'] },
+    { name: 'Platform', choices: ['PC','Xbox','PlayStation','Cross-platform'] },
+    { name: 'Level Range', choices: ['Early (1-20)','Mid (21-40)','End (41+)'] },
+    { name: 'Experience', choices: ['New/Learning','Casual','Experienced','Hardcore'] },
+    { name: 'Server Type', choices: ['PvE','PvP','Modded','Official','Private'] },
+  ],
 };
 
 // Generic activities for most games (ARPGs, Souls-likes, etc.)
@@ -1063,7 +1134,7 @@ function updateGameSpecificOptions(gameName) {
     if (!choices.length) { wrapper.classList.add('hidden'); return; }
     wrapper.classList.remove('hidden');
 
-    const containerId = `opt_cs_container_${field.name}`;
+    const containerId = `opt_cs_container_${_fieldId(field.name)}`;
     wrapper.innerHTML = `<div id="${containerId}"></div>`;
     const items = [
       { value: '', label: `Select ${field.name.toLowerCase()}...` },
