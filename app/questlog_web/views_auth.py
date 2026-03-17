@@ -960,7 +960,8 @@ def discord_link_callback(request):
         with get_db_session() as db2:
             now = int(time.time())
 
-            # Find all opted-in guilds where this Discord user has XP
+            # Find the opted-in guild for this user's PRIMARY community only
+            # (unified XP only applies to the community the user has set as primary)
             guild_rows = db2.execute(sa_text(
                 "SELECT gm.guild_id, gm.xp, gm.hero_tokens, gm.message_count, "
                 "       gm.voice_minutes, gm.reaction_count, gm.media_count, gm.last_active "
@@ -968,8 +969,9 @@ def discord_link_callback(request):
                 "JOIN web_communities wc ON wc.platform='discord' "
                 "    AND CAST(wc.platform_id AS UNSIGNED) = gm.guild_id "
                 "    AND wc.site_xp_to_guild=1 AND wc.network_status='approved' AND wc.is_active=1 "
+                "JOIN web_users wu ON wu.id = :wuid AND wu.primary_community_id = wc.id "
                 "WHERE gm.user_id = :did AND gm.xp > 0"
-            ), {"did": int(discord_id)}).fetchall()
+            ), {"did": int(discord_id), "wuid": web_user_id}).fetchall()
 
             if guild_rows:
                 # Take the highest XP across all guilds as the unified value

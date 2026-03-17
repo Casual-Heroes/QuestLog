@@ -65,39 +65,59 @@
     <div>
       <p class="px-3 mb-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider fl-sidebar-label">Member Features</p>
       <div class="space-y-0.5">
+        <a href="/ql/dashboard/fluxer/{{ guild_id }}/featured-creators/"
+           class="fl-nav-item {% if active_section == 'featured_creators' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          <i class="fas fa-star text-gray-400 group-hover:text-yellow-400 w-4 text-center"></i>
+          <span class="fl-sidebar-label">Featured Creators</span>
+        </a>
         <a href="/ql/dashboard/fluxer/{{ guild_id }}/lfg/browse/"
            class="fl-nav-item {% if active_section == 'lfg_browse' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
           <i class="fas fa-users text-gray-400 group-hover:text-green-400 w-4 text-center"></i>
           <span class="fl-sidebar-label">Find Groups</span>
         </a>
-        <a href="/ql/fluxer/{{ guild_id }}/games/"
-           class="fl-nav-item {% if active_section == 'games' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
-          <i class="fas fa-gamepad text-gray-400 group-hover:text-green-400 w-4 text-center"></i>
-          <span class="fl-sidebar-label">Found Games</span>
-        </a>
         <a href="/ql/fluxer/{{ guild_id }}/flairs/"
-           class="fl-nav-item {% if active_section == 'member_flairs' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+           class="fl-nav-item {% if active_section == 'flair' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
           <i class="fas fa-palette text-gray-400 group-hover:text-pink-400 w-4 text-center"></i>
           <span class="fl-sidebar-label">Flair Store</span>
         </a>
-        <a href="/ql/fluxer/{{ guild_id }}/raffles/"
-           class="fl-nav-item {% if active_section == 'member_raffles' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
-          <i class="fas fa-ticket-alt text-gray-400 group-hover:text-yellow-400 w-4 text-center"></i>
-          <span class="fl-sidebar-label">Giveaways</span>
+        <a href="/ql/fluxer/{{ guild_id }}/lfg/calendar/"
+           class="fl-nav-item {% if active_section == 'lfg_calendar' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          <i class="fas fa-calendar-alt text-gray-400 group-hover:text-purple-400 w-4 text-center"></i>
+          <span class="fl-sidebar-label">LFG Calendar</span>
         </a>
-        <a href="/ql/fluxer/{{ guild_id }}/rss/"
-           class="fl-nav-item {% if active_section == 'member_rss' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
-          <i class="fas fa-newspaper text-gray-400 group-hover:text-orange-400 w-4 text-center"></i>
-          <span class="fl-sidebar-label">RSS Articles</span>
+        <a href="/ql/dashboard/fluxer/{{ guild_id }}/found-games/"
+           class="fl-nav-item {% if active_section == 'found_games' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          <i class="fas fa-gamepad text-gray-400 group-hover:text-green-400 w-4 text-center"></i>
+          <span class="fl-sidebar-label">Found Games</span>
+        </a>
+        <a href="/ql/dashboard/fluxer/{{ guild_id }}/leaderboards/"
+           class="fl-nav-item {% if active_section == 'leaderboards' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          <i class="fas fa-trophy text-gray-400 group-hover:text-yellow-400 w-4 text-center"></i>
+          <span class="fl-sidebar-label">Leaderboards</span>
         </a>
         {% if is_network_approved %}
-        <a href="/ql/network/"
+        <a href="/ql/network/" target="_blank" rel="noopener"
            class="fl-nav-item flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
           <i class="fas fa-globe text-gray-400 group-hover:text-indigo-400 w-4 text-center"></i>
           <span class="fl-sidebar-label flex-1">QuestLog Network</span>
           <i class="fas fa-external-link-alt text-gray-600 text-xs fl-sidebar-label"></i>
         </a>
         {% endif %}
+        <a href="/ql/dashboard/fluxer/{{ guild_id }}/raffles/"
+           class="fl-nav-item {% if active_section == 'guild_raffles' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          <i class="fas fa-ticket-alt text-gray-400 group-hover:text-yellow-400 w-4 text-center"></i>
+          <span class="fl-sidebar-label">Raffles</span>
+        </a>
+        <a href="/ql/dashboard/fluxer/{{ guild_id }}/rss-articles/"
+           class="fl-nav-item {% if active_section == 'rss_articles' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          <i class="fas fa-newspaper text-gray-400 group-hover:text-orange-400 w-4 text-center"></i>
+          <span class="fl-sidebar-label">RSS Articles</span>
+        </a>
+        <a href="/ql/dashboard/fluxer/{{ guild_id }}/profile/"
+           class="fl-nav-item {% if active_section == 'profile' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          <i class="fas fa-user text-gray-400 group-hover:text-blue-400 w-4 text-center"></i>
+          <span class="fl-sidebar-label">Your Profile</span>
+        </a>
       </div>
     </div>
 
@@ -115,16 +135,19 @@
           </button>
           <div id="xp-submenu" class="hidden pl-6 space-y-0.5 mt-0.5">
             <a href="/ql/dashboard/fluxer/{{ guild_id }}/xp/#settings"
-               class="fl-nav-item {% if active_section == 'xp' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+               onclick="if(typeof switchXpTab==='function'){event.preventDefault();switchXpTab('settings',true);}"
+               class="fl-nav-item flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
               <i class="fas fa-cog text-gray-500 group-hover:text-yellow-400 w-3 text-center"></i>
               <span class="fl-sidebar-label">XP Settings</span>
             </a>
             <a href="/ql/dashboard/fluxer/{{ guild_id }}/xp/#levelup"
+               onclick="if(typeof switchXpTab==='function'){event.preventDefault();switchXpTab('levelup',true);}"
                class="fl-nav-item flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
               <i class="fas fa-comment text-gray-500 group-hover:text-blue-400 w-3 text-center"></i>
               <span class="fl-sidebar-label">Level-Up Messages</span>
             </a>
             <a href="/ql/dashboard/fluxer/{{ guild_id }}/xp/#boosts"
+               onclick="if(typeof switchXpTab==='function'){event.preventDefault();switchXpTab('boosts',true);}"
                class="fl-nav-item flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
               <i class="fas fa-bolt text-gray-500 group-hover:text-orange-400 w-3 text-center"></i>
               <span class="fl-sidebar-label">XP Boost Events</span>
@@ -176,27 +199,20 @@
               <i class="fas fa-gamepad text-gray-500 group-hover:text-orange-400 w-3 text-center"></i>
               <span class="fl-sidebar-label">Game Settings</span>
             </a>
-            <a href="/ql/dashboard/fluxer/{{ guild_id }}/discovery/?tab=network"
-               class="fl-nav-item {% if active_section == 'discovery' and active_tab == 'network' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
-              <i class="fas fa-globe text-gray-500 group-hover:text-indigo-400 w-3 text-center"></i>
-              <span class="fl-sidebar-label">QuestLog Network</span>
-            </a>
             <a href="/ql/dashboard/fluxer/{{ guild_id }}/discovery/?tab=rss"
                class="fl-nav-item {% if active_section == 'discovery' and active_tab == 'rss' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
               <i class="fas fa-rss text-gray-500 group-hover:text-orange-400 w-3 text-center"></i>
               <span class="fl-sidebar-label">RSS Feeds</span>
             </a>
             <a href="/ql/dashboard/fluxer/{{ guild_id }}/discovery/?tab=twitch"
-               class="fl-nav-item fl-nav-soon flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+               class="fl-nav-item flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
               <i class="fab fa-twitch text-gray-500 group-hover:text-purple-400 w-3 text-center"></i>
-              <span class="fl-sidebar-label flex-1">Twitch</span>
-              <span class="fl-soon-badge fl-sidebar-label">Soon</span>
+              <span class="fl-sidebar-label">Twitch</span>
             </a>
             <a href="/ql/dashboard/fluxer/{{ guild_id }}/discovery/?tab=youtube"
-               class="fl-nav-item fl-nav-soon flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+               class="fl-nav-item flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
               <i class="fab fa-youtube text-gray-500 group-hover:text-red-400 w-3 text-center"></i>
-              <span class="fl-sidebar-label flex-1">YouTube</span>
-              <span class="fl-soon-badge fl-sidebar-label">Soon</span>
+              <span class="fl-sidebar-label">YouTube</span>
             </a>
           </div>
         </div>
@@ -329,6 +345,11 @@
 
   <!-- Footer -->
   <div class="p-3 border-t border-neutral-800 space-y-1">
+    <a href="https://ko-fi.com/casualheroes" target="_blank" rel="noopener"
+       class="fl-sidebar-label flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-neutral-800 transition text-xs text-gray-500 hover:text-orange-400 group">
+      <i class="fas fa-heart text-orange-500/60 group-hover:text-orange-400 w-4 text-center text-xs"></i>
+      <span>Like the bot? Support us</span>
+    </a>
     <a href="/ql/dashboard/fluxer/"
        class="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-neutral-800 transition text-sm text-gray-400 hover:text-white">
       <i class="fas fa-th-large text-xs w-4 text-center"></i>

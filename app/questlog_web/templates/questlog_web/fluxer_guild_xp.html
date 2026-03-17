@@ -1613,6 +1613,13 @@ function switchXpTab(tab, setHash = false) {
     }
   });
   if (setHash) window.location.hash = tab === 'settings' ? '' : `#${tab}`;
+  // Sync sidebar sub-link highlighting
+  const hashMap = { settings: '#settings', levelup: '#levelup', boosts: '#boosts' };
+  document.querySelectorAll('#xp-submenu a.fl-nav-item').forEach(function(a) {
+    const href = a.getAttribute('href') || '';
+    const isActive = href.endsWith(hashMap[tab]);
+    a.classList.toggle('active', isActive);
+  });
 }
 
 function toggleXpActions(forceClose = false) {

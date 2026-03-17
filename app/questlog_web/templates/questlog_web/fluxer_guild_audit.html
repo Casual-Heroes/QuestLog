@@ -18,7 +18,7 @@
       <button onclick="openAuditSettings()" class="bg-neutral-800 hover:bg-neutral-700 text-white px-4 py-2 rounded-lg font-medium transition text-sm">
         <i class="fas fa-sliders-h mr-2"></i>Settings
       </button>
-      <button onclick="window.location.reload()" class="bg-neutral-800 hover:bg-neutral-700 text-white px-4 py-2 rounded-lg font-medium transition text-sm">
+      <button onclick="loadLogs()" class="bg-neutral-800 hover:bg-neutral-700 text-white px-4 py-2 rounded-lg font-medium transition text-sm">
         <i class="fas fa-sync-alt mr-2"></i>Refresh
       </button>
     </div>
@@ -26,12 +26,6 @@
 
   <!-- Save status -->
   <div id="save-msg" class="hidden mb-4 px-4 py-3 rounded-lg text-sm font-medium"></div>
-
-  <!-- Pending notice -->
-  <div class="bg-yellow-900/20 border border-yellow-700/40 rounded-xl px-4 py-3 mb-6 flex items-start gap-3">
-    <i class="fas fa-info-circle text-yellow-400 mt-0.5 flex-shrink-0"></i>
-    <p class="text-yellow-300 text-sm">Audit log event collection requires bot support. Configure your log channel here - events will populate once the Fluxer bot implements this module.</p>
-  </div>
 
   <!-- Audit Event Settings Modal -->
   <div id="auditSettingsModal" class="fixed inset-0 bg-black/70 hidden items-center justify-center z-50 px-3 py-6">
@@ -91,7 +85,7 @@
         <h3 class="text-lg font-bold text-white">
           <i class="fas fa-hashtag text-cyan-400 mr-2"></i>Audit Log Channel
         </h3>
-        <p class="text-gray-400 text-sm mt-1">Choose where audit log messages will be sent in Discord</p>
+        <p class="text-gray-400 text-sm mt-1">Choose where audit log messages will be sent</p>
         <div class="mt-3 flex items-center gap-3">
           <label class="relative inline-flex items-center cursor-pointer">
             <input type="checkbox" id="audit-enabled" class="sr-only peer">
@@ -117,19 +111,19 @@
   <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
     <div class="bg-neutral-900 rounded-xl p-4 border border-neutral-800">
       <p class="text-gray-400 text-sm">Total Events</p>
-      <p class="text-2xl font-bold text-white mt-1">-</p>
+      <p class="text-2xl font-bold text-white mt-1" id="stat-total">-</p>
     </div>
     <div class="bg-neutral-900 rounded-xl p-4 border border-neutral-800">
       <p class="text-gray-400 text-sm">Time Range</p>
-      <p class="text-2xl font-bold text-cyan-400 mt-1">- days</p>
+      <p class="text-2xl font-bold text-cyan-400 mt-1" id="stat-range">7 days</p>
     </div>
     <div class="bg-neutral-900 rounded-xl p-4 border border-neutral-800">
       <p class="text-gray-400 text-sm">Showing</p>
-      <p class="text-2xl font-bold text-green-400 mt-1">0</p>
+      <p class="text-2xl font-bold text-green-400 mt-1" id="stat-showing">0</p>
     </div>
     <div class="bg-neutral-900 rounded-xl p-4 border border-neutral-800">
       <p class="text-gray-400 text-sm">Filters Active</p>
-      <p class="text-2xl font-bold text-yellow-400 mt-1">0</p>
+      <p class="text-2xl font-bold text-yellow-400 mt-1" id="stat-filters">0</p>
     </div>
   </div>
 
@@ -139,77 +133,30 @@
       <i class="fas fa-filter text-gray-400 mr-2"></i>Filters
     </h3>
     <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-      <!-- Action Type -->
       <div>
         <label class="block text-sm text-gray-400 mb-2">Action Type</label>
-        <select class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white focus:border-cyan-500 focus:outline-none" disabled>
-          <option value="">All Actions</option>
-          <optgroup label="Members">
-            <option value="member_join">Member Join</option>
-            <option value="member_leave">Member Leave</option>
-            <option value="member_ban">Member Ban</option>
-            <option value="member_unban">Member Unban</option>
-            <option value="member_kick">Member Kick</option>
-            <option value="member_timeout">Member Timeout</option>
-          </optgroup>
-          <optgroup label="Roles">
-            <option value="role_add">Role Add</option>
-            <option value="role_remove">Role Remove</option>
-            <option value="role_create">Role Create</option>
-            <option value="role_delete">Role Delete</option>
-          </optgroup>
-          <optgroup label="Channels">
-            <option value="channel_create">Channel Create</option>
-            <option value="channel_delete">Channel Delete</option>
-            <option value="channel_update">Channel Update</option>
-          </optgroup>
-          <optgroup label="Messages">
-            <option value="message_delete">Message Delete</option>
-            <option value="message_bulk_delete">Bulk Delete</option>
-          </optgroup>
-          <optgroup label="Security">
-            <option value="raid_detected">Raid Detected</option>
-            <option value="lockdown_activated">Lockdown On</option>
-            <option value="lockdown_deactivated">Lockdown Off</option>
-          </optgroup>
-          <optgroup label="Verification">
-            <option value="verification_passed">Verified</option>
-            <option value="verification_failed">Verification Failed</option>
-          </optgroup>
-        </select>
+        <div id="cs-action-type"></div>
       </div>
-
-      <!-- Time Range -->
       <div>
         <label class="block text-sm text-gray-400 mb-2">Time Range</label>
-        <select class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white focus:border-cyan-500 focus:outline-none" disabled>
-          <option value="1">Last 24 hours</option>
-          <option value="3">Last 3 days</option>
-          <option value="7" selected>Last 7 days</option>
-          <option value="14">Last 14 days</option>
-          <option value="30">Last 30 days</option>
-          <option value="90">Last 90 days</option>
-        </select>
+        <div id="cs-time-range"></div>
       </div>
-
-      <!-- Actor ID -->
       <div>
         <label class="block text-sm text-gray-400 mb-2">Actor (User ID)</label>
-        <input type="text" placeholder="Enter User ID" disabled
-               class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white focus:border-cyan-500 focus:outline-none opacity-50">
+        <input type="text" id="filter-actor" placeholder="Enter User ID"
+               class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white focus:border-cyan-500 focus:outline-none text-sm">
       </div>
-
-      <!-- Target ID -->
       <div>
         <label class="block text-sm text-gray-400 mb-2">Target (User ID)</label>
-        <input type="text" placeholder="Enter User ID" disabled
-               class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white focus:border-cyan-500 focus:outline-none opacity-50">
+        <input type="text" id="filter-target" placeholder="Enter User ID"
+               class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white focus:border-cyan-500 focus:outline-none text-sm">
       </div>
-
-      <!-- Buttons -->
       <div class="md:col-span-4 flex gap-3">
-        <button class="bg-neutral-700 text-gray-400 px-6 py-2 rounded-lg font-medium cursor-not-allowed text-sm" disabled>
+        <button onclick="applyFilters()" class="bg-cyan-600 hover:bg-cyan-700 text-white px-6 py-2 rounded-lg font-medium text-sm transition">
           <i class="fas fa-search mr-2"></i>Apply Filters
+        </button>
+        <button onclick="clearFilters()" class="bg-neutral-700 hover:bg-neutral-600 text-gray-300 px-4 py-2 rounded-lg font-medium text-sm transition">
+          Clear
         </button>
       </div>
     </div>
@@ -228,107 +175,121 @@
             <th class="text-left text-gray-400 font-medium text-sm px-6 py-4">Details</th>
           </tr>
         </thead>
-        <tbody class="divide-y divide-neutral-800">
+        <tbody id="audit-tbody" class="divide-y divide-neutral-800">
           <tr>
             <td colspan="5" class="px-6 py-12 text-center">
               <div class="flex flex-col items-center gap-3">
                 <div class="w-16 h-16 bg-neutral-800 rounded-full flex items-center justify-center">
-                  <i class="fas fa-clipboard-list text-gray-600 text-2xl"></i>
+                  <i class="fas fa-spinner fa-spin text-gray-600 text-2xl"></i>
                 </div>
-                <p class="text-gray-400">No audit logs found</p>
-                <p class="text-gray-500 text-sm">Events will appear here once the Fluxer audit module is active.</p>
+                <p class="text-gray-400">Loading audit logs...</p>
               </div>
             </td>
           </tr>
         </tbody>
       </table>
     </div>
+    <!-- Pagination -->
+    <div id="audit-pagination" class="hidden flex items-center justify-between px-6 py-4 border-t border-neutral-800">
+      <span class="text-gray-500 text-sm" id="pagination-info"></span>
+      <div class="flex gap-2">
+        <button id="btn-prev" onclick="changePage(-1)" class="bg-neutral-800 hover:bg-neutral-700 text-white px-3 py-1.5 rounded text-sm transition disabled:opacity-40" disabled>
+          <i class="fas fa-chevron-left"></i> Prev
+        </button>
+        <button id="btn-next" onclick="changePage(1)" class="bg-neutral-800 hover:bg-neutral-700 text-white px-3 py-1.5 rounded text-sm transition disabled:opacity-40" disabled>
+          Next <i class="fas fa-chevron-right"></i>
+        </button>
+      </div>
+    </div>
   </div>
 
   <!-- Legend -->
   <div class="mt-6 flex flex-wrap gap-6 text-sm text-gray-400">
-    <span class="flex items-center gap-2">
-      <span class="w-2 h-2 bg-blue-400 rounded-full"></span> Members
-    </span>
-    <span class="flex items-center gap-2">
-      <span class="w-2 h-2 bg-yellow-400 rounded-full"></span> Roles
-    </span>
-    <span class="flex items-center gap-2">
-      <span class="w-2 h-2 bg-purple-400 rounded-full"></span> Channels
-    </span>
-    <span class="flex items-center gap-2">
-      <span class="w-2 h-2 bg-gray-400 rounded-full"></span> Messages
-    </span>
-    <span class="flex items-center gap-2">
-      <span class="w-2 h-2 bg-red-400 rounded-full"></span> Security
-    </span>
-    <span class="flex items-center gap-2">
-      <span class="w-2 h-2 bg-green-400 rounded-full"></span> Verification
-    </span>
+    <span class="flex items-center gap-2"><span class="w-2 h-2 bg-blue-400 rounded-full"></span> Members</span>
+    <span class="flex items-center gap-2"><span class="w-2 h-2 bg-yellow-400 rounded-full"></span> Roles</span>
+    <span class="flex items-center gap-2"><span class="w-2 h-2 bg-purple-400 rounded-full"></span> Channels</span>
+    <span class="flex items-center gap-2"><span class="w-2 h-2 bg-gray-400 rounded-full"></span> Messages</span>
+    <span class="flex items-center gap-2"><span class="w-2 h-2 bg-red-400 rounded-full"></span> Security</span>
+    <span class="flex items-center gap-2"><span class="w-2 h-2 bg-green-400 rounded-full"></span> Verification</span>
   </div>
 
 <script>
 const GUILD_ID = '{{ guild_id }}';
 const SETTINGS = JSON.parse('{{ settings_json|escapejs }}');
 const CHANNELS = JSON.parse('{{ channels_json|escapejs }}');
-const API_URL = '/ql/api/dashboard/fluxer/' + GUILD_ID + '/settings/';
+const SETTINGS_API = '/ql/api/dashboard/fluxer/' + GUILD_ID + '/settings/';
+const AUDIT_API = '/ql/api/dashboard/fluxer/' + GUILD_ID + '/audit-logs/';
 
-const channelsWithBlank = [{value: '', label: '-- None --'}, ...CHANNELS];
+const ACTION_TYPE_OPTIONS = [
+  {value: '', label: 'All Actions'},
+  {value: 'member_join', label: 'Member Join'},
+  {value: 'member_leave', label: 'Member Leave'},
+  {value: 'member_ban', label: 'Member Ban'},
+  {value: 'member_unban', label: 'Member Unban'},
+  {value: 'member_kick', label: 'Member Kick'},
+  {value: 'member_timeout', label: 'Member Timeout'},
+  {value: 'role_add', label: 'Role Add'},
+  {value: 'role_remove', label: 'Role Remove'},
+  {value: 'role_create', label: 'Role Create'},
+  {value: 'role_delete', label: 'Role Delete'},
+  {value: 'channel_create', label: 'Channel Create'},
+  {value: 'channel_delete', label: 'Channel Delete'},
+  {value: 'channel_update', label: 'Channel Update'},
+  {value: 'message_delete', label: 'Message Delete'},
+  {value: 'message_bulk_delete', label: 'Bulk Delete'},
+  {value: 'raid_detected', label: 'Raid Detected'},
+  {value: 'lockdown_activated', label: 'Lockdown On'},
+  {value: 'lockdown_deactivated', label: 'Lockdown Off'},
+  {value: 'verification_passed', label: 'Verified'},
+  {value: 'verification_failed', label: 'Verification Failed'},
+];
 
-const csAuditChannel = createCustomSelect({
-  container: document.getElementById('cs-audit-channel'),
-  name: 'audit_log_channel_id',
-  items: channelsWithBlank,
-  selected: SETTINGS.audit_log_channel_id || '',
-  placeholder: 'Select a channel...',
-});
+const TIME_RANGE_OPTIONS = [
+  {value: '1', label: 'Last 24 hours'},
+  {value: '3', label: 'Last 3 days'},
+  {value: '7', label: 'Last 7 days'},
+  {value: '14', label: 'Last 14 days'},
+  {value: '30', label: 'Last 30 days'},
+  {value: '90', label: 'Last 90 days'},
+];
 
-document.getElementById('audit-enabled').checked = !!SETTINGS.audit_log_enabled;
+const CATEGORY_COLORS = {
+  member_join: 'blue', member_leave: 'blue', member_ban: 'red', member_unban: 'green',
+  member_kick: 'red', member_timeout: 'orange',
+  role_add: 'yellow', role_remove: 'yellow', role_create: 'yellow', role_delete: 'yellow',
+  channel_create: 'purple', channel_delete: 'purple', channel_update: 'purple',
+  message_delete: 'gray', message_bulk_delete: 'gray',
+  raid_detected: 'red', lockdown_activated: 'red', lockdown_deactivated: 'green',
+  verification_passed: 'green', verification_failed: 'red',
+};
 
-async function saveAudit() {
-  const btn = document.getElementById('saveAuditBtn');
-  const msg = document.getElementById('save-msg');
-  btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Saving...';
-  btn.disabled = true;
+const ACTION_LABELS = {
+  member_join: 'Member Join', member_leave: 'Member Leave', member_ban: 'Member Ban',
+  member_unban: 'Member Unban', member_kick: 'Member Kick', member_timeout: 'Member Timeout',
+  role_add: 'Role Add', role_remove: 'Role Remove', role_create: 'Role Create',
+  role_delete: 'Role Delete', channel_create: 'Channel Create', channel_delete: 'Channel Delete',
+  channel_update: 'Channel Update', permission_update: 'Permission Update',
+  message_delete: 'Message Delete', message_bulk_delete: 'Bulk Delete',
+  raid_detected: 'Raid Detected', lockdown_activated: 'Lockdown On',
+  lockdown_deactivated: 'Lockdown Off', verification_passed: 'Verified',
+  verification_failed: 'Verification Failed',
+};
 
-  const payload = {
-    audit_log_channel_id: csAuditChannel.getValue() || '',
-    audit_log_enabled: document.getElementById('audit-enabled').checked,
-    audit_event_config: auditEventConfig,
-  };
-  try {
-    const resp = await csrfFetch(API_URL, {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify(payload),
-    });
-    const data = await resp.json();
-    if (resp.ok && data.success) {
-      msg.textContent = 'Audit log settings saved.';
-      msg.className = 'mb-4 px-4 py-3 rounded-lg text-sm font-medium bg-green-900/40 text-green-400 border border-green-700/40';
-      btn.innerHTML = '<i class="fas fa-check mr-2"></i>Saved!';
-    } else {
-      msg.textContent = data.error || 'Save failed.';
-      msg.className = 'mb-4 px-4 py-3 rounded-lg text-sm font-medium bg-red-900/40 text-red-400 border border-red-700/40';
-      btn.innerHTML = '<i class="fas fa-save mr-2"></i>Save Channel';
-      btn.disabled = false;
-    }
-    msg.classList.remove('hidden');
-    setTimeout(() => {
-      msg.classList.add('hidden');
-      btn.innerHTML = '<i class="fas fa-save mr-2"></i>Save Channel';
-      btn.disabled = false;
-    }, 4000);
-  } catch (e) {
-    msg.textContent = 'Network error.';
-    msg.className = 'mb-4 px-4 py-3 rounded-lg text-sm font-medium bg-red-900/40 text-red-400 border border-red-700/40';
-    msg.classList.remove('hidden');
-    btn.innerHTML = '<i class="fas fa-save mr-2"></i>Save Channel';
-    btn.disabled = false;
-  }
-}
+const COLOR_CLASSES = {
+  blue: 'bg-blue-500/20 text-blue-300 border-blue-700/30',
+  red: 'bg-red-500/20 text-red-300 border-red-700/30',
+  green: 'bg-green-500/20 text-green-300 border-green-700/30',
+  yellow: 'bg-yellow-500/20 text-yellow-300 border-yellow-700/30',
+  purple: 'bg-purple-500/20 text-purple-300 border-purple-700/30',
+  gray: 'bg-neutral-700/50 text-gray-300 border-neutral-600/30',
+  orange: 'bg-orange-500/20 text-orange-300 border-orange-700/30',
+};
 
-// Audit Event Settings
+let csAuditChannel, csActionType, csTimeRange;
+let currentPage = 1;
+let totalPages = 1;
+let auditEventConfig = {};
+
 const AUDIT_EVENT_DEFS = {
   moderation: [
     { key: 'member_ban', label: 'Member banned' },
@@ -367,21 +328,205 @@ const AUDIT_EVENT_DEFS = {
 
 function buildDefaultEventConfig() {
   const cfg = {};
-  Object.values(AUDIT_EVENT_DEFS).forEach(arr => {
-    arr.forEach(item => cfg[item.key] = true);
-  });
+  Object.values(AUDIT_EVENT_DEFS).forEach(arr => arr.forEach(item => cfg[item.key] = true));
   return cfg;
 }
 
-let auditEventConfig = buildDefaultEventConfig();
+document.addEventListener('DOMContentLoaded', function() {
+  // Load saved event config
+  auditEventConfig = buildDefaultEventConfig();
+  try {
+    const saved = SETTINGS.audit_event_config;
+    if (saved && typeof saved === 'object') {
+      auditEventConfig = Object.assign(buildDefaultEventConfig(), saved);
+    }
+  } catch (e) {}
 
-// Load saved event config from SETTINGS if present
-try {
-  const saved = SETTINGS.audit_event_config;
-  if (saved && typeof saved === 'object') {
-    auditEventConfig = Object.assign(buildDefaultEventConfig(), saved);
+  // Channel select
+  const channelsWithBlank = [{value: '', label: '-- None --'}, ...CHANNELS];
+  csAuditChannel = createCustomSelect({
+    container: document.getElementById('cs-audit-channel'),
+    name: 'audit_log_channel_id',
+    items: channelsWithBlank,
+    selected: SETTINGS.audit_log_channel_id || '',
+    placeholder: 'Select a channel...',
+  });
+
+  document.getElementById('audit-enabled').checked = !!SETTINGS.audit_log_enabled;
+
+  // Filter selects
+  csActionType = createCustomSelect({
+    container: document.getElementById('cs-action-type'),
+    name: 'action_type',
+    items: ACTION_TYPE_OPTIONS,
+    selected: '',
+    placeholder: 'All Actions',
+  });
+
+  csTimeRange = createCustomSelect({
+    container: document.getElementById('cs-time-range'),
+    name: 'time_range',
+    items: TIME_RANGE_OPTIONS,
+    selected: '7',
+    placeholder: 'Last 7 days',
+  });
+
+  loadLogs();
+});
+
+async function loadLogs() {
+  const action = csActionType ? csActionType.getValue() : '';
+  const days = csTimeRange ? csTimeRange.getValue() : '7';
+  const actor = document.getElementById('filter-actor').value.trim();
+  const target = document.getElementById('filter-target').value.trim();
+
+  const params = new URLSearchParams({ page: currentPage, days: days || 7 });
+  if (action) params.set('action', action);
+  if (actor) params.set('actor_id', actor);
+  if (target) params.set('target_id', target);
+
+  document.getElementById('stat-range').textContent = (days || 7) + ' days';
+
+  // Count active filters
+  let filterCount = 0;
+  if (action) filterCount++;
+  if (actor) filterCount++;
+  if (target) filterCount++;
+  document.getElementById('stat-filters').textContent = filterCount;
+
+  const tbody = document.getElementById('audit-tbody');
+  tbody.innerHTML = `<tr><td colspan="5" class="px-6 py-12 text-center">
+    <div class="flex flex-col items-center gap-3">
+      <div class="w-16 h-16 bg-neutral-800 rounded-full flex items-center justify-center">
+        <i class="fas fa-spinner fa-spin text-gray-600 text-2xl"></i>
+      </div>
+      <p class="text-gray-400">Loading...</p>
+    </div></td></tr>`;
+
+  try {
+    const resp = await csrfFetch(AUDIT_API + '?' + params.toString());
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || 'Failed to load');
+
+    renderLogs(data.logs || []);
+    totalPages = data.total_pages || 1;
+    const total = data.total || 0;
+    document.getElementById('stat-total').textContent = total;
+    document.getElementById('stat-showing').textContent = (data.logs || []).length;
+    updatePagination(data.page || 1, totalPages, total);
+  } catch (e) {
+    tbody.innerHTML = `<tr><td colspan="5" class="px-6 py-12 text-center">
+      <p class="text-red-400">Failed to load audit logs: ${escapeHtml(e.message)}</p>
+    </td></tr>`;
   }
-} catch (e) {}
+}
+
+function renderLogs(logs) {
+  const tbody = document.getElementById('audit-tbody');
+  if (!logs.length) {
+    tbody.innerHTML = `<tr><td colspan="5" class="px-6 py-12 text-center">
+      <div class="flex flex-col items-center gap-3">
+        <div class="w-16 h-16 bg-neutral-800 rounded-full flex items-center justify-center">
+          <i class="fas fa-clipboard-list text-gray-600 text-2xl"></i>
+        </div>
+        <p class="text-gray-400">No audit logs found</p>
+        <p class="text-gray-500 text-sm">Try adjusting your filters or time range.</p>
+      </div></td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = logs.map(log => {
+    const color = CATEGORY_COLORS[log.action] || 'gray';
+    const colorClass = COLOR_CLASSES[color] || COLOR_CLASSES.gray;
+    const label = ACTION_LABELS[log.action] || log.action;
+    const ts = log.created_at ? `<span title="${escapeHtml(new Date(log.created_at * 1000).toLocaleString())}" class="text-gray-300 text-sm">${timeAgo(log.created_at)}</span>` : '-';
+    const actor = log.actor_name ? `<span class="text-gray-200 text-sm font-medium">${escapeHtml(log.actor_name)}</span><br><span class="text-gray-500 text-xs font-mono">${escapeHtml(log.actor_id || '')}</span>` : `<span class="text-gray-500 text-sm">-</span>`;
+    const target = log.target_name ? `<span class="text-gray-200 text-sm font-medium">${escapeHtml(log.target_name)}</span><br><span class="text-gray-500 text-xs font-mono">${escapeHtml(log.target_id || '')}</span>` : (log.target_id ? `<span class="text-gray-500 text-xs font-mono">${escapeHtml(log.target_id)}</span>` : '<span class="text-gray-500 text-sm">-</span>');
+    const details = log.details ? `<span class="text-gray-400 text-xs">${escapeHtml(log.details)}</span>` : (log.reason ? `<span class="text-gray-400 text-xs italic">${escapeHtml(log.reason)}</span>` : '');
+    return `<tr class="hover:bg-neutral-800/30 transition">
+      <td class="px-6 py-3 whitespace-nowrap">${ts}</td>
+      <td class="px-6 py-3"><span class="text-xs px-2 py-1 rounded-full border font-medium ${colorClass}">${escapeHtml(label)}</span></td>
+      <td class="px-6 py-3">${actor}</td>
+      <td class="px-6 py-3">${target}</td>
+      <td class="px-6 py-3">${details}</td>
+    </tr>`;
+  }).join('');
+}
+
+function timeAgo(ts) {
+  const diff = Math.floor(Date.now() / 1000) - ts;
+  if (diff < 60) return diff + 's ago';
+  if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
+  if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
+  return Math.floor(diff / 86400) + 'd ago';
+}
+
+function updatePagination(page, pages, total) {
+  const pg = document.getElementById('audit-pagination');
+  if (pages <= 1) { pg.classList.add('hidden'); return; }
+  pg.classList.remove('hidden');
+  document.getElementById('pagination-info').textContent = `Page ${page} of ${pages} (${total} total)`;
+  document.getElementById('btn-prev').disabled = page <= 1;
+  document.getElementById('btn-next').disabled = page >= pages;
+}
+
+function changePage(dir) {
+  const next = currentPage + dir;
+  if (next < 1 || next > totalPages) return;
+  currentPage = next;
+  loadLogs();
+}
+
+function applyFilters() {
+  currentPage = 1;
+  loadLogs();
+}
+
+function clearFilters() {
+  if (csActionType) csActionType.setValue('');
+  if (csTimeRange) csTimeRange.setValue('7');
+  document.getElementById('filter-actor').value = '';
+  document.getElementById('filter-target').value = '';
+  currentPage = 1;
+  loadLogs();
+}
+
+async function saveAudit() {
+  const btn = document.getElementById('saveAuditBtn');
+  const msg = document.getElementById('save-msg');
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Saving...';
+  btn.disabled = true;
+  const payload = {
+    audit_log_channel_id: csAuditChannel.getValue() || '',
+    audit_log_enabled: document.getElementById('audit-enabled').checked,
+    audit_event_config: auditEventConfig,
+  };
+  try {
+    const resp = await csrfFetch(SETTINGS_API, {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload),
+    });
+    const data = await resp.json();
+    if (resp.ok && data.success) {
+      msg.textContent = 'Audit log settings saved.';
+      msg.className = 'mb-4 px-4 py-3 rounded-lg text-sm font-medium bg-green-900/40 text-green-400 border border-green-700/40';
+      btn.innerHTML = '<i class="fas fa-check mr-2"></i>Saved!';
+    } else {
+      msg.textContent = data.error || 'Save failed.';
+      msg.className = 'mb-4 px-4 py-3 rounded-lg text-sm font-medium bg-red-900/40 text-red-400 border border-red-700/40';
+      btn.innerHTML = '<i class="fas fa-save mr-2"></i>Save Channel';
+      btn.disabled = false;
+    }
+    msg.classList.remove('hidden');
+    setTimeout(() => { msg.classList.add('hidden'); btn.innerHTML = '<i class="fas fa-save mr-2"></i>Save Channel'; btn.disabled = false; }, 4000);
+  } catch (e) {
+    msg.textContent = 'Network error.';
+    msg.className = 'mb-4 px-4 py-3 rounded-lg text-sm font-medium bg-red-900/40 text-red-400 border border-red-700/40';
+    msg.classList.remove('hidden');
+    btn.innerHTML = '<i class="fas fa-save mr-2"></i>Save Channel';
+    btn.disabled = false;
+  }
+}
 
 function renderAuditEventToggles() {
   Object.entries(AUDIT_EVENT_DEFS).forEach(([cat, items]) => {
@@ -413,16 +558,12 @@ function closeAuditSettings() {
 async function saveAuditSettings() {
   const toggles = document.querySelectorAll('[data-event-key]');
   const cfg = {};
-  toggles.forEach(t => {
-    cfg[t.getAttribute('data-event-key')] = t.checked;
-  });
+  toggles.forEach(t => { cfg[t.getAttribute('data-event-key')] = t.checked; });
   auditEventConfig = cfg;
-
   const msg = document.getElementById('save-msg');
   try {
-    const resp = await csrfFetch(API_URL, {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
+    const resp = await csrfFetch(SETTINGS_API, {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({
         audit_log_channel_id: csAuditChannel.getValue() || '',
         audit_log_enabled: document.getElementById('audit-enabled').checked,

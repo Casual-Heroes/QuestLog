@@ -21,7 +21,7 @@ from .views_auth import (
 )
 from .views_pages import (
     home,
-    lfg_browse, lfg_calendar, lfg_create, lfg_my_groups, lfg_group_detail,
+    lfg_browse, lfg_calendar, lfg_create, lfg_my_groups, lfg_group_detail, lfg_group_detail_token,
     lfg_join, lfg_leave, lfg_edit, lfg_update_member, lfg_delete, lfg_kick, lfg_set_co_leader,
     network, network_leaderboard, api_leaderboard_top, games, creators, articles, gamers,
     communities, community_register, community_detail, community_guidelines,
@@ -41,12 +41,15 @@ from .views_pages import (
     api_fluxer_guild_flair_equip,
     api_fluxer_guild_flair_unequip,
     fluxer_guild_member_lfg_browse,
+    fluxer_guild_member_lfg_calendar,
+    api_fluxer_member_lfg_groups,
     api_fluxer_member_lfg_join,
     api_fluxer_member_lfg_leave,
-    api_fluxer_member_lfg_groups,
     api_fluxer_member_lfg_group_delete,
+    api_fluxer_member_lfg_kick,
+    api_fluxer_member_lfg_ban,
 )
-from .views_internal import api_internal_bot_config, api_internal_broadcast_lfg, api_internal_guild_names, api_internal_bridge_relay, api_internal_bridge_pending, api_internal_bridge_message_map, api_internal_bridge_thread_map, api_internal_bridge_reaction, api_internal_bridge_pending_reactions, api_internal_bridge_delete, api_internal_bridge_pending_deletions, api_internal_guild_roles, api_internal_guild_sync, api_internal_guild_remove, api_internal_guild_actions_pending, api_internal_guild_action_done, api_bridge_media_proxy
+from .views_internal import api_internal_bot_config, api_internal_broadcast_lfg, api_internal_guild_names, api_internal_bridge_relay, api_internal_bridge_pending, api_internal_bridge_message_map, api_internal_bridge_thread_map, api_internal_bridge_reaction, api_internal_bridge_pending_reactions, api_internal_bridge_delete, api_internal_bridge_pending_deletions, api_internal_bridge_typing, api_internal_guild_roles, api_internal_guild_sync, api_internal_guild_remove, api_internal_guild_actions_pending, api_internal_guild_action_done, api_bridge_media_proxy
 from .views_billing import hero_subscribe, hero_success, hero_return, api_hero_checkout, api_stripe_webhook, hero_portal
 from .views_bot_dashboard import (
     unified_dashboard,
@@ -56,7 +59,7 @@ from .views_bot_dashboard import (
     fluxer_guild_lfg, fluxer_guild_settings_page, fluxer_guild_bridge,
     fluxer_guild_verification, fluxer_guild_reaction_roles, fluxer_guild_trackers,
     fluxer_guild_live_alerts,
-    fluxer_guild_audit, fluxer_guild_roles, fluxer_guild_messages,
+    fluxer_guild_audit, api_fluxer_audit_logs, fluxer_guild_roles, fluxer_guild_messages,
     fluxer_guild_templates_page, fluxer_guild_discovery, fluxer_guild_raffles,
     fluxer_guild_flair,
     fluxer_guild_lfg_attendance, fluxer_guild_lfg_calendar,
@@ -79,7 +82,7 @@ from .views_bot_dashboard import (
     # New real API endpoints
     api_fluxer_guild_lfg_games, api_fluxer_guild_lfg_game_detail,
     api_fluxer_igdb_search,
-    api_fluxer_guild_lfg_config, api_fluxer_guild_lfg_stats,
+    api_fluxer_guild_lfg_config, api_fluxer_guild_lfg_stats, api_fluxer_guild_network_lfg,
     api_fluxer_guild_lfg_blacklist, api_fluxer_guild_lfg_blacklist_action,
     api_fluxer_guild_warnings, api_fluxer_guild_warning_pardon,
     api_fluxer_guild_welcome_config, api_fluxer_guild_welcome_test,
@@ -93,8 +96,10 @@ from .views_bot_dashboard import (
     # Attendance
     api_fluxer_guild_lfg_attendance, api_fluxer_guild_attendance_export,
     # Dashboard browse + group management APIs
-    fluxer_guild_lfg_browse_admin,
+    fluxer_guild_lfg_browse_admin, fluxer_guild_found_games, fluxer_guild_rss_articles,
+    fluxer_guild_leaderboards, fluxer_guild_member_profile_page, fluxer_guild_featured_creators,
     api_fluxer_guild_lfg_groups, api_fluxer_guild_lfg_group_detail, api_fluxer_guild_lfg_group_kick,
+    api_fluxer_guild_lfg_member_update,
     # Live Alerts - streamer subscriptions
     api_fluxer_guild_streamer_subs, api_fluxer_guild_streamer_sub_detail,
     # Game discovery (IGDB-based)
@@ -164,6 +169,7 @@ from .views_admin import (
     api_admin_bot_network,
     api_admin_bridge_configs, api_admin_bridge_config_detail,
     api_admin_emoji, api_admin_emoji_detail,
+    api_admin_bot_stats,
 )
 from .views_discovery import (
     api_lfg_list, api_lfg_detail,
@@ -272,7 +278,6 @@ urlpatterns = [
     path('fluxer/<str:guild_id>/rss/',      fluxer_guild_member_rss,       name='questlog_web_fluxer_member_rss'),
     path('fluxer/<str:guild_id>/games/',    fluxer_guild_member_games,     name='questlog_web_fluxer_member_games'),
     path('fluxer/<str:guild_id>/flairs/',        fluxer_guild_member_flairs,       name='questlog_web_fluxer_member_flairs'),
-    path('fluxer/<str:guild_id>/lfg/browse/',   fluxer_guild_member_lfg_browse,   name='questlog_web_fluxer_member_lfg_browse'),
     # Fluxer guild flair store APIs
     path('api/fluxer/<str:guild_id>/flairs/<int:flair_id>/buy/',     api_fluxer_guild_flair_buy,     name='questlog_web_api_fluxer_guild_flair_buy'),
     path('api/fluxer/<str:guild_id>/flairs/<int:flair_id>/equip/',   api_fluxer_guild_flair_equip,   name='questlog_web_api_fluxer_guild_flair_equip'),
@@ -280,17 +285,28 @@ urlpatterns = [
     # Fluxer member APIs
     path('api/fluxer/<str:guild_id>/raffles/',                       api_fluxer_member_raffles,      name='questlog_web_api_fluxer_member_raffles'),
     path('api/fluxer/<str:guild_id>/raffles/<int:raffle_id>/enter/', api_fluxer_member_raffle_enter, name='questlog_web_api_fluxer_member_raffle_enter'),
-    path('api/fluxer/<str:guild_id>/lfg/groups/',                     api_fluxer_member_lfg_groups,       name='questlog_web_api_fluxer_member_lfg_groups'),
-    path('api/fluxer/<str:guild_id>/lfg/<int:group_id>/',            api_fluxer_member_lfg_group_delete, name='questlog_web_api_fluxer_member_lfg_group_delete'),
-    path('api/fluxer/<str:guild_id>/lfg/<int:group_id>/join/',       api_fluxer_member_lfg_join,         name='questlog_web_api_fluxer_member_lfg_join'),
-    path('api/fluxer/<str:guild_id>/lfg/<int:group_id>/leave/',      api_fluxer_member_lfg_leave,        name='questlog_web_api_fluxer_member_lfg_leave'),
+    # Fluxer member LFG
+    path('fluxer/<str:guild_id>/lfg/',           lambda request, guild_id: redirect(f'/ql/fluxer/{guild_id}/lfg/browse/')),
+    path('fluxer/<str:guild_id>/lfg/browse/',    fluxer_guild_member_lfg_browse,    name='questlog_web_fluxer_member_lfg_browse'),
+    path('fluxer/<str:guild_id>/lfg/calendar/',  fluxer_guild_member_lfg_calendar,  name='questlog_web_fluxer_member_lfg_calendar'),
+    # Fluxer member aliases for dashboard pages accessible to all members
+    path('fluxer/<str:guild_id>/featured-creators/', fluxer_guild_featured_creators, name='questlog_web_fluxer_member_featured_creators'),
+    path('fluxer/<str:guild_id>/leaderboards/',      fluxer_guild_leaderboards,      name='questlog_web_fluxer_member_leaderboards'),
+    path('fluxer/<str:guild_id>/found-games/',       fluxer_guild_found_games,       name='questlog_web_fluxer_member_found_games'),
+    path('api/fluxer/<str:guild_id>/lfg/groups/',                                          api_fluxer_member_lfg_groups,        name='questlog_web_api_fluxer_member_lfg_groups'),
+    path('api/fluxer/<str:guild_id>/lfg/<int:group_id>/join/',                             api_fluxer_member_lfg_join,          name='questlog_web_api_fluxer_member_lfg_join'),
+    path('api/fluxer/<str:guild_id>/lfg/<int:group_id>/leave/',                            api_fluxer_member_lfg_leave,         name='questlog_web_api_fluxer_member_lfg_leave'),
+    path('api/fluxer/<str:guild_id>/lfg/<int:group_id>/',                                  api_fluxer_member_lfg_group_delete,  name='questlog_web_api_fluxer_member_lfg_group_delete'),
+    path('api/fluxer/<str:guild_id>/lfg/<int:group_id>/members/<int:member_id>/kick/',     api_fluxer_member_lfg_kick,          name='questlog_web_api_fluxer_member_lfg_kick'),
+    path('api/fluxer/<str:guild_id>/lfg/<int:group_id>/members/<int:member_id>/ban/',      api_fluxer_member_lfg_ban,           name='questlog_web_api_fluxer_member_lfg_ban'),
 
     # LFG
     path('lfg/', lfg_browse, name='questlog_web_lfg_browse'),
     path('lfg/calendar/', lfg_calendar, name='questlog_web_lfg_calendar'),
     path('lfg/create/', lfg_create, name='questlog_web_lfg_create'),
     path('lfg/my-groups/', lfg_my_groups, name='questlog_web_lfg_my_groups'),
-    path('lfg/<int:group_id>/', lfg_group_detail, name='questlog_web_lfg_detail'),
+    path('lfg/<int:group_id>/', lfg_group_detail, name='questlog_web_lfg_detail'),          # legacy integer ID (redirect)
+    path('lfg/<slug:share_token>/', lfg_group_detail_token, name='questlog_web_lfg_detail_token'),
     path('lfg/<int:group_id>/join/',                          lfg_join,          name='questlog_web_lfg_join'),
     path('lfg/<int:group_id>/leave/',                         lfg_leave,         name='questlog_web_lfg_leave'),
     path('lfg/<int:group_id>/edit/',                          lfg_edit,          name='questlog_web_lfg_edit'),
@@ -356,6 +372,7 @@ urlpatterns = [
 
     # Admin API endpoints
     path('api/admin/stats/', api_admin_stats, name='questlog_web_api_admin_stats'),
+    path('api/admin/bot-stats/', api_admin_bot_stats, name='questlog_web_api_admin_bot_stats'),
 
     # Admin: LFG Game Configs
     path('api/admin/lfg-games/', api_admin_lfg_games, name='questlog_web_api_admin_lfg_games'),
@@ -584,6 +601,11 @@ urlpatterns = [
     path('dashboard/fluxer/<str:guild_id>/lfg/attendance/',   fluxer_guild_lfg_attendance,   name='fluxer_guild_lfg_attendance'),
     path('dashboard/fluxer/<str:guild_id>/lfg/calendar/',     fluxer_guild_lfg_calendar,     name='fluxer_guild_lfg_calendar'),
     path('dashboard/fluxer/<str:guild_id>/lfg/browse/',       fluxer_guild_lfg_browse_admin, name='fluxer_guild_lfg_browse_admin'),
+    path('dashboard/fluxer/<str:guild_id>/found-games/',        fluxer_guild_found_games,           name='fluxer_guild_found_games'),
+    path('dashboard/fluxer/<str:guild_id>/rss-articles/',      fluxer_guild_rss_articles,          name='fluxer_guild_rss_articles'),
+    path('dashboard/fluxer/<str:guild_id>/leaderboards/',      fluxer_guild_leaderboards,          name='fluxer_guild_leaderboards'),
+    path('dashboard/fluxer/<str:guild_id>/profile/',           fluxer_guild_member_profile_page,   name='fluxer_guild_member_profile_page'),
+    path('dashboard/fluxer/<str:guild_id>/featured-creators/', fluxer_guild_featured_creators,     name='fluxer_guild_featured_creators'),
     path('dashboard/fluxer/<str:guild_id>/settings/',          fluxer_guild_settings_page, name='fluxer_guild_settings_page'),
     path('dashboard/fluxer/<str:guild_id>/bridge/',            fluxer_guild_bridge,       name='fluxer_guild_bridge'),
     # Feature pages (bot integration pending for some)
@@ -600,6 +622,7 @@ urlpatterns = [
     path('dashboard/fluxer/<str:guild_id>/flairs/',            fluxer_guild_flair,         name='fluxer_guild_flair'),
     # API
     path('api/dashboard/fluxer/<str:guild_id>/settings/',     api_fluxer_guild_settings, name='questlog_web_api_fluxer_guild_settings'),
+    path('api/dashboard/fluxer/<str:guild_id>/audit-logs/',   api_fluxer_audit_logs,     name='questlog_web_api_fluxer_audit_logs'),
     path('api/dashboard/bot-configs/',                         api_bot_dashboard_configs, name='questlog_web_api_bot_configs'),
     path('api/dashboard/bot-configs/<int:config_id>/',         api_bot_dashboard_config_detail, name='questlog_web_api_bot_config_detail'),
     # Reaction Roles
@@ -645,6 +668,7 @@ urlpatterns = [
     path('api/dashboard/fluxer/<str:guild_id>/lfg-games/<int:game_id>/', api_fluxer_guild_lfg_game_detail, name='questlog_web_api_fluxer_guild_lfg_game_detail'),
     # LFG Attendance config / stats / blacklist (per-guild)
     path('api/dashboard/fluxer/<str:guild_id>/lfg-config/',                               api_fluxer_guild_lfg_config,          name='questlog_web_api_fluxer_guild_lfg_config'),
+    path('api/dashboard/fluxer/<str:guild_id>/network-lfg/',                              api_fluxer_guild_network_lfg,         name='questlog_web_api_fluxer_guild_network_lfg'),
     path('api/dashboard/fluxer/<str:guild_id>/lfg-stats/',                                api_fluxer_guild_lfg_stats,           name='questlog_web_api_fluxer_guild_lfg_stats'),
     path('api/dashboard/fluxer/<str:guild_id>/lfg-blacklist/',                            api_fluxer_guild_lfg_blacklist,       name='questlog_web_api_fluxer_guild_lfg_blacklist'),
     path('api/dashboard/fluxer/<str:guild_id>/lfg-blacklist/<str:user_id>/action/',      api_fluxer_guild_lfg_blacklist_action, name='questlog_web_api_fluxer_guild_lfg_blacklist_action'),
@@ -652,6 +676,7 @@ urlpatterns = [
     path('api/dashboard/fluxer/<str:guild_id>/lfg/groups/',                              api_fluxer_guild_lfg_groups,       name='questlog_web_api_fluxer_lfg_groups'),
     path('api/dashboard/fluxer/<str:guild_id>/lfg/groups/<int:group_id>/',               api_fluxer_guild_lfg_group_detail, name='questlog_web_api_fluxer_lfg_group_detail'),
     path('api/dashboard/fluxer/<str:guild_id>/lfg/groups/<int:group_id>/kick/<int:member_id>/', api_fluxer_guild_lfg_group_kick, name='questlog_web_api_fluxer_lfg_group_kick'),
+    path('api/dashboard/fluxer/<str:guild_id>/lfg/groups/<int:group_id>/members/<int:member_id>/', api_fluxer_guild_lfg_member_update, name='questlog_web_api_fluxer_lfg_member_update'),
     # LFG Attendance data + CSV export
     path('api/dashboard/fluxer/<str:guild_id>/lfg/attendance/',        api_fluxer_guild_lfg_attendance,    name='questlog_web_api_fluxer_lfg_attendance'),
     path('api/dashboard/fluxer/<str:guild_id>/lfg/attendance/export/', api_fluxer_guild_attendance_export, name='questlog_web_api_fluxer_attendance_export'),
@@ -704,6 +729,7 @@ urlpatterns = [
     path('api/internal/bridge/pending-reactions/<str:platform>/', api_internal_bridge_pending_reactions, name='questlog_web_api_internal_bridge_pending_reactions'),
     path('api/internal/bridge/delete/', api_internal_bridge_delete, name='questlog_web_api_internal_bridge_delete'),
     path('api/internal/bridge/pending-deletions/<str:platform>/', api_internal_bridge_pending_deletions, name='questlog_web_api_internal_bridge_pending_deletions'),
+    path('api/internal/bridge/typing/', api_internal_bridge_typing, name='questlog_web_api_internal_bridge_typing'),
     path('api/internal/bridge/media-proxy/', api_bridge_media_proxy, name='questlog_web_api_bridge_media_proxy'),
 
     # =========================================================================

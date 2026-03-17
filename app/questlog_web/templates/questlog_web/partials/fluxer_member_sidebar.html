@@ -32,9 +32,9 @@
       {% if web_user.owned_fluxer_guilds %}
       {% for g in web_user.owned_fluxer_guilds %}
       {% if g.id != guild_id %}
-      <a href="/ql/fluxer/{{ g.id }}/" class="flex items-center gap-3 p-3 hover:bg-neutral-700 transition">
+      <a href="/ql/dashboard/fluxer/{{ g.id }}/" class="flex items-center gap-3 p-3 hover:bg-neutral-700 transition">
         {% if g.icon_hash %}
-        <img src="https://cdn.discordapp.com/icons/{{ g.id }}/{{ g.icon_hash }}.png?size=48" alt="{{ g.name }}" class="w-8 h-8 rounded-lg">
+        <img src="https://fluxerusercontent.com/icons/{{ g.id }}/{{ g.icon_hash }}.png" alt="{{ g.name }}" class="w-8 h-8 rounded-lg">
         {% else %}
         <div class="w-8 h-8 bg-neutral-600 rounded-lg flex items-center justify-center">
           <span class="text-xs font-bold text-gray-400">{{ g.name|slice:":2"|upper }}</span>
@@ -58,7 +58,7 @@
       {% if g.id != guild_id %}
       <a href="/ql/fluxer/{{ g.id }}/" class="flex items-center gap-3 p-3 hover:bg-neutral-700 transition">
         {% if g.icon_hash %}
-        <img src="https://cdn.discordapp.com/icons/{{ g.id }}/{{ g.icon_hash }}.png?size=48" alt="{{ g.name }}" class="w-8 h-8 rounded-lg">
+        <img src="https://fluxerusercontent.com/icons/{{ g.id }}/{{ g.icon_hash }}.png" alt="{{ g.name }}" class="w-8 h-8 rounded-lg">
         {% else %}
         <div class="w-8 h-8 bg-neutral-600 rounded-lg flex items-center justify-center">
           <span class="text-xs font-bold text-gray-400">{{ g.name|slice:":2"|upper }}</span>
@@ -72,7 +72,7 @@
       {% endif %}
       {% endfor %}
       {% endif %}
-      <a href="{% url 'questlog_web_home' %}"
+      <a href="{% url 'questlog_web_fluxer_dashboard' %}"
          class="flex items-center gap-3 p-3 border-t border-neutral-700 hover:bg-neutral-700 transition text-gray-400 hover:text-white">
         <i class="fas fa-th text-lg w-8 text-center"></i>
         <span class="text-sm">All Servers</span>
@@ -85,7 +85,7 @@
 
     <!-- Dashboard -->
     <div>
-      <a href="/ql/fluxer/{{ guild_id }}/"
+      <a href="{% if is_owner %}/ql/dashboard/fluxer/{{ guild_id }}/{% else %}/ql/fluxer/{{ guild_id }}/{% endif %}"
          class="nav-item {% if active_page == 'dashboard' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition group">
         <i class="fas fa-home text-gray-400 group-hover:text-indigo-400"></i>
         <span>Dashboard</span>
@@ -98,20 +98,35 @@
         <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wider">Member Features</h3>
       </div>
       <div class="space-y-1">
+        <a href="/ql/fluxer/{{ guild_id }}/featured-creators/"
+           class="nav-item {% if active_page == 'featured_creators' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          <i class="fas fa-star text-gray-400 group-hover:text-yellow-400"></i>
+          <span>Featured Creators</span>
+        </a>
         <a href="/ql/fluxer/{{ guild_id }}/lfg/browse/"
            class="nav-item {% if active_page == 'lfg_browser' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
           <i class="fas fa-users text-gray-400 group-hover:text-green-400"></i>
           <span>Find Groups</span>
         </a>
-        <a href="/ql/fluxer/{{ guild_id }}/games/"
+        <a href="/ql/fluxer/{{ guild_id }}/lfg/calendar/"
+           class="nav-item {% if active_page == 'lfg_calendar' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          <i class="fas fa-calendar-alt text-gray-400 group-hover:text-purple-400"></i>
+          <span>LFG Calendar</span>
+        </a>
+        <a href="/ql/fluxer/{{ guild_id }}/found-games/"
            class="nav-item {% if active_page == 'games' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
           <i class="fas fa-gamepad text-gray-400 group-hover:text-green-400"></i>
           <span>Found Games</span>
         </a>
         <a href="/ql/fluxer/{{ guild_id }}/flairs/"
            class="nav-item {% if active_page == 'flairs' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
-          <i class="fas fa-palette text-gray-400 group-hover:text-pink-400"></i>
-          <span>Flair Store</span>
+          <i class="fas fa-gem text-gray-400 group-hover:text-pink-400"></i>
+          <span>Hero Shop</span>
+        </a>
+        <a href="/ql/fluxer/{{ guild_id }}/leaderboards/"
+           class="nav-item {% if active_page == 'leaderboards' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          <i class="fas fa-trophy text-gray-400 group-hover:text-yellow-400"></i>
+          <span>Leaderboards</span>
         </a>
         <a href="/ql/fluxer/{{ guild_id }}/raffles/"
            class="nav-item {% if active_page == 'raffles' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">

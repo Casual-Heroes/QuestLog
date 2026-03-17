@@ -82,7 +82,19 @@ class MaintenanceMiddleware:
                 discord_user = request.session.get('discord_user', {})
                 discord_id = str(discord_user.get('id', ''))
                 if BOT_OWNER_ID and discord_id == BOT_OWNER_ID:
-                    return self.get_response(request)
+                    # Re-validate against DB to prevent session spoofing
+                    try:
+                        from app.db import get_db_session
+                        from sqlalchemy import text as sa_text
+                        with get_db_session() as _db:
+                            _row = _db.execute(
+                                sa_text("SELECT id FROM web_users WHERE discord_id=:did AND is_admin=1 AND is_banned=0 AND is_disabled=0 LIMIT 1"),
+                                {'did': discord_id}
+                            ).fetchone()
+                            if _row:
+                                return self.get_response(request)
+                    except Exception:
+                        pass  # fall through to deny if DB check fails
                 # Not the owner — send to maintenance page (not Discord login)
                 response = render(request, 'questlog_web/maintenance.html', status=503)
                 response['Retry-After'] = '3600'
@@ -164,7 +176,6 @@ class SecurityMiddleware:
         )
         response['X-Content-Type-Options'] = 'nosniff'
         response['X-Frame-Options'] = 'SAMEORIGIN'
-        response['X-XSS-Protection'] = '1; mode=block'
         response['Referrer-Policy'] = 'strict-origin-when-cross-origin'
         return response
 

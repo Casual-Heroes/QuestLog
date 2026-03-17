@@ -118,6 +118,11 @@
       <span class="text-white font-bold">{{ profile_user.following_count|default:"0" }}</span>
       <span class="text-gray-500">Following</span>
     </button>
+    {% if profile_user.web_level %}
+    <span class="text-sm">
+      <span class="text-indigo-400 font-bold">Lv {{ profile_user.web_level }}</span>
+    </span>
+    {% endif %}
     {% if profile_user.hero_points %}
     <span class="text-sm">
       <span class="text-yellow-400 font-bold">{{ profile_user.hero_points }}</span>
@@ -138,6 +143,28 @@
     <span class="px-2 py-1 bg-blue-500/20 text-blue-300 rounded-full text-xs">{{ platform }}</span>
     {% endfor %}
   </div>
+
+  <!-- Games -->
+  {% if favorite_games %}
+  <div class="mb-5">
+    <p class="text-xs text-gray-500 mb-2"><i class="fas fa-gamepad mr-1"></i>Games</p>
+    <div class="flex flex-wrap gap-2">
+      {% for g in favorite_games %}
+      {% if g.cover_url %}
+      <div class="flex items-center gap-1.5 bg-neutral-800 border border-neutral-700 rounded-lg px-2 py-1.5 text-xs text-gray-200" title="{{ g.name }}">
+        <img src="{{ g.cover_url }}" class="w-4 h-6 rounded object-cover flex-shrink-0" alt="">
+        <span class="truncate max-w-[120px]">{{ g.name }}</span>
+      </div>
+      {% else %}
+      <div class="flex items-center gap-1 bg-neutral-800 border border-neutral-700 rounded-lg px-2 py-1.5 text-xs text-gray-200">
+        <i class="fas fa-gamepad text-gray-500 text-xs flex-shrink-0"></i>
+        <span>{% if g.name %}{{ g.name }}{% else %}{{ g }}{% endif %}</span>
+      </div>
+      {% endif %}
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
 
   <!-- Social Links - all connected accounts -->
   {% with cp=creator_profile %}

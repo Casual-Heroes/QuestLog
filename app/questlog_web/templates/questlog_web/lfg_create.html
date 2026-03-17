@@ -62,18 +62,24 @@
           </div>
 
           <!-- Selected game preview -->
-          <div id="gameSelectedPreview" class="hidden mt-2 flex items-center gap-3 bg-neutral-800/50 border border-neutral-700 rounded-lg px-3 py-2">
-            <img id="gameSelectedImg" src="" alt="" class="w-10 h-14 rounded object-cover hidden flex-shrink-0">
-            <div class="w-10 h-14 rounded bg-neutral-700 flex items-center justify-center hidden flex-shrink-0" id="gameSelectedImgPlaceholder">
-              <i class="fas fa-gamepad text-gray-500 text-sm"></i>
+          <div id="gameSelectedPreview" class="hidden mt-2 flex items-center gap-3 bg-green-900/20 border border-green-800/40 rounded-lg px-3 py-2">
+            <img id="gameSelectedImg" src="" alt="" class="w-8 h-11 rounded object-cover hidden flex-shrink-0">
+            <div class="w-8 h-11 rounded bg-neutral-700 flex items-center justify-center hidden flex-shrink-0" id="gameSelectedImgPlaceholder">
+              <i class="fas fa-gamepad text-gray-500 text-xs"></i>
             </div>
-            <div class="min-w-0">
-              <span id="gameSelectedName" class="text-white text-sm font-medium block truncate"></span>
-              <span id="gameSelectedPlatforms" class="text-gray-500 text-xs"></span>
-            </div>
-            <span class="ml-auto text-xs text-green-400 flex-shrink-0"><i class="fas fa-check-circle mr-1"></i>Selected</span>
+            <span id="gameSelectedName" class="text-white text-sm font-medium truncate flex-1"></span>
+            <span id="gameSelectedPlatforms" class="text-gray-500 text-xs hidden"></span>
+            <span class="text-xs text-green-400 flex-shrink-0 flex items-center gap-1"><i class="fas fa-check-circle"></i>Selected</span>
           </div>
-          <p class="text-xs text-gray-500 mt-1">Search IGDB — can't find it? Type any name and press Enter.</p>
+
+          <!-- Profile game quick-select -->
+          {% if profile_games_json != '[]' %}
+          <div id="profileGamesBar" class="mt-3">
+            <p class="text-xs text-gray-600 mb-1.5 uppercase tracking-wider font-medium">Your games</p>
+            <div class="flex flex-wrap gap-1.5" id="profileGameButtons"></div>
+          </div>
+          {% endif %}
+          <p class="text-xs text-gray-600 mt-2">Can't find it? Type any name and press Enter.</p>
         </div>
         <div>
           <label class="text-sm text-gray-300 mb-2 block">Group Title <span class="text-red-400">*</span></label>
@@ -133,27 +139,8 @@
         </label>
       </div>
       <div id="rolesContainer" class="hidden">
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div>
-            <label class="text-sm text-gray-300 mb-2 block"><i class="fas fa-shield text-blue-400 mr-1"></i>Tanks</label>
-            <input type="number" id="tanksNeeded" name="tanks_needed" min="0" max="20" value="0"
-                   class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2 text-white text-sm text-center focus:border-green-500 focus:outline-none hover:bg-neutral-700/50 transition-colors">
-          </div>
-          <div>
-            <label class="text-sm text-gray-300 mb-2 block"><i class="fas fa-heart text-red-400 mr-1"></i>Healers</label>
-            <input type="number" id="healersNeeded" name="healers_needed" min="0" max="20" value="0"
-                   class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2 text-white text-sm text-center focus:border-green-500 focus:outline-none hover:bg-neutral-700/50 transition-colors">
-          </div>
-          <div>
-            <label class="text-sm text-gray-300 mb-2 block"><i class="fas fa-bolt text-yellow-400 mr-1"></i>DPS</label>
-            <input type="number" id="dpsNeeded" name="dps_needed" min="0" max="20" value="0"
-                   class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2 text-white text-sm text-center focus:border-green-500 focus:outline-none hover:bg-neutral-700/50 transition-colors">
-          </div>
-          <div>
-            <label class="text-sm text-gray-300 mb-2 block"><i class="fas fa-music text-green-400 mr-1"></i>Support</label>
-            <input type="number" id="supportNeeded" name="support_needed" min="0" max="20" value="0"
-                   class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2 text-white text-sm text-center focus:border-green-500 focus:outline-none hover:bg-neutral-700/50 transition-colors">
-          </div>
+        <div id="roleSchemaGrid" class="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <!-- Populated by renderRoleSchemaInputs() -->
         </div>
       </div>
     </div>
@@ -208,17 +195,32 @@
   </form>
 </div>
 
+{{ profile_games_json|json_script:"profile-games-lfg-data" }}
 <script>
 // ─────────────────────────────────────────────────────────────────────────────
 // Built-in game templates (mirrors views.py _get_builtin_game_templates)
 // Used to show Class/Spec/Job options when a known game is selected.
 // ─────────────────────────────────────────────────────────────────────────────
 const BUILTIN_GAME_IDENTIFIERS = {
-  wow:     ['world of warcraft', 'wow'],
-  ffxiv:   ['final fantasy xiv', 'final fantasy 14', 'ffxiv', 'ff14'],
-  pantheon:['pantheon', 'pantheon: rise of the fallen'],
-  gw2:     ['guild wars 2', 'gw2'],
-  eso:     ['elder scrolls online', 'eso', 'teso'],
+  // MMOs - full role composition (Tank/Healer/DPS/Support)
+  wow:       ['world of warcraft', 'wow'],
+  ffxiv:     ['final fantasy xiv', 'final fantasy 14', 'ffxiv', 'ff14'],
+  pantheon:  ['pantheon', 'pantheon: rise of the fallen'],
+  gw2:       ['guild wars 2', 'gw2'],
+  eso:       ['elder scrolls online', 'eso', 'teso'],
+  // Survival - custom role schema (Combat/Gatherer/Breeder/Builder)
+  palworld:  ['palworld', 'pal world'],
+  enshrouded:['enshrouded'],
+  vrising:   ['v rising', 'vrising'],
+  valheim:   ['valheim'],
+  rust:      ['rust'],
+  // ARPGs - no roles
+  diablo:    ['diablo', 'diablo iv', 'diablo 4'],
+  poe:       ['path of exile', 'poe', 'path of exile 2'],
+  grimdawn:  ['grim dawn'],
+  // FPS - no roles
+  cod:       ['call of duty', 'cod', 'warzone', 'modern warfare'],
+  battlefield:['battlefield', 'bf2042', 'bf6'],
 };
 
 const GAME_TEMPLATES = {
@@ -262,6 +264,77 @@ const GAME_TEMPLATES = {
     { name: 'Subclass', exclude_same_as: 'Class', choices: ['Dragonknight','Sorcerer','Nightblade','Templar','Warden','Necromancer','Arcanist'] },
     { name: 'Role', choices: [{value:'Tank',role:'tank'},{value:'Healer',role:'healer'},{value:'DPS',role:'dps'},{value:'Support',role:'support'}] },
   ],
+  palworld: [
+    { name: 'Role', choices: [
+      {value:'Tank/Defender',   role:'tank'},
+      {value:'Support/Healer',  role:'healer'},
+      {value:'Combat (Melee)',  role:'dps'},
+      {value:'Combat (Ranged)', role:'dps'},
+      {value:'Scout/Explorer',  role:'dps'},
+      {value:'Builder',         role:'support'},
+      {value:'Gatherer',        role:'support'},
+      {value:'Tamer/Breeder',   role:'support'},
+      {value:'Crafter',         role:'support'},
+    ]},
+    { name: 'Activity', multi: true, maxSelections: 3, choices: ['Boss','Dungeon','Base Building','Resource Farming','Breeding','PvP','Raid','Casual Co-op'] },
+    { name: 'Platform', choices: ['PC','Xbox','PlayStation','Cross-platform'] },
+    { name: 'Level Range', choices: ['Early (1-20)','Mid (21-40)','End (41+)'] },
+    { name: 'Experience', choices: ['New/Learning','Casual','Experienced','Hardcore'] },
+    { name: 'Server Type', choices: ['PvE','PvP','PvE-C','Modded','Official','Private'] },
+  ],
+  enshrouded: [
+    { name: 'Role', choices: [
+      {value:'Tank',           role:'tank'},
+      {value:'Healer',         role:'healer'},
+      {value:'Ranger (DPS)',   role:'dps'},
+      {value:'Mage (DPS)',     role:'dps'},
+      {value:'Fighter (DPS)',  role:'dps'},
+      {value:'Builder',        role:'support'},
+      {value:'Crafter',        role:'support'},
+    ]},
+    { name: 'Activity', multi: true, maxSelections: 3, choices: ['Story','Base Building','Dungeon','Boss','Resource Farming','Casual Co-op'] },
+    { name: 'Platform', choices: ['PC','Xbox','PlayStation','Cross-platform'] },
+    { name: 'Level Range', choices: ['Early (1-20)','Mid (21-40)','End (41+)'] },
+    { name: 'Experience', choices: ['New/Learning','Casual','Experienced','Hardcore'] },
+    { name: 'Server Type', choices: ['PvE','PvP','PvE-C','Modded','Official','Private'] },
+  ],
+  vrising: [
+    { name: 'Activity', multi: true, maxSelections: 3, choices: ['Leveling','Castle Building','Boss Hunting','PvP','Farming/Resources','Clan Content','Casual Co-op'] },
+    { name: 'Platform', choices: ['PC','PlayStation','Cross-platform'] },
+    { name: 'Level Range', choices: ['Early (1-20)','Mid (21-40)','End (41+)'] },
+    { name: 'Experience', choices: ['New/Learning','Casual','Experienced','Hardcore'] },
+    { name: 'Server Type', choices: ['PvE','PvP','PvE-C','Modded','Official','Private'] },
+  ],
+  valheim: [
+    { name: 'Role', choices: [
+      {value:'Berserker (Tank)', role:'tank'},
+      {value:'Healer/Support',   role:'healer'},
+      {value:'Archer (DPS)',     role:'dps'},
+      {value:'Warrior (DPS)',    role:'dps'},
+      {value:'Builder',          role:'support'},
+      {value:'Gatherer',         role:'support'},
+    ]},
+    { name: 'Activity', multi: true, maxSelections: 3, choices: ['Boss','Exploration','Base Building','Resource Farming','Casual Co-op'] },
+    { name: 'Platform', choices: ['PC','Xbox','Cross-platform'] },
+    { name: 'Level Range', choices: ['Early (1-20)','Mid (21-40)','End (41+)'] },
+    { name: 'Experience', choices: ['New/Learning','Casual','Experienced','Hardcore'] },
+    { name: 'Server Type', choices: ['PvE','PvP','Modded','Official','Private'] },
+  ],
+  rust: [
+    { name: 'Role', choices: [
+      {value:'Raider',           role:'tank'},
+      {value:'Medic/Support',    role:'healer'},
+      {value:'Gunner (DPS)',     role:'dps'},
+      {value:'Scout',            role:'dps'},
+      {value:'Builder',          role:'support'},
+      {value:'Farmer/Gatherer',  role:'support'},
+    ]},
+    { name: 'Activity', multi: true, maxSelections: 3, choices: ['Raiding','Base Building','PvP','Farming','Casual Co-op'] },
+    { name: 'Platform', choices: ['PC','Xbox','PlayStation','Cross-platform'] },
+    { name: 'Level Range', choices: ['Early (1-20)','Mid (21-40)','End (41+)'] },
+    { name: 'Experience', choices: ['New/Learning','Casual','Experienced','Hardcore'] },
+    { name: 'Server Type', choices: ['PvE','PvP','Modded','Official','Private'] },
+  ],
 };
 
 // Generic activities for most games (ARPGs, Souls-likes, etc.)
@@ -300,6 +373,19 @@ const GW2_ACTIVITY_CHOICES = [
   'Achievement Hunting','Social/Chill',
 ];
 
+
+
+const PALWORLD_ACTIVITY_CHOICES = [
+  'Boss',
+  'Dungeon',
+  'Base Building',
+  'Resource Farming',
+  'Breeding',
+  'Casual Co-Op',
+  'Raid',
+  'PvP',
+];
+
 // FFXIV-specific activities
 const FFXIV_ACTIVITY_CHOICES = [
   'Raid - Normal','Raid - Savage','Raid - Ultimate',
@@ -309,6 +395,79 @@ const FFXIV_ACTIVITY_CHOICES = [
   'Deep Dungeon','PvP - Crystalline Conflict','PvP - Frontline','PvP - Rival Wings',
   'Treasure Hunt','Hunt Train','Open World/FATEs','Story/MSQ','Social/Chill',
 ];
+
+// ── Game-aware role schemas ───────────────────────────────────────────────────
+// Overrides Tank/Healer/DPS/Support labels per game. Slot keys never change.
+const DEFAULT_ROLE_SCHEMA = [
+  {slot: 'tank',    label: 'Tank',    color: 'blue',   icon: 'shield-alt'},
+  {slot: 'healer',  label: 'Healer',  color: 'green',  icon: 'heart'},
+  {slot: 'dps',     label: 'DPS',     color: 'red',    icon: 'bolt'},
+  {slot: 'support', label: 'Support', color: 'yellow', icon: 'music'},
+];
+
+// Survival games share the same role schema
+const SURVIVAL_ROLE_SCHEMA = [
+  {slot: 'tank',    label: 'Combat',   color: 'orange', icon: 'fist-raised'},
+  {slot: 'dps',     label: 'Gatherer', color: 'yellow', icon: 'leaf'},
+  {slot: 'healer',  label: 'Breeder',  color: 'pink',   icon: 'dove'},
+  {slot: 'support', label: 'Builder',  color: 'cyan',   icon: 'hammer'},
+];
+
+const GAME_ROLE_SCHEMAS = {
+  palworld:   SURVIVAL_ROLE_SCHEMA,
+  enshrouded: SURVIVAL_ROLE_SCHEMA,
+  valheim:    SURVIVAL_ROLE_SCHEMA,
+  rust:       SURVIVAL_ROLE_SCHEMA,
+};
+
+// Games that hide the role composition section entirely (no slot system makes sense)
+const NO_ROLES = ['diablo', 'poe', 'grimdawn', 'cod', 'battlefield', 'vrising'];
+
+let currentRoleSchema = DEFAULT_ROLE_SCHEMA;
+
+const ROLE_COLOR_CLASSES = {
+  blue:   {text: 'text-blue-400',   border: 'border-blue-900/50'},
+  green:  {text: 'text-green-400',  border: 'border-green-900/50'},
+  red:    {text: 'text-red-400',    border: 'border-red-900/50'},
+  yellow: {text: 'text-yellow-400', border: 'border-yellow-900/50'},
+  orange: {text: 'text-orange-400', border: 'border-orange-900/50'},
+  cyan:   {text: 'text-cyan-400',   border: 'border-cyan-900/50'},
+  pink:   {text: 'text-pink-400',   border: 'border-pink-900/50'},
+  purple: {text: 'text-purple-400', border: 'border-purple-900/50'},
+  gray:   {text: 'text-gray-400',   border: 'border-gray-700'},
+};
+
+// Default slot values per schema type - all 4 slots default to at least 1
+const SCHEMA_SLOT_DEFAULTS = {
+  default:  {tank: 1, healer: 1, dps: 3, support: 1},
+  survival: {tank: 2, healer: 1, dps: 2, support: 1},  // Combat/Gatherer/Breeder/Builder
+};
+let _lastRenderedSchema = null;
+
+function renderRoleSchemaInputs() {
+  const grid = document.getElementById('roleSchemaGrid');
+  if (!grid) return;
+  const schemaChanged = currentRoleSchema !== _lastRenderedSchema;
+  _lastRenderedSchema = currentRoleSchema;
+  const isSurvival = currentRoleSchema === SURVIVAL_ROLE_SCHEMA;
+  const schemaDefaults = isSurvival ? SCHEMA_SLOT_DEFAULTS.survival : SCHEMA_SLOT_DEFAULTS.default;
+  grid.innerHTML = currentRoleSchema.map(r => {
+    const colors = ROLE_COLOR_CLASSES[r.color] || ROLE_COLOR_CLASSES.gray;
+    // Only reuse current value if schema hasn't changed; otherwise use per-schema defaults
+    const existing = !schemaChanged ? document.getElementById(r.slot + 'Needed') : null;
+    const val = existing ? existing.value : (schemaDefaults[r.slot] ?? 1);
+    return `<div>
+      <label class="text-sm text-gray-300 mb-2 block">
+        <i class="fas fa-${escapeHtml(r.icon)} ${colors.text} mr-1"></i>${escapeHtml(r.label)}
+      </label>
+      <input type="number" id="${r.slot}Needed" name="${r.slot}_needed"
+             min="0" max="20" value="${val}"
+             class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2
+                    text-white text-sm text-center focus:border-green-500 focus:outline-none
+                    hover:bg-neutral-700/50 transition-colors">
+    </div>`;
+  }).join('');
+}
 
 function detectGameType(name) {
   if (!name) return null;
@@ -323,6 +482,29 @@ function detectGameType(name) {
 
 let currentGameType = null;
 let conditionalSelects = {}; // cache of custom select instances for conditional fields
+
+// ─── Profile game quick-select ───────────────────────────────────────────────
+
+const PROFILE_GAMES = JSON.parse(document.getElementById('profile-games-lfg-data').textContent);
+
+document.addEventListener('DOMContentLoaded', function() {
+  const bar = document.getElementById('profileGameButtons');
+  if (!bar || !PROFILE_GAMES.length) return;
+  PROFILE_GAMES.forEach(function(g) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'flex items-center gap-2 bg-neutral-800 hover:bg-green-900/30 border border-neutral-700 hover:border-green-600 rounded-lg px-3 py-1.5 text-sm text-gray-300 hover:text-white transition';
+    if (g.cover_url) {
+      btn.innerHTML = `<img src="${escapeHtml(g.cover_url)}" class="w-6 h-8 rounded object-cover flex-shrink-0"><span class="truncate max-w-[140px]">${escapeHtml(g.name)}</span>`;
+    } else {
+      btn.innerHTML = `<i class="fas fa-gamepad text-gray-500 text-sm flex-shrink-0"></i><span class="truncate max-w-[140px]">${escapeHtml(g.name)}</span>`;
+    }
+    btn.addEventListener('click', function() {
+      selectGame({name: g.name, id: g.igdb_id || '', cover_url: g.cover_url || '', platforms: ''});
+    });
+    bar.appendChild(btn);
+  });
+});
 
 // ─── Game search ─────────────────────────────────────────────────────────────
 
@@ -443,6 +625,11 @@ function clearGameSelection() {
   document.getElementById('gameSelectedPreview').classList.add('hidden');
   document.getElementById('gameSearchClear').classList.add('hidden');
   document.getElementById('gameSpecificOptionsSection').classList.add('hidden');
+  document.getElementById('useRoles').closest('.bg-neutral-900\\/50').classList.remove('hidden');
+  document.getElementById('useRoles').checked = false;
+  document.getElementById('rolesContainer').classList.add('hidden');
+  currentRoleSchema = DEFAULT_ROLE_SCHEMA;
+  renderRoleSchemaInputs();
   hideGameResults();
   document.getElementById('gameSearch').focus();
 }
@@ -465,7 +652,7 @@ function updateGameSpecificOptions(gameName) {
   // Render wrapper divs for non-conditional fields (custom selects injected after innerHTML set)
   for (const field of templates) {
     if (field.depends_on) continue;
-    html += `<div id="opt_wrapper_${field.name}"><div id="opt_cs_container_${field.name}"></div></div>`;
+    html += `<div id="opt_wrapper_${_fieldId(field.name)}"><div id="opt_cs_container_${_fieldId(field.name)}"></div></div>`;
   }
 
   // Activity list: game-specific where we have one, generic for everything else
@@ -473,13 +660,40 @@ function updateGameSpecificOptions(gameName) {
                      : currentGameType === 'ffxiv' ? FFXIV_ACTIVITY_CHOICES
                      : currentGameType === 'eso'   ? ESO_ACTIVITY_CHOICES
                      : currentGameType === 'gw2'   ? GW2_ACTIVITY_CHOICES
+                     : currentGameType === 'palworld' ? PALWORLD_ACTIVITY_CHOICES
                      : ACTIVITY_CHOICES;
 
-  // Activity gets its own wrapper div - custom select injected after innerHTML set
-  html += `<div id="opt_wrapper_Activity"><div id="activitySelectContainer"></div></div>`;
+  // Only add the generic Activity selector if the template doesn't already define an Activity field
+  const templateHasActivity = templates.some(f => f.name === 'Activity');
+  if (!templateHasActivity) {
+    html += `<div id="opt_wrapper_Activity"><div id="activitySelectContainer"></div></div>`;
+  }
 
   container.innerHTML = html;
   section.classList.remove('hidden');
+
+  // Update role schema for this game and re-render role slots
+  currentRoleSchema = (currentGameType && GAME_ROLE_SCHEMAS[currentGameType])
+    ? GAME_ROLE_SCHEMAS[currentGameType]
+    : DEFAULT_ROLE_SCHEMA;
+  renderRoleSchemaInputs();
+
+  // Survival games: auto-enable roles silently, hide the whole Role Composition section
+  // (the sub-choice Role picker in "Your Info" handles role selection instead)
+  const SURVIVAL_GAME_TYPES = ['palworld', 'enshrouded', 'valheim', 'rust', 'vrising'];
+  const roleSection = document.getElementById('useRoles').closest('.bg-neutral-900\\/50');
+  if (NO_ROLES.includes(currentGameType)) {
+    roleSection.classList.add('hidden');
+    document.getElementById('useRoles').checked = false;
+    document.getElementById('rolesContainer').classList.add('hidden');
+  } else if (SURVIVAL_GAME_TYPES.includes(currentGameType)) {
+    // Auto-enable roles for survival, hide the section (user doesn't set slot counts manually)
+    roleSection.classList.add('hidden');
+    document.getElementById('useRoles').checked = true;
+    document.getElementById('rolesContainer').classList.remove('hidden');
+  } else {
+    roleSection.classList.remove('hidden');
+  }
 
   // Build all custom selects for static (non-conditional) fields
   for (const field of templates) {
@@ -487,57 +701,67 @@ function updateGameSpecificOptions(gameName) {
     _buildCustomSelectForField(field, templates);
   }
 
-  // Activity custom select
-  createCustomSelect({
-    container: '#activitySelectContainer',
-    name: 'opt_Activity',
-    label: 'Activity',
-    placeholder: 'Any activity',
-    items: [{ value: '', label: 'Any activity' }, ...activityList.map(c => ({ value: c, label: c }))],
-    selected: '',
-    color: 'green',
-    onSelect: (val) => { _setDataField('Activity', val); },
-  });
+  // Activity custom select - only if we injected the generic container (template didn't define Activity)
+  if (!templateHasActivity) {
+    createCustomSelect({
+      container: '#activitySelectContainer',
+      name: 'opt_Activity',
+      label: 'Activity',
+      placeholder: 'Select activities... (up to 3)',
+      items: activityList.map(c => ({ value: c, label: c })),
+      selected: [],
+      color: 'green',
+      multiSelect: true,
+      maxSelections: 3,
+      onSelect: (val) => { _setDataField('Activity', val); },
+    });
+  }
 }
 
 function _setDataField(name, val) {
-  // Store value on a hidden input so collectSelections() still works
-  let hidden = document.getElementById(`opt_${name}`);
+  // Store value in a dedicated data-field input separate from the custom select's own hidden input.
+  // The custom select already creates id="opt_${name}" - use "sel_${name}" to avoid collision.
+  // collectSelections() reads [data-field] attributes, not by ID.
+  let hidden = document.getElementById(`sel_${name}`);
   if (!hidden) {
     hidden = document.createElement('input');
     hidden.type = 'hidden';
-    hidden.id = `opt_${name}`;
+    hidden.id = `sel_${name}`;
     hidden.dataset.field = name;
     document.getElementById('gameSpecificOptions').appendChild(hidden);
   }
-  hidden.value = val;
+  // Store arrays as JSON so the server receives a proper list
+  hidden.value = Array.isArray(val) ? JSON.stringify(val) : val;
 }
 
+function _fieldId(name) { return name.replace(/\s+/g, '_'); }
+
 function _buildCustomSelectForField(field, templates) {
-  const wrapperId = `opt_wrapper_${field.name}`;
-  const containerId = `opt_cs_container_${field.name}`;
+  const wrapperId = `opt_wrapper_${_fieldId(field.name)}`;
+  const containerId = `opt_cs_container_${_fieldId(field.name)}`;
   const wrapper = document.getElementById(wrapperId);
   if (!wrapper) return;
 
+  const isMulti = !!field.multi;
   const choices = Array.isArray(field.choices) ? field.choices : [];
-  const items = [
-    { value: '', label: `Select ${field.name.toLowerCase()}...` },
-    ...choices.map(c => {
-      const val = typeof c === 'object' ? c.value : c;
-      return { value: val, label: val };
-    }),
-  ];
+  const items = choices.map(c => {
+    const val = typeof c === 'object' ? c.value : c;
+    return { value: val, label: val };
+  });
+  if (!isMulti) items.unshift({ value: '', label: `Select ${field.name.toLowerCase()}...` });
 
   wrapper.innerHTML = `<div id="${containerId}"></div>`;
 
   const inst = createCustomSelect({
     container: `#${containerId}`,
-    name: `opt_${field.name}`,
+    name: `opt_${_fieldId(field.name)}`,
     label: field.name,
-    placeholder: `Select ${field.name.toLowerCase()}...`,
+    placeholder: isMulti ? `Select ${field.name.toLowerCase()}... (up to ${field.maxSelections || 3})` : `Select ${field.name.toLowerCase()}...`,
     items,
-    selected: '',
+    selected: isMulti ? [] : '',
     color: 'green',
+    multiSelect: isMulti,
+    maxSelections: field.maxSelections || null,
     onSelect: (val) => {
       _setDataField(field.name, val);
       if (templates.some(f => f.depends_on === field.name)) {
@@ -554,14 +778,14 @@ function _buildCustomSelectForField(field, templates) {
 function _updateConditionalCustomFields(parentName, parentVal, templates) {
   for (const field of templates) {
     if (field.depends_on !== parentName) continue;
-    const wrapperId = `opt_wrapper_${field.name}`;
+    const wrapperId = `opt_wrapper_${_fieldId(field.name)}`;
     let wrapper = document.getElementById(wrapperId);
     const choices = parentVal && typeof field.choices === 'object' && !Array.isArray(field.choices)
       ? (field.choices[parentVal] || []) : [];
 
     if (!wrapper) {
       // Insert after parent wrapper
-      const parentWrapper = document.getElementById(`opt_wrapper_${parentName}`);
+      const parentWrapper = document.getElementById(`opt_wrapper_${_fieldId(parentName)}`);
       if (!parentWrapper || !choices.length) continue;
       wrapper = document.createElement('div');
       wrapper.id = wrapperId;
@@ -571,7 +795,7 @@ function _updateConditionalCustomFields(parentName, parentVal, templates) {
     if (!choices.length) { wrapper.classList.add('hidden'); return; }
     wrapper.classList.remove('hidden');
 
-    const containerId = `opt_cs_container_${field.name}`;
+    const containerId = `opt_cs_container_${_fieldId(field.name)}`;
     wrapper.innerHTML = `<div id="${containerId}"></div>`;
     const items = [
       { value: '', label: `Select ${field.name.toLowerCase()}...` },
@@ -594,19 +818,34 @@ function _updateConditionalCustomFields(parentName, parentVal, templates) {
 function _updateExcludedCustomFields(parentName, parentVal, templates) {
   for (const field of templates) {
     if (field.exclude_same_as !== parentName) continue;
-    const inst = conditionalSelects[field.name];
-    if (!inst) continue;
+    const wrapperId = `opt_wrapper_${field.name}`;
+    const wrapper = document.getElementById(wrapperId);
+    if (!wrapper) continue;
     const allChoices = Array.isArray(field.choices) ? field.choices : [];
     const filtered = allChoices.filter(c => {
-      const val = typeof c === 'object' ? c.value : c;
-      return val !== parentVal;
+      const cVal = typeof c === 'object' ? c.value : c;
+      return cVal !== parentVal;
     });
     const items = [
       { value: '', label: `Select ${field.name.toLowerCase()}...` },
-      ...filtered.map(c => { const val = typeof c === 'object' ? c.value : c; return { value: val, label: val }; }),
+      ...filtered.map(c => { const cVal = typeof c === 'object' ? c.value : c; return { value: cVal, label: cVal }; }),
     ];
-    inst.setItems(items);
-    if (inst.getValue() === parentVal) inst.setValue('');
+    // Destroy and recreate - createCustomSelect has no setItems API
+    const containerId = `opt_cs_container_${field.name}`;
+    wrapper.innerHTML = `<div id="${containerId}"></div>`;
+    // Clear stored selection since the previously selected value may now be excluded
+    _setDataField(field.name, '');
+    const inst = createCustomSelect({
+      container: `#${containerId}`,
+      name: `opt_${field.name}`,
+      label: field.name,
+      placeholder: `Select ${field.name.toLowerCase()}...`,
+      items,
+      selected: '',
+      color: 'green',
+      onSelect: (val) => { _setDataField(field.name, val); },
+    });
+    conditionalSelects[field.name] = inst;
   }
 }
 
@@ -614,7 +853,15 @@ function _updateExcludedCustomFields(parentName, parentVal, templates) {
 function collectSelections() {
   const out = {};
   document.querySelectorAll('[data-field]').forEach(el => {
-    if (el.value) out[el.dataset.field] = el.value;
+    if (el.value) {
+      // Multi-select values are stored as JSON arrays
+      try {
+        const parsed = JSON.parse(el.value);
+        out[el.dataset.field] = Array.isArray(parsed) && parsed.length ? parsed : el.value;
+      } catch (_) {
+        out[el.dataset.field] = el.value;
+      }
+    }
   });
   return out;
 }
@@ -682,6 +929,9 @@ document.getElementById('useRoles').addEventListener('change', (e) => {
   document.getElementById('rolesContainer').classList.toggle('hidden', !e.target.checked);
 });
 
+// Render default role inputs on page load
+renderRoleSchemaInputs();
+
 // ─── Form submission ──────────────────────────────────────────────────────────
 
 document.getElementById('createGroupForm').addEventListener('submit', async (e) => {
@@ -699,9 +949,16 @@ document.getElementById('createGroupForm').addEventListener('submit', async (e) 
   btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Creating...';
 
   const selections = collectSelections();
-  // Determine selected role from Role dropdown if present
-  const roleVal = selections['Role'] || null;
-  delete selections['Role'];
+  // For survival games, Role is a sub-choice label (e.g. "Tank/Defender") - keep it in selections
+  // so the browse/detail survival grid can bucket the creator correctly.
+  // For MMOs (gw2/eso), Role is a generic tank/healer/dps/support - extract to selected_role.
+  const SURVIVAL_GAME_TYPES_SUBMIT = ['palworld', 'enshrouded', 'valheim', 'rust', 'vrising'];
+  let roleVal = null;
+  if (!SURVIVAL_GAME_TYPES_SUBMIT.includes(currentGameType)) {
+    const _rv = selections['Role'] || null;
+    roleVal = _rv ? (Array.isArray(_rv) ? _rv[0] : _rv).toLowerCase() : null;
+    delete selections['Role'];
+  }
 
   const formData = {
     game_name:      gameNameVal,
@@ -724,10 +981,27 @@ document.getElementById('createGroupForm').addEventListener('submit', async (e) 
   }
 
   if (formData.use_roles) {
-    formData.tanks_needed    = parseInt(document.getElementById('tanksNeeded').value)  || 0;
-    formData.healers_needed  = parseInt(document.getElementById('healersNeeded').value) || 0;
-    formData.dps_needed      = parseInt(document.getElementById('dpsNeeded').value)    || 0;
-    formData.support_needed  = parseInt(document.getElementById('supportNeeded').value) || 0;
+    const SURVIVAL_GAME_TYPES = ['palworld', 'enshrouded', 'valheim', 'rust', 'vrising'];
+    if (SURVIVAL_GAME_TYPES.includes(currentGameType)) {
+      // Survival: use fixed defaults, always send the survival schema
+      const d = SCHEMA_SLOT_DEFAULTS.survival;
+      formData.tanks_needed   = d.tank;
+      formData.healers_needed = d.healer;
+      formData.dps_needed     = d.dps;
+      formData.support_needed = d.support;
+      formData.role_schema    = currentRoleSchema;
+    } else {
+      formData.tanks_needed    = parseInt(document.getElementById('tankNeeded')?.value    || document.getElementById('tanksNeeded')?.value)    || 0;
+      formData.healers_needed  = parseInt(document.getElementById('healerNeeded')?.value  || document.getElementById('healersNeeded')?.value)  || 0;
+      formData.dps_needed      = parseInt(document.getElementById('dpsNeeded')?.value)    || 0;
+      formData.support_needed  = parseInt(document.getElementById('supportNeeded')?.value) || 0;
+      // Send role_schema only if it differs from the default (custom labels)
+      const isDefault = currentRoleSchema === DEFAULT_ROLE_SCHEMA ||
+        currentRoleSchema.every((r, i) => r.label === DEFAULT_ROLE_SCHEMA[i].label);
+      if (!isDefault) {
+        formData.role_schema = currentRoleSchema;
+      }
+    }
   }
 
   try {
@@ -748,7 +1022,8 @@ document.getElementById('createGroupForm').addEventListener('submit', async (e) 
           await csrfFetch(`/ql/api/lfg/${newLfgId}/broadcast-network/`, { method: 'POST' });
         } catch (_) { /* broadcast is best-effort, don't block redirect */ }
       }
-      window.location.href = '{% url "questlog_web_lfg_browse" %}';
+      const detailSlug = data.share_token || newLfgId;
+      window.location.href = detailSlug ? `/ql/lfg/${detailSlug}/` : '{% url "questlog_web_lfg_browse" %}';
     } else {
       alert(data.error || 'Failed to create group');
       btn.disabled = false;

@@ -1,0 +1,236 @@
+{% extends "questlog_web/fluxer_base_guild.html" %}
+{% load static %}
+
+{% block title %}RSS Articles - {{ guild_name }} - QuestLog{% endblock %}
+
+{% block guild_content %}
+{% include "questlog_web/partials/custom_select.html" %}
+
+<!-- Header -->
+<div class="bg-neutral-900/50 border-b border-neutral-800 -mx-4 lg:-mx-6 px-4 lg:px-6 py-6 mb-0">
+  <div class="flex items-center justify-between flex-wrap gap-4">
+    <div>
+      <h1 class="text-3xl font-bold bg-gradient-to-r from-orange-400 to-red-400 bg-clip-text text-transparent">
+        RSS Articles
+      </h1>
+      <p class="text-gray-400 mt-2">
+        Latest articles from RSS feeds for <span class="text-white font-semibold">{{ guild_name }}</span>
+      </p>
+    </div>
+    <a href="/ql/dashboard/fluxer/{{ guild_id }}/discovery/?tab=rss"
+       class="px-4 py-2 bg-neutral-800 hover:bg-neutral-700 rounded-lg border border-neutral-700 transition-colors text-sm text-gray-300">
+      <i class="fas fa-cog mr-2"></i>Manage Feeds
+    </a>
+  </div>
+
+  <!-- Search & Filter -->
+  <div class="mt-6">
+    <div class="flex flex-col lg:flex-row gap-3 items-start lg:items-center">
+      <div class="relative w-full lg:w-80">
+        <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-500"></i>
+        <input type="text" id="articleSearch" placeholder="Search articles..."
+               class="w-full pl-10 pr-10 py-2.5 bg-neutral-800 border border-neutral-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-orange-500 transition-colors">
+        <button id="clearSearch" class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white hidden">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      {% if feeds %}
+      <div id="feedFilterContainer" class="w-full lg:w-64"></div>
+      <button id="clearFilter"
+              class="px-4 py-2 bg-neutral-700 hover:bg-neutral-600 text-white rounded-lg font-medium transition text-sm {% if not selected_feed_id %}hidden{% endif %}">
+        <i class="fas fa-times mr-1"></i>Clear Filter
+      </button>
+      {% endif %}
+    </div>
+    <p class="text-xs text-gray-500 mt-2">
+      Search by title, summary, author, or tags{% if feeds %} &bull; Filter by feed source{% endif %}
+    </p>
+  </div>
+
+  <!-- Stats -->
+  <div class="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-4">
+    <div class="bg-neutral-800/50 border border-neutral-700 rounded-lg p-4">
+      <div class="flex items-center gap-3">
+        <div class="text-orange-400 text-2xl"><i class="fas fa-newspaper"></i></div>
+        <div>
+          <div class="text-2xl font-bold">{{ total_articles }}</div>
+          <div class="text-sm text-gray-400">Articles</div>
+        </div>
+      </div>
+    </div>
+    <div class="bg-neutral-800/50 border border-neutral-700 rounded-lg p-4">
+      <div class="flex items-center gap-3">
+        <div class="text-orange-400 text-2xl"><i class="fas fa-rss"></i></div>
+        <div>
+          <div class="text-2xl font-bold">{{ feeds|length }}</div>
+          <div class="text-sm text-gray-400">Active Feeds</div>
+        </div>
+      </div>
+    </div>
+    <div class="bg-neutral-800/50 border border-neutral-700 rounded-lg p-4">
+      <div class="flex items-center gap-3">
+        <div class="text-green-400 text-2xl"><i class="fas fa-clock"></i></div>
+        <div>
+          <div class="text-2xl font-bold">30</div>
+          <div class="text-sm text-gray-400">Days Retained</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Content -->
+<div class="px-6 py-8">
+  {% if not articles %}
+  <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-12 text-center">
+    <i class="fas fa-newspaper text-gray-500 text-5xl mb-4"></i>
+    <h2 class="text-xl font-bold text-gray-400 mb-2">No Articles Yet</h2>
+    <p class="text-gray-500">Set up RSS feeds to start collecting articles!</p>
+    <a href="/ql/dashboard/fluxer/{{ guild_id }}/discovery/?tab=rss"
+       class="inline-block mt-4 px-6 py-3 bg-orange-600 hover:bg-orange-700 rounded-lg transition-colors text-sm text-white">
+      <i class="fas fa-plus mr-2"></i>Add RSS Feed
+    </a>
+  </div>
+  {% else %}
+
+  {% if total_articles > 100 %}
+  <p class="text-sm text-gray-500 mb-4">
+    <i class="fas fa-info-circle mr-1"></i>
+    Showing most recent 100 articles. Older articles are archived after 30 days.
+  </p>
+  {% endif %}
+
+  <div id="noSearchResults" class="hidden bg-neutral-900 border border-neutral-800 rounded-xl p-12 text-center">
+    <i class="fas fa-search text-gray-500 text-5xl mb-4"></i>
+    <h2 class="text-xl font-bold text-gray-400 mb-2">No Articles Found</h2>
+    <p class="text-gray-500">No articles match your search. Try different keywords.</p>
+    <button onclick="document.getElementById('articleSearch').value=''; document.getElementById('articleSearch').dispatchEvent(new Event('input'));"
+            class="inline-block mt-4 px-6 py-3 bg-orange-600 hover:bg-orange-700 rounded-lg transition-colors cursor-pointer text-sm text-white">
+      <i class="fas fa-times mr-2"></i>Clear Search
+    </button>
+  </div>
+
+  <div id="articlesGrid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+    {% for article in articles %}
+    <article class="article-card bg-neutral-900 border border-neutral-800 rounded-xl overflow-hidden hover:border-orange-500/50 transition-all duration-300 group flex flex-col"
+             data-title="{{ article.title|lower }}"
+             data-summary="{{ article.summary|lower }}"
+             data-author="{{ article.author|lower }}"
+             data-feed="{{ article.feed_label|lower }}"
+             data-categories="{% for cat in article.categories %}{{ cat|lower }} {% endfor %}">
+      <div class="relative aspect-video bg-neutral-800 overflow-hidden flex-shrink-0">
+        {% if article.thumbnail %}
+        <img src="{{ article.thumbnail }}" alt="{{ article.title }}"
+             class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+             onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+        <div class="w-full h-full items-center justify-center text-orange-400/50 hidden absolute inset-0">
+          <i class="fas fa-newspaper text-5xl"></i>
+        </div>
+        {% else %}
+        <div class="w-full h-full flex items-center justify-center text-orange-400/50">
+          <i class="fas fa-newspaper text-5xl"></i>
+        </div>
+        {% endif %}
+        <div class="absolute bottom-0 left-0 right-0 px-3 py-2 bg-gradient-to-t from-black/80 to-transparent flex items-center justify-between">
+          <span class="px-2 py-0.5 bg-orange-900/80 text-orange-300 text-xs font-medium rounded backdrop-blur-sm">
+            <i class="fas fa-rss mr-1"></i>{{ article.feed_label }}
+          </span>
+          {% if article.published_at %}
+          <span class="text-xs text-gray-300 drop-shadow">{{ article.published_at }}</span>
+          {% endif %}
+        </div>
+      </div>
+      <div class="p-5 flex flex-col flex-1">
+        <h3 class="text-base font-bold text-white mb-2 line-clamp-2 group-hover:text-orange-400 transition-colors">
+          {% if article.link %}
+          <a href="{{ article.link }}" target="_blank" rel="noopener noreferrer" class="hover:underline">{{ article.title }}</a>
+          {% else %}{{ article.title }}{% endif %}
+        </h3>
+        {% if article.author %}
+        <p class="text-xs text-gray-500 mb-2"><i class="fas fa-user mr-1"></i>{{ article.author }}</p>
+        {% endif %}
+        {% if article.summary %}
+        <p class="text-sm text-gray-400 line-clamp-3 mb-3 flex-1">{{ article.summary|truncatechars:200 }}</p>
+        {% endif %}
+        {% if article.categories %}
+        <div class="flex flex-wrap gap-1 mb-3">
+          {% for cat in article.categories %}
+          <span class="px-2 py-0.5 bg-neutral-800 text-gray-400 text-xs rounded">{{ cat }}</span>
+          {% endfor %}
+        </div>
+        {% endif %}
+        <div class="flex items-center justify-between pt-3 border-t border-neutral-800 mt-auto gap-2">
+          {% if article.link %}
+          <a href="{{ article.link }}" target="_blank" rel="noopener noreferrer"
+             class="flex items-center gap-2 px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white text-sm font-medium rounded-lg transition-colors flex-shrink-0">
+            <i class="fas fa-external-link-alt text-xs"></i>Read Article
+          </a>
+          {% else %}
+          <span class="text-gray-500 text-sm">No link</span>
+          {% endif %}
+          {% if article.posted_at %}
+          <span class="text-xs text-gray-600 text-right truncate">
+            <i class="fas fa-paper-plane mr-1"></i>{{ article.posted_at }}
+          </span>
+          {% endif %}
+        </div>
+      </div>
+    </article>
+    {% endfor %}
+  </div>
+  {% endif %}
+</div>
+
+<script id="feeds-data" type="application/json">{{ feeds_json }}</script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const feeds = JSON.parse(document.getElementById('feeds-data').textContent || '[]');
+  const selectedFeedId = '{{ selected_feed_id }}';
+
+  if (feeds.length > 0 && typeof createCustomSelect === 'function') {
+    createCustomSelect({
+      container: document.getElementById('feedFilterContainer'),
+      name: 'feedFilter',
+      placeholder: 'Filter by feed...',
+      items: [{ value: '', label: 'All Feeds' }, ...feeds.map(f => ({ value: String(f.id), label: f.label }))],
+      selected: selectedFeedId,
+      color: 'orange',
+      onSelect: (value) => { window.location.href = value ? '?feed_id=' + value : window.location.pathname; }
+    });
+  }
+
+  const clearFilter = document.getElementById('clearFilter');
+  if (clearFilter) clearFilter.addEventListener('click', () => { window.location.href = window.location.pathname; });
+
+  const searchInput = document.getElementById('articleSearch');
+  const clearSearch = document.getElementById('clearSearch');
+  const grid = document.getElementById('articlesGrid');
+  const noResults = document.getElementById('noSearchResults');
+  const cards = document.querySelectorAll('.article-card');
+
+  if (searchInput && cards.length > 0) {
+    let t;
+    searchInput.addEventListener('input', function() {
+      clearTimeout(t);
+      t = setTimeout(() => {
+        const query = this.value.toLowerCase().trim();
+        if (clearSearch) clearSearch.classList.toggle('hidden', !query);
+        if (!query) { cards.forEach(c => c.classList.remove('hidden')); if (noResults) noResults.classList.add('hidden'); if (grid) grid.classList.remove('hidden'); return; }
+        const words = query.split(/\s+/).filter(w => w.length > 0);
+        let visible = 0;
+        cards.forEach(card => {
+          const text = [card.dataset.title, card.dataset.summary, card.dataset.author, card.dataset.feed, card.dataset.categories].join(' ');
+          const match = words.every(w => text.includes(w));
+          card.classList.toggle('hidden', !match);
+          if (match) visible++;
+        });
+        if (noResults && grid) { noResults.classList.toggle('hidden', visible > 0); grid.classList.toggle('hidden', visible === 0); }
+      }, 150);
+    });
+    if (clearSearch) clearSearch.addEventListener('click', () => { searchInput.value = ''; searchInput.dispatchEvent(new Event('input')); searchInput.focus(); });
+    searchInput.addEventListener('keydown', e => { if (e.key === 'Escape') { searchInput.value = ''; searchInput.dispatchEvent(new Event('input')); } });
+  }
+});
+</script>
+
+{% endblock %}

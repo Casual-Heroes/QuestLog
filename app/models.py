@@ -1989,6 +1989,8 @@ class LFGGroup(Base):
     support_needed = Column(Integer, nullable=True)
     is_raid = Column(Boolean, default=False)  # Legacy - now use role fields directly
     enforce_role_limits = Column(Boolean, default=True)  # If True, can't exceed role counts
+    role_schema = Column(Text, nullable=True)  # JSON array of 4 slot dicts (slot/label/color/icon)
+    recurrence = Column(String(20), nullable=True, default='none')  # none, daily, weekly, monthly
 
     # Status
     is_active = Column(Boolean, default=True)

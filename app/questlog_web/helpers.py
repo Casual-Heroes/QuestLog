@@ -33,7 +33,7 @@ STEAM_API_KEY = os.getenv('STEAM_API_KEY', '')
 
 # User IDs excluded from all public listings (leaderboards, suggestions, search, gamers directory)
 # Add internal/test accounts here. ID 4 = RyvenTest
-EXCLUDED_USER_IDS = {4}
+EXCLUDED_USER_IDS = {1, 4}
 
 # IP addresses in audit logs are SHA-256 hashed with this salt (never stored raw)
 AUDIT_LOG_SALT = os.getenv('AUDIT_LOG_SALT', '')
@@ -63,9 +63,9 @@ def safe_int(value, default=1, min_val=None, max_val=None):
         result = int(value)
     except (TypeError, ValueError):
         result = default
-    if min_val is not None:
+    if result is not None and min_val is not None:
         result = max(min_val, result)
-    if max_val is not None:
+    if result is not None and max_val is not None:
         result = min(max_val, result)
     return result
 

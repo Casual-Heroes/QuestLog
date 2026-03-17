@@ -116,14 +116,33 @@
 
     <div id="games-list" class="hidden space-y-4"></div>
 
-    <!-- QuestLog Network: per-group opt-in note -->
+    <!-- QuestLog Network broadcasts -->
     <div class="mt-6 pt-6 border-t border-neutral-800">
-      <p class="text-sm text-gray-400">
-        <i class="fas fa-globe text-yellow-400 mr-2"></i>
-        Members can post individual LFG groups to the QuestLog Network when creating a group in the
-        <a href="/ql/dashboard/fluxer/{{ guild_id }}/lfg/browse/" class="text-yellow-400 hover:text-yellow-300 underline">LFG Browser</a>.
-        Network publishing is opt-in per group, not server-wide.
-      </p>
+      <div class="flex flex-col md:flex-row md:items-start gap-6">
+        <div class="flex-1">
+          <h3 class="text-base font-bold text-white mb-1">
+            <i class="fas fa-globe text-yellow-400 mr-2"></i>QuestLog Network - Receive LFG Broadcasts
+          </h3>
+          <p class="text-gray-400 text-sm mb-3">When enabled, LFG groups posted on the QuestLog Network from any server will appear in the selected channel. Members can also post individual groups to the Network per-group.</p>
+          <div class="flex items-center gap-3 mb-4">
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" id="networkLfgEnabled" class="sr-only peer" onchange="onNetworkLfgToggle()">
+              <div class="w-11 h-6 bg-neutral-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-yellow-500"></div>
+            </label>
+            <span class="text-white text-sm font-medium">Receive Network LFG Posts</span>
+          </div>
+          <div id="networkLfgChannelRow" class="hidden">
+            <label class="block text-sm text-gray-400 mb-2">Post to channel</label>
+            <div id="cs-network-lfg-ch" class="max-w-xs mb-3"></div>
+            <button onclick="saveNetworkLfg()" class="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition">
+              <i class="fas fa-save mr-2"></i>Save
+            </button>
+          </div>
+        </div>
+        <div class="flex-shrink-0 pt-1">
+          <div id="networkLfgStatus" class="text-xs text-gray-500"></div>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -530,6 +549,10 @@
               <option value="arpg-build-activity">ARPG Build + Activity (Diablo, PoE, Grim Dawn, etc.)</option>
               <option value="borderlands4-vh-skill">Borderlands 4 Vault Hunter + Skill Tree</option>
             </optgroup>
+            <optgroup label="Survival Games">
+              <option value="survival">Survival Games (Palworld, Enshrouded, Rust, Valheim, etc.)</option>
+              <option value="vrising">V Rising (no roles)</option>
+            </optgroup>
             <optgroup label="Difficulty">
               <option value="difficulty">Difficulty Levels</option>
             </optgroup>
@@ -687,6 +710,16 @@ let csBannerLfgCh = createCustomSelect({
   color: 'green'
 });
 
+// QuestLog Network LFG channel selector
+let csNetworkLfgCh = createCustomSelect({
+  container: '#cs-network-lfg-ch',
+  name: 'network_lfg_channel_id',
+  placeholder: 'Select channel...',
+  items: channelItems,
+  selected: '',
+  color: 'yellow',
+});
+
 // Add game channel select instances
 let addGameChannelSelect = null;
 let editGameChannelSelect = null;
@@ -757,7 +790,7 @@ function showTab(tabName) {
     btn.classList.add(colors[tabName] || 'bg-green-600', 'text-white');
   }
 
-  if (tabName === 'games') { loadGames(); loadConfig(); }
+  if (tabName === 'games') { loadGames(); loadConfig(); loadNetworkLfg(); }
   if (tabName === 'config') loadConfig();
   if (tabName === 'stats') loadStats();
   if (tabName === 'blacklist') loadBlacklist();
@@ -1305,6 +1338,57 @@ async function saveConfig() {
 }
 
 // -------------------------
+// Network LFG Broadcasts
+// -------------------------
+const NETWORK_LFG_API = '/ql/api/dashboard/fluxer/' + GUILD_ID + '/network-lfg/';
+
+function onNetworkLfgToggle() {
+  const enabled = document.getElementById('networkLfgEnabled').checked;
+  document.getElementById('networkLfgChannelRow').classList.toggle('hidden', !enabled);
+  if (!enabled) saveNetworkLfg(); // disabling saves immediately (no channel required)
+}
+
+async function loadNetworkLfg() {
+  try {
+    const resp = await fetch(NETWORK_LFG_API, {headers: {'Accept': 'application/json'}});
+    const data = await resp.json();
+    const enabled = data.is_enabled || false;
+    const channelId = data.channel_id || '';
+    document.getElementById('networkLfgEnabled').checked = enabled;
+    document.getElementById('networkLfgChannelRow').classList.toggle('hidden', !enabled);
+    if (channelId) csNetworkLfgCh.setValue(channelId);
+    const status = document.getElementById('networkLfgStatus');
+    status.textContent = enabled ? ('Active - #' + (data.channel_name || channelId)) : 'Not enabled';
+    status.className = enabled ? 'text-xs text-green-400' : 'text-xs text-gray-500';
+  } catch (e) {}
+}
+
+async function saveNetworkLfg() {
+  const enabled = document.getElementById('networkLfgEnabled').checked;
+  document.getElementById('networkLfgChannelRow').classList.toggle('hidden', !enabled);
+  const channelId = csNetworkLfgCh.getValue() || '';
+  if (enabled && !channelId) return; // need a channel
+  try {
+    const resp = await csrfFetch(NETWORK_LFG_API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ is_enabled: enabled, channel_id: channelId }),
+    });
+    const data = await resp.json();
+    if (resp.ok && data.success) {
+      const status = document.getElementById('networkLfgStatus');
+      status.textContent = enabled ? ('Active - #' + (data.channel_name || channelId)) : 'Disabled';
+      status.className = enabled ? 'text-xs text-green-400' : 'text-xs text-gray-500';
+      showSaveMsg(true, 'Network LFG setting saved.');
+    } else {
+      showSaveMsg(false, data.error || 'Save failed.');
+    }
+  } catch (e) {
+    showSaveMsg(false, 'Network error.');
+  }
+}
+
+// -------------------------
 // Reliability Stats Tab
 // -------------------------
 async function loadStats() {
@@ -1468,6 +1552,7 @@ function customOptionsBuilder() {
     selectedTemplate: '',
     templateNames: {
       'activity': 'Activity Type',
+      'survival': 'Survival Games',
       'mmo-roles': 'MMO Roles',
       'mmo-classes': 'MMO Classes',
       'wow-class-spec': 'WoW Class + Spec',
@@ -1735,7 +1820,66 @@ function customOptionsBuilder() {
         'difficulty': {
           name: 'Difficulty',
           choices: ['Easy', 'Normal', 'Hard', 'Expert', 'Master']
-        }
+        },
+        'vrising': [
+          {
+            name: 'Activity',
+            choices: ['Leveling', 'Castle Building', 'Boss Hunting', 'PvP', 'Farming/Resources', 'Clan Content', 'Casual Co-op']
+          },
+          {
+            name: 'Platform',
+            choices: ['PC', 'PlayStation', 'Cross-platform']
+          },
+          {
+            name: 'Level Range',
+            choices: ['Early (1-20)', 'Mid (21-40)', 'End (41+)']
+          },
+          {
+            name: 'Experience',
+            choices: ['New/Learning', 'Casual', 'Experienced', 'Hardcore']
+          },
+          {
+            name: 'Server Type',
+            choices: ['PvE', 'PvP', 'PvE-C', 'Modded', 'Official', 'Private']
+          }
+        ],
+        'survival': [
+          {
+            name: 'Activity',
+            choices: ['Boss Fight', 'Raid (PvE)', 'Dungeon/POI Clear', 'Base Building', 'Resource Farming', 'Taming/Breeding', 'PvP Combat', 'Base Raiding (PvP)', 'Territory Control (PvP)', 'Exploration', 'Crafting/Tech', 'Casual Co-op']
+          },
+          {
+            name: 'Role',
+            enableRoleTags: true,
+            choices: [
+              { value: 'Combat (Melee)', role: 'dps' },
+              { value: 'Combat (Ranged)', role: 'dps' },
+              { value: 'Tank/Defender', role: 'tank' },
+              { value: 'Support/Healer', role: 'healer' },
+              { value: 'Builder', role: 'support' },
+              { value: 'Gatherer', role: 'support' },
+              { value: 'Tamer/Breeder', role: 'support' },
+              { value: 'Crafter', role: 'support' },
+              { value: 'Scout/Explorer', role: 'dps' }
+            ]
+          },
+          {
+            name: 'Platform',
+            choices: ['PC', 'Xbox', 'PlayStation', 'Nintendo Switch', 'Cross-platform']
+          },
+          {
+            name: 'Level Range',
+            choices: ['Early (1-20)', 'Mid (21-40)', 'End (41+)']
+          },
+          {
+            name: 'Experience',
+            choices: ['New/Learning', 'Casual', 'Experienced', 'Hardcore']
+          },
+          {
+            name: 'Server Type',
+            choices: ['PvE', 'PvP', 'PvE-C', 'Modded', 'Official', 'Private']
+          }
+        ]
       };
 
       const template = templates[templateName];

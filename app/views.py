@@ -49,7 +49,7 @@ def _safe_int(value, default=0, min_val=None, max_val=None):
 
 # Discord bot API configuration
 DISCORD_BOT_API_URL = os.getenv('DISCORD_BOT_API_URL', 'http://localhost:8001')
-DISCORD_BOT_API_TOKEN = os.getenv('DISCORD_BOT_API_TOKEN', 'development-token')
+DISCORD_BOT_API_TOKEN = os.getenv('DISCORD_BOT_API_TOKEN', '')
 
 # Site configuration
 DISCORD_INVITE_URL = os.getenv('DISCORD_INVITE_URL', '')
@@ -3738,10 +3738,23 @@ def member_profile(request, guild_id):
                 avatar_url = f"https://cdn.discordapp.com/embed/avatars/{default_num}.png"
 
             if member:
+                # Compute level live from XP using level_requirements table (same as bot)
+                from .models import LevelRequirement
+                computed_level = 0
+                try:
+                    level_reqs = db.query(LevelRequirement).order_by(LevelRequirement.level.desc()).all()
+                    for req in level_reqs:
+                        if member.xp >= req.xp_required:
+                            computed_level = req.level
+                            break
+                except Exception:
+                    # Fallback to stored level if table query fails
+                    computed_level = member.level
+
                 member_stats = {
                     'display_name': member.display_name or member.username,
                     'avatar_url': avatar_url,
-                    'level': member.level,
+                    'level': computed_level,
                     'xp': member.xp,
                     'tokens': member.hero_tokens,
                     'flair': member.flair,
@@ -3824,6 +3837,9 @@ def guild_leaderboards(request, guild_id):
             ), {'g': str(guild_id)}).fetchone()
             is_unified = bool(community and community[0])
 
+            _HIDDEN_WEB_IDS = [1]           # site owners hidden from leaderboards
+            _HIDDEN_DISCORD_IDS = ['141890558045061120']
+
             if is_unified:
                 # Unified leaderboard: linked members from web_unified_leaderboard,
                 # unlinked members from guild_members. Merge and sort by XP, take top 50.
@@ -3833,9 +3849,11 @@ def guild_leaderboards(request, guild_id):
                     "       wu.discord_id "
                     "FROM web_unified_leaderboard ul "
                     "JOIN web_users wu ON wu.id = ul.user_id "
-                    "WHERE ul.guild_id = :g AND ul.platform = 'discord'"
-                ), {'g': str(guild_id)}).fetchall()
+                    "WHERE ul.guild_id = :g AND ul.platform = 'discord' "
+                    "AND wu.id NOT IN :hidden_uid"
+                ), {'g': str(guild_id), 'hidden_uid': tuple(_HIDDEN_WEB_IDS + [0])}).fetchall()
                 linked_discord_ids = {str(r[6]) for r in linked_rows}
+                linked_discord_ids.update(_HIDDEN_DISCORD_IDS)
 
                 # Unlinked members: in guild_members but not in web_unified_leaderboard
                 unlinked_rows = db.execute(text(
@@ -3863,17 +3881,23 @@ def guild_leaderboards(request, guild_id):
                 xp_leaders = db.query(GuildMember).filter_by(
                     guild_id=int(guild_id),
                     is_bot=False
+                ).filter(
+                    ~GuildMember.user_id.in_([int(d) for d in _HIDDEN_DISCORD_IDS])
                 ).order_by(GuildMember.xp.desc()).limit(10).all()
 
             # Token and message leaderboards always from guild_members (not unified)
             token_leaders = db.query(GuildMember).filter_by(
                 guild_id=int(guild_id),
                 is_bot=False
+            ).filter(
+                ~GuildMember.user_id.in_([int(d) for d in _HIDDEN_DISCORD_IDS])
             ).order_by(GuildMember.hero_tokens.desc()).limit(10).all()
 
             message_leaders = db.query(GuildMember).filter_by(
                 guild_id=int(guild_id),
                 is_bot=False
+            ).filter(
+                ~GuildMember.user_id.in_([int(d) for d in _HIDDEN_DISCORD_IDS])
             ).order_by(GuildMember.message_count.desc()).limit(10).all()
 
     except Exception as e:
@@ -5333,6 +5357,9 @@ def guild_xp(request, guild_id):
             ), {'g': str(guild_id)}).fetchone()
             is_unified = bool(community_row and community_row[0])
 
+            _HIDDEN_WEB_IDS = [1]
+            _HIDDEN_DISCORD_IDS = ['141890558045061120']
+
             if is_unified:
                 # Linked members from web_unified_leaderboard
                 linked_rows = db.execute(sa_text(
@@ -5340,9 +5367,11 @@ def guild_xp(request, guild_id):
                     "       ul.messages, ul.voice_mins, COALESCE(wu.hero_points,0), wu.discord_id "
                     "FROM web_unified_leaderboard ul "
                     "JOIN web_users wu ON wu.id = ul.user_id "
-                    "WHERE ul.guild_id=:g AND ul.platform='discord'"
-                ), {'g': str(guild_id)}).fetchall()
+                    "WHERE ul.guild_id=:g AND ul.platform='discord' "
+                    "AND wu.id NOT IN :hidden_uid"
+                ), {'g': str(guild_id), 'hidden_uid': tuple(_HIDDEN_WEB_IDS + [0])}).fetchall()
                 linked_discord_ids = {str(r[6]) for r in linked_rows}
+                linked_discord_ids.update(_HIDDEN_DISCORD_IDS)
 
                 # Unlinked members still in guild_members
                 unlinked_rows = db.execute(sa_text(
@@ -5370,6 +5399,8 @@ def guild_xp(request, guild_id):
             else:
                 members = db.query(GuildMember).filter_by(
                     guild_id=int(guild_id)
+                ).filter(
+                    ~GuildMember.user_id.in_([int(d) for d in _HIDDEN_DISCORD_IDS])
                 ).order_by(GuildMember.xp.desc()).limit(50).all()
                 leaderboard = [
                     {
@@ -8049,7 +8080,23 @@ def guild_bridge(request, guild_id):
         'active_page': 'bridge',
         'fluxer_guilds_json': fluxer_guilds_json,
         'matrix_spaces_json': matrix_spaces_json,
+        'user_network_status': _get_guild_network_status(guild_id),
     })
+
+
+def _get_guild_network_status(guild_id):
+    """Return 'approved' if the Discord guild is in the QuestLog Network, else None."""
+    try:
+        from .db import get_db_session
+        from sqlalchemy import text as _text
+        with get_db_session() as db:
+            row = db.execute(
+                _text("SELECT network_status FROM web_communities WHERE platform='discord' AND platform_id=:g AND is_active=1 LIMIT 1"),
+                {"g": str(guild_id)}
+            ).fetchone()
+            return row[0] if row else None
+    except Exception:
+        return None
 
 
 def _is_guild_admin(request, guild_id):
@@ -18313,6 +18360,102 @@ def guild_attendance(request, guild_id):
         return redirect('guild_dashboard', guild_id=guild_id)
 
 
+def guild_lfg_calendar(request, guild_id):
+    """LFG Calendar - all members can view scheduled groups."""
+    import logging
+    logger = logging.getLogger(__name__)
+
+    all_guilds = request.session.get('discord_all_guilds', [])
+    admin_guilds = request.session.get('discord_admin_guilds', [])
+    user_id = request.session.get('discord_user', {}).get('id')
+
+    guild = next((g for g in all_guilds if str(g['id']) == str(guild_id)), None)
+    if not guild:
+        messages.error(request, "You are not a member of this server.")
+        return redirect('questlog_dashboard')
+
+    is_admin = any(str(g['id']) == str(guild_id) for g in admin_guilds)
+
+    try:
+        from .db import get_db_session
+        from .models import Guild, LFGGroup, LFGMember
+
+        now_ts = int(time.time())
+        cutoff = now_ts - 86400  # include events up to 1 day past
+
+        with get_db_session() as db:
+            guild_db = db.query(Guild).filter_by(guild_id=int(guild_id)).first()
+            if not guild_db:
+                messages.error(request, 'Server not found.')
+                return redirect('questlog_dashboard')
+
+            groups = (
+                db.query(LFGGroup)
+                .filter(
+                    LFGGroup.guild_id == int(guild_id),
+                    LFGGroup.is_active == True,  # noqa: E712
+                    LFGGroup.scheduled_time != None,  # noqa: E711
+                    LFGGroup.scheduled_time >= cutoff,
+                )
+                .order_by(LFGGroup.scheduled_time)
+                .limit(365)
+                .all()
+            )
+
+            events = []
+            for g in groups:
+                game_name = None
+                if g.game_id:
+                    from .models import LFGGame
+                    game = db.query(LFGGame).filter_by(id=g.game_id).first()
+                    game_name = game.game_name if game else None
+                events.append({
+                    'id': g.id,
+                    'title': g.thread_name or game_name or 'Group',
+                    'game_name': game_name or '',
+                    'ts': g.scheduled_time,
+                    'status': 'full' if g.is_full else 'open',
+                    'current_size': g.member_count or 1,
+                    'max_size': g.max_group_size,
+                    'description': g.description or '',
+                    'recurrence': getattr(g, 'recurrence', None) or 'none',
+                })
+
+            # Current user's memberships
+            my_group_ids = []
+            my_creator_ids = []
+            if user_id and groups:
+                group_ids = [g.id for g in groups]
+                members = db.query(LFGMember).filter(
+                    LFGMember.group_id.in_(group_ids),
+                    LFGMember.user_id == int(user_id),
+                ).all()
+                for m in members:
+                    my_group_ids.append(m.group_id)
+                    if m.is_creator:
+                        my_creator_ids.append(m.group_id)
+
+        context = {
+            'guild': guild,
+            'guild_id': str(guild_id),
+            'is_admin': is_admin,
+            'active_page': 'lfg_calendar',
+            'events_json': json.dumps(events),
+            'my_group_ids_json': json.dumps(my_group_ids),
+            'my_creator_ids_json': json.dumps(my_creator_ids),
+            'admin_guilds': admin_guilds,
+            'member_guilds': [g for g in all_guilds if not any(str(ag['id']) == str(g['id']) for ag in admin_guilds)],
+            'guild_record': guild_db,
+            'user_network_status': _get_guild_network_status(guild_id),
+        }
+        return render(request, 'questlog/lfg_calendar.html', context)
+
+    except Exception as e:
+        logger.error(f"Error loading LFG calendar: {e}", exc_info=True)
+        messages.error(request, f'Error loading calendar: {e}')
+        return redirect('guild_dashboard', guild_id=guild_id)
+
+
 @require_http_methods(["GET"])
 @api_auth_required
 @ratelimit(key='user_or_ip', rate='30/m', method='GET', block=True)
@@ -18682,6 +18825,104 @@ def api_lfg_stats(request, guild_id):
     except Exception as e:
         logger.error('API error occurred', exc_info=True)
         return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
+
+
+@require_http_methods(["GET", "POST"])
+def api_guild_network_lfg(request, guild_id):
+    """GET/POST /api/guild/<id>/lfg/network/ - Manage QuestLog Network LFG subscription."""
+    import time as _time
+    import json as _json
+    from sqlalchemy import text as _text
+
+    # Verify the user is an admin of this guild via session
+    user_guilds = request.session.get('discord_admin_guilds', [])
+    guild = next((g for g in user_guilds if str(g.get('id')) == str(guild_id)), None)
+    if not guild:
+        return JsonResponse({'error': 'Access denied'}, status=403)
+    permissions = int(guild.get('permissions', 0))
+    if not ((permissions & 0x8) == 0x8 or (permissions & 0x20) == 0x20):
+        return JsonResponse({'error': 'Admin permission required'}, status=403)
+
+    try:
+        from .db import get_db_session
+        guild_id_str = str(guild_id)
+
+        if request.method == 'GET':
+            with get_db_session() as db:
+                row = db.execute(
+                    _text("SELECT channel_id, channel_name, is_enabled FROM web_community_bot_configs "
+                          "WHERE platform='discord' AND guild_id=:g AND event_type='lfg_announce' LIMIT 1"),
+                    {'g': guild_id_str},
+                ).fetchone()
+                if not row:
+                    return JsonResponse({'is_enabled': False, 'channel_id': '', 'channel_name': ''})
+                return JsonResponse({
+                    'is_enabled': bool(row[2]),
+                    'channel_id': str(row[0]) if row[0] else '',
+                    'channel_name': row[1] or '',
+                })
+
+        # POST
+        try:
+            data = _json.loads(request.body)
+        except (_json.JSONDecodeError, AttributeError):
+            return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+        is_enabled = bool(data.get('is_enabled', False))
+        channel_id = str(data.get('channel_id', '') or '').strip()
+        if is_enabled and not channel_id:
+            return JsonResponse({'error': 'Channel required when enabling'}, status=400)
+
+        # Resolve channel name from Discord cache
+        guild_name = guild.get('name', guild_id_str)
+        channel_name = channel_id
+        try:
+            from .discord_resources import get_guild_channels
+            all_channels = get_guild_channels(guild_id_str)
+            for ch in all_channels:
+                if str(ch.get('id', '')) == channel_id:
+                    channel_name = ch.get('name', channel_id)
+                    break
+        except Exception:
+            pass
+
+        now_ts = int(_time.time())
+        with get_db_session() as db:
+            existing = db.execute(
+                _text("SELECT id FROM web_community_bot_configs "
+                      "WHERE platform='discord' AND guild_id=:g AND event_type='lfg_announce' LIMIT 1"),
+                {'g': guild_id_str},
+            ).fetchone()
+
+            if existing:
+                db.execute(
+                    _text("UPDATE web_community_bot_configs "
+                          "SET channel_id=:ch, channel_name=:cname, guild_name=:gname, "
+                          "    is_enabled=:en, updated_at=:now "
+                          "WHERE platform='discord' AND guild_id=:g AND event_type='lfg_announce'"),
+                    {'ch': channel_id if is_enabled else None,
+                     'cname': channel_name if is_enabled else None,
+                     'gname': guild_name, 'en': 1 if is_enabled else 0,
+                     'now': now_ts, 'g': guild_id_str},
+                )
+            else:
+                db.execute(
+                    _text("INSERT INTO web_community_bot_configs "
+                          "(platform, guild_id, guild_name, channel_id, channel_name, "
+                          " event_type, is_enabled, created_at, updated_at) "
+                          "VALUES ('discord', :g, :gname, :ch, :cname, 'lfg_announce', :en, :now, :now)"),
+                    {'g': guild_id_str, 'gname': guild_name,
+                     'ch': channel_id if is_enabled else None,
+                     'cname': channel_name if is_enabled else None,
+                     'en': 1 if is_enabled else 0, 'now': now_ts},
+                )
+            db.commit()
+
+        return JsonResponse({'success': True, 'is_enabled': is_enabled, 'channel_name': channel_name})
+
+    except Exception as e:
+        logger.error('api_guild_network_lfg error', exc_info=True)
+        return JsonResponse({'error': 'Internal error'}, status=500)
 
 
 @require_http_methods(["GET"])
@@ -19709,6 +19950,7 @@ def api_lfg_browser_groups(request, guild_id):
                     'dps_needed': group.dps_needed,
                     'support_needed': group.support_needed,
                     'enforce_role_limits': group.enforce_role_limits if group.enforce_role_limits is not None else True,
+                    'role_schema': json.loads(group.role_schema) if getattr(group, 'role_schema', None) else None,
                     'is_active': group.is_active,
                     'is_full': group.is_full,
                     'member_count': group.member_count,
@@ -19718,6 +19960,7 @@ def api_lfg_browser_groups(request, guild_id):
                     'confirmed_attendance_count': len(confirmed_ids),
                     'confirmed_attendance_ids': [str(uid) for uid in confirmed_ids],
                     'attendance_tracking_enabled': (lfg_config.attendance_tracking_enabled and is_attendance_tier) if lfg_config else False,
+                    'recurrence': getattr(group, 'recurrence', None) or 'none',
                 })
 
             response = JsonResponse({
@@ -19761,6 +20004,9 @@ def api_lfg_browser_create(request, guild_id):
         creator_options = data.get('creator_options', {})  # Creator's game-specific selections
         create_discord_thread = data.get('create_discord_thread', False)  # Whether to create Discord thread
         post_to_network = data.get('post_to_network', False)  # Whether to also post to QuestLog Network
+        recurrence = data.get('recurrence', 'none')
+        if recurrence not in ('none', 'daily', 'weekly', 'monthly'):
+            recurrence = 'none'
 
         # Role composition fields (works for any group type, not just raids)
         tanks_needed = data.get('tanks_needed')
@@ -19768,6 +20014,7 @@ def api_lfg_browser_create(request, guild_id):
         dps_needed = data.get('dps_needed')
         support_needed = data.get('support_needed')
         enforce_role_limits = data.get('enforce_role_limits', True)
+        role_schema = data.get('role_schema')  # JSON string or None
 
         if not game_id:
             return JsonResponse({'error': 'Game ID required'}, status=400)
@@ -19820,6 +20067,8 @@ def api_lfg_browser_create(request, guild_id):
                 dps_needed=dps_needed,
                 support_needed=support_needed,
                 enforce_role_limits=enforce_role_limits if has_role_composition else True,
+                role_schema=json.dumps(role_schema) if role_schema and isinstance(role_schema, (list, dict)) else (role_schema if isinstance(role_schema, str) else None),
+                recurrence=recurrence,
                 is_active=True,
                 is_full=False,
                 member_count=1,
@@ -20028,7 +20277,8 @@ def api_lfg_browser_create(request, guild_id):
             if post_to_network:
                 try:
                     from .questlog_web.models import WebUser, WebLFGGroup, WebLFGMember
-                    from .questlog_web.views_discovery import api_lfg_broadcast_network as _broadcast
+                    from .questlog_web.views_discovery import _parse_role_schema as _prs
+                    from .questlog_web.fluxer_webhooks import build_lfg_embed_data as _blfg
                     import time as _time
 
                     with get_db_session() as web_db:
@@ -20042,6 +20292,21 @@ def api_lfg_browser_create(request, guild_id):
 
                         if web_user:
                             now_ts = int(_time.time())
+                            import json as _json
+
+                            # Detect creator's role from selections (ESO/GW2 use explicit Role field)
+                            selections_dict = {k: v for k, v in creator_options.items() if k != 'rank'} if creator_options else {}
+                            _creator_role = None
+                            _role_val = selections_dict.get('Role') or selections_dict.get('role')
+                            if _role_val:
+                                _creator_role = _role_val.lower() if isinstance(_role_val, str) else None
+
+                            # Parse role_schema for embed builder
+                            _raw_schema = role_schema
+                            if isinstance(_raw_schema, (list, dict)):
+                                _raw_schema = _json.dumps(_raw_schema)
+                            web_role_schema = _prs(_raw_schema) if _raw_schema else []
+
                             web_group = WebLFGGroup(
                                 creator_id=web_user.id,
                                 title=title,
@@ -20055,6 +20320,7 @@ def api_lfg_browser_create(request, guild_id):
                                 healers_needed=healers_needed or 0,
                                 dps_needed=dps_needed or 0,
                                 support_needed=support_needed or 0,
+                                role_schema=_raw_schema,
                                 scheduled_time=scheduled_time,
                                 status='open',
                                 created_at=now_ts,
@@ -20069,38 +20335,48 @@ def api_lfg_browser_create(request, guild_id):
                             web_db.add(WebLFGMember(
                                 group_id=web_group.id,
                                 user_id=web_user.id,
+                                role=_creator_role,
+                                selections=_json.dumps(selections_dict) if selections_dict else None,
                                 is_creator=True,
                                 status='joined',
                                 joined_at=now_ts,
                             ))
+                            web_db.commit()
 
-                            # Queue broadcasts to all subscribed communities
-                            from sqlalchemy import text as _text
-                            import json as _json
+                            # Build full rich embed via canonical builder
                             creator_display = web_user.display_name or web_user.username
-                            embed_data = {
-                                "title": f"LFG: {title}",
-                                "description": (description[:300] + '...') if description and len(description) > 300 else (description or f"Posted by **{creator_display}**"),
-                                "url": f"https://casual-heroes.com/ql/lfg/{web_group.id}/",
-                                "color": 0xFEE75C,
-                                "fields": [
-                                    {"name": "Game", "value": _snap_game_name, "inline": True},
-                                    {"name": "Group Size", "value": f"1/{_snap_group_size}", "inline": True},
-                                    {"name": "Posted by", "value": creator_display, "inline": True},
-                                ],
-                                "footer": "QuestLog Network - casual-heroes.com/ql/lfg/",
-                            }
-                            if scheduled_time:
-                                from datetime import datetime, timezone as _tz
-                                try:
-                                    dt = datetime.fromtimestamp(int(scheduled_time), tz=_tz.utc)
-                                    embed_data["fields"].append({"name": "Scheduled", "value": dt.strftime("%a, %b %-d at %-I:%M %p UTC"), "inline": True})
-                                except (ValueError, TypeError, OSError):
-                                    pass
+                            group_url = f"https://casual-heroes.com/ql/lfg/{web_group.id}/"
+                            embed_data = _blfg(
+                                creator=creator_display,
+                                game_name=_snap_game_name,
+                                title=title,
+                                description=description or '',
+                                group_size=_snap_group_size,
+                                current_size=1,
+                                scheduled_time=scheduled_time,
+                                lfg_url=group_url,
+                                game_image_url=_snap_game_cover,
+                                tanks_needed=tanks_needed or 0,
+                                healers_needed=healers_needed or 0,
+                                dps_needed=dps_needed or 0,
+                                support_needed=support_needed or 0,
+                                use_roles=bool(tanks_needed or healers_needed or dps_needed or support_needed),
+                                role_schema=web_role_schema,
+                                duration_hours=event_duration,
+                                group_id=web_group.id,
+                                voice_link=None,
+                                group_platform='web',
+                                creator_selections=selections_dict,
+                            )
+                            embed_data["color"] = 0xFEE75C
+                            embed_data["footer"] = "QuestLog Network - casual-heroes.com/ql/lfg/"
+                            embed_data["fields"].append({"name": "Posted via", "value": "Discord", "inline": True})
+                            embed_data["thread_name"] = f"{title} - {_snap_game_name} - {creator_display}"
 
                             payload_json = _json.dumps(embed_data)
                             broadcast_now = int(_time.time())
 
+                            from sqlalchemy import text as _text
                             from .questlog_web.models import WebCommunityBotConfig
                             configs = web_db.query(WebCommunityBotConfig).filter_by(
                                 event_type='lfg_announce', is_enabled=True
@@ -20943,6 +21219,11 @@ def api_lfg_browser_update(request, guild_id, group_id):
         max_group_size = data.get('max_group_size')
         co_leader_ids = data.get('co_leader_ids')
 
+        # Recurrence
+        recurrence = data.get('recurrence')
+        if recurrence is not None and recurrence not in ('none', 'daily', 'weekly', 'monthly'):
+            recurrence = 'none'
+
         # Role composition fields
         tanks_needed = data.get('tanks_needed')
         healers_needed = data.get('healers_needed')
@@ -21074,6 +21355,22 @@ def api_lfg_browser_update(request, guild_id, group_id):
                         old_value=str(old_val), new_value=str(enforce_role_limits),
                         group_name=group_name_snapshot, game_name=game_name_snapshot
                     )
+
+            # Update role_schema (survival flag or MMO schema)
+            if 'role_schema' in data:
+                rs = data.get('role_schema')
+                if rs is None:
+                    group.role_schema = None
+                elif isinstance(rs, dict):
+                    group.role_schema = json.dumps(rs)
+                elif isinstance(rs, list):
+                    group.role_schema = json.dumps(rs)
+                else:
+                    group.role_schema = None
+
+            # Update recurrence
+            if recurrence is not None:
+                group.recurrence = recurrence
 
             # Update is_raid field based on role composition (for legacy compatibility)
             has_role_composition = any([group.tanks_needed, group.healers_needed, group.dps_needed, group.support_needed])
@@ -21330,6 +21627,7 @@ def api_lfg_browser_update_class(request, guild_id, group_id):
 
         data = json.loads(request.body)
         options = data.get('options', {})
+        target_user_id = data.get('target_user_id')  # Manager editing another member
 
         with get_db_session() as db:
             # Get guild
@@ -21342,14 +21640,30 @@ def api_lfg_browser_update_class(request, guild_id, group_id):
             if not group:
                 return JsonResponse({'error': 'Group not found'}, status=404)
 
+            # If editing another member, verify caller is group creator, co-leader, or server admin
+            if target_user_id and str(target_user_id) != str(user_id):
+                is_creator = str(group.creator_id) == str(user_id)
+                is_co_leader = db.query(LFGMember).filter_by(
+                    group_id=group.id, user_id=int(user_id), is_co_leader=True
+                ).filter(LFGMember.left_at == None).first() is not None
+                is_admin = request.session.get('discord_admin_guilds') and any(
+                    str(g.get('id')) == str(guild_id) for g in request.session.get('discord_admin_guilds', [])
+                )
+                has_lfg_manager = check_lfg_manager_role(guild_id, user_id)
+                if not (is_creator or is_co_leader or is_admin or has_lfg_manager):
+                    return JsonResponse({'error': 'Not authorized to edit this member'}, status=403)
+                edit_user_id = int(target_user_id)
+            else:
+                edit_user_id = int(user_id)
+
             # Find member
             member = db.query(LFGMember).filter_by(
                 group_id=group.id,
-                user_id=int(user_id)
+                user_id=edit_user_id
             ).filter(LFGMember.left_at == None).first()
 
             if not member:
-                return JsonResponse({'error': 'You are not in this group'}, status=400)
+                return JsonResponse({'error': 'Member not found in this group'}, status=400)
 
             # Extract rank and selections
             rank_value = options.get('rank')

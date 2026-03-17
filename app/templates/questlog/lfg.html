@@ -80,6 +80,33 @@
   </div>
 
 
+  <!-- QuestLog Network - Receive LFG Broadcasts -->
+  <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6 mb-8">
+    <div class="flex flex-col md:flex-row md:items-start gap-6">
+      <div class="flex-1">
+        <h3 class="text-base font-bold text-white mb-1">
+          <i class="fas fa-globe text-yellow-400 mr-2"></i>QuestLog Network - Receive LFG Broadcasts
+        </h3>
+        <p class="text-gray-400 text-sm mb-3">When enabled, LFG groups posted on the QuestLog Network from any server will appear in the selected channel. No slash command needed.</p>
+        <div class="flex items-center gap-3 mb-4">
+          <label class="relative inline-flex items-center cursor-pointer">
+            <input type="checkbox" id="discordNetworkLfgEnabled" class="sr-only peer" onchange="onDiscordNetworkLfgToggle()">
+            <div class="w-11 h-6 bg-neutral-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-yellow-500"></div>
+          </label>
+          <span class="text-white text-sm font-medium">Receive Network LFG Posts</span>
+          <span id="discordNetworkLfgStatus" class="text-xs text-gray-500 ml-2"></span>
+        </div>
+        <div id="discordNetworkLfgChannelRow" class="hidden">
+          <label class="block text-sm text-gray-400 mb-2">Post to channel</label>
+          <div id="cs-discord-network-lfg-ch" class="max-w-xs mb-3"></div>
+          <button onclick="saveDiscordNetworkLfg()" class="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition">
+            <i class="fas fa-save mr-2"></i>Save
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Tab Navigation -->
   <div class="flex gap-2 mb-6 border-b border-neutral-800 pb-4">
     <button onclick="showTab('games')" id="tab-games" class="tab-btn px-4 py-2 rounded-lg text-sm font-medium transition bg-green-600 text-white">
@@ -560,6 +587,9 @@
               <option value="arpg-build-activity">ARPG Build + Activity (Diablo, PoE, Grim Dawn, etc.)</option>
               <option value="borderlands4-vh-skill">Borderlands 4 Vault Hunter + Skill Tree</option>
             </optgroup>
+            <optgroup label="Survival Games">
+              <option value="survival">🏕️ Survival Games (Palworld, Valheim, Rust, Enshrouded, etc.)</option>
+            </optgroup>
             <optgroup label="Difficulty">
               <option value="difficulty">Difficulty Levels</option>
             </optgroup>
@@ -746,6 +776,7 @@ const totalLFGGames = {{ total_lfg_games }};
 let addGameChannelSelect, addGameRoleSelect;
 let editGameChannelSelect, editGameRoleSelect;
 let customGameChannelSelect;
+let discordNetworkLfgChSelect;
 
 // Prepare channel and role data for custom selects
 const channelItems = [
@@ -784,7 +815,8 @@ function customOptionsBuilder() {
       'mh-weapons': 'Monster Hunter Weapons',
       'borderlands4-vh-skill': 'Borderlands 4 VH + Skill Tree',
       'arpg-build-activity': 'ARPG Build + Activity',
-      'difficulty': 'Difficulty Levels'
+      'difficulty': 'Difficulty Levels',
+      'survival': 'Survival Games',
     },
 
     init() {
@@ -1077,7 +1109,41 @@ function customOptionsBuilder() {
         'difficulty': {
           name: 'Difficulty',
           choices: ['Easy', 'Normal', 'Hard', 'Expert', 'Master']
-        }
+        },
+        // Survival game template - mirrors fluxer_guild_lfg.html exactly
+        'survival': [
+          {
+            name: 'Activity',
+            choices: ['Boss Fight', 'Raid (PvE)', 'Dungeon/POI Clear', 'Base Building', 'Resource Farming', 'Taming/Breeding', 'PvP Combat', 'Base Raiding (PvP)', 'Territory Control (PvP)', 'Exploration', 'Crafting/Tech', 'Casual Co-op']
+          },
+          {
+            name: 'Role',
+            enableRoleTags: true,
+            choices: [
+              { value: 'Combat (Melee)',  role: 'dps' },
+              { value: 'Combat (Ranged)', role: 'dps' },
+              { value: 'Tank/Defender',  role: 'tank' },
+              { value: 'Support/Healer', role: 'healer' },
+              { value: 'Builder',        role: 'support' },
+              { value: 'Gatherer',       role: 'support' },
+              { value: 'Tamer/Breeder',  role: 'support' },
+              { value: 'Crafter',        role: 'support' },
+              { value: 'Scout/Explorer', role: 'dps' },
+            ]
+          },
+          {
+            name: 'Platform',
+            choices: ['PC', 'Xbox', 'PlayStation', 'Nintendo Switch', 'Cross-platform']
+          },
+          {
+            name: 'Experience',
+            choices: ['New/Learning', 'Casual', 'Experienced', 'Hardcore']
+          },
+          {
+            name: 'Server Type',
+            choices: ['PvE', 'PvP', 'PvE-C', 'Modded', 'Official', 'Private']
+          }
+        ],
       };
 
       const template = templates[templateName];
@@ -1888,6 +1954,64 @@ async function loadAuditLogs() {
   }
 }
 
+// QuestLog Network LFG (Discord Dashboard)
+const DISCORD_NETWORK_LFG_API = '/api/guild/' + guildId + '/lfg/network/';
+
+function onDiscordNetworkLfgToggle() {
+  const enabled = document.getElementById('discordNetworkLfgEnabled').checked;
+  document.getElementById('discordNetworkLfgChannelRow').classList.toggle('hidden', !enabled);
+  if (!enabled) saveDiscordNetworkLfg();
+}
+
+async function loadDiscordNetworkLfg() {
+  try {
+    const resp = await fetch(DISCORD_NETWORK_LFG_API);
+    if (!resp.ok) return;
+    const data = await resp.json();
+    const enabled = data.is_enabled || false;
+    const channelId = data.channel_id || '';
+    document.getElementById('discordNetworkLfgEnabled').checked = enabled;
+    document.getElementById('discordNetworkLfgChannelRow').classList.toggle('hidden', !enabled);
+    if (!discordNetworkLfgChSelect) {
+      discordNetworkLfgChSelect = createCustomSelect({
+        container: '#cs-discord-network-lfg-ch',
+        name: 'discord_network_lfg_channel_id',
+        placeholder: 'Select channel...',
+        items: channelItems,
+        selected: channelId,
+        color: 'yellow',
+      });
+    } else if (channelId) {
+      discordNetworkLfgChSelect.setValue(channelId);
+    }
+    const status = document.getElementById('discordNetworkLfgStatus');
+    status.textContent = enabled ? ('Active - #' + (data.channel_name || channelId)) : 'Not enabled';
+    status.className = enabled ? 'text-xs text-green-400 ml-2' : 'text-xs text-gray-500 ml-2';
+  } catch (e) {}
+}
+
+async function saveDiscordNetworkLfg() {
+  const enabled = document.getElementById('discordNetworkLfgEnabled').checked;
+  const channelId = discordNetworkLfgChSelect ? (discordNetworkLfgChSelect.getValue() || '') : '';
+  if (enabled && !channelId) return;
+  try {
+    const resp = await fetch(DISCORD_NETWORK_LFG_API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+      body: JSON.stringify({ is_enabled: enabled, channel_id: channelId }),
+    });
+    const data = await resp.json();
+    const status = document.getElementById('discordNetworkLfgStatus');
+    if (resp.ok && data.success) {
+      status.textContent = enabled ? ('Active - #' + (data.channel_name || channelId)) : 'Disabled';
+      status.className = enabled ? 'text-xs text-green-400 ml-2' : 'text-xs text-gray-500 ml-2';
+    } else {
+      status.textContent = data.error || 'Save failed';
+      status.className = 'text-xs text-red-400 ml-2';
+    }
+  } catch (e) {}
+}
+
 // Enter key for search
 document.getElementById('searchQuery')?.addEventListener('keypress', function(e) {
   if (e.key === 'Enter') searchGames();
@@ -1904,6 +2028,8 @@ document.getElementById('searchQuery')?.addEventListener('keypress', function(e)
     // Default to games tab
     showTab('games');
   }
+  // Load Network LFG settings (outside tab system - always visible)
+  loadDiscordNetworkLfg();
 })();
 </script>
 {% endblock %}

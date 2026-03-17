@@ -47,7 +47,7 @@
       </a>
       {% endif %}
       {% if open_lfg_count > 0 %}
-      <a href="/ql/fluxer/{{ guild_id }}/lfg/"
+      <a href="/ql/fluxer/{{ guild_id }}/lfg/browse/"
          class="flex items-center gap-2 bg-green-600/20 hover:bg-green-600/30 border border-green-600/40 text-green-400 px-4 py-2 rounded-lg text-sm font-medium transition">
         <i class="fas fa-users"></i>
         {{ open_lfg_count }} open group{{ open_lfg_count|pluralize }}
@@ -65,7 +65,7 @@
 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
 
   <!-- Find Groups (server LFG) -->
-  <a href="/ql/fluxer/{{ guild_id }}/lfg/"
+  <a href="/ql/fluxer/{{ guild_id }}/lfg/browse/"
      class="group bg-neutral-900 rounded-xl p-6 border border-neutral-800 hover:border-green-500 transition-all hover:shadow-lg hover:shadow-green-500/20">
     <div class="flex items-start justify-between mb-4">
       <div class="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-500 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">

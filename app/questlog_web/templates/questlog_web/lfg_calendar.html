@@ -360,7 +360,7 @@ function showEventModal(eventId) {
   } else {
     descEl.classList.add('hidden');
   }
-  const browseUrl = e.guild_id ? `/ql/fluxer/${e.guild_id}/lfg/` : '/ql/lfg/';
+  const browseUrl = e.guild_id ? `/ql/fluxer/${e.guild_id}/lfg/browse/` : '/ql/lfg/';
   document.getElementById('modal-actions').innerHTML = `
     <a href="${browseUrl}"
        class="flex-1 text-center text-sm bg-purple-600 hover:bg-purple-500 text-white px-4 py-2.5 rounded-xl transition font-semibold flex items-center justify-center gap-2">

@@ -4,6 +4,8 @@
 
 {% block guild_content %}
 
+{% include "questlog/partials/custom_select.html" %}
+
 {{ groups_data|json_script:"groups-data" }}
 {{ games_data|json_script:"games-data" }}
 {{ games_full_data|json_script:"games-full-data" }}
@@ -30,28 +32,15 @@
   <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
     <div>
       <label class="text-sm text-gray-300 mb-2 block">Filter by Game</label>
-      <select id="gameFilter"
-              class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-green-500 transition">
-        <option value="">All Games</option>
-      </select>
+      <div id="gameFilterContainer"></div>
     </div>
     <div>
       <label class="text-sm text-gray-300 mb-2 block">Sort By</label>
-      <select id="sortFilter"
-              class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-green-500 transition">
-        <option value="newest">Newest First</option>
-        <option value="slots">Most Slots Available</option>
-        <option value="soon">Starting Soon</option>
-      </select>
+      <div id="sortFilterContainer"></div>
     </div>
     <div>
       <label class="text-sm text-gray-300 mb-2 block">Status</label>
-      <select id="statusFilter"
-              class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-green-500 transition">
-        <option value="">All Groups</option>
-        <option value="open">Open Only</option>
-        <option value="full">Full Groups</option>
-      </select>
+      <div id="statusFilterContainer"></div>
     </div>
     <div class="flex items-end">
       <button onclick="applyFilters()"
@@ -78,11 +67,7 @@
 
       <div>
         <label class="text-sm text-gray-300 mb-1 block">Game <span class="text-red-400">*</span></label>
-        <select id="createGame"
-                class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-green-500 transition"
-                onchange="onCreateGameChange()">
-          <option value="">-- Select a game --</option>
-        </select>
+        <div id="createGamePills" class="flex flex-wrap gap-2"></div>
       </div>
 
       <div>
@@ -101,13 +86,7 @@
 
       <div>
         <label class="text-sm text-gray-300 mb-1 block">Recurrence</label>
-        <select id="createRecurrence"
-                class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-green-500 transition">
-          <option value="none">One-time event</option>
-          <option value="daily">Daily</option>
-          <option value="weekly">Weekly</option>
-          <option value="monthly">Monthly</option>
-        </select>
+        <div id="createRecurrenceContainer"></div>
       </div>
 
       <div>
@@ -116,34 +95,46 @@
                class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-green-500 transition">
       </div>
 
-      <!-- Role composition (shown when game has_roles) -->
-      <div id="createRoleSection" class="hidden">
-        <label class="text-sm text-gray-300 mb-2 block"><i class="fas fa-users-cog text-purple-400 mr-1"></i>Role Composition</label>
-        <div class="grid grid-cols-2 gap-3">
+      <!-- Enable Role Composition toggle (shown for games that support it) -->
+      <div id="createRoleToggle" class="hidden">
+        <label class="flex items-start gap-3 cursor-pointer bg-purple-900/20 border border-purple-700/40 rounded-lg px-3 py-2">
+          <input type="checkbox" id="createRoleEnabled" onchange="onRoleCompositionToggle()"
+                 class="mt-0.5 rounded border-neutral-600 cursor-pointer accent-purple-500">
           <div>
-            <label class="text-xs text-gray-400 mb-1 block"><i class="fas fa-shield-alt text-blue-400 mr-1"></i>Tanks</label>
-            <input id="createTanks" type="number" min="0" max="50" value="0"
-                   class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition">
+            <span class="text-sm text-gray-300 flex items-center gap-2">
+              <i class="fas fa-users-cog text-purple-400"></i>Enable Role Composition
+            </span>
+            <p id="createRoleHint" class="text-xs text-gray-500 mt-0.5"></p>
           </div>
-          <div>
-            <label class="text-xs text-gray-400 mb-1 block"><i class="fas fa-heart text-green-400 mr-1"></i>Healers</label>
-            <input id="createHealers" type="number" min="0" max="50" value="0"
-                   class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-green-500 transition">
-          </div>
-          <div>
-            <label class="text-xs text-gray-400 mb-1 block"><i class="fas fa-bolt text-red-400 mr-1"></i>DPS</label>
-            <input id="createDps" type="number" min="0" max="200" value="0"
-                   class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-red-500 transition">
-          </div>
-          <div>
-            <label class="text-xs text-gray-400 mb-1 block"><i class="fas fa-music text-yellow-400 mr-1"></i>Support</label>
-            <input id="createSupport" type="number" min="0" max="50" value="0"
-                   class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-yellow-500 transition">
+        </label>
+        <!-- MMO slot inputs (shown when enabled for MMO games) -->
+        <div id="createRoleSection" class="hidden mt-3">
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="text-xs text-gray-400 mb-1 block"><i class="fas fa-shield-alt text-blue-400 mr-1"></i>Tanks</label>
+              <input id="createTanks" type="number" min="0" max="50" value="0"
+                     class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition">
+            </div>
+            <div>
+              <label class="text-xs text-gray-400 mb-1 block"><i class="fas fa-heart text-green-400 mr-1"></i>Healers</label>
+              <input id="createHealers" type="number" min="0" max="50" value="0"
+                     class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-green-500 transition">
+            </div>
+            <div>
+              <label class="text-xs text-gray-400 mb-1 block"><i class="fas fa-bolt text-red-400 mr-1"></i>DPS</label>
+              <input id="createDps" type="number" min="0" max="200" value="0"
+                     class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-red-500 transition">
+            </div>
+            <div>
+              <label class="text-xs text-gray-400 mb-1 block"><i class="fas fa-music text-yellow-400 mr-1"></i>Support</label>
+              <input id="createSupport" type="number" min="0" max="50" value="0"
+                     class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-yellow-500 transition">
+            </div>
           </div>
         </div>
       </div>
 
-      <!-- Game-specific options -->
+      <!-- Game-specific options (custom selects injected here) -->
       <div id="createGameOptions" class="space-y-3"></div>
 
       <div>
@@ -153,7 +144,8 @@
                   class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-green-500 transition resize-none"></textarea>
       </div>
 
-      <!-- Post to QuestLog Network (per-group opt-in) -->
+      <!-- Post to QuestLog Network (per-group opt-in, QL Network users only) -->
+      {% if web_user and web_user.id %}
       <div class="bg-yellow-900/20 border border-yellow-700/40 rounded-lg px-3 py-2">
         <label class="flex items-center gap-3 cursor-pointer">
           <input type="checkbox" id="postToNetwork" class="rounded border-neutral-600 cursor-pointer">
@@ -166,6 +158,22 @@
           </div>
         </label>
       </div>
+      {% else %}
+      <div class="bg-neutral-800/60 border border-neutral-700/40 rounded-lg px-3 py-2 opacity-60">
+        <div class="flex items-center gap-3">
+          <input type="checkbox" id="postToNetwork" class="rounded border-neutral-600 cursor-not-allowed" disabled>
+          <div>
+            <span class="text-sm text-gray-500 flex items-center gap-2">
+              <i class="fas fa-globe text-gray-600"></i>Post to QuestLog Network
+              <span class="text-xs bg-neutral-700 text-gray-500 border border-neutral-600 px-2 py-0.5 rounded-full">Cross-server</span>
+            </span>
+            <p class="text-xs text-gray-600 mt-0.5">
+              <a href="/ql/register/" class="text-green-500 hover:underline">Create a QuestLog account</a> to share groups across the network.
+            </p>
+          </div>
+        </div>
+      </div>
+      {% endif %}
 
       <div id="createError" class="hidden text-red-400 text-sm bg-red-900/20 border border-red-700/30 rounded-lg px-3 py-2"></div>
 
@@ -175,6 +183,58 @@
       <button onclick="submitCreateGroup()" id="createSubmitBtn"
               class="flex-1 bg-green-600 hover:bg-green-500 text-white px-4 py-2 rounded-lg font-medium transition text-sm">
         <i class="fas fa-plus mr-2"></i>Create Group
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- JOIN MODAL (Role + Platform for survival/option games) -->
+<!-- ============================================================ -->
+<div id="joinModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/60">
+  <div class="bg-neutral-900 border border-neutral-700 rounded-2xl w-full max-w-md mx-4">
+    <div class="flex items-center justify-between p-5 border-b border-neutral-800">
+      <h2 class="text-xl font-bold text-white"><i class="fas fa-plus text-green-400 mr-2"></i>Join Group</h2>
+      <button onclick="closeJoinModal()" class="text-gray-400 hover:text-white text-2xl leading-none">&times;</button>
+    </div>
+    <div class="p-5">
+      <div id="joinGameInfo" class="flex items-center gap-3 mb-4 p-3 bg-neutral-800 rounded-lg"></div>
+      <div id="joinFields" class="space-y-3"></div>
+      <div id="joinError" class="hidden mt-3 text-red-400 text-sm bg-red-900/20 border border-red-700/30 rounded-lg px-3 py-2"></div>
+    </div>
+    <div class="flex gap-3 p-5 border-t border-neutral-800">
+      <button onclick="closeJoinModal()" class="flex-1 bg-neutral-700 hover:bg-neutral-600 text-white px-4 py-2 rounded-lg font-medium transition text-sm">Cancel</button>
+      <button onclick="submitJoin()" id="joinSubmitBtn"
+              class="flex-1 bg-green-600 hover:bg-green-500 text-white px-4 py-2 rounded-lg font-medium transition text-sm">
+        <i class="fas fa-sign-in-alt mr-2"></i>Join
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- BAN MODAL (leader only, with reason) -->
+<!-- ============================================================ -->
+<div id="banModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/60">
+  <div class="bg-neutral-900 border border-neutral-700 rounded-2xl w-full max-w-md mx-4">
+    <div class="flex items-center justify-between p-5 border-b border-neutral-800">
+      <h2 class="text-xl font-bold text-white"><i class="fas fa-ban text-red-400 mr-2"></i>Ban Member</h2>
+      <button onclick="closeBanModal()" class="text-gray-400 hover:text-white text-2xl leading-none">&times;</button>
+    </div>
+    <div class="p-5 space-y-3">
+      <p id="banModalDesc" class="text-gray-300 text-sm"></p>
+      <div>
+        <label class="text-sm text-gray-300 mb-1 block">Reason <span class="text-gray-500">(optional)</span></label>
+        <input id="banReason" type="text" maxlength="200" placeholder="e.g. no-show, toxic behavior..."
+               class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-red-500 transition">
+      </div>
+      <div id="banError" class="hidden text-red-400 text-sm bg-red-900/20 border border-red-700/30 rounded-lg px-3 py-2"></div>
+    </div>
+    <div class="flex gap-3 p-5 border-t border-neutral-800">
+      <button onclick="closeBanModal()" class="flex-1 bg-neutral-700 hover:bg-neutral-600 text-white px-4 py-2 rounded-lg font-medium transition text-sm">Cancel</button>
+      <button onclick="submitBan()" id="banSubmitBtn"
+              class="flex-1 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg font-medium transition text-sm">
+        <i class="fas fa-ban mr-2"></i>Ban Member
       </button>
     </div>
   </div>
@@ -190,14 +250,48 @@ if (typeof window.escapeHtml !== 'function') {
 
 const GUILD_ID = '{{ guild_id }}';
 const CURRENT_WEB_USER_ID = {{ web_user.id|default:0 }};
-const GROUPS_API     = '/ql/api/fluxer/' + GUILD_ID + '/lfg/groups/';
-const JOIN_API_BASE  = '/ql/api/fluxer/' + GUILD_ID + '/lfg/';
-const LEAVE_API_BASE = '/ql/api/fluxer/' + GUILD_ID + '/lfg/';
+const CURRENT_FLUXER_ID   = '{{ request.fluxer_id|default:"" }}';
+const IS_QL_NETWORK_USER  = {{ web_user.id|default:0 }} > 0;
+const GROUPS_API      = '/ql/api/fluxer/' + GUILD_ID + '/lfg/groups/';
+const JOIN_API_BASE   = '/ql/api/fluxer/' + GUILD_ID + '/lfg/';
+const MEMBER_API_BASE = '/ql/api/fluxer/' + GUILD_ID + '/lfg/';
 
 let allGroups = JSON.parse(document.getElementById('groups-data').textContent) || [];
 const GAMES      = JSON.parse(document.getElementById('games-data').textContent) || [];
 const GAMES_FULL = JSON.parse(document.getElementById('games-full-data').textContent) || [];
 
+// ----------------------------------------------------------------
+// Filter state (driven by custom selects via onSelect callbacks)
+// ----------------------------------------------------------------
+let _filterGame   = '';
+let _filterSort   = 'newest';
+let _filterStatus = '';
+
+// ----------------------------------------------------------------
+// Create modal state
+// ----------------------------------------------------------------
+let _createGameId     = 0;
+let _createRecurrence = 'none';
+let _createSelections = {};   // {optName: value} for game-specific opts
+let _createIsSurvival = false;
+let _createGameOpts   = [];
+
+// ----------------------------------------------------------------
+// Join modal state
+// ----------------------------------------------------------------
+let _joinGroupId      = null;
+let _joinPersonalOpts = [];
+let _joinSelections   = {};   // {optName: value}
+
+// ----------------------------------------------------------------
+// Ban modal state
+// ----------------------------------------------------------------
+let _banGroupId  = null;
+let _banMemberId = null;
+
+// ----------------------------------------------------------------
+// Utilities
+// ----------------------------------------------------------------
 function timeAgo(ts) {
   if (!ts) return '';
   const diff = Math.floor(Date.now() / 1000) - ts;
@@ -206,90 +300,219 @@ function timeAgo(ts) {
   if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
   return Math.floor(diff / 86400) + 'd ago';
 }
-
 function formatScheduled(ts) {
   if (!ts) return '';
-  return new Date(ts * 1000).toLocaleString(undefined, {
-    month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+  return new Date(ts * 1000).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+function slotsAvailable(g) { return Math.max(0, g.max_size - g.current_size); }
+function datetimeLocalToTs(val) { return val ? Math.floor(new Date(val).getTime() / 1000) : null; }
+function isMeCheck(m) {
+  if (CURRENT_WEB_USER_ID > 0 && m.web_user_id && m.web_user_id === CURRENT_WEB_USER_ID) return true;
+  if (CURRENT_FLUXER_ID && m.fluxer_user_id && m.fluxer_user_id === CURRENT_FLUXER_ID) return true;
+  return false;
+}
+
+// ----------------------------------------------------------------
+// Init filter custom selects
+// ----------------------------------------------------------------
+document.addEventListener('DOMContentLoaded', function() {
+  createCustomSelect({
+    container: '#gameFilterContainer',
+    name: 'gameFilter',
+    placeholder: 'All Games',
+    items: [{ value: '', label: 'All Games' }].concat(GAMES.map(function(gm) {
+      return { value: String(gm.id), label: (gm.emoji ? gm.emoji + ' ' : '') + gm.name };
+    })),
+    selected: '',
+    color: 'green',
+    onSelect: function(val) { _filterGame = val; applyFilters(); },
   });
-}
 
-function slotsAvailable(g) {
-  return Math.max(0, g.max_size - g.current_size);
-}
+  createCustomSelect({
+    container: '#sortFilterContainer',
+    name: 'sortFilter',
+    placeholder: 'Newest First',
+    items: [
+      { value: 'newest', label: 'Newest First' },
+      { value: 'slots',  label: 'Most Slots Available' },
+      { value: 'soon',   label: 'Starting Soon' },
+    ],
+    selected: 'newest',
+    color: 'green',
+    onSelect: function(val) { _filterSort = val || 'newest'; applyFilters(); },
+  });
 
-function datetimeLocalToTs(val) {
-  if (!val) return null;
-  return Math.floor(new Date(val).getTime() / 1000);
-}
+  createCustomSelect({
+    container: '#statusFilterContainer',
+    name: 'statusFilter',
+    placeholder: 'All Groups',
+    items: [
+      { value: '',     label: 'All Groups' },
+      { value: 'open', label: 'Open Only' },
+      { value: 'full', label: 'Full Groups' },
+    ],
+    selected: '',
+    color: 'green',
+    onSelect: function(val) { _filterStatus = val; applyFilters(); },
+  });
 
-function tsToDatetimeLocal(ts) {
-  if (!ts) return '';
-  const d = new Date(ts * 1000);
-  const pad = n => String(n).padStart(2, '0');
-  return d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate()) +
-         'T' + pad(d.getHours()) + ':' + pad(d.getMinutes());
-}
+  // Init create modal game pills
+  (function() {
+    const pillContainer = document.getElementById('createGamePills');
+    pillContainer.innerHTML = '';
+    GAMES_FULL.forEach(function(gm) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.dataset.gameId = gm.id;
+      btn.className = 'flex items-center gap-2 bg-neutral-800 hover:bg-green-900/30 border border-neutral-700 hover:border-green-600 rounded-lg px-3 py-1.5 text-sm text-gray-300 hover:text-white transition';
+      btn.innerHTML = gm.cover_url
+        ? '<img src="' + escapeHtml(gm.cover_url) + '" class="w-6 h-8 rounded object-cover flex-shrink-0"><span class="truncate max-w-[140px]">' + escapeHtml(gm.name) + '</span>'
+        : '<span class="text-base leading-none">' + escapeHtml(gm.emoji || '\uD83C\uDFAE') + '</span><span class="truncate max-w-[140px]">' + escapeHtml(gm.name) + '</span>';
+      btn.addEventListener('click', function() {
+        pillContainer.querySelectorAll('button').forEach(function(b) {
+          b.classList.remove('border-green-500', 'bg-green-900/30', 'text-white');
+          b.classList.add('border-neutral-700', 'text-gray-300');
+        });
+        btn.classList.add('border-green-500', 'bg-green-900/30', 'text-white');
+        btn.classList.remove('border-neutral-700', 'text-gray-300');
+        _createGameId = parseInt(gm.id) || 0;
+        onCreateGameChange();
+      });
+      pillContainer.appendChild(btn);
+    });
+  })();
 
-// Populate game filter dropdown
-const gameFilter = document.getElementById('gameFilter');
-GAMES.forEach(function(gm) {
-  const opt = document.createElement('option');
-  opt.value = String(gm.id);
-  opt.textContent = (gm.emoji ? gm.emoji + ' ' : '') + gm.name;
-  gameFilter.appendChild(opt);
+  // Init recurrence select
+  createCustomSelect({
+    container: '#createRecurrenceContainer',
+    name: 'createRecurrence',
+    placeholder: 'One-time event',
+    items: [
+      { value: 'none',    label: 'One-time event' },
+      { value: 'daily',   label: 'Daily' },
+      { value: 'weekly',  label: 'Weekly' },
+      { value: 'monthly', label: 'Monthly' },
+    ],
+    selected: 'none',
+    color: 'green',
+    onSelect: function(val) { _createRecurrence = val || 'none'; },
+  });
+
+  updateCountBadge();
+  applyFilters();
 });
 
-// Populate create game dropdown
-const createGameSel = document.getElementById('createGame');
-GAMES_FULL.forEach(function(gm) {
-  const opt = document.createElement('option');
-  opt.value = String(gm.id);
-  opt.textContent = (gm.emoji ? gm.emoji + ' ' : '') + gm.name;
-  createGameSel.appendChild(opt);
-});
-
-let filteredGroups = allGroups.slice();
-
+// ----------------------------------------------------------------
+// Filters
+// ----------------------------------------------------------------
 function applyFilters() {
-  const gameId = gameFilter.value;
-  const sort   = document.getElementById('sortFilter').value;
-  const status = document.getElementById('statusFilter').value;
-
-  filteredGroups = allGroups.filter(function(g) {
-    if (gameId && String(g.game_id) !== gameId) return false;
-    if (status === 'open' && g.status !== 'open') return false;
-    if (status === 'full' && g.status !== 'full') return false;
+  let filtered = allGroups.filter(function(g) {
+    if (_filterGame && String(g.game_id) !== _filterGame) return false;
+    if (_filterStatus === 'open' && g.status !== 'open') return false;
+    if (_filterStatus === 'full' && g.status !== 'full') return false;
     return true;
   });
-
-  if (sort === 'slots') {
-    filteredGroups.sort((a, b) => slotsAvailable(b) - slotsAvailable(a));
-  } else if (sort === 'soon') {
-    filteredGroups.sort((a, b) => (a.scheduled_time || 9999999999) - (b.scheduled_time || 9999999999));
+  if (_filterSort === 'slots') {
+    filtered.sort(function(a, b) { return slotsAvailable(b) - slotsAvailable(a); });
+  } else if (_filterSort === 'soon') {
+    filtered.sort(function(a, b) { return (a.scheduled_time || 9999999999) - (b.scheduled_time || 9999999999); });
   } else {
-    filteredGroups.sort((a, b) => (b.created_at || 0) - (a.created_at || 0));
+    filtered.sort(function(a, b) { return (b.created_at || 0) - (a.created_at || 0); });
   }
-
-  renderGroups();
+  renderGroups(filtered);
 }
 
 function updateCountBadge() {
   const badge = document.getElementById('groupCountBadge');
-  const open = allGroups.filter(g => g.status !== 'closed').length;
+  const open = allGroups.filter(function(g) { return g.status !== 'closed'; }).length;
   badge.textContent = open > 0 ? open + ' open' : '';
 }
 
-function renderMemberItem(m) {
+// ----------------------------------------------------------------
+// Render
+// ----------------------------------------------------------------
+// Fields shown as class/spec subtitle inside MMO role grid columns
+var _MMO_SPEC_FIELDS = ['class', 'specialization', 'spec', 'subclass', 'job'];
+
+// WoW spec -> role (mirrors Python _WOW_SPEC_ROLE in views_pages.py)
+var _WOW_SPEC_ROLE = {
+  'blood':'tank','vengeance':'tank','guardian':'tank','brewmaster':'tank','protection':'tank',
+  'restoration':'healer','preservation':'healer','mistweaver':'healer','holy':'healer','discipline':'healer',
+  'augmentation':'support',
+  'frost':'dps','unholy':'dps','havoc':'dps','feral':'dps','balance':'dps','beast mastery':'dps',
+  'marksmanship':'dps','survival':'dps','arcane':'dps','fire':'dps','ice':'dps',
+  'windwalker':'dps','outlaw':'dps','assassination':'dps','subtlety':'dps',
+  'elemental':'dps','enhancement':'dps','affliction':'dps','demonology':'dps','destruction':'dps',
+  'fury':'dps','arms':'dps','retribution':'dps','devastation':'dps','shadow':'dps',
+};
+
+function _detectRoleFromSelections(selections, customOptions) {
+  if (!selections) return null;
+  // Check {value, role} choices (ESO)
+  if (customOptions) {
+    for (var i = 0; i < customOptions.length; i++) {
+      var opt = customOptions[i];
+      var choices = opt.choices || [];
+      if (!Array.isArray(choices)) continue;
+      var mv = selections[opt.name];
+      if (!mv) continue;
+      if (Array.isArray(mv)) mv = mv[0];
+      for (var j = 0; j < choices.length; j++) {
+        var ch = choices[j];
+        if (typeof ch === 'object' && ch.value === mv && ch.role) return ch.role;
+      }
+    }
+  }
+  // Plain Role field
+  var rv = selections['Role'] || selections['role'];
+  if (rv) {
+    var r = (Array.isArray(rv) ? rv[0] : rv).toLowerCase();
+    if (['tank','healer','dps','support'].includes(r)) return r;
+  }
+  // WoW spec
+  var sv = selections['Specialization'] || selections['specialization'] || selections['Spec'] || selections['spec'] || '';
+  if (sv) {
+    sv = (Array.isArray(sv) ? sv[0] : sv).toLowerCase();
+    if (_WOW_SPEC_ROLE[sv]) return _WOW_SPEC_ROLE[sv];
+  }
+  return null;
+}
+
+function renderMemberItem(m, groupId, isLeader, isCoLeader, showSpec) {
   let icon = 'fa-user', color = 'text-gray-300';
   if (m.is_creator) { icon = 'fa-crown'; color = 'text-yellow-400'; }
-  const sels = m.selections ? Object.values(m.selections).filter(Boolean) : [];
-  const displayText = sels.length > 0
-    ? escapeHtml(m.username) + ' (' + escapeHtml(sels.join(' - ')) + ')'
-    : escapeHtml(m.username);
-  return '<div class="flex items-center gap-2 text-sm ' + color + '">' +
-    '<i class="fas ' + icon + ' text-xs flex-shrink-0"></i>' +
-    '<span>' + displayText + '</span></div>';
+  else if (m.is_co_leader) { icon = 'fa-star'; color = 'text-blue-300'; }
+
+  const isMe = isMeCheck(m);
+  const canKick = !isMe && (isLeader || isCoLeader) && !(m.is_creator && !isLeader);
+  const canBan  = !isMe && isLeader && !m.is_creator;
+  let actions = '';
+  if (canKick) {
+    actions += '<button onclick="kickMember(' + groupId + ',' + m.id + ',\'' + escapeHtml(m.username) + '\')" ' +
+      'class="text-orange-400 hover:text-orange-300 transition text-xs" title="Kick"><i class="fas fa-boot"></i></button>';
+  }
+  if (canBan) {
+    actions += '<button onclick="openBanModal(' + groupId + ',' + m.id + ',\'' + escapeHtml(m.username) + '\')" ' +
+      'class="text-red-400 hover:text-red-300 transition text-xs ml-1" title="Ban"><i class="fas fa-ban"></i></button>';
+  }
+
+  // showSpec=true: show Class/Spec as subtitle under name (for MMO role grid columns)
+  var specLine = '';
+  if (showSpec && m.selections) {
+    var sels = m.selections;
+    var cls  = sels['Class'] || sels['class'] || sels['Job'] || sels['job'] || '';
+    var spec = sels['Specialization'] || sels['specialization'] || sels['Spec'] || sels['spec'] || sels['Subclass'] || sels['subclass'] || '';
+    var parts = [cls, spec].filter(Boolean);
+    if (parts.length) {
+      specLine = '<span class="text-xs text-gray-500 block leading-tight">' + escapeHtml(parts.join(' - ')) + '</span>';
+    }
+  }
+
+  return '<div class="flex items-start gap-2 text-sm ' + color + '">' +
+    '<i class="fas ' + icon + ' text-xs flex-shrink-0 mt-1"></i>' +
+    '<div class="flex-1 min-w-0"><span>' + escapeHtml(m.username) + '</span>' + specLine + '</div>' +
+    (actions ? '<span class="flex items-center mt-0.5">' + actions + '</span>' : '') +
+    '</div>';
 }
 
 function renderGroupCard(g) {
@@ -297,6 +520,9 @@ function renderGroupCard(g) {
   const coverUrl = game && game.cover_url ? game.cover_url : '';
   const emoji    = game && game.emoji ? game.emoji : '\uD83C\uDFAE';
   const hasRoles = game && game.has_roles;
+  const members  = g.members || [];
+  const isCreator  = members.some(function(m) { return isMeCheck(m) && m.is_creator; });
+  const isCoLeader = members.some(function(m) { return isMeCheck(m) && m.is_co_leader; });
 
   const coverHtml = coverUrl
     ? '<img src="' + escapeHtml(coverUrl) + '" alt="' + escapeHtml(g.game_name) + '" class="w-20 h-28 md:w-24 md:h-32 object-cover rounded-lg border border-neutral-700">'
@@ -306,19 +532,19 @@ function renderGroupCard(g) {
   const statusBadge = isFull
     ? '<span class="px-3 py-1 rounded-lg bg-red-600/20 text-red-400 text-sm font-medium">Full</span>'
     : '<span class="px-3 py-1 rounded-lg bg-green-600/20 text-green-400 text-sm font-medium">Open</span>';
-
   const timeDisplay = g.scheduled_time ? formatScheduled(g.scheduled_time) : 'Now / Flexible';
-  const members = g.members || [];
+
+  const ts = g.tanks_needed || 0, hs = g.healers_needed || 0, ds = g.dps_needed || 0, ss = g.support_needed || 0;
+  const groupHasRoles = ts + hs + ds + ss > 0;
 
   let compHtml = '';
-  if (hasRoles) {
-    const ts = game.tank_slots || 0, hs = game.healer_slots || 0, ds = game.dps_slots || 0, ss = game.support_slots || 0;
+  if (groupHasRoles) {
     compHtml = '<div class="text-sm"><span class="text-gray-400"><i class="fas fa-users-cog mr-2"></i>Composition:</span>' +
       '<div class="flex gap-3 mt-1 flex-wrap">' +
-      (ts > 0 ? '<span class="text-blue-400"><i class="fas fa-shield mr-1"></i>' + ts + ' Tank' + (ts > 1 ? 's' : '') + '</span>' : '') +
-      (hs > 0 ? '<span class="text-green-400"><i class="fas fa-heart mr-1"></i>' + hs + ' Healer' + (hs > 1 ? 's' : '') + '</span>' : '') +
+      (ts > 0 ? '<span class="text-blue-400"><i class="fas fa-shield mr-1"></i>' + ts + ' Tank' + (ts>1?'s':'') + '</span>' : '') +
+      (hs > 0 ? '<span class="text-green-400"><i class="fas fa-heart mr-1"></i>' + hs + ' Healer' + (hs>1?'s':'') + '</span>' : '') +
       (ds > 0 ? '<span class="text-red-400"><i class="fas fa-bolt mr-1"></i>' + ds + ' DPS</span>' : '') +
-      (ss > 0 ? '<span class="text-yellow-400"><i class="fas fa-music mr-1"></i>' + ss + ' Support' + (ss > 1 ? 's' : '') + '</span>' : '') +
+      (ss > 0 ? '<span class="text-yellow-400"><i class="fas fa-music mr-1"></i>' + ss + ' Support' + (ss>1?'s':'') + '</span>' : '') +
       '</div></div>';
   } else {
     compHtml = '<div class="text-sm"><span class="text-gray-400"><i class="fas fa-users mr-2"></i>Members:</span>' +
@@ -326,53 +552,58 @@ function renderGroupCard(g) {
   }
 
   let membersSection = '';
-  if (hasRoles && members.length > 0) {
-    const tanks    = members.filter(function(m) { return m.role === 'tank'; });
-    const healers  = members.filter(function(m) { return m.role === 'healer'; });
-    const dps      = members.filter(function(m) { return m.role === 'dps'; });
-    const support  = members.filter(function(m) { return m.role === 'support'; });
-    const unassign = members.filter(function(m) { return !['tank','healer','dps','support'].includes(m.role); });
-    const ts = game.tank_slots || 0, hs = game.healer_slots || 0, ds = game.dps_slots || 0, ss = game.support_slots || 0;
-
+  if (groupHasRoles && members.length > 0) {
+    const customOpts = game ? (game.options || []) : [];
+    const tanks   = [], healers = [], dps = [], support = [], other = [];
+    members.forEach(function(m) {
+      let r = (m.role || '').toLowerCase();
+      if (r === 'co_leader' || r === 'member' || r === '') {
+        const detected = _detectRoleFromSelections(m.selections || {}, customOpts);
+        if (detected) r = detected;
+      }
+      if      (r === 'tank')    tanks.push(m);
+      else if (r === 'healer')  healers.push(m);
+      else if (r === 'dps')     dps.push(m);
+      else if (r === 'support') support.push(m);
+      else                      other.push(m);
+    });
     const roleCol = function(label, icon, color, border, list, slots) {
       if (slots === 0) return '';
       return '<div class="bg-neutral-900/70 rounded-lg p-3 border ' + border + '">' +
         '<div class="flex items-center gap-2 mb-2 pb-2 border-b border-neutral-700">' +
         '<i class="fas ' + icon + ' ' + color + '"></i><span class="text-sm font-semibold ' + color + '">' + label + '</span>' +
         '<span class="text-xs text-gray-400 ml-auto">' + list.length + '/' + slots + '</span></div>' +
-        '<div class="space-y-1 min-h-[40px]">' + (list.length > 0 ? list.map(renderMemberItem).join('') : '<span class="text-gray-500 text-xs italic">-</span>') + '</div></div>';
+        '<div class="space-y-1 min-h-[40px]">' + (list.length > 0 ? list.map(function(m) { return renderMemberItem(m, g.id, isCreator, isCoLeader, true); }).join('') : '<span class="text-gray-500 text-xs italic">-</span>') + '</div></div>';
     };
     membersSection = '<div class="mb-3"><div class="grid grid-cols-2 xl:grid-cols-4 gap-3">' +
-      roleCol('Tank',    'fa-shield-alt', 'text-blue-400',   'border-blue-900/50',   tanks,   ts) +
-      roleCol('Healer',  'fa-heart',      'text-green-400',  'border-green-900/50',  healers, hs) +
-      roleCol('DPS',     'fa-bolt',       'text-red-400',    'border-red-900/50',    dps,     ds) +
-      roleCol('Support', 'fa-music',      'text-yellow-400', 'border-yellow-900/50', support, ss) +
+      roleCol('Tank','fa-shield-alt','text-blue-400','border-blue-900/50',tanks,ts) +
+      roleCol('Healer','fa-heart','text-green-400','border-green-900/50',healers,hs) +
+      roleCol('DPS','fa-bolt','text-red-400','border-red-900/50',dps,ds) +
+      roleCol('Support','fa-music','text-yellow-400','border-yellow-900/50',support,ss) +
       '</div>' +
-      (unassign.length > 0
+      (other.length > 0
         ? '<div class="mt-3 bg-neutral-900/70 rounded-lg p-3 border border-orange-900/50">' +
           '<div class="flex items-center gap-2 mb-2 pb-2 border-b border-neutral-700">' +
-          '<i class="fas fa-question-circle text-orange-400"></i>' +
-          '<span class="text-sm font-semibold text-orange-400">Unassigned</span>' +
-          '<span class="text-xs text-gray-400 ml-auto">' + unassign.length + '</span></div>' +
-          '<div class="grid grid-cols-3 gap-2">' + unassign.map(renderMemberItem).join('') + '</div></div>'
+          '<i class="fas fa-question-circle text-orange-400"></i><span class="text-sm font-semibold text-orange-400">Unassigned</span>' +
+          '<span class="text-xs text-gray-400 ml-auto">' + other.length + '</span></div>' +
+          '<div class="grid grid-cols-3 gap-2">' + other.map(function(m) { return renderMemberItem(m, g.id, isCreator, isCoLeader, true); }).join('') + '</div></div>'
         : '') +
       '</div>';
   } else if (members.length > 0) {
     membersSection = '<div class="bg-neutral-900/50 rounded-lg p-3 mb-3 border border-neutral-700">' +
-      '<div class="flex items-center gap-2 mb-2">' +
-      '<i class="fas fa-users text-gray-400 text-sm"></i>' +
+      '<div class="flex items-center gap-2 mb-2"><i class="fas fa-users text-gray-400 text-sm"></i>' +
       '<span class="text-sm font-medium text-gray-300">Group Members</span>' +
       '<span class="text-xs text-gray-500 ml-auto">' + members.length + '/' + g.max_size + '</span></div>' +
       '<div class="flex flex-wrap gap-x-6 gap-y-1">' +
-      members.map(renderMemberItem).join('') +
+      members.map(function(m) { return renderMemberItem(m, g.id, isCreator, isCoLeader); }).join('') +
       '</div></div>';
   }
 
-  const rolesBadge = hasRoles
+  const rolesBadge = groupHasRoles
     ? ' <span class="px-2 py-0.5 text-xs rounded bg-purple-600 text-white align-middle"><i class="fas fa-users-cog mr-1"></i>ROLES</span>'
     : '';
 
-  return '<div class="bg-neutral-800 border border-neutral-700 rounded-xl p-4 hover:border-neutral-600 transition" id="group-card-' + g.id + '">' +
+  return '<div class="bg-neutral-800 border border-neutral-700 rounded-xl p-4 hover:border-purple-700/60 hover:shadow-[0_0_18px_rgba(147,51,234,0.18)] transition-all duration-200" id="group-card-' + g.id + '">' +
     '<div class="flex flex-col md:flex-row gap-4">' +
     '<div class="flex-shrink-0">' + coverHtml + '</div>' +
     '<div class="flex-1">' +
@@ -380,120 +611,71 @@ function renderGroupCard(g) {
         '<div>' +
           '<h3 class="text-2xl font-bold text-white mb-1">' + escapeHtml(g.title || 'Untitled Group') + rolesBadge + '</h3>' +
           '<p class="text-sm text-gray-400 flex items-center gap-1"><span class="text-base">' + emoji + '</span> ' + escapeHtml(g.game_name) + ' <span class="text-gray-600 text-xs">#' + g.id + '</span></p>' +
-        '</div>' +
-        statusBadge +
+          (function() {
+            var creator = members.find(function(m) { return m.is_creator; }) || members[0];
+            if (!creator || !creator.selections) return '';
+            var skipFields = groupHasRoles
+              ? new Set(['role','class','specialization','spec','subclass','job'])
+              : new Set(['role']);
+            var tags = Object.entries(creator.selections).filter(function(e) {
+              return e[1] && !skipFields.has(e[0].toLowerCase());
+            }).map(function(e) {
+              var val = Array.isArray(e[1]) ? e[1][0] : e[1];
+              if (!val) return '';
+              return '<span class="px-1.5 py-0.5 rounded-full text-xs bg-neutral-800 text-gray-400 border border-neutral-600">' + escapeHtml(val) + '</span>';
+            }).join('');
+            return tags ? '<div class="flex flex-wrap gap-1 mt-1">' + tags + '</div>' : '';
+          })() +
+        '</div>' + statusBadge +
       '</div>' +
       '<div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">' +
-        '<div class="text-sm"><span class="text-gray-400"><i class="far fa-clock mr-2"></i>Time:</span>' +
-        '<span class="text-white">' + escapeHtml(timeDisplay) + '</span></div>' +
+        '<div class="text-sm"><span class="text-gray-400"><i class="far fa-clock mr-2"></i>Time:</span><span class="text-white">' + escapeHtml(timeDisplay) + '</span></div>' +
         compHtml +
       '</div>' +
       (g.description ? '<p class="text-gray-300 text-sm mb-3 italic">"' + escapeHtml(g.description) + '"</p>' : '') +
       membersSection +
-      '<div class="flex gap-2 flex-wrap">' +
-        renderGroupActions(g) +
-      '</div>' +
-    '</div>' +
-    '</div>' +
-  '</div>';
+      '<div class="flex gap-2 flex-wrap">' + renderGroupActions(g) + '</div>' +
+    '</div></div></div>';
 }
 
 function renderGroupActions(g) {
-  const members = g.members || [];
-  const isCreator  = g.creator_web_user_id && g.creator_web_user_id === CURRENT_WEB_USER_ID;
-  const isMember   = members.some(function(m) { return m.web_user_id === CURRENT_WEB_USER_ID; });
-  const isCoLeader = members.some(function(m) { return m.web_user_id === CURRENT_WEB_USER_ID && m.is_co_leader; });
+  const members    = g.members || [];
+  const isCreator  = members.some(function(m) { return isMeCheck(m) && m.is_creator; });
+  const isMember   = members.some(function(m) { return isMeCheck(m); });
+  const isCoLeader = members.some(function(m) { return isMeCheck(m) && m.is_co_leader; });
   const isFull     = g.status === 'full' || g.current_size >= g.max_size;
 
   if (isCreator) {
-    return '<span class="px-4 py-2 bg-yellow-600/20 text-yellow-400 rounded-lg text-sm font-medium cursor-default">' +
-      '<i class="fas fa-crown mr-2"></i>You\'re the Leader</span>' +
-      '<button onclick="deleteGroup(' + g.id + ')" class="px-4 py-2 bg-red-600/20 hover:bg-red-600 text-red-400 hover:text-white rounded-lg text-sm font-medium">' +
-      '<i class="fas fa-trash mr-2"></i>Delete</button>';
+    return '<span class="px-4 py-2 bg-yellow-600/20 text-yellow-400 rounded-lg text-sm font-medium cursor-default"><i class="fas fa-crown mr-2"></i>You\'re the Leader</span>' +
+      '<button onclick="deleteGroup(' + g.id + ')" class="px-4 py-2 bg-red-600/20 hover:bg-red-600 text-red-400 hover:text-white rounded-lg text-sm font-medium"><i class="fas fa-trash mr-2"></i>Delete</button>';
   }
   if (isCoLeader) {
-    return '<span class="px-4 py-2 bg-blue-600/20 text-blue-400 rounded-lg text-sm font-medium cursor-default">' +
-      '<i class="fas fa-star mr-2"></i>You\'re a Co-Leader</span>' +
-      '<button onclick="leaveGroup(' + g.id + ')" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium">' +
-      '<i class="fas fa-sign-out-alt mr-2"></i>Leave Group</button>';
+    return '<span class="px-4 py-2 bg-blue-600/20 text-blue-400 rounded-lg text-sm font-medium cursor-default"><i class="fas fa-star mr-2"></i>You\'re a Co-Leader</span>' +
+      '<button onclick="leaveGroup(' + g.id + ')" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium"><i class="fas fa-sign-out-alt mr-2"></i>Leave Group</button>';
   }
   if (isMember) {
-    return '<span class="px-4 py-2 bg-green-600/20 text-green-400 rounded-lg text-sm font-medium cursor-default">' +
-      '<i class="fas fa-check mr-2"></i>Joined</span>' +
-      '<button onclick="leaveGroup(' + g.id + ')" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium">' +
-      '<i class="fas fa-sign-out-alt mr-2"></i>Leave Group</button>';
+    return '<span class="px-4 py-2 bg-green-600/20 text-green-400 rounded-lg text-sm font-medium cursor-default"><i class="fas fa-check mr-2"></i>Joined</span>' +
+      '<button onclick="leaveGroup(' + g.id + ')" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium"><i class="fas fa-sign-out-alt mr-2"></i>Leave Group</button>';
   }
   if (isFull) {
-    return '<span class="px-4 py-2 bg-yellow-600/20 text-yellow-400 rounded-lg text-sm font-medium">' +
-      '<i class="fas fa-crown mr-2"></i>Leader: ' + escapeHtml(g.creator_name) + '</span>' +
-      '<button class="px-4 py-2 bg-gray-600 text-gray-400 rounded-lg text-sm font-medium cursor-not-allowed" disabled>' +
-      '<i class="fas fa-lock mr-2"></i>Group Full</button>';
+    return '<span class="px-4 py-2 bg-yellow-600/20 text-yellow-400 rounded-lg text-sm font-medium"><i class="fas fa-crown mr-2"></i>Leader: ' + escapeHtml(g.creator_name) + '</span>' +
+      '<button class="px-4 py-2 bg-gray-600 text-gray-400 rounded-lg text-sm font-medium cursor-not-allowed" disabled><i class="fas fa-lock mr-2"></i>Group Full</button>';
   }
-  return '<span class="px-4 py-2 bg-yellow-600/20 text-yellow-400 rounded-lg text-sm font-medium">' +
-    '<i class="fas fa-crown mr-2"></i>Leader: ' + escapeHtml(g.creator_name) + '</span>' +
-    '<button onclick="joinGroup(' + g.id + ')" class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium">' +
-    '<i class="fas fa-plus mr-2"></i>Join Group</button>';
+  return '<span class="px-4 py-2 bg-yellow-600/20 text-yellow-400 rounded-lg text-sm font-medium"><i class="fas fa-crown mr-2"></i>Leader: ' + escapeHtml(g.creator_name) + '</span>' +
+    '<button onclick="openJoinModal(' + g.id + ')" class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium"><i class="fas fa-plus mr-2"></i>Join Group</button>';
 }
 
-async function joinGroup(groupId) {
-  try {
-    const resp = await csrfFetch(JOIN_API_BASE + groupId + '/join/', { method: 'POST' });
-    const data = await resp.json();
-    if (resp.ok && data.success) {
-      await refreshGroups();
-    } else {
-      alert(data.error || 'Failed to join group.');
-    }
-  } catch(e) {
-    alert('Network error.');
-  }
-}
-
-async function leaveGroup(groupId) {
-  if (!confirm('Leave this group?')) return;
-  try {
-    const resp = await csrfFetch(LEAVE_API_BASE + groupId + '/leave/', { method: 'POST' });
-    const data = await resp.json();
-    if (resp.ok && data.success) {
-      await refreshGroups();
-    } else {
-      alert(data.error || 'Failed to leave group.');
-    }
-  } catch(e) {
-    alert('Network error.');
-  }
-}
-
-async function deleteGroup(groupId) {
-  const g = allGroups.find(x => x.id === groupId);
-  if (!g) return;
-  if (!confirm('Delete "' + (g.title || g.game_name) + '"? This cannot be undone.')) return;
-  try {
-    const resp = await csrfFetch(JOIN_API_BASE + groupId + '/', { method: 'DELETE' });
-    if (resp.ok) {
-      allGroups = allGroups.filter(x => x.id !== groupId);
-      updateCountBadge();
-      applyFilters();
-    } else {
-      const d = await resp.json();
-      alert(d.error || 'Failed to delete group.');
-    }
-  } catch(e) {
-    alert('Network error.');
-  }
-}
-
-function renderGroups() {
+function renderGroups(filtered) {
   const list = document.getElementById('groupsList');
   if (!list) return;
-  if (filteredGroups.length === 0) {
+  if (!filtered || filtered.length === 0) {
     list.innerHTML = '<div class="text-center py-16 bg-neutral-900 border border-neutral-800 rounded-xl">' +
       '<i class="fas fa-users-slash text-5xl text-gray-700 mb-4 block"></i>' +
       '<p class="text-gray-400 text-lg">No open groups right now</p>' +
       '<p class="text-gray-600 text-sm mt-2">Click "Create Group" to start one</p></div>';
     return;
   }
-  list.innerHTML = filteredGroups.map(renderGroupCard).join('');
+  list.innerHTML = filtered.map(renderGroupCard).join('');
 }
 
 async function refreshGroups() {
@@ -513,16 +695,42 @@ async function refreshGroups() {
 // CREATE MODAL
 // ----------------------------------------------------------------
 function openCreateModal() {
-  document.getElementById('createGame').value = '';
+  _createGameId     = 0;
+  _createRecurrence = 'none';
+  _createSelections = {};
+  _createIsSurvival = false;
+  _createGameOpts   = [];
   document.getElementById('createTitle').value = '';
   document.getElementById('createScheduled').value = '';
-  document.getElementById('createRecurrence').value = 'none';
   document.getElementById('createMaxSize').value = '4';
   document.getElementById('createDescription').value = '';
+  document.getElementById('createRoleToggle').classList.add('hidden');
   document.getElementById('createRoleSection').classList.add('hidden');
+  document.getElementById('createRoleEnabled').checked = false;
   document.getElementById('createGameOptions').innerHTML = '';
   document.getElementById('createError').classList.add('hidden');
   document.getElementById('postToNetwork').checked = false;
+  // Clear pill selection
+  _createGameId = 0;
+  document.getElementById('createGamePills').querySelectorAll('button').forEach(function(b) {
+    b.classList.remove('border-green-500', 'bg-green-900/30', 'text-white');
+    b.classList.add('border-neutral-700', 'text-gray-300');
+  });
+  // Re-init recurrence
+  createCustomSelect({
+    container: '#createRecurrenceContainer',
+    name: 'createRecurrence',
+    placeholder: 'One-time event',
+    items: [
+      { value: 'none',    label: 'One-time event' },
+      { value: 'daily',   label: 'Daily' },
+      { value: 'weekly',  label: 'Weekly' },
+      { value: 'monthly', label: 'Monthly' },
+    ],
+    selected: 'none',
+    color: 'green',
+    onSelect: function(val) { _createRecurrence = val || 'none'; },
+  });
   const m = document.getElementById('createModal');
   m.classList.remove('hidden');
   m.classList.add('flex');
@@ -534,59 +742,129 @@ function closeCreateModal() {
   m.classList.remove('flex');
 }
 
+function onRoleCompositionToggle() {
+  const enabled = document.getElementById('createRoleEnabled').checked;
+  const section = document.getElementById('createRoleSection');
+  if (enabled && !_createIsSurvival) {
+    section.classList.remove('hidden');
+  } else {
+    section.classList.add('hidden');
+  }
+}
+
 function onCreateGameChange() {
-  const gameId = parseInt(document.getElementById('createGame').value);
-  const game = GAMES_FULL.find(g => g.id === gameId);
+  const game = GAMES_FULL.find(function(g) { return g.id === _createGameId; });
+  const toggle  = document.getElementById('createRoleToggle');
+  const roleEnabled = document.getElementById('createRoleEnabled');
+  const roleSection = document.getElementById('createRoleSection');
+  const roleHint    = document.getElementById('createRoleHint');
+
+  _createSelections = {};
+  document.getElementById('createGameOptions').innerHTML = '';
+
   if (!game) {
-    document.getElementById('createRoleSection').classList.add('hidden');
-    document.getElementById('createGameOptions').innerHTML = '';
+    toggle.classList.add('hidden');
+    roleSection.classList.add('hidden');
     return;
   }
+
   document.getElementById('createMaxSize').value = game.max_group_size || 4;
-  if (game.has_roles) {
-    document.getElementById('createRoleSection').classList.remove('hidden');
+  roleEnabled.checked = false;
+  roleSection.classList.add('hidden');
+
+  const opts = game.options || game.custom_options || [];
+  _createGameOpts = opts;
+
+  const survivalRoleOpt = opts.find(function(o) {
+    return o.name.toLowerCase() === 'role' && Array.isArray(o.choices) && o.choices.length > 0 && typeof o.choices[0] === 'object';
+  });
+  // has_roles=true games (ESO, WoW) always use MMO slot grid even if they have an object-choice Role field
+  _createIsSurvival = !!survivalRoleOpt && !game.has_roles;
+
+  if (_createIsSurvival) {
+    toggle.classList.remove('hidden');
+    roleHint.textContent = 'Show role composition grid on this group\'s card.';
+  } else if (game.has_roles) {
+    toggle.classList.remove('hidden');
+    roleHint.textContent = 'Set Tank, Healer, DPS and Support slot counts.';
     document.getElementById('createTanks').value   = game.tank_slots   || 0;
     document.getElementById('createHealers').value = game.healer_slots || 0;
     document.getElementById('createDps').value     = game.dps_slots    || 0;
     document.getElementById('createSupport').value = game.support_slots || 0;
   } else {
-    document.getElementById('createRoleSection').classList.add('hidden');
+    toggle.classList.add('hidden');
   }
-  const opts = game.options || game.custom_options || [];
-  const container = document.getElementById('createGameOptions');
-  if (!opts || opts.length === 0) { container.innerHTML = ''; return; }
-  container.innerHTML = opts.map(function(opt, idx) {
-    const choices = Array.isArray(opt.choices)
-      ? opt.choices.map(c => typeof c === 'string' ? c : (c.label || c.name || c))
-      : Object.keys(opt.choices || {});
-    return '<div>' +
-      '<label class="text-sm text-gray-300 mb-1 block">' + escapeHtml(opt.name) + ' (optional)</label>' +
-      '<select id="createOpt_' + idx + '" data-opt-name="' + escapeHtml(opt.name) + '" onchange="onCreateOptChange(' + idx + ',' + JSON.stringify(opts.length) + ')"' +
-        ' class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-green-500 transition">' +
-        '<option value="">-- None --</option>' +
-        choices.map(c => '<option value="' + escapeHtml(c) + '">' + escapeHtml(c) + '</option>').join('') +
-      '</select></div>';
-  }).join('');
-  window._createGameOpts = opts;
-}
 
-function onCreateOptChange(changedIdx, totalOpts) {
-  const opts = window._createGameOpts;
-  if (!opts) return;
-  const changedOpt = opts[changedIdx];
-  const changedVal = document.getElementById('createOpt_' + changedIdx).value;
-  for (let i = changedIdx + 1; i < opts.length; i++) {
-    const opt = opts[i];
-    if (opt.depends_on && opt.depends_on === changedOpt.name) {
-      const depSel = document.getElementById('createOpt_' + i);
-      if (!depSel) continue;
-      const choices = changedVal && opt.choices && opt.choices[changedVal]
-        ? opt.choices[changedVal]
-        : (Array.isArray(opt.choices) ? opt.choices.map(c => typeof c === 'string' ? c : (c.label || c)) : []);
-      depSel.innerHTML = '<option value="">-- None --</option>' +
-        choices.map(c => '<option value="' + escapeHtml(c) + '">' + escapeHtml(c) + '</option>').join('');
-    }
-  }
+  if (!opts || opts.length === 0) return;
+
+  const container = document.getElementById('createGameOptions');
+  opts.forEach(function(opt, idx) {
+    const rawChoices = Array.isArray(opt.choices) ? opt.choices : [];
+    const choices = rawChoices.map(function(c) {
+      return typeof c === 'string' ? c : (c.value || c.label || c.name || String(c));
+    });
+
+    const wrapper = document.createElement('div');
+    const containerId = 'createOptCs_' + idx;
+    wrapper.innerHTML = '<label class="text-sm text-gray-300 mb-1 block">' + escapeHtml(opt.name) + ' (optional)</label>' +
+      '<div id="' + containerId + '"></div>';
+    container.appendChild(wrapper);
+
+    createCustomSelect({
+      container: '#' + containerId,
+      name: 'createOpt_' + idx,
+      placeholder: '-- None --',
+      items: [{ value: '', label: '-- None --' }].concat(choices.map(function(c) {
+        return { value: c, label: c };
+      })),
+      selected: '',
+      color: 'green',
+      onSelect: function(val) {
+        if (val) { _createSelections[opt.name] = val; } else { delete _createSelections[opt.name]; }
+        // Handle depends_on chaining
+        var nextOpt = opts[idx + 1];
+        if (nextOpt && nextOpt.depends_on === opt.name) {
+          var depId = 'createOptCs_' + (idx + 1);
+          var depEl = document.getElementById(depId);
+          if (depEl) {
+            var depChoices = val && nextOpt.choices && nextOpt.choices[val]
+              ? nextOpt.choices[val]
+              : (Array.isArray(nextOpt.choices) ? nextOpt.choices.map(function(c) { return typeof c === 'string' ? c : (c.value || c.label || c); }) : []);
+            delete _createSelections[nextOpt.name];
+            createCustomSelect({
+              container: '#' + depId,
+              name: 'createOpt_' + (idx + 1),
+              placeholder: '-- None --',
+              items: [{ value: '', label: '-- None --' }].concat(depChoices.map(function(c) { return { value: c, label: c }; })),
+              selected: '',
+              color: 'green',
+              onSelect: function(v) { if (v) { _createSelections[nextOpt.name] = v; } else { delete _createSelections[nextOpt.name]; } },
+            });
+          }
+        }
+        // Rebuild any opt with exclude_same_as pointing at this field
+        opts.forEach(function(depOpt, depIdx) {
+          if (depOpt.exclude_same_as !== opt.name) return;
+          var depId = 'createOptCs_' + depIdx;
+          if (!document.getElementById(depId)) return;
+          var depChoices = Array.isArray(depOpt.choices)
+            ? depOpt.choices.map(function(c) { return typeof c === 'string' ? c : (c.value || c.label || c); })
+            : Object.keys(depOpt.choices || {});
+          var filtered = val ? depChoices.filter(function(c) { return c !== val; }) : depChoices;
+          delete _createSelections[depOpt.name];
+          createCustomSelect({
+            container: '#' + depId,
+            name: 'createOpt_' + depIdx,
+            placeholder: '-- None --',
+            items: [{ value: '', label: '-- None --' }].concat(filtered.map(function(c) { return { value: c, label: c }; })),
+            selected: '',
+            color: 'green',
+            onSelect: function(v) { if (v) { _createSelections[depOpt.name] = v; } else { delete _createSelections[depOpt.name]; } },
+          });
+        });
+      },
+    });
+  });
 }
 
 async function submitCreateGroup() {
@@ -594,39 +872,35 @@ async function submitCreateGroup() {
   const errEl = document.getElementById('createError');
   errEl.classList.add('hidden');
 
-  const gameId = parseInt(document.getElementById('createGame').value);
-  const title  = document.getElementById('createTitle').value.trim();
-  if (!gameId) { errEl.textContent = 'Please select a game.'; errEl.classList.remove('hidden'); return; }
-  if (!title)  { errEl.textContent = 'Title is required.';    errEl.classList.remove('hidden'); return; }
+  const title = document.getElementById('createTitle').value.trim();
+  if (!_createGameId) { errEl.textContent = 'Please select a game.'; errEl.classList.remove('hidden'); return; }
+  if (!title)         { errEl.textContent = 'Title is required.';     errEl.classList.remove('hidden'); return; }
 
-  const game = GAMES_FULL.find(g => g.id === gameId);
-  const opts = window._createGameOpts || [];
-  const selections = {};
-  opts.forEach(function(opt, idx) {
-    const sel = document.getElementById('createOpt_' + idx);
-    if (sel && sel.value) selections[opt.name] = sel.value;
-  });
-
+  const game = GAMES_FULL.find(function(g) { return g.id === _createGameId; });
+  const roleEnabled = document.getElementById('createRoleEnabled').checked;
   const payload = {
-    game_id: gameId,
-    title: title,
-    max_size: parseInt(document.getElementById('createMaxSize').value) || 4,
-    description: document.getElementById('createDescription').value.trim() || null,
+    game_id:        _createGameId,
+    title:          title,
+    max_size:       parseInt(document.getElementById('createMaxSize').value) || 4,
+    description:    document.getElementById('createDescription').value.trim() || null,
     scheduled_time: datetimeLocalToTs(document.getElementById('createScheduled').value),
-    recurrence: document.getElementById('createRecurrence').value || 'none',
+    recurrence:     _createRecurrence,
     post_to_network: document.getElementById('postToNetwork').checked,
-    selections: Object.keys(selections).length > 0 ? selections : undefined,
+    selections:     Object.keys(_createSelections).length > 0 ? _createSelections : undefined,
     game_cover_url: game ? (game.cover_url || null) : null,
+    use_roles:      roleEnabled,
   };
+  if (roleEnabled && !_createIsSurvival) {
+    payload.tanks_needed   = parseInt(document.getElementById('createTanks').value)   || 0;
+    payload.healers_needed = parseInt(document.getElementById('createHealers').value) || 0;
+    payload.dps_needed     = parseInt(document.getElementById('createDps').value)     || 0;
+    payload.support_needed = parseInt(document.getElementById('createSupport').value) || 0;
+  }
 
   btn.disabled = true;
   btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Creating...';
-
   try {
-    const resp = await csrfFetch(GROUPS_API, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
+    const resp = await csrfFetch(GROUPS_API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
     const data = await resp.json();
     if (resp.ok && data.success) {
       closeCreateModal();
@@ -644,15 +918,189 @@ async function submitCreateGroup() {
   }
 }
 
-// Init
-updateCountBadge();
-applyFilters();
-document.getElementById('sortFilter').addEventListener('change', applyFilters);
-document.getElementById('statusFilter').addEventListener('change', applyFilters);
-gameFilter.addEventListener('change', applyFilters);
+// ----------------------------------------------------------------
+// JOIN MODAL
+// ----------------------------------------------------------------
+function openJoinModal(groupId) {
+  const g = allGroups.find(function(x) { return x.id === groupId; });
+  if (!g) return;
+  const game = GAMES_FULL.find(function(gm) { return gm.id === g.game_id; });
+  _joinGroupId   = groupId;
+  _joinSelections = {};
 
-document.getElementById('createModal').addEventListener('click', function(e) {
-  if (e.target === this) { this.classList.add('hidden'); this.classList.remove('flex'); }
+  const emoji    = game && game.emoji ? game.emoji : '\uD83C\uDFAE';
+  const coverUrl = game && game.cover_url ? game.cover_url : '';
+  document.getElementById('joinGameInfo').innerHTML =
+    (coverUrl ? '<img src="' + escapeHtml(coverUrl) + '" class="w-10 h-14 object-cover rounded border border-neutral-700">'
+              : '<span class="text-2xl">' + emoji + '</span>') +
+    '<div><p class="text-white font-semibold">' + escapeHtml(g.title || 'Untitled Group') + '</p>' +
+    '<p class="text-sm text-gray-400">' + escapeHtml(g.game_name) + '</p></div>';
+
+  const opts = (game && (game.options || game.custom_options)) || [];
+  const PERSONAL_FIELDS = ['role', 'platform'];
+  _joinPersonalOpts = opts.filter(function(o) { return PERSONAL_FIELDS.includes(o.name.toLowerCase()); });
+
+  const fieldsEl = document.getElementById('joinFields');
+  fieldsEl.innerHTML = '';
+
+  if (_joinPersonalOpts.length === 0) {
+    fieldsEl.innerHTML = '<p class="text-gray-400 text-sm">Click Join to enter this group.</p>';
+  } else {
+    _joinPersonalOpts.forEach(function(opt, idx) {
+      const rawChoices = Array.isArray(opt.choices) ? opt.choices : [];
+      const choices = rawChoices.map(function(c) {
+        return typeof c === 'string' ? c : (c.value || c.label || c.name || String(c));
+      });
+      const wrapper = document.createElement('div');
+      const containerId = 'joinOptCs_' + idx;
+      wrapper.innerHTML = '<label class="text-sm text-gray-300 mb-1 block">' + escapeHtml(opt.name) + '</label>' +
+        '<div id="' + containerId + '"></div>';
+      fieldsEl.appendChild(wrapper);
+
+      createCustomSelect({
+        container: '#' + containerId,
+        name: 'joinOpt_' + idx,
+        placeholder: '-- Select --',
+        items: [{ value: '', label: '-- Select --' }].concat(choices.map(function(c) { return { value: c, label: c }; })),
+        selected: '',
+        color: 'green',
+        onSelect: function(val) {
+          if (val) { _joinSelections[opt.name] = val; } else { delete _joinSelections[opt.name]; }
+        },
+      });
+    });
+  }
+
+  document.getElementById('joinError').classList.add('hidden');
+  const m = document.getElementById('joinModal');
+  m.classList.remove('hidden');
+  m.classList.add('flex');
+}
+
+function closeJoinModal() {
+  const m = document.getElementById('joinModal');
+  m.classList.add('hidden');
+  m.classList.remove('flex');
+  _joinGroupId = null;
+}
+
+async function submitJoin() {
+  if (!_joinGroupId) return;
+  const btn   = document.getElementById('joinSubmitBtn');
+  const errEl = document.getElementById('joinError');
+  errEl.classList.add('hidden');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Joining...';
+  try {
+    const resp = await csrfFetch(JOIN_API_BASE + _joinGroupId + '/join/', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ selections: _joinSelections }),
+    });
+    const data = await resp.json();
+    if (resp.ok && data.success) {
+      closeJoinModal();
+      await refreshGroups();
+    } else {
+      errEl.textContent = data.error || 'Failed to join group.';
+      errEl.classList.remove('hidden');
+    }
+  } catch(e) {
+    errEl.textContent = 'Network error.';
+    errEl.classList.remove('hidden');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-sign-in-alt mr-2"></i>Join';
+  }
+}
+
+// ----------------------------------------------------------------
+// LEAVE / DELETE / KICK / BAN
+// ----------------------------------------------------------------
+async function leaveGroup(groupId) {
+  try {
+    const resp = await csrfFetch(JOIN_API_BASE + groupId + '/leave/', { method: 'POST' });
+    const data = await resp.json();
+    if (resp.ok && data.success) { await refreshGroups(); }
+    else { alert(data.error || 'Failed to leave group.'); }
+  } catch(e) { alert('Network error.'); }
+}
+
+async function deleteGroup(groupId) {
+  const g = allGroups.find(function(x) { return x.id === groupId; });
+  if (!g) return;
+  if (!confirm('Delete "' + (g.title || g.game_name) + '"? This cannot be undone.')) return;
+  try {
+    const resp = await csrfFetch(JOIN_API_BASE + groupId + '/', { method: 'DELETE' });
+    if (resp.ok) { allGroups = allGroups.filter(function(x) { return x.id !== groupId; }); updateCountBadge(); applyFilters(); }
+    else { const d = await resp.json(); alert(d.error || 'Failed to delete group.'); }
+  } catch(e) { alert('Network error.'); }
+}
+
+async function kickMember(groupId, memberId, username) {
+  if (!confirm('Kick ' + username + ' from this group?')) return;
+  try {
+    const resp = await csrfFetch(MEMBER_API_BASE + groupId + '/members/' + memberId + '/kick/', { method: 'POST' });
+    const data = await resp.json();
+    if (resp.ok && data.success) { await refreshGroups(); }
+    else { alert(data.error || 'Failed to kick member.'); }
+  } catch(e) { alert('Network error.'); }
+}
+
+function openBanModal(groupId, memberId, username) {
+  _banGroupId  = groupId;
+  _banMemberId = memberId;
+  document.getElementById('banModalDesc').textContent = 'Ban ' + username + ' from LFG in this server? They will be removed and blocked from future groups.';
+  document.getElementById('banReason').value = '';
+  document.getElementById('banError').classList.add('hidden');
+  const m = document.getElementById('banModal');
+  m.classList.remove('hidden');
+  m.classList.add('flex');
+}
+
+function closeBanModal() {
+  const m = document.getElementById('banModal');
+  m.classList.add('hidden');
+  m.classList.remove('flex');
+  _banGroupId = null; _banMemberId = null;
+}
+
+async function submitBan() {
+  if (!_banGroupId || !_banMemberId) return;
+  const btn   = document.getElementById('banSubmitBtn');
+  const errEl = document.getElementById('banError');
+  errEl.classList.add('hidden');
+  const reason = document.getElementById('banReason').value.trim();
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Banning...';
+  try {
+    const resp = await csrfFetch(MEMBER_API_BASE + _banGroupId + '/members/' + _banMemberId + '/ban/', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reason: reason }),
+    });
+    const data = await resp.json();
+    if (resp.ok && data.success) {
+      closeBanModal();
+      await refreshGroups();
+    } else {
+      errEl.textContent = data.error || 'Failed to ban member.';
+      errEl.classList.remove('hidden');
+    }
+  } catch(e) {
+    errEl.textContent = 'Network error.';
+    errEl.classList.remove('hidden');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-ban mr-2"></i>Ban Member';
+  }
+}
+
+// ----------------------------------------------------------------
+// Modal backdrop close
+// ----------------------------------------------------------------
+['createModal','joinModal','banModal'].forEach(function(id) {
+  document.getElementById(id).addEventListener('click', function(e) {
+    if (e.target === this) { this.classList.add('hidden'); this.classList.remove('flex'); }
+  });
 });
 </script>
 

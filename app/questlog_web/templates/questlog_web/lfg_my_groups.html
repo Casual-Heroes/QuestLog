@@ -143,11 +143,11 @@ function renderMyGroups() {
           </div>
           <div class="flex gap-2">
             ${group.platform === 'fluxer_guild' ? `
-              <a href="/ql/fluxer/${encodeURIComponent(group.guild_id)}/lfg/" class="bg-neutral-700 hover:bg-neutral-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition">
+              <a href="/ql/fluxer/${encodeURIComponent(group.guild_id)}/lfg/browse/" class="bg-neutral-700 hover:bg-neutral-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition">
                 <i class="fas fa-eye mr-1"></i>View
               </a>
             ` : `
-              <a href="/ql/lfg/${group.id}/" class="bg-neutral-700 hover:bg-neutral-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition">
+              <a href="/ql/lfg/${group.share_token || group.id}/" class="bg-neutral-700 hover:bg-neutral-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition">
                 <i class="fas fa-eye mr-1"></i>View
               </a>
               ${activeTab === 'joined' ? `

@@ -351,8 +351,19 @@ function renderMembers() {
 
   const canManage = g.viewer_is_creator || g.viewer_is_co_leader;
 
+  // Survival detection - mirrors lfg_browse.html logic
+  const _gameTypeDetail = getBuiltinGameTypeDetail(g.game_name || '');
+  const _isSurvivalGameDetail = SURVIVAL_GAMES_DETAIL.includes(_gameTypeDetail);
+  const _roleSchemaIsSurvivalDetail = g.role_schema && (
+    g.role_schema.survival === true ||
+    (Array.isArray(g.role_schema) && g.role_schema.some(function(r) {
+      return r.slot === 'tank' && (r.label === 'Combat' || r.color === 'orange');
+    }))
+  );
+  const _survivalEnabledDetail = _isSurvivalGameDetail && _roleSchemaIsSurvivalDetail;
+
   // ── Role roster columns (for use_roles groups) ────────────────────────────
-  if (g.use_roles) {
+  if (g.use_roles && !_survivalEnabledDetail) {
     const tanksList = [], healersList = [], dpsList = [], supportList = [], flexList = [], unassignedList = [];
 
     g.members.forEach((m, idx) => {
@@ -418,50 +429,37 @@ function renderMembers() {
     const rosterEl = document.getElementById('roleRoster');
     rosterEl.innerHTML = `
       <div class="grid grid-cols-3 gap-3">
-        <div class="bg-neutral-900/70 rounded-lg p-3 border border-blue-900/50">
-          <div class="flex items-center gap-2 mb-2 pb-2 border-b border-neutral-700">
-            <i class="fas fa-shield-alt text-blue-400"></i>
-            <span class="text-sm font-semibold text-blue-400">Tank</span>
-            <span class="text-xs text-gray-400 ml-auto">${tanksList.length}/${g.tanks_needed || 0}</span>
-          </div>
-          <div class="space-y-0.5 min-h-[40px]">
-            ${tanksList.length > 0 ? tanksList.map(renderRoleMemberDetail).join('') : '<span class="text-gray-500 text-xs italic">—</span>'}
-          </div>
-        </div>
-        <div class="bg-neutral-900/70 rounded-lg p-3 border border-green-900/50">
-          <div class="flex items-center gap-2 mb-2 pb-2 border-b border-neutral-700">
-            <i class="fas fa-heart text-green-400"></i>
-            <span class="text-sm font-semibold text-green-400">Healer</span>
-            <span class="text-xs text-gray-400 ml-auto">${healersList.length}/${g.healers_needed || 0}</span>
-          </div>
-          <div class="space-y-0.5 min-h-[40px]">
-            ${healersList.length > 0 ? healersList.map(renderRoleMemberDetail).join('') : '<span class="text-gray-500 text-xs italic">—</span>'}
-          </div>
-        </div>
-        <div class="bg-neutral-900/70 rounded-lg p-3 border border-red-900/50">
-          <div class="flex items-center gap-2 mb-2 pb-2 border-b border-neutral-700">
-            <i class="fas fa-bolt text-red-400"></i>
-            <span class="text-sm font-semibold text-red-400">DPS</span>
-            <span class="text-xs text-gray-400 ml-auto">${dpsList.length}/${g.dps_needed || 0}</span>
-          </div>
-          <div class="space-y-0.5 min-h-[40px]">
-            ${dpsList.length > 0 ? dpsList.map(renderRoleMemberDetail).join('') : '<span class="text-gray-500 text-xs italic">—</span>'}
-          </div>
-        </div>
+        ${['tank','healer','dps'].map(slot => {
+          const list = slot==='tank' ? tanksList : slot==='healer' ? healersList : dpsList;
+          const needed = slot==='tank' ? (g.tanks_needed||0) : slot==='healer' ? (g.healers_needed||0) : (g.dps_needed||0);
+          const c = getRoleColorsD(g, slot);
+          return `<div class="bg-neutral-900/70 rounded-lg p-3 border ${c.border}">
+            <div class="flex items-center gap-2 mb-2 pb-2 border-b border-neutral-700">
+              <i class="fas fa-${getRoleIconD(g, slot)} ${c.text}"></i>
+              <span class="text-sm font-semibold ${c.text}">${escapeHtml(getRoleLabelD(g, slot))}</span>
+              <span class="text-xs text-gray-400 ml-auto">${list.length}/${needed}</span>
+            </div>
+            <div class="space-y-0.5 min-h-[40px]">
+              ${list.length > 0 ? list.map(renderRoleMemberDetail).join('') : '<span class="text-gray-500 text-xs italic">—</span>'}
+            </div>
+          </div>`;
+        }).join('')}
       </div>
       ${hasSupport || hasFlex ? `
       <div class="grid grid-cols-3 gap-3 mt-3">
-        ${hasSupport ? `
-        <div class="bg-neutral-900/70 rounded-lg p-3 border border-yellow-900/50">
-          <div class="flex items-center gap-2 mb-2 pb-2 border-b border-neutral-700">
-            <i class="fas fa-music text-yellow-400"></i>
-            <span class="text-sm font-semibold text-yellow-400">Support</span>
-            <span class="text-xs text-gray-400 ml-auto">${supportList.length}/${g.support_needed || 0}</span>
-          </div>
-          <div class="space-y-0.5 min-h-[40px]">
-            ${supportList.length > 0 ? supportList.map(renderRoleMemberDetail).join('') : '<span class="text-gray-500 text-xs italic">—</span>'}
-          </div>
-        </div>` : '<div></div>'}
+        ${hasSupport ? (() => {
+          const c = getRoleColorsD(g, 'support');
+          return `<div class="bg-neutral-900/70 rounded-lg p-3 border ${c.border}">
+            <div class="flex items-center gap-2 mb-2 pb-2 border-b border-neutral-700">
+              <i class="fas fa-${getRoleIconD(g, 'support')} ${c.text}"></i>
+              <span class="text-sm font-semibold ${c.text}">${escapeHtml(getRoleLabelD(g, 'support'))}</span>
+              <span class="text-xs text-gray-400 ml-auto">${supportList.length}/${g.support_needed||0}</span>
+            </div>
+            <div class="space-y-0.5 min-h-[40px]">
+              ${supportList.length > 0 ? supportList.map(renderRoleMemberDetail).join('') : '<span class="text-gray-500 text-xs italic">—</span>'}
+            </div>
+          </div>`;
+        })() : '<div></div>'}
         ${hasFlex ? `
         <div class="bg-neutral-900/70 rounded-lg p-3 border border-cyan-900/50">
           <div class="flex items-center gap-2 mb-2 pb-2 border-b border-neutral-700">
@@ -497,6 +495,91 @@ function renderMembers() {
       </div>`;
     rosterEl.classList.remove('hidden');
     listEl.innerHTML = ''; // role roster is the complete member display — no flat cards
+  } else if (_survivalEnabledDetail) {
+    // ── Survival grid (TANKS/HEALERS/DPS/SUPPORT + sub-choice cards) ─────────
+    document.getElementById('roleRoster').classList.add('hidden');
+    const SURV_SECS_D = [
+      {slot:'tank',    label:'Tanks',   icon:'fa-shield-alt', text:'text-blue-400',   border:'border-blue-900/50'},
+      {slot:'healer',  label:'Healers', icon:'fa-heart',      text:'text-green-400',  border:'border-green-900/50'},
+      {slot:'dps',     label:'DPS',     icon:'fa-bolt',       text:'text-red-400',    border:'border-red-900/50'},
+      {slot:'support', label:'Support', icon:'fa-tools',      text:'text-yellow-400', border:'border-yellow-900/50'},
+    ];
+    // Sub-choices from GAME_TEMPLATES (web-native groups have no game_options)
+    const tplD = _gameTypeDetail && GAME_TEMPLATES[_gameTypeDetail] ? GAME_TEMPLATES[_gameTypeDetail] : [];
+    const tplRoleD = tplD.find(f => f.name === 'Role');
+    const subChoicesD = (tplRoleD && Array.isArray(tplRoleD.choices) && typeof tplRoleD.choices[0] === 'object') ? tplRoleD.choices : [];
+    const colMapD = {};
+    subChoicesD.forEach(c => { colMapD[c.value] = []; });
+    const unassignedD = [];
+    (g.members || []).forEach((m, idx) => {
+      const me = {
+        display_name: m.display_name || m.username,
+        user_id: m.user_id,
+        is_creator: m.is_creator,
+        is_co_leader: m.is_co_leader,
+        idx: idx + 1,
+        spec: null,
+      };
+      const sel = (m.selections || {})['Role'] || (m.selections || {})['Roles Needed'];
+      const chosen = Array.isArray(sel) ? sel[0] : sel;
+      if (chosen && colMapD[chosen] !== undefined) colMapD[chosen].push(me);
+      else unassignedD.push(me);
+    });
+    const renderSurvMember = (me) => {
+      const leaderIcon = me.is_creator   ? '<i class="fas fa-crown text-yellow-400 text-xs mr-1"></i>'
+                       : me.is_co_leader ? '<i class="fas fa-star text-blue-400 text-xs mr-1"></i>' : '';
+      const removeBtn = canManage && !me.is_creator && me.user_id !== currentUserId ? `
+        <button onclick="confirmKick(${me.user_id}, '${escapeHtml(me.display_name).replace(/'/g, '&#39;')}')"
+                class="ml-auto text-red-400 hover:text-red-300 transition" title="Kick">
+          <i class="fas fa-times text-xs"></i>
+        </button>` : '';
+      return `<div class="flex items-center gap-1 text-sm py-1">
+        <span class="text-gray-500 text-xs w-4 flex-shrink-0">${me.idx}</span>
+        ${leaderIcon}
+        <span class="text-gray-200">${escapeHtml(me.display_name)}</span>
+        ${removeBtn}
+      </div>`;
+    };
+    function buildSurvSecD(slot) {
+      const s = SURV_SECS_D.find(x => x.slot === slot);
+      const subs = subChoicesD.filter(c => c.role === slot);
+      if (!subs.length) return null;
+      const total = subs.reduce((n, c) => n + (colMapD[c.value] || []).length, 0);
+      const header = `<div class="flex items-center gap-2 mb-2"><i class="fas ${s.icon} ${s.text} text-sm"></i><span class="text-sm font-bold ${s.text} uppercase tracking-wide">${s.label}</span><span class="text-xs text-gray-500 ml-1">(${total})</span></div>`;
+      const cols = subs.map(c => {
+        const list = colMapD[c.value] || [];
+        return `<div class="bg-neutral-900/70 rounded-lg p-3 border ${s.border}">
+          <div class="flex items-center gap-2 mb-2 pb-2 border-b border-neutral-700">
+            <span class="text-sm font-semibold ${s.text}">${escapeHtml(c.value)}</span>
+            <span class="text-xs text-gray-400 ml-auto">${list.length}</span>
+          </div>
+          <div class="space-y-0.5 min-h-[32px]">${list.length > 0 ? list.map(renderSurvMember).join('') : '<span class="text-gray-600 text-xs italic">-</span>'}</div>
+        </div>`;
+      }).join('');
+      return {header, cols};
+    }
+    const tSecD = buildSurvSecD('tank'), hSecD = buildSurvSecD('healer');
+    const dSecD = buildSurvSecD('dps'),  sSecD = buildSurvSecD('support');
+    let survGrid = '';
+    if (tSecD || hSecD) {
+      survGrid += `<div class="grid grid-cols-2 gap-3 mb-3">`;
+      if (tSecD) survGrid += `<div>${tSecD.header}<div class="grid grid-cols-1 gap-2">${tSecD.cols}</div></div>`;
+      if (hSecD) survGrid += `<div>${hSecD.header}<div class="grid grid-cols-1 gap-2">${hSecD.cols}</div></div>`;
+      survGrid += `</div>`;
+    }
+    if (dSecD) survGrid += `<div class="mb-3">${dSecD.header}<div class="grid grid-cols-2 md:grid-cols-3 gap-2">${dSecD.cols}</div></div>`;
+    if (sSecD) survGrid += `<div class="mb-3">${sSecD.header}<div class="grid grid-cols-2 md:grid-cols-3 gap-2">${sSecD.cols}</div></div>`;
+    if (unassignedD.length > 0) {
+      survGrid += `<div class="mt-2 bg-neutral-900/70 rounded-lg p-3 border border-orange-900/50">
+        <div class="flex items-center gap-2 mb-2 pb-2 border-b border-neutral-700">
+          <i class="fas fa-question-circle text-orange-400"></i>
+          <span class="text-sm font-semibold text-orange-400">Unassigned</span>
+          <span class="text-xs text-gray-400 ml-auto">${unassignedD.length}</span>
+        </div>
+        <div class="flex flex-wrap gap-x-4 gap-y-1">${unassignedD.map(renderSurvMember).join('')}</div>
+      </div>`;
+    }
+    listEl.innerHTML = survGrid;
   } else {
     document.getElementById('roleRoster').classList.add('hidden');
 
@@ -555,13 +638,53 @@ function renderMembers() {
 
 // ─── Role Detection System ─────────────────────────────────────────────────────
 
-const BUILTIN_GAMES_DETAIL = {
-  'wow':      ['world of warcraft', 'wow'],
-  'ffxiv':    ['final fantasy xiv', 'final fantasy 14', 'ffxiv', 'ff14'],
-  'pantheon': ['pantheon', 'pantheon: rise of the fallen'],
-  'gw2':      ['guild wars 2', 'gw2'],
-  'eso':      ['elder scrolls online', 'eso', 'teso'],
+// ── Role schema helpers ───────────────────────────────────────────────────────
+const _ROLE_COLOR_MAP_D = {
+  blue:   {text: 'text-blue-400',   border: 'border-blue-900/50'},
+  green:  {text: 'text-green-400',  border: 'border-green-900/50'},
+  red:    {text: 'text-red-400',    border: 'border-red-900/50'},
+  yellow: {text: 'text-yellow-400', border: 'border-yellow-900/50'},
+  orange: {text: 'text-orange-400', border: 'border-orange-900/50'},
+  cyan:   {text: 'text-cyan-400',   border: 'border-cyan-900/50'},
+  pink:   {text: 'text-pink-400',   border: 'border-pink-900/50'},
+  purple: {text: 'text-purple-400', border: 'border-purple-900/50'},
+  gray:   {text: 'text-gray-400',   border: 'border-gray-700'},
 };
+
+function getRoleEntryD(g, slot) {
+  const schema = g && g.role_schema;
+  if (Array.isArray(schema)) {
+    const e = schema.find(r => r.slot === slot);
+    if (e) return e;
+  }
+  const defaults = {
+    tank:    {slot:'tank',    label:'Tank',    color:'blue',   icon:'shield-alt'},
+    healer:  {slot:'healer',  label:'Healer',  color:'green',  icon:'heart'},
+    dps:     {slot:'dps',     label:'DPS',     color:'red',    icon:'bolt'},
+    support: {slot:'support', label:'Support', color:'yellow', icon:'music'},
+  };
+  return defaults[slot] || {slot, label:slot, color:'gray', icon:'circle'};
+}
+
+function getRoleLabelD(g, slot) { return getRoleEntryD(g, slot).label; }
+function getRoleIconD(g, slot)  { return getRoleEntryD(g, slot).icon; }
+function getRoleColorsD(g, slot) {
+  const entry = getRoleEntryD(g, slot);
+  return _ROLE_COLOR_MAP_D[entry.color] || _ROLE_COLOR_MAP_D.gray;
+}
+
+const BUILTIN_GAMES_DETAIL = {
+  'wow':       ['world of warcraft', 'wow'],
+  'ffxiv':     ['final fantasy xiv', 'final fantasy 14', 'ffxiv', 'ff14'],
+  'pantheon':  ['pantheon', 'pantheon: rise of the fallen'],
+  'gw2':       ['guild wars 2', 'gw2'],
+  'eso':       ['elder scrolls online', 'eso', 'teso'],
+  'palworld':  ['palworld'],
+  'enshrouded':['enshrouded'],
+  'valheim':   ['valheim'],
+  'rust':      ['rust'],
+};
+const SURVIVAL_GAMES_DETAIL = ['palworld', 'enshrouded', 'valheim', 'rust'];
 const FLEXIBLE_ROLE_GAMES_DETAIL = ['gw2', 'eso'];
 const WOW_ROLES_DETAIL = {
   'tank':    ['blood', 'vengeance', 'guardian', 'brewmaster', 'protection'],
@@ -611,11 +734,13 @@ function getRoleFromBuiltinDetail(gameType, specOrClass) {
 
 function detectRoleDetail(gameName, selections, selectedRole) {
   const gameType = getBuiltinGameTypeDetail(gameName);
+  const _normRole = r => r ? r.toLowerCase() : null;
   if (gameType) {
     if (FLEXIBLE_ROLE_GAMES_DETAIL.includes(gameType)) {
       const rv = selections['Role'] || selections['role'];
       if (rv) { const rl = (Array.isArray(rv) ? rv[0] : rv).toLowerCase(); if (['tank','healer','dps','support','flex'].includes(rl)) return rl; }
-      if (selectedRole && ['tank','healer','dps','support','flex'].includes(selectedRole)) return selectedRole;
+      const srl = _normRole(selectedRole);
+      if (srl && ['tank','healer','dps','support','flex'].includes(srl)) return srl;
       return null;
     }
     const spec = selections['Specialization'] || selections['specialization'] || selections['Spec'] || selections['spec'];
@@ -629,7 +754,8 @@ function detectRoleDetail(gameName, selections, selectedRole) {
     if (jv) { const r = getRoleFromBuiltinDetail(gameType, jv); if (r) return r; }
     return null;
   }
-  if (selectedRole && ['tank','healer','dps','support','flex'].includes(selectedRole)) return selectedRole;
+  const srl = _normRole(selectedRole);
+  if (srl && ['tank','healer','dps','support','flex'].includes(srl)) return srl;
   const rv = selections['Role'] || selections['role'];
   if (rv) { const rl = (Array.isArray(rv) ? rv[0] : rv).toLowerCase(); if (['tank','healer','dps','support','flex'].includes(rl)) return rl; }
   return null;
@@ -646,11 +772,15 @@ function stripRoleSuffixDetail(s) {
 // ─── Game templates ───────────────────────────────────────────────────────────
 
 const BUILTIN_GAME_IDENTIFIERS = {
-  wow:      ['world of warcraft', 'wow'],
-  ffxiv:    ['final fantasy xiv', 'final fantasy 14', 'ffxiv', 'ff14'],
-  pantheon: ['pantheon', 'pantheon: rise of the fallen'],
-  gw2:      ['guild wars 2', 'gw2'],
-  eso:      ['elder scrolls online', 'eso', 'teso'],
+  wow:         ['world of warcraft', 'wow'],
+  ffxiv:       ['final fantasy xiv', 'final fantasy 14', 'ffxiv', 'ff14'],
+  pantheon:    ['pantheon', 'pantheon: rise of the fallen'],
+  gw2:         ['guild wars 2', 'gw2'],
+  eso:         ['elder scrolls online', 'eso', 'teso'],
+  palworld:    ['palworld'],
+  enshrouded:  ['enshrouded'],
+  valheim:     ['valheim'],
+  rust:        ['rust'],
 };
 
 const GAME_TEMPLATES = {
@@ -680,6 +810,50 @@ const GAME_TEMPLATES = {
     { name: 'Class', choices: ['Dragonknight','Sorcerer','Nightblade','Templar','Warden','Necromancer','Arcanist'] },
     { name: 'Subclass', exclude_same_as: 'Class', choices: ['Dragonknight','Sorcerer','Nightblade','Templar','Warden','Necromancer','Arcanist'] },
     { name: 'Role', choices: [{value:'Tank'},{value:'Healer'},{value:'DPS'},{value:'Support'}] },
+  ],
+  palworld: [
+    { name: 'Role', choices: [
+      {value:'Tank/Defender',   role:'tank'},
+      {value:'Support/Healer',  role:'healer'},
+      {value:'Combat (Melee)',  role:'dps'},
+      {value:'Combat (Ranged)', role:'dps'},
+      {value:'Scout/Explorer',  role:'dps'},
+      {value:'Builder',         role:'support'},
+      {value:'Gatherer',        role:'support'},
+      {value:'Tamer/Breeder',   role:'support'},
+      {value:'Crafter',         role:'support'},
+    ]},
+  ],
+  enshrouded: [
+    { name: 'Role', choices: [
+      {value:'Tank',            role:'tank'},
+      {value:'Healer',          role:'healer'},
+      {value:'Ranger (DPS)',    role:'dps'},
+      {value:'Mage (DPS)',      role:'dps'},
+      {value:'Fighter (DPS)',   role:'dps'},
+      {value:'Builder',         role:'support'},
+      {value:'Crafter',         role:'support'},
+    ]},
+  ],
+  valheim: [
+    { name: 'Role', choices: [
+      {value:'Berserker (Tank)', role:'tank'},
+      {value:'Healer/Support',   role:'healer'},
+      {value:'Archer (DPS)',     role:'dps'},
+      {value:'Warrior (DPS)',    role:'dps'},
+      {value:'Builder',          role:'support'},
+      {value:'Gatherer',         role:'support'},
+    ]},
+  ],
+  rust: [
+    { name: 'Role', choices: [
+      {value:'Raider',           role:'tank'},
+      {value:'Medic/Support',    role:'healer'},
+      {value:'Gunner (DPS)',     role:'dps'},
+      {value:'Scout',            role:'dps'},
+      {value:'Builder',          role:'support'},
+      {value:'Farmer/Gatherer',  role:'support'},
+    ]},
   ],
 };
 
@@ -815,10 +989,10 @@ function buildJoinUpdateContent(currentSelections) {
   let roleHtml = '';
   if (g.use_roles && !templateHasRole) {
     const roleItems = [
-      ...(g.tanks_needed   > 0 ? [{ value: 'tank',    label: 'Tank'    }] : []),
-      ...(g.healers_needed > 0 ? [{ value: 'healer',  label: 'Healer'  }] : []),
-      ...(g.dps_needed     > 0 ? [{ value: 'dps',     label: 'DPS'     }] : []),
-      ...(g.support_needed > 0 ? [{ value: 'support', label: 'Support' }] : []),
+      ...(g.tanks_needed   > 0 ? [{ value: 'tank',    label: getRoleLabelD(g, 'tank')    }] : []),
+      ...(g.healers_needed > 0 ? [{ value: 'healer',  label: getRoleLabelD(g, 'healer')  }] : []),
+      ...(g.dps_needed     > 0 ? [{ value: 'dps',     label: getRoleLabelD(g, 'dps')     }] : []),
+      ...(g.support_needed > 0 ? [{ value: 'support', label: getRoleLabelD(g, 'support') }] : []),
     ];
     if (roleItems.length) {
       roleHtml = `<div>
@@ -850,10 +1024,10 @@ function buildJoinUpdateContent(currentSelections) {
   if (document.getElementById('jopt_cs_role')) {
     const prevRole = (currentSelections && currentSelections['__role']) || '';
     const roleItems = [
-      ...(g.tanks_needed   > 0 ? [{ value: 'tank',    label: 'Tank'    }] : []),
-      ...(g.healers_needed > 0 ? [{ value: 'healer',  label: 'Healer'  }] : []),
-      ...(g.dps_needed     > 0 ? [{ value: 'dps',     label: 'DPS'     }] : []),
-      ...(g.support_needed > 0 ? [{ value: 'support', label: 'Support' }] : []),
+      ...(g.tanks_needed   > 0 ? [{ value: 'tank',    label: getRoleLabelD(g, 'tank')    }] : []),
+      ...(g.healers_needed > 0 ? [{ value: 'healer',  label: getRoleLabelD(g, 'healer')  }] : []),
+      ...(g.dps_needed     > 0 ? [{ value: 'dps',     label: getRoleLabelD(g, 'dps')     }] : []),
+      ...(g.support_needed > 0 ? [{ value: 'support', label: getRoleLabelD(g, 'support') }] : []),
     ];
     createCustomSelect({
       container: '#jopt_cs_role',
@@ -893,8 +1067,22 @@ function closeJoinUpdateModal() {
 
 async function submitJoinUpdate() {
   const selections = collectJoinSelections();
-  const roleEl = document.getElementById('jopt_role');
-  const role = roleEl ? roleEl.value || null : null;
+  // If the game template has a Role field (ESO, GW2), extract it from selections
+  // and store it as the member role column (same logic as lfg_create.html).
+  const SURVIVAL_GAME_TYPES_JOIN = ['palworld', 'enshrouded', 'valheim', 'rust'];
+  const _jGameType = detectGameType(groupData.game_name || '');
+  const _templateHasRole = joinTemplates.some(f => f.name === 'Role');
+  let role;
+  if (_templateHasRole && !SURVIVAL_GAME_TYPES_JOIN.includes(_jGameType)) {
+    // Extract role from game template selections; normalize to lowercase slot key
+    const rv = selections['Role'];
+    const rvStr = (Array.isArray(rv) ? rv[0] : rv) || '';
+    role = rvStr.toLowerCase() || null;
+    delete selections['Role'];
+  } else {
+    const roleEl = document.getElementById('jopt_role');
+    role = roleEl ? roleEl.value || null : null;
+  }
 
   const url = joinUpdateMode === 'join'
     ? `/ql/lfg/${groupId}/join/`

@@ -405,6 +405,9 @@ urlpatterns = [
     path('api/guild/<str:guild_id>/lfg/<int:game_id>/', views.api_lfg_remove, name='api_lfg_remove'),
     path('api/guild/<str:guild_id>/lfg/<int:game_id>/update/', views.api_lfg_game_update, name='api_lfg_game_update'),
 
+    # QuestLog Network LFG subscription (Discord dashboard)
+    path('api/guild/<str:guild_id>/lfg/network/', views.api_guild_network_lfg, name='api_guild_network_lfg'),
+
     # LFG Premium API Endpoints (Attendance & Reliability)
     path('api/guild/<str:guild_id>/lfg/config/', views.api_lfg_config, name='api_lfg_config'),
     path('api/guild/<str:guild_id>/lfg/stats/', views.api_lfg_stats, name='api_lfg_stats'),
@@ -472,6 +475,7 @@ urlpatterns = [
     path('ql/dashboard/discord/<str:guild_id>/lfg/',               views.guild_lfg,                name='ql_discord_guild_lfg'),
     path('ql/dashboard/discord/<str:guild_id>/lfg/browser/',       views.guild_lfg_browser,        name='ql_discord_guild_lfg_browser'),
     path('ql/dashboard/discord/<str:guild_id>/attendance/',        views.guild_attendance,         name='ql_discord_guild_attendance'),
+    path('ql/dashboard/discord/<str:guild_id>/lfg/calendar/',     views.guild_lfg_calendar,       name='ql_discord_guild_lfg_calendar'),
     path('ql/dashboard/discord/<str:guild_id>/trackers/',          views.guild_trackers,           name='ql_discord_guild_trackers'),
     path('ql/dashboard/discord/<str:guild_id>/discovery/',         views.guild_discovery,          name='ql_discord_guild_discovery'),
     path('ql/dashboard/discord/<str:guild_id>/leaderboards/',      views.guild_leaderboards,       name='ql_discord_guild_leaderboards'),

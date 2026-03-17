@@ -35,6 +35,9 @@
         <p class="text-sm text-gray-500">{{ admin_guilds|length }} admin • {{ member_guilds|length }} member</p>
       </div>
       <div class="flex flex-col gap-2">
+        <a href="/ql/" class="bg-neutral-700 hover:bg-neutral-600 text-white px-4 py-2 rounded-lg font-medium transition text-sm text-center whitespace-nowrap">
+          <i class="fas fa-arrow-left mr-2"></i>Back to QuestLog
+        </a>
         <button onclick="refreshGuilds()" id="refreshBtn" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition text-sm whitespace-nowrap">
           <i class="fas fa-sync-alt mr-2"></i>Refresh Servers
         </button>

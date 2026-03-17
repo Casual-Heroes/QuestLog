@@ -4,6 +4,8 @@
 
 {% block guild_content %}
 
+{% include "questlog/partials/custom_select.html" %}
+
 {{ groups_data|json_script:"groups-data" }}
 {{ games_data|json_script:"games-data" }}
 {{ games_full_data|json_script:"games-full-data" }}
@@ -46,28 +48,15 @@
   <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
     <div>
       <label class="text-sm text-gray-300 mb-2 block">Filter by Game</label>
-      <select id="gameFilter"
-              class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-green-500 transition">
-        <option value="">All Games</option>
-      </select>
+      <div id="gameFilterContainer"></div>
     </div>
     <div>
       <label class="text-sm text-gray-300 mb-2 block">Sort By</label>
-      <select id="sortFilter"
-              class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-green-500 transition">
-        <option value="newest">Newest First</option>
-        <option value="slots">Most Slots Available</option>
-        <option value="soon">Starting Soon</option>
-      </select>
+      <div id="sortFilterContainer"></div>
     </div>
     <div>
       <label class="text-sm text-gray-300 mb-2 block">Status</label>
-      <select id="statusFilter"
-              class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-green-500 transition">
-        <option value="">All Groups</option>
-        <option value="open">Open Only</option>
-        <option value="full">Full Groups</option>
-      </select>
+      <div id="statusFilterContainer"></div>
     </div>
     <div class="flex items-end">
       <button onclick="applyFilters()"
@@ -96,11 +85,7 @@
 
       <div>
         <label class="text-sm text-gray-300 mb-1 block">Game <span class="text-red-400">*</span></label>
-        <select id="createGame"
-                class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-green-500 transition"
-                onchange="onCreateGameChange()">
-          <option value="">-- Select a game --</option>
-        </select>
+        <div id="createGamePills" class="flex flex-wrap gap-2"></div>
       </div>
 
       <div>
@@ -119,13 +104,7 @@
 
       <div>
         <label class="text-sm text-gray-300 mb-1 block">Recurrence</label>
-        <select id="createRecurrence"
-                class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-green-500 transition">
-          <option value="none">One-time event</option>
-          <option value="daily">Daily</option>
-          <option value="weekly">Weekly</option>
-          <option value="monthly">Monthly</option>
-        </select>
+        <div id="createRecurrenceContainer"></div>
         <p class="text-gray-500 text-xs mt-1">For raids or regular events that repeat</p>
       </div>
 
@@ -135,30 +114,46 @@
                class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-green-500 transition">
       </div>
 
-      <!-- Role composition (shown when game has_roles) -->
-      <div id="createRoleSection" class="hidden">
-        <label class="text-sm text-gray-300 mb-2 block"><i class="fas fa-users-cog text-purple-400 mr-1"></i>Role Composition</label>
-        <div class="grid grid-cols-2 gap-3">
+      <!-- Enable Role Composition (shown when game supports roles - MMO or survival) -->
+      <div id="createRoleToggle" class="hidden">
+        <label class="flex items-start gap-3 cursor-pointer bg-neutral-800/40 border border-neutral-700/60 rounded-lg px-3 py-3">
+          <input type="checkbox" id="createRoleEnabled" onchange="onRoleCompositionToggle()"
+                 class="mt-0.5 rounded border-neutral-600 cursor-pointer">
           <div>
-            <label class="text-xs text-gray-400 mb-1 block"><i class="fas fa-shield-alt text-blue-400 mr-1"></i>Tanks</label>
-            <input id="createTanks" type="number" min="0" max="50" value="0"
-                   class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition">
+            <span class="text-sm text-gray-200 flex items-center gap-2">
+              <i class="fas fa-users-cog text-purple-400"></i>Enable Role Composition
+            </span>
+            <p class="text-xs text-gray-500 mt-0.5" id="createRoleToggleHint">Set specific Tank/Healer/DPS/Support slots for this group</p>
           </div>
-          <div>
-            <label class="text-xs text-gray-400 mb-1 block"><i class="fas fa-heart text-green-400 mr-1"></i>Healers</label>
-            <input id="createHealers" type="number" min="0" max="50" value="0"
-                   class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-green-500 transition">
+        </label>
+        <!-- MMO slot inputs -->
+        <div id="createRoleSection" class="hidden mt-3">
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="text-xs text-gray-400 mb-1 block"><i class="fas fa-shield-alt text-blue-400 mr-1"></i>Tanks</label>
+              <input id="createTanks" type="number" min="0" max="50" value="1"
+                     class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition">
+            </div>
+            <div>
+              <label class="text-xs text-gray-400 mb-1 block"><i class="fas fa-heart text-green-400 mr-1"></i>Healers</label>
+              <input id="createHealers" type="number" min="0" max="50" value="1"
+                     class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-green-500 transition">
+            </div>
+            <div>
+              <label class="text-xs text-gray-400 mb-1 block"><i class="fas fa-bolt text-red-400 mr-1"></i>DPS</label>
+              <input id="createDps" type="number" min="0" max="200" value="3"
+                     class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-red-500 transition">
+            </div>
+            <div>
+              <label class="text-xs text-gray-400 mb-1 block"><i class="fas fa-music text-yellow-400 mr-1"></i>Support</label>
+              <input id="createSupport" type="number" min="0" max="50" value="0"
+                     class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-yellow-500 transition">
+            </div>
           </div>
-          <div>
-            <label class="text-xs text-gray-400 mb-1 block"><i class="fas fa-bolt text-red-400 mr-1"></i>DPS</label>
-            <input id="createDps" type="number" min="0" max="200" value="0"
-                   class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-red-500 transition">
-          </div>
-          <div>
-            <label class="text-xs text-gray-400 mb-1 block"><i class="fas fa-music text-yellow-400 mr-1"></i>Support</label>
-            <input id="createSupport" type="number" min="0" max="50" value="0"
-                   class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-yellow-500 transition">
-          </div>
+          <label class="flex items-center gap-2 mt-2 cursor-pointer">
+            <input type="checkbox" id="createEnforceLimits" checked class="rounded border-neutral-600 cursor-pointer">
+            <span class="text-xs text-gray-400">Enforce role limits (prevent more signups than slots available)</span>
+          </label>
         </div>
       </div>
 
@@ -226,7 +221,7 @@
 <!-- EDIT GROUP MODAL -->
 <!-- ============================================================ -->
 <div id="editModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/60">
-  <div class="bg-neutral-900 border border-neutral-700 rounded-2xl w-full max-w-lg mx-4">
+  <div class="bg-neutral-900 border border-neutral-700 rounded-2xl w-full max-w-xl max-h-[90vh] overflow-y-auto mx-4">
     <div class="flex items-center justify-between p-5 border-b border-neutral-800">
       <h2 class="text-xl font-bold text-white"><i class="fas fa-edit text-indigo-400 mr-2"></i>Edit Group</h2>
       <button onclick="closeEditModal()" class="text-gray-400 hover:text-white text-2xl leading-none">&times;</button>
@@ -234,28 +229,87 @@
     <div class="p-5 space-y-4">
       <input type="hidden" id="editGroupId">
 
+      <!-- Game info header (read-only) -->
+      <div id="editGameHeader" class="flex items-center gap-3 bg-neutral-800/50 border border-neutral-700/50 rounded-lg px-3 py-2"></div>
+
+      <!-- Title -->
       <div>
         <label class="text-sm text-gray-300 mb-1 block">Title <span class="text-red-400">*</span></label>
         <input id="editTitle" type="text" maxlength="150"
                class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500 transition">
+        <p class="text-gray-500 text-xs mt-1">150 character limit</p>
       </div>
 
-      <div>
-        <label class="text-sm text-gray-300 mb-1 block">Scheduled Time (optional)</label>
-        <input id="editScheduled" type="datetime-local"
-               class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500 transition">
-        <button onclick="document.getElementById('editScheduled').value=''" class="text-xs text-gray-500 hover:text-gray-300 mt-1">Clear time</button>
+      <!-- Scheduled Time + Recurrence side by side -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label class="text-sm text-gray-300 mb-1 block">Scheduled Time (optional)</label>
+          <input id="editScheduled" type="datetime-local"
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500 transition">
+          <button type="button" onclick="document.getElementById('editScheduled').value=''" class="text-xs text-gray-500 hover:text-gray-300 mt-1">Clear time</button>
+        </div>
+        <div>
+          <label class="text-sm text-gray-300 mb-1 block">Recurrence</label>
+          <div id="editRecurrenceContainer"></div>
+        </div>
       </div>
 
+      <!-- Max Size -->
       <div>
         <label class="text-sm text-gray-300 mb-1 block">Max Size</label>
         <input id="editMaxSize" type="number" min="2" max="100"
                class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500 transition">
+        <p class="text-gray-500 text-xs mt-1">Group auto-closes when full, re-opens when a spot opens.</p>
       </div>
 
+      <!-- Role Composition (MMO groups) -->
+      <div id="editRoleCompSection" class="hidden border border-neutral-700/60 rounded-xl p-4 bg-neutral-800/30">
+        <label class="flex items-center gap-2 cursor-pointer mb-3">
+          <input type="checkbox" id="editRoleEnabled" class="accent-purple-500 w-4 h-4" onchange="toggleEditRoleInputs()">
+          <span class="text-sm font-semibold text-white"><i class="fas fa-users-cog text-purple-400 mr-1"></i>Enable Role Composition</span>
+        </label>
+        <p class="text-xs text-gray-500 mb-3 -mt-2">Set specific Tank / Healer / DPS / Support slots for this group</p>
+        <div id="editRoleInputs" class="hidden">
+          <div class="grid grid-cols-4 gap-2 mb-3">
+            <div class="text-center">
+              <p class="text-xs text-blue-400 font-semibold mb-1"><i class="fas fa-shield mr-1"></i>Tanks</p>
+              <input id="editTanks" type="number" min="0" max="50" value="0"
+                     class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-2 py-2 text-sm text-white text-center focus:outline-none focus:border-blue-500 transition">
+            </div>
+            <div class="text-center">
+              <p class="text-xs text-green-400 font-semibold mb-1"><i class="fas fa-heart mr-1"></i>Healers</p>
+              <input id="editHealers" type="number" min="0" max="50" value="0"
+                     class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-2 py-2 text-sm text-white text-center focus:outline-none focus:border-green-500 transition">
+            </div>
+            <div class="text-center">
+              <p class="text-xs text-red-400 font-semibold mb-1"><i class="fas fa-bolt mr-1"></i>DPS</p>
+              <input id="editDps" type="number" min="0" max="50" value="0"
+                     class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-2 py-2 text-sm text-white text-center focus:outline-none focus:border-red-500 transition">
+            </div>
+            <div class="text-center">
+              <p class="text-xs text-yellow-400 font-semibold mb-1"><i class="fas fa-music mr-1"></i>Support</p>
+              <input id="editSupport" type="number" min="0" max="50" value="0"
+                     class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-2 py-2 text-sm text-white text-center focus:outline-none focus:border-yellow-500 transition">
+            </div>
+          </div>
+          <label class="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" id="editEnforceRoleLimits" class="accent-purple-500 w-4 h-4" checked>
+            <span class="text-xs text-gray-300">Enforce role limits (prevent more signups than slots available)</span>
+          </label>
+        </div>
+      </div>
+
+      <!-- Co-Leaders -->
+      <div id="editCoLeadersSection" class="hidden">
+        <label class="text-sm text-gray-300 mb-1 block">Co-Leaders (optional)</label>
+        <p class="text-xs text-gray-500 mb-2">Co-leaders can manage the group alongside you</p>
+        <div id="editCoLeadersList" class="bg-neutral-800 border border-neutral-700 rounded-lg p-2 max-h-44 overflow-y-auto space-y-1"></div>
+      </div>
+
+      <!-- Description -->
       <div>
-        <label class="text-sm text-gray-300 mb-1 block">Description</label>
-        <textarea id="editDescription" rows="3" maxlength="2000"
+        <label class="text-sm text-gray-300 mb-1 block">Description (optional)</label>
+        <textarea id="editDescription" rows="3" maxlength="2000" placeholder="Tell players what you're looking for..."
                   class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500 transition resize-none"></textarea>
       </div>
 
@@ -264,8 +318,40 @@
     <div class="flex gap-3 p-5 border-t border-neutral-800">
       <button onclick="closeEditModal()" class="flex-1 bg-neutral-700 hover:bg-neutral-600 text-white px-4 py-2 rounded-lg font-medium transition text-sm">Cancel</button>
       <button onclick="submitEditGroup()" id="editSubmitBtn"
-              class="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-lg font-medium transition text-sm">
+              class="flex-1 bg-green-600 hover:bg-green-500 text-white px-4 py-2 rounded-lg font-medium transition text-sm">
         <i class="fas fa-save mr-2"></i>Save Changes
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- EDIT CLASS / SELECTIONS MODAL -->
+<!-- ============================================================ -->
+<div id="editClassModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/60">
+  <div class="bg-neutral-900 border border-neutral-700 rounded-2xl w-full max-w-md mx-4">
+    <div class="flex items-center justify-between p-5 border-b border-neutral-800">
+      <h2 class="text-xl font-bold text-white"><i class="fas fa-pencil-alt text-indigo-400 mr-2"></i>Edit Class / Role</h2>
+      <button onclick="closeEditClassModal()" class="text-gray-400 hover:text-white text-2xl leading-none">&times;</button>
+    </div>
+    <div class="p-5">
+      <input type="hidden" id="editClassGroupId">
+      <input type="hidden" id="editClassMemberId">
+      <div class="flex items-center gap-3 mb-4">
+        <div id="editClassGameCover"></div>
+        <div>
+          <p id="editClassGameName" class="text-green-400 text-sm font-medium"></p>
+          <p id="editClassMemberName" class="text-white font-semibold"></p>
+        </div>
+      </div>
+      <div id="editClassOptions" class="space-y-3"></div>
+      <div id="editClassError" class="hidden mt-3 text-red-400 text-sm bg-red-900/20 border border-red-700/30 rounded-lg px-3 py-2"></div>
+    </div>
+    <div class="flex gap-3 p-5 border-t border-neutral-800">
+      <button onclick="closeEditClassModal()" class="flex-1 bg-neutral-700 hover:bg-neutral-600 text-white px-4 py-2 rounded-lg font-medium transition text-sm">Cancel</button>
+      <button onclick="submitEditClass()" id="editClassSubmitBtn"
+              class="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-lg font-medium transition text-sm">
+        <i class="fas fa-save mr-2"></i>Save
       </button>
     </div>
   </div>
@@ -313,48 +399,34 @@ function datetimeLocalToTs(val) {
   return Math.floor(new Date(val).getTime() / 1000);
 }
 
-// Populate game filter dropdown
-const gameFilter = document.getElementById('gameFilter');
-GAMES.forEach(function(gm) {
-  const opt = document.createElement('option');
-  opt.value = String(gm.id);
-  opt.textContent = (gm.emoji ? gm.emoji + ' ' : '') + gm.name;
-  gameFilter.appendChild(opt);
-});
-
-// Populate create game dropdown
-const createGameSel = document.getElementById('createGame');
-GAMES_FULL.forEach(function(gm) {
-  const opt = document.createElement('option');
-  opt.value = String(gm.id);
-  opt.textContent = (gm.emoji ? gm.emoji + ' ' : '') + gm.name;
-  createGameSel.appendChild(opt);
-});
-
-let filteredGroups = allGroups.slice();
+// Filter + create modal state (driven by custom selects via onSelect)
+let _filterGame   = '';
+let _filterSort   = 'newest';
+let _filterStatus = '';
+let _createGameId     = 0;
+let _createRecurrence = 'none';
+let _createSelections = {};  // {optName: value} for game-specific options
+let _editClassSelections = {}; // {optName: value} for edit class modal
 
 function applyFilters() {
-  const gameId = gameFilter.value;
-  const sort = document.getElementById('sortFilter').value;
-  const status = document.getElementById('statusFilter').value;
-
-  filteredGroups = allGroups.filter(function(g) {
-    if (gameId && String(g.game_id) !== gameId) return false;
-    if (status === 'open' && g.status !== 'open') return false;
-    if (status === 'full' && g.status !== 'full') return false;
+  let filtered = allGroups.filter(function(g) {
+    if (_filterGame && String(g.game_id) !== _filterGame) return false;
+    if (_filterStatus === 'open' && g.status !== 'open') return false;
+    if (_filterStatus === 'full' && g.status !== 'full') return false;
     return true;
   });
-
-  if (sort === 'slots') {
-    filteredGroups.sort((a, b) => slotsAvailable(b) - slotsAvailable(a));
-  } else if (sort === 'soon') {
-    filteredGroups.sort((a, b) => (a.scheduled_time || 9999999999) - (b.scheduled_time || 9999999999));
+  if (_filterSort === 'slots') {
+    filtered.sort(function(a, b) { return slotsAvailable(b) - slotsAvailable(a); });
+  } else if (_filterSort === 'soon') {
+    filtered.sort(function(a, b) { return (a.scheduled_time || 9999999999) - (b.scheduled_time || 9999999999); });
   } else {
-    filteredGroups.sort((a, b) => (b.created_at || 0) - (a.created_at || 0));
+    filtered.sort(function(a, b) { return (b.created_at || 0) - (a.created_at || 0); });
   }
-
+  filteredGroups = filtered;
   renderGroups();
 }
+
+let filteredGroups = allGroups.slice();
 
 function updateCountBadge() {
   const badge = document.getElementById('groupCountBadge');
@@ -377,27 +449,134 @@ function renderGroups() {
   list.innerHTML = filteredGroups.map(renderGroupCard).join('');
 }
 
-function renderMemberItem(m, groupId) {
-  // Match Discord: leader = yellow crown icon + yellow text, others = gray user icon + gray text
+function _platformTagClass(val) {
+  const v = (val || '').toLowerCase();
+  if (v === 'pc')                                      return 'bg-neutral-900 text-gray-300 border border-neutral-600';
+  if (v === 'xbox')                                    return 'bg-green-900/50 text-green-400 border border-green-800/60';
+  if (v === 'playstation')                             return 'bg-blue-900/50 text-blue-400 border border-blue-800/60';
+  if (v.includes('cross'))                             return 'bg-purple-900/50 text-purple-400 border border-purple-800/60';
+  if (v.includes('nintendo') || v.includes('switch')) return 'bg-red-900/50 text-red-400 border border-red-800/60';
+  return 'bg-neutral-800 text-gray-400 border border-neutral-600';
+}
+
+function renderMemberItem(m, groupId, showSpec) {
   let icon = 'fa-user', color = 'text-gray-300';
   if (m.is_creator) { icon = 'fa-crown'; color = 'text-yellow-400'; }
-
-  // Build display text: "Name (Class - Spec)" inline, like Discord
-  const sels = m.selections ? Object.values(m.selections).filter(Boolean) : [];
-  const displayText = sels.length > 0
-    ? `${escapeHtml(m.username)} (${escapeHtml(sels.join(' - '))})`
-    : escapeHtml(m.username);
+  else if (m.is_co_leader || m.role === 'co_leader') { icon = 'fa-star'; color = 'text-blue-300'; }
 
   const kickBtn = !m.is_creator
     ? `<button onclick="kickMember(${groupId},${m.id},'${escapeHtml(m.username).replace(/'/g, "\\'")}')" ` +
-      `class="ml-2 text-red-400 hover:text-red-300 transition" title="Remove">` +
+      `class="text-red-400 hover:text-red-300 transition" title="Remove">` +
       `<i class="fas fa-times text-xs"></i></button>`
     : '';
 
-  return `<div class="flex items-center gap-2 text-sm ${color}">` +
-    `<i class="fas ${icon} text-xs flex-shrink-0"></i>` +
-    `<span>${displayText}</span>` +
-    kickBtn + `</div>`;
+  const editClassBtn = `<button onclick="openEditClassModal(${groupId},${m.id})" ` +
+    `class="text-indigo-400 hover:text-indigo-300 transition" title="Edit class/role">` +
+    `<i class="fas fa-pencil-alt text-xs"></i></button>`;
+
+  // Show class/spec subtitle inside role grid columns for MMO groups
+  let specLine = '';
+  if (showSpec) {
+    const sels = m.selections || {};
+    const cls  = sels['Class'] || sels['class'] || sels['Job'] || sels['job'] || '';
+    const spec = sels['Specialization'] || sels['specialization'] || sels['Spec'] || sels['spec'] || sels['Subclass'] || sels['subclass'] || '';
+    const parts = [cls, spec].filter(Boolean);
+    if (parts.length) {
+      specLine = `<span class="text-xs text-gray-500 block leading-tight">${escapeHtml(parts.join(' - '))}</span>`;
+    }
+  }
+
+  return `<div class="flex items-start gap-1.5 text-sm ${color} py-0.5">` +
+    `<i class="fas ${icon} text-xs flex-shrink-0 mt-1"></i>` +
+    `<div class="flex-1 min-w-0"><span class="font-medium">${escapeHtml(m.username)}</span>${specLine}</div>` +
+    editClassBtn + kickBtn + `</div>`;
+}
+
+function _tagClass(key, val) {
+  const k = key.toLowerCase();
+  if (k === 'platform')    return _platformTagClass(val);
+  if (k === 'activity')    return 'bg-orange-900/40 text-orange-300 border border-orange-800/60';
+  if (k === 'experience')  return 'bg-cyan-900/40 text-cyan-300 border border-cyan-800/60';
+  if (k === 'server type') return 'bg-teal-900/40 text-teal-300 border border-teal-800/60';
+  return 'bg-neutral-800 text-gray-400 border border-neutral-600';
+}
+
+// Fields that belong inside the role grid for MMO groups, not as header tags
+const _MMO_GRID_FIELDS = new Set(['role', 'class', 'specialization', 'spec', 'subclass', 'job']);
+
+function _creatorTagsHtml(members, isMmoGroup) {
+  // Show tags on card header from creator's selections.
+  // For MMO groups: skip Class/Spec/Role (shown inside role grid). Show Activity/Platform/etc.
+  // For survival/other groups: skip Role only.
+  const creator = members.find(function(m) { return m.is_creator; }) || members[0];
+  if (!creator) return '';
+  const sels = creator.selections || {};
+  return Object.entries(sels)
+    .filter(function([k, v]) {
+      if (!v) return false;
+      const kl = k.toLowerCase();
+      if (isMmoGroup) return !_MMO_GRID_FIELDS.has(kl);
+      return kl !== 'role';
+    })
+    .map(function([k, v]) {
+      // Activity can be an array (multi-select) - render each value as its own tag
+      const vals = Array.isArray(v) ? v : [v];
+      return vals.filter(Boolean).map(function(val) {
+        // Parse JSON-encoded arrays stored as strings
+        if (typeof val === 'string' && val.startsWith('[')) {
+          try { const arr = JSON.parse(val); return arr.filter(Boolean).map(function(a) { return `<span class="px-1.5 py-0.5 rounded-full text-xs ${_tagClass(k, a)}">${escapeHtml(String(a))}</span>`; }).join(''); } catch(e) {}
+        }
+        return `<span class="px-1.5 py-0.5 rounded-full text-xs ${_tagClass(k, val)}">${escapeHtml(String(val))}</span>`;
+      }).join('');
+    }).join('');
+}
+
+// Role detection for survival/custom games (mirrors lfg_browser.html logic)
+function _getRoleFromCustomOptions(selections, customOptions) {
+  if (!customOptions || !selections) return null;
+  for (const option of customOptions) {
+    const choices = option.choices || [];
+    if (!Array.isArray(choices)) continue;
+    let memberValue = selections[option.name];
+    if (!memberValue) continue;
+    if (Array.isArray(memberValue)) memberValue = memberValue[0];
+    if (!memberValue) continue;
+    for (const choice of choices) {
+      if (typeof choice === 'object' && choice !== null && choice.value === memberValue && choice.role) {
+        return choice.role;
+      }
+    }
+  }
+  return null;
+}
+
+// WoW spec -> role (mirrors Python _WOW_SPEC_ROLE in views_pages.py)
+const _WOW_SPEC_ROLE = {
+  'blood':'tank','vengeance':'tank','guardian':'tank','brewmaster':'tank','protection':'tank',
+  'restoration':'healer','preservation':'healer','mistweaver':'healer','holy':'healer','discipline':'healer',
+  'augmentation':'support',
+  'frost':'dps','unholy':'dps','havoc':'dps','feral':'dps','balance':'dps','beast mastery':'dps',
+  'marksmanship':'dps','survival':'dps','arcane':'dps','fire':'dps','ice':'dps',
+  'windwalker':'dps','outlaw':'dps','assassination':'dps','subtlety':'dps',
+  'elemental':'dps','enhancement':'dps','affliction':'dps','demonology':'dps','destruction':'dps',
+  'fury':'dps','arms':'dps','retribution':'dps','devastation':'dps','shadow':'dps',
+};
+
+function _detectRole(selections, customOptions) {
+  const customRole = _getRoleFromCustomOptions(selections, customOptions);
+  if (customRole) return customRole;
+  const roleVal = selections['Role'] || selections['role'];
+  if (roleVal) {
+    const r = (Array.isArray(roleVal) ? roleVal[0] : roleVal).toLowerCase();
+    if (['tank','healer','dps','support','flex'].includes(r)) return r;
+  }
+  // WoW spec fallback
+  const specVal = selections['Specialization'] || selections['specialization'] || selections['Spec'] || selections['spec'] || '';
+  if (specVal) {
+    const sv = (Array.isArray(specVal) ? specVal[0] : specVal).toLowerCase();
+    if (_WOW_SPEC_ROLE[sv]) return _WOW_SPEC_ROLE[sv];
+  }
+  return null;
 }
 
 function renderGroupCard(g) {
@@ -418,10 +597,26 @@ function renderGroupCard(g) {
   const timeDisplay = g.scheduled_time ? formatScheduled(g.scheduled_time) : 'Now / Flexible';
   const members = g.members || [];
 
-  // Composition row (right side of the 2-col grid)
+  // Use group-level slot counts (set at create time)
+  const ts = g.tanks_needed || 0, hs = g.healers_needed || 0, ds = g.dps_needed || 0, ss = g.support_needed || 0;
+  const totalSlots = ts + hs + ds + ss;
+  // Games that never show role composition regardless of DB values
+  const _noRoleNames = ['v rising', 'vrising', 'diablo', 'path of exile', 'call of duty'];
+  const _isNoRoleGame = _noRoleNames.some(function(n) { return (g.game_name || '').toLowerCase().includes(n); });
+  const groupHasRoles = totalSlots > 0 && !_isNoRoleGame;
+
+  // Get custom options from game for survival role detection
+  const customOptions = game ? (game.options || game.custom_options || []) : [];
+
+  // Check if this is a survival-style game: custom Role field with {value, role} choices AND no MMO has_roles flag
+  // has_roles=true games (ESO, WoW) with an object-choice Role field still use MMO slot grids
+  const roleOption = customOptions.find(function(o) { return o.name === 'Role' && Array.isArray(o.choices) && o.choices.length > 0 && typeof o.choices[0] === 'object'; });
+  const isSurvivalStyle = !!roleOption && !game.has_roles;
+  const survivalRoleEnabled = isSurvivalStyle && g.role_schema && g.role_schema.survival === true;
+
+  // Composition row - hidden for survival games (role columns speak for themselves)
   let compHtml = '';
-  if (hasRoles) {
-    const ts = game.tank_slots || 0, hs = game.healer_slots || 0, ds = game.dps_slots || 0, ss = game.support_slots || 0;
+  if (groupHasRoles && !survivalRoleEnabled) {
     compHtml = `<div class="text-sm"><span class="text-gray-400"><i class="fas fa-users-cog mr-2"></i>Composition:</span>` +
       `<div class="flex gap-3 mt-1 flex-wrap">` +
       (ts > 0 ? `<span class="text-blue-400"><i class="fas fa-shield mr-1"></i>${ts} Tank${ts > 1 ? 's' : ''}</span>` : '') +
@@ -436,38 +631,104 @@ function renderGroupCard(g) {
 
   // Members / role roster section
   let membersSection = '';
-  if (hasRoles && members.length > 0) {
-    const tanks    = members.filter(function(m) { return m.role === 'tank'; });
-    const healers  = members.filter(function(m) { return m.role === 'healer'; });
-    const dps      = members.filter(function(m) { return m.role === 'dps'; });
-    const support  = members.filter(function(m) { return m.role === 'support'; });
-    const unassign = members.filter(function(m) { return !['tank','healer','dps','support'].includes(m.role); });
-    const ts = game.tank_slots || 0, hs = game.healer_slots || 0, ds = game.dps_slots || 0, ss = game.support_slots || 0;
+  const showSurvivalGrid = survivalRoleEnabled && members.length > 0;
+  const showMmoGrid = !isSurvivalStyle && groupHasRoles && members.length > 0;
 
-    const roleCol = function(label, icon, color, border, list, slots) {
-      if (slots === 0) return '';
-      return `<div class="bg-neutral-900/70 rounded-lg p-3 border ${border}">` +
-        `<div class="flex items-center gap-2 mb-2 pb-2 border-b border-neutral-700">` +
-        `<i class="fas ${icon} ${color}"></i><span class="text-sm font-semibold ${color}">${label}</span>` +
-        `<span class="text-xs text-gray-400 ml-auto">${list.length}/${slots}</span></div>` +
-        `<div class="space-y-1 min-h-[40px]">${list.length > 0 ? list.map(function(m) { return renderMemberItem(m, g.id); }).join('') : '<span class="text-gray-500 text-xs italic">-</span>'}</div></div>`;
-    };
-    membersSection = `<div class="mb-3"><div class="grid grid-cols-2 xl:grid-cols-4 gap-3">` +
-      roleCol('Tank',    'fa-shield-alt', 'text-blue-400',   'border-blue-900/50',   tanks,   ts) +
-      roleCol('Healer',  'fa-heart',      'text-green-400',  'border-green-900/50',  healers, hs) +
-      roleCol('DPS',     'fa-bolt',       'text-red-400',    'border-red-900/50',    dps,     ds) +
-      roleCol('Support', 'fa-music',      'text-yellow-400', 'border-yellow-900/50', support, ss) +
-      `</div>` +
-      (unassign.length > 0
-        ? `<div class="mt-3 bg-neutral-900/70 rounded-lg p-3 border border-orange-900/50">` +
+  if (showSurvivalGrid || showMmoGrid) {
+
+    if (isSurvivalStyle) {
+      // Survival grid - TANKS/HEALERS/DPS/SUPPORT sections, sub-choices nested inside
+      const _survSections = [
+        {slot:'tank',   label:'Tanks',   icon:'fa-shield-alt', text:'text-blue-400',   border:'border-blue-900/50'},
+        {slot:'healer', label:'Healers', icon:'fa-heart',      text:'text-green-400',  border:'border-green-900/50'},
+        {slot:'dps',    label:'DPS',     icon:'fa-bolt',       text:'text-red-400',    border:'border-red-900/50'},
+        {slot:'support',label:'Support', icon:'fa-tools',      text:'text-yellow-400', border:'border-yellow-900/50'},
+      ];
+      const survivalChoices = roleOption ? roleOption.choices : [];
+      const colMap = {};
+      const unassign = [];
+      survivalChoices.forEach(function(c) { colMap[c.value] = []; });
+      members.forEach(function(m) {
+        const sel = (m.selections || {})['Role'];
+        const chosen = Array.isArray(sel) ? sel[0] : sel;
+        if (chosen && colMap[chosen] !== undefined) colMap[chosen].push(m);
+        else unassign.push(m);
+      });
+      function buildFluxerSurvSec(slot) {
+        const s = _survSections.find(function(x) { return x.slot === slot; });
+        const subs = survivalChoices.filter(function(c) { return c.role === slot; });
+        if (!subs.length) return null;
+        const total = subs.reduce(function(n,c) { return n + (colMap[c.value]||[]).length; }, 0);
+        const header = `<div class="flex items-center gap-2 mb-2"><i class="fas ${s.icon} ${s.text} text-sm"></i><span class="text-sm font-bold ${s.text} uppercase tracking-wide">${s.label}</span><span class="text-xs text-gray-500 ml-1">(${total})</span></div>`;
+        const cols = subs.map(function(c) {
+          const list = colMap[c.value] || [];
+          return `<div class="bg-neutral-900/70 rounded-lg p-3 border ${s.border}">` +
+            `<div class="flex items-center gap-2 mb-2 pb-2 border-b border-neutral-700"><span class="text-sm font-semibold ${s.text}">${escapeHtml(c.value)}</span><span class="text-xs text-gray-400 ml-auto">${list.length}</span></div>` +
+            `<div class="space-y-1 min-h-[32px]">${list.length > 0 ? list.map(function(m) { return renderMemberItem(m, g.id); }).join('') : '<span class="text-gray-600 text-xs italic">-</span>'}</div></div>`;
+        }).join('');
+        return {header, cols};
+      }
+      let sectionsHtml = '';
+      const tSec = buildFluxerSurvSec('tank'), hSec = buildFluxerSurvSec('healer');
+      const dSec = buildFluxerSurvSec('dps'),  sSec = buildFluxerSurvSec('support');
+      if (tSec || hSec) {
+        sectionsHtml += `<div class="grid grid-cols-2 gap-3 mb-3">`;
+        if (tSec) sectionsHtml += `<div>${tSec.header}<div class="grid grid-cols-1 gap-2">${tSec.cols}</div></div>`;
+        if (hSec) sectionsHtml += `<div>${hSec.header}<div class="grid grid-cols-1 gap-2">${hSec.cols}</div></div>`;
+        sectionsHtml += `</div>`;
+      }
+      if (dSec) sectionsHtml += `<div class="mb-3">${dSec.header}<div class="grid grid-cols-2 md:grid-cols-3 gap-2">${dSec.cols}</div></div>`;
+      if (sSec) sectionsHtml += `<div class="mb-3">${sSec.header}<div class="grid grid-cols-2 md:grid-cols-3 gap-2">${sSec.cols}</div></div>`;
+      membersSection = `<div class="mb-3">${sectionsHtml}` +
+        (unassign.length > 0
+          ? `<div class="mt-2 bg-neutral-900/70 rounded-lg p-3 border border-orange-900/50"><div class="flex items-center gap-2 mb-2 pb-2 border-b border-neutral-700"><i class="fas fa-question-circle text-orange-400"></i><span class="text-sm font-semibold text-orange-400">Unassigned</span><span class="text-xs text-gray-400 ml-auto">${unassign.length}</span></div><div class="flex flex-wrap gap-2">${unassign.map(function(m) { return renderMemberItem(m, g.id); }).join('')}</div></div>`
+          : '') +
+        `</div>`;
+
+    } else {
+      // Standard MMO grid: Tank / Healer / DPS / Support
+      const tanks   = [], healers = [], dps = [], support = [], unassign = [];
+      const _mmoOpts = game ? (game.options || []) : [];
+      members.forEach(function(m) {
+        let r = m.role || '';
+        // co_leader or undetected member: resolve actual combat role from selections
+        if (r === 'co_leader' || r === 'member' || r === '') {
+          const detected = _detectRole(m.selections || {}, _mmoOpts);
+          if (detected) r = detected;
+        }
+        if      (r === 'tank')    tanks.push(m);
+        else if (r === 'healer')  healers.push(m);
+        else if (r === 'dps')     dps.push(m);
+        else if (r === 'support') support.push(m);
+        else                      unassign.push(m);
+      });
+
+      const roleCol = function(label, icon, color, border, list, slots) {
+        if (slots === 0) return '';
+        return `<div class="bg-neutral-900/70 rounded-lg p-3 border ${border}">` +
           `<div class="flex items-center gap-2 mb-2 pb-2 border-b border-neutral-700">` +
-          `<i class="fas fa-question-circle text-orange-400"></i>` +
-          `<span class="text-sm font-semibold text-orange-400">Unassigned</span>` +
-          `<span class="text-xs text-gray-400 ml-auto">${unassign.length}</span></div>` +
-          `<div class="grid grid-cols-3 gap-2">${unassign.map(function(m) { return renderMemberItem(m, g.id); }).join('')}</div></div>`
-        : '') +
-      `</div>`;
-  } else if (members.length > 0) {
+          `<i class="fas ${icon} ${color}"></i><span class="text-sm font-semibold ${color}">${label}</span>` +
+          `<span class="text-xs text-gray-400 ml-auto">${list.length}/${slots}</span></div>` +
+          `<div class="space-y-1 min-h-[40px]">${list.length > 0 ? list.map(function(m) { return renderMemberItem(m, g.id, true); }).join('') : '<span class="text-gray-500 text-xs italic">-</span>'}</div></div>`;
+      };
+      membersSection = `<div class="mb-3"><div class="grid grid-cols-2 xl:grid-cols-4 gap-3">` +
+        roleCol('Tank',    'fa-shield-alt', 'text-blue-400',   'border-blue-900/50',   tanks,   ts) +
+        roleCol('Healer',  'fa-heart',      'text-green-400',  'border-green-900/50',  healers, hs) +
+        roleCol('DPS',     'fa-bolt',       'text-red-400',    'border-red-900/50',    dps,     ds) +
+        roleCol('Support', 'fa-music',      'text-yellow-400', 'border-yellow-900/50', support, ss) +
+        `</div>` +
+        (unassign.length > 0
+          ? `<div class="mt-3 bg-neutral-900/70 rounded-lg p-3 border border-orange-900/50">` +
+            `<div class="flex items-center gap-2 mb-2 pb-2 border-b border-neutral-700">` +
+            `<i class="fas fa-question-circle text-orange-400"></i>` +
+            `<span class="text-sm font-semibold text-orange-400">Unassigned</span>` +
+            `<span class="text-xs text-gray-400 ml-auto">${unassign.length}</span></div>` +
+            `<div class="grid grid-cols-3 gap-2">${unassign.map(function(m) { return renderMemberItem(m, g.id, true); }).join('')}</div></div>`
+          : '') +
+        `</div>`;
+    }
+
+  } else if (!showSurvivalGrid && !showMmoGrid && members.length > 0) {
     membersSection = `<div class="bg-neutral-900/50 rounded-lg p-3 mb-3 border border-neutral-700">` +
       `<div class="flex items-center gap-2 mb-2">` +
       `<i class="fas fa-users text-gray-400 text-sm"></i>` +
@@ -478,11 +739,11 @@ function renderGroupCard(g) {
       `</div></div>`;
   }
 
-  const rolesBadge = hasRoles
+  const rolesBadge = groupHasRoles
     ? ` <span class="px-2 py-0.5 text-xs rounded bg-purple-600 text-white align-middle"><i class="fas fa-users-cog mr-1"></i>ROLES</span>`
     : '';
 
-  return `<div class="bg-neutral-800 border-y border-neutral-700 md:rounded-xl md:border p-4 hover:border-neutral-600 transition" id="group-card-${g.id}">` +
+  return `<div class="bg-neutral-800 border-y border-neutral-700 md:rounded-xl md:border p-4 hover:border-purple-700/60 hover:shadow-[0_0_18px_rgba(147,51,234,0.18)] transition-all duration-200" id="group-card-${g.id}">` +
     `<div class="flex flex-col md:flex-row gap-4">` +
     `<div class="flex-shrink-0">${coverHtml}</div>` +
     `<div class="flex-1">` +
@@ -490,6 +751,7 @@ function renderGroupCard(g) {
         `<div>` +
           `<h3 class="text-2xl font-bold text-white mb-1">${escapeHtml(g.title || 'Untitled Group')}${rolesBadge}</h3>` +
           `<p class="text-sm text-gray-400 flex items-center gap-1"><span class="text-base">${emoji}</span> ${escapeHtml(g.game_name)} <span class="text-gray-600 text-xs">#${g.id}</span></p>` +
+          (members.length > 0 ? `<div class="flex flex-wrap gap-1 mt-1">${_creatorTagsHtml(members, groupHasRoles)}</div>` : '') +
         `</div>` +
         statusBadge +
       `</div>` +
@@ -503,8 +765,8 @@ function renderGroupCard(g) {
       `<div class="flex gap-2 flex-wrap">` +
         `<span class="px-4 py-2 bg-yellow-600/20 text-yellow-400 rounded-lg text-sm font-medium">` +
           `<i class="fas fa-crown mr-2"></i>Leader: ${escapeHtml(g.creator_name)}</span>` +
-        `<button onclick="openEditModal(${g.id})" class="px-4 py-2 bg-neutral-700 hover:bg-neutral-600 text-white rounded-lg text-sm font-medium">` +
-          `<i class="fas fa-edit mr-2"></i>Edit</button>` +
+        `<button onclick="openEditModal(${g.id})" class="px-4 py-2 bg-blue-600/20 hover:bg-blue-600 text-blue-400 hover:text-white rounded-lg text-sm font-medium transition">` +
+          `<i class="fas fa-edit mr-2"></i>Edit Group</button>` +
         `<button onclick="closeGroup(${g.id})" class="px-4 py-2 bg-red-600/20 hover:bg-red-600 text-red-400 hover:text-white rounded-lg text-sm font-medium">` +
           `<i class="fas fa-trash mr-2"></i>Delete</button>` +
       `</div>` +
@@ -575,18 +837,62 @@ function getSelectedColeader() {
 }
 
 async function openCreateModal() {
-  document.getElementById('createGame').value = '';
+  _createGameId     = 0;
+  _createRecurrence = 'none';
+  _createSelections = {};
+  window._createIsSurvival = false;
+  window._createGameOpts   = [];
   document.getElementById('createTitle').value = '';
   document.getElementById('createScheduled').value = '';
-  document.getElementById('createRecurrence').value = 'none';
   document.getElementById('createMaxSize').value = '4';
   document.getElementById('createDescription').value = '';
+  document.getElementById('createRoleToggle').classList.add('hidden');
+  document.getElementById('createRoleEnabled').checked = false;
   document.getElementById('createRoleSection').classList.add('hidden');
   document.getElementById('createGameOptions').innerHTML = '';
   document.getElementById('createError').classList.add('hidden');
-
-  // Reset per-group network opt-in (always unchecked by default)
   document.getElementById('postToNetwork').checked = false;
+
+  // Render game pills
+  _createGameId = 0;
+  (function() {
+    const pillContainer = document.getElementById('createGamePills');
+    pillContainer.innerHTML = '';
+    GAMES_FULL.forEach(function(gm) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.dataset.gameId = gm.id;
+      btn.className = 'flex items-center gap-2 bg-neutral-800 hover:bg-green-900/30 border border-neutral-700 hover:border-green-600 rounded-lg px-3 py-1.5 text-sm text-gray-300 hover:text-white transition';
+      btn.innerHTML = gm.cover_url
+        ? `<img src="${escapeHtml(gm.cover_url)}" class="w-6 h-8 rounded object-cover flex-shrink-0"><span class="truncate max-w-[140px]">${escapeHtml(gm.name)}</span>`
+        : `<span class="text-base leading-none">${escapeHtml(gm.emoji || '🎮')}</span><span class="truncate max-w-[140px]">${escapeHtml(gm.name)}</span>`;
+      btn.addEventListener('click', function() {
+        pillContainer.querySelectorAll('button').forEach(function(b) {
+          b.classList.remove('border-green-500', 'bg-green-900/30', 'text-white');
+          b.classList.add('border-neutral-700', 'text-gray-300');
+        });
+        btn.classList.add('border-green-500', 'bg-green-900/30', 'text-white');
+        btn.classList.remove('border-neutral-700', 'text-gray-300');
+        _createGameId = parseInt(gm.id) || 0;
+        onCreateGameChange();
+      });
+      pillContainer.appendChild(btn);
+    });
+  })();
+  createCustomSelect({
+    container: '#createRecurrenceContainer',
+    name: 'createRecurrence',
+    placeholder: 'One-time event',
+    items: [
+      { value: 'none',    label: 'One-time event' },
+      { value: 'daily',   label: 'Daily' },
+      { value: 'weekly',  label: 'Weekly' },
+      { value: 'monthly', label: 'Monthly' },
+    ],
+    selected: 'none',
+    color: 'green',
+    onSelect: function(val) { _createRecurrence = val || 'none'; },
+  });
 
   // Load guild members for co-leader selection
   const section = document.getElementById('createColeaderSection');
@@ -608,69 +914,145 @@ function closeCreateModal() {
   m.classList.remove('flex');
 }
 
+function onRoleCompositionToggle() {
+  const enabled = document.getElementById('createRoleEnabled').checked;
+  const isSurvival = !!window._createIsSurvival;
+  const roleSection = document.getElementById('createRoleSection');
+  // For survival games, no slot inputs needed - just flag it
+  if (!isSurvival) {
+    enabled ? roleSection.classList.remove('hidden') : roleSection.classList.add('hidden');
+  }
+  // For survival, the checkbox alone is enough - grid is driven by member selections
+}
+
 function onCreateGameChange() {
-  const gameId = parseInt(document.getElementById('createGame').value);
+  const gameId = _createGameId;
   const game = GAMES_FULL.find(g => g.id === gameId);
+  _createSelections = {};
+  const toggle = document.getElementById('createRoleToggle');
+  const roleEnabled = document.getElementById('createRoleEnabled');
+  const roleSection = document.getElementById('createRoleSection');
+  const hintEl = document.getElementById('createRoleToggleHint');
+
   if (!game) {
-    document.getElementById('createRoleSection').classList.add('hidden');
+    toggle.classList.add('hidden');
+    roleEnabled.checked = false;
+    roleSection.classList.add('hidden');
     document.getElementById('createGameOptions').innerHTML = '';
+    window._createIsSurvival = false;
     return;
   }
   document.getElementById('createMaxSize').value = game.max_group_size || 4;
 
-  // Role slots
-  if (game.has_roles) {
-    document.getElementById('createRoleSection').classList.remove('hidden');
-    document.getElementById('createTanks').value   = game.tank_slots   || 0;
-    document.getElementById('createHealers').value = game.healer_slots || 0;
-    document.getElementById('createDps').value     = game.dps_slots    || 0;
+  // Detect survival vs MMO:
+  // has_roles=true games (ESO, WoW) always use MMO slot grid even if they have an object-choice Role field
+  const opts = game.options || game.custom_options || [];
+  const roleOpt = opts.find(function(o) {
+    return o.name === 'Role' && Array.isArray(o.choices) && o.choices.length > 0 && typeof o.choices[0] === 'object';
+  });
+  const isSurvival = !!roleOpt && !game.has_roles;
+  window._createIsSurvival = isSurvival;
+
+  // Always reset checkbox to unchecked when game changes
+  roleEnabled.checked = false;
+  roleSection.classList.add('hidden');
+
+  if (isSurvival) {
+    // Survival: show toggle, no slot inputs needed
+    toggle.classList.remove('hidden');
+    hintEl.textContent = 'Show role columns on the group card (Combat, Builder, Gatherer, etc.)';
+  } else if (game.has_roles) {
+    // MMO: show toggle with slot inputs
+    toggle.classList.remove('hidden');
+    hintEl.textContent = 'Set specific Tank/Healer/DPS/Support slots for this group';
+    document.getElementById('createTanks').value   = game.tank_slots   || 1;
+    document.getElementById('createHealers').value = game.healer_slots || 1;
+    document.getElementById('createDps').value     = game.dps_slots    || 3;
     document.getElementById('createSupport').value = game.support_slots || 0;
   } else {
-    document.getElementById('createRoleSection').classList.add('hidden');
+    toggle.classList.add('hidden');
   }
 
   // Game-specific options (class/spec/subclass from options_json)
-  const opts = game.options || game.custom_options || [];
   const container = document.getElementById('createGameOptions');
   if (!opts || opts.length === 0) {
     container.innerHTML = '';
     return;
   }
 
-  container.innerHTML = opts.map(function(opt, idx) {
-    const choices = Array.isArray(opt.choices)
-      ? opt.choices.map(c => typeof c === 'string' ? c : (c.label || c.name || c))
-      : Object.keys(opt.choices || {});
-    return '<div>' +
-      '<label class="text-sm text-gray-300 mb-1 block">' + escapeHtml(opt.name) + ' (optional)</label>' +
-      '<select id="createOpt_' + idx + '" data-opt-name="' + escapeHtml(opt.name) + '" onchange="onCreateOptChange(' + idx + ',' + JSON.stringify(opts.length) + ')"' +
-        ' class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-green-500 transition">' +
-        '<option value="">-- None --</option>' +
-        choices.map(c => '<option value="' + escapeHtml(c) + '">' + escapeHtml(c) + '</option>').join('') +
-      '</select>' +
-    '</div>';
-  }).join('');
+  container.innerHTML = '';
   window._createGameOpts = opts;
-}
+  opts.forEach(function(opt, idx) {
+    const choices = Array.isArray(opt.choices)
+      ? opt.choices.map(function(c) { return typeof c === 'string' ? c : (c.value || c.label || c.name || c); })
+      : Object.keys(opt.choices || {});
+    const wrapper = document.createElement('div');
+    const containerId = 'createOptCs_' + idx;
+    wrapper.innerHTML = '<label class="text-sm text-gray-300 mb-1 block">' + escapeHtml(opt.name) + ' (optional)</label>' +
+      '<div id="' + containerId + '"></div>';
+    container.appendChild(wrapper);
 
-function onCreateOptChange(changedIdx, totalOpts) {
-  const opts = window._createGameOpts;
-  if (!opts) return;
-  // Handle dependent options (e.g. spec depends on class)
-  const changedOpt = opts[changedIdx];
-  const changedVal = document.getElementById('createOpt_' + changedIdx).value;
-  for (let i = changedIdx + 1; i < opts.length; i++) {
-    const opt = opts[i];
-    if (opt.depends_on && opt.depends_on === changedOpt.name) {
-      const depSel = document.getElementById('createOpt_' + i);
-      if (!depSel) continue;
-      const choices = changedVal && opt.choices && opt.choices[changedVal]
-        ? opt.choices[changedVal]
-        : (Array.isArray(opt.choices) ? opt.choices.map(c => typeof c === 'string' ? c : (c.label || c)) : []);
-      depSel.innerHTML = '<option value="">-- None --</option>' +
-        choices.map(c => '<option value="' + escapeHtml(c) + '">' + escapeHtml(c) + '</option>').join('');
-    }
-  }
+    const isActivity = opt.name === 'Activity';
+    createCustomSelect({
+      container: '#' + containerId,
+      name: 'createOpt_' + idx,
+      placeholder: isActivity ? 'Select activities...' : '-- None --',
+      items: (isActivity ? [] : [{ value: '', label: '-- None --' }]).concat(choices.map(function(c) { return { value: c, label: c }; })),
+      selected: isActivity ? [] : '',
+      color: 'green',
+      multiSelect: isActivity,
+      maxSelections: isActivity ? 3 : null,
+      onSelect: function(val) {
+        if (isActivity) {
+          // val is an array for multi-select
+          if (val && val.length > 0) { _createSelections[opt.name] = val; } else { delete _createSelections[opt.name]; }
+          return;
+        }
+        if (val) { _createSelections[opt.name] = val; } else { delete _createSelections[opt.name]; }
+        // Handle depends_on chaining
+        const nextOpt = opts[idx + 1];
+        if (nextOpt && nextOpt.depends_on === opt.name) {
+          const depId = 'createOptCs_' + (idx + 1);
+          const depEl = document.getElementById(depId);
+          if (depEl) {
+            const depChoices = val && nextOpt.choices && nextOpt.choices[val]
+              ? nextOpt.choices[val]
+              : (Array.isArray(nextOpt.choices) ? nextOpt.choices.map(function(c) { return typeof c === 'string' ? c : (c.value || c.label || c); }) : []);
+            delete _createSelections[nextOpt.name];
+            createCustomSelect({
+              container: '#' + depId,
+              name: 'createOpt_' + (idx + 1),
+              placeholder: '-- None --',
+              items: [{ value: '', label: '-- None --' }].concat(depChoices.map(function(c) { return { value: c, label: c }; })),
+              selected: '',
+              color: 'green',
+              onSelect: function(v) { if (v) { _createSelections[nextOpt.name] = v; } else { delete _createSelections[nextOpt.name]; } },
+            });
+          }
+        }
+        // Rebuild any opt that has exclude_same_as pointing at this opt
+        opts.forEach(function(depOpt, depIdx) {
+          if (depOpt.exclude_same_as !== opt.name) return;
+          const depId = 'createOptCs_' + depIdx;
+          if (!document.getElementById(depId)) return;
+          const depChoices = Array.isArray(depOpt.choices)
+            ? depOpt.choices.map(function(c) { return typeof c === 'string' ? c : (c.value || c.label || c); })
+            : Object.keys(depOpt.choices || {});
+          const filtered = val ? depChoices.filter(function(c) { return c !== val; }) : depChoices;
+          delete _createSelections[depOpt.name];
+          createCustomSelect({
+            container: '#' + depId,
+            name: 'createOpt_' + depIdx,
+            placeholder: '-- None --',
+            items: [{ value: '', label: '-- None --' }].concat(filtered.map(function(c) { return { value: c, label: c }; })),
+            selected: '',
+            color: 'green',
+            onSelect: function(v) { if (v) { _createSelections[depOpt.name] = v; } else { delete _createSelections[depOpt.name]; } },
+          });
+        });
+      },
+    });
+  });
 }
 
 async function submitCreateGroup() {
@@ -678,21 +1060,19 @@ async function submitCreateGroup() {
   const errEl = document.getElementById('createError');
   errEl.classList.add('hidden');
 
-  const gameId = parseInt(document.getElementById('createGame').value);
+  const gameId = _createGameId;
   const title  = document.getElementById('createTitle').value.trim();
   if (!gameId) { errEl.textContent = 'Please select a game.'; errEl.classList.remove('hidden'); return; }
   if (!title)  { errEl.textContent = 'Title is required.';    errEl.classList.remove('hidden'); return; }
 
   const game = GAMES_FULL.find(g => g.id === gameId);
-  const opts = window._createGameOpts || [];
-  const selections = {};
-  opts.forEach(function(opt, idx) {
-    const sel = document.getElementById('createOpt_' + idx);
-    if (sel && sel.value) selections[opt.name] = sel.value;
-  });
+  const selections = Object.assign({}, _createSelections);
 
   const coLeader = getSelectedColeader ? getSelectedColeader() : null;
-  const recurrence = document.getElementById('createRecurrence').value || 'none';
+  const recurrence = _createRecurrence || 'none';
+  const roleCompositionEnabled = document.getElementById('createRoleEnabled').checked;
+  const isSurvival = !!window._createIsSurvival;
+
   const payload = {
     game_id: gameId,
     title: title,
@@ -705,6 +1085,13 @@ async function submitCreateGroup() {
     co_leader_id: coLeader ? coLeader.id : undefined,
     co_leader_name: coLeader ? (coLeader.display_name || coLeader.username || coLeader.id) : undefined,
     game_cover_url: game ? (game.cover_url || null) : null,
+    // Role composition: survival uses flag only (grid driven by member selections), MMO uses slot counts
+    use_roles: roleCompositionEnabled,
+    tanks_needed:   (!isSurvival && roleCompositionEnabled) ? (parseInt(document.getElementById('createTanks').value)   || 0) : 0,
+    healers_needed: (!isSurvival && roleCompositionEnabled) ? (parseInt(document.getElementById('createHealers').value) || 0) : 0,
+    dps_needed:     (!isSurvival && roleCompositionEnabled) ? (parseInt(document.getElementById('createDps').value)     || 0) : 0,
+    support_needed: (!isSurvival && roleCompositionEnabled) ? (parseInt(document.getElementById('createSupport').value) || 0) : 0,
+    enforce_role_limits: (!isSurvival && roleCompositionEnabled) ? document.getElementById('createEnforceLimits').checked : false,
   };
 
   btn.disabled = true;
@@ -735,6 +1122,13 @@ async function submitCreateGroup() {
 // ----------------------------------------------------------------
 // EDIT MODAL
 // ----------------------------------------------------------------
+let _editRecurrence = 'none';
+
+function toggleEditRoleInputs() {
+  const enabled = document.getElementById('editRoleEnabled').checked;
+  document.getElementById('editRoleInputs').classList.toggle('hidden', !enabled);
+}
+
 function openEditModal(groupId) {
   const g = allGroups.find(x => x.id === groupId);
   if (!g) return;
@@ -746,9 +1140,73 @@ function openEditModal(groupId) {
   document.getElementById('editDescription').value = g.description || '';
   document.getElementById('editError').classList.add('hidden');
 
-  const m = document.getElementById('editModal');
-  m.classList.remove('hidden');
-  m.classList.add('flex');
+  // Game header
+  const game = GAMES_FULL.find(function(gm) { return gm.id === g.game_id; });
+  const headerEl = document.getElementById('editGameHeader');
+  if (game) {
+    const coverHtml = game.cover_url
+      ? `<img src="${escapeHtml(game.cover_url)}" alt="" class="w-10 h-14 object-cover rounded flex-shrink-0">`
+      : `<span class="text-2xl">${game.emoji || '\uD83C\uDFAE'}</span>`;
+    headerEl.innerHTML = coverHtml +
+      `<div><p class="text-xs text-gray-400 uppercase tracking-wide font-semibold">Game</p>` +
+      `<p class="text-white font-medium">${escapeHtml(game.name || g.game_name)}</p></div>`;
+  } else {
+    headerEl.innerHTML = `<span class="text-lg">\uD83C\uDFAE</span><p class="text-white font-medium">${escapeHtml(g.game_name || 'Unknown Game')}</p>`;
+  }
+
+  // Recurrence custom select
+  _editRecurrence = g.recurrence || 'none';
+  const recItems = [
+    {value: 'none',    label: 'No recurrence'},
+    {value: 'daily',   label: 'Daily'},
+    {value: 'weekly',  label: 'Weekly'},
+    {value: 'monthly', label: 'Monthly'},
+  ];
+  document.getElementById('editRecurrenceContainer').innerHTML = '';
+  createCustomSelect({
+    container: document.getElementById('editRecurrenceContainer'),
+    name: 'edit_recurrence',
+    id: 'editRecurrenceSelect',
+    items: recItems,
+    placeholder: 'No recurrence',
+    selected: _editRecurrence,
+    onSelect: function(v) { _editRecurrence = v; },
+  });
+
+
+  // Role composition - show for MMO games (has_roles=true)
+  const isMMO = !!(game && game.has_roles);
+  const roleCompSection = document.getElementById('editRoleCompSection');
+  roleCompSection.classList.toggle('hidden', !isMMO);
+  if (isMMO) {
+    const hasRoles = (g.tanks_needed || 0) + (g.healers_needed || 0) + (g.dps_needed || 0) + (g.support_needed || 0) > 0;
+    document.getElementById('editRoleEnabled').checked = hasRoles;
+    document.getElementById('editTanks').value   = g.tanks_needed || 0;
+    document.getElementById('editHealers').value = g.healers_needed || 0;
+    document.getElementById('editDps').value     = g.dps_needed || 0;
+    document.getElementById('editSupport').value = g.support_needed || 0;
+    document.getElementById('editEnforceRoleLimits').checked = (g.enforce_role_limits !== 0);
+    document.getElementById('editRoleInputs').classList.toggle('hidden', !hasRoles);
+  }
+
+  // Co-leaders - show all non-creator, non-left members as checkboxes
+  const members = g.members || [];
+  const nonCreators = members.filter(function(m) { return !m.is_creator; });
+  const coLeaderSection = document.getElementById('editCoLeadersSection');
+  coLeaderSection.classList.toggle('hidden', nonCreators.length === 0);
+  const listEl = document.getElementById('editCoLeadersList');
+  listEl.innerHTML = nonCreators.length === 0 ? '' : nonCreators.map(function(m) {
+    const isCo = m.is_co_leader || m.role === 'co_leader';
+    return `<label class="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-neutral-700/50 cursor-pointer">` +
+      `<input type="checkbox" class="edit-coleader-check accent-purple-500 w-4 h-4" data-member-id="${m.id}" ${isCo ? 'checked' : ''}>` +
+      `<span class="text-sm text-white">${escapeHtml(m.username)}</span>` +
+      (isCo ? `<span class="ml-auto text-xs text-purple-400 font-medium">Co-leader</span>` : '') +
+      `</label>`;
+  }).join('');
+
+  const modal = document.getElementById('editModal');
+  modal.classList.remove('hidden');
+  modal.classList.add('flex');
 }
 
 function closeEditModal() {
@@ -771,7 +1229,27 @@ async function submitEditGroup() {
     max_size: parseInt(document.getElementById('editMaxSize').value) || 4,
     description: document.getElementById('editDescription').value.trim() || null,
     scheduled_time: datetimeLocalToTs(document.getElementById('editScheduled').value),
+    recurrence: _editRecurrence || 'none',
   };
+
+  // Role composition (MMO groups)
+  const roleCompSection = document.getElementById('editRoleCompSection');
+  if (!roleCompSection.classList.contains('hidden')) {
+    const roleEnabled = document.getElementById('editRoleEnabled').checked;
+    payload.tanks_needed   = roleEnabled ? (parseInt(document.getElementById('editTanks').value)   || 0) : 0;
+    payload.healers_needed = roleEnabled ? (parseInt(document.getElementById('editHealers').value) || 0) : 0;
+    payload.dps_needed     = roleEnabled ? (parseInt(document.getElementById('editDps').value)     || 0) : 0;
+    payload.support_needed = roleEnabled ? (parseInt(document.getElementById('editSupport').value) || 0) : 0;
+    payload.enforce_role_limits = roleEnabled ? (document.getElementById('editEnforceRoleLimits').checked ? 1 : 0) : 1;
+  }
+
+  // Co-leaders: collect checked member IDs
+  const coLeaderChecks = document.querySelectorAll('.edit-coleader-check');
+  if (coLeaderChecks.length > 0) {
+    payload.co_leaders = Array.from(coLeaderChecks).map(function(cb) {
+      return {member_id: parseInt(cb.dataset.memberId), is_co_leader: cb.checked};
+    });
+  }
 
   btn.disabled = true;
   btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Saving...';
@@ -822,6 +1300,182 @@ async function closeGroup(groupId) {
 }
 
 // ----------------------------------------------------------------
+// EDIT CLASS MODAL
+// ----------------------------------------------------------------
+function openEditClassModal(groupId, memberId) {
+  const g = allGroups.find(x => x.id === groupId);
+  if (!g) return;
+  const m = (g.members || []).find(x => x.id === memberId);
+  if (!m) return;
+  const game = GAMES_FULL.find(gm => gm.id === g.game_id);
+  const opts = game ? (game.options || game.custom_options || []) : [];
+
+  document.getElementById('editClassGroupId').value = groupId;
+  document.getElementById('editClassMemberId').value = memberId;
+  document.getElementById('editClassGameName').textContent = g.game_name || '';
+  document.getElementById('editClassMemberName').textContent = m.username || 'Member';
+
+  const coverEl = document.getElementById('editClassGameCover');
+  coverEl.innerHTML = game && game.cover_url
+    ? `<img src="${escapeHtml(game.cover_url)}" class="w-10 h-14 rounded object-cover flex-shrink-0">`
+    : `<div class="w-10 h-14 bg-neutral-700 rounded flex items-center justify-center flex-shrink-0"><i class="fas fa-gamepad text-gray-500"></i></div>`;
+
+  const currentSels = m.selections || {};
+  const platformOpt = opts.find(function(o) { return o.name.toLowerCase() === 'platform'; });
+  _editClassSelections = {};
+  const container = document.getElementById('editClassOptions');
+  container.innerHTML = '';
+
+  // Show Platform as static info if set (not editable)
+  if (platformOpt) {
+    const platformVal = currentSels[platformOpt.name] || '';
+    if (platformVal) {
+      const infoDiv = document.createElement('div');
+      infoDiv.innerHTML = '<p class="text-xs text-gray-500 mb-3"><i class="fas fa-desktop mr-1"></i>Platform: <span class="text-gray-300">' + escapeHtml(platformVal) + '</span></p>';
+      container.appendChild(infoDiv);
+    }
+  }
+
+  // For MMO games (has_roles=true): show only class/spec/subclass/job/role fields (not Activity, Platform, etc.)
+  // For non-MMO games: show only the Role field
+  const MMO_CLASS_FIELDS = new Set(['class', 'specialization', 'spec', 'subclass', 'job', 'role']);
+  const editableOpts = game && game.has_roles
+    ? opts.filter(function(o) { return MMO_CLASS_FIELDS.has(o.name.toLowerCase()); })
+    : opts.filter(function(o) { return o.name.toLowerCase() === 'role'; });
+
+  if (!editableOpts.length) {
+    const noRole = document.createElement('p');
+    noRole.className = 'text-gray-500 text-sm';
+    noRole.textContent = 'No options configured for this game.';
+    container.appendChild(noRole);
+  } else {
+    editableOpts.forEach(function(opt, idx) {
+      const parentVal = opt.depends_on ? (currentSels[opt.depends_on] || _editClassSelections[opt.depends_on] || '') : '';
+      const rawChoices = Array.isArray(opt.choices)
+        ? opt.choices.map(function(c) { return typeof c === 'string' ? c : (c.value || c.label || c.name || c); })
+        : (parentVal && opt.choices && opt.choices[parentVal]
+            ? opt.choices[parentVal]
+            : Object.keys(opt.choices || {}));
+      const currentVal = currentSels[opt.name] || '';
+      if (currentVal) _editClassSelections[opt.name] = currentVal;
+      const wrapper = document.createElement('div');
+      const containerId = 'editClassOptCs_' + idx;
+      wrapper.innerHTML = '<label class="text-sm text-gray-300 mb-1 block">' + escapeHtml(opt.name) + '</label>' +
+        '<div id="' + containerId + '"></div>';
+      container.appendChild(wrapper);
+      createCustomSelect({
+        container: '#' + containerId,
+        name: 'editClassOpt_' + idx,
+        placeholder: '-- None --',
+        items: [{ value: '', label: '-- None --' }].concat(rawChoices.map(function(c) { return { value: c, label: c }; })),
+        selected: currentVal,
+        color: 'indigo',
+        onSelect: function(val) {
+          if (val) { _editClassSelections[opt.name] = val; } else { delete _editClassSelections[opt.name]; }
+          // Rebuild depends_on children
+          editableOpts.forEach(function(depOpt, depIdx) {
+            if (depOpt.depends_on !== opt.name) return;
+            const depId = 'editClassOptCs_' + depIdx;
+            if (!document.getElementById(depId)) return;
+            const depChoices = val && depOpt.choices && depOpt.choices[val]
+              ? depOpt.choices[val]
+              : (Array.isArray(depOpt.choices) ? depOpt.choices.map(function(c) { return typeof c === 'string' ? c : (c.value || c.label || c); }) : []);
+            delete _editClassSelections[depOpt.name];
+            createCustomSelect({
+              container: '#' + depId,
+              name: 'editClassOpt_' + depIdx,
+              placeholder: '-- None --',
+              items: [{ value: '', label: '-- None --' }].concat(depChoices.map(function(c) { return { value: c, label: c }; })),
+              selected: '',
+              color: 'indigo',
+              onSelect: function(v) { if (v) { _editClassSelections[depOpt.name] = v; } else { delete _editClassSelections[depOpt.name]; } },
+            });
+          });
+          // Rebuild exclude_same_as dependents
+          editableOpts.forEach(function(depOpt, depIdx) {
+            if (depOpt.exclude_same_as !== opt.name) return;
+            const depId = 'editClassOptCs_' + depIdx;
+            if (!document.getElementById(depId)) return;
+            const depChoices = Array.isArray(depOpt.choices)
+              ? depOpt.choices.map(function(c) { return typeof c === 'string' ? c : (c.value || c.label || c); })
+              : Object.keys(depOpt.choices || {});
+            const filtered = val ? depChoices.filter(function(c) { return c !== val; }) : depChoices;
+            delete _editClassSelections[depOpt.name];
+            createCustomSelect({
+              container: '#' + depId,
+              name: 'editClassOpt_' + depIdx,
+              placeholder: '-- None --',
+              items: [{ value: '', label: '-- None --' }].concat(filtered.map(function(c) { return { value: c, label: c }; })),
+              selected: '',
+              color: 'indigo',
+              onSelect: function(v) { if (v) { _editClassSelections[depOpt.name] = v; } else { delete _editClassSelections[depOpt.name]; } },
+            });
+          });
+        },
+      });
+    });
+  }
+  window._editClassOpts = editableOpts;
+
+  document.getElementById('editClassError').classList.add('hidden');
+  const modal = document.getElementById('editClassModal');
+  modal.classList.remove('hidden');
+  modal.classList.add('flex');
+}
+
+function closeEditClassModal() {
+  const modal = document.getElementById('editClassModal');
+  modal.classList.add('hidden');
+  modal.classList.remove('flex');
+}
+
+async function submitEditClass() {
+  const btn = document.getElementById('editClassSubmitBtn');
+  const errEl = document.getElementById('editClassError');
+  const groupId = parseInt(document.getElementById('editClassGroupId').value);
+  const memberId = parseInt(document.getElementById('editClassMemberId').value);
+  const opts = window._editClassOpts || [];
+
+  // Start with existing selections, then overlay only the personal fields changed
+  const g = allGroups.find(x => x.id === groupId);
+  const existingMember = g ? (g.members || []).find(x => x.id === memberId) : null;
+  const selections = Object.assign({}, existingMember ? (existingMember.selections || {}) : {});
+  opts.forEach(function(opt) {
+    if (_editClassSelections.hasOwnProperty(opt.name)) {
+      if (_editClassSelections[opt.name]) selections[opt.name] = _editClassSelections[opt.name];
+      else delete selections[opt.name];
+    }
+  });
+
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Saving...';
+  errEl.classList.add('hidden');
+
+  try {
+    const url = GROUPS_API + groupId + '/members/' + memberId + '/';
+    const resp = await csrfFetch(url, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ selections }),
+    });
+    const data = await resp.json();
+    if (resp.ok && data.success) {
+      closeEditClassModal();
+      await refreshGroups();
+    } else {
+      errEl.textContent = data.error || 'Failed to save.';
+      errEl.classList.remove('hidden');
+    }
+  } catch(e) {
+    errEl.textContent = 'Network error.';
+    errEl.classList.remove('hidden');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-save mr-2"></i>Save';
+  }
+}
+
+// ----------------------------------------------------------------
 // KICK MEMBER
 // ----------------------------------------------------------------
 async function kickMember(groupId, memberId, username) {
@@ -844,19 +1498,57 @@ async function kickMember(groupId, memberId, username) {
 // ----------------------------------------------------------------
 // Init
 // ----------------------------------------------------------------
-updateCountBadge();
-applyFilters();
-document.getElementById('sortFilter').addEventListener('change', applyFilters);
-document.getElementById('statusFilter').addEventListener('change', applyFilters);
-gameFilter.addEventListener('change', applyFilters);
+document.addEventListener('DOMContentLoaded', function() {
+  // Filter custom selects
+  createCustomSelect({
+    container: '#gameFilterContainer',
+    name: 'gameFilter',
+    placeholder: 'All Games',
+    items: [{ value: '', label: 'All Games' }].concat(GAMES_FULL.map(function(gm) {
+      return { value: String(gm.id), label: (gm.emoji ? gm.emoji + ' ' : '') + gm.name };
+    })),
+    selected: '',
+    color: 'green',
+    onSelect: function(val) { _filterGame = val || ''; },
+  });
+  createCustomSelect({
+    container: '#sortFilterContainer',
+    name: 'sortFilter',
+    placeholder: 'Newest First',
+    items: [
+      { value: 'newest', label: 'Newest First' },
+      { value: 'slots',  label: 'Most Slots Available' },
+      { value: 'soon',   label: 'Scheduled Soon' },
+    ],
+    selected: 'newest',
+    color: 'green',
+    onSelect: function(val) { _filterSort = val || 'newest'; },
+  });
+  createCustomSelect({
+    container: '#statusFilterContainer',
+    name: 'statusFilter',
+    placeholder: 'All Statuses',
+    items: [
+      { value: '',     label: 'All Statuses' },
+      { value: 'open', label: 'Open' },
+      { value: 'full', label: 'Full' },
+    ],
+    selected: '',
+    color: 'green',
+    onSelect: function(val) { _filterStatus = val || ''; },
+  });
 
-// Close modals on backdrop click
-['createModal','editModal'].forEach(function(id) {
-  document.getElementById(id).addEventListener('click', function(e) {
-    if (e.target === this) {
-      this.classList.add('hidden');
-      this.classList.remove('flex');
-    }
+  updateCountBadge();
+  applyFilters();
+
+  // Close modals on backdrop click
+  ['createModal','editModal','editClassModal'].forEach(function(id) {
+    document.getElementById(id).addEventListener('click', function(e) {
+      if (e.target === this) {
+        this.classList.add('hidden');
+        this.classList.remove('flex');
+      }
+    });
   });
 });
 </script>

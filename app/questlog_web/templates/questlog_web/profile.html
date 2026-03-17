@@ -143,7 +143,27 @@
         {% endif %}
       </div>
       {% endif %}
-      {% if not web_user.bio and not playstyle_list and not gaming_platforms_list and not favorite_genres_list %}
+      {% if favorite_games_list %}
+      <div class="mt-4 {% if playstyle_list or gaming_platforms_list or favorite_genres_list or web_user.bio %}border-t border-neutral-800 pt-4{% endif %}">
+        <p class="text-xs text-gray-500 mb-2"><i class="fas fa-gamepad mr-1"></i>Games</p>
+        <div class="flex flex-wrap gap-2">
+          {% for g in favorite_games_list %}
+          {% if g.cover_url %}
+          <div class="flex items-center gap-1.5 bg-neutral-800 border border-neutral-700 rounded-lg px-2 py-1.5 text-xs text-gray-200" title="{{ g.name }}">
+            <img src="{{ g.cover_url }}" class="w-4 h-6 rounded object-cover flex-shrink-0" alt="">
+            <span class="truncate max-w-[100px]">{{ g.name }}</span>
+          </div>
+          {% else %}
+          <div class="flex items-center gap-1 bg-neutral-800 border border-neutral-700 rounded-lg px-2 py-1.5 text-xs text-gray-200">
+            <i class="fas fa-gamepad text-gray-500 text-xs flex-shrink-0"></i>
+            <span>{% if g.name %}{{ g.name }}{% else %}{{ g }}{% endif %}</span>
+          </div>
+          {% endif %}
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+      {% if not web_user.bio and not playstyle_list and not gaming_platforms_list and not favorite_genres_list and not favorite_games_list %}
       <p class="text-gray-600 text-sm italic">Nothing here yet. <button @click="tab='edit'" class="text-indigo-400 hover:underline">Edit your profile</button></p>
       {% endif %}
     </div>
@@ -525,6 +545,22 @@
       </div>
     </div>
 
+    <!-- My Games -->
+    <div class="bg-neutral-900/50 rounded-lg border border-neutral-800 p-6">
+      <h2 class="text-base font-semibold text-white mb-1"><i class="fas fa-gamepad text-green-400 mr-2"></i>My Games</h2>
+      <p class="text-gray-400 text-xs mb-4">Add up to 10 games. They show on your profile and appear as quick-pick buttons when you create an LFG group.</p>
+      <div class="relative mb-3" id="profileGameSearchWrapper">
+        <div class="flex items-center bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 focus-within:border-green-500">
+          <i class="fas fa-search text-gray-500 mr-2 text-sm"></i>
+          <input type="text" id="pe-gameSearch" autocomplete="off" placeholder="Search IGDB to add a game..."
+                 class="flex-1 bg-transparent text-white text-sm focus:outline-none placeholder-gray-500">
+        </div>
+        <div id="pe-gameSearchResults" class="hidden absolute z-30 w-full mt-1 bg-neutral-800 border border-neutral-700 rounded-lg shadow-xl overflow-hidden max-h-64 overflow-y-auto"></div>
+      </div>
+      <div id="pe-savedGamesList" class="space-y-2"></div>
+      <p id="pe-savedGamesEmpty" class="text-gray-500 text-sm hidden">No games added yet. Search above to add some.</p>
+    </div>
+
     <!-- Creator Profile -->
     <div class="bg-neutral-900/50 rounded-lg border border-neutral-800 p-6">
       <div class="flex items-center justify-between gap-4">
@@ -731,6 +767,7 @@
 {{ playstyle_list|default:"[]"|json_script:"profile-playstyle-data" }}
 {{ gaming_platforms_list|default:"[]"|json_script:"profile-platforms-data" }}
 {{ favorite_genres_list|default:"[]"|json_script:"profile-genres-data" }}
+{{ favorite_games_list|json_script:"profile-games-data" }}
 {% include "questlog/partials/custom_select.html" %}
 <script>
 (function() {
@@ -837,6 +874,93 @@
     multiSelect:  true,
   });
 
+  // ── My Games ────────────────────────────────────────────────────
+  let _profileGames = JSON.parse(document.getElementById('profile-games-data').textContent || '[]');
+  // Normalize legacy string entries to objects
+  _profileGames = _profileGames.map(g => typeof g === 'string' ? {name: g, igdb_id: null, cover_url: ''} : g);
+
+  function _renderProfileGames() {
+    const list  = document.getElementById('pe-savedGamesList');
+    const empty = document.getElementById('pe-savedGamesEmpty');
+    if (!list) return;
+    list.innerHTML = '';
+    if (!_profileGames.length) { empty.classList.remove('hidden'); return; }
+    empty.classList.add('hidden');
+    _profileGames.forEach(function(g, idx) {
+      const row = document.createElement('div');
+      row.className = 'flex items-center gap-3 bg-neutral-800/50 border border-neutral-700 rounded-lg px-3 py-2';
+      row.innerHTML = (g.cover_url
+        ? `<img src="${escapeHtml(g.cover_url)}" class="w-8 h-11 rounded object-cover flex-shrink-0">`
+        : `<div class="w-8 h-11 rounded bg-neutral-700 flex items-center justify-center flex-shrink-0"><i class="fas fa-gamepad text-gray-500 text-xs"></i></div>`)
+        + `<span class="text-white text-sm flex-1 truncate">${escapeHtml(g.name)}</span>`
+        + `<button type="button" onclick="_removeProfileGame(${idx})" class="text-gray-500 hover:text-red-400 transition ml-auto flex-shrink-0" title="Remove"><i class="fas fa-times text-sm"></i></button>`;
+      list.appendChild(row);
+    });
+  }
+
+  window._removeProfileGame = function(idx) {
+    _profileGames.splice(idx, 1);
+    _renderProfileGames();
+  };
+
+  function _addProfileGame(game) {
+    if (_profileGames.length >= 10) { alert('You can save up to 10 games.'); return; }
+    if (_profileGames.some(g => g.name.toLowerCase() === game.name.toLowerCase())) return;
+    _profileGames.push({name: game.name, igdb_id: game.id || null, cover_url: game.cover_url || ''});
+    _renderProfileGames();
+    const inp = document.getElementById('pe-gameSearch');
+    const res = document.getElementById('pe-gameSearchResults');
+    if (inp) inp.value = '';
+    if (res) res.classList.add('hidden');
+  }
+
+  let _pgSearchTimeout = null;
+  const _peGameInput = document.getElementById('pe-gameSearch');
+  const _peGameResults = document.getElementById('pe-gameSearchResults');
+
+  if (_peGameInput) {
+    _peGameInput.addEventListener('input', function() {
+      clearTimeout(_pgSearchTimeout);
+      const q = this.value.trim();
+      if (q.length < 2) { _peGameResults.classList.add('hidden'); return; }
+      _pgSearchTimeout = setTimeout(async function() {
+        _peGameResults.innerHTML = '<div class="px-4 py-3 text-gray-500 text-sm"><i class="fas fa-spinner fa-spin mr-2"></i>Searching...</div>';
+        _peGameResults.classList.remove('hidden');
+        try {
+          const res = await fetch('/ql/api/igdb/search/?q=' + encodeURIComponent(q) + '&limit=8');
+          const data = await res.json();
+          const games = data.games || [];
+          if (!games.length) {
+            _peGameResults.innerHTML = '<div class="px-4 py-3 text-gray-400 text-sm">No results found.</div>';
+            return;
+          }
+          _peGameResults.innerHTML = '';
+          games.forEach(function(game) {
+            const item = document.createElement('button');
+            item.type = 'button';
+            item.className = 'w-full flex items-center gap-3 px-4 py-3 hover:bg-neutral-700 transition text-left border-b border-neutral-700/50 last:border-0';
+            item.innerHTML = (game.cover_url
+              ? `<img src="${escapeHtml(game.cover_url)}" class="w-8 h-11 rounded object-cover flex-shrink-0">`
+              : `<div class="w-8 h-11 rounded bg-neutral-600 flex items-center justify-center flex-shrink-0"><i class="fas fa-gamepad text-gray-400 text-xs"></i></div>`)
+              + `<div class="min-w-0"><span class="text-white text-sm font-medium block truncate">${escapeHtml(game.name)}</span>${game.release_year ? `<span class="text-gray-500 text-xs">${game.release_year}</span>` : ''}</div>`
+              + `<span class="ml-auto text-green-400 text-xs flex-shrink-0"><i class="fas fa-plus"></i></span>`;
+            item.addEventListener('click', function() { _addProfileGame(game); });
+            _peGameResults.appendChild(item);
+          });
+        } catch(e) {
+          _peGameResults.innerHTML = '<div class="px-4 py-3 text-gray-400 text-sm">Search failed.</div>';
+        }
+      }, 250);
+    });
+
+    document.addEventListener('click', function(e) {
+      const wrapper = document.getElementById('profileGameSearchWrapper');
+      if (wrapper && !wrapper.contains(e.target)) _peGameResults.classList.add('hidden');
+    });
+
+    _renderProfileGames();
+  }
+
   // ── Avatar preview ─────────────────────────────────────────────
   window.previewAvatar = function(url) {
     const el = document.getElementById('avatarPreview');
@@ -861,6 +985,7 @@
       playstyle:        playstyleSelect.getValue(),
       gaming_platforms: platformSelect.getValue(),
       favorite_genres:  genreSelect.getValue(),
+      favorite_games:   _profileGames,
       allow_discovery:  document.getElementById('pe-discovery').checked,
     };
 

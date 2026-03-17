@@ -129,7 +129,7 @@
         <a href="{% url 'questlog_web_lfg_calendar' %}"
            class="nav-item {% if active_page == 'lfg_calendar' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
           <i class="fas fa-calendar-alt text-gray-400 group-hover:text-purple-400"></i>
-          <span>Calendar</span>
+          <span>LFG Calendar</span>
         </a>
       </div>
     </div>
@@ -212,7 +212,7 @@
           <a href="/ql/fluxer/{{ guild.id }}/"
              class="nav-item {% if active_page == 'dashboard' and guild_id == guild.id %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
             {% if guild.icon_hash %}
-            <img src="https://media.revolt.chat/icons/{{ guild.id }}/{{ guild.icon_hash }}"
+            <img src="https://fluxerusercontent.com/icons/{{ guild.id }}/{{ guild.icon_hash }}.png"
                  alt="{{ guild.name }}"
                  class="w-5 h-5 rounded flex-shrink-0">
             {% else %}
@@ -388,7 +388,7 @@
         <a href="/ql/dashboard/fluxer/{{ guild.id }}/"
            class="nav-item flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
           {% if guild.icon_hash %}
-          <img src="https://media.revolt.chat/icons/{{ guild.id }}/{{ guild.icon_hash }}"
+          <img src="https://fluxerusercontent.com/icons/{{ guild.id }}/{{ guild.icon_hash }}.png"
                alt="{{ guild.name }}"
                class="w-5 h-5 rounded flex-shrink-0">
           {% else %}

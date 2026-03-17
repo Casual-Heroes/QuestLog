@@ -405,7 +405,16 @@ def api_internal_bridge_relay(request):
 
     source_platform = data.get('source_platform', '').strip()
     author_name = str(data.get('author_name', 'Unknown'))[:80]
-    author_avatar = data.get('author_avatar')
+    author_avatar = data.get('author_avatar') or None
+    if author_avatar:
+        _allowed_avatar_prefixes = (
+            'https://cdn.discordapp.com/',
+            'https://fluxerusercontent.com/',
+            'https://avatars.githubusercontent.com/',
+            'https://media.discordapp.net/',
+        )
+        if not any(author_avatar.startswith(p) for p in _allowed_avatar_prefixes):
+            author_avatar = None
     content = str(data.get('content', '')).strip()
     source_message_id = str(data.get('source_message_id', '') or '')[:255] or None
     reply_quote = str(data.get('reply_quote', '') or '')[:200] or None
@@ -1305,6 +1314,22 @@ def api_internal_bridge_pending_deletions(request, platform):
         db.commit()
 
     return JsonResponse({'deletions': deletions})
+
+
+# DISABLED - typing relay not shipped yet
+# @csrf_exempt
+# @require_http_methods(['POST'])
+# def api_internal_bridge_typing(request):
+#     POST /ql/api/internal/bridge/typing/
+#     Called by bots when a user starts typing in a bridged channel.
+#     Returns the target channel IDs so the bot can fire the typing indicator there.
+#     ... full implementation below, re-enable when ready ...
+#
+@csrf_exempt
+@require_http_methods(['POST'])
+def api_internal_bridge_typing(request):
+    """Typing relay - disabled, not shipped yet."""
+    return JsonResponse({'error': 'Not available'}, status=404)
 
 
 @csrf_exempt

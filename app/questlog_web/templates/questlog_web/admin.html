@@ -144,6 +144,9 @@
     <button onclick="switchTab('users')" id="tab-users" class="admin-tab px-4 py-2 rounded-md text-sm font-medium transition">
       <i class="fas fa-user-shield mr-1"></i>Users
     </button>
+    <button onclick="switchTab('bot-stats')" id="tab-bot-stats" class="admin-tab px-4 py-2 rounded-md text-sm font-medium transition">
+      <i class="fas fa-chart-bar mr-1"></i>Bot Stats
+    </button>
   </div>
 
   <!-- Tab Content Panels -->
@@ -793,6 +796,7 @@ function loadTabData(tab) {
     'hero-subs': loadHeroSubs,
     'bot-network': loadBotNetwork,
     'emoji': loadEmoji,
+    'bot-stats': loadBotStats,
   };
   if (loaders[tab]) loaders[tab]();
 }
@@ -1233,6 +1237,8 @@ function renderAdminCreators() {
       </div>
       <div class="flex flex-wrap gap-1 flex-shrink-0">
         ${!cr.is_verified ? `<button onclick="creatorAction(${cr.id}, 'verify')" class="text-xs bg-blue-600/20 text-blue-400 hover:bg-blue-600/30 px-2 py-1 rounded transition">Verify</button>` : `<button onclick="creatorAction(${cr.id}, 'unverify')" class="text-xs bg-neutral-700 text-gray-300 hover:bg-neutral-600 px-2 py-1 rounded transition">Unverify</button>`}
+        ${cr.allow_discovery ? `<button onclick="creatorAction(${cr.id}, 'hide')" class="text-xs bg-neutral-700 text-gray-300 hover:bg-neutral-600 px-2 py-1 rounded transition" title="Hide from discovery">Hide</button>` : `<button onclick="creatorAction(${cr.id}, 'unhide')" class="text-xs bg-green-600/20 text-green-400 hover:bg-green-600/30 px-2 py-1 rounded transition" title="Show in discovery">Unhide</button>`}
+        ${cr.times_featured > 0 ? `<button onclick="if(confirm('Reset featured count to 0?')) creatorAction(${cr.id}, 'reset_featured')" class="text-xs bg-orange-600/20 text-orange-400 hover:bg-orange-600/30 px-2 py-1 rounded transition" title="Reset featured count">Reset x${cr.times_featured}</button>` : ''}
         ${!cr.is_current_cotw ? `<button onclick="creatorAction(${cr.id}, 'set_cotw')" class="text-xs bg-yellow-600/20 text-yellow-400 hover:bg-yellow-600/30 px-2 py-1 rounded transition" title="Set as COTW"><i class="fas fa-star"></i></button>` : `<button onclick="creatorAction(${cr.id}, 'unset_cotw')" class="text-xs bg-yellow-600/30 text-yellow-300 hover:bg-yellow-600/40 px-2 py-1 rounded transition" title="Remove COTW"><i class="fas fa-star"></i> Remove</button>`}
         ${!cr.is_current_cotm ? `<button onclick="creatorAction(${cr.id}, 'set_cotm')" class="text-xs bg-purple-600/20 text-purple-400 hover:bg-purple-600/30 px-2 py-1 rounded transition" title="Set as COTM"><i class="fas fa-crown"></i></button>` : `<button onclick="creatorAction(${cr.id}, 'unset_cotm')" class="text-xs bg-purple-600/30 text-purple-300 hover:bg-purple-600/40 px-2 py-1 rounded transition" title="Remove COTM"><i class="fas fa-crown"></i> Remove</button>`}
         <button onclick="if(confirm('Delete this creator profile?')) creatorAction(${cr.id}, 'delete')" class="text-xs bg-red-600/20 text-red-400 hover:bg-red-600/30 px-2 py-1 rounded transition"><i class="fas fa-trash"></i></button>
@@ -3728,5 +3734,188 @@ async function deleteEmoji(id, shortcode) {
     renderEmojiGrid();
   }
 }
+
+// ── Bot Stats ─────────────────────────────────────────────────────────────────
+let _botStatsLoaded = false;
+
+function loadBotStats() {
+  if (_botStatsLoaded) return;
+  _botStatsLoaded = true;
+  document.getElementById('bot-stats-loading').style.display = 'block';
+  document.getElementById('bot-stats-content').style.display = 'none';
+  csrfFetch('/ql/api/admin/bot-stats/')
+    .then(r => r.json())
+    .then(data => {
+      renderBotStats(data);
+      document.getElementById('bot-stats-loading').style.display = 'none';
+      document.getElementById('bot-stats-content').style.display = 'block';
+    })
+    .catch(() => {
+      document.getElementById('bot-stats-loading').innerHTML = '<p class="text-red-400 text-sm">Failed to load stats.</p>';
+    });
+}
+
+function statCard(icon, label, value, sub, color) {
+  color = color || 'indigo';
+  const colors = {
+    indigo: ['text-indigo-400', 'bg-indigo-900/20', 'border-indigo-800/40'],
+    purple: ['text-purple-400', 'bg-purple-900/20', 'border-purple-800/40'],
+    emerald: ['text-emerald-400', 'bg-emerald-900/20', 'border-emerald-800/40'],
+    amber:   ['text-amber-400',  'bg-amber-900/20',  'border-amber-800/40'],
+    rose:    ['text-rose-400',   'bg-rose-900/20',   'border-rose-800/40'],
+    sky:     ['text-sky-400',    'bg-sky-900/20',    'border-sky-800/40'],
+  };
+  const [tc, bg, bc] = colors[color] || colors.indigo;
+  return `<div class="rounded-xl border ${bc} ${bg} p-4">
+    <div class="flex items-center gap-2 mb-1">
+      <i class="${icon} ${tc} text-sm"></i>
+      <span class="text-xs text-gray-500 uppercase tracking-wider font-semibold">${label}</span>
+    </div>
+    <div class="text-2xl font-bold text-white">${value.toLocaleString()}</div>
+    ${sub ? `<div class="text-xs text-gray-500 mt-1">${sub}</div>` : ''}
+  </div>`;
+}
+
+function featureRow(label, count, icon, color) {
+  color = color || '#818cf8';
+  return `<div class="flex items-center justify-between py-2 border-b border-neutral-800 last:border-0">
+    <div class="flex items-center gap-2 text-sm text-gray-300">
+      <i class="${icon}" style="color:${color};width:16px;text-align:center;"></i>${escapeHtml(label)}
+    </div>
+    <span class="text-sm font-semibold text-white">${count.toLocaleString()}</span>
+  </div>`;
+}
+
+function renderBotStats(d) {
+  const f = d.fluxer;
+  const disc = d.discord;
+
+  // Fluxer summary cards
+  document.getElementById('bs-fluxer-cards').innerHTML =
+    statCard('fas fa-bolt', 'Servers', f.total_guilds, `${f.active_guilds} active (bot present)`, 'purple') +
+    statCard('fas fa-users', 'Members tracked', f.total_members, 'across all servers', 'purple') +
+    statCard('fas fa-star', 'XP events (30d)', f.xp_events_30d, 'messages, reactions, voice', 'purple') +
+    statCard('fas fa-users-line', 'LFG groups', f.lfg_groups_total, `${f.lfg_groups_active} open now`, 'purple');
+
+  // Discord summary cards
+  document.getElementById('bs-discord-cards').innerHTML =
+    statCard('fab fa-discord', 'Servers', disc.total_guilds, `${disc.active_guilds} active`, 'indigo') +
+    statCard('fas fa-users', 'Members tracked', disc.total_members, 'across all servers', 'indigo') +
+    statCard('fas fa-star', 'XP events (30d)', disc.xp_events_30d, 'messages, reactions, voice', 'indigo') +
+    statCard('fas fa-users-line', 'LFG groups', disc.lfg_groups_total, `${disc.lfg_groups_active} open now`, 'indigo');
+
+  // Bridge
+  document.getElementById('bs-bridge-cards').innerHTML =
+    statCard('fas fa-bridge', 'Active bridges', d.bridge.active_bridges, 'Fluxer <-> Discord channels linked', 'emerald') +
+    statCard('fas fa-envelope', 'Messages relayed (30d)', d.bridge.messages_30d, 'across all bridges', 'emerald');
+
+  // Matrix summary cards
+  const mx = d.matrix;
+  document.getElementById('bs-matrix-cards').innerHTML =
+    statCard('fas fa-comments', 'Spaces', mx.total_spaces, `${mx.active_spaces} active (bot present)`, 'emerald') +
+    statCard('fas fa-users', 'Members tracked', mx.total_members, 'across all spaces', 'emerald') +
+    statCard('fas fa-star', 'XP events (30d)', mx.xp_events_30d, 'messages', 'emerald') +
+    statCard('fas fa-rss', 'RSS feeds', mx.rss_feeds, 'across all spaces', 'emerald');
+
+  document.getElementById('bs-matrix-features').innerHTML =
+    featureRow('XP enabled', mx.xp_enabled, 'fas fa-star', '#34d399') +
+    featureRow('Welcome messages set', mx.welcome_set, 'fas fa-door-open', '#34d399') +
+    featureRow('RSS feeds', mx.rss_feeds, 'fas fa-rss', '#34d399');
+
+  // Fluxer feature breakdown
+  document.getElementById('bs-fluxer-features').innerHTML =
+    featureRow('XP enabled', f.xp_enabled, 'fas fa-star', '#a78bfa') +
+    featureRow('LFG configured', f.lfg_configured, 'fas fa-users-line', '#a78bfa') +
+    featureRow('Live alerts configured', f.live_alerts, 'fas fa-satellite-dish', '#a78bfa') +
+    featureRow('RSS feeds', f.rss_feeds, 'fas fa-rss', '#a78bfa') +
+    featureRow('Reaction roles', f.reaction_roles, 'fas fa-hand-pointer', '#a78bfa') +
+    featureRow('Welcome messages', f.welcome_enabled, 'fas fa-door-open', '#a78bfa') +
+    featureRow('Active XP boost events', f.xp_boosts_active, 'fas fa-bolt', '#a78bfa') +
+    featureRow('Raffles (all time)', f.raffles_total, 'fas fa-ticket', '#a78bfa');
+
+  // Discord feature breakdown
+  document.getElementById('bs-discord-features').innerHTML =
+    featureRow('RSS feeds', disc.rss_feeds, 'fas fa-rss', '#818cf8') +
+    featureRow('LFG configured', disc.lfg_configured, 'fas fa-users-line', '#818cf8') +
+    featureRow('Raffles (all time)', disc.raffles_total, 'fas fa-ticket', '#818cf8');
+
+  // Top guilds by member count
+  const topFluxer = f.top_guilds || [];
+  let topFluxerHtml = topFluxer.length ? topFluxer.map((g, i) =>
+    `<tr class="border-b border-neutral-800 last:border-0">
+      <td class="py-2 pr-4 text-gray-400 text-sm">${i+1}</td>
+      <td class="py-2 pr-4 text-white text-sm font-medium">${escapeHtml(g.guild_name || g.guild_id)}</td>
+      <td class="py-2 pr-4 text-gray-300 text-sm">${(g.member_count||0).toLocaleString()}</td>
+      <td class="py-2 text-gray-500 text-xs">${g.bot_present ? '<span class="text-emerald-400">Active</span>' : '<span class="text-red-400">Left</span>'}</td>
+    </tr>`).join('') : '<tr><td colspan="4" class="py-4 text-gray-500 text-sm">No data</td></tr>';
+  document.getElementById('bs-top-fluxer').innerHTML = topFluxerHtml;
+}
 </script>
+
+<!-- Bot Stats Panel -->
+<div id="panel-bot-stats" class="admin-panel hidden">
+  <div class="flex items-center justify-between mb-6">
+    <h2 class="text-lg font-semibold text-white"><i class="fas fa-chart-bar text-indigo-400 mr-2"></i>Bot Usage Stats</h2>
+    <button onclick="_botStatsLoaded=false; loadBotStats();" class="text-xs text-gray-500 hover:text-gray-300 transition flex items-center gap-1">
+      <i class="fas fa-rotate-right"></i> Refresh
+    </button>
+  </div>
+
+  <div id="bot-stats-loading" class="text-gray-400 text-sm py-8 text-center" style="display:none;">
+    <i class="fas fa-spinner fa-spin mr-2"></i>Loading stats...
+  </div>
+
+  <div id="bot-stats-content" style="display:none;">
+
+    <!-- Fluxer -->
+    <h3 class="text-sm font-semibold text-purple-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+      <i class="fas fa-bolt"></i> Fluxer Bot
+    </h3>
+    <div id="bs-fluxer-cards" class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6"></div>
+    <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-4 mb-6">
+      <h4 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Feature Adoption</h4>
+      <div id="bs-fluxer-features"></div>
+    </div>
+    <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-4 mb-8">
+      <h4 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Top Servers by Members</h4>
+      <table class="w-full">
+        <thead><tr class="border-b border-neutral-800">
+          <th class="text-left text-xs text-gray-500 pb-2 pr-4">#</th>
+          <th class="text-left text-xs text-gray-500 pb-2 pr-4">Server</th>
+          <th class="text-left text-xs text-gray-500 pb-2 pr-4">Members</th>
+          <th class="text-left text-xs text-gray-500 pb-2">Status</th>
+        </tr></thead>
+        <tbody id="bs-top-fluxer"></tbody>
+      </table>
+    </div>
+
+    <!-- Discord -->
+    <h3 class="text-sm font-semibold text-indigo-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+      <i class="fab fa-discord"></i> Discord Bot
+    </h3>
+    <div id="bs-discord-cards" class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6"></div>
+    <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-4 mb-8">
+      <h4 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Feature Adoption</h4>
+      <div id="bs-discord-features"></div>
+    </div>
+
+    <!-- Matrix -->
+    <h3 class="text-sm font-semibold text-emerald-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+      <i class="fas fa-comments"></i> Matrix Bot
+    </h3>
+    <div id="bs-matrix-cards" class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6"></div>
+    <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-4 mb-8">
+      <h4 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Feature Adoption</h4>
+      <div id="bs-matrix-features"></div>
+    </div>
+
+    <!-- Bridge -->
+    <h3 class="text-sm font-semibold text-sky-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+      <i class="fas fa-bridge"></i> Chat Bridge
+    </h3>
+    <div id="bs-bridge-cards" class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6"></div>
+
+  </div>
+</div>
+
 {% endblock %}

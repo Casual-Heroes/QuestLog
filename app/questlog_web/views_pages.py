@@ -2,6 +2,7 @@
 
 import json
 import logging
+import re
 import time
 
 from django.shortcuts import render, redirect
@@ -23,7 +24,9 @@ from .models import (
 from app.db import get_db_session
 from .helpers import (
     web_login_required, add_web_user_context, safe_int, EXCLUDED_USER_IDS,
+    fluxer_login_required, create_notification, sanitize_text,
 )
+from .fluxer_webhooks import queue_lfg_embed_edit_for_group as _queue_lfg_embed_edit
 
 logger = logging.getLogger(__name__)
 
@@ -130,9 +133,23 @@ def lfg_calendar(request):
 @add_web_user_context
 def lfg_create(request):
     """Create LFG group."""
+    import json as _json
+    profile_games = []
+    if request.web_user:
+        raw = getattr(request.web_user, 'favorite_games', None) or '[]'
+        try:
+            games = _json.loads(raw)
+            for g in games:
+                if isinstance(g, dict) and g.get('name'):
+                    profile_games.append(g)
+                elif isinstance(g, str) and g:
+                    profile_games.append({'name': g, 'igdb_id': None, 'cover_url': ''})
+        except Exception:
+            pass
     context = {
         'web_user': request.web_user,
         'active_page': 'lfg_create',
+        'profile_games_json': _json.dumps(profile_games),
     }
     return render(request, 'questlog_web/lfg_create.html', context)
 
@@ -148,15 +165,37 @@ def lfg_my_groups(request):
     return render(request, 'questlog_web/lfg_my_groups.html', context)
 
 
-@web_login_required
+@add_web_user_context
 def lfg_group_detail(request, group_id):
-    """View LFG group details."""
-    context = {
-        'web_user': request.web_user,
-        'active_page': 'lfg_browse',
-        'group_id': group_id,
-    }
-    return render(request, 'questlog_web/lfg_detail.html', context)
+    """Legacy integer-ID URL - redirect to token URL if group has one."""
+    with get_db_session() as db:
+        group = db.query(WebLFGGroup).filter_by(id=group_id).first()
+        if not group:
+            return redirect('questlog_web_lfg_browse')
+        if group.share_token:
+            return redirect('questlog_web_lfg_detail_token', share_token=group.share_token)
+        # No token yet (pre-migration row) - render directly with integer ID
+        context = {
+            'web_user': request.web_user,
+            'active_page': 'lfg_browse',
+            'group_id': group_id,
+        }
+        return render(request, 'questlog_web/lfg_detail.html', context)
+
+
+@add_web_user_context
+def lfg_group_detail_token(request, share_token):
+    """View LFG group details via non-guessable share token."""
+    with get_db_session() as db:
+        group = db.query(WebLFGGroup).filter_by(share_token=share_token).first()
+        if not group:
+            return redirect('questlog_web_lfg_browse')
+        context = {
+            'web_user': request.web_user,
+            'active_page': 'lfg_browse',
+            'group_id': group.id,
+        }
+        return render(request, 'questlog_web/lfg_detail.html', context)
 
 
 @web_login_required
@@ -185,19 +224,28 @@ def lfg_join(request, group_id):
         if existing:
             if existing.status == 'joined':
                 return JsonResponse({'error': 'You are already in this group'}, status=400)
+            # Rejoin capacity check - must re-verify even though we checked above (TOCTOU)
+            if group.current_size >= group.group_size:
+                return JsonResponse({'error': 'Group is full'}, status=400)
             # Rejoining after leaving — update the existing row
             existing.status = 'joined'
             existing.left_at = None
-            existing.role = data.get('role') or None
+            raw_role = data.get('role') or None
+            existing.role = sanitize_text(raw_role) if raw_role else None
             raw_sel = data.get('selections') or {}
+            if isinstance(raw_sel, dict):
+                raw_sel = {k: sanitize_text(v) if isinstance(v, str) else v for k, v in raw_sel.items()}
             existing.selections = json.dumps(raw_sel) if raw_sel else None
             existing.joined_at = now
         else:
             raw_sel = data.get('selections') or {}
+            if isinstance(raw_sel, dict):
+                raw_sel = {k: sanitize_text(v) if isinstance(v, str) else v for k, v in raw_sel.items()}
+            raw_role = data.get('role') or None
             db.add(WebLFGMember(
                 group_id=group_id,
                 user_id=request.web_user.id,
-                role=data.get('role') or None,
+                role=sanitize_text(raw_role) if raw_role else None,
                 selections=json.dumps(raw_sel) if raw_sel else None,
                 is_creator=False,
                 is_co_leader=False,
@@ -214,6 +262,11 @@ def lfg_join(request, group_id):
         origin_platform = group.origin_platform
         origin_group_id = group.origin_group_id
         web_group_id = group.id
+        web_group_token = group.share_token or str(group.id)
+        web_group_title = group.title
+        web_group_game = group.game_name
+        allow_network = group.allow_network_discovery
+        group_creator_id = group.creator_id
         joiner_name = request.web_user.display_name or request.web_user.username
         joiner_username = request.web_user.username
         raw_sel = data.get('selections') or {}
@@ -221,60 +274,43 @@ def lfg_join(request, group_id):
 
         db.commit()
 
-    # Queue a Discord thread update if this group originated from Discord
-    if origin_platform == 'discord' and origin_group_id:
-        try:
-            with get_db_session() as db:
-                # Look up the original Discord LFG group for guild_id + thread_id
-                discord_group = db.execute(
-                    text("SELECT guild_id, thread_id FROM lfg_groups WHERE id=:gid LIMIT 1"),
-                    {"gid": origin_group_id}
-                ).fetchone()
+    # Site notification to group creator
+    try:
+        with get_db_session() as db:
+            create_notification(
+                db, group_creator_id, request.web_user.id,
+                'lfg_join',
+                target_type='lfg_group', target_id=web_group_id,
+                message=f"{joiner_name} joined your LFG group: {web_group_title}",
+            )
+            db.commit()
+    except Exception as e:
+        logger.warning(f"[LFG] Failed to create site join notification for group {web_group_id}: {e}")
 
-                if discord_group:
-                    discord_guild_id, discord_thread_id = discord_group
-                    if discord_guild_id and discord_thread_id:
-                        # Build member detail string from selections
-                        sel_parts = []
-                        for key, val in raw_sel.items():
-                            kl = key.lower()
-                            if kl in ('activity', 'role', 'player_role'):
-                                continue
-                            v = val[0] if isinstance(val, list) and val else val
-                            if v:
-                                sel_parts.append(str(v))
-                        if joiner_role:
-                            sel_parts.insert(0, joiner_role.title())
-                        detail = ', '.join(sel_parts) if sel_parts else 'No class selected'
+    # Edit the pinned embed to show updated roster; unpin if group is now full
+    try:
+        with get_db_session() as db:
+            _grp = db.query(WebLFGGroup).filter_by(id=web_group_id).first()
+            is_now_full = _grp and _grp.status == 'full'
+        pin_state = 'unpin' if is_now_full else None
+        _queue_lfg_embed_edit(web_group_id, 'web', pin_state=pin_state)
+    except Exception as e:
+        logger.warning(f"[LFG] Failed to queue embed edit for group {web_group_id}: {e}")
 
-                        embed_data = {
-                            "title": "New Member Joined via QuestLog",
-                            "description": (
-                                f"**{joiner_name}** joined this group from the QuestLog Network.\n"
-                                f"[View group](https://casual-heroes.com/ql/lfg/{web_group_id}/)"
-                            ),
-                            "color": 0x57F287,
-                            "fields": [
-                                {"name": "QuestLog Profile", "value": f"casual-heroes.com/ql/profile/{joiner_username}/", "inline": True},
-                                {"name": "Class / Role", "value": detail, "inline": True},
-                            ],
-                            "footer": "QuestLog Network - casual-heroes.com/ql/lfg/",
-                        }
-                        db.execute(
-                            text(
-                                "INSERT INTO discord_pending_broadcasts (guild_id, channel_id, payload, created_at) "
-                                "VALUES (:gid, :cid, :payload, :now)"
-                            ),
-                            {
-                                "gid": int(discord_guild_id),
-                                "cid": int(discord_thread_id),
-                                "payload": json.dumps(embed_data),
-                                "now": int(time.time()),
-                            }
-                        )
-                        db.commit()
-        except Exception as e:
-            logger.warning(f"[LFG] Failed to queue Discord embed update for group {web_group_id}: {e}")
+    # Helper: build detail string from selections
+    def _join_detail(role, sel):
+        parts = []
+        if role:
+            parts.append(role.title())
+        for key, val in sel.items():
+            if key.lower() in ('activity', 'role', 'player_role'):
+                continue
+            v = val[0] if isinstance(val, list) and val else val
+            if v:
+                parts.append(str(v))
+        return ', '.join(parts) if parts else 'No class selected'
+
+    lfg_url = f"https://casual-heroes.com/ql/lfg/{web_group_token}/"
 
     return JsonResponse({'success': True})
 
@@ -301,10 +337,18 @@ def lfg_leave(request, group_id):
         member.status = 'left'
         member.left_at = now
         group.current_size = max(0, group.current_size - 1)
+        reopened = group.status == 'full'
         if group.status == 'full':
             group.status = 'open'
         group.updated_at = now
         db.commit()
+
+    # Edit the pinned embed to reflect updated roster; re-pin if group reopened
+    try:
+        pin_state = 'pin' if reopened else None
+        _queue_lfg_embed_edit(group_id, 'web', pin_state=pin_state)
+    except Exception as e:
+        logger.warning(f"[LFG] Failed to queue embed edit after leave for group {group_id}: {e}")
 
     return JsonResponse({'success': True})
 
@@ -434,6 +478,7 @@ def lfg_kick(request, group_id, user_id):
 
 @web_login_required
 @require_http_methods(["POST"])
+@ratelimit(key='user', rate='30/h', method='POST', block=True)
 def lfg_set_co_leader(request, group_id):
     """Set co-leaders for a group — creator only."""
     try:
@@ -505,7 +550,7 @@ def network_leaderboard(request):
             f"AND id NOT IN ({','.join(str(i) for i in EXCLUDED_USER_IDS)})"
         )).scalar() or 0
 
-        if request.web_user:
+        if request.web_user and getattr(request.web_user, 'id', None) not in EXCLUDED_USER_IDS:
             my_rank = db.execute(text(
                 "SELECT COUNT(*) + 1 FROM web_users "
                 f"WHERE web_xp > :xp AND is_banned=0 AND is_disabled=0 AND email_verified=1 "
@@ -944,7 +989,11 @@ def profile(request):
         'active_page': 'profile',
         'gaming_platforms_list': _json.loads(wu.gaming_platforms) if wu.gaming_platforms else [],
         'favorite_genres_list':  _json.loads(wu.favorite_genres)  if wu.favorite_genres  else [],
-        'favorite_games_list':   _json.loads(wu.favorite_games)   if wu.favorite_games   else [],
+        'favorite_games_list':   [
+            g if isinstance(g, dict) else {'name': g, 'igdb_id': None, 'cover_url': ''}
+            for g in (_json.loads(wu.favorite_games) if wu.favorite_games else [])
+        ],
+        'favorite_games_json':   wu.favorite_games or '[]',
         'playstyle_list': (
             _json.loads(wu.playstyle) if wu.playstyle and wu.playstyle.startswith('[')
             else ([wu.playstyle] if wu.playstyle else [])
@@ -1041,10 +1090,24 @@ def profile_edit(request):
                             'icon_url': c.icon_url or '',
                         })
 
+    import json as _json2
+    raw_fav = getattr(request.web_user, 'favorite_games', None) or '[]'
+    try:
+        fav_games_parsed = _json2.loads(raw_fav)
+        fav_games = []
+        for g in fav_games_parsed:
+            if isinstance(g, dict) and g.get('name'):
+                fav_games.append(g)
+            elif isinstance(g, str) and g:
+                fav_games.append({'name': g, 'igdb_id': None, 'cover_url': ''})
+    except Exception:
+        fav_games = []
+
     context = {
         'web_user': request.web_user,
         'active_page': 'profile',
         'user_communities': user_communities,
+        'favorite_games_json': _json2.dumps(fav_games),
     }
     return render(request, 'questlog_web/profile_edit.html', context)
 
@@ -1389,18 +1452,38 @@ def fluxer_member_portal(request, guild_id):
 
     guild_name = settings.guild_name or guild_id
 
-    # Guild icon URL from Discord CDN
+    # Guild icon URL from Fluxer CDN
     _icon_hash = getattr(settings, 'guild_icon_hash', None) or ''
+    if _icon_hash and not re.match(r'^[A-Za-z0-9_\-]+$', _icon_hash):
+        _icon_hash = ''
     guild_icon_url = (
-        f'https://cdn.discordapp.com/icons/{guild_id}/{_icon_hash}.png?size=128'
+        f'https://fluxerusercontent.com/icons/{guild_id}/{_icon_hash}.png'
         if _icon_hash else None
     )
 
-    # Determine if current user is the guild owner
+    # Determine if current user is the guild owner or admin
     _discord_id = str(getattr(request.web_user, 'discord_id', '') or '')
     _fluxer_id = str(getattr(request.web_user, 'fluxer_id', '') or '')
     _owner_id = str(getattr(settings, 'owner_id', '') or '')
     is_owner = bool(_owner_id and _owner_id in (_discord_id, _fluxer_id))
+    # Fallback: check owned_fluxer_guilds set by add_web_user_context (includes admin-role members)
+    if not is_owner and request.web_user:
+        _owned_ids = {str(g.get('id', '')) for g in getattr(request.web_user, 'owned_fluxer_guilds', []) or []}
+        if guild_id in _owned_ids:
+            is_owner = True
+    # Fallback: check web_communities ownership (owner_id = web_user.id)
+    if not is_owner and request.web_user:
+        try:
+            with get_db_session() as db:
+                comm_owned = db.query(WebCommunity).filter_by(
+                    platform=PlatformType.FLUXER,
+                    platform_id=guild_id,
+                    owner_id=request.web_user.id,
+                ).first()
+                if comm_owned:
+                    is_owner = True
+        except Exception:
+            pass
 
     # Get user's XP in this guild and open LFG group count
     user_xp = 0
@@ -1473,14 +1556,21 @@ def _fluxer_guild_base_context(request, guild_id):
         raise Http404
     guild_name = settings.guild_name or guild_id
     _icon_hash = getattr(settings, 'guild_icon_hash', None) or ''
+    if _icon_hash and not re.match(r'^[A-Za-z0-9_\-]+$', _icon_hash):
+        _icon_hash = ''
     guild_icon_url = (
-        f'https://cdn.discordapp.com/icons/{guild_id}/{_icon_hash}.png?size=128'
+        f'https://fluxerusercontent.com/icons/{guild_id}/{_icon_hash}.png'
         if _icon_hash else None
     )
     _discord_id = str(getattr(request.web_user, 'discord_id', '') or '')
     _fluxer_id = str(getattr(request.web_user, 'fluxer_id', '') or '')
     _owner_id = str(getattr(settings, 'owner_id', '') or '')
     is_owner = bool(_owner_id and _owner_id in (_discord_id, _fluxer_id))
+    # Fallback: check owned_fluxer_guilds set by add_web_user_context (includes admin-role members)
+    if not is_owner and request.web_user:
+        _owned_ids = {str(g.get('id', '')) for g in getattr(request.web_user, 'owned_fluxer_guilds', []) or []}
+        if guild_id in _owned_ids:
+            is_owner = True
     is_network_approved = False
     try:
         with get_db_session() as db:
@@ -1490,6 +1580,9 @@ def _fluxer_guild_base_context(request, guild_id):
                 network_status='approved',
             ).first()
             is_network_approved = comm is not None
+            # Fallback: check web_communities ownership when owner_id is missing from settings
+            if not is_owner and request.web_user and comm and comm.owner_id == request.web_user.id:
+                is_owner = True
     except Exception:
         pass
     return settings, {
@@ -1605,7 +1698,8 @@ def api_fluxer_member_raffles(request, guild_id):
                     ended.append(d)
         return JsonResponse({'active': active, 'ended': ended, 'hp': getattr(request.web_user, 'hero_points', 0)})
     except Exception as e:
-        return JsonResponse({'error': str(e)}, status=500)
+        logger.error('api_fluxer_member_raffles error', exc_info=True)
+        return JsonResponse({'error': 'An error occurred'}, status=500)
 
 
 @web_login_required
@@ -1674,7 +1768,8 @@ def api_fluxer_member_raffle_enter(request, guild_id, raffle_id):
             remaining_hp = user.hero_points
         return JsonResponse({'message': f'Entered {tickets} time(s)!', 'hp_remaining': remaining_hp})
     except Exception as e:
-        return JsonResponse({'error': str(e)}, status=500)
+        logger.error('api_fluxer_member_raffle_enter error', exc_info=True)
+        return JsonResponse({'error': 'An error occurred'}, status=500)
 
 
 @web_login_required
@@ -1899,8 +1994,101 @@ def fluxer_guild_member_flairs(request, guild_id):
 # FLUXER MEMBER LFG BROWSE + JOIN/LEAVE
 # =============================================================================
 
-@web_login_required
-@add_web_user_context
+def _lfg_member_filter(query, request):
+    """Filter WebFluxerLfgMember by the current user - matches on web_user_id OR fluxer_user_id."""
+    web_user = getattr(request, 'web_user', None)
+    fluxer_id = getattr(request, 'fluxer_id', None) or ''
+    conditions = []
+    if web_user and web_user.id:
+        conditions.append(WebFluxerLfgMember.web_user_id == web_user.id)
+    if fluxer_id:
+        conditions.append(WebFluxerLfgMember.fluxer_user_id == fluxer_id)
+    if not conditions:
+        return query.filter(False)
+    from sqlalchemy import or_
+    return query.filter(or_(*conditions))
+
+def _lfg_is_me(member, request):
+    """Return True if a WebFluxerLfgMember row belongs to the current requester."""
+    web_user = getattr(request, 'web_user', None)
+    fluxer_id = getattr(request, 'fluxer_id', None) or ''
+    if web_user and member.web_user_id and member.web_user_id == web_user.id:
+        return True
+    if fluxer_id and member.fluxer_user_id and member.fluxer_user_id == fluxer_id:
+        return True
+    return False
+
+
+# WoW spec -> role mapping (ported from WardenBot lfg_role_mappings.py)
+_WOW_SPEC_ROLE = {
+    # Tanks
+    'blood': 'tank', 'vengeance': 'tank', 'guardian': 'tank',
+    'brewmaster': 'tank', 'protection': 'tank',
+    # Healers
+    'restoration': 'healer', 'preservation': 'healer', 'mistweaver': 'healer',
+    'holy': 'healer', 'discipline': 'healer',
+    # Support
+    'augmentation': 'support',
+    # DPS (everything else with explicit keys to avoid ambiguity)
+    'frost': 'dps', 'unholy': 'dps', 'havoc': 'dps',
+    'balance': 'dps', 'feral': 'dps', 'devastation': 'dps',
+    'beast mastery': 'dps', 'marksmanship': 'dps', 'survival': 'dps',
+    'arcane': 'dps', 'fire': 'dps',
+    'windwalker': 'dps', 'retribution': 'dps', 'shadow': 'dps',
+    'assassination': 'dps', 'outlaw': 'dps', 'subtlety': 'dps',
+    'elemental': 'dps', 'enhancement': 'dps',
+    'affliction': 'dps', 'demonology': 'dps', 'destruction': 'dps',
+    'arms': 'dps', 'fury': 'dps',
+}
+
+
+def _detect_lfg_role(selections, options_json_str):
+    """Detect a member's role (tank/healer/dps/support) from their LFG selections.
+
+    Handles:
+    - Games with an explicit Role field with {value, role} choices (e.g. ESO)
+    - WoW-style spec -> role mapping via Specialization field
+    - Fallback: plain Role string value
+    Returns one of 'tank', 'healer', 'dps', 'support', or 'member'.
+    """
+    if not selections:
+        return 'member'
+
+    opts = []
+    if options_json_str:
+        try:
+            opts = json.loads(options_json_str) or []
+        except (json.JSONDecodeError, TypeError):
+            opts = []
+
+    # 1. Check for explicit Role field with {value, role} choices (ESO pattern)
+    role_val = selections.get('Role') or selections.get('role')
+    if role_val:
+        if isinstance(role_val, list):
+            role_val = role_val[0] if role_val else None
+        if role_val:
+            for opt in opts:
+                if opt.get('name', '').lower() == 'role' and isinstance(opt.get('choices'), list):
+                    for ch in opt['choices']:
+                        if isinstance(ch, dict) and ch.get('value') == role_val and ch.get('role'):
+                            return ch['role']
+            # Plain string fallback (e.g. "tank", "healer")
+            if role_val.lower() in ('tank', 'healer', 'dps', 'support'):
+                return role_val.lower()
+
+    # 2. WoW-style: detect from Specialization field
+    spec_val = selections.get('Specialization') or selections.get('specialization') or selections.get('Spec') or ''
+    if spec_val:
+        if isinstance(spec_val, list):
+            spec_val = spec_val[0] if spec_val else ''
+        role = _WOW_SPEC_ROLE.get(spec_val.lower())
+        if role:
+            return role
+
+    return 'member'
+
+
+@fluxer_login_required
 def fluxer_guild_member_lfg_browse(request, guild_id):
     """Member-facing LFG group browser for a Fluxer guild."""
     from .views_bot_dashboard import _lfg_game_dict
@@ -1972,18 +2160,18 @@ def fluxer_guild_member_lfg_browse(request, guild_id):
     return render(request, 'questlog_web/fluxer_guild_member_lfg_browse.html', ctx)
 
 
-@web_login_required
-@add_web_user_context
+@fluxer_login_required
 @require_http_methods(['POST'])
 def api_fluxer_member_lfg_join(request, guild_id, group_id):
-    """POST /ql/fluxer/<guild_id>/lfg/<group_id>/join/ - Join a Fluxer LFG group."""
+    """POST join a Fluxer LFG group. Works for native Fluxer users and linked QL web users."""
     guild_id = guild_id.strip()
     group_id = safe_int(group_id, default=0, min_val=1)
     if not group_id:
         return JsonResponse({'error': 'Invalid group'}, status=400)
 
     web_user = request.web_user
-    username = (web_user.display_name or web_user.username) if web_user else 'Unknown'
+    fluxer_id = request.fluxer_id or ''
+    username = (web_user.display_name or web_user.username) if web_user else 'Fluxer User'
     now = int(time.time())
 
     try:
@@ -1991,7 +2179,6 @@ def api_fluxer_member_lfg_join(request, guild_id, group_id):
     except (json.JSONDecodeError, AttributeError):
         data = {}
 
-    role = (data.get('role') or 'member')[:20]
     selections = data.get('selections') or {}
 
     with get_db_session() as db:
@@ -2003,18 +2190,43 @@ def api_fluxer_member_lfg_join(request, guild_id, group_id):
         if group.current_size >= group.max_size:
             return JsonResponse({'error': 'Group is full'}, status=400)
 
-        # Check not already a member
-        existing = db.query(WebFluxerLfgMember).filter_by(
-            group_id=group_id, web_user_id=web_user.id
-        ).filter(WebFluxerLfgMember.left_at.is_(None)).first()
-        if existing:
+        existing_q = db.query(WebFluxerLfgMember).filter(
+            WebFluxerLfgMember.group_id == group_id,
+            WebFluxerLfgMember.left_at.is_(None),
+        )
+        existing_q = _lfg_member_filter(existing_q, request)
+        if existing_q.first():
             return JsonResponse({'error': 'Already a member'}, status=400)
+
+        # Detect role from selections using shared helper (handles ESO {value,role} + WoW spec mapping)
+        game = db.query(WebFluxerLfgGame).filter_by(id=group.game_id).first()
+        detected_role = _detect_lfg_role(selections, game.options_json if game else None)
+
+        # Enforce role slot limits if enabled
+        tanks_needed = getattr(group, 'tanks_needed', 0) or 0
+        healers_needed = getattr(group, 'healers_needed', 0) or 0
+        dps_needed = getattr(group, 'dps_needed', 0) or 0
+        support_needed = getattr(group, 'support_needed', 0) or 0
+        has_slots = tanks_needed + healers_needed + dps_needed + support_needed > 0
+        if has_slots and getattr(group, 'enforce_role_limits', 1) and detected_role != 'member':
+            limit_map = {'tank': tanks_needed, 'healer': healers_needed, 'dps': dps_needed, 'support': support_needed}
+            slot_limit = limit_map.get(detected_role, 0)
+            if slot_limit > 0:
+                current_members = db.query(WebFluxerLfgMember).filter(
+                    WebFluxerLfgMember.group_id == group_id,
+                    WebFluxerLfgMember.left_at.is_(None),
+                    WebFluxerLfgMember.role == detected_role,
+                ).count()
+                if current_members >= slot_limit:
+                    label = detected_role.capitalize()
+                    return JsonResponse({'error': f'All {label} slots are full ({slot_limit}/{slot_limit}). Choose a different role.'}, status=400)
 
         db.add(WebFluxerLfgMember(
             group_id=group_id,
-            web_user_id=web_user.id,
+            web_user_id=web_user.id if web_user else None,
+            fluxer_user_id=fluxer_id or None,
             username=username,
-            role=role,
+            role=detected_role,
             selections_json=json.dumps(selections) if selections else None,
             is_creator=0,
             joined_at=now,
@@ -2022,34 +2234,98 @@ def api_fluxer_member_lfg_join(request, guild_id, group_id):
         group.current_size = (group.current_size or 0) + 1
         if group.current_size >= group.max_size:
             group.status = 'full'
+
+        # Capture for post-commit notification
+        notify_guild_id = group.guild_id
+        notify_channel_id = group.channel_id
+        notify_game = group.game_name
+        notify_title = group.title or group.game_name
+        new_size = group.current_size
+        new_status = group.status
+        group_creator_web_user_id = group.creator_web_user_id
+
         db.commit()
 
-    return JsonResponse({'success': True})
+    # Site notification to group creator (if they have a web account)
+    if group_creator_web_user_id and web_user:
+        try:
+            with get_db_session() as db:
+                create_notification(
+                    db, group_creator_web_user_id, web_user.id,
+                    'lfg_join',
+                    target_type='fluxer_lfg_group', target_id=group_id,
+                    message=f"{username} joined your LFG group: {notify_title}",
+                )
+                db.commit()
+        except Exception as e:
+            logger.warning(f"[LFG] Failed to create site join notification for Fluxer group {group_id}: {e}")
+
+    # Build role detail from selections
+    sel_parts = []
+    for key, val in selections.items():
+        if key.lower() in ('activity', 'role', 'player_role'):
+            continue
+        v = val[0] if isinstance(val, list) and val else val
+        if v:
+            sel_parts.append(str(v))
+    if detected_role and detected_role != 'member':
+        sel_parts.insert(0, detected_role.title())
+    join_detail = ', '.join(sel_parts) if sel_parts else ''
+
+    # Send join notification to Fluxer guild channel
+    if notify_channel_id and notify_guild_id:
+        try:
+            from sqlalchemy import text as _text
+            lfg_url = f"https://casual-heroes.com/ql/fluxer/{notify_guild_id}/lfg/browse/"
+            detail_field = {"name": "Class / Role", "value": join_detail, "inline": True} if join_detail else None
+            profile_val = f"casual-heroes.com/ql/profile/{username}/" if web_user else username
+            embed_data = {
+                "title": f"New Member Joined: {notify_title}",
+                "description": (
+                    f"**{username}** joined the group.\n"
+                    f"[View on QuestLog]({lfg_url})"
+                ),
+                "color": 0x57F287,
+                "fields": [f for f in [
+                    {"name": "Game", "value": notify_game, "inline": True},
+                    detail_field,
+                    {"name": "Profile", "value": profile_val, "inline": True},
+                ] if f],
+                "footer": "QuestLog Network - casual-heroes.com/ql/lfg/",
+            }
+            with get_db_session() as db:
+                db.execute(
+                    _text("INSERT INTO fluxer_pending_broadcasts (guild_id, channel_id, payload, created_at) VALUES (:g, :c, :p, :t)"),
+                    {"g": notify_guild_id, "c": notify_channel_id, "p": json.dumps(embed_data), "t": int(time.time())}
+                )
+                db.commit()
+        except Exception as e:
+            logger.warning(f"[LFG] Failed to queue Fluxer member join notification for group {group_id}: {e}")
+
+    return JsonResponse({'success': True, 'new_size': new_size, 'status': new_status})
 
 
-@web_login_required
-@add_web_user_context
+@fluxer_login_required
 @require_http_methods(['POST'])
 def api_fluxer_member_lfg_leave(request, guild_id, group_id):
-    """POST /ql/fluxer/<guild_id>/lfg/<group_id>/leave/ - Leave a Fluxer LFG group."""
+    """POST leave a Fluxer LFG group."""
     guild_id = guild_id.strip()
     group_id = safe_int(group_id, default=0, min_val=1)
     if not group_id:
         return JsonResponse({'error': 'Invalid group'}, status=400)
 
-    web_user = request.web_user
     now = int(time.time())
 
     with get_db_session() as db:
-        group = db.query(WebFluxerLfgGroup).filter_by(
-            id=group_id, guild_id=guild_id
-        ).first()
+        group = db.query(WebFluxerLfgGroup).filter_by(id=group_id, guild_id=guild_id).first()
         if not group:
             return JsonResponse({'error': 'Group not found'}, status=404)
 
-        member = db.query(WebFluxerLfgMember).filter_by(
-            group_id=group_id, web_user_id=web_user.id
-        ).filter(WebFluxerLfgMember.left_at.is_(None)).first()
+        member_q = db.query(WebFluxerLfgMember).filter(
+            WebFluxerLfgMember.group_id == group_id,
+            WebFluxerLfgMember.left_at.is_(None),
+        )
+        member = _lfg_member_filter(member_q, request).first()
         if not member:
             return JsonResponse({'error': 'Not a member of this group'}, status=400)
         if member.is_creator:
@@ -2060,17 +2336,80 @@ def api_fluxer_member_lfg_leave(request, guild_id, group_id):
         if group.status == 'full':
             group.status = 'open'
         db.commit()
+        return JsonResponse({'success': True, 'new_size': group.current_size, 'status': group.status})
 
     return JsonResponse({'success': True})
 
 
-@web_login_required
-@add_web_user_context
+@fluxer_login_required
+def fluxer_guild_member_lfg_calendar(request, guild_id):
+    """Member-facing LFG calendar for a Fluxer guild."""
+    guild_id = guild_id.strip()
+    now_ts = int(time.time())
+    cutoff = now_ts - 86400
+    current_user_id = getattr(request.web_user, 'id', None) if request.web_user else None
+
+    _settings, ctx = _fluxer_guild_base_context(request, guild_id)
+
+    with get_db_session() as db:
+        groups = (
+            db.query(WebFluxerLfgGroup)
+            .filter(
+                WebFluxerLfgGroup.guild_id == guild_id,
+                WebFluxerLfgGroup.scheduled_time != None,  # noqa: E711
+                WebFluxerLfgGroup.scheduled_time >= cutoff,
+                WebFluxerLfgGroup.status.in_(['open', 'full']),
+            )
+            .order_by(WebFluxerLfgGroup.scheduled_time)
+            .limit(365)
+            .all()
+        )
+        events = [
+            {
+                'id': g.id,
+                'title': g.title or g.game_name,
+                'game_name': g.game_name,
+                'ts': g.scheduled_time,
+                'status': g.status,
+                'current_size': g.current_size,
+                'max_size': g.max_size,
+                'recurrence': g.recurrence or 'none',
+                'description': g.description or '',
+            }
+            for g in groups
+        ]
+        my_group_ids = []
+        my_creator_ids = []
+        if current_user_id and groups:
+            group_ids = [g.id for g in groups]
+            my_members = db.query(WebFluxerLfgMember).filter(
+                WebFluxerLfgMember.group_id.in_(group_ids),
+                WebFluxerLfgMember.web_user_id == current_user_id,
+                WebFluxerLfgMember.left_at.is_(None),
+            ).all()
+            for m in my_members:
+                my_group_ids.append(m.group_id)
+                if m.is_creator:
+                    my_creator_ids.append(m.group_id)
+
+    ctx.update({
+        'active_page': 'lfg_calendar',
+        'events_json': json.dumps(events),
+        'my_group_ids_json': json.dumps(my_group_ids),
+        'my_creator_ids_json': json.dumps(my_creator_ids),
+    })
+    return render(request, 'questlog_web/fluxer_guild_member_lfg_calendar.html', ctx)
+
+
+@fluxer_login_required
 @require_http_methods(['GET'])
 def api_fluxer_member_lfg_groups(request, guild_id):
-    """GET /ql/api/fluxer/<guild_id>/lfg/groups/ - list open groups for members."""
+    """GET list open LFG groups for the member portal."""
     from .views_bot_dashboard import _group_dict
     guild_id = guild_id.strip()
+    web_user = request.web_user
+    fluxer_id = request.fluxer_id or ''
+
     with get_db_session() as db:
         groups = db.query(WebFluxerLfgGroup).filter(
             WebFluxerLfgGroup.guild_id == guild_id,
@@ -2083,6 +2422,8 @@ def api_fluxer_member_lfg_groups(request, guild_id):
             WebFluxerLfgMember.left_at.is_(None),
         ).all() if group_ids else []
 
+        # Determine current user's web_user_id for the JS CURRENT_WEB_USER_ID check
+        # For native Fluxer users we also expose fluxer_user_id so the template can match
         members_by_group: dict = {}
         for m in members_raw:
             members_by_group.setdefault(m.group_id, []).append({
@@ -2092,6 +2433,7 @@ def api_fluxer_member_lfg_groups(request, guild_id):
                 'is_creator': bool(m.is_creator),
                 'is_co_leader': (m.role or '') == 'co_leader',
                 'web_user_id': m.web_user_id,
+                'fluxer_user_id': m.fluxer_user_id or '',
                 'selections': json.loads(m.selections_json) if m.selections_json else {},
                 'joined_at': m.joined_at,
             })
@@ -2101,29 +2443,164 @@ def api_fluxer_member_lfg_groups(request, guild_id):
         ]})
 
 
-@web_login_required
-@add_web_user_context
+@fluxer_login_required
 @require_http_methods(['DELETE'])
 def api_fluxer_member_lfg_group_delete(request, guild_id, group_id):
-    """DELETE /ql/api/fluxer/<guild_id>/lfg/<group_id>/ - delete own group."""
+    """DELETE own LFG group (creator only)."""
     guild_id = guild_id.strip()
     group_id = safe_int(group_id, default=0, min_val=1)
     if not group_id:
         return JsonResponse({'error': 'Invalid group'}, status=400)
 
     web_user = request.web_user
-    now = int(time.time())
+    fluxer_id = request.fluxer_id or ''
 
     with get_db_session() as db:
-        group = db.query(WebFluxerLfgGroup).filter_by(
-            id=group_id, guild_id=guild_id
-        ).first()
+        group = db.query(WebFluxerLfgGroup).filter_by(id=group_id, guild_id=guild_id).first()
         if not group:
             return JsonResponse({'error': 'Group not found'}, status=404)
-        if group.creator_web_user_id != web_user.id:
+
+        # Check ownership: match by web_user_id OR fluxer creator id
+        is_owner = False
+        if web_user and group.creator_web_user_id and group.creator_web_user_id == web_user.id:
+            is_owner = True
+        if not is_owner and fluxer_id:
+            creator_member = db.query(WebFluxerLfgMember).filter_by(
+                group_id=group_id, is_creator=1
+            ).filter(WebFluxerLfgMember.fluxer_user_id == fluxer_id).first()
+            if creator_member:
+                is_owner = True
+        if not is_owner:
             return JsonResponse({'error': 'Only the group creator can delete this group'}, status=403)
 
         group.status = 'closed'
+        db.commit()
+
+    return JsonResponse({'success': True})
+
+
+@fluxer_login_required
+@require_http_methods(['POST'])
+def api_fluxer_member_lfg_kick(request, guild_id, group_id, member_id):
+    """POST kick a member (leader or co-leader; co-leader cannot kick the leader)."""
+    guild_id = guild_id.strip()
+    group_id = safe_int(group_id, default=0, min_val=1)
+    member_id = safe_int(member_id, default=0, min_val=1)
+    if not group_id or not member_id:
+        return JsonResponse({'error': 'Invalid group or member'}, status=400)
+
+    now = int(time.time())
+
+    with get_db_session() as db:
+        group = db.query(WebFluxerLfgGroup).filter_by(id=group_id, guild_id=guild_id).first()
+        if not group:
+            return JsonResponse({'error': 'Group not found'}, status=404)
+
+        requester_q = db.query(WebFluxerLfgMember).filter(
+            WebFluxerLfgMember.group_id == group_id,
+            WebFluxerLfgMember.left_at.is_(None),
+        )
+        requester = _lfg_member_filter(requester_q, request).first()
+        if not requester:
+            return JsonResponse({'error': 'You are not in this group'}, status=403)
+        is_leader = bool(requester.is_creator)
+        is_co_leader = (requester.role or '') == 'co_leader'
+        if not is_leader and not is_co_leader:
+            return JsonResponse({'error': 'Only leaders and co-leaders can kick members'}, status=403)
+
+        target = db.query(WebFluxerLfgMember).filter_by(
+            id=member_id, group_id=group_id
+        ).filter(WebFluxerLfgMember.left_at.is_(None)).first()
+        if not target:
+            return JsonResponse({'error': 'Member not found'}, status=404)
+        if _lfg_is_me(target, request):
+            return JsonResponse({'error': 'Cannot kick yourself'}, status=400)
+        if target.is_creator and not is_leader:
+            return JsonResponse({'error': 'Co-leaders cannot kick the group leader'}, status=403)
+
+        target.left_at = now
+        group.current_size = max(0, (group.current_size or 1) - 1)
+        if group.status == 'full':
+            group.status = 'open'
+        db.commit()
+
+    return JsonResponse({'success': True})
+
+
+@fluxer_login_required
+@require_http_methods(['POST'])
+def api_fluxer_member_lfg_ban(request, guild_id, group_id, member_id):
+    """POST ban a member from LFG in this guild (leader only; co-leaders cannot ban)."""
+    guild_id = guild_id.strip()
+    group_id = safe_int(group_id, default=0, min_val=1)
+    member_id = safe_int(member_id, default=0, min_val=1)
+    if not group_id or not member_id:
+        return JsonResponse({'error': 'Invalid group or member'}, status=400)
+
+    now = int(time.time())
+
+    try:
+        data = json.loads(request.body)
+    except (json.JSONDecodeError, AttributeError):
+        data = {}
+    from .helpers import sanitize_text
+    ban_reason = sanitize_text(data.get('reason', '') or '').strip()[:200] or 'Banned from LFG group by group leader'
+
+    with get_db_session() as db:
+        group = db.query(WebFluxerLfgGroup).filter_by(id=group_id, guild_id=guild_id).first()
+        if not group:
+            return JsonResponse({'error': 'Group not found'}, status=404)
+
+        requester_q = db.query(WebFluxerLfgMember).filter(
+            WebFluxerLfgMember.group_id == group_id,
+            WebFluxerLfgMember.left_at.is_(None),
+        )
+        requester = _lfg_member_filter(requester_q, request).first()
+        if not requester or not requester.is_creator:
+            return JsonResponse({'error': 'Only the group leader can ban members'}, status=403)
+
+        target = db.query(WebFluxerLfgMember).filter_by(
+            id=member_id, group_id=group_id
+        ).filter(WebFluxerLfgMember.left_at.is_(None)).first()
+        if not target:
+            return JsonResponse({'error': 'Member not found'}, status=404)
+        if _lfg_is_me(target, request):
+            return JsonResponse({'error': 'Cannot ban yourself'}, status=400)
+
+        # Prefer the target's own fluxer_user_id; fall back to resolving via web_user
+        target_fluxer_id = target.fluxer_user_id or None
+        if not target_fluxer_id and target.web_user_id:
+            from .models import WebUser
+            target_wu = db.query(WebUser).filter_by(id=target.web_user_id).first()
+            if target_wu:
+                target_fluxer_id = target_wu.fluxer_id
+
+        target.left_at = now
+        group.current_size = max(0, (group.current_size or 1) - 1)
+        if group.status == 'full':
+            group.status = 'open'
+
+        if target_fluxer_id:
+            from .models import WebFluxerLfgMemberStats
+            stats = db.query(WebFluxerLfgMemberStats).filter_by(
+                guild_id=guild_id, fluxer_user_id=str(target_fluxer_id)
+            ).first()
+            if stats:
+                stats.is_blacklisted = 1
+                stats.blacklist_reason = ban_reason
+                stats.blacklisted_at = now
+                stats.updated_at = now
+            else:
+                db.add(WebFluxerLfgMemberStats(
+                    guild_id=guild_id,
+                    fluxer_user_id=str(target_fluxer_id),
+                    is_blacklisted=1,
+                    blacklist_reason=ban_reason,
+                    blacklisted_at=now,
+                    updated_at=now,
+                    reliability_score=100,
+                ))
+
         db.commit()
 
     return JsonResponse({'success': True})
