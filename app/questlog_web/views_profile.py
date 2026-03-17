@@ -169,8 +169,29 @@ def api_profile_update(request):
         if 'favorite_games' in data:
             games = data['favorite_games']
             if isinstance(games, list) and len(games) <= 20:
-                # Only accept strings; sanitize each entry to prevent stored XSS
-                clean = [sanitize_text(str(g), 200) for g in games if isinstance(g, str)]
+                clean = []
+                for g in games:
+                    if isinstance(g, dict):
+                        # New format: {name, igdb_id, cover_url}
+                        name = sanitize_text(str(g.get('name', '')), 200).strip()
+                        if not name:
+                            continue
+                        igdb_id = g.get('igdb_id')
+                        if igdb_id is not None:
+                            try:
+                                igdb_id = int(igdb_id)
+                            except (ValueError, TypeError):
+                                igdb_id = None
+                        cover_url = str(g.get('cover_url', '') or '').strip()
+                        # Only allow IGDB image URLs for cover art
+                        if cover_url and not cover_url.startswith('https://images.igdb.com/'):
+                            cover_url = ''
+                        clean.append({'name': name, 'igdb_id': igdb_id, 'cover_url': cover_url})
+                    elif isinstance(g, str):
+                        # Legacy plain string format
+                        name = sanitize_text(g, 200).strip()
+                        if name:
+                            clean.append({'name': name, 'igdb_id': None, 'cover_url': ''})
                 user.favorite_games = json.dumps(clean)
 
         if 'gaming_platforms' in data:
@@ -273,7 +294,7 @@ def api_validate_embed(request):
 # =============================================================================
 
 @ensure_csrf_cookie
-@web_login_required
+@add_web_user_context
 def public_profile(request, username):
     """Public profile page at /ql/u/<username>/."""
     with get_db_session() as db:
@@ -307,7 +328,11 @@ def public_profile(request, username):
                 ).first() is not None
 
         genres = json.loads(profile_user.favorite_genres) if profile_user.favorite_genres else []
-        fav_games = json.loads(profile_user.favorite_games) if profile_user.favorite_games else []
+        raw_fav = json.loads(profile_user.favorite_games) if profile_user.favorite_games else []
+        fav_games = [
+            g if isinstance(g, dict) else {'name': g, 'igdb_id': None, 'cover_url': ''}
+            for g in raw_fav
+        ]
         platforms = json.loads(profile_user.gaming_platforms) if profile_user.gaming_platforms else []
         raw_ps = profile_user.playstyle or ''
         playstyle_list = (

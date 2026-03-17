@@ -84,6 +84,29 @@
                 class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white focus:border-green-500 focus:outline-none resize-none">{{ web_user.bio|default:"" }}</textarea>
     </div>
 
+    <!-- My Games -->
+    <div class="bg-neutral-900/50 rounded-lg border border-neutral-800 p-6">
+      <h2 class="text-lg font-semibold text-white mb-1">
+        <i class="fas fa-gamepad text-green-400 mr-2"></i>My Games
+      </h2>
+      <p class="text-gray-400 text-sm mb-4">Add games to your profile so you can quickly select them when creating an LFG group.</p>
+
+      <!-- Game search -->
+      <div class="relative mb-3" id="profileGameSearchWrapper">
+        <div class="flex items-center bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2 hover:bg-neutral-700/50 transition focus-within:border-green-500">
+          <i class="fas fa-search text-gray-500 mr-2 text-sm"></i>
+          <input type="text" id="profileGameSearch" autocomplete="off"
+                 placeholder="Search IGDB to add a game..."
+                 class="flex-1 bg-transparent text-white text-sm focus:outline-none placeholder-gray-500">
+        </div>
+        <div id="profileGameSearchResults" class="hidden absolute z-20 w-full mt-1 bg-neutral-800 border border-neutral-700 rounded-lg shadow-xl overflow-hidden max-h-64 overflow-y-auto"></div>
+      </div>
+
+      <!-- Saved games list -->
+      <div id="savedGamesList" class="space-y-2"></div>
+      <p id="savedGamesEmpty" class="text-gray-500 text-sm hidden">No games added yet. Search above to add some.</p>
+    </div>
+
     <!-- Submit -->
     <div class="flex items-center justify-between">
       <a href="{% url 'questlog_web_profile' %}" class="text-gray-400 hover:text-white transition">
@@ -143,7 +166,152 @@
   </div>
 </div>
 
+{% include "questlog_web/partials/custom_select.html" %}
+{{ favorite_games_json|json_script:"profile-games-data" }}
 <script>
+// ─── My Games ─────────────────────────────────────────────────────────────────
+
+let profileGames = JSON.parse(document.getElementById('profile-games-data').textContent);
+
+function renderSavedGames() {
+  const list = document.getElementById('savedGamesList');
+  const empty = document.getElementById('savedGamesEmpty');
+  list.innerHTML = '';
+  if (!profileGames.length) {
+    empty.classList.remove('hidden');
+    return;
+  }
+  empty.classList.add('hidden');
+  profileGames.forEach(function(g, idx) {
+    const row = document.createElement('div');
+    row.className = 'flex items-center gap-3 bg-neutral-800/50 border border-neutral-700 rounded-lg px-3 py-2';
+
+    if (g.cover_url) {
+      const img = document.createElement('img');
+      img.src = g.cover_url;
+      img.className = 'w-8 h-11 rounded object-cover flex-shrink-0';
+      row.appendChild(img);
+    } else {
+      const ph = document.createElement('div');
+      ph.className = 'w-8 h-11 rounded bg-neutral-700 flex items-center justify-center flex-shrink-0';
+      ph.innerHTML = '<i class="fas fa-gamepad text-gray-500 text-xs"></i>';
+      row.appendChild(ph);
+    }
+
+    const nameEl = document.createElement('span');
+    nameEl.className = 'text-white text-sm flex-1 truncate';
+    nameEl.textContent = g.name;
+    row.appendChild(nameEl);
+
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'text-gray-500 hover:text-red-400 transition ml-auto flex-shrink-0';
+    btn.title = 'Remove';
+    btn.innerHTML = '<i class="fas fa-times text-sm"></i>';
+    btn.addEventListener('click', function() { removeProfileGame(idx); });
+    row.appendChild(btn);
+
+    list.appendChild(row);
+  });
+}
+
+function removeProfileGame(idx) {
+  profileGames.splice(idx, 1);
+  renderSavedGames();
+}
+
+function addProfileGame(game) {
+  if (profileGames.length >= 20) { alert('You can save up to 20 games.'); return; }
+  if (profileGames.some(g => g.name.toLowerCase() === game.name.toLowerCase())) return;
+  profileGames.push({name: game.name, igdb_id: game.id || null, cover_url: game.cover_url || ''});
+  renderSavedGames();
+  document.getElementById('profileGameSearch').value = '';
+  document.getElementById('profileGameSearchResults').classList.add('hidden');
+}
+
+let _pgTimeout = null;
+
+document.getElementById('profileGameSearch').addEventListener('input', function() {
+  clearTimeout(_pgTimeout);
+  const q = this.value.trim();
+  const results = document.getElementById('profileGameSearchResults');
+  if (q.length < 2) { results.classList.add('hidden'); return; }
+  _pgTimeout = setTimeout(() => _searchProfileGames(q), 250);
+});
+
+document.addEventListener('click', function(e) {
+  if (!document.getElementById('profileGameSearchWrapper').contains(e.target)) {
+    document.getElementById('profileGameSearchResults').classList.add('hidden');
+  }
+});
+
+async function _searchProfileGames(q) {
+  const results = document.getElementById('profileGameSearchResults');
+  results.innerHTML = '<div class="px-4 py-3 text-gray-500 text-sm"><i class="fas fa-spinner fa-spin mr-2"></i>Searching IGDB...</div>';
+  results.classList.remove('hidden');
+  try {
+    const res = await fetch('/ql/api/igdb/search/?q=' + encodeURIComponent(q) + '&limit=8');
+    const data = await res.json();
+    const games = data.games || [];
+    if (!games.length) {
+      results.innerHTML = '<div class="px-4 py-3 text-gray-400 text-sm">No results found.</div>';
+      return;
+    }
+    results.innerHTML = '';
+    games.forEach(function(game) {
+      const item = document.createElement('button');
+      item.type = 'button';
+      item.className = 'w-full flex items-center gap-3 px-4 py-3 hover:bg-neutral-700 transition text-left border-b border-neutral-700/50 last:border-0';
+
+      // Cover image
+      const img = document.createElement('div');
+      img.className = 'w-8 h-11 rounded bg-neutral-600 flex items-center justify-center flex-shrink-0';
+      if (game.cover_url) {
+        const i = document.createElement('img');
+        i.src = game.cover_url;
+        i.className = 'w-8 h-11 rounded object-cover flex-shrink-0';
+        img.replaceWith(i);
+        item.appendChild(i);
+      } else {
+        img.innerHTML = '<i class="fas fa-gamepad text-gray-400 text-xs"></i>';
+        item.appendChild(img);
+      }
+
+      // Name + year
+      const info = document.createElement('div');
+      info.className = 'min-w-0';
+      const nameEl = document.createElement('span');
+      nameEl.className = 'text-white text-sm font-medium block truncate';
+      nameEl.textContent = game.name;
+      info.appendChild(nameEl);
+      if (game.release_year) {
+        const yr = document.createElement('span');
+        yr.className = 'text-gray-500 text-xs';
+        yr.textContent = game.release_year;
+        info.appendChild(yr);
+      }
+      item.appendChild(info);
+
+      // Plus icon
+      const plus = document.createElement('span');
+      plus.className = 'ml-auto text-green-400 text-xs flex-shrink-0';
+      plus.innerHTML = '<i class="fas fa-plus"></i>';
+      item.appendChild(plus);
+
+      item.addEventListener('click', function() { addProfileGame(game); });
+      results.appendChild(item);
+    });
+  } catch(e) {
+    results.innerHTML = '<div class="px-4 py-3 text-gray-400 text-sm">Search failed.</div>';
+  }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  renderSavedGames();
+});
+
+// ─── Profile form submit ───────────────────────────────────────────────────────
+
 async function downloadMyData() {
   const btn = document.getElementById('downloadBtn');
   btn.disabled = true;
@@ -228,6 +396,7 @@ document.getElementById('editProfileForm').addEventListener('submit', async (e) 
     banner_url: document.getElementById('bannerUrl').value || null,
     bio: document.getElementById('bio').value || null,
     primary_community_id: primaryEl ? (primaryEl.value || null) : undefined,
+    favorite_games: profileGames,
   };
 
   try {
@@ -271,5 +440,4 @@ document.addEventListener('DOMContentLoaded', function() {
   {% endif %}
 });
 </script>
-{% include "questlog_web/partials/custom_select.html" %}
 {% endblock %}

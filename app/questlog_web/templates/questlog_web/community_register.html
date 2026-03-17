@@ -220,13 +220,19 @@
 {% else %}
 <!-- ── REGISTRATION FORM ──────────────────────────────────────────────────── -->
 {% include 'questlog/partials/custom_select.html' %}
+{{ fluxer_guilds_json|json_script:"fluxer-guilds-data" }}
+{{ discord_guilds_json|json_script:"discord-guilds-data" }}
+{{ matrix_spaces_json|json_script:"matrix-spaces-data" }}
+{{ registered_fluxer_ids_json|json_script:"reg-fluxer-data" }}
+{{ registered_discord_ids_json|json_script:"reg-discord-data" }}
+{{ registered_matrix_ids_json|json_script:"reg-matrix-data" }}
 <script>
-  const FLUXER_GUILDS = {{ fluxer_guilds_json|safe }};
-  const DISCORD_GUILDS = {{ discord_guilds_json|safe }};
-  const MATRIX_SPACES = {{ matrix_spaces_json|safe }};
-  const REGISTERED_FLUXER_IDS = new Set({{ registered_fluxer_ids_json|safe }});
-  const REGISTERED_DISCORD_IDS = new Set({{ registered_discord_ids_json|safe }});
-  const REGISTERED_MATRIX_IDS = new Set({{ registered_matrix_ids_json|safe }});
+  const FLUXER_GUILDS = JSON.parse(document.getElementById('fluxer-guilds-data').textContent);
+  const DISCORD_GUILDS = JSON.parse(document.getElementById('discord-guilds-data').textContent);
+  const MATRIX_SPACES = JSON.parse(document.getElementById('matrix-spaces-data').textContent);
+  const REGISTERED_FLUXER_IDS = new Set(JSON.parse(document.getElementById('reg-fluxer-data').textContent));
+  const REGISTERED_DISCORD_IDS = new Set(JSON.parse(document.getElementById('reg-discord-data').textContent));
+  const REGISTERED_MATRIX_IDS = new Set(JSON.parse(document.getElementById('reg-matrix-data').textContent));
 </script>
 
 <!-- Step 1: Select server(s) -->
@@ -808,12 +814,12 @@ async function submitForm() {
 
 <script>
 // ── Add Platform (status page) ───────────────────────────────────────────────
-const ADD_FLUXER_GUILDS = {{ fluxer_guilds_json|safe }};
-const ADD_DISCORD_GUILDS = {{ discord_guilds_json|safe }};
-const ADD_MATRIX_SPACES = {{ matrix_spaces_json|safe }};
-const ADD_REG_FLUXER = new Set({{ registered_fluxer_ids_json|safe }});
-const ADD_REG_DISCORD = new Set({{ registered_discord_ids_json|safe }});
-const ADD_REG_MATRIX = new Set({{ registered_matrix_ids_json|safe }});
+const ADD_FLUXER_GUILDS = JSON.parse(document.getElementById('fluxer-guilds-data').textContent);
+const ADD_DISCORD_GUILDS = JSON.parse(document.getElementById('discord-guilds-data').textContent);
+const ADD_MATRIX_SPACES = JSON.parse(document.getElementById('matrix-spaces-data').textContent);
+const ADD_REG_FLUXER = new Set(JSON.parse(document.getElementById('reg-fluxer-data').textContent));
+const ADD_REG_DISCORD = new Set(JSON.parse(document.getElementById('reg-discord-data').textContent));
+const ADD_REG_MATRIX = new Set(JSON.parse(document.getElementById('reg-matrix-data').textContent));
 
 let addFluxerId = null, addFluxerName = null;
 let addDiscordId = null, addDiscordName = null;

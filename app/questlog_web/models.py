@@ -175,9 +175,7 @@ class WebUser(Base):
     # Admin flags
     is_vip = Column(Boolean, default=False)    # Early tester / VIP status
     is_admin = Column(Boolean, default=False)  # Site admin
-    admin_pin_hash = Column(String(256), nullable=True)  # bcrypt hash of admin PIN
-    admin_pin_set_at = Column(BigInteger, nullable=True)  # When PIN was last set
-    is_banned = Column(Boolean, default=False)
+is_banned = Column(Boolean, default=False)
     ban_reason = Column(Text, nullable=True)
     is_disabled = Column(Boolean, default=False)  # Account locked (soft ban - no login)
     posting_timeout_until = Column(BigInteger, nullable=True)  # Unix ts: cannot post/comment until this time
@@ -410,6 +408,9 @@ class WebLFGGroup(Base):
     healers_needed = Column(Integer, default=0)
     dps_needed = Column(Integer, default=0)
     support_needed = Column(Integer, default=0)
+    # Custom role display schema (JSON array of 4 slot dicts: slot/label/color/icon)
+    # null = use default Tank/Healer/DPS/Support labels
+    role_schema = Column(Text, nullable=True)
 
     # Scheduling
     scheduled_time = Column(BigInteger, nullable=True)  # Unix timestamp
@@ -431,6 +432,9 @@ class WebLFGGroup(Base):
     origin_group_id = Column(Integer, nullable=True)      # Source bot group ID (for embed update on join)
     origin_guild_id = Column(String(64), nullable=True)   # Discord guild_id or Fluxer guild_id
     origin_guild_name = Column(String(200), nullable=True) # Human-readable guild name for display
+
+    # Public share token (non-guessable 8-char alphanumeric, used in URLs instead of integer ID)
+    share_token = Column(String(8), nullable=True, unique=True, index=True)
 
     # Timestamps
     created_at = Column(BigInteger, nullable=False)
@@ -2010,6 +2014,12 @@ class WebFluxerLfgGroup(Base):
     status = Column(String(20), default='open')  # open, full, closed
     created_at = Column(BigInteger, default=0)
     closed_at = Column(BigInteger, nullable=True)
+    tanks_needed = Column(Integer, default=0)
+    healers_needed = Column(Integer, default=0)
+    dps_needed = Column(Integer, default=0)
+    support_needed = Column(Integer, default=0)
+    enforce_role_limits = Column(Integer, default=1)
+    role_schema = Column(Text, nullable=True)  # JSON array of 4 slot dicts
 
     __table_args__ = (
         Index('idx_fluxer_lfg_group_guild_status', 'guild_id', 'status'),

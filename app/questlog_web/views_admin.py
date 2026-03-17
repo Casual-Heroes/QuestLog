@@ -377,7 +377,82 @@ def api_admin_community_action(request, community_id):
         elif action == 'toggle_discovery':
             community.allow_discovery = not community.allow_discovery
         elif action == 'toggle_unified_xp':
-            community.site_xp_to_guild = not community.site_xp_to_guild
+            was_enabled = bool(community.site_xp_to_guild)
+            community.site_xp_to_guild = not was_enabled
+            # When enabling: backfill all members who have linked QL accounts
+            # Take MAX(platform_xp, web_xp) - never inflate by summing
+            if not was_enabled:
+                platform = community.platform.value if hasattr(community.platform, 'value') else str(community.platform)
+                guild_id_str = str(community.platform_id)
+                now_ts = int(time.time())
+                try:
+                    if platform == 'discord':
+                        rows = db.execute(sa_text(
+                            "SELECT wu.id, wu.web_xp, wu.hero_points, gm.xp, gm.hero_tokens, "
+                            "       gm.message_count, gm.voice_minutes, gm.reaction_count, gm.media_count "
+                            "FROM web_users wu "
+                            "JOIN guild_members gm ON gm.user_id = CAST(wu.discord_id AS UNSIGNED) "
+                            "WHERE gm.guild_id = :gid AND gm.xp > 0 AND wu.discord_id IS NOT NULL "
+                            "AND wu.primary_community_id = :cid"
+                        ), {'gid': int(guild_id_str), 'cid': community_id}).fetchall()
+                        for r in rows:
+                            wu_id, web_xp, web_hp, gm_xp, gm_hp = int(r[0]), float(r[1] or 0), int(r[2] or 0), float(r[3] or 0), int(r[4] or 0)
+                            new_xp = max(web_xp, gm_xp)
+                            new_hp = web_hp + gm_hp if gm_xp > web_xp else web_hp
+                            new_lvl = db.execute(sa_text(
+                                "SELECT COALESCE(MAX(level),0) FROM level_requirements WHERE xp_required <= :xp"
+                            ), {'xp': new_xp}).scalar() or 0
+                            db.execute(sa_text(
+                                "UPDATE web_users SET web_xp=:xp, web_level=:lvl, hero_points=:hp WHERE id=:uid"
+                            ), {'xp': new_xp, 'lvl': new_lvl, 'hp': new_hp, 'uid': wu_id})
+                            # Upsert into unified leaderboard
+                            db.execute(sa_text("""
+                                INSERT INTO web_unified_leaderboard
+                                    (user_id, guild_id, platform, messages, voice_mins, reactions,
+                                     media_count, xp_total, last_active, updated_at)
+                                VALUES (:uid, :gid, 'discord', :msg, :voice, :react, :media, :xp, :la, :now)
+                                ON DUPLICATE KEY UPDATE
+                                    messages=:msg, voice_mins=:voice, reactions=:react,
+                                    media_count=:media, xp_total=:xp, updated_at=:now
+                            """), {
+                                'uid': wu_id, 'gid': guild_id_str,
+                                'msg': int(r[5] or 0), 'voice': int(r[6] or 0),
+                                'react': int(r[7] or 0), 'media': int(r[8] or 0),
+                                'xp': new_xp, 'la': now_ts, 'now': now_ts,
+                            })
+                    elif platform == 'fluxer':
+                        rows = db.execute(sa_text(
+                            "SELECT wu.id, wu.web_xp, wu.hero_points, fx.xp, fx.message_count "
+                            "FROM web_users wu "
+                            "JOIN fluxer_member_xp fx ON fx.user_id = wu.fluxer_id "
+                            "WHERE fx.guild_id = :gid AND fx.xp > 0 AND wu.fluxer_id IS NOT NULL "
+                            "AND wu.primary_community_id = :cid"
+                        ), {'gid': guild_id_str, 'cid': community_id}).fetchall()
+                        for r in rows:
+                            wu_id, web_xp, web_hp, fx_xp = int(r[0]), float(r[1] or 0), int(r[2] or 0), float(r[3] or 0)
+                            new_xp = max(web_xp, fx_xp)
+                            new_hp = web_hp  # Fluxer HP not tracked separately
+                            new_lvl = db.execute(sa_text(
+                                "SELECT COALESCE(MAX(level),0) FROM level_requirements WHERE xp_required <= :xp"
+                            ), {'xp': new_xp}).scalar() or 0
+                            db.execute(sa_text(
+                                "UPDATE web_users SET web_xp=:xp, web_level=:lvl, hero_points=:hp WHERE id=:uid"
+                            ), {'xp': new_xp, 'lvl': new_lvl, 'hp': new_hp, 'uid': wu_id})
+                            db.execute(sa_text("""
+                                INSERT INTO web_unified_leaderboard
+                                    (user_id, guild_id, platform, messages, voice_mins, reactions,
+                                     media_count, xp_total, last_active, updated_at)
+                                VALUES (:uid, :gid, 'fluxer', :msg, 0, 0, 0, :xp, :la, :now)
+                                ON DUPLICATE KEY UPDATE
+                                    messages=:msg, xp_total=:xp, updated_at=:now
+                            """), {
+                                'uid': wu_id, 'gid': guild_id_str,
+                                'msg': int(r[4] or 0), 'xp': new_xp,
+                                'la': now_ts, 'now': now_ts,
+                            })
+                    db.commit()
+                except Exception as e:
+                    logger.warning(f"toggle_unified_xp backfill failed for community {community_id}: {e}")
         elif action == 'remove_from_network':
             community.network_status = 'none'
             community.network_member = False
@@ -433,7 +508,7 @@ def api_admin_creator_action(request, creator_id):
         return JsonResponse({'error': 'Invalid JSON'}, status=400)
 
     action = body.get('action')
-    valid_actions = ('verify', 'unverify', 'feature', 'delete', 'set_cotw', 'unset_cotw', 'set_cotm', 'unset_cotm')
+    valid_actions = ('verify', 'unverify', 'feature', 'delete', 'set_cotw', 'unset_cotw', 'set_cotm', 'unset_cotm', 'hide', 'unhide', 'reset_featured')
     if action not in valid_actions:
         return JsonResponse({'error': 'Invalid action'}, status=400)
 
@@ -480,6 +555,12 @@ def api_admin_creator_action(request, creator_id):
             creator.featured_at = now
         elif action == 'unset_cotm':
             creator.is_current_cotm = False
+        elif action == 'hide':
+            creator.allow_discovery = False
+        elif action == 'unhide':
+            creator.allow_discovery = True
+        elif action == 'reset_featured':
+            creator.times_featured = 0
 
         creator.updated_at = now
         db.commit()
@@ -1319,7 +1400,7 @@ def api_admin_comment_action(request, comment_id):
         return JsonResponse({'error': 'Invalid JSON'}, status=400)
 
     action = data.get('action')
-    if action not in ('delete', 'hide'):
+    if action != 'delete':
         return JsonResponse({'error': 'Invalid action'}, status=400)
 
     with get_db_session() as db:
@@ -3399,7 +3480,8 @@ def api_admin_emoji(request):
             max_dimension=512 if is_sticker else 128,
         )
     except ValueError as e:
-        return JsonResponse({'error': str(e)}, status=400)
+        logger.error('Emoji upload validation error: %s', e)
+        return JsonResponse({'error': 'Invalid image: check file type, size, and dimensions'}, status=400)
     except Exception as e:
         logger.error(f"Emoji upload error: {e}")
         return JsonResponse({'error': 'Upload failed.'}, status=500)

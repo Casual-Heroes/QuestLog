@@ -18,13 +18,130 @@ from .models import (
     WebFluxerLfgMember, WebFluxerGuildSettings, WebFluxerLfgGame,
 )
 from app.db import get_db_session
-from .helpers import add_web_user_context, web_login_required, safe_int, EXCLUDED_USER_IDS
-from .fluxer_webhooks import notify_lfg_post as _fluxer_lfg_post
+from .helpers import add_web_user_context, web_login_required, safe_int, EXCLUDED_USER_IDS, generate_post_public_id, create_notification
+from .fluxer_webhooks import notify_lfg_post as _fluxer_lfg_post, build_lfg_embed_data as _build_lfg_embed_data
 
 logger = logging.getLogger(__name__)
 
 _VOICE_LINK_SCHEMES = ('https://',)
 _VOICE_LINK_MAX = 500
+
+# ── Survival game sub-choices (mirrors lfg_browse.html GAME_TEMPLATES) ───────
+_SURVIVAL_SUB_CHOICES = {
+    'palworld':   [
+        ('Tank/Defender',  'tank'), ('Support/Healer', 'healer'),
+        ('Combat (Melee)', 'dps'),  ('Combat (Ranged)', 'dps'), ('Scout/Explorer', 'dps'),
+        ('Builder', 'support'), ('Gatherer', 'support'), ('Tamer/Breeder', 'support'), ('Crafter', 'support'),
+    ],
+    'enshrouded': [
+        ('Tank', 'tank'), ('Healer', 'healer'),
+        ('Ranger (DPS)', 'dps'), ('Mage (DPS)', 'dps'), ('Fighter (DPS)', 'dps'),
+        ('Builder', 'support'), ('Crafter', 'support'),
+    ],
+    'valheim': [
+        ('Berserker (Tank)', 'tank'), ('Healer/Support', 'healer'),
+        ('Archer (DPS)', 'dps'), ('Warrior (DPS)', 'dps'),
+        ('Builder', 'support'), ('Gatherer', 'support'),
+    ],
+    'rust': [
+        ('Raider', 'tank'), ('Medic/Support', 'healer'),
+        ('Gunner (DPS)', 'dps'), ('Scout', 'dps'),
+        ('Builder', 'support'), ('Farmer/Gatherer', 'support'),
+    ],
+}
+
+_SURVIVAL_GAME_NAMES = {
+    'palworld': ['palworld'], 'enshrouded': ['enshrouded'],
+    'valheim': ['valheim'], 'rust': ['rust'],
+}
+
+def _detect_survival_game_type(game_name):
+    """Return survival game key if game_name matches, else None."""
+    if not game_name:
+        return None
+    nl = game_name.lower()
+    for key, aliases in _SURVIVAL_GAME_NAMES.items():
+        if any(a in nl for a in aliases):
+            return key
+    return None
+
+def _is_survival_schema(role_schema_raw):
+    """Return True if the stored role_schema is the survival variant."""
+    import json as _json
+    if not role_schema_raw:
+        return False
+    try:
+        schema = _json.loads(role_schema_raw)
+    except (ValueError, TypeError):
+        return False
+    if not isinstance(schema, list):
+        return False
+    return any(
+        r.get('slot') == 'tank' and (r.get('label') == 'Combat' or r.get('color') == 'orange')
+        for r in schema
+    )
+
+# ── Role schema helpers ───────────────────────────────────────────────────────
+
+_DEFAULT_ROLE_SCHEMA = [
+    {'slot': 'tank',    'label': 'Tank',    'color': 'blue',   'icon': 'shield-alt'},
+    {'slot': 'healer',  'label': 'Healer',  'color': 'green',  'icon': 'heart'},
+    {'slot': 'dps',     'label': 'DPS',     'color': 'red',    'icon': 'bolt'},
+    {'slot': 'support', 'label': 'Support', 'color': 'yellow', 'icon': 'music'},
+]
+_VALID_SLOTS = {'tank', 'healer', 'dps', 'support'}
+_VALID_COLORS = {'blue', 'green', 'red', 'yellow', 'orange', 'cyan', 'pink', 'purple', 'gray'}
+
+
+def _parse_role_schema(raw_json):
+    """Parse role_schema Text column. Returns list of 4 dicts with slot/label/color/icon.
+    Falls back to default if null, invalid JSON, wrong structure, or bad slot keys."""
+    if not raw_json:
+        return _DEFAULT_ROLE_SCHEMA
+    try:
+        schema = json.loads(raw_json)
+    except (ValueError, TypeError):
+        return _DEFAULT_ROLE_SCHEMA
+    if not isinstance(schema, list) or len(schema) != 4:
+        return _DEFAULT_ROLE_SCHEMA
+    seen_slots = set()
+    result = []
+    for entry in schema:
+        if not isinstance(entry, dict):
+            return _DEFAULT_ROLE_SCHEMA
+        slot = entry.get('slot', '')
+        if slot not in _VALID_SLOTS or slot in seen_slots:
+            return _DEFAULT_ROLE_SCHEMA
+        seen_slots.add(slot)
+        label = str(entry.get('label', slot))[:30]
+        color = str(entry.get('color', 'gray'))[:20]
+        if color not in _VALID_COLORS:
+            color = 'gray'
+        icon = str(entry.get('icon', 'circle'))[:40]
+        result.append({'slot': slot, 'label': label, 'color': color, 'icon': icon})
+    return result
+
+
+def _validate_role_schema(raw):
+    """Validate incoming role_schema from client (list or JSON string).
+    Returns JSON string to store, or None if default/invalid."""
+    if not raw:
+        return None
+    if isinstance(raw, list):
+        raw_json = json.dumps(raw)
+    elif isinstance(raw, str):
+        raw_json = raw
+    else:
+        return None
+    parsed = _parse_role_schema(raw_json)
+    # Store None if it matches the default (keeps DB clean)
+    if all(
+        parsed[i]['slot'] == _DEFAULT_ROLE_SCHEMA[i]['slot'] and
+        parsed[i]['label'] == _DEFAULT_ROLE_SCHEMA[i]['label']
+        for i in range(4)
+    ):
+        return None
+    return json.dumps(parsed)
 
 
 def _validate_voice_link(url):
@@ -66,6 +183,11 @@ def api_lfg_list(request):
 
         now = int(time.time())
         with get_db_session() as db:
+            # Generate a unique share token
+            share_token = generate_post_public_id()
+            while db.query(WebLFGGroup).filter_by(share_token=share_token).first():
+                share_token = generate_post_public_id()
+
             group = WebLFGGroup(
                 creator_id=request.web_user.id,
                 title=title,
@@ -80,10 +202,12 @@ def api_lfg_list(request):
                 healers_needed=safe_int(data.get('healers_needed') or 0, default=0, min_val=0, max_val=40),
                 dps_needed=safe_int(data.get('dps_needed') or 0, default=0, min_val=0, max_val=40),
                 support_needed=safe_int(data.get('support_needed') or 0, default=0, min_val=0, max_val=40),
+                role_schema=_validate_role_schema(data.get('role_schema')),
                 scheduled_time=safe_int(data.get('scheduled_time'), default=None, min_val=0, max_val=9999999999),
                 voice_platform=(data.get('voice_platform') or '')[:50] or None,
                 voice_link=_validate_voice_link(data.get('voice_link')),
                 status='open',
+                share_token=share_token,
                 created_at=now,
                 updated_at=now,
             )
@@ -106,22 +230,32 @@ def api_lfg_list(request):
 
         # Notify admin LFG channel (fire-and-forget, never raises)
         try:
-            lfg_url = f"https://casual-heroes.com/ql/lfg/?group={group.id}"
+            lfg_url = f"https://casual-heroes.com/ql/lfg/{group.share_token or group.id}/"
             _fluxer_lfg_post(
-                creator=request.web_user.username,
+                creator=request.web_user.display_name or request.web_user.username,
                 game_name=game_name,
                 title=title,
                 description=group.description or '',
                 group_size=group_size,
                 current_size=1,
                 scheduled_time=group.scheduled_time,
+                duration_hours=group.duration_hours,
                 lfg_url=lfg_url,
                 game_image_url=group.game_image_url,
+                use_roles=group.use_roles or False,
+                tanks_needed=group.tanks_needed or 0,
+                healers_needed=group.healers_needed or 0,
+                dps_needed=group.dps_needed or 0,
+                support_needed=group.support_needed or 0,
+                role_schema=_parse_role_schema(group.role_schema),
+                creator_selections=raw_selections,
+                group_id=group.id,
+                voice_link=group.voice_link,
             )
         except Exception:
             pass
 
-        return JsonResponse({'success': True, 'id': group.id})
+        return JsonResponse({'success': True, 'id': group.id, 'share_token': group.share_token})
 
     # GET — list groups; ?mine=true returns groups the user created or joined
     mine = request.GET.get('mine') == 'true'
@@ -183,6 +317,7 @@ def api_lfg_list(request):
 
         data = [{
             'id': g.id,
+            'share_token': g.share_token,
             'title': g.title,
             'description': g.description,
             'game_name': g.game_name,
@@ -204,6 +339,7 @@ def api_lfg_list(request):
             'healers_needed': g.healers_needed or 0,
             'dps_needed': g.dps_needed or 0,
             'support_needed': g.support_needed or 0,
+            'role_schema': _parse_role_schema(g.role_schema),
             'members': members_by_group[g.id],
             'platform': 'web',
             'origin_platform': g.origin_platform,
@@ -257,6 +393,7 @@ def api_lfg_list(request):
                         'healers_needed': 0,
                         'dps_needed': 0,
                         'support_needed': 0,
+                        'role_schema': _DEFAULT_ROLE_SCHEMA,
                         'members': [],
                         'platform': 'fluxer',
                         'fluxer_username': funame,
@@ -391,6 +528,7 @@ def api_lfg_list(request):
                             'healers_needed': gmeta.get('healer_slots', 0),
                             'dps_needed': gmeta.get('dps_slots', 0),
                             'support_needed': gmeta.get('support_slots', 0),
+                            'role_schema': _DEFAULT_ROLE_SCHEMA,
                             'game_options': gmeta.get('options', []),
                             'members': group_members,
                             'platform': 'fluxer_guild',
@@ -447,6 +585,7 @@ def api_lfg_detail(request, group_id):
 
         data = {
             'id': group.id,
+            'share_token': group.share_token,
             'title': group.title,
             'description': group.description,
             'game_name': group.game_name,
@@ -461,6 +600,7 @@ def api_lfg_detail(request, group_id):
             'healers_needed': group.healers_needed,
             'dps_needed': group.dps_needed,
             'support_needed': group.support_needed,
+            'role_schema': _parse_role_schema(group.role_schema),
             'voice_platform': group.voice_platform,
             'voice_link': group.voice_link,
             'created_at': group.created_at,
@@ -597,14 +737,6 @@ def api_communities(request):
                             {'error': f'That {ptype.value} server is already registered in the directory'},
                             status=400,
                         )
-                    existing = db.query(WebCommunity).filter_by(
-                        owner_id=request.web_user.id, name=name, platform=ptype
-                    ).first()
-                    if existing:
-                        return JsonResponse(
-                            {'error': f'You already have a {ptype.value} community with that name'},
-                            status=400,
-                        )
 
                 # Create all rows; if more than one platform, share a community_group_id
                 created_ids = []
@@ -661,6 +793,7 @@ def api_communities(request):
 
     # GET: list communities (approved only, primary row per owner)
     with get_db_session() as db:
+        from sqlalchemy import text as sa_text
         communities = db.query(WebCommunity).filter(
             WebCommunity.network_status == 'approved',
             WebCommunity.allow_discovery == True,
@@ -669,21 +802,43 @@ def api_communities(request):
             WebCommunity.is_primary == True,
         ).order_by(WebCommunity.member_count.desc()).limit(50).all()
 
-        data = [{
-            'id': c.id,
-            'name': c.name,
-            'short_description': c.short_description,
-            'description': c.description,
-            'platform': c.platform.value,
-            'icon_url': c.icon_url,
-            'banner_url': c.banner_url,
-            'member_count': c.member_count,
-            'activity_level': c.activity_level,
-            'allow_joins': c.allow_joins,
-            'invite_url': c.invite_url if c.allow_joins else None,
-            'tags': json.loads(c.tags or '[]'),
-            'owner_id': c.owner_id,
-        } for c in communities]
+        # Resolve live member counts from bot tables
+        fluxer_counts = {str(r[0]): int(r[1]) for r in db.execute(sa_text(
+            "SELECT guild_id, member_count FROM web_fluxer_guild_settings WHERE member_count > 0"
+        )).fetchall()}
+        discord_counts = {str(r[0]): int(r[1]) for r in db.execute(sa_text(
+            "SELECT guild_id, member_count FROM guilds WHERE member_count > 0"
+        )).fetchall()}
+
+        data = []
+        for c in communities:
+            platform = c.platform.value if hasattr(c.platform, 'value') else str(c.platform)
+            pid = str(c.platform_id or '')
+            if platform == 'fluxer' and pid in fluxer_counts:
+                live_count = fluxer_counts[pid]
+            elif platform == 'discord' and pid in discord_counts:
+                live_count = discord_counts[pid]
+            else:
+                live_count = c.member_count
+            # Keep stored count in sync so ordering stays accurate
+            if live_count != c.member_count:
+                c.member_count = live_count
+            data.append({
+                'id': c.id,
+                'name': c.name,
+                'short_description': c.short_description,
+                'description': c.description,
+                'platform': platform,
+                'icon_url': c.icon_url,
+                'banner_url': c.banner_url,
+                'member_count': live_count,
+                'activity_level': c.activity_level,
+                'allow_joins': c.allow_joins,
+                'invite_url': c.invite_url if c.allow_joins else None,
+                'tags': json.loads(c.tags or '[]'),
+                'owner_id': c.owner_id,
+            })
+        db.commit()
 
     return JsonResponse({'communities': data})
 
@@ -710,15 +865,12 @@ def api_community_detail(request, community_id):
             if not name or len(name) > 200:
                 return JsonResponse({'error': 'Name is required (max 200 chars)'}, status=400)
 
-            platform_str = (data.get('platform') or community.platform.value).lower()
-            try:
-                platform = PlatformType(platform_str)
-            except ValueError:
-                platform = PlatformType.OTHER
+            # Prevent platform type changes after registration
+            if 'platform' in data and data['platform'] != community.platform.value:
+                return JsonResponse({'error': 'Platform type cannot be changed after registration'}, status=400)
 
             raw_tags = data.get('tags') or []
             community.name = name
-            community.platform = platform
             community.short_description = (data.get('short_description') or '')[:500] or None
             community.description = data.get('description') or None
             community.invite_url = (data.get('invite_url') or '')[:500] or None
@@ -1118,35 +1270,49 @@ def api_lfg_broadcast_network(request, group_id):
             return JsonResponse({'success': True, 'queued': 0, 'message': 'No communities subscribed yet'})
 
         creator_name = request.web_user.display_name or request.web_user.username
-        desc_preview = (lfg.description[:300] + '...') if lfg.description and len(lfg.description) > 300 else (lfg.description or '')
+        group_url = f"https://casual-heroes.com/ql/lfg/{lfg.share_token or lfg.id}/"
 
-        embed_data = {
-            "title": f"LFG: {lfg.title}",
-            "description": desc_preview if desc_preview else f"Posted by **{creator_name}**",
-            "url": f"https://casual-heroes.com/ql/lfg/{lfg.id}/",
-            "color": 0xFEE75C,
-            "fields": [
-                {"name": "Game", "value": lfg.game_name, "inline": True},
-                {"name": "Group Size", "value": f"{lfg.current_size}/{lfg.group_size}", "inline": True},
-                {"name": "Posted by", "value": creator_name, "inline": True},
-            ],
-            "footer": "QuestLog Network - casual-heroes.com/ql/lfg/",
-        }
-        if lfg.voice_platform:
-            embed_data["fields"].append(
-                {"name": "Voice", "value": lfg.voice_platform.title(), "inline": True}
-            )
-        if lfg.scheduled_time:
-            from datetime import datetime, timezone as _tz
-            try:
-                dt = datetime.fromtimestamp(int(lfg.scheduled_time), tz=_tz.utc)
-                embed_data["fields"].append(
-                    {"name": "Scheduled", "value": dt.strftime("%a, %b %-d at %-I:%M %p UTC"), "inline": True}
-                )
-            except (ValueError, TypeError, OSError):
-                pass
-        if lfg.game_image_url:
-            embed_data["thumbnail"] = lfg.game_image_url
+        # Build the embed using the same builder as guild webhooks (identical card layout)
+        role_schema = _parse_role_schema(lfg.role_schema)
+        embed_data = _build_lfg_embed_data(
+            creator=creator_name,
+            game_name=lfg.game_name,
+            title=lfg.title,
+            description=lfg.description or '',
+            group_size=lfg.group_size,
+            current_size=lfg.current_size,
+            scheduled_time=lfg.scheduled_time,
+            lfg_url=group_url,
+            game_image_url=lfg.game_image_url,
+            tanks_needed=lfg.tanks_needed or 0,
+            healers_needed=lfg.healers_needed or 0,
+            dps_needed=lfg.dps_needed or 0,
+            support_needed=lfg.support_needed or 0,
+            use_roles=bool(lfg.use_roles),
+            role_schema=role_schema,
+            duration_hours=lfg.duration_hours,
+            group_id=lfg.id,
+            voice_link=lfg.voice_link,
+            group_platform='web',
+        )
+
+        # Set color (not set by build_lfg_embed_data - that's done by _queue_notification for webhooks)
+        embed_data["color"] = 0xFEE75C  # gold - matches QuestLog Network brand
+
+        # Override footer: use Network branding
+        origin = lfg.origin_platform or 'web'
+        if origin == 'fluxer':
+            origin_label = "Fluxer"
+        elif origin == 'discord':
+            origin_label = "Discord"
+        else:
+            origin_label = "QuestLog Web"
+
+        embed_data["footer"] = "QuestLog Network - casual-heroes.com/ql/lfg/"
+        embed_data["fields"].append({"name": "Posted via", "value": origin_label, "inline": True})
+
+        # Add Discord thread name (not used by Fluxer but harmless)
+        embed_data["thread_name"] = f"{lfg.title} - {lfg.game_name} - {creator_name}"
 
         payload_json = json.dumps(embed_data)
         now_ts = int(time.time())
@@ -1237,6 +1403,7 @@ def _get_fluxer_post_for_user(db, post_id, web_user):
 
 
 @add_web_user_context
+@web_login_required
 @require_http_methods(["POST"])
 @ratelimit(key='user', rate='30/m', block=True)
 def api_lfg_fluxer_edit(request, post_id):
@@ -1250,6 +1417,8 @@ def api_lfg_fluxer_edit(request, post_id):
         with get_db_session() as db:
             _get_fluxer_post_for_user(db, post_id, request.web_user)
 
+            _LFG_FLUXER_EDIT_ALLOWED_COLS = {'description', 'group_size', 'scheduled_time', 'status'}
+
             updates = {}
             if 'description' in data and data['description'] is not None:
                 from .helpers import sanitize_text
@@ -1259,13 +1428,15 @@ def api_lfg_fluxer_edit(request, post_id):
             if 'scheduled_time' in data and data['scheduled_time'] is not None:
                 updates['scheduled_time'] = safe_int(data['scheduled_time'], default=None, min_val=0, max_val=9999999999)
 
-            if updates:
-                set_clause = ', '.join(f"{k} = :{k}" for k in updates)
-                updates['post_id'] = post_id
-                db.execute(
-                    text(f"UPDATE fluxer_lfg_posts SET {set_clause} WHERE id = :post_id"),
-                    updates,
-                )
+            updates = {k: v for k, v in updates.items() if k in _LFG_FLUXER_EDIT_ALLOWED_COLS}
+            if not updates:
+                return JsonResponse({'error': 'No valid fields to update'}, status=400)
+            set_clause = ', '.join(f"{k} = :{k}" for k in updates)
+            updates['post_id'] = post_id
+            db.execute(
+                text(f"UPDATE fluxer_lfg_posts SET {set_clause} WHERE id = :post_id"),
+                updates,
+            )
         return JsonResponse({'success': True})
     except ValueError as e:
         err = str(e)
@@ -1279,6 +1450,7 @@ def api_lfg_fluxer_edit(request, post_id):
 
 
 @add_web_user_context
+@web_login_required
 @require_http_methods(["POST"])
 @ratelimit(key='user', rate='30/m', block=True)
 def api_lfg_fluxer_close(request, post_id):
@@ -1301,6 +1473,7 @@ def api_lfg_fluxer_close(request, post_id):
 
 
 @add_web_user_context
+@web_login_required
 @require_http_methods(["POST"])
 @ratelimit(key='user', rate='30/m', block=True)
 def api_lfg_fluxer_mark_full(request, post_id):
@@ -1607,8 +1780,61 @@ def api_lfg_fluxer_guild_join(request, group_id):
         group.current_size = group.current_size + 1
         if group.current_size >= group.max_size:
             group.status = 'full'
+
+        # Capture for post-commit notification
+        notify_guild_id = group.guild_id
+        notify_channel_id = group.channel_id
+        notify_game = group.game_name
+        notify_title = group.title or group.game_name
+        group_creator_web_user_id = group.creator_web_user_id
+        joiner_name = request.web_user.display_name or request.web_user.username
+        joiner_username = request.web_user.username
+        new_size = group.current_size
+        new_status = group.status
+
         db.commit()
-        return JsonResponse({'success': True, 'new_size': group.current_size, 'status': group.status})
+
+    # Site notification to group creator (if they have a web account)
+    if group_creator_web_user_id:
+        try:
+            with get_db_session() as db:
+                create_notification(
+                    db, group_creator_web_user_id, viewer_id,
+                    'lfg_join',
+                    target_type='fluxer_lfg_group', target_id=group_id,
+                    message=f"{joiner_name} joined your LFG group: {notify_title}",
+                )
+                db.commit()
+        except Exception as e:
+            logger.warning(f"[LFG] Failed to create site join notification for Fluxer group {group_id}: {e}")
+
+    # Send join notification to the Fluxer guild channel
+    if notify_channel_id and notify_guild_id:
+        try:
+            lfg_url = f"https://casual-heroes.com/ql/fluxer/{notify_guild_id}/lfg/browse/"
+            embed_data = {
+                "title": f"New Member Joined: {notify_title}",
+                "description": (
+                    f"**{joiner_name}** joined the group from the QuestLog site.\n"
+                    f"[View on QuestLog]({lfg_url})"
+                ),
+                "color": 0x57F287,
+                "fields": [
+                    {"name": "Game", "value": notify_game, "inline": True},
+                    {"name": "Profile", "value": f"casual-heroes.com/ql/profile/{joiner_username}/", "inline": True},
+                ],
+                "footer": "QuestLog Network - casual-heroes.com/ql/lfg/",
+            }
+            with get_db_session() as db:
+                db.execute(
+                    text("INSERT INTO fluxer_pending_broadcasts (guild_id, channel_id, payload, created_at) VALUES (:g, :c, :p, :t)"),
+                    {"g": notify_guild_id, "c": notify_channel_id, "p": json.dumps(embed_data), "t": int(time.time())}
+                )
+                db.commit()
+        except Exception as e:
+            logger.warning(f"[LFG] Failed to queue Fluxer join notification for group {group_id}: {e}")
+
+    return JsonResponse({'success': True, 'new_size': new_size, 'status': new_status})
 
 
 @add_web_user_context

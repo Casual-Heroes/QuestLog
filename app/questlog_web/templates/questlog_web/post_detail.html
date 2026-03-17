@@ -33,9 +33,10 @@
   <div id="post-container" class="mb-4"></div>
 
 
+  {{ post_json|json_script:"post-detail-data" }}
   <script>
   // Runs after base.html scripts (which define renderPostCard, csrfFetch, etc.)
-  window._postDetailData = {{ post_json|safe }};
+  window._postDetailData = JSON.parse(document.getElementById('post-detail-data').textContent);
   window._postDetailId = {{ post_id }};
   window._postDetailUserId = {{ web_user.id|default:"null" }};
   window._postDetailIsAdmin = {{ web_user.is_admin|default:"false"|lower }};

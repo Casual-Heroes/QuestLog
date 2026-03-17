@@ -130,11 +130,18 @@
           <span>Find Groups</span>
         </a>
 
+        <!-- LFG Calendar -->
+        <a href="{% url 'ql_discord_guild_lfg_calendar' guild.id %}"
+           class="nav-item {% if active_page == 'lfg_calendar' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          <i class="fas fa-calendar-alt text-gray-400 group-hover:text-purple-400"></i>
+          <span>LFG Calendar</span>
+        </a>
+
         <!-- Flair Store -->
         <a href="{% url 'flair_store' guild.id %}"
            class="nav-item {% if active_page == 'flair_store' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
-          <i class="fas fa-palette text-gray-400 group-hover:text-pink-400"></i>
-          <span>Flair Store</span>
+          <i class="fas fa-gem text-gray-400 group-hover:text-pink-400"></i>
+          <span>Hero Shop</span>
         </a>
 
         <!-- Found Games -->
@@ -227,12 +234,12 @@
         <!-- LFG System (Expandable) -->
         <div>
           <button onclick="toggleSubmenu('lfg-submenu', event)" type="button"
-                  class="nav-item {% if active_page == 'lfg' or active_page == 'attendance' or active_page == 'lfg_browser' %}active{% endif %} w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+                  class="nav-item {% if active_page == 'lfg' or active_page == 'attendance' or active_page == 'lfg_browser' or active_page == 'lfg_calendar' %}active{% endif %} w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
             <i class="fas fa-gamepad text-gray-400 group-hover:text-blue-400"></i>
             <span class="flex-1 text-left">LFG System</span>
             <i class="fas fa-chevron-down text-xs transition-transform" id="lfg-submenu-icon"></i>
           </button>
-          <div id="lfg-submenu" class="ml-6 mt-1 space-y-1 {% if active_page != 'lfg' and active_page != 'attendance' and active_page != 'lfg_browser' %}hidden{% endif %}">
+          <div id="lfg-submenu" class="ml-6 mt-1 space-y-1 {% if active_page != 'lfg' and active_page != 'attendance' and active_page != 'lfg_browser' and active_page != 'lfg_calendar' %}hidden{% endif %}">
             <a href="{% url 'guild_lfg' guild.id %}"
                class="sub-nav-item {% if active_page == 'lfg' %}active{% endif %} flex items-center gap-2 px-3 py-1.5 rounded text-xs transition">
               <i class="fas fa-cog w-4"></i>
@@ -525,6 +532,18 @@
   </div>
 
   <div class="p-4 border-t border-neutral-800 space-y-3">
+    <!-- Back to QuestLog -->
+    <a href="/ql/"
+       class="flex items-center gap-2 w-full py-2 px-3 rounded-lg text-sm font-medium text-gray-400 hover:text-white hover:bg-neutral-800 transition group">
+      <i class="fas fa-arrow-left text-gray-500 group-hover:text-white"></i>
+      <span>Back to QuestLog</span>
+    </a>
+    <!-- Ko-fi nudge -->
+    <a href="https://ko-fi.com/casualheroes" target="_blank" rel="noopener"
+       class="flex items-center gap-2 w-full py-2 px-3 rounded-lg text-xs text-gray-500 hover:text-orange-400 hover:bg-neutral-800 transition group">
+      <i class="fas fa-heart text-orange-500/60 group-hover:text-orange-400"></i>
+      <span>Like the bot? Support us</span>
+    </a>
     <!-- Logout Button -->
     <a href="{% url 'discord_logout' %}"
        class="flex items-center justify-center gap-2 w-full py-2 px-3 rounded-lg text-sm font-medium text-gray-400 hover:text-white hover:bg-neutral-800 transition group">

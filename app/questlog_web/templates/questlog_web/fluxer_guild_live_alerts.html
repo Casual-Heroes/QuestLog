@@ -114,7 +114,7 @@
       <div>
         <label class="block text-sm text-gray-400 mb-2">Channel Handle / Username</label>
         <input type="text" id="add-handle"
-          placeholder="e.g. shroud (Twitch) or UCxxxxxx (YouTube channel ID)"
+          placeholder="e.g. ryvenbrodragon (Twitch) or UCxxxxxx (YouTube channel ID)"
           class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2.5 text-white text-sm focus:border-rose-500 focus:outline-none placeholder-gray-600">
         <p class="text-gray-600 text-xs mt-1">For YouTube use the channel ID (starts with UC...) found in the channel URL</p>
       </div>
@@ -123,7 +123,7 @@
       <div>
         <label class="block text-sm text-gray-400 mb-2">Display Name <span class="text-gray-600">(optional)</span></label>
         <input type="text" id="add-display-name"
-          placeholder="e.g. Shroud"
+          placeholder="e.g. RyvenBrodragon"
           class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2.5 text-white text-sm focus:border-rose-500 focus:outline-none placeholder-gray-600">
         <p class="text-gray-600 text-xs mt-1">Shown in the alert embed title. Falls back to handle if blank</p>
       </div>
@@ -200,12 +200,14 @@
 </div>
 
 
+{{ channels_json|default:"[]"|json_script:"channels-data" }}
+{{ featured_creators_json|default:"[]"|json_script:"featured-creators-data" }}
 <script>
 const GUILD_ID = '{{ guild_id }}';
 const API_BASE = `/ql/api/dashboard/fluxer/${GUILD_ID}/streamer-subs/`;
 // channels_json has shape {id, value, label} - already filtered to text channels by _get_fluxer_guild_context
-const CHANNELS = {{ channels_json|default:"[]"|safe }};
-const FEATURED_CREATORS = {{ featured_creators_json|default:"[]"|safe }};
+const CHANNELS = JSON.parse(document.getElementById('channels-data').textContent) || [];
+const FEATURED_CREATORS = JSON.parse(document.getElementById('featured-creators-data').textContent) || [];
 
 let addChannelSelect = null;
 let editChannelSelect = null;

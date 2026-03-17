@@ -1,0 +1,598 @@
+{% extends "questlog_web/fluxer_member_base.html" %}
+{% load static %}
+
+{% block title %}Featured Creators - {{ guild_name }}{% endblock %}
+
+{% block guild_content %}
+{% include 'questlog/partials/custom_select.html' %}
+
+<script>
+const CURRENT_USERNAME = "{{ web_user.username|default:'' }}";
+const IS_NETWORK = {{ is_network|yesno:"true,false" }};
+const GUILD_ID = "{{ guild_id }}";
+</script>
+
+<!-- Header -->
+<div class="flex items-start justify-between mb-6">
+  <div>
+    <h1 class="text-3xl font-bold text-white flex items-center gap-3">
+      <i class="fas fa-star text-yellow-400"></i>
+      Featured Creators
+      {% if is_network %}<span class="text-sm font-normal bg-indigo-600/30 text-indigo-300 border border-indigo-500/40 px-3 py-1 rounded-full align-middle"><i class="fas fa-globe mr-1"></i>All QL Creators</span>{% endif %}
+    </h1>
+    <p class="text-gray-400 mt-1">
+      {% if is_network %}Content creators from the entire QuestLog Network{% else %}Content creators from {{ guild_name }}{% endif %}
+    </p>
+  </div>
+  <a href="/ql/creators/" target="_blank" rel="noopener"
+     class="flex items-center gap-2 bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-gray-300 px-4 py-2 rounded-lg text-sm font-medium transition">
+    <i class="fas fa-external-link-alt text-xs"></i>Browse All on QuestLog
+  </a>
+</div>
+
+<!-- Filters -->
+<div class="bg-neutral-900/50 rounded-lg border border-neutral-800 p-4 mb-6">
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+    <div>
+      <label class="text-sm text-gray-300 mb-2 block">Search</label>
+      <input type="text" id="searchFilter" placeholder="Search by name..."
+             class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2 text-white text-sm focus:border-yellow-500 focus:outline-none hover:bg-neutral-700/50 transition-colors">
+    </div>
+    <div>
+      <label class="text-sm text-gray-300 mb-2 block">Platform</label>
+      <div id="platformFilterContainer"></div>
+    </div>
+    <div>
+      <label class="text-sm text-gray-300 mb-2 block">Sort By</label>
+      <div id="sortFilterContainer"></div>
+    </div>
+  </div>
+  <div class="mt-3 pt-3 border-t border-neutral-800 flex items-center gap-3">
+    <button id="liveFilterBtn" onclick="toggleLiveFilter()"
+            class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-neutral-700 bg-neutral-800 text-gray-400 text-sm font-medium transition hover:border-rose-500/50 hover:text-rose-400">
+      <span class="w-2 h-2 rounded-full bg-gray-600 flex-shrink-0" id="liveDot"></span>
+      Live Now
+    </button>
+    <span id="liveCount" class="text-xs text-gray-600 hidden"></span>
+  </div>
+</div>
+
+<!-- COTM/COTW spotlight -->
+<div id="spotlightSection" class="mb-8 hidden">
+  <h2 class="text-lg font-semibold text-white mb-3 flex items-center gap-2">
+    <i class="fas fa-trophy text-yellow-400"></i>Creator Spotlight
+  </h2>
+  <div id="spotlightCards" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+</div>
+
+<div id="creatorsList" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
+  <div class="col-span-full text-center text-gray-500 py-12">
+    <i class="fas fa-spinner fa-spin text-4xl mb-2"></i>
+    <p>Loading creators...</p>
+  </div>
+</div>
+
+<!-- Creator detail modal -->
+<div id="creatorModal" class="fixed inset-0 z-50 hidden" role="dialog" aria-modal="true">
+  <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" onclick="closeCreatorModal()"></div>
+  <div class="absolute inset-0 overflow-y-auto">
+    <div class="flex items-center justify-center min-h-full p-4">
+      <div class="relative bg-neutral-900 border border-neutral-700 rounded-xl w-full max-w-lg shadow-2xl my-8">
+        <div id="modalBanner" class="h-28 bg-gradient-to-br from-neutral-800 to-neutral-950 rounded-t-xl relative">
+          <button onclick="closeCreatorModal()" class="absolute top-3 right-3 w-8 h-8 flex items-center justify-center rounded-full bg-black/60 text-gray-300 hover:text-white hover:bg-black/80 transition">
+            <i class="fas fa-times text-sm"></i>
+          </button>
+        </div>
+        <div class="px-5 pt-4 pb-6">
+          <div class="flex items-center gap-4 mb-4">
+            <div id="modalAvatar" class="flex-shrink-0 rounded-full overflow-hidden border-4 border-neutral-900 -mt-12"></div>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2 flex-wrap">
+                <h2 id="modalName" class="text-xl font-bold text-white leading-tight"></h2>
+                <span id="modalVerified" class="hidden"><i class="fas fa-check-circle text-blue-400 text-base" title="Verified"></i></span>
+                <span id="modalCotm" class="hidden inline-flex items-center gap-1 px-2 py-0.5 bg-purple-600/20 text-purple-400 rounded text-xs font-semibold"><i class="fas fa-crown text-xs"></i>COTM</span>
+                <span id="modalCotw" class="hidden inline-flex items-center gap-1 px-2 py-0.5 bg-yellow-600/20 text-yellow-400 rounded text-xs font-semibold"><i class="fas fa-star text-xs"></i>COTW</span>
+              </div>
+            </div>
+          </div>
+          <div id="modalLive" class="hidden mb-3"></div>
+          <p id="modalBio" class="text-gray-300 text-sm leading-relaxed mb-4 hidden whitespace-pre-wrap"></p>
+          <div id="modalStats" class="flex gap-6 mb-4 pb-4 border-b border-neutral-800 hidden">
+            <div id="modalTwitchStat" class="hidden">
+              <div class="text-white font-bold text-lg" id="modalTwitchCount"></div>
+              <div class="text-gray-500 text-xs">Twitch followers</div>
+            </div>
+            <div id="modalYtStat" class="hidden">
+              <div class="text-white font-bold text-lg" id="modalYtCount"></div>
+              <div class="text-gray-500 text-xs">YouTube subscribers</div>
+            </div>
+            <div id="modalKickStat" class="hidden">
+              <div class="text-white font-bold text-lg" id="modalKickCount"></div>
+              <div class="text-gray-500 text-xs">Kick followers</div>
+            </div>
+          </div>
+          <div id="modalTags" class="flex flex-wrap gap-1.5 mb-4 hidden"></div>
+          <div id="modalLinks" class="grid grid-cols-2 gap-2 mb-1"></div>
+          <div id="modalFooter" class="pt-4 mt-3 border-t border-neutral-800 flex items-center justify-between hidden">
+            <a id="modalProfileLink" href="#" class="inline-flex items-center gap-2 text-indigo-400 hover:text-indigo-300 text-sm font-medium transition">
+              <i class="fas fa-user-circle"></i>View full profile
+            </a>
+            <a id="modalEditBtn" href="/ql/creator/register/" class="hidden inline-flex items-center gap-2 px-3 py-1.5 bg-neutral-700 hover:bg-neutral-600 text-white rounded-lg text-sm font-medium transition">
+              <i class="fas fa-pencil-alt text-xs"></i>Edit profile
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+let allCreators = [];
+let platformFilterSelect, sortFilterSelect;
+let liveFilterActive = false;
+
+document.addEventListener('DOMContentLoaded', function() {
+  platformFilterSelect = createCustomSelect({
+    container: '#platformFilterContainer',
+    name: 'platformFilter',
+    placeholder: 'All Platforms',
+    items: [
+      { value: '', label: 'All Platforms' },
+      { value: 'twitch', label: 'Twitch' },
+      { value: 'youtube', label: 'YouTube' },
+      { value: 'kick', label: 'Kick' },
+      { value: 'tiktok', label: 'TikTok' },
+      { value: 'twitter', label: 'Twitter/X' },
+      { value: 'instagram', label: 'Instagram' },
+      { value: 'facebook', label: 'Facebook' },
+    ],
+    selected: '',
+    color: 'yellow',
+    onSelect: function() { filterCreators(); }
+  });
+
+  sortFilterSelect = createCustomSelect({
+    container: '#sortFilterContainer',
+    name: 'sortFilter',
+    placeholder: 'Featured First',
+    items: [
+      { value: 'featured', label: 'Featured First' },
+      { value: 'live', label: 'Live Now First' },
+      { value: 'followers', label: 'Most Followers' },
+      { value: 'name', label: 'Name (A-Z)' }
+    ],
+    selected: 'featured',
+    color: 'yellow',
+    onSelect: function() { filterCreators(); }
+  });
+
+  loadCreators();
+  document.getElementById('searchFilter').addEventListener('input', filterCreators);
+});
+
+function toggleLiveFilter() {
+  liveFilterActive = !liveFilterActive;
+  const btn = document.getElementById('liveFilterBtn');
+  const dot = document.getElementById('liveDot');
+  if (liveFilterActive) {
+    btn.classList.add('border-rose-500/60', 'bg-rose-900/20', 'text-rose-400');
+    btn.classList.remove('border-neutral-700', 'bg-neutral-800', 'text-gray-400');
+    dot.classList.add('bg-rose-500', 'animate-pulse');
+    dot.classList.remove('bg-gray-600');
+  } else {
+    btn.classList.remove('border-rose-500/60', 'bg-rose-900/20', 'text-rose-400');
+    btn.classList.add('border-neutral-700', 'bg-neutral-800', 'text-gray-400');
+    dot.classList.remove('bg-rose-500', 'animate-pulse');
+    dot.classList.add('bg-gray-600');
+  }
+  filterCreators();
+}
+
+async function loadCreators() {
+  try {
+    const response = await fetch('/ql/api/creators/');
+    const data = await response.json();
+    let creators = data.creators || [];
+
+    // If not network-approved, filter to only creators from this guild's community
+    // (API returns all; server-side filtering was removed in favour of client filtering)
+    // The view already filters server-side, but if is_network the API returns all.
+
+    allCreators = creators;
+
+    const liveCount = allCreators.filter(c => c.is_live).length;
+    const countEl = document.getElementById('liveCount');
+    if (liveCount > 0) {
+      countEl.textContent = liveCount + ' live';
+      countEl.classList.remove('hidden');
+      countEl.className = 'text-xs text-rose-400 font-semibold';
+    }
+    renderSpotlight();
+    filterCreators();
+  } catch (error) {
+    console.error('Failed to load creators:', error);
+    document.getElementById('creatorsList').innerHTML = `
+      <div class="col-span-full text-center text-red-400 py-12">
+        <i class="fas fa-exclamation-circle text-4xl mb-2"></i>
+        <p>Failed to load creators. Please try again.</p>
+      </div>
+    `;
+  }
+}
+
+function renderSpotlight() {
+  const cotm = allCreators.find(c => c.is_current_cotm);
+  const cotw = allCreators.find(c => c.is_current_cotw);
+  const section = document.getElementById('spotlightSection');
+  const cards = document.getElementById('spotlightCards');
+  if (!cotm && !cotw) { section.classList.add('hidden'); return; }
+  section.classList.remove('hidden');
+  const spotlightItems = [];
+  if (cotm) spotlightItems.push({ creator: cotm, label: 'Creator of the Month', icon: 'fas fa-crown', color: 'purple' });
+  if (cotw) spotlightItems.push({ creator: cotw, label: 'Creator of the Week', icon: 'fas fa-star', color: 'yellow' });
+  cards.innerHTML = spotlightItems.map(function({ creator, label, icon, color }) {
+    const avatarRing = creator.is_live ? 'ring-2 ring-rose-500 shadow-[0_0_10px_#f43f5e]' : 'ring-2 ring-' + color + '-500/50';
+    return `
+    <div class="bg-gradient-to-br from-${color}-900/30 to-neutral-900 border ${creator.is_live ? 'border-rose-500/50' : 'border-' + color + '-500/40'} rounded-xl p-5 flex items-center gap-4">
+      ${creator.avatar_url
+        ? `<img src="${escapeHtml(creator.avatar_url)}" class="w-16 h-16 rounded-full object-cover ${avatarRing}">`
+        : avatarHtml(creator.username, null, 'w-16 h-16 ' + avatarRing)
+      }
+      <div class="flex-1 min-w-0">
+        <div class="flex items-center gap-2 mb-1">
+          <i class="${icon} text-${color}-400 text-sm"></i>
+          <span class="text-${color}-400 text-xs font-semibold uppercase tracking-wider">${label}</span>
+          ${creator.is_live ? '<span class="inline-flex items-center gap-1 text-rose-400 text-xs font-semibold"><span class="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse"></span>Live</span>' : ''}
+        </div>
+        <h3 class="text-white font-bold text-lg truncate">${escapeHtml(creator.display_name)}</h3>
+        ${creator.is_live && creator.live_title ? `<p class="text-rose-300/80 text-sm line-clamp-1 mt-0.5">${escapeHtml(creator.live_title)}</p>` : creator.bio ? `<p class="text-gray-400 text-sm line-clamp-1 mt-0.5">${escapeHtml(creator.bio)}</p>` : ''}
+        <div class="flex gap-2 mt-2">
+          ${creator.twitch_url ? `<a href="${escapeHtml(creator.twitch_url)}" target="_blank" rel="noopener" class="text-purple-400 hover:text-purple-300 text-sm"><i class="fab fa-twitch"></i></a>` : ''}
+          ${creator.youtube_url ? `<a href="${escapeHtml(creator.youtube_url)}" target="_blank" rel="noopener" class="text-red-400 hover:text-red-300 text-sm"><i class="fab fa-youtube"></i></a>` : ''}
+          ${creator.kick_url ? `<a href="${escapeHtml(creator.kick_url)}" target="_blank" rel="noopener" class="text-green-400 hover:text-green-300 text-sm"><i class="fas fa-bolt"></i></a>` : ''}
+          ${creator.fluxer_url ? `<a href="${escapeHtml(creator.fluxer_url)}" target="_blank" rel="noopener" class="text-yellow-400 hover:text-yellow-300 text-sm"><i class="fas fa-satellite-dish"></i></a>` : ''}
+          ${creator.discord_url ? `<a href="${escapeHtml(creator.discord_url)}" target="_blank" rel="noopener" class="text-indigo-400 hover:text-indigo-300 text-sm"><i class="fab fa-discord"></i></a>` : ''}
+          ${creator.matrix_url ? `<a href="${escapeHtml(creator.matrix_url)}" target="_blank" rel="noopener" class="text-teal-400 hover:text-teal-300 text-sm"><i class="fas fa-cube"></i></a>` : ''}
+          ${creator.twitter_url ? `<a href="${escapeHtml(creator.twitter_url)}" target="_blank" rel="noopener" class="text-blue-400 hover:text-blue-300 text-sm"><i class="fab fa-twitter"></i></a>` : ''}
+          ${creator.tiktok_url ? `<a href="${escapeHtml(creator.tiktok_url)}" target="_blank" rel="noopener" class="text-pink-400 hover:text-pink-300 text-sm"><i class="fab fa-tiktok"></i></a>` : ''}
+          ${creator.website_url ? `<a href="${escapeHtml(creator.website_url)}" target="_blank" rel="noopener" class="text-gray-400 hover:text-gray-300 text-sm"><i class="fas fa-globe"></i></a>` : ''}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function filterCreators() {
+  const search = document.getElementById('searchFilter').value.toLowerCase();
+  const platform = platformFilterSelect ? platformFilterSelect.getValue() : '';
+  const sort = sortFilterSelect ? sortFilterSelect.getValue() : 'featured';
+
+  let filtered = allCreators.slice();
+
+  if (search) {
+    filtered = filtered.filter(function(c) {
+      return c.display_name.toLowerCase().includes(search) || (c.bio && c.bio.toLowerCase().includes(search));
+    });
+  }
+  if (platform) {
+    filtered = filtered.filter(function(c) {
+      if (platform === 'twitch') return c.twitch_url;
+      if (platform === 'youtube') return c.youtube_url;
+      if (platform === 'kick') return c.kick_url;
+      if (platform === 'tiktok') return c.tiktok_url;
+      if (platform === 'twitter') return c.twitter_url;
+      if (platform === 'instagram') return c.instagram_url;
+      if (platform === 'facebook') return c.facebook_url;
+      return false;
+    });
+  }
+  if (liveFilterActive) {
+    filtered = filtered.filter(function(c) { return c.is_live; });
+  }
+
+  if (sort === 'live') {
+    filtered.sort(function(a, b) { return (b.is_live ? 1 : 0) - (a.is_live ? 1 : 0); });
+  } else if (sort === 'featured') {
+    filtered.sort(function(a, b) {
+      const aScore = (a.is_live ? 8 : 0) + (a.is_current_cotm ? 4 : 0) + (a.is_current_cotw ? 2 : 0) + (a.is_verified ? 1 : 0);
+      const bScore = (b.is_live ? 8 : 0) + (b.is_current_cotm ? 4 : 0) + (b.is_current_cotw ? 2 : 0) + (b.is_verified ? 1 : 0);
+      return bScore - aScore;
+    });
+  } else if (sort === 'followers') {
+    filtered.sort(function(a, b) { return (b.follower_count || 0) - (a.follower_count || 0); });
+  } else if (sort === 'name') {
+    filtered.sort(function(a, b) { return a.display_name.localeCompare(b.display_name); });
+  }
+
+  renderCreators(filtered);
+}
+
+function livePlatformIcon(platform) {
+  if (platform === 'twitch') return 'fab fa-twitch';
+  if (platform === 'youtube') return 'fab fa-youtube';
+  if (platform === 'kick') return 'fas fa-bolt';
+  return 'fas fa-broadcast-tower';
+}
+
+function livePlatformLabel(platform) {
+  if (platform === 'twitch') return 'Twitch';
+  if (platform === 'youtube') return 'YouTube';
+  if (platform === 'kick') return 'Kick';
+  return platform ? platform.charAt(0).toUpperCase() + platform.slice(1) : 'Live';
+}
+
+function timeAgo(epochSecs) {
+  if (!epochSecs) return '';
+  const diff = Math.floor(Date.now() / 1000) - epochSecs;
+  if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
+  if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
+  if (diff < 604800) return Math.floor(diff / 86400) + 'd ago';
+  return Math.floor(diff / 604800) + 'w ago';
+}
+
+function platformIcon(platform) {
+  const icons = {
+    fluxer: '<i class="fas fa-bolt text-yellow-400"></i>',
+    discord: '<i class="fab fa-discord text-indigo-400"></i>',
+    matrix: '<i class="fas fa-comment-dots text-teal-400"></i>',
+    teamspeak: '<i class="fas fa-headset text-blue-400"></i>',
+    mumble: '<i class="fas fa-microphone text-gray-400"></i>',
+    stoat: '<i class="fas fa-comment text-orange-400"></i>',
+    root: '<i class="fas fa-tree text-green-400"></i>',
+  };
+  return icons[platform] || '<i class="fas fa-globe text-gray-400"></i>';
+}
+
+function formatCount(n) {
+  if (!n) return '0';
+  if (n >= 1000000) return (n / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
+  if (n >= 1000) return (n / 1000).toFixed(1).replace(/\.0$/, '') + 'K';
+  return n.toString();
+}
+
+function creatorCard(creator) {
+  const badges = [];
+  if (creator.is_current_cotm) badges.push('<span class="inline-flex items-center gap-1 px-2 py-0.5 bg-purple-600/20 text-purple-400 rounded text-xs font-semibold"><i class="fas fa-crown text-xs"></i>COTM</span>');
+  if (creator.is_current_cotw) badges.push('<span class="inline-flex items-center gap-1 px-2 py-0.5 bg-yellow-600/20 text-yellow-400 rounded text-xs font-semibold"><i class="fas fa-star text-xs"></i>COTW</span>');
+
+  const borderClass = creator.is_live ? 'border-rose-500/60' : creator.is_current_cotm ? 'border-purple-500/40' : creator.is_current_cotw ? 'border-yellow-500/40' : 'border-neutral-800';
+  const avatarGlow = creator.is_live ? 'ring-2 ring-rose-500 shadow-[0_0_12px_#f43f5e]' : '';
+
+  const twitchHref = (creator.is_live && creator.live_platform === 'twitch' && creator.live_url) ? creator.live_url : creator.twitch_url;
+  const youtubeHref = (creator.is_live && creator.live_platform === 'youtube' && creator.live_url) ? creator.live_url : creator.youtube_url;
+  const kickHref = (creator.is_live && creator.live_platform === 'kick' && creator.live_url) ? creator.live_url : creator.kick_url;
+
+  const bannerStyle = creator.banner_url
+    ? `style="background-image:url('${escapeHtml(creator.banner_url)}');background-size:cover;background-position:center;"`
+    : `style="background:linear-gradient(135deg,#1c1917 0%,#292524 50%,#1c1917 100%)"`;
+
+  const liveOverlay = creator.is_live ? `
+    <div class="absolute inset-0 bg-rose-900/20 rounded-t-xl"></div>
+    <a href="${escapeHtml(creator.live_url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()"
+       class="absolute top-2 right-2 inline-flex items-center gap-1.5 px-2.5 py-1 bg-rose-600 text-white text-xs font-bold rounded-full shadow-lg hover:bg-rose-500 transition">
+      <span class="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></span>LIVE
+    </a>` : '';
+
+  const nowPlaying = (creator.show_steam_on_profile && creator.current_game) ? `
+    <div class="flex items-center gap-2 px-3 py-2 bg-blue-950/40 border-b border-neutral-800/60 text-xs">
+      ${creator.current_game_appid
+        ? `<img src="https://cdn.cloudflare.steamstatic.com/steam/apps/${creator.current_game_appid}/capsule_sm_120.jpg" class="h-6 w-10 object-cover rounded" onerror="this.style.display='none'">`
+        : '<i class="fab fa-steam text-blue-400 flex-shrink-0"></i>'
+      }
+      <span class="text-blue-300 font-medium truncate">Playing: ${escapeHtml(creator.current_game)}</span>
+    </div>` : '';
+
+  const ytVideo = (!creator.is_live && creator.latest_youtube_video_id) ? `
+    <a href="https://www.youtube.com/watch?v=${escapeHtml(creator.latest_youtube_video_id)}" target="_blank" rel="noopener"
+       onclick="event.stopPropagation()"
+       class="flex items-center gap-2.5 px-3 py-2 bg-neutral-800/60 hover:bg-neutral-800 border-b border-neutral-800/60 transition group">
+      <div class="relative flex-shrink-0">
+        <img src="${escapeHtml(creator.latest_youtube_thumbnail_url) || 'https://img.youtube.com/vi/' + escapeHtml(creator.latest_youtube_video_id) + '/default.jpg'}"
+             class="w-16 h-9 object-cover rounded" onerror="this.src='https://img.youtube.com/vi/${escapeHtml(creator.latest_youtube_video_id)}/default.jpg'">
+        <div class="absolute inset-0 flex items-center justify-center bg-black/30 rounded opacity-0 group-hover:opacity-100 transition">
+          <i class="fab fa-youtube text-red-400 text-sm"></i>
+        </div>
+      </div>
+      <div class="flex-1 min-w-0">
+        <p class="text-xs text-gray-300 line-clamp-2 leading-snug">${escapeHtml(creator.latest_youtube_video_title)}</p>
+        <p class="text-[10px] text-gray-500 mt-0.5">${timeAgo(creator.latest_youtube_video_published_at)}</p>
+      </div>
+    </a>` : '';
+
+  const lastStream = (!creator.is_live && !creator.latest_youtube_video_id && creator.latest_stream_title && creator.latest_stream_ended_at) ? `
+    <div class="flex items-center gap-2.5 px-3 py-2 bg-neutral-800/40 border-b border-neutral-800/60 text-xs">
+      <i class="${livePlatformIcon(creator.latest_stream_platform)} text-purple-400 flex-shrink-0"></i>
+      <div class="flex-1 min-w-0">
+        <p class="text-gray-400 line-clamp-1">${escapeHtml(creator.latest_stream_title)}</p>
+        <p class="text-[10px] text-gray-500">Last streamed ${timeAgo(creator.latest_stream_ended_at)}</p>
+      </div>
+    </div>` : '';
+
+  const communityBadge = creator.primary_community_name ? `
+    <div class="flex items-center gap-1.5 text-xs text-gray-400">
+      ${platformIcon(creator.primary_community_platform)}
+      <span class="truncate">${escapeHtml(creator.primary_community_name)}</span>
+    </div>` : '';
+
+  const statChips = [];
+  if (creator.twitch_follower_count > 0) statChips.push('<span class="inline-flex items-center gap-1 text-xs text-purple-400"><i class="fab fa-twitch text-[10px]"></i>' + formatCount(creator.twitch_follower_count) + '</span>');
+  if (creator.youtube_subscriber_count > 0) statChips.push('<span class="inline-flex items-center gap-1 text-xs text-red-400"><i class="fab fa-youtube text-[10px]"></i>' + formatCount(creator.youtube_subscriber_count) + '</span>');
+  if (creator.kick_follower_count > 0) statChips.push('<span class="inline-flex items-center gap-1 text-xs text-green-400"><i class="fas fa-bolt text-[10px]"></i>' + formatCount(creator.kick_follower_count) + '</span>');
+
+  return `
+    <div class="bg-neutral-900 border ${borderClass} rounded-xl overflow-hidden hover:border-yellow-500/40 transition cursor-pointer flex flex-col group" onclick="openCreatorModal(${creator.id})">
+      <div class="relative h-20" ${bannerStyle}>
+        ${liveOverlay}
+        <div class="absolute -bottom-7 left-4">
+          ${avatarHtml(creator.username, creator.avatar_url, 'w-14 h-14 flex-shrink-0 ring-2 ring-neutral-900 ' + avatarGlow)}
+        </div>
+      </div>
+      <div class="pt-9 px-4 pb-1 flex items-start justify-between gap-2">
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-1.5 flex-wrap">
+            <h3 class="text-white font-bold text-base leading-tight truncate">${escapeHtml(creator.display_name)}</h3>
+            ${creator.is_verified ? '<i class="fas fa-check-circle text-blue-400 text-sm flex-shrink-0" title="Verified"></i>' : ''}
+            ${badges.join('')}
+          </div>
+          <div class="flex items-center gap-3 mt-1 flex-wrap">
+            ${communityBadge}
+            ${statChips.join('<span class="text-neutral-700">·</span>')}
+          </div>
+        </div>
+      </div>
+      ${creator.bio ? `<p class="px-4 pb-2 text-gray-400 text-xs leading-relaxed line-clamp-2">${escapeHtml(creator.bio.split('\n')[0])}</p>` : '<div class="pb-1"></div>'}
+      ${nowPlaying}
+      ${ytVideo}
+      ${lastStream}
+      <div class="px-3 py-2.5 mt-auto border-t border-neutral-800/60 flex flex-wrap gap-1.5" onclick="event.stopPropagation()">
+        ${creator.twitch_url ? `<a href="${escapeHtml(twitchHref)}" target="_blank" rel="noopener" class="inline-flex items-center gap-1 px-2 py-1 ${creator.is_live && creator.live_platform === 'twitch' ? 'bg-rose-600/20 text-rose-400 hover:bg-rose-600/30' : 'bg-purple-600/20 text-purple-400 hover:bg-purple-600/30'} rounded text-xs font-medium transition"><i class="fab fa-twitch text-[10px]"></i>${creator.is_live && creator.live_platform === 'twitch' ? 'Watch Live' : 'Twitch'}</a>` : ''}
+        ${creator.youtube_url ? `<a href="${escapeHtml(youtubeHref)}" target="_blank" rel="noopener" class="inline-flex items-center gap-1 px-2 py-1 ${creator.is_live && creator.live_platform === 'youtube' ? 'bg-rose-600/20 text-rose-400 hover:bg-rose-600/30' : 'bg-red-600/20 text-red-400 hover:bg-red-600/30'} rounded text-xs font-medium transition"><i class="fab fa-youtube text-[10px]"></i>${creator.is_live && creator.live_platform === 'youtube' ? 'Watch Live' : 'YouTube'}</a>` : ''}
+        ${creator.kick_url ? `<a href="${escapeHtml(kickHref)}" target="_blank" rel="noopener" class="inline-flex items-center gap-1 px-2 py-1 ${creator.is_live && creator.live_platform === 'kick' ? 'bg-rose-600/20 text-rose-400 hover:bg-rose-600/30' : 'bg-green-600/20 text-green-400 hover:bg-green-600/30'} rounded text-xs font-medium transition"><i class="fas fa-bolt text-[10px]"></i>${creator.is_live && creator.live_platform === 'kick' ? 'Watch Live' : 'Kick'}</a>` : ''}
+        ${creator.fluxer_url ? `<a href="${escapeHtml(creator.fluxer_url)}" target="_blank" rel="noopener" class="inline-flex items-center gap-1 px-2 py-1 bg-yellow-600/20 text-yellow-400 rounded text-xs font-medium hover:bg-yellow-600/30 transition"><i class="fas fa-satellite-dish text-[10px]"></i>Fluxer</a>` : ''}
+        ${creator.discord_url ? `<a href="${escapeHtml(creator.discord_url)}" target="_blank" rel="noopener" class="inline-flex items-center gap-1 px-2 py-1 bg-indigo-600/20 text-indigo-400 rounded text-xs font-medium hover:bg-indigo-600/30 transition"><i class="fab fa-discord text-[10px]"></i>Discord</a>` : ''}
+        ${creator.matrix_url ? `<a href="${escapeHtml(creator.matrix_url)}" target="_blank" rel="noopener" class="inline-flex items-center gap-1 px-2 py-1 bg-teal-600/20 text-teal-400 rounded text-xs font-medium hover:bg-teal-600/30 transition"><i class="fas fa-comment-dots text-[10px]"></i>Matrix</a>` : ''}
+        ${creator.twitter_url ? `<a href="${escapeHtml(creator.twitter_url)}" target="_blank" rel="noopener" class="inline-flex items-center gap-1 px-2 py-1 bg-blue-600/20 text-blue-400 rounded text-xs font-medium hover:bg-blue-600/30 transition"><i class="fab fa-twitter text-[10px]"></i>Twitter</a>` : ''}
+        ${creator.tiktok_url ? `<a href="${escapeHtml(creator.tiktok_url)}" target="_blank" rel="noopener" class="inline-flex items-center gap-1 px-2 py-1 bg-pink-600/20 text-pink-400 rounded text-xs font-medium hover:bg-pink-600/30 transition"><i class="fab fa-tiktok text-[10px]"></i>TikTok</a>` : ''}
+        ${creator.instagram_url ? `<a href="${escapeHtml(creator.instagram_url)}" target="_blank" rel="noopener" class="inline-flex items-center gap-1 px-2 py-1 bg-fuchsia-600/20 text-fuchsia-400 rounded text-xs font-medium hover:bg-fuchsia-600/30 transition"><i class="fab fa-instagram text-[10px]"></i>Instagram</a>` : ''}
+        ${creator.website_url ? `<a href="${escapeHtml(creator.website_url)}" target="_blank" rel="noopener" class="inline-flex items-center gap-1 px-2 py-1 bg-neutral-700/50 text-gray-300 rounded text-xs font-medium hover:bg-neutral-700 transition"><i class="fas fa-globe text-[10px]"></i>Website</a>` : ''}
+      </div>
+    </div>
+  `;
+}
+
+function renderCreators(creators) {
+  const container = document.getElementById('creatorsList');
+  if (!creators.length) {
+    container.innerHTML = `
+      <div class="col-span-full text-center text-gray-500 py-12">
+        <i class="fas fa-video text-6xl mb-4 opacity-50"></i>
+        <p class="text-xl mb-2">No creators found</p>
+        <p class="text-sm">Try adjusting your filters.</p>
+      </div>
+    `;
+    return;
+  }
+  container.innerHTML = creators.map(creatorCard).join('');
+}
+
+function openCreatorModal(id) {
+  const creator = allCreators.find(function(c) { return c.id === id; });
+  if (!creator) return;
+
+  const banner = document.getElementById('modalBanner');
+  if (creator.banner_url) {
+    banner.style.backgroundImage = "url('" + creator.banner_url + "')";
+    banner.style.backgroundSize = 'cover';
+    banner.style.backgroundPosition = 'center';
+  } else {
+    banner.style.backgroundImage = '';
+  }
+
+  const avatarEl = document.getElementById('modalAvatar');
+  avatarEl.className = 'flex-shrink-0 rounded-full overflow-hidden border-4 border-neutral-900 w-20 h-20' + (creator.is_live ? ' ring-2 ring-rose-500 shadow-[0_0_12px_#f43f5e]' : '');
+  if (creator.avatar_url) {
+    avatarEl.innerHTML = `<img src="${escapeHtml(creator.avatar_url)}" class="w-full h-full object-cover" alt="${escapeHtml(creator.display_name)}">`;
+  } else {
+    const initials = (creator.display_name || creator.username || '?').slice(0, 2).toUpperCase();
+    avatarEl.innerHTML = `<div class="w-full h-full bg-neutral-700 flex items-center justify-center text-white text-2xl font-bold">${escapeHtml(initials)}</div>`;
+  }
+
+  document.getElementById('modalName').textContent = creator.display_name;
+  document.getElementById('modalVerified').classList.toggle('hidden', !creator.is_verified);
+  document.getElementById('modalCotm').classList.toggle('hidden', !creator.is_current_cotm);
+  document.getElementById('modalCotw').classList.toggle('hidden', !creator.is_current_cotw);
+
+  const liveEl = document.getElementById('modalLive');
+  if (creator.is_live) {
+    liveEl.classList.remove('hidden');
+    liveEl.innerHTML = `
+      <a href="${escapeHtml(creator.live_url)}" target="_blank" rel="noopener"
+         class="inline-flex items-center gap-1.5 text-rose-400 text-sm font-semibold hover:text-rose-300 transition">
+        <span class="w-2 h-2 rounded-full bg-rose-500 animate-pulse flex-shrink-0"></span>
+        <i class="${livePlatformIcon(creator.live_platform)}"></i>
+        Live on ${livePlatformLabel(creator.live_platform)}
+        ${creator.live_title ? `<span class="text-gray-400 font-normal">- ${escapeHtml(creator.live_title)}</span>` : ''}
+      </a>`;
+  } else {
+    liveEl.classList.add('hidden');
+  }
+
+  const bioEl = document.getElementById('modalBio');
+  if (creator.bio) { bioEl.textContent = creator.bio; bioEl.classList.remove('hidden'); }
+  else { bioEl.classList.add('hidden'); }
+
+  const statsEl = document.getElementById('modalStats');
+  const twitchStat = document.getElementById('modalTwitchStat');
+  const ytStat = document.getElementById('modalYtStat');
+  const kickStat = document.getElementById('modalKickStat');
+  const hasStats = creator.twitch_follower_count > 0 || creator.youtube_subscriber_count > 0 || creator.kick_follower_count > 0;
+  statsEl.classList.toggle('hidden', !hasStats);
+  if (creator.twitch_follower_count > 0) { twitchStat.classList.remove('hidden'); document.getElementById('modalTwitchCount').textContent = formatCount(creator.twitch_follower_count); } else { twitchStat.classList.add('hidden'); }
+  if (creator.youtube_subscriber_count > 0) { ytStat.classList.remove('hidden'); document.getElementById('modalYtCount').textContent = formatCount(creator.youtube_subscriber_count); } else { ytStat.classList.add('hidden'); }
+  if (creator.kick_follower_count > 0) { kickStat.classList.remove('hidden'); document.getElementById('modalKickCount').textContent = formatCount(creator.kick_follower_count); } else { kickStat.classList.add('hidden'); }
+
+  const tagsEl = document.getElementById('modalTags');
+  const tags = [].concat(creator.categories || [], creator.games || []);
+  if (tags.length) {
+    tagsEl.classList.remove('hidden');
+    tagsEl.innerHTML = tags.map(function(t) { return `<span class="px-2 py-0.5 bg-neutral-800 text-gray-400 rounded text-xs">${escapeHtml(t)}</span>`; }).join('');
+  } else {
+    tagsEl.classList.add('hidden');
+  }
+
+  const links = [
+    creator.twitch_url && { href: twitchHref(creator), icon: 'fab fa-twitch', label: creator.is_live && creator.live_platform === 'twitch' ? 'Watch Live' : 'Twitch', cls: creator.is_live && creator.live_platform === 'twitch' ? 'bg-rose-600/20 text-rose-400 hover:bg-rose-600/30' : 'bg-purple-600/20 text-purple-400 hover:bg-purple-600/30' },
+    creator.youtube_url && { href: youtubeHref(creator), icon: 'fab fa-youtube', label: creator.is_live && creator.live_platform === 'youtube' ? 'Watch Live' : 'YouTube', cls: creator.is_live && creator.live_platform === 'youtube' ? 'bg-rose-600/20 text-rose-400 hover:bg-rose-600/30' : 'bg-red-600/20 text-red-400 hover:bg-red-600/30' },
+    creator.kick_url && { href: kickHref(creator), icon: 'fas fa-bolt', label: creator.is_live && creator.live_platform === 'kick' ? 'Watch Live' : 'Kick', cls: creator.is_live && creator.live_platform === 'kick' ? 'bg-rose-600/20 text-rose-400 hover:bg-rose-600/30' : 'bg-green-600/20 text-green-400 hover:bg-green-600/30' },
+    creator.fluxer_url && { href: creator.fluxer_url, icon: 'fas fa-satellite-dish', label: 'Fluxer', cls: 'bg-yellow-600/20 text-yellow-400 hover:bg-yellow-600/30' },
+    creator.discord_url && { href: creator.discord_url, icon: 'fab fa-discord', label: 'Discord', cls: 'bg-indigo-600/20 text-indigo-400 hover:bg-indigo-600/30' },
+    creator.matrix_url && { href: creator.matrix_url, icon: 'fas fa-cube', label: 'Matrix', cls: 'bg-teal-600/20 text-teal-400 hover:bg-teal-600/30' },
+    creator.twitter_url && { href: creator.twitter_url, icon: 'fab fa-twitter', label: 'Twitter / X', cls: 'bg-blue-600/20 text-blue-400 hover:bg-blue-600/30' },
+    creator.tiktok_url && { href: creator.tiktok_url, icon: 'fab fa-tiktok', label: 'TikTok', cls: 'bg-pink-600/20 text-pink-400 hover:bg-pink-600/30' },
+    creator.instagram_url && { href: creator.instagram_url, icon: 'fab fa-instagram', label: 'Instagram', cls: 'bg-fuchsia-600/20 text-fuchsia-400 hover:bg-fuchsia-600/30' },
+    creator.facebook_url && { href: creator.facebook_url, icon: 'fab fa-facebook', label: 'Facebook', cls: 'bg-blue-700/20 text-blue-500 hover:bg-blue-700/30' },
+    creator.bluesky_url && { href: creator.bluesky_url, icon: 'fas fa-cloud', label: 'Bluesky', cls: 'bg-sky-600/20 text-sky-400 hover:bg-sky-600/30' },
+    creator.website_url && { href: creator.website_url, icon: 'fas fa-globe', label: 'Website', cls: 'bg-neutral-700/50 text-gray-300 hover:bg-neutral-700' },
+  ].filter(Boolean);
+
+  document.getElementById('modalLinks').innerHTML = links.map(function(l) {
+    return `<a href="${escapeHtml(l.href)}" target="_blank" rel="noopener"
+        class="inline-flex items-center gap-2 px-3 py-2 ${l.cls} rounded-lg text-sm transition">
+       <i class="${l.icon}"></i>${escapeHtml(l.label)}
+     </a>`;
+  }).join('');
+
+  const footerEl = document.getElementById('modalFooter');
+  const editBtn = document.getElementById('modalEditBtn');
+  if (creator.username) {
+    footerEl.classList.remove('hidden');
+    document.getElementById('modalProfileLink').href = '/ql/u/' + encodeURIComponent(creator.username) + '/';
+    if (CURRENT_USERNAME && creator.username === CURRENT_USERNAME) {
+      editBtn.classList.remove('hidden');
+    } else {
+      editBtn.classList.add('hidden');
+    }
+  } else {
+    footerEl.classList.add('hidden');
+  }
+
+  document.getElementById('creatorModal').classList.remove('hidden');
+  document.body.style.overflow = 'hidden';
+}
+
+function twitchHref(creator) { return (creator.is_live && creator.live_platform === 'twitch' && creator.live_url) ? creator.live_url : creator.twitch_url; }
+function youtubeHref(creator) { return (creator.is_live && creator.live_platform === 'youtube' && creator.live_url) ? creator.live_url : creator.youtube_url; }
+function kickHref(creator) { return (creator.is_live && creator.live_platform === 'kick' && creator.live_url) ? creator.live_url : creator.kick_url; }
+
+function closeCreatorModal() {
+  document.getElementById('creatorModal').classList.add('hidden');
+  document.body.style.overflow = '';
+}
+
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') closeCreatorModal();
+});
+</script>
+
+{% endblock %}

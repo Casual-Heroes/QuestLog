@@ -134,12 +134,13 @@
 <script>
 const GUILD_ID = '{{ guild_id }}';
 const CHANNELS = JSON.parse('{{ channels_json|escapejs }}');
+const ROLES = JSON.parse('{{ roles_json|escapejs }}');
 const API_URL = '/ql/api/dashboard/fluxer/' + GUILD_ID + '/settings/';
 const RR_API = '/ql/api/dashboard/fluxer/' + GUILD_ID + '/reaction-roles/';
 
 let menus = [];
 let channelOptions = [];
-let roleOptions = [];
+let roleOptions = ROLES.length ? ROLES : [];
 let emojiOptions = [];
 let channelSelectInstance = null;
 let editingMessageId = null;
@@ -215,6 +216,7 @@ function buildOptionData() {
     label: ch.label || ch.name ? `#${ch.label || ch.name}` : String(ch.id),
     icon: 'hashtag'
   }));
+  roleOptions = (ROLES || []).map(r => ({ value: String(r.value), label: r.label }));
 
   const standardEmojis = [
     { value: '😀', label: '😀 Grinning', icon: 'smile' },

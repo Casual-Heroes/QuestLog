@@ -39,7 +39,7 @@ from .models import (
     WebFluxerWelcomeConfig, WebFluxerReactionRole,
     WebFluxerRaffle, WebFluxerRaffleEntry,
     WebFluxerModWarning, WebFluxerVerificationConfig,
-    WebFluxerRssFeed, WebFluxerGuildFlair, WebFluxerLevelRole, WebFluxerXpBoostEvent,
+    WebFluxerRssFeed, WebFluxerRssArticle, WebFluxerGuildFlair, WebFluxerLevelRole, WebFluxerXpBoostEvent,
     WebFlair, WebFluxerGuildAction,
     WebFluxerStreamerSub, WebCreatorProfile,
     WebFluxerGameSearchConfig, WebFluxerFoundGame,
@@ -52,6 +52,9 @@ logger = logging.getLogger(__name__)
 
 # Custom emoji format: <:name:id> or <a:name:id> (animated)
 _CUSTOM_EMOJI_RE = _re.compile(r'^<a?:[A-Za-z0-9_]{1,32}:\d{15,22}>$')
+
+# Guild icon hash: only alphanumeric, underscore, hyphen allowed to prevent URL injection
+_ICON_HASH_RE = _re.compile(r'^[A-Za-z0-9_\-]+$')
 
 
 def _sanitize_emoji(value: str) -> str:
@@ -206,6 +209,7 @@ def _settings_dict(s: WebFluxerGuildSettings) -> dict:
         # Creator Discovery (stored as JSON blob)
         **_parse_creator_discovery(getattr(s, 'creator_discovery_json', None)),
         'updated_at': s.updated_at,
+        'owner_id': _safe('owner_id', ''),
     }
 
 
@@ -345,6 +349,14 @@ def _get_fluxer_guild_context(db, guild_id: str) -> dict:
         {'g': guild_id}
     ).fetchone()
 
+    _icon_hash = getattr(settings, 'guild_icon_hash', None) or '' if settings else ''
+    if _icon_hash and not _ICON_HASH_RE.match(_icon_hash):
+        _icon_hash = ''
+    guild_icon_url = (
+        f'https://fluxerusercontent.com/icons/{guild_id}/{_icon_hash}.png'
+        if _icon_hash else None
+    )
+
     return {
         'guild_id': guild_id,
         'guild_name': guild_name,
@@ -353,6 +365,7 @@ def _get_fluxer_guild_context(db, guild_id: str) -> dict:
         'settings_json': json.dumps(settings_data),
         'all_guilds': all_guilds,
         'is_network_approved': network_row is not None,
+        'guild_icon_url': guild_icon_url,
     }
 
 
@@ -473,6 +486,7 @@ def discord_guild_dashboard(request, guild_id):
 
 
 @fluxer_login_required
+@add_web_user_context
 def fluxer_dashboard(request):
     """List Fluxer guilds the current user owns. Works with lite session or full QL account."""
     fluxer_id = request.fluxer_id
@@ -507,6 +521,14 @@ def fluxer_dashboard(request):
                 gname = _fetch_fluxer_guild_name(gid, db)
             gname = gname or gid
 
+            settings_row = db.execute(text(
+                "SELECT guild_icon_hash, owner_id FROM web_fluxer_guild_settings WHERE guild_id = :g LIMIT 1"
+            ), {'g': gid}).fetchone()
+            icon_hash = settings_row[0] if settings_row else None
+            if icon_hash and not _ICON_HASH_RE.match(icon_hash):
+                icon_hash = None
+            owner_id = str(settings_row[1] or '') if settings_row else ''
+
             channel_count = db.execute(text(
                 "SELECT COUNT(*) FROM web_fluxer_guild_channels WHERE guild_id = :g"
             ), {'g': gid}).scalar() or 0
@@ -515,18 +537,71 @@ def fluxer_dashboard(request):
                 "SELECT COUNT(DISTINCT user_id) FROM fluxer_member_xp WHERE guild_id = :g"
             ), {'g': gid}).scalar() or 0
 
+            is_owner = (owner_id == str(fluxer_id)) if fluxer_id else is_superuser
+            icon_url = f'https://fluxerusercontent.com/icons/{gid}/{icon_hash}.png' if icon_hash else None
+
             guilds.append({
                 'guild_id': gid,
                 'guild_name': gname,
                 'channel_count': channel_count,
                 'member_count': member_count,
+                'icon_url': icon_url,
+                'is_owner': is_owner,
             })
 
     return render(request, 'questlog_web/bot_dashboard.html', {
         'web_user': request.web_user,
         'active_page': 'bot_dashboard',
         'guilds': guilds,
+        'guild_count': len(guilds),
     })
+
+
+# ---------------------------------------------------------------------------
+# Sidebar guild list helper - called by all admin views that skip add_web_user_context
+# ---------------------------------------------------------------------------
+
+def _ensure_sidebar_guilds(request):
+    """Populate owned_fluxer_guilds / member_fluxer_guilds on request.web_user if not already set."""
+    if not request.web_user or hasattr(request.web_user, 'owned_fluxer_guilds'):
+        return
+    _fid = str(getattr(request.web_user, 'fluxer_id', '') or '')
+    _uid = getattr(request.web_user, 'id', None)
+    if _fid and _uid:
+        try:
+            with get_db_session() as _db:
+                _owned = _db.execute(
+                    text("SELECT guild_id, COALESCE(NULLIF(guild_name,''), guild_id) as name, guild_icon_hash "
+                         "FROM web_fluxer_guild_settings WHERE owner_id = :fid LIMIT 10"),
+                    {'fid': _fid}
+                ).fetchall()
+                _admin = _db.execute(
+                    text("SELECT c.platform_id, COALESCE(NULLIF(s.guild_name,''), c.platform_id) as name, s.guild_icon_hash "
+                         "FROM web_community_members cm "
+                         "JOIN web_communities c ON c.id = cm.community_id "
+                         "LEFT JOIN web_fluxer_guild_settings s ON s.guild_id = c.platform_id "
+                         "WHERE cm.user_id = :uid AND cm.role IN ('admin','moderator','owner') "
+                         "AND c.platform = 'fluxer' AND c.is_active = 1 LIMIT 10"),
+                    {'uid': _uid}
+                ).fetchall()
+                _member = _db.execute(
+                    text("SELECT x.guild_id, COALESCE(NULLIF(s.guild_name,''), x.guild_id) as name, s.guild_icon_hash "
+                         "FROM (SELECT DISTINCT guild_id FROM fluxer_member_xp WHERE user_id = :fid) x "
+                         "LEFT JOIN web_fluxer_guild_settings s ON s.guild_id = x.guild_id LIMIT 15"),
+                    {'fid': _fid}
+                ).fetchall()
+            _owned_map = {str(r[0]): {'id': str(r[0]), 'name': r[1], 'icon_hash': r[2] or ''} for r in _owned}
+            _admin_map = {str(r[0]): {'id': str(r[0]), 'name': r[1], 'icon_hash': r[2] or ''} for r in _admin}
+            _admin_map.update(_owned_map)
+            _member_map = {str(r[0]): {'id': str(r[0]), 'name': r[1], 'icon_hash': r[2] or ''} for r in _member}
+            request.web_user.owned_fluxer_guilds = list(_admin_map.values())
+            request.web_user.member_fluxer_guilds = [g for gid, g in _member_map.items() if gid not in _admin_map]
+        except Exception:
+            request.web_user.owned_fluxer_guilds = []
+            request.web_user.member_fluxer_guilds = []
+    else:
+        request.web_user.owned_fluxer_guilds = []
+        request.web_user.member_fluxer_guilds = []
 
 
 # ---------------------------------------------------------------------------
@@ -558,10 +633,12 @@ def fluxer_guild_dashboard(request, guild_id):
             fluxer_guild_id=guild_id, enabled=True
         ).count()
 
+    _ensure_sidebar_guilds(request)
     ctx.update({
         'web_user': request.web_user,
         'active_page': 'bot_dashboard',
         'active_section': 'overview',
+        'is_owner': True,  # passed fluxer_guild_required, so always owner/admin
         'stats': {
             'member_count': member_count,
             'channel_count': channel_count,
@@ -598,10 +675,14 @@ def _guild_view(request, guild_id, template, active_section, extra=None):
         ctx = _get_fluxer_guild_context(db, guild_id)
         if extra:
             ctx.update(extra(db, guild_id))
+
+    # Anyone who reached here passed fluxer_guild_required (owner OR admin-role member).
+    _ensure_sidebar_guilds(request)
     ctx.update({
         'web_user': request.web_user,
-        'active_page': 'bot_dashboard',
+        'active_page': active_section,
         'active_section': active_section,
+        'is_owner': True,
     })
     return render(request, template, ctx)
 
@@ -787,7 +868,15 @@ def fluxer_guild_verification(request, guild_id):
 
 @fluxer_guild_required
 def fluxer_guild_reaction_roles(request, guild_id):
-    return _guild_view(request, guild_id, 'questlog_web/fluxer_guild_reaction_roles.html', 'reaction_roles')
+    def _extra(db, gid):
+        roles = db.query(WebFluxerGuildRole).filter_by(guild_id=gid).order_by(WebFluxerGuildRole.role_name).all()
+        return {
+            'roles_json': json.dumps([
+                {'value': r.role_id, 'label': r.role_name or r.role_id}
+                for r in roles
+            ])
+        }
+    return _guild_view(request, guild_id, 'questlog_web/fluxer_guild_reaction_roles.html', 'reaction_roles', extra=_extra)
 
 
 @fluxer_guild_required
@@ -838,6 +927,64 @@ def fluxer_guild_trackers(request, guild_id):
 @fluxer_guild_required
 def fluxer_guild_audit(request, guild_id):
     return _guild_view(request, guild_id, 'questlog_web/fluxer_guild_audit.html', 'audit')
+
+
+@fluxer_guild_required
+@require_http_methods(['GET'])
+def api_fluxer_audit_logs(request, guild_id):
+    """GET paginated audit log entries for a guild."""
+    guild_id = guild_id.strip()
+    page = safe_int(request.GET.get('page', 1), 1, 1, 1000)
+    days = safe_int(request.GET.get('days', 7), 7, 1, 90)
+    action_filter = (request.GET.get('action', '') or '').strip()[:64]
+    actor_filter = (request.GET.get('actor_id', '') or '').strip()[:64]
+    target_filter = (request.GET.get('target_id', '') or '').strip()[:64]
+    per_page = 50
+
+    cutoff = int(time.time()) - (days * 86400)
+    with get_db_session() as db:
+        base_sql = (
+            "SELECT action, action_category, actor_id, actor_name, target_id, target_name, "
+            "target_type, reason, details, created_at "
+            "FROM web_fluxer_audit_log WHERE guild_id = :gid AND created_at >= :cutoff"
+        )
+        params = {'gid': guild_id, 'cutoff': cutoff}
+        if action_filter:
+            base_sql += " AND action = :action"
+            params['action'] = action_filter
+        if actor_filter:
+            base_sql += " AND actor_id = :actor_id"
+            params['actor_id'] = actor_filter
+        if target_filter:
+            base_sql += " AND target_id = :target_id"
+            params['target_id'] = target_filter
+
+        count_row = db.execute(text("SELECT COUNT(*) FROM (" + base_sql + ") AS sub"), params).fetchone()
+        total = count_row[0] if count_row else 0
+        total_pages = max(1, (total + per_page - 1) // per_page)
+        page = min(page, total_pages)
+        offset = (page - 1) * per_page
+
+        rows = db.execute(
+            text(base_sql + " ORDER BY created_at DESC LIMIT :lim OFFSET :off"),
+            {**params, 'lim': per_page, 'off': offset}
+        ).fetchall()
+
+    logs = []
+    for r in rows:
+        logs.append({
+            'action': r.action,
+            'action_category': r.action_category,
+            'actor_id': r.actor_id or '',
+            'actor_name': r.actor_name or '',
+            'target_id': r.target_id or '',
+            'target_name': r.target_name or '',
+            'target_type': r.target_type or '',
+            'reason': r.reason or '',
+            'details': r.details or '',
+            'created_at': r.created_at,
+        })
+    return JsonResponse({'logs': logs, 'total': total, 'page': page, 'total_pages': total_pages})
 
 
 @fluxer_guild_required
@@ -1333,6 +1480,9 @@ def api_fluxer_guild_member_xp(request, guild_id):
             ), {'g': guild_id}).fetchone()
             is_unified = bool(community and community[0])
 
+            _HIDDEN_FLUXER_IDS = ['1473922619936604188']
+            _HIDDEN_USER_IDS = [1]
+
             if is_unified:
                 # Unified mode: prefer web_unified_leaderboard for linked users,
                 # but include ALL fluxer_member_xp rows so unlinked members still appear.
@@ -1350,8 +1500,12 @@ def api_fluxer_guild_member_xp(request, guild_id):
                     LEFT JOIN web_unified_leaderboard ul
                         ON ul.user_id = wu.id AND ul.guild_id = :g AND ul.platform = 'fluxer'
                     WHERE fx.guild_id = :gi
+                    AND fx.user_id NOT IN :hidden_fid
+                    AND (wu.id IS NULL OR wu.id NOT IN :hidden_uid)
                     ORDER BY xp DESC LIMIT 200
-                """), {'g': guild_id, 'gi': int(guild_id)}).fetchall()
+                """), {'g': guild_id, 'gi': int(guild_id),
+                       'hidden_fid': tuple(_HIDDEN_FLUXER_IDS + ['']),
+                       'hidden_uid': tuple(_HIDDEN_USER_IDS + [0])}).fetchall()
                 members = [
                     {
                         'user_id': str(r[0]),
@@ -1371,8 +1525,9 @@ def api_fluxer_guild_member_xp(request, guild_id):
                     "FROM fluxer_member_xp m "
                     "LEFT JOIN web_users wu ON wu.fluxer_id COLLATE utf8mb4_general_ci = m.user_id COLLATE utf8mb4_general_ci "
                     "WHERE m.guild_id = :g "
+                    "AND m.user_id NOT IN :hidden_fid "
                     "ORDER BY m.xp DESC LIMIT 200"
-                ), {'g': guild_id}).fetchall()
+                ), {'g': guild_id, 'hidden_fid': tuple(_HIDDEN_FLUXER_IDS + [''])}).fetchall()
                 members = [
                     {
                         'user_id': str(r[0]),
@@ -1914,6 +2069,87 @@ def api_fluxer_guild_lfg_config(request, guild_id):
         cfg.updated_at = int(time.time())
         db.commit()
         return JsonResponse({'success': True, 'config': _lfg_config_dict(cfg)})
+
+
+@fluxer_guild_required
+@require_http_methods(['GET', 'POST'])
+def api_fluxer_guild_network_lfg(request, guild_id):
+    """GET/POST the QuestLog Network LFG broadcast subscription for this Fluxer guild."""
+    guild_id = guild_id.strip()
+    with get_db_session() as db:
+        if request.method == 'GET':
+            row = db.execute(
+                text("SELECT channel_id, channel_name, is_enabled FROM web_community_bot_configs "
+                     "WHERE platform='fluxer' AND guild_id=:g AND event_type='lfg_announce' LIMIT 1"),
+                {'g': guild_id},
+            ).fetchone()
+            if not row:
+                return JsonResponse({'is_enabled': False, 'channel_id': '', 'channel_name': ''})
+            return JsonResponse({
+                'is_enabled': bool(row[2]),
+                'channel_id': row[0] or '',
+                'channel_name': row[1] or '',
+            })
+
+        # POST
+        try:
+            data = json.loads(request.body)
+        except (json.JSONDecodeError, AttributeError):
+            return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+        is_enabled = bool(data.get('is_enabled', False))
+        channel_id = str(data.get('channel_id', '') or '').strip()
+        if is_enabled and not channel_id:
+            return JsonResponse({'error': 'Channel required when enabling'}, status=400)
+
+        # Resolve channel name from cached channels
+        settings = db.execute(
+            text("SELECT cached_channels, guild_name FROM web_fluxer_guild_settings WHERE guild_id=:g LIMIT 1"),
+            {'g': guild_id},
+        ).fetchone()
+        guild_name = settings[1] if settings else guild_id
+        channel_name = channel_id
+        if settings and settings[0]:
+            try:
+                channels = json.loads(settings[0])
+                for ch in channels:
+                    if str(ch.get('id', '')) == channel_id:
+                        channel_name = ch.get('name', channel_id)
+                        break
+            except Exception:
+                pass
+
+        now_ts = int(time.time())
+        existing = db.execute(
+            text("SELECT id FROM web_community_bot_configs "
+                 "WHERE platform='fluxer' AND guild_id=:g AND event_type='lfg_announce' LIMIT 1"),
+            {'g': guild_id},
+        ).fetchone()
+
+        if existing:
+            db.execute(
+                text("UPDATE web_community_bot_configs "
+                     "SET channel_id=:ch, channel_name=:cname, guild_name=:gname, "
+                     "    is_enabled=:en, updated_at=:now "
+                     "WHERE platform='fluxer' AND guild_id=:g AND event_type='lfg_announce'"),
+                {'ch': channel_id if is_enabled else None,
+                 'cname': channel_name if is_enabled else None,
+                 'gname': guild_name, 'en': 1 if is_enabled else 0,
+                 'now': now_ts, 'g': guild_id},
+            )
+        else:
+            db.execute(
+                text("INSERT INTO web_community_bot_configs "
+                     "(platform, guild_id, guild_name, channel_id, channel_name, "
+                     " event_type, is_enabled, created_at, updated_at) "
+                     "VALUES ('fluxer', :g, :gname, :ch, :cname, 'lfg_announce', :en, :now, :now)"),
+                {'g': guild_id, 'gname': guild_name,
+                 'ch': channel_id if is_enabled else None,
+                 'cname': channel_name if is_enabled else None,
+                 'en': 1 if is_enabled else 0, 'now': now_ts},
+            )
+        db.commit()
+        return JsonResponse({'success': True, 'is_enabled': is_enabled, 'channel_name': channel_name})
 
 
 @fluxer_guild_required
@@ -3481,13 +3717,17 @@ def fluxer_guild_flair(request, guild_id):
     guild_id = guild_id.strip()
     with get_db_session() as db:
         ctx = _get_fluxer_guild_context(db, guild_id)
-
+    _ensure_sidebar_guilds(request)
     return render(request, 'questlog_web/fluxer_guild_flair.html', {
         'web_user': request.web_user,
         'guild_id': guild_id,
         'guild_name': ctx['guild_name'],
+        'guild_icon_url': ctx.get('guild_icon_url'),
         'all_guilds': ctx['all_guilds'],
+        'is_owner': True,
+        'is_network_approved': ctx.get('is_network_approved', False),
         'active_section': 'flair',
+        'active_page': 'flair',
     })
 
 
@@ -3829,6 +4069,11 @@ def fluxer_guild_lfg_browse_admin(request, guild_id):
                 'created_at': g.created_at,
                 'status': g.status,
                 'members': members_by_group.get(g.id, []),
+                'tanks_needed': getattr(g, 'tanks_needed', 0) or 0,
+                'healers_needed': getattr(g, 'healers_needed', 0) or 0,
+                'dps_needed': getattr(g, 'dps_needed', 0) or 0,
+                'support_needed': getattr(g, 'support_needed', 0) or 0,
+                'role_schema': json.loads(g.role_schema) if getattr(g, 'role_schema', None) else None,
             }
             for g in groups
         ]
@@ -3851,6 +4096,277 @@ def fluxer_guild_lfg_browse_admin(request, guild_id):
     return _guild_view(request, guild_id, 'questlog_web/fluxer_guild_lfg_browse.html', 'lfg_browse', extra=_extra)
 
 
+@web_login_required
+@add_web_user_context
+def fluxer_guild_found_games(request, guild_id):
+    """GET /ql/dashboard/fluxer/<guild_id>/found-games/ - Found Games within the Fluxer dashboard."""
+    import json as _json
+    from datetime import datetime
+    guild_id = guild_id.strip()
+
+    sort_by = request.GET.get('sort', 'release')
+    game_name_filter = request.GET.get('game_name', '').strip()
+    min_hype_param = request.GET.get('min_hype', '')
+    min_hype = int(min_hype_param) if min_hype_param and min_hype_param.isdigit() else None
+    search_id = request.GET.get('search_id', '')
+
+    def _extra(db, gid):
+        query = db.query(WebFluxerFoundGame).filter_by(guild_id=gid)
+        if search_id:
+            query = query.filter(WebFluxerFoundGame.search_config_id == int(search_id))
+        raw = query.order_by(WebFluxerFoundGame.found_at.desc()).limit(300).all()
+        total_found = db.query(WebFluxerFoundGame).filter_by(guild_id=gid).count()
+        cfg_rows = db.query(WebFluxerGameSearchConfig).filter_by(
+            guild_id=gid, enabled=1, show_on_website=1
+        ).order_by(WebFluxerGameSearchConfig.name).all()
+        search_configs = [{'id': c.id, 'name': c.name} for c in cfg_rows]
+
+        games = []
+        for g in raw:
+            modes = _json.loads(g.game_modes) if g.game_modes else []
+            kws = _json.loads(g.keywords) if g.keywords else []
+            if game_name_filter and game_name_filter.lower() not in g.game_name.lower():
+                continue
+            if min_hype is not None and (g.hypes is None or g.hypes < min_hype):
+                continue
+            rd = g.release_date
+            try:
+                fmt_date = datetime.utcfromtimestamp(rd).strftime('%b %d, %Y') if rd else 'TBD'
+            except Exception:
+                fmt_date = 'TBD'
+            games.append({
+                'id': g.id,
+                'game_name': g.game_name,
+                'cover_url': g.cover_url or '',
+                'igdb_url': g.igdb_url or '',
+                'steam_url': g.steam_url or '',
+                'release_date': rd,
+                'release_date_fmt': fmt_date,
+                'genres': _json.loads(g.genres) if g.genres else [],
+                'keywords': kws,
+                'hypes': g.hypes,
+                'rating': g.rating,
+                'summary': g.summary or '',
+            })
+
+        if sort_by == 'release':
+            games.sort(key=lambda x: (0, x['release_date']) if x['release_date'] else (1, 0))
+        elif sort_by == 'hype':
+            games.sort(key=lambda x: -(x['hypes'] or 0))
+        elif sort_by == 'name':
+            games.sort(key=lambda x: x['game_name'].lower())
+
+        return {
+            'games': games,
+            'total_found': total_found,
+            'search_configs': search_configs,
+            'sort_by': sort_by,
+            'game_name_filter': game_name_filter,
+            'min_hype_param': min_hype_param,
+        }
+
+    return _guild_view(request, guild_id, 'questlog_web/fluxer_guild_found_games.html', 'found_games', extra=_extra)
+
+
+@fluxer_guild_required
+def fluxer_guild_rss_articles(request, guild_id):
+    """GET /ql/dashboard/fluxer/<guild_id>/rss-articles/ - RSS Articles within the Fluxer dashboard."""
+    import json as _json
+    from datetime import datetime
+    guild_id = guild_id.strip()
+    feed_filter = safe_int(request.GET.get('feed_id', ''), default=0)
+
+    def _extra(db, gid):
+        feed_rows = db.query(WebFluxerRssFeed).filter_by(
+            guild_id=gid, is_active=1
+        ).order_by(WebFluxerRssFeed.created_at.asc()).all()
+        feeds = [{'id': f.id, 'label': f.label or f.url} for f in feed_rows]
+
+        query = db.query(WebFluxerRssArticle).filter_by(guild_id=gid)
+        if feed_filter:
+            query = query.filter(WebFluxerRssArticle.feed_id == feed_filter)
+        total_articles = query.count()
+        article_rows = query.order_by(WebFluxerRssArticle.published_at.desc()).limit(100).all()
+
+        articles = []
+        for a in article_rows:
+            cats = _json.loads(a.entry_categories) if a.entry_categories else []
+            pub = ''
+            if a.published_at:
+                try:
+                    pub = datetime.utcfromtimestamp(a.published_at).strftime('%b %d, %Y')
+                except Exception:
+                    pass
+            posted = ''
+            if a.posted_at:
+                try:
+                    posted = datetime.utcfromtimestamp(a.posted_at).strftime('%b %d')
+                except Exception:
+                    pass
+            articles.append({
+                'title': a.entry_title or '',
+                'link': a.entry_link or '',
+                'summary': a.entry_summary or '',
+                'author': a.entry_author or '',
+                'thumbnail': a.entry_thumbnail or '',
+                'feed_label': a.feed_label or '',
+                'categories': cats,
+                'published_at': pub,
+                'posted_at': posted,
+            })
+
+        return {
+            'feeds': feeds,
+            'feeds_json': _json.dumps(feeds),
+            'articles': articles,
+            'total_articles': total_articles,
+            'selected_feed_id': str(feed_filter) if feed_filter else '',
+        }
+
+    return _guild_view(request, guild_id, 'questlog_web/fluxer_guild_rss_articles.html', 'rss_articles', extra=_extra)
+
+
+@web_login_required
+@add_web_user_context
+def fluxer_guild_leaderboards(request, guild_id):
+    """GET /ql/dashboard/fluxer/<guild_id>/leaderboards/ - Guild XP leaderboard."""
+    from .views_pages import _fluxer_guild_base_context
+    _settings, ctx = _fluxer_guild_base_context(request, guild_id)
+    guild_id = guild_id.strip()
+
+    try:
+        with get_db_session() as db:
+            from sqlalchemy import text as sa_text
+
+            is_unified = bool(db.execute(sa_text(
+                "SELECT 1 FROM web_communities "
+                "WHERE platform='fluxer' AND platform_id=:g AND site_xp_to_guild=1 "
+                "AND network_status='approved' AND is_active=1 LIMIT 1"
+            ), {'g': guild_id}).fetchone())
+
+            _HIDDEN_USER_IDS = [1]      # site owners hidden from leaderboards
+            _HIDDEN_FLUXER_IDS = ['1473922619936604188']
+
+            if is_unified:
+                xp_rows = db.execute(sa_text(
+                    "SELECT wu.username, ul.xp_total "
+                    "FROM web_unified_leaderboard ul "
+                    "JOIN web_users wu ON wu.id = ul.user_id "
+                    "WHERE ul.guild_id=:g AND ul.platform='fluxer' AND ul.xp_total > 0 "
+                    "AND wu.id NOT IN :hidden "
+                    "ORDER BY ul.xp_total DESC LIMIT 10"
+                ), {'g': guild_id, 'hidden': tuple(_HIDDEN_USER_IDS + [0])}).fetchall()
+                xp_leaders = [{'username': r[0], 'xp': r[1]} for r in xp_rows]
+                xp_label = 'QuestLog XP'
+            else:
+                xp_rows = db.execute(sa_text(
+                    "SELECT username, xp FROM fluxer_member_xp WHERE guild_id=:g AND xp > 0 "
+                    "AND user_id NOT IN :hidden "
+                    "ORDER BY xp DESC LIMIT 10"
+                ), {'g': guild_id, 'hidden': tuple(_HIDDEN_FLUXER_IDS + [''])}).fetchall()
+                xp_leaders = [{'username': r[0], 'xp': r[1]} for r in xp_rows]
+                xp_label = 'Server XP'
+
+            msg_rows = db.execute(sa_text(
+                "SELECT username, message_count FROM fluxer_member_xp WHERE guild_id=:g AND message_count > 0 "
+                "AND user_id NOT IN :hidden "
+                "ORDER BY message_count DESC LIMIT 10"
+            ), {'g': guild_id, 'hidden': tuple(_HIDDEN_FLUXER_IDS + [''])}).fetchall()
+            voice_rows = db.execute(sa_text(
+                "SELECT username, voice_minutes FROM fluxer_member_xp WHERE guild_id=:g AND voice_minutes > 0 "
+                "AND user_id NOT IN :hidden "
+                "ORDER BY voice_minutes DESC LIMIT 10"
+            ), {'g': guild_id, 'hidden': tuple(_HIDDEN_FLUXER_IDS + [''])}).fetchall()
+    except Exception:
+        xp_leaders, xp_label, is_unified, msg_rows, voice_rows = [], 'Server XP', False, [], []
+
+    ctx.update({
+        'active_page': 'leaderboards',
+        'xp_leaders': xp_leaders,
+        'xp_label': xp_label,
+        'is_unified': is_unified,
+        'msg_leaders': [{'username': r[0], 'message_count': r[1]} for r in msg_rows],
+        'voice_leaders': [{'username': r[0], 'voice_minutes': r[1]} for r in voice_rows],
+    })
+    return render(request, 'questlog_web/fluxer_guild_leaderboards.html', ctx)
+
+
+@fluxer_guild_required
+def fluxer_guild_member_profile_page(request, guild_id):
+    """GET /ql/dashboard/fluxer/<guild_id>/profile/ - Member's own profile in this guild."""
+    guild_id = guild_id.strip()
+
+    def _extra(db, gid):
+        from sqlalchemy import text as sa_text
+        fluxer_id = str(getattr(request, 'fluxer_id', '') or '')
+        web_user = getattr(request, 'web_user', None)
+        stats = None
+
+        # Check if this guild has unified XP enabled
+        is_unified = bool(db.execute(sa_text(
+            "SELECT 1 FROM web_communities "
+            "WHERE platform='fluxer' AND platform_id=:g AND site_xp_to_guild=1 "
+            "AND network_status='approved' AND is_active=1 LIMIT 1"
+        ), {'g': gid}).fetchone())
+
+        if fluxer_id:
+            row = db.execute(sa_text(
+                "SELECT username, xp, message_count, voice_minutes, reaction_count "
+                "FROM fluxer_member_xp WHERE guild_id=:g AND user_id=:u LIMIT 1"
+            ), {'g': gid, 'u': fluxer_id}).fetchone()
+            if row:
+                # Unified: use web_xp/web_level if user has a linked QL account
+                if is_unified and web_user and getattr(web_user, 'web_xp', None) is not None:
+                    xp = int(web_user.web_xp or 0)
+                    level = int(web_user.web_level or 1)
+                    xp_label = 'QuestLog XP'
+                else:
+                    xp = int(row[1] or 0)
+                    level = 1
+                    while level < 99 and xp >= int(7 * ((level + 1) ** 1.5)):
+                        level += 1
+                    xp_label = 'Server XP'
+                stats = {
+                    'username': row[0] or 'Unknown',
+                    'xp': xp,
+                    'xp_label': xp_label,
+                    'level': level,
+                    'message_count': int(row[2] or 0),
+                    'voice_minutes': int(row[3] or 0),
+                    'reaction_count': int(row[4] or 0),
+                    'is_unified': is_unified,
+                }
+        # Equipped flair from WebFluxerMemberFlair
+        equipped_flair = None
+        web_user = getattr(request, 'web_user', None)
+        web_user_id = getattr(web_user, 'id', None) if web_user else None
+        if web_user_id:
+            from .models import WebFluxerMemberFlair, WebFluxerGuildFlair
+            mf = db.query(WebFluxerMemberFlair).filter_by(
+                guild_id=gid, web_user_id=web_user_id, equipped=1
+            ).first()
+            if mf:
+                gf = db.query(WebFluxerGuildFlair).filter_by(id=mf.guild_flair_id).first()
+                if gf:
+                    equipped_flair = {'emoji': gf.emoji or '', 'name': gf.flair_name or ''}
+        return {'member_stats': stats, 'equipped_flair': equipped_flair}
+
+    return _guild_view(request, guild_id, 'questlog_web/fluxer_guild_member_profile_page.html', 'profile', extra=_extra)
+
+
+@web_login_required
+@add_web_user_context
+def fluxer_guild_featured_creators(request, guild_id):
+    """GET /ql/dashboard/fluxer/<guild_id>/featured-creators/ - QuestLog creators featured in this guild."""
+    from .views_pages import _fluxer_guild_base_context
+    _settings, ctx = _fluxer_guild_base_context(request, guild_id)
+    ctx.update({
+        'active_page': 'featured_creators',
+        'is_network': ctx.get('is_network_approved', False),
+    })
+    return render(request, 'questlog_web/fluxer_guild_featured_creators.html', ctx)
+
+
 def _group_dict(g: WebFluxerLfgGroup, members: list) -> dict:
     return {
         'id': g.id,
@@ -3866,6 +4382,12 @@ def _group_dict(g: WebFluxerLfgGroup, members: list) -> dict:
         'created_at': g.created_at,
         'status': g.status,
         'members': members,
+        'tanks_needed': getattr(g, 'tanks_needed', 0) or 0,
+        'healers_needed': getattr(g, 'healers_needed', 0) or 0,
+        'dps_needed': getattr(g, 'dps_needed', 0) or 0,
+        'support_needed': getattr(g, 'support_needed', 0) or 0,
+        'role_schema': json.loads(g.role_schema) if getattr(g, 'role_schema', None) else None,
+        'recurrence': getattr(g, 'recurrence', 'none') or 'none',
     }
 
 
@@ -3929,6 +4451,22 @@ def api_fluxer_guild_lfg_groups(request, guild_id):
         post_to_network = bool(data.get('post_to_network', False))
         game_cover_url = (data.get('game_cover_url') or game.cover_url or '')[:500] or None
 
+        # Role composition
+        use_roles = bool(data.get('use_roles', False))
+        tanks_needed = safe_int(data.get('tanks_needed'), default=0, min_val=0, max_val=50) if use_roles else 0
+        healers_needed = safe_int(data.get('healers_needed'), default=0, min_val=0, max_val=50) if use_roles else 0
+        dps_needed = safe_int(data.get('dps_needed'), default=0, min_val=0, max_val=200) if use_roles else 0
+        support_needed = safe_int(data.get('support_needed'), default=0, min_val=0, max_val=50) if use_roles else 0
+        enforce_role_limits = bool(data.get('enforce_role_limits', True))
+        role_schema_raw = data.get('role_schema')
+        # Survival games: no slot counts - role_schema stores opt-in flag for card display
+        if use_roles and not role_schema_raw and not (tanks_needed or healers_needed or dps_needed or support_needed):
+            role_schema = '{"survival":true}'
+        else:
+            role_schema = json.dumps(role_schema_raw) if role_schema_raw and isinstance(role_schema_raw, list) else None
+        if use_roles:
+            max_size = (tanks_needed + healers_needed + dps_needed + support_needed) or max_size
+
         # Resolve guild name for origin tracking
         guild_settings = db.query(WebFluxerGuildSettings).filter_by(guild_id=guild_id).first()
         guild_display_name = (guild_settings.guild_name if guild_settings and guild_settings.guild_name else None)
@@ -3940,12 +4478,18 @@ def api_fluxer_guild_lfg_groups(request, guild_id):
             creator_name=creator_name,
             scheduled_time=scheduled_time, status='open', created_at=now,
             recurrence=recurrence,
+            tanks_needed=tanks_needed, healers_needed=healers_needed,
+            dps_needed=dps_needed, support_needed=support_needed,
+            enforce_role_limits=1 if enforce_role_limits else 0,
+            role_schema=role_schema,
         )
         db.add(group)
         db.flush()
 
-        creator_role = (data.get('role') or 'member')[:20]
         selections = data.get('selections') or {}
+        # Detect creator's role from their selections (WoW spec mapping, ESO role field, etc.)
+        from .views_pages import _detect_lfg_role
+        creator_role = _detect_lfg_role(selections, game.options_json if game else None)
         db.add(WebFluxerLfgMember(
             group_id=group.id,
             web_user_id=request.web_user.id if request.web_user else None,
@@ -3976,6 +4520,10 @@ def api_fluxer_guild_lfg_groups(request, guild_id):
                 from sqlalchemy import text as _text
                 import json as _json, time as _time
 
+                # Parse role schema once: list for embed builder, raw JSON for DB column
+                from .views_discovery import _parse_role_schema as _prs
+                web_role_schema = _prs(role_schema) if role_schema else []
+
                 web_group = WebLFGGroup(
                     creator_id=request.web_user.id,
                     title=title,
@@ -3986,6 +4534,12 @@ def api_fluxer_guild_lfg_groups(request, guild_id):
                     current_size=1,
                     scheduled_time=scheduled_time,
                     status='open',
+                    use_roles=1 if use_roles else 0,
+                    tanks_needed=tanks_needed,
+                    healers_needed=healers_needed,
+                    dps_needed=dps_needed,
+                    support_needed=support_needed,
+                    role_schema=role_schema,  # raw JSON string from above (already validated)
                     created_at=now,
                     updated_at=now,
                     origin_platform='fluxer',
@@ -3995,33 +4549,45 @@ def api_fluxer_guild_lfg_groups(request, guild_id):
                 )
                 db.add(web_group)
                 db.flush()
+                # Mirror creator selections + role so embed member roster shows correctly
                 db.add(WebLFGMember(
                     group_id=web_group.id,
                     user_id=request.web_user.id,
+                    role=creator_role,
+                    selections=json.dumps(selections) if selections else None,
                     is_creator=True,
                     status='joined',
                     joined_at=now,
                 ))
 
-                embed_data = {
-                    "title": f"LFG: {title}",
-                    "description": (description[:300] + '...') if description and len(description) > 300 else (description or f"Posted by **{creator_name}**"),
-                    "url": f"https://casual-heroes.com/ql/lfg/{web_group.id}/",
-                    "color": 0xFEE75C,
-                    "fields": [
-                        {"name": "Game", "value": game.name, "inline": True},
-                        {"name": "Group Size", "value": f"1/{max_size}", "inline": True},
-                        {"name": "Posted by", "value": creator_name, "inline": True},
-                    ],
-                    "footer": "QuestLog Network - casual-heroes.com/ql/lfg/",
-                }
-                if scheduled_time:
-                    from datetime import datetime, timezone as _tz
-                    try:
-                        dt = datetime.fromtimestamp(int(scheduled_time), tz=_tz.utc)
-                        embed_data["fields"].append({"name": "Scheduled", "value": dt.strftime("%a, %b %-d at %-I:%M %p UTC"), "inline": True})
-                    except (ValueError, TypeError, OSError):
-                        pass
+                from .fluxer_webhooks import build_lfg_embed_data as _blfg
+                group_url = f"https://casual-heroes.com/ql/lfg/{web_group.id}/"
+                # Commit first so _blfg can read the mirrored WebLFGMember from DB
+                db.commit()
+                embed_data = _blfg(
+                    creator=creator_name,
+                    game_name=game.name,
+                    title=title,
+                    description=description or '',
+                    group_size=max_size,
+                    current_size=1,
+                    scheduled_time=scheduled_time,
+                    lfg_url=group_url,
+                    game_image_url=game_cover_url,
+                    use_roles=use_roles,
+                    role_schema=web_role_schema,
+                    tanks_needed=tanks_needed,
+                    healers_needed=healers_needed,
+                    dps_needed=dps_needed,
+                    support_needed=support_needed,
+                    creator_selections=selections,
+                    group_id=web_group.id,
+                    group_platform='web',
+                )
+                embed_data["color"] = 0xFEE75C
+                embed_data["footer"] = "QuestLog Network - casual-heroes.com/ql/lfg/"
+                embed_data["fields"].append({"name": "Posted via", "value": "Fluxer", "inline": True})
+                embed_data["thread_name"] = f"{title} - {game.name} - {creator_name}"
 
                 payload_json = _json.dumps(embed_data)
                 broadcast_now = int(_time.time())
@@ -4083,8 +4649,54 @@ def api_fluxer_guild_lfg_group_detail(request, guild_id, group_id):
         if 'scheduled_time' in data:
             st = data.get('scheduled_time')
             group.scheduled_time = safe_int(st, default=0, min_val=1, max_val=9999999999) if st else None
+        if 'recurrence' in data:
+            rec = (data.get('recurrence') or 'none').strip()
+            group.recurrence = rec if rec in ('none', 'daily', 'weekly', 'monthly') else 'none'
+        if 'status' in data:
+            requested = (data.get('status') or '').strip()
+            if requested in ('open', 'closed'):
+                group.status = requested
+                if requested == 'closed':
+                    group.closed_at = int(time.time())
 
-        group.status = 'full' if group.current_size >= group.max_size else 'open'
+        # Role composition slots
+        if 'tanks_needed' in data:
+            group.tanks_needed = safe_int(data['tanks_needed'], default=0, min_val=0, max_val=50)
+        if 'healers_needed' in data:
+            group.healers_needed = safe_int(data['healers_needed'], default=0, min_val=0, max_val=50)
+        if 'dps_needed' in data:
+            group.dps_needed = safe_int(data['dps_needed'], default=0, min_val=0, max_val=50)
+        if 'support_needed' in data:
+            group.support_needed = safe_int(data['support_needed'], default=0, min_val=0, max_val=50)
+        if 'enforce_role_limits' in data:
+            group.enforce_role_limits = 1 if data['enforce_role_limits'] else 0
+
+        # Sync max_size to total role slots if role composition enabled
+        total_slots = (group.tanks_needed or 0) + (group.healers_needed or 0) + (group.dps_needed or 0) + (group.support_needed or 0)
+        if total_slots > 0 and 'tanks_needed' in data:
+            group.max_size = total_slots
+
+        # Co-leader updates
+        if 'co_leaders' in data and isinstance(data['co_leaders'], list):
+            for entry in data['co_leaders']:
+                mid = safe_int(entry.get('member_id'), default=0, min_val=1, max_val=9999999)
+                if not mid:
+                    continue
+                m = db.query(WebFluxerLfgMember).filter_by(id=mid, group_id=group.id).first()
+                if not m or m.is_creator or m.left_at is not None:
+                    continue
+                if entry.get('is_co_leader'):
+                    m.role = 'co_leader'
+                else:
+                    # Demote - re-detect their actual role
+                    from .views_pages import _detect_lfg_role
+                    game = db.query(WebFluxerLfgGame).filter_by(id=group.game_id).first()
+                    sels = json.loads(m.selections_json) if m.selections_json else {}
+                    m.role = _detect_lfg_role(sels, game.options_json if game else None)
+
+        # Auto-set full/open based on capacity (only if not being manually closed)
+        if group.status != 'closed':
+            group.status = 'full' if group.current_size >= group.max_size else 'open'
         db.commit()
         return JsonResponse({'success': True})
 
@@ -4108,6 +4720,40 @@ def api_fluxer_guild_lfg_group_kick(request, guild_id, group_id, member_id):
         group.current_size = max(1, group.current_size - 1)
         if group.status == 'full' and group.current_size < group.max_size:
             group.status = 'open'
+        db.commit()
+        return JsonResponse({'success': True})
+
+
+@fluxer_guild_required
+@require_http_methods(['PUT'])
+def api_fluxer_guild_lfg_member_update(request, guild_id, group_id, member_id):
+    """PUT update a member's selections/role in a Fluxer LFG group (admin dashboard)."""
+    guild_id = guild_id.strip()
+    with get_db_session() as db:
+        group = db.query(WebFluxerLfgGroup).filter_by(id=group_id, guild_id=guild_id).first()
+        if not group:
+            return JsonResponse({'error': 'Group not found'}, status=404)
+        member = db.query(WebFluxerLfgMember).filter_by(id=member_id, group_id=group_id).first()
+        if not member or member.left_at is not None:
+            return JsonResponse({'error': 'Member not found'}, status=404)
+        try:
+            data = json.loads(request.body)
+        except (json.JSONDecodeError, AttributeError):
+            return JsonResponse({'error': 'Invalid JSON'}, status=400)
+        selections = data.get('selections') or {}
+        if selections and isinstance(selections, dict):
+            member.selections_json = json.dumps(selections)
+        elif not selections:
+            member.selections_json = None
+        # Re-detect role from updated selections
+        from .views_pages import _detect_lfg_role
+        game = db.query(WebFluxerLfgGame).filter_by(id=group.game_id).first()
+        detected = _detect_lfg_role(selections, game.options_json if game else None)
+        # Preserve creator/co_leader role designations; only update regular members
+        if member.role not in ('co_leader',) and not member.is_creator:
+            member.role = detected
+        elif member.is_creator:
+            member.role = detected  # Creator can also have their class updated
         db.commit()
         return JsonResponse({'success': True})
 

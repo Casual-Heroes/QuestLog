@@ -1,0 +1,120 @@
+{% extends "questlog_web/fluxer_member_base.html" %}
+{% load static %}
+
+{% block title %}Leaderboards - {{ guild_name }}{% endblock %}
+
+{% block guild_content %}
+
+<div class="bg-neutral-900 rounded-2xl overflow-hidden border border-neutral-800 mb-8">
+  <div class="h-32 bg-gradient-to-r from-yellow-600/30 via-orange-600/30 to-red-600/30 relative">
+    <div class="absolute -bottom-10 left-8">
+      <div class="w-20 h-20 bg-gradient-to-br from-yellow-500 to-orange-500 rounded-2xl border-4 border-neutral-900 shadow-lg flex items-center justify-center">
+        <i class="fas fa-trophy text-3xl text-white"></i>
+      </div>
+    </div>
+  </div>
+  <div class="pt-14 pb-6 px-8">
+    <h1 class="text-3xl font-bold text-white mb-2">Leaderboards
+      {% if is_unified %}<span class="ml-3 text-sm font-normal bg-indigo-600/30 text-indigo-300 border border-indigo-500/40 px-3 py-1 rounded-full align-middle"><i class="fas fa-globe mr-1"></i>Unified</span>{% endif %}
+    </h1>
+    <p class="text-gray-400">{% if is_unified %}Top members by QuestLog XP (unified across all platforms){% else %}Top members by XP, messages, and voice activity{% endif %} in {{ guild_name }}</p>
+  </div>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+  <!-- XP Leaderboard -->
+  <div class="bg-neutral-900 rounded-xl border border-neutral-800 overflow-hidden">
+    <div class="bg-gradient-to-r from-green-600/20 to-emerald-600/20 border-b border-neutral-800 p-4">
+      <h2 class="text-lg font-bold text-white flex items-center">
+        <i class="fas fa-chart-line text-green-500 mr-2"></i>Top by {{ xp_label|default:"XP" }}
+      </h2>
+    </div>
+    <div class="p-4 space-y-2">
+      {% if xp_leaders %}
+        {% for m in xp_leaders %}
+        <div class="flex items-center gap-3 bg-neutral-800 rounded-lg p-3">
+          <span class="text-lg font-bold text-gray-500 w-6">#{{ forloop.counter }}</span>
+          <div class="flex-1 min-w-0">
+            <p class="text-white font-medium truncate">{{ m.username }}</p>
+          </div>
+          <div class="text-right">
+            <p class="text-green-400 font-bold">{{ m.xp }}</p>
+            <p class="text-xs text-gray-500">{{ xp_label|default:"XP" }}</p>
+          </div>
+        </div>
+        {% endfor %}
+      {% else %}
+        <p class="text-gray-500 text-center py-8">No data yet</p>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Messages Leaderboard -->
+  <div class="bg-neutral-900 rounded-xl border border-neutral-800 overflow-hidden">
+    <div class="bg-gradient-to-r from-blue-600/20 to-indigo-600/20 border-b border-neutral-800 p-4">
+      <h2 class="text-lg font-bold text-white flex items-center">
+        <i class="fas fa-comments text-blue-500 mr-2"></i>Top by Messages
+      </h2>
+    </div>
+    <div class="p-4 space-y-2">
+      {% if msg_leaders %}
+        {% for m in msg_leaders %}
+        <div class="flex items-center gap-3 bg-neutral-800 rounded-lg p-3">
+          <span class="text-lg font-bold text-gray-500 w-6">#{{ forloop.counter }}</span>
+          <div class="flex-1 min-w-0">
+            <p class="text-white font-medium truncate">{{ m.username }}</p>
+          </div>
+          <div class="text-right">
+            <p class="text-blue-400 font-bold">{{ m.message_count }}</p>
+            <p class="text-xs text-gray-500">Messages</p>
+          </div>
+        </div>
+        {% endfor %}
+      {% else %}
+        <p class="text-gray-500 text-center py-8">No data yet</p>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Voice Leaderboard -->
+  <div class="bg-neutral-900 rounded-xl border border-neutral-800 overflow-hidden">
+    <div class="bg-gradient-to-r from-purple-600/20 to-pink-600/20 border-b border-neutral-800 p-4">
+      <h2 class="text-lg font-bold text-white flex items-center">
+        <i class="fas fa-microphone text-purple-500 mr-2"></i>Top by Voice
+      </h2>
+    </div>
+    <div class="p-4 space-y-2">
+      {% if voice_leaders %}
+        {% for m in voice_leaders %}
+        <div class="flex items-center gap-3 bg-neutral-800 rounded-lg p-3">
+          <span class="text-lg font-bold text-gray-500 w-6">#{{ forloop.counter }}</span>
+          <div class="flex-1 min-w-0">
+            <p class="text-white font-medium truncate">{{ m.username }}</p>
+          </div>
+          <div class="text-right">
+            <p class="text-purple-400 font-bold">{{ m.voice_minutes }}</p>
+            <p class="text-xs text-gray-500">mins</p>
+          </div>
+        </div>
+        {% endfor %}
+      {% else %}
+        <p class="text-gray-500 text-center py-8">No data yet</p>
+      {% endif %}
+    </div>
+  </div>
+
+</div>
+
+<div class="mt-8 bg-blue-900/20 border border-blue-700/50 rounded-xl p-6">
+  <h3 class="text-blue-400 font-semibold mb-2 flex items-center">
+    <i class="fas fa-info-circle mr-2"></i>How to Climb the Leaderboards
+  </h3>
+  <ul class="text-gray-300 space-y-2 text-sm">
+    <li><i class="fas fa-check text-green-500 mr-2"></i>Be active in Fluxer - send messages, join voice, react to posts</li>
+    <li><i class="fas fa-check text-green-500 mr-2"></i>Earn XP by participating in server activities</li>
+    <li><i class="fas fa-check text-green-500 mr-2"></i>Level up to unlock new perks and rewards!</li>
+  </ul>
+</div>
+
+{% endblock %}

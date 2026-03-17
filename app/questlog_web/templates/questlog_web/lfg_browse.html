@@ -112,26 +112,6 @@
     </div>
   </div>
 
-  <!-- My Closed Fluxer Groups (shown only when logged in) -->
-  {% if web_user %}
-  <div id="myClosedGroupsSection" class="hidden mt-4">
-    <div class="flex items-center gap-3 mb-3">
-      <h3 class="text-lg font-semibold text-gray-400">
-        <i class="fas fa-lock mr-2 text-gray-500"></i>My Closed Fluxer Groups
-      </h3>
-      <button onclick="loadMyClosedGroups()" class="text-xs text-gray-500 hover:text-gray-300 transition">
-        <i class="fas fa-sync mr-1"></i>Refresh
-      </button>
-    </div>
-    <div id="myClosedGroupsList" class="space-y-2"></div>
-  </div>
-  <div id="myClosedToggleRow" class="text-center mt-2">
-    <button onclick="toggleMyClosedGroups()"
-            class="text-sm text-gray-500 hover:text-gray-300 transition">
-      <i class="fas fa-history mr-1"></i>Show my closed Fluxer groups
-    </button>
-  </div>
-  {% endif %}
 </div>
 
 <!-- Join Group Modal -->
@@ -699,12 +679,29 @@ function formatTime(timestamp) {
 // Mirrors lfg_role_mappings.py — determines tank/healer/dps/support from class+spec
 
 const BUILTIN_GAMES = {
-  'wow':      ['world of warcraft', 'wow'],
-  'ffxiv':    ['final fantasy xiv', 'final fantasy 14', 'ffxiv', 'ff14'],
-  'pantheon': ['pantheon', 'pantheon: rise of the fallen'],
-  'gw2':      ['guild wars 2', 'gw2'],
-  'eso':      ['elder scrolls online', 'eso', 'teso'],
+  'wow':        ['world of warcraft', 'wow'],
+  'ffxiv':      ['final fantasy xiv', 'final fantasy 14', 'ffxiv', 'ff14'],
+  'pantheon':   ['pantheon', 'pantheon: rise of the fallen'],
+  'gw2':        ['guild wars 2', 'gw2'],
+  'eso':        ['elder scrolls online', 'eso', 'teso'],
+  'palworld':   ['palworld', 'pal world'],
+  'enshrouded': ['enshrouded'],
+  'valheim':    ['valheim'],
+  'rust':       ['rust'],
+  'diablo':     ['diablo', 'diablo iv', 'diablo 4'],
+  'poe':        ['path of exile', 'poe', 'path of exile 2'],
+  'cod':        ['call of duty', 'cod', 'warzone', 'modern warfare'],
 };
+
+const SURVIVAL_GAMES = ['palworld', 'enshrouded', 'valheim', 'rust'];
+const NO_ROLE_GAMES  = ['diablo', 'poe', 'cod'];
+
+const SURVIVAL_ROLE_SCHEMA = [
+  {slot: 'tank',    label: 'Combat',   color: 'orange', icon: 'fist-raised'},
+  {slot: 'dps',     label: 'Gatherer', color: 'yellow', icon: 'leaf'},
+  {slot: 'healer',  label: 'Breeder',  color: 'pink',   icon: 'dove'},
+  {slot: 'support', label: 'Builder',  color: 'cyan',   icon: 'hammer'},
+];
 
 // Games where role comes from user selection, not class detection
 const FLEXIBLE_ROLE_GAMES = ['gw2', 'eso'];
@@ -771,7 +768,7 @@ function detectRole(gameName, selections, selectedRole) {
         const roleLower = (Array.isArray(roleVal) ? roleVal[0] : roleVal).toLowerCase();
         if (['tank', 'healer', 'dps', 'support', 'flex'].includes(roleLower)) return roleLower;
       }
-      if (selectedRole && ['tank', 'healer', 'dps', 'support', 'flex'].includes(selectedRole)) return selectedRole;
+      if (selectedRole && ['tank', 'healer', 'dps', 'support', 'flex'].includes(selectedRole.toLowerCase())) return selectedRole.toLowerCase();
       return null;
     }
 
@@ -790,7 +787,7 @@ function detectRole(gameName, selections, selectedRole) {
   }
 
   // Priority 2: Explicit selected_role (generic mode)
-  if (selectedRole && ['tank', 'healer', 'dps', 'support', 'flex'].includes(selectedRole)) return selectedRole;
+  if (selectedRole && ['tank', 'healer', 'dps', 'support', 'flex'].includes(selectedRole.toLowerCase())) return selectedRole.toLowerCase();
 
   // Priority 3: Role field in selections
   const roleVal = selections['Role'] || selections['role'];
@@ -811,6 +808,95 @@ function stripRoleSuffix(playerRole) {
   let cleaned = playerRole;
   for (const pattern of rolePatterns) cleaned = cleaned.replace(pattern, '');
   return cleaned.trim();
+}
+
+// ── Creator tag helpers (mirrors Discord LFG browser) ────────────────────────
+function _platformTagClass(val) {
+  const v = (val || '').toLowerCase();
+  if (v === 'pc') return 'bg-blue-900/40 text-blue-300 border border-blue-800/60';
+  if (v === 'ps5' || v === 'ps4' || v.startsWith('play')) return 'bg-indigo-900/40 text-indigo-300 border border-indigo-800/60';
+  if (v === 'xbox' || v.includes('xbox')) return 'bg-green-900/40 text-green-300 border border-green-800/60';
+  if (v === 'cross-platform' || v === 'crossplay') return 'bg-purple-900/40 text-purple-300 border border-purple-800/60';
+  return 'bg-neutral-800 text-gray-400 border border-neutral-600';
+}
+
+function _tagClass(key, val) {
+  const k = (key || '').toLowerCase();
+  if (k === 'platform')    return _platformTagClass(val);
+  if (k === 'activity')    return 'bg-orange-900/40 text-orange-300 border border-orange-800/60';
+  if (k === 'experience')  return 'bg-cyan-900/40 text-cyan-300 border border-cyan-800/60';
+  if (k === 'server type') return 'bg-teal-900/40 text-teal-300 border border-teal-800/60';
+  return 'bg-neutral-800 text-gray-400 border border-neutral-600';
+}
+
+const _MMO_GRID_FIELDS = new Set(['role', 'class', 'specialization', 'spec', 'subclass', 'job']);
+
+function _creatorTagsHtml(members, isMmoGroup) {
+  const creator = members.find(function(m) { return m.is_creator; }) || members[0];
+  if (!creator) return '';
+  const sels = creator.selections || {};
+  return Object.entries(sels).filter(function([k, v]) {
+    if (!v) return false;
+    const kl = k.toLowerCase();
+    if (kl === 'memberplatform') return false;
+    if (isMmoGroup) return !_MMO_GRID_FIELDS.has(kl);
+    return kl !== 'role';
+  }).map(function([k, v]) {
+    let val = Array.isArray(v) ? v[0] : v;
+    if (!val) return '';
+    if (typeof val === 'string' && val.startsWith('[')) {
+      try { const arr = JSON.parse(val); val = Array.isArray(arr) ? arr[0] : val; } catch(e) {}
+    }
+    if (!val) return '';
+    return `<span class="px-1.5 py-0.5 rounded-full text-xs ${_tagClass(k, val)}">${escapeHtml(String(val))}</span>`;
+  }).join('');
+}
+
+// ── Role schema helpers ───────────────────────────────────────────────────────
+const _ROLE_COLOR_MAP = {
+  blue:   {text: 'text-blue-400',   border: 'border-blue-900/50'},
+  green:  {text: 'text-green-400',  border: 'border-green-900/50'},
+  red:    {text: 'text-red-400',    border: 'border-red-900/50'},
+  yellow: {text: 'text-yellow-400', border: 'border-yellow-900/50'},
+  orange: {text: 'text-orange-400', border: 'border-orange-900/50'},
+  cyan:   {text: 'text-cyan-400',   border: 'border-cyan-900/50'},
+  pink:   {text: 'text-pink-400',   border: 'border-pink-900/50'},
+  purple: {text: 'text-purple-400', border: 'border-purple-900/50'},
+  gray:   {text: 'text-gray-400',   border: 'border-gray-700'},
+};
+
+function getRoleEntry(group, slot) {
+  const schema = group.role_schema;
+  if (Array.isArray(schema)) {
+    const e = schema.find(r => r.slot === slot);
+    if (e) return e;
+  }
+  const defaults = {
+    tank:    {slot: 'tank',    label: 'Tank',    color: 'blue',   icon: 'shield-alt'},
+    healer:  {slot: 'healer',  label: 'Healer',  color: 'green',  icon: 'heart'},
+    dps:     {slot: 'dps',     label: 'DPS',     color: 'red',    icon: 'bolt'},
+    support: {slot: 'support', label: 'Support', color: 'yellow', icon: 'music'},
+  };
+  return defaults[slot] || {slot, label: slot, color: 'gray', icon: 'circle'};
+}
+
+function getRoleColors(group, slot) {
+  const entry = getRoleEntry(group, slot);
+  return _ROLE_COLOR_MAP[entry.color] || _ROLE_COLOR_MAP.gray;
+}
+
+function getRoleLabel(group, slot) { return getRoleEntry(group, slot).label; }
+function getRoleIcon(group, slot)  { return getRoleEntry(group, slot).icon; }
+
+// Return effective schema: stored schema array, or default 4 slots
+function getEffectiveSchema(group) {
+  if (Array.isArray(group.role_schema) && group.role_schema.length > 0) return group.role_schema;
+  return [
+    {slot:'tank',    label:'Tank',    color:'blue',   icon:'shield-alt'},
+    {slot:'healer',  label:'Healer',  color:'green',  icon:'heart'},
+    {slot:'dps',     label:'DPS',     color:'red',    icon:'bolt'},
+    {slot:'support', label:'Support', color:'yellow', icon:'music'},
+  ];
 }
 
 // ─── Kick / Leave ────────────────────────────────────────────────────────────
@@ -925,11 +1011,29 @@ function renderGroup(group) {
     }
   }
 
-  // Time status badge (Active Now for playing/scheduled groups without future time)
+  // Survival game detection
+  const _gameType = getBuiltinGameType(group.game_name || '');
+  const _isSurvivalGame = SURVIVAL_GAMES.includes(_gameType);
+  const _roleSchemaIsSurvival = group.role_schema && (
+    group.role_schema.survival === true ||
+    (Array.isArray(group.role_schema) && group.role_schema.some(function(r) {
+      return r.slot === 'tank' && (r.label === 'Combat' || r.color === 'orange');
+    }))
+  );
+  const _survivalEnabled = _isSurvivalGame && _roleSchemaIsSurvival;
+
+  // Time status badge
   let timeStatusBadge = '';
-  if (!group.scheduled_time || group.scheduled_time <= now) {
-    timeStatusBadge = '<span class="px-2 py-1 text-xs rounded bg-green-600 text-white"><i class="fas fa-circle mr-1 animate-pulse"></i>Active Now</span>';
+  if (typeof group.scheduled_time === 'number' && group.scheduled_time > 0 && group.scheduled_time < now - 3600) {
+    timeStatusBadge = '<span class="px-2 py-0.5 text-xs rounded bg-gray-600 text-white align-middle">Past</span>';
+  } else if (!group.scheduled_time || (typeof group.scheduled_time === 'number' && group.scheduled_time <= now)) {
+    timeStatusBadge = '<span class="px-2 py-0.5 text-xs rounded bg-green-600 text-white align-middle"><i class="fas fa-circle mr-1 animate-pulse"></i>Active Now</span>';
   }
+
+  // Recurrence badge
+  const recurrBadge = group.recurrence && group.recurrence !== 'none'
+    ? ` <span class="px-2 py-0.5 text-xs rounded bg-indigo-600/30 text-indigo-300 border border-indigo-600/40 align-middle"><i class="fas fa-redo mr-1"></i>${{daily:'Daily',weekly:'Weekly',monthly:'Monthly'}[group.recurrence] || group.recurrence}</span>`
+    : '';
 
   // Collect activity badges from member selections
   const allActivities = new Set();
@@ -989,24 +1093,23 @@ function renderGroup(group) {
 
     const specOrSubclass = spec || subclass;
     const combined = cls && specOrSubclass ? `${cls} - ${specOrSubclass}` : (cls || specOrSubclass || job);
-    if (combined) selectionParts.unshift(combined);
-
-    const displayText = selectionParts.length > 0
-      ? `${escapeHtml(m.display_name)} <span class="text-gray-500">(${escapeHtml(selectionParts.join(', '))})</span>`
-      : escapeHtml(m.display_name);
+    // specLine: shown as subtitle below the name (not inline in parens)
+    const specLine = combined || selectionParts.join(', ');
 
     // Categorise for role roster
-    if (group.has_role_composition) {
+    if (group.has_role_composition || _survivalEnabled) {
       const memberEntry = {
-        displayText,
+        specLine,
         icon,
         color,
-        is_creator:   m.is_creator,
-        is_co_leader: m.is_co_leader,
-        user_id:      m.user_id,
-        display_name: m.display_name,
-        idx:          idx + 1,
-        spec:         selectionParts.length > 0 ? selectionParts.join(', ') : null,
+        is_creator:     m.is_creator,
+        is_co_leader:   m.is_co_leader,
+        user_id:        m.user_id,
+        display_name:   m.display_name,
+        idx:            idx + 1,
+        spec:           specLine || null,
+        memberPlatform: sel['MemberPlatform'] || sel['memberplatform'] || '',
+        selections:     sel,
       };
       const detectedRole = detectRole(group.game_name || '', sel, m.role);
       if      (detectedRole === 'tank')    tanksList.push(memberEntry);
@@ -1020,36 +1123,58 @@ function renderGroup(group) {
     const canRemoveMember = canManage && !m.is_creator;
     const removeBtn = canRemoveMember ? `
       <button onclick="kickMember(${group.id}, ${m.user_id}, '${escapeHtml(m.display_name).replace(/'/g, '&#39;')}')"
-              class="ml-2 text-red-400 hover:text-red-300 transition" title="Remove from group">
-        <i class="fas fa-times text-sm"></i>
+              class="ml-1 text-red-400 hover:text-red-300 transition" title="Remove from group">
+        <i class="fas fa-times text-xs"></i>
+      </button>` : '';
+    const editMemberBtn = (canManage || m.user_id === currentUserId) ? `
+      <button onclick="openEditClassModal(${group.id})"
+              class="ml-1 text-indigo-400 hover:text-indigo-300 transition flex-shrink-0" title="Edit class/role">
+        <i class="fas fa-pencil-alt text-xs"></i>
       </button>` : '';
 
     return `
-      <div class="flex items-center gap-2 text-sm ${color}">
-        <i class="fas ${icon} text-xs flex-shrink-0"></i>
-        <span class="min-w-0">${displayText}</span>
-        ${removeBtn}
+      <div class="flex items-start gap-2 py-1 group ${color}">
+        <i class="fas ${icon} text-xs flex-shrink-0 mt-1"></i>
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-1">
+            <span class="font-medium">${escapeHtml(m.display_name)}</span>
+            ${editMemberBtn}${removeBtn}
+          </div>
+          ${specLine ? `<div class="text-xs text-gray-500 leading-tight">${escapeHtml(specLine)}</div>` : ''}
+        </div>
       </div>`;
   }).join('');
 
   // ── Role roster member renderer (for Tank/Healer/DPS columns) ───────────
   const renderRoleMember = (m, canRemove) => {
-    const leaderIcon = m.is_creator   ? '<i class="fas fa-crown text-yellow-400 mr-1"></i>'
-                     : m.is_co_leader ? '<i class="fas fa-star text-blue-400 mr-1"></i>' : '';
+    const leaderIcon = m.is_creator   ? '<i class="fas fa-crown text-yellow-400 text-xs mr-1"></i>'
+                     : m.is_co_leader ? '<i class="fas fa-star text-blue-400 text-xs mr-1"></i>' : '';
     const removeBtn = canRemove && !m.is_creator ? `
       <button onclick="kickMember(${group.id}, ${m.user_id}, '${escapeHtml(m.display_name).replace(/'/g, '&#39;')}')"
-              class="ml-auto text-red-400 hover:text-red-300 transition opacity-0 group-hover:opacity-100"
+              class="text-red-400 hover:text-red-300 transition opacity-0 group-hover:opacity-100 flex-shrink-0"
               title="Remove">
         <i class="fas fa-times text-xs"></i>
       </button>` : '';
+    const editBtn = (canManage || m.user_id === currentUserId) ? `
+      <button onclick="openEditClassModal(${group.id})"
+              class="text-indigo-400 hover:text-indigo-300 transition flex-shrink-0"
+              title="Edit class/role">
+        <i class="fas fa-pencil-alt text-xs"></i>
+      </button>` : '';
     const cleanedSpec = stripRoleSuffix(m.spec);
+    const memberPlatform = m.memberPlatform || '';
+    const platformBadge = memberPlatform ? `<span class="text-xs text-gray-500 ml-1">${escapeHtml(memberPlatform)}</span>` : '';
     return `
-      <div class="flex items-center gap-1 text-sm py-1 group">
-        <span class="text-gray-500 text-xs w-4 flex-shrink-0">${m.idx}</span>
-        ${leaderIcon}
-        <span class="text-gray-200">${escapeHtml(m.display_name)}</span>
-        ${cleanedSpec ? `<span class="text-gray-500 text-xs ml-1">• ${escapeHtml(cleanedSpec)}</span>` : ''}
-        ${removeBtn}
+      <div class="flex items-start gap-1 py-1 group">
+        <span class="text-gray-500 text-xs w-4 flex-shrink-0 mt-0.5">${m.idx}</span>
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-1">
+            ${leaderIcon}
+            <span class="text-gray-200 text-sm font-medium">${escapeHtml(m.display_name)}</span>${platformBadge}
+            ${editBtn}${removeBtn}
+          </div>
+          ${cleanedSpec ? `<div class="text-xs text-gray-500 leading-tight">${escapeHtml(cleanedSpec)}</div>` : ''}
+        </div>
       </div>`;
   };
 
@@ -1059,96 +1184,135 @@ function renderGroup(group) {
   const hasSupport = (group.support_needed || 0) > 0 || supportList.length > 0;
   const hasFlex    = flexList.length > 0;
 
-  const roleRosterHtml = group.has_role_composition ? `
-    <div class="grid grid-cols-3 gap-3">
-      <div class="bg-neutral-900/70 rounded-lg p-3 border border-blue-900/50">
+  // Schema-driven: show ALL slots from effective schema regardless of slot count
+  const effectiveSchema = getEffectiveSchema(group);
+  const membersBySlot = {tank: tanksList, healer: healersList, dps: dpsList, support: supportList};
+  const slotCounts = {tank: group.tanks_needed||0, healer: group.healers_needed||0, dps: group.dps_needed||0, support: group.support_needed||0};
+
+  const roleRosterHtml = group.has_role_composition ? (() => {
+    const colsHtml = effectiveSchema.map(r => {
+      const list = membersBySlot[r.slot] || [];
+      const c = getRoleColors(group, r.slot);
+      return `<div class="bg-neutral-900/70 rounded-lg p-3 border ${c.border}">
         <div class="flex items-center gap-2 mb-2 pb-2 border-b border-neutral-700">
-          <i class="fas fa-shield-alt text-blue-400"></i>
-          <span class="text-sm font-semibold text-blue-400">Tank</span>
-          <span class="text-xs text-gray-400 ml-auto">${tanksList.length}/${group.tanks_needed || 0}</span>
+          <i class="fas fa-${getRoleIcon(group, r.slot)} ${c.text}"></i>
+          <span class="text-sm font-semibold ${c.text}">${escapeHtml(getRoleLabel(group, r.slot))}</span>
+          <span class="text-xs text-gray-400 ml-auto">${list.length}/${slotCounts[r.slot]||0}</span>
         </div>
         <div class="space-y-0.5 min-h-[40px]">
-          ${tanksList.length > 0 ? tanksList.map(m => renderRoleMember(m, canManage)).join('') : '<span class="text-gray-500 text-xs italic">—</span>'}
+          ${list.length > 0 ? list.map(m => renderRoleMember(m, canManage)).join('') : '<span class="text-gray-500 text-xs italic">-</span>'}
         </div>
-      </div>
+      </div>`;
+    }).join('');
 
-      <div class="bg-neutral-900/70 rounded-lg p-3 border border-green-900/50">
-        <div class="flex items-center gap-2 mb-2 pb-2 border-b border-neutral-700">
-          <i class="fas fa-heart text-green-400"></i>
-          <span class="text-sm font-semibold text-green-400">Healer</span>
-          <span class="text-xs text-gray-400 ml-auto">${healersList.length}/${group.healers_needed || 0}</span>
-        </div>
-        <div class="space-y-0.5 min-h-[40px]">
-          ${healersList.length > 0 ? healersList.map(m => renderRoleMember(m, canManage)).join('') : '<span class="text-gray-500 text-xs italic">—</span>'}
-        </div>
-      </div>
-
-      <div class="bg-neutral-900/70 rounded-lg p-3 border border-red-900/50">
-        <div class="flex items-center gap-2 mb-2 pb-2 border-b border-neutral-700">
-          <i class="fas fa-bolt text-red-400"></i>
-          <span class="text-sm font-semibold text-red-400">DPS</span>
-          <span class="text-xs text-gray-400 ml-auto">${dpsList.length}/${group.dps_needed || 0}</span>
-        </div>
-        <div class="space-y-0.5 min-h-[40px]">
-          ${dpsList.length > 0 ? dpsList.map(m => renderRoleMember(m, canManage)).join('') : '<span class="text-gray-500 text-xs italic">—</span>'}
-        </div>
-      </div>
-    </div>
-
-    ${hasSupport || hasFlex ? `
-    <div class="grid grid-cols-3 gap-3 mt-3">
-      ${hasSupport ? `
-      <div class="bg-neutral-900/70 rounded-lg p-3 border border-yellow-900/50">
-        <div class="flex items-center gap-2 mb-2 pb-2 border-b border-neutral-700">
-          <i class="fas fa-music text-yellow-400"></i>
-          <span class="text-sm font-semibold text-yellow-400">Support</span>
-          <span class="text-xs text-gray-400 ml-auto">${supportList.length}/${group.support_needed || 0}</span>
-        </div>
-        <div class="space-y-0.5 min-h-[40px]">
-          ${supportList.length > 0 ? supportList.map(m => renderRoleMember(m, canManage)).join('') : '<span class="text-gray-500 text-xs italic">—</span>'}
-        </div>
-      </div>` : '<div></div>'}
-
-      ${hasFlex ? `
+    const flexHtml = hasFlex ? `
       <div class="bg-neutral-900/70 rounded-lg p-3 border border-cyan-900/50">
         <div class="flex items-center gap-2 mb-2 pb-2 border-b border-neutral-700">
           <i class="fas fa-sync-alt text-cyan-400"></i>
           <span class="text-sm font-semibold text-cyan-400">Flex</span>
           <span class="text-xs text-gray-400 ml-auto">${flexList.length}</span>
         </div>
-        <div class="space-y-0.5 min-h-[40px]">
-          ${flexList.map(m => renderRoleMember(m, canManage)).join('')}
+        <div class="space-y-0.5 min-h-[40px]">${flexList.map(m => renderRoleMember(m, canManage)).join('')}</div>
+      </div>` : '';
+
+    const unassignedHtml = unassignedList.length > 0 ? `
+      <div class="mt-3 bg-neutral-900/70 rounded-lg p-3 border border-orange-900/50">
+        <div class="flex items-center gap-2 mb-2 pb-2 border-b border-neutral-700">
+          <i class="fas fa-question-circle text-orange-400"></i>
+          <span class="text-sm font-semibold text-orange-400">Unassigned</span>
+          <span class="text-xs text-gray-400 ml-auto">${unassignedList.length}</span>
         </div>
-      </div>` : '<div></div>'}
+        <div class="grid grid-cols-3 gap-2">${unassignedList.map(m => renderRoleMember(m, canManage)).join('')}</div>
+      </div>` : '';
 
-      <div></div>
-    </div>` : ''}
+    return `<div class="grid grid-cols-2 xl:grid-cols-4 gap-3">${colsHtml}${flexHtml}</div>
+      ${unassignedHtml}
+      <div class="mt-2 text-center">
+        <span class="text-sm text-gray-400">
+          <i class="fas fa-users mr-1"></i>Roster:
+          <span class="text-white font-semibold">${assignedCount}</span>/<span class="text-gray-400">${totalNeeded}</span>
+          ${unassignedList.length > 0 ? `<span class="text-orange-400 ml-2">• ${unassignedList.length} unassigned</span>` : ''}
+        </span>
+      </div>`;
+  })() : '';
 
-    ${unassignedList.length > 0 ? `
-    <div class="mt-3 bg-neutral-900/70 rounded-lg p-3 border border-orange-900/50">
-      <div class="flex items-center gap-2 mb-2 pb-2 border-b border-neutral-700">
-        <i class="fas fa-question-circle text-orange-400"></i>
-        <span class="text-sm font-semibold text-orange-400">Unassigned</span>
-        <span class="text-xs text-gray-400 ml-auto">${unassignedList.length}</span>
-      </div>
-      <div class="grid grid-cols-3 gap-2">
-        ${unassignedList.map(m => renderRoleMember(m, canManage)).join('')}
-      </div>
-    </div>` : ''}
-
-    <div class="mt-2 text-center">
-      <span class="text-sm text-gray-400">
-        <i class="fas fa-users mr-1"></i>Roster:
-        <span class="text-white font-semibold">${assignedCount}</span>
-        <span class="text-gray-500">/</span>
-        <span class="text-gray-400">${totalNeeded}</span>
-        ${unassignedList.length > 0 ? `<span class="text-orange-400 ml-2">• ${unassignedList.length} unassigned</span>` : ''}
-      </span>
-    </div>` : '';
+  // ── Survival grid HTML ─────────────────────────────────────────────────────
+  // TANKS/HEALERS/DPS/SUPPORT as parent sections, survival sub-choices nested inside.
+  // Sub-choices sourced from group.game_options Role field (cross-posted groups),
+  // or from the hardcoded GAME_TEMPLATES for web-native groups.
+  const survivalGridHtml = _survivalEnabled ? (() => {
+    const SURV_SECTIONS = [
+      {slot: 'tank',    label: 'Tanks',   icon: 'fa-shield-alt', text: 'text-blue-400',   border: 'border-blue-900/50'},
+      {slot: 'healer',  label: 'Healers', icon: 'fa-heart',      text: 'text-green-400',  border: 'border-green-900/50'},
+      {slot: 'dps',     label: 'DPS',     icon: 'fa-bolt',       text: 'text-red-400',    border: 'border-red-900/50'},
+      {slot: 'support', label: 'Support', icon: 'fa-tools',      text: 'text-yellow-400', border: 'border-yellow-900/50'},
+    ];
+    // Sub-choices: prefer game_options from API (cross-posted groups), fall back to GAME_TEMPLATES (web-native)
+    const gameOpts = group.game_options || [];
+    const roleOpt = gameOpts.find(o => o.name === 'Role' && Array.isArray(o.choices) && o.choices.length > 0 && typeof o.choices[0] === 'object');
+    let subChoices = roleOpt ? roleOpt.choices : [];
+    if (!subChoices.length) {
+      // Web-native group: build sub-choices from GAME_TEMPLATES hardcoded JS constants
+      const tpl = _gameType && GAME_TEMPLATES[_gameType] ? GAME_TEMPLATES[_gameType] : [];
+      const tplRole = tpl.find(f => f.name === 'Role' || f.name === 'Roles Needed');
+      if (tplRole && Array.isArray(tplRole.choices) && tplRole.choices.length > 0 && typeof tplRole.choices[0] === 'object') {
+        subChoices = tplRole.choices;
+      }
+    }
+    const colMap = {};
+    subChoices.forEach(c => { colMap[c.value] = []; });
+    const unassigned = [];
+    members.forEach((m, idx) => {
+      const me = {...m, idx: idx+1, memberPlatform: (m.selections||{})['MemberPlatform']||'', spec: null};
+      const sel = (m.selections||{})['Role'] || (m.selections||{})['Roles Needed'];
+      const chosen = Array.isArray(sel) ? sel[0] : sel;
+      if (chosen && colMap[chosen] !== undefined) colMap[chosen].push(me);
+      else unassigned.push(me);
+    });
+    function buildSurvSec(slot) {
+      const s = SURV_SECTIONS.find(x => x.slot === slot);
+      const subs = subChoices.filter(c => c.role === slot);
+      if (!subs.length) return null;
+      const total = subs.reduce((n,c) => n + (colMap[c.value]||[]).length, 0);
+      const header = `<div class="flex items-center gap-2 mb-2"><i class="fas ${s.icon} ${s.text} text-sm"></i><span class="text-sm font-bold ${s.text} uppercase tracking-wide">${s.label}</span><span class="text-xs text-gray-500 ml-1">(${total})</span></div>`;
+      const cols = subs.map(c => {
+        const list = colMap[c.value] || [];
+        return `<div class="bg-neutral-900/70 rounded-lg p-3 border ${s.border}">
+          <div class="flex items-center gap-2 mb-2 pb-2 border-b border-neutral-700">
+            <span class="text-sm font-semibold ${s.text}">${escapeHtml(c.value)}</span>
+            <span class="text-xs text-gray-400 ml-auto">${list.length}</span>
+          </div>
+          <div class="space-y-0.5 min-h-[32px]">${list.length > 0 ? list.map(me => renderRoleMember(me, canManage)).join('') : '<span class="text-gray-600 text-xs italic">-</span>'}</div>
+        </div>`;
+      }).join('');
+      return {header, cols};
+    }
+    let gridHtml = '';
+    const tSec = buildSurvSec('tank'), hSec = buildSurvSec('healer');
+    const dSec = buildSurvSec('dps'),  sSec = buildSurvSec('support');
+    if (tSec || hSec) {
+      gridHtml += `<div class="grid grid-cols-2 gap-3 mb-3">`;
+      if (tSec) gridHtml += `<div>${tSec.header}<div class="grid grid-cols-1 gap-2">${tSec.cols}</div></div>`;
+      if (hSec) gridHtml += `<div>${hSec.header}<div class="grid grid-cols-1 gap-2">${hSec.cols}</div></div>`;
+      gridHtml += `</div>`;
+    }
+    if (dSec) gridHtml += `<div class="mb-3">${dSec.header}<div class="grid grid-cols-2 md:grid-cols-3 gap-2">${dSec.cols}</div></div>`;
+    if (sSec) gridHtml += `<div class="mb-3">${sSec.header}<div class="grid grid-cols-2 md:grid-cols-3 gap-2">${sSec.cols}</div></div>`;
+    const unassignedHtml = unassigned.length > 0 ? `
+      <div class="mt-2 bg-neutral-900/70 rounded-lg p-3 border border-orange-900/50">
+        <div class="flex items-center gap-2 mb-2 pb-2 border-b border-neutral-700">
+          <i class="fas fa-question-circle text-orange-400"></i>
+          <span class="text-sm font-semibold text-orange-400">Unassigned</span>
+          <span class="text-xs text-gray-400 ml-auto">${unassigned.length}</span>
+        </div>
+        <div class="flex flex-wrap gap-x-4 gap-y-1">${unassigned.map(me => renderRoleMember(me, canManage)).join('')}</div>
+      </div>` : '';
+    return `<div class="mb-3">${gridHtml}${unassignedHtml}</div>`;
+  })() : '';
 
   // ── Final card HTML ────────────────────────────────────────────────────
   return `
-    <div class="bg-neutral-800 border border-neutral-700 rounded-xl p-5 hover:border-green-600/50 transition">
+    <div class="bg-neutral-800 border border-neutral-700 rounded-xl p-5 hover:border-purple-700/60 hover:shadow-[0_0_18px_rgba(147,51,234,0.18)] transition">
       <div class="flex flex-col md:flex-row gap-4">
 
         <!-- Game Cover (tall portrait, matching dashboard) -->
@@ -1166,21 +1330,25 @@ function renderGroup(group) {
               <h3 class="text-2xl font-bold text-white mb-1 flex items-center gap-2 flex-wrap">
                 ${escapeHtml(group.title)}
                 ${(function() {
-                  // Use origin_platform (where posted from) first, then creator's linked platform
-                  const p = group.origin_platform || group.creator_platform || '';
+                  // Badge shows WHERE the group was posted FROM, not the creator's linked accounts.
+                  // Only use origin_platform (set when cross-posted from another platform).
+                  // Never fall back to creator_platform - that reflects linked accounts, not post origin.
+                  const p = group.origin_platform || '';
                   if (group.platform === 'fluxer' || group.platform === 'fluxer_guild' || p === 'fluxer') {
-                    return '<span class="px-2 py-1 text-xs rounded bg-purple-700 text-purple-200"><i class="fas fa-satellite-dish mr-1"></i>Fluxer</span>';
-                  } else if (p === 'discord') {
-                    return '<span class="px-2 py-1 text-xs rounded bg-indigo-700 text-indigo-200"><i class="fab fa-discord mr-1"></i>Discord</span>';
+                    return '<span class="px-2 py-0.5 text-xs rounded bg-purple-700 text-purple-200"><i class="fas fa-satellite-dish mr-1"></i>Fluxer</span>';
+                  } else if (group.platform === 'guild_lfg' || p === 'discord') {
+                    return '<span class="px-2 py-0.5 text-xs rounded bg-indigo-700 text-indigo-200"><i class="fab fa-discord mr-1"></i>Discord</span>';
                   } else if (p === 'matrix') {
-                    return '<span class="px-2 py-1 text-xs rounded bg-blue-700 text-blue-200"><i class="fas fa-comments mr-1"></i>Matrix</span>';
+                    return '<span class="px-2 py-0.5 text-xs rounded bg-blue-700 text-blue-200"><i class="fas fa-comments mr-1"></i>Matrix</span>';
                   }
-                  return '<span class="px-2 py-1 text-xs rounded bg-green-800 text-green-200"><i class="fas fa-globe mr-1"></i>QuestLog</span>';
+                  return '<span class="px-2 py-0.5 text-xs rounded bg-green-800 text-green-200"><i class="fas fa-globe mr-1"></i>QuestLog</span>';
                 })()}
-                ${group.has_role_composition ? '<span class="px-2 py-1 text-xs rounded bg-purple-600 text-white"><i class="fas fa-users-cog mr-1"></i>ROLES</span>' : ''}
+                ${(group.has_role_composition || _survivalEnabled) ? '<span class="px-2 py-0.5 text-xs rounded bg-purple-600 text-white"><i class="fas fa-users-cog mr-1"></i>ROLES</span>' : ''}
+                ${recurrBadge}
                 ${timeStatusBadge}
               </h3>
               <p class="text-sm text-gray-400">${escapeHtml(group.game_name)} <span class="text-gray-600 text-xs ml-1">#${group.platform === 'fluxer_guild' ? group.guild_lfg_id : group.id}</span></p>
+              ${(() => { const tags = _creatorTagsHtml(members, group.has_role_composition); return tags ? `<div class="flex flex-wrap gap-1 mt-1">${tags}</div>` : ''; })()}
             </div>
             ${isFull
               ? `<span class="ml-3 flex-shrink-0 px-3 py-1 rounded-lg bg-red-600/20 text-red-400 text-sm font-medium">Full</span>`
@@ -1193,14 +1361,17 @@ function renderGroup(group) {
               <span class="text-gray-400"><i class="far fa-clock mr-2"></i>Time:</span>
               <span class="text-white">${formattedDate}</span>
             </div>
-            ${group.has_role_composition ? `
+            ${(group.has_role_composition && !_survivalEnabled) ? `
               <div class="text-sm">
                 <span class="text-gray-400"><i class="fas fa-users-cog mr-2"></i>Composition:</span>
                 <div class="flex gap-3 mt-1 flex-wrap">
-                  ${(group.tanks_needed || 0) > 0 ? `<span class="text-blue-400"><i class="fas fa-shield mr-1"></i>${group.tanks_needed} Tank${group.tanks_needed > 1 ? 's' : ''}</span>` : ''}
-                  ${(group.healers_needed || 0) > 0 ? `<span class="text-green-400"><i class="fas fa-heart mr-1"></i>${group.healers_needed} Healer${group.healers_needed > 1 ? 's' : ''}</span>` : ''}
-                  ${(group.dps_needed || 0) > 0 ? `<span class="text-red-400"><i class="fas fa-bolt mr-1"></i>${group.dps_needed} DPS</span>` : ''}
-                  ${(group.support_needed || 0) > 0 ? `<span class="text-yellow-400"><i class="fas fa-music mr-1"></i>${group.support_needed} Support</span>` : ''}
+                  ${(() => {
+                    const slotCounts = {tank: group.tanks_needed||0, healer: group.healers_needed||0, dps: group.dps_needed||0, support: group.support_needed||0};
+                    return getEffectiveSchema(group).map(r => {
+                      const c = getRoleColors(group, r.slot);
+                      return `<span class="${c.text}"><i class="fas fa-${getRoleIcon(group, r.slot)} mr-1"></i>${slotCounts[r.slot]||0} ${escapeHtml(getRoleLabel(group, r.slot))}</span>`;
+                    }).join('');
+                  })()}
                 </div>
               </div>
             ` : `
@@ -1215,8 +1386,9 @@ function renderGroup(group) {
 
           ${activityBadges}
 
-          <!-- Members / Role Roster -->
-          ${group.has_role_composition ? `
+          <!-- Members / Role Roster / Survival Grid -->
+          ${_survivalEnabled ? survivalGridHtml
+            : group.has_role_composition ? `
             <div class="mb-3">
               ${roleRosterHtml}
             </div>
@@ -1313,17 +1485,32 @@ function renderGroup(group) {
           ` : `
           <!-- Creator info for web-native groups -->
           ${group.creator_name ? (function() {
-            const cp = group.origin_platform || group.creator_platform || '';
-            let icon = 'fas fa-globe', color = 'text-green-400', platformLabel = 'QuestLog';
-            if (cp === 'discord') { icon = 'fab fa-discord'; color = 'text-indigo-400'; platformLabel = 'Discord'; }
-            else if (cp === 'fluxer') { icon = 'fas fa-satellite-dish'; color = 'text-purple-400'; platformLabel = 'Fluxer'; }
-            else if (cp === 'matrix') { icon = 'fas fa-comments'; color = 'text-blue-400'; platformLabel = 'Matrix'; }
+            // Only show a platform label when this group was cross-posted FROM another platform.
+            // Do NOT use creator_platform - that reflects linked accounts, not post origin.
+            const cp = group.origin_platform || '';
             const guildPart = group.origin_guild_name
               ? ` in <span class="text-gray-200">${escapeHtml(group.origin_guild_name)}</span>`
               : '';
+            if (cp === 'discord') {
+              return `<div class="bg-neutral-800/60 border border-neutral-700/60 rounded-lg px-3 py-2 text-sm text-gray-300 mb-3">
+                <i class="fab fa-discord text-indigo-400 mr-2"></i>
+                Posted by <span class="text-white font-medium">${escapeHtml(group.creator_name)}</span> via <span class="text-indigo-400 font-medium">Discord</span>${guildPart}
+              </div>`;
+            } else if (cp === 'fluxer') {
+              return `<div class="bg-neutral-800/60 border border-neutral-700/60 rounded-lg px-3 py-2 text-sm text-gray-300 mb-3">
+                <i class="fas fa-satellite-dish text-purple-400 mr-2"></i>
+                Posted by <span class="text-white font-medium">${escapeHtml(group.creator_name)}</span> via <span class="text-purple-400 font-medium">Fluxer</span>${guildPart}
+              </div>`;
+            } else if (cp === 'matrix') {
+              return `<div class="bg-neutral-800/60 border border-neutral-700/60 rounded-lg px-3 py-2 text-sm text-gray-300 mb-3">
+                <i class="fas fa-comments text-blue-400 mr-2"></i>
+                Posted by <span class="text-white font-medium">${escapeHtml(group.creator_name)}</span> via <span class="text-blue-400 font-medium">Matrix</span>${guildPart}
+              </div>`;
+            }
+            // Web-native: just show the creator name, no platform label
             return `<div class="bg-neutral-800/60 border border-neutral-700/60 rounded-lg px-3 py-2 text-sm text-gray-300 mb-3">
-              <i class="${icon} ${color} mr-2"></i>
-              Posted by <span class="text-white font-medium">${escapeHtml(group.creator_name)}</span> via <span class="${color} font-medium">${platformLabel}</span>${guildPart}
+              <i class="fas fa-user text-green-400 mr-2"></i>
+              Posted by <span class="text-white font-medium">${escapeHtml(group.creator_name)}</span>
             </div>`;
           })() : ''}
           <!-- Actions -->
@@ -1332,20 +1519,11 @@ function renderGroup(group) {
               isCreator ? `
                 <span class="px-4 py-2 bg-yellow-600/20 text-yellow-400 rounded-lg text-sm font-medium">
                   <i class="fas fa-crown mr-2"></i>You're the Leader
-                </span>
-                <button onclick="openEditClassModal(${group.id})" class="px-4 py-2 bg-indigo-600/60 hover:bg-indigo-600 text-white rounded-lg text-sm font-medium transition">
-                  <i class="fas fa-pencil-alt mr-2"></i>Edit Class
-                </button>` :
+                </span>` :
               isCoLeader ? `
                 <span class="px-4 py-2 bg-blue-600/20 text-blue-400 rounded-lg text-sm font-medium">
                   <i class="fas fa-star mr-2"></i>You're a Co-Leader
-                </span>
-                <button onclick="openEditClassModal(${group.id})" class="px-4 py-2 bg-indigo-600/60 hover:bg-indigo-600 text-white rounded-lg text-sm font-medium transition">
-                  <i class="fas fa-pencil-alt mr-2"></i>Edit Class
-                </button>` : `
-                <button onclick="openEditClassModal(${group.id})" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium transition">
-                  <i class="fas fa-pencil-alt mr-2"></i>Edit Class
-                </button>
+                </span>` : `
                 <button onclick="leaveGroup(${group.id})" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition">
                   <i class="fas fa-sign-out-alt mr-2"></i>Leave Group
                 </button>`
@@ -1364,7 +1542,7 @@ function renderGroup(group) {
                 </span>`
             )}
             ${canManage ? `
-            <a href="/ql/lfg/${group.id}/" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium transition">
+            <a href="/ql/lfg/${group.share_token || group.id}/" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium transition">
               <i class="fas fa-edit mr-2"></i>Edit Group
             </a>
             <button onclick="deleteGroupFromBrowse(${group.id})" class="px-4 py-2 bg-red-600/20 hover:bg-red-600 text-red-400 hover:text-white rounded-lg text-sm font-medium transition">
@@ -1407,6 +1585,45 @@ const GAME_TEMPLATES = {
     { name: 'Subclass', exclude_same_as: 'Class', choices: ['Dragonknight','Sorcerer','Nightblade','Templar','Warden','Necromancer','Arcanist'] },
     { name: 'Role', choices: [{value:'Tank',role:'tank'},{value:'Healer',role:'healer'},{value:'DPS',role:'dps'},{value:'Support',role:'support'}] },
   ],
+  // Survival games - sub-choices map to tank/healer/dps/support parent sections
+  palworld: [
+    { name: 'Role', choices: [
+      {value:'Tank/Defender',   role:'tank'},
+      {value:'Support/Healer',  role:'healer'},
+      {value:'Combat (Melee)',  role:'dps'},
+      {value:'Combat (Ranged)', role:'dps'},
+      {value:'Scout/Explorer',  role:'dps'},
+      {value:'Builder',         role:'support'},
+      {value:'Gatherer',        role:'support'},
+      {value:'Tamer/Breeder',   role:'support'},
+      {value:'Crafter',         role:'support'},
+    ]},
+  ],
+  enshrouded: [
+    { name: 'Role', choices: [
+      {value:'Tank',    role:'tank'},
+      {value:'Healer',  role:'healer'},
+      {value:'DPS',     role:'dps'},
+      {value:'Support', role:'support'},
+    ]},
+  ],
+  valheim: [
+    { name: 'Role', choices: [
+      {value:'Tank',    role:'tank'},
+      {value:'Healer',  role:'healer'},
+      {value:'DPS',     role:'dps'},
+      {value:'Support', role:'support'},
+    ]},
+  ],
+  rust: [
+    { name: 'Role', choices: [
+      {value:'Raider',  role:'tank'},
+      {value:'Medic',   role:'healer'},
+      {value:'Fighter', role:'dps'},
+      {value:'Farmer',  role:'support'},
+      {value:'Builder', role:'support'},
+    ]},
+  ],
 };
 
 // detectGameType reuses getBuiltinGameType (defined above in role detection section)
@@ -1419,7 +1636,7 @@ function detectGameType(name) {
 // Renders a wrapper+container div for a game template field.
 // Dependent fields (depends_on) start hidden; shown when parent has a value.
 function renderJoinFieldContainer(field) {
-  const hiddenClass = field.depends_on ? 'hidden' : '';
+  const hiddenClass = (field.depends_on || field.exclude_same_as) ? 'hidden' : '';
   return `<div id="jopt_wrapper_${field.name}" class="${hiddenClass}">
     <label class="text-sm text-gray-300 mb-1 block">${escapeHtml(field.name)} <span class="text-gray-500 text-xs">(optional)</span></label>
     <div id="jopt_cs_${field.name}"></div>
@@ -1474,6 +1691,15 @@ function _updateExcludedJoinSelects(changedFieldName, currentSelections) {
   for (const field of joinTemplates) {
     if (field.exclude_same_as !== changedFieldName) continue;
     const excludeVal = joinSelects[changedFieldName] ? joinSelects[changedFieldName].getValue() : '';
+    const wrapperEl = document.getElementById(`jopt_wrapper_${field.name}`);
+    if (!excludeVal) {
+      // Parent cleared - hide the excluded field and reset it
+      if (wrapperEl) wrapperEl.classList.add('hidden');
+      if (joinSelects[field.name]) { joinSelects[field.name].destroy(); delete joinSelects[field.name]; }
+      continue;
+    }
+    // Show the wrapper now that parent has a value
+    if (wrapperEl) wrapperEl.classList.remove('hidden');
     const currentVal = currentSelections
       ? (currentSelections[field.name] || '')
       : (joinSelects[field.name] ? joinSelects[field.name].getValue() : '');
@@ -1493,9 +1719,9 @@ function initJoinCustomSelects(currentSelections) {
     delete joinSelects[name];
   }
 
-  // Create selects for non-dependent fields
+  // Create selects for non-dependent, non-excluded fields (excluded fields start hidden)
   for (const field of joinTemplates) {
-    if (field.depends_on) continue;
+    if (field.depends_on || field.exclude_same_as) continue;
     const choices = Array.isArray(field.choices) ? field.choices : [];
     const items = choices.map(c => { const v = typeof c === 'object' ? c.value : c; return { value: v, label: v }; });
     _makeJoinSelect(field.name, items, (currentSelections && currentSelections[field.name]) || '');
@@ -1530,9 +1756,13 @@ function buildJoinModalContent(group, currentSelections, currentRole) {
   // Render containers for all template fields (dependent ones start hidden)
   const fieldsHtml = joinTemplates.map(f => renderJoinFieldContainer(f)).join('');
 
-  // Role picker for generic role-composition groups (no game-specific template handles it)
+  // Role picker for role-composition groups.
+  // Skip only for: (a) class-detection games (WoW/FFXIV/Pantheon - role inferred from class/spec)
+  // and (b) games whose own template already has an explicit Role field (GW2/ESO).
+  const CLASS_DETECTION_GAMES = ['wow', 'ffxiv', 'pantheon'];
+  const hasOwnRoleField = joinTemplates.some(f => f.name === 'Role');
   let roleHtml = '';
-  if (group.has_role_composition && !gameType) {
+  if (group.has_role_composition && !CLASS_DETECTION_GAMES.includes(gameType) && !hasOwnRoleField) {
     roleHtml = `<div>
       <label class="text-sm text-gray-300 mb-1 block">Role <span class="text-gray-500 text-xs">(optional)</span></label>
       <div id="jopt_cs_role"></div>
@@ -1567,30 +1797,34 @@ function buildJoinModalContent(group, currentSelections, currentRole) {
   // Initialize all template field selects (handles pre-population for update mode)
   initJoinCustomSelects(currentSelections || {});
 
-  // Generic role select (not in joinSelects registry — read via hidden input jopt_role)
+  // Generic role select - uses role schema (ALL slots from schema + Flex)
   if (document.getElementById('jopt_cs_role')) {
+    // When a role_schema is set, show ALL its slots regardless of slot counts.
+    // Slot counts only affect capacity display, not which roles exist.
+    const schemaItems = getEffectiveSchema(group).map(r => ({ value: r.slot, label: getRoleLabel(group, r.slot) }));
+    const roleItems = [
+      ...schemaItems,
+      { value: 'flex', label: 'Flex' },
+    ];
     createCustomSelect({
       container: '#jopt_cs_role',
       name: 'jopt_role',
       id: 'jopt_role',
       placeholder: 'Select role...',
-      items: [
-        { value: 'tank',    label: 'Tank'    },
-        { value: 'healer',  label: 'Healer'  },
-        { value: 'dps',     label: 'DPS'     },
-        { value: 'support', label: 'Support' },
-        { value: 'flex',    label: 'Flex'    },
-      ],
+      items: roleItems,
       selected: currentRole || '',
       color: 'green',
     });
   }
 }
 
+let _currentJoinGroup = null;
+
 function openJoinModal(groupId) {
   joinBrowseMode = 'join';
   const group = allGroups.find(g => g.id === groupId);
   if (!group) return;
+  _currentJoinGroup = group;
 
   document.getElementById('joinModalTitle').textContent = 'Join Group';
   buildJoinModalContent(group, {}, null);
@@ -1601,6 +1835,7 @@ function openEditClassModal(groupId) {
   joinBrowseMode = 'update';
   const group = allGroups.find(g => g.id === groupId);
   if (!group) return;
+  _currentJoinGroup = group;
 
   const myMember = group.members.find(m => m.user_id === currentUserId);
   const currentSelections = myMember ? (myMember.selections || {}) : {};
@@ -1634,9 +1869,22 @@ async function deleteGroupFromBrowse(groupId) {
 
 async function submitJoin(groupId) {
   const selections = collectJoinSelections();
-  const roleEl = document.getElementById('jopt_role');
-  const role = roleEl ? roleEl.value || null : null;
   delete selections['__role'];
+  // If the game template has a Role field (ESO, GW2), extract it from selections
+  // and store it as the member role column (same logic as lfg_create.html).
+  const SURVIVAL_GAME_TYPES_JOIN = ['palworld', 'enshrouded', 'valheim', 'rust'];
+  const _bjGameType = detectGameType((_currentJoinGroup && _currentJoinGroup.game_name) || '');
+  const _bjTemplateHasRole = joinTemplates.some(f => f.name === 'Role');
+  let role;
+  if (_bjTemplateHasRole && !SURVIVAL_GAME_TYPES_JOIN.includes(_bjGameType)) {
+    const rv = selections['Role'];
+    const rvStr = (Array.isArray(rv) ? rv[0] : rv) || '';
+    role = rvStr.toLowerCase() || null;
+    delete selections['Role'];
+  } else {
+    const roleEl = document.getElementById('jopt_role');
+    role = roleEl ? roleEl.value || null : null;
+  }
 
   const url = joinBrowseMode === 'update'
     ? `/ql/lfg/${groupId}/update-member/`
@@ -1839,77 +2087,5 @@ async function submitFgEditClass() {
   }
 }
 
-// ─── My Closed Fluxer Groups ─────────────────────────────────────────────────
-
-let _closedGroupsLoaded = false;
-
-function toggleMyClosedGroups() {
-  const section = document.getElementById('myClosedGroupsSection');
-  const toggle = document.getElementById('myClosedToggleRow');
-  if (!section) return;
-  if (section.classList.contains('hidden')) {
-    section.classList.remove('hidden');
-    toggle.querySelector('button').innerHTML = '<i class="fas fa-chevron-up mr-1"></i>Hide my closed Fluxer groups';
-    if (!_closedGroupsLoaded) loadMyClosedGroups();
-  } else {
-    section.classList.add('hidden');
-    toggle.querySelector('button').innerHTML = '<i class="fas fa-history mr-1"></i>Show my closed Fluxer groups';
-  }
-}
-
-async function loadMyClosedGroups() {
-  _closedGroupsLoaded = true;
-  const listEl = document.getElementById('myClosedGroupsList');
-  if (!listEl) return;
-  listEl.innerHTML = '<p class="text-gray-500 text-sm">Loading...</p>';
-  try {
-    const resp = await fetch('/ql/api/lfg/fluxer-guild/my-closed/');
-    const data = await resp.json();
-    const groups = data.groups || [];
-    if (!groups.length) {
-      listEl.innerHTML = '<p class="text-gray-500 text-sm">No closed groups in the last 30 days.</p>';
-      return;
-    }
-    listEl.innerHTML = groups.map(g => {
-      const cover = g.game_image_url
-        ? `<img src="${escapeHtml(g.game_image_url)}" class="w-12 h-16 object-cover rounded flex-shrink-0">`
-        : `<div class="w-12 h-16 bg-neutral-700 rounded flex-shrink-0 flex items-center justify-center"><i class="fas fa-gamepad text-gray-500"></i></div>`;
-      const ts = g.scheduled_time ? new Date(g.scheduled_time * 1000).toLocaleDateString() : '';
-      return `<div class="flex items-center gap-3 bg-neutral-900 border border-neutral-800 rounded-lg p-3">
-        ${cover}
-        <div class="flex-1 min-w-0">
-          <p class="text-sm font-medium text-gray-300 truncate">${escapeHtml(g.title)}</p>
-          <p class="text-xs text-gray-500">${escapeHtml(g.game_name)} - ${escapeHtml(g.guild_name)}${ts ? ' - ' + ts : ''}</p>
-          <p class="text-xs text-gray-600">${g.current_size}/${g.group_size} members</p>
-        </div>
-        <button onclick="fluxerGuildReopen(${g.guild_lfg_id}, this)"
-                class="flex-shrink-0 px-3 py-1.5 bg-green-700/50 hover:bg-green-600 text-green-300 hover:text-white rounded-lg text-xs font-medium transition">
-          <i class="fas fa-unlock mr-1"></i>Reopen
-        </button>
-      </div>`;
-    }).join('');
-  } catch (e) {
-    listEl.innerHTML = '<p class="text-red-400 text-sm">Failed to load.</p>';
-  }
-}
-
-async function fluxerGuildReopen(groupId, btn) {
-  btn.disabled = true;
-  try {
-    const resp = await csrfFetch(`/ql/api/lfg/fluxer-guild/${groupId}/reopen/`, { method: 'POST' });
-    const data = await resp.json();
-    if (data.success) {
-      showToast('Group reopened!');
-      loadMyClosedGroups();
-      loadGroups();
-    } else {
-      showToast(data.error || 'Failed to reopen', 'error');
-      btn.disabled = false;
-    }
-  } catch (e) {
-    showToast('Network error', 'error');
-    btn.disabled = false;
-  }
-}
 </script>
 {% endblock %}

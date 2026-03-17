@@ -34,10 +34,6 @@
             class="px-5 py-3 font-medium text-gray-400 hover:text-white border-b-2 border-transparent transition whitespace-nowrap text-sm">
       <i class="fas fa-rss mr-2"></i>RSS Feeds
     </button>
-    <button onclick="switchTab('network')" id="tab-network"
-            class="px-5 py-3 font-medium text-gray-400 hover:text-white border-b-2 border-transparent transition whitespace-nowrap text-sm">
-      <i class="fas fa-globe mr-2"></i>QuestLog Network
-    </button>
     <button onclick="switchTab('twitch')" id="tab-twitch"
             class="px-5 py-3 font-medium text-gray-400 hover:text-white border-b-2 border-transparent transition whitespace-nowrap text-sm">
       <i class="fab fa-twitch mr-2"></i>Twitch
@@ -758,30 +754,162 @@
   </div>
 
   <!-- ===== Twitch panel ===== -->
-  <div id="panel-twitch" class="hidden">
-    <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-10 text-center">
-      <div class="w-14 h-14 bg-purple-700/20 rounded-full flex items-center justify-center mx-auto mb-4">
+  <div id="panel-twitch" class="hidden space-y-6">
+    <!-- Header -->
+    <div class="bg-gradient-to-r from-purple-900/40 to-indigo-900/20 rounded-xl border border-purple-800/40 p-6 flex gap-4 items-start">
+      <div class="w-12 h-12 bg-purple-700/30 rounded-xl flex items-center justify-center flex-shrink-0">
         <i class="fab fa-twitch text-purple-400 text-2xl"></i>
       </div>
-      <h3 class="text-white font-semibold text-lg mb-2">Twitch Integration</h3>
-      <p class="text-gray-400 text-sm mb-4 max-w-sm mx-auto">Connect your Twitch account to automatically post live notifications, track stream stats, and feature top streamers in your community.</p>
-      <span class="inline-flex items-center gap-2 bg-yellow-900/20 text-yellow-400 border border-yellow-700/40 px-4 py-2 rounded-lg text-sm font-medium">
-        <i class="fas fa-clock"></i> Coming Soon
-      </span>
+      <div>
+        <h2 class="text-xl font-bold text-white mb-1">Twitch Live Alerts</h2>
+        <p class="text-gray-400 text-sm">Subscribe to Twitch channels and get notified when they go live. Each subscription can post to a different channel.</p>
+      </div>
+    </div>
+
+    <!-- Add Twitch streamer -->
+    <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6">
+      <h3 class="text-white font-semibold mb-4"><i class="fas fa-plus text-purple-400 mr-2"></i>Add Twitch Alert</h3>
+      <div id="twitch-add-msg" class="hidden mb-4 px-4 py-3 rounded-lg text-sm font-medium"></div>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+        <div>
+          <label class="block text-sm text-gray-400 mb-2">Twitch Username</label>
+          <input type="text" id="twitch-handle-input" placeholder="e.g. shroud"
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-purple-500 focus:outline-none">
+          <p class="text-gray-600 text-xs mt-1">The Twitch channel username (not display name)</p>
+        </div>
+        <div>
+          <label class="block text-sm text-gray-400 mb-2">Display Name (optional)</label>
+          <input type="text" id="twitch-displayname-input" placeholder="e.g. Shroud"
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-purple-500 focus:outline-none">
+        </div>
+        <div>
+          <label class="block text-sm text-gray-400 mb-2">Notification Channel <span class="text-red-400">*</span></label>
+          <div id="cs-twitch-channel"></div>
+        </div>
+        <div>
+          <label class="block text-sm text-gray-400 mb-2">Custom Message (optional)</label>
+          <input type="text" id="twitch-message-input" placeholder="e.g. {streamer} is live! Come watch at {url}"
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-purple-500 focus:outline-none">
+          <p class="text-gray-600 text-xs mt-1">Use {streamer}, {title}, {url} as placeholders</p>
+        </div>
+      </div>
+      <button onclick="addTwitchSub()"
+              class="bg-purple-700 hover:bg-purple-600 text-white px-5 py-2 rounded-lg text-sm font-medium transition flex items-center gap-2">
+        <i class="fas fa-plus"></i> Add Alert
+      </button>
+    </div>
+
+    <!-- Active Twitch subscriptions -->
+    <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6">
+      <div class="flex items-center justify-between mb-4">
+        <div>
+          <h3 class="text-white font-semibold">Active Twitch Alerts</h3>
+          <p class="text-gray-500 text-sm mt-0.5">Streamers this server is watching</p>
+        </div>
+        <button onclick="loadTwitchSubs()" class="text-gray-500 hover:text-white transition text-sm" title="Refresh">
+          <i class="fas fa-sync-alt mr-1"></i>Refresh
+        </button>
+      </div>
+      <div id="twitch-subs-list" class="space-y-3">
+        <div class="text-gray-500 text-sm text-center py-8">
+          <i class="fas fa-spinner fa-spin mr-2"></i>Loading...
+        </div>
+      </div>
+    </div>
+
+    <!-- Info box -->
+    <div class="bg-blue-900/20 border border-blue-700/30 rounded-lg p-5">
+      <div class="flex items-start gap-3">
+        <i class="fas fa-info-circle text-blue-400 text-lg mt-0.5 flex-shrink-0"></i>
+        <div>
+          <h4 class="text-white font-semibold mb-2">How Twitch Alerts Work</h4>
+          <div class="space-y-2 text-sm text-gray-300">
+            <div class="flex items-start gap-2"><span class="w-5 h-5 bg-purple-600 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0 mt-0.5">1</span><p>Add a Twitch username and select which channel to post alerts in.</p></div>
+            <div class="flex items-start gap-2"><span class="w-5 h-5 bg-purple-600 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0 mt-0.5">2</span><p>The bot checks every 60 seconds if the streamer is live.</p></div>
+            <div class="flex items-start gap-2"><span class="w-5 h-5 bg-purple-600 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0 mt-0.5">3</span><p>When they go live, a rich embed with title, game, and thumbnail is posted. No duplicate alerts - one notification per stream session.</p></div>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 
   <!-- ===== YouTube panel ===== -->
-  <div id="panel-youtube" class="hidden">
-    <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-10 text-center">
-      <div class="w-14 h-14 bg-red-700/20 rounded-full flex items-center justify-center mx-auto mb-4">
+  <div id="panel-youtube" class="hidden space-y-6">
+    <!-- Header -->
+    <div class="bg-gradient-to-r from-red-900/40 to-orange-900/20 rounded-xl border border-red-800/40 p-6 flex gap-4 items-start">
+      <div class="w-12 h-12 bg-red-700/30 rounded-xl flex items-center justify-center flex-shrink-0">
         <i class="fab fa-youtube text-red-400 text-2xl"></i>
       </div>
-      <h3 class="text-white font-semibold text-lg mb-2">YouTube Integration</h3>
-      <p class="text-gray-400 text-sm mb-4 max-w-sm mx-auto">Subscribe to YouTube channels and auto-post new video releases to your community channels with rich embeds and notifications.</p>
-      <span class="inline-flex items-center gap-2 bg-yellow-900/20 text-yellow-400 border border-yellow-700/40 px-4 py-2 rounded-lg text-sm font-medium">
-        <i class="fas fa-clock"></i> Coming Soon
-      </span>
+      <div>
+        <h2 class="text-xl font-bold text-white mb-1">YouTube Live Alerts</h2>
+        <p class="text-gray-400 text-sm">Subscribe to YouTube channels and get notified when they go live. The bot checks for active live streams every 60 seconds.</p>
+      </div>
+    </div>
+
+    <!-- Add YouTube channel -->
+    <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6">
+      <h3 class="text-white font-semibold mb-4"><i class="fas fa-plus text-red-400 mr-2"></i>Subscribe to a YouTube Channel</h3>
+      <div id="yt-save-msg" class="hidden mb-4 px-4 py-3 rounded-lg text-sm font-medium"></div>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+        <div>
+          <label class="block text-sm text-gray-400 mb-2">YouTube Channel ID or Handle</label>
+          <input type="text" id="yt-channel-input" placeholder="e.g. UCxxxxxx or @ChannelName"
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-red-500 focus:outline-none">
+          <p class="text-gray-600 text-xs mt-1">Channel ID (starts with UC...) or @handle</p>
+        </div>
+        <div>
+          <label class="block text-sm text-gray-400 mb-2">Display Name (optional)</label>
+          <input type="text" id="yt-displayname-input" placeholder="e.g. CasualHeroes"
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-red-500 focus:outline-none">
+        </div>
+        <div>
+          <label class="block text-sm text-gray-400 mb-2">Notification Channel <span class="text-red-400">*</span></label>
+          <div id="cs-yt-channel"></div>
+        </div>
+        <div>
+          <label class="block text-sm text-gray-400 mb-2">Custom Message (optional)</label>
+          <input type="text" id="yt-message-input" placeholder="e.g. {streamer} is live! Watch at {url}"
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-red-500 focus:outline-none">
+          <p class="text-gray-600 text-xs mt-1">Use {streamer}, {title}, {url} as placeholders</p>
+        </div>
+      </div>
+      <button onclick="addYoutubeSub()"
+              class="bg-red-700 hover:bg-red-600 text-white px-5 py-2 rounded-lg text-sm font-medium transition flex items-center gap-2">
+        <i class="fas fa-plus"></i> Subscribe
+      </button>
+    </div>
+
+    <!-- Active YouTube subscriptions -->
+    <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6">
+      <div class="flex items-center justify-between mb-4">
+        <div>
+          <h3 class="text-white font-semibold">Active YouTube Subscriptions</h3>
+          <p class="text-gray-500 text-sm mt-0.5"><span id="yt-count">0</span> subscription(s)</p>
+        </div>
+        <button onclick="loadYoutubeSubs()" class="text-gray-500 hover:text-white transition text-sm" title="Refresh">
+          <i class="fas fa-sync-alt mr-1"></i>Refresh
+        </button>
+      </div>
+      <div id="yt-subs-list" class="space-y-3">
+        <div class="text-gray-500 text-sm text-center py-8">
+          <i class="fas fa-spinner fa-spin mr-2"></i>Loading...
+        </div>
+      </div>
+    </div>
+
+    <!-- Info box -->
+    <div class="bg-blue-900/20 border border-blue-700/30 rounded-lg p-5">
+      <div class="flex items-start gap-3">
+        <i class="fas fa-info-circle text-blue-400 text-lg mt-0.5 flex-shrink-0"></i>
+        <div>
+          <h4 class="text-white font-semibold mb-2">How YouTube Live Alerts Work</h4>
+          <div class="space-y-2 text-sm text-gray-300">
+            <div class="flex items-start gap-2"><span class="w-5 h-5 bg-red-600 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0 mt-0.5">1</span><p>Add a YouTube channel ID (starts with UC...) or @handle, and select a notification channel.</p></div>
+            <div class="flex items-start gap-2"><span class="w-5 h-5 bg-red-600 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0 mt-0.5">2</span><p>The bot checks the channel's latest video every 60 seconds using YouTube's RSS feed (free tier - no billing required).</p></div>
+            <div class="flex items-start gap-2"><span class="w-5 h-5 bg-red-600 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0 mt-0.5">3</span><p>When a live stream is detected, a rich embed with title, thumbnail, and viewer count is posted. One notification per live session.</p></div>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -996,7 +1124,7 @@ const NETWORK = {
   publish_to_network: {{ publish_to_network|yesno:"true,false" }},
 };
 
-const TABS = ['creator', 'games', 'rss', 'network', 'twitch', 'youtube'];
+const TABS = ['creator', 'games', 'rss', 'twitch', 'youtube'];
 const ACTIVE_TAB = '{{ active_tab|default:"creator" }}';
 let csCreatorChannel, csSelfpromoChannel, csFeatureChannel, csResponseChannel;
 let csCOTWChannel, csCOTMChannel;
@@ -1015,7 +1143,8 @@ function switchTab(name) {
 
   if (name === 'games' && !csGamesChannel) { initGamesTab(); }
   if (name === 'rss' && !csRssChannel) { initRssTab(); }
-  if (name === 'network') { initNetworkTab(); }
+  if (name === 'twitch') { initTwitchTab(); }
+  if (name === 'youtube') { initYoutubeTab(); }
 }
 
 function makeSelect(containerId, name, selected) {
@@ -1128,6 +1257,258 @@ function initNetworkTab() {
   const publishEl = document.getElementById('network-publish-lfg');
   if (discoveryEl) discoveryEl.checked = NETWORK.discovery_enabled;
   if (publishEl) publishEl.checked = NETWORK.publish_to_network;
+}
+
+// ---- Twitch tab ----
+const STREAMER_SUBS_API = '/ql/api/dashboard/fluxer/' + GUILD_ID + '/streamer-subs/';
+let _twitchInited = false;
+let csTwitchChannel = null;
+
+// Map channel_id to name from CHANNELS list
+function channelName(id) {
+  const ch = CHANNELS.find(c => c.value === String(id));
+  return ch ? ch.label : (id || '');
+}
+
+async function initTwitchTab() {
+  if (_twitchInited) return;
+  _twitchInited = true;
+
+  csTwitchChannel = createCustomSelect({
+    container: document.getElementById('cs-twitch-channel'),
+    name: 'twitch_notify_channel',
+    items: [{value: '', label: '-- Select channel --'}, ...CHANNELS],
+    selected: '',
+    placeholder: 'Select channel...',
+    color: 'purple',
+  });
+
+  await loadTwitchSubs();
+}
+
+async function loadTwitchSubs() {
+  const list = document.getElementById('twitch-subs-list');
+  try {
+    const resp = await csrfFetch(STREAMER_SUBS_API);
+    const data = await resp.json();
+    const subs = (data.subs || []).filter(s => s.streamer_platform === 'twitch');
+    if (!subs.length) {
+      list.innerHTML = `<div class="text-center py-10">
+        <i class="fab fa-twitch text-3xl text-gray-600 mb-3 block"></i>
+        <p class="text-gray-400 text-sm">No Twitch alerts configured yet.</p>
+        <p class="text-gray-600 text-xs mt-1">Add a Twitch username above to get started.</p>
+      </div>`;
+      return;
+    }
+    list.innerHTML = subs.map(s => {
+      const liveBadge = s.is_currently_live ? '<span class="px-2 py-0.5 bg-purple-600 text-white text-xs rounded-full font-bold">LIVE</span>' : '';
+      const msgSnippet = s.custom_message ? '<span class="truncate max-w-xs"><i class="fas fa-comment mr-1"></i>' + escapeHtml(s.custom_message) + '</span>' : '';
+      const activeDot = s.is_active ? 'bg-green-400' : 'bg-neutral-600';
+      const activeTitle = s.is_active ? 'Active' : 'Inactive';
+      return '<div class="flex items-center gap-4 p-4 bg-neutral-800/50 rounded-lg border border-neutral-700">' +
+        '<div class="w-10 h-10 bg-purple-700/30 rounded-lg flex items-center justify-center flex-shrink-0"><i class="fab fa-twitch text-purple-400"></i></div>' +
+        '<div class="flex-1 min-w-0">' +
+          '<div class="flex items-center gap-2 flex-wrap">' +
+            '<span class="text-white font-medium text-sm">' + escapeHtml(s.streamer_display_name || s.streamer_handle) + '</span>' +
+            liveBadge +
+            '<span class="text-gray-600 text-xs">twitch.tv/' + escapeHtml(s.streamer_handle) + '</span>' +
+          '</div>' +
+          '<div class="flex items-center gap-3 mt-1 text-xs text-gray-500">' +
+            '<span><i class="fas fa-hashtag mr-1"></i>' + escapeHtml(channelName(s.notify_channel_id)) + '</span>' +
+            msgSnippet +
+          '</div>' +
+        '</div>' +
+        '<div class="flex items-center gap-2 flex-shrink-0">' +
+          '<span class="w-2 h-2 rounded-full ' + activeDot + '" title="' + activeTitle + '"></span>' +
+          '<button onclick="deleteTwitchSub(' + s.id + ', \'' + escapeHtml(s.streamer_display_name || s.streamer_handle) + '\')" class="px-3 py-1.5 bg-red-600/20 hover:bg-red-600/30 text-red-400 rounded-lg text-xs font-medium transition border border-red-600/30"><i class="fas fa-times mr-1"></i>Remove</button>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+  } catch (e) {
+    list.innerHTML = `<div class="text-red-400 text-sm text-center py-6">Failed to load: ${escapeHtml(e.message)}</div>`;
+  }
+}
+
+async function addTwitchSub() {
+  const handle = document.getElementById('twitch-handle-input').value.trim().toLowerCase().replace(/^@/, '');
+  const displayName = document.getElementById('twitch-displayname-input').value.trim();
+  const notifyChannel = csTwitchChannel ? csTwitchChannel.getValue() : '';
+  const customMsg = document.getElementById('twitch-message-input').value.trim();
+
+  if (!handle) { showTwitchMsg('Enter a Twitch username.', false); return; }
+  if (!notifyChannel) { showTwitchMsg('Select a notification channel.', false); return; }
+
+  try {
+    const resp = await csrfFetch(STREAMER_SUBS_API, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        streamer_platform: 'twitch',
+        streamer_handle: handle,
+        streamer_display_name: displayName || handle,
+        notify_channel_id: notifyChannel,
+        custom_message: customMsg || '',
+      }),
+    });
+    const data = await resp.json();
+    if (resp.ok && data.success) {
+      showTwitchMsg('Twitch alert added!', true);
+      document.getElementById('twitch-handle-input').value = '';
+      document.getElementById('twitch-displayname-input').value = '';
+      document.getElementById('twitch-message-input').value = '';
+      if (csTwitchChannel) csTwitchChannel.setValue('');
+      await loadTwitchSubs();
+    } else {
+      showTwitchMsg(data.error || 'Failed to add alert.', false);
+    }
+  } catch (e) {
+    showTwitchMsg('Network error.', false);
+  }
+}
+
+async function deleteTwitchSub(subId, name) {
+  if (!confirm('Remove Twitch alert for "' + name + '"?')) return;
+  try {
+    const resp = await csrfFetch(STREAMER_SUBS_API + subId + '/', {method: 'DELETE'});
+    if (resp.ok) {
+      showToast('Twitch alert removed.', 'success');
+      await loadTwitchSubs();
+    }
+  } catch (e) {}
+}
+
+function showTwitchMsg(text, ok) {
+  const el = document.getElementById('twitch-add-msg');
+  el.textContent = text;
+  el.className = 'mb-4 px-4 py-3 rounded-lg text-sm font-medium ' +
+    (ok ? 'bg-green-900/40 text-green-400 border border-green-700/40' : 'bg-red-900/40 text-red-400 border border-red-700/40');
+  el.classList.remove('hidden');
+  setTimeout(() => el.classList.add('hidden'), 5000);
+}
+
+// ---- YouTube tab ----
+const RSS_API = '/ql/api/dashboard/fluxer/' + GUILD_ID + '/discovery/rss/';
+let _ytInited = false;
+let csYtChannel = null;
+
+async function initYoutubeTab() {
+  if (_ytInited) return;
+  _ytInited = true;
+
+  csYtChannel = createCustomSelect({
+    container: document.getElementById('cs-yt-channel'),
+    name: 'yt_channel',
+    items: [{value: '', label: '-- Select channel --'}, ...CHANNELS],
+    selected: '',
+    placeholder: 'Select channel...',
+    color: 'red',
+  });
+
+  await loadYoutubeSubs();
+}
+
+async function loadYoutubeSubs() {
+  const list = document.getElementById('yt-subs-list');
+  const countEl = document.getElementById('yt-count');
+  try {
+    const resp = await csrfFetch(STREAMER_SUBS_API);
+    const data = await resp.json();
+    const ytSubs = (data.subs || []).filter(s => s.streamer_platform === 'youtube');
+    countEl.textContent = ytSubs.length;
+    if (!ytSubs.length) {
+      list.innerHTML = `<div class="text-center py-10">
+        <i class="fab fa-youtube text-3xl text-gray-600 mb-3 block"></i>
+        <p class="text-gray-400 text-sm">No YouTube subscriptions yet. Add one above.</p>
+      </div>`;
+      return;
+    }
+    list.innerHTML = ytSubs.map(s => {
+      const liveBadge = s.is_currently_live ? '<span class="px-2 py-0.5 bg-red-600 text-white text-xs rounded-full font-bold">LIVE</span>' : '';
+      const msgSnippet = s.custom_message ? '<span class="truncate max-w-xs"><i class="fas fa-comment mr-1"></i>' + escapeHtml(s.custom_message) + '</span>' : '';
+      const activeDot = s.is_active ? 'bg-green-400' : 'bg-neutral-600';
+      const activeTitle = s.is_active ? 'Active' : 'Inactive';
+      return '<div class="flex items-center gap-4 p-4 bg-neutral-800/50 rounded-lg border border-neutral-700">' +
+        '<div class="w-10 h-10 bg-red-700/30 rounded-lg flex items-center justify-center flex-shrink-0"><i class="fab fa-youtube text-red-400"></i></div>' +
+        '<div class="flex-1 min-w-0">' +
+          '<div class="flex items-center gap-2 flex-wrap">' +
+            '<span class="text-white font-medium text-sm">' + escapeHtml(s.streamer_display_name || s.streamer_handle) + '</span>' +
+            liveBadge +
+            '<span class="text-gray-600 text-xs">' + escapeHtml(s.streamer_handle) + '</span>' +
+          '</div>' +
+          '<div class="flex items-center gap-3 mt-1 text-xs text-gray-500">' +
+            '<span><i class="fas fa-hashtag mr-1"></i>' + escapeHtml(channelName(s.notify_channel_id)) + '</span>' +
+            msgSnippet +
+          '</div>' +
+        '</div>' +
+        '<div class="flex items-center gap-2 flex-shrink-0">' +
+          '<span class="w-2 h-2 rounded-full ' + activeDot + '" title="' + activeTitle + '"></span>' +
+          '<button onclick="deleteYtSub(' + s.id + ', \'' + escapeHtml(s.streamer_display_name || s.streamer_handle) + '\')" class="px-3 py-1.5 bg-red-600/20 hover:bg-red-600/30 text-red-400 rounded-lg text-xs font-medium transition border border-red-600/30"><i class="fas fa-times mr-1"></i>Remove</button>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+  } catch (e) {
+    list.innerHTML = `<div class="text-red-400 text-sm text-center py-6">Failed to load: ${escapeHtml(e.message)}</div>`;
+  }
+}
+
+async function addYoutubeSub() {
+  const rawInput = document.getElementById('yt-channel-input').value.trim();
+  const displayName = document.getElementById('yt-displayname-input').value.trim();
+  const notifyChannel = csYtChannel ? csYtChannel.getValue() : '';
+  const customMsg = document.getElementById('yt-message-input').value.trim();
+
+  if (!rawInput) { showYtMsg('Enter a YouTube channel ID or @handle.', false); return; }
+  if (!notifyChannel) { showYtMsg('Select a notification channel.', false); return; }
+
+  // Normalize handle - strip leading @ if present
+  const handle = rawInput.startsWith('@') ? rawInput : rawInput;
+
+  try {
+    const resp = await csrfFetch(STREAMER_SUBS_API, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        streamer_platform: 'youtube',
+        streamer_handle: handle,
+        streamer_display_name: displayName || handle,
+        notify_channel_id: notifyChannel,
+        custom_message: customMsg || '',
+      }),
+    });
+    const data = await resp.json();
+    if (resp.ok && data.success) {
+      showYtMsg('YouTube channel subscribed!', true);
+      document.getElementById('yt-channel-input').value = '';
+      document.getElementById('yt-displayname-input').value = '';
+      document.getElementById('yt-message-input').value = '';
+      if (csYtChannel) csYtChannel.setValue('');
+      await loadYoutubeSubs();
+    } else {
+      showYtMsg(data.error || 'Failed to add subscription.', false);
+    }
+  } catch (e) {
+    showYtMsg('Network error.', false);
+  }
+}
+
+async function deleteYtSub(subId, name) {
+  if (!confirm('Remove YouTube subscription for "' + name + '"?')) return;
+  try {
+    const resp = await csrfFetch(STREAMER_SUBS_API + subId + '/', {method: 'DELETE'});
+    if (resp.ok) {
+      showToast('YouTube subscription removed.', 'success');
+      await loadYoutubeSubs();
+    }
+  } catch (e) {}
+}
+
+function showYtMsg(text, ok) {
+  const el = document.getElementById('yt-save-msg');
+  el.textContent = text;
+  el.className = 'mb-4 px-4 py-3 rounded-lg text-sm font-medium ' +
+    (ok ? 'bg-green-900/40 text-green-400 border border-green-700/40' : 'bg-red-900/40 text-red-400 border border-red-700/40');
+  el.classList.remove('hidden');
+  setTimeout(() => el.classList.add('hidden'), 5000);
 }
 
 // ---- RSS custom select instances ----

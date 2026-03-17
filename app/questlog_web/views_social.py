@@ -674,6 +674,7 @@ def api_user_posts(request, user_id):
 
 @add_web_user_context
 @require_http_methods(["GET"])
+@ratelimit(key='ip', rate='60/m', method='GET', block=True)
 def api_global_posts(request):
     """GET: Recent public posts from all users (global discovery feed).
     No auth required - shows all non-deleted, non-hidden public posts.
@@ -732,14 +733,13 @@ def api_recent_activity(request):
     Returns stats, trending games, suggested gamers, and activity ticker."""
     try:
         return _get_recent_activity(request)
-    except Exception as e:
-        import logging
-        logging.getLogger(__name__).error(f"Activity API error: {e}", exc_info=True)
+    except Exception:
+        logger.error('api_recent_activity error', exc_info=True)
         return JsonResponse({
             'total_users': 0, 'total_posts': 0, 'posts_today': 0,
             'active_posters_today': 0, 'suggested_gamers': [],
             'new_members': [], 'trending_games': [], 'ticker': [],
-            'error': str(e),
+            'error': 'An error occurred',
         })
 
 

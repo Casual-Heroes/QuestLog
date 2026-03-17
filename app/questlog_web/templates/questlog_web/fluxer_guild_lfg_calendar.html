@@ -129,7 +129,7 @@
 
 <script>
 const GUILD_ID = '{{ guild_id }}';
-const LFG_BROWSER_URL = '/ql/fluxer/' + GUILD_ID + '/lfg/';
+const LFG_BROWSER_URL = '/ql/fluxer/' + GUILD_ID + '/lfg/browse/';
 const LFG_BROWSE_ADMIN_URL = '/ql/dashboard/fluxer/' + GUILD_ID + '/lfg/browse/';
 const EVENTS = JSON.parse('{{ events_json|escapejs }}');
 const MY_GROUP_IDS = new Set(JSON.parse('{{ my_group_ids_json|escapejs }}'));
@@ -359,13 +359,9 @@ function showEventModal(eventId) {
     }
   }
 
-  actions += `<a href="${LFG_BROWSE_ADMIN_URL}" target="_blank"
+  actions += `<a href="${LFG_BROWSE_ADMIN_URL}"
      class="text-sm bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg transition font-medium">
-    <i class="fas fa-users mr-1"></i>Browse
-  </a>
-  <a href="${LFG_BROWSER_URL}" target="_blank"
-     class="text-sm bg-neutral-700 hover:bg-neutral-600 text-white px-3 py-2 rounded-lg transition" title="Public LFG page">
-    <i class="fas fa-external-link-alt"></i>
+    <i class="fas fa-users mr-1"></i>Browse Groups
   </a>`;
 
   document.getElementById('modal-actions').innerHTML = actions;
