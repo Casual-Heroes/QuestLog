@@ -19178,6 +19178,8 @@ def api_lfg_game_update(request, guild_id, game_id):
                 game.thread_auto_archive_hours = int(data['thread_auto_archive_hours'])
             if 'enabled' in data:
                 game.enabled = bool(data['enabled'])
+            if 'receive_network_lfg' in data:
+                game.receive_network_lfg = bool(data['receive_network_lfg'])
             if 'require_rank' in data:
                 game.require_rank = bool(data['require_rank'])
             if 'rank_label' in data:
@@ -19353,18 +19355,15 @@ def api_guild_network_lfg(request, guild_id):
     import json as _json
     from sqlalchemy import text as _text
 
-    # Verify the user is an admin of this guild via session
-    user_guilds = request.session.get('discord_admin_guilds', [])
-    guild = next((g for g in user_guilds if str(g.get('id')) == str(guild_id)), None)
-    if not guild:
-        return JsonResponse({'error': 'Access denied'}, status=403)
-    permissions = int(guild.get('permissions', 0))
-    if not ((permissions & 0x8) == 0x8 or (permissions & 0x20) == 0x20):
-        return JsonResponse({'error': 'Admin permission required'}, status=403)
+    # Require QuestLog login; admin check via web session
+    web_user_id = request.session.get('web_user_id')
+    if not web_user_id and not request.session.get('discord_user'):
+        return JsonResponse({'error': 'Login required'}, status=403)
 
     try:
         from .db import get_db_session
         guild_id_str = str(guild_id)
+        guild_name = guild_id_str  # fallback; resolved below
 
         if request.method == 'GET':
             with get_db_session() as db:
@@ -19392,21 +19391,30 @@ def api_guild_network_lfg(request, guild_id):
         if is_enabled and not channel_id:
             return JsonResponse({'error': 'Channel required when enabling'}, status=400)
 
-        # Resolve channel name from Discord cache
-        guild_name = guild.get('name', guild_id_str)
         channel_name = channel_id
-        try:
-            from .discord_resources import get_guild_channels
-            all_channels = get_guild_channels(guild_id_str)
-            for ch in all_channels:
-                if str(ch.get('id', '')) == channel_id:
-                    channel_name = ch.get('name', channel_id)
-                    break
-        except Exception:
-            pass
-
         now_ts = int(_time.time())
         with get_db_session() as db:
+            # Resolve guild_name from guilds table
+            try:
+                _gname_row = db.execute(
+                    _text("SELECT guild_name FROM guilds WHERE guild_id=:g LIMIT 1"),
+                    {'g': int(guild_id_str)}
+                ).fetchone()
+                if _gname_row and _gname_row[0]:
+                    guild_name = _gname_row[0]
+            except Exception:
+                pass
+            # Resolve channel name from guild_channels table
+            if channel_id:
+                try:
+                    _chname_row = db.execute(
+                        _text("SELECT channel_name FROM guild_channels WHERE guild_id=:g AND channel_id=:c LIMIT 1"),
+                        {'g': int(guild_id_str), 'c': int(channel_id)}
+                    ).fetchone()
+                    if _chname_row and _chname_row[0]:
+                        channel_name = _chname_row[0]
+                except Exception:
+                    pass
             existing = db.execute(
                 _text("SELECT id FROM web_community_bot_configs "
                       "WHERE platform='discord' AND guild_id=:g AND event_type='lfg_announce' LIMIT 1"),
@@ -20801,6 +20809,7 @@ def api_lfg_browser_create(request, guild_id):
 
             # Post to QuestLog Network if requested - fire and forget, never fails the main response
             network_group_id = None
+            logger.info(f"[LFG BROADCAST] post_to_network={post_to_network}, guild_id={guild_id}, user_id={user_id}, game={_snap_game_name}")
             if post_to_network:
                 try:
                     from .questlog_web.models import WebUser, WebLFGGroup, WebLFGMember
@@ -20949,7 +20958,7 @@ def api_lfg_browser_create(request, guild_id):
                         if create_discord_thread:
                             success_message = 'LFG group created, Discord thread coming, and posted to QuestLog Network!'
                 except Exception as _e:
-                    logger.warning(f"[LFG] Network post failed for Discord group {_snap_group_id}: {_e}")
+                    logger.warning(f"[LFG BROADCAST] Network post failed for Discord group {_snap_group_id}: {_e}", exc_info=True)
 
             return JsonResponse({
                 'success': True,

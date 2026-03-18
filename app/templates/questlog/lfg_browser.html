@@ -2469,6 +2469,12 @@
     _roleFields.classList.add('hidden');
     document.getElementById('groupSizeContainer').classList.remove('hidden');
 
+    // Survival: hide scheduled time, duration, recurrence - show/restore for non-survival
+    document.getElementById('createScheduledTimeRow').classList.toggle('hidden', _isSurvival);
+    document.getElementById('createEventDurationRow').classList.toggle('hidden', _isSurvival);
+    document.getElementById('createRecurrenceRow').classList.toggle('hidden', _isSurvival);
+    document.getElementById('createGroupSizeLabel').textContent = _isSurvival ? 'Server Size' : 'Group Size';
+
     if (_isSurvival) {
       // Survival: hide role composition, scheduled time, event duration, recurrence; rename Group Size
       _roleSection.classList.add('hidden');
@@ -2583,10 +2589,10 @@
           items = [];
         } else if (Array.isArray(option.choices)) {
           // Simple dropdown - handle both string and object {value, role} formats
-          items = option.choices.map(choice => {
+          items = [{ value: '', label: '-- None --' }].concat(option.choices.map(choice => {
             const val = typeof choice === 'object' ? choice.value : choice;
             return { value: val, label: val };
-          });
+          }));
         }
 
         // Check if this option should allow multi-select (Activity, Server Type, or option.multi === true)
@@ -2739,7 +2745,12 @@
           if (optionContainer) {
             const hiddenInput = optionContainer.querySelector('input[type="hidden"]');
             if (hiddenInput && hiddenInput.value) {
-              creatorOptions[option.name] = hiddenInput.value;
+              let val = hiddenInput.value;
+              // Multi-select stores JSON array - join to comma-separated string for display
+              if (val.startsWith('[')) {
+                try { val = JSON.parse(val).filter(Boolean).join(', '); } catch(e) {}
+              }
+              if (val) creatorOptions[option.name] = val;
             }
           }
         });

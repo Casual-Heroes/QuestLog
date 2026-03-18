@@ -74,7 +74,7 @@
           </div>
 
           <!-- Profile game quick-select -->
-          {% if profile_games_json != '[]' %}
+          {% if profile_games %}
           <div id="profileGamesBar" class="mt-3">
             <p class="text-xs text-gray-600 mb-1.5 uppercase tracking-wider font-medium"><i class="fas fa-users text-orange-400 mr-1"></i>Want to Play Together</p>
             <div class="flex flex-wrap gap-1.5" id="profileGameButtons"></div>
@@ -209,7 +209,7 @@
   </form>
 </div>
 
-{{ profile_games_json|json_script:"profile-games-lfg-data" }}
+{{ profile_games|json_script:"profile-games-lfg-data" }}
 <script>
 // ─────────────────────────────────────────────────────────────────────────────
 // Built-in game templates (mirrors views.py _get_builtin_game_templates)
@@ -326,75 +326,34 @@ const GAME_TEMPLATES = {
     { name: 'Server Info', freetext: true },
   ],
   palworld: [
-    { name: 'Role', choices: [
-      {value:'Tank/Defender',   role:'tank'},
-      {value:'Support/Healer',  role:'healer'},
-      {value:'Combat (Melee)',  role:'dps'},
-      {value:'Combat (Ranged)', role:'dps'},
-      {value:'Scout/Explorer',  role:'dps'},
-      {value:'Builder',         role:'support'},
-      {value:'Gatherer',        role:'support'},
-      {value:'Tamer/Breeder',   role:'support'},
-      {value:'Crafter',         role:'support'},
-    ]},
-    { name: 'Activity', multi: true, maxSelections: 3, choices: ['Boss','Dungeon','Base Building','Resource Farming','Breeding','PvP','Raid','Casual Co-op'] },
     { name: 'Platform', choices: ['PC','Xbox','PlayStation','Cross-platform'] },
-    { name: 'Level Range', choices: ['Early (1-20)','Mid (21-40)','End (41+)'] },
     { name: 'Experience', choices: ['New/Learning','Casual','Experienced','Hardcore'] },
-    { name: 'Server Type', choices: ['PvE','PvP','PvE-C','Modded','Official','Private'] },
+    { name: 'Server Type', multi: true, maxSelections: 5, choices: ['PvE','PvP','PvE-C','Modded','Official','Private','Hardcore','Community/Social','Roleplay','Boosted Rates','Open Join','Vanilla','No Wipe','Seasonal Wipe'] },
+    { name: 'Server Info', freetext: true, choices: [] },
   ],
   enshrouded: [
-    { name: 'Role', choices: [
-      {value:'Tank',           role:'tank'},
-      {value:'Healer',         role:'healer'},
-      {value:'Ranger (DPS)',   role:'dps'},
-      {value:'Mage (DPS)',     role:'dps'},
-      {value:'Fighter (DPS)',  role:'dps'},
-      {value:'Builder',        role:'support'},
-      {value:'Crafter',        role:'support'},
-    ]},
-    { name: 'Activity', multi: true, maxSelections: 3, choices: ['Story','Base Building','Dungeon','Boss','Resource Farming','Casual Co-op'] },
     { name: 'Platform', choices: ['PC','Xbox','PlayStation','Cross-platform'] },
-    { name: 'Level Range', choices: ['Early (1-20)','Mid (21-40)','End (41+)'] },
     { name: 'Experience', choices: ['New/Learning','Casual','Experienced','Hardcore'] },
-    { name: 'Server Type', choices: ['PvE','PvP','PvE-C','Modded','Official','Private'] },
+    { name: 'Server Type', multi: true, maxSelections: 5, choices: ['PvE','PvP','PvE-C','Modded','Official','Private','Hardcore','Community/Social','Roleplay','Boosted Rates','Open Join','Vanilla','No Wipe','Seasonal Wipe'] },
+    { name: 'Server Info', freetext: true, choices: [] },
   ],
   vrising: [
-    { name: 'Activity', multi: true, maxSelections: 3, choices: ['Leveling','Castle Building','Boss Hunting','PvP','Farming/Resources','Clan Content','Casual Co-op'] },
     { name: 'Platform', choices: ['PC','PlayStation','Cross-platform'] },
-    { name: 'Level Range', choices: ['Early (1-20)','Mid (21-40)','End (41+)'] },
     { name: 'Experience', choices: ['New/Learning','Casual','Experienced','Hardcore'] },
-    { name: 'Server Type', choices: ['PvE','PvP','PvE-C','Modded','Official','Private'] },
+    { name: 'Server Type', multi: true, maxSelections: 5, choices: ['PvE','PvP','PvE-C','Modded','Official','Private','Hardcore','Community/Social','Roleplay','Boosted Rates','Open Join','Vanilla','No Wipe','Seasonal Wipe'] },
+    { name: 'Server Info', freetext: true, choices: [] },
   ],
   valheim: [
-    { name: 'Role', choices: [
-      {value:'Berserker (Tank)', role:'tank'},
-      {value:'Healer/Support',   role:'healer'},
-      {value:'Archer (DPS)',     role:'dps'},
-      {value:'Warrior (DPS)',    role:'dps'},
-      {value:'Builder',          role:'support'},
-      {value:'Gatherer',         role:'support'},
-    ]},
-    { name: 'Activity', multi: true, maxSelections: 3, choices: ['Boss','Exploration','Base Building','Resource Farming','Casual Co-op'] },
     { name: 'Platform', choices: ['PC','Xbox','Cross-platform'] },
-    { name: 'Level Range', choices: ['Early (1-20)','Mid (21-40)','End (41+)'] },
     { name: 'Experience', choices: ['New/Learning','Casual','Experienced','Hardcore'] },
-    { name: 'Server Type', choices: ['PvE','PvP','Modded','Official','Private'] },
+    { name: 'Server Type', multi: true, maxSelections: 5, choices: ['PvE','PvP','PvE-C','Modded','Official','Private','Hardcore','Community/Social','Roleplay','Boosted Rates','Open Join','Vanilla','No Wipe','Seasonal Wipe'] },
+    { name: 'Server Info', freetext: true, choices: [] },
   ],
   rust: [
-    { name: 'Role', choices: [
-      {value:'Raider',           role:'tank'},
-      {value:'Medic/Support',    role:'healer'},
-      {value:'Gunner (DPS)',     role:'dps'},
-      {value:'Scout',            role:'dps'},
-      {value:'Builder',          role:'support'},
-      {value:'Farmer/Gatherer',  role:'support'},
-    ]},
-    { name: 'Activity', multi: true, maxSelections: 3, choices: ['Raiding','Base Building','PvP','Farming','Casual Co-op'] },
     { name: 'Platform', choices: ['PC','Xbox','PlayStation','Cross-platform'] },
-    { name: 'Level Range', choices: ['Early (1-20)','Mid (21-40)','End (41+)'] },
     { name: 'Experience', choices: ['New/Learning','Casual','Experienced','Hardcore'] },
-    { name: 'Server Type', choices: ['PvE','PvP','Modded','Official','Private'] },
+    { name: 'Server Type', multi: true, maxSelections: 5, choices: ['PvE','PvP','PvE-C','Modded','Official','Private','Hardcore','Community/Social','Roleplay','Boosted Rates','Open Join','Vanilla','No Wipe','Seasonal Wipe'] },
+    { name: 'Server Info', freetext: true, choices: [] },
   ],
 };
 
@@ -699,11 +658,7 @@ const ROLE_COLOR_CLASSES = {
   gray:   {text: 'text-gray-400',   border: 'border-gray-700'},
 };
 
-// Default slot values per schema type - all 4 slots default to at least 1
-const SCHEMA_SLOT_DEFAULTS = {
-  default:  {tank: 1, healer: 1, dps: 3, support: 1},
-  survival: {tank: 2, healer: 1, dps: 2, support: 1},  // Combat/Gatherer/Breeder/Builder
-};
+const SCHEMA_SLOT_DEFAULTS = {tank: 1, healer: 1, dps: 3, support: 1};
 let _lastRenderedSchema = null;
 
 function renderRoleSchemaInputs() {
@@ -711,8 +666,7 @@ function renderRoleSchemaInputs() {
   if (!grid) return;
   const schemaChanged = currentRoleSchema !== _lastRenderedSchema;
   _lastRenderedSchema = currentRoleSchema;
-  const isSurvival = currentRoleSchema === SURVIVAL_ROLE_SCHEMA;
-  const schemaDefaults = isSurvival ? SCHEMA_SLOT_DEFAULTS.survival : SCHEMA_SLOT_DEFAULTS.default;
+  const schemaDefaults = SCHEMA_SLOT_DEFAULTS;
   grid.innerHTML = currentRoleSchema.map(r => {
     const colors = ROLE_COLOR_CLASSES[r.color] || ROLE_COLOR_CLASSES.gray;
     // Only reuse current value if schema hasn't changed; otherwise use per-schema defaults
@@ -741,6 +695,8 @@ function detectGameType(name) {
   }
   return null;
 }
+
+const SURVIVAL_GAME_TYPES = new Set(['palworld','enshrouded','vrising','valheim','rust']);
 
 let currentGameType = null;
 let conditionalSelects = {}; // cache of custom select instances for conditional fields
@@ -945,6 +901,11 @@ function clearGameSelection() {
   document.getElementById('gameImageUrl').value = '';
   document.getElementById('gameSearch').value = '';
   document.getElementById('gameSelectedPreview').classList.add('hidden');
+  // Reset survival overrides
+  const _gsl = document.querySelector('#groupSizeContainer').closest('div').querySelector('label');
+  if (_gsl) _gsl.childNodes[0].textContent = 'Group Size ';
+  const _whenCol = document.getElementById('groupWhenContainer') ? document.getElementById('groupWhenContainer').closest('div') : null;
+  if (_whenCol) _whenCol.classList.remove('hidden');
   document.getElementById('gameSearchClear').classList.add('hidden');
   document.getElementById('gameSpecificOptionsSection').classList.add('hidden');
   document.getElementById('useRoles').closest('.bg-neutral-900\\/50').classList.remove('hidden');
@@ -1038,7 +999,6 @@ function updateGameSpecificOptions(gameName) {
                      : currentGameType === 'ffxiv' ? FFXIV_ACTIVITY_CHOICES
                      : currentGameType === 'eso'   ? ESO_ACTIVITY_CHOICES
                      : currentGameType === 'gw2'   ? GW2_ACTIVITY_CHOICES
-                     : currentGameType === 'palworld' ? PALWORLD_ACTIVITY_CHOICES
                      : ACTIVITY_CHOICES;
 
   // Survival games never show Activity; others show it if the template doesn't already define it
@@ -1080,10 +1040,7 @@ function updateGameSpecificOptions(gameName) {
   container.innerHTML = html;
   section.classList.remove('hidden');
 
-  // Update role schema for this game and re-render role slots
-  currentRoleSchema = (currentGameType && GAME_ROLE_SCHEMAS[currentGameType])
-    ? GAME_ROLE_SCHEMAS[currentGameType]
-    : DEFAULT_ROLE_SCHEMA;
+  currentRoleSchema = DEFAULT_ROLE_SCHEMA;
   renderRoleSchemaInputs();
 
   const roleSection = document.getElementById('useRoles').closest('.bg-neutral-900\\/50');
@@ -1548,6 +1505,20 @@ function _buildCustomSelectForField(field, templates) {
   const containerId = `opt_cs_container_${_fieldId(field.name)}`;
   const isMulti = !!field.multi;
   const choices = Array.isArray(field.choices) ? field.choices : [];
+
+  // Empty choices = freetext input (e.g. Server Info)
+  if (choices.length === 0 && !isMulti) {
+    const fid = _fieldId(field.name);
+    wrapper.innerHTML = `
+      <div>
+        <label class="block text-sm font-medium text-gray-400 mb-2">${escapeHtml(field.name)}</label>
+        <input type="text" id="opt_freetext_${fid}" placeholder="Enter ${field.name.toLowerCase()}..."
+               class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:border-green-500 focus:outline-none"
+               oninput="_setDataField('${field.name}', this.value)">
+      </div>`;
+    return;
+  }
+
   const items = choices.map(c => {
     const val = typeof c === 'object' ? c.value : c;
     return { value: val, label: val };

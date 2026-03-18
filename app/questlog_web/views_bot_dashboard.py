@@ -786,9 +786,13 @@ def fluxer_guild_lfg(request, guild_id):
             platform='fluxer', guild_id=gid
         ).all()
         lfg_cfg = db.query(WebFluxerLfgConfig).filter_by(guild_id=gid).first()
+        roles = db.query(WebFluxerGuildRole).filter_by(guild_id=gid).order_by(
+            WebFluxerGuildRole.role_name
+        ).all()
         return {
             'net_configs': [_config_dict(c) for c in net_configs],
             'publish_to_network': bool(lfg_cfg.publish_to_network) if lfg_cfg else False,
+            'roles_json': json.dumps([{'value': r.role_id, 'label': r.role_name or r.role_id} for r in roles]),
         }
     return _guild_view(request, guild_id, 'questlog_web/fluxer_guild_lfg.html', 'lfg', extra=_extra)
 
@@ -1535,6 +1539,7 @@ def _lfg_game_dict(g: WebFluxerLfgGame) -> dict:
         'rank_max': g.rank_max,
         'is_custom_game': bool(g.is_custom_game) if g.is_custom_game is not None else False,
         'enabled': bool(g.enabled) if g.enabled is not None else True,
+        'receive_network_lfg': bool(g.receive_network_lfg) if g.receive_network_lfg is not None else False,
         'custom_options': json.loads(g.options_json) if g.options_json else [],
         'options': json.loads(g.options_json) if g.options_json else [],
         'is_active': bool(g.is_active),
@@ -2299,7 +2304,10 @@ def api_fluxer_guild_lfg_config(request, guild_id):
 @require_http_methods(['GET', 'POST'])
 def api_fluxer_guild_network_lfg(request, guild_id):
     """GET/POST the QuestLog Network LFG broadcast subscription for this Fluxer guild."""
+    import logging as _log
+    _logger = _log.getLogger(__name__)
     guild_id = guild_id.strip()
+    _logger.info(f"[NETWORK_LFG] {request.method} guild={guild_id}")
     with get_db_session() as db:
         if request.method == 'GET':
             row = db.execute(
@@ -2323,7 +2331,9 @@ def api_fluxer_guild_network_lfg(request, guild_id):
 
         is_enabled = bool(data.get('is_enabled', False))
         channel_id = str(data.get('channel_id', '') or '').strip()
+        _logger.info(f"[NETWORK_LFG] POST is_enabled={is_enabled} channel_id={channel_id!r}")
         if is_enabled and not channel_id:
+            _logger.warning(f"[NETWORK_LFG] Rejected: enabled but no channel_id")
             return JsonResponse({'error': 'Channel required when enabling'}, status=400)
 
         # Resolve channel name from cached channels
@@ -5008,7 +5018,7 @@ def api_fluxer_guild_lfg_groups(request, guild_id):
                 network_group_id = web_group.id
             except Exception as _e:
                 import logging as _logging
-                _logging.getLogger(__name__).warning(f"[LFG] Fluxer network post failed for group {group.id}: {_e}")
+                _logging.getLogger(__name__).warning(f"[FLUXER_BROADCAST] network post failed for group {group.id}: {_e}", exc_info=True)
 
         members = [{'id': 1, 'username': creator_name, 'role': creator_role,
                     'is_creator': True, 'selections': selections, 'joined_at': now}]
