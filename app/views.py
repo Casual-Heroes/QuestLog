@@ -17957,16 +17957,6 @@ def guild_lfg_browser(request, guild_id):
                                     # Don't validate type for conditional dropdowns - can be object or array
                                     option_obj['choices'] = choices
 
-                                    # Preserve freetext flag (renders as text input instead of dropdown)
-                                    if opt.get('freetext'):
-                                        option_obj['freetext'] = True
-
-                                    # Preserve multi-select settings
-                                    if opt.get('multi'):
-                                        option_obj['multi'] = True
-                                    if opt.get('maxSelections'):
-                                        option_obj['maxSelections'] = opt['maxSelections']
-
                                     custom_options.append(option_obj)
                     except (json.JSONDecodeError, TypeError, KeyError) as e:
                         logger.warning(f"Failed to parse custom_options for game {game.id}: {e}")
@@ -18573,7 +18563,6 @@ def api_lfg_add(request, guild_id):
                 lfg_channel_id=int(data.get('channel_id')) if data.get('channel_id') else None,
                 notify_role_id=int(data.get('notify_role_id')) if data.get('notify_role_id') else None,
                 max_group_size=int(data.get('max_size', 4)),
-                receive_network_lfg=bool(data.get('receive_network_lfg', False)),
             )
             db.add(game)
 
@@ -18646,7 +18635,6 @@ def api_lfg_game_update(request, guild_id, game_id):
                     'max_group_size': game.max_group_size,
                     'thread_auto_archive_hours': game.thread_auto_archive_hours,
                     'enabled': game.enabled,
-                    'receive_network_lfg': bool(game.receive_network_lfg) if game.receive_network_lfg is not None else False,
                     'require_rank': game.require_rank,
                     'rank_label': game.rank_label,
                     'rank_min': game.rank_min,
@@ -18673,8 +18661,6 @@ def api_lfg_game_update(request, guild_id, game_id):
                 game.thread_auto_archive_hours = int(data['thread_auto_archive_hours'])
             if 'enabled' in data:
                 game.enabled = bool(data['enabled'])
-            if 'receive_network_lfg' in data:
-                game.receive_network_lfg = bool(data['receive_network_lfg'])
             if 'require_rank' in data:
                 game.require_rank = bool(data['require_rank'])
             if 'rank_label' in data:
@@ -18848,15 +18834,18 @@ def api_guild_network_lfg(request, guild_id):
     import json as _json
     from sqlalchemy import text as _text
 
-    # Require QuestLog login; admin check via web session
-    web_user_id = request.session.get('web_user_id')
-    if not web_user_id and not request.session.get('discord_user'):
-        return JsonResponse({'error': 'Login required'}, status=403)
+    # Verify the user is an admin of this guild via session
+    user_guilds = request.session.get('discord_admin_guilds', [])
+    guild = next((g for g in user_guilds if str(g.get('id')) == str(guild_id)), None)
+    if not guild:
+        return JsonResponse({'error': 'Access denied'}, status=403)
+    permissions = int(guild.get('permissions', 0))
+    if not ((permissions & 0x8) == 0x8 or (permissions & 0x20) == 0x20):
+        return JsonResponse({'error': 'Admin permission required'}, status=403)
 
     try:
         from .db import get_db_session
         guild_id_str = str(guild_id)
-        guild_name = guild_id_str  # fallback; resolved below
 
         if request.method == 'GET':
             with get_db_session() as db:
@@ -18884,30 +18873,21 @@ def api_guild_network_lfg(request, guild_id):
         if is_enabled and not channel_id:
             return JsonResponse({'error': 'Channel required when enabling'}, status=400)
 
+        # Resolve channel name from Discord cache
+        guild_name = guild.get('name', guild_id_str)
         channel_name = channel_id
+        try:
+            from .discord_resources import get_guild_channels
+            all_channels = get_guild_channels(guild_id_str)
+            for ch in all_channels:
+                if str(ch.get('id', '')) == channel_id:
+                    channel_name = ch.get('name', channel_id)
+                    break
+        except Exception:
+            pass
+
         now_ts = int(_time.time())
         with get_db_session() as db:
-            # Resolve guild_name from guilds table
-            try:
-                _gname_row = db.execute(
-                    _text("SELECT guild_name FROM guilds WHERE guild_id=:g LIMIT 1"),
-                    {'g': int(guild_id_str)}
-                ).fetchone()
-                if _gname_row and _gname_row[0]:
-                    guild_name = _gname_row[0]
-            except Exception:
-                pass
-            # Resolve channel name from guild_channels table
-            if channel_id:
-                try:
-                    _chname_row = db.execute(
-                        _text("SELECT channel_name FROM guild_channels WHERE guild_id=:g AND channel_id=:c LIMIT 1"),
-                        {'g': int(guild_id_str), 'c': int(channel_id)}
-                    ).fetchone()
-                    if _chname_row and _chname_row[0]:
-                        channel_name = _chname_row[0]
-                except Exception:
-                    pass
             existing = db.execute(
                 _text("SELECT id FROM web_community_bot_configs "
                       "WHERE platform='discord' AND guild_id=:g AND event_type='lfg_announce' LIMIT 1"),
@@ -20294,7 +20274,6 @@ def api_lfg_browser_create(request, guild_id):
 
             # Post to QuestLog Network if requested - fire and forget, never fails the main response
             network_group_id = None
-            logger.info(f"[LFG BROADCAST] post_to_network={post_to_network}, guild_id={guild_id}, user_id={user_id}, game={_snap_game_name}")
             if post_to_network:
                 try:
                     from .questlog_web.models import WebUser, WebLFGGroup, WebLFGMember
@@ -20311,7 +20290,6 @@ def api_lfg_browser_create(request, guild_id):
                             {"did": str(user_id)}
                         ).fetchone()
 
-                        logger.info(f"[LFG BROADCAST] web_user lookup for discord_id={user_id}: {'found' if web_user else 'NOT FOUND'}")
                         if web_user:
                             now_ts = int(_time.time())
                             import json as _json
@@ -20397,70 +20375,32 @@ def api_lfg_browser_create(request, guild_id):
 
                             payload_json = _json.dumps(embed_data)
                             broadcast_now = int(_time.time())
-                            _game_name_lower = _snap_game_name.lower()
 
                             from sqlalchemy import text as _text
-                            configs = web_db.execute(_text(
-                                "SELECT guild_id, platform, channel_id, is_enabled "
-                                "FROM web_community_bot_configs WHERE event_type='lfg_announce'"
-                            )).fetchall()
+                            from .questlog_web.models import WebCommunityBotConfig
+                            configs = web_db.query(WebCommunityBotConfig).filter_by(
+                                event_type='lfg_announce', is_enabled=True
+                            ).filter(WebCommunityBotConfig.channel_id.isnot(None)).all()
 
-                            logger.info(f"[LFG BROADCAST] game='{_snap_game_name}' checking {len(configs)} configs")
                             for cfg in configs:
-                                _guild_id_str = str(cfg[0])
-                                _platform = cfg[1]
-                                _master_channel = cfg[2]
-                                _master_enabled = cfg[3]
-
-                                if _platform == 'discord':
-                                    _game_row = web_db.execute(_text(
-                                        "SELECT id, lfg_channel_id FROM lfg_games "
-                                        "WHERE guild_id=:gid AND LOWER(game_name)=:gname AND receive_network_lfg=1 LIMIT 1"
-                                    ), {"gid": int(_guild_id_str), "gname": _game_name_lower}).fetchone()
-                                    if _game_row:
-                                        _cid = _game_row[1] or _master_channel
-                                        if not _cid:
-                                            continue
-                                        logger.info(f"[LFG BROADCAST] discord guild={_guild_id_str} per-game channel={_cid}")
-                                        web_db.execute(_text(
-                                            "INSERT INTO discord_pending_broadcasts (guild_id, channel_id, payload, created_at) "
-                                            "VALUES (:gid, :cid, :payload, :now)"
-                                        ), {"gid": int(_guild_id_str), "cid": int(_cid), "payload": payload_json, "now": broadcast_now})
-                                    elif _master_enabled and _master_channel:
-                                        logger.info(f"[LFG BROADCAST] discord guild={_guild_id_str} master channel={_master_channel}")
-                                        web_db.execute(_text(
-                                            "INSERT INTO discord_pending_broadcasts (guild_id, channel_id, payload, created_at) "
-                                            "VALUES (:gid, :cid, :payload, :now)"
-                                        ), {"gid": int(_guild_id_str), "cid": int(_master_channel), "payload": payload_json, "now": broadcast_now})
+                                if cfg.platform == 'discord':
+                                    web_db.execute(_text(
+                                        "INSERT INTO discord_pending_broadcasts (guild_id, channel_id, payload, created_at) "
+                                        "VALUES (:gid, :cid, :payload, :now)"
+                                    ), {"gid": int(cfg.guild_id), "cid": int(cfg.channel_id), "payload": payload_json, "now": broadcast_now})
                                 else:
-                                    _game_row = web_db.execute(_text(
-                                        "SELECT id, channel_id FROM web_fluxer_lfg_games "
-                                        "WHERE guild_id=:gid AND LOWER(name)=:gname AND receive_network_lfg=1 AND is_active=1 LIMIT 1"
-                                    ), {"gid": _guild_id_str, "gname": _game_name_lower}).fetchone()
-                                    if _game_row:
-                                        _cid = _game_row[1] or _master_channel
-                                        if not _cid:
-                                            continue
-                                        logger.info(f"[LFG BROADCAST] fluxer guild={_guild_id_str} per-game channel={_cid}")
-                                        web_db.execute(_text(
-                                            "INSERT INTO fluxer_pending_broadcasts (guild_id, channel_id, payload, created_at) "
-                                            "VALUES (:gid, :cid, :payload, :now)"
-                                        ), {"gid": _guild_id_str, "cid": _cid, "payload": payload_json, "now": broadcast_now})
-                                    elif _master_enabled and _master_channel:
-                                        logger.info(f"[LFG BROADCAST] fluxer guild={_guild_id_str} master channel={_master_channel}")
-                                        web_db.execute(_text(
-                                            "INSERT INTO fluxer_pending_broadcasts (guild_id, channel_id, payload, created_at) "
-                                            "VALUES (:gid, :cid, :payload, :now)"
-                                        ), {"gid": _guild_id_str, "cid": _master_channel, "payload": payload_json, "now": broadcast_now})
+                                    web_db.execute(_text(
+                                        "INSERT INTO fluxer_pending_broadcasts (guild_id, channel_id, payload, created_at) "
+                                        "VALUES (:gid, :cid, :payload, :now)"
+                                    ), {"gid": cfg.guild_id, "cid": cfg.channel_id, "payload": payload_json, "now": broadcast_now})
 
                             web_db.commit()
-                            logger.info(f"[LFG BROADCAST] committed broadcast rows, web_group_id={web_group.id}")
                             network_group_id = web_group.id
                             success_message = 'LFG group created and posted to QuestLog Network!'
                             if create_discord_thread:
                                 success_message = 'LFG group created, Discord thread coming, and posted to QuestLog Network!'
                 except Exception as _e:
-                    logger.warning(f"[LFG BROADCAST] Network post failed for Discord group {_snap_group_id}: {_e}", exc_info=True)
+                    logger.warning(f"[LFG] Network post failed for Discord group {_snap_group_id}: {_e}")
 
             return JsonResponse({
                 'success': True,

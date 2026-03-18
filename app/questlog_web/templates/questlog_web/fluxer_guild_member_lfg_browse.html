@@ -77,7 +77,7 @@
         <p class="text-gray-500 text-xs mt-1">150 character limit</p>
       </div>
 
-      <div id="createScheduledRow">
+      <div>
         <label class="text-sm text-gray-300 mb-1 block">Scheduled Time (optional)</label>
         <input id="createScheduled" type="datetime-local"
                class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-green-500 transition">
@@ -90,7 +90,7 @@
       </div>
 
       <div>
-        <label id="createMaxSizeLabel" class="text-sm text-gray-300 mb-1 block">Group Size</label>
+        <label class="text-sm text-gray-300 mb-1 block">Group Size</label>
         <input id="createMaxSize" type="number" min="2" max="100" value="4"
                class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-green-500 transition">
       </div>
@@ -112,17 +112,17 @@
           <div class="grid grid-cols-2 gap-3">
             <div>
               <label class="text-xs text-gray-400 mb-1 block"><i class="fas fa-shield-alt text-blue-400 mr-1"></i>Tanks</label>
-              <input id="createTanks" type="number" min="0" max="50" value="1"
+              <input id="createTanks" type="number" min="0" max="50" value="0"
                      class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition">
             </div>
             <div>
               <label class="text-xs text-gray-400 mb-1 block"><i class="fas fa-heart text-green-400 mr-1"></i>Healers</label>
-              <input id="createHealers" type="number" min="0" max="50" value="1"
+              <input id="createHealers" type="number" min="0" max="50" value="0"
                      class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-green-500 transition">
             </div>
             <div>
               <label class="text-xs text-gray-400 mb-1 block"><i class="fas fa-bolt text-red-400 mr-1"></i>DPS</label>
-              <input id="createDps" type="number" min="0" max="200" value="3"
+              <input id="createDps" type="number" min="0" max="200" value="0"
                      class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-red-500 transition">
             </div>
             <div>
@@ -595,7 +595,7 @@ function renderGroupCard(g) {
       '<span class="text-sm font-medium text-gray-300">Group Members</span>' +
       '<span class="text-xs text-gray-500 ml-auto">' + members.length + '/' + g.max_size + '</span></div>' +
       '<div class="flex flex-wrap gap-x-6 gap-y-1">' +
-      members.map(function(m) { return renderMemberItem(m, g.id, isCreator, isCoLeader, true); }).join('') +
+      members.map(function(m) { return renderMemberItem(m, g.id, isCreator, isCoLeader); }).join('') +
       '</div></div>';
   }
 
@@ -614,7 +614,9 @@ function renderGroupCard(g) {
           (function() {
             var creator = members.find(function(m) { return m.is_creator; }) || members[0];
             if (!creator || !creator.selections) return '';
-            var skipFields = new Set(['role','class','specialization','spec','subclass','job']);
+            var skipFields = groupHasRoles
+              ? new Set(['role','class','specialization','spec','subclass','job'])
+              : new Set(['role']);
             var tags = Object.entries(creator.selections).filter(function(e) {
               return e[1] && !skipFields.has(e[0].toLowerCase());
             }).map(function(e) {
@@ -698,10 +700,6 @@ function openCreateModal() {
   _createSelections = {};
   _createIsSurvival = false;
   _createGameOpts   = [];
-  const _msl = document.getElementById('createMaxSizeLabel');
-  if (_msl) _msl.textContent = 'Group Size';
-  const _csr2 = document.getElementById('createScheduledRow');
-  if (_csr2) _csr2.classList.remove('hidden');
   document.getElementById('createTitle').value = '';
   document.getElementById('createScheduled').value = '';
   document.getElementById('createMaxSize').value = '4';
@@ -777,25 +775,21 @@ function onCreateGameChange() {
   const opts = game.options || game.custom_options || [];
   _createGameOpts = opts;
 
-  // Role composition is MMO-only (has_roles=true). Survival and ARPGs never show it.
-  // Survival detection: game has a "Server Type" option (never present on MMO templates)
-  _createIsSurvival = opts.some(function(o) { return o.name === 'Server Type'; });
+  const survivalRoleOpt = opts.find(function(o) {
+    return o.name.toLowerCase() === 'role' && Array.isArray(o.choices) && o.choices.length > 0 && typeof o.choices[0] === 'object';
+  });
+  // has_roles=true games (ESO, WoW) always use MMO slot grid even if they have an object-choice Role field
+  _createIsSurvival = !!survivalRoleOpt && !game.has_roles;
 
-  // Survival: rename Group Size -> Server Size, hide Scheduled Time
-  const _maxSizeLblEl = document.getElementById('createMaxSizeLabel');
-  if (_maxSizeLblEl) _maxSizeLblEl.textContent = _createIsSurvival ? 'Server Size' : 'Group Size';
-  const _schedRowEl = document.getElementById('createScheduledRow');
-  if (_schedRowEl) {
-    _schedRowEl.classList.toggle('hidden', _createIsSurvival);
-    if (_createIsSurvival) document.getElementById('createScheduled').value = '';
-  }
-
-  if (game.has_roles) {
+  if (_createIsSurvival) {
+    toggle.classList.remove('hidden');
+    roleHint.textContent = 'Show role composition grid on this group\'s card.';
+  } else if (game.has_roles) {
     toggle.classList.remove('hidden');
     roleHint.textContent = 'Set Tank, Healer, DPS and Support slot counts.';
-    document.getElementById('createTanks').value   = game.tank_slots   || 1;
-    document.getElementById('createHealers').value = game.healer_slots || 1;
-    document.getElementById('createDps').value     = game.dps_slots    || 3;
+    document.getElementById('createTanks').value   = game.tank_slots   || 0;
+    document.getElementById('createHealers').value = game.healer_slots || 0;
+    document.getElementById('createDps').value     = game.dps_slots    || 0;
     document.getElementById('createSupport').value = game.support_slots || 0;
   } else {
     toggle.classList.add('hidden');
@@ -812,19 +806,6 @@ function onCreateGameChange() {
 
     const wrapper = document.createElement('div');
     const containerId = 'createOptCs_' + idx;
-
-    // Freetext fields render as a plain text input, not a dropdown
-    if (opt.freetext) {
-      wrapper.innerHTML = '<label class="text-sm text-gray-300 mb-1 block">' + escapeHtml(opt.name) + ' (optional)</label>' +
-        '<input type="text" id="' + containerId + '_text" placeholder="Enter ' + escapeHtml(opt.name.toLowerCase()) + '..." ' +
-        'class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:border-green-500 focus:outline-none text-sm">';
-      container.appendChild(wrapper);
-      wrapper.querySelector('input').addEventListener('input', function() {
-        if (this.value) { _createSelections[opt.name] = this.value; } else { delete _createSelections[opt.name]; }
-      });
-      return;
-    }
-
     wrapper.innerHTML = '<label class="text-sm text-gray-300 mb-1 block">' + escapeHtml(opt.name) + ' (optional)</label>' +
       '<div id="' + containerId + '"></div>';
     container.appendChild(wrapper);

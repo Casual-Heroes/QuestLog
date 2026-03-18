@@ -175,7 +175,7 @@ class WebUser(Base):
     # Admin flags
     is_vip = Column(Boolean, default=False)    # Early tester / VIP status
     is_admin = Column(Boolean, default=False)  # Site admin
-    is_banned = Column(Boolean, default=False)
+is_banned = Column(Boolean, default=False)
     ban_reason = Column(Text, nullable=True)
     is_disabled = Column(Boolean, default=False)  # Account locked (soft ban - no login)
     posting_timeout_until = Column(BigInteger, nullable=True)  # Unix ts: cannot post/comment until this time

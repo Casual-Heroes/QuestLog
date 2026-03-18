@@ -782,13 +782,9 @@ def fluxer_guild_lfg(request, guild_id):
             platform='fluxer', guild_id=gid
         ).all()
         lfg_cfg = db.query(WebFluxerLfgConfig).filter_by(guild_id=gid).first()
-        roles = db.query(WebFluxerGuildRole).filter_by(guild_id=gid).order_by(
-            WebFluxerGuildRole.role_name
-        ).all()
         return {
             'net_configs': [_config_dict(c) for c in net_configs],
             'publish_to_network': bool(lfg_cfg.publish_to_network) if lfg_cfg else False,
-            'roles_json': json.dumps([{'value': r.role_id, 'label': r.role_name or r.role_id} for r in roles]),
         }
     return _guild_view(request, guild_id, 'questlog_web/fluxer_guild_lfg.html', 'lfg', extra=_extra)
 
@@ -1320,7 +1316,6 @@ def _lfg_game_dict(g: WebFluxerLfgGame) -> dict:
         'rank_max': g.rank_max,
         'is_custom_game': bool(g.is_custom_game) if g.is_custom_game is not None else False,
         'enabled': bool(g.enabled) if g.enabled is not None else True,
-        'receive_network_lfg': bool(g.receive_network_lfg) if g.receive_network_lfg is not None else False,
         'custom_options': json.loads(g.options_json) if g.options_json else [],
         'options': json.loads(g.options_json) if g.options_json else [],
         'is_active': bool(g.is_active),
@@ -1818,7 +1813,6 @@ def api_fluxer_guild_lfg_games(request, guild_id):
     rank_max = safe_int(data.get('rank_max', None), default=None) if data.get('rank_max') is not None else None
     is_custom_game = bool(data.get('is_custom_game', False))
     enabled = bool(data.get('enabled', True))
-    receive_network_lfg = bool(data.get('receive_network_lfg', False))
     custom_options = data.get('custom_options', data.get('options', []))
     if not isinstance(custom_options, list):
         custom_options = []
@@ -1848,7 +1842,6 @@ def api_fluxer_guild_lfg_games(request, guild_id):
             rank_max=rank_max,
             is_custom_game=1 if is_custom_game else 0,
             enabled=1 if enabled else 0,
-            receive_network_lfg=1 if receive_network_lfg else 0,
             options_json=json.dumps(custom_options) if custom_options else None,
             is_active=1,
             created_at=now,
@@ -1936,8 +1929,6 @@ def api_fluxer_guild_lfg_game_detail(request, guild_id, game_id):
             game.is_custom_game = 1 if data['is_custom_game'] else 0
         if 'enabled' in data:
             game.enabled = 1 if data['enabled'] else 0
-        if 'receive_network_lfg' in data:
-            game.receive_network_lfg = 1 if data['receive_network_lfg'] else 0
         for key in ('custom_options', 'options'):
             if key in data:
                 v = data[key]
@@ -2084,10 +2075,7 @@ def api_fluxer_guild_lfg_config(request, guild_id):
 @require_http_methods(['GET', 'POST'])
 def api_fluxer_guild_network_lfg(request, guild_id):
     """GET/POST the QuestLog Network LFG broadcast subscription for this Fluxer guild."""
-    import logging as _log
-    _logger = _log.getLogger(__name__)
     guild_id = guild_id.strip()
-    _logger.info(f"[NETWORK_LFG] {request.method} guild={guild_id}")
     with get_db_session() as db:
         if request.method == 'GET':
             row = db.execute(
@@ -2111,9 +2099,7 @@ def api_fluxer_guild_network_lfg(request, guild_id):
 
         is_enabled = bool(data.get('is_enabled', False))
         channel_id = str(data.get('channel_id', '') or '').strip()
-        _logger.info(f"[NETWORK_LFG] POST is_enabled={is_enabled} channel_id={channel_id!r}")
         if is_enabled and not channel_id:
-            _logger.warning(f"[NETWORK_LFG] Rejected: enabled but no channel_id")
             return JsonResponse({'error': 'Channel required when enabling'}, status=400)
 
         # Resolve channel name from cached channels
@@ -4605,72 +4591,27 @@ def api_fluxer_guild_lfg_groups(request, guild_id):
 
                 payload_json = _json.dumps(embed_data)
                 broadcast_now = int(_time.time())
-                game_name_lower = game.name.lower()
-
-                # All network subscriber configs (enabled or not - per-game opt-in may override)
-                configs = db.execute(_text(
-                    "SELECT guild_id, platform, channel_id, is_enabled "
-                    "FROM web_community_bot_configs WHERE event_type='lfg_announce'"
-                )).fetchall()
-
-                import logging as _logging
-                _bcast_log = _logging.getLogger(__name__)
-                _bcast_log.info(f"[FLUXER_BROADCAST] group={group.id} game='{game.name}' checking {len(configs)} configs")
+                configs = db.query(WebCommunityBotConfig).filter_by(
+                    event_type='lfg_announce', is_enabled=True
+                ).filter(WebCommunityBotConfig.channel_id.isnot(None)).all()
 
                 for cfg in configs:
-                    _guild_id_str = str(cfg[0])
-                    _platform = cfg[1]
-                    _master_channel = cfg[2]
-                    _master_enabled = cfg[3]
-
-                    if _platform == 'discord':
-                        # Check per-game opt-in first (lfg_games table, Discord)
-                        _game_row = db.execute(_text(
-                            "SELECT id, lfg_channel_id FROM lfg_games "
-                            "WHERE guild_id=:gid AND LOWER(game_name)=:gname AND receive_network_lfg=1 LIMIT 1"
-                        ), {"gid": int(_guild_id_str), "gname": game_name_lower}).fetchone()
-                        if _game_row:
-                            _cid = _game_row[1] or _master_channel
-                            if not _cid:
-                                continue
-                            _bcast_log.info(f"[FLUXER_BROADCAST] discord guild={_guild_id_str} per-game channel={_cid}")
-                            db.execute(_text(
-                                "INSERT INTO discord_pending_broadcasts (guild_id, channel_id, payload, created_at) "
-                                "VALUES (:gid, :cid, :payload, :now)"
-                            ), {"gid": int(_guild_id_str), "cid": int(_cid), "payload": payload_json, "now": broadcast_now})
-                        elif _master_enabled and _master_channel:
-                            _bcast_log.info(f"[FLUXER_BROADCAST] discord guild={_guild_id_str} master channel={_master_channel}")
-                            db.execute(_text(
-                                "INSERT INTO discord_pending_broadcasts (guild_id, channel_id, payload, created_at) "
-                                "VALUES (:gid, :cid, :payload, :now)"
-                            ), {"gid": int(_guild_id_str), "cid": int(_master_channel), "payload": payload_json, "now": broadcast_now})
+                    if cfg.platform == 'discord':
+                        db.execute(_text(
+                            "INSERT INTO discord_pending_broadcasts (guild_id, channel_id, payload, created_at) "
+                            "VALUES (:gid, :cid, :payload, :now)"
+                        ), {"gid": int(cfg.guild_id), "cid": int(cfg.channel_id), "payload": payload_json, "now": broadcast_now})
                     else:
-                        # Check per-game opt-in first (web_fluxer_lfg_games table, Fluxer)
-                        _game_row = db.execute(_text(
-                            "SELECT id, channel_id FROM web_fluxer_lfg_games "
-                            "WHERE guild_id=:gid AND LOWER(name)=:gname AND receive_network_lfg=1 AND is_active=1 LIMIT 1"
-                        ), {"gid": _guild_id_str, "gname": game_name_lower}).fetchone()
-                        if _game_row:
-                            _cid = _game_row[1] or _master_channel
-                            if not _cid:
-                                continue
-                            _bcast_log.info(f"[FLUXER_BROADCAST] fluxer guild={_guild_id_str} per-game channel={_cid}")
-                            db.execute(_text(
-                                "INSERT INTO fluxer_pending_broadcasts (guild_id, channel_id, payload, created_at) "
-                                "VALUES (:gid, :cid, :payload, :now)"
-                            ), {"gid": _guild_id_str, "cid": _cid, "payload": payload_json, "now": broadcast_now})
-                        elif _master_enabled and _master_channel:
-                            _bcast_log.info(f"[FLUXER_BROADCAST] fluxer guild={_guild_id_str} master channel={_master_channel}")
-                            db.execute(_text(
-                                "INSERT INTO fluxer_pending_broadcasts (guild_id, channel_id, payload, created_at) "
-                                "VALUES (:gid, :cid, :payload, :now)"
-                            ), {"gid": _guild_id_str, "cid": _master_channel, "payload": payload_json, "now": broadcast_now})
+                        db.execute(_text(
+                            "INSERT INTO fluxer_pending_broadcasts (guild_id, channel_id, payload, created_at) "
+                            "VALUES (:gid, :cid, :payload, :now)"
+                        ), {"gid": cfg.guild_id, "cid": cfg.channel_id, "payload": payload_json, "now": broadcast_now})
 
                 db.commit()
                 network_group_id = web_group.id
             except Exception as _e:
                 import logging as _logging
-                _logging.getLogger(__name__).warning(f"[FLUXER_BROADCAST] network post failed for group {group.id}: {_e}", exc_info=True)
+                _logging.getLogger(__name__).warning(f"[LFG] Fluxer network post failed for group {group.id}: {_e}")
 
         members = [{'id': 1, 'username': creator_name, 'role': creator_role,
                     'is_creator': True, 'selections': selections, 'joined_at': now}]
