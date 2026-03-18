@@ -175,7 +175,7 @@ class WebUser(Base):
     # Admin flags
     is_vip = Column(Boolean, default=False)    # Early tester / VIP status
     is_admin = Column(Boolean, default=False)  # Site admin
-is_banned = Column(Boolean, default=False)
+    is_banned = Column(Boolean, default=False)
     ban_reason = Column(Text, nullable=True)
     is_disabled = Column(Boolean, default=False)  # Account locked (soft ban - no login)
     posting_timeout_until = Column(BigInteger, nullable=True)  # Unix ts: cannot post/comment until this time
@@ -1980,6 +1980,7 @@ class WebFluxerLfgGame(Base):
     is_custom_game = Column(Integer, default=0)          # 1 = custom (not from IGDB)
     enabled = Column(Integer, default=1)                 # 0 = disabled but not deleted
     options_json = Column(Text, nullable=True)           # JSON: [{name, choices: [{label, role_tag}]}]
+    receive_network_lfg = Column(Integer, default=0)     # 1 = receive network LFG broadcasts for this game
     is_active = Column(Integer, default=1)               # 0 = soft-deleted
     created_at = Column(BigInteger, default=0)
 
