@@ -308,9 +308,8 @@
       </div>
 
       <div>
-        <label class="block text-sm text-gray-400 mb-2">Notify Role ID (optional)</label>
-        <input type="text" id="addNotifyRoleId" placeholder="Discord role ID"
-               class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:border-green-500 focus:outline-none">
+        <label class="block text-sm text-gray-400 mb-2">LFG Notification Role (optional)</label>
+        <div id="cs-add-notify-role"></div>
       </div>
 
       <div class="grid grid-cols-2 gap-4">
@@ -335,6 +334,14 @@
           <input type="checkbox" id="addEnabled" checked class="w-5 h-5 rounded bg-neutral-700 border-neutral-600 text-green-500 focus:ring-green-500">
           <span class="text-white font-medium">Enabled</span>
         </label>
+      </div>
+
+      <div>
+        <label class="flex items-center gap-3 cursor-pointer">
+          <input type="checkbox" id="addReceiveNetworkLfg" class="w-5 h-5 rounded bg-neutral-700 border-neutral-600 text-yellow-500 focus:ring-yellow-500">
+          <span class="text-white font-medium">Receive QuestLog Network LFG</span>
+        </label>
+        <p class="text-gray-500 text-xs mt-1 ml-8">When enabled, LFG posts for this game from other servers broadcast here.</p>
       </div>
     </div>
     <div class="p-4 bg-neutral-800 border-t border-neutral-700 flex justify-end gap-3">
@@ -383,9 +390,8 @@
       </div>
 
       <div>
-        <label class="block text-sm text-gray-400 mb-2">Notify Role ID (optional)</label>
-        <input type="text" id="customNotifyRoleId" placeholder="Discord role ID"
-               class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:border-indigo-500 focus:outline-none">
+        <label class="block text-sm text-gray-400 mb-2">LFG Notification Role (optional)</label>
+        <div id="cs-custom-notify-role"></div>
       </div>
 
       <div class="grid grid-cols-2 gap-4">
@@ -438,9 +444,8 @@
       </div>
 
       <div>
-        <label class="block text-sm text-gray-400 mb-2">Notify Role ID (optional)</label>
-        <input type="text" id="editNotifyRoleId" placeholder="Discord role ID"
-               class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:border-green-500 focus:outline-none">
+        <label class="block text-sm text-gray-400 mb-2">LFG Notification Role (optional)</label>
+        <div id="cs-edit-notify-role"></div>
       </div>
 
       <div class="grid grid-cols-2 gap-4">
@@ -464,6 +469,14 @@
           <input type="checkbox" id="editEnabled" class="w-5 h-5 rounded bg-neutral-700 border-neutral-600 text-green-500 focus:ring-green-500">
           <span class="text-white font-medium">Enabled</span>
         </label>
+      </div>
+
+      <div>
+        <label class="flex items-center gap-3 cursor-pointer">
+          <input type="checkbox" id="editReceiveNetworkLfg" class="w-5 h-5 rounded bg-neutral-700 border-neutral-600 text-yellow-500 focus:ring-yellow-500">
+          <span class="text-white font-medium">Receive QuestLog Network LFG</span>
+        </label>
+        <p class="text-gray-500 text-xs mt-1 ml-8">When enabled, LFG posts for this game from other servers broadcast here.</p>
       </div>
 
       <div class="border-t border-neutral-700 pt-4 mt-4">
@@ -517,7 +530,7 @@
               <div class="text-sm">
                 <span class="text-white font-medium" x-text="field.name"></span>
                 <span class="text-gray-500 text-xs ml-2">
-                  (<span x-text="typeof field.choices === 'object' && !Array.isArray(field.choices) ? 'Conditional - ' + Object.keys(field.choices).length + ' options' : (Array.isArray(field.choices) ? field.choices.length + ' choices' : '0 choices')"></span><span x-show="field.depends_on" class="text-purple-400"> - depends on <span x-text="field.depends_on"></span></span><span x-show="field.exclude_same_as" class="text-orange-400"> - excludes <span x-text="field.exclude_same_as"></span></span>)
+                  (<span x-text="field.freetext ? 'freetext' : (typeof field.choices === 'object' && !Array.isArray(field.choices) ? 'Conditional - ' + Object.keys(field.choices).length + ' options' : (Array.isArray(field.choices) ? field.choices.length + ' choices' : '0 choices'))"></span><span x-show="field.depends_on" class="text-purple-400"> - depends on <span x-text="field.depends_on"></span></span><span x-show="field.exclude_same_as" class="text-orange-400"> - excludes <span x-text="field.exclude_same_as"></span></span>)
                 </span>
               </div>
             </template>
@@ -593,8 +606,19 @@
                     </div>
                   </template>
 
+                  <!-- Freetext field indicator -->
+                  <template x-if="field.freetext">
+                    <div class="bg-neutral-800 border border-yellow-500/30 rounded p-3">
+                      <div class="flex items-center gap-2">
+                        <i class="fas fa-keyboard text-yellow-400"></i>
+                        <span class="text-yellow-400 text-sm font-medium">Freetext Input</span>
+                        <span class="text-gray-500 text-xs">- users type their own value</span>
+                      </div>
+                    </div>
+                  </template>
+
                   <!-- Simple Array Choices -->
-                  <template x-if="Array.isArray(field.choices)">
+                  <template x-if="Array.isArray(field.choices) && !field.freetext">
                     <div class="space-y-2">
                       <!-- Role tagging toggle for this field -->
                       <div class="flex items-center gap-2 mb-2 pb-2 border-b border-neutral-700" x-show="field.name !== 'Activity'">
@@ -693,11 +717,15 @@ const BLACKLIST_API = '/ql/api/dashboard/fluxer/' + GUILD_ID + '/lfg-blacklist/'
 const SETTINGS_API = '/ql/api/dashboard/fluxer/' + GUILD_ID + '/settings/';
 const CHANNELS = JSON.parse('{{ channels_json|escapejs }}');
 const SETTINGS = JSON.parse('{{ settings_json|escapejs }}');
+const ROLES = JSON.parse('{{ roles_json|escapejs }}');
 
 // Build channel items for custom selects
 const channelItems = [{id: '', value: '', label: '-- None --'}].concat(
   CHANNELS.map(ch => ({ id: String(ch.id || ch.value || ''), value: String(ch.id || ch.value || ''), label: ch.label || ch.name || ch.id }))
 );
+
+// Build role items for notify role dropdowns
+const roleItems = [{value: '', label: '-- None --'}].concat(ROLES);
 
 // LFG default channel selector in banner
 let csBannerLfgCh = createCustomSelect({
@@ -718,6 +746,32 @@ let csNetworkLfgCh = createCustomSelect({
   items: channelItems,
   selected: '',
   color: 'yellow',
+});
+
+// Notify role selects for add/custom/edit modals
+const csAddNotifyRole = createCustomSelect({
+  container: '#cs-add-notify-role',
+  name: 'add_notify_role_id',
+  placeholder: '-- None --',
+  items: roleItems,
+  selected: '',
+  color: 'green',
+});
+const csCustomNotifyRole = createCustomSelect({
+  container: '#cs-custom-notify-role',
+  name: 'custom_notify_role_id',
+  placeholder: '-- None --',
+  items: roleItems,
+  selected: '',
+  color: 'indigo',
+});
+const csEditNotifyRole = createCustomSelect({
+  container: '#cs-edit-notify-role',
+  name: 'edit_notify_role_id',
+  placeholder: '-- None --',
+  items: roleItems,
+  selected: '',
+  color: 'green',
 });
 
 // Add game channel select instances
@@ -1011,10 +1065,11 @@ function addGameFromIgdb(igdbId, name, coverUrl, platforms) {
     color: 'green'
   });
 
-  document.getElementById('addNotifyRoleId').value = '';
+  csAddNotifyRole.setValue('');
   document.getElementById('addMaxSize').value = '4';
   document.getElementById('addArchiveHours').value = '24';
   document.getElementById('addEnabled').checked = true;
+  document.getElementById('addReceiveNetworkLfg').checked = false;
 
   openAddGameModal();
 }
@@ -1046,10 +1101,11 @@ async function submitAddGame() {
     cover_url: document.getElementById('addCoverUrl').value || null,
     platforms: document.getElementById('addPlatforms').value || null,
     channel_id: addGameChannelSelect ? addGameChannelSelect.getValue() : '',
-    notify_role_id: document.getElementById('addNotifyRoleId').value.trim() || null,
+    notify_role_id: csAddNotifyRole.getValue() || null,
     max_group_size: parseInt(document.getElementById('addMaxSize').value) || 4,
     auto_archive_hours: parseInt(document.getElementById('addArchiveHours').value) || 24,
     enabled: document.getElementById('addEnabled').checked,
+    receive_network_lfg: document.getElementById('addReceiveNetworkLfg').checked,
     is_custom_game: false
   };
 
@@ -1080,7 +1136,7 @@ function openCustomGameModal() {
   document.getElementById('customGameName').value = '';
   document.getElementById('customShortCode').value = '';
   document.getElementById('customCoverUrl').value = '';
-  document.getElementById('customNotifyRoleId').value = '';
+  csCustomNotifyRole.setValue('');
   document.getElementById('customMaxSize').value = '4';
   document.getElementById('customArchiveHours').value = '24';
 
@@ -1120,7 +1176,7 @@ async function submitCustomGame() {
     game_short: shortCode,
     cover_url: document.getElementById('customCoverUrl').value.trim() || null,
     channel_id: customGameChannelSelect ? customGameChannelSelect.getValue() : '',
-    notify_role_id: document.getElementById('customNotifyRoleId').value.trim() || null,
+    notify_role_id: csCustomNotifyRole.getValue() || null,
     max_group_size: parseInt(document.getElementById('customMaxSize').value) || 4,
     auto_archive_hours: parseInt(document.getElementById('customArchiveHours').value) || 24,
     enabled: true,
@@ -1163,7 +1219,7 @@ async function editGame(gameId) {
     document.getElementById('editGameTitle').innerHTML =
       '<i class="fas fa-cog text-gray-400 mr-2"></i>Edit: ' + escapeHtml(game.game_name || game.name);
     document.getElementById('editGameName').value = game.game_name || game.name || '';
-    document.getElementById('editNotifyRoleId').value = game.notify_role_id || '';
+    csEditNotifyRole.setValue(game.notify_role_id || '');
     document.getElementById('editMaxSize').value = game.max_group_size || game.max_size || 4;
 
     const archiveHours = game.thread_auto_archive_hours || 24;
@@ -1175,6 +1231,7 @@ async function editGame(gameId) {
     document.getElementById('editArchiveHours').value = normalizedHours;
 
     document.getElementById('editEnabled').checked = game.enabled !== false;
+    document.getElementById('editReceiveNetworkLfg').checked = game.receive_network_lfg || false;
     document.getElementById('editRequireRank').checked = game.require_rank || false;
     document.getElementById('editRankLabel').value = game.rank_label || 'Rank';
     document.getElementById('editRankMin').value = game.rank_min || 1;
@@ -1240,10 +1297,11 @@ async function submitEditGame() {
   const payload = {
     name: document.getElementById('editGameName').value,
     channel_id: editGameChannelSelect ? editGameChannelSelect.getValue() : null,
-    notify_role_id: document.getElementById('editNotifyRoleId').value.trim() || null,
+    notify_role_id: csEditNotifyRole.getValue() || null,
     max_group_size: parseInt(document.getElementById('editMaxSize').value) || 4,
     auto_archive_hours: parseInt(document.getElementById('editArchiveHours').value) || 24,
     enabled: document.getElementById('editEnabled').checked,
+    receive_network_lfg: document.getElementById('editReceiveNetworkLfg').checked,
     require_rank: document.getElementById('editRequireRank').checked,
     rank_label: document.getElementById('editRankLabel').value || 'Rank',
     rank_min: parseInt(document.getElementById('editRankMin').value) || 1,
@@ -1367,24 +1425,36 @@ async function saveNetworkLfg() {
   const enabled = document.getElementById('networkLfgEnabled').checked;
   document.getElementById('networkLfgChannelRow').classList.toggle('hidden', !enabled);
   const channelId = csNetworkLfgCh.getValue() || '';
-  if (enabled && !channelId) return; // need a channel
+  console.log('[NetworkLFG] saveNetworkLfg called - enabled:', enabled, 'channelId:', channelId, 'api:', NETWORK_LFG_API);
+  if (enabled && !channelId) {
+    showSaveMsg(false, 'Select a channel first.');
+    console.warn('[NetworkLFG] Blocked: enabled but no channelId');
+    return;
+  }
   try {
+    const body = JSON.stringify({ is_enabled: enabled, channel_id: channelId });
+    console.log('[NetworkLFG] POSTing:', body);
     const resp = await csrfFetch(NETWORK_LFG_API, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ is_enabled: enabled, channel_id: channelId }),
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: body,
     });
-    const data = await resp.json();
+    console.log('[NetworkLFG] Response status:', resp.status, resp.ok);
+    const text = await resp.text();
+    console.log('[NetworkLFG] Response body:', text);
+    let data;
+    try { data = JSON.parse(text); } catch(pe) { showSaveMsg(false, 'Bad response: ' + text.substring(0,100)); return; }
     if (resp.ok && data.success) {
       const status = document.getElementById('networkLfgStatus');
       status.textContent = enabled ? ('Active - #' + (data.channel_name || channelId)) : 'Disabled';
       status.className = enabled ? 'text-xs text-green-400' : 'text-xs text-gray-500';
       showSaveMsg(true, 'Network LFG setting saved.');
     } else {
-      showSaveMsg(false, data.error || 'Save failed.');
+      showSaveMsg(false, data.error || 'Save failed - status ' + resp.status);
     }
   } catch (e) {
-    showSaveMsg(false, 'Network error.');
+    console.error('[NetworkLFG] Exception:', e);
+    showSaveMsg(false, 'Network error: ' + e);
   }
 }
 
@@ -1823,53 +1893,29 @@ function customOptionsBuilder() {
         },
         'vrising': [
           {
-            name: 'Activity',
-            choices: ['Leveling', 'Castle Building', 'Boss Hunting', 'PvP', 'Farming/Resources', 'Clan Content', 'Casual Co-op']
-          },
-          {
             name: 'Platform',
             choices: ['PC', 'PlayStation', 'Cross-platform']
           },
           {
-            name: 'Level Range',
-            choices: ['Early (1-20)', 'Mid (21-40)', 'End (41+)']
-          },
-          {
             name: 'Experience',
             choices: ['New/Learning', 'Casual', 'Experienced', 'Hardcore']
           },
           {
             name: 'Server Type',
-            choices: ['PvE', 'PvP', 'PvE-C', 'Modded', 'Official', 'Private']
+            multi: true,
+            maxSelections: 5,
+            choices: ['PvE', 'PvP', 'PvE-C', 'Modded', 'Official', 'Private', 'Hardcore', 'Community/Social', 'Roleplay', 'Boosted Rates', 'Open Join', 'Vanilla', 'No Wipe', 'Seasonal Wipe']
+          },
+          {
+            name: 'Server Info',
+            freetext: true,
+            choices: []
           }
         ],
         'survival': [
           {
-            name: 'Activity',
-            choices: ['Boss Fight', 'Raid (PvE)', 'Dungeon/POI Clear', 'Base Building', 'Resource Farming', 'Taming/Breeding', 'PvP Combat', 'Base Raiding (PvP)', 'Territory Control (PvP)', 'Exploration', 'Crafting/Tech', 'Casual Co-op']
-          },
-          {
-            name: 'Role',
-            enableRoleTags: true,
-            choices: [
-              { value: 'Combat (Melee)', role: 'dps' },
-              { value: 'Combat (Ranged)', role: 'dps' },
-              { value: 'Tank/Defender', role: 'tank' },
-              { value: 'Support/Healer', role: 'healer' },
-              { value: 'Builder', role: 'support' },
-              { value: 'Gatherer', role: 'support' },
-              { value: 'Tamer/Breeder', role: 'support' },
-              { value: 'Crafter', role: 'support' },
-              { value: 'Scout/Explorer', role: 'dps' }
-            ]
-          },
-          {
             name: 'Platform',
-            choices: ['PC', 'Xbox', 'PlayStation', 'Nintendo Switch', 'Cross-platform']
-          },
-          {
-            name: 'Level Range',
-            choices: ['Early (1-20)', 'Mid (21-40)', 'End (41+)']
+            choices: ['PC', 'Xbox', 'PlayStation', 'Cross-platform']
           },
           {
             name: 'Experience',
@@ -1877,7 +1923,14 @@ function customOptionsBuilder() {
           },
           {
             name: 'Server Type',
-            choices: ['PvE', 'PvP', 'PvE-C', 'Modded', 'Official', 'Private']
+            multi: true,
+            maxSelections: 5,
+            choices: ['PvE', 'PvP', 'PvE-C', 'Modded', 'Official', 'Private', 'Hardcore', 'Community/Social', 'Roleplay', 'Boosted Rates', 'Open Join', 'Vanilla', 'No Wipe', 'Seasonal Wipe']
+          },
+          {
+            name: 'Server Info',
+            freetext: true,
+            choices: []
           }
         ]
       };
@@ -1924,10 +1977,12 @@ function customOptionsBuilder() {
           if (field.depends_on) result.depends_on = field.depends_on;
           if (field.exclude_same_as) result.exclude_same_as = field.exclude_same_as;
           if (field.max_select) result.max_select = field.max_select;
+          if (field.freetext) result.freetext = true;
 
           return result;
         })
         .filter(field => {
+          if (field.freetext) return true;
           if (Array.isArray(field.choices)) return field.choices.length > 0;
           else if (typeof field.choices === 'object') return Object.keys(field.choices).length > 0;
           return false;

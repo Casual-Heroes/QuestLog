@@ -92,19 +92,19 @@
         <p class="text-xs text-gray-500 mt-1">This will be the name of your group (150 character limit)</p>
       </div>
 
-      <div>
+      <div id="createScheduledTimeRow">
         <label class="text-sm text-gray-300 mb-2 block">Scheduled Time (optional)</label>
         <input type="datetime-local" id="createScheduledTime" class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white">
         <p class="text-xs text-gray-500 mt-1">Leave empty for "play now"</p>
       </div>
 
-      <div>
+      <div id="createEventDurationRow">
         <label class="text-sm text-gray-300 mb-2 block">Event Duration (optional)</label>
         <input type="number" id="createEventDuration" min="1" max="24" placeholder="Hours" class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white">
         <p class="text-xs text-gray-500 mt-1">How long will this event last? (in hours)</p>
       </div>
 
-      <div>
+      <div id="createRecurrenceRow">
         <label class="text-sm text-gray-300 mb-2 block">Recurrence (optional)</label>
         <select id="createRecurrence" class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white">
           <option value="none">No recurrence (one-time)</option>
@@ -122,7 +122,7 @@
       </div>
 
       <div id="groupSizeContainer">
-        <label class="text-sm text-gray-300 mb-2 block">Group Size</label>
+        <label id="createGroupSizeLabel" class="text-sm text-gray-300 mb-2 block">Group Size</label>
         <input type="number" id="createGroupSize" min="2" max="100" value="4" class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white">
       </div>
 
@@ -2412,6 +2412,10 @@
       document.getElementById('roleCompositionSection').classList.add('hidden');
       document.getElementById('enableRoleComposition').checked = false;
       document.getElementById('roleCompositionFields').classList.add('hidden');
+      document.getElementById('createScheduledTimeRow').classList.remove('hidden');
+      document.getElementById('createEventDurationRow').classList.remove('hidden');
+      document.getElementById('createRecurrenceRow').classList.remove('hidden');
+      document.getElementById('createGroupSizeLabel').textContent = 'Group Size';
       return;
     }
 
@@ -2426,8 +2430,9 @@
 
     // Detect game type by name (mirrors lfg_create.html detectGameType logic)
     const _gameType = getBuiltinGameType(game.game_name);
-    const _isSurvival = SURVIVAL_GAMES.includes(_gameType);
-    const _isNoRole = NO_ROLE_GAMES.includes(_gameType);
+    // Survival detection: any game with a "Server Type" custom option is survival - no hard-coded list needed
+    const _isSurvival = !!(game.custom_options && game.custom_options.some(function(o) { return o.name === 'Server Type'; }));
+    const _isNoRole = !_isSurvival && NO_ROLE_GAMES.includes(_gameType);
     // MMO = has class/spec system (wow, ffxiv, pantheon, gw2, eso) and is NOT survival
     const _isMMO = !_isSurvival && !_isNoRole && _gameType !== null;
     window._createIsSurvival = _isSurvival;
@@ -2445,10 +2450,15 @@
     _roleFields.classList.add('hidden');
     document.getElementById('groupSizeContainer').classList.remove('hidden');
 
+    // Survival: hide scheduled time, duration, recurrence - show/restore for non-survival
+    document.getElementById('createScheduledTimeRow').classList.toggle('hidden', _isSurvival);
+    document.getElementById('createEventDurationRow').classList.toggle('hidden', _isSurvival);
+    document.getElementById('createRecurrenceRow').classList.toggle('hidden', _isSurvival);
+    document.getElementById('createGroupSizeLabel').textContent = _isSurvival ? 'Server Size' : 'Group Size';
+
     if (_isSurvival) {
-      // Survival: show the toggle but hide slot inputs - grid driven by member role selections
-      _roleSection.classList.remove('hidden');
-      _hintEl.textContent = 'Show role columns on the group card (Combat, Builder, Gatherer, etc.)';
+      // Survival: hide role composition entirely
+      _roleSection.classList.add('hidden');
     } else if (_isNoRole) {
       // No-role games (ARPGs, FPS): hide role composition entirely
       _roleSection.classList.add('hidden');
@@ -2523,6 +2533,25 @@
         optionDiv.appendChild(optionSelectContainer);
         container.appendChild(optionDiv);
 
+        // Freetext field: render as text input instead of dropdown
+        if (option.freetext) {
+          optionLabel.textContent = option.name + ' (optional)';
+          const textInput = document.createElement('input');
+          textInput.type = 'text';
+          textInput.placeholder = 'Enter ' + option.name.toLowerCase() + '...';
+          textInput.className = 'w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:border-blue-500 focus:outline-none text-sm';
+          // Hidden input so submit code finds it via input[type="hidden"]
+          const hiddenInput = document.createElement('input');
+          hiddenInput.type = 'hidden';
+          hiddenInput.id = `createOption${index}`;
+          optionSelectContainer.appendChild(textInput);
+          optionSelectContainer.appendChild(hiddenInput);
+          textInput.addEventListener('input', function() {
+            hiddenInput.value = this.value;
+          });
+          return;
+        }
+
         // Build items from choices
         let items = [];
 
@@ -2532,15 +2561,15 @@
           items = [];
         } else if (Array.isArray(option.choices)) {
           // Simple dropdown - handle both string and object {value, role} formats
-          items = option.choices.map(choice => {
+          items = [{ value: '', label: '-- None --' }].concat(option.choices.map(choice => {
             const val = typeof choice === 'object' ? choice.value : choice;
             return { value: val, label: val };
-          });
+          }));
         }
 
-        // Check if this option should allow multi-select (Activity allows up to 3)
-        const isMultiSelect = option.name === 'Activity';
-        const maxSelections = isMultiSelect ? 3 : null;
+        // Check if this option should allow multi-select (Activity or option.multi === true)
+        const isMultiSelect = option.name === 'Activity' || option.multi === true;
+        const maxSelections = isMultiSelect ? (option.maxSelections || 3) : null;
 
         const customSelect = createCustomSelect({
           container: optionSelectContainer,
@@ -2686,7 +2715,12 @@
           if (optionContainer) {
             const hiddenInput = optionContainer.querySelector('input[type="hidden"]');
             if (hiddenInput && hiddenInput.value) {
-              creatorOptions[option.name] = hiddenInput.value;
+              let val = hiddenInput.value;
+              // Multi-select stores JSON array - join to comma-separated string for display
+              if (val.startsWith('[')) {
+                try { val = JSON.parse(val).filter(Boolean).join(', '); } catch(e) {}
+              }
+              if (val) creatorOptions[option.name] = val;
             }
           }
         });
