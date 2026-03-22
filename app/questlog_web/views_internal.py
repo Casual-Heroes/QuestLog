@@ -1345,20 +1345,46 @@ def api_internal_bridge_pending_deletions(request, platform):
     return JsonResponse({'deletions': deletions})
 
 
-# DISABLED - typing relay not shipped yet
-# @csrf_exempt
-# @require_http_methods(['POST'])
-# def api_internal_bridge_typing(request):
-#     POST /ql/api/internal/bridge/typing/
-#     Called by bots when a user starts typing in a bridged channel.
-#     Returns the target channel IDs so the bot can fire the typing indicator there.
-#     ... full implementation below, re-enable when ready ...
-#
 @csrf_exempt
 @require_http_methods(['POST'])
 def api_internal_bridge_typing(request):
-    """Typing relay - disabled, not shipped yet."""
-    return JsonResponse({'error': 'Not available'}, status=404)
+    """
+    POST /ql/api/internal/bridge/typing/
+    Called by a bot when a user starts typing in a bridged channel.
+    Returns the target channel ID(s) so the calling bot can fire the typing indicator there.
+
+    Body: {"platform": "discord"|"fluxer", "channel_id": "..."}
+    Response: {"targets": [{"platform": "...", "channel_id": "..."}]}
+    """
+    if not _check_bot_auth(request):
+        return JsonResponse({'error': 'Unauthorized'}, status=401)
+
+    try:
+        data = json.loads(request.body)
+    except (json.JSONDecodeError, AttributeError):
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+    platform = str(data.get('platform', '')).strip()
+    channel_id = str(data.get('channel_id', '')).strip()
+    if not platform or not channel_id:
+        return JsonResponse({'error': 'platform and channel_id required'}, status=400)
+
+    targets = []
+    with get_db_session() as db:
+        if platform == 'discord':
+            bridge = db.query(WebBridgeConfig).filter_by(
+                discord_channel_id=channel_id, enabled=1
+            ).first()
+            if bridge and bridge.relay_discord_to_fluxer and bridge.fluxer_channel_id:
+                targets.append({'platform': 'fluxer', 'channel_id': bridge.fluxer_channel_id})
+        elif platform == 'fluxer':
+            bridge = db.query(WebBridgeConfig).filter_by(
+                fluxer_channel_id=channel_id, enabled=1
+            ).first()
+            if bridge and bridge.relay_fluxer_to_discord and bridge.discord_channel_id:
+                targets.append({'platform': 'discord', 'channel_id': bridge.discord_channel_id})
+
+    return JsonResponse({'targets': targets})
 
 
 @csrf_exempt

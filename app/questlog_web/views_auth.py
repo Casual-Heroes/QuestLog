@@ -457,8 +457,11 @@ def ql_register(request):
             ).filter(WebEarlyAccessCode.used_by_user_id == None).first()
             invite_bypass = bool(pre_check)
 
-    # Check for invite code bypass (from ?invite=CODE query param)
-    invite_param = request.GET.get('invite', '').strip().upper() if request.method == 'GET' else ''
+    # Check for invite code bypass (from ?invite=CODE query param on GET, or invite_code field on POST)
+    if request.method == 'GET':
+        invite_param = request.GET.get('invite', '').strip().upper()
+    else:
+        invite_param = request.POST.get('invite_code', '').strip().upper()
     invite_bypass = False
     if invite_param:
         with get_db_session() as db:
