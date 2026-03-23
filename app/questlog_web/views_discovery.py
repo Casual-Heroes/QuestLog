@@ -3503,6 +3503,17 @@ def api_igdb_search(request):
                 except Exception:
                     pass
 
+        # Enrich with steam_app_id from web_found_games when IGDB doesn't have it
+        game_names = [g.name for g in games if not g.steam_id]
+        steam_id_by_name = {}
+        if game_names:
+            with get_db_session() as db:
+                rows = db.query(WebFoundGame.name, WebFoundGame.steam_app_id).filter(
+                    WebFoundGame.name.in_(game_names)
+                ).all()
+                for row in rows:
+                    steam_id_by_name[row.name] = row.steam_app_id
+
         data = [{
             'id': g.id,
             'name': g.name,
