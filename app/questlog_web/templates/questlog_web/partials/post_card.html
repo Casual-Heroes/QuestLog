@@ -894,8 +894,15 @@ function renderComment(comment, isReply = false) {
             <a href="/ql/u/${esc(author.username)}/" class="text-white text-xs font-semibold hover:underline">${esc(author.display_name || author.username)}</a>${cmtFlairBadge}${cmtRankBadge}${cmtVipBadge}
           </span>
           <p class="comment-content-text text-gray-300 text-sm">${formatContent(comment.content)}</p>
+          <div class="comment-edit-area hidden mt-1">
+            <textarea class="comment-edit-textarea w-full bg-neutral-700 border border-neutral-600 rounded-lg px-2 py-1.5 text-sm text-white resize-none focus:outline-none focus:border-indigo-500" rows="2" maxlength="500">${esc(comment.content)}</textarea>
+            <div class="flex gap-2 mt-1">
+              <button onclick="saveCommentEdit(${comment.id})" class="text-xs px-2.5 py-1 rounded bg-indigo-600 hover:bg-indigo-700 text-white transition">Save</button>
+              <button onclick="cancelCommentEdit(${comment.id})" class="text-xs px-2.5 py-1 rounded bg-neutral-700 hover:bg-neutral-600 text-gray-300 transition">Cancel</button>
+            </div>
+          </div>
         </div>
-        <div class="flex items-center gap-3 mt-1 px-1">
+        <div class="comment-actions flex items-center gap-3 mt-1 px-1">
           <button onclick="toggleCommentLike(${comment.id}, this)" class="${likedClass} text-xs transition hover:text-red-400">
             <i class="${likeIcon}"></i> ${comment.like_count || 0}
           </button>
@@ -954,13 +961,38 @@ async function toggleCommentLike(commentId, btn) {
   } catch(e) { console.error('Comment like error:', e); }
 }
 
-async function editComment(commentId) {
-  const contentEl = document.querySelector(`[data-comment-id="${commentId}"] .comment-content-text`);
-  if (!contentEl) return;
-  const current = contentEl.textContent.trim();
-  const input = prompt('Edit comment:', current);
-  if (input === null || input.trim() === current) return;
-  const trimmed = input.trim();
+function editComment(commentId) {
+  const el = document.querySelector(`[data-comment-id="${commentId}"]`);
+  if (!el) return;
+  const contentEl = el.querySelector('.comment-content-text');
+  const editArea = el.querySelector('.comment-edit-area');
+  const textarea = el.querySelector('.comment-edit-textarea');
+  const actions = el.querySelector('.comment-actions');
+  if (!contentEl || !editArea || !textarea) return;
+  textarea.value = contentEl.textContent.trim();
+  contentEl.classList.add('hidden');
+  editArea.classList.remove('hidden');
+  if (actions) actions.classList.add('hidden');
+  textarea.focus();
+  textarea.selectionStart = textarea.selectionEnd = textarea.value.length;
+  textarea.style.height = 'auto';
+  textarea.style.height = textarea.scrollHeight + 'px';
+}
+
+function cancelCommentEdit(commentId) {
+  const el = document.querySelector(`[data-comment-id="${commentId}"]`);
+  if (!el) return;
+  el.querySelector('.comment-content-text').classList.remove('hidden');
+  el.querySelector('.comment-edit-area').classList.add('hidden');
+  const actions = el.querySelector('.comment-actions');
+  if (actions) actions.classList.remove('hidden');
+}
+
+async function saveCommentEdit(commentId) {
+  const el = document.querySelector(`[data-comment-id="${commentId}"]`);
+  if (!el) return;
+  const textarea = el.querySelector('.comment-edit-textarea');
+  const trimmed = textarea.value.trim();
   if (!trimmed) return;
   try {
     const res = await csrfFetch(`/ql/api/comments/${commentId}/`, {
@@ -970,9 +1002,11 @@ async function editComment(commentId) {
     });
     const data = await res.json();
     if (data.success) {
-      contentEl.textContent = data.content;
+      const contentEl = el.querySelector('.comment-content-text');
+      contentEl.innerHTML = formatContent(data.content);
+      cancelCommentEdit(commentId);
     } else {
-      alert(data.error || 'Failed to edit comment');
+      alert(data.error || 'Failed to save comment');
     }
   } catch(e) { console.error('Edit comment error:', e); }
 }
