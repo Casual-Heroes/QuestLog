@@ -18,7 +18,7 @@ from .models import (
     WebFluxerLfgMember, WebFluxerGuildSettings, WebFluxerLfgGame,
 )
 from app.db import get_db_session
-from .helpers import add_web_user_context, web_login_required, safe_int, EXCLUDED_USER_IDS, generate_post_public_id, create_notification
+from .helpers import add_web_user_context, web_login_required, web_verified_required, safe_int, EXCLUDED_USER_IDS, generate_post_public_id, create_notification
 from .fluxer_webhooks import notify_lfg_post as _fluxer_lfg_post, build_lfg_embed_data as _build_lfg_embed_data
 
 logger = logging.getLogger(__name__)
@@ -154,6 +154,7 @@ def _validate_voice_link(url):
     return url or None
 
 
+@ratelimit(key='user_or_ip', rate='20/h', method='POST', block=True)
 @add_web_user_context
 @require_http_methods(["GET", "POST"])
 def api_lfg_list(request):
@@ -194,7 +195,7 @@ def api_lfg_list(request):
                 description=(data.get('description') or '')[:2000] or None,
                 game_name=game_name[:200],
                 game_id=(data.get('game_id') or '')[:50] or None,
-                game_image_url=(data.get('game_image_url') or '')[:500] or None,
+                game_image_url=_validate_voice_link(data.get('game_image_url')),
                 group_size=group_size,
                 current_size=1,
                 use_roles=bool(data.get('use_roles', False)),
@@ -206,6 +207,7 @@ def api_lfg_list(request):
                 scheduled_time=safe_int(data.get('scheduled_time'), default=None, min_val=0, max_val=9999999999),
                 voice_platform=(data.get('voice_platform') or '')[:50] or None,
                 voice_link=_validate_voice_link(data.get('voice_link')),
+                server_invite_link=_validate_voice_link(data.get('server_invite_link')),
                 status='open',
                 share_token=share_token,
                 created_at=now,
@@ -216,6 +218,14 @@ def api_lfg_list(request):
 
             # Creator is first member — store game-specific selections (class/spec/activity)
             raw_selections = data.get('selections') or {}
+            # Sanitize all string values to prevent XSS if rendered in templates
+            from .helpers import sanitize_text as _st
+            if raw_selections and isinstance(raw_selections, dict):
+                raw_selections = {
+                    k: (_st(str(v)[:200]) if isinstance(v, str) else
+                        ([_st(str(i)[:200]) for i in v if isinstance(i, str)] if isinstance(v, list) else v))
+                    for k, v in raw_selections.items() if isinstance(k, str)
+                }
             selections_json = json.dumps(raw_selections) if raw_selections else None
             db.add(WebLFGMember(
                 group_id=group.id,
@@ -251,6 +261,7 @@ def api_lfg_list(request):
                 creator_selections=raw_selections,
                 group_id=group.id,
                 voice_link=group.voice_link,
+                server_invite_link=group.server_invite_link,
             )
         except Exception:
             pass
@@ -707,13 +718,13 @@ def api_communities(request):
             name=name,
             short_description=(data.get('short_description') or '')[:500] or None,
             description=(data.get('description') or '') or None,
-            website_url=(data.get('website_url') or '')[:500] or None,
-            twitch_url=(data.get('twitch_url') or '')[:500] or None,
-            youtube_url=(data.get('youtube_url') or '')[:500] or None,
-            twitter_url=(data.get('twitter_url') or '')[:500] or None,
-            bluesky_url=(data.get('bluesky_url') or '')[:500] or None,
-            tiktok_url=(data.get('tiktok_url') or '')[:500] or None,
-            instagram_url=(data.get('instagram_url') or '')[:500] or None,
+            website_url=_validate_voice_link(data.get('website_url')),
+            twitch_url=_validate_voice_link(data.get('twitch_url')),
+            youtube_url=_validate_voice_link(data.get('youtube_url')),
+            twitter_url=_validate_voice_link(data.get('twitter_url')),
+            bluesky_url=_validate_voice_link(data.get('bluesky_url')),
+            tiktok_url=_validate_voice_link(data.get('tiktok_url')),
+            instagram_url=_validate_voice_link(data.get('instagram_url')),
             tags=tags_json,
             allow_discovery=bool(data.get('allow_discovery', False)),
             allow_joins=bool(data.get('allow_joins', False)),
@@ -873,11 +884,11 @@ def api_community_detail(request, community_id):
             community.name = name
             community.short_description = (data.get('short_description') or '')[:500] or None
             community.description = data.get('description') or None
-            community.invite_url = (data.get('invite_url') or '')[:500] or None
-            community.website_url = (data.get('website_url') or '')[:500] or None
-            community.twitch_url = (data.get('twitch_url') or '')[:500] or None
-            community.youtube_url = (data.get('youtube_url') or '')[:500] or None
-            community.twitter_url = (data.get('twitter_url') or '')[:500] or None
+            community.invite_url = _validate_voice_link(data.get('invite_url'))
+            community.website_url = _validate_voice_link(data.get('website_url'))
+            community.twitch_url = _validate_voice_link(data.get('twitch_url'))
+            community.youtube_url = _validate_voice_link(data.get('youtube_url'))
+            community.twitter_url = _validate_voice_link(data.get('twitter_url'))
             community.tags = json.dumps([t for t in raw_tags if isinstance(t, str)][:8])
             community.member_count = safe_int(data.get('member_count') or community.member_count, default=community.member_count, min_val=0)
             community.allow_discovery = bool(data.get('allow_discovery', community.allow_discovery))
@@ -1135,13 +1146,24 @@ def api_igdb_search(request):
         finally:
             loop.close()
 
+        # Enrich with steam_app_id from web_found_games when IGDB doesn't have it
+        game_names = [g.name for g in games if not g.steam_id]
+        steam_id_by_name = {}
+        if game_names:
+            with get_db_session() as db:
+                rows = db.query(WebFoundGame.name, WebFoundGame.steam_app_id).filter(
+                    WebFoundGame.name.in_(game_names)
+                ).all()
+                for row in rows:
+                    steam_id_by_name[row.name] = row.steam_app_id
+
         data = [{
             'id': g.id,
             'name': g.name,
             'cover_url': g.cover_url,
             'platforms': ', '.join(g.platforms[:3]) if g.platforms else '',
             'release_year': g.release_year,
-            'steam_id': g.steam_id,
+            'steam_id': g.steam_id or steam_id_by_name.get(g.name),
         } for g in games]
 
         return JsonResponse({'games': data})
@@ -1263,14 +1285,15 @@ def api_lfg_broadcast_network(request, group_id):
             return JsonResponse({'error': 'LFG is not active'}, status=400)
 
         configs = db.query(WebCommunityBotConfig).filter_by(
-            event_type='lfg_announce', is_enabled=True
-        ).filter(WebCommunityBotConfig.channel_id.isnot(None)).all()
+            event_type='lfg_announce'
+        ).all()
 
         if not configs:
             return JsonResponse({'success': True, 'queued': 0, 'message': 'No communities subscribed yet'})
 
         creator_name = request.web_user.display_name or request.web_user.username
         group_url = f"https://casual-heroes.com/ql/lfg/{lfg.share_token or lfg.id}/"
+        _broadcast_game = lfg.game_name.lower() if lfg.game_name else ''
 
         # Build the embed using the same builder as guild webhooks (identical card layout)
         role_schema = _parse_role_schema(lfg.role_schema)
@@ -1296,10 +1319,8 @@ def api_lfg_broadcast_network(request, group_id):
             group_platform='web',
         )
 
-        # Set color (not set by build_lfg_embed_data - that's done by _queue_notification for webhooks)
         embed_data["color"] = 0xFEE75C  # gold - matches QuestLog Network brand
 
-        # Override footer: use Network branding
         origin = lfg.origin_platform or 'web'
         if origin == 'fluxer':
             origin_label = "Fluxer"
@@ -1310,8 +1331,6 @@ def api_lfg_broadcast_network(request, group_id):
 
         embed_data["footer"] = "QuestLog Network - casual-heroes.com/ql/lfg/"
         embed_data["fields"].append({"name": "Posted via", "value": origin_label, "inline": True})
-
-        # Add Discord thread name (not used by Fluxer but harmless)
         embed_data["thread_name"] = f"{lfg.title} - {lfg.game_name} - {creator_name}"
 
         payload_json = json.dumps(embed_data)
@@ -1320,6 +1339,25 @@ def api_lfg_broadcast_network(request, group_id):
         discord_count = 0
 
         for cfg in configs:
+            # Per-game opt-in: find the channel configured for this specific game
+            if cfg.platform == 'discord':
+                _game_row = db.execute(text(
+                    "SELECT lfg_channel_id FROM lfg_games WHERE guild_id=:g AND LOWER(game_name)=:gn "
+                    "AND receive_network_lfg=1 AND enabled=1 LIMIT 1"
+                ), {"g": int(cfg.guild_id), "gn": _broadcast_game}).fetchone()
+            else:
+                _game_row = db.execute(text(
+                    "SELECT channel_id FROM web_fluxer_lfg_games WHERE guild_id=:g AND LOWER(name)=:gn "
+                    "AND receive_network_lfg=1 AND enabled=1 AND is_active=1 LIMIT 1"
+                ), {"g": cfg.guild_id, "gn": _broadcast_game}).fetchone()
+
+            if not _game_row:
+                continue
+
+            _dest_channel = str(_game_row[0]).strip() if _game_row[0] else cfg.channel_id
+            if not _dest_channel:
+                continue
+
             if cfg.platform == 'discord':
                 db.execute(
                     text(
@@ -1329,7 +1367,7 @@ def api_lfg_broadcast_network(request, group_id):
                     ),
                     {
                         "guild_id": int(cfg.guild_id),
-                        "channel_id": int(cfg.channel_id),
+                        "channel_id": int(_dest_channel),
                         "payload": payload_json,
                         "now": now_ts,
                     },
@@ -1344,7 +1382,7 @@ def api_lfg_broadcast_network(request, group_id):
                     ),
                     {
                         "guild_id": cfg.guild_id,
-                        "channel_id": cfg.channel_id,
+                        "channel_id": _dest_channel,
                         "payload": payload_json,
                         "now": now_ts,
                     },
