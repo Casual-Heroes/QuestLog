@@ -13,7 +13,7 @@ from sqlalchemy import text
 from .models import (
     WebLFGGroup, WebLFGMember, WebCommunity, WebCreatorProfile,
     WebFoundGame, WebRSSArticle, WebUser, PlatformType,
-    WebCommunityBotConfig,
+    WebCommunityBotConfig, WebLFGGameConfig,
     WebFluxerLfgGroup, WebFluxerLfgConfig, WebFluxerGuildChannel,
     WebFluxerLfgMember, WebFluxerGuildSettings, WebFluxerLfgGame,
 )
@@ -1146,16 +1146,35 @@ def api_igdb_search(request):
         finally:
             loop.close()
 
-        # Enrich with steam_app_id from web_found_games when IGDB doesn't have it
-        game_names = [g.name for g in games if not g.steam_id]
+        # Enrich steam_id for games IGDB doesn't have a Steam mapping for.
+        # Priority: IGDB external_games > web_found_games > web_lfg_game_configs > web_users.current_game_appid
+        game_names_no_steam = [g.name for g in games if not g.steam_id]
         steam_id_by_name = {}
-        if game_names:
+        if game_names_no_steam:
             with get_db_session() as db:
-                rows = db.query(WebFoundGame.name, WebFoundGame.steam_app_id).filter(
-                    WebFoundGame.name.in_(game_names)
-                ).all()
-                for row in rows:
+                # 1. web_found_games (Steam-scraped, most reliable)
+                for row in db.query(WebFoundGame.name, WebFoundGame.steam_app_id).filter(
+                    WebFoundGame.name.in_(game_names_no_steam)
+                ).all():
                     steam_id_by_name[row.name] = row.steam_app_id
+
+                # 2. web_lfg_game_configs (admin-configured LFG games with known Steam IDs)
+                still_missing = [n for n in game_names_no_steam if n not in steam_id_by_name]
+                if still_missing:
+                    for row in db.query(WebLFGGameConfig.game_name, WebLFGGameConfig.steam_app_id).filter(
+                        WebLFGGameConfig.game_name.in_(still_missing),
+                        WebLFGGameConfig.steam_app_id.isnot(None),
+                    ).all():
+                        steam_id_by_name[row.game_name] = row.steam_app_id
+
+                # 3. web_users.current_game_appid - players actively playing this game right now
+                still_missing = [n for n in game_names_no_steam if n not in steam_id_by_name]
+                if still_missing:
+                    for row in db.query(WebUser.current_game, WebUser.current_game_appid).filter(
+                        WebUser.current_game.in_(still_missing),
+                        WebUser.current_game_appid.isnot(None),
+                    ).distinct(WebUser.current_game).all():
+                        steam_id_by_name[row.current_game] = row.current_game_appid
 
         data = [{
             'id': g.id,
