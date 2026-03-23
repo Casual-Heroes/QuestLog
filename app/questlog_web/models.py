@@ -420,6 +420,7 @@ class WebLFGGroup(Base):
     # Platform for voice/communication
     voice_platform = Column(String(50), nullable=True)  # discord, teamspeak, etc.
     voice_link = Column(String(500), nullable=True)  # Invite link
+    server_invite_link = Column(String(500), nullable=True)  # Server invite link shown in embeds
 
     # Status
     status = Column(String(20), default='open')  # open, full, started, completed, cancelled
@@ -1392,6 +1393,7 @@ class WebFluxerWebhookConfig(Base):
     event_type = Column(String(50), nullable=False, unique=True)  # new_post, new_member, giveaway_start, giveaway_winner
     label = Column(String(100), nullable=False)  # human-friendly name shown in admin
     webhook_url = Column(String(1000), nullable=True)  # legacy - no longer used
+    discord_webhook_url = Column(String(1000), nullable=True)  # Discord webhook URL for new_post broadcasts
     is_enabled = Column(Boolean, default=False)
     guild_id = Column(String(32), nullable=True)
     channel_id = Column(String(32), nullable=True)
@@ -1406,6 +1408,14 @@ class WebFluxerWebhookConfig(Base):
     def __repr__(self):
         return f"<WebFluxerWebhookConfig {self.event_type} enabled={self.is_enabled}>"
 
+
+class WebBroadcastUser(Base):
+    """Users whose posts are fanned out to Fluxer and Discord channels."""
+    __tablename__ = 'web_broadcast_users'
+
+    id       = Column(Integer, primary_key=True, autoincrement=True)
+    user_id  = Column(Integer, nullable=False, unique=True)
+    added_at = Column(BigInteger, nullable=False)
 
 
 class WebCommunityBotConfig(Base):
@@ -1547,6 +1557,27 @@ class WebFluxerRoleUpdate(Base):
         return f"<WebFluxerRoleUpdate user={self.web_user_id} action={self.action}>"
 
 
+class WebDiscordPendingRoleUpdate(Base):
+    """Queue for QuestLog flair -> Discord role sync. Written by web when user equips/unequips a flair.
+    Polled by WardenBot's flair_sync cog every 10s. Only processed for guilds with flair_sync_enabled=1."""
+    __tablename__ = 'discord_pending_role_updates'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    web_user_id = Column(Integer, nullable=False, index=True)
+    action = Column(String(20), nullable=False)      # 'set_flair' or 'clear_flair'
+    flair_emoji = Column(String(20), nullable=True)
+    flair_name = Column(String(100), nullable=True)
+    created_at = Column(BigInteger, nullable=False)
+    processed_at = Column(BigInteger, nullable=True)
+
+    __table_args__ = (
+        Index('idx_discord_role_update_pending', 'processed_at', 'created_at'),
+    )
+
+    def __repr__(self):
+        return f"<WebDiscordPendingRoleUpdate user={self.web_user_id} action={self.action}>"
+
+
 class WebFluxerGuildAction(Base):
     """
     Queue for actions the dashboard requests the bot to perform in a Fluxer guild.
@@ -1680,6 +1711,9 @@ class WebFluxerGuildSettings(Base):
     track_gaming = Column(SmallInteger, nullable=False, default=0, server_default='0')
     xp_per_media = Column(Integer, nullable=False, default=3, server_default='3')
     xp_per_gaming_hour = Column(Integer, nullable=False, default=10, server_default='10')
+
+    # Flair Sync (opt-in - admin must enable before flair roles are created in this guild)
+    flair_sync_enabled = Column(SmallInteger, nullable=False, default=0, server_default='0')
 
     # Creator Discovery / Spotlight (all settings as JSON blob)
     creator_discovery_json = Column(Text, nullable=True)   # JSON: enabled, channels, intervals, COTW/COTM, etc.
@@ -2021,6 +2055,7 @@ class WebFluxerLfgGroup(Base):
     support_needed = Column(Integer, default=0)
     enforce_role_limits = Column(Integer, default=1)
     role_schema = Column(Text, nullable=True)  # JSON array of 4 slot dicts
+    server_invite_link = Column(String(500), nullable=True)
 
     __table_args__ = (
         Index('idx_fluxer_lfg_group_guild_status', 'guild_id', 'status'),

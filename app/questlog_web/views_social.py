@@ -1386,6 +1386,8 @@ def _get_comments(request, db, post_id):
 
     def serialize_comment(c):
         author = authors.get(c.author_id)
+        is_own = bool(request.web_user and c.author_id == request.web_user.id)
+        is_admin = bool(request.web_user and request.web_user.is_admin)
         return {
             'id': c.id,
             'author': serialize_user_brief(author) if author else None,
@@ -1394,6 +1396,8 @@ def _get_comments(request, db, post_id):
             'like_count': c.like_count or 0,
             'created_at': c.created_at,
             'liked_by_me': c.id in my_likes,
+            'can_edit': is_own,
+            'can_delete': is_own or is_admin,
             'replies': [serialize_comment(r) for r in reply_map.get(c.id, [])],
         }
 
@@ -1434,7 +1438,7 @@ def api_comment_detail(request, comment_id):
             comment.content = content
             comment.updated_at = int(time.time())
             db.commit()
-            return JsonResponse({'success': True})
+            return JsonResponse({'success': True, 'content': content})
 
         else:  # DELETE
             comment.is_deleted = True
