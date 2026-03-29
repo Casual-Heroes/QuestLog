@@ -46,6 +46,6 @@ django-csp==3.8
 authlib==1.6.9
 mysqlclient==2.2.7
 Pillow==12.1.1
-cryptography==46.0.5
+cryptography==46.0.6
 nltk==3.9.3
 markdown==3.10.2
