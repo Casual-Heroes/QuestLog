@@ -37,6 +37,21 @@
       <!-- Toast Container -->
       <div id="toast-container" class="fixed top-4 right-4 z-50 space-y-2"></div>
 
+      <!-- Flair Role Sync Toggle -->
+      <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-5 mb-6">
+        <div class="flex items-center justify-between gap-4">
+          <div>
+            <h3 class="text-white font-semibold"><i class="fas fa-sync-alt text-purple-400 mr-2"></i>Discord Role Sync</h3>
+            <p class="text-sm text-gray-400 mt-1">When enabled, QuestLog automatically creates and assigns <span class="font-mono text-gray-300">Flair: ...</span> roles in this server when members equip a flair.</p>
+            <p class="text-amber-400/80 text-xs mt-1"><i class="fas fa-exclamation-triangle mr-1"></i>To display flair roles above other roles, go to your server's Role settings and drag flair roles to the top of the list manually.</p>
+          </div>
+          <label class="relative inline-flex items-center cursor-pointer shrink-0">
+            <input type="checkbox" id="flair-sync-toggle" class="sr-only peer" {% if flair_sync_enabled %}checked{% endif %} onchange="saveFlairSyncSetting(this.checked)">
+            <div class="w-11 h-6 bg-neutral-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+          </label>
+        </div>
+      </div>
+
       <!-- Action Buttons -->
       <div class="flex gap-3 mb-6">
         <button onclick="openCreateFlairModal()"
@@ -212,6 +227,25 @@
     const HAS_ENGAGEMENT_MODULE = true;
     const API_BASE = '/api/guild/{{ guild.id }}/flairs';
     const CSRF_TOKEN = '{{ csrf_token }}';
+
+    async function saveFlairSyncSetting(enabled) {
+      try {
+        const response = await csrfFetch('/api/guild/{{ guild.id }}/settings/update/', {
+          method: 'POST',
+          body: { flair_sync_enabled: enabled },
+        });
+        const data = await response.json();
+        if (data.success) {
+          showToast(enabled ? 'Flair role sync enabled' : 'Flair role sync disabled', 'success');
+        } else {
+          showToast(data.error || 'Failed to save setting', 'error');
+          document.getElementById('flair-sync-toggle').checked = !enabled;
+        }
+      } catch (e) {
+        showToast('Error saving setting', 'error');
+        document.getElementById('flair-sync-toggle').checked = !enabled;
+      }
+    }
 
     // CSRF-aware fetch helper (inline - this page doesn't extend base.html)
     async function csrfFetch(url, options = {}) {

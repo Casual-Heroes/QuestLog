@@ -197,6 +197,7 @@ class Guild(Base):
     discovery_enabled = Column(Boolean, default=False)
     role_persistence_enabled = Column(Boolean, default=False)  # Restore roles when members rejoin
     flair_sync_enabled = Column(Boolean, nullable=False, default=False, server_default='0')  # Opt-in: sync QuestLog flair -> Discord role
+    spotlight_channel_id = Column(BigInteger, nullable=True)  # Channel for Community Spotlight bot posts
 
     # AMP Integration (Casual Heroes Hosting Services)
     amp_instance_id = Column(String(255), nullable=True)  # AMP instance ID for game server access
@@ -2883,7 +2884,7 @@ class SiteActivityGame(Base):
     display_on = Column(String(20), default="gamesweplay")  # 'gamesweplay', 'gameservers', or 'both'
 
     # AMP Server (if game_type = 'amp' or 'both')
-    amp_instance_id = Column(String(255), nullable=True)  # e.g., "CH-7DTD01"
+    amp_instance_id = Column(String(255), nullable=True)   # e.g., "CH-7DTD01"
 
     # Static Info (Steam, Discord, Images)
     steam_appid = Column(String(50), nullable=True)  # e.g., "251570"

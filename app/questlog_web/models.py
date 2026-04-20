@@ -91,6 +91,11 @@ class WebUser(Base):
     hero_points = Column(Integer, default=0)
     active_flair_id = Column(Integer, ForeignKey('web_flairs.id'), nullable=True)
     fluxer_xp_migrated = Column(SmallInteger, default=0, nullable=False, server_default='0')
+
+    # Legacy system - impact/trust passport across all CH platforms and game servers
+    legacy_score = Column(Integer, default=0, nullable=False, server_default='0')
+    legacy_tier  = Column(Integer, default=1, nullable=False, server_default='1')
+    # Tiers: 1=Common, 2=Rare, 3=Epic, 4=Legendary, 5=Mythical
     primary_community_id = Column(Integer, ForeignKey('web_communities.id'), nullable=True)
 
     # Live stream status (updated by check_live_status cron)
@@ -517,6 +522,7 @@ class WebCreatorProfile(Base):
     kloak_url = Column(String(500), nullable=True)         # Kloak
     teamspeak_url = Column(String(500), nullable=True)     # TeamSpeak
     revolt_url = Column(String(500), nullable=True)        # Stoat (formerly Revolt)
+    root_url = Column(String(500), nullable=True)          # Root
 
     # Twitch OAuth (encrypted tokens)
     twitch_user_id = Column(String(100), nullable=True)
@@ -1178,6 +1184,51 @@ class WebXpEvent(Base):
     )
 
 
+class WebLegacyEvent(Base):
+    """
+    Ledger of every Legacy point award.
+    Legacy = impact metric (how much you matter to others).
+    XP = activity metric (how much you do).
+    """
+    __tablename__ = 'web_legacy_events'
+
+    id          = Column(Integer, primary_key=True, autoincrement=True)
+    user_id     = Column(Integer, ForeignKey('web_users.id'), nullable=False)
+    action_type = Column(String(60), nullable=False)
+    points      = Column(Integer, nullable=False)
+    source      = Column(String(20), default='web')   # web, discord, fluxer, 7dtd, dayz, minecraft, palworld, etc
+    ref_id      = Column(String(100), nullable=True)  # prevent duplicate awards
+    created_at  = Column(BigInteger, nullable=False)
+
+    __table_args__ = (
+        Index('idx_legacy_user_action', 'user_id', 'action_type', 'created_at'),
+    )
+
+
+class WebLegacyNomination(Base):
+    """One nomination per nominator per category per month."""
+    __tablename__ = 'web_legacy_nominations'
+
+    id                       = Column(Integer, primary_key=True, autoincrement=True)
+    month_year               = Column(String(7),  nullable=False)          # YYYY-MM
+    category                 = Column(String(50), nullable=False)          # community, 7dtd, valheim, etc.
+    nominated_user_id        = Column(Integer, ForeignKey('web_users.id'), nullable=False)
+    nominated_by_web_user_id = Column(Integer, ForeignKey('web_users.id'), nullable=True)
+    nominated_by_fluxer_id   = Column(String(25), nullable=True)
+    guild_id                 = Column(String(25), nullable=True)
+    platform                 = Column(String(10), nullable=False, default='web')
+    reason                   = Column(Text, nullable=True)
+    vote_count               = Column(Integer, nullable=False, default=0)
+    awarded                  = Column(SmallInteger, nullable=False, default=0)
+    created_at               = Column(BigInteger, nullable=False)
+    updated_at               = Column(BigInteger, nullable=False)
+
+    __table_args__ = (
+        Index('idx_nom_month_category', 'month_year', 'category'),
+        Index('idx_nom_user', 'nominated_user_id'),
+    )
+
+
 class WebFlair(Base):
     """Admin-created cosmetic flair that users can purchase with Hero Points."""
     __tablename__ = 'web_flairs'
@@ -1188,6 +1239,7 @@ class WebFlair(Base):
     description = Column(String(300), nullable=True)
     flair_type = Column(Enum('normal', 'seasonal', 'exclusive', 'hero'), default='normal')
     hp_cost = Column(Integer, default=0)
+    equippable = Column(SmallInteger, nullable=False, default=1, server_default='1')  # 0 = trophy only, cannot equip
     enabled = Column(Boolean, default=True)
     display_order = Column(Integer, default=0)
     available_from = Column(BigInteger, nullable=True)   # Unix ts: flair not claimable before this date (None = always)
@@ -1718,6 +1770,9 @@ class WebFluxerGuildSettings(Base):
     # Creator Discovery / Spotlight (all settings as JSON blob)
     creator_discovery_json = Column(Text, nullable=True)   # JSON: enabled, channels, intervals, COTW/COTM, etc.
 
+    # Community Spotlight (Most Helpful nominations + announcements)
+    spotlight_channel_id = Column(String(25), nullable=True)        # Channel for nomination polls + winner announcements
+
     # Game Discovery (implemented in cogs/discovery.py)
     game_discovery_enabled = Column(SmallInteger, nullable=False, default=0, server_default='0')
     game_discovery_channel_id = Column(String(25), nullable=True)   # Channel to post new-game announcements
@@ -1939,6 +1994,32 @@ class WebBridgePendingDeletion(Base):
         return f"<WebBridgePendingDeletion {self.source_platform}->{self.target_platform} msg={self.target_message_id}>"
 
 
+class WebBridgePendingEdit(Base):
+    """
+    Queue of message edits to relay cross-platform.
+    Keyed by (platform, source_message_id) -> new content.
+    Bots poll /ql/internal/bridge/pending-edits/<platform>/ every 6s.
+    """
+    __tablename__ = 'web_bridge_pending_edits'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    source_platform = Column(String(10), nullable=False)
+    target_platform = Column(String(10), nullable=False)
+    target_message_id = Column(String(255), nullable=False)
+    target_channel_id = Column(String(255), nullable=False)
+    new_content = Column(Text, nullable=False)
+    created_at = Column(BigInteger, nullable=False)
+    delivered_at = Column(BigInteger, nullable=True)
+
+    __table_args__ = (
+        Index('idx_pending_edit', 'target_platform', 'delivered_at', 'created_at'),
+        Index('idx_pending_edit_msg', 'target_message_id'),
+    )
+
+    def __repr__(self):
+        return f"<WebBridgePendingEdit {self.source_platform}->{self.target_platform} msg={self.target_message_id}>"
+
+
 class WebFluxerStreamerSub(Base):
     """
     A Fluxer guild's subscription to a specific streamer's live alerts.
@@ -1980,6 +2061,46 @@ class WebFluxerStreamerSub(Base):
 
     def __repr__(self):
         return f"<WebFluxerStreamerSub guild={self.guild_id} {self.streamer_platform}:{self.streamer_handle}>"
+
+
+class WebDiscordStreamerSub(Base):
+    """
+    A Discord guild's subscription to a specific streamer's live alerts.
+    Mirrors WebFluxerStreamerSub but uses BigInteger guild_id/notify_channel_id
+    since Discord snowflakes are integers.
+    """
+    __tablename__ = 'web_discord_streamer_subs'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    guild_id = Column(BigInteger, nullable=False, index=True)
+    # 'twitch' or 'youtube'
+    streamer_platform = Column(String(20), nullable=False)
+    # The username/channel handle as entered (e.g. "shroud" or "UCxxxxxx")
+    streamer_handle = Column(String(100), nullable=False)
+    # Optional display name override (e.g. "Shroud") - shown in embed
+    streamer_display_name = Column(String(100), nullable=True)
+    # Discord channel ID to post the live alert into
+    notify_channel_id = Column(BigInteger, nullable=False)
+    # Optional custom message prepended before the embed (supports {streamer}, {title}, {url})
+    custom_message = Column(String(500), nullable=True)
+    # Whether this sub is active
+    is_active = Column(SmallInteger, nullable=False, default=1, server_default='1')
+    # Dedupe: 1 while the streamer is currently live (cleared on offline)
+    is_currently_live = Column(SmallInteger, nullable=False, default=0, server_default='0')
+    # Unix timestamp of the last live notification sent (to avoid re-pinging same stream)
+    last_notified_at = Column(BigInteger, nullable=True)
+    created_at = Column(BigInteger, nullable=False, default=lambda: int(time.time()))
+    updated_at = Column(BigInteger, nullable=False, default=lambda: int(time.time()))
+
+    __table_args__ = (
+        UniqueConstraint('guild_id', 'streamer_platform', 'streamer_handle',
+                         name='uq_discord_streamer_sub'),
+        Index('idx_discord_streamer_sub_guild', 'guild_id'),
+        Index('idx_discord_streamer_sub_active', 'is_active'),
+    )
+
+    def __repr__(self):
+        return f"<WebDiscordStreamerSub guild={self.guild_id} {self.streamer_platform}:{self.streamer_handle}>"
 
 
 # =============================================================================
@@ -3004,3 +3125,126 @@ class WebCustomEmoji(Base):
 
     def __repr__(self):
         return f"<WebCustomEmoji :{self.shortcode}: sticker={self.is_sticker}>"
+
+
+class Web7dtdCharacterTransfer(Base):
+    """Tracks in-transit character state for cross-server transfers.
+    Created when player confirms travel. Consumed when they join the destination server.
+    in_transit=1 means their character is frozen - deny login on source server."""
+    __tablename__ = 'web_7dtd_character_transfers'
+
+    id              = Column(Integer, primary_key=True, autoincrement=True)
+    steam_id        = Column(String(32), nullable=False, index=True)
+    player_name     = Column(String(64), nullable=False)
+    from_server     = Column(String(64), nullable=False)
+    to_server       = Column(String(64), nullable=False)
+    connect_ip      = Column(String(64), nullable=False)
+    zone_id         = Column(String(64), nullable=False)
+    in_transit      = Column(Integer, nullable=False, default=1)  # 1=frozen, 0=arrived
+    character_state = Column(Text, nullable=True)                 # JSON - Phase 2 (inventory/health/buffs)
+    created_at      = Column(BigInteger, nullable=False)
+    arrived_at      = Column(BigInteger, nullable=True)
+
+    def __repr__(self):
+        return f"<Web7dtdCharacterTransfer steam={self.steam_id} {self.from_server}->{self.to_server} in_transit={self.in_transit}>"
+
+
+class Web7dtdPendingNotification(Base):
+    """Pending Fluxer notifications queued by the C# mod via Django. Bot polls and posts these."""
+    __tablename__ = 'web_7dtd_pending_notifications'
+
+    id          = Column(Integer, primary_key=True, autoincrement=True)
+    server      = Column(String(64), nullable=False)
+    event_type  = Column(String(64), nullable=False)
+    payload     = Column(Text, nullable=False)   # JSON - full event data from C# mod
+    embed_data  = Column(Text, nullable=True)    # JSON - pre-built embed for bot to post
+    channel_id  = Column(String(64), nullable=True)
+    sent        = Column(Integer, nullable=False, default=0)
+    created_at  = Column(BigInteger, nullable=False)
+    sent_at     = Column(BigInteger, nullable=True)
+
+    def __repr__(self):
+        return f"<Web7dtdPendingNotification id={self.id} server={self.server} event={self.event_type} sent={self.sent}>"
+
+
+class Web7dtdArtifactUnlock(Base):
+    """Records when a player picks up a SYNAPSE artifact in 7DTD.
+    One row per player per artifact. Prevents duplicate unlocks.
+    weekly_reset_at is set by cron to allow respawn for other players."""
+    __tablename__ = 'web_7dtd_artifact_unlocks'
+
+    id            = Column(Integer, primary_key=True, autoincrement=True)
+    steam_id      = Column(String(64), nullable=False)
+    player_name   = Column(String(128), nullable=False)
+    artifact_id   = Column(String(64), nullable=False)
+    server        = Column(String(64), nullable=False)
+    web_user_id   = Column(Integer, ForeignKey('web_users.id'), nullable=True)
+    unlocked_at   = Column(BigInteger, nullable=False)
+    weekly_reset_at = Column(BigInteger, nullable=True)
+
+    __table_args__ = (
+        UniqueConstraint('steam_id', 'artifact_id', name='uq_steam_artifact'),
+    )
+
+    def __repr__(self):
+        return f"<Web7dtdArtifactUnlock steam={self.steam_id} artifact={self.artifact_id}>"
+
+
+class Web7dtdArtifactLoadout(Base):
+    """Tracks which artifact a player has equipped in their single slot.
+    slot=1 is the only slot for alpha. slot=2 will be added later.
+    Only valid if the player also has a row in web_7dtd_artifact_unlocks for this artifact."""
+    __tablename__ = 'web_7dtd_artifact_loadout'
+
+    id          = Column(Integer, primary_key=True, autoincrement=True)
+    steam_id    = Column(String(64), nullable=False)
+    web_user_id = Column(Integer, ForeignKey('web_users.id'), nullable=True)
+    artifact_id = Column(String(64), nullable=False)
+    slot        = Column(Integer, nullable=False, default=1)
+    server      = Column(String(64), nullable=False)
+    equipped_at = Column(BigInteger, nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint('steam_id', 'slot', name='uq_loadout_slot'),
+    )
+
+    def __repr__(self):
+        return f"<Web7dtdArtifactLoadout steam={self.steam_id} slot={self.slot} artifact={self.artifact_id}>"
+
+
+class WebSynapsePlayer(Base):
+    """Per-player SYNAPSE progression state.
+    One row per steam_id. Tracks Prototype unlock, slot 2 unlock, and Legacy score."""
+    __tablename__ = 'web_synapse_players'
+
+    id                       = Column(Integer, primary_key=True, autoincrement=True)
+    steam_id                 = Column(String(64), nullable=False, unique=True)
+    web_user_id              = Column(Integer, ForeignKey('web_users.id'), nullable=True)
+    prototype_unlocked       = Column(Boolean, nullable=False, default=False)
+    prototype_unlocked_at    = Column(BigInteger, nullable=True)
+    subclass_slot_2_unlocked = Column(Boolean, nullable=False, default=False)
+    slot_2_unlocked_at       = Column(BigInteger, nullable=True)
+    legacy_score             = Column(Integer, nullable=False, default=0)
+    legacy_tier              = Column(Integer, nullable=False, default=0)
+    created_at               = Column(BigInteger, nullable=False)
+    updated_at               = Column(BigInteger, nullable=False)
+
+    def __repr__(self):
+        return f"<WebSynapsePlayer steam={self.steam_id} legacy={self.legacy_score} prototype={self.prototype_unlocked}>"
+
+
+class WebSynapseLegacyEvent(Base):
+    """War story log - each meaningful Legacy-earning event.
+    Never deleted - permanent record of what a player survived."""
+    __tablename__ = 'web_synapse_legacy_events'
+
+    id          = Column(Integer, primary_key=True, autoincrement=True)
+    steam_id    = Column(String(64), nullable=False, index=True)
+    web_user_id = Column(Integer, ForeignKey('web_users.id'), nullable=True)
+    event_type  = Column(String(64), nullable=False, index=True)
+    points      = Column(Integer, nullable=False)
+    server      = Column(String(64), nullable=False)
+    earned_at   = Column(BigInteger, nullable=False)
+
+    def __repr__(self):
+        return f"<WebSynapseLegacyEvent steam={self.steam_id} type={self.event_type} pts={self.points}>"
