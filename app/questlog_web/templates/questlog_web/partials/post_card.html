@@ -3,6 +3,25 @@
 <!-- Expects JS context: post object with author, content, images, embed, likes, comments -->
 
 <script>
+// Module-level: used by both renderPostCard and renderComment
+function formatContent(text) {
+  if (!text) return '';
+  const div = document.createElement('div');
+  div.textContent = text;
+  let html = div.innerHTML;
+  html = html.replace(/\n/g, '<br>');
+  html = html.replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener" class="text-blue-400 hover:underline">$1</a>');
+  if (window._customEmojiMap) {
+    html = html.replace(/:([a-zA-Z0-9_-]+):/g, (match, code) => {
+      const url = window._customEmojiMap[code];
+      return url
+        ? `<img src="${url}" alt="${match}" title="${match}" class="inline-block w-6 h-6 object-contain align-middle" style="vertical-align:-4px">`
+        : match;
+    });
+  }
+  return html;
+}
+
 function renderPostCard(post, options = {}) {
   const showAuthor = options.showAuthor !== false;
   const currentUserId = options.currentUserId || null;
@@ -94,23 +113,7 @@ function renderPostCard(post, options = {}) {
     return html;
   }
 
-  // Format content with line breaks, linkify URLs, and render custom emoji shortcodes
-  function formatContent(text) {
-    if (!text) return '';
-    let html = escapePost(text);
-    html = html.replace(/\n/g, '<br>');
-    html = html.replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener" class="text-blue-400 hover:underline">$1</a>');
-    // Replace :shortcode: with custom emoji images
-    if (window._customEmojiMap) {
-      html = html.replace(/:([a-zA-Z0-9_-]+):/g, (match, code) => {
-        const url = window._customEmojiMap[code];
-        return url
-          ? `<img src="${url}" alt="${match}" title="${match}" class="inline-block w-6 h-6 object-contain align-middle" style="vertical-align:-4px">`
-          : match;
-      });
-    }
-    return html;
-  }
+  // formatContent is defined at module scope above
 
   // Follow button: show on global feed for users you don't follow (and not yourself)
   const showFollowBtn = showAuthor && post.author && currentUserId
@@ -883,7 +886,7 @@ function renderComment(comment, isReply = false) {
     : `<div class="w-7 h-7 rounded-full bg-indigo-700 flex items-center justify-center text-white font-bold text-xs flex-shrink-0 mt-0.5 select-none">${esc((author.display_name || author.username || '?').charAt(0).toUpperCase())}</div>`;
 
   return `
-    <div class="flex gap-2 mb-2 ${indent}">
+    <div class="flex gap-2 mb-2 ${indent}" data-comment-id="${comment.id}">
       ${cmtAvatarEl}
       <div class="flex-1 min-w-0">
         <div class="bg-neutral-800/50 rounded-lg px-3 py-2">
@@ -891,12 +894,21 @@ function renderComment(comment, isReply = false) {
             <a href="/ql/u/${esc(author.username)}/" class="text-white text-xs font-semibold hover:underline">${esc(author.display_name || author.username)}</a>${cmtFlairBadge}${cmtRankBadge}${cmtVipBadge}
           </span>
           <p class="comment-content-text text-gray-300 text-sm">${formatContent(comment.content)}</p>
+          <div class="comment-edit-area hidden mt-1">
+            <textarea class="comment-edit-textarea w-full bg-neutral-700 border border-neutral-600 rounded-lg px-2 py-1.5 text-sm text-white resize-none focus:outline-none focus:border-indigo-500" rows="2" maxlength="500">${esc(comment.content)}</textarea>
+            <div class="flex gap-2 mt-1">
+              <button onclick="saveCommentEdit(${comment.id})" class="text-xs px-2.5 py-1 rounded bg-indigo-600 hover:bg-indigo-700 text-white transition">Save</button>
+              <button onclick="cancelCommentEdit(${comment.id})" class="text-xs px-2.5 py-1 rounded bg-neutral-700 hover:bg-neutral-600 text-gray-300 transition">Cancel</button>
+            </div>
+          </div>
         </div>
-        <div class="flex items-center gap-3 mt-1 px-1">
+        <div class="comment-actions flex items-center gap-3 mt-1 px-1">
           <button onclick="toggleCommentLike(${comment.id}, this)" class="${likedClass} text-xs transition hover:text-red-400">
             <i class="${likeIcon}"></i> ${comment.like_count || 0}
           </button>
           ${!isReply ? `<button onclick="showReplyInput(${comment.id})" class="text-gray-500 text-xs hover:text-blue-400">Reply</button>` : ''}
+          ${comment.can_edit ? `<button onclick="editComment(${comment.id})" class="text-gray-500 text-xs hover:text-indigo-400">Edit</button>` : ''}
+          ${comment.can_delete ? `<button onclick="deleteComment(${comment.id})" class="text-gray-500 text-xs hover:text-red-400">Delete</button>` : ''}
         </div>
       </div>
     </div>`;
@@ -949,6 +961,74 @@ async function toggleCommentLike(commentId, btn) {
   } catch(e) { console.error('Comment like error:', e); }
 }
 
+function editComment(commentId) {
+  const el = document.querySelector(`[data-comment-id="${commentId}"]`);
+  if (!el) return;
+  const contentEl = el.querySelector('.comment-content-text');
+  const editArea = el.querySelector('.comment-edit-area');
+  const textarea = el.querySelector('.comment-edit-textarea');
+  const actions = el.querySelector('.comment-actions');
+  if (!contentEl || !editArea || !textarea) return;
+  textarea.value = contentEl.textContent.trim();
+  contentEl.classList.add('hidden');
+  editArea.classList.remove('hidden');
+  if (actions) actions.classList.add('hidden');
+  textarea.focus();
+  textarea.selectionStart = textarea.selectionEnd = textarea.value.length;
+  textarea.style.height = 'auto';
+  textarea.style.height = textarea.scrollHeight + 'px';
+}
+
+function cancelCommentEdit(commentId) {
+  const el = document.querySelector(`[data-comment-id="${commentId}"]`);
+  if (!el) return;
+  el.querySelector('.comment-content-text').classList.remove('hidden');
+  el.querySelector('.comment-edit-area').classList.add('hidden');
+  const actions = el.querySelector('.comment-actions');
+  if (actions) actions.classList.remove('hidden');
+}
+
+async function saveCommentEdit(commentId) {
+  const el = document.querySelector(`[data-comment-id="${commentId}"]`);
+  if (!el) return;
+  const textarea = el.querySelector('.comment-edit-textarea');
+  const trimmed = textarea.value.trim();
+  if (!trimmed) return;
+  try {
+    const res = await csrfFetch(`/ql/api/comments/${commentId}/`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content: trimmed }),
+    });
+    const data = await res.json();
+    if (data.success) {
+      const contentEl = el.querySelector('.comment-content-text');
+      contentEl.innerHTML = formatContent(data.content);
+      cancelCommentEdit(commentId);
+    } else {
+      alert(data.error || 'Failed to save comment');
+    }
+  } catch(e) { console.error('Edit comment error:', e); }
+}
+
+async function deleteComment(commentId) {
+  if (!confirm('Delete this comment?')) return;
+  try {
+    const res = await csrfFetch(`/ql/api/comments/${commentId}/`, { method: 'DELETE' });
+    const data = await res.json();
+    if (data.success) {
+      const el = document.querySelector(`[data-comment-id="${commentId}"]`);
+      if (el) {
+        el.style.transition = 'opacity 0.2s';
+        el.style.opacity = '0';
+        setTimeout(() => el.remove(), 200);
+      }
+    } else {
+      alert(data.error || 'Failed to delete comment');
+    }
+  } catch(e) { console.error('Delete comment error:', e); }
+}
+
 // Quick follow from post card
 async function quickFollow(userId, btn) {
   try {
@@ -958,6 +1038,15 @@ async function quickFollow(userId, btn) {
       btn.innerHTML = '<i class="fas fa-check mr-1"></i>Following';
       btn.className = 'follow-card-btn text-xs px-2.5 py-1 rounded-full bg-neutral-700 text-gray-300 cursor-default';
       btn.onclick = null;
+      // Remove from suggested list if present, update following count
+      const suggestedCard = document.querySelector(`[data-suggested-user="${userId}"]`);
+      if (suggestedCard) {
+        suggestedCard.style.transition = 'opacity 0.3s';
+        suggestedCard.style.opacity = '0';
+        setTimeout(() => suggestedCard.remove(), 300);
+      }
+      const countEl = document.getElementById('header-following-count');
+      if (countEl) countEl.textContent = (parseInt(countEl.textContent) || 0) + 1;
     }
   } catch(e) { console.error('Follow error:', e); }
 }

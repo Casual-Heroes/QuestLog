@@ -73,6 +73,15 @@ chwebsiteprj/
 app/test_auth_decorators.py
 app/test_sec002_003.py
 app/test_security_fixes.py
+
+# Project SYNAPSE - trade secret, never commit
+7dtd-mods/
+app/questlog_web/views_7dtd.py
+app/questlog_web/templates/questlog_web/synapse_profile.html
+create_7dtd_artifact_loadout.py
+create_synapse_player_tables.py
+SYNAPSE_Master.md
+SYNAPSE_Lore_Bible.md
 app/utils/encryption.py
 logs/
 .well-known/

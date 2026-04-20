@@ -52,14 +52,19 @@ def _resolve_mentions(content: str, mentions: list, source_platform: str, target
             return content
 
         # Fetch matrix_ids for all mentioned users in one query
-        id_field = 'discord_id' if source_platform == 'discord' else 'fluxer_id'
+        _PLATFORM_ID_COL = {'discord': 'discord_id', 'fluxer': 'fluxer_id'}
+        id_field = _PLATFORM_ID_COL.get(source_platform)
+        if not id_field:
+            return content
         ids = list(id_map.keys())
         placeholders = ','.join([':id' + str(i) for i in range(len(ids))])
         params = {'id' + str(i): ids[i] for i in range(len(ids))}
-        rows = db.execute(
-            sa_text(f"SELECT {id_field}, matrix_id, username FROM web_users WHERE {id_field} IN ({placeholders})"),
-            params
-        ).fetchall()
+        # Column name comes from allowlist - not user input
+        if id_field == 'discord_id':
+            sql = sa_text(f"SELECT discord_id, matrix_id, username FROM web_users WHERE discord_id IN ({placeholders})")
+        else:
+            sql = sa_text(f"SELECT fluxer_id, matrix_id, username FROM web_users WHERE fluxer_id IN ({placeholders})")
+        rows = db.execute(sql, params).fetchall()
         matrix_map = {str(r[0]): (r[1], r[2]) for r in rows}  # source_id -> (matrix_id, username)
 
         def replace_mention(m):
@@ -83,15 +88,15 @@ def _resolve_mentions(content: str, mentions: list, source_platform: str, target
         if not id_map:
             return content
 
-        src_field = 'discord_id' if source_platform == 'discord' else 'fluxer_id'
-        tgt_field = 'fluxer_id' if source_platform == 'discord' else 'discord_id'
         ids = list(id_map.keys())
         placeholders = ','.join([':id' + str(i) for i in range(len(ids))])
         params = {'id' + str(i): ids[i] for i in range(len(ids))}
-        rows = db.execute(
-            sa_text(f"SELECT {src_field}, {tgt_field}, username FROM web_users WHERE {src_field} IN ({placeholders})"),
-            params
-        ).fetchall()
+        # Column names are determined by platform logic, not user input
+        if source_platform == 'discord':
+            sql = sa_text(f"SELECT discord_id, fluxer_id, username FROM web_users WHERE discord_id IN ({placeholders})")
+        else:
+            sql = sa_text(f"SELECT fluxer_id, discord_id, username FROM web_users WHERE fluxer_id IN ({placeholders})")
+        rows = db.execute(sql, params).fetchall()
         swap_map = {str(r[0]): str(r[1]) if r[1] else None for r in rows}  # src_id -> tgt_id
 
         def replace_cross_mention(m):
@@ -119,11 +124,12 @@ def _resolve_mentions(content: str, mentions: list, source_platform: str, target
 
         placeholders = ','.join([':mid' + str(i) for i in range(len(matrix_ids))])
         params = {'mid' + str(i): matrix_ids[i] for i in range(len(matrix_ids))}
-        id_field = 'discord_id' if target_platform == 'discord' else 'fluxer_id'
-        rows = db.execute(
-            sa_text(f"SELECT matrix_id, {id_field}, username FROM web_users WHERE LOWER(matrix_id) IN ({placeholders})"),
-            params
-        ).fetchall()
+        # Column name determined by platform logic, not user input
+        if target_platform == 'discord':
+            sql = sa_text(f"SELECT matrix_id, discord_id, username FROM web_users WHERE LOWER(matrix_id) IN ({placeholders})")
+        else:
+            sql = sa_text(f"SELECT matrix_id, fluxer_id, username FROM web_users WHERE LOWER(matrix_id) IN ({placeholders})")
+        rows = db.execute(sql, params).fetchall()
         lookup = {r[0].lower(): (r[1], r[2]) for r in rows}  # lowercase matrix_id -> (platform_id, username)
 
         def replace_matrix_mention(matrix_id_lower, original):
@@ -145,9 +151,19 @@ def _resolve_mentions(content: str, mentions: list, source_platform: str, target
     return content
 
 
+_INTERNAL_ALLOWED_IPS = {'127.0.0.1', '::1', ''}  # '' = Unix socket (always local)
+
 def _check_bot_auth(request) -> bool:
-    """Verify the request comes from the bot via shared secret (constant-time comparison)."""
+    """Verify the request comes from the bot: local connection + shared secret (constant-time comparison).
+    REMOTE_ADDR is '' for Unix socket connections (nginx -> gunicorn via socket) and '127.0.0.1' for TCP.
+    Both are local-only - no external IP can arrive with an empty REMOTE_ADDR via a Unix socket.
+    """
     import hmac
+    # Restrict to localhost connections only
+    remote_ip = request.META.get('REMOTE_ADDR', '')
+    if remote_ip not in _INTERNAL_ALLOWED_IPS:
+        logger.warning(f"Internal API rejected non-local IP: {remote_ip}")
+        return False
     secret = getattr(settings, 'BOT_INTERNAL_SECRET', '')
     if not secret:
         logger.warning("BOT_INTERNAL_SECRET not configured - internal API disabled")
@@ -210,6 +226,15 @@ def api_internal_bot_config(request):
         return JsonResponse({'error': 'Invalid platform'}, status=400)
     if event_type not in ('lfg_announce',):
         return JsonResponse({'error': 'Invalid event_type'}, status=400)
+
+    # Validate webhook_url if provided - must be HTTPS and a known Discord/Fluxer webhook host
+    webhook_url = data.get('webhook_url') or ''
+    if webhook_url:
+        from urllib.parse import urlparse
+        _wh = urlparse(webhook_url)
+        _allowed_wh_hosts = {'discord.com', 'discordapp.com', 'fluxer.net'}
+        if _wh.scheme != 'https' or _wh.netloc not in _allowed_wh_hosts:
+            return JsonResponse({'error': 'Invalid webhook_url'}, status=400)
 
     now = int(time.time())
     with get_db_session() as db:
@@ -1316,20 +1341,46 @@ def api_internal_bridge_pending_deletions(request, platform):
     return JsonResponse({'deletions': deletions})
 
 
-# DISABLED - typing relay not shipped yet
-# @csrf_exempt
-# @require_http_methods(['POST'])
-# def api_internal_bridge_typing(request):
-#     POST /ql/api/internal/bridge/typing/
-#     Called by bots when a user starts typing in a bridged channel.
-#     Returns the target channel IDs so the bot can fire the typing indicator there.
-#     ... full implementation below, re-enable when ready ...
-#
 @csrf_exempt
 @require_http_methods(['POST'])
 def api_internal_bridge_typing(request):
-    """Typing relay - disabled, not shipped yet."""
-    return JsonResponse({'error': 'Not available'}, status=404)
+    """
+    POST /ql/api/internal/bridge/typing/
+    Called by a bot when a user starts typing in a bridged channel.
+    Returns the target channel ID(s) so the calling bot can fire the typing indicator there.
+
+    Body: {"platform": "discord"|"fluxer", "channel_id": "..."}
+    Response: {"targets": [{"platform": "...", "channel_id": "..."}]}
+    """
+    if not _check_bot_auth(request):
+        return JsonResponse({'error': 'Unauthorized'}, status=401)
+
+    try:
+        data = json.loads(request.body)
+    except (json.JSONDecodeError, AttributeError):
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+    platform = str(data.get('platform', '')).strip()
+    channel_id = str(data.get('channel_id', '')).strip()
+    if not platform or not channel_id:
+        return JsonResponse({'error': 'platform and channel_id required'}, status=400)
+
+    targets = []
+    with get_db_session() as db:
+        if platform == 'discord':
+            bridge = db.query(WebBridgeConfig).filter_by(
+                discord_channel_id=channel_id, enabled=1
+            ).first()
+            if bridge and bridge.relay_discord_to_fluxer and bridge.fluxer_channel_id:
+                targets.append({'platform': 'fluxer', 'channel_id': bridge.fluxer_channel_id})
+        elif platform == 'fluxer':
+            bridge = db.query(WebBridgeConfig).filter_by(
+                fluxer_channel_id=channel_id, enabled=1
+            ).first()
+            if bridge and bridge.relay_fluxer_to_discord and bridge.discord_channel_id:
+                targets.append({'platform': 'discord', 'channel_id': bridge.discord_channel_id})
+
+    return JsonResponse({'targets': targets})
 
 
 @csrf_exempt

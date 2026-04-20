@@ -485,7 +485,7 @@ let conditionalSelects = {}; // cache of custom select instances for conditional
 
 // ─── Profile game quick-select ───────────────────────────────────────────────
 
-const PROFILE_GAMES = JSON.parse(document.getElementById('profile-games-lfg-data').textContent);
+const PROFILE_GAMES = JSON.parse(JSON.parse(document.getElementById('profile-games-lfg-data').textContent));
 
 document.addEventListener('DOMContentLoaded', function() {
   const bar = document.getElementById('profileGameButtons');

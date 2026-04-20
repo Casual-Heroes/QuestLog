@@ -150,6 +150,7 @@ def lfg_create(request):
         'web_user': request.web_user,
         'active_page': 'lfg_create',
         'profile_games_json': _json.dumps(profile_games),
+        'profile_games': profile_games,
     }
     return render(request, 'questlog_web/lfg_create.html', context)
 
@@ -370,7 +371,7 @@ def lfg_update_member(request, group_id):
         if not member:
             return JsonResponse({'error': 'You are not in this group'}, status=400)
 
-        member.role = data.get('role') or None
+        member.role = sanitize_text(data.get('role') or '', max_length=100) or None
         raw_sel = data.get('selections') or {}
         member.selections = json.dumps(raw_sel) if raw_sel else None
         db.commit()
@@ -2402,9 +2403,12 @@ def fluxer_guild_member_lfg_calendar(request, guild_id):
 
 
 @fluxer_login_required
-@require_http_methods(['GET'])
+@require_http_methods(['GET', 'POST'])
 def api_fluxer_member_lfg_groups(request, guild_id):
-    """GET list open LFG groups for the member portal."""
+    """GET list / POST create LFG groups for the member portal."""
+    if request.method == 'POST':
+        from .views_bot_dashboard import api_fluxer_guild_lfg_groups
+        return api_fluxer_guild_lfg_groups(request, guild_id)
     from .views_bot_dashboard import _group_dict
     guild_id = guild_id.strip()
     web_user = request.web_user

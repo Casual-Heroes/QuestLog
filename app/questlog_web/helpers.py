@@ -192,6 +192,28 @@ def web_login_required(view_func):
     return wrapper
 
 
+def web_verified_required(view_func):
+    """Requires login AND email_verified=True. Returns 403 JSON for API calls, redirect for pages."""
+    @wraps(view_func)
+    def wrapper(request, *args, **kwargs):
+        from django.http import JsonResponse as _JsonResponse
+        web_user = get_web_user(request)
+        if not web_user:
+            login_url = reverse('questlog_web_login')
+            if 'application/json' in request.headers.get('Accept', ''):
+                return _JsonResponse({'error': 'Login required.'}, status=401)
+            return redirect(f'{login_url}?next={quote(request.get_full_path())}')
+        if not web_user.email_verified:
+            if 'application/json' in request.headers.get('Accept', ''):
+                return _JsonResponse({'error': 'Please verify your email before using this feature.'}, status=403)
+            from django.contrib import messages as _msg
+            _msg.warning(request, "Please verify your email to use this feature.")
+            return redirect('/ql/')
+        request.web_user = web_user
+        return view_func(request, *args, **kwargs)
+    return wrapper
+
+
 def web_admin_required(view_func):
     """Requires Django superuser + active WebUser with is_admin=True (re-verified from DB each request)."""
     @wraps(view_func)
@@ -345,6 +367,7 @@ def fluxer_guild_required(view_func):
                 user_fluxer_id = str(lite_id)
 
         if not user_fluxer_id and not (request.user.is_authenticated and request.user.is_superuser):
+            logger.warning(f"[fluxer_guild_required] No fluxer_id resolved, web_user={web_user}, path={request.path}")
             if is_json:
                 return JsonResponse({'error': 'Authentication required'}, status=401)
             login_url = reverse('questlog_web_fluxer_dashboard_login')
@@ -374,15 +397,22 @@ def fluxer_guild_required(view_func):
                 return view_func(request, *args, **kwargs)
 
             # Check 2: user holds one of the configured admin roles
+            # Cache must be fresh (< 5 minutes) - stale cache could grant access after role removal
+            CACHE_MAX_AGE = 300  # 5 minutes
+            cache_age = int(time.time()) - int(s.updated_at or 0)
             granted = False
             try:
                 admin_role_ids = json.loads(s.admin_roles) if s.admin_roles else []
-                if admin_role_ids and s.cached_members:
+                if admin_role_ids and s.cached_members and cache_age <= CACHE_MAX_AGE:
                     members = json.loads(s.cached_members)
                     user_data = next((m for m in members if str(m.get('id')) == user_fluxer_id), None)
                     if user_data:
                         user_roles = user_data.get('roles', [])
                         granted = any(str(r) in [str(ar) for ar in admin_role_ids] for r in user_roles)
+                elif admin_role_ids and cache_age > CACHE_MAX_AGE:
+                    logger.warning(
+                        f"FLUXER GUILD CACHE STALE: guild={guild_id} age={cache_age}s - denying admin-role access"
+                    )
             except (json.JSONDecodeError, TypeError, AttributeError):
                 granted = False
 
@@ -1322,10 +1352,13 @@ def fetch_link_preview(url):
 
 
 def sanitize_text(text_input, max_length=2000):
-    """Sanitize user text input: strip HTML, normalize whitespace, limit length."""
+    """Sanitize user text input: escape HTML entities, normalize whitespace, limit length."""
+    import html as _html
     if not text_input:
         return ''
-    clean = re.sub(r'<[^>]+>', '', str(text_input))
+    # Use html.unescape first to normalize any existing entities, then re-escape
+    # This prevents double-encoding while ensuring all tags are neutralized
+    clean = _html.escape(str(text_input), quote=False)
     clean = re.sub(r'\n{3,}', '\n\n', clean)
     clean = clean[:max_length].strip()
     return clean

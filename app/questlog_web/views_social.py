@@ -20,9 +20,10 @@ from .models import (
     WebLFGGroup, WebLFGMember, WebCommunity, WebCommunityMember,
 )
 from app.db import get_db_session
-from .fluxer_webhooks import notify_new_post as _fluxer_new_post
+from .fluxer_webhooks import notify_new_post as _fluxer_new_post, notify_new_post_discord as _discord_new_post
+from .models import WebBroadcastUser
 from .helpers import (
-    web_login_required, add_web_user_context,
+    web_login_required, web_verified_required, add_web_user_context,
     check_banned, check_posting_timeout,
     is_blocked, create_notification,
     sanitize_text, parse_embed_url, reconstruct_embed_url, _is_valid_giphy_url,
@@ -37,8 +38,10 @@ logger = logging.getLogger(__name__)
 # BLOCK API
 # =============================================================================
 
-@web_login_required
+@web_verified_required
 @require_http_methods(["POST", "DELETE"])
+@ratelimit(key='user', rate='30/h', method='POST', block=True)
+@ratelimit(key='user', rate='30/h', method='DELETE', block=True)
 def api_block(request, user_id):
     """POST: Block a user. DELETE: Unblock."""
     banned = check_banned(request)
@@ -138,9 +141,10 @@ def api_block_list(request):
 # FOLLOW API
 # =============================================================================
 
-@web_login_required
+@web_verified_required
 @require_http_methods(["POST", "DELETE"])
 @ratelimit(key='user', rate='60/h', method='POST', block=True)
+@ratelimit(key='user', rate='60/h', method='DELETE', block=True)
 def api_follow(request, user_id):
     """POST: Follow a user. DELETE: Unfollow."""
     banned = check_banned(request)
@@ -217,6 +221,7 @@ def api_follow(request, user_id):
             })
 
 
+@ratelimit(key='ip', rate='60/m', block=True)
 @add_web_user_context
 def api_followers(request, user_id):
     """GET: List followers of a user. Paginated."""
@@ -270,6 +275,7 @@ def api_followers(request, user_id):
     return JsonResponse({'followers': data, 'total': total, 'page': page})
 
 
+@ratelimit(key='ip', rate='60/m', block=True)
 @add_web_user_context
 def api_following(request, user_id):
     """GET: List who a user is following. Paginated."""
@@ -349,7 +355,7 @@ def api_follow_status(request, user_id):
 # POST API
 # =============================================================================
 
-@web_login_required
+@web_verified_required
 @require_http_methods(["GET", "POST"])
 @ratelimit(key='user', rate='10/h', method='POST', block=True)
 @ratelimit(key='ip', rate='60/h', method='POST', block=True)
@@ -455,7 +461,7 @@ def api_posts(request):
                     # IGDB game - only store the name (no FK since IGDB ID isn't in web_found_games)
                     post.game_tag_name = sanitize_text(game_tag_name_input, max_length=100)
                     if game_tag_steam_id:
-                        post.game_tag_steam_id = int(game_tag_steam_id)
+                        post.game_tag_steam_id = safe_int(game_tag_steam_id, default=None)
                 if post.game_tag_name and (not post_type or post_type == 'text'):
                     post.post_type = 'game_tag'
 
@@ -490,18 +496,29 @@ def api_posts(request):
             db.commit()
             award_hero_points(request.web_user.id, 'post', ref_id=str(post.id))
 
-            # Notify Fluxer channel
-            _post_url = f"https://casual-heroes.com/ql/profile/{request.web_user.username}/"
-            _fluxer_new_post(
-                username=request.web_user.username,
-                game=post.game_tag_name or '',
-                content=post.content or '',
-                post_url=_post_url,
-            )
-
             # Refetch to populate relationships (author, images)
             post = db.query(WebPost).filter_by(id=post.id).first()
             post_data = serialize_post(post, request.web_user.id, db)
+
+            # Fan out to Fluxer + Discord only for broadcast users
+            _is_broadcast = db.query(WebBroadcastUser).filter_by(user_id=request.web_user.id).first()
+            if _is_broadcast:
+                _post_url = f"https://casual-heroes.com/ql/post/{post.public_id}/"
+                _image_url = post.images[0].image_url if post.images else None
+                _fluxer_new_post(
+                    username=request.web_user.username,
+                    game=post.game_tag_name or '',
+                    content=post.content or '',
+                    post_url=_post_url,
+                    image_url=_image_url,
+                )
+                _discord_new_post(
+                    username=request.web_user.username,
+                    game=post.game_tag_name or '',
+                    content=post.content or '',
+                    post_url=_post_url,
+                    image_url=_image_url,
+                )
 
         return JsonResponse({'success': True, 'post': post_data}, status=201)
     except Exception as e:
@@ -552,9 +569,10 @@ def _get_feed_posts(request):
     })
 
 
-@web_login_required
+@web_verified_required
 @add_web_user_context
 @require_http_methods(["POST"])
+@ratelimit(key='user', rate='20/h', method='POST', block=True)
 def api_post_pin(request, post_id):
     """POST: Toggle pin on a post. Author can pin their own (profile pin). Admin can pin to site-wide feed."""
     with get_db_session() as db:
@@ -581,10 +599,15 @@ def api_post_pin(request, post_id):
         return JsonResponse({'success': True, 'is_pinned': post.is_pinned})
 
 
+@ratelimit(key='user_or_ip', rate='30/h', method='PUT', block=True)
+@ratelimit(key='user_or_ip', rate='30/h', method='DELETE', block=True)
 @add_web_user_context
 @require_http_methods(["GET", "PUT", "DELETE"])
 def api_post_detail(request, post_id):
-    """GET: Single post. PUT: Edit (author/admin). DELETE: Soft-delete."""
+    """GET: Single post (public). PUT: Edit (author/admin). DELETE: Soft-delete."""
+    if request.method in ('PUT', 'DELETE') and not request.web_user:
+        return JsonResponse({'error': 'Authentication required'}, status=401)
+
     with get_db_session() as db:
         post = db.query(WebPost).filter_by(id=post_id).first()
         if not post or post.is_deleted:
@@ -854,7 +877,11 @@ def _get_recent_activity(request):
             'display_name': u.display_name or u.username,
             'avatar_url': u.avatar_url or '',
             'bio': (u.bio or '')[:80],
-            'playstyle': u.playstyle or '',
+            'playstyle': (
+                json.loads(u.playstyle) if u.playstyle and u.playstyle.startswith('[')
+                else ([u.playstyle] if u.playstyle else [])
+            ),
+            'favorite_genres': json.loads(u.favorite_genres) if u.favorite_genres else [],
             'gaming_platforms': json.loads(u.gaming_platforms) if u.gaming_platforms else [],
             'twitch_username': u.twitch_username or '',
             'youtube_channel_name': u.youtube_channel_name or '',
@@ -1143,7 +1170,7 @@ def _get_recent_activity(request):
 # LIKE API
 # =============================================================================
 
-@web_login_required
+@web_verified_required
 @require_http_methods(["POST", "DELETE"])
 @ratelimit(key='user', rate='120/h', method='POST', block=True)
 def api_post_like(request, post_id):
@@ -1221,6 +1248,8 @@ def api_comments(request, post_id):
 
         if not request.web_user:
             return JsonResponse({'error': 'Login required'}, status=401)
+        if not request.web_user.email_verified:
+            return JsonResponse({'error': 'Please verify your email before commenting.'}, status=403)
 
         banned = check_banned(request)
         if banned:
@@ -1357,6 +1386,8 @@ def _get_comments(request, db, post_id):
 
     def serialize_comment(c):
         author = authors.get(c.author_id)
+        is_own = bool(request.web_user and c.author_id == request.web_user.id)
+        is_admin = bool(request.web_user and request.web_user.is_admin)
         return {
             'id': c.id,
             'author': serialize_user_brief(author) if author else None,
@@ -1365,6 +1396,8 @@ def _get_comments(request, db, post_id):
             'like_count': c.like_count or 0,
             'created_at': c.created_at,
             'liked_by_me': c.id in my_likes,
+            'can_edit': is_own,
+            'can_delete': is_own or is_admin,
             'replies': [serialize_comment(r) for r in reply_map.get(c.id, [])],
         }
 
@@ -1375,7 +1408,7 @@ def _get_comments(request, db, post_id):
     })
 
 
-@web_login_required
+@web_verified_required
 @require_http_methods(["PUT", "DELETE"])
 def api_comment_detail(request, comment_id):
     """PUT: Edit comment. DELETE: Soft-delete."""
@@ -1405,7 +1438,7 @@ def api_comment_detail(request, comment_id):
             comment.content = content
             comment.updated_at = int(time.time())
             db.commit()
-            return JsonResponse({'success': True})
+            return JsonResponse({'success': True, 'content': content})
 
         else:  # DELETE
             comment.is_deleted = True
@@ -1416,7 +1449,7 @@ def api_comment_detail(request, comment_id):
             return JsonResponse({'success': True})
 
 
-@web_login_required
+@web_verified_required
 @require_http_methods(["POST", "DELETE"])
 @ratelimit(key='user', rate='120/h', method='POST', block=True)
 def api_comment_like(request, comment_id):
@@ -1585,7 +1618,7 @@ def api_notifications_clear_all(request):
 # SHARE API
 # =============================================================================
 
-@web_login_required
+@web_verified_required
 @require_http_methods(["POST"])
 @ratelimit(key='user', rate='20/h', block=True)
 def api_post_share(request, post_id):
@@ -1674,8 +1707,9 @@ def api_giveaways(request):
         })
 
 
-@web_login_required
+@web_verified_required
 @require_http_methods(['POST', 'DELETE'])
+@ratelimit(key='user', rate='20/h', method='POST', block=True)
 def api_giveaway_enter(request, giveaway_id):
     """POST: enter/buy tickets. DELETE: withdraw all tickets."""
     banned = check_banned(request)
@@ -1701,7 +1735,7 @@ def api_giveaway_enter(request, giveaway_id):
                 body = json.loads(request.body) if request.body else {}
             except (json.JSONDecodeError, ValueError):
                 body = {}
-            desired_tickets = max(1, int(body.get('tickets', 1)))
+            desired_tickets = max(1, safe_int(body.get('tickets', 1), default=1, min_val=1, max_val=100))
             max_per_user = max(1, g.max_entries_per_user or 1)
             desired_tickets = min(desired_tickets, max_per_user)
 
@@ -1780,7 +1814,6 @@ def post_detail_page(request, public_id):
 
         current_uid = request.web_user.id if request.web_user else None
         post_data = serialize_post(post, current_uid, db)
-        post_json = json.dumps(post_data)
 
         author = post_data.get('author') or {}
         post_author = author.get('display_name') or author.get('username', 'Unknown')
@@ -1799,7 +1832,7 @@ def post_detail_page(request, public_id):
 
     return render(request, 'questlog_web/post_detail.html', {
         'web_user': request.web_user,
-        'post_json': post_json,
+        'post_json': post_data,
         'post_id': public_id,
         'post_author': post_author,
         'og_title': og_title,

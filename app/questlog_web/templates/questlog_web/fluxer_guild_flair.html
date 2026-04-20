@@ -38,11 +38,26 @@
   <div id="toast-container" class="fixed top-4 right-4 z-50 space-y-2"></div>
 
   <!-- Info banner -->
-  <div class="mb-6 p-4 rounded-xl bg-purple-900/20 border border-purple-700/40 flex items-start gap-3">
+  <div class="mb-4 p-4 rounded-xl bg-purple-900/20 border border-purple-700/40 flex items-start gap-3">
     <i class="fas fa-info-circle text-purple-400 mt-0.5 flex-shrink-0"></i>
     <div class="text-sm text-gray-300">
       <p>Flairs are cosmetic badges that members can equip. Enable or disable flairs for your server, adjust HP costs, and create custom flairs unique to your community. Changes apply to all new purchases in your Fluxer guild.</p>
     </div>
+  </div>
+
+  <!-- Flair Role Sync toggle -->
+  <div class="mb-6 p-4 rounded-xl bg-neutral-900 border border-neutral-800 flex items-center justify-between gap-4">
+    <div>
+      <p class="text-white text-sm font-semibold flex items-center gap-2">
+        <i class="fas fa-sync-alt text-purple-400"></i>Flair Role Sync
+      </p>
+      <p class="text-gray-500 text-xs mt-0.5">When enabled, the bot automatically creates and assigns a Fluxer role (e.g. "Flair: 🎮 Gamer") when a member equips a flair. Disable to keep your role list clean.</p>
+      <p class="text-amber-500/80 text-xs mt-1"><i class="fas fa-exclamation-triangle mr-1"></i>To display flair roles above other roles, go to your server's Role settings and drag flair roles to the top of the list manually.</p>
+    </div>
+    <label class="relative inline-flex items-center cursor-pointer flex-shrink-0">
+      <input type="checkbox" id="flair-sync-toggle" class="sr-only peer" onchange="saveFlairSyncSetting(this.checked)">
+      <div class="w-11 h-6 bg-neutral-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
+    </label>
   </div>
 
   <!-- Flair Table -->
@@ -255,11 +270,41 @@
 const GUILD_ID = '{{ guild_id }}';
 const FLAIRS_API = '/ql/api/dashboard/fluxer/' + GUILD_ID + '/flairs/';
 const CREATE_API = '/ql/api/dashboard/fluxer/' + GUILD_ID + '/flairs/create/';
+const SETTINGS_API = '/ql/api/dashboard/fluxer/' + GUILD_ID + '/settings/';
 
 let flairsData = [];
 let unsavedChanges = false;
 
-document.addEventListener('DOMContentLoaded', loadFlairs);
+document.addEventListener('DOMContentLoaded', () => {
+  loadFlairs();
+  loadFlairSyncSetting();
+});
+
+async function loadFlairSyncSetting() {
+  try {
+    const res = await fetch(SETTINGS_API);
+    const data = await res.json();
+    const toggle = document.getElementById('flair-sync-toggle');
+    const val = data.settings ? data.settings.flair_sync_enabled : data.flair_sync_enabled;
+    if (toggle && val !== undefined) {
+      toggle.checked = val;
+    }
+  } catch(e) {}
+}
+
+async function saveFlairSyncSetting(enabled) {
+  try {
+    const res = await csrfFetch(SETTINGS_API, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({flair_sync_enabled: enabled}),
+    });
+    const data = await res.json();
+    showToast(data.success ? (enabled ? 'Flair role sync enabled' : 'Flair role sync disabled') : (data.error || 'Failed to save'), data.success ? 'success' : 'error');
+  } catch(e) {
+    showToast('Error saving setting', 'error');
+  }
+}
 
 // ---- Load ----
 

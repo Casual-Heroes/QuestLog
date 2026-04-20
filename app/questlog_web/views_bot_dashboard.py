@@ -203,6 +203,7 @@ def _settings_dict(s: WebFluxerGuildSettings) -> dict:
         'channel_notify_channel_id': _safe('channel_notify_channel_id', ''),
         'temp_voice_category_ids': json.loads(s.temp_voice_category_ids) if getattr(s, 'temp_voice_category_ids', None) else [],
         'discovery_enabled': bool(_safe('discovery_enabled', 0)),
+        'flair_sync_enabled': bool(_safe('flair_sync_enabled', 0)),
         # Audit logging
         'audit_log_enabled': bool(_safe('audit_logging_enabled', 0)),
         'audit_log_channel_id': _safe('audit_log_channel_id', '') or '',
@@ -1185,6 +1186,8 @@ def api_fluxer_guild_settings(request, guild_id):
             s.temp_voice_category_ids = json.dumps([str(c)[:32] for c in raw_tvc][:20])
         if 'discovery_enabled' in data:
             s.discovery_enabled = 1 if data['discovery_enabled'] else 0
+        if 'flair_sync_enabled' in data:
+            s.flair_sync_enabled = 1 if data['flair_sync_enabled'] else 0
         if 'audit_log_enabled' in data:
             s.audit_logging_enabled = 1 if data['audit_log_enabled'] else 0
         if 'audit_log_channel_id' in data:
@@ -1320,6 +1323,7 @@ def _lfg_game_dict(g: WebFluxerLfgGame) -> dict:
         'options': json.loads(g.options_json) if g.options_json else [],
         'is_active': bool(g.is_active),
         'created_at': g.created_at,
+        'receive_network_lfg': bool(g.receive_network_lfg),
     }
 
 
@@ -1813,6 +1817,7 @@ def api_fluxer_guild_lfg_games(request, guild_id):
     rank_max = safe_int(data.get('rank_max', None), default=None) if data.get('rank_max') is not None else None
     is_custom_game = bool(data.get('is_custom_game', False))
     enabled = bool(data.get('enabled', True))
+    receive_network_lfg = bool(data.get('receive_network_lfg', False))
     custom_options = data.get('custom_options', data.get('options', []))
     if not isinstance(custom_options, list):
         custom_options = []
@@ -1842,6 +1847,7 @@ def api_fluxer_guild_lfg_games(request, guild_id):
             rank_max=rank_max,
             is_custom_game=1 if is_custom_game else 0,
             enabled=1 if enabled else 0,
+            receive_network_lfg=1 if receive_network_lfg else 0,
             options_json=json.dumps(custom_options) if custom_options else None,
             is_active=1,
             created_at=now,
@@ -1929,6 +1935,8 @@ def api_fluxer_guild_lfg_game_detail(request, guild_id, game_id):
             game.is_custom_game = 1 if data['is_custom_game'] else 0
         if 'enabled' in data:
             game.enabled = 1 if data['enabled'] else 0
+        if 'receive_network_lfg' in data:
+            game.receive_network_lfg = 1 if data['receive_network_lfg'] else 0
         for key in ('custom_options', 'options'):
             if key in data:
                 v = data[key]
@@ -4450,6 +4458,8 @@ def api_fluxer_guild_lfg_groups(request, guild_id):
         recurrence = rec_raw if rec_raw in ('none', 'daily', 'weekly', 'monthly') else 'none'
         post_to_network = bool(data.get('post_to_network', False))
         game_cover_url = (data.get('game_cover_url') or game.cover_url or '')[:500] or None
+        _sil_raw = (data.get('server_invite_link') or '').strip()
+        server_invite_link = _sil_raw[:500] if _sil_raw.startswith('https://') else None
 
         # Role composition
         use_roles = bool(data.get('use_roles', False))
@@ -4482,6 +4492,7 @@ def api_fluxer_guild_lfg_groups(request, guild_id):
             dps_needed=dps_needed, support_needed=support_needed,
             enforce_role_limits=1 if enforce_role_limits else 0,
             role_schema=role_schema,
+            server_invite_link=server_invite_link,
         )
         db.add(group)
         db.flush()
@@ -4514,56 +4525,58 @@ def api_fluxer_guild_lfg_groups(request, guild_id):
 
         # Post to QuestLog Network if requested - fire and forget
         network_group_id = None
-        if post_to_network and request.web_user:
+        if post_to_network:
             try:
                 from .models import WebLFGGroup, WebLFGMember, WebCommunityBotConfig
                 from sqlalchemy import text as _text
                 import json as _json, time as _time
-
-                # Parse role schema once: list for embed builder, raw JSON for DB column
                 from .views_discovery import _parse_role_schema as _prs
+                from .fluxer_webhooks import build_lfg_embed_data as _blfg
+
                 web_role_schema = _prs(role_schema) if role_schema else []
 
-                web_group = WebLFGGroup(
-                    creator_id=request.web_user.id,
-                    title=title,
-                    description=description,
-                    game_name=game.name,
-                    game_image_url=game_cover_url,
-                    group_size=max_size,
-                    current_size=1,
-                    scheduled_time=scheduled_time,
-                    status='open',
-                    use_roles=1 if use_roles else 0,
-                    tanks_needed=tanks_needed,
-                    healers_needed=healers_needed,
-                    dps_needed=dps_needed,
-                    support_needed=support_needed,
-                    role_schema=role_schema,  # raw JSON string from above (already validated)
-                    created_at=now,
-                    updated_at=now,
-                    origin_platform='fluxer',
-                    origin_group_id=group.id,
-                    origin_guild_id=str(guild_id),
-                    origin_guild_name=guild_display_name,
-                )
-                db.add(web_group)
-                db.flush()
-                # Mirror creator selections + role so embed member roster shows correctly
-                db.add(WebLFGMember(
-                    group_id=web_group.id,
-                    user_id=request.web_user.id,
-                    role=creator_role,
-                    selections=json.dumps(selections) if selections else None,
-                    is_creator=True,
-                    status='joined',
-                    joined_at=now,
-                ))
+                # Site post only if linked QuestLog account exists
+                web_group = None
+                group_url = ''
+                if request.web_user:
+                    web_group = WebLFGGroup(
+                        creator_id=request.web_user.id,
+                        title=title,
+                        description=description,
+                        game_name=game.name,
+                        game_image_url=game_cover_url,
+                        group_size=max_size,
+                        current_size=1,
+                        scheduled_time=scheduled_time,
+                        status='open',
+                        use_roles=1 if use_roles else 0,
+                        tanks_needed=tanks_needed,
+                        healers_needed=healers_needed,
+                        dps_needed=dps_needed,
+                        support_needed=support_needed,
+                        role_schema=role_schema,
+                        created_at=now,
+                        updated_at=now,
+                        origin_platform='fluxer',
+                        origin_group_id=group.id,
+                        origin_guild_id=str(guild_id),
+                        origin_guild_name=guild_display_name,
+                    )
+                    db.add(web_group)
+                    db.flush()
+                    db.add(WebLFGMember(
+                        group_id=web_group.id,
+                        user_id=request.web_user.id,
+                        role=creator_role,
+                        selections=json.dumps(selections) if selections else None,
+                        is_creator=True,
+                        status='joined',
+                        joined_at=now,
+                    ))
+                    db.commit()
+                    group_url = f"https://casual-heroes.com/ql/lfg/{web_group.id}/"
 
-                from .fluxer_webhooks import build_lfg_embed_data as _blfg
-                group_url = f"https://casual-heroes.com/ql/lfg/{web_group.id}/"
-                # Commit first so _blfg can read the mirrored WebLFGMember from DB
-                db.commit()
+                # Always broadcast to opted-in guilds - no linked account required
                 embed_data = _blfg(
                     creator=creator_name,
                     game_name=game.name,
@@ -4581,8 +4594,9 @@ def api_fluxer_guild_lfg_groups(request, guild_id):
                     dps_needed=dps_needed,
                     support_needed=support_needed,
                     creator_selections=selections,
-                    group_id=web_group.id,
+                    group_id=web_group.id if web_group else None,
                     group_platform='web',
+                    server_invite_link=server_invite_link,
                 )
                 embed_data["color"] = 0xFEE75C
                 embed_data["footer"] = "QuestLog Network - casual-heroes.com/ql/lfg/"
@@ -4591,21 +4605,40 @@ def api_fluxer_guild_lfg_groups(request, guild_id):
 
                 payload_json = _json.dumps(embed_data)
                 broadcast_now = int(_time.time())
+                _broadcast_game = game.name.lower() if game.name else ''
                 configs = db.query(WebCommunityBotConfig).filter_by(
-                    event_type='lfg_announce', is_enabled=True
-                ).filter(WebCommunityBotConfig.channel_id.isnot(None)).all()
+                    event_type='lfg_announce'
+                ).all()
 
                 for cfg in configs:
+                    # Check if this receiving guild has opted in for this specific game
+                    if cfg.platform == 'discord':
+                        _game_row = db.execute(_text(
+                            "SELECT lfg_channel_id FROM lfg_games WHERE guild_id=:g AND LOWER(game_name)=:gn "
+                            "AND receive_network_lfg=1 AND enabled=1 LIMIT 1"
+                        ), {"g": int(cfg.guild_id), "gn": _broadcast_game}).fetchone()
+                    else:
+                        _game_row = db.execute(_text(
+                            "SELECT channel_id FROM web_fluxer_lfg_games WHERE guild_id=:g AND LOWER(name)=:gn "
+                            "AND receive_network_lfg=1 AND enabled=1 AND is_active=1 LIMIT 1"
+                        ), {"g": cfg.guild_id, "gn": _broadcast_game}).fetchone()
+
+                    if not _game_row:
+                        continue
+
+                    # Use per-game channel if set, otherwise fall back to master bot config channel
+                    _dest_channel = str(_game_row[0]).strip() if _game_row[0] else cfg.channel_id
+
                     if cfg.platform == 'discord':
                         db.execute(_text(
                             "INSERT INTO discord_pending_broadcasts (guild_id, channel_id, payload, created_at) "
                             "VALUES (:gid, :cid, :payload, :now)"
-                        ), {"gid": int(cfg.guild_id), "cid": int(cfg.channel_id), "payload": payload_json, "now": broadcast_now})
+                        ), {"gid": int(cfg.guild_id), "cid": int(_dest_channel), "payload": payload_json, "now": broadcast_now})
                     else:
                         db.execute(_text(
                             "INSERT INTO fluxer_pending_broadcasts (guild_id, channel_id, payload, created_at) "
                             "VALUES (:gid, :cid, :payload, :now)"
-                        ), {"gid": cfg.guild_id, "cid": cfg.channel_id, "payload": payload_json, "now": broadcast_now})
+                        ), {"gid": cfg.guild_id, "cid": _dest_channel, "payload": payload_json, "now": broadcast_now})
 
                 db.commit()
                 network_group_id = web_group.id
