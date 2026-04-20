@@ -75,6 +75,7 @@ app/test_sec002_003.py
 app/test_security_fixes.py
 
 # Project SYNAPSE - trade secret, never commit
+7dtd-mods/
 app/questlog_web/views_7dtd.py
 app/questlog_web/templates/questlog_web/synapse_profile.html
 create_7dtd_artifact_loadout.py
