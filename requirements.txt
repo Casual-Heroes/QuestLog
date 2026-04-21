@@ -49,3 +49,4 @@ Pillow==12.2.0
 cryptography==46.0.5
 nltk==3.9.3
 markdown==3.10.2
+PyJWT==2.9.0

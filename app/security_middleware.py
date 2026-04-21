@@ -31,6 +31,7 @@ MAINTENANCE_EXEMPT_PREFIXES = [
     '/static/',
     '/media/',
     '/questchat/',
+    '/ql/qc/',            # QuestChat bridge API - app stays accessible during maintenance
     '/auth/discord/',     # Discord OAuth flow must complete before we can check identity
     '/questlog/login/',   # Discord OAuth entry point — must be reachable to initiate auth
 ]
