@@ -443,6 +443,14 @@
         <input type="number" id="addMaxSize" value="4" min="2" max="50"
                class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:border-green-500 focus:outline-none">
       </div>
+
+      <div>
+        <label class="flex items-center gap-3 cursor-pointer">
+          <input type="checkbox" id="addReceiveNetworkLfg" class="w-5 h-5 rounded bg-neutral-700 border-neutral-600 text-yellow-500 focus:ring-yellow-500">
+          <span class="text-white font-medium">Receive QuestLog Network LFG</span>
+        </label>
+        <p class="text-gray-500 text-xs mt-1 ml-8">When enabled, LFG posts for this game from other servers broadcast here.</p>
+      </div>
     </div>
     <div class="p-4 bg-neutral-800 border-t border-neutral-700 flex justify-end gap-3">
       <button onclick="closeAddGameModal()" class="bg-neutral-700 hover:bg-neutral-600 text-white px-4 py-2 rounded-lg transition">
@@ -504,6 +512,14 @@
         </label>
       </div>
 
+      <div>
+        <label class="flex items-center gap-3 cursor-pointer">
+          <input type="checkbox" id="editReceiveNetworkLfg" class="w-5 h-5 rounded bg-neutral-700 border-neutral-600 text-yellow-500 focus:ring-yellow-500">
+          <span class="text-white font-medium">Receive QuestLog Network LFG</span>
+        </label>
+        <p class="text-gray-500 text-xs mt-1 ml-8">When enabled, LFG posts for this game from other servers broadcast here.</p>
+      </div>
+
       <div class="border-t border-neutral-700 pt-4 mt-4">
         <h4 class="text-white font-medium mb-3">Rank Requirement</h4>
         <div class="space-y-3">
@@ -555,7 +571,7 @@
               <div class="text-sm">
                 <span class="text-white font-medium" x-text="field.name"></span>
                 <span class="text-gray-500 text-xs ml-2">
-                  (<span x-text="typeof field.choices === 'object' && !Array.isArray(field.choices) ? 'Conditional - ' + Object.keys(field.choices).length + ' options' : (Array.isArray(field.choices) ? field.choices.length + ' choices' : '0 choices')"></span><span x-show="field.depends_on" class="text-purple-400"> • depends on <span x-text="field.depends_on"></span></span><span x-show="field.exclude_same_as" class="text-orange-400"> • excludes <span x-text="field.exclude_same_as"></span></span>)
+                  (<span x-text="field.freetext ? 'freetext' : (typeof field.choices === 'object' && !Array.isArray(field.choices) ? 'Conditional - ' + Object.keys(field.choices).length + ' options' : (Array.isArray(field.choices) ? field.choices.length + ' choices' : '0 choices'))"></span><span x-show="field.depends_on" class="text-purple-400"> • depends on <span x-text="field.depends_on"></span></span><span x-show="field.exclude_same_as" class="text-orange-400"> • excludes <span x-text="field.exclude_same_as"></span></span>)
                 </span>
               </div>
             </template>
@@ -630,8 +646,19 @@
                     </div>
                   </template>
 
+                  <!-- Freetext field indicator -->
+                  <template x-if="field.freetext">
+                    <div class="bg-neutral-800 border border-yellow-500/30 rounded p-3">
+                      <div class="flex items-center gap-2">
+                        <i class="fas fa-keyboard text-yellow-400"></i>
+                        <span class="text-yellow-400 text-sm font-medium">Freetext Input</span>
+                        <span class="text-gray-500 text-xs">- users type their own value</span>
+                      </div>
+                    </div>
+                  </template>
+
                   <!-- Simple Array Choices -->
-                  <template x-if="Array.isArray(field.choices)">
+                  <template x-if="Array.isArray(field.choices) && !field.freetext">
                     <div class="space-y-2">
                       <!-- Role tagging toggle for this field -->
                       <div class="flex items-center gap-2 mb-2 pb-2 border-b border-neutral-700" x-show="field.name !== 'Activity'">
@@ -776,8 +803,6 @@ const totalLFGGames = {{ total_lfg_games }};
 let addGameChannelSelect, addGameRoleSelect;
 let editGameChannelSelect, editGameRoleSelect;
 let customGameChannelSelect;
-let discordNetworkLfgChSelect;
-
 // Prepare channel and role data for custom selects
 const channelItems = [
   {% for channel in channels %}
@@ -1113,27 +1138,8 @@ function customOptionsBuilder() {
         // Survival game template - mirrors fluxer_guild_lfg.html exactly
         'survival': [
           {
-            name: 'Activity',
-            choices: ['Boss Fight', 'Raid (PvE)', 'Dungeon/POI Clear', 'Base Building', 'Resource Farming', 'Taming/Breeding', 'PvP Combat', 'Base Raiding (PvP)', 'Territory Control (PvP)', 'Exploration', 'Crafting/Tech', 'Casual Co-op']
-          },
-          {
-            name: 'Role',
-            enableRoleTags: true,
-            choices: [
-              { value: 'Combat (Melee)',  role: 'dps' },
-              { value: 'Combat (Ranged)', role: 'dps' },
-              { value: 'Tank/Defender',  role: 'tank' },
-              { value: 'Support/Healer', role: 'healer' },
-              { value: 'Builder',        role: 'support' },
-              { value: 'Gatherer',       role: 'support' },
-              { value: 'Tamer/Breeder',  role: 'support' },
-              { value: 'Crafter',        role: 'support' },
-              { value: 'Scout/Explorer', role: 'dps' },
-            ]
-          },
-          {
             name: 'Platform',
-            choices: ['PC', 'Xbox', 'PlayStation', 'Nintendo Switch', 'Cross-platform']
+            choices: ['PC', 'Xbox', 'PlayStation', 'Cross-platform']
           },
           {
             name: 'Experience',
@@ -1141,7 +1147,14 @@ function customOptionsBuilder() {
           },
           {
             name: 'Server Type',
-            choices: ['PvE', 'PvP', 'PvE-C', 'Modded', 'Official', 'Private']
+            multi: true,
+            maxSelections: 5,
+            choices: ['PvE', 'PvP', 'PvE-C', 'Modded', 'Official', 'Private', 'Hardcore', 'Community/Social', 'Roleplay', 'Boosted Rates', 'Open Join', 'Vanilla', 'No Wipe', 'Seasonal Wipe']
+          },
+          {
+            name: 'Server Info',
+            freetext: true,
+            choices: []
           }
         ],
       };
@@ -1212,9 +1225,16 @@ function customOptionsBuilder() {
             result.max_select = field.max_select;
           }
 
+          // Preserve freetext flag
+          if (field.freetext) {
+            result.freetext = true;
+          }
+
           return result;
         })
         .filter(field => {
+          // Freetext fields always pass through
+          if (field.freetext) return true;
           // Keep field if it has choices (array with items or object)
           if (Array.isArray(field.choices)) {
             return field.choices.length > 0;
@@ -1388,7 +1408,8 @@ async function submitAddGame() {
     platforms: document.getElementById('addPlatforms').value,
     channel_id: addGameChannelSelect?.getValue() || '',
     notify_role_id: addGameRoleSelect?.getValue() || '',
-    max_size: document.getElementById('addMaxSize').value
+    max_size: document.getElementById('addMaxSize').value,
+    receive_network_lfg: document.getElementById('addReceiveNetworkLfg').checked
   };
 
   if (!data.short_code) {
@@ -1557,6 +1578,7 @@ async function editGame(gameId) {
     document.getElementById('editArchiveHours').value = normalizedHours;
 
     document.getElementById('editEnabled').checked = game.enabled !== false;
+    document.getElementById('editReceiveNetworkLfg').checked = game.receive_network_lfg || false;
     document.getElementById('editRequireRank').checked = game.require_rank || false;
     document.getElementById('editRankLabel').value = game.rank_label || 'Rank';
     document.getElementById('editRankMin').value = game.rank_min || 1;
@@ -1622,6 +1644,7 @@ async function submitEditGame() {
     max_group_size: parseInt(document.getElementById('editMaxSize').value) || 4,
     thread_auto_archive_hours: parseInt(document.getElementById('editArchiveHours').value) || 24,
     enabled: document.getElementById('editEnabled').checked,
+    receive_network_lfg: document.getElementById('editReceiveNetworkLfg').checked,
     require_rank: document.getElementById('editRequireRank').checked,
     rank_label: document.getElementById('editRankLabel').value || 'Rank',
     rank_min: parseInt(document.getElementById('editRankMin').value) || 1,
@@ -1963,6 +1986,16 @@ function onDiscordNetworkLfgToggle() {
   if (!enabled) saveDiscordNetworkLfg();
 }
 
+// Created unconditionally so getValue() always works - same pattern as Fluxer dashboard
+const discordNetworkLfgChSelect = createCustomSelect({
+  container: '#cs-discord-network-lfg-ch',
+  name: 'discord_network_lfg_channel_id',
+  placeholder: 'Select channel...',
+  items: channelItems,
+  selected: '',
+  color: 'yellow',
+});
+
 async function loadDiscordNetworkLfg() {
   try {
     const resp = await fetch(DISCORD_NETWORK_LFG_API);
@@ -1972,28 +2005,24 @@ async function loadDiscordNetworkLfg() {
     const channelId = data.channel_id || '';
     document.getElementById('discordNetworkLfgEnabled').checked = enabled;
     document.getElementById('discordNetworkLfgChannelRow').classList.toggle('hidden', !enabled);
-    if (!discordNetworkLfgChSelect) {
-      discordNetworkLfgChSelect = createCustomSelect({
-        container: '#cs-discord-network-lfg-ch',
-        name: 'discord_network_lfg_channel_id',
-        placeholder: 'Select channel...',
-        items: channelItems,
-        selected: channelId,
-        color: 'yellow',
-      });
-    } else if (channelId) {
-      discordNetworkLfgChSelect.setValue(channelId);
-    }
+    if (channelId) discordNetworkLfgChSelect.setValue(channelId);
     const status = document.getElementById('discordNetworkLfgStatus');
     status.textContent = enabled ? ('Active - #' + (data.channel_name || channelId)) : 'Not enabled';
     status.className = enabled ? 'text-xs text-green-400 ml-2' : 'text-xs text-gray-500 ml-2';
-  } catch (e) {}
+  } catch (e) {
+    console.error('[NetworkLFG] load error:', e);
+  }
 }
 
 async function saveDiscordNetworkLfg() {
   const enabled = document.getElementById('discordNetworkLfgEnabled').checked;
-  const channelId = discordNetworkLfgChSelect ? (discordNetworkLfgChSelect.getValue() || '') : '';
-  if (enabled && !channelId) return;
+  const channelId = discordNetworkLfgChSelect.getValue() || '';
+  const status = document.getElementById('discordNetworkLfgStatus');
+  if (enabled && !channelId) {
+    status.textContent = 'Select a channel first';
+    status.className = 'text-xs text-red-400 ml-2';
+    return;
+  }
   try {
     const resp = await fetch(DISCORD_NETWORK_LFG_API, {
       method: 'POST',
@@ -2001,7 +2030,6 @@ async function saveDiscordNetworkLfg() {
       body: JSON.stringify({ is_enabled: enabled, channel_id: channelId }),
     });
     const data = await resp.json();
-    const status = document.getElementById('discordNetworkLfgStatus');
     if (resp.ok && data.success) {
       status.textContent = enabled ? ('Active - #' + (data.channel_name || channelId)) : 'Disabled';
       status.className = enabled ? 'text-xs text-green-400 ml-2' : 'text-xs text-gray-500 ml-2';
@@ -2009,7 +2037,11 @@ async function saveDiscordNetworkLfg() {
       status.textContent = data.error || 'Save failed';
       status.className = 'text-xs text-red-400 ml-2';
     }
-  } catch (e) {}
+  } catch (e) {
+    status.textContent = 'Save error - try again';
+    status.className = 'text-xs text-red-400 ml-2';
+    console.error('[NetworkLFG] save error:', e);
+  }
 }
 
 // Enter key for search

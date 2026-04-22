@@ -336,6 +336,13 @@
           <span class="text-white font-medium">Enabled</span>
         </label>
       </div>
+      <div>
+        <label class="flex items-center gap-3 cursor-pointer">
+          <input type="checkbox" id="addReceiveNetworkLfg" class="w-5 h-5 rounded bg-neutral-700 border-neutral-600 text-yellow-500 focus:ring-yellow-500">
+          <span class="text-white font-medium">Receive QuestLog Network LFG</span>
+        </label>
+        <p class="text-gray-500 text-xs mt-1 ml-8">When enabled, LFG posts for this game from other servers broadcast here.</p>
+      </div>
     </div>
     <div class="p-4 bg-neutral-800 border-t border-neutral-700 flex justify-end gap-3">
       <button onclick="closeAddGameModal()" class="bg-neutral-700 hover:bg-neutral-600 text-white px-4 py-2 rounded-lg transition">
@@ -464,6 +471,14 @@
           <input type="checkbox" id="editEnabled" class="w-5 h-5 rounded bg-neutral-700 border-neutral-600 text-green-500 focus:ring-green-500">
           <span class="text-white font-medium">Enabled</span>
         </label>
+      </div>
+
+      <div>
+        <label class="flex items-center gap-3 cursor-pointer">
+          <input type="checkbox" id="editReceiveNetworkLfg" class="w-5 h-5 rounded bg-neutral-700 border-neutral-600 text-yellow-500 focus:ring-yellow-500">
+          <span class="text-white font-medium">Receive QuestLog Network LFG</span>
+        </label>
+        <p class="text-gray-500 text-xs mt-1 ml-8">When enabled, LFG posts for this game from other servers broadcast here.</p>
       </div>
 
       <div class="border-t border-neutral-700 pt-4 mt-4">
@@ -1015,6 +1030,7 @@ function addGameFromIgdb(igdbId, name, coverUrl, platforms) {
   document.getElementById('addMaxSize').value = '4';
   document.getElementById('addArchiveHours').value = '24';
   document.getElementById('addEnabled').checked = true;
+  document.getElementById('addReceiveNetworkLfg').checked = false;
 
   openAddGameModal();
 }
@@ -1050,6 +1066,7 @@ async function submitAddGame() {
     max_group_size: parseInt(document.getElementById('addMaxSize').value) || 4,
     auto_archive_hours: parseInt(document.getElementById('addArchiveHours').value) || 24,
     enabled: document.getElementById('addEnabled').checked,
+    receive_network_lfg: document.getElementById('addReceiveNetworkLfg').checked,
     is_custom_game: false
   };
 
@@ -1175,6 +1192,7 @@ async function editGame(gameId) {
     document.getElementById('editArchiveHours').value = normalizedHours;
 
     document.getElementById('editEnabled').checked = game.enabled !== false;
+    document.getElementById('editReceiveNetworkLfg').checked = game.receive_network_lfg || false;
     document.getElementById('editRequireRank').checked = game.require_rank || false;
     document.getElementById('editRankLabel').value = game.rank_label || 'Rank';
     document.getElementById('editRankMin').value = game.rank_min || 1;
@@ -1244,6 +1262,7 @@ async function submitEditGame() {
     max_group_size: parseInt(document.getElementById('editMaxSize').value) || 4,
     auto_archive_hours: parseInt(document.getElementById('editArchiveHours').value) || 24,
     enabled: document.getElementById('editEnabled').checked,
+    receive_network_lfg: document.getElementById('editReceiveNetworkLfg').checked,
     require_rank: document.getElementById('editRequireRank').checked,
     rank_label: document.getElementById('editRankLabel').value || 'Rank',
     rank_min: parseInt(document.getElementById('editRankMin').value) || 1,
@@ -1840,36 +1859,15 @@ function customOptionsBuilder() {
           },
           {
             name: 'Server Type',
-            choices: ['PvE', 'PvP', 'PvE-C', 'Modded', 'Official', 'Private']
+            multi: true,
+            maxSelections: 5,
+            choices: ['PvE', 'PvP', 'PvE-C', 'Modded', 'Official', 'Private', 'Hardcore', 'Community/Social', 'Roleplay', 'Boosted Rates', 'Open Join', 'Vanilla', 'No Wipe', 'Seasonal Wipe']
           }
         ],
         'survival': [
           {
-            name: 'Activity',
-            choices: ['Boss Fight', 'Raid (PvE)', 'Dungeon/POI Clear', 'Base Building', 'Resource Farming', 'Taming/Breeding', 'PvP Combat', 'Base Raiding (PvP)', 'Territory Control (PvP)', 'Exploration', 'Crafting/Tech', 'Casual Co-op']
-          },
-          {
-            name: 'Role',
-            enableRoleTags: true,
-            choices: [
-              { value: 'Combat (Melee)', role: 'dps' },
-              { value: 'Combat (Ranged)', role: 'dps' },
-              { value: 'Tank/Defender', role: 'tank' },
-              { value: 'Support/Healer', role: 'healer' },
-              { value: 'Builder', role: 'support' },
-              { value: 'Gatherer', role: 'support' },
-              { value: 'Tamer/Breeder', role: 'support' },
-              { value: 'Crafter', role: 'support' },
-              { value: 'Scout/Explorer', role: 'dps' }
-            ]
-          },
-          {
             name: 'Platform',
-            choices: ['PC', 'Xbox', 'PlayStation', 'Nintendo Switch', 'Cross-platform']
-          },
-          {
-            name: 'Level Range',
-            choices: ['Early (1-20)', 'Mid (21-40)', 'End (41+)']
+            choices: ['PC', 'Xbox', 'PlayStation', 'Cross-platform']
           },
           {
             name: 'Experience',
@@ -1877,7 +1875,14 @@ function customOptionsBuilder() {
           },
           {
             name: 'Server Type',
-            choices: ['PvE', 'PvP', 'PvE-C', 'Modded', 'Official', 'Private']
+            multi: true,
+            maxSelections: 5,
+            choices: ['PvE', 'PvP', 'PvE-C', 'Modded', 'Official', 'Private', 'Hardcore', 'Community/Social', 'Roleplay', 'Boosted Rates', 'Open Join', 'Vanilla', 'No Wipe', 'Seasonal Wipe']
+          },
+          {
+            name: 'Server Info',
+            freetext: true,
+            choices: []
           }
         ]
       };

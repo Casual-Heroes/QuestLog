@@ -1081,7 +1081,12 @@ function renderGroup(group) {
 
     Object.entries(sel).forEach(([key, value]) => {
       const kl = key.toLowerCase();
-      const nv = Array.isArray(value) ? (value[0] || '') : value;
+      // Normalize: parse JSON strings, flatten arrays to comma-joined string
+      let _v = value;
+      if (typeof _v === 'string' && _v.startsWith('[')) {
+        try { _v = JSON.parse(_v); } catch(e) {}
+      }
+      const nv = Array.isArray(_v) ? _v.join(', ') : _v;
       if (nv && kl !== 'activity' && kl !== 'role' && kl !== 'player_role') {
         if (kl === 'class')          cls      = nv;
         else if (kl === 'specialization') spec = nv;

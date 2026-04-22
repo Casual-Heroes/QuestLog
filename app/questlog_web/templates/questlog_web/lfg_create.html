@@ -112,7 +112,7 @@
       </h2>
       <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div>
-          <label class="text-sm text-gray-300 mb-2 block">Group Size <span class="text-red-400">*</span></label>
+          <label id="groupSizeLabel" class="text-sm text-gray-300 mb-2 block">Group Size <span class="text-red-400">*</span></label>
           <div id="groupSizeContainer"></div>
         </div>
         <div>
@@ -162,6 +162,14 @@
                  class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2 text-white text-sm focus:border-green-500 focus:outline-none hover:bg-neutral-700/50 transition-colors">
         </div>
       </div>
+    </div>
+
+    <div class="bg-neutral-800 border border-neutral-700 rounded-xl p-4">
+      <label class="text-sm text-gray-300 mb-2 block">Server Invite Link (optional)</label>
+      <input type="url" id="serverInviteLink" name="server_invite_link"
+             placeholder="https://discord.gg/... or https://fluxer.app/invite/..."
+             class="w-full bg-neutral-800 border border-neutral-600 rounded-lg px-4 py-2 text-white text-sm focus:border-green-500 focus:outline-none hover:bg-neutral-700/50 transition-colors">
+      <p class="text-xs text-gray-500 mt-1">Add an invite link so players in other servers can join yours directly from the broadcast embed</p>
     </div>
 
     <!-- QuestLog Network broadcast opt-in -->
@@ -265,75 +273,34 @@ const GAME_TEMPLATES = {
     { name: 'Role', choices: [{value:'Tank',role:'tank'},{value:'Healer',role:'healer'},{value:'DPS',role:'dps'},{value:'Support',role:'support'}] },
   ],
   palworld: [
-    { name: 'Role', choices: [
-      {value:'Tank/Defender',   role:'tank'},
-      {value:'Support/Healer',  role:'healer'},
-      {value:'Combat (Melee)',  role:'dps'},
-      {value:'Combat (Ranged)', role:'dps'},
-      {value:'Scout/Explorer',  role:'dps'},
-      {value:'Builder',         role:'support'},
-      {value:'Gatherer',        role:'support'},
-      {value:'Tamer/Breeder',   role:'support'},
-      {value:'Crafter',         role:'support'},
-    ]},
-    { name: 'Activity', multi: true, maxSelections: 3, choices: ['Boss','Dungeon','Base Building','Resource Farming','Breeding','PvP','Raid','Casual Co-op'] },
     { name: 'Platform', choices: ['PC','Xbox','PlayStation','Cross-platform'] },
-    { name: 'Level Range', choices: ['Early (1-20)','Mid (21-40)','End (41+)'] },
     { name: 'Experience', choices: ['New/Learning','Casual','Experienced','Hardcore'] },
-    { name: 'Server Type', choices: ['PvE','PvP','PvE-C','Modded','Official','Private'] },
+    { name: 'Server Type', multi: true, maxSelections: 5, choices: ['PvE','PvP','PvE-C','Modded','Official','Private','Hardcore','Community/Social','Roleplay','Boosted Rates','Open Join','Vanilla','No Wipe','Seasonal Wipe'] },
+    { name: 'Server Info', freetext: true },
   ],
   enshrouded: [
-    { name: 'Role', choices: [
-      {value:'Tank',           role:'tank'},
-      {value:'Healer',         role:'healer'},
-      {value:'Ranger (DPS)',   role:'dps'},
-      {value:'Mage (DPS)',     role:'dps'},
-      {value:'Fighter (DPS)',  role:'dps'},
-      {value:'Builder',        role:'support'},
-      {value:'Crafter',        role:'support'},
-    ]},
-    { name: 'Activity', multi: true, maxSelections: 3, choices: ['Story','Base Building','Dungeon','Boss','Resource Farming','Casual Co-op'] },
     { name: 'Platform', choices: ['PC','Xbox','PlayStation','Cross-platform'] },
-    { name: 'Level Range', choices: ['Early (1-20)','Mid (21-40)','End (41+)'] },
     { name: 'Experience', choices: ['New/Learning','Casual','Experienced','Hardcore'] },
-    { name: 'Server Type', choices: ['PvE','PvP','PvE-C','Modded','Official','Private'] },
+    { name: 'Server Type', multi: true, maxSelections: 5, choices: ['PvE','PvP','PvE-C','Modded','Official','Private','Hardcore','Community/Social','Roleplay','Boosted Rates','Open Join','Vanilla','No Wipe','Seasonal Wipe'] },
+    { name: 'Server Info', freetext: true },
   ],
   vrising: [
-    { name: 'Activity', multi: true, maxSelections: 3, choices: ['Leveling','Castle Building','Boss Hunting','PvP','Farming/Resources','Clan Content','Casual Co-op'] },
     { name: 'Platform', choices: ['PC','PlayStation','Cross-platform'] },
-    { name: 'Level Range', choices: ['Early (1-20)','Mid (21-40)','End (41+)'] },
     { name: 'Experience', choices: ['New/Learning','Casual','Experienced','Hardcore'] },
-    { name: 'Server Type', choices: ['PvE','PvP','PvE-C','Modded','Official','Private'] },
+    { name: 'Server Type', multi: true, maxSelections: 5, choices: ['PvE','PvP','PvE-C','Modded','Official','Private','Hardcore','Community/Social','Roleplay','Boosted Rates','Open Join','Vanilla','No Wipe','Seasonal Wipe'] },
+    { name: 'Server Info', freetext: true },
   ],
   valheim: [
-    { name: 'Role', choices: [
-      {value:'Berserker (Tank)', role:'tank'},
-      {value:'Healer/Support',   role:'healer'},
-      {value:'Archer (DPS)',     role:'dps'},
-      {value:'Warrior (DPS)',    role:'dps'},
-      {value:'Builder',          role:'support'},
-      {value:'Gatherer',         role:'support'},
-    ]},
-    { name: 'Activity', multi: true, maxSelections: 3, choices: ['Boss','Exploration','Base Building','Resource Farming','Casual Co-op'] },
     { name: 'Platform', choices: ['PC','Xbox','Cross-platform'] },
-    { name: 'Level Range', choices: ['Early (1-20)','Mid (21-40)','End (41+)'] },
     { name: 'Experience', choices: ['New/Learning','Casual','Experienced','Hardcore'] },
-    { name: 'Server Type', choices: ['PvE','PvP','Modded','Official','Private'] },
+    { name: 'Server Type', multi: true, maxSelections: 5, choices: ['PvE','PvP','PvE-C','Modded','Official','Private','Hardcore','Community/Social','Roleplay','Boosted Rates','Open Join','Vanilla','No Wipe','Seasonal Wipe'] },
+    { name: 'Server Info', freetext: true },
   ],
   rust: [
-    { name: 'Role', choices: [
-      {value:'Raider',           role:'tank'},
-      {value:'Medic/Support',    role:'healer'},
-      {value:'Gunner (DPS)',     role:'dps'},
-      {value:'Scout',            role:'dps'},
-      {value:'Builder',          role:'support'},
-      {value:'Farmer/Gatherer',  role:'support'},
-    ]},
-    { name: 'Activity', multi: true, maxSelections: 3, choices: ['Raiding','Base Building','PvP','Farming','Casual Co-op'] },
     { name: 'Platform', choices: ['PC','Xbox','PlayStation','Cross-platform'] },
-    { name: 'Level Range', choices: ['Early (1-20)','Mid (21-40)','End (41+)'] },
     { name: 'Experience', choices: ['New/Learning','Casual','Experienced','Hardcore'] },
-    { name: 'Server Type', choices: ['PvE','PvP','Modded','Official','Private'] },
+    { name: 'Server Type', multi: true, maxSelections: 5, choices: ['PvE','PvP','PvE-C','Modded','Official','Private','Hardcore','Community/Social','Roleplay','Boosted Rates','Open Join','Vanilla','No Wipe','Seasonal Wipe'] },
+    { name: 'Server Info', freetext: true },
   ],
 };
 
@@ -418,10 +385,11 @@ const GAME_ROLE_SCHEMAS = {
   enshrouded: SURVIVAL_ROLE_SCHEMA,
   valheim:    SURVIVAL_ROLE_SCHEMA,
   rust:       SURVIVAL_ROLE_SCHEMA,
+  vrising:    SURVIVAL_ROLE_SCHEMA,
 };
 
 // Games that hide the role composition section entirely (no slot system makes sense)
-const NO_ROLES = ['diablo', 'poe', 'grimdawn', 'cod', 'battlefield', 'vrising'];
+const NO_ROLES = ['diablo', 'poe', 'grimdawn', 'cod', 'battlefield'];
 
 let currentRoleSchema = DEFAULT_ROLE_SCHEMA;
 
@@ -647,12 +615,20 @@ function updateGameSpecificOptions(gameName) {
   currentGameType = detectGameType(gameName);
 
   const templates = currentGameType ? GAME_TEMPLATES[currentGameType] : [];
+
+  // Survival = any game whose template has a 'Server Type' field (DB-driven, no hardcoded list needed)
+  const _isSurvivalGame = templates.some(f => f.name === 'Server Type');
+
   let html = '';
 
   // Render wrapper divs for non-conditional fields (custom selects injected after innerHTML set)
   for (const field of templates) {
     if (field.depends_on) continue;
-    html += `<div id="opt_wrapper_${_fieldId(field.name)}"><div id="opt_cs_container_${_fieldId(field.name)}"></div></div>`;
+    if (field.freetext) {
+      html += `<div id="opt_wrapper_${_fieldId(field.name)}"></div>`;
+    } else {
+      html += `<div id="opt_wrapper_${_fieldId(field.name)}"><div id="opt_cs_container_${_fieldId(field.name)}"></div></div>`;
+    }
   }
 
   // Activity list: game-specific where we have one, generic for everything else
@@ -663,8 +639,8 @@ function updateGameSpecificOptions(gameName) {
                      : currentGameType === 'palworld' ? PALWORLD_ACTIVITY_CHOICES
                      : ACTIVITY_CHOICES;
 
-  // Only add the generic Activity selector if the template doesn't already define an Activity field
-  const templateHasActivity = templates.some(f => f.name === 'Activity');
+  // Survival games never show Activity; others show it if the template doesn't already define it
+  const templateHasActivity = templates.some(f => f.name === 'Activity') || _isSurvivalGame;
   if (!templateHasActivity) {
     html += `<div id="opt_wrapper_Activity"><div id="activitySelectContainer"></div></div>`;
   }
@@ -678,27 +654,28 @@ function updateGameSpecificOptions(gameName) {
     : DEFAULT_ROLE_SCHEMA;
   renderRoleSchemaInputs();
 
-  // Survival games: auto-enable roles silently, hide the whole Role Composition section
-  // (the sub-choice Role picker in "Your Info" handles role selection instead)
-  const SURVIVAL_GAME_TYPES = ['palworld', 'enshrouded', 'valheim', 'rust', 'vrising'];
   const roleSection = document.getElementById('useRoles').closest('.bg-neutral-900\\/50');
   if (NO_ROLES.includes(currentGameType)) {
+    // No-role ARPGs/FPS: hide role section entirely
     roleSection.classList.add('hidden');
     document.getElementById('useRoles').checked = false;
     document.getElementById('rolesContainer').classList.add('hidden');
-  } else if (SURVIVAL_GAME_TYPES.includes(currentGameType)) {
-    // Auto-enable roles for survival, hide the section (user doesn't set slot counts manually)
+    document.getElementById('groupSizeLabel').childNodes[0].textContent = 'Group Size ';
+  } else if (_isSurvivalGame) {
+    // Survival: auto-enable roles silently, hide the section (template handles role via Server Type)
     roleSection.classList.add('hidden');
     document.getElementById('useRoles').checked = true;
     document.getElementById('rolesContainer').classList.remove('hidden');
+    document.getElementById('groupSizeLabel').childNodes[0].textContent = 'Server Size ';
   } else {
     roleSection.classList.remove('hidden');
+    document.getElementById('groupSizeLabel').childNodes[0].textContent = 'Group Size ';
   }
 
   // Build all custom selects for static (non-conditional) fields
   for (const field of templates) {
     if (field.depends_on) continue;
-    _buildCustomSelectForField(field, templates);
+    _buildCustomSelectForField(field, templates);  // handles both freetext and dropdown
   }
 
   // Activity custom select - only if we injected the generic container (template didn't define Activity)
@@ -738,10 +715,21 @@ function _fieldId(name) { return name.replace(/\s+/g, '_'); }
 
 function _buildCustomSelectForField(field, templates) {
   const wrapperId = `opt_wrapper_${_fieldId(field.name)}`;
-  const containerId = `opt_cs_container_${_fieldId(field.name)}`;
   const wrapper = document.getElementById(wrapperId);
   if (!wrapper) return;
 
+  // Freetext field: render as text input
+  if (field.freetext) {
+    wrapper.innerHTML = `<label class="text-sm text-gray-300 mb-1 block">${escapeHtml(field.name)} <span class="text-gray-500 text-xs">(optional)</span></label>` +
+      `<input type="text" id="sel_${_fieldId(field.name)}" data-field="${escapeHtml(field.name)}" placeholder="Enter server info..." ` +
+      `class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:border-green-500 focus:outline-none text-sm">`;
+    wrapper.querySelector('input').addEventListener('input', function() {
+      _setDataField(field.name, this.value);
+    });
+    return;
+  }
+
+  const containerId = `opt_cs_container_${_fieldId(field.name)}`;
   const isMulti = !!field.multi;
   const choices = Array.isArray(field.choices) ? field.choices : [];
   const items = choices.map(c => {
@@ -952,9 +940,10 @@ document.getElementById('createGroupForm').addEventListener('submit', async (e) 
   // For survival games, Role is a sub-choice label (e.g. "Tank/Defender") - keep it in selections
   // so the browse/detail survival grid can bucket the creator correctly.
   // For MMOs (gw2/eso), Role is a generic tank/healer/dps/support - extract to selected_role.
-  const SURVIVAL_GAME_TYPES_SUBMIT = ['palworld', 'enshrouded', 'valheim', 'rust', 'vrising'];
+  const _submitTemplates = currentGameType ? GAME_TEMPLATES[currentGameType] : [];
+  const _submitIsSurvival = _submitTemplates.some(f => f.name === 'Server Type');
   let roleVal = null;
-  if (!SURVIVAL_GAME_TYPES_SUBMIT.includes(currentGameType)) {
+  if (!_submitIsSurvival) {
     const _rv = selections['Role'] || null;
     roleVal = _rv ? (Array.isArray(_rv) ? _rv[0] : _rv).toLowerCase() : null;
     delete selections['Role'];
@@ -969,6 +958,7 @@ document.getElementById('createGroupForm').addEventListener('submit', async (e) 
     group_size:     parseInt(groupSizeSelect.getValue()),
     voice_platform: voicePlatformSelect.getValue() || null,
     voice_link:     document.getElementById('voiceLink').value || null,
+    server_invite_link: (document.getElementById('serverInviteLink').value || '').trim() || null,
     use_roles:      document.getElementById('useRoles').checked,
     selections:     selections,
     selected_role:  roleVal,
@@ -981,8 +971,7 @@ document.getElementById('createGroupForm').addEventListener('submit', async (e) 
   }
 
   if (formData.use_roles) {
-    const SURVIVAL_GAME_TYPES = ['palworld', 'enshrouded', 'valheim', 'rust', 'vrising'];
-    if (SURVIVAL_GAME_TYPES.includes(currentGameType)) {
+    if (_submitIsSurvival) {
       // Survival: use fixed defaults, always send the survival schema
       const d = SCHEMA_SLOT_DEFAULTS.survival;
       formData.tanks_needed   = d.tank;
