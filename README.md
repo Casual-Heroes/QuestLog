@@ -1,6 +1,6 @@
 # Casual Heroes - QuestLog
 
-A full-stack web platform for gaming communities. Includes a public-facing site, the QuestLog social platform (profiles, posts, communities, LFG, game discovery, XP/flair system), game server management via AMP, Discord bot integration, and admin tooling.
+A full-stack web platform for gaming communities. Includes a public-facing site, the QuestLog social platform (profiles, posts, communities, LFG, game discovery, XP/flair system), game server management via AMP, multi-platform bot integration, a real-time chat system (QuestChat), 7 Days to Die game event integration, and admin tooling.
 
 Built with Django 5.2 and SQLAlchemy on top of MySQL/MariaDB.
 
@@ -12,23 +12,59 @@ Built with Django 5.2 and SQLAlchemy on top of MySQL/MariaDB.
 - Username/password registration with email verification
 - Social feed - posts, image uploads (WebP, Pillow validated), video embeds (YouTube, Twitch, TikTok, Kick, X)
 - Likes, comments, comment likes, follows, user blocking
-- XP system, levels, rank titles, purchasable flairs
+- XP system, levels, rank titles, Legacy tier progression, purchasable flairs
 - Communities (Discovery Network) - create, join, admin approval workflow
-- LFG (Looking for Group) - create and join groups by game
+- LFG (Looking for Group) - create and join groups by game with game-specific role templates
 - Game discovery - Steam + IGDB integration
-- Creator profiles with Twitch/YouTube integration
+- Creator profiles with Twitch/YouTube/Kick integration
 - Game server status and rotation voting polls
 - Giveaways / raffles
+- Champion (supporter) status with Stripe subscription
 - Optional Steam linking (game tracking, achievements, now playing - enrichment only, not auth)
-- Optional Discord account linking
+- Optional Discord and Fluxer account linking
 - 2FA (TOTP) for users
 - GDPR data export, data summary, account deletion
+
+### QuestChat (`/ql/qc/` API + standalone React SPA)
+- Real-time chat via WebSocket gateway (Go)
+- JWT Bearer auth with auth-as-first-message (no token in URL)
+- Server/channel model, DMs between friends
+- Message edit, delete (soft), reactions, reply threading
+- Hover action toolbar, inline edit, reply bar, reaction pills
+- Unread indicators on channels and DM list
+- Flair, Legacy tier, and display name synced from QuestLog profile
+- Friends system: add, accept/decline, remove, cancel pending request
+- Block and ignore with DM lockout
+- Per-server welcome messages set by owners
+- Server moderation: kick and ban from right-click member context menu
+- XP awarded per chat message (60s cooldown), unified with QuestLog XP system
+- User/DM reporting with categorized reason codes
+- Platform bad-actor registry for cross-server abuse tracking
+
+### Bot Dashboards
+- **Fluxer bot dashboard** (`/ql/fluxer/`) - web panel for the QuestLog Fluxer bot (Fluxer platform)
+  - XP, welcome messages, moderation, LFG, live alerts, reaction roles, verification, bridge config, raffles, scheduled messages, audit log, flair management
+- **Discord bot dashboard** (`/ql/discord/`) - web panel for the QuestLog Discord bot (WardenBot)
+- **Matrix dashboard** (`/ql/matrix/`) - web panel for the QuestLogMatrix bot
+  - Room management, member list, XP, moderation, welcome config, ban lists, RSS feeds
+
+### Discord-Fluxer-Matrix Bridge
+- Real-time cross-platform chat relay between Discord, Fluxer, and Matrix
+- Message map, edit sync, delete sync, reaction sync, typing relay
+- Per-guild bridge configuration
+
+### 7 Days to Die / Project SYNAPSE Integration
+- C# game mod sends kill/death/zone/artifact events to Django via internal API
+- Kill assists tracked via damage ledger
+- Artifact unlock, loadout equip/unequip system
+- SYNAPSE player profiles at `/ql/synapse/<username>/`
+- Legacy event recording for SYNAPSE-specific progression
 
 ### Main Site
 - Game server status page (AMP/CubeCoders integration)
 - Games we play, game suggestions, guides, hosting info
 - RSS/article integration
-- Markdown documentation viewer (selfhost guide)
+- Markdown documentation viewer
 
 ### Admin Panel (`/ql/admin/`)
 - 5-layer security: honeypot, timing check, Cloudflare Turnstile CAPTCHA, Django auth, WebUser admin check
@@ -40,6 +76,7 @@ Built with Django 5.2 and SQLAlchemy on top of MySQL/MariaDB.
 - XP leaderboard
 - RSS feed management
 - Maintenance mode toggle
+- QuestChat bad-actor registry (add, bulk import CSV, list)
 
 ### Security
 - CSRF protection on all state-changing requests
@@ -52,6 +89,7 @@ Built with Django 5.2 and SQLAlchemy on top of MySQL/MariaDB.
 - Secrets stored outside repo in `/etc/your-org/secrets.env`
 - SRI on all fixed CDN resources (Alpine.js, Font Awesome, DOMPurify)
 - Content-Security-Policy, HSTS, X-Frame-Options, X-Content-Type-Options headers
+- Internal service endpoints gated by `QC_INTERNAL_SECRET` + loopback-only REMOTE_ADDR check
 
 ---
 
@@ -63,19 +101,23 @@ Built with Django 5.2 and SQLAlchemy on top of MySQL/MariaDB.
 | ORM | SQLAlchemy 2.0 (not Django ORM) |
 | Database | MySQL / MariaDB |
 | Frontend | Tailwind CSS (dark theme), vanilla JS, Alpine.js |
+| Chat SPA | React 18 + Vite |
+| Chat Gateway | Go (WebSocket hub, goroutine per client) |
 | Images | Pillow (WebP conversion + validation) |
 | Auth | Django built-in (username/password) |
 | Rate limiting | django-ratelimit |
 | Sanitization | bleach, Pillow |
 | Encryption | cryptography (Fernet) for OAuth tokens |
 | Captcha | Cloudflare Turnstile |
-| Payments | Stripe (optional) |
+| Payments | Stripe |
+| Data | pandas, numpy (leaderboard, bulk imports) |
+| JWT | PyJWT (QuestChat API tokens) |
 
 ---
 
 ## Related Repos
 
-- [Casual-Heroes/QuestLog-Bot](https://github.com/Casual-Heroes/QuestLog-Bot) - Discord bot that pairs with this platform
+- [Casual-Heroes/QuestLog-Bot](https://github.com/Casual-Heroes/QuestLog-Bot) - Discord bot (WardenBot) that pairs with this platform
 
 ---
 
@@ -85,6 +127,8 @@ Built with Django 5.2 and SQLAlchemy on top of MySQL/MariaDB.
 
 - Python 3.11+
 - MySQL / MariaDB 8+
+- Go 1.21+ (for QuestChat gateway, optional)
+- Node.js 18+ (for QuestChat React SPA, optional)
 - A Cloudflare Turnstile site key (free) for CAPTCHA on registration/admin login
 
 ### 1. Clone and install
@@ -128,18 +172,23 @@ python manage.py migrate
 
 ### 5. Run SQLAlchemy migration scripts
 
-These create the QuestLog-specific tables (SQLAlchemy models, not Django migrations):
+These create the QuestLog-specific tables (SQLAlchemy models, not Django migrations).
+Run each with `venv/bin/python3 <script>` from the project root:
 
 ```bash
-python app/questlog_web/scripts/create_hero_points_tables.py
-python app/questlog_web/scripts/create_referral_tables.py
-python app/questlog_web/scripts/create_rss_feed_settings.py
-python app/questlog_web/scripts/create_steam_now_playing.py
-python app/questlog_web/scripts/create_user_totp_table.py
-python app/questlog_web/scripts/create_xp_flair_tables.py
-python app/questlog_web/scripts/create_server_poll_tables.py
-python app/questlog_web/scripts/create_platform_types_update.py
-python app/questlog_web/scripts/create_user_prefs_columns.py
+python create_hero_points_tables.py
+python create_referral_tables.py
+python create_rss_feed_settings.py
+python create_steam_now_playing.py
+python create_user_totp_table.py
+python create_xp_flair_tables.py
+python create_server_poll_tables.py
+python create_platform_types_update.py
+python create_user_prefs_columns.py
+python create_fluxer_webhook_tables.py
+python create_giveaway_tables.py
+python create_early_access_codes.py
+python create_community_bot_config_table.py
 ```
 
 ### 6. Create a superuser
@@ -157,6 +206,27 @@ python manage.py runserver
 ```
 
 QuestLog is at `http://localhost:8000/ql/`.
+
+### 8. QuestChat (optional)
+
+The chat system has two additional components, each in their own repo/directory:
+
+**Go gateway** (WebSocket server):
+```bash
+cd questchat-server
+go build ./...
+QC_INTERNAL_SECRET=your-secret ./questchat-server
+```
+
+**React SPA** (chat frontend):
+```bash
+cd questchat-web
+npm install
+npm run build
+# Serve dist/ behind your web server at questchat.yourdomain.com
+```
+
+Both require `QC_INTERNAL_SECRET` to match the value set in Django's environment.
 
 ---
 
@@ -220,12 +290,18 @@ Copy `.env.example` for the full list. Key variables:
 | `DISCORD_CLIENT_SECRET` | Discord OAuth2 client secret |
 | `DISCORD_REDIRECT_URI_QL` | Discord OAuth2 callback URL for QuestLog linking |
 
+### QuestChat
+
+| Variable | Description |
+|---|---|
+| `QC_INTERNAL_SECRET` | Shared secret between Django and the Go gateway for internal service calls |
+
 ### Optional Integrations
 
 | Variable | Description |
 |---|---|
 | `IGDB_CLIENT_ID` / `IGDB_CLIENT_SECRET` | IGDB game database (Twitch dev credentials) |
-| `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` | Stripe for donations/payments |
+| `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` | Stripe for Champion subscriptions |
 | `YOUTUBE_CLIENT_ID` / `YOUTUBE_CLIENT_SECRET` / `YOUTUBE_API_KEY` | YouTube OAuth for creator profiles |
 | `TWITCH_CLIENT_ID` / `TWITCH_CLIENT_SECRET` | Twitch OAuth for creator profiles |
 | `EMAIL_HOST_USER` / `EMAIL_HOST_PASSWORD` | SMTP (Gmail app password) for verification emails |
@@ -239,34 +315,43 @@ Copy `.env.example` for the full list. Key variables:
 ```
 platform/
 - app/
-  - questlog_web/          - QuestLog social platform app
-    - models.py            - SQLAlchemy ORM models (all web_ prefixed tables)
-    - helpers.py           - XP, flairs, audit logging, serialization
-    - urls.py              - URL patterns (all under /ql/)
-    - views_auth.py        - Registration, login, logout, 2FA, OAuth callbacks
-    - views_pages.py       - Feed, home, game servers, polls
-    - views_social.py      - Posts, comments, likes, follows, blocks, notifications
-    - views_profile.py     - Profile editing, account deletion, GDPR export
-    - views_admin.py       - Admin panel APIs
-    - views_discovery.py   - Communities, LFG, creators, games, articles
-    - views_uploads.py     - Image upload handling (Pillow + WebP)
-    - amp_utils.py         - AMP game server panel utilities
-    - steam_auth.py        - Steam OpenID (optional enrichment, not auth)
-    - steam_search.py      - Steam game search
-    - scripts/             - One-time SQLAlchemy migration scripts
+  - questlog_web/              - QuestLog social platform app
+    - models.py                - SQLAlchemy ORM models (101 tables, all web_ prefixed)
+    - helpers.py               - XP, flairs, audit logging, serialization, safe_int
+    - urls.py                  - URL patterns (all under /ql/)
+    - views_auth.py            - Registration, login, logout, 2FA, OAuth callbacks
+    - views_pages.py           - Feed, home, LFG, game servers, polls
+    - views_social.py          - Posts, comments, likes, follows, blocks, notifications
+    - views_profile.py         - Profile editing, account deletion, GDPR export
+    - views_admin.py           - Admin panel APIs
+    - views_discovery.py       - Communities, LFG browse, creators, games, articles
+    - views_uploads.py         - Image upload handling (Pillow + WebP)
+    - views_billing.py         - Stripe Champion subscription
+    - views_2fa.py             - TOTP two-factor auth
+    - views_bot_dashboard.py   - Fluxer + Discord bot web dashboards
+    - views_matrix_dashboard.py - Matrix (QuestChat) bot web dashboard
+    - views_questchat.py       - QuestChat REST API (JWT Bearer, 34+ endpoints)
+    - views_internal.py        - Internal APIs for bot-to-site communication
+    - views_7dtd.py            - 7 Days to Die / SYNAPSE game event API + profiles
+    - amp_utils.py             - AMP game server panel utilities
+    - steam_auth.py            - Steam OpenID (optional enrichment, not auth)
+    - steam_search.py          - Steam game search
+    - scripts/                 - One-time SQLAlchemy migration scripts (run manually)
     - templates/
-      - questlog_web/      - All QuestLog HTML templates
-        - partials/        - Shared components (sidebar, post card, custom select)
-  - templates/             - Main site templates (non-QuestLog pages)
-  - views.py               - Main site views (game servers, home, etc.)
-  - urls.py                - Main site URL config
-  - db.py                  - SQLAlchemy engine + session factory (get_db_session)
-  - middleware.py           - Domain redirect middleware
-  - security_middleware.py  - Maintenance mode middleware
-  - rss_utils.py           - SSRF-protected RSS fetcher
+      - questlog_web/          - All QuestLog HTML templates
+        - partials/            - Shared components (sidebar, post card, custom select)
+  - templates/                 - Main site templates (non-QuestLog pages)
+    - questlog/                - Bot dashboard templates
+  - views.py                   - Main site views (game servers, home, etc.)
+  - urls.py                    - Main site URL config
+  - db.py                      - SQLAlchemy engine + session factory (get_db_session)
+  - middleware.py               - Domain redirect middleware
+  - security_middleware.py      - Maintenance mode middleware
+  - rss_utils.py               - SSRF-protected RSS fetcher
 - casualsite/
-  - settings.py            - Django settings
-  - urls.py                - Root URL config (includes /ql/ and main site)
+  - settings.py                - Django settings (gitignored)
+  - urls.py                    - Root URL config
+- create_*.py                  - SQLAlchemy migration scripts (run from project root)
 - requirements.txt
 - manage.py
 - .env.example
@@ -276,28 +361,32 @@ platform/
 
 ## Architecture Notes
 
-- **ORM**: SQLAlchemy for all QuestLog tables. Django ORM only for Django auth (sessions, users).
+- **ORM**: SQLAlchemy for all QuestLog tables (101 models). Django ORM only for Django auth (sessions, users).
 - **Timestamps**: Unix epoch `BigInteger` (`int(time.time())`) - not `DateTimeField`.
 - **JSON columns**: Stored as `Text`, parsed with `json.loads()`.
+- **IDs**: `Integer` autoincrement - no UUIDs.
 - **DB access**: `with get_db_session() as db:` context manager.
 - **Decorators**: `@web_login_required`, `@web_admin_required`, `@add_web_user_context`.
 - **Rate limiting**: `django-ratelimit` on all write/auth endpoints.
-- **Images**: Uploaded images are Pillow-validated, EXIF-stripped, and converted to WebP before saving to `media/uploads/`. Videos are embed-only (YouTube, Twitch, TikTok, Kick, X, Instagram).
+- **Safe parsing**: `safe_int(value, default, min_val, max_val)` in `helpers.py` - use for all request params.
+- **Images**: Pillow-validated, EXIF-stripped, converted to WebP, saved to `media/uploads/`. Videos are embed-only.
 - **Secrets**: Never in the repo. In development use `.env`. In production place at `/etc/your-org/secrets.env` (owner root, group www-data, mode 640).
-- **Template directories**: `settings.py` is gitignored. After cloning, ensure `casualsite/settings.py` has both template paths in `DIRS`:
+- **Template directories**: `settings.py` is gitignored. Ensure `casualsite/settings.py` has both paths in `DIRS`:
   ```python
   'DIRS': [
       os.path.join(BASE_DIR, 'app', 'templates'),
       os.path.join(BASE_DIR, 'app', 'questlog_web', 'templates'),
   ],
   ```
-  The main site templates live in `app/templates/` and the QuestLog app templates live in `app/questlog_web/templates/`. Both are required.
+- **Two separate bots**: WardenBot = Discord bot. QuestLogFluxer = Fluxer bot. IDs are never interchangeable.
+- **QuestChat gateway**: Go WebSocket server using hub pattern (goroutine per client). Auth via first-message token frame. Scales to multiple nodes via Redis pub/sub swap in `hub.go`.
+- **Internal APIs**: Service-to-service calls (Go gateway -> Django XP, bot -> site) are gated by `QC_INTERNAL_SECRET` header + loopback REMOTE_ADDR check. Never exposed through Nginx.
 
 ---
 
 ## Cron Jobs
 
-Add to crontab for GDPR data cleanup (hard-deletes soft-deleted posts/comments after 90 days, prunes old notifications and audit logs):
+GDPR cleanup - hard-deletes soft-deleted content after 90 days, prunes old notifications and audit logs:
 
 ```
 0 3 * * * /path/to/venv/bin/python /path/to/manage.py cleanup_deleted_content >> /path/to/logs/cleanup.log 2>&1
@@ -309,8 +398,9 @@ Add to crontab for GDPR data cleanup (hard-deletes soft-deleted posts/comments a
 
 This project runs in production behind Nginx + Gunicorn. A typical setup:
 
-- **Nginx**: Reverse proxy, SSL termination, static file serving
+- **Nginx**: Reverse proxy, SSL termination, static file serving, serves QuestChat SPA `dist/` folder
 - **Gunicorn**: WSGI server (4-8 workers depending on CPU)
+- **Go gateway**: Runs as a systemd service, proxied from Nginx at `/ws`
 - **MariaDB**: Database (can run on same or separate host)
 - **Cloudflare**: CDN, DDoS protection, Turnstile CAPTCHA
 - **Let's Encrypt**: TLS certificates via Certbot
@@ -319,38 +409,22 @@ For game server management, [AMP by CubeCoders](https://cubecoders.com/AMP) mana
 
 ### AMP vs Pterodactyl
 
-This platform currently uses **AMP (CubeCoders)**. AMP is commercial (one-time license fee) but extremely feature-rich: native support for dozens of games, built-in scheduler, backups, console access, automatic updates, and a REST API. It is more capable out of the box than any open-source alternative for serious multi-game hosting.
+This platform currently uses **AMP (CubeCoders)**. AMP is commercial (one-time license fee) but extremely feature-rich: native support for dozens of games, built-in scheduler, backups, console access, automatic updates, and a REST API.
 
-**[Pterodactyl](https://pterodactyl.io/)** is the most popular open-source alternative. It is Docker-based, free, has a large community, and is widely adopted for Minecraft/general hosting. If you want to swap AMP out for Pterodactyl:
+**[Pterodactyl](https://pterodactyl.io/)** is the most popular open-source alternative. To swap AMP for Pterodactyl:
 
 - Remove `app/questlog_web/amp_utils.py` and the AMP config from `app/views.py`
 - Replace with Pterodactyl's API client (community Python SDKs available)
-- Update the game server status views in `app/views.py` (`game_servers_ql`, `fetch_instance_data`) to call the Pterodactyl API instead
+- Update the game server status views in `app/views.py` to call the Pterodactyl API
 
-The game server voting/poll system in QuestLog (`WebServerPoll`) is completely independent of AMP/Pterodactyl and requires no changes.
+The game server voting/poll system (`WebServerPoll`) is independent of AMP/Pterodactyl and requires no changes.
 
-**Why AMP was chosen for this project:**
-AMP was selected for its ease of use. Installing a new game server in AMP is a few clicks - pick a game, configure ports, hit deploy. There is no Docker knowledge required, no writing custom "eggs" or container definitions, and no managing Wings nodes. For a community that rotates between many different games (7 Days to Die, Valheim, V Rising, Enshrouded, etc.), AMP's native support for dozens of games out of the box made it significantly faster to get servers up and running. The built-in web console, automated update scheduling, and one-click backup system also reduce operational overhead compared to Pterodactyl.
-
-**Can every AMP feature be replicated in Pterodactyl?** Yes, but with more work:
-- Game server instances - supported via Docker eggs (community-maintained)
-- Console access - available in Pterodactyl's panel
-- Automated updates - can be scripted via startup commands or install scripts
-- Backups - available via Pterodactyl's backup system (local or S3)
-- Scheduling - available via Pterodactyl's schedule manager
-- REST API - Pterodactyl has a full application + client API
-
-The platform integration (`amp_utils.py`) would need to be rewritten to use Pterodactyl's API, but all the QuestLog features (game server voting polls, server status display, game rotation) would work identically after the API swap.
-
-**Trade-offs:**
 | | AMP | Pterodactyl |
 |---|---|---|
 | Cost | Paid license | Free / open source |
 | Game support | 100+ games natively | Community Docker eggs |
 | Setup complexity | Low (wizard-based) | Higher (Docker, Wings nodes) |
 | API | REST + WebSocket | REST |
-| Backups | Built-in | Built-in |
-| Update management | Built-in scheduler | Startup scripts |
 | Best for | Ease of use, multi-game hosting | Open source, Docker-native setups |
 
 ---
@@ -361,7 +435,9 @@ Registration and login use Django's built-in username/password system. Email ver
 
 Steam is an **optional enrichment** feature only - users can link their Steam account after registration to unlock game tracking (hours played, achievements, now playing). Steam is never used for authentication.
 
-Discord can optionally be linked for account features. The admin panel uses a separate hardened login flow with 5 security layers.
+Discord and Fluxer can optionally be linked for account features and bot integration. The admin panel uses a separate hardened login flow with 5 security layers.
+
+QuestChat uses short-lived JWT Bearer tokens issued by `POST /ql/qc/auth/token/` after Django credential verification. Tokens are sent as the first WebSocket frame (not in the URL) to avoid log exposure.
 
 ---
 
