@@ -2404,10 +2404,28 @@ function initializeFilterDropdowns() {
 }
 
 // Load game-specific roles/classes from templates
+const _SURVIVAL_GAME_NAMES = ['palworld','valheim','rust','enshrouded','v rising','vrising','7 days','7dtd'];
+function _isSurvivalGame(name) {
+  if (!name) return false;
+  const n = name.toLowerCase();
+  return _SURVIVAL_GAME_NAMES.some(s => n.includes(s));
+}
+
 async function loadGameRoles(gameName) {
   document.getElementById('classSelectionContainer').classList.add('hidden');
   document.getElementById('specSelectionContainer').classList.add('hidden');
   document.getElementById('roleSelectionContainer').classList.add('hidden');
+  // Hide role composition for survival games
+  const roleCompSection = document.getElementById('roleCompositionSection');
+  if (roleCompSection) {
+    if (_isSurvivalGame(gameName)) {
+      roleCompSection.classList.add('hidden');
+      document.getElementById('enableRoleComposition').checked = false;
+      document.getElementById('roleCompositionFields').classList.add('hidden');
+    } else {
+      roleCompSection.classList.remove('hidden');
+    }
+  }
 
   if (!gameName) return;
 

@@ -21,14 +21,16 @@ from .views_auth import (
 )
 from .views_pages import (
     home,
+    discover,
     lfg_browse, lfg_calendar, lfg_create, lfg_my_groups, lfg_group_detail, lfg_group_detail_token,
     lfg_join, lfg_leave, lfg_edit, lfg_update_member, lfg_delete, lfg_kick, lfg_set_co_leader,
-    network, network_leaderboard, api_leaderboard_top, games, creators, articles, gamers,
+    network, network_leaderboard, api_leaderboard_top, games, creators, creator_profile, articles, gamers,
     communities, community_register, community_detail, community_guidelines,
-    profile, profile_edit, creator_register, settings, hero_shop,
+    profile, profile_edit, creator_register, settings, hero_shop, public_legacy,
     game_servers_ql,
     api_active_poll, api_poll_vote,
-    giveaways_page,
+    giveaways_page, legacy_page, legacy_nominate, api_legacy_nominate,
+    api_internal_close_nominations,
     fluxer_member_portal,
     fluxer_guild_member_profile,
     fluxer_guild_member_raffles,
@@ -49,26 +51,31 @@ from .views_pages import (
     api_fluxer_member_lfg_kick,
     api_fluxer_member_lfg_ban,
 )
-from .views_internal import api_internal_bot_config, api_internal_broadcast_lfg, api_internal_guild_names, api_internal_bridge_relay, api_internal_bridge_pending, api_internal_bridge_message_map, api_internal_bridge_thread_map, api_internal_bridge_reaction, api_internal_bridge_pending_reactions, api_internal_bridge_delete, api_internal_bridge_pending_deletions, api_internal_bridge_typing, api_internal_guild_roles, api_internal_guild_sync, api_internal_guild_remove, api_internal_guild_actions_pending, api_internal_guild_action_done, api_bridge_media_proxy
+from .views_questchat import qc_auth_token, qc_me, qc_guilds
+
+from .views_internal import api_internal_bot_config, api_internal_broadcast_lfg, api_internal_guild_names, api_internal_bridge_relay, api_internal_bridge_pending, api_internal_bridge_message_map, api_internal_bridge_thread_map, api_internal_bridge_reaction, api_internal_bridge_pending_reactions, api_internal_bridge_delete, api_internal_bridge_pending_deletions, api_internal_bridge_edit, api_internal_bridge_pending_edits, api_internal_bridge_typing, api_internal_guild_roles, api_internal_guild_sync, api_internal_guild_remove, api_internal_guild_actions_pending, api_internal_guild_action_done, api_bridge_media_proxy
 from .views_billing import hero_subscribe, hero_success, hero_return, api_hero_checkout, api_stripe_webhook, hero_portal
+from .views_7dtd import api_7dtd_event, api_7dtd_zone_enter, api_7dtd_artifact_unlock, synapse_profile, api_synapse_equip_artifact, api_synapse_unequip_artifact
 from .views_bot_dashboard import (
     unified_dashboard,
     fluxer_dashboard, fluxer_guild_dashboard, api_fluxer_guild_settings,
     api_bot_dashboard_configs, api_bot_dashboard_config_detail,
     fluxer_guild_xp, fluxer_guild_welcome, fluxer_guild_moderation,
     fluxer_guild_lfg, fluxer_guild_settings_page, fluxer_guild_bridge,
+    fluxer_guild_spotlight,
     fluxer_guild_verification, fluxer_guild_reaction_roles, fluxer_guild_trackers,
     fluxer_guild_live_alerts,
     fluxer_guild_audit, api_fluxer_audit_logs, fluxer_guild_roles, fluxer_guild_messages,
     fluxer_guild_templates_page, fluxer_guild_discovery, fluxer_guild_raffles,
     fluxer_guild_flair,
     fluxer_guild_lfg_attendance, fluxer_guild_lfg_calendar,
+    fluxer_guild_game_servers,
     fluxer_guild_soon,
     # Fluxer guild API endpoints
     api_fluxer_reaction_roles, api_fluxer_reaction_role_detail,
     api_fluxer_guild_raffles, api_fluxer_guild_raffle_pick, api_fluxer_guild_raffle_detail,
     api_fluxer_guild_bridges, api_fluxer_guild_bridge_detail,
-    api_fluxer_guild_channels, api_fluxer_guild_roles,
+    api_fluxer_guild_channels, api_fluxer_guild_roles, api_fluxer_guild_request_sync,
     api_fluxer_guild_trackers, api_fluxer_guild_tracker_detail,
     api_fluxer_discovery_rss, api_fluxer_discovery_rss_detail,
     api_fluxer_discovery_rss_force_send, api_fluxer_discovery_rss_preview,
@@ -100,8 +107,11 @@ from .views_bot_dashboard import (
     fluxer_guild_leaderboards, fluxer_guild_member_profile_page, fluxer_guild_featured_creators,
     api_fluxer_guild_lfg_groups, api_fluxer_guild_lfg_group_detail, api_fluxer_guild_lfg_group_kick,
     api_fluxer_guild_lfg_member_update,
-    # Live Alerts - streamer subscriptions
+    # Live Alerts - streamer subscriptions (Fluxer)
     api_fluxer_guild_streamer_subs, api_fluxer_guild_streamer_sub_detail,
+    # Live Alerts - Discord
+    discord_guild_live_alerts,
+    api_discord_guild_streamer_subs, api_discord_guild_streamer_sub_detail,
     # Game discovery (IGDB-based)
     api_fluxer_guild_game_search_configs, api_fluxer_guild_game_search_config_detail,
     api_fluxer_guild_found_games, api_fluxer_guild_igdb_keywords,
@@ -160,6 +170,7 @@ from .views_admin import (
     api_admin_giveaway_launch, api_admin_giveaway_close, api_admin_giveaway_pick_winner,
     api_admin_fluxer_webhooks, api_admin_fluxer_webhook_detail, api_admin_fluxer_webhook_test,
     api_admin_fluxer_guilds,
+    api_admin_broadcast_users, api_admin_broadcast_user_detail,
     api_admin_fluxer_subscribers, api_admin_fluxer_subscriber_detail,
     api_admin_fluxer_guild_detail, api_admin_fluxer_guild_channels,
     api_admin_discord_guild_channels,
@@ -170,6 +181,16 @@ from .views_admin import (
     api_admin_bridge_configs, api_admin_bridge_config_detail,
     api_admin_emoji, api_admin_emoji_detail,
     api_admin_bot_stats,
+    api_quest_control_discord_lookup,
+    api_quest_control_schedule,
+    api_quest_control_channels,
+    api_quest_control_toggles,
+    api_quest_control_server_settings,
+    api_quest_control_server_status,
+    api_quest_control_server_action,
+    api_quest_control_god_action,
+    api_quest_control_send_embed,
+    api_quest_control_claim,
 )
 from .views_discovery import (
     api_lfg_list, api_lfg_detail,
@@ -183,6 +204,7 @@ from .views_discovery import (
     api_lfg_fluxer_guild_reopen, api_lfg_fluxer_guild_my_closed,
     api_lfg_fluxer_guild_join, api_lfg_fluxer_guild_leave,
     api_community_leave_network, api_community_rejoin_network, api_community_set_primary,
+    api_top_posts,
 )
 from .views_uploads import (
     api_upload_image, api_upload_avatar, api_upload_banner,
@@ -316,11 +338,13 @@ urlpatterns = [
     path('lfg/<int:group_id>/set-co-leaders/',                lfg_set_co_leader, name='questlog_web_lfg_set_co_leader'),
 
     # Discovery
+    path('discover/', discover, name='questlog_web_discover'),
     path('network/', network, name='questlog_web_network'),
     path('leaderboard/', network_leaderboard, name='questlog_web_leaderboard'),
     path('api/leaderboard/top/', api_leaderboard_top, name='questlog_web_api_leaderboard_top'),
     path('games/', games, name='questlog_web_games'),
     path('creators/', creators, name='questlog_web_creators'),
+    path('creators/<str:username>/', creator_profile, name='questlog_web_creator_profile'),
     path('articles/', articles, name='questlog_web_articles'),
     path('gamers/', gamers, name='questlog_web_gamers'),
 
@@ -341,6 +365,16 @@ urlpatterns = [
     # Admin (site admin only - multi-layer security)
     path('admin/', admin_panel, name='questlog_web_admin'),
     path('admin/verify/', admin_verify_pin, name='questlog_web_admin_verify'),
+    path('api/admin/quest-control/discord/', api_quest_control_discord_lookup, name='questlog_web_api_qc_discord'),
+    path('api/admin/quest-control/schedule/', api_quest_control_schedule, name='questlog_web_api_qc_schedule'),
+    path('api/admin/quest-control/channels/', api_quest_control_channels, name='questlog_web_api_qc_channels'),
+    path('api/admin/quest-control/toggles/', api_quest_control_toggles, name='questlog_web_api_qc_toggles'),
+    path('api/admin/quest-control/server/settings/', api_quest_control_server_settings, name='questlog_web_api_qc_server_settings'),
+    path('api/admin/quest-control/server/status/', api_quest_control_server_status, name='questlog_web_api_qc_server_status'),
+    path('api/admin/quest-control/server/action/', api_quest_control_server_action, name='questlog_web_api_qc_server_action'),
+    path('api/admin/quest-control/god-action/', api_quest_control_god_action, name='questlog_web_api_qc_god_action'),
+    path('api/admin/quest-control/send-embed/', api_quest_control_send_embed, name='questlog_web_api_qc_send_embed'),
+    path('api/admin/quest-control/claim/', api_quest_control_claim, name='questlog_web_api_qc_claim'),
 
     # API endpoints for AJAX
     path('api/lfg/', api_lfg_list, name='questlog_web_api_lfg'),
@@ -421,6 +455,7 @@ urlpatterns = [
 
     # Public Profiles
     path('u/<str:username>/', public_profile, name='questlog_web_public_profile'),
+    path('u/<str:username>/legacy/', public_legacy, name='questlog_web_public_legacy'),
     path('u/<str:username>/followers/', public_profile_followers, name='questlog_web_public_profile_followers'),
     path('u/<str:username>/following/', public_profile_following, name='questlog_web_public_profile_following'),
 
@@ -442,6 +477,7 @@ urlpatterns = [
 
     # Home Activity API
     path('api/activity/', api_recent_activity, name='questlog_web_api_activity'),
+    path('api/posts/top/', api_top_posts, name='questlog_web_api_top_posts'),
 
     # Like API
     path('api/posts/<int:post_id>/pin/', api_post_pin, name='questlog_web_api_post_pin'),
@@ -547,6 +583,13 @@ urlpatterns = [
     path('api/privacy/delete/', api_privacy_delete, name='questlog_web_api_privacy_delete'),
 
     # =========================================================================
+    # LEGACY
+    # =========================================================================
+    path('legacy/', legacy_page, name='questlog_web_legacy'),
+    path('legacy/nominate/', legacy_nominate, name='questlog_web_legacy_nominate'),
+    path('api/legacy/nominate/', api_legacy_nominate, name='questlog_web_api_legacy_nominate'),
+    path('api/internal/close-nominations/', api_internal_close_nominations, name='questlog_web_api_close_nominations'),
+
     # GIVEAWAYS
     # =========================================================================
     path('giveaways/', giveaways_page, name='questlog_web_giveaways'),
@@ -567,6 +610,8 @@ urlpatterns = [
     path('api/admin/fluxer-webhooks/<int:config_id>/', api_admin_fluxer_webhook_detail, name='questlog_web_api_admin_fluxer_webhook_detail'),
     path('api/admin/fluxer-webhooks/<int:config_id>/test/', api_admin_fluxer_webhook_test, name='questlog_web_api_admin_fluxer_webhook_test'),
     path('api/admin/fluxer-guilds/', api_admin_fluxer_guilds, name='questlog_web_api_admin_fluxer_guilds'),
+    path('api/admin/broadcast-users/', api_admin_broadcast_users, name='questlog_web_api_admin_broadcast_users'),
+    path('api/admin/broadcast-users/<int:user_id>/', api_admin_broadcast_user_detail, name='questlog_web_api_admin_broadcast_user_detail'),
 
     # Admin: Fluxer Network Subscribers (all communities subscribed via bot)
     path('api/admin/fluxer-subscribers/', api_admin_fluxer_subscribers, name='questlog_web_api_admin_fluxer_subscribers'),
@@ -606,6 +651,7 @@ urlpatterns = [
     path('dashboard/fluxer/<str:guild_id>/leaderboards/',      fluxer_guild_leaderboards,          name='fluxer_guild_leaderboards'),
     path('dashboard/fluxer/<str:guild_id>/profile/',           fluxer_guild_member_profile_page,   name='fluxer_guild_member_profile_page'),
     path('dashboard/fluxer/<str:guild_id>/featured-creators/', fluxer_guild_featured_creators,     name='fluxer_guild_featured_creators'),
+    path('dashboard/fluxer/<str:guild_id>/spotlight/',         fluxer_guild_spotlight,     name='fluxer_guild_spotlight'),
     path('dashboard/fluxer/<str:guild_id>/settings/',          fluxer_guild_settings_page, name='fluxer_guild_settings_page'),
     path('dashboard/fluxer/<str:guild_id>/bridge/',            fluxer_guild_bridge,       name='fluxer_guild_bridge'),
     # Feature pages (bot integration pending for some)
@@ -620,6 +666,7 @@ urlpatterns = [
     path('dashboard/fluxer/<str:guild_id>/messages/',          fluxer_guild_messages,      name='fluxer_guild_messages'),
     path('dashboard/fluxer/<str:guild_id>/live-alerts/',       fluxer_guild_live_alerts,   name='fluxer_guild_live_alerts'),
     path('dashboard/fluxer/<str:guild_id>/flairs/',            fluxer_guild_flair,         name='fluxer_guild_flair'),
+    path('dashboard/fluxer/<str:guild_id>/game-servers/',      fluxer_guild_game_servers,  name='fluxer_guild_game_servers'),
     # API
     path('api/dashboard/fluxer/<str:guild_id>/settings/',     api_fluxer_guild_settings, name='questlog_web_api_fluxer_guild_settings'),
     path('api/dashboard/fluxer/<str:guild_id>/audit-logs/',   api_fluxer_audit_logs,     name='questlog_web_api_fluxer_audit_logs'),
@@ -638,6 +685,7 @@ urlpatterns = [
     # Guild channel/role pickers (used by trackers modal and other pages)
     path('api/dashboard/fluxer/<str:guild_id>/channels/',                                             api_fluxer_guild_channels,            name='questlog_web_api_fluxer_guild_channels'),
     path('api/dashboard/fluxer/<str:guild_id>/roles/',                                                api_fluxer_guild_roles,               name='questlog_web_api_fluxer_guild_roles'),
+    path('api/dashboard/fluxer/<str:guild_id>/request-sync/',                                         api_fluxer_guild_request_sync,        name='questlog_web_api_fluxer_guild_request_sync'),
     # Channel Stat Trackers
     path('api/dashboard/fluxer/<str:guild_id>/trackers/',                                             api_fluxer_guild_trackers,            name='questlog_web_api_fluxer_guild_trackers'),
     path('api/dashboard/fluxer/<str:guild_id>/trackers/<int:tracker_id>/',                            api_fluxer_guild_tracker_detail,      name='questlog_web_api_fluxer_guild_tracker_detail'),
@@ -680,7 +728,7 @@ urlpatterns = [
     # LFG Attendance data + CSV export
     path('api/dashboard/fluxer/<str:guild_id>/lfg/attendance/',        api_fluxer_guild_lfg_attendance,    name='questlog_web_api_fluxer_lfg_attendance'),
     path('api/dashboard/fluxer/<str:guild_id>/lfg/attendance/export/', api_fluxer_guild_attendance_export, name='questlog_web_api_fluxer_attendance_export'),
-    # Live Alerts - streamer subscriptions
+    # Live Alerts - streamer subscriptions (Fluxer)
     path('api/dashboard/fluxer/<str:guild_id>/streamer-subs/',               api_fluxer_guild_streamer_subs,       name='questlog_web_api_fluxer_streamer_subs'),
     path('api/dashboard/fluxer/<str:guild_id>/streamer-subs/<int:sub_id>/', api_fluxer_guild_streamer_sub_detail, name='questlog_web_api_fluxer_streamer_sub_detail'),
     # Game discovery (IGDB-based search configs + found games)
@@ -729,8 +777,21 @@ urlpatterns = [
     path('api/internal/bridge/pending-reactions/<str:platform>/', api_internal_bridge_pending_reactions, name='questlog_web_api_internal_bridge_pending_reactions'),
     path('api/internal/bridge/delete/', api_internal_bridge_delete, name='questlog_web_api_internal_bridge_delete'),
     path('api/internal/bridge/pending-deletions/<str:platform>/', api_internal_bridge_pending_deletions, name='questlog_web_api_internal_bridge_pending_deletions'),
+    path('api/internal/bridge/edit/', api_internal_bridge_edit, name='questlog_web_api_internal_bridge_edit'),
+    path('api/internal/bridge/pending-edits/<str:platform>/', api_internal_bridge_pending_edits, name='questlog_web_api_internal_bridge_pending_edits'),
     path('api/internal/bridge/typing/', api_internal_bridge_typing, name='questlog_web_api_internal_bridge_typing'),
     path('api/internal/bridge/media-proxy/', api_bridge_media_proxy, name='questlog_web_api_bridge_media_proxy'),
+
+    # =========================================================================
+    # 7DTD GAME EVENTS (C# mod -> Django, internal only)
+    path('api/7dtd/event/', api_7dtd_event, name='questlog_web_api_7dtd_event'),
+    path('api/7dtd/zone_enter/', api_7dtd_zone_enter, name='questlog_web_api_7dtd_zone_enter'),
+    path('api/synapse/artifact-unlock/', api_7dtd_artifact_unlock, name='questlog_web_api_7dtd_artifact_unlock'),
+
+    # SYNAPSE - player profile + artifact loadout
+    path('synapse/', synapse_profile, name='questlog_web_synapse_profile'),
+    path('api/synapse/equip/', api_synapse_equip_artifact, name='questlog_web_api_synapse_equip'),
+    path('api/synapse/unequip/', api_synapse_unequip_artifact, name='questlog_web_api_synapse_unequip'),
 
     # =========================================================================
     # HERO SUBSCRIPTION (Stripe)
@@ -805,4 +866,9 @@ urlpatterns = [
     path('api/dashboard/matrix/<str:space_id>/audit-propagate/',           api_matrix_propagate_audit,    name='questlog_web_api_matrix_audit_propagate'),
     path('api/dashboard/matrix/<str:space_id>/bridges/',                   api_matrix_bridges,            name='questlog_web_api_matrix_bridges'),
     path('api/dashboard/matrix/<str:space_id>/bridges/<int:bridge_id>/',   api_matrix_bridge_detail,      name='questlog_web_api_matrix_bridge_detail'),
+
+    # QuestChat Bridge API
+    path('qc/auth/token/',  qc_auth_token,  name='qc_auth_token'),
+    path('qc/me/',          qc_me,          name='qc_me'),
+    path('qc/guilds/',      qc_guilds,      name='qc_guilds'),
 ]

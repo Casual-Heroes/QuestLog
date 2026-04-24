@@ -77,20 +77,20 @@
         <p class="text-gray-500 text-xs mt-1">150 character limit</p>
       </div>
 
-      <div>
+      <div id="createScheduledRow">
         <label class="text-sm text-gray-300 mb-1 block">Scheduled Time (optional)</label>
         <input id="createScheduled" type="datetime-local"
                class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-green-500 transition">
         <p class="text-gray-500 text-xs mt-1">Leave empty for "play now"</p>
       </div>
 
-      <div>
+      <div id="createRecurrenceRow">
         <label class="text-sm text-gray-300 mb-1 block">Recurrence</label>
         <div id="createRecurrenceContainer"></div>
       </div>
 
       <div>
-        <label class="text-sm text-gray-300 mb-1 block">Group Size</label>
+        <label id="createMaxSizeLabel" class="text-sm text-gray-300 mb-1 block">Group Size</label>
         <input id="createMaxSize" type="number" min="2" max="100" value="4"
                class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-green-500 transition">
       </div>
@@ -142,6 +142,13 @@
         <textarea id="createDescription" rows="3" maxlength="2000"
                   placeholder="Looking for experienced players..."
                   class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-green-500 transition resize-none"></textarea>
+      </div>
+
+      <div>
+        <label class="text-sm text-gray-300 mb-1 block">Server Invite Link (optional)</label>
+        <input type="url" id="createServerInvite" placeholder="https://fluxer.app/invite/..."
+               class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-green-500 transition">
+        <p class="text-xs text-gray-500 mt-1">Add an invite so recipients can join your server from the LFG embed</p>
       </div>
 
       <!-- Post to QuestLog Network (per-group opt-in, QL Network users only) -->
@@ -704,10 +711,14 @@ function openCreateModal() {
   document.getElementById('createScheduled').value = '';
   document.getElementById('createMaxSize').value = '4';
   document.getElementById('createDescription').value = '';
+  document.getElementById('createServerInvite').value = '';
   document.getElementById('createRoleToggle').classList.add('hidden');
   document.getElementById('createRoleSection').classList.add('hidden');
   document.getElementById('createRoleEnabled').checked = false;
   document.getElementById('createGameOptions').innerHTML = '';
+  document.getElementById('createScheduledRow').classList.remove('hidden');
+  document.getElementById('createRecurrenceRow').classList.remove('hidden');
+  document.getElementById('createMaxSizeLabel').textContent = 'Group Size';
   document.getElementById('createError').classList.add('hidden');
   document.getElementById('postToNetwork').checked = false;
   // Clear pill selection
@@ -778,12 +789,15 @@ function onCreateGameChange() {
   const survivalRoleOpt = opts.find(function(o) {
     return o.name.toLowerCase() === 'role' && Array.isArray(o.choices) && o.choices.length > 0 && typeof o.choices[0] === 'object';
   });
-  // has_roles=true games (ESO, WoW) always use MMO slot grid even if they have an object-choice Role field
-  _createIsSurvival = !!survivalRoleOpt && !game.has_roles;
+  // Survival = has Server Type option OR has survival role object choices (but not an MMO with has_roles)
+  const _hasServerType = opts.some(function(o) { return o.name === 'Server Type'; });
+  _createIsSurvival = (_hasServerType || (!!survivalRoleOpt && !game.has_roles));
 
   if (_createIsSurvival) {
-    toggle.classList.remove('hidden');
-    roleHint.textContent = 'Show role composition grid on this group\'s card.';
+    toggle.classList.add('hidden');
+    document.getElementById('createScheduledRow').classList.add('hidden');
+    document.getElementById('createRecurrenceRow').classList.add('hidden');
+    document.getElementById('createMaxSizeLabel').textContent = 'Server Size';
   } else if (game.has_roles) {
     toggle.classList.remove('hidden');
     roleHint.textContent = 'Set Tank, Healer, DPS and Support slot counts.';
@@ -791,8 +805,14 @@ function onCreateGameChange() {
     document.getElementById('createHealers').value = game.healer_slots || 0;
     document.getElementById('createDps').value     = game.dps_slots    || 0;
     document.getElementById('createSupport').value = game.support_slots || 0;
+    document.getElementById('createScheduledRow').classList.remove('hidden');
+    document.getElementById('createRecurrenceRow').classList.remove('hidden');
+    document.getElementById('createMaxSizeLabel').textContent = 'Group Size';
   } else {
     toggle.classList.add('hidden');
+    document.getElementById('createScheduledRow').classList.remove('hidden');
+    document.getElementById('createRecurrenceRow').classList.remove('hidden');
+    document.getElementById('createMaxSizeLabel').textContent = 'Group Size';
   }
 
   if (!opts || opts.length === 0) return;
@@ -810,17 +830,34 @@ function onCreateGameChange() {
       '<div id="' + containerId + '"></div>';
     container.appendChild(wrapper);
 
+    if (opt.freetext) {
+      var textInput = document.createElement('input');
+      textInput.type = 'text';
+      textInput.placeholder = 'Enter ' + opt.name.toLowerCase() + '...';
+      textInput.className = 'w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:border-green-500 focus:outline-none text-sm';
+      document.getElementById(containerId).replaceWith(textInput);
+      textInput.addEventListener('input', function() {
+        if (this.value) { _createSelections[opt.name] = this.value; } else { delete _createSelections[opt.name]; }
+      });
+      return;
+    }
+
+    var _isMulti = opt.name === 'Server Type' || opt.multi === true;
+    var _maxSel = _isMulti ? (opt.maxSelections || (opt.name === 'Server Type' ? 5 : 3)) : null;
+    var _items = _isMulti
+      ? choices.map(function(c) { return { value: c, label: c }; })
+      : [{ value: '', label: '-- None --' }].concat(choices.map(function(c) { return { value: c, label: c }; }));
     createCustomSelect({
       container: '#' + containerId,
       name: 'createOpt_' + idx,
-      placeholder: '-- None --',
-      items: [{ value: '', label: '-- None --' }].concat(choices.map(function(c) {
-        return { value: c, label: c };
-      })),
-      selected: '',
+      placeholder: _isMulti ? ('Select ' + opt.name.toLowerCase() + '... (up to ' + _maxSel + ')') : '-- None --',
+      items: _items,
+      selected: _isMulti ? [] : '',
       color: 'green',
+      multiSelect: _isMulti,
+      maxSelections: _maxSel,
       onSelect: function(val) {
-        if (val) { _createSelections[opt.name] = val; } else { delete _createSelections[opt.name]; }
+        if (val && (!Array.isArray(val) || val.length > 0)) { _createSelections[opt.name] = val; } else { delete _createSelections[opt.name]; }
         // Handle depends_on chaining
         var nextOpt = opts[idx + 1];
         if (nextOpt && nextOpt.depends_on === opt.name) {
@@ -886,6 +923,7 @@ async function submitCreateGroup() {
     scheduled_time: datetimeLocalToTs(document.getElementById('createScheduled').value),
     recurrence:     _createRecurrence,
     post_to_network: document.getElementById('postToNetwork').checked,
+    server_invite_link: (document.getElementById('createServerInvite').value || '').trim() || null,
     selections:     Object.keys(_createSelections).length > 0 ? _createSelections : undefined,
     game_cover_url: game ? (game.cover_url || null) : null,
     use_roles:      roleEnabled,

@@ -43,9 +43,10 @@ yarl==1.20.0
 django-ratelimit==4.1.0
 django-csp==3.8
 # django-allauth==65.15.0  # ARCHIVED: Discord OAuth removed, kept for reference
-authlib==1.6.9
+authlib==1.6.11
 mysqlclient==2.2.7
-Pillow==12.1.1
+Pillow==12.2.0
 cryptography==46.0.5
 nltk==3.9.3
 markdown==3.10.2
+PyJWT==2.9.0
