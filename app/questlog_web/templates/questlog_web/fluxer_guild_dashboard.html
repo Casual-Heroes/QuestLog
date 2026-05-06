@@ -22,7 +22,7 @@
         </div>
         <p class="text-gray-500 text-sm font-mono mt-1">{{ guild_id }}</p>
       </div>
-      <a href="/ql/dashboard/fluxer/{{ guild_id }}/settings/"
+      <a href="/dashboard/fluxer/{{ guild_id }}/settings/"
          class="text-sm text-gray-400 hover:text-white transition flex items-center gap-2">
         <i class="fas fa-sliders-h"></i> Server Settings
       </a>
@@ -57,7 +57,7 @@
   <h2 class="text-lg font-bold text-white mb-4">Modules</h2>
   <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
 
-    <a href="/ql/dashboard/fluxer/{{ guild_id }}/xp/"
+    <a href="/dashboard/fluxer/{{ guild_id }}/xp/"
        class="bg-neutral-900 rounded-xl border border-neutral-800 hover:border-green-500/40 p-5 transition group block">
       <div class="flex items-start justify-between mb-3">
         <div class="w-10 h-10 bg-green-600/20 rounded-lg flex items-center justify-center">
@@ -70,7 +70,7 @@
       <p class="mt-2 text-xs text-gray-600">{{ settings.xp_per_message }} XP/msg &middot; {{ settings.xp_per_reaction }} XP/reaction</p>
     </a>
 
-    <a href="/ql/dashboard/fluxer/{{ guild_id }}/moderation/"
+    <a href="/dashboard/fluxer/{{ guild_id }}/moderation/"
        class="bg-neutral-900 rounded-xl border border-neutral-800 hover:border-red-500/40 p-5 transition group block">
       <div class="flex items-start justify-between mb-3">
         <div class="w-10 h-10 bg-red-600/20 rounded-lg flex items-center justify-center">
@@ -83,7 +83,7 @@
       <p class="mt-2 text-xs text-gray-600">Warn threshold: {{ settings.warn_threshold }}</p>
     </a>
 
-    <a href="/ql/dashboard/fluxer/{{ guild_id }}/welcome/"
+    <a href="/dashboard/fluxer/{{ guild_id }}/welcome/"
        class="bg-neutral-900 rounded-xl border border-neutral-800 hover:border-blue-500/40 p-5 transition group block">
       <div class="flex items-start justify-between mb-3">
         <div class="w-10 h-10 bg-blue-600/20 rounded-lg flex items-center justify-center">
@@ -96,7 +96,7 @@
       <p class="mt-2 text-xs text-gray-600">{% if settings.welcome_channel_id %}Channel set{% else %}Not configured{% endif %}</p>
     </a>
 
-    <a href="/ql/dashboard/fluxer/{{ guild_id }}/lfg/"
+    <a href="/dashboard/fluxer/{{ guild_id }}/lfg/"
        class="bg-neutral-900 rounded-xl border border-neutral-800 hover:border-green-500/40 p-5 transition group block">
       <div class="flex items-start justify-between mb-3">
         <div class="w-10 h-10 bg-green-600/20 rounded-lg flex items-center justify-center">
@@ -109,7 +109,7 @@
       <p class="mt-2 text-xs text-gray-600">{% if settings.lfg_channel_id %}Channel set{% else %}Not configured{% endif %}</p>
     </a>
 
-    <a href="/ql/dashboard/fluxer/{{ guild_id }}/bridge/"
+    <a href="/dashboard/fluxer/{{ guild_id }}/bridge/"
        class="bg-neutral-900 rounded-xl border border-neutral-800 hover:border-purple-500/40 p-5 transition group block">
       <div class="flex items-start justify-between mb-3">
         <div class="w-10 h-10 bg-purple-600/20 rounded-lg flex items-center justify-center">
@@ -122,7 +122,33 @@
       <p class="mt-2 text-xs text-gray-600">{{ stats.bridge_count }} bridge{{ stats.bridge_count|pluralize }} configured</p>
     </a>
 
-    <a href="/ql/dashboard/fluxer/{{ guild_id }}/verification/"
+    <a href="/dashboard/fluxer/{{ guild_id }}/game-servers/"
+       class="bg-neutral-900 rounded-xl border border-neutral-800 hover:border-cyan-500/40 p-5 transition group block">
+      <div class="flex items-start justify-between mb-3">
+        <div class="w-10 h-10 bg-cyan-600/20 rounded-lg flex items-center justify-center">
+          <i class="fas fa-server text-cyan-400"></i>
+        </div>
+        <span class="text-xs bg-cyan-600/20 text-cyan-400 px-2 py-0.5 rounded-full border border-cyan-700/30">Quest Control</span>
+      </div>
+      <h3 class="text-white font-semibold group-hover:text-cyan-300 transition">Game Servers</h3>
+      <p class="text-gray-500 text-xs mt-1">Manage AMP game servers, RCON, schedules.</p>
+      <p class="mt-2 text-xs text-gray-600">VQuest, 7DayQuest, ShroudQuest, ValQuest</p>
+    </a>
+
+    <a href="/dashboard/fluxer/{{ guild_id }}/spotlight/"
+       class="bg-neutral-900 rounded-xl border border-neutral-800 hover:border-yellow-500/40 p-5 transition group block">
+      <div class="flex items-start justify-between mb-3">
+        <div class="w-10 h-10 bg-yellow-600/20 rounded-lg flex items-center justify-center">
+          <i class="fas fa-dragon text-yellow-400"></i>
+        </div>
+        <span class="text-xs {% if settings.spotlight_channel_id %}bg-green-600/20 text-green-400 border-green-700/30{% else %}bg-neutral-700/60 text-gray-400 border-neutral-600/30{% endif %} px-2 py-0.5 rounded-full border">{% if settings.spotlight_channel_id %}Active{% else %}Setup needed{% endif %}</span>
+      </div>
+      <h3 class="text-white font-semibold group-hover:text-yellow-300 transition">Community Spotlight</h3>
+      <p class="text-gray-500 text-xs mt-1">Monthly Most Helpful nominations and awards.</p>
+      <p class="mt-2 text-xs text-gray-600">{% if settings.spotlight_channel_id %}Channel set{% else %}No channel configured{% endif %}</p>
+    </a>
+
+    <a href="/dashboard/fluxer/{{ guild_id }}/verification/"
        class="bg-neutral-900 rounded-xl border border-neutral-800 hover:border-purple-500/40 p-5 transition group block">
       <div class="flex items-start justify-between mb-3">
         <div class="w-10 h-10 bg-purple-600/20 rounded-lg flex items-center justify-center">
@@ -134,7 +160,7 @@
       <p class="text-gray-500 text-xs mt-1">CAPTCHA and account age checks.</p>
     </a>
 
-    <a href="/ql/dashboard/fluxer/{{ guild_id }}/reaction-roles/"
+    <a href="/dashboard/fluxer/{{ guild_id }}/reaction-roles/"
        class="bg-neutral-900 rounded-xl border border-neutral-800 hover:border-yellow-500/40 p-5 transition group block">
       <div class="flex items-start justify-between mb-3">
         <div class="w-10 h-10 bg-yellow-600/20 rounded-lg flex items-center justify-center">
@@ -146,7 +172,7 @@
       <p class="text-gray-500 text-xs mt-1">Self-assign roles via reactions.</p>
     </a>
 
-    <a href="/ql/dashboard/fluxer/{{ guild_id }}/audit/"
+    <a href="/dashboard/fluxer/{{ guild_id }}/audit/"
        class="bg-neutral-900 rounded-xl border border-neutral-800 hover:border-cyan-500/40 p-5 transition group block">
       <div class="flex items-start justify-between mb-3">
         <div class="w-10 h-10 bg-cyan-600/20 rounded-lg flex items-center justify-center">
@@ -158,7 +184,7 @@
       <p class="text-gray-500 text-xs mt-1">Track all server events.</p>
     </a>
 
-    <a href="/ql/dashboard/fluxer/{{ guild_id }}/trackers/"
+    <a href="/dashboard/fluxer/{{ guild_id }}/trackers/"
        class="bg-neutral-900 rounded-xl border border-neutral-800 hover:border-orange-500/40 p-5 transition group block">
       <div class="flex items-start justify-between mb-3">
         <div class="w-10 h-10 bg-orange-600/20 rounded-lg flex items-center justify-center">
@@ -170,7 +196,7 @@
       <p class="text-gray-500 text-xs mt-1">Live member counts and activity.</p>
     </a>
 
-    <a href="/ql/dashboard/fluxer/{{ guild_id }}/templates/"
+    <a href="/dashboard/fluxer/{{ guild_id }}/templates/"
        class="bg-neutral-900 rounded-xl border border-neutral-800 hover:border-pink-500/40 p-5 transition group block">
       <div class="flex items-start justify-between mb-3">
         <div class="w-10 h-10 bg-pink-600/20 rounded-lg flex items-center justify-center">
@@ -182,7 +208,7 @@
       <p class="text-gray-500 text-xs mt-1">Save and reuse configurations.</p>
     </a>
 
-    <a href="/ql/dashboard/fluxer/{{ guild_id }}/discovery/"
+    <a href="/dashboard/fluxer/{{ guild_id }}/discovery/"
        class="bg-neutral-900 rounded-xl border border-neutral-800 hover:border-orange-500/40 p-5 transition group block">
       <div class="flex items-start justify-between mb-3">
         <div class="w-10 h-10 bg-orange-600/20 rounded-lg flex items-center justify-center">
@@ -194,7 +220,7 @@
       <p class="text-gray-500 text-xs mt-1">Feature creators and games.</p>
     </a>
 
-    <a href="/ql/dashboard/fluxer/{{ guild_id }}/raffles/"
+    <a href="/dashboard/fluxer/{{ guild_id }}/raffles/"
        class="bg-neutral-900 rounded-xl border border-neutral-800 hover:border-yellow-500/40 p-5 transition group block">
       <div class="flex items-start justify-between mb-3">
         <div class="w-10 h-10 bg-yellow-600/20 rounded-lg flex items-center justify-center">
@@ -214,7 +240,7 @@
       <h3 class="text-white font-semibold flex items-center gap-2">
         <i class="fas fa-sliders-h text-gray-400"></i> Server Settings
       </h3>
-      <a href="/ql/dashboard/fluxer/{{ guild_id }}/settings/"
+      <a href="/dashboard/fluxer/{{ guild_id }}/settings/"
          class="text-sm text-purple-400 hover:text-purple-300 transition">All Settings &rarr;</a>
     </div>
     <div class="grid grid-cols-3 gap-4 text-sm">
