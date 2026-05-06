@@ -3,47 +3,48 @@
 {% block title %}Game Servers | QuestLog{% endblock %}
 
 {% block web_content %}
-<div class="max-w-screen-xl mx-auto px-4 py-6">
+<div class="max-w-5xl px-4 py-6">
 
   <div class="mb-8">
     <h1 class="text-3xl font-extrabold text-white mb-1">Community Game Servers</h1>
     <p class="text-gray-400 text-sm">Public servers hosted by Casual Heroes. Open to all members — jump in and say hi in Discord.</p>
   </div>
 
+
   {% if games %}
-  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+  <div class="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-6 items-stretch">
     {% for game in games %}
     <div class="rounded-2xl overflow-hidden border border-neutral-800 bg-neutral-900 group hover:shadow-[0_0_20px_#6366f1] hover:border-indigo-700/50 transition-all duration-300 flex flex-col">
 
       <!-- Banner image -->
-      <div class="relative h-44 overflow-hidden flex-shrink-0">
+      <div class="relative overflow-hidden flex-shrink-0 aspect-[2/1]">
         {% if game.custom_img %}
         <img src="{{ game.custom_img }}" alt="{{ game.name }}"
-             class="w-full h-full object-cover group-hover:scale-105 transition duration-500" />
+             class="w-full h-full object-cover object-center group-hover:scale-105 transition duration-500" />
         {% elif game.steam_header_url %}
         <img src="{{ game.steam_header_url }}" alt="{{ game.name }}"
-             class="w-full h-full object-cover group-hover:scale-105 transition duration-500" />
+             class="w-full h-full object-cover object-center group-hover:scale-105 transition duration-500" />
         {% elif game.steam_appid %}
         <img src="https://cdn.cloudflare.steamstatic.com/steam/apps/{{ game.steam_appid }}/header.jpg"
              alt="{{ game.name }}"
-             class="w-full h-full object-cover group-hover:scale-105 transition duration-500" />
+             class="w-full h-full object-cover object-center group-hover:scale-105 transition duration-500" />
         {% else %}
         <img src="{% static 'img/games/wow/dwarf.webp' %}" alt="{{ game.name }}"
-             class="w-full h-full object-cover group-hover:scale-105 transition duration-500" />
+             class="w-full h-full object-cover object-center group-hover:scale-105 transition duration-500" />
         {% endif %}
         <!-- Status badge -->
         {% if game.status_label %}
-        <span class="absolute top-3 right-3 text-xs font-bold px-2 py-1 rounded-full bg-black/60 backdrop-blur-sm {% if 'Online' in game.status_label %}text-green-400{% else %}text-red-400{% endif %}">
-          <span class="inline-block w-1.5 h-1.5 rounded-full mr-1 align-middle {% if 'Online' in game.status_label %}bg-green-400{% else %}bg-red-400{% endif %}"></span>{{ game.status_label }}
+        <span id="srv-badge-{{ game.id }}" class="absolute top-3 right-3 text-xs font-bold px-2 py-1 rounded-full bg-black/60 backdrop-blur-sm {% if 'Online' in game.status_label %}text-green-400{% else %}text-red-400{% endif %}">
+          <span class="inline-block w-1.5 h-1.5 rounded-full mr-1 align-middle {% if 'Online' in game.status_label %}bg-green-400{% else %}bg-red-400{% endif %}"></span>{% if 'Online' in game.status_label %}Online{% else %}Offline{% endif %}
         </span>
         {% endif %}
       </div>
 
       <!-- Content -->
-      <div class="p-5 flex flex-col gap-3 flex-1">
+      <div class="p-5 flex flex-col gap-3 flex-1 justify-between">
 
         <!-- Title -->
-        <h3 class="font-extrabold text-white uppercase tracking-wide text-base leading-tight">{{ game.name }}</h3>
+        <h3 class="font-extrabold text-white uppercase tracking-wide text-base leading-tight break-words">{{ game.name }}</h3>
 
         <!-- Description -->
         {% if game.description %}
@@ -54,7 +55,7 @@
         <div class="flex items-center gap-4 text-sm">
           <span class="text-gray-500">
             <i class="fas fa-users text-indigo-400 mr-1"></i>
-            <span class="text-white font-semibold">{{ game.online }}/{{ game.max }}</span>
+            <span class="text-white font-semibold"><span id="srv-online-{{ game.id }}">{{ game.online }}</span>/<span id="srv-max-{{ game.id }}">{{ game.max }}</span></span>
             <span class="text-gray-500 ml-1">players</span>
           </span>
         </div>
@@ -86,7 +87,7 @@
         {% endif %}
 
         <!-- Links -->
-        <div class="flex flex-wrap gap-2 mt-auto pt-1">
+        <div class="flex flex-wrap gap-2">
           {% if game.discord_invite %}
           {% with url=game.discord_invite %}
           {% if "discord" in url %}
@@ -95,7 +96,7 @@
           </a>
           {% elif "fluxer" in url %}
           <a href="{{ url }}" target="_blank" class="flex items-center gap-1.5 text-xs font-semibold bg-yellow-600/20 hover:bg-yellow-600/30 border border-yellow-600/40 text-yellow-400 px-3 py-1.5 rounded-lg transition">
-            <i class="fas fa-bolt"></i>Fluxer
+            <img src="{% static 'img/siteassets/fluxer-favicon.png' %}" style="width:1em;height:1em;object-fit:contain;vertical-align:middle;display:inline-block;" alt="Fluxer">Fluxer
           </a>
           {% elif "matrix" in url or "element" in url %}
           <a href="{{ url }}" target="_blank" class="flex items-center gap-1.5 text-xs font-semibold bg-green-600/20 hover:bg-green-600/30 border border-green-600/40 text-green-400 px-3 py-1.5 rounded-lg transition">
@@ -112,6 +113,12 @@
           <a href="{{ game.steam_link }}" target="_blank"
              class="flex items-center gap-1.5 text-xs font-semibold bg-neutral-700/50 hover:bg-neutral-700 border border-neutral-600/40 text-gray-300 px-3 py-1.5 rounded-lg transition">
             <i class="fas fa-external-link-alt text-xs"></i>{{ game.link_label }}
+          </a>
+          {% endif %}
+          {% if game.id == '7DTD' and web_user %}
+          <a href="{% url 'questlog_web_synapse_profile' %}"
+             class="flex items-center gap-1.5 text-xs font-semibold bg-emerald-700/20 hover:bg-emerald-700/30 border border-emerald-700/40 text-emerald-400 px-3 py-1.5 rounded-lg transition">
+            <i class="fas fa-dna text-xs"></i>SYNAPSE
           </a>
           {% endif %}
         </div>
@@ -234,7 +241,30 @@
       setTimeout(() => toast.classList.add('hidden'), 2000);
     });
   }
-  setInterval(() => { location.reload(); }, 30000);
+
+  async function pollServerStatus() {
+    try {
+      const res = await fetch('/api/gameservers/status/', { credentials: 'same-origin' });
+      if (!res.ok) return;
+      const data = await res.json();
+      (data.servers || []).forEach(s => {
+        const onlineEl = document.getElementById('srv-online-' + s.id);
+        const maxEl = document.getElementById('srv-max-' + s.id);
+        const badgeEl = document.getElementById('srv-badge-' + s.id);
+        if (onlineEl) onlineEl.textContent = s.online;
+        if (maxEl) maxEl.textContent = s.max;
+        if (badgeEl) {
+          const isOnline = s.status_label && s.status_label.includes('Online');
+          badgeEl.textContent = isOnline ? 'Online' : 'Offline';
+          badgeEl.className = badgeEl.className.replace(/text-(green|red)-400/g, isOnline ? 'text-green-400' : 'text-red-400');
+          const dot = badgeEl.querySelector('span');
+          if (dot) dot.className = dot.className.replace(/bg-(green|red)-400/g, isOnline ? 'bg-green-400' : 'bg-red-400');
+        }
+      });
+    } catch (_) {}
+  }
+
+  setInterval(pollServerStatus, 30000);
 
 {% if active_poll %}
   const POLL_SHOW_RESULTS = {{ active_poll.show_results|yesno:"true,false" }};
@@ -243,7 +273,7 @@
 
   async function castVote(pollId, optionId) {
     try {
-      const res = await fetch(`/ql/api/polls/${pollId}/vote/`, {
+      const res = await fetch(`/api/polls/${pollId}/vote/`, {
         method: 'POST',
         credentials: 'same-origin',
         headers: {

@@ -4,18 +4,18 @@
 # Mirrors the Discord guild dashboard: each feature has its own URL and template.
 #
 # URL structure:
-#   /ql/dashboard/fluxer/                            - guild list landing page
-#   /ql/dashboard/fluxer/<guild_id>/                 - per-guild overview
-#   /ql/dashboard/fluxer/<guild_id>/xp/              - XP & Leveling
-#   /ql/dashboard/fluxer/<guild_id>/welcome/         - Welcome Messages
-#   /ql/dashboard/fluxer/<guild_id>/moderation/      - Moderation
-#   /ql/dashboard/fluxer/<guild_id>/lfg/             - LFG System
-#   /ql/dashboard/fluxer/<guild_id>/bridge/          - Chat Bridge
-#   /ql/dashboard/fluxer/<guild_id>/settings/        - Server Settings
-#   /ql/dashboard/fluxer/<guild_id>/<soon>/          - Coming Soon pages
-#   /ql/api/dashboard/fluxer/<guild_id>/settings/    - GET/POST guild settings (partial update)
-#   /ql/api/dashboard/bot-configs/                   - community network sub configs (kept)
-#   /ql/api/dashboard/bot-configs/<id>/              - detail (kept)
+#   dashboard/fluxer/                            - guild list landing page
+#   dashboard/fluxer/<guild_id>/                 - per-guild overview
+#   dashboard/fluxer/<guild_id>/xp/              - XP & Leveling
+#   dashboard/fluxer/<guild_id>/welcome/         - Welcome Messages
+#   dashboard/fluxer/<guild_id>/moderation/      - Moderation
+#   dashboard/fluxer/<guild_id>/lfg/             - LFG System
+#   dashboard/fluxer/<guild_id>/bridge/          - Chat Bridge
+#   dashboard/fluxer/<guild_id>/settings/        - Server Settings
+#   dashboard/fluxer/<guild_id>/<soon>/          - Coming Soon pages
+#   api/dashboard/fluxer/<guild_id>/settings/    - GET/POST guild settings (partial update)
+#   api/dashboard/bot-configs/                   - community network sub configs (kept)
+#   api/dashboard/bot-configs/<id>/              - detail (kept)
 
 import asyncio
 import re as _re
@@ -41,9 +41,10 @@ from .models import (
     WebFluxerModWarning, WebFluxerVerificationConfig,
     WebFluxerRssFeed, WebFluxerRssArticle, WebFluxerGuildFlair, WebFluxerLevelRole, WebFluxerXpBoostEvent,
     WebFlair, WebFluxerGuildAction,
-    WebFluxerStreamerSub, WebCreatorProfile,
+    WebFluxerStreamerSub, WebDiscordStreamerSub, WebCreatorProfile,
     WebFluxerGameSearchConfig, WebFluxerFoundGame,
     FluxerChannelStatTracker,
+    WebFluxerGuildTemplate,
 )
 from django_ratelimit.decorators import ratelimit
 from .helpers import web_admin_required, web_login_required, fluxer_guild_required, fluxer_login_required, discord_guild_required, discord_login_required, add_web_user_context, safe_int, sanitize_text
@@ -186,6 +187,8 @@ def _settings_dict(s: WebFluxerGuildSettings) -> dict:
         'auto_ban_after_warns': bool(_safe('auto_ban_after_warns', 0)),
         # LFG
         'lfg_channel_id': _safe('lfg_channel_id', ''),
+        # Community Spotlight
+        'spotlight_channel_id': _safe('spotlight_channel_id', '') or '',
         # Welcome (legacy fields - now handled by WebFluxerWelcomeConfig)
         'welcome_channel_id': _safe('welcome_channel_id', ''),
         'welcome_message': _safe('welcome_message', ''),
@@ -479,8 +482,8 @@ def unified_dashboard(request):
 def discord_guild_dashboard(request, guild_id):
     """
     Per-guild Discord dashboard - delegates to the existing WardenBot guild_dashboard view.
-    The URL /ql/dashboard/discord/<guild_id>/ is also aliased directly in app/urls.py
-    so this view is only hit from the questlog_web URL conf (the /ql/ prefix).
+    The URL dashboard/discord/<guild_id>/ is also aliased directly in app/urls.py
+    so this view is only hit from the questlog_web URL conf (the  prefix).
     """
     from app.views import guild_dashboard as _guild_dashboard
     return _guild_dashboard(request, guild_id=guild_id)
@@ -791,6 +794,11 @@ def fluxer_guild_lfg(request, guild_id):
 
 
 @fluxer_guild_required
+def fluxer_guild_spotlight(request, guild_id):
+    return _guild_view(request, guild_id, 'questlog_web/fluxer_guild_spotlight.html', 'spotlight')
+
+
+@fluxer_guild_required
 def fluxer_guild_settings_page(request, guild_id):
     def _extra(db, gid):
         roles = db.query(WebFluxerGuildRole).filter_by(guild_id=gid).order_by(
@@ -880,6 +888,73 @@ def fluxer_guild_reaction_roles(request, guild_id):
     return _guild_view(request, guild_id, 'questlog_web/fluxer_guild_reaction_roles.html', 'reaction_roles', extra=_extra)
 
 
+def _fetch_twitch_avatars(user_ids: list) -> dict:
+    """Fetch profile_image_url for a list of Twitch user IDs using client credentials app token."""
+    if not user_ids:
+        return {}
+    try:
+        import requests as _req
+        from django.conf import settings as _dj
+        client_id = getattr(_dj, 'TWITCH_CLIENT_ID', '')
+        client_secret = getattr(_dj, 'TWITCH_CLIENT_SECRET', '')
+        if not client_id or not client_secret:
+            return {}
+        # Get app access token
+        token_resp = _req.post(
+            'https://id.twitch.tv/oauth2/token',
+            data={'client_id': client_id, 'client_secret': client_secret, 'grant_type': 'client_credentials'},
+            timeout=5,
+        )
+        if token_resp.status_code != 200:
+            return {}
+        app_token = token_resp.json().get('access_token', '')
+        if not app_token:
+            return {}
+        # Fetch users - up to 100 IDs per call
+        params = [('id', uid) for uid in user_ids[:100]]
+        users_resp = _req.get(
+            'https://api.twitch.tv/helix/users',
+            params=params,
+            headers={'Client-ID': client_id, 'Authorization': f'Bearer {app_token}'},
+            timeout=5,
+        )
+        if users_resp.status_code != 200:
+            return {}
+        return {u['id']: u.get('profile_image_url', '') for u in users_resp.json().get('data', [])}
+    except Exception:
+        return {}
+
+
+def _fetch_youtube_avatars(channel_ids: list) -> dict:
+    """Fetch channel thumbnail URLs for a list of YouTube channel IDs using API key."""
+    if not channel_ids:
+        return {}
+    try:
+        import requests as _req
+        from django.conf import settings as _dj
+        api_key = getattr(_dj, 'YOUTUBE_API_KEY', '')
+        if not api_key:
+            return {}
+        # Up to 50 IDs per call
+        ids_param = ','.join(channel_ids[:50])
+        resp = _req.get(
+            'https://www.googleapis.com/youtube/v3/channels',
+            params={'part': 'snippet', 'id': ids_param, 'key': api_key, 'maxResults': 50},
+            timeout=5,
+        )
+        if resp.status_code != 200:
+            return {}
+        result = {}
+        for item in resp.json().get('items', []):
+            cid = item.get('id', '')
+            thumb = (item.get('snippet', {}).get('thumbnails', {}).get('default', {}) or {}).get('url', '')
+            if cid and thumb:
+                result[cid] = thumb
+        return result
+    except Exception:
+        return {}
+
+
 @fluxer_guild_required
 def fluxer_guild_live_alerts(request, guild_id):
     def _extra(db, gid):
@@ -896,28 +971,55 @@ def fluxer_guild_live_alerts(request, guild_id):
             .limit(50)
             .all()
         )
+
+        # Only fetch from APIs for profiles that have no cached avatar_url
+        twitch_ids_needed = [c.twitch_user_id for c, _ in rows if c.twitch_user_id and not c.avatar_url]
+        youtube_ids_needed = [c.youtube_channel_id for c, _ in rows if c.youtube_channel_id and not c.avatar_url]
+
+        twitch_avatars = _fetch_twitch_avatars(twitch_ids_needed) if twitch_ids_needed else {}
+        youtube_avatars = _fetch_youtube_avatars(youtube_ids_needed) if youtube_ids_needed else {}
+
+        # Persist any newly fetched avatars back to DB so we never call the API again
+        if twitch_avatars or youtube_avatars:
+            for c, _ in rows:
+                new_avatar = None
+                if c.twitch_user_id and not c.avatar_url:
+                    new_avatar = twitch_avatars.get(c.twitch_user_id)
+                if not new_avatar and c.youtube_channel_id and not c.avatar_url:
+                    new_avatar = youtube_avatars.get(c.youtube_channel_id)
+                if new_avatar:
+                    c.avatar_url = new_avatar
+            try:
+                db.commit()
+            except Exception:
+                db.rollback()
+
         featured = []
         for c, username in rows:
             if c.twitch_user_id:
+                avatar = twitch_avatars.get(c.twitch_user_id) or c.avatar_url or ''
                 featured.append({
                     'display_name': c.twitch_display_name or c.display_name,
                     'platform': 'twitch',
                     'handle': c.twitch_user_id,
-                    'avatar_url': c.avatar_url or '',
-                    'profile_url': f'/ql/profile/{username}/',
+                    'avatar_url': avatar,
+                    'profile_url': f'profile/{username}/',
                     'follower_count': c.twitch_follower_count or 0,
                 })
             if c.youtube_channel_id:
+                avatar = youtube_avatars.get(c.youtube_channel_id) or c.avatar_url or ''
                 featured.append({
                     'display_name': c.youtube_channel_name or c.display_name,
                     'platform': 'youtube',
                     'handle': c.youtube_channel_id,
-                    'avatar_url': c.avatar_url or '',
-                    'profile_url': f'/ql/profile/{username}/',
+                    'avatar_url': avatar,
+                    'profile_url': f'profile/{username}/',
                     'follower_count': c.youtube_subscriber_count or 0,
                 })
         return {'featured_creators_json': json.dumps(featured)}
     return _guild_view(request, guild_id, 'questlog_web/fluxer_guild_live_alerts.html', 'live_alerts', extra=_extra)
+
+
 
 
 @fluxer_guild_required
@@ -1031,6 +1133,116 @@ def fluxer_guild_soon(request, guild_id):
 
 
 # ---------------------------------------------------------------------------
+# Game Servers (Quest Control) - scoped to a specific Fluxer guild
+# ---------------------------------------------------------------------------
+
+_GAME_ICONS = {
+    'V Rising':          ('fa-droplet',   'red'),
+    'Seven Days To Die': ('fa-biohazard', 'orange'),
+    'Enshrouded':        ('fa-cloud',     'purple'),
+    'Valheim':           ('fa-hammer',    'blue'),
+    'Icarus':            ('fa-mountain',  'green'),
+    'Palworld':          ('fa-paw',       'yellow'),
+}
+_DEFAULT_ICON = ('fa-server', 'cyan')
+
+
+@fluxer_guild_required
+def fluxer_guild_game_servers(request, guild_id):
+    """
+    Quest Control scoped to a Fluxer guild dashboard.
+    Reads from unified gamebot_configs table - automatically shows any
+    instance discovered from AMP, configured or not.
+    """
+    from app.db import get_engine
+    from sqlalchemy import text as sa_text2
+    engine = get_engine()
+
+    # Load Fluxer channels and roles for this guild
+    guild_channels = []
+    guild_roles = []
+    try:
+        with engine.connect() as conn:
+            ch_rows = conn.execute(sa_text2(
+                "SELECT channel_id, channel_name FROM web_fluxer_guild_channels "
+                "WHERE guild_id = :g ORDER BY channel_name"
+            ), {'g': str(guild_id)}).fetchall()
+            guild_channels = [{'value': str(r.channel_id), 'label': r.channel_name or str(r.channel_id)} for r in ch_rows]
+            role_rows = conn.execute(sa_text2(
+                "SELECT role_id, role_name FROM web_fluxer_guild_roles "
+                "WHERE guild_id = :g ORDER BY position DESC"
+            ), {'g': str(guild_id)}).fetchall()
+            guild_roles = [{'value': str(r.role_id), 'label': r.role_name or str(r.role_id)} for r in role_rows]
+    except Exception:
+        pass
+
+    # Load all known instances from unified table.
+    # Show instances assigned to this guild OR unassigned (unconfigured) so
+    # the owner can claim and configure them directly from the dashboard.
+    all_instances = []
+    unconfigured = []
+    try:
+        with engine.connect() as conn:
+            rows = conn.execute(sa_text2(
+                "SELECT * FROM gamebot_configs ORDER BY configured DESC, COALESCE(NULLIF(server_display_name,''), instance_name) ASC"
+            )).fetchall()
+            for row in rows:
+                cfg = dict(row._mapping)
+                if str(cfg.get('guild_id') or '') == str(guild_id):
+                    all_instances.append(cfg)
+                elif not cfg.get('configured') and not cfg.get('guild_id'):
+                    unconfigured.append(cfg)
+    except Exception as e:
+        logger.debug('fluxer_guild_game_servers: gamebot_configs query failed: %s', e)
+
+    # Build bot dicts for the template
+    bots = []
+    for cfg in all_instances:
+        game_type = cfg.get('game_type', 'Unknown')
+        icon, color = _GAME_ICONS.get(game_type, _DEFAULT_ICON)
+        slug = cfg['instance_name'].lower().replace(' ', '-').replace('_', '-')
+        bots.append({
+            'slug':      slug,
+            'name':      cfg.get('server_display_name') or cfg['instance_name'],
+            'game':      game_type,
+            'icon':      icon,
+            'color':     color,
+            'instance_name': cfg['instance_name'],
+            'configured':   bool(cfg.get('configured')),
+            'has_password': bool(cfg.get('server_password')),
+            'config':       cfg,
+            'channels':     guild_channels,
+            'roles':        guild_roles,
+        })
+
+    # Unconfigured instances: shown as claimable in the template
+    unconfigured_bots = []
+    for cfg in unconfigured:
+        game_type = cfg.get('game_type', 'Unknown')
+        icon, color = _GAME_ICONS.get(game_type, _DEFAULT_ICON)
+        unconfigured_bots.append({
+            'instance_name': cfg['instance_name'],
+            'game':          game_type,
+            'icon':          icon,
+            'color':         color,
+        })
+
+    for bot in bots:
+        bot['config_json']   = json.dumps(bot['config'], default=str)
+        bot['channels_json'] = json.dumps(bot['channels'])
+        bot['roles_json']    = json.dumps(bot['roles'])
+
+    def _extra(db, gid):
+        return {
+            'bots':               bots,
+            'unconfigured_bots':  unconfigured_bots,
+            'active_bot':         bots[0]['slug'] if bots else None,
+        }
+
+    return _guild_view(request, guild_id, 'questlog_web/fluxer_guild_game_servers.html', 'game_servers', extra=_extra)
+
+
+# ---------------------------------------------------------------------------
 # Settings API
 # ---------------------------------------------------------------------------
 
@@ -1073,12 +1285,14 @@ def api_fluxer_guild_settings(request, guild_id):
         lfg_ch = data.get('lfg_channel_id', '').strip()
         welcome_ch = data.get('welcome_channel_id', '').strip()
         goodbye_ch = data.get('goodbye_channel_id', '').strip()
+        spotlight_ch = data.get('spotlight_channel_id', '').strip()
 
         for ch_val, ch_name in [
             (mod_log, 'mod_log_channel_id'),
             (lfg_ch, 'lfg_channel_id'),
             (welcome_ch, 'welcome_channel_id'),
             (goodbye_ch, 'goodbye_channel_id'),
+            (spotlight_ch, 'spotlight_channel_id'),
         ]:
             if ch_val and ch_val not in known_channels:
                 return JsonResponse({'error': f'Unknown channel for {ch_name}'}, status=400)
@@ -1132,6 +1346,8 @@ def api_fluxer_guild_settings(request, guild_id):
             s.auto_ban_after_warns = 1 if data['auto_ban_after_warns'] else 0
         if 'lfg_channel_id' in data:
             s.lfg_channel_id = lfg_ch or None
+        if 'spotlight_channel_id' in data:
+            s.spotlight_channel_id = spotlight_ch or None
         if 'welcome_channel_id' in data:
             s.welcome_channel_id = welcome_ch or None
         if 'welcome_message' in data:
@@ -1955,9 +2171,9 @@ def api_fluxer_guild_lfg_game_detail(request, guild_id, game_id):
 
 @fluxer_guild_required
 @require_http_methods(['GET'])
-@ratelimit(key='user', rate='20/h', method='GET', block=True)
+@ratelimit(key='ip', rate='20/h', method='GET', block=True)
 def api_fluxer_igdb_search(request):
-    """GET /ql/api/dashboard/fluxer/igdb-search/?q=query - Search IGDB for games.
+    """GET api/dashboard/fluxer/igdb-search/?q=query - Search IGDB for games.
     Delegates to the same search_games utility used by api_igdb_search in views_discovery.py.
     """
     from app.utils.igdb import search_games
@@ -3554,69 +3770,144 @@ def api_fluxer_guild_role_import(request, guild_id):
 @fluxer_guild_required
 @require_http_methods(['GET'])
 def api_fluxer_guild_templates_list(request, guild_id):
-    """
-    GET - list channel and role templates for a Fluxer guild (stub)
-    """
+    """GET - list channel and role templates for a Fluxer guild."""
+    with get_db_session() as db:
+        templates = db.query(WebFluxerGuildTemplate).filter_by(guild_id=guild_id).order_by(
+            WebFluxerGuildTemplate.created_at.desc()
+        ).all()
+        channel_templates = [
+            {'id': t.id, 'name': t.name, 'description': t.description or '', 'use_count': t.use_count or 0}
+            for t in templates if t.template_type == 'channels'
+        ]
+        role_templates = [
+            {'id': t.id, 'name': t.name, 'description': t.description or '', 'use_count': t.use_count or 0}
+            for t in templates if t.template_type == 'roles'
+        ]
     return JsonResponse({
         'success': True,
-        'channel_templates': [],
-        'role_templates': [],
+        'channel_templates': channel_templates,
+        'role_templates': role_templates,
     })
 
 
 @fluxer_guild_required
 @require_http_methods(['POST'])
 def api_fluxer_guild_template_create(request, guild_id, template_type):
-    """
-    POST - create a new template for a Fluxer guild (stub)
-    Called as POST /templates/channels/ or POST /templates/roles/
-    """
+    """POST - create a new template. template_type = 'channels' or 'roles'."""
+    if template_type not in ('channels', 'roles'):
+        return JsonResponse({'error': 'Invalid template type'}, status=400)
     try:
         data = json.loads(request.body)
     except (json.JSONDecodeError, AttributeError):
         return JsonResponse({'error': 'Invalid JSON'}, status=400)
 
-    name = sanitize_text(data.get('name', '') or '').strip()
+    name = sanitize_text(data.get('name', '') or '').strip()[:100]
     if not name:
         return JsonResponse({'error': 'name is required'}, status=400)
+    description = sanitize_text(data.get('description', '') or '').strip()[:500] or None
 
-    return JsonResponse({'success': True, 'id': 0}, status=201)
+    payload_key = 'channels' if template_type == 'channels' else 'roles'
+    payload = data.get(payload_key, [])
+    if not isinstance(payload, list):
+        return JsonResponse({'error': 'Invalid template data'}, status=400)
+
+    now = int(time.time())
+    with get_db_session() as db:
+        tmpl = WebFluxerGuildTemplate(
+            guild_id=guild_id,
+            template_type=template_type,
+            name=name,
+            description=description,
+            template_data=json.dumps(payload),
+            use_count=0,
+            created_by=request.session.get('web_user_id'),
+            created_at=now,
+            updated_at=now,
+        )
+        db.add(tmpl)
+        db.flush()
+        new_id = tmpl.id
+        db.commit()
+    return JsonResponse({'success': True, 'id': new_id}, status=201)
 
 
 @fluxer_guild_required
 @require_http_methods(['GET', 'PUT', 'DELETE'])
 def api_fluxer_guild_template_detail(request, guild_id, template_type, template_id):
-    """
-    GET    - get template details (stub)
-    PUT    - update an existing template (stub)
-    DELETE - delete a template (stub)
-    """
-    if request.method == 'GET':
-        return JsonResponse({'error': 'Template not found'}, status=404)
+    """GET/PUT/DELETE a specific template."""
+    with get_db_session() as db:
+        tmpl = db.query(WebFluxerGuildTemplate).filter_by(
+            id=template_id, guild_id=guild_id
+        ).first()
 
-    if request.method == 'DELETE':
-        return JsonResponse({'success': True})
+        if request.method == 'GET':
+            if not tmpl:
+                return JsonResponse({'error': 'Template not found'}, status=404)
+            return JsonResponse({
+                'id': tmpl.id,
+                'name': tmpl.name,
+                'description': tmpl.description or '',
+                'template_data': tmpl.template_data,
+                'use_count': tmpl.use_count or 0,
+            })
 
-    # PUT - update
-    try:
-        data = json.loads(request.body)
-    except (json.JSONDecodeError, AttributeError):
-        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+        if request.method == 'DELETE':
+            if tmpl:
+                db.delete(tmpl)
+                db.commit()
+            return JsonResponse({'success': True})
 
-    name = sanitize_text(data.get('name', '') or '').strip()
-    if not name:
-        return JsonResponse({'error': 'name is required'}, status=400)
+        # PUT - update
+        if not tmpl:
+            return JsonResponse({'error': 'Template not found'}, status=404)
+        try:
+            data = json.loads(request.body)
+        except (json.JSONDecodeError, AttributeError):
+            return JsonResponse({'error': 'Invalid JSON'}, status=400)
 
+        name = sanitize_text(data.get('name', '') or '').strip()[:100]
+        if not name:
+            return JsonResponse({'error': 'name is required'}, status=400)
+
+        payload_key = 'channels' if template_type == 'channels' else 'roles'
+        payload = data.get(payload_key, [])
+        if not isinstance(payload, list):
+            return JsonResponse({'error': 'Invalid template data'}, status=400)
+
+        tmpl.name = name
+        tmpl.description = sanitize_text(data.get('description', '') or '').strip()[:500] or None
+        tmpl.template_data = json.dumps(payload)
+        tmpl.updated_at = int(time.time())
+        db.commit()
     return JsonResponse({'success': True})
 
 
 @fluxer_guild_required
 @require_http_methods(['POST'])
 def api_fluxer_guild_template_apply(request, guild_id, template_type, template_id):
-    """
-    POST - apply a template to the Fluxer guild (stub)
-    """
-    return JsonResponse({'success': True, 'action_id': 0})
+    """POST - queue the template for bot execution and increment use_count."""
+    now = int(time.time())
+    with get_db_session() as db:
+        tmpl = db.query(WebFluxerGuildTemplate).filter_by(
+            id=template_id, guild_id=guild_id, template_type=template_type
+        ).first()
+        if not tmpl:
+            return JsonResponse({'error': 'Template not found'}, status=404)
+
+        action_type = 'apply_channel_template' if template_type == 'channels' else 'apply_role_template'
+        action = WebFluxerGuildAction(
+            guild_id=guild_id,
+            action_type=action_type,
+            payload_json=json.dumps({'template_id': tmpl.id, 'template_data': json.loads(tmpl.template_data or '[]')}),
+            status='pending',
+            created_at=now,
+        )
+        db.add(action)
+        tmpl.use_count = (tmpl.use_count or 0) + 1
+        db.flush()
+        action_id = action.id
+        db.commit()
+    return JsonResponse({'success': True, 'action_id': action_id})
 
 
 @fluxer_guild_required
@@ -3721,7 +4012,7 @@ def _seed_guild_flairs(db, guild_id: str) -> None:
 
 @fluxer_guild_required
 def fluxer_guild_flair(request, guild_id):
-    """GET /ql/dashboard/fluxer/<guild_id>/flairs/ - Flair management page."""
+    """GET dashboard/fluxer/<guild_id>/flairs/ - Flair management page."""
     guild_id = guild_id.strip()
     with get_db_session() as db:
         ctx = _get_fluxer_guild_context(db, guild_id)
@@ -3743,8 +4034,8 @@ def fluxer_guild_flair(request, guild_id):
 @require_http_methods(['GET', 'POST'])
 def api_fluxer_guild_flairs(request, guild_id):
     """
-    GET  /ql/api/dashboard/fluxer/<guild_id>/flairs/ - list guild flairs (auto-seed if empty)
-    POST /ql/api/dashboard/fluxer/<guild_id>/flairs/ - bulk update flair settings
+    GET  api/dashboard/fluxer/<guild_id>/flairs/ - list guild flairs (auto-seed if empty)
+    POST api/dashboard/fluxer/<guild_id>/flairs/ - bulk update flair settings
     """
     guild_id = guild_id.strip()
 
@@ -3800,7 +4091,7 @@ def api_fluxer_guild_flairs(request, guild_id):
 @fluxer_guild_required
 @require_http_methods(['POST'])
 def api_fluxer_guild_flair_create(request, guild_id):
-    """POST /ql/api/dashboard/fluxer/<guild_id>/flairs/create/ - create custom flair."""
+    """POST api/dashboard/fluxer/<guild_id>/flairs/create/ - create custom flair."""
     guild_id = guild_id.strip()
     try:
         data = json.loads(request.body)
@@ -3835,7 +4126,7 @@ def api_fluxer_guild_flair_create(request, guild_id):
 @fluxer_guild_required
 @require_http_methods(['DELETE'])
 def api_fluxer_guild_flair_detail(request, guild_id, flair_id):
-    """DELETE /ql/api/dashboard/fluxer/<guild_id>/flairs/<flair_id>/ - delete custom flair."""
+    """DELETE api/dashboard/fluxer/<guild_id>/flairs/<flair_id>/ - delete custom flair."""
     guild_id = guild_id.strip()
     with get_db_session() as db:
         row = db.query(WebFluxerGuildFlair).filter_by(id=flair_id, guild_id=guild_id).first()
@@ -3854,7 +4145,7 @@ def api_fluxer_guild_flair_detail(request, guild_id, flair_id):
 
 @fluxer_guild_required
 def fluxer_guild_lfg_attendance(request, guild_id):
-    """GET /ql/dashboard/fluxer/<guild_id>/lfg/attendance/ - Attendance tracking page."""
+    """GET dashboard/fluxer/<guild_id>/lfg/attendance/ - Attendance tracking page."""
     guild_id = guild_id.strip()
 
     def _extra(db, gid):
@@ -3876,7 +4167,7 @@ def fluxer_guild_lfg_attendance(request, guild_id):
 
 @fluxer_guild_required
 def fluxer_guild_lfg_calendar(request, guild_id):
-    """GET /ql/dashboard/fluxer/<guild_id>/lfg/calendar/ - LFG Calendar page."""
+    """GET dashboard/fluxer/<guild_id>/lfg/calendar/ - LFG Calendar page."""
     guild_id = guild_id.strip()
     now_ts = int(time.time())
     cutoff = now_ts - 86400  # include events that ended up to 1 day ago
@@ -3933,7 +4224,7 @@ def fluxer_guild_lfg_calendar(request, guild_id):
 
 @fluxer_guild_required
 def fluxer_guild_discovery(request, guild_id):
-    """GET /ql/dashboard/fluxer/<guild_id>/discovery/ - Discovery & Member Features hub."""
+    """GET dashboard/fluxer/<guild_id>/discovery/ - Discovery & Member Features hub."""
     guild_id = guild_id.strip()
 
     def _extra(db, gid):
@@ -4027,7 +4318,7 @@ def fluxer_guild_discovery(request, guild_id):
 
 @fluxer_guild_required
 def fluxer_guild_lfg_browse_admin(request, guild_id):
-    """GET /ql/dashboard/fluxer/<guild_id>/lfg/browse/ - Find Groups within the Fluxer dashboard."""
+    """GET dashboard/fluxer/<guild_id>/lfg/browse/ - Find Groups within the Fluxer dashboard."""
     guild_id = guild_id.strip()
 
     def _extra(db, gid):
@@ -4107,7 +4398,7 @@ def fluxer_guild_lfg_browse_admin(request, guild_id):
 @web_login_required
 @add_web_user_context
 def fluxer_guild_found_games(request, guild_id):
-    """GET /ql/dashboard/fluxer/<guild_id>/found-games/ - Found Games within the Fluxer dashboard."""
+    """GET dashboard/fluxer/<guild_id>/found-games/ - Found Games within the Fluxer dashboard."""
     import json as _json
     from datetime import datetime
     guild_id = guild_id.strip()
@@ -4178,7 +4469,7 @@ def fluxer_guild_found_games(request, guild_id):
 
 @fluxer_guild_required
 def fluxer_guild_rss_articles(request, guild_id):
-    """GET /ql/dashboard/fluxer/<guild_id>/rss-articles/ - RSS Articles within the Fluxer dashboard."""
+    """GET dashboard/fluxer/<guild_id>/rss-articles/ - RSS Articles within the Fluxer dashboard."""
     import json as _json
     from datetime import datetime
     guild_id = guild_id.strip()
@@ -4237,7 +4528,7 @@ def fluxer_guild_rss_articles(request, guild_id):
 @web_login_required
 @add_web_user_context
 def fluxer_guild_leaderboards(request, guild_id):
-    """GET /ql/dashboard/fluxer/<guild_id>/leaderboards/ - Guild XP leaderboard."""
+    """GET dashboard/fluxer/<guild_id>/leaderboards/ - Guild XP leaderboard."""
     from .views_pages import _fluxer_guild_base_context
     _settings, ctx = _fluxer_guild_base_context(request, guild_id)
     guild_id = guild_id.strip()
@@ -4301,7 +4592,7 @@ def fluxer_guild_leaderboards(request, guild_id):
 
 @fluxer_guild_required
 def fluxer_guild_member_profile_page(request, guild_id):
-    """GET /ql/dashboard/fluxer/<guild_id>/profile/ - Member's own profile in this guild."""
+    """GET dashboard/fluxer/<guild_id>/profile/ - Member's own profile in this guild."""
     guild_id = guild_id.strip()
 
     def _extra(db, gid):
@@ -4365,7 +4656,7 @@ def fluxer_guild_member_profile_page(request, guild_id):
 @web_login_required
 @add_web_user_context
 def fluxer_guild_featured_creators(request, guild_id):
-    """GET /ql/dashboard/fluxer/<guild_id>/featured-creators/ - QuestLog creators featured in this guild."""
+    """GET dashboard/fluxer/<guild_id>/featured-creators/ - QuestLog creators featured in this guild."""
     from .views_pages import _fluxer_guild_base_context
     _settings, ctx = _fluxer_guild_base_context(request, guild_id)
     ctx.update({
@@ -4574,7 +4865,7 @@ def api_fluxer_guild_lfg_groups(request, guild_id):
                         joined_at=now,
                     ))
                     db.commit()
-                    group_url = f"https://casual-heroes.com/ql/lfg/{web_group.id}/"
+                    group_url = f"https://casual-heroes.comlfg/{web_group.id}/"
 
                 # Always broadcast to opted-in guilds - no linked account required
                 embed_data = _blfg(
@@ -4599,7 +4890,7 @@ def api_fluxer_guild_lfg_groups(request, guild_id):
                     server_invite_link=server_invite_link,
                 )
                 embed_data["color"] = 0xFEE75C
-                embed_data["footer"] = "QuestLog Network - casual-heroes.com/ql/lfg/"
+                embed_data["footer"] = "QuestLog Network - casual-heroes.comlfg/"
                 embed_data["fields"].append({"name": "Posted via", "value": "Fluxer", "inline": True})
                 embed_data["thread_name"] = f"{title} - {game.name} - {creator_name}"
 
@@ -4794,7 +5085,7 @@ def api_fluxer_guild_lfg_member_update(request, guild_id, group_id, member_id):
 @fluxer_guild_required
 @require_http_methods(['GET'])
 def api_fluxer_guild_lfg_attendance(request, guild_id):
-    """GET /ql/api/dashboard/fluxer/<guild_id>/lfg/attendance/
+    """GET api/dashboard/fluxer/<guild_id>/lfg/attendance/
     Params: game_id, user (search), days (0=all), status
     Returns grouped attendance data.
     """
@@ -4864,7 +5155,7 @@ def api_fluxer_guild_lfg_attendance(request, guild_id):
 @fluxer_guild_required
 @require_http_methods(['GET'])
 def api_fluxer_guild_attendance_export(request, guild_id):
-    """GET /ql/api/dashboard/fluxer/<guild_id>/lfg/attendance/export/
+    """GET api/dashboard/fluxer/<guild_id>/lfg/attendance/export/
     Returns CSV of attendance data with current filters.
     """
     import csv
@@ -4929,13 +5220,18 @@ def api_fluxer_guild_attendance_export(request, guild_id):
 # Live Alerts - Streamer Subscriptions API
 # ---------------------------------------------------------------------------
 
-def _streamer_sub_dict(s: WebFluxerStreamerSub) -> dict:
+def _streamer_sub_dict(s: WebFluxerStreamerSub, avatar_url: str = '') -> dict:
+    display_name = s.streamer_display_name or s.streamer_handle
+    # For YouTube, streamer_handle is a channel ID (UC...) - show display name instead
+    display_handle = display_name if s.streamer_platform == 'youtube' and s.streamer_handle.startswith('UC') else s.streamer_handle
     return {
         'id': s.id,
         'guild_id': s.guild_id,
         'streamer_platform': s.streamer_platform,
         'streamer_handle': s.streamer_handle,
-        'streamer_display_name': s.streamer_display_name or s.streamer_handle,
+        'streamer_display_name': display_name,
+        'display_handle': display_handle,
+        'avatar_url': avatar_url,
         'notify_channel_id': s.notify_channel_id,
         'custom_message': s.custom_message or '',
         'is_active': bool(s.is_active),
@@ -4959,7 +5255,18 @@ def api_fluxer_guild_streamer_subs(request, guild_id):
             subs = db.query(WebFluxerStreamerSub).filter_by(guild_id=guild_id).order_by(
                 WebFluxerStreamerSub.created_at.desc()
             ).all()
-            return JsonResponse({'success': True, 'subs': [_streamer_sub_dict(s) for s in subs]})
+            # Build avatar map from creator profiles keyed by twitch_user_id / youtube_channel_id
+            profiles = db.query(WebCreatorProfile).filter(
+                WebCreatorProfile.avatar_url != None,
+                WebCreatorProfile.avatar_url != '',
+            ).all()
+            twitch_avatar_map = {p.twitch_user_id: p.avatar_url for p in profiles if p.twitch_user_id}
+            youtube_avatar_map = {p.youtube_channel_id: p.avatar_url for p in profiles if p.youtube_channel_id}
+            def _avatar(s):
+                if s.streamer_platform == 'twitch':
+                    return twitch_avatar_map.get(s.streamer_handle, '')
+                return youtube_avatar_map.get(s.streamer_handle, '')
+            return JsonResponse({'success': True, 'subs': [_streamer_sub_dict(s, _avatar(s)) for s in subs]})
 
     # POST - add subscription
     try:
@@ -5316,7 +5623,7 @@ def api_fluxer_guild_found_games(request, guild_id):
 @fluxer_guild_required
 @require_http_methods(['GET'])
 def api_fluxer_guild_igdb_keywords(request, guild_id):
-    """GET /ql/api/dashboard/fluxer/<guild_id>/igdb-keywords/?q=souls - keyword autocomplete."""
+    """GET api/dashboard/fluxer/<guild_id>/igdb-keywords/?q=souls - keyword autocomplete."""
     query = request.GET.get('q', '').strip().lower()
     limit = min(safe_int(request.GET.get('limit', 20), default=20), 50)
 
@@ -5624,6 +5931,26 @@ def api_fluxer_guild_roles(request, guild_id):
 
 
 @fluxer_guild_required
+@require_http_methods(['POST'])
+def api_fluxer_guild_request_sync(request, guild_id):
+    """Queue a full guild re-sync via the bot action queue."""
+    import time as _time
+    with get_db_session() as db:
+        # Check if there's already a pending sync action for this guild (avoid spamming)
+        existing = db.execute(
+            text("SELECT id FROM web_fluxer_guild_actions WHERE guild_id=:g AND action_type='sync_guild' AND status='pending' LIMIT 1"),
+            {'g': guild_id}
+        ).fetchone()
+        if not existing:
+            db.execute(
+                text("INSERT INTO web_fluxer_guild_actions (guild_id, action_type, payload_json, status, created_at) VALUES (:g, 'sync_guild', '{}', 'pending', :t)"),
+                {'g': guild_id, 't': int(_time.time())}
+            )
+            db.commit()
+    return JsonResponse({'ok': True})
+
+
+@fluxer_guild_required
 @require_http_methods(['GET', 'POST'])
 def api_fluxer_guild_trackers(request, guild_id):
     if request.method == 'GET':
@@ -5706,3 +6033,280 @@ def api_fluxer_guild_tracker_detail(request, guild_id, tracker_id):
         db.commit()
         db.refresh(tracker)
         return JsonResponse({'success': True, 'tracker': _tracker_dict(tracker)})
+
+
+# =============================================================================
+# Discord Guild - Live Alerts (mirrors Fluxer live alerts feature)
+# =============================================================================
+
+def _discord_streamer_sub_dict(s: WebDiscordStreamerSub, avatar_url: str = '') -> dict:
+    display_name = s.streamer_display_name or s.streamer_handle
+    # For YouTube, streamer_handle is a channel ID (UC...) - show display name instead
+    display_handle = display_name if s.streamer_platform == 'youtube' and s.streamer_handle.startswith('UC') else s.streamer_handle
+    return {
+        'id': s.id,
+        'guild_id': str(s.guild_id),
+        'streamer_platform': s.streamer_platform,
+        'streamer_handle': s.streamer_handle,
+        'streamer_display_name': display_name,
+        'display_handle': display_handle,
+        'avatar_url': avatar_url,
+        'notify_channel_id': str(s.notify_channel_id),
+        'custom_message': s.custom_message or '',
+        'is_active': bool(s.is_active),
+        'is_currently_live': bool(s.is_currently_live),
+        'last_notified_at': s.last_notified_at,
+        'created_at': s.created_at,
+    }
+
+
+def discord_guild_live_alerts(request, guild_id):
+    """
+    Discord guild live alerts dashboard page.
+    Shows QuestLog creator profiles for quick-subscribe, plus the guild's active
+    streamer alert subscriptions.
+    """
+    from django.contrib import messages as _msgs
+    from django.contrib.auth.decorators import login_required as _lr
+
+    if not request.user.is_authenticated:
+        from django.shortcuts import redirect
+        return redirect('discord_login')
+
+    admin_guilds = request.session.get('discord_admin_guilds', [])
+    guild = next((g for g in admin_guilds if str(g.get('id')) == str(guild_id)), None)
+    if not guild:
+        _msgs.error(request, "You don't have admin access to this server.")
+        from django.shortcuts import redirect
+        return redirect('questlog_dashboard')
+
+    permissions = int(guild.get('permissions', 0))
+    is_admin = (permissions & 0x8) == 0x8 or (permissions & 0x20) == 0x20
+    if not is_admin:
+        _msgs.error(request, "You need Admin or Manage Server permission.")
+        from django.shortcuts import redirect
+        return redirect('questlog_dashboard')
+
+    from app.views import get_member_guilds
+    discord_user = request.session.get('discord_user', {})
+
+    ctx = {
+        'discord_user': discord_user,
+        'guild': guild,
+        'admin_guilds': admin_guilds,
+        'member_guilds': get_member_guilds(request),
+        'is_admin': True,
+    }
+
+    with get_db_session() as db:
+        from .models import WebUser
+        rows = (
+            db.query(WebCreatorProfile, WebUser.username)
+            .join(WebUser, WebUser.id == WebCreatorProfile.user_id)
+            .filter(
+                WebCreatorProfile.allow_discovery == True,
+                WebUser.is_banned == False,
+                (WebCreatorProfile.twitch_user_id != None) | (WebCreatorProfile.youtube_channel_id != None),
+            )
+            .order_by(WebCreatorProfile.follower_count.desc())
+            .limit(50)
+            .all()
+        )
+
+        # Only fetch from APIs for profiles with no cached avatar
+        twitch_ids_needed = [c.twitch_user_id for c, _ in rows if c.twitch_user_id and not c.avatar_url]
+        youtube_ids_needed = [c.youtube_channel_id for c, _ in rows if c.youtube_channel_id and not c.avatar_url]
+
+        twitch_avatars = _fetch_twitch_avatars(twitch_ids_needed) if twitch_ids_needed else {}
+        youtube_avatars = _fetch_youtube_avatars(youtube_ids_needed) if youtube_ids_needed else {}
+
+        # Persist newly fetched avatars back to DB
+        if twitch_avatars or youtube_avatars:
+            for c, _ in rows:
+                new_avatar = None
+                if c.twitch_user_id and not c.avatar_url:
+                    new_avatar = twitch_avatars.get(c.twitch_user_id)
+                if not new_avatar and c.youtube_channel_id and not c.avatar_url:
+                    new_avatar = youtube_avatars.get(c.youtube_channel_id)
+                if new_avatar:
+                    c.avatar_url = new_avatar
+            try:
+                db.commit()
+            except Exception:
+                db.rollback()
+
+        featured = []
+        for c, username in rows:
+            if c.twitch_user_id:
+                avatar = twitch_avatars.get(c.twitch_user_id) or c.avatar_url or ''
+                featured.append({
+                    'display_name': c.twitch_display_name or c.display_name,
+                    'platform': 'twitch',
+                    'handle': c.twitch_user_id,
+                    'avatar_url': avatar,
+                    'profile_url': f'profile/{username}/',
+                    'follower_count': c.twitch_follower_count or 0,
+                })
+            if c.youtube_channel_id:
+                avatar = youtube_avatars.get(c.youtube_channel_id) or c.avatar_url or ''
+                featured.append({
+                    'display_name': c.youtube_channel_name or c.display_name,
+                    'platform': 'youtube',
+                    'handle': c.youtube_channel_id,
+                    'avatar_url': avatar,
+                    'profile_url': f'profile/{username}/',
+                    'follower_count': c.youtube_subscriber_count or 0,
+                })
+
+    ctx['featured_creators_json'] = json.dumps(featured)
+    ctx['active_page'] = 'live_alerts'
+    return render(request, 'questlog/live_alerts.html', ctx)
+
+
+@require_http_methods(['GET', 'POST'])
+def api_discord_guild_streamer_subs(request, guild_id):
+    """
+    GET  - list streamer subscriptions for a Discord guild
+    POST - add a new streamer subscription
+    Must be called by an admin of the guild.
+    """
+    if not request.user.is_authenticated:
+        return JsonResponse({'error': 'Forbidden'}, status=403)
+    admin_guilds = request.session.get('discord_admin_guilds', [])
+    guild = next((g for g in admin_guilds if str(g.get('id')) == str(guild_id)), None)
+    if not guild:
+        return JsonResponse({'error': 'Forbidden'}, status=403)
+    permissions = int(guild.get('permissions', 0))
+    if not ((permissions & 0x8) == 0x8 or (permissions & 0x20) == 0x20):
+        return JsonResponse({'error': 'Forbidden'}, status=403)
+
+    guild_id_int = safe_int(guild_id, 0)
+    if not guild_id_int:
+        return JsonResponse({'error': 'Invalid guild_id'}, status=400)
+
+    if request.method == 'GET':
+        with get_db_session() as db:
+            subs = db.query(WebDiscordStreamerSub).filter_by(guild_id=guild_id_int).order_by(
+                WebDiscordStreamerSub.created_at.desc()
+            ).all()
+            # Build avatar map from creator profiles
+            profiles = db.query(WebCreatorProfile).filter(
+                WebCreatorProfile.avatar_url != None,
+                WebCreatorProfile.avatar_url != '',
+            ).all()
+            twitch_avatar_map = {p.twitch_user_id: p.avatar_url for p in profiles if p.twitch_user_id}
+            youtube_avatar_map = {p.youtube_channel_id: p.avatar_url for p in profiles if p.youtube_channel_id}
+
+            def _avatar(s):
+                if s.streamer_platform == 'twitch':
+                    return twitch_avatar_map.get(s.streamer_handle, '')
+                return youtube_avatar_map.get(s.streamer_handle, '')
+
+            return JsonResponse({'success': True, 'subs': [_discord_streamer_sub_dict(s, _avatar(s)) for s in subs]})
+
+    # POST - add subscription
+    try:
+        data = json.loads(request.body)
+    except (json.JSONDecodeError, AttributeError):
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+    platform = (data.get('streamer_platform', '') or '').strip().lower()
+    if platform not in ('twitch', 'youtube'):
+        return JsonResponse({'error': 'streamer_platform must be twitch or youtube'}, status=400)
+
+    handle = sanitize_text(data.get('streamer_handle', '') or '').strip()
+    if not handle:
+        return JsonResponse({'error': 'streamer_handle is required'}, status=400)
+    if len(handle) > 100:
+        return JsonResponse({'error': 'streamer_handle too long'}, status=400)
+
+    display_name = sanitize_text(data.get('streamer_display_name', '') or '').strip()[:100] or None
+    notify_channel_id_raw = (data.get('notify_channel_id', '') or '').strip()
+    if not notify_channel_id_raw:
+        return JsonResponse({'error': 'notify_channel_id is required'}, status=400)
+    notify_channel_id = safe_int(notify_channel_id_raw, 0)
+    if not notify_channel_id:
+        return JsonResponse({'error': 'Invalid notify_channel_id'}, status=400)
+
+    custom_message = sanitize_text(data.get('custom_message', '') or '').strip()[:500] or None
+
+    now = int(time.time())
+    with get_db_session() as db:
+        existing = db.query(WebDiscordStreamerSub).filter_by(
+            guild_id=guild_id_int, streamer_platform=platform, streamer_handle=handle
+        ).first()
+        if existing:
+            return JsonResponse({'error': 'Already subscribed to this streamer'}, status=409)
+
+        count = db.query(WebDiscordStreamerSub).filter_by(guild_id=guild_id_int, is_active=1).count()
+        if count >= 25:
+            return JsonResponse({'error': 'Maximum 25 active streamer alerts per server'}, status=400)
+
+        sub = WebDiscordStreamerSub(
+            guild_id=guild_id_int,
+            streamer_platform=platform,
+            streamer_handle=handle,
+            streamer_display_name=display_name,
+            notify_channel_id=notify_channel_id,
+            custom_message=custom_message,
+            is_active=1,
+            is_currently_live=0,
+            created_at=now,
+            updated_at=now,
+        )
+        db.add(sub)
+        db.commit()
+        db.refresh(sub)
+        return JsonResponse({'success': True, 'sub': _discord_streamer_sub_dict(sub)}, status=201)
+
+
+@require_http_methods(['PATCH', 'DELETE'])
+def api_discord_guild_streamer_sub_detail(request, guild_id, sub_id):
+    """
+    PATCH  - update channel/message/active state for a Discord streamer sub
+    DELETE - remove a Discord streamer subscription
+    """
+    if not request.user.is_authenticated:
+        return JsonResponse({'error': 'Forbidden'}, status=403)
+    admin_guilds = request.session.get('discord_admin_guilds', [])
+    guild = next((g for g in admin_guilds if str(g.get('id')) == str(guild_id)), None)
+    if not guild:
+        return JsonResponse({'error': 'Forbidden'}, status=403)
+    permissions = int(guild.get('permissions', 0))
+    if not ((permissions & 0x8) == 0x8 or (permissions & 0x20) == 0x20):
+        return JsonResponse({'error': 'Forbidden'}, status=403)
+
+    guild_id_int = safe_int(guild_id, 0)
+    if not guild_id_int:
+        return JsonResponse({'error': 'Invalid guild_id'}, status=400)
+
+    with get_db_session() as db:
+        sub = db.query(WebDiscordStreamerSub).filter_by(id=sub_id, guild_id=guild_id_int).first()
+        if not sub:
+            return JsonResponse({'error': 'Not found'}, status=404)
+
+        if request.method == 'DELETE':
+            db.delete(sub)
+            db.commit()
+            return JsonResponse({'success': True})
+
+        # PATCH
+        try:
+            data = json.loads(request.body)
+        except (json.JSONDecodeError, AttributeError):
+            return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+        now = int(time.time())
+        if 'notify_channel_id' in data:
+            ch = safe_int(str(data['notify_channel_id'] or '').strip(), 0)
+            if ch:
+                sub.notify_channel_id = ch
+        if 'custom_message' in data:
+            sub.custom_message = sanitize_text(data['custom_message'] or '').strip()[:500] or None
+        if 'streamer_display_name' in data:
+            sub.streamer_display_name = sanitize_text(data['streamer_display_name'] or '').strip()[:100] or None
+        if 'is_active' in data:
+            sub.is_active = 1 if data['is_active'] else 0
+        sub.updated_at = now
+        db.commit()
+        return JsonResponse({'success': True, 'sub': _discord_streamer_sub_dict(sub)})
