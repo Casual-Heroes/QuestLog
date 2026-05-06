@@ -581,7 +581,7 @@ def queue_lfg_embed_edit_for_group(group_id: int, group_platform: str = 'web',
                     return
                 creator_row = db.query(_WU).filter_by(id=group.creator_id).first()
                 creator_name = (creator_row.display_name or creator_row.username) if creator_row else 'Unknown'
-                lfg_url = f"https://casual-heroes.com/ql/lfg/{group.share_token or group.id}/"
+                lfg_url = f"https://questlog.casual-heroes.com/lfg/{group.share_token or group.id}/"
                 is_full = group.status == 'full'
 
                 from app.questlog_web.views_discovery import _parse_role_schema
@@ -610,6 +610,47 @@ def queue_lfg_embed_edit_for_group(group_id: int, group_platform: str = 'web',
         queue_lfg_embed_edit(group_id, group_platform, embed_data, pin_state=pin_state)
     except Exception as e:
         logger.error(f"queue_lfg_embed_edit_for_group failed for group {group_id}: {e}")
+
+
+def notify_member_signup_log(username: str, profile_url: str):
+    """Post a staff-only audit log entry when a new QuestLog account is verified.
+    Queues to the private Fluxer and Discord staff log channels defined in warden.env.
+    """
+    _fluxer_ch = os.environ.get('FLUXER_LOG_CHANNEL', '').strip()
+    _discord_ch = os.environ.get('DISCORD_LOG_CHANNEL', '').strip()
+    if not _fluxer_ch and not _discord_ch:
+        return
+    try:
+        FLUXER_LOG_CHANNEL = int(_fluxer_ch) if _fluxer_ch else None
+        DISCORD_LOG_CHANNEL = int(_discord_ch) if _discord_ch else None
+    except ValueError:
+        logger.error("FLUXER_LOG_CHANNEL or DISCORD_LOG_CHANNEL in env is not a valid integer")
+        return
+
+    embed_data = {
+        "title": "New QuestLog Member",
+        "description": f"**{username}** just verified their account.\n[View Profile]({profile_url})",
+        "footer": "QuestLog signup log",
+        "color": BRAND_COLOR,
+    }
+    payload_json = json.dumps(embed_data)
+    now_ts = int(time.time())
+
+    try:
+        with get_db_session() as db:
+            if FLUXER_LOG_CHANNEL:
+                db.execute(text(
+                    "INSERT INTO fluxer_pending_broadcasts (guild_id, channel_id, payload, created_at) "
+                    "VALUES (:g, :c, :p, :t)"
+                ), {"g": 0, "c": FLUXER_LOG_CHANNEL, "p": payload_json, "t": now_ts})
+            if DISCORD_LOG_CHANNEL:
+                db.execute(text(
+                    "INSERT INTO discord_pending_broadcasts (guild_id, channel_id, payload, created_at) "
+                    "VALUES (:g, :c, :p, :t)"
+                ), {"g": 0, "c": DISCORD_LOG_CHANNEL, "p": payload_json, "t": now_ts})
+            db.commit()
+    except Exception as e:
+        logger.error(f"Failed to queue member signup log: {e}")
 
 
 def notify_new_member(username: str, profile_url: str):

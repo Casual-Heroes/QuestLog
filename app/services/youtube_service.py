@@ -178,15 +178,12 @@ class YouTubeService:
             channel = data['items'][0]
             snippet = channel.get('snippet', {})
             statistics = channel.get('statistics', {})
-            branding = channel.get('brandingSettings', {})
-            banner_url = branding.get('image', {}).get('bannerExternalUrl') or branding.get('image', {}).get('bannerImageUrl')
 
             return {
                 'id': channel.get('id'),
                 'title': snippet.get('title'),
                 'description': snippet.get('description'),
                 'thumbnail_url': snippet.get('thumbnails', {}).get('high', {}).get('url'),
-                'banner_url': banner_url,
                 'custom_url': snippet.get('customUrl'),
                 'subscriber_count': int(statistics.get('subscriberCount', 0)),
                 'video_count': int(statistics.get('videoCount', 0)),
