@@ -64,6 +64,7 @@
   <div class="relative max-w-5xl mx-auto px-4 py-5">
     <div class="flex items-center justify-between">
       <div class="flex items-center gap-3">
+        {% if web_user %}
         {% if web_user.avatar_url %}
         <img src="{{ web_user.avatar_url }}" class="w-11 h-11 rounded-full object-cover ring-2 ring-indigo-500/40" alt="">
         {% else %}
@@ -75,8 +76,18 @@
           <h1 class="text-lg font-bold text-white leading-tight">Your Feed</h1>
           <p class="text-indigo-300/60 text-xs">Welcome back, {{ web_user.display_name|default:web_user.username }}</p>
         </div>
+        {% else %}
+        <div class="w-11 h-11 bg-indigo-900 rounded-full flex items-center justify-center ring-2 ring-indigo-500/40">
+          <i class="fas fa-users text-indigo-300"></i>
+        </div>
+        <div>
+          <h1 class="text-lg font-bold text-white leading-tight">Community Feed</h1>
+          <p class="text-indigo-300/60 text-xs"><a href="{% url 'questlog_web_register' %}" class="underline hover:text-indigo-300">Create an account</a> to post and interact</p>
+        </div>
+        {% endif %}
       </div>
-      <!-- Header stats -->
+      <!-- Header stats (logged in only) -->
+      {% if web_user %}
       <div class="hidden sm:flex items-center gap-5">
         <div class="text-center">
           <div class="text-white font-bold text-base leading-tight" id="header-following-count">{{ web_user.following_count|default:"0" }}</div>
@@ -93,6 +104,7 @@
           <div class="text-gray-500 text-xs">Posts</div>
         </div>
       </div>
+      {% endif %}
     </div>
   </div>
 </div>
@@ -105,6 +117,12 @@
     <div class="lg:col-span-2 space-y-4">
 
       <!-- Composer -->
+      {% if not web_user %}
+      <div class="bg-neutral-900 rounded-xl border border-neutral-800 px-5 py-4 flex items-center justify-between gap-4">
+        <p class="text-gray-400 text-sm"><i class="fas fa-lock text-gray-600 mr-2"></i>Join to post, like, and comment.</p>
+        <a href="{% url 'questlog_web_register' %}" class="shrink-0 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold px-4 py-2 rounded-lg transition">Create Account</a>
+      </div>
+      {% else %}
       <div id="composer-card" class="bg-neutral-900 rounded-xl border border-neutral-800 transition-all duration-200">
         <div class="bg-gradient-to-r from-indigo-950/40 to-transparent px-4 pt-4 pb-3 rounded-t-xl">
           <div class="flex gap-3 items-start">
@@ -191,6 +209,7 @@
           </div>
         </div>
       </div>
+      {% endif %}
 
       <!-- ── Suggested Gamers ───────────────────────────────────── -->
       <div id="suggested-gamers-row" class="">
@@ -207,12 +226,14 @@
 
       <!-- Feed Tab Switcher -->
       <div class="flex gap-1 bg-neutral-900/60 border border-neutral-800 rounded-xl p-1">
+        {% if web_user %}
         <button onclick="switchTab('following')" id="tab-following"
           class="flex-1 py-2 px-4 rounded-lg text-sm font-medium transition tab-active">
           <i class="fas fa-users mr-1.5 text-xs"></i>Following
         </button>
+        {% endif %}
         <button onclick="switchTab('global')" id="tab-global"
-          class="flex-1 py-2 px-4 rounded-lg text-sm font-medium transition text-gray-400 hover:text-white hover:bg-neutral-800">
+          class="flex-1 py-2 px-4 rounded-lg text-sm font-medium transition {% if web_user %}text-gray-400 hover:text-white hover:bg-neutral-800{% else %}tab-active{% endif %}">
           <i class="fas fa-globe mr-1.5 text-xs"></i>Global
         </button>
       </div>
@@ -353,21 +374,69 @@
         </div>
       </div>
 
-      <!-- Quick Links -->
+      <!-- Top Players -->
+      <div class="bg-neutral-900/50 rounded-xl border border-neutral-800 p-4">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="text-sm font-semibold text-white flex items-center gap-2">
+            <i class="fas fa-trophy text-yellow-400 text-xs"></i>Top Players
+          </h3>
+          <a href="{% url 'questlog_web_leaderboard' %}" class="text-xs text-indigo-400 hover:text-indigo-300 transition">Full List</a>
+        </div>
+        <div id="feed-top-players" class="space-y-2">
+          <div class="animate-pulse space-y-2">
+            <div class="h-8 bg-neutral-800 rounded-lg"></div>
+            <div class="h-8 bg-neutral-800 rounded-lg"></div>
+            <div class="h-8 bg-neutral-800 rounded-lg"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Top Posts -->
+      <div class="bg-neutral-900/50 rounded-xl border border-neutral-800 p-4">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="text-sm font-semibold text-white flex items-center gap-2">
+            <i class="fas fa-fire text-orange-400 text-xs"></i>Top Posts
+          </h3>
+        </div>
+        <div id="feed-top-posts" class="space-y-3">
+          <div class="animate-pulse space-y-2">
+            <div class="h-10 bg-neutral-800 rounded-lg"></div>
+            <div class="h-10 bg-neutral-800 rounded-lg"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Gaming News -->
+      <div class="bg-neutral-900/50 rounded-xl border border-neutral-800 p-4">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="text-sm font-semibold text-white flex items-center gap-2">
+            <i class="fas fa-newspaper text-blue-400 text-xs"></i>Gaming News
+          </h3>
+          <a href="{% url 'questlog_web_articles' %}" class="text-xs text-indigo-400 hover:text-indigo-300 transition">View All</a>
+        </div>
+        <div id="feed-gaming-news" class="space-y-3">
+          <div class="animate-pulse space-y-2">
+            <div class="h-12 bg-neutral-800 rounded-lg"></div>
+            <div class="h-12 bg-neutral-800 rounded-lg"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Explore Quick Links -->
       <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-4">
         <h3 class="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">Explore</h3>
-        <div class="space-y-0.5">
-          <a href="{% url 'questlog_web_lfg_browse' %}" class="flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm text-gray-400 hover:text-white hover:bg-neutral-800 transition">
-            <i class="fas fa-users-rectangle w-4 text-center text-indigo-400 text-xs"></i>Find a Group (LFG)
+        <div class="grid grid-cols-2 gap-1.5">
+          <a href="{% url 'questlog_web_creators' %}" class="flex items-center gap-2 px-2.5 py-2 rounded-lg text-xs text-gray-400 hover:text-white hover:bg-neutral-800 transition">
+            <i class="fas fa-star text-yellow-400 text-[10px]"></i>Creators
           </a>
-          <a href="{% url 'questlog_web_creators' %}" class="flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm text-gray-400 hover:text-white hover:bg-neutral-800 transition">
-            <i class="fas fa-crown w-4 text-center text-yellow-400 text-xs"></i>Featured Creators
+          <a href="{% url 'questlog_web_lfg_browse' %}" class="flex items-center gap-2 px-2.5 py-2 rounded-lg text-xs text-gray-400 hover:text-white hover:bg-neutral-800 transition">
+            <i class="fas fa-users text-indigo-400 text-[10px]"></i>Find Groups
           </a>
-          <a href="{% url 'questlog_web_communities' %}" class="flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm text-gray-400 hover:text-white hover:bg-neutral-800 transition">
-            <i class="fas fa-shield-halved w-4 text-center text-green-400 text-xs"></i>Communities
+          <a href="{% url 'questlog_web_communities' %}" class="flex items-center gap-2 px-2.5 py-2 rounded-lg text-xs text-gray-400 hover:text-white hover:bg-neutral-800 transition">
+            <i class="fas fa-shield-alt text-green-400 text-[10px]"></i>Communities
           </a>
-          <a href="{% url 'questlog_web_games' %}" class="flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm text-gray-400 hover:text-white hover:bg-neutral-800 transition">
-            <i class="fas fa-gamepad w-4 text-center text-purple-400 text-xs"></i>Games
+          <a href="{% url 'questlog_web_games' %}" class="flex items-center gap-2 px-2.5 py-2 rounded-lg text-xs text-gray-400 hover:text-white hover:bg-neutral-800 transition">
+            <i class="fas fa-gamepad text-purple-400 text-[10px]"></i>Games
           </a>
         </div>
       </div>
@@ -377,9 +446,11 @@
 </div>
 
 <script>
+const CURRENT_USER_ID = {% if web_user %}{{ web_user.id }}{% else %}null{% endif %};
+const CURRENT_USER_IS_ADMIN = {% if web_user %}{{ web_user.is_admin|default:"false"|lower }}{% else %}false{% endif %};
 let currentPage = 1;
 let hasMore = true;
-let currentTab = 'following';
+let currentTab = {% if web_user %}'following'{% else %}'global'{% endif %};
 let uploadedImages = [];
 let selectedGif = null;
 let selectedGameTag = null;
@@ -397,7 +468,8 @@ const EMOJIS = {
 document.addEventListener('DOMContentLoaded', () => {
   loadFeedPosts();
   loadSidebarData();
-  document.getElementById('post-content').addEventListener('input', updateCharCount);
+  const postContent = document.getElementById('post-content');
+  if (postContent) postContent.addEventListener('input', updateCharCount);
 });
 
 // ── Tab switcher ──
@@ -448,8 +520,8 @@ function skeletonCards(n) {
 async function loadFeedPosts() {
   try {
     const url = currentTab === 'following'
-      ? `/ql/api/posts/?page=${currentPage}&per_page=20`
-      : `/ql/api/posts/global/?page=${currentPage}&per_page=20`;
+      ? `/api/posts/?page=${currentPage}&per_page=20`
+      : `/api/posts/global/?page=${currentPage}&per_page=20`;
 
     const res = await fetch(url);
     const data = await res.json();
@@ -472,8 +544,8 @@ async function loadFeedPosts() {
     data.posts.forEach(post => {
       container.insertAdjacentHTML('beforeend', renderPostCard(post, {
         showAuthor: true,
-        currentUserId: {{ web_user.id }},
-        isAdmin: {{ web_user.is_admin|default:"false"|lower }}
+        currentUserId: CURRENT_USER_ID,
+        isAdmin: CURRENT_USER_IS_ADMIN
       }));
     });
 
@@ -493,25 +565,81 @@ function loadMorePosts() {
 
 // ── Sidebar data ──
 async function loadSidebarData() {
+  // Main activity data
   try {
-    const res = await fetch('/ql/api/activity/');
+    const res = await fetch('/api/activity/');
     const data = await res.json();
-
-    // Stats
     document.getElementById('stat-posts-today').textContent = data.posts_today ?? '—';
     document.getElementById('stat-active-users').textContent = data.active_posters_today ?? '—';
-
-    // Suggested users (sidebar + main row)
     renderSuggestedMain(data.suggested_gamers || []);
     renderSuggestedUsers(data.suggested_gamers || []);
-
-    // Trending games
     renderTrendingGames(data.trending_games || []);
   } catch(e) {
     document.getElementById('suggested-users').innerHTML =
       '<p class="text-gray-600 text-xs text-center py-4">Unable to load suggestions</p>';
     document.getElementById('trending-games').innerHTML =
       '<p class="text-gray-600 text-xs py-2">No data available</p>';
+  }
+
+  // Top Players
+  try {
+    const res = await fetch('/api/leaderboard/top/?limit=5');
+    const data = await res.json();
+    const container = document.getElementById('feed-top-players');
+    const medals = ['🥇','🥈','🥉'];
+    if (!data.entries || !data.entries.length) { container.innerHTML = '<p class="text-gray-600 text-xs text-center py-2">No data yet</p>'; }
+    else
+    container.innerHTML = data.entries.map((u, i) => `
+      <a href="/u/${esc(u.username)}/" class="flex items-center gap-2.5 py-1 hover:bg-neutral-800/50 rounded-lg px-1.5 transition group">
+        <span class="w-5 text-center flex-shrink-0">${i < 3 ? `<span class="text-sm">${medals[i]}</span>` : `<span class="text-gray-600 text-xs">#${i+1}</span>`}</span>
+        ${u.avatar_url ? `<img src="${esc(u.avatar_url)}" class="w-7 h-7 rounded-full object-cover flex-shrink-0">` : `<div class="w-7 h-7 rounded-full bg-indigo-900/60 flex items-center justify-center flex-shrink-0 text-xs font-bold text-indigo-300">${esc(u.username.slice(0,2).toUpperCase())}</div>`}
+        <div class="flex-1 min-w-0">
+          <p class="text-xs font-semibold text-gray-300 truncate group-hover:text-white">${esc(u.username)}</p>
+          <p class="text-[10px] text-gray-600">Lv.${u.level||1}</p>
+        </div>
+        <span class="text-xs font-bold text-yellow-400 flex-shrink-0">${(u.xp||0).toLocaleString()}</span>
+      </a>`).join('');
+  } catch(e) {
+    document.getElementById('feed-top-players').innerHTML = '<p class="text-gray-600 text-xs text-center py-2">Unable to load</p>';
+  }
+
+  // Top Posts
+  try {
+    const res = await fetch('/api/posts/top/?limit=4');
+    const data = await res.json();
+    const container = document.getElementById('feed-top-posts');
+    if (!data.posts || !data.posts.length) { container.innerHTML = '<p class="text-gray-600 text-xs text-center py-2">No posts yet</p>'; }
+    else container.innerHTML = data.posts.map(p => `
+      <a href="/post/${esc(p.public_id)}/" class="block hover:bg-neutral-800/50 rounded-lg p-2 transition group">
+        <div class="flex items-center gap-2 mb-1">
+          ${p.author_avatar_url ? `<img src="${esc(p.author_avatar_url)}" class="w-5 h-5 rounded-full object-cover flex-shrink-0">` : `<div class="w-5 h-5 rounded-full bg-indigo-900/60 flex-shrink-0"></div>`}
+          <span class="text-xs text-gray-500 truncate">${esc(p.author_display_name||p.author_username)}</span>
+          ${p.game_tag_name ? `<span class="ml-auto text-[10px] bg-indigo-900/40 text-indigo-300 px-1.5 py-0.5 rounded flex-shrink-0">${esc(p.game_tag_name)}</span>` : ''}
+        </div>
+        <p class="text-xs text-gray-300 line-clamp-2 group-hover:text-white leading-relaxed">${esc(p.content)}</p>
+        <div class="flex gap-3 mt-1.5 text-[10px] text-gray-600">
+          <span><i class="fas fa-heart mr-0.5 text-red-500/60"></i>${p.like_count}</span>
+          <span><i class="fas fa-comment mr-0.5 text-indigo-500/60"></i>${p.comment_count}</span>
+          <span><i class="fas fa-retweet mr-0.5 text-green-500/60"></i>${p.repost_count}</span>
+        </div>
+      </a>`).join('');
+  } catch(e) {
+    document.getElementById('feed-top-posts').innerHTML = '<p class="text-gray-600 text-xs text-center py-2">Unable to load</p>';
+  }
+
+  // Gaming News
+  try {
+    const res = await fetch('/api/articles/');
+    const data = await res.json();
+    const container = document.getElementById('feed-gaming-news');
+    if (!data.articles || !data.articles.length) { container.innerHTML = '<p class="text-gray-600 text-xs text-center py-2">No news yet</p>'; return; }
+    container.innerHTML = data.articles.slice(0,4).map(a => `
+      <a href="${esc(a.url)}" target="_blank" rel="noopener" class="block hover:bg-neutral-800/50 rounded-lg p-2 transition group">
+        <p class="text-xs text-gray-300 font-medium line-clamp-2 group-hover:text-white leading-snug">${esc(a.title)}</p>
+        <p class="text-[10px] text-gray-600 mt-1">${esc(a.author||'News')}</p>
+      </a>`).join('');
+  } catch(e) {
+    document.getElementById('feed-gaming-news').innerHTML = '<p class="text-gray-600 text-xs text-center py-2">Unable to load</p>';
   }
 }
 
@@ -553,10 +681,10 @@ function renderSuggestedMain(gamers) {
       u.instagram_url?`<a href="${esc(u.instagram_url)}" target="_blank" rel="noopener" class="text-rose-400 hover:text-rose-300 text-xs"><i class="fab fa-instagram"></i></a>`:'',
     ].filter(Boolean).join('');
     return `
-    <div class="snap-start flex-shrink-0 w-52 rounded-xl border border-neutral-800 hover:border-neutral-700 bg-neutral-900/70 hover:bg-neutral-800/60 transition p-3 flex flex-col gap-2">
+    <div class="snap-start flex-shrink-0 w-52 rounded-xl border border-neutral-800 hover:border-neutral-700 bg-neutral-900/70 hover:bg-neutral-800/60 transition p-3 flex flex-col gap-2" data-suggested-user="${u.id}">
       <div class="flex items-center gap-2">
-        <a href="/ql/u/${esc(u.username)}/" class="flex-shrink-0">${av}</a>
-        <a href="/ql/u/${esc(u.username)}/" class="flex-1 min-w-0">
+        <a href="/u/${esc(u.username)}/" class="flex-shrink-0">${av}</a>
+        <a href="/u/${esc(u.username)}/" class="flex-1 min-w-0">
           <p class="text-white text-xs font-semibold truncate leading-tight">${esc(u.display_name||u.username)}</p>
           <p class="text-gray-500 text-[11px] truncate">@${esc(u.username)}</p>
         </a>
@@ -598,11 +726,11 @@ function renderSuggestedUsers(users) {
       u.website_url ? `<a href="${esc(u.website_url)}" target="_blank" rel="noopener" class="text-green-400 hover:text-green-300 text-xs" title="Website"><i class="fas fa-globe"></i></a>` : '',
     ].filter(Boolean).join('');
     return `
-      <div class="rounded-lg border border-neutral-800 hover:border-neutral-700 bg-neutral-800/30 hover:bg-neutral-800/60 transition p-3">
+      <div class="rounded-lg border border-neutral-800 hover:border-neutral-700 bg-neutral-800/30 hover:bg-neutral-800/60 transition p-3" data-suggested-user="${u.id}">
         <div class="flex items-start gap-2.5 mb-2">
-          <a href="/ql/u/${esc(u.username)}/" class="flex-shrink-0">${avatar}</a>
+          <a href="/u/${esc(u.username)}/" class="flex-shrink-0">${avatar}</a>
           <div class="flex-1 min-w-0">
-            <a href="/ql/u/${esc(u.username)}/" class="block">
+            <a href="/u/${esc(u.username)}/" class="block">
               <p class="text-white text-xs font-semibold truncate leading-tight">${esc(u.display_name || u.username)}</p>
               <p class="text-gray-500 text-[11px] truncate">@${esc(u.username)}</p>
             </a>
@@ -637,13 +765,21 @@ async function quickFollowSidebar(userId, btn) {
   btn.disabled = true;
   btn.textContent = '…';
   try {
-    const res = await csrfFetch(`/ql/api/follow/${userId}/`, { method: 'POST' });
+    const res = await csrfFetch(`/api/follow/${userId}/`, { method: 'POST' });
     const data = await res.json();
     if (data.success) {
-      btn.textContent = 'Following';
-      btn.className = 'flex-shrink-0 text-xs px-2.5 py-1 rounded-full bg-neutral-700 text-gray-400 cursor-default font-medium';
-      btn.onclick = null;
-      btn.disabled = false;
+      // Remove the suggested card with a fade
+      const card = document.querySelector(`[data-suggested-user="${userId}"]`);
+      if (card) {
+        card.style.transition = 'opacity 0.3s, max-height 0.3s';
+        card.style.opacity = '0';
+        card.style.maxHeight = card.offsetHeight + 'px';
+        setTimeout(() => { card.style.maxHeight = '0'; card.style.overflow = 'hidden'; }, 300);
+        setTimeout(() => { card.remove(); }, 600);
+      }
+      // Update following count in header
+      const countEl = document.getElementById('header-following-count');
+      if (countEl) countEl.textContent = (parseInt(countEl.textContent) || 0) + 1;
     } else {
       btn.textContent = 'Follow';
       btn.disabled = false;
@@ -691,7 +827,7 @@ let _customEmojiCache = null;
 
 // Fetch custom emoji once and make available globally for post rendering
 window._customEmojiMap = {};
-fetch('/ql/api/emoji/').then(r => r.json()).then(data => {
+fetch('/api/emoji/').then(r => r.json()).then(data => {
   _customEmojiCache = data.emoji || [];
   data.emoji.forEach(e => { window._customEmojiMap[e.shortcode] = e.image_url; });
   const lolUrl = window._customEmojiMap['lol'];
@@ -717,7 +853,7 @@ function showEmojiCategory(cat) {
       renderCustomEmoji(_customEmojiCache);
     } else {
       customGrid.innerHTML = '<p class="col-span-8 text-center text-gray-500 text-xs py-3">Loading...</p>';
-      fetch('/ql/api/emoji/').then(r => r.json()).then(data => {
+      fetch('/api/emoji/').then(r => r.json()).then(data => {
         _customEmojiCache = data.emoji || [];
         renderCustomEmoji(_customEmojiCache);
       });
@@ -779,7 +915,7 @@ async function loadTrendingGifs() {
   const container = document.getElementById('gif-results');
   container.innerHTML = '<p class="col-span-3 text-gray-500 text-xs text-center py-4">Loading trending…</p>';
   try {
-    const res = await fetch('/ql/api/gifs/trending/');
+    const res = await fetch('/api/gifs/trending/');
     const data = await res.json();
     renderGifResults(data.results || []);
   } catch(e) {
@@ -794,7 +930,7 @@ function searchGifs(query) {
     const container = document.getElementById('gif-results');
     container.innerHTML = '<p class="col-span-3 text-gray-500 text-xs text-center py-4">Searching…</p>';
     try {
-      const res = await fetch(`/ql/api/gifs/search/?q=${encodeURIComponent(query)}`);
+      const res = await fetch(`/api/gifs/search/?q=${encodeURIComponent(query)}`);
       const data = await res.json();
       renderGifResults(data.results || []);
     } catch(e) {
@@ -853,7 +989,7 @@ function searchGames(query) {
   if (!query || query.length < 2) { results.classList.add('hidden'); return; }
   gameSearchTimeout = setTimeout(async () => {
     try {
-      const res = await fetch(`/ql/api/igdb/search/?q=${encodeURIComponent(query)}`);
+      const res = await fetch(`/api/igdb/search/?q=${encodeURIComponent(query)}`);
       const data = await res.json();
       if (data.games && data.games.length > 0) {
         results.classList.remove('hidden');
@@ -900,7 +1036,7 @@ async function handleImageSelect(input) {
     const formData = new FormData();
     formData.append('image', file);
     try {
-      const res = await csrfFetch('/ql/api/upload/image/', { method: 'POST', body: formData });
+      const res = await csrfFetch('/api/upload/image/', { method: 'POST', body: formData });
       const data = await res.json();
       if (data.success) { uploadedImages.push(data); renderImagePreviews(); updateCharCount(); }
       else { alert(data.error || 'Upload failed'); }
@@ -926,7 +1062,7 @@ async function handlePasteImage(event) {
     const formData = new FormData();
     formData.append('image', file);
     try {
-      const res = await csrfFetch('/ql/api/upload/image/', { method: 'POST', body: formData });
+      const res = await csrfFetch('/api/upload/image/', { method: 'POST', body: formData });
       const data = await res.json();
       if (data.success) { uploadedImages.push(data); }
       else { alert(data.error || 'Upload failed'); }
@@ -979,7 +1115,7 @@ async function submitPost() {
   }
 
   try {
-    const res = await csrfFetch('/ql/api/posts/', {
+    const res = await csrfFetch('/api/posts/', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
@@ -1001,7 +1137,7 @@ async function submitPost() {
       document.getElementById('empty-global')?.classList.add('hidden');
 
       // Insert card immediately, then switch tab so user sees it
-      const html = renderPostCard(data.post, { showAuthor: true, currentUserId: {{ web_user.id }}, isAdmin: CURRENT_USER_IS_ADMIN });
+      const html = renderPostCard(data.post, { showAuthor: true, currentUserId: CURRENT_USER_ID, isAdmin: CURRENT_USER_IS_ADMIN });
       container.insertAdjacentHTML('afterbegin', html);
       const newCard = container.firstElementChild;
       newCard.style.transition = 'background 0.4s';

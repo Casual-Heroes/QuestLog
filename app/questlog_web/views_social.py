@@ -10,7 +10,7 @@ from django.http import JsonResponse
 from django.shortcuts import render
 from django.views.decorators.http import require_http_methods
 from django_ratelimit.decorators import ratelimit
-from sqlalchemy import or_, and_, func, case
+from sqlalchemy import or_, and_, func, case, text
 
 from .models import (
     WebUser, WebFollow, WebPost, WebPostEdit, WebPostImage, WebLike,
@@ -20,14 +20,19 @@ from .models import (
     WebLFGGroup, WebLFGMember, WebCommunity, WebCommunityMember,
 )
 from app.db import get_db_session
-from .fluxer_webhooks import notify_new_post as _fluxer_new_post, notify_new_post_discord as _discord_new_post
+from .fluxer_webhooks import (
+    notify_new_post as _fluxer_new_post,
+    notify_new_post_discord as _discord_new_post,
+    notify_new_comment as _fluxer_new_comment,
+    notify_new_comment_discord as _discord_new_comment,
+)
 from .models import WebBroadcastUser
 from .helpers import (
     web_login_required, web_verified_required, add_web_user_context,
     check_banned, check_posting_timeout,
     is_blocked, create_notification,
     sanitize_text, parse_embed_url, reconstruct_embed_url, _is_valid_giphy_url,
-    serialize_user_brief, serialize_post, award_hero_points, safe_int, EXCLUDED_USER_IDS,
+    serialize_user_brief, serialize_post, award_hero_points, award_legacy, safe_int, EXCLUDED_USER_IDS,
     fetch_link_preview, generate_post_public_id,
 )
 
@@ -40,8 +45,8 @@ logger = logging.getLogger(__name__)
 
 @web_verified_required
 @require_http_methods(["POST", "DELETE"])
-@ratelimit(key='user', rate='30/h', method='POST', block=True)
-@ratelimit(key='user', rate='30/h', method='DELETE', block=True)
+@ratelimit(key='ip', rate='30/h', method='POST', block=True)
+@ratelimit(key='ip', rate='30/h', method='DELETE', block=True)
 def api_block(request, user_id):
     """POST: Block a user. DELETE: Unblock."""
     banned = check_banned(request)
@@ -143,8 +148,8 @@ def api_block_list(request):
 
 @web_verified_required
 @require_http_methods(["POST", "DELETE"])
-@ratelimit(key='user', rate='60/h', method='POST', block=True)
-@ratelimit(key='user', rate='60/h', method='DELETE', block=True)
+@ratelimit(key='ip', rate='60/h', method='POST', block=True)
+@ratelimit(key='ip', rate='60/h', method='DELETE', block=True)
 def api_follow(request, user_id):
     """POST: Follow a user. DELETE: Unfollow."""
     banned = check_banned(request)
@@ -196,6 +201,7 @@ def api_follow(request, user_id):
             db.commit()
 
             award_hero_points(request.web_user.id, 'follow', ref_id=str(user_id))
+            award_legacy(user_id, 'gained_follower', ref_id=str(request.web_user.id))
 
             is_mutual = db.query(WebFollow).filter_by(
                 follower_id=user_id, following_id=request.web_user.id
@@ -357,7 +363,7 @@ def api_follow_status(request, user_id):
 
 @web_verified_required
 @require_http_methods(["GET", "POST"])
-@ratelimit(key='user', rate='10/h', method='POST', block=True)
+@ratelimit(key='ip', rate='10/h', method='POST', block=True)
 @ratelimit(key='ip', rate='60/h', method='POST', block=True)
 def api_posts(request):
     """GET: Feed posts. POST: Create post."""
@@ -379,7 +385,15 @@ def api_posts(request):
 
     is_champion = bool(getattr(request.web_user, 'is_hero', 0))
     is_admin = bool(getattr(request.web_user, 'is_admin', 0))
-    char_limit = 6000 if is_admin else (3000 if is_champion else 1000)
+    legacy_tier = getattr(request.web_user, 'legacy_tier', 1) or 1
+    if is_admin:
+        char_limit = 6000
+    elif is_champion:
+        char_limit = 4000
+    elif legacy_tier >= 3:  # Warden+
+        char_limit = 2000
+    else:
+        char_limit = 1000
     content = sanitize_text(data.get('content', ''), max_length=char_limit)
     post_type = data.get('post_type', 'text')
     if post_type not in ('text', 'image', 'video_embed', 'game_tag', 'gif'):
@@ -500,25 +514,23 @@ def api_posts(request):
             post = db.query(WebPost).filter_by(id=post.id).first()
             post_data = serialize_post(post, request.web_user.id, db)
 
-            # Fan out to Fluxer + Discord only for broadcast users
-            _is_broadcast = db.query(WebBroadcastUser).filter_by(user_id=request.web_user.id).first()
-            if _is_broadcast:
-                _post_url = f"https://casual-heroes.com/ql/post/{post.public_id}/"
-                _image_url = post.images[0].image_url if post.images else None
-                _fluxer_new_post(
-                    username=request.web_user.username,
-                    game=post.game_tag_name or '',
-                    content=post.content or '',
-                    post_url=_post_url,
-                    image_url=_image_url,
-                )
-                _discord_new_post(
-                    username=request.web_user.username,
-                    game=post.game_tag_name or '',
-                    content=post.content or '',
-                    post_url=_post_url,
-                    image_url=_image_url,
-                )
+            # Fan out new post to Fluxer + Discord for all users
+            _post_url = f"https://casual-heroes.com/ql/post/{post.public_id}/"
+            _image_url = post.images[0].image_url if post.images else None
+            _fluxer_new_post(
+                username=request.web_user.username,
+                game=post.game_tag_name or '',
+                content=post.content or '',
+                post_url=_post_url,
+                image_url=_image_url,
+            )
+            _discord_new_post(
+                username=request.web_user.username,
+                game=post.game_tag_name or '',
+                content=post.content or '',
+                post_url=_post_url,
+                image_url=_image_url,
+            )
 
         return JsonResponse({'success': True, 'post': post_data}, status=201)
     except Exception as e:
@@ -572,7 +584,7 @@ def _get_feed_posts(request):
 @web_verified_required
 @add_web_user_context
 @require_http_methods(["POST"])
-@ratelimit(key='user', rate='20/h', method='POST', block=True)
+@ratelimit(key='ip', rate='20/h', method='POST', block=True)
 def api_post_pin(request, post_id):
     """POST: Toggle pin on a post. Author can pin their own (profile pin). Admin can pin to site-wide feed."""
     with get_db_session() as db:
@@ -857,6 +869,7 @@ def _get_recent_activity(request):
                 'tiktok_url': (cp.tiktok_url or '') if cp else '',
                 'instagram_url': (cp.instagram_url or '') if cp else '',
                 'website_url': (cp.website_url or '') if cp else '',
+                'web_level': u.web_level or 1,
             })
 
         # New members this week — used as sidebar fallback when no suggested users
@@ -1145,7 +1158,7 @@ def _get_recent_activity(request):
                 'type': 'network_approved',
                 'username': '',
                 'display_name': c.name,
-                'avatar_url': c.banner_url or '',
+                'avatar_url': c.icon_url or '',
                 'message': f"{c.name} joined the QuestLog Network",
                 'community_id': c.id,
                 'timestamp': c.updated_at,
@@ -1172,7 +1185,7 @@ def _get_recent_activity(request):
 
 @web_verified_required
 @require_http_methods(["POST", "DELETE"])
-@ratelimit(key='user', rate='120/h', method='POST', block=True)
+@ratelimit(key='ip', rate='120/h', method='POST', block=True)
 def api_post_like(request, post_id):
     """POST: Like a post. DELETE: Unlike."""
     banned = check_banned(request)
@@ -1211,6 +1224,7 @@ def api_post_like(request, post_id):
                 db.commit()
                 if not is_own_post:
                     award_hero_points(request.web_user.id, 'like', ref_id=str(post_id))
+                    award_legacy(post.author_id, 'post_liked', ref_id=f'{post_id}:{request.web_user.id}')
             return JsonResponse({
                 'success': True, 'liked': True, 'like_count': post.like_count or 0
             })
@@ -1235,7 +1249,7 @@ def api_post_like(request, post_id):
 
 @add_web_user_context
 @require_http_methods(["GET", "POST"])
-@ratelimit(key='user', rate='30/h', method='POST', block=True)
+@ratelimit(key='ip', rate='30/h', method='POST', block=True)
 def api_comments(request, post_id):
     """GET: List comments for a post (public). POST: Create comment (login required)."""
     with get_db_session() as db:
@@ -1309,6 +1323,25 @@ def api_comments(request, post_id):
 
         db.commit()
 
+        is_own_comment = post.author_id == request.web_user.id
+        post_author_id = post.author_id
+        _comment_post_url = f"https://casual-heroes.com/ql/post/{post.public_id}/"
+        _post_author_name = post.author.username if post.author else 'someone'
+
+        # Fan out comment to Fluxer + Discord
+        _fluxer_new_comment(
+            username=request.web_user.username,
+            post_author=_post_author_name,
+            comment=content,
+            post_url=_comment_post_url,
+        )
+        _discord_new_comment(
+            username=request.web_user.username,
+            post_author=_post_author_name,
+            comment=content,
+            post_url=_comment_post_url,
+        )
+
         comment_data = {
             'id': comment.id,
             'author': serialize_user_brief(request.web_user),
@@ -1319,6 +1352,11 @@ def api_comments(request, post_id):
             'replies': [],
             'liked_by_me': False,
         }
+
+    if not is_own_comment:
+        # ref_id encodes post + commenter + UTC day - one legacy point per commenter per post per day
+        _day = int(time.time()) // 86400
+        award_legacy(post_author_id, 'comment_received', ref_id=f'{post_id}:{request.web_user.id}:{_day}')
 
     return JsonResponse({'success': True, 'comment': comment_data}, status=201)
 
@@ -1451,7 +1489,7 @@ def api_comment_detail(request, comment_id):
 
 @web_verified_required
 @require_http_methods(["POST", "DELETE"])
-@ratelimit(key='user', rate='120/h', method='POST', block=True)
+@ratelimit(key='ip', rate='120/h', method='POST', block=True)
 def api_comment_like(request, comment_id):
     """POST: Like a comment. DELETE: Unlike."""
     banned = check_banned(request)
@@ -1538,12 +1576,47 @@ def api_notifications(request):
             for u in db.query(WebUser).filter(WebUser.id.in_(actor_ids)).all():
                 actors[u.id] = u
 
+        # Resolve post target_ids to public_ids so links use /ql/post/<public_id>/
+        post_target_ids = set(
+            n.target_id for n in notifs
+            if n.target_type == 'post' and n.target_id
+        )
+        # Also resolve comment notifications - need the post they belong to
+        comment_target_ids = set(
+            n.target_id for n in notifs
+            if n.target_type == 'comment' and n.target_id
+        )
+        post_public_ids = {}
+        if post_target_ids:
+            rows = db.execute(text(
+                "SELECT id, public_id FROM web_posts WHERE id IN :ids"
+            ), {'ids': tuple(post_target_ids)}).fetchall()
+            post_public_ids = {r[0]: r[1] for r in rows}
+        comment_post_map = {}
+        if comment_target_ids:
+            rows = db.execute(text(
+                "SELECT c.id, p.public_id FROM web_comments c "
+                "JOIN web_posts p ON p.id = c.post_id WHERE c.id IN :ids"
+            ), {'ids': tuple(comment_target_ids)}).fetchall()
+            comment_post_map = {r[0]: r[1] for r in rows}
+
+        def _notif_url(n):
+            if n.target_type == 'post' and n.target_id in post_public_ids:
+                return f"/ql/post/{post_public_ids[n.target_id]}/"
+            if n.target_type == 'comment' and n.target_id in comment_post_map:
+                return f"/ql/post/{comment_post_map[n.target_id]}/"
+            if n.target_type == 'user' and n.target_id:
+                actor = actors.get(n.actor_id)
+                return f"/ql/u/{actor.username}/" if actor else None
+            return None
+
         data = [{
             'id': n.id,
             'type': n.notification_type,
             'actor': serialize_user_brief(actors[n.actor_id]) if n.actor_id in actors else None,
             'target_type': n.target_type,
             'target_id': n.target_id,
+            'target_url': _notif_url(n),
             'message': n.message,
             'is_read': n.is_read,
             'created_at': n.created_at,
@@ -1620,7 +1693,7 @@ def api_notifications_clear_all(request):
 
 @web_verified_required
 @require_http_methods(["POST"])
-@ratelimit(key='user', rate='20/h', block=True)
+@ratelimit(key='ip', rate='20/h', block=True)
 def api_post_share(request, post_id):
     """
     POST: Record a share event and award Hero Points.
@@ -1640,10 +1713,13 @@ def api_post_share(request, post_id):
             return JsonResponse({'error': 'Cannot interact with this post'}, status=403)
 
         is_own_post = post.author_id == request.web_user.id
+        post_author_id = post.author_id
         post.repost_count = (post.repost_count or 0) + 1
         db.commit()
 
     points = 0 if is_own_post else award_hero_points(request.web_user.id, 'share', ref_id=str(post_id))
+    if not is_own_post:
+        award_legacy(post_author_id, 'post_shared', ref_id=f'{post_id}:{request.web_user.id}')
     return JsonResponse({'success': True, 'hp_awarded': points})
 
 
@@ -1709,7 +1785,7 @@ def api_giveaways(request):
 
 @web_verified_required
 @require_http_methods(['POST', 'DELETE'])
-@ratelimit(key='user', rate='20/h', method='POST', block=True)
+@ratelimit(key='ip', rate='20/h', method='POST', block=True)
 def api_giveaway_enter(request, giveaway_id):
     """POST: enter/buy tickets. DELETE: withdraw all tickets."""
     banned = check_banned(request)
@@ -1818,9 +1894,19 @@ def post_detail_page(request, public_id):
         author = post_data.get('author') or {}
         post_author = author.get('display_name') or author.get('username', 'Unknown')
 
-        # OG meta for social unfurls
-        og_title = f"{post_author} on QuestLog"
-        og_desc = (post.content or '')[:200].strip() or "View this post on QuestLog"
+        # OG meta for social unfurls - lead with game tag when present
+        game_tag = post.game_tag_name or ''
+        if game_tag:
+            og_title = f"{post_author} posted about {game_tag} - QuestLog"
+        else:
+            og_title = f"{post_author} on QuestLog"
+        content_preview = (post.content or '')[:200].strip()
+        if game_tag and content_preview:
+            og_desc = f"[{game_tag}] {content_preview}"
+        elif game_tag:
+            og_desc = f"Playing {game_tag} - View this post on QuestLog"
+        else:
+            og_desc = content_preview or "View this post on QuestLog"
         # Use post image if available, else link preview image, else default
         og_image = None
         if post_data.get('images'):
@@ -1849,7 +1935,7 @@ def post_detail_page(request, public_id):
 
 @web_login_required
 @require_http_methods(["PUT"])
-@ratelimit(key='user', rate='30/h', block=True)
+@ratelimit(key='ip', rate='30/h', block=True)
 def api_post_edit(request, post_id):
     """Edit a post. Saves previous content to edit history first."""
     banned = check_banned(request)
@@ -1872,7 +1958,15 @@ def api_post_edit(request, post_id):
             return JsonResponse({'error': 'Not authorized'}, status=403)
 
         is_champion = bool(getattr(request.web_user, 'is_hero', 0))
-        char_limit = 6000 if is_admin else (3000 if is_champion else 1000)
+        legacy_tier = getattr(request.web_user, 'legacy_tier', 1) or 1
+        if is_admin:
+            char_limit = 6000
+        elif is_champion:
+            char_limit = 4000
+        elif legacy_tier >= 3:  # Warden+
+            char_limit = 2000
+        else:
+            char_limit = 1000
         new_content = sanitize_text(data.get('content', ''), max_length=char_limit)
         if not new_content:
             return JsonResponse({'error': 'Post cannot be empty'}, status=400)
