@@ -6,7 +6,7 @@
 {% block og_title %}{% if og_title %}{{ og_title }}{% else %}QuestLog{% endif %}{% endblock %}
 {% block og_description %}{% if og_desc %}{{ og_desc }}{% else %}View this post on QuestLog{% endif %}{% endblock %}
 {% block og_image %}{% if og_image %}{{ og_image }}{% else %}https://dashboard.casual-heroes.com/static/img/siteassets/homepage/CHLogoFinal.png{% endif %}{% endblock %}
-{% block og_url %}{% if og_url %}{{ og_url }}{% else %}https://casual-heroes.com/ql/{% endif %}{% endblock %}
+{% block og_url %}{% if og_url %}{{ og_url }}{% else %}https://casual-heroes.com{% endif %}{% endblock %}
 {% block twitter_card %}{% if og_image %}summary_large_image{% else %}summary{% endif %}{% endblock %}
 {% block twitter_title %}{% if og_title %}{{ og_title }}{% else %}QuestLog{% endif %}{% endblock %}
 {% block twitter_description %}{% if og_desc %}{{ og_desc }}{% else %}View this post on QuestLog{% endif %}{% endblock %}
@@ -26,7 +26,7 @@
     <i class="fas fa-ghost text-4xl text-gray-600 mb-3"></i>
     <p class="text-white font-semibold mb-1">Post not found</p>
     <p class="text-gray-500 text-sm">This post may have been deleted or is not available.</p>
-    <a href="/ql/" class="mt-4 inline-block text-indigo-400 hover:text-indigo-300 text-sm">Go to Home</a>
+    <a href="/discover/" class="mt-4 inline-block text-indigo-400 hover:text-indigo-300 text-sm">Go to Home</a>
   </div>
   {% else %}
 
@@ -37,7 +37,7 @@
   <script>
   // Runs after base.html scripts (which define renderPostCard, csrfFetch, etc.)
   window._postDetailData = JSON.parse(document.getElementById('post-detail-data').textContent);
-  window._postDetailId = {{ post_id }};
+  window._postDetailId = window._postDetailData.id;
   window._postDetailUserId = {{ web_user.id|default:"null" }};
   window._postDetailIsAdmin = {{ web_user.is_admin|default:"false"|lower }};
   </script>
