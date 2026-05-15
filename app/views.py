@@ -2858,7 +2858,8 @@ def bot_discord(request):
     ]
     client_id = os.getenv('DISCORD_CLIENT_ID', '')
     invite_url = f"https://discord.com/oauth2/authorize?client_id={client_id}&scope=bot+applications.commands&permissions=8" if client_id else '#'
-    return render(request, 'bot_discord.html', {'features': features, 'invite_url': invite_url})
+    from app.questlog_web.helpers import get_web_user as _get_web_user
+    return render(request, 'bot_discord.html', {'features': features, 'invite_url': invite_url, 'web_user': _get_web_user(request)})
 
 
 def bot_fluxer(request):
@@ -2877,7 +2878,8 @@ def bot_fluxer(request):
         {'icon': '🔓', 'title': 'Open Source', 'desc': 'Fully open source under AGPL-3.0. Self-host your own instance or contribute on GitHub.'},
     ]
     invite_url = 'https://web.fluxer.app/oauth2/authorize?client_id=1478501650237887115&scope=bot&permissions=6756638430588119'
-    return render(request, 'bot_fluxer.html', {'features': features, 'invite_url': invite_url})
+    from app.questlog_web.helpers import get_web_user as _get_web_user
+    return render(request, 'bot_fluxer.html', {'features': features, 'invite_url': invite_url, 'web_user': _get_web_user(request)})
 
 def questchat(request):
     from app.questlog_web.helpers import get_web_user as _get_web_user

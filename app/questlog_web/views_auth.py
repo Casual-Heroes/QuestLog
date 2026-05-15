@@ -1113,9 +1113,8 @@ def discord_link_callback(request):
                 "JOIN web_communities wc ON wc.platform='discord' "
                 "    AND CAST(wc.platform_id AS UNSIGNED) = gm.guild_id "
                 "    AND wc.site_xp_to_guild=1 AND wc.network_status='approved' AND wc.is_active=1 "
-                "JOIN web_users wu ON wu.id = :wuid AND wu.primary_community_id = wc.id "
                 "WHERE gm.user_id = :did AND gm.xp > 0"
-            ), {"did": int(discord_id), "wuid": web_user_id}).fetchall()
+            ), {"did": int(discord_id)}).fetchall()
 
             if guild_rows:
                 # Take the highest XP across all guilds as the unified value

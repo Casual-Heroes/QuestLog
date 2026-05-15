@@ -1461,6 +1461,40 @@ def _get_recent_activity(request):
                 'category': ann.category,
             })
 
+        # Play Together - 2 random picks from library, spread through ticker
+        try:
+            pt_rows = db.execute(text("""
+                SELECT g.web_user_id, g.name AS game_name, g.steam_app_id,
+                       u.username, u.display_name, u.avatar_url
+                FROM web_user_games g
+                JOIN web_users u ON u.id = g.web_user_id
+                WHERE g.status = 'play_together'
+                  AND u.is_banned = 0
+                  AND u.is_disabled = 0
+                  AND u.allow_discovery = 1
+                  AND u.email_verified = 1
+                ORDER BY RAND()
+                LIMIT 2
+            """)).fetchall()
+            for i, row in enumerate(pt_rows):
+                steam_url = (
+                    f'https://store.steampowered.com/app/{row.steam_app_id}/'
+                    if row.steam_app_id
+                    else f'https://store.steampowered.com/search/?term={row.game_name}'
+                )
+                ticker.append({
+                    'type': 'play_together',
+                    'username': row.username,
+                    'display_name': row.display_name or row.username,
+                    'avatar_url': row.avatar_url or '',
+                    'message': f"wants to play {row.game_name}",
+                    'game': row.game_name,
+                    'steam_url': steam_url,
+                    'timestamp': now - (i * 300),  # spread 5 min apart so they interleave
+                })
+        except Exception:
+            pass
+
         ticker.sort(key=lambda x: x['timestamp'], reverse=True)
         ticker = ticker[:20]
 

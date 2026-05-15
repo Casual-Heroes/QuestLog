@@ -1347,6 +1347,141 @@ def api_internal_bridge_pending_deletions(request, platform):
 
 @csrf_exempt
 @require_http_methods(['POST'])
+def api_internal_bridge_edit(request):
+    """
+    POST /ql/internal/bridge/edit/
+    Called by a bot when a message is edited in a bridged channel.
+    Looks up the cross-platform message map and queues a pending edit.
+    Deduped: if an edit is already pending for a target message, the new content
+    replaces it (last-writer wins - only the most recent edit matters).
+
+    Body: {
+        "platform": "discord",
+        "message_id": "456789",
+        "channel_id": "111222",
+        "new_content": "edited text here"
+    }
+    """
+    if not _check_bot_auth(request):
+        return JsonResponse({'error': 'Unauthorized'}, status=401)
+
+    try:
+        data = json.loads(request.body)
+    except (json.JSONDecodeError, AttributeError):
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+    platform = (data.get('platform') or '').strip()
+    message_id = str(data.get('message_id', '') or '')[:255]
+    new_content = (data.get('new_content') or '').strip()
+
+    if platform not in ('discord', 'fluxer', 'matrix') or not message_id or not new_content:
+        return JsonResponse({'error': 'platform, message_id, and new_content required'}, status=400)
+
+    now = int(time.time())
+
+    with get_db_session() as db:
+        src_map = db.query(WebBridgeMessageMap).filter_by(
+            platform=platform, message_id=message_id
+        ).first()
+        if not src_map:
+            return JsonResponse({'queued': 0, 'reason': 'Message not in any bridge'})
+
+        all_maps = db.query(WebBridgeMessageMap).filter(
+            WebBridgeMessageMap.relay_queue_id == src_map.relay_queue_id,
+            WebBridgeMessageMap.platform != platform,
+        ).all()
+        if not all_maps:
+            return JsonResponse({'queued': 0, 'reason': 'Target message not yet delivered'})
+
+        # Get author prefix from the original relay row so the edit preserves formatting
+        relay_row = db.query(WebBridgeRelayQueue).filter_by(id=src_map.relay_queue_id).first()
+        _TAG_MAP = {'discord': 'D', 'fluxer': 'F', 'matrix': 'M'}
+        tag = _TAG_MAP.get(platform, 'D')
+        author = relay_row.author_name if relay_row else 'Unknown'
+        # Keep the [D]/[F] prefix so recipients know who wrote it; no extra flair -
+        # Discord and Fluxer each show their own native "edited" indicator automatically.
+        formatted_content = f"**[{tag}] {author}:** {new_content}"
+
+        queued = 0
+        for tgt_map in all_maps:
+            # Dedup: if already pending, update the content instead of inserting
+            existing = db.query(WebBridgePendingEdit).filter_by(
+                target_platform=tgt_map.platform,
+                target_message_id=tgt_map.message_id,
+                delivered_at=None,
+            ).first()
+            if existing:
+                existing.new_content = formatted_content
+                existing.created_at = now
+            else:
+                db.add(WebBridgePendingEdit(
+                    source_platform=platform,
+                    target_platform=tgt_map.platform,
+                    target_message_id=tgt_map.message_id,
+                    target_channel_id=tgt_map.channel_id,
+                    new_content=formatted_content,
+                    created_at=now,
+                ))
+            queued += 1
+        db.commit()
+
+    return JsonResponse({'queued': queued})
+
+
+@csrf_exempt
+@require_http_methods(['GET'])
+def api_internal_bridge_pending_edits(request, platform):
+    """
+    GET /ql/internal/bridge/pending-edits/<platform>/
+    Called by bots every 6s to pick up message edits to apply on their platform.
+    Returns up to 10 undelivered edits and marks them delivered.
+    """
+    if not _check_bot_auth(request):
+        return JsonResponse({'error': 'Unauthorized'}, status=401)
+
+    if platform not in ('discord', 'fluxer', 'matrix'):
+        return JsonResponse({'error': 'Invalid platform'}, status=400)
+
+    now = int(time.time())
+    cutoff = now - 300  # ignore edits older than 5 minutes
+
+    with get_db_session() as db:
+        rows = (
+            db.query(WebBridgePendingEdit)
+            .filter(
+                WebBridgePendingEdit.target_platform == platform,
+                WebBridgePendingEdit.delivered_at == None,
+                WebBridgePendingEdit.created_at >= cutoff,
+            )
+            .order_by(WebBridgePendingEdit.created_at)
+            .limit(10)
+            .all()
+        )
+
+        if not rows:
+            return JsonResponse({'edits': []})
+
+        ids = [r.id for r in rows]
+        edits = [
+            {
+                'id': r.id,
+                'target_message_id': r.target_message_id,
+                'target_channel_id': r.target_channel_id,
+                'new_content': r.new_content,
+            }
+            for r in rows
+        ]
+
+        db.query(WebBridgePendingEdit).filter(
+            WebBridgePendingEdit.id.in_(ids)
+        ).update({'delivered_at': now}, synchronize_session=False)
+        db.commit()
+
+    return JsonResponse({'edits': edits})
+
+
+@csrf_exempt
+@require_http_methods(['POST'])
 def api_internal_bridge_typing(request):
     """
     POST /ql/api/internal/bridge/typing/

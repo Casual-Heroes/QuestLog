@@ -34,6 +34,32 @@ logger = logging.getLogger(__name__)
 _VOICE_LINK_SCHEMES = ('https://',)
 _VOICE_LINK_MAX = 500
 
+# Allowlist for platform invite URLs (invite_url field only - must be a known platform)
+_INVITE_URL_DOMAINS = {
+    'discord.gg', 'discord.com',
+    'fluxer.gg',
+    'matrix.to',
+    'stoat.gg',
+    'root.gg',
+    'revolt.chat',
+    'teamspeak.com',
+    'mumble.info',
+}
+
+# Allowlist for social link fields
+_SOCIAL_URL_DOMAINS = {
+    'twitch.tv', 'www.twitch.tv',
+    'youtube.com', 'www.youtube.com', 'youtu.be',
+    'twitter.com', 'x.com', 'www.twitter.com', 'www.x.com',
+    'bsky.app', 'bsky.social',
+    'tiktok.com', 'www.tiktok.com',
+    'instagram.com', 'www.instagram.com',
+    'bluesky.social',
+}
+
+# Valid in-game guild slugs - single source of truth
+VALID_GUILD_GAMES = frozenset({'ffxiv', 'eso', 'wow', 'gw2', 'lost_ark', 'bdo', 'swtor', 'other'})
+
 # ── Survival game sub-choices (mirrors lfg_browse.html GAME_TEMPLATES) ───────
 _SURVIVAL_SUB_CHOICES = {
     'palworld':   [
@@ -152,12 +178,57 @@ def _validate_role_schema(raw):
     return json.dumps(parsed)
 
 
+def _notify_lfg_game_owners(group_id, game_name, creator_id, now):
+    """Notify all members who own `game_name` (via Steam library cache) that a new LFG was created."""
+    from django.core.cache import cache
+    from app.db import get_db_session
+    from app.questlog_web.models import WebUser, WebNotification
+
+    game_lower = game_name.lower()
+
+    with get_db_session() as db:
+        candidates = db.query(WebUser.id, WebUser.steam_id).filter(
+            WebUser.steam_id.isnot(None),
+            WebUser.steam_id != '',
+            WebUser.share_steam_library == True,
+            WebUser.notify_lfg_game_owned == True,
+            WebUser.is_banned == False,
+            WebUser.is_disabled == False,
+            WebUser.id != creator_id,
+        ).all()
+
+        notified = []
+        for user_id, steam_id in candidates:
+            lib_key = f'steamquest_library_{steam_id}'
+            library = cache.get(lib_key) or []
+            owns = any(
+                g.get('name', '').lower() == game_lower
+                for g in library
+            )
+            if not owns:
+                continue
+            db.add(WebNotification(
+                user_id=user_id,
+                actor_id=creator_id,
+                notification_type='lfg_game_owned',
+                target_type='lfg',
+                target_id=str(group_id),
+                message=f'A new LFG group was created for {game_name}',
+                created_at=now,
+                is_read=False,
+            ))
+            notified.append(user_id)
+
+        if notified:
+            db.commit()
+
+
 def _validate_voice_link(url):
-    """Only allow https:// voice links to prevent javascript: / file: URI injection."""
+    """Only allow https:// URLs. Prevents javascript:/file: URI injection."""
     if not url or not isinstance(url, str):
         return None
     url = url.strip()[:_VOICE_LINK_MAX]
-    if not any(url.startswith(s) for s in _VOICE_LINK_SCHEMES):
+    if not url.startswith('https://'):
         return None
     return url or None
 
@@ -3532,6 +3603,26 @@ def api_igdb_search(request):
                         WebUser.current_game_appid.isnot(None),
                     ).distinct(WebUser.current_game).all():
                         steam_id_by_name[row.current_game] = row.current_game_appid
+
+        # 4. Steam store search fallback for any still-missing steam_ids (exact name match only)
+        still_missing = [g.name for g in games if not (g.steam_id or steam_id_by_name.get(g.name))]
+        if still_missing:
+            import requests as _requests
+            for name in still_missing[:3]:  # cap at 3 to avoid slow searches
+                try:
+                    resp = _requests.get(
+                        'https://store.steampowered.com/api/storesearch/',
+                        params={'term': name, 'cc': 'US', 'l': 'english'},
+                        timeout=3,
+                    )
+                    if resp.status_code == 200:
+                        items = resp.json().get('items', [])
+                        for item in items:
+                            if item.get('name', '').lower() == name.lower() and item.get('id'):
+                                steam_id_by_name[name] = item['id']
+                                break
+                except Exception:
+                    pass
 
         data = [{
             'id': g.id,
