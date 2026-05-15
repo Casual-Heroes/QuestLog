@@ -177,6 +177,7 @@
       </div>
     </div>
 
+
     <!-- LFG Section -->
     <div>
       <div class="flex items-center justify-between px-3 mb-1">
@@ -277,8 +278,8 @@
           <i class="fas fa-search text-gray-400 group-hover:text-emerald-400"></i>
           <span>Games We Found</span>
         </a>
-        <div x-data="{ open: {% if active_page == 'ffxiv' or active_page|slice:':5' == 'ffxiv' %}true{% else %}false{% endif %} }">
-          <button @click="open = !open" class="nav-item w-full flex items-center gap-3 px-3 py-1.5 rounded-lg text-sm transition group {% if active_page == 'ffxiv' or active_page|slice:':5' == 'ffxiv' %}active{% endif %}">
+        <div x-data="{ open: {% if active_page == 'ffxiv' or active_page == 'ffxiv_apply' or active_page|slice:':5' == 'ffxiv' %}true{% else %}false{% endif %} }">
+          <button @click="open = !open" class="nav-item w-full flex items-center gap-3 px-3 py-1.5 rounded-lg text-sm transition group {% if active_page == 'ffxiv' or active_page == 'ffxiv_apply' or active_page|slice:':5' == 'ffxiv' %}active{% endif %}">
             <img src="{% static 'img/games/guilds/ffxiv.png' %}" alt="FFXIV" class="w-4 h-4 rounded-sm object-cover opacity-60 group-hover:opacity-100 flex-shrink-0">
             <span class="flex-1 text-left">FFXIV</span>
             <i class="fas fa-chevron-down text-[10px] text-gray-600 transition-transform duration-200" :class="open ? 'rotate-180' : ''"></i>
@@ -286,6 +287,9 @@
           <div x-show="open" x-cloak class="ml-4 mt-0.5 space-y-0.5 border-l border-neutral-800 pl-3">
             <a href="/ffxiv/" class="flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs text-gray-400 hover:text-white hover:bg-neutral-800 transition {% if active_page == 'ffxiv' %}text-white bg-neutral-800{% endif %}">
               <i class="fas fa-users text-[10px] text-indigo-400 flex-shrink-0"></i> Guild Page
+            </a>
+            <a href="/ffxiv/apply/" class="flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs text-gray-400 hover:text-white hover:bg-neutral-800 transition {% if active_page == 'ffxiv_apply' %}text-white bg-neutral-800{% endif %}">
+              <i class="fas fa-scroll text-[10px] text-rose-400 flex-shrink-0"></i> Apply to FC
             </a>
             <a href="/ffxiv/tools/" class="flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs text-gray-400 hover:text-white hover:bg-neutral-800 transition {% if active_page == 'ffxiv_tools' %}text-white bg-neutral-800{% endif %}">
               <i class="fas fa-tools text-[10px] text-blue-400 flex-shrink-0"></i> Tools Hub
@@ -304,6 +308,9 @@
             </a>
             <a href="/ffxiv/tools/gathering/" class="flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs text-gray-400 hover:text-white hover:bg-neutral-800 transition {% if active_page == 'ffxiv_gathering' %}text-white bg-neutral-800{% endif %}">
               <i class="fas fa-leaf text-[10px] text-green-400 flex-shrink-0"></i> Gathering Timers
+            </a>
+            <a href="/ffxiv/tools/housing/" class="flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs text-gray-400 hover:text-white hover:bg-neutral-800 transition {% if active_page == 'ffxiv_housing' %}text-white bg-neutral-800{% endif %}">
+              <i class="fas fa-home text-[10px] text-teal-400 flex-shrink-0"></i> Housing
             </a>
             <a href="/ffxiv/tools/hunt-board/" class="flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs text-gray-400 hover:text-white hover:bg-neutral-800 transition {% if active_page == 'ffxiv_hunt_board' %}text-white bg-neutral-800{% endif %}">
               <i class="fas fa-crosshairs text-[10px] text-orange-400 flex-shrink-0"></i> Hunt Board
@@ -325,8 +332,8 @@
             </a>
           </div>
         </div>
-        <div x-data="{ open: {% if active_page == 'eso' or active_page == 'eso_builds' or active_page == 'lfg_browse' or active_page == 'lfg_create' or active_page == 'lfg_detail' %}true{% else %}false{% endif %} }">
-          <button @click="open = !open" class="nav-item w-full flex items-center gap-3 px-3 py-1.5 rounded-lg text-sm transition group {% if active_page == 'eso' or active_page == 'eso_builds' %}active{% endif %}">
+        <div x-data="{ open: {% if active_page == 'eso' or active_page == 'eso_apply' or active_page == 'eso_builds' or active_page == 'lfg_browse' or active_page == 'lfg_create' or active_page == 'lfg_detail' %}true{% else %}false{% endif %} }">
+          <button @click="open = !open" class="nav-item w-full flex items-center gap-3 px-3 py-1.5 rounded-lg text-sm transition group {% if active_page == 'eso' or active_page == 'eso_apply' or active_page == 'eso_builds' %}active{% endif %}">
             <img src="{% static 'img/games/guilds/esoguild.png' %}" alt="ESO" class="w-4 h-4 rounded-sm object-cover opacity-60 group-hover:opacity-100 flex-shrink-0">
             <span class="flex-1 text-left">ESO</span>
             <i class="fas fa-chevron-down text-[10px] text-gray-600 transition-transform duration-200" :class="open ? 'rotate-180' : ''"></i>
@@ -340,6 +347,9 @@
             </a>
             <a href="/lfg/create/?game=eso" class="flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs text-gray-400 hover:text-white hover:bg-neutral-800 transition {% if active_page == 'lfg_create' %}text-white bg-neutral-800{% endif %}">
               <i class="fas fa-shield-alt text-[10px] text-emerald-400 flex-shrink-0"></i> Group Finder
+            </a>
+            <a href="/eso/apply/" class="flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs text-gray-400 hover:text-white hover:bg-neutral-800 transition {% if active_page == 'eso_apply' %}text-white bg-neutral-800{% endif %}">
+              <i class="fas fa-scroll text-[10px] text-rose-400 flex-shrink-0"></i> Apply to Guild
             </a>
           </div>
         </div>
@@ -373,11 +383,6 @@
           <i class="fab fa-discord text-gray-400 group-hover:text-indigo-400"></i>
           <span>Discord Bot</span>
         </a>
-        <a href="{% url 'aboutus' %}"
-           class="nav-item {% if active_page == 'aboutus' %}active{% endif %} flex items-center gap-3 px-3 py-1.5 rounded-lg text-sm transition group">
-          <i class="fas fa-info-circle text-gray-400 group-hover:text-blue-400"></i>
-          <span>About Us</span>
-        </a>
       </div>
     </div>
 
@@ -404,6 +409,54 @@
         <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wider">Your Profile</h3>
       </div>
       <div class="space-y-1">
+
+        <!-- My Profile collapsible -->
+        <div x-data="{ open: {% if active_page == 'profile' or active_page == 'game_library' or active_page == 'public_profile' or active_page == 'creator_register' %}true{% else %}false{% endif %} }">
+          <button @click="open = !open"
+                  class="nav-item w-full flex items-center gap-3 px-3 py-1.5 rounded-lg text-sm transition group {% if active_page == 'profile' or active_page == 'game_library' or active_page == 'public_profile' or active_page == 'creator_register' %}text-white{% else %}text-gray-400 hover:text-white{% endif %}">
+            <i class="fas fa-user-circle text-gray-400 group-hover:text-blue-400 flex-shrink-0"></i>
+            <span class="flex-1 text-left">My Profile</span>
+            <i class="fas fa-chevron-down text-[10px] text-gray-600 transition-transform duration-200" :class="open ? 'rotate-180' : ''"></i>
+          </button>
+          <div x-show="open" x-cloak class="ml-4 mt-0.5 space-y-0.5 border-l border-neutral-800 pl-3">
+            <a href="{% url 'questlog_web_profile' %}"
+               class="nav-item {% if active_page == 'profile' %}active{% endif %} flex items-center gap-3 px-3 py-1.5 rounded-lg text-sm transition group">
+              <i class="fas fa-user text-gray-400 group-hover:text-blue-400 text-xs"></i>
+              <span>Overview</span>
+            </a>
+            <a href="{% url 'questlog_web_profile' %}#edit"
+               class="nav-item flex items-center gap-3 px-3 py-1.5 rounded-lg text-sm transition group text-gray-400 hover:text-white">
+              <i class="fas fa-edit text-gray-400 group-hover:text-indigo-400 text-xs"></i>
+              <span>Edit Profile</span>
+            </a>
+            <a href="{% url 'questlog_web_profile' %}#library"
+               class="nav-item {% if active_page == 'game_library' %}active{% endif %} flex items-center gap-3 px-3 py-1.5 rounded-lg text-sm transition group">
+              <i class="fas fa-layer-group text-gray-400 group-hover:text-violet-400 text-xs"></i>
+              <span>My Library</span>
+            </a>
+            <a href="{% url 'questlog_web_profile' %}#connected"
+               class="nav-item flex items-center gap-3 px-3 py-1.5 rounded-lg text-sm transition group text-gray-400 hover:text-white">
+              <i class="fas fa-link text-gray-400 group-hover:text-green-400 text-xs"></i>
+              <span>Connected</span>
+            </a>
+            <a href="{% url 'questlog_web_profile' %}#achievements"
+               class="nav-item flex items-center gap-3 px-3 py-1.5 rounded-lg text-sm transition group text-gray-400 hover:text-white">
+              <i class="fas fa-trophy text-gray-400 group-hover:text-yellow-400 text-xs"></i>
+              <span>Achievements</span>
+            </a>
+            <a href="/u/{{ web_user.username }}/"
+               class="nav-item {% if active_page == 'public_profile' %}active{% endif %} flex items-center gap-3 px-3 py-1.5 rounded-lg text-sm transition group">
+              <i class="fas fa-external-link-alt text-gray-400 group-hover:text-blue-400 text-xs"></i>
+              <span>Public Profile</span>
+            </a>
+            <a href="{% url 'questlog_web_creator_register' %}"
+               class="nav-item {% if active_page == 'creator_register' %}active{% endif %} flex items-center gap-3 px-3 py-1.5 rounded-lg text-sm transition group">
+              <i class="fas fa-video text-gray-400 group-hover:text-red-400 text-xs"></i>
+              <span>Creator Profile</span>
+            </a>
+          </div>
+        </div>
+
         <a href="{% url 'questlog_web_legacy' %}"
            class="nav-item {% if active_page == 'legacy' %}active{% endif %} flex items-center gap-3 px-3 py-1.5 rounded-lg text-sm transition group">
           <i class="fas fa-dragon text-gray-400 group-hover:text-cyan-400"></i>
@@ -435,29 +488,10 @@
           </button>
         </form>
         {% endif %}
-
         <a href="{% url 'questlog_web_giveaways' %}"
            class="nav-item {% if active_page == 'giveaways' %}active{% endif %} flex items-center gap-3 px-3 py-1.5 rounded-lg text-sm transition group">
           <i class="fas fa-gift text-gray-400 group-hover:text-indigo-400"></i>
           <span>Giveaways</span>
-        </a>
-
-        <a href="{% url 'questlog_web_profile' %}"
-           class="nav-item {% if active_page == 'profile' %}active{% endif %} flex items-center gap-3 px-3 py-1.5 rounded-lg text-sm transition group">
-          <i class="fas fa-user-circle text-gray-400 group-hover:text-blue-400"></i>
-          <span>My Profile</span>
-        </a>
-
-        <a href="/u/{{ web_user.username }}/"
-           class="nav-item {% if active_page == 'public_profile' %}active{% endif %} flex items-center gap-3 px-3 py-1.5 rounded-lg text-sm transition group">
-          <i class="fas fa-external-link-alt text-gray-400 group-hover:text-blue-400"></i>
-          <span>Public Profile</span>
-        </a>
-
-        <a href="{% url 'questlog_web_creator_register' %}"
-           class="nav-item {% if active_page == 'creator_register' %}active{% endif %} flex items-center gap-3 px-3 py-1.5 rounded-lg text-sm transition group">
-          <i class="fas fa-video text-gray-400 group-hover:text-red-400"></i>
-          <span>Creator Profile</span>
         </a>
 
       </div>
@@ -494,23 +528,9 @@
         <div class="px-3 py-2 rounded-md">
           <div class="flex items-center gap-2 mb-0.5">
             <span class="text-[10px] bg-amber-600/20 text-amber-400 px-1.5 py-0.5 rounded font-semibold uppercase tracking-wide">Coming</span>
-            <span class="text-xs font-semibold text-gray-300">LFG - Game Content Picker</span>
-          </div>
-          <p class="text-[11px] text-gray-500">WoW raids, FFXIV savage tiers, ESO, GW2, Pantheon and more. Pick the exact content when scheduling a group.</p>
-        </div>
-        <div class="px-3 py-2 rounded-md">
-          <div class="flex items-center gap-2 mb-0.5">
-            <span class="text-[10px] bg-amber-600/20 text-amber-400 px-1.5 py-0.5 rounded font-semibold uppercase tracking-wide">Coming</span>
             <span class="text-xs font-semibold text-gray-300">XP Milestones & Level Animations</span>
           </div>
           <p class="text-[11px] text-gray-500">Level-up celebrations, milestone rewards, and a Hall of Fame for reaching Level 150.</p>
-        </div>
-        <div class="px-3 py-2 rounded-md">
-          <div class="flex items-center gap-2 mb-0.5">
-            <span class="text-[10px] bg-amber-600/20 text-amber-400 px-1.5 py-0.5 rounded font-semibold uppercase tracking-wide">Coming</span>
-            <span class="text-xs font-semibold text-gray-300">QuestLog Blog</span>
-          </div>
-          <p class="text-[11px] text-gray-500">Dev updates, platform deep-dives, and community spotlights. Champions get posts before anyone else.</p>
         </div>
       </div>
     </div>
@@ -781,19 +801,26 @@ function toggleNotifPanel() {
   }
 }
 
+let _lastNotifCount = 0;
+
 async function pollNotifCount() {
   try {
     const res = await fetch('/api/notifications/count/');
     const data = await res.json();
+    const count = data.unread_count || 0;
     const badge = document.getElementById('notif-badge');
     if (badge) {
-      if (data.unread_count > 0) {
-        badge.textContent = data.unread_count > 99 ? '99+' : data.unread_count;
+      if (count > 0) {
+        badge.textContent = count > 99 ? '99+' : count;
         badge.classList.remove('hidden');
       } else {
         badge.classList.add('hidden');
       }
     }
+    if (count > _lastNotifCount && notifPanelOpen) {
+      loadNotifications();
+    }
+    _lastNotifCount = count;
   } catch(e) {}
 }
 
@@ -804,14 +831,19 @@ const NOTIF_ICONS = {
   comment_like: 'fas fa-heart text-pink-400',
   share:        'fas fa-share-nodes text-cyan-400',
   mention:      'fas fa-at text-yellow-400',
-  lfg_join:     'fas fa-users text-emerald-400',
-  lfg_leave:    'fas fa-user-minus text-orange-400',
-  lfg_full:     'fas fa-users text-purple-400',
+  lfg_join:        'fas fa-users text-emerald-400',
+  lfg_leave:       'fas fa-user-minus text-orange-400',
+  lfg_full:        'fas fa-users text-purple-400',
+  lfg_game_owned:  'fas fa-gamepad text-cyan-400',
   now_playing:  'fas fa-gamepad text-green-400',
   giveaway:     'fas fa-ticket-alt text-yellow-400',
   giveaway_win: 'fas fa-trophy text-amber-400',
-  community_join: 'fas fa-globe text-indigo-400',
-  level_up:     'fas fa-level-up-alt text-purple-400',
+  community_join:   'fas fa-globe text-indigo-400',
+  level_up:         'fas fa-level-up-alt text-purple-400',
+  ffxiv_app_new:    'fas fa-scroll text-rose-400',
+  ffxiv_app_result: 'fas fa-scroll text-rose-400',
+  eso_app_new:      'fas fa-scroll text-amber-400',
+  eso_app_result:   'fas fa-scroll text-amber-400',
 };
 
 async function loadNotifications() {
@@ -892,11 +924,11 @@ async function clearAllNotifs() {
   } catch(e) {}
 }
 
-// Poll for notifications every 30 seconds (only if logged in)
+// Poll for notifications every 5 seconds (only if logged in)
 {% if web_user %}
 document.addEventListener('DOMContentLoaded', () => {
   pollNotifCount();
-  setInterval(pollNotifCount, 30000);
+  setInterval(pollNotifCount, 5000);
 });
 {% endif %}
 

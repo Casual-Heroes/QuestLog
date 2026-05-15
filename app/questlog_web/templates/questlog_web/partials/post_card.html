@@ -3,6 +3,14 @@
 <!-- Expects JS context: post object with author, content, images, embed, likes, comments -->
 
 <script>
+// Guard: define autoExpandTextarea if not already provided by the host page (feed.html / home.html)
+if (typeof autoExpandTextarea === 'undefined') {
+  function autoExpandTextarea(el) {
+    el.style.height = 'auto';
+    el.style.height = el.scrollHeight + 'px';
+  }
+}
+
 // Module-level: used by both renderPostCard and renderComment
 function formatContent(text) {
   if (!text) return '';
@@ -20,6 +28,26 @@ function formatContent(text) {
     });
   }
   return html;
+}
+
+function buildGameTagHtml(tagName, steamId, coverUrl) {
+  if (!tagName) return '';
+  function _esc(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+  const gameName = _esc(tagName);
+  const steamUrl = steamId
+    ? `https://store.steampowered.com/app/${steamId}/`
+    : `https://store.steampowered.com/search/?term=${encodeURIComponent(tagName)}`;
+  const img = coverUrl
+    ? `<img src="${_esc(coverUrl)}" alt="" class="w-6 h-6 rounded object-cover flex-shrink-0" onerror="this.style.display='none'">`
+    : `<i class="fas fa-gamepad flex-shrink-0"></i>`;
+  return `<span class="inline-flex items-center gap-1.5 mb-2">
+    <a href="${steamUrl}" target="_blank" rel="noopener"
+      class="inline-flex items-center gap-1.5 px-2 py-1 bg-indigo-500/20 text-indigo-300 hover:bg-indigo-500/30 hover:text-indigo-200 rounded-full text-xs transition cursor-pointer"
+      title="${steamId ? 'View on Steam' : 'Search on Steam'}">${img}<span>${gameName}</span><i class="fab fa-steam text-gray-500 text-[10px]"></i></a>
+    <a href="/feed/?game=${encodeURIComponent(tagName)}" onclick="event.stopPropagation()"
+      class="inline-flex items-center gap-1 px-2 py-1 bg-neutral-700/60 text-gray-400 hover:bg-indigo-500/20 hover:text-indigo-300 rounded-full text-xs transition"
+      title="See all posts about ${gameName}"><i class="fas fa-newspaper text-[9px]"></i>Posts</a>
+  </span>`;
 }
 
 function renderPostCard(post, options = {}) {
@@ -174,17 +202,7 @@ function renderPostCard(post, options = {}) {
     </div>`;
   })() : '';
 
-  const gameTagHtml = post.game_tag_name ? (() => {
-    const steamId = post.game_tag_steam_id;
-    const gameName = escapePost(post.game_tag_name);
-    const inner = `<i class="fas fa-gamepad"></i><span>${gameName}</span><i class="fab fa-steam text-gray-500 ml-0.5"></i>`;
-    const steamUrl = steamId
-      ? `https://store.steampowered.com/app/${steamId}/`
-      : `https://store.steampowered.com/search/?term=${encodeURIComponent(post.game_tag_name)}`;
-    return `<a href="${steamUrl}" target="_blank" rel="noopener"
-      class="inline-flex items-center gap-1 px-2 py-1 bg-indigo-500/20 text-indigo-300 hover:bg-indigo-500/30 hover:text-indigo-200 rounded-full text-xs mb-2 transition cursor-pointer"
-      title="${steamId ? 'View on Steam' : 'Search on Steam'}">${inner}</a>`;
-  })() : '';
+  const gameTagHtml = buildGameTagHtml(post.game_tag_name, post.game_tag_steam_id, post.game_tag_cover_url);
 
   // For text posts that contain a video URL, extract and embed client-side
   // (handles posts stored before server-side parsing supported the URL format)
@@ -268,9 +286,9 @@ function renderPostCard(post, options = {}) {
     : '';
 
   return `
-    <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-4 post-card cursor-pointer" data-post-id="${post.id}" data-author-id="${post.author ? post.author.id : ''}" onclick="postCardClick(event, ${post.id}, '${post.public_id || post.id}')">
+    <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-4 post-card cursor-pointer" data-post-id="${post.id}" data-author-id="${post.author ? post.author.id : ''}" data-game-tag-name="${escapePost(post.game_tag_name || '')}" data-game-tag-steam-id="${post.game_tag_steam_id || ''}" data-game-tag-id="${post.game_tag_id || ''}" onclick="postCardClick(event, ${post.id}, '${post.public_id || post.id}')">
       ${authorHtml}
-      ${gameTagHtml}
+      <div class="post-game-tag-wrap" data-post-id="${post.id}">${gameTagHtml}</div>
       <div class="post-content-wrap">
         ${contentHtml}
         ${linkPreviewHtml}
@@ -431,6 +449,20 @@ function startPostEdit(event, postId, btn) {
   textarea.addEventListener('input', () => {
     if (counter) counter.textContent = `${textarea.value.length} / 3000`;
   });
+  // Pre-populate game tag from post data if present
+  const state = _editStateFor(postId);
+  state.gameTagCleared = false;
+  const postCard = card;
+  const existingTagWrap = postCard.querySelector('.post-game-tag-wrap');
+  const existingTagName = postCard.dataset.gameTagName || '';
+  const existingTagSteamId = postCard.dataset.gameTagSteamId || null;
+  const existingTagId = postCard.dataset.gameTagId || null;
+  if (existingTagName && !state.gameTag) {
+    state.gameTag = { id: existingTagId ? parseInt(existingTagId) : null, name: existingTagName, steam_id: existingTagSteamId ? parseInt(existingTagSteamId) : null };
+    const tagEl = document.getElementById(`edit-game-tag-${postId}`);
+    const tagNameEl = document.getElementById(`edit-game-tag-name-${postId}`);
+    if (tagEl && tagNameEl) { tagNameEl.textContent = existingTagName; tagEl.classList.remove('hidden'); }
+  }
 }
 
 function cancelPostEdit(postId) {
@@ -602,7 +634,7 @@ function searchEditGames(postId, query) {
       if (data.games && data.games.length > 0) {
         results.classList.remove('hidden');
         results.innerHTML = data.games.map(g => `
-          <button onclick="selectEditGameTag(${postId},${g.id},'${esc(g.name).replace(/'/g,"\\'")}',${g.steam_id||'null'})"
+          <button onclick="selectEditGameTag(${postId},${g.id},'${esc(g.name).replace(/'/g,"\\'")}',${g.steam_id||'null'},'${esc(g.cover_url||'').replace(/'/g,"\\'")}')"
             class="w-full flex items-center gap-2 px-3 py-2 hover:bg-neutral-800 transition text-left">
             ${g.cover_url ? `<img src="${esc(g.cover_url)}" class="w-8 h-8 rounded object-cover">` : `<div class="w-8 h-8 bg-neutral-800 rounded flex items-center justify-center"><i class="fas fa-gamepad text-gray-600 text-xs"></i></div>`}
             <div class="flex-1 min-w-0"><p class="text-white text-sm truncate">${esc(g.name)}</p></div>
@@ -616,15 +648,17 @@ function searchEditGames(postId, query) {
   }, 400);
 }
 
-function selectEditGameTag(postId, id, name, steamId) {
-  _editStateFor(postId).gameTag = { id, name, steam_id: steamId };
+function selectEditGameTag(postId, id, name, steamId, coverUrl) {
+  _editStateFor(postId).gameTag = { id, name, steam_id: steamId, cover_url: coverUrl || null };
   document.getElementById(`edit-game-tag-name-${postId}`).textContent = name;
   document.getElementById(`edit-game-tag-${postId}`).classList.remove('hidden');
   document.getElementById(`edit-game-search-${postId}`).classList.add('hidden');
 }
 
 function clearEditGameTag(postId) {
-  _editStateFor(postId).gameTag = null;
+  const state = _editStateFor(postId);
+  state.gameTag = null;
+  state.gameTagCleared = true;
   document.getElementById(`edit-game-tag-${postId}`).classList.add('hidden');
 }
 
@@ -659,7 +693,13 @@ async function savePostEdit(postId) {
   if (saveBtn) { saveBtn.disabled = true; saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin text-xs"></i> Saving...'; }
   try {
     const body = { content: newContent };
-    if (state.gameTag) { body.game_tag_id = state.gameTag.id; body.game_tag_name = state.gameTag.name; if (state.gameTag.steam_id) body.game_tag_steam_id = state.gameTag.steam_id; }
+    if (state.gameTag) {
+      body.game_tag_id = state.gameTag.id;
+      body.game_tag_name = state.gameTag.name;
+      if (state.gameTag.steam_id) body.game_tag_steam_id = state.gameTag.steam_id;
+    } else if (state.gameTagCleared) {
+      body.clear_game_tag = true;
+    }
     if (state.gif) { body.media_url = state.gif.url; body.post_type = 'gif'; }
 
     // If new images selected, upload them first via FormData
@@ -716,7 +756,6 @@ function _finishEditUpdate(postId, post) {
     const div = document.createElement('div');
     div.textContent = post.content || '';
     textEl.innerHTML = div.innerHTML.replace(/\n/g, '<br>').replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener" class="text-blue-400 hover:underline">$1</a>');
-    // Re-apply emoji rendering
     if (window._customEmojiMap) {
       textEl.innerHTML = textEl.innerHTML.replace(/:([a-zA-Z0-9_-]+):/g, (m, code) => {
         const url = window._customEmojiMap[code];
@@ -724,6 +763,17 @@ function _finishEditUpdate(postId, post) {
       });
     }
   }
+  // Re-render game tag pill immediately - prefer Steam CDN cover, fall back to IGDB cover from edit state
+  const tagWrap = card.querySelector('.post-game-tag-wrap');
+  if (tagWrap) {
+    const editState = _editState[postId];
+    const fallbackCover = editState && editState.gameTag && editState.gameTag.cover_url;
+    tagWrap.innerHTML = buildGameTagHtml(post.game_tag_name, post.game_tag_steam_id, post.game_tag_cover_url || fallbackCover);
+  }
+  // Update data attributes so next edit open pre-populates correctly
+  card.dataset.gameTagName = post.game_tag_name || '';
+  card.dataset.gameTagSteamId = post.game_tag_steam_id || '';
+  card.dataset.gameTagId = post.game_tag_id || '';
   const badgeSlot = card.querySelector('.edited-badge-slot');
   if (badgeSlot && post.edited_at) {
     badgeSlot.innerHTML = `<button onclick="showEditHistory(event, ${postId})" class="text-gray-500 hover:text-gray-300 text-xs transition"><i class="fas fa-pencil-alt text-[10px] mr-0.5"></i>edited just now</button>`;
@@ -853,14 +903,7 @@ async function loadComments(postId) {
     const res = await fetch(`/api/posts/${postId}/comments/`);
     const data = await res.json();
 
-    let html = `
-      <form onsubmit="submitComment(event, ${postId})" class="flex gap-2 mb-3">
-        <input type="text" id="comment-input-${postId}" placeholder="Write a comment..."
-          class="flex-1 bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500" maxlength="500">
-        <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded-lg text-sm transition">
-          <i class="fas fa-paper-plane"></i>
-        </button>
-      </form>`;
+    let html = buildCommentComposer(postId);
 
     if (data.comments && data.comments.length > 0) {
       data.comments.forEach(c => {
@@ -904,6 +947,12 @@ function renderComment(comment, isReply = false) {
     ? `<img src="${esc(author.avatar_url)}" alt="" class="w-7 h-7 rounded-full object-cover flex-shrink-0 mt-0.5">`
     : `<div class="w-7 h-7 rounded-full bg-indigo-700 flex items-center justify-center text-white font-bold text-xs flex-shrink-0 mt-0.5 select-none">${esc((author.display_name || author.username || '?').charAt(0).toUpperCase())}</div>`;
 
+  const cmtMediaHtml = comment.gif_url
+    ? `<img src="${esc(comment.gif_url)}" alt="GIF" class="mt-2 max-h-48 rounded-lg object-contain">`
+    : comment.image_url
+    ? `<img src="${esc(comment.image_url)}" alt="" class="mt-2 max-h-64 rounded-lg object-contain">`
+    : '';
+
   return `
     <div class="flex gap-2 mb-2 ${indent}" data-comment-id="${comment.id}">
       ${cmtAvatarEl}
@@ -912,7 +961,8 @@ function renderComment(comment, isReply = false) {
           <span class="inline-flex items-center flex-wrap gap-x-0.5">
             <a href="/u/${esc(author.username)}/" class="text-white text-xs font-semibold hover:underline">${esc(author.display_name || author.username)}</a>${cmtFlairBadge}${cmtRankBadge}${cmtVipBadge}${cmtFfxivBadge}
           </span>
-          <p class="comment-content-text text-gray-300 text-sm">${formatContent(comment.content)}</p>
+          ${comment.content ? `<p class="comment-content-text text-gray-300 text-sm">${formatContent(comment.content)}</p>` : `<p class="comment-content-text text-gray-300 text-sm hidden"></p>`}
+          ${cmtMediaHtml}
           <div class="comment-edit-area hidden mt-1">
             <textarea class="comment-edit-textarea w-full bg-neutral-700 border border-neutral-600 rounded-lg px-2 py-1.5 text-sm text-white resize-none focus:outline-none focus:border-indigo-500" rows="2" maxlength="500">${esc(comment.content)}</textarea>
             <div class="flex gap-2 mt-1">
@@ -933,30 +983,307 @@ function renderComment(comment, isReply = false) {
     </div>`;
 }
 
-async function submitComment(event, postId) {
-  event.preventDefault();
-  const input = document.getElementById(`comment-input-${postId}`);
-  const content = input.value.trim();
-  if (!content) return;
+// ── Emoji data for comment/reply pickers ──────────────────────────────────────
+const _CMT_EMOJIS = {
+  gaming: ['🎮','🕹️','🎯','🏆','⚔️','🛡️','🎲','👾','🤖','💀','🔥','⭐','💎','🗡️','🏹','🧙','🐉','💣','🎪','🧩','🎰','🃏','♟️','🏅','🥇','🎖️','🏴‍☠️','👑','💪','🦾'],
+  smileys: ['😀','😂','🤣','😍','🥰','😎','🤔','😤','😭','🥺','😱','🤯','😈','👀','🫡','😴','🤮','🥶','🥵','😏','🤩','😇','🙄','😬','🤪','😵','🫠','🤡','💩','👻'],
+  hands: ['👍','👎','✌️','🤞','👊','✊','🫡','👋','🖐️','🤙','🫶','👏','🙌','🤝','🙏','🫰','🤘','🤟','🖖','✋','👆','👇','👈','👉','💪','🦾','🫵','✍️','🤳','💅'],
+  hearts: ['❤️','💜','💙','💚','🧡','💛','🖤','🤍','💔','❤️‍🔥','💯','✅','❌','⭕','💢','💥','✨','🌟','💫','🎉','🎊','🏳️‍🌈','🫂','💤','💭','💬','👁️‍🗨️','🔔','📢','🚀'],
+  objects: ['⚡','🔫','💰','🍕','🍺','🎵','🎧','📱','💻','🖥️','⌨️','🖱️','🕐','📸','🎬','📺','🔧','⚙️','🧪','🗺️','🌍','🌙','☀️','🌈','❄️','🔑','🏠','🚗','✈️','🛸'],
+};
+
+// Per-composer state keyed by composer DOM id
+const _cmtState = {};
+
+function _getCmtState(cid) {
+  if (!_cmtState[cid]) _cmtState[cid] = { gif: null, image: null, gifTimer: null };
+  return _cmtState[cid];
+}
+
+function buildCommentComposer(postId, opts) {
+  // opts: { isReply, replyToId, placeholder }
+  const isReply = !!(opts && opts.isReply);
+  const cid = isReply ? `reply-${opts.replyToId}` : `cmt-${postId}`;
+  const ph = (opts && opts.placeholder) || (isReply ? 'Write a reply...' : 'Write a comment...');
+  const indent = isReply ? 'ml-8 ' : '';
+  const closeBtn = isReply
+    ? `<button type="button" onclick="_closeCmtComposer('${cid}')" class="text-gray-500 hover:text-gray-300 text-xs px-1.5 py-1.5 rounded-lg transition" title="Cancel"><i class="fas fa-times"></i></button>`
+    : '';
+
+  return `<div id="composer-${cid}" class="${indent}bg-neutral-800/60 border border-neutral-700 rounded-xl p-3 mb-3">
+    <textarea id="cmt-text-${cid}" placeholder="${ph}" maxlength="500" rows="2"
+      class="w-full bg-transparent text-sm text-white placeholder-gray-500 resize-none focus:outline-none leading-relaxed"
+      oninput="_cmtCharCount('${cid}')"></textarea>
+    <div id="cmt-media-preview-${cid}" class="hidden mb-2"></div>
+    <div id="cmt-gif-picker-${cid}" class="hidden mb-2 bg-neutral-900 border border-neutral-700 rounded-xl overflow-hidden">
+      <div class="p-2 border-b border-neutral-700">
+        <input type="text" placeholder="Search GIFs..." id="cmt-gif-search-${cid}"
+          class="w-full bg-neutral-800 border border-neutral-600 rounded-lg px-3 py-1.5 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
+          oninput="_cmtGifSearch('${cid}', this.value)">
+      </div>
+      <div id="cmt-gif-results-${cid}" class="grid grid-cols-3 gap-1 p-2 max-h-40 overflow-y-auto">
+        <p class="col-span-3 text-gray-500 text-xs text-center py-3">Search or browse trending GIFs</p>
+      </div>
+      <div class="px-2 py-1 border-t border-neutral-700 text-right"><span class="text-gray-600 text-[10px]">Powered by GIPHY</span></div>
+    </div>
+    <div id="cmt-emoji-picker-${cid}" class="hidden mb-2 bg-neutral-900 border border-neutral-700 rounded-xl p-2 max-h-44 overflow-y-auto">
+      <div class="flex gap-1 mb-2 border-b border-neutral-700 pb-1.5 flex-wrap">
+        <button onclick="_cmtEmojiCat('${cid}','gaming',this)" class="cmt-ecat-${cid} text-xs px-2 py-0.5 rounded bg-neutral-700 text-white">🎮</button>
+        <button onclick="_cmtEmojiCat('${cid}','smileys',this)" class="cmt-ecat-${cid} text-xs px-2 py-0.5 rounded text-gray-400 hover:bg-neutral-700">😀</button>
+        <button onclick="_cmtEmojiCat('${cid}','hands',this)" class="cmt-ecat-${cid} text-xs px-2 py-0.5 rounded text-gray-400 hover:bg-neutral-700">👍</button>
+        <button onclick="_cmtEmojiCat('${cid}','hearts',this)" class="cmt-ecat-${cid} text-xs px-2 py-0.5 rounded text-gray-400 hover:bg-neutral-700">❤️</button>
+        <button onclick="_cmtEmojiCat('${cid}','objects',this)" class="cmt-ecat-${cid} text-xs px-2 py-0.5 rounded text-gray-400 hover:bg-neutral-700">⚡</button>
+      </div>
+      <div id="cmt-emoji-grid-${cid}" class="grid grid-cols-10 gap-0.5"></div>
+    </div>
+    <div class="flex items-center justify-between mt-1.5 pt-1.5 border-t border-neutral-700/50">
+      <div class="flex items-center gap-0.5">
+        <label class="cursor-pointer flex items-center gap-1 text-gray-500 hover:text-green-400 px-2 py-1 rounded-lg hover:bg-neutral-700/50 text-xs transition" title="Photo">
+          <i class="fas fa-image"></i><span class="hidden sm:inline">Photo</span>
+          <input type="file" accept="image/jpeg,image/png,image/gif,image/webp" class="hidden" onchange="_cmtImageSelect('${cid}', this, ${postId})">
+        </label>
+        <button type="button" onclick="_cmtToggleGif('${cid}', ${postId})" class="flex items-center gap-1 text-gray-500 hover:text-purple-400 px-2 py-1 rounded-lg hover:bg-neutral-700/50 text-xs font-bold transition" title="GIF">GIF</button>
+        <button type="button" onclick="_cmtToggleEmoji('${cid}')" class="flex items-center gap-1 text-gray-500 hover:text-yellow-400 px-2 py-1 rounded-lg hover:bg-neutral-700/50 text-xs transition" title="Emoji"><i class="far fa-smile"></i></button>
+        <span id="cmt-chars-${cid}" class="text-gray-600 text-xs ml-1">0/500</span>
+      </div>
+      <div class="flex items-center gap-1.5">
+        ${closeBtn}
+        <button type="button" onclick="_submitCmt('${cid}', ${postId}, ${isReply ? (opts.replyToId || 'null') : 'null'})"
+          class="bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1.5">
+          <i class="fas fa-paper-plane text-xs"></i>${isReply ? 'Reply' : 'Comment'}
+        </button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function _closeCmtComposer(cid) {
+  const el = document.getElementById(`composer-${cid}`);
+  if (el) el.remove();
+  delete _cmtState[cid];
+}
+
+function _cmtCharCount(cid) {
+  const ta = document.getElementById(`cmt-text-${cid}`);
+  const el = document.getElementById(`cmt-chars-${cid}`);
+  if (ta && el) el.textContent = `${ta.value.length}/500`;
+}
+
+function _cmtToggleGif(cid, postId) {
+  const gif = document.getElementById(`cmt-gif-picker-${cid}`);
+  const emoji = document.getElementById(`cmt-emoji-picker-${cid}`);
+  if (!gif) return;
+  if (emoji) emoji.classList.add('hidden');
+  const opening = gif.classList.contains('hidden');
+  gif.classList.toggle('hidden');
+  if (opening) {
+    setTimeout(() => document.getElementById(`cmt-gif-search-${cid}`)?.focus(), 50);
+    _cmtLoadTrending(cid);
+  }
+}
+
+function _cmtToggleEmoji(cid) {
+  const emoji = document.getElementById(`cmt-emoji-picker-${cid}`);
+  const gif = document.getElementById(`cmt-gif-picker-${cid}`);
+  if (!emoji) return;
+  if (gif) gif.classList.add('hidden');
+  const opening = emoji.classList.contains('hidden');
+  emoji.classList.toggle('hidden');
+  if (opening) _cmtEmojiCat(cid, 'gaming', emoji.querySelector(`.cmt-ecat-${cid}`));
+}
+
+function _cmtEmojiCat(cid, cat, btn) {
+  document.querySelectorAll(`.cmt-ecat-${cid}`).forEach(b => {
+    b.className = `cmt-ecat-${cid} text-xs px-2 py-0.5 rounded text-gray-400 hover:bg-neutral-700`;
+  });
+  if (btn) btn.className = `cmt-ecat-${cid} text-xs px-2 py-0.5 rounded bg-neutral-700 text-white`;
+  const grid = document.getElementById(`cmt-emoji-grid-${cid}`);
+  if (grid && _CMT_EMOJIS[cat]) {
+    grid.innerHTML = _CMT_EMOJIS[cat].map(e =>
+      `<button type="button" onclick="_cmtInsertEmoji('${cid}','${e}')" class="text-lg hover:bg-neutral-700 rounded p-0.5 transition">${e}</button>`
+    ).join('');
+  }
+}
+
+function _cmtInsertEmoji(cid, emoji) {
+  const ta = document.getElementById(`cmt-text-${cid}`);
+  if (!ta) return;
+  const s = ta.selectionStart, e = ta.selectionEnd;
+  ta.value = ta.value.substring(0, s) + emoji + ta.value.substring(e);
+  ta.selectionStart = ta.selectionEnd = s + emoji.length;
+  ta.focus();
+  _cmtCharCount(cid);
+}
+
+async function _cmtLoadTrending(cid) {
+  const results = document.getElementById(`cmt-gif-results-${cid}`);
+  if (!results) return;
+  results.innerHTML = '<p class="col-span-3 text-gray-500 text-xs text-center py-3">Loading...</p>';
+  try {
+    const res = await fetch('/api/gifs/trending/');
+    const data = await res.json();
+    _cmtRenderGifs(cid, data.results || []);
+  } catch(e) {
+    results.innerHTML = '<p class="col-span-3 text-gray-500 text-xs text-center py-3">GIFs unavailable</p>';
+  }
+}
+
+function _cmtGifSearch(cid, query) {
+  const state = _getCmtState(cid);
+  clearTimeout(state.gifTimer);
+  if (!query || query.length < 2) { _cmtLoadTrending(cid); return; }
+  state.gifTimer = setTimeout(async () => {
+    const results = document.getElementById(`cmt-gif-results-${cid}`);
+    if (!results) return;
+    results.innerHTML = '<p class="col-span-3 text-gray-500 text-xs text-center py-3">Searching...</p>';
+    try {
+      const res = await fetch(`/api/gifs/search/?q=${encodeURIComponent(query)}`);
+      const data = await res.json();
+      _cmtRenderGifs(cid, data.results || []);
+    } catch(e) {
+      results.innerHTML = '<p class="col-span-3 text-gray-500 text-xs text-center py-3">Search failed</p>';
+    }
+  }, 400);
+}
+
+function _cmtRenderGifs(cid, gifs) {
+  const results = document.getElementById(`cmt-gif-results-${cid}`);
+  if (!results) return;
+  if (!gifs.length) { results.innerHTML = '<p class="col-span-3 text-gray-500 text-xs text-center py-3">No GIFs found</p>'; return; }
+  function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+  results.innerHTML = gifs.map(g =>
+    `<button type="button" onclick="_cmtSelectGif('${cid}','${esc(g.url)}','${esc(g.preview)}')"
+      class="overflow-hidden rounded hover:ring-2 hover:ring-purple-500 transition cursor-pointer">
+      <img src="${esc(g.preview)}" alt="GIF" class="w-full h-20 object-cover" loading="lazy">
+    </button>`
+  ).join('');
+}
+
+function _cmtSelectGif(cid, url, preview) {
+  const state = _getCmtState(cid);
+  state.gif = url;
+  state.image = null;
+  _cmtShowMediaPreview(cid, `<div class="relative inline-block"><img src="${preview}" class="max-h-28 rounded-lg"><button type="button" onclick="_cmtClearMedia('${cid}')" class="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white rounded-full text-xs flex items-center justify-center hover:bg-red-600"><i class="fas fa-times"></i></button></div>`);
+  document.getElementById(`cmt-gif-picker-${cid}`)?.classList.add('hidden');
+}
+
+function _cmtShowMediaPreview(cid, html) {
+  const el = document.getElementById(`cmt-media-preview-${cid}`);
+  if (!el) return;
+  el.innerHTML = html;
+  el.classList.remove('hidden');
+}
+
+function _cmtClearMedia(cid) {
+  const state = _getCmtState(cid);
+  state.gif = null;
+  state.image = null;
+  const el = document.getElementById(`cmt-media-preview-${cid}`);
+  if (el) { el.innerHTML = ''; el.classList.add('hidden'); }
+}
+
+async function _cmtImageSelect(cid, input, postId) {
+  const file = input.files[0];
+  if (!file) return;
+  input.value = '';
+  const fd = new FormData();
+  fd.append('image', file);
+  try {
+    const res = await csrfFetch('/api/upload/image/', { method: 'POST', body: fd });
+    const data = await res.json();
+    if (data.image_url) {
+      const state = _getCmtState(cid);
+      state.image = data.image_url;
+      state.gif = null;
+      const thumb = data.thumbnail_url || data.image_url;
+      _cmtShowMediaPreview(cid, `<div class="relative inline-block"><img src="${thumb}" class="max-h-28 rounded-lg"><button type="button" onclick="_cmtClearMedia('${cid}')" class="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white rounded-full text-xs flex items-center justify-center hover:bg-red-600"><i class="fas fa-times"></i></button></div>`);
+    } else {
+      alert(data.error || 'Upload failed');
+    }
+  } catch(e) { alert('Upload failed'); }
+}
+
+async function _submitCmt(cid, postId, parentId) {
+  const ta = document.getElementById(`cmt-text-${cid}`);
+  const state = _getCmtState(cid);
+  const content = ta ? ta.value.trim() : '';
+  if (!content && !state.gif && !state.image) return;
+
+  const btn = document.querySelector(`#composer-${cid} button[onclick*="_submitCmt"]`);
+  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin text-xs"></i>'; }
+
+  const payload = { content };
+  if (parentId) payload.parent_id = parentId;
+  if (state.gif) payload.gif_url = state.gif;
+  if (state.image) payload.image_url = state.image;
 
   try {
     const res = await csrfFetch(`/api/posts/${postId}/comments/`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ content }),
+      body: JSON.stringify(payload),
     });
     const data = await res.json();
     if (data.success) {
-      input.value = '';
-      await loadComments(postId);
-      // Update comment count in UI
-      const card = document.querySelector(`[data-post-id="${postId}"]`);
-      if (card) {
-        const commentBtn = card.querySelector('button:nth-child(2) span');
-        if (commentBtn) commentBtn.textContent = parseInt(commentBtn.textContent || '0') + 1;
+      if (parentId) {
+        _closeCmtComposer(cid);
+      } else {
+        if (ta) ta.value = '';
+        _cmtClearMedia(cid);
+        _cmtCharCount(cid);
       }
+      await loadComments(postId);
+      if (!parentId) {
+        const card = document.querySelector(`[data-post-id="${postId}"]`);
+        if (card) {
+          const commentBtn = card.querySelector('button:nth-child(2) span');
+          if (commentBtn) commentBtn.textContent = parseInt(commentBtn.textContent || '0') + 1;
+        }
+      }
+    } else {
+      alert(data.error || 'Failed to post');
+      if (btn) { btn.disabled = false; btn.innerHTML = `<i class="fas fa-paper-plane text-xs"></i>${parentId ? 'Reply' : 'Comment'}`; }
     }
-  } catch(e) { console.error('Comment error:', e); }
+  } catch(e) {
+    console.error('Comment submit error:', e);
+    if (btn) { btn.disabled = false; btn.innerHTML = `<i class="fas fa-paper-plane text-xs"></i>${parentId ? 'Reply' : 'Comment'}`; }
+  }
+}
+
+function showReplyInput(commentId) {
+  document.querySelectorAll('.reply-input-row').forEach(el => el.remove());
+  const commentEl = document.querySelector(`[data-comment-id="${commentId}"]`);
+  if (!commentEl) return;
+  const container = commentEl.closest('[id^="comments-"]');
+  const postId = container ? parseInt(container.id.replace('comments-', '')) : 0;
+
+  const wrapper = document.createElement('div');
+  wrapper.className = 'reply-input-row';
+  wrapper.innerHTML = buildCommentComposer(postId, { isReply: true, replyToId: commentId, placeholder: 'Write a reply...' });
+  commentEl.after(wrapper);
+  document.getElementById(`cmt-text-reply-${commentId}`)?.focus();
+}
+
+// Legacy stubs kept so old inline onclick refs don't break
+async function submitComment(event, postId) {
+  event.preventDefault();
+  await _submitCmt(`cmt-${postId}`, postId, null);
+}
+async function submitReply(commentId, inputEl) {
+  const container = inputEl?.closest('[id^="comments-"]');
+  if (!container) return;
+  const postId = parseInt(container.id.replace('comments-', ''));
+  const content = inputEl.value.trim();
+  if (!content) return;
+  try {
+    const res = await csrfFetch(`/api/posts/${postId}/comments/`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content, parent_id: commentId }),
+    });
+    const data = await res.json();
+    if (data.success) { inputEl.closest('.reply-input-row')?.remove(); await loadComments(postId); }
+    else alert(data.error || 'Failed to post reply');
+  } catch(e) { console.error(e); }
 }
 
 async function toggleCommentLike(commentId, btn) {
