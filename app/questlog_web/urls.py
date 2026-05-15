@@ -4,6 +4,11 @@
 from django.urls import path
 from django.shortcuts import redirect
 
+from .views_eso import (
+    eso_builds_browse, eso_build_create, eso_build_detail, eso_build_edit,
+    api_eso_build_vote, api_eso_build_comment, api_eso_build_bookmark,
+)
+
 from .views_auth import (
     ql_login, ql_register, ql_admin_login,
     verify_email, resend_verification, check_email, logout,
@@ -25,12 +30,14 @@ from .views_pages import (
     lfg_browse, lfg_calendar, lfg_create, lfg_my_groups, lfg_group_detail, lfg_group_detail_token,
     lfg_join, lfg_leave, lfg_edit, lfg_update_member, lfg_delete, lfg_kick, lfg_set_co_leader,
     network, network_leaderboard, api_leaderboard_top, games, creators, creator_profile, articles, gamers,
-    communities, community_register, community_detail, community_guidelines,
-    profile, profile_edit, creator_register, settings, hero_shop, public_legacy,
-    game_servers_ql,
+    communities, community_register, community_detail, community_detail_slug, community_guidelines,
+    profile, profile_edit, creator_register, settings, getting_started, hero_shop, public_legacy,
+    game_servers_ql, api_gameservers_status,
     api_active_poll, api_poll_vote,
     giveaways_page, legacy_page, legacy_nominate, api_legacy_nominate,
     api_internal_close_nominations,
+    steamquest, api_steamquest_library, api_steamquest_game_detail, api_steamquest_tag_filter,
+    api_steamquest_sync_tags, api_steamquest_who_owns, api_steamquest_community_owns,
     fluxer_member_portal,
     fluxer_guild_member_profile,
     fluxer_guild_member_raffles,
@@ -39,6 +46,7 @@ from .views_pages import (
     fluxer_guild_member_rss,
     fluxer_guild_member_games,
     fluxer_guild_member_flairs,
+    api_public_testimonials,
     api_fluxer_guild_flair_buy,
     api_fluxer_guild_flair_equip,
     api_fluxer_guild_flair_unequip,
@@ -51,7 +59,18 @@ from .views_pages import (
     api_fluxer_member_lfg_kick,
     api_fluxer_member_lfg_ban,
 )
-from .views_questchat import qc_auth_token, qc_me, qc_guilds
+from .views_questchat import (
+    qc_auth_token, qc_me,
+    qc_servers, qc_servers_join, qc_server_channels, qc_server_create_channel,
+    qc_dms, qc_dms_open, qc_dm_report,
+    qc_friend_request, qc_friend_respond, qc_friends, qc_friend_remove, qc_friend_cancel,
+    qc_block, qc_unblock, qc_blocks, qc_ignore, qc_unignore, qc_ignores,
+    qc_message_edit, qc_message_delete, qc_message_react,
+    qc_guild_kick, qc_guild_ban, qc_guild_unban, qc_guild_bans,
+    qc_guild_welcome, qc_mark_read, qc_unread,
+    qc_internal_award_xp,
+    qc_admin_bad_actor_add, qc_admin_bad_actor_import_csv, qc_admin_bad_actors,
+)
 
 from .views_internal import api_internal_bot_config, api_internal_broadcast_lfg, api_internal_guild_names, api_internal_bridge_relay, api_internal_bridge_pending, api_internal_bridge_message_map, api_internal_bridge_thread_map, api_internal_bridge_reaction, api_internal_bridge_pending_reactions, api_internal_bridge_delete, api_internal_bridge_pending_deletions, api_internal_bridge_edit, api_internal_bridge_pending_edits, api_internal_bridge_typing, api_internal_guild_roles, api_internal_guild_sync, api_internal_guild_remove, api_internal_guild_actions_pending, api_internal_guild_action_done, api_bridge_media_proxy
 from .views_billing import hero_subscribe, hero_success, hero_return, api_hero_checkout, api_stripe_webhook, hero_portal
@@ -156,7 +175,7 @@ from .views_admin import (
     api_admin_users, api_admin_user_action,
     api_admin_audit_log,
     api_admin_posts, api_admin_post_action, api_admin_comment_action,
-    admin_games_tracker, api_admin_site_activity_games, api_admin_site_activity_roles,
+    admin_games_tracker, api_admin_site_activity_games, api_admin_site_activity_roles, api_admin_site_activity_fluxer_roles,
     api_admin_maintenance, api_admin_maintenance_status,
     api_admin_toggle_logins, api_admin_logins_status,
     api_admin_flairs, api_admin_flair_detail,
@@ -172,7 +191,7 @@ from .views_admin import (
     api_admin_fluxer_guilds,
     api_admin_broadcast_users, api_admin_broadcast_user_detail,
     api_admin_fluxer_subscribers, api_admin_fluxer_subscriber_detail,
-    api_admin_fluxer_guild_detail, api_admin_fluxer_guild_channels,
+    api_admin_fluxer_guild_detail, api_admin_fluxer_guild_channels, api_admin_fluxer_guild_roles,
     api_admin_discord_guild_channels,
     api_admin_matrix_spaces, api_admin_matrix_space_rooms,
     api_admin_invite_codes, api_admin_invite_code_detail, api_admin_invite_codes_bulk_revoke,
@@ -180,6 +199,7 @@ from .views_admin import (
     api_admin_bot_network,
     api_admin_bridge_configs, api_admin_bridge_config_detail,
     api_admin_emoji, api_admin_emoji_detail,
+    api_admin_testimonials, api_admin_testimonial_detail,
     api_admin_bot_stats,
     api_quest_control_discord_lookup,
     api_quest_control_schedule,
@@ -195,7 +215,7 @@ from .views_admin import (
 from .views_discovery import (
     api_lfg_list, api_lfg_detail,
     api_communities, api_community_detail, api_creators, api_games, api_articles,
-    api_igdb_search, api_gamers,
+    api_igdb_search, api_steam_game_search, api_steam_app_details, api_gamers,
     api_lfg_broadcast_network,
     api_lfg_community_guilds,
     api_lfg_fluxer_edit, api_lfg_fluxer_close, api_lfg_fluxer_mark_full,
@@ -204,7 +224,7 @@ from .views_discovery import (
     api_lfg_fluxer_guild_reopen, api_lfg_fluxer_guild_my_closed,
     api_lfg_fluxer_guild_join, api_lfg_fluxer_guild_leave,
     api_community_leave_network, api_community_rejoin_network, api_community_set_primary,
-    api_top_posts,
+    api_top_posts, api_post_game_tags,
 )
 from .views_uploads import (
     api_upload_image, api_upload_avatar, api_upload_banner,
@@ -233,6 +253,23 @@ from .views_profile import (
     api_me_now_playing, api_user_now_playing,
     api_flairs, api_flair_buy, api_flair_equip,
 )
+from .views_blog import (
+    blog_list, blog_detail, blog_editor,
+    api_blog_create, api_blog_edit, api_blog_delete,
+    api_blog_comments, api_blog_comment_delete, api_blog_comment_like,
+    api_blog_preview,
+)
+from .views_game_library import (
+    game_library_page,
+    api_user_library, api_library_add, api_library_update, api_library_remove,
+    api_play_together, api_game_community_stats, api_find_players,
+    api_nudge_opportunities, api_library_game_owners, api_library_game_communities,
+    api_library_favorites, api_library_toggle_favorite,
+    api_library_sync_steam,
+    api_steam_sync_achievements, api_steam_achievements_list,
+    api_steam_showcase_get, api_steam_showcase_save,
+)
+from django.views.decorators.csrf import csrf_exempt as _csrf_exempt
 
 urlpatterns = [
     # Home
@@ -308,7 +345,7 @@ urlpatterns = [
     path('api/fluxer/<str:guild_id>/raffles/',                       api_fluxer_member_raffles,      name='questlog_web_api_fluxer_member_raffles'),
     path('api/fluxer/<str:guild_id>/raffles/<int:raffle_id>/enter/', api_fluxer_member_raffle_enter, name='questlog_web_api_fluxer_member_raffle_enter'),
     # Fluxer member LFG
-    path('fluxer/<str:guild_id>/lfg/',           lambda request, guild_id: redirect(f'/ql/fluxer/{guild_id}/lfg/browse/')),
+    path('fluxer/<str:guild_id>/lfg/',           lambda request, guild_id: redirect(f'/fluxer/{guild_id}/lfg/browse/')),
     path('fluxer/<str:guild_id>/lfg/browse/',    fluxer_guild_member_lfg_browse,    name='questlog_web_fluxer_member_lfg_browse'),
     path('fluxer/<str:guild_id>/lfg/calendar/',  fluxer_guild_member_lfg_calendar,  name='questlog_web_fluxer_member_lfg_calendar'),
     # Fluxer member aliases for dashboard pages accessible to all members
@@ -342,25 +379,78 @@ urlpatterns = [
     path('network/', network, name='questlog_web_network'),
     path('leaderboard/', network_leaderboard, name='questlog_web_leaderboard'),
     path('api/leaderboard/top/', api_leaderboard_top, name='questlog_web_api_leaderboard_top'),
-    path('games/', games, name='questlog_web_games'),
+    path('gameswefound/', games, name='questlog_web_games'),
+    path('games/', lambda r: redirect('/gameswefound/', permanent=True)),
     path('creators/', creators, name='questlog_web_creators'),
     path('creators/<str:username>/', creator_profile, name='questlog_web_creator_profile'),
     path('articles/', articles, name='questlog_web_articles'),
     path('gamers/', gamers, name='questlog_web_gamers'),
 
+    # Blog / Articles (public + contributor)
+    path('blog/',                                blog_list,    name='questlog_web_blog'),
+    path('blog/new/',                            blog_editor,  name='questlog_web_blog_new'),
+    path('blog/<slug:slug>/',                    blog_detail,  name='questlog_web_blog_detail'),
+    path('blog/<slug:slug>/edit/',               blog_editor,  name='questlog_web_blog_edit'),
+
+    # Blog API
+    path('api/blog/',                            api_blog_create,         name='questlog_web_api_blog_create'),
+    path('api/blog/preview/',                    api_blog_preview,        name='questlog_web_api_blog_preview'),
+    path('api/blog/<int:article_id>/',           api_blog_edit,           name='questlog_web_api_blog_edit'),
+    path('api/blog/<int:article_id>/delete/',    api_blog_delete,         name='questlog_web_api_blog_delete'),
+    path('api/blog/<int:article_id>/comments/',  api_blog_comments,       name='questlog_web_api_blog_comments'),
+    path('api/blog/comment/<int:comment_id>/',   api_blog_comment_delete, name='questlog_web_api_blog_comment_delete'),
+    path('api/blog/comment/<int:comment_id>/like/', api_blog_comment_like, name='questlog_web_api_blog_comment_like'),
+
     # Communities
     path('communities/', communities, name='questlog_web_communities'),
     path('communities/register/', community_register, name='questlog_web_community_register'),
     path('communities/<int:community_id>/', community_detail, name='questlog_web_community_detail'),
+    path('communities/<slug:slug>/', community_detail_slug, name='questlog_web_community_detail_slug'),
     path('community-guidelines/', community_guidelines, name='questlog_web_community_guidelines'),
 
     # Profile
     path('profile/', profile, name='questlog_web_profile'),
-    path('profile/edit/', profile_edit, name='questlog_web_profile_edit'),
+    path('profile/edit/', lambda request: redirect('/ql/profile/#edit'), name='questlog_web_profile_edit'),
     path('shop/', hero_shop, name='questlog_web_shop'),
     path('creator/register/', creator_register, name='questlog_web_creator_register'),
     path('settings/', settings, name='questlog_web_settings'),
+    path('getting-started/', getting_started, name='questlog_web_getting_started'),
     path('gameservers/', game_servers_ql, name='questlog_web_gameservers'),
+    path('api/gameservers/status/', api_gameservers_status, name='api_gameservers_status'),
+
+    # Game Library
+    path('library/',                              game_library_page,          name='questlog_web_library'),
+    path('api/library/',                          api_user_library,           name='api_library_list'),
+    path('api/library/add/',                      api_library_add,            name='api_library_add'),
+    path('api/library/<int:game_id>/update/',     api_library_update,         name='api_library_update'),
+    path('api/library/<int:game_id>/remove/',     api_library_remove,         name='api_library_remove'),
+    path('api/library/<int:game_id>/favorite/',   api_library_toggle_favorite, name='api_library_toggle_favorite'),
+    path('api/library/favorites/',               api_library_favorites,       name='api_library_favorites_own'),
+    path('api/library/favorites/<str:username>/', api_library_favorites,       name='api_library_favorites_user'),
+    path('api/library/play-together/',            api_play_together,          name='api_library_play_together'),
+    path('api/library/community-stats/',          api_game_community_stats,   name='api_library_community_stats'),
+    path('api/library/find-players/',             api_find_players,           name='api_library_find_players'),
+    path('api/library/nudge-opportunities/',      api_nudge_opportunities,    name='api_library_nudge_opportunities'),
+    path('api/library/game-owners/',              api_library_game_owners,         name='api_library_game_owners'),
+    path('api/library/game-communities/',         api_library_game_communities,    name='api_library_game_communities'),
+    path('api/library/u/<str:username>/',         api_user_library,           name='api_library_user'),
+    path('api/library/sync-steam/',              api_library_sync_steam,     name='api_library_sync_steam'),
+
+    # Steam achievements / showcase (csrf_exempt applied here so the flag survives decorator wrapping)
+    path('api/steam/sync-achievements/',         _csrf_exempt(api_steam_sync_achievements),  name='api_steam_sync_achievements'),
+    path('api/steam/achievements/',              _csrf_exempt(api_steam_achievements_list),  name='api_steam_achievements_list'),
+    path('api/steam/showcase/save/',             _csrf_exempt(api_steam_showcase_save),      name='api_steam_showcase_save'),
+    path('api/steam/showcase/',                  api_steam_showcase_get,       name='api_steam_showcase_get_own'),
+    path('api/steam/showcase/<str:username>/',   api_steam_showcase_get,       name='api_steam_showcase_get_user'),
+
+    # SteamQuest
+    path('steamquest/', steamquest, name='questlog_web_steamquest'),
+    path('api/steamquest/library/', api_steamquest_library, name='api_steamquest_library'),
+    path('api/steamquest/game/<int:app_id>/', api_steamquest_game_detail, name='api_steamquest_game_detail'),
+    path('api/steamquest/tag/', api_steamquest_tag_filter, name='api_steamquest_tag_filter'),
+    path('api/steamquest/sync-tags/', api_steamquest_sync_tags, name='api_steamquest_sync_tags'),
+    path('api/steamquest/who-owns/', api_steamquest_who_owns, name='api_steamquest_who_owns'),
+    path('api/steamquest/community-owns/', api_steamquest_community_owns, name='api_steamquest_community_owns'),
 
     # Admin (site admin only - multi-layer security)
     path('admin/', admin_panel, name='questlog_web_admin'),
@@ -401,6 +491,8 @@ urlpatterns = [
     path('api/creators/', api_creators, name='questlog_web_api_creators'),
     path('api/games/', api_games, name='questlog_web_api_games'),
     path('api/igdb/search/', api_igdb_search, name='questlog_web_api_igdb_search'),
+    path('api/steam/game-search/', api_steam_game_search, name='questlog_web_api_steam_game_search'),
+    path('api/steam/app-details/', api_steam_app_details, name='questlog_web_api_steam_app_details'),
     path('api/articles/', api_articles, name='questlog_web_api_articles'),
     path('api/gamers/', api_gamers, name='questlog_web_api_gamers'),
 
@@ -478,6 +570,7 @@ urlpatterns = [
     # Home Activity API
     path('api/activity/', api_recent_activity, name='questlog_web_api_activity'),
     path('api/posts/top/', api_top_posts, name='questlog_web_api_top_posts'),
+    path('api/posts/game-tags/', api_post_game_tags, name='questlog_web_api_post_game_tags'),
 
     # Like API
     path('api/posts/<int:post_id>/pin/', api_post_pin, name='questlog_web_api_post_pin'),
@@ -539,6 +632,8 @@ urlpatterns = [
     path('api/admin/site-activity/games/<int:game_id>/', api_admin_site_activity_games, name='questlog_web_api_admin_site_activity_game_detail'),
     path('api/admin/site-activity/roles/', api_admin_site_activity_roles, name='questlog_web_api_admin_site_activity_roles'),
     path('api/admin/site-activity/roles/<int:role_id>/', api_admin_site_activity_roles, name='questlog_web_api_admin_site_activity_role_detail'),
+    path('api/admin/site-activity/fluxer-roles/', api_admin_site_activity_fluxer_roles, name='questlog_web_api_admin_site_activity_fluxer_roles'),
+    path('api/admin/site-activity/fluxer-roles/<int:role_id>/', api_admin_site_activity_fluxer_roles, name='questlog_web_api_admin_site_activity_fluxer_role_detail'),
 
     # Admin: Emergency Maintenance Mode
     path('api/admin/maintenance/toggle/', api_admin_maintenance, name='questlog_web_api_admin_maintenance'),
@@ -618,6 +713,7 @@ urlpatterns = [
     path('api/admin/fluxer-subscribers/<int:config_id>/', api_admin_fluxer_subscriber_detail, name='questlog_web_api_admin_fluxer_subscriber_detail'),
     path('api/admin/fluxer-subscribers/<int:config_id>/detail/', api_admin_fluxer_guild_detail, name='questlog_web_api_admin_fluxer_guild_detail'),
     path('api/admin/fluxer-guild/<str:guild_id>/channels/', api_admin_fluxer_guild_channels, name='questlog_web_api_admin_fluxer_guild_channels'),
+    path('api/admin/fluxer-guild/<str:guild_id>/roles/', api_admin_fluxer_guild_roles, name='questlog_web_api_admin_fluxer_guild_roles'),
     path('api/admin/discord-guild/<str:guild_id>/channels/', api_admin_discord_guild_channels, name='questlog_web_api_admin_discord_guild_channels'),
     path('api/admin/matrix-spaces/', api_admin_matrix_spaces, name='questlog_web_api_admin_matrix_spaces'),
     path('api/admin/matrix-space/<path:space_id>/rooms/', api_admin_matrix_space_rooms, name='questlog_web_api_admin_matrix_space_rooms'),
@@ -799,7 +895,7 @@ urlpatterns = [
     path('hero/', hero_subscribe, name='questlog_web_hero_subscribe'),
     path('hero/return/', hero_return, name='questlog_web_hero_return'),
     path('hero/success/', hero_success, name='questlog_web_hero_success'),
-    path('credits/', lambda req: redirect('/ql/hero/#credits'), name='questlog_web_credits'),
+    path('credits/', lambda req: redirect('/hero/#credits'), name='questlog_web_credits'),
     path('api/billing/checkout/', api_hero_checkout, name='questlog_web_api_hero_checkout'),
     path('api/billing/webhook/', api_stripe_webhook, name='questlog_web_api_stripe_webhook'),
     path('api/billing/portal/', hero_portal, name='questlog_web_hero_portal'),
@@ -813,6 +909,9 @@ urlpatterns = [
     path('api/admin/bridge-configs/<int:config_id>/', api_admin_bridge_config_detail, name='questlog_web_api_admin_bridge_config_detail'),
     path('api/admin/emoji/', api_admin_emoji, name='questlog_web_api_admin_emoji'),
     path('api/admin/emoji/<int:emoji_id>/', api_admin_emoji_detail, name='questlog_web_api_admin_emoji_detail'),
+    path('api/admin/testimonials/', api_admin_testimonials, name='questlog_web_api_admin_testimonials'),
+    path('api/admin/testimonials/<int:testimonial_id>/', api_admin_testimonial_detail, name='questlog_web_api_admin_testimonial_detail'),
+    path('api/testimonials/', api_public_testimonials, name='questlog_web_api_testimonials'),
 
     # =========================================================================
     # MATRIX BOT DASHBOARD (QuestLogMatrix)
@@ -867,8 +966,48 @@ urlpatterns = [
     path('api/dashboard/matrix/<str:space_id>/bridges/',                   api_matrix_bridges,            name='questlog_web_api_matrix_bridges'),
     path('api/dashboard/matrix/<str:space_id>/bridges/<int:bridge_id>/',   api_matrix_bridge_detail,      name='questlog_web_api_matrix_bridge_detail'),
 
+    # ESO Build System
+    path('eso/builds/',                              eso_builds_browse,       name='questlog_web_eso_builds'),
+    path('eso/builds/create/',                       eso_build_create,        name='questlog_web_eso_build_create'),
+    path('eso/builds/<slug:slug>/',                  eso_build_detail,        name='questlog_web_eso_build_detail'),
+    path('eso/builds/<slug:slug>/edit/',             eso_build_edit,          name='questlog_web_eso_build_edit'),
+    path('api/eso/builds/<int:build_id>/vote/',      api_eso_build_vote,      name='questlog_web_api_eso_vote'),
+    path('api/eso/builds/<int:build_id>/comment/',   api_eso_build_comment,   name='questlog_web_api_eso_comment'),
+    path('api/eso/builds/<int:build_id>/bookmark/',  api_eso_build_bookmark,  name='questlog_web_api_eso_bookmark'),
+
     # QuestChat Bridge API
-    path('qc/auth/token/',  qc_auth_token,  name='qc_auth_token'),
-    path('qc/me/',          qc_me,          name='qc_me'),
-    path('qc/guilds/',      qc_guilds,      name='qc_guilds'),
+    path('qc/auth/token/',               qc_auth_token,      name='qc_auth_token'),
+    path('qc/me/',                       qc_me,              name='qc_me'),
+    path('qc/servers/',                  qc_servers,         name='qc_servers'),
+    path('qc/servers/join/',             qc_servers_join,    name='qc_servers_join'),
+    path('qc/servers/<int:server_id>/channels/', qc_server_channels, name='qc_server_channels'),
+    path('qc/servers/<int:server_id>/channels/create/', qc_server_create_channel, name='qc_server_create_channel'),
+    path('qc/dms/',                              qc_dms,                       name='qc_dms'),
+    path('qc/dms/open/',                         qc_dms_open,                  name='qc_dms_open'),
+    path('qc/dms/<int:dm_id>/report/',           qc_dm_report,                 name='qc_dm_report'),
+    path('qc/friends/',                          qc_friends,                   name='qc_friends'),
+    path('qc/friends/request/',                  qc_friend_request,            name='qc_friend_request'),
+    path('qc/friends/respond/',                  qc_friend_respond,            name='qc_friend_respond'),
+    path('qc/friends/remove/',                   qc_friend_remove,             name='qc_friend_remove'),
+    path('qc/friends/cancel/',                   qc_friend_cancel,             name='qc_friend_cancel'),
+    path('qc/block/',                            qc_block,                     name='qc_block'),
+    path('qc/unblock/',                          qc_unblock,                   name='qc_unblock'),
+    path('qc/blocks/',                           qc_blocks,                    name='qc_blocks'),
+    path('qc/ignore/',                           qc_ignore,                    name='qc_ignore'),
+    path('qc/unignore/',                         qc_unignore,                  name='qc_unignore'),
+    path('qc/ignores/',                          qc_ignores,                   name='qc_ignores'),
+    path('qc/messages/<int:msg_id>/edit/',       qc_message_edit,              name='qc_message_edit'),
+    path('qc/messages/<int:msg_id>/delete/',     qc_message_delete,            name='qc_message_delete'),
+    path('qc/messages/<int:msg_id>/react/',      qc_message_react,             name='qc_message_react'),
+    path('qc/servers/<int:server_id>/kick/',     qc_guild_kick,                name='qc_guild_kick'),
+    path('qc/servers/<int:server_id>/ban/',      qc_guild_ban,                 name='qc_guild_ban'),
+    path('qc/servers/<int:server_id>/unban/',    qc_guild_unban,               name='qc_guild_unban'),
+    path('qc/servers/<int:server_id>/bans/',     qc_guild_bans,                name='qc_guild_bans'),
+    path('qc/servers/<int:server_id>/welcome/',  qc_guild_welcome,             name='qc_guild_welcome'),
+    path('qc/channels/<str:guild_id>/<str:channel_id>/read/', qc_mark_read,   name='qc_mark_read'),
+    path('qc/unread/',                           qc_unread,                    name='qc_unread'),
+    path('qc/internal/xp/',                      qc_internal_award_xp,         name='qc_internal_award_xp'),
+    path('qc/admin/bad-actors/',                 qc_admin_bad_actors,          name='qc_admin_bad_actors'),
+    path('qc/admin/bad-actors/add/',             qc_admin_bad_actor_add,       name='qc_admin_bad_actor_add'),
+    path('qc/admin/bad-actors/import-csv/',      qc_admin_bad_actor_import_csv, name='qc_admin_bad_actor_import_csv'),
 ]

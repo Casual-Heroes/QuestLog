@@ -432,7 +432,9 @@ def notify_lfg_post(creator: str, game_name: str, title: str, description: str,
                     duration_hours=None, creator_selections: dict | None = None,
                     group_id: int | None = None, voice_link: str | None = None,
                     group_platform: str = 'web', server_invite_link: str | None = None):
-    """Queue a rich embed when a new LFG group is posted on QuestLog."""
+    """Queue a rich embed when a new LFG group is posted on QuestLog.
+    Sends to all guilds subscribed via web_community_bot_configs (both Fluxer and Discord).
+    """
     embed_data = build_lfg_embed_data(
         creator=creator, game_name=game_name, title=title, description=description,
         group_size=group_size, current_size=current_size, scheduled_time=scheduled_time,
@@ -443,7 +445,36 @@ def notify_lfg_post(creator: str, game_name: str, title: str, description: str,
         creator_selections=creator_selections, group_id=group_id, voice_link=voice_link,
         group_platform=group_platform, server_invite_link=server_invite_link,
     )
-    _queue_notification("lfg_announce", embed_data, ORANGE_COLOR)
+    embed_data['color'] = ORANGE_COLOR
+
+    try:
+        with get_db_session() as db:
+            subscribers = db.execute(text(
+                "SELECT platform, guild_id, channel_id FROM web_community_bot_configs "
+                "WHERE event_type='lfg_announce' AND is_enabled=1 AND channel_id IS NOT NULL"
+            )).fetchall()
+
+            now_ts = int(time.time())
+            for platform, guild_id, channel_id in subscribers:
+                try:
+                    payload = json.dumps(embed_data)
+                    if platform == 'discord':
+                        db.execute(text(
+                            "INSERT INTO discord_pending_broadcasts "
+                            "(guild_id, channel_id, payload, created_at) "
+                            "VALUES (:g, :c, :p, :t)"
+                        ), {'g': int(guild_id), 'c': int(channel_id), 'p': payload, 't': now_ts})
+                    else:
+                        db.execute(text(
+                            "INSERT INTO fluxer_pending_broadcasts "
+                            "(guild_id, channel_id, payload, created_at) "
+                            "VALUES (:g, :c, :p, :t)"
+                        ), {'g': guild_id, 'c': channel_id, 'p': payload, 't': now_ts})
+                except Exception as e:
+                    logger.error(f"Failed to queue LFG announce for {platform} guild {guild_id}: {e}")
+            db.commit()
+    except Exception as e:
+        logger.error(f"notify_lfg_post fan-out failed: {e}")
 
 
 def queue_lfg_embed_edit_for_group(group_id: int, group_platform: str = 'web',
@@ -576,24 +607,143 @@ def notify_new_member(username: str, profile_url: str):
         logger.error(f"Failed to queue Fluxer new_member notification: {e}")
 
 
-def notify_new_post(username: str, game: str, content: str, post_url: str, image_url: str | None = None):
-    """Queue a Fluxer embed when any user creates a QuestLog post."""
+def _post_embed_data(username: str, game: str, content: str, post_url: str, image_url: str | None, prefix: str) -> dict:
+    """Build shared embed dict for new/edited posts."""
     preview = content[:300] + "..." if len(content) > 300 else content
-    title = f"\U0001f4dd New Post - {username}"
-    desc = f"**{game}**\n{preview}" if game else preview
-    embed_data = {
+    title = f"{prefix} - {username} - Posted About {game}" if game else f"{prefix} - {username}"
+    desc = preview
+    embed = {
         "title": title,
         "description": desc,
         "url": post_url,
         "footer": "QuestLog - questlog.casual-heroes.com/",
     }
     if image_url:
-        embed_data["image"] = image_url
+        embed["image"] = image_url
+    return embed
+
+
+def notify_new_post(username: str, game: str, content: str, post_url: str,
+                    image_url: str | None = None, post_id: int | None = None):
+    """Queue a Fluxer embed when any user creates a QuestLog post."""
+    embed_data = _post_embed_data(username, game, content, post_url, image_url, "\U0001f4dd New Post")
+    if post_id:
+        embed_data['track_post_id'] = post_id
     _queue_notification("new_post", embed_data, BRAND_COLOR)
 
 
-def notify_new_post_discord(username: str, game: str, content: str, post_url: str, image_url: str | None = None):
-    """POST a Discord embed via webhook when any user creates a QuestLog post."""
+def notify_post_edit(username: str, game: str, content: str, post_url: str,
+                     image_url: str | None = None, post_id: int | None = None):
+    """Edit the existing Fluxer broadcast message in-place, or post new if none tracked."""
+    embed_data = _post_embed_data(username, game, content, post_url, image_url, "\U0001f4dd New Post")
+    if not post_id:
+        _queue_notification("new_post", embed_data, BRAND_COLOR)
+        return
+    try:
+        with get_db_session() as db:
+            cfg = db.query(WebFluxerWebhookConfig).filter_by(
+                event_type='new_post', is_enabled=True
+            ).first()
+            if not cfg or not cfg.channel_id:
+                return
+            embed_data['color'] = _hex_to_int(cfg.embed_color, BRAND_COLOR)
+            tracked = db.execute(text(
+                "SELECT message_id FROM web_post_broadcast_messages "
+                "WHERE post_id=:pid AND platform='fluxer' LIMIT 1"
+            ), {'pid': post_id}).fetchone()
+            if tracked:
+                embed_data['action'] = 'edit'
+                embed_data['track_post_id'] = post_id
+            else:
+                embed_data['track_post_id'] = post_id
+            db.execute(text("""
+                INSERT INTO fluxer_pending_broadcasts
+                    (guild_id, channel_id, payload, created_at)
+                VALUES (:guild_id, :channel_id, :payload, :now)
+            """), {
+                'guild_id': int(cfg.guild_id) if cfg.guild_id else 0,
+                'channel_id': int(cfg.channel_id),
+                'payload': json.dumps(embed_data),
+                'now': int(time.time()),
+            })
+            db.commit()
+    except Exception as e:
+        logger.error(f"notify_post_edit failed: {e}")
+
+
+def notify_post_delete(post_id: int):
+    """Queue deletion of the Fluxer broadcast message for a deleted post."""
+    try:
+        with get_db_session() as db:
+            cfg = db.query(WebFluxerWebhookConfig).filter_by(
+                event_type='new_post', is_enabled=True
+            ).first()
+            if not cfg or not cfg.channel_id:
+                return
+            tracked = db.execute(text(
+                "SELECT message_id FROM web_post_broadcast_messages "
+                "WHERE post_id=:pid AND platform='fluxer' LIMIT 1"
+            ), {'pid': post_id}).fetchone()
+            if not tracked:
+                return
+            payload = {'action': 'delete', 'track_post_id': post_id}
+            db.execute(text("""
+                INSERT INTO fluxer_pending_broadcasts
+                    (guild_id, channel_id, payload, created_at)
+                VALUES (:guild_id, :channel_id, :payload, :now)
+            """), {
+                'guild_id': int(cfg.guild_id) if cfg.guild_id else 0,
+                'channel_id': int(cfg.channel_id),
+                'payload': json.dumps(payload),
+                'now': int(time.time()),
+            })
+            db.commit()
+    except Exception as e:
+        logger.error(f"notify_post_delete (fluxer) failed: {e}")
+
+
+def notify_new_post_discord(username: str, game: str, content: str, post_url: str,
+                            image_url: str | None = None, post_id: int | None = None):
+    """POST a Discord embed via webhook and store the message ID for future edits/deletes."""
+    _send_post_discord_webhook(username, game, content, post_url, image_url,
+                               "\U0001f4dd New Post", post_id=post_id, action='new')
+
+
+def notify_post_edit_discord(username: str, game: str, content: str, post_url: str,
+                              image_url: str | None = None, post_id: int | None = None):
+    """Edit the existing Discord webhook message in-place, or post new if none tracked."""
+    _send_post_discord_webhook(username, game, content, post_url, image_url,
+                               "\U0001f4dd New Post", post_id=post_id, action='edit')
+
+
+def notify_post_delete_discord(post_id: int):
+    """Delete the Discord webhook message for a deleted post."""
+    if not post_id:
+        return
+    try:
+        import requests as _req
+        with get_db_session() as db:
+            row = db.execute(text(
+                "SELECT message_id, webhook_url FROM web_post_broadcast_messages "
+                "WHERE post_id=:pid AND platform='discord' LIMIT 1"
+            ), {'pid': post_id}).fetchone()
+            if not row:
+                return
+            msg_id, webhook_url = row
+        if webhook_url and msg_id:
+            _req.delete(f"{webhook_url}/messages/{msg_id}", timeout=5)
+        with get_db_session() as db:
+            db.execute(text(
+                "DELETE FROM web_post_broadcast_messages WHERE post_id=:pid AND platform='discord'"
+            ), {'pid': post_id})
+            db.commit()
+    except Exception as e:
+        logger.error(f"notify_post_delete_discord failed: {e}")
+
+
+def _send_post_discord_webhook(username: str, game: str, content: str, post_url: str,
+                               image_url: str | None, prefix: str,
+                               post_id: int | None = None, action: str = 'new'):
     try:
         import requests as _req
         with get_db_session() as db:
@@ -603,12 +753,20 @@ def notify_new_post_discord(username: str, game: str, content: str, post_url: st
             if not cfg or not cfg.discord_webhook_url:
                 return
             webhook_url = cfg.discord_webhook_url
+            existing_msg_id = None
+            if post_id:
+                row = db.execute(text(
+                    "SELECT message_id FROM web_post_broadcast_messages "
+                    "WHERE post_id=:pid AND platform='discord' LIMIT 1"
+                ), {'pid': post_id}).fetchone()
+                if row:
+                    existing_msg_id = row[0]
 
         preview = content[:300] + "..." if len(content) > 300 else content
-        desc = f"**{game}**\n{preview}" if game else preview
+        title = f"{prefix} - {username} - Posted About {game}" if game else f"{prefix} - {username}"
         embed = {
-            "title": f"\U0001f4dd New Post - {username}",
-            "description": desc,
+            "title": title,
+            "description": preview,
             "url": post_url,
             "color": BRAND_COLOR,
             "footer": {"text": "QuestLog - questlog.casual-heroes.com/"},
@@ -616,9 +774,32 @@ def notify_new_post_discord(username: str, game: str, content: str, post_url: st
         if image_url:
             embed["image"] = {"url": image_url}
 
-        _req.post(webhook_url, json={"embeds": [embed]}, timeout=5)
+        if action == 'edit' and existing_msg_id:
+            # Edit the existing webhook message
+            resp = _req.patch(
+                f"{webhook_url}/messages/{existing_msg_id}",
+                json={"embeds": [embed]},
+                timeout=5,
+            )
+        else:
+            # New post - use ?wait=true to get message ID back
+            resp = _req.post(f"{webhook_url}?wait=true", json={"embeds": [embed]}, timeout=5)
+            if post_id and resp.status_code == 200:
+                msg_id = resp.json().get('id')
+                if msg_id:
+                    with get_db_session() as db:
+                        db.execute(text("""
+                            INSERT INTO web_post_broadcast_messages
+                                (post_id, platform, channel_id, message_id, webhook_url, created_at)
+                            VALUES (:pid, 'discord', :ch, :mid, :wurl, :now)
+                            ON DUPLICATE KEY UPDATE message_id=:mid, webhook_url=:wurl
+                        """), {
+                            'pid': post_id, 'ch': '0', 'mid': str(msg_id),
+                            'wurl': webhook_url, 'now': int(time.time()),
+                        })
+                        db.commit()
     except Exception as e:
-        logger.error(f"Failed to send Discord new_post webhook: {e}")
+        logger.error(f"Failed to send Discord post webhook: {e}")
 
 
 def notify_new_comment(username: str, post_author: str, comment: str, post_url: str):
@@ -706,3 +887,85 @@ def notify_giveaway_winner(title: str, winner_names: list[str], giveaway_url: st
         "footer": "QuestLog Giveaways | questlog.casual-heroes.com/giveaways/",
     }
     _queue_notification("giveaway_winner", embed_data, GOLD_COLOR)
+
+
+# ---------------------------------------------------------------------------
+# Job Guide notifications - driven by web_fluxer_webhook_configs event_type='ffxiv_guide'
+# ---------------------------------------------------------------------------
+
+_GUIDE_COLOR = 0x7B68EE   # medium slate blue
+
+
+def notify_new_job_guide(job_name: str, author: str, title: str, guide_url: str):
+    """Queue Fluxer + Discord broadcasts when a new job guide is published.
+
+    Reads channel/webhook config from web_fluxer_webhook_configs (event_type='ffxiv_guide')
+    so admins can control destinations from the admin panel without code changes.
+    """
+    desc = (
+        f"**{author}** just published a new **{job_name}** guide!\n\n"
+        f"**{title}**\n\n"
+        f"[Read the guide]({guide_url})"
+    )
+    embed_data = {
+        "title": f"\U0001f4d6 New {job_name} Guide",
+        "description": desc,
+        "url": guide_url,
+        "color": _GUIDE_COLOR,
+        "footer": "QuestLog Job Guides | questlog.casual-heroes.com/ffxiv/tools/job-guides/",
+    }
+
+    try:
+        with get_db_session() as db:
+            cfg = db.query(WebFluxerWebhookConfig).filter_by(
+                event_type='ffxiv_guide', is_enabled=True
+            ).first()
+            if not cfg:
+                return
+
+            embed_data['color'] = _hex_to_int(cfg.embed_color, _GUIDE_COLOR)
+
+            now = int(time.time())
+
+            # Fluxer channel
+            if cfg.channel_id:
+                payload = dict(embed_data)
+                if cfg.mention_role_id:
+                    payload['content'] = f'<@&{cfg.mention_role_id}>'
+                db.execute(text(
+                    "INSERT INTO fluxer_pending_broadcasts (guild_id, channel_id, payload, created_at) "
+                    "VALUES (:g, :c, :p, :t)"
+                ), {
+                    'g': int(cfg.guild_id) if cfg.guild_id else 0,
+                    'c': int(cfg.channel_id),
+                    'p': json.dumps(payload),
+                    't': now,
+                })
+
+            # Discord - WardenBot picks up discord_pending_broadcasts
+            # action=direct posts straight to channel without creating a thread
+            if cfg.discord_webhook_url:
+                _fire_discord_guide_webhook(cfg.discord_webhook_url, embed_data)
+
+            db.commit()
+    except Exception as e:
+        logger.error(f"notify_new_job_guide: failed to queue broadcasts: {e}")
+
+
+def _fire_discord_guide_webhook(webhook_url: str, embed_data: dict):
+    """POST a job guide embed to a Discord webhook URL."""
+    try:
+        import urllib.request as _req
+        discord_embed = dict(embed_data)
+        # Convert footer string to Discord object format
+        if isinstance(discord_embed.get('footer'), str):
+            discord_embed['footer'] = {'text': discord_embed['footer']}
+        data = json.dumps({'embeds': [discord_embed]}).encode()
+        req = _req.Request(
+            webhook_url, data=data,
+            headers={'Content-Type': 'application/json', 'User-Agent': 'QuestLog/1.0'},
+        )
+        with _req.urlopen(req, timeout=10):
+            pass
+    except Exception as e:
+        logger.warning(f"notify_new_job_guide: Discord webhook failed: {e}")

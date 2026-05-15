@@ -23,6 +23,10 @@ from app.db import get_db_session
 from .fluxer_webhooks import (
     notify_new_post as _fluxer_new_post,
     notify_new_post_discord as _discord_new_post,
+    notify_post_edit as _fluxer_post_edit,
+    notify_post_edit_discord as _discord_post_edit,
+    notify_post_delete as _fluxer_post_delete,
+    notify_post_delete_discord as _discord_post_delete,
     notify_new_comment as _fluxer_new_comment,
     notify_new_comment_discord as _discord_new_comment,
 )
@@ -465,8 +469,9 @@ def api_posts(request):
             if game_tag_id:
                 game_tag_name_input = data.get('game_tag_name', '').strip()
                 game_tag_steam_id = data.get('game_tag_steam_id')
-                # Try local WebFoundGame first
-                game = db.query(WebFoundGame).filter_by(id=game_tag_id).first()
+                # game_tag_id from frontend is an IGDB ID - ONLY look up by igdb_id
+                # Never fall back to internal DB id - IGDB IDs collide with our auto-increment IDs
+                game = db.query(WebFoundGame).filter_by(igdb_id=int(game_tag_id)).first()
                 if game:
                     post.game_tag_id = game.id
                     post.game_tag_name = game.name
@@ -515,7 +520,7 @@ def api_posts(request):
             post_data = serialize_post(post, request.web_user.id, db)
 
             # Fan out new post to Fluxer + Discord for all users
-            _post_url = f"https://casual-heroes.com/ql/post/{post.public_id}/"
+            _post_url = f"https://questlog.casual-heroes.com/ql/post/{post.public_id}/"
             _image_url = post.images[0].image_url if post.images else None
             _fluxer_new_post(
                 username=request.web_user.username,
@@ -523,6 +528,7 @@ def api_posts(request):
                 content=post.content or '',
                 post_url=_post_url,
                 image_url=_image_url,
+                post_id=post.id,
             )
             _discord_new_post(
                 username=request.web_user.username,
@@ -530,6 +536,7 @@ def api_posts(request):
                 content=post.content or '',
                 post_url=_post_url,
                 image_url=_image_url,
+                post_id=post.id,
             )
 
         return JsonResponse({'success': True, 'post': post_data}, status=201)
@@ -666,12 +673,16 @@ def api_post_detail(request, post_id):
             return JsonResponse({'success': True, 'post': serialize_post(post, request.web_user.id, db)})
 
         else:  # DELETE
+            _delete_post_id = post.id
             post.is_deleted = True
             post.updated_at = int(time.time())
             user = db.query(WebUser).filter_by(id=post.author_id).first()
             if user and user.post_count and user.post_count > 0:
                 user.post_count -= 1
             db.commit()
+            # Delete broadcast messages on Fluxer + Discord
+            _fluxer_post_delete(_delete_post_id)
+            _discord_post_delete(_delete_post_id)
             return JsonResponse({'success': True})
 
 
@@ -717,6 +728,7 @@ def api_global_posts(request):
     page = safe_int(request.GET.get('page', 1), default=1, min_val=1)
     per_page = safe_int(request.GET.get('per_page', 20), default=20, min_val=1, max_val=50)
     offset = (page - 1) * per_page
+    game_filter = (request.GET.get('game') or '').strip()[:200]
 
     with get_db_session() as db:
         # Always exclude posts from banned or non-discoverable authors
@@ -729,6 +741,8 @@ def api_global_posts(request):
         )
         if hidden_ids:
             query = query.filter(~WebPost.author_id.in_(hidden_ids))
+        if game_filter:
+            query = query.filter(WebPost.game_tag_name.ilike(f'%{game_filter}%'))
 
         if request.web_user:
             blocked_ids = set()
@@ -807,18 +821,23 @@ def _get_recent_activity(request):
         ).with_entities(WebPost.author_id).distinct().count()
 
         current_uid = request.web_user.id if request.web_user else None
-        suggested_q = db.query(WebUser).filter(
-            WebUser.is_banned == False,
-            WebUser.allow_discovery == True,
-            WebUser.post_count > 0,
-            ~WebUser.id.in_(EXCLUDED_USER_IDS),
-        )
+        following_ids = []
         if current_uid:
             following_ids = [f[0] for f in db.query(WebFollow.following_id).filter_by(
                 follower_id=current_uid
             ).all()]
             following_ids.append(current_uid)
+
+        suggested_q = db.query(WebUser).filter(
+            WebUser.is_banned == False,
+            WebUser.is_disabled == False,
+            WebUser.email_verified == True,
+            WebUser.allow_discovery == True,
+            ~WebUser.id.in_(EXCLUDED_USER_IDS),
+        )
+        if following_ids:
             suggested_q = suggested_q.filter(~WebUser.id.in_(following_ids))
+        if current_uid:
             blocked_ids = set()
             blocks = db.query(WebUserBlock).filter(
                 or_(
@@ -831,8 +850,8 @@ def _get_recent_activity(request):
             if blocked_ids:
                 suggested_q = suggested_q.filter(~WebUser.id.in_(blocked_ids))
 
-        # Random selection from active users so the list varies each page load
-        suggested_users = suggested_q.order_by(func.rand()).limit(6).all()
+        # Random 3 for the feed sidebar "Who to Follow" widget
+        suggested_users = suggested_q.order_by(func.rand()).limit(3).all()
 
         # Batch-fetch creator profiles to avoid N+1
         suggested_ids = [u.id for u in suggested_users]
@@ -901,36 +920,119 @@ def _get_recent_activity(request):
             'follower_count': u.follower_count or 0,
         } for u in new_members]
 
-        trending_q = db.query(
-            WebPost.game_tag_id,
-            WebPost.game_tag_name,
-            func.count(WebPost.id).label('post_count')
-        ).filter(
-            WebPost.game_tag_id.isnot(None),
-            WebPost.is_deleted == False,
-            WebPost.created_at >= week_ago,
-        )
-        if banned_author_ids:
-            trending_q = trending_q.filter(~WebPost.author_id.in_(banned_author_ids))
-        trending_games_q = trending_q.group_by(
-            WebPost.game_tag_id, WebPost.game_tag_name
-        ).order_by(func.count(WebPost.id).desc()).limit(8).all()
+        # --- Trending games: LFG groups (7 days) + Steam recently played (2 weeks) ---
+        # Signal 1: LFG groups created in the last 7 days, grouped by game_name
+        # Pick best cover_url and game_id per game_name (most recent non-null wins)
+        lfg_rows = db.execute(
+            text("""
+                SELECT game_name,
+                       COALESCE(MAX(game_image_url), '') as game_image_url,
+                       COALESCE(MAX(game_id), '') as game_id,
+                       COUNT(*) as lfg_count
+                FROM web_lfg_groups
+                WHERE created_at >= :week_ago
+                  AND status IN ('open','full','started')
+                  AND allow_network_discovery = 1
+                GROUP BY game_name
+                ORDER BY lfg_count DESC
+                LIMIT 20
+            """),
+            {'week_ago': week_ago}
+        ).fetchall()
 
-        trending_games = []
-        if trending_games_q:
-            game_ids = [g[0] for g in trending_games_q]
-            games_map = {}
-            if game_ids:
-                games = db.query(WebFoundGame).filter(WebFoundGame.id.in_(game_ids)).all()
-                games_map = {g.id: g for g in games}
-            for game_tag_id, game_tag_name, pc in trending_games_q:
-                game = games_map.get(game_tag_id)
-                trending_games.append({
-                    'id': game_tag_id,
-                    'name': game_tag_name,
-                    'cover_url': game.cover_url if game else None,
-                    'post_count': pc,
-                })
+        # Signal 2: Steam recently played across members (cached from discover page if available)
+        steam_play_counts = {}
+        steam_appid_map = {}  # game_name -> steam app_id (for cover art)
+        try:
+            from django.core.cache import cache as _djcache
+            from .helpers import STEAM_API_KEY as _STEAM_KEY
+            import requests as _req
+
+            steam_users = db.execute(
+                text("""SELECT steam_id FROM web_users
+                        WHERE share_steam_library=1 AND steam_id IS NOT NULL
+                        AND steam_id != '' AND is_banned=0 AND is_disabled=0
+                        LIMIT 30""")
+            ).fetchall()
+
+            for (steam_id,) in steam_users:
+                cache_key = f'steamquest_library_{steam_id}'
+                cached_lib = _djcache.get(cache_key)
+                if cached_lib:
+                    for g in cached_lib:
+                        name = g.get('name', '')
+                        pt2 = g.get('playtime_2weeks', 0)
+                        if name and pt2 and pt2 > 0:
+                            steam_play_counts[name] = steam_play_counts.get(name, 0) + 1
+                            if name not in steam_appid_map and g.get('appid'):
+                                steam_appid_map[name] = g['appid']
+                else:
+                    try:
+                        r = _req.get(
+                            'https://api.steampowered.com/IPlayerService/GetRecentlyPlayedGames/v1/',
+                            params={'key': _STEAM_KEY, 'steamid': steam_id, 'count': 0},
+                            timeout=3,
+                        )
+                        for g in r.json().get('response', {}).get('games', []):
+                            name = g.get('name', '')
+                            if name and g.get('playtime_2weeks', 0) > 0:
+                                steam_play_counts[name] = steam_play_counts.get(name, 0) + 1
+                                if name not in steam_appid_map and g.get('appid'):
+                                    steam_appid_map[name] = g['appid']
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+
+        # Helper: resolve cover art for a game - tries LFG image, then Steam cover lookup
+        from .helpers import get_steam_cover_url as _get_steam_cover
+        def _trending_cover(img_url, game_id_str):
+            if img_url:
+                return img_url
+            aid = None
+            if game_id_str:
+                try:
+                    aid = int(game_id_str)
+                except (ValueError, TypeError):
+                    pass
+            if not aid:
+                return None
+            return _get_steam_cover(aid)
+
+        # Merge signals: normalize each to 0-1 scale then combine (LFG weighted 2x)
+        trending_map = {}  # game_name -> {score, lfg_count, players, cover_url}
+
+        max_lfg = max((r[3] for r in lfg_rows), default=1)
+        for row in lfg_rows:
+            name, img, gid, cnt = row[0], row[1], row[2], row[3]
+            trending_map[name] = {
+                'name': name,
+                'cover_url': _trending_cover(img, gid),
+                'lfg_count': cnt,
+                'players': steam_play_counts.get(name, 0),
+                'score': 2.0 * (cnt / max_lfg),
+            }
+
+        max_steam = max(steam_play_counts.values(), default=1)
+        for name, player_count in steam_play_counts.items():
+            steam_score = player_count / max_steam
+            aid = steam_appid_map.get(name)
+            if name in trending_map:
+                trending_map[name]['score'] += steam_score
+                trending_map[name]['players'] = player_count
+                if not trending_map[name]['cover_url'] and aid:
+                    trending_map[name]['cover_url'] = _get_steam_cover(aid)
+            else:
+                trending_map[name] = {
+                    'name': name,
+                    'cover_url': _get_steam_cover(aid) if aid else None,
+                    'lfg_count': 0,
+                    'players': player_count,
+                    'score': steam_score,
+                }
+
+        # Sort by combined score and take top 5
+        trending_games = sorted(trending_map.values(), key=lambda x: x['score'], reverse=True)[:5]
 
         ticker = []
         two_days_ago = now - 172800
@@ -1027,6 +1129,17 @@ def _get_recent_activity(request):
                     'timestamp': u.live_checked_at,
                 })
 
+        # Load NSFW app IDs once - only explicitly sexual games, not games with mere nudity
+        nsfw_appids = set()
+        try:
+            nsfw_rows = db.execute(text(
+                "SELECT DISTINCT app_id FROM web_steam_app_tags "
+                "WHERE tag_name IN ('sexual content', 'hentai', 'adult only sexual content')"
+            )).fetchall()
+            nsfw_appids = {r[0] for r in nsfw_rows}
+        except Exception:
+            pass
+
         # Now playing events (users currently playing a game - fresh within 2 min window)
         playing_users = db.query(WebUser).filter(
             WebUser.current_game.isnot(None),
@@ -1037,9 +1150,12 @@ def _get_recent_activity(request):
         ).order_by(WebUser.id.desc()).limit(10).all()
         for u in playing_users:
             if ticker_allowed(u, 'ticker_show_playing') and u.current_game:
+                appid = getattr(u, 'current_game_appid', None)
+                if appid and appid in nsfw_appids:
+                    continue
                 steam_url = (
-                    f'https://store.steampowered.com/app/{u.current_game_appid}/'
-                    if getattr(u, 'current_game_appid', None)
+                    f'https://store.steampowered.com/app/{appid}/'
+                    if appid
                     else f'https://store.steampowered.com/search/?term={u.current_game}'
                 )
                 ticker.append({
@@ -1152,8 +1268,13 @@ def _get_recent_activity(request):
         recent_approvals = db.query(WebCommunity).filter(
             WebCommunity.network_status == 'approved',
             WebCommunity.updated_at >= week_ago,
-        ).order_by(WebCommunity.updated_at.desc()).limit(3).all()
+        ).order_by(WebCommunity.updated_at.desc()).limit(10).all()
+        seen_community_names = set()
         for c in recent_approvals:
+            key = c.name.strip().lower()
+            if key in seen_community_names:
+                continue
+            seen_community_names.add(key)
             ticker.append({
                 'type': 'network_approved',
                 'username': '',
@@ -1164,10 +1285,44 @@ def _get_recent_activity(request):
                 'timestamp': c.updated_at,
             })
 
+        # Play Together - 2 random picks from library, spread through ticker
+        try:
+            pt_rows = db.execute(text("""
+                SELECT g.web_user_id, g.name AS game_name, g.steam_app_id,
+                       u.username, u.display_name, u.avatar_url
+                FROM web_user_games g
+                JOIN web_users u ON u.id = g.web_user_id
+                WHERE g.status = 'play_together'
+                  AND u.is_banned = 0
+                  AND u.is_disabled = 0
+                  AND u.allow_discovery = 1
+                  AND u.email_verified = 1
+                ORDER BY RAND()
+                LIMIT 2
+            """)).fetchall()
+            for i, row in enumerate(pt_rows):
+                steam_url = (
+                    f'https://store.steampowered.com/app/{row.steam_app_id}/'
+                    if row.steam_app_id
+                    else f'https://store.steampowered.com/search/?term={row.game_name}'
+                )
+                ticker.append({
+                    'type': 'play_together',
+                    'username': row.username,
+                    'display_name': row.display_name or row.username,
+                    'avatar_url': row.avatar_url or '',
+                    'message': f"wants to play {row.game_name}",
+                    'game': row.game_name,
+                    'steam_url': steam_url,
+                    'timestamp': now - (i * 300),  # spread 5 min apart so they interleave
+                })
+        except Exception:
+            pass
+
         ticker.sort(key=lambda x: x['timestamp'], reverse=True)
         ticker = ticker[:20]
 
-    return JsonResponse({
+    response = JsonResponse({
         'total_users': total_users,
         'total_posts': total_posts,
         'posts_today': posts_today,
@@ -1177,6 +1332,8 @@ def _get_recent_activity(request):
         'trending_games': trending_games,
         'ticker': ticker,
     })
+    response['Cache-Control'] = 'no-store'
+    return response
 
 
 # =============================================================================
@@ -1282,7 +1439,24 @@ def api_comments(request, post_id):
             return JsonResponse({'error': 'Invalid JSON'}, status=400)
 
         content = sanitize_text(data.get('content', ''), max_length=500)
-        if not content:
+        raw_gif = (data.get('gif_url') or '').strip()[:500]
+        raw_image = (data.get('image_url') or '').strip()[:500]
+
+        # Validate gif URL (Giphy CDN only)
+        comment_gif = raw_gif if (raw_gif and _is_valid_giphy_url(raw_gif)) else None
+
+        # Validate image URL (local /media/uploads/ only)
+        from urllib.parse import urlparse as _urlparse
+        def _is_valid_comment_image(u):
+            if not u: return False
+            try:
+                p = _urlparse(u)
+                return p.scheme == '' and p.path.startswith('/media/uploads/')
+            except Exception:
+                return False
+        comment_image = raw_image if _is_valid_comment_image(raw_image) else None
+
+        if not content and not comment_gif and not comment_image:
             return JsonResponse({'error': 'Comment cannot be empty'}, status=400)
 
         parent_id = data.get('parent_id')
@@ -1298,7 +1472,9 @@ def api_comments(request, post_id):
         comment = WebComment(
             post_id=post_id,
             author_id=request.web_user.id,
-            content=content,
+            content=content or '',
+            gif_url=comment_gif,
+            image_url=comment_image,
             parent_id=parent_id,
             created_at=now,
             updated_at=now,
@@ -1346,6 +1522,8 @@ def api_comments(request, post_id):
             'id': comment.id,
             'author': serialize_user_brief(request.web_user),
             'content': comment.content,
+            'gif_url': comment.gif_url,
+            'image_url': comment.image_url,
             'parent_id': comment.parent_id,
             'like_count': 0,
             'created_at': comment.created_at,
@@ -1430,6 +1608,8 @@ def _get_comments(request, db, post_id):
             'id': c.id,
             'author': serialize_user_brief(author) if author else None,
             'content': c.content,
+            'gif_url': c.gif_url,
+            'image_url': c.image_url,
             'parent_id': c.parent_id,
             'like_count': c.like_count or 0,
             'created_at': c.created_at,
@@ -1608,6 +1788,14 @@ def api_notifications(request):
             if n.target_type == 'user' and n.target_id:
                 actor = actors.get(n.actor_id)
                 return f"/ql/u/{actor.username}/" if actor else None
+            if n.target_type == 'ffxiv_application':
+                if n.notification_type == 'ffxiv_app_new':
+                    return "/ql/admin/#ffxiv-applications"
+                return "/ffxiv/apply/"
+            if n.target_type == 'eso_application':
+                if n.notification_type == 'eso_app_new':
+                    return "/ql/admin/#eso-applications"
+                return "/eso/apply/"
             return None
 
         data = [{
@@ -1971,7 +2159,36 @@ def api_post_edit(request, post_id):
         if not new_content:
             return JsonResponse({'error': 'Post cannot be empty'}, status=400)
 
-        if new_content == post.content:
+        # Resolve game tag change
+        new_game_tag_id = None
+        new_game_tag_name = None
+        new_game_tag_steam_id = None
+        game_tag_changed = False
+        # clear_game_tag=true means user explicitly removed the game tag
+        clear_game_tag = bool(data.get('clear_game_tag', False))
+        if clear_game_tag:
+            game_tag_changed = bool(post.game_tag_name or post.game_tag_id)
+        elif 'game_tag_id' in data or 'game_tag_name' in data:
+            raw_tag_id = data.get('game_tag_id')
+            game = None
+            if raw_tag_id:
+                # raw_tag_id is an IGDB ID from the frontend - ONLY look up by igdb_id
+                # Never fall back to internal DB id - IGDB IDs collide with our auto-increment IDs
+                game = db.query(WebFoundGame).filter_by(igdb_id=int(raw_tag_id)).first()
+            if game:
+                new_game_tag_id = game.id
+                new_game_tag_name = game.name
+                new_game_tag_steam_id = game.steam_app_id
+            elif data.get('game_tag_name'):
+                new_game_tag_name = sanitize_text(data['game_tag_name'], max_length=100)
+                raw_steam = data.get('game_tag_steam_id')
+                new_game_tag_steam_id = safe_int(raw_steam, default=None) if raw_steam else None
+            # Changed if name differs OR internal ID differs
+            if new_game_tag_name != post.game_tag_name or new_game_tag_id != post.game_tag_id:
+                game_tag_changed = True
+
+        content_changed = new_content != post.content
+        if not content_changed and not game_tag_changed:
             return JsonResponse({'error': 'No changes made'}, status=400)
 
         now = int(time.time())
@@ -1986,7 +2203,7 @@ def api_post_edit(request, post_id):
 
         # Re-fetch link preview if content changed and post has no media
         new_preview = post.link_preview
-        if post.post_type in ('text', 'game_tag') and not post.embed_platform and not post.images:
+        if content_changed and post.post_type in ('text', 'game_tag') and not post.embed_platform and not post.images:
             urls = re.findall(r'https?://[^\s<]+', new_content)
             new_preview = None
             for preview_url in urls:
@@ -1996,6 +2213,14 @@ def api_post_edit(request, post_id):
                     break
 
         post.content = new_content
+        if game_tag_changed:
+            post.game_tag_id = new_game_tag_id
+            post.game_tag_name = new_game_tag_name
+            post.game_tag_steam_id = new_game_tag_steam_id
+            if new_game_tag_name and post.post_type == 'text':
+                post.post_type = 'game_tag'
+            elif not new_game_tag_name and post.post_type == 'game_tag':
+                post.post_type = 'text'
         post.edited_at = now
         post.edit_count = (post.edit_count or 0) + 1
         post.updated_at = now
@@ -2006,6 +2231,30 @@ def api_post_edit(request, post_id):
         # Refetch to serialize cleanly
         post = db.query(WebPost).filter_by(id=post.id).first()
         post_data = serialize_post(post, request.web_user.id, db)
+        _broadcast_url = f"https://questlog.casual-heroes.com/ql/post/{post.public_id}/"
+        _broadcast_game = post.game_tag_name or ''
+        _broadcast_content = post.content or ''
+        _broadcast_image = post.images[0].image_url if post.images else None
+        _broadcast_username = request.web_user.username
+        _broadcast_post_id = post.id
+
+    # Broadcast edit to Fluxer + Discord - edits existing message in-place
+    _fluxer_post_edit(
+        username=_broadcast_username,
+        game=_broadcast_game,
+        content=_broadcast_content,
+        post_url=_broadcast_url,
+        image_url=_broadcast_image,
+        post_id=_broadcast_post_id,
+    )
+    _discord_post_edit(
+        username=_broadcast_username,
+        game=_broadcast_game,
+        content=_broadcast_content,
+        post_url=_broadcast_url,
+        image_url=_broadcast_image,
+        post_id=_broadcast_post_id,
+    )
 
     return JsonResponse({'success': True, 'post': post_data})
 
