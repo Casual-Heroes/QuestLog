@@ -50,7 +50,16 @@
         </div>
         <p id="communityShortDesc" class="text-gray-400 text-sm mt-2 font-medium hidden"></p>
         <p id="communityDescription" class="text-gray-300 mt-3 text-sm leading-relaxed hidden"></p>
+        <div id="communityGuilds" class="hidden flex items-center gap-2 mt-3"></div>
       </div>
+    </div>
+
+    <!-- Games We Play -->
+    <div id="gamesSection" class="hidden bg-neutral-900 rounded-2xl border border-neutral-800 p-5">
+      <h3 class="text-sm font-semibold text-white mb-4 flex items-center gap-2">
+        <i class="fas fa-gamepad text-indigo-400 text-xs"></i>Games We Play
+      </h3>
+      <div id="gamesList" class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-3"></div>
     </div>
 
     <!-- Tags -->
@@ -94,18 +103,7 @@ document.addEventListener('DOMContentLoaded', loadCommunity);
 
 const communityId = {{ community_id }};
 
-const PLATFORM_ICONS = {
-  discord:   'fab fa-discord text-indigo-400',
-  fluxer:    'fas fa-bolt text-yellow-400',
-  matrix:    'fas fa-cube text-green-400',
-  kloak:     'fas fa-user-shield text-slate-400',
-  stoat:     'fas fa-network-wired text-teal-400',
-  teamspeak: 'fas fa-headset text-blue-400',
-  mumble:    'fas fa-microphone text-purple-400',
-  guilded:   'fas fa-shield-alt text-yellow-400',
-  root:      'fas fa-tree text-emerald-400',
-  other:     'fas fa-globe text-gray-400',
-};
+const PLATFORM_ICONS = {}; // legacy - use platformIconHtml()
 
 const ACTIVITY_TIERS = {
   dormant:   { label: 'Dormant',   icon: 'fas fa-moon',      color: 'text-gray-400' },
@@ -124,7 +122,7 @@ const SOCIAL_BUTTONS = [
 
 async function loadCommunity() {
   try {
-    const r = await fetch(`/ql/api/communities/${communityId}/`);
+    const r = await fetch(`/api/communities/${communityId}/`);
     if (!r.ok) throw new Error('not found');
     const c = await r.json();
 
@@ -134,8 +132,7 @@ async function loadCommunity() {
     document.getElementById('communityTitle').textContent = c.name;
 
     // Header icon (platform-based)
-    const iconClass = PLATFORM_ICONS[c.platform] || PLATFORM_ICONS.other;
-    document.getElementById('headerIcon').className = iconClass + ' text-2xl';
+    setPlatformIcon(document.getElementById('headerIcon'), c.platform, 'text-2xl');
 
     // Banner
     if (c.banner_url) {
@@ -150,12 +147,12 @@ async function loadCommunity() {
     if (c.icon_url) {
       iconEl.innerHTML = `<img src="${escapeHtml(c.icon_url)}" class="w-20 h-20 rounded-xl object-cover">`;
     } else {
-      iconEl.innerHTML = `<i class="${escapeHtml(iconClass)} text-3xl"></i>`;
+      iconEl.innerHTML = platformIconHtml(c.platform, 'text-3xl');
     }
 
     // Platform + members + activity inline badges
     document.getElementById('communityPlatform').innerHTML =
-      `<i class="${escapeHtml(iconClass)} mr-1"></i><span class="capitalize">${escapeHtml(c.platform)}</span>`;
+      `${platformIconHtml(c.platform, 'mr-1')}<span class="capitalize">${escapeHtml(c.platform)}</span>`;
     document.getElementById('communityMembers').innerHTML =
       `<i class="fas fa-users mr-1"></i>${c.member_count.toLocaleString()} members`;
 
@@ -184,6 +181,65 @@ async function loadCommunity() {
            class="flex items-center gap-2 bg-green-600 hover:bg-green-500 text-white px-6 py-2.5 rounded-xl font-semibold transition">
           <i class="fas fa-sign-in-alt"></i>Join Community
         </a>`;
+    }
+
+    // Guilds inline in header
+    if (c.guild_game && c.guild_game.length) {
+      const GUILD_META = {
+        ffxiv: { label: 'Final Fantasy XIV', icon: '/static/img/games/guilds/ffxiv.png', url: '/ffxiv/' },
+        eso:   { label: 'Elder Scrolls Online', icon: '/static/img/games/guilds/esoguild.png', url: '/eso/' },
+        wow:   { label: 'World of Warcraft', icon: '/static/img/games/guilds/WoWlogo.png', url: null },
+        gw2:   { label: 'Guild Wars 2', icon: null, url: null },
+        other: { label: 'MMO Guild', icon: null, url: null },
+      };
+      const guildsSpan = document.getElementById('communityGuilds');
+      if (guildsSpan) {
+        guildsSpan.innerHTML = `<i class="fas fa-shield-alt text-amber-400 text-xs"></i><span class="text-gray-500 text-xs font-medium">Guilds</span>`
+          + c.guild_game.map(g => {
+            const meta = GUILD_META[g] || { label: g, icon: null, url: null };
+            const img = meta.icon
+              ? `<img src="${meta.icon}" alt="${escapeHtml(meta.label)}" title="${escapeHtml(meta.label)}" class="w-7 h-7 rounded-lg object-cover opacity-90 hover:opacity-100 transition">`
+              : `<i class="fas fa-shield-alt text-amber-400" title="${escapeHtml(meta.label)}"></i>`;
+            return meta.url
+              ? `<a href="${meta.url}" title="${escapeHtml(meta.label)}" class="flex-shrink-0">${img}</a>`
+              : `<span class="flex-shrink-0">${img}</span>`;
+          }).join('');
+        guildsSpan.classList.remove('hidden');
+      }
+    }
+
+    // Games We Play
+    if (c.games && c.games.length) {
+      document.getElementById('gamesSection').classList.remove('hidden');
+      document.getElementById('gamesList').innerHTML = c.games.map(g => {
+        const name = typeof g === 'string' ? g : g.name;
+        const cover = (typeof g === 'object' && g.cover_url) ? g.cover_url : null;
+        const appId = (typeof g === 'object' && g.steam_app_id) ? g.steam_app_id : null;
+        const isMP = typeof g === 'object' ? g.multiplayer : true;
+        const steamUrl = appId
+          ? `https://store.steampowered.com/app/${appId}/`
+          : `https://store.steampowered.com/search/?term=${encodeURIComponent(name)}`;
+        const lfgBtn = isMP
+          ? `<a href="/ql/lfg/create/?game=${encodeURIComponent(name)}"
+               class="mt-1 flex items-center justify-center gap-1 text-[10px] bg-indigo-600/80 hover:bg-indigo-500 text-white py-0.5 rounded-md font-semibold whitespace-nowrap transition w-full"
+               title="Find group for ${escapeHtml(name)}">
+               <i class="fas fa-users text-[9px]"></i>LFG
+             </a>`
+          : '';
+        const img = cover
+          ? `<img src="${escapeHtml(cover)}" alt="${escapeHtml(name)}" class="w-full h-full object-cover" loading="lazy" onerror="this.style.display='none'">`
+          : `<div class="w-full h-full flex items-center justify-center"><i class="fas fa-gamepad text-gray-600 text-lg"></i></div>`;
+        return `<div class="group flex flex-col">
+          <a href="${steamUrl}" target="_blank" rel="noopener"
+             class="block w-full aspect-[2/3] rounded-xl overflow-hidden bg-neutral-800 border border-neutral-700 group-hover:border-indigo-500/50 transition relative">
+            ${img}
+            <div class="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition rounded-xl flex items-start justify-center pt-2 px-1">
+              <span class="text-white text-[10px] font-medium text-center leading-tight line-clamp-3">${escapeHtml(name)}</span>
+            </div>
+          </a>
+          ${lfgBtn}
+        </div>`;
+      }).join('');
     }
 
     // Tags

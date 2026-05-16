@@ -30,6 +30,12 @@
 
 {% if show_status_page %}
 <!-- ── STATUS PAGE ────────────────────────────────────────────────────────── -->
+{{ fluxer_guilds_json|json_script:"fluxer-guilds-data" }}
+{{ discord_guilds_json|json_script:"discord-guilds-data" }}
+{{ matrix_spaces_json|json_script:"matrix-spaces-data" }}
+{{ registered_fluxer_ids_json|json_script:"reg-fluxer-data" }}
+{{ registered_discord_ids_json|json_script:"reg-discord-data" }}
+{{ registered_matrix_ids_json|json_script:"reg-matrix-data" }}
 
 <!-- Summary banner -->
 {% if has_approved %}
@@ -169,7 +175,7 @@
     <!-- Fluxer servers -->
     <div id="addFluxerPickerSection" class="hidden mb-5">
       <p class="text-xs text-cyan-400 font-semibold uppercase tracking-wider mb-3">
-        <i class="fas fa-bolt mr-1"></i>Fluxer Servers
+        <img src="{% static 'img/siteassets/fluxer-favicon.png' %}" style="width:1em;height:1em;object-fit:contain;vertical-align:middle;display:inline-block;" alt="Fluxer">Fluxer Servers
       </p>
       <div id="addFluxerPickerGrid" class="grid grid-cols-1 sm:grid-cols-2 gap-3"></div>
       <button type="button" id="addClearFluxerBtn" onclick="addClearFluxer()" class="hidden mt-2 text-xs text-gray-500 hover:text-gray-300 underline transition">Clear selection</button>
@@ -235,67 +241,185 @@
   const REGISTERED_MATRIX_IDS = new Set(JSON.parse(document.getElementById('reg-matrix-data').textContent));
 </script>
 
-<!-- Step 1: Select server(s) -->
+<!-- Step 1: Connect Platforms -->
 <div class="bg-neutral-900/50 rounded-lg border border-neutral-800 p-6">
   <h2 class="text-lg font-semibold text-white mb-1">
-    <i class="fas fa-server text-purple-400 mr-2"></i>Select Your Server
+    <i class="fas fa-link text-purple-400 mr-2"></i>Link Your Community Platforms <span class="text-red-400">*</span>
   </h2>
-  <p class="text-sm text-gray-500 mb-5">Pick one or both platforms - icon will be pulled from the bot automatically.</p>
+  <p class="text-sm text-gray-500 mb-5">Connect at least one platform so players know how to join. You can link multiple.</p>
 
-  {% if fluxer_guilds_json == '[]' and discord_guilds_json == '[]' and matrix_spaces_json == '[]' %}
-  <div class="bg-yellow-900/20 border border-yellow-700/40 rounded-lg p-4 text-sm text-gray-400">
-    <i class="fas fa-info-circle text-yellow-400 mr-2"></i>
-    No servers found. Make sure you have linked your Discord, Fluxer, or Matrix account in
-    <a href="/ql/settings/" class="text-purple-400 hover:text-purple-300 underline">Settings</a>
-    and that the QuestLog bot is in your server.
-  </div>
-  {% endif %}
+  <div class="space-y-4">
 
-  <!-- Fluxer servers -->
-  <div id="fluxerPickerSection" class="hidden mb-5">
-    <p class="text-xs text-cyan-400 font-semibold uppercase tracking-wider mb-3">
-      <i class="fas fa-bolt mr-1"></i>Fluxer Servers
-    </p>
-    <div id="fluxerPickerGrid" class="grid grid-cols-1 sm:grid-cols-2 gap-3"></div>
-    <button type="button" id="clearFluxerBtn" onclick="clearFluxerSelection()"
-            class="hidden mt-2 text-xs text-gray-500 hover:text-gray-300 underline transition">
-      Clear selection
-    </button>
+    <!-- Discord -->
+    <div class="rounded-lg border border-neutral-700 bg-neutral-800/50 p-4">
+      <div class="flex items-center justify-between gap-3 flex-wrap">
+        <div class="flex items-center gap-3">
+          <div class="w-8 h-8 bg-indigo-500/20 rounded-lg flex items-center justify-center flex-shrink-0">
+            <i class="fab fa-discord text-indigo-400"></i>
+          </div>
+          <div>
+            <p class="text-sm font-semibold text-white">Discord</p>
+            {% if has_discord %}
+            <p class="text-xs text-green-400"><i class="fas fa-check-circle mr-1"></i>Account linked</p>
+            {% else %}
+            <p class="text-xs text-gray-500">Not connected</p>
+            {% endif %}
+          </div>
+        </div>
+        {% if not has_discord %}
+        <a href="{% url 'questlog_web_discord_link' %}?next={% url 'questlog_web_community_register' %}"
+           class="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-1.5 rounded-lg text-xs font-semibold transition">
+          <i class="fab fa-discord text-xs"></i>Connect Discord
+        </a>
+        {% endif %}
+      </div>
+      {% if has_discord and discord_guilds_json != '[]' %}
+      <div id="discordPickerSection" class="hidden mt-4">
+        <p class="text-xs text-indigo-400 font-semibold uppercase tracking-wider mb-3">Select your Discord server</p>
+        <div id="discordPickerGrid" class="grid grid-cols-1 sm:grid-cols-2 gap-3"></div>
+        <button type="button" id="clearDiscordBtn" onclick="clearDiscordSelection()"
+                class="hidden mt-2 text-xs text-gray-500 hover:text-gray-300 underline transition">Clear selection</button>
+      </div>
+      {% elif has_discord and discord_guilds_json == '[]' %}
+      <p class="text-xs text-gray-500 mt-3">No Discord servers found where you are the owner with the bot present.</p>
+      <div class="mt-3">
+        <label class="text-xs text-gray-400 mb-1.5 block">Discord Invite URL <span class="text-gray-600">(manual)</span></label>
+        <input type="url" id="manualDiscordUrl" placeholder="https://discord.gg/..."
+               oninput="updatePlatformLink()"
+               class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-indigo-500 focus:outline-none">
+      </div>
+      {% else %}
+      <div class="mt-3">
+        <label class="text-xs text-gray-400 mb-1.5 block">Discord Invite URL</label>
+        <input type="url" id="manualDiscordUrl" placeholder="https://discord.gg/..."
+               oninput="updatePlatformLink()"
+               class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-indigo-500 focus:outline-none">
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Fluxer -->
+    <div class="rounded-lg border border-neutral-700 bg-neutral-800/50 p-4">
+      <div class="flex items-center justify-between gap-3 flex-wrap">
+        <div class="flex items-center gap-3">
+          <div class="w-8 h-8 bg-cyan-500/20 rounded-lg flex items-center justify-center flex-shrink-0">
+            <img src="{% static 'img/siteassets/fluxer-favicon.png' %}" style="width:1rem;height:1rem;object-fit:contain;" alt="Fluxer">
+          </div>
+          <div>
+            <p class="text-sm font-semibold text-white">Fluxer</p>
+            {% if has_fluxer %}
+            <p class="text-xs text-green-400"><i class="fas fa-check-circle mr-1"></i>Account linked</p>
+            {% else %}
+            <p class="text-xs text-gray-500">Not connected</p>
+            {% endif %}
+          </div>
+        </div>
+        {% if not has_fluxer %}
+        <a href="{% url 'questlog_web_fluxer_link' %}?next={% url 'questlog_web_community_register' %}"
+           class="flex items-center gap-2 bg-cyan-600 hover:bg-cyan-500 text-white px-4 py-1.5 rounded-lg text-xs font-semibold transition">
+          <img src="{% static 'img/siteassets/fluxer-favicon.png' %}" style="width:1em;height:1em;object-fit:contain;vertical-align:middle;display:inline-block;" alt="Fluxer">Connect Fluxer
+        </a>
+        {% endif %}
+      </div>
+      {% if has_fluxer and fluxer_guilds_json != '[]' %}
+      <div id="fluxerPickerSection" class="hidden mt-4">
+        <p class="text-xs text-cyan-400 font-semibold uppercase tracking-wider mb-3">Select your Fluxer server</p>
+        <div id="fluxerPickerGrid" class="grid grid-cols-1 sm:grid-cols-2 gap-3"></div>
+        <button type="button" id="clearFluxerBtn" onclick="clearFluxerSelection()"
+                class="hidden mt-2 text-xs text-gray-500 hover:text-gray-300 underline transition">Clear selection</button>
+      </div>
+      {% else %}
+      <div class="mt-3">
+        <label class="text-xs text-gray-400 mb-1.5 block">Fluxer Invite URL</label>
+        <input type="url" id="manualFluxerUrl" placeholder="https://fluxer.gg/invite/..."
+               oninput="updatePlatformLink()"
+               class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-cyan-500 focus:outline-none">
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Matrix -->
+    <div class="rounded-lg border border-neutral-700 bg-neutral-800/50 p-4">
+      <div class="flex items-center justify-between gap-3 flex-wrap">
+        <div class="flex items-center gap-3">
+          <div class="w-8 h-8 bg-green-500/20 rounded-lg flex items-center justify-center flex-shrink-0">
+            <i class="fas fa-comments text-green-400"></i>
+          </div>
+          <div>
+            <p class="text-sm font-semibold text-white">Matrix / QuestChat</p>
+            {% if has_matrix %}
+            <p class="text-xs text-green-400"><i class="fas fa-check-circle mr-1"></i>Account linked</p>
+            {% else %}
+            <p class="text-xs text-gray-500">Not connected</p>
+            {% endif %}
+          </div>
+        </div>
+        {% if not has_matrix %}
+        <a href="{% url 'questlog_web_matrix_link' %}?next={% url 'questlog_web_community_register' %}"
+           class="flex items-center gap-2 bg-green-700 hover:bg-green-600 text-white px-4 py-1.5 rounded-lg text-xs font-semibold transition">
+          <i class="fas fa-comments text-xs"></i>Connect Matrix
+        </a>
+        {% endif %}
+      </div>
+      {% if has_matrix and matrix_spaces_json != '[]' %}
+      <div id="matrixPickerSection" class="hidden mt-4">
+        <p class="text-xs text-green-400 font-semibold uppercase tracking-wider mb-3">Select your Matrix space</p>
+        <div id="matrixPickerGrid" class="grid grid-cols-1 sm:grid-cols-2 gap-3"></div>
+        <button type="button" id="clearMatrixBtn" onclick="clearMatrixSelection()"
+                class="hidden mt-2 text-xs text-gray-500 hover:text-gray-300 underline transition">Clear selection</button>
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Stoat -->
+    <div class="rounded-lg border border-neutral-700 bg-neutral-800/50 p-4">
+      <div class="flex items-center gap-3 mb-3">
+        <div class="w-8 h-8 bg-orange-500/20 rounded-lg flex items-center justify-center flex-shrink-0">
+          <i class="fas fa-paw text-orange-400"></i>
+        </div>
+        <div>
+          <p class="text-sm font-semibold text-white">Stoat</p>
+          <p class="text-xs text-gray-500">Invite link only</p>
+        </div>
+      </div>
+      <input type="url" id="manualStoatUrl" placeholder="https://stoat.gg/invite/..."
+             oninput="updatePlatformLink(); saveStoatRoot()"
+             value="{{ existing_revolt_url }}"
+             class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-orange-500 focus:outline-none">
+      <p class="text-xs text-green-400 mt-1 {% if not existing_revolt_url %}hidden{% endif %}" id="stoatSavedMsg"><i class="fas fa-check-circle mr-1"></i>Saved to your profile</p>
+    </div>
+
+    <!-- Root -->
+    <div class="rounded-lg border border-neutral-700 bg-neutral-800/50 p-4">
+      <div class="flex items-center gap-3 mb-3">
+        <div class="w-8 h-8 bg-rose-500/20 rounded-lg flex items-center justify-center flex-shrink-0">
+          <i class="fas fa-seedling text-rose-400"></i>
+        </div>
+        <div>
+          <p class="text-sm font-semibold text-white">Root</p>
+          <p class="text-xs text-gray-500">Invite link only</p>
+        </div>
+      </div>
+      <input type="url" id="manualRootUrl" placeholder="https://root.gg/invite/..."
+             oninput="updatePlatformLink(); saveStoatRoot()"
+             value="{{ existing_root_url }}"
+             class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-rose-500 focus:outline-none">
+      {% if existing_root_url %}<p class="text-xs text-green-400 mt-1" id="rootSavedMsg"><i class="fas fa-check-circle mr-1"></i>Saved to your profile</p>{% else %}<p class="text-xs text-gray-600 mt-1 hidden" id="rootSavedMsg"><i class="fas fa-check-circle mr-1"></i>Saved to your profile</p>{% endif %}
+    </div>
+
   </div>
 
-  <!-- Discord servers -->
-  <div id="discordPickerSection" class="hidden">
-    <p class="text-xs text-indigo-400 font-semibold uppercase tracking-wider mb-3">
-      <i class="fab fa-discord mr-1"></i>Discord Servers
-    </p>
-    <div id="discordPickerGrid" class="grid grid-cols-1 sm:grid-cols-2 gap-3"></div>
-    <button type="button" id="clearDiscordBtn" onclick="clearDiscordSelection()"
-            class="hidden mt-2 text-xs text-gray-500 hover:text-gray-300 underline transition">
-      Clear selection
-    </button>
-  </div>
-
-  <!-- Matrix spaces -->
-  <div id="matrixPickerSection" class="hidden mt-5">
-    <p class="text-xs text-green-400 font-semibold uppercase tracking-wider mb-3">
-      <i class="fas fa-comments mr-1"></i>Matrix Spaces
-    </p>
-    <div id="matrixPickerGrid" class="grid grid-cols-1 sm:grid-cols-2 gap-3"></div>
-    <button type="button" id="clearMatrixBtn" onclick="clearMatrixSelection()"
-            class="hidden mt-2 text-xs text-gray-500 hover:text-gray-300 underline transition">
-      Clear selection
-    </button>
-  </div>
+  <p id="platformLinkStatus" class="text-xs text-red-400 mt-4 hidden"><i class="fas fa-exclamation-circle mr-1"></i>At least one platform link is required to submit.</p>
 </div>
 
-<!-- Steps 2-5: hidden until server selected -->
-<div id="formSection" class="hidden space-y-6">
+<!-- Form section: always visible -->
+<div id="formSection" class="block space-y-6">
 
   <!-- Selection summary -->
   <div id="selectionSummary" class="bg-neutral-800/50 rounded-lg border border-neutral-700 p-4 flex flex-wrap gap-3 items-center">
     <span class="text-xs text-gray-500 uppercase tracking-wider font-semibold">Linking:</span>
     <span id="summaryFluxer" class="hidden items-center gap-2 bg-cyan-900/30 border border-cyan-700/50 text-cyan-300 text-xs px-3 py-1 rounded-full">
-      <i class="fas fa-bolt text-xs"></i>
+      <img src="{% static 'img/siteassets/fluxer-favicon.png' %}" style="width:0.75rem;height:0.75rem;object-fit:contain;" alt="Fluxer">
       <span id="summaryFluxerName"></span>
     </span>
     <span id="summaryDiscord" class="hidden items-center gap-2 bg-indigo-900/30 border border-indigo-700/50 text-indigo-300 text-xs px-3 py-1 rounded-full">
@@ -382,7 +506,7 @@
 
     <!-- Platform invite + member count (shown when server selected) -->
     <div id="fluxerInviteField" class="hidden mt-4 pt-4 border-t border-neutral-800">
-      <p class="text-xs text-cyan-400 font-semibold uppercase tracking-wider mb-3"><i class="fas fa-bolt mr-1"></i>Fluxer</p>
+      <p class="text-xs text-cyan-400 font-semibold uppercase tracking-wider mb-3"><img src="{% static 'img/siteassets/fluxer-favicon.png' %}" style="width:1em;height:1em;object-fit:contain;vertical-align:middle;display:inline-block;" alt="Fluxer">Fluxer</p>
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
           <label class="text-sm text-gray-300 mb-1.5 block">Fluxer Invite URL</label>
@@ -428,6 +552,7 @@
         </div>
       </div>
     </div>
+
   </div>
 
   <!-- Tags -->
@@ -438,6 +563,42 @@
     <p class="text-sm text-gray-500 mb-4">Tags help players find your community in the directory.</p>
     <div id="tagGrid" class="grid grid-cols-2 md:grid-cols-4 gap-2"></div>
     <p id="tagCount" class="text-xs text-gray-500 mt-3">0 / 8 selected</p>
+  </div>
+
+  <!-- In-Game Guild -->
+  <div class="bg-neutral-900/50 rounded-lg border border-neutral-800 p-6">
+    <h2 class="text-lg font-semibold text-white mb-1">
+      <i class="fas fa-swords text-purple-400 mr-2"></i>In-Game Guild <span class="text-gray-500 font-normal text-sm">(optional)</span>
+    </h2>
+    <p class="text-sm text-gray-500 mb-4">If your community is also an in-game guild, FC, or clan - select every game that applies.</p>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div>
+        <label class="text-sm text-gray-300 mb-1.5 block">Game(s)</label>
+        <div id="guildGameContainer"></div>
+      </div>
+      <div>
+        <label class="text-sm text-gray-300 mb-1.5 block">Guild / FC / Clan Name <span class="text-gray-600">(as it appears in-game)</span></label>
+        <input type="text" id="guildGameName" maxlength="200"
+               placeholder="e.g. Casual Heroes &lt;CH&gt;"
+               class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-purple-500 focus:outline-none">
+      </div>
+    </div>
+  </div>
+
+  <!-- Games We Play -->
+  <div class="bg-neutral-900/50 rounded-lg border border-neutral-800 p-6">
+    <h2 class="text-lg font-semibold text-white mb-1">
+      <i class="fas fa-gamepad text-indigo-400 mr-2"></i>Games We Play <span class="text-gray-500 font-normal text-sm">(optional)</span>
+    </h2>
+    <p class="text-sm text-gray-500 mb-4">Tag the games your community plays so players can find you from game pages. Up to 20 games.</p>
+    <div class="relative mb-2">
+      <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-xs"></i>
+      <input type="text" id="communityGamesSearch" placeholder="Search a game to add..."
+        class="w-full bg-neutral-800 border border-neutral-700 rounded-lg pl-8 pr-4 py-2 text-white text-sm focus:border-indigo-500 focus:outline-none">
+      <div id="communityGamesSuggestions" class="hidden absolute left-0 right-0 top-full mt-1 bg-neutral-900 border border-neutral-700 rounded-lg shadow-xl z-50 max-h-48 overflow-y-auto"></div>
+    </div>
+    <div id="communityGamesTags" class="flex flex-wrap gap-2 mt-2 min-h-[28px]"></div>
+    <p id="communityGamesCount" class="text-xs text-gray-600 mt-2">0 / 20 games tagged</p>
   </div>
 
   <!-- Discovery settings -->
@@ -478,7 +639,7 @@
     <div class="space-y-3">
       <label class="flex items-start gap-3 cursor-pointer">
         <input type="checkbox" id="agreeGuidelines" class="mt-0.5 w-4 h-4 rounded bg-neutral-700 border-neutral-600 text-yellow-500">
-        <span class="text-sm text-gray-300">I have read and agree to the <a href="/ql/community-guidelines/" class="text-yellow-400 hover:text-yellow-300 underline" target="_blank">Community Guidelines</a></span>
+        <span class="text-sm text-gray-300">I have read and agree to the <a href="/community-guidelines/" class="text-yellow-400 hover:text-yellow-300 underline" target="_blank">Community Guidelines</a></span>
       </label>
       <label class="flex items-start gap-3 cursor-pointer">
         <input type="checkbox" id="agreeToS" class="mt-0.5 w-4 h-4 rounded bg-neutral-700 border-neutral-600 text-yellow-500">
@@ -502,8 +663,8 @@
 
   <!-- Submit -->
   <div class="flex justify-end">
-    <button id="submitBtn" onclick="submitForm()"
-            class="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white px-8 py-3 rounded-lg font-semibold text-sm transition">
+    <button id="submitBtn" onclick="submitForm()" disabled
+            class="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed text-white px-8 py-3 rounded-lg font-semibold text-sm transition">
       <i class="fas fa-paper-plane"></i>Submit Application
     </button>
   </div>
@@ -519,8 +680,10 @@ let selectedMatrixId = null, selectedMatrixName = null;
 
 function buildPickerGrid(guilds, registeredIds, gridId, sectionId, onSelectFn, accentColor) {
   if (!guilds || guilds.length === 0) return;
-  document.getElementById(sectionId).classList.remove('hidden');
+  const section = document.getElementById(sectionId);
   const grid = document.getElementById(gridId);
+  if (!section || !grid) return;
+  section.classList.remove('hidden');
   grid.innerHTML = guilds.map(function(g) {
     const alreadyReg = registeredIds.has(String(g.id));
     const initials = (g.name || '?').slice(0, 2).toUpperCase();
@@ -548,33 +711,162 @@ function buildPickerGrid(guilds, registeredIds, gridId, sectionId, onSelectFn, a
   }).join('');
 }
 
-buildPickerGrid(FLUXER_GUILDS, REGISTERED_FLUXER_IDS, 'fluxerPickerGrid', 'fluxerPickerSection', 'selectFluxer', 'cyan');
-buildPickerGrid(DISCORD_GUILDS, REGISTERED_DISCORD_IDS, 'discordPickerGrid', 'discordPickerSection', 'selectDiscord', 'indigo');
-buildPickerGrid(MATRIX_SPACES, REGISTERED_MATRIX_IDS, 'matrixPickerGrid', 'matrixPickerSection', 'selectMatrix', 'green');
+const GUILD_GAME_ITEMS = [
+  {value: 'ffxiv',    label: 'Final Fantasy XIV'},
+  {value: 'eso',      label: 'Elder Scrolls Online'},
+  {value: 'wow',      label: 'World of Warcraft'},
+  {value: 'gw2',      label: 'Guild Wars 2'},
+  {value: 'lost_ark', label: 'Lost Ark'},
+  {value: 'bdo',      label: 'Black Desert Online'},
+  {value: 'swtor',    label: 'Star Wars: The Old Republic'},
+  {value: 'other',    label: 'Other MMO'},
+];
+let _guildGameSel = null;
+let _communityGames = [];
+let _communityGamesTimer = null;
+
+function _renderCommunityGamesTags() {
+  const container = document.getElementById('communityGamesTags');
+  const countEl = document.getElementById('communityGamesCount');
+  container.innerHTML = _communityGames.map(name =>
+    `<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-indigo-900/50 text-indigo-300 border border-indigo-700/40">
+      ${escapeHtml(name)}
+      <button data-remove-game="${escapeHtml(name)}" class="comm-game-remove text-indigo-400 hover:text-white transition ml-0.5"><i class="fas fa-times text-[10px]"></i></button>
+    </span>`
+  ).join('');
+  countEl.textContent = `${_communityGames.length} / 20 games tagged`;
+  container.querySelectorAll('.comm-game-remove').forEach(btn => {
+    btn.addEventListener('click', function() {
+      _communityGames = _communityGames.filter(g => g !== this.dataset.removeGame);
+      _renderCommunityGamesTags();
+    });
+  });
+}
+function _addCommunityGame(name) {
+  if (!name || _communityGames.includes(name) || _communityGames.length >= 20) return;
+  _communityGames.push(name);
+  _renderCommunityGamesTags();
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  buildPickerGrid(FLUXER_GUILDS, REGISTERED_FLUXER_IDS, 'fluxerPickerGrid', 'fluxerPickerSection', 'selectFluxer', 'cyan');
+  buildPickerGrid(DISCORD_GUILDS, REGISTERED_DISCORD_IDS, 'discordPickerGrid', 'discordPickerSection', 'selectDiscord', 'indigo');
+  buildPickerGrid(MATRIX_SPACES, REGISTERED_MATRIX_IDS, 'matrixPickerGrid', 'matrixPickerSection', 'selectMatrix', 'green');
+  buildTagGrid();
+  updateSubmitBtn();
+  _guildGameSel = createCustomSelect({
+    container: '#guildGameContainer',
+    name: 'guild_game_sel',
+    placeholder: 'Select games...',
+    items: GUILD_GAME_ITEMS,
+    selected: [],
+    color: 'purple',
+    multiSelect: true,
+    maxSelections: 8,
+    onSelect: function() {},
+  });
+
+  // Games We Play IGDB search
+  const cgSearch = document.getElementById('communityGamesSearch');
+  const cgSug = document.getElementById('communityGamesSuggestions');
+  if (cgSearch && cgSug) {
+    cgSearch.addEventListener('input', function() {
+      clearTimeout(_communityGamesTimer);
+      cgSug.classList.add('hidden');
+      const q = this.value.trim();
+      if (!q) return;
+      _communityGamesTimer = setTimeout(function() {
+        csrfFetch(`/api/igdb/search/?q=${encodeURIComponent(q)}&limit=6`)
+          .then(r => r.json()).then(data => {
+            const games = data.games || [];
+            cgSug.innerHTML = '';
+            if (!games.length) { cgSug.classList.add('hidden'); return; }
+            games.forEach(g => {
+              const btn = document.createElement('button');
+              btn.type = 'button';
+              btn.className = 'w-full flex items-center gap-3 px-4 py-2.5 hover:bg-neutral-800 text-left transition';
+              btn.innerHTML = (g.cover_url
+                ? `<img src="${escapeHtml(g.cover_url)}" class="w-7 h-9 object-cover rounded flex-shrink-0">`
+                : `<div class="w-7 h-9 bg-neutral-700 rounded flex-shrink-0 flex items-center justify-center"><i class="fas fa-gamepad text-gray-500 text-xs"></i></div>`)
+                + `<div><p class="text-sm text-white truncate">${escapeHtml(g.name)}</p><p class="text-[10px] text-gray-500">${escapeHtml(String(g.release_year||''))}</p></div>`;
+              btn.addEventListener('click', function() {
+                _addCommunityGame(g.name);
+                cgSearch.value = '';
+                cgSug.classList.add('hidden');
+              });
+              cgSug.appendChild(btn);
+            });
+            cgSug.classList.remove('hidden');
+          }).catch(() => {});
+      }, 350);
+    });
+    document.addEventListener('click', function(e) {
+      if (!e.target.closest('#communityGamesSearch') && !e.target.closest('#communityGamesSuggestions')) {
+        cgSug.classList.add('hidden');
+      }
+    });
+  }
+});
+
+function getManualUrl(id) {
+  const el = document.getElementById(id);
+  if (!el) return null;
+  const v = el.value.trim();
+  return (v && v.startsWith('https://')) ? v : null;
+}
+
+function updatePlatformLink() {
+  updateSubmitBtn();
+  const statusEl = document.getElementById('platformLinkStatus');
+  if (statusEl) statusEl.classList.add('hidden');
+}
+
+let _stoatRootSaveTimer = null;
+function saveStoatRoot() {
+  clearTimeout(_stoatRootSaveTimer);
+  _stoatRootSaveTimer = setTimeout(async function() {
+    const stoat = (document.getElementById('manualStoatUrl') || {}).value || '';
+    const root  = (document.getElementById('manualRootUrl')  || {}).value || '';
+    try {
+      await csrfFetch('{% url "questlog_web_api_profile_update" %}', {
+        method: 'PUT',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ revolt_url: stoat.trim() || null, root_url: root.trim() || null }),
+      });
+      const stoatSaved = document.getElementById('stoatSavedMsg');
+      const rootSaved  = document.getElementById('rootSavedMsg');
+      if (stoatSaved) stoatSaved.classList.remove('hidden');
+      if (rootSaved)  rootSaved.classList.remove('hidden');
+    } catch(e) {}
+  }, 800);
+}
+
+function updateSubmitBtn() {
+  const btn = document.getElementById('submitBtn');
+  if (!btn) return;
+  const hasLinked = !!(selectedFluxerId || selectedDiscordId || selectedMatrixId ||
+                       getManualUrl('manualDiscordUrl') || getManualUrl('manualFluxerUrl') ||
+                       getManualUrl('manualStoatUrl') || getManualUrl('manualRootUrl'));
+  btn.disabled = !hasLinked;
+}
 
 function updateFormVisibility() {
-  const hasSelection = selectedFluxerId || selectedDiscordId || selectedMatrixId;
-  document.getElementById('formSection').classList.toggle('hidden', !hasSelection);
+  // formSection is always visible now - just update summary badges and submit btn
+  updateSubmitBtn();
   const sf = document.getElementById('summaryFluxer');
   const sd = document.getElementById('summaryDiscord');
   const sm = document.getElementById('summaryMatrix');
-  if (selectedFluxerId) {
-    document.getElementById('summaryFluxerName').textContent = selectedFluxerName;
-    sf.classList.remove('hidden'); sf.classList.add('inline-flex');
-  } else {
-    sf.classList.add('hidden'); sf.classList.remove('inline-flex');
+  if (sf) {
+    if (selectedFluxerId) { document.getElementById('summaryFluxerName').textContent = selectedFluxerName; sf.classList.remove('hidden'); sf.classList.add('inline-flex'); }
+    else { sf.classList.add('hidden'); sf.classList.remove('inline-flex'); }
   }
-  if (selectedDiscordId) {
-    document.getElementById('summaryDiscordName').textContent = selectedDiscordName;
-    sd.classList.remove('hidden'); sd.classList.add('inline-flex');
-  } else {
-    sd.classList.add('hidden'); sd.classList.remove('inline-flex');
+  if (sd) {
+    if (selectedDiscordId) { document.getElementById('summaryDiscordName').textContent = selectedDiscordName; sd.classList.remove('hidden'); sd.classList.add('inline-flex'); }
+    else { sd.classList.add('hidden'); sd.classList.remove('inline-flex'); }
   }
-  if (selectedMatrixId) {
-    document.getElementById('summaryMatrixName').textContent = selectedMatrixName;
-    sm.classList.remove('hidden'); sm.classList.add('inline-flex');
-  } else {
-    sm.classList.add('hidden'); sm.classList.remove('inline-flex');
+  if (sm) {
+    if (selectedMatrixId) { document.getElementById('summaryMatrixName').textContent = selectedMatrixName; sm.classList.remove('hidden'); sm.classList.add('inline-flex'); }
+    else { sm.classList.add('hidden'); sm.classList.remove('inline-flex'); }
   }
 }
 
@@ -668,6 +960,7 @@ function clearMatrixSelection() {
   updateFormVisibility();
 }
 
+
 // ── Char counter ────────────────────────────────────────────────────────────
 function updateCharCount() {
   const len = document.getElementById('fullDescription').value.length;
@@ -724,8 +1017,7 @@ function toggleTag(btn) {
   }
   document.getElementById('tagCount').textContent = `${selectedTags.size} / 8 selected`;
 }
-
-buildTagGrid();
+// buildTagGrid() is called inside DOMContentLoaded
 
 // ── Submit ──────────────────────────────────────────────────────────────────
 function showSubmitError(msg) {
@@ -740,35 +1032,47 @@ async function submitForm() {
   const name = document.getElementById('communityName').value.trim();
   const description = document.getElementById('fullDescription').value.trim();
 
-  if (!selectedFluxerId && !selectedDiscordId && !selectedMatrixId) { showSubmitError('Please select at least one server.'); return; }
   if (!name) { showSubmitError('Community name is required.'); return; }
   if (description.length < 100) { showSubmitError('Description must be at least 100 characters.'); return; }
   if (!document.getElementById('agreeGuidelines').checked) { showSubmitError('Please agree to the Community Guidelines.'); return; }
   if (!document.getElementById('agreeToS').checked) { showSubmitError('Please accept the Terms of Service.'); return; }
 
+  // Build platform list from bot-linked pickers + manual invite URLs
+  const platforms = [];
+  if (selectedFluxerId) platforms.push({
+    platform: 'fluxer', platform_id: selectedFluxerId,
+    invite_url: document.getElementById('fluxerInviteUrl') ? document.getElementById('fluxerInviteUrl').value.trim() || null : null,
+    member_count: document.getElementById('fluxerMemberCount') ? parseInt(document.getElementById('fluxerMemberCount').value) || 0 : 0,
+  });
+  if (selectedDiscordId) platforms.push({
+    platform: 'discord', platform_id: selectedDiscordId,
+    invite_url: document.getElementById('discordInviteUrl') ? document.getElementById('discordInviteUrl').value.trim() || null : null,
+    member_count: document.getElementById('discordMemberCount') ? parseInt(document.getElementById('discordMemberCount').value) || 0 : 0,
+  });
+  if (selectedMatrixId) platforms.push({
+    platform: 'matrix', platform_id: selectedMatrixId,
+    invite_url: document.getElementById('matrixInviteUrl') ? document.getElementById('matrixInviteUrl').value.trim() || null : null,
+    member_count: document.getElementById('matrixMemberCount') ? parseInt(document.getElementById('matrixMemberCount').value) || 0 : 0,
+  });
+  // Manual invite-link platforms (no bot picker used)
+  const mDiscord = !selectedDiscordId ? getManualUrl('manualDiscordUrl') : null;
+  const mFluxer  = !selectedFluxerId  ? getManualUrl('manualFluxerUrl')  : null;
+  const mStoat   = getManualUrl('manualStoatUrl');
+  const mRoot    = getManualUrl('manualRootUrl');
+  if (mDiscord) platforms.push({ platform: 'discord', platform_id: mDiscord, invite_url: mDiscord, member_count: 0 });
+  if (mFluxer)  platforms.push({ platform: 'fluxer',  platform_id: mFluxer,  invite_url: mFluxer,  member_count: 0 });
+  if (mStoat)   platforms.push({ platform: 'stoat',   platform_id: mStoat,   invite_url: mStoat,   member_count: 0 });
+  if (mRoot)    platforms.push({ platform: 'root',    platform_id: mRoot,    invite_url: mRoot,    member_count: 0 });
+
+  if (platforms.length === 0) {
+    const s = document.getElementById('platformLinkStatus');
+    if (s) { s.classList.remove('hidden'); s.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
+    return;
+  }
+
   const btn = document.getElementById('submitBtn');
   btn.disabled = true;
   btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Submitting...';
-
-  const platforms = [];
-  if (selectedFluxerId) platforms.push({
-    platform: 'fluxer',
-    platform_id: selectedFluxerId,
-    invite_url: document.getElementById('fluxerInviteUrl').value.trim() || null,
-    member_count: parseInt(document.getElementById('fluxerMemberCount').value) || 0,
-  });
-  if (selectedDiscordId) platforms.push({
-    platform: 'discord',
-    platform_id: selectedDiscordId,
-    invite_url: document.getElementById('discordInviteUrl').value.trim() || null,
-    member_count: parseInt(document.getElementById('discordMemberCount').value) || 0,
-  });
-  if (selectedMatrixId) platforms.push({
-    platform: 'matrix',
-    platform_id: selectedMatrixId,
-    invite_url: document.getElementById('matrixInviteUrl').value.trim() || null,
-    member_count: parseInt(document.getElementById('matrixMemberCount').value) || 0,
-  });
 
   const payload = {
     name,
@@ -786,6 +1090,9 @@ async function submitForm() {
     allow_discovery:  document.getElementById('allowDiscovery').checked,
     allow_joins:      document.getElementById('allowJoins').checked,
     site_xp_to_guild: document.getElementById('siteXpToGuild').checked,
+    guild_game:      _guildGameSel ? (Array.isArray(_guildGameSel.getValue()) ? _guildGameSel.getValue() : (_guildGameSel.getValue() ? [_guildGameSel.getValue()] : [])) : [],
+    guild_game_name: document.getElementById('guildGameName').value.trim() || null,
+    games:           [..._communityGames],
   };
 
   try {
@@ -814,12 +1121,16 @@ async function submitForm() {
 
 <script>
 // ── Add Platform (status page) ───────────────────────────────────────────────
-const ADD_FLUXER_GUILDS = JSON.parse(document.getElementById('fluxer-guilds-data').textContent);
-const ADD_DISCORD_GUILDS = JSON.parse(document.getElementById('discord-guilds-data').textContent);
-const ADD_MATRIX_SPACES = JSON.parse(document.getElementById('matrix-spaces-data').textContent);
-const ADD_REG_FLUXER = new Set(JSON.parse(document.getElementById('reg-fluxer-data').textContent));
-const ADD_REG_DISCORD = new Set(JSON.parse(document.getElementById('reg-discord-data').textContent));
-const ADD_REG_MATRIX = new Set(JSON.parse(document.getElementById('reg-matrix-data').textContent));
+function _parseJsonScript(id, fallback) {
+  var el = document.getElementById(id);
+  return el ? JSON.parse(el.textContent) : fallback;
+}
+const ADD_FLUXER_GUILDS = _parseJsonScript('fluxer-guilds-data', []);
+const ADD_DISCORD_GUILDS = _parseJsonScript('discord-guilds-data', []);
+const ADD_MATRIX_SPACES = _parseJsonScript('matrix-spaces-data', []);
+const ADD_REG_FLUXER = new Set(_parseJsonScript('reg-fluxer-data', []));
+const ADD_REG_DISCORD = new Set(_parseJsonScript('reg-discord-data', []));
+const ADD_REG_MATRIX = new Set(_parseJsonScript('reg-matrix-data', []));
 
 let addFluxerId = null, addFluxerName = null;
 let addDiscordId = null, addDiscordName = null;
@@ -943,21 +1254,21 @@ async function submitAddPlatform() {
 
 async function leaveNetwork(communityId) {
   if (!confirm('Are you sure? You can rejoin within 90 days without reapplying.')) return;
-  const res = await csrfFetch(`/ql/api/communities/${communityId}/leave-network/`, { method: 'POST' });
+  const res = await csrfFetch(`/api/communities/${communityId}/leave-network/`, { method: 'POST' });
   const d = await res.json();
   if (d.success) { window.location.reload(); }
   else { alert(d.error || 'Failed to leave network.'); }
 }
 
 async function rejoinNetwork(communityId) {
-  const res = await csrfFetch(`/ql/api/communities/${communityId}/rejoin-network/`, { method: 'POST' });
+  const res = await csrfFetch(`/api/communities/${communityId}/rejoin-network/`, { method: 'POST' });
   const d = await res.json();
   if (d.success) { window.location.reload(); }
   else { alert(d.error || 'Failed to rejoin network.'); }
 }
 
 async function setPrimary(communityId) {
-  const res = await csrfFetch(`/ql/api/communities/${communityId}/set-primary/`, { method: 'POST' });
+  const res = await csrfFetch(`/api/communities/${communityId}/set-primary/`, { method: 'POST' });
   const d = await res.json();
   if (d.success) { window.location.reload(); }
   else { alert(d.error || 'Failed to set primary.'); }
