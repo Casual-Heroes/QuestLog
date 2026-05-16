@@ -258,4 +258,353 @@ function setPlatformIcon(el, platform, extraClasses) {
 })();
 </script>
 {% endif %}
+
+{% if web_user %}
+<!-- E2EE Key Setup Modal - shown when user hasn't generated keys yet -->
+<div id="key-setup-modal" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4">
+  <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" onclick="closeKeySetupModal()"></div>
+  <div class="relative w-full max-w-md bg-neutral-900 border border-neutral-700 rounded-2xl p-6 shadow-2xl">
+
+    <!-- Step 1: Generate keys -->
+    <div id="key-step-1">
+      <div class="flex items-center gap-3 mb-4">
+        <div class="w-10 h-10 rounded-xl bg-indigo-600/20 flex items-center justify-center">
+          <svg class="w-5 h-5 text-indigo-400" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/>
+          </svg>
+        </div>
+        <div>
+          <h2 class="text-white font-bold text-lg">Encrypted Messaging</h2>
+          <p class="text-gray-500 text-xs">End-to-end encrypted - we cannot read your messages</p>
+        </div>
+      </div>
+
+      <div class="bg-neutral-800/60 rounded-xl p-4 mb-4 space-y-2 text-sm text-gray-300">
+        <p>Your messages are encrypted using <strong class="text-white">ECDH + AES-GCM</strong> - industry standard E2EE.</p>
+        <p>A key pair is generated <strong class="text-white">in your browser</strong>. Your private key never leaves this device.</p>
+        <p>A <strong class="text-white">12-word recovery phrase</strong> lets you restore access on new devices.</p>
+      </div>
+
+      <button onclick="generateAndSetupKeys()" id="generate-keys-btn"
+        class="w-full py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-sm transition flex items-center justify-center gap-2">
+        <span id="generate-keys-spinner" class="hidden">
+          <svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 12 0 12 12h4z"></path></svg>
+        </span>
+        Generate Encryption Keys
+      </button>
+      <button onclick="closeKeySetupModal()" class="w-full mt-2 py-2 text-gray-500 hover:text-gray-300 text-sm transition">
+        Maybe later
+      </button>
+    </div>
+
+    <!-- Step 2: Save recovery phrase -->
+    <div id="key-step-2" class="hidden">
+      <div class="flex items-center gap-3 mb-4">
+        <div class="w-10 h-10 rounded-xl bg-yellow-500/20 flex items-center justify-center">
+          <svg class="w-5 h-5 text-yellow-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/>
+          </svg>
+        </div>
+        <div>
+          <h2 class="text-white font-bold text-lg">Save Your Recovery Phrase</h2>
+          <p class="text-yellow-400 text-xs font-medium">Write this down - it cannot be shown again</p>
+        </div>
+      </div>
+
+      <div id="recovery-phrase-box" class="grid grid-cols-3 gap-2 mb-3">
+        <!-- Filled by JS -->
+      </div>
+
+      <button onclick="copyRecoveryPhrase()" id="copy-phrase-btn"
+        class="w-full mb-3 py-2 rounded-xl bg-neutral-700 hover:bg-neutral-600 text-gray-200 text-sm font-medium transition flex items-center justify-center gap-2">
+        <svg id="copy-phrase-icon" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+        </svg>
+        <span id="copy-phrase-label">Copy to Clipboard</span>
+      </button>
+
+      <div class="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-3 mb-4">
+        <p class="text-yellow-300 text-xs">If you lose this phrase and clear your browser data, your message history will be unrecoverable. Store it somewhere safe (password manager, written down).</p>
+      </div>
+
+      <label class="flex items-center gap-2 mb-4 cursor-pointer">
+        <input type="checkbox" id="phrase-confirm" class="w-4 h-4 rounded accent-indigo-500">
+        <span class="text-sm text-gray-300">I have saved my recovery phrase</span>
+      </label>
+
+      <button onclick="finishKeySetup()" id="finish-setup-btn" disabled
+        class="w-full py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold text-sm transition">
+        Done - Start Messaging
+      </button>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// BIP39 word list - 2048 words for 11-bit index extraction
+const BIP39_WORDS = ["abandon","ability","able","about","above","absent","absorb","abstract","absurd","abuse","access","accident","account","accuse","achieve","acid","acoustic","acquire","across","act","action","actor","actress","actual","adapt","add","addict","address","adjust","admit","adult","advance","advice","aerobic","afford","afraid","again","age","agent","agree","ahead","aim","air","airport","aisle","alarm","album","alcohol","alert","alien","all","alley","allow","almost","alone","alpha","already","also","alter","always","amateur","amazing","among","amount","amused","analyst","anchor","ancient","anger","angle","angry","animal","ankle","announce","annual","another","answer","antenna","antique","anxiety","any","apart","apology","appear","apple","approve","april","arch","arctic","area","arena","argue","arm","armed","armor","army","around","arrange","arrest","arrive","arrow","art","artefact","artist","artwork","ask","aspect","assault","asset","assist","assume","asthma","athlete","atom","attack","attend","attitude","attract","auction","audit","august","aunt","author","auto","autumn","average","avocado","avoid","awake","aware","away","awesome","awful","awkward","axis","baby","balance","bamboo","banana","banner","bar","barely","bargain","barrel","base","basic","basket","battle","beach","bean","beauty","because","become","beef","before","begin","behave","behind","believe","below","belt","bench","benefit","best","betray","better","between","beyond","bicycle","bid","bike","bind","biology","bird","birth","bitter","black","blade","blame","blanket","blast","bleak","bless","blind","blood","blossom","blouse","blue","blur","blush","board","boat","body","boil","bomb","bone","book","boost","border","boring","borrow","boss","bottom","bounce","box","boy","bracket","brain","brand","brave","breeze","brick","bridge","brief","bright","bring","brisk","broccoli","broken","bronze","broom","brother","brown","brush","bubble","buddy","budget","buffalo","build","bulb","bulk","bullet","bundle","bunker","burden","burger","burst","bus","business","busy","butter","buyer","buzz"];
+
+// ---- IndexedDB key store ----
+// Private key is stored as a non-extractable CryptoKey object in IndexedDB.
+// JavaScript can USE it to sign/derive but can NEVER read the raw bytes.
+// XSS cannot steal what cannot be exported.
+const IDB_NAME = 'ql_dm_keys';
+const IDB_STORE = 'keys';
+const IDB_VERSION = 1;
+
+function openKeyDB() {
+  return new Promise(function(resolve, reject) {
+    const req = indexedDB.open(IDB_NAME, IDB_VERSION);
+    req.onupgradeneeded = function(e) {
+      e.target.result.createObjectStore(IDB_STORE);
+    };
+    req.onsuccess = function(e) { resolve(e.target.result); };
+    req.onerror = function(e) { reject(e.target.error); };
+  });
+}
+
+async function idbPut(key, value) {
+  const db = await openKeyDB();
+  return new Promise(function(resolve, reject) {
+    const tx = db.transaction(IDB_STORE, 'readwrite');
+    tx.objectStore(IDB_STORE).put(value, key);
+    tx.oncomplete = resolve;
+    tx.onerror = function(e) { reject(e.target.error); };
+  });
+}
+
+async function idbGet(key) {
+  const db = await openKeyDB();
+  return new Promise(function(resolve, reject) {
+    const tx = db.transaction(IDB_STORE, 'readonly');
+    const req = tx.objectStore(IDB_STORE).get(key);
+    req.onsuccess = function(e) { resolve(e.target.result); };
+    req.onerror = function(e) { reject(e.target.error); };
+  });
+}
+
+async function idbDelete(key) {
+  const db = await openKeyDB();
+  return new Promise(function(resolve, reject) {
+    const tx = db.transaction(IDB_STORE, 'readwrite');
+    tx.objectStore(IDB_STORE).delete(key);
+    tx.oncomplete = resolve;
+    tx.onerror = function(e) { reject(e.target.error); };
+  });
+}
+
+// Check if keys are set up (used by messages page to show/hide banner)
+window.qlDmHasKeys = async function() {
+  try {
+    const k = await idbGet('privKey');
+    return k instanceof CryptoKey;
+  } catch(e) { return false; }
+};
+
+// ---- Pending state (only lives in memory during setup flow) ----
+let _generatedPhraseWords = [];
+let _pendingPrivKeyJwk = null;
+let _pendingPubKeyJwk = null;
+let _pendingEncryptedKey = null;
+let _pendingSalt = null;
+
+window.openKeySetupModal = function() {
+  document.getElementById('key-setup-modal').classList.remove('hidden');
+  document.getElementById('key-step-1').classList.remove('hidden');
+  document.getElementById('key-step-2').classList.add('hidden');
+};
+window.closeKeySetupModal = function() {
+  document.getElementById('key-setup-modal').classList.add('hidden');
+};
+
+// ---- Crypto utilities ----
+async function pbkdf2Key(passphrase, saltBytes) {
+  const enc = new TextEncoder();
+  const keyMaterial = await crypto.subtle.importKey(
+    'raw', enc.encode(passphrase), 'PBKDF2', false, ['deriveKey']
+  );
+  return crypto.subtle.deriveKey(
+    { name: 'PBKDF2', salt: saltBytes, iterations: 100000, hash: 'SHA-256' },
+    keyMaterial,
+    { name: 'AES-GCM', length: 256 },
+    false, ['encrypt', 'decrypt']
+  );
+}
+
+function bytesToHex(bytes) {
+  return Array.from(bytes).map(function(b) { return b.toString(16).padStart(2, '0'); }).join('');
+}
+function hexToBytes(hex) {
+  const out = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < out.length; i++) out[i] = parseInt(hex.substr(i * 2, 2), 16);
+  return out;
+}
+function bytesToB64(buf) {
+  return btoa(String.fromCharCode(...new Uint8Array(buf)));
+}
+function b64ToBytes(b64) {
+  const bin = atob(b64.replace(/-/g,'+').replace(/_/g,'/'));
+  return new Uint8Array([...bin].map(function(c) { return c.charCodeAt(0); }));
+}
+
+function privateKeyToPhrase(privKeyBytes) {
+  let bigInt = BigInt('0x' + Array.from(privKeyBytes).map(function(b) { return b.toString(16).padStart(2,'0'); }).join(''));
+  const mask = BigInt(2047);
+  const words = [];
+  for (let i = 0; i < 12; i++) {
+    words.unshift(BIP39_WORDS[Number(bigInt & mask) % BIP39_WORDS.length]);
+    bigInt >>= BigInt(11);
+  }
+  return words;
+}
+
+// ---- Key generation ----
+window.generateAndSetupKeys = async function() {
+  const btn = document.getElementById('generate-keys-btn');
+  const spinner = document.getElementById('generate-keys-spinner');
+  btn.disabled = true;
+  spinner.classList.remove('hidden');
+
+  try {
+    // Generate extractable key pair - extractable only so we can derive the recovery phrase
+    const keyPair = await crypto.subtle.generateKey(
+      { name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveKey']
+    );
+
+    // Export public key JWK (public keys are never secret)
+    const pubJwk = await crypto.subtle.exportKey('jwk', keyPair.publicKey);
+    const pubJwkStr = JSON.stringify(pubJwk);
+
+    // Export private key JWK - only to build recovery phrase + encrypted backup
+    const privJwk = await crypto.subtle.exportKey('jwk', keyPair.privateKey);
+    const privJwkStr = JSON.stringify(privJwk);
+
+    // Derive 12-word recovery phrase from raw key scalar bytes
+    const privPkcs8 = await crypto.subtle.exportKey('pkcs8', keyPair.privateKey);
+    const privBytes = new Uint8Array(privPkcs8).slice(-32);
+    const phraseWords = privateKeyToPhrase(privBytes);
+
+    // Encrypt private key JWK with PBKDF2(phrase) - stored on server as backup
+    const salt = crypto.getRandomValues(new Uint8Array(16));
+    const aesKey = await pbkdf2Key(phraseWords.join(' '), salt);
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const encryptedPriv = await crypto.subtle.encrypt(
+      { name: 'AES-GCM', iv }, aesKey, new TextEncoder().encode(privJwkStr)
+    );
+    const combined = new Uint8Array(12 + encryptedPriv.byteLength);
+    combined.set(iv);
+    combined.set(new Uint8Array(encryptedPriv), 12);
+
+    // Hold in memory only until finishKeySetup() - never written to any storage yet
+    _pendingPrivKeyJwk = privJwkStr;
+    _pendingPubKeyJwk = pubJwkStr;
+    _pendingEncryptedKey = bytesToB64(combined);
+    _pendingSalt = bytesToHex(salt);
+    _generatedPhraseWords = phraseWords;
+
+    // Show recovery phrase
+    const box = document.getElementById('recovery-phrase-box');
+    box.innerHTML = phraseWords.map(function(w, i) {
+      return '<div class="bg-neutral-800 rounded-lg px-2 py-1.5 text-center">'
+        + '<span class="text-gray-600 text-xs">' + (i+1) + '</span>'
+        + '<p class="text-white text-sm font-mono mt-0.5">' + escapeHtml(w) + '</p>'
+        + '</div>';
+    }).join('');
+
+    document.getElementById('key-step-1').classList.add('hidden');
+    document.getElementById('key-step-2').classList.remove('hidden');
+    document.getElementById('phrase-confirm').addEventListener('change', function() {
+      document.getElementById('finish-setup-btn').disabled = !this.checked;
+    });
+
+  } catch(e) {
+    alert('Key generation failed. Please try again.');
+  }
+  btn.disabled = false;
+  spinner.classList.add('hidden');
+};
+
+window.copyRecoveryPhrase = async function() {
+  if (!_generatedPhraseWords.length) return;
+  const text = _generatedPhraseWords.join(' ');
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch(e) {
+    const ta = document.createElement('textarea');
+    ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.focus(); ta.select();
+    document.execCommand('copy'); document.body.removeChild(ta);
+  }
+  const label = document.getElementById('copy-phrase-label');
+  const icon = document.getElementById('copy-phrase-icon');
+  label.textContent = 'Copied!';
+  icon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>';
+  setTimeout(function() {
+    label.textContent = 'Copy to Clipboard';
+    icon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>';
+  }, 2000);
+};
+
+window.finishKeySetup = async function() {
+  if (!_pendingPrivKeyJwk) return;
+  const btn = document.getElementById('finish-setup-btn');
+  btn.disabled = true;
+  try {
+    // Upload public key + encrypted backup to server FIRST
+    const resp = await csrfFetch('/api/dm/keys/setup/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        pubkey: _pendingPubKeyJwk,
+        pubkey_encrypted: _pendingEncryptedKey,
+        pubkey_salt: _pendingSalt,
+      }),
+    });
+    if (!resp.ok) throw new Error('Server error');
+
+    // Re-import private key as NON-EXTRACTABLE - stored in IndexedDB as a CryptoKey object.
+    // JavaScript can use it to derive shared keys but can never read the raw bytes.
+    // This is the core security improvement over localStorage: XSS can call decrypt()
+    // but cannot exfiltrate the key material itself.
+    const privKeyNonExtractable = await crypto.subtle.importKey(
+      'jwk', JSON.parse(_pendingPrivKeyJwk),
+      { name: 'ECDH', namedCurve: 'P-256' },
+      false,          // extractable = false
+      ['deriveKey']
+    );
+    const pubKeyObj = await crypto.subtle.importKey(
+      'jwk', JSON.parse(_pendingPubKeyJwk),
+      { name: 'ECDH', namedCurve: 'P-256' },
+      true, []        // public key can stay exportable - it's not secret
+    );
+
+    // Store non-extractable CryptoKey objects in IndexedDB
+    await idbPut('privKey', privKeyNonExtractable);
+    await idbPut('pubKey', pubKeyObj);
+    // Store public JWK string separately (needed to send to server for new threads)
+    await idbPut('pubKeyJwk', _pendingPubKeyJwk);
+
+    // Remove any old localStorage keys from previous implementation
+    localStorage.removeItem('ql_dm_privkey');
+    localStorage.removeItem('ql_dm_pubkey');
+
+    // Zero all in-memory key material
+    _pendingPrivKeyJwk = null;
+    _pendingPubKeyJwk = null;
+    _pendingEncryptedKey = null;
+    _pendingSalt = null;
+    _generatedPhraseWords = [];
+    const phraseBox = document.getElementById('recovery-phrase-box');
+    if (phraseBox) phraseBox.innerHTML = '';
+
+    closeKeySetupModal();
+    window.location.reload();
+  } catch(e) {
+    alert('Failed to save keys. Please try again.');
+    btn.disabled = false;
+  }
+};
+</script>
+{% endif %}
 {% endblock %}

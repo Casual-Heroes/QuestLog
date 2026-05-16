@@ -93,6 +93,17 @@
           {% elif is_following %}<i class="fas fa-user-check mr-1"></i>Following
           {% else %}<i class="fas fa-user-plus mr-1"></i>Follow{% endif %}
         </button>
+        {% if is_mutual and profile_user.allow_messages %}
+        <a href="{% url 'questlog_web_messages_new' profile_user.id %}"
+           class="bg-neutral-700 hover:bg-neutral-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition">
+          <i class="fas fa-envelope mr-1"></i>Message
+        </a>
+        {% else %}
+        <button disabled title="{% if not is_mutual %}Follow each other to unlock messaging{% else %}This member hasn't enabled messages{% endif %}"
+           class="bg-neutral-800 text-gray-600 px-4 py-2 rounded-lg text-sm font-medium cursor-not-allowed opacity-50 border border-neutral-700">
+          <i class="fas fa-envelope mr-1"></i>Message
+        </button>
+        {% endif %}
         <button onclick="showBlockMenu()" class="bg-neutral-800 hover:bg-neutral-700 text-gray-400 px-3 py-2 rounded-lg text-sm transition">
           <i class="fas fa-ellipsis-v"></i>
         </button>

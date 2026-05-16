@@ -168,6 +168,12 @@
           <span>Notifications</span>
           <span id="notif-badge" class="hidden absolute right-2 top-1/2 -translate-y-1/2 bg-red-500 text-white text-xs font-bold w-5 h-5 flex items-center justify-center rounded-full">0</span>
         </a>
+        <a href="{% url 'questlog_web_messages' %}"
+           class="nav-item {% if active_page == 'messages' %}active{% endif %} flex items-center gap-3 px-3 py-1.5 rounded-lg text-sm transition group relative">
+          <i class="fas fa-envelope text-gray-400 group-hover:text-indigo-400"></i>
+          <span>Messages</span>
+          <span id="dm-badge" class="hidden absolute right-2 top-1/2 -translate-y-1/2 bg-indigo-500 text-white text-xs font-bold w-5 h-5 flex items-center justify-center rounded-full">0</span>
+        </a>
         {% endif %}
         <a href="{% url 'questlog_web_leaderboard' %}"
            class="nav-item {% if active_page == 'leaderboard' %}active{% endif %} flex items-center gap-3 px-3 py-1.5 rounded-lg text-sm transition group">
@@ -926,9 +932,28 @@ async function clearAllNotifs() {
 
 // Poll for notifications every 5 seconds (only if logged in)
 {% if web_user %}
+async function pollDmUnread() {
+  try {
+    const res = await fetch('/api/dm/unread/');
+    const data = await res.json();
+    const count = data.unread || 0;
+    const badge = document.getElementById('dm-badge');
+    if (badge) {
+      if (count > 0) {
+        badge.textContent = count > 99 ? '99+' : count;
+        badge.classList.remove('hidden');
+      } else {
+        badge.classList.add('hidden');
+      }
+    }
+  } catch(e) {}
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   pollNotifCount();
   setInterval(pollNotifCount, 5000);
+  pollDmUnread();
+  setInterval(pollDmUnread, 15000);
 });
 {% endif %}
 

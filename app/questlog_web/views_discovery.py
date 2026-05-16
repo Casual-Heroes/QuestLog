@@ -21,7 +21,7 @@ from .models import (
     WebCommunityBotConfig, WebLFGGameConfig,
     WebFluxerLfgGroup, WebFluxerLfgConfig, WebFluxerGuildChannel,
     WebFluxerLfgMember, WebFluxerGuildSettings, WebFluxerLfgGame,
-    WebPost,
+    WebPost, WebFollow,
 )
 from app.db import get_db_session
 from .helpers import add_web_user_context, web_login_required, web_verified_required, safe_int, EXCLUDED_USER_IDS, generate_post_public_id, create_notification
@@ -1593,6 +1593,20 @@ def api_gamers(request):
             offset = (page - 1) * per_page
             users = query.offset(offset).limit(per_page).all()
 
+            # Build mutual follow set for logged-in user
+            mutual_ids = set()
+            if current_uid:
+                page_ids = [u.id for u in users]
+                i_follow = {r.following_id for r in db.query(WebFollow.following_id).filter(
+                    WebFollow.follower_id == current_uid,
+                    WebFollow.following_id.in_(page_ids),
+                ).all()}
+                they_follow = {r.follower_id for r in db.query(WebFollow.follower_id).filter(
+                    WebFollow.following_id == current_uid,
+                    WebFollow.follower_id.in_(page_ids),
+                ).all()}
+                mutual_ids = i_follow & they_follow
+
             data = []
             for u in users:
                 data.append({
@@ -1620,6 +1634,7 @@ def api_gamers(request):
                     'is_contributor': bool(u.is_contributor),
                     'is_ffxiv_member': bool(u.is_ffxiv_member),
                     'is_eso_member': bool(u.is_eso_member),
+                    'can_message': bool(u.id in mutual_ids and u.allow_messages and u.id != current_uid),
                 })
 
             return JsonResponse({

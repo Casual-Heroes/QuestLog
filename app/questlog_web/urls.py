@@ -270,6 +270,12 @@ from .views_game_library import (
     api_steam_showcase_get, api_steam_showcase_save,
 )
 from django.views.decorators.csrf import csrf_exempt as _csrf_exempt
+from .views_dm import (
+    api_dm_setup_keys, api_dm_get_encrypted_key, api_dm_get_pubkey,
+    api_dm_send, api_dm_inbox, api_dm_messages, api_dm_unread_count,
+    api_dm_poll, api_dm_delete_message, api_dm_suggestions,
+    messages_inbox, messages_thread, messages_new,
+)
 
 urlpatterns = [
     # Home
@@ -1010,4 +1016,19 @@ urlpatterns = [
     path('qc/admin/bad-actors/',                 qc_admin_bad_actors,          name='qc_admin_bad_actors'),
     path('qc/admin/bad-actors/add/',             qc_admin_bad_actor_add,       name='qc_admin_bad_actor_add'),
     path('qc/admin/bad-actors/import-csv/',      qc_admin_bad_actor_import_csv, name='qc_admin_bad_actor_import_csv'),
+
+    # E2EE Direct Messages
+    path('messages/',                                    messages_inbox,           name='questlog_web_messages'),
+    path('messages/<int:conversation_id>/',              messages_thread,          name='questlog_web_messages_thread'),
+    path('messages/new/<int:to_user_id>/',               messages_new,             name='questlog_web_messages_new'),
+    path('api/dm/keys/setup/',                           api_dm_setup_keys,        name='questlog_web_api_dm_setup_keys'),
+    path('api/dm/keys/recovery/',                        api_dm_get_encrypted_key, name='questlog_web_api_dm_get_encrypted_key'),
+    path('api/dm/pubkey/<int:user_id>/',                 api_dm_get_pubkey,        name='questlog_web_api_dm_get_pubkey'),
+    path('api/dm/send/',                                 api_dm_send,              name='questlog_web_api_dm_send'),
+    path('api/dm/inbox/',                                api_dm_inbox,             name='questlog_web_api_dm_inbox'),
+    path('api/dm/unread/',                               api_dm_unread_count,      name='questlog_web_api_dm_unread'),
+    path('api/dm/suggestions/',                          api_dm_suggestions,       name='questlog_web_api_dm_suggestions'),
+    path('api/dm/<int:conversation_id>/messages/',       api_dm_messages,          name='questlog_web_api_dm_messages'),
+    path('api/dm/<int:conversation_id>/poll/',           api_dm_poll,              name='questlog_web_api_dm_poll'),
+    path('api/dm/message/<int:message_id>/delete/',      api_dm_delete_message,    name='questlog_web_api_dm_delete'),
 ]
