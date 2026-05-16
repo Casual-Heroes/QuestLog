@@ -159,27 +159,7 @@
         {% endif %}
       </div>
       {% endif %}
-      {% if favorite_games_list %}
-      <div class="mt-4 {% if playstyle_list or gaming_platforms_list or favorite_genres_list or web_user.bio %}border-t border-neutral-800 pt-4{% endif %}">
-        <p class="text-xs text-gray-500 mb-2"><i class="fas fa-gamepad mr-1"></i>Games</p>
-        <div class="flex flex-wrap gap-2">
-          {% for g in favorite_games_list %}
-          {% if g.cover_url %}
-          <div class="flex items-center gap-1.5 bg-neutral-800 border border-neutral-700 rounded-lg px-2 py-1.5 text-xs text-gray-200" title="{{ g.name }}">
-            <img src="{{ g.cover_url }}" class="w-4 h-6 rounded object-cover flex-shrink-0" alt="">
-            <span class="truncate max-w-[100px]">{{ g.name }}</span>
-          </div>
-          {% else %}
-          <div class="flex items-center gap-1 bg-neutral-800 border border-neutral-700 rounded-lg px-2 py-1.5 text-xs text-gray-200">
-            <i class="fas fa-gamepad text-gray-500 text-xs flex-shrink-0"></i>
-            <span>{% if g.name %}{{ g.name }}{% else %}{{ g }}{% endif %}</span>
-          </div>
-          {% endif %}
-          {% endfor %}
-        </div>
-      </div>
-      {% endif %}
-      {% if not web_user.bio and not playstyle_list and not gaming_platforms_list and not favorite_genres_list and not favorite_games_list %}
+      {% if not web_user.bio and not playstyle_list and not gaming_platforms_list and not favorite_genres_list %}
       <p class="text-gray-600 text-sm italic">Nothing here yet. <button @click="tab='edit'" class="text-indigo-400 hover:underline">Edit your profile</button></p>
       {% endif %}
     </div>
@@ -211,36 +191,14 @@
         {% if web_user.twitch_username %}<span class="flex items-center gap-1.5 px-2.5 py-1 bg-purple-900/30 border border-purple-800/40 rounded-lg text-xs text-purple-300"><i class="fab fa-twitch"></i>Twitch</span>{% endif %}
         {% if not web_user.steam_id and not web_user.discord_id and not web_user.fluxer_id %}<p class="text-gray-600 text-xs">No accounts connected yet. <button @click="tab='connected'" class="text-indigo-400 hover:underline">Connect one</button></p>{% endif %}
       </div>
-
-      {% if user_communities|length >= 1 %}
-      <!-- Primary Community picker - shown when user belongs to 1+ communities -->
-      <div class="mt-3 pt-3 border-t border-neutral-700/50">
-        <p class="text-sm text-white font-medium flex items-center gap-1.5 mb-1">
-          <i class="fas fa-star text-yellow-400 text-xs"></i>Primary Community
-        </p>
-        <p class="text-xs text-gray-500 mb-2">Shown on your profile and sidebar</p>
-        <div id="primaryCommunityContainer"></div>
-        <p id="primaryCommunityStatus" class="text-xs mt-1.5 hidden"></p>
+      <div class="flex flex-wrap gap-2">
+        {% if web_user.steam_id %}<span class="flex items-center gap-1.5 px-2.5 py-1 bg-blue-900/30 border border-blue-800/40 rounded-lg text-xs text-blue-300"><i class="fab fa-steam"></i>Steam</span>{% endif %}
+        {% if web_user.discord_id %}<span class="flex items-center gap-1.5 px-2.5 py-1 bg-indigo-900/30 border border-indigo-800/40 rounded-lg text-xs text-indigo-300"><i class="fab fa-discord"></i>Discord</span>{% endif %}
+        {% if web_user.fluxer_id %}<span class="flex items-center gap-1.5 px-2.5 py-1 bg-purple-900/30 border border-purple-800/40 rounded-lg text-xs text-purple-300"><span class="font-bold">F</span>Fluxer</span>{% endif %}
+        {% if web_user.matrix_id %}<span class="flex items-center gap-1.5 px-2.5 py-1 bg-teal-900/30 border border-teal-800/40 rounded-lg text-xs text-teal-300"><i class="fas fa-comment-dots"></i>QuestChat</span>{% endif %}
+        {% if web_user.twitch_username %}<span class="flex items-center gap-1.5 px-2.5 py-1 bg-purple-900/30 border border-purple-800/40 rounded-lg text-xs text-purple-300"><i class="fab fa-twitch"></i>Twitch</span>{% endif %}
+        {% if not web_user.steam_id and not web_user.discord_id and not web_user.fluxer_id %}<p class="text-gray-600 text-xs">No accounts connected yet. <button @click="tab='connected'" class="text-indigo-400 hover:underline">Connect one</button></p>{% endif %}
       </div>
-      <script>
-      document.addEventListener('DOMContentLoaded', function() {
-        const communityItems = [
-          {value: '', label: 'None'},
-          {% for c in user_communities %}{value: '{{ c.id }}', label: '{{ c.name }} ({{ c.platform }})'},
-          {% endfor %}
-        ];
-        createCustomSelect({
-          container: document.getElementById('primaryCommunityContainer'),
-          name: 'primaryCommunityId',
-          items: communityItems,
-          selected: '{{ web_user.primary_community_id|default:"" }}',
-          color: 'yellow',
-          placeholder: 'Select community...',
-          onSelect: (val) => savePrimaryCommunity(val),
-        });
-      });
-      </script>
-      {% endif %}
     </div>
 
     <!-- Invite Friends -->
@@ -1261,7 +1219,6 @@
 {{ playstyle_list|default:"[]"|json_script:"profile-playstyle-data" }}
 {{ gaming_platforms_list|default:"[]"|json_script:"profile-platforms-data" }}
 {{ favorite_genres_list|default:"[]"|json_script:"profile-genres-data" }}
-{{ favorite_games_list|json_script:"profile-games-data" }}
 {% include "questlog/partials/custom_select.html" %}
 <script>
 (function() {
@@ -1399,93 +1356,6 @@
     multiSelect:  true,
   });
 
-  // ── My Games ────────────────────────────────────────────────────
-  let _profileGames = JSON.parse(document.getElementById('profile-games-data').textContent || '[]');
-  // Normalize legacy string entries to objects
-  _profileGames = _profileGames.map(g => typeof g === 'string' ? {name: g, igdb_id: null, cover_url: ''} : g);
-
-  function _renderProfileGames() {
-    const list  = document.getElementById('pe-savedGamesList');
-    const empty = document.getElementById('pe-savedGamesEmpty');
-    if (!list) return;
-    list.innerHTML = '';
-    if (!_profileGames.length) { empty.classList.remove('hidden'); return; }
-    empty.classList.add('hidden');
-    _profileGames.forEach(function(g, idx) {
-      const row = document.createElement('div');
-      row.className = 'flex items-center gap-3 bg-neutral-800/50 border border-neutral-700 rounded-lg px-3 py-2';
-      row.innerHTML = (g.cover_url
-        ? `<img src="${escapeHtml(g.cover_url)}" class="w-8 h-11 rounded object-cover flex-shrink-0">`
-        : `<div class="w-8 h-11 rounded bg-neutral-700 flex items-center justify-center flex-shrink-0"><i class="fas fa-gamepad text-gray-500 text-xs"></i></div>`)
-        + `<span class="text-white text-sm flex-1 truncate">${escapeHtml(g.name)}</span>`
-        + `<button type="button" onclick="_removeProfileGame(${idx})" class="text-gray-500 hover:text-red-400 transition ml-auto flex-shrink-0" title="Remove"><i class="fas fa-times text-sm"></i></button>`;
-      list.appendChild(row);
-    });
-  }
-
-  window._removeProfileGame = function(idx) {
-    _profileGames.splice(idx, 1);
-    _renderProfileGames();
-  };
-
-  function _addProfileGame(game) {
-    if (_profileGames.length >= 10) { alert('You can save up to 10 games.'); return; }
-    if (_profileGames.some(g => g.name.toLowerCase() === game.name.toLowerCase())) return;
-    _profileGames.push({name: game.name, igdb_id: game.id || null, cover_url: game.cover_url || ''});
-    _renderProfileGames();
-    const inp = document.getElementById('pe-gameSearch');
-    const res = document.getElementById('pe-gameSearchResults');
-    if (inp) inp.value = '';
-    if (res) res.classList.add('hidden');
-  }
-
-  let _pgSearchTimeout = null;
-  const _peGameInput = document.getElementById('pe-gameSearch');
-  const _peGameResults = document.getElementById('pe-gameSearchResults');
-
-  if (_peGameInput) {
-    _peGameInput.addEventListener('input', function() {
-      clearTimeout(_pgSearchTimeout);
-      const q = this.value.trim();
-      if (q.length < 2) { _peGameResults.classList.add('hidden'); return; }
-      _pgSearchTimeout = setTimeout(async function() {
-        _peGameResults.innerHTML = '<div class="px-4 py-3 text-gray-500 text-sm"><i class="fas fa-spinner fa-spin mr-2"></i>Searching...</div>';
-        _peGameResults.classList.remove('hidden');
-        try {
-          const res = await fetch('/ql/api/igdb/search/?q=' + encodeURIComponent(q) + '&limit=8');
-          const data = await res.json();
-          const games = data.games || [];
-          if (!games.length) {
-            _peGameResults.innerHTML = '<div class="px-4 py-3 text-gray-400 text-sm">No results found.</div>';
-            return;
-          }
-          _peGameResults.innerHTML = '';
-          games.forEach(function(game) {
-            const item = document.createElement('button');
-            item.type = 'button';
-            item.className = 'w-full flex items-center gap-3 px-4 py-3 hover:bg-neutral-700 transition text-left border-b border-neutral-700/50 last:border-0';
-            item.innerHTML = (game.cover_url
-              ? `<img src="${escapeHtml(game.cover_url)}" class="w-8 h-11 rounded object-cover flex-shrink-0">`
-              : `<div class="w-8 h-11 rounded bg-neutral-600 flex items-center justify-center flex-shrink-0"><i class="fas fa-gamepad text-gray-400 text-xs"></i></div>`)
-              + `<div class="min-w-0"><span class="text-white text-sm font-medium block truncate">${escapeHtml(game.name)}</span>${game.release_year ? `<span class="text-gray-500 text-xs">${game.release_year}</span>` : ''}</div>`
-              + `<span class="ml-auto text-green-400 text-xs flex-shrink-0"><i class="fas fa-plus"></i></span>`;
-            item.addEventListener('click', function() { _addProfileGame(game); });
-            _peGameResults.appendChild(item);
-          });
-        } catch(e) {
-          _peGameResults.innerHTML = '<div class="px-4 py-3 text-gray-400 text-sm">Search failed.</div>';
-        }
-      }, 250);
-    });
-
-    document.addEventListener('click', function(e) {
-      const wrapper = document.getElementById('profileGameSearchWrapper');
-      if (wrapper && !wrapper.contains(e.target)) _peGameResults.classList.add('hidden');
-    });
-
-    _renderProfileGames();
-  }
-
   // ── Avatar preview ─────────────────────────────────────────────
   window.previewAvatar = function(url) {
     const el = document.getElementById('avatarPreview');
@@ -1510,7 +1380,6 @@
       playstyle:        playstyleSelect.getValue(),
       gaming_platforms: platformSelect.getValue(),
       favorite_genres:  genreSelect.getValue(),
-      favorite_games:   _profileGames,
       allow_discovery:  document.getElementById('pe-discovery').checked,
     };
 

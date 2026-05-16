@@ -241,14 +241,13 @@
       {% endif %}
 
       <div class="ql-field">
-        <label for="id_invite_code">Invite Code {% if not early_access_mode %}<span style="color:#4b5563;font-weight:400;text-transform:none;letter-spacing:0;">(optional)</span>{% endif %}</label>
+        <label for="id_invite_code">Invite Code</label>
         <input type="text" id="id_invite_code" name="invite_code" value="{{ invite_code|default:'' }}"
           placeholder="XXXXXXXXXX" autocomplete="off" maxlength="16"
           style="text-transform: uppercase; letter-spacing: 0.15em; font-family: monospace; font-size: 1.05rem;">
-        <div class="ql-field-hint">
-          {% if early_access_mode %}Required during Early Access - get yours in our Fluxer or Discord community.{% else %}Have an invite code from a community event or bot? Enter it here.{% endif %}
-        </div>
+        <div class="ql-field-hint">Required during Early Access - get yours in our Fluxer or Discord community.</div>
       </div>
+      {% endif %}
 
       <div class="ql-field">
         <label for="id_username">Username</label>
@@ -429,6 +428,16 @@
       btn.textContent = 'Create Account & Submit Game';
     }
   }
+</script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  var sidebar = document.getElementById('web-sidebar');
+  var tab = document.getElementById('sidebar-expand-tab');
+  var main = document.getElementById('ql-main-content');
+  if (sidebar) sidebar.style.display = 'none';
+  if (tab) tab.style.display = 'none';
+  if (main) { main.style.marginLeft = '0'; main.style.width = '100%'; }
+});
 </script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
