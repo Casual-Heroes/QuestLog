@@ -1020,6 +1020,8 @@ def fluxer_guild_live_alerts(request, guild_id):
     return _guild_view(request, guild_id, 'questlog_web/fluxer_guild_live_alerts.html', 'live_alerts', extra=_extra)
 
 
+
+
 @fluxer_guild_required
 def fluxer_guild_trackers(request, guild_id):
     return _guild_view(request, guild_id, 'questlog_web/fluxer_guild_trackers.html', 'trackers')

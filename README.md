@@ -53,13 +53,6 @@ Built with Django 5.2 and SQLAlchemy on top of MySQL/MariaDB.
 - Message map, edit sync, delete sync, reaction sync, typing relay
 - Per-guild bridge configuration
 
-### 7 Days to Die / Project SYNAPSE Integration
-- C# game mod sends kill/death/zone/artifact events to Django via internal API
-- Kill assists tracked via damage ledger
-- Artifact unlock, loadout equip/unequip system
-- SYNAPSE player profiles at `/ql/synapse/<username>/`
-- Legacy event recording for SYNAPSE-specific progression
-
 ### Main Site
 - Game server status page (AMP/CubeCoders integration)
 - Games we play, game suggestions, guides, hosting info
@@ -332,7 +325,6 @@ platform/
     - views_matrix_dashboard.py - Matrix (QuestChat) bot web dashboard
     - views_questchat.py       - QuestChat REST API (JWT Bearer, 34+ endpoints)
     - views_internal.py        - Internal APIs for bot-to-site communication
-    - views_7dtd.py            - 7 Days to Die / SYNAPSE game event API + profiles
     - amp_utils.py             - AMP game server panel utilities
     - steam_auth.py            - Steam OpenID (optional enrichment, not auth)
     - steam_search.py          - Steam game search
