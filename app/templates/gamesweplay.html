@@ -1,26 +1,34 @@
-{% extends "base.html" %}
+{% extends "questlog_web/base_web.html" %}
 {% load static %}
-{% block title %}Games We Play{% endblock %}
+
+{% block title %}Games We Play - Casual Heroes{% endblock %}
 {% block og_title %}Games We Play - Casual Heroes{% endblock %}
-{% block og_description %}Join the Casual Heroes community - modded servers, friendly vibes, and endless co-op adventures.{% endblock %}
-{% block og_image %}https://casual-heroes.com/static/img/siteassets/homepage/CHLogoFinal.png{% endblock %}
-{% block og_url %}https://casual-heroes.com/gamesweplay/{% endblock %}
+{% block og_description %}Hosted servers and community games - join in and play with us.{% endblock %}
+{% block og_image %}https://questlog.casual-heroes.com/static/img/siteassets/homepage/CHLogoFinal.png{% endblock %}
+{% block og_url %}https://questlog.casual-heroes.com/gamesweplay/{% endblock %}
 
-{% block content %}
-<div class="max-w-screen-xl mx-auto px-4 py-10">
+{% block web_content %}
 
-  <div class="mb-8">
-    <h1 class="text-3xl font-extrabold text-white mb-1">Games We Play</h1>
-    <p class="text-gray-400 text-sm">Hosted servers and Discord activity - jump in and say hi.</p>
+<!-- Header -->
+<div class="bg-gradient-to-br from-neutral-900 to-neutral-950 border-b border-neutral-800 p-6 mb-6">
+  <div class="max-w-7xl mx-auto">
+    <h1 class="text-3xl font-bold text-white flex items-center gap-3">
+      <i class="fas fa-gamepad text-indigo-400"></i>
+      Games We Play
+    </h1>
+    <p class="text-gray-400 mt-1">Hosted servers and community games - jump in and play with us.</p>
   </div>
+</div>
+
+<div class="max-w-7xl mx-auto px-4 pb-10">
 
   {% if games %}
   <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
     {% for game in games %}
-    <div class="rounded-2xl overflow-hidden border border-neutral-800 bg-neutral-900 group hover:shadow-[0_0_20px_#6366f1] hover:border-indigo-700/50 transition-all duration-300 flex flex-col">
+    <div class="rounded-xl overflow-hidden border border-neutral-800 bg-neutral-900 group hover:border-indigo-500/40 transition-all duration-300 flex flex-col">
 
       <!-- Banner image -->
-      <div class="relative h-44 overflow-hidden flex-shrink-0">
+      <div class="relative overflow-hidden flex-shrink-0" style="aspect-ratio:16/7">
         {% if game.custom_img %}
         <img src="{{ game.custom_img }}" alt="{{ game.name }}"
              class="w-full h-full object-cover group-hover:scale-105 transition duration-500" />
@@ -32,57 +40,62 @@
              alt="{{ game.name }}"
              class="w-full h-full object-cover group-hover:scale-105 transition duration-500" />
         {% else %}
-        <img src="{% static 'img/games/wow/dwarf.webp' %}" alt="{{ game.name }}"
-             class="w-full h-full object-cover group-hover:scale-105 transition duration-500" />
+        <div class="w-full h-full bg-neutral-800 flex items-center justify-center">
+          <i class="fas fa-gamepad text-neutral-600 text-5xl"></i>
+        </div>
         {% endif %}
 
-        <!-- Source badge: Hosted vs Discord -->
+        <!-- Source badge -->
         {% if game.source == 'amp' %}
-        <span class="absolute top-3 left-3 text-xs font-bold px-2 py-1 rounded-full bg-black/60 backdrop-blur-sm text-indigo-300">
+        <span class="absolute top-2 left-2 text-xs font-bold px-2 py-0.5 rounded-full bg-black/60 backdrop-blur-sm text-indigo-300">
           <i class="fas fa-server mr-1"></i>Hosted
         </span>
-        {% elif game.source == 'discord' %}
-        <span class="absolute top-3 left-3 text-xs font-bold px-2 py-1 rounded-full bg-black/60 backdrop-blur-sm text-indigo-300">
-          <i class="fab fa-discord mr-1"></i>Discord
+        {% elif game.source == 'fluxer' %}
+        <span class="absolute top-2 left-2 flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-full bg-black/60 backdrop-blur-sm text-yellow-300">
+          <img src="{% static 'img/siteassets/fluxer-favicon.png' %}" class="w-3 h-3 rounded-sm" alt="">Fluxer
         </span>
         {% endif %}
 
-        <!-- Status badge (hosted servers only) -->
+        <!-- Status badge (hosted only) -->
         {% if game.status_label %}
-        <span class="absolute top-3 right-3 text-xs font-bold px-2 py-1 rounded-full bg-black/60 backdrop-blur-sm {% if 'Online' in game.status_label %}text-green-400{% else %}text-red-400{% endif %}">
-          <span class="inline-block w-1.5 h-1.5 rounded-full mr-1 align-middle {% if 'Online' in game.status_label %}bg-green-400{% else %}bg-red-400{% endif %}"></span>{{ game.status_label }}
+        <span class="absolute top-2 right-2 text-xs font-bold px-2 py-0.5 rounded-full bg-black/60 backdrop-blur-sm {% if 'Online' in game.status_label %}text-green-400{% else %}text-red-400{% endif %}">
+          <span class="inline-block w-1.5 h-1.5 rounded-full mr-1 align-middle {% if 'Online' in game.status_label %}bg-green-400 animate-pulse{% else %}bg-red-400{% endif %}"></span>{{ game.status_label }}
         </span>
         {% endif %}
       </div>
 
       <!-- Content -->
-      <div class="p-5 flex flex-col gap-3 flex-1">
+      <div class="p-4 flex flex-col gap-2.5 flex-1">
 
-        <!-- Title -->
-        <h3 class="font-extrabold text-white uppercase tracking-wide text-base leading-tight">{{ game.name }}</h3>
+        <h3 class="font-bold text-white text-sm leading-tight">{{ game.name }}</h3>
 
-        <!-- Description -->
         {% if game.description %}
-        <p class="text-gray-400 text-sm leading-snug">{{ game.description }}</p>
+        <p class="text-gray-400 text-xs leading-snug">{{ game.description }}</p>
         {% endif %}
 
         <!-- Player count -->
-        <div class="flex items-center gap-2 text-sm">
-          <i class="fas fa-users text-indigo-400"></i>
-          <span class="text-white font-semibold">{{ game.online }}/{{ game.max }}</span>
-          <span class="text-gray-500">{% if game.source == 'discord' %}playing in Discord{% else %}players{% endif %}</span>
-          {% if game.live_now %}
-          <span class="ml-auto text-xs text-green-400 font-semibold flex items-center gap-1">
-            <span class="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse inline-block"></span>Live
-          </span>
+        <div class="flex flex-col gap-1 text-sm" data-game-key="{{ game.id }}">
+          {% if game.source == 'amp' %}
+          <div class="flex items-center gap-2">
+            <i class="fas fa-users text-indigo-400 text-xs"></i>
+            <span class="text-white font-semibold text-xs game-count">{{ game.online }}{% if game.max != "-" %}/{{ game.max }}{% endif %}</span>
+            <span class="text-gray-500 text-xs">players</span>
+            {% if game.live_now %}<span class="ml-auto text-xs text-green-400 font-semibold flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse inline-block"></span>Live</span>{% endif %}
+          </div>
+          {% else %}
+          <div class="flex items-center gap-2">
+            <img src="{% static 'img/siteassets/fluxer-favicon.png' %}" class="w-3.5 h-3.5 rounded-sm flex-shrink-0" alt="">
+            <span class="text-white font-semibold text-xs fluxer-count">{{ game.fluxer_online|default:0 }}{% if game.fluxer_total != "-" %}/{{ game.fluxer_total }}{% endif %}</span>
+            <span class="text-gray-500 text-xs">playing on Fluxer</span>
+          </div>
           {% endif %}
         </div>
 
         <!-- Connect info (hosted only) -->
         {% if game.ip %}
-        <div class="bg-neutral-800 rounded-xl p-3 space-y-1.5 text-sm">
+        <div class="bg-neutral-800 rounded-lg p-2.5 space-y-1.5">
           <div class="flex items-center gap-2">
-            <span class="text-indigo-400 font-semibold w-6">IP</span>
+            <span class="text-indigo-400 font-semibold text-xs w-5">IP</span>
             <span class="text-white font-mono text-xs flex-1">{{ game.ip }}</span>
             <button onclick="copyText('{{ game.ip|escapejs }}')" class="text-gray-500 hover:text-indigo-400 transition" title="Copy IP">
               <i class="fas fa-copy text-xs"></i>
@@ -90,7 +103,7 @@
           </div>
           {% if game.connect_pw %}
           <div class="flex items-center gap-2">
-            <span class="text-indigo-400 font-semibold w-6">PW</span>
+            <span class="text-indigo-400 font-semibold text-xs w-5">PW</span>
             <span class="text-white font-mono text-xs flex-1">{{ game.connect_pw }}</span>
             <button onclick="copyText('{{ game.connect_pw|escapejs }}')" class="text-gray-500 hover:text-indigo-400 transition" title="Copy password">
               <i class="fas fa-copy text-xs"></i>
@@ -99,7 +112,7 @@
           {% endif %}
         </div>
         {% elif game.source == 'amp' %}
-        <div class="bg-neutral-800/50 rounded-xl px-3 py-2 text-sm text-gray-500">
+        <div class="bg-neutral-800/50 rounded-lg px-3 py-2 text-xs text-gray-500">
           <i class="fas fa-plug mr-1"></i>Connection info unavailable
         </div>
         {% endif %}
@@ -108,27 +121,26 @@
         <div class="flex flex-wrap gap-2 mt-auto pt-1">
           {% if game.discord_invite %}
           {% with url=game.discord_invite %}
-          {% if "discord" in url %}
-          <a href="{{ url }}" target="_blank" class="flex items-center gap-1.5 text-xs font-semibold bg-indigo-600/20 hover:bg-indigo-600/30 border border-indigo-600/40 text-indigo-400 px-3 py-1.5 rounded-lg transition">
+          {% if "fluxer" in url %}
+          <a href="{{ url }}" target="_blank" rel="noopener"
+             class="flex items-center gap-1.5 text-xs font-semibold bg-yellow-600/20 hover:bg-yellow-600/30 border border-yellow-600/40 text-yellow-400 px-3 py-1.5 rounded-lg transition">
+            <img src="{% static 'img/siteassets/fluxer-favicon.png' %}" class="w-3 h-3 rounded-sm" alt="">Fluxer
+          </a>
+          {% elif "discord" in url %}
+          <a href="{{ url }}" target="_blank" rel="noopener"
+             class="flex items-center gap-1.5 text-xs font-semibold bg-indigo-600/20 hover:bg-indigo-600/30 border border-indigo-600/40 text-indigo-400 px-3 py-1.5 rounded-lg transition">
             <i class="fab fa-discord"></i>Discord
           </a>
-          {% elif "fluxer" in url %}
-          <a href="{{ url }}" target="_blank" class="flex items-center gap-1.5 text-xs font-semibold bg-yellow-600/20 hover:bg-yellow-600/30 border border-yellow-600/40 text-yellow-400 px-3 py-1.5 rounded-lg transition">
-            <i class="fas fa-bolt"></i>Fluxer
-          </a>
-          {% elif "matrix" in url or "element" in url %}
-          <a href="{{ url }}" target="_blank" class="flex items-center gap-1.5 text-xs font-semibold bg-green-600/20 hover:bg-green-600/30 border border-green-600/40 text-green-400 px-3 py-1.5 rounded-lg transition">
-            <i class="fas fa-cube"></i>Matrix
-          </a>
           {% else %}
-          <a href="{{ url }}" target="_blank" class="flex items-center gap-1.5 text-xs font-semibold bg-indigo-600/20 hover:bg-indigo-600/30 border border-indigo-600/40 text-indigo-400 px-3 py-1.5 rounded-lg transition">
+          <a href="{{ url }}" target="_blank" rel="noopener"
+             class="flex items-center gap-1.5 text-xs font-semibold bg-indigo-600/20 hover:bg-indigo-600/30 border border-indigo-600/40 text-indigo-400 px-3 py-1.5 rounded-lg transition">
             <i class="fas fa-sign-in-alt"></i>Join
           </a>
           {% endif %}
           {% endwith %}
           {% endif %}
           {% if game.steam_link %}
-          <a href="{{ game.steam_link }}" target="_blank"
+          <a href="{{ game.steam_link }}" target="_blank" rel="noopener"
              class="flex items-center gap-1.5 text-xs font-semibold bg-neutral-700/50 hover:bg-neutral-700 border border-neutral-600/40 text-gray-300 px-3 py-1.5 rounded-lg transition">
             <i class="fas fa-external-link-alt text-xs"></i>{{ game.link_label|default:"View Site" }}
           </a>
@@ -142,27 +154,52 @@
 
   {% else %}
   <div class="text-center py-20 text-gray-500">
-    <i class="fas fa-gamepad text-4xl mb-4 block"></i>
+    <i class="fas fa-gamepad text-4xl mb-4 block opacity-40"></i>
     <p class="text-lg font-semibold">No games listed right now.</p>
-    <p class="text-sm mt-1">Check back soon or hop in Discord to see what's up.</p>
+    <p class="text-sm mt-1">Check back soon or hop in Fluxer to see what's up.</p>
   </div>
   {% endif %}
 
 </div>
 
 <!-- Copy toast -->
-<div id="copy-toast" class="hidden fixed bottom-5 right-5 bg-indigo-600 text-white px-4 py-2 rounded-xl shadow-xl z-50">
+<div id="copy-toast" class="hidden fixed bottom-5 right-5 bg-indigo-600 text-white px-4 py-2 rounded-xl shadow-xl z-50 text-sm">
   Copied!
 </div>
 
 <script>
-  function copyText(text) {
-    navigator.clipboard.writeText(text).then(() => {
-      const toast = document.getElementById('copy-toast');
-      toast.classList.remove('hidden');
-      setTimeout(() => toast.classList.add('hidden'), 2000);
-    });
-  }
-  setInterval(() => { location.reload(); }, 30000);
+function copyText(text) {
+  navigator.clipboard.writeText(text).then(() => {
+    const toast = document.getElementById('copy-toast');
+    toast.classList.remove('hidden');
+    setTimeout(() => toast.classList.add('hidden'), 2000);
+  });
+}
+
+function fmtCount(online, total) {
+  if (total !== '-' && total !== null && total !== undefined) return `${online}/${total}`;
+  return `${online}`;
+}
+
+function pollActivityCounts() {
+  fetch('/api/activity-counts/')
+    .then(r => r.json())
+    .then(data => {
+      document.querySelectorAll('[data-game-key]').forEach(row => {
+        const key = row.dataset.gameKey;
+        const entry = data[key];
+        if (!entry) return;
+        const fluxerEl = row.querySelector('.fluxer-count');
+        const ampEl    = row.querySelector('.game-count');
+        if (fluxerEl && entry.fluxer_online !== undefined)
+          fluxerEl.textContent = fmtCount(entry.fluxer_online, entry.fluxer_total);
+        if (ampEl && entry.source === 'amp')
+          ampEl.textContent = fmtCount(entry.online, entry.max);
+      });
+    })
+    .catch(() => {});
+}
+
+setInterval(pollActivityCounts, 60000);
 </script>
 {% endblock %}

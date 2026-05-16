@@ -1,146 +1,255 @@
-{% extends "base.html" %}
+{% extends "questlog_web/base_web.html" %}
+{% load static %}
 {% block title %}Elder Scrolls Online Guild | Casual Heroes{% endblock %}
 {% block og_title %}Join Our ESO Guild | Casual Heroes{% endblock %}
-{% block og_description %}Run Mythic+, raid with friends, PvP in battlegrounds, or level chill in Classic. Join Casual Heroes in Elder Scrolls Online today.{% endblock %}
+{% block og_description %}World Bosses, Raids, Dungeons, Pledges, PvP and more. A community for working adults, parents, and gamers who grew up but never quite left Neverland.{% endblock %}
 {% block og_image %}https://casual-heroes.com/static/img/siteassets/homepage/eso.jpg{% endblock %}
 {% block og_url %}https://casual-heroes.com/eso{% endblock %}
-{% block content %}
+{% block web_content %}
 
-<section class="mt-20 max-w-5xl mx-auto px-4">
-  <h1 class="text-4xl font-extrabold text-center mb-10">Casual Heroes in ESO</h1>
-<div class="text-gray-300 mb-12 max-w-4xl mx-auto text-center space-y-2 leading-relaxed">
-  <p>
-    Casual Heroes is a guild built for adults who want to experience ESO — from the ground up — without the expectations and burnout of a hardcore guild.
-    Most of us are 20+ with jobs, families, and real-life responsibilities.
-  </p>
+<section class="p-6 max-w-6xl mx-auto">
 
-  <p>
-    Some of us are returning players. Some of us are brand new.
-    Either way, we’re here for the same thing: a crew to learn with, run content with, and actually enjoy the game with.
-  </p>
-
-  <p>
-    We want to grow into dungeons, Trials, and PvP — we’re just doing it the right way:
-    learning mechanics, building solid groups, and progressing at a pace that makes sense.
-  </p>
-
-  <div class="pt-2">
-    <p class="font-semibold text-white mb-2">Right now we’re focused on:</p>
-
-    <ul class="text-gray-300 text-sm list-disc list-inside space-y-1 text-left max-w-xl mx-auto">
-      <li>Leveling and gearing</li>
-      <li>Dungeon runs (normal → veteran when ready)</li>
-      <li>Crafting, builds, and “what the hell do I do next?” help</li>
-      <li>Battlegrounds / Cyrodiil nights when people are feeling it</li>
-    </ul>
+  <!-- Header -->
+  <div class="text-center mb-6">
+    <h1 class="text-4xl font-extrabold text-white mb-1">Elder Scrolls Online</h1>
+    <p class="text-indigo-300 font-semibold text-lg">Casual Heroes - Aging, But Still Looting</p>
+    <p class="text-gray-400 italic text-sm mt-1">A community for working adults, parents, and gamers who grew up but never quite left Neverland.</p>
   </div>
 
-  <p>
-    We’re not locked into a sweaty schedule. We organize runs when people are online, and we’ll build consistent nights as the roster grows.
-  </p>
+  <!-- Live Status Bar -->
+  <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-8">
 
-  <p class="text-white">
-    If you want a chill, no-drama guild where you can learn, improve, and push harder content over time — you’ll fit in here.
-  </p>
-</div>
+    <!-- PC NA Status -->
+    <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-4 flex items-center gap-3">
+      <div class="w-10 h-10 rounded-lg bg-green-900/40 flex items-center justify-center flex-shrink-0">
+        <i class="fas fa-desktop text-green-400"></i>
+      </div>
+      <div>
+        <p class="text-xs text-gray-500 uppercase tracking-wide">PC North America</p>
+        <p class="font-bold text-sm flex items-center gap-1.5" id="eso-pc-na-status">
+          <span class="w-2 h-2 rounded-full bg-gray-500 inline-block" id="eso-pc-na-dot"></span>
+          <span id="eso-pc-na-label">Loading...</span>
+        </p>
+      </div>
+    </div>
 
-  <div class="grid md:grid-cols-2 gap-8 items-start">
-    <!-- Trailer Embed -->
+    <!-- PC EU Status -->
+    <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-4 flex items-center gap-3">
+      <div class="w-10 h-10 rounded-lg bg-blue-900/40 flex items-center justify-center flex-shrink-0">
+        <i class="fas fa-globe-europe text-blue-400"></i>
+      </div>
+      <div>
+        <p class="text-xs text-gray-500 uppercase tracking-wide">PC Europe</p>
+        <p class="font-bold text-sm flex items-center gap-1.5" id="eso-pc-eu-status">
+          <span class="w-2 h-2 rounded-full bg-gray-500 inline-block" id="eso-pc-eu-dot"></span>
+          <span id="eso-pc-eu-label">Loading...</span>
+        </p>
+      </div>
+    </div>
+
+
+  </div>
+
+  <!-- In-Game Event Calendar -->
+  <div class="mb-12 bg-neutral-900 border border-neutral-800 rounded-xl overflow-hidden">
+    <button onclick="toggleEvents(this)" class="w-full flex items-center justify-between px-5 py-4 text-left hover:bg-neutral-800/50 transition group">
+      <h2 class="text-xl font-bold text-white"><i class="fas fa-calendar-alt text-indigo-400 mr-2"></i>In-Game Events</h2>
+      <i class="fas fa-chevron-down text-gray-500 group-hover:text-gray-300 transition-transform duration-200" id="events-chevron"></i>
+    </button>
+    <div class="hidden px-4 pb-4" id="eso-events-body">
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4" id="eso-events">
+        <!-- Populated by JS from static data -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Grid -->
+  <div class="grid md:grid-cols-2 gap-8 items-start mb-12">
+
+    <!-- Trailer -->
     <div>
       <iframe class="w-full aspect-video rounded-xl shadow-lg border border-neutral-800"
-              src="https://www.youtube.com/embed/zt-ZIb2dKIw?si=JZIwcdMfDL5GZOcP"
-              title="Elder Scrolls Online Trailer" frameborder="0" allowfullscreen>
+              src="https://www.youtube.com/embed/RmIrUdrINr8?si=gbx198PSqMIFI4MU"
+              title="Elder Scrolls Online" frameborder="0"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+              referrerpolicy="strict-origin-when-cross-origin"
+              allowfullscreen>
       </iframe>
     </div>
 
-    
-<!-- Guild Focus & Features -->
-<div class="bg-neutral-900 border border-neutral-800 rounded-xl p-6 shadow-xl">
-  <h2 class="text-2xl font-bold text-white mb-4">What We’re Running</h2>
-
-  <ul class="text-gray-300 space-y-2 text-sm">
-    <li><strong class="text-indigo-400">Dungeons:</strong> Normal runs while we level — vet when we’re ready</li>
-    <li><strong class="text-indigo-400">Trials:</strong> Learning runs as the roster grows (no toxic parse culture)</li>
-    <li><strong class="text-indigo-400">PvP Nights:</strong> Battlegrounds and Cyrodiil when people are feeling it</li>
-    <li><strong class="text-indigo-400">Build & Gear Help:</strong> Sets, traits, mundus, CP paths — we’ll help you get dialed in</li>
-    <li><strong class="text-indigo-400">Leveling & Story:</strong> Zone clears, skyshards + skill points, new-character help</li>
-    <li><strong class="text-indigo-400">Crafting & Gold:</strong> Writs, farming routes, motifs/materials</li>
-    <li><strong class="text-indigo-400">Casual First:</strong> Flexible schedules, late-night squads, no pressure to grind</li>
-  </ul>
-
-
-
-    <!-- Active Discord Players -->
-    <div class="mt-4 text-sm text-gray-400">
-        <strong>Active Discord Members:</strong>
-        {% if eso_activity.active != "-" and eso_activity.total != "-" %}
-            {% if eso_activity.active|add:0 > 0 %}
-            <span class="text-green-400 font-mono">🟢 {{ eso_activity.active }}</span>
-            {% else %}
-            <span class="text-red-400 font-mono">🔴 {{ eso_activity.active }}</span>
-            {% endif %}
-            <span class="text-gray-400">/ {{ eso_activity.total }}</span>
-        {% else %}
-            <span class="text-white font-mono">-</span> / <span class="text-gray-400">-</span>
-        {% endif %}
-    </div>
-
-
+    <!-- Guild Info -->
+    <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-6 shadow-xl">
+      <h2 class="text-2xl font-bold text-white mb-2">What We're Running</h2>
+      <p class="text-gray-400 text-sm mb-4">PC-NA - from World Bosses to Trials, we do it all at a pace that respects your life.</p>
+      <ul class="text-gray-300 space-y-2 text-sm">
+        <li><strong class="text-indigo-400">World Bosses:</strong> Open-world boss hunts, sets, and group farming</li>
+        <li><strong class="text-indigo-400">Raids (Trials):</strong> Learning runs, no parse culture, no toxic wipes</li>
+        <li><strong class="text-indigo-400">Dungeons:</strong> Normal and vet runs, all skill levels welcome</li>
+        <li><strong class="text-indigo-400">Pledges:</strong> Daily dungeon pledges for keys and undaunted ranks</li>
+        <li><strong class="text-indigo-400">PvP:</strong> Battlegrounds and Cyrodiil nights when people are feeling it</li>
+        <li><strong class="text-indigo-400">And More:</strong> Leveling help, build advice, crafting writs, housing tours</li>
+      </ul>
       <div class="mt-6">
-        <a href="https://discord.gg/ECwJWppSjQ" target="_blank" class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-6 py-3 rounded-xl transition block text-center">
-          Join the Guild — And write your own legend!
+        <a href="https://fluxer.gg/zplS0MwI" target="_blank"
+           class="flex items-center justify-center gap-3 bg-[#5865F2] hover:bg-[#4752c4] text-white font-semibold px-6 py-3 rounded-xl transition">
+          <img src="{% static 'img/siteassets/fluxer-favicon.png' %}" alt="Fluxer" class="w-5 h-5 rounded-sm">
+          Join on Fluxer
         </a>
       </div>
     </div>
   </div>
 
-  <!-- ESO Role Callout -->
-   <div class="mt-16 bg-neutral-900 border border-neutral-800 p-6 rounded-xl max-w-5xl mx-auto px-4">
-    <h2 class="text-xl font-bold text-indigo-300 mb-2 text-center">Guild Roles & What We Need</h2>
-    <p class="text-gray-300 mb-6 text-center">
-        <span class="text-indigo-300 font-semibold">PC-NA</span> - We’re always welcoming friendly players. Here’s what helps most as we build from scratch:
-  </p>
-  <ul class="text-gray-300 text-sm max-w-3xl mx-auto divide-y divide-neutral-800/70">
-    <li class="py-3 grid grid-cols-1 sm:grid-cols-[220px,1fr] gap-1 sm:gap-3 items-start">
-        <span class="text-indigo-400 font-semibold sm:text-right">New & Returning Players:</span>
-        <span>If you’re learning the game, you belong here. We’ll figure it out together.</span>
-    </li>
-
-    <li class="py-3 grid grid-cols-1 sm:grid-cols-[220px,1fr] gap-1 sm:gap-3 items-start">
-      <span class="text-indigo-400 font-semibold sm:text-right">Patient Healers:</span>
-      <span>If you’re down to heal dungeons and help newer players learn, you’re gold.</span>
-    </li>
-
-    <li class="py-3 grid grid-cols-1 sm:grid-cols-[220px,1fr] gap-1 sm:gap-3 items-start">
-      <span class="text-indigo-400 font-semibold sm:text-right">Tanks (New or Experienced):</span>
-      <span>Dungeon tanks now. Trial tanks later as we ramp up.</span>
-    </li>
-
-    <li class="py-3 grid grid-cols-1 sm:grid-cols-[220px,1fr] gap-1 sm:gap-3 items-start">
-      <span class="text-indigo-400 font-semibold sm:text-right">Dungeon / Trial Guides:</span>
-      <span>Returning vets who can explain mechanics and be patient as we learn.</span>
-    </li>
-
-    <li class="py-3 grid grid-cols-1 sm:grid-cols-[220px,1fr] gap-1 sm:gap-3 items-start">
-      <span class="text-indigo-400 font-semibold sm:text-right">Crafters:</span>
-      <span>People who can help with gear, traits, food/pots, and “what should I make?” questions.</span>
-    </li>
-
-    <li class="py-3 grid grid-cols-1 sm:grid-cols-[220px,1fr] gap-1 sm:gap-3 items-start">
-      <span class="text-indigo-400 font-semibold sm:text-right">PvP Leads:</span>
-      <span>Anyone who enjoys organizing BGs/Cyrodiil nights when the mood hits.</span>
-    </li>
-  </ul>
-</div>
-
-  <!-- CTA -->
-   <div class="mt-16 bg-neutral-900 border border-neutral-800 p-6 rounded-xl max-w-5xl mx-auto px-4 text-center">
-    <h2 class="text-xl font-bold text-indigo-300 mb-2">Jump In Anytime</h2>
-    <p class="text-gray-300 mb-4">There’s no rush,  we play at our own pace. Just bring the vibes and we’ll take care of the rest.</p>
-    <a href="https://discord.gg/ECwJWppSjQ" target="_blank" class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-6 py-3 rounded-xl transition block text-center">
-      Join Our ESO Discord Channel →
-    </a>
+  <!-- Who We're Looking For -->
+  <div class="mb-12 bg-neutral-900 border border-neutral-800 p-6 rounded-xl">
+    <h2 class="text-xl font-bold text-indigo-300 mb-2 text-center">Who We're Looking For</h2>
+    <p class="text-gray-300 mb-6 text-center">All classes welcome. All skill levels welcome. Just bring the vibes.</p>
+    <ul class="text-gray-300 text-sm max-w-3xl mx-auto divide-y divide-neutral-800/70">
+      <li class="py-3 grid grid-cols-1 sm:grid-cols-[220px,1fr] gap-1 sm:gap-3 items-start">
+        <span class="text-indigo-400 font-semibold sm:text-right">New &amp; Returning Players:</span>
+        <span>If you're learning the game, you belong here. We'll figure it out together.</span>
+      </li>
+      <li class="py-3 grid grid-cols-1 sm:grid-cols-[220px,1fr] gap-1 sm:gap-3 items-start">
+        <span class="text-indigo-400 font-semibold sm:text-right">Patient Healers:</span>
+        <span>Down to heal dungeons and help newer players learn? You're gold.</span>
+      </li>
+      <li class="py-3 grid grid-cols-1 sm:grid-cols-[220px,1fr] gap-1 sm:gap-3 items-start">
+        <span class="text-indigo-400 font-semibold sm:text-right">Tanks:</span>
+        <span>Dungeon tanks now. Trial tanks later. New or experienced both welcome.</span>
+      </li>
+      <li class="py-3 grid grid-cols-1 sm:grid-cols-[220px,1fr] gap-1 sm:gap-3 items-start">
+        <span class="text-indigo-400 font-semibold sm:text-right">Crafters:</span>
+        <span>Help with gear, traits, food, potions - the guild backbone.</span>
+      </li>
+      <li class="py-3 grid grid-cols-1 sm:grid-cols-[220px,1fr] gap-1 sm:gap-3 items-start">
+        <span class="text-indigo-400 font-semibold sm:text-right">Adults with Jobs:</span>
+        <span>We run content when we can, not when we must. Real life always comes first.</span>
+      </li>
+    </ul>
   </div>
+
+  <!-- QuestLog CTA -->
+  <div class="mb-12 rounded-2xl border border-indigo-700/40 bg-gradient-to-r from-indigo-900/30 to-purple-900/20 p-8 text-center">
+    <div class="w-14 h-14 rounded-2xl bg-indigo-600/20 border border-indigo-600/40 flex items-center justify-center mx-auto mb-4">
+      <i class="fas fa-book-open text-indigo-400 text-2xl"></i>
+    </div>
+    <h2 class="text-2xl font-bold text-white mb-2">ESO Tools on QuestLog</h2>
+    <p class="text-gray-300 mb-2 max-w-xl mx-auto">Class builds, skill references with live ESO Hub tooltips, set guides, and more - built for the Casual Heroes community.</p>
+    <p class="text-indigo-300 text-sm mb-6">Save your builds. Share with your guild. Link your account.</p>
+    <div class="flex flex-col sm:flex-row gap-3 justify-center">
+      <a href="/eso/builds/" class="inline-flex items-center gap-2 bg-amber-600 hover:bg-amber-500 text-white font-semibold px-6 py-3 rounded-xl transition">
+        <i class="fas fa-scroll mr-1"></i>Browse ESO Builds
+      </a>
+      <a href="/ql/lfg/create/?game=eso" class="inline-flex items-center gap-2 bg-emerald-700 hover:bg-emerald-600 text-white font-semibold px-6 py-3 rounded-xl transition">
+        <i class="fas fa-shield-alt mr-1"></i>Group Finder
+      </a>
+      <a href="https://fluxer.gg/zplS0MwI" target="_blank"
+         class="flex items-center justify-center gap-2 bg-neutral-800 hover:bg-neutral-700 text-white font-semibold px-6 py-3 rounded-xl transition">
+        <img src="{% static 'img/siteassets/fluxer-favicon.png' %}" alt="Fluxer" class="w-4 h-4 rounded-sm">
+        Join Our Guild on Fluxer
+      </a>
+    </div>
+  </div>
+
 </section>
 
-{% endblock %}
+<script>
+function toggleEvents(btn) {
+  const body = document.getElementById('eso-events-body');
+  const chevron = document.getElementById('events-chevron');
+  const open = !body.classList.contains('hidden');
+  body.classList.toggle('hidden', open);
+  chevron.style.transform = open ? '' : 'rotate(180deg)';
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+
+  // ---- ESO Server Status ----
+  fetch('/api/eso/server-status/')
+    .then(r => r.json())
+    .then(data => {
+      function applyStatus(labelId, dotId, status) {
+        const label = document.getElementById(labelId);
+        const dot   = document.getElementById(dotId);
+        if (!label || !dot) return;
+        if (status === 'up') {
+          label.textContent = 'Online';
+          label.className = 'text-green-400';
+          dot.className = 'w-2 h-2 rounded-full bg-green-400 inline-block animate-pulse';
+        } else if (status === 'down') {
+          label.textContent = 'Offline';
+          label.className = 'text-red-400';
+          dot.className = 'w-2 h-2 rounded-full bg-red-400 inline-block';
+        } else {
+          label.textContent = 'Unknown';
+          label.className = 'text-gray-400';
+          dot.className = 'w-2 h-2 rounded-full bg-gray-500 inline-block';
+        }
+      }
+      applyStatus('eso-pc-na-label', 'eso-pc-na-dot', data.servers['PC NA']);
+      applyStatus('eso-pc-eu-label', 'eso-pc-eu-dot', data.servers['PC EU']);
+    })
+    .catch(() => {
+      ['eso-pc-na-label', 'eso-pc-eu-label'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) { el.textContent = 'Unavailable'; el.className = 'text-gray-500'; }
+      });
+    });
+
+  // ---- ESO Event Calendar (static 2026 schedule) ----
+  const ESO_EVENTS_2026 = [
+    { name: "Anniversary Jubilee",    start: "2026-04-04", end: "2026-05-05", icon: "fa-birthday-cake",  color: "indigo",  desc: "Double XP + Anniversary rewards" },
+    { name: "Jester's Festival",      start: "2026-03-27", end: "2026-04-07", icon: "fa-hat-wizard",     color: "yellow",  desc: "Seasonal quests + XP boost" },
+    { name: "Zeal of Zenithar",       start: "2026-07-14", end: "2026-07-28", icon: "fa-coins",          color: "yellow",  desc: "Gold + merchant rewards" },
+    { name: "Midyear Mayhem",         start: "2026-07-10", end: "2026-07-21", icon: "fa-fist-raised",    color: "red",     desc: "Bonus Alliance War XP" },
+    { name: "Undaunted Celebration",  start: "2026-11-03", end: "2026-11-10", icon: "fa-skull",          color: "orange",  desc: "Double dungeon keys" },
+    { name: "Witches Festival",       start: "2026-10-15", end: "2026-11-02", icon: "fa-ghost",          color: "purple",  desc: "Double XP + Death-Defying Coffins" },
+    { name: "New Life Festival",      start: "2026-12-17", end: "2027-01-04", icon: "fa-snowflake",      color: "blue",    desc: "Daily quests + style rewards" },
+    { name: "Whitestrake's Mayhem",   start: "2026-02-05", end: "2026-02-18", icon: "fa-sword",          color: "red",     desc: "Bonus PvP XP + rewards" },
+  ];
+
+  const colorMap = {
+    indigo: { bg: 'bg-indigo-900/30', border: 'border-indigo-700/40', icon: 'text-indigo-400', badge: 'bg-indigo-600' },
+    yellow: { bg: 'bg-yellow-900/20', border: 'border-yellow-700/40', icon: 'text-yellow-400', badge: 'bg-yellow-600' },
+    red:    { bg: 'bg-red-900/20',    border: 'border-red-700/40',    icon: 'text-red-400',    badge: 'bg-red-600'    },
+    orange: { bg: 'bg-orange-900/20', border: 'border-orange-700/40', icon: 'text-orange-400', badge: 'bg-orange-600' },
+    purple: { bg: 'bg-purple-900/20', border: 'border-purple-700/40', icon: 'text-purple-400', badge: 'bg-purple-600' },
+    blue:   { bg: 'bg-blue-900/20',   border: 'border-blue-700/40',   icon: 'text-blue-400',   badge: 'bg-blue-600'   },
+  };
+
+  const now = new Date();
+  const sorted = [...ESO_EVENTS_2026].sort((a, b) => new Date(a.start) - new Date(b.start));
+  const container = document.getElementById('eso-events');
+
+  let html = '';
+  for (const ev of sorted) {
+    const start = new Date(ev.start);
+    const end   = new Date(ev.end);
+    if (now > end || now < start) continue;  // only show active events
+    const c     = colorMap[ev.color] || colorMap.indigo;
+    let badge = '';
+    let timeText = '';
+
+    const daysLeft = Math.ceil((end - now) / 86400000);
+    badge = `<span class="${c.badge} text-white text-xs font-bold px-2 py-0.5 rounded-full">ACTIVE</span>`;
+    timeText = `Ends in ${daysLeft} day${daysLeft !== 1 ? 's' : ''}`;
+
+    html += `
+      <div class="${c.bg} ${c.border} border rounded-xl p-4">
+        <div class="flex items-start justify-between mb-2">
+          <div class="w-9 h-9 rounded-lg bg-black/20 flex items-center justify-center flex-shrink-0">
+            <i class="fas ${ev.icon} ${c.icon}"></i>
+          </div>
+          ${badge}
+        </div>
+        <p class="text-white font-bold text-sm mt-2">${escapeHtml(ev.name)}</p>
+        <p class="text-gray-400 text-xs mt-0.5">${escapeHtml(ev.desc)}</p>
+        <p class="text-xs mt-2 font-semibold ${c.icon}">${escapeHtml(timeText)}</p>
+      </div>`;
+  }
+
+  if (!html) html = '<p class="col-span-full text-gray-500 text-sm text-center py-4">No active events right now.</p>';
+  container.innerHTML = html;
+
+});
+</script>
+{% endblock web_content %}
