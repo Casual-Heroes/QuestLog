@@ -1640,6 +1640,9 @@ def api_community_detail(request, community_id):
             raw_games = data.get('games') or []
             community.games = json.dumps([g.strip() for g in raw_games if isinstance(g, str) and g.strip()][:20])
             community.member_count = safe_int(data.get('member_count') or community.member_count, default=community.member_count, min_val=0)
+            VALID_ACTIVITY = {'unknown', 'dormant', 'squire', 'champion', 'legendary', 'mythic'}
+            if data.get('activity_level') in VALID_ACTIVITY:
+                community.activity_level = data['activity_level']
             community.allow_discovery = bool(data.get('allow_discovery', community.allow_discovery))
             community.allow_joins = bool(data.get('allow_joins', community.allow_joins))
             # In-game guild fields

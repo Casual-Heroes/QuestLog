@@ -1465,6 +1465,7 @@ def _get_recent_activity(request):
         try:
             pt_rows = db.execute(text("""
                 SELECT g.web_user_id, g.name AS game_name, g.steam_app_id,
+                       g.updated_at AS status_set_at,
                        u.username, u.display_name, u.avatar_url
                 FROM web_user_games g
                 JOIN web_users u ON u.id = g.web_user_id
@@ -1476,7 +1477,7 @@ def _get_recent_activity(request):
                 ORDER BY RAND()
                 LIMIT 2
             """)).fetchall()
-            for i, row in enumerate(pt_rows):
+            for row in pt_rows:
                 steam_url = (
                     f'https://store.steampowered.com/app/{row.steam_app_id}/'
                     if row.steam_app_id
@@ -1490,7 +1491,7 @@ def _get_recent_activity(request):
                     'message': f"wants to play {row.game_name}",
                     'game': row.game_name,
                     'steam_url': steam_url,
-                    'timestamp': now - (i * 300),  # spread 5 min apart so they interleave
+                    'timestamp': row.status_set_at,
                 })
         except Exception:
             pass
