@@ -24,11 +24,11 @@
       </p>
     </div>
     <div class="flex gap-2 flex-wrap">
-      <a href="/ql/lfg/" target="_blank"
+      <a href="/lfg/" target="_blank"
          class="bg-neutral-800 hover:bg-neutral-700 text-white px-4 py-2 rounded-lg font-medium transition text-sm flex items-center gap-2">
         <i class="fas fa-external-link-alt"></i><span>Public LFG Page</span>
       </a>
-      <a href="/ql/dashboard/fluxer/{{ guild_id }}/lfg/"
+      <a href="/dashboard/fluxer/{{ guild_id }}/lfg/"
          class="bg-neutral-800 hover:bg-neutral-700 text-white px-4 py-2 rounded-lg font-medium transition text-sm flex items-center gap-2">
         <i class="fas fa-cog"></i><span>LFG Settings</span>
       </a>
@@ -199,7 +199,7 @@
               <i class="fas fa-globe text-yellow-400"></i>Post to QuestLog Network
               <span class="text-xs bg-yellow-600/30 text-yellow-400 border border-yellow-700/50 px-2 py-0.5 rounded-full">Cross-server</span>
             </span>
-            <p class="text-xs text-gray-500 mt-0.5">Broadcasts to all QuestLog Network servers and posts at casual-heroes.com/ql/lfg/</p>
+            <p class="text-xs text-gray-500 mt-0.5">Broadcasts to all QuestLog Network servers and posts at casual-heroes.comlfg/</p>
           </div>
         </label>
       </div>
@@ -359,7 +359,7 @@
 
 <script>
 const GUILD_ID = '{{ guild_id }}';
-const GROUPS_API = '/ql/api/dashboard/fluxer/' + GUILD_ID + '/lfg/groups/';
+const GROUPS_API = '/api/dashboard/fluxer/' + GUILD_ID + '/lfg/groups/';
 const LFG_PUBLISH_DEFAULT = JSON.parse(document.getElementById('lfg-publish-default').textContent);
 
 let allGroups = JSON.parse(document.getElementById('groups-data').textContent) || [];
@@ -799,7 +799,7 @@ let _guildMembers = null; // cached guild member list
 async function loadGuildMembers() {
   if (_guildMembers !== null) return _guildMembers;
   try {
-    const resp = await fetch('/ql/api/dashboard/fluxer/' + GUILD_ID + '/members/');
+    const resp = await fetch('/api/dashboard/fluxer/' + GUILD_ID + '/members/');
     const data = await resp.json();
     _guildMembers = data.members || [];
   } catch (e) {

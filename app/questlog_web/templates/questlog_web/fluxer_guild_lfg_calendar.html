@@ -14,10 +14,10 @@
     <p class="text-gray-400 mt-1">Scheduled events for {{ guild_name }}</p>
   </div>
   <div class="flex gap-3">
-    <a href="/ql/dashboard/fluxer/{{ guild_id }}/lfg/attendance/" class="bg-neutral-700 hover:bg-neutral-600 text-white px-4 py-2 rounded-lg font-medium transition text-sm flex items-center gap-2">
+    <a href="/dashboard/fluxer/{{ guild_id }}/lfg/attendance/" class="bg-neutral-700 hover:bg-neutral-600 text-white px-4 py-2 rounded-lg font-medium transition text-sm flex items-center gap-2">
       <i class="fas fa-clipboard-list"></i><span>Attendance</span>
     </a>
-    <a href="/ql/dashboard/fluxer/{{ guild_id }}/lfg/" class="bg-neutral-700 hover:bg-neutral-600 text-white px-4 py-2 rounded-lg font-medium transition text-sm flex items-center gap-2">
+    <a href="/dashboard/fluxer/{{ guild_id }}/lfg/" class="bg-neutral-700 hover:bg-neutral-600 text-white px-4 py-2 rounded-lg font-medium transition text-sm flex items-center gap-2">
       <i class="fas fa-cog"></i><span>LFG Settings</span>
     </a>
   </div>
@@ -129,8 +129,8 @@
 
 <script>
 const GUILD_ID = '{{ guild_id }}';
-const LFG_BROWSER_URL = '/ql/fluxer/' + GUILD_ID + '/lfg/browse/';
-const LFG_BROWSE_ADMIN_URL = '/ql/dashboard/fluxer/' + GUILD_ID + '/lfg/browse/';
+const LFG_BROWSER_URL = 'fluxer/' + GUILD_ID + '/lfg/browse/';
+const LFG_BROWSE_ADMIN_URL = 'dashboard/fluxer/' + GUILD_ID + '/lfg/browse/';
 const EVENTS = JSON.parse('{{ events_json|escapejs }}');
 const MY_GROUP_IDS = new Set(JSON.parse('{{ my_group_ids_json|escapejs }}'));
 const MY_CREATOR_IDS = new Set(JSON.parse('{{ my_creator_ids_json|escapejs }}'));
@@ -372,7 +372,7 @@ async function joinGroup(groupId) {
   const btn = document.getElementById('modal-join-btn');
   if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>Joining...'; }
   try {
-    const resp = await csrfFetch(`/ql/api/lfg/fluxer-guild/${groupId}/join/`, { method: 'POST' });
+    const resp = await csrfFetch(`/api/lfg/fluxer-guild/${groupId}/join/`, { method: 'POST' });
     const data = await resp.json();
     if (data.success) {
       MY_GROUP_IDS.add(groupId);
@@ -395,7 +395,7 @@ async function leaveGroup(groupId) {
   const btn = document.getElementById('modal-leave-btn');
   if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>Leaving...'; }
   try {
-    const resp = await csrfFetch(`/ql/api/lfg/fluxer-guild/${groupId}/leave/`, { method: 'POST' });
+    const resp = await csrfFetch(`/api/lfg/fluxer-guild/${groupId}/leave/`, { method: 'POST' });
     const data = await resp.json();
     if (data.success) {
       MY_GROUP_IDS.delete(groupId);
@@ -426,7 +426,7 @@ async function saveClass() {
   const role = document.getElementById('modal-role-select').value;
   const msgEl = document.getElementById('modal-edit-class-msg');
   try {
-    const resp = await csrfFetch(`/ql/api/lfg/fluxer-guild/${realId}/update-member/`, {
+    const resp = await csrfFetch(`/api/lfg/fluxer-guild/${realId}/update-member/`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ role }),

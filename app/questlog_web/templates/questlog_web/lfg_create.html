@@ -69,13 +69,14 @@
             </div>
             <span id="gameSelectedName" class="text-white text-sm font-medium truncate flex-1"></span>
             <span id="gameSelectedPlatforms" class="text-gray-500 text-xs hidden"></span>
+            <span id="gameSelectedOwners" class="text-xs text-blue-400 hidden flex-shrink-0"></span>
             <span class="text-xs text-green-400 flex-shrink-0 flex items-center gap-1"><i class="fas fa-check-circle"></i>Selected</span>
           </div>
 
           <!-- Profile game quick-select -->
           {% if profile_games_json != '[]' %}
           <div id="profileGamesBar" class="mt-3">
-            <p class="text-xs text-gray-600 mb-1.5 uppercase tracking-wider font-medium">Your games</p>
+            <p class="text-xs text-gray-600 mb-1.5 uppercase tracking-wider font-medium"><i class="fas fa-users text-orange-400 mr-1"></i>Want to Play Together</p>
             <div class="flex flex-wrap gap-1.5" id="profileGameButtons"></div>
           </div>
           {% endif %}
@@ -251,13 +252,28 @@ const GAME_TEMPLATES = {
     }},
   ],
   ffxiv: [
-    { name: 'Job', choices: [
-        'Paladin','Warrior','Dark Knight','Gunbreaker',
-        'White Mage','Scholar','Astrologian','Sage',
-        'Monk','Dragoon','Ninja','Samurai','Reaper','Viper',
-        'Bard','Machinist','Dancer',
-        'Black Mage','Summoner','Red Mage','Pictomancer',
+    { name: 'Data Center', choices: [
+        'Aether','Crystal','Dynamis','Primal',
+        'Chaos','Light',
+        'Elemental','Gaia','Mana','Meteor',
+        'Materia',
     ]},
+    { name: 'World', depends_on: 'Data Center', choices: {
+        'Aether':    ['Adamantoise','Cactuar','Faerie','Gilgamesh','Jenova','Midgardsormr','Sargatanas','Siren'],
+        'Crystal':   ['Balmung','Brynhildr','Coeurl','Diabolos','Goblin','Malboro','Mateus','Zalera'],
+        'Dynamis':   ['Cuchulainn','Golem','Halicarnassus','Kraken','Maduin','Marilith','Rafflesia','Seraph'],
+        'Primal':    ['Behemoth','Excalibur','Exodus','Famfrit','Hyperion','Lamia','Leviathan','Ultros'],
+        'Chaos':     ['Cerberus','Louisoix','Moogle','Omega','Phantom','Ragnarok','Sagittarius','Spriggan'],
+        'Light':     ['Alpha','Lich','Odin','Phoenix','Raiden','Shiva','Twintania','Zodiark'],
+        'Elemental': ['Aegis','Atomos','Carbuncle','Garuda','Gungnir','Kujata','Tonberry','Typhon'],
+        'Gaia':      ['Alexander','Bahamut','Durandal','Fenrir','Ifrit','Ridill','Tiamat','Ultima'],
+        'Mana':      ['Anima','Asura','Chocobo','Hades','Ixion','Masamune','Pandaemonium','Titan'],
+        'Meteor':    ['Belias','Mandragora','Ramuh','Shinryu','Unicorn','Valefor','Yojimbo','Zeromus'],
+        'Materia':   ['Bismarck','Ravana','Sephirot','Sophia','Zurvan'],
+    }},
+    { name: 'Job', ffxiv_job_picker: true },
+    { name: 'Min Item Level', freetext: true, placeholder: 'e.g. 710 (optional)' },
+    { name: 'PF Description', freetext: true, placeholder: 'e.g. Fresh prog, 1234 DPS req, no echo...' },
   ],
   pantheon: [
     { name: 'Class', choices: ['Warrior','Dire Lord','Paladin','Cleric','Shaman','Druid','Wizard','Enchanter','Summoner','Rogue','Ranger','Monk','Bard'] },
@@ -268,9 +284,11 @@ const GAME_TEMPLATES = {
   ],
   eso: [
     { name: 'Class', choices: ['Dragonknight','Sorcerer','Nightblade','Templar','Warden','Necromancer','Arcanist'] },
-    // Subclass = secondary skill line; can't be the same as Class (mirrors bot exclude_same_as logic)
     { name: 'Subclass', exclude_same_as: 'Class', choices: ['Dragonknight','Sorcerer','Nightblade','Templar','Warden','Necromancer','Arcanist'] },
     { name: 'Role', choices: [{value:'Tank',role:'tank'},{value:'Healer',role:'healer'},{value:'DPS',role:'dps'},{value:'Support',role:'support'}] },
+    { name: 'Alliance', choices: ['Aldmeri Dominion','Daggerfall Covenant','Ebonheart Pact','Any'] },
+    { name: 'Min CP', freetext: true, placeholder: 'e.g. 160 (optional)' },
+    { name: 'Build Notes', freetext: true, placeholder: 'e.g. Farm run, no carries, vHRC prog...' },
   ],
   palworld: [
     { name: 'Platform', choices: ['PC','Xbox','PlayStation','Cross-platform'] },
@@ -318,16 +336,76 @@ const WOW_ACTIVITY_CHOICES = [
   'Achievement Hunting','Hardcore','Social/Chill',
 ];
 
-// ESO-specific activities
-const ESO_ACTIVITY_CHOICES = [
-  'Dungeon - Normal','Dungeon - Veteran','Dungeon - Veteran Hard Mode',
-  'Trial - Normal','Trial - Veteran','Trial - Veteran Hard Mode',
-  'Maelstrom Arena - Normal','Maelstrom Arena - Veteran',
-  'Vateshran Hollows - Normal','Vateshran Hollows - Veteran',
-  'Blackrose Prison - Normal','Blackrose Prison - Veteran',
-  'Battlegrounds','Cyrodiil (Alliance War)','Imperial City',
-  'Public Dungeon','Overland/Questing','Housing/Crafting','Social/Chill',
+// ESO activity categories for the card-grid picker
+const ESO_ACTIVITY_CATEGORIES = [
+  {
+    label: 'Trials', icon: 'fa-dungeon', color: 'red',
+    bg: 'bg-red-950/60', border: 'border-red-800/50', text: 'text-red-300', badge: 'bg-red-900/60 text-red-200',
+    items: [
+      {value:'Trial - Normal',            label:'Normal',           sub:'12-person story'},
+      {value:'Trial - Veteran',           label:'Veteran',          sub:'12-person hard'},
+      {value:'Trial - Veteran Hard Mode', label:'Veteran Hard Mode',sub:'12-person HM'},
+    ]
+  },
+  {
+    label: 'Dungeons', icon: 'fa-door-open', color: 'blue',
+    bg: 'bg-blue-950/60', border: 'border-blue-800/50', text: 'text-blue-300', badge: 'bg-blue-900/60 text-blue-200',
+    items: [
+      {value:'Dungeon - Normal',            label:'Normal',           sub:'4-person story'},
+      {value:'Dungeon - Veteran',           label:'Veteran',          sub:'4-person hard'},
+      {value:'Dungeon - Veteran Hard Mode', label:'Veteran Hard Mode',sub:'4-person HM'},
+    ]
+  },
+  {
+    label: 'Arenas', icon: 'fa-trophy', color: 'yellow',
+    bg: 'bg-yellow-950/60', border: 'border-yellow-800/50', text: 'text-yellow-300', badge: 'bg-yellow-900/60 text-yellow-200',
+    items: [
+      {value:'Maelstrom Arena - Normal',      label:'Maelstrom - Normal', sub:'Solo arena'},
+      {value:'Maelstrom Arena - Veteran',     label:'Maelstrom - Veteran',sub:'Solo arena HM'},
+      {value:'Vateshran Hollows - Normal',    label:'Vateshran - Normal',  sub:'Solo arena'},
+      {value:'Vateshran Hollows - Veteran',   label:'Vateshran - Veteran', sub:'Solo arena HM'},
+      {value:'Blackrose Prison - Normal',     label:'Blackrose - Normal',  sub:'4-person arena'},
+      {value:'Blackrose Prison - Veteran',    label:'Blackrose - Veteran', sub:'4-person arena HM'},
+    ]
+  },
+  {
+    label: 'PvP', icon: 'fa-swords', color: 'orange',
+    bg: 'bg-orange-950/60', border: 'border-orange-800/50', text: 'text-orange-300', badge: 'bg-orange-900/60 text-orange-200',
+    items: [
+      {value:'Battlegrounds',          label:'Battlegrounds',    sub:'4v4v4 instanced PvP'},
+      {value:'Cyrodiil',               label:'Cyrodiil',         sub:'Alliance War open PvP'},
+      {value:'Imperial City',          label:'Imperial City',    sub:'PvP + PvE zone'},
+    ]
+  },
+  {
+    label: 'Other', icon: 'fa-star', color: 'emerald',
+    bg: 'bg-emerald-950/60', border: 'border-emerald-800/50', text: 'text-emerald-300', badge: 'bg-emerald-900/60 text-emerald-200',
+    items: [
+      {value:'Public Dungeon',    label:'Public Dungeon',    sub:'Open-world group'},
+      {value:'World Boss',        label:'World Boss',        sub:'Open-world boss'},
+      {value:'Overland/Questing', label:'Overland / Questing',sub:'Story & exploration'},
+      {value:'Housing/Crafting',  label:'Housing / Crafting', sub:'Decorating & crafting'},
+      {value:'Leveling',          label:'Leveling',           sub:'Grinding levels'},
+      {value:'Social/Chill',      label:'Social / Chill',     sub:'Hanging out'},
+    ]
+  },
 ];
+
+// Flat list for fallback/WardenBot compat
+const ESO_ACTIVITY_CHOICES = ESO_ACTIVITY_CATEGORIES.flatMap(c => c.items.map(i => i.value));
+
+// ESO group size presets
+const ESO_GROUP_SIZES = {
+  'Trial - Normal': 12,
+  'Trial - Veteran': 12,
+  'Trial - Veteran Hard Mode': 12,
+  'Dungeon - Normal': 4,
+  'Dungeon - Veteran': 4,
+  'Dungeon - Veteran Hard Mode': 4,
+  'Blackrose Prison - Normal': 4,
+  'Blackrose Prison - Veteran': 4,
+  'Battlegrounds': 4,
+};
 
 // GW2-specific activities
 const GW2_ACTIVITY_CHOICES = [
@@ -353,15 +431,155 @@ const PALWORLD_ACTIVITY_CHOICES = [
   'PvP',
 ];
 
-// FFXIV-specific activities
-const FFXIV_ACTIVITY_CHOICES = [
-  'Raid - Normal','Raid - Savage','Raid - Ultimate',
-  'Alliance Raid',
-  'Trial - Normal','Trial - Extreme',
-  'Dungeon','Criterion Dungeon','Criterion Savage','Variant Dungeon',
-  'Deep Dungeon','PvP - Crystalline Conflict','PvP - Frontline','PvP - Rival Wings',
-  'Treasure Hunt','Hunt Train','Open World/FATEs','Story/MSQ','Social/Chill',
+// FFXIV activity categories for the card-grid picker
+const FFXIV_ACTIVITY_CATEGORIES = [
+  {
+    label: 'Raids', icon: 'fa-skull-crossbones', color: 'red',
+    bg: 'bg-red-950/60', border: 'border-red-800/50', text: 'text-red-300', badge: 'bg-red-900/60 text-red-200',
+    items: [
+      {value:'Raid - Normal (4-person)',  label:'Normal Raid',    sub:'4-person content'},
+      {value:'Raid - Alliance (24-person)',label:'Alliance Raid', sub:'24-person content'},
+      {value:'Raid - Savage',             label:'Savage',         sub:'8-person hard mode'},
+      {value:'Raid - Ultimate',           label:'Ultimate',       sub:'Endgame challenge'},
+      {value:'Raid - Chaotic',            label:'Chaotic',        sub:'24-person hard mode'},
+    ]
+  },
+  {
+    label: 'Trials', icon: 'fa-bolt', color: 'yellow',
+    bg: 'bg-yellow-950/60', border: 'border-yellow-800/50', text: 'text-yellow-300', badge: 'bg-yellow-900/60 text-yellow-200',
+    items: [
+      {value:'Trial - Normal',   label:'Normal Trial',  sub:'Story difficulty'},
+      {value:'Trial - Extreme',  label:'Extreme Trial', sub:'Challenge mode'},
+      {value:'Trial - Unreal',   label:'Unreal Trial',  sub:'Synced legacy content'},
+    ]
+  },
+  {
+    label: 'Dungeons', icon: 'fa-dungeon', color: 'blue',
+    bg: 'bg-blue-950/60', border: 'border-blue-800/50', text: 'text-blue-300', badge: 'bg-blue-900/60 text-blue-200',
+    items: [
+      {value:'Dungeon',           label:'Dungeon',          sub:'4-person instanced'},
+      {value:'Variant Dungeon',   label:'Variant Dungeon',  sub:'Solo/flex content'},
+      {value:'Criterion Dungeon', label:'Criterion',        sub:'3-person hard mode'},
+      {value:'Criterion Savage',  label:'Criterion Savage', sub:'3-person savage'},
+    ]
+  },
+  {
+    label: 'Deep Dungeons', icon: 'fa-layer-group', color: 'purple',
+    bg: 'bg-purple-950/60', border: 'border-purple-800/50', text: 'text-purple-300', badge: 'bg-purple-900/60 text-purple-200',
+    items: [
+      {value:'Deep Dungeon - Palace of the Dead', label:'Palace of the Dead', sub:'Floors 1-200'},
+      {value:'Deep Dungeon - Heaven-on-High',     label:'Heaven-on-High',     sub:'Floors 1-100'},
+      {value:'Deep Dungeon - Eureka Orthos',      label:'Eureka Orthos',      sub:'Floors 1-100'},
+    ]
+  },
+  {
+    label: 'Exploration', icon: 'fa-map', color: 'emerald',
+    bg: 'bg-emerald-950/60', border: 'border-emerald-800/50', text: 'text-emerald-300', badge: 'bg-emerald-900/60 text-emerald-200',
+    items: [
+      {value:'Eureka',                    label:'Eureka',              sub:'Exploration zone'},
+      {value:'Bozja / Southern Front',    label:'Bozja',               sub:'Resistance content'},
+      {value:'Bozja - Delubrum Reginae',  label:'Delubrum Reginae',    sub:'24-person raid'},
+      {value:'Bozja - Delubrum Savage',   label:'Delubrum Savage',     sub:'48-person ultimate'},
+      {value:'Occult Crescent',           label:'Occult Crescent',     sub:'New exploration zone'},
+    ]
+  },
+  {
+    label: 'PvP', icon: 'fa-crossed-swords', color: 'orange',
+    bg: 'bg-orange-950/60', border: 'border-orange-800/50', text: 'text-orange-300', badge: 'bg-orange-900/60 text-orange-200',
+    items: [
+      {value:'PvP - Crystalline Conflict', label:'Crystalline Conflict', sub:'5v5 ranked'},
+      {value:'PvP - Frontline',            label:'Frontline',             sub:'24v24v24'},
+      {value:'PvP - Rival Wings',          label:'Rival Wings',           sub:'MOBA-style'},
+    ]
+  },
+  {
+    label: 'Casual / Social', icon: 'fa-star', color: 'pink',
+    bg: 'bg-pink-950/60', border: 'border-pink-800/50', text: 'text-pink-300', badge: 'bg-pink-900/60 text-pink-200',
+    items: [
+      {value:'Ocean Fishing',         label:'Ocean Fishing',      sub:'Timed event'},
+      {value:'Treasure Hunt',         label:'Treasure Hunt',      sub:'Map parties'},
+      {value:'Hunt Train',            label:'Hunt Train',          sub:'Elite marks'},
+      {value:'Open World/FATEs',      label:'Open World / FATEs', sub:'Overworld events'},
+      {value:'Gold Saucer',           label:'Gold Saucer',         sub:'Mini-games & MGP'},
+      {value:'Crafting/Gathering Help', label:'Crafting/Gathering', sub:'Helping out'},
+      {value:'Story/MSQ',             label:'Story / MSQ',         sub:'Main scenario'},
+      {value:'Leveling',              label:'Leveling',            sub:'Grinding levels'},
+      {value:'Social/Chill',          label:'Social / Chill',      sub:'Hanging out'},
+    ]
+  },
 ];
+
+// Flat list used for group size lookups and fallback
+const FFXIV_ACTIVITY_CHOICES = FFXIV_ACTIVITY_CATEGORIES.flatMap(c => c.items.map(i => i.value));
+
+// FFXIV content group size presets (auto-fill group size when activity selected)
+const FFXIV_GROUP_SIZES = {
+  'Raid - Chaotic': 24,
+  'Trial - Unreal': 8,
+  'Occult Crescent': 8,
+  'Raid - Normal (4-person)': 4,
+  'Raid - Alliance (24-person)': 24,
+  'Raid - Savage': 8,
+  'Raid - Ultimate': 8,
+  'Trial - Normal': 8,
+  'Trial - Extreme': 8,
+  'Dungeon': 4,
+  'Criterion Dungeon': 3,
+  'Criterion Savage': 3,
+  'Variant Dungeon': 4,
+  'Deep Dungeon - Palace of the Dead': 4,
+  'Deep Dungeon - Heaven-on-High': 4,
+  'Deep Dungeon - Eureka Orthos': 4,
+  'Eureka': 8,
+  'Bozja / Southern Front': 8,
+  'Bozja - Delubrum Reginae': 24,
+  'Bozja - Delubrum Savage': 48,
+  'PvP - Crystalline Conflict': 5,
+  'PvP - Frontline': 24,
+  'PvP - Rival Wings': 24,
+  'Ocean Fishing': 24,
+  'Treasure Hunt': 8,
+};
+
+// FFXIV job definitions with role grouping and XIVAPI icon slugs
+const FFXIV_JOBS = [
+  { role: 'Tank',    color: 'blue',   jobs: [
+    { label: 'Paladin',    abbr: 'PLD', icon: 'paladin'    },
+    { label: 'Warrior',    abbr: 'WAR', icon: 'warrior'    },
+    { label: 'Dark Knight',abbr: 'DRK', icon: 'darkknight' },
+    { label: 'Gunbreaker', abbr: 'GNB', icon: 'gunbreaker' },
+  ]},
+  { role: 'Healer',  color: 'green',  jobs: [
+    { label: 'White Mage',  abbr: 'WHM', icon: 'whitemage'   },
+    { label: 'Scholar',     abbr: 'SCH', icon: 'scholar'     },
+    { label: 'Astrologian', abbr: 'AST', icon: 'astrologian' },
+    { label: 'Sage',        abbr: 'SGE', icon: 'sage'        },
+  ]},
+  { role: 'Melee DPS',  color: 'red', jobs: [
+    { label: 'Monk',    abbr: 'MNK', icon: 'monk'    },
+    { label: 'Dragoon', abbr: 'DRG', icon: 'dragoon' },
+    { label: 'Ninja',   abbr: 'NIN', icon: 'ninja'   },
+    { label: 'Samurai', abbr: 'SAM', icon: 'samurai' },
+    { label: 'Reaper',  abbr: 'RPR', icon: 'reaper'  },
+    { label: 'Viper',   abbr: 'VPR', icon: 'viper'   },
+  ]},
+  { role: 'Ranged DPS', color: 'yellow', jobs: [
+    { label: 'Bard',      abbr: 'BRD', icon: 'bard'      },
+    { label: 'Machinist', abbr: 'MCH', icon: 'machinist' },
+    { label: 'Dancer',    abbr: 'DNC', icon: 'dancer'    },
+  ]},
+  { role: 'Caster DPS', color: 'purple', jobs: [
+    { label: 'Black Mage',  abbr: 'BLM', icon: 'blackmage'   },
+    { label: 'Summoner',    abbr: 'SMN', icon: 'summoner'     },
+    { label: 'Red Mage',    abbr: 'RDM', icon: 'redmage'      },
+    { label: 'Pictomancer', abbr: 'PCT', icon: 'pictomancer'  },
+  ]},
+  { role: 'Limited', color: 'orange', jobs: [
+    { label: 'Blue Mage',   abbr: 'BLU', icon: 'bluemage'    },
+    { label: 'Beast Master',abbr: 'BST', icon: 'beastmaster'  },
+  ]},
+];
+const XIVAPI_BASE = 'https://xivapi.com/cj/1/';
 
 // ── Game-aware role schemas ───────────────────────────────────────────────────
 // Overrides Tank/Healer/DPS/Support labels per game. Slot keys never change.
@@ -455,23 +673,70 @@ let conditionalSelects = {}; // cache of custom select instances for conditional
 
 const PROFILE_GAMES = JSON.parse(JSON.parse(document.getElementById('profile-games-lfg-data').textContent));
 
-document.addEventListener('DOMContentLoaded', function() {
+function _runOnReady(fn) {
+  if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', fn); }
+  else { fn(); }
+}
+
+_runOnReady(function() {
+  {% if prefill_game %}
+  (async function() {
+    const name = "{{ prefill_game|escapejs }}";
+    const searchEl = document.getElementById('gameSearch');
+    if (searchEl) searchEl.value = name;
+    selectGame({name, id: '', cover_url: '', platforms: ''});
+    try {
+      const res = await fetch(`/api/igdb/search/?q=${encodeURIComponent(name)}&limit=3`);
+      const data = await res.json();
+      const games = data.games || [];
+      const exact = games.find(g => g.name.toLowerCase() === name.toLowerCase()) || games[0];
+      if (exact) {
+        selectGame({name: exact.name, id: String(exact.id || ''), cover_url: exact.cover_url || '', platforms: exact.platforms || ''});
+      }
+    } catch(e) { console.error('prefill_game IGDB fetch failed:', e); }
+  })();
+  {% endif %}
   const bar = document.getElementById('profileGameButtons');
   if (!bar || !PROFILE_GAMES.length) return;
-  PROFILE_GAMES.forEach(function(g) {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'flex items-center gap-2 bg-neutral-800 hover:bg-green-900/30 border border-neutral-700 hover:border-green-600 rounded-lg px-3 py-1.5 text-sm text-gray-300 hover:text-white transition';
-    if (g.cover_url) {
-      btn.innerHTML = `<img src="${escapeHtml(g.cover_url)}" class="w-6 h-8 rounded object-cover flex-shrink-0"><span class="truncate max-w-[140px]">${escapeHtml(g.name)}</span>`;
-    } else {
-      btn.innerHTML = `<i class="fas fa-gamepad text-gray-500 text-sm flex-shrink-0"></i><span class="truncate max-w-[140px]">${escapeHtml(g.name)}</span>`;
-    }
-    btn.addEventListener('click', function() {
-      selectGame({name: g.name, id: g.igdb_id || '', cover_url: g.cover_url || '', platforms: ''});
+
+  const ownerCounts = {};
+
+  function renderProfileGameButtons() {
+    bar.innerHTML = '';
+    PROFILE_GAMES.forEach(function(g) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'flex items-center gap-2 bg-neutral-800 hover:bg-green-900/30 border border-neutral-700 hover:border-green-600 rounded-lg px-3 py-1.5 text-sm text-gray-300 hover:text-white transition';
+      const count = ownerCounts[g.name];
+      const badge = (count != null && count > 0)
+        ? `<span class="text-xs text-blue-400 font-medium flex-shrink-0">${count} member${count === 1 ? '' : 's'}</span>`
+        : '';
+      if (g.cover_url) {
+        btn.innerHTML = `<img src="${escapeHtml(g.cover_url)}" class="w-6 h-8 rounded object-cover flex-shrink-0"><span class="truncate max-w-[140px]">${escapeHtml(g.name)}</span>${badge}`;
+      } else {
+        btn.innerHTML = `<i class="fas fa-gamepad text-gray-500 text-sm flex-shrink-0"></i><span class="truncate max-w-[140px]">${escapeHtml(g.name)}</span>${badge}`;
+      }
+      btn.addEventListener('click', function() {
+        selectGame({name: g.name, id: g.igdb_id || '', cover_url: g.cover_url || '', platforms: ''});
+      });
+      bar.appendChild(btn);
     });
-    bar.appendChild(btn);
-  });
+  }
+
+  renderProfileGameButtons();
+
+  // Fetch owner counts in background and re-render with badges
+  (async function() {
+    try {
+      const names = PROFILE_GAMES.map(g => g.name).join('|');
+      const res = await fetch('/api/steamquest/community-owns/?names=' + encodeURIComponent(names));
+      const data = await res.json();
+      if (data.ok && data.counts) {
+        Object.assign(ownerCounts, data.counts);
+        renderProfileGameButtons();
+      }
+    } catch(e) {}
+  })();
 });
 
 // ─── Game search ─────────────────────────────────────────────────────────────
@@ -504,7 +769,7 @@ async function searchGames(q) {
   container.classList.remove('hidden');
 
   try {
-    const res = await fetch(`/ql/api/igdb/search/?q=${encodeURIComponent(q)}&limit=8`);
+    const res = await fetch(`/api/igdb/search/?q=${encodeURIComponent(q)}&limit=8`);
     const data = await res.json();
     renderGameResults(data.games || [], q);
   } catch {
@@ -558,6 +823,19 @@ function selectGame(game) {
   showSelectedPreview(game.name, game.cover_url || '', game.platforms || '');
   hideGameResults();
   updateGameSpecificOptions(game.name);
+  // Fetch community ownership count for selected game
+  const ownersBadge = document.getElementById('gameSelectedOwners');
+  ownersBadge.classList.add('hidden');
+  fetch('/api/steamquest/community-owns/?names=' + encodeURIComponent(game.name))
+    .then(r => r.json())
+    .then(function(data) {
+      if (!data.ok || !data.counts) return;
+      const count = data.counts[game.name];
+      if (count && count > 0) {
+        ownersBadge.textContent = count + ' member' + (count === 1 ? '' : 's') + ' have this';
+        ownersBadge.classList.remove('hidden');
+      }
+    }).catch(function() {});
 }
 
 function setCustomGameName(name) {
@@ -606,6 +884,52 @@ function hideGameResults() {
   document.getElementById('gameSearchResults').classList.add('hidden');
 }
 
+// ─── FFXIV collapsible field shells ──────────────────────────────────────────
+
+const FFXIV_FIELD_META = {
+  'Data_Center':   { icon: 'fa-globe',       color: 'text-blue-400',   label: 'Data Center'      },
+  'World':         { icon: 'fa-map-marker-alt', color: 'text-cyan-400', label: 'World'            },
+  'Job':           { icon: 'fa-shield-alt',   color: 'text-yellow-400', label: 'Job'              },
+  'Min_Item_Level':{ icon: 'fa-tachometer-alt',color: 'text-orange-400',label: 'Min Item Level'   },
+  'PF_Description':{ icon: 'fa-align-left',   color: 'text-gray-400',   label: 'PF Description'  },
+  'Activity':      { icon: 'fa-list',          color: 'text-purple-400', label: 'Activity'        },
+};
+
+function _ffxivCollapsibleShell(field) {
+  const id = _fieldId(field.name);
+  const meta = FFXIV_FIELD_META[id] || { icon: 'fa-cog', color: 'text-gray-400', label: field.name };
+  const innerHtml = field.freetext
+    ? `<div id="opt_wrapper_${id}"></div>`
+    : `<div id="opt_wrapper_${id}"><div id="opt_cs_container_${id}"></div></div>`;
+  return `<div class="rounded-lg border border-neutral-800">
+    <button type="button" onclick="_toggleCollapse('ffxiv_${id}')"
+      class="w-full flex items-center justify-between px-4 py-3 bg-neutral-800/60 hover:bg-neutral-800 rounded-lg transition text-left">
+      <span class="text-sm font-semibold text-white flex items-center gap-2">
+        <i class="fas ${meta.icon} ${meta.color} text-xs"></i>${escapeHtml(meta.label)}
+      </span>
+      <span class="text-xs text-gray-500 mr-2" id="ffxiv_${id}_summary"></span>
+      <i class="fas fa-chevron-down text-gray-400 text-xs transition-transform" id="ffxiv_${id}_chevron"></i>
+    </button>
+    <div id="ffxiv_${id}_body" class="hidden px-4 pb-4 pt-2 border-t border-neutral-800">
+      ${innerHtml}
+    </div>
+  </div>`;
+}
+
+function _toggleCollapse(key) {
+  const body = document.getElementById(key + '_body');
+  const chev = document.getElementById(key + '_chevron');
+  if (!body) return;
+  const isHidden = body.classList.contains('hidden');
+  body.classList.toggle('hidden', !isHidden);
+  if (chev) chev.classList.toggle('rotate-180', isHidden);
+}
+
+function _ffxivSetSummary(fieldId, text) {
+  const el = document.getElementById('ffxiv_' + fieldId + '_summary');
+  if (el) el.textContent = text || '';
+}
+
 // ─── Game-specific options ────────────────────────────────────────────────────
 
 function updateGameSpecificOptions(gameName) {
@@ -624,7 +948,9 @@ function updateGameSpecificOptions(gameName) {
   // Render wrapper divs for non-conditional fields (custom selects injected after innerHTML set)
   for (const field of templates) {
     if (field.depends_on) continue;
-    if (field.freetext) {
+    if (currentGameType === 'ffxiv') {
+      html += _ffxivCollapsibleShell(field);
+    } else if (field.freetext) {
       html += `<div id="opt_wrapper_${_fieldId(field.name)}"></div>`;
     } else {
       html += `<div id="opt_wrapper_${_fieldId(field.name)}"><div id="opt_cs_container_${_fieldId(field.name)}"></div></div>`;
@@ -642,7 +968,37 @@ function updateGameSpecificOptions(gameName) {
   // Survival games never show Activity; others show it if the template doesn't already define it
   const templateHasActivity = templates.some(f => f.name === 'Activity') || _isSurvivalGame;
   if (!templateHasActivity) {
-    html += `<div id="opt_wrapper_Activity"><div id="activitySelectContainer"></div></div>`;
+    if (currentGameType === 'ffxiv') {
+      html += `<div class="rounded-lg border border-neutral-800">
+        <button type="button" onclick="_toggleCollapse('ffxiv_activity')"
+          class="w-full flex items-center justify-between px-4 py-3 bg-neutral-800/60 hover:bg-neutral-800 rounded-lg transition text-left">
+          <span class="text-sm font-semibold text-white flex items-center gap-2">
+            <i class="fas fa-list text-purple-400 text-xs"></i>Activity
+          </span>
+          <span class="text-xs text-gray-500 mr-2" id="ffxiv_activity_summary">none selected</span>
+          <i class="fas fa-chevron-down text-gray-400 text-xs transition-transform" id="ffxiv_activity_chevron"></i>
+        </button>
+        <div id="ffxiv_activity_body" class="hidden px-4 pb-4 pt-2 border-t border-neutral-800">
+          <div id="opt_wrapper_Activity"><div id="activitySelectContainer"></div></div>
+        </div>
+      </div>`;
+    } else if (currentGameType === 'eso') {
+      html += `<div class="rounded-lg border border-neutral-800">
+        <button type="button" onclick="_toggleCollapse('eso_activity')"
+          class="w-full flex items-center justify-between px-4 py-3 bg-neutral-800/60 hover:bg-neutral-800 rounded-lg transition text-left">
+          <span class="text-sm font-semibold text-white flex items-center gap-2">
+            <i class="fas fa-list text-amber-400 text-xs"></i>Activity
+          </span>
+          <span class="text-xs text-gray-500 mr-2" id="eso_activity_summary">none selected</span>
+          <i class="fas fa-chevron-down text-gray-400 text-xs transition-transform" id="eso_activity_chevron"></i>
+        </button>
+        <div id="eso_activity_body" class="hidden px-4 pb-4 pt-2 border-t border-neutral-800">
+          <div id="opt_wrapper_Activity"><div id="activitySelectContainer"></div></div>
+        </div>
+      </div>`;
+    } else {
+      html += `<div id="opt_wrapper_Activity"><div id="activitySelectContainer"></div></div>`;
+    }
   }
 
   container.innerHTML = html;
@@ -680,19 +1036,374 @@ function updateGameSpecificOptions(gameName) {
 
   // Activity custom select - only if we injected the generic container (template didn't define Activity)
   if (!templateHasActivity) {
-    createCustomSelect({
-      container: '#activitySelectContainer',
-      name: 'opt_Activity',
-      label: 'Activity',
-      placeholder: 'Select activities... (up to 3)',
-      items: activityList.map(c => ({ value: c, label: c })),
-      selected: [],
-      color: 'green',
-      multiSelect: true,
-      maxSelections: 3,
-      onSelect: (val) => { _setDataField('Activity', val); },
+    if (currentGameType === 'ffxiv') {
+      renderFFXIVActivityPicker();
+    } else if (currentGameType === 'eso') {
+      renderESOActivityPicker();
+    } else {
+      createCustomSelect({
+        container: '#activitySelectContainer',
+        name: 'opt_Activity',
+        label: 'Activity',
+        placeholder: 'Select activities... (up to 3)',
+        items: activityList.map(c => ({ value: c, label: c })),
+        selected: [],
+        color: 'green',
+        multiSelect: true,
+        maxSelections: 3,
+        onSelect: (val) => { _setDataField('Activity', val); },
+      });
+    }
+  }
+}
+
+// ─── FFXIV job icon grid picker ──────────────────────────────────────────────
+
+function renderFFXIVJobPicker(wrapper) {
+  const ROLE_COLORS = {
+    blue:   { header: 'text-blue-300',   headerBg: 'bg-blue-950/40',   ring: 'ring-blue-400',   badge: 'bg-blue-900/80 text-blue-100'   },
+    green:  { header: 'text-green-300',  headerBg: 'bg-green-950/40',  ring: 'ring-green-400',  badge: 'bg-green-900/80 text-green-100'  },
+    red:    { header: 'text-red-300',    headerBg: 'bg-red-950/40',    ring: 'ring-red-400',    badge: 'bg-red-900/80 text-red-100'      },
+    yellow: { header: 'text-yellow-300', headerBg: 'bg-yellow-950/40', ring: 'ring-yellow-400', badge: 'bg-yellow-900/80 text-yellow-100'},
+    purple: { header: 'text-purple-300', headerBg: 'bg-purple-950/40', ring: 'ring-purple-400', badge: 'bg-purple-900/80 text-purple-100'},
+    orange: { header: 'text-orange-300', headerBg: 'bg-orange-950/40', ring: 'ring-orange-400', badge: 'bg-orange-900/80 text-orange-100'},
+  };
+
+  let html = `<div class="space-y-3">
+    <label class="text-sm text-gray-300 font-medium block">Job</label>
+    <input type="hidden" id="sel_Job" data-field="Job" value="">`;
+
+  // "Any" option first
+  html += `<div class="flex flex-wrap gap-2 mb-1">
+    <button type="button" id="ffxiv-job-any"
+      class="ffxiv-job-btn flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-neutral-700 bg-neutral-800 hover:border-green-500 hover:bg-green-950/40 transition-all text-sm text-white"
+      data-job-value="Any">
+      <span class="text-xs font-bold text-gray-400 w-8 text-center">ANY</span>
+      <span class="text-sm">Any Job</span>
+    </button>
+  </div>`;
+
+  for (const group of FFXIV_JOBS) {
+    const c = ROLE_COLORS[group.color] || ROLE_COLORS.blue;
+    html += `<div class="rounded-lg border border-neutral-800 overflow-hidden">
+      <div class="flex items-center gap-2 px-3 py-1.5 ${c.headerBg} border-b border-neutral-800">
+        <span class="text-xs font-semibold ${c.header} uppercase tracking-wide">${escapeHtml(group.role)}</span>
+      </div>
+      <div class="flex flex-wrap gap-2 p-2 bg-neutral-900/40">`;
+
+    for (const job of group.jobs) {
+      const iconUrl = XIVAPI_BASE + job.icon + '.png';
+      html += `<button type="button"
+        class="ffxiv-job-btn flex flex-col items-center gap-1 w-16 py-2 px-1 rounded-lg border border-neutral-700 bg-neutral-800/60 hover:border-${group.color}-400 hover:bg-${group.color}-950/40 transition-all"
+        data-job-value="${escapeHtml(job.label)}" data-job-color="${group.color}">
+        <img src="${escapeHtml(iconUrl)}" alt="${escapeHtml(job.abbr)}"
+             class="w-9 h-9 rounded object-contain" loading="lazy"
+             onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+        <div class="w-9 h-9 rounded bg-neutral-700 items-center justify-center text-xs text-gray-400 font-bold hidden">${escapeHtml(job.abbr)}</div>
+        <span class="text-xs text-gray-300 leading-tight text-center font-medium">${escapeHtml(job.abbr)}</span>
+      </button>`;
+    }
+
+    html += `</div></div>`;
+  }
+
+  html += `</div>`;
+  wrapper.innerHTML = html;
+
+  wrapper.querySelectorAll('.ffxiv-job-btn').forEach(btn => {
+    btn.addEventListener('click', () => _ffxivSelectJob(btn, wrapper));
+  });
+}
+
+function _ffxivSelectJob(btn, wrapper) {
+  const val = btn.dataset.jobValue;
+  const color = btn.dataset.jobColor || 'green';
+
+  // Deselect all - strip every possible ring/bg selection state
+  const allRings = ['ring-blue-400','ring-green-400','ring-red-400','ring-yellow-400','ring-purple-400','ring-orange-400'];
+  const allBgs   = ['bg-blue-900/60','bg-green-900/60','bg-red-900/60','bg-yellow-900/60','bg-purple-900/60','bg-orange-900/60','bg-green-900/40'];
+  wrapper.querySelectorAll('.ffxiv-job-btn').forEach(b => {
+    b.classList.remove('ring-2', ...allRings, ...allBgs);
+    b.classList.add('border-neutral-700', 'bg-neutral-800/60');
+  });
+
+  // Select this one
+  btn.classList.remove('border-neutral-700', 'bg-neutral-800/60');
+  btn.classList.add('ring-2', `ring-${color}-400`, `bg-${color}-900/60`);
+
+  const hidden = document.getElementById('sel_Job');
+  if (hidden) hidden.value = val;
+  _setDataField('Job', val);
+  _ffxivSetSummary('Job', val);
+  // Auto-collapse job panel after selection
+  const body = document.getElementById('ffxiv_Job_body');
+  if (body && !body.classList.contains('hidden')) _toggleCollapse('ffxiv_Job');
+}
+
+// ─── FFXIV duty browser picker ────────────────────────────────────────────────
+
+let _ffxivDuties = null;          // full list, loaded once
+let _ffxivSelectedDuty = null;    // single selected duty object
+
+const DUTY_TYPE_META = {
+  'Ultimate':    { label: 'Ultimate',     color: 'orange', size: 8  },
+  'Raid':        { label: 'Raid',         color: 'red',    size: 8  },
+  'Trial':       { label: 'Trial',        color: 'yellow', size: 8  },
+  'Dungeon':     { label: 'Dungeon',      color: 'blue',   size: 4  },
+  'Deep Dungeon':{ label: 'Deep Dungeon', color: 'purple', size: 4  },
+};
+const DUTY_TYPE_ORDER = ['Ultimate','Raid','Trial','Dungeon','Deep Dungeon'];
+
+// Savage/Extreme/Hard mode size overrides
+function _dutySize(duty) {
+  const n = duty.name;
+  if (duty.type === 'Ultimate') return 8;
+  if (n.includes('(Savage)')) return 8;
+  if (n.includes('(Extreme)') || n.includes('(Unreal)')) return 8;
+  if (duty.type === 'Raid') return 8;
+  if (duty.type === 'Trial') return 8;
+  if (duty.type === 'Dungeon') return 4;
+  if (duty.type === 'Deep Dungeon') return 4;
+  return 4;
+}
+
+async function renderFFXIVActivityPicker() {
+  const container = document.getElementById('activitySelectContainer');
+  if (!container) return;
+  _ffxivSelectedDuty = null;
+
+  container.innerHTML = `<div class="flex items-center justify-center py-6 text-gray-500 text-sm">
+    <i class="fas fa-spinner fa-spin mr-2"></i>Loading duties...
+  </div>`;
+
+  if (!_ffxivDuties) {
+    try {
+      const r = await fetch('{% static "data/ffxiv_duties.json" %}');
+      _ffxivDuties = await r.json();
+    } catch(e) {
+      container.innerHTML = `<p class="text-red-400 text-sm py-4">Failed to load duty list.</p>`;
+      return;
+    }
+  }
+
+  _renderDutyBrowser(container);
+}
+
+function _renderDutyBrowser(container) {
+  const TYPE_COLOR = {
+    orange: 'bg-orange-950/60 border-orange-700/60 text-orange-200',
+    red:    'bg-red-950/60 border-red-700/60 text-red-200',
+    yellow: 'bg-yellow-950/60 border-yellow-700/60 text-yellow-200',
+    blue:   'bg-blue-950/60 border-blue-700/60 text-blue-200',
+    purple: 'bg-purple-950/60 border-purple-700/60 text-purple-200',
+  };
+  const TYPE_FILTER_BTN = {
+    all:           'All',
+    'Ultimate':    'Ultimate',
+    'Raid':        'Raids',
+    'Trial':       'Trials',
+    'Dungeon':     'Dungeons',
+    'Deep Dungeon':'Deep Dungeons',
+  };
+
+  container.innerHTML = `
+    <div class="space-y-3">
+      <div class="flex items-center gap-2">
+        <div class="relative flex-1">
+          <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-xs"></i>
+          <input type="text" id="dutySearch" placeholder="Search duties..."
+            class="w-full bg-neutral-800 border border-neutral-700 rounded-lg pl-8 pr-3 py-2 text-sm text-white placeholder-gray-500 focus:border-green-500 focus:outline-none">
+        </div>
+      </div>
+      <div class="flex flex-wrap gap-1.5" id="dutyTypeFilters">
+        ${Object.entries(TYPE_FILTER_BTN).map(([k, label]) =>
+          `<button type="button" data-filter="${k}"
+            class="duty-filter-btn px-3 py-1 rounded-full text-xs font-medium border transition
+              ${k === 'all' ? 'bg-green-700 border-green-600 text-white' : 'bg-neutral-800 border-neutral-700 text-gray-400 hover:border-neutral-500'}"
+          >${label}</button>`
+        ).join('')}
+      </div>
+      <div id="dutyGrid" class="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-72 overflow-y-auto pr-1"></div>
+      <div id="dutySelected" class="hidden rounded-lg border border-green-700/50 bg-green-950/30 px-3 py-2 flex items-center gap-3">
+        <img id="dutySelectedBanner" src="" alt="" class="w-12 h-8 rounded object-cover flex-shrink-0">
+        <div class="min-w-0 flex-1">
+          <div id="dutySelectedName" class="text-sm font-semibold text-white truncate"></div>
+          <div id="dutySelectedType" class="text-xs text-gray-400"></div>
+        </div>
+        <button type="button" onclick="_ffxivClearDuty()" class="text-gray-500 hover:text-white flex-shrink-0">
+          <i class="fas fa-times text-xs"></i>
+        </button>
+      </div>
+    </div>`;
+
+  let activeFilter = 'all';
+
+  function renderGrid(filter, query) {
+    const grid = document.getElementById('dutyGrid');
+    if (!grid) return;
+    const q = (query || '').toLowerCase().trim();
+    const visible = _ffxivDuties.filter(d => {
+      if (filter !== 'all' && d.type !== filter) return false;
+      if (q && !d.name.toLowerCase().includes(q)) return false;
+      return true;
+    });
+
+    if (!visible.length) {
+      grid.innerHTML = `<div class="col-span-3 text-center text-gray-500 text-sm py-4">No duties found</div>`;
+      return;
+    }
+
+    grid.innerHTML = visible.map(d => {
+      const meta = DUTY_TYPE_META[d.type] || {};
+      const colorClasses = TYPE_COLOR[meta.color] || TYPE_COLOR.blue;
+      const isSel = _ffxivSelectedDuty && _ffxivSelectedDuty.name === d.name;
+      return `<button type="button"
+        class="duty-card relative rounded-lg border overflow-hidden text-left transition group
+          ${isSel ? 'ring-2 ring-green-500 border-green-600' : 'border-neutral-700 hover:border-neutral-500'}"
+        data-duty-name="${escapeHtml(d.name)}" data-duty-type="${escapeHtml(d.type)}" data-duty-banner="${escapeHtml(d.banner)}">
+        <div class="relative">
+          <img src="${escapeHtml(d.banner)}" alt="${escapeHtml(d.name)}"
+               class="w-full h-14 object-cover" loading="lazy"
+               onerror="this.parentElement.classList.add('bg-neutral-800');this.style.display='none'">
+          ${isSel ? `<div class="absolute inset-0 bg-green-500/20 flex items-center justify-center">
+            <i class="fas fa-check-circle text-green-400 text-xl"></i>
+          </div>` : ''}
+          <span class="absolute top-1 left-1 text-xs px-1.5 py-0.5 rounded border font-medium ${colorClasses}">${escapeHtml(d.type)}</span>
+        </div>
+        <div class="px-2 py-1.5 bg-neutral-900">
+          <p class="text-xs text-white font-medium leading-tight line-clamp-2">${escapeHtml(d.name)}</p>
+        </div>
+      </button>`;
+    }).join('');
+
+    grid.querySelectorAll('.duty-card').forEach(card => {
+      card.addEventListener('click', () => {
+        _ffxivSelectDuty({ name: card.dataset.dutyName, type: card.dataset.dutyType, banner: card.dataset.dutyBanner });
+        renderGrid(activeFilter, document.getElementById('dutySearch')?.value);
+      });
     });
   }
+
+  // Filter buttons
+  container.querySelectorAll('.duty-filter-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      activeFilter = btn.dataset.filter;
+      container.querySelectorAll('.duty-filter-btn').forEach(b => {
+        const active = b.dataset.filter === activeFilter;
+        b.classList.toggle('bg-green-700', active);
+        b.classList.toggle('border-green-600', active);
+        b.classList.toggle('text-white', active);
+        b.classList.toggle('bg-neutral-800', !active);
+        b.classList.toggle('border-neutral-700', !active);
+        b.classList.toggle('text-gray-400', !active);
+      });
+      renderGrid(activeFilter, document.getElementById('dutySearch')?.value);
+    });
+  });
+
+  // Search
+  let searchTimer;
+  container.querySelector('#dutySearch').addEventListener('input', function() {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => renderGrid(activeFilter, this.value), 150);
+  });
+
+  renderGrid('all', '');
+}
+
+function _ffxivSelectDuty(duty) {
+  _ffxivSelectedDuty = duty;
+
+  // Show selected bar
+  const bar = document.getElementById('dutySelected');
+  if (bar) {
+    bar.classList.remove('hidden');
+    document.getElementById('dutySelectedBanner').src = duty.banner;
+    document.getElementById('dutySelectedName').textContent = duty.name;
+    document.getElementById('dutySelectedType').textContent = duty.type;
+  }
+
+  _setDataField('Activity', duty.name);
+  _ffxivSetSummary('activity', duty.name);
+
+  // Auto-fill group size
+  const size = _dutySize(duty);
+  const sizes = [2, 3, 4, 5, 6, 8, 10, 16, 24, 25, 48];
+  const closest = sizes.includes(size) ? size : sizes.reduce((a, b) => Math.abs(b - size) < Math.abs(a - size) ? b : a);
+  groupSizeSelect.setValue(String(closest));
+
+  // Collapse the activity panel
+  const body = document.getElementById('ffxiv_activity_body');
+  if (body && !body.classList.contains('hidden')) _toggleCollapse('ffxiv_activity');
+}
+
+function _ffxivClearDuty() {
+  _ffxivSelectedDuty = null;
+  const bar = document.getElementById('dutySelected');
+  if (bar) bar.classList.add('hidden');
+  _setDataField('Activity', '');
+  _ffxivSetSummary('activity', 'none selected');
+}
+
+// ─── ESO activity card-grid picker ───────────────────────────────────────────
+
+let _esoSelectedActivity = null;
+
+function renderESOActivityPicker() {
+  const container = document.getElementById('activitySelectContainer');
+  if (!container) return;
+  _esoSelectedActivity = null;
+
+  const SIZES = [2,3,4,5,6,8,10,12,16,24,25,48];
+
+  function setActivity(value) {
+    _esoSelectedActivity = value;
+    _setDataField('Activity', value);
+    const summary = document.getElementById('eso_activity_summary');
+    if (summary) summary.textContent = value || 'none selected';
+    // Auto-fill group size
+    const size = ESO_GROUP_SIZES[value];
+    if (size) {
+      const closest = SIZES.includes(size) ? size : SIZES.reduce((a,b) => Math.abs(b-size) < Math.abs(a-size) ? b : a);
+      groupSizeSelect.setValue(String(closest));
+    }
+    // Collapse panel
+    const body = document.getElementById('eso_activity_body');
+    if (body && !body.classList.contains('hidden')) _toggleCollapse('eso_activity');
+    renderPicker();
+  }
+
+  function renderPicker() {
+    container.innerHTML = ESO_ACTIVITY_CATEGORIES.map(cat => `
+      <div class="mb-3">
+        <div class="flex items-center gap-2 mb-2">
+          <i class="fas ${cat.icon} ${cat.text} text-xs"></i>
+          <span class="text-xs font-semibold uppercase tracking-wide ${cat.text}">${escapeHtml(cat.label)}</span>
+        </div>
+        <div class="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+          ${cat.items.map(item => {
+            const sel = _esoSelectedActivity === item.value;
+            return `<button type="button"
+              class="eso-act-btn text-left rounded-lg border px-3 py-2 transition-all
+                ${sel ? `${cat.bg} ${cat.border} ring-1 ring-offset-0` : 'bg-neutral-800/60 border-neutral-700 hover:border-neutral-500'}"
+              data-value="${escapeHtml(item.value)}">
+              <div class="text-xs font-semibold ${sel ? cat.text : 'text-white'} leading-tight">${escapeHtml(item.label)}</div>
+              <div class="text-[10px] text-gray-500 leading-tight mt-0.5">${escapeHtml(item.sub)}</div>
+            </button>`;
+          }).join('')}
+        </div>
+      </div>
+    `).join('') + (_esoSelectedActivity ? `
+      <button type="button" onclick="(function(){_esoSelectedActivity=null;_setDataField('Activity','');document.getElementById('eso_activity_summary').textContent='none selected';renderESOActivityPicker();})()"
+        class="text-xs text-gray-500 hover:text-white mt-1"><i class="fas fa-times mr-1"></i>Clear selection</button>
+    ` : '');
+
+    container.querySelectorAll('.eso-act-btn').forEach(btn => {
+      btn.addEventListener('click', () => setActivity(btn.dataset.value));
+    });
+  }
+
+  renderPicker();
 }
 
 function _setDataField(name, val) {
@@ -718,13 +1429,21 @@ function _buildCustomSelectForField(field, templates) {
   const wrapper = document.getElementById(wrapperId);
   if (!wrapper) return;
 
+  // FFXIV job icon grid picker
+  if (field.ffxiv_job_picker) {
+    renderFFXIVJobPicker(wrapper);
+    return;
+  }
+
   // Freetext field: render as text input
   if (field.freetext) {
+    const ph = field.placeholder || 'Enter value...';
     wrapper.innerHTML = `<label class="text-sm text-gray-300 mb-1 block">${escapeHtml(field.name)} <span class="text-gray-500 text-xs">(optional)</span></label>` +
-      `<input type="text" id="sel_${_fieldId(field.name)}" data-field="${escapeHtml(field.name)}" placeholder="Enter server info..." ` +
+      `<input type="text" id="sel_${_fieldId(field.name)}" data-field="${escapeHtml(field.name)}" placeholder="${escapeHtml(ph)}" ` +
       `class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:border-green-500 focus:outline-none text-sm">`;
     wrapper.querySelector('input').addEventListener('input', function() {
       _setDataField(field.name, this.value);
+      if (currentGameType === 'ffxiv') _ffxivSetSummary(_fieldId(field.name), this.value);
     });
     return;
   }
@@ -752,6 +1471,10 @@ function _buildCustomSelectForField(field, templates) {
     maxSelections: field.maxSelections || null,
     onSelect: (val) => {
       _setDataField(field.name, val);
+      if (currentGameType === 'ffxiv') {
+        const displayVal = Array.isArray(val) ? val.join(', ') : val;
+        _ffxivSetSummary(_fieldId(field.name), displayVal || '');
+      }
       if (templates.some(f => f.depends_on === field.name)) {
         _updateConditionalCustomFields(field.name, val, templates);
       }
@@ -869,7 +1592,9 @@ const groupSizeSelect = createCustomSelect({
     { value: '8',  label: '8 Players' },
     { value: '10', label: '10 Players' },
     { value: '16', label: '16 Players' },
+    { value: '24', label: '24 Players' },
     { value: '25', label: '25 Players' },
+    { value: '48', label: '48 Players' },
   ],
   selected: '4',
   color: 'blue',
@@ -1008,7 +1733,7 @@ document.getElementById('createGroupForm').addEventListener('submit', async (e) 
       const newLfgId = data.id || (data.group && data.group.id);
       if (broadcastChecked && newLfgId) {
         try {
-          await csrfFetch(`/ql/api/lfg/${newLfgId}/broadcast-network/`, { method: 'POST' });
+          await csrfFetch(`/api/lfg/${newLfgId}/broadcast-network/`, { method: 'POST' });
         } catch (_) { /* broadcast is best-effort, don't block redirect */ }
       }
       const detailSlug = data.share_token || newLfgId;

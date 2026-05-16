@@ -161,7 +161,7 @@
               <i class="fas fa-globe text-yellow-400"></i>Post to QuestLog Network
               <span class="text-xs bg-yellow-600/30 text-yellow-400 border border-yellow-700/50 px-2 py-0.5 rounded-full">Cross-server</span>
             </span>
-            <p class="text-xs text-gray-500 mt-0.5">Broadcasts to all QuestLog Network servers and posts at casual-heroes.com/ql/lfg/</p>
+            <p class="text-xs text-gray-500 mt-0.5">Broadcasts to all QuestLog Network servers and posts at casual-heroes.comlfg/</p>
           </div>
         </label>
       </div>
@@ -175,7 +175,7 @@
               <span class="text-xs bg-neutral-700 text-gray-500 border border-neutral-600 px-2 py-0.5 rounded-full">Cross-server</span>
             </span>
             <p class="text-xs text-gray-600 mt-0.5">
-              <a href="/ql/register/" class="text-green-500 hover:underline">Create a QuestLog account</a> to share groups across the network.
+              <a href="/register/" class="text-green-500 hover:underline">Create a QuestLog account</a> to share groups across the network.
             </p>
           </div>
         </div>
@@ -259,9 +259,9 @@ const GUILD_ID = '{{ guild_id }}';
 const CURRENT_WEB_USER_ID = {{ web_user.id|default:0 }};
 const CURRENT_FLUXER_ID   = '{{ request.fluxer_id|default:"" }}';
 const IS_QL_NETWORK_USER  = {{ web_user.id|default:0 }} > 0;
-const GROUPS_API      = '/ql/api/fluxer/' + GUILD_ID + '/lfg/groups/';
-const JOIN_API_BASE   = '/ql/api/fluxer/' + GUILD_ID + '/lfg/';
-const MEMBER_API_BASE = '/ql/api/fluxer/' + GUILD_ID + '/lfg/';
+const GROUPS_API      = 'api/fluxer/' + GUILD_ID + '/lfg/groups/';
+const JOIN_API_BASE   = 'api/fluxer/' + GUILD_ID + '/lfg/';
+const MEMBER_API_BASE = 'api/fluxer/' + GUILD_ID + '/lfg/';
 
 let allGroups = JSON.parse(document.getElementById('groups-data').textContent) || [];
 const GAMES      = JSON.parse(document.getElementById('games-data').textContent) || [];
