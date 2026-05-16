@@ -6,7 +6,7 @@
 {% block og_title %}{% if og_title %}{{ og_title }}{% else %}QuestLog{% endif %}{% endblock %}
 {% block og_description %}{% if og_desc %}{{ og_desc }}{% else %}View this profile on QuestLog{% endif %}{% endblock %}
 {% block og_image %}{% if og_image %}{{ og_image }}{% else %}https://dashboard.casual-heroes.com/static/img/siteassets/homepage/CHLogoFinal.png{% endif %}{% endblock %}
-{% block og_url %}{% if og_url %}{{ og_url }}{% else %}https://casual-heroes.com/ql/{% endif %}{% endblock %}
+{% block og_url %}{% if og_url %}{{ og_url }}{% else %}https://casual-heroes.com{% endif %}{% endblock %}
 {% block twitter_title %}{% if og_title %}{{ og_title }}{% else %}QuestLog{% endif %}{% endblock %}
 {% block twitter_description %}{% if og_desc %}{{ og_desc }}{% else %}View this profile on QuestLog{% endif %}{% endblock %}
 {% block twitter_image %}{% if og_image %}{{ og_image }}{% else %}https://dashboard.casual-heroes.com/static/img/siteassets/homepage/CHLogoFinal.png{% endif %}{% endblock %}
@@ -15,405 +15,615 @@
 {% include "questlog_web/partials/post_card.html" %}
 
 {% if error %}
-<div class="max-w-3xl mx-auto px-4 py-16 text-center">
+<div class="max-w-4xl mx-auto px-4 py-16 text-center">
   <i class="fas fa-user-slash text-6xl text-gray-600 mb-4"></i>
   <h1 class="text-2xl font-bold text-white mb-2">User Not Found</h1>
   <p class="text-gray-400">This user doesn't exist or you cannot view their profile.</p>
-  <a href="{% url 'questlog_web_home' %}" class="inline-block mt-6 bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-lg transition">
-    Go Home
-  </a>
+  <a href="{% url 'questlog_web_home' %}" class="inline-block mt-6 bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-lg transition">Go Home</a>
 </div>
 {% else %}
 
-<!-- Banner -->
-<div class="relative h-48 md:h-56 bg-gradient-to-r from-indigo-900/50 via-purple-900/50 to-indigo-900/50 overflow-hidden">
-  {% if profile_user.banner_url %}
-  <img src="{{ profile_user.banner_url }}" alt="Banner" class="w-full h-full object-cover">
-  <div class="absolute inset-0 bg-black/30"></div>
-  {% endif %}
-</div>
+<div class="max-w-4xl mx-auto px-4 pb-10">
 
-<!-- Profile Header -->
-<div class="max-w-3xl mx-auto px-4 -mt-16 relative z-10 mb-6">
-  <div class="flex items-end gap-4 mb-4">
-    <!-- Avatar -->
-    <div class="flex-shrink-0">
+  <!-- Banner -->
+  <div class="relative rounded-xl overflow-hidden mb-0 h-36 bg-gradient-to-br from-indigo-900/60 via-purple-900/40 to-neutral-900">
+    {% if profile_user.banner_url %}
+    <img src="{{ profile_user.banner_url }}" alt="banner" class="w-full h-full object-cover absolute inset-0">
+    {% endif %}
+  </div>
+
+  <!-- Header card -->
+  <div class="bg-neutral-900/80 border border-neutral-800 border-t-0 rounded-b-xl px-6 pb-5 mb-5">
+    <div class="flex items-end gap-4 -mt-10 mb-4">
+
+      <!-- Avatar -->
       {% if profile_user.avatar_url %}
       <img src="{{ profile_user.avatar_url }}" alt="{{ profile_user.username }}" id="profile-avatar"
-           class="w-28 h-28 rounded-xl border-4 border-neutral-900 object-cover shadow-xl{% if profile_user.is_live %} ring-2 ring-rose-500 shadow-[0_0_18px_#f43f5e]{% elif profile_user.show_playing_status and profile_user.current_game %} ring-2 ring-cyan-400 shadow-[0_0_18px_#22d3ee]{% endif %}">
+           class="w-20 h-20 rounded-xl object-cover ring-4 flex-shrink-0
+           {% if profile_user.is_live %}ring-rose-500 shadow-[0_0_14px_#f43f5e]
+           {% elif profile_user.show_playing_status and profile_user.current_game %}ring-cyan-400 shadow-[0_0_14px_#22d3ee]
+           {% else %}ring-neutral-900{% endif %}">
       {% else %}
-      <div id="profile-avatar" class="w-28 h-28 rounded-xl border-4 border-neutral-900 bg-neutral-700 flex items-center justify-center shadow-xl{% if profile_user.is_live %} ring-2 ring-rose-500 shadow-[0_0_18px_#f43f5e]{% elif profile_user.show_playing_status and profile_user.current_game %} ring-2 ring-cyan-400 shadow-[0_0_18px_#22d3ee]{% endif %}">
-        <span class="text-3xl font-bold text-gray-400">{{ profile_user.username|slice:":2"|upper }}</span>
+      <div id="profile-avatar" class="w-20 h-20 rounded-xl ring-4 flex-shrink-0 bg-indigo-600 flex items-center justify-center
+           {% if profile_user.is_live %}ring-rose-500 shadow-[0_0_14px_#f43f5e]
+           {% elif profile_user.show_playing_status and profile_user.current_game %}ring-cyan-400 shadow-[0_0_14px_#22d3ee]
+           {% else %}ring-neutral-900{% endif %}">
+        <span class="text-2xl font-bold text-white">{{ profile_user.username|slice:":2"|upper }}</span>
       </div>
       {% endif %}
+
+      <!-- Name + badges -->
+      <div class="flex-1 min-w-0 pt-12">
+        <div class="flex flex-wrap items-center gap-2 mb-0.5">
+          <h1 class="text-xl font-bold text-white">{{ profile_user.display_name|default:profile_user.username }}</h1>
+          {% if profile_user.is_admin %}<span class="px-2 py-0.5 bg-yellow-500/20 text-yellow-400 text-xs rounded-full font-medium"><i class="fas fa-crown mr-1"></i>Admin</span>{% endif %}
+          {% if profile_user.is_mod and not profile_user.is_admin %}<span class="px-2 py-0.5 bg-blue-600/20 text-blue-400 text-xs rounded-full font-medium"><i class="fas fa-user-shield mr-1"></i>Mod</span>{% endif %}
+          {% if profile_user.is_contributor %}<span class="px-2 py-0.5 bg-violet-600/20 text-violet-300 text-xs rounded-full font-medium"><i class="fas fa-pen mr-1"></i>Contributor</span>{% endif %}
+          {% if profile_user.is_ffxiv_member %}<span class="px-2 py-0.5 bg-blue-500/20 text-blue-300 text-xs rounded-full font-medium flex items-center gap-1" title="CH FFXIV FC"><img src="{% static 'img/games/guilds/ffxiv_logo.png' %}" class="w-3 h-3 object-contain"> FFXIV</span>{% endif %}
+          {% if profile_user.is_eso_member %}<span class="px-2 py-0.5 bg-amber-500/20 text-amber-300 text-xs rounded-full font-medium flex items-center gap-1" title="CH ESO Crew"><img src="{% static 'img/games/guilds/esoguild.png' %}" class="w-3 h-3 object-contain"> ESO</span>{% endif %}
+          {% if flair_emoji %}<span class="text-sm text-yellow-300 font-medium">{{ flair_emoji }} {{ flair_name }}</span>{% endif %}
+        </div>
+        <p class="text-gray-500 text-sm">@{{ profile_user.username }}</p>
+        {% if rank_title %}<p class="text-xs text-amber-400 font-medium mt-0.5">{{ rank_title }}</p>{% endif %}
+        {% if profile_user.is_live %}
+        <a id="profile-live-pill" href="{{ profile_user.live_url }}" target="_blank" rel="noopener"
+           class="inline-flex items-center gap-1.5 text-rose-500 text-xs font-semibold mt-1 hover:text-rose-400">
+          <span class="w-2 h-2 rounded-full bg-rose-500 animate-pulse flex-shrink-0"></span>
+          Live on {{ profile_user.live_platform|title }}{% if profile_user.live_title %} &middot; {{ profile_user.live_title|truncatechars:60 }}{% endif %}
+        </a>
+        {% else %}
+        <a id="profile-live-pill" class="hidden"></a>
+        {% endif %}
+        <div id="profile-playing-pill" class="{% if not profile_user.show_playing_status or not profile_user.current_game %}hidden {% endif %}inline-flex items-center gap-1.5 text-cyan-400 text-xs font-semibold mt-1">
+          <span class="w-2 h-2 rounded-full bg-cyan-400 animate-pulse flex-shrink-0"></span>
+          Playing <a id="profile-playing-game" href="#" target="_blank" rel="noopener" class="hover:underline ml-1">{{ profile_user.current_game }}</a>
+        </div>
+      </div>
+
+      <!-- Action buttons -->
+      <div class="flex gap-2 pb-1 pt-12 flex-shrink-0">
+        {% if is_own_profile %}
+        <a href="{% url 'questlog_web_profile' %}#edit" class="bg-neutral-700 hover:bg-neutral-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition">
+          <i class="fas fa-edit mr-1"></i>Edit Profile
+        </a>
+        {% elif web_user %}
+        <button id="follow-btn" onclick="toggleFollow()" class="px-4 py-2 rounded-lg text-sm font-medium transition
+          {% if is_following %}bg-neutral-700 hover:bg-red-600/80 text-white{% else %}bg-indigo-600 hover:bg-indigo-700 text-white{% endif %}">
+          {% if is_mutual %}<i class="fas fa-user-friends mr-1"></i>Friends
+          {% elif is_following %}<i class="fas fa-user-check mr-1"></i>Following
+          {% else %}<i class="fas fa-user-plus mr-1"></i>Follow{% endif %}
+        </button>
+        <button onclick="showBlockMenu()" class="bg-neutral-800 hover:bg-neutral-700 text-gray-400 px-3 py-2 rounded-lg text-sm transition">
+          <i class="fas fa-ellipsis-v"></i>
+        </button>
+        {% else %}
+        <a href="{% url 'questlog_web_login' %}" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition">
+          <i class="fas fa-gamepad mr-1"></i>Login to Follow
+        </a>
+        {% endif %}
+      </div>
     </div>
 
-    <!-- Name + Actions -->
-    <div class="flex-1 min-w-0 pb-1">
-      <div class="flex items-center gap-3 flex-wrap">
-        <h1 class="text-2xl font-bold text-white">{{ profile_user.display_name|default:profile_user.username }}</h1>
-        {% if profile_user.is_admin %}
-        <span class="px-2 py-0.5 bg-yellow-500/20 text-yellow-400 text-xs rounded-full font-medium">
-          <i class="fas fa-crown mr-1"></i>Admin
-        </span>
-        {% endif %}
-        {% if profile_user.is_vip %}
-        <span class="px-2 py-0.5 bg-purple-500/20 text-purple-300 text-xs rounded-full font-medium" title="Early Tester">
-          ⭐ Early Tester
-        </span>
-        {% endif %}
-      </div>
-      <p class="text-gray-500 text-sm">@{{ profile_user.username }}</p>
-      <div id="profile-playing-pill" class="inline-flex items-center gap-2 bg-cyan-500/10 border border-cyan-500/30 px-3 py-1.5 rounded-full mt-2{% if not profile_user.show_playing_status or not profile_user.current_game %} hidden{% endif %}">
-        <span class="w-2 h-2 rounded-full bg-cyan-400 animate-pulse flex-shrink-0"></span>
-        <span class="text-cyan-400 text-xs font-semibold">Playing Now &middot; <a id="profile-playing-game" href="{% if profile_user.current_game_appid %}https://store.steampowered.com/app/{{ profile_user.current_game_appid }}/{% else %}https://store.steampowered.com/search/?term={{ profile_user.current_game|urlencode }}{% endif %}" target="_blank" rel="noopener" class="hover:underline">{{ profile_user.current_game }}</a></span>
-      </div>
-      {% if profile_user.is_live %}
-      <a id="profile-live-pill" href="{{ profile_user.live_url }}" target="_blank" rel="noopener"
-         class="inline-flex items-center gap-2 bg-rose-500/10 border border-rose-500/30 px-3 py-1.5 rounded-full mt-1 hover:bg-rose-500/20 transition">
-        <span class="w-2 h-2 rounded-full bg-rose-500 animate-pulse flex-shrink-0"></span>
-        <span class="text-rose-400 text-xs font-semibold">Live on {{ profile_user.live_platform|title }}</span>
-      </a>
-      {% else %}
-      <a id="profile-live-pill" class="hidden"></a>
-      {% endif %}
-    </div>
-
-    <!-- Action Buttons -->
-    <div class="flex gap-2 pb-1">
-      {% if is_own_profile %}
-      <a href="{% url 'questlog_web_profile_edit' %}" class="bg-neutral-700 hover:bg-neutral-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition">
-        <i class="fas fa-edit mr-1"></i>Edit Profile
-      </a>
-      {% elif web_user %}
-      <button id="follow-btn" onclick="toggleFollow()" class="px-4 py-2 rounded-lg text-sm font-medium transition
-        {% if is_following %}bg-neutral-700 hover:bg-red-600/80 text-white{% else %}bg-indigo-600 hover:bg-indigo-700 text-white{% endif %}">
-        {% if is_mutual %}<i class="fas fa-user-friends mr-1"></i>Friends
-        {% elif is_following %}<i class="fas fa-user-check mr-1"></i>Following
-        {% else %}<i class="fas fa-user-plus mr-1"></i>Follow{% endif %}
+    <!-- Stats row -->
+    <div class="flex flex-wrap gap-4 text-sm border-t border-neutral-800 pt-4 items-center">
+      <button onclick="showTab('followers')" class="hover:opacity-80 transition">
+        <span class="text-white font-semibold">{{ profile_user.follower_count|default:"0" }}</span>
+        <span class="text-gray-500 font-normal"> Followers</span>
       </button>
-      <button onclick="showBlockMenu()" class="bg-neutral-800 hover:bg-neutral-700 text-gray-400 px-3 py-2 rounded-lg text-sm transition">
-        <i class="fas fa-ellipsis-v"></i>
+      <button onclick="showTab('following')" class="hover:opacity-80 transition">
+        <span class="text-white font-semibold">{{ profile_user.following_count|default:"0" }}</span>
+        <span class="text-gray-500 font-normal"> Following</span>
       </button>
-      {% else %}
-      <a href="{% url 'questlog_web_login' %}" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition">
-        <i class="fas fa-gamepad mr-1"></i>Login to Follow
+      <span class="text-white font-semibold">{{ profile_user.hero_points|default:"0" }} <span class="text-gray-500 font-normal">Hero Points</span></span>
+      <span class="text-white font-semibold">Level {{ profile_user.web_level|default:"1" }}</span>
+      <!-- Legacy badge -->
+      {% with t=profile_user.legacy_tier|default:1 s=profile_user.legacy_score|default:0 %}
+      <a href="{% url 'questlog_web_public_legacy' profile_user.username %}" class="flex items-center gap-1.5 hover:opacity-80 transition" title="View Legacy Mark">
+        {% if t == 1 %}<img src="{% static 'img/legacy/Common.png' %}" class="w-5 h-5 object-contain"><span class="font-semibold text-gray-400">{{ s }}</span><span class="text-gray-500 font-normal">Common</span>
+        {% elif t == 2 %}<img src="{% static 'img/legacy/Rare.png' %}" class="w-5 h-5 object-contain"><span class="font-semibold text-blue-400">{{ s }}</span><span class="text-gray-500 font-normal">Rare</span>
+        {% elif t == 3 %}<img src="{% static 'img/legacy/Epic.png' %}" class="w-5 h-5 object-contain"><span class="font-semibold text-purple-400">{{ s }}</span><span class="text-gray-500 font-normal">Epic</span>
+        {% elif t == 4 %}<img src="{% static 'img/legacy/Legendary.png' %}" class="w-5 h-5 object-contain"><span class="font-semibold text-orange-400">{{ s }}</span><span class="text-gray-500 font-normal">Legendary</span>
+        {% elif t == 5 %}<img src="{% static 'img/legacy/Mythic.png' %}" class="w-5 h-5 object-contain"><span class="font-semibold text-yellow-400">{{ s }}</span><span class="text-gray-500 font-normal">Mythic</span>
+        {% endif %}
+      </a>
+      {% if web_user and not is_own_profile %}
+      <a href="{% url 'questlog_web_legacy_nominate' %}" class="flex items-center gap-1 px-2 py-0.5 rounded-full bg-yellow-700/20 hover:bg-yellow-600/30 border border-yellow-700/40 text-yellow-400 text-xs font-semibold transition" title="Nominate {{ profile_user.username }}">
+        <i class="fas fa-star text-[9px]"></i> Nominate
       </a>
       {% endif %}
+      {% endwith %}
     </div>
   </div>
 
-  <!-- Bio -->
-  {% if profile_user.bio %}
-  <p class="text-gray-300 text-sm mb-4">{{ profile_user.bio }}</p>
+  <!-- Tab bar -->
+  <div class="flex gap-1 mb-5 bg-neutral-900/50 border border-neutral-800 rounded-xl p-1">
+    <button id="pub-tab-profile" onclick="pubTab('profile')"
+            class="pub-tab flex-1 py-2 rounded-lg text-sm font-semibold transition bg-white text-neutral-900">
+      <i class="fas fa-user mr-1.5"></i>Profile
+    </button>
+    <button id="pub-tab-library" onclick="pubTab('library')"
+            class="pub-tab flex-1 py-2 rounded-lg text-sm font-semibold transition text-gray-400 hover:text-white">
+      <i class="fas fa-layer-group mr-1.5"></i>Library
+    </button>
+    <button id="pub-tab-achievements" onclick="pubTab('achievements')"
+            class="pub-tab flex-1 py-2 rounded-lg text-sm font-semibold transition text-gray-400 hover:text-white">
+      <i class="fas fa-trophy mr-1.5"></i>Achievements
+    </button>
+  </div>
+
+  <!-- Tab: Profile -->
+  <div id="pub-panel-profile">
+
+  <!-- About card -->
+  {% if profile_user.bio or playstyle_list or genres or gaming_platforms %}
+  <div class="bg-neutral-900/50 rounded-lg border border-neutral-800 p-5 mb-5">
+    <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">About</h3>
+    {% if profile_user.bio %}
+    <p class="text-gray-300 text-sm leading-relaxed {% if playstyle_list or genres or gaming_platforms %}mb-4{% endif %}">{{ profile_user.bio }}</p>
+    {% endif %}
+    {% if playstyle_list or genres or gaming_platforms %}
+    <div class="flex flex-wrap gap-1.5 {% if profile_user.bio %}border-t border-neutral-800 pt-4{% endif %}">
+      {% for s in playstyle_list %}<span class="px-2 py-0.5 bg-green-500/15 text-green-300 rounded text-xs">{{ s }}</span>{% endfor %}
+      {% for g in genres %}<span class="px-2 py-0.5 bg-purple-500/15 text-purple-300 rounded text-xs">{{ g }}</span>{% endfor %}
+      {% for p in gaming_platforms %}<span class="px-2 py-0.5 bg-blue-500/15 text-blue-300 rounded text-xs">{{ p }}</span>{% endfor %}
+    </div>
+    {% endif %}
+  </div>
   {% endif %}
 
-  <!-- Stats Row -->
-  <div class="flex items-center gap-6 mb-4">
-    <button onclick="showTab('followers')" class="text-sm hover:underline">
-      <span class="text-white font-bold">{{ profile_user.follower_count|default:"0" }}</span>
-      <span class="text-gray-500">Followers</span>
-    </button>
-    <button onclick="showTab('following')" class="text-sm hover:underline">
-      <span class="text-white font-bold">{{ profile_user.following_count|default:"0" }}</span>
-      <span class="text-gray-500">Following</span>
-    </button>
-    {% if profile_user.web_level %}
-    <span class="text-sm">
-      <span class="text-indigo-400 font-bold">Lv {{ profile_user.web_level }}</span>
-    </span>
-    {% endif %}
-    {% if profile_user.hero_points %}
-    <span class="text-sm">
-      <span class="text-yellow-400 font-bold">{{ profile_user.hero_points }}</span>
-      <span class="text-gray-500">Hero Points</span>
-    </span>
-    {% endif %}
-  </div>
 
-  <!-- Tags -->
-  <div class="flex flex-wrap gap-2 mb-4">
-    {% for style in playstyle_list %}
-    <span class="px-2 py-1 bg-green-500/20 text-green-300 rounded-full text-xs">{{ style }}</span>
-    {% endfor %}
-    {% for genre in genres %}
-    <span class="px-2 py-1 bg-purple-500/20 text-purple-300 rounded-full text-xs">{{ genre }}</span>
-    {% endfor %}
-    {% for platform in gaming_platforms %}
-    <span class="px-2 py-1 bg-blue-500/20 text-blue-300 rounded-full text-xs">{{ platform }}</span>
-    {% endfor %}
-  </div>
-
-  <!-- Games -->
-  {% if favorite_games %}
-  <div class="mb-5">
-    <p class="text-xs text-gray-500 mb-2"><i class="fas fa-gamepad mr-1"></i>Games</p>
-    <div class="flex flex-wrap gap-2">
-      {% for g in favorite_games %}
-      {% if g.cover_url %}
-      <div class="flex items-center gap-1.5 bg-neutral-800 border border-neutral-700 rounded-lg px-2 py-1.5 text-xs text-gray-200" title="{{ g.name }}">
-        <img src="{{ g.cover_url }}" class="w-4 h-6 rounded object-cover flex-shrink-0" alt="">
-        <span class="truncate max-w-[120px]">{{ g.name }}</span>
-      </div>
-      {% else %}
-      <div class="flex items-center gap-1 bg-neutral-800 border border-neutral-700 rounded-lg px-2 py-1.5 text-xs text-gray-200">
-        <i class="fas fa-gamepad text-gray-500 text-xs flex-shrink-0"></i>
-        <span>{% if g.name %}{{ g.name }}{% else %}{{ g }}{% endif %}</span>
-      </div>
-      {% endif %}
-      {% endfor %}
-    </div>
-  </div>
-  {% endif %}
-
-  <!-- Social Links - all connected accounts -->
+  <!-- Social links -->
   {% with cp=creator_profile %}
-  {% if profile_user.steam_profile_url or profile_user.twitch_username or profile_user.youtube_channel_name or profile_user.discord_username or profile_user.fluxer_username or profile_user.matrix_id or cp %}
-  <div class="flex flex-wrap items-center gap-3 text-sm mb-6">
-    {% if profile_user.steam_profile_url %}
-    <a href="{{ profile_user.steam_profile_url }}" target="_blank" rel="noopener"
-       class="flex items-center gap-1.5 px-3 py-1.5 bg-neutral-800 hover:bg-neutral-700 rounded-lg text-blue-400 hover:text-blue-300 transition">
-      <i class="fab fa-steam"></i><span>Steam</span>
-    </a>
-    {% endif %}
-    {% if profile_user.discord_username %}
-    <span class="flex items-center gap-1.5 px-3 py-1.5 bg-neutral-800 rounded-lg text-indigo-400 cursor-default" title="{{ profile_user.discord_username }}">
-      <i class="fab fa-discord"></i><span>{{ profile_user.discord_username }}</span>
-    </span>
-    {% endif %}
-    {% if profile_user.fluxer_username %}
-    <span class="flex items-center gap-1.5 px-3 py-1.5 bg-neutral-800 rounded-lg text-violet-400 cursor-default" title="{{ profile_user.fluxer_username }}">
-      <i class="fas fa-bolt"></i><span>{{ profile_user.fluxer_username }}</span>
-    </span>
-    {% endif %}
-    {% if profile_user.matrix_id %}
-    <span class="flex items-center gap-1.5 px-3 py-1.5 bg-neutral-800 rounded-lg text-emerald-400 cursor-default" title="{{ profile_user.matrix_id }}">
-      <i class="fas fa-matrix-org" style="font-style:normal;font-weight:bold">[m]</i><span>Matrix</span>
-    </span>
-    {% endif %}
-    {% if profile_user.twitch_username %}
-    <a href="https://twitch.tv/{{ profile_user.twitch_username }}" target="_blank" rel="noopener"
-       class="flex items-center gap-1.5 px-3 py-1.5 bg-neutral-800 hover:bg-neutral-700 rounded-lg text-purple-400 hover:text-purple-300 transition">
-      <i class="fab fa-twitch"></i><span>Twitch</span>
-    </a>
-    {% elif cp.twitch_url %}
-    <a href="{{ cp.twitch_url }}" target="_blank" rel="noopener"
-       class="flex items-center gap-1.5 px-3 py-1.5 bg-neutral-800 hover:bg-neutral-700 rounded-lg text-purple-400 hover:text-purple-300 transition">
-      <i class="fab fa-twitch"></i><span>Twitch</span>
-    </a>
-    {% endif %}
-    {% if profile_user.youtube_channel_name %}
-    <a href="https://youtube.com/@{{ profile_user.youtube_channel_name }}" target="_blank" rel="noopener"
-       class="flex items-center gap-1.5 px-3 py-1.5 bg-neutral-800 hover:bg-neutral-700 rounded-lg text-red-400 hover:text-red-300 transition">
-      <i class="fab fa-youtube"></i><span>YouTube</span>
-    </a>
-    {% elif cp.youtube_url %}
-    <a href="{{ cp.youtube_url }}" target="_blank" rel="noopener"
-       class="flex items-center gap-1.5 px-3 py-1.5 bg-neutral-800 hover:bg-neutral-700 rounded-lg text-red-400 hover:text-red-300 transition">
-      <i class="fab fa-youtube"></i><span>YouTube</span>
-    </a>
-    {% endif %}
-    {% if cp %}
-      {% if cp.kick_url %}
-      <a href="{{ cp.kick_url }}" target="_blank" rel="noopener"
-         class="flex items-center gap-1.5 px-3 py-1.5 bg-neutral-800 hover:bg-neutral-700 rounded-lg text-green-400 hover:text-green-300 transition">
-        <span class="font-bold text-sm leading-none">K</span><span>Kick</span>
-      </a>
+  {% if profile_user.steam_profile_url or profile_user.twitch_username or profile_user.youtube_channel_name or profile_user.discord_username or profile_user.fluxer_username or cp %}
+  <div class="bg-neutral-900/50 rounded-lg border border-neutral-800 p-5 mb-5">
+    <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3"><i class="fas fa-link mr-1"></i>Links</h3>
+    <div class="flex flex-wrap gap-2">
+      {% if profile_user.steam_profile_url %}
+      <a href="{{ profile_user.steam_profile_url }}" target="_blank" rel="noopener" class="flex items-center gap-1.5 px-3 py-1.5 bg-neutral-800 hover:bg-neutral-700 rounded-lg text-blue-400 hover:text-blue-300 transition text-sm"><i class="fab fa-steam"></i><span>Steam</span></a>
       {% endif %}
-      {% if cp.twitter_url %}
-      <a href="{{ cp.twitter_url }}" target="_blank" rel="noopener"
-         class="flex items-center gap-1.5 px-3 py-1.5 bg-neutral-800 hover:bg-neutral-700 rounded-lg text-gray-300 hover:text-white transition">
-        <i class="fab fa-x-twitter"></i><span>X</span>
-      </a>
+      {% if profile_user.discord_username %}
+      <span class="flex items-center gap-1.5 px-3 py-1.5 bg-neutral-800 rounded-lg text-indigo-400 text-sm cursor-default" title="{{ profile_user.discord_username }}"><i class="fab fa-discord"></i><span>{{ profile_user.discord_username }}</span></span>
       {% endif %}
-      {% if cp.bluesky_url %}
-      <a href="{{ cp.bluesky_url }}" target="_blank" rel="noopener"
-         class="flex items-center gap-1.5 px-3 py-1.5 bg-neutral-800 hover:bg-neutral-700 rounded-lg text-sky-400 hover:text-sky-300 transition">
-        <i class="fas fa-cloud"></i><span>Bluesky</span>
-      </a>
+      {% if profile_user.fluxer_username %}
+      <span class="flex items-center gap-1.5 px-3 py-1.5 bg-neutral-800 rounded-lg text-violet-400 text-sm cursor-default"><img src="{% static 'img/siteassets/fluxer-favicon.png' %}" style="width:1em;height:1em;object-fit:contain;" alt="Fluxer"><span>{{ profile_user.fluxer_username }}</span></span>
       {% endif %}
-      {% if cp.tiktok_url %}
-      <a href="{{ cp.tiktok_url }}" target="_blank" rel="noopener"
-         class="flex items-center gap-1.5 px-3 py-1.5 bg-neutral-800 hover:bg-neutral-700 rounded-lg text-pink-400 hover:text-pink-300 transition">
-        <i class="fab fa-tiktok"></i><span>TikTok</span>
-      </a>
+      {% if profile_user.twitch_username %}
+      <a href="https://twitch.tv/{{ profile_user.twitch_username }}" target="_blank" rel="noopener" class="flex items-center gap-1.5 px-3 py-1.5 bg-neutral-800 hover:bg-neutral-700 rounded-lg text-purple-400 hover:text-purple-300 transition text-sm"><i class="fab fa-twitch"></i><span>Twitch</span></a>
+      {% elif cp.twitch_url %}
+      <a href="{{ cp.twitch_url }}" target="_blank" rel="noopener" class="flex items-center gap-1.5 px-3 py-1.5 bg-neutral-800 hover:bg-neutral-700 rounded-lg text-purple-400 hover:text-purple-300 transition text-sm"><i class="fab fa-twitch"></i><span>Twitch</span></a>
       {% endif %}
-      {% if cp.instagram_url %}
-      <a href="{{ cp.instagram_url }}" target="_blank" rel="noopener"
-         class="flex items-center gap-1.5 px-3 py-1.5 bg-neutral-800 hover:bg-neutral-700 rounded-lg text-pink-500 hover:text-pink-400 transition">
-        <i class="fab fa-instagram"></i><span>Instagram</span>
-      </a>
+      {% if profile_user.youtube_channel_name %}
+      <a href="https://youtube.com/@{{ profile_user.youtube_channel_name }}" target="_blank" rel="noopener" class="flex items-center gap-1.5 px-3 py-1.5 bg-neutral-800 hover:bg-neutral-700 rounded-lg text-red-400 hover:text-red-300 transition text-sm"><i class="fab fa-youtube"></i><span>YouTube</span></a>
+      {% elif cp.youtube_url %}
+      <a href="{{ cp.youtube_url }}" target="_blank" rel="noopener" class="flex items-center gap-1.5 px-3 py-1.5 bg-neutral-800 hover:bg-neutral-700 rounded-lg text-red-400 hover:text-red-300 transition text-sm"><i class="fab fa-youtube"></i><span>YouTube</span></a>
       {% endif %}
-      {% if cp.website_url %}
-      <a href="{{ cp.website_url }}" target="_blank" rel="noopener"
-         class="flex items-center gap-1.5 px-3 py-1.5 bg-neutral-800 hover:bg-neutral-700 rounded-lg text-green-400 hover:text-green-300 transition">
-        <i class="fas fa-globe"></i><span>Website</span>
-      </a>
+      {% if cp %}
+        {% if cp.kick_url %}<a href="{{ cp.kick_url }}" target="_blank" rel="noopener" class="flex items-center gap-1.5 px-3 py-1.5 bg-neutral-800 hover:bg-neutral-700 rounded-lg text-green-400 hover:text-green-300 transition text-sm"><span class="font-bold leading-none">K</span><span>Kick</span></a>{% endif %}
+        {% if cp.twitter_url %}<a href="{{ cp.twitter_url }}" target="_blank" rel="noopener" class="flex items-center gap-1.5 px-3 py-1.5 bg-neutral-800 hover:bg-neutral-700 rounded-lg text-gray-300 hover:text-white transition text-sm"><i class="fab fa-x-twitter"></i><span>X</span></a>{% endif %}
+        {% if cp.bluesky_url %}<a href="{{ cp.bluesky_url }}" target="_blank" rel="noopener" class="flex items-center gap-1.5 px-3 py-1.5 bg-neutral-800 hover:bg-neutral-700 rounded-lg text-sky-400 hover:text-sky-300 transition text-sm"><i class="fas fa-cloud"></i><span>Bluesky</span></a>{% endif %}
+        {% if cp.tiktok_url %}<a href="{{ cp.tiktok_url }}" target="_blank" rel="noopener" class="flex items-center gap-1.5 px-3 py-1.5 bg-neutral-800 hover:bg-neutral-700 rounded-lg text-pink-400 hover:text-pink-300 transition text-sm"><i class="fab fa-tiktok"></i><span>TikTok</span></a>{% endif %}
+        {% if cp.instagram_url %}<a href="{{ cp.instagram_url }}" target="_blank" rel="noopener" class="flex items-center gap-1.5 px-3 py-1.5 bg-neutral-800 hover:bg-neutral-700 rounded-lg text-pink-500 hover:text-pink-400 transition text-sm"><i class="fab fa-instagram"></i><span>Instagram</span></a>{% endif %}
+        {% if cp.website_url %}<a href="{{ cp.website_url }}" target="_blank" rel="noopener" class="flex items-center gap-1.5 px-3 py-1.5 bg-neutral-800 hover:bg-neutral-700 rounded-lg text-green-400 hover:text-green-300 transition text-sm"><i class="fas fa-globe"></i><span>Website</span></a>{% endif %}
       {% endif %}
-    {% endif %}
+    </div>
   </div>
   {% endif %}
   {% endwith %}
-</div>
 
-<!-- Tabs -->
-<div class="max-w-3xl mx-auto px-4 mb-4">
-  <div class="flex border-b border-neutral-800">
-    <button onclick="showTab('followers')" id="tab-followers" class="tab-btn px-4 py-3 text-sm font-medium border-b-2 border-indigo-500 text-white">Followers</button>
-    <button onclick="showTab('following')" id="tab-following" class="tab-btn px-4 py-3 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-white transition">Following</button>
+  <!-- Followers / Following -->
+  <div class="bg-neutral-900/50 rounded-lg border border-neutral-800 overflow-hidden">
+    <div class="flex border-b border-neutral-800">
+      <button onclick="showTab('followers')" id="tab-followers"
+              class="flex-1 py-3 text-sm font-medium border-b-2 border-indigo-500 text-white transition">Followers</button>
+      <button onclick="showTab('following')" id="tab-following"
+              class="flex-1 py-3 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-white transition">Following</button>
+    </div>
+    <div class="p-4 space-y-2">
+      <div id="panel-followers"></div>
+      <div id="panel-following" class="hidden"></div>
+    </div>
   </div>
-</div>
 
-<!-- Tab Content -->
-<div class="max-w-3xl mx-auto px-4 pb-8">
-  <!-- Followers Tab -->
-  <div id="panel-followers" class="space-y-2"></div>
+  </div><!-- /pub-panel-profile -->
 
-  <!-- Following Tab -->
-  <div id="panel-following" class="hidden space-y-2"></div>
-</div>
+  <!-- Tab: Library -->
+  <div id="pub-panel-library" class="hidden">
+
+  <!-- Favorite Games -->
+  <div id="lib-fav-section" class="hidden bg-neutral-900/50 rounded-lg border border-yellow-700/30 p-5 mb-5">
+    <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3"><i class="fas fa-star text-yellow-400 mr-1.5"></i>Favorites</h3>
+    <div id="lib-fav-row" class="grid grid-cols-5 sm:grid-cols-8 gap-2"></div>
+  </div>
+
+  <!-- Want to Play -->
+  <div id="lib-wtp-section" class="hidden bg-neutral-900/50 rounded-lg border border-orange-700/30 p-5 mb-5">
+    <div class="flex items-center gap-2 mb-1">
+      <i class="fas fa-users text-orange-400"></i>
+      <h3 class="text-sm font-semibold text-white uppercase tracking-wider">Want to Play</h3>
+      <span id="lib-wtp-count" class="text-xs text-gray-500 bg-neutral-800 px-2 py-0.5 rounded-full"></span>
+    </div>
+    <p class="text-gray-500 text-xs mb-3">Click a game to create an LFG group</p>
+    <div id="lib-wtp-covers" class="grid grid-cols-5 sm:grid-cols-8 gap-2"></div>
+  </div>
+
+  <!-- Full Library -->
+  <div id="lib-shelf-section" class="bg-neutral-900/50 rounded-lg border border-neutral-800 p-5 mb-5">
+    <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+      <div class="flex items-center gap-3">
+        <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wider"><i class="fas fa-layer-group mr-1.5"></i>Game Library</h3>
+        <span id="lib-shelf-count" class="text-xs text-gray-500 bg-neutral-800 px-2 py-0.5 rounded-full">Loading...</span>
+      </div>
+      <div id="lib-in-common" class="hidden text-xs text-violet-400 font-medium"></div>
+    </div>
+    <div class="flex gap-2 flex-wrap mb-4">
+      <button class="lib-shelf-tab active-shelf-tab px-3 py-1 rounded-lg text-xs font-semibold border transition" data-s="">All</button>
+      <button class="lib-shelf-tab px-3 py-1 rounded-lg text-xs font-semibold bg-neutral-800 text-gray-400 border border-neutral-700 hover:text-green-300 transition flex items-center gap-1" data-s="playing"><span class="w-2 h-2 rounded-full bg-green-500 inline-block"></span>Playing</button>
+      <button class="lib-shelf-tab px-3 py-1 rounded-lg text-xs font-semibold bg-neutral-800 text-gray-400 border border-neutral-700 hover:text-blue-300 transition" data-s="played"><i class="fas fa-check text-[10px]"></i> Played</button>
+      <button class="lib-shelf-tab px-3 py-1 rounded-lg text-xs font-semibold bg-neutral-800 text-gray-400 border border-neutral-700 hover:text-purple-300 transition" data-s="backlog"><i class="fas fa-clock text-[10px]"></i> Backlog</button>
+    </div>
+    <div class="relative mb-4">
+      <input id="lib-shelf-search" type="text" placeholder="Search library..." autocomplete="off"
+             class="w-full bg-neutral-800 border border-neutral-700 text-white rounded-xl px-4 py-2 pr-9 text-sm focus:outline-none focus:border-indigo-500 placeholder-gray-600"
+             oninput="filterLibShelf()">
+      <i class="fas fa-search absolute right-3 top-2.5 text-gray-500 text-sm pointer-events-none"></i>
+    </div>
+    <div id="lib-shelf-grid" class="grid grid-cols-4 sm:grid-cols-6 lg:grid-cols-8 gap-2">
+      <div class="col-span-full text-center py-10 text-gray-600"><i class="fas fa-spinner fa-spin text-2xl mb-3 block"></i>Loading...</div>
+    </div>
+  </div>
+
+  </div><!-- /pub-panel-library -->
+
+  <!-- Tab: Achievements -->
+  <div id="pub-panel-achievements" class="hidden">
+
+    <!-- Steam Achievement Showcase -->
+    <div id="ach-showcase-section" class="hidden bg-neutral-900/50 rounded-lg border border-blue-700/30 p-5 mb-5">
+      <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4"><i class="fab fa-steam text-blue-400 mr-1.5"></i>Steam Showcase</h3>
+      <div id="ach-showcase-row" class="flex flex-wrap gap-4"></div>
+    </div>
+
+    <!-- FFXIV Achievements -->
+    {% if ffxiv_char and ffxiv_rewards %}
+    <div class="bg-neutral-900/50 rounded-lg border border-neutral-800 p-5 mb-5">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-2">
+          <img src="{% static 'img/games/guilds/ffxiv_logo.png' %}" class="w-4 h-4 object-contain">FFXIV Achievements
+        </h3>
+        <a href="{% url 'ffxiv_collection' %}" class="text-xs text-indigo-400 hover:text-indigo-300 transition">View Collection &rarr;</a>
+      </div>
+      <div class="flex items-center gap-3 bg-neutral-800/60 rounded-lg p-3 mb-4">
+        {% if ffxiv_char.avatar_url %}<img src="{{ ffxiv_char.avatar_url }}" alt="{{ ffxiv_char.character_name }}" class="w-10 h-10 rounded-lg object-cover flex-shrink-0">{% endif %}
+        <div class="flex-1 min-w-0">
+          <p class="text-white text-sm font-semibold truncate">{{ ffxiv_char.character_name }}</p>
+          <p class="text-gray-500 text-xs">{{ ffxiv_char.world }} &bull; {{ ffxiv_char.datacenter }}{% if ffxiv_char.free_company %} &bull; {{ ffxiv_char.free_company }}{% if ffxiv_char.fc_tag %} [{{ ffxiv_char.fc_tag }}]{% endif %}{% endif %}</p>
+        </div>
+        <div class="flex gap-4 text-center flex-shrink-0">
+          <div><p class="text-white font-bold text-sm">{{ ffxiv_char.mount_count }}</p><p class="text-gray-500 text-xs">Mounts</p></div>
+          <div><p class="text-white font-bold text-sm">{{ ffxiv_char.minion_count }}</p><p class="text-gray-500 text-xs">Minions</p></div>
+        </div>
+      </div>
+      <div class="flex flex-wrap gap-2">
+        {% for r in ffxiv_rewards %}
+        <div class="flex items-center gap-1.5 bg-neutral-800 rounded-lg px-2.5 py-1.5">
+          <i class="fas fa-check-circle text-green-400 text-xs flex-shrink-0"></i>
+          <span class="text-gray-300 text-xs">{{ r.name }}</span>
+          <span class="text-yellow-400 text-xs font-semibold">+{{ r.xp }}XP</span>
+          {% if r.legacy %}<span class="text-purple-400 text-xs font-semibold">+{{ r.legacy }}LM</span>{% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% else %}
+    <div class="bg-neutral-900/50 rounded-lg border border-neutral-800 p-8 text-center text-gray-600">
+      <i class="fas fa-trophy text-4xl mb-3 block"></i>
+      <p class="text-sm">No achievements to display yet.</p>
+    </div>
+    {% endif %}
+
+  </div><!-- /pub-panel-achievements -->
+
+</div><!-- /max-w-4xl -->
 
 <script>
 const PROFILE_USER_ID = {{ profile_user.id }};
 const IS_OWN = {{ is_own_profile|yesno:"true,false" }};
 let isFollowing = {{ is_following|yesno:"true,false" }};
 
-document.addEventListener('DOMContentLoaded', () => loadFollowers());
+let _libLoaded = false, _achLoaded = false;
+document.addEventListener('DOMContentLoaded', function() {
+  loadFollowers();
+  var hash = window.location.hash;
+  if (hash === '#library') pubTab('library');
+  else if (hash === '#achievements') pubTab('achievements');
+});
+
+function pubTab(name) {
+  ['profile','library','achievements'].forEach(function(t) {
+    document.getElementById('pub-panel-' + t).classList.toggle('hidden', t !== name);
+  });
+  document.querySelectorAll('.pub-tab').forEach(function(b) {
+    var active = b.id === 'pub-tab-' + name;
+    b.classList.toggle('bg-white', active);
+    b.classList.toggle('text-neutral-900', active);
+    b.classList.toggle('text-gray-400', !active);
+  });
+  var hashMap = {profile:'', library:'#library', achievements:'#achievements'};
+  history.replaceState(null, '', location.pathname + (hashMap[name] || ''));
+  if (name === 'library' && !_libLoaded) { _libLoaded = true; loadGameShelf(); }
+  if (name === 'achievements' && !_achLoaded) { _achLoaded = true; loadAchShowcase(); }
+}
 
 function showTab(tab) {
-  ['followers', 'following'].forEach(t => {
-    document.getElementById(`panel-${t}`).classList.toggle('hidden', t !== tab);
-    const btn = document.getElementById(`tab-${t}`);
+  ['followers','following'].forEach(function(t) {
+    document.getElementById('panel-'+t).classList.toggle('hidden', t !== tab);
+    var btn = document.getElementById('tab-'+t);
     btn.classList.toggle('border-indigo-500', t === tab);
     btn.classList.toggle('text-white', t === tab);
     btn.classList.toggle('border-transparent', t !== tab);
     btn.classList.toggle('text-gray-500', t !== tab);
   });
-
   if (tab === 'followers') loadFollowers();
   if (tab === 'following') loadFollowing();
 }
 
 async function loadFollowers() {
-  const container = document.getElementById('panel-followers');
-  container.innerHTML = '<p class="text-gray-500 text-sm">Loading...</p>';
+  var container = document.getElementById('panel-followers');
+  container.innerHTML = '<p class="text-gray-500 text-sm py-4 text-center">Loading...</p>';
   try {
-    const res = await fetch(`/ql/api/followers/${PROFILE_USER_ID}/`);
-    const data = await res.json();
-    if (data.followers.length === 0) {
-      container.innerHTML = '<p class="text-gray-500 text-center py-8">No followers yet</p>';
-    } else {
-      container.innerHTML = data.followers.map(u => renderUserCard(u)).join('');
-    }
+    var res = await fetch('/api/followers/' + PROFILE_USER_ID + '/');
+    var data = await res.json();
+    container.innerHTML = data.followers.length
+      ? data.followers.map(renderUserCard).join('')
+      : '<p class="text-gray-500 text-center py-8 text-sm">No followers yet</p>';
   } catch(e) { container.innerHTML = '<p class="text-red-400 text-sm">Failed to load</p>'; }
 }
 
 async function loadFollowing() {
-  const container = document.getElementById('panel-following');
-  container.innerHTML = '<p class="text-gray-500 text-sm">Loading...</p>';
+  var container = document.getElementById('panel-following');
+  if (container.dataset.loaded) return;
+  container.innerHTML = '<p class="text-gray-500 text-sm py-4 text-center">Loading...</p>';
   try {
-    const res = await fetch(`/ql/api/following/${PROFILE_USER_ID}/`);
-    const data = await res.json();
-    if (data.following.length === 0) {
-      container.innerHTML = '<p class="text-gray-500 text-center py-8">Not following anyone yet</p>';
-    } else {
-      container.innerHTML = data.following.map(u => renderUserCard(u)).join('');
-    }
+    var res = await fetch('/api/following/' + PROFILE_USER_ID + '/');
+    var data = await res.json();
+    container.innerHTML = data.following.length
+      ? data.following.map(renderUserCard).join('')
+      : '<p class="text-gray-500 text-center py-8 text-sm">Not following anyone yet</p>';
+    container.dataset.loaded = '1';
   } catch(e) { container.innerHTML = '<p class="text-red-400 text-sm">Failed to load</p>'; }
 }
 
 function renderUserCard(user) {
-  const esc = s => { if (!s) return ''; const d = document.createElement('div'); d.textContent = s; return d.innerHTML; };
-  return `
-    <a href="/ql/u/${esc(user.username)}/" class="flex items-center gap-3 p-3 bg-neutral-900/50 rounded-lg border border-neutral-800 hover:border-neutral-700 transition">
-      ${avatarHtml(user.username, user.avatar_url, 'w-10 h-10')}
-      <div class="flex-1 min-w-0">
-        <p class="text-white font-medium text-sm truncate">${esc(user.display_name || user.username)}</p>
-        <p class="text-gray-500 text-xs">@${esc(user.username)}</p>
-      </div>
-    </a>`;
+  var esc = function(s) { if (!s) return ''; var d = document.createElement('div'); d.textContent = s; return d.innerHTML; };
+  return '<a href="/u/'+esc(user.username)+'/" class="flex items-center gap-3 p-3 bg-neutral-900/50 rounded-lg border border-neutral-800 hover:border-neutral-700 transition">'
+    + avatarHtml(user.username, user.avatar_url, 'w-10 h-10')
+    + '<div class="flex-1 min-w-0"><p class="text-white font-medium text-sm truncate">'+esc(user.display_name||user.username)+'</p>'
+    + '<p class="text-gray-500 text-xs">@'+esc(user.username)+'</p></div></a>';
 }
 
 async function toggleFollow() {
-  const method = isFollowing ? 'DELETE' : 'POST';
+  var method = isFollowing ? 'DELETE' : 'POST';
   try {
-    const res = await csrfFetch(`/ql/api/follow/${PROFILE_USER_ID}/`, { method });
-    const data = await res.json();
+    var res = await csrfFetch('/api/follow/' + PROFILE_USER_ID + '/', { method: method });
+    var data = await res.json();
     if (data.success) {
       isFollowing = data.is_following;
-      const btn = document.getElementById('follow-btn');
+      var btn = document.getElementById('follow-btn');
       if (isFollowing) {
         btn.className = 'px-4 py-2 rounded-lg text-sm font-medium transition bg-neutral-700 hover:bg-red-600/80 text-white';
-        btn.innerHTML = data.is_mutual
-          ? '<i class="fas fa-user-friends mr-1"></i>Friends'
-          : '<i class="fas fa-user-check mr-1"></i>Following';
+        btn.innerHTML = data.is_mutual ? '<i class="fas fa-user-friends mr-1"></i>Friends' : '<i class="fas fa-user-check mr-1"></i>Following';
       } else {
         btn.className = 'px-4 py-2 rounded-lg text-sm font-medium transition bg-indigo-600 hover:bg-indigo-700 text-white';
         btn.innerHTML = '<i class="fas fa-user-plus mr-1"></i>Follow';
       }
     }
-  } catch(e) { console.error('Follow error:', e); }
+  } catch(e) {}
 }
 
 function showBlockMenu() {
   if (confirm('Block this user? They will not be able to see your profile or interact with you.')) {
-    csrfFetch(`/ql/api/block/${PROFILE_USER_ID}/`, { method: 'POST' })
-      .then(r => r.json())
-      .then(d => { if (d.success) location.reload(); });
+    csrfFetch('/api/block/' + PROFILE_USER_ID + '/', { method: 'POST' })
+      .then(function(r) { return r.json(); })
+      .then(function(d) { if (d.success) location.reload(); });
   }
 }
-</script>
 
-{% endif %}
+
+function loadAchShowcase() {
+  var username = '{{ profile_user.username|escapejs }}';
+  fetch('/api/steam/showcase/' + encodeURIComponent(username) + '/')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (!data.ok || !data.showcase.length) return;
+      var section = document.getElementById('ach-showcase-section');
+      var row = document.getElementById('ach-showcase-row');
+      if (!section || !row) return;
+      var esc = function(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); };
+      row.innerHTML = data.showcase.map(function(a) {
+        var icon = a.icon_url
+          ? '<img src="' + esc(a.icon_url) + '" alt="' + esc(a.display_name) + '" loading="lazy" class="w-16 h-16 rounded-lg object-cover border border-blue-500/40 shadow">'
+          : '<div class="w-16 h-16 rounded-lg bg-neutral-800 border border-blue-500/30 flex items-center justify-center"><i class="fas fa-trophy text-yellow-500 text-xl"></i></div>';
+        return '<div class="flex flex-col items-center gap-1.5 w-20">'
+          + icon
+          + '<p class="text-[10px] text-white font-medium text-center leading-tight line-clamp-2">' + esc(a.display_name) + '</p>'
+          + '<p class="text-[9px] text-gray-500 text-center truncate w-full">' + esc(a.game_name) + '</p>'
+          + '</div>';
+      }).join('');
+      section.classList.remove('hidden');
+    }).catch(function() {});
+}
+
+function loadGameShelf() {
+  var username = '{{ profile_user.username|escapejs }}';
+  fetch('/api/library/u/' + encodeURIComponent(username) + '/')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (!data.success || !data.games.length) {
+        var grid = document.getElementById('lib-shelf-grid');
+        var countEl = document.getElementById('lib-shelf-count');
+        if (countEl) countEl.textContent = '0 games';
+        if (grid) grid.innerHTML = '<div class="col-span-full text-center py-10 text-gray-600"><i class="fas fa-layer-group text-2xl mb-3 block"></i><p class="text-sm">No library yet</p></div>';
+        return;
+      }
+
+      var esc = function(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); };
+
+      // Want to Play - Library tab only
+      var ptGames = data.games.filter(function(g) { return g.status === 'play_together'; });
+      if (ptGames.length) {
+        var libWtp = document.getElementById('lib-wtp-section');
+        var libWtpCovers = document.getElementById('lib-wtp-covers');
+        var libWtpCount = document.getElementById('lib-wtp-count');
+        if (libWtp && libWtpCovers) {
+          if (libWtpCount) libWtpCount.textContent = ptGames.length + ' game' + (ptGames.length === 1 ? '' : 's');
+          libWtpCovers.innerHTML = ptGames.map(function(g) {
+            var cover = g.cover_url || '';
+            return '<a href="/ql/lfg/create/?game=' + encodeURIComponent(g.name) + '" class="relative group block" title="Create LFG for ' + esc(g.name) + '">'
+              + (cover ? '<img src="' + esc(cover) + '" class="w-full aspect-[2/3] object-cover rounded-lg border border-orange-500/50" loading="lazy" alt="' + esc(g.name) + '">'
+                       : '<div class="w-full aspect-[2/3] bg-neutral-800 rounded-lg border border-orange-500/50 flex items-center justify-center"><i class="fas fa-gamepad text-gray-600"></i></div>')
+              + '<div class="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition rounded-lg flex flex-col items-center justify-center gap-1 p-1"><i class="fas fa-users text-orange-300 text-sm"></i><span class="text-white text-[10px] font-bold text-center leading-tight">' + esc(g.name) + '</span><span class="text-orange-300 text-[9px]">Create LFG</span></div></a>';
+          }).join('');
+          libWtp.classList.remove('hidden');
+        }
+      }
+
+      // Library tab favorites (mirror)
+      var libFavSection = document.getElementById('lib-fav-section');
+      var libFavRow = document.getElementById('lib-fav-row');
+      var favGames = data.games.filter(function(g) { return g.is_favorite; });
+      if (libFavSection && libFavRow && favGames.length) {
+        libFavRow.innerHTML = favGames.map(function(g) {
+          return g.cover_url
+            ? '<div class="w-full aspect-[2/3] cursor-default rounded-lg border border-yellow-500/30 bg-neutral-800 overflow-hidden flex items-center justify-center" title="' + esc(g.name) + '"><img src="' + esc(g.cover_url) + '" class="w-full h-full object-cover" loading="lazy" alt="' + esc(g.name) + '" onerror="this.style.display=\'none\'"></div>'
+            : '<div class="w-full aspect-[2/3] bg-neutral-800 border border-yellow-500/30 rounded-lg flex items-center justify-center" title="' + esc(g.name) + '"><i class="fas fa-gamepad text-gray-600"></i></div>';
+        }).join('');
+        libFavSection.classList.remove('hidden');
+      }
+
+      // Full library grid (Library tab)
+      var allShelfGames = data.games.filter(function(g) { return !!g.cover_url; }).sort(function(a,b) {
+        var o = {play_together:0,playing:1,played:2,backlog:3};
+        return (o[a.status]||9)-(o[b.status]||9);
+      });
+      window._shelfGames = allShelfGames;
+
+      var countEl = document.getElementById('lib-shelf-count');
+      if (countEl) countEl.textContent = allShelfGames.length + ' games';
+      renderShelfGrid('', '');
+
+      if (data.in_common && data.in_common.length) {
+        var ic = document.getElementById('lib-in-common');
+        if (ic) { ic.textContent = data.in_common.length + ' game' + (data.in_common.length===1?'':'s') + ' in common'; ic.classList.remove('hidden'); }
+      }
+
+      document.querySelectorAll('.lib-shelf-tab').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+          document.querySelectorAll('.lib-shelf-tab').forEach(function(b) {
+            b.classList.remove('active-shelf-tab');
+            b.classList.add('bg-neutral-800','text-gray-400','border-neutral-700');
+          });
+          btn.classList.add('active-shelf-tab');
+          btn.classList.remove('bg-neutral-800','text-gray-400','border-neutral-700');
+          renderShelfGrid(btn.dataset.s, (document.getElementById('lib-shelf-search')||{}).value||'');
+        });
+      });
+    }).catch(function() {});
+}
+
+/* shelf tab style injected here */
+document.head.insertAdjacentHTML('beforeend', '<style>.active-shelf-tab{background:#fff!important;color:#111827!important;border-color:#fff!important;}</style>');
+
+function filterLibShelf() {
+  var search = (document.getElementById('lib-shelf-search')||{}).value || '';
+  var activeTab = document.querySelector('.lib-shelf-tab.active-shelf-tab');
+  var status = activeTab ? activeTab.dataset.s : '';
+  renderShelfGrid(status, search);
+}
+
+function renderShelfGrid(status, search) {
+  var grid = document.getElementById('lib-shelf-grid');
+  var empty = null;
+  if (!grid || !window._shelfGames) return;
+  var esc = function(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); };
+  var SC = window._shelfStatusColors || {};
+  var borderMap = {playing:'border-green-600/60',played:'border-blue-600/60',backlog:'border-purple-600/40',play_together:'border-orange-500/60'};
+  var q = search.trim().toLowerCase();
+  var games = window._shelfGames.filter(function(g) {
+    if (status && g.status !== status) return false;
+    if (q && g.name.toLowerCase().indexOf(q) === -1) return false;
+    return true;
+  });
+  if (!games.length) {
+    grid.innerHTML = '';
+    if (empty) empty.classList.remove('hidden');
+    return;
+  }
+  if (empty) empty.classList.add('hidden');
+  grid.innerHTML = games.map(function(g) {
+    var border = borderMap[g.status] || 'border-neutral-700';
+    var steamUrl = g.steam_app_id
+      ? 'https://store.steampowered.com/app/' + g.steam_app_id + '/'
+      : 'https://store.steampowered.com/search/?term=' + encodeURIComponent(g.name);
+    var linkable = g.status !== 'play_together';
+    var inner = '<img src="' + esc(g.cover_url) + '" onerror="this.onerror=null;this.src=\'https://cdn.cloudflare.steamstatic.com/steam/apps/' + (g.steam_app_id||0) + '/header.jpg\'" alt="' + esc(g.name) + '" class="w-full h-full object-cover" loading="lazy">'
+      + '<div class="absolute inset-0 bg-black/70 opacity-0 group-hover:opacity-100 transition flex items-end p-1.5">'
+      + '<span class="text-white text-[10px] font-medium leading-tight line-clamp-2">' + esc(g.name) + '</span>'
+      + '</div>';
+    if (linkable) {
+      return '<a href="' + steamUrl + '" target="_blank" rel="noopener" class="relative group rounded-xl border-2 ' + border + ' overflow-hidden bg-neutral-800 aspect-[2/3] block" title="' + esc(g.name) + ' - View on Steam">'
+        + inner + '</a>';
+    }
+    return '<div class="relative group rounded-xl border-2 ' + border + ' overflow-hidden bg-neutral-800 cursor-default aspect-[2/3]" title="' + esc(g.name) + '">'
+      + inner + '</div>';
+  }).join('');
+}
+
+</script>
 
 {% if profile_user and profile_user.show_playing_status %}
 <script>
 (function() {
-  const PLAY_GLOW = ['ring-2', 'ring-cyan-400', 'shadow-[0_0_18px_#22d3ee]'];
-  const LIVE_GLOW = ['ring-2', 'ring-rose-500', 'shadow-[0_0_18px_#f43f5e]'];
-
-  function applyProfileStatus(game, isLive, liveUrl, livePlatform, gameAppid) {
-    const avatar = document.getElementById('profile-avatar');
+  var PLAY_GLOW = ['ring-2','ring-cyan-400','shadow-[0_0_14px_#22d3ee]'];
+  var LIVE_GLOW = ['ring-2','ring-rose-500','shadow-[0_0_14px_#f43f5e]'];
+  function applyStatus(game, isLive, liveUrl, livePlatform, appid) {
+    var avatar = document.getElementById('profile-avatar');
     if (avatar) {
-      [...PLAY_GLOW, ...LIVE_GLOW].forEach(c => avatar.classList.remove(c));
-      if (isLive) LIVE_GLOW.forEach(c => avatar.classList.add(c));
-      else if (game) PLAY_GLOW.forEach(c => avatar.classList.add(c));
+      PLAY_GLOW.concat(LIVE_GLOW).forEach(function(c){avatar.classList.remove(c);});
+      if (isLive) LIVE_GLOW.forEach(function(c){avatar.classList.add(c);});
+      else if (game) PLAY_GLOW.forEach(function(c){avatar.classList.add(c);});
     }
-
-    const pill = document.getElementById('profile-playing-pill');
-    const gameName = document.getElementById('profile-playing-game');
+    var pill = document.getElementById('profile-playing-pill');
+    var gameName = document.getElementById('profile-playing-game');
     if (pill && gameName) {
       if (game) {
         gameName.textContent = game;
-        gameName.href = gameAppid
-          ? `https://store.steampowered.com/app/${gameAppid}/`
-          : `https://store.steampowered.com/search/?term=${encodeURIComponent(game)}`;
+        gameName.href = appid ? 'https://store.steampowered.com/app/'+appid+'/' : 'https://store.steampowered.com/search/?term='+encodeURIComponent(game);
         pill.classList.remove('hidden');
       } else { pill.classList.add('hidden'); }
     }
-
-    const livePill = document.getElementById('profile-live-pill');
+    var livePill = document.getElementById('profile-live-pill');
     if (livePill) {
       if (isLive && liveUrl) {
         livePill.href = liveUrl;
-        livePill.querySelector('span:last-child').textContent = `Live on ${livePlatform.charAt(0).toUpperCase() + livePlatform.slice(1)}`;
+        var sp = livePill.querySelector('span:last-child');
+        if (sp) sp.textContent = 'Live on ' + livePlatform.charAt(0).toUpperCase() + livePlatform.slice(1);
         livePill.classList.remove('hidden');
       } else { livePill.classList.add('hidden'); }
     }
   }
-
-  async function pollProfile() {
+  async function poll() {
     try {
-      const res = await fetch('/ql/api/u/{{ profile_user.username|escapejs }}/now-playing/', { credentials: 'same-origin' });
+      var res = await fetch('/api/u/{{ profile_user.username|escapejs }}/now-playing/', {credentials:'same-origin'});
       if (!res.ok) return;
-      const data = await res.json();
-      applyProfileStatus(data.current_game || null, !!data.is_live, data.live_url || '', data.live_platform || '', data.current_game_appid || null);
-    } catch (_) {}
+      var d = await res.json();
+      applyStatus(d.current_game||null, !!d.is_live, d.live_url||'', d.live_platform||'', d.current_game_appid||null);
+    } catch(_) {}
   }
-
-  pollProfile();
-  setInterval(pollProfile, 30000);
+  poll();
+  setInterval(poll, 30000);
 })();
 </script>
+{% endif %}
+
 {% endif %}
 {% endblock %}

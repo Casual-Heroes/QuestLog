@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+{% extends "questlog_web/base_web.html" %}
 {% load static %}
 
 {% block title %}Sign In — QuestLog{% endblock %}
@@ -142,7 +142,7 @@
 </style>
 {% endblock %}
 
-{% block content %}
+{% block web_content %}
 <div class="ql-login-page">
   <div class="ql-login-card">
 
@@ -168,7 +168,7 @@
         <p style="color: #9ca3af; font-size: 0.78rem; margin: 0 0 8px 0;">Join our Fluxer or Discord server and run <code style="background:#1f2937;padding:1px 5px;border-radius:4px;color:#a5b4fc;">!invite</code> in any channel to receive your invite code.</p>
         <div style="display: flex; gap: 8px; flex-wrap: wrap;">
           <a href="/bot/fluxer/" style="display: inline-flex; align-items: center; gap: 5px; background: rgba(124,58,237,0.2); border: 1px solid rgba(124,58,237,0.4); color: #c4b5fd; font-size: 0.75rem; font-weight: 600; padding: 5px 12px; border-radius: 6px; text-decoration: none;">
-            <i class="fas fa-bolt" style="font-size: 0.7rem;"></i> Join Fluxer
+            <img src="/static/img/siteassets/fluxer-favicon.png" alt="" style="width:12px;height:12px;border-radius:2px;"> Join Fluxer
           </a>
           <a href="/bot/discord/" style="display: inline-flex; align-items: center; gap: 5px; background: rgba(88,101,242,0.2); border: 1px solid rgba(88,101,242,0.4); color: #a5b4fc; font-size: 0.75rem; font-weight: 600; padding: 5px 12px; border-radius: 6px; text-decoration: none;">
             <i class="fab fa-discord" style="font-size: 0.7rem;"></i> Join Discord
@@ -177,7 +177,7 @@
       </div>
     </div>
     <p style="text-align: center; font-size: 0.82rem; color: #4b5563; margin-top: 14px;">
-      Already a member? <a href="/ql/earlyaccess/login/" style="color: #6366f1;">Sign in here</a>
+      Already a member? <a href="/earlyaccess/login/" style="color: #6366f1;">Sign in here</a>
     </p>
     {% else %}
 
@@ -228,9 +228,21 @@
       <a href="{% url 'questlog_web_password_reset' %}" style="color: #6b7280;">Forgot your password?</a>
     </p>
 
-    <p class="ql-footer-links" style="margin-top: 8px;">
-      Don't have an account yet? <a href="/ql/register/" style="color: #6366f1;">Register with invite code</a>
-    </p>
+    {% if logins_disabled %}
+    <!-- Invite code quick-entry - only shown when logins are locked -->
+    <div style="margin-top: 20px; border-top: 1px solid #1f2937; padding-top: 18px;">
+      <p style="font-size: 0.8rem; color: #6b7280; text-align: center; margin-bottom: 10px;">Don't have an account? Enter your invite code to register:</p>
+      <form method="get" action="register/" style="display: flex; gap: 8px;">
+        <input type="text" name="invite" placeholder="XXXXXXXXXX"
+               style="flex: 1; padding: 9px 12px; background: #111827; border: 1px solid #1f2937; border-radius: 8px; color: #e5e7eb; font-size: 0.85rem; outline: none; text-transform: uppercase; letter-spacing: 0.1em;"
+               oninput="this.value = this.value.toUpperCase()">
+        <button type="submit"
+                style="padding: 9px 16px; background: #4f46e5; color: #fff; font-size: 0.82rem; font-weight: 700; border-radius: 8px; border: none; cursor: pointer; white-space: nowrap;">
+          Register
+        </button>
+      </form>
+    </div>
+    {% endif %}
 
     <p class="ql-footer-links" style="margin-top: 24px; font-size: 0.78rem;">
       By signing in you agree to our
@@ -245,4 +257,14 @@
 {% if turnstile_site_key %}
 <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
 {% endif %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  var sidebar = document.getElementById('web-sidebar');
+  var tab = document.getElementById('sidebar-expand-tab');
+  var main = document.getElementById('ql-main-content');
+  if (sidebar) sidebar.style.display = 'none';
+  if (tab) tab.style.display = 'none';
+  if (main) { main.style.marginLeft = '0'; main.style.width = '100%'; }
+});
+</script>
 {% endblock %}

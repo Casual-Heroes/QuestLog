@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+{% extends "questlog_web/base_web.html" %}
 {% load static %}
 
 {% block title %}Create Account — QuestLog{% endblock %}
@@ -148,7 +148,7 @@
 </style>
 {% endblock %}
 
-{% block content %}
+{% block web_content %}
 <div class="ql-login-page">
   <div class="ql-login-card">
 
@@ -196,7 +196,7 @@
           <p style="color: #9ca3af; font-size: 0.78rem; margin: 0 0 8px 0;">Join our Fluxer or Discord server and run <code style="background:#1f2937;padding:1px 5px;border-radius:4px;color:#a5b4fc;">!invite</code> in any channel to get yours instantly.</p>
           <div style="display: flex; gap: 8px; flex-wrap: wrap;">
             <a href="/bot/fluxer/" style="display: inline-flex; align-items: center; gap: 5px; background: rgba(124,58,237,0.2); border: 1px solid rgba(124,58,237,0.4); color: #c4b5fd; font-size: 0.75rem; font-weight: 600; padding: 5px 12px; border-radius: 6px; text-decoration: none;">
-              <i class="fas fa-bolt" style="font-size: 0.7rem;"></i> Join Fluxer
+              <img src="{% static 'img/siteassets/fluxer-favicon.png' %}" style="width:0.7rem;height:0.7rem;object-fit:contain;vertical-align:middle;"> Join Fluxer
             </a>
             <a href="/bot/discord/" style="display: inline-flex; align-items: center; gap: 5px; background: rgba(88,101,242,0.2); border: 1px solid rgba(88,101,242,0.4); color: #a5b4fc; font-size: 0.75rem; font-weight: 600; padding: 5px 12px; border-radius: 6px; text-decoration: none;">
               <i class="fab fa-discord" style="font-size: 0.7rem;"></i> Join Discord
@@ -230,15 +230,15 @@
         <input type="text" id="id_website" name="website" tabindex="-1" autocomplete="off">
       </div>
 
+      {% if early_access_mode %}
       <div class="ql-field">
-        <label for="id_invite_code">Invite Code {% if not early_access_mode %}<span style="color:#4b5563;font-weight:400;text-transform:none;letter-spacing:0;">(optional)</span>{% endif %}</label>
+        <label for="id_invite_code">Invite Code</label>
         <input type="text" id="id_invite_code" name="invite_code" value="{{ invite_code|default:'' }}"
           placeholder="XXXXXXXXXX" autocomplete="off" maxlength="16"
           style="text-transform: uppercase; letter-spacing: 0.15em; font-family: monospace; font-size: 1.05rem;">
-        <div class="ql-field-hint">
-          {% if early_access_mode %}Required during Early Access - get yours in our Fluxer or Discord community.{% else %}Have an invite code from a community event or bot? Enter it here.{% endif %}
-        </div>
+        <div class="ql-field-hint">Required during Early Access - get yours in our Fluxer or Discord community.</div>
       </div>
+      {% endif %}
 
       <div class="ql-field">
         <label for="id_username">Username</label>
@@ -253,12 +253,18 @@
 
       <div class="ql-field">
         <label for="id_password">Password</label>
-        <input type="password" id="id_password" name="password" placeholder="choose a strong password" autocomplete="new-password" required>
+        <div style="position:relative;">
+          <input type="password" id="id_password" name="password" placeholder="choose a strong password" autocomplete="new-password" required style="padding-right:44px;">
+          <button type="button" onclick="togglePw('id_password','pw-eye-1')" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:1.1rem;line-height:1;" id="pw-eye-1" aria-label="Toggle password visibility">🙈</button>
+        </div>
       </div>
 
       <div class="ql-field">
         <label for="id_password2">Confirm Password</label>
-        <input type="password" id="id_password2" name="password2" placeholder="type it again" autocomplete="new-password" required>
+        <div style="position:relative;">
+          <input type="password" id="id_password2" name="password2" placeholder="type it again" autocomplete="new-password" required style="padding-right:44px;">
+          <button type="button" onclick="togglePw('id_password2','pw-eye-2')" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:1.1rem;line-height:1;" id="pw-eye-2" aria-label="Toggle password visibility">🙈</button>
+        </div>
       </div>
 
       {% if turnstile_site_key %}
@@ -271,7 +277,7 @@
     {% endif %}{# registrations_disabled #}
 
     <p class="ql-footer-links" style="margin-top: 20px;">
-      Already have an account? <a href="/ql/earlyaccess/login/">Sign in</a>
+      Already have an account? <a href="{% url 'questlog_web_login' %}">Sign in</a>
     </p>
 
     <p class="ql-footer-links" style="margin-top: 24px; font-size: 0.78rem;">
@@ -289,6 +295,18 @@
 <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
 {% endif %}
 <script>
+  function togglePw(inputId, btnId) {
+    var inp = document.getElementById(inputId);
+    var btn = document.getElementById(btnId);
+    if (inp.type === 'password') {
+      inp.type = 'text';
+      btn.textContent = '🙉';
+    } else {
+      inp.type = 'password';
+      btn.textContent = '🙈';
+    }
+  }
+
   document.addEventListener('DOMContentLoaded', function () {
     // Timing anti-bot field
     var ts = document.querySelector('#reg-form [name="_ts"]');
@@ -313,7 +331,7 @@
         if (!code) { showGateError('Enter an invite code.'); return; }
         gateSubmit.disabled = true;
         gateSubmit.textContent = 'Checking...';
-        csrfFetch('/ql/api/register/check-invite/', {
+        csrfFetch('/api/register/check-invite/', {
           method: 'POST',
           body: JSON.stringify({code: code})
         })
@@ -348,5 +366,15 @@
       });
     }
   });
+</script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  var sidebar = document.getElementById('web-sidebar');
+  var tab = document.getElementById('sidebar-expand-tab');
+  var main = document.getElementById('ql-main-content');
+  if (sidebar) sidebar.style.display = 'none';
+  if (tab) tab.style.display = 'none';
+  if (main) { main.style.marginLeft = '0'; main.style.width = '100%'; }
+});
 </script>
 {% endblock %}
