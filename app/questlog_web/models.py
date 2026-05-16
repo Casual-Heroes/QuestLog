@@ -116,9 +116,12 @@ class WebUser(Base):
     track_game_launches = Column(Boolean, default=False)   # Opt-in: earn XP when launching a new game
     last_game_launched_at = Column(BigInteger, nullable=True)  # Unix epoch of last game launch XP award (cooldown)
     fluxer_sync_custom_status = Column(Boolean, default=False)  # Opt-in: sync Now Playing to Fluxer custom status
-    fluxer_access_token_enc = Column(Text, nullable=True)       # Fernet-encrypted Fluxer OAuth access token
-    fluxer_refresh_token_enc = Column(Text, nullable=True)      # Fernet-encrypted Fluxer OAuth refresh token
-    fluxer_token_expires_at = Column(BigInteger, nullable=True) # Unix epoch when access token expires
+    fluxer_access_token_enc = Column(Text, nullable=True)
+    fluxer_refresh_token_enc = Column(Text, nullable=True)
+    fluxer_token_expires_at = Column(BigInteger, nullable=True)
+    discord_access_token_enc = Column(Text, nullable=True)
+    discord_refresh_token_enc = Column(Text, nullable=True)
+    discord_token_expires_at = Column(BigInteger, nullable=True)
 
     # Preferences
     allow_discovery = Column(Boolean, default=True)  # Show in public directories

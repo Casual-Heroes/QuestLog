@@ -38,14 +38,14 @@
         </p>
         {% if web_user.primary_community_name %}
 <p class="text-[10px] text-gray-400 truncate mt-0.5 flex items-center gap-1">
-          {% if web_user.primary_community_platform == 'discord' %}
+          {% if web_user.primary_community_icon %}
+          <img src="{{ web_user.primary_community_icon }}" class="w-3 h-3 rounded-sm flex-shrink-0" alt="">
+          {% elif web_user.primary_community_platform == 'discord' %}
           <i class="fab fa-discord text-[9px] text-indigo-400 flex-shrink-0"></i>
           {% elif web_user.primary_community_platform == 'fluxer' %}
           <img src="{% static 'img/siteassets/fluxer-favicon.png' %}" class="w-3 h-3 rounded-sm flex-shrink-0" alt="">
           {% elif web_user.primary_community_platform == 'matrix' %}
           <i class="fas fa-comments text-[9px] text-green-400 flex-shrink-0"></i>
-          {% elif web_user.primary_community_icon %}
-          <img src="{{ web_user.primary_community_icon }}" class="w-3 h-3 rounded-sm flex-shrink-0" alt="">
           {% else %}
           <i class="fas fa-shield-alt text-[9px] text-indigo-400 flex-shrink-0"></i>
           {% endif %}

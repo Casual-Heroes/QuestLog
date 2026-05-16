@@ -461,6 +461,9 @@
 
 <script>
 const CURRENT_USER_ID = {% if web_user %}{{ web_user.id }}{% else %}null{% endif %};
+function gameCoverErr(img) {
+  img.outerHTML = '<div class="w-6 h-8 bg-neutral-800 rounded flex-shrink-0 flex items-center justify-center"><i class="fas fa-gamepad text-gray-600" style="font-size:8px"></i></div>';
+}
 const CURRENT_USER_IS_ADMIN = {% if web_user %}{{ web_user.is_admin|default:"false"|lower }}{% else %}false{% endif %};
 const GAME_FILTER = "{{ game_filter|escapejs }}";
 let currentPage = 1;
@@ -518,8 +521,8 @@ function renderGameFilterList(tags) {
   list.innerHTML = tags.length ? tags.map(t => {
     const isActive = t.name.toLowerCase() === activeGame;
     const cover = t.cover_url
-      ? `<img src="${esc(t.cover_url)}" class="w-6 h-8 object-cover rounded flex-shrink-0">`
-      : `<div class="w-6 h-8 bg-neutral-800 rounded flex-shrink-0 flex items-center justify-center"><i class="fas fa-gamepad text-[8px] text-gray-600"></i></div>`;
+      ? `<img src="${esc(t.cover_url)}" class="w-6 h-8 object-cover rounded flex-shrink-0" onerror="gameCoverErr(this)">`
+      : `<div class="w-6 h-8 bg-neutral-800 rounded flex-shrink-0 flex items-center justify-center"><i class="fas fa-gamepad text-gray-600" style="font-size:8px"></i></div>`;
     return `<a href="${isActive ? '/feed/' : '/feed/?game=' + encodeURIComponent(t.name)}"
       class="flex items-center gap-2.5 px-3 py-1.5 text-xs transition ${
         isActive ? 'bg-indigo-600/20 text-indigo-300' : 'text-gray-300 hover:bg-neutral-800 hover:text-white'
@@ -783,12 +786,11 @@ function renderTrendingGames(games) {
     const cover = g.cover_url
       ? `<img src="${esc(g.cover_url)}" alt="${name}" class="w-12 h-9 rounded object-cover bg-neutral-800 flex-shrink-0" onerror="this.style.display='none'">`
       : `<div class="w-12 h-9 rounded bg-neutral-800 flex items-center justify-center flex-shrink-0"><i class="fas fa-gamepad text-gray-600 text-xs"></i></div>`;
-    const playMeta = g.players ? `<span>${g.players} playing</span>` : '';
-    const lfgMeta = g.lfg_count
-      ? `<a href="/lfg/?game=${encodeURIComponent(g.name || '')}" class="text-green-400 hover:text-green-300 transition font-medium">+ ${g.lfg_count} group${g.lfg_count !== 1 ? 's' : ''}</a>`
-      : '';
-    const sep = playMeta && lfgMeta ? '<span>&middot;</span>' : '';
-    const meta = (playMeta || lfgMeta) ? `${playMeta}${sep}${lfgMeta}` : '<span class="text-gray-600">trending</span>';
+    const parts = [];
+    if (g.lfg_count) parts.push(`<span class="text-green-400">${g.lfg_count} LFG</span>`);
+    if (g.member_count) parts.push(`<span>${g.member_count} in library</span>`);
+    if (g.post_count) parts.push(`<span>${g.post_count} post${g.post_count !== 1 ? 's' : ''}</span>`);
+    const meta = parts.length ? parts.join('<span class="mx-1 text-gray-700">&middot;</span>') : '<span class="text-gray-600">trending</span>';
     return `
       <a href="/feed/?game=${encodeURIComponent(g.name || '')}" class="flex items-center gap-2 hover:bg-neutral-800/50 rounded-lg px-2 py-1.5 transition group">
         ${cover}

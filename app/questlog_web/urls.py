@@ -225,6 +225,7 @@ from .views_discovery import (
     api_lfg_fluxer_guild_join, api_lfg_fluxer_guild_leave,
     api_community_leave_network, api_community_rejoin_network, api_community_set_primary,
     api_top_posts, api_post_game_tags,
+    api_user_discord_guilds, api_user_fluxer_guilds,
 )
 from .views_uploads import (
     api_upload_image, api_upload_avatar, api_upload_banner,
@@ -489,6 +490,8 @@ urlpatterns = [
     path('api/lfg/fluxer-guild/<int:group_id>/join/',         api_lfg_fluxer_guild_join,          name='questlog_web_api_lfg_fluxer_guild_join'),
     path('api/lfg/fluxer-guild/<int:group_id>/leave/',        api_lfg_fluxer_guild_leave,         name='questlog_web_api_lfg_fluxer_guild_leave'),
     path('api/lfg/fluxer-guild/my-closed/',                    api_lfg_fluxer_guild_my_closed,     name='questlog_web_api_lfg_fluxer_guild_my_closed'),
+    path('api/user/discord-guilds/', api_user_discord_guilds, name='questlog_web_api_user_discord_guilds'),
+    path('api/user/fluxer-guilds/',  api_user_fluxer_guilds,  name='questlog_web_api_user_fluxer_guilds'),
     path('api/communities/', api_communities, name='questlog_web_api_communities'),
     path('api/communities/<int:community_id>/', api_community_detail, name='questlog_web_api_community_detail'),
     path('api/communities/<int:community_id>/leave-network/', api_community_leave_network, name='questlog_web_api_community_leave_network'),

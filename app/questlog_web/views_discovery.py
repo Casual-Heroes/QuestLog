@@ -1106,6 +1106,9 @@ def api_community_detail(request, community_id):
             raw_games = data.get('games') or []
             community.games = json.dumps([g.strip() for g in raw_games if isinstance(g, str) and g.strip()][:20])
             community.member_count = safe_int(data.get('member_count') or community.member_count, default=community.member_count, min_val=0)
+            VALID_ACTIVITY = {'unknown', 'dormant', 'squire', 'champion', 'legendary', 'mythic'}
+            if data.get('activity_level') in VALID_ACTIVITY:
+                community.activity_level = data['activity_level']
             community.allow_discovery = bool(data.get('allow_discovery', community.allow_discovery))
             community.allow_joins = bool(data.get('allow_joins', community.allow_joins))
             # In-game guild fields
@@ -1125,7 +1128,46 @@ def api_community_detail(request, community_id):
         # GET
         is_owner = bool(request.web_user and community.owner_id == request.web_user.id)
 
-        # For Fluxer communities, use live member count from web_fluxer_guild_settings
+        # Auto-sync from platform API when owner loads - pull live member count and icon
+        if is_owner:
+            try:
+                updated = False
+                if community.platform == PlatformType.DISCORD and community.platform_id:
+                    enc_token = getattr(request.web_user, 'discord_access_token_enc', None)
+                    if enc_token:
+                        import requests as _req
+                        from app.utils.encryption import decrypt_token as _dec
+                        token = _dec(enc_token)
+                        resp = _req.get(
+                            'https://discord.com/api/v10/users/@me/guilds',
+                            headers={'Authorization': f'Bearer {token}'},
+                            timeout=8,
+                        )
+                        if resp.status_code == 200:
+                            for g in resp.json():
+                                if g['id'] == str(community.platform_id):
+                                    # member_count not in /guilds list - need /guilds/{id} (requires bot)
+                                    # but we can update icon
+                                    if g.get('icon') and not community.icon_url:
+                                        community.icon_url = f"https://cdn.discordapp.com/icons/{g['id']}/{g['icon']}.png?size=256"
+                                        updated = True
+                                    break
+                elif community.platform == PlatformType.FLUXER and community.platform_id:
+                    fluxer_settings = db.query(WebFluxerGuildSettings).filter_by(guild_id=community.platform_id).first()
+                    if fluxer_settings:
+                        if fluxer_settings.member_count and fluxer_settings.member_count != community.member_count:
+                            community.member_count = fluxer_settings.member_count
+                            updated = True
+                        if fluxer_settings.guild_icon_hash and not community.icon_url:
+                            community.icon_url = f"https://cdn.fluxer.app/icons/{community.platform_id}/{fluxer_settings.guild_icon_hash}.png"
+                            updated = True
+                if updated:
+                    community.updated_at = int(time.time())
+                    db.commit()
+            except Exception:
+                pass
+
+        # Final member count - prefer live Fluxer count
         member_count = community.member_count
         if community.platform == PlatformType.FLUXER and community.platform_id:
             fluxer_settings = db.query(WebFluxerGuildSettings).filter_by(guild_id=community.platform_id).first()
@@ -2423,32 +2465,157 @@ def api_post_game_tags(request):
     ?limit=<n> (max 20, default 15)
     """
     limit = safe_int(request.GET.get('limit', 15) or 15, default=15, min_val=1, max_val=20)
-    since = int(time.time()) - (30 * 24 * 3600)
 
     with get_db_session() as db:
+        # Group by name only so posts with/without steam_id are counted together.
+        # MAX(steam_id) picks one if any post for that game has one.
+        # LEFT JOIN web_found_games to get IGDB cover_url when available.
         rows = db.execute(text(
-            "SELECT p.game_tag_name, p.game_tag_steam_id, COUNT(*) as cnt "
+            "SELECT p.game_tag_name, MAX(p.game_tag_steam_id) as steam_id, "
+            "       MAX(fg.cover_url) as igdb_cover, COUNT(*) as cnt "
             "FROM web_posts p "
             "JOIN web_users u ON u.id = p.author_id "
+            "LEFT JOIN web_found_games fg ON fg.steam_app_id = p.game_tag_steam_id "
             "WHERE p.game_tag_name IS NOT NULL AND p.game_tag_name != '' "
             "  AND p.is_deleted = 0 AND p.is_hidden = 0 "
-            "  AND p.created_at >= :since "
             "  AND u.is_banned = 0 "
-            "GROUP BY p.game_tag_name, p.game_tag_steam_id "
+            "GROUP BY p.game_tag_name "
             "ORDER BY cnt DESC "
             "LIMIT :limit"
-        ), {'since': since, 'limit': limit}).fetchall()
+        ), {'limit': limit}).fetchall()
 
     tags = []
     for row in rows:
         steam_id = row[1]
+        igdb_cover = row[2]
+        # Prefer IGDB cover, fall back to Steam header image (more reliable than library_600x900)
+        cover_url = igdb_cover or (
+            f'https://cdn.cloudflare.steamstatic.com/steam/apps/{steam_id}/header.jpg'
+            if steam_id else None
+        )
         tags.append({
             'name': row[0],
-            'post_count': row[2],
-            'cover_url': (
-                f'https://cdn.cloudflare.steamstatic.com/steam/apps/{steam_id}/library_600x900.jpg'
-                if steam_id else None
-            ),
+            'post_count': row[3],
+            'cover_url': cover_url,
         })
 
     return JsonResponse({'tags': tags})
+
+
+@web_login_required
+@require_http_methods(["GET"])
+@ratelimit(key='ip', rate='20/h', block=True)
+def api_user_discord_guilds(request):
+    """GET /api/user/discord-guilds/
+    Returns Discord guilds the user has MANAGE_GUILD permission on,
+    fetched live from Discord API using their stored OAuth token.
+    """
+    from app.utils.encryption import decrypt_token as _dec
+    import requests as _req
+
+    user = request.web_user
+    if not user or not user.discord_id:
+        return JsonResponse({'error': 'Discord not linked'}, status=400)
+
+    enc_token = getattr(user, 'discord_access_token_enc', None)
+    if not enc_token:
+        return JsonResponse({'error': 'no_token', 'guilds': []})
+
+    try:
+        access_token = _dec(enc_token)
+    except Exception:
+        return JsonResponse({'error': 'no_token', 'guilds': []})
+
+    try:
+        resp = _req.get(
+            'https://discord.com/api/v10/users/@me/guilds',
+            headers={'Authorization': f'Bearer {access_token}'},
+            timeout=10,
+        )
+        if resp.status_code == 401:
+            return JsonResponse({'error': 'token_expired', 'guilds': []})
+        resp.raise_for_status()
+        all_guilds = resp.json()
+    except Exception as e:
+        logger.error(f"api_user_discord_guilds: fetch failed: {e}")
+        return JsonResponse({'error': 'fetch_failed', 'guilds': []})
+
+    MANAGE_GUILD = 0x20
+    owned = [
+        {
+            'id': g['id'],
+            'name': g['name'],
+            'icon': (
+                f"https://cdn.discordapp.com/icons/{g['id']}/{g['icon']}.png"
+                if g.get('icon') else None
+            ),
+        }
+        for g in all_guilds
+        if (int(g.get('permissions', 0)) & MANAGE_GUILD) or g.get('owner')
+    ]
+
+    # Mark which are already registered as communities
+    if owned:
+        guild_ids = [g['id'] for g in owned]
+        with get_db_session() as db:
+            ph = ','.join(f':d{i}' for i in range(len(guild_ids)))
+            params = {f'd{i}': v for i, v in enumerate(guild_ids)}
+            rows = db.execute(
+                text(f"SELECT platform_id FROM web_communities WHERE platform='discord' AND platform_id IN ({ph})"),
+                params,
+            ).fetchall()
+            registered = {r[0] for r in rows}
+        for g in owned:
+            g['registered'] = g['id'] in registered
+
+    return JsonResponse({'guilds': owned})
+
+
+@web_login_required
+@require_http_methods(["GET"])
+@ratelimit(key='ip', rate='20/h', block=True)
+def api_user_fluxer_guilds(request):
+    """GET /api/user/fluxer-guilds/
+    Returns Fluxer guilds the user owns or admins,
+    fetched from our DB (web_fluxer_guild_settings) using their stored fluxer_id.
+    """
+    user = request.web_user
+    if not user or not user.fluxer_id:
+        return JsonResponse({'error': 'Fluxer not linked'}, status=400)
+
+    with get_db_session() as db:
+        rows = db.execute(
+            text("""
+                SELECT s.guild_id, s.guild_name, s.member_count, s.guild_icon_hash
+                FROM web_fluxer_guild_settings s
+                WHERE s.owner_id = :fid
+                LIMIT 20
+            """),
+            {'fid': user.fluxer_id},
+        ).fetchall()
+
+        guilds = []
+        for r in rows:
+            icon = None
+            if r[3]:
+                icon = f"https://cdn.fluxer.app/icons/{r[0]}/{r[3]}.png"
+            guilds.append({
+                'id': r[0],
+                'name': r[1] or r[0],
+                'member_count': r[2] or 0,
+                'icon': icon,
+            })
+
+        if guilds:
+            guild_ids = [g['id'] for g in guilds]
+            ph = ','.join(f':f{i}' for i in range(len(guild_ids)))
+            params = {f'f{i}': v for i, v in enumerate(guild_ids)}
+            rows2 = db.execute(
+                text(f"SELECT platform_id FROM web_communities WHERE platform='fluxer' AND platform_id IN ({ph})"),
+                params,
+            ).fetchall()
+            registered = {r[0] for r in rows2}
+            for g in guilds:
+                g['registered'] = g['id'] in registered
+
+    return JsonResponse({'guilds': guilds})
