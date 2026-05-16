@@ -1,0 +1,438 @@
+{% extends "questlog_web/base_web.html" %}
+{% load static %}
+{% block title %}Market Board - FFXIV Tools{% endblock %}
+
+{% block web_content %}
+{{ data_centers|json_script:"dc-data" }}
+
+<div class="min-h-screen bg-neutral-950 text-white">
+  <div class="max-w-7xl mx-auto px-4 py-8">
+
+    <!-- Header -->
+    <div class="flex items-center gap-3 mb-2">
+      <a href="/ffxiv/tools/" class="text-gray-500 hover:text-gray-300 transition text-sm flex items-center gap-1">
+        <i class="fas fa-arrow-left text-xs"></i> FFXIV Tools
+      </a>
+    </div>
+    <div class="flex items-center gap-4 mb-6">
+      <div class="w-12 h-12 rounded-xl bg-amber-900/40 flex items-center justify-center flex-shrink-0">
+        <i class="fas fa-coins text-amber-400 text-xl"></i>
+      </div>
+      <div>
+        <h1 class="text-2xl font-bold text-white">Market Board</h1>
+        <p class="text-gray-400 text-sm">Live prices via Universalis - search any item, pick your world or data center</p>
+      </div>
+    </div>
+
+    <!-- Search bar + world selector -->
+    <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-5 mb-6">
+      <div class="flex flex-col md:flex-row gap-3">
+        <!-- Item search -->
+        <div class="flex-1 relative">
+          <div class="absolute inset-y-0 left-3 flex items-center pointer-events-none">
+            <i class="fas fa-search text-gray-500 text-sm"></i>
+          </div>
+          <input id="item-search" type="text" placeholder="Search items... (e.g. Rarefied Espresso, Allagan Tomestone)"
+            class="w-full bg-neutral-800 border border-neutral-700 rounded-xl pl-9 pr-4 py-2.5 text-white text-sm focus:outline-none focus:border-amber-500 transition"
+            autocomplete="off">
+          <!-- Search results dropdown -->
+          <div id="search-results" class="absolute top-full left-0 right-0 mt-1 bg-neutral-800 border border-neutral-700 rounded-xl overflow-hidden z-20 hidden shadow-xl max-h-72 overflow-y-auto"></div>
+        </div>
+
+        <!-- World / DC selector -->
+        <div class="flex gap-2 items-center">
+          <select id="world-select"
+            class="bg-neutral-800 border border-neutral-700 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-amber-500 transition min-w-[160px]">
+            <option value="">-- Select World / DC --</option>
+            <optgroup label="-- Data Centers --">
+              <option value="Aether">Aether (NA)</option>
+              <option value="Crystal">Crystal (NA)</option>
+              <option value="Dynamis">Dynamis (NA)</option>
+              <option value="Primal">Primal (NA)</option>
+              <option value="Chaos">Chaos (EU)</option>
+              <option value="Light">Light (EU)</option>
+              <option value="Materia">Materia (OCE)</option>
+              <option value="Elemental">Elemental (JP)</option>
+              <option value="Gaia">Gaia (JP)</option>
+              <option value="Mana">Mana (JP)</option>
+              <option value="Meteor">Meteor (JP)</option>
+            </optgroup>
+            <optgroup label="-- Individual Worlds --" id="world-optgroup"></optgroup>
+          </select>
+          <button id="search-btn" onclick="doSearch()"
+            class="px-4 py-2.5 bg-amber-600 hover:bg-amber-500 text-white text-sm font-medium rounded-xl transition flex items-center gap-2">
+            <i class="fas fa-chart-line"></i> Look Up
+          </button>
+        </div>
+      </div>
+
+      <!-- Selected item display -->
+      <div id="selected-item" class="hidden mt-3 flex items-center gap-3 bg-neutral-800 rounded-xl px-4 py-2.5">
+        <img id="selected-icon" src="" class="w-8 h-8 rounded object-cover flex-shrink-0" onerror="this.style.display='none'">
+        <div class="flex-1 min-w-0">
+          <p class="text-white text-sm font-medium" id="selected-name"></p>
+          <p class="text-gray-500 text-xs" id="selected-meta"></p>
+        </div>
+        <button onclick="clearSelection()" class="text-gray-500 hover:text-gray-300 text-xs transition">
+          <i class="fas fa-times"></i> Clear
+        </button>
+      </div>
+    </div>
+
+    <!-- Results area -->
+    <div id="results-area" class="hidden">
+
+      <!-- Summary stats -->
+      <div id="price-summary" class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5"></div>
+
+      <!-- Two columns: Listings + History -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+
+        <!-- Current Listings -->
+        <div class="bg-neutral-900 border border-neutral-800 rounded-2xl overflow-hidden">
+          <div class="px-5 py-3 border-b border-neutral-800 flex items-center justify-between">
+            <h3 class="font-bold text-white text-sm flex items-center gap-2">
+              <i class="fas fa-store text-amber-400"></i> Current Listings
+            </h3>
+            <div class="flex items-center gap-3">
+              <label class="flex items-center gap-1.5 text-xs text-gray-400 cursor-pointer">
+                <input type="checkbox" id="hq-only" onchange="renderListings()" class="rounded">
+                HQ only
+              </label>
+              <span id="listings-count" class="text-xs text-gray-500"></span>
+            </div>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-xs">
+              <thead>
+                <tr class="text-gray-500 uppercase text-[10px] border-b border-neutral-800">
+                  <th class="px-3 py-2 text-right">Price/unit</th>
+                  <th class="px-3 py-2 text-right">Qty</th>
+                  <th class="px-3 py-2 text-right">Total</th>
+                  <th class="px-3 py-2 text-center">Q</th>
+                  <th class="px-3 py-2 text-left">Retainer</th>
+                  <th class="px-3 py-2 text-left">City</th>
+                  <th class="px-3 py-2 text-left">World</th>
+                </tr>
+              </thead>
+              <tbody id="listings-body"></tbody>
+            </table>
+          </div>
+          <div id="listings-empty" class="hidden px-5 py-6 text-center text-gray-600 text-sm">No listings found.</div>
+        </div>
+
+        <!-- Recent Sales -->
+        <div class="bg-neutral-900 border border-neutral-800 rounded-2xl overflow-hidden">
+          <div class="px-5 py-3 border-b border-neutral-800 flex items-center justify-between">
+            <h3 class="font-bold text-white text-sm flex items-center gap-2">
+              <i class="fas fa-history text-sky-400"></i> Recent Sales
+            </h3>
+            <span id="history-count" class="text-xs text-gray-500"></span>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-xs">
+              <thead>
+                <tr class="text-gray-500 uppercase text-[10px] border-b border-neutral-800">
+                  <th class="px-3 py-2 text-right">Price/unit</th>
+                  <th class="px-3 py-2 text-right">Qty</th>
+                  <th class="px-3 py-2 text-center">Q</th>
+                  <th class="px-3 py-2 text-left">Buyer</th>
+                  <th class="px-3 py-2 text-left">World</th>
+                  <th class="px-3 py-2 text-left">When</th>
+                </tr>
+              </thead>
+              <tbody id="history-body"></tbody>
+            </table>
+          </div>
+          <div id="history-empty" class="hidden px-5 py-6 text-center text-gray-600 text-sm">No recent sales found.</div>
+        </div>
+
+      </div>
+
+      <!-- Data freshness notice -->
+      <p class="text-gray-600 text-xs mt-4 text-center" id="data-freshness"></p>
+    </div>
+
+    <!-- Loading spinner -->
+    <div id="loading" class="hidden flex flex-col items-center justify-center py-20 gap-4">
+      <div class="w-10 h-10 border-2 border-amber-500 border-t-transparent rounded-full animate-spin"></div>
+      <p class="text-gray-500 text-sm">Fetching prices...</p>
+    </div>
+
+    <!-- Error display -->
+    <div id="error-msg" class="hidden bg-red-900/30 border border-red-700/40 rounded-2xl p-5 text-red-300 text-sm text-center"></div>
+
+    <!-- Empty state -->
+    <div id="empty-state" class="flex flex-col items-center justify-center py-16 gap-3 text-center">
+      <div class="w-16 h-16 rounded-2xl bg-amber-900/20 flex items-center justify-center mb-2">
+        <i class="fas fa-coins text-amber-500 text-2xl"></i>
+      </div>
+      <p class="text-gray-400 text-sm font-medium">Search for any FFXIV item to see current market prices</p>
+      <p class="text-gray-600 text-xs">Data sourced from <a href="https://universalis.app" target="_blank" rel="noopener" class="text-amber-500 hover:text-amber-400">Universalis</a> - crowd-sourced market data updated by players</p>
+    </div>
+
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+
+const DCS = JSON.parse(document.getElementById('dc-data').textContent);
+
+// Populate individual worlds in the select
+const worldOptgroup = document.getElementById('world-optgroup');
+DCS.forEach(dc => {
+  dc.worlds.forEach(w => {
+    const opt = document.createElement('option');
+    opt.value = w;
+    opt.textContent = `${w} (${dc.name})`;
+    worldOptgroup.appendChild(opt);
+  });
+});
+
+// Restore saved world preference
+const savedWorld = localStorage.getItem('mb_world') || '';
+if (savedWorld) {
+  const sel = document.getElementById('world-select');
+  sel.value = savedWorld;
+}
+
+let selectedItem = null;
+let currentData  = null;
+let searchTimer  = null;
+
+// ---- Item search autocomplete ----
+
+const searchInput   = document.getElementById('item-search');
+const searchDropdown = document.getElementById('search-results');
+
+searchInput.addEventListener('input', () => {
+  clearTimeout(searchTimer);
+  const q = searchInput.value.trim();
+  if (q.length < 2) { searchDropdown.classList.add('hidden'); return; }
+  searchTimer = setTimeout(() => fetchSuggestions(q), 300);
+});
+
+searchInput.addEventListener('keydown', e => {
+  if (e.key === 'Enter') { searchDropdown.classList.add('hidden'); doSearch(); }
+  if (e.key === 'Escape') searchDropdown.classList.add('hidden');
+});
+
+document.addEventListener('click', e => {
+  if (!searchInput.contains(e.target) && !searchDropdown.contains(e.target)) {
+    searchDropdown.classList.add('hidden');
+  }
+});
+
+async function fetchSuggestions(q) {
+  try {
+    const resp = await fetch(`/api/ffxiv/mb/search/?q=${encodeURIComponent(q)}`);
+    const data = await resp.json();
+    if (!data.results || data.results.length === 0) { searchDropdown.classList.add('hidden'); return; }
+
+    searchDropdown.innerHTML = data.results.map(r => `
+      <button class="w-full flex items-center gap-3 px-3 py-2 hover:bg-neutral-700 transition text-left"
+        onclick="selectItem(${r.id}, ${JSON.stringify(r.name).replace(/"/g,'&quot;')}, '${escapeHtml(r.icon)}', ${r.ilvl}, ${JSON.stringify(r.category).replace(/"/g,'&quot;')})">
+        ${r.icon ? `<img src="${escapeHtml(r.icon)}" class="w-7 h-7 rounded flex-shrink-0 object-cover">` : '<div class="w-7 h-7 rounded bg-neutral-700 flex-shrink-0"></div>'}
+        <div class="min-w-0">
+          <p class="text-white text-sm truncate">${escapeHtml(r.name)}</p>
+          <p class="text-gray-500 text-[10px]">${escapeHtml(r.category)}${r.ilvl ? ' - iLvl ' + r.ilvl : ''}</p>
+        </div>
+      </button>
+    `).join('');
+    searchDropdown.classList.remove('hidden');
+  } catch(e) {
+    searchDropdown.classList.add('hidden');
+  }
+}
+
+window.selectItem = function(id, name, icon, ilvl, category) {
+  selectedItem = { id, name, icon, ilvl, category };
+  searchInput.value = name;
+  searchDropdown.classList.add('hidden');
+
+  document.getElementById('selected-item').classList.remove('hidden');
+  document.getElementById('selected-icon').src = icon;
+  document.getElementById('selected-name').textContent = name;
+  document.getElementById('selected-meta').textContent = `${category}${ilvl ? ' - iLvl ' + ilvl : ''}`;
+};
+
+window.clearSelection = function() {
+  selectedItem = null;
+  currentData = null;
+  searchInput.value = '';
+  document.getElementById('selected-item').classList.add('hidden');
+  document.getElementById('results-area').classList.add('hidden');
+  document.getElementById('empty-state').classList.remove('hidden');
+  document.getElementById('error-msg').classList.add('hidden');
+};
+
+// ---- Price lookup ----
+
+window.doSearch = async function() {
+  const world = document.getElementById('world-select').value;
+  if (!world) { alert('Please select a world or data center first.'); return; }
+  if (!selectedItem) {
+    const q = searchInput.value.trim();
+    if (!q) { alert('Please search for an item first.'); return; }
+    // Try to auto-select first result
+    try {
+      const resp = await fetch(`/api/ffxiv/mb/search/?q=${encodeURIComponent(q)}`);
+      const data = await resp.json();
+      if (data.results && data.results.length > 0) {
+        const r = data.results[0];
+        selectItem(r.id, r.name, r.icon, r.ilvl, r.category);
+      } else {
+        showError('No items found matching that name.');
+        return;
+      }
+    } catch(e) {
+      showError('Item search failed.');
+      return;
+    }
+  }
+
+  localStorage.setItem('mb_world', world);
+  showLoading();
+
+  try {
+    const resp = await fetch(`/api/ffxiv/mb/prices/?item_id=${selectedItem.id}&world=${encodeURIComponent(world)}`);
+    const data = await resp.json();
+    if (!resp.ok || data.error) { showError(data.error || 'Price lookup failed.'); return; }
+    currentData = data;
+    renderResults(data, world);
+  } catch(e) {
+    showError('Network error - please try again.');
+  }
+};
+
+function renderResults(data, world) {
+  hideAll();
+  document.getElementById('results-area').classList.remove('hidden');
+
+  // Summary stats
+  const summary = document.getElementById('price-summary');
+  summary.innerHTML = [
+    { label: 'Min NQ Price',    value: data.min_price_nq != null ? fmtGil(data.min_price_nq) : '-', color: 'text-white' },
+    { label: 'Min HQ Price',    value: data.min_price_hq != null ? fmtGil(data.min_price_hq) : '-', color: 'text-yellow-300' },
+    { label: 'NQ Sale Velocity',value: `${data.sale_velocity_nq}/day`, color: 'text-sky-300' },
+    { label: 'HQ Sale Velocity',value: `${data.sale_velocity_hq}/day`, color: 'text-sky-300' },
+  ].map(s => `
+    <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-4 text-center">
+      <p class="text-gray-500 text-xs mb-1">${s.label}</p>
+      <p class="${s.color} text-lg font-bold font-mono">${s.value}</p>
+    </div>
+  `).join('');
+
+  renderListings();
+
+  // History
+  const histBody = document.getElementById('history-body');
+  const histEmpty = document.getElementById('history-empty');
+  const histCount = document.getElementById('history-count');
+  const history = data.history || [];
+  histCount.textContent = `${history.length} sales`;
+
+  if (history.length === 0) {
+    histBody.innerHTML = '';
+    histEmpty.classList.remove('hidden');
+  } else {
+    histEmpty.classList.add('hidden');
+    histBody.innerHTML = history.map(h => `
+      <tr class="border-t border-neutral-800 hover:bg-neutral-800/30 transition">
+        <td class="px-3 py-2 text-right font-mono font-bold text-white">${fmtGil(h.price)}</td>
+        <td class="px-3 py-2 text-right text-gray-300">${h.quantity}</td>
+        <td class="px-3 py-2 text-center">${h.hq ? '<span class="text-yellow-400 text-[10px] font-bold">HQ</span>' : '<span class="text-gray-600 text-[10px]">NQ</span>'}</td>
+        <td class="px-3 py-2 text-gray-400 max-w-[120px] truncate">${escapeHtml(h.buyer || '-')}</td>
+        <td class="px-3 py-2 text-gray-500 text-[10px]">${escapeHtml(h.world || world)}</td>
+        <td class="px-3 py-2 text-gray-600 text-[10px]">${fmtAge(h.timestamp)}</td>
+      </tr>
+    `).join('');
+  }
+
+  // Freshness
+  if (data.last_upload) {
+    document.getElementById('data-freshness').textContent = `Data last updated ${fmtAge(data.last_upload / 1000)} - powered by Universalis`;
+  }
+}
+
+window.renderListings = function() {
+  if (!currentData) return;
+  const hqOnly = document.getElementById('hq-only').checked;
+  const listingsBody  = document.getElementById('listings-body');
+  const listingsEmpty = document.getElementById('listings-empty');
+  const listingsCount = document.getElementById('listings-count');
+
+  let listings = currentData.listings || [];
+  if (hqOnly) listings = listings.filter(l => l.hq);
+
+  listingsCount.textContent = `${listings.length} listings`;
+
+  if (listings.length === 0) {
+    listingsBody.innerHTML = '';
+    listingsEmpty.classList.remove('hidden');
+  } else {
+    listingsEmpty.classList.add('hidden');
+    const minPrice = Math.min(...listings.map(l => l.price));
+    listingsBody.innerHTML = listings.map((l, i) => {
+      const isCheapest = l.price === minPrice;
+      return `
+      <tr class="border-t border-neutral-800 hover:bg-neutral-800/30 transition ${isCheapest && i === 0 ? 'bg-amber-900/10' : ''}">
+        <td class="px-3 py-2 text-right font-mono font-bold ${isCheapest ? 'text-amber-400' : 'text-white'}">${fmtGil(l.price)}${isCheapest && i === 0 ? ' <span class="text-[9px] text-amber-500">BEST</span>' : ''}</td>
+        <td class="px-3 py-2 text-right text-gray-300">${l.quantity}</td>
+        <td class="px-3 py-2 text-right text-gray-500 text-[10px]">${fmtGil(l.total)}</td>
+        <td class="px-3 py-2 text-center">${l.hq ? '<span class="text-yellow-400 text-[10px] font-bold">HQ</span>' : '<span class="text-gray-600 text-[10px]">NQ</span>'}</td>
+        <td class="px-3 py-2 text-gray-400 max-w-[120px] truncate">${escapeHtml(l.retainer || '-')}</td>
+        <td class="px-3 py-2 text-gray-500 text-[10px]">${escapeHtml(l.retainer_city || '')}</td>
+        <td class="px-3 py-2 text-gray-500 text-[10px]">${escapeHtml(l.world || '')}</td>
+      </tr>`;
+    }).join('');
+  }
+};
+
+// ---- Helpers ----
+
+function fmtGil(n) {
+  if (n == null) return '-';
+  return n.toLocaleString() + ' <span class="text-amber-500 text-[10px]">gil</span>';
+}
+
+function fmtAge(ts) {
+  if (!ts) return '-';
+  const secs = Math.floor(Date.now() / 1000) - ts;
+  if (secs < 60) return 'just now';
+  if (secs < 3600) return `${Math.floor(secs/60)}m ago`;
+  if (secs < 86400) return `${Math.floor(secs/3600)}h ago`;
+  return `${Math.floor(secs/86400)}d ago`;
+}
+
+function showLoading() {
+  hideAll();
+  document.getElementById('loading').classList.remove('hidden');
+}
+
+function showError(msg) {
+  hideAll();
+  const el = document.getElementById('error-msg');
+  el.textContent = msg;
+  el.classList.remove('hidden');
+}
+
+function hideAll() {
+  document.getElementById('loading').classList.add('hidden');
+  document.getElementById('results-area').classList.add('hidden');
+  document.getElementById('error-msg').classList.add('hidden');
+  document.getElementById('empty-state').classList.add('hidden');
+}
+
+// Keyboard shortcut: focus search on /
+document.addEventListener('keydown', e => {
+  if (e.key === '/' && document.activeElement.tagName !== 'INPUT') {
+    e.preventDefault();
+    searchInput.focus();
+  }
+});
+
+});
+</script>
+{% endblock web_content %}

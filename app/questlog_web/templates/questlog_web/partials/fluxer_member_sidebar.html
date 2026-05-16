@@ -85,7 +85,7 @@
 
     <!-- Dashboard -->
     <div>
-      <a href="{% if is_owner %}dashboard/fluxer/{{ guild_id }}/{% else %}fluxer/{{ guild_id }}/{% endif %}"
+      <a href="{% if is_owner %}/dashboard/fluxer/{{ guild_id }}/{% else %}/fluxer/{{ guild_id }}/{% endif %}"
          class="nav-item {% if active_page == 'dashboard' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition group">
         <i class="fas fa-home text-gray-400 group-hover:text-indigo-400"></i>
         <span>Dashboard</span>
@@ -330,7 +330,7 @@
 
   <!-- Footer -->
   <div class="p-4 border-t border-neutral-800 space-y-3 mt-auto">
-    <a href="{% url 'questlog_web_home' %}"
+    <a href="/discover/"
        class="flex items-center gap-2 w-full py-2 px-3 rounded-lg text-sm font-medium text-gray-400 hover:text-white hover:bg-neutral-800 transition group">
       <i class="fas fa-arrow-left text-gray-500 group-hover:text-white"></i>
       <span>Back to QuestLog</span>

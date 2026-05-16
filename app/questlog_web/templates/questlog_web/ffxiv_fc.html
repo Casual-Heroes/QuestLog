@@ -1,0 +1,1061 @@
+{% extends "questlog_web/base_web.html" %}
+{% load static %}
+{% block title %}FC Progression - FFXIV Tools | Casual Heroes{% endblock %}
+
+{% block web_content %}
+<div class="p-4 sm:p-6 max-w-7xl mx-auto">
+
+  <!-- Header -->
+  <div class="flex flex-col sm:flex-row sm:items-end gap-4 mb-6">
+    <div class="flex items-center gap-4">
+      <div class="w-14 h-14 rounded-2xl bg-rose-900/40 border border-rose-800/40 flex items-center justify-center flex-shrink-0">
+        <i class="fas fa-users text-rose-400 text-2xl"></i>
+      </div>
+      <div>
+        <div class="flex items-center gap-2 text-sm text-gray-500 mb-1">
+          <a href="/ffxiv/" class="hover:text-white transition">FFXIV</a>
+          <i class="fas fa-chevron-right text-xs"></i>
+          <a href="/ffxiv/tools/" class="hover:text-white transition">Tools</a>
+          <i class="fas fa-chevron-right text-xs"></i>
+          <span class="text-gray-300">FC Progression</span>
+        </div>
+        <h1 class="text-3xl font-extrabold text-white leading-tight">FC Progression</h1>
+        <p class="text-rose-300 text-sm font-medium">CH members - mount farming, minion farming, raid clears</p>
+      </div>
+    </div>
+    <div class="sm:ml-auto flex items-center gap-3">
+      {% if not web_user %}
+      <a href="/register/" class="text-xs bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded-lg transition">
+        <i class="fas fa-link mr-1"></i>Link Your Character
+      </a>
+      {% else %}
+      <a href="/ffxiv/tools/collection/" class="text-xs bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded-lg transition">
+        <i class="fas fa-sync mr-1"></i>Sync Your Character
+      </a>
+      {% endif %}
+      <a href="/ffxiv/tools/" class="text-xs text-gray-500 hover:text-gray-300 transition flex items-center gap-1">
+        <i class="fas fa-arrow-left text-[10px]"></i> All Tools
+      </a>
+    </div>
+  </div>
+
+  {% if member_count == 0 %}
+  <!-- Empty state -->
+  <div class="text-center py-20 bg-neutral-900/40 border border-neutral-800 rounded-2xl">
+    <i class="fas fa-users text-5xl text-neutral-700 mb-4"></i>
+    <p class="text-white font-semibold text-lg mb-2">No CH members have linked characters yet</p>
+    <p class="text-gray-500 text-sm mb-6">Link your Lodestone character to appear here and start tracking progression with the FC.</p>
+    <a href="/ffxiv/tools/collection/" class="inline-flex items-center gap-2 px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-semibold text-sm transition">
+      <i class="fas fa-link"></i> Link Your Character
+    </a>
+  </div>
+
+  {% else %}
+
+  <!-- Tab nav -->
+  <div class="flex gap-1 mb-6 bg-neutral-900 border border-neutral-800 rounded-xl p-1 w-fit flex-wrap">
+    <button onclick="switchTab('members')" id="tab-members"
+            class="tab-btn px-4 py-2 rounded-lg text-sm font-semibold transition">
+      <i class="fas fa-users mr-2"></i>Members
+      <span class="ml-1.5 text-xs bg-neutral-700 text-gray-300 px-1.5 py-0.5 rounded-full">{{ member_count }}</span>
+    </button>
+    <button onclick="switchTab('farming')" id="tab-farming"
+            class="tab-btn px-4 py-2 rounded-lg text-sm font-semibold transition">
+      <i class="fas fa-horse mr-2"></i>Farming
+    </button>
+    <button onclick="switchTab('clears')" id="tab-clears"
+            class="tab-btn px-4 py-2 rounded-lg text-sm font-semibold transition">
+      <i class="fas fa-check-double mr-2"></i>Raid Clears
+    </button>
+  </div>
+
+  <!-- Members Tab -->
+  <div id="panel-members">
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3" id="members-grid"></div>
+  </div>
+
+  <!-- Farming Tab (Mounts + Minions) -->
+  <div id="panel-farming" class="hidden">
+
+    <!-- Sub-tabs -->
+    <div class="flex gap-1 mb-5 bg-neutral-800 rounded-lg p-1 w-fit">
+      <button onclick="setFarmingTab('mounts')" id="ftab-mounts"
+              class="ftab-btn px-3 py-1.5 rounded-md text-xs font-semibold transition">
+        <i class="fas fa-horse mr-1.5"></i>Mounts
+      </button>
+      <button onclick="setFarmingTab('minions')" id="ftab-minions"
+              class="ftab-btn px-3 py-1.5 rounded-md text-xs font-semibold transition">
+        <i class="fas fa-paw mr-1.5"></i>Minions
+      </button>
+    </div>
+
+    <!-- Mount panel -->
+    <div id="fpanel-mounts">
+      <div class="flex flex-wrap gap-3 mb-5 items-center">
+        <input type="text" id="mount-search" placeholder="Search mount name..."
+               oninput="renderMounts()"
+               class="bg-neutral-800 border border-neutral-700 text-white text-sm rounded-xl px-4 py-2 w-72 focus:outline-none focus:border-rose-500/60 placeholder-gray-600">
+        <div class="flex gap-1.5 flex-wrap">
+          <button onclick="setMountFilter('all')" id="mf-all" class="mf-btn px-3 py-1.5 rounded-lg text-xs font-semibold transition">All</button>
+          <button onclick="setMountFilter('raid')" id="mf-raid" class="mf-btn px-3 py-1.5 rounded-lg text-xs font-semibold transition">
+            <i class="fas fa-skull mr-1 text-red-400"></i>Raid Drops
+          </button>
+          <button onclick="setMountFilter('trial')" id="mf-trial" class="mf-btn px-3 py-1.5 rounded-lg text-xs font-semibold transition">
+            <i class="fas fa-bolt mr-1 text-yellow-400"></i>Trial Drops
+          </button>
+          <button onclick="setMountFilter('missing')" id="mf-missing" class="mf-btn px-3 py-1.5 rounded-lg text-xs font-semibold transition">
+            <i class="fas fa-times mr-1 text-rose-400"></i>I'm Missing
+          </button>
+        </div>
+      </div>
+      <div id="mount-grid" class="space-y-2"></div>
+      <div id="mount-empty" class="hidden text-center py-12 text-gray-500">
+        <i class="fas fa-horse text-4xl mb-3 opacity-30"></i>
+        <p>No mounts match your filter.</p>
+      </div>
+    </div>
+
+    <!-- Minion panel -->
+    <div id="fpanel-minions" class="hidden">
+      <div class="flex flex-wrap gap-3 mb-5 items-center">
+        <input type="text" id="minion-search" placeholder="Search minion name..."
+               oninput="renderMinions()"
+               class="bg-neutral-800 border border-neutral-700 text-white text-sm rounded-xl px-4 py-2 w-72 focus:outline-none focus:border-rose-500/60 placeholder-gray-600">
+        <div class="flex gap-1.5 flex-wrap">
+          <button onclick="setMinionFilter('all')" id="mnf-all" class="mnf-btn px-3 py-1.5 rounded-lg text-xs font-semibold transition">All</button>
+          <button onclick="setMinionFilter('raid')" id="mnf-raid" class="mnf-btn px-3 py-1.5 rounded-lg text-xs font-semibold transition">
+            <i class="fas fa-skull mr-1 text-red-400"></i>Raid Drops
+          </button>
+          <button onclick="setMinionFilter('trial')" id="mnf-trial" class="mnf-btn px-3 py-1.5 rounded-lg text-xs font-semibold transition">
+            <i class="fas fa-bolt mr-1 text-yellow-400"></i>Trial Drops
+          </button>
+          <button onclick="setMinionFilter('dungeon')" id="mnf-dungeon" class="mnf-btn px-3 py-1.5 rounded-lg text-xs font-semibold transition">
+            <i class="fas fa-dungeon mr-1 text-blue-400"></i>Dungeon Drops
+          </button>
+          <button onclick="setMinionFilter('missing')" id="mnf-missing" class="mnf-btn px-3 py-1.5 rounded-lg text-xs font-semibold transition">
+            <i class="fas fa-times mr-1 text-rose-400"></i>I'm Missing
+          </button>
+        </div>
+      </div>
+      <div id="minion-grid" class="space-y-2"></div>
+      <div id="minion-empty" class="hidden text-center py-12 text-gray-500">
+        <i class="fas fa-paw text-4xl mb-3 opacity-30"></i>
+        <p>No minions match your filter.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Raid Clears Tab -->
+  <div id="panel-clears" class="hidden">
+
+    {% if not web_user %}
+    <div class="bg-indigo-900/20 border border-indigo-700/30 rounded-xl p-4 mb-5 flex items-center gap-3">
+      <i class="fas fa-info-circle text-indigo-400"></i>
+      <p class="text-indigo-300 text-sm">
+        <a href="/login/" class="font-semibold underline hover:text-white">Log in</a> to report your own clears and see your progress alongside FC members.
+      </p>
+    </div>
+    {% endif %}
+
+    <!-- View selector -->
+    <div class="flex flex-wrap gap-3 mb-5 items-center">
+      <div class="flex gap-1 bg-neutral-800 rounded-lg p-1">
+        <button onclick="setClearView('grid')" id="cv-grid" class="cv-btn px-3 py-1.5 rounded-md text-xs font-semibold transition">
+          <i class="fas fa-table mr-1.5"></i>FC Grid
+        </button>
+        <button onclick="setClearView('my')" id="cv-my" class="cv-btn px-3 py-1.5 rounded-md text-xs font-semibold transition">
+          <i class="fas fa-user mr-1.5"></i>My Clears
+        </button>
+      </div>
+      <p class="text-xs text-gray-600">Self-reported - check off what you've cleared</p>
+    </div>
+
+    <!-- Content category nav -->
+    <div class="flex flex-wrap gap-1.5 mb-5" id="content-cat-nav"></div>
+
+    <!-- Clears content area -->
+    <div id="clears-content"></div>
+  </div>
+
+  {% endif %}
+</div>
+
+<script>
+const MEMBERS = {{ members|safe }};
+const MY_CLEARS_INIT = {{ my_clears|safe }};
+const IS_LOGGED_IN = {% if web_user %}true{% else %}false{% endif %};
+const IS_FC_MEMBER = {% if user_is_fc_member %}true{% else %}false{% endif %};
+const MY_USER_ID = {% if web_user %}{{ web_user.id }}{% else %}null{% endif %};
+
+let myClears = new Set(MY_CLEARS_INIT);
+let mountFilter = 'all';
+let minionFilter = 'all';
+let currentTab = 'members';
+let farmingTab = 'mounts';
+let clearView = 'grid';
+let activeCatIdx = 0;
+
+// ---- CONTENT DATA ----
+const CONTENT_CATEGORIES = [
+  {
+    label: 'Ultimates',
+    color: 'red',
+    icon: 'fa-dragon',
+    items: [
+      {key:'ucob',    label:'The Unending Coil of Bahamut',  abbr:'UCoB',  patch:'4.1'},
+      {key:'uwu',     label:'The Weapon\'s Refrain',          abbr:'UwU',   patch:'4.3'},
+      {key:'tea',     label:'The Epic of Alexander',          abbr:'TEA',   patch:'5.1'},
+      {key:'dsr',     label:'Dragonsong\'s Reprise',          abbr:'DSR',   patch:'6.1'},
+      {key:'top',     label:'The Omega Protocol',             abbr:'TOP',   patch:'6.3'},
+      {key:'fru',     label:'Futures Rewritten',              abbr:'FRU',   patch:'7.2'},
+    ]
+  },
+  {
+    label: 'Savage - Arcadion (DT)',
+    color: 'violet',
+    icon: 'fa-skull',
+    items: [
+      {key:'m1s',  label:'AAC Light-heavyweight M1 (Savage)',  abbr:'M1S',  patch:'7.05'},
+      {key:'m2s',  label:'AAC Light-heavyweight M2 (Savage)',  abbr:'M2S',  patch:'7.05'},
+      {key:'m3s',  label:'AAC Light-heavyweight M3 (Savage)',  abbr:'M3S',  patch:'7.05'},
+      {key:'m4s',  label:'AAC Light-heavyweight M4 (Savage)',  abbr:'M4S',  patch:'7.05'},
+      {key:'m5s',  label:'AAC Cruiserweight M5 (Savage)',      abbr:'M5S',  patch:'7.21'},
+      {key:'m6s',  label:'AAC Cruiserweight M6 (Savage)',      abbr:'M6S',  patch:'7.21'},
+      {key:'m7s',  label:'AAC Cruiserweight M7 (Savage)',      abbr:'M7S',  patch:'7.21'},
+      {key:'m8s',  label:'AAC Cruiserweight M8 (Savage)',      abbr:'M8S',  patch:'7.21'},
+      {key:'m9s',  label:'AAC Heavyweight M9 (Savage)',        abbr:'M9S',  patch:'7.41'},
+      {key:'m10s', label:'AAC Heavyweight M10 (Savage)',       abbr:'M10S', patch:'7.41'},
+      {key:'m11s', label:'AAC Heavyweight M11 (Savage)',       abbr:'M11S', patch:'7.41'},
+      {key:'m12s', label:'AAC Heavyweight M12 (Savage)',       abbr:'M12S', patch:'7.41'},
+    ]
+  },
+  {
+    label: 'Normal - Arcadion (DT)',
+    color: 'blue',
+    icon: 'fa-shield-alt',
+    items: [
+      {key:'m1n',  label:'AAC Light-heavyweight M1',   abbr:'M1N',  patch:'7.0'},
+      {key:'m2n',  label:'AAC Light-heavyweight M2',   abbr:'M2N',  patch:'7.0'},
+      {key:'m3n',  label:'AAC Light-heavyweight M3',   abbr:'M3N',  patch:'7.0'},
+      {key:'m4n',  label:'AAC Light-heavyweight M4',   abbr:'M4N',  patch:'7.0'},
+      {key:'m5n',  label:'AAC Cruiserweight M5',        abbr:'M5N',  patch:'7.2'},
+      {key:'m6n',  label:'AAC Cruiserweight M6',        abbr:'M6N',  patch:'7.2'},
+      {key:'m7n',  label:'AAC Cruiserweight M7',        abbr:'M7N',  patch:'7.2'},
+      {key:'m8n',  label:'AAC Cruiserweight M8',        abbr:'M8N',  patch:'7.2'},
+      {key:'m9n',  label:'AAC Heavyweight M9',          abbr:'M9N',  patch:'7.4'},
+      {key:'m10n', label:'AAC Heavyweight M10',         abbr:'M10N', patch:'7.4'},
+      {key:'m11n', label:'AAC Heavyweight M11',         abbr:'M11N', patch:'7.4'},
+      {key:'m12n', label:'AAC Heavyweight M12',         abbr:'M12N', patch:'7.4'},
+    ]
+  },
+  {
+    label: 'Savage - Pandaemonium (EW)',
+    color: 'amber',
+    icon: 'fa-skull',
+    items: [
+      {key:'p1s',  label:'Asphodelos: The First Circle (Savage)',   abbr:'P1S',  patch:'6.0'},
+      {key:'p2s',  label:'Asphodelos: The Second Circle (Savage)',  abbr:'P2S',  patch:'6.0'},
+      {key:'p3s',  label:'Asphodelos: The Third Circle (Savage)',   abbr:'P3S',  patch:'6.0'},
+      {key:'p4s',  label:'Asphodelos: The Fourth Circle (Savage)',  abbr:'P4S',  patch:'6.0'},
+      {key:'p5s',  label:'Abyssos: The Fifth Circle (Savage)',      abbr:'P5S',  patch:'6.2'},
+      {key:'p6s',  label:'Abyssos: The Sixth Circle (Savage)',      abbr:'P6S',  patch:'6.2'},
+      {key:'p7s',  label:'Abyssos: The Seventh Circle (Savage)',    abbr:'P7S',  patch:'6.2'},
+      {key:'p8s',  label:'Abyssos: The Eighth Circle (Savage)',     abbr:'P8S',  patch:'6.2'},
+      {key:'p9s',  label:'Anabaseios: The Ninth Circle (Savage)',   abbr:'P9S',  patch:'6.4'},
+      {key:'p10s', label:'Anabaseios: The Tenth Circle (Savage)',   abbr:'P10S', patch:'6.4'},
+      {key:'p11s', label:'Anabaseios: The Eleventh Circle (Savage)',abbr:'P11S', patch:'6.4'},
+      {key:'p12s', label:'Anabaseios: The Twelfth Circle (Savage)', abbr:'P12S', patch:'6.4'},
+    ]
+  },
+  {
+    label: 'Normal - Pandaemonium (EW)',
+    color: 'blue',
+    icon: 'fa-shield-alt',
+    items: [
+      {key:'p1n',  label:'Asphodelos: The First Circle',    abbr:'P1N',  patch:'6.0'},
+      {key:'p2n',  label:'Asphodelos: The Second Circle',   abbr:'P2N',  patch:'6.0'},
+      {key:'p3n',  label:'Asphodelos: The Third Circle',    abbr:'P3N',  patch:'6.0'},
+      {key:'p4n',  label:'Asphodelos: The Fourth Circle',   abbr:'P4N',  patch:'6.0'},
+      {key:'p5n',  label:'Abyssos: The Fifth Circle',       abbr:'P5N',  patch:'6.2'},
+      {key:'p6n',  label:'Abyssos: The Sixth Circle',       abbr:'P6N',  patch:'6.2'},
+      {key:'p7n',  label:'Abyssos: The Seventh Circle',     abbr:'P7N',  patch:'6.2'},
+      {key:'p8n',  label:'Abyssos: The Eighth Circle',      abbr:'P8N',  patch:'6.2'},
+      {key:'p9n',  label:'Anabaseios: The Ninth Circle',    abbr:'P9N',  patch:'6.4'},
+      {key:'p10n', label:'Anabaseios: The Tenth Circle',    abbr:'P10N', patch:'6.4'},
+      {key:'p11n', label:'Anabaseios: The Eleventh Circle', abbr:'P11N', patch:'6.4'},
+      {key:'p12n', label:'Anabaseios: The Twelfth Circle',  abbr:'P12N', patch:'6.4'},
+    ]
+  },
+  {
+    label: 'Savage - Eden (ShB)',
+    color: 'emerald',
+    icon: 'fa-skull',
+    items: [
+      {key:'e1s',  label:'Eden\'s Gate: Resurrection (Savage)',       abbr:'E1S',  patch:'5.0'},
+      {key:'e2s',  label:'Eden\'s Gate: Descent (Savage)',            abbr:'E2S',  patch:'5.0'},
+      {key:'e3s',  label:'Eden\'s Gate: Inundation (Savage)',         abbr:'E3S',  patch:'5.0'},
+      {key:'e4s',  label:'Eden\'s Gate: Sepulture (Savage)',          abbr:'E4S',  patch:'5.0'},
+      {key:'e5s',  label:'Eden\'s Verse: Fulmination (Savage)',       abbr:'E5S',  patch:'5.2'},
+      {key:'e6s',  label:'Eden\'s Verse: Furor (Savage)',             abbr:'E6S',  patch:'5.2'},
+      {key:'e7s',  label:'Eden\'s Verse: Iconoclasm (Savage)',        abbr:'E7S',  patch:'5.2'},
+      {key:'e8s',  label:'Eden\'s Verse: Refulgence (Savage)',        abbr:'E8S',  patch:'5.2'},
+      {key:'e9s',  label:'Eden\'s Promise: Umbra (Savage)',           abbr:'E9S',  patch:'5.4'},
+      {key:'e10s', label:'Eden\'s Promise: Litany (Savage)',          abbr:'E10S', patch:'5.4'},
+      {key:'e11s', label:'Eden\'s Promise: Anamorphosis (Savage)',    abbr:'E11S', patch:'5.4'},
+      {key:'e12s', label:'Eden\'s Promise: Eternity (Savage)',        abbr:'E12S', patch:'5.4'},
+    ]
+  },
+  {
+    label: 'Savage - Omega (SB)',
+    color: 'cyan',
+    icon: 'fa-skull',
+    items: [
+      {key:'o1s',  label:'Deltascape V1.0 (Savage)',  abbr:'O1S',  patch:'4.0'},
+      {key:'o2s',  label:'Deltascape V2.0 (Savage)',  abbr:'O2S',  patch:'4.0'},
+      {key:'o3s',  label:'Deltascape V3.0 (Savage)',  abbr:'O3S',  patch:'4.0'},
+      {key:'o4s',  label:'Deltascape V4.0 (Savage)',  abbr:'O4S',  patch:'4.0'},
+      {key:'o5s',  label:'Sigmascape V1.0 (Savage)',  abbr:'O5S',  patch:'4.2'},
+      {key:'o6s',  label:'Sigmascape V2.0 (Savage)',  abbr:'O6S',  patch:'4.2'},
+      {key:'o7s',  label:'Sigmascape V3.0 (Savage)',  abbr:'O7S',  patch:'4.2'},
+      {key:'o8s',  label:'Sigmascape V4.0 (Savage)',  abbr:'O8S',  patch:'4.2'},
+      {key:'o9s',  label:'Alphascape V1.0 (Savage)',  abbr:'O9S',  patch:'4.4'},
+      {key:'o10s', label:'Alphascape V2.0 (Savage)',  abbr:'O10S', patch:'4.4'},
+      {key:'o11s', label:'Alphascape V3.0 (Savage)',  abbr:'O11S', patch:'4.4'},
+      {key:'o12s', label:'Alphascape V4.0 (Savage)',  abbr:'O12S', patch:'4.4'},
+    ]
+  },
+  {
+    label: 'Savage - Alexander (HW)',
+    color: 'yellow',
+    icon: 'fa-skull',
+    items: [
+      {key:'a1s',  label:'The Fist of the Father (Savage)',    abbr:'A1S',  patch:'3.0'},
+      {key:'a2s',  label:'The Cuff of the Father (Savage)',    abbr:'A2S',  patch:'3.0'},
+      {key:'a3s',  label:'The Arm of the Father (Savage)',     abbr:'A3S',  patch:'3.0'},
+      {key:'a4s',  label:'The Burden of the Father (Savage)',  abbr:'A4S',  patch:'3.0'},
+      {key:'a5s',  label:'The Fist of the Son (Savage)',       abbr:'A5S',  patch:'3.2'},
+      {key:'a6s',  label:'The Cuff of the Son (Savage)',       abbr:'A6S',  patch:'3.2'},
+      {key:'a7s',  label:'The Arm of the Son (Savage)',        abbr:'A7S',  patch:'3.2'},
+      {key:'a8s',  label:'The Burden of the Son (Savage)',     abbr:'A8S',  patch:'3.2'},
+      {key:'a9s',  label:'Eyes of the Creator (Savage)',       abbr:'A9S',  patch:'3.4'},
+      {key:'a10s', label:'Breath of the Creator (Savage)',     abbr:'A10S', patch:'3.4'},
+      {key:'a11s', label:'Heart of the Creator (Savage)',      abbr:'A11S', patch:'3.4'},
+      {key:'a12s', label:'Soul of the Creator (Savage)',       abbr:'A12S', patch:'3.4'},
+    ]
+  },
+  {
+    label: 'The Binding Coil (ARR)',
+    color: 'orange',
+    icon: 'fa-fire',
+    items: [
+      {key:'t1',  label:'Turn 1',   abbr:'T1',  patch:'2.0'},
+      {key:'t2',  label:'Turn 2',   abbr:'T2',  patch:'2.0'},
+      {key:'t3',  label:'Turn 3',   abbr:'T3',  patch:'2.0'},
+      {key:'t4',  label:'Turn 4',   abbr:'T4',  patch:'2.0'},
+      {key:'t5',  label:'Turn 5',   abbr:'T5',  patch:'2.0'},
+      {key:'t6',  label:'Turn 6 (2nd Coil)',   abbr:'T6',  patch:'2.2'},
+      {key:'t7',  label:'Turn 7 (2nd Coil)',   abbr:'T7',  patch:'2.2'},
+      {key:'t8',  label:'Turn 8 (2nd Coil)',   abbr:'T8',  patch:'2.2'},
+      {key:'t9',  label:'Turn 9 (2nd Coil)',   abbr:'T9',  patch:'2.2'},
+      {key:'t10', label:'Turn 10 (Final Coil)',  abbr:'T10', patch:'2.4'},
+      {key:'t11', label:'Turn 11 (Final Coil)',  abbr:'T11', patch:'2.4'},
+      {key:'t12', label:'Turn 12 (Final Coil)',  abbr:'T12', patch:'2.4'},
+      {key:'t13', label:'Turn 13 (Final Coil)',  abbr:'T13', patch:'2.4'},
+    ]
+  },
+  {
+    label: 'Alliance Raids',
+    color: 'sky',
+    icon: 'fa-shield-halved',
+    items: [
+      {key:'labyrinth',   label:'The Labyrinth of the Ancients',  abbr:'LotA',  patch:'2.1'},
+      {key:'syrcus',      label:'Syrcus Tower',                    abbr:'ST',    patch:'2.3'},
+      {key:'world_of_darkness', label:'The World of Darkness',    abbr:'WoD',   patch:'2.5'},
+      {key:'void_ark',    label:'The Void Ark',                    abbr:'VA',    patch:'3.1'},
+      {key:'weeping_city',label:'The Weeping City of Mhach',       abbr:'WC',    patch:'3.3'},
+      {key:'dun_scaith',  label:'Dun Scaith',                      abbr:'DS',    patch:'3.5'},
+      {key:'return_ivalice',    label:'The Royal City of Rabanastre',  abbr:'RCR', patch:'4.1'},
+      {key:'ridorana',    label:'The Ridorana Lighthouse',         abbr:'RL',    patch:'4.3'},
+      {key:'orbonne',     label:'The Orbonne Monastery',           abbr:'OM',    patch:'4.5'},
+      {key:'copied_factory',  label:'The Copied Factory',          abbr:'CF',    patch:'5.1'},
+      {key:'puppet_bunker',   label:'The Puppet\'s Bunker',        abbr:'PB',    patch:'5.3'},
+      {key:'tower_of_babil',  label:'The Tower at Paradigm\'s Breach',abbr:'TPB', patch:'5.5'},
+      {key:'aglaia',      label:'Aglaia',                          abbr:'Ag',    patch:'6.1'},
+      {key:'euphrosyne',  label:'Euphrosyne',                      abbr:'Eu',    patch:'6.3'},
+      {key:'thaleia',     label:'Thaleia',                         abbr:'Th',    patch:'6.5'},
+      {key:'urqopacha',   label:'Jeuno: The First Walk',           abbr:'J1',    patch:'7.1'},
+      {key:'kozamauka',   label:'Echoes of Vana\'diel',            abbr:'EoV',   patch:'7.3'},
+      {key:'yak_tel',     label:'Cenote Ja Ja Gural',              abbr:'CJG',   patch:'7.5'},
+    ]
+  },
+  {
+    label: 'Extreme Trials',
+    color: 'pink',
+    icon: 'fa-bolt',
+    items: [
+      {key:'ifrit_ex',      label:'The Navel (Extreme)',          abbr:'Ifrit EX',  patch:'2.0'},
+      {key:'titan_ex',      label:'The Navel (Extreme)',          abbr:'Titan EX',  patch:'2.0'},
+      {key:'garuda_ex',     label:'The Howling Eye (Extreme)',    abbr:'Garuda EX', patch:'2.0'},
+      {key:'ultima_ex',     label:'The Minstrel\'s Ballad: Ultima\'s Bane', abbr:'Ultima EX', patch:'2.1'},
+      {key:'thornmarch_ex', label:'Thornmarch (Extreme)',         abbr:'Good King EX', patch:'2.2'},
+      {key:'leviathan_ex',  label:'The Whorleater (Extreme)',     abbr:'Leviathan EX', patch:'2.2'},
+      {key:'ramuh_ex',      label:'The Striking Tree (Extreme)',  abbr:'Ramuh EX',  patch:'2.3'},
+      {key:'shiva_ex',      label:'Akh Afah Amphitheatre (Extreme)', abbr:'Shiva EX', patch:'2.4'},
+      {key:'ravana_ex',     label:'Thok ast Thok (Extreme)',      abbr:'Ravana EX', patch:'3.0'},
+      {key:'bismarck_ex',   label:'The Limitless Blue (Extreme)', abbr:'Bismarck EX', patch:'3.0'},
+      {key:'thordan_ex',    label:'The Minstrel\'s Ballad: Thordan\'s Reign', abbr:'Thordan EX', patch:'3.1'},
+      {key:'sephirot_ex',   label:'Containment Bay S1T7 (Extreme)', abbr:'Sephirot EX', patch:'3.2'},
+      {key:'nidhogg_ex',    label:'The Minstrel\'s Ballad: Nidhogg\'s Rage', abbr:'Nidhogg EX', patch:'3.3'},
+      {key:'sophia_ex',     label:'Containment Bay P1T6 (Extreme)', abbr:'Sophia EX', patch:'3.4'},
+      {key:'zurvan_ex',     label:'Containment Bay Z1T9 (Extreme)', abbr:'Zurvan EX', patch:'3.5'},
+      {key:'susano_ex',     label:'The Pool of Tribute (Extreme)', abbr:'Susano EX', patch:'4.0'},
+      {key:'lakshmi_ex',    label:'Emanation (Extreme)',           abbr:'Lakshmi EX', patch:'4.0'},
+      {key:'shinryu_ex',    label:'The Minstrel\'s Ballad: Shinryu\'s Domain', abbr:'Shinryu EX', patch:'4.1'},
+      {key:'byakko_ex',     label:'The Jade Stoa (Extreme)',       abbr:'Byakko EX', patch:'4.2'},
+      {key:'tsukuyomi_ex',  label:'The Minstrel\'s Ballad: Tsukuyomi\'s Pain', abbr:'Tsukuyomi EX', patch:'4.3'},
+      {key:'suzaku_ex',     label:'Hells\' Kier (Extreme)',        abbr:'Suzaku EX', patch:'4.4'},
+      {key:'seiryu_ex',     label:'The Wreath of Snakes (Extreme)', abbr:'Seiryu EX', patch:'4.5'},
+      {key:'hades_ex',      label:'The Minstrel\'s Ballad: Hades\'s Elegy', abbr:'Hades EX', patch:'5.0'},
+      {key:'titania_ex',    label:'The Dancing Plague (Extreme)',   abbr:'Titania EX', patch:'5.0'},
+      {key:'innocence_ex',  label:'The Crown of the Immaculate (Extreme)', abbr:'Innocence EX', patch:'5.1'},
+      {key:'ruby_weapon_ex',label:'Cinder Drift (Extreme)',         abbr:'Ruby EX',   patch:'5.2'},
+      {key:'diamond_weapon_ex', label:'Castrum Marinum (Extreme)',  abbr:'Diamond EX', patch:'5.4'},
+      {key:'emerald_weapon_ex', label:'The Cloud Deck (Extreme)',   abbr:'Emerald EX', patch:'5.4'},
+      {key:'eden_ex',       label:'The Minstrel\'s Ballad: Memoria Misera', abbr:'Eden EX', patch:'5.5'},
+      {key:'hydaelyn_ex',   label:'The Mothercrystal (Extreme)',    abbr:'Hydaelyn EX', patch:'6.0'},
+      {key:'zodiark_ex',    label:'The Dark Inside (Extreme)',      abbr:'Zodiark EX', patch:'6.0'},
+      {key:'endsinger_ex',  label:'The Minstrel\'s Ballad: Endsinger\'s Aria', abbr:'Endsinger EX', patch:'6.1'},
+      {key:'barbariccia_ex',label:'Mount Ordeals (Extreme)',        abbr:'Barbariccia EX', patch:'6.2'},
+      {key:'rubicante_ex',  label:'The Voidcast Dais (Extreme)',    abbr:'Rubicante EX', patch:'6.3'},
+      {key:'golbez_ex',     label:'The Gilded Araya (Extreme)',     abbr:'Golbez EX', patch:'6.4'},
+      {key:'zeromus_ex',    label:'The Minstrel\'s Ballad: Zeromus\'s Omen', abbr:'Zeromus EX', patch:'6.4'},
+      {key:'valigarmanda_ex',label:'Recollection (Extreme)',        abbr:'Valigarmanda EX', patch:'7.0'},
+      {key:'sphene_ex',     label:'The Minstrel\'s Ballad: Sphene\'s Burden', abbr:'Sphene EX', patch:'7.0'},
+      {key:'zoraal_ja_ex',  label:'Everkeep (Extreme)',             abbr:'Zoraal Ja EX', patch:'7.1'},
+      {key:'futures_rewritten_ex', label:'The Futures Rewritten (Extreme)', abbr:'FRU EX', patch:'7.2'},
+      {key:'enuo_ex',       label:'The Minstrel\'s Ballad: Enuo\'s Snare', abbr:'Enuo EX', patch:'7.5'},
+    ]
+  },
+  {
+    label: 'Variant / Criterion',
+    color: 'teal',
+    icon: 'fa-dungeon',
+    items: [
+      {key:'sil_var',      label:'Another Sildihn Subterrane',           abbr:'ASS Var',  patch:'6.25'},
+      {key:'sil_crit',     label:'Another Sildihn Subterrane (Criterion)', abbr:'ASS Crit', patch:'6.25'},
+      {key:'sil_crit_s',   label:'Another Sildihn Subterrane (Savage)',   abbr:'ASS Crit (S)', patch:'6.25'},
+      {key:'mts_var',      label:'Another Mount Rokkon',                  abbr:'AMR Var',  patch:'6.45'},
+      {key:'mts_crit',     label:'Another Mount Rokkon (Criterion)',      abbr:'AMR Crit', patch:'6.45'},
+      {key:'mts_crit_s',   label:'Another Mount Rokkon (Savage)',         abbr:'AMR Crit (S)', patch:'6.45'},
+      {key:'aai_var',      label:'Another Aloalo Island',                 abbr:'AAI Var',  patch:'6.51'},
+      {key:'aai_crit',     label:'Another Aloalo Island (Criterion)',     abbr:'AAI Crit', patch:'6.51'},
+      {key:'aai_crit_s',   label:'Another Aloalo Island (Savage)',        abbr:'AAI Crit (S)', patch:'6.51'},
+      {key:'ort_var',      label:'Another Tender Valley',                 abbr:'ATV Var',  patch:'7.1'},
+      {key:'ort_crit',     label:'Another Tender Valley (Criterion)',     abbr:'ATV Crit', patch:'7.1'},
+      {key:'ort_crit_s',   label:'Another Tender Valley (Savage)',        abbr:'ATV Crit (S)', patch:'7.1'},
+    ]
+  },
+];
+
+const CAT_COLORS = {
+  red: {btn:'bg-red-800 text-red-200 border-red-700', active:'bg-red-600 text-white', bar:'bg-red-500'},
+  violet: {btn:'bg-violet-900/50 text-violet-300 border-violet-700', active:'bg-violet-600 text-white', bar:'bg-violet-500'},
+  blue: {btn:'bg-blue-900/50 text-blue-300 border-blue-700', active:'bg-blue-600 text-white', bar:'bg-blue-500'},
+  amber: {btn:'bg-amber-900/50 text-amber-300 border-amber-700', active:'bg-amber-600 text-white', bar:'bg-amber-500'},
+  emerald: {btn:'bg-emerald-900/50 text-emerald-300 border-emerald-700', active:'bg-emerald-600 text-white', bar:'bg-emerald-500'},
+  cyan: {btn:'bg-cyan-900/50 text-cyan-300 border-cyan-700', active:'bg-cyan-600 text-white', bar:'bg-cyan-500'},
+  yellow: {btn:'bg-yellow-900/50 text-yellow-300 border-yellow-700', active:'bg-yellow-600 text-white', bar:'bg-yellow-500'},
+  orange: {btn:'bg-orange-900/50 text-orange-300 border-orange-700', active:'bg-orange-600 text-white', bar:'bg-orange-500'},
+  sky: {btn:'bg-sky-900/50 text-sky-300 border-sky-700', active:'bg-sky-600 text-white', bar:'bg-sky-500'},
+  pink: {btn:'bg-pink-900/50 text-pink-300 border-pink-700', active:'bg-pink-600 text-white', bar:'bg-pink-500'},
+  teal: {btn:'bg-teal-900/50 text-teal-300 border-teal-700', active:'bg-teal-600 text-white', bar:'bg-teal-500'},
+};
+
+// ---- MOUNT / MINION DATA (loaded from static JSON) ----
+// name -> {src_type, src_text, patch}
+let MOUNT_MAP = {};   // all 344 mounts
+let MINION_MAP = {};  // all 572 minions
+let ALL_MOUNT_NAMES = [];
+let ALL_MINION_NAMES = [];
+
+// Load both datasets, then init the page
+Promise.all([
+  fetch('{% static "data/ffxiv_mounts.json" %}').then(r => r.json()),
+  fetch('{% static "data/ffxiv_minions.json" %}').then(r => r.json()),
+]).then(([mounts, minions]) => {
+  mounts.forEach(m => { MOUNT_MAP[m.name] = {src_type: m.src_type, src_text: m.src_text, patch: m.patch}; });
+  minions.forEach(m => { MINION_MAP[m.name] = {src_type: m.src_type, src_text: m.src_text, patch: m.patch}; });
+  ALL_MOUNT_NAMES = mounts.map(m => m.name);
+  ALL_MINION_NAMES = minions.map(m => m.name);
+  // If farming tab is already open, re-render
+  if (currentTab === 'farming') {
+    if (farmingTab === 'mounts') renderMounts();
+    else renderMinions();
+  }
+});
+
+// Legacy inline MOUNT_SOURCES kept as empty - data now comes from MOUNT_MAP
+const MOUNT_SOURCES = {
+  'Aithon':          {source:'Ifrit (Extreme)', type:'trial'},
+  'Xanthos':         {source:'Titan (Extreme)', type:'trial'},
+  'Gullfaxi':        {source:'Garuda (Extreme)', type:'trial'},
+  'Enbarr':          {source:'Leviathan (Extreme)', type:'trial'},
+  'Markab':          {source:'Ramuh (Extreme)', type:'trial'},
+  'Boreas':          {source:'Shiva (Extreme)', type:'trial'},
+  'Nightmare':       {source:'All ARR Primals (Extreme)', type:'trial'},
+  'Kirin':           {source:'All ARR Primals (Extreme) x3', type:'trial'},
+  'Demonic Lanner':  {source:'Nidhogg (Extreme)', type:'trial'},
+  'Rose Lanner':     {source:'Sophia (Extreme)', type:'trial'},
+  'White Lanner':    {source:'Zurvan (Extreme)', type:'trial'},
+  'Warring Lanner':  {source:'Sephirot (Extreme)', type:'trial'},
+  'Round Lanner':    {source:'All HW Primals (Extreme)', type:'trial'},
+  'Yol':             {source:'Susano (Extreme)', type:'trial'},
+  'Whisper-go':      {source:'Lakshmi (Extreme)', type:'trial'},
+  'Goten':           {source:'Byakko (Extreme)', type:'trial'},
+  'Raigo':           {source:'Seiryu (Extreme)', type:'trial'},
+  'Dzo':             {source:'Titania (Extreme)', type:'trial'},
+  'Ufiti':           {source:'Innocence (Extreme)', type:'trial'},
+  'Forgiven Reticence':{source:'Ryne & Gaia (Extreme)', type:'trial'},
+  'Morbol':          {source:'Eden\'s Promise (Extreme)', type:'trial'},
+  'Arion':           {source:'Warrior of Light (Extreme)', type:'trial'},
+  'Pteranodon':      {source:'Hades (Extreme)', type:'trial'},
+  'Twintania':       {source:'The Binding Coil of Bahamut', type:'raid'},
+  'Cruise Chaser':   {source:'Alexander (Savage) - A11S', type:'raid'},
+  'Ark':             {source:'Alexander (Savage) - A12S', type:'raid'},
+  'Gabriel Mark III':{source:'Alexander - A8N', type:'raid'},
+  'Managarm':        {source:'Eden\'s Gate Savage', type:'raid'},
+  'Skyslipper':      {source:'Eden\'s Verse Savage - E8S', type:'raid'},
+  'Argos':           {source:'Pandaemonium Asphodelos - P4S', type:'raid'},
+  'Magicked Carpet': {source:'Pandaemonium Abyssos - P8S', type:'raid'},
+  'Lunar Whale':     {source:'Pandaemonium Anabaseios', type:'raid'},
+  'Indigo Whale':    {source:'Aglaia (Alliance Raid)', type:'raid'},
+  'Pegasus':         {source:'Euphrosyne (Alliance Raid)', type:'raid'},
+  'Portly Porxie':   {source:'Eden\'s Promise (Normal)', type:'raid'},
+  'Polar Bear':      {source:'Bozja - Dalriada', type:'raid'},
+  'SDS Fenrir':      {source:'YoRHa: Dark Apocalypse - A24', type:'raid'},
+  'Grani':           {source:'YoRHa: Dark Apocalypse - A24', type:'raid'},
+};
+
+// Well-known minion sources - raid, trial, dungeon
+const MINION_SOURCES = {
+  // Raid drops
+  'Komainu':              {source:'Eden\'s Gate (Savage) - E1S', type:'raid'},
+  'Beastly Kitty':        {source:'Eden\'s Verse (Savage) - E5S', type:'raid'},
+  'Odder Otter':          {source:'Eden\'s Promise (Savage) - E9S', type:'raid'},
+  'Gull':                 {source:'Pandaemonium Asphodelos - P2S', type:'raid'},
+  'Living Liquid':        {source:'The Epic of Alexander (Ultimate)', type:'raid'},
+  'Hobgoblin':            {source:'Pandaemonium Abyssos - P6S', type:'raid'},
+  'Magitek Avenger F1':   {source:'Alexander (Savage) - A6S', type:'raid'},
+  'Toy Alexander':        {source:'Alexander (Savage) - A12S', type:'raid'},
+  'Poro Roggo':           {source:'Pandaemonium Anabaseios - P11S', type:'raid'},
+  'Omega-M & -F':         {source:'Deltascape V4.0 (Savage) - O4S', type:'raid'},
+  'Resonant Llymlaen':    {source:'Anabaseios: The Twelfth Circle (Savage) - P12S', type:'raid'},
+  'Mechanical Gunbird':   {source:'Arcadion M4S', type:'raid'},
+  'Mini Golbez':          {source:'Arcadion M8S', type:'raid'},
+  // Trial drops
+  'Accompaniment Node':   {source:'The Weapon\'s Refrain (Ultimate)', type:'trial'},
+  'Barding-Clad Moai':    {source:'Containment Bay Z1T9 (Extreme)', type:'trial'},
+  'Morpho':               {source:'The Dancing Plague (Extreme)', type:'trial'},
+  'Forgiven Hate':        {source:'The Crown of the Immaculate (Extreme)', type:'trial'},
+  'Frilled Dragon':       {source:'The Jade Stoa (Extreme)', type:'trial'},
+  'Wind-up Byakko':       {source:'The Jade Stoa (Extreme)', type:'trial'},
+  'Wind-up Suzaku':       {source:'Hells\' Kier (Extreme)', type:'trial'},
+  'Wind-up Seiryu':       {source:'The Wreath of Snakes (Extreme)', type:'trial'},
+  'Wind-up Yotsuyu':      {source:'The Minstrel\'s Ballad: Tsukuyomi\'s Pain', type:'trial'},
+  'Bom Boko':             {source:'The Pool of Tribute (Extreme)', type:'trial'},
+  'Wind-up Titania':      {source:'The Dancing Plague (Extreme)', type:'trial'},
+  'Wind-up Innocence':    {source:'The Crown of the Immaculate (Extreme)', type:'trial'},
+  'Forgiven Pedantry':    {source:'Cinder Drift (Extreme)', type:'trial'},
+  'Wind-up Ruby Weapon':  {source:'Cinder Drift (Extreme)', type:'trial'},
+  'Teacup Tigerlet':      {source:'The Minstrel\'s Ballad: Shinryu\'s Domain', type:'trial'},
+  'Wind-up Magnai':       {source:'The Jade Stoa (Extreme)', type:'trial'},
+  'Shaggy Shoat':         {source:'The Minstrel\'s Ballad: Thordan\'s Reign', type:'trial'},
+  'Wind-up Haurchefant':  {source:'The Minstrel\'s Ballad: Thordan\'s Reign', type:'trial'},
+  'Wind-up Estinien':     {source:'The Minstrel\'s Ballad: Nidhogg\'s Rage', type:'trial'},
+  'Miniature Minecart':   {source:'Containment Bay S1T7 (Extreme)', type:'trial'},
+  'Wind-up Susano':       {source:'The Pool of Tribute (Extreme)', type:'trial'},
+  'Khloe\'s Gold Certificate': {source:'Wondrous Tails', type:'trial'},
+  'Wind-up Valigarmanda': {source:'Recollection (Extreme)', type:'trial'},
+  'Wind-up Zoraal Ja':    {source:'Everkeep (Extreme)', type:'trial'},
+  // Dungeon drops
+  'Owlet':                {source:'The Tam-Tara Deepcroft', type:'dungeon'},
+  'Tiny Rat':             {source:'Copperbell Mines', type:'dungeon'},
+  'Coeurl Kitten':        {source:'Halatali', type:'dungeon'},
+  'Baby Opo-opo':         {source:'The Lost City of Amdapor', type:'dungeon'},
+  'Infant Imp':           {source:'Haukke Manor', type:'dungeon'},
+  'Slime Puddle':         {source:'The Wanderer\'s Palace', type:'dungeon'},
+  'Page 63':              {source:'Castrum Meridianum', type:'dungeon'},
+  'Panda Cub':            {source:'The Sunken Temple of Qarn', type:'dungeon'},
+  'Magic Broom':          {source:'Haukke Manor (Hard)', type:'dungeon'},
+  'Piggy':                {source:'Copperbell Mines (Hard)', type:'dungeon'},
+  'Bluebird':             {source:'The Stone Vigil (Hard)', type:'dungeon'},
+  'Bite-sized Pudding':   {source:'The Snowcloak', type:'dungeon'},
+  'Bullpup':              {source:'The Keeper of the Lake', type:'dungeon'},
+  'Gaelikitten':          {source:'Neverreap', type:'dungeon'},
+  'Assassin Fry':         {source:'The Dusk Vigil', type:'dungeon'},
+  'Weathered Adventurer': {source:'Sohm Al', type:'dungeon'},
+  'Unicolt':              {source:'The Aery', type:'dungeon'},
+  'Hunting Hawk':         {source:'Neverreap', type:'dungeon'},
+  'Wind-up Odin':         {source:'Amdapor Keep (Hard)', type:'dungeon'},
+  'Dwarf Rabbit':         {source:'The Antitower', type:'dungeon'},
+  'Fledgling Apkallu':    {source:'The Great Gubal Library (Hard)', type:'dungeon'},
+  'Demonic Lanner (Minion)':{source:'Xelphatol', type:'dungeon'},
+  'Capybara Pup':         {source:'The Tower of Zot', type:'dungeon'},
+  'Gaja':                 {source:'The Tower of Babil', type:'dungeon'},
+  'Porxie':               {source:'Matoya\'s Relict', type:'dungeon'},
+  'Tiny Troll':           {source:'The Dead Ends', type:'dungeon'},
+  'Sharlayan Chronicler': {source:'Alzadaal\'s Legacy', type:'dungeon'},
+  'Wind-up Golbez':       {source:'The Aetherfont', type:'dungeon'},
+  'Picto':                {source:'Alexandria', type:'dungeon'},
+  'Ladybug':              {source:'Origenics', type:'dungeon'},
+  'Squid':                {source:'The Underkeep', type:'dungeon'},
+};
+
+// ---- HELPERS ----
+const esc = s => { const d = document.createElement('div'); d.textContent = String(s); return d.innerHTML; };
+
+function timeAgo(ts) {
+  if (!ts) return 'never';
+  const s = Math.floor(Date.now() / 1000) - ts;
+  if (s < 3600)  return Math.floor(s / 60) + 'm ago';
+  if (s < 86400) return Math.floor(s / 3600) + 'h ago';
+  return Math.floor(s / 86400) + 'd ago';
+}
+
+// ---- TAB SWITCHING ----
+const ALL_TABS = ['members','farming','clears'];
+
+function switchTab(tab) {
+  currentTab = tab;
+  ALL_TABS.forEach(t => {
+    document.getElementById(`panel-${t}`).classList.toggle('hidden', t !== tab);
+    const btn = document.getElementById(`tab-${t}`);
+    btn.classList.remove('bg-neutral-800','text-white','text-gray-400');
+    if (t === tab) { btn.classList.add('bg-neutral-800','text-white'); }
+    else { btn.classList.add('text-gray-400'); }
+  });
+  if (tab === 'members') renderMembers();
+  if (tab === 'farming') { setFarmingTab('mounts'); }
+  if (tab === 'clears')  { setClearView('grid'); renderClearCategoryNav(); renderClears(); }
+}
+
+// ---- MEMBERS ----
+function renderMembers() {
+  const grid = document.getElementById('members-grid');
+  if (!grid) return;
+  grid.innerHTML = MEMBERS.map(m => `
+    <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-4 hover:border-rose-800/40 transition">
+      <div class="flex items-center gap-3 mb-3">
+        <div class="relative flex-shrink-0">
+          ${m.char_avatar
+            ? `<img src="${esc(m.char_avatar)}" alt="" class="w-12 h-12 rounded-xl object-cover">`
+            : `<div class="w-12 h-12 rounded-xl bg-neutral-700 flex items-center justify-center"><i class="fas fa-user text-gray-500"></i></div>`}
+          ${m.avatar ? `<img src="${esc(m.avatar)}" alt="" class="absolute -bottom-1 -right-1 w-5 h-5 rounded-full border-2 border-neutral-900 object-cover">` : ''}
+        </div>
+        <div class="flex-1 min-w-0">
+          <p class="text-white font-semibold text-sm truncate">${esc(m.char_name)}</p>
+          <p class="text-gray-500 text-xs">${esc(m.world)}${m.datacenter ? ` <span class="text-gray-700">- ${esc(m.datacenter)}</span>` : ''}</p>
+          ${m.free_company ? `<p class="text-rose-400/70 text-[10px] truncate"><i class="fas fa-shield-alt text-[9px] mr-0.5"></i>${esc(m.free_company)}</p>` : ''}
+        </div>
+      </div>
+      <div class="grid grid-cols-3 gap-1.5 text-center mb-2">
+        <div class="bg-neutral-800/60 rounded-lg py-1.5">
+          <p class="text-white font-bold text-base">${m.mount_count}</p>
+          <p class="text-gray-600 text-[10px]">Mounts</p>
+        </div>
+        <div class="bg-neutral-800/60 rounded-lg py-1.5">
+          <p class="text-white font-bold text-base">${m.minion_count}</p>
+          <p class="text-gray-600 text-[10px]">Minions</p>
+        </div>
+        <div class="bg-neutral-800/60 rounded-lg py-1.5">
+          <p class="text-white font-bold text-base">${m.clears ? m.clears.length : 0}</p>
+          <p class="text-gray-600 text-[10px]">Clears</p>
+        </div>
+      </div>
+      ${m.active_job ? `<p class="text-xs text-gray-600 mt-1 text-center"><i class="fas fa-gamepad mr-1"></i>${esc(m.active_job)}</p>` : ''}
+      <p class="text-[10px] text-gray-700 text-center mt-1">Synced ${timeAgo(m.last_synced)}</p>
+      <a href="/u/${esc(m.username)}/" class="mt-2 block text-center text-xs text-indigo-400 hover:text-indigo-300 transition">View Profile</a>
+    </div>
+  `).join('');
+}
+
+// ---- FARMING TAB ----
+function setFarmingTab(t) {
+  farmingTab = t;
+  ['mounts','minions'].forEach(v => {
+    document.getElementById(`fpanel-${v}`).classList.toggle('hidden', v !== t);
+    const btn = document.getElementById(`ftab-${v}`);
+    btn.classList.remove('bg-neutral-700','text-white','text-gray-400');
+    if (v === t) { btn.classList.add('bg-neutral-700','text-white'); }
+    else { btn.classList.add('text-gray-400'); }
+  });
+  if (t === 'mounts') { setMountFilter('all'); }
+  if (t === 'minions') { setMinionFilter('all'); }
+}
+
+// ---- MOUNTS ----
+function setFilterActive(id, active) {
+  const btn = document.getElementById(id);
+  if (!btn) return;
+  btn.classList.remove('bg-rose-600','text-white','bg-neutral-800','text-gray-400');
+  if (active) { btn.classList.add('bg-rose-600','text-white'); }
+  else { btn.classList.add('bg-neutral-800','text-gray-400'); }
+}
+
+function setMountFilter(f) {
+  mountFilter = f;
+  ['all','raid','trial','missing'].forEach(v => setFilterActive(`mf-${v}`, v === f));
+  renderMounts();
+}
+
+function renderMounts() {
+  const search = (document.getElementById('mount-search')?.value || '').toLowerCase();
+  const myMember = MEMBERS.find(m => m.user_id === MY_USER_ID);
+
+  // Use full game list when loaded; fall back to what members own
+  const baseNames = ALL_MOUNT_NAMES.length > 0
+    ? ALL_MOUNT_NAMES
+    : (() => { const s = new Set(); MEMBERS.forEach(m => m.mounts.forEach(mt => s.add(mt))); Object.keys(MOUNT_SOURCES).forEach(k => s.add(k)); return Array.from(s).sort(); })();
+
+  let mounts = baseNames.filter(name => {
+    if (search && !name.toLowerCase().includes(search)) return false;
+    const src = MOUNT_MAP[name];
+    const t = (src?.src_type || '').toLowerCase();
+    if (mountFilter === 'raid'  && t !== 'raid')  return false;
+    if (mountFilter === 'trial' && t !== 'trial') return false;
+    if (mountFilter === 'missing') {
+      if (!myMember) return true;
+      if (myMember.mounts.includes(name)) return false;
+    }
+    // "All" without search: only show items the FC owns or that are raid/trial drops
+    if (!search && mountFilter === 'all') {
+      const anyOwns = MEMBERS.some(m => m.mounts.includes(name));
+      if (!anyOwns && t !== 'raid' && t !== 'trial') return false;
+    }
+    return true;
+  });
+
+  const grid = document.getElementById('mount-grid');
+  const empty = document.getElementById('mount-empty');
+  if (mounts.length === 0) { grid.innerHTML = ''; empty.classList.remove('hidden'); return; }
+  empty.classList.add('hidden');
+
+  grid.innerHTML = mounts.map(name => {
+    const src = MOUNT_MAP[name];
+    const srcType = (src?.src_type || '').toLowerCase();
+    const srcText = src?.src_text || '';
+    const owners = MEMBERS.filter(m => m.mounts.includes(name));
+    const missingFC = MEMBERS.filter(m => !m.mounts.includes(name));
+    const iHave = myMember ? myMember.mounts.includes(name) : null;
+    const pct = MEMBERS.length > 0 ? Math.round(owners.length / MEMBERS.length * 100) : 0;
+    const tColor = srcType === 'raid' ? 'text-red-400 bg-red-900/20 border-red-800/30'
+                 : srcType === 'trial' ? 'text-yellow-400 bg-yellow-900/20 border-yellow-800/30'
+                 : srcType ? 'text-gray-300 bg-neutral-800/60 border-neutral-700' : '';
+    const tLabel = srcType ? srcType.charAt(0).toUpperCase() + srcType.slice(1) : '';
+    const ownerAvatars = owners.slice(0,6).map(m =>
+      m.char_avatar
+        ? `<img src="${esc(m.char_avatar)}" title="${esc(m.char_name)}" class="w-6 h-6 rounded-full object-cover border border-neutral-800">`
+        : `<div class="w-6 h-6 rounded-full bg-neutral-700 flex items-center justify-center text-[9px] text-gray-400 border border-neutral-800">${esc(m.char_name[0])}</div>`
+    ).join('');
+    const myBadge = myMember !== null
+      ? iHave ? '<span class="text-[10px] text-green-600 ml-1"><i class="fas fa-check mr-0.5"></i>You have this</span>'
+               : '<span class="text-[10px] text-rose-500 ml-1"><i class="fas fa-times mr-0.5"></i>Missing</span>'
+      : '';
+    return `
+    <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-4">
+      <div class="flex items-start gap-4">
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-2 flex-wrap mb-1">
+            <p class="text-white font-semibold">${esc(name)}</p>
+            ${tLabel ? `<span class="text-[10px] px-2 py-0.5 rounded-full border font-semibold ${tColor}">${esc(tLabel)}</span>` : ''}${myBadge}
+          </div>
+          ${srcText ? `<p class="text-gray-500 text-xs mb-2"><i class="fas fa-map-marker-alt mr-1"></i>${esc(srcText)}</p>` : ''}
+          <div class="flex items-center gap-3">
+            <div class="flex-1 bg-neutral-800 rounded-full h-1.5">
+              <div class="h-1.5 rounded-full ${pct===100?'bg-green-500':'bg-rose-500'}" style="width:${pct}%"></div>
+            </div>
+            <span class="text-xs text-gray-500 flex-shrink-0">${owners.length}/${MEMBERS.length} FC</span>
+          </div>
+          ${MEMBERS.length > 0 ? (missingFC.length > 0 ? `<p class="text-[10px] text-gray-600 mt-1">FC missing: ${missingFC.map(m=>esc(m.char_name)).join(', ')}</p>` : '<p class="text-[10px] text-green-600 mt-1"><i class="fas fa-check mr-1"></i>Everyone in FC has this!</p>') : ''}
+        </div>
+        <div class="flex flex-wrap gap-0.5 flex-shrink-0 max-w-[120px] justify-end">
+          ${ownerAvatars}
+          ${owners.length > 6 ? `<div class="w-6 h-6 rounded-full bg-neutral-700 flex items-center justify-center text-[9px] text-gray-400">+${owners.length-6}</div>` : ''}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ---- MINIONS ----
+function setMinionFilter(f) {
+  minionFilter = f;
+  ['all','raid','trial','dungeon','missing'].forEach(v => setFilterActive(`mnf-${v}`, v === f));
+  renderMinions();
+}
+
+function renderMinions() {
+  const search = (document.getElementById('minion-search')?.value || '').toLowerCase();
+  const myMember = MEMBERS.find(m => m.user_id === MY_USER_ID);
+
+  const baseNames = ALL_MINION_NAMES.length > 0
+    ? ALL_MINION_NAMES
+    : (() => { const s = new Set(); MEMBERS.forEach(m => (m.minions||[]).forEach(mn => s.add(mn))); return Array.from(s).sort(); })();
+
+  let minions = baseNames.filter(name => {
+    if (search && !name.toLowerCase().includes(search)) return false;
+    const src = MINION_MAP[name];
+    const t = (src?.src_type || '').toLowerCase();
+    if (minionFilter === 'raid'    && t !== 'raid')    return false;
+    if (minionFilter === 'trial'   && t !== 'trial')   return false;
+    if (minionFilter === 'dungeon' && t !== 'dungeon') return false;
+    if (minionFilter === 'missing') {
+      if (!myMember) return true;
+      if ((myMember.minions || []).includes(name)) return false;
+    }
+    if (!search && minionFilter === 'all') {
+      const anyOwns = MEMBERS.some(m => (m.minions||[]).includes(name));
+      if (!anyOwns && !['Raid','Trial','Dungeon'].includes(src?.src_type)) return false;
+    }
+    return true;
+  });
+
+  const grid = document.getElementById('minion-grid');
+  const empty = document.getElementById('minion-empty');
+  if (minions.length === 0) { grid.innerHTML = ''; empty.classList.remove('hidden'); return; }
+  empty.classList.add('hidden');
+
+  grid.innerHTML = minions.map(name => {
+    const src = MINION_MAP[name];
+    const srcType = (src?.src_type || '').toLowerCase();
+    const srcText = src?.src_text || '';
+    const owners = MEMBERS.filter(m => (m.minions||[]).includes(name));
+    const missingFC = MEMBERS.filter(m => !(m.minions||[]).includes(name));
+    const iHave = myMember ? (myMember.minions||[]).includes(name) : null;
+    const pct = MEMBERS.length > 0 ? Math.round(owners.length / MEMBERS.length * 100) : 0;
+    const tColor = srcType === 'raid'    ? 'text-red-400 bg-red-900/20 border-red-800/30'
+                 : srcType === 'trial'   ? 'text-yellow-400 bg-yellow-900/20 border-yellow-800/30'
+                 : srcType === 'dungeon' ? 'text-blue-400 bg-blue-900/20 border-blue-800/30'
+                 : srcType ? 'text-gray-300 bg-neutral-800/60 border-neutral-700' : '';
+    const tLabel = srcType ? srcType.charAt(0).toUpperCase() + srcType.slice(1) : '';
+    const ownerAvatars = owners.slice(0,6).map(m =>
+      m.char_avatar
+        ? `<img src="${esc(m.char_avatar)}" title="${esc(m.char_name)}" class="w-6 h-6 rounded-full object-cover border border-neutral-800">`
+        : `<div class="w-6 h-6 rounded-full bg-neutral-700 flex items-center justify-center text-[9px] text-gray-400 border border-neutral-800">${esc(m.char_name[0])}</div>`
+    ).join('');
+    const myBadge = myMember !== null
+      ? iHave ? '<span class="text-[10px] text-green-600 ml-1"><i class="fas fa-check mr-0.5"></i>You have this</span>'
+               : '<span class="text-[10px] text-rose-500 ml-1"><i class="fas fa-times mr-0.5"></i>Missing</span>'
+      : '';
+    return `
+    <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-4">
+      <div class="flex items-start gap-4">
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-2 flex-wrap mb-1">
+            <p class="text-white font-semibold">${esc(name)}</p>
+            ${tLabel ? `<span class="text-[10px] px-2 py-0.5 rounded-full border font-semibold ${tColor}">${esc(tLabel)}</span>` : ''}${myBadge}
+          </div>
+          ${srcText ? `<p class="text-gray-500 text-xs mb-2"><i class="fas fa-map-marker-alt mr-1"></i>${esc(srcText)}</p>` : ''}
+          <div class="flex items-center gap-3">
+            <div class="flex-1 bg-neutral-800 rounded-full h-1.5">
+              <div class="h-1.5 rounded-full ${pct===100?'bg-green-500':'bg-indigo-500'}" style="width:${pct}%"></div>
+            </div>
+            <span class="text-xs text-gray-500 flex-shrink-0">${owners.length}/${MEMBERS.length} FC</span>
+          </div>
+          ${MEMBERS.length > 0 ? (missingFC.length > 0 ? `<p class="text-[10px] text-gray-600 mt-1">FC missing: ${missingFC.map(m=>esc(m.char_name)).join(', ')}</p>` : '<p class="text-[10px] text-green-600 mt-1"><i class="fas fa-check mr-1"></i>Everyone in FC has this!</p>') : ''}
+        </div>
+        <div class="flex flex-wrap gap-0.5 flex-shrink-0 max-w-[120px] justify-end">
+          ${ownerAvatars}
+          ${owners.length > 6 ? `<div class="w-6 h-6 rounded-full bg-neutral-700 flex items-center justify-center text-[9px] text-gray-400">+${owners.length-6}</div>` : ''}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ---- RAID CLEARS ----
+function setClearView(v) {
+  clearView = v;
+  ['grid','my'].forEach(vv => {
+    const btn = document.getElementById(`cv-${vv}`);
+    if (!btn) return;
+    btn.classList.remove('bg-neutral-700','text-white','text-gray-400');
+    if (vv === v) { btn.classList.add('bg-neutral-700','text-white'); }
+    else { btn.classList.add('text-gray-400'); }
+  });
+  renderClears();
+}
+
+function renderClearCategoryNav() {
+  const nav = document.getElementById('content-cat-nav');
+  nav.innerHTML = CONTENT_CATEGORIES.map((cat, i) => {
+    const colors = CAT_COLORS[cat.color] || CAT_COLORS.blue;
+    const isActive = i === activeCatIdx;
+    return `<button onclick="setActiveCategory(${i})" id="catbtn-${i}"
+      class="catbtn px-3 py-1.5 rounded-lg text-xs font-semibold border transition ${isActive ? colors.active : colors.btn}">
+      <i class="fas ${cat.icon} mr-1"></i>${esc(cat.label)}
+    </button>`;
+  }).join('');
+}
+
+function setActiveCategory(i) {
+  activeCatIdx = i;
+  renderClearCategoryNav();
+  renderClears();
+}
+
+function renderClears() {
+  const cat = CONTENT_CATEGORIES[activeCatIdx];
+  const colors = CAT_COLORS[cat.color] || CAT_COLORS.blue;
+  const content = document.getElementById('clears-content');
+
+  if (clearView === 'my') {
+    renderMyClearsView(cat, colors, content);
+  } else {
+    renderGridView(cat, colors, content);
+  }
+}
+
+function renderMyClearsView(cat, colors, content) {
+  const rows = cat.items.map(item => {
+    const cleared = myClears.has(item.key);
+    const clearers = MEMBERS.filter(m => m.clears && m.clears.includes(item.key));
+    const pct = MEMBERS.length > 0 ? Math.round(clearers.length / MEMBERS.length * 100) : 0;
+    return `
+    <div class="flex items-center gap-4 p-3 rounded-xl border transition
+      ${cleared ? 'bg-green-950/30 border-green-800/40' : 'bg-neutral-900 border-neutral-800'}">
+      <button onclick="toggleClear('${esc(item.key)}')"
+        class="flex-shrink-0 w-7 h-7 rounded-full border-2 flex items-center justify-center transition
+        ${cleared ? 'bg-green-600 border-green-500 text-white' : 'border-neutral-600 text-transparent hover:border-green-500'}"
+        ${!IS_LOGGED_IN ? 'disabled title="Log in to report clears"' : !IS_FC_MEMBER ? 'disabled title="FC members only - ask an admin for access"' : ''}>
+        <i class="fas fa-check text-[11px]"></i>
+      </button>
+      <div class="flex-1 min-w-0">
+        <div class="flex items-center gap-2 flex-wrap">
+          <span class="text-xs font-mono font-bold text-gray-500">${esc(item.abbr)}</span>
+          <span class="text-sm text-white ${cleared ? 'line-through text-green-400/70' : ''}">${esc(item.label)}</span>
+          <span class="text-[10px] text-gray-700">7.${esc(item.patch || '')}</span>
+        </div>
+      </div>
+      <div class="flex-shrink-0 flex items-center gap-2">
+        <div class="w-20 bg-neutral-800 rounded-full h-1.5">
+          <div class="h-1.5 rounded-full ${colors.bar} transition-all" style="width:${pct}%"></div>
+        </div>
+        <span class="text-[10px] text-gray-600 w-10 text-right">${clearers.length}/${MEMBERS.length} FC</span>
+      </div>
+    </div>`;
+  }).join('');
+
+  content.innerHTML = `
+    <div class="space-y-1.5">
+      ${rows}
+    </div>
+    ${!IS_LOGGED_IN ? '<p class="text-xs text-gray-700 mt-3 text-center">Log in to report your own clears</p>' : !IS_FC_MEMBER ? '<p class="text-xs text-gray-700 mt-3 text-center">FC member access required to report clears</p>' : ''}
+  `;
+}
+
+function renderGridView(cat, colors, content) {
+  if (MEMBERS.length === 0) {
+    content.innerHTML = '<p class="text-gray-500 text-sm text-center py-10">No members with linked characters yet.</p>';
+    return;
+  }
+
+  // Header row with member names
+  const headerCols = MEMBERS.map(m =>
+    `<th class="p-2 text-center" style="min-width:60px">
+      <div class="flex flex-col items-center gap-1">
+        ${m.char_avatar
+          ? `<img src="${esc(m.char_avatar)}" class="w-8 h-8 rounded-full object-cover">`
+          : `<div class="w-8 h-8 rounded-full bg-neutral-700 flex items-center justify-center text-[10px] text-gray-400">${esc(m.char_name[0])}</div>`}
+        <span class="text-[10px] text-gray-400 truncate w-14">${esc(m.char_name.split(' ')[0])}</span>
+      </div>
+    </th>`
+  ).join('');
+
+  const dataRows = cat.items.map(item => {
+    const cells = MEMBERS.map(m => {
+      const has = m.clears && m.clears.includes(item.key);
+      return `<td class="p-2 text-center">
+        <div class="w-5 h-5 rounded mx-auto flex items-center justify-center text-[10px]
+          ${has ? 'bg-green-700/60 text-green-300' : 'bg-neutral-800 text-neutral-700'}">
+          <i class="fas ${has ? 'fa-check' : 'fa-times'}"></i>
+        </div>
+      </td>`;
+    }).join('');
+
+    const clearers = MEMBERS.filter(m => m.clears && m.clears.includes(item.key));
+    const pct = MEMBERS.length > 0 ? Math.round(clearers.length / MEMBERS.length * 100) : 0;
+    const myCleared = myClears.has(item.key);
+
+    return `<tr class="border-b border-neutral-800/50 hover:bg-neutral-800/20 transition">
+      <td class="p-2 pr-4" style="min-width:200px">
+        <div class="flex items-center gap-2">
+          ${IS_FC_MEMBER ? `<button onclick="toggleClear('${esc(item.key)}')"
+            class="flex-shrink-0 w-5 h-5 rounded-full border flex items-center justify-center transition text-[9px]
+            ${myCleared ? 'bg-green-600 border-green-500 text-white' : 'border-neutral-600 text-transparent hover:border-green-500'}">
+            <i class="fas fa-check"></i>
+          </button>` : IS_LOGGED_IN ? `<div class="flex-shrink-0 w-5 h-5 rounded-full border border-neutral-800 flex items-center justify-center" title="FC member access required"></div>` : ''}
+          <div>
+            <span class="text-xs font-mono text-gray-600">${esc(item.abbr)}</span>
+            <span class="text-sm text-white ml-1.5">${esc(item.label)}</span>
+          </div>
+        </div>
+      </td>
+      ${cells}
+      <td class="p-2 pl-4">
+        <div class="flex items-center gap-1.5">
+          <div class="w-12 bg-neutral-800 rounded-full h-1.5">
+            <div class="h-1.5 rounded-full ${colors.bar}" style="width:${pct}%"></div>
+          </div>
+          <span class="text-[10px] text-gray-600">${pct}%</span>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+
+  content.innerHTML = `
+    <div class="overflow-x-auto rounded-xl border border-neutral-800">
+      <table class="w-full text-sm">
+        <thead class="bg-neutral-900/80 border-b border-neutral-800">
+          <tr>
+            <th class="p-2 text-left text-gray-500 text-xs font-semibold">Content</th>
+            ${headerCols}
+            <th class="p-2 text-left text-gray-500 text-xs font-semibold">FC %</th>
+          </tr>
+        </thead>
+        <tbody>${dataRows}</tbody>
+      </table>
+    </div>
+  `;
+}
+
+// ---- TOGGLE CLEAR ----
+async function toggleClear(key) {
+  if (!IS_LOGGED_IN || !IS_FC_MEMBER) return;
+  const btn = event.currentTarget;
+  btn.disabled = true;
+  try {
+    const resp = await csrfFetch(`/api/ffxiv/clears/${encodeURIComponent(key)}/toggle/`, {method:'POST'});
+    const data = await resp.json();
+    if (data.cleared) { myClears.add(key); } else { myClears.delete(key); }
+    renderClears();
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// ---- INIT ----
+document.addEventListener('DOMContentLoaded', function() {
+  switchTab('members');
+  // Init farming filter buttons
+  // Filter buttons use toggle exclusively - no classList.add init needed here.
+  // setMountFilter/setMinionFilter/setClearView called on tab open handle their own state.
+});
+</script>
+
+<style>
+.tab-btn { color: #9ca3af; }
+.tab-btn:hover { background: rgba(55,65,81,0.5); color: white; }
+.mf-btn, .mnf-btn, .ftab-btn, .cv-btn { border: 1px solid transparent; }
+</style>
+{% endblock %}

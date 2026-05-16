@@ -168,7 +168,7 @@
   <div class="flex flex-wrap justify-center gap-4">
 
     <div class="flex items-center gap-2 px-4 py-2 bg-neutral-800 rounded-lg">
-      <i class="fas fa-bolt text-yellow-400 text-xl"></i>
+      <img src="{% static 'img/siteassets/fluxer-favicon.png' %}" style="width:1.25rem;height:1.25rem;object-fit:contain;vertical-align:middle;" alt="Fluxer">
       <span class="text-gray-300">Fluxer</span>
     </div>
     <div class="flex items-center gap-2 px-4 py-2 bg-neutral-800 rounded-lg">
@@ -215,7 +215,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const groupsContainer = document.getElementById('recent-groups');
     if (groupsData.groups?.length) {
       groupsContainer.innerHTML = groupsData.groups.slice(0, 5).map(g => `
-        <a href="/ql/lfg/${g.id}/" class="block p-3 bg-neutral-800/50 rounded-lg hover:bg-neutral-800 transition">
+        <a href="/lfg/${g.id}/" class="block p-3 bg-neutral-800/50 rounded-lg hover:bg-neutral-800 transition">
           <div class="flex items-center justify-between">
             <div>
               <span class="text-green-400 text-sm">${escapeHtml(g.game_name)}</span>
@@ -233,7 +233,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const commContainer = document.getElementById('featured-communities');
     if (commData.communities?.length) {
       commContainer.innerHTML = commData.communities.slice(0, 5).map(c => `
-        <a href="/ql/communities/${c.id}/" class="block p-3 bg-neutral-800/50 rounded-lg hover:bg-neutral-800 transition">
+        <a href="/communities/${c.id}/" class="block p-3 bg-neutral-800/50 rounded-lg hover:bg-neutral-800 transition">
           <div class="flex items-center gap-3">
             ${c.icon_url ? `<img src="${escapeHtml(c.icon_url)}" class="w-10 h-10 rounded-lg">` : '<div class="w-10 h-10 bg-neutral-700 rounded-lg flex items-center justify-center"><i class="fas fa-server text-gray-500"></i></div>'}
             <div class="flex-1 min-w-0">

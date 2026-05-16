@@ -26,7 +26,7 @@
           <span class="bg-teal-600/20 text-teal-400 text-xs px-2 py-0.5 rounded-full font-medium border border-teal-700/30">Admin</span>
         </div>
       </div>
-      <a href="/ql/dashboard/matrix/{{ space_id_url }}/settings/"
+      <a href="/dashboard/matrix/{{ space_id_url }}/settings/"
          class="text-sm text-gray-400 hover:text-white transition flex items-center gap-2">
         <i class="fas fa-sliders-h"></i> Space Settings
       </a>
@@ -57,7 +57,7 @@
   <h2 class="text-lg font-bold text-white mb-4">Modules</h2>
   <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
 
-    <a href="/ql/dashboard/matrix/{{ space_id_url }}/rooms/"
+    <a href="/dashboard/matrix/{{ space_id_url }}/rooms/"
        class="bg-neutral-900 rounded-xl border border-neutral-800 hover:border-teal-500/40 p-5 transition group block">
       <div class="flex items-start justify-between mb-3">
         <div class="w-10 h-10 bg-teal-600/20 rounded-lg flex items-center justify-center">
@@ -70,7 +70,7 @@
       <p class="mt-2 text-xs text-gray-600">{{ rooms|length }} room{{ rooms|length|pluralize }} tracked</p>
     </a>
 
-    <a href="/ql/dashboard/matrix/{{ space_id_url }}/members/"
+    <a href="/dashboard/matrix/{{ space_id_url }}/members/"
        class="bg-neutral-900 rounded-xl border border-neutral-800 hover:border-blue-500/40 p-5 transition group block">
       <div class="flex items-start justify-between mb-3">
         <div class="w-10 h-10 bg-blue-600/20 rounded-lg flex items-center justify-center">
@@ -83,7 +83,7 @@
       <p class="mt-2 text-xs text-gray-600">{{ member_count }} active member{{ member_count|pluralize }}</p>
     </a>
 
-    <a href="/ql/dashboard/matrix/{{ space_id_url }}/xp/"
+    <a href="/dashboard/matrix/{{ space_id_url }}/xp/"
        class="bg-neutral-900 rounded-xl border border-neutral-800 hover:border-green-500/40 p-5 transition group block">
       <div class="flex items-start justify-between mb-3">
         <div class="w-10 h-10 bg-green-600/20 rounded-lg flex items-center justify-center">
@@ -98,7 +98,7 @@
       <p class="mt-2 text-xs text-gray-600">{{ xp_count }} XP event{{ xp_count|pluralize }} logged</p>
     </a>
 
-    <a href="/ql/dashboard/matrix/{{ space_id_url }}/moderation/"
+    <a href="/dashboard/matrix/{{ space_id_url }}/moderation/"
        class="bg-neutral-900 rounded-xl border border-neutral-800 hover:border-red-500/40 p-5 transition group block">
       <div class="flex items-start justify-between mb-3">
         <div class="w-10 h-10 bg-red-600/20 rounded-lg flex items-center justify-center">
@@ -113,7 +113,7 @@
       </p>
     </a>
 
-    <a href="/ql/dashboard/matrix/{{ space_id_url }}/welcome/"
+    <a href="/dashboard/matrix/{{ space_id_url }}/welcome/"
        class="bg-neutral-900 rounded-xl border border-neutral-800 hover:border-cyan-500/40 p-5 transition group block">
       <div class="flex items-start justify-between mb-3">
         <div class="w-10 h-10 bg-cyan-600/20 rounded-lg flex items-center justify-center">
@@ -128,7 +128,7 @@
       <p class="mt-2 text-xs text-gray-600">{% if settings.welcome_room_id %}Room configured{% else %}No room set{% endif %}</p>
     </a>
 
-    <a href="/ql/dashboard/matrix/{{ space_id_url }}/ban-lists/"
+    <a href="/dashboard/matrix/{{ space_id_url }}/ban-lists/"
        class="bg-neutral-900 rounded-xl border border-neutral-800 hover:border-orange-500/40 p-5 transition group block">
       <div class="flex items-start justify-between mb-3">
         <div class="w-10 h-10 bg-orange-600/20 rounded-lg flex items-center justify-center">
@@ -140,7 +140,7 @@
       <p class="text-gray-500 text-xs mt-1">Draupnir-style shareable ban lists and user blocking.</p>
     </a>
 
-    <a href="/ql/dashboard/matrix/{{ space_id_url }}/rss/"
+    <a href="/dashboard/matrix/{{ space_id_url }}/rss/"
        class="bg-neutral-900 rounded-xl border border-neutral-800 hover:border-purple-500/40 p-5 transition group block">
       <div class="flex items-start justify-between mb-3">
         <div class="w-10 h-10 bg-purple-600/20 rounded-lg flex items-center justify-center">
@@ -154,7 +154,7 @@
       <p class="text-gray-500 text-xs mt-1">Auto-post news and articles to rooms.</p>
     </a>
 
-    <a href="/ql/dashboard/matrix/{{ space_id_url }}/messages/"
+    <a href="/dashboard/matrix/{{ space_id_url }}/messages/"
        class="bg-neutral-900 rounded-xl border border-neutral-800 hover:border-yellow-500/40 p-5 transition group block">
       <div class="flex items-start justify-between mb-3">
         <div class="w-10 h-10 bg-yellow-600/20 rounded-lg flex items-center justify-center">
@@ -166,7 +166,7 @@
       <p class="text-gray-500 text-xs mt-1">Send announcements to any room from the dashboard.</p>
     </a>
 
-    <a href="/ql/dashboard/matrix/{{ space_id_url }}/settings/"
+    <a href="/dashboard/matrix/{{ space_id_url }}/settings/"
        class="bg-neutral-900 rounded-xl border border-neutral-800 hover:border-gray-500/40 p-5 transition group block">
       <div class="flex items-start justify-between mb-3">
         <div class="w-10 h-10 bg-gray-700/40 rounded-lg flex items-center justify-center">
@@ -178,7 +178,7 @@
       <p class="text-gray-500 text-xs mt-1">Configure bot prefix, language, mod log, and more.</p>
     </a>
 
-    <a href="/ql/dashboard/matrix/{{ space_id_url }}/audit/"
+    <a href="/dashboard/matrix/{{ space_id_url }}/audit/"
        class="bg-neutral-900 rounded-xl border border-neutral-800 hover:border-cyan-500/40 p-5 transition group block">
       <div class="flex items-start justify-between mb-3">
         <div class="w-10 h-10 bg-cyan-600/20 rounded-lg flex items-center justify-center">
@@ -190,7 +190,7 @@
       <p class="text-gray-500 text-xs mt-1">Track all space events and moderation actions.</p>
     </a>
 
-    <a href="/ql/dashboard/matrix/{{ space_id_url }}/verification/"
+    <a href="/dashboard/matrix/{{ space_id_url }}/verification/"
        class="bg-neutral-900 rounded-xl border border-neutral-800 hover:border-green-500/40 p-5 transition group block">
       <div class="flex items-start justify-between mb-3">
         <div class="w-10 h-10 bg-green-600/20 rounded-lg flex items-center justify-center">
@@ -244,7 +244,7 @@
       <h3 class="text-white font-semibold flex items-center gap-2">
         <i class="fas fa-sliders-h text-gray-400"></i> Space Settings
       </h3>
-      <a href="/ql/dashboard/matrix/{{ space_id_url }}/settings/"
+      <a href="/dashboard/matrix/{{ space_id_url }}/settings/"
          class="text-sm text-teal-400 hover:text-teal-300 transition">All Settings &rarr;</a>
     </div>
     <div class="grid grid-cols-3 gap-4 text-sm">

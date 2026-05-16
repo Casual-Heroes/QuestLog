@@ -1,0 +1,407 @@
+{% extends "questlog_web/base_web.html" %}
+{% load static %}
+
+{% block title %}{{ article.title }} - QuestLog Blog{% endblock %}
+
+{% block web_content %}
+<div class="max-w-4xl mx-auto px-4 lg:px-6 py-8">
+
+  <!-- Breadcrumb -->
+  <nav class="flex items-center gap-2 text-sm text-gray-500 mb-6">
+    <a href="/blog/" class="hover:text-violet-400 transition-colors">Blog</a>
+    <i class="fas fa-chevron-right text-xs"></i>
+    <span class="capitalize {% if article.category == 'guide' %}text-green-400{% elif article.category == 'news' %}text-blue-400{% elif article.category == 'opinion' %}text-orange-400{% else %}text-violet-400{% endif %}">
+      <a href="/blog/?category={{ article.category }}">{{ article.category }}</a>
+    </span>
+    <i class="fas fa-chevron-right text-xs"></i>
+    <span class="text-gray-300 truncate">{{ article.title }}</span>
+  </nav>
+
+  <!-- Article header -->
+  <header class="mb-8">
+    {% if article.is_pinned %}
+    <div class="flex items-center gap-2 mb-3">
+      <span class="px-2 py-0.5 bg-yellow-800/30 text-yellow-400 text-xs rounded flex items-center gap-1">
+        <i class="fas fa-thumbtack"></i> Pinned
+      </span>
+    </div>
+    {% endif %}
+
+    <h1 class="text-3xl lg:text-4xl font-extrabold text-white leading-tight">{{ article.title }}</h1>
+
+    {% if article.summary %}
+    <p class="mt-3 text-lg text-gray-400 leading-relaxed">{{ article.summary }}</p>
+    {% endif %}
+
+    <!-- Author + meta -->
+    <div class="mt-5 flex items-center justify-between flex-wrap gap-4 pb-5 border-b border-neutral-800">
+      <div class="flex items-center gap-3">
+        {% if article.author %}
+        {% if article.author.avatar_url %}
+        <img src="{{ article.author.avatar_url }}" alt="{{ article.author.username }}"
+             class="w-10 h-10 rounded-full object-cover">
+        {% else %}
+        <div class="w-10 h-10 rounded-full bg-violet-700 flex items-center justify-center">
+          <span class="text-sm font-bold text-white">{{ article.author.username|slice:":1"|upper }}</span>
+        </div>
+        {% endif %}
+        <div>
+          <a href="/ql/u/{{ article.author.username }}/"
+             class="text-sm font-medium text-white hover:text-violet-400 transition-colors">
+            {{ article.author.display_name }}
+          </a>
+          <div class="flex items-center gap-2 mt-0.5">
+            {% if article.author.flair_emoji %}
+            <span class="text-xs">{{ article.author.flair_emoji }}</span>
+            {% endif %}
+            {% if article.author.rank_title %}
+            <span class="text-xs text-gray-500">{{ article.author.rank_title }}</span>
+            {% endif %}
+          </div>
+        </div>
+        {% endif %}
+      </div>
+      <div class="flex items-center gap-4 text-sm text-gray-500">
+        <span id="article-publish-ts" data-ts="{{ article.published_at }}"></span>
+        {% if article.edit_count %}
+        <span class="text-xs text-gray-600" title="Edited">
+          <i class="fas fa-pencil-alt mr-1"></i>edited
+        </span>
+        {% endif %}
+        <span><i class="fas fa-eye mr-1"></i>{{ article.view_count }}</span>
+        <span><i class="fas fa-comment mr-1"></i>{{ article.comment_count }}</span>
+        {% if article.game_tag_name %}
+        <span class="px-2 py-0.5 bg-neutral-800 rounded text-xs">{{ article.game_tag_name }}</span>
+        {% endif %}
+        {% if user_can_edit %}
+        <a href="/blog/{{ article.slug }}/edit/"
+           class="ml-2 px-3 py-1 bg-neutral-700 hover:bg-neutral-600 text-white text-xs rounded-lg transition-colors">
+          <i class="fas fa-edit mr-1"></i>Edit
+        </a>
+        {% endif %}
+      </div>
+    </div>
+  </header>
+
+  <!-- Cover image -->
+  {% if article.cover_url %}
+  <div class="mb-8 rounded-xl overflow-hidden">
+    <img src="{{ article.cover_url }}" alt="{{ article.title }}" class="w-full max-h-96 object-cover">
+  </div>
+  {% endif %}
+
+  <!-- Article body - sanitized HTML from markdown -->
+  <article id="article-body"
+           class="prose prose-invert prose-violet max-w-none
+                  prose-headings:text-white prose-headings:font-bold
+                  prose-p:text-gray-300 prose-p:leading-relaxed
+                  prose-a:text-violet-400 prose-a:no-underline hover:prose-a:underline
+                  prose-code:text-violet-300 prose-code:bg-neutral-800 prose-code:px-1 prose-code:rounded
+                  prose-pre:bg-neutral-800 prose-pre:border prose-pre:border-neutral-700
+                  prose-blockquote:border-l-violet-500 prose-blockquote:text-gray-400
+                  prose-table:text-sm
+                  prose-th:text-gray-300 prose-th:bg-neutral-800
+                  prose-td:text-gray-400
+                  prose-img:rounded-lg prose-img:max-w-full
+                  pb-8 border-b border-neutral-800">
+    {{ body_html }}
+  </article>
+
+  <!-- Comments section -->
+  <section id="comments-section" class="mt-10">
+    <h2 class="text-xl font-bold text-white mb-6">
+      Comments <span class="text-gray-500 font-normal text-base ml-1">({{ article.comment_count }})</span>
+    </h2>
+
+    {% if web_user %}
+    <!-- Comment compose box -->
+    <div class="flex gap-3 mb-8">
+      {% if web_user.avatar_url %}
+      <img src="{{ web_user.avatar_url }}" class="w-9 h-9 rounded-full object-cover flex-shrink-0 mt-0.5">
+      {% else %}
+      <div class="w-9 h-9 rounded-full bg-violet-700 flex items-center justify-center flex-shrink-0 mt-0.5">
+        <span class="text-xs font-bold text-white">{{ web_user.username|slice:":1"|upper }}</span>
+      </div>
+      {% endif %}
+      <div class="flex-1">
+        <textarea id="new-comment-box" rows="3"
+                  placeholder="Write a comment..."
+                  maxlength="1000"
+                  class="w-full px-3 py-2.5 bg-neutral-800 border border-neutral-700 rounded-lg text-sm text-white placeholder-gray-500 resize-none focus:outline-none focus:border-violet-500 transition-colors"></textarea>
+        <div class="flex items-center justify-between mt-2">
+          <span id="comment-char-count" class="text-xs text-gray-500">0 / 1000</span>
+          <button id="submit-comment-btn"
+                  onclick="submitComment(null)"
+                  class="px-4 py-1.5 bg-violet-600 hover:bg-violet-500 text-white text-sm rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+            Post Comment
+          </button>
+        </div>
+      </div>
+    </div>
+    {% else %}
+    <div class="mb-8 p-4 bg-neutral-800/50 border border-neutral-700 rounded-lg text-sm text-gray-400 text-center">
+      <a href="/ql/login/?next=/blog/{{ article.slug }}/" class="text-violet-400 hover:underline">Sign in</a> to leave a comment.
+    </div>
+    {% endif %}
+
+    <!-- Existing comments -->
+    <div id="comments-list">
+      {% for comment in comments %}
+      {% include "questlog_web/partials/blog_comment.html" with comment=comment depth=0 %}
+      {% endfor %}
+    </div>
+
+    {% if not comments %}
+    <p id="no-comments-msg" class="text-sm text-gray-500 text-center py-8">
+      No comments yet. {% if web_user %}Be the first!{% endif %}
+    </p>
+    {% endif %}
+  </section>
+
+</div>
+
+<script>
+const ARTICLE_ID = {{ article.id }};
+const IS_LOGGED_IN = {% if web_user %}true{% else %}false{% endif %};
+
+function _esc(s) {
+  if (s == null) return '';
+  const d = document.createElement('div');
+  d.textContent = String(s);
+  return d.innerHTML;
+}
+
+function _csrf() {
+  return document.cookie.split(';').map(c=>c.trim()).find(c=>c.startsWith('csrftoken='))?.split('=')[1] || '';
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  // Render publish timestamp
+  const tsEl = document.getElementById('article-publish-ts');
+  if (tsEl) {
+    const ts = parseInt(tsEl.dataset.ts, 10);
+    if (ts) {
+      const d = new Date(ts * 1000);
+      tsEl.textContent = d.toLocaleDateString(undefined, {year: 'numeric', month: 'long', day: 'numeric'});
+    }
+  }
+
+  // Render comment timestamps
+  renderCommentTimestamps();
+
+  // Character counter
+  const box = document.getElementById('new-comment-box');
+  const counter = document.getElementById('comment-char-count');
+  if (box && counter) {
+    box.addEventListener('input', function() {
+      counter.textContent = box.value.length + ' / 1000';
+    });
+  }
+});
+
+function renderCommentTimestamps() {
+  document.querySelectorAll('[data-comment-ts]').forEach(function(el) {
+    const ts = parseInt(el.dataset.commentTs, 10);
+    if (!ts) return;
+    const d = new Date(ts * 1000);
+    const diff = Math.floor((Date.now() - d.getTime()) / 1000);
+    let label;
+    if (diff < 60) label = 'just now';
+    else if (diff < 3600) label = Math.floor(diff / 60) + 'm ago';
+    else if (diff < 86400) label = Math.floor(diff / 3600) + 'h ago';
+    else if (diff < 604800) label = Math.floor(diff / 86400) + 'd ago';
+    else label = d.toLocaleDateString(undefined, {month: 'short', day: 'numeric', year: 'numeric'});
+    el.textContent = label;
+  });
+}
+
+function submitComment(parentId) {
+  if (!IS_LOGGED_IN) return;
+
+  let content, box;
+  if (parentId) {
+    box = document.getElementById('reply-box-' + parentId);
+  } else {
+    box = document.getElementById('new-comment-box');
+  }
+  if (!box) return;
+  content = box.value.trim();
+  if (!content) return;
+
+  const btn = parentId
+    ? document.getElementById('reply-submit-' + parentId)
+    : document.getElementById('submit-comment-btn');
+  if (btn) btn.disabled = true;
+
+  fetch('/api/blog/' + ARTICLE_ID + '/comments/', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'X-CSRFToken': _csrf()},
+    body: JSON.stringify({content: content, parent_id: parentId || null}),
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (btn) btn.disabled = false;
+    if (data.error) {
+      alert(data.error);
+      return;
+    }
+    box.value = '';
+    if (document.getElementById('comment-char-count')) {
+      document.getElementById('comment-char-count').textContent = '0 / 1000';
+    }
+    // Update comment count in header
+    const countEl = document.querySelector('#comments-section h2 span');
+    if (countEl) {
+      const cur = parseInt(countEl.textContent.replace(/\D/g, ''), 10) || 0;
+      countEl.textContent = '(' + (cur + 1) + ')';
+    }
+    const noMsg = document.getElementById('no-comments-msg');
+    if (noMsg) noMsg.style.display = 'none';
+    appendComment(data.comment, parentId);
+    if (parentId) {
+      const replyArea = document.getElementById('reply-area-' + parentId);
+      if (replyArea) replyArea.classList.add('hidden');
+    }
+  })
+  .catch(err => {
+    console.error('Comment post failed:', err);
+    alert('Failed to post comment. Please try again.');
+    if (btn) btn.disabled = false;
+  });
+}
+
+function appendComment(comment, parentId) {
+  let html;
+  try {
+    html = buildCommentHtml(comment, 0);
+  } catch(e) {
+    console.error('buildCommentHtml failed:', e, comment);
+    return;
+  }
+  if (parentId) {
+    let repliesContainer = document.getElementById('replies-' + parentId);
+    if (!repliesContainer) {
+      const parent = document.getElementById('comment-' + parentId);
+      if (parent) {
+        repliesContainer = document.createElement('div');
+        repliesContainer.id = 'replies-' + parentId;
+        repliesContainer.className = 'ml-9 mt-2 space-y-3';
+        parent.appendChild(repliesContainer);
+      }
+    }
+    if (repliesContainer) {
+      const el = document.createElement('div');
+      el.innerHTML = html.trim();
+      repliesContainer.appendChild(el.firstElementChild);
+    }
+  } else {
+    const list = document.getElementById('comments-list');
+    const el = document.createElement('div');
+    el.innerHTML = html.trim();
+    list.appendChild(el.firstElementChild);
+  }
+  renderCommentTimestamps();
+}
+
+function buildCommentHtml(c, depth) {
+  const author = c.author || {};
+  const avatarHtml = author.avatar_url
+    ? `<img src="${_esc(author.avatar_url)}" class="w-8 h-8 rounded-full object-cover flex-shrink-0">`
+    : `<div class="w-8 h-8 rounded-full bg-violet-700 flex items-center justify-center flex-shrink-0"><span class="text-xs font-bold text-white">${_esc((author.display_name || '?').charAt(0).toUpperCase())}</span></div>`;
+  const isDeleted = c.is_deleted;
+  const bodyHtml = isDeleted
+    ? '<span class="text-gray-600 italic">[deleted]</span>'
+    : `<p class="text-sm text-gray-300 whitespace-pre-wrap">${_esc(c.content)}</p>`;
+  const actionsHtml = isDeleted ? '' : `
+    <div class="flex items-center gap-3 mt-2 text-xs text-gray-500">
+      <button onclick="likeComment(${c.id}, this)" class="flex items-center gap-1 hover:text-violet-400 transition-colors" data-liked="${c.liked ? '1' : '0'}">
+        <i class="fas fa-heart ${c.liked ? 'text-violet-400' : ''}"></i>
+        <span class="like-count-${c.id}">${c.like_count}</span>
+      </button>
+      ${IS_LOGGED_IN && !c.parent_id ? `<button onclick="toggleReply(${c.id})" class="hover:text-violet-400 transition-colors">Reply</button>` : ''}
+      ${IS_LOGGED_IN ? `<button onclick="deleteComment(${c.id})" class="hover:text-red-400 transition-colors ml-auto">Delete</button>` : ''}
+    </div>
+    ${IS_LOGGED_IN && !c.parent_id ? `
+    <div id="reply-area-${c.id}" class="hidden mt-3">
+      <textarea id="reply-box-${c.id}" rows="2" placeholder="Write a reply..." maxlength="1000"
+                class="w-full px-3 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-sm text-white placeholder-gray-500 resize-none focus:outline-none focus:border-violet-500"></textarea>
+      <div class="flex justify-end mt-1.5 gap-2">
+        <button onclick="toggleReply(${c.id})" class="px-3 py-1 text-xs text-gray-400 hover:text-white">Cancel</button>
+        <button id="reply-submit-${c.id}" onclick="submitComment(${c.id})" class="px-3 py-1 bg-violet-600 hover:bg-violet-500 text-white text-xs rounded">Reply</button>
+      </div>
+    </div>` : ''}
+  `;
+  return `
+  <div id="comment-${c.id}" class="flex gap-3 py-4 border-b border-neutral-800/60 last:border-0">
+    ${avatarHtml}
+    <div class="flex-1 min-w-0">
+      <div class="flex items-center gap-2 mb-1">
+        ${isDeleted ? '<span class="text-xs text-gray-600">[deleted]</span>' : `<a href="/ql/u/${_esc(author.username || '')}/" class="text-xs font-medium text-gray-300 hover:text-violet-400">${_esc(author.display_name || author.username || '')}</a>`}
+        <span data-comment-ts="${c.created_at}" class="text-xs text-gray-600"></span>
+      </div>
+      ${bodyHtml}
+      ${actionsHtml}
+    </div>
+  </div>`;
+}
+
+function toggleReply(commentId) {
+  const area = document.getElementById('reply-area-' + commentId);
+  if (area) {
+    area.classList.toggle('hidden');
+    if (!area.classList.contains('hidden')) {
+      const box = document.getElementById('reply-box-' + commentId);
+      if (box) box.focus();
+    }
+  }
+}
+
+function likeComment(commentId, btn) {
+  if (!IS_LOGGED_IN) return;
+  const liked = btn.dataset.liked === '1';
+  fetch('/api/blog/comment/' + commentId + '/like/', {
+    method: liked ? 'DELETE' : 'POST',
+    headers: {'X-CSRFToken': _csrf()},
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.success) {
+      btn.dataset.liked = liked ? '0' : '1';
+      const icon = btn.querySelector('i');
+      if (icon) icon.className = liked ? 'fas fa-heart' : 'fas fa-heart text-violet-400';
+      const countEl = document.querySelector('.like-count-' + commentId);
+      if (countEl) countEl.textContent = data.like_count;
+    }
+  });
+}
+
+function deleteComment(commentId) {
+  if (!confirm('Delete this comment?')) return;
+  fetch('/api/blog/comment/' + commentId + '/', {method: 'DELETE', headers: {'X-CSRFToken': _csrf()}})
+  .then(r => r.json())
+  .then(data => {
+    if (data.success) {
+      const el = document.getElementById('comment-' + commentId);
+      if (el) el.remove();
+      // Update count
+      const countEl = document.querySelector('#comments-section h2 span');
+      if (countEl) {
+        const cur = parseInt(countEl.textContent.replace(/\D/g, ''), 10) || 1;
+        const next = Math.max(0, cur - 1);
+        countEl.textContent = '(' + next + ')';
+        if (next === 0) {
+          const list = document.getElementById('comments-list');
+          if (list && !list.children.length) {
+            const msg = document.createElement('p');
+            msg.id = 'no-comments-msg';
+            msg.className = 'text-sm text-gray-500 text-center py-8';
+            msg.textContent = 'No comments yet. Be the first!';
+            list.after(msg);
+          }
+        }
+      }
+    }
+  });
+}
+</script>
+{% endblock %}

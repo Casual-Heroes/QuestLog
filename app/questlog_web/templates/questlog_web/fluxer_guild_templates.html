@@ -161,7 +161,7 @@
 
 <script>
 const GUILD_ID = '{{ guild_id }}';
-const TEMPLATES_API = `/ql/api/dashboard/fluxer/${GUILD_ID}/templates`;
+const TEMPLATES_API = `/api/dashboard/fluxer/${GUILD_ID}/templates`;
 
 let channelCounter = 0;
 let roleCounter = 0;
@@ -308,7 +308,7 @@ async function openCreateModal(type) {
 
   if (type === 'channel') {
     try {
-      const response = await csrfFetch(`/ql/api/dashboard/fluxer/${GUILD_ID}/roles/list/`);
+      const response = await csrfFetch(`/api/dashboard/fluxer/${GUILD_ID}/roles/list/`);
       const data = await response.json();
       if (data.roles) guildRoles = data.roles;
     } catch (err) {
@@ -432,7 +432,7 @@ function removeChannelFromCategory(channelId) {
 function addCategoryRoleOverride(catId) {
   const overrideId = roleOverrideCounter++;
   const roleOptions = guildRoles.map(role =>
-    `<option value="${escapeHtml(String(role.id))}">${escapeHtml(role.name)}</option>`
+    `<option value="${escapeHtml(String(role.id))}">${escapeHtml(role.label || role.name || role.id)}</option>`
   ).join('');
 
   const permissionCheckboxes = Object.entries(CHANNEL_PERMISSIONS).map(([key, label]) => `
@@ -670,7 +670,7 @@ async function applyTemplate(type, id) {
     });
     const result = await response.json();
     if (result.success) {
-      alert('Template queued for application! Check your Discord server.');
+      alert('Template queued for application! Check your Fluxer server in a few seconds.');
       loadTemplates();
     } else {
       throw new Error(result.error);
@@ -717,7 +717,7 @@ async function editTemplate(type, id) {
 
     if (type === 'channels') {
       try {
-        const rolesResponse = await csrfFetch(`/ql/api/dashboard/fluxer/${GUILD_ID}/roles/list/`);
+        const rolesResponse = await csrfFetch(`/api/dashboard/fluxer/${GUILD_ID}/roles/list/`);
         const rolesData = await rolesResponse.json();
         if (rolesData.roles) guildRoles = rolesData.roles;
       } catch (err) {

@@ -583,7 +583,7 @@ function showToast(msg, type='success') {
 function toggleXPSystem() {
   const enabled = document.getElementById('xpEnabledToggle').checked;
   updateXpStatusLabel(enabled);
-  csrfFetch('/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/xp/', {
+  csrfFetch('/api/dashboard/matrix/' + SPACE_ID_URL + '/xp/', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({xp_enabled: enabled}),
@@ -641,7 +641,7 @@ function saveXpConfig() {
     xp_cooldown_secs: parseInt(document.getElementById('modal-cooldown').value) || 60,
     xp_ignored_rooms: Array.isArray(ignored) ? ignored : [ignored].filter(Boolean),
   };
-  csrfFetch('/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/xp/', {
+  csrfFetch('/api/dashboard/matrix/' + SPACE_ID_URL + '/xp/', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify(data),
@@ -666,7 +666,7 @@ function submitLevelRole() {
   const power_level = parseInt(document.getElementById('lr-power-level').value);
   const label = document.getElementById('lr-label').value.trim();
   if (!level || isNaN(power_level)) { showToast('Level and power level required.', 'error'); return; }
-  csrfFetch('/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/xp/level-roles/', {
+  csrfFetch('/api/dashboard/matrix/' + SPACE_ID_URL + '/xp/level-roles/', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({level, power_level, label: label || null}),
@@ -677,7 +677,7 @@ function submitLevelRole() {
 }
 function deleteLevelRole(id) {
   if (!confirm('Remove this level role rule?')) return;
-  csrfFetch('/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/xp/level-roles/' + id + '/', {
+  csrfFetch('/api/dashboard/matrix/' + SPACE_ID_URL + '/xp/level-roles/' + id + '/', {
     method: 'DELETE',
   }).then(r => r.json()).then(d => {
     if (d.ok) { showToast('Rule removed.'); location.reload(); }
@@ -695,7 +695,7 @@ function saveLevelUpConfig() {
   const btn = document.getElementById('levelup-save-btn');
   btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Saving...';
   btn.disabled = true;
-  csrfFetch('/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/xp/', {
+  csrfFetch('/api/dashboard/matrix/' + SPACE_ID_URL + '/xp/', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify(data),
@@ -732,7 +732,7 @@ function submitBoost() {
   const hours = parseInt(document.getElementById('boostHours').value);
   const label = document.getElementById('boostLabel').value.trim();
   if (!multiplier || !hours) { showToast('Multiplier and duration required.', 'error'); return; }
-  csrfFetch('/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/xp/boosts/', {
+  csrfFetch('/api/dashboard/matrix/' + SPACE_ID_URL + '/xp/boosts/', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({multiplier, hours, label: label || null}),
@@ -743,7 +743,7 @@ function submitBoost() {
 }
 function deleteBoost(id) {
   if (!confirm('Remove this boost?')) return;
-  csrfFetch('/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/xp/boosts/' + id + '/', {
+  csrfFetch('/api/dashboard/matrix/' + SPACE_ID_URL + '/xp/boosts/' + id + '/', {
     method: 'DELETE',
   }).then(r => r.json()).then(d => {
     if (d.ok) { showToast('Boost removed.'); location.reload(); }
@@ -756,7 +756,7 @@ let _allEntries = [];
 function loadLeaderboard() {
   const tbody = document.getElementById('leaderboard-body');
   tbody.innerHTML = '<tr><td colspan="5" class="px-5 py-8 text-center text-gray-400"><i class="fas fa-spinner fa-spin text-2xl"></i></td></tr>';
-  csrfFetch('/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/xp/leaderboard/')
+  csrfFetch('/api/dashboard/matrix/' + SPACE_ID_URL + '/xp/leaderboard/')
     .then(r => r.json()).then(d => {
       _allEntries = d.entries || [];
       renderLeaderboard(_allEntries);
@@ -800,7 +800,7 @@ function openEditMember(matrixId, xp) {
   if (newXp === null) return;
   const parsed = parseInt(newXp);
   if (isNaN(parsed) || parsed < 0) { showToast('Invalid XP value.', 'error'); return; }
-  csrfFetch('/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/xp/members/', {
+  csrfFetch('/api/dashboard/matrix/' + SPACE_ID_URL + '/xp/members/', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({matrix_id: matrixId, xp: parsed}),

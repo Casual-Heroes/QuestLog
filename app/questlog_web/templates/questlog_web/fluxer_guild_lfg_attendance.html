@@ -17,7 +17,7 @@
     <button onclick="exportCsv()" class="bg-neutral-700 hover:bg-neutral-600 text-white px-4 py-2 rounded-lg font-medium transition text-sm">
       <i class="fas fa-download mr-2"></i>Export CSV
     </button>
-    <a href="/ql/dashboard/fluxer/{{ guild_id }}/lfg/" class="bg-neutral-700 hover:bg-neutral-600 text-white px-4 py-2 rounded-lg font-medium transition text-sm flex items-center gap-2">
+    <a href="/dashboard/fluxer/{{ guild_id }}/lfg/" class="bg-neutral-700 hover:bg-neutral-600 text-white px-4 py-2 rounded-lg font-medium transition text-sm flex items-center gap-2">
       <i class="fas fa-arrow-left"></i><span>LFG Settings</span>
     </a>
   </div>
@@ -144,8 +144,8 @@
 
 <script>
 const GUILD_ID = '{{ guild_id }}';
-const ATTENDANCE_API = '/ql/api/dashboard/fluxer/' + GUILD_ID + '/lfg/attendance/';
-const EXPORT_API = '/ql/api/dashboard/fluxer/' + GUILD_ID + '/lfg/attendance/export/';
+const ATTENDANCE_API = '/api/dashboard/fluxer/' + GUILD_ID + '/lfg/attendance/';
+const EXPORT_API = '/api/dashboard/fluxer/' + GUILD_ID + '/lfg/attendance/export/';
 const GAMES = JSON.parse('{{ games_json|escapejs }}');
 const LFG_CONFIG = JSON.parse('{{ lfg_config_json|escapejs }}');
 

@@ -1,7 +1,9 @@
 {% extends "questlog_web/base_web.html" %}
 {% load static %}
 
-{% block title %}Feed - QuestLog Network{% endblock %}
+{% block title %}Feed | Casual Heroes{% endblock %}
+{% block og_title %}Community Feed | Casual Heroes{% endblock %}
+{% block og_description %}A community for working adults, parents, and gamers who grew up but never quite left Neverland.{% endblock %}
 
 {% block web_content %}
 {% include "questlog_web/partials/post_card.html" %}
@@ -211,20 +213,8 @@
       </div>
       {% endif %}
 
-      <!-- ── Suggested Gamers ───────────────────────────────────── -->
-      <div id="suggested-gamers-row" class="">
-        <div class="flex items-center justify-between mb-2.5">
-          <h3 class="text-sm font-semibold text-white flex items-center gap-2">
-            <i class="fas fa-users text-green-400"></i>Suggested Gamers
-          </h3>
-          <button onclick="hideSuggestedRow()" class="text-gray-600 hover:text-gray-400 text-xs px-1 transition" title="Dismiss"><i class="fas fa-times"></i></button>
-        </div>
-        <div id="suggested-gamers-main" class="flex gap-3 overflow-x-auto pb-2 snap-x" style="scrollbar-width:thin;scrollbar-color:#404040 transparent">
-          <p class="text-gray-600 text-xs py-3 px-1">Loading…</p>
-        </div>
-      </div>
-
-      <!-- Feed Tab Switcher -->
+      <!-- Feed Tab Switcher (hidden when game filter active) -->
+      {% if not game_filter %}
       <div class="flex gap-1 bg-neutral-900/60 border border-neutral-800 rounded-xl p-1">
         {% if web_user %}
         <button onclick="switchTab('following')" id="tab-following"
@@ -236,6 +226,31 @@
           class="flex-1 py-2 px-4 rounded-lg text-sm font-medium transition {% if web_user %}text-gray-400 hover:text-white hover:bg-neutral-800{% else %}tab-active{% endif %}">
           <i class="fas fa-globe mr-1.5 text-xs"></i>Global
         </button>
+      </div>
+      {% endif %}
+
+      <!-- Game Filter Dropdown -->
+      <div id="game-filter-bar" class="{% if game_filter %}block{% else %}hidden{% endif %} relative">
+        <button id="game-filter-btn"
+          class="flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium transition w-full
+                 {% if game_filter %}bg-indigo-600 border-indigo-500 text-white{% else %}bg-neutral-800 border-neutral-700 text-gray-300 hover:border-indigo-500/60 hover:text-indigo-300{% endif %}"
+          onclick="toggleGameFilterDropdown(event)">
+          <i class="fas fa-gamepad text-[11px]"></i>
+          <span id="game-filter-btn-label">{% if game_filter %}{{ game_filter }}{% else %}Filter by game{% endif %}</span>
+          {% if game_filter %}
+          <a href="/feed/" onclick="event.stopPropagation()" class="ml-auto text-indigo-300 hover:text-white"><i class="fas fa-times text-[10px]"></i></a>
+          {% else %}
+          <i class="fas fa-chevron-down text-[10px] ml-auto opacity-50" id="game-filter-chevron"></i>
+          {% endif %}
+        </button>
+        <div id="game-filter-dropdown"
+          class="absolute z-50 left-0 top-full mt-1 w-72 bg-neutral-900 border border-neutral-700 rounded-xl shadow-2xl hidden">
+          <div class="p-2 border-b border-neutral-800">
+            <input id="game-filter-search" type="text" placeholder="Search games..."
+              class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-1.5 text-xs text-gray-200 placeholder-gray-500 focus:outline-none focus:border-indigo-500">
+          </div>
+          <div id="game-filter-list" class="overflow-y-auto max-h-64 py-1"></div>
+        </div>
       </div>
 
       <!-- Feed Posts -->
@@ -360,16 +375,15 @@
       </div>
 
       <!-- Trending Games -->
-      <div class="bg-neutral-900 rounded-xl border border-neutral-800 overflow-hidden">
-        <div class="px-4 py-3 border-b border-neutral-800">
-          <h3 class="text-xs font-bold text-gray-500 uppercase tracking-widest">Trending Games</h3>
-        </div>
-        <div id="trending-games" class="px-4 py-3">
+      <div class="bg-neutral-900/50 rounded-xl border border-neutral-800 p-4">
+        <h3 class="text-sm font-semibold text-white mb-3 flex items-center gap-2">
+          <i class="fas fa-fire-alt text-orange-400"></i>Trending Games
+        </h3>
+        <div id="trending-games">
           <div class="animate-pulse space-y-2.5">
-            <div class="h-2.5 bg-neutral-800 rounded w-3/4"></div>
-            <div class="h-2.5 bg-neutral-800 rounded w-1/2"></div>
-            <div class="h-2.5 bg-neutral-800 rounded w-2/3"></div>
-            <div class="h-2.5 bg-neutral-800 rounded w-3/5"></div>
+            <div class="h-9 bg-neutral-800 rounded w-full"></div>
+            <div class="h-9 bg-neutral-800 rounded w-full"></div>
+            <div class="h-9 bg-neutral-800 rounded w-full"></div>
           </div>
         </div>
       </div>
@@ -448,6 +462,7 @@
 <script>
 const CURRENT_USER_ID = {% if web_user %}{{ web_user.id }}{% else %}null{% endif %};
 const CURRENT_USER_IS_ADMIN = {% if web_user %}{{ web_user.is_admin|default:"false"|lower }}{% else %}false{% endif %};
+const GAME_FILTER = "{{ game_filter|escapejs }}";
 let currentPage = 1;
 let hasMore = true;
 let currentTab = {% if web_user %}'following'{% else %}'global'{% endif %};
@@ -468,8 +483,78 @@ const EMOJIS = {
 document.addEventListener('DOMContentLoaded', () => {
   loadFeedPosts();
   loadSidebarData();
+  loadGameFilterBar();
   const postContent = document.getElementById('post-content');
   if (postContent) postContent.addEventListener('input', updateCharCount);
+  const gfSearch = document.getElementById('game-filter-search');
+  if (gfSearch) {
+    gfSearch.addEventListener('input', function() {
+      const q = this.value.toLowerCase();
+      const filtered = q ? _gameFilterTags.filter(t => t.name.toLowerCase().includes(q)) : _gameFilterTags;
+      renderGameFilterList(filtered);
+    });
+    gfSearch.addEventListener('keydown', function(e) { if (e.key === 'Escape') { document.getElementById('game-filter-dropdown').classList.add('hidden'); } });
+  }
+});
+
+let _gameFilterTags = [];
+
+function loadGameFilterBar() {
+  fetch('/api/posts/game-tags/?limit=50')
+    .then(r => r.json()).then(data => {
+      _gameFilterTags = data.tags || [];
+      if (!_gameFilterTags.length) return;
+      const bar = document.getElementById('game-filter-bar');
+      bar.classList.remove('hidden');
+      bar.classList.add('block');
+      renderGameFilterList(_gameFilterTags);
+    }).catch(() => {});
+}
+
+function renderGameFilterList(tags) {
+  const activeGame = GAME_FILTER.toLowerCase();
+  const list = document.getElementById('game-filter-list');
+  if (!list) return;
+  list.innerHTML = tags.length ? tags.map(t => {
+    const isActive = t.name.toLowerCase() === activeGame;
+    const cover = t.cover_url
+      ? `<img src="${esc(t.cover_url)}" class="w-6 h-8 object-cover rounded flex-shrink-0">`
+      : `<div class="w-6 h-8 bg-neutral-800 rounded flex-shrink-0 flex items-center justify-center"><i class="fas fa-gamepad text-[8px] text-gray-600"></i></div>`;
+    return `<a href="${isActive ? '/feed/' : '/feed/?game=' + encodeURIComponent(t.name)}"
+      class="flex items-center gap-2.5 px-3 py-1.5 text-xs transition ${
+        isActive ? 'bg-indigo-600/20 text-indigo-300' : 'text-gray-300 hover:bg-neutral-800 hover:text-white'
+      }">
+      ${cover}
+      <span class="flex-1 truncate font-medium">${esc(t.name)}</span>
+      <span class="text-[10px] text-gray-500 flex-shrink-0">${t.post_count} post${t.post_count !== 1 ? 's' : ''}</span>
+      ${isActive ? '<i class="fas fa-check text-[10px] text-indigo-400 flex-shrink-0"></i>' : ''}
+    </a>`;
+  }).join('') : '<p class="px-3 py-3 text-xs text-gray-600 text-center">No matches</p>';
+}
+
+function toggleGameFilterDropdown(e) {
+  e.stopPropagation();
+  const dd = document.getElementById('game-filter-dropdown');
+  const chevron = document.getElementById('game-filter-chevron');
+  const isOpen = !dd.classList.contains('hidden');
+  if (isOpen) {
+    dd.classList.add('hidden');
+    if (chevron) chevron.style.transform = '';
+  } else {
+    dd.classList.remove('hidden');
+    if (chevron) chevron.style.transform = 'rotate(180deg)';
+    document.getElementById('game-filter-search').focus();
+  }
+}
+
+document.addEventListener('click', function(e) {
+  const bar = document.getElementById('game-filter-bar');
+  if (bar && !bar.contains(e.target)) {
+    const dd = document.getElementById('game-filter-dropdown');
+    const chevron = document.getElementById('game-filter-chevron');
+    if (dd) dd.classList.add('hidden');
+    if (chevron) chevron.style.transform = '';
+  }
 });
 
 // ── Tab switcher ──
@@ -519,9 +604,14 @@ function skeletonCards(n) {
 // ── Feed loading ──
 async function loadFeedPosts() {
   try {
-    const url = currentTab === 'following'
-      ? `/api/posts/?page=${currentPage}&per_page=20`
-      : `/api/posts/global/?page=${currentPage}&per_page=20`;
+    let url;
+    if (GAME_FILTER) {
+      url = `/api/posts/global/?page=${currentPage}&per_page=20&game=${encodeURIComponent(GAME_FILTER)}`;
+    } else {
+      url = currentTab === 'following'
+        ? `/api/posts/?page=${currentPage}&per_page=20`
+        : `/api/posts/global/?page=${currentPage}&per_page=20`;
+    }
 
     const res = await fetch(url);
     const data = await res.json();
@@ -530,11 +620,13 @@ async function loadFeedPosts() {
     if (currentPage === 1) container.innerHTML = '';
 
     if (data.posts.length === 0 && currentPage === 1) {
-      if (currentTab === 'following') {
-        container.classList.add('hidden');
+      container.classList.add('hidden');
+      if (GAME_FILTER) {
+        container.classList.remove('hidden');
+        container.innerHTML = `<div class="bg-neutral-900 rounded-xl border border-neutral-800 p-8 text-center text-gray-500 text-sm"><i class="fas fa-gamepad text-2xl mb-3 block text-gray-700"></i>No posts tagged with <span class="text-white font-semibold">${esc(GAME_FILTER)}</span> yet.<br><span class="text-xs mt-2 block">Be the first to post about it!</span></div>`;
+      } else if (currentTab === 'following') {
         document.getElementById('empty-state').classList.remove('hidden');
       } else {
-        container.classList.add('hidden');
         document.getElementById('empty-global').classList.remove('hidden');
       }
       return;
@@ -571,7 +663,6 @@ async function loadSidebarData() {
     const data = await res.json();
     document.getElementById('stat-posts-today').textContent = data.posts_today ?? '—';
     document.getElementById('stat-active-users').textContent = data.active_posters_today ?? '—';
-    renderSuggestedMain(data.suggested_gamers || []);
     renderSuggestedUsers(data.suggested_gamers || []);
     renderTrendingGames(data.trending_games || []);
   } catch(e) {
@@ -614,7 +705,7 @@ async function loadSidebarData() {
         <div class="flex items-center gap-2 mb-1">
           ${p.author_avatar_url ? `<img src="${esc(p.author_avatar_url)}" class="w-5 h-5 rounded-full object-cover flex-shrink-0">` : `<div class="w-5 h-5 rounded-full bg-indigo-900/60 flex-shrink-0"></div>`}
           <span class="text-xs text-gray-500 truncate">${esc(p.author_display_name||p.author_username)}</span>
-          ${p.game_tag_name ? `<span class="ml-auto text-[10px] bg-indigo-900/40 text-indigo-300 px-1.5 py-0.5 rounded flex-shrink-0">${esc(p.game_tag_name)}</span>` : ''}
+          ${p.game_tag_name ? `<a href="/feed/?game=${encodeURIComponent(p.game_tag_name)}" onclick="event.stopPropagation()" class="ml-auto text-[10px] bg-indigo-900/40 hover:bg-indigo-700/50 text-indigo-300 px-1.5 py-0.5 rounded flex-shrink-0 transition">${esc(p.game_tag_name)}</a>` : ''}
         </div>
         <p class="text-xs text-gray-300 line-clamp-2 group-hover:text-white leading-relaxed">${esc(p.content)}</p>
         <div class="flex gap-3 mt-1.5 text-[10px] text-gray-600">
@@ -650,115 +741,64 @@ function esc(str) {
   return d.innerHTML;
 }
 
-function hideSuggestedRow() {
-  const el = document.getElementById('suggested-gamers-row');
-  if (el) el.classList.add('hidden');
-  try { sessionStorage.setItem('ql_hide_suggested', '1'); } catch(e) {}
-}
-
-function renderSuggestedMain(gamers) {
-  const el = document.getElementById('suggested-gamers-main');
-  if (!el) return;
-  try { if (sessionStorage.getItem('ql_hide_suggested')) { document.getElementById('suggested-gamers-row')?.classList.add('hidden'); return; } } catch(e) {}
-  if (!gamers || !gamers.length) { document.getElementById('suggested-gamers-row')?.classList.add('hidden'); return; }
-  const pIcons = { PC:'fa-desktop', PS5:'fa-playstation', PS4:'fa-playstation', 'Xbox Series':'fa-xbox', 'Xbox One':'fa-xbox', Switch:'fa-gamepad', Mobile:'fa-mobile-alt', 'Steam Deck':'fa-steam' };
-  el.innerHTML = gamers.map(u => {
-    const av = u.avatar_url
-      ? `<img src="${esc(u.avatar_url)}" class="w-10 h-10 rounded-xl object-cover flex-shrink-0" alt="">`
-      : `<div class="w-10 h-10 rounded-xl bg-indigo-700 flex items-center justify-center flex-shrink-0 text-xs font-bold text-white">${esc((u.display_name||u.username||'?').slice(0,2).toUpperCase())}</div>`;
-    const styles = (Array.isArray(u.playstyle)?u.playstyle:(u.playstyle?[u.playstyle]:[])).slice(0,2)
-      .map(s=>`<span class="px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 text-[10px] whitespace-nowrap">${esc(s)}</span>`).join('');
-    const genres = (u.favorite_genres||[]).slice(0,2)
-      .map(g=>`<span class="px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 text-[10px] whitespace-nowrap">${esc(g)}</span>`).join('');
-    const plats = (u.gaming_platforms||[]).slice(0,3)
-      .map(p=>`<span class="text-gray-500 text-[10px]" title="${esc(p)}"><i class="fas ${pIcons[p]||'fa-gamepad'}"></i></span>`).join(' ');
-    const socials = [
-      u.twitch_username?`<a href="https://twitch.tv/${esc(u.twitch_username)}" target="_blank" rel="noopener" class="text-purple-400 hover:text-purple-300 text-xs"><i class="fab fa-twitch"></i></a>`:'',
-      u.youtube_channel_name?`<a href="https://youtube.com/@${esc(u.youtube_channel_name)}" target="_blank" rel="noopener" class="text-red-400 hover:text-red-300 text-xs"><i class="fab fa-youtube"></i></a>`:'',
-      u.twitter_url?`<a href="${esc(u.twitter_url)}" target="_blank" rel="noopener" class="text-sky-400 hover:text-sky-300 text-xs"><i class="fab fa-x-twitter"></i></a>`:'',
-      u.bluesky_url?`<a href="${esc(u.bluesky_url)}" target="_blank" rel="noopener" class="text-blue-400 hover:text-blue-300 text-xs"><i class="fas fa-cloud"></i></a>`:'',
-      u.tiktok_url?`<a href="${esc(u.tiktok_url)}" target="_blank" rel="noopener" class="text-pink-400 hover:text-pink-300 text-xs"><i class="fab fa-tiktok"></i></a>`:'',
-      u.instagram_url?`<a href="${esc(u.instagram_url)}" target="_blank" rel="noopener" class="text-rose-400 hover:text-rose-300 text-xs"><i class="fab fa-instagram"></i></a>`:'',
-    ].filter(Boolean).join('');
-    return `
-    <div class="snap-start flex-shrink-0 w-52 rounded-xl border border-neutral-800 hover:border-neutral-700 bg-neutral-900/70 hover:bg-neutral-800/60 transition p-3 flex flex-col gap-2" data-suggested-user="${u.id}">
-      <div class="flex items-center gap-2">
-        <a href="/u/${esc(u.username)}/" class="flex-shrink-0">${av}</a>
-        <a href="/u/${esc(u.username)}/" class="flex-1 min-w-0">
-          <p class="text-white text-xs font-semibold truncate leading-tight">${esc(u.display_name||u.username)}</p>
-          <p class="text-gray-500 text-[11px] truncate">@${esc(u.username)}</p>
-        </a>
-      </div>
-      ${u.bio?`<p class="text-gray-400 text-[11px] leading-relaxed line-clamp-2">${esc(u.bio)}</p>`:''}
-      ${(styles||genres)?`<div class="flex flex-wrap gap-1">${styles}${genres}</div>`:''}
-      <div class="flex items-center justify-between mt-auto pt-1">
-        <div class="flex items-center gap-1.5">${plats} ${socials}</div>
-        <button onclick="quickFollowSidebar(${u.id},this)" class="follow-sidebar-btn text-[11px] px-2.5 py-1 rounded-full bg-indigo-600 hover:bg-indigo-500 text-white transition font-medium flex-shrink-0"><i class="fas fa-plus mr-1"></i>Follow</button>
-      </div>
-    </div>`;
-  }).join('');
-}
-
 function renderSuggestedUsers(users) {
   const container = document.getElementById('suggested-users');
   if (!users.length) {
     container.innerHTML = '<p class="text-gray-600 text-xs text-center py-5">No suggestions right now</p>';
     return;
   }
-  const platformIcons = { PC:'fa-desktop', PS5:'fa-playstation', PS4:'fa-playstation', 'Xbox Series':'fa-xbox', 'Xbox One':'fa-xbox', Switch:'fa-gamepad', Mobile:'fa-mobile-alt', 'Steam Deck':'fa-steam' };
-  container.innerHTML = users.slice(0, 5).map(u => {
+  container.innerHTML = users.slice(0, 3).map(u => {
     const avatar = u.avatar_url
-      ? `<img src="${esc(u.avatar_url)}" class="w-10 h-10 rounded-xl object-cover flex-shrink-0" alt="">`
-      : `<div class="w-10 h-10 bg-indigo-700 rounded-xl flex items-center justify-center flex-shrink-0 text-xs font-bold text-white">${esc((u.display_name || u.username || '?').slice(0,2).toUpperCase())}</div>`;
-    const playstyleTags = (Array.isArray(u.playstyle) ? u.playstyle : (u.playstyle ? [u.playstyle] : []))
-      .slice(0,3).map(s => `<span class="px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 text-[10px]">${esc(s)}</span>`).join('');
-    const genreTags = (u.favorite_genres || []).slice(0,3)
-      .map(g => `<span class="px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 text-[10px]">${esc(g)}</span>`).join('');
-    const platformBadges = (u.gaming_platforms || []).slice(0,3)
-      .map(p => `<span class="text-gray-400 text-[10px]" title="${esc(p)}"><i class="fas ${platformIcons[p] || 'fa-gamepad'}"></i> ${esc(p)}</span>`).join('');
-    const socials = [
-      u.twitch_username ? `<a href="https://twitch.tv/${esc(u.twitch_username)}" target="_blank" rel="noopener" class="text-purple-400 hover:text-purple-300 text-xs" title="Twitch"><i class="fab fa-twitch"></i></a>` : '',
-      u.youtube_channel_name ? `<a href="https://youtube.com/@${esc(u.youtube_channel_name)}" target="_blank" rel="noopener" class="text-red-400 hover:text-red-300 text-xs" title="YouTube"><i class="fab fa-youtube"></i></a>` : '',
-      u.twitter_url ? `<a href="${esc(u.twitter_url)}" target="_blank" rel="noopener" class="text-sky-400 hover:text-sky-300 text-xs" title="X / Twitter"><i class="fab fa-x-twitter"></i></a>` : '',
-      u.bluesky_url ? `<a href="${esc(u.bluesky_url)}" target="_blank" rel="noopener" class="text-blue-400 hover:text-blue-300 text-xs" title="Bluesky"><i class="fas fa-cloud"></i></a>` : '',
-      u.tiktok_url ? `<a href="${esc(u.tiktok_url)}" target="_blank" rel="noopener" class="text-pink-400 hover:text-pink-300 text-xs" title="TikTok"><i class="fab fa-tiktok"></i></a>` : '',
-      u.instagram_url ? `<a href="${esc(u.instagram_url)}" target="_blank" rel="noopener" class="text-rose-400 hover:text-rose-300 text-xs" title="Instagram"><i class="fab fa-instagram"></i></a>` : '',
-      u.website_url ? `<a href="${esc(u.website_url)}" target="_blank" rel="noopener" class="text-green-400 hover:text-green-300 text-xs" title="Website"><i class="fas fa-globe"></i></a>` : '',
-    ].filter(Boolean).join('');
+      ? `<img src="${esc(u.avatar_url)}" class="w-9 h-9 rounded-full object-cover flex-shrink-0" alt="">`
+      : `<div class="w-9 h-9 bg-indigo-700 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold text-white">${esc((u.display_name || u.username || '?').slice(0,2).toUpperCase())}</div>`;
+    const meta = [
+      u.follower_count ? `${u.follower_count} follower${u.follower_count !== 1 ? 's' : ''}` : null,
+      (u.favorite_genres || [])[0] || null,
+    ].filter(Boolean).join(' - ');
     return `
-      <div class="rounded-lg border border-neutral-800 hover:border-neutral-700 bg-neutral-800/30 hover:bg-neutral-800/60 transition p-3" data-suggested-user="${u.id}">
-        <div class="flex items-start gap-2.5 mb-2">
-          <a href="/u/${esc(u.username)}/" class="flex-shrink-0">${avatar}</a>
-          <div class="flex-1 min-w-0">
-            <a href="/u/${esc(u.username)}/" class="block">
-              <p class="text-white text-xs font-semibold truncate leading-tight">${esc(u.display_name || u.username)}</p>
-              <p class="text-gray-500 text-[11px] truncate">@${esc(u.username)}</p>
-            </a>
-          </div>
-          <button onclick="quickFollowSidebar(${u.id}, this)"
-            class="follow-sidebar-btn flex-shrink-0 text-[11px] px-2 py-1 rounded-full bg-indigo-600 hover:bg-indigo-500 text-white transition font-medium">
-            <i class="fas fa-plus mr-1"></i>Follow
-          </button>
+      <div class="flex items-center gap-3 px-4 py-3 hover:bg-neutral-800/40 transition" data-suggested-user="${u.id}">
+        <a href="/u/${esc(u.username)}/" class="flex-shrink-0">${avatar}</a>
+        <div class="flex-1 min-w-0">
+          <a href="/u/${esc(u.username)}/" class="block">
+            <p class="text-white text-xs font-semibold truncate">${esc(u.display_name || u.username)}</p>
+            <p class="text-gray-500 text-[11px] truncate">${meta || '@' + esc(u.username)}</p>
+          </a>
         </div>
-        ${u.bio ? `<p class="text-gray-400 text-[11px] leading-relaxed line-clamp-2 mb-2">${esc(u.bio)}</p>` : ''}
-        ${(playstyleTags || genreTags) ? `<div class="flex flex-wrap gap-1 mb-1.5">${playstyleTags}${genreTags}</div>` : ''}
-        ${(platformBadges || socials) ? `<div class="flex items-center justify-between gap-2 mt-1"><div class="flex flex-wrap gap-2">${platformBadges}</div><div class="flex items-center gap-2">${socials}</div></div>` : ''}
+        <button onclick="quickFollowSidebar(${u.id}, this)"
+          class="follow-sidebar-btn flex-shrink-0 text-[11px] px-2.5 py-1 rounded-full bg-indigo-600 hover:bg-indigo-500 text-white transition font-medium">
+          Follow
+        </button>
       </div>`;
   }).join('');
 }
 
 function renderTrendingGames(games) {
   const el = document.getElementById('trending-games');
-  if (!games.length) {
+  if (!games || !games.length) {
     el.innerHTML = '<p class="text-gray-600 text-xs py-1">Nothing trending yet</p>';
     return;
   }
-  el.innerHTML = games.slice(0, 6).map((g, i) => `
-    <div class="trending-row">
-      <span class="trending-rank">${i + 1}</span>
-      <i class="fas fa-gamepad text-indigo-500/60 text-xs flex-shrink-0"></i>
-      <span class="truncate">${esc(g.name || g)}</span>
-    </div>`).join('');
+  el.innerHTML = `<div class="space-y-1.5">${games.slice(0, 5).map(g => {
+    const name = esc(g.name || g);
+    const cover = g.cover_url
+      ? `<img src="${esc(g.cover_url)}" alt="${name}" class="w-12 h-9 rounded object-cover bg-neutral-800 flex-shrink-0" onerror="this.style.display='none'">`
+      : `<div class="w-12 h-9 rounded bg-neutral-800 flex items-center justify-center flex-shrink-0"><i class="fas fa-gamepad text-gray-600 text-xs"></i></div>`;
+    const playMeta = g.players ? `<span>${g.players} playing</span>` : '';
+    const lfgMeta = g.lfg_count
+      ? `<a href="/lfg/?game=${encodeURIComponent(g.name || '')}" class="text-green-400 hover:text-green-300 transition font-medium">+ ${g.lfg_count} group${g.lfg_count !== 1 ? 's' : ''}</a>`
+      : '';
+    const sep = playMeta && lfgMeta ? '<span>&middot;</span>' : '';
+    const meta = (playMeta || lfgMeta) ? `${playMeta}${sep}${lfgMeta}` : '<span class="text-gray-600">trending</span>';
+    return `
+      <a href="/feed/?game=${encodeURIComponent(g.name || '')}" class="flex items-center gap-2 hover:bg-neutral-800/50 rounded-lg px-2 py-1.5 transition group">
+        ${cover}
+        <div class="flex-1 min-w-0">
+          <p class="text-gray-200 text-xs font-medium truncate group-hover:text-white transition">${name}</p>
+          <p class="text-gray-500 text-[11px] mt-0.5 flex items-center gap-1.5">${meta}</p>
+        </div>
+        <i class="fas fa-chevron-right text-[9px] text-gray-700 group-hover:text-indigo-400 transition flex-shrink-0"></i>
+      </a>`;
+  }).join('')}</div>`;
 }
 
 async function quickFollowSidebar(userId, btn) {

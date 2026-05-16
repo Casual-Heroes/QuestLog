@@ -203,7 +203,7 @@
           <button onclick="editGame({{ game.id }})" class="bg-neutral-700 hover:bg-neutral-600 text-white px-3 py-2 rounded-lg transition text-sm">
             <i class="fas fa-cog"></i>
           </button>
-          <button onclick="removeGame({{ game.id }}, '{{ game.game_name }}')" class="bg-red-600/20 hover:bg-red-600 text-red-400 hover:text-white px-3 py-2 rounded-lg transition text-sm">
+          <button onclick="removeGame({{ game.id }}, this.dataset.name)" data-name="{{ game.game_name|escapejs }}" class="bg-red-600/20 hover:bg-red-600 text-red-400 hover:text-white px-3 py-2 rounded-lg transition text-sm">
             <i class="fas fa-trash"></i>
           </button>
         </div>
@@ -1313,9 +1313,11 @@ async function searchGames() {
     const data = await response.json();
 
     if (data.games && data.games.length > 0) {
-      resultsDiv.innerHTML = data.games.map(game => `
+      // Store game data by index to avoid inline string escaping issues with special chars
+      window._lfgSearchResults = data.games;
+      resultsDiv.innerHTML = data.games.map((game, idx) => `
         <div class="bg-neutral-800 rounded-lg p-4 flex items-center gap-4 cursor-pointer hover:bg-neutral-700 transition"
-             onclick="selectGame(${game.id}, '${escapeHtml(game.name).replace(/'/g, "\\'")}', '${escapeHtml(game.cover_url || '')}', '${escapeHtml(game.platforms || '')}')">
+             onclick="selectGameByIdx(${idx})">
           <div class="w-12 h-16 bg-neutral-700 rounded overflow-hidden flex-shrink-0">
             ${game.cover_url ?
               `<img src="${escapeHtml(game.cover_url)}" alt="${escapeHtml(game.name)}" class="w-full h-full object-cover">` :
@@ -1344,6 +1346,12 @@ async function searchGames() {
 }
 
 // Add Game Modal
+function selectGameByIdx(idx) {
+  const game = (window._lfgSearchResults || [])[idx];
+  if (!game) return;
+  selectGame(game.id, game.name, game.cover_url || '', game.platforms || '');
+}
+
 function selectGame(igdbId, name, coverUrl, platforms) {
   try {
     // selectGame called with:

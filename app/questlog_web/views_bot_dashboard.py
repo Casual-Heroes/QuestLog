@@ -2822,6 +2822,27 @@ def api_bot_dashboard_config_detail(request, config_id):
 # Reaction Roles API
 # ---------------------------------------------------------------------------
 
+def _queue_reaction_role_deploy(db, guild_id: str, rr: 'WebFluxerReactionRole') -> None:
+    """Queue a deploy_reaction_role action so the bot posts the embed and registers reactions."""
+    action = WebFluxerGuildAction(
+        guild_id=guild_id,
+        action_type='deploy_reaction_role',
+        payload_json=json.dumps({
+            'rr_id': rr.id,
+            'channel_id': rr.channel_id,
+            'title': rr.title or '',
+            'description': rr.description or '',
+            'roles': json.loads(rr.mappings_json) if rr.mappings_json else [],
+            'mention_role_id': rr.mention_role_id or '',
+            'old_message_id': rr.message_id or '',
+        }),
+        status='pending',
+        created_at=int(time.time()),
+    )
+    db.add(action)
+    db.commit()
+
+
 def _reaction_role_dict(rr: WebFluxerReactionRole) -> dict:
     roles = json.loads(rr.mappings_json) if rr.mappings_json else []
     return {
@@ -2831,8 +2852,9 @@ def _reaction_role_dict(rr: WebFluxerReactionRole) -> dict:
         'message_id': rr.message_id or '',
         'title': rr.title or '',
         'description': rr.description or '',
-        'roles': roles,       # template expects 'roles'
-        'mappings': roles,    # backward-compat alias
+        'mention_role_id': rr.mention_role_id or '',
+        'roles': roles,
+        'mappings': roles,
         'is_exclusive': bool(rr.is_exclusive),
         'created_at': rr.created_at,
         'updated_at': rr.updated_at,
@@ -2885,6 +2907,18 @@ def api_fluxer_reaction_roles(request, guild_id):
             mappings = []
         is_exclusive = bool(data.get('is_exclusive', False))
 
+        # Enrich mappings with role_name from web_fluxer_guild_roles
+        role_name_map = {
+            r[0]: r[1] for r in db.execute(text(
+                "SELECT role_id, role_name FROM web_fluxer_guild_roles WHERE guild_id = :g"
+            ), {'g': guild_id}).fetchall()
+        }
+        for m in mappings:
+            if not m.get('role_name'):
+                m['role_name'] = role_name_map.get(str(m.get('role_id', '')), str(m.get('role_id', '')))
+
+        mention_role_id = (data.get('mention_role_id', '') or '').strip() or None
+
         now = int(time.time())
         rr = WebFluxerReactionRole(
             guild_id=guild_id,
@@ -2892,6 +2926,7 @@ def api_fluxer_reaction_roles(request, guild_id):
             title=title,
             description=description or None,
             mappings_json=json.dumps(mappings),
+            mention_role_id=mention_role_id,
             is_exclusive=1 if is_exclusive else 0,
             created_at=now,
             updated_at=now,
@@ -2899,6 +2934,7 @@ def api_fluxer_reaction_roles(request, guild_id):
         db.add(rr)
         db.commit()
         db.refresh(rr)
+        _queue_reaction_role_deploy(db, guild_id, rr)
         return JsonResponse({'success': True, 'menu': _reaction_role_dict(rr)}, status=201)
 
 
@@ -2911,16 +2947,22 @@ def api_fluxer_reaction_role_detail(request, guild_id, message_id):
     (message_id param is actually the DB id or the Discord message_id)
     """
     guild_id = guild_id.strip()
-    # Try numeric DB id first, fall back to Discord message_id lookup
-    record_id = safe_int(message_id, default=0)
+    msg_id_clean = message_id.strip()
 
     with get_db_session() as db:
-        if record_id:
-            rr = db.query(WebFluxerReactionRole).filter_by(id=record_id, guild_id=guild_id).first()
-        else:
+        # Fluxer message IDs are large numeric strings (17-19 digits) - try message_id lookup
+        # first for those, then fall back to DB primary key for small numeric IDs
+        rr = None
+        if len(msg_id_clean) >= 17:
             rr = db.query(WebFluxerReactionRole).filter_by(
-                message_id=message_id.strip(), guild_id=guild_id
+                message_id=msg_id_clean, guild_id=guild_id
             ).first()
+        if rr is None:
+            record_id = safe_int(msg_id_clean, default=0)
+            if record_id:
+                rr = db.query(WebFluxerReactionRole).filter_by(
+                    id=record_id, guild_id=guild_id
+                ).first()
 
         if not rr:
             return JsonResponse({'error': 'Not found'}, status=404)
@@ -2953,12 +2995,24 @@ def api_fluxer_reaction_role_detail(request, guild_id, message_id):
         if mappings is not None:
             if not isinstance(mappings, list):
                 mappings = []
+            # Enrich with role_name
+            role_name_map = {
+                r[0]: r[1] for r in db.execute(text(
+                    "SELECT role_id, role_name FROM web_fluxer_guild_roles WHERE guild_id = :g"
+                ), {'g': guild_id}).fetchall()
+            }
+            for m in mappings:
+                if not m.get('role_name'):
+                    m['role_name'] = role_name_map.get(str(m.get('role_id', '')), str(m.get('role_id', '')))
             rr.mappings_json = json.dumps(mappings)
+        if 'mention_role_id' in data:
+            rr.mention_role_id = (data['mention_role_id'] or '').strip() or None
         if 'is_exclusive' in data:
             rr.is_exclusive = 1 if data['is_exclusive'] else 0
         rr.updated_at = int(time.time())
         db.commit()
         db.refresh(rr)
+        _queue_reaction_role_deploy(db, guild_id, rr)
         return JsonResponse({'success': True, 'menu': _reaction_role_dict(rr)})
 
 
@@ -3463,6 +3517,8 @@ def api_fluxer_messages_send_embed(request, guild_id):
     description = sanitize_text(data.get('description', '') or '').strip()[:4096]
     footer = sanitize_text(data.get('footer', '') or '').strip()[:256]
     color = (data.get('color', '#ea580c') or '#ea580c').strip()[:10]
+    mention_raw = (data.get('mention', '') or '').strip()
+    mention = mention_raw if mention_raw in ('@here', '@everyone') else ''
 
     if not channel_id:
         return JsonResponse({'error': 'channel_id is required'}, status=400)
@@ -3486,6 +3542,7 @@ def api_fluxer_messages_send_embed(request, guild_id):
                 'description': description,
                 'footer': footer,
                 'color': color,
+                'mention': mention,
             }),
             status='pending',
             created_at=int(time.time()),

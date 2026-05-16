@@ -1,19 +1,30 @@
-{% extends "base.html" %}
+{% extends "questlog_web/base_web.html" %}
 {% load static %}
-{% block content %}
+{% block title %}Features | Casual Heroes{% endblock %}
+{% block web_content %}
 
-<h1 class="text-4xl font-bold mb-6">Opinion & Features</h1>
+<div class="max-w-5xl mx-auto px-4 py-8">
+  <h1 class="text-3xl font-extrabold text-white mb-2">Opinion &amp; Features</h1>
+  <p class="text-gray-500 text-sm mb-8">Editorials, guides, and opinion pieces from the Casual Heroes community.</p>
 
-<div class="grid md:grid-cols-3 gap-8">
-  {% for article in articles %}
-    <a href="/features/{{ article.slug }}" class="group block rounded-xl overflow-hidden shadow-lg hover:shadow-blue-400/50 transition">
-      <img src="{% static article.image_url %}" class="w-full h-48 object-cover" alt="{{ article.title }}">
-      <div class="p-4 bg-neutral-900 text-white">
-        <h2 class="text-xl font-semibold mb-2 group-hover:text-indigo-400">{{ article.title }}</h2>
-        <p class="text-sm text-gray-400">{{ article.summary }}</p>
+  {% if articles %}
+  <div class="grid md:grid-cols-3 gap-6">
+    {% for article in articles %}
+    <a href="/features/{{ article.slug }}/" class="group block bg-neutral-900 border border-neutral-800 rounded-xl overflow-hidden hover:border-indigo-500/40 transition">
+      <img src="{% static article.image_url %}" class="w-full h-44 object-cover" alt="{{ article.title }}">
+      <div class="p-4">
+        <h2 class="text-base font-bold text-white mb-1.5 group-hover:text-indigo-400 transition">{{ article.title }}</h2>
+        <p class="text-sm text-gray-500 leading-relaxed">{{ article.summary }}</p>
       </div>
     </a>
-  {% endfor %}
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="text-center py-20 text-gray-600">
+    <i class="fas fa-rocket text-4xl mb-4 block"></i>
+    <p class="text-sm">No features published yet - check back soon.</p>
+  </div>
+  {% endif %}
 </div>
 
 {% endblock %}

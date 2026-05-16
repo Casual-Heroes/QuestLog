@@ -1,21 +1,210 @@
 {% extends "base.html" %}
 {% load static %}
 
+{% block header %}
+<header class="bg-neutral-950/95 border-b border-neutral-800 backdrop-blur-sm sticky top-0 z-50" x-data="{ mobileOpen: false }">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6">
+    <div class="flex items-center justify-between h-14 gap-4">
+
+      <!-- Logo + back to CH -->
+      <div class="flex items-center gap-3 flex-shrink-0">
+        <a href="{% url 'questlog_web_home' %}" class="flex items-center gap-2">
+          <img src="{% static 'img/siteassets/ql-logo.png' %}" alt="QuestLog" class="w-7 h-7 rounded-lg object-contain flex-shrink-0" onerror="this.style.display='none'">
+          <span class="font-bold text-white text-sm tracking-tight">QuestLog</span>
+          <span class="text-[10px] font-semibold bg-indigo-500/20 border border-indigo-500/30 text-indigo-300 px-1.5 py-0.5 rounded-full">BETA</span>
+        </a>
+      </div>
+
+      <!-- Desktop nav links -->
+      <nav class="hidden lg:flex items-center gap-1 text-sm flex-1 justify-center">
+        <a href="{% url 'questlog_web_discover' %}" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-neutral-800 transition text-xs font-medium">
+          <i class="fas fa-compass text-xs"></i> Discover
+        </a>
+        <a href="{% url 'questlog_web_lfg_browse' %}" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-neutral-800 transition text-xs font-medium">
+          <i class="fas fa-users text-xs"></i> Find Groups
+        </a>
+        <a href="{% url 'questlog_web_communities' %}" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-neutral-800 transition text-xs font-medium">
+          <i class="fas fa-shield-alt text-xs"></i> Communities
+        </a>
+        <!-- MMOs dropdown -->
+        <div class="relative" x-data="{ open: false }">
+          <button @click="open = !open" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-neutral-800 transition text-xs font-medium">
+            <i class="fas fa-hat-wizard text-xs"></i> MMOs
+            <i class="fas fa-chevron-down text-[9px] ml-0.5"></i>
+          </button>
+          <div x-show="open" @click.outside="open = false" x-cloak
+               class="absolute left-0 top-full mt-1 w-40 bg-neutral-900 border border-neutral-700 rounded-xl shadow-xl py-1 z-50">
+            <a href="/ffxiv/" class="flex items-center gap-2.5 px-4 py-2 text-sm text-gray-300 hover:text-white hover:bg-neutral-800 transition">
+              <img src="{% static 'img/games/guilds/ffxiv.png' %}" alt="FFXIV" class="w-4 h-4 rounded-sm object-cover"> FFXIV
+            </a>
+            <a href="/eso/" class="flex items-center gap-2.5 px-4 py-2 text-sm text-gray-300 hover:text-white hover:bg-neutral-800 transition">
+              <img src="{% static 'img/games/guilds/esoguild.png' %}" alt="ESO" class="w-4 h-4 rounded-sm object-cover"> ESO
+            </a>
+          </div>
+        </div>
+        <a href="{% url 'aboutus' %}" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-neutral-800 transition text-xs font-medium">
+          <i class="fas fa-info-circle text-xs"></i> About Us
+        </a>
+        <a href="{% url 'questlog_web_getting_started' %}" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-emerald-600 hover:text-emerald-400 hover:bg-neutral-800 transition text-xs font-medium">
+          <i class="fas fa-rocket text-xs"></i> Get Started
+        </a>
+      </nav>
+
+      <!-- Right: user menu or login -->
+      <div class="flex items-center gap-2 flex-shrink-0">
+        {% if web_user %}
+        <a href="{% url 'questlog_web_lfg_create' %}" class="hidden sm:flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold px-3 py-1.5 rounded-lg transition text-xs">
+          <i class="fas fa-plus text-xs"></i> Start Group
+        </a>
+        <!-- User dropdown -->
+        <div class="relative" x-data="{ open: false }">
+          <button @click="open = !open" class="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-neutral-800 transition">
+            {% if web_user.avatar_url %}
+            <img src="{{ web_user.avatar_url }}" class="w-7 h-7 rounded-full object-cover ring-1 ring-indigo-700" id="nav-avatar-desktop" alt="{{ web_user.username }}">
+            {% else %}
+            <div class="w-7 h-7 rounded-full bg-indigo-800 flex items-center justify-center text-xs font-bold text-white ring-1 ring-indigo-700" id="nav-avatar-desktop">{{ web_user.username|slice:":2"|upper }}</div>
+            {% endif %}
+            <span class="hidden sm:block text-sm text-gray-300 font-medium">{{ web_user.display_name|default:web_user.username }}</span>
+            <i class="fas fa-chevron-down text-gray-500 text-[10px]"></i>
+          </button>
+          <div x-show="open" @click.outside="open = false" x-cloak
+               class="absolute right-0 top-full mt-1 w-48 bg-neutral-900 border border-neutral-700 rounded-xl shadow-xl py-1 z-50">
+            <a href="{% url 'questlog_web_profile' %}" class="flex items-center gap-2 px-4 py-2 text-sm text-gray-300 hover:text-white hover:bg-neutral-800 transition">
+              <i class="fas fa-user text-xs text-gray-500"></i> My Profile
+            </a>
+            <a href="{% url 'questlog_web_feed' %}" class="flex items-center gap-2 px-4 py-2 text-sm text-gray-300 hover:text-white hover:bg-neutral-800 transition">
+              <i class="fas fa-stream text-xs text-gray-500"></i> My Feed
+            </a>
+            <a href="{% url 'questlog_web_profile' %}#edit" class="flex items-center gap-2 px-4 py-2 text-sm text-gray-300 hover:text-white hover:bg-neutral-800 transition">
+              <i class="fas fa-cog text-xs text-gray-500"></i> Settings
+            </a>
+            {% if web_user.is_admin or web_user.is_mod %}
+            <div class="border-t border-neutral-700 my-1"></div>
+            <a href="{% url 'questlog_web_admin' %}" class="flex items-center gap-2 px-4 py-2 text-sm {% if web_user.is_admin %}text-red-400 hover:text-red-300{% else %}text-blue-400 hover:text-blue-300{% endif %} hover:bg-neutral-800 transition">
+              <i class="fas fa-{% if web_user.is_admin %}shield-alt{% else %}user-shield{% endif %} text-xs"></i> {% if web_user.is_admin %}Admin Panel{% else %}Mod Panel{% endif %}
+            </a>
+            {% endif %}
+            <div class="border-t border-neutral-700 my-1"></div>
+            <form method="post" action="{% url 'questlog_web_logout' %}" class="m-0 p-0">
+              {% csrf_token %}
+              <button type="submit" class="flex items-center gap-2 w-full px-4 py-2 text-sm text-gray-400 hover:text-white hover:bg-neutral-800 transition text-left">
+                <i class="fas fa-sign-out-alt text-xs text-gray-500"></i> Log Out
+              </button>
+            </form>
+          </div>
+        </div>
+        {% else %}
+        <a href="{% url 'questlog_web_login' %}" class="text-gray-400 hover:text-white text-xs font-medium px-3 py-1.5 rounded-lg hover:bg-neutral-800 transition">Sign In</a>
+        <a href="{% url 'questlog_web_register' %}" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition">Join Free</a>
+        {% endif %}
+
+        <!-- Mobile hamburger - opens full sidebar drawer -->
+        <button onclick="toggleSidebar()" class="md:hidden p-2 text-gray-400 hover:text-white transition">
+          <i class="fas fa-bars"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- Mobile nav (tablet only: md to lg) -->
+    <div x-show="mobileOpen" x-cloak class="hidden md:block lg:hidden border-t border-neutral-800 py-3 space-y-1">
+      <a href="{% url 'questlog_web_discover' %}" class="flex items-center gap-2 px-3 py-2 rounded-lg text-gray-300 hover:text-white hover:bg-neutral-800 transition text-sm">
+        <i class="fas fa-compass text-xs text-gray-500"></i> Discover
+      </a>
+      <a href="{% url 'questlog_web_lfg_browse' %}" class="flex items-center gap-2 px-3 py-2 rounded-lg text-gray-300 hover:text-white hover:bg-neutral-800 transition text-sm">
+        <i class="fas fa-users text-xs text-gray-500"></i> Find Groups
+      </a>
+      <a href="{% url 'questlog_web_communities' %}" class="flex items-center gap-2 px-3 py-2 rounded-lg text-gray-300 hover:text-white hover:bg-neutral-800 transition text-sm">
+        <i class="fas fa-shield-alt text-xs text-gray-500"></i> Communities
+      </a>
+      <div class="px-3 pt-1 pb-0.5 text-[10px] font-bold text-gray-600 uppercase tracking-widest">MMOs</div>
+      <a href="/ffxiv/" class="flex items-center gap-2 px-3 py-2 rounded-lg text-gray-300 hover:text-white hover:bg-neutral-800 transition text-sm pl-5">
+        <img src="{% static 'img/games/guilds/ffxiv.png' %}" alt="FFXIV" class="w-4 h-4 rounded-sm object-cover opacity-70"> FFXIV
+      </a>
+      <a href="/eso/" class="flex items-center gap-2 px-3 py-2 rounded-lg text-gray-300 hover:text-white hover:bg-neutral-800 transition text-sm pl-5">
+        <img src="{% static 'img/games/guilds/esoguild.png' %}" alt="ESO" class="w-4 h-4 rounded-sm object-cover opacity-70"> ESO
+      </a>
+      {% if web_user %}
+      <div class="border-t border-neutral-800 pt-2 mt-2">
+        <a href="{% url 'questlog_web_lfg_create' %}" class="flex items-center gap-2 px-3 py-2 rounded-lg text-emerald-400 hover:text-emerald-300 hover:bg-neutral-800 transition text-sm font-semibold">
+          <i class="fas fa-plus text-xs"></i> Start a Group
+        </a>
+        <a href="{% url 'questlog_web_profile' %}" class="flex items-center gap-2 px-3 py-2 rounded-lg text-gray-300 hover:text-white hover:bg-neutral-800 transition text-sm">
+          <i class="fas fa-user text-xs text-gray-500"></i> My Profile
+        </a>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</header>
+{% endblock %}
+
 {% block content %}
-<div class="flex min-h-screen bg-gradient-to-br from-neutral-950 via-neutral-900 to-neutral-950">
+<!-- Break out of base.html's max-w-7xl centered container to fill full viewport -->
+<div style="margin-left: calc(-50vw + 50%); margin-right: calc(-50vw + 50%); width: 100vw; position: relative;">
+{% if web_user and not web_user.email_verified %}
+<div id="ql-email-banner" class="lg:ml-64 bg-amber-500/10 border-b border-amber-500/30 px-4 py-2 flex items-center justify-between gap-4 text-sm">
+  <span class="text-amber-300"><i class="fas fa-envelope mr-2"></i>Please verify your email to unlock all features. Check your inbox for a link from us.</span>
+  <form method="post" action="resend-verification/" class="shrink-0">
+    {% csrf_token %}
+    <button type="submit" class="text-amber-400 hover:text-amber-200 underline whitespace-nowrap">Resend email</button>
+  </form>
+</div>
+{% endif %}
+<div class="flex lg:min-h-screen bg-gradient-to-br from-neutral-950 via-neutral-900 to-neutral-950">
   <!-- Sidebar -->
   {% include "questlog_web/partials/web_sidebar.html" %}
 
   <!-- Main Content Area -->
-  <div class="flex-1 lg:ml-64 min-w-0 p-4">
+  <div id="ql-main-content" class="flex-1 lg:ml-64 min-w-0 overflow-x-hidden">
     {% block web_content %}
     <!-- Page content goes here -->
     {% endblock %}
   </div>
 </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
+<script>
+const FLUXER_ICON_URL = '{% static "img/siteassets/fluxer-favicon.png" %}';
+
+function platformIconHtml(platform, extraClasses) {
+  const cls = extraClasses || '';
+  if (platform === 'fluxer') {
+    return `<img src="${FLUXER_ICON_URL}" class="inline-block ${cls}" style="width:1em;height:1em;object-fit:contain;vertical-align:middle;" alt="Fluxer">`;
+  }
+  const icons = {
+    discord:   'fab fa-discord text-indigo-400',
+    matrix:    'fas fa-cube text-green-400',
+    kloak:     'fas fa-user-shield text-slate-400',
+    stoat:     'fas fa-network-wired text-teal-400',
+    teamspeak: 'fas fa-headset text-blue-400',
+    root:      'fas fa-tree text-emerald-400',
+    mumble:    'fas fa-microphone text-purple-400',
+    other:     'fas fa-globe text-gray-400',
+  };
+  const iconCls = icons[platform] || icons.other;
+  return `<i class="${iconCls} ${cls}"></i>`;
+}
+
+function setPlatformIcon(el, platform, extraClasses) {
+  if (!el) return;
+  if (platform === 'fluxer') {
+    el.outerHTML = `<img id="${el.id}" src="${FLUXER_ICON_URL}" class="inline-block ${extraClasses || ''}" style="width:1em;height:1em;object-fit:contain;vertical-align:middle;" alt="Fluxer">`;
+  } else {
+    const icons = {
+      discord:   'fab fa-discord text-indigo-400',
+      matrix:    'fas fa-cube text-green-400',
+      kloak:     'fas fa-user-shield text-slate-400',
+      stoat:     'fas fa-network-wired text-teal-400',
+      teamspeak: 'fas fa-headset text-blue-400',
+      root:      'fas fa-tree text-emerald-400',
+      mumble:    'fas fa-microphone text-purple-400',
+    };
+    el.className = (icons[platform] || 'fas fa-globe text-gray-400') + ' ' + (extraClasses || '');
+  }
+}
+</script>
 {% if web_user and web_user.show_playing_status %}
 <script>
 (function() {
@@ -57,7 +246,7 @@
 
   async function pollNowPlaying() {
     try {
-      const res = await fetch('/ql/api/me/now-playing/', { credentials: 'same-origin' });
+      const res = await fetch('/api/me/now-playing/', { credentials: 'same-origin' });
       if (!res.ok) return;
       const data = await res.json();
       applyStatus(data.current_game || null, !!data.is_live);

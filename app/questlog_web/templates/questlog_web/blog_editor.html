@@ -1,0 +1,390 @@
+{% extends "questlog_web/base_web.html" %}
+{% load static %}
+
+{% block title %}{% if article %}Edit: {{ article.title }}{% else %}New Article{% endif %} - QuestLog Blog{% endblock %}
+
+{% block web_content %}
+<div class="max-w-5xl mx-auto px-4 lg:px-6 py-8">
+
+  <!-- Header -->
+  <div class="flex items-center justify-between mb-6">
+    <div>
+      <h1 class="text-2xl font-bold text-white">
+        {% if article %}Edit Article{% else %}New Article{% endif %}
+      </h1>
+      <p class="text-sm text-gray-500 mt-0.5">
+        {% if article %}
+          Last updated <span id="edit-ts" data-ts="{{ article.updated_at }}"></span>
+        {% else %}
+          Draft autosaved locally in your browser.
+        {% endif %}
+      </p>
+    </div>
+    <a href="/blog/" class="text-sm text-gray-400 hover:text-white transition-colors">
+      <i class="fas fa-arrow-left mr-1"></i> Back to Blog
+    </a>
+  </div>
+
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+    <!-- Main editor (left 2/3) -->
+    <div class="lg:col-span-2 space-y-4">
+
+      <!-- Title -->
+      <div>
+        <label for="title-input" class="block text-sm text-gray-400 mb-1">Title <span class="text-red-400">*</span></label>
+        <input type="text" id="title-input"
+               value="{% if article %}{{ article.title }}{% endif %}"
+               placeholder="Article title (5-200 characters)"
+               maxlength="200"
+               class="w-full px-3 py-2.5 bg-neutral-800 border border-neutral-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-violet-500 transition-colors text-lg font-semibold">
+        <div class="flex justify-end mt-1">
+          <span id="title-char-count" class="text-xs text-gray-500">0 / 200</span>
+        </div>
+      </div>
+
+      <!-- Summary -->
+      <div>
+        <label for="summary-input" class="block text-sm text-gray-400 mb-1">Summary <span class="text-gray-600 text-xs">(shown on listing card)</span></label>
+        <textarea id="summary-input" rows="2"
+                  placeholder="One or two sentences describing this article..."
+                  maxlength="500"
+                  class="w-full px-3 py-2.5 bg-neutral-800 border border-neutral-700 rounded-lg text-white placeholder-gray-500 resize-none focus:outline-none focus:border-violet-500 transition-colors text-sm">{% if article %}{{ article.summary }}{% endif %}</textarea>
+        <div class="flex justify-end mt-1">
+          <span id="summary-char-count" class="text-xs text-gray-500">0 / 500</span>
+        </div>
+      </div>
+
+      <!-- Markdown editor + preview tabs -->
+      <div>
+        <div class="flex items-center gap-1 mb-2">
+          <button id="tab-write" onclick="switchEditorTab('write')"
+                  class="px-3 py-1.5 text-sm rounded-t-lg font-medium transition-colors bg-neutral-800 text-white border-b-2 border-violet-500">
+            Write
+          </button>
+          <button id="tab-preview" onclick="switchEditorTab('preview')"
+                  class="px-3 py-1.5 text-sm rounded-t-lg font-medium transition-colors text-gray-400 hover:text-white border-b-2 border-transparent">
+            Preview
+          </button>
+          <span class="ml-auto text-xs text-gray-500">Markdown supported</span>
+        </div>
+
+        <div id="editor-write">
+          <textarea id="body-input" rows="22"
+                    placeholder="Write your article in Markdown...
+
+# Heading 1
+## Heading 2
+
+**Bold text**, *italic text*, `inline code`
+
+- Bullet list
+
+1. Numbered list
+
+> Blockquote
+
+```python
+# Code block
+print('hello')
+```
+
+| Column 1 | Column 2 |
+|----------|----------|
+| Cell 1   | Cell 2   |
+"
+                    class="w-full px-4 py-3 bg-neutral-900 border border-neutral-700 rounded-lg text-sm text-gray-200 font-mono resize-y focus:outline-none focus:border-violet-500 transition-colors leading-relaxed">{% if article %}{{ article.body_md }}{% endif %}</textarea>
+          <div class="flex items-center justify-between mt-1">
+            <span class="text-xs text-gray-500">
+              Supports: headings, bold, italic, code, tables, lists, blockquotes
+            </span>
+            <span id="body-char-count" class="text-xs text-gray-500">0 / 100,000</span>
+          </div>
+        </div>
+
+        <div id="editor-preview" class="hidden">
+          <div id="preview-content"
+               class="min-h-64 px-4 py-3 bg-neutral-900 border border-neutral-700 rounded-lg
+                      prose prose-invert prose-violet max-w-none
+                      prose-headings:text-white prose-headings:font-bold
+                      prose-p:text-gray-300 prose-p:leading-relaxed
+                      prose-a:text-violet-400
+                      prose-code:text-violet-300 prose-code:bg-neutral-800 prose-code:px-1 prose-code:rounded
+                      prose-pre:bg-neutral-800 prose-pre:border prose-pre:border-neutral-700
+                      prose-blockquote:border-l-violet-500 prose-blockquote:text-gray-400
+                      prose-table:text-sm prose-th:bg-neutral-800 prose-img:rounded-lg">
+            <p class="text-gray-600 italic">Click "Preview" after writing some content.</p>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Sidebar (right 1/3) -->
+    <div class="space-y-4">
+
+      <!-- Publish state -->
+      <div class="bg-neutral-900 border border-neutral-700 rounded-xl p-4">
+        <h3 class="text-sm font-semibold text-white mb-3">Publish Settings</h3>
+
+        <label class="flex items-center gap-2 cursor-pointer mb-3">
+          <input type="checkbox" id="is-published"
+                 {% if article and article.is_published %}checked{% endif %}
+                 class="w-4 h-4 accent-violet-500">
+          <span class="text-sm text-gray-300">Published (publicly visible)</span>
+        </label>
+
+        <div id="status-banner" class="hidden mb-3 px-3 py-2 rounded-lg text-sm"></div>
+
+        <button id="save-btn" onclick="saveArticle()"
+                class="w-full py-2 bg-violet-600 hover:bg-violet-500 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50">
+          {% if article %}Save Changes{% else %}Create Article{% endif %}
+        </button>
+
+        {% if article %}
+        <button onclick="confirmDelete()"
+                class="w-full mt-2 py-2 bg-neutral-800 hover:bg-red-900/40 text-red-400 text-sm rounded-lg transition-colors border border-neutral-700 hover:border-red-800">
+          Delete Article
+        </button>
+        {% endif %}
+      </div>
+
+      <!-- Category -->
+      <div class="bg-neutral-900 border border-neutral-700 rounded-xl p-4">
+        <h3 class="text-sm font-semibold text-white mb-3">Category <span class="text-red-400">*</span></h3>
+        <div class="space-y-1.5">
+          {% for cat in valid_categories %}
+          <label class="flex items-center gap-2 cursor-pointer">
+            <input type="radio" name="category" value="{{ cat }}"
+                   {% if article and article.category == cat %}checked{% elif not article and cat == 'article' %}checked{% endif %}
+                   class="accent-violet-500">
+            <span class="text-sm text-gray-300 capitalize">{{ cat }}</span>
+          </label>
+          {% endfor %}
+        </div>
+      </div>
+
+      <!-- Cover image -->
+      <div class="bg-neutral-900 border border-neutral-700 rounded-xl p-4">
+        <h3 class="text-sm font-semibold text-white mb-2">Cover Image</h3>
+        <p class="text-xs text-gray-500 mb-3">Upload via the image upload tool, then paste the /media/uploads/ path here.</p>
+        <input type="text" id="cover-url"
+               value="{% if article %}{{ article.cover_url }}{% endif %}"
+               placeholder="/media/uploads/..."
+               class="w-full px-3 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-sm text-white placeholder-gray-500 focus:outline-none focus:border-violet-500 transition-colors">
+        <div id="cover-preview" class="mt-2 hidden">
+          <img id="cover-preview-img" src="" alt="Cover preview" class="w-full rounded-lg max-h-32 object-cover">
+        </div>
+      </div>
+
+      <!-- Markdown cheatsheet -->
+      <div class="bg-neutral-900 border border-neutral-700 rounded-xl p-4">
+        <h3 class="text-sm font-semibold text-white mb-2">Markdown Cheatsheet</h3>
+        <div class="text-xs text-gray-500 font-mono space-y-1">
+          <div><code class="text-gray-400"># Heading 1</code></div>
+          <div><code class="text-gray-400">## Heading 2</code></div>
+          <div><code class="text-gray-400">**bold**</code></div>
+          <div><code class="text-gray-400">*italic*</code></div>
+          <div><code class="text-gray-400">`inline code`</code></div>
+          <div><code class="text-gray-400">```code block```</code></div>
+          <div><code class="text-gray-400">[link text](url)</code></div>
+          <div><code class="text-gray-400">![alt](img url)</code></div>
+          <div><code class="text-gray-400">> blockquote</code></div>
+          <div><code class="text-gray-400">- bullet</code></div>
+          <div><code class="text-gray-400">1. numbered</code></div>
+          <div><code class="text-gray-400">---  (horizontal rule)</code></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+</div>
+
+<script>
+const ARTICLE_ID = {% if article %}{{ article.id }}{% else %}null{% endif %};
+let previewDebounceTimer = null;
+
+document.addEventListener('DOMContentLoaded', function() {
+  // Init char counters
+  initCounter('title-input', 'title-char-count', 200);
+  initCounter('summary-input', 'summary-char-count', 500);
+  initCounter('body-input', 'body-char-count', 100000, true);
+
+  // Cover image live preview
+  const coverInput = document.getElementById('cover-url');
+  if (coverInput) {
+    coverInput.addEventListener('input', function() {
+      const val = coverInput.value.trim();
+      const preview = document.getElementById('cover-preview');
+      const img = document.getElementById('cover-preview-img');
+      if (val && /^\/media\/uploads\/.+\.(webp|jpg|jpeg|png|gif)$/i.test(val)) {
+        img.src = val;
+        preview.classList.remove('hidden');
+      } else {
+        preview.classList.add('hidden');
+      }
+    });
+    // Trigger on load for edit mode
+    coverInput.dispatchEvent(new Event('input'));
+  }
+
+  // Timestamp for edit mode
+  const tsEl = document.getElementById('edit-ts');
+  if (tsEl && tsEl.dataset.ts) {
+    const d = new Date(parseInt(tsEl.dataset.ts, 10) * 1000);
+    tsEl.textContent = d.toLocaleDateString(undefined, {month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit'});
+  }
+});
+
+function initCounter(inputId, countId, max, large) {
+  const input = document.getElementById(inputId);
+  const counter = document.getElementById(countId);
+  if (!input || !counter) return;
+  const fmt = large ? n => n.toLocaleString() + ' / 100,000' : n => n + ' / ' + max;
+  counter.textContent = fmt(input.value.length);
+  input.addEventListener('input', function() {
+    counter.textContent = fmt(input.value.length);
+  });
+}
+
+function switchEditorTab(tab) {
+  const writeDiv = document.getElementById('editor-write');
+  const previewDiv = document.getElementById('editor-preview');
+  const writeBtn = document.getElementById('tab-write');
+  const previewBtn = document.getElementById('tab-preview');
+
+  if (tab === 'write') {
+    writeDiv.classList.remove('hidden');
+    previewDiv.classList.add('hidden');
+    writeBtn.classList.add('text-white', 'bg-neutral-800', 'border-b-2', 'border-violet-500');
+    writeBtn.classList.remove('text-gray-400');
+    previewBtn.classList.remove('text-white', 'bg-neutral-800', 'border-b-2', 'border-violet-500');
+    previewBtn.classList.add('text-gray-400', 'border-b-2', 'border-transparent');
+  } else {
+    writeDiv.classList.add('hidden');
+    previewDiv.classList.remove('hidden');
+    previewBtn.classList.add('text-white', 'bg-neutral-800', 'border-b-2', 'border-violet-500');
+    previewBtn.classList.remove('text-gray-400', 'border-transparent');
+    writeBtn.classList.remove('text-white', 'bg-neutral-800', 'border-b-2', 'border-violet-500');
+    writeBtn.classList.add('text-gray-400', 'border-b-2', 'border-transparent');
+
+    // Fetch rendered preview
+    const md = document.getElementById('body-input').value;
+    const previewContent = document.getElementById('preview-content');
+    previewContent.innerHTML = '<p class="text-gray-500 italic text-sm">Rendering...</p>';
+
+    csrfFetch('/api/blog/preview/', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({body_md: md}),
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data.html !== undefined) {
+        previewContent.innerHTML = data.html || '<p class="text-gray-600 italic">Nothing to preview.</p>';
+      } else {
+        previewContent.innerHTML = '<p class="text-red-400 text-sm">Preview failed. Please try again.</p>';
+      }
+    })
+    .catch(() => {
+      previewContent.innerHTML = '<p class="text-red-400 text-sm">Preview unavailable.</p>';
+    });
+  }
+}
+
+function getFormData() {
+  const title = document.getElementById('title-input').value.trim();
+  const summary = document.getElementById('summary-input').value.trim();
+  const body_md = document.getElementById('body-input').value.trim();
+  const cover_url = document.getElementById('cover-url').value.trim();
+  const is_published = document.getElementById('is-published').checked;
+  const category = (document.querySelector('input[name="category"]:checked') || {}).value || 'article';
+
+  return {title, summary, body_md, cover_url, is_published, category};
+}
+
+function showStatus(msg, isError) {
+  const banner = document.getElementById('status-banner');
+  banner.textContent = msg;
+  banner.className = 'mb-3 px-3 py-2 rounded-lg text-sm ' +
+    (isError ? 'bg-red-900/30 text-red-400 border border-red-800' : 'bg-green-900/30 text-green-400 border border-green-800');
+  banner.classList.remove('hidden');
+  if (!isError) {
+    setTimeout(() => banner.classList.add('hidden'), 3000);
+  }
+}
+
+function saveArticle() {
+  const btn = document.getElementById('save-btn');
+  btn.disabled = true;
+  btn.textContent = 'Saving...';
+
+  const data = getFormData();
+
+  // Client-side validation
+  if (!data.title || data.title.length < 5) {
+    showStatus('Title must be at least 5 characters.', true);
+    btn.disabled = false;
+    btn.textContent = ARTICLE_ID ? 'Save Changes' : 'Create Article';
+    return;
+  }
+  if (!data.body_md) {
+    showStatus('Article body cannot be empty.', true);
+    btn.disabled = false;
+    btn.textContent = ARTICLE_ID ? 'Save Changes' : 'Create Article';
+    return;
+  }
+
+  const url = ARTICLE_ID ? '/api/blog/' + ARTICLE_ID + '/' : '/api/blog/';
+  const method = ARTICLE_ID ? 'PATCH' : 'POST';
+
+  csrfFetch(url, {
+    method: method,
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(data),
+  })
+  .then(r => r.json())
+  .then(result => {
+    if (result.error) {
+      showStatus(result.error, true);
+    } else if (result.article) {
+      const slug = result.article.slug;
+      if (!ARTICLE_ID) {
+        // New article - redirect to edit page so we have the ID
+        window.location.href = '/blog/' + slug + '/edit/';
+      } else {
+        showStatus('Saved!', false);
+        // If slug changed, update URL without reload
+        if (slug && window.location.pathname !== '/blog/' + slug + '/edit/') {
+          history.replaceState(null, '', '/blog/' + slug + '/edit/');
+        }
+      }
+    }
+    btn.disabled = false;
+    btn.textContent = ARTICLE_ID ? 'Save Changes' : 'Create Article';
+  })
+  .catch(() => {
+    showStatus('Save failed. Please try again.', true);
+    btn.disabled = false;
+    btn.textContent = ARTICLE_ID ? 'Save Changes' : 'Create Article';
+  });
+}
+
+function confirmDelete() {
+  if (!ARTICLE_ID) return;
+  if (!confirm('Permanently delete this article and all its comments? This cannot be undone.')) return;
+
+  csrfFetch('/api/blog/' + ARTICLE_ID + '/delete/', {method: 'DELETE'})
+  .then(r => r.json())
+  .then(data => {
+    if (data.success) {
+      window.location.href = '/blog/';
+    } else {
+      showStatus(data.error || 'Delete failed.', true);
+    }
+  })
+  .catch(() => showStatus('Delete failed.', true));
+}
+</script>
+{% endblock %}

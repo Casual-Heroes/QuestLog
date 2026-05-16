@@ -20,10 +20,11 @@ from .models import (
     WebCommunity, WebCommunityMember, WebFluxerRssFeed, WebFluxerRssArticle, WebFluxerRaffle, WebFluxerRaffleEntry,
     WebFluxerLfgGame, WebFluxerLfgMember,
     WebFluxerFoundGame, WebFluxerGameSearchConfig,
+    WebTestimonial,
 )
 from app.db import get_db_session
 from .helpers import (
-    web_login_required, add_web_user_context, safe_int, EXCLUDED_USER_IDS,
+    web_login_required, web_verified_required, add_web_user_context, safe_int, EXCLUDED_USER_IDS,
     fluxer_login_required, create_notification, sanitize_text,
 )
 from .fluxer_webhooks import queue_lfg_embed_edit_for_group as _queue_lfg_embed_edit
@@ -34,12 +35,11 @@ logger = logging.getLogger(__name__)
 @ensure_csrf_cookie
 @add_web_user_context
 def home(request):
-    """QuestLog Web home page."""
-    context = {
+    """Casual Heroes / QuestLog landing page - accessible to all users."""
+    return render(request, 'questlog_web/landing.html', {
         'web_user': request.web_user,
         'active_page': 'home',
-    }
-    return render(request, 'questlog_web/home.html', context)
+    })
 
 
 @add_web_user_context
@@ -52,10 +52,463 @@ def community_guidelines(request):
 
 
 # =============================================================================
+# DISCOVERY VIEW
+# =============================================================================
+
+@add_web_user_context
+def discover(request):
+    """Discovery homepage - Communities + LFG groups + Streamers + Game servers."""
+    import random as _random
+    import asyncio
+    now = int(time.time())
+    hour_ago = now - 3600
+
+    live_streamers = []
+    lfg_groups = []
+    active_games = []
+    featured_communities = []
+    game_servers = []
+    community_counts = {}  # platform -> count of approved communities
+    groups_last_hour = 0
+
+    recently_streamed = []
+    try:
+        from .models import WebUser, WebCreatorProfile, WebCommunity
+        from sqlalchemy import func
+        _STABLE_CDN = ('https://static-cdn.jtvnw.net/', 'https://yt3.', 'https://yt3.ggpht.')
+        def _valid_avatar(a):
+            if not a: return None
+            if a.startswith('/media/'): return a
+            if any(a.startswith(cdn) for cdn in _STABLE_CDN): return a
+            return None
+        thirty_days_ago = now - (30 * 86400)
+        with get_db_session() as db:
+            # --- Live streamers (max 4) and recently streamed (max 4) ---
+            creator_rows = db.query(WebCreatorProfile, WebUser).join(
+                WebUser, WebUser.id == WebCreatorProfile.user_id
+            ).filter(
+                WebCreatorProfile.allow_discovery == True,
+                WebUser.is_banned == False,
+            ).order_by(
+                WebUser.is_live.desc(),
+                WebCreatorProfile.is_current_cotm.desc(),
+                WebCreatorProfile.is_current_cotw.desc(),
+                WebCreatorProfile.follower_count.desc(),
+            ).limit(20).all()
+
+            for cp, u in creator_rows:
+                platform = None
+                stream_url = None
+                if cp.twitch_url:
+                    platform = 'twitch'
+                    stream_url = cp.twitch_url
+                elif cp.youtube_url:
+                    platform = 'youtube'
+                    stream_url = cp.youtube_url
+                elif cp.kick_url:
+                    platform = 'kick'
+                    stream_url = cp.kick_url
+
+                resolved_avatar = _valid_avatar(cp.avatar_url) or _valid_avatar(u.avatar_url)
+                entry = {
+                    'username': u.username,
+                    'display_name': cp.display_name or u.username,
+                    'avatar_url': resolved_avatar,
+                    'is_cotm': bool(cp.is_current_cotm),
+                    'is_cotw': bool(cp.is_current_cotw),
+                    'current_game': u.current_game or '',
+                    'platform': platform,
+                    'stream_url': stream_url,
+                    'follower_count': cp.follower_count or 0,
+                }
+
+                if u.is_live and len(live_streamers) < 4:
+                    live_streamers.append(entry)
+                elif not u.is_live and platform and len(recently_streamed) < 4:
+                    # Only show in "Recently Streamed" if they have a stream platform
+                    # and have an actual stream history within the last 30 days
+                    last_streamed = getattr(cp, 'latest_stream_ended_at', None) or 0
+                    if last_streamed >= thirty_days_ago:
+                        recently_streamed.append(entry)
+
+            # --- LFG groups (6 most recent open groups) with urgency tags ---
+            groups = db.query(WebLFGGroup).filter(
+                WebLFGGroup.status == 'open',
+            ).order_by(WebLFGGroup.created_at.desc()).limit(6).all()
+
+            for g in groups:
+                slots_left = (g.group_size or 4) - (g.current_size or 1)
+                fill_pct = (g.current_size or 1) / (g.group_size or 4)
+                if slots_left == 0:
+                    urgency = 'full'
+                elif fill_pct >= 0.75:
+                    urgency = 'almost_full'
+                elif g.created_at and g.created_at >= hour_ago:
+                    urgency = 'new'
+                else:
+                    urgency = 'recruiting'
+                lfg_groups.append({
+                    'id': g.id,
+                    'share_token': g.share_token,
+                    'title': g.title,
+                    'game_name': g.game_name,
+                    'game_image_url': g.game_image_url,
+                    'current_size': g.current_size,
+                    'group_size': g.group_size,
+                    'slots_left': slots_left,
+                    'status': g.status,
+                    'created_at': g.created_at,
+                    'urgency': urgency,
+                })
+
+            # --- Groups active in last hour (for section header badge) ---
+            groups_last_hour = db.query(WebLFGGroup).filter(
+                WebLFGGroup.status == 'open',
+                WebLFGGroup.created_at >= hour_ago,
+            ).count()
+
+            # --- Active games: aggregate groups by game_name ---
+            game_counts = db.query(
+                WebLFGGroup.game_name,
+                WebLFGGroup.game_image_url,
+                func.count(WebLFGGroup.id).label('group_count'),
+            ).filter(
+                WebLFGGroup.status == 'open',
+            ).group_by(
+                WebLFGGroup.game_name, WebLFGGroup.game_image_url
+            ).order_by(func.count(WebLFGGroup.id).desc()).limit(6).all()
+
+            live_by_game = {}
+            for s in live_streamers:
+                if s['is_live'] and s['current_game']:
+                    key = s['current_game'].lower()
+                    live_by_game[key] = live_by_game.get(key, 0) + 1
+
+            for row in game_counts:
+                live_count = live_by_game.get((row.game_name or '').lower(), 0)
+                active_games.append({
+                    'game_name': row.game_name,
+                    'game_image_url': row.game_image_url,
+                    'group_count': row.group_count,
+                    'live_count': live_count,
+                })
+
+            # --- Communities (up to 6 random approved, shown in 2-col grid) ---
+            # Order: primary first so dedup keeps the right one per owner
+            all_communities = db.query(WebCommunity).filter(
+                WebCommunity.network_status == 'approved',
+            ).order_by(WebCommunity.is_primary.desc()).all()
+
+            # Fetch live member counts from platform-specific tables for Fluxer communities
+            fluxer_ids = [
+                c.platform_id for c in all_communities
+                if c.platform and c.platform.value == 'fluxer' and c.platform_id
+            ]
+            fluxer_member_counts = {}
+            if fluxer_ids:
+                placeholders = ','.join([':fid' + str(i) for i in range(len(fluxer_ids))])
+                params = {'fid' + str(i): v for i, v in enumerate(fluxer_ids)}
+                rows = db.execute(
+                    text(f"SELECT guild_id, member_count FROM web_fluxer_guild_settings WHERE guild_id IN ({placeholders})"),
+                    params,
+                ).fetchall()
+                fluxer_member_counts = {r[0]: r[1] for r in rows}
+
+            # Deduplicate by owner - one card per owner, preferring is_primary=True
+            seen_owners = set()
+            serialized_communities = []
+            for c in all_communities:
+                if c.owner_id and c.owner_id in seen_owners:
+                    continue
+                seen_owners.add(c.owner_id)
+                plat = c.platform.value if c.platform else 'discord'
+                community_counts[plat] = community_counts.get(plat, 0) + 1
+                # Use live count from bot settings table when available, fall back to stored value
+                if plat == 'fluxer' and c.platform_id and c.platform_id in fluxer_member_counts:
+                    live_count = fluxer_member_counts[c.platform_id] or c.member_count or 0
+                else:
+                    live_count = c.member_count or 0
+                import re as _re
+                c_slug = _re.sub(r'[^a-z0-9]+', '-', c.name.lower()).strip('-')
+                serialized_communities.append({
+                    'id': c.id,
+                    'slug': c_slug,
+                    'name': c.name,
+                    'description': c.description or '',
+                    'avatar_url': c.icon_url or '',
+                    'platform': plat,
+                    'member_count': live_count,
+                })
+
+            featured_communities = _random.sample(
+                serialized_communities, min(6, len(serialized_communities))
+            )
+
+    except Exception as e:
+        logger.error('discover view error: %s', e)
+
+    # --- Game server strip (non-blocking, best effort) ---
+    try:
+        from app.models import SiteActivityGame
+        from app.views import fetch_instance_data
+
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        with get_db_session() as db:
+            db_games = db.query(SiteActivityGame).filter(
+                SiteActivityGame.is_active == True,
+                SiteActivityGame.game_type.in_(['amp', 'both']),
+                SiteActivityGame.show_on_discover_strip == True,
+            ).order_by(SiteActivityGame.sort_order).all()
+
+            amp_names = [g.amp_instance_id for g in db_games if g.amp_instance_id]
+            amp_map = {}
+            if amp_names:
+                results = loop.run_until_complete(asyncio.gather(
+                    *(fetch_instance_data(n) for n in amp_names),
+                    return_exceptions=True
+                ))
+                amp_map = {r.get('id'): r for r in results if isinstance(r, dict)}
+
+            for db_game in db_games:
+                amp = amp_map.get(db_game.amp_instance_id)
+                game_servers.append({
+                    'name': db_game.display_name,
+                    'online': amp.get('online', '-') if amp else '-',
+                    'max': amp.get('max', '-') if amp else '-',
+                    'live_now': amp.get('live_now', False) if amp else False,
+                })
+        loop.close()
+    except Exception as e:
+        logger.error('discover game server strip error: %s', e)
+
+    # --- Community Steam widgets ---
+    # Raw pool data (expensive Steam API calls) cached 15 min - shared across workers.
+    # Community Picks shuffle is re-run every request from the cached pool so it's
+    # always random. Most Played is deterministic so it comes straight from cache.
+    top_owned_games = []
+    community_picks = []
+    _POOL_CACHE_KEY = 'discover_steam_pool_v2'
+    try:
+        import random as _rng
+        from collections import Counter
+        import requests as _req
+        from django.core.cache import cache as _cache
+        from .models import WebUser as _WebUser
+        from .helpers import STEAM_API_KEY as _STEAM_KEY
+        from .helpers import get_steam_cover_url as _steam_cover_url
+
+        _SEXUAL_DESCRIPTOR_IDS = {1, 3, 4}
+        _NAME_EXCLUDE = ('test server', 'beta server', 'dedicated server', ' pts', 'public test', 'demo')
+
+        def _ensure_steam_tags(aid, db, _req):
+            existing = db.execute(
+                text('SELECT COUNT(*) FROM web_steam_app_tags WHERE app_id = :a'),
+                {'a': aid}
+            ).scalar()
+            if existing:
+                return
+            tags = set()
+            try:
+                r = _req.get(
+                    f'https://store.steampowered.com/api/appdetails?appids={aid}&filters=content_descriptors,categories,genres',
+                    timeout=4,
+                )
+                data = (r.json() or {}).get(str(aid), {}).get('data', {})
+                descriptor_ids = set(data.get('content_descriptors', {}).get('ids') or [])
+                if descriptor_ids & _SEXUAL_DESCRIPTOR_IDS:
+                    tags.add('sexual content')
+                for c in data.get('categories', []):
+                    tags.add(c.get('description', '').lower())
+                for g in data.get('genres', []):
+                    tags.add(g.get('description', '').lower())
+            except Exception:
+                pass
+            try:
+                r = _req.get(
+                    f'https://steamspy.com/api.php?request=appdetails&appid={aid}',
+                    timeout=5,
+                )
+                for tag in ((r.json() or {}).get('tags') or {}).keys():
+                    tags.add(tag.lower())
+            except Exception:
+                pass
+            if not tags:
+                tags.add('untagged')
+            db.execute(
+                text('INSERT IGNORE INTO web_steam_app_tags (app_id, tag_name) VALUES ' +
+                     ', '.join(f"({aid}, :t{i})" for i, _ in enumerate(tags))),
+                {f't{i}': t for i, t in enumerate(tags)}
+            )
+            db.commit()
+
+        # Try to load the cached pool (raw counters + names + adult_ids)
+        _pool = _cache.get(_POOL_CACHE_KEY)
+
+        if _pool is None:
+            # Cache miss - fetch from Steam APIs and store the raw pool
+            with get_db_session() as db:
+                steam_users = db.query(_WebUser.steam_id).filter(
+                    _WebUser.share_steam_library == True,
+                    _WebUser.steam_id.isnot(None),
+                    _WebUser.steam_id != '',
+                    _WebUser.is_banned == False,
+                    _WebUser.is_disabled == False,
+                ).limit(50).all()
+                adult_rows = db.execute(
+                    text("""SELECT DISTINCT app_id FROM web_steam_app_tags
+                            WHERE tag_name IN ('sexual content','adult only sexual content',
+                            'frequent nudity or sexual content','hentai','eroge',
+                            'explicit sexual content')""")
+                ).fetchall()
+                adult_ids = {r[0] for r in adult_rows}
+                mp_rows = db.execute(
+                    text("SELECT DISTINCT app_id FROM web_steam_app_tags WHERE tag_name IN ('multiplayer','co-op','online co-op','multi-player')")
+                ).fetchall()
+                mp_ids = {r[0] for r in mp_rows}
+
+            owned_counts = Counter()
+            hours_totals = Counter()
+            game_names = {}
+            for (steam_id,) in steam_users:
+                try:
+                    resp = _req.get(
+                        'https://api.steampowered.com/IPlayerService/GetRecentlyPlayedGames/v1/',
+                        params={'key': _STEAM_KEY, 'steamid': steam_id, 'count': 0},
+                        timeout=4,
+                    )
+                    for g in resp.json().get('response', {}).get('games', []):
+                        aid = g.get('appid')
+                        gname = g.get('name', '')
+                        if not aid or aid in adult_ids:
+                            continue
+                        if any(x in gname.lower() for x in _NAME_EXCLUDE):
+                            continue
+                        owned_counts[aid] += 1
+                        hours_totals[aid] += g.get('playtime_2weeks', 0)
+                        if aid not in game_names:
+                            game_names[aid] = gname
+                except Exception:
+                    continue
+
+            picks_owned = Counter()
+            picks_names = {}
+            for (steam_id,) in steam_users:
+                try:
+                    resp2 = _req.get(
+                        'https://api.steampowered.com/IPlayerService/GetOwnedGames/v1/',
+                        params={'key': _STEAM_KEY, 'steamid': steam_id,
+                                'include_appinfo': 1, 'include_played_free_games': 1},
+                        timeout=4,
+                    )
+                    for g in resp2.json().get('response', {}).get('games', []):
+                        aid = g.get('appid')
+                        gname = g.get('name', '')
+                        if not aid or aid in adult_ids or not gname:
+                            continue
+                        if any(x in gname.lower() for x in _NAME_EXCLUDE):
+                            continue
+                        picks_owned[aid] += 1
+                        if aid not in picks_names:
+                            picks_names[aid] = gname
+                except Exception:
+                    continue
+
+            # Seed tags for untagged picks candidates (max 20 per request)
+            all_pick_aids = list(picks_owned.keys())
+            with get_db_session() as db:
+                if all_pick_aids:
+                    tagged_rows = db.execute(
+                        text('SELECT DISTINCT app_id FROM web_steam_app_tags WHERE app_id IN :aids'),
+                        {'aids': tuple(all_pick_aids)}
+                    ).fetchall()
+                    already_tagged = {r[0] for r in tagged_rows}
+                    for aid in [a for a in all_pick_aids if a not in already_tagged][:20]:
+                        _ensure_steam_tags(aid, db, _req)
+                adult_rows2 = db.execute(
+                    text("""SELECT DISTINCT app_id FROM web_steam_app_tags
+                            WHERE tag_name IN ('sexual content','adult only sexual content',
+                            'frequent nudity or sexual content','hentai','eroge',
+                            'explicit sexual content')""")
+                ).fetchall()
+                adult_ids.update(r[0] for r in adult_rows2)
+
+            _pool = {
+                'owned_counts': dict(owned_counts),
+                'hours_totals': dict(hours_totals),
+                'game_names': game_names,
+                'picks_owned': dict(picks_owned),
+                'picks_names': picks_names,
+                'adult_ids': list(adult_ids),
+                'mp_ids': list(mp_ids),
+            }
+            _cache.set(_POOL_CACHE_KEY, _pool, 900)
+
+        # Build widgets from pool (always fresh shuffle for Community Picks)
+        owned_counts = Counter(_pool['owned_counts'])
+        hours_totals = Counter(_pool['hours_totals'])
+        game_names = _pool['game_names']
+        picks_owned = Counter(_pool['picks_owned'])
+        picks_names = _pool['picks_names']
+        adult_ids = set(_pool['adult_ids'])
+        mp_ids = set(_pool['mp_ids'])
+
+        if owned_counts:
+            top_aids = [aid for aid, _ in hours_totals.most_common(5) if game_names.get(aid)]
+            top_owned_games = [
+                {
+                    'app_id': aid,
+                    'name': game_names[aid],
+                    'count': owned_counts[aid],
+                    'hours': round(hours_totals[aid] / 60, 1),
+                    'cover_url': _steam_cover_url(aid),
+                    'steam_url': f'https://store.steampowered.com/app/{aid}/',
+                    'is_mp': aid in mp_ids,
+                }
+                for aid in top_aids
+            ]
+
+            # Community Picks: fresh random shuffle every request from the full owned pool
+            exclude = set(top_aids)
+            pool = [aid for aid in picks_owned
+                    if aid not in exclude and aid not in adult_ids and picks_names.get(aid)]
+            _rng.shuffle(pool)
+            community_picks = [
+                {
+                    'app_id': aid,
+                    'name': picks_names[aid],
+                    'owners': picks_owned[aid],
+                    'cover_url': _steam_cover_url(aid),
+                    'steam_url': f'https://store.steampowered.com/app/{aid}/',
+                    'is_mp': aid in mp_ids,
+                }
+                for aid in pool[:5]
+                if picks_names.get(aid)
+            ]
+    except Exception as e:
+        logger.error('discover steam widgets error: %s', e)
+
+    context = {
+        'web_user': request.web_user,
+        'active_page': 'discover',
+        'live_streamers': live_streamers,
+        'recently_streamed': recently_streamed,
+        'lfg_groups': lfg_groups,
+        'active_games': active_games,
+        'featured_communities': featured_communities,
+        'community_counts': community_counts,
+        'groups_last_hour': groups_last_hour,
+        'game_servers': game_servers,
+        'top_owned_games': top_owned_games,
+        'community_picks': community_picks,
+    }
+    return render(request, 'questlog_web/discover.html', context)
+
+
+# =============================================================================
 # LFG VIEWS
 # =============================================================================
 
-@web_login_required
 @add_web_user_context
 def lfg_browse(request):
     """Browse LFG groups."""
@@ -66,7 +519,6 @@ def lfg_browse(request):
     return render(request, 'questlog_web/lfg_browse.html', context)
 
 
-@web_login_required
 @add_web_user_context
 def lfg_calendar(request):
     """Public LFG calendar - shows published events from all Fluxer guilds."""
@@ -134,23 +586,33 @@ def lfg_calendar(request):
 def lfg_create(request):
     """Create LFG group."""
     import json as _json
+    from .models import WebUserGame
     profile_games = []
     if request.web_user:
-        raw = getattr(request.web_user, 'favorite_games', None) or '[]'
-        try:
-            games = _json.loads(raw)
-            for g in games:
-                if isinstance(g, dict) and g.get('name'):
-                    profile_games.append(g)
-                elif isinstance(g, str) and g:
-                    profile_games.append({'name': g, 'igdb_id': None, 'cover_url': ''})
-        except Exception:
-            pass
+        with get_db_session() as db:
+            lib_games = (
+                db.query(WebUserGame)
+                .filter(
+                    WebUserGame.web_user_id == request.web_user.id,
+                    WebUserGame.status == 'play_together',
+                )
+                .order_by(WebUserGame.updated_at.desc())
+                .limit(10)
+                .all()
+            )
+            for g in lib_games:
+                profile_games.append({
+                    'name': g.name,
+                    'igdb_id': g.igdb_id,
+                    'cover_url': g.cover_url or '',
+                    'status': g.status,
+                })
     context = {
         'web_user': request.web_user,
         'active_page': 'lfg_create',
         'profile_games_json': _json.dumps(profile_games),
         'profile_games': profile_games,
+        'prefill_game': request.GET.get('game', '').strip()[:200],
     }
     return render(request, 'questlog_web/lfg_create.html', context)
 
@@ -199,9 +661,9 @@ def lfg_group_detail_token(request, share_token):
         return render(request, 'questlog_web/lfg_detail.html', context)
 
 
-@web_login_required
+@web_verified_required
 @require_http_methods(["POST"])
-@ratelimit(key='user', rate='10/h', block=True)
+@ratelimit(key='ip', rate='10/h', block=True)
 def lfg_join(request, group_id):
     """Join an LFG group with class/spec/role selections."""
     try:
@@ -235,13 +697,13 @@ def lfg_join(request, group_id):
             existing.role = sanitize_text(raw_role) if raw_role else None
             raw_sel = data.get('selections') or {}
             if isinstance(raw_sel, dict):
-                raw_sel = {k: sanitize_text(v) if isinstance(v, str) else v for k, v in raw_sel.items()}
+                raw_sel = {k: sanitize_text(str(v) if not isinstance(v, str) else v) for k, v in raw_sel.items() if isinstance(k, str)}
             existing.selections = json.dumps(raw_sel) if raw_sel else None
             existing.joined_at = now
         else:
             raw_sel = data.get('selections') or {}
             if isinstance(raw_sel, dict):
-                raw_sel = {k: sanitize_text(v) if isinstance(v, str) else v for k, v in raw_sel.items()}
+                raw_sel = {k: sanitize_text(str(v) if not isinstance(v, str) else v) for k, v in raw_sel.items() if isinstance(k, str)}
             raw_role = data.get('role') or None
             db.add(WebLFGMember(
                 group_id=group_id,
@@ -298,6 +760,14 @@ def lfg_join(request, group_id):
     except Exception as e:
         logger.warning(f"[LFG] Failed to queue embed edit for group {web_group_id}: {e}")
 
+    # Award legacy to group creator when group fills
+    if is_now_full and group_creator_id:
+        try:
+            from .helpers import award_legacy
+            award_legacy(group_creator_id, 'lfg_group_filled', source='web', ref_id=f"lfg_fill_{web_group_id}")
+        except Exception as e:
+            logger.warning(f"[LFG] Failed to award legacy for fill on group {web_group_id}: {e}")
+
     # Helper: build detail string from selections
     def _join_detail(role, sel):
         parts = []
@@ -311,14 +781,14 @@ def lfg_join(request, group_id):
                 parts.append(str(v))
         return ', '.join(parts) if parts else 'No class selected'
 
-    lfg_url = f"https://casual-heroes.com/ql/lfg/{web_group_token}/"
+    lfg_url = f"https://questlog.casual-heroes.com/lfg/{web_group_token}/"
 
     return JsonResponse({'success': True})
 
 
 @web_login_required
 @require_http_methods(["POST"])
-@ratelimit(key='user', rate='20/h', method='POST', block=True)
+@ratelimit(key='ip', rate='20/h', method='POST', block=True)
 def lfg_leave(request, group_id):
     """Leave an LFG group."""
     now = int(time.time())
@@ -356,7 +826,7 @@ def lfg_leave(request, group_id):
 
 @web_login_required
 @require_http_methods(["POST"])
-@ratelimit(key='user', rate='30/h', method='POST', block=True)
+@ratelimit(key='ip', rate='30/h', method='POST', block=True)
 def lfg_update_member(request, group_id):
     """Update own class/spec/role in a group after joining."""
     try:
@@ -373,6 +843,8 @@ def lfg_update_member(request, group_id):
 
         member.role = sanitize_text(data.get('role') or '', max_length=100) or None
         raw_sel = data.get('selections') or {}
+        if isinstance(raw_sel, dict):
+            raw_sel = {k: sanitize_text(str(v) if not isinstance(v, str) else v) for k, v in raw_sel.items() if isinstance(k, str)}
         member.selections = json.dumps(raw_sel) if raw_sel else None
         db.commit()
 
@@ -381,7 +853,7 @@ def lfg_update_member(request, group_id):
 
 @web_login_required
 @require_http_methods(["POST"])
-@ratelimit(key='user', rate='20/h', method='POST', block=True)
+@ratelimit(key='ip', rate='20/h', method='POST', block=True)
 def lfg_edit(request, group_id):
     """Edit a group — creator only."""
     try:
@@ -423,7 +895,7 @@ def lfg_edit(request, group_id):
 
 @web_login_required
 @require_http_methods(["POST"])
-@ratelimit(key='user', rate='10/h', method='POST', block=True)
+@ratelimit(key='ip', rate='10/h', method='POST', block=True)
 def lfg_delete(request, group_id):
     """Delete (cancel) a group — creator only."""
     now = int(time.time())
@@ -434,16 +906,26 @@ def lfg_delete(request, group_id):
         if group.creator_id != request.web_user.id:
             return JsonResponse({'error': 'Only the group creator can delete it'}, status=403)
 
+        ran = group.status == 'full' or (group.current_size or 1) > 1
+        creator_id = group.creator_id
         group.status = 'cancelled'
         group.updated_at = now
         db.commit()
+
+    # Award legacy if group actually ran (was full or had members beyond creator)
+    if ran and creator_id:
+        try:
+            from .helpers import award_legacy
+            award_legacy(creator_id, 'lfg_completed', source='web', ref_id=f"lfg_done_{group_id}")
+        except Exception as e:
+            logger.warning(f"[LFG] Failed to award legacy for completion on group {group_id}: {e}")
 
     return JsonResponse({'success': True})
 
 
 @web_login_required
 @require_http_methods(["POST"])
-@ratelimit(key='user', rate='20/h', method='POST', block=True)
+@ratelimit(key='ip', rate='20/h', method='POST', block=True)
 def lfg_kick(request, group_id, user_id):
     """Kick a member — creator or co-leader only."""
     now = int(time.time())
@@ -479,7 +961,7 @@ def lfg_kick(request, group_id, user_id):
 
 @web_login_required
 @require_http_methods(["POST"])
-@ratelimit(key='user', rate='30/h', method='POST', block=True)
+@ratelimit(key='ip', rate='30/h', method='POST', block=True)
 def lfg_set_co_leader(request, group_id):
     """Set co-leaders for a group — creator only."""
     try:
@@ -512,7 +994,6 @@ def lfg_set_co_leader(request, group_id):
 # DISCOVERY VIEWS
 # =============================================================================
 
-@web_login_required
 @add_web_user_context
 def network(request):
     """QuestLog Network page."""
@@ -563,16 +1044,17 @@ def network_leaderboard(request):
         # Discord/other: web_unified_leaderboard
         community_rows = db.execute(text("""
             SELECT wc.id, wc.name, wc.icon_url, wc.platform,
-                   COALESCE(fx.member_count, wul.member_count, 0) AS active_members,
-                   COALESCE(fx.total_xp, wul.total_xp, 0) AS total_xp,
-                   COALESCE(fx.total_messages, 0) AS total_messages,
-                   COALESCE(fx.total_media, 0) AS total_media,
-                   COALESCE(fx.total_voice_mins, 0) AS total_voice_mins,
-                   COALESCE(fx.total_reactions, 0) AS total_reactions
+                   COALESCE(fgs.member_count, dc.member_count, 0) AS active_members,
+                   COALESCE(fx.total_xp, dc.total_xp, 0) AS total_xp,
+                   COALESCE(fx.total_messages, dc.total_messages, 0) AS total_messages,
+                   COALESCE(fx.total_media, dc.total_media, 0) AS total_media,
+                   COALESCE(fx.total_voice_mins, dc.total_voice_mins, 0) AS total_voice_mins,
+                   COALESCE(fx.total_reactions, dc.total_reactions, 0) AS total_reactions
             FROM web_communities wc
+            LEFT JOIN web_fluxer_guild_settings fgs
+                   ON fgs.guild_id = wc.platform_id AND wc.platform = 'fluxer'
             LEFT JOIN (
                 SELECT guild_id,
-                       COUNT(*) AS member_count,
                        SUM(xp) AS total_xp,
                        SUM(message_count) AS total_messages,
                        SUM(media_count) AS total_media,
@@ -584,12 +1066,16 @@ def network_leaderboard(request):
             LEFT JOIN (
                 SELECT guild_id,
                        COUNT(DISTINCT user_id) AS member_count,
-                       SUM(xp_total) AS total_xp
-                FROM web_unified_leaderboard
+                       SUM(xp) AS total_xp,
+                       SUM(message_count) AS total_messages,
+                       SUM(media_count) AS total_media,
+                       SUM(voice_minutes) AS total_voice_mins,
+                       SUM(reaction_count) AS total_reactions
+                FROM guild_members
                 GROUP BY guild_id
-            ) wul ON wul.guild_id = wc.platform_id COLLATE utf8mb4_general_ci AND wc.platform != 'fluxer'
+            ) dc ON dc.guild_id = CAST(wc.platform_id AS UNSIGNED) AND wc.platform = 'discord'
             WHERE wc.network_status='approved' AND wc.is_active=1 AND wc.is_primary=1
-              AND COALESCE(fx.total_xp, wul.total_xp, 0) > 0
+              AND COALESCE(fx.total_xp, dc.total_xp, 0) > 0
             ORDER BY total_xp DESC LIMIT 5
         """)).fetchall()
 
@@ -660,7 +1146,6 @@ def api_leaderboard_top(request):
     ]})
 
 
-@web_login_required
 @add_web_user_context
 def games(request):
     """Found Games / Game Discovery."""
@@ -671,7 +1156,6 @@ def games(request):
     return render(request, 'questlog_web/games.html', context)
 
 
-@web_login_required
 @add_web_user_context
 def creators(request):
     """Featured Creators."""
@@ -682,12 +1166,19 @@ def creators(request):
     return render(request, 'questlog_web/creators.html', context)
 
 
+def creator_profile(request, username):
+    """Redirect creators/<username>/ -> u/<username>/ - single unified profile page."""
+    from django.shortcuts import redirect
+    return redirect(f'u/{username}/', permanent=True)
+
+
 @add_web_user_context
 def gamers(request):
     """Gamers directory - searchable list of QuestLog members."""
     context = {
         'web_user': request.web_user,
         'active_page': 'gamers',
+        'prefill_game': request.GET.get('game', '').strip()[:200],
     }
     return render(request, 'questlog_web/gamers.html', context)
 
@@ -706,7 +1197,6 @@ def articles(request):
 # COMMUNITY VIEWS
 # =============================================================================
 
-@web_login_required
 @add_web_user_context
 def communities(request):
     """Community directory."""
@@ -890,23 +1380,55 @@ def community_register(request):
         'registered_matrix_ids_json': _json.dumps(list(registered_matrix_ids)),
     }
 
+    u = request.web_user
     context = {
-        'web_user': request.web_user,
+        'web_user': u,
         'active_page': 'community_register',
+        'has_discord': bool(getattr(u, 'discord_id', None)),
+        'has_fluxer': bool(getattr(u, 'fluxer_id', None)),
+        'has_matrix': bool(getattr(u, 'matrix_id', None)),
+        'existing_revolt_url': getattr(u, 'revolt_url', None) or '',
+        'existing_root_url': getattr(u, 'root_url', None) or '',
         **status_context,
         **picker_context,
     }
     return render(request, 'questlog_web/community_register.html', context)
 
 
-@web_login_required
 @add_web_user_context
 def community_detail(request, community_id):
-    """View community details."""
+    """Redirect legacy integer community URLs to slug-based URLs."""
+    import re as _re
+    with get_db_session() as db:
+        c = db.query(WebCommunity).filter_by(id=community_id, is_active=True).first()
+        if not c:
+            from django.http import Http404
+            raise Http404
+        slug = _re.sub(r'[^a-z0-9]+', '-', c.name.lower()).strip('-')
+    return redirect('questlog_web_community_detail_slug', slug=slug)
+
+
+@add_web_user_context
+def community_detail_slug(request, slug):
+    """View community details by slug (generated from name)."""
+    import re as _re
+    with get_db_session() as db:
+        # Find community whose name converts to the requested slug
+        all_communities = db.query(WebCommunity).filter_by(is_active=True).all()
+        community = None
+        for c in all_communities:
+            c_slug = _re.sub(r'[^a-z0-9]+', '-', c.name.lower()).strip('-')
+            if c_slug == slug:
+                community = c
+                break
+    if not community:
+        from django.http import Http404
+        raise Http404
     context = {
         'web_user': request.web_user,
         'active_page': 'communities',
-        'community_id': community_id,
+        'community_id': community.id,
+        'community_slug': slug,
     }
     return render(request, 'questlog_web/community_detail.html', context)
 
@@ -924,7 +1446,79 @@ def profile(request):
     creator_profile = None
     user_communities = []
     seen_ids = set()
+    library_games_list = []
+    ffxiv_char = None
+    ffxiv_rewards = []
+    steam_ach_events = []
     with get_db_session() as db:
+        from .models import WebUserGame as _WebUserGame, WebFfxivCharacter as _WebFfxivChar, WebFfxivAchievementReward as _WebFfxivReward, WebXpEvent as _WebXpEvent
+        from sqlalchemy import case as _sa_case2
+        _lib_order = _sa_case2(
+            (_WebUserGame.status == 'play_together', 0),
+            (_WebUserGame.status == 'playing', 1),
+            else_=2,
+        )
+        import json as _json2
+        _SOCIAL_MODES = {'multiplayer', 'co-operative', 'mmo', 'battle royale', 'massively multiplayer online (mmo)'}
+        lib_rows = (
+            db.query(_WebUserGame)
+            .filter(_WebUserGame.web_user_id == wu.id)
+            .order_by(_lib_order, _WebUserGame.updated_at.desc())
+            .limit(50)
+            .all()
+        )
+        for g in lib_rows:
+            if len(library_games_list) >= 10:
+                break
+            # Filter out solo-only games: skip if game_modes is known and has no social modes
+            if g.game_modes:
+                try:
+                    modes = [m.lower() for m in _json2.loads(g.game_modes)]
+                    if modes and not any(m in _SOCIAL_MODES for m in modes):
+                        continue
+                except (ValueError, TypeError):
+                    pass
+            library_games_list.append({
+                'name': g.name,
+                'igdb_id': g.igdb_id,
+                'cover_url': g.cover_url or '',
+                'status': g.status,
+            })
+        # FFXIV achievements
+        if wu.track_achievements:
+            _fc = db.query(_WebFfxivChar).filter_by(user_id=wu.id, is_primary=True, sync_status='ok').first()
+            if _fc:
+                ffxiv_char = {
+                    'character_name': _fc.character_name,
+                    'world': _fc.world,
+                    'datacenter': _fc.datacenter,
+                    'avatar_url': _fc.avatar_url or '',
+                    'active_job': _fc.active_job or '',
+                }
+                for r in db.query(_WebFfxivReward).filter_by(user_id=wu.id).order_by(_WebFfxivReward.awarded_at.desc()).limit(50).all():
+                    ffxiv_rewards.append({
+                        'name': r.achievement_name,
+                        'xp': r.xp_awarded,
+                        'legacy': r.legacy_awarded,
+                        'awarded_at': r.awarded_at,
+                    })
+        # Steam achievement XP stats
+        _day_start = int(time.time()) - 86400
+        _steam_row = db.execute(
+            text("SELECT COUNT(*), MIN(created_at), MAX(created_at) FROM web_xp_events WHERE user_id=:uid AND action_type='steam_achievement'"),
+            {'uid': wu.id}
+        ).fetchone()
+        _xp_today_row = db.execute(
+            text("SELECT LEAST(SUM(xp), 50) FROM web_xp_events WHERE user_id=:uid AND action_type='steam_achievement' AND created_at >= :day_start"),
+            {'uid': wu.id, 'day_start': _day_start}
+        ).fetchone()
+        if _steam_row and _steam_row[0]:
+            steam_ach_events = [{
+                'count': int(_steam_row[0]),
+                'xp_today': int(_xp_today_row[0] or 0) if _xp_today_row else 0,
+                'first_at': int(_steam_row[1] or 0),
+                'last_at': int(_steam_row[2] or 0),
+            }]
         cp = db.query(WebCreatorProfile).filter_by(user_id=wu.id).first()
         if cp:
             db.expunge(cp)
@@ -990,11 +1584,8 @@ def profile(request):
         'active_page': 'profile',
         'gaming_platforms_list': _json.loads(wu.gaming_platforms) if wu.gaming_platforms else [],
         'favorite_genres_list':  _json.loads(wu.favorite_genres)  if wu.favorite_genres  else [],
-        'favorite_games_list':   [
-            g if isinstance(g, dict) else {'name': g, 'igdb_id': None, 'cover_url': ''}
-            for g in (_json.loads(wu.favorite_games) if wu.favorite_games else [])
-        ],
-        'favorite_games_json':   wu.favorite_games or '[]',
+        'favorite_games_list':   library_games_list,
+        'favorite_games_json':   _json.dumps(library_games_list),
         'playstyle_list': (
             _json.loads(wu.playstyle) if wu.playstyle and wu.playstyle.startswith('[')
             else ([wu.playstyle] if wu.playstyle else [])
@@ -1004,6 +1595,10 @@ def profile(request):
         'playstyle_choices': ['Casual', 'Hardcore', 'Competitive', 'Completionist', 'Explorer', 'Social'],
         'platform_choices': ['PC', 'PS5', 'PS4', 'Xbox Series', 'Xbox One', 'Switch', 'Mobile', 'Steam Deck'],
         'genre_choices': ['RPG', 'FPS', 'MOBA', 'MMO', 'Strategy', 'Simulation', 'Survival', 'Horror', 'Souls-like', 'Platformer', 'Roguelike', 'Sports', 'Racing', 'Fighting', 'Puzzle'],
+        'ffxiv_char': ffxiv_char,
+        'ffxiv_rewards': ffxiv_rewards,
+        'steam_ach_events': steam_ach_events,
+        'legacy_tier_names': {1: 'Wanderer', 2: 'Ranger', 3: 'Warden', 4: 'Champion', 5: 'Ascendant'},
     }
     return render(request, 'questlog_web/profile.html', context)
 
@@ -1149,7 +1744,16 @@ def creator_register(request):
 @web_login_required
 def settings(request):
     """Settings page — redirected to profile edit tab."""
-    return redirect('/ql/profile/#edit')
+    return redirect('/profile/#edit')
+
+
+@add_web_user_context
+def getting_started(request):
+    """Getting Started guide - how QuestLog works."""
+    return render(request, 'questlog_web/getting_started.html', {
+        'web_user': request.web_user,
+        'active_page': 'getting_started',
+    })
 
 
 @web_login_required
@@ -1163,10 +1767,9 @@ def hero_shop(request):
     return render(request, 'questlog_web/shop.html', context)
 
 
-@web_login_required
 @add_web_user_context
 def game_servers_ql(request):
-    """Community-hosted game servers — login required."""
+    """Community-hosted game servers."""
     import asyncio
     from app.models import SiteActivityGame
     from app.views import fetch_instance_data
@@ -1282,6 +1885,53 @@ def game_servers_ql(request):
     return render(request, 'questlog_web/gameservers.html', context)
 
 
+@require_http_methods(["GET"])
+def api_gameservers_status(request):
+    """Return live player counts and status for all game servers (polling endpoint)."""
+    import asyncio
+    from app.models import SiteActivityGame
+    from app.views import fetch_instance_data
+
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    servers = []
+    try:
+        with get_db_session() as db:
+            db_games = (
+                db.query(SiteActivityGame)
+                .filter(
+                    SiteActivityGame.is_active == True,
+                    SiteActivityGame.display_on.in_(['gameservers', 'both']),
+                )
+                .order_by(SiteActivityGame.sort_order)
+                .all()
+            )
+            amp_names = [g.amp_instance_id for g in db_games if g.amp_instance_id]
+            amp_data_map = {}
+            if amp_names:
+                results = loop.run_until_complete(asyncio.gather(
+                    *(fetch_instance_data(n) for n in amp_names),
+                    return_exceptions=True
+                ))
+                amp_data_map = {r.get('id'): r for r in results if isinstance(r, dict)}
+
+            for db_game in db_games:
+                amp = amp_data_map.get(db_game.amp_instance_id)
+                servers.append({
+                    'id': db_game.game_key,
+                    'online': amp.get('online', '-') if amp else '-',
+                    'max': amp.get('max', '-') if amp else '-',
+                    'status_label': amp.get('status_label', 'Unknown') if amp else 'Unknown',
+                })
+    except Exception as e:
+        logger.error('api_gameservers_status: %s', e)
+        return JsonResponse({'error': 'failed'}, status=500)
+    finally:
+        loop.close()
+
+    return JsonResponse({'servers': servers})
+
+
 # =============================================================================
 # SERVER ROTATION POLL — PUBLIC API
 # =============================================================================
@@ -1341,7 +1991,7 @@ def api_active_poll(request):
 
 @web_login_required
 @require_http_methods(["POST"])
-@ratelimit(key='user', rate='10/h', block=True)
+@ratelimit(key='ip', rate='10/h', block=True)
 def api_poll_vote(request, poll_id):
     """Cast or change a vote on a server rotation poll."""
     try:
@@ -1419,6 +2069,114 @@ def api_poll_vote(request, poll_id):
     except Exception as e:
         logger.error('api_poll_vote: %s', e)
         return JsonResponse({'error': 'Vote failed'}, status=500)
+
+
+LEGACY_MARKS = [
+    {'tier': 1, 'name': 'Wanderer',   'img': 'Common.png',    'color': 'text-gray-400',   'border': 'border-gray-600',   'threshold': 0,
+     'perks': ['QuestLog account', 'Basic LFG access', 'Community access', 'Open game servers (Minecraft, DragonWilds, Valheim)', '7DTD - Project SYNAPSE access']},
+    {'tier': 2, 'name': 'Ranger',     'img': 'Rare.png',      'color': 'text-blue-400',   'border': 'border-blue-600',   'threshold': 500,
+     'perks': ['Everything in Wanderer', 'Palworld server access', 'Soulmask server access', 'Hytale server access', 'Extra flair slots']},
+    {'tier': 3, 'name': 'Warden',     'img': 'Epic.png',      'color': 'text-purple-400', 'border': 'border-purple-600', 'threshold': 2000,
+     'perks': ['Everything in Ranger', 'Priority LFG placement', 'Extended posts (2,000 characters)', 'Warden role + exclusive channel on Fluxer and Discord', 'Community landing page (Coming Soon)']},
+    {'tier': 4, 'name': 'Champion',   'img': 'Legendary.png', 'color': 'text-orange-400', 'border': 'border-orange-600', 'threshold': 7500,
+     'perks': ['Everything in Warden', 'Priority queue on all servers', 'Mod tools access', 'Restricted zones (In Development)']},
+    {'tier': 5, 'name': 'Ascendant',  'img': 'Mythic.png',    'color': 'text-yellow-400', 'border': 'border-yellow-500', 'threshold': 25000,
+     'perks': ['Everything in Champion', 'Server mod by default', 'Co-host privileges', 'Top discovery placement']},
+]
+
+
+@add_web_user_context
+def legacy_page(request):
+    """Legacy Mark page - shows current mark, progress, perks."""
+    MARKS = [dict(m) for m in LEGACY_MARKS]
+
+    score = 0
+    current_tier = 1
+    if request.web_user:
+        score = request.web_user.legacy_score or 0
+        current_tier = request.web_user.legacy_tier or 1
+
+    current_mark = MARKS[current_tier - 1]
+    next_mark = MARKS[current_tier] if current_tier < 5 else None
+
+    if next_mark:
+        points_into_tier = score - current_mark['threshold']
+        points_needed = next_mark['threshold'] - current_mark['threshold']
+        progress_pct = min(100, int((points_into_tier / points_needed) * 100)) if points_needed > 0 else 100
+        points_to_next = max(0, next_mark['threshold'] - score)
+    else:
+        progress_pct = 100
+        points_to_next = 0
+
+    # Annotate each mark with unlocked/current flags for the template
+    for m in MARKS:
+        m['is_current'] = m['tier'] == current_tier
+        m['is_unlocked'] = m['tier'] <= current_tier
+
+    context = {
+        'web_user': request.web_user,
+        'active_page': 'legacy',
+        'score': score,
+        'current_tier': current_tier,
+        'current_mark': current_mark,
+        'next_mark': next_mark,
+        'progress_pct': progress_pct,
+        'points_to_next': points_to_next,
+        'marks': MARKS,
+    }
+    return render(request, 'questlog_web/legacy.html', context)
+
+
+@add_web_user_context
+def public_legacy(request, username):
+    """Public Legacy Mark page for any user at u/<username>/legacy/."""
+    from .models import WebUser
+    from .helpers import LEGACY_TIERS, LEGACY_TIER_NAMES
+
+    MARKS = [dict(m) for m in LEGACY_MARKS]
+
+    with get_db_session() as db:
+        profile_user = db.query(WebUser).filter_by(username=username).first()
+        if not profile_user or profile_user.is_banned or not profile_user.email_verified:
+            return render(request, 'questlog_web/public_legacy.html', {
+                'web_user': request.web_user, 'error': True, 'active_page': 'legacy',
+            })
+        score        = profile_user.legacy_score or 0
+        current_tier = profile_user.legacy_tier or 1
+        avatar_url   = profile_user.avatar_url
+        display_name = profile_user.display_name or profile_user.username
+        pu_username  = profile_user.username
+
+    current_mark = MARKS[current_tier - 1]
+    next_mark    = MARKS[current_tier] if current_tier < 5 else None
+
+    if next_mark:
+        points_into_tier = score - current_mark['threshold']
+        points_needed    = next_mark['threshold'] - current_mark['threshold']
+        progress_pct     = min(100, int((points_into_tier / points_needed) * 100)) if points_needed > 0 else 100
+        points_to_next   = max(0, next_mark['threshold'] - score)
+    else:
+        progress_pct   = 100
+        points_to_next = 0
+
+    for m in MARKS:
+        m['is_current']  = m['tier'] == current_tier
+        m['is_unlocked'] = m['tier'] <= current_tier
+
+    context = {
+        'web_user':     request.web_user,
+        'active_page':  'legacy',
+        'profile_user_username': pu_username,
+        'profile_user_display_name': display_name,
+        'profile_user_avatar': avatar_url,
+        'score':         score,
+        'current_mark':  current_mark,
+        'next_mark':     next_mark,
+        'progress_pct':  progress_pct,
+        'points_to_next': points_to_next,
+        'marks':         MARKS,
+    }
+    return render(request, 'questlog_web/public_legacy.html', context)
 
 
 @add_web_user_context
@@ -2247,6 +3005,14 @@ def api_fluxer_member_lfg_join(request, guild_id, group_id):
 
         db.commit()
 
+    # Award legacy to group creator when Fluxer LFG group fills
+    if new_status == 'full' and group_creator_web_user_id:
+        try:
+            from .helpers import award_legacy
+            award_legacy(group_creator_web_user_id, 'lfg_group_filled', source='fluxer', ref_id=f"fluxer_lfg_fill_{group_id}")
+        except Exception as e:
+            logger.warning(f"[LFG] Failed to award legacy for Fluxer fill on group {group_id}: {e}")
+
     # Site notification to group creator (if they have a web account)
     if group_creator_web_user_id and web_user:
         try:
@@ -2277,9 +3043,9 @@ def api_fluxer_member_lfg_join(request, guild_id, group_id):
     if notify_channel_id and notify_guild_id:
         try:
             from sqlalchemy import text as _text
-            lfg_url = f"https://casual-heroes.com/ql/fluxer/{notify_guild_id}/lfg/browse/"
+            lfg_url = f"https://questlog.casual-heroes.com/dashboard/fluxer/{notify_guild_id}/lfg/browse/"
             detail_field = {"name": "Class / Role", "value": join_detail, "inline": True} if join_detail else None
-            profile_val = f"casual-heroes.com/ql/profile/{username}/" if web_user else username
+            profile_val = f"https://questlog.casual-heroes.com/profile/{username}/" if web_user else username
             embed_data = {
                 "title": f"New Member Joined: {notify_title}",
                 "description": (
@@ -2292,7 +3058,7 @@ def api_fluxer_member_lfg_join(request, guild_id, group_id):
                     detail_field,
                     {"name": "Profile", "value": profile_val, "inline": True},
                 ] if f],
-                "footer": "QuestLog Network - casual-heroes.com/ql/lfg/",
+                "footer": "QuestLog Network - casual-heroes.comlfg/",
             }
             with get_db_session() as db:
                 db.execute(
@@ -2477,8 +3243,18 @@ def api_fluxer_member_lfg_group_delete(request, guild_id, group_id):
         if not is_owner:
             return JsonResponse({'error': 'Only the group creator can delete this group'}, status=403)
 
+        ran = group.status == 'full' or (group.current_size or 1) > 1
+        creator_web_user_id = group.creator_web_user_id
         group.status = 'closed'
         db.commit()
+
+    # Award legacy if Fluxer group actually ran
+    if ran and creator_web_user_id:
+        try:
+            from .helpers import award_legacy
+            award_legacy(creator_web_user_id, 'lfg_completed', source='fluxer', ref_id=f"fluxer_lfg_done_{group_id}")
+        except Exception as e:
+            logger.warning(f"[LFG] Failed to award legacy for Fluxer completion on group {group_id}: {e}")
 
     return JsonResponse({'success': True})
 
@@ -2615,16 +3391,24 @@ def api_fluxer_member_lfg_ban(request, guild_id, group_id, member_id):
 # =============================================================================
 
 def _queue_guild_flair_role_update(web_user_id: int, action: str, flair_emoji: str | None, flair_name: str | None):
-    """Queue a flair role sync for the Fluxer bot."""
+    """Queue a flair role sync for both Fluxer and Discord bots."""
     try:
-        from .models import WebFluxerRoleUpdate
+        from .models import WebFluxerRoleUpdate, WebDiscordPendingRoleUpdate
+        now = int(time.time())
         with get_db_session() as db:
             db.add(WebFluxerRoleUpdate(
                 web_user_id=web_user_id,
                 action=action,
                 flair_emoji=flair_emoji,
                 flair_name=flair_name,
-                created_at=int(time.time()),
+                created_at=now,
+            ))
+            db.add(WebDiscordPendingRoleUpdate(
+                web_user_id=web_user_id,
+                action=action,
+                flair_emoji=flair_emoji,
+                flair_name=flair_name,
+                created_at=now,
             ))
             db.commit()
     except Exception as exc:
@@ -2740,3 +3524,606 @@ def api_fluxer_guild_flair_unequip(request, guild_id, flair_id):
 
     _queue_guild_flair_role_update(web_user_id, 'clear_flair', None, None)
     return JsonResponse({'success': True, 'equipped_flair_id': None})
+
+
+# ---------------------------------------------------------------------------
+# Legacy Nominations
+# ---------------------------------------------------------------------------
+
+NOMINATION_CATEGORIES = [
+    # Community-wide
+    {'key': 'community',  'label': 'Most Helpful',        'icon': 'fas fa-globe',       'color': 'text-yellow-400',  'points': 15, 'desc': 'Went above and beyond for the community'},
+    {'key': 'lfg_host',   'label': 'Best LFG Host',       'icon': 'fas fa-users',       'color': 'text-cyan-400',    'points': 12, 'desc': 'Ran the best groups and kept people coming back'},
+    {'key': 'build',      'label': 'Most Creative Build',  'icon': 'fas fa-hammer',      'color': 'text-lime-400',    'points': 12, 'desc': 'Built something that made everyone stop and look'},
+    # Per-server
+    {'key': '7dtd',       'label': 'SYNAPSE MVP',          'icon': 'fas fa-skull',       'color': 'text-orange-400',  'points': 10, 'desc': 'Survived, helped, and led through Project SYNAPSE'},
+    {'key': 'valheim',    'label': 'Valheim Wanderer',      'icon': 'fas fa-snowflake',   'color': 'text-blue-400',    'points': 10, 'desc': 'Explored, built, and kept the Norse spirit alive'},
+    {'key': 'minecraft',  'label': 'Minecraft Builder',     'icon': 'fas fa-cube',        'color': 'text-green-400',   'points': 10, 'desc': 'Created something worth visiting on the server'},
+    {'key': 'dayz',       'label': 'DayZ Survivor',         'icon': 'fas fa-biohazard',   'color': 'text-red-400',     'points': 10, 'desc': 'Helped others stay alive in the hardest game we run'},
+    {'key': 'palworld',   'label': 'Palworld Tamer',        'icon': 'fas fa-dragon',      'color': 'text-emerald-400', 'points': 10, 'desc': 'Best Pal builds, trades, and server contributions'},
+]
+
+
+@web_login_required
+@add_web_user_context
+def legacy_nominate(request):
+    """Nomination submission page at legacy/nominate/."""
+    from .models import WebUser, WebLegacyNomination
+    import datetime
+
+    now = int(time.time())
+    month_year = datetime.datetime.utcnow().strftime('%Y-%m')
+    # Voting window: 26th onward - nominations closed
+    day_of_month = datetime.datetime.utcnow().day
+    nominations_open = day_of_month <= 25
+
+    # Load this user's existing nominations this month (with nominated usernames)
+    my_nominations = {}
+    with get_db_session() as db:
+        rows = db.query(WebLegacyNomination).filter_by(
+            month_year=month_year,
+            nominated_by_web_user_id=request.web_user.id,
+        ).all()
+        user_ids = [r.nominated_user_id for r in rows]
+        username_map = {}
+        if user_ids:
+            users = db.query(WebUser).filter(WebUser.id.in_(user_ids)).all()
+            username_map = {u.id: u.username for u in users}
+        for row in rows:
+            my_nominations[row.category] = {
+                'username': username_map.get(row.nominated_user_id, ''),
+                'reason': row.reason or '',
+            }
+
+    return render(request, 'questlog_web/legacy_nominate.html', {
+        'web_user': request.web_user,
+        'active_page': 'legacy',
+        'categories': NOMINATION_CATEGORIES,
+        'my_nominations_json': json.dumps(my_nominations),
+        'month_year': month_year,
+        'nominations_open': nominations_open,
+    })
+
+
+@web_login_required
+@require_http_methods(['POST'])
+def api_legacy_nominate(request):
+    """POST api/legacy/nominate/ - submit or update a nomination."""
+    from .models import WebUser, WebLegacyNomination
+    import datetime
+
+    try:
+        data = json.loads(request.body)
+    except (json.JSONDecodeError, AttributeError):
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+    category = (data.get('category') or '').strip()
+    nominated_username = (data.get('username') or '').strip()
+    reason = sanitize_text((data.get('reason') or '').strip())[:500]
+
+    valid_keys = {c['key'] for c in NOMINATION_CATEGORIES}
+    if category not in valid_keys:
+        return JsonResponse({'error': 'Invalid category'}, status=400)
+    if not nominated_username:
+        return JsonResponse({'error': 'Username required'}, status=400)
+
+    now = int(time.time())
+    month_year = datetime.datetime.utcnow().strftime('%Y-%m')
+    day_of_month = datetime.datetime.utcnow().day
+    if day_of_month > 25:
+        return JsonResponse({'error': 'Nominations are closed for this month'}, status=400)
+
+    with get_db_session() as db:
+        # Resolve nominated user
+        nominated = db.query(WebUser).filter_by(username=nominated_username).first()
+        if not nominated or nominated.is_banned or not nominated.email_verified:
+            return JsonResponse({'error': 'User not found'}, status=404)
+        if nominated.id == request.web_user.id:
+            return JsonResponse({'error': 'You cannot nominate yourself'}, status=400)
+
+        # Upsert: one nomination per nominator per category per month
+        existing = db.query(WebLegacyNomination).filter_by(
+            month_year=month_year,
+            category=category,
+            nominated_by_web_user_id=request.web_user.id,
+        ).first()
+
+        if existing:
+            existing.nominated_user_id = nominated.id
+            existing.reason = reason
+            existing.updated_at = now
+        else:
+            db.add(WebLegacyNomination(
+                month_year=month_year,
+                category=category,
+                nominated_user_id=nominated.id,
+                nominated_by_web_user_id=request.web_user.id,
+                platform='web',
+                reason=reason,
+                created_at=now,
+                updated_at=now,
+            ))
+        db.commit()
+
+    return JsonResponse({'success': True, 'month_year': month_year, 'category': category})
+
+
+@require_http_methods(['POST'])
+def api_internal_close_nominations(request):
+    """POST api/internal/close-nominations/ - called by cron at month end.
+    Tallies votes, picks winners per category, awards Legacy + notification.
+    Secured by BOT_API_SECRET header.
+    """
+    from .models import WebUser, WebLegacyNomination, WebNotification
+    from .helpers import award_legacy, grant_flair_award
+    import datetime
+    from django.conf import settings as django_settings
+
+    import hmac as _hmac
+    secret = getattr(django_settings, 'BOT_INTERNAL_SECRET', '')
+    provided = request.META.get('HTTP_X_BOT_SECRET', '')
+    if not secret or not _hmac.compare_digest(provided, secret):
+        return JsonResponse({'error': 'Unauthorized'}, status=403)
+
+    try:
+        data = json.loads(request.body)
+    except (json.JSONDecodeError, AttributeError):
+        data = {}
+
+    # Default: close the previous month if called on 1st, else current month
+    now_dt = datetime.datetime.utcnow()
+    month_year = data.get('month_year') or now_dt.strftime('%Y-%m')
+
+    results = []
+    cat_points = {c['key']: c['points'] for c in NOMINATION_CATEGORIES}
+
+    with get_db_session() as db:
+        for cat in cat_points:
+            # Tally: count nominations per nominated_user for this category/month
+            rows = db.execute(
+                text(
+                    "SELECT nominated_user_id, COUNT(*) as cnt "
+                    "FROM web_legacy_nominations "
+                    "WHERE month_year = :my AND category = :cat AND awarded = 0 "
+                    "GROUP BY nominated_user_id ORDER BY cnt DESC LIMIT 1"
+                ),
+                {'my': month_year, 'cat': cat}
+            ).fetchone()
+
+            if not rows:
+                results.append({'category': cat, 'winner': None})
+                continue
+
+            winner_id = rows[0]
+            now = int(time.time())
+
+            # Mark all nominations in this category as awarded
+            db.execute(
+                text(
+                    "UPDATE web_legacy_nominations SET awarded = 1, updated_at = :now "
+                    "WHERE month_year = :my AND category = :cat"
+                ),
+                {'now': now, 'my': month_year, 'cat': cat}
+            )
+
+            # Create winner notification
+            cat_label = next((c['label'] for c in NOMINATION_CATEGORIES if c['key'] == cat), cat)
+            db.add(WebNotification(
+                user_id=winner_id,
+                notif_type='legacy_award',
+                message=f'You won {cat_label} for {month_year}! +{cat_points[cat]} Legacy awarded.',
+                created_at=now,
+                is_read=0,
+            ))
+            db.commit()
+
+            results.append({'category': cat, 'winner_id': winner_id})
+
+        # Award Legacy outside the session loop to avoid DetachedInstanceError
+    for r in results:
+        if r.get('winner_id'):
+            award_legacy(
+                r['winner_id'],
+                'most_helpful_vote',
+                source='web',
+                ref_id=f"{month_year}:{r['category']}",
+            )
+            grant_flair_award(r['winner_id'], r['category'], month_year)
+
+    return JsonResponse({'success': True, 'month_year': month_year, 'results': results})
+
+
+@add_web_user_context
+def steamquest(request):
+    """SteamQuest - random game picker from the user's Steam library."""
+    web_user = request.web_user
+    has_steam = bool(web_user and web_user.steam_id)
+    return render(request, 'questlog_web/steamquest.html', {
+        'web_user': web_user,
+        'active_page': 'steamquest',
+        'has_steam': has_steam,
+    })
+
+
+@add_web_user_context
+@require_http_methods(['GET'])
+@ratelimit(key='ip', rate='30/m', block=True)
+def api_steamquest_library(request):
+    """GET /ql/api/steamquest/library/ - fetch + cache user's Steam owned games."""
+    from .helpers import STEAM_API_KEY
+    from .steam_auth import get_steam_owned_games
+    from django.core.cache import cache
+
+    web_user = request.web_user
+    if not web_user or not web_user.steam_id:
+        return JsonResponse({'ok': False, 'error': 'Steam account not linked. Link Steam in your settings.'}, status=400)
+
+    cache_key = f'steamquest_library_{web_user.steam_id}'
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return JsonResponse({'ok': True, 'games': cached, 'cached': True})
+
+    games = get_steam_owned_games(web_user.steam_id, STEAM_API_KEY, include_free=True)
+    if games is None:
+        return JsonResponse({'ok': False, 'error': 'Could not fetch Steam library. Make sure your Steam profile is set to Public in Steam privacy settings.'}, status=502)
+
+    cache.set(cache_key, games, 600)
+    return JsonResponse({'ok': True, 'games': games, 'cached': False})
+
+
+@add_web_user_context
+@require_http_methods(['GET'])
+@ratelimit(key='ip', rate='60/m', block=True)
+def api_steamquest_game_detail(request, app_id):
+    """GET /ql/api/steamquest/game/<app_id>/ - on-demand rich game data from Steam store."""
+    import requests as http_requests
+    from .helpers import STEAM_API_KEY
+    from django.core.cache import cache
+
+    app_id = int(app_id)
+    cache_key = f'steamquest_detail_{app_id}'
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return JsonResponse({'ok': True, **cached})
+
+    result = {}
+    try:
+        # Store details: description, genres, categories, screenshots, movies, metacritic
+        resp = http_requests.get(
+            f'https://store.steampowered.com/api/appdetails?appids={app_id}&cc=us&l=en',
+            headers={'User-Agent': 'Mozilla/5.0'}, timeout=10
+        )
+        data = resp.json().get(str(app_id), {}).get('data', {})
+
+        cats = {c['id'] for c in data.get('categories', [])}
+        genres = [g['description'] for g in data.get('genres', [])]
+        genre_ids = [int(g['id']) for g in data.get('genres', []) if 'id' in g]
+        # Steam community tag IDs (dict of tagid -> vote_count, keys are strings)
+        raw_tags = data.get('tags', {})
+        steam_tag_ids = [int(k) for k in raw_tags.keys()] if isinstance(raw_tags, dict) else []
+
+        result = {
+            'name': data.get('name', ''),
+            'short_description': data.get('short_description', ''),
+            'header_image': data.get('header_image', ''),
+            'background': data.get('background', ''),
+            'capsule_image': data.get('capsule_imagev5', data.get('capsule_image', '')),
+            'genres': genres,
+            'genre_ids': genre_ids,
+            'steam_tag_ids': steam_tag_ids,
+            'developers': data.get('developers', []),
+            'publishers': data.get('publishers', []),
+            'release_date': data.get('release_date', {}).get('date', ''),
+            'metacritic_score': data.get('metacritic', {}).get('score'),
+            'metacritic_url': data.get('metacritic', {}).get('url'),
+            'recommendations': data.get('recommendations', {}).get('total'),
+            'achievements_total': data.get('achievements', {}).get('total', 0),
+            'is_free': data.get('is_free', False),
+            'website': data.get('website', ''),
+            # Feature flags from categories
+            'has_singleplayer':    2  in cats,
+            'has_multiplayer':     1  in cats or 9 in cats,
+            'has_co_op':           9  in cats or 38 in cats,
+            'has_controller':      28 in cats or 33 in cats or 18 in cats,
+            'has_full_controller': 28 in cats,
+            'has_trading_cards':   29 in cats,
+            'has_cloud':           23 in cats,
+            'has_workshop':        30 in cats,
+            'has_achievements':    22 in cats,
+            'has_remote_play':     41 in cats or 42 in cats or 43 in cats,
+            # Media
+            'screenshots': [s['path_full'] for s in data.get('screenshots', [])[:8]],
+            'movies': [
+                {
+                    'name': m.get('name', ''),
+                    'thumbnail': m.get('thumbnail', ''),
+                    'mp4': m.get('mp4', {}).get('max') or m.get('mp4', {}).get('480'),
+                    'webm': m.get('webm', {}).get('max') or m.get('webm', {}).get('480'),
+                }
+                for m in data.get('movies', [])[:3]
+            ],
+        }
+    except Exception as e:
+        logger.warning(f'SteamQuest appdetails failed for {app_id}: {e}')
+
+    # Review score (separate endpoint - more accurate)
+    try:
+        rev = http_requests.get(
+            f'https://store.steampowered.com/appreviews/{app_id}?json=1&num_per_page=0&language=all',
+            headers={'User-Agent': 'Mozilla/5.0'}, timeout=6
+        ).json()
+        qs = rev.get('query_summary', {})
+        result['review_score_desc'] = qs.get('review_score_desc', '')
+        result['review_score']      = qs.get('review_score', 0)
+        result['reviews_positive']  = qs.get('total_positive', 0)
+        result['reviews_total']     = qs.get('total_reviews', 0)
+        if result['reviews_total'] > 0:
+            result['review_pct'] = round(result['reviews_positive'] / result['reviews_total'] * 100)
+        else:
+            result['review_pct'] = None
+    except Exception as e:
+        logger.warning(f'SteamQuest reviews failed for {app_id}: {e}')
+
+    # Per-user achievements if Steam ID available
+    web_user = getattr(request, 'web_user', None)
+    if web_user and web_user.steam_id and result.get('has_achievements'):
+        try:
+            ach_resp = http_requests.get(
+                f'https://api.steampowered.com/ISteamUserStats/GetPlayerAchievements/v1/',
+                params={'key': STEAM_API_KEY, 'steamid': web_user.steam_id, 'appid': app_id},
+                timeout=6
+            ).json()
+            achievements = ach_resp.get('playerstats', {}).get('achievements', [])
+            earned = sum(1 for a in achievements if a.get('achieved'))
+            result['user_achievements_earned'] = earned
+            result['user_achievements_total']  = len(achievements)
+        except Exception:
+            pass
+
+    cache.set(cache_key, result, 3600)  # 1hr cache - game data rarely changes
+    return JsonResponse({'ok': True, **result})
+
+
+@add_web_user_context
+@require_http_methods(['GET'])
+def api_steamquest_tag_filter(request):
+    """GET /ql/api/steamquest/tag/?tag_name=battle+royale
+    Returns app IDs from local web_steam_app_tags table that have this tag.
+    Client intersects with owned library for genre/theme filtering."""
+    from django.core.cache import cache
+    from sqlalchemy import text as sa_text
+
+    tag_name = request.GET.get('tag_name', '').strip().lower()
+    if not tag_name or len(tag_name) > 100:
+        return JsonResponse({'ok': False, 'error': 'Invalid tag_name'}, status=400)
+
+    cache_key = f'sqtag_{tag_name}'
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return JsonResponse({'ok': True, 'app_ids': cached, 'source': 'cache'})
+
+    with get_db_session() as db:
+        rows = db.execute(
+            sa_text('SELECT app_id FROM web_steam_app_tags WHERE tag_name = :tag'),
+            {'tag': tag_name}
+        ).fetchall()
+    app_ids = [r[0] for r in rows]
+    cache.set(cache_key, app_ids, 1800)  # 30min cache
+    return JsonResponse({'ok': True, 'app_ids': app_ids, 'count': len(app_ids)})
+
+
+@web_login_required
+@require_http_methods(['POST'])
+@ratelimit(key='ip', rate='2/m', block=True)
+def api_steamquest_sync_tags(request):
+    """POST /ql/api/steamquest/sync-tags/
+    Fetches SteamSpy tags for all app_ids in the current user's library
+    that aren't already in web_steam_app_tags. Runs in background thread."""
+    import threading
+    import requests as http_requests
+    from django.core.cache import cache
+    from sqlalchemy import text as sa_text
+    from .helpers import STEAM_API_KEY
+    from .steam_auth import get_steam_owned_games
+
+    web_user = request.web_user
+    if not web_user or not web_user.steam_id:
+        return JsonResponse({'ok': True, 'queued': 0})
+
+    # Use cached library if available, else fetch
+    cache_key = f'steamquest_library_{web_user.steam_id}'
+    games = cache.get(cache_key)
+    if not games:
+        games = get_steam_owned_games(web_user.steam_id, STEAM_API_KEY, include_free=True) or []
+
+    all_ids = [int(g['app_id']) for g in games if g.get('app_id')]
+    if not all_ids:
+        return JsonResponse({'ok': True, 'queued': 0})
+
+    # Find which ones aren't synced yet
+    placeholders = ','.join(str(aid) for aid in all_ids)
+    with get_db_session() as db:
+        synced = {r[0] for r in db.execute(
+            sa_text(f'SELECT DISTINCT app_id FROM web_steam_app_tags WHERE app_id IN ({placeholders})')
+        ).fetchall()}
+    to_sync = [aid for aid in all_ids if aid not in synced]
+
+    if not to_sync:
+        return JsonResponse({'ok': True, 'queued': 0, 'msg': 'all synced'})
+
+    def sync_worker(app_ids):
+        from concurrent.futures import ThreadPoolExecutor, as_completed as asc
+        now = int(time.time())
+
+        def fetch(aid):
+            try:
+                r = http_requests.get(
+                    f'https://steamspy.com/api.php?request=appdetails&appid={aid}',
+                    headers={'User-Agent': 'Mozilla/5.0'}, timeout=6
+                ).json()
+                tags = r.get('tags', {})
+                return aid, [t.lower() for t in tags.keys()] if isinstance(tags, dict) and tags else None
+            except Exception:
+                return aid, None
+
+        for i in range(0, len(app_ids), 20):
+            batch = app_ids[i:i + 20]
+            with ThreadPoolExecutor(max_workers=20) as ex:
+                for fut in asc({ex.submit(fetch, aid): aid for aid in batch}):
+                    aid, tags = fut.result()
+                    if tags:
+                        try:
+                            with get_db_session() as db:
+                                for tag in tags:
+                                    db.execute(sa_text(
+                                        'INSERT IGNORE INTO web_steam_app_tags (app_id, tag_name, synced_at) '
+                                        'VALUES (:app_id, :tag, :now)'
+                                    ), {'app_id': aid, 'tag': tag, 'now': now})
+                                db.commit()
+                        except Exception:
+                            pass
+            if i + 20 < len(app_ids):
+                time.sleep(0.5)
+
+    threading.Thread(target=sync_worker, args=(to_sync,), daemon=True).start()
+    return JsonResponse({'ok': True, 'queued': len(to_sync)})
+
+
+@add_web_user_context
+@require_http_methods(['GET'])
+@ratelimit(key='ip', rate='30/m', block=True)
+def api_steamquest_who_owns(request):
+    """GET /ql/api/steamquest/who-owns/?app_id=X
+    Returns list of QuestLog members who have opted in to library sharing and own this game.
+    Only checks users who have share_steam_library=True. Uses cached libraries where available.
+    """
+    from .helpers import STEAM_API_KEY
+    from .steam_auth import get_steam_owned_games
+    from .models import WebUser
+    from django.core.cache import cache
+
+    web_user = request.web_user
+    if not web_user:
+        return JsonResponse({'ok': False, 'error': 'Login required'}, status=401)
+
+    app_id_str = request.GET.get('app_id', '').strip()
+    if not app_id_str or not app_id_str.isdigit():
+        return JsonResponse({'ok': False, 'error': 'Invalid app_id'}, status=400)
+    app_id = int(app_id_str)
+
+    # Find all opted-in users with Steam linked, excluding self
+    with get_db_session() as db:
+        candidates = db.query(
+            WebUser.id, WebUser.steam_id, WebUser.username,
+            WebUser.avatar_url, WebUser.steam_username
+        ).filter(
+            WebUser.share_steam_library == True,
+            WebUser.steam_id.isnot(None),
+            WebUser.steam_id != '',
+            WebUser.is_banned == False,
+            WebUser.is_disabled == False,
+        ).limit(100).all()
+
+    if not candidates:
+        return JsonResponse({'ok': True, 'owners': []})
+
+    owners = []
+    for u in candidates:
+        cache_key = f'steamquest_library_{u.steam_id}'
+        library = cache.get(cache_key)
+        if library is None:
+            # Fetch and cache their library (10 min)
+            library = get_steam_owned_games(u.steam_id, STEAM_API_KEY, include_free=True)
+            if library:
+                cache.set(cache_key, library, 600)
+            else:
+                continue
+
+        if any(g['app_id'] == app_id for g in library):
+            playtime = next((g['playtime_hours'] for g in library if g['app_id'] == app_id), 0)
+            owners.append({
+                'username': u.username,
+                'display_name': u.steam_username or u.username,
+                'avatar_url': u.avatar_url or '',
+                'playtime_hours': playtime,
+                'profile_url': f'/ql/u/{u.username}/',
+            })
+
+    owners.sort(key=lambda x: x['playtime_hours'], reverse=True)
+    return JsonResponse({'ok': True, 'owners': owners})
+
+
+@add_web_user_context
+@require_http_methods(['GET'])
+def api_steamquest_community_owns(request):
+    """GET /api/steamquest/community-owns/?names=Game1|Game2
+    Returns how many QuestLog members (with share_steam_library=True and Steam linked)
+    own each game, matched by name against their cached Steam libraries.
+    """
+    from .helpers import STEAM_API_KEY
+    from .steam_auth import get_steam_owned_games
+    from .models import WebUser
+    from django.core.cache import cache
+
+    raw = request.GET.get('names', '').strip()
+    if not raw:
+        return JsonResponse({'ok': False, 'error': 'names required'}, status=400)
+
+    names = [n.strip() for n in raw.split('|') if n.strip()][:10]
+    if not names:
+        return JsonResponse({'ok': False, 'error': 'names required'}, status=400)
+
+    cache_key = 'community_owns_' + '_'.join(sorted(n.lower() for n in names))
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return JsonResponse({'ok': True, 'counts': cached})
+
+    with get_db_session() as db:
+        candidates = db.query(WebUser.id, WebUser.steam_id).filter(
+            WebUser.share_steam_library == True,
+            WebUser.steam_id.isnot(None),
+            WebUser.steam_id != '',
+            WebUser.is_banned == False,
+            WebUser.is_disabled == False,
+        ).limit(200).all()
+
+    name_lower = {n.lower(): n for n in names}
+    counts = {n: 0 for n in names}
+
+    for u in candidates:
+        lib_key = f'steamquest_library_{u.steam_id}'
+        library = cache.get(lib_key)
+        if library is None:
+            library = get_steam_owned_games(u.steam_id, STEAM_API_KEY, include_free=True)
+            if library:
+                cache.set(lib_key, library, 600)
+            else:
+                continue
+        for g in library:
+            gname = (g.get('name') or '').lower()
+            if gname in name_lower:
+                counts[name_lower[gname]] += 1
+
+    cache.set(cache_key, counts, 300)
+    return JsonResponse({'ok': True, 'counts': counts})
+
+
+from django.http import JsonResponse
+from django.views.decorators.http import require_GET
+
+@require_GET
+def api_public_testimonials(request):
+    """Public: return active testimonials ordered by sort_order."""
+    with get_db_session() as db:
+        rows = db.query(WebTestimonial).filter_by(is_active=True).order_by(
+            WebTestimonial.sort_order, WebTestimonial.id
+        ).all()
+        data = [{
+            'id':          t.id,
+            'member_name': t.member_name,
+            'handle':      t.handle or '',
+            'avatar_url':  t.avatar_url or '',
+            'quote':       t.quote,
+            'game_tag':    t.game_tag or '',
+        } for t in rows]
+    return JsonResponse({'testimonials': data})

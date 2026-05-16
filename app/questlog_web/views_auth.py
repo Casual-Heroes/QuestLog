@@ -29,7 +29,7 @@ from app.db import get_db_session
 from .fluxer_webhooks import notify_member_signup_log as _log_new_member
 from .helpers import (
     get_web_user, web_login_required, STEAM_API_KEY, safe_redirect_url,
-    award_hero_points, XP_TO_HP_THRESHOLD, HP_PER_THRESHOLD, HP_PER_LEVEL, _get_level_for_xp,
+    award_hero_points, award_legacy, XP_TO_HP_THRESHOLD, HP_PER_THRESHOLD, HP_PER_LEVEL, _get_level_for_xp,
 )
 from .steam_auth import (
     get_steam_login_url,
@@ -43,7 +43,7 @@ logger = logging.getLogger(__name__)
 # Uses a dedicated redirect URI separate from the bot-dashboard OAuth flow.
 _DISCORD_CLIENT_ID     = django_settings.DISCORD_CLIENT_ID
 _DISCORD_CLIENT_SECRET = django_settings.DISCORD_CLIENT_SECRET
-_DISCORD_REDIRECT_URI_QL = django_settings.DISCORD_REDIRECT_URI_QL  # e.g. https://casual-heroes.com/ql/auth/discord/link/callback/
+_DISCORD_REDIRECT_URI_QL = django_settings.DISCORD_REDIRECT_URI_QL  # e.g. https://casual-heroes.comauth/discord/link/callback/
 _DISCORD_AUTH_URL  = 'https://discord.com/api/oauth2/authorize'
 _DISCORD_TOKEN_URL = 'https://discord.com/api/oauth2/token'
 _DISCORD_API       = 'https://discord.com/api/v10'
@@ -175,7 +175,7 @@ def _maybe_award_founding_flair(user, db):
 def ql_login(request, early_access_bypass=False):
     """Site login — username + password via Django auth."""
     if request.session.get('web_user_id'):
-        return redirect(safe_redirect_url(request.GET.get('next', '/ql/')))
+        return redirect(safe_redirect_url(request.GET.get('next', '')))
 
     if not early_access_bypass:
         with get_db_session() as db:
@@ -188,7 +188,7 @@ def ql_login(request, early_access_bypass=False):
     if request.method == 'POST':
         username = request.POST.get('username', '').strip()
         password = request.POST.get('password', '')
-        next_url = safe_redirect_url(request.POST.get('next', '/ql/'))
+        next_url = safe_redirect_url(request.POST.get('next', ''))
 
         # Turnstile check on early access login
         if early_access_bypass and turnstile_site_key:
@@ -289,7 +289,7 @@ def ql_login(request, early_access_bypass=False):
         messages.success(request, f"Welcome back, {user.display_name or user.username}!")
         return redirect(safe_redirect_url(next_url))
 
-    next_url = safe_redirect_url(request.GET.get('next', '/ql/'))
+    next_url = safe_redirect_url(request.GET.get('next', ''))
     pending_email = request.session.get('pending_verification_email', '')
     return render(request, 'questlog_web/login.html', {
         'next': next_url,
@@ -328,7 +328,7 @@ def ql_admin_login(request):
     No hints are given if a non-admin account attempts access.
     """
     if request.session.get('web_user_id') and request.session.get('web_user_is_admin'):
-        return redirect('/ql/admin/')
+        return redirect('admin/')
 
     ctx = {'turnstile_site_key': django_settings.TURNSTILE_SITE_KEY}
 
@@ -350,7 +350,7 @@ def ql_admin_login(request):
             return render(request, 'questlog_web/admin_login.html', ctx)
         try:
             elapsed = int(time.time()) - int(_ts_raw)
-            if elapsed < 3:
+            if elapsed < 3 or elapsed > 3600:
                 logger.warning(f"Admin login timing check failed ({elapsed}s) from {_get_remote_ip(request)}")
                 messages.error(request, "Invalid credentials.")
                 return render(request, 'questlog_web/admin_login.html', ctx)
@@ -394,7 +394,7 @@ def ql_admin_login(request):
             request.session.modified = True
 
         logger.info(f"Admin login successful: '{username}' from {_get_remote_ip(request)}")
-        return redirect('/ql/admin/')
+        return redirect('admin/')
 
     return render(request, 'questlog_web/admin_login.html', ctx)
 
@@ -403,9 +403,9 @@ def ql_admin_login(request):
 @ratelimit(key='ip', rate='15/m', block=True)
 def api_check_invite(request):
     """
-    POST /ql/api/register/check-invite/
+    POST api/register/check-invite/
     Validates an invite code without marking it used.
-    Returns {valid: true, redirect: '/ql/register/?invite=CODE'} or {valid: false, error: '...'}.
+    Returns {valid: true, redirect: 'register/?invite=CODE'} or {valid: false, error: '...'}.
     Used by the early access gate on the registration page.
     """
     try:
@@ -424,14 +424,14 @@ def api_check_invite(request):
         if not obj:
             return JsonResponse({'valid': False, 'error': 'That code is invalid or has already been used.'})
 
-    return JsonResponse({'valid': True, 'redirect': f'/ql/register/?invite={code}'})
+    return JsonResponse({'valid': True, 'redirect': f'register/?invite={code}'})
 
 
 @ratelimit(key='ip', rate='5/h', block=True)
 def ql_register(request):
     """Account registration — username + password via Django auth."""
     if request.session.get('web_user_id'):
-        return redirect('/ql/')
+        return redirect('/')
 
     # Check for invite code bypass (from ?invite=CODE query param on GET, or invite_code field on POST)
     if request.method == 'GET':
@@ -645,7 +645,7 @@ def ql_register(request):
         request.session['web_user_avatar']   = user.avatar_url or ''
         request.session['web_user_is_admin'] = False
 
-        return redirect('/ql/')
+        return redirect('/')
 
     return render(request, 'questlog_web/register.html', {
         'turnstile_site_key': django_settings.TURNSTILE_SITE_KEY,
@@ -679,7 +679,7 @@ def verify_email(request, token):
         if web_user.email_verified:
             messages.info(request, "Your email is already verified.")
             if request.session.get('web_user_id'):
-                return redirect('/ql/')
+                return redirect('/')
             return redirect('questlog_web_login')
 
         web_user.email_verified = True
@@ -702,13 +702,14 @@ def verify_email(request, token):
     # Award HP outside the session (award_hero_points opens its own session)
     if referrer_id_to_reward:
         award_hero_points(referrer_id_to_reward, 'invite', ref_id=str(web_user.id))
+        award_legacy(referrer_id_to_reward, 'referral_active', ref_id=str(web_user.id))
         logger.info(f"Referral completed: referrer={referrer_id_to_reward} new_user={web_user.id} +50 HP")
 
     # Staff audit log - new QuestLog signup (private channels only, never member-visible)
     if web_user:
         _log_new_member(
             username=web_user.username,
-            profile_url=f"https://casual-heroes.com/ql/profile/{web_user.username}/",
+            profile_url=f"https://casual-heroes.comprofile/{web_user.username}/",
         )
 
     # Clear pending verification state
@@ -719,7 +720,7 @@ def verify_email(request, token):
     messages.success(request, "Email verified! Welcome to QuestLog.")
     # If already logged in, go straight to home; otherwise send to login
     if request.session.get('web_user_id'):
-        return redirect('/ql/')
+        return redirect('/')
     return redirect('questlog_web_login')
 
 
@@ -778,6 +779,7 @@ def check_email(request):
     return render(request, 'questlog_web/check_email.html', {'email': email})
 
 
+@require_http_methods(["POST"])
 def logout(request):
     """Clear the QuestLog session and Django session, send user home."""
     # Drain any pending messages so they don't leak to the login page
@@ -796,7 +798,7 @@ def logout(request):
 @web_login_required
 def steam_link(request):
     """Start Steam OpenID so the user can link their Steam account."""
-    return_url = request.build_absolute_uri('/ql/auth/steam/callback/')
+    return_url = request.build_absolute_uri('/auth/steam/callback/')
     realm      = request.build_absolute_uri('/').rstrip('/')
     return redirect(get_steam_login_url(return_url, realm))
 
@@ -881,7 +883,7 @@ def discord_link(request):
 
 
 @web_login_required
-@ratelimit(key='user', rate='10/h', block=True)
+@ratelimit(key='ip', rate='10/h', block=True)
 def discord_link_callback(request):
     """Discord redirects here after the user authorises. Save discord_id to WebUser."""
     error = request.GET.get('error')
@@ -986,9 +988,8 @@ def discord_link_callback(request):
                 "JOIN web_communities wc ON wc.platform='discord' "
                 "    AND CAST(wc.platform_id AS UNSIGNED) = gm.guild_id "
                 "    AND wc.site_xp_to_guild=1 AND wc.network_status='approved' AND wc.is_active=1 "
-                "JOIN web_users wu ON wu.id = :wuid AND wu.primary_community_id = wc.id "
                 "WHERE gm.user_id = :did AND gm.xp > 0"
-            ), {"did": int(discord_id), "wuid": web_user_id}).fetchall()
+            ), {"did": int(discord_id)}).fetchall()
 
             if guild_rows:
                 # Take the highest XP across all guilds as the unified value
@@ -1071,7 +1072,7 @@ def discord_unlink(request):
 # --- Fluxer OAuth (account linking) -----------------------------------------
 
 @web_login_required
-@ratelimit(key='user', rate='10/h', block=True)
+@ratelimit(key='ip', rate='10/h', block=True)
 def fluxer_link(request):
     """Start Fluxer OAuth2 to link a Fluxer account to the current QuestLog user."""
     if not _FLUXER_CLIENT_ID or not _FLUXER_REDIRECT_URI_QL:
@@ -1094,11 +1095,12 @@ def fluxer_link(request):
 
 
 @web_login_required
-@ratelimit(key='user', rate='10/h', block=True)
+@ratelimit(key='ip', rate='10/h', block=True)
 def fluxer_link_callback(request):
-    """Fluxer redirects here after the user authorises. Save fluxer_id to WebUser."""
+    logger.debug(f"fluxer_link_callback: hit by user={getattr(request, 'web_user', None) and request.web_user.id} GET_params={dict(request.GET)}")
     error = request.GET.get('error')
     if error:
+        logger.warning(f"fluxer_link_callback: Fluxer returned error={error} for user={getattr(request, 'web_user', None) and request.web_user.id}")
         messages.error(request, f"Fluxer authorisation failed: {error}")
         return redirect('questlog_web_profile')
 
@@ -1109,14 +1111,17 @@ def fluxer_link_callback(request):
     stored_ts    = request.session.pop('ql_fluxer_link_ts', 0)
 
     if not state or not stored_state or not hmac.compare_digest(state, stored_state):
+        logger.warning(f"fluxer_link_callback: invalid OAuth state - state={repr(state)} stored={repr(stored_state)} user={getattr(request, 'web_user', None) and request.web_user.id} GET_params={dict(request.GET)}")
         messages.error(request, "Invalid OAuth state. Please try again.")
         return redirect('questlog_web_profile')
 
     if int(time.time()) - stored_ts > 600:
+        logger.warning(f"fluxer_link_callback: OAuth session expired for user={request.web_user.id}")
         messages.error(request, "OAuth session expired. Please try again.")
         return redirect('questlog_web_profile')
 
     if not code:
+        logger.warning(f"fluxer_link_callback: no code received for user={request.web_user.id}")
         messages.error(request, "No authorisation code received.")
         return redirect('questlog_web_profile')
 
@@ -1374,13 +1379,16 @@ def fluxer_dashboard_callback(request):
         messages.error(request, "Could not read Fluxer ID. Please try again.")
         return redirect('questlog_web_home')
 
+    # Rotate session ID before writing auth data (session fixation prevention)
+    request.session.cycle_key()
+
     # Store lite session - no QL account created or required
     request.session['fluxer_session_id']       = fluxer_id
     request.session['fluxer_session_username'] = fluxer_username
     request.session['fluxer_session_ts']       = int(time.time())
 
     from .helpers import safe_redirect_url
-    safe_next = safe_redirect_url(next_url, default='/ql/dashboard/fluxer/')
+    safe_next = safe_redirect_url(next_url, default='dashboard/fluxer/')
     return redirect(safe_next)
 
 
@@ -1478,13 +1486,16 @@ def discord_dashboard_callback(request):
         messages.error(request, "Could not read Discord ID. Please try again.")
         return redirect('questlog_web_home')
 
+    # Rotate session ID before writing auth data (session fixation prevention)
+    request.session.cycle_key()
+
     # Store lite session - no QL account created or required
     request.session['discord_session_id']       = discord_id
     request.session['discord_session_username'] = discord_username
     request.session['discord_session_ts']       = int(time.time())
 
     from .helpers import safe_redirect_url
-    safe_next = safe_redirect_url(next_url, default='/ql/dashboard/discord/')
+    safe_next = safe_redirect_url(next_url, default='dashboard/discord/')
     return redirect(safe_next)
 
 
@@ -1751,7 +1762,7 @@ def youtube_oauth_callback(request):
         profile.updated_at = now
 
         # Sync channel ID to WebUser so check_live_status cron can find this user
-        user = db.query(WebUser).filter_by(id=web_user_id).first()
+        user = db.query(WebUser).filter_by(id=request.web_user.id).first()
         if user:
             user.youtube_channel_id = channel_info['id']
 
@@ -1975,7 +1986,7 @@ def password_reset_request(request):
                         'uid': django_user.pk,
                         'ph': (django_user.password or '')[-8:],
                     }, salt=RESET_SALT)
-                    reset_url = request.build_absolute_uri(f'/ql/password-reset/confirm/{token}/')
+                    reset_url = request.build_absolute_uri(f'password-reset/confirm/{token}/')
                     send_mail(
                         subject='Reset your QuestLog password',
                         message=(
@@ -2059,9 +2070,9 @@ def password_reset_confirm(request, token):
 #   1. User clicks "Connect" on profile page -> matrix_link_initiate
 #   2. Redirect to MAS authorize endpoint with PKCE state
 #   3. User logs in / authorizes on MAS
-#   4. MAS redirects to /ql/auth/matrix/callback/ with ?code=
+#   4. MAS redirects to auth/matrix/callback/ with ?code=
 #   5. Exchange code for token, fetch userinfo, store matrix_id on web_users
-#   6. /ql/auth/matrix/unlink/ clears the fields
+#   6. auth/matrix/unlink/ clears the fields
 
 _MAS_CLIENT_ID     = getattr(django_settings, 'MAS_CLIENT_ID', '')
 _MAS_CLIENT_SECRET = getattr(django_settings, 'MAS_CLIENT_SECRET', '')
@@ -2097,7 +2108,7 @@ def matrix_link_initiate(request):
 
 
 @web_login_required
-@ratelimit(key='user', rate='10/h', block=True)
+@ratelimit(key='ip', rate='10/h', block=True)
 def matrix_link_verify(request):
     """MAS redirects here after authorization. Save matrix_id to WebUser."""
     error = request.GET.get('error')

@@ -1,7 +1,7 @@
 {% extends "questlog_web/base_web.html" %}
 {% load static %}
 
-{% block title %}Find Gamers - QuestLog{% endblock %}
+{% block title %}Find Players - QuestLog{% endblock %}
 
 {% block web_content %}
 
@@ -36,14 +36,26 @@
   <div class="max-w-7xl mx-auto">
     <h1 class="text-3xl font-bold text-white flex items-center gap-3">
       <i class="fas fa-users text-indigo-400"></i>
-      Find Gamers
+      Find Players
     </h1>
-    <p class="text-gray-400 mt-1">Discover players to game with, follow, and connect with</p>
+    <p class="text-gray-400 mt-1">Find gamers to play with, follow, and connect with on QuestLog</p>
+
+    <!-- Tab bar -->
+    <div class="flex gap-3 mt-5">
+      <button id="tab-browse-btn" onclick="switchMainTab('browse')"
+        class="px-4 py-2 rounded-lg text-sm font-semibold transition border border-indigo-600 bg-indigo-600 text-white">
+        <i class="fas fa-user-friends mr-1.5"></i>Browse Gamers
+      </button>
+      <button id="tab-bygame-btn" onclick="switchMainTab('bygame')"
+        class="px-4 py-2 rounded-lg text-sm font-semibold transition border border-neutral-700 bg-neutral-800 text-gray-400 hover:border-indigo-500/50 hover:text-indigo-300">
+        <i class="fas fa-gamepad mr-1.5"></i>By Game
+      </button>
+    </div>
   </div>
 </div>
 
-<!-- Filters -->
-<div class="max-w-7xl mx-auto px-4">
+<!-- ═══════════════════════════ TAB: BROWSE GAMERS ═══════════════════════════ -->
+<div id="tab-browse" class="max-w-7xl mx-auto px-4">
   <div class="bg-neutral-900/50 rounded-lg border border-neutral-800 p-4 mb-6">
     <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
       <div class="md:col-span-2">
@@ -62,15 +74,12 @@
     </div>
   </div>
 
-  <!-- Results count -->
   <div class="flex items-center justify-between mb-4">
     <p id="resultsCount" class="text-gray-500 text-sm"></p>
   </div>
 
-  <!-- Grid -->
   <div id="gamersGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mb-8"></div>
 
-  <!-- Loading skeleton -->
   <div id="loadingSkeleton" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mb-8">
     {% for _ in "12345678" %}
     <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-4 animate-pulse">
@@ -89,14 +98,12 @@
     {% endfor %}
   </div>
 
-  <!-- Empty state -->
   <div id="emptyState" class="hidden text-center py-16">
     <i class="fas fa-user-slash text-4xl text-gray-700 mb-4"></i>
     <p class="text-gray-400 text-lg font-medium">No gamers found</p>
     <p class="text-gray-600 text-sm mt-1">Try adjusting your search or filters</p>
   </div>
 
-  <!-- Pagination -->
   <div id="pagination" class="flex items-center justify-center gap-2 pb-8 hidden">
     <button id="prevBtn" onclick="changePage(-1)"
       class="px-4 py-2 bg-neutral-800 hover:bg-neutral-700 text-white rounded-lg text-sm transition disabled:opacity-40 disabled:cursor-not-allowed">
@@ -110,11 +117,160 @@
   </div>
 </div>
 
+<!-- ═══════════════════════════ TAB: BY GAME ═══════════════════════════ -->
+<div id="tab-bygame" class="hidden max-w-5xl mx-auto px-4 pb-10">
+
+  <!-- Community Panel -->
+  <div class="mb-8">
+    <h2 class="text-base font-bold text-white mb-1 flex items-center gap-2">
+      <i class="fas fa-search text-indigo-400 text-sm"></i>Game Community Panel
+    </h2>
+    <p class="text-gray-500 text-sm mb-4">Search any game - who's playing, who wants to group up, recent LFG posts.</p>
+
+    <div class="bg-neutral-900 border border-neutral-800 rounded-2xl overflow-hidden">
+      <div class="p-5 pb-0">
+        <div class="relative">
+          <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-xs"></i>
+          <input id="cp-search-input" type="text" placeholder="Search a game..."
+            class="w-full bg-neutral-800 border border-neutral-700 text-white rounded-xl pl-8 pr-4 py-2.5 text-sm focus:outline-none focus:border-indigo-500">
+          <div id="cp-suggestions" class="hidden absolute left-0 right-0 top-full mt-1 bg-neutral-900 border border-neutral-700 rounded-xl shadow-xl z-50 max-h-48 overflow-y-auto"></div>
+        </div>
+      </div>
+
+      <div id="community-panel" class="hidden mt-4">
+        <div class="relative h-36 overflow-hidden">
+          <img id="cp-hero-img" src="" class="w-full h-full object-cover opacity-50">
+          <div class="absolute inset-0 bg-gradient-to-t from-neutral-900 via-neutral-900/50 to-transparent"></div>
+          <div class="absolute bottom-4 left-5 flex items-center gap-3">
+            <img id="cp-cover" src="" class="w-14 h-20 object-cover rounded-lg border border-neutral-700 shadow-xl">
+            <div>
+              <h3 id="cp-name" class="text-white font-bold text-xl leading-tight"></h3>
+              <p id="cp-meta" class="text-gray-400 text-xs mt-0.5"></p>
+            </div>
+          </div>
+        </div>
+        <div class="grid grid-cols-4 divide-x divide-neutral-800 border-b border-t border-neutral-800">
+          <div class="px-4 py-3 text-center"><p id="cp-playing" class="text-white font-bold text-xl">0</p><p class="text-gray-500 text-[10px] uppercase tracking-wider mt-0.5">CH Members Playing</p></div>
+          <div class="px-4 py-3 text-center"><p id="cp-pt-count" class="text-orange-400 font-bold text-xl">0</p><p class="text-gray-500 text-[10px] uppercase tracking-wider mt-0.5">Want to Play Together</p></div>
+          <div class="px-4 py-3 text-center"><p id="cp-played" class="text-blue-400 font-bold text-xl">0</p><p class="text-gray-500 text-[10px] uppercase tracking-wider mt-0.5">Total Played</p></div>
+          <div class="px-4 py-3 text-center"><p id="cp-lfg" class="text-green-400 font-bold text-xl">0</p><p class="text-gray-500 text-[10px] uppercase tracking-wider mt-0.5">Active LFG Groups</p></div>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-0 divide-y md:divide-y-0 md:divide-x divide-neutral-800 p-5">
+          <div class="md:pr-6 pb-5 md:pb-0">
+            <p class="text-[10px] text-gray-500 uppercase tracking-widest font-semibold mb-3">Currently Playing</p>
+            <div id="cp-playing-list" class="space-y-2.5"></div>
+          </div>
+          <div class="md:pl-6 pt-5 md:pt-0">
+            <div class="flex items-center justify-between mb-3">
+              <p class="text-[10px] text-gray-500 uppercase tracking-widest font-semibold">Want to Play Together</p>
+              <a id="cp-lfg-btn" href="/lfg/create/" class="text-xs px-3 py-1.5 rounded-lg bg-orange-600 hover:bg-orange-500 text-white transition font-semibold flex items-center gap-1.5">
+                <i class="fas fa-users text-[10px]"></i> Create LFG Group
+              </a>
+            </div>
+            <div id="cp-pt-list" class="space-y-2.5"></div>
+          </div>
+        </div>
+        <div id="cp-lfg-section" class="border-t border-neutral-800 px-5 py-4 hidden">
+          <p class="text-[10px] text-gray-500 uppercase tracking-widest font-semibold mb-3">Active LFG Groups for This Game</p>
+          <div id="cp-lfg-list" class="space-y-2"></div>
+        </div>
+
+        <!-- Posts about this game -->
+        <div id="cp-posts-section" class="border-t border-neutral-800 px-5 py-4 hidden">
+          <div class="flex items-center justify-between mb-3">
+            <p class="text-[10px] text-gray-500 uppercase tracking-widest font-semibold">Posts About This Game</p>
+            <a id="cp-posts-more" href="#" class="text-xs text-indigo-400 hover:text-indigo-300 transition hidden">See all</a>
+          </div>
+          <div id="cp-posts-list" class="space-y-2.5"></div>
+        </div>
+
+        <!-- Communities that play this game -->
+        <div id="cp-communities-section" class="border-t border-neutral-800 px-5 py-4 hidden">
+          <p class="text-[10px] text-gray-500 uppercase tracking-widest font-semibold mb-3">Communities Playing This</p>
+          <div id="cp-communities-list" class="space-y-2.5"></div>
+        </div>
+      </div>
+
+      <div id="cp-empty" class="px-5 pb-6 pt-4 text-gray-600 text-sm text-center">Search a game above to see who's playing.</div>
+    </div>
+  </div>
+
+  <!-- Find Players by Game -->
+  <div class="mb-8">
+    <h2 class="text-base font-bold text-white mb-1 flex items-center gap-2">
+      <i class="fas fa-user-friends text-violet-400 text-sm"></i>Find Players by Game
+    </h2>
+    <p class="text-gray-500 text-sm mb-4">See CH members who play a game and want to group up.</p>
+
+    <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-5">
+      <div class="flex items-center gap-3 mb-4">
+        <div class="flex-1 relative">
+          <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-xs"></i>
+          <input id="fp-search-input" type="text" placeholder="Search a game..."
+            class="w-full bg-neutral-800 border border-neutral-700 text-white rounded-xl pl-8 pr-4 py-2.5 text-sm focus:outline-none focus:border-indigo-500">
+          <div id="fp-suggestions" class="hidden absolute left-0 right-0 top-full mt-1 bg-neutral-900 border border-neutral-700 rounded-xl shadow-xl z-50 max-h-48 overflow-y-auto"></div>
+        </div>
+        <button id="fp-pt-toggle" onclick="togglePTOnly()" class="px-3 py-2.5 rounded-xl text-xs font-semibold bg-neutral-800 text-gray-400 border border-neutral-700 hover:bg-orange-600/20 hover:text-orange-400 hover:border-orange-600/30 transition flex items-center gap-1.5 whitespace-nowrap">
+          <i class="fas fa-users text-[10px]"></i> Play Together only
+        </button>
+      </div>
+      <div id="fp-results">
+        <p class="text-gray-600 text-xs text-center py-2">Search a game above to find members playing it.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- The Closer -->
+  <div class="mb-8">
+    <h2 class="text-base font-bold text-white mb-1 flex items-center gap-2">
+      <i class="fas fa-fire text-orange-400 text-sm"></i>The Closer - Play Together Opportunities
+    </h2>
+    <p class="text-gray-500 text-sm mb-4">When 3+ members flag the same game as "Play Together" within 7 days, it shows here.</p>
+
+    <div id="nudge-section">
+      <div id="nudge-list" class="space-y-3 mb-6">
+        <p class="text-gray-600 text-xs text-center py-4"><i class="fas fa-spinner fa-spin mr-1"></i>Loading opportunities...</p>
+      </div>
+
+      <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-4">
+        <p class="text-[10px] text-gray-500 uppercase tracking-widest font-semibold mb-3">Status Legend</p>
+        <div class="flex flex-wrap gap-x-5 gap-y-2">
+          <div class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full bg-green-500 flex-shrink-0"></span><span class="text-xs text-gray-400"><span class="text-white font-medium">Playing</span> - actively in library now</span></div>
+          <div class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full bg-blue-400 flex-shrink-0"></span><span class="text-xs text-gray-400"><span class="text-white font-medium">Played</span> - finished or shelved</span></div>
+          <div class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full bg-purple-400 flex-shrink-0"></span><span class="text-xs text-gray-400"><span class="text-white font-medium">Backlog</span> - owned, haven't started</span></div>
+          <div class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full bg-orange-500 flex-shrink-0"></span><span class="text-xs text-gray-400"><span class="text-white font-medium">Play Together</span> - actively looking to group</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
 <script>
 let currentPage = 1;
 let totalPages = 1;
 let searchTimeout = null;
+let fpPTOnly = false, fpSelectedGame = null, fpSearchTimer = null;
+let cpSearchTimer = null;
 
+// ── Tab switching ────────────────────────────────────────────────────────────
+function switchMainTab(tab) {
+  const isBrowse = tab === 'browse';
+  document.getElementById('tab-browse').classList.toggle('hidden', !isBrowse);
+  document.getElementById('tab-bygame').classList.toggle('hidden', isBrowse);
+  const browseBtn = document.getElementById('tab-browse-btn');
+  const bygameBtn = document.getElementById('tab-bygame-btn');
+  if (isBrowse) {
+    browseBtn.className = 'px-4 py-2 rounded-lg text-sm font-semibold transition border border-indigo-600 bg-indigo-600 text-white';
+    bygameBtn.className = 'px-4 py-2 rounded-lg text-sm font-semibold transition border border-neutral-700 bg-neutral-800 text-gray-400 hover:border-indigo-500/50 hover:text-indigo-300';
+  } else {
+    browseBtn.className = 'px-4 py-2 rounded-lg text-sm font-semibold transition border border-neutral-700 bg-neutral-800 text-gray-400 hover:border-indigo-500/50 hover:text-indigo-300';
+    bygameBtn.className = 'px-4 py-2 rounded-lg text-sm font-semibold transition border border-indigo-600 bg-indigo-600 text-white';
+  }
+  history.replaceState(null, '', isBrowse ? location.pathname : location.pathname + '#by-game');
+}
+
+// ── Browse Gamers ────────────────────────────────────────────────────────────
 function buildCard(u) {
   const platforms = (u.gaming_platforms || []).map(p => {
     const icon = PLATFORM_ICONS[p.toLowerCase()] || '';
@@ -124,6 +280,14 @@ function buildCard(u) {
   const playstyle = (u.playstyle || []).slice(0, 2).map(ps =>
     `<span class="px-1.5 py-0.5 bg-neutral-800 text-gray-400 text-xs rounded">${esc(ps)}</span>`
   ).join('');
+
+  const badges = [];
+  if (u.is_admin) badges.push(`<span class="px-1.5 py-0.5 bg-yellow-500/20 text-yellow-400 text-[10px] rounded-full font-medium"><i class="fas fa-crown mr-0.5"></i>Admin</span>`);
+  if (u.is_mod && !u.is_admin) badges.push(`<span class="px-1.5 py-0.5 bg-blue-600/20 text-blue-400 text-[10px] rounded-full font-medium"><i class="fas fa-user-shield mr-0.5"></i>Mod</span>`);
+  if (u.is_contributor) badges.push(`<span class="px-1.5 py-0.5 bg-violet-600/20 text-violet-300 text-[10px] rounded-full font-medium"><i class="fas fa-pen mr-0.5"></i>Contributor</span>`);
+  if (u.is_ffxiv_member) badges.push(`<span class="px-1.5 py-0.5 bg-blue-500/20 text-blue-300 text-[10px] rounded-full font-medium flex items-center gap-0.5"><img src="/static/img/games/guilds/ffxiv_logo.png" class="w-2.5 h-2.5 object-contain"> FFXIV</span>`);
+  if (u.is_eso_member) badges.push(`<span class="px-1.5 py-0.5 bg-amber-500/20 text-amber-300 text-[10px] rounded-full font-medium flex items-center gap-0.5"><img src="/static/img/games/guilds/esoguild.png" class="w-2.5 h-2.5 object-contain"> ESO</span>`);
+  const badgeRow = badges.length ? `<div class="flex flex-wrap gap-1 mt-1">${badges.join('')}</div>` : '';
 
   const streaming = [];
   if (u.twitch_username) streaming.push(`<a href="https://twitch.tv/${esc(u.twitch_username)}" target="_blank" rel="noopener" class="text-purple-400 hover:text-purple-300 text-xs transition"><i class="fab fa-twitch"></i></a>`);
@@ -154,17 +318,18 @@ function buildCard(u) {
   return `
     <div class="bg-neutral-900 rounded-xl border ${cardBorder} transition p-4 flex flex-col gap-3">
       <div class="flex items-start gap-3">
-        <a href="/ql/u/${esc(u.username)}/">
+        <a href="/u/${esc(u.username)}/">
           ${avatarHtml(u.username, u.avatar_url, 'w-12 h-12', ringClass)}
         </a>
         <div class="flex-1 min-w-0">
-          <a href="/ql/u/${esc(u.username)}/" class="font-semibold text-white hover:text-indigo-400 transition text-sm block truncate">${esc(u.display_name)}</a>
+          <a href="/u/${esc(u.username)}/" class="font-semibold text-white hover:text-indigo-400 transition text-sm block truncate">${esc(u.display_name)}</a>
           <p class="text-gray-500 text-xs truncate">@${esc(u.username)}</p>
           <div class="flex items-center gap-2 mt-1 flex-wrap">
             <span class="text-gray-600 text-xs">Lv.${u.web_level}</span>
             ${platforms}
             ${streaming.join('')}
           </div>
+          ${badgeRow}
           ${statusBadges}
         </div>
       </div>
@@ -177,7 +342,7 @@ function buildCard(u) {
         </div>
       </div>
       {% if web_user %}
-      <a href="/ql/u/${esc(u.username)}/" class="w-full text-center py-1.5 bg-indigo-600/20 hover:bg-indigo-600/40 text-indigo-400 hover:text-indigo-300 rounded-lg text-xs font-medium transition">
+      <a href="/u/${esc(u.username)}/" class="w-full text-center py-1.5 bg-indigo-600/20 hover:bg-indigo-600/40 text-indigo-400 hover:text-indigo-300 rounded-lg text-xs font-medium transition">
         View Profile
       </a>
       {% endif %}
@@ -188,7 +353,7 @@ function buildCard(u) {
 async function load() {
   const q = document.getElementById('searchInput').value.trim();
   const platform = document.getElementById('platformFilterContainer')?.querySelector('input[type=hidden]')?.value || '';
-  const sort = document.getElementById('sortFilterContainer')?.querySelector('input[type=hidden]')?.value || 'followers';
+  const sort = document.getElementById('sortFilterContainer')?.querySelector('input[type=hidden]')?.value || 'az';
 
   const skeleton = document.getElementById('loadingSkeleton');
   const grid = document.getElementById('gamersGrid');
@@ -206,7 +371,7 @@ async function load() {
     if (q) params.set('q', q);
     if (platform) params.set('platform', platform);
 
-    const res = await fetch(`/ql/api/gamers/?${params}`);
+    const res = await fetch(`/api/gamers/?${params}`);
     const data = await res.json();
 
     skeleton.classList.add('hidden');
@@ -248,7 +413,315 @@ document.getElementById('searchInput').addEventListener('input', () => {
   clearTimeout(searchTimeout);
   searchTimeout = setTimeout(() => { currentPage = 1; load(); }, 350);
 });
+
+// ── Community Panel ──────────────────────────────────────────────────────────
+function _buildSuggestionsDropdown(containerId, games, onSelect) {
+  const sug = document.getElementById(containerId);
+  sug.innerHTML = '';
+  if (!games.length) { sug.classList.add('hidden'); return; }
+  games.forEach(g => {
+    const btn = document.createElement('button');
+    btn.className = 'w-full flex items-center gap-3 px-4 py-2.5 hover:bg-neutral-800 text-left transition';
+    btn.innerHTML = (g.cover_url ? `<img src="${esc(g.cover_url)}" class="w-7 h-9 object-cover rounded flex-shrink-0">` : `<div class="w-7 h-9 bg-neutral-700 rounded flex-shrink-0 flex items-center justify-center"><i class="fas fa-gamepad text-gray-500 text-xs"></i></div>`)
+      + `<div><p class="text-sm text-white truncate">${esc(g.name)}</p><p class="text-[10px] text-gray-500">${esc(String(g.release_year||''))}</p></div>`;
+    btn.onclick = () => onSelect(g);
+    sug.appendChild(btn);
+  });
+  sug.classList.remove('hidden');
+}
+
+function cpSearchIGDB(q) {
+  csrfFetch(`/api/igdb/search/?q=${encodeURIComponent(q)}&limit=6`)
+    .then(r => r.json()).then(data => {
+      _buildSuggestionsDropdown('cp-suggestions', data.games || [], cpSelectGame);
+    });
+}
+function cpSelectGame(g) {
+  document.getElementById('cp-search-input').value = g.name;
+  document.getElementById('cp-suggestions').classList.add('hidden');
+  loadCommunityPanel(g);
+}
+
+function fpSearchIGDB(q) {
+  csrfFetch(`/api/igdb/search/?q=${encodeURIComponent(q)}&limit=6`)
+    .then(r => r.json()).then(data => {
+      _buildSuggestionsDropdown('fp-suggestions', data.games || [], fpSelectGame);
+    });
+}
+function fpSelectGame(g) {
+  fpSelectedGame = g;
+  document.getElementById('fp-search-input').value = g.name;
+  document.getElementById('fp-suggestions').classList.add('hidden');
+  loadFindPlayers(g);
+}
+
+function togglePTOnly() {
+  fpPTOnly = !fpPTOnly;
+  const btn = document.getElementById('fp-pt-toggle');
+  btn.classList.toggle('bg-orange-600/20', fpPTOnly);
+  btn.classList.toggle('text-orange-400', fpPTOnly);
+  btn.classList.toggle('border-orange-600/30', fpPTOnly);
+  btn.classList.toggle('bg-neutral-800', !fpPTOnly);
+  btn.classList.toggle('text-gray-400', !fpPTOnly);
+  btn.classList.toggle('border-neutral-700', !fpPTOnly);
+  if (fpSelectedGame) loadFindPlayers(fpSelectedGame);
+}
+
+function loadCommunityPanel(g) {
+  document.getElementById('community-panel').classList.remove('hidden');
+  document.getElementById('cp-empty').classList.add('hidden');
+
+  const cover = g.cover_url || '';
+  const steamHero = g.steam_id ? `https://shared.cloudflare.steamstatic.com/store_item_assets/steam/apps/${g.steam_id}/library_hero.jpg` : '';
+  document.getElementById('cp-hero-img').src = steamHero;
+  document.getElementById('cp-cover').src = cover;
+  document.getElementById('cp-name').textContent = g.name;
+  const plat = Array.isArray(g.platforms) ? g.platforms.join(', ') : (g.platforms || '');
+  document.getElementById('cp-meta').textContent = [plat, g.release_year ? String(g.release_year) : ''].filter(Boolean).join(' - ');
+  document.getElementById('cp-lfg-btn').href = `/lfg/create/?game=${encodeURIComponent(g.name)}`;
+
+  const params = new URLSearchParams({name: g.name});
+  if (g.id) params.set('igdb_id', g.id);
+  if (g.steam_id) params.set('steam_app_id', g.steam_id);
+
+  csrfFetch(`/api/library/community-stats/?${params}`).then(r => r.json()).then(data => {
+    if (!data.success) return;
+    document.getElementById('cp-playing').textContent  = data.playing || 0;
+    document.getElementById('cp-pt-count').textContent = data.play_together || 0;
+    document.getElementById('cp-played').textContent   = data.played || 0;
+    document.getElementById('cp-lfg').textContent      = data.lfg_count || 0;
+  });
+
+  const avColors = ['bg-indigo-700','bg-purple-700','bg-teal-700','bg-rose-700','bg-amber-700','bg-sky-700','bg-green-700'];
+  function avHtml(p, i) {
+    return p.avatar_url
+      ? `<img src="${esc(p.avatar_url)}" class="w-8 h-8 rounded-full object-cover flex-shrink-0">`
+      : `<div class="w-8 h-8 rounded-full ${avColors[i%avColors.length]} flex items-center justify-center text-white text-xs font-bold flex-shrink-0">${esc((p.display_name||'?')[0].toUpperCase())}</div>`;
+  }
+
+  csrfFetch(`/api/library/find-players/?${params}`).then(r => r.json()).then(data => {
+    if (!data.success) return;
+    const players = data.players || [];
+    const playing = players.filter(p => p.status === 'playing' || p.status === 'play_together');
+    const ptOnly  = players.filter(p => p.status === 'play_together');
+    const playingEl = document.getElementById('cp-playing-list');
+    const ptEl      = document.getElementById('cp-pt-list');
+
+    playingEl.innerHTML = playing.slice(0,5).map((p,i) =>
+      `<div class="flex items-center gap-2.5">
+        ${avHtml(p,i)}
+        <div class="flex-1 min-w-0">
+          <a href="/u/${esc(p.username)}/" class="text-white text-sm font-medium hover:text-indigo-300 transition block truncate">${esc(p.display_name||p.username)}</a>
+          ${p.status === 'play_together' ? '<span class="text-orange-400 text-[10px]"><i class="fas fa-users mr-0.5"></i>Play Together</span>' : ''}
+        </div>
+      </div>`
+    ).join('') || '<p class="text-gray-600 text-xs">No members playing this yet.</p>';
+
+    if (playing.length > 5)
+      playingEl.innerHTML += `<p class="text-xs text-indigo-400 mt-1">+ ${playing.length-5} more members</p>`;
+
+    ptEl.innerHTML = ptOnly.slice(0,3).map((p,i) =>
+      `<div class="flex items-center gap-2.5">
+        ${avHtml(p,i)}
+        <div class="flex-1 min-w-0">
+          <a href="/u/${esc(p.username)}/" class="text-white text-sm font-medium hover:text-indigo-300 transition block truncate">${esc(p.display_name||p.username)}</a>
+          ${p.playtime_hours ? `<p class="text-gray-500 text-[10px]">${Math.round(p.playtime_hours)} hrs</p>` : ''}
+        </div>
+        <a href="/lfg/create/?game=${encodeURIComponent(g.name)}" class="text-[11px] px-2 py-1 rounded-lg bg-indigo-600/20 text-indigo-400 border border-indigo-600/30 hover:bg-indigo-600/30 transition flex-shrink-0">Invite</a>
+      </div>`
+    ).join('') || '<p class="text-gray-600 text-xs">No one has flagged Play Together yet.</p>';
+
+    if (ptOnly.length > 3)
+      ptEl.innerHTML += `<p class="text-[10px] text-gray-600 mt-2">+ ${ptOnly.length-3} more flagged this game</p>`;
+  });
+
+  fetch(`/api/lfg/browse/?game=${encodeURIComponent(g.name)}&limit=3`).then(r => r.json()).then(data => {
+    const groups = data.groups || [];
+    if (!groups.length) return;
+    document.getElementById('cp-lfg-section').classList.remove('hidden');
+    document.getElementById('cp-lfg-list').innerHTML = groups.map(grp =>
+      `<div class="flex items-center gap-3 bg-neutral-800/50 rounded-xl px-3 py-2.5">
+        <div class="flex-1 min-w-0">
+          <p class="text-white text-sm font-medium">${esc(grp.title||grp.game_name)}</p>
+          <p class="text-gray-500 text-[11px]">${grp.member_count||0}/${grp.max_members||'?'} members${grp.schedule ? ' - ' + esc(grp.schedule) : ''}</p>
+        </div>
+        <a href="/lfg/${grp.id}/" class="text-xs px-3 py-1.5 rounded-lg bg-green-600 hover:bg-green-500 text-white transition font-semibold flex-shrink-0">Join</a>
+      </div>`
+    ).join('');
+  }).catch(() => {});
+
+  // Posts about this game
+  fetch(`/api/posts/global/?game=${encodeURIComponent(g.name)}&per_page=5`).then(r => r.json()).then(data => {
+    const posts = data.posts || [];
+    const postsSection = document.getElementById('cp-posts-section');
+    const postsList = document.getElementById('cp-posts-list');
+    const postsMore = document.getElementById('cp-posts-more');
+    if (!posts.length) return;
+    postsSection.classList.remove('hidden');
+    postsMore.href = `/feed/?game=${encodeURIComponent(g.name)}`;
+    postsMore.classList.remove('hidden');
+    postsList.innerHTML = posts.map(p => {
+      const author = p.author || {};
+      const username = author.username || '';
+      const displayName = author.display_name || username;
+      const avatarUrl = author.avatar_url || '';
+      const rawContent = p.content || '';
+      const body = rawContent.length > 120 ? esc(rawContent.slice(0,120)) + '...' : esc(rawContent);
+      const av = avatarUrl
+        ? `<img src="${esc(avatarUrl)}" class="w-7 h-7 rounded-full object-cover flex-shrink-0">`
+        : `<div class="w-7 h-7 rounded-full bg-indigo-700 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">${esc((displayName||'?')[0].toUpperCase())}</div>`;
+      return `<div class="flex gap-2.5 items-start bg-neutral-800/40 rounded-xl px-3 py-2.5">
+        ${av}
+        <div class="flex-1 min-w-0">
+          <div class="flex items-baseline gap-1.5 mb-0.5">
+            <a href="/u/${esc(username)}/" class="text-indigo-400 text-xs font-semibold hover:text-indigo-300 transition">${esc(displayName)}</a>
+          </div>
+          ${body ? `<p class="text-gray-300 text-xs leading-relaxed">${body}</p>` : ''}
+        </div>
+        <a href="/post/${esc(String(p.public_id || p.id))}/" class="text-gray-600 hover:text-indigo-400 transition text-xs flex-shrink-0 ml-2"><i class="fas fa-arrow-right"></i></a>
+      </div>`;
+    }).join('');
+  }).catch(() => {});
+
+  // Communities playing this game
+  fetch(`/api/library/game-communities/?name=${encodeURIComponent(g.name)}`).then(r => r.json()).then(data => {
+    const communities = data.communities || [];
+    const section = document.getElementById('cp-communities-section');
+    const list = document.getElementById('cp-communities-list');
+    if (!communities.length) return;
+    section.classList.remove('hidden');
+    const platformLabel = {'fluxer':'Fluxer','discord':'Discord','revolt':'Revolt','matrix':'Matrix','other':'Community'};
+    const platformColor = {'fluxer':'text-indigo-400','discord':'text-blue-400','revolt':'text-orange-400','matrix':'text-green-400','other':'text-gray-400'};
+    list.innerHTML = communities.map(c => {
+      const plat = c.platform || 'other';
+      const platLbl = platformLabel[plat] || 'Community';
+      const platCls = platformColor[plat] || 'text-gray-400';
+      const ic = c.icon_url ? `<img src="${esc(c.icon_url)}" class="w-9 h-9 rounded-lg object-cover flex-shrink-0">` : `<div class="w-9 h-9 rounded-lg bg-neutral-700 flex items-center justify-center text-white font-bold flex-shrink-0">${esc((c.name||'?')[0].toUpperCase())}</div>`;
+      const joinBtn = c.invite_url ? `<a href="${esc(c.invite_url)}" target="_blank" rel="noopener noreferrer" class="text-xs px-2.5 py-1 rounded-lg bg-indigo-600/20 text-indigo-400 border border-indigo-600/30 hover:bg-indigo-600/30 transition font-medium flex-shrink-0">Join</a>` : '';
+      return `<div class="flex items-center gap-2.5">
+        ${ic}
+        <div class="flex-1 min-w-0">
+          <p class="text-white text-sm font-semibold truncate">${esc(c.name)}</p>
+          <p class="text-[10px] mt-0.5">
+            <span class="${platCls} font-medium">${platLbl}</span>
+            ${c.member_count ? `<span class="text-gray-600"> &middot; ${c.member_count.toLocaleString()} members</span>` : ''}
+          </p>
+        </div>
+        ${joinBtn}
+      </div>`;
+    }).join('');
+  }).catch(() => {});
+}
+
+// ── Find Players ─────────────────────────────────────────────────────────────
+function loadFindPlayers(g) {
+  const results = document.getElementById('fp-results');
+  results.innerHTML = '<p class="text-gray-600 text-xs text-center py-4"><i class="fas fa-spinner fa-spin mr-1"></i>Loading...</p>';
+
+  const params = new URLSearchParams({name: g.name});
+  if (g.id) params.set('igdb_id', g.id);
+  if (g.steam_id) params.set('steam_app_id', g.steam_id);
+  if (fpPTOnly) params.set('play_together_only', '1');
+
+  const avColors = ['bg-indigo-700','bg-purple-700','bg-teal-700','bg-rose-700','bg-amber-700','bg-sky-700'];
+
+  csrfFetch(`/api/library/find-players/?${params}`).then(r => r.json()).then(data => {
+    const players = data.players || [];
+    if (!players.length) {
+      results.innerHTML = '<p class="text-gray-600 text-xs text-center py-4">No members with this game yet.</p>';
+      return;
+    }
+    results.innerHTML = `<div class="flex gap-3 overflow-x-auto pb-2" style="scrollbar-width:none">${players.slice(0,10).map((p,i) => {
+      const av = p.avatar_url
+        ? `<img src="${esc(p.avatar_url)}" class="w-10 h-10 rounded-full object-cover flex-shrink-0">`
+        : `<div class="w-10 h-10 rounded-full ${avColors[i%avColors.length]} flex items-center justify-center text-white font-bold text-sm flex-shrink-0">${esc((p.display_name||'?')[0].toUpperCase())}</div>`;
+      const statusCls = {playing:'text-green-400',played:'text-blue-400',backlog:'text-purple-400',play_together:'text-orange-400'}[p.status]||'text-gray-400';
+      const statusLabel = {playing:'Playing',played:'Played',backlog:'Backlog',play_together:'Play Together'}[p.status]||p.status;
+      const ptBadge = p.status === 'play_together' ? `<span class="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-orange-900/40 text-orange-400 border border-orange-700/30"><i class="fas fa-users text-[8px]"></i> Play Together</span>` : '';
+      return `<div class="flex-shrink-0 w-48 bg-neutral-800/60 border border-neutral-700 rounded-xl p-3 flex flex-col gap-2">
+        <div class="flex items-center gap-2">
+          ${av}
+          <div class="flex-1 min-w-0">
+            <a href="/u/${esc(p.username)}/" class="text-white text-sm font-semibold hover:text-indigo-300 transition block truncate">${esc(p.display_name||p.username)}</a>
+            ${p.playtime_hours ? `<p class="text-gray-500 text-[10px]">${Math.round(p.playtime_hours)} hrs</p>` : ''}
+          </div>
+        </div>
+        <div class="flex flex-wrap gap-1">
+          <span class="text-[10px] px-1.5 py-0.5 rounded bg-neutral-700 ${statusCls}">${statusLabel}</span>
+          ${ptBadge}
+        </div>
+        <a href="/u/${esc(p.username)}/" class="w-full text-center text-xs py-1.5 rounded-lg bg-indigo-600/20 text-indigo-400 border border-indigo-600/30 hover:bg-indigo-600/30 transition font-medium">View Profile</a>
+      </div>`;
+    }).join('')}</div>`;
+  });
+}
+
+// ── The Closer ───────────────────────────────────────────────────────────────
+let dismissedNudges = new Set();
+
+function loadNudges() {
+  fetch('/api/library/nudge-opportunities/').then(r => r.json()).then(data => {
+    const nudges = (data.nudges || []).filter(n => !dismissedNudges.has(n.name));
+    const list = document.getElementById('nudge-list');
+    if (!nudges.length) {
+      list.innerHTML = '<p class="text-gray-600 text-xs text-center py-4">No play together opportunities right now. Add games with "Play Together" status to see this fill up.</p>';
+      return;
+    }
+    const avColors = ['bg-indigo-700','bg-teal-700','bg-amber-700','bg-rose-700','bg-sky-700','bg-purple-700'];
+    list.innerHTML = nudges.map(n => {
+      const allNames = (n.avatars||[]).map(a => esc(a.display_name||a.username));
+      const shownNames = allNames.slice(0,2);
+      const extra = n.member_count - shownNames.length;
+      const nameStr = shownNames.join(', ') + (extra > 0 ? ` + ${extra} other${extra>1?'s':''}` : '') + ' all flagged this in the last week.';
+      const lfgUrl = `/lfg/create/?game=${encodeURIComponent(n.name)}`;
+      const avatarStack = (n.avatars||[]).slice(0,3).map((a, i) =>
+        a.avatar_url
+          ? `<img src="${esc(a.avatar_url)}" class="w-8 h-8 rounded-full object-cover border-2 border-neutral-950${i>0?' -ml-2':''}">`
+          : `<div class="w-8 h-8 rounded-full ${avColors[i%avColors.length]} border-2 border-neutral-950 flex items-center justify-center text-white text-xs font-bold${i>0?' -ml-2':''}">${esc((a.display_name||'?')[0].toUpperCase())}</div>`
+      ).join('');
+      const extraBubble = n.member_count > 3 ? `<div class="w-8 h-8 rounded-full bg-neutral-700 border-2 border-neutral-950 -ml-2 flex items-center justify-center text-gray-300 text-xs font-bold">+${n.member_count-3}</div>` : '';
+      return `<div class="bg-neutral-900 border border-orange-700/40 rounded-2xl p-4 flex items-center gap-4" id="nudge-${esc(n.name.replace(/\s/g,'_'))}">
+        <div class="flex-shrink-0">
+          ${n.cover_url ? `<img src="${esc(n.cover_url)}" class="w-14 h-20 object-cover rounded-xl border border-neutral-700">` : `<div class="w-14 h-20 bg-neutral-800 rounded-xl border border-neutral-700 flex items-center justify-center"><i class="fas fa-gamepad text-gray-600 text-xl"></i></div>`}
+        </div>
+        <div class="flex-1 min-w-0">
+          <span class="text-[10px] font-bold uppercase tracking-wider text-orange-400 bg-orange-900/30 border border-orange-700/40 px-2 py-0.5 rounded-full inline-block mb-1.5">Play Together Opportunity</span>
+          <p class="text-white font-bold text-sm">${n.member_count} members want to play ${esc(n.name)}</p>
+          <p class="text-gray-500 text-xs mt-0.5">${nameStr}</p>
+          <div class="flex items-center gap-2 mt-3">
+            <a href="${lfgUrl}" class="text-xs px-3 py-1.5 rounded-lg bg-orange-600 hover:bg-orange-500 text-white font-semibold transition flex items-center gap-1.5"><i class="fas fa-users text-[10px]"></i> Create Group</a>
+            <button onclick="dismissNudge(${JSON.stringify(n.name)})" class="text-xs px-3 py-1.5 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-gray-400 hover:text-white border border-neutral-700 transition">Dismiss</button>
+          </div>
+        </div>
+        <div class="flex-shrink-0 hidden sm:flex flex-col items-center gap-1">
+          <div class="flex items-center">${avatarStack}${extraBubble}</div>
+          <span class="text-gray-600 text-[10px] mt-1">want to play</span>
+        </div>
+      </div>`;
+    }).join('');
+  }).catch(() => {
+    document.getElementById('nudge-list').innerHTML = '<p class="text-gray-600 text-xs text-center py-4">No opportunities yet.</p>';
+  });
+}
+
+function dismissNudge(name) {
+  dismissedNudges.add(name);
+  loadNudges();
+}
+
+// ── Init ─────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', function() {
+  // Check for #by-game hash or prefill_game to start on By Game tab
+  const prefillGame = "{{ prefill_game|escapejs }}";
+  const startOnByGame = location.hash === '#by-game' || prefillGame;
+
+  if (startOnByGame) {
+    switchMainTab('bygame');
+    loadNudges();
+  } else {
+    load();
+  }
+
   createCustomSelect({
     container: document.getElementById('platformFilterContainer'),
     name: 'platformFilter',
@@ -270,14 +743,68 @@ document.addEventListener('DOMContentLoaded', function() {
     name: 'sortFilter',
     placeholder: 'Sort By...',
     items: [
+      {value: 'az', label: 'A - Z'},
       {value: 'followers', label: 'Most Followed'},
       {value: 'new', label: 'Newest'},
     ],
-    selected: 'followers',
+    selected: 'az',
     color: 'indigo',
     onSelect: () => { currentPage = 1; load(); },
   });
-  load();
+
+  // Prefill game search if ?game= param provided
+  if (prefillGame) {
+    const cpInp = document.getElementById('cp-search-input');
+    const fpInp = document.getElementById('fp-search-input');
+    if (cpInp) cpInp.value = prefillGame;
+    if (fpInp) fpInp.value = prefillGame;
+    // Fetch game details and load both panels
+    (async function() {
+      try {
+        const res = await fetch(`/api/igdb/search/?q=${encodeURIComponent(prefillGame)}&limit=3`);
+        const data = await res.json();
+        const games = data.games || [];
+        const exact = games.find(g => g.name.toLowerCase() === prefillGame.toLowerCase()) || games[0];
+        if (exact) {
+          cpSelectGame(exact);
+          fpSelectGame(exact);
+        }
+      } catch(e) {}
+    })();
+  }
+
+  // Community panel search listener
+  const cpInp = document.getElementById('cp-search-input');
+  if (cpInp) {
+    cpInp.addEventListener('input', function() {
+      clearTimeout(cpSearchTimer);
+      document.getElementById('cp-suggestions').classList.add('hidden');
+      if (!this.value.trim()) return;
+      cpSearchTimer = setTimeout(() => cpSearchIGDB(this.value), 350);
+    });
+  }
+
+  // Find Players search listener
+  const fpInp = document.getElementById('fp-search-input');
+  if (fpInp) {
+    fpInp.addEventListener('input', function() {
+      clearTimeout(fpSearchTimer);
+      document.getElementById('fp-suggestions').classList.add('hidden');
+      if (!this.value.trim()) return;
+      fpSearchTimer = setTimeout(() => fpSearchIGDB(this.value), 350);
+    });
+  }
+
+  document.addEventListener('click', function(e) {
+    if (!e.target.closest('#cp-search-input') && !e.target.closest('#cp-suggestions')) {
+      const s = document.getElementById('cp-suggestions');
+      if (s) s.classList.add('hidden');
+    }
+    if (!e.target.closest('#fp-search-input') && !e.target.closest('#fp-suggestions')) {
+      const s = document.getElementById('fp-suggestions');
+      if (s) s.classList.add('hidden');
+    }
+  });
 });
 </script>
 

@@ -13,7 +13,7 @@
     </h1>
     <p class="text-gray-400 mt-1">Scheduled events for {{ guild_name }}</p>
   </div>
-  <a href="/ql/fluxer/{{ guild_id }}/lfg/browse/" class="bg-purple-600 hover:bg-purple-500 text-white px-4 py-2 rounded-lg font-medium transition text-sm flex items-center gap-2 self-start">
+  <a href="/fluxer/{{ guild_id }}/lfg/browse/" class="bg-purple-600 hover:bg-purple-500 text-white px-4 py-2 rounded-lg font-medium transition text-sm flex items-center gap-2 self-start">
     <i class="fas fa-users"></i><span>Browse Groups</span>
   </a>
 </div>
@@ -101,8 +101,8 @@
 
 <script>
 const GUILD_ID = '{{ guild_id }}';
-const JOIN_API  = '/ql/api/fluxer/' + GUILD_ID + '/lfg/';   // + groupId + '/join/'
-const LEAVE_API = '/ql/api/fluxer/' + GUILD_ID + '/lfg/';   // + groupId + '/leave/'
+const JOIN_API  = 'api/fluxer/' + GUILD_ID + '/lfg/';   // + groupId + '/join/'
+const LEAVE_API = 'api/fluxer/' + GUILD_ID + '/lfg/';   // + groupId + '/leave/'
 const EVENTS = JSON.parse('{{ events_json|escapejs }}');
 const MY_GROUP_IDS = new Set(JSON.parse('{{ my_group_ids_json|escapejs }}'));
 const MY_CREATOR_IDS = new Set(JSON.parse('{{ my_creator_ids_json|escapejs }}'));

@@ -194,8 +194,8 @@
 <script>
 const GUILD_ID = '{{ guild_id }}';
 const CHANNELS = JSON.parse('{{ channels_json|escapejs }}');
-const API_URL = '/ql/api/dashboard/fluxer/' + GUILD_ID + '/settings/';
-const RAFFLES_API = '/ql/api/dashboard/fluxer/' + GUILD_ID + '/raffles/';
+const API_URL = '/api/dashboard/fluxer/' + GUILD_ID + '/settings/';
+const RAFFLES_API = '/api/dashboard/fluxer/' + GUILD_ID + '/raffles/';
 
 let raffleChannelSelect, raffleRoleSelect, raffleEmojiSelect, raffleReminderChannelSelect;
 let raffleSelectsReady = false;

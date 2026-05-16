@@ -1,0 +1,408 @@
+{% extends "questlog_web/base_web.html" %}
+{% load static %}
+{% block title %}FFXIV Housing Tracker | Casual Heroes{% endblock %}
+
+{% block web_content %}
+<div class="p-4 sm:p-6 max-w-7xl mx-auto">
+
+  <!-- Header -->
+  <div class="flex flex-col sm:flex-row sm:items-end gap-4 mb-6">
+    <div class="flex items-center gap-4">
+      <div class="w-14 h-14 rounded-2xl bg-teal-900/40 border border-teal-800/40 flex items-center justify-center flex-shrink-0">
+        <i class="fas fa-home text-teal-400 text-2xl"></i>
+      </div>
+      <div>
+        <h1 class="text-3xl font-extrabold text-white leading-tight">Housing Tracker</h1>
+        <p class="text-teal-300 text-sm font-medium">Open plots across all FFXIV worlds - powered by PaissaDB</p>
+      </div>
+    </div>
+    <div class="sm:ml-auto">
+      <a href="/ffxiv/tools/" class="text-xs text-gray-500 hover:text-gray-300 transition flex items-center gap-1">
+        <i class="fas fa-arrow-left text-[10px]"></i> Back to FFXIV Tools
+      </a>
+    </div>
+  </div>
+
+  <!-- Info banner -->
+  <div class="bg-teal-900/20 border border-teal-800/30 rounded-xl p-4 mb-6 flex items-start gap-3">
+    <i class="fas fa-info-circle text-teal-400 mt-0.5 flex-shrink-0"></i>
+    <div class="text-xs text-gray-400 leading-relaxed">
+      Plot data is <span class="text-white font-medium">manually synced</span> from the PaissaDB community scouting network.
+      All current plots use the <span class="text-white font-medium">Lottery system</span>.
+      Click any plot card to open that district on <span class="text-white font-medium">Gametora's ward map</span> for that world.
+      Always verify availability in-game before entering a lottery.
+    </div>
+  </div>
+
+  <!-- Controls -->
+  <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-4 mb-6">
+    <div class="flex flex-col sm:flex-row gap-3">
+      <div class="flex-1">
+        <label class="block text-xs text-gray-500 mb-1.5">Datacenter</label>
+        <select id="dc-select" class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-teal-600">
+          <option value="">-- Select Datacenter --</option>
+        </select>
+      </div>
+      <div class="flex-1">
+        <label class="block text-xs text-gray-500 mb-1.5">World</label>
+        <select id="world-select" disabled class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-teal-600 disabled:opacity-50">
+          <option value="">-- Select World --</option>
+        </select>
+      </div>
+      <div class="sm:w-40">
+        <label class="block text-xs text-gray-500 mb-1.5">Plot Size</label>
+        <select id="size-filter" class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-teal-600">
+          <option value="">All Sizes</option>
+          <option value="S">Small</option>
+          <option value="M">Medium</option>
+          <option value="L">Large</option>
+        </select>
+      </div>
+      <div class="sm:w-52">
+        <label class="block text-xs text-gray-500 mb-1.5">District</label>
+        <select id="district-filter" class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-teal-600">
+          <option value="">All Districts</option>
+          <option value="Mist">Mist</option>
+          <option value="The Lavender Beds">The Lavender Beds</option>
+          <option value="The Goblet">The Goblet</option>
+          <option value="Shirogane">Shirogane</option>
+          <option value="Empyreum">Empyreum</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sync bar (shows after world selected) -->
+  <div id="sync-bar" class="hidden mb-4 bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-3">
+    <div class="flex-1">
+      <span class="text-xs text-gray-500">Last synced: </span>
+      <span class="text-xs text-gray-300 font-medium" id="sync-time">Never</span>
+      <span class="text-xs text-gray-600 ml-2" id="sync-stale-note"></span>
+    </div>
+    {% if web_user and web_user.is_admin %}
+    <button id="sync-btn" onclick="syncWorld()"
+            class="flex items-center gap-2 bg-teal-700 hover:bg-teal-600 text-white text-xs font-semibold px-4 py-2 rounded-lg transition">
+      <i class="fas fa-sync-alt"></i> Sync from PaissaDB
+    </button>
+    {% endif %}
+  </div>
+
+  <!-- Results area -->
+  <div id="results-area">
+
+    <div id="empty-state" class="text-center py-20">
+      <div class="w-16 h-16 bg-teal-900/30 rounded-2xl flex items-center justify-center mx-auto mb-4">
+        <i class="fas fa-home text-teal-400 text-2xl"></i>
+      </div>
+      <p class="text-gray-400 font-medium">Select a datacenter and world to view open plots</p>
+      <p class="text-gray-600 text-xs mt-1">Data from the PaissaDB community scouting network</p>
+    </div>
+
+    <div id="loading-state" class="hidden text-center py-20">
+      <div class="w-12 h-12 border-2 border-teal-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+      <p class="text-gray-400 text-sm">Loading plots...</p>
+    </div>
+
+    <div id="never-synced-state" class="hidden text-center py-20">
+      <div class="w-16 h-16 bg-yellow-900/30 rounded-2xl flex items-center justify-center mx-auto mb-4">
+        <i class="fas fa-cloud-download-alt text-yellow-400 text-2xl"></i>
+      </div>
+      <p class="text-gray-300 font-medium">No data cached for this world yet</p>
+      {% if web_user and web_user.is_admin %}
+      <p class="text-gray-500 text-xs mt-1 mb-4">Click "Sync from PaissaDB" above to fetch current open plots.</p>
+      {% else %}
+      <p class="text-gray-500 text-xs mt-1">An admin needs to sync this world first.</p>
+      {% endif %}
+    </div>
+
+    <div id="error-state" class="hidden text-center py-20">
+      <div class="w-16 h-16 bg-red-900/30 rounded-2xl flex items-center justify-center mx-auto mb-4">
+        <i class="fas fa-exclamation-triangle text-red-400 text-2xl"></i>
+      </div>
+      <p class="text-gray-300 font-medium" id="error-msg">Could not load plot data</p>
+      <p class="text-gray-600 text-xs mt-1">PaissaDB may be temporarily unavailable</p>
+    </div>
+
+    <!-- Summary bar -->
+    <div id="summary-bar" class="hidden mb-4 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <span class="text-white font-bold text-lg" id="summary-world"></span>
+        <span class="text-teal-400 text-sm font-medium" id="summary-count"></span>
+      </div>
+      <span class="text-gray-600 text-xs" id="summary-filter-note"></span>
+    </div>
+
+    <div id="districts-container"></div>
+  </div>
+
+  <!-- Footer credits -->
+  <div class="mt-10 pt-6 border-t border-neutral-800 text-center text-xs text-gray-600 space-y-1">
+    <p>Plot availability data provided by <a href="https://paissadb.zhu.codes" target="_blank" rel="noopener noreferrer" class="text-teal-500 hover:text-teal-400 transition">PaissaDB</a> - a community-driven FFXIV housing scouting network.</p>
+    <p>Ward maps and district viewer powered by <a href="https://gametora.com/ffxiv/housing-plot-viewer" target="_blank" rel="noopener noreferrer" class="text-teal-500 hover:text-teal-400 transition">Gametora Housing Plot Viewer</a>.</p>
+    <p class="text-gray-700">Always verify availability in-game before entering a lottery. Cached data may be hours old.</p>
+  </div>
+
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+
+  const dcSelect       = document.getElementById('dc-select');
+  const worldSelect    = document.getElementById('world-select');
+  const sizeFilter     = document.getElementById('size-filter');
+  const districtFilter = document.getElementById('district-filter');
+  const syncBar        = document.getElementById('sync-bar');
+
+  let allData    = null;
+  let currentWid = null;
+  let worldsMap  = {};
+
+  // Load worlds list from PaissaDB (just the list, no plot data)
+  fetch('/api/ffxiv/housing/worlds/')
+    .then(r => r.json())
+    .then(data => {
+      data.datacenters.forEach(dc => {
+        worldsMap[dc.datacenter] = dc.worlds;
+        const opt = document.createElement('option');
+        opt.value = dc.datacenter;
+        opt.textContent = dc.datacenter;
+        dcSelect.appendChild(opt);
+      });
+    })
+    .catch(() => { dcSelect.innerHTML = '<option value="">Failed to load - check connection</option>'; });
+
+  dcSelect.addEventListener('change', function() {
+    worldSelect.innerHTML = '<option value="">-- Select World --</option>';
+    worldSelect.disabled = true;
+    allData = null; currentWid = null;
+    syncBar.classList.add('hidden');
+    showState('empty');
+    if (!this.value) return;
+    (worldsMap[this.value] || []).forEach(w => {
+      const opt = document.createElement('option');
+      opt.value = w.id; opt.textContent = w.name;
+      worldSelect.appendChild(opt);
+    });
+    worldSelect.disabled = false;
+  });
+
+  worldSelect.addEventListener('change', function() {
+    if (!this.value) { showState('empty'); syncBar.classList.add('hidden'); return; }
+    currentWid = this.value;
+    loadPlots(currentWid);
+  });
+
+  sizeFilter.addEventListener('change', renderFiltered);
+  districtFilter.addEventListener('change', renderFiltered);
+
+  function loadPlots(wid) {
+    showState('loading');
+    syncBar.classList.add('hidden');
+    fetch(`/api/ffxiv/housing/plots/${wid}/`)
+      .then(r => r.json())
+      .then(data => {
+        if (data.error) { showError(data.error); return; }
+        updateSyncBar(data.cached_at, data.world_name);
+        if (data.never_synced) { showState('never-synced'); return; }
+        allData = data;
+        renderFiltered();
+      })
+      .catch(() => showError('Network error'));
+  }
+
+  function updateSyncBar(cachedAt, worldName) {
+    syncBar.classList.remove('hidden');
+    const timeEl  = document.getElementById('sync-time');
+    const staleEl = document.getElementById('sync-stale-note');
+    if (!cachedAt) {
+      timeEl.textContent = 'Never';
+      staleEl.textContent = '';
+      return;
+    }
+    const age = Math.floor(Date.now() / 1000 - cachedAt);
+    timeEl.textContent = timeAgo(cachedAt);
+    if (age > 3600 * 4) {
+      staleEl.textContent = '(data may be stale - consider syncing)';
+      staleEl.className = 'text-xs text-yellow-600 ml-2';
+    } else {
+      staleEl.textContent = '';
+    }
+  }
+
+  window.syncWorld = async function() {
+    if (!currentWid) return;
+    const btn = document.getElementById('sync-btn');
+    if (!btn) return;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i> Syncing...';
+
+    try {
+      const resp = await csrfFetch('/api/ffxiv/housing/sync/', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({world_id: parseInt(currentWid)}),
+      });
+      const data = await resp.json();
+      if (data.ok) {
+        allData = data.data;
+        allData.world_id = currentWid;
+        updateSyncBar(data.data.cached_at, data.data.world_name);
+        renderFiltered();
+        btn.innerHTML = '<i class="fas fa-check mr-1"></i> Synced!';
+        setTimeout(() => {
+          btn.disabled = false;
+          btn.innerHTML = '<i class="fas fa-sync-alt mr-1"></i> Sync from PaissaDB';
+        }, 3000);
+      } else {
+        alert(data.error || 'Sync failed');
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-sync-alt mr-1"></i> Sync from PaissaDB';
+      }
+    } catch(e) {
+      alert('Network error during sync');
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fas fa-sync-alt mr-1"></i> Sync from PaissaDB';
+    }
+  };
+
+  function renderFiltered() {
+    if (!allData) return;
+    const sizeVal     = sizeFilter.value;
+    const districtVal = districtFilter.value;
+    const container   = document.getElementById('districts-container');
+    container.innerHTML = '';
+    let totalVisible  = 0;
+
+    allData.districts.forEach(dist => {
+      if (districtVal && dist.name !== districtVal) return;
+      const plots = dist.plots.filter(p => !sizeVal || p.size === sizeVal);
+      if (plots.length === 0) return;
+      totalVisible += plots.length;
+      container.appendChild(buildDistrictSection(dist, plots));
+    });
+
+    document.getElementById('summary-world').textContent = allData.world_name;
+    document.getElementById('summary-count').textContent =
+      `${totalVisible} open plot${totalVisible !== 1 ? 's' : ''}`;
+    const notes = [];
+    if (sizeVal) notes.push(sizeVal === 'S' ? 'Small' : sizeVal === 'M' ? 'Medium' : 'Large');
+    if (districtVal) notes.push(districtVal);
+    document.getElementById('summary-filter-note').textContent =
+      notes.length ? `Filtered: ${notes.join(' + ')}` : '';
+
+    if (totalVisible === 0) {
+      container.innerHTML = `
+        <div class="text-center py-16">
+          <i class="fas fa-filter text-gray-700 text-3xl mb-3 block"></i>
+          <p class="text-gray-500 text-sm">No open plots match your filters</p>
+        </div>`;
+    }
+    showState('results');
+  }
+
+  const districtColors = {
+    blue:   {border:'border-blue-800/40',   hdr:'bg-blue-900/20',   icon:'text-blue-400',   badge:'bg-blue-900/40 text-blue-300',   tag:'bg-blue-900/30 text-blue-400'},
+    green:  {border:'border-green-800/40',  hdr:'bg-green-900/20',  icon:'text-green-400',  badge:'bg-green-900/40 text-green-300', tag:'bg-green-900/30 text-green-400'},
+    orange: {border:'border-orange-800/40', hdr:'bg-orange-900/20', icon:'text-orange-400', badge:'bg-orange-900/40 text-orange-300',tag:'bg-orange-900/30 text-orange-400'},
+    pink:   {border:'border-pink-800/40',   hdr:'bg-pink-900/20',   icon:'text-pink-400',   badge:'bg-pink-900/40 text-pink-300',   tag:'bg-pink-900/30 text-pink-400'},
+    purple: {border:'border-purple-800/40', hdr:'bg-purple-900/20', icon:'text-purple-400', badge:'bg-purple-900/40 text-purple-300',tag:'bg-purple-900/30 text-purple-400'},
+  };
+  const districtIcons = {
+    'Mist':'fa-water', 'The Lavender Beds':'fa-leaf',
+    'The Goblet':'fa-sun', 'Shirogane':'fa-torii-gate', 'Empyreum':'fa-cloud',
+  };
+
+  function buildDistrictSection(dist, plots) {
+    const c    = districtColors[dist.color] || districtColors.blue;
+    const icon = districtIcons[dist.name] || 'fa-home';
+    const sec  = document.createElement('div');
+    sec.className = `mb-5 bg-neutral-900 border ${c.border} rounded-xl overflow-hidden`;
+    sec.innerHTML = `
+      <div class="${c.hdr} border-b ${c.border} px-5 py-3 flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <i class="fas ${icon} ${c.icon} text-sm"></i>
+          <span class="text-white font-semibold text-sm">${escapeHtml(dist.name)}</span>
+        </div>
+        <span class="text-xs font-medium px-2.5 py-0.5 rounded-full ${c.badge}">${plots.length} open</span>
+      </div>
+      <div class="p-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2" id="dg-${dist.id}"></div>
+    `;
+    const grid = sec.querySelector(`#dg-${dist.id}`);
+    plots.forEach(p => grid.appendChild(buildPlotCard(p, c)));
+    return sec;
+  }
+
+  function buildPlotCard(p, c) {
+    const card = document.createElement('a');
+    card.href   = p.gametora_url;
+    card.target = '_blank';
+    card.rel    = 'noopener noreferrer';
+    card.className = `group block bg-neutral-800 hover:bg-neutral-750 border border-neutral-700 hover:${c.border} rounded-lg p-3 transition`;
+
+    const sizeColor = p.size === 'L' ? 'text-amber-400 bg-amber-900/30' :
+                      p.size === 'M' ? 'text-sky-400 bg-sky-900/30' :
+                                       'text-gray-400 bg-neutral-700';
+    const phaseUntil = p.lotto_phase_until
+      ? new Date(p.lotto_phase_until * 1000).toLocaleDateString(undefined, {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'})
+      : null;
+    const lottoHtml = p.lotto_phase !== null && p.lotto_phase !== undefined ? `
+      <div class="flex items-center gap-1 mt-1 flex-wrap">
+        <i class="fas fa-ticket-alt text-violet-400 text-[9px]"></i>
+        <span class="text-[10px] text-violet-300">Phase ${escapeHtml(String(p.lotto_phase))}</span>
+        ${p.lotto_entries > 0 ? `<span class="text-[10px] text-gray-500">&bull; ${p.lotto_entries} entr${p.lotto_entries === 1 ? 'y' : 'ies'}</span>` : '<span class="text-[10px] text-gray-600">&bull; 0 entries</span>'}
+        ${phaseUntil ? `<span class="text-[10px] text-gray-600">ends ${phaseUntil}</span>` : ''}
+      </div>` : '';
+
+    card.innerHTML = `
+      <div class="flex items-start justify-between gap-2 mb-2">
+        <div>
+          <div class="text-white font-bold text-sm">Ward ${p.ward} &bull; Plot ${p.plot}</div>
+          <div class="text-gray-500 text-xs">${escapeHtml(p.purchase_system)}</div>
+          ${lottoHtml}
+        </div>
+        <span class="text-[10px] font-bold px-2 py-0.5 rounded ${sizeColor} flex-shrink-0">${p.size}</span>
+      </div>
+      <div class="text-teal-300 font-semibold text-sm mb-2">${p.price.toLocaleString()} <span class="text-[10px] text-gray-500">gil</span></div>
+      <div class="flex items-center justify-between">
+        <div class="text-[10px] text-gray-600">Open ${timeAgo(p.first_seen)}</div>
+        <span class="text-[10px] ${c.tag} px-1.5 py-0.5 rounded flex items-center gap-1 opacity-0 group-hover:opacity-100 transition">
+          <i class="fas fa-external-link-alt text-[8px]"></i> Gametora
+        </span>
+      </div>
+    `;
+    return card;
+  }
+
+  function showState(state) {
+    ['empty','loading','never-synced','error','results'].forEach(s => {
+      const el = document.getElementById(s === 'results' ? 'summary-bar' : `${s}-state`);
+      if (el) el.classList.add('hidden');
+    });
+    document.getElementById('districts-container').classList.add('hidden');
+
+    if (state === 'results') {
+      document.getElementById('summary-bar').classList.remove('hidden');
+      document.getElementById('districts-container').classList.remove('hidden');
+    } else {
+      const el = document.getElementById(`${state}-state`);
+      if (el) el.classList.remove('hidden');
+    }
+  }
+
+  function showError(msg) {
+    document.getElementById('error-msg').textContent = msg;
+    showState('error');
+  }
+
+  function timeAgo(ts) {
+    if (!ts) return '?';
+    const diff = Math.floor(Date.now() / 1000 - ts);
+    if (diff < 60)    return 'just now';
+    if (diff < 3600)  return `${Math.floor(diff / 60)}m ago`;
+    if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+    return `${Math.floor(diff / 86400)}d ago`;
+  }
+
+});
+</script>
+{% endblock %}

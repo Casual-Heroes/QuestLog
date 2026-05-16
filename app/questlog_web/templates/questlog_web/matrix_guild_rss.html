@@ -191,8 +191,8 @@ function submitFeed() {
   if (!data.name || !data.url || !data.room_id) { showToast('Name, URL, and room required.', false); return; }
   const method = id ? 'PATCH' : 'POST';
   const url = id
-    ? '/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/rss/' + id + '/'
-    : '/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/rss/';
+    ? 'api/dashboard/matrix/' + SPACE_ID_URL + '/rss/' + id + '/'
+    : 'api/dashboard/matrix/' + SPACE_ID_URL + '/rss/';
   csrfFetch(url, {method, headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data)})
     .then(r => r.json()).then(d => {
       if (d.ok) { showToast(id ? 'Feed updated.' : 'Feed added.'); closeFeedModal(); location.reload(); }
@@ -201,7 +201,7 @@ function submitFeed() {
 }
 
 function toggleFeed(id, enabled) {
-  csrfFetch('/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/rss/' + id + '/', {
+  csrfFetch('/api/dashboard/matrix/' + SPACE_ID_URL + '/rss/' + id + '/', {
     method: 'PATCH', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({enabled: !enabled})
   }).then(r => r.json()).then(d => {
     if (d.ok) { showToast(enabled ? 'Feed disabled.' : 'Feed enabled.'); location.reload(); }
@@ -211,7 +211,7 @@ function toggleFeed(id, enabled) {
 
 function deleteFeed(id, name) {
   if (!confirm('Delete feed "' + name + '"?')) return;
-  csrfFetch('/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/rss/' + id + '/', {method: 'DELETE'})
+  csrfFetch('/api/dashboard/matrix/' + SPACE_ID_URL + '/rss/' + id + '/', {method: 'DELETE'})
     .then(r => r.json()).then(d => {
       if (d.ok) { showToast('Feed deleted.'); location.reload(); }
       else showToast(d.error || 'Error', false);

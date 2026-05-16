@@ -1,0 +1,1108 @@
+{% extends "questlog_web/base_web.html" %}
+{% load static %}
+{% block title %}SteamQuest | Casual Heroes{% endblock %}
+{% block og_title %}SteamQuest - Explore Your Library | Casual Heroes{% endblock %}
+{% block og_description %}A community for working adults, parents, and gamers who grew up but never quite left Neverland.{% endblock %}
+{% block web_content %}
+
+<div class="max-w-5xl mx-auto px-4 py-8">
+
+  <!-- Header -->
+  <div class="text-center mb-6">
+    <div class="w-14 h-14 rounded-2xl bg-blue-900/30 border border-blue-700/40 flex items-center justify-center mx-auto mb-3">
+      <i class="fab fa-steam text-blue-400 text-2xl"></i>
+    </div>
+    <h1 class="text-3xl font-extrabold text-white mb-1">SteamQuest</h1>
+    <p class="text-gray-400 text-sm">No more staring at your library. Let fate decide.</p>
+  </div>
+
+  {% if not has_steam %}
+  <div class="bg-neutral-900 border border-blue-700/30 rounded-2xl p-10 text-center max-w-lg mx-auto">
+    <i class="fab fa-steam text-blue-400 text-5xl mb-5 block"></i>
+    <h2 class="text-xl font-bold text-white mb-2">Link Your Steam Account</h2>
+    <p class="text-gray-400 text-sm mb-6">SteamQuest reads your Steam library to pick a random game. Link your account in settings to get started.</p>
+    <a href="{% url 'questlog_web_settings' %}"
+       class="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-3 rounded-xl transition">
+      <i class="fab fa-steam"></i> Link Steam in Settings
+    </a>
+  </div>
+
+  {% else %}
+
+  <!-- Current Search Bar -->
+  <div id="search-summary-bar" class="hidden mb-4 bg-neutral-800/60 border border-neutral-700/50 rounded-xl px-4 py-2.5 flex flex-wrap items-center gap-2">
+    <span class="text-gray-500 text-xs uppercase tracking-wide">Current Search:</span>
+    <div id="search-tags" class="flex flex-wrap gap-1.5 flex-1"></div>
+    <button onclick="clearAll()" class="text-xs text-gray-500 hover:text-red-400 transition ml-auto flex items-center gap-1">
+      <i class="fas fa-times"></i> Reset
+    </button>
+  </div>
+
+  <!-- Filters Panel -->
+  <div id="filters-panel" class="bg-neutral-900 border border-neutral-800 rounded-2xl mb-5 overflow-hidden">
+
+    <!-- Top row: playtime + pick mode + pool count (always visible) -->
+    <div class="px-5 pt-5 pb-4 border-b border-neutral-800">
+      <div class="flex flex-wrap items-end gap-4">
+        <div class="flex-1 min-w-[160px]">
+          <label class="text-xs text-gray-500 uppercase tracking-wide mb-1.5 block">Playtime</label>
+          <select id="f-playtime" class="w-full bg-neutral-800 border border-neutral-700 text-white text-sm rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500">
+            <option value="any">Any playtime</option>
+            <option value="unplayed" selected>Never played (0 hrs)</option>
+            <option value="under1">Under 1 hour</option>
+            <option value="under5">Under 5 hours</option>
+            <option value="under10">Under 10 hours</option>
+            <option value="over10">Over 10 hours</option>
+            <option value="over50">Over 50 hours</option>
+          </select>
+        </div>
+        <div class="flex-1 min-w-[160px]">
+          <label class="text-xs text-gray-500 uppercase tracking-wide mb-1.5 block">Pick Mode</label>
+          <select id="f-mode" class="w-full bg-neutral-800 border border-neutral-700 text-white text-sm rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500">
+            <option value="random">Truly random</option>
+            <option value="alpha">Alphabetical</option>
+          </select>
+        </div>
+        <div class="flex-1 min-w-[200px]">
+          <label class="text-xs text-gray-500 uppercase tracking-wide mb-1.5 block">Search Name</label>
+          <input id="f-search" type="text" placeholder="Filter by name..."
+                 class="w-full bg-neutral-800 border border-neutral-700 text-white text-sm rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500 placeholder-gray-600">
+        </div>
+        <div class="text-right">
+          <p class="text-xs text-gray-600 mb-1" id="pool-count">Loading...</p>
+          <button onclick="clearAll()" class="text-xs text-gray-600 hover:text-gray-300 transition">Reset all</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Feature filters - collapsible -->
+    <div class="border-b border-neutral-800">
+      <button onclick="toggleSection('sec-features', this)"
+              class="w-full flex items-center justify-between px-5 py-3 text-left hover:bg-neutral-800/40 transition">
+        <span class="text-xs text-gray-500 uppercase tracking-wide">Player Mode &amp; Features</span>
+        <i class="fas fa-chevron-down text-gray-600 text-xs transition-transform duration-200"></i>
+      </button>
+      <div id="sec-features" class="hidden px-5 pb-3">
+        <div class="flex flex-wrap gap-2" id="feature-tiles"></div>
+      </div>
+    </div>
+
+    <!-- Presets - collapsible -->
+    <div class="border-b border-neutral-800">
+      <button onclick="toggleSection('sec-presets', this)"
+              class="w-full flex items-center justify-between px-5 py-3 text-left hover:bg-neutral-800/40 transition">
+        <span class="text-xs text-gray-500 uppercase tracking-wide">Presets</span>
+        <i class="fas fa-chevron-down text-gray-600 text-xs transition-transform duration-200"></i>
+      </button>
+      <div id="sec-presets" class="hidden px-5 pb-3">
+        <div class="flex flex-wrap gap-2">
+          <button onclick="applyPreset('backlog')"     data-preset="backlog"     title="Never-played games only" class="preset-btn text-xs px-3 py-1.5 rounded-lg font-medium bg-neutral-800 border border-neutral-700 text-gray-300 hover:bg-blue-900/40 hover:border-blue-700/50 hover:text-blue-300 transition">Backlog Buster</button>
+          <button onclick="applyPreset('chill')"       data-preset="chill"       title="Any playtime, Single-player only" class="preset-btn text-xs px-3 py-1.5 rounded-lg font-medium bg-neutral-800 border border-neutral-700 text-gray-300 hover:bg-blue-900/40 hover:border-blue-700/50 hover:text-blue-300 transition">Chill Solo</button>
+          <button onclick="applyPreset('couch')"       data-preset="couch"       title="Local Multiplayer games" class="preset-btn text-xs px-3 py-1.5 rounded-lg font-medium bg-neutral-800 border border-neutral-700 text-gray-300 hover:bg-blue-900/40 hover:border-blue-700/50 hover:text-blue-300 transition">Couch Co-op</button>
+          <button onclick="applyPreset('achievement')" data-preset="achievement" title="Games with Achievements" class="preset-btn text-xs px-3 py-1.5 rounded-lg font-medium bg-neutral-800 border border-neutral-700 text-gray-300 hover:bg-blue-900/40 hover:border-blue-700/50 hover:text-blue-300 transition">Achievement Hunter</button>
+          <button onclick="applyPreset('controller')"  data-preset="controller"  title="Controller-supported games" class="preset-btn text-xs px-3 py-1.5 rounded-lg font-medium bg-neutral-800 border border-neutral-700 text-gray-300 hover:bg-blue-900/40 hover:border-blue-700/50 hover:text-blue-300 transition">Controller Night</button>
+          <button onclick="applyPreset('random')"      data-preset="random"      title="Clear all filters, pick anything" class="preset-btn text-xs px-3 py-1.5 rounded-lg font-medium bg-neutral-800 border border-neutral-700 text-gray-300 hover:bg-blue-900/40 hover:border-blue-700/50 hover:text-blue-300 transition">Pure Random</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Genre tiles - collapsible -->
+    <div class="border-b border-neutral-800">
+      <button onclick="toggleSection('sec-genres', this)"
+              class="w-full flex items-center justify-between px-5 py-3 text-left hover:bg-neutral-800/40 transition">
+        <div class="flex items-center gap-2">
+          <span class="text-xs text-gray-500 uppercase tracking-wide">Genres</span>
+          <span id="sec-genres-badge" class="hidden text-xs bg-blue-700 text-white px-1.5 py-0.5 rounded-full font-semibold">1</span>
+        </div>
+        <i class="fas fa-chevron-down text-gray-600 text-xs transition-transform duration-200"></i>
+      </button>
+      <div id="sec-genres" class="hidden px-5 pb-3">
+        <div class="flex flex-wrap gap-2" id="genre-tiles"></div>
+      </div>
+    </div>
+
+    <!-- Theme tiles - collapsible -->
+    <div class="border-b border-neutral-800">
+      <button onclick="toggleSection('sec-themes', this)"
+              class="w-full flex items-center justify-between px-5 py-3 text-left hover:bg-neutral-800/40 transition">
+        <div class="flex items-center gap-2">
+          <span class="text-xs text-gray-500 uppercase tracking-wide">Themes</span>
+          <span id="sec-themes-badge" class="hidden text-xs bg-blue-700 text-white px-1.5 py-0.5 rounded-full font-semibold">1</span>
+        </div>
+        <i class="fas fa-chevron-down text-gray-600 text-xs transition-transform duration-200"></i>
+      </button>
+      <div id="sec-themes" class="hidden px-5 pb-3">
+        <div class="flex flex-wrap gap-2" id="theme-tiles"></div>
+      </div>
+    </div>
+
+    <!-- View toggle (always visible) -->
+    <div class="px-5 py-3 flex items-center gap-3">
+      <span class="text-xs text-gray-500 uppercase tracking-wide">View:</span>
+      <button id="btn-single" onclick="setView('single')"
+              class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-700 text-white border border-blue-600 transition">
+        <i class="fas fa-square mr-1"></i>Single
+      </button>
+      <button id="btn-list" onclick="setView('list')"
+              class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-neutral-800 text-gray-400 border border-neutral-700 hover:border-blue-700/50 transition">
+        <i class="fas fa-list mr-1"></i>List (10)
+      </button>
+    </div>
+
+  </div>
+
+  <!-- Loading -->
+  <div id="loading-overlay" class="text-center py-12">
+    <i class="fas fa-spinner fa-spin text-blue-400 text-3xl mb-3 block"></i>
+    <p class="text-gray-400 text-sm">Fetching your Steam library...</p>
+  </div>
+
+
+
+  <!-- Spin Button -->
+  <div class="text-center mb-6" id="spin-area" style="display:none">
+    <button onclick="spin()" id="spin-btn" disabled
+            class="inline-flex items-center gap-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold px-12 py-4 rounded-2xl transition text-lg shadow-lg shadow-blue-900/30">
+      <i class="fas fa-dice text-xl"></i>
+      <span id="spin-label">Pick a Random Game</span>
+    </button>
+    <p class="text-gray-600 text-xs mt-2" id="spin-hint"></p>
+  </div>
+
+  <!-- List view -->
+  <div id="list-view" class="hidden mb-8">
+    <div id="list-container" class="grid grid-cols-1 sm:grid-cols-2 gap-2.5"></div>
+    <div class="text-center mt-4">
+      <button onclick="spin()" class="text-sm text-blue-400 hover:text-blue-300 transition">
+        <i class="fas fa-random mr-1"></i>Pick 10 more
+      </button>
+    </div>
+  </div>
+
+  <!-- Single result card -->
+  <div id="result-area" class="hidden mb-8">
+    <div id="result-card" class="hidden bg-neutral-900 border border-neutral-800 rounded-2xl overflow-hidden">
+
+      <!-- Header image -->
+      <div class="relative">
+        <img id="result-bg" src="" alt="" class="w-full h-44 object-cover object-center hidden"
+             onerror="this.classList.add('hidden')">
+        <div class="absolute inset-0 bg-gradient-to-b from-transparent to-neutral-900 pointer-events-none"></div>
+      </div>
+
+      <!-- Name + meta row -->
+      <div class="flex flex-col sm:flex-row gap-0">
+        <img id="result-header" src="" alt=""
+             class="w-full sm:w-60 h-32 object-cover flex-shrink-0"
+             onerror="this.classList.add('hidden')">
+        <div class="p-5 flex-1">
+          <div id="result-name-wrap">
+            <h2 id="result-name" class="text-2xl font-extrabold text-white mb-1"></h2>
+            <div id="searching-state" class="hidden mb-1">
+              <i class="fas fa-spinner fa-spin text-blue-400 mr-2"></i>
+              <span class="text-gray-400 text-sm" id="searching-hint">Searching your library...</span>
+            </div>
+          </div>
+          <div class="flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-gray-500 mb-2">
+            <span id="r-playtime"></span>
+            <span id="r-release" class="hidden"></span>
+            <span id="r-dev" class="hidden"></span>
+          </div>
+          <!-- Review badge -->
+          <div id="r-review-row" class="hidden flex items-center gap-2 mb-2">
+            <span id="r-review-badge" class="text-xs font-bold px-2 py-0.5 rounded-full"></span>
+            <span id="r-review-text" class="text-xs text-gray-400"></span>
+          </div>
+          <!-- Genres -->
+          <div id="r-genres" class="flex flex-wrap gap-1.5 mb-2"></div>
+          <!-- Feature badges -->
+          <div id="r-features" class="flex flex-wrap gap-1.5"></div>
+        </div>
+      </div>
+
+      <!-- Description -->
+      <div id="r-desc-wrap" class="hidden px-5 pb-4 pt-3 border-t border-neutral-800">
+        <p id="r-desc" class="text-gray-300 text-sm leading-relaxed"></p>
+      </div>
+
+      <!-- Achievement progress -->
+      <div id="r-ach-row" class="hidden px-5 pb-4 pt-3 border-t border-neutral-800">
+        <div class="flex items-center gap-3">
+          <i class="fas fa-trophy text-yellow-400 text-lg"></i>
+          <div class="flex-1">
+            <p class="text-white text-sm font-semibold" id="r-ach-text"></p>
+            <div class="w-full h-1.5 bg-neutral-800 rounded-full mt-1.5">
+              <div id="r-ach-bar" class="h-1.5 bg-yellow-400 rounded-full transition-all duration-700" style="width:0%"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Metacritic -->
+      <div id="r-meta-row" class="hidden px-5 pb-4 pt-3 border-t border-neutral-800 flex items-center gap-3">
+        <div id="r-meta-score" class="w-12 h-12 rounded-lg flex items-center justify-center text-xl font-extrabold flex-shrink-0"></div>
+        <div>
+          <p class="text-xs text-gray-500 uppercase tracking-wide">Metacritic</p>
+          <a id="r-meta-link" href="#" target="_blank" rel="noopener" class="text-xs text-gray-400 hover:text-white">View on Metacritic</a>
+        </div>
+      </div>
+
+      <!-- Media tabs -->
+      <div id="r-media" class="hidden border-t border-neutral-800">
+        <div class="flex gap-1.5 px-5 pt-3 mb-3">
+          <button onclick="switchMedia('screenshots')" id="tab-ss"
+                  class="px-3 py-1 rounded-lg text-xs font-semibold bg-blue-700 text-white border border-blue-600 transition">
+            <i class="fas fa-images mr-1"></i>Screenshots
+          </button>
+          <button onclick="switchMedia('trailer')" id="tab-tr"
+                  class="hidden px-3 py-1 rounded-lg text-xs font-semibold bg-neutral-800 text-gray-400 border border-neutral-700 transition">
+            <i class="fas fa-play mr-1"></i>Trailer
+          </button>
+        </div>
+        <div id="media-ss" class="px-5 pb-4">
+          <img id="ss-big" src="" alt="" class="w-full rounded-xl mb-2 cursor-pointer" onclick="nextSS()">
+          <div id="ss-thumbs" class="flex gap-2 overflow-x-auto pb-1"></div>
+        </div>
+        <div id="media-tr" class="hidden px-5 pb-4">
+          <video id="tr-video" controls class="w-full rounded-xl bg-black" preload="metadata"></video>
+        </div>
+      </div>
+
+      <!-- Who else owns this (members only) -->
+      <div id="r-who-owns" class="hidden border-t border-neutral-800 px-5 py-4">
+        <div class="flex items-center justify-between mb-3">
+          <p class="text-xs text-gray-500 uppercase tracking-wide flex items-center gap-2">
+            <i class="fas fa-users text-blue-400"></i> Members who also own this
+          </p>
+          <a id="r-start-group" href="#" class="hidden text-xs text-green-400 hover:text-green-300 transition">Start a group?</a>
+        </div>
+        <div id="r-who-owns-list" class="flex flex-wrap gap-2"></div>
+        <div id="r-who-owns-empty" class="hidden text-xs text-gray-600">No members with library sharing enabled own this game yet.</div>
+        <div id="r-who-owns-loading" class="text-xs text-gray-600 flex items-center gap-2">
+          <i class="fas fa-spinner fa-spin text-blue-400 text-xs"></i> Checking member libraries...
+        </div>
+      </div>
+
+      <!-- Actions -->
+      <div class="px-5 py-4 border-t border-neutral-800 flex flex-wrap gap-2">
+        <a id="r-steam-link" href="#" target="_blank" rel="noopener"
+           class="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold px-5 py-2.5 rounded-xl text-sm transition">
+          <i class="fab fa-steam"></i> Open in Steam
+        </a>
+        <button onclick="spin()"
+                class="inline-flex items-center gap-2 bg-neutral-800 hover:bg-neutral-700 text-white font-semibold px-5 py-2.5 rounded-xl text-sm transition">
+          <i class="fas fa-random"></i> Next Random
+        </button>
+        <button onclick="document.getElementById('filters-panel').scrollIntoView({behavior:'smooth'})"
+                class="inline-flex items-center gap-2 bg-neutral-800 hover:bg-neutral-700 text-white font-semibold px-5 py-2.5 rounded-xl text-sm transition">
+          <i class="fas fa-sliders-h"></i> Change Search
+        </button>
+      </div>
+
+      <!-- Detail loading spinner inside the card -->
+      <div id="detail-loading" class="hidden border-t border-neutral-800 text-center py-5">
+        <i class="fas fa-spinner fa-spin text-blue-400 text-xl mb-1 block"></i>
+        <p class="text-gray-500 text-xs">Loading details...</p>
+      </div>
+
+    </div><!-- /result-card -->
+  </div><!-- /result-area -->
+
+  {% endif %}
+</div>
+
+{% if has_steam %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+
+  // ---- Genre/Theme data ----
+  // tag: SteamSpy lowercase tag name, stored in web_steam_app_tags
+  const GENRES = [
+    { id: 'action',        label: 'Action',             icon: 'fa-fist-raised',   tag: 'action'            },
+    { id: 'action_rpg',    label: 'Action RPG',         icon: 'fa-shield-alt',    tag: 'action rpg'        },
+    { id: 'adventure',     label: 'Adventure',          icon: 'fa-map',           tag: 'adventure'         },
+    { id: 'battle_royale', label: 'Battle Royale',      icon: 'fa-parachute-box', tag: 'battle royale'     },
+    { id: 'card',          label: 'Card Games',         icon: 'fa-layer-group',   tag: 'card game'         },
+    { id: 'dating_sim',    label: 'Dating Simulator',   icon: 'fa-heart',         tag: 'dating sim'        },
+    { id: 'difficult',     label: 'Difficult',          icon: 'fa-skull-crossbones', tag: 'difficult'      },
+    { id: 'dungeon',       label: 'Dungeon Crawler',    icon: 'fa-dungeon',       tag: 'dungeon crawler'   },
+    { id: 'fps',           label: 'First-Person Shooter',icon: 'fa-crosshairs',   tag: 'fps'               },
+    { id: 'horror',        label: 'Horror',             icon: 'fa-skull',         tag: 'horror'            },
+    { id: 'indie',         label: 'Indie',              icon: 'fa-star',          tag: 'indie'             },
+    { id: 'interactive_fiction', label: 'Interactive Fiction', icon: 'fa-book-open', tag: 'interactive fiction' },
+    { id: 'management',    label: 'Management',         icon: 'fa-briefcase',     tag: 'management'        },
+    { id: 'open_world',    label: 'Open World',         icon: 'fa-globe',         tag: 'open world'        },
+    { id: 'platformer',    label: 'Platformer',         icon: 'fa-running',       tag: 'platformer'        },
+    { id: 'puzzle',        label: 'Immersive Puzzles',  icon: 'fa-puzzle-piece',  tag: 'puzzle'            },
+    { id: 'racing',        label: 'Racing',             icon: 'fa-flag-checkered',tag: 'racing'            },
+    { id: 'rpg',           label: 'RPG',                icon: 'fa-dragon',        tag: 'rpg'               },
+    { id: 'rts',           label: 'Real-Time Strategy', icon: 'fa-chess',         tag: 'rts'               },
+    { id: 'roguelike',     label: 'Rogue-like',         icon: 'fa-random',        tag: 'roguelike'         },
+    { id: 'simulation',    label: 'Simulation',         icon: 'fa-cogs',          tag: 'simulation'        },
+    { id: 'souls',         label: 'Souls-Like',         icon: 'fa-fire',          tag: 'souls-like'        },
+    { id: 'sports',        label: 'Sports',             icon: 'fa-football-ball', tag: 'sports'            },
+    { id: 'strategy',      label: 'Strategy',           icon: 'fa-chess-board',   tag: 'strategy'          },
+    { id: 'survival',      label: 'Survival / Crafting',icon: 'fa-campground',    tag: 'survival'          },
+    { id: 'turn_based',    label: 'Turn-Based Strategy',icon: 'fa-hourglass',     tag: 'turn-based strategy' },
+    { id: 'visual_novel',  label: 'Visual Novel',       icon: 'fa-scroll',        tag: 'visual novel'      },
+    { id: '4x',            label: '4X',                 icon: 'fa-expand-arrows-alt', tag: '4x'            },
+  ];
+
+  const THEMES = [
+    { id: '2d',            label: '2D',                 icon: 'fa-square',        tag: '2d'                },
+    { id: 'agriculture',   label: 'Agriculture',        icon: 'fa-seedling',      tag: 'farming sim'       },
+    { id: 'aliens',        label: 'Aliens',             icon: 'fa-user-astronaut',tag: 'aliens'            },
+    { id: 'cats',          label: 'Cats',               icon: 'fa-cat',           tag: 'cats'              },
+    { id: 'cute',          label: 'Cute',               icon: 'fa-heart',         tag: 'cute'              },
+    { id: 'dinosaurs',     label: 'Dinosaurs',          icon: 'fa-paw',           tag: 'dinosaurs'         },
+    { id: 'dystopian',     label: 'Dystopian',          icon: 'fa-industry',      tag: 'dystopian'         },
+    { id: 'fantasy',       label: 'Fantasy',            icon: 'fa-hat-wizard',    tag: 'fantasy'           },
+    { id: 'female_protag', label: 'Female Protagonist', icon: 'fa-venus',         tag: 'female protagonist'},
+    { id: 'futuristic',    label: 'Futuristic',         icon: 'fa-rocket',        tag: 'futuristic'        },
+    { id: 'lego',          label: 'LEGO',               icon: 'fa-cubes',         tag: 'lego'              },
+    { id: 'magic',         label: 'Magic',              icon: 'fa-magic',         tag: 'magic'             },
+    { id: 'ninja',         label: 'Ninja',              icon: 'fa-user-ninja',    tag: 'ninja'             },
+    { id: 'pirates',       label: 'Pirates',            icon: 'fa-anchor',        tag: 'pirates'           },
+    { id: 'pixel',         label: 'Pixel Graphics',     icon: 'fa-th',            tag: 'pixel graphics'    },
+    { id: 'postapoc',      label: 'Post-Apocalyptic',   icon: 'fa-radiation',     tag: 'post-apocalyptic'  },
+    { id: 'retro',         label: 'Retro',              icon: 'fa-gamepad',       tag: 'retro'             },
+    { id: 'robots',        label: 'Robots',             icon: 'fa-robot',         tag: 'robots'            },
+    { id: 'romance',       label: 'Romance',            icon: 'fa-heart-broken',  tag: 'romance'           },
+    { id: 'scifi',         label: 'Sci-fi',             icon: 'fa-meteor',        tag: 'sci-fi'            },
+    { id: 'space',         label: 'Space',              icon: 'fa-space-shuttle', tag: 'space'             },
+    { id: 'underwater',    label: 'Underwater',         icon: 'fa-fish',          tag: 'underwater'        },
+    { id: 'voxel',         label: 'Voxel Graphics',     icon: 'fa-cube',          tag: 'voxel'             },
+    { id: 'western',       label: 'Western',            icon: 'fa-horse',         tag: 'western'           },
+    { id: 'zombies',       label: 'Zombies',            icon: 'fa-biohazard',     tag: 'zombies'           },
+  ];
+
+  // cat_id = Steam appdetails category IDs - used to verify feature after detail fetch
+  // Multiple cat_ids mean "any of these" (e.g. controller = full OR partial)
+  const FEATURES = [
+    { key: 'singleplayer', label: 'Single-player',    icon: 'fa-user',      cat_ids: [2]      },
+    { key: 'multiplayer',  label: 'Multiplayer',      icon: 'fa-users',     cat_ids: [1]      },
+    { key: 'coop',         label: 'Co-op',            icon: 'fa-handshake', cat_ids: [9, 38]  },
+    { key: 'controller',   label: 'Controller',       icon: 'fa-gamepad',   cat_ids: [28, 18] },
+    { key: 'achievements', label: 'Achievements',     icon: 'fa-trophy',    cat_ids: [22]     },
+    { key: 'cards',        label: 'Trading Cards',    icon: 'fa-id-card',   cat_ids: [29]     },
+    { key: 'cloud',        label: 'Steam Cloud',      icon: 'fa-cloud',     cat_ids: [23]     },
+    { key: 'workshop',     label: 'Workshop',         icon: 'fa-tools',     cat_ids: [30]     },
+    { key: 'remote_play',  label: 'Remote Play',      icon: 'fa-tv',        cat_ids: [41]     },
+    { key: 'local_mp',     label: 'Local Multiplayer',icon: 'fa-couch',     cat_ids: [7]      },
+  ];
+
+  // State
+  let library = [];
+  let pool = [];
+  let lastAppId = null;
+  let viewMode = 'single';
+  let activeFeatures = new Set();
+  let activeGenreTag = null;
+  let activeThemeTag = null;
+  let tagFilterCache = {};    // tagId -> Set of app_ids from Steam search
+  let detailCache = {};       // app_id -> full detail object (for rendering)
+  let spinGeneration = 0;
+  let currentSS = [];
+  let currentSSIdx = 0;
+
+  // ---- Collapsible sections ----
+  window.toggleSection = function(sectionId, btn) {
+    const el = document.getElementById(sectionId);
+    const icon = btn.querySelector('i.fa-chevron-down');
+    const isHidden = el.classList.contains('hidden');
+    el.classList.toggle('hidden', !isHidden);
+    if (icon) icon.style.transform = isHidden ? 'rotate(180deg)' : '';
+  };
+
+  function setSectionBadge(badgeId, active) {
+    const badge = document.getElementById(badgeId);
+    if (!badge) return;
+    badge.classList.toggle('hidden', !active);
+  }
+
+  // ---- Build tile UIs ----
+  function buildTiles(items, containerId, onClick) {
+    const el = document.getElementById(containerId);
+    el.innerHTML = items.map(item => `
+      <button data-id="${item.id || item.key}"
+              onclick="${onClick}('${item.id || item.key}')"
+              class="tile-btn flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-neutral-800 border border-neutral-700 text-gray-300 hover:bg-blue-900/40 hover:border-blue-600/50 hover:text-blue-300 transition">
+        <i class="fas ${item.icon} text-[10px] text-gray-500"></i>
+        ${escapeHtml(item.label)}
+      </button>`
+    ).join('');
+  }
+
+  buildTiles(FEATURES, 'feature-tiles', 'toggleFeature');
+  buildTiles(GENRES, 'genre-tiles', 'toggleGenre');
+  buildTiles(THEMES, 'theme-tiles', 'toggleTheme');
+
+  // ---- Load library ----
+  document.getElementById('loading-overlay').classList.remove('hidden');
+  csrfFetch('/api/steamquest/library/')
+    .then(r => r.json())
+    .then(data => {
+      document.getElementById('loading-overlay').classList.add('hidden');
+      document.getElementById('spin-area').style.display = '';
+      if (!data.ok) {
+        document.getElementById('spin-label').textContent = data.error || 'Error loading library';
+        document.getElementById('pool-count').textContent = data.error || '';
+        return;
+      }
+      library = data.games || [];
+      rebuildPool();
+      document.getElementById('spin-btn').disabled = false;
+    })
+    .catch(() => {
+      document.getElementById('loading-overlay').classList.add('hidden');
+      document.getElementById('spin-area').style.display = '';
+      document.getElementById('spin-label').textContent = 'Failed to load library';
+    });
+
+  // ---- Pool building ----
+  function rebuildPool() {
+    const playtime = document.getElementById('f-playtime').value;
+    const search   = document.getElementById('f-search').value.trim().toLowerCase();
+    const mode     = document.getElementById('f-mode').value;
+
+    let filtered = library.filter(g => {
+      const hrs = g.playtime_hours || 0;
+      if (playtime === 'unplayed' && hrs >  0)  return false;
+      if (playtime === 'under1'   && hrs >= 1)  return false;
+      if (playtime === 'under5'   && hrs >= 5)  return false;
+      if (playtime === 'under10'  && hrs >= 10) return false;
+      if (playtime === 'over10'   && hrs < 10)  return false;
+      if (playtime === 'over50'   && hrs < 50)  return false;
+      if (search && !g.name.toLowerCase().includes(search)) return false;
+      return true;
+    });
+
+    // Genre/theme: filter using cached local DB tag results
+    const activeId = activeGenreTag || activeThemeTag;
+    if (activeId) {
+      const entry = (activeGenreTag ? GENRES : THEMES).find(x => x.id === activeId);
+      if (entry && tagFilterCache[entry.tag] !== undefined) {
+        const matching = tagFilterCache[entry.tag];
+        filtered = filtered.filter(g => matching.has(g.app_id));
+      }
+    }
+
+    if (mode === 'alpha') filtered.sort((a, b) => a.name.localeCompare(b.name));
+
+    pool = filtered;
+
+    const n = pool.length;
+    const total = library.length;
+    // Features still applied at pick time; genre/theme now pre-filtered
+    const hasFeatFilter = activeFeatures.size > 0;
+    const poolLabel = hasFeatFilter
+      ? `${n.toLocaleString()} of ${total.toLocaleString()} games (feature filter applied at pick time)`
+      : `${n.toLocaleString()} of ${total.toLocaleString()} games`;
+    document.getElementById('pool-count').textContent = n > 0 ? poolLabel : 'No games match';
+    const btn = document.getElementById('spin-btn');
+    if (library.length) {
+      btn.disabled = n === 0;
+      document.getElementById('spin-label').textContent = n > 0 ? 'Pick a Random Game' : 'No games match';
+    }
+    updateSearchBar();
+  }
+
+  // ---- Genre/Theme filter via local tag DB ----
+  // Calls /ql/api/steamquest/tag/?tag_name=battle+royale
+  // Server queries web_steam_app_tags (local DB) - no live SteamSpy calls.
+  // First click may show 0 results if tags haven't been synced yet - sync runs on page load.
+
+  function applyTagFilter(type, id) {
+    const isGenre = type === 'genre';
+    const active = isGenre ? activeGenreTag : activeThemeTag;
+
+    // Deselect
+    if (active === id) {
+      if (isGenre) { activeGenreTag = null; updateTileState('genre-tiles', []); setSectionBadge('sec-genres-badge', false); }
+      else         { activeThemeTag = null; updateTileState('theme-tiles', []); setSectionBadge('sec-themes-badge', false); }
+      rebuildPool();
+      return;
+    }
+
+    // Select - clear the other
+    if (isGenre) {
+      activeGenreTag = id; activeThemeTag = null;
+      updateTileState('genre-tiles', [id]); updateTileState('theme-tiles', []);
+      setSectionBadge('sec-genres-badge', true); setSectionBadge('sec-themes-badge', false);
+    } else {
+      activeThemeTag = id; activeGenreTag = null;
+      updateTileState('theme-tiles', [id]); updateTileState('genre-tiles', []);
+      setSectionBadge('sec-themes-badge', true); setSectionBadge('sec-genres-badge', false);
+    }
+
+    const entry = (isGenre ? GENRES : THEMES).find(x => x.id === id);
+    if (!entry) { rebuildPool(); return; }
+
+    // Already cached - instant
+    if (tagFilterCache[entry.tag] !== undefined) { rebuildPool(); return; }
+
+    // Fetch from local DB
+    const btn = document.getElementById('spin-btn');
+    const label = document.getElementById('spin-label');
+    btn.disabled = true;
+    label.textContent = 'Finding ' + entry.label + ' games...';
+
+    csrfFetch('/api/steamquest/tag/?tag_name=' + encodeURIComponent(entry.tag))
+      .then(r => r.json())
+      .then(data => {
+        tagFilterCache[entry.tag] = new Set(data.ok ? (data.app_ids || []) : []);
+        rebuildPool();
+      })
+      .catch(() => {
+        tagFilterCache[entry.tag] = new Set();
+        rebuildPool();
+      });
+  }
+
+  window.toggleGenre = id => applyTagFilter('genre', id);
+  window.toggleTheme = id => applyTagFilter('theme', id);
+
+  // ---- Tile toggles ----
+  window.toggleFeature = function(key) {
+    if (activeFeatures.has(key)) activeFeatures.delete(key);
+    else activeFeatures.add(key);
+    updateTileState('feature-tiles', [...activeFeatures]);
+    rebuildPool();
+  };
+
+
+  function updateTileState(containerId, activeIds) {
+    document.querySelectorAll(`#${containerId} .tile-btn`).forEach(btn => {
+      const active = activeIds.includes(btn.dataset.id);
+      btn.className = btn.className
+        .replace(/bg-blue-700|bg-neutral-800/g, active ? 'bg-blue-700' : 'bg-neutral-800')
+        .replace(/border-blue-500|border-neutral-700/g, active ? 'border-blue-500' : 'border-neutral-700')
+        .replace(/text-white|text-gray-300/g, active ? 'text-white' : 'text-gray-300');
+    });
+  }
+
+  // ---- Search summary bar ----
+  function updateSearchBar() {
+    const tags = [];
+    const playtime = document.getElementById('f-playtime');
+    const mode = document.getElementById('f-mode');
+    const search = document.getElementById('f-search').value.trim();
+    if (playtime.value !== 'any') tags.push(playtime.options[playtime.selectedIndex].text);
+    if (mode.value !== 'random')  tags.push(mode.options[mode.selectedIndex].text);
+    if (search) tags.push(`"${search}"`);
+    activeFeatures.forEach(k => {
+      const f = FEATURES.find(x => x.key === k);
+      if (f) tags.push(f.label);
+    });
+    if (activeGenreTag) {
+      const g = GENRES.find(x => x.id === activeGenreTag);
+      if (g) tags.push(g.label);
+    }
+    if (activeThemeTag) {
+      const t = THEMES.find(x => x.id === activeThemeTag);
+      if (t) tags.push(t.label);
+    }
+
+    const bar = document.getElementById('search-summary-bar');
+    const tagsEl = document.getElementById('search-tags');
+    if (tags.length) {
+      tagsEl.innerHTML = tags.map(t =>
+        `<span class="bg-blue-900/40 border border-blue-700/30 text-blue-300 text-xs px-2 py-0.5 rounded-full">${escapeHtml(t)}</span>`
+      ).join('');
+      bar.classList.remove('hidden');
+    } else {
+      bar.classList.add('hidden');
+    }
+  }
+
+  // ---- Clear all ----
+  window.clearAll = function() {
+    document.getElementById('f-playtime').value = 'unplayed';
+    document.getElementById('f-mode').value = 'random';
+    document.getElementById('f-search').value = '';
+    activeFeatures.clear();
+    activeGenreTag = null;
+    activeThemeTag = null;
+    updateTileState('feature-tiles', []);
+    updateTileState('genre-tiles', []);
+    updateTileState('theme-tiles', []);
+    setSectionBadge('sec-genres-badge', false);
+    setSectionBadge('sec-themes-badge', false);
+    rebuildPool();
+  };
+
+  // ---- Presets ----
+  const PRESETS = {
+    backlog:     { playtime: 'unplayed', feature: null,          genre: null },
+    chill:       { playtime: 'any',      feature: 'singleplayer',genre: null },
+    couch:       { playtime: 'any',      feature: 'local_mp',    genre: null },
+    achievement: { playtime: 'any',      feature: 'achievements',genre: null },
+    controller:  { playtime: 'any',      feature: 'controller',  genre: null },
+    random:      { playtime: 'any',      feature: null,          genre: null },
+  };
+
+  function setActivePreset(key) {
+    document.querySelectorAll('.preset-btn').forEach(btn => {
+      const active = btn.dataset.preset === key;
+      btn.className = btn.className
+        .replace(/bg-blue-700|bg-neutral-800/g, active ? 'bg-blue-700' : 'bg-neutral-800')
+        .replace(/border-blue-500|border-neutral-700/g, active ? 'border-blue-500' : 'border-neutral-700')
+        .replace(/text-white|text-gray-300/g, active ? 'text-white' : 'text-gray-300');
+    });
+  }
+
+  let activePreset = null;
+
+  window.applyPreset = function(key) {
+    // Clicking the active preset deselects it (reset to defaults)
+    if (activePreset === key) {
+      activePreset = null;
+      setActivePreset(null);
+      document.getElementById('f-playtime').value = 'any';
+      document.getElementById('f-mode').value = 'random';
+      document.getElementById('f-search').value = '';
+      activeFeatures.clear();
+      activeGenreTag = null;
+      activeThemeTag = null;
+      updateTileState('genre-tiles', []);
+      updateTileState('theme-tiles', []);
+      updateTileState('feature-tiles', []);
+      setSectionBadge('sec-genres-badge', false);
+      setSectionBadge('sec-themes-badge', false);
+      rebuildPool();
+      return;
+    }
+    const p = PRESETS[key];
+    if (!p) return;
+    activePreset = key;
+    document.getElementById('f-playtime').value = p.playtime;
+    document.getElementById('f-mode').value = 'random';
+    document.getElementById('f-search').value = '';
+    activeFeatures.clear();
+    activeGenreTag = null;
+    activeThemeTag = null;
+    updateTileState('genre-tiles', []);
+    updateTileState('theme-tiles', []);
+    setSectionBadge('sec-genres-badge', false);
+    setSectionBadge('sec-themes-badge', false);
+    if (p.feature) {
+      activeFeatures.add(p.feature);
+      updateTileState('feature-tiles', [p.feature]);
+    } else {
+      updateTileState('feature-tiles', []);
+    }
+    setActivePreset(key);
+    rebuildPool();
+  };
+
+  // ---- View mode ----
+  window.setView = function(mode) {
+    viewMode = mode;
+    ['single','list'].forEach(m => {
+      const btn = document.getElementById(`btn-${m}`);
+      btn.className = btn.className
+        .replace(/bg-blue-700|bg-neutral-800/g, m === mode ? 'bg-blue-700' : 'bg-neutral-800')
+        .replace(/text-white|text-gray-400/g,   m === mode ? 'text-white'  : 'text-gray-400')
+        .replace(/border-blue-600|border-neutral-700/g, m === mode ? 'border-blue-600' : 'border-neutral-700');
+    });
+    document.getElementById('result-area').classList.add('hidden');
+    document.getElementById('result-card').classList.add('hidden');
+    document.getElementById('list-view').classList.add('hidden');
+  };
+
+  // ---- Spin ----
+  window.spin = function() {
+    if (!pool.length) return;
+    viewMode === 'list' ? spinList() : spinSingle();
+  };
+
+  function pickRandom() {
+    const mode = document.getElementById('f-mode').value;
+    if (mode === 'alpha') {
+      // Sequential modes: advance to the next item after the last one picked
+      if (!lastAppId) return pool[0];
+      const idx = pool.findIndex(g => g.app_id === lastAppId);
+      return pool[(idx + 1) % pool.length];
+    }
+    // Truly random: avoid repeating the same game twice in a row
+    const candidates = pool.length > 1 && lastAppId ? pool.filter(g => g.app_id !== lastAppId) : pool;
+    return candidates[Math.floor(Math.random() * candidates.length)];
+  }
+
+  function spinSingle(retryCount, gen) {
+    retryCount = retryCount || 0;
+    if (retryCount === 0) {
+      spinGeneration++;
+      gen = spinGeneration;
+    }
+    if (gen !== spinGeneration) return;
+
+    // Genre/theme are pre-filtered in pool. Only features need per-game detail checking.
+    const hasFeatureFilter = activeFeatures.size > 0;
+
+    const game = pickRandom();
+    if (!game) return;
+    lastAppId = game.app_id;
+
+    if (retryCount === 0) {
+      document.getElementById('list-view').classList.add('hidden');
+      document.getElementById('result-area').classList.remove('hidden');
+      document.getElementById('result-card').classList.remove('hidden');
+      setTimeout(() => document.getElementById('result-area').scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+
+      if (hasFeatureFilter) {
+        // Show searching state while we check features via appdetails
+        document.getElementById('result-name').classList.add('hidden');
+        document.getElementById('searching-state').classList.remove('hidden');
+        document.getElementById('searching-hint').textContent = 'Checking features...';
+        document.getElementById('result-header').classList.add('hidden');
+        document.getElementById('result-bg').src = '';
+        document.getElementById('result-bg').classList.add('hidden');
+        document.getElementById('r-playtime').textContent = '';
+        ['r-release','r-dev','r-review-row','r-desc-wrap','r-ach-row','r-meta-row','r-media','r-who-owns','detail-loading'].forEach(id =>
+          document.getElementById(id).classList.add('hidden'));
+        document.getElementById('r-genres').innerHTML = '';
+        document.getElementById('r-features').innerHTML = '';
+        document.getElementById('spin-hint').textContent = '';
+      } else {
+        // No feature filter - show game immediately, fetch detail in background
+        document.getElementById('result-name').classList.remove('hidden');
+        document.getElementById('searching-state').classList.add('hidden');
+        showShell(game);
+        document.getElementById('spin-hint').textContent = `From a pool of ${pool.length.toLocaleString()} games`;
+        fetchDetailWithFeatureCheck(game.app_id, 0, gen);
+        return;
+      }
+    }
+
+    fetchDetailWithFeatureCheck(game.app_id, retryCount, gen);
+  }
+
+  function spinList() {
+    const shuffled = [...pool].sort(() => Math.random() - 0.5).slice(0, 10);
+    document.getElementById('list-container').innerHTML = shuffled.map(g => {
+      const hrs = g.playtime_hours || 0;
+      const pt = hrs === 0 ? 'Never played' : hrs < 1 ? `${g.playtime_minutes}m played` : `${hrs}h played`;
+      return `<button onclick="pickFromList(${g.app_id})"
+              class="flex items-center gap-3 bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 hover:border-blue-700/40 rounded-xl p-3 text-left group w-full transition">
+        <img src="${escapeHtml(g.icon_url||'')}" class="w-10 h-10 rounded-lg flex-shrink-0 bg-neutral-800" onerror="this.style.display='none'">
+        <div class="flex-1 min-w-0">
+          <p class="text-white text-sm font-semibold truncate group-hover:text-blue-300 transition">${escapeHtml(g.name)}</p>
+          <p class="text-gray-500 text-xs">${escapeHtml(pt)}</p>
+        </div>
+        <i class="fas fa-chevron-right text-gray-700 group-hover:text-blue-400 flex-shrink-0 transition"></i>
+      </button>`;
+    }).join('');
+    document.getElementById('list-view').classList.remove('hidden');
+    document.getElementById('result-area').classList.add('hidden');
+    setTimeout(() => document.getElementById('list-view').scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+  }
+
+  window.pickFromList = function(appId) {
+    const game = library.find(g => g.app_id === appId);
+    if (!game) return;
+    setView('single');
+    lastAppId = appId;
+    document.getElementById('searching-state').classList.add('hidden');
+    document.getElementById('result-card').classList.remove('hidden');
+    document.getElementById('result-area').classList.remove('hidden');
+    document.getElementById('list-view').classList.add('hidden');
+    showShell(game);
+    document.getElementById('spin-hint').textContent = `From a pool of ${pool.length.toLocaleString()} games`;
+    spinGeneration++;
+    fetchDetailWithFeatureCheck(appId, 0, spinGeneration);
+    setTimeout(() => document.getElementById('result-area').scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+  };
+
+  // ---- Shell (instant, no API) ----
+  function showShell(game) {
+    const hrs = game.playtime_hours || 0;
+    const pt = hrs === 0 ? 'Never played' : hrs < 1 ? `${game.playtime_minutes} minutes` : `${hrs} hours played`;
+    document.getElementById('result-name').textContent = game.name;
+    document.getElementById('r-playtime').textContent = pt;
+    document.getElementById('r-steam-link').href = `https://store.steampowered.com/app/${game.app_id}/`;
+    const hdr = document.getElementById('result-header');
+    hdr.classList.add('hidden');
+    hdr.onload = () => hdr.classList.remove('hidden');
+    hdr.onerror = () => hdr.classList.add('hidden');
+    hdr.src = `https://cdn.akamai.steamstatic.com/steam/apps/${game.app_id}/header.jpg`;
+    // Clear background - renderDetail will set it once detail arrives
+    const bg = document.getElementById('result-bg');
+    bg.src = '';
+    bg.classList.add('hidden');
+    // Clear detail sections
+    ['r-review-row','r-desc-wrap','r-ach-row','r-meta-row','r-media'].forEach(id =>
+      document.getElementById(id).classList.add('hidden'));
+    document.getElementById('r-genres').innerHTML = '';
+    document.getElementById('r-features').innerHTML = '';
+    document.getElementById('r-release').classList.add('hidden');
+    document.getElementById('r-dev').classList.add('hidden');
+    document.getElementById('detail-loading').classList.remove('hidden');
+    // Reset who-owns section
+    document.getElementById('r-who-owns').classList.add('hidden');
+    document.getElementById('r-who-owns-list').innerHTML = '';
+    document.getElementById('r-who-owns-empty').classList.add('hidden');
+    document.getElementById('r-who-owns-loading').classList.remove('hidden');
+    document.getElementById('r-start-group').classList.add('hidden');
+  }
+
+  // Check if a detail object satisfies all active feature filters
+  function detailMatchesFeatures(d) {
+    for (const key of activeFeatures) {
+      const feat = FEATURES.find(f => f.key === key);
+      if (!feat) continue;
+      // Map feature key to detail field
+      const fieldMap = {
+        singleplayer: d.has_singleplayer,
+        multiplayer:  d.has_multiplayer,
+        coop:         d.has_co_op,
+        controller:   d.has_controller || d.has_full_controller,
+        achievements: d.has_achievements,
+        cards:        d.has_trading_cards,
+        cloud:        d.has_cloud,
+        workshop:     d.has_workshop,
+        remote_play:  d.has_remote_play,
+        local_mp:     d.has_local_multiplayer,
+      };
+      if (!fieldMap[key]) return false;
+    }
+    return true;
+  }
+
+
+  // ---- Rich detail with FEATURE-ONLY check + auto-retry ----
+  // Genre/theme are pre-filtered in pool - only features need per-game appdetails checking
+  function fetchDetailWithFeatureCheck(appId, retryCount, gen) {
+    const MAX_RETRIES = 30;
+    if (gen === undefined) gen = spinGeneration;
+    const hasFeatureFilter = activeFeatures.size > 0;
+
+    function onDetail(d) {
+      if (gen !== spinGeneration) return;
+
+      if (hasFeatureFilter && !detailMatchesFeatures(d)) {
+        if (retryCount < MAX_RETRIES) {
+          document.getElementById('searching-hint').textContent =
+            `Checked ${retryCount + 1} - still looking...`;
+          spinSingle(retryCount + 1, gen);
+          return;
+        }
+        // Exhausted
+        const f = FEATURES.find(x => activeFeatures.has(x.key));
+        const msg = f ? `No ${f.label} games found in your pool. Try fewer filters.` : 'No matching game found.';
+        document.getElementById('searching-hint').textContent = msg;
+        return;
+      }
+
+      // Match confirmed - fill in the card
+      if (gen !== spinGeneration) return;
+      const game = library.find(g => g.app_id === appId);
+      if (hasFeatureFilter && game) {
+        showShell(game);
+        document.getElementById('result-name').classList.remove('hidden');
+        document.getElementById('searching-state').classList.add('hidden');
+        document.getElementById('spin-hint').textContent = `From a pool of ${pool.length.toLocaleString()} games`;
+      }
+      document.getElementById('detail-loading').classList.add('hidden');
+      renderDetail(d);
+      fetchWhoOwns(appId, d);
+    }
+
+    if (detailCache[appId]) {
+      onDetail(detailCache[appId]);
+      return;
+    }
+    csrfFetch(`/api/steamquest/game/${appId}/`)
+      .then(r => r.json())
+      .then(d => {
+        if (gen !== spinGeneration) return;
+        if (!d.ok) { document.getElementById('detail-loading').classList.add('hidden'); return; }
+        detailCache[appId] = d;
+        onDetail(d);
+      })
+      .catch(() => {
+        if (gen !== spinGeneration) return;
+        document.getElementById('detail-loading').classList.add('hidden');
+      });
+  }
+
+  function renderDetail(d) {
+    if (d.background) {
+      const bg = document.getElementById('result-bg');
+      bg.onload = () => bg.classList.remove('hidden');
+      bg.onerror = () => {};
+      bg.src = d.background;
+    }
+    if (d.release_date) {
+      const el = document.getElementById('r-release');
+      el.textContent = d.release_date; el.classList.remove('hidden');
+    }
+    if (d.developers && d.developers[0]) {
+      const el = document.getElementById('r-dev');
+      el.textContent = d.developers[0]; el.classList.remove('hidden');
+    }
+    if (d.review_score_desc) {
+      const score = d.review_score || 0;
+      const cls = score >= 8 ? 'bg-green-600' : score >= 5 ? 'bg-yellow-600' : 'bg-red-600';
+      const badge = document.getElementById('r-review-badge');
+      badge.className = `text-xs font-bold px-2 py-0.5 rounded-full text-white ${cls}`;
+      badge.textContent = d.review_score_desc;
+      document.getElementById('r-review-text').textContent =
+        d.review_pct != null ? `${d.review_pct}% of ${(d.reviews_total||0).toLocaleString()} reviews` : '';
+      document.getElementById('r-review-row').classList.remove('hidden');
+    }
+    if (d.short_description) {
+      document.getElementById('r-desc').textContent = d.short_description;
+      document.getElementById('r-desc-wrap').classList.remove('hidden');
+    }
+    (d.genres||[]).forEach(g => {
+      const s = document.createElement('span');
+      s.className = 'text-xs bg-neutral-800 border border-neutral-700 text-gray-300 px-2 py-0.5 rounded-full';
+      s.textContent = g;
+      document.getElementById('r-genres').appendChild(s);
+    });
+    const featureDefs = [
+      [d.has_singleplayer,'fa-user','text-indigo-400','Single-player'],
+      [d.has_multiplayer,'fa-users','text-green-400','Multiplayer'],
+      [d.has_co_op,'fa-handshake','text-teal-400','Co-op'],
+      [d.has_full_controller,'fa-gamepad','text-blue-400','Full Controller'],
+      [!d.has_full_controller&&d.has_controller,'fa-gamepad','text-blue-300','Partial Controller'],
+      [d.has_achievements,'fa-trophy','text-yellow-400','Achievements'],
+      [d.has_trading_cards,'fa-id-card','text-purple-400','Trading Cards'],
+      [d.has_cloud,'fa-cloud','text-sky-400','Steam Cloud'],
+      [d.has_workshop,'fa-tools','text-orange-400','Workshop'],
+      [d.has_remote_play,'fa-tv','text-pink-400','Remote Play'],
+    ];
+    const featEl = document.getElementById('r-features');
+    featureDefs.forEach(([show,icon,color,label]) => {
+      if (!show) return;
+      const s = document.createElement('span');
+      s.className = 'inline-flex items-center gap-1 text-xs bg-neutral-800 border border-neutral-700 text-gray-300 px-2 py-0.5 rounded-full';
+      s.innerHTML = `<i class="fas ${icon} ${color} text-[10px]"></i>${escapeHtml(label)}`;
+      featEl.appendChild(s);
+    });
+    if (d.user_achievements_total > 0) {
+      const earned = d.user_achievements_earned || 0;
+      const total = d.user_achievements_total;
+      const pct = Math.round(earned/total*100);
+      document.getElementById('r-ach-text').textContent = `${earned} / ${total} achievements (${pct}%)`;
+      document.getElementById('r-ach-bar').style.width = pct + '%';
+      document.getElementById('r-ach-row').classList.remove('hidden');
+    } else if (d.achievements_total > 0) {
+      document.getElementById('r-ach-text').textContent = `${d.achievements_total} achievements`;
+      document.getElementById('r-ach-bar').style.width = '0%';
+      document.getElementById('r-ach-row').classList.remove('hidden');
+    }
+    if (d.metacritic_score) {
+      const s = d.metacritic_score;
+      const cls = s >= 75 ? 'bg-green-700' : s >= 50 ? 'bg-yellow-600' : 'bg-red-700';
+      const el = document.getElementById('r-meta-score');
+      el.textContent = s;
+      el.className = `w-12 h-12 rounded-lg flex items-center justify-center text-xl font-extrabold text-white ${cls}`;
+      if (d.metacritic_url) document.getElementById('r-meta-link').href = d.metacritic_url;
+      document.getElementById('r-meta-row').classList.remove('hidden');
+    }
+    currentSS = d.screenshots || [];
+    currentSSIdx = 0;
+    const hasTrailer = d.movies && d.movies.length > 0;
+    if (currentSS.length || hasTrailer) {
+      document.getElementById('r-media').classList.remove('hidden');
+      if (currentSS.length) {
+        document.getElementById('ss-big').src = currentSS[0];
+        document.getElementById('ss-thumbs').innerHTML = currentSS.map((s,i) =>
+          `<img src="${escapeHtml(s.replace('1920x1080','600x338'))}"
+                class="h-12 rounded-lg cursor-pointer flex-shrink-0 border-2 ${i===0?'border-blue-500':'border-transparent'} hover:border-blue-400 transition"
+                onclick="selectSS(${i})">`).join('');
+      }
+      if (hasTrailer) {
+        document.getElementById('tab-tr').classList.remove('hidden');
+        const m = d.movies[0];
+        const vid = document.getElementById('tr-video');
+        vid.src = m.mp4 || m.webm || '';
+        vid.poster = m.thumbnail || '';
+      }
+    }
+  }
+
+  window.nextSS = function() {
+    if (!currentSS.length) return;
+    currentSSIdx = (currentSSIdx + 1) % currentSS.length;
+    selectSS(currentSSIdx);
+  };
+  window.selectSS = function(idx) {
+    currentSSIdx = idx;
+    document.getElementById('ss-big').src = currentSS[idx];
+    document.querySelectorAll('#ss-thumbs img').forEach((img,i) => {
+      img.className = img.className.replace(/border-blue-500|border-transparent/g,
+        i===idx ? 'border-blue-500' : 'border-transparent');
+    });
+  };
+  window.switchMedia = function(tab) {
+    document.getElementById('media-ss').classList.toggle('hidden', tab!=='screenshots');
+    document.getElementById('media-tr').classList.toggle('hidden', tab!=='trailer');
+    const ssCls = tab==='screenshots' ? 'bg-blue-700 text-white border-blue-600' : 'bg-neutral-800 text-gray-400 border-neutral-700';
+    const trCls = tab==='trailer' ? 'bg-blue-700 text-white border-blue-600' : 'bg-neutral-800 text-gray-400 border-neutral-700';
+    document.getElementById('tab-ss').className = `px-3 py-1 rounded-lg text-xs font-semibold border transition ${ssCls}`;
+    document.getElementById('tab-tr').className = `px-3 py-1 rounded-lg text-xs font-semibold border transition ${trCls}`;
+  };
+
+  // ---- Who else owns this ----
+  function fetchWhoOwns(appId, detail) {
+    // Show "Start a group?" only for multiplayer/co-op games
+    const startGroupLink = document.getElementById('r-start-group');
+    const gameName = (library.find(g => g.app_id === appId) || {}).name || '';
+    if (detail && (detail.has_multiplayer || detail.has_co_op)) {
+      startGroupLink.href = '/lfg/create/?game=' + encodeURIComponent(gameName);
+      startGroupLink.classList.remove('hidden');
+    } else {
+      startGroupLink.classList.add('hidden');
+    }
+    csrfFetch(`/api/steamquest/who-owns/?app_id=${appId}`)
+      .then(r => r.json())
+      .then(data => {
+        const section = document.getElementById('r-who-owns');
+        const list = document.getElementById('r-who-owns-list');
+        const empty = document.getElementById('r-who-owns-empty');
+        const loading = document.getElementById('r-who-owns-loading');
+        loading.classList.add('hidden');
+        section.classList.remove('hidden');
+        if (!data.ok || !data.owners || data.owners.length === 0) {
+          empty.classList.remove('hidden');
+          return;
+        }
+        list.innerHTML = data.owners.map(o => {
+          const hrs = o.playtime_hours || 0;
+          const pt = hrs === 0 ? 'Never played' : hrs < 1 ? 'Under 1h' : `${hrs}h`;
+          const avatar = escapeHtml(o.avatar_url || '');
+          const initials = escapeHtml((o.display_name || o.username || '?')[0].toUpperCase());
+          return `<a href="${escapeHtml(o.profile_url)}"
+                     title="${escapeHtml(o.display_name || o.username)} - ${pt} played"
+                     class="flex items-center gap-2 bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 hover:border-blue-700/50 rounded-xl px-3 py-2 transition group">
+            ${avatar
+              ? `<img src="${avatar}" class="w-7 h-7 rounded-full flex-shrink-0 bg-neutral-700" onerror="this.style.display='none'">`
+              : `<div class="w-7 h-7 rounded-full bg-blue-800 flex items-center justify-center text-xs font-bold text-white flex-shrink-0">${initials}</div>`
+            }
+            <div>
+              <p class="text-white text-xs font-semibold group-hover:text-blue-300 transition leading-none mb-0.5">${escapeHtml(o.display_name || o.username)}</p>
+              <p class="text-gray-500 text-[10px] leading-none">${escapeHtml(pt)}</p>
+            </div>
+          </a>`;
+        }).join('');
+      })
+      .catch(() => {
+        document.getElementById('r-who-owns-loading').classList.add('hidden');
+      });
+  }
+
+  // ---- Event listeners ----
+  // Clear active preset when user manually changes any filter
+  function clearPresetAndRebuild() { activePreset = null; setActivePreset(null); rebuildPool(); }
+  document.getElementById('f-playtime').addEventListener('change', clearPresetAndRebuild);
+  document.getElementById('f-mode').addEventListener('change', clearPresetAndRebuild);
+  document.getElementById('f-search').addEventListener('input', clearPresetAndRebuild);
+
+});
+</script>
+{% endif %}
+
+{% endblock web_content %}

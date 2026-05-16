@@ -1,9 +1,14 @@
 # QuestLog Web — public browse APIs
 
 import json
+import re
 import time
 import asyncio
 import logging
+
+
+def _community_slug(name):
+    return re.sub(r'[^a-z0-9]+', '-', name.lower()).strip('-')
 
 from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
@@ -16,6 +21,7 @@ from .models import (
     WebCommunityBotConfig, WebLFGGameConfig,
     WebFluxerLfgGroup, WebFluxerLfgConfig, WebFluxerGuildChannel,
     WebFluxerLfgMember, WebFluxerGuildSettings, WebFluxerLfgGame,
+    WebPost,
 )
 from app.db import get_db_session
 from .helpers import add_web_user_context, web_login_required, web_verified_required, safe_int, EXCLUDED_USER_IDS, generate_post_public_id, create_notification
@@ -25,6 +31,32 @@ logger = logging.getLogger(__name__)
 
 _VOICE_LINK_SCHEMES = ('https://',)
 _VOICE_LINK_MAX = 500
+
+# Allowlist for platform invite URLs (invite_url field only - must be a known platform)
+_INVITE_URL_DOMAINS = {
+    'discord.gg', 'discord.com',
+    'fluxer.gg',
+    'matrix.to',
+    'stoat.gg',
+    'root.gg',
+    'revolt.chat',
+    'teamspeak.com',
+    'mumble.info',
+}
+
+# Allowlist for social link fields
+_SOCIAL_URL_DOMAINS = {
+    'twitch.tv', 'www.twitch.tv',
+    'youtube.com', 'www.youtube.com', 'youtu.be',
+    'twitter.com', 'x.com', 'www.twitter.com', 'www.x.com',
+    'bsky.app', 'bsky.social',
+    'tiktok.com', 'www.tiktok.com',
+    'instagram.com', 'www.instagram.com',
+    'bluesky.social',
+}
+
+# Valid in-game guild slugs - single source of truth
+VALID_GUILD_GAMES = frozenset({'ffxiv', 'eso', 'wow', 'gw2', 'lost_ark', 'bdo', 'swtor', 'other'})
 
 # ── Survival game sub-choices (mirrors lfg_browse.html GAME_TEMPLATES) ───────
 _SURVIVAL_SUB_CHOICES = {
@@ -144,14 +176,93 @@ def _validate_role_schema(raw):
     return json.dumps(parsed)
 
 
+def _notify_lfg_game_owners(group_id, game_name, creator_id, now):
+    """Notify all members who own `game_name` (via Steam library cache) that a new LFG was created."""
+    from django.core.cache import cache
+    from app.db import get_db_session
+    from app.questlog_web.models import WebUser, WebNotification
+
+    game_lower = game_name.lower()
+
+    with get_db_session() as db:
+        candidates = db.query(WebUser.id, WebUser.steam_id).filter(
+            WebUser.steam_id.isnot(None),
+            WebUser.steam_id != '',
+            WebUser.share_steam_library == True,
+            WebUser.notify_lfg_game_owned == True,
+            WebUser.is_banned == False,
+            WebUser.is_disabled == False,
+            WebUser.id != creator_id,
+        ).all()
+
+        notified = []
+        for user_id, steam_id in candidates:
+            lib_key = f'steamquest_library_{steam_id}'
+            library = cache.get(lib_key) or []
+            owns = any(
+                g.get('name', '').lower() == game_lower
+                for g in library
+            )
+            if not owns:
+                continue
+            db.add(WebNotification(
+                user_id=user_id,
+                actor_id=creator_id,
+                notification_type='lfg_game_owned',
+                target_type='lfg',
+                target_id=str(group_id),
+                message=f'A new LFG group was created for {game_name}',
+                created_at=now,
+                is_read=False,
+            ))
+            notified.append(user_id)
+
+        if notified:
+            db.commit()
+
+
 def _validate_voice_link(url):
-    """Only allow https:// voice links to prevent javascript: / file: URI injection."""
+    """Only allow https:// URLs. Prevents javascript:/file: URI injection."""
     if not url or not isinstance(url, str):
         return None
     url = url.strip()[:_VOICE_LINK_MAX]
-    if not any(url.startswith(s) for s in _VOICE_LINK_SCHEMES):
+    if not url.startswith('https://'):
         return None
     return url or None
+
+
+def _validate_invite_url(url):
+    """Invite URLs must be https:// AND from a known platform domain."""
+    if not url or not isinstance(url, str):
+        return None
+    url = url.strip()[:_VOICE_LINK_MAX]
+    if not url.startswith('https://'):
+        return None
+    try:
+        from urllib.parse import urlparse
+        host = urlparse(url).netloc.lower().lstrip('www.')
+        if not any(host == d or host.endswith('.' + d) for d in _INVITE_URL_DOMAINS):
+            return None
+    except Exception:
+        return None
+    return url
+
+
+def _validate_social_url(url):
+    """Social links must be https:// AND from a known social platform domain."""
+    if not url or not isinstance(url, str):
+        return None
+    url = url.strip()[:_VOICE_LINK_MAX]
+    if not url.startswith('https://'):
+        return None
+    try:
+        from urllib.parse import urlparse
+        host = urlparse(url).netloc.lower()
+        if not any(host == d or host.endswith('.' + d) for d in _SOCIAL_URL_DOMAINS):
+            return None
+    except Exception:
+        return None
+    return url
 
 
 @ratelimit(key='user_or_ip', rate='20/h', method='POST', block=True)
@@ -237,6 +348,12 @@ def api_lfg_list(request):
                 joined_at=now,
             ))
             db.commit()
+
+        # Notify members who own this game (fire-and-forget)
+        try:
+            _notify_lfg_game_owners(group.id, game_name, request.web_user.id, now)
+        except Exception:
+            pass
 
         # Notify admin LFG channel (fire-and-forget, never raises)
         try:
@@ -625,6 +742,7 @@ def api_lfg_detail(request, group_id):
     return JsonResponse(data)
 
 
+@ratelimit(key='user_or_ip', rate='5/h', method='POST', block=True)
 @add_web_user_context
 @require_http_methods(["GET", "POST"])
 def api_communities(request):
@@ -653,9 +771,9 @@ def api_communities(request):
         fluxer_id_str = str(getattr(request.web_user, 'fluxer_id', '') or '')
 
         resolved_platforms = []  # list of (PlatformType, platform_id_str, invite_url, member_count)
-        for entry in raw_platforms[:3]:  # max 3 (discord + fluxer + matrix)
+        for entry in raw_platforms[:5]:  # max 5 (discord + fluxer + matrix + stoat + root)
             ptype_str = (entry.get('platform') or '').lower()
-            pid = (entry.get('platform_id') or '').strip()[:100]
+            pid = (entry.get('platform_id') or '').strip()[:500]
             if not ptype_str or not pid:
                 continue
             try:
@@ -666,8 +784,18 @@ def api_communities(request):
             p_invite_url = (entry.get('invite_url') or '')[:500] or None
             p_member_count = safe_int(entry.get('member_count') or 0, default=0, min_val=0)
 
+            # Invite-link-only platforms: Stoat and Root have no bot, no ownership check
+            if ptype in (PlatformType.STOAT, PlatformType.ROOT):
+                # For these platforms the invite URL IS the platform_id
+                resolved_platforms.append((ptype, pid, p_invite_url, p_member_count))
+                continue
+
             # Verify ownership per platform
             if ptype == PlatformType.FLUXER:
+                # If pid looks like a URL it's a manual invite link - skip ownership check
+                if pid.startswith('http://') or pid.startswith('https://'):
+                    resolved_platforms.append((ptype, pid, p_invite_url, p_member_count))
+                    continue
                 linked = [i for i in [discord_id, fluxer_id_str] if i]
                 if not linked:
                     return JsonResponse({'error': 'Connect your Fluxer account to link a Fluxer server'}, status=403)
@@ -683,12 +811,18 @@ def api_communities(request):
                     return JsonResponse({'error': 'You are not the owner of that Fluxer server'}, status=403)
 
             elif ptype == PlatformType.DISCORD:
+                # If pid isn't a numeric guild ID it's a manual invite URL - skip ownership check
+                try:
+                    discord_guild_id = int(pid)
+                except (ValueError, TypeError):
+                    resolved_platforms.append((ptype, pid, p_invite_url, p_member_count))
+                    continue
                 if not discord_id:
                     return JsonResponse({'error': 'Connect your Discord account to link a Discord server'}, status=403)
                 with get_db_session() as db:
                     row = db.execute(
                         text("SELECT guild_id FROM guilds WHERE guild_id=:gid AND owner_id=:oid AND bot_present=1 LIMIT 1"),
-                        {'gid': int(pid), 'oid': int(discord_id)},
+                        {'gid': discord_guild_id, 'oid': int(discord_id)},
                     ).fetchone()
                 if not row:
                     return JsonResponse({'error': 'You are not the owner of that Discord server'}, status=403)
@@ -714,21 +848,30 @@ def api_communities(request):
         raw_tags = data.get('tags') or []
         tags_json = json.dumps([t for t in raw_tags if isinstance(t, str)][:8])
 
+        raw_guild_games = data.get('guild_game') or []
+        if isinstance(raw_guild_games, str):
+            raw_guild_games = [raw_guild_games] if raw_guild_games else []
+        guild_games_clean = [g.strip().lower() for g in raw_guild_games if isinstance(g, str) and g.strip().lower() in VALID_GUILD_GAMES]
+        raw_games = data.get('games') or []
+        games_json = json.dumps([g.strip() for g in raw_games if isinstance(g, str) and g.strip()][:20])
         shared_fields = dict(
             name=name,
             short_description=(data.get('short_description') or '')[:500] or None,
             description=(data.get('description') or '') or None,
             website_url=_validate_voice_link(data.get('website_url')),
-            twitch_url=_validate_voice_link(data.get('twitch_url')),
-            youtube_url=_validate_voice_link(data.get('youtube_url')),
-            twitter_url=_validate_voice_link(data.get('twitter_url')),
-            bluesky_url=_validate_voice_link(data.get('bluesky_url')),
-            tiktok_url=_validate_voice_link(data.get('tiktok_url')),
-            instagram_url=_validate_voice_link(data.get('instagram_url')),
+            twitch_url=_validate_social_url(data.get('twitch_url')),
+            youtube_url=_validate_social_url(data.get('youtube_url')),
+            twitter_url=_validate_social_url(data.get('twitter_url')),
+            bluesky_url=_validate_social_url(data.get('bluesky_url')),
+            tiktok_url=_validate_social_url(data.get('tiktok_url')),
+            instagram_url=_validate_social_url(data.get('instagram_url')),
             tags=tags_json,
+            games=games_json,
             allow_discovery=bool(data.get('allow_discovery', False)),
             allow_joins=bool(data.get('allow_joins', False)),
             site_xp_to_guild=bool(data.get('site_xp_to_guild', False)),  # stored; only active once network_status='approved'
+            guild_game=json.dumps(guild_games_clean) if guild_games_clean else None,
+            guild_game_name=(data.get('guild_game_name') or '')[:200].strip() or None,
             owner_id=request.web_user.id,
             network_status='pending',
             is_active=True,
@@ -762,12 +905,17 @@ def api_communities(request):
                         if icon_row and icon_row[0]:
                             p_icon_url = f'https://cdn.discordapp.com/icons/{pid}/{icon_row[0]}.png?size=256'
                     elif ptype == PlatformType.DISCORD:
-                        icon_row = db.execute(
-                            text("SELECT guild_icon_hash FROM guilds WHERE guild_id=:gid LIMIT 1"),
-                            {'gid': int(pid)},
-                        ).fetchone()
-                        if icon_row and icon_row[0]:
-                            p_icon_url = f'https://cdn.discordapp.com/icons/{pid}/{icon_row[0]}.png?size=256'
+                        try:
+                            discord_gid = int(pid)
+                        except (ValueError, TypeError):
+                            discord_gid = None
+                        if discord_gid:
+                            icon_row = db.execute(
+                                text("SELECT guild_icon_hash FROM guilds WHERE guild_id=:gid LIMIT 1"),
+                                {'gid': discord_gid},
+                            ).fetchone()
+                            if icon_row and icon_row[0]:
+                                p_icon_url = f'https://cdn.discordapp.com/icons/{pid}/{icon_row[0]}.png?size=256'
                     # Matrix spaces don't have a cached icon URL - leave as None
 
                     community = WebCommunity(
@@ -836,6 +984,7 @@ def api_communities(request):
                 c.member_count = live_count
             data.append({
                 'id': c.id,
+                'slug': _community_slug(c.name),
                 'name': c.name,
                 'short_description': c.short_description,
                 'description': c.description,
@@ -848,10 +997,74 @@ def api_communities(request):
                 'invite_url': c.invite_url if c.allow_joins else None,
                 'tags': json.loads(c.tags or '[]'),
                 'owner_id': c.owner_id,
+                'guild_game': (json.loads(c.guild_game) if c.guild_game and c.guild_game.startswith('[') else ([c.guild_game] if c.guild_game else [])),
+                'guild_game_name': c.guild_game_name or None,
+                'games': json.loads(c.games or '[]'),
             })
         db.commit()
 
     return JsonResponse({'communities': data})
+
+
+def _enrich_community_games(db, game_names):
+    """Return list of {name, cover_url, steam_app_id, multiplayer} dicts for community games."""
+    if not game_names:
+        return []
+    from sqlalchemy import text as _t
+    result = []
+    for name in game_names:
+        row = db.execute(_t(
+            "SELECT cover_url, steam_app_id FROM web_user_games "
+            "WHERE name=:n LIMIT 1"
+        ), {'n': name}).fetchone()
+        cover = row[0] if row else None
+        app_id = row[1] if row else None
+
+        # Fall back to IGDB if no cover stored
+        if not cover:
+            cover = _igdb_cover_for_game(name)
+
+        is_mp = name in _MULTIPLAYER_OVERRIDES
+        if not is_mp:
+            tag_rows = db.execute(_t(
+                "SELECT DISTINCT t.tag_name FROM web_steam_app_tags t "
+                "JOIN web_user_games g ON g.steam_app_id = t.app_id "
+                "WHERE g.name = :name LIMIT 30"
+            ), {'name': name}).fetchall()
+            tags = {r[0].lower() for r in tag_rows}
+            is_mp = bool(tags & _MULTIPLAYER_TAGS) or not tag_rows
+        result.append({'name': name, 'cover_url': cover, 'steam_app_id': app_id, 'multiplayer': is_mp})
+    return result
+
+
+def _igdb_cover_for_game(name):
+    """Look up a cover URL from IGDB by game name. Returns URL string or None."""
+    try:
+        import asyncio as _asyncio
+        from app.utils.igdb import search_games as _igdb_search
+        loop = _asyncio.new_event_loop()
+        try:
+            games = loop.run_until_complete(_igdb_search(name, limit=1))
+        finally:
+            loop.close()
+        if games and games[0].cover_url:
+            return games[0].cover_url
+    except Exception:
+        pass
+    return None
+
+
+_MULTIPLAYER_TAGS = {
+    'multi-player', 'multiplayer', 'co-op', 'online co-op', 'co-op campaign',
+    'local co-op', 'lan co-op', 'local multiplayer', 'massively multiplayer',
+    'cross-platform multiplayer', 'online pvp', 'pvp', 'asynchronous multiplayer',
+    'shared/split screen co-op',
+}
+# Games confirmed multiplayer but whose SteamSpy tags haven't caught up yet
+_MULTIPLAYER_OVERRIDES = {
+    'No Rest for the Wicked',
+}
+
 
 
 @add_web_user_context
@@ -884,15 +1097,24 @@ def api_community_detail(request, community_id):
             community.name = name
             community.short_description = (data.get('short_description') or '')[:500] or None
             community.description = data.get('description') or None
-            community.invite_url = _validate_voice_link(data.get('invite_url'))
+            community.invite_url = _validate_invite_url(data.get('invite_url'))
             community.website_url = _validate_voice_link(data.get('website_url'))
-            community.twitch_url = _validate_voice_link(data.get('twitch_url'))
-            community.youtube_url = _validate_voice_link(data.get('youtube_url'))
-            community.twitter_url = _validate_voice_link(data.get('twitter_url'))
+            community.twitch_url = _validate_social_url(data.get('twitch_url'))
+            community.youtube_url = _validate_social_url(data.get('youtube_url'))
+            community.twitter_url = _validate_social_url(data.get('twitter_url'))
             community.tags = json.dumps([t for t in raw_tags if isinstance(t, str)][:8])
+            raw_games = data.get('games') or []
+            community.games = json.dumps([g.strip() for g in raw_games if isinstance(g, str) and g.strip()][:20])
             community.member_count = safe_int(data.get('member_count') or community.member_count, default=community.member_count, min_val=0)
             community.allow_discovery = bool(data.get('allow_discovery', community.allow_discovery))
             community.allow_joins = bool(data.get('allow_joins', community.allow_joins))
+            # In-game guild fields
+            raw_guild_games = data.get('guild_game') or []
+            if isinstance(raw_guild_games, str):
+                raw_guild_games = [raw_guild_games] if raw_guild_games else []
+            guild_games_clean = [g.strip().lower() for g in raw_guild_games if isinstance(g, str) and g.strip().lower() in VALID_GUILD_GAMES]
+            community.guild_game = json.dumps(guild_games_clean) if guild_games_clean else None
+            community.guild_game_name = (data.get('guild_game_name') or '')[:200].strip() or None
             # Owner can disable unified XP but cannot enable it - that requires admin approval
             if 'site_xp_to_guild' in data and not data['site_xp_to_guild']:
                 community.site_xp_to_guild = False
@@ -902,8 +1124,17 @@ def api_community_detail(request, community_id):
 
         # GET
         is_owner = bool(request.web_user and community.owner_id == request.web_user.id)
+
+        # For Fluxer communities, use live member count from web_fluxer_guild_settings
+        member_count = community.member_count
+        if community.platform == PlatformType.FLUXER and community.platform_id:
+            fluxer_settings = db.query(WebFluxerGuildSettings).filter_by(guild_id=community.platform_id).first()
+            if fluxer_settings and fluxer_settings.member_count:
+                member_count = fluxer_settings.member_count
+
         return JsonResponse({
             'id': community.id,
+            'slug': _community_slug(community.name),
             'name': community.name,
             'short_description': community.short_description,
             'description': community.description,
@@ -916,11 +1147,14 @@ def api_community_detail(request, community_id):
             'youtube_url': community.youtube_url,
             'twitter_url': community.twitter_url,
             'tags': json.loads(community.tags or '[]'),
-            'member_count': community.member_count,
+            'member_count': member_count,
             'activity_level': community.activity_level,
             'allow_discovery': community.allow_discovery,
             'allow_joins': community.allow_joins,
             'site_xp_to_guild': bool(community.site_xp_to_guild),
+            'guild_game': (json.loads(community.guild_game) if community.guild_game and community.guild_game.startswith('[') else ([community.guild_game] if community.guild_game else [])),
+            'guild_game_name': community.guild_game_name or None,
+            'games': _enrich_community_games(db, json.loads(community.games or '[]')),
             'is_owner': is_owner,
         })
 
@@ -1009,12 +1243,25 @@ def api_creators(request):
             WebCreatorProfile.follower_count.desc(),
         ).limit(50).all()
 
+        _STABLE_CDN = ('https://static-cdn.jtvnw.net/', 'https://yt3.', 'https://yt3.ggpht.')
+        def _resolve_avatar(creator_avatar, user_avatar):
+            """Prefer local upload. Also allow Twitch/YouTube CDN (stable).
+            Skip Discord CDN URLs (they expire). Fall back to web user's local avatar."""
+            if creator_avatar:
+                if creator_avatar.startswith('/media/'):
+                    return creator_avatar
+                if any(creator_avatar.startswith(cdn) for cdn in _STABLE_CDN):
+                    return creator_avatar
+            if user_avatar and user_avatar.startswith('/media/'):
+                return user_avatar
+            return None
+
         data = [{
             'id': c.id,
             'username': u.username,
             'display_name': c.display_name,
             'bio': c.bio,
-            'avatar_url': c.avatar_url,
+            'avatar_url': _resolve_avatar(c.avatar_url, u.avatar_url),
             'banner_url': c.banner_url,
             'twitch_url': c.twitch_url,
             'youtube_url': c.youtube_url,
@@ -1066,7 +1313,7 @@ def api_games(request):
     """API: List/search found games. Returns full data for client-side filtering.
     Intentionally public - no login required (read-only discovery endpoint)."""
     with get_db_session() as db:
-        ADULT_TAGS = ['Sexual Content', 'Nudity', 'Adult Only', 'Hentai', 'NSFW', 'Explicit']
+        ADULT_TAGS = ['Sexual Content', 'Adult Only Sexual Content', 'Frequent Nudity or Sexual Content', 'Hentai', 'Eroge', 'Explicit Sexual Content']
         from sqlalchemy import and_
         tag_filters = [~WebFoundGame.genres.ilike(f'%{tag}%') for tag in ADULT_TAGS]
         games = (
@@ -1123,7 +1370,82 @@ def api_articles(request):
 
 
 @require_http_methods(["GET"])
-@ratelimit(key='ip', rate='30/m', block=True)
+@ratelimit(key='header:cf-connecting-ip', rate='60/m', block=True)
+def api_steam_game_search(request):
+    """API: Search Steam store for games. Used by game suggest autocomplete.
+    ?q=<query>  (min 2 chars)
+    Returns: [{appid, name, header_url, tiny_image}]
+    """
+    import requests as _requests
+    q = request.GET.get('q', '').strip()
+    if len(q) < 2:
+        return JsonResponse({'results': []})
+    try:
+        resp = _requests.get(
+            'https://store.steampowered.com/api/storesearch/',
+            params={'term': q, 'cc': 'US', 'l': 'english'},
+            timeout=5,
+        )
+        resp.raise_for_status()
+        items = resp.json().get('items', [])[:8]
+        results = []
+        for item in items:
+            appid = str(item.get('id', ''))
+            results.append({
+                'appid': appid,
+                'name': item.get('name', ''),
+                'tiny_image': item.get('tiny_image', ''),
+                'header_url': f'https://cdn.cloudflare.steamstatic.com/steam/apps/{appid}/header.jpg' if appid else '',
+            })
+        return JsonResponse({'results': results})
+    except Exception as e:
+        logger.warning('api_steam_game_search: %s', e)
+        return JsonResponse({'results': []})
+
+
+@require_http_methods(["GET"])
+@ratelimit(key='header:cf-connecting-ip', rate='60/m', block=True)
+def api_steam_app_details(request):
+    """API: Fetch Steam app details for game suggest enrichment.
+    ?appid=<steam_app_id>
+    Returns: {description, genres, tags, recommendations, metacritic, trailer_thumbnail}
+    """
+    import requests as _requests
+    appid = safe_int(request.GET.get('appid', 0) or 0, default=0)
+    if not appid:
+        return JsonResponse({'error': 'appid required'}, status=400)
+    try:
+        resp = _requests.get(
+            'https://store.steampowered.com/api/appdetails',
+            params={'appids': appid, 'cc': 'US', 'l': 'english'},
+            timeout=5,
+        )
+        resp.raise_for_status()
+        data = resp.json().get(str(appid), {})
+        if not data.get('success'):
+            return JsonResponse({'error': 'not found'}, status=404)
+        d = data.get('data', {})
+        movies = d.get('movies') or []
+        trailer_thumb = movies[0].get('thumbnail') if movies else None
+        genres = [g['description'] for g in (d.get('genres') or [])]
+        categories = [c['description'] for c in (d.get('categories') or [])[:6]]
+        recs = (d.get('recommendations') or {}).get('total')
+        meta = (d.get('metacritic') or {}).get('score')
+        return JsonResponse({
+            'description': d.get('short_description', ''),
+            'genres': genres,
+            'categories': categories,
+            'recommendations': recs,
+            'metacritic': meta,
+            'trailer_thumbnail': trailer_thumb,
+        })
+    except Exception as e:
+        logger.warning('api_steam_app_details: %s', e)
+        return JsonResponse({'error': 'Steam API error'}, status=502)
+
+
+@require_http_methods(["GET"])
+@ratelimit(key='header:cf-connecting-ip', rate='60/m', block=True)
 def api_igdb_search(request):
     """API: Search IGDB directly for games. Used by LFG create/browse autocomplete.
     No login required — IGDB is public game data.
@@ -1176,6 +1498,26 @@ def api_igdb_search(request):
                     ).distinct(WebUser.current_game).all():
                         steam_id_by_name[row.current_game] = row.current_game_appid
 
+        # 4. Steam store search fallback for any still-missing steam_ids (exact name match only)
+        still_missing = [g.name for g in games if not (g.steam_id or steam_id_by_name.get(g.name))]
+        if still_missing:
+            import requests as _requests
+            for name in still_missing[:3]:  # cap at 3 to avoid slow searches
+                try:
+                    resp = _requests.get(
+                        'https://store.steampowered.com/api/storesearch/',
+                        params={'term': name, 'cc': 'US', 'l': 'english'},
+                        timeout=3,
+                    )
+                    if resp.status_code == 200:
+                        items = resp.json().get('items', [])
+                        for item in items:
+                            if item.get('name', '').lower() == name.lower() and item.get('id'):
+                                steam_id_by_name[name] = item['id']
+                                break
+                except Exception:
+                    pass
+
         data = [{
             'id': g.id,
             'name': g.name,
@@ -1183,6 +1525,7 @@ def api_igdb_search(request):
             'platforms': ', '.join(g.platforms[:3]) if g.platforms else '',
             'release_year': g.release_year,
             'steam_id': g.steam_id or steam_id_by_name.get(g.name),
+            'game_modes': g.game_modes if g.game_modes else [],
         } for g in games]
 
         return JsonResponse({'games': data})
@@ -1222,8 +1565,7 @@ def api_gamers(request):
                 ~WebUser.id.in_(EXCLUDED_USER_IDS),
             )
 
-            if current_uid:
-                query = query.filter(WebUser.id != current_uid)
+            # Don't exclude the logged-in user - they should see themselves in the directory
 
             if q:
                 like = f'%{q}%'
@@ -1242,8 +1584,10 @@ def api_gamers(request):
 
             if sort == 'new':
                 query = query.order_by(WebUser.created_at.desc())
-            else:
+            elif sort == 'followers':
                 query = query.order_by(WebUser.follower_count.desc(), WebUser.created_at.desc())
+            else:
+                query = query.order_by(WebUser.username.asc())
 
             total = query.count()
             offset = (page - 1) * per_page
@@ -1271,6 +1615,11 @@ def api_gamers(request):
                     'live_platform': u.live_platform or '',
                     'live_url': u.live_url or '',
                     'current_game': (u.current_game if u.show_playing_status else None) or '',
+                    'is_admin': bool(u.is_admin),
+                    'is_mod': bool(u.is_mod),
+                    'is_contributor': bool(u.is_contributor),
+                    'is_ffxiv_member': bool(u.is_ffxiv_member),
+                    'is_eso_member': bool(u.is_eso_member),
                 })
 
             return JsonResponse({
@@ -1287,7 +1636,7 @@ def api_gamers(request):
 
 @web_login_required
 @require_http_methods(["POST"])
-@ratelimit(key='user', rate='10/h', block=True)
+@ratelimit(key='ip', rate='10/h', block=True)
 def api_lfg_broadcast_network(request, group_id):
     """
     POST /api/lfg/<id>/broadcast-network/
@@ -1433,6 +1782,7 @@ def api_lfg_community_guilds(request):
                 'platform': c.platform,
             }
             for c in rows
+            if 'test' not in (c.guild_name or '').lower()
         ]
     return JsonResponse({'guilds': data, 'total': len(data)})
 
@@ -1462,7 +1812,7 @@ def _get_fluxer_post_for_user(db, post_id, web_user):
 @add_web_user_context
 @web_login_required
 @require_http_methods(["POST"])
-@ratelimit(key='user', rate='30/m', block=True)
+@ratelimit(key='ip', rate='30/m', block=True)
 def api_lfg_fluxer_edit(request, post_id):
     """POST /api/lfg/fluxer/<id>/edit/ - Edit a Fluxer LFG post the user created."""
     try:
@@ -1509,7 +1859,7 @@ def api_lfg_fluxer_edit(request, post_id):
 @add_web_user_context
 @web_login_required
 @require_http_methods(["POST"])
-@ratelimit(key='user', rate='30/m', block=True)
+@ratelimit(key='ip', rate='30/m', block=True)
 def api_lfg_fluxer_close(request, post_id):
     """POST /api/lfg/fluxer/<id>/close/ - Cancel/close a Fluxer LFG post."""
     try:
@@ -1532,7 +1882,7 @@ def api_lfg_fluxer_close(request, post_id):
 @add_web_user_context
 @web_login_required
 @require_http_methods(["POST"])
-@ratelimit(key='user', rate='30/m', block=True)
+@ratelimit(key='ip', rate='30/m', block=True)
 def api_lfg_fluxer_mark_full(request, post_id):
     """POST /api/lfg/fluxer/<id>/mark-full/ - Mark a Fluxer LFG post as full (closes it)."""
     try:
@@ -1560,7 +1910,7 @@ def api_lfg_fluxer_mark_full(request, post_id):
 @add_web_user_context
 @web_login_required
 @require_http_methods(["POST"])
-@ratelimit(key='user', rate='20/m', block=True)
+@ratelimit(key='ip', rate='20/m', block=True)
 def api_lfg_fluxer_guild_close(request, group_id):
     """POST /api/lfg/fluxer-guild/<id>/close/ - Creator closes their Fluxer guild LFG group."""
     if not request.web_user:
@@ -1592,7 +1942,7 @@ def api_lfg_fluxer_guild_close(request, group_id):
 @add_web_user_context
 @web_login_required
 @require_http_methods(["POST"])
-@ratelimit(key='user', rate='20/m', block=True)
+@ratelimit(key='ip', rate='20/m', block=True)
 def api_lfg_fluxer_guild_edit(request, group_id):
     """POST /api/lfg/fluxer-guild/<id>/edit/ - Creator edits their group details."""
     if not request.web_user:
@@ -1644,7 +1994,7 @@ def api_lfg_fluxer_guild_edit(request, group_id):
 @add_web_user_context
 @web_login_required
 @require_http_methods(["POST"])
-@ratelimit(key='user', rate='30/m', block=True)
+@ratelimit(key='ip', rate='30/m', block=True)
 def api_lfg_fluxer_guild_update_member(request, group_id):
     """POST /api/lfg/fluxer-guild/<id>/update-member/ - Member updates their class/role."""
     if not request.web_user:
@@ -1692,7 +2042,7 @@ def api_lfg_fluxer_guild_update_member(request, group_id):
 @add_web_user_context
 @web_login_required
 @require_http_methods(["POST"])
-@ratelimit(key='user', rate='10/m', block=True)
+@ratelimit(key='ip', rate='10/m', block=True)
 def api_lfg_fluxer_guild_reopen(request, group_id):
     """POST /api/lfg/fluxer-guild/<id>/reopen/ - Creator reopens a closed group."""
     if not request.web_user:
@@ -1800,7 +2150,7 @@ def api_lfg_fluxer_guild_my_closed(request):
 @add_web_user_context
 @web_login_required
 @require_http_methods(["POST"])
-@ratelimit(key='user', rate='20/m', block=True)
+@ratelimit(key='ip', rate='20/m', block=True)
 def api_lfg_fluxer_guild_join(request, group_id):
     """POST /api/lfg/fluxer-guild/<id>/join/ - Join a Fluxer guild LFG group via web."""
     if not request.web_user:
@@ -1897,7 +2247,7 @@ def api_lfg_fluxer_guild_join(request, group_id):
 @add_web_user_context
 @web_login_required
 @require_http_methods(["POST"])
-@ratelimit(key='user', rate='20/m', block=True)
+@ratelimit(key='ip', rate='20/m', block=True)
 def api_lfg_fluxer_guild_leave(request, group_id):
     """POST /api/lfg/fluxer-guild/<id>/leave/ - Leave a Fluxer guild LFG group via web."""
     if not request.web_user:
@@ -1995,3 +2345,95 @@ def api_community_set_primary(request, community_id):
         community.updated_at = int(time.time())
         db.commit()
     return JsonResponse({'success': True})
+
+
+@add_web_user_context
+@require_http_methods(["GET"])
+@ratelimit(key='ip', rate='30/m', block=True)
+def api_top_posts(request):
+    """API: Top posts by engagement (likes + comments + reposts) from the last 7 days.
+    No login required. Excludes banned/disabled authors and hidden/deleted posts.
+    ?limit=<n>  (max 10)
+    """
+    limit = safe_int(request.GET.get('limit', 5) or 5, default=5, min_val=1, max_val=10)
+    since = int(time.time()) - (7 * 24 * 3600)
+
+    with get_db_session() as db:
+        posts = (
+            db.query(WebPost)
+            .join(WebUser, WebUser.id == WebPost.author_id)
+            .filter(
+                WebPost.is_deleted == False,
+                WebPost.is_hidden == False,
+                WebPost.created_at >= since,
+                WebUser.is_banned == False,
+                WebUser.is_disabled == False,
+                ~WebUser.id.in_(EXCLUDED_USER_IDS),
+            )
+            .order_by(
+                (WebPost.like_count + WebPost.comment_count + WebPost.repost_count).desc()
+            )
+            .limit(limit)
+            .all()
+        )
+
+        data = []
+        for p in posts:
+            engagement = (p.like_count or 0) + (p.comment_count or 0) + (p.repost_count or 0)
+            if engagement == 0:
+                continue
+            author = p.author
+            data.append({
+                'id': p.id,
+                'public_id': p.public_id,
+                'content': (p.content or '')[:120],
+                'like_count': p.like_count or 0,
+                'comment_count': p.comment_count or 0,
+                'repost_count': p.repost_count or 0,
+                'game_tag_name': p.game_tag_name,
+                'author_username': author.username if author else '',
+                'author_display_name': author.display_name or author.username if author else '',
+                'author_avatar_url': author.avatar_url if author else None,
+                'created_at': p.created_at,
+            })
+
+    return JsonResponse({'posts': data})
+
+
+@require_http_methods(["GET"])
+def api_post_game_tags(request):
+    """GET /api/posts/game-tags/
+    Returns the most-used game tags from recent posts (last 30 days).
+    Used to build the feed filter bar. No auth required.
+    ?limit=<n> (max 20, default 15)
+    """
+    limit = safe_int(request.GET.get('limit', 15) or 15, default=15, min_val=1, max_val=20)
+    since = int(time.time()) - (30 * 24 * 3600)
+
+    with get_db_session() as db:
+        rows = db.execute(text(
+            "SELECT p.game_tag_name, p.game_tag_steam_id, COUNT(*) as cnt "
+            "FROM web_posts p "
+            "JOIN web_users u ON u.id = p.author_id "
+            "WHERE p.game_tag_name IS NOT NULL AND p.game_tag_name != '' "
+            "  AND p.is_deleted = 0 AND p.is_hidden = 0 "
+            "  AND p.created_at >= :since "
+            "  AND u.is_banned = 0 "
+            "GROUP BY p.game_tag_name, p.game_tag_steam_id "
+            "ORDER BY cnt DESC "
+            "LIMIT :limit"
+        ), {'since': since, 'limit': limit}).fetchall()
+
+    tags = []
+    for row in rows:
+        steam_id = row[1]
+        tags.append({
+            'name': row[0],
+            'post_count': row[2],
+            'cover_url': (
+                f'https://cdn.cloudflare.steamstatic.com/steam/apps/{steam_id}/library_600x900.jpg'
+                if steam_id else None
+            ),
+        })
+
+    return JsonResponse({'tags': tags})

@@ -10,6 +10,13 @@ https://docs.djangoproject.com/en/5.2/howto/deployment/wsgi/
 import os
 import sys
 
+import requests as _requests_global
+_orig_session_request = _requests_global.Session.request
+def _default_timeout_request(self, method, url, **kwargs):
+    kwargs.setdefault('timeout', 10)
+    return _orig_session_request(self, method, url, **kwargs)
+_requests_global.Session.request = _default_timeout_request
+
 from django.core.wsgi import get_wsgi_application
 from dotenv import load_dotenv
 
