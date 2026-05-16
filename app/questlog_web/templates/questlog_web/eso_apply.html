@@ -1,0 +1,457 @@
+{% extends "questlog_web/base_web.html" %}
+{% load static %}
+{% block title %}Apply to Casual Heroes Guild | ESO{% endblock %}
+{% block web_content %}
+{% include 'questlog/partials/custom_select.html' %}
+
+<div class="p-4 sm:p-6 max-w-3xl mx-auto">
+
+  <!-- Header -->
+  <div class="flex items-center gap-4 mb-8">
+    <div class="w-14 h-14 rounded-2xl bg-amber-900/40 border border-amber-800/40 flex items-center justify-center flex-shrink-0">
+      <img src="{% static 'img/games/guilds/esoguild.png' %}" class="w-9 h-9 rounded-lg object-cover" alt="ESO">
+    </div>
+    <div>
+      <h1 class="text-3xl font-extrabold text-white leading-tight">Join Casual Heroes Guild</h1>
+      <p class="text-amber-300 text-sm font-medium">The Elder Scrolls Online - Guild Application</p>
+    </div>
+  </div>
+
+  <!-- Existing application status -->
+  {% if existing %}
+  <div class="mb-8 rounded-2xl border p-5
+    {% if existing.status == 'approved' %}bg-green-900/20 border-green-700/40
+    {% elif existing.status == 'denied' %}bg-red-900/20 border-red-700/40
+    {% else %}bg-yellow-900/20 border-yellow-700/40{% endif %}">
+    <div class="flex items-start gap-3">
+      <i class="fas {% if existing.status == 'approved' %}fa-check-circle text-green-400{% elif existing.status == 'denied' %}fa-times-circle text-red-400{% else %}fa-clock text-yellow-400{% endif %} text-xl mt-0.5"></i>
+      <div>
+        <p class="text-white font-bold">
+          {% if existing.status == 'approved' %}Application Approved!
+          {% elif existing.status == 'denied' %}Application Not Accepted
+          {% else %}Application Pending Review{% endif %}
+        </p>
+        <p class="text-gray-400 text-sm mt-0.5">
+          Submitted for <strong class="text-gray-200">{{ existing.character_name }}</strong>.
+          {% if existing.status == 'pending' %}Our officers will review it soon - hang tight!
+          {% elif existing.status == 'approved' %}Welcome to the guild! Reach out to an officer in-game or on Fluxer.
+          {% elif existing.status == 'denied' %}This application wasn't a match right now.{% endif %}
+        </p>
+        {% if existing.admin_notes %}
+        <p class="text-gray-300 text-sm mt-2 bg-neutral-800/60 rounded-lg px-3 py-2">
+          <i class="fas fa-comment text-gray-500 mr-1"></i><em>{{ existing.admin_notes }}</em>
+        </p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  {% if existing.status != 'denied' %}
+  </div>
+  {% block end_content %}{% endblock %}
+  {% endif %}
+  {% endif %}
+
+  <!-- Dynamic status block (JS-injected on submit) -->
+  <div id="dynamic-status" class="hidden"></div>
+
+  {% if not existing or existing.status == 'denied' %}
+
+  <!-- About the Guild -->
+  <div id="about-guild-block" class="bg-neutral-900 border border-neutral-800 rounded-2xl p-5 mb-6">
+    <h2 class="text-white font-bold text-lg mb-2 flex items-center gap-2">
+      <i class="fas fa-info-circle text-amber-400"></i> About Casual Heroes
+    </h2>
+    <p class="text-white font-bold text-base mb-1">Aging, But Still Looting.</p>
+    <p class="text-gray-400 text-sm leading-relaxed">A community for working adults, parents, and gamers who grew up but never quite left Neverland. We play ESO at our own pace - no mandatory attendance, no parse culture, no drama. If that sounds like your kind of guild, we'd love to have you.</p>
+    <div class="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
+      <div class="bg-neutral-800/60 rounded-lg px-3 py-2">
+        <p class="text-amber-300 text-xs font-semibold">Platform</p>
+        <p class="text-white text-sm font-bold">PC NA</p>
+      </div>
+      <div class="bg-neutral-800/60 rounded-lg px-3 py-2">
+        <p class="text-amber-300 text-xs font-semibold">Faction</p>
+        <p class="text-white text-sm font-bold">All Factions</p>
+      </div>
+      <div class="bg-neutral-800/60 rounded-lg px-3 py-2">
+        <p class="text-amber-300 text-xs font-semibold">Vibe</p>
+        <p class="text-white text-sm font-bold">Casual / Social</p>
+      </div>
+      <div class="bg-neutral-800/60 rounded-lg px-3 py-2">
+        <p class="text-amber-300 text-xs font-semibold">18+</p>
+        <p class="text-white text-sm font-bold">Yes</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Must be logged in -->
+  {% if not web_user %}
+  <div class="bg-yellow-900/20 border border-yellow-700/40 rounded-2xl p-5 text-center">
+    <i class="fas fa-lock text-yellow-400 text-2xl mb-2"></i>
+    <p class="text-white font-bold mb-1">Login Required</p>
+    <p class="text-gray-400 text-sm mb-4">You need a QuestLog account to submit an application.</p>
+    <a href="/ql/login/?next=/eso/apply/" class="inline-flex items-center gap-2 bg-amber-600 hover:bg-amber-500 text-white font-semibold px-5 py-2.5 rounded-xl transition text-sm">
+      <i class="fas fa-sign-in-alt"></i> Log In to Apply
+    </a>
+  </div>
+  {% else %}
+
+  <!-- Application Form -->
+  <div id="apply-form-wrapper">
+  <form id="apply-form" class="space-y-6">
+
+    <!-- Section: Character & Class -->
+    <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-5">
+      <h2 class="text-white font-bold text-base mb-4 flex items-center gap-2">
+        <i class="fas fa-user text-amber-400"></i> Character & Class
+      </h2>
+      <div class="mb-4">
+        <label class="block text-xs text-gray-400 font-semibold mb-1">Character Name <span class="text-red-400">*</span></label>
+        <input type="text" id="character_name" maxlength="100" placeholder="Your ESO character name"
+          class="w-full bg-neutral-800 border border-neutral-700 text-white placeholder-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500">
+      </div>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+        <div>
+          <label class="block text-xs text-gray-400 font-semibold mb-1">Main Class <span class="text-red-400">*</span></label>
+          <div id="main-class-container"></div>
+        </div>
+        <div>
+          <label class="block text-xs text-gray-400 font-semibold mb-1">Sub Class <span class="text-gray-500 font-normal">(optional)</span></label>
+          <select id="subclass-select" disabled
+            class="w-full bg-neutral-800 border border-neutral-700 text-gray-500 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500 disabled:opacity-50 disabled:cursor-not-allowed">
+            <option value="">Select main class first...</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section: Role -->
+    <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-5">
+      <h2 class="text-white font-bold text-base mb-1 flex items-center gap-2">
+        <i class="fas fa-shield-alt text-blue-400"></i> Role
+      </h2>
+      <p class="text-gray-500 text-xs mb-4">What role(s) do you play? Select all that apply.</p>
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {% for role in roles %}
+        <button type="button" onclick="toggleRole(this)" data-value="{{ role }}"
+          class="role-btn text-left px-3 py-3 rounded-xl border border-neutral-700 bg-neutral-800/50 text-gray-400 text-xs font-semibold hover:border-blue-500/60 hover:text-white transition flex items-center gap-2">
+          {% if role == 'Tank' %}<i class="fas fa-shield-alt text-blue-400 text-xs"></i>
+          {% elif role == 'Healer' %}<i class="fas fa-heart text-green-400 text-xs"></i>
+          {% elif role == 'Damage (DPS)' %}<i class="fas fa-fire text-red-400 text-xs"></i>
+          {% else %}<i class="fas fa-random text-purple-400 text-xs"></i>{% endif %}
+          {{ role }}
+        </button>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Section: Experience -->
+    <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-5">
+      <h2 class="text-white font-bold text-base mb-1 flex items-center gap-2">
+        <i class="fas fa-star text-yellow-400"></i> Experience Level
+      </h2>
+      <p class="text-gray-500 text-xs mb-4">Select all that apply.</p>
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        {% for val, label in experience_levels %}
+        <button type="button" onclick="toggleExperience('{{ val }}')" id="exp-{{ val }}"
+          class="exp-card text-left p-3 rounded-xl border border-neutral-700 bg-neutral-800/50 hover:border-amber-500/60 transition group">
+          <p class="text-white text-xs font-bold group-hover:text-amber-300 transition">
+            {% if val == 'new' %}🌱 New to ESO
+            {% elif val == 'leveling' %}⚔️ Still Leveling
+            {% elif val == 'cp' %}⭐ CP Grind
+            {% elif val == 'casual' %}🎮 Endgame Casual
+            {% elif val == 'vet' %}🔥 Veteran Content
+            {% elif val == 'raider' %}👑 Trial Raider
+            {% elif val == 'pvp' %}⚡ PvP Player
+            {% elif val == 'crafter' %}🔨 Master Crafter
+            {% elif val == 'collector' %}🏆 Collector
+            {% endif %}
+          </p>
+          <p class="text-gray-500 text-[11px] mt-0.5">{{ label }}</p>
+        </button>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Section: Content Interests -->
+    <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-5">
+      <h2 class="text-white font-bold text-base mb-1 flex items-center gap-2">
+        <i class="fas fa-gamepad text-green-400"></i> What Do You Like to Do?
+      </h2>
+      <p class="text-gray-500 text-xs mb-4">Select everything that interests you.</p>
+      <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+        {% for interest in content_interests %}
+        <button type="button" onclick="toggleInterest(this)" data-value="{{ interest }}"
+          class="interest-btn text-left px-3 py-2 rounded-lg border border-neutral-700 bg-neutral-800/50 text-gray-400 text-xs hover:border-green-500/50 hover:text-white transition">
+          {{ interest }}
+        </button>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Section: Availability -->
+    <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-5">
+      <h2 class="text-white font-bold text-base mb-1 flex items-center gap-2">
+        <i class="fas fa-calendar-alt text-purple-400"></i> When Are You Usually Online?
+      </h2>
+      <p class="text-gray-500 text-xs mb-4">Select all days that apply - no commitment required.</p>
+      <div class="flex flex-wrap gap-2">
+        {% for day in availability_days %}
+        <button type="button" onclick="toggleDay(this)" data-value="{{ day }}"
+          class="avail-btn px-4 py-2 rounded-lg border border-neutral-700 bg-neutral-800/50 text-gray-400 text-xs font-semibold hover:border-purple-500/60 hover:text-white transition">
+          {{ day }}
+        </button>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Section: About You -->
+    <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-5">
+      <h2 class="text-white font-bold text-base mb-4 flex items-center gap-2">
+        <i class="fas fa-scroll text-amber-400"></i> Tell Us About Yourself
+      </h2>
+      <div class="space-y-4">
+        <div>
+          <label class="block text-xs text-gray-400 font-semibold mb-1">
+            Why do you want to join Casual Heroes? <span class="text-red-400">*</span>
+          </label>
+          <textarea id="why_join" rows="4" maxlength="2000" placeholder="Tell us about yourself, what you're looking for in a guild, what you enjoy in ESO..."
+            class="w-full bg-neutral-800 border border-neutral-700 text-white placeholder-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500 resize-none"
+            oninput="updateCharCount(this, 'why-count', 2000)"></textarea>
+          <p class="text-gray-600 text-[11px] mt-1 text-right"><span id="why-count">0</span>/2000</p>
+        </div>
+        <div>
+          <label class="block text-xs text-gray-400 font-semibold mb-1">
+            Anything else you want us to know? <span class="text-gray-600">(optional)</span>
+          </label>
+          <textarea id="about_me" rows="3" maxlength="1000" placeholder="Previous guild experience, goals, funny ESO story, etc."
+            class="w-full bg-neutral-800 border border-neutral-700 text-white placeholder-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500 resize-none"
+            oninput="updateCharCount(this, 'about-count', 1000)"></textarea>
+          <p class="text-gray-600 text-[11px] mt-1 text-right"><span id="about-count">0</span>/1000</p>
+        </div>
+        <div>
+          <label class="block text-xs text-gray-400 font-semibold mb-1">How did you hear about us?</label>
+          <select id="referral" class="w-full bg-neutral-800 border border-neutral-700 text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500">
+            <option value="">Select one...</option>
+            {% for opt in referral_options %}<option value="{{ opt }}">{{ opt }}</option>{% endfor %}
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- Submit -->
+    <div id="form-error" class="hidden bg-red-900/30 border border-red-700/40 rounded-xl px-4 py-3 text-red-300 text-sm"></div>
+
+    <div class="flex items-center justify-between">
+      <p class="text-gray-600 text-xs">By submitting you confirm you are 18+ and agree to our community rules.</p>
+      <button type="submit" id="submit-btn"
+        class="bg-amber-600 hover:bg-amber-500 text-white font-bold px-6 py-3 rounded-xl transition flex items-center gap-2 text-sm">
+        <i class="fas fa-paper-plane"></i> Submit Application
+      </button>
+    </div>
+
+  </form>
+  </div><!-- end apply-form-wrapper -->
+  {% endif %}
+  {% endif %}
+
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+
+const ESO_CLASSES = {
+  {% for cls, subs in eso_classes.items %}'{{ cls }}': [{% for s in subs %}'{{ s }}'{% if not forloop.last %}, {% endif %}{% endfor %}],
+  {% endfor %}
+};
+
+const selectedExperiences = new Set();
+const selectedInterests   = new Set();
+const selectedDays        = new Set();
+const selectedRoles       = new Set();
+let selectedMainClass = '';
+let selectedSubclass  = '';
+let mainClassSel = null;
+
+// Main class selector
+mainClassSel = createCustomSelect({
+  container: '#main-class-container',
+  name: 'main_class',
+  placeholder: 'Select class...',
+  items: [
+    {value: '', label: '-- Select class --'},
+    {% for cls in all_classes %}{value: '{{ cls }}', label: '{{ cls }}'},
+    {% endfor %}
+  ],
+  selected: '',
+  color: 'amber',
+  onSelect: function(val) {
+    selectedMainClass = val || '';
+    selectedSubclass = '';
+    buildSubclassSelect(val);
+  },
+});
+
+const ALL_CLASS_LIST = Object.keys(ESO_CLASSES);
+
+function buildSubclassSelect(cls) {
+  const sel = document.getElementById('subclass-select');
+  selectedSubclass = '';
+  sel.innerHTML = '';
+  if (!cls) {
+    sel.disabled = true;
+    sel.classList.add('text-gray-500'); sel.classList.remove('text-white');
+    sel.innerHTML = '<option value="">Select main class first...</option>';
+    return;
+  }
+  sel.disabled = false;
+  sel.classList.remove('text-gray-500'); sel.classList.add('text-white');
+  sel.innerHTML = '<option value="">Select alt class...</option>';
+  ALL_CLASS_LIST.forEach(function(c) {
+    if (c === cls) return; // exclude main class
+    const opt = document.createElement('option');
+    opt.value = c; opt.textContent = c;
+    sel.appendChild(opt);
+  });
+}
+
+document.getElementById('subclass-select').addEventListener('change', function() {
+  selectedSubclass = this.value;
+});
+
+window.toggleExperience = function(val) {
+  const card = document.getElementById('exp-' + val);
+  if (selectedExperiences.has(val)) {
+    selectedExperiences.delete(val);
+    if (card) { card.classList.remove('border-amber-500', 'bg-amber-900/20'); card.classList.add('border-neutral-700', 'bg-neutral-800/50'); }
+  } else {
+    selectedExperiences.add(val);
+    if (card) { card.classList.remove('border-neutral-700', 'bg-neutral-800/50'); card.classList.add('border-amber-500', 'bg-amber-900/20'); }
+  }
+};
+
+window.toggleInterest = function(btn) {
+  const val = btn.dataset.value;
+  if (selectedInterests.has(val)) {
+    selectedInterests.delete(val);
+    btn.classList.remove('border-green-500', 'bg-green-900/20', 'text-green-300');
+    btn.classList.add('border-neutral-700', 'text-gray-400');
+  } else {
+    selectedInterests.add(val);
+    btn.classList.remove('border-neutral-700', 'text-gray-400');
+    btn.classList.add('border-green-500', 'bg-green-900/20', 'text-green-300');
+  }
+};
+
+window.toggleDay = function(btn) {
+  const val = btn.dataset.value;
+  if (selectedDays.has(val)) {
+    selectedDays.delete(val);
+    btn.classList.remove('border-purple-500', 'bg-purple-900/20', 'text-purple-300');
+    btn.classList.add('border-neutral-700', 'text-gray-400');
+  } else {
+    selectedDays.add(val);
+    btn.classList.remove('border-neutral-700', 'text-gray-400');
+    btn.classList.add('border-purple-500', 'bg-purple-900/20', 'text-purple-300');
+  }
+};
+
+window.toggleRole = function(btn) {
+  const val = btn.dataset.value;
+  if (selectedRoles.has(val)) {
+    selectedRoles.delete(val);
+    btn.classList.remove('border-blue-500', 'bg-blue-900/20', 'text-blue-300');
+    btn.classList.add('border-neutral-700', 'text-gray-400');
+  } else {
+    selectedRoles.add(val);
+    btn.classList.remove('border-neutral-700', 'text-gray-400');
+    btn.classList.add('border-blue-500', 'bg-blue-900/20', 'text-blue-300');
+  }
+};
+
+window.updateCharCount = function(el, countId, max) {
+  const el2 = document.getElementById(countId);
+  if (el2) el2.textContent = el.value.length;
+};
+
+const form = document.getElementById('apply-form');
+if (form) {
+  form.addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const errEl = document.getElementById('form-error');
+    const btn   = document.getElementById('submit-btn');
+    errEl.classList.add('hidden');
+
+    const body = {
+      character_name:    document.getElementById('character_name')?.value.trim() || '',
+      main_class:        selectedMainClass,
+      subclass:          selectedSubclass,
+      role:              Array.from(selectedRoles),
+      experience_level:  Array.from(selectedExperiences),
+      content_interests: Array.from(selectedInterests),
+      availability:      Array.from(selectedDays),
+      why_join:          document.getElementById('why_join')?.value.trim() || '',
+      about_me:          document.getElementById('about_me')?.value.trim() || '',
+      referral:          document.getElementById('referral')?.value || '',
+    };
+
+    if (!body.character_name)              { showErr('Character name is required.'); return; }
+    if (!body.main_class)                  { showErr('Please select your main class.'); return; }
+    if (body.subclass && body.main_class === body.subclass) { showErr('Main class and sub class cannot be the same.'); return; }
+    if (!body.role.length)              { showErr('Please select at least one role.'); return; }
+    if (!body.experience_level.length)  { showErr('Please select at least one experience level.'); return; }
+    if (body.why_join.length < 20)      { showErr('Please tell us a bit more about why you want to join (at least 20 characters).'); return; }
+
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Submitting...';
+
+    try {
+      const res = await csrfFetch('/api/eso/apply/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (data.success) {
+        const wrapper = document.getElementById('apply-form-wrapper');
+        if (wrapper) wrapper.style.display = 'none';
+        const aboutBlock = document.getElementById('about-guild-block');
+        if (aboutBlock) aboutBlock.style.display = 'none';
+        const statusBlock = document.getElementById('dynamic-status');
+        if (statusBlock) {
+          statusBlock.innerHTML = `
+            <div class="mb-8 rounded-2xl border bg-yellow-900/20 border-yellow-700/40 p-5">
+              <div class="flex items-start gap-3">
+                <i class="fas fa-clock text-yellow-400 text-xl mt-0.5"></i>
+                <div>
+                  <p class="text-white font-bold">Application Pending Review</p>
+                  <p class="text-gray-400 text-sm mt-0.5">Submitted for <strong class="text-gray-200">${escapeHtml(body.character_name)}</strong>. Our officers will review it soon - hang tight!</p>
+                  <p class="text-gray-500 text-xs mt-2">You'll receive a site notification when a decision is made.</p>
+                </div>
+              </div>
+            </div>`;
+          statusBlock.classList.remove('hidden');
+        }
+      } else {
+        showErr(data.error || 'Something went wrong. Please try again.');
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-paper-plane"></i> Submit Application';
+      }
+    } catch(err) {
+      showErr('Network error. Please try again.');
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fas fa-paper-plane"></i> Submit Application';
+    }
+  });
+}
+
+function showErr(msg) {
+  const el = document.getElementById('form-error');
+  el.textContent = msg;
+  el.classList.remove('hidden');
+  el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+}); // DOMContentLoaded
+</script>
+
+{% endblock %}

@@ -1,0 +1,299 @@
+{% extends "questlog_web/base_web.html" %}
+{% load static %}
+{% block title %}Reset Checklist - FFXIV Tools | Casual Heroes{% endblock %}
+
+{% block web_content %}
+<div class="p-4 sm:p-6 max-w-5xl mx-auto">
+
+  <!-- Header -->
+  <div class="flex flex-col sm:flex-row sm:items-end gap-4 mb-6">
+    <div class="flex items-center gap-4">
+      <div class="w-14 h-14 rounded-2xl bg-purple-900/40 border border-purple-800/40 flex items-center justify-center flex-shrink-0">
+        <i class="fas fa-redo text-purple-400 text-2xl"></i>
+      </div>
+      <div>
+        <div class="flex items-center gap-2 text-sm text-gray-500 mb-1">
+          <a href="/ffxiv/" class="hover:text-white transition">FFXIV</a>
+          <i class="fas fa-chevron-right text-xs"></i>
+          <a href="/ffxiv/tools/" class="hover:text-white transition">Tools</a>
+          <i class="fas fa-chevron-right text-xs"></i>
+          <span class="text-gray-300">Reset Checklist</span>
+        </div>
+        <h1 class="text-3xl font-extrabold text-white leading-tight">Reset Checklist</h1>
+        <p class="text-purple-300 text-sm font-medium">Daily &amp; weekly tasks with live countdowns</p>
+      </div>
+    </div>
+    <div class="sm:ml-auto flex items-center gap-3">
+      <button onclick="clearAll()" class="text-xs text-gray-500 hover:text-red-400 transition border border-neutral-700 hover:border-red-700/50 px-3 py-1.5 rounded-lg">
+        <i class="fas fa-undo mr-1"></i>Clear All
+      </button>
+      <a href="/ffxiv/tools/" class="text-xs text-gray-500 hover:text-gray-300 transition flex items-center gap-1">
+        <i class="fas fa-arrow-left text-[10px]"></i> All Tools
+      </a>
+    </div>
+  </div>
+
+  <!-- Reset Clocks -->
+  <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-8">
+    <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-4">
+      <p class="text-xs text-gray-500 font-semibold uppercase tracking-wide mb-1">Daily Reset</p>
+      <p class="text-white font-bold text-lg">15:00 UTC</p>
+      <p id="daily-countdown" class="text-purple-400 font-mono text-sm mt-0.5">--:--:--</p>
+      <p class="text-gray-600 text-xs mt-1">Resets in <span id="daily-label" class="text-gray-500"></span></p>
+    </div>
+    <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-4">
+      <p class="text-xs text-gray-500 font-semibold uppercase tracking-wide mb-1">GC Reset</p>
+      <p class="text-white font-bold text-lg">20:00 UTC</p>
+      <p id="gc-countdown" class="text-blue-400 font-mono text-sm mt-0.5">--:--:--</p>
+      <p class="text-gray-600 text-xs mt-1">Supply &amp; Provisioning</p>
+    </div>
+    <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-4">
+      <p class="text-xs text-gray-500 font-semibold uppercase tracking-wide mb-1">Weekly Reset</p>
+      <p class="text-white font-bold text-lg">Tuesday 08:00 UTC</p>
+      <p id="weekly-countdown" class="text-indigo-400 font-mono text-sm mt-0.5">--:--:--</p>
+      <p class="text-gray-600 text-xs mt-1">Resets in <span id="weekly-label" class="text-gray-500"></span></p>
+    </div>
+  </div>
+
+  <!-- Note -->
+  <div class="text-xs text-gray-600 mb-5 flex items-center gap-2">
+    <i class="fas fa-info-circle text-neutral-700"></i>
+    Checkboxes are saved in your browser. They auto-clear when the relevant reset occurs.
+  </div>
+
+  <!-- Daily Section -->
+  <div class="mb-8">
+    <h2 class="text-xs font-bold uppercase tracking-widest text-purple-400 mb-3 flex items-center gap-2">
+      <span class="h-px flex-1 bg-neutral-800"></span>
+      Daily Tasks <span class="text-gray-600 font-normal normal-case tracking-normal">resets 15:00 UTC</span>
+      <span class="h-px flex-1 bg-neutral-800"></span>
+    </h2>
+    <div class="space-y-1.5" id="daily-list"></div>
+  </div>
+
+  <!-- GC Daily Section -->
+  <div class="mb-8">
+    <h2 class="text-xs font-bold uppercase tracking-widest text-blue-400 mb-3 flex items-center gap-2">
+      <span class="h-px flex-1 bg-neutral-800"></span>
+      Grand Company Daily <span class="text-gray-600 font-normal normal-case tracking-normal">resets 20:00 UTC</span>
+      <span class="h-px flex-1 bg-neutral-800"></span>
+    </h2>
+    <div class="space-y-1.5" id="gc-list"></div>
+  </div>
+
+  <!-- Weekly Section -->
+  <div class="mb-8">
+    <h2 class="text-xs font-bold uppercase tracking-widest text-indigo-400 mb-3 flex items-center gap-2">
+      <span class="h-px flex-1 bg-neutral-800"></span>
+      Weekly Tasks <span class="text-gray-600 font-normal normal-case tracking-normal">resets Tuesday 08:00 UTC</span>
+      <span class="h-px flex-1 bg-neutral-800"></span>
+    </h2>
+    <div class="space-y-1.5" id="weekly-list"></div>
+  </div>
+
+  <!-- Cosmic Exploration Section -->
+  <div class="mb-8">
+    <h2 class="text-xs font-bold uppercase tracking-widest text-cyan-400 mb-3 flex items-center gap-2">
+      <span class="h-px flex-1 bg-neutral-800"></span>
+      Cosmic Exploration <span class="text-gray-600 font-normal normal-case tracking-normal">resets 09:00 UTC daily</span>
+      <span class="h-px flex-1 bg-neutral-800"></span>
+    </h2>
+    <div class="space-y-1.5" id="cosmic-list"></div>
+  </div>
+
+</div>
+
+<script>
+// Reset time helpers
+function getNextUTCReset(hour, minute) {
+  const now = new Date();
+  const next = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), hour, minute || 0, 0, 0));
+  if (next <= now) next.setUTCDate(next.getUTCDate() + 1);
+  return next;
+}
+
+function getNextWeeklyReset() {
+  // Tuesday 08:00 UTC
+  const now = new Date();
+  const next = new Date(now);
+  next.setUTCHours(8, 0, 0, 0);
+  const day = next.getUTCDay(); // 0=Sun, 2=Tue
+  const daysUntilTue = (2 - day + 7) % 7 || 7;
+  next.setUTCDate(next.getUTCDate() + daysUntilTue);
+  return next;
+}
+
+function fmtCountdown(ms) {
+  if (ms <= 0) return '00:00:00';
+  const s = Math.floor(ms / 1000);
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = s % 60;
+  if (h >= 24) {
+    const d = Math.floor(h / 24);
+    const rh = h % 24;
+    return `${d}d ${String(rh).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;
+  }
+  return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;
+}
+
+function updateClocks() {
+  const now = Date.now();
+  const daily = getNextUTCReset(15, 0);
+  const gc    = getNextUTCReset(20, 0);
+  const weekly = getNextWeeklyReset();
+  const cosmic = getNextUTCReset(9, 0);
+
+  const dailyEl = document.getElementById('daily-countdown');
+  const gcEl    = document.getElementById('gc-countdown');
+  const weeklyEl= document.getElementById('weekly-countdown');
+  if (dailyEl)  dailyEl.textContent  = fmtCountdown(daily - now);
+  if (gcEl)     gcEl.textContent     = fmtCountdown(gc - now);
+  if (weeklyEl) weeklyEl.textContent = fmtCountdown(weekly - now);
+
+  // Auto-clear checks when reset passes
+  autoReset('daily', daily);
+  autoReset('gc', gc);
+  autoReset('weekly', weekly);
+  autoReset('cosmic', cosmic);
+}
+
+// localStorage key format: ql_ffxiv_check_{type}_{id}
+// Reset tracking: ql_ffxiv_reset_{type} = timestamp of last reset applied
+function getCheckKey(type, id)  { return `ql_ffxiv_check_${type}_${id}`; }
+function getResetKey(type)      { return `ql_ffxiv_reset_${type}`; }
+
+function isChecked(type, id) {
+  return localStorage.getItem(getCheckKey(type, id)) === '1';
+}
+
+function setChecked(type, id, val) {
+  if (val) localStorage.setItem(getCheckKey(type, id), '1');
+  else localStorage.removeItem(getCheckKey(type, id));
+}
+
+function autoReset(type, nextReset) {
+  // The last reset occurred at nextReset - period
+  const period = type === 'weekly' ? 7 * 86400000 : 86400000;
+  const lastReset = new Date(nextReset.getTime() - period);
+  const stored = parseInt(localStorage.getItem(getResetKey(type)) || '0');
+  if (stored < lastReset.getTime()) {
+    // Clear all checks for this type
+    Object.keys(localStorage).forEach(k => {
+      if (k.startsWith(`ql_ffxiv_check_${type}_`)) localStorage.removeItem(k);
+    });
+    localStorage.setItem(getResetKey(type), lastReset.getTime().toString());
+    renderAll();
+  }
+}
+
+function clearAll() {
+  Object.keys(localStorage).forEach(k => {
+    if (k.startsWith('ql_ffxiv_check_')) localStorage.removeItem(k);
+  });
+  renderAll();
+}
+
+// Task definitions
+const TASKS = {
+  daily: [
+    { id: 'roulette_leveling',   label: 'Duty Roulette: Leveling',         icon: 'fas fa-dice', color: 'text-purple-400', note: 'EXP + tomes bonus' },
+    { id: 'roulette_trials',     label: 'Duty Roulette: Trials',           icon: 'fas fa-dice', color: 'text-purple-400', note: 'EXP + tomes bonus' },
+    { id: 'roulette_expert',     label: 'Duty Roulette: Expert',           icon: 'fas fa-dice', color: 'text-purple-400', note: 'Tomes of Mnemonics' },
+    { id: 'roulette_alliance',   label: 'Duty Roulette: Alliance Raids',   icon: 'fas fa-dice', color: 'text-purple-400', note: 'EXP + tomes bonus' },
+    { id: 'roulette_normal',     label: 'Duty Roulette: Normal Raids',     icon: 'fas fa-dice', color: 'text-purple-400', note: '' },
+    { id: 'roulette_trials_low', label: 'Duty Roulette: Trials (Mentor)',  icon: 'fas fa-dice', color: 'text-purple-400', note: '' },
+    { id: 'tribal_daily',        label: 'Allied Society Quests (12)',       icon: 'fas fa-users', color: 'text-yellow-400', note: '12 allowances shared' },
+    { id: 'hunt_bills',          label: 'Hunt Daily Mark Bills',            icon: 'fas fa-crosshairs', color: 'text-red-400', note: 'Allied/Centurio Seals' },
+    { id: 'mini_cactpot',        label: 'Mini Cactpot (3 tickets)',         icon: 'fas fa-ticket-alt', color: 'text-yellow-300', note: 'Gold Saucer' },
+    { id: 'frontline',           label: 'Frontline Daily',                  icon: 'fas fa-flag', color: 'text-blue-400', note: '' },
+    { id: 'leve_allowances',     label: 'Levequest Allowances',             icon: 'fas fa-scroll', color: 'text-amber-400', note: '+3 at 00:00 & 12:00 UTC' },
+  ],
+  gc: [
+    { id: 'gc_supply',           label: 'GC Supply & Provisioning',         icon: 'fas fa-shield-alt', color: 'text-blue-400', note: 'Seals + EXP' },
+    { id: 'gc_expert',           label: 'Expert Delivery',                   icon: 'fas fa-box', color: 'text-blue-400', note: 'Seals for spiritbonded gear' },
+    { id: 'squadron',            label: 'Squadron Training Sessions (3)',    icon: 'fas fa-user-friends', color: 'text-teal-400', note: '' },
+  ],
+  weekly: [
+    { id: 'wondrous_tails',      label: 'Wondrous Tails',                   icon: 'fas fa-book', color: 'text-pink-400',   note: '9 seals → prizes; 2-week lifespan' },
+    { id: 'custom_delivery',     label: 'Custom Deliveries (12 total)',      icon: 'fas fa-gift', color: 'text-orange-400', note: '6 max per client' },
+    { id: 'tome_cap',            label: 'Tomestone Weekly Cap (450)',        icon: 'fas fa-gem', color: 'text-cyan-400',    note: 'Allagan Tomestones of Mnemonics' },
+    { id: 'challenge_log',       label: 'Challenge Log',                     icon: 'fas fa-list-check', color: 'text-green-400', note: 'All categories' },
+    { id: 'raid_normal_m1',      label: 'AAC Heavyweight M1 (Normal)',       icon: 'fas fa-sword', color: 'text-indigo-400', note: '' },
+    { id: 'raid_normal_m2',      label: 'AAC Heavyweight M2 (Normal)',       icon: 'fas fa-sword', color: 'text-indigo-400', note: '' },
+    { id: 'raid_normal_m3',      label: 'AAC Heavyweight M3 (Normal)',       icon: 'fas fa-sword', color: 'text-indigo-400', note: '' },
+    { id: 'raid_normal_m4',      label: 'AAC Heavyweight M4 (Normal)',       icon: 'fas fa-sword', color: 'text-indigo-400', note: '' },
+    { id: 'raid_savage_m1s',     label: 'AAC Heavyweight M1S (Savage)',      icon: 'fas fa-skull', color: 'text-red-400',    note: '' },
+    { id: 'raid_savage_m2s',     label: 'AAC Heavyweight M2S (Savage)',      icon: 'fas fa-skull', color: 'text-red-400',    note: '' },
+    { id: 'raid_savage_m3s',     label: 'AAC Heavyweight M3S (Savage)',      icon: 'fas fa-skull', color: 'text-red-400',    note: '' },
+    { id: 'raid_savage_m4s',     label: 'AAC Heavyweight M4S (Savage)',      icon: 'fas fa-skull', color: 'text-red-400',    note: '' },
+    { id: 'alliance_windurst',   label: 'Windurst: The Third Walk',          icon: 'fas fa-users', color: 'text-amber-400',  note: 'Ranperre Coins + Novaclusters' },
+    { id: 'faux_hollows',        label: 'Faux Hollows (2 attempts)',         icon: 'fas fa-chess', color: 'text-teal-400',   note: 'Unreal Trial' },
+    { id: 'fashion_report',      label: 'Fashion Report',                    icon: 'fas fa-tshirt', color: 'text-pink-300',  note: '80+ pts = 60k MGP' },
+    { id: 'jumbo_cactpot',       label: 'Jumbo Cactpot (3 tickets)',         icon: 'fas fa-ticket-alt', color: 'text-yellow-300', note: 'Drawing Saturday' },
+    { id: 'hunt_weekly',         label: 'Hunt Elite Mark Bills',             icon: 'fas fa-crosshairs', color: 'text-red-400', note: 'One bill per expansion tier' },
+    { id: 'island_sanctuary',    label: 'Island Sanctuary',                  icon: 'fas fa-island-tropical', color: 'text-green-400', note: 'Felicitous Tokens (70/week)' },
+    { id: 'doman_enclave',       label: 'Doman Enclave',                     icon: 'fas fa-coins', color: 'text-yellow-400', note: 'Weekly gil budget' },
+    { id: 'triple_triad_tourn',  label: 'Triple Triad Tournament',           icon: 'fas fa-clone', color: 'text-teal-400',   note: 'Biweekly' },
+    { id: 'blue_mage_log',       label: 'Masked Carnivale',                  icon: 'fas fa-mask', color: 'text-blue-300',    note: 'Blue Mage weekly targets' },
+  ],
+  cosmic: [
+    { id: 'cosmic_daily',        label: 'Stellar Successes Daily Objectives', icon: 'fas fa-star', color: 'text-cyan-400', note: 'Resets 09:00 UTC' },
+    { id: 'cosmic_ranking',      label: 'Star Contributor Check-in',          icon: 'fas fa-chart-line', color: 'text-cyan-300', note: 'Daily ranking period' },
+  ],
+};
+
+const SECTION_COLORS = {
+  daily:  'border-purple-800/30 hover:border-purple-600/40',
+  gc:     'border-blue-800/30 hover:border-blue-600/40',
+  weekly: 'border-indigo-800/30 hover:border-indigo-600/40',
+  cosmic: 'border-cyan-800/30 hover:border-cyan-600/40',
+};
+
+function renderSection(type) {
+  const tasks = TASKS[type];
+  const el = document.getElementById(`${type}-list`);
+  if (!el) return;
+
+  const done = tasks.filter(t => isChecked(type, t.id)).length;
+  const total = tasks.length;
+
+  el.innerHTML = tasks.map(task => {
+    const checked = isChecked(type, task.id);
+    return `
+    <label class="flex items-center gap-3 px-4 py-3 rounded-xl border ${SECTION_COLORS[type]} bg-neutral-900/60 cursor-pointer transition select-none ${checked ? 'opacity-50' : ''}">
+      <input type="checkbox" class="hidden" onchange="toggle('${type}','${task.id}',this.checked)">
+      <div class="w-5 h-5 rounded-md border-2 flex items-center justify-center flex-shrink-0 transition
+                  ${checked ? 'bg-green-600 border-green-600' : 'border-neutral-600 bg-neutral-800'}">
+        ${checked ? '<i class="fas fa-check text-white text-[10px]"></i>' : ''}
+      </div>
+      <i class="${task.icon} ${task.color} text-sm flex-shrink-0 w-4 text-center"></i>
+      <div class="flex-1 min-w-0">
+        <p class="text-sm ${checked ? 'line-through text-gray-600' : 'text-white'}">${task.label}</p>
+        ${task.note ? `<p class="text-[11px] text-gray-600">${task.note}</p>` : ''}
+      </div>
+      ${checked ? '<i class="fas fa-check-circle text-green-600 text-sm flex-shrink-0"></i>' : ''}
+    </label>`;
+  }).join('');
+
+  // Progress indicator
+  const prog = document.getElementById(`${type}-progress`);
+  if (prog) prog.textContent = `${done}/${total}`;
+}
+
+function renderAll() {
+  Object.keys(TASKS).forEach(renderSection);
+}
+
+function toggle(type, id, val) {
+  setChecked(type, id, val);
+  renderSection(type);
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  renderAll();
+  updateClocks();
+  setInterval(updateClocks, 1000);
+});
+</script>
+{% endblock %}

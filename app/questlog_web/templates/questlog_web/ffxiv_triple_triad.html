@@ -1,0 +1,574 @@
+{% extends "questlog_web/base_web.html" %}
+{% load static %}
+{% block title %}Triple Triad Tracker | FFXIV Tools | Casual Heroes{% endblock %}
+{% block web_content %}
+
+{{ my_owned_data|json_script:"my-owned-data" }}
+{{ my_decks_data|json_script:"my-decks-data" }}
+{{ fc_counts_data|json_script:"fc-counts-data" }}
+{{ is_logged_in|json_script:"is-logged-in-data" }}
+
+<div class="p-4 sm:p-6 max-w-7xl mx-auto">
+
+  <!-- Header -->
+  <div class="flex flex-col sm:flex-row sm:items-end gap-4 mb-6">
+    <div class="flex items-center gap-4">
+      <div class="w-14 h-14 rounded-2xl bg-teal-900/40 border border-teal-800/40 flex items-center justify-center flex-shrink-0">
+        <i class="fas fa-clone text-teal-400 text-2xl"></i>
+      </div>
+      <div>
+        <h1 class="text-2xl font-extrabold text-white leading-tight">Triple Triad Tracker</h1>
+        <p class="text-teal-300 text-sm font-medium">Track your card collection and decks</p>
+      </div>
+    </div>
+    <div class="sm:ml-auto flex items-center gap-3">
+      <a href="/ffxiv/tools/" class="text-xs text-gray-500 hover:text-gray-300 transition flex items-center gap-1">
+        <i class="fas fa-arrow-left text-[10px]"></i> FFXIV Tools
+      </a>
+    </div>
+  </div>
+
+  <!-- Stats bar -->
+  <div id="stats-bar" class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6"></div>
+
+  <!-- Tabs -->
+  <div class="flex gap-1 mb-5 bg-neutral-900 border border-neutral-800 rounded-xl p-1 w-fit">
+    <button onclick="ttSwitchTab('collection')" id="tab-collection"
+            class="px-4 py-1.5 rounded-lg text-sm font-medium transition tab-btn active-tab">
+      <i class="fas fa-clone mr-1.5"></i>Collection
+    </button>
+    <button onclick="ttSwitchTab('decks')" id="tab-decks"
+            class="px-4 py-1.5 rounded-lg text-sm font-medium transition tab-btn">
+      <i class="fas fa-layer-group mr-1.5"></i>My Decks
+    </button>
+    <button onclick="ttSwitchTab('leaderboard')" id="tab-leaderboard"
+            class="px-4 py-1.5 rounded-lg text-sm font-medium transition tab-btn">
+      <i class="fas fa-trophy mr-1.5"></i>FC Leaderboard
+    </button>
+  </div>
+
+  <!-- Collection tab -->
+  <div id="panel-collection">
+    <!-- Filter bar -->
+    <div class="flex flex-col sm:flex-row gap-3 mb-4">
+      <input id="card-search" type="text" placeholder="Search cards..."
+             oninput="ttFilterCards()"
+             class="flex-1 bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-teal-600">
+      <div class="flex gap-2">
+        <select id="filter-stars" onchange="ttFilterCards()"
+                class="bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-gray-300 focus:outline-none focus:border-teal-600">
+          <option value="">All Stars</option>
+          <option value="1">1 Star</option>
+          <option value="2">2 Stars</option>
+          <option value="3">3 Stars</option>
+          <option value="4">4 Stars</option>
+          <option value="5">5 Stars</option>
+        </select>
+        <select id="filter-owned" onchange="ttFilterCards()"
+                class="bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-gray-300 focus:outline-none focus:border-teal-600">
+          <option value="">All Cards</option>
+          <option value="owned">Owned</option>
+          <option value="missing">Missing</option>
+        </select>
+        {% if is_logged_in %}
+        <button onclick="ttBulkMark()" id="bulk-btn"
+                class="px-3 py-2 bg-neutral-700 hover:bg-neutral-600 text-gray-300 rounded-lg text-sm font-medium transition hidden">
+          <i class="fas fa-check-double mr-1"></i><span id="bulk-label">Mark All Visible</span>
+        </button>
+        <button onclick="ttClearAll()" id="clear-all-btn"
+                class="px-3 py-2 bg-red-900/50 hover:bg-red-800/70 text-red-400 hover:text-red-300 rounded-lg text-sm font-medium transition"
+                title="Clear all owned cards">
+          <i class="fas fa-trash-alt mr-1"></i>Clear All
+        </button>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Card grid -->
+    <div id="card-grid" class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 gap-2"></div>
+    <div id="card-empty" class="hidden text-gray-500 text-sm text-center py-12">No cards match your filter.</div>
+    <div id="card-loading" class="text-gray-500 text-sm text-center py-12">
+      <i class="fas fa-spinner fa-spin mr-2"></i>Loading cards...
+    </div>
+  </div>
+
+  <!-- Decks tab -->
+  <div id="panel-decks" class="hidden">
+    {% if is_logged_in %}
+    <div class="flex justify-end mb-4">
+      <button onclick="ttOpenDeckModal(null)"
+              class="px-4 py-2 bg-teal-700 hover:bg-teal-600 text-white text-sm font-semibold rounded-lg transition">
+        <i class="fas fa-plus mr-1.5"></i>New Deck
+      </button>
+    </div>
+    <div id="deck-list" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+    <div id="deck-empty" class="hidden text-gray-500 text-sm text-center py-12">No decks yet. Create your first deck!</div>
+    {% else %}
+    <div class="text-center py-12">
+      <i class="fas fa-lock text-gray-600 text-3xl mb-3 block"></i>
+      <p class="text-gray-400 text-sm">Log in to save and track your decks.</p>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Leaderboard tab -->
+  <div id="panel-leaderboard" class="hidden">
+    <div id="lb-list"></div>
+    <div id="lb-empty" class="hidden text-gray-500 text-sm text-center py-12">No one has logged cards yet - be the first!</div>
+  </div>
+
+</div>
+
+<!-- Deck modal -->
+<div id="deck-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+  <div class="bg-neutral-900 border border-neutral-700 rounded-2xl w-full max-w-md p-6">
+    <h3 id="deck-modal-title" class="text-white font-bold text-lg mb-4">New Deck</h3>
+    <input id="deck-name-input" type="text" placeholder="Deck name..." maxlength="64"
+           class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-teal-600 mb-4">
+    <p class="text-gray-400 text-xs mb-2">Select 5 cards (type to search):</p>
+    <div id="deck-card-slots" class="space-y-2 mb-4"></div>
+    <input id="deck-card-search" type="text" placeholder="Search to add a card..."
+           oninput="ttDeckCardSearch()"
+           class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-teal-600 mb-2">
+    <div id="deck-card-results" class="max-h-40 overflow-y-auto space-y-1 mb-4"></div>
+    <div id="deck-modal-error" class="hidden text-red-400 text-xs mb-3"></div>
+    <div class="flex gap-2 justify-end">
+      <button onclick="ttCloseDeckModal()" class="px-4 py-2 bg-neutral-700 hover:bg-neutral-600 text-gray-300 text-sm font-medium rounded-lg transition">Cancel</button>
+      <button onclick="ttSaveDeck()" class="px-4 py-2 bg-teal-700 hover:bg-teal-600 text-white text-sm font-semibold rounded-lg transition">Save Deck</button>
+    </div>
+  </div>
+</div>
+
+<style>
+.tab-btn { color: #9ca3af; }
+.active-tab { background: #14532d; color: #6ee7b7; }
+.card-tile { cursor: pointer; transition: all 0.15s; }
+.card-tile:hover { transform: translateY(-2px); }
+.card-owned { ring: 2px; }
+</style>
+
+<script>
+// ---------------------------------------------------------------------------
+// Globals
+// ---------------------------------------------------------------------------
+var _ttCards       = [];
+var _ttOwned       = new Set();
+var _ttDecks       = [];
+var _ttFcCounts    = [];
+var _ttIsLoggedIn  = false;
+var _ttActiveTab   = 'collection';
+var _ttDeckEditing = null;   // null = new, int = editing deck id
+var _ttDeckCards   = [];     // current 5 slots (card objects or null)
+var _ttCardsLoaded = false;
+
+// ---------------------------------------------------------------------------
+// Init
+// ---------------------------------------------------------------------------
+document.addEventListener('DOMContentLoaded', function() {
+    _ttOwned     = new Set(JSON.parse(document.getElementById('my-owned-data').textContent));
+    _ttDecks     = JSON.parse(document.getElementById('my-decks-data').textContent);
+    _ttFcCounts  = JSON.parse(document.getElementById('fc-counts-data').textContent);
+    _ttIsLoggedIn = JSON.parse(document.getElementById('is-logged-in-data').textContent);
+
+    ttLoadCards();
+    ttRenderDecks();
+    ttRenderLeaderboard();
+    ttUpdateStats();
+});
+
+// ---------------------------------------------------------------------------
+// Tab switching
+// ---------------------------------------------------------------------------
+function ttSwitchTab(tab) {
+    _ttActiveTab = tab;
+    ['collection','decks','leaderboard'].forEach(function(t) {
+        document.getElementById('panel-' + t).classList.toggle('hidden', t !== tab);
+        var btn = document.getElementById('tab-' + t);
+        btn.classList.toggle('active-tab', t === tab);
+        btn.classList.toggle('tab-btn', true);
+    });
+}
+
+// ---------------------------------------------------------------------------
+// Card loading
+// ---------------------------------------------------------------------------
+function ttLoadCards() {
+    fetch('/api/ffxiv/triad/cards/')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            _ttCards = data.cards || [];
+            _ttCardsLoaded = true;
+            document.getElementById('card-loading').classList.add('hidden');
+            ttFilterCards();
+            ttUpdateStats();
+        })
+        .catch(function(e) {
+            document.getElementById('card-loading').textContent = 'Failed to load cards. Please refresh.';
+        });
+}
+
+// ---------------------------------------------------------------------------
+// Stats bar
+// ---------------------------------------------------------------------------
+function ttUpdateStats() {
+    var total   = _ttCards.length;
+    // Only count owned cards that are in the loaded card list
+    var knownIds = new Set(_ttCards.map(function(c) { return c.id; }));
+    var owned   = _ttCardsLoaded ? Array.from(_ttOwned).filter(function(id) { return knownIds.has(id); }).length : _ttOwned.size;
+    var pct     = total > 0 ? Math.round((owned / total) * 100) : 0;
+    var missing = Math.max(0, total - owned);
+    document.getElementById('stats-bar').innerHTML =
+        ttStatCard('fas fa-clone', 'text-teal-400', 'Total Cards', total) +
+        ttStatCard('fas fa-check-circle', 'text-green-400', 'Owned', owned) +
+        ttStatCard('fas fa-times-circle', 'text-red-400', 'Missing', missing) +
+        ttStatCard('fas fa-percent', 'text-sky-400', 'Completion', pct + '%');
+}
+
+function ttStatCard(icon, color, label, value) {
+    return '<div class="bg-neutral-900 border border-neutral-800 rounded-xl p-4 flex items-center gap-3">' +
+        '<i class="' + icon + ' ' + color + ' text-xl flex-shrink-0"></i>' +
+        '<div><p class="text-white font-bold text-xl leading-none">' + value + '</p>' +
+        '<p class="text-gray-500 text-xs mt-0.5">' + label + '</p></div></div>';
+}
+
+// ---------------------------------------------------------------------------
+// Card grid
+// ---------------------------------------------------------------------------
+function ttFilterCards() {
+    var q      = (document.getElementById('card-search').value || '').toLowerCase();
+    var stars  = document.getElementById('filter-stars').value;
+    var owned  = document.getElementById('filter-owned').value;
+
+    var visible = _ttCards.filter(function(c) {
+        if (q && !c.name.toLowerCase().includes(q)) return false;
+        if (stars && String(c.stars) !== stars) return false;
+        if (owned === 'owned'   && !_ttOwned.has(c.id)) return false;
+        if (owned === 'missing' &&  _ttOwned.has(c.id)) return false;
+        return true;
+    });
+
+    var grid  = document.getElementById('card-grid');
+    var empty = document.getElementById('card-empty');
+    var bulkBtn = document.getElementById('bulk-btn');
+
+    if (!_ttCardsLoaded) return;
+
+    if (visible.length === 0) {
+        grid.innerHTML = '';
+        empty.classList.remove('hidden');
+    } else {
+        empty.classList.add('hidden');
+        grid.innerHTML = visible.map(ttCardTile).join('');
+    }
+
+    if (bulkBtn) {
+        if (owned === 'missing' && visible.length > 0) {
+            bulkBtn.classList.remove('hidden');
+            document.getElementById('bulk-label').textContent = 'Mark All Visible (' + visible.length + ')';
+        } else {
+            bulkBtn.classList.add('hidden');
+        }
+    }
+}
+
+function ttCardTile(card) {
+    var isOwned = _ttOwned.has(card.id);
+    var stars   = '★'.repeat(card.stars) || '';
+    var login   = !_ttIsLoggedIn;
+    var onclick = login ? '' : 'onclick="ttToggleCard(' + card.id + ')"';
+    return '<div ' + onclick + ' class="card-tile bg-neutral-900 border rounded-xl overflow-hidden ' +
+        (isOwned ? 'border-teal-700/60 ring-1 ring-teal-700/40' : 'border-neutral-800 opacity-50') + '">' +
+        (card.icon ? '<img src="' + escapeHtml(card.icon) + '" class="w-full object-contain bg-neutral-800" alt="' + escapeHtml(card.name) + '" loading="lazy" onerror="this.src=\'\'">' :
+            '<div class="w-full bg-neutral-800 flex items-center justify-center" style="aspect-ratio:1"><i class="fas fa-clone text-gray-600 text-2xl"></i></div>') +
+        '<div class="p-1.5">' +
+        '<p class="text-white text-[10px] font-semibold leading-tight truncate" title="' + escapeHtml(card.name) + '">' + escapeHtml(card.name) + '</p>' +
+        (stars ? '<p class="text-yellow-400 text-[9px] leading-none">' + stars + '</p>' : '') +
+        (isOwned ? '<p class="text-teal-400 text-[9px] font-medium mt-0.5"><i class="fas fa-check mr-0.5"></i>Owned</p>' : '') +
+        '</div></div>';
+}
+
+// ---------------------------------------------------------------------------
+// Toggle ownership
+// ---------------------------------------------------------------------------
+function ttToggleCard(cardId) {
+    if (!_ttIsLoggedIn) return;
+    (window.csrfFetch || csrfFetch)('/api/ffxiv/triad/toggle/', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({card_id: cardId}),
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.owned) {
+            _ttOwned.add(cardId);
+        } else {
+            _ttOwned.delete(cardId);
+        }
+        ttFilterCards();
+        ttUpdateStats();
+    });
+}
+
+// ---------------------------------------------------------------------------
+// Clear all owned cards
+// ---------------------------------------------------------------------------
+function ttClearAll() {
+    if (!confirm('Clear ALL owned cards? This cannot be undone.')) return;
+    (window.csrfFetch || csrfFetch)('/api/ffxiv/triad/clear-all/', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: '{}',
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        _ttOwned = new Set();
+        ttFilterCards();
+        ttUpdateStats();
+    });
+}
+
+// ---------------------------------------------------------------------------
+// Bulk mark visible missing cards as owned
+// ---------------------------------------------------------------------------
+function ttBulkMark() {
+    var owned  = document.getElementById('filter-owned').value;
+    var q      = (document.getElementById('card-search').value || '').toLowerCase();
+    var stars  = document.getElementById('filter-stars').value;
+
+    var ids = _ttCards.filter(function(c) {
+        if (owned === 'missing' && _ttOwned.has(c.id)) return false;
+        if (q && !c.name.toLowerCase().includes(q)) return false;
+        if (stars && String(c.stars) !== stars) return false;
+        return true;
+    }).map(function(c) { return c.id; });
+
+    if (!ids.length) return;
+
+    (window.csrfFetch || csrfFetch)('/api/ffxiv/triad/bulk-mark/', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({card_ids: ids}),
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        ids.forEach(function(id) { _ttOwned.add(id); });
+        ttFilterCards();
+        ttUpdateStats();
+    });
+}
+
+// ---------------------------------------------------------------------------
+// Decks
+// ---------------------------------------------------------------------------
+function ttRenderDecks() {
+    var list  = document.getElementById('deck-list');
+    var empty = document.getElementById('deck-empty');
+    if (!list) return;
+
+    if (!_ttDecks.length) {
+        list.innerHTML = '';
+        if (empty) empty.classList.remove('hidden');
+        return;
+    }
+    if (empty) empty.classList.add('hidden');
+
+    list.innerHTML = _ttDecks.map(function(deck) {
+        var cardPips = deck.card_ids.slice(0, 5).map(function(cid) {
+            var c = _ttCards.find(function(x) { return x.id === cid; }) || null;
+            if (c && c.icon) {
+                return '<img src="' + escapeHtml(c.icon) + '" class="w-8 h-8 rounded object-cover bg-neutral-800" title="' + escapeHtml(c.name || '') + '" onerror="this.src=\'\'">';
+            }
+            return '<div class="w-8 h-8 rounded bg-neutral-700 flex items-center justify-center"><i class="fas fa-clone text-gray-600 text-xs"></i></div>';
+        }).join('');
+
+        return '<div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-4">' +
+            '<div class="flex items-center justify-between mb-3">' +
+            '<h3 class="text-white font-bold text-sm">' + escapeHtml(deck.name) + '</h3>' +
+            '<div class="flex gap-1.5">' +
+            '<button onclick="ttOpenDeckModal(' + deck.id + ')" class="text-gray-500 hover:text-teal-400 transition text-xs"><i class="fas fa-edit"></i></button>' +
+            '<button onclick="ttDeleteDeck(' + deck.id + ')" class="text-gray-500 hover:text-red-400 transition text-xs"><i class="fas fa-trash"></i></button>' +
+            '</div></div>' +
+            '<div class="flex gap-1.5">' + cardPips + '</div>' +
+            '</div>';
+    }).join('');
+}
+
+// ---------------------------------------------------------------------------
+// Deck modal
+// ---------------------------------------------------------------------------
+function ttOpenDeckModal(deckId) {
+    _ttDeckEditing = deckId;
+    _ttDeckCards   = [null, null, null, null, null];
+    document.getElementById('deck-modal-error').classList.add('hidden');
+
+    if (deckId) {
+        var deck = _ttDecks.find(function(d) { return d.id === deckId; });
+        if (deck) {
+            document.getElementById('deck-name-input').value = deck.name;
+            document.getElementById('deck-modal-title').textContent = 'Edit Deck';
+            _ttDeckCards = deck.card_ids.map(function(cid) {
+                return _ttCards.find(function(c) { return c.id === cid; }) || null;
+            });
+            while (_ttDeckCards.length < 5) _ttDeckCards.push(null);
+        }
+    } else {
+        document.getElementById('deck-name-input').value = '';
+        document.getElementById('deck-modal-title').textContent = 'New Deck';
+    }
+
+    ttRenderDeckSlots();
+    document.getElementById('deck-card-search').value = '';
+    document.getElementById('deck-card-results').innerHTML = '';
+    document.getElementById('deck-modal').classList.remove('hidden');
+}
+
+function ttCloseDeckModal() {
+    document.getElementById('deck-modal').classList.add('hidden');
+}
+
+function ttRenderDeckSlots() {
+    var html = '';
+    for (var i = 0; i < 5; i++) {
+        var c = _ttDeckCards[i];
+        if (c) {
+            html += '<div class="flex items-center gap-2 bg-neutral-800 rounded-lg px-3 py-2">' +
+                (c.icon ? '<img src="' + escapeHtml(c.icon) + '" class="w-6 h-6 rounded object-cover" onerror="this.src=\'\'">' : '<div class="w-6 h-6 rounded bg-neutral-700"></div>') +
+                '<span class="text-white text-sm flex-1">' + escapeHtml(c.name) + '</span>' +
+                '<button onclick="ttRemoveDeckSlot(' + i + ')" class="text-gray-500 hover:text-red-400 transition"><i class="fas fa-times text-xs"></i></button>' +
+                '</div>';
+        } else {
+            html += '<div class="flex items-center gap-2 bg-neutral-800/50 border border-dashed border-neutral-700 rounded-lg px-3 py-2">' +
+                '<div class="w-6 h-6 rounded bg-neutral-700/50 flex-shrink-0"></div>' +
+                '<span class="text-gray-600 text-sm">Slot ' + (i + 1) + ' - empty</span>' +
+                '</div>';
+        }
+    }
+    document.getElementById('deck-card-slots').innerHTML = html;
+}
+
+function ttRemoveDeckSlot(i) {
+    _ttDeckCards[i] = null;
+    ttRenderDeckSlots();
+}
+
+function ttDeckCardSearch() {
+    var q = (document.getElementById('deck-card-search').value || '').toLowerCase();
+    var results = document.getElementById('deck-card-results');
+    if (q.length < 1) { results.innerHTML = ''; return; }
+
+    var matches = _ttCards.filter(function(c) {
+        return c.name.toLowerCase().includes(q);
+    }).slice(0, 10);
+
+    results.innerHTML = matches.map(function(c) {
+        var already = _ttDeckCards.some(function(dc) { return dc && dc.id === c.id; });
+        return '<button onclick="ttAddDeckCard(' + c.id + ')" ' + (already ? 'disabled' : '') + ' ' +
+            'class="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs hover:bg-neutral-700 transition text-left ' + (already ? 'opacity-40 cursor-not-allowed' : '') + '">' +
+            (c.icon ? '<img src="' + escapeHtml(c.icon) + '" class="w-5 h-5 rounded object-cover flex-shrink-0" onerror="this.src=\'\'">' : '<div class="w-5 h-5 rounded bg-neutral-700 flex-shrink-0"></div>') +
+            '<span class="text-white flex-1">' + escapeHtml(c.name) + '</span>' +
+            (already ? '<span class="text-gray-500">In deck</span>' : '') +
+            '</button>';
+    }).join('');
+}
+
+function ttAddDeckCard(cardId) {
+    var c = _ttCards.find(function(x) { return x.id === cardId; });
+    if (!c) return;
+    var slot = _ttDeckCards.indexOf(null);
+    if (slot === -1) {
+        var err = document.getElementById('deck-modal-error');
+        err.textContent = 'Deck is full (5 cards max). Remove a card first.';
+        err.classList.remove('hidden');
+        return;
+    }
+    _ttDeckCards[slot] = c;
+    document.getElementById('deck-card-search').value = '';
+    document.getElementById('deck-card-results').innerHTML = '';
+    document.getElementById('deck-modal-error').classList.add('hidden');
+    ttRenderDeckSlots();
+}
+
+function ttSaveDeck() {
+    var name = (document.getElementById('deck-name-input').value || '').trim();
+    var err  = document.getElementById('deck-modal-error');
+    err.classList.add('hidden');
+
+    if (!name) { err.textContent = 'Deck name required.'; err.classList.remove('hidden'); return; }
+
+    var cardIds = _ttDeckCards.filter(function(c) { return c !== null; }).map(function(c) { return c.id; });
+    if (cardIds.length !== 5) { err.textContent = 'Exactly 5 cards are required.'; err.classList.remove('hidden'); return; }
+
+    var payload = {name: name, card_ids: cardIds};
+    if (_ttDeckEditing) payload.deck_id = _ttDeckEditing;
+
+    (window.csrfFetch || csrfFetch)('/api/ffxiv/triad/deck/save/', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(payload),
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.error) { err.textContent = data.error; err.classList.remove('hidden'); return; }
+        if (_ttDeckEditing) {
+            var idx = _ttDecks.findIndex(function(d) { return d.id === _ttDeckEditing; });
+            if (idx >= 0) _ttDecks[idx] = {id: data.deck_id, name: data.name, card_ids: data.card_ids, updated_at: Math.floor(Date.now()/1000)};
+        } else {
+            _ttDecks.unshift({id: data.deck_id, name: data.name, card_ids: data.card_ids, updated_at: Math.floor(Date.now()/1000)});
+        }
+        ttCloseDeckModal();
+        ttRenderDecks();
+    });
+}
+
+function ttDeleteDeck(deckId) {
+    if (!confirm('Delete this deck?')) return;
+    (window.csrfFetch || csrfFetch)('/api/ffxiv/triad/deck/delete/', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({deck_id: deckId}),
+    })
+    .then(function() {
+        _ttDecks = _ttDecks.filter(function(d) { return d.id !== deckId; });
+        ttRenderDecks();
+    });
+}
+
+// ---------------------------------------------------------------------------
+// Leaderboard
+// ---------------------------------------------------------------------------
+function ttRenderLeaderboard() {
+    var list  = document.getElementById('lb-list');
+    var empty = document.getElementById('lb-empty');
+    if (!list) return;
+
+    if (!_ttFcCounts.length) {
+        list.innerHTML = '';
+        if (empty) empty.classList.remove('hidden');
+        return;
+    }
+    if (empty) empty.classList.add('hidden');
+
+    list.innerHTML = '<div class="bg-neutral-900 border border-neutral-800 rounded-2xl overflow-hidden">' +
+        '<table class="w-full">' +
+        '<thead><tr class="border-b border-neutral-800">' +
+        '<th class="text-left text-xs text-gray-500 font-semibold px-4 py-3 w-8">#</th>' +
+        '<th class="text-left text-xs text-gray-500 font-semibold px-4 py-3">Player</th>' +
+        '<th class="text-right text-xs text-gray-500 font-semibold px-4 py-3">Cards</th>' +
+        '</tr></thead><tbody>' +
+        _ttFcCounts.map(function(row, i) {
+            var medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : '';
+            return '<tr class="border-b border-neutral-800/50 hover:bg-neutral-800/30 transition">' +
+                '<td class="px-4 py-3 text-gray-500 text-sm">' + (medal || (i + 1)) + '</td>' +
+                '<td class="px-4 py-3">' +
+                '<div class="flex items-center gap-2">' +
+                (row.avatar_url ? '<img src="' + escapeHtml(row.avatar_url) + '" class="w-7 h-7 rounded-lg object-cover flex-shrink-0">' : '<div class="w-7 h-7 rounded-lg bg-neutral-700 flex-shrink-0"></div>') +
+                '<span class="text-white text-sm font-medium">' + escapeHtml(row.display_name || 'Unknown') + '</span>' +
+                '</div></td>' +
+                '<td class="px-4 py-3 text-right"><span class="text-teal-400 font-bold text-sm">' + row.count + '</span><span class="text-gray-600 text-xs ml-1">cards</span></td>' +
+                '</tr>';
+        }).join('') +
+        '</tbody></table></div>';
+}
+</script>
+
+{% endblock web_content %}

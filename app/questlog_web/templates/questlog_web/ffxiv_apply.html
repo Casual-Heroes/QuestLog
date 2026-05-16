@@ -1,0 +1,425 @@
+{% extends "questlog_web/base_web.html" %}
+{% load static %}
+{% block title %}Apply to Casual Heroes FC | FFXIV{% endblock %}
+{% block web_content %}
+{% include 'questlog/partials/custom_select.html' %}
+
+<div class="p-4 sm:p-6 max-w-3xl mx-auto">
+
+  <!-- Header -->
+  <div class="flex items-center gap-4 mb-8">
+    <div class="w-14 h-14 rounded-2xl bg-indigo-900/40 border border-indigo-800/40 flex items-center justify-center flex-shrink-0">
+      <img src="{% static 'img/games/guilds/ffxiv.png' %}" class="w-9 h-9 rounded-lg object-cover" alt="FFXIV">
+    </div>
+    <div>
+      <h1 class="text-3xl font-extrabold text-white leading-tight">Join Casual Heroes FC</h1>
+      <p class="text-indigo-300 text-sm font-medium">Final Fantasy XIV - Free Company Application</p>
+    </div>
+  </div>
+
+  <!-- Existing application status -->
+  {% if existing %}
+  <div class="mb-8 rounded-2xl border p-5
+    {% if existing.status == 'approved' %}bg-green-900/20 border-green-700/40
+    {% elif existing.status == 'denied' %}bg-red-900/20 border-red-700/40
+    {% else %}bg-yellow-900/20 border-yellow-700/40{% endif %}">
+    <div class="flex items-start gap-3">
+      <i class="fas {% if existing.status == 'approved' %}fa-check-circle text-green-400{% elif existing.status == 'denied' %}fa-times-circle text-red-400{% else %}fa-clock text-yellow-400{% endif %} text-xl mt-0.5"></i>
+      <div>
+        <p class="text-white font-bold">
+          {% if existing.status == 'approved' %}Application Approved!
+          {% elif existing.status == 'denied' %}Application Not Accepted
+          {% else %}Application Pending Review{% endif %}
+        </p>
+        <p class="text-gray-400 text-sm mt-0.5">
+          Submitted for <strong class="text-gray-200">{{ existing.character_name }}</strong>.
+          {% if existing.status == 'pending' %}Our officers will review it soon - hang tight!
+          {% elif existing.status == 'approved' %}Welcome to the FC! Reach out to an officer in-game or on Fluxer.
+          {% elif existing.status == 'denied' %}This application wasn't a match right now.{% endif %}
+        </p>
+        {% if existing.admin_notes %}
+        <p class="text-gray-300 text-sm mt-2 bg-neutral-800/60 rounded-lg px-3 py-2">
+          <i class="fas fa-comment text-gray-500 mr-1"></i><em>{{ existing.admin_notes }}</em>
+        </p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  {% if existing.status != 'denied' %}
+  </div><!-- end max-w-3xl -->
+  {% block end_content %}{% endblock %}
+  {% endif %}
+  {% endif %}
+
+  <!-- Dynamic status block (JS-injected on submit) -->
+  <div id="dynamic-status" class="hidden"></div>
+
+  {% if not existing or existing.status == 'denied' %}
+
+  <!-- About the FC -->
+  <div id="about-fc-block" class="bg-neutral-900 border border-neutral-800 rounded-2xl p-5 mb-6">
+    <h2 class="text-white font-bold text-lg mb-2 flex items-center gap-2">
+      <i class="fas fa-info-circle text-indigo-400"></i> About Casual Heroes FC
+    </h2>
+    <p class="text-white font-bold text-base mb-1">Aging, But Still Looting.</p>
+    <p class="text-gray-400 text-sm leading-relaxed">A community for working adults, parents, and gamers who grew up but never quite left Neverland. We see content at our own pace and enjoy the game the way we want - without the hardcore mentality. No mandatory attendance, no parse culture, no drama. If that sounds like your kind of FC, we'd love to have you.</p>
+    <div class="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
+      <div class="bg-neutral-800/60 rounded-lg px-3 py-2">
+        <p class="text-indigo-300 text-xs font-semibold">Data Center</p>
+        <p class="text-white text-sm font-bold">Dynamis</p>
+      </div>
+      <div class="bg-neutral-800/60 rounded-lg px-3 py-2">
+        <p class="text-indigo-300 text-xs font-semibold">Home World</p>
+        <p class="text-white text-sm font-bold">Halicarnassus</p>
+      </div>
+      <div class="bg-neutral-800/60 rounded-lg px-3 py-2">
+        <p class="text-indigo-300 text-xs font-semibold">Vibe</p>
+        <p class="text-white text-sm font-bold">Casual / Social</p>
+      </div>
+      <div class="bg-neutral-800/60 rounded-lg px-3 py-2">
+        <p class="text-indigo-300 text-xs font-semibold">18+</p>
+        <p class="text-white text-sm font-bold">Yes</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Must be logged in -->
+  {% if not web_user %}
+  <div class="bg-yellow-900/20 border border-yellow-700/40 rounded-2xl p-5 text-center">
+    <i class="fas fa-lock text-yellow-400 text-2xl mb-2"></i>
+    <p class="text-white font-bold mb-1">Login Required</p>
+    <p class="text-gray-400 text-sm mb-4">You need a QuestLog account to submit an application.</p>
+    <a href="/ql/login/?next=/ffxiv/apply/" class="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-5 py-2.5 rounded-xl transition text-sm">
+      <i class="fas fa-sign-in-alt"></i> Log In to Apply
+    </a>
+  </div>
+  {% else %}
+
+  <!-- Application Form -->
+  <div id="apply-form-wrapper">
+  <form id="apply-form" class="space-y-6">
+
+    <!-- Section: Character Info -->
+    <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-5">
+      <h2 class="text-white font-bold text-base mb-4 flex items-center gap-2">
+        <i class="fas fa-user text-indigo-400"></i> Character Information
+      </h2>
+      <div class="mb-4">
+        <label class="block text-xs text-gray-400 font-semibold mb-1">Character Name <span class="text-red-400">*</span></label>
+        <input type="text" id="character_name" maxlength="100" placeholder="Firstname Lastname"
+          class="w-full bg-neutral-800 border border-neutral-700 text-white placeholder-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-500">
+      </div>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          <label class="block text-xs text-gray-400 font-semibold mb-1">Main Job <span class="text-red-400">*</span></label>
+          <div id="main-job-container"></div>
+        </div>
+        <div>
+          <label class="block text-xs text-gray-400 font-semibold mb-1">Alt Jobs <span class="text-gray-500">(optional, up to 8)</span></label>
+          <div id="alt-jobs-container"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section: Experience -->
+    <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-5">
+      <h2 class="text-white font-bold text-base mb-1 flex items-center gap-2">
+        <i class="fas fa-star text-yellow-400"></i> Experience Level
+      </h2>
+      <p class="text-gray-500 text-xs mb-4">Select all that apply - pick your whole journey if you want.</p>
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3" id="experience-cards">
+        {% for val, label in experience_levels %}
+        <button type="button" onclick="toggleExperience('{{ val }}')" id="exp-{{ val }}"
+          class="exp-card text-left p-3 rounded-xl border border-neutral-700 bg-neutral-800/50 hover:border-indigo-500/60 transition group">
+          <p class="text-white text-xs font-bold group-hover:text-indigo-300 transition">
+            {% if val == 'new' %}🌱 New to FFXIV
+            {% elif val == 'leveling' %}⚔️ Still Leveling
+            {% elif val == 'casual' %}🎮 Endgame Casual
+            {% elif val == 'savage' %}🔥 Savage Raider
+            {% elif val == 'ultimate' %}👑 Ultimate Cleared
+            {% elif val == 'crafter' %}🔨 Seasoned Crafter
+            {% elif val == 'gatherer' %}🌿 Seasoned Gatherer
+            {% elif val == 'pvp' %}⚡ Seasoned PvPer
+            {% elif val == 'collector' %}🏆 Collector
+            {% endif %}
+          </p>
+          <p class="text-gray-500 text-[11px] mt-0.5">{{ label }}</p>
+        </button>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Section: Content Interests -->
+    <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-5">
+      <h2 class="text-white font-bold text-base mb-1 flex items-center gap-2">
+        <i class="fas fa-gamepad text-green-400"></i> What Do You Like to Do?
+      </h2>
+      <p class="text-gray-500 text-xs mb-4">Select everything that interests you.</p>
+      <div class="grid grid-cols-2 sm:grid-cols-3 gap-2" id="interests-grid">
+        {% for interest in content_interests %}
+        <button type="button" onclick="toggleInterest(this)" data-value="{{ interest }}"
+          class="interest-btn text-left px-3 py-2 rounded-lg border border-neutral-700 bg-neutral-800/50 text-gray-400 text-xs hover:border-green-500/50 hover:text-white transition">
+          {{ interest }}
+        </button>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Section: Availability -->
+    <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-5">
+      <h2 class="text-white font-bold text-base mb-1 flex items-center gap-2">
+        <i class="fas fa-calendar-alt text-purple-400"></i> When Are You Usually Online?
+      </h2>
+      <p class="text-gray-500 text-xs mb-4">Select all days that apply - no commitment required.</p>
+      <div class="flex flex-wrap gap-2">
+        {% for day in availability_days %}
+        <button type="button" onclick="toggleDay(this)" data-value="{{ day }}"
+          class="avail-btn px-4 py-2 rounded-lg border border-neutral-700 bg-neutral-800/50 text-gray-400 text-xs font-semibold hover:border-purple-500/60 hover:text-white transition">
+          {{ day }}
+        </button>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Section: About You -->
+    <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-5">
+      <h2 class="text-white font-bold text-base mb-4 flex items-center gap-2">
+        <i class="fas fa-scroll text-rose-400"></i> Tell Us About Yourself
+      </h2>
+      <div class="space-y-4">
+        <div>
+          <label class="block text-xs text-gray-400 font-semibold mb-1">
+            Why do you want to join Casual Heroes? <span class="text-red-400">*</span>
+          </label>
+          <textarea id="why_join" rows="4" maxlength="2000" placeholder="Tell us about yourself, what you're looking for in an FC, what you enjoy in FFXIV..."
+            class="w-full bg-neutral-800 border border-neutral-700 text-white placeholder-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-500 resize-none"
+            oninput="updateCharCount(this, 'why-count', 2000)"></textarea>
+          <p class="text-gray-600 text-[11px] mt-1 text-right"><span id="why-count">0</span>/2000</p>
+        </div>
+        <div>
+          <label class="block text-xs text-gray-400 font-semibold mb-1">
+            Anything else you want us to know? <span class="text-gray-600">(optional)</span>
+          </label>
+          <textarea id="about_me" rows="3" maxlength="1000" placeholder="Previous FC experience, goals, funny FFXIV story, etc."
+            class="w-full bg-neutral-800 border border-neutral-700 text-white placeholder-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-500 resize-none"
+            oninput="updateCharCount(this, 'about-count', 1000)"></textarea>
+          <p class="text-gray-600 text-[11px] mt-1 text-right"><span id="about-count">0</span>/1000</p>
+        </div>
+        <div>
+          <label class="block text-xs text-gray-400 font-semibold mb-1">How did you hear about us?</label>
+          <select id="referral" class="w-full bg-neutral-800 border border-neutral-700 text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-500">
+            <option value="">Select one...</option>
+            {% for opt in referral_options %}<option value="{{ opt }}">{{ opt }}</option>{% endfor %}
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- Submit -->
+    <div id="form-error" class="hidden bg-red-900/30 border border-red-700/40 rounded-xl px-4 py-3 text-red-300 text-sm"></div>
+    <div id="form-success" class="hidden bg-green-900/30 border border-green-700/40 rounded-2xl p-5 text-center">
+      <i class="fas fa-check-circle text-green-400 text-3xl mb-2"></i>
+      <p class="text-white font-bold text-lg">Application Submitted!</p>
+      <p class="text-gray-400 text-sm mt-1">Our officers will review your application and reach out on Fluxer or in-game. Thanks for applying!</p>
+    </div>
+
+    <div class="flex items-center justify-between">
+      <p class="text-gray-600 text-xs">By submitting you confirm you are 18+ and agree to our community rules.</p>
+      <button type="submit" id="submit-btn"
+        class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold px-6 py-3 rounded-xl transition flex items-center gap-2 text-sm">
+        <i class="fas fa-paper-plane"></i> Submit Application
+      </button>
+    </div>
+
+  </form>
+  </div><!-- end apply-form-wrapper -->
+  {% endif %}<!-- end logged in check -->
+  {% endif %}<!-- end existing check -->
+
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+
+const selectedInterests = new Set();
+const selectedDays = new Set();
+const selectedExperiences = new Set();
+
+// Job lists for custom selects
+const JOB_GROUPS = [
+  { label: 'Tanks',              jobs: ['Paladin','Warrior','Dark Knight','Gunbreaker'] },
+  { label: 'Healers',            jobs: ['White Mage','Scholar','Astrologian','Sage'] },
+  { label: 'Melee DPS',          jobs: ['Monk','Dragoon','Ninja','Samurai','Reaper','Viper'] },
+  { label: 'Physical Ranged',    jobs: ['Bard','Machinist','Dancer'] },
+  { label: 'Magical DPS',        jobs: ['Black Mage','Summoner','Red Mage','Blue Mage','Pictomancer'] },
+  { label: 'Crafters',           jobs: ['Carpenter','Blacksmith','Armorer','Goldsmith','Leatherworker','Weaver','Alchemist','Culinarian'] },
+  { label: 'Gatherers',          jobs: ['Miner','Botanist','Fisher'] },
+];
+const ALL_JOBS = JOB_GROUPS.flatMap(g => g.jobs);
+
+// Build items with group separators for display
+const mainJobItems = [{value: '', label: '-- Select main job --'}];
+JOB_GROUPS.forEach(g => {
+  mainJobItems.push({value: '__sep__', label: '--- ' + g.label + ' ---', disabled: true});
+  g.jobs.forEach(j => mainJobItems.push({value: j, label: j}));
+});
+
+let mainJobSel = null;
+let selectedMainJob = '';
+mainJobSel = createCustomSelect({
+  container: '#main-job-container',
+  name: 'main_job',
+  placeholder: 'Select main job...',
+  items: mainJobItems,
+  selected: '',
+  color: 'indigo',
+  onSelect: function(val) { selectedMainJob = val || ''; },
+});
+
+// Alt jobs - multi-select, up to 8
+const altJobItems = ALL_JOBS.map(j => ({value: j, label: j}));
+let altJobSel = null;
+const selectedAltJobs = new Set();
+altJobSel = createCustomSelect({
+  container: '#alt-jobs-container',
+  name: 'alt_jobs',
+  placeholder: 'Add alt jobs (up to 8)...',
+  items: altJobItems,
+  selected: '',
+  color: 'purple',
+  multi: true,
+  onSelect: function(val, item, allSelected) {
+    selectedAltJobs.clear();
+    if (allSelected) allSelected.forEach(v => { if (v && selectedAltJobs.size < 8) selectedAltJobs.add(v); });
+  },
+});
+
+window.toggleExperience = function(val) {
+  const card = document.getElementById('exp-' + val);
+  if (selectedExperiences.has(val)) {
+    selectedExperiences.delete(val);
+    if (card) {
+      card.classList.remove('border-indigo-500', 'bg-indigo-900/20');
+      card.classList.add('border-neutral-700', 'bg-neutral-800/50');
+    }
+  } else {
+    selectedExperiences.add(val);
+    if (card) {
+      card.classList.remove('border-neutral-700', 'bg-neutral-800/50');
+      card.classList.add('border-indigo-500', 'bg-indigo-900/20');
+    }
+  }
+};
+
+window.toggleInterest = function(btn) {
+  const val = btn.dataset.value;
+  if (selectedInterests.has(val)) {
+    selectedInterests.delete(val);
+    btn.classList.remove('border-green-500', 'bg-green-900/20', 'text-green-300');
+    btn.classList.add('border-neutral-700', 'text-gray-400');
+  } else {
+    selectedInterests.add(val);
+    btn.classList.remove('border-neutral-700', 'text-gray-400');
+    btn.classList.add('border-green-500', 'bg-green-900/20', 'text-green-300');
+  }
+};
+
+window.toggleDay = function(btn) {
+  const val = btn.dataset.value;
+  if (selectedDays.has(val)) {
+    selectedDays.delete(val);
+    btn.classList.remove('border-purple-500', 'bg-purple-900/20', 'text-purple-300');
+    btn.classList.add('border-neutral-700', 'text-gray-400');
+  } else {
+    selectedDays.add(val);
+    btn.classList.remove('border-neutral-700', 'text-gray-400');
+    btn.classList.add('border-purple-500', 'bg-purple-900/20', 'text-purple-300');
+  }
+};
+
+window.updateCharCount = function(el, countId, max) {
+  const el2 = document.getElementById(countId);
+  if (el2) el2.textContent = el.value.length;
+};
+
+const form = document.getElementById('apply-form');
+if (form) {
+  form.addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const errEl = document.getElementById('form-error');
+    const sucEl = document.getElementById('form-success');
+    const btn   = document.getElementById('submit-btn');
+    errEl.classList.add('hidden');
+
+    const body = {
+      character_name:    document.getElementById('character_name')?.value.trim() || '',
+      main_job:          selectedMainJob,
+      alt_jobs:          Array.from(selectedAltJobs),
+      experience_level:  Array.from(selectedExperiences),
+      content_interests: Array.from(selectedInterests),
+      availability:      Array.from(selectedDays),
+      why_join:          document.getElementById('why_join')?.value.trim() || '',
+      about_me:          document.getElementById('about_me')?.value.trim() || '',
+      referral:          document.getElementById('referral')?.value || '',
+    };
+
+    if (!body.character_name) { showErr('Character name is required.'); return; }
+    if (!body.main_job)       { showErr('Please select your main job.'); return; }
+    if (!body.experience_level.length) { showErr('Please select at least one experience level.'); return; }
+    if (body.why_join.length < 20) { showErr('Please tell us a bit more about why you want to join (at least 20 characters).'); return; }
+
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Submitting...';
+
+    try {
+      const res = await csrfFetch('/api/ffxiv/apply/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (data.success) {
+        // Hide the entire form section and show a full application status block
+        const wrapper = document.getElementById('apply-form-wrapper');
+        if (wrapper) wrapper.style.display = 'none';
+        const aboutFc = document.getElementById('about-fc-block');
+        if (aboutFc) aboutFc.style.display = 'none';
+        const statusBlock = document.getElementById('dynamic-status');
+        if (statusBlock) {
+          statusBlock.innerHTML = `
+            <div class="mb-8 rounded-2xl border bg-yellow-900/20 border-yellow-700/40 p-5">
+              <div class="flex items-start gap-3">
+                <i class="fas fa-clock text-yellow-400 text-xl mt-0.5"></i>
+                <div>
+                  <p class="text-white font-bold">Application Pending Review</p>
+                  <p class="text-gray-400 text-sm mt-0.5">Submitted for <strong class="text-gray-200">${escapeHtml(body.character_name)}</strong>. Our officers will review it soon - hang tight!</p>
+                  <p class="text-gray-500 text-xs mt-2">You'll receive a site notification when a decision is made.</p>
+                </div>
+              </div>
+            </div>`;
+          statusBlock.classList.remove('hidden');
+        }
+      } else {
+        showErr(data.error || 'Something went wrong. Please try again.');
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-paper-plane"></i> Submit Application';
+      }
+    } catch(err) {
+      showErr('Network error. Please try again.');
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fas fa-paper-plane"></i> Submit Application';
+    }
+  });
+}
+
+function showErr(msg) {
+  const el = document.getElementById('form-error');
+  el.textContent = msg;
+  el.classList.remove('hidden');
+  el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+}); // DOMContentLoaded
+</script>
+
+{% endblock %}

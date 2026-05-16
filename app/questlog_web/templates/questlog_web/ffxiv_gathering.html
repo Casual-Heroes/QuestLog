@@ -1,0 +1,365 @@
+{% extends "questlog_web/base_web.html" %}
+{% load static %}
+{% block title %}Gathering Timers - FFXIV Tools | Casual Heroes{% endblock %}
+
+{% block web_content %}
+<div class="p-4 sm:p-6 max-w-7xl mx-auto">
+
+  <!-- Header -->
+  <div class="flex flex-col sm:flex-row sm:items-end gap-4 mb-6">
+    <div class="flex items-center gap-4">
+      <div class="w-14 h-14 rounded-2xl bg-green-900/40 border border-green-800/40 flex items-center justify-center flex-shrink-0">
+        <i class="fas fa-leaf text-green-400 text-2xl"></i>
+      </div>
+      <div>
+        <div class="flex items-center gap-2 text-sm text-gray-500 mb-1">
+          <a href="/ffxiv/" class="hover:text-white transition">FFXIV</a>
+          <i class="fas fa-chevron-right text-xs"></i>
+          <a href="/ffxiv/tools/" class="hover:text-white transition">Tools</a>
+          <i class="fas fa-chevron-right text-xs"></i>
+          <span class="text-gray-300">Gathering Timers</span>
+        </div>
+        <h1 class="text-3xl font-extrabold text-white leading-tight">Gathering Timers</h1>
+        <p class="text-green-300 text-sm font-medium">Live Eorzea clock - unspoiled, legendary &amp; ephemeral nodes</p>
+      </div>
+    </div>
+    <div class="sm:ml-auto">
+      <a href="/ffxiv/tools/" class="text-xs text-gray-500 hover:text-gray-300 transition flex items-center gap-1">
+        <i class="fas fa-arrow-left text-[10px]"></i> All Tools
+      </a>
+    </div>
+  </div>
+
+  <!-- Eorzea Clock + Next Reset -->
+  <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
+    <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-4 flex items-center gap-4">
+      <div class="w-10 h-10 rounded-xl bg-indigo-900/40 flex items-center justify-center flex-shrink-0">
+        <i class="fas fa-clock text-indigo-400"></i>
+      </div>
+      <div>
+        <p class="text-xs text-gray-500 font-semibold uppercase tracking-wide">Eorzea Time</p>
+        <p id="et-clock" class="text-2xl font-mono font-bold text-white">--:--</p>
+      </div>
+    </div>
+    <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-4 flex items-center gap-4">
+      <div class="w-10 h-10 rounded-xl bg-green-900/40 flex items-center justify-center flex-shrink-0">
+        <i class="fas fa-hourglass-half text-green-400"></i>
+      </div>
+      <div>
+        <p class="text-xs text-gray-500 font-semibold uppercase tracking-wide">Active Now</p>
+        <p id="active-count" class="text-2xl font-bold text-green-400">0</p>
+      </div>
+    </div>
+    <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-4 flex items-center gap-4">
+      <div class="w-10 h-10 rounded-xl bg-yellow-900/40 flex items-center justify-center flex-shrink-0">
+        <i class="fas fa-bell text-yellow-400"></i>
+      </div>
+      <div>
+        <p class="text-xs text-gray-500 font-semibold uppercase tracking-wide">Spawning Soon</p>
+        <p id="soon-count" class="text-2xl font-bold text-yellow-400">0</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Filters -->
+  <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-4 mb-5 flex flex-wrap gap-3 items-center">
+    <!-- Job filter -->
+    <div class="flex items-center gap-1.5">
+      <button onclick="setFilter('job','all')" id="fj-all"
+              class="filter-btn px-3 py-1.5 rounded-lg text-xs font-semibold transition">All Jobs</button>
+      <button onclick="setFilter('job','BTN')" id="fj-BTN"
+              class="filter-btn px-3 py-1.5 rounded-lg text-xs font-semibold transition">
+        <i class="fas fa-seedling mr-1 text-green-400"></i>BTN
+      </button>
+      <button onclick="setFilter('job','MIN')" id="fj-MIN"
+              class="filter-btn px-3 py-1.5 rounded-lg text-xs font-semibold transition">
+        <i class="fas fa-hammer mr-1 text-yellow-400"></i>MIN
+      </button>
+    </div>
+    <div class="w-px h-5 bg-neutral-700"></div>
+    <!-- Type filter -->
+    <div class="flex items-center gap-1.5">
+      <button onclick="setFilter('type','all')" id="ft-all"
+              class="filter-btn px-3 py-1.5 rounded-lg text-xs font-semibold transition">All Types</button>
+      <button onclick="setFilter('type','Unspoiled')" id="ft-Unspoiled"
+              class="filter-btn px-3 py-1.5 rounded-lg text-xs font-semibold transition">Unspoiled</button>
+      <button onclick="setFilter('type','Legendary')" id="ft-Legendary"
+              class="filter-btn px-3 py-1.5 rounded-lg text-xs font-semibold transition">
+        <i class="fas fa-book mr-1 text-amber-400"></i>Legendary
+      </button>
+      <button onclick="setFilter('type','Ephemeral')" id="ft-Ephemeral"
+              class="filter-btn px-3 py-1.5 rounded-lg text-xs font-semibold transition">Ephemeral</button>
+    </div>
+    <div class="w-px h-5 bg-neutral-700"></div>
+    <!-- Status filter -->
+    <div class="flex items-center gap-1.5">
+      <button onclick="setFilter('status','all')" id="fs-all"
+              class="filter-btn px-3 py-1.5 rounded-lg text-xs font-semibold transition">All</button>
+      <button onclick="setFilter('status','active')" id="fs-active"
+              class="filter-btn px-3 py-1.5 rounded-lg text-xs font-semibold transition">
+        <span class="w-1.5 h-1.5 rounded-full bg-green-400 inline-block mr-1"></span>Active
+      </button>
+      <button onclick="setFilter('status','soon')" id="fs-soon"
+              class="filter-btn px-3 py-1.5 rounded-lg text-xs font-semibold transition">
+        <span class="w-1.5 h-1.5 rounded-full bg-yellow-400 inline-block mr-1"></span>Soon
+      </button>
+    </div>
+    <!-- Search -->
+    <div class="ml-auto">
+      <input type="text" id="node-search" placeholder="Search item or zone..."
+             oninput="renderNodes()"
+             class="bg-neutral-800 border border-neutral-700 text-white text-xs rounded-lg px-3 py-1.5 w-48 focus:outline-none focus:border-green-500/60 placeholder-gray-600">
+    </div>
+  </div>
+
+  <!-- Legend -->
+  <div class="flex flex-wrap gap-4 text-xs text-gray-500 mb-4 px-1">
+    <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-green-500 inline-block"></span>Active now</span>
+    <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-yellow-500 inline-block"></span>Spawning within 30 min ET</span>
+    <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-neutral-600 inline-block"></span>Upcoming</span>
+    <span class="flex items-center gap-1.5"><i class="fas fa-book text-amber-400 text-[10px]"></i>Requires Folklore tome</span>
+    <span class="text-gray-600">All times in Eorzea Time (ET)</span>
+  </div>
+
+  <!-- Node list -->
+  <div id="node-list" class="space-y-2"></div>
+  <div id="node-empty" class="hidden text-center py-16 text-gray-500">
+    <i class="fas fa-leaf text-4xl mb-3 opacity-30"></i>
+    <p>No nodes match your filters.</p>
+  </div>
+
+</div>
+
+<script>
+const ET_MULT = 3600 / 175; // real ms -> ET seconds multiplier
+
+function getET() {
+  const etSec = Math.floor(Date.now() / 1000 * ET_MULT);
+  return {
+    h: Math.floor(etSec / 3600) % 24,
+    m: Math.floor(etSec / 60) % 60,
+    s: etSec % 60,
+    totalMin: (Math.floor(etSec / 3600) % 24) * 60 + Math.floor(etSec / 60) % 60,
+  };
+}
+
+// ET minutes until next spawn (or 0 if active)
+function getNodeStatus(node, etH, etM) {
+  const etMin = etH * 60 + etM;
+  const uptimeH = Math.floor(node.uptime / 60);
+  const uptimeM = node.uptime % 60;
+
+  let bestStatus = null; // {active, minUntilSpawn, minUntilDespawn, spawnET}
+
+  for (const spawnH of node.times) {
+    const spawnMin = spawnH * 60;
+    const despawnMin = (spawnMin + node.uptime) % 1440;
+
+    let active = false;
+    if (despawnMin > spawnMin) {
+      active = etMin >= spawnMin && etMin < despawnMin;
+    } else {
+      // wraps midnight
+      active = etMin >= spawnMin || etMin < despawnMin;
+    }
+
+    if (active) {
+      let remaining = despawnMin - etMin;
+      if (remaining <= 0) remaining += 1440;
+      const candidate = {active: true, minUntilSpawn: 0, minUntilDespawn: remaining, spawnH};
+      if (!bestStatus || bestStatus.active) {
+        bestStatus = candidate;
+      }
+    } else {
+      let wait = spawnMin - etMin;
+      if (wait <= 0) wait += 1440;
+      const candidate = {active: false, minUntilSpawn: wait, minUntilDespawn: 0, spawnH};
+      if (!bestStatus || (!bestStatus.active && wait < bestStatus.minUntilSpawn)) {
+        bestStatus = candidate;
+      }
+    }
+  }
+  return bestStatus || {active: false, minUntilSpawn: 9999, minUntilDespawn: 0, spawnH: 0};
+}
+
+function fmtET(h) {
+  return `${String(h).padStart(2,'0')}:00`;
+}
+
+function fmtCountdown(etMin) {
+  const h = Math.floor(etMin / 60);
+  const m = etMin % 60;
+  if (h > 0) return `${h}h ${m}m`;
+  return `${m}m`;
+}
+
+const TYPE_COLORS = {
+  Unspoiled: 'text-cyan-300 bg-cyan-900/30 border-cyan-800/40',
+  Legendary:  'text-amber-300 bg-amber-900/30 border-amber-800/40',
+  Ephemeral:  'text-purple-300 bg-purple-900/30 border-purple-800/40',
+};
+const JOB_COLORS = {BTN: 'text-green-400', MIN: 'text-yellow-400'};
+
+let filters = {job: 'all', type: 'all', status: 'all'};
+let NODES = [];
+
+function setFilter(key, val) {
+  filters[key] = val;
+  // Update button styles
+  const groups = {job: ['all','BTN','MIN'], type: ['all','Unspoiled','Legendary','Ephemeral'], status: ['all','active','soon']};
+  for (const v of groups[key]) {
+    const btn = document.getElementById(`f${key[0]}-${v}`);
+    if (!btn) continue;
+    btn.classList.toggle('bg-green-600', v === val);
+    btn.classList.toggle('text-white', v === val);
+    btn.classList.toggle('bg-neutral-800', v !== val);
+    btn.classList.toggle('text-gray-400', v !== val);
+  }
+  renderNodes();
+}
+
+function renderNodes() {
+  const et = getET();
+  const search = (document.getElementById('node-search')?.value || '').toLowerCase();
+  let active = 0, soon = 0;
+
+  const rows = NODES.map(node => {
+    const status = getNodeStatus(node, et.h, et.m);
+    if (status.active) active++;
+    else if (status.minUntilSpawn <= 30) soon++;
+    return {node, status};
+  });
+
+  document.getElementById('active-count').textContent = active;
+  document.getElementById('soon-count').textContent = soon;
+
+  // Filter
+  const filtered = rows.filter(({node, status}) => {
+    if (filters.job !== 'all' && node.job !== filters.job) return false;
+    if (filters.type !== 'all' && node.limitType !== filters.type) return false;
+    if (filters.status === 'active' && !status.active) return false;
+    if (filters.status === 'soon' && (status.active || status.minUntilSpawn > 30)) return false;
+    if (search) {
+      const haystack = (node.name + ' ' + node.zone + ' ' + node.items.join(' ')).toLowerCase();
+      if (!haystack.includes(search)) return false;
+    }
+    return true;
+  });
+
+  // Sort: active first, then by next spawn time
+  filtered.sort((a, b) => {
+    if (a.status.active && !b.status.active) return -1;
+    if (!a.status.active && b.status.active) return 1;
+    return a.status.minUntilSpawn - b.status.minUntilSpawn;
+  });
+
+  const list = document.getElementById('node-list');
+  const empty = document.getElementById('node-empty');
+
+  if (filtered.length === 0) {
+    list.innerHTML = '';
+    empty.classList.remove('hidden');
+    return;
+  }
+  empty.classList.add('hidden');
+
+  const esc = s => { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; };
+
+  list.innerHTML = filtered.map(({node, status}) => {
+    const typeClass = TYPE_COLORS[node.limitType] || 'text-gray-400 bg-neutral-800 border-neutral-700';
+    const jobClass  = JOB_COLORS[node.job] || 'text-gray-400';
+
+    let statusDot = '';
+    let timerLabel = '';
+    if (status.active) {
+      statusDot = '<span class="w-2 h-2 rounded-full bg-green-400 animate-pulse flex-shrink-0"></span>';
+      timerLabel = `<span class="text-green-400 font-semibold text-xs">Active - ${fmtCountdown(status.minUntilDespawn)} left</span>`;
+    } else if (status.minUntilSpawn <= 30) {
+      statusDot = '<span class="w-2 h-2 rounded-full bg-yellow-400 flex-shrink-0"></span>';
+      timerLabel = `<span class="text-yellow-400 font-semibold text-xs">Spawns in ${fmtCountdown(status.minUntilSpawn)}</span>`;
+    } else {
+      statusDot = '<span class="w-2 h-2 rounded-full bg-neutral-600 flex-shrink-0"></span>';
+      timerLabel = `<span class="text-gray-500 text-xs">In ${fmtCountdown(status.minUntilSpawn)}</span>`;
+    }
+
+    const spawnTimes = node.times.map(h => `<span class="text-xs text-gray-400">${fmtET(h)}</span>`).join('<span class="text-gray-700 mx-1">|</span>');
+    const itemList = node.items.slice(0, 5).map(n => `<span class="text-[10px] px-1.5 py-0.5 rounded bg-neutral-800 text-gray-300">${esc(n)}</span>`).join('');
+    const folkloreBadge = node.folklore ? '<i class="fas fa-book text-amber-400 text-[10px]" title="Requires Folklore tome"></i>' : '';
+    const coordStr = node.coords?.length === 2 ? `X:${node.coords[0]} Y:${node.coords[1]}` : '';
+
+    const borderClass = status.active ? 'border-green-700/50 bg-green-900/5' :
+                        status.minUntilSpawn <= 30 ? 'border-yellow-700/40 bg-yellow-900/5' :
+                        'border-neutral-800';
+
+    return `
+    <div class="bg-neutral-900 border ${borderClass} rounded-xl p-4 transition">
+      <div class="flex items-start gap-3">
+        ${statusDot}
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-2 flex-wrap mb-1">
+            <span class="text-xs px-2 py-0.5 rounded-full border font-semibold ${typeClass}">${esc(node.limitType)}</span>
+            <span class="${jobClass} text-xs font-bold">${esc(node.job)}</span>
+            ${folkloreBadge}
+            <span class="text-gray-600 text-xs">Lv.${node.lvl}</span>
+            ${node.patch >= 7.0 ? `<span class="text-[10px] px-1.5 py-0.5 rounded bg-indigo-900/40 text-indigo-300 border border-indigo-800/40">${node.patch}</span>` : ''}
+          </div>
+          <div class="flex items-baseline gap-3 flex-wrap">
+            <p class="text-white font-semibold">${esc(node.name)}</p>
+            <p class="text-gray-500 text-xs">${esc(node.zone)}</p>
+            ${coordStr ? `<p class="text-gray-600 text-[10px]">(${coordStr})</p>` : ''}
+          </div>
+          <div class="flex flex-wrap gap-1 mt-1.5">${itemList}</div>
+        </div>
+        <div class="flex flex-col items-end gap-1 flex-shrink-0 text-right">
+          ${timerLabel}
+          <div class="flex items-center gap-1.5 mt-0.5">${spawnTimes}</div>
+          <p class="text-[10px] text-gray-600">${node.uptime >= 240 ? '4h window' : node.uptime >= 180 ? '3h window' : '2h window'}</p>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// Init filter buttons
+function initFilterBtns() {
+  [['job',['all','BTN','MIN']], ['type',['all','Unspoiled','Legendary','Ephemeral']], ['status',['all','active','soon']]].forEach(([key, vals]) => {
+    vals.forEach(v => {
+      const btn = document.getElementById(`f${key[0]}-${v}`);
+      if (!btn) return;
+      const active = filters[key] === v;
+      btn.classList.add(active ? 'bg-green-600' : 'bg-neutral-800');
+      btn.classList.add(active ? 'text-white' : 'text-gray-400');
+    });
+  });
+}
+
+// Update ET clock
+function updateClock() {
+  const et = getET();
+  const el = document.getElementById('et-clock');
+  if (el) el.textContent = `${String(et.h).padStart(2,'0')}:${String(et.m).padStart(2,'0')}`;
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  // Load node data
+  fetch("{% static 'data/ffxiv_gathering_nodes.json' %}")
+    .then(r => r.json())
+    .then(data => {
+      NODES = data;
+      initFilterBtns();
+      updateClock();
+      renderNodes();
+      // Update every 5 real seconds (= ~1.7 ET minutes)
+      setInterval(() => { updateClock(); renderNodes(); }, 5000);
+    })
+    .catch(e => {
+      document.getElementById('node-list').innerHTML = '<p class="text-red-400 text-sm">Failed to load node data.</p>';
+    });
+});
+</script>
+
+<style>
+.filter-btn { border: 1px solid transparent; }
+.filter-btn:hover { opacity: 0.85; }
+</style>
+{% endblock %}

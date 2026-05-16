@@ -1,0 +1,258 @@
+{% extends "questlog_web/base_web.html" %}
+{% load static %}
+{% block title %}{{ profile_user_display_name }}'s Legacy Mark | QuestLog{% endblock %}
+
+{% block web_content %}
+
+{% if error %}
+<div class="max-w-3xl mx-auto px-4 py-16 text-center">
+  <i class="fas fa-dragon text-6xl text-gray-700 mb-4"></i>
+  <h1 class="text-2xl font-bold text-white mb-2">Profile Not Found</h1>
+  <p class="text-gray-400">This user doesn't exist or their profile is unavailable.</p>
+  <a href="{% url 'questlog_web_home' %}" class="inline-block mt-6 bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-lg transition">Go Home</a>
+</div>
+{% else %}
+
+<div class="max-w-3xl mx-auto px-4 py-8">
+
+  <!-- Profile header -->
+  <div class="flex items-center gap-4 mb-8">
+    <a href="{% url 'questlog_web_public_profile' profile_user_username %}" class="flex-shrink-0">
+      {% if profile_user_avatar %}
+      <img src="{{ profile_user_avatar }}" alt="{{ profile_user_display_name }}"
+           class="w-14 h-14 rounded-xl object-cover ring-2 ring-neutral-700 hover:ring-indigo-500 transition">
+      {% else %}
+      <div class="w-14 h-14 rounded-xl bg-neutral-700 flex items-center justify-center ring-2 ring-neutral-700 hover:ring-indigo-500 transition">
+        <span class="text-xl font-bold text-gray-300">{{ profile_user_display_name|slice:":2"|upper }}</span>
+      </div>
+      {% endif %}
+    </a>
+    <div>
+      <a href="{% url 'questlog_web_public_profile' profile_user_username %}"
+         class="text-xl font-bold text-white hover:text-indigo-300 transition">{{ profile_user_display_name }}</a>
+      <p class="text-gray-500 text-sm">@{{ profile_user_username }}</p>
+    </div>
+    <div class="ml-auto text-right">
+      <p class="text-xs text-gray-500 uppercase tracking-wider font-semibold">Legacy Mark</p>
+      <p class="text-sm font-bold {{ current_mark.color }}">{{ current_mark.name }}</p>
+    </div>
+  </div>
+
+  <!-- Current Mark Card -->
+  <div class="mb-8 bg-neutral-800/60 border border-neutral-700 rounded-2xl p-6 flex flex-col sm:flex-row items-center gap-6">
+    <div class="flex-shrink-0">
+      <img src="{% static 'img/legacy/' %}{{ current_mark.img }}"
+           alt="{{ current_mark.name }}"
+           class="w-24 h-24 object-contain drop-shadow-lg">
+    </div>
+    <div class="flex-1 w-full">
+      <div class="flex items-center gap-2 mb-1">
+        <span class="text-2xl font-extrabold {{ current_mark.color }}">{{ current_mark.name }}</span>
+        <span class="text-xs text-gray-500 uppercase tracking-wider font-semibold">Legacy Mark</span>
+      </div>
+      <p class="text-4xl font-black text-white mb-3">{{ score }} <span class="text-sm text-gray-400 font-normal">Legacy</span></p>
+      {% if next_mark %}
+      <div class="flex items-center justify-between text-xs text-gray-400 mb-1">
+        <span>{{ current_mark.name }}</span>
+        <span class="{{ next_mark.color }} font-semibold">{{ next_mark.name }} in {{ points_to_next }} pts</span>
+      </div>
+      <div class="w-full bg-neutral-700 rounded-full h-2.5">
+        <div class="h-2.5 rounded-full bg-gradient-to-r from-indigo-500 to-cyan-400 transition-all duration-700"
+             style="width: {{ progress_pct }}%"></div>
+      </div>
+      {% else %}
+      <div class="text-sm text-yellow-400 font-semibold flex items-center gap-2">
+        <i class="fas fa-crown"></i> Maximum Legacy Mark achieved
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Mark Progress Track -->
+  <div class="mb-10">
+    <h2 class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-5 px-1">All Marks</h2>
+    <div class="relative pt-14">
+      <!-- Connecting line background -->
+      <div class="absolute top-24 left-0 right-0 h-0.5 bg-neutral-700 z-0 mx-10"></div>
+
+      <div class="relative z-10 grid grid-cols-5 gap-2" id="marks-track">
+        {% for mark in marks %}
+        <div class="flex flex-col items-center text-center gap-2" data-tier="{{ mark.tier }}">
+          <div class="relative">
+            <img src="{% static 'img/legacy/' %}{{ mark.img }}"
+                 alt="{{ mark.name }}"
+                 class="w-16 h-16 sm:w-20 sm:h-20 object-contain transition-all duration-300
+                        {% if mark.is_current %}drop-shadow-lg scale-110
+                        {% elif mark.is_unlocked %}opacity-90
+                        {% else %}opacity-30{% endif %}">
+            {% if mark.is_current %}
+            <div class="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></div>
+            {% endif %}
+          </div>
+          <div>
+            <p class="text-xs font-bold {% if mark.is_current %}{{ mark.color }}{% elif mark.is_unlocked %}text-gray-300{% else %}text-gray-500{% endif %}">
+              {{ mark.name }}
+            </p>
+            <p class="text-[10px] {% if mark.is_unlocked %}text-gray-500{% else %}text-gray-700{% endif %}">
+              {% if mark.threshold == 0 %}Start{% else %}{{ mark.threshold }}{% endif %}
+            </p>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+
+      <!-- Avatar position indicator - always show profile user's avatar -->
+      <div id="legacy-avatar-pin" class="absolute z-20 flex flex-col items-center pointer-events-none" style="top: 0px; left: 0;">
+        <a href="{% url 'questlog_web_public_profile' profile_user_username %}"
+           class="pointer-events-auto flex flex-col items-center gap-0.5 group"
+           title="View {{ profile_user_display_name }}'s profile">
+          {% if profile_user_avatar %}
+          <img src="{{ profile_user_avatar }}" alt="{{ profile_user_display_name }}"
+               class="w-9 h-9 rounded-full border-2 border-cyan-400 shadow-[0_0_10px_#22d3ee] object-cover group-hover:scale-110 transition-transform">
+          {% else %}
+          <div class="w-9 h-9 rounded-full border-2 border-cyan-400 shadow-[0_0_10px_#22d3ee] bg-neutral-700 flex items-center justify-center group-hover:scale-110 transition-transform">
+            <span class="text-xs font-bold text-gray-300">{{ profile_user_display_name|slice:":2"|upper }}</span>
+          </div>
+          {% endif %}
+          <span class="text-[10px] text-cyan-400 font-semibold bg-neutral-900/80 px-1.5 py-0.5 rounded whitespace-nowrap">{{ score }}</span>
+        </a>
+        <div class="w-0.5 h-3 bg-cyan-400/60"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  function positionLegacyPin() {
+    var tier = {{ current_mark.tier }};
+    var pct  = {{ progress_pct }};
+
+    var track = document.getElementById('marks-track');
+    var pin   = document.getElementById('legacy-avatar-pin');
+    if (!track || !pin) return;
+
+    var cols = track.querySelectorAll('[data-tier]');
+    if (cols.length < 5) return;
+
+    var trackRect  = track.parentElement.getBoundingClientRect();
+    var curRect    = cols[tier - 1].getBoundingClientRect();
+    var curCenterX = curRect.left + curRect.width / 2 - trackRect.left;
+
+    var pinX = curCenterX;
+    if (tier < 5) {
+      var nxtRect    = cols[tier].getBoundingClientRect();
+      var nxtCenterX = nxtRect.left + nxtRect.width / 2 - trackRect.left;
+      pinX = curCenterX + (nxtCenterX - curCenterX) * (pct / 100);
+    }
+
+    pin.style.left = (pinX - pin.offsetWidth / 2) + 'px';
+  }
+
+  window.addEventListener('load', positionLegacyPin);
+  window.addEventListener('resize', positionLegacyPin);
+  </script>
+  <!-- Perks by Mark -->
+  <div class="mb-10">
+    <h2 class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-4 px-1">Perks by Mark</h2>
+    <div class="space-y-3">
+      {% for mark in marks %}
+      <div class="rounded-xl border {% if mark.is_unlocked %}{{ mark.border }} bg-neutral-800/60{% else %}border-neutral-800 bg-neutral-900/40{% endif %} overflow-hidden transition-all">
+        <div class="flex items-center gap-3 px-4 py-3">
+          <img src="{% static 'img/legacy/' %}{{ mark.img }}"
+               alt="{{ mark.name }}"
+               class="w-8 h-8 object-contain flex-shrink-0 {% if not mark.is_unlocked %}opacity-30{% endif %}">
+          <span class="font-bold text-sm {% if mark.is_unlocked %}{{ mark.color }}{% else %}text-gray-600{% endif %}">{{ mark.name }}</span>
+          {% if not mark.is_unlocked %}
+          <span class="ml-auto text-[10px] text-gray-600 font-semibold uppercase tracking-wider flex items-center gap-1">
+            <i class="fas fa-lock text-[9px]"></i> {{ mark.threshold }} Legacy
+          </span>
+          {% elif mark.is_current %}
+          <span class="ml-auto text-[10px] bg-cyan-500/20 text-cyan-400 px-2 py-0.5 rounded-full font-semibold uppercase tracking-wider">Current</span>
+          {% else %}
+          <span class="ml-auto text-[10px] bg-green-500/20 text-green-400 px-2 py-0.5 rounded-full font-semibold uppercase tracking-wider">Unlocked</span>
+          {% endif %}
+        </div>
+        <ul class="px-4 pb-3 space-y-1">
+          {% for perk in mark.perks %}
+          <li class="text-xs flex items-center gap-2 {% if mark.is_unlocked %}text-gray-300{% else %}text-gray-700{% endif %}">
+            <i class="fas fa-{% if mark.is_unlocked %}check text-green-500{% else %}lock text-gray-700{% endif %} text-[10px] flex-shrink-0"></i>
+            {{ perk }}
+          </li>
+          {% endfor %}
+        </ul>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- How to Earn -->
+  <div class="bg-neutral-800/40 border border-neutral-700 rounded-2xl p-6">
+    <h2 class="text-sm font-bold text-white mb-4 flex items-center gap-2">
+      <i class="fas fa-bolt text-cyan-400"></i> How to Earn Legacy
+    </h2>
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+      <div>
+        <p class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">On QuestLog</p>
+        <ul class="space-y-1.5 text-xs text-gray-300">
+          <li class="flex items-center justify-between"><span>Someone likes your post</span><span class="text-cyan-400 font-semibold">+2</span></li>
+          <li class="flex items-center justify-between"><span>Someone shares your post</span><span class="text-cyan-400 font-semibold">+5</span></li>
+          <li class="flex items-center justify-between"><span>Someone follows you</span><span class="text-cyan-400 font-semibold">+3</span></li>
+          <li class="flex items-center justify-between"><span>Someone comments on your post</span><span class="text-cyan-400 font-semibold">+1</span></li>
+          <li class="flex items-center justify-between"><span>Your LFG group fills up</span><span class="text-cyan-400 font-semibold">+10</span></li>
+          <li class="flex items-center justify-between"><span>Your LFG completes + rated</span><span class="text-cyan-400 font-semibold">+15</span></li>
+          <li class="flex items-center justify-between"><span>Your post gets pinned</span><span class="text-cyan-400 font-semibold">+15</span></li>
+          <li class="flex items-center justify-between"><span>Someone joins your community</span><span class="text-cyan-400 font-semibold">+5</span></li>
+          <li class="flex items-center justify-between"><span>You refer an active member</span><span class="text-cyan-400 font-semibold">+15</span></li>
+          <li class="flex items-center justify-between"><span>Host a community event</span><span class="text-cyan-400 font-semibold">+20</span></li>
+          <li class="flex items-center justify-between"><span>Clean record (30/60/90 days)</span><span class="text-cyan-400 font-semibold">+10/15/20</span></li>
+        </ul>
+      </div>
+      <div>
+        <p class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">In CH Game Servers</p>
+        <ul class="space-y-1.5 text-xs text-gray-300">
+          <li class="flex items-center justify-between"><span>Revive another player</span><span class="text-cyan-400 font-semibold">+10</span></li>
+          <li class="flex items-center justify-between"><span>Trade to help another player</span><span class="text-cyan-400 font-semibold">+8</span></li>
+          <li class="flex items-center justify-between"><span>Complete a quest with others</span><span class="text-cyan-400 font-semibold">+5</span></li>
+          <li class="flex items-center justify-between"><span>Survive a bloodmoon (7DTD)</span><span class="text-cyan-400 font-semibold">+15</span></li>
+          <li class="flex items-center justify-between"><span>Help a new player</span><span class="text-cyan-400 font-semibold">+10</span></li>
+          <li class="flex items-center justify-between"><span>Report a confirmed griefer</span><span class="text-cyan-400 font-semibold">+20</span></li>
+          <li class="flex items-center justify-between"><span>Hours milestone on CH servers</span><span class="text-cyan-400 font-semibold">+20</span></li>
+          <li class="flex items-center justify-between"><span>Zero grief reports (30 days)</span><span class="text-cyan-400 font-semibold">+25</span></li>
+        </ul>
+        <p class="text-[10px] text-red-400/70 mt-4 flex items-start gap-1.5">
+          <i class="fas fa-exclamation-triangle flex-shrink-0 mt-0.5"></i>
+          Reports upheld: -20. Temp ban: -50. Perm ban: reset to 0.
+        </p>
+      </div>
+    </div>
+
+    <!-- Support bypass note -->
+    <div class="mt-5 pt-4 border-t border-neutral-700 space-y-3">
+      <p class="text-xs font-bold text-gray-500 uppercase tracking-wider">Want to support + get conveniences?</p>
+      <div class="flex items-start gap-3 text-xs text-gray-300">
+        <div class="w-7 h-7 rounded-lg bg-amber-500/10 flex items-center justify-center flex-shrink-0">
+          <i class="fas fa-shield-alt text-amber-400 text-[11px]"></i>
+        </div>
+        <div>
+          <span class="text-amber-400 font-semibold">Champion ($6.99/mo)</span> - Priority queue, Champion badge, two flair slots, 4,000 char posts, 12% merch discount, Champions channel on Fluxer + Discord.
+          <a href="{% url 'questlog_web_hero_subscribe' %}" class="text-amber-400 underline ml-1">Become a Champion</a>
+        </div>
+      </div>
+      <div class="flex items-start gap-3 text-xs text-gray-300">
+        <div class="w-7 h-7 rounded-lg bg-purple-500/10 flex items-center justify-center flex-shrink-0">
+          <i class="fab fa-twitch text-purple-400 text-[11px]"></i>
+        </div>
+        <div>
+          <span class="text-purple-400 font-semibold">Twitch Sub ($4.99)</span> - Priority queue, Fluxer + Discord supporter role, 5% merch discount, Twitch emotes.
+        </div>
+      </div>
+      <p class="text-[11px] text-gray-600 pt-1 border-t border-neutral-800">
+        <i class="fas fa-lock mr-1"></i>
+        Zone access, Legacy content, and server regions are <span class="text-gray-500">earned only</span>. No payment ever bypasses Legacy gates. Legacy is the only path - for everyone.
+      </p>
+    </div>
+  </div>
+
+</div>
+
+{% endif %}
+{% endblock %}

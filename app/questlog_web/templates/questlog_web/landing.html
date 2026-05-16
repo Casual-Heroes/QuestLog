@@ -1,0 +1,376 @@
+{% extends "questlog_web/base_web.html" %}
+{% load static %}
+{% block title %}Casual Heroes - Aging, But Still Looting{% endblock %}
+{% block og_title %}Casual Heroes - Aging, But Still Looting{% endblock %}
+{% block og_description %}A community for working adults, parents, and gamers who grew up but never quite left Neverland.{% endblock %}
+
+{% block web_content %}
+<style>
+  .landing-page { margin-left: 0 !important; }
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+  .fade-up { animation: fadeUp 0.6s ease forwards; }
+  .fade-up-1 { animation-delay: 0.1s; opacity: 0; }
+  .fade-up-2 { animation-delay: 0.25s; opacity: 0; }
+  .fade-up-3 { animation-delay: 0.4s; opacity: 0; }
+  .fade-up-4 { animation-delay: 0.55s; opacity: 0; }
+</style>
+
+<!-- Override sidebar layout: full width for landing -->
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    const sidebar = document.getElementById('web-sidebar');
+    const main = document.getElementById('ql-main-content');
+    const emailBanner = document.getElementById('ql-email-banner');
+    const expandTab = document.getElementById('sidebar-expand-tab');
+    if (sidebar) sidebar.style.display = 'none';
+    if (expandTab) expandTab.style.display = 'none';
+    if (main) { main.style.marginLeft = '0'; }
+    if (emailBanner) { emailBanner.style.marginLeft = '0'; }
+  });
+</script>
+
+<!-- ============================================================
+     HERO
+     ============================================================ -->
+<div class="relative overflow-hidden bg-neutral-950">
+  <!-- Atmospheric glow -->
+  <div class="absolute top-0 left-1/4 w-[600px] h-[400px] bg-indigo-900/15 rounded-full blur-3xl pointer-events-none -translate-y-1/3"></div>
+  <div class="absolute top-0 right-1/4 w-[500px] h-[400px] bg-purple-900/10 rounded-full blur-3xl pointer-events-none -translate-y-1/4"></div>
+
+  <div class="relative max-w-5xl mx-auto px-6 pt-20 pb-16 text-center">
+
+    <!-- Brand badge -->
+    <div class="inline-flex items-center gap-2 bg-neutral-900 border border-neutral-700 text-gray-400 text-xs font-semibold px-4 py-1.5 rounded-full mb-8 fade-up fade-up-1">
+      <span class="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse"></span>
+      Now in Beta
+    </div>
+
+    <!-- Headline -->
+    <div class="fade-up fade-up-1">
+      {% if web_user %}
+      <p class="text-sm font-bold text-indigo-400 uppercase tracking-widest mb-3">Welcome Home, {{ web_user.username }}</p>
+      {% else %}
+      <p class="text-sm font-bold text-indigo-400 uppercase tracking-widest mb-3">Casual Heroes</p>
+      {% endif %}
+      <h1 class="text-5xl sm:text-6xl font-extrabold text-white leading-tight tracking-tight mb-5">
+        Aging, But<br>Still Looting.
+      </h1>
+      <p class="text-xl text-gray-400 max-w-2xl mx-auto leading-relaxed mb-10">
+        A community for working adults, parents, and gamers who grew up but never quite left Neverland.
+      </p>
+    </div>
+
+    <!-- CTAs -->
+    <div class="flex flex-col sm:flex-row gap-3 justify-center mb-6 fade-up fade-up-2">
+      {% if web_user %}
+      <a href="{% url 'questlog_web_feed' %}"
+         class="inline-flex items-center justify-center bg-indigo-600 hover:bg-indigo-500 text-white px-8 py-3.5 rounded-xl font-bold text-sm transition shadow-lg shadow-indigo-900/40">
+        <i class="fas fa-home mr-2"></i>Go to Your Feed
+      </a>
+      <a href="{% url 'questlog_web_discover' %}"
+         class="inline-flex items-center justify-center bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-white px-8 py-3.5 rounded-xl font-semibold text-sm transition">
+        <i class="fas fa-compass mr-2"></i>Explore the Network
+      </a>
+      {% else %}
+      <a href="{% url 'questlog_web_register' %}"
+         class="inline-flex items-center justify-center bg-indigo-600 hover:bg-indigo-500 text-white px-8 py-3.5 rounded-xl font-bold text-sm transition shadow-lg shadow-indigo-900/40">
+        <i class="fas fa-user-plus mr-2"></i>Join Free - Create Account
+      </a>
+      <a href="{% url 'questlog_web_discover' %}"
+         class="inline-flex items-center justify-center bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-white px-8 py-3.5 rounded-xl font-semibold text-sm transition">
+        <i class="fas fa-compass mr-2"></i>Explore the Network
+      </a>
+      <a href="{% url 'questlog_web_login' %}"
+         class="inline-flex items-center justify-center bg-transparent hover:bg-neutral-800 border border-neutral-800 text-gray-500 hover:text-white px-8 py-3.5 rounded-xl font-semibold text-sm transition">
+        Sign In
+      </a>
+      {% endif %}
+    </div>
+
+    <p class="text-xs text-gray-700 fade-up fade-up-2">
+      <a href="/privacy/" class="hover:text-gray-500 transition">Privacy Policy</a>
+      &nbsp;&bull;&nbsp;
+      <a href="/terms/" class="hover:text-gray-500 transition">Terms of Service</a>
+    </p>
+  </div>
+</div>
+
+<!-- ============================================================
+     MEMBER VOICES
+     ============================================================ -->
+<div id="member-voices-section" class="hidden bg-neutral-950 border-y border-neutral-800/60 py-10 px-6">
+  <div class="max-w-5xl mx-auto">
+    <div class="text-center mb-10">
+      <p class="text-xs font-bold text-violet-500 uppercase tracking-widest mb-2">From the Community</p>
+      <h2 class="text-2xl font-extrabold text-white">Voices from the Community</h2>
+    </div>
+    <div id="voices-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5"></div>
+  </div>
+</div>
+
+<!-- ============================================================
+     WHO THIS IS FOR
+     ============================================================ -->
+<div class="bg-neutral-950 py-20 px-6">
+  <div class="max-w-4xl mx-auto">
+    <p class="text-xs font-bold text-gray-600 uppercase tracking-widest text-center mb-3">Sound familiar?</p>
+    <h2 class="text-3xl font-extrabold text-white text-center mb-12">You finally found your people.</h2>
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div class="bg-neutral-900 border border-neutral-800 rounded-2xl px-6 py-5 flex items-start gap-4 hover:border-indigo-500/30 transition">
+        <span class="text-2xl mt-0.5">🕹</span>
+        <div>
+          <p class="text-white font-semibold text-sm mb-1">You schedule raids around bedtime.</p>
+          <p class="text-gray-500 text-xs leading-relaxed">Life has responsibilities now. We build around your schedule, not the other way around.</p>
+        </div>
+      </div>
+      <div class="bg-neutral-900 border border-neutral-800 rounded-2xl px-6 py-5 flex items-start gap-4 hover:border-indigo-500/30 transition">
+        <span class="text-2xl mt-0.5">🎮</span>
+        <div>
+          <p class="text-white font-semibold text-sm mb-1">Your friends stopped playing. You didn't.</p>
+          <p class="text-gray-500 text-xs leading-relaxed">The love for gaming never left. We're here to help you find your next crew.</p>
+        </div>
+      </div>
+      <div class="bg-neutral-900 border border-neutral-800 rounded-2xl px-6 py-5 flex items-start gap-4 hover:border-indigo-500/30 transition">
+        <span class="text-2xl mt-0.5">🛡</span>
+        <div>
+          <p class="text-white font-semibold text-sm mb-1">You want a group that just vibes.</p>
+          <p class="text-gray-500 text-xs leading-relaxed">No toxicity, no pressure. Casual, serious, or somewhere in between - we have a place for you.</p>
+        </div>
+      </div>
+      <div class="bg-neutral-900 border border-neutral-800 rounded-2xl px-6 py-5 flex items-start gap-4 hover:border-indigo-500/30 transition">
+        <span class="text-2xl mt-0.5">❤️</span>
+        <div>
+          <p class="text-white font-semibold text-sm mb-1">Gaming is still your escape.</p>
+          <p class="text-gray-500 text-xs leading-relaxed">Work, kids, life - we all need somewhere to breathe. This is that place.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     GROUPS FORMING NOW
+     ============================================================ -->
+<div id="lfg-section" class="hidden bg-neutral-900/50 border-y border-neutral-800 py-10 px-6">
+  <div class="max-w-5xl mx-auto">
+    <div class="flex items-center justify-between mb-5">
+      <div>
+        <p class="text-xs font-bold text-gray-600 uppercase tracking-widest mb-1">Live Activity</p>
+        <h2 class="text-xl font-extrabold text-white">Groups Forming Right Now</h2>
+      </div>
+      <a href="{% url 'questlog_web_lfg_browse' %}" class="text-xs text-indigo-400 hover:text-indigo-300 transition flex items-center gap-1">
+        Browse All <i class="fas fa-arrow-right text-[10px]"></i>
+      </a>
+    </div>
+    <div id="landing-lfg" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+      <div class="col-span-full text-center py-4 text-gray-700 text-sm" id="landing-lfg-loading">
+        <i class="fas fa-circle-notch fa-spin mr-2"></i>Loading groups...
+      </div>
+    </div>
+    <div class="text-center mt-6">
+      {% if web_user %}
+      <a href="{% url 'questlog_web_lfg_browse' %}"
+         class="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-5 py-2.5 rounded-xl transition text-sm">
+        <i class="fas fa-users"></i> Browse All Groups
+      </a>
+      {% else %}
+      <a href="{% url 'questlog_web_register' %}"
+         class="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-5 py-2.5 rounded-xl transition text-sm">
+        <i class="fas fa-user-plus"></i> Join to Start or Find a Group
+      </a>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     WHAT YOU GET - FEATURES
+     ============================================================ -->
+<div class="bg-neutral-950 py-12 px-6">
+  <div class="max-w-5xl mx-auto">
+    <p class="text-xs font-bold text-gray-600 uppercase tracking-widest text-center mb-3">Everything in one place</p>
+    <h2 class="text-3xl font-extrabold text-white text-center mb-8">Built for the way you actually play.</h2>
+    <div class="grid grid-cols-2 sm:grid-cols-3 gap-4">
+      <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-5 hover:border-emerald-500/30 transition">
+        <div class="w-10 h-10 rounded-xl bg-emerald-500/15 flex items-center justify-center mb-3">
+          <i class="fas fa-users text-emerald-400"></i>
+        </div>
+        <p class="text-white font-semibold text-sm mb-1">Looking for Group</p>
+        <p class="text-gray-500 text-xs leading-relaxed">Find or create groups across any game. Filter by vibe, time zone, and playstyle.</p>
+      </div>
+      <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-5 hover:border-indigo-500/30 transition">
+        <div class="w-10 h-10 rounded-xl bg-indigo-500/15 flex items-center justify-center mb-3">
+          <i class="fas fa-scroll text-indigo-400"></i>
+        </div>
+        <p class="text-white font-semibold text-sm mb-1">Social Feed</p>
+        <p class="text-gray-500 text-xs leading-relaxed">Share moments, follow gamers you respect, no algorithm nonsense.</p>
+      </div>
+      <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-5 hover:border-purple-500/30 transition">
+        <div class="w-10 h-10 rounded-xl bg-purple-500/15 flex items-center justify-center mb-3">
+          <i class="fas fa-shield-alt text-purple-400"></i>
+        </div>
+        <p class="text-white font-semibold text-sm mb-1">Communities</p>
+        <p class="text-gray-500 text-xs leading-relaxed">Discord, Fluxer, and Matrix communities in one directory.</p>
+      </div>
+      <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-5 hover:border-blue-500/30 transition">
+        <div class="w-10 h-10 rounded-xl bg-blue-500/15 flex items-center justify-center mb-3">
+          <i class="fab fa-steam text-blue-400"></i>
+        </div>
+        <p class="text-white font-semibold text-sm mb-1">SteamQuest</p>
+        <p class="text-gray-500 text-xs leading-relaxed">Explore your library, find hidden gems, track what your friends are playing.</p>
+      </div>
+      <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-5 hover:border-red-500/30 transition">
+        <div class="w-10 h-10 rounded-xl bg-red-500/15 flex items-center justify-center mb-3">
+          <i class="fas fa-broadcast-tower text-red-400"></i>
+        </div>
+        <p class="text-white font-semibold text-sm mb-1">Featured Creators</p>
+        <p class="text-gray-500 text-xs leading-relaxed">Discover streamers and content creators from within the community.</p>
+      </div>
+      <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-5 hover:border-yellow-500/30 transition">
+        <div class="w-10 h-10 rounded-xl bg-yellow-500/15 flex items-center justify-center mb-3">
+          <i class="fas fa-trophy text-yellow-400"></i>
+        </div>
+        <p class="text-white font-semibold text-sm mb-1">Legacy & XP</p>
+        <p class="text-gray-500 text-xs leading-relaxed">Earn your mark. Legacy tiers, XP, and reputation that actually means something.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     FLUXER CTA
+     ============================================================ -->
+<div class="bg-neutral-900/40 border-t border-b border-neutral-800 py-10 px-6">
+  <div class="max-w-3xl mx-auto flex flex-col sm:flex-row items-center gap-6 text-center sm:text-left">
+    <div class="flex-shrink-0">
+      <img src="{% static 'img/siteassets/fluxer-favicon.png' %}" alt="Fluxer" class="w-14 h-14 rounded-2xl shadow-lg mx-auto sm:mx-0">
+    </div>
+    <div class="flex-1">
+      <p class="text-xs font-bold text-indigo-400 uppercase tracking-widest mb-1">Our Community Hub</p>
+      <h3 class="text-xl font-extrabold text-white mb-1">We live on Fluxer</h3>
+      <p class="text-gray-500 text-sm leading-relaxed">Voice, Text, LFG, Events - Jump in and join us!</p>
+    </div>
+    <div class="flex-shrink-0">
+      <a href="https://fluxer.gg/zplS0MwI" target="_blank" rel="noopener"
+         class="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-6 py-3 rounded-xl transition text-sm whitespace-nowrap">
+        <img src="{% static 'img/siteassets/fluxer-favicon.png' %}" alt="" class="w-4 h-4 rounded-sm"> Join on Fluxer
+      </a>
+    </div>
+  </div>
+</div>
+
+
+<!-- ============================================================
+     FINAL CTA
+     ============================================================ -->
+{% if not web_user %}
+<div class="bg-neutral-950 border-t border-neutral-800 py-12 px-6 text-center">
+  <div class="max-w-2xl mx-auto">
+      <p class="text-sm font-bold text-indigo-400 uppercase tracking-widest mb-3">Ready?</p>
+      <h2 class="text-4xl font-extrabold text-white mb-4">Come home.</h2>
+      <p class="text-gray-500 text-base leading-relaxed mb-8">
+        Free to join. No catch. Just a community of adults who love games and respect each other's time.
+      </p>
+      <div class="flex flex-col sm:flex-row gap-3 justify-center">
+        <a href="{% url 'questlog_web_register' %}"
+           class="inline-flex items-center justify-center bg-indigo-600 hover:bg-indigo-500 text-white px-8 py-3.5 rounded-xl font-bold text-sm transition shadow-lg shadow-indigo-900/40">
+          <i class="fas fa-user-plus mr-2"></i>Create Free Account
+        </a>
+        <a href="{% url 'questlog_web_login' %}"
+           class="inline-flex items-center justify-center bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-gray-300 hover:text-white px-8 py-3.5 rounded-xl font-semibold text-sm transition">
+          Sign In
+        </a>
+      </div>
+  </div>
+</div>
+{% endif %}
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+
+  function escHtml(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  // --- Member voices ---
+  fetch('/api/testimonials/')
+    .then(r => r.json())
+    .then(d => {
+      const items = d.testimonials || [];
+      if (!items.length) return;
+      const grid = document.getElementById('voices-grid');
+      grid.innerHTML = items.map(t => {
+        const cleanHandle = t.handle ? t.handle.replace(/^@/, '') : null;
+        const profileUrl = cleanHandle ? `/u/${encodeURIComponent(cleanHandle)}/` : null;
+        const avatarEl = t.avatar_url
+          ? `<img src="${escHtml(t.avatar_url)}" class="w-9 h-9 rounded-full object-cover flex-shrink-0">`
+          : `<div class="w-9 h-9 rounded-full bg-violet-800 flex items-center justify-center flex-shrink-0 text-sm font-bold text-white">${escHtml(t.member_name.charAt(0).toUpperCase())}</div>`;
+        const footer = profileUrl
+          ? `<a href="${profileUrl}" class="flex items-center gap-3 mt-auto pt-3 border-t border-neutral-800 hover:opacity-80 transition">
+               ${avatarEl}
+               <div class="min-w-0">
+                 <p class="text-white text-sm font-semibold truncate">${escHtml(t.member_name)}</p>
+                 <p class="text-gray-500 text-xs truncate">@${escHtml(cleanHandle)}</p>
+                 ${t.game_tag ? `<p class="text-violet-400 text-xs truncate">${escHtml(t.game_tag)}</p>` : ''}
+               </div>
+             </a>`
+          : `<div class="flex items-center gap-3 mt-auto pt-3 border-t border-neutral-800">
+               ${avatarEl}
+               <div class="min-w-0">
+                 <p class="text-white text-sm font-semibold truncate">${escHtml(t.member_name)}</p>
+                 ${t.game_tag ? `<p class="text-violet-400 text-xs truncate">${escHtml(t.game_tag)}</p>` : ''}
+               </div>
+             </div>`;
+        return `<div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-5 flex flex-col gap-4">
+          <p class="text-gray-300 text-sm leading-relaxed flex-1">"${escHtml(t.quote)}"</p>
+          ${footer}
+        </div>`;
+      }).join('');
+      document.getElementById('member-voices-section').classList.remove('hidden');
+    })
+    .catch(() => {});
+
+  // --- Live stats ---
+  fetch('/api/activity/')
+    .then(r => r.json())
+    .then(d => {
+      const elM = document.getElementById('ls-members');
+      const elA = document.getElementById('ls-active');
+      if (elM) elM.textContent = (d.total_users || 0).toLocaleString();
+      if (elA) elA.textContent = (d.active_posters_today || 0).toLocaleString();
+    }).catch(() => {});
+
+  // --- LFG groups ---
+  fetch('{% url "questlog_web_api_lfg" %}')
+    .then(r => r.json())
+    .then(d => {
+      const container = document.getElementById('landing-lfg');
+      const loading = document.getElementById('landing-lfg-loading');
+      const groups = (d.groups || []).filter(g => g.status === 'open').slice(0, 6);
+      const elG = document.getElementById('ls-groups'); if (elG) elG.textContent = groups.length;
+      if (!groups.length) { loading.remove(); return; }
+      document.getElementById('lfg-section').classList.remove('hidden');
+      loading.remove();
+      const pIcons = { PC:'fa-desktop', PS5:'fa-playstation', PS4:'fa-playstation', 'Xbox Series':'fa-xbox', 'Xbox One':'fa-xbox', Switch:'fa-gamepad', Mobile:'fa-mobile-alt', 'Steam Deck':'fa-steam' };
+      container.innerHTML = groups.map(g => `
+        <div class="bg-neutral-900 border border-neutral-800 rounded-xl overflow-hidden hover:border-indigo-500/30 transition">
+          ${g.game_banner ? `<img src="${escHtml(g.game_banner)}" class="w-full h-14 object-cover opacity-70">` : `<div class="w-full h-14 bg-neutral-800 flex items-center justify-center"><i class="fas fa-gamepad text-neutral-700 text-lg"></i></div>`}
+          <div class="px-3 py-2.5">
+            <div class="flex items-center justify-between gap-2 mb-1">
+              <p class="text-white font-semibold text-xs leading-tight truncate">${escHtml(g.game_tag || 'Game TBD')}</p>
+              <span class="flex-shrink-0 text-[10px] px-1.5 py-0.5 rounded-full bg-green-600/20 text-green-400 font-medium">${escHtml(String(g.current_size))}/${escHtml(String(g.group_size))}</span>
+            </div>
+            <p class="text-gray-500 text-[10px] truncate">${escHtml(g.title || '')}</p>
+          </div>
+        </div>`).join('');
+    }).catch(() => {
+      const elG2 = document.getElementById('ls-groups'); if (elG2) elG2.textContent = '0';
+      const ld = document.getElementById('landing-lfg-loading'); if (ld) ld.remove();
+    });
+
+
+});
+</script>
+{% endblock %}

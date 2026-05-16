@@ -1,0 +1,411 @@
+{% extends "questlog_web/base_web.html" %}
+{% load static %}
+{% block title %}Ocean Fishing | FFXIV Tools | Casual Heroes{% endblock %}
+{% block web_content %}
+
+<div class="p-4 sm:p-6 max-w-7xl mx-auto">
+
+  <!-- Header -->
+  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+    <div>
+      <div class="flex items-center gap-3 mb-1">
+        <a href="/ffxiv/tools/" class="text-gray-500 hover:text-gray-300 transition text-xs flex items-center gap-1">
+          <i class="fas fa-arrow-left text-[10px]"></i> Tools
+        </a>
+        <span class="text-gray-700">/</span>
+        <div class="flex items-center gap-2">
+          <div class="w-7 h-7 rounded-lg bg-blue-900/40 flex items-center justify-center">
+            <i class="fas fa-fish text-blue-400 text-xs"></i>
+          </div>
+          <h1 class="text-2xl font-bold text-white">Ocean Fishing</h1>
+        </div>
+      </div>
+      <p class="text-gray-400 text-sm">Next 8 departures from Limsa Lominsa. Register up to 15 min before departure.</p>
+    </div>
+    {% if web_user %}
+    <div class="text-right">
+      <p class="text-xs text-gray-500">Logged in as <span class="text-white font-semibold">{{ web_user.display_name }}</span></p>
+      <p class="text-xs text-gray-600 mt-0.5">Click "I'm Going" to RSVP for any run</p>
+    </div>
+    {% else %}
+    <a href="/ql/login/?next=/ffxiv/tools/ocean-fishing/" class="flex items-center gap-2 bg-indigo-700 hover:bg-indigo-600 text-white font-semibold px-4 py-2 rounded-xl transition text-sm shrink-0">
+      <i class="fas fa-sign-in-alt"></i> Log in to RSVP
+    </a>
+    {% endif %}
+  </div>
+
+  <!-- Live Clock Bar -->
+  <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+    <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-3 flex items-center gap-3">
+      <div class="w-8 h-8 rounded-lg bg-blue-900/40 flex items-center justify-center flex-shrink-0">
+        <i class="fas fa-clock text-blue-400 text-sm"></i>
+      </div>
+      <div>
+        <p class="text-[10px] text-gray-500 uppercase tracking-wide">Eorzea Time</p>
+        <p class="text-white font-bold text-sm font-mono" id="et-clock">--:--</p>
+      </div>
+    </div>
+    <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-3 flex items-center gap-3">
+      <div class="w-8 h-8 rounded-lg bg-cyan-900/40 flex items-center justify-center flex-shrink-0">
+        <i class="fas fa-ship text-cyan-400 text-sm"></i>
+      </div>
+      <div>
+        <p class="text-[10px] text-gray-500 uppercase tracking-wide">Next Departure</p>
+        <p class="text-white font-bold text-sm font-mono" id="next-departure">--:--:--</p>
+      </div>
+    </div>
+    <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-3 flex items-center gap-3">
+      <div class="w-8 h-8 rounded-lg bg-indigo-900/40 flex items-center justify-center flex-shrink-0">
+        <i class="fas fa-door-open text-indigo-400 text-sm"></i>
+      </div>
+      <div>
+        <p class="text-[10px] text-gray-500 uppercase tracking-wide">Registration</p>
+        <p class="text-white font-bold text-sm font-mono" id="reg-status">Closed</p>
+      </div>
+    </div>
+    <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-3 flex items-center gap-3">
+      <div class="w-8 h-8 rounded-lg bg-purple-900/40 flex items-center justify-center flex-shrink-0">
+        <i class="fas fa-users text-purple-400 text-sm"></i>
+      </div>
+      <div>
+        <p class="text-[10px] text-gray-500 uppercase tracking-wide">CH Going</p>
+        <p class="text-white font-bold text-sm" id="total-going">{{ schedule.0.going_count }}</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Schedule Cards -->
+  <div class="space-y-4" id="schedule-list">
+    {% for win in schedule %}
+    <div class="bg-neutral-900 border rounded-2xl overflow-hidden transition
+      {% if win.is_active %}border-blue-600/60{% elif win.reg_open %}border-indigo-600/40{% else %}border-neutral-800{% endif %}"
+      data-window="{{ win.window_num }}"
+      data-departure="{{ win.departure_ts }}"
+      data-reg-opens="{{ win.reg_opens_ts }}">
+
+      <!-- Route Color Bar -->
+      <div class="h-1
+        {% if win.route.color == 'indigo' %}bg-gradient-to-r from-indigo-600 to-blue-500
+        {% else %}bg-gradient-to-r from-red-600 to-rose-500{% endif %}">
+      </div>
+
+      <div class="p-4 sm:p-5">
+        <div class="flex flex-col sm:flex-row sm:items-start gap-4">
+
+          <!-- Left: Route Info -->
+          <div class="flex-1 min-w-0">
+            <div class="flex flex-wrap items-center gap-2 mb-2">
+              <!-- Status badge -->
+              {% if win.is_active %}
+              <span class="text-xs font-bold px-2 py-0.5 rounded-full bg-blue-600/20 text-blue-300 border border-blue-600/30 animate-pulse">
+                <i class="fas fa-circle text-[8px] mr-1"></i> In Progress
+              </span>
+              {% elif win.reg_open %}
+              <span class="text-xs font-bold px-2 py-0.5 rounded-full bg-green-600/20 text-green-300 border border-green-600/30">
+                <i class="fas fa-door-open text-[8px] mr-1"></i> Registering Now
+              </span>
+              {% endif %}
+
+              <!-- Route badge -->
+              <span class="text-xs font-bold px-2 py-0.5 rounded-full
+                {% if win.route.color == 'indigo' %}bg-indigo-900/40 text-indigo-300{% else %}bg-red-900/40 text-red-300{% endif %}">
+                {{ win.route.name }}
+              </span>
+
+              <!-- Blue fish count -->
+              {% if win.route.blue_fish %}
+              <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-cyan-900/30 text-cyan-300">
+                <i class="fas fa-star text-[9px] mr-0.5"></i> {{ win.route.blue_fish|length }} achievement fish
+              </span>
+              {% endif %}
+
+              <!-- Time -->
+              <span class="text-xs text-gray-500 ml-auto countdown-display" data-departure="{{ win.departure_ts }}" data-reg="{{ win.reg_opens_ts }}">
+                {% if win.is_active %}Active now{% elif win.reg_open %}Departs in <span class="text-green-400 font-bold">...</span>{% else %}In <span class="font-bold text-gray-300">...</span>{% endif %}
+              </span>
+            </div>
+
+            <!-- Stops -->
+            <div class="flex flex-wrap gap-2 mb-3">
+              {% for stop in win.route.stops %}
+              <div class="flex items-center gap-1.5 bg-neutral-800/60 rounded-lg px-2.5 py-1.5">
+                <span class="text-[10px] text-gray-600 font-medium">Stop {{ forloop.counter }}</span>
+                <span class="w-px h-3 bg-neutral-700"></span>
+                <span class="text-xs text-gray-300 font-medium">{{ stop }}</span>
+                <span class="w-px h-3 bg-neutral-700"></span>
+                {% with time=win.route.times|slice:forloop.counter0 %}
+                {% with t=win.route.times %}
+                {% if forloop.counter == 1 %}
+                  {% with tod=win.route.times.0 %}
+                  <span class="text-[10px] font-semibold
+                    {% if tod == 'Morning' or tod == 'Day' %}text-yellow-400
+                    {% elif tod == 'Sunset' or tod == 'Evening' %}text-orange-400
+                    {% else %}text-blue-400{% endif %}">
+                    <i class="fas {% if tod == 'Morning' or tod == 'Day' %}fa-sun{% elif tod == 'Sunset' or tod == 'Evening' %}fa-cloud-sun{% else %}fa-moon{% endif %} mr-0.5"></i>{{ tod }}
+                  </span>
+                  {% endwith %}
+                {% elif forloop.counter == 2 %}
+                  {% with tod=win.route.times.1 %}
+                  <span class="text-[10px] font-semibold
+                    {% if tod == 'Morning' or tod == 'Day' %}text-yellow-400
+                    {% elif tod == 'Sunset' or tod == 'Evening' %}text-orange-400
+                    {% else %}text-blue-400{% endif %}">
+                    <i class="fas {% if tod == 'Morning' or tod == 'Day' %}fa-sun{% elif tod == 'Sunset' or tod == 'Evening' %}fa-cloud-sun{% else %}fa-moon{% endif %} mr-0.5"></i>{{ tod }}
+                  </span>
+                  {% endwith %}
+                {% elif forloop.counter == 3 %}
+                  {% with tod=win.route.times.2 %}
+                  <span class="text-[10px] font-semibold
+                    {% if tod == 'Morning' or tod == 'Day' %}text-yellow-400
+                    {% elif tod == 'Sunset' or tod == 'Evening' %}text-orange-400
+                    {% else %}text-blue-400{% endif %}">
+                    <i class="fas {% if tod == 'Morning' or tod == 'Day' %}fa-sun{% elif tod == 'Sunset' or tod == 'Evening' %}fa-cloud-sun{% else %}fa-moon{% endif %} mr-0.5"></i>{{ tod }}
+                  </span>
+                  {% endwith %}
+                {% endif %}
+                {% endwith %}
+                {% endwith %}
+              </div>
+              {% endfor %}
+            </div>
+
+            <!-- Achievement / Blue Fish -->
+            {% if win.route.achievement_fish %}
+            <div class="flex flex-wrap gap-2">
+              {% for fish in win.route.achievement_fish %}
+              <div class="flex items-center gap-1.5 bg-cyan-950/40 border border-cyan-800/30 rounded-lg px-2.5 py-1.5">
+                <i class="fas fa-star text-cyan-400 text-[9px]"></i>
+                <span class="text-xs text-cyan-300 font-semibold">{{ fish.name }}</span>
+                <span class="text-[10px] text-gray-500">Stop {{ fish.stop }} &bull; {{ fish.time }}</span>
+                <span class="text-[10px] text-gray-600 italic">{{ fish.bait }}</span>
+              </div>
+              {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-xs text-gray-600 italic">No achievement fish this run</p>
+            {% endif %}
+          </div>
+
+          <!-- Right: Going Panel -->
+          <div class="sm:w-52 flex-shrink-0">
+            <div class="bg-neutral-800/50 rounded-xl p-3">
+              <p class="text-[10px] text-gray-500 uppercase tracking-wide mb-2">CH Members Going</p>
+
+              <!-- Going avatars -->
+              <div class="going-avatars flex flex-wrap gap-1 mb-2 min-h-[24px]" id="avatars-{{ win.window_num }}">
+                {% for u in win.going_users %}
+                {% if u.avatar_url %}
+                <img src="{{ u.avatar_url }}" title="{{ u.display_name }}" class="w-6 h-6 rounded-full object-cover border border-neutral-700" alt="{{ u.display_name }}">
+                {% else %}
+                <div class="w-6 h-6 rounded-full bg-indigo-800 flex items-center justify-center text-[9px] font-bold text-white border border-neutral-700" title="{{ u.display_name }}">
+                  {{ u.display_name|slice:":1"|upper }}
+                </div>
+                {% endif %}
+                {% empty %}
+                <p class="text-[10px] text-gray-600 italic" id="empty-{{ win.window_num }}">No one yet - be first!</p>
+                {% endfor %}
+              </div>
+
+              <p class="text-xs text-gray-400 mb-3" id="count-{{ win.window_num }}">
+                <span class="font-bold text-white">{{ win.going_count }}</span> going
+              </p>
+
+              {% if web_user %}
+              <button onclick="rsvpToggle({{ win.window_num }}, this)"
+                class="w-full text-xs font-bold px-3 py-2 rounded-lg transition
+                {% if win.user_going %}bg-blue-600/20 text-blue-300 border border-blue-600/40 hover:bg-red-900/30 hover:text-red-300 hover:border-red-600/40{% else %}bg-indigo-700 hover:bg-indigo-600 text-white{% endif %}"
+                data-going="{{ win.user_going|yesno:'true,false' }}">
+                {% if win.user_going %}
+                <i class="fas fa-check mr-1"></i> I'm Going - Click to Cancel
+                {% else %}
+                <i class="fas fa-plus mr-1"></i> I'm Going
+                {% endif %}
+              </button>
+              {% else %}
+              <a href="/ql/login/?next=/ffxiv/tools/ocean-fishing/"
+                class="block w-full text-center text-xs font-bold px-3 py-2 rounded-lg bg-neutral-700 text-gray-400 hover:bg-neutral-600 hover:text-white transition">
+                Log in to RSVP
+              </a>
+              {% endif %}
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- Info Footer -->
+  <div class="mt-8 grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs text-gray-500">
+    <div class="bg-neutral-900/50 border border-neutral-800/50 rounded-xl p-4">
+      <p class="font-semibold text-gray-400 mb-1"><i class="fas fa-info-circle mr-1 text-blue-500"></i> About Ocean Fishing</p>
+      <p>The Endeavor departs from Limsa Lominsa Lower Decks (Pier #1) every 2 hours. Registration opens 15 minutes before departure.</p>
+    </div>
+    <div class="bg-neutral-900/50 border border-neutral-800/50 rounded-xl p-4">
+      <p class="font-semibold text-gray-400 mb-1"><i class="fas fa-star mr-1 text-cyan-400"></i> Achievement Fish</p>
+      <p>Blue/achievement fish are rare catches that only appear during specific Spectral Current windows on certain routes. Bait chains are required.</p>
+    </div>
+    <div class="bg-neutral-900/50 border border-neutral-800/50 rounded-xl p-4">
+      <p class="font-semibold text-gray-400 mb-1"><i class="fas fa-robot mr-1 text-indigo-400"></i> Bot Notifications</p>
+      <p>Want Fluxer notifications for good runs? Install the QuestLogFluxer bot in your server and use <code class="bg-neutral-800 px-1 rounded">!of notify</code> to subscribe.</p>
+    </div>
+  </div>
+
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const SCHEDULE = {{ schedule_json|safe }};
+
+  // Eorzea time: 1 ET second = 1/20 real second, 1 ET day = 70 real min
+  function getEorzeaTime() {
+    const now = Date.now();
+    const etMs = now * 20;
+    const etHours = Math.floor((etMs / 3600000) % 24);
+    const etMins = Math.floor((etMs / 60000) % 60);
+    return { h: etHours, m: etMins };
+  }
+
+  function pad(n) { return String(n).padStart(2, '0'); }
+
+  function fmtCountdown(sec) {
+    if (sec <= 0) return '0:00';
+    const h = Math.floor(sec / 3600);
+    const m = Math.floor((sec % 3600) / 60);
+    const s = sec % 60;
+    if (h > 0) return h + 'h ' + pad(m) + 'm';
+    return pad(m) + ':' + pad(s);
+  }
+
+  function fmtTime(ts) {
+    const d = new Date(ts * 1000);
+    return d.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
+  }
+
+  function tick() {
+    const et = getEorzeaTime();
+    const etEl = document.getElementById('et-clock');
+    if (etEl) etEl.textContent = pad(et.h) + ':' + pad(et.m) + ' ET';
+
+    const now = Math.floor(Date.now() / 1000);
+
+    // Find next upcoming window
+    let nextWin = null;
+    for (const w of SCHEDULE) {
+      if (w.departure_ts > now) { nextWin = w; break; }
+      if (w.is_active) { nextWin = w; break; }
+    }
+
+    // Next departure countdown
+    const depEl = document.getElementById('next-departure');
+    const regEl = document.getElementById('reg-status');
+    if (nextWin && depEl) {
+      const secToDep = nextWin.departure_ts - now;
+      if (nextWin.is_active) {
+        depEl.textContent = 'In Progress';
+        depEl.className = 'text-blue-400 font-bold text-sm font-mono';
+      } else {
+        depEl.textContent = secToDep > 0 ? fmtCountdown(secToDep) : 'Departing...';
+        depEl.className = 'text-white font-bold text-sm font-mono';
+      }
+      // Registration status
+      const secToReg = nextWin.reg_opens_ts - now;
+      if (nextWin.is_active) {
+        regEl.textContent = 'Trip Underway';
+        regEl.className = 'text-blue-400 font-bold text-sm font-mono';
+      } else if (secToReg <= 0 && secToDep > 0) {
+        regEl.textContent = 'OPEN';
+        regEl.className = 'text-green-400 font-bold text-sm font-mono animate-pulse';
+      } else if (secToReg > 0) {
+        regEl.textContent = 'Opens in ' + fmtCountdown(secToReg);
+        regEl.className = 'text-gray-400 font-bold text-sm font-mono';
+      } else {
+        regEl.textContent = 'Closed';
+        regEl.className = 'text-gray-600 font-bold text-sm font-mono';
+      }
+    }
+
+    // Per-card countdowns
+    document.querySelectorAll('.countdown-display').forEach(el => {
+      const dep = parseInt(el.dataset.departure);
+      const reg = parseInt(el.dataset.reg);
+      const secToDep = dep - now;
+      const secToReg = reg - now;
+      if (secToDep < -7200) {
+        el.innerHTML = '<span class="text-gray-700">Passed</span>';
+      } else if (dep <= now && now < dep + 7200) {
+        el.innerHTML = '<span class="text-blue-400 font-bold animate-pulse">Active now</span>';
+      } else if (reg <= now && now < dep) {
+        el.innerHTML = '<span class="text-green-400 font-bold">Registering - departs ' + fmtCountdown(secToDep) + '</span>';
+      } else {
+        el.innerHTML = 'In <span class="font-bold text-gray-300">' + fmtCountdown(secToReg > 0 ? secToReg : secToDep) + '</span> &bull; ' + fmtTime(dep);
+      }
+    });
+  }
+
+  tick();
+  setInterval(tick, 1000);
+});
+
+function rsvpToggle(windowNum, btn) {
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i> Saving...';
+
+  csrfFetch('/api/ffxiv/ocean-fishing/rsvp/', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({window_num: windowNum}),
+  }).then(r => r.json()).then(data => {
+    if (data.error) {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fas fa-exclamation-triangle mr-1"></i> ' + escapeHtml(data.error);
+      return;
+    }
+    btn.disabled = false;
+    const going = data.going;
+    btn.dataset.going = going ? 'true' : 'false';
+
+    if (going) {
+      btn.className = 'w-full text-xs font-bold px-3 py-2 rounded-lg transition bg-blue-600/20 text-blue-300 border border-blue-600/40 hover:bg-red-900/30 hover:text-red-300 hover:border-red-600/40';
+      btn.innerHTML = '<i class="fas fa-check mr-1"></i> I\'m Going - Click to Cancel';
+    } else {
+      btn.className = 'w-full text-xs font-bold px-3 py-2 rounded-lg transition bg-indigo-700 hover:bg-indigo-600 text-white';
+      btn.innerHTML = '<i class="fas fa-plus mr-1"></i> I\'m Going';
+    }
+
+    // Update count
+    const countEl = document.getElementById('count-' + windowNum);
+    if (countEl) {
+      countEl.innerHTML = '<span class="font-bold text-white">' + data.going_count + '</span> going';
+    }
+
+    // Update total going (first window)
+    const totalEl = document.getElementById('total-going');
+    if (totalEl && windowNum === parseInt(document.querySelector('[data-window]')?.dataset.window)) {
+      totalEl.textContent = data.going_count;
+    }
+
+    // Update avatars
+    const avatarEl = document.getElementById('avatars-' + windowNum);
+    if (avatarEl) {
+      avatarEl.innerHTML = '';
+      if (data.going_users.length === 0) {
+        avatarEl.innerHTML = '<p class="text-[10px] text-gray-600 italic">No one yet - be first!</p>';
+      } else {
+        data.going_users.forEach(u => {
+          if (u.avatar_url) {
+            avatarEl.innerHTML += '<img src="' + escapeHtml(u.avatar_url) + '" title="' + escapeHtml(u.display_name) + '" class="w-6 h-6 rounded-full object-cover border border-neutral-700" alt="' + escapeHtml(u.display_name) + '">';
+          } else {
+            avatarEl.innerHTML += '<div class="w-6 h-6 rounded-full bg-indigo-800 flex items-center justify-center text-[9px] font-bold text-white border border-neutral-700" title="' + escapeHtml(u.display_name) + '">' + escapeHtml(u.display_name.charAt(0).toUpperCase()) + '</div>';
+          }
+        });
+      }
+    }
+  }).catch(() => {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-exclamation-triangle mr-1"></i> Error - try again';
+  });
+}
+</script>
+{% endblock web_content %}
