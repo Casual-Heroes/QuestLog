@@ -296,7 +296,7 @@ function submitSubscribe() {
   const description = document.getElementById('subDescription').value.trim();
   if (!name) { showToast('List name required.', false); return; }
   if (!source_room_id || !source_room_id.startsWith('!')) { showToast('Valid policy room ID required (starts with !).', false); return; }
-  csrfFetch('/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/ban-lists/', {
+  csrfFetch('/api/dashboard/matrix/' + SPACE_ID_URL + '/ban-lists/', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({name, description, source_room_id, is_subscribed: true})
@@ -322,7 +322,7 @@ function submitCreateList() {
   const description = document.getElementById('listDescription').value.trim();
   const is_public = document.getElementById('listPublic').checked;
   if (!name) { showToast('List name required.', false); return; }
-  csrfFetch('/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/ban-lists/', {
+  csrfFetch('/api/dashboard/matrix/' + SPACE_ID_URL + '/ban-lists/', {
     method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({name, description, is_public})
   }).then(r => r.json()).then(d => {
     if (d.ok) { showToast('Ban list created.'); document.getElementById('createListModal').classList.add('hidden'); location.reload(); }
@@ -332,7 +332,7 @@ function submitCreateList() {
 
 function deleteList(id, name) {
   if (!confirm('Delete ban list "' + name + '"? This removes all entries.')) return;
-  csrfFetch('/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/ban-lists/' + id + '/', {method: 'DELETE'})
+  csrfFetch('/api/dashboard/matrix/' + SPACE_ID_URL + '/ban-lists/' + id + '/', {method: 'DELETE'})
     .then(r => r.json()).then(d => {
       if (d.ok) { showToast('List deleted.'); location.reload(); }
       else showToast(d.error || 'Error', false);
@@ -345,7 +345,7 @@ function submitAddEntry() {
   const reason = document.getElementById('entryReason').value.trim();
   const ban_now = document.getElementById('entryBanNow').checked;
   if (!matrix_id || !reason) { showToast('Matrix ID and reason required.', false); return; }
-  csrfFetch('/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/ban-lists/' + list_id + '/entries/', {
+  csrfFetch('/api/dashboard/matrix/' + SPACE_ID_URL + '/ban-lists/' + list_id + '/entries/', {
     method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({matrix_id, reason, ban_now})
   }).then(r => r.json()).then(d => {
     if (d.ok) { showToast('Entry added.'); document.getElementById('addEntryModal').classList.add('hidden'); location.reload(); }
@@ -355,7 +355,7 @@ function submitAddEntry() {
 
 function removeEntry(entryId) {
   if (!confirm('Remove this ban list entry?')) return;
-  csrfFetch('/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/ban-lists/entries/' + entryId + '/', {method: 'DELETE'})
+  csrfFetch('/api/dashboard/matrix/' + SPACE_ID_URL + '/ban-lists/entries/' + entryId + '/', {method: 'DELETE'})
     .then(r => r.json()).then(d => {
       if (d.ok) { showToast('Entry removed.'); location.reload(); }
       else showToast(d.error || 'Error', false);
@@ -363,7 +363,7 @@ function removeEntry(entryId) {
 }
 
 function togglePause(listId, pause) {
-  csrfFetch('/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/ban-lists/' + listId + '/', {
+  csrfFetch('/api/dashboard/matrix/' + SPACE_ID_URL + '/ban-lists/' + listId + '/', {
     method: 'PATCH',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({sync_paused: pause})

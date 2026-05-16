@@ -3,6 +3,63 @@
 
 {% block title %}{{ guild_name }} - Fluxer Dashboard - QuestLog{% endblock %}
 
+{% block header %}
+<header class="bg-neutral-950/95 border-b border-neutral-800 backdrop-blur-sm sticky top-0 z-50" x-data="{ mobileOpen: false }">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6">
+    <div class="flex items-center justify-between h-14 gap-4">
+      <div class="flex items-center gap-3 flex-shrink-0">
+        <a href="{% url 'questlog_web_home' %}" class="flex items-center gap-2">
+          <img src="{% static 'img/siteassets/ql-logo.png' %}" alt="QuestLog" class="w-7 h-7 rounded-lg object-contain flex-shrink-0" onerror="this.style.display='none'">
+          <span class="font-bold text-white text-sm tracking-tight">QuestLog</span>
+          <span class="text-[10px] font-semibold bg-indigo-500/20 border border-indigo-500/30 text-indigo-300 px-1.5 py-0.5 rounded-full">BETA</span>
+        </a>
+      </div>
+      <nav class="hidden lg:flex items-center gap-1 text-sm flex-1 justify-center">
+        <a href="{% url 'questlog_web_discover' %}" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-neutral-800 transition text-xs font-medium"><i class="fas fa-compass text-xs"></i> Discover</a>
+        <a href="{% url 'questlog_web_lfg_browse' %}" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-neutral-800 transition text-xs font-medium"><i class="fas fa-users text-xs"></i> Find Groups</a>
+        <a href="{% url 'questlog_web_communities' %}" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-neutral-800 transition text-xs font-medium"><i class="fas fa-shield-alt text-xs"></i> Communities</a>
+        <div class="relative" x-data="{ open: false }">
+          <button @click="open = !open" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-neutral-800 transition text-xs font-medium">
+            <i class="fas fa-hat-wizard text-xs"></i> MMOs <i class="fas fa-chevron-down text-[9px] ml-0.5"></i>
+          </button>
+          <div x-show="open" @click.outside="open = false" x-cloak class="absolute left-0 top-full mt-1 w-40 bg-neutral-900 border border-neutral-700 rounded-xl shadow-xl py-1 z-50">
+            <a href="/ffxiv/" class="flex items-center gap-2.5 px-4 py-2 text-sm text-gray-300 hover:text-white hover:bg-neutral-800 transition"><img src="{% static 'img/games/guilds/ffxiv.png' %}" alt="FFXIV" class="w-4 h-4 rounded-sm object-cover"> FFXIV</a>
+            <a href="/eso/" class="flex items-center gap-2.5 px-4 py-2 text-sm text-gray-300 hover:text-white hover:bg-neutral-800 transition"><img src="{% static 'img/games/guilds/esoguild.png' %}" alt="ESO" class="w-4 h-4 rounded-sm object-cover"> ESO</a>
+          </div>
+        </div>
+        <a href="{% url 'aboutus' %}" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-neutral-800 transition text-xs font-medium"><i class="fas fa-info-circle text-xs"></i> About Us</a>
+        <a href="{% url 'questlog_web_getting_started' %}" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-emerald-600 hover:text-emerald-400 hover:bg-neutral-800 transition text-xs font-medium"><i class="fas fa-rocket text-xs"></i> Get Started</a>
+      </nav>
+      <div class="flex items-center gap-2 flex-shrink-0">
+        {% if web_user %}
+        <div class="relative" x-data="{ open: false }">
+          <button @click="open = !open" class="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-neutral-800 transition">
+            {% if web_user.avatar_url %}<img src="{{ web_user.avatar_url }}" class="w-7 h-7 rounded-full object-cover ring-1 ring-indigo-700" alt="{{ web_user.username }}">
+            {% else %}<div class="w-7 h-7 rounded-full bg-indigo-800 flex items-center justify-center text-xs font-bold text-white ring-1 ring-indigo-700">{{ web_user.username|slice:":2"|upper }}</div>{% endif %}
+            <span class="hidden sm:block text-sm text-gray-300 font-medium">{{ web_user.display_name|default:web_user.username }}</span>
+            <i class="fas fa-chevron-down text-gray-500 text-[10px]"></i>
+          </button>
+          <div x-show="open" @click.outside="open = false" x-cloak class="absolute right-0 top-full mt-1 w-48 bg-neutral-900 border border-neutral-700 rounded-xl shadow-xl py-1 z-50">
+            <a href="{% url 'questlog_web_profile' %}" class="flex items-center gap-2 px-4 py-2 text-sm text-gray-300 hover:text-white hover:bg-neutral-800 transition"><i class="fas fa-user text-xs text-gray-500"></i> My Profile</a>
+            <a href="{% url 'questlog_web_feed' %}" class="flex items-center gap-2 px-4 py-2 text-sm text-gray-300 hover:text-white hover:bg-neutral-800 transition"><i class="fas fa-stream text-xs text-gray-500"></i> My Feed</a>
+            <a href="{% url 'questlog_web_profile' %}#edit" class="flex items-center gap-2 px-4 py-2 text-sm text-gray-300 hover:text-white hover:bg-neutral-800 transition"><i class="fas fa-cog text-xs text-gray-500"></i> Settings</a>
+            <div class="border-t border-neutral-700 my-1"></div>
+            <form method="post" action="{% url 'questlog_web_logout' %}" class="m-0 p-0">
+              {% csrf_token %}
+              <button type="submit" class="flex items-center gap-2 w-full px-4 py-2 text-sm text-gray-400 hover:text-white hover:bg-neutral-800 transition text-left"><i class="fas fa-sign-out-alt text-xs text-gray-500"></i> Log Out</button>
+            </form>
+          </div>
+        </div>
+        {% else %}
+        <a href="{% url 'questlog_web_login' %}" class="text-gray-400 hover:text-white text-xs font-medium px-3 py-1.5 rounded-lg hover:bg-neutral-800 transition">Sign In</a>
+        <a href="{% url 'questlog_web_register' %}" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition">Join Free</a>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</header>
+{% endblock %}
+
 {% block content %}
 <!-- Break out of base.html's max-w-7xl px-4 sm:px-6 container so the dashboard fills full viewport width -->
 <div class="-mx-4 sm:-mx-6">

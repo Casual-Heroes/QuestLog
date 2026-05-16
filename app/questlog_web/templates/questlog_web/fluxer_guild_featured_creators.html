@@ -24,7 +24,7 @@ const GUILD_ID = "{{ guild_id }}";
       {% if is_network %}Content creators from the entire QuestLog Network{% else %}Content creators from {{ guild_name }}{% endif %}
     </p>
   </div>
-  <a href="/ql/creators/" target="_blank" rel="noopener"
+  <a href="/creators/" target="_blank" rel="noopener"
      class="flex items-center gap-2 bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-gray-300 px-4 py-2 rounded-lg text-sm font-medium transition">
     <i class="fas fa-external-link-alt text-xs"></i>Browse All on QuestLog
   </a>
@@ -117,7 +117,7 @@ const GUILD_ID = "{{ guild_id }}";
             <a id="modalProfileLink" href="#" class="inline-flex items-center gap-2 text-indigo-400 hover:text-indigo-300 text-sm font-medium transition">
               <i class="fas fa-user-circle"></i>View full profile
             </a>
-            <a id="modalEditBtn" href="/ql/creator/register/" class="hidden inline-flex items-center gap-2 px-3 py-1.5 bg-neutral-700 hover:bg-neutral-600 text-white rounded-lg text-sm font-medium transition">
+            <a id="modalEditBtn" href="/creator/register/" class="hidden inline-flex items-center gap-2 px-3 py-1.5 bg-neutral-700 hover:bg-neutral-600 text-white rounded-lg text-sm font-medium transition">
               <i class="fas fa-pencil-alt text-xs"></i>Edit profile
             </a>
           </div>
@@ -191,7 +191,7 @@ function toggleLiveFilter() {
 
 async function loadCreators() {
   try {
-    const response = await fetch('/ql/api/creators/');
+    const response = await fetch('/api/creators/');
     const data = await response.json();
     let creators = data.creators || [];
 
@@ -251,7 +251,7 @@ function renderSpotlight() {
           ${creator.twitch_url ? `<a href="${escapeHtml(creator.twitch_url)}" target="_blank" rel="noopener" class="text-purple-400 hover:text-purple-300 text-sm"><i class="fab fa-twitch"></i></a>` : ''}
           ${creator.youtube_url ? `<a href="${escapeHtml(creator.youtube_url)}" target="_blank" rel="noopener" class="text-red-400 hover:text-red-300 text-sm"><i class="fab fa-youtube"></i></a>` : ''}
           ${creator.kick_url ? `<a href="${escapeHtml(creator.kick_url)}" target="_blank" rel="noopener" class="text-green-400 hover:text-green-300 text-sm"><i class="fas fa-bolt"></i></a>` : ''}
-          ${creator.fluxer_url ? `<a href="${escapeHtml(creator.fluxer_url)}" target="_blank" rel="noopener" class="text-yellow-400 hover:text-yellow-300 text-sm"><i class="fas fa-satellite-dish"></i></a>` : ''}
+          ${creator.fluxer_url ? `<a href="${escapeHtml(creator.fluxer_url)}" target="_blank" rel="noopener" class="text-yellow-400 hover:text-yellow-300 text-sm"><img src="/static/img/siteassets/fluxer-favicon.png" class="w-4 h-4 rounded-sm inline" alt="Fluxer"></a>` : ''}
           ${creator.discord_url ? `<a href="${escapeHtml(creator.discord_url)}" target="_blank" rel="noopener" class="text-indigo-400 hover:text-indigo-300 text-sm"><i class="fab fa-discord"></i></a>` : ''}
           ${creator.matrix_url ? `<a href="${escapeHtml(creator.matrix_url)}" target="_blank" rel="noopener" class="text-teal-400 hover:text-teal-300 text-sm"><i class="fas fa-cube"></i></a>` : ''}
           ${creator.twitter_url ? `<a href="${escapeHtml(creator.twitter_url)}" target="_blank" rel="noopener" class="text-blue-400 hover:text-blue-300 text-sm"><i class="fab fa-twitter"></i></a>` : ''}
@@ -333,7 +333,7 @@ function timeAgo(epochSecs) {
 
 function platformIcon(platform) {
   const icons = {
-    fluxer: '<i class="fas fa-bolt text-yellow-400"></i>',
+    fluxer: `<img src="${window.FLUXER_ICON_URL || ''}" class="inline-block" style="width:1em;height:1em;object-fit:contain;vertical-align:middle;" alt="Fluxer">`,
     discord: '<i class="fab fa-discord text-indigo-400"></i>',
     matrix: '<i class="fas fa-comment-dots text-teal-400"></i>',
     teamspeak: '<i class="fas fa-headset text-blue-400"></i>',
@@ -449,7 +449,7 @@ function creatorCard(creator) {
         ${creator.twitch_url ? `<a href="${escapeHtml(twitchHref)}" target="_blank" rel="noopener" class="inline-flex items-center gap-1 px-2 py-1 ${creator.is_live && creator.live_platform === 'twitch' ? 'bg-rose-600/20 text-rose-400 hover:bg-rose-600/30' : 'bg-purple-600/20 text-purple-400 hover:bg-purple-600/30'} rounded text-xs font-medium transition"><i class="fab fa-twitch text-[10px]"></i>${creator.is_live && creator.live_platform === 'twitch' ? 'Watch Live' : 'Twitch'}</a>` : ''}
         ${creator.youtube_url ? `<a href="${escapeHtml(youtubeHref)}" target="_blank" rel="noopener" class="inline-flex items-center gap-1 px-2 py-1 ${creator.is_live && creator.live_platform === 'youtube' ? 'bg-rose-600/20 text-rose-400 hover:bg-rose-600/30' : 'bg-red-600/20 text-red-400 hover:bg-red-600/30'} rounded text-xs font-medium transition"><i class="fab fa-youtube text-[10px]"></i>${creator.is_live && creator.live_platform === 'youtube' ? 'Watch Live' : 'YouTube'}</a>` : ''}
         ${creator.kick_url ? `<a href="${escapeHtml(kickHref)}" target="_blank" rel="noopener" class="inline-flex items-center gap-1 px-2 py-1 ${creator.is_live && creator.live_platform === 'kick' ? 'bg-rose-600/20 text-rose-400 hover:bg-rose-600/30' : 'bg-green-600/20 text-green-400 hover:bg-green-600/30'} rounded text-xs font-medium transition"><i class="fas fa-bolt text-[10px]"></i>${creator.is_live && creator.live_platform === 'kick' ? 'Watch Live' : 'Kick'}</a>` : ''}
-        ${creator.fluxer_url ? `<a href="${escapeHtml(creator.fluxer_url)}" target="_blank" rel="noopener" class="inline-flex items-center gap-1 px-2 py-1 bg-yellow-600/20 text-yellow-400 rounded text-xs font-medium hover:bg-yellow-600/30 transition"><i class="fas fa-satellite-dish text-[10px]"></i>Fluxer</a>` : ''}
+        ${creator.fluxer_url ? `<a href="${escapeHtml(creator.fluxer_url)}" target="_blank" rel="noopener" class="inline-flex items-center gap-1 px-2 py-1 bg-yellow-600/20 text-yellow-400 rounded text-xs font-medium hover:bg-yellow-600/30 transition"><img src="/static/img/siteassets/fluxer-favicon.png" class="w-3.5 h-3.5 rounded-sm" alt="">Fluxer</a>` : ''}
         ${creator.discord_url ? `<a href="${escapeHtml(creator.discord_url)}" target="_blank" rel="noopener" class="inline-flex items-center gap-1 px-2 py-1 bg-indigo-600/20 text-indigo-400 rounded text-xs font-medium hover:bg-indigo-600/30 transition"><i class="fab fa-discord text-[10px]"></i>Discord</a>` : ''}
         ${creator.matrix_url ? `<a href="${escapeHtml(creator.matrix_url)}" target="_blank" rel="noopener" class="inline-flex items-center gap-1 px-2 py-1 bg-teal-600/20 text-teal-400 rounded text-xs font-medium hover:bg-teal-600/30 transition"><i class="fas fa-comment-dots text-[10px]"></i>Matrix</a>` : ''}
         ${creator.twitter_url ? `<a href="${escapeHtml(creator.twitter_url)}" target="_blank" rel="noopener" class="inline-flex items-center gap-1 px-2 py-1 bg-blue-600/20 text-blue-400 rounded text-xs font-medium hover:bg-blue-600/30 transition"><i class="fab fa-twitter text-[10px]"></i>Twitter</a>` : ''}
@@ -545,7 +545,7 @@ function openCreatorModal(id) {
     creator.twitch_url && { href: twitchHref(creator), icon: 'fab fa-twitch', label: creator.is_live && creator.live_platform === 'twitch' ? 'Watch Live' : 'Twitch', cls: creator.is_live && creator.live_platform === 'twitch' ? 'bg-rose-600/20 text-rose-400 hover:bg-rose-600/30' : 'bg-purple-600/20 text-purple-400 hover:bg-purple-600/30' },
     creator.youtube_url && { href: youtubeHref(creator), icon: 'fab fa-youtube', label: creator.is_live && creator.live_platform === 'youtube' ? 'Watch Live' : 'YouTube', cls: creator.is_live && creator.live_platform === 'youtube' ? 'bg-rose-600/20 text-rose-400 hover:bg-rose-600/30' : 'bg-red-600/20 text-red-400 hover:bg-red-600/30' },
     creator.kick_url && { href: kickHref(creator), icon: 'fas fa-bolt', label: creator.is_live && creator.live_platform === 'kick' ? 'Watch Live' : 'Kick', cls: creator.is_live && creator.live_platform === 'kick' ? 'bg-rose-600/20 text-rose-400 hover:bg-rose-600/30' : 'bg-green-600/20 text-green-400 hover:bg-green-600/30' },
-    creator.fluxer_url && { href: creator.fluxer_url, icon: 'fas fa-satellite-dish', label: 'Fluxer', cls: 'bg-yellow-600/20 text-yellow-400 hover:bg-yellow-600/30' },
+    creator.fluxer_url && { href: creator.fluxer_url, icon: null, imgSrc: '/static/img/siteassets/fluxer-favicon.png', label: 'Fluxer', cls: 'bg-yellow-600/20 text-yellow-400 hover:bg-yellow-600/30' },
     creator.discord_url && { href: creator.discord_url, icon: 'fab fa-discord', label: 'Discord', cls: 'bg-indigo-600/20 text-indigo-400 hover:bg-indigo-600/30' },
     creator.matrix_url && { href: creator.matrix_url, icon: 'fas fa-cube', label: 'Matrix', cls: 'bg-teal-600/20 text-teal-400 hover:bg-teal-600/30' },
     creator.twitter_url && { href: creator.twitter_url, icon: 'fab fa-twitter', label: 'Twitter / X', cls: 'bg-blue-600/20 text-blue-400 hover:bg-blue-600/30' },
@@ -559,7 +559,7 @@ function openCreatorModal(id) {
   document.getElementById('modalLinks').innerHTML = links.map(function(l) {
     return `<a href="${escapeHtml(l.href)}" target="_blank" rel="noopener"
         class="inline-flex items-center gap-2 px-3 py-2 ${l.cls} rounded-lg text-sm transition">
-       <i class="${l.icon}"></i>${escapeHtml(l.label)}
+       ${l.imgSrc ? `<img src="${escapeHtml(l.imgSrc)}" class="w-4 h-4 rounded-sm" alt="">` : `<i class="${l.icon}"></i>`}${escapeHtml(l.label)}
      </a>`;
   }).join('');
 
@@ -567,7 +567,7 @@ function openCreatorModal(id) {
   const editBtn = document.getElementById('modalEditBtn');
   if (creator.username) {
     footerEl.classList.remove('hidden');
-    document.getElementById('modalProfileLink').href = '/ql/u/' + encodeURIComponent(creator.username) + '/';
+    document.getElementById('modalProfileLink').href = '/u/' + encodeURIComponent(creator.username) + '/';
     if (CURRENT_USERNAME && creator.username === CURRENT_USERNAME) {
       editBtn.classList.remove('hidden');
     } else {

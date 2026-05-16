@@ -182,7 +182,7 @@ function sendRoomMessage() {
   const content = document.getElementById('msgContent').value.trim();
   const as_html = document.getElementById('msgHtml').checked;
   if (!room_id || !content) { showToast('Room and message required.', false); return; }
-  csrfFetch('/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/messages/', {
+  csrfFetch('/api/dashboard/matrix/' + SPACE_ID_URL + '/messages/', {
     method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({room_id, content, as_html})
   }).then(r => r.json()).then(d => {
     if (d.ok) { showToast('Message queued.'); document.getElementById('msgContent').value = ''; }
@@ -194,7 +194,7 @@ function sendDm() {
   const matrix_id = document.getElementById('dmUserId').value.trim();
   const content = document.getElementById('dmContent').value.trim();
   if (!matrix_id || !content) { showToast('Recipient and message required.', false); return; }
-  csrfFetch('/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/messages/', {
+  csrfFetch('/api/dashboard/matrix/' + SPACE_ID_URL + '/messages/', {
     method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({matrix_id, content, is_dm: true})
   }).then(r => r.json()).then(d => {
     if (d.ok) { showToast('DM queued.'); document.getElementById('dmContent').value = ''; }
@@ -207,7 +207,7 @@ function confirmBroadcast() {
   if (!content) { showToast('Message required.', false); return; }
   if (!confirm('Broadcast this message to ALL {{ rooms|length }} room{{ rooms|length|pluralize }}?')) return;
   const as_html = document.getElementById('broadcastHtml').checked;
-  csrfFetch('/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/messages/', {
+  csrfFetch('/api/dashboard/matrix/' + SPACE_ID_URL + '/messages/', {
     method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({content, as_html, broadcast_all: true})
   }).then(r => r.json()).then(d => {
     if (d.ok) { showToast('Broadcast queued.'); document.getElementById('broadcastContent').value = ''; }

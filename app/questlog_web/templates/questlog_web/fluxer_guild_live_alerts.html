@@ -200,14 +200,11 @@
 </div>
 
 
-{{ channels_json|default:"[]"|json_script:"channels-data" }}
-{{ featured_creators_json|default:"[]"|json_script:"featured-creators-data" }}
 <script>
 const GUILD_ID = '{{ guild_id }}';
-const API_BASE = `/ql/api/dashboard/fluxer/${GUILD_ID}/streamer-subs/`;
-// channels_json has shape {id, value, label} - already filtered to text channels by _get_fluxer_guild_context
-const CHANNELS = JSON.parse(document.getElementById('channels-data').textContent) || [];
-const FEATURED_CREATORS = JSON.parse(document.getElementById('featured-creators-data').textContent) || [];
+const API_BASE = `api/dashboard/fluxer/${GUILD_ID}/streamer-subs/`;
+const CHANNELS = JSON.parse('{{ channels_json|default:"[]"|escapejs }}') || [];
+const FEATURED_CREATORS = JSON.parse('{{ featured_creators_json|default:"[]"|escapejs }}') || [];
 
 let addChannelSelect = null;
 let editChannelSelect = null;
@@ -215,12 +212,17 @@ let quickChannelSelect = null;
 let quickPending = null; // {platform, handle, display_name} waiting for channel pick
 let subsData = [];
 
-// channels_json is already {value, label} - pass directly to createCustomSelect
-const channelOpts = CHANNELS.map(c => ({ value: c.value || c.id, label: c.label }));
-
 function esc(s) {
   return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
+
+// Strip Fluxer/Discord custom emoji markup <:name:id> and <a:name:id> from display labels
+function stripCustomEmoji(s) {
+  return String(s || '').replace(/<a?:[^:>]+:\d+>/g, '').trim();
+}
+
+// channels_json is already {value, label} - strip custom emoji from labels for safe HTML display
+const channelOpts = CHANNELS.map(c => ({ value: c.value || c.id, label: stripCustomEmoji(c.label) }));
 
 function showStatus(msg, ok=true) {
   const el = document.getElementById('status-bar');
@@ -244,7 +246,7 @@ function liveBadge(s) {
 
 function channelName(id) {
   const ch = CHANNELS.find(c => (c.value || c.id) === id);
-  return ch ? ch.label : `#${id}`;
+  return esc(ch ? stripCustomEmoji(ch.label) : `#${id}`);
 }
 
 function renderSubs(subs) {
@@ -262,12 +264,23 @@ function renderSubs(subs) {
 
   empty.classList.add('hidden');
   list.classList.remove('hidden');
-  list.innerHTML = subs.map(s => `
+  list.innerHTML = subs.map(s => {
+    const platformIcon = s.streamer_platform === 'twitch' ? 'fab fa-twitch text-purple-400' : 'fab fa-youtube text-red-400';
+    const avatarHtml = s.avatar_url
+      ? `<div class="relative w-10 h-10 flex-shrink-0">
+           <img src="${s.avatar_url}" alt="" class="w-10 h-10 rounded-full object-cover border border-neutral-700"
+                onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
+           <div class="w-10 h-10 rounded-full bg-neutral-800 border border-neutral-700 items-center justify-center text-gray-400 absolute inset-0" style="display:none">
+             <i class="${platformIcon}"></i>
+           </div>
+         </div>`
+      : `<div class="flex-shrink-0 w-10 h-10 rounded-full bg-neutral-800 border border-neutral-700 flex items-center justify-center text-gray-400">
+           <i class="${platformIcon}"></i>
+         </div>`;
+    return `
     <div class="flex items-center justify-between gap-4 px-6 py-4 hover:bg-neutral-800/40 transition" data-sub-id="${s.id}">
       <div class="flex items-center gap-4 min-w-0">
-        <div class="flex-shrink-0 w-10 h-10 rounded-full bg-neutral-800 border border-neutral-700 flex items-center justify-center text-gray-400">
-          <i class="fa${s.streamer_platform === 'twitch' ? 'b fa-twitch text-purple-400' : 'b fa-youtube text-red-400'}"></i>
-        </div>
+        ${avatarHtml}
         <div class="min-w-0">
           <div class="flex items-center gap-2 flex-wrap">
             <span class="font-semibold text-white text-sm">${esc(s.streamer_display_name)}</span>
@@ -275,7 +288,7 @@ function renderSubs(subs) {
             ${liveBadge(s)}
             ${!s.is_active ? '<span class="text-xs text-gray-600 italic">Paused</span>' : ''}
           </div>
-          <p class="text-gray-500 text-xs mt-0.5">@${esc(s.streamer_handle)} - alerts to ${channelName(s.notify_channel_id)}</p>
+          <p class="text-gray-500 text-xs mt-0.5">${esc(s.display_handle || s.streamer_handle)} - alerts to ${channelName(s.notify_channel_id)}</p>
           ${s.custom_message ? `<p class="text-gray-600 text-xs mt-0.5 italic truncate max-w-xs">"${esc(s.custom_message)}"</p>` : ''}
         </div>
       </div>
@@ -290,7 +303,8 @@ function renderSubs(subs) {
         </button>
       </div>
     </div>
-  `).join('');
+  `;
+  }).join('');
 }
 
 async function loadSubs() {
@@ -484,13 +498,23 @@ function renderCreatorsGrid() {
       ? (c.follower_count / 1000).toFixed(1) + 'K'
       : String(c.follower_count);
     const alreadySubbed = subsData.some(s => s.streamer_platform === c.platform && s.streamer_handle === c.handle);
-    const avatar = c.avatar_url
-      ? `<img src="${esc(c.avatar_url)}" alt="" class="w-10 h-10 rounded-full object-cover border border-neutral-700">`
-      : `<div class="w-10 h-10 rounded-full bg-neutral-800 border border-neutral-700 flex items-center justify-center text-gray-400"><i class="${platformIcon}"></i></div>`;
+
+    // Avatar: always render both img and fallback icon; hide fallback until img fails
+    const avatarHtml = c.avatar_url
+      ? `<div class="relative w-10 h-10 flex-shrink-0">
+           <img src="${c.avatar_url}" alt="" class="w-10 h-10 rounded-full object-cover border border-neutral-700"
+                onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
+           <div class="w-10 h-10 rounded-full bg-neutral-800 border border-neutral-700 items-center justify-center text-gray-400 absolute inset-0" style="display:none">
+             <i class="${platformIcon}"></i>
+           </div>
+         </div>`
+      : `<div class="w-10 h-10 rounded-full bg-neutral-800 border border-neutral-700 flex items-center justify-center text-gray-400 flex-shrink-0">
+           <i class="${platformIcon}"></i>
+         </div>`;
 
     return `
       <div class="flex items-center gap-3 p-3 bg-neutral-800/50 border border-neutral-700 rounded-lg hover:border-neutral-600 transition">
-        <a href="${esc(c.profile_url)}" target="_blank" class="flex-shrink-0">${avatar}</a>
+        <a href="${esc(c.profile_url)}" target="_blank" class="flex-shrink-0">${avatarHtml}</a>
         <div class="min-w-0 flex-1">
           <div class="flex items-center gap-1.5 flex-wrap">
             <span class="font-medium text-white text-sm truncate">${esc(c.display_name)}</span>

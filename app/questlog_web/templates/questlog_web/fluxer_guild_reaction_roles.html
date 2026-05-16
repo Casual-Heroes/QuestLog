@@ -108,6 +108,11 @@
         <textarea id="menuDescriptionInput" class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-yellow-500" rows="2" placeholder="Describe what these roles are for..."></textarea>
         <p class="text-xs text-gray-500 mt-1">The bot will post a new message to this channel and add the reactions automatically.</p>
       </div>
+      <div class="mt-4">
+        <label class="block text-sm text-gray-400 mb-1">Ping Role on Post <span class="text-gray-600 font-normal">(optional)</span></label>
+        <div id="mentionRoleSelectContainer"></div>
+        <p class="text-xs text-gray-500 mt-1">The bot will ping this role when posting the menu message so members are notified.</p>
+      </div>
 
       <div class="mt-5">
         <div class="flex items-center justify-between mb-2">
@@ -135,19 +140,26 @@
 const GUILD_ID = '{{ guild_id }}';
 const CHANNELS = JSON.parse('{{ channels_json|escapejs }}');
 const ROLES = JSON.parse('{{ roles_json|escapejs }}');
-const API_URL = '/ql/api/dashboard/fluxer/' + GUILD_ID + '/settings/';
-const RR_API = '/ql/api/dashboard/fluxer/' + GUILD_ID + '/reaction-roles/';
+const API_URL = '/api/dashboard/fluxer/' + GUILD_ID + '/settings/';
+const RR_API = '/api/dashboard/fluxer/' + GUILD_ID + '/reaction-roles/';
 
 let menus = [];
 let channelOptions = [];
 let roleOptions = ROLES.length ? ROLES : [];
 let emojiOptions = [];
 let channelSelectInstance = null;
+let mentionRoleSelectInstance = null;
 let editingMessageId = null;
 
 function channelName(id) {
   const found = CHANNELS.find(c => c.id === String(id) || String(c.id) === String(id));
   return found ? `#${found.label || found.name || id}` : `#${id}`;
+}
+
+function roleName(id) {
+  if (!id) return '';
+  const found = ROLES.find(r => String(r.value) === String(id));
+  return found ? `@${found.label}` : `@${id}`;
 }
 
 function renderMenus() {
@@ -189,7 +201,8 @@ function renderMenus() {
         </div>
         <div class="flex flex-wrap items-center gap-4 text-sm text-gray-400 mb-4">
           <span><i class="fas fa-hashtag mr-1"></i>${channelName(menu.channel_id)}</span>
-          ${menu.message_id ? `<span><i class="fas fa-envelope mr-1"></i>Message: ${escapeHtml(String(menu.message_id))}</span>` : ''}
+          ${menu.mention_role_id ? `<span><i class="fas fa-at mr-1 text-indigo-400"></i>${roleName(menu.mention_role_id)}</span>` : ''}
+          ${menu.message_id ? `<span><i class="fas fa-envelope mr-1"></i>Message: ${escapeHtml(String(menu.message_id))}</span>` : '<span class="text-yellow-600 text-xs"><i class="fas fa-clock mr-1"></i>Pending deploy...</span>'}
           <span><i class="fas fa-tag mr-1"></i>${(menu.roles ? menu.roles.length : 0)} role(s)</span>
         </div>
         <div class="grid md:grid-cols-2 gap-2 mb-4">
@@ -248,6 +261,22 @@ function initChannelSelect(selectedId) {
     items: channelOptions,
     selected: selectedId ? String(selectedId) : '',
     color: 'yellow'
+  });
+}
+
+function initMentionRoleSelect(selectedId) {
+  const container = document.getElementById('mentionRoleSelectContainer');
+  if (!container) return;
+  container.innerHTML = '';
+  const items = [{value: '', label: '— No ping —'}, ...roleOptions];
+  mentionRoleSelectInstance = createCustomSelect({
+    container,
+    name: 'mention_role_id',
+    id: 'mention_role_id',
+    placeholder: '— No ping —',
+    items,
+    selected: selectedId ? String(selectedId) : '',
+    color: 'indigo'
   });
 }
 
@@ -322,12 +351,14 @@ function resetMenuForm() {
   document.getElementById('menuTitleInput').value = 'Choose your roles';
   document.getElementById('menuDescriptionInput').value = '';
   document.getElementById('roleRows').innerHTML = '';
+  if (mentionRoleSelectInstance) mentionRoleSelectInstance.setValue('');
 }
 
 async function openMenuModal(menu) {
   buildOptionData();
   resetMenuForm();
   initChannelSelect(menu ? menu.channel_id : '');
+  initMentionRoleSelect(menu ? (menu.mention_role_id || '') : '');
 
   if (menu) {
     editingMessageId = String(menu.message_id || menu.id);
@@ -380,6 +411,7 @@ function collectRoleRows() {
 async function saveMenu(event) {
   event.preventDefault();
   const channelId = channelSelectInstance && channelSelectInstance.getValue ? channelSelectInstance.getValue() : '';
+  const mentionRoleId = mentionRoleSelectInstance && mentionRoleSelectInstance.getValue ? mentionRoleSelectInstance.getValue() : '';
   const title = document.getElementById('menuTitleInput').value.trim() || 'Choose your roles';
   const description = document.getElementById('menuDescriptionInput').value.trim();
   const rolesPayload = collectRoleRows();
@@ -411,6 +443,7 @@ async function saveMenu(event) {
         title,
         description,
         roles: rolesPayload,
+        mention_role_id: mentionRoleId || '',
         overwrite: true
       })
     });

@@ -221,7 +221,7 @@ const GUILD_ID = '{{ guild_id }}';
 const SETTINGS = JSON.parse('{{ settings_json|escapejs }}');
 const CHANNELS = JSON.parse('{{ channels_json|escapejs }}');
 const ROLES_JSON = JSON.parse('{{ roles_json|escapejs }}');
-const API_URL = '/ql/api/dashboard/fluxer/' + GUILD_ID + '/settings/';
+const API_URL = '/api/dashboard/fluxer/' + GUILD_ID + '/settings/';
 
 const langItems = [
   {value: 'en', label: 'English'},
@@ -400,7 +400,7 @@ async function confirmRemove() {
     const data = await resp.json();
     if (resp.ok && data.success) {
       alert('All guild data removed.');
-      window.location.href = '/ql/dashboard/fluxer/';
+      window.location.href = '/dashboard/fluxer/';
     } else {
       alert('Error: ' + (data.error || 'Unknown error'));
     }
