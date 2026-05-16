@@ -511,7 +511,7 @@
 
     <!-- Platform invite + member count (shown when server selected) -->
     <div id="fluxerInviteField" class="hidden mt-4 pt-4 border-t border-neutral-800">
-      <p class="text-xs text-cyan-400 font-semibold uppercase tracking-wider mb-3"><i class="fas fa-bolt mr-1"></i>Fluxer</p>
+      <p class="text-xs text-cyan-400 font-semibold uppercase tracking-wider mb-3"><img src="{% static 'img/siteassets/fluxer-favicon.png' %}" style="width:1em;height:1em;object-fit:contain;vertical-align:middle;display:inline-block;" alt="Fluxer">Fluxer</p>
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
           <label class="text-sm text-gray-300 mb-1.5 block">Fluxer Invite URL</label>
@@ -1127,26 +1127,6 @@ async function submitForm() {
   const btn = document.getElementById('submitBtn');
   btn.disabled = true;
   btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Submitting...';
-
-  const platforms = [];
-  if (selectedFluxerId) platforms.push({
-    platform: 'fluxer',
-    platform_id: selectedFluxerId,
-    invite_url: document.getElementById('fluxerInviteUrl').value.trim() || null,
-    member_count: parseInt(document.getElementById('fluxerMemberCount').value) || 0,
-  });
-  if (selectedDiscordId) platforms.push({
-    platform: 'discord',
-    platform_id: selectedDiscordId,
-    invite_url: document.getElementById('discordInviteUrl').value.trim() || null,
-    member_count: parseInt(document.getElementById('discordMemberCount').value) || 0,
-  });
-  if (selectedMatrixId) platforms.push({
-    platform: 'matrix',
-    platform_id: selectedMatrixId,
-    invite_url: document.getElementById('matrixInviteUrl').value.trim() || null,
-    member_count: parseInt(document.getElementById('matrixMemberCount').value) || 0,
-  });
 
   const payload = {
     name,
