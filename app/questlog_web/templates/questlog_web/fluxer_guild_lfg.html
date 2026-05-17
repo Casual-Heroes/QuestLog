@@ -700,12 +700,12 @@
 
 <script>
 const GUILD_ID = '{{ guild_id }}';
-const GAMES_API = '/ql/api/dashboard/fluxer/' + GUILD_ID + '/lfg-games/';
-const IGDB_API = '/ql/api/igdb/search/';
-const CONFIG_API = '/ql/api/dashboard/fluxer/' + GUILD_ID + '/lfg-config/';
-const STATS_API = '/ql/api/dashboard/fluxer/' + GUILD_ID + '/lfg-stats/';
-const BLACKLIST_API = '/ql/api/dashboard/fluxer/' + GUILD_ID + '/lfg-blacklist/';
-const SETTINGS_API = '/ql/api/dashboard/fluxer/' + GUILD_ID + '/settings/';
+const GAMES_API = '/api/dashboard/fluxer/' + GUILD_ID + '/lfg-games/';
+const IGDB_API = '/api/igdb/search/';
+const CONFIG_API = '/api/dashboard/fluxer/' + GUILD_ID + '/lfg-config/';
+const STATS_API = '/api/dashboard/fluxer/' + GUILD_ID + '/lfg-stats/';
+const BLACKLIST_API = '/api/dashboard/fluxer/' + GUILD_ID + '/lfg-blacklist/';
+const SETTINGS_API = '/api/dashboard/fluxer/' + GUILD_ID + '/settings/';
 const CHANNELS = JSON.parse('{{ channels_json|escapejs }}');
 const SETTINGS = JSON.parse('{{ settings_json|escapejs }}');
 
@@ -856,7 +856,8 @@ function renderGames() {
   }
 
   const list = document.getElementById('games-list');
-  list.innerHTML = gamesData.map(g => {
+  window._lfgGamesData = gamesData;
+  list.innerHTML = gamesData.map((g, gIdx) => {
     const coverHtml = g.cover_url
       ? `<img src="${escapeHtml(g.cover_url)}" alt="${escapeHtml(g.game_name || g.name)}" class="w-full h-full object-cover">`
       : `<div class="w-full h-full flex items-center justify-center text-gray-500"><i class="fas fa-gamepad text-2xl"></i></div>`;
@@ -916,7 +917,7 @@ function renderGames() {
         <button onclick="editGame(${g.id})" class="bg-neutral-700 hover:bg-neutral-600 text-white px-3 py-2 rounded-lg transition text-sm" title="Edit">
           <i class="fas fa-cog"></i>
         </button>
-        <button onclick="removeGame(${g.id}, '${escapeHtml(g.game_name || g.name).replace(/'/g, "\\'")}')" class="bg-red-600/20 hover:bg-red-600 text-red-400 hover:text-white px-3 py-2 rounded-lg transition text-sm" title="Remove">
+        <button onclick="_lfgRemoveGameByIdx(${gIdx})" class="bg-red-600/20 hover:bg-red-600 text-red-400 hover:text-white px-3 py-2 rounded-lg transition text-sm" title="Remove">
           <i class="fas fa-trash"></i>
         </button>
       </div>
@@ -956,9 +957,10 @@ async function searchGames() {
     const data = await resp.json();
 
     if (data.games && data.games.length > 0) {
-      resultsDiv.innerHTML = data.games.map(game => `
+      window._lfgIgdbResults = data.games;
+      resultsDiv.innerHTML = data.games.map((game, idx) => `
         <div class="bg-neutral-800 rounded-lg p-4 flex items-center gap-4 cursor-pointer hover:bg-neutral-700 transition"
-             onclick="addGameFromIgdb(${game.id}, '${escapeHtml(game.name).replace(/'/g, "\\'")}', '${escapeHtml(game.cover_url || '').replace(/'/g, "\\'")}', '${escapeHtml(game.platforms || '').replace(/'/g, "\\'")}')">
+             onclick="_lfgSelectGameByIdx(${idx})">
           <div class="w-12 h-16 bg-neutral-700 rounded overflow-hidden flex-shrink-0">
             ${game.cover_url
               ? `<img src="${escapeHtml(game.cover_url)}" alt="${escapeHtml(game.name)}" class="w-full h-full object-cover">`
@@ -989,6 +991,12 @@ async function searchGames() {
 // -------------------------
 // Add Game Modal (IGDB)
 // -------------------------
+function _lfgSelectGameByIdx(idx) {
+  const game = (window._lfgIgdbResults || [])[idx];
+  if (!game) return;
+  addGameFromIgdb(game.id, game.name, game.cover_url || '', game.platforms || '');
+}
+
 function addGameFromIgdb(igdbId, name, coverUrl, platforms) {
   closeSearchModal();
 
@@ -1289,6 +1297,12 @@ async function submitEditGame() {
   }
 }
 
+function _lfgRemoveGameByIdx(idx) {
+  const g = (window._lfgGamesData || [])[idx];
+  if (!g) return;
+  removeGame(g.id, g.game_name || g.name);
+}
+
 async function removeGame(gameId, gameName) {
   if (!confirm('Are you sure you want to remove "' + gameName + '" from LFG?')) return;
 
@@ -1359,7 +1373,7 @@ async function saveConfig() {
 // -------------------------
 // Network LFG Broadcasts
 // -------------------------
-const NETWORK_LFG_API = '/ql/api/dashboard/fluxer/' + GUILD_ID + '/network-lfg/';
+const NETWORK_LFG_API = '/api/dashboard/fluxer/' + GUILD_ID + '/network-lfg/';
 
 function onNetworkLfgToggle() {
   const enabled = document.getElementById('networkLfgEnabled').checked;

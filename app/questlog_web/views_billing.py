@@ -1,11 +1,11 @@
 # QuestLog Web - Billing views (Stripe Hero subscription)
 #
 # Endpoints:
-#   GET  /ql/hero/              - Landing/upgrade page (hero_subscribe)
-#   GET  /ql/hero/success/      - Post-checkout confirmation (hero_success)
-#   POST /ql/api/billing/checkout/  - Create Stripe Checkout Session -> {url}
-#   POST /ql/api/billing/webhook/   - Stripe webhook handler (CSRF-exempt)
-#   POST /ql/api/billing/portal/    - Redirect to Stripe Customer Portal
+#   GET  hero/              - Landing/upgrade page (hero_subscribe)
+#   GET  hero/success/      - Post-checkout confirmation (hero_success)
+#   POST api/billing/checkout/  - Create Stripe Checkout Session -> {url}
+#   POST api/billing/webhook/   - Stripe webhook handler (CSRF-exempt)
+#   POST api/billing/portal/    - Redirect to Stripe Customer Portal
 #
 # Perks activated/deactivated here:
 #   - is_hero flag on WebUser
@@ -16,7 +16,7 @@
 #   1. Create "QuestLog Hero" product + $5/mo price in Stripe dashboard
 #   2. Set STRIPE_HERO_PRICE_ID=price_xxx in /etc/casual-heroes/secrets.env
 #   3. Set STRIPE_SECRET_KEY, STRIPE_PUBLISHABLE_KEY, STRIPE_WEBHOOK_SECRET in secrets.env
-#   4. Configure Stripe webhook endpoint: https://casual-heroes.com/ql/api/billing/webhook/
+#   4. Configure Stripe webhook endpoint: https://casual-heroes.comapi/billing/webhook/
 #      Events: checkout.session.completed, invoice.payment_succeeded,
 #              customer.subscription.deleted, customer.subscription.updated
 
@@ -91,7 +91,7 @@ def hero_subscribe(request):
 
 def hero_return(request):
     """Stripe redirects here after checkout. Forward to home with success flag."""
-    return redirect('/ql/?champion=1')
+    return redirect('?champion=1')
 
 
 @add_web_user_context
@@ -134,8 +134,8 @@ def api_hero_checkout(request):
         session_params = {
             'mode': 'subscription',
             'line_items': [{'price': settings.STRIPE_HERO_PRICE_ID, 'quantity': 1}],
-            'success_url': request.build_absolute_uri('/ql/hero/return/') + '?session_id={CHECKOUT_SESSION_ID}',
-            'cancel_url': request.build_absolute_uri('/ql/hero/'),
+            'success_url': request.build_absolute_uri('hero/return/') + '?session_id={CHECKOUT_SESSION_ID}',
+            'cancel_url': request.build_absolute_uri('hero/'),
             'metadata': {'web_user_id': str(user_id)},
             'subscription_data': {'metadata': {'web_user_id': str(user_id)}},
         }
@@ -189,7 +189,7 @@ def hero_portal(request):
     try:
         portal = s.billing_portal.Session.create(
             customer=customer_id,
-            return_url=request.build_absolute_uri('/ql/hero/'),
+            return_url=request.build_absolute_uri('hero/'),
         )
         return redirect(portal.url)
     except stripe.error.StripeError as e:

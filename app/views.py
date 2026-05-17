@@ -1,5 +1,13 @@
 def home(request):
+    if request.get_host().split(':')[0].lower() == 'questlog.casual-heroes.com':
+        from app.questlog_web.helpers import get_web_user
+        web_user = get_web_user(request)
+        return render(request, 'questlog_web/landing.html', {'web_user': web_user, 'active_page': 'home'})
     return render(request, 'index.html')
+
+def ql_legacy_redirect(request, rest):
+    from django.shortcuts import redirect as _redirect
+    return _redirect(f'/{rest}', permanent=False)
 
 from django.shortcuts import render
 import requests
@@ -1183,10 +1191,17 @@ def record_bulk_usage(guild_id, operation_category, items_count):
 
 
 DISCORD_ACTIVITY_FILE = Path("/srv/ch-webserver/gamingactivity/activity_data.json")
+FLUXER_ACTIVITY_FILE = Path("/mnt/gamestoreage2/DiscordBots/questlogfluxer/data/fluxer_activity_data.json")
 
 def get_discord_activity():
     if DISCORD_ACTIVITY_FILE.exists():
         with open(DISCORD_ACTIVITY_FILE, "r") as f:
+            return json.load(f)
+    return {}
+
+def get_fluxer_activity():
+    if FLUXER_ACTIVITY_FILE.exists():
+        with open(FLUXER_ACTIVITY_FILE, "r") as f:
             return json.load(f)
     return {}
 
@@ -1360,7 +1375,7 @@ DISCORD_GAMES = [
 # Lower value = more real-time updates, but more API calls
 # Higher value = fewer API calls, but slower to show status changes
 #
-AMP_CACHE_TTL = 60  # 60 seconds (1 minute) - Good balance for game server status
+AMP_CACHE_TTL = 900  # 15 minutes - reduces blocking AMP calls during cache misses
 #
 # Common values:
 #   60   = 1 minute  (very responsive, good for game servers)
@@ -1422,12 +1437,10 @@ def clear_amp_cache(instance_name=None):
         logger.info(f"Cleared AMP cache for {instance_name}")
         return True
     else:
-        # Clear all AMP instance caches
-        # Note: This requires iterating through known instances
-        from .views import STATIC_GAME_INFO
-        for name in STATIC_GAME_INFO.keys():
-            cache.delete(f"amp_instance:{name}")
-        logger.info("Cleared all AMP instance caches")
+        # Clear the URL discovery cache so next request re-discovers instances
+        _amp_url_cache['map'] = {}
+        _amp_url_cache['timestamp'] = 0
+        logger.info("Cleared AMP URL cache (will re-discover on next request)")
         return True
 
 async def fetch_instance_data(instance_name):
@@ -1435,6 +1448,7 @@ async def fetch_instance_data(instance_name):
     cached_data = get_cached_instance_data(instance_name)
     if cached_data:
         return cached_data
+
     _params = APIParams(
         url=os.getenv("AMP_URL"),
         user=os.getenv("AMP_USER"),
@@ -1444,129 +1458,93 @@ async def fetch_instance_data(instance_name):
 
     controller = AMPControllerInstance()
     try:
-        await controller.get_instances()
+        await asyncio.wait_for(controller.get_instances(), timeout=3)
     except Exception as e:
         logger.error(f"Could not fetch AMP instances: {e}")
         return safe_amp_fallback(instance_name)
 
     for instance in controller.instances:
-        if instance.instance_name == instance_name:
-            try:
-                status = await instance.get_status(format_data=False)
-                ports = await instance.get_port_summaries(format_data=False)
+        if instance.instance_name != instance_name:
+            continue
+        try:
+            status = await instance.get_status(format_data=False)
+            ports = await instance.get_port_summaries(format_data=False)
 
-                # Filter out internal ports and non-game ports (SFTP, etc.)
-                valid_ports = [
-                    p for p in ports
-                    if not p.get("internalonly", False)
-                    and p.get("port") is not None
-                    and "sftp" not in p.get("name", "").lower()  # Exclude SFTP ports
-                ]
+            # Filter out internal/SFTP ports
+            valid_ports = [
+                p for p in ports
+                if not p.get("internalonly", False)
+                and p.get("port") is not None
+                and "sftp" not in p.get("name", "").lower()
+            ]
 
-                # Preferred port names (in order of preference)
-                # Different games use different naming conventions in AMP
-                preferred_order = [
-                    "server and steam port",  # 7 Days to Die
-                    "game port",              # Most games
-                    "game and mods port",     # Some games
-                    "query port",             # Fallback for some games
-                ]
+            preferred_order = [
+                "server and steam port",
+                "game port",
+                "game and mods port",
+                "query port",
+            ]
+            game_port = next(
+                (p for name in preferred_order for p in valid_ports if name.lower() in p.get("name", "").lower()),
+                valid_ports[0] if valid_ports else None
+            )
 
-                game_port = next(
-                    (p for name in preferred_order for p in valid_ports if name.lower() in p.get("name", "").lower()),
-                    None
-                )
+            fallback_ip = "Unknown"
+            if game_port and not game_port.get("ip") and not game_port.get("hostname"):
+                try:
+                    fallback_ip = requests.get("https://ifconfig.me/ip", timeout=2).text.strip()
+                except Exception as e:
+                    logger.warning(f"Failed to fetch public IP: {e}")
 
-                # If no preferred port found, use the first valid port
-                if not game_port and valid_ports:
-                    game_port = valid_ports[0]
+            ip = (game_port.get("ip") or game_port.get("hostname") or fallback_ip) if game_port else "Unknown"
+            port = str(game_port.get("port")) if game_port else "Unknown"
+            is_running = status.get("running", True)
 
-                # SECURITY HARDENING: Use timeout and error handling for external IP lookup
-                # This is intentional for AMP game servers - players need the public IP
-                fallback_ip = "Unknown"
-                if not game_port.get("ip") and not game_port.get("hostname"):
-                    try:
-                        # Use short timeout to avoid blocking if service is slow
-                        fallback_ip = requests.get("https://ifconfig.me/ip", timeout=2).text.strip()
-                    except (requests.RequestException, Exception) as e:
-                        logger.warning(f"Failed to fetch public IP from ifconfig.me: {e}")
-                        fallback_ip = "Unknown"
+            data = {
+                "id": instance_name,
+                "online": status["metrics"]["active_users"]["raw_value"],
+                "max": status["metrics"]["active_users"]["max_value"],
+                "ip": f"{ip}:{port}",
+                "source": "amp",
+                "status_label": "🟢 Online" if is_running else "🔴 Offline",
+                "live_now": is_running,
+            }
+            set_cached_instance_data(instance_name, data)
+            return data
 
-                ip = (
-                    game_port.get("ip")
-                    or game_port.get("hostname")
-                    or fallback_ip
-                )
-                port = str(game_port.get("port")) if game_port else "Unknown"
+        except Exception as e:
+            logger.warning(f"AMP instance {instance_name} error: {e}")
+            fallback = safe_amp_fallback(instance_name)
+            set_cached_instance_data(instance_name, fallback)
+            return fallback
 
-                static_info = STATIC_GAME_INFO.get(instance_name, {})
-
-                # ✅ Check if AMP reports the server as Running
-                is_running = status.get("running", True)
-
-                # Build the data object
-                data = {
-                    "id": instance_name,
-                    "name": static_info.get("display_name", instance_name),
-                    "title": static_info.get("display_name", instance_name),
-                    "description": static_info.get("description", ""),
-                    "discord_invite": static_info.get("discord_invite", "#"),
-                    "guild_page": static_info.get("guild_page", ""),
-                    "steam_link": static_info.get("steam_link", "#"),
-                    "steam_appid": static_info.get("steam_appid"),
-                    "custom_img": static_info.get("custom_img"),
-                    "custom_amp_img": static_info.get("custom_amp_img"),
-                    "online": status["metrics"]["active_users"]["raw_value"],
-                    "max": status["metrics"]["active_users"]["max_value"],
-                    "ip": f"{ip}:{port}",
-                    "pw": static_info.get("connect_pw", "Unknown"),
-                    "source": "amp",
-                    "status_label": "🟢 Online" if is_running else "🔴 Offline"
-                }
-
-                # Cache the successful result
-                set_cached_instance_data(instance_name, data)
-                return data
-
-            except Exception as e:
-                logger.warning(f"AMP instance {instance_name} error: {e}")
-                fallback = safe_amp_fallback(instance_name)
-                # Cache fallback data too to prevent repeated failures
-                set_cached_instance_data(instance_name, fallback)
-                return fallback
-
-    logger.info(f"AMP instance {instance_name} not found — using fallback.")
-    fallback = safe_amp_fallback(instance_name)
-    # Cache fallback data to prevent repeated lookups
-    set_cached_instance_data(instance_name, fallback)
-    return fallback
+    return safe_amp_fallback(instance_name)
 
 
-    # fallback
 def safe_amp_fallback(instance_name):
-    static_info = STATIC_GAME_INFO.get(instance_name, {})
     return {
         "id": instance_name,
-        "name": static_info.get("display_name", instance_name),
-        "title": static_info.get("display_name", instance_name),
-        "description": static_info.get("description", ""),
-        "discord_invite": static_info.get("discord_invite", "#"),
-        "guild_page": static_info.get("guild_page", ""),
-        "steam_link": static_info.get("steam_link", "#"),
-        "steam_appid": static_info.get("steam_appid"),
-        "custom_img": static_info.get("custom_img"),
-        "custom_amp_img": static_info.get("custom_amp_img"),
         "online": "-",
         "max": "-",
         "ip": "Unavailable",
-        "pw": static_info.get("connect_pw", "Unknown"),
         "source": "amp",
-        "status_label": "🔴 Offline" 
+        "status_label": "🔴 Offline",
+        "live_now": False,
     }
 
 
 # Merge and render
 def games_we_play(request):
+    """Games We Play - CH community games (hosted servers + Fluxer activity)."""
+    try:
+        from app.questlog_web.helpers import get_web_user
+        web_user = get_web_user(request)
+    except Exception:
+        web_user = None
+    return _games_we_play_impl(request, web_user)
+
+
+def _games_we_play_impl(request, web_user=None):
     """
     Load ALL games from database (Activity Tracker).
     Supports both AMP servers and Discord-only games.
@@ -1576,6 +1554,7 @@ def games_we_play(request):
 
     all_games = []
     discord_activity = get_discord_activity()
+    fluxer_activity = get_fluxer_activity()
 
     try:
         from .db import get_db_session
@@ -1593,16 +1572,16 @@ def games_we_play(request):
             )
 
             # Collect AMP instance names to fetch in parallel
-            amp_instance_names = []
-            for db_game in db_games:
-                if db_game.game_type in ['amp', 'both'] and db_game.amp_instance_id:
-                    amp_instance_names.append(db_game.amp_instance_id)
+            amp_instances = [
+                g.amp_instance_id
+                for g in db_games
+                if g.game_type in ['amp', 'both'] and g.amp_instance_id
+            ]
 
-            # Fetch AMP data in parallel
             amp_data_map = {}
-            if amp_instance_names:
+            if amp_instances:
                 amp_results = loop.run_until_complete(asyncio.gather(
-                    *(fetch_instance_data(name) for name in amp_instance_names),
+                    *(fetch_instance_data(name) for name in amp_instances),
                     return_exceptions=True
                 ))
                 amp_data_map = {game.get("id"): game for game in amp_results if isinstance(game, dict)}
@@ -1637,14 +1616,12 @@ def games_we_play(request):
                         game_dict["connect_pw"] = amp_data.get("connect_pw", "Unknown")
                         game_dict["status_label"] = amp_data.get("status_label", "Unknown")
 
-                # For Discord games: inject Discord activity data
+                # Always show Fluxer counter for non-AMP games (defaults to 0 until activity tracking fires)
                 if db_game.game_type in ['discord', 'both']:
-                    stats = discord_activity.get(db_game.game_key)
-                    if stats:
-                        game_dict["source"] = "discord"
-                        game_dict["online"] = stats.get("active", "-")
-                        game_dict["max"] = stats.get("total", "-")
-                        game_dict["live_now"] = stats.get("active", 0) > 0
+                    fluxer_stats = fluxer_activity.get(db_game.game_key)
+                    game_dict["source"] = "fluxer"
+                    game_dict["fluxer_online"] = fluxer_stats.get("active", 0) if fluxer_stats else 0
+                    game_dict["fluxer_total"] = fluxer_stats.get("total", "-") if fluxer_stats else "-"
 
                 all_games.append(game_dict)
 
@@ -1654,7 +1631,63 @@ def games_we_play(request):
         # Empty list if database fails
         all_games = []
 
-    return render(request, 'gamesweplay.html', { 'games': all_games })
+    return render(request, 'gamesweplay.html', {'games': all_games, 'web_user': web_user, 'active_page': 'gamesweplay'})
+
+
+def api_activity_counts(request):
+    """
+    Lightweight JSON endpoint for AJAX polling on gamesweplay/gameservers.
+    Reads only from files and cache - never triggers blocking AMP API calls.
+    """
+    from .db import get_db_session
+    from .models import SiteActivityGame
+    from .discord_cache import get_cache
+
+    discord_activity = get_discord_activity()
+    fluxer_activity = get_fluxer_activity()
+    cache = get_cache()
+    result = {}
+
+    try:
+        with get_db_session() as db:
+            db_games = db.query(SiteActivityGame).filter(
+                SiteActivityGame.is_active == True
+            ).all()
+
+            for game in db_games:
+                key = game.game_key
+                entry = {'online': '-', 'max': '-', 'source': None, 'live_now': False, 'status_label': None}
+
+                if game.game_type in ['amp', 'both'] and game.amp_instance_id:
+                    cached = cache.get(f"amp_instance:{game.amp_instance_id}")
+                    if cached:
+                        entry = {
+                            'online': cached.get('online', '-'),
+                            'max': cached.get('max', '-'),
+                            'source': 'amp',
+                            'live_now': cached.get('live_now', False),
+                            'status_label': cached.get('status_label', ''),
+                        }
+
+                if game.game_type in ['discord', 'both']:
+                    fluxer_stats = fluxer_activity.get(key)
+                    discord_stats = discord_activity.get(key)
+                    if fluxer_stats:
+                        entry['source'] = 'fluxer'
+                        entry['fluxer_online'] = fluxer_stats.get('active', '-')
+                        entry['fluxer_total'] = fluxer_stats.get('total', '-')
+                    if discord_stats:
+                        if not fluxer_stats:
+                            entry['source'] = 'discord'
+                        entry['discord_online'] = discord_stats.get('active', '-')
+                        entry['discord_total'] = discord_stats.get('total', '-')
+                        entry['live_now'] = bool(discord_stats.get('active', 0))
+
+                result[key] = entry
+    except Exception as e:
+        logger.error(f"api_activity_counts error: {e}")
+
+    return JsonResponse(result)
 
 
 def game_servers(request):
@@ -1682,11 +1715,15 @@ def game_servers(request):
                 .all()
             )
 
-            amp_instance_names = [g.amp_instance_id for g in db_games if g.amp_instance_id]
+            amp_instances = [
+                g.amp_instance_id
+                for g in db_games
+                if g.amp_instance_id
+            ]
             amp_data_map = {}
-            if amp_instance_names:
+            if amp_instances:
                 amp_results = loop.run_until_complete(asyncio.gather(
-                    *(fetch_instance_data(name) for name in amp_instance_names),
+                    *(fetch_instance_data(name) for name in amp_instances),
                     return_exceptions=True
                 ))
                 amp_data_map = {g.get('id'): g for g in amp_results if isinstance(g, dict)}
@@ -2121,9 +2158,6 @@ def api_site_activity_roles(request, guild_id, role_mapping_id=None):
             return JsonResponse({'success': True})
 
 
-# Leave this here
-def home(request):
-    return render(request, 'index.html')
 
 
 def dune_page(request):
@@ -2186,21 +2220,16 @@ def wow_page(request):
         "active": "-"
     }
 
-    if DISCORD_ACTIVITY_FILE.exists():
+    # Try Fluxer first, fall back to Discord
+    raw = get_fluxer_activity().get("WoW") or (get_discord_activity().get("WoW") if DISCORD_ACTIVITY_FILE.exists() else None)
+    if raw:
         try:
-            with DISCORD_ACTIVITY_FILE.open("r") as f:
-                all_activity = json.load(f)
-                raw = all_activity.get("WoW", {})
-                logger.debug("[WoW PAGE] Raw WoW Activity: %s", raw)
-
-                # Safely cast integers
-                wow_data["total"] = int(raw["total"]) if str(raw.get("total", "")).isdigit() else "-"
-                wow_data["online"] = int(raw["online"]) if str(raw.get("online", "")).isdigit() else "-"
-                wow_data["active"] = int(raw["active"]) if str(raw.get("active", "")).isdigit() else "-"
-        except Exception as e:
+            wow_data["total"] = int(raw["total"]) if str(raw.get("total", "")).isdigit() else "-"
+            wow_data["online"] = int(raw["online"]) if str(raw.get("online", "")).isdigit() else "-"
+            wow_data["active"] = int(raw["active"]) if str(raw.get("active", "")).isdigit() else "-"
+        except Exception:
             logger.error("[WoW PAGE] Failed to load activity data", exc_info=True)
 
-    logger.debug("[WoW PAGE] Final wow_data: %s", wow_data)
     return render(request, "wow.html", {
         "wow_activity": wow_data
     })
@@ -2208,32 +2237,220 @@ def wow_page(request):
 
 
 def eso_page(request):
-    eso_data = {
-        "total": "-",
-        "online": "-",
-        "active": "-"
-    }
+    from app.questlog_web.helpers import get_web_user
+    web_user = get_web_user(request)
+    eso_data = {"total": "-", "online": "-", "active": "-"}
+    try:
+        all_activity = get_fluxer_activity()
+        raw = all_activity.get("ESO", {})
+        eso_data["total"]  = int(raw["total"])  if str(raw.get("total",  "")).isdigit() else "-"
+        eso_data["online"] = int(raw["online"]) if str(raw.get("online", "")).isdigit() else "-"
+        eso_data["active"] = int(raw["active"]) if str(raw.get("active", "")).isdigit() else "-"
+    except Exception:
+        pass
+    return render(request, "eso.html", {"eso_activity": eso_data, "web_user": web_user, "active_page": "eso"})
 
-    if DISCORD_ACTIVITY_FILE.exists():
+
+def ffxiv_page(request):
+    from app.questlog_web.helpers import get_web_user
+    web_user = get_web_user(request)
+    ffxiv_data = {"total": "-", "online": "-", "active": "-"}
+    try:
+        all_activity = get_fluxer_activity()
+        raw = all_activity.get("FFXIV", {})
+        ffxiv_data["total"]  = int(raw["total"])  if str(raw.get("total",  "")).isdigit() else "-"
+        ffxiv_data["online"] = int(raw["online"]) if str(raw.get("online", "")).isdigit() else "-"
+        ffxiv_data["active"] = int(raw["active"]) if str(raw.get("active", "")).isdigit() else "-"
+    except Exception:
+        pass
+    return render(request, "ffxiv.html", {"ffxiv_activity": ffxiv_data, "web_user": web_user, "active_page": "ffxiv"})
+
+
+_FFXIV_STATUS_CACHE_KEY = 'ffxiv_world_status'
+_FFXIV_NEWS_CACHE_KEY   = 'ffxiv_news'
+_ESO_STATUS_CACHE_KEY   = 'eso_server_status'
+_FFXIV_STATUS_TTL       = 300    # 5 min
+_FFXIV_NEWS_TTL         = 3600   # 1 hour
+_ESO_STATUS_TTL         = 300    # 5 min
+
+_LODESTONE_HEADERS = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+    'Accept-Language': 'en-US,en;q=0.9',
+}
+
+
+_DC_REGIONS = {
+    'Aether': 'North America', 'Crystal': 'North America',
+    'Dynamis': 'North America', 'Primal': 'North America',
+    'Chaos': 'Europe', 'Light': 'Europe',
+    'Materia': 'Oceania',
+    'Elemental': 'Japan', 'Gaia': 'Japan', 'Mana': 'Japan', 'Meteor': 'Japan',
+}
+
+# Canonical DC -> world mapping. Lodestone now serves all worlds in one block per region,
+# so we use this to assign each world to its correct DC regardless of what Lodestone groups them under.
+_WORLD_TO_DC = {
+    # NA - Aether
+    'Adamantoise': 'Aether', 'Cactuar': 'Aether', 'Faerie': 'Aether', 'Gilgamesh': 'Aether',
+    'Jenova': 'Aether', 'Midgardsormr': 'Aether', 'Sargatanas': 'Aether', 'Siren': 'Aether',
+    # NA - Crystal
+    'Balmung': 'Crystal', 'Brynhildr': 'Crystal', 'Coeurl': 'Crystal', 'Diabolos': 'Crystal',
+    'Goblin': 'Crystal', 'Malboro': 'Crystal', 'Mateus': 'Crystal', 'Zalera': 'Crystal',
+    # NA - Dynamis
+    'Cuchulainn': 'Dynamis', 'Golem': 'Dynamis', 'Halicarnassus': 'Dynamis', 'Kraken': 'Dynamis',
+    'Maduin': 'Dynamis', 'Marilith': 'Dynamis', 'Phantom': 'Dynamis', 'Rafflesia': 'Dynamis', 'Seraph': 'Dynamis',
+    # NA - Primal
+    'Behemoth': 'Primal', 'Excalibur': 'Primal', 'Exodus': 'Primal', 'Famfrit': 'Primal',
+    'Hyperion': 'Primal', 'Lamia': 'Primal', 'Leviathan': 'Primal', 'Ultros': 'Primal',
+    # EU - Chaos
+    'Cerberus': 'Chaos', 'Louisoix': 'Chaos', 'Moogle': 'Chaos', 'Omega': 'Chaos',
+    'Ragnarok': 'Chaos', 'Sagittarius': 'Chaos', 'Spriggan': 'Chaos',
+    # EU - Light
+    'Alpha': 'Light', 'Lich': 'Light', 'Odin': 'Light', 'Phoenix': 'Light',
+    'Raiden': 'Light', 'Shiva': 'Light', 'Twintania': 'Light', 'Zodiark': 'Light',
+    # OC - Materia
+    'Bismarck': 'Materia', 'Ravana': 'Materia', 'Sephirot': 'Materia', 'Sophia': 'Materia', 'Zurvan': 'Materia',
+    # JP - Elemental
+    'Aegis': 'Elemental', 'Atomos': 'Elemental', 'Carbuncle': 'Elemental', 'Garuda': 'Elemental',
+    'Gungnir': 'Elemental', 'Kujata': 'Elemental', 'Tonberry': 'Elemental', 'Typhon': 'Elemental',
+    # JP - Gaia
+    'Alexander': 'Gaia', 'Bahamut': 'Gaia', 'Durandal': 'Gaia', 'Fenrir': 'Gaia',
+    'Ifrit': 'Gaia', 'Ridill': 'Gaia', 'Tiamat': 'Gaia', 'Ultima': 'Gaia',
+    # JP - Mana
+    'Anima': 'Mana', 'Asura': 'Mana', 'Chocobo': 'Mana', 'Hades': 'Mana',
+    'Ixion': 'Mana', 'Masamune': 'Mana', 'Pandaemonium': 'Mana', 'Titan': 'Mana',
+    # JP - Meteor
+    'Belias': 'Meteor', 'Mandragora': 'Meteor', 'Ramuh': 'Meteor', 'Shinryu': 'Meteor',
+    'Unicorn': 'Meteor', 'Valefor': 'Meteor', 'Yojimbo': 'Meteor', 'Zeromus': 'Meteor',
+}
+
+def api_ffxiv_world_status(request):
+    """GET /api/ffxiv/world-status/ - cached Lodestone world status."""
+    from .discord_cache import get_cache
+    from bs4 import BeautifulSoup
+
+    cache = get_cache()
+    cached = cache.get(_FFXIV_STATUS_CACHE_KEY)
+    if cached is not None:
+        return JsonResponse(cached)
+
+    try:
+        resp = requests.get(
+            'https://na.finalfantasyxiv.com/lodestone/worldstatus/',
+            headers=_LODESTONE_HEADERS, timeout=8
+        )
+        resp.raise_for_status()
+        soup = BeautifulSoup(resp.text, 'html.parser')
+
+        # Lodestone serves all worlds in one block per region - use _WORLD_TO_DC to split correctly
+        dc_worlds_map = {}  # dc_name -> [world_dict]
+        for item in soup.select('.world-list__item'):
+            w_name = item.select_one('.world-list__world_name p')
+            w_cat  = item.select_one('.world-list__world_category p')
+            icon   = item.select_one('.world-list__status_icon i')
+            if not w_name:
+                continue
+            world_name = w_name.get_text(strip=True)
+            category   = w_cat.get_text(strip=True) if w_cat else 'Standard'
+            online_tip = (icon.get('data-tooltip', '') if icon else '').strip()
+            is_online  = 'online' in online_tip.lower()
+            status = 'congested' if 'Congested' in category else \
+                     'preferred' if 'Preferred' in category else 'standard'
+            dc_name = _WORLD_TO_DC.get(world_name, 'Other')
+            dc_worlds_map.setdefault(dc_name, []).append({
+                'name':   world_name,
+                'status': status,
+                'label':  category or 'Standard',
+                'online': is_online,
+            })
+
+        regions_map = {}
+        for dc_name, worlds in dc_worlds_map.items():
+            region = _DC_REGIONS.get(dc_name, 'Other')
+            regions_map.setdefault(region, []).append({'name': dc_name, 'worlds': worlds})
+
+        region_order = ['North America', 'Europe', 'Oceania', 'Japan', 'Other']
+        regions = [{'name': r, 'dcs': regions_map[r]} for r in region_order if r in regions_map]
+
+        result = {'ok': True, 'regions': regions}
+        cache.set(_FFXIV_STATUS_CACHE_KEY, result, ttl=_FFXIV_STATUS_TTL)
+        return JsonResponse(result)
+
+    except Exception as e:
+        logger.error(f'FFXIV world status fetch failed: {e}')
+        return JsonResponse({'ok': False, 'regions': []})
+
+
+def api_ffxiv_news(request):
+    """GET /api/ffxiv/news/ - cached Lodestone news + maintenance detection."""
+    from .discord_cache import get_cache
+    import feedparser, re
+
+    cache = get_cache()
+    cached = cache.get(_FFXIV_NEWS_CACHE_KEY)
+    if cached is not None:
+        return JsonResponse(cached)
+
+    news_items = []
+    maintenance = None
+
+    feeds = [
+        'https://na.finalfantasyxiv.com/lodestone/news/news.xml',
+        'https://na.finalfantasyxiv.com/lodestone/topics/feed/',
+    ]
+    for feed_url in feeds:
         try:
-            with DISCORD_ACTIVITY_FILE.open("r") as f:
-                all_activity = json.load(f)
-                raw = all_activity.get("ESO", {})
-                logger.debug("[ESO PAGE] Raw ESO Activity: %s", raw)
-
-                # Safely cast integers
-                eso_data["total"] = int(raw["total"]) if str(raw.get("total", "")).isdigit() else "-"
-                eso_data["online"] = int(raw["online"]) if str(raw.get("online", "")).isdigit() else "-"
-                eso_data["active"] = int(raw["active"]) if str(raw.get("active", "")).isdigit() else "-"
+            feed = feedparser.parse(feed_url)
+            for entry in feed.entries[:6]:
+                title = entry.get('title', '')
+                link  = entry.get('link', '')
+                date  = entry.get('published', entry.get('updated', ''))
+                is_maintenance = bool(re.search(r'maintenance|update|patch|hotfix', title, re.I))
+                if is_maintenance and not maintenance:
+                    maintenance = {'title': title, 'url': link, 'date': date}
+                news_items.append({'title': title, 'url': link, 'date': date, 'is_maintenance': is_maintenance})
+            if news_items:
+                break
         except Exception as e:
-            logger.error("[ESO PAGE] Failed to load activity data", exc_info=True)
+            logger.warning(f'FFXIV news feed {feed_url} failed: {e}')
 
-    logger.debug("[ESO PAGE] Final eso_data: %s", eso_data)
-    return render(request, "eso.html", {
-        "eso_activity": eso_data
-    })
+    result = {'ok': True, 'news': news_items[:5], 'maintenance': maintenance}
+    cache.set(_FFXIV_NEWS_CACHE_KEY, result, ttl=_FFXIV_NEWS_TTL)
+    return JsonResponse(result)
 
 
+def api_eso_server_status(request):
+    """GET /api/eso/server-status/ - ESO server status from official ZOS realms API."""
+    from .discord_cache import get_cache
+
+    cache = get_cache()
+    cached = cache.get(_ESO_STATUS_CACHE_KEY)
+    if cached is not None:
+        return JsonResponse(cached)
+
+    servers = {'PC NA': 'unknown', 'PC EU': 'unknown'}
+    try:
+        resp = requests.get(
+            'https://live-services.elderscrollsonline.com/status/realms',
+            headers=_LODESTONE_HEADERS, timeout=8
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        realms = data.get('zos_platform_response', {}).get('response', {})
+        # Keys: "The Elder Scrolls Online (NA)", "The Elder Scrolls Online (EU)", PS4/XBox/PTS variants
+        na_key = 'The Elder Scrolls Online (NA)'
+        eu_key = 'The Elder Scrolls Online (EU)'
+        if na_key in realms:
+            servers['PC NA'] = 'up' if realms[na_key] == 'UP' else 'down'
+        if eu_key in realms:
+            servers['PC EU'] = 'up' if realms[eu_key] == 'UP' else 'down'
+        result = {'ok': True, 'servers': servers}
+    except Exception as e:
+        logger.warning(f'ESO server status fetch failed: {e}')
+        result = {'ok': False, 'servers': servers}
+
+    cache.set(_ESO_STATUS_CACHE_KEY, result, ttl=_ESO_STATUS_TTL)
+    return JsonResponse(result)
 
 
 def get_discord_activity_counts():
@@ -2330,6 +2547,7 @@ articles = [
 ]
 
 def features(request):
+    from app.questlog_web.helpers import get_web_user
     articles = [
         {
             "slug": "survival-games-2025",
@@ -2338,7 +2556,8 @@ def features(request):
             "image_url": "img/games/survivalgames/survival2025.png"
         },
     ]
-    return render(request, "features/features.html", {"articles": articles})
+    web_user = get_web_user(request)
+    return render(request, "features/features.html", {"articles": articles, "web_user": web_user, "active_page": "features"})
 
 
 def features_detail(request, slug):
@@ -2363,9 +2582,7 @@ def login_view(request):
 from django.contrib.auth.decorators import login_required
 
 def dashboard(request):
-    if not request.session.get('discord_user'):
-        return redirect(f"/questlog/login/?next={request.path}")
-    return render(request, "dashboard.html")
+    return redirect("/ql/dashboard/discord/")
 
 def hosting(request):
     return render(request, 'hosting.html')
@@ -2382,57 +2599,116 @@ def dragonwilds(request):
     return render(request, 'dragonwilds.html')
 
 def gameshype(request):
-    return render(request, 'gameshype.html')
+    """Redirect legacy /gameshype/ to QuestLog games directory."""
+    from django.shortcuts import redirect as _redir
+    return _redir('/ql/games/', permanent=True)
 
 def gamesuggest(request):
-    return render(request, 'gamesuggest.html')
+    from app.questlog_web.helpers import get_web_user
+    web_user = get_web_user(request)
+    if not web_user:
+        from django.urls import reverse
+        from urllib.parse import quote
+        login_url = reverse('questlog_web_login')
+        return redirect(f'{login_url}?next={quote(request.get_full_path())}')
+    return render(request, 'questlog_web/gamesuggest.html', {'web_user': web_user, 'active_page': 'gamesuggest'})
 
 
 @require_http_methods(["POST"])
 @ratelimit(key='ip', rate='5/h', method='POST', block=True)
 def api_gamesuggest(request):
     """
-    POST /api/gamesuggest/ - Proxy game suggestions to Discord webhook.
-    Keeps the webhook token server-side and adds CSRF + rate-limit protection.
+    POST /api/gamesuggest/ - Post game suggestions to Fluxer channel.
+    Requires QuestLog login. Username pulled from session, not user input.
     """
     import html as _html
+    from app.questlog_web.helpers import get_web_user
+    from app.db import get_db_session
+    from sqlalchemy import text as sa_text
+    import time as _time
 
-    if not GAME_SUGGESTION_WEBHOOK:
-        logger.error("GAME_SUGGESTION_WEBHOOK env var not set - game suggestions disabled")
-        return JsonResponse({'error': 'Suggestions are temporarily unavailable.'}, status=503)
+    web_user = get_web_user(request)
+    if not web_user:
+        return JsonResponse({'error': 'Login required'}, status=401)
 
     try:
         data = json.loads(request.body)
     except (ValueError, TypeError):
         return JsonResponse({'error': 'Invalid JSON'}, status=400)
 
-    game_title = str(data.get('gameTitle', '')).strip()[:200]
+    game_tag_name = str(data.get('game_tag_name', '')).strip()[:200]
+    game_tag_steam_id = data.get('game_tag_steam_id')
     why_support = str(data.get('whySupport', '')).strip()[:1000]
-    discord_user = str(data.get('discordUser', 'Anonymous')).strip()[:100] or 'Anonymous'
+    game_description = str(data.get('game_description', '')).strip()[:500]
+    game_genres = data.get('game_genres', [])
+    game_recommendations = data.get('game_recommendations')
+    game_metacritic = data.get('game_metacritic')
 
-    if not game_title:
-        return JsonResponse({'error': 'Game title is required'}, status=400)
+    if not game_tag_name:
+        return JsonResponse({'error': 'Game is required'}, status=400)
     if not why_support:
         return JsonResponse({'error': 'Please tell us why we should support it'}, status=400)
 
-    payload = {
-        'embeds': [{
-            'title': f'New Game Suggestion: {_html.escape(game_title)}',
-            'description': _html.escape(why_support),
-            'color': 32896,
-            'footer': {'text': f'Suggested by {_html.escape(discord_user)}'},
-            'timestamp': __import__('datetime').datetime.utcnow().isoformat() + 'Z',
-        }]
+    if game_tag_steam_id:
+        try:
+            game_tag_steam_id = int(game_tag_steam_id)
+        except (ValueError, TypeError):
+            game_tag_steam_id = None
+
+    FLUXER_CHANNEL_ID = 1499983754188304844
+
+    steam_url = f'https://store.steampowered.com/app/{game_tag_steam_id}/' if game_tag_steam_id else None
+    banner_url = f'https://cdn.cloudflare.steamstatic.com/steam/apps/{game_tag_steam_id}/header.jpg' if game_tag_steam_id else None
+
+    # Build description: game desc + why support
+    desc_parts = []
+    if game_description:
+        desc_parts.append(_html.escape(game_description))
+    desc_parts.append(f'\n**Why CH should support it:**\n{_html.escape(why_support)}')
+    full_description = '\n'.join(desc_parts)
+
+    # Build fields
+    fields = []
+    if game_genres and isinstance(game_genres, list):
+        fields.append({'name': 'Genres', 'value': ', '.join(_html.escape(g) for g in game_genres[:5]), 'inline': True})
+    if game_recommendations:
+        try:
+            fields.append({'name': 'Steam Reviews', 'value': f'{int(game_recommendations):,}', 'inline': True})
+        except (ValueError, TypeError):
+            pass
+    if game_metacritic:
+        try:
+            fields.append({'name': 'Metacritic', 'value': str(int(game_metacritic)), 'inline': True})
+        except (ValueError, TypeError):
+            pass
+
+    embed = {
+        'title': f'Game Suggestion: {_html.escape(game_tag_name)}',
+        'description': full_description,
+        'color': 0x5865F2,
+        'footer': f'Suggested by {_html.escape(web_user.username)}',
+        'fields': fields,
     }
+    if steam_url:
+        embed['url'] = steam_url
+    if banner_url:
+        embed['thumbnail'] = banner_url
 
     try:
-        resp = requests.post(GAME_SUGGESTION_WEBHOOK, json=payload, timeout=10)
-        if resp.status_code in (200, 204):
-            return JsonResponse({'success': True})
-        logger.warning(f"Discord webhook returned {resp.status_code} for game suggestion")
-        return JsonResponse({'error': 'Could not deliver suggestion.'}, status=502)
-    except requests.RequestException as exc:
-        logger.error(f"Game suggestion webhook error: {exc}")
+        with get_db_session() as db:
+            db.execute(sa_text("""
+                INSERT INTO fluxer_pending_broadcasts (guild_id, channel_id, payload, created_at)
+                VALUES (:guild_id, :channel_id, :payload, :now)
+            """), {
+                'guild_id': 0,
+                'channel_id': FLUXER_CHANNEL_ID,
+                'payload': json.dumps(embed),
+                'now': int(_time.time()),
+            })
+            db.commit()
+        return JsonResponse({'success': True})
+    except Exception as exc:
+        logger.error(f"Game suggestion Fluxer queue error: {exc}")
         return JsonResponse({'error': 'Could not deliver suggestion.'}, status=502)
 
 
@@ -2451,26 +2727,75 @@ def vrising(request):
     })
 
 def palworld(request):
-    palworld_instance = asyncio.run(fetch_instance_data("CH-Palworld01"))
-
+    palworld_instance = get_cached_instance_data("CH-Palworld01") or safe_amp_fallback("CH-Palworld01")
     return render(request, 'palworld.html', {
         "palworld_instance": palworld_instance
     })
 
 def icarus(request):
-    icarus_instance = asyncio.run(fetch_instance_data("CH-Icarus01"))
-
+    icarus_instance = get_cached_instance_data("CH-Icarus01") or safe_amp_fallback("CH-Icarus01")
     return render(request, 'icarus.html', {
         "icarus_instance": icarus_instance
     })
 def guides(request):
     return render(request, 'guides.html')
 
+_yt_cache = {'videos': [], 'fetched_at': 0}
+_YT_CACHE_TTL = 6 * 3600  # refresh at most once every 6 hours
+
 def content(request):
-    return render(request, 'content.html')
+    import time as _time
+    import requests as _req
+    import xml.etree.ElementTree as _ET
+    from django.conf import settings as _s
+    global _yt_cache
+
+    now = _time.time()
+    if now - _yt_cache['fetched_at'] > _YT_CACHE_TTL:
+        videos = []
+        try:
+            channel_id = _s.YOUTUBE_CHANNEL_ID
+            # Use YouTube's free public RSS feed - no API key, no quota
+            rss_url = f'https://www.youtube.com/feeds/videos.xml?channel_id={channel_id}'
+            r = _req.get(rss_url, timeout=8, headers={'User-Agent': 'Mozilla/5.0'})
+            if r.status_code == 200:
+                ns = {
+                    'atom': 'http://www.w3.org/2005/Atom',
+                    'yt': 'http://www.youtube.com/xml/schemas/2015',
+                    'media': 'http://search.yahoo.com/mrss/',
+                }
+                root = _ET.fromstring(r.text)
+                for entry in root.findall('atom:entry', ns)[:6]:
+                    vid_id = entry.findtext('yt:videoId', namespaces=ns) or ''
+                    title = entry.findtext('atom:title', namespaces=ns) or ''
+                    published = (entry.findtext('atom:published', namespaces=ns) or '')[:10]
+                    desc = ''
+                    group = entry.find('media:group', ns)
+                    if group is not None:
+                        desc = (group.findtext('media:description', namespaces=ns) or '')[:120]
+                    thumb = f'https://i.ytimg.com/vi/{vid_id}/mqdefault.jpg' if vid_id else ''
+                    if vid_id:
+                        videos.append({
+                            'id': vid_id,
+                            'title': title,
+                            'thumbnail': thumb,
+                            'published': published,
+                            'description': desc,
+                        })
+            if videos:
+                _yt_cache = {'videos': videos, 'fetched_at': now}
+        except Exception:
+            pass
+        videos = videos or _yt_cache['videos']
+    else:
+        videos = _yt_cache['videos']
+
+    from app.questlog_web.helpers import get_web_user as _get_web_user
+    return render(request, 'content.html', {'videos': videos, 'web_user': _get_web_user(request)})
 
 def aboutus(request):
-    return render(request, 'aboutus.html')
+    from app.questlog_web.helpers import get_web_user as _get_web_user
+    return render(request, 'aboutus.html', {'web_user': _get_web_user(request)})
 
 
 def bot_discord(request):
@@ -2491,7 +2816,8 @@ def bot_discord(request):
     ]
     client_id = os.getenv('DISCORD_CLIENT_ID', '')
     invite_url = f"https://discord.com/oauth2/authorize?client_id={client_id}&scope=bot+applications.commands&permissions=8" if client_id else '#'
-    return render(request, 'bot_discord.html', {'features': features, 'invite_url': invite_url})
+    from app.questlog_web.helpers import get_web_user as _get_web_user
+    return render(request, 'bot_discord.html', {'features': features, 'invite_url': invite_url, 'web_user': _get_web_user(request)})
 
 
 def bot_fluxer(request):
@@ -2510,10 +2836,12 @@ def bot_fluxer(request):
         {'icon': '🔓', 'title': 'Open Source', 'desc': 'Fully open source under AGPL-3.0. Self-host your own instance or contribute on GitHub.'},
     ]
     invite_url = 'https://web.fluxer.app/oauth2/authorize?client_id=1478501650237887115&scope=bot&permissions=6756638430588119'
-    return render(request, 'bot_fluxer.html', {'features': features, 'invite_url': invite_url})
+    from app.questlog_web.helpers import get_web_user as _get_web_user
+    return render(request, 'bot_fluxer.html', {'features': features, 'invite_url': invite_url, 'web_user': _get_web_user(request)})
 
 def questchat(request):
-    return render(request, 'questchat.html')
+    from app.questlog_web.helpers import get_web_user as _get_web_user
+    return render(request, 'questchat.html', {'web_user': _get_web_user(request)})
 
 def self_host(request):
     import markdown
@@ -3135,11 +3463,14 @@ def questlog_dashboard(request):
     # Get member guilds (already filtered to only show guilds with bot)
     member_guilds = get_member_guilds(request)
 
+    bot_installed_count = sum(1 for g in admin_guilds if g.get('has_bot')) + len(member_guilds)
+
     context = {
         'discord_user': discord_user,
         'admin_guilds': admin_guilds,
         'member_guilds': member_guilds,
         'total_guilds': len(admin_guilds) + len(member_guilds),
+        'bot_installed_count': bot_installed_count,
         'bot_client_id': os.getenv('DISCORD_CLIENT_ID', ''),
     }
     return render(request, 'questlog/dashboard.html', context)
@@ -3944,6 +4275,7 @@ def flair_management(request, guild_id):
     subscription_tier = 'free'
 
     token_name = "Hero Tokens"
+    flair_sync_enabled = False
     try:
         with get_db_session() as db:
             guild_record = db.query(GuildModel).filter_by(guild_id=int(guild_id)).first()
@@ -3953,6 +4285,7 @@ def flair_management(request, guild_id):
                 billing_cycle = guild_record.billing_cycle
                 is_premium = subscription_tier == 'complete' or is_vip
                 token_name = guild_record.token_name or "Hero Tokens"
+                flair_sync_enabled = bool(getattr(guild_record, 'flair_sync_enabled', False))
 
     except Exception as e:
         logger.warning(f"Could not fetch guild premium status: {e}")
@@ -3975,6 +4308,7 @@ def flair_management(request, guild_id):
         'has_any_module': has_any_module,
         'active_page': 'flair_management',
         'token_name': token_name,
+        'flair_sync_enabled': flair_sync_enabled,
     }
     return render(request, 'questlog/flair_management.html', context)
 
@@ -4038,6 +4372,175 @@ def guild_trackers(request, guild_id):
         'active_page': 'trackers',
     }
     return render(request, 'questlog/trackers.html', context)
+
+
+_QC_GAME_ICONS = {
+    'V Rising':          ('fa-droplet',   'red'),
+    'Seven Days To Die': ('fa-biohazard', 'orange'),
+    'Enshrouded':        ('fa-cloud',     'purple'),
+    'Valheim':           ('fa-hammer',    'blue'),
+    'Icarus':            ('fa-mountain',  'green'),
+    'Palworld':          ('fa-paw',       'yellow'),
+}
+_QC_DEFAULT_ICON = ('fa-server', 'cyan')
+
+
+# Quest Control Page (Discord)
+
+@discord_required
+def guild_quest_control(request, guild_id):
+    """Quest Control - game server management scoped to a Discord guild."""
+    discord_user = request.session.get('discord_user', {})
+    admin_guilds = request.session.get('discord_admin_guilds', [])
+
+    guild = next((g for g in admin_guilds if g['id'] == guild_id), None)
+    if not guild:
+        messages.error(request, "You don't have admin access to this server.")
+        return redirect('questlog_dashboard')
+
+    import json as _json
+    from app.db import get_engine
+    from sqlalchemy import text as _sa_text
+
+    engine = get_engine()
+
+    # Load Discord channels and roles from cached guild data
+    guild_channels = []
+    guild_roles = []
+    try:
+        from .db import get_db_session
+        from .models import Guild as GuildModel
+        with get_db_session() as db:
+            guild_record = db.query(GuildModel).filter_by(guild_id=int(guild_id)).first()
+            if guild_record:
+                if guild_record.cached_channels:
+                    raw_channels = _json.loads(guild_record.cached_channels)
+                    guild_channels = [
+                        {'value': str(c['id']), 'label': c['name']}
+                        for c in raw_channels
+                        if c.get('type') == 0 or c.get('type') == 'text'
+                    ]
+                if guild_record.cached_roles:
+                    raw_roles = _json.loads(guild_record.cached_roles)
+                    guild_roles = [
+                        {'value': str(r['id']), 'label': r['name']}
+                        for r in sorted(raw_roles, key=lambda x: -x.get('position', 0))
+                    ]
+    except Exception as e:
+        logger.warning(f"guild_quest_control: could not load cached resources: {e}")
+
+    # Load all configured gamebot instances
+    all_instances = []
+    unconfigured = []
+    try:
+        with engine.connect() as conn:
+            rows = conn.execute(_sa_text(
+                "SELECT * FROM gamebot_configs "
+                "ORDER BY configured DESC, COALESCE(NULLIF(server_display_name,''), instance_name) ASC"
+            )).fetchall()
+            for row in rows:
+                cfg = dict(row._mapping)
+                if cfg.get('configured') and cfg.get('guild_id'):
+                    all_instances.append(cfg)
+                elif not cfg.get('configured') and not cfg.get('guild_id'):
+                    unconfigured.append(cfg)
+    except Exception as e:
+        logger.warning(f"guild_quest_control: gamebot_configs query failed: {e}")
+
+    bots = []
+    for cfg in all_instances:
+        game_type = cfg.get('game_type', 'Unknown')
+        icon, color = _QC_GAME_ICONS.get(game_type, _QC_DEFAULT_ICON)
+        slug = cfg['instance_name'].lower().replace(' ', '-').replace('_', '-')
+        bots.append({
+            'slug':          slug,
+            'name':          cfg.get('server_display_name') or cfg['instance_name'],
+            'game':          game_type,
+            'icon':          icon,
+            'color':         color,
+            'instance_name': cfg['instance_name'],
+            'configured':    bool(cfg.get('configured')),
+            'has_password':  bool(cfg.get('server_password')),
+            'config':        cfg,
+            'channels':      guild_channels,
+            'roles':         guild_roles,
+        })
+
+    unconfigured_bots = []
+    for cfg in unconfigured:
+        game_type = cfg.get('game_type', 'Unknown')
+        icon, color = _QC_GAME_ICONS.get(game_type, _QC_DEFAULT_ICON)
+        unconfigured_bots.append({
+            'instance_name': cfg['instance_name'],
+            'game':          game_type,
+            'icon':          icon,
+            'color':         color,
+        })
+
+    for bot in bots:
+        bot['config_json']   = _json.dumps(bot['config'], default=str)
+        bot['channels_json'] = _json.dumps(bot['channels'])
+        bot['roles_json']    = _json.dumps(bot['roles'])
+
+    context = {
+        'discord_user':     discord_user,
+        'guild':            guild,
+        'admin_guilds':     admin_guilds,
+        'member_guilds':    get_member_guilds(request),
+        'is_admin':         True,
+        'bots':             bots,
+        'unconfigured_bots': unconfigured_bots,
+        'active_bot':       bots[0]['slug'] if bots else None,
+        'active_page':      'quest_control',
+    }
+    return render(request, 'questlog/quest_control.html', context)
+
+
+# Community Spotlight Page
+
+@discord_required
+def guild_spotlight(request, guild_id):
+    """Community Spotlight settings page."""
+    discord_user = request.session.get('discord_user', {})
+    admin_guilds = request.session.get('discord_admin_guilds', [])
+
+    guild = next((g for g in admin_guilds if g['id'] == guild_id), None)
+    if not guild:
+        messages.error(request, "You don't have admin access to this server.")
+        return redirect('questlog_dashboard')
+
+    spotlight_channel_id = None
+    cached_channels = []
+    try:
+        from .db import get_db_session
+        from .models import Guild as GuildModel
+
+        with get_db_session() as db:
+            guild_record = db.query(GuildModel).filter_by(guild_id=int(guild_id)).first()
+            if guild_record:
+                spotlight_channel_id = guild_record.spotlight_channel_id
+                if guild_record.cached_channels:
+                    import json as _json
+                    cached_channels = _json.loads(guild_record.cached_channels)
+    except Exception as e:
+        logger.warning(f"Could not fetch spotlight settings: {e}")
+
+    import json as json_mod
+    text_channels = [c for c in cached_channels if c.get('type') == 0 or c.get('type') == 'text']
+    channels_json = json_mod.dumps([{'id': str(c['id']), 'name': c['name']} for c in text_channels])
+    settings_json = json_mod.dumps({'spotlight_channel_id': str(spotlight_channel_id) if spotlight_channel_id else ''})
+
+    context = {
+        'discord_user': discord_user,
+        'guild': guild,
+        'admin_guilds': admin_guilds,
+        'member_guilds': get_member_guilds(request),
+        'is_admin': True,
+        'channels_json': channels_json,
+        'settings_json': settings_json,
+        'active_page': 'spotlight',
+    }
+    return render(request, 'questlog/spotlight.html', context)
 
 
 # Tracker API Endpoints (REST API for AJAX calls)
@@ -10033,46 +10536,6 @@ def guild_settings(request, guild_id):
     return render(request, 'questlog/settings.html', context)
 
 
-@discord_required
-def guild_game_servers(request, guild_id):
-    """AMP Game Server Management page - Shows hosting upsell or AMP panel access."""
-    discord_user = request.session.get('discord_user', {})
-    admin_guilds = request.session.get('discord_admin_guilds', [])
-    all_guilds = request.session.get('discord_all_guilds', [])
-
-    # Check if user is admin
-    guild_check = next((g for g in admin_guilds if g['id'] == guild_id), None)
-    if not guild_check:
-        messages.error(request, "You don't have admin access to this server.")
-        return redirect('questlog_dashboard')
-
-    # Get guild with owner/permissions data for sidebar
-    guild = get_guild_with_permissions(guild_id, admin_guilds, all_guilds)
-
-    try:
-        from .db import get_db_session
-        from .models import Guild as GuildModel
-
-        with get_db_session() as db:
-            guild_record = db.query(GuildModel).filter_by(guild_id=int(guild_id)).first()
-
-            context = {
-                'guild': guild,
-                'guild_record': guild_record,
-                'admin_guilds': admin_guilds,
-                'member_guilds': get_member_guilds(request),
-                'is_admin': True,
-                'active_page': 'game_servers',
-            }
-            return render(request, 'questlog/game_servers.html', context)
-
-    except Exception as e:
-        import logging
-        logger = logging.getLogger(__name__)
-        logger.error(f"Error loading game servers page: {e}", exc_info=True)
-        messages.error(request, "Failed to load game servers page.")
-        return redirect('guild_dashboard', guild_id=guild_id)
-
 
 @discord_required
 @server_owner_required
@@ -10238,6 +10701,10 @@ def api_settings_update(request, guild_id):
             if 'temp_voice_category_ids' in data:
                 # Store as JSON string (already stringified from frontend)
                 guild_record.temp_voice_category_ids = data['temp_voice_category_ids'] if data['temp_voice_category_ids'] and data['temp_voice_category_ids'] != '[]' else None
+            if 'flair_sync_enabled' in data:
+                guild_record.flair_sync_enabled = bool(data['flair_sync_enabled'])
+            if 'spotlight_channel_id' in data:
+                guild_record.spotlight_channel_id = int(data['spotlight_channel_id']) if data['spotlight_channel_id'] else None
 
             db.commit()
 
@@ -17957,6 +18424,14 @@ def guild_lfg_browser(request, guild_id):
                                     # Don't validate type for conditional dropdowns - can be object or array
                                     option_obj['choices'] = choices
 
+                                    # Pass through freetext, multi, maxSelections flags
+                                    if opt.get('freetext'):
+                                        option_obj['freetext'] = True
+                                    if opt.get('multi'):
+                                        option_obj['multi'] = True
+                                    if opt.get('maxSelections'):
+                                        option_obj['maxSelections'] = opt['maxSelections']
+
                                     custom_options.append(option_obj)
                     except (json.JSONDecodeError, TypeError, KeyError) as e:
                         logger.warning(f"Failed to parse custom_options for game {game.id}: {e}")
@@ -18563,6 +19038,7 @@ def api_lfg_add(request, guild_id):
                 lfg_channel_id=int(data.get('channel_id')) if data.get('channel_id') else None,
                 notify_role_id=int(data.get('notify_role_id')) if data.get('notify_role_id') else None,
                 max_group_size=int(data.get('max_size', 4)),
+                receive_network_lfg=bool(data.get('receive_network_lfg', False)),
             )
             db.add(game)
 
@@ -18635,6 +19111,7 @@ def api_lfg_game_update(request, guild_id, game_id):
                     'max_group_size': game.max_group_size,
                     'thread_auto_archive_hours': game.thread_auto_archive_hours,
                     'enabled': game.enabled,
+                    'receive_network_lfg': bool(game.receive_network_lfg),
                     'require_rank': game.require_rank,
                     'rank_label': game.rank_label,
                     'rank_min': game.rank_min,
@@ -18671,6 +19148,8 @@ def api_lfg_game_update(request, guild_id, game_id):
                 game.rank_max = int(data['rank_max'])
             if 'custom_options' in data:
                 game.custom_options = json.dumps(data['custom_options']) if data['custom_options'] else None
+            if 'receive_network_lfg' in data:
+                game.receive_network_lfg = bool(data['receive_network_lfg'])
 
             return JsonResponse({'success': True})
 
@@ -20000,11 +20479,18 @@ def api_lfg_browser_create(request, guild_id):
         ping_role_id = data.get('ping_role_id')
         description = data.get('description', '')
         max_group_size = data.get('max_group_size')
+        if max_group_size is not None:
+            try:
+                max_group_size = max(2, min(100, int(max_group_size)))
+            except (TypeError, ValueError):
+                max_group_size = None
         co_leader_ids = data.get('co_leader_ids', [])  # List of user IDs
         creator_options = data.get('creator_options', {})  # Creator's game-specific selections
         create_discord_thread = data.get('create_discord_thread', False)  # Whether to create Discord thread
         post_to_network = data.get('post_to_network', False)  # Whether to also post to QuestLog Network
         recurrence = data.get('recurrence', 'none')
+        _sil_raw = (data.get('server_invite_link') or '').strip()
+        server_invite_link = _sil_raw[:500] if _sil_raw.startswith('https://') else None
         if recurrence not in ('none', 'daily', 'weekly', 'monthly'):
             recurrence = 'none'
 
@@ -20073,6 +20559,7 @@ def api_lfg_browser_create(request, guild_id):
                 is_full=False,
                 member_count=1,
                 shared_to_network=False,  # Find Groups are server-only, not cross-server
+                server_invite_link=server_invite_link,
                 created_at=int(time.time())
             )
             db.add(new_group)
@@ -20282,31 +20769,37 @@ def api_lfg_browser_create(request, guild_id):
                     import time as _time
 
                     with get_db_session() as web_db:
-                        # Find the linked QuestLog account via discord_id
+                        import json as _json
+                        from sqlalchemy import text as _text
+                        from .questlog_web.models import WebCommunityBotConfig
+
+                        now_ts = int(_time.time())
+                        selections_dict = {k: v for k, v in creator_options.items() if k != 'rank'} if creator_options else {}
+                        _creator_role = None
+                        _role_val = selections_dict.get('Role') or selections_dict.get('role')
+                        if _role_val:
+                            _creator_role = _role_val.lower() if isinstance(_role_val, str) else None
+                        _raw_schema = role_schema
+                        if isinstance(_raw_schema, (list, dict)):
+                            _raw_schema = _json.dumps(_raw_schema)
+                        web_role_schema = _prs(_raw_schema) if _raw_schema else []
+
+                        # Find linked QuestLog account - optional, only needed for site post
                         web_user = web_db.execute(
-                            __import__('sqlalchemy').text(
-                                "SELECT id, username, display_name FROM web_users WHERE discord_id=:did LIMIT 1"
-                            ),
+                            _text("SELECT id, username, display_name FROM web_users WHERE discord_id=:did LIMIT 1"),
                             {"did": str(user_id)}
                         ).fetchone()
 
+                        # Creator display: linked account > Discord session name
+                        _discord_sess = request.session.get('discord_user', {})
+                        creator_display = (web_user.display_name or web_user.username) if web_user else (
+                            _discord_sess.get('global_name') or _discord_sess.get('username') or 'Unknown'
+                        )
+
+                        # Site post only if linked account exists
+                        web_group = None
+                        group_url = ''
                         if web_user:
-                            now_ts = int(_time.time())
-                            import json as _json
-
-                            # Detect creator's role from selections (ESO/GW2 use explicit Role field)
-                            selections_dict = {k: v for k, v in creator_options.items() if k != 'rank'} if creator_options else {}
-                            _creator_role = None
-                            _role_val = selections_dict.get('Role') or selections_dict.get('role')
-                            if _role_val:
-                                _creator_role = _role_val.lower() if isinstance(_role_val, str) else None
-
-                            # Parse role_schema for embed builder
-                            _raw_schema = role_schema
-                            if isinstance(_raw_schema, (list, dict)):
-                                _raw_schema = _json.dumps(_raw_schema)
-                            web_role_schema = _prs(_raw_schema) if _raw_schema else []
-
                             web_group = WebLFGGroup(
                                 creator_id=web_user.id,
                                 title=title,
@@ -20342,63 +20835,79 @@ def api_lfg_browser_create(request, guild_id):
                                 joined_at=now_ts,
                             ))
                             web_db.commit()
-
-                            # Build full rich embed via canonical builder
-                            creator_display = web_user.display_name or web_user.username
                             group_url = f"https://casual-heroes.com/ql/lfg/{web_group.id}/"
-                            embed_data = _blfg(
-                                creator=creator_display,
-                                game_name=_snap_game_name,
-                                title=title,
-                                description=description or '',
-                                group_size=_snap_group_size,
-                                current_size=1,
-                                scheduled_time=scheduled_time,
-                                lfg_url=group_url,
-                                game_image_url=_snap_game_cover,
-                                tanks_needed=tanks_needed or 0,
-                                healers_needed=healers_needed or 0,
-                                dps_needed=dps_needed or 0,
-                                support_needed=support_needed or 0,
-                                use_roles=bool(tanks_needed or healers_needed or dps_needed or support_needed),
-                                role_schema=web_role_schema,
-                                duration_hours=event_duration,
-                                group_id=web_group.id,
-                                voice_link=None,
-                                group_platform='web',
-                                creator_selections=selections_dict,
-                            )
-                            embed_data["color"] = 0xFEE75C
-                            embed_data["footer"] = "QuestLog Network - casual-heroes.com/ql/lfg/"
-                            embed_data["fields"].append({"name": "Posted via", "value": "Discord", "inline": True})
-                            embed_data["thread_name"] = f"{title} - {_snap_game_name} - {creator_display}"
 
-                            payload_json = _json.dumps(embed_data)
-                            broadcast_now = int(_time.time())
+                        # Always broadcast to opted-in guilds - no linked account required
+                        embed_data = _blfg(
+                            creator=creator_display,
+                            game_name=_snap_game_name,
+                            title=title,
+                            description=description or '',
+                            group_size=_snap_group_size,
+                            current_size=1,
+                            scheduled_time=scheduled_time,
+                            lfg_url=group_url,
+                            game_image_url=_snap_game_cover,
+                            tanks_needed=tanks_needed or 0,
+                            healers_needed=healers_needed or 0,
+                            dps_needed=dps_needed or 0,
+                            support_needed=support_needed or 0,
+                            use_roles=bool(tanks_needed or healers_needed or dps_needed or support_needed),
+                            role_schema=web_role_schema,
+                            duration_hours=event_duration,
+                            group_id=web_group.id if web_group else None,
+                            voice_link=None,
+                            group_platform='web',
+                            creator_selections=selections_dict,
+                            server_invite_link=server_invite_link,
+                        )
+                        embed_data["color"] = 0xFEE75C
+                        embed_data["footer"] = "QuestLog Network - casual-heroes.com/ql/lfg/"
+                        embed_data["fields"].append({"name": "Posted via", "value": "Discord", "inline": True})
+                        embed_data["thread_name"] = f"{title} - {_snap_game_name} - {creator_display}"
 
-                            from sqlalchemy import text as _text
-                            from .questlog_web.models import WebCommunityBotConfig
-                            configs = web_db.query(WebCommunityBotConfig).filter_by(
-                                event_type='lfg_announce', is_enabled=True
-                            ).filter(WebCommunityBotConfig.channel_id.isnot(None)).all()
+                        payload_json = _json.dumps(embed_data)
+                        broadcast_now = int(_time.time())
+                        _broadcast_game = _snap_game_name.lower() if _snap_game_name else ''
+                        configs = web_db.query(WebCommunityBotConfig).filter_by(
+                            event_type='lfg_announce'
+                        ).all()
 
-                            for cfg in configs:
-                                if cfg.platform == 'discord':
-                                    web_db.execute(_text(
-                                        "INSERT INTO discord_pending_broadcasts (guild_id, channel_id, payload, created_at) "
-                                        "VALUES (:gid, :cid, :payload, :now)"
-                                    ), {"gid": int(cfg.guild_id), "cid": int(cfg.channel_id), "payload": payload_json, "now": broadcast_now})
-                                else:
-                                    web_db.execute(_text(
-                                        "INSERT INTO fluxer_pending_broadcasts (guild_id, channel_id, payload, created_at) "
-                                        "VALUES (:gid, :cid, :payload, :now)"
-                                    ), {"gid": cfg.guild_id, "cid": cfg.channel_id, "payload": payload_json, "now": broadcast_now})
+                        for cfg in configs:
+                            if cfg.platform == 'discord':
+                                _game_row = web_db.execute(_text(
+                                    "SELECT lfg_channel_id FROM lfg_games WHERE guild_id=:g AND LOWER(game_name)=:gn "
+                                    "AND receive_network_lfg=1 AND enabled=1 LIMIT 1"
+                                ), {"g": int(cfg.guild_id), "gn": _broadcast_game}).fetchone()
+                            else:
+                                _game_row = web_db.execute(_text(
+                                    "SELECT channel_id FROM web_fluxer_lfg_games WHERE guild_id=:g AND LOWER(name)=:gn "
+                                    "AND receive_network_lfg=1 AND enabled=1 AND is_active=1 LIMIT 1"
+                                ), {"g": cfg.guild_id, "gn": _broadcast_game}).fetchone()
 
-                            web_db.commit()
-                            network_group_id = web_group.id
-                            success_message = 'LFG group created and posted to QuestLog Network!'
-                            if create_discord_thread:
-                                success_message = 'LFG group created, Discord thread coming, and posted to QuestLog Network!'
+                            if not _game_row:
+                                continue
+
+                            _dest_channel = str(_game_row[0]).strip() if _game_row[0] else cfg.channel_id
+                            if not _dest_channel:
+                                continue
+
+                            if cfg.platform == 'discord':
+                                web_db.execute(_text(
+                                    "INSERT INTO discord_pending_broadcasts (guild_id, channel_id, payload, created_at) "
+                                    "VALUES (:gid, :cid, :payload, :now)"
+                                ), {"gid": int(cfg.guild_id), "cid": int(_dest_channel), "payload": payload_json, "now": broadcast_now})
+                            else:
+                                web_db.execute(_text(
+                                    "INSERT INTO fluxer_pending_broadcasts (guild_id, channel_id, payload, created_at) "
+                                    "VALUES (:gid, :cid, :payload, :now)"
+                                ), {"gid": cfg.guild_id, "cid": _dest_channel, "payload": payload_json, "now": broadcast_now})
+
+                        web_db.commit()
+                        network_group_id = web_group.id if web_group else None
+                        success_message = 'LFG group created and posted to QuestLog Network!'
+                        if create_discord_thread:
+                            success_message = 'LFG group created, Discord thread coming, and posted to QuestLog Network!'
                 except Exception as _e:
                     logger.warning(f"[LFG] Network post failed for Discord group {_snap_group_id}: {_e}")
 
@@ -20516,6 +21025,9 @@ def api_lfg_browser_join(request, guild_id, group_id):
                             'error': f'Cannot join as {role_label} - all {role_limits[joiner_role]} slot(s) filled. Try a different role or wait for a spot to open.'
                         }, status=400)
 
+            # Effective max size: group override or game default
+            _effective_max = group.max_group_size or (game.max_group_size if game else None) or 4
+
             # Check if user has any existing member record (active or left)
             existing = db.query(LFGMember).filter_by(
                 group_id=group.id,
@@ -20537,7 +21049,7 @@ def api_lfg_browser_join(request, guild_id, group_id):
 
                 # Update group member count
                 group.member_count += 1
-                if group.member_count >= group.max_group_size:
+                if group.member_count >= _effective_max:
                     group.is_full = True
             else:
                 # Add new member
@@ -20555,7 +21067,7 @@ def api_lfg_browser_join(request, guild_id, group_id):
 
                 # Update group member count
                 group.member_count += 1
-                if group.member_count >= group.max_group_size:
+                if group.member_count >= _effective_max:
                     group.is_full = True
 
             # Auto-confirm attendance if attendance tracking is enabled (Pro/Premium/VIP only)

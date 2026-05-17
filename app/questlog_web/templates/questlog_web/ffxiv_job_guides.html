@@ -1,0 +1,86 @@
+{% extends "questlog_web/base_web.html" %}
+{% load static %}
+
+{% block title %}FFXIV Job Guides - QuestLog{% endblock %}
+
+{% block web_content %}
+
+<!-- Header -->
+<div class="bg-gradient-to-br from-neutral-900 via-neutral-900 to-indigo-950/30 border-b border-neutral-800 p-6 mb-6">
+  <div class="max-w-7xl mx-auto">
+    <div class="flex items-start justify-between gap-4 flex-wrap">
+      <div>
+        <div class="flex items-center gap-2 text-sm text-gray-500 mb-2">
+          <a href="/ffxiv/" class="hover:text-white transition">FFXIV</a>
+          <i class="fas fa-chevron-right text-xs"></i>
+          <span class="text-gray-300">Job Guides</span>
+        </div>
+        <h1 class="text-3xl font-bold text-white flex items-center gap-3">
+          <i class="fas fa-book-open text-indigo-400"></i>
+          Job Guides
+        </h1>
+        <p class="text-gray-400 mt-1">Community-written guides, rotations, BiS, and theory crafting for every job.</p>
+        {% if total_guides %}
+        <p class="text-xs text-gray-500 mt-1">{{ total_guides }} guide{{ total_guides|pluralize }} submitted by the community</p>
+        {% endif %}
+      </div>
+      <div class="flex items-center gap-3">
+        <a href="{{ fluxer_channel }}" target="_blank" rel="noopener"
+           class="flex items-center gap-2 px-4 py-2 bg-indigo-600/20 border border-indigo-500/40 text-indigo-300 rounded-lg text-sm hover:bg-indigo-600/30 transition">
+          <img src="{% static 'img/siteassets/fluxer-favicon.png' %}" style="width:1em;height:1em;object-fit:contain;" alt="Fluxer">
+          Discuss in Fluxer
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="max-w-7xl mx-auto px-4 pb-12">
+
+  {% for role_group in roles %}
+  <div class="mb-10">
+    <h2 class="text-sm font-bold uppercase tracking-widest {{ role_group.color }} mb-4 flex items-center gap-2">
+      <span class="h-px flex-1 bg-neutral-800"></span>
+      {{ role_group.name }}
+      <span class="h-px flex-1 bg-neutral-800"></span>
+    </h2>
+    <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-7 gap-3">
+      {% for job in role_group.jobs %}
+      <a href="/ffxiv/tools/job-guides/{{ job.key }}/"
+         class="group relative bg-neutral-900 border {{ job.border }} hover:border-opacity-100 rounded-xl p-4 flex flex-col items-center gap-2 transition hover:bg-neutral-800/60 hover:-translate-y-0.5">
+        <img src="{{ job.icon_url }}" alt="{{ job.abbr }}"
+             class="w-12 h-12 rounded-lg object-contain opacity-90 group-hover:opacity-100 transition"
+             onerror="this.style.display='none'">
+        <div class="text-center">
+          <p class="text-white font-semibold text-sm leading-tight">{{ job.abbr }}</p>
+          <p class="text-gray-500 text-xs leading-tight">{{ job.name }}</p>
+        </div>
+        {% if job.guide_count %}
+        <span class="absolute top-2 right-2 text-xs bg-neutral-800 {{ job.color }} px-1.5 py-0.5 rounded-full font-medium">
+          {{ job.guide_count }}
+        </span>
+        {% endif %}
+      </a>
+      {% endfor %}
+    </div>
+  </div>
+  {% endfor %}
+
+  <!-- Contribute CTA -->
+  <div class="mt-8 bg-neutral-900/50 border border-neutral-800 rounded-xl p-6 flex items-center justify-between gap-4 flex-wrap">
+    <div>
+      <h3 class="text-white font-semibold mb-1">Got a guide to share?</h3>
+      <p class="text-gray-400 text-sm">Pick your job above and submit your rotation, BiS list, or theory craft. All playstyles welcome - Casual to Savage.</p>
+    </div>
+    <div class="flex gap-3">
+      <a href="{{ fluxer_channel }}" target="_blank" rel="noopener"
+         class="flex items-center gap-2 px-4 py-2 bg-neutral-800 hover:bg-neutral-700 text-gray-300 rounded-lg text-sm transition">
+        <img src="{% static 'img/siteassets/fluxer-favicon.png' %}" style="width:1em;height:1em;object-fit:contain;" alt="Fluxer">
+        Discuss first in Fluxer
+      </a>
+    </div>
+  </div>
+
+</div>
+
+{% endblock %}

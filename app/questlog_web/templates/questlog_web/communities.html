@@ -1,69 +1,183 @@
 {% extends "questlog_web/base_web.html" %}
 {% load static %}
 
-{% block title %}Community Directory - QuestLog{% endblock %}
+{% block title %}Communities | Casual Heroes{% endblock %}
+{% block og_title %}Gaming Communities | Casual Heroes{% endblock %}
+{% block og_description %}A community for working adults, parents, and gamers who grew up but never quite left Neverland.{% endblock %}
 
 {% block web_content %}
 {% include 'questlog/partials/custom_select.html' %}
 
-<script>
-</script>
-
-<!-- Header -->
-<div class="bg-gradient-to-br from-neutral-900 to-neutral-950 border-b border-neutral-800 p-6 mb-6">
-  <div class="max-w-7xl mx-auto">
-    <div class="flex items-center justify-between">
+<!-- Hero -->
+<div class="relative overflow-hidden bg-neutral-950 border-b border-neutral-800">
+  <div class="absolute inset-0 pointer-events-none">
+    <div class="absolute top-0 left-1/3 w-96 h-64 bg-purple-900/15 rounded-full blur-3xl -translate-y-1/2"></div>
+    <div class="absolute top-0 right-1/4 w-80 h-64 bg-indigo-900/10 rounded-full blur-3xl -translate-y-1/3"></div>
+  </div>
+  <div class="relative max-w-7xl mx-auto px-6 py-10">
+    <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
       <div>
-        <h1 class="text-3xl font-bold text-white flex items-center gap-3">
-          <i class="fas fa-server text-purple-400"></i>
-          Community Directory
+        <p class="text-xs font-bold text-purple-400 uppercase tracking-widest mb-2">Community Directory</p>
+        <h1 class="text-3xl sm:text-4xl font-extrabold text-white mb-3">
+          Your community stays yours.<br class="hidden sm:block"><span class="text-purple-400">We connect it.</span>
         </h1>
-        <p class="text-gray-400 mt-1">Discover gaming communities across Discord, Stoat, Matrix, and more</p>
+        <p class="text-gray-400 text-sm max-w-xl leading-relaxed">
+          Disboard lists your server. We connect it. List your Discord, Fluxer, or Matrix community here and give your members access to LFG, social posts, game discovery, and cross-community events - all in one place.
+        </p>
+        <div class="flex items-center gap-4 mt-5">
+          <a href="{% if web_user %}{% url 'questlog_web_community_register' %}{% else %}{% url 'questlog_web_register' %}{% endif %}"
+             class="inline-flex items-center gap-2 bg-purple-600 hover:bg-purple-500 text-white font-semibold px-5 py-2.5 rounded-xl text-sm transition">
+            <i class="fas fa-plus"></i> List Your Community Free
+          </a>
+          <span class="text-xs text-gray-600" id="dir-total-count"></span>
+        </div>
       </div>
-      {% if web_user %}
-      <a href="{% url 'questlog_web_community_register' %}" class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-medium transition text-sm">
-        <i class="fas fa-plus mr-2"></i>Register Community
-      </a>
-      {% endif %}
+      <!-- Stats -->
+      <div class="flex gap-6 lg:flex-col lg:gap-3 lg:text-right flex-shrink-0">
+        <div>
+          <p class="text-2xl font-extrabold text-white" id="dir-stat-communities">-</p>
+          <p class="text-xs text-gray-500">Communities Listed</p>
+        </div>
+        <div>
+          <p class="text-2xl font-extrabold text-purple-400" id="dir-stat-members">-</p>
+          <p class="text-xs text-gray-500">Combined Members</p>
+        </div>
+      </div>
     </div>
   </div>
 </div>
 
 <!-- Filters -->
-<div class="max-w-7xl mx-auto px-4">
-  <div class="bg-neutral-900/50 rounded-lg border border-neutral-800 p-4 mb-6">
+<div class="max-w-7xl mx-auto px-4 py-5">
+  <div class="bg-neutral-900/50 rounded-xl border border-neutral-800 p-4 mb-6">
     <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
       <div>
-        <label class="text-sm text-gray-300 mb-2 block">Search</label>
-        <input type="text" id="searchFilter" placeholder="Search by name..." class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2 text-white text-sm focus:border-purple-500 focus:outline-none hover:bg-neutral-700/50 transition-colors">
+        <label class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 block">Search</label>
+        <input type="text" id="searchFilter" placeholder="Search by name..."
+          class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2 text-white text-sm focus:border-purple-500 focus:outline-none hover:bg-neutral-700/50 transition-colors">
       </div>
       <div>
-        <label class="text-sm text-gray-300 mb-2 block">Platform</label>
+        <label class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 block">Platform</label>
         <div id="platformFilterContainer"></div>
       </div>
       <div>
-        <label class="text-sm text-gray-300 mb-2 block">Size</label>
-        <div id="sizeFilterContainer"></div>
+        <label class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 block">In-Game Guild</label>
+        <div id="gameFilterContainer"></div>
       </div>
       <div>
-        <label class="text-sm text-gray-300 mb-2 block">Sort By</label>
+        <label class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 block">Sort By</label>
         <div id="sortFilterContainer"></div>
       </div>
     </div>
   </div>
 
-  <!-- Communities List -->
-  <div id="communitiesList" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
-    <div class="col-span-full text-center text-gray-500 py-12">
-      <i class="fas fa-spinner fa-spin text-4xl mb-2"></i>
-      <p>Loading communities...</p>
+  <!-- Communities Grid -->
+  <div id="communitiesList" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mb-8">
+    <div class="col-span-full text-center text-gray-600 py-16">
+      <i class="fas fa-circle-notch fa-spin text-3xl mb-3 block"></i>
+      <p class="text-sm">Loading communities...</p>
     </div>
+  </div>
+
+  <!-- List Your Community CTA (bottom) -->
+  <div class="border border-dashed border-neutral-700 rounded-2xl p-8 text-center mb-10 hover:border-purple-500/40 transition">
+    <i class="fas fa-plus-circle text-purple-400 text-2xl mb-3 block"></i>
+    <p class="text-white font-semibold mb-1">List your community here</p>
+    <p class="text-gray-500 text-sm mb-4">Free forever. No catch. Give your members more to do.</p>
+    <a href="{% if web_user %}{% url 'questlog_web_community_register' %}{% else %}{% url 'questlog_web_register' %}{% endif %}"
+       class="inline-flex items-center gap-2 bg-purple-600 hover:bg-purple-500 text-white font-semibold px-5 py-2.5 rounded-xl text-sm transition">
+      <i class="fas fa-plus"></i> List Your Community Free
+    </a>
   </div>
 </div>
 
 <script>
 let allCommunities = [];
-let platformFilterSelect, sizeFilterSelect, sortFilterSelect;
+let platformFilterSelect, gameFilterSelect, sortFilterSelect;
+
+const GUILD_GAME_LABELS = {
+  ffxiv: 'FFXIV', eso: 'ESO', wow: 'WoW', gw2: 'GW2',
+  lost_ark: 'Lost Ark', bdo: 'BDO', swtor: 'SWTOR', other: 'MMO Guild',
+};
+const GUILD_GAME_ITEMS = [
+  {value: 'ffxiv',    label: 'Final Fantasy XIV'},
+  {value: 'eso',      label: 'Elder Scrolls Online'},
+  {value: 'wow',      label: 'World of Warcraft'},
+  {value: 'gw2',      label: 'Guild Wars 2'},
+  {value: 'lost_ark', label: 'Lost Ark'},
+  {value: 'bdo',      label: 'Black Desert Online'},
+  {value: 'swtor',    label: 'SWTOR'},
+  {value: 'other',    label: 'Other MMO'},
+];
+let _editGuildGameSel = null;
+let _editGames = [];
+let _editGamesTimer = null;
+
+function _renderEditGamesTags() {
+  const container = document.getElementById('editGamesTags');
+  const countEl = document.getElementById('editGamesCount');
+  if (!container) return;
+  container.innerHTML = _editGames.map(name =>
+    `<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-indigo-900/50 text-indigo-300 border border-indigo-700/40">
+      ${escapeHtml(name)}
+      <button data-remove-game="${escapeHtml(name)}" class="edit-game-remove text-indigo-400 hover:text-white transition ml-0.5"><i class="fas fa-times text-[10px]"></i></button>
+    </span>`
+  ).join('');
+  if (countEl) countEl.textContent = `${_editGames.length} / 20 games tagged`;
+  container.querySelectorAll('.edit-game-remove').forEach(btn => {
+    btn.addEventListener('click', function() {
+      _editGames = _editGames.filter(g => g !== this.dataset.removeGame);
+      _renderEditGamesTags();
+    });
+  });
+}
+function _addEditGame(name) {
+  if (!name || _editGames.includes(name) || _editGames.length >= 20) return;
+  _editGames.push(name);
+  _renderEditGamesTags();
+}
+
+// Wire up edit games search after DOM is ready
+document.addEventListener('DOMContentLoaded', function() {
+  const egSearch = document.getElementById('editGamesSearch');
+  const egSug = document.getElementById('editGamesSuggestions');
+  if (!egSearch || !egSug) return;
+  egSearch.addEventListener('input', function() {
+    clearTimeout(_editGamesTimer);
+    egSug.classList.add('hidden');
+    const q = this.value.trim();
+    if (!q) return;
+    _editGamesTimer = setTimeout(function() {
+      csrfFetch(`/api/igdb/search/?q=${encodeURIComponent(q)}&limit=6`)
+        .then(r => r.json()).then(data => {
+          const games = data.games || [];
+          egSug.innerHTML = '';
+          if (!games.length) { egSug.classList.add('hidden'); return; }
+          games.forEach(g => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'w-full flex items-center gap-3 px-4 py-2.5 hover:bg-neutral-800 text-left transition';
+            btn.innerHTML = (g.cover_url
+              ? `<img src="${escapeHtml(g.cover_url)}" class="w-7 h-9 object-cover rounded flex-shrink-0">`
+              : `<div class="w-7 h-9 bg-neutral-700 rounded flex-shrink-0 flex items-center justify-center"><i class="fas fa-gamepad text-gray-500 text-xs"></i></div>`)
+              + `<div><p class="text-sm text-white truncate">${escapeHtml(g.name)}</p><p class="text-[10px] text-gray-500">${escapeHtml(String(g.release_year||''))}</p></div>`;
+            btn.addEventListener('click', function() {
+              _addEditGame(g.name);
+              egSearch.value = '';
+              egSug.classList.add('hidden');
+            });
+            egSug.appendChild(btn);
+          });
+          egSug.classList.remove('hidden');
+        }).catch(() => {});
+    }, 350);
+  });
+  document.addEventListener('click', function(e) {
+    if (!e.target.closest('#editGamesSearch') && !e.target.closest('#editGamesSuggestions')) {
+      if (egSug) egSug.classList.add('hidden');
+    }
+  });
+});
 
 platformFilterSelect = createCustomSelect({
   container: '#platformFilterContainer',
@@ -86,15 +200,20 @@ platformFilterSelect = createCustomSelect({
   onSelect: function() { filterCommunities(); }
 });
 
-sizeFilterSelect = createCustomSelect({
-  container: '#sizeFilterContainer',
-  name: 'sizeFilter',
-  placeholder: 'Any Size',
+gameFilterSelect = createCustomSelect({
+  container: '#gameFilterContainer',
+  name: 'gameFilter',
+  placeholder: 'Any Game',
   items: [
-    { value: '', label: 'Any Size' },
-    { value: 'small', label: 'Small (< 50)' },
-    { value: 'medium', label: 'Medium (50-500)' },
-    { value: 'large', label: 'Large (500+)' }
+    { value: '', label: 'Any Game' },
+    { value: 'ffxiv', label: 'Final Fantasy XIV' },
+    { value: 'eso', label: 'Elder Scrolls Online' },
+    { value: 'wow', label: 'World of Warcraft' },
+    { value: 'gw2', label: 'Guild Wars 2' },
+    { value: 'lost_ark', label: 'Lost Ark' },
+    { value: 'bdo', label: 'Black Desert Online' },
+    { value: 'swtor', label: 'SWTOR' },
+    { value: 'other', label: 'Other MMO' },
   ],
   selected: '',
   color: 'purple',
@@ -140,7 +259,7 @@ async function loadCommunities() {
 function filterCommunities() {
   const search = document.getElementById('searchFilter').value.toLowerCase();
   const platform = platformFilterSelect ? platformFilterSelect.getValue() : '';
-  const size = sizeFilterSelect ? sizeFilterSelect.getValue() : '';
+  const game = gameFilterSelect ? gameFilterSelect.getValue() : '';
   const sort = sortFilterSelect ? sortFilterSelect.getValue() : 'members';
 
   let filtered = [...allCommunities];
@@ -148,16 +267,16 @@ function filterCommunities() {
   if (search) {
     filtered = filtered.filter(c =>
       c.name.toLowerCase().includes(search) ||
-      (c.short_description && c.short_description.toLowerCase().includes(search))
+      (c.short_description && c.short_description.toLowerCase().includes(search)) ||
+      (c.guild_game_name && c.guild_game_name.toLowerCase().includes(search)) ||
+      (Array.isArray(c.guild_game) && c.guild_game.some(g => (GUILD_GAME_LABELS[g] || g).toLowerCase().includes(search)))
     );
   }
   if (platform) {
     filtered = filtered.filter(c => c.platform === platform);
   }
-  if (size) {
-    if (size === 'small') filtered = filtered.filter(c => c.member_count < 50);
-    else if (size === 'medium') filtered = filtered.filter(c => c.member_count >= 50 && c.member_count < 500);
-    else if (size === 'large') filtered = filtered.filter(c => c.member_count >= 500);
+  if (game) {
+    filtered = filtered.filter(c => Array.isArray(c.guild_game) && c.guild_game.includes(game));
   }
 
   if (sort === 'members') filtered.sort((a, b) => b.member_count - a.member_count);
@@ -195,7 +314,7 @@ function renderCommunities(communities) {
   const platformIcons = {
     discord: 'fab fa-discord text-indigo-400',
     matrix: 'fas fa-cube text-green-400',
-    fluxer: 'fas fa-bolt text-yellow-400',
+    fluxer: 'fluxer-icon',
     kloak: 'fas fa-user-shield text-slate-400',
     stoat: 'fas fa-network-wired text-teal-400',
     teamspeak: 'fas fa-headset text-blue-400',
@@ -204,53 +323,94 @@ function renderCommunities(communities) {
     mumble: 'fas fa-microphone text-purple-400',
     other: 'fas fa-globe text-gray-400'
   };
+  const _pIcon = (p, cls) => platformIconHtml(p, cls);
 
   const currentUserId = {{ web_user.id|default:'null' }};
 
+  // Update stats
+  const total = communities.length;
+  const totalMembers = communities.reduce((s, c) => s + (c.member_count || 0), 0);
+  const statComm = document.getElementById('dir-stat-communities');
+  const statMem = document.getElementById('dir-stat-members');
+  const statCount = document.getElementById('dir-total-count');
+  if (statComm) statComm.textContent = total.toLocaleString();
+  if (statMem) statMem.textContent = totalMembers.toLocaleString();
+  if (statCount) statCount.textContent = total + ' communities listed';
+
   container.innerHTML = communities.map(comm => {
     const isOwner = currentUserId && comm.owner_id === currentUserId;
-    const iconHtml = comm.icon_url
-      ? `<img src="${escapeHtml(comm.icon_url)}" class="w-12 h-12 rounded-lg object-cover flex-shrink-0">`
-      : `<div class="w-12 h-12 bg-neutral-700 rounded-lg flex items-center justify-center flex-shrink-0">
-           <i class="${platformIcons[comm.platform] || platformIcons.other} text-xl"></i>
-         </div>`;
+    const tier = activityTier(comm.activity_level);
     return `
-    <div class="bg-neutral-900/50 border border-neutral-800 rounded-lg overflow-hidden hover:border-purple-500/30 transition cursor-pointer" onclick="window.location='/ql/communities/${comm.id}/'">
-      ${comm.banner_url ? `<img src="${escapeHtml(comm.banner_url)}" class="w-full h-20 object-cover">` : ''}
-      <div class="p-4">
-        <div class="flex items-start gap-3 mb-3">
-          ${iconHtml}
-          <div class="flex-1 min-w-0">
-            <h3 class="text-white font-semibold truncate">${escapeHtml(comm.name)}</h3>
-            <div class="flex items-center gap-2 text-sm text-gray-400">
-              <i class="${platformIcons[comm.platform] || platformIcons.other}"></i>
-              <span class="capitalize">${comm.platform}</span>
-            </div>
+    <div class="group bg-neutral-900 border border-neutral-800 rounded-2xl overflow-hidden hover:border-purple-500/40 transition cursor-pointer flex flex-col"
+         onclick="window.location='/communities/${comm.slug || comm.id}/'">
+      <!-- Banner -->
+      <div class="relative h-28 bg-neutral-800 flex-shrink-0 overflow-hidden">
+        ${comm.banner_url
+          ? `<img src="${escapeHtml(comm.banner_url)}" class="w-full h-full object-cover group-hover:scale-105 transition duration-500">`
+          : `<div class="w-full h-full bg-gradient-to-br from-purple-900/30 to-neutral-800 flex items-center justify-center"><i class="fas fa-shield-alt text-neutral-700 text-3xl"></i></div>`}
+        <div class="absolute inset-0 bg-gradient-to-t from-neutral-900 via-transparent to-transparent"></div>
+        ${isOwner ? `<button onclick="openEditModal(${comm.id}); event.stopPropagation();"
+          class="absolute top-2 right-2 bg-black/60 hover:bg-black/80 text-white rounded-full w-7 h-7 flex items-center justify-center transition z-10" title="Edit">
+          <i class="fas fa-pen text-xs"></i>
+        </button>` : ''}
+      </div>
+      <!-- Icon + Name -->
+      <div class="px-4 pt-2 relative z-10 flex items-center gap-3 mb-3">
+        <div class="-mt-8 flex-shrink-0">
+          ${comm.icon_url
+            ? `<img src="${escapeHtml(comm.icon_url)}" class="w-12 h-12 rounded-xl object-cover ring-2 ring-neutral-900">`
+            : `<div class="w-12 h-12 rounded-xl bg-neutral-700 ring-2 ring-neutral-900 flex items-center justify-center">${_pIcon(comm.platform, 'text-lg')}</div>`}
+        </div>
+        <div class="min-w-0 pt-1">
+          <h3 class="text-white font-bold text-sm truncate leading-tight">${escapeHtml(comm.name)}</h3>
+          <div class="flex items-center gap-1.5 text-xs text-gray-500">
+            ${_pIcon(comm.platform, 'text-[10px]')}
+            <span class="capitalize">${escapeHtml(comm.platform)}</span>
           </div>
-          ${isOwner ? `<button onclick="openEditModal(${comm.id}); event.stopPropagation();"
-            class="flex-shrink-0 text-gray-500 hover:text-purple-400 transition p-1 rounded" title="Edit community">
-            <i class="fas fa-pen text-sm"></i>
-          </button>` : ''}
         </div>
+      </div>
+      <!-- Body -->
+      <div class="px-4 pb-4 flex flex-col flex-1">
         ${comm.short_description
-          ? `<p class="text-gray-400 text-sm mb-2 line-clamp-2">${escapeHtml(comm.short_description)}</p>`
-          : (comm.description ? `<p class="text-gray-400 text-sm mb-2 line-clamp-3">${escapeHtml(comm.description)}</p>` : '')
+          ? `<p class="text-gray-500 text-xs leading-relaxed mb-3 line-clamp-2">${escapeHtml(comm.short_description)}</p>`
+          : (comm.description ? `<p class="text-gray-500 text-xs leading-relaxed mb-3 line-clamp-2">${escapeHtml(comm.description)}</p>` : '<div class="mb-3"></div>')
         }
-        ${comm.tags && comm.tags.length ? `<div class="flex flex-wrap gap-1 mb-3">
-          ${comm.tags.slice(0,5).map(t => `<span class="text-xs bg-neutral-800 text-gray-400 px-2 py-0.5 rounded-full">${escapeHtml(t)}</span>`).join('')}
-          ${comm.tags.length > 5 ? `<span class="text-xs text-gray-600">+${comm.tags.length - 5}</span>` : ''}
+        ${comm.tags && comm.tags.length ? `<div class="flex flex-wrap gap-1 mb-2">
+          ${comm.tags.slice(0,4).map(t => `<span class="text-[10px] bg-neutral-800 border border-neutral-700 text-gray-400 px-2 py-0.5 rounded-full">${escapeHtml(t)}</span>`).join('')}
+          ${comm.tags.length > 4 ? `<span class="text-[10px] text-gray-600 self-center">+${comm.tags.length - 4}</span>` : ''}
         </div>` : ''}
-        <div class="flex items-center justify-between text-sm">
-          <span class="text-gray-400"><i class="fas fa-users mr-1"></i>${comm.member_count.toLocaleString()} members</span>
-          <span class="${activityTier(comm.activity_level).color} text-xs font-medium">
-            <i class="${activityTier(comm.activity_level).icon} mr-1"></i>${activityTier(comm.activity_level).label}
-          </span>
-        </div>
-        <div class="mt-2 flex justify-end">
+        ${comm.guild_game && comm.guild_game.length ? (() => {
+          const GUILD_ICONS = { ffxiv: '/static/img/games/guilds/ffxiv.png', eso: '/static/img/games/guilds/esoguild.png', wow: '/static/img/games/guilds/WoWlogo.png' };
+          const GUILD_URLS  = { ffxiv: '/ffxiv/', eso: '/eso/' };
+          return `<div class="flex items-center gap-1.5 mb-2">
+            <i class="fas fa-shield-alt text-amber-400 text-[9px]"></i>
+            <span class="text-[10px] text-gray-500">Guilds</span>
+            ${comm.guild_game.map(g => {
+              const icon = GUILD_ICONS[g];
+              const url  = GUILD_URLS[g];
+              const label = GUILD_GAME_LABELS[g] || g;
+              const img = icon
+                ? `<img src="${icon}" alt="${escapeHtml(label)}" title="${escapeHtml(label)}" class="w-5 h-5 rounded object-cover">`
+                : `<i class="fas fa-shield-alt text-amber-400 text-xs" title="${escapeHtml(label)}"></i>`;
+              return url
+                ? `<a href="${url}" onclick="event.stopPropagation();" title="${escapeHtml(label)}">${img}</a>`
+                : `<span title="${escapeHtml(label)}">${img}</span>`;
+            }).join('')}
+          </div>`;
+        })() : ''}
+        ${comm.games && comm.games.length ? `<div class="flex flex-wrap gap-1 mb-2">
+          ${comm.games.slice(0,3).map(g => `<span class="text-[10px] bg-neutral-800 border border-neutral-700 text-gray-400 px-2 py-0.5 rounded-full">${escapeHtml(g)}</span>`).join('')}
+          ${comm.games.length > 3 ? `<span class="text-[10px] text-gray-600 self-center">+${comm.games.length - 3}</span>` : ''}
+        </div>` : ''}
+        <!-- Footer -->
+        <div class="mt-auto flex items-center justify-between pt-2 border-t border-neutral-800">
+          <span class="text-xs text-gray-500"><i class="fas fa-users mr-1 text-[10px]"></i>${(comm.member_count || 0).toLocaleString()} members</span>
           ${comm.allow_joins && comm.invite_url
             ? `<a href="${escapeHtml(comm.invite_url)}" target="_blank" rel="noopener" onclick="event.stopPropagation();"
-                class="text-green-400 hover:text-green-300 transition text-sm"><i class="fas fa-door-open mr-1"></i>Open</a>`
-            : `<span class="text-gray-500 text-sm"><i class="fas fa-lock mr-1"></i>Invite Only</span>`
+                class="inline-flex items-center gap-1 text-xs bg-green-600/20 hover:bg-green-600/40 text-green-400 border border-green-600/30 px-2.5 py-1 rounded-lg transition font-medium">
+                <i class="fas fa-door-open text-[10px]"></i> Join
+              </a>`
+            : `<span class="text-xs text-gray-600"><i class="fas fa-lock mr-1 text-[10px]"></i>Invite Only</span>`
           }
         </div>
       </div>
@@ -282,7 +442,7 @@ const TAGS = [
 // EDIT MODAL
 // ============================================================
 async function openEditModal(communityId) {
-  const r = await fetch(`/ql/api/communities/${communityId}/`);
+  const r = await fetch(`/api/communities/${communityId}/`);
   if (!r.ok) { alert('Failed to load community data'); return; }
   const c = await r.json();
 
@@ -307,6 +467,27 @@ async function openEditModal(communityId) {
     xpRow.style.display = 'none';
   }
   document.getElementById('editPlatform').value = c.platform || 'discord';
+  document.getElementById('editGuildGameName').value = c.guild_game_name || '';
+  // Reinit guild game multi-select each time modal opens
+  if (_editGuildGameSel) { try { _editGuildGameSel.destroy(); } catch(e) {} }
+  document.getElementById('editGuildGameContainer').innerHTML = '';
+  _editGuildGameSel = createCustomSelect({
+    container: '#editGuildGameContainer',
+    name: 'edit_guild_game_sel',
+    placeholder: 'Select games...',
+    items: GUILD_GAME_ITEMS,
+    selected: Array.isArray(c.guild_game) ? c.guild_game : [],
+    color: 'purple',
+    multiSelect: true,
+    maxSelections: 8,
+    onSelect: function() {},
+  });
+
+  // Populate games list
+  _editGames = Array.isArray(c.games) ? c.games.map(g => typeof g === 'string' ? g : g.name) : [];
+  _renderEditGamesTags();
+  const egSearch = document.getElementById('editGamesSearch');
+  if (egSearch) egSearch.value = '';
 
   // Build tag grid with current selections
   buildEditTagGrid(c.tags || []);
@@ -360,7 +541,7 @@ async function uploadCommunityImage(communityId, field, fileInput) {
   if (!file) return null;
   const fd = new FormData();
   fd.append('image', file);
-  const r = await csrfFetch(`/ql/api/upload/community/${communityId}/${field}/`, { method: 'POST', body: fd });
+  const r = await csrfFetch(`/api/upload/community/${communityId}/${field}/`, { method: 'POST', body: fd });
   if (r.status === 413) throw new Error(`Image too large. Max: ${field === 'icon' ? '2MB' : '5MB'}`);
   const ct = r.headers.get('content-type') || '';
   if (!ct.includes('application/json')) throw new Error(`Upload failed (${r.status})`);
@@ -398,8 +579,11 @@ async function saveEditCommunity() {
       allow_joins: document.getElementById('editAllowJoins').checked,
       site_xp_to_guild: document.getElementById('editSiteXpToGuild').checked,
       tags: [...editSelectedTags],
+      guild_game: _editGuildGameSel ? (Array.isArray(_editGuildGameSel.getValue()) ? _editGuildGameSel.getValue() : (_editGuildGameSel.getValue() ? [_editGuildGameSel.getValue()] : [])) : [],
+      guild_game_name: document.getElementById('editGuildGameName').value.trim() || null,
+      games: [..._editGames],
     };
-    const r = await csrfFetch(`/ql/api/communities/${communityId}/`, {
+    const r = await csrfFetch(`/api/communities/${communityId}/`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -428,22 +612,11 @@ function previewImage(inputId, previewId) {
 // ============================================================
 // DETAIL MODAL
 // ============================================================
-const _platformIcons = {
-  discord: 'fab fa-discord text-indigo-400',
-  matrix: 'fas fa-cube text-green-400',
-  fluxer: 'fas fa-bolt text-yellow-400',
-  kloak: 'fas fa-user-shield text-slate-400',
-  stoat: 'fas fa-network-wired text-teal-400',
-  teamspeak: 'fas fa-headset text-blue-400',
-  guilded: 'fas fa-shield-alt text-yellow-400',
-  root: 'fas fa-tree text-emerald-400',
-  mumble: 'fas fa-microphone text-purple-400',
-  other: 'fas fa-globe text-gray-400'
-};
+const _platformIcons = {}; // legacy - use platformIconHtml() instead
 
 async function openDetailModal(communityId) {
   try {
-    const r = await fetch(`/ql/api/communities/${communityId}/`);
+    const r = await fetch(`/api/communities/${communityId}/`);
     if (!r.ok) { alert('Failed to load community details'); return; }
     const c = await r.json();
 
@@ -468,12 +641,12 @@ async function openDetailModal(communityId) {
       iconFallback.classList.add('hidden');
     } else {
       iconImg.classList.add('hidden');
-      iconFallback.className = (_platformIcons[c.platform] || 'fas fa-globe text-gray-500') + ' text-2xl';
-      iconFallback.classList.remove('hidden');
+      iconFallback.outerHTML = platformIconHtml(c.platform, 'text-2xl') .replace('<i ', '<i id="detailIconFallback" ').replace('<img ', '<img id="detailIconFallback" ');
+      document.getElementById('detailIconFallback')?.classList.remove('hidden');
     }
 
     document.getElementById('detailName').textContent = c.name || '';
-    document.getElementById('detailPlatformIcon').className = _platformIcons[c.platform] || 'fas fa-globe text-gray-400';
+    setPlatformIcon(document.getElementById('detailPlatformIcon'), c.platform, '');
     document.getElementById('detailPlatform').textContent = c.platform || '';
     document.getElementById('detailMemberCount').textContent = (c.member_count || 0).toLocaleString() + ' members';
     document.getElementById('detailDescription').textContent = c.description || c.short_description || '';
@@ -654,6 +827,32 @@ function closeDetailModal() {
           <label class="block text-sm font-medium text-gray-300 mb-1">Member Count</label>
           <input type="number" id="editMemberCount" min="0" class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-purple-500 focus:outline-none">
         </div>
+      </div>
+
+      <!-- In-Game Guild -->
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-sm font-medium text-gray-300 mb-1">In-Game Guild(s)</label>
+          <div id="editGuildGameContainer"></div>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-300 mb-1">Guild / FC Name</label>
+          <input type="text" id="editGuildGameName" maxlength="200" placeholder="As it appears in-game"
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-purple-500 focus:outline-none">
+        </div>
+      </div>
+
+      <!-- Games We Play -->
+      <div>
+        <label class="block text-sm font-medium text-gray-300 mb-1">Games We Play <span class="text-gray-500">(up to 20)</span></label>
+        <div class="relative mb-2">
+          <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-xs"></i>
+          <input type="text" id="editGamesSearch" placeholder="Search a game to add..."
+            class="w-full bg-neutral-800 border border-neutral-700 rounded-lg pl-8 pr-4 py-2 text-white text-sm focus:border-indigo-500 focus:outline-none">
+          <div id="editGamesSuggestions" class="hidden absolute left-0 right-0 top-full mt-1 bg-neutral-900 border border-neutral-700 rounded-lg shadow-xl z-[60] max-h-48 overflow-y-auto"></div>
+        </div>
+        <div id="editGamesTags" class="flex flex-wrap gap-2 min-h-[28px]"></div>
+        <p id="editGamesCount" class="text-xs text-gray-600 mt-1.5">0 / 20 games tagged</p>
       </div>
 
       <!-- Tags -->

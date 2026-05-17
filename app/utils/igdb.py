@@ -43,15 +43,25 @@ class IGDBGame:
         else:
             self.release_year = None
 
-        # Steam ID from external_games (category 1 = Steam)
+        # Game modes
+        game_modes = data.get('game_modes', [])
+        self.game_modes = [m.get('name') for m in game_modes if isinstance(m, dict) and m.get('name')]
+
+        # Steam ID from external_games - take the lowest (oldest/base game) app ID
+        # to avoid picking free trials or DLC entries that have no cover art
         self.steam_id = None
         external_games = data.get('external_games', [])
+        steam_ids = []
         for ext in external_games:
-            if isinstance(ext, dict) and ext.get('category') == 1:  # Category 1 = Steam
+            if not isinstance(ext, dict):
+                continue
+            url = ext.get('url', '')
+            if 'steampowered.com' in url:
                 uid = ext.get('uid')
-                if uid and uid.isdigit():
-                    self.steam_id = int(uid)
-                    break
+                if uid and str(uid).isdigit():
+                    steam_ids.append(int(uid))
+        if steam_ids:
+            self.steam_id = min(steam_ids)
 
 
 class IGDBClient:
@@ -102,7 +112,7 @@ class IGDBClient:
 
             query_body = f"""
                 search "{query}";
-                fields name, slug, summary, cover.image_id, platforms.name, first_release_date, external_games.category, external_games.uid;
+                fields name, slug, summary, cover.image_id, platforms.name, first_release_date, external_games.uid, external_games.url, game_modes.name;
                 limit {limit};
                 where version_parent = null;
             """.strip()
@@ -139,3 +149,55 @@ _client = IGDBClient()
 async def search_games(query: str, limit: int = 10) -> List[IGDBGame]:
     """Search for games (async function)"""
     return await _client.search_games(query, limit)
+
+
+async def get_trending_games(limit: int = 5) -> list:
+    """Fetch trending games from IGDB popularity_primitives, returns plain dicts."""
+    if not _client.client_id or not _client.client_secret:
+        return []
+    try:
+        token = await _client.get_access_token()
+        headers = {
+            'Client-ID': _client.client_id,
+            'Authorization': f'Bearer {token}',
+            'Accept': 'application/json',
+        }
+        # Step 1: get top game_ids by popularity (type 1 = IGDB visits)
+        pop_body = f'fields game_id, value; sort value desc; limit {limit}; where popularity_type = 1;'
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                f'{IGDBClient.BASE_URL}/popularity_primitives',
+                headers=headers, data=pop_body
+            ) as resp:
+                if resp.status != 200:
+                    return []
+                pop_data = await resp.json()
+
+        game_ids = [str(r['game_id']) for r in pop_data if r.get('game_id')]
+        if not game_ids:
+            return []
+
+        # Step 2: fetch game details for those IDs
+        ids_str = ','.join(game_ids)
+        games_body = f'fields name, cover.image_id; where id = ({ids_str}); limit {limit};'
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                f'{IGDBClient.BASE_URL}/games',
+                headers=headers, data=games_body
+            ) as resp:
+                if resp.status != 200:
+                    return []
+                games_data = await resp.json()
+
+        results = []
+        for g in games_data:
+            cover = g.get('cover') or {}
+            image_id = cover.get('image_id') if isinstance(cover, dict) else None
+            results.append({
+                'name': g.get('name', ''),
+                'cover_url': f'https://images.igdb.com/igdb/image/upload/t_cover_small/{image_id}.jpg' if image_id else None,
+            })
+        return results
+    except Exception as e:
+        logger.error(f'IGDB trending error: {e}')
+        return []

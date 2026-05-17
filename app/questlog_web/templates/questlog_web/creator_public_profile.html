@@ -1,0 +1,227 @@
+{% extends "questlog_web/base_web.html" %}
+{% load static %}
+
+{% block title %}{{ creator.display_name }} - Creator Profile - QuestLog{% endblock %}
+
+{% block web_content %}
+
+<!-- Banner -->
+{% if creator.banner_url %}
+<div class="w-full h-48 bg-neutral-900 overflow-hidden">
+  <img src="{{ creator.banner_url }}" alt="Banner" class="w-full h-full object-cover">
+</div>
+{% else %}
+<div class="w-full h-32 bg-gradient-to-r from-indigo-900/30 via-neutral-900 to-purple-900/20"></div>
+{% endif %}
+
+<div class="max-w-4xl mx-auto px-4 pb-12">
+
+  <!-- Profile header -->
+  <div class="flex items-end gap-5 -mt-12 mb-6">
+    {% if creator_avatar_url %}
+    <img src="{{ creator_avatar_url }}" alt="{{ creator.display_name }}"
+         class="w-24 h-24 rounded-2xl border-4 border-neutral-950 flex-shrink-0 object-cover">
+    {% else %}
+    <div class="w-24 h-24 rounded-2xl border-4 border-neutral-950 bg-neutral-800 flex items-center justify-center flex-shrink-0">
+      <i class="fas fa-user text-2xl text-gray-600"></i>
+    </div>
+    {% endif %}
+    <div class="flex-1 pb-2">
+      <div class="flex items-center gap-3 flex-wrap">
+        <h1 class="text-2xl font-bold text-white">{{ creator.display_name }}</h1>
+        {% if creator.is_verified %}
+        <span class="px-2 py-0.5 bg-indigo-500/20 border border-indigo-500/40 text-indigo-300 text-xs font-semibold rounded-full">
+          <i class="fas fa-check-circle mr-1"></i>Verified
+        </span>
+        {% endif %}
+        {% if creator.is_current_cotw %}
+        <span class="px-2 py-0.5 bg-yellow-500/20 border border-yellow-500/40 text-yellow-300 text-xs font-semibold rounded-full">
+          <i class="fas fa-crown mr-1"></i>Creator of the Week
+        </span>
+        {% endif %}
+        {% if creator.is_current_cotm %}
+        <span class="px-2 py-0.5 bg-orange-500/20 border border-orange-500/40 text-orange-300 text-xs font-semibold rounded-full">
+          <i class="fas fa-crown mr-1"></i>Creator of the Month
+        </span>
+        {% endif %}
+      </div>
+      <p class="text-gray-400 text-sm mt-0.5">@{{ creator_user.username }}</p>
+    </div>
+    <div class="pb-2">
+      <a href="{% url 'questlog_web_creators' %}"
+         class="text-xs text-gray-500 hover:text-gray-300 transition flex items-center gap-1.5">
+        <i class="fas fa-arrow-left"></i> All Creators
+      </a>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+    <!-- Left: bio + links -->
+    <div class="lg:col-span-2 space-y-5">
+
+      {% if creator.bio %}
+      <div class="bg-neutral-900/50 border border-neutral-800 rounded-xl p-5">
+        <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">About</h2>
+        <p class="text-gray-300 text-sm leading-relaxed whitespace-pre-line">{{ creator.bio }}</p>
+      </div>
+      {% endif %}
+
+      <!-- Latest YouTube video -->
+      {% if creator.latest_youtube_video_id %}
+      <div class="bg-neutral-900/50 border border-neutral-800 rounded-xl p-5">
+        <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">
+          <i class="fab fa-youtube text-red-500 mr-2"></i>Latest Video
+        </h2>
+        <a href="https://www.youtube.com/watch?v={{ creator.latest_youtube_video_id }}" target="_blank" rel="noopener noreferrer"
+           class="flex gap-3 group">
+          {% if creator.latest_youtube_thumbnail_url %}
+          <img src="{{ creator.latest_youtube_thumbnail_url }}" alt="Video thumbnail"
+               class="w-32 h-18 rounded-lg object-cover flex-shrink-0 group-hover:opacity-80 transition">
+          {% endif %}
+          <div>
+            <p class="text-white text-sm font-medium group-hover:text-red-400 transition line-clamp-2">
+              {{ creator.latest_youtube_video_title|default:"Watch on YouTube" }}
+            </p>
+            <p class="text-gray-500 text-xs mt-1">YouTube</p>
+          </div>
+        </a>
+      </div>
+      {% endif %}
+
+      <!-- Latest stream -->
+      {% if creator.latest_stream_title %}
+      <div class="bg-neutral-900/50 border border-neutral-800 rounded-xl p-5">
+        <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">
+          <i class="fas fa-broadcast-tower text-purple-400 mr-2"></i>Last Stream
+        </h2>
+        <div class="flex gap-3">
+          {% if creator.latest_stream_thumbnail_url %}
+          <img src="{{ creator.latest_stream_thumbnail_url }}" alt="Stream thumbnail"
+               class="w-32 rounded-lg object-cover flex-shrink-0">
+          {% endif %}
+          <div>
+            <p class="text-white text-sm font-medium">{{ creator.latest_stream_title }}</p>
+            {% if creator.latest_stream_platform %}
+            <p class="text-gray-500 text-xs mt-1 capitalize">{{ creator.latest_stream_platform }}</p>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+      {% endif %}
+
+    </div>
+
+    <!-- Right: platform links + stats -->
+    <div class="space-y-5">
+
+      <!-- Platform links -->
+      <div class="bg-neutral-900/50 border border-neutral-800 rounded-xl p-5">
+        <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Find Me On</h2>
+        <div class="space-y-2">
+          {% if creator.twitch_url %}
+          <a href="{{ creator.twitch_url }}" target="_blank" rel="noopener noreferrer"
+             class="flex items-center gap-3 text-sm text-gray-300 hover:text-purple-300 transition p-2 rounded-lg hover:bg-purple-500/10">
+            <i class="fab fa-twitch text-purple-400 w-4 text-center"></i>
+            <span>Twitch{% if creator.twitch_display_name %} - {{ creator.twitch_display_name }}{% endif %}</span>
+          </a>
+          {% endif %}
+          {% if creator.youtube_url %}
+          <a href="{{ creator.youtube_url }}" target="_blank" rel="noopener noreferrer"
+             class="flex items-center gap-3 text-sm text-gray-300 hover:text-red-300 transition p-2 rounded-lg hover:bg-red-500/10">
+            <i class="fab fa-youtube text-red-400 w-4 text-center"></i>
+            <span>YouTube{% if creator.youtube_channel_name %} - {{ creator.youtube_channel_name }}{% endif %}</span>
+          </a>
+          {% endif %}
+          {% if creator.kick_url %}
+          <a href="{{ creator.kick_url }}" target="_blank" rel="noopener noreferrer"
+             class="flex items-center gap-3 text-sm text-gray-300 hover:text-green-300 transition p-2 rounded-lg hover:bg-green-500/10">
+            <i class="fas fa-broadcast-tower text-green-400 w-4 text-center"></i>
+            <span>Kick{% if creator.kick_display_name %} - {{ creator.kick_display_name }}{% endif %}</span>
+          </a>
+          {% endif %}
+          {% if creator.tiktok_url %}
+          <a href="{{ creator.tiktok_url }}" target="_blank" rel="noopener noreferrer"
+             class="flex items-center gap-3 text-sm text-gray-300 hover:text-white transition p-2 rounded-lg hover:bg-neutral-700/50">
+            <i class="fab fa-tiktok text-white w-4 text-center"></i>
+            <span>TikTok</span>
+          </a>
+          {% endif %}
+          {% if creator.twitter_url %}
+          <a href="{{ creator.twitter_url }}" target="_blank" rel="noopener noreferrer"
+             class="flex items-center gap-3 text-sm text-gray-300 hover:text-sky-300 transition p-2 rounded-lg hover:bg-sky-500/10">
+            <i class="fab fa-twitter text-sky-400 w-4 text-center"></i>
+            <span>X / Twitter</span>
+          </a>
+          {% endif %}
+          {% if creator.bluesky_url %}
+          <a href="{{ creator.bluesky_url }}" target="_blank" rel="noopener noreferrer"
+             class="flex items-center gap-3 text-sm text-gray-300 hover:text-sky-300 transition p-2 rounded-lg hover:bg-sky-500/10">
+            <i class="fas fa-cloud text-sky-400 w-4 text-center"></i>
+            <span>Bluesky</span>
+          </a>
+          {% endif %}
+          {% if creator.discord_url %}
+          <a href="{{ creator.discord_url }}" target="_blank" rel="noopener noreferrer"
+             class="flex items-center gap-3 text-sm text-gray-300 hover:text-indigo-300 transition p-2 rounded-lg hover:bg-indigo-500/10">
+            <i class="fab fa-discord text-indigo-400 w-4 text-center"></i>
+            <span>Discord</span>
+          </a>
+          {% endif %}
+          {% if creator.fluxer_url %}
+          <a href="{{ creator.fluxer_url }}" target="_blank" rel="noopener noreferrer"
+             class="flex items-center gap-3 text-sm text-gray-300 hover:text-cyan-300 transition p-2 rounded-lg hover:bg-cyan-500/10">
+            <i class="fas fa-bolt text-cyan-400 w-4 text-center"></i>
+            <span>Fluxer</span>
+          </a>
+          {% endif %}
+          {% if creator.matrix_url %}
+          <a href="{{ creator.matrix_url }}" target="_blank" rel="noopener noreferrer"
+             class="flex items-center gap-3 text-sm text-gray-300 hover:text-green-300 transition p-2 rounded-lg hover:bg-green-500/10">
+            <i class="fas fa-comments text-green-400 w-4 text-center"></i>
+            <span>Matrix</span>
+          </a>
+          {% endif %}
+          {% if creator.website_url %}
+          <a href="{{ creator.website_url }}" target="_blank" rel="noopener noreferrer"
+             class="flex items-center gap-3 text-sm text-gray-300 hover:text-white transition p-2 rounded-lg hover:bg-neutral-700/50">
+            <i class="fas fa-globe text-gray-400 w-4 text-center"></i>
+            <span>Website</span>
+          </a>
+          {% endif %}
+          {% if not creator.twitch_url and not creator.youtube_url and not creator.kick_url and not creator.tiktok_url and not creator.twitter_url and not creator.discord_url and not creator.fluxer_url and not creator.matrix_url and not creator.website_url %}
+          <p class="text-gray-600 text-sm">No links added yet.</p>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Stats -->
+      <div class="bg-neutral-900/50 border border-neutral-800 rounded-xl p-5">
+        <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Stats</h2>
+        <div class="space-y-2">
+          {% if creator.twitch_follower_count %}
+          <div class="flex justify-between text-sm">
+            <span class="text-gray-500">Twitch Followers</span>
+            <span class="text-white font-medium">{{ creator.twitch_follower_count|floatformat:"0" }}</span>
+          </div>
+          {% endif %}
+          {% if creator.youtube_subscriber_count %}
+          <div class="flex justify-between text-sm">
+            <span class="text-gray-500">YouTube Subs</span>
+            <span class="text-white font-medium">{{ creator.youtube_subscriber_count|floatformat:"0" }}</span>
+          </div>
+          {% endif %}
+          {% if creator.youtube_video_count %}
+          <div class="flex justify-between text-sm">
+            <span class="text-gray-500">Videos</span>
+            <span class="text-white font-medium">{{ creator.youtube_video_count }}</span>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+</div>
+{% endblock %}

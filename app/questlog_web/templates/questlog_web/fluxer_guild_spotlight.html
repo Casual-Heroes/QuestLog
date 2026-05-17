@@ -1,0 +1,124 @@
+{% extends "questlog_web/fluxer_base_guild.html" %}
+{% load static %}
+{% block title %}Community Spotlight - {{ guild_name }}{% endblock %}
+
+{% block guild_content %}
+{% include "questlog/partials/custom_select.html" %}
+
+  <!-- Header -->
+  <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
+    <div>
+      <h1 class="text-3xl font-bold text-white">
+        <i class="fas fa-dragon text-yellow-400 mr-3"></i>Community Spotlight
+      </h1>
+      <p class="text-gray-400 mt-1">Monthly Most Helpful nominations and awards for {{ guild_name }}</p>
+    </div>
+    <button onclick="saveSpotlight()" id="save-btn"
+            class="px-5 py-2.5 bg-yellow-600 hover:bg-yellow-500 text-white font-semibold rounded-lg transition flex items-center gap-2">
+      <i class="fas fa-save"></i> Save Settings
+    </button>
+  </div>
+
+  <div id="save-msg" class="hidden mb-4 px-4 py-3 rounded-lg text-sm font-medium"></div>
+
+  <!-- Channel Setup -->
+  <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6 mb-6">
+    <h2 class="text-white font-semibold mb-1 flex items-center gap-2">
+      <i class="fas fa-hashtag text-yellow-400"></i> Spotlight Channel
+    </h2>
+    <p class="text-gray-500 text-sm mb-4">Bot posts nomination reminders, voting polls, and winner announcements here.</p>
+    <div id="cs-spotlight-channel" class="max-w-sm"></div>
+  </div>
+
+  <!-- How it works -->
+  <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6">
+    <h2 class="text-white font-semibold mb-4 flex items-center gap-2">
+      <i class="fas fa-calendar-alt text-gray-400"></i> Monthly Schedule
+    </h2>
+    <div class="space-y-3 text-sm">
+      <div class="flex items-start gap-3">
+        <span class="text-yellow-400 font-bold w-16 shrink-0">1st</span>
+        <span class="text-gray-300">Bot posts nomination reminder in this channel. Site posts a feed announcement.</span>
+      </div>
+      <div class="flex items-start gap-3">
+        <span class="text-yellow-400 font-bold w-16 shrink-0">20th</span>
+        <span class="text-gray-300">Bot posts a reminder with current top nominees.</span>
+      </div>
+      <div class="flex items-start gap-3">
+        <span class="text-yellow-400 font-bold w-16 shrink-0">26th</span>
+        <span class="text-gray-300">Nominations close. Bot posts the voting poll (top 5 nominees, reaction votes).</span>
+      </div>
+      <div class="flex items-start gap-3">
+        <span class="text-yellow-400 font-bold w-16 shrink-0">Last day</span>
+        <span class="text-gray-300">Voting closes. Bot announces winner, awards Legacy points and permanent flair trophy.</span>
+      </div>
+    </div>
+    <div class="mt-5 border-t border-neutral-800 pt-4">
+      <h3 class="text-white font-semibold text-sm mb-2">Bot commands</h3>
+      <div class="space-y-1 text-sm font-mono">
+        <div><span class="text-yellow-400">!nominate @user reason</span> <span class="text-gray-500">- Submit a nomination (one per member per month)</span></div>
+        <div><span class="text-yellow-400">!nominations</span> <span class="text-gray-500">- See current month's nominees</span></div>
+      </div>
+    </div>
+    <div class="mt-4 border-t border-neutral-800 pt-4">
+      <h3 class="text-white font-semibold text-sm mb-2">Award categories</h3>
+      <ul class="text-sm text-gray-400 space-y-1">
+        <li><i class="fas fa-globe text-yellow-400 w-4"></i> <strong class="text-gray-300">Most Helpful</strong> - +15 Legacy</li>
+        <li><i class="fas fa-users text-cyan-400 w-4"></i> <strong class="text-gray-300">Best LFG Host</strong> - +12 Legacy</li>
+        <li><i class="fas fa-hammer text-lime-400 w-4"></i> <strong class="text-gray-300">Most Creative Build</strong> - +12 Legacy</li>
+        <li><i class="fas fa-skull text-orange-400 w-4"></i> <strong class="text-gray-300">7DTD MVP</strong> - +10 Legacy</li>
+        <li><i class="fas fa-snowflake text-blue-400 w-4"></i> <strong class="text-gray-300">Valheim Wanderer</strong> - +10 Legacy</li>
+        <li><i class="fas fa-cube text-green-400 w-4"></i> <strong class="text-gray-300">Minecraft Builder</strong> - +10 Legacy</li>
+        <li><i class="fas fa-biohazard text-red-400 w-4"></i> <strong class="text-gray-300">DayZ Survivor</strong> - +10 Legacy</li>
+        <li><i class="fas fa-dragon text-emerald-400 w-4"></i> <strong class="text-gray-300">Palworld Tamer</strong> - +10 Legacy</li>
+      </ul>
+      <p class="text-xs text-gray-600 mt-2">All awards are permanent trophy flairs - winners keep them on their profile forever.</p>
+    </div>
+  </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const GUILD_ID = '{{ guild_id }}';
+  const SETTINGS = JSON.parse('{{ settings_json|escapejs }}');
+  const CHANNELS = JSON.parse('{{ channels_json|escapejs }}');
+  const API = '/api/dashboard/fluxer/' + GUILD_ID + '/settings/';
+
+  const textChannels = CHANNELS.filter(c => c.type === 0 || c.type === 'text');
+  const channelItems = [{value: '', label: '-- None --'}, ...textChannels.map(c => ({value: c.id, label: '#' + c.name}))];
+
+  let csSpotlight = createCustomSelect({
+    container: document.getElementById('cs-spotlight-channel'),
+    name: 'spotlight_channel_id',
+    items: channelItems,
+    selected: SETTINGS.spotlight_channel_id || '',
+    placeholder: 'Select a channel...',
+  });
+
+  window.saveSpotlight = async function() {
+    const btn = document.getElementById('save-btn');
+    const msg = document.getElementById('save-msg');
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Saving...';
+    btn.disabled = true;
+    try {
+      const resp = await csrfFetch(API, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ spotlight_channel_id: csSpotlight.getValue() || '' }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || 'Save failed');
+      msg.className = 'mb-4 px-4 py-3 rounded-lg text-sm font-medium bg-green-900/40 text-green-400 border border-green-700/40';
+      msg.textContent = 'Saved!';
+      setTimeout(() => { msg.className = 'hidden'; }, 3000);
+    } catch (e) {
+      msg.className = 'mb-4 px-4 py-3 rounded-lg text-sm font-medium bg-red-900/40 text-red-400 border border-red-700/40';
+      msg.textContent = 'Error: ' + e.message;
+    } finally {
+      btn.innerHTML = '<i class="fas fa-save mr-2"></i>Save Settings';
+      btn.disabled = false;
+    }
+  };
+});
+</script>
+
+{% endblock %}

@@ -9,7 +9,7 @@
   <!-- Header -->
   <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
     <div>
-      <a href="/ql/admin/" class="text-gray-500 hover:text-gray-300 text-sm mb-2 inline-flex items-center gap-1 transition">
+      <a href="/admin/" class="text-gray-500 hover:text-gray-300 text-sm mb-2 inline-flex items-center gap-1 transition">
         <i class="fas fa-arrow-left"></i> Back to Admin Panel
       </a>
       <h1 class="text-3xl font-bold text-white">
@@ -73,9 +73,42 @@
             </div>
             {% endif %}
 
+            <!-- Fluxer Role Mappings -->
+            <div class="mb-4">
+              <p class="text-gray-500 text-xs uppercase tracking-wide mb-2">
+                <img src="{% static 'img/siteassets/fluxer-favicon.png' %}" class="inline w-3.5 h-3.5 rounded-sm mr-1" alt="">Fluxer Role Mappings
+              </p>
+              {% if game.fluxer_roles %}
+              <div class="space-y-2">
+                {% for role in game.fluxer_roles %}
+                <div class="flex items-center justify-between bg-neutral-800/50 rounded px-3 py-2">
+                  <div class="flex-1">
+                    <p class="text-white text-sm">
+                      <img src="{% static 'img/siteassets/fluxer-favicon.png' %}" class="inline w-3.5 h-3.5 rounded-sm mr-2" alt="">
+                      {% if role.guild_name %}{{ role.guild_name }}{% else %}Guild {{ role.guild_id }}{% endif %}
+                    </p>
+                    <p class="text-gray-500 text-xs font-mono">
+                      Guild: {{ role.guild_id }} &nbsp;·&nbsp; Role: {{ role.role_id }}
+                      {% if role.role_name %} — {{ role.role_name }}{% endif %}
+                    </p>
+                  </div>
+                  <button onclick="deleteFluxerRoleMapping({{ role.id }})" class="text-red-400 hover:text-red-300 transition ml-4">
+                    <i class="fas fa-trash-alt"></i>
+                  </button>
+                </div>
+                {% endfor %}
+              </div>
+              {% else %}
+              <p class="text-gray-500 text-sm italic">No Fluxer role mappings configured</p>
+              {% endif %}
+              <button onclick="showAddFluxerRoleMappingModal({{ game.id }}, '{{ game.display_name|escapejs }}')" class="mt-3 text-indigo-400 hover:text-indigo-300 text-sm transition">
+                <i class="fas fa-plus-circle mr-1"></i>Add Fluxer Role Mapping
+              </button>
+            </div>
+
             <!-- Discord Role Mappings -->
             <div>
-              <p class="text-gray-500 text-xs uppercase tracking-wide mb-2">Discord Role Mappings</p>
+              <p class="text-gray-500 text-xs uppercase tracking-wide mb-2"><i class="fab fa-discord text-indigo-400 mr-1"></i>Discord Role Mappings</p>
               {% if game.roles %}
               <div class="space-y-2">
                 {% for role in game.roles %}
@@ -101,7 +134,7 @@
               {% endif %}
 
               <button onclick="showAddRoleMappingModal({{ game.id }}, '{{ game.display_name|escapejs }}')" class="mt-3 text-indigo-400 hover:text-indigo-300 text-sm transition">
-                <i class="fas fa-plus-circle mr-1"></i>Add Role Mapping
+                <i class="fas fa-plus-circle mr-1"></i>Add Discord Role Mapping
               </button>
             </div>
           </div>
@@ -210,6 +243,20 @@
         </div>
       </div>
 
+      <!-- Fluxer Activity Section -->
+      <div class="space-y-4">
+        <h3 class="text-lg font-semibold text-white border-b border-neutral-800 pb-2">
+          <img src="{% static 'img/siteassets/fluxer-favicon.png' %}" class="inline w-4 h-4 rounded-sm mr-2" alt="">Fluxer Activity Tracking
+        </h3>
+        <div>
+          <label class="block text-sm text-gray-400 mb-2">Fluxer Role Mappings <span class="text-xs text-gray-500">(members with these roles count as active)</span></label>
+          <div id="fluxerRoleMappingsContainer" class="space-y-2 mb-2"></div>
+          <button type="button" onclick="addFluxerRoleMappingField()" class="text-indigo-400 hover:text-indigo-300 text-sm transition">
+            <i class="fas fa-plus-circle mr-1"></i>Add Fluxer Role Mapping
+          </button>
+        </div>
+      </div>
+
       <!-- Links & Images -->
       <div class="space-y-4">
         <h3 class="text-lg font-semibold text-white border-b border-neutral-800 pb-2">
@@ -290,6 +337,20 @@
             </div>
           </div>
         </div>
+        <!-- Discover strip toggle - only relevant for AMP/both game types -->
+        <div id="discoverStripRow" class="hidden">
+          <label class="block text-sm text-gray-400 mb-2">Discover Page Strip</label>
+          <div class="flex items-center gap-3 mt-1">
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" id="showOnDiscoverStrip" class="sr-only peer" checked>
+              <div class="w-11 h-6 bg-neutral-700 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div>
+            </label>
+            <div>
+              <span class="text-white text-sm">Show server pill on /discover/</span>
+              <p class="text-xs text-gray-500 mt-0.5">Displays live player count in the ticker strip at the top of the Discover page.</p>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- Actions -->
@@ -303,11 +364,11 @@
   </div>
 </div>
 
-<!-- Add Role Mapping Modal -->
+<!-- Add Discord Role Mapping Modal -->
 <div id="roleMappingModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm hidden items-center justify-center z-50" onclick="closeRoleMappingModalOnBackdrop(event)">
   <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6 max-w-lg w-full mx-4" onclick="event.stopPropagation()">
     <div class="flex items-center justify-between mb-6">
-      <h2 class="text-2xl font-bold text-white"><i class="fab fa-discord text-indigo-400 mr-2"></i>Add Role Mapping</h2>
+      <h2 class="text-2xl font-bold text-white"><i class="fab fa-discord text-indigo-400 mr-2"></i>Add Discord Role Mapping</h2>
       <button onclick="closeRoleMappingModal()" class="text-gray-400 hover:text-white transition"><i class="fas fa-times text-xl"></i></button>
     </div>
     <p id="roleMappingGameName" class="text-gray-400 mb-4"></p>
@@ -339,6 +400,44 @@
   </div>
 </div>
 
+<!-- Add Fluxer Role Mapping Modal -->
+<div id="fluxerRoleMappingModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm hidden items-center justify-center z-50" onclick="closeFluxerRoleMappingModalOnBackdrop(event)">
+  <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-6 max-w-lg w-full mx-4" onclick="event.stopPropagation()">
+    <div class="flex items-center justify-between mb-6">
+      <h2 class="text-2xl font-bold text-white">
+        <img src="{% static 'img/siteassets/fluxer-favicon.png' %}" class="inline w-5 h-5 rounded-sm mr-2" alt="">Add Fluxer Role Mapping
+      </h2>
+      <button onclick="closeFluxerRoleMappingModal()" class="text-gray-400 hover:text-white transition"><i class="fas fa-times text-xl"></i></button>
+    </div>
+    <p id="fluxerRoleMappingGameName" class="text-gray-400 mb-4"></p>
+    <form id="fluxerRoleMappingForm" class="space-y-4">
+      <input type="hidden" id="frmGameId" value="">
+      <div>
+        <label class="block text-sm text-gray-400 mb-2">Fluxer Guild ID <span class="text-red-400">*</span></label>
+        <input type="text" id="frmGuildId" required class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2 text-white font-mono focus:border-indigo-500 focus:outline-none" placeholder="e.g., 1474761008438513445">
+      </div>
+      <div>
+        <label class="block text-sm text-gray-400 mb-2">Fluxer Role ID <span class="text-red-400">*</span></label>
+        <input type="text" id="frmRoleId" required class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2 text-white font-mono focus:border-indigo-500 focus:outline-none" placeholder="e.g., role ID from Fluxer">
+      </div>
+      <div>
+        <label class="block text-sm text-gray-400 mb-2">Guild Name <span class="text-xs text-gray-500">(Optional)</span></label>
+        <input type="text" id="frmGuildName" class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2 text-white focus:border-indigo-500 focus:outline-none" placeholder="e.g., Casual Heroes">
+      </div>
+      <div>
+        <label class="block text-sm text-gray-400 mb-2">Role Name <span class="text-xs text-gray-500">(Optional)</span></label>
+        <input type="text" id="frmRoleName" class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2 text-white focus:border-indigo-500 focus:outline-none" placeholder="e.g., FFXIV Players">
+      </div>
+      <div class="flex gap-3 pt-4">
+        <button type="button" onclick="closeFluxerRoleMappingModal()" class="flex-1 bg-neutral-800 hover:bg-neutral-700 text-white px-4 py-2 rounded-lg font-medium transition">Cancel</button>
+        <button type="submit" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium transition">
+          <i class="fas fa-plus mr-2"></i>Add Fluxer Mapping
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <script>
 // ── Steam game search autocomplete ──────────────────────────────────────────
 let _steamSearchTimer = null;
@@ -362,7 +461,7 @@ async function runSteamSearch(query) {
   drop.innerHTML = '<div class="px-3 py-2 text-gray-500 text-xs"><i class="fas fa-spinner fa-spin mr-1"></i>Searching Steam...</div>';
   drop.classList.remove('hidden');
   try {
-    const res = await csrfFetch(`/ql/api/admin/steam-game-search/?q=${encodeURIComponent(query)}`);
+    const res = await csrfFetch(`/api/admin/steam-game-search/?q=${encodeURIComponent(query)}`);
     const d   = await res.json();
     const results = d.results || [];
     if (!results.length) {
@@ -433,6 +532,7 @@ function clearSteamSearch() {
 
 let currentKeywords = [];
 let currentRoleMappings = [];
+let currentFluxerRoleMappings = [];
 
 function showToast(message, type = 'success') {
   const toast = document.createElement('div');
@@ -450,6 +550,9 @@ function toggleGameTypeSections() {
   const gameType = document.getElementById('gameType')?.value || 'discord';
   document.getElementById('ampSection').classList.toggle('hidden', gameType === 'discord');
   document.getElementById('discordSection').classList.toggle('hidden', gameType === 'amp');
+  // Show discover strip toggle only for AMP-backed servers
+  const hasAmp = gameType === 'amp' || gameType === 'both';
+  document.getElementById('discoverStripRow').classList.toggle('hidden', !hasAmp);
 }
 
 function showAddGameModal() {
@@ -459,8 +562,10 @@ function showAddGameModal() {
   clearSteamSearch();
   currentKeywords = [];
   currentRoleMappings = [];
+  currentFluxerRoleMappings = [];
   renderKeywordFields();
   renderRoleMappingFields();
+  renderFluxerRoleMappingFields();
   addKeywordField();
   toggleGameTypeSections();
   document.getElementById('gameModal').classList.replace('hidden', 'flex') || document.getElementById('gameModal').classList.remove('hidden') || document.getElementById('gameModal').classList.add('flex');
@@ -468,7 +573,7 @@ function showAddGameModal() {
 }
 
 function editGame(gameId) {
-  csrfFetch(`/ql/api/admin/site-activity/games/${gameId}/`)
+  csrfFetch(`/api/admin/site-activity/games/${gameId}/`)
     .then(r => r.json())
     .then(game => {
       document.getElementById('gameModalTitle').innerHTML = '<i class="fas fa-edit text-indigo-400 mr-2"></i>Edit Game';
@@ -496,10 +601,13 @@ function editGame(gameId) {
       document.getElementById('linkLabel').value = game.link_label || 'View Site';
       document.getElementById('sortOrder').value = game.sort_order;
       document.getElementById('isActive').checked = game.is_active;
+      document.getElementById('showOnDiscoverStrip').checked = game.show_on_discover_strip !== false;
       currentKeywords = game.activity_keywords || [];
       currentRoleMappings = (game.roles || []).map(r => ({...r, guild_id: r.guild_id, role_id: r.role_id}));
+      currentFluxerRoleMappings = (game.fluxer_roles || []).map(r => ({...r}));
       renderKeywordFields();
       renderRoleMappingFields();
+      renderFluxerRoleMappingFields();
       toggleGameTypeSections();
       document.getElementById('gameModal').style.display = 'flex';
     })
@@ -511,6 +619,7 @@ function closeGameModal() {
   document.getElementById('gameForm').reset();
   currentKeywords = [];
   currentRoleMappings = [];
+  currentFluxerRoleMappings = [];
 }
 function closeGameModalOnBackdrop(e) { if (e.target === e.currentTarget) closeGameModal(); }
 
@@ -523,6 +632,19 @@ function renderKeywordFields() {
     const d = document.createElement('div');
     d.className = 'flex gap-2';
     d.innerHTML = `<input type="text" value="${escapeHtml(kw)}" onchange="currentKeywords[${i}]=this.value" class="flex-1 bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2 text-white focus:border-indigo-500 focus:outline-none" placeholder='e.g., "World of Warcraft"'><button type="button" onclick="removeKeywordField(${i})" class="px-3 text-red-400 hover:text-red-300 transition"><i class="fas fa-trash-alt"></i></button>`;
+    c.appendChild(d);
+  });
+}
+
+function addFluxerRoleMappingField() { currentFluxerRoleMappings.push({guild_id:'',role_id:'',guild_name:'',role_name:''}); renderFluxerRoleMappingFields(); }
+function removeFluxerRoleMappingField(i) { currentFluxerRoleMappings.splice(i, 1); renderFluxerRoleMappingFields(); }
+function renderFluxerRoleMappingFields() {
+  const c = document.getElementById('fluxerRoleMappingsContainer');
+  c.innerHTML = '';
+  currentFluxerRoleMappings.forEach((m, i) => {
+    const d = document.createElement('div');
+    d.className = 'bg-neutral-800/50 rounded-lg p-3 space-y-2';
+    d.innerHTML = `<div class="flex items-center justify-between mb-2"><span class="text-xs text-gray-400 font-semibold uppercase">Fluxer Role Mapping #${i+1}</span><button type="button" onclick="removeFluxerRoleMappingField(${i})" class="text-red-400 hover:text-red-300 text-sm"><i class="fas fa-trash-alt mr-1"></i>Remove</button></div><div class="grid grid-cols-1 md:grid-cols-2 gap-2"><input type="text" value="${escapeHtml(m.guild_id)}" onchange="currentFluxerRoleMappings[${i}].guild_id=this.value" class="bg-neutral-800 border border-neutral-700 rounded px-3 py-1.5 text-white text-sm font-mono focus:border-indigo-500 focus:outline-none" placeholder="Fluxer Guild ID"><input type="text" value="${escapeHtml(m.role_id)}" onchange="currentFluxerRoleMappings[${i}].role_id=this.value" class="bg-neutral-800 border border-neutral-700 rounded px-3 py-1.5 text-white text-sm font-mono focus:border-indigo-500 focus:outline-none" placeholder="Fluxer Role ID"><input type="text" value="${escapeHtml(m.guild_name||'')}" onchange="currentFluxerRoleMappings[${i}].guild_name=this.value" class="bg-neutral-800 border border-neutral-700 rounded px-3 py-1.5 text-white text-sm focus:border-indigo-500 focus:outline-none" placeholder="Guild Name (optional)"><input type="text" value="${escapeHtml(m.role_name||'')}" onchange="currentFluxerRoleMappings[${i}].role_name=this.value" class="bg-neutral-800 border border-neutral-700 rounded px-3 py-1.5 text-white text-sm focus:border-indigo-500 focus:outline-none" placeholder="Role Name (optional)"></div>`;
     c.appendChild(d);
   });
 }
@@ -564,12 +686,16 @@ document.getElementById('gameForm').addEventListener('submit', function(e) {
     link_label: document.getElementById('linkLabel').value || 'View Site',
     activity_keywords: currentKeywords.filter(k => k.trim()),
     is_active: document.getElementById('isActive').checked,
+    show_on_discover_strip: document.getElementById('showOnDiscoverStrip').checked,
     sort_order: parseInt(document.getElementById('sortOrder').value),
     role_mappings: currentRoleMappings.filter(m => m.guild_id && m.role_id).map(m => ({
       ...m, guild_id: String(m.guild_id), role_id: String(m.role_id)
     })),
+    fluxer_role_mappings: currentFluxerRoleMappings.filter(m => m.guild_id && m.role_id).map(m => ({
+      ...m, guild_id: String(m.guild_id), role_id: String(m.role_id)
+    })),
   };
-  const url = gameId ? `/ql/api/admin/site-activity/games/${gameId}/` : '/ql/api/admin/site-activity/games/';
+  const url = gameId ? `/api/admin/site-activity/games/${gameId}/` : '/api/admin/site-activity/games/';
   csrfFetch(url, { method: gameId ? 'PUT' : 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(data) })
     .then(r => r.json())
     .then(res => {
@@ -581,7 +707,7 @@ document.getElementById('gameForm').addEventListener('submit', function(e) {
 
 function deleteGame(gameId, gameName) {
   if (!confirm(`Delete "${gameName}"? This also removes all role mappings.`)) return;
-  csrfFetch(`/ql/api/admin/site-activity/games/${gameId}/`, { method: 'DELETE' })
+  csrfFetch(`/api/admin/site-activity/games/${gameId}/`, { method: 'DELETE' })
     .then(r => r.json())
     .then(res => {
       if (res.success) { showToast('Game deleted', 'success'); setTimeout(() => location.reload(), 1000); }
@@ -592,7 +718,7 @@ function deleteGame(gameId, gameName) {
 
 function showAddRoleMappingModal(gameId, gameName) {
   document.getElementById('roleMappingGameId').value = gameId;
-  document.getElementById('roleMappingGameName').textContent = `Adding role mapping for: ${gameName}`;
+  document.getElementById('roleMappingGameName').textContent = `Adding Discord role mapping for: ${gameName}`;
   document.getElementById('roleMappingForm').reset();
   document.getElementById('roleMappingModal').style.display = 'flex';
 }
@@ -608,7 +734,7 @@ document.getElementById('roleMappingForm').addEventListener('submit', function(e
     guild_name: document.getElementById('rmGuildName').value,
     role_name: document.getElementById('rmRoleName').value,
   };
-  csrfFetch('/ql/api/admin/site-activity/roles/', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(data) })
+  csrfFetch('/api/admin/site-activity/roles/', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(data) })
     .then(r => r.json())
     .then(res => {
       if (res.success) { showToast('Role mapping added', 'success'); closeRoleMappingModal(); setTimeout(() => location.reload(), 1000); }
@@ -618,11 +744,49 @@ document.getElementById('roleMappingForm').addEventListener('submit', function(e
 });
 
 function deleteRoleMapping(roleId) {
-  if (!confirm('Delete this role mapping?')) return;
-  csrfFetch(`/ql/api/admin/site-activity/roles/${roleId}/`, { method: 'DELETE' })
+  if (!confirm('Delete this Discord role mapping?')) return;
+  csrfFetch(`/api/admin/site-activity/roles/${roleId}/`, { method: 'DELETE' })
     .then(r => r.json())
     .then(res => {
       if (res.success) { showToast('Role mapping deleted', 'success'); setTimeout(() => location.reload(), 1000); }
+      else showToast(res.error || 'Failed to delete', 'error');
+    })
+    .catch(() => showToast('Network error', 'error'));
+}
+
+function showAddFluxerRoleMappingModal(gameId, gameName) {
+  document.getElementById('frmGameId').value = gameId;
+  document.getElementById('fluxerRoleMappingGameName').textContent = `Adding Fluxer role mapping for: ${gameName}`;
+  document.getElementById('fluxerRoleMappingForm').reset();
+  document.getElementById('fluxerRoleMappingModal').style.display = 'flex';
+}
+function closeFluxerRoleMappingModal() { document.getElementById('fluxerRoleMappingModal').style.display = 'none'; }
+function closeFluxerRoleMappingModalOnBackdrop(e) { if (e.target === e.currentTarget) closeFluxerRoleMappingModal(); }
+
+document.getElementById('fluxerRoleMappingForm').addEventListener('submit', function(e) {
+  e.preventDefault();
+  const data = {
+    game_id: parseInt(document.getElementById('frmGameId').value),
+    guild_id: document.getElementById('frmGuildId').value,
+    role_id: document.getElementById('frmRoleId').value,
+    guild_name: document.getElementById('frmGuildName').value,
+    role_name: document.getElementById('frmRoleName').value,
+  };
+  csrfFetch('/api/admin/site-activity/fluxer-roles/', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(data) })
+    .then(r => r.json())
+    .then(res => {
+      if (res.success) { showToast('Fluxer role mapping added', 'success'); closeFluxerRoleMappingModal(); setTimeout(() => location.reload(), 1000); }
+      else showToast(res.error || 'Failed to add', 'error');
+    })
+    .catch(() => showToast('Network error', 'error'));
+});
+
+function deleteFluxerRoleMapping(roleId) {
+  if (!confirm('Delete this Fluxer role mapping?')) return;
+  csrfFetch(`/api/admin/site-activity/fluxer-roles/${roleId}/`, { method: 'DELETE' })
+    .then(r => r.json())
+    .then(res => {
+      if (res.success) { showToast('Fluxer role mapping deleted', 'success'); setTimeout(() => location.reload(), 1000); }
       else showToast(res.error || 'Failed to delete', 'error');
     })
     .catch(() => showToast('Network error', 'error'));

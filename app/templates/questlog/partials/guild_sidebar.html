@@ -161,7 +161,7 @@
 
         <!-- QuestLog Network (Members can see if guild is approved) -->
         {% if user_network_status == 'approved' %}
-        <a href="https://casual-heroes.com/ql/network/" target="_blank"
+        <a href="https://casual-heroes.comnetwork/" target="_blank"
            class="nav-item flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
           <i class="fas fa-globe text-gray-400 group-hover:text-indigo-400"></i>
           <span>QuestLog Network</span>
@@ -280,7 +280,7 @@
               <span>Game Settings</span>
             </a>
 
-            <a href="https://casual-heroes.com/ql/network/" target="_blank"
+            <a href="https://casual-heroes.comnetwork/" target="_blank"
                class="sub-nav-item flex items-center gap-2 px-3 py-1.5 rounded text-xs transition">
               <i class="fas fa-globe w-4"></i>
               <span>QuestLog Network</span>
@@ -331,6 +331,27 @@
            class="nav-item {% if active_page == 'trackers' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
           <i class="fas fa-chart-line text-gray-400 group-hover:text-cyan-400"></i>
           <span>Trackers</span>
+        </a>
+
+        <!-- Live Alerts -->
+        <a href="{% url 'ql_discord_guild_live_alerts' guild.id %}"
+           class="nav-item {% if active_page == 'live_alerts' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          <i class="fas fa-broadcast-tower text-gray-400 group-hover:text-rose-400"></i>
+          <span>Live Alerts</span>
+        </a>
+
+        <!-- Community Spotlight -->
+        <a href="{% url 'ql_discord_guild_spotlight' guild.id %}"
+           class="nav-item {% if active_page == 'spotlight' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          <i class="fas fa-dragon text-gray-400 group-hover:text-yellow-400"></i>
+          <span>Community Spotlight</span>
+        </a>
+
+        <!-- Quest Control -->
+        <a href="{% url 'ql_discord_guild_quest_control' guild.id %}"
+           class="nav-item {% if active_page == 'quest_control' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
+          <i class="fas fa-server text-gray-400 group-hover:text-lime-400"></i>
+          <span>Quest Control</span>
         </a>
       </div>
     </div>
@@ -421,33 +442,6 @@
       </div>
     </div>
 
-    <!-- AMP Server Management / Hosting Upsell Section -->
-    <div>
-      <div class="flex items-center justify-between px-3 mb-2">
-        <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wider">
-          {% if guild_record and guild_record.amp_instance_id %}AMP Server Management{% else %}Game Hosting{% endif %}
-        </h3>
-      </div>
-      <div class="space-y-1">
-      <a href="{% url 'guild_game_servers' guild.id %}"
-        class="nav-item {% if active_page == 'game_servers' %}active{% endif %}
-                flex w-full items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
-        <i class="fas fa-server text-gray-400 group-hover:text-indigo-400 shrink-0"></i>
-        <span class="whitespace-nowrap">
-          {% if guild_record and guild_record.amp_instance_id %}
-            Game Servers
-          {% else %}
-            Get Game Hosting
-          {% endif %}
-        </span>
-        <span class="ml-auto shrink-0 whitespace-nowrap inline-flex items-center rounded-full px-1 py-0.5 text-[10px] leading-none
-                    bg-blue-600/30 text-blue-300 border border-blue-500/40">
-          Coming Soon
-        </span>
-      </a>
-      </div>
-    </div>
-
     {% endif %}
     <!-- End Admin Only Sections -->
 
@@ -533,7 +527,7 @@
 
   <div class="p-4 border-t border-neutral-800 space-y-3">
     <!-- Back to QuestLog -->
-    <a href="/ql/"
+    <a href="/discover/"
        class="flex items-center gap-2 w-full py-2 px-3 rounded-lg text-sm font-medium text-gray-400 hover:text-white hover:bg-neutral-800 transition group">
       <i class="fas fa-arrow-left text-gray-500 group-hover:text-white"></i>
       <span>Back to QuestLog</span>

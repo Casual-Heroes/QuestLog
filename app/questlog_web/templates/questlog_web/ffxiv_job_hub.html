@@ -1,0 +1,182 @@
+{% extends "questlog_web/base_web.html" %}
+{% load static %}
+
+{% block title %}{{ job.abbr }} Guides - FFXIV QuestLog{% endblock %}
+
+{% block web_content %}
+<script>const CSRF_TOKEN = '{{ csrf_token }}';</script>
+
+<!-- Header -->
+<div class="bg-gradient-to-br from-neutral-900 via-neutral-900 to-indigo-950/30 border-b border-neutral-800 p-6 mb-6">
+  <div class="max-w-7xl mx-auto">
+    <div class="flex items-center gap-2 text-sm text-gray-500 mb-3">
+      <a href="/ffxiv/" class="hover:text-white transition">FFXIV</a>
+      <i class="fas fa-chevron-right text-xs"></i>
+      <a href="/ffxiv/tools/job-guides/" class="hover:text-white transition">Job Guides</a>
+      <i class="fas fa-chevron-right text-xs"></i>
+      <span class="text-gray-300">{{ job.abbr }}</span>
+    </div>
+    <div class="flex items-start justify-between gap-4 flex-wrap">
+      <div class="flex items-center gap-4">
+        <img src="{{ job_icon_url }}" alt="{{ job.abbr }}" class="w-14 h-14 rounded-xl object-contain"
+             onerror="this.style.display='none'">
+        <div>
+          <h1 class="text-3xl font-bold text-white">{{ job.name }}</h1>
+          <p class="{{ role_color }} text-sm font-medium">{{ job.role }}</p>
+          {% if total %}
+          <p class="text-gray-500 text-xs mt-0.5">{{ total }} guide{{ total|pluralize }}</p>
+          {% endif %}
+        </div>
+      </div>
+      <div class="flex items-center gap-3">
+        <a href="{{ fluxer_channel }}" target="_blank" rel="noopener"
+           class="flex items-center gap-2 px-3 py-2 bg-indigo-600/20 border border-indigo-500/40 text-indigo-300 rounded-lg text-sm hover:bg-indigo-600/30 transition">
+          <img src="{% static 'img/siteassets/fluxer-favicon.png' %}" style="width:1em;height:1em;object-fit:contain;" alt="Fluxer">
+          Discuss in Fluxer
+        </a>
+        {% if web_user %}
+        <a href="/ffxiv/tools/job-guides/{{ job_key }}/create/"
+           class="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-semibold transition">
+          <i class="fas fa-plus"></i> Write a Guide
+        </a>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="max-w-7xl mx-auto px-4 pb-12">
+  <div class="flex gap-6">
+
+    <!-- Main content -->
+    <div class="flex-1 min-w-0">
+
+      <!-- Tag filter pills -->
+      <div class="flex flex-wrap gap-2 mb-5">
+        <a href="/ffxiv/tools/job-guides/{{ job_key }}/"
+           class="text-xs px-3 py-1.5 rounded-full border transition {% if not tag_filter %}bg-neutral-700 border-neutral-600 text-white{% else %}border-neutral-700 bg-neutral-900 text-gray-400 hover:text-white{% endif %}">
+          All
+        </a>
+        {% for tag in guide_tags %}
+        <a href="/ffxiv/tools/job-guides/{{ job_key }}/?tag={{ tag }}"
+           class="text-xs px-3 py-1.5 rounded-full border transition {% if tag_filter == tag %}bg-indigo-600/30 border-indigo-500/60 text-indigo-300{% else %}border-neutral-700 bg-neutral-900 text-gray-400 hover:text-white{% endif %}">
+          {{ tag }}
+        </a>
+        {% endfor %}
+      </div>
+
+      <!-- Guide list -->
+      {% if guides %}
+      <div class="space-y-3">
+        {% for guide in guides %}
+        <a href="/ffxiv/tools/job-guides/guide/{{ guide.slug }}/"
+           class="block bg-neutral-900/60 border border-neutral-800 hover:border-indigo-500/40 rounded-xl p-5 transition group">
+          <div class="flex items-start gap-4">
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2 flex-wrap mb-1">
+                {% if guide.is_pinned %}
+                <span class="text-xs bg-yellow-500/20 text-yellow-300 border border-yellow-500/30 px-2 py-0.5 rounded-full">
+                  <i class="fas fa-thumbtack mr-1"></i>Pinned
+                </span>
+                {% endif %}
+                {% for tag in guide.tags %}
+                <span class="text-xs bg-neutral-800 text-gray-400 px-2 py-0.5 rounded-full">{{ tag }}</span>
+                {% endfor %}
+                {% if guide.patch_version %}
+                <span class="text-xs bg-neutral-800 text-cyan-400 px-2 py-0.5 rounded-full">{{ guide.patch_version }}</span>
+                {% endif %}
+              </div>
+              <h3 class="text-white font-semibold text-lg group-hover:text-indigo-300 transition leading-tight">
+                {{ guide.title }}
+              </h3>
+              {% if guide.summary %}
+              <p class="text-gray-400 text-sm mt-1 line-clamp-2">{{ guide.summary }}</p>
+              {% endif %}
+              <div class="flex items-center gap-4 mt-2 text-xs text-gray-500">
+                <span class="flex items-center gap-1">
+                  {% if guide.author.avatar %}
+                  <img src="{{ guide.author.avatar }}" class="w-4 h-4 rounded-full object-cover" alt="">
+                  {% endif %}
+                  {{ guide.author.username }}
+                </span>
+                <span><i class="fas fa-heart mr-1 text-rose-500/70"></i>{{ guide.like_count }}</span>
+                <span><i class="fas fa-comment mr-1 text-blue-500/70"></i>{{ guide.comment_count }}</span>
+                <span><i class="fas fa-eye mr-1"></i>{{ guide.view_count }}</span>
+              </div>
+            </div>
+          </div>
+        </a>
+        {% endfor %}
+      </div>
+
+      <!-- Pagination -->
+      {% if total_pages > 1 %}
+      <div class="flex justify-center gap-2 mt-6">
+        {% if page > 1 %}
+        <a href="?page={{ page|add:'-1' }}{% if tag_filter %}&tag={{ tag_filter }}{% endif %}"
+           class="px-4 py-2 bg-neutral-800 hover:bg-neutral-700 text-white rounded-lg text-sm transition">
+          <i class="fas fa-chevron-left mr-1"></i>Prev
+        </a>
+        {% endif %}
+        <span class="px-4 py-2 text-gray-400 text-sm">{{ page }} / {{ total_pages }}</span>
+        {% if page < total_pages %}
+        <a href="?page={{ page|add:'1' }}{% if tag_filter %}&tag={{ tag_filter }}{% endif %}"
+           class="px-4 py-2 bg-neutral-800 hover:bg-neutral-700 text-white rounded-lg text-sm transition">
+          Next<i class="fas fa-chevron-right ml-1"></i>
+        </a>
+        {% endif %}
+      </div>
+      {% endif %}
+
+      {% else %}
+      <!-- Empty state -->
+      <div class="text-center py-16 bg-neutral-900/40 rounded-xl border border-neutral-800">
+        <img src="{{ job_icon_url }}" alt="{{ job.abbr }}" class="w-16 h-16 rounded-xl object-contain mx-auto mb-4 opacity-30"
+             onerror="this.remove()">
+        <p class="text-gray-400 text-lg mb-1">No {{ job.name }} guides yet</p>
+        <p class="text-gray-500 text-sm mb-6">Be the first to share your rotation, BiS, or theory craft.</p>
+        {% if web_user %}
+        <a href="/ffxiv/tools/job-guides/{{ job_key }}/create/"
+           class="inline-flex items-center gap-2 px-6 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-lg font-semibold transition">
+          <i class="fas fa-plus"></i> Write the First Guide
+        </a>
+        {% else %}
+        <a href="/register/" class="inline-flex items-center gap-2 px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-semibold transition">
+          Sign in to contribute
+        </a>
+        {% endif %}
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Sidebar -->
+    <div class="hidden lg:block w-56 flex-shrink-0 space-y-4">
+      <!-- Other jobs in same role -->
+      <div class="bg-neutral-900/50 border border-neutral-800 rounded-xl p-4">
+        <p class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">{{ job.role }}</p>
+        <div class="space-y-1">
+          {% for role_group in roles %}{% if role_group.name == job.role %}
+          {% for j in role_group.jobs %}
+          <a href="/ffxiv/tools/job-guides/{{ j.key }}/"
+             class="flex items-center gap-2 px-2 py-1.5 rounded-lg text-sm transition {% if j.key == job_key %}bg-neutral-800 text-white{% else %}text-gray-400 hover:text-white hover:bg-neutral-800/60{% endif %}">
+            <img src="{{ j.icon_url }}" alt="{{ j.abbr }}" class="w-5 h-5 rounded object-contain opacity-80">
+            <span>{{ j.abbr }}</span>
+            {% if j.guide_count %}<span class="{{ role_color }} text-xs ml-auto">{{ j.guide_count }}</span>{% endif %}
+          </a>
+          {% endfor %}
+          {% endif %}{% endfor %}
+        </div>
+      </div>
+
+      <div class="bg-neutral-900/50 border border-neutral-800 rounded-xl p-4">
+        <p class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">All Jobs</p>
+        <a href="/ffxiv/tools/job-guides/" class="text-sm text-indigo-400 hover:text-indigo-300 transition">
+          <i class="fas fa-arrow-left mr-1"></i>Browse all jobs
+        </a>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+{% endblock %}

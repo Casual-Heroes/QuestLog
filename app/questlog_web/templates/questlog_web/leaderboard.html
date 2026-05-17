@@ -43,7 +43,7 @@
         {% endif %}
         {% if entries.1.is_live %}<span class="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-rose-500 animate-pulse border border-neutral-900"></span>{% endif %}
       </div>
-      <a href="/ql/u/{{ entries.1.username }}/"
+      <a href="/u/{{ entries.1.username }}/"
          class="text-white font-semibold text-sm hover:text-indigo-400 transition truncate max-w-[100px] text-center">
         {{ entries.1.username }}
       </a>
@@ -68,7 +68,7 @@
         {% endif %}
         {% if entries.0.is_live %}<span class="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-rose-500 animate-pulse border border-neutral-900"></span>{% endif %}
       </div>
-      <a href="/ql/u/{{ entries.0.username }}/"
+      <a href="/u/{{ entries.0.username }}/"
          class="text-white font-bold hover:text-yellow-400 transition truncate max-w-[100px] text-center">
         {{ entries.0.username }}
       </a>
@@ -93,7 +93,7 @@
         {% endif %}
         {% if entries.2.is_live %}<span class="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-rose-500 animate-pulse border border-neutral-900"></span>{% endif %}
       </div>
-      <a href="/ql/u/{{ entries.2.username }}/"
+      <a href="/u/{{ entries.2.username }}/"
          class="text-white font-semibold text-sm hover:text-indigo-400 transition truncate max-w-[100px] text-center">
         {{ entries.2.username }}
       </a>
@@ -154,7 +154,7 @@
         <!-- Name + rank title + now playing -->
         <div class="flex-1 min-w-0">
           <div class="flex items-center gap-2 flex-wrap">
-            <a href="/ql/u/{{ entry.username }}/"
+            <a href="/u/{{ entry.username }}/"
                class="text-white font-medium text-sm hover:text-indigo-400 transition truncate">
               {{ entry.username }}
             </a>
@@ -230,7 +230,7 @@
         <h2 class="text-lg font-bold text-white flex items-center gap-2">
           <i class="fas fa-server text-purple-400"></i> Most Active Communities
         </h2>
-        <p class="text-gray-500 text-sm mt-0.5">Communities ranked by total unified XP earned</p>
+        <p class="text-gray-500 text-sm mt-0.5">Communities ranked by activity on their primary platform</p>
       </div>
       <a href="{% url 'questlog_web_communities' %}"
          class="text-xs text-indigo-400 hover:text-indigo-300 transition flex items-center gap-1">
@@ -285,9 +285,9 @@
     <p class="flex items-start gap-2">
       <i class="fas fa-info-circle text-indigo-400 mt-0.5 flex-shrink-0"></i>
       <span>
-        This leaderboard shows unified XP earned across Discord, Fluxer, and the QuestLog site.
-        Only players from communities that have opted in to the QuestLog Network are included.
-        XP resets are reflected here immediately.
+        Community rankings are based on activity (messages, voice, reactions) on each community's primary platform - Discord or Fluxer.
+        Only communities that have opted in to the QuestLog Network are shown.
+        Site XP and cross-platform totals are not combined here to avoid double-counting.
       </span>
     </p>
   </div>

@@ -86,3 +86,4 @@ app/utils/encryption.py
 logs/
 .well-known/
 secrets.env\n*.secrets\ncasualsite/settings.py
+cache/

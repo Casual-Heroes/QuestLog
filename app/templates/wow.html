@@ -1,106 +1,112 @@
 {% extends "base.html" %}
-{% block title %}World of Warcraft Guild | Casual Legends{% endblock %}
-{% block og_title %}Join Our WoW Guild | Casual Legends{% endblock %}
-{% block og_description %}Run Mythic+, raid with friends, PvP in battlegrounds, or level chill in Classic. Join Casual Legends in World of Warcraft today.{% endblock %}
+{% load static %}
+{% block title %}World of Warcraft Guild | Casual Heroes{% endblock %}
+{% block og_title %}Join Our WoW Guild | Casual Heroes{% endblock %}
+{% block og_description %}M+, Dungeons, Delves, Raids, PvP and more. A community for working adults, parents, and gamers who grew up but never quite left Neverland.{% endblock %}
 {% block og_image %}https://casual-heroes.com/static/img/siteassets/homepage/wow.jpg{% endblock %}
 {% block og_url %}https://casual-heroes.com/wow{% endblock %}
 {% block content %}
 
 <section class="mt-20 max-w-5xl mx-auto px-4">
-  <h1 class="text-4xl font-extrabold text-center mb-10">Casual Legends in World of Warcraft</h1>
-  <p class="text-center text-gray-300 mb-12">
-    Whether you're pushing Mythic+, dipping into raids, climbing PvP brackets, or leveling a new alt in Classic, Casual Legends has a crew for you. 
-    We're here for the chill gamers who still want to win.
+  <h1 class="text-4xl font-extrabold text-center mb-2">World of Warcraft</h1>
+  <p class="text-center text-indigo-300 font-semibold text-lg mb-2">Casual Heroes - Aging, But Still Looting</p>
+  <p class="text-center text-gray-400 italic mb-10">
+    A community for working adults, parents, and gamers who grew up but still have Peter Pan living inside them.
   </p>
 
   <div class="grid md:grid-cols-2 gap-8 items-start">
     <!-- Trailer Embed -->
     <div>
       <iframe class="w-full aspect-video rounded-xl shadow-lg border border-neutral-800"
-              src="https://www.youtube.com/embed/SiIjThwKLaE?si=EVLrm05ESLFdCDMP"
-              title="World of Warcraft Trailer" frameborder="0" allowfullscreen>
+              src="https://www.youtube.com/embed/ijN4EW6meRk"
+              title="World of Warcraft" frameborder="0"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+              referrerpolicy="strict-origin-when-cross-origin"
+              allowfullscreen>
       </iframe>
     </div>
 
     <!-- Guild Focus & Features -->
     <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-6 shadow-xl">
-      <h2 class="text-2xl font-bold text-white mb-4">What We’re Running</h2>
+      <h2 class="text-2xl font-bold text-white mb-2">What We're Running</h2>
+      <p class="text-gray-400 text-sm mb-4">
+        Whether you're pushing keys, clearing raids, or just chilling in Delves - we've got a crew for you.
+      </p>
       <ul class="text-gray-300 space-y-2 text-sm">
-        <li><strong class="text-indigo-400">Mythic+ Keys:</strong> Weekly M+ runs, alt-friendly groups, and keystone coaching</li>
-        <li><strong class="text-indigo-400">Raids:</strong> Normal to Heroic clears, no toxic parsing or drama</li>
-        <li><strong class="text-indigo-400">Rated PvP:</strong> Casual Arenas, RBGs, and fun brawl nights</li>
-        <li><strong class="text-indigo-400">Classic Leveling:</strong> Roll with the guild on fresh servers or HC alts</li>
-        <li><strong class="text-indigo-400">Transmog & Mount Runs:</strong> Weekly legacy content nights for fun & flex</li>
-        <li><strong class="text-indigo-400">Casual First:</strong> Flexible raid times, late-night groups, and no pressure to no-life</li>
+        <li><strong class="text-indigo-400">Mythic+:</strong> Weekly keys, alt-friendly groups, no score gatekeeping</li>
+        <li><strong class="text-indigo-400">Dungeons:</strong> Normal to Heroic runs, new players always welcome</li>
+        <li><strong class="text-indigo-400">Delves:</strong> Solo-friendly content with guildmates when you want company</li>
+        <li><strong class="text-indigo-400">The Hunt:</strong> World boss hunts, rares, and open-world chaos</li>
+        <li><strong class="text-indigo-400">Raids:</strong> Normal to Heroic clears - no toxic parsing, no drama</li>
+        <li><strong class="text-indigo-400">PvP:</strong> Casual Arenas, BGs, and fun nights in Ashran</li>
       </ul>
 
-    <!-- Active Discord Players -->
-    <div class="mt-4 text-sm text-gray-400">
+      <!-- Active Discord Players -->
+      <div class="mt-4 text-sm text-gray-400">
         <strong>Active Discord Members:</strong>
         {% if wow_activity.active != "-" and wow_activity.total != "-" %}
-            {% if wow_activity.active|add:0 > 0 %}
+          {% if wow_activity.active|add:0 > 0 %}
             <span class="text-green-400 font-mono">🟢 {{ wow_activity.active }}</span>
-            {% else %}
+          {% else %}
             <span class="text-red-400 font-mono">🔴 {{ wow_activity.active }}</span>
-            {% endif %}
-            <span class="text-gray-400">/ {{ wow_activity.total }}</span>
+          {% endif %}
+          <span class="text-gray-400">/ {{ wow_activity.total }}</span>
         {% else %}
-            <span class="text-white font-mono">-</span> / <span class="text-gray-400">-</span>
+          <span class="text-white font-mono">-</span> / <span class="text-gray-400">-</span>
         {% endif %}
-    </div>
+      </div>
 
-
-      <div class="mt-6">
-        <a href="https://discord.gg/ECwJWppSjQ" target="_blank" class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-6 py-3 rounded-xl transition block text-center">
-          Join the Guild — For Azeroth, for the Alliance!
+      <div class="mt-6 flex flex-col gap-3">
+        <a href="https://fluxer.gg/zplS0MwI" target="_blank"
+           class="flex items-center justify-center gap-3 bg-[#5865F2] hover:bg-[#4752c4] text-white font-semibold px-6 py-3 rounded-xl transition">
+          <img src="{% static 'img/siteassets/fluxer-favicon.png' %}" alt="Fluxer" class="w-5 h-5 rounded-sm">
+          Join on Fluxer
         </a>
       </div>
     </div>
   </div>
 
-  <!-- WoW Role Callout -->
+  <!-- Who We Need -->
   <div class="mt-16 bg-neutral-900 border border-neutral-800 p-6 rounded-xl">
-    <h2 class="text-xl font-bold text-indigo-300 mb-2 text-center">Guild Roles & What We Need</h2>
-
+    <h2 class="text-xl font-bold text-indigo-300 mb-2 text-center">Who We're Looking For</h2>
     <p class="text-gray-300 mb-6 text-center">
-      We’re always welcoming friendly players — here’s what helps most as we grow:
+      All specs welcome. All skill levels welcome. Bring your alts.
     </p>
 
     <ul class="text-gray-300 text-sm max-w-3xl mx-auto divide-y divide-neutral-800/70">
       <li class="py-3 grid grid-cols-1 sm:grid-cols-[220px,1fr] gap-1 sm:gap-3 items-start">
         <span class="text-indigo-400 font-semibold sm:text-right">New & Returning Players:</span>
-        <span>If you’re learning the game, you’re welcome here.</span>
+        <span>Just came back or never raided before? Perfect. We'll get you up to speed.</span>
       </li>
-
       <li class="py-3 grid grid-cols-1 sm:grid-cols-[220px,1fr] gap-1 sm:gap-3 items-start">
         <span class="text-indigo-400 font-semibold sm:text-right">Tanks:</span>
-        <span>People willing to tank keys and help groups stay smooth.</span>
+        <span>People willing to tank keys and keep groups running smooth.</span>
       </li>
-
       <li class="py-3 grid grid-cols-1 sm:grid-cols-[220px,1fr] gap-1 sm:gap-3 items-start">
         <span class="text-indigo-400 font-semibold sm:text-right">Healers:</span>
-        <span>Chill healers who don’t mind helping newer players learn.</span>
+        <span>Chill healers who don't mind helping newer players learn.</span>
       </li>
-
       <li class="py-3 grid grid-cols-1 sm:grid-cols-[220px,1fr] gap-1 sm:gap-3 items-start">
-        <span class="text-indigo-400 font-semibold sm:text-right">Mythic+ Crew:</span>
+        <span class="text-indigo-400 font-semibold sm:text-right">M+ Crew:</span>
         <span>Folks who want weekly keys without the hardcore gear mentality.</span>
       </li>
-
       <li class="py-3 grid grid-cols-1 sm:grid-cols-[220px,1fr] gap-1 sm:gap-3 items-start">
-        <span class="text-indigo-400 font-semibold sm:text-right">Raid Builders:</span>
-        <span>Players who want to progress and see content without the drama.</span>
+        <span class="text-indigo-400 font-semibold sm:text-right">Adults with Jobs:</span>
+        <span>We raid when we can, not when we must. Real life always comes first.</span>
       </li>
     </ul>
   </div>
 
-
   <!-- CTA -->
   <div class="mt-16 bg-neutral-900 border border-neutral-800 p-6 rounded-xl text-center">
-    <h2 class="text-xl font-bold text-indigo-300 mb-2">Jump In Anytime</h2>
-    <p class="text-gray-300 mb-4">There’s no rush,  we play at our own pace. Just bring the vibes and we’ll take care of the rest.</p>
-    <a href="https://discord.gg/ECwJWppSjQ" target="_blank" class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-6 py-3 rounded-xl transition block text-center">
-      Join Our WoW Discord Channel →
+    <h2 class="text-xl font-bold text-indigo-300 mb-2">Casual Community. Organized Raids.</h2>
+    <p class="text-gray-300 mb-4">
+      MSQ, side content and daily stuff - log in whenever life lets you. When it's raid night, we show up organized: roles assigned, callouts called, plan in place.
+    </p>
+    <a href="https://fluxer.gg/zplS0MwI" target="_blank"
+       class="flex items-center justify-center gap-3 bg-[#5865F2] hover:bg-[#4752c4] text-white font-semibold px-6 py-3 rounded-xl transition max-w-xs mx-auto">
+      <img src="{% static 'img/siteassets/fluxer-favicon.png' %}" alt="Fluxer" class="w-5 h-5 rounded-sm">
+      Join Our WoW Guild on Fluxer
     </a>
   </div>
 </section>

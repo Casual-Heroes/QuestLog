@@ -1,0 +1,926 @@
+{% extends "questlog_web/base_web.html" %}
+{% load static %}
+{% block title %}Hunt Board - FFXIV Tools{% endblock %}
+
+{% block web_content %}
+<div class="max-w-6xl mx-auto px-4 py-6 space-y-6">
+
+  <!-- Header -->
+  <div class="flex items-center gap-4">
+    <a href="{% url 'ffxiv_tools' %}" class="text-gray-500 hover:text-white transition">
+      <i class="fas fa-arrow-left"></i>
+    </a>
+    <div class="flex-1">
+      <h1 class="text-2xl font-bold text-white flex items-center gap-3">
+        <span class="text-2xl">&#128481;</span> Hunt Board
+      </h1>
+      <p class="text-gray-500 text-sm mt-0.5">Community time-of-death tracking for S/A/B/SS rank hunts, world bosses, Eureka NMs, and notable open-world events.</p>
+    </div>
+    {% if is_logged_in %}
+    <button onclick="openSubModal()" class="flex items-center gap-2 px-4 py-2 bg-orange-900/40 hover:bg-orange-800/60 border border-orange-700/50 text-orange-300 hover:text-orange-200 rounded-xl text-sm font-medium transition">
+      <i class="fas fa-bell"></i> <span class="hidden sm:inline">Notifications</span>
+      <span id="sub-count-badge" class="hidden bg-orange-500 text-white text-xs font-bold rounded-full px-1.5 py-0.5 leading-none"></span>
+    </button>
+    {% endif %}
+  </div>
+
+  <!-- World selector -->
+  <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-4">
+    <div class="flex flex-wrap items-center gap-3">
+      <div>
+        <label class="text-xs text-gray-500 uppercase tracking-wide block mb-1">Data Center</label>
+        <select id="filterDC" class="bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-green-500 focus:outline-none">
+          <option value="">All Data Centers</option>
+        </select>
+      </div>
+      <div>
+        <label class="text-xs text-gray-500 uppercase tracking-wide block mb-1">World</label>
+        <select id="filterWorld" class="bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-green-500 focus:outline-none">
+          <option value="">All Worlds</option>
+        </select>
+      </div>
+      <div class="flex-1 min-w-[160px]">
+        <label class="text-xs text-gray-500 uppercase tracking-wide block mb-1">Search</label>
+        <input id="searchInput" type="text" placeholder="Search marks..."
+          class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-green-500 focus:outline-none placeholder-gray-600">
+      </div>
+      <div class="pt-5">
+        <div class="flex flex-wrap gap-1.5">
+          <button onclick="setExpFilter('all')"  data-exp="all"  class="exp-btn px-3 py-1.5 rounded-full text-xs font-medium border bg-green-700 border-green-600 text-white transition">All</button>
+          <button onclick="setExpFilter('DT')"   data-exp="DT"   class="exp-btn px-3 py-1.5 rounded-full text-xs font-medium border bg-neutral-800 border-neutral-700 text-gray-400 hover:border-neutral-500 transition">DT</button>
+          <button onclick="setExpFilter('EW')"   data-exp="EW"   class="exp-btn px-3 py-1.5 rounded-full text-xs font-medium border bg-neutral-800 border-neutral-700 text-gray-400 hover:border-neutral-500 transition">EW</button>
+          <button onclick="setExpFilter('ShB')"  data-exp="ShB"  class="exp-btn px-3 py-1.5 rounded-full text-xs font-medium border bg-neutral-800 border-neutral-700 text-gray-400 hover:border-neutral-500 transition">ShB</button>
+          <button onclick="setExpFilter('SB')"   data-exp="SB"   class="exp-btn px-3 py-1.5 rounded-full text-xs font-medium border bg-neutral-800 border-neutral-700 text-gray-400 hover:border-neutral-500 transition">SB</button>
+          <button onclick="setExpFilter('HW')"   data-exp="HW"   class="exp-btn px-3 py-1.5 rounded-full text-xs font-medium border bg-neutral-800 border-neutral-700 text-gray-400 hover:border-neutral-500 transition">HW</button>
+          <button onclick="setExpFilter('ARR')"  data-exp="ARR"  class="exp-btn px-3 py-1.5 rounded-full text-xs font-medium border bg-neutral-800 border-neutral-700 text-gray-400 hover:border-neutral-500 transition">ARR</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Show B-ranks toggle -->
+  <div class="flex items-center gap-4">
+    <label class="flex items-center gap-2 cursor-pointer select-none">
+      <input type="checkbox" id="showBRanks" class="accent-orange-500 w-4 h-4">
+      <span class="text-sm text-gray-400">Show B-Ranks <span class="text-gray-600 text-xs">(always up, ~5 min respawn - reference only)</span></span>
+    </label>
+    <label class="flex items-center gap-2 cursor-pointer select-none">
+      <input type="checkbox" id="showSSRanks" checked class="accent-violet-500 w-4 h-4">
+      <span class="text-sm text-gray-400">Show SS-Ranks <span class="text-gray-600 text-xs">(conditional spawns)</span></span>
+    </label>
+  </div>
+
+  <!-- Tabs -->
+  <div class="flex gap-1 border-b border-neutral-800">
+    <button onclick="switchTab('hunts')" id="tab-hunts" class="tab-btn px-4 py-2.5 text-sm font-medium border-b-2 border-orange-500 text-orange-400 -mb-px transition">
+      <i class="fas fa-crosshairs mr-1.5"></i>Hunt Marks
+    </button>
+    <button onclick="switchTab('events')" id="tab-events" class="tab-btn px-4 py-2.5 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-300 -mb-px transition">
+      <i class="fas fa-globe mr-1.5"></i>World Events
+    </button>
+  </div>
+
+  <!-- Hunt Marks Tab -->
+  <div id="tab-content-hunts">
+    <div id="hunts-container"></div>
+  </div>
+
+  <!-- World Events Tab -->
+  <div id="tab-content-events" class="hidden">
+    <div id="events-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3"></div>
+  </div>
+
+</div>
+
+<!-- Report Modal -->
+<div id="reportModal" class="fixed inset-0 bg-black/70 z-50 hidden flex items-center justify-center p-4">
+  <div class="bg-neutral-900 border border-neutral-700 rounded-2xl w-full max-w-md shadow-2xl">
+    <div class="flex items-center justify-between px-5 py-4 border-b border-neutral-800">
+      <h3 class="text-white font-bold flex items-center gap-2">
+        <i class="fas fa-flag text-orange-400"></i>
+        <span id="modalTitle">Report Kill</span>
+      </h3>
+      <button onclick="closeModal()" class="text-gray-500 hover:text-white transition"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="px-5 py-4 space-y-4">
+      <div>
+        <label class="text-xs text-gray-500 uppercase tracking-wide block mb-1.5">Mark</label>
+        <p id="modalMarkName" class="text-white font-semibold"></p>
+        <p id="modalMarkZone" class="text-gray-400 text-xs mt-0.5"></p>
+      </div>
+      <div>
+        <label class="text-xs text-gray-500 uppercase tracking-wide block mb-1.5">Your World <span class="text-red-400">*</span></label>
+        <div class="grid grid-cols-2 gap-2">
+          <select id="modalDC" onchange="populateWorldSelect()" class="bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-orange-500 focus:outline-none">
+            <option value="">Select DC...</option>
+          </select>
+          <select id="modalWorld" class="bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-orange-500 focus:outline-none">
+            <option value="">Select World...</option>
+          </select>
+        </div>
+      </div>
+      <div>
+        <label class="text-xs text-gray-500 uppercase tracking-wide block mb-1.5">Event Type</label>
+        <div class="flex gap-2">
+          <label class="flex items-center gap-2 cursor-pointer">
+            <input type="radio" name="eventType" value="kill" checked class="accent-orange-500">
+            <span class="text-sm text-white">Kill / Defeat</span>
+          </label>
+          <label class="flex items-center gap-2 cursor-pointer">
+            <input type="radio" name="eventType" value="sight" class="accent-yellow-500">
+            <span class="text-sm text-white">Sighted alive</span>
+          </label>
+          <label class="flex items-center gap-2 cursor-pointer">
+            <input type="radio" name="eventType" value="pull" class="accent-blue-500">
+            <span class="text-sm text-white">In combat</span>
+          </label>
+        </div>
+      </div>
+      <div>
+        <label class="text-xs text-gray-500 uppercase tracking-wide block mb-1.5">Notes <span class="text-gray-600">(optional)</span></label>
+        <input id="modalNotes" type="text" maxlength="200" placeholder="e.g. pulled at Sil'dihn, near aetheryte..."
+          class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-orange-500 focus:outline-none placeholder-gray-600">
+      </div>
+    </div>
+    <div class="px-5 py-4 border-t border-neutral-800 flex gap-3">
+      <button onclick="closeModal()" class="flex-1 px-4 py-2 rounded-lg border border-neutral-700 text-gray-400 hover:text-white hover:border-neutral-500 text-sm transition">Cancel</button>
+      <button onclick="submitReport()" id="submitReportBtn"
+        class="flex-1 px-4 py-2 rounded-lg bg-orange-600 hover:bg-orange-700 text-white text-sm font-semibold transition">
+        <i class="fas fa-flag mr-1.5"></i>Report
+      </button>
+    </div>
+  </div>
+</div>
+
+{{ tod_map|json_script:"tod-map-data" }}
+{{ dc_worlds|json_script:"dc-worlds-data" }}
+{{ data_centers|json_script:"data-centers-data" }}
+
+<script>
+const TOD_MAP      = JSON.parse(document.getElementById('tod-map-data').textContent);
+const DC_WORLDS    = JSON.parse(document.getElementById('dc-worlds-data').textContent);
+const DATA_CENTERS = JSON.parse(document.getElementById('data-centers-data').textContent);
+const IS_LOGGED_IN   = {{ is_logged_in|yesno:"true,false" }};
+const IS_ADMIN       = {{ is_admin|yesno:"true,false" }};
+const CURRENT_USER_ID = {{ current_user_id|default:"null" }};
+
+const HUNT_MARKS    = {{ hunt_marks|safe }};
+const NOTABLE_EVENTS = {{ notable_events|safe }};
+
+let activeTab   = 'hunts';
+let activeExp   = 'all';
+let activeWorld = '';
+let activeDC    = '';
+let _reportingKey = null;
+
+// Expansion display order and full names
+const EXP_ORDER = ['DT','EW','ShB','SB','HW','ARR'];
+const EXP_NAMES = {
+  DT:  'Dawntrail',
+  EW:  'Endwalker',
+  ShB: 'Shadowbringers',
+  SB:  'Stormblood',
+  HW:  'Heavensward',
+  ARR: 'A Realm Reborn',
+};
+
+const EXP_COLORS = {
+  DT:  { dot: 'bg-violet-400', badge: 'bg-violet-900/40 text-violet-300 border-violet-700/40',   section: 'border-violet-700/30 bg-violet-950/10' },
+  EW:  { dot: 'bg-blue-400',   badge: 'bg-blue-900/40 text-blue-300 border-blue-700/40',         section: 'border-blue-700/30 bg-blue-950/10'     },
+  ShB: { dot: 'bg-teal-400',   badge: 'bg-teal-900/40 text-teal-300 border-teal-700/40',         section: 'border-teal-700/30 bg-teal-950/10'     },
+  SB:  { dot: 'bg-red-400',    badge: 'bg-red-900/40 text-red-300 border-red-700/40',            section: 'border-red-700/30 bg-red-950/10'       },
+  HW:  { dot: 'bg-sky-400',    badge: 'bg-sky-900/40 text-sky-300 border-sky-700/40',            section: 'border-sky-700/30 bg-sky-950/10'       },
+  ARR: { dot: 'bg-orange-400', badge: 'bg-orange-900/40 text-orange-300 border-orange-700/40',   section: 'border-orange-700/30 bg-orange-950/10' },
+};
+
+const RANK_META = {
+  S:  { color: 'bg-orange-900/50 text-orange-300',  label: 'S',  title: 'S-Rank',  subtitle: '72h+ respawn - community reported' },
+  SS: { color: 'bg-violet-900/50 text-violet-300',  label: 'SS', title: 'SS-Rank', subtitle: 'Conditional spawn - very rare' },
+  A:  { color: 'bg-yellow-900/40 text-yellow-300',  label: 'A',  title: 'A-Rank',  subtitle: '4-6h respawn' },
+  B:  { color: 'bg-neutral-700 text-gray-400',      label: 'B',  title: 'B-Rank',  subtitle: '~5 min respawn - always up' },
+};
+
+const EVENT_TYPE_COLORS = {
+  kill:  { text: 'text-red-400',    icon: 'fa-skull',  label: 'Killed'    },
+  sight: { text: 'text-yellow-400', icon: 'fa-eye',    label: 'Sighted'   },
+  pull:  { text: 'text-blue-400',   icon: 'fa-swords', label: 'In combat' },
+};
+
+const STATUS_META = {
+  dead:   { bar: 'bg-red-600',    label: 'Dead',        text: 'text-red-400'    },
+  soon:   { bar: 'bg-yellow-500', label: 'Window Soon', text: 'text-yellow-400' },
+  window: { bar: 'bg-green-500',  label: 'In Window',   text: 'text-green-400'  },
+};
+
+const ECOLORS = {
+  purple:  'bg-purple-900/40 border-purple-700/40 text-purple-300',
+  red:     'bg-red-900/40 border-red-700/40 text-red-300',
+  cyan:    'bg-cyan-900/40 border-cyan-700/40 text-cyan-300',
+  sky:     'bg-sky-900/40 border-sky-700/40 text-sky-300',
+  orange:  'bg-orange-900/40 border-orange-700/40 text-orange-300',
+  teal:    'bg-teal-900/40 border-teal-700/40 text-teal-300',
+  yellow:  'bg-yellow-900/40 border-yellow-700/40 text-yellow-300',
+  pink:    'bg-pink-900/40 border-pink-700/40 text-pink-300',
+  indigo:  'bg-indigo-900/40 border-indigo-700/40 text-indigo-300',
+  gray:    'bg-neutral-800 border-neutral-700 text-gray-300',
+  blue:    'bg-blue-900/40 border-blue-700/40 text-blue-300',
+  green:   'bg-green-900/40 border-green-700/40 text-green-300',
+};
+
+// ── DC/World selects ──────────────────────────────────────────────────────────
+function buildDCSelect(selectEl) {
+  selectEl.innerHTML = '<option value="">All Data Centers</option>';
+  Object.entries(DATA_CENTERS).forEach(([region, dcs]) => {
+    dcs.forEach(dc => {
+      const opt = document.createElement('option');
+      opt.value = dc; opt.textContent = `${dc} (${region})`;
+      selectEl.appendChild(opt);
+    });
+  });
+}
+
+function buildWorldSelect(selectEl, dc) {
+  selectEl.innerHTML = '<option value="">All Worlds</option>';
+  const worlds = dc ? (DC_WORLDS[dc] || []) : Object.values(DC_WORLDS).flat();
+  worlds.forEach(w => {
+    const opt = document.createElement('option');
+    opt.value = w; opt.textContent = w;
+    selectEl.appendChild(opt);
+  });
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  buildDCSelect(document.getElementById('filterDC'));
+  buildWorldSelect(document.getElementById('filterWorld'), '');
+  buildDCSelect(document.getElementById('modalDC'));
+
+  document.getElementById('filterDC').addEventListener('change', function() {
+    activeDC = this.value;
+    activeWorld = '';
+    buildWorldSelect(document.getElementById('filterWorld'), this.value);
+    render();
+  });
+  document.getElementById('filterWorld').addEventListener('change', function() {
+    activeWorld = this.value;
+    render();
+  });
+  document.getElementById('searchInput').addEventListener('input', render);
+  document.getElementById('showBRanks').addEventListener('change', render);
+  document.getElementById('showSSRanks').addEventListener('change', render);
+
+  render();
+  setInterval(render, 60000);
+});
+
+function populateWorldSelect() {
+  const dc = document.getElementById('modalDC').value;
+  const sel = document.getElementById('modalWorld');
+  sel.innerHTML = '<option value="">Select World...</option>';
+  (DC_WORLDS[dc] || []).forEach(w => {
+    const opt = document.createElement('option');
+    opt.value = w; opt.textContent = w;
+    sel.appendChild(opt);
+  });
+}
+
+// ── Tab / filter ──────────────────────────────────────────────────────────────
+function switchTab(tab) {
+  activeTab = tab;
+  document.getElementById('tab-content-hunts').classList.toggle('hidden', tab !== 'hunts');
+  document.getElementById('tab-content-events').classList.toggle('hidden', tab !== 'events');
+  ['hunts','events'].forEach(t => {
+    const btn = document.getElementById('tab-' + t);
+    const isActive = t === tab;
+    btn.classList.toggle('border-orange-500', isActive);
+    btn.classList.toggle('text-orange-400', isActive);
+    btn.classList.toggle('border-transparent', !isActive);
+    btn.classList.toggle('text-gray-500', !isActive);
+  });
+  render();
+}
+
+function setExpFilter(exp) {
+  activeExp = exp;
+  document.querySelectorAll('.exp-btn').forEach(b => {
+    const isActive = b.dataset.exp === exp;
+    b.classList.toggle('bg-green-700', isActive);
+    b.classList.toggle('border-green-600', isActive);
+    b.classList.toggle('text-white', isActive);
+    b.classList.toggle('bg-neutral-800', !isActive);
+    b.classList.toggle('border-neutral-700', !isActive);
+    b.classList.toggle('text-gray-400', !isActive);
+  });
+  render();
+}
+
+// ── Card helpers ─────────────────────────────────────────────────────────────
+function getReportsForMark(huntKey) {
+  const prefix = huntKey + ':';
+  return Object.entries(TOD_MAP)
+    .filter(([k]) => k.startsWith(prefix))
+    .filter(([k, v]) => {
+      if (activeWorld) return v.world === activeWorld;
+      if (activeDC) return v.dc === activeDC;
+      return true;
+    })
+    .map(([k, v]) => v);
+}
+
+function formatAge(h) {
+  if (h < 1) return Math.round(h * 60) + 'm ago';
+  return h.toFixed(1) + 'h ago';
+}
+
+function renderHuntCard(mark) {
+  const reports = getReportsForMark(mark.key);
+  const expMeta  = EXP_COLORS[mark.expansion] || EXP_COLORS.ARR;
+  const rankMeta = RANK_META[mark.rank] || RANK_META.A;
+  const isB      = mark.rank === 'B';
+  const isSS     = mark.rank === 'SS';
+
+  const best = reports.sort((a,b) => b.reported_at - a.reported_at)[0];
+  const borderClass = best
+    ? (best.status === 'window' ? 'border-green-700/60' : best.status === 'soon' ? 'border-yellow-700/60' : 'border-neutral-700')
+    : 'border-neutral-800';
+
+  // For the active world's report - check if current user can reset it
+  const activeReport = activeWorld ? TOD_MAP[`${mark.key}:${activeWorld}`] : null;
+  const canReset = IS_LOGGED_IN && activeReport && (IS_ADMIN || activeReport.reporter_id === CURRENT_USER_ID);
+
+  const reportBtn = IS_LOGGED_IN
+    ? `<div class="flex gap-1.5">
+         <button onclick="openModal('${mark.key}')"
+           class="flex-1 px-3 py-1.5 rounded-lg border border-neutral-700 hover:border-orange-600 hover:bg-orange-950/30 text-gray-400 hover:text-orange-300 text-xs font-medium transition flex items-center justify-center gap-1.5">
+           <i class="fas fa-flag text-xs"></i>Report ${isB ? 'Sighting' : 'Kill / Sighting'}
+         </button>
+         ${canReset ? `<button onclick="resetReport('${mark.key}', '${activeWorld}')" title="Clear this world's report"
+           class="px-2.5 py-1.5 rounded-lg border border-neutral-700 hover:border-red-600 hover:bg-red-950/30 text-gray-500 hover:text-red-400 text-xs transition flex items-center justify-center">
+           <i class="fas fa-undo text-xs"></i>
+         </button>` : ''}
+         ${IS_ADMIN ? `<button onclick="resetAllReports('${mark.key}')" title="Clear ALL world reports for this mark"
+           class="px-2.5 py-1.5 rounded-lg border border-neutral-700 hover:border-red-700 hover:bg-red-950/40 text-gray-600 hover:text-red-500 text-xs transition flex items-center justify-center">
+           <i class="fas fa-trash-alt text-xs"></i>
+         </button>` : ''}
+       </div>`
+    : `<a href="/ql/login/?next=/ffxiv/tools/hunt-board/"
+         class="block text-center text-xs text-gray-600 hover:text-gray-400 transition">Log in to report</a>`;
+
+  const notesHtml = mark.notes ? `<p class="text-xs text-gray-600 mt-0.5 italic">${escapeHtml(mark.notes)}</p>` : '';
+
+  return `<div class="bg-neutral-900 border ${borderClass} rounded-xl overflow-hidden">
+    <div class="flex items-start gap-3 p-3">
+      <div class="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center font-bold text-xs ${rankMeta.color}">
+        ${rankMeta.label}
+      </div>
+      <div class="flex-1 min-w-0">
+        <div class="flex items-start justify-between gap-2">
+          <div>
+            <p class="text-white font-semibold text-sm leading-tight">${escapeHtml(mark.name)}</p>
+            <p class="text-gray-500 text-xs mt-0.5">${escapeHtml(mark.zone)}</p>
+            ${notesHtml}
+          </div>
+          <span class="flex-shrink-0 text-[10px] px-1.5 py-0.5 rounded border font-medium ${expMeta.badge}">${mark.expansion}</span>
+        </div>
+        ${isB ? `<p class="mt-2 text-xs text-gray-700 italic">Always up - no ToD needed</p>` : (best ? `
+          <div class="mt-2 pt-2 border-t border-neutral-800 space-y-1">
+            ${reports.slice(0,3).map(r => {
+              const et = EVENT_TYPE_COLORS[r.event_type] || EVENT_TYPE_COLORS.kill;
+              const sm = STATUS_META[r.status];
+              return `<div class="flex items-center justify-between gap-2">
+                <span class="text-xs text-gray-400">${escapeHtml(r.world)}</span>
+                <div class="flex items-center gap-2">
+                  <span class="text-xs ${sm.text} font-medium">${sm.label}</span>
+                  <span class="text-xs text-gray-600">${formatAge(r.age_h)}</span>
+                  <i class="fas ${et.icon} text-xs ${et.text}"></i>
+                </div>
+              </div>`;
+            }).join('')}
+            ${reports.length > 3 ? `<p class="text-xs text-gray-600">+${reports.length - 3} more worlds</p>` : ''}
+          </div>
+        ` : `<p class="mt-2 text-xs text-gray-700 italic">No ToD reports yet</p>`)}
+      </div>
+    </div>
+    ${!isB ? `<div class="px-3 pb-3">${reportBtn}</div>` : ''}
+  </div>`;
+}
+
+function renderEventCard(ev) {
+  const reports = getReportsForMark(ev.key);
+  const colorClass = ECOLORS[ev.color] || ECOLORS.gray;
+  const best = reports.sort((a,b) => b.reported_at - a.reported_at)[0];
+
+  return `<div class="bg-neutral-900 border ${best ? 'border-neutral-700' : 'border-neutral-800'} rounded-xl overflow-hidden">
+    <div class="p-3">
+      <div class="flex items-start gap-3 mb-2">
+        <div class="flex-shrink-0 mt-0.5">
+          <span class="text-[10px] px-2 py-0.5 rounded-full border font-medium ${colorClass}">${escapeHtml(ev.type)}</span>
+        </div>
+        <div class="flex-1 min-w-0">
+          <p class="text-white font-semibold text-sm leading-tight">${escapeHtml(ev.name)}</p>
+          <p class="text-gray-500 text-xs mt-0.5">${escapeHtml(ev.zone)}</p>
+        </div>
+      </div>
+      <p class="text-gray-400 text-xs leading-relaxed mb-1">${escapeHtml(ev.desc)}</p>
+      <p class="text-xs"><span class="text-gray-600">Rewards:</span> <span class="text-gray-400">${escapeHtml(ev.rewards)}</span></p>
+      <p class="text-xs mt-0.5"><span class="text-gray-600">Respawn:</span> <span class="text-gray-400">${escapeHtml(ev.respawn_note)}</span></p>
+      ${best ? `
+        <div class="mt-2 pt-2 border-t border-neutral-800">
+          ${reports.slice(0,2).map(r => {
+            const sm = STATUS_META[r.status];
+            return `<div class="flex items-center justify-between">
+              <span class="text-xs text-gray-400">${escapeHtml(r.world)}</span>
+              <span class="text-xs ${sm.text}">${sm.label} - ${formatAge(r.age_h)}</span>
+            </div>`;
+          }).join('')}
+        </div>
+      ` : '<p class="mt-2 text-xs text-gray-700 italic">No activity reports</p>'}
+    </div>
+    ${IS_LOGGED_IN ? `
+      <div class="px-3 pb-3">
+        <button onclick="openModal('${ev.key}')"
+          class="w-full px-3 py-1.5 rounded-lg border border-neutral-700 hover:border-orange-600 hover:bg-orange-950/30 text-gray-400 hover:text-orange-300 text-xs font-medium transition flex items-center justify-center gap-1.5">
+          <i class="fas fa-flag text-xs"></i>Report Activity
+        </button>
+      </div>
+    ` : ''}
+  </div>`;
+}
+
+// ── Collapsible expansion section ────────────────────────────────────────────
+const _expOpen = {};
+EXP_ORDER.forEach(e => { _expOpen[e] = true; });
+
+function toggleExp(exp) {
+  _expOpen[exp] = !_expOpen[exp];
+  const body    = document.getElementById('exp-body-' + exp);
+  const chevron = document.getElementById('exp-chevron-' + exp);
+  if (body) body.classList.toggle('hidden', !_expOpen[exp]);
+  if (chevron) chevron.style.transform = _expOpen[exp] ? '' : 'rotate(-90deg)';
+}
+
+// ── Main render ───────────────────────────────────────────────────────────────
+function render() {
+  const q          = (document.getElementById('searchInput')?.value || '').toLowerCase();
+  const showB      = document.getElementById('showBRanks')?.checked;
+  const showSS     = document.getElementById('showSSRanks')?.checked;
+
+  function filterMark(m) {
+    if (activeExp !== 'all' && m.expansion !== activeExp) return false;
+    if (!showB  && m.rank === 'B')  return false;
+    if (!showSS && m.rank === 'SS') return false;
+    if (q && !m.name.toLowerCase().includes(q) && !m.zone.toLowerCase().includes(q)) return false;
+    return true;
+  }
+
+  // Group marks by expansion, then by rank within each expansion
+  const byExp = {};
+  HUNT_MARKS.filter(filterMark).forEach(m => {
+    if (!byExp[m.expansion]) byExp[m.expansion] = { S:[], SS:[], A:[], B:[] };
+    byExp[m.expansion][m.rank].push(m);
+  });
+
+  const container = document.getElementById('hunts-container');
+  const expsToShow = activeExp === 'all' ? EXP_ORDER : [activeExp];
+
+  let html = '';
+  expsToShow.forEach(exp => {
+    const groups = byExp[exp];
+    if (!groups) return;
+
+    const allMarks = [...(groups.S||[]), ...(groups.SS||[]), ...(groups.A||[]), ...(groups.B||[])];
+    if (!allMarks.length) return;
+
+    const expMeta   = EXP_COLORS[exp] || EXP_COLORS.ARR;
+    const expName   = EXP_NAMES[exp] || exp;
+    const isOpen    = _expOpen[exp] !== false;
+    const totalRep  = allMarks.reduce((n,m) => n + getReportsForMark(m.key).length, 0);
+    const countBadge = totalRep > 0
+      ? `<span class="ml-2 text-[10px] px-1.5 py-0.5 rounded-full bg-green-900/50 text-green-300 border border-green-700/40">${totalRep} report${totalRep !== 1 ? 's' : ''}</span>`
+      : '';
+
+    html += `<div class="mb-4 border ${expMeta.section} rounded-xl overflow-hidden">
+      <button onclick="toggleExp('${exp}')" class="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-white/5 transition">
+        <div class="flex items-center gap-3">
+          <span class="w-2 h-2 rounded-full flex-shrink-0 ${expMeta.dot}"></span>
+          <span class="font-semibold text-white text-sm">${expName}</span>
+          <span class="text-[10px] px-1.5 py-0.5 rounded border font-medium ${expMeta.badge}">${exp}</span>
+          ${countBadge}
+        </div>
+        <div class="flex items-center gap-3 text-gray-500 text-xs">
+          <span>${allMarks.length} marks</span>
+          <i id="exp-chevron-${exp}" class="fas fa-chevron-down transition-transform" style="${isOpen ? '' : 'transform:rotate(-90deg)'}"></i>
+        </div>
+      </button>
+      <div id="exp-body-${exp}" class="${isOpen ? '' : 'hidden'} px-4 pb-4 space-y-4">`;
+
+    // S-Ranks
+    if (groups.S?.length) {
+      html += `<div>
+        <p class="text-xs font-semibold text-orange-400 uppercase tracking-wide mb-2 flex items-center gap-2">
+          <i class="fas fa-star text-[10px]"></i> S-Rank
+          <span class="font-normal text-gray-600 normal-case">72h+ respawn</span>
+        </p>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          ${groups.S.map(renderHuntCard).join('')}
+        </div>
+      </div>`;
+    }
+
+    // SS-Ranks
+    if (groups.SS?.length) {
+      html += `<div>
+        <p class="text-xs font-semibold text-violet-400 uppercase tracking-wide mb-2 flex items-center gap-2">
+          <i class="fas fa-star text-[10px]"></i><i class="fas fa-star text-[10px] -ml-1"></i> SS-Rank
+          <span class="font-normal text-gray-600 normal-case">Conditional spawn</span>
+        </p>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          ${groups.SS.map(renderHuntCard).join('')}
+        </div>
+      </div>`;
+    }
+
+    // A-Ranks
+    if (groups.A?.length) {
+      html += `<div>
+        <p class="text-xs font-semibold text-yellow-400 uppercase tracking-wide mb-2 flex items-center gap-2">
+          <i class="fas fa-chevron-up text-[10px]"></i> A-Rank
+          <span class="font-normal text-gray-600 normal-case">4-6h respawn</span>
+        </p>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          ${groups.A.map(renderHuntCard).join('')}
+        </div>
+      </div>`;
+    }
+
+    // B-Ranks (only if shown)
+    if (groups.B?.length) {
+      html += `<div>
+        <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2 flex items-center gap-2">
+          <i class="fas fa-minus text-[10px]"></i> B-Rank
+          <span class="font-normal text-gray-600 normal-case">~5 min respawn - always up</span>
+        </p>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          ${groups.B.map(renderHuntCard).join('')}
+        </div>
+      </div>`;
+    }
+
+    html += `</div></div>`;
+  });
+
+  if (!html) {
+    html = '<p class="text-gray-600 text-sm py-6 text-center">No hunt marks match your filters.</p>';
+  }
+
+  container.innerHTML = html;
+
+  // Events
+  const events = NOTABLE_EVENTS.filter(e => {
+    if (activeExp !== 'all' && e.expansion !== activeExp) return false;
+    if (q && !e.name.toLowerCase().includes(q) && !e.type.toLowerCase().includes(q) && !e.zone.toLowerCase().includes(q)) return false;
+    return true;
+  });
+  document.getElementById('events-grid').innerHTML = events.length
+    ? events.map(renderEventCard).join('')
+    : '<p class="col-span-3 text-gray-600 text-sm py-4">No events match your filters.</p>';
+}
+
+// ── Modal ─────────────────────────────────────────────────────────────────────
+function openModal(huntKey) {
+  if (!IS_LOGGED_IN) { window.location.href = '/ql/login/?next=/ffxiv/tools/hunt-board/'; return; }
+  _reportingKey = huntKey;
+  const mark = [...HUNT_MARKS, ...NOTABLE_EVENTS].find(m => m.key === huntKey);
+  if (!mark) return;
+  document.getElementById('modalTitle').textContent = 'Report - ' + mark.name;
+  document.getElementById('modalMarkName').textContent = mark.name;
+  document.getElementById('modalMarkZone').textContent = (mark.zone || '') + (mark.expansion ? ' - ' + mark.expansion : '');
+  document.getElementById('modalNotes').value = '';
+  document.querySelector('input[name="eventType"][value="kill"]').checked = true;
+  if (activeDC) {
+    document.getElementById('modalDC').value = activeDC;
+    populateWorldSelect();
+    if (activeWorld) document.getElementById('modalWorld').value = activeWorld;
+  }
+  document.getElementById('reportModal').classList.remove('hidden');
+}
+
+function closeModal() {
+  document.getElementById('reportModal').classList.add('hidden');
+  _reportingKey = null;
+}
+
+document.getElementById('reportModal').addEventListener('click', function(e) {
+  if (e.target === this) closeModal();
+});
+
+async function submitReport() {
+  if (!_reportingKey) return;
+  const dc        = document.getElementById('modalDC').value;
+  const world     = document.getElementById('modalWorld').value;
+  const eventType = document.querySelector('input[name="eventType"]:checked')?.value || 'kill';
+  const notes     = document.getElementById('modalNotes').value.trim();
+
+  if (!dc || !world) { alert('Please select your Data Center and World.'); return; }
+
+  const btn = document.getElementById('submitReportBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>Reporting...';
+
+  try {
+    const res = await csrfFetch('/api/ffxiv/hunt/report/', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ hunt_key: _reportingKey, dc, world, event_type: eventType, notes }),
+    });
+    const data = await res.json();
+    if (data.ok) {
+      const todKey = `${_reportingKey}:${world}`;
+      TOD_MAP[todKey] = {
+        reported_at: data.reported_at,
+        event_type: eventType,
+        reporter: data.reporter,
+        notes: notes,
+        age_h: 0,
+        status: 'dead',
+        world: world,
+        dc: dc,
+      };
+      closeModal();
+      render();
+    } else {
+      alert(data.error || 'Failed to report.');
+    }
+  } catch(e) {
+    alert('Network error. Please try again.');
+  }
+
+  btn.disabled = false;
+  btn.innerHTML = '<i class="fas fa-flag mr-1.5"></i>Report';
+}
+
+async function resetReport(huntKey, world) {
+  if (!confirm(`Clear the ToD report for ${world}?`)) return;
+  try {
+    const res = await csrfFetch('/api/ffxiv/hunt/clear/', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ hunt_key: huntKey, world }),
+    });
+    const data = await res.json();
+    if (data.ok) {
+      delete TOD_MAP[`${huntKey}:${world}`];
+      render();
+    } else {
+      alert(data.error || 'Failed to clear report.');
+    }
+  } catch(e) {
+    alert('Network error.');
+  }
+}
+
+async function resetAllReports(huntKey) {
+  const mark = [...HUNT_MARKS, ...NOTABLE_EVENTS].find(m => m.key === huntKey);
+  const name = mark ? mark.name : huntKey;
+  if (!confirm(`Clear ALL world reports for ${name}? This cannot be undone.`)) return;
+  try {
+    const res = await csrfFetch('/api/ffxiv/hunt/clear-all/', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ hunt_key: huntKey }),
+    });
+    const data = await res.json();
+    if (data.ok) {
+      Object.keys(TOD_MAP).forEach(k => {
+        if (k.startsWith(huntKey + ':')) delete TOD_MAP[k];
+      });
+      render();
+    } else {
+      alert(data.error || 'Failed to clear reports.');
+    }
+  } catch(e) {
+    alert('Network error.');
+  }
+}
+
+function escapeHtml(s) {
+  if (!s) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+</script>
+
+{% if is_logged_in %}
+<!-- Notification Subscription Modal -->
+<div id="sub-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+  <div class="bg-neutral-900 border border-neutral-800 rounded-2xl w-full max-w-lg max-h-[90vh] flex flex-col">
+    <div class="flex items-center justify-between p-5 border-b border-neutral-800 flex-shrink-0">
+      <h3 class="text-white font-bold text-lg flex items-center gap-2"><i class="fas fa-bell text-orange-400"></i> Hunt Notifications</h3>
+      <button onclick="closeSubModal()" class="text-gray-500 hover:text-white transition"><i class="fas fa-times"></i></button>
+    </div>
+
+    <!-- Add new sub -->
+    <div class="p-5 border-b border-neutral-800 flex-shrink-0 space-y-3">
+      <p class="text-gray-400 text-xs">Get notified when someone reports a hunt or event. You can watch a whole tier, all events, or a specific mark.</p>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <label class="text-xs text-gray-500 block mb-1">Watch</label>
+          <select id="sub-watch-key" class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-orange-500">
+            <option value="S">All S Ranks</option>
+            <option value="A">All A Ranks</option>
+            <option value="B">All B Ranks</option>
+            <option value="all_events">All Events / FATEs</option>
+            <option value="all">Everything</option>
+            <optgroup label="-- Specific Mark --" id="sub-specific-opts"></optgroup>
+          </select>
+        </div>
+        <div>
+          <label class="text-xs text-gray-500 block mb-1">World filter <span class="text-gray-600">(blank = all worlds)</span></label>
+          <div id="sub-worlds-container"></div>
+          <input type="hidden" id="sub-worlds" value="">
+        </div>
+      </div>
+      <div class="flex items-center gap-4">
+        <label class="flex items-center gap-2 cursor-pointer">
+          <input type="checkbox" id="sub-notify-site" checked class="accent-orange-500 w-4 h-4">
+          <span class="text-sm text-gray-300"><i class="fas fa-globe text-sky-400 mr-1"></i>Site notification</span>
+        </label>
+        <label class="flex items-center gap-2 cursor-pointer">
+          <input type="checkbox" id="sub-notify-fluxer" class="accent-orange-500 w-4 h-4">
+          <span class="text-sm text-gray-300"><img src="{% static 'img/siteassets/fluxer-favicon.png' %}" class="w-3.5 h-3.5 rounded-sm inline mr-1" alt="">Fluxer ping</span>
+        </label>
+        <button onclick="addSub()" class="ml-auto px-4 py-2 bg-orange-700 hover:bg-orange-600 text-white text-sm font-semibold rounded-lg transition">
+          <i class="fas fa-plus mr-1"></i>Add
+        </button>
+      </div>
+      <div id="sub-add-error" class="hidden text-red-400 text-xs"></div>
+    </div>
+
+    <!-- Active subs list -->
+    <div class="flex-1 overflow-y-auto p-5">
+      <p class="text-xs text-gray-600 uppercase tracking-wide font-semibold mb-3">Active Subscriptions</p>
+      <div id="sub-list"></div>
+      <div id="sub-empty" class="hidden text-gray-600 text-sm text-center py-6">No subscriptions yet.</div>
+      <div id="sub-loading" class="text-gray-600 text-sm text-center py-6"><i class="fas fa-spinner fa-spin mr-2"></i>Loading...</div>
+    </div>
+  </div>
+</div>
+
+{% include "questlog/partials/custom_select.html" %}
+<script>
+var _huntSubs = [];
+var _huntAllMarks = [];
+var _worldSel = null;
+
+// Build specific mark options and world select once hunts are loaded
+document.addEventListener('DOMContentLoaded', function() {
+  // Initialize world filter custom select
+  if (typeof DC_WORLDS !== 'undefined' && document.getElementById('sub-worlds-container')) {
+    var allWorlds = Object.values(DC_WORLDS).flat().sort();
+    _worldSel = createCustomSelect({
+      container: '#sub-worlds-container',
+      name: 'sub_worlds_sel',
+      label: 'World',
+      placeholder: 'All worlds (or pick specific)',
+      items: allWorlds.map(function(w) { return {value: w, label: w}; }),
+      selected: [],
+      color: 'orange',
+      multiSelect: true,
+      maxSelections: 20,
+      onSelect: function(val) {
+        var arr = Array.isArray(val) ? val : (val ? [val] : []);
+        document.getElementById('sub-worlds').value = arr.join(', ');
+      },
+    });
+  }
+
+  // Build mark list from existing HUNTS/EVENTS data already on the page
+  var opts = document.getElementById('sub-specific-opts');
+  if (!opts) return;
+  // Collect all mark options from the rendered page globals
+  if (typeof HUNT_MARKS !== 'undefined') {
+    HUNT_MARKS.forEach(function(h) {
+      _huntAllMarks.push({key: h.key, label: h.rank + ' - ' + h.name + ' (' + h.zone + ')'});
+    });
+  }
+  if (typeof NOTABLE_EVENTS !== 'undefined') {
+    NOTABLE_EVENTS.forEach(function(e) {
+      _huntAllMarks.push({key: e.key, label: 'Event - ' + e.name + ' (' + e.zone + ')'});
+    });
+  }
+  _huntAllMarks.sort(function(a,b) { return a.label.localeCompare(b.label); });
+  _huntAllMarks.forEach(function(m) {
+    var o = document.createElement('option');
+    o.value = m.key; o.textContent = m.label;
+    opts.appendChild(o);
+  });
+});
+
+function openSubModal() {
+  document.getElementById('sub-modal').classList.remove('hidden');
+  loadSubs();
+}
+function closeSubModal() {
+  document.getElementById('sub-modal').classList.add('hidden');
+}
+
+function loadSubs() {
+  document.getElementById('sub-loading').classList.remove('hidden');
+  document.getElementById('sub-list').innerHTML = '';
+  document.getElementById('sub-empty').classList.add('hidden');
+
+  fetch('/api/ffxiv/hunt/subs/')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      _huntSubs = data.subs || [];
+      document.getElementById('sub-loading').classList.add('hidden');
+      renderSubs();
+      updateSubBadge();
+    });
+}
+
+function renderSubs() {
+  var list  = document.getElementById('sub-list');
+  var empty = document.getElementById('sub-empty');
+  if (!_huntSubs.length) {
+    list.innerHTML = '';
+    empty.classList.remove('hidden');
+    return;
+  }
+  empty.classList.add('hidden');
+
+  var tierLabels = {S:'All S Ranks', A:'All A Ranks', B:'All B Ranks', all:'Everything', all_events:'All Events / FATEs'};
+
+  list.innerHTML = _huntSubs.map(function(s) {
+    var label = tierLabels[s.watch_key] || s.watch_key;
+    var worldStr = s.worlds ? s.worlds : 'All worlds';
+    var notifStr = [];
+    if (s.notify_site)   notifStr.push('<i class="fas fa-globe text-sky-400"></i>');
+    if (s.notify_fluxer) notifStr.push('<img src="{% static "img/siteassets/fluxer-favicon.png" %}" class="w-3 h-3 rounded-sm inline" alt="">');
+
+    return '<div class="flex items-center gap-3 py-2.5 border-b border-neutral-800 last:border-0">' +
+      '<div class="flex-1 min-w-0">' +
+        '<p class="text-white text-sm font-medium truncate">' + escapeHtml(label) + '</p>' +
+        '<p class="text-gray-500 text-xs">' + escapeHtml(worldStr) + ' &nbsp;&middot;&nbsp; ' + notifStr.join(' ') + '</p>' +
+      '</div>' +
+      '<button onclick="deleteSub(\'' + escapeHtml(s.watch_key) + '\')" class="text-gray-600 hover:text-red-400 transition text-sm flex-shrink-0"><i class="fas fa-trash"></i></button>' +
+    '</div>';
+  }).join('');
+}
+
+function updateSubBadge() {
+  var badge = document.getElementById('sub-count-badge');
+  if (!badge) return;
+  if (_huntSubs.length > 0) {
+    badge.textContent = _huntSubs.length;
+    badge.classList.remove('hidden');
+  } else {
+    badge.classList.add('hidden');
+  }
+}
+
+function addSub() {
+  var watchKey     = document.getElementById('sub-watch-key').value;
+  var worlds       = document.getElementById('sub-worlds').value.trim();
+  var notifySite   = document.getElementById('sub-notify-site').checked;
+  var notifyFluxer = document.getElementById('sub-notify-fluxer').checked;
+  var errEl        = document.getElementById('sub-add-error');
+  errEl.classList.add('hidden');
+
+  if (!notifySite && !notifyFluxer) {
+    errEl.textContent = 'Enable at least one notification channel.';
+    errEl.classList.remove('hidden');
+    return;
+  }
+
+  (window.csrfFetch || csrfFetch)('/api/ffxiv/hunt/subs/save/', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({watch_key: watchKey, worlds: worlds, notify_site: notifySite, notify_fluxer: notifyFluxer}),
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    if (data.error) {
+      errEl.textContent = data.error;
+      errEl.classList.remove('hidden');
+      return;
+    }
+    // Reload subs
+    loadSubs();
+  });
+}
+
+function deleteSub(watchKey) {
+  (window.csrfFetch || csrfFetch)('/api/ffxiv/hunt/subs/delete/', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({watch_key: watchKey}),
+  })
+  .then(function() {
+    _huntSubs = _huntSubs.filter(function(s) { return s.watch_key !== watchKey; });
+    renderSubs();
+    updateSubBadge();
+  });
+}
+</script>
+{% endif %}
+
+{% endblock web_content %}

@@ -1,7 +1,63 @@
 from django.urls import path, include
 from django.views.generic import RedirectView
+from django.shortcuts import redirect
 from . import views
 from .questlog_web import views as ql_views
+from .questlog_web.views_eso import (
+    eso_builds_browse, eso_build_create, eso_build_detail, eso_build_edit,
+    api_eso_build_vote, api_eso_build_comment, api_eso_build_bookmark, api_eso_build_delete,
+)
+from .questlog_web.views_ffxiv import (
+    ffxiv_tools_hub, ffxiv_ocean_fishing, ffxiv_gathering, ffxiv_resets, ffxiv_fc,
+    api_ffxiv_ocean_fishing_rsvp, api_ffxiv_ocean_fishing_schedule,
+    ffxiv_collection,
+    api_ffxiv_search_characters, api_ffxiv_link_character, api_ffxiv_sync_character,
+    api_ffxiv_achievements_ready, api_ffxiv_toggle_clear,
+)
+from .questlog_web.views_ffxiv_hunts import (
+    ffxiv_hunt_board, api_ffxiv_hunt_report, api_ffxiv_hunt_clear,
+    api_ffxiv_hunt_clear_all,
+    api_hunt_subs_list, api_hunt_sub_save, api_hunt_sub_delete,
+)
+from .questlog_web.views_ffxiv_deepdungeon import (
+    ffxiv_deep_dungeon, api_ffxiv_dd_log_run, api_ffxiv_dd_edit_run,
+    api_ffxiv_dd_delete_run, api_ffxiv_dd_admin_wipe,
+)
+from .questlog_web.views_ffxiv_fieldops import (
+    ffxiv_field_ops, api_ffxiv_fo_update, api_ffxiv_fo_delete, api_ffxiv_fo_admin_delete,
+)
+from .questlog_web.views_ffxiv_marketboard import (
+    ffxiv_market_board, api_mb_search, api_mb_prices,
+)
+from .questlog_web.views_ffxiv_triad import (
+    ffxiv_triple_triad, api_triad_cards, api_triad_toggle,
+    api_triad_bulk_mark, api_triad_deck_save, api_triad_deck_delete,
+    api_triad_clear_all,
+)
+from .questlog_web.views_ffxiv_apply import (
+    ffxiv_apply, api_ffxiv_apply,
+    api_admin_ffxiv_applications, api_admin_ffxiv_application_review,
+)
+from .questlog_web.views_eso_apply import (
+    eso_apply, api_eso_apply,
+    api_admin_eso_applications, api_admin_eso_application_review,
+)
+from .questlog_web.views_ffxiv_guides import (
+    ffxiv_job_guides, ffxiv_job_hub, ffxiv_guide_detail,
+    ffxiv_guide_create, ffxiv_guide_edit,
+    api_ffxiv_guide_save, api_ffxiv_guide_update,
+    api_ffxiv_guide_like, api_ffxiv_guide_delete, api_ffxiv_guide_hide,
+    api_ffxiv_guide_comment, api_ffxiv_guide_comment_like,
+    api_ffxiv_guide_comment_delete,
+)
+from .questlog_web.views_ffxiv_housing import (
+    ffxiv_housing, api_ffxiv_housing_worlds, api_ffxiv_housing_plots, api_ffxiv_housing_sync,
+)
+from .questlog_web.views_bot_dashboard import (
+    discord_guild_live_alerts,
+    api_discord_guild_streamer_subs,
+    api_discord_guild_streamer_sub_detail,
+)
 
 urlpatterns = [
     # SEO and crawlers
@@ -9,8 +65,16 @@ urlpatterns = [
     path('sitemap.xml', views.sitemap_xml, name='sitemap_xml'),
 
     path('', views.home, name='home'),
+
+    # Legacy /ql/ redirects - anyone with old cached URLs lands here
+    path('ql/', RedirectView.as_view(url='/discover/', permanent=False)),
+    path('ql/<path:rest>', views.ql_legacy_redirect, name='ql_legacy_redirect'),
     path('gamesweplay/', views.games_we_play, name='games_we_play'),
-    path('gameservers/', RedirectView.as_view(url='/ql/gameservers/', permanent=False)),
+    path('api/activity-counts/', views.api_activity_counts, name='api_activity_counts'),
+    path('api/ffxiv/world-status/', views.api_ffxiv_world_status, name='api_ffxiv_world_status'),
+    path('api/ffxiv/news/', views.api_ffxiv_news, name='api_ffxiv_news'),
+    path('api/eso/server-status/', views.api_eso_server_status, name='api_eso_server_status'),
+
 
     # Site Activity Tracker (Bot Owner Only - in QuestLog Guild Dashboard)
     path('questlog/guild/<str:guild_id>/site-activity-tracker/', views.site_activity_tracker_admin, name='site_activity_tracker_admin'),
@@ -29,11 +93,90 @@ urlpatterns = [
     # path('pantheon/', views.pantheon_page, name='pantheon'),
     path('wow/', views.wow_page, name='wow'),
     path('eso/', views.eso_page, name='eso'),
+    path('eso', views.eso_page),
+    path('eso/builds/', eso_builds_browse, name='eso_builds'),
+    path('eso/builds/create/', eso_build_create, name='eso_build_create'),
+    path('eso/builds/<slug:slug>/', eso_build_detail, name='eso_build_detail'),
+    path('eso/builds/<slug:slug>/edit/', eso_build_edit, name='eso_build_edit'),
+    path('api/eso/builds/<int:build_id>/vote/', api_eso_build_vote, name='api_eso_build_vote'),
+    path('api/eso/builds/<int:build_id>/comment/', api_eso_build_comment, name='api_eso_build_comment'),
+    path('api/eso/builds/<int:build_id>/bookmark/', api_eso_build_bookmark, name='api_eso_build_bookmark'),
+    path('api/eso/builds/<int:build_id>/delete/', api_eso_build_delete, name='api_eso_build_delete'),
+    path('eso/apply/',                            eso_apply,                             name='eso_apply'),
+    path('api/eso/apply/',                        api_eso_apply,                         name='api_eso_apply'),
+    path('api/admin/eso/applications/',           api_admin_eso_applications,            name='api_admin_eso_applications'),
+    path('api/admin/eso/applications/<int:app_id>/review/', api_admin_eso_application_review, name='api_admin_eso_application_review'),
+    path('ffxiv/', views.ffxiv_page, name='ffxiv'),
+    path('ffxiv', views.ffxiv_page),
+    path('ffxiv/tools/', ffxiv_tools_hub, name='ffxiv_tools'),
+    path('ffxiv/tools/ocean-fishing/', ffxiv_ocean_fishing, name='ffxiv_ocean_fishing'),
+    path('ffxiv/apply/',                         ffxiv_apply,                           name='ffxiv_apply'),
+    path('api/ffxiv/apply/',                     api_ffxiv_apply,                       name='api_ffxiv_apply'),
+    path('api/admin/ffxiv/applications/',        api_admin_ffxiv_applications,          name='api_admin_ffxiv_applications'),
+    path('api/admin/ffxiv/applications/<int:app_id>/review/', api_admin_ffxiv_application_review, name='api_admin_ffxiv_application_review'),
+    path('ffxiv/builds/', RedirectView.as_view(url='/ffxiv/tools/job-guides/', permanent=True)),
+    path('ffxiv/tools/collection/', ffxiv_collection, name='ffxiv_collection'),
+    path('ffxiv/tools/gathering/', ffxiv_gathering, name='ffxiv_gathering'),
+    path('ffxiv/tools/resets/', ffxiv_resets, name='ffxiv_resets'),
+    path('ffxiv/tools/fc/', ffxiv_fc, name='ffxiv_fc'),
+    path('ffxiv/tools/hunt-board/',    ffxiv_hunt_board,    name='ffxiv_hunt_board'),
+    path('ffxiv/tools/triple-triad/', ffxiv_triple_triad,   name='ffxiv_triple_triad'),
+    path('api/ffxiv/triad/cards/',       api_triad_cards,       name='api_triad_cards'),
+    path('api/ffxiv/triad/toggle/',      api_triad_toggle,      name='api_triad_toggle'),
+    path('api/ffxiv/triad/bulk-mark/',   api_triad_bulk_mark,   name='api_triad_bulk_mark'),
+    path('api/ffxiv/triad/deck/save/',   api_triad_deck_save,   name='api_triad_deck_save'),
+    path('api/ffxiv/triad/deck/delete/', api_triad_deck_delete, name='api_triad_deck_delete'),
+    path('api/ffxiv/triad/clear-all/',   api_triad_clear_all,   name='api_triad_clear_all'),
+    path('ffxiv/tools/deep-dungeon/', ffxiv_deep_dungeon,  name='ffxiv_deep_dungeon'),
+    path('api/ffxiv/hunt/report/',    api_ffxiv_hunt_report,  name='api_ffxiv_hunt_report'),
+    path('api/ffxiv/hunt/clear/',     api_ffxiv_hunt_clear,     name='api_ffxiv_hunt_clear'),
+    path('api/ffxiv/hunt/clear-all/', api_ffxiv_hunt_clear_all, name='api_ffxiv_hunt_clear_all'),
+    path('api/ffxiv/hunt/subs/',      api_hunt_subs_list,     name='api_hunt_subs_list'),
+    path('api/ffxiv/hunt/subs/save/', api_hunt_sub_save,      name='api_hunt_sub_save'),
+    path('api/ffxiv/hunt/subs/delete/', api_hunt_sub_delete,  name='api_hunt_sub_delete'),
+    path('api/ffxiv/dd/log/',         api_ffxiv_dd_log_run,    name='api_ffxiv_dd_log_run'),
+    path('api/ffxiv/dd/edit/',        api_ffxiv_dd_edit_run,   name='api_ffxiv_dd_edit_run'),
+    path('api/ffxiv/dd/delete/',      api_ffxiv_dd_delete_run, name='api_ffxiv_dd_delete_run'),
+    path('api/ffxiv/dd/admin-wipe/',  api_ffxiv_dd_admin_wipe, name='api_ffxiv_dd_admin_wipe'),
+    path('ffxiv/tools/field-ops/',         ffxiv_field_ops,            name='ffxiv_field_ops'),
+    path('api/ffxiv/field-ops/update/',    api_ffxiv_fo_update,        name='api_ffxiv_fo_update'),
+    path('api/ffxiv/field-ops/delete/',    api_ffxiv_fo_delete,        name='api_ffxiv_fo_delete'),
+    path('api/ffxiv/field-ops/admin-delete/', api_ffxiv_fo_admin_delete, name='api_ffxiv_fo_admin_delete'),
+    path('ffxiv/tools/market-board/',  ffxiv_market_board, name='ffxiv_market_board'),
+    path('api/ffxiv/mb/search/',       api_mb_search,      name='api_mb_search'),
+    path('api/ffxiv/mb/prices/',       api_mb_prices,      name='api_mb_prices'),
+    # Job Guides
+    path('ffxiv/tools/job-guides/',                         ffxiv_job_guides,    name='ffxiv_job_guides'),
+    path('ffxiv/tools/job-guides/<str:job_key>/',           ffxiv_job_hub,       name='ffxiv_job_hub'),
+    path('ffxiv/tools/job-guides/<str:job_key>/create/',    ffxiv_guide_create,  name='ffxiv_guide_create'),
+    path('ffxiv/tools/job-guides/guide/<slug:slug>/',       ffxiv_guide_detail,  name='ffxiv_guide_detail'),
+    path('ffxiv/tools/job-guides/guide/<slug:slug>/edit/',  ffxiv_guide_edit,    name='ffxiv_guide_edit'),
+    path('api/ffxiv/guides/<str:job_key>/create/',          api_ffxiv_guide_save,         name='api_ffxiv_guide_save'),
+    path('api/ffxiv/guides/<int:guide_id>/edit/',           api_ffxiv_guide_update,       name='api_ffxiv_guide_update'),
+    path('api/ffxiv/guides/<int:guide_id>/like/',           api_ffxiv_guide_like,         name='api_ffxiv_guide_like'),
+    path('api/ffxiv/guides/<int:guide_id>/delete/',         api_ffxiv_guide_delete,       name='api_ffxiv_guide_delete'),
+    path('api/ffxiv/guides/<int:guide_id>/hide/',           api_ffxiv_guide_hide,         name='api_ffxiv_guide_hide'),
+    path('api/ffxiv/guides/<int:guide_id>/comments/',       api_ffxiv_guide_comment,      name='api_ffxiv_guide_comment'),
+    path('api/ffxiv/guide-comments/<int:comment_id>/like/', api_ffxiv_guide_comment_like, name='api_ffxiv_guide_comment_like'),
+    path('api/ffxiv/guide-comments/<int:comment_id>/delete/', api_ffxiv_guide_comment_delete, name='api_ffxiv_guide_comment_delete'),
+    # Housing Tracker
+    path('ffxiv/tools/housing/',                         ffxiv_housing,               name='ffxiv_housing'),
+    path('api/ffxiv/housing/worlds/',                    api_ffxiv_housing_worlds,    name='api_ffxiv_housing_worlds'),
+    path('api/ffxiv/housing/plots/<int:world_id>/',      api_ffxiv_housing_plots,     name='api_ffxiv_housing_plots'),
+    path('api/ffxiv/housing/sync/',                      api_ffxiv_housing_sync,      name='api_ffxiv_housing_sync'),
+    path('api/ffxiv/ocean-fishing/rsvp/', api_ffxiv_ocean_fishing_rsvp, name='api_ffxiv_ocean_fishing_rsvp'),
+    path('api/ffxiv/ocean-fishing/schedule/', api_ffxiv_ocean_fishing_schedule, name='api_ffxiv_ocean_fishing_schedule'),
+    path('api/ffxiv/characters/search/', api_ffxiv_search_characters, name='api_ffxiv_search_characters'),
+    path('api/ffxiv/characters/link/', api_ffxiv_link_character, name='api_ffxiv_link_character'),
+    path('api/ffxiv/characters/sync/', api_ffxiv_sync_character, name='api_ffxiv_sync_character'),
+    path('api/ffxiv/characters/achievements-ready/', api_ffxiv_achievements_ready, name='api_ffxiv_achievements_ready'),
+    path('api/ffxiv/clears/<str:content_key>/toggle/', api_ffxiv_toggle_clear, name='api_ffxiv_toggle_clear'),
     # path('enshrouded/', views.enshrouded, name='enshrouded'),
     path('icaurs/', views.icarus, name='icarus'),
     path('vrising/', views.vrising, name='vrising'),
-    path('features/', views.features, name='features'),
-    path('features/<slug:slug>/', views.features_detail, name='features_detail'),
+    path('mockup/game-library/', lambda r: redirect('/library/', permanent=False)),
+    path('features/', lambda r: redirect('/blog/', permanent=True), name='features'),
+    path('features/<slug:slug>/', lambda r, slug: redirect(f'/blog/{slug}/', permanent=True), name='features_detail'),
     path('guides/', views.guides, name='guides'),
     path('content/', views.content, name='content'),
     path('aboutus/', views.aboutus, name='aboutus'),
@@ -66,7 +209,7 @@ urlpatterns = [
 
     # QuestLog Web (web-native, no Discord dependency)
     # casual-heroes.com/ql/ — distinct from dashboard.casual-heroes.com/questlog/
-    path('ql/', include('app.questlog_web.urls')),
+    path('', include('app.questlog_web.urls')),
 
     # QuestLog (Discord bot dashboard - on dashboard.casual-heroes.com)
     path('questlog/overview/', views.questlog_overview, name='questlog_overview'),
@@ -217,7 +360,6 @@ urlpatterns = [
     # Server Settings Dashboard
     path('questlog/guild/<str:guild_id>/settings/', views.guild_settings, name='guild_settings'),
     path('questlog/guild/<str:guild_id>/messages/', views.guild_messages, name='guild_messages'),
-    path('questlog/guild/<str:guild_id>/game-servers/', views.guild_game_servers, name='guild_game_servers'),
 
     # Settings API Endpoints
     path('api/guild/<str:guild_id>/settings/update/', views.api_settings_update, name='api_settings_update'),
@@ -454,36 +596,48 @@ urlpatterns = [
     # Same views, same templates - just accessible from the QuestLog site nav.
     # API endpoints (/api/guild/<id>/...) don't need aliasing - JS calls them directly.
     # =========================================================================
-    path('ql/dashboard/discord/',                                      views.questlog_dashboard,       name='ql_discord_dashboard'),
-    path('ql/dashboard/discord/<str:guild_id>/',                   views.guild_dashboard,          name='ql_discord_guild_dashboard'),
-    path('ql/dashboard/discord/<str:guild_id>/xp/',                views.guild_xp,                 name='ql_discord_guild_xp'),
-    path('ql/dashboard/discord/<str:guild_id>/welcome/',           views.guild_welcome,            name='ql_discord_guild_welcome'),
-    path('ql/dashboard/discord/<str:guild_id>/levelup/',           views.guild_levelup,            name='ql_discord_guild_levelup'),
-    path('ql/dashboard/discord/<str:guild_id>/moderation/',        views.guild_moderation,         name='ql_discord_guild_moderation'),
-    path('ql/dashboard/discord/<str:guild_id>/moderation/settings/', views.guild_moderation_settings, name='ql_discord_guild_moderation_settings'),
-    path('ql/dashboard/discord/<str:guild_id>/roles/',             views.guild_roles,              name='ql_discord_guild_roles'),
-    path('ql/dashboard/discord/<str:guild_id>/reaction-roles/',    views.guild_reaction_roles,     name='ql_discord_guild_reaction_roles'),
-    path('ql/dashboard/discord/<str:guild_id>/verification/',      views.guild_verification,       name='ql_discord_guild_verification'),
-    path('ql/dashboard/discord/<str:guild_id>/raffles/',           views.guild_raffles,            name='ql_discord_guild_raffles'),
-    path('ql/dashboard/discord/<str:guild_id>/raffle-browser/',    views.guild_raffle_browser,     name='ql_discord_guild_raffle_browser'),
-    path('ql/dashboard/discord/<str:guild_id>/audit/',             views.guild_audit_logs,         name='ql_discord_guild_audit'),
-    path('ql/dashboard/discord/<str:guild_id>/templates/',         views.guild_templates,          name='ql_discord_guild_templates'),
-    path('ql/dashboard/discord/<str:guild_id>/messages/',          views.guild_messages,           name='ql_discord_guild_messages'),
-    path('ql/dashboard/discord/<str:guild_id>/settings/',          views.guild_settings,           name='ql_discord_guild_settings'),
-    path('ql/dashboard/discord/<str:guild_id>/rss-feeds/',         views.guild_rss_feeds,          name='ql_discord_guild_rss_feeds'),
-    path('ql/dashboard/discord/<str:guild_id>/rss-articles/',      views.guild_rss_articles,       name='ql_discord_guild_rss_articles'),
-    path('ql/dashboard/discord/<str:guild_id>/lfg/',               views.guild_lfg,                name='ql_discord_guild_lfg'),
-    path('ql/dashboard/discord/<str:guild_id>/lfg/browser/',       views.guild_lfg_browser,        name='ql_discord_guild_lfg_browser'),
-    path('ql/dashboard/discord/<str:guild_id>/attendance/',        views.guild_attendance,         name='ql_discord_guild_attendance'),
-    path('ql/dashboard/discord/<str:guild_id>/lfg/calendar/',     views.guild_lfg_calendar,       name='ql_discord_guild_lfg_calendar'),
-    path('ql/dashboard/discord/<str:guild_id>/trackers/',          views.guild_trackers,           name='ql_discord_guild_trackers'),
-    path('ql/dashboard/discord/<str:guild_id>/discovery/',         views.guild_discovery,          name='ql_discord_guild_discovery'),
-    path('ql/dashboard/discord/<str:guild_id>/leaderboards/',      views.guild_leaderboards,       name='ql_discord_guild_leaderboards'),
-    path('ql/dashboard/discord/<str:guild_id>/profile/',           views.member_profile,           name='ql_discord_guild_profile'),
-    path('ql/dashboard/discord/<str:guild_id>/flair-management/',  views.flair_management,         name='ql_discord_guild_flair_management'),
-    path('ql/dashboard/discord/<str:guild_id>/featured-creators/', views.guild_featured_creators,  name='ql_discord_guild_featured_creators'),
-    path('ql/dashboard/discord/<str:guild_id>/bridge/',            views.guild_bridge,             name='ql_discord_guild_bridge'),
+    path('dashboard/discord/',                                      views.questlog_dashboard,       name='ql_discord_dashboard'),
+    path('dashboard/discord/<str:guild_id>/',                   views.guild_dashboard,          name='ql_discord_guild_dashboard'),
+    path('dashboard/discord/<str:guild_id>/xp/',                views.guild_xp,                 name='ql_discord_guild_xp'),
+    path('dashboard/discord/<str:guild_id>/welcome/',           views.guild_welcome,            name='ql_discord_guild_welcome'),
+    path('dashboard/discord/<str:guild_id>/levelup/',           views.guild_levelup,            name='ql_discord_guild_levelup'),
+    path('dashboard/discord/<str:guild_id>/moderation/',        views.guild_moderation,         name='ql_discord_guild_moderation'),
+    path('dashboard/discord/<str:guild_id>/moderation/settings/', views.guild_moderation_settings, name='ql_discord_guild_moderation_settings'),
+    path('dashboard/discord/<str:guild_id>/roles/',             views.guild_roles,              name='ql_discord_guild_roles'),
+    path('dashboard/discord/<str:guild_id>/reaction-roles/',    views.guild_reaction_roles,     name='ql_discord_guild_reaction_roles'),
+    path('dashboard/discord/<str:guild_id>/verification/',      views.guild_verification,       name='ql_discord_guild_verification'),
+    path('dashboard/discord/<str:guild_id>/raffles/',           views.guild_raffles,            name='ql_discord_guild_raffles'),
+    path('dashboard/discord/<str:guild_id>/raffle-browser/',    views.guild_raffle_browser,     name='ql_discord_guild_raffle_browser'),
+    path('dashboard/discord/<str:guild_id>/audit/',             views.guild_audit_logs,         name='ql_discord_guild_audit'),
+    path('dashboard/discord/<str:guild_id>/templates/',         views.guild_templates,          name='ql_discord_guild_templates'),
+    path('dashboard/discord/<str:guild_id>/messages/',          views.guild_messages,           name='ql_discord_guild_messages'),
+    path('dashboard/discord/<str:guild_id>/settings/',          views.guild_settings,           name='ql_discord_guild_settings'),
+    path('dashboard/discord/<str:guild_id>/rss-feeds/',         views.guild_rss_feeds,          name='ql_discord_guild_rss_feeds'),
+    path('dashboard/discord/<str:guild_id>/rss-articles/',      views.guild_rss_articles,       name='ql_discord_guild_rss_articles'),
+    path('dashboard/discord/<str:guild_id>/lfg/',               views.guild_lfg,                name='ql_discord_guild_lfg'),
+    path('dashboard/discord/<str:guild_id>/lfg/browser/',       views.guild_lfg_browser,        name='ql_discord_guild_lfg_browser'),
+    path('dashboard/discord/<str:guild_id>/attendance/',        views.guild_attendance,         name='ql_discord_guild_attendance'),
+    path('dashboard/discord/<str:guild_id>/lfg/calendar/',     views.guild_lfg_calendar,       name='ql_discord_guild_lfg_calendar'),
+    path('dashboard/discord/<str:guild_id>/trackers/',          views.guild_trackers,           name='ql_discord_guild_trackers'),
+    path('dashboard/discord/<str:guild_id>/discovery/',         views.guild_discovery,          name='ql_discord_guild_discovery'),
+    path('dashboard/discord/<str:guild_id>/leaderboards/',      views.guild_leaderboards,       name='ql_discord_guild_leaderboards'),
+    path('dashboard/discord/<str:guild_id>/profile/',           views.member_profile,           name='ql_discord_guild_profile'),
+    path('dashboard/discord/<str:guild_id>/flair-management/',  views.flair_management,         name='ql_discord_guild_flair_management'),
+    path('dashboard/discord/<str:guild_id>/featured-creators/', views.guild_featured_creators,  name='ql_discord_guild_featured_creators'),
+    path('dashboard/discord/<str:guild_id>/bridge/',            views.guild_bridge,             name='ql_discord_guild_bridge'),
+    # Quest Control (Discord)
+    path('dashboard/discord/<str:guild_id>/quest-control/',          views.guild_quest_control,          name='ql_discord_guild_quest_control'),
+    # Community Spotlight (Discord)
+    path('dashboard/discord/<str:guild_id>/spotlight/',              views.guild_spotlight,              name='ql_discord_guild_spotlight'),
+    # Live Alerts (Discord)
+    path('dashboard/discord/<str:guild_id>/live-alerts/',
+         discord_guild_live_alerts,                                      name='ql_discord_guild_live_alerts'),
+    # Live Alerts API (Discord)
+    path('api/discord/<str:guild_id>/streamer-subs/',
+         api_discord_guild_streamer_subs,                                name='api_discord_guild_streamer_subs'),
+    path('api/discord/<str:guild_id>/streamer-subs/<int:sub_id>/',
+         api_discord_guild_streamer_sub_detail,                          name='api_discord_guild_streamer_sub_detail'),
     # Bridge API (guild-scoped, Discord auth)
-    path('ql/api/discord/<str:guild_id>/bridges/',                 views.api_discord_guild_bridges,      name='api_discord_guild_bridges'),
-    path('ql/api/discord/<str:guild_id>/bridges/<int:bridge_id>/', views.api_discord_guild_bridge_detail, name='api_discord_guild_bridge_detail'),
+    path('api/discord/<str:guild_id>/bridges/',                 views.api_discord_guild_bridges,      name='api_discord_guild_bridges'),
+    path('api/discord/<str:guild_id>/bridges/<int:bridge_id>/', views.api_discord_guild_bridge_detail, name='api_discord_guild_bridge_detail'),
 ]
