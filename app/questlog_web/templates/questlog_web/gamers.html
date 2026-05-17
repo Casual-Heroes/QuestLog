@@ -342,9 +342,12 @@ function buildCard(u) {
         </div>
       </div>
       {% if web_user %}
-      <a href="/u/${esc(u.username)}/" class="w-full text-center py-1.5 bg-indigo-600/20 hover:bg-indigo-600/40 text-indigo-400 hover:text-indigo-300 rounded-lg text-xs font-medium transition">
-        View Profile
-      </a>
+      <div class="flex gap-2">
+        <a href="/u/${esc(u.username)}/" class="flex-1 text-center py-1.5 bg-indigo-600/20 hover:bg-indigo-600/40 text-indigo-400 hover:text-indigo-300 rounded-lg text-xs font-medium transition">
+          View Profile
+        </a>
+        ${u.can_message ? `<a href="/messages/new/${u.id}/" class="flex items-center justify-center px-3 py-1.5 bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 hover:border-indigo-500/40 text-gray-400 hover:text-indigo-300 rounded-lg text-xs transition" title="Message ${esc(u.display_name)}"><i class="fas fa-envelope text-[11px]"></i></a>` : ''}
+      </div>
       {% endif %}
     </div>
   `;

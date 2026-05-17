@@ -906,14 +906,14 @@ async function loadComments(postId) {
     let html = buildCommentComposer(postId);
 
     if (data.comments && data.comments.length > 0) {
-      data.comments.forEach(c => {
-        html += renderComment(c);
-        if (c.replies) {
-          c.replies.forEach(r => {
-            html += renderComment(r, true);
-          });
+      function renderTree(c) {
+        let out = renderComment(c, c.parent_id != null);
+        if (c.replies && c.replies.length) {
+          c.replies.forEach(r => { out += renderTree(r); });
         }
-      });
+        return out;
+      }
+      data.comments.forEach(c => { html += renderTree(c); });
     } else {
       html += '<p class="text-gray-500 text-sm text-center">No comments yet</p>';
     }
@@ -975,7 +975,7 @@ function renderComment(comment, isReply = false) {
           <button onclick="toggleCommentLike(${comment.id}, this)" class="${likedClass} text-xs transition hover:text-red-400">
             <i class="${likeIcon}"></i> ${comment.like_count || 0}
           </button>
-          ${!isReply ? `<button onclick="showReplyInput(${comment.id})" class="text-gray-500 text-xs hover:text-blue-400">Reply</button>` : ''}
+          <button onclick="showReplyInput(${comment.id})" class="text-gray-500 text-xs hover:text-blue-400">Reply</button>
           ${comment.can_edit ? `<button onclick="editComment(${comment.id})" class="text-gray-500 text-xs hover:text-indigo-400">Edit</button>` : ''}
           ${comment.can_delete ? `<button onclick="deleteComment(${comment.id})" class="text-gray-500 text-xs hover:text-red-400">Delete</button>` : ''}
         </div>

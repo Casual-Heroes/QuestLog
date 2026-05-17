@@ -116,9 +116,12 @@ class WebUser(Base):
     track_game_launches = Column(Boolean, default=False)   # Opt-in: earn XP when launching a new game
     last_game_launched_at = Column(BigInteger, nullable=True)  # Unix epoch of last game launch XP award (cooldown)
     fluxer_sync_custom_status = Column(Boolean, default=False)  # Opt-in: sync Now Playing to Fluxer custom status
-    fluxer_access_token_enc = Column(Text, nullable=True)       # Fernet-encrypted Fluxer OAuth access token
-    fluxer_refresh_token_enc = Column(Text, nullable=True)      # Fernet-encrypted Fluxer OAuth refresh token
-    fluxer_token_expires_at = Column(BigInteger, nullable=True) # Unix epoch when access token expires
+    fluxer_access_token_enc = Column(Text, nullable=True)
+    fluxer_refresh_token_enc = Column(Text, nullable=True)
+    fluxer_token_expires_at = Column(BigInteger, nullable=True)
+    discord_access_token_enc = Column(Text, nullable=True)
+    discord_refresh_token_enc = Column(Text, nullable=True)
+    discord_token_expires_at = Column(BigInteger, nullable=True)
 
     # Preferences
     allow_discovery = Column(Boolean, default=True)  # Show in public directories
@@ -129,6 +132,9 @@ class WebUser(Base):
     share_steam_library = Column(Boolean, default=False)  # Opt-in: let other users see if they share games via SteamQuest
     show_activity = Column(Boolean, default=True)         # Show recent activity (groups joined, etc.)
     allow_messages = Column(Boolean, default=False)       # Allow DMs from other users
+    pubkey           = Column(Text, nullable=True)         # ECDH P-256 public key (JWK JSON) - server stores only pubkey
+    pubkey_encrypted = Column(Text, nullable=True)         # AES-GCM encrypted private key backup (phrase-derived AES key)
+    pubkey_salt      = Column(String(64), nullable=True)   # Hex salt for phrase -> AES key derivation
 
     # Notification preferences (in-site notifications)
     notify_follows = Column(Boolean, default=True)        # Someone follows me
@@ -3981,4 +3987,70 @@ class WebSteamAchievementShowcase(Base):
     __table_args__ = (
         Index('idx_showcase_user', 'web_user_id'),
         UniqueConstraint('web_user_id', 'achievement_id', name='uq_showcase_ach'),
+    )
+
+
+# ---------------------------------------------------------------------------
+# E2EE Direct Messages
+# ---------------------------------------------------------------------------
+
+class WebDMConversation(Base):
+    """One row per unique user pair. user_a_id < user_b_id always."""
+    __tablename__ = 'web_dm_conversations'
+
+    id              = Column(Integer, primary_key=True, autoincrement=True)
+    user_a_id       = Column(Integer, ForeignKey('web_users.id', ondelete='CASCADE'), nullable=False)
+    user_b_id       = Column(Integer, ForeignKey('web_users.id', ondelete='CASCADE'), nullable=False)
+    last_message_at = Column(BigInteger, nullable=False, default=0)
+    created_at      = Column(BigInteger, nullable=False)
+
+    user_a   = relationship("WebUser", foreign_keys=[user_a_id])
+    user_b   = relationship("WebUser", foreign_keys=[user_b_id])
+    messages = relationship("WebDMMessage", back_populates="conversation", order_by="WebDMMessage.created_at")
+
+    __table_args__ = (
+        UniqueConstraint('user_a_id', 'user_b_id', name='uq_convo'),
+        Index('idx_dm_convo_a', 'user_a_id'),
+        Index('idx_dm_convo_b', 'user_b_id'),
+        Index('idx_dm_convo_updated', 'last_message_at'),
+    )
+
+
+class WebDMMessage(Base):
+    """Encrypted message. Server stores ciphertext only - never sees plaintext."""
+    __tablename__ = 'web_dm_messages'
+
+    id                      = Column(Integer, primary_key=True, autoincrement=True)
+    conversation_id         = Column(Integer, ForeignKey('web_dm_conversations.id', ondelete='CASCADE'), nullable=False)
+    sender_id               = Column(Integer, ForeignKey('web_users.id', ondelete='CASCADE'), nullable=False)
+    ciphertext_for_recipient = Column(Text, nullable=False)  # base64 AES-GCM ciphertext for recipient
+    ciphertext_for_sender    = Column(Text, nullable=False)  # base64 AES-GCM ciphertext for sender's own copy
+    ephemeral_pubkey         = Column(Text, nullable=False)  # JWK JSON of ECDH ephemeral public key
+    iv_recipient             = Column(String(32), nullable=False)  # base64 IV for recipient copy
+    iv_sender                = Column(String(32), nullable=False)  # base64 IV for sender copy
+    is_deleted               = Column(Boolean, nullable=False, default=False)
+    created_at               = Column(BigInteger, nullable=False)
+
+    conversation = relationship("WebDMConversation", back_populates="messages")
+    sender       = relationship("WebUser", foreign_keys=[sender_id])
+
+    __table_args__ = (
+        Index('idx_dm_msg_convo', 'conversation_id'),
+        Index('idx_dm_msg_sender', 'sender_id'),
+        Index('idx_dm_msg_created', 'created_at'),
+    )
+
+
+class WebDMReadState(Base):
+    """Tracks last-read timestamp per user per conversation for unread counts."""
+    __tablename__ = 'web_dm_read_state'
+
+    id              = Column(Integer, primary_key=True, autoincrement=True)
+    conversation_id = Column(Integer, ForeignKey('web_dm_conversations.id', ondelete='CASCADE'), nullable=False)
+    user_id         = Column(Integer, ForeignKey('web_users.id', ondelete='CASCADE'), nullable=False)
+    last_read_at    = Column(BigInteger, nullable=False, default=0)
+
+    __table_args__ = (
+        UniqueConstraint('conversation_id', 'user_id', name='uq_read_state'),
+        Index('idx_dm_read_user', 'user_id'),
     )

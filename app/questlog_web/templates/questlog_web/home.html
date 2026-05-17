@@ -651,7 +651,7 @@ async function loadActivity() {
             : `<div class="w-8 h-8 bg-neutral-700 rounded-lg flex items-center justify-center"><i class="fas fa-gamepad text-gray-600 text-xs"></i></div>`}
           <div class="flex-1 min-w-0">
             <p class="text-white text-xs font-medium truncate">${esc(g.name)}</p>
-            <p class="text-gray-500 text-xs">${g.post_count} post${g.post_count !== 1 ? 's' : ''} this week</p>
+            <p class="text-gray-500 text-xs">${[g.lfg_count ? g.lfg_count + ' LFG' : '', g.member_count ? g.member_count + ' in library' : '', g.post_count ? g.post_count + ' post' + (g.post_count !== 1 ? 's' : '') : ''].filter(Boolean).join(' · ') || 'trending'}</p>
           </div>
         </div>
       `).join('');

@@ -1309,26 +1309,45 @@ def community_register(request):
         except Exception:
             pass
 
-    # --- Discord guilds owned by this user (from WardenBot's guilds table) ---
+    # --- Discord guilds owned by this user (live from Discord API via stored OAuth token) ---
     discord_guilds_data = []
     registered_discord_ids = set()
     discord_id = str(getattr(request.web_user, 'discord_id', '') or '')
 
     if discord_id:
-        try:
-            with get_db_session() as db:
-                rows = db.execute(
-                    sa_text(
-                        "SELECT guild_id, guild_name, member_count FROM guilds "
-                        "WHERE owner_id = :oid AND bot_present = 1"
-                    ),
-                    {'oid': int(discord_id)},
-                ).fetchall()
-                discord_guilds_data = [
-                    {'id': str(r[0]), 'name': r[1] or str(r[0]), 'member_count': r[2] or 0}
-                    for r in rows
-                ]
-                if discord_guilds_data:
+        enc_token = getattr(request.web_user, 'discord_access_token_enc', None)
+        if enc_token:
+            try:
+                import requests as _req
+                from app.utils.encryption import decrypt_token as _dec
+                access_token = _dec(enc_token)
+                MANAGE_GUILD = 0x20
+                resp = _req.get(
+                    'https://discord.com/api/v10/users/@me/guilds',
+                    headers={'Authorization': f'Bearer {access_token}'},
+                    timeout=10,
+                )
+                if resp.status_code == 200:
+                    all_guilds = resp.json()
+                    discord_guilds_data = [
+                        {
+                            'id': g['id'],
+                            'name': g['name'],
+                            'member_count': 0,
+                            'icon': (
+                                f"https://cdn.discordapp.com/icons/{g['id']}/{g['icon']}.png"
+                                if g.get('icon') else None
+                            ),
+                        }
+                        for g in all_guilds
+                        if (int(g.get('permissions', 0)) & MANAGE_GUILD) or g.get('owner')
+                    ]
+            except Exception:
+                pass
+
+        if discord_guilds_data:
+            try:
+                with get_db_session() as db:
                     discord_ids = [g['id'] for g in discord_guilds_data]
                     ph = ','.join(f':d{i}' for i in range(len(discord_ids)))
                     params = {f'd{i}': v for i, v in enumerate(discord_ids)}
@@ -1337,8 +1356,8 @@ def community_register(request):
                         params,
                     ).fetchall()
                     registered_discord_ids = {r[0] for r in rows3}
-        except Exception:
-            pass
+            except Exception:
+                pass
 
     # --- Matrix spaces owned by this user ---
     matrix_spaces_data = []

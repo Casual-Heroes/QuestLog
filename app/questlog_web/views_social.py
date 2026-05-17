@@ -920,118 +920,107 @@ def _get_recent_activity(request):
             'follower_count': u.follower_count or 0,
         } for u in new_members]
 
-        # --- Trending games: LFG groups (7 days) + Steam recently played (2 weeks) ---
-        # Signal 1: LFG groups created in the last 7 days, grouped by game_name
-        # Pick best cover_url and game_id per game_name (most recent non-null wins)
-        lfg_rows = db.execute(
-            text("""
-                SELECT game_name,
-                       COALESCE(MAX(game_image_url), '') as game_image_url,
-                       COALESCE(MAX(game_id), '') as game_id,
-                       COUNT(*) as lfg_count
-                FROM web_lfg_groups
-                WHERE created_at >= :week_ago
-                  AND status IN ('open','full','started')
-                  AND allow_network_discovery = 1
-                GROUP BY game_name
-                ORDER BY lfg_count DESC
-                LIMIT 20
-            """),
-            {'week_ago': week_ago}
-        ).fetchall()
+        # --- Trending games: based purely on member activity on this platform ---
+        # Signal 1: active LFG groups for this game (4x - highest intent, actively recruiting)
+        lfg_rows = db.execute(text("""
+            SELECT game_name, MAX(game_image_url) as img, MAX(game_id) as gid, COUNT(*) as cnt
+            FROM web_lfg_groups
+            WHERE status IN ('open','full','started') AND allow_network_discovery = 1
+            GROUP BY game_name
+            ORDER BY cnt DESC
+            LIMIT 30
+        """)).fetchall()
 
-        # Signal 2: Steam recently played across members (cached from discover page if available)
-        steam_play_counts = {}
-        steam_appid_map = {}  # game_name -> steam app_id (for cover art)
-        try:
-            from django.core.cache import cache as _djcache
-            from .helpers import STEAM_API_KEY as _STEAM_KEY
-            import requests as _req
+        # Signal 2: members who marked a game "play_together" (3x - wants to group up)
+        pt_rows = db.execute(text("""
+            SELECT g.name, MAX(g.steam_app_id) as steam_id,
+                   MAX(fg.cover_url) as igdb_cover, COUNT(*) as cnt
+            FROM web_user_games g
+            JOIN web_users u ON u.id = g.web_user_id
+            LEFT JOIN web_found_games fg ON fg.steam_app_id = g.steam_app_id
+            WHERE g.status = 'play_together'
+              AND u.is_banned = 0 AND u.is_disabled = 0
+            GROUP BY g.name
+            ORDER BY cnt DESC
+            LIMIT 30
+        """)).fetchall()
 
-            steam_users = db.execute(
-                text("""SELECT steam_id FROM web_users
-                        WHERE share_steam_library=1 AND steam_id IS NOT NULL
-                        AND steam_id != '' AND is_banned=0 AND is_disabled=0
-                        LIMIT 30""")
-            ).fetchall()
+        # Signal 3: posts tagged with a game (2x - active engagement)
+        post_rows = db.execute(text("""
+            SELECT p.game_tag_name, MAX(p.game_tag_steam_id) as steam_id,
+                   MAX(fg.cover_url) as igdb_cover, COUNT(*) as cnt
+            FROM web_posts p
+            JOIN web_users u ON u.id = p.author_id
+            LEFT JOIN web_found_games fg ON fg.steam_app_id = p.game_tag_steam_id
+            WHERE p.game_tag_name IS NOT NULL AND p.game_tag_name != ''
+              AND p.is_deleted = 0 AND p.is_hidden = 0
+              AND u.is_banned = 0 AND u.is_disabled = 0
+            GROUP BY p.game_tag_name
+            ORDER BY cnt DESC
+            LIMIT 30
+        """)).fetchall()
 
-            for (steam_id,) in steam_users:
-                cache_key = f'steamquest_library_{steam_id}'
-                cached_lib = _djcache.get(cache_key)
-                if cached_lib:
-                    for g in cached_lib:
-                        name = g.get('name', '')
-                        pt2 = g.get('playtime_2weeks', 0)
-                        if name and pt2 and pt2 > 0:
-                            steam_play_counts[name] = steam_play_counts.get(name, 0) + 1
-                            if name not in steam_appid_map and g.get('appid'):
-                                steam_appid_map[name] = g['appid']
-                else:
-                    try:
-                        r = _req.get(
-                            'https://api.steampowered.com/IPlayerService/GetRecentlyPlayedGames/v1/',
-                            params={'key': _STEAM_KEY, 'steamid': steam_id, 'count': 0},
-                            timeout=3,
-                        )
-                        for g in r.json().get('response', {}).get('games', []):
-                            name = g.get('name', '')
-                            if name and g.get('playtime_2weeks', 0) > 0:
-                                steam_play_counts[name] = steam_play_counts.get(name, 0) + 1
-                                if name not in steam_appid_map and g.get('appid'):
-                                    steam_appid_map[name] = g['appid']
-                    except Exception:
-                        pass
-        except Exception:
-            pass
+        # Signal 4: games in members' libraries (1x - ownership/interest, weakest)
+        lib_rows = db.execute(text("""
+            SELECT g.name, MAX(g.steam_app_id) as steam_id,
+                   MAX(fg.cover_url) as igdb_cover, COUNT(*) as cnt
+            FROM web_user_games g
+            JOIN web_users u ON u.id = g.web_user_id
+            LEFT JOIN web_found_games fg ON fg.steam_app_id = g.steam_app_id
+            WHERE u.is_banned = 0 AND u.is_disabled = 0
+            GROUP BY g.name
+            ORDER BY cnt DESC
+            LIMIT 50
+        """)).fetchall()
 
-        # Helper: resolve cover art for a game - tries LFG image, then Steam cover lookup
         from .helpers import get_steam_cover_url as _get_steam_cover
-        def _trending_cover(img_url, game_id_str):
-            if img_url:
-                return img_url
-            aid = None
-            if game_id_str:
-                try:
-                    aid = int(game_id_str)
-                except (ValueError, TypeError):
-                    pass
-            if not aid:
-                return None
-            return _get_steam_cover(aid)
 
-        # Merge signals: normalize each to 0-1 scale then combine (LFG weighted 2x)
-        trending_map = {}  # game_name -> {score, lfg_count, players, cover_url}
+        def _resolve_cover(igdb_cover, steam_id):
+            if igdb_cover:
+                return igdb_cover
+            if steam_id:
+                return f'https://cdn.cloudflare.steamstatic.com/steam/apps/{steam_id}/header.jpg'
+            return None
 
+        trending_map = {}  # normalized name -> {name, cover_url, score, players}
+
+        def _ensure(key, name, cover):
+            if key not in trending_map:
+                trending_map[key] = {
+                    'name': name,
+                    'cover_url': cover,
+                    'post_count': 0,
+                    'member_count': 0,
+                    'lfg_count': 0,
+                    'score': 0.0,
+                }
+            elif cover and not trending_map[key]['cover_url']:
+                trending_map[key]['cover_url'] = cover
+
+        # LFG signal - 4x weight, uses img/gid columns not igdb_cover
         max_lfg = max((r[3] for r in lfg_rows), default=1)
         for row in lfg_rows:
             name, img, gid, cnt = row[0], row[1], row[2], row[3]
-            trending_map[name] = {
-                'name': name,
-                'cover_url': _trending_cover(img, gid),
-                'lfg_count': cnt,
-                'players': steam_play_counts.get(name, 0),
-                'score': 2.0 * (cnt / max_lfg),
-            }
+            key = name.strip().lower()
+            cover = img or (f'https://cdn.cloudflare.steamstatic.com/steam/apps/{gid}/header.jpg' if gid and str(gid).isdigit() else None)
+            _ensure(key, name, cover)
+            trending_map[key]['score'] += 4.0 * (cnt / max_lfg)
+            trending_map[key]['lfg_count'] = max(trending_map[key]['lfg_count'], cnt)
 
-        max_steam = max(steam_play_counts.values(), default=1)
-        for name, player_count in steam_play_counts.items():
-            steam_score = player_count / max_steam
-            aid = steam_appid_map.get(name)
-            if name in trending_map:
-                trending_map[name]['score'] += steam_score
-                trending_map[name]['players'] = player_count
-                if not trending_map[name]['cover_url'] and aid:
-                    trending_map[name]['cover_url'] = _get_steam_cover(aid)
-            else:
-                trending_map[name] = {
-                    'name': name,
-                    'cover_url': _get_steam_cover(aid) if aid else None,
-                    'lfg_count': 0,
-                    'players': player_count,
-                    'score': steam_score,
-                }
+        def _add_signal(rows, weight, count_field):
+            max_cnt = max((r[3] for r in rows), default=1)
+            for row in rows:
+                name, steam_id, igdb_cover, cnt = row[0], row[1], row[2], row[3]
+                key = name.strip().lower()
+                _ensure(key, name, _resolve_cover(igdb_cover, steam_id))
+                trending_map[key]['score'] += weight * (cnt / max_cnt)
+                # Use max not sum - same member can appear in both lib and pt queries
+                trending_map[key][count_field] = max(trending_map[key].get(count_field, 0), cnt)
 
-        # Sort by combined score and take top 5
+        _add_signal(pt_rows,   3.0, 'member_count')
+        _add_signal(post_rows, 2.0, 'post_count')
+        _add_signal(lib_rows,  1.0, 'member_count')
+
         trending_games = sorted(trending_map.values(), key=lambda x: x['score'], reverse=True)[:5]
 
         ticker = []
@@ -1265,10 +1254,13 @@ def _get_recent_activity(request):
                 pass
 
         # Network approvals (communities that recently joined the network, last 7 days)
+        # Exclude Casual Heroes (id=7) - it's the platform itself, not a third-party join
+        # Use network_approved_at so the timestamp reflects actual approval, not any later edit
         recent_approvals = db.query(WebCommunity).filter(
             WebCommunity.network_status == 'approved',
-            WebCommunity.updated_at >= week_ago,
-        ).order_by(WebCommunity.updated_at.desc()).limit(10).all()
+            WebCommunity.network_approved_at >= week_ago,
+            WebCommunity.id != 7,
+        ).order_by(WebCommunity.network_approved_at.desc()).limit(10).all()
         seen_community_names = set()
         for c in recent_approvals:
             key = c.name.strip().lower()
@@ -1282,13 +1274,14 @@ def _get_recent_activity(request):
                 'avatar_url': c.icon_url or '',
                 'message': f"{c.name} joined the QuestLog Network",
                 'community_id': c.id,
-                'timestamp': c.updated_at,
+                'timestamp': c.network_approved_at,
             })
 
         # Play Together - 2 random picks from library, spread through ticker
         try:
             pt_rows = db.execute(text("""
                 SELECT g.web_user_id, g.name AS game_name, g.steam_app_id,
+                       g.updated_at AS status_set_at,
                        u.username, u.display_name, u.avatar_url
                 FROM web_user_games g
                 JOIN web_users u ON u.id = g.web_user_id
@@ -1300,7 +1293,7 @@ def _get_recent_activity(request):
                 ORDER BY RAND()
                 LIMIT 2
             """)).fetchall()
-            for i, row in enumerate(pt_rows):
+            for row in pt_rows:
                 steam_url = (
                     f'https://store.steampowered.com/app/{row.steam_app_id}/'
                     if row.steam_app_id
@@ -1314,7 +1307,7 @@ def _get_recent_activity(request):
                     'message': f"wants to play {row.game_name}",
                     'game': row.game_name,
                     'steam_url': steam_url,
-                    'timestamp': now - (i * 300),  # spread 5 min apart so they interleave
+                    'timestamp': row.status_set_at,
                 })
         except Exception:
             pass
@@ -1464,9 +1457,6 @@ def api_comments(request, post_id):
             parent = db.query(WebComment).filter_by(id=parent_id, post_id=post_id).first()
             if not parent:
                 return JsonResponse({'error': 'Parent comment not found'}, status=404)
-            # Max 1 level nesting
-            if parent.parent_id is not None:
-                return JsonResponse({'error': 'Cannot reply to a reply'}, status=400)
 
         now = int(time.time())
         comment = WebComment(
@@ -1571,8 +1561,10 @@ def _get_comments(request, db, post_id):
     comment_ids = [c.id for c in comments]
     replies = []
     if comment_ids:
+        # Fetch ALL non-deleted replies for this post (any depth), not just direct children
         reply_query = db.query(WebComment).filter(
-            WebComment.parent_id.in_(comment_ids),
+            WebComment.post_id == post_id,
+            WebComment.parent_id != None,
             WebComment.is_deleted == False,
         )
         if blocked_ids:

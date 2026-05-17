@@ -875,7 +875,7 @@ def discord_link(request):
         'client_id':     _DISCORD_CLIENT_ID,
         'redirect_uri':  _DISCORD_REDIRECT_URI_QL,
         'response_type': 'code',
-        'scope':         'identify',  # identify only — no guilds, no email
+        'scope':         'identify guilds',
         'state':         state,
         'prompt':        'none',      # skip consent screen if already authorized
     }
@@ -921,7 +921,11 @@ def discord_link_callback(request):
             'redirect_uri':  _DISCORD_REDIRECT_URI_QL,
         }, headers={'Content-Type': 'application/x-www-form-urlencoded'}, timeout=10)
         token_resp.raise_for_status()
-        access_token = token_resp.json().get('access_token')
+        token_data     = token_resp.json()
+        access_token   = token_data.get('access_token')
+        refresh_token  = token_data.get('refresh_token')
+        expires_in     = int(token_data.get('expires_in', 0) or 0)
+        token_expires_at = int(time.time()) + expires_in if expires_in else None
     except Exception as e:
         logger.error(f"discord_link_callback: token exchange failed: {e}")
         messages.error(request, "Failed to connect to Discord. Please try again.")
@@ -963,10 +967,16 @@ def discord_link_callback(request):
             messages.error(request, "That Discord account is already linked to another QuestLog account.")
             return redirect('questlog_web_profile')
 
+        from app.utils.encryption import encrypt_token as _enc
         user = db.query(WebUser).filter_by(id=request.web_user.id).first()
         user.discord_id       = discord_id
         user.discord_username = discord_username
         user.updated_at       = int(time.time())
+        if access_token:
+            user.discord_access_token_enc  = _enc(access_token)
+        if refresh_token:
+            user.discord_refresh_token_enc = _enc(refresh_token)
+        user.discord_token_expires_at = token_expires_at
         db.commit()
         web_user_id = user.id
         current_web_xp = user.web_xp or 0

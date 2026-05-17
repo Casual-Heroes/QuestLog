@@ -55,7 +55,11 @@
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-10 items-center">
       <div>
         <!-- Brand lockup -->
+        {% if web_user %}
+        <p class="text-xs font-bold text-indigo-400 uppercase tracking-widest mb-3">Welcome Home, {{ web_user.username }}</p>
+        {% else %}
         <p class="text-xs font-bold text-gray-600 uppercase tracking-widest mb-3">Casual Heroes</p>
+        {% endif %}
         <h1 class="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-white leading-tight tracking-tight mb-3">
           Aging, But<br>Still Looting.
         </h1>
@@ -129,7 +133,7 @@
 <!-- Logged-in: compact CH header + game search -->
 <div class="bg-neutral-950 border-b border-neutral-800 px-4 sm:px-6 pt-5 pb-4">
   <div class="max-w-2xl mx-auto text-center">
-    <p class="text-xs font-bold text-gray-600 uppercase tracking-widest mb-1">Casual Heroes</p>
+    <p class="text-xs font-bold text-indigo-400 uppercase tracking-widest mb-1">Welcome Home, {{ web_user.username }}</p>
     <p class="text-base font-semibold text-white mb-4">Aging, But Still Looting.</p>
     <p class="text-xs text-gray-600 uppercase tracking-widest font-semibold mb-3">What are you playing?</p>
     <div class="relative">
@@ -177,7 +181,7 @@
 
 <!-- Activity Ticker -->
 <div id="ticker-bar" class="hidden bg-neutral-950 border-b border-neutral-800 overflow-hidden relative" style="height: 32px;">
-  <div id="ticker-content" class="flex items-center gap-8 whitespace-nowrap animate-ticker absolute" style="animation: tickerScroll 40s linear infinite;"></div>
+  <div id="ticker-content" class="flex items-center gap-8 whitespace-nowrap animate-ticker absolute" style="animation: tickerScroll 22s linear infinite;"></div>
 </div>
 
 {% if game_servers %}
@@ -480,7 +484,7 @@
               <p class="text-xs text-gray-500 mt-0.5">
                 {{ c.member_count }} member{{ c.member_count|pluralize }}
                 &middot;
-                {% if c.platform == 'discord' %}<i class="fab fa-discord text-indigo-400 mr-0.5"></i>{% elif c.platform == 'fluxer' %}<i class="fas fa-satellite-dish text-cyan-400 mr-0.5"></i>{% elif c.platform == 'matrix' %}<i class="fas fa-comments text-green-400 mr-0.5"></i>{% elif c.platform == 'stoat' %}<i class="fas fa-bolt text-orange-400 mr-0.5"></i>{% endif %}
+                {% if c.platform == 'discord' %}<i class="fab fa-discord text-indigo-400 mr-0.5"></i>{% elif c.platform == 'fluxer' %}<img src="{% static 'img/siteassets/fluxer-favicon.png' %}" class="inline-block mr-0.5" style="width:1em;height:1em;object-fit:contain;vertical-align:middle;" alt="Fluxer">{% elif c.platform == 'matrix' %}<i class="fas fa-comments text-green-400 mr-0.5"></i>{% elif c.platform == 'stoat' %}<i class="fas fa-bolt text-orange-400 mr-0.5"></i>{% endif %}
                 <span class="capitalize">{{ c.platform }}</span>
               </p>
               {% if c.description %}
@@ -1469,9 +1473,15 @@ async function loadActivity() {
         seen.add(key);
         return true;
       });
+      // Network joins always scroll first
+      dedupedTicker.sort(function(a, b) {
+        const aJoin = a.type === 'network_approved' ? 0 : 1;
+        const bJoin = b.type === 'network_approved' ? 0 : 1;
+        return aJoin - bJoin;
+      });
       const items = dedupedTicker.map(buildTickerItem).join('<span class="text-neutral-700 mx-3">|</span>');
       tickerContent.innerHTML = items;
-      const duration = Math.max(40, dedupedTicker.length * 10);
+      const duration = Math.max(22, dedupedTicker.length * 5);
       tickerContent.style.animationDuration = duration + 's';
       tickerBar.classList.remove('hidden');
     }
@@ -1490,18 +1500,22 @@ async function refreshTicker() {
     const tickerContent = document.getElementById('ticker-content');
     if (!tickerBar || !tickerContent) return;
 
-    // Dedup
+    // Dedup + network joins first
     const seen = new Set();
-    const items = data.ticker.filter(t => {
+    const deduped = data.ticker.filter(t => {
       const key = t.type + '|' + t.display_name + '|' + t.message;
       if (seen.has(key)) return false;
       seen.add(key); return true;
-    }).map(buildTickerItemStatic).join('<span class="text-neutral-700 mx-3">|</span>');
+    });
+    deduped.sort(function(a, b) {
+      return (a.type === 'network_approved' ? 0 : 1) - (b.type === 'network_approved' ? 0 : 1);
+    });
+    const items = deduped.map(buildTickerItemStatic).join('<span class="text-neutral-700 mx-3">|</span>');
 
     // Restart animation smoothly by briefly pausing then swapping content
     tickerContent.style.animationPlayState = 'paused';
     tickerContent.innerHTML = items;
-    const duration = Math.max(40, data.ticker.length * 10);
+    const duration = Math.max(20, data.ticker.length * 5);
     tickerContent.style.animationDuration = duration + 's';
     tickerContent.style.animationPlayState = 'running';
     tickerBar.classList.remove('hidden');

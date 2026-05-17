@@ -359,10 +359,16 @@
                  onchange="saveUserPrefs()" class="w-4 h-4 accent-green-500">
           <p class="text-white text-sm">Show my recent activity (groups joined, etc.)</p>
         </label>
-        <label class="flex items-center gap-3 cursor-pointer">
+        <label class="flex items-center gap-3 cursor-pointer p-3 rounded-xl border border-indigo-500/20 bg-indigo-500/5 hover:bg-indigo-500/10 transition">
           <input type="checkbox" id="allowMessages" {% if web_user.allow_messages %}checked{% endif %}
-                 onchange="saveUserPrefs()" class="w-4 h-4 accent-green-500">
-          <p class="text-white text-sm">Allow other users to message me <span class="text-xs text-indigo-400 ml-1">- Site DMs coming soon with E2EE</span></p>
+                 onchange="saveUserPrefs()" class="w-4 h-4 accent-indigo-500 flex-shrink-0">
+          <div>
+            <p class="text-white text-sm font-medium flex items-center gap-2">
+              <i class="fas fa-envelope text-indigo-400 text-xs"></i>
+              Allow other users to message me
+            </p>
+            <p class="text-gray-500 text-xs mt-0.5">Lets mutual follows send you encrypted site DMs. <a href="/messages/" class="text-indigo-400 hover:underline">Open Messages</a></p>
+          </div>
         </label>
         {% if web_user.is_hero %}
         <label class="flex items-center gap-3 cursor-pointer">
