@@ -55,7 +55,11 @@
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-10 items-center">
       <div>
         <!-- Brand lockup -->
+        {% if web_user %}
+        <p class="text-xs font-bold text-indigo-400 uppercase tracking-widest mb-3">Welcome Home, {{ web_user.username }}</p>
+        {% else %}
         <p class="text-xs font-bold text-gray-600 uppercase tracking-widest mb-3">Casual Heroes</p>
+        {% endif %}
         <h1 class="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-white leading-tight tracking-tight mb-3">
           Aging, But<br>Still Looting.
         </h1>
@@ -129,7 +133,7 @@
 <!-- Logged-in: compact CH header + game search -->
 <div class="bg-neutral-950 border-b border-neutral-800 px-4 sm:px-6 pt-5 pb-4">
   <div class="max-w-2xl mx-auto text-center">
-    <p class="text-xs font-bold text-gray-600 uppercase tracking-widest mb-1">Casual Heroes</p>
+    <p class="text-xs font-bold text-indigo-400 uppercase tracking-widest mb-1">Welcome Home, {{ web_user.username }}</p>
     <p class="text-base font-semibold text-white mb-4">Aging, But Still Looting.</p>
     <p class="text-xs text-gray-600 uppercase tracking-widest font-semibold mb-3">What are you playing?</p>
     <div class="relative">

@@ -1457,9 +1457,6 @@ def api_comments(request, post_id):
             parent = db.query(WebComment).filter_by(id=parent_id, post_id=post_id).first()
             if not parent:
                 return JsonResponse({'error': 'Parent comment not found'}, status=404)
-            # Max 1 level nesting
-            if parent.parent_id is not None:
-                return JsonResponse({'error': 'Cannot reply to a reply'}, status=400)
 
         now = int(time.time())
         comment = WebComment(
@@ -1564,8 +1561,10 @@ def _get_comments(request, db, post_id):
     comment_ids = [c.id for c in comments]
     replies = []
     if comment_ids:
+        # Fetch ALL non-deleted replies for this post (any depth), not just direct children
         reply_query = db.query(WebComment).filter(
-            WebComment.parent_id.in_(comment_ids),
+            WebComment.post_id == post_id,
+            WebComment.parent_id != None,
             WebComment.is_deleted == False,
         )
         if blocked_ids:
