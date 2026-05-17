@@ -1,0 +1,192 @@
+{% extends "questlog_web/base_web.html" %}
+{% load static %}
+
+{% block title %}Messages | Casual Heroes{% endblock %}
+
+{% block web_content %}
+<div class="max-w-2xl mx-auto px-3 sm:px-4 py-4 sm:py-8">
+  <div class="flex items-center justify-between mb-5">
+    <h1 class="text-2xl font-bold text-white">Messages</h1>
+    <span id="dm-key-status" class="text-xs text-gray-500"></span>
+  </div>
+
+  <!-- No key configured warning -->
+  <div id="no-key-banner" class="hidden mb-5 p-4 rounded-xl border border-yellow-500/30 bg-yellow-500/10">
+    <div class="flex items-start gap-3">
+      <svg class="w-5 h-5 text-yellow-400 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+      </svg>
+      <div>
+        <p class="text-yellow-200 text-sm font-medium">Set up encrypted messaging</p>
+        <p class="text-yellow-300/70 text-xs mt-1">Your messages are end-to-end encrypted. Generate your key to start messaging.</p>
+        <button onclick="openKeySetupModal()" class="mt-2 px-3 py-1.5 rounded-lg bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-200 text-xs font-medium transition">
+          Set Up Keys
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Suggestions: mutual follows -->
+  <div id="suggestions-section" class="hidden mb-6">
+    <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">People you follow</p>
+    <div id="suggestions-list" class="flex flex-wrap gap-2"></div>
+    <!-- hint shown when clicking a locked user -->
+    <p id="not-setup-hint" class="hidden mt-2 text-xs text-yellow-400 bg-yellow-500/10 border border-yellow-500/20 rounded-lg px-3 py-2"></p>
+  </div>
+
+  <!-- Conversations -->
+  <div id="inbox-loading" class="text-center py-12 text-gray-600">
+    <svg class="w-8 h-8 mx-auto mb-3 animate-spin" fill="none" viewBox="0 0 24 24">
+      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 12 0 12 12h4z"></path>
+    </svg>
+  </div>
+
+  <div id="inbox-has-convos" class="hidden">
+    <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Recent</p>
+    <div id="inbox-items" class="space-y-2"></div>
+  </div>
+
+  <div id="inbox-empty" class="hidden text-center py-12">
+    <svg class="w-10 h-10 mx-auto mb-3 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/>
+    </svg>
+    <p class="text-gray-500 text-sm">No conversations yet.</p>
+    <p class="text-gray-600 text-xs mt-1">Pick someone above to start chatting, or visit a user's profile.</p>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  function timeAgo(ts) {
+    const diff = Math.floor(Date.now() / 1000) - ts;
+    if (diff < 60) return 'just now';
+    if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
+    if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
+    return Math.floor(diff / 86400) + 'd ago';
+  }
+
+  function avatarHtml(user, size) {
+    const sz = size || 'w-10 h-10';
+    if (user.avatar_url || user.other_avatar) {
+      const src = escapeHtml(user.avatar_url || user.other_avatar);
+      return '<img src="' + src + '" class="' + sz + ' rounded-full object-cover flex-shrink-0" alt="">';
+    }
+    const name = user.display_name || user.username || user.other_username || '?';
+    return '<div class="' + sz + ' rounded-full bg-neutral-700 flex items-center justify-center text-gray-400 text-sm font-bold flex-shrink-0">' + escapeHtml(name[0].toUpperCase()) + '</div>';
+  }
+
+  window.showNotSetupHint = function(name) {
+    const hint = document.getElementById('not-setup-hint');
+    hint.textContent = name + " hasn't enabled messages yet. Ask them to go to their Profile settings and turn on \"Allow messages\".";
+    hint.classList.remove('hidden');
+    clearTimeout(hint._t);
+    hint._t = setTimeout(function() { hint.classList.add('hidden'); }, 5000);
+  };
+
+  function renderSuggestions(suggestions) {
+    if (!suggestions.length) return;
+    document.getElementById('suggestions-section').classList.remove('hidden');
+    const list = document.getElementById('suggestions-list');
+    let html = '';
+    suggestions.forEach(function(s) {
+      const av = avatarHtml(s, 'w-11 h-11');
+      const name = escapeHtml(s.display_name);
+      if (s.can_message) {
+        html += '<a href="/messages/new/' + s.id + '/" class="flex flex-col items-center gap-1.5 p-2.5 rounded-xl bg-neutral-800/60 hover:bg-neutral-700/60 border border-neutral-700/40 hover:border-indigo-500/40 transition group w-20 sm:w-24">'
+          + '<div class="relative">' + av + '</div>'
+          + '<p class="text-xs text-gray-300 group-hover:text-white truncate w-full text-center transition leading-tight">' + name + '</p>'
+          + '</a>';
+      } else {
+        html += '<button onclick="showNotSetupHint(\'' + name + '\')" class="flex flex-col items-center gap-1.5 p-2.5 rounded-xl bg-neutral-800/30 border border-neutral-800 w-20 sm:w-24 opacity-50">'
+          + '<div class="relative">' + av
+          + '<span class="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-neutral-900 flex items-center justify-center">'
+          + '<svg class="w-2.5 h-2.5 text-yellow-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd"/></svg>'
+          + '</span></div>'
+          + '<p class="text-xs text-gray-500 truncate w-full text-center leading-tight">' + name + '</p>'
+          + '</button>';
+      }
+    });
+    list.innerHTML = html;
+  }
+
+  function renderInbox(convos) {
+    document.getElementById('inbox-loading').classList.add('hidden');
+    if (!convos.length) {
+      document.getElementById('inbox-empty').classList.remove('hidden');
+      return;
+    }
+    document.getElementById('inbox-has-convos').classList.remove('hidden');
+    const container = document.getElementById('inbox-items');
+    let html = '';
+    convos.forEach(function(c) {
+      const unread = c.unread_count > 0;
+      const border = unread ? 'border-indigo-500/30' : 'border-neutral-700/40';
+      const nameColor = unread ? 'text-white' : 'text-gray-300';
+      const badge = unread
+        ? '<span class="ml-auto flex-shrink-0 bg-indigo-500 text-white text-xs font-bold w-5 h-5 flex items-center justify-center rounded-full">' + (c.unread_count > 9 ? '9+' : c.unread_count) + '</span>'
+        : '<span class="ml-auto text-xs text-gray-600 flex-shrink-0">' + timeAgo(c.last_message_at) + '</span>';
+      const sub = unread
+        ? '<p class="text-xs text-indigo-400 mt-0.5">New message</p>'
+        : '<p class="text-xs text-gray-600 mt-0.5">' + timeAgo(c.last_message_at) + '</p>';
+      html += '<a href="/messages/' + c.id + '/" class="flex items-center gap-3 p-3 rounded-xl bg-neutral-800/50 border ' + border + ' hover:border-neutral-600 hover:bg-neutral-800 transition">'
+        + avatarHtml(c)
+        + '<div class="flex-1 min-w-0"><p class="text-sm font-medium ' + nameColor + ' truncate">' + escapeHtml(c.other_username) + '</p>' + sub + '</div>'
+        + badge + '</a>';
+    });
+    container.innerHTML = html;
+  }
+
+  async function loadAll() {
+    try {
+      const [inboxResp, sugResp] = await Promise.all([
+        csrfFetch('/api/dm/inbox/'),
+        csrfFetch('/api/dm/suggestions/'),
+      ]);
+      if (inboxResp.ok) {
+        const data = await inboxResp.json();
+        renderInbox(data.conversations || []);
+      } else {
+        document.getElementById('inbox-loading').classList.add('hidden');
+        document.getElementById('inbox-empty').classList.remove('hidden');
+      }
+      if (sugResp.ok) {
+        const data = await sugResp.json();
+        renderSuggestions(data.suggestions || []);
+      }
+    } catch (e) {
+      document.getElementById('inbox-loading').classList.add('hidden');
+      document.getElementById('inbox-empty').classList.remove('hidden');
+    }
+  }
+
+  // Check IndexedDB for non-extractable CryptoKey (new secure storage)
+  async function checkKeyStatus() {
+    let hasKey = false;
+    try {
+      const req = indexedDB.open('ql_dm_keys', 1);
+      await new Promise(function(resolve) {
+        req.onupgradeneeded = function(e) { e.target.result.createObjectStore('keys'); };
+        req.onsuccess = function(e) {
+          const db = e.target.result;
+          const r = db.transaction('keys','readonly').objectStore('keys').get('privKey');
+          r.onsuccess = function(ev) { hasKey = ev.target.result instanceof CryptoKey; resolve(); };
+          r.onerror = resolve;
+        };
+        req.onerror = resolve;
+      });
+    } catch(e) {}
+    const status = document.getElementById('dm-key-status');
+    if (hasKey) {
+      status.textContent = 'Encrypted';
+      status.className = 'text-xs text-green-500';
+    } else {
+      document.getElementById('no-key-banner').classList.remove('hidden');
+    }
+  }
+  checkKeyStatus();
+
+  loadAll();
+});
+</script>
+{% endblock %}

@@ -65,7 +65,7 @@
             <i class="fas fa-star text-yellow-400"></i>
           </div>
           <p class="text-white text-sm font-medium mb-1">Creator Profiles</p>
-          <p class="text-gray-400 text-xs">Members create rich profiles with bios and social links on the <a href="/ql/creators/" target="_blank" class="text-orange-400 hover:text-orange-300">Featured Creators</a> page at casual-heroes.com.</p>
+          <p class="text-gray-400 text-xs">Members create rich profiles with bios and social links on the <a href="/creators/" target="_blank" class="text-orange-400 hover:text-orange-300">Featured Creators</a> page at casual-heroes.com.</p>
         </div>
       </div>
       <div class="bg-neutral-800/50 rounded-lg px-4 py-2.5 border border-neutral-700">
@@ -175,7 +175,7 @@
             </div>
             <div>
               <h3 class="text-white font-semibold">Featured Creators</h3>
-              <a href="/ql/creators/" target="_blank" class="text-orange-400 hover:text-orange-300 text-xs flex items-center gap-1">Browse <i class="fas fa-external-link-alt text-xs"></i></a>
+              <a href="/creators/" target="_blank" class="text-orange-400 hover:text-orange-300 text-xs flex items-center gap-1">Browse <i class="fas fa-external-link-alt text-xs"></i></a>
             </div>
           </div>
 
@@ -266,7 +266,7 @@
           <div class="bg-neutral-800/50 rounded-lg p-3">
             <p class="text-gray-300 text-xs mb-2"><i class="fas fa-user-plus text-purple-400 mr-2"></i><strong>How members opt-in:</strong></p>
             <ol class="text-xs text-gray-400 space-y-1 ml-4 list-decimal">
-              <li>Register at <a href="/ql/creator/register/" target="_blank" class="text-purple-400 hover:text-purple-300">Featured Creators</a></li>
+              <li>Register at <a href="/creator/register/" target="_blank" class="text-purple-400 hover:text-purple-300">Featured Creators</a></li>
               <li>Check "Share to Discovery Network"</li>
               <li>Profile becomes eligible for Network COTW/COTM</li>
             </ol>
@@ -664,7 +664,7 @@
       <div class="border-t border-neutral-800 pt-4 flex items-start justify-between gap-4 mb-4">
         <div>
           <h3 class="text-white font-semibold">LFG Network</h3>
-          <p class="text-gray-500 text-sm mt-0.5">Share open LFG groups to the cross-guild browser at <a href="/ql/fluxer/lfg/" target="_blank" class="text-orange-400 hover:text-orange-300">casual-heroes.com/ql/fluxer/lfg/</a> so players from any guild can find your groups.</p>
+          <p class="text-gray-500 text-sm mt-0.5">Share open LFG groups to the cross-guild browser at <a href="/fluxer/lfg/" target="_blank" class="text-orange-400 hover:text-orange-300">casual-heroes.comfluxer/lfg/</a> so players from any guild can find your groups.</p>
         </div>
         <label class="relative inline-flex items-center cursor-pointer flex-shrink-0 mt-0.5">
           <input type="checkbox" id="network-publish-lfg" class="sr-only peer">
@@ -706,7 +706,7 @@
         </div>
       </div>
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <a href="/ql/creators/" target="_blank"
+        <a href="/creators/" target="_blank"
            class="flex items-center gap-3 bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 rounded-xl px-4 py-3 transition group">
           <div class="w-9 h-9 bg-indigo-600/20 rounded-lg flex items-center justify-center flex-shrink-0 group-hover:bg-indigo-600/30 transition">
             <i class="fas fa-users text-indigo-400"></i>
@@ -717,7 +717,7 @@
           </div>
           <i class="fas fa-external-link-alt text-gray-600 text-xs ml-auto"></i>
         </a>
-        <a href="/ql/creator/register/" target="_blank"
+        <a href="/creator/register/" target="_blank"
            class="flex items-center gap-3 bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 rounded-xl px-4 py-3 transition group">
           <div class="w-9 h-9 bg-orange-600/20 rounded-lg flex items-center justify-center flex-shrink-0 group-hover:bg-orange-600/30 transition">
             <i class="fas fa-plus text-orange-400"></i>
@@ -1116,9 +1116,9 @@ function showToast(message, type = 'success') {
 const GUILD_ID = '{{ guild_id }}';
 const SETTINGS = JSON.parse('{{ settings_json|escapejs }}');
 const CHANNELS = JSON.parse('{{ channels_json|escapejs }}');
-const API_URL = '/ql/api/dashboard/fluxer/' + GUILD_ID + '/settings/';
-const DISCOVERY_API = '/ql/api/dashboard/fluxer/' + GUILD_ID + '/discovery/';
-const LFG_CONFIG_API = '/ql/api/dashboard/fluxer/' + GUILD_ID + '/lfg-config/';
+const API_URL = '/api/dashboard/fluxer/' + GUILD_ID + '/settings/';
+const DISCOVERY_API = '/api/dashboard/fluxer/' + GUILD_ID + '/discovery/';
+const LFG_CONFIG_API = '/api/dashboard/fluxer/' + GUILD_ID + '/lfg-config/';
 const NETWORK = {
   discovery_enabled: {{ discovery_enabled|yesno:"true,false" }},
   publish_to_network: {{ publish_to_network|yesno:"true,false" }},
@@ -1130,7 +1130,7 @@ let csCreatorChannel, csSelfpromoChannel, csFeatureChannel, csResponseChannel;
 let csCOTWChannel, csCOTMChannel;
 let csGamesChannel, csRssChannel;
 let csGdChannel, csGdPingRole;
-const GD_ROLES_API = '/ql/api/dashboard/fluxer/' + GUILD_ID + '/roles/list/';
+const GD_ROLES_API = '/api/dashboard/fluxer/' + GUILD_ID + '/roles/list/';
 
 // ---- Tab switching ----
 function switchTab(name) {
@@ -1260,7 +1260,7 @@ function initNetworkTab() {
 }
 
 // ---- Twitch tab ----
-const STREAMER_SUBS_API = '/ql/api/dashboard/fluxer/' + GUILD_ID + '/streamer-subs/';
+const STREAMER_SUBS_API = '/api/dashboard/fluxer/' + GUILD_ID + '/streamer-subs/';
 let _twitchInited = false;
 let csTwitchChannel = null;
 
@@ -1387,7 +1387,7 @@ function showTwitchMsg(text, ok) {
 }
 
 // ---- YouTube tab ----
-const RSS_API = '/ql/api/dashboard/fluxer/' + GUILD_ID + '/discovery/rss/';
+const RSS_API = '/api/dashboard/fluxer/' + GUILD_ID + '/discovery/rss/';
 let _ytInited = false;
 let csYtChannel = null;
 
@@ -2098,8 +2098,8 @@ document.addEventListener('DOMContentLoaded', function() {
 // GAME DISCOVERY - Search Config Management
 // =============================================================================
 
-const GS_SEARCH_API = '/ql/api/dashboard/fluxer/' + GUILD_ID + '/game-search-configs/';
-const GS_KEYWORDS_API = '/ql/api/dashboard/fluxer/' + GUILD_ID + '/igdb-keywords/';
+const GS_SEARCH_API = '/api/dashboard/fluxer/' + GUILD_ID + '/game-search-configs/';
+const GS_KEYWORDS_API = '/api/dashboard/fluxer/' + GUILD_ID + '/igdb-keywords/';
 
 let gsCurrentEditingId = null;
 let gsSelectedFilters = { genre: [], theme: [], keyword: [], mode: [], platform: [] };
@@ -2371,7 +2371,7 @@ async function deleteGameSearch(searchId, name) {
 }
 
 // --- Save global settings ---
-const GS_GLOBAL_API = '/ql/api/dashboard/fluxer/' + GUILD_ID + '/game-discovery-settings/';
+const GS_GLOBAL_API = '/api/dashboard/fluxer/' + GUILD_ID + '/game-discovery-settings/';
 
 async function saveGameGlobalSettings() {
   const btn = document.getElementById('saveGameBtn');
@@ -2415,7 +2415,7 @@ async function forceCheckGames() {
   btn.disabled = true;
   btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Queuing...';
   try {
-    const resp = await csrfFetch('/ql/api/dashboard/fluxer/' + GUILD_ID + '/force-check-games/', {
+    const resp = await csrfFetch('/api/dashboard/fluxer/' + GUILD_ID + '/force-check-games/', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: '{}',

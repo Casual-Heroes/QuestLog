@@ -359,6 +359,52 @@
         </a>
       </div>
     </div>
+
+    <!-- Community Spotlight -->
+    <div class="bg-neutral-900 rounded-xl border border-neutral-800 overflow-hidden group hover:border-yellow-500/50 transition">
+      <div class="p-6">
+        <div class="flex items-start justify-between mb-4">
+          <div class="w-12 h-12 bg-yellow-600/20 rounded-lg flex items-center justify-center">
+            <i class="fas fa-dragon text-yellow-400 text-xl"></i>
+          </div>
+          <span class="px-2 py-1 bg-neutral-700 text-gray-400 rounded text-xs font-medium">Monthly</span>
+        </div>
+        <h3 class="text-lg font-bold text-white mb-2">Community Spotlight</h3>
+        <p class="text-gray-400 text-sm mb-4">Monthly Most Helpful nominations, voting polls, and Legacy award announcements.</p>
+        <div class="flex items-center gap-4 text-sm text-gray-500">
+          <span><i class="fas fa-trophy mr-1"></i>Legacy Awards</span>
+          <span><i class="fas fa-vote-yea mr-1"></i>Reaction Polls</span>
+        </div>
+      </div>
+      <div class="px-6 py-3 bg-neutral-800/50 border-t border-neutral-800">
+        <a href="{% url 'ql_discord_guild_spotlight' guild.id %}" class="text-yellow-400 font-medium text-sm hover:text-yellow-300 transition">
+          Configure <i class="fas fa-arrow-right ml-1"></i>
+        </a>
+      </div>
+    </div>
+
+    <!-- Quest Control -->
+    <div class="bg-neutral-900 rounded-xl border border-neutral-800 overflow-hidden group hover:border-lime-500/50 transition">
+      <div class="p-6">
+        <div class="flex items-start justify-between mb-4">
+          <div class="w-12 h-12 bg-lime-600/20 rounded-lg flex items-center justify-center">
+            <i class="fas fa-server text-lime-400 text-xl"></i>
+          </div>
+          <span class="px-2 py-1 bg-lime-600/20 text-lime-400 rounded text-xs font-medium">Game Servers</span>
+        </div>
+        <h3 class="text-lg font-bold text-white mb-2">Quest Control</h3>
+        <p class="text-gray-400 text-sm mb-4">Manage game server bots - channels, embeds, schedules, toggles, and RCON god panel.</p>
+        <div class="flex items-center gap-4 text-sm text-gray-500">
+          <span><i class="fas fa-gamepad mr-1"></i>Multi-Game</span>
+          <span><i class="fas fa-terminal mr-1"></i>RCON Panel</span>
+        </div>
+      </div>
+      <div class="px-6 py-3 bg-neutral-800/50 border-t border-neutral-800">
+        <a href="{% url 'ql_discord_guild_quest_control' guild.id %}" class="text-lime-400 font-medium text-sm hover:text-lime-300 transition">
+          Manage Servers <i class="fas fa-arrow-right ml-1"></i>
+        </a>
+      </div>
+    </div>
   </div>
 
   <!-- Server Settings -->

@@ -1,5 +1,5 @@
 aiohappyeyeballs==2.6.1
-aiohttp==3.13.3
+aiohttp==3.13.4
 aiosignal==1.3.2
 argon2-cffi==23.1.0
 argon2-cffi-bindings==21.2.0
@@ -11,7 +11,7 @@ certifi==2025.1.31
 cffi==1.17.1
 charset-normalizer==3.4.1
 dataclass-wizard==0.35.0
-Django==5.2.12
+Django==5.2.14
 django-admin-tools==0.9.3
 et_xmlfile==2.0.0
 feedparser==6.0.11
@@ -29,23 +29,24 @@ propcache==0.3.1
 pycparser==2.22
 pyotp==2.9.0
 python-dateutil==2.9.0.post0
-python-dotenv==1.1.0
+python-dotenv==1.2.2
 pytz==2025.2
 requests==2.33.0
 six==1.17.0
-SQLAlchemy==2.0.40
+SQLAlchemy==2.0.49
 sqlparse==0.5.5
-stripe==12.0.0
+stripe==15.1.0
 typing_extensions==4.13.1
 tzdata==2025.2
-urllib3==2.6.3
+urllib3==2.7.0
 yarl==1.20.0
 django-ratelimit==4.1.0
 django-csp==3.8
 # django-allauth==65.15.0  # ARCHIVED: Discord OAuth removed, kept for reference
-authlib==1.6.9
+authlib==1.6.12
 mysqlclient==2.2.7
-Pillow==12.1.1
-cryptography==46.0.5
+Pillow==12.2.0
+cryptography==48.0.0
 nltk==3.9.3
 markdown==3.10.2
+PyJWT==2.12.1

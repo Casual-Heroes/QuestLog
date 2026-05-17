@@ -17,7 +17,7 @@
       </h1>
       <p class="text-gray-500 mt-1 text-sm">Manage your QuestLogMatrix bot across spaces.</p>
     </div>
-    <a href="/ql/dashboard/" class="text-sm text-gray-400 hover:text-white transition flex items-center gap-2">
+    <a href="/dashboard/" class="text-sm text-gray-400 hover:text-white transition flex items-center gap-2">
       <i class="fas fa-arrow-left"></i> Back to Dashboard
     </a>
   </div>
@@ -32,7 +32,7 @@
     <p class="text-gray-400 text-sm mb-6 max-w-md mx-auto">
       Connect your Matrix account to manage spaces and configure QuestLogMatrix.
     </p>
-    <a href="/ql/settings/matrix-link/"
+    <a href="/settings/matrix-link/"
        class="inline-flex items-center gap-2 bg-teal-600 hover:bg-teal-500 text-white font-semibold px-6 py-3 rounded-xl transition">
       <i class="fas fa-link"></i> Link Matrix Account
     </a>
@@ -42,7 +42,7 @@
   <!-- Space grid -->
   <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
     {% for s in spaces %}
-    <a href="/ql/dashboard/matrix/{{ s.space_id_url }}/"
+    <a href="/dashboard/matrix/{{ s.space_id_url }}/"
        class="bg-neutral-900 rounded-xl border border-neutral-800 hover:border-teal-600/40 p-5 transition group block">
       <div class="flex items-start gap-4 mb-4">
         {% if s.space_avatar_url %}

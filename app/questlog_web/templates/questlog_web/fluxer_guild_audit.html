@@ -217,8 +217,8 @@
 const GUILD_ID = '{{ guild_id }}';
 const SETTINGS = JSON.parse('{{ settings_json|escapejs }}');
 const CHANNELS = JSON.parse('{{ channels_json|escapejs }}');
-const SETTINGS_API = '/ql/api/dashboard/fluxer/' + GUILD_ID + '/settings/';
-const AUDIT_API = '/ql/api/dashboard/fluxer/' + GUILD_ID + '/audit-logs/';
+const SETTINGS_API = '/api/dashboard/fluxer/' + GUILD_ID + '/settings/';
+const AUDIT_API = '/api/dashboard/fluxer/' + GUILD_ID + '/audit-logs/';
 
 const ACTION_TYPE_OPTIONS = [
   {value: '', label: 'All Actions'},

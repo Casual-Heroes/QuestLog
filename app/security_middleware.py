@@ -19,18 +19,19 @@ MAINTENANCE_FLAG = os.getenv(
 
 # Paths that bypass maintenance mode (admin + auth always accessible)
 MAINTENANCE_EXEMPT_PREFIXES = [
-    '/ql/admin',          # admin panel + admin API
-    '/ql/api/admin',
-    '/ql/admin-login',    # hardened admin-only login (replaces /ql/login)
-    '/ql/auth',           # OAuth callbacks (Steam etc.)
-    '/ql/verify-email',
-    '/ql/api/igdb/',      # public read-only game search — no reason to block
-    # '/ql/login',        # disabled — public login removed in closed-access mode
+    'admin',          # admin panel + admin API
+    'api/admin',
+    'admin-login',    # hardened admin-only login (replaces login)
+    'auth',           # OAuth callbacks (Steam etc.)
+    'verify-email',
+    'api/igdb/',      # public read-only game search — no reason to block
+    # 'login',        # disabled — public login removed in closed-access mode
     # '/login/',          # disabled — public login removed in closed-access mode
     '/logout/',
     '/static/',
     '/media/',
     '/questchat/',
+    'qc/',            # QuestChat bridge API - app stays accessible during maintenance
     '/auth/discord/',     # Discord OAuth flow must complete before we can check identity
     '/questlog/login/',   # Discord OAuth entry point — must be reachable to initiate auth
 ]
@@ -154,10 +155,6 @@ class SecurityMiddleware:
     def __call__(self, request):
         path = request.path.lower()
 
-        # Block the Django admin entirely (except admin_tools assets)
-        if path.startswith('/admin/') and not path.startswith('/admin/analytics') and not path.startswith('/admin_tools/'):
-            logger.warning(f"Blocked Django admin access from {self._client_ip(request)}: {request.path}")
-            return HttpResponseNotFound()
 
         for pattern in BLOCKED_PATTERNS:
             if pattern in path:
@@ -175,7 +172,6 @@ class SecurityMiddleware:
             'interest-cohort=()'
         )
         response['X-Content-Type-Options'] = 'nosniff'
-        response['X-Frame-Options'] = 'SAMEORIGIN'
         response['Referrer-Policy'] = 'strict-origin-when-cross-origin'
         return response
 

@@ -1,0 +1,374 @@
+{% extends "questlog_web/base_web.html" %}
+{% load static %}
+{% block title %}Final Fantasy XIV | Casual Heroes{% endblock %}
+{% block og_title %}Join Our FFXIV Free Company | Casual Heroes{% endblock %}
+{% block og_description %}Gearing up for 8.0 with treasure maps, dungeons, raids, mount farming, ocean fishing, and more. A community for working adults, parents, and gamers who grew up but never quite left Neverland.{% endblock %}
+{% block og_url %}https://casual-heroes.com/ffxiv{% endblock %}
+{% block web_content %}
+
+<section class="p-6 max-w-6xl mx-auto">
+
+  <!-- Header -->
+  <div class="text-center mb-6">
+    <h1 class="text-4xl font-extrabold text-white mb-1">Final Fantasy XIV</h1>
+    <p class="text-indigo-300 font-semibold text-lg">Casual Heroes - Aging, But Still Looting</p>
+    <p class="text-gray-400 italic text-sm mt-1">We see content at our own pace - without the hardcore mentality.</p>
+  </div>
+
+  <!-- Live Status Bar -->
+  <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-8">
+
+    <!-- Weekly Reset -->
+    <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-4 flex items-center gap-3">
+      <div class="w-10 h-10 rounded-lg bg-indigo-900/40 flex items-center justify-center flex-shrink-0">
+        <i class="fas fa-redo text-indigo-400"></i>
+      </div>
+      <div>
+        <p class="text-xs text-gray-500 uppercase tracking-wide">Weekly Reset</p>
+        <p class="text-white font-bold text-sm" id="weekly-reset-timer">Calculating...</p>
+      </div>
+    </div>
+
+    <!-- Daily Reset -->
+    <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-4 flex items-center gap-3">
+      <div class="w-10 h-10 rounded-lg bg-purple-900/40 flex items-center justify-center flex-shrink-0">
+        <i class="fas fa-clock text-purple-400"></i>
+      </div>
+      <div>
+        <p class="text-xs text-gray-500 uppercase tracking-wide">Daily Reset</p>
+        <p class="text-white font-bold text-sm" id="daily-reset-timer">Calculating...</p>
+      </div>
+    </div>
+
+    <!-- Server Status -->
+    <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-4 flex items-center gap-3">
+      <div class="w-10 h-10 rounded-lg bg-green-900/40 flex items-center justify-center flex-shrink-0">
+        <i class="fas fa-server text-green-400"></i>
+      </div>
+      <div class="flex-1 min-w-0">
+        <p class="text-xs text-gray-500 uppercase tracking-wide">Server Status</p>
+        <p class="text-white font-bold text-sm" id="ffxiv-server-label">Loading...</p>
+      </div>
+    </div>
+
+
+  </div>
+
+  <!-- Main Grid -->
+  <div class="grid md:grid-cols-2 gap-8 items-start mb-12">
+
+    <!-- Trailer -->
+    <div>
+      <iframe class="w-full aspect-video rounded-xl shadow-lg border border-neutral-800"
+              src="https://www.youtube.com/embed/Dk3rfUC80DE?si=rhOj-YRr2krFaIkS"
+              title="Final Fantasy XIV" frameborder="0"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+              referrerpolicy="strict-origin-when-cross-origin"
+              allowfullscreen>
+      </iframe>
+    </div>
+
+    <!-- FC Info -->
+    <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-6 shadow-xl">
+      <h2 class="text-2xl font-bold text-white mb-1">Aging, But Still Looting.</h2>
+      <p class="text-gray-400 text-sm mb-4">A community for working adults, parents, and gamers who grew up but never quite left Neverland. We see content at our own pace and enjoy the game the way we want - without the hardcore mentality. No parse culture, no drama. If that sounds like your kind of FC, we'd love to have you.</p>
+
+      <!-- DC / World pills -->
+      <div class="flex flex-wrap gap-2 mb-4">
+        <span class="flex items-center gap-1.5 text-xs bg-indigo-900/40 border border-indigo-700/40 text-indigo-300 rounded-lg px-3 py-1.5 font-medium">
+          <i class="fas fa-globe text-indigo-400 text-[10px]"></i> Dynamis DC
+        </span>
+        <span class="flex items-center gap-1.5 text-xs bg-neutral-800 border border-neutral-700 text-gray-300 rounded-lg px-3 py-1.5 font-medium">
+          <i class="fas fa-home text-teal-400 text-[10px]"></i> Halicarnassus
+        </span>
+        <span class="flex items-center gap-1.5 text-xs bg-rose-900/30 border border-rose-700/30 text-rose-300 rounded-lg px-3 py-1.5 font-medium">
+          <i class="fas fa-heart text-rose-400 text-[10px]"></i> Casual / Social &nbsp;18+
+        </span>
+      </div>
+
+      <ul class="text-gray-300 space-y-2 text-sm mb-5">
+        <li><strong class="text-indigo-400">Normal Raids &amp; Extremes:</strong> Cleared on your schedule, not ours</li>
+        <li><strong class="text-indigo-400">Hunt Trains:</strong> Crystal hunt community, weekly A/S rank trains</li>
+        <li><strong class="text-indigo-400">Housing &amp; Glamour:</strong> FC events, contests, tours</li>
+        <li><strong class="text-indigo-400">Ocean Fishing:</strong> Boat gang every window, chill required</li>
+        <li><strong class="text-indigo-400">Mount Farming:</strong> Old extremes, alliance raids, rare drop runs</li>
+        <li><strong class="text-indigo-400">Just Vibing:</strong> Deep dungeons, Gold Saucer, triple triad, Eureka</li>
+      </ul>
+      <div class="mt-4 flex flex-col sm:flex-row gap-2">
+        <a href="/ffxiv/apply/"
+           class="flex-1 flex items-center justify-center gap-2 bg-rose-700 hover:bg-rose-600 text-white font-semibold px-4 py-2.5 rounded-xl transition text-sm">
+          <i class="fas fa-scroll"></i> Apply to FC
+        </a>
+        <a href="https://fluxer.gg/zplS0MwI" target="_blank"
+           class="flex-1 flex items-center justify-center gap-2 bg-neutral-800 hover:bg-neutral-700 text-white font-semibold px-4 py-2.5 rounded-xl transition text-sm">
+          <img src="{% static 'img/siteassets/fluxer-favicon.png' %}" alt="Fluxer" class="w-4 h-4 rounded-sm">
+          Join on Fluxer
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Maintenance Banner (hidden by default, shown by JS if active) -->
+  <div id="ffxiv-maintenance-banner" class="hidden mb-6 bg-yellow-900/30 border border-yellow-700/50 rounded-xl p-4 flex items-start gap-3">
+    <i class="fas fa-tools text-yellow-400 mt-0.5 flex-shrink-0"></i>
+    <div>
+      <p class="text-yellow-300 font-semibold text-sm" id="ffxiv-maintenance-title">Maintenance</p>
+      <a id="ffxiv-maintenance-link" href="#" target="_blank" class="text-yellow-400/70 text-xs hover:text-yellow-300 transition">View details</a>
+    </div>
+  </div>
+
+  <!-- World Status -->
+  <div class="mb-12">
+    <h2 class="text-xl font-bold text-white mb-4"><i class="fas fa-globe text-indigo-400 mr-2"></i>World Status</h2>
+    <div id="ffxiv-world-status" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-start">
+      <div class="col-span-full text-center py-8 text-gray-500">
+        <i class="fas fa-spinner fa-spin mr-2"></i>Loading world status...
+      </div>
+    </div>
+  </div>
+
+  <!-- Lodestone News -->
+  <div class="mb-12 bg-neutral-900 border border-neutral-800 rounded-xl overflow-hidden">
+    <button onclick="toggleNews(this)" class="w-full flex items-center justify-between px-5 py-4 text-left hover:bg-neutral-800/50 transition group">
+      <h2 class="text-xl font-bold text-white"><i class="fas fa-newspaper text-indigo-400 mr-2"></i>Latest News</h2>
+      <i class="fas fa-chevron-down text-gray-500 group-hover:text-gray-300 transition-transform duration-200" id="news-chevron"></i>
+    </button>
+    <div class="hidden px-4 pb-4 space-y-2" id="ffxiv-news-body">
+      <div id="ffxiv-news-feed" class="space-y-2">
+        <div class="text-center py-6 text-gray-500"><i class="fas fa-spinner fa-spin mr-2"></i>Loading news...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Who We're Looking For -->
+  <div class="mb-12 bg-neutral-900 border border-neutral-800 p-6 rounded-xl">
+    <h2 class="text-xl font-bold text-indigo-300 mb-2 text-center">Who We're Looking For</h2>
+    <p class="text-gray-300 mb-6 text-center">All jobs welcome. All experience levels welcome. Bring your chocobo.</p>
+    <ul class="text-gray-300 text-sm max-w-3xl mx-auto divide-y divide-neutral-800/70">
+      <li class="py-3 grid grid-cols-1 sm:grid-cols-[220px,1fr] gap-1 sm:gap-3 items-start">
+        <span class="text-indigo-400 font-semibold sm:text-right">New &amp; Returning Players:</span>
+        <span>Just came back for Dawntrail or 8.0? Perfect. We'll help you catch up.</span>
+      </li>
+      <li class="py-3 grid grid-cols-1 sm:grid-cols-[220px,1fr] gap-1 sm:gap-3 items-start">
+        <span class="text-indigo-400 font-semibold sm:text-right">Healers &amp; Tanks:</span>
+        <span>Party content always needs the holy trinity. No toxic parse culture here.</span>
+      </li>
+      <li class="py-3 grid grid-cols-1 sm:grid-cols-[220px,1fr] gap-1 sm:gap-3 items-start">
+        <span class="text-indigo-400 font-semibold sm:text-right">Crafters &amp; Gatherers:</span>
+        <span>FC housing, furniture, consumables - your work keeps us going.</span>
+      </li>
+      <li class="py-3 grid grid-cols-1 sm:grid-cols-[220px,1fr] gap-1 sm:gap-3 items-start">
+        <span class="text-indigo-400 font-semibold sm:text-right">Casual Explorers:</span>
+        <span>Into the story, side quests, and island sanctuary? You belong here.</span>
+      </li>
+      <li class="py-3 grid grid-cols-1 sm:grid-cols-[220px,1fr] gap-1 sm:gap-3 items-start">
+        <span class="text-indigo-400 font-semibold sm:text-right">Adults with Jobs:</span>
+        <span>We raid when we can, not when we must. Real life always comes first.</span>
+      </li>
+    </ul>
+  </div>
+
+  <!-- QuestLog CTA -->
+  <div class="mb-12 rounded-2xl border border-indigo-700/40 bg-gradient-to-r from-indigo-900/30 to-purple-900/20 p-8 text-center">
+    <div class="w-14 h-14 rounded-2xl bg-indigo-600/20 border border-indigo-600/40 flex items-center justify-center mx-auto mb-4">
+      <i class="fas fa-book-open text-indigo-400 text-2xl"></i>
+    </div>
+    <h2 class="text-2xl font-bold text-white mb-2">FFXIV Tools on QuestLog</h2>
+    <p class="text-gray-300 mb-2 max-w-xl mx-auto">Job guides, rotation references, gear sets, and character tools - built for the Casual Heroes community.</p>
+    <p class="text-indigo-300 text-sm mb-6">Link your character. Save your gear sets. Share with your FC.</p>
+    <div class="flex flex-col sm:flex-row gap-3 justify-center">
+      <a href="/ffxiv/tools/"
+         class="inline-flex items-center gap-2 bg-indigo-700 hover:bg-indigo-600 text-white font-semibold px-6 py-3 rounded-xl transition">
+        <i class="fas fa-tools mr-1"></i>FFXIV Tools
+      </a>
+      <a href="/ffxiv/apply/"
+         class="inline-flex items-center gap-2 bg-rose-700 hover:bg-rose-600 text-white font-semibold px-6 py-3 rounded-xl transition">
+        <i class="fas fa-scroll mr-1"></i>Apply to FC
+      </a>
+      <a href="https://fluxer.gg/zplS0MwI" target="_blank"
+         class="flex items-center justify-center gap-2 bg-neutral-800 hover:bg-neutral-700 text-white font-semibold px-6 py-3 rounded-xl transition">
+        <img src="{% static 'img/siteassets/fluxer-favicon.png' %}" alt="Fluxer" class="w-4 h-4 rounded-sm">
+        Join Our FC on Fluxer
+      </a>
+    </div>
+  </div>
+
+</section>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+
+  // ---- Reset Timers ----
+  function nextReset(dayOfWeek, hourUTC) {
+    const now = new Date();
+    const target = new Date(Date.UTC(
+      now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(),
+      hourUTC, 0, 0, 0
+    ));
+    const dayDiff = (dayOfWeek - target.getUTCDay() + 7) % 7 || 7;
+    target.setUTCDate(target.getUTCDate() + dayDiff);
+    if (target <= now) target.setUTCDate(target.getUTCDate() + 7);
+    return target;
+  }
+
+  function nextDailyReset() {
+    const now = new Date();
+    const target = new Date(Date.UTC(
+      now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 15, 0, 0, 0
+    ));
+    if (target <= now) target.setUTCDate(target.getUTCDate() + 1);
+    return target;
+  }
+
+  function fmtCountdown(ms) {
+    if (ms <= 0) return 'Now';
+    const s = Math.floor(ms / 1000);
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const sec = s % 60;
+    if (h >= 24) {
+      const d = Math.floor(h / 24);
+      return `${d}d ${h % 24}h ${m}m`;
+    }
+    return `${h}h ${m}m ${sec}s`;
+  }
+
+  function updateTimers() {
+    const weekly = nextReset(2, 8);  // Tuesday 08:00 UTC
+    const daily  = nextDailyReset(); // 15:00 UTC
+    const now = Date.now();
+    document.getElementById('weekly-reset-timer').textContent = fmtCountdown(weekly - now);
+    document.getElementById('daily-reset-timer').textContent  = fmtCountdown(daily  - now);
+  }
+
+  updateTimers();
+  setInterval(updateTimers, 1000);
+
+  // ---- World Status ----
+  fetch('/api/ffxiv/world-status/')
+    .then(r => r.json())
+    .then(data => {
+      const container = document.getElementById('ffxiv-world-status');
+      if (!data.ok || !data.regions.length) {
+        container.innerHTML = '<div class="col-span-full text-center text-gray-500 py-4">World status unavailable</div>';
+        return;
+      }
+
+      const statusColor = { congested: 'text-red-400', preferred: 'text-yellow-400', standard: 'text-green-400' };
+      const statusDot   = { congested: 'bg-red-400',   preferred: 'bg-yellow-400',   standard: 'bg-green-400'  };
+      const statusLabel = { congested: 'Congested',    preferred: 'Preferred',        standard: 'Standard'     };
+
+      // Show NA first, then others
+      const sorted = [...data.regions].sort((a, b) =>
+        a.name.includes('North') ? -1 : b.name.includes('North') ? 1 : 0
+      );
+
+      let html = '';
+      let dcIdx = 0;
+      for (const region of sorted) {
+        for (const dc of region.dcs) {
+          const id = `dc-worlds-${dcIdx++}`;
+          const congested = dc.worlds.filter(w => w.status === 'congested').length;
+          const preferred = dc.worlds.filter(w => w.status === 'preferred').length;
+          const standard  = dc.worlds.filter(w => w.status === 'standard').length;
+          const summaryParts = [];
+          if (congested) summaryParts.push(`<span class="text-red-400">${congested} congested</span>`);
+          if (preferred) summaryParts.push(`<span class="text-yellow-400">${preferred} preferred</span>`);
+          if (standard)  summaryParts.push(`<span class="text-green-400">${standard} standard</span>`);
+          const summary = summaryParts.join('<span class="text-gray-600"> · </span>');
+
+          html += `<div class="bg-neutral-900 border border-neutral-800 rounded-xl overflow-hidden">
+            <button onclick="toggleDC('${id}', this)"
+              class="w-full flex items-center justify-between p-4 text-left hover:bg-neutral-800/50 transition group">
+              <div>
+                <p class="text-xs text-gray-500 uppercase tracking-wide mb-0.5">${escapeHtml(region.name)}</p>
+                <p class="text-white font-bold">${escapeHtml(dc.name)}</p>
+                <p class="text-xs mt-1">${summary}</p>
+              </div>
+              <i class="fas fa-chevron-down text-gray-500 group-hover:text-gray-300 transition-transform duration-200 flex-shrink-0 ml-3" id="${id}-chevron"></i>
+            </button>
+            <ul class="hidden space-y-1.5 px-4 pb-4" id="${id}">`;
+          for (const w of dc.worlds) {
+            const s = w.status;
+            html += `<li class="flex items-center justify-between text-sm">
+              <span class="text-gray-300">${escapeHtml(w.name)}</span>
+              <span class="flex items-center gap-1.5 ${statusColor[s] || 'text-gray-400'}">
+                <span class="w-1.5 h-1.5 rounded-full ${statusDot[s] || 'bg-gray-400'} inline-block"></span>
+                ${statusLabel[s] || w.label}
+              </span>
+            </li>`;
+          }
+          html += `</ul></div>`;
+        }
+      }
+
+      container.innerHTML = html;
+
+      // Update server status pill
+      const naRegion = data.regions.find(r => r.name.includes('North'));
+      if (naRegion) {
+        const allWorlds = naRegion.dcs.flatMap(d => d.worlds);
+        const anyCongested = allWorlds.some(w => w.status === 'congested');
+        const label = anyCongested ? 'Some servers congested' : 'All NA servers online';
+        document.getElementById('ffxiv-server-label').textContent = label;
+      }
+    })
+    .catch(() => {
+      document.getElementById('ffxiv-world-status').innerHTML =
+        '<div class="col-span-full text-center text-gray-500 py-4">Could not load world status</div>';
+      document.getElementById('ffxiv-server-label').textContent = 'Status unavailable';
+    });
+
+  // ---- News ----
+  fetch('/api/ffxiv/news/')
+    .then(r => r.json())
+    .then(data => {
+      const feed = document.getElementById('ffxiv-news-feed');
+      if (!data.ok || !data.news.length) {
+        feed.innerHTML = '<p class="text-gray-500 text-sm">No news available.</p>';
+        return;
+      }
+
+      if (data.maintenance) {
+        const banner = document.getElementById('ffxiv-maintenance-banner');
+        document.getElementById('ffxiv-maintenance-title').textContent = data.maintenance.title;
+        document.getElementById('ffxiv-maintenance-link').href = data.maintenance.url;
+        banner.classList.remove('hidden');
+      }
+
+      feed.innerHTML = data.news.map(item => `
+        <a href="${escapeHtml(item.url)}" target="_blank" rel="noopener noreferrer"
+           class="flex items-start gap-3 bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 hover:border-indigo-700/40 rounded-xl px-4 py-3 transition group">
+          <i class="fas ${item.is_maintenance ? 'fa-tools text-yellow-400' : 'fa-scroll text-indigo-400'} mt-0.5 flex-shrink-0 text-sm"></i>
+          <div class="flex-1 min-w-0">
+            <p class="text-white text-sm font-medium group-hover:text-indigo-300 transition truncate">${escapeHtml(item.title)}</p>
+            <p class="text-gray-500 text-xs mt-0.5">${escapeHtml(item.date || '')}</p>
+          </div>
+          <i class="fas fa-external-link-alt text-gray-600 group-hover:text-indigo-400 text-xs mt-1 flex-shrink-0 transition"></i>
+        </a>
+      `).join('');
+    })
+    .catch(() => {
+      document.getElementById('ffxiv-news-feed').innerHTML =
+        '<p class="text-gray-500 text-sm">Could not load news.</p>';
+    });
+
+});
+
+function toggleNews(btn) {
+  const body = document.getElementById('ffxiv-news-body');
+  const chevron = document.getElementById('news-chevron');
+  const open = !body.classList.contains('hidden');
+  body.classList.toggle('hidden', open);
+  chevron.style.transform = open ? '' : 'rotate(180deg)';
+}
+
+function toggleDC(id, btn) {
+  const list = document.getElementById(id);
+  const chevron = document.getElementById(id + '-chevron');
+  const open = !list.classList.contains('hidden');
+  list.classList.toggle('hidden', open);
+  chevron.style.transform = open ? '' : 'rotate(180deg)';
+}
+</script>
+{% endblock web_content %}

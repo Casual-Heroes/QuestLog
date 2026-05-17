@@ -278,7 +278,7 @@ async function saveSettings() {
   };
 
   try {
-    const resp = await csrfFetch('/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/settings/', {
+    const resp = await csrfFetch('/api/dashboard/matrix/' + SPACE_ID_URL + '/settings/', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify(payload),
@@ -310,7 +310,7 @@ async function saveSettings() {
 }
 
 function requestSync() {
-  csrfFetch('/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/sync/', {method: 'POST'})
+  csrfFetch('/api/dashboard/matrix/' + SPACE_ID_URL + '/sync/', {method: 'POST'})
     .then(r => r.json()).then(d => {
       if (d.ok) showToast('Sync queued. Bot will update shortly.');
       else showToast(d.error || 'Error', false);
@@ -319,12 +319,12 @@ function requestSync() {
 
 function confirmRemove() {
   if (!confirm('Remove this space from the QuestLog dashboard? The bot will remain in your Matrix rooms.')) return;
-  csrfFetch('/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/settings/', {
+  csrfFetch('/api/dashboard/matrix/' + SPACE_ID_URL + '/settings/', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({_action: 'remove_space'}),
   }).then(r => r.json()).then(d => {
-    if (d.ok) { window.location.href = '/ql/dashboard/matrix/'; }
+    if (d.ok) { window.location.href = '/dashboard/matrix/'; }
     else showToast(d.error || 'Error', false);
   }).catch(() => showToast('Request failed.', false));
 }

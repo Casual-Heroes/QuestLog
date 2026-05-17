@@ -250,7 +250,7 @@ async function _searchProfileGames(q) {
   results.innerHTML = '<div class="px-4 py-3 text-gray-500 text-sm"><i class="fas fa-spinner fa-spin mr-2"></i>Searching IGDB...</div>';
   results.classList.remove('hidden');
   try {
-    const res = await fetch('/ql/api/igdb/search/?q=' + encodeURIComponent(q) + '&limit=8');
+    const res = await fetch('/api/igdb/search/?q=' + encodeURIComponent(q) + '&limit=8');
     const data = await res.json();
     const games = data.games || [];
     if (!games.length) {
@@ -400,7 +400,7 @@ document.getElementById('editProfileForm').addEventListener('submit', async (e) 
   };
 
   try {
-    const response = await csrfFetch('/ql/api/profile/', {
+    const response = await csrfFetch('/api/profile/', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data)

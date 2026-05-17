@@ -284,7 +284,7 @@ document.addEventListener('DOMContentLoaded', function() {
 function loadAllMembers() {
   const container = document.getElementById('memberResults');
   container.innerHTML = '<div class="p-6 text-center text-gray-500 text-sm"><i class="fas fa-spinner fa-spin mr-2"></i>Loading live members from all rooms...</div>';
-  csrfFetch('/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/members/?live=1&per_page=500')
+  csrfFetch('/api/dashboard/matrix/' + SPACE_ID_URL + '/members/?live=1&per_page=500')
     .then(r => r.json()).then(d => {
       allMembers = d.members || [];
       selectedIds.clear();
@@ -301,7 +301,7 @@ function searchMembers(query) {
   if (!q) return;
   const container = document.getElementById('memberResults');
   container.innerHTML = '<div class="p-6 text-center text-gray-500 text-sm"><i class="fas fa-spinner fa-spin mr-2"></i>Searching...</div>';
-  csrfFetch('/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/members/?q=' + encodeURIComponent(q))
+  csrfFetch('/api/dashboard/matrix/' + SPACE_ID_URL + '/members/?q=' + encodeURIComponent(q))
     .then(r => r.json()).then(d => {
       const results = d.members || [];
       if (!results.length) {
@@ -505,7 +505,7 @@ function submitKickAll() {
     if (!ids.length) { showToast('No members selected.', false); return; }
     let done = 0;
     ids.forEach(matrix_id => {
-      csrfFetch('/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/members/kick/', {
+      csrfFetch('/api/dashboard/matrix/' + SPACE_ID_URL + '/members/kick/', {
         method: 'POST', body: JSON.stringify({ matrix_id, reason, all_rooms: true })
       }).then(r => r.json()).then(d => {
         done++;
@@ -522,7 +522,7 @@ function submitKickAll() {
   } else {
     const matrix_id = document.getElementById('kickUserId').value.trim();
     if (!matrix_id) { showToast('Matrix ID required.', false); return; }
-    csrfFetch('/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/members/kick/', {
+    csrfFetch('/api/dashboard/matrix/' + SPACE_ID_URL + '/members/kick/', {
       method: 'POST', body: JSON.stringify({ matrix_id, reason, all_rooms: true })
     }).then(r => r.json()).then(d => {
       if (d.ok) {
@@ -544,7 +544,7 @@ function submitBan() {
     if (!ids.length) { showToast('No members selected.', false); return; }
     let done = 0;
     ids.forEach(matrix_id => {
-      csrfFetch('/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/members/ban/', {
+      csrfFetch('/api/dashboard/matrix/' + SPACE_ID_URL + '/members/ban/', {
         method: 'POST', body: JSON.stringify({ matrix_id, reason })
       }).then(r => r.json()).then(d => {
         done++;
@@ -561,7 +561,7 @@ function submitBan() {
   } else {
     const matrix_id = document.getElementById('banUserId').value.trim();
     if (!matrix_id) { showToast('Matrix ID required.', false); return; }
-    csrfFetch('/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/members/ban/', {
+    csrfFetch('/api/dashboard/matrix/' + SPACE_ID_URL + '/members/ban/', {
       method: 'POST', body: JSON.stringify({ matrix_id, reason })
     }).then(r => r.json()).then(d => {
       if (d.ok) {
@@ -583,7 +583,7 @@ function submitPowerLevel() {
   const level = parseInt(document.getElementById('plLevel').value);
   if (!matrix_id || !room_id) { showToast('Matrix ID and room required.', false); return; }
   if (isNaN(level) || level < -1 || level > 100) { showToast('Level must be -1 to 100.', false); return; }
-  csrfFetch('/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/members/powerlevel/', {
+  csrfFetch('/api/dashboard/matrix/' + SPACE_ID_URL + '/members/powerlevel/', {
     method: 'POST',
     body: JSON.stringify({ matrix_id, room_id, level })
   }).then(r => r.json()).then(d => {
@@ -596,7 +596,7 @@ function submitDm() {
   const matrix_id = document.getElementById('dmUserId').value.trim();
   const content = document.getElementById('dmContent').value.trim();
   if (!matrix_id || !content) { showToast('Matrix ID and message required.', false); return; }
-  csrfFetch('/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/messages/', {
+  csrfFetch('/api/dashboard/matrix/' + SPACE_ID_URL + '/messages/', {
     method: 'POST',
     body: JSON.stringify({ matrix_id, content, is_dm: true })
   }).then(r => r.json()).then(d => {
@@ -630,7 +630,7 @@ function fmtTs(ts) {
 function loadActionHistory() {
   const body = document.getElementById('actionHistoryBody');
   body.innerHTML = '<div class="p-4 text-center text-gray-500 text-sm">Loading...</div>';
-  fetch('/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/actions/?limit=50')
+  fetch('/api/dashboard/matrix/' + SPACE_ID_URL + '/actions/?limit=50')
     .then(r => r.json())
     .then(d => {
       if (!d.actions || d.actions.length === 0) {

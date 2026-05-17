@@ -1,0 +1,278 @@
+{% extends "questlog_web/base_web.html" %}
+{% block title %}Suggest a Game | QuestLog{% endblock %}
+{% block og_title %}Suggest a Game | Casual Heroes{% endblock %}
+{% block og_description %}Got a game you think Casual Heroes should support? Tell us about it.{% endblock %}
+{% block og_image %}https://casual-heroes.com/static/img/siteassets/homepage/CHLogoFinal.png{% endblock %}
+{% block og_url %}https://questlog.casual-heroes.com/gamesuggest/{% endblock %}
+{% block web_content %}
+<div class="max-w-2xl mx-auto px-4 pb-20">
+  <div class="text-center mb-10">
+    <h1 class="text-4xl font-extrabold text-white mb-3">Suggest a Game</h1>
+    <p class="text-gray-400 text-base">Got a game you think we should support? Tell us what it is and why. Your suggestion goes straight to our team.</p>
+  </div>
+
+  <form id="suggestionForm" class="bg-neutral-900 border border-neutral-800 rounded-xl p-6 space-y-5">
+
+    <div>
+      <label class="block text-sm font-semibold text-gray-300 mb-1.5">Game</label>
+
+      <!-- Selected game card -->
+      <div id="gameTagDisplay" class="hidden mb-2 rounded-xl overflow-hidden border border-neutral-700">
+
+        <!-- Banner -->
+        <div class="relative h-36 overflow-hidden bg-neutral-800 flex items-center justify-center">
+          <i class="fas fa-gamepad text-neutral-700 text-5xl absolute"></i>
+          <img id="gameTagBanner" src="" alt="" class="w-full h-full object-cover opacity-90 relative z-10">
+          <div class="absolute inset-0 bg-gradient-to-t from-neutral-900 via-neutral-900/40 to-transparent z-20"></div>
+          <button type="button" onclick="clearGameTag()" class="absolute top-2 right-2 text-gray-400 hover:text-white bg-neutral-900/70 rounded-full w-6 h-6 flex items-center justify-center text-xs transition z-30">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+
+        <!-- Name + store link -->
+        <div class="px-4 pt-3 pb-2 flex items-start gap-3 bg-neutral-900">
+          <div class="flex-1 min-w-0">
+            <p id="gameTagName" class="text-white font-bold text-base truncate"></p>
+            <div id="gameTagGenres" class="flex flex-wrap gap-1 mt-1"></div>
+          </div>
+          <a id="gameTagLink" href="#" target="_blank" rel="noopener noreferrer"
+            class="text-xs text-indigo-400 hover:text-indigo-300 flex-shrink-0 transition mt-0.5">
+            Steam <i class="fas fa-external-link-alt text-[10px]"></i>
+          </a>
+        </div>
+
+        <!-- Description -->
+        <p id="gameTagDesc" class="hidden px-4 pb-3 text-gray-400 text-xs leading-relaxed bg-neutral-900"></p>
+
+        <!-- Reviews + trailer row -->
+        <div id="gameTagMeta" class="hidden px-4 pb-3 flex items-center gap-4 bg-neutral-900">
+          <span id="gameTagReviews" class="text-xs text-gray-400"></span>
+          <span id="gameTagMeta2" class="text-xs text-gray-400"></span>
+          <a id="gameTagTrailer" href="#" target="_blank" rel="noopener noreferrer"
+            class="hidden ml-auto text-xs bg-neutral-800 hover:bg-neutral-700 text-gray-300 px-2 py-1 rounded transition flex items-center gap-1">
+            <i class="fas fa-play text-[10px]"></i> Trailer
+          </a>
+        </div>
+
+      </div>
+
+      <!-- Search input -->
+      <div id="gameSearchRow" class="relative">
+        <input type="text" id="gameSearchInput" placeholder="Search Steam for a game..."
+          class="w-full px-4 py-2.5 rounded-lg bg-neutral-800 border border-neutral-700 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm"
+          autocomplete="off">
+        <div id="gameSearchResults" class="hidden absolute left-0 right-0 top-full mt-1 bg-neutral-900 border border-neutral-700 rounded-lg shadow-lg z-50 max-h-52 overflow-y-auto"></div>
+      </div>
+    </div>
+
+    <div>
+      <label for="whySupport" class="block text-sm font-semibold text-gray-300 mb-1.5">Why should we support it?</label>
+      <textarea id="whySupport" name="whySupport" rows="4" required maxlength="1000"
+        class="w-full px-4 py-2.5 rounded-lg bg-neutral-800 border border-neutral-700 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm resize-none"
+        placeholder="Tell us about the game, why it fits CH, how many players it supports..."></textarea>
+    </div>
+
+    <div class="flex items-center justify-between pt-1">
+      <span class="text-xs text-gray-500">Submitting as <span class="text-gray-300 font-medium">{{ web_user.username }}</span></span>
+      <button type="submit" id="submitBtn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-6 py-2 rounded-lg text-sm transition">
+        Submit Suggestion
+      </button>
+    </div>
+  </form>
+
+  <div id="successMessage" class="hidden mt-6 bg-green-900/30 border border-green-700/40 text-green-400 text-center text-sm font-medium px-4 py-3 rounded-lg space-y-3">
+    <p>Suggestion submitted - thanks! Our team will see it shortly.</p>
+    <button type="button" onclick="resetForm()" class="text-xs text-green-300 hover:text-white underline transition">Suggest another game</button>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const form = document.getElementById('suggestionForm');
+  const submitBtn = document.getElementById('submitBtn');
+  const success = document.getElementById('successMessage');
+  const searchInput = document.getElementById('gameSearchInput');
+  const searchResults = document.getElementById('gameSearchResults');
+
+  let selectedGame = null;
+  let searchTimeout = null;
+
+  function escHtml(str) {
+    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  searchInput.addEventListener('input', function() {
+    const q = this.value.trim();
+    clearTimeout(searchTimeout);
+    if (q.length < 2) { searchResults.classList.add('hidden'); return; }
+    searchTimeout = setTimeout(async () => {
+      try {
+        const res = await fetch('/api/steam/game-search/?q=' + encodeURIComponent(q));
+        const data = await res.json();
+        if (!data.results || !data.results.length) {
+          searchResults.innerHTML = '<p class="text-gray-500 text-xs p-3">No games found</p>';
+          searchResults.classList.remove('hidden');
+          return;
+        }
+        searchResults.innerHTML = data.results.map(g => `
+          <button type="button"
+            data-appid="${escHtml(g.appid)}"
+            data-name="${escHtml(g.name)}"
+            data-header="${escHtml(g.header_url)}"
+            data-thumb="${escHtml(g.tiny_image)}"
+            class="w-full flex items-center gap-2 px-3 py-2 hover:bg-neutral-800 transition text-left game-result">
+            ${g.tiny_image
+              ? `<img src="${escHtml(g.tiny_image)}" class="w-8 h-8 rounded object-cover flex-shrink-0">`
+              : `<div class="w-8 h-8 bg-neutral-800 rounded flex items-center justify-center flex-shrink-0"><i class="fas fa-gamepad text-gray-600 text-xs"></i></div>`}
+            <div class="flex-1 min-w-0">
+              <p class="text-white text-sm truncate">${escHtml(g.name)}</p>
+              <p class="text-gray-500 text-xs">Steam</p>
+            </div>
+          </button>`).join('');
+        searchResults.classList.remove('hidden');
+      } catch(e) { searchResults.classList.add('hidden'); }
+    }, 350);
+  });
+
+  searchResults.addEventListener('click', function(e) {
+    const row = e.target.closest('.game-result');
+    if (!row) return;
+    selectGame(row.dataset.appid, row.dataset.name, row.dataset.header);
+  });
+
+  document.addEventListener('click', function(e) {
+    if (!searchInput.contains(e.target) && !searchResults.contains(e.target)) {
+      searchResults.classList.add('hidden');
+    }
+  });
+
+  window.resetForm = function() {
+    selectedGame = null;
+    form.reset();
+    form.classList.remove('hidden');
+    document.getElementById('successMessage').classList.add('hidden');
+    document.getElementById('gameTagDisplay').classList.add('hidden');
+    document.getElementById('gameSearchRow').classList.remove('hidden');
+    submitBtn.disabled = false;
+    submitBtn.textContent = 'Submit Suggestion';
+  };
+
+  window.clearGameTag = function() {
+    selectedGame = null;
+    document.getElementById('gameTagDisplay').classList.add('hidden');
+    document.getElementById('gameSearchRow').classList.remove('hidden');
+    searchInput.value = '';
+  };
+
+  async function selectGame(appid, name, headerUrl) {
+    selectedGame = { appid, name };
+    searchResults.classList.add('hidden');
+    searchInput.value = '';
+    document.getElementById('gameSearchRow').classList.add('hidden');
+
+    // Show card immediately with what we have
+    const bannerEl = document.getElementById('gameTagBanner');
+    bannerEl.src = headerUrl || '';
+    bannerEl.classList.toggle('hidden', !headerUrl);
+    document.getElementById('gameTagName').textContent = name;
+    document.getElementById('gameTagGenres').innerHTML = '';
+    document.getElementById('gameTagDesc').classList.add('hidden');
+    document.getElementById('gameTagMeta').classList.add('hidden');
+    document.getElementById('gameTagLink').href = `https://store.steampowered.com/app/${appid}/`;
+    document.getElementById('gameTagDisplay').classList.remove('hidden');
+
+    // Fetch Steam app details to enrich card
+    try {
+      const res = await fetch('/api/steam/app-details/?appid=' + encodeURIComponent(appid));
+      if (!res.ok) return;
+      const d = await res.json();
+
+      // Genres/categories as tags
+      const tags = [...(d.genres || []), ...(d.categories || [])].slice(0, 5);
+      if (tags.length) {
+        document.getElementById('gameTagGenres').innerHTML = tags.map(t =>
+          `<span class="text-[10px] bg-neutral-800 text-gray-400 px-1.5 py-0.5 rounded">${escHtml(t)}</span>`
+        ).join('');
+      }
+
+      // Description
+      if (d.description) {
+        const descEl = document.getElementById('gameTagDesc');
+        descEl.textContent = d.description;
+        descEl.classList.remove('hidden');
+      }
+
+      // Reviews + metacritic + trailer
+      const metaRow = document.getElementById('gameTagMeta');
+      const reviewsEl = document.getElementById('gameTagReviews');
+      const meta2El = document.getElementById('gameTagMeta2');
+      const trailerEl = document.getElementById('gameTagTrailer');
+
+      let hasAny = false;
+      if (d.recommendations) {
+        reviewsEl.textContent = `${Number(d.recommendations).toLocaleString()} reviews`;
+        hasAny = true;
+      }
+      if (d.metacritic) {
+        const score = d.metacritic;
+        const color = score >= 75 ? 'text-green-400' : score >= 50 ? 'text-yellow-400' : 'text-red-400';
+        meta2El.innerHTML = `Metacritic: <span class="${color} font-semibold">${score}</span>`;
+        hasAny = true;
+      }
+      if (d.trailer_thumbnail) {
+        trailerEl.href = `https://store.steampowered.com/app/${appid}/`;
+        trailerEl.classList.remove('hidden');
+        hasAny = true;
+      }
+      if (hasAny) metaRow.classList.remove('hidden');
+
+      // Store enriched data for submission
+      selectedGame.description = d.description || '';
+      selectedGame.genres = d.genres || [];
+      selectedGame.recommendations = d.recommendations;
+      selectedGame.metacritic = d.metacritic;
+
+    } catch(e) {}
+  }
+
+  form.addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const whySupport = document.getElementById('whySupport').value.trim();
+    if (!selectedGame) { alert('Please search for and select a game first.'); return; }
+    if (!whySupport) return;
+
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Submitting...';
+
+    try {
+      const res = await csrfFetch('/api/gamesuggest/', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          game_tag_name: selectedGame.name,
+          game_tag_steam_id: selectedGame.appid || null,
+          game_description: selectedGame.description || '',
+          game_genres: selectedGame.genres || [],
+          game_recommendations: selectedGame.recommendations || null,
+          game_metacritic: selectedGame.metacritic || null,
+          whySupport,
+        }),
+      });
+      if (res.ok) {
+        form.classList.add('hidden');
+        success.classList.remove('hidden');
+      } else {
+        const err = await res.json().catch(() => ({}));
+        alert(err.error || 'There was an error sending your suggestion.');
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Submit Suggestion';
+      }
+    } catch(e) {
+      alert('Something went wrong. Please try again.');
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Submit Suggestion';
+    }
+  });
+});
+</script>
+{% endblock web_content %}

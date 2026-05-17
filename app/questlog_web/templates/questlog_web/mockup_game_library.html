@@ -1,0 +1,442 @@
+{% extends "questlog_web/base_web.html" %}
+{% load static %}
+{% block title %}Game Library Mockup{% endblock %}
+{% block web_content %}
+
+<div class="p-4 sm:p-6 max-w-6xl mx-auto">
+
+  <!-- ══════════════════════════════════════════════════════════════
+       SECTION 1: PROFILE SHELF (what visitors see on your profile)
+  ══════════════════════════════════════════════════════════════ -->
+  <div class="mb-2 flex items-center gap-2">
+    <span class="text-xs font-bold uppercase tracking-widest text-neutral-500">Mockup Section 1</span>
+  </div>
+  <h2 class="text-white font-bold text-xl mb-1">Profile - Game Shelf</h2>
+  <p class="text-gray-500 text-sm mb-5">What visitors see when they land on your profile. Steam games auto-imported, manual add via search.</p>
+
+  <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-5 mb-10">
+
+    <!-- Shelf header -->
+    <div class="flex items-center justify-between mb-4 flex-wrap gap-3">
+      <div class="flex items-center gap-3">
+        <h3 class="text-white font-bold text-base">Game Library</h3>
+        <span class="text-xs text-gray-500 bg-neutral-800 px-2 py-0.5 rounded-full">68 games</span>
+        <!-- In-common badge (shown when viewing someone else's profile) -->
+        <span class="text-xs px-2.5 py-1 rounded-full bg-indigo-900/40 text-indigo-300 border border-indigo-700/40 flex items-center gap-1.5">
+          <i class="fas fa-gamepad text-[10px]"></i> 5 in common
+        </span>
+      </div>
+      <div class="flex items-center gap-2">
+        <button class="px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-600 hover:bg-indigo-500 text-white transition flex items-center gap-1.5">
+          <i class="fas fa-plus"></i> Add Game
+        </button>
+      </div>
+    </div>
+
+    <!-- Status filter tabs -->
+    <div class="flex gap-2 flex-wrap mb-5">
+      <button class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-white text-neutral-900 border border-white">All (68)</button>
+      <button class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-neutral-800 text-gray-400 border border-neutral-700 hover:border-green-500/50 hover:text-green-300 transition flex items-center gap-1.5">
+        <span class="w-2 h-2 rounded-full bg-green-500 inline-block"></span> Playing (12)
+      </button>
+      <button class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-neutral-800 text-gray-400 border border-neutral-700 hover:border-blue-500/50 hover:text-blue-300 transition flex items-center gap-1.5">
+        <i class="fas fa-check text-[10px]"></i> Played (31)
+      </button>
+      <button class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-neutral-800 text-gray-400 border border-neutral-700 hover:border-purple-500/50 hover:text-purple-300 transition flex items-center gap-1.5">
+        <i class="fas fa-clock text-[10px]"></i> Backlog (18)
+      </button>
+      <button class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-neutral-800 text-gray-400 border border-neutral-700 hover:border-orange-500/50 hover:text-orange-300 transition flex items-center gap-1.5">
+        <i class="fas fa-users text-[10px]"></i> Play Together (7)
+      </button>
+    </div>
+
+    <!-- Game grid -->
+    <div class="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-7 gap-3">
+
+      <!-- Game card - Playing + In Common -->
+      <div class="group relative rounded-xl overflow-hidden border border-neutral-700 hover:border-indigo-500/60 transition cursor-pointer">
+        <div class="relative">
+          <img src="https://shared.cloudflare.steamstatic.com/store_item_assets/steam/apps/39210/library_600x900.jpg" class="w-full aspect-[2/3] object-cover" alt="FFXIV">
+          <!-- In common badge -->
+          <div class="absolute top-1.5 left-1.5 bg-indigo-600/90 rounded-md px-1.5 py-0.5 text-[10px] font-bold text-white backdrop-blur-sm">
+            <i class="fas fa-link text-[8px]"></i> Common
+          </div>
+          <!-- Status dot -->
+          <div class="absolute top-1.5 right-1.5 w-2.5 h-2.5 rounded-full bg-green-500 border-2 border-neutral-900 shadow" title="Playing"></div>
+          <!-- Hover overlay -->
+          <div class="absolute inset-0 bg-black/70 opacity-0 group-hover:opacity-100 transition flex flex-col items-center justify-center gap-2 p-2">
+            <span class="text-white text-[10px] font-bold text-center leading-tight">Final Fantasy XIV</span>
+            <span class="text-green-400 text-[10px] flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-green-500 inline-block"></span> Playing</span>
+            <span class="text-cyan-400 text-[10px]">342 hrs</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Game card - Play Together flagged -->
+      <div class="group relative rounded-xl overflow-hidden border border-orange-600/50 hover:border-orange-500 transition cursor-pointer">
+        <div class="relative">
+          <img src="https://shared.cloudflare.steamstatic.com/store_item_assets/steam/apps/1245620/library_600x900.jpg" class="w-full aspect-[2/3] object-cover" alt="Elden Ring">
+          <div class="absolute top-1.5 right-1.5 w-2.5 h-2.5 rounded-full bg-orange-500 border-2 border-neutral-900 shadow" title="Play Together"></div>
+          <div class="absolute bottom-0 left-0 right-0 bg-orange-600/80 backdrop-blur-sm py-0.5 text-center">
+            <span class="text-white text-[9px] font-bold"><i class="fas fa-users text-[8px]"></i> Play Together</span>
+          </div>
+          <div class="absolute inset-0 bg-black/70 opacity-0 group-hover:opacity-100 transition flex flex-col items-center justify-center gap-2 p-2">
+            <span class="text-white text-[10px] font-bold text-center leading-tight">Elden Ring</span>
+            <span class="text-orange-400 text-[10px] flex items-center gap-1"><i class="fas fa-users text-[8px]"></i> 4 others want this</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Game card - Played -->
+      <div class="group relative rounded-xl overflow-hidden border border-neutral-700 hover:border-blue-500/60 transition cursor-pointer">
+        <div class="relative">
+          <img src="https://shared.cloudflare.steamstatic.com/store_item_assets/steam/apps/1086940/library_600x900.jpg" class="w-full aspect-[2/3] object-cover" alt="BG3">
+          <div class="absolute top-1.5 right-1.5 w-2.5 h-2.5 rounded-full bg-blue-400 border-2 border-neutral-900 shadow" title="Played"></div>
+          <div class="absolute inset-0 bg-black/70 opacity-0 group-hover:opacity-100 transition flex flex-col items-center justify-center gap-2 p-2">
+            <span class="text-white text-[10px] font-bold text-center">Baldur's Gate 3</span>
+            <span class="text-blue-400 text-[10px]"><i class="fas fa-check text-[8px]"></i> Played</span>
+            <span class="text-cyan-400 text-[10px]">218 hrs</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Game card - Backlog -->
+      <div class="group relative rounded-xl overflow-hidden border border-neutral-700 hover:border-purple-500/60 transition cursor-pointer opacity-75 hover:opacity-100">
+        <div class="relative">
+          <img src="https://shared.cloudflare.steamstatic.com/store_item_assets/steam/apps/814380/library_600x900.jpg" class="w-full aspect-[2/3] object-cover grayscale group-hover:grayscale-0 transition" alt="Sekiro">
+          <div class="absolute top-1.5 right-1.5 w-2.5 h-2.5 rounded-full bg-purple-400 border-2 border-neutral-900 shadow" title="Backlog"></div>
+          <div class="absolute inset-0 bg-black/70 opacity-0 group-hover:opacity-100 transition flex flex-col items-center justify-center gap-2 p-2">
+            <span class="text-white text-[10px] font-bold text-center">Sekiro</span>
+            <span class="text-purple-400 text-[10px]"><i class="fas fa-clock text-[8px]"></i> Backlog</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Game card - Playing + In Common -->
+      <div class="group relative rounded-xl overflow-hidden border border-neutral-700 hover:border-indigo-500/60 transition cursor-pointer">
+        <div class="relative">
+          <img src="https://shared.cloudflare.steamstatic.com/store_item_assets/steam/apps/306130/library_600x900.jpg" class="w-full aspect-[2/3] object-cover" alt="ESO">
+          <div class="absolute top-1.5 left-1.5 bg-indigo-600/90 rounded-md px-1.5 py-0.5 text-[10px] font-bold text-white backdrop-blur-sm">
+            <i class="fas fa-link text-[8px]"></i> Common
+          </div>
+          <div class="absolute top-1.5 right-1.5 w-2.5 h-2.5 rounded-full bg-green-500 border-2 border-neutral-900 shadow" title="Playing"></div>
+          <div class="absolute inset-0 bg-black/70 opacity-0 group-hover:opacity-100 transition flex flex-col items-center justify-center gap-2 p-2">
+            <span class="text-white text-[10px] font-bold text-center">Elder Scrolls Online</span>
+            <span class="text-green-400 text-[10px]"><span class="w-1.5 h-1.5 rounded-full bg-green-500 inline-block"></span> Playing</span>
+            <span class="text-cyan-400 text-[10px]">89 hrs</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Add game placeholder -->
+      <div class="rounded-xl border-2 border-dashed border-neutral-700 hover:border-indigo-500/50 transition cursor-pointer flex items-center justify-center aspect-[2/3] text-neutral-600 hover:text-indigo-400">
+        <div class="text-center">
+          <i class="fas fa-plus text-lg mb-1"></i>
+          <p class="text-[10px]">Add</p>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Steam sync note -->
+    <div class="mt-4 pt-4 border-t border-neutral-800 flex items-center justify-between flex-wrap gap-2">
+      <p class="text-gray-600 text-xs flex items-center gap-1.5"><i class="fab fa-steam"></i> Steam library auto-synced - 43 games imported</p>
+      <button class="text-xs text-gray-500 hover:text-gray-300 transition flex items-center gap-1"><i class="fas fa-sync text-[10px]"></i> Sync now</button>
+    </div>
+  </div>
+
+
+  <!-- ══════════════════════════════════════════════════════════════
+       SECTION 2: GAME PAGE - WHO'S PLAYING / PLAY TOGETHER
+  ══════════════════════════════════════════════════════════════ -->
+  <div class="mb-2 flex items-center gap-2">
+    <span class="text-xs font-bold uppercase tracking-widest text-neutral-500">Mockup Section 2</span>
+  </div>
+  <h2 class="text-white font-bold text-xl mb-1">Game Page - Community Panel</h2>
+  <p class="text-gray-500 text-sm mb-5">Shown on /ql/games/ffxiv/ - who's playing, who wants to group up, recent LFG posts.</p>
+
+  <div class="bg-neutral-900 border border-neutral-800 rounded-2xl overflow-hidden mb-10">
+    <!-- Game hero -->
+    <div class="relative h-32 overflow-hidden">
+      <img src="https://shared.cloudflare.steamstatic.com/store_item_assets/steam/apps/39210/library_hero.jpg" class="w-full h-full object-cover opacity-50">
+      <div class="absolute inset-0 bg-gradient-to-t from-neutral-900 via-neutral-900/60 to-transparent"></div>
+      <div class="absolute bottom-4 left-5 flex items-center gap-3">
+        <img src="https://shared.cloudflare.steamstatic.com/store_item_assets/steam/apps/39210/library_600x900.jpg" class="w-12 h-16 object-cover rounded-lg border border-neutral-700 shadow-xl">
+        <div>
+          <h3 class="text-white font-bold text-lg leading-tight">Final Fantasy XIV Online</h3>
+          <p class="text-gray-400 text-xs">MMO - Square Enix</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Stats row -->
+    <div class="grid grid-cols-4 divide-x divide-neutral-800 border-b border-neutral-800">
+      <div class="px-4 py-3 text-center">
+        <p class="text-white font-bold text-lg">14</p>
+        <p class="text-gray-500 text-[11px] uppercase tracking-wide">CH Members Playing</p>
+      </div>
+      <div class="px-4 py-3 text-center">
+        <p class="text-orange-400 font-bold text-lg">8</p>
+        <p class="text-gray-500 text-[11px] uppercase tracking-wide">Want to Play Together</p>
+      </div>
+      <div class="px-4 py-3 text-center">
+        <p class="text-blue-400 font-bold text-lg">31</p>
+        <p class="text-gray-500 text-[11px] uppercase tracking-wide">Total Played</p>
+      </div>
+      <div class="px-4 py-3 text-center">
+        <p class="text-green-400 font-bold text-lg">3</p>
+        <p class="text-gray-500 text-[11px] uppercase tracking-wide">Active LFG Groups</p>
+      </div>
+    </div>
+
+    <div class="p-5 grid grid-cols-1 md:grid-cols-2 gap-5">
+
+      <!-- Who's playing now -->
+      <div>
+        <p class="text-[11px] text-gray-500 uppercase tracking-wide font-medium mb-3">Currently Playing</p>
+        <div class="space-y-2">
+          {% for name, time, avatar_letter, color in played_list|default:"" %}{% endfor %}
+          <!-- Static mockup rows -->
+          <div class="flex items-center gap-2.5">
+            <div class="w-7 h-7 rounded-full bg-indigo-700 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">R</div>
+            <a href="#" class="text-white text-sm font-medium hover:text-indigo-300 transition">Ryven</a>
+            <span class="ml-auto flex items-center gap-1 text-green-400 text-[11px]"><span class="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse inline-block"></span> Now</span>
+          </div>
+          <div class="flex items-center gap-2.5">
+            <div class="w-7 h-7 rounded-full bg-purple-700 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">A</div>
+            <a href="#" class="text-white text-sm font-medium hover:text-indigo-300 transition">Ahlron</a>
+            <span class="ml-auto text-gray-600 text-[11px]">2h ago</span>
+          </div>
+          <div class="flex items-center gap-2.5">
+            <div class="w-7 h-7 rounded-full bg-rose-700 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">J</div>
+            <a href="#" class="text-white text-sm font-medium hover:text-indigo-300 transition">JoJo</a>
+            <span class="ml-auto text-gray-600 text-[11px]">5h ago</span>
+          </div>
+          <a href="#" class="text-xs text-indigo-400 hover:underline mt-1 block">+ 11 more members</a>
+        </div>
+      </div>
+
+      <!-- Want to Play Together -->
+      <div>
+        <div class="flex items-center justify-between mb-3">
+          <p class="text-[11px] text-gray-500 uppercase tracking-wide font-medium">Want to Play Together</p>
+          <button class="text-xs px-3 py-1.5 rounded-lg bg-orange-600/20 text-orange-400 border border-orange-600/30 hover:bg-orange-600/30 transition font-semibold flex items-center gap-1.5">
+            <i class="fas fa-users text-[10px]"></i> Create LFG Group
+          </button>
+        </div>
+        <div class="space-y-2">
+          <div class="flex items-center gap-2.5">
+            <div class="w-7 h-7 rounded-full bg-teal-700 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">M</div>
+            <div class="flex-1 min-w-0">
+              <a href="#" class="text-white text-sm font-medium hover:text-indigo-300 transition">MasterEd</a>
+              <p class="text-gray-600 text-[10px]">Savage raider - Tank</p>
+            </div>
+            <button class="text-[11px] px-2 py-1 rounded-lg bg-indigo-600/20 text-indigo-400 border border-indigo-600/30 hover:bg-indigo-600/30 transition">Invite</button>
+          </div>
+          <div class="flex items-center gap-2.5">
+            <div class="w-7 h-7 rounded-full bg-amber-700 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">L</div>
+            <div class="flex-1 min-w-0">
+              <a href="#" class="text-white text-sm font-medium hover:text-indigo-300 transition">Luna</a>
+              <p class="text-gray-600 text-[10px]">Endgame casual - Healer</p>
+            </div>
+            <button class="text-[11px] px-2 py-1 rounded-lg bg-indigo-600/20 text-indigo-400 border border-indigo-600/30 hover:bg-indigo-600/30 transition">Invite</button>
+          </div>
+          <div class="flex items-center gap-2.5">
+            <div class="w-7 h-7 rounded-full bg-sky-700 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">Z</div>
+            <div class="flex-1 min-w-0">
+              <a href="#" class="text-white text-sm font-medium hover:text-indigo-300 transition">Zephyr</a>
+              <p class="text-gray-600 text-[10px]">New to FFXIV - Any role</p>
+            </div>
+            <button class="text-[11px] px-2 py-1 rounded-lg bg-indigo-600/20 text-indigo-400 border border-indigo-600/30 hover:bg-indigo-600/30 transition">Invite</button>
+          </div>
+          <p class="text-[11px] text-gray-600 mt-2">+ 5 more flagged this game</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Active LFG for this game -->
+    <div class="border-t border-neutral-800 px-5 py-4">
+      <p class="text-[11px] text-gray-500 uppercase tracking-wide font-medium mb-3">Active LFG Groups for This Game</p>
+      <div class="space-y-2">
+        <div class="flex items-center gap-3 bg-neutral-800/50 rounded-xl px-3 py-2.5">
+          <div class="flex-1 min-w-0">
+            <p class="text-white text-sm font-medium">Savage P12 - Weekly clear group</p>
+            <p class="text-gray-500 text-[11px]">3/8 members - Sat 8pm EST</p>
+          </div>
+          <a href="#" class="text-xs px-3 py-1.5 rounded-lg bg-green-600/20 text-green-400 border border-green-600/30 hover:bg-green-600/30 transition font-semibold">Join</a>
+        </div>
+        <div class="flex items-center gap-3 bg-neutral-800/50 rounded-xl px-3 py-2.5">
+          <div class="flex-1 min-w-0">
+            <p class="text-white text-sm font-medium">Casual MSQ run - new player friendly</p>
+            <p class="text-gray-500 text-[11px]">2/4 members - Flexible schedule</p>
+          </div>
+          <a href="#" class="text-xs px-3 py-1.5 rounded-lg bg-green-600/20 text-green-400 border border-green-600/30 hover:bg-green-600/30 transition font-semibold">Join</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ══════════════════════════════════════════════════════════════
+       SECTION 3: DISCOVER - FIND PLAYERS BY GAME
+  ══════════════════════════════════════════════════════════════ -->
+  <div class="mb-2 flex items-center gap-2">
+    <span class="text-xs font-bold uppercase tracking-widest text-neutral-500">Mockup Section 3</span>
+  </div>
+  <h2 class="text-white font-bold text-xl mb-1">Discover - Find Players by Game</h2>
+  <p class="text-gray-500 text-sm mb-5">New panel on the discover page. Search a game, see CH members who play it and want to group.</p>
+
+  <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-5 mb-10">
+    <div class="flex items-center gap-3 mb-5">
+      <div class="flex-1 relative">
+        <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-xs"></i>
+        <input type="text" value="Final Fantasy XIV" placeholder="Search a game..."
+          class="w-full bg-neutral-800 border border-neutral-700 text-white rounded-xl pl-8 pr-4 py-2.5 text-sm focus:outline-none focus:border-indigo-500">
+      </div>
+      <div class="flex gap-2">
+        <button class="px-3 py-2.5 rounded-xl text-xs font-semibold bg-orange-600/20 text-orange-400 border border-orange-600/30 hover:bg-orange-600/30 transition flex items-center gap-1.5">
+          <i class="fas fa-users text-[10px]"></i> Play Together only
+        </button>
+      </div>
+    </div>
+
+    <!-- Results -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+
+      <div class="bg-neutral-800/60 rounded-xl p-3 flex items-center gap-3 hover:bg-neutral-800 transition">
+        <div class="w-10 h-10 rounded-xl bg-indigo-700 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">R</div>
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-1.5">
+            <a href="#" class="text-white text-sm font-medium hover:text-indigo-300 transition truncate">Ryven</a>
+            <span class="w-1.5 h-1.5 rounded-full bg-green-500 flex-shrink-0" title="Online now"></span>
+          </div>
+          <p class="text-gray-500 text-[11px] truncate">Savage raider - 342 hrs</p>
+          <div class="flex gap-1 mt-1">
+            <span class="text-[10px] px-1.5 py-0.5 rounded bg-green-900/40 text-green-400">Playing</span>
+            <span class="text-[10px] px-1.5 py-0.5 rounded bg-orange-900/40 text-orange-400"><i class="fas fa-users text-[8px]"></i> Play Together</span>
+          </div>
+        </div>
+        <button class="flex-shrink-0 text-xs px-2.5 py-1.5 rounded-lg bg-indigo-600/20 text-indigo-400 border border-indigo-600/30 hover:bg-indigo-600/30 transition">Follow</button>
+      </div>
+
+      <div class="bg-neutral-800/60 rounded-xl p-3 flex items-center gap-3 hover:bg-neutral-800 transition">
+        <div class="w-10 h-10 rounded-xl bg-purple-700 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">A</div>
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-1.5">
+            <a href="#" class="text-white text-sm font-medium hover:text-indigo-300 transition truncate">Ahlron</a>
+          </div>
+          <p class="text-gray-500 text-[11px] truncate">Endgame casual - 89 hrs</p>
+          <div class="flex gap-1 mt-1">
+            <span class="text-[10px] px-1.5 py-0.5 rounded bg-blue-900/40 text-blue-400">Played</span>
+          </div>
+        </div>
+        <button class="flex-shrink-0 text-xs px-2.5 py-1.5 rounded-lg bg-indigo-600/20 text-indigo-400 border border-indigo-600/30 hover:bg-indigo-600/30 transition">Follow</button>
+      </div>
+
+      <div class="bg-neutral-800/60 rounded-xl p-3 flex items-center gap-3 hover:bg-neutral-800 transition ring-1 ring-orange-500/40">
+        <div class="w-10 h-10 rounded-xl bg-teal-700 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">M</div>
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-1.5">
+            <a href="#" class="text-white text-sm font-medium hover:text-indigo-300 transition truncate">MasterEd</a>
+            <span class="w-1.5 h-1.5 rounded-full bg-green-500 flex-shrink-0"></span>
+          </div>
+          <p class="text-gray-500 text-[11px] truncate">Trial raider - Tank main</p>
+          <div class="flex gap-1 mt-1">
+            <span class="text-[10px] px-1.5 py-0.5 rounded bg-green-900/40 text-green-400">Playing</span>
+            <span class="text-[10px] px-1.5 py-0.5 rounded bg-orange-900/40 text-orange-400"><i class="fas fa-users text-[8px]"></i> Play Together</span>
+          </div>
+        </div>
+        <button class="flex-shrink-0 text-xs px-2.5 py-1.5 rounded-lg bg-indigo-600/20 text-indigo-400 border border-indigo-600/30 hover:bg-indigo-600/30 transition">Follow</button>
+      </div>
+
+    </div>
+  </div>
+
+
+  <!-- ══════════════════════════════════════════════════════════════
+       SECTION 4: AUTO-NUDGE - THE CLOSER GAMERPROFILES MISSES
+  ══════════════════════════════════════════════════════════════ -->
+  <div class="mb-2 flex items-center gap-2">
+    <span class="text-xs font-bold uppercase tracking-widest text-neutral-500">Mockup Section 4</span>
+  </div>
+  <h2 class="text-white font-bold text-xl mb-1">The Closer - Auto Nudge</h2>
+  <p class="text-gray-500 text-sm mb-5">When 3+ members flag the same game as "Play Together" within 7 days, this card appears on the discover feed and optionally pings them on Fluxer.</p>
+
+  <div class="space-y-3 mb-10">
+
+    <!-- Nudge card -->
+    <div class="bg-neutral-900 border border-orange-700/40 rounded-2xl p-4 flex items-center gap-4">
+      <div class="relative flex-shrink-0">
+        <img src="https://shared.cloudflare.steamstatic.com/store_item_assets/steam/apps/1966720/library_600x900.jpg" class="w-14 h-20 object-cover rounded-xl border border-neutral-700">
+      </div>
+      <div class="flex-1 min-w-0">
+        <div class="flex items-center gap-2 mb-1">
+          <span class="text-[10px] font-bold uppercase tracking-wider text-orange-400 bg-orange-900/30 border border-orange-700/40 px-2 py-0.5 rounded-full">Play Together Opportunity</span>
+        </div>
+        <p class="text-white font-bold text-sm">5 members want to play Crimson Desert</p>
+        <p class="text-gray-500 text-xs mt-0.5">Ryven, MasterEd, Luna + 2 others all flagged this in the last week.</p>
+        <div class="flex items-center gap-2 mt-3">
+          <button class="text-xs px-3 py-1.5 rounded-lg bg-orange-600 hover:bg-orange-500 text-white font-semibold transition flex items-center gap-1.5">
+            <i class="fas fa-users text-[10px]"></i> Create Group
+          </button>
+          <button class="text-xs px-3 py-1.5 rounded-lg bg-neutral-700 hover:bg-neutral-600 text-gray-300 transition">
+            Dismiss
+          </button>
+        </div>
+      </div>
+      <!-- Avatars -->
+      <div class="flex-shrink-0 hidden sm:flex flex-col items-center gap-1">
+        <div class="flex -space-x-2">
+          <div class="w-7 h-7 rounded-full bg-indigo-700 border-2 border-neutral-900 flex items-center justify-center text-white text-[10px] font-bold">R</div>
+          <div class="w-7 h-7 rounded-full bg-teal-700 border-2 border-neutral-900 flex items-center justify-center text-white text-[10px] font-bold">M</div>
+          <div class="w-7 h-7 rounded-full bg-amber-700 border-2 border-neutral-900 flex items-center justify-center text-white text-[10px] font-bold">L</div>
+          <div class="w-7 h-7 rounded-full bg-neutral-700 border-2 border-neutral-900 flex items-center justify-center text-gray-400 text-[10px] font-bold">+2</div>
+        </div>
+        <span class="text-gray-600 text-[10px]">want to play</span>
+      </div>
+    </div>
+
+    <div class="bg-neutral-900 border border-orange-700/40 rounded-2xl p-4 flex items-center gap-4">
+      <div class="relative flex-shrink-0">
+        <img src="https://shared.cloudflare.steamstatic.com/store_item_assets/steam/apps/1245620/library_600x900.jpg" class="w-14 h-20 object-cover rounded-xl border border-neutral-700">
+      </div>
+      <div class="flex-1 min-w-0">
+        <div class="flex items-center gap-2 mb-1">
+          <span class="text-[10px] font-bold uppercase tracking-wider text-orange-400 bg-orange-900/30 border border-orange-700/40 px-2 py-0.5 rounded-full">Play Together Opportunity</span>
+        </div>
+        <p class="text-white font-bold text-sm">4 members want to play Elden Ring</p>
+        <p class="text-gray-500 text-xs mt-0.5">Ahlron, JoJo, Zephyr + 1 other flagged this recently.</p>
+        <div class="flex items-center gap-2 mt-3">
+          <button class="text-xs px-3 py-1.5 rounded-lg bg-orange-600 hover:bg-orange-500 text-white font-semibold transition flex items-center gap-1.5">
+            <i class="fas fa-users text-[10px]"></i> Create Group
+          </button>
+          <button class="text-xs px-3 py-1.5 rounded-lg bg-neutral-700 hover:bg-neutral-600 text-gray-300 transition">Dismiss</button>
+        </div>
+      </div>
+      <div class="flex-shrink-0 hidden sm:flex flex-col items-center gap-1">
+        <div class="flex -space-x-2">
+          <div class="w-7 h-7 rounded-full bg-purple-700 border-2 border-neutral-900 flex items-center justify-center text-white text-[10px] font-bold">A</div>
+          <div class="w-7 h-7 rounded-full bg-rose-700 border-2 border-neutral-900 flex items-center justify-center text-white text-[10px] font-bold">J</div>
+          <div class="w-7 h-7 rounded-full bg-sky-700 border-2 border-neutral-900 flex items-center justify-center text-white text-[10px] font-bold">Z</div>
+          <div class="w-7 h-7 rounded-full bg-neutral-700 border-2 border-neutral-900 flex items-center justify-center text-gray-400 text-[10px] font-bold">+1</div>
+        </div>
+        <span class="text-gray-600 text-[10px]">want to play</span>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Legend -->
+  <div class="bg-neutral-900/50 border border-neutral-800 rounded-xl p-4 mb-8">
+    <p class="text-gray-400 text-xs font-semibold mb-3 uppercase tracking-wide">Status Legend</p>
+    <div class="flex flex-wrap gap-4 text-xs">
+      <span class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full bg-green-500"></span><span class="text-gray-300">Playing - actively in library/Steam now</span></span>
+      <span class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full bg-blue-400"></span><span class="text-gray-300">Played - finished or shelved</span></span>
+      <span class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full bg-purple-400"></span><span class="text-gray-300">Backlog - owned, haven't started</span></span>
+      <span class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full bg-orange-500"></span><span class="text-gray-300">Play Together - actively looking to group</span></span>
+      <span class="flex items-center gap-2"><span class="inline-block px-1.5 py-0.5 rounded bg-indigo-900/40 text-indigo-300 text-[10px]">Common</span><span class="text-gray-300">You and this person both have it</span></span>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

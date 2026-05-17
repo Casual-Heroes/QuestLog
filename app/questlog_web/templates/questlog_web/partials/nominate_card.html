@@ -1,0 +1,41 @@
+<div class="bg-neutral-900 rounded-xl border border-neutral-800 p-4 flex flex-col gap-3">
+  <!-- Header -->
+  <div class="flex items-center gap-2">
+    <i class="{{ cat.icon }} {{ cat.color }} w-5 text-center"></i>
+    <div class="flex-1 min-w-0">
+      <p class="text-white font-semibold text-sm leading-tight">{{ cat.label }}</p>
+      <p class="text-[11px] text-gray-500">{{ cat.desc }}</p>
+    </div>
+    <div class="flex items-center gap-1.5 shrink-0">
+      <span id="badge-{{ cat.key }}" class="hidden text-[10px] bg-green-900/40 text-green-400 border border-green-700/40 px-1.5 py-0.5 rounded-full">Nominated</span>
+      <span class="text-[11px] text-cyan-400 font-semibold">+{{ cat.points }}</span>
+    </div>
+  </div>
+
+  <!-- Username input -->
+  <div class="relative">
+    <input type="text" id="username-{{ cat.key }}"
+           data-nominate-input="{{ cat.key }}"
+           class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-yellow-500/60"
+           placeholder="Username..."
+           {% if not nominations_open %}disabled{% endif %}>
+    <div id="suggestions-{{ cat.key }}"
+         class="hidden absolute left-0 right-0 top-full mt-1 bg-neutral-800 border border-neutral-700 rounded-lg overflow-hidden text-sm z-20 shadow-xl"></div>
+  </div>
+
+  <!-- Reason -->
+  <textarea id="reason-{{ cat.key }}" rows="2"
+            class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-yellow-500/60 resize-none"
+            placeholder="Why do they deserve it? (optional)"
+            {% if not nominations_open %}disabled{% endif %}></textarea>
+
+  {% if nominations_open %}
+  <button onclick="submitNomination('{{ cat.key }}')"
+          id="btn-{{ cat.key }}"
+          class="w-full py-1.5 bg-yellow-700/50 hover:bg-yellow-600/70 text-yellow-100 font-semibold rounded-lg transition text-sm">
+    Submit Nomination
+  </button>
+  {% else %}
+  <p class="text-xs text-center text-gray-600">Voting in progress</p>
+  {% endif %}
+</div>

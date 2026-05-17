@@ -12,16 +12,16 @@ from django_ratelimit.decorators import ratelimit
 from .models import WebUser, WebCommunity
 from app.db import get_db_session
 from .helpers import (
-    web_login_required, add_web_user_context,
+    web_login_required, web_verified_required, add_web_user_context,
     check_banned, process_uploaded_image,
 )
 
 logger = logging.getLogger(__name__)
 
 
-@web_login_required
+@web_verified_required
 @require_http_methods(["POST"])
-@ratelimit(key='user', rate='20/h', method='POST', block=True)
+@ratelimit(key='ip', rate='20/h', method='POST', block=True)
 def api_upload_image(request):
     """POST: Upload an image for use in posts. Max 40MB input (15MB GIF). Always converted to WebP on save."""
     banned = check_banned(request)
@@ -41,9 +41,9 @@ def api_upload_image(request):
         return JsonResponse({'error': 'Upload failed'}, status=500)
 
 
-@web_login_required
+@web_verified_required
 @require_http_methods(["POST"])
-@ratelimit(key='user', rate='5/h', method='POST', block=True)
+@ratelimit(key='ip', rate='5/h', method='POST', block=True)
 def api_upload_avatar(request):
     """POST: Upload avatar image. Max 2MB."""
     banned = check_banned(request)
@@ -75,9 +75,9 @@ def api_upload_avatar(request):
         return JsonResponse({'error': 'Upload failed'}, status=500)
 
 
-@web_login_required
+@web_verified_required
 @require_http_methods(["POST"])
-@ratelimit(key='user', rate='5/h', method='POST', block=True)
+@ratelimit(key='ip', rate='5/h', method='POST', block=True)
 def api_upload_banner(request):
     """POST: Upload banner image. Max 5MB."""
     banned = check_banned(request)
@@ -111,7 +111,7 @@ def api_upload_banner(request):
 
 @web_login_required
 @require_http_methods(["POST"])
-@ratelimit(key='user', rate='10/h', method='POST', block=True)
+@ratelimit(key='ip', rate='10/h', method='POST', block=True)
 def api_upload_community_icon(request, community_id):
     """POST: Upload community icon (avatar). Max 2MB. Owner only."""
     if 'image' not in request.FILES:
@@ -143,7 +143,7 @@ def api_upload_community_icon(request, community_id):
 
 @web_login_required
 @require_http_methods(["POST"])
-@ratelimit(key='user', rate='10/h', method='POST', block=True)
+@ratelimit(key='ip', rate='10/h', method='POST', block=True)
 def api_upload_community_banner(request, community_id):
     """POST: Upload community banner. Max 5MB. Owner only."""
     if 'image' not in request.FILES:
@@ -180,7 +180,7 @@ def api_upload_community_banner(request, community_id):
 @web_login_required
 @add_web_user_context
 @require_http_methods(["GET"])
-@ratelimit(key='user', rate='60/m', method='GET', block=True)
+@ratelimit(key='ip', rate='60/m', method='GET', block=True)
 def api_gif_search(request):
     """GET: Search GIPHY for GIFs. Proxied to keep API key server-side."""
     import urllib.request
@@ -230,7 +230,7 @@ def api_gif_search(request):
 @web_login_required
 @add_web_user_context
 @require_http_methods(["GET"])
-@ratelimit(key='user', rate='60/m', method='GET', block=True)
+@ratelimit(key='ip', rate='60/m', method='GET', block=True)
 def api_gif_trending(request):
     """GET: Trending GIFs from GIPHY."""
     import urllib.request

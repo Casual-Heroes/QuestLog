@@ -29,14 +29,14 @@
       <div id="mx-server-dropdown"
            class="hidden absolute top-full left-0 right-0 mt-1 bg-neutral-800 border border-neutral-700 rounded-xl shadow-xl z-50 max-h-64 overflow-y-auto">
         <div class="p-1">
-          <a href="/ql/dashboard/matrix/"
+          <a href="/dashboard/matrix/"
              class="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-neutral-700 transition text-sm text-gray-400 hover:text-white">
             <i class="fas fa-th-large text-xs w-4 text-center"></i>
             <span>All Spaces</span>
           </a>
           <div class="border-t border-neutral-700 my-1"></div>
           {% for s in all_spaces %}
-          <a href="/ql/dashboard/matrix/{{ s.space_id_url }}/"
+          <a href="/dashboard/matrix/{{ s.space_id_url }}/"
              class="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-neutral-700 transition text-sm {% if s.space_id == space_id %}text-teal-400 bg-teal-600/10{% else %}text-gray-300{% endif %}">
             <div class="w-6 h-6 bg-neutral-700 rounded-md flex items-center justify-center flex-shrink-0 text-xs font-bold text-gray-400">
               {{ s.space_name|slice:":1"|upper }}
@@ -54,7 +54,7 @@
 
     <!-- Dashboard -->
     <div>
-      <a href="/ql/dashboard/matrix/{{ space_id_url }}/"
+      <a href="/dashboard/matrix/{{ space_id_url }}/"
          class="mx-nav-item {% if active_section == 'overview' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition group">
         <i class="fas fa-home text-gray-400 group-hover:text-white w-4 text-center"></i>
         <span class="mx-sidebar-label">Dashboard</span>
@@ -65,12 +65,12 @@
     <div>
       <p class="px-3 mb-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider mx-sidebar-label">Space Management</p>
       <div class="space-y-0.5">
-        <a href="/ql/dashboard/matrix/{{ space_id_url }}/rooms/"
+        <a href="/dashboard/matrix/{{ space_id_url }}/rooms/"
            class="mx-nav-item {% if active_section == 'rooms' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
           <i class="fas fa-door-open text-gray-400 group-hover:text-teal-400 w-4 text-center"></i>
           <span class="mx-sidebar-label">Rooms</span>
         </a>
-        <a href="/ql/dashboard/matrix/{{ space_id_url }}/members/"
+        <a href="/dashboard/matrix/{{ space_id_url }}/members/"
            class="mx-nav-item {% if active_section == 'members' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
           <i class="fas fa-users text-gray-400 group-hover:text-teal-400 w-4 text-center"></i>
           <span class="mx-sidebar-label">Members</span>
@@ -90,24 +90,24 @@
           <i class="fas fa-chevron-down text-gray-500 text-xs mx-sidebar-label transition-transform" id="mx-xp-chevron"></i>
         </button>
         <div id="xp-section" class="hidden pl-4 space-y-0.5">
-          <a href="/ql/dashboard/matrix/{{ space_id_url }}/xp/#settings"
+          <a href="/dashboard/matrix/{{ space_id_url }}/xp/#settings"
              class="mx-nav-item {% if active_section == 'xp' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
             <i class="fas fa-sliders-h text-gray-500 w-3 text-center"></i>
             <span class="mx-sidebar-label">XP Settings</span>
           </a>
-          <a href="/ql/dashboard/matrix/{{ space_id_url }}/xp/#boosts"
+          <a href="/dashboard/matrix/{{ space_id_url }}/xp/#boosts"
              class="mx-nav-item flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
             <i class="fas fa-bolt text-gray-500 w-3 text-center"></i>
             <span class="mx-sidebar-label">XP Boosts</span>
           </a>
-          <a href="/ql/dashboard/matrix/{{ space_id_url }}/xp/#leaderboard"
+          <a href="/dashboard/matrix/{{ space_id_url }}/xp/#leaderboard"
              class="mx-nav-item flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
             <i class="fas fa-trophy text-gray-500 w-3 text-center"></i>
             <span class="mx-sidebar-label">Leaderboard</span>
           </a>
         </div>
 
-        <a href="/ql/dashboard/matrix/{{ space_id_url }}/rss/"
+        <a href="/dashboard/matrix/{{ space_id_url }}/rss/"
            class="mx-nav-item {% if active_section == 'rss' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
           <i class="fas fa-rss text-gray-400 group-hover:text-orange-400 w-4 text-center"></i>
           <span class="mx-sidebar-label">RSS Feeds</span>
@@ -119,22 +119,22 @@
     <div>
       <p class="px-3 mb-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider mx-sidebar-label">Moderation</p>
       <div class="space-y-0.5">
-        <a href="/ql/dashboard/matrix/{{ space_id_url }}/moderation/"
+        <a href="/dashboard/matrix/{{ space_id_url }}/moderation/"
            class="mx-nav-item {% if active_section == 'moderation' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
           <i class="fas fa-shield-alt text-gray-400 group-hover:text-red-400 w-4 text-center"></i>
           <span class="mx-sidebar-label">Moderation</span>
         </a>
-        <a href="/ql/dashboard/matrix/{{ space_id_url }}/ban-lists/"
+        <a href="/dashboard/matrix/{{ space_id_url }}/ban-lists/"
            class="mx-nav-item {% if active_section == 'ban_lists' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
           <i class="fas fa-ban text-gray-400 group-hover:text-red-400 w-4 text-center"></i>
           <span class="mx-sidebar-label">Ban Lists</span>
         </a>
-        <a href="/ql/dashboard/matrix/{{ space_id_url }}/verification/"
+        <a href="/dashboard/matrix/{{ space_id_url }}/verification/"
            class="mx-nav-item {% if active_section == 'verification' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
           <i class="fas fa-user-check text-gray-400 group-hover:text-green-400 w-4 text-center"></i>
           <span class="mx-sidebar-label">Verification</span>
         </a>
-        <a href="/ql/dashboard/matrix/{{ space_id_url }}/audit/"
+        <a href="/dashboard/matrix/{{ space_id_url }}/audit/"
            class="mx-nav-item {% if active_section == 'audit' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
           <i class="fas fa-history text-gray-400 group-hover:text-yellow-400 w-4 text-center"></i>
           <span class="mx-sidebar-label">Audit Log</span>
@@ -146,12 +146,12 @@
     <div>
       <p class="px-3 mb-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider mx-sidebar-label">Message System</p>
       <div class="space-y-0.5">
-        <a href="/ql/dashboard/matrix/{{ space_id_url }}/welcome/"
+        <a href="/dashboard/matrix/{{ space_id_url }}/welcome/"
            class="mx-nav-item {% if active_section == 'welcome' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
           <i class="fas fa-hand-wave text-gray-400 group-hover:text-green-400 w-4 text-center"></i>
           <span class="mx-sidebar-label">Welcome Messages</span>
         </a>
-        <a href="/ql/dashboard/matrix/{{ space_id_url }}/messages/"
+        <a href="/dashboard/matrix/{{ space_id_url }}/messages/"
            class="mx-nav-item {% if active_section == 'messages' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
           <i class="fas fa-paper-plane text-gray-400 group-hover:text-blue-400 w-4 text-center"></i>
           <span class="mx-sidebar-label">Message Tools</span>
@@ -180,7 +180,7 @@
     <div>
       <p class="px-3 mb-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider mx-sidebar-label">Integration</p>
       <div class="space-y-0.5">
-        <a href="/ql/dashboard/matrix/{{ space_id_url }}/bridge/"
+        <a href="/dashboard/matrix/{{ space_id_url }}/bridge/"
            class="mx-nav-item {% if active_section == 'bridge' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
           <i class="fas fa-satellite-dish text-gray-400 group-hover:text-purple-400 w-4 text-center"></i>
           <span class="mx-sidebar-label">Chat Bridge</span>
@@ -197,7 +197,7 @@
     <div>
       <p class="px-3 mb-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider mx-sidebar-label">Configuration</p>
       <div class="space-y-0.5">
-        <a href="/ql/dashboard/matrix/{{ space_id_url }}/settings/"
+        <a href="/dashboard/matrix/{{ space_id_url }}/settings/"
            class="mx-nav-item {% if active_section == 'settings' %}active{% endif %} flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition group">
           <i class="fas fa-cog text-gray-400 group-hover:text-teal-400 w-4 text-center"></i>
           <span class="mx-sidebar-label">Settings</span>
@@ -209,11 +209,11 @@
 
   <!-- Sidebar Footer -->
   <div class="p-3 border-t border-neutral-800">
-    <a href="/ql/dashboard/matrix/" class="flex items-center gap-3 px-3 py-2 text-gray-500 hover:text-gray-300 text-sm transition mx-sidebar-label">
+    <a href="/dashboard/matrix/" class="flex items-center gap-3 px-3 py-2 text-gray-500 hover:text-gray-300 text-sm transition mx-sidebar-label">
       <i class="fas fa-th-large w-4 text-center"></i>
       <span>All Spaces</span>
     </a>
-    <a href="/ql/" class="flex items-center gap-3 px-3 py-2 text-gray-500 hover:text-gray-300 text-sm transition mx-sidebar-label">
+    <a href="" class="flex items-center gap-3 px-3 py-2 text-gray-500 hover:text-gray-300 text-sm transition mx-sidebar-label">
       <i class="fas fa-arrow-left w-4 text-center"></i>
       <span>Back to QuestLog</span>
     </a>

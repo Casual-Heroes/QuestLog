@@ -1,17 +1,17 @@
-{% extends "base.html" %}
+{% extends "questlog_web/base_web.html" %}
 {% load static %}
 
 {% block title %}QuestLog Fluxer Bot | Casual Heroes{% endblock %}
 {% block og_title %}QuestLog Fluxer Bot{% endblock %}
 {% block og_description %}A free, open source Fluxer bot for gaming communities. XP, LFG, moderation, RSS feeds, live alerts, and full QuestLog Network integration.{% endblock %}
 
-{% block content %}
+{% block web_content %}
 <div style="max-width: 860px; margin: 0 auto; padding: 80px 20px 60px;">
 
   <!-- Hero -->
   <div style="text-align: center; margin-bottom: 56px;">
     <div style="display: inline-flex; align-items: center; gap: 10px; background: rgba(167,139,250,0.12); border: 1px solid rgba(167,139,250,0.35); border-radius: 999px; padding: 6px 18px; margin-bottom: 20px;">
-      <i class="fas fa-bolt" style="color: #a78bfa; font-size: 0.9rem;"></i>
+      <img src="{% static 'img/siteassets/fluxer-favicon.png' %}" alt="Fluxer" style="width:16px;height:16px;border-radius:3px;">
       <span style="color: #a5b4fc; font-size: 0.78rem; font-weight: 600; letter-spacing: 0.05em;">Official Fluxer Bot</span>
     </div>
     <h1 style="font-size: 2.6rem; font-weight: 900; color: #fff; margin: 0 0 16px 0; line-height: 1.15;">QuestLog Bot for Fluxer</h1>
@@ -21,7 +21,7 @@
     <div style="display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;">
       <a href="{{ invite_url }}" target="_blank"
          style="display: inline-flex; align-items: center; gap: 8px; background: linear-gradient(135deg, #7c3aed, #6d28d9); color: #fff; font-weight: 700; font-size: 0.95rem; padding: 12px 24px; border-radius: 10px; text-decoration: none; transition: opacity 0.15s;">
-        <i class="fas fa-bolt"></i> Add to Fluxer
+        <img src="{% static 'img/siteassets/fluxer-favicon.png' %}" alt="" style="width:15px;height:15px;border-radius:3px;"> Add to Fluxer
       </a>
       <a href="https://github.com/Casual-Heroes/QuestLogBot-Fluxer" target="_blank"
          style="display: inline-flex; align-items: center; gap: 8px; background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.12); color: #e5e7eb; font-weight: 600; font-size: 0.95rem; padding: 12px 24px; border-radius: 10px; text-decoration: none; transition: background 0.15s;">
@@ -71,10 +71,10 @@
     <div>
       <h3 style="font-size: 1.05rem; font-weight: 800; color: #c4b5fd; margin: 0 0 6px 0;">Full Web Dashboard</h3>
       <p style="font-size: 0.85rem; color: #9ca3af; margin: 0 0 12px 0; line-height: 1.6;">
-        Every bot feature has a matching web interface at <strong style="color: #a5b4fc;">casual-heroes.com/ql/dashboard/fluxer/</strong>.
+        Every bot feature has a matching web interface at <strong style="color: #a5b4fc;">casual-heroes.comdashboard/fluxer/</strong>.
         Configure XP settings, manage LFG, set up live alerts, moderate members, and view leaderboards - all from the browser with no slash commands required.
       </p>
-      <a href="/ql/dashboard/fluxer/" style="color: #818cf8; font-size: 0.82rem; font-weight: 600; text-decoration: none;">Go to Fluxer Dashboard -></a>
+      <a href="/dashboard/fluxer/" style="color: #818cf8; font-size: 0.82rem; font-weight: 600; text-decoration: none;">Go to Fluxer Dashboard -></a>
     </div>
   </div>
 
@@ -84,9 +84,9 @@
     <div>
       <h3 style="font-size: 1.05rem; font-weight: 800; color: #6ee7b7; margin: 0 0 6px 0;">QuestLog Network Integration</h3>
       <p style="font-size: 0.85rem; color: #9ca3af; margin: 0 0 12px 0; line-height: 1.6;">
-        Join the QuestLog Network and your members' Fluxer XP flows into their unified QuestLog profile. One leaderboard, one profile, across Fluxer and Discord. Members can link their accounts and see everything at <strong style="color: #a5b4fc;">casual-heroes.com/ql/</strong>.
+        Join the QuestLog Network and your members' Fluxer XP flows into their unified QuestLog profile. One leaderboard, one profile, across Fluxer and Discord. Members can link their accounts and see everything at <strong style="color: #a5b4fc;">casual-heroes.com</strong>.
       </p>
-      <a href="/ql/communities/" style="color: #34d399; font-size: 0.82rem; font-weight: 600; text-decoration: none;">Learn about the QuestLog Network -></a>
+      <a href="/communities/" style="color: #34d399; font-size: 0.82rem; font-weight: 600; text-decoration: none;">Learn about the QuestLog Network -></a>
     </div>
   </div>
 
@@ -98,7 +98,7 @@
       <p style="font-size: 0.85rem; color: #9ca3af; margin: 0 0 12px 0; line-height: 1.6;">
         If your community is already registered on the QuestLog Network, connect your Fluxer server to unify XP, leaderboards, and member profiles across both platforms. One application links everything together.
       </p>
-      <a href="/ql/communities/register/" style="color: #f59e0b; font-size: 0.82rem; font-weight: 600; text-decoration: none;">Connect your server to QuestLog -></a>
+      <a href="/communities/register/" style="color: #f59e0b; font-size: 0.82rem; font-weight: 600; text-decoration: none;">Connect your server to QuestLog -></a>
     </div>
   </div>
 

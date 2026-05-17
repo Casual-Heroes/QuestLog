@@ -109,7 +109,7 @@
   <h3 class="text-white font-bold text-xl mb-2">No Flairs Available</h3>
   <p class="text-gray-400 text-sm max-w-md mx-auto">
     No flairs have been set up for this server yet. Admins can create flairs from the
-    <a href="/ql/dashboard/fluxer/{{ guild_id }}/flairs/" class="text-purple-400 hover:text-purple-300">dashboard flair manager</a>.
+    <a href="/dashboard/fluxer/{{ guild_id }}/flairs/" class="text-purple-400 hover:text-purple-300">dashboard flair manager</a>.
   </p>
 </div>
 {% endif %}
@@ -127,7 +127,7 @@
 
 <script>
 const GUILD_ID = '{{ guild_id }}';
-const BASE_API = `/ql/api/fluxer/${GUILD_ID}/flairs/`;
+const BASE_API = `api/fluxer/${GUILD_ID}/flairs/`;
 
 function showMsg(text, ok) {
   const el = document.getElementById('flair-msg');

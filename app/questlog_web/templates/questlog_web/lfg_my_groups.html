@@ -28,7 +28,7 @@
 
 <div class="max-w-7xl mx-auto px-4">
   <!-- Tabs -->
-  <div class="flex gap-4 mb-6 border-b border-neutral-800">
+  <div class="flex gap-4 mb-5 border-b border-neutral-800">
     <button id="tabCreated" onclick="switchTab('created')" class="pb-3 px-1 text-sm font-medium border-b-2 border-green-500 text-white transition">
       <i class="fas fa-crown mr-1 text-yellow-400"></i>Groups I Created
     </button>
@@ -37,8 +37,51 @@
     </button>
   </div>
 
+  <!-- Filters -->
+  <div class="flex flex-wrap gap-3 mb-5 items-center">
+    <!-- Status -->
+    <div class="flex gap-2">
+      <button onclick="setFilter('status', '')" id="fStatus_" class="filter-btn active text-xs px-3 py-1.5 rounded-full border border-neutral-700 bg-neutral-800 text-white transition">All</button>
+      <button onclick="setFilter('status', 'open')" id="fStatus_open" class="filter-btn text-xs px-3 py-1.5 rounded-full border border-neutral-700 bg-neutral-900 text-gray-400 hover:text-white transition">
+        <span class="inline-block w-2 h-2 rounded-full bg-green-400 mr-1"></span>Active
+      </button>
+      <button onclick="setFilter('status', 'full')" id="fStatus_full" class="filter-btn text-xs px-3 py-1.5 rounded-full border border-neutral-700 bg-neutral-900 text-gray-400 hover:text-white transition">
+        <span class="inline-block w-2 h-2 rounded-full bg-yellow-400 mr-1"></span>Full
+      </button>
+      <button onclick="setFilter('status', 'cancelled')" id="fStatus_cancelled" class="filter-btn text-xs px-3 py-1.5 rounded-full border border-neutral-700 bg-neutral-900 text-gray-400 hover:text-white transition">
+        <span class="inline-block w-2 h-2 rounded-full bg-gray-500 mr-1"></span>Cancelled
+      </button>
+    </div>
+
+    <!-- Game filter -->
+    <select id="filterGame" onchange="applyFilters()" class="text-xs bg-neutral-800 border border-neutral-700 text-gray-300 rounded-full px-3 py-1.5 focus:outline-none focus:border-blue-500">
+      <option value="">All Games</option>
+    </select>
+
+    <!-- Date filter -->
+    <select id="filterDate" onchange="applyFilters()" class="text-xs bg-neutral-800 border border-neutral-700 text-gray-300 rounded-full px-3 py-1.5 focus:outline-none focus:border-blue-500">
+      <option value="">Any Date</option>
+      <option value="today">Today</option>
+      <option value="week">This Week</option>
+      <option value="past">Past</option>
+    </select>
+
+    <!-- Activity filter -->
+    <select id="filterActivity" onchange="applyFilters()" class="text-xs bg-neutral-800 border border-neutral-700 text-gray-300 rounded-full px-3 py-1.5 focus:outline-none focus:border-blue-500">
+      <option value="">All Activities</option>
+    </select>
+
+    <!-- Clear -->
+    <button onclick="clearFilters()" id="clearFiltersBtn" class="hidden text-xs text-gray-500 hover:text-white transition px-2">
+      <i class="fas fa-times mr-1"></i>Clear filters
+    </button>
+
+    <!-- Result count -->
+    <span id="resultCount" class="text-xs text-gray-500 ml-auto"></span>
+  </div>
+
   <!-- Groups List -->
-  <div id="myGroupsList" class="space-y-4 mb-8">
+  <div id="myGroupsList" class="space-y-3 mb-8">
     <div class="text-center text-gray-500 py-12">
       <i class="fas fa-spinner fa-spin text-4xl mb-2"></i>
       <p>Loading your groups...</p>
@@ -50,6 +93,7 @@
 let myCreatedGroups = [];
 let myJoinedGroups = [];
 let activeTab = 'created';
+let filters = { status: '', game: '', date: '', activity: '' };
 
 document.addEventListener('DOMContentLoaded', () => {
   loadMyGroups();
@@ -57,31 +101,121 @@ document.addEventListener('DOMContentLoaded', () => {
 
 function switchTab(tab) {
   activeTab = tab;
-
-  // Update tab styling
   document.getElementById('tabCreated').classList.toggle('border-green-500', tab === 'created');
   document.getElementById('tabCreated').classList.toggle('text-white', tab === 'created');
   document.getElementById('tabCreated').classList.toggle('border-transparent', tab !== 'created');
   document.getElementById('tabCreated').classList.toggle('text-gray-400', tab !== 'created');
-
   document.getElementById('tabJoined').classList.toggle('border-green-500', tab === 'joined');
   document.getElementById('tabJoined').classList.toggle('text-white', tab === 'joined');
   document.getElementById('tabJoined').classList.toggle('border-transparent', tab !== 'joined');
   document.getElementById('tabJoined').classList.toggle('text-gray-400', tab !== 'joined');
+  populateFilterOptions();
+  applyFilters();
+}
+
+function setFilter(key, val) {
+  filters[key] = val;
+  // Update status button styles
+  if (key === 'status') {
+    document.querySelectorAll('.filter-btn').forEach(b => {
+      b.classList.remove('active', 'bg-neutral-800', 'text-white');
+      b.classList.add('bg-neutral-900', 'text-gray-400');
+    });
+    const active = document.getElementById(`fStatus_${val}`);
+    if (active) {
+      active.classList.add('active', 'bg-neutral-800', 'text-white');
+      active.classList.remove('bg-neutral-900', 'text-gray-400');
+    }
+  }
+  applyFilters();
+}
+
+function clearFilters() {
+  filters = { status: '', game: '', date: '', activity: '' };
+  document.getElementById('filterGame').value = '';
+  document.getElementById('filterDate').value = '';
+  document.getElementById('filterActivity').value = '';
+  setFilter('status', '');
+}
+
+function applyFilters() {
+  filters.game = document.getElementById('filterGame').value;
+  filters.date = document.getElementById('filterDate').value;
+  filters.activity = document.getElementById('filterActivity').value;
+
+  const hasFilters = filters.status || filters.game || filters.date || filters.activity;
+  document.getElementById('clearFiltersBtn').classList.toggle('hidden', !hasFilters);
 
   renderMyGroups();
 }
 
+function getFilteredGroups() {
+  const groups = activeTab === 'created' ? myCreatedGroups : myJoinedGroups;
+  const now = Date.now() / 1000;
+  const todayStart = new Date(); todayStart.setHours(0,0,0,0);
+  const weekEnd = new Date(); weekEnd.setDate(weekEnd.getDate() + 7);
+
+  return groups.filter(g => {
+    if (filters.status && g.status !== filters.status) return false;
+    if (filters.game && g.game_name !== filters.game) return false;
+    if (filters.activity) {
+      const sel = g.selections ? (typeof g.selections === 'string' ? JSON.parse(g.selections) : g.selections) : {};
+      const acts = sel['Activity'] || '';
+      const actStr = Array.isArray(acts) ? acts.join(' ') : String(acts);
+      if (!actStr.toLowerCase().includes(filters.activity.toLowerCase())) return false;
+    }
+    if (filters.date) {
+      const t = g.scheduled_time;
+      if (filters.date === 'today') {
+        if (!t || t < todayStart/1000 || t > (todayStart/1000 + 86400)) return false;
+      } else if (filters.date === 'week') {
+        if (!t || t < now || t > weekEnd/1000) return false;
+      } else if (filters.date === 'past') {
+        if (!t || t > now) return false;
+      }
+    }
+    return true;
+  });
+}
+
+function populateFilterOptions() {
+  const groups = activeTab === 'created' ? myCreatedGroups : myJoinedGroups;
+
+  // Games
+  const games = [...new Set(groups.map(g => g.game_name).filter(Boolean))].sort();
+  const gameSelect = document.getElementById('filterGame');
+  const curGame = gameSelect.value;
+  gameSelect.innerHTML = '<option value="">All Games</option>' +
+    games.map(g => `<option value="${escapeHtml(g)}">${escapeHtml(g)}</option>`).join('');
+  if (games.includes(curGame)) gameSelect.value = curGame;
+
+  // Activities
+  const actSet = new Set();
+  groups.forEach(g => {
+    try {
+      const sel = g.selections ? (typeof g.selections === 'string' ? JSON.parse(g.selections) : g.selections) : {};
+      const acts = sel['Activity'] || '';
+      const list = Array.isArray(acts) ? acts : (String(acts).startsWith('[') ? JSON.parse(acts) : [acts]);
+      list.forEach(a => { if (a) actSet.add(a); });
+    } catch(e) {}
+  });
+  const actSelect = document.getElementById('filterActivity');
+  const curAct = actSelect.value;
+  const sortedActs = [...actSet].sort();
+  actSelect.innerHTML = '<option value="">All Activities</option>' +
+    sortedActs.map(a => `<option value="${escapeHtml(a)}">${escapeHtml(a)}</option>`).join('');
+  if (actSet.has(curAct)) actSelect.value = curAct;
+}
+
 async function loadMyGroups() {
   try {
-    const response = await fetch('{% url "questlog_web_api_lfg" %}?mine=true');
+    const response = await fetch('/api/lfg/?mine=true');
     const data = await response.json();
     const allGroups = data.groups || [];
-
     const userId = {{ web_user.id }};
     myCreatedGroups = allGroups.filter(g => g.is_creator === true || g.creator_id === userId);
-    myJoinedGroups = allGroups.filter(g => !(g.is_creator === true || g.creator_id === userId));
-
+    myJoinedGroups  = allGroups.filter(g => !(g.is_creator === true || g.creator_id === userId));
+    populateFilterOptions();
     renderMyGroups();
   } catch (error) {
     console.error('Failed to load groups:', error);
@@ -96,18 +230,31 @@ async function loadMyGroups() {
 
 function renderMyGroups() {
   const container = document.getElementById('myGroupsList');
-  const groups = activeTab === 'created' ? myCreatedGroups : myJoinedGroups;
+  const groups = getFilteredGroups();
+  const total = (activeTab === 'created' ? myCreatedGroups : myJoinedGroups).length;
+  const hasFilters = filters.status || filters.game || filters.date || filters.activity;
+
+  document.getElementById('resultCount').textContent = hasFilters
+    ? `${groups.length} of ${total} groups`
+    : `${total} group${total !== 1 ? 's' : ''}`;
 
   if (!groups.length) {
-    const emptyMsg = activeTab === 'created'
-      ? "You haven't created any groups yet."
-      : "You haven't joined any groups yet.";
+    const isFiltered = hasFilters;
+    const emptyMsg = isFiltered
+      ? 'No groups match your filters.'
+      : activeTab === 'created'
+        ? "You haven't created any groups yet."
+        : "You haven't joined any groups yet.";
     container.innerHTML = `
       <div class="text-center text-gray-500 py-12">
         <i class="fas fa-users text-6xl mb-4 opacity-50"></i>
         <p class="text-xl mb-2">${emptyMsg}</p>
         <div class="flex gap-3 justify-center mt-4">
-          ${activeTab === 'created' ? `
+          ${isFiltered ? `
+            <button onclick="clearFilters()" class="bg-neutral-700 hover:bg-neutral-600 text-white px-6 py-2 rounded-lg font-medium transition">
+              <i class="fas fa-times mr-2"></i>Clear Filters
+            </button>
+          ` : activeTab === 'created' ? `
             <a href="{% url 'questlog_web_lfg_create' %}" class="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg font-medium transition">
               <i class="fas fa-plus mr-2"></i>Create Group
             </a>
@@ -123,39 +270,50 @@ function renderMyGroups() {
   }
 
   container.innerHTML = groups.map(group => {
-    const slotsAvailable = group.group_size - group.current_size;
-    const statusColor = group.status === 'open' ? 'text-green-400' : group.status === 'full' ? 'text-yellow-400' : 'text-gray-400';
+    const statusColor = {open:'text-green-400', full:'text-yellow-400', cancelled:'text-gray-500', closed:'text-gray-500'}[group.status] || 'text-gray-400';
+    const timeStr = group.scheduled_time
+      ? new Date(group.scheduled_time * 1000).toLocaleDateString()
+      : 'Now';
+    const groupUrl = group.platform === 'fluxer_guild'
+      ? `/fluxer/${encodeURIComponent(group.guild_id)}/lfg/browse/`
+      : `/lfg/${group.share_token || group.id}/`;
+
+    // Extract activity for display
+    let activityBadge = '';
+    try {
+      const sel = group.selections ? (typeof group.selections === 'string' ? JSON.parse(group.selections) : group.selections) : {};
+      const acts = sel['Activity'] || '';
+      const list = Array.isArray(acts) ? acts : (String(acts).startsWith('[') ? JSON.parse(acts) : acts ? [acts] : []);
+      if (list.length) {
+        activityBadge = `<span class="text-xs px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300">${escapeHtml(list[0])}${list.length > 1 ? ` +${list.length - 1}` : ''}</span>`;
+      }
+    } catch(e) {}
 
     return `
       <div class="bg-neutral-900/50 border border-neutral-800 rounded-lg p-4 hover:border-blue-500/30 transition">
         <div class="flex items-start justify-between gap-4">
           <div class="flex-1 min-w-0">
-            <div class="flex items-center gap-2 mb-1">
+            <div class="flex items-center gap-2 mb-1 flex-wrap">
               <span class="text-sm font-medium text-green-400">${escapeHtml(group.game_name)}</span>
               <span class="text-xs px-2 py-0.5 rounded-full bg-neutral-800 ${statusColor} capitalize">${group.status}</span>
+              ${activityBadge}
             </div>
             <h3 class="text-white font-semibold">${escapeHtml(group.title)}</h3>
             <div class="flex items-center gap-4 text-sm text-gray-400 mt-2">
               <span><i class="fas fa-users mr-1"></i>${group.current_size}/${group.group_size}</span>
-              <span><i class="fas fa-clock mr-1"></i>${group.scheduled_time ? new Date(group.scheduled_time * 1000).toLocaleDateString() : 'Now'}</span>
+              <span><i class="fas fa-clock mr-1"></i>${timeStr}</span>
               <span class="text-gray-600 text-xs">#${group.platform === 'fluxer_guild' ? group.guild_lfg_id : group.id}</span>
             </div>
           </div>
-          <div class="flex gap-2">
-            ${group.platform === 'fluxer_guild' ? `
-              <a href="/ql/fluxer/${encodeURIComponent(group.guild_id)}/lfg/browse/" class="bg-neutral-700 hover:bg-neutral-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition">
-                <i class="fas fa-eye mr-1"></i>View
-              </a>
-            ` : `
-              <a href="/ql/lfg/${group.share_token || group.id}/" class="bg-neutral-700 hover:bg-neutral-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition">
-                <i class="fas fa-eye mr-1"></i>View
-              </a>
-              ${activeTab === 'joined' ? `
-                <button onclick="leaveGroup(${group.id})" class="bg-red-600/20 hover:bg-red-600/30 text-red-400 px-4 py-2 rounded-lg text-sm font-medium transition">
-                  <i class="fas fa-sign-out-alt mr-1"></i>Leave
-                </button>
-              ` : ''}
-            `}
+          <div class="flex gap-2 flex-shrink-0">
+            <a href="${groupUrl}" class="bg-neutral-700 hover:bg-neutral-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition">
+              <i class="fas fa-eye mr-1"></i>View
+            </a>
+            ${activeTab === 'joined' && group.platform !== 'fluxer_guild' ? `
+              <button onclick="leaveGroup(${group.id})" class="bg-red-600/20 hover:bg-red-600/30 text-red-400 px-4 py-2 rounded-lg text-sm font-medium transition">
+                <i class="fas fa-sign-out-alt mr-1"></i>Leave
+              </button>
+            ` : ''}
           </div>
         </div>
       </div>
@@ -165,9 +323,8 @@ function renderMyGroups() {
 
 async function leaveGroup(groupId) {
   if (!confirm('Are you sure you want to leave this group?')) return;
-
   try {
-    const response = await csrfFetch(`/ql/lfg/${groupId}/leave/`, {
+    const response = await csrfFetch(`/lfg/${groupId}/leave/`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
     });
@@ -178,7 +335,6 @@ async function leaveGroup(groupId) {
       alert(data.error || 'Failed to leave group');
     }
   } catch (error) {
-    console.error('Failed to leave group:', error);
     alert('Failed to leave group. Please try again.');
   }
 }

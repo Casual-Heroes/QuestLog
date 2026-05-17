@@ -18,7 +18,7 @@ from django.conf import settings
 
 from sqlalchemy import text as sa_text
 from app.db import get_db_session
-from .models import WebCommunityBotConfig, WebLFGGroup, WebBridgeConfig, WebBridgeRelayQueue, WebBridgeMessageMap, WebBridgePendingReaction, WebBridgePendingDeletion, WebFluxerGuildRole, WebFluxerGuildSettings, WebFluxerGuildAction, WebBridgeThreadMap
+from .models import WebCommunityBotConfig, WebLFGGroup, WebBridgeConfig, WebBridgeRelayQueue, WebBridgeMessageMap, WebBridgePendingReaction, WebBridgePendingDeletion, WebBridgePendingEdit, WebFluxerGuildRole, WebFluxerGuildSettings, WebFluxerGuildAction, WebBridgeThreadMap, WebFluxerReactionRole
 
 logger = logging.getLogger(__name__)
 
@@ -52,14 +52,19 @@ def _resolve_mentions(content: str, mentions: list, source_platform: str, target
             return content
 
         # Fetch matrix_ids for all mentioned users in one query
-        id_field = 'discord_id' if source_platform == 'discord' else 'fluxer_id'
+        _PLATFORM_ID_COL = {'discord': 'discord_id', 'fluxer': 'fluxer_id'}
+        id_field = _PLATFORM_ID_COL.get(source_platform)
+        if not id_field:
+            return content
         ids = list(id_map.keys())
         placeholders = ','.join([':id' + str(i) for i in range(len(ids))])
         params = {'id' + str(i): ids[i] for i in range(len(ids))}
-        rows = db.execute(
-            sa_text(f"SELECT {id_field}, matrix_id, username FROM web_users WHERE {id_field} IN ({placeholders})"),
-            params
-        ).fetchall()
+        # Column name comes from allowlist - not user input
+        if id_field == 'discord_id':
+            sql = sa_text(f"SELECT discord_id, matrix_id, username FROM web_users WHERE discord_id IN ({placeholders})")
+        else:
+            sql = sa_text(f"SELECT fluxer_id, matrix_id, username FROM web_users WHERE fluxer_id IN ({placeholders})")
+        rows = db.execute(sql, params).fetchall()
         matrix_map = {str(r[0]): (r[1], r[2]) for r in rows}  # source_id -> (matrix_id, username)
 
         def replace_mention(m):
@@ -76,6 +81,10 @@ def _resolve_mentions(content: str, mentions: list, source_platform: str, target
         return _DISCORD_MENTION_RE.sub(replace_mention, content)
 
     elif source_platform in ('discord', 'fluxer') and target_platform in ('discord', 'fluxer') and source_platform != target_platform:
+        # Translate broadcast mentions between platforms first
+        # @here and @everyone are native on both Discord and Fluxer - pass through as-is
+        # @room was a Matrix convention - no longer used
+
         # Cross-platform between Discord and Fluxer: swap user IDs
         if not mentions:
             return content
@@ -83,15 +92,15 @@ def _resolve_mentions(content: str, mentions: list, source_platform: str, target
         if not id_map:
             return content
 
-        src_field = 'discord_id' if source_platform == 'discord' else 'fluxer_id'
-        tgt_field = 'fluxer_id' if source_platform == 'discord' else 'discord_id'
         ids = list(id_map.keys())
         placeholders = ','.join([':id' + str(i) for i in range(len(ids))])
         params = {'id' + str(i): ids[i] for i in range(len(ids))}
-        rows = db.execute(
-            sa_text(f"SELECT {src_field}, {tgt_field}, username FROM web_users WHERE {src_field} IN ({placeholders})"),
-            params
-        ).fetchall()
+        # Column names are determined by platform logic, not user input
+        if source_platform == 'discord':
+            sql = sa_text(f"SELECT discord_id, fluxer_id, username FROM web_users WHERE discord_id IN ({placeholders})")
+        else:
+            sql = sa_text(f"SELECT fluxer_id, discord_id, username FROM web_users WHERE fluxer_id IN ({placeholders})")
+        rows = db.execute(sql, params).fetchall()
         swap_map = {str(r[0]): str(r[1]) if r[1] else None for r in rows}  # src_id -> tgt_id
 
         def replace_cross_mention(m):
@@ -119,11 +128,12 @@ def _resolve_mentions(content: str, mentions: list, source_platform: str, target
 
         placeholders = ','.join([':mid' + str(i) for i in range(len(matrix_ids))])
         params = {'mid' + str(i): matrix_ids[i] for i in range(len(matrix_ids))}
-        id_field = 'discord_id' if target_platform == 'discord' else 'fluxer_id'
-        rows = db.execute(
-            sa_text(f"SELECT matrix_id, {id_field}, username FROM web_users WHERE LOWER(matrix_id) IN ({placeholders})"),
-            params
-        ).fetchall()
+        # Column name determined by platform logic, not user input
+        if target_platform == 'discord':
+            sql = sa_text(f"SELECT matrix_id, discord_id, username FROM web_users WHERE LOWER(matrix_id) IN ({placeholders})")
+        else:
+            sql = sa_text(f"SELECT matrix_id, fluxer_id, username FROM web_users WHERE LOWER(matrix_id) IN ({placeholders})")
+        rows = db.execute(sql, params).fetchall()
         lookup = {r[0].lower(): (r[1], r[2]) for r in rows}  # lowercase matrix_id -> (platform_id, username)
 
         def replace_matrix_mention(matrix_id_lower, original):
@@ -145,9 +155,19 @@ def _resolve_mentions(content: str, mentions: list, source_platform: str, target
     return content
 
 
+_INTERNAL_ALLOWED_IPS = {'127.0.0.1', '::1', ''}  # '' = Unix socket (always local)
+
 def _check_bot_auth(request) -> bool:
-    """Verify the request comes from the bot via shared secret (constant-time comparison)."""
+    """Verify the request comes from the bot: local connection + shared secret (constant-time comparison).
+    REMOTE_ADDR is '' for Unix socket connections (nginx -> gunicorn via socket) and '127.0.0.1' for TCP.
+    Both are local-only - no external IP can arrive with an empty REMOTE_ADDR via a Unix socket.
+    """
     import hmac
+    # Restrict to localhost connections only
+    remote_ip = request.META.get('REMOTE_ADDR', '')
+    if remote_ip not in _INTERNAL_ALLOWED_IPS:
+        logger.warning(f"Internal API rejected non-local IP: {remote_ip}")
+        return False
     secret = getattr(settings, 'BOT_INTERNAL_SECRET', '')
     if not secret:
         logger.warning("BOT_INTERNAL_SECRET not configured - internal API disabled")
@@ -210,6 +230,15 @@ def api_internal_bot_config(request):
         return JsonResponse({'error': 'Invalid platform'}, status=400)
     if event_type not in ('lfg_announce',):
         return JsonResponse({'error': 'Invalid event_type'}, status=400)
+
+    # Validate webhook_url if provided - must be HTTPS and a known Discord/Fluxer webhook host
+    webhook_url = data.get('webhook_url') or ''
+    if webhook_url:
+        from urllib.parse import urlparse
+        _wh = urlparse(webhook_url)
+        _allowed_wh_hosts = {'discord.com', 'discordapp.com', 'fluxer.net'}
+        if _wh.scheme != 'https' or _wh.netloc not in _allowed_wh_hosts:
+            return JsonResponse({'error': 'Invalid webhook_url'}, status=400)
 
     now = int(time.time())
     with get_db_session() as db:
@@ -1316,20 +1345,181 @@ def api_internal_bridge_pending_deletions(request, platform):
     return JsonResponse({'deletions': deletions})
 
 
-# DISABLED - typing relay not shipped yet
-# @csrf_exempt
-# @require_http_methods(['POST'])
-# def api_internal_bridge_typing(request):
-#     POST /ql/api/internal/bridge/typing/
-#     Called by bots when a user starts typing in a bridged channel.
-#     Returns the target channel IDs so the bot can fire the typing indicator there.
-#     ... full implementation below, re-enable when ready ...
-#
+@csrf_exempt
+@require_http_methods(['POST'])
+def api_internal_bridge_edit(request):
+    """
+    POST /ql/internal/bridge/edit/
+    Called by a bot when a message is edited in a bridged channel.
+    Looks up the cross-platform message map and queues a pending edit.
+    Deduped: if an edit is already pending for a target message, the new content
+    replaces it (last-writer wins - only the most recent edit matters).
+
+    Body: {
+        "platform": "discord",
+        "message_id": "456789",
+        "channel_id": "111222",
+        "new_content": "edited text here"
+    }
+    """
+    if not _check_bot_auth(request):
+        return JsonResponse({'error': 'Unauthorized'}, status=401)
+
+    try:
+        data = json.loads(request.body)
+    except (json.JSONDecodeError, AttributeError):
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+    platform = (data.get('platform') or '').strip()
+    message_id = str(data.get('message_id', '') or '')[:255]
+    new_content = (data.get('new_content') or '').strip()
+
+    if platform not in ('discord', 'fluxer', 'matrix') or not message_id or not new_content:
+        return JsonResponse({'error': 'platform, message_id, and new_content required'}, status=400)
+
+    now = int(time.time())
+
+    with get_db_session() as db:
+        src_map = db.query(WebBridgeMessageMap).filter_by(
+            platform=platform, message_id=message_id
+        ).first()
+        if not src_map:
+            return JsonResponse({'queued': 0, 'reason': 'Message not in any bridge'})
+
+        all_maps = db.query(WebBridgeMessageMap).filter(
+            WebBridgeMessageMap.relay_queue_id == src_map.relay_queue_id,
+            WebBridgeMessageMap.platform != platform,
+        ).all()
+        if not all_maps:
+            return JsonResponse({'queued': 0, 'reason': 'Target message not yet delivered'})
+
+        # Get author prefix from the original relay row so the edit preserves formatting
+        relay_row = db.query(WebBridgeRelayQueue).filter_by(id=src_map.relay_queue_id).first()
+        _TAG_MAP = {'discord': 'D', 'fluxer': 'F', 'matrix': 'M'}
+        tag = _TAG_MAP.get(platform, 'D')
+        author = relay_row.author_name if relay_row else 'Unknown'
+        # Keep the [D]/[F] prefix so recipients know who wrote it; no extra flair -
+        # Discord and Fluxer each show their own native "edited" indicator automatically.
+        formatted_content = f"**[{tag}] {author}:** {new_content}"
+
+        queued = 0
+        for tgt_map in all_maps:
+            # Dedup: if already pending, update the content instead of inserting
+            existing = db.query(WebBridgePendingEdit).filter_by(
+                target_platform=tgt_map.platform,
+                target_message_id=tgt_map.message_id,
+                delivered_at=None,
+            ).first()
+            if existing:
+                existing.new_content = formatted_content
+                existing.created_at = now
+            else:
+                db.add(WebBridgePendingEdit(
+                    source_platform=platform,
+                    target_platform=tgt_map.platform,
+                    target_message_id=tgt_map.message_id,
+                    target_channel_id=tgt_map.channel_id,
+                    new_content=formatted_content,
+                    created_at=now,
+                ))
+            queued += 1
+        db.commit()
+
+    return JsonResponse({'queued': queued})
+
+
+@csrf_exempt
+@require_http_methods(['GET'])
+def api_internal_bridge_pending_edits(request, platform):
+    """
+    GET /ql/internal/bridge/pending-edits/<platform>/
+    Called by bots every 6s to pick up message edits to apply on their platform.
+    Returns up to 10 undelivered edits and marks them delivered.
+    """
+    if not _check_bot_auth(request):
+        return JsonResponse({'error': 'Unauthorized'}, status=401)
+
+    if platform not in ('discord', 'fluxer', 'matrix'):
+        return JsonResponse({'error': 'Invalid platform'}, status=400)
+
+    now = int(time.time())
+    cutoff = now - 300  # ignore edits older than 5 minutes
+
+    with get_db_session() as db:
+        rows = (
+            db.query(WebBridgePendingEdit)
+            .filter(
+                WebBridgePendingEdit.target_platform == platform,
+                WebBridgePendingEdit.delivered_at == None,
+                WebBridgePendingEdit.created_at >= cutoff,
+            )
+            .order_by(WebBridgePendingEdit.created_at)
+            .limit(10)
+            .all()
+        )
+
+        if not rows:
+            return JsonResponse({'edits': []})
+
+        ids = [r.id for r in rows]
+        edits = [
+            {
+                'id': r.id,
+                'target_message_id': r.target_message_id,
+                'target_channel_id': r.target_channel_id,
+                'new_content': r.new_content,
+            }
+            for r in rows
+        ]
+
+        db.query(WebBridgePendingEdit).filter(
+            WebBridgePendingEdit.id.in_(ids)
+        ).update({'delivered_at': now}, synchronize_session=False)
+        db.commit()
+
+    return JsonResponse({'edits': edits})
+
+
 @csrf_exempt
 @require_http_methods(['POST'])
 def api_internal_bridge_typing(request):
-    """Typing relay - disabled, not shipped yet."""
-    return JsonResponse({'error': 'Not available'}, status=404)
+    """
+    POST /ql/api/internal/bridge/typing/
+    Called by a bot when a user starts typing in a bridged channel.
+    Returns the target channel ID(s) so the calling bot can fire the typing indicator there.
+
+    Body: {"platform": "discord"|"fluxer", "channel_id": "..."}
+    Response: {"targets": [{"platform": "...", "channel_id": "..."}]}
+    """
+    if not _check_bot_auth(request):
+        return JsonResponse({'error': 'Unauthorized'}, status=401)
+
+    try:
+        data = json.loads(request.body)
+    except (json.JSONDecodeError, AttributeError):
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+    platform = str(data.get('platform', '')).strip()
+    channel_id = str(data.get('channel_id', '')).strip()
+    if not platform or not channel_id:
+        return JsonResponse({'error': 'platform and channel_id required'}, status=400)
+
+    targets = []
+    with get_db_session() as db:
+        if platform == 'discord':
+            bridge = db.query(WebBridgeConfig).filter_by(
+                discord_channel_id=channel_id, enabled=1
+            ).first()
+            if bridge and bridge.relay_discord_to_fluxer and bridge.fluxer_channel_id:
+                targets.append({'platform': 'fluxer', 'channel_id': bridge.fluxer_channel_id})
+        elif platform == 'fluxer':
+            bridge = db.query(WebBridgeConfig).filter_by(
+                fluxer_channel_id=channel_id, enabled=1
+            ).first()
+            if bridge and bridge.relay_fluxer_to_discord and bridge.discord_channel_id:
+                targets.append({'platform': 'discord', 'channel_id': bridge.discord_channel_id})
+
+    return JsonResponse({'targets': targets})
 
 
 @csrf_exempt
@@ -1610,7 +1800,19 @@ def api_internal_guild_action_done(request, action_id):
 
         if data.get('success'):
             action.status = 'done'
-            action.result_json = json.dumps(data.get('result') or {})
+            result = data.get('result') or {}
+            action.result_json = json.dumps(result)
+            # For deploy_reaction_role: store the posted message_id back on the record
+            if action.action_type == 'deploy_reaction_role' and result.get('message_id'):
+                try:
+                    payload = json.loads(action.payload_json or '{}')
+                    rr_id = int(payload.get('rr_id', 0) or 0)
+                    if rr_id:
+                        rr = db.query(WebFluxerReactionRole).filter_by(id=rr_id).first()
+                        if rr:
+                            rr.message_id = str(result['message_id'])
+                except Exception:
+                    pass
         else:
             action.status = 'failed'
             action.result_json = json.dumps({'error': str(data.get('error', 'Unknown error'))})

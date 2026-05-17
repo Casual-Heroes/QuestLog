@@ -10,7 +10,7 @@ from django.http import JsonResponse
 from django.shortcuts import render
 from django.views.decorators.http import require_http_methods
 from django_ratelimit.decorators import ratelimit
-from sqlalchemy import or_, and_, func, case
+from sqlalchemy import or_, and_, func, case, text
 
 from .models import (
     WebUser, WebFollow, WebPost, WebPostEdit, WebPostImage, WebLike,
@@ -20,13 +20,23 @@ from .models import (
     WebLFGGroup, WebLFGMember, WebCommunity, WebCommunityMember,
 )
 from app.db import get_db_session
-from .fluxer_webhooks import notify_new_post as _fluxer_new_post
+from .fluxer_webhooks import (
+    notify_new_post as _fluxer_new_post,
+    notify_new_post_discord as _discord_new_post,
+    notify_post_edit as _fluxer_post_edit,
+    notify_post_edit_discord as _discord_post_edit,
+    notify_post_delete as _fluxer_post_delete,
+    notify_post_delete_discord as _discord_post_delete,
+    notify_new_comment as _fluxer_new_comment,
+    notify_new_comment_discord as _discord_new_comment,
+)
+from .models import WebBroadcastUser
 from .helpers import (
-    web_login_required, add_web_user_context,
+    web_login_required, web_verified_required, add_web_user_context,
     check_banned, check_posting_timeout,
     is_blocked, create_notification,
     sanitize_text, parse_embed_url, reconstruct_embed_url, _is_valid_giphy_url,
-    serialize_user_brief, serialize_post, award_hero_points, safe_int, EXCLUDED_USER_IDS,
+    serialize_user_brief, serialize_post, award_hero_points, award_legacy, safe_int, EXCLUDED_USER_IDS,
     fetch_link_preview, generate_post_public_id,
 )
 
@@ -37,8 +47,10 @@ logger = logging.getLogger(__name__)
 # BLOCK API
 # =============================================================================
 
-@web_login_required
+@web_verified_required
 @require_http_methods(["POST", "DELETE"])
+@ratelimit(key='ip', rate='30/h', method='POST', block=True)
+@ratelimit(key='ip', rate='30/h', method='DELETE', block=True)
 def api_block(request, user_id):
     """POST: Block a user. DELETE: Unblock."""
     banned = check_banned(request)
@@ -138,9 +150,10 @@ def api_block_list(request):
 # FOLLOW API
 # =============================================================================
 
-@web_login_required
+@web_verified_required
 @require_http_methods(["POST", "DELETE"])
-@ratelimit(key='user', rate='60/h', method='POST', block=True)
+@ratelimit(key='ip', rate='60/h', method='POST', block=True)
+@ratelimit(key='ip', rate='60/h', method='DELETE', block=True)
 def api_follow(request, user_id):
     """POST: Follow a user. DELETE: Unfollow."""
     banned = check_banned(request)
@@ -192,6 +205,7 @@ def api_follow(request, user_id):
             db.commit()
 
             award_hero_points(request.web_user.id, 'follow', ref_id=str(user_id))
+            award_legacy(user_id, 'gained_follower', ref_id=str(request.web_user.id))
 
             is_mutual = db.query(WebFollow).filter_by(
                 follower_id=user_id, following_id=request.web_user.id
@@ -217,6 +231,7 @@ def api_follow(request, user_id):
             })
 
 
+@ratelimit(key='ip', rate='60/m', block=True)
 @add_web_user_context
 def api_followers(request, user_id):
     """GET: List followers of a user. Paginated."""
@@ -270,6 +285,7 @@ def api_followers(request, user_id):
     return JsonResponse({'followers': data, 'total': total, 'page': page})
 
 
+@ratelimit(key='ip', rate='60/m', block=True)
 @add_web_user_context
 def api_following(request, user_id):
     """GET: List who a user is following. Paginated."""
@@ -349,9 +365,9 @@ def api_follow_status(request, user_id):
 # POST API
 # =============================================================================
 
-@web_login_required
+@web_verified_required
 @require_http_methods(["GET", "POST"])
-@ratelimit(key='user', rate='10/h', method='POST', block=True)
+@ratelimit(key='ip', rate='10/h', method='POST', block=True)
 @ratelimit(key='ip', rate='60/h', method='POST', block=True)
 def api_posts(request):
     """GET: Feed posts. POST: Create post."""
@@ -373,7 +389,15 @@ def api_posts(request):
 
     is_champion = bool(getattr(request.web_user, 'is_hero', 0))
     is_admin = bool(getattr(request.web_user, 'is_admin', 0))
-    char_limit = 6000 if is_admin else (3000 if is_champion else 1000)
+    legacy_tier = getattr(request.web_user, 'legacy_tier', 1) or 1
+    if is_admin:
+        char_limit = 6000
+    elif is_champion:
+        char_limit = 4000
+    elif legacy_tier >= 3:  # Warden+
+        char_limit = 2000
+    else:
+        char_limit = 1000
     content = sanitize_text(data.get('content', ''), max_length=char_limit)
     post_type = data.get('post_type', 'text')
     if post_type not in ('text', 'image', 'video_embed', 'game_tag', 'gif'):
@@ -445,8 +469,9 @@ def api_posts(request):
             if game_tag_id:
                 game_tag_name_input = data.get('game_tag_name', '').strip()
                 game_tag_steam_id = data.get('game_tag_steam_id')
-                # Try local WebFoundGame first
-                game = db.query(WebFoundGame).filter_by(id=game_tag_id).first()
+                # game_tag_id from frontend is an IGDB ID - ONLY look up by igdb_id
+                # Never fall back to internal DB id - IGDB IDs collide with our auto-increment IDs
+                game = db.query(WebFoundGame).filter_by(igdb_id=int(game_tag_id)).first()
                 if game:
                     post.game_tag_id = game.id
                     post.game_tag_name = game.name
@@ -455,7 +480,7 @@ def api_posts(request):
                     # IGDB game - only store the name (no FK since IGDB ID isn't in web_found_games)
                     post.game_tag_name = sanitize_text(game_tag_name_input, max_length=100)
                     if game_tag_steam_id:
-                        post.game_tag_steam_id = int(game_tag_steam_id)
+                        post.game_tag_steam_id = safe_int(game_tag_steam_id, default=None)
                 if post.game_tag_name and (not post_type or post_type == 'text'):
                     post.post_type = 'game_tag'
 
@@ -490,18 +515,29 @@ def api_posts(request):
             db.commit()
             award_hero_points(request.web_user.id, 'post', ref_id=str(post.id))
 
-            # Notify Fluxer channel
-            _post_url = f"https://casual-heroes.com/ql/profile/{request.web_user.username}/"
+            # Refetch to populate relationships (author, images)
+            post = db.query(WebPost).filter_by(id=post.id).first()
+            post_data = serialize_post(post, request.web_user.id, db)
+
+            # Fan out new post to Fluxer + Discord for all users
+            _post_url = f"https://questlog.casual-heroes.com/ql/post/{post.public_id}/"
+            _image_url = post.images[0].image_url if post.images else None
             _fluxer_new_post(
                 username=request.web_user.username,
                 game=post.game_tag_name or '',
                 content=post.content or '',
                 post_url=_post_url,
+                image_url=_image_url,
+                post_id=post.id,
             )
-
-            # Refetch to populate relationships (author, images)
-            post = db.query(WebPost).filter_by(id=post.id).first()
-            post_data = serialize_post(post, request.web_user.id, db)
+            _discord_new_post(
+                username=request.web_user.username,
+                game=post.game_tag_name or '',
+                content=post.content or '',
+                post_url=_post_url,
+                image_url=_image_url,
+                post_id=post.id,
+            )
 
         return JsonResponse({'success': True, 'post': post_data}, status=201)
     except Exception as e:
@@ -552,9 +588,10 @@ def _get_feed_posts(request):
     })
 
 
-@web_login_required
+@web_verified_required
 @add_web_user_context
 @require_http_methods(["POST"])
+@ratelimit(key='ip', rate='20/h', method='POST', block=True)
 def api_post_pin(request, post_id):
     """POST: Toggle pin on a post. Author can pin their own (profile pin). Admin can pin to site-wide feed."""
     with get_db_session() as db:
@@ -581,10 +618,15 @@ def api_post_pin(request, post_id):
         return JsonResponse({'success': True, 'is_pinned': post.is_pinned})
 
 
+@ratelimit(key='user_or_ip', rate='30/h', method='PUT', block=True)
+@ratelimit(key='user_or_ip', rate='30/h', method='DELETE', block=True)
 @add_web_user_context
 @require_http_methods(["GET", "PUT", "DELETE"])
 def api_post_detail(request, post_id):
-    """GET: Single post. PUT: Edit (author/admin). DELETE: Soft-delete."""
+    """GET: Single post (public). PUT: Edit (author/admin). DELETE: Soft-delete."""
+    if request.method in ('PUT', 'DELETE') and not request.web_user:
+        return JsonResponse({'error': 'Authentication required'}, status=401)
+
     with get_db_session() as db:
         post = db.query(WebPost).filter_by(id=post_id).first()
         if not post or post.is_deleted:
@@ -631,12 +673,16 @@ def api_post_detail(request, post_id):
             return JsonResponse({'success': True, 'post': serialize_post(post, request.web_user.id, db)})
 
         else:  # DELETE
+            _delete_post_id = post.id
             post.is_deleted = True
             post.updated_at = int(time.time())
             user = db.query(WebUser).filter_by(id=post.author_id).first()
             if user and user.post_count and user.post_count > 0:
                 user.post_count -= 1
             db.commit()
+            # Delete broadcast messages on Fluxer + Discord
+            _fluxer_post_delete(_delete_post_id)
+            _discord_post_delete(_delete_post_id)
             return JsonResponse({'success': True})
 
 
@@ -682,6 +728,7 @@ def api_global_posts(request):
     page = safe_int(request.GET.get('page', 1), default=1, min_val=1)
     per_page = safe_int(request.GET.get('per_page', 20), default=20, min_val=1, max_val=50)
     offset = (page - 1) * per_page
+    game_filter = (request.GET.get('game') or '').strip()[:200]
 
     with get_db_session() as db:
         # Always exclude posts from banned or non-discoverable authors
@@ -694,6 +741,8 @@ def api_global_posts(request):
         )
         if hidden_ids:
             query = query.filter(~WebPost.author_id.in_(hidden_ids))
+        if game_filter:
+            query = query.filter(WebPost.game_tag_name.ilike(f'%{game_filter}%'))
 
         if request.web_user:
             blocked_ids = set()
@@ -772,18 +821,23 @@ def _get_recent_activity(request):
         ).with_entities(WebPost.author_id).distinct().count()
 
         current_uid = request.web_user.id if request.web_user else None
-        suggested_q = db.query(WebUser).filter(
-            WebUser.is_banned == False,
-            WebUser.allow_discovery == True,
-            WebUser.post_count > 0,
-            ~WebUser.id.in_(EXCLUDED_USER_IDS),
-        )
+        following_ids = []
         if current_uid:
             following_ids = [f[0] for f in db.query(WebFollow.following_id).filter_by(
                 follower_id=current_uid
             ).all()]
             following_ids.append(current_uid)
+
+        suggested_q = db.query(WebUser).filter(
+            WebUser.is_banned == False,
+            WebUser.is_disabled == False,
+            WebUser.email_verified == True,
+            WebUser.allow_discovery == True,
+            ~WebUser.id.in_(EXCLUDED_USER_IDS),
+        )
+        if following_ids:
             suggested_q = suggested_q.filter(~WebUser.id.in_(following_ids))
+        if current_uid:
             blocked_ids = set()
             blocks = db.query(WebUserBlock).filter(
                 or_(
@@ -796,8 +850,8 @@ def _get_recent_activity(request):
             if blocked_ids:
                 suggested_q = suggested_q.filter(~WebUser.id.in_(blocked_ids))
 
-        # Random selection from active users so the list varies each page load
-        suggested_users = suggested_q.order_by(func.rand()).limit(6).all()
+        # Random 3 for the feed sidebar "Who to Follow" widget
+        suggested_users = suggested_q.order_by(func.rand()).limit(3).all()
 
         # Batch-fetch creator profiles to avoid N+1
         suggested_ids = [u.id for u in suggested_users]
@@ -834,6 +888,7 @@ def _get_recent_activity(request):
                 'tiktok_url': (cp.tiktok_url or '') if cp else '',
                 'instagram_url': (cp.instagram_url or '') if cp else '',
                 'website_url': (cp.website_url or '') if cp else '',
+                'web_level': u.web_level or 1,
             })
 
         # New members this week — used as sidebar fallback when no suggested users
@@ -854,43 +909,119 @@ def _get_recent_activity(request):
             'display_name': u.display_name or u.username,
             'avatar_url': u.avatar_url or '',
             'bio': (u.bio or '')[:80],
-            'playstyle': u.playstyle or '',
+            'playstyle': (
+                json.loads(u.playstyle) if u.playstyle and u.playstyle.startswith('[')
+                else ([u.playstyle] if u.playstyle else [])
+            ),
+            'favorite_genres': json.loads(u.favorite_genres) if u.favorite_genres else [],
             'gaming_platforms': json.loads(u.gaming_platforms) if u.gaming_platforms else [],
             'twitch_username': u.twitch_username or '',
             'youtube_channel_name': u.youtube_channel_name or '',
             'follower_count': u.follower_count or 0,
         } for u in new_members]
 
-        trending_q = db.query(
-            WebPost.game_tag_id,
-            WebPost.game_tag_name,
-            func.count(WebPost.id).label('post_count')
-        ).filter(
-            WebPost.game_tag_id.isnot(None),
-            WebPost.is_deleted == False,
-            WebPost.created_at >= week_ago,
-        )
-        if banned_author_ids:
-            trending_q = trending_q.filter(~WebPost.author_id.in_(banned_author_ids))
-        trending_games_q = trending_q.group_by(
-            WebPost.game_tag_id, WebPost.game_tag_name
-        ).order_by(func.count(WebPost.id).desc()).limit(8).all()
+        # --- Trending games: based purely on member activity on this platform ---
+        # Signal 1: active LFG groups for this game (4x - highest intent, actively recruiting)
+        lfg_rows = db.execute(text("""
+            SELECT game_name, MAX(game_image_url) as img, MAX(game_id) as gid, COUNT(*) as cnt
+            FROM web_lfg_groups
+            WHERE status IN ('open','full','started') AND allow_network_discovery = 1
+            GROUP BY game_name
+            ORDER BY cnt DESC
+            LIMIT 30
+        """)).fetchall()
 
-        trending_games = []
-        if trending_games_q:
-            game_ids = [g[0] for g in trending_games_q]
-            games_map = {}
-            if game_ids:
-                games = db.query(WebFoundGame).filter(WebFoundGame.id.in_(game_ids)).all()
-                games_map = {g.id: g for g in games}
-            for game_tag_id, game_tag_name, pc in trending_games_q:
-                game = games_map.get(game_tag_id)
-                trending_games.append({
-                    'id': game_tag_id,
-                    'name': game_tag_name,
-                    'cover_url': game.cover_url if game else None,
-                    'post_count': pc,
-                })
+        # Signal 2: members who marked a game "play_together" (3x - wants to group up)
+        pt_rows = db.execute(text("""
+            SELECT g.name, MAX(g.steam_app_id) as steam_id,
+                   MAX(fg.cover_url) as igdb_cover, COUNT(*) as cnt
+            FROM web_user_games g
+            JOIN web_users u ON u.id = g.web_user_id
+            LEFT JOIN web_found_games fg ON fg.steam_app_id = g.steam_app_id
+            WHERE g.status = 'play_together'
+              AND u.is_banned = 0 AND u.is_disabled = 0
+            GROUP BY g.name
+            ORDER BY cnt DESC
+            LIMIT 30
+        """)).fetchall()
+
+        # Signal 3: posts tagged with a game (2x - active engagement)
+        post_rows = db.execute(text("""
+            SELECT p.game_tag_name, MAX(p.game_tag_steam_id) as steam_id,
+                   MAX(fg.cover_url) as igdb_cover, COUNT(*) as cnt
+            FROM web_posts p
+            JOIN web_users u ON u.id = p.author_id
+            LEFT JOIN web_found_games fg ON fg.steam_app_id = p.game_tag_steam_id
+            WHERE p.game_tag_name IS NOT NULL AND p.game_tag_name != ''
+              AND p.is_deleted = 0 AND p.is_hidden = 0
+              AND u.is_banned = 0 AND u.is_disabled = 0
+            GROUP BY p.game_tag_name
+            ORDER BY cnt DESC
+            LIMIT 30
+        """)).fetchall()
+
+        # Signal 4: games in members' libraries (1x - ownership/interest, weakest)
+        lib_rows = db.execute(text("""
+            SELECT g.name, MAX(g.steam_app_id) as steam_id,
+                   MAX(fg.cover_url) as igdb_cover, COUNT(*) as cnt
+            FROM web_user_games g
+            JOIN web_users u ON u.id = g.web_user_id
+            LEFT JOIN web_found_games fg ON fg.steam_app_id = g.steam_app_id
+            WHERE u.is_banned = 0 AND u.is_disabled = 0
+            GROUP BY g.name
+            ORDER BY cnt DESC
+            LIMIT 50
+        """)).fetchall()
+
+        from .helpers import get_steam_cover_url as _get_steam_cover
+
+        def _resolve_cover(igdb_cover, steam_id):
+            if igdb_cover:
+                return igdb_cover
+            if steam_id:
+                return f'https://cdn.cloudflare.steamstatic.com/steam/apps/{steam_id}/header.jpg'
+            return None
+
+        trending_map = {}  # normalized name -> {name, cover_url, score, players}
+
+        def _ensure(key, name, cover):
+            if key not in trending_map:
+                trending_map[key] = {
+                    'name': name,
+                    'cover_url': cover,
+                    'post_count': 0,
+                    'member_count': 0,
+                    'lfg_count': 0,
+                    'score': 0.0,
+                }
+            elif cover and not trending_map[key]['cover_url']:
+                trending_map[key]['cover_url'] = cover
+
+        # LFG signal - 4x weight, uses img/gid columns not igdb_cover
+        max_lfg = max((r[3] for r in lfg_rows), default=1)
+        for row in lfg_rows:
+            name, img, gid, cnt = row[0], row[1], row[2], row[3]
+            key = name.strip().lower()
+            cover = img or (f'https://cdn.cloudflare.steamstatic.com/steam/apps/{gid}/header.jpg' if gid and str(gid).isdigit() else None)
+            _ensure(key, name, cover)
+            trending_map[key]['score'] += 4.0 * (cnt / max_lfg)
+            trending_map[key]['lfg_count'] = max(trending_map[key]['lfg_count'], cnt)
+
+        def _add_signal(rows, weight, count_field):
+            max_cnt = max((r[3] for r in rows), default=1)
+            for row in rows:
+                name, steam_id, igdb_cover, cnt = row[0], row[1], row[2], row[3]
+                key = name.strip().lower()
+                _ensure(key, name, _resolve_cover(igdb_cover, steam_id))
+                trending_map[key]['score'] += weight * (cnt / max_cnt)
+                # Use max not sum - same member can appear in both lib and pt queries
+                trending_map[key][count_field] = max(trending_map[key].get(count_field, 0), cnt)
+
+        _add_signal(pt_rows,   3.0, 'member_count')
+        _add_signal(post_rows, 2.0, 'post_count')
+        _add_signal(lib_rows,  1.0, 'member_count')
+
+        trending_games = sorted(trending_map.values(), key=lambda x: x['score'], reverse=True)[:5]
 
         ticker = []
         two_days_ago = now - 172800
@@ -987,6 +1118,17 @@ def _get_recent_activity(request):
                     'timestamp': u.live_checked_at,
                 })
 
+        # Load NSFW app IDs once - only explicitly sexual games, not games with mere nudity
+        nsfw_appids = set()
+        try:
+            nsfw_rows = db.execute(text(
+                "SELECT DISTINCT app_id FROM web_steam_app_tags "
+                "WHERE tag_name IN ('sexual content', 'hentai', 'adult only sexual content')"
+            )).fetchall()
+            nsfw_appids = {r[0] for r in nsfw_rows}
+        except Exception:
+            pass
+
         # Now playing events (users currently playing a game - fresh within 2 min window)
         playing_users = db.query(WebUser).filter(
             WebUser.current_game.isnot(None),
@@ -997,9 +1139,12 @@ def _get_recent_activity(request):
         ).order_by(WebUser.id.desc()).limit(10).all()
         for u in playing_users:
             if ticker_allowed(u, 'ticker_show_playing') and u.current_game:
+                appid = getattr(u, 'current_game_appid', None)
+                if appid and appid in nsfw_appids:
+                    continue
                 steam_url = (
-                    f'https://store.steampowered.com/app/{u.current_game_appid}/'
-                    if getattr(u, 'current_game_appid', None)
+                    f'https://store.steampowered.com/app/{appid}/'
+                    if appid
                     else f'https://store.steampowered.com/search/?term={u.current_game}'
                 )
                 ticker.append({
@@ -1109,25 +1254,68 @@ def _get_recent_activity(request):
                 pass
 
         # Network approvals (communities that recently joined the network, last 7 days)
+        # Exclude Casual Heroes (id=7) - it's the platform itself, not a third-party join
+        # Use network_approved_at so the timestamp reflects actual approval, not any later edit
         recent_approvals = db.query(WebCommunity).filter(
             WebCommunity.network_status == 'approved',
-            WebCommunity.updated_at >= week_ago,
-        ).order_by(WebCommunity.updated_at.desc()).limit(3).all()
+            WebCommunity.network_approved_at >= week_ago,
+            WebCommunity.id != 7,
+        ).order_by(WebCommunity.network_approved_at.desc()).limit(10).all()
+        seen_community_names = set()
         for c in recent_approvals:
+            key = c.name.strip().lower()
+            if key in seen_community_names:
+                continue
+            seen_community_names.add(key)
             ticker.append({
                 'type': 'network_approved',
                 'username': '',
                 'display_name': c.name,
-                'avatar_url': c.banner_url or '',
+                'avatar_url': c.icon_url or '',
                 'message': f"{c.name} joined the QuestLog Network",
                 'community_id': c.id,
-                'timestamp': c.updated_at,
+                'timestamp': c.network_approved_at,
             })
+
+        # Play Together - 2 random picks from library, spread through ticker
+        try:
+            pt_rows = db.execute(text("""
+                SELECT g.web_user_id, g.name AS game_name, g.steam_app_id,
+                       g.updated_at AS status_set_at,
+                       u.username, u.display_name, u.avatar_url
+                FROM web_user_games g
+                JOIN web_users u ON u.id = g.web_user_id
+                WHERE g.status = 'play_together'
+                  AND u.is_banned = 0
+                  AND u.is_disabled = 0
+                  AND u.allow_discovery = 1
+                  AND u.email_verified = 1
+                ORDER BY RAND()
+                LIMIT 2
+            """)).fetchall()
+            for row in pt_rows:
+                steam_url = (
+                    f'https://store.steampowered.com/app/{row.steam_app_id}/'
+                    if row.steam_app_id
+                    else f'https://store.steampowered.com/search/?term={row.game_name}'
+                )
+                ticker.append({
+                    'type': 'play_together',
+                    'username': row.username,
+                    'display_name': row.display_name or row.username,
+                    'avatar_url': row.avatar_url or '',
+                    'message': f"wants to play {row.game_name}",
+                    'game': row.game_name,
+                    'steam_url': steam_url,
+                    'timestamp': row.status_set_at,
+                })
+        except Exception:
+            pass
 
         ticker.sort(key=lambda x: x['timestamp'], reverse=True)
         ticker = ticker[:20]
 
-    return JsonResponse({
+    response = JsonResponse({
         'total_users': total_users,
         'total_posts': total_posts,
         'posts_today': posts_today,
@@ -1137,15 +1325,17 @@ def _get_recent_activity(request):
         'trending_games': trending_games,
         'ticker': ticker,
     })
+    response['Cache-Control'] = 'no-store'
+    return response
 
 
 # =============================================================================
 # LIKE API
 # =============================================================================
 
-@web_login_required
+@web_verified_required
 @require_http_methods(["POST", "DELETE"])
-@ratelimit(key='user', rate='120/h', method='POST', block=True)
+@ratelimit(key='ip', rate='120/h', method='POST', block=True)
 def api_post_like(request, post_id):
     """POST: Like a post. DELETE: Unlike."""
     banned = check_banned(request)
@@ -1184,6 +1374,7 @@ def api_post_like(request, post_id):
                 db.commit()
                 if not is_own_post:
                     award_hero_points(request.web_user.id, 'like', ref_id=str(post_id))
+                    award_legacy(post.author_id, 'post_liked', ref_id=f'{post_id}:{request.web_user.id}')
             return JsonResponse({
                 'success': True, 'liked': True, 'like_count': post.like_count or 0
             })
@@ -1208,7 +1399,7 @@ def api_post_like(request, post_id):
 
 @add_web_user_context
 @require_http_methods(["GET", "POST"])
-@ratelimit(key='user', rate='30/h', method='POST', block=True)
+@ratelimit(key='ip', rate='30/h', method='POST', block=True)
 def api_comments(request, post_id):
     """GET: List comments for a post (public). POST: Create comment (login required)."""
     with get_db_session() as db:
@@ -1221,6 +1412,8 @@ def api_comments(request, post_id):
 
         if not request.web_user:
             return JsonResponse({'error': 'Login required'}, status=401)
+        if not request.web_user.email_verified:
+            return JsonResponse({'error': 'Please verify your email before commenting.'}, status=403)
 
         banned = check_banned(request)
         if banned:
@@ -1239,7 +1432,24 @@ def api_comments(request, post_id):
             return JsonResponse({'error': 'Invalid JSON'}, status=400)
 
         content = sanitize_text(data.get('content', ''), max_length=500)
-        if not content:
+        raw_gif = (data.get('gif_url') or '').strip()[:500]
+        raw_image = (data.get('image_url') or '').strip()[:500]
+
+        # Validate gif URL (Giphy CDN only)
+        comment_gif = raw_gif if (raw_gif and _is_valid_giphy_url(raw_gif)) else None
+
+        # Validate image URL (local /media/uploads/ only)
+        from urllib.parse import urlparse as _urlparse
+        def _is_valid_comment_image(u):
+            if not u: return False
+            try:
+                p = _urlparse(u)
+                return p.scheme == '' and p.path.startswith('/media/uploads/')
+            except Exception:
+                return False
+        comment_image = raw_image if _is_valid_comment_image(raw_image) else None
+
+        if not content and not comment_gif and not comment_image:
             return JsonResponse({'error': 'Comment cannot be empty'}, status=400)
 
         parent_id = data.get('parent_id')
@@ -1247,15 +1457,14 @@ def api_comments(request, post_id):
             parent = db.query(WebComment).filter_by(id=parent_id, post_id=post_id).first()
             if not parent:
                 return JsonResponse({'error': 'Parent comment not found'}, status=404)
-            # Max 1 level nesting
-            if parent.parent_id is not None:
-                return JsonResponse({'error': 'Cannot reply to a reply'}, status=400)
 
         now = int(time.time())
         comment = WebComment(
             post_id=post_id,
             author_id=request.web_user.id,
-            content=content,
+            content=content or '',
+            gif_url=comment_gif,
+            image_url=comment_image,
             parent_id=parent_id,
             created_at=now,
             updated_at=now,
@@ -1280,16 +1489,42 @@ def api_comments(request, post_id):
 
         db.commit()
 
+        is_own_comment = post.author_id == request.web_user.id
+        post_author_id = post.author_id
+        _comment_post_url = f"https://casual-heroes.com/ql/post/{post.public_id}/"
+        _post_author_name = post.author.username if post.author else 'someone'
+
+        # Fan out comment to Fluxer + Discord
+        _fluxer_new_comment(
+            username=request.web_user.username,
+            post_author=_post_author_name,
+            comment=content,
+            post_url=_comment_post_url,
+        )
+        _discord_new_comment(
+            username=request.web_user.username,
+            post_author=_post_author_name,
+            comment=content,
+            post_url=_comment_post_url,
+        )
+
         comment_data = {
             'id': comment.id,
             'author': serialize_user_brief(request.web_user),
             'content': comment.content,
+            'gif_url': comment.gif_url,
+            'image_url': comment.image_url,
             'parent_id': comment.parent_id,
             'like_count': 0,
             'created_at': comment.created_at,
             'replies': [],
             'liked_by_me': False,
         }
+
+    if not is_own_comment:
+        # ref_id encodes post + commenter + UTC day - one legacy point per commenter per post per day
+        _day = int(time.time()) // 86400
+        award_legacy(post_author_id, 'comment_received', ref_id=f'{post_id}:{request.web_user.id}:{_day}')
 
     return JsonResponse({'success': True, 'comment': comment_data}, status=201)
 
@@ -1326,8 +1561,10 @@ def _get_comments(request, db, post_id):
     comment_ids = [c.id for c in comments]
     replies = []
     if comment_ids:
+        # Fetch ALL non-deleted replies for this post (any depth), not just direct children
         reply_query = db.query(WebComment).filter(
-            WebComment.parent_id.in_(comment_ids),
+            WebComment.post_id == post_id,
+            WebComment.parent_id != None,
             WebComment.is_deleted == False,
         )
         if blocked_ids:
@@ -1357,14 +1594,20 @@ def _get_comments(request, db, post_id):
 
     def serialize_comment(c):
         author = authors.get(c.author_id)
+        is_own = bool(request.web_user and c.author_id == request.web_user.id)
+        is_admin = bool(request.web_user and request.web_user.is_admin)
         return {
             'id': c.id,
             'author': serialize_user_brief(author) if author else None,
             'content': c.content,
+            'gif_url': c.gif_url,
+            'image_url': c.image_url,
             'parent_id': c.parent_id,
             'like_count': c.like_count or 0,
             'created_at': c.created_at,
             'liked_by_me': c.id in my_likes,
+            'can_edit': is_own,
+            'can_delete': is_own or is_admin,
             'replies': [serialize_comment(r) for r in reply_map.get(c.id, [])],
         }
 
@@ -1375,7 +1618,7 @@ def _get_comments(request, db, post_id):
     })
 
 
-@web_login_required
+@web_verified_required
 @require_http_methods(["PUT", "DELETE"])
 def api_comment_detail(request, comment_id):
     """PUT: Edit comment. DELETE: Soft-delete."""
@@ -1405,7 +1648,7 @@ def api_comment_detail(request, comment_id):
             comment.content = content
             comment.updated_at = int(time.time())
             db.commit()
-            return JsonResponse({'success': True})
+            return JsonResponse({'success': True, 'content': content})
 
         else:  # DELETE
             comment.is_deleted = True
@@ -1416,9 +1659,9 @@ def api_comment_detail(request, comment_id):
             return JsonResponse({'success': True})
 
 
-@web_login_required
+@web_verified_required
 @require_http_methods(["POST", "DELETE"])
-@ratelimit(key='user', rate='120/h', method='POST', block=True)
+@ratelimit(key='ip', rate='120/h', method='POST', block=True)
 def api_comment_like(request, comment_id):
     """POST: Like a comment. DELETE: Unlike."""
     banned = check_banned(request)
@@ -1505,12 +1748,55 @@ def api_notifications(request):
             for u in db.query(WebUser).filter(WebUser.id.in_(actor_ids)).all():
                 actors[u.id] = u
 
+        # Resolve post target_ids to public_ids so links use /ql/post/<public_id>/
+        post_target_ids = set(
+            n.target_id for n in notifs
+            if n.target_type == 'post' and n.target_id
+        )
+        # Also resolve comment notifications - need the post they belong to
+        comment_target_ids = set(
+            n.target_id for n in notifs
+            if n.target_type == 'comment' and n.target_id
+        )
+        post_public_ids = {}
+        if post_target_ids:
+            rows = db.execute(text(
+                "SELECT id, public_id FROM web_posts WHERE id IN :ids"
+            ), {'ids': tuple(post_target_ids)}).fetchall()
+            post_public_ids = {r[0]: r[1] for r in rows}
+        comment_post_map = {}
+        if comment_target_ids:
+            rows = db.execute(text(
+                "SELECT c.id, p.public_id FROM web_comments c "
+                "JOIN web_posts p ON p.id = c.post_id WHERE c.id IN :ids"
+            ), {'ids': tuple(comment_target_ids)}).fetchall()
+            comment_post_map = {r[0]: r[1] for r in rows}
+
+        def _notif_url(n):
+            if n.target_type == 'post' and n.target_id in post_public_ids:
+                return f"/ql/post/{post_public_ids[n.target_id]}/"
+            if n.target_type == 'comment' and n.target_id in comment_post_map:
+                return f"/ql/post/{comment_post_map[n.target_id]}/"
+            if n.target_type == 'user' and n.target_id:
+                actor = actors.get(n.actor_id)
+                return f"/ql/u/{actor.username}/" if actor else None
+            if n.target_type == 'ffxiv_application':
+                if n.notification_type == 'ffxiv_app_new':
+                    return "/ql/admin/#ffxiv-applications"
+                return "/ffxiv/apply/"
+            if n.target_type == 'eso_application':
+                if n.notification_type == 'eso_app_new':
+                    return "/ql/admin/#eso-applications"
+                return "/eso/apply/"
+            return None
+
         data = [{
             'id': n.id,
             'type': n.notification_type,
             'actor': serialize_user_brief(actors[n.actor_id]) if n.actor_id in actors else None,
             'target_type': n.target_type,
             'target_id': n.target_id,
+            'target_url': _notif_url(n),
             'message': n.message,
             'is_read': n.is_read,
             'created_at': n.created_at,
@@ -1585,9 +1871,9 @@ def api_notifications_clear_all(request):
 # SHARE API
 # =============================================================================
 
-@web_login_required
+@web_verified_required
 @require_http_methods(["POST"])
-@ratelimit(key='user', rate='20/h', block=True)
+@ratelimit(key='ip', rate='20/h', block=True)
 def api_post_share(request, post_id):
     """
     POST: Record a share event and award Hero Points.
@@ -1607,10 +1893,13 @@ def api_post_share(request, post_id):
             return JsonResponse({'error': 'Cannot interact with this post'}, status=403)
 
         is_own_post = post.author_id == request.web_user.id
+        post_author_id = post.author_id
         post.repost_count = (post.repost_count or 0) + 1
         db.commit()
 
     points = 0 if is_own_post else award_hero_points(request.web_user.id, 'share', ref_id=str(post_id))
+    if not is_own_post:
+        award_legacy(post_author_id, 'post_shared', ref_id=f'{post_id}:{request.web_user.id}')
     return JsonResponse({'success': True, 'hp_awarded': points})
 
 
@@ -1674,8 +1963,9 @@ def api_giveaways(request):
         })
 
 
-@web_login_required
+@web_verified_required
 @require_http_methods(['POST', 'DELETE'])
+@ratelimit(key='ip', rate='20/h', method='POST', block=True)
 def api_giveaway_enter(request, giveaway_id):
     """POST: enter/buy tickets. DELETE: withdraw all tickets."""
     banned = check_banned(request)
@@ -1701,7 +1991,7 @@ def api_giveaway_enter(request, giveaway_id):
                 body = json.loads(request.body) if request.body else {}
             except (json.JSONDecodeError, ValueError):
                 body = {}
-            desired_tickets = max(1, int(body.get('tickets', 1)))
+            desired_tickets = max(1, safe_int(body.get('tickets', 1), default=1, min_val=1, max_val=100))
             max_per_user = max(1, g.max_entries_per_user or 1)
             desired_tickets = min(desired_tickets, max_per_user)
 
@@ -1780,14 +2070,23 @@ def post_detail_page(request, public_id):
 
         current_uid = request.web_user.id if request.web_user else None
         post_data = serialize_post(post, current_uid, db)
-        post_json = json.dumps(post_data)
 
         author = post_data.get('author') or {}
         post_author = author.get('display_name') or author.get('username', 'Unknown')
 
-        # OG meta for social unfurls
-        og_title = f"{post_author} on QuestLog"
-        og_desc = (post.content or '')[:200].strip() or "View this post on QuestLog"
+        # OG meta for social unfurls - lead with game tag when present
+        game_tag = post.game_tag_name or ''
+        if game_tag:
+            og_title = f"{post_author} posted about {game_tag} - QuestLog"
+        else:
+            og_title = f"{post_author} on QuestLog"
+        content_preview = (post.content or '')[:200].strip()
+        if game_tag and content_preview:
+            og_desc = f"[{game_tag}] {content_preview}"
+        elif game_tag:
+            og_desc = f"Playing {game_tag} - View this post on QuestLog"
+        else:
+            og_desc = content_preview or "View this post on QuestLog"
         # Use post image if available, else link preview image, else default
         og_image = None
         if post_data.get('images'):
@@ -1799,7 +2098,7 @@ def post_detail_page(request, public_id):
 
     return render(request, 'questlog_web/post_detail.html', {
         'web_user': request.web_user,
-        'post_json': post_json,
+        'post_json': post_data,
         'post_id': public_id,
         'post_author': post_author,
         'og_title': og_title,
@@ -1816,7 +2115,7 @@ def post_detail_page(request, public_id):
 
 @web_login_required
 @require_http_methods(["PUT"])
-@ratelimit(key='user', rate='30/h', block=True)
+@ratelimit(key='ip', rate='30/h', block=True)
 def api_post_edit(request, post_id):
     """Edit a post. Saves previous content to edit history first."""
     banned = check_banned(request)
@@ -1839,12 +2138,49 @@ def api_post_edit(request, post_id):
             return JsonResponse({'error': 'Not authorized'}, status=403)
 
         is_champion = bool(getattr(request.web_user, 'is_hero', 0))
-        char_limit = 6000 if is_admin else (3000 if is_champion else 1000)
+        legacy_tier = getattr(request.web_user, 'legacy_tier', 1) or 1
+        if is_admin:
+            char_limit = 6000
+        elif is_champion:
+            char_limit = 4000
+        elif legacy_tier >= 3:  # Warden+
+            char_limit = 2000
+        else:
+            char_limit = 1000
         new_content = sanitize_text(data.get('content', ''), max_length=char_limit)
         if not new_content:
             return JsonResponse({'error': 'Post cannot be empty'}, status=400)
 
-        if new_content == post.content:
+        # Resolve game tag change
+        new_game_tag_id = None
+        new_game_tag_name = None
+        new_game_tag_steam_id = None
+        game_tag_changed = False
+        # clear_game_tag=true means user explicitly removed the game tag
+        clear_game_tag = bool(data.get('clear_game_tag', False))
+        if clear_game_tag:
+            game_tag_changed = bool(post.game_tag_name or post.game_tag_id)
+        elif 'game_tag_id' in data or 'game_tag_name' in data:
+            raw_tag_id = data.get('game_tag_id')
+            game = None
+            if raw_tag_id:
+                # raw_tag_id is an IGDB ID from the frontend - ONLY look up by igdb_id
+                # Never fall back to internal DB id - IGDB IDs collide with our auto-increment IDs
+                game = db.query(WebFoundGame).filter_by(igdb_id=int(raw_tag_id)).first()
+            if game:
+                new_game_tag_id = game.id
+                new_game_tag_name = game.name
+                new_game_tag_steam_id = game.steam_app_id
+            elif data.get('game_tag_name'):
+                new_game_tag_name = sanitize_text(data['game_tag_name'], max_length=100)
+                raw_steam = data.get('game_tag_steam_id')
+                new_game_tag_steam_id = safe_int(raw_steam, default=None) if raw_steam else None
+            # Changed if name differs OR internal ID differs
+            if new_game_tag_name != post.game_tag_name or new_game_tag_id != post.game_tag_id:
+                game_tag_changed = True
+
+        content_changed = new_content != post.content
+        if not content_changed and not game_tag_changed:
             return JsonResponse({'error': 'No changes made'}, status=400)
 
         now = int(time.time())
@@ -1859,7 +2195,7 @@ def api_post_edit(request, post_id):
 
         # Re-fetch link preview if content changed and post has no media
         new_preview = post.link_preview
-        if post.post_type in ('text', 'game_tag') and not post.embed_platform and not post.images:
+        if content_changed and post.post_type in ('text', 'game_tag') and not post.embed_platform and not post.images:
             urls = re.findall(r'https?://[^\s<]+', new_content)
             new_preview = None
             for preview_url in urls:
@@ -1869,6 +2205,14 @@ def api_post_edit(request, post_id):
                     break
 
         post.content = new_content
+        if game_tag_changed:
+            post.game_tag_id = new_game_tag_id
+            post.game_tag_name = new_game_tag_name
+            post.game_tag_steam_id = new_game_tag_steam_id
+            if new_game_tag_name and post.post_type == 'text':
+                post.post_type = 'game_tag'
+            elif not new_game_tag_name and post.post_type == 'game_tag':
+                post.post_type = 'text'
         post.edited_at = now
         post.edit_count = (post.edit_count or 0) + 1
         post.updated_at = now
@@ -1879,6 +2223,30 @@ def api_post_edit(request, post_id):
         # Refetch to serialize cleanly
         post = db.query(WebPost).filter_by(id=post.id).first()
         post_data = serialize_post(post, request.web_user.id, db)
+        _broadcast_url = f"https://questlog.casual-heroes.com/ql/post/{post.public_id}/"
+        _broadcast_game = post.game_tag_name or ''
+        _broadcast_content = post.content or ''
+        _broadcast_image = post.images[0].image_url if post.images else None
+        _broadcast_username = request.web_user.username
+        _broadcast_post_id = post.id
+
+    # Broadcast edit to Fluxer + Discord - edits existing message in-place
+    _fluxer_post_edit(
+        username=_broadcast_username,
+        game=_broadcast_game,
+        content=_broadcast_content,
+        post_url=_broadcast_url,
+        image_url=_broadcast_image,
+        post_id=_broadcast_post_id,
+    )
+    _discord_post_edit(
+        username=_broadcast_username,
+        game=_broadcast_game,
+        content=_broadcast_content,
+        post_url=_broadcast_url,
+        image_url=_broadcast_image,
+        post_id=_broadcast_post_id,
+    )
 
     return JsonResponse({'success': True, 'post': post_data})
 

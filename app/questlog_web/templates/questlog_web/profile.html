@@ -4,7 +4,7 @@
 {% block title %}My Profile - QuestLog{% endblock %}
 
 {% block web_content %}
-<div x-data="{ tab: window.location.hash === '#edit' ? 'edit' : 'overview' }" class="max-w-4xl mx-auto px-4 pb-10">
+<div x-data="{ tab: window.location.hash === '#library' ? 'library' : window.location.hash === '#connected' ? 'connected' : window.location.hash === '#edit' ? 'edit' : window.location.hash === '#achievements' ? 'achievements' : 'overview' }" class="max-w-4xl mx-auto px-4 pb-10">
 
   <!-- ── Profile Header ─────────────────────────────────────────── -->
   <!-- Banner -->
@@ -30,12 +30,11 @@
       <div class="flex-1 min-w-0 pt-12">
         <div class="flex flex-wrap items-center gap-2 mb-0.5">
           <h1 class="text-xl font-bold text-white">{{ web_user.display_name|default:web_user.username }}</h1>
-          {% if web_user.is_admin %}
-          <span class="px-2 py-0.5 bg-yellow-500/20 text-yellow-400 text-xs rounded-full font-medium"><i class="fas fa-crown mr-1"></i>Admin</span>
-          {% endif %}
-          {% if web_user.is_vip %}
-          <span class="px-2 py-0.5 bg-purple-500/20 text-purple-300 text-xs rounded-full font-medium" title="Early Tester">⭐ Early Tester</span>
-          {% endif %}
+          {% if web_user.is_admin %}<span class="px-2 py-0.5 bg-yellow-500/20 text-yellow-400 text-xs rounded-full font-medium"><i class="fas fa-crown mr-1"></i>Admin</span>{% endif %}
+          {% if web_user.is_mod and not web_user.is_admin %}<span class="px-2 py-0.5 bg-blue-600/20 text-blue-400 text-xs rounded-full font-medium"><i class="fas fa-user-shield mr-1"></i>Mod</span>{% endif %}
+          {% if web_user.is_contributor %}<span class="px-2 py-0.5 bg-violet-600/20 text-violet-300 text-xs rounded-full font-medium"><i class="fas fa-pen mr-1"></i>Contributor</span>{% endif %}
+          {% if web_user.is_ffxiv_member %}<span class="px-2 py-0.5 bg-blue-500/20 text-blue-300 text-xs rounded-full font-medium flex items-center gap-1" title="CH FFXIV FC"><img src="{% static 'img/games/guilds/ffxiv_logo.png' %}" class="w-3 h-3 object-contain"> FFXIV</span>{% endif %}
+          {% if web_user.is_eso_member %}<span class="px-2 py-0.5 bg-amber-500/20 text-amber-300 text-xs rounded-full font-medium flex items-center gap-1" title="CH ESO Crew"><img src="{% static 'img/games/guilds/esoguild.png' %}" class="w-3 h-3 object-contain"> ESO</span>{% endif %}
           <span id="profile-flair-badge" class="text-sm text-yellow-300 font-medium"></span>
         </div>
         <p class="text-gray-500 text-sm">@{{ web_user.username }}</p>
@@ -48,40 +47,51 @@
         </a>
         {% endif %}
       </div>
-
-      <!-- Tab switcher (desktop) -->
-      <div class="hidden sm:flex items-center gap-2 ml-auto pt-12">
-        <button @click="tab='overview'; history.replaceState(null,'',location.pathname)"
-                :class="tab==='overview' ? 'bg-indigo-600 text-white' : 'bg-neutral-800 text-gray-400 hover:text-white'"
-                class="px-4 py-2 rounded-lg text-sm font-medium transition">
-          <i class="fas fa-user mr-1"></i>Overview
-        </button>
-        <button @click="tab='edit'; history.replaceState(null,'',location.pathname+'#edit')"
-                :class="tab==='edit' ? 'bg-indigo-600 text-white' : 'bg-neutral-800 text-gray-400 hover:text-white'"
-                class="px-4 py-2 rounded-lg text-sm font-medium transition">
-          <i class="fas fa-edit mr-1"></i>Edit Profile
-        </button>
-      </div>
     </div>
 
     <!-- Stats row -->
-    <div class="flex flex-wrap gap-4 text-sm border-t border-neutral-800 pt-4">
+    <div class="flex flex-wrap gap-4 text-sm border-t border-neutral-800 pt-4 items-center">
       <span class="text-white font-semibold">{{ web_user.post_count|default:"0" }} <span class="text-gray-500 font-normal">Posts</span></span>
       <span class="text-white font-semibold">{{ web_user.follower_count|default:"0" }} <span class="text-gray-500 font-normal">Followers</span></span>
       <span class="text-white font-semibold">{{ web_user.following_count|default:"0" }} <span class="text-gray-500 font-normal">Following</span></span>
       <span class="text-white font-semibold">{{ web_user.hero_points|default:"0" }} <span class="text-gray-500 font-normal">Hero Points</span></span>
       <span class="text-white font-semibold">Level {{ web_user.web_level|default:"1" }} <span class="text-gray-500 font-normal">/ {{ web_user.web_xp|default:"0" }} XP</span></span>
+      <!-- Legacy Mark badge -->
+      {% with t=web_user.legacy_tier|default:1 s=web_user.legacy_score|default:0 %}
+      <a href="{% url 'questlog_web_legacy' %}" class="flex items-center gap-1.5 hover:opacity-80 transition" title="Your Legacy Mark">
+        {% if t == 1 %}<img src="{% static 'img/legacy/Common.png' %}"    alt="Common"    class="w-5 h-5 object-contain"><span class="font-semibold text-gray-400">{{ s }}</span><span class="text-gray-500 font-normal">Common</span>
+        {% elif t == 2 %}<img src="{% static 'img/legacy/Rare.png' %}"    alt="Rare"      class="w-5 h-5 object-contain"><span class="font-semibold text-blue-400">{{ s }}</span><span class="text-gray-500 font-normal">Rare</span>
+        {% elif t == 3 %}<img src="{% static 'img/legacy/Epic.png' %}"    alt="Epic"      class="w-5 h-5 object-contain"><span class="font-semibold text-purple-400">{{ s }}</span><span class="text-gray-500 font-normal">Epic</span>
+        {% elif t == 4 %}<img src="{% static 'img/legacy/Legendary.png' %}" alt="Legendary" class="w-5 h-5 object-contain"><span class="font-semibold text-orange-400">{{ s }}</span><span class="text-gray-500 font-normal">Legendary</span>
+        {% elif t == 5 %}<img src="{% static 'img/legacy/Mythic.png' %}"  alt="Mythic"    class="w-5 h-5 object-contain"><span class="font-semibold text-yellow-400">{{ s }}</span><span class="text-gray-500 font-normal">Mythic</span>
+        {% endif %}
+      </a>
+      {% endwith %}
     </div>
   </div>
 
-  <!-- Mobile tab switcher -->
-  <div class="flex sm:hidden gap-2 mb-5">
+  <!-- Tab bar -->
+  <div class="flex gap-1 mb-5 bg-neutral-900/50 border border-neutral-800 rounded-xl p-1">
     <button @click="tab='overview'; history.replaceState(null,'',location.pathname)"
-            :class="tab==='overview' ? 'bg-indigo-600 text-white' : 'bg-neutral-800 text-gray-400'"
-            class="flex-1 py-2 rounded-lg text-sm font-medium transition">Overview</button>
+            :class="tab==='overview' ? 'bg-white text-neutral-900' : 'text-gray-400 hover:text-white'"
+            class="flex-1 py-2 rounded-lg text-sm font-semibold transition">
+      <i class="fas fa-user mr-1.5"></i>Overview</button>
     <button @click="tab='edit'; history.replaceState(null,'',location.pathname+'#edit')"
-            :class="tab==='edit' ? 'bg-indigo-600 text-white' : 'bg-neutral-800 text-gray-400'"
-            class="flex-1 py-2 rounded-lg text-sm font-medium transition">Edit Profile</button>
+            :class="tab==='edit' ? 'bg-white text-neutral-900' : 'text-gray-400 hover:text-white'"
+            class="flex-1 py-2 rounded-lg text-sm font-semibold transition">
+      <i class="fas fa-edit mr-1.5"></i>Edit</button>
+    <button @click="tab='library'; history.replaceState(null,'',location.pathname+'#library')"
+            :class="tab==='library' ? 'bg-white text-neutral-900' : 'text-gray-400 hover:text-white'"
+            class="flex-1 py-2 rounded-lg text-sm font-semibold transition">
+      <i class="fas fa-layer-group mr-1.5"></i>Library</button>
+    <button @click="tab='connected'; history.replaceState(null,'',location.pathname+'#connected')"
+            :class="tab==='connected' ? 'bg-white text-neutral-900' : 'text-gray-400 hover:text-white'"
+            class="flex-1 py-2 rounded-lg text-sm font-semibold transition">
+      <i class="fas fa-link mr-1.5"></i>Connected</button>
+    <button @click="tab='achievements'; history.replaceState(null,'',location.pathname+'#achievements')"
+            :class="tab==='achievements' ? 'bg-white text-neutral-900' : 'text-gray-400 hover:text-white'"
+            class="flex-1 py-2 rounded-lg text-sm font-semibold transition">
+      <i class="fas fa-trophy mr-1.5"></i>Achievements</button>
   </div>
 
   <!-- ══════════════════════════════════════════════════════════════ -->
@@ -143,27 +153,7 @@
         {% endif %}
       </div>
       {% endif %}
-      {% if favorite_games_list %}
-      <div class="mt-4 {% if playstyle_list or gaming_platforms_list or favorite_genres_list or web_user.bio %}border-t border-neutral-800 pt-4{% endif %}">
-        <p class="text-xs text-gray-500 mb-2"><i class="fas fa-gamepad mr-1"></i>Games</p>
-        <div class="flex flex-wrap gap-2">
-          {% for g in favorite_games_list %}
-          {% if g.cover_url %}
-          <div class="flex items-center gap-1.5 bg-neutral-800 border border-neutral-700 rounded-lg px-2 py-1.5 text-xs text-gray-200" title="{{ g.name }}">
-            <img src="{{ g.cover_url }}" class="w-4 h-6 rounded object-cover flex-shrink-0" alt="">
-            <span class="truncate max-w-[100px]">{{ g.name }}</span>
-          </div>
-          {% else %}
-          <div class="flex items-center gap-1 bg-neutral-800 border border-neutral-700 rounded-lg px-2 py-1.5 text-xs text-gray-200">
-            <i class="fas fa-gamepad text-gray-500 text-xs flex-shrink-0"></i>
-            <span>{% if g.name %}{{ g.name }}{% else %}{{ g }}{% endif %}</span>
-          </div>
-          {% endif %}
-          {% endfor %}
-        </div>
-      </div>
-      {% endif %}
-      {% if not web_user.bio and not playstyle_list and not gaming_platforms_list and not favorite_genres_list and not favorite_games_list %}
+      {% if not web_user.bio and not playstyle_list and not gaming_platforms_list and not favorite_genres_list %}
       <p class="text-gray-600 text-sm italic">Nothing here yet. <button @click="tab='edit'" class="text-indigo-400 hover:underline">Edit your profile</button></p>
       {% endif %}
     </div>
@@ -184,256 +174,21 @@
       <div id="flair-feedback" class="mt-3 hidden"></div>
     </div>
 
-    <!-- Social & Connected Accounts -->
+    <!-- Connected accounts teaser -->
     <div class="bg-neutral-900/50 rounded-lg border border-neutral-800 p-5">
-      <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3"><i class="fas fa-link text-indigo-400 mr-1"></i>Connected Accounts</h3>
-      <div class="space-y-2">
-        <!-- Steam -->
-        <div class="bg-neutral-800/50 rounded-lg overflow-hidden">
-          <div class="flex items-center justify-between p-3">
-            <div class="flex items-center gap-3">
-              <i class="fab fa-steam text-xl text-blue-400"></i>
-              <div>
-                <p class="text-white text-sm font-medium">Steam</p>
-                {% if web_user.steam_id %}<p class="text-xs text-gray-400">{{ web_user.steam_username|default:web_user.steam_id }}</p>{% else %}<p class="text-xs text-gray-500">Not connected</p>{% endif %}
-              </div>
-            </div>
-            {% if web_user.steam_id %}
-            <div class="flex items-center gap-3">
-              <span class="text-green-400 text-xs"><i class="fas fa-check-circle mr-1"></i>Connected</span>
-              <form method="post" action="{% url 'questlog_web_steam_unlink' %}" onsubmit="return confirm('Disconnect Steam? You can re-link anytime.');" class="inline">
-                {% csrf_token %}
-                <button type="submit" class="text-red-400 hover:text-red-300 text-xs font-medium transition">Disconnect</button>
-              </form>
-            </div>
-            {% else %}
-            <a href="{% url 'questlog_web_steam_link' %}" class="text-xs bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg transition">Connect</a>
-            {% endif %}
-          </div>
-          {% if web_user.steam_id %}
-          <div class="border-t border-neutral-700/50 px-4 py-3 bg-neutral-900/30">
-            <p class="text-xs text-gray-400 mb-2 flex items-center gap-1"><i class="fas fa-star text-yellow-500 text-xs"></i>Steam tracking — earn XP automatically</p>
-            <div class="space-y-1.5">
-              <label class="flex items-center gap-2 cursor-pointer group">
-                <input type="checkbox" id="trackAchievements" {% if web_user.track_achievements %}checked{% endif %}
-                       onchange="saveSteamPrefs()" class="rounded bg-neutral-700 border-neutral-600 text-yellow-500">
-                <span class="text-xs text-gray-300 group-hover:text-white transition">Track achievements <span class="text-yellow-500">+5 XP each</span></span>
-              </label>
-              <label class="flex items-center gap-2 cursor-pointer group">
-                <input type="checkbox" id="trackHoursPlayed" {% if web_user.track_hours_played %}checked{% endif %}
-                       onchange="saveSteamPrefs()" class="rounded bg-neutral-700 border-neutral-600 text-yellow-500">
-                <span class="text-xs text-gray-300 group-hover:text-white transition">Track hours played <span class="text-yellow-500">+1 XP / hour</span></span>
-              </label>
-              <label class="flex items-center gap-2 cursor-pointer group">
-                <input type="checkbox" id="showPlayingStatus" {% if web_user.show_playing_status %}checked{% endif %}
-                       onchange="saveSteamPrefs()" class="rounded bg-neutral-700 border-neutral-600 text-cyan-500">
-                <span class="text-xs text-gray-300 group-hover:text-white transition">Show currently playing game <span class="text-cyan-400">neon glow</span></span>
-              </label>
-              <label class="flex items-center gap-2 cursor-pointer group">
-                <input type="checkbox" id="trackGameLaunches" {% if web_user.track_game_launches %}checked{% endif %}
-                       onchange="saveSteamPrefs()" class="rounded bg-neutral-700 border-neutral-600 text-yellow-500">
-                <span class="text-xs text-gray-300 group-hover:text-white transition">Earn XP when launching a game <span class="text-yellow-500">+2 XP</span> <span class="text-gray-500">(30 min cooldown)</span></span>
-              </label>
-              {# fluxer_sync_custom_status: hidden until Fluxer exposes a write scope for custom status #}
-            </div>
-            <p id="steamPrefsStatus" class="text-xs text-gray-500 mt-1.5 hidden"></p>
-          </div>
-          {% endif %}
-        </div>
-        <!-- Discord -->
-        <div class="flex items-center justify-between p-3 bg-neutral-800/50 rounded-lg">
-          <div class="flex items-center gap-3">
-            <i class="fab fa-discord text-xl text-indigo-400"></i>
-            <div>
-              <p class="text-white text-sm font-medium">Discord</p>
-              {% if web_user.discord_id %}<p class="text-xs text-gray-400">{{ web_user.discord_username|default:"Connected" }}</p>{% else %}<p class="text-xs text-gray-500">Not connected</p>{% endif %}
-            </div>
-          </div>
-          {% if web_user.discord_id %}
-          <div class="flex items-center gap-3">
-            <span class="text-green-400 text-xs"><i class="fas fa-check-circle mr-1"></i>Connected</span>
-            <form method="post" action="{% url 'questlog_web_discord_unlink' %}" onsubmit="return confirm('Disconnect Discord?');" class="inline">
-              {% csrf_token %}
-              <button type="submit" class="text-red-400 hover:text-red-300 text-xs font-medium transition">Disconnect</button>
-            </form>
-          </div>
-          {% else %}
-          <a href="{% url 'questlog_web_discord_link' %}" class="text-xs bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-lg transition">Connect</a>
-          {% endif %}
-        </div>
-        <!-- Fluxer -->
-        <div class="flex items-center justify-between p-3 bg-neutral-800/50 rounded-lg">
-          <div class="flex items-center gap-3">
-            <span class="text-purple-400 text-xl w-5 text-center font-extrabold leading-none">F</span>
-            <div>
-              <p class="text-white text-sm font-medium">Fluxer</p>
-              {% if web_user.fluxer_id %}<p class="text-xs text-gray-400">{{ web_user.fluxer_username|default:"Connected" }}</p>{% else %}<p class="text-xs text-gray-500">Not connected</p>{% endif %}
-            </div>
-          </div>
-          {% if web_user.fluxer_id %}
-          <div class="flex items-center gap-3">
-            <span class="text-green-400 text-xs"><i class="fas fa-check-circle mr-1"></i>Connected</span>
-            <form method="post" action="{% url 'questlog_web_fluxer_unlink' %}" onsubmit="return confirm('Disconnect Fluxer?');" class="inline">
-              {% csrf_token %}
-              <button type="submit" class="text-red-400 hover:text-red-300 text-xs font-medium transition">Disconnect</button>
-            </form>
-          </div>
-          {% else %}
-          <a href="{% url 'questlog_web_fluxer_link' %}" class="text-xs bg-purple-700 hover:bg-purple-600 text-white px-3 py-1.5 rounded-lg transition">Connect</a>
-          {% endif %}
-        </div>
-        <!-- Matrix / QuestChat -->
-        <div class="flex items-center justify-between p-3 bg-neutral-800/50 rounded-lg">
-          <div class="flex items-center gap-3">
-            <i class="fas fa-comment-dots text-xl text-teal-400"></i>
-            <div>
-              <p class="text-white text-sm font-medium">QuestChat (Matrix)</p>
-              {% if web_user.matrix_id %}<p class="text-xs text-gray-400">{{ web_user.matrix_id }}</p>{% else %}<p class="text-xs text-gray-500">Not connected</p>{% endif %}
-            </div>
-          </div>
-          {% if web_user.matrix_id %}
-          <div class="flex items-center gap-3">
-            <span class="text-green-400 text-xs"><i class="fas fa-check-circle mr-1"></i>Connected</span>
-            <form method="post" action="{% url 'questlog_web_matrix_unlink' %}" onsubmit="return confirm('Disconnect QuestChat account?');" class="inline">
-              {% csrf_token %}
-              <button type="submit" class="text-red-400 hover:text-red-300 text-xs font-medium transition">Disconnect</button>
-            </form>
-          </div>
-          {% else %}
-          <a href="{% url 'questlog_web_matrix_link' %}" class="text-xs bg-teal-700 hover:bg-teal-600 text-white px-3 py-1.5 rounded-lg transition">Connect</a>
-          {% endif %}
-        </div>
-        <!-- Twitch -->
-        <div class="flex items-center justify-between p-3 bg-neutral-800/50 rounded-lg">
-          <div class="flex items-center gap-3">
-            <i class="fab fa-twitch text-xl text-purple-400"></i>
-            <div>
-              <p class="text-white text-sm font-medium">Twitch</p>
-              {% if creator_profile and creator_profile.twitch_user_id %}
-              <p class="text-xs text-purple-300">{{ creator_profile.twitch_display_name }} &middot; {{ creator_profile.twitch_follower_count|default:0 }} followers</p>
-              {% elif web_user.twitch_username %}
-              <p class="text-xs text-gray-400">{{ web_user.twitch_username }}</p>
-              {% else %}
-              <p class="text-xs text-gray-500">Not connected</p>
-              {% endif %}
-            </div>
-          </div>
-          {% if creator_profile and creator_profile.twitch_user_id %}
-          <a href="{% url 'questlog_web_creator_register' %}" class="text-xs text-purple-400 hover:text-purple-300">Manage <i class="fas fa-external-link-alt ml-1"></i></a>
-          {% elif web_user.twitch_username %}
-          <div class="flex items-center gap-3">
-            <span class="text-green-400 text-xs"><i class="fas fa-check-circle mr-1"></i>Connected</span>
-            <a href="https://twitch.tv/{{ web_user.twitch_username }}" target="_blank" rel="noopener" class="text-xs text-purple-400 hover:text-purple-300">View <i class="fas fa-external-link-alt ml-1"></i></a>
-          </div>
-          {% else %}
-          <a href="{% url 'questlog_web_creator_register' %}" class="text-xs bg-neutral-700 hover:bg-neutral-600 text-gray-300 px-3 py-1.5 rounded-lg transition">Connect</a>
-          {% endif %}
-        </div>
-        <!-- YouTube -->
-        <div class="flex items-center justify-between p-3 bg-neutral-800/50 rounded-lg">
-          <div class="flex items-center gap-3">
-            <i class="fab fa-youtube text-xl text-red-500"></i>
-            <div>
-              <p class="text-white text-sm font-medium">YouTube</p>
-              {% if creator_profile and creator_profile.youtube_channel_id %}
-              <p class="text-xs text-red-300">{{ creator_profile.youtube_channel_name }} &middot; {{ creator_profile.youtube_subscriber_count|default:0 }} subs</p>
-              {% elif web_user.youtube_channel_name %}
-              <p class="text-xs text-gray-400">{{ web_user.youtube_channel_name }}</p>
-              {% else %}
-              <p class="text-xs text-gray-500">Not connected</p>
-              {% endif %}
-            </div>
-          </div>
-          {% if creator_profile and creator_profile.youtube_channel_id %}
-          <a href="{% url 'questlog_web_creator_register' %}" class="text-xs text-red-400 hover:text-red-300">Manage <i class="fas fa-external-link-alt ml-1"></i></a>
-          {% elif web_user.youtube_channel_name %}
-          <div class="flex items-center gap-3">
-            <span class="text-green-400 text-xs"><i class="fas fa-check-circle mr-1"></i>Connected</span>
-            <a href="https://youtube.com/@{{ web_user.youtube_channel_name }}" target="_blank" rel="noopener" class="text-xs text-red-400 hover:text-red-300">View <i class="fas fa-external-link-alt ml-1"></i></a>
-          </div>
-          {% else %}
-          <button @click="tab='edit'" class="text-xs bg-neutral-700 hover:bg-neutral-600 text-gray-300 px-3 py-1.5 rounded-lg transition">Add</button>
-          {% endif %}
-        </div>
-        <!-- Creator social links -->
-        {% if creator_profile %}
-          {% if creator_profile.twitter_url %}
-          <div class="flex items-center justify-between p-3 bg-neutral-800/50 rounded-lg">
-            <div class="flex items-center gap-3">
-              <i class="fab fa-x-twitter text-xl text-gray-300"></i>
-              <p class="text-white text-sm font-medium">X / Twitter</p>
-            </div>
-            <a href="{{ creator_profile.twitter_url }}" target="_blank" rel="noopener" class="text-xs text-gray-400 hover:text-white">Open <i class="fas fa-external-link-alt ml-1"></i></a>
-          </div>
-          {% endif %}
-          {% if creator_profile.bluesky_url %}
-          <div class="flex items-center justify-between p-3 bg-neutral-800/50 rounded-lg">
-            <div class="flex items-center gap-3">
-              <i class="fas fa-cloud text-xl text-sky-400"></i>
-              <p class="text-white text-sm font-medium">Bluesky</p>
-            </div>
-            <a href="{{ creator_profile.bluesky_url }}" target="_blank" rel="noopener" class="text-xs text-sky-400 hover:text-sky-300">Open <i class="fas fa-external-link-alt ml-1"></i></a>
-          </div>
-          {% endif %}
-          {% if creator_profile.tiktok_url %}
-          <div class="flex items-center justify-between p-3 bg-neutral-800/50 rounded-lg">
-            <div class="flex items-center gap-3">
-              <i class="fab fa-tiktok text-xl text-pink-400"></i>
-              <p class="text-white text-sm font-medium">TikTok</p>
-            </div>
-            <a href="{{ creator_profile.tiktok_url }}" target="_blank" rel="noopener" class="text-xs text-pink-400 hover:text-pink-300">Open <i class="fas fa-external-link-alt ml-1"></i></a>
-          </div>
-          {% endif %}
-          {% if creator_profile.instagram_url %}
-          <div class="flex items-center justify-between p-3 bg-neutral-800/50 rounded-lg">
-            <div class="flex items-center gap-3">
-              <i class="fab fa-instagram text-xl text-pink-500"></i>
-              <p class="text-white text-sm font-medium">Instagram</p>
-            </div>
-            <a href="{{ creator_profile.instagram_url }}" target="_blank" rel="noopener" class="text-xs text-pink-400 hover:text-pink-300">Open <i class="fas fa-external-link-alt ml-1"></i></a>
-          </div>
-          {% endif %}
-          {% if creator_profile.website_url %}
-          <div class="flex items-center justify-between p-3 bg-neutral-800/50 rounded-lg">
-            <div class="flex items-center gap-3">
-              <i class="fas fa-globe text-xl text-green-400"></i>
-              <p class="text-white text-sm font-medium">Website</p>
-            </div>
-            <a href="{{ creator_profile.website_url }}" target="_blank" rel="noopener" class="text-xs text-green-400 hover:text-green-300">Open <i class="fas fa-external-link-alt ml-1"></i></a>
-          </div>
-          {% endif %}
-        {% endif %}
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wider"><i class="fas fa-link text-indigo-400 mr-1"></i>Connected Accounts</h3>
+        <button @click="tab='connected'; history.replaceState(null,'',location.pathname+'#connected')"
+                class="text-xs bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded-lg transition">Manage</button>
       </div>
-
-      {% if user_communities|length >= 1 %}
-      <!-- Primary Community picker - shown when user belongs to 1+ communities -->
-      <div class="mt-3 pt-3 border-t border-neutral-700/50">
-        <p class="text-sm text-white font-medium flex items-center gap-1.5 mb-1">
-          <i class="fas fa-star text-yellow-400 text-xs"></i>Primary Community
-        </p>
-        <p class="text-xs text-gray-500 mb-2">Shown on your profile and sidebar</p>
-        <div id="primaryCommunityContainer"></div>
-        <p id="primaryCommunityStatus" class="text-xs mt-1.5 hidden"></p>
+      <div class="flex flex-wrap gap-2">
+        {% if web_user.steam_id %}<span class="flex items-center gap-1.5 px-2.5 py-1 bg-blue-900/30 border border-blue-800/40 rounded-lg text-xs text-blue-300"><i class="fab fa-steam"></i>Steam</span>{% endif %}
+        {% if web_user.discord_id %}<span class="flex items-center gap-1.5 px-2.5 py-1 bg-indigo-900/30 border border-indigo-800/40 rounded-lg text-xs text-indigo-300"><i class="fab fa-discord"></i>Discord</span>{% endif %}
+        {% if web_user.fluxer_id %}<span class="flex items-center gap-1.5 px-2.5 py-1 bg-purple-900/30 border border-purple-800/40 rounded-lg text-xs text-purple-300"><span class="font-bold">F</span>Fluxer</span>{% endif %}
+        {% if web_user.matrix_id %}<span class="flex items-center gap-1.5 px-2.5 py-1 bg-teal-900/30 border border-teal-800/40 rounded-lg text-xs text-teal-300"><i class="fas fa-comment-dots"></i>QuestChat</span>{% endif %}
+        {% if web_user.twitch_username %}<span class="flex items-center gap-1.5 px-2.5 py-1 bg-purple-900/30 border border-purple-800/40 rounded-lg text-xs text-purple-300"><i class="fab fa-twitch"></i>Twitch</span>{% endif %}
+        {% if not web_user.steam_id and not web_user.discord_id and not web_user.fluxer_id %}<p class="text-gray-600 text-xs">No accounts connected yet. <button @click="tab='connected'" class="text-indigo-400 hover:underline">Connect one</button></p>{% endif %}
       </div>
-      <script>
-      document.addEventListener('DOMContentLoaded', function() {
-        const communityItems = [
-          {value: '', label: 'None'},
-          {% for c in user_communities %}{value: '{{ c.id }}', label: '{{ c.name }} ({{ c.platform }})'},
-          {% endfor %}
-        ];
-        createCustomSelect({
-          container: document.getElementById('primaryCommunityContainer'),
-          name: 'primaryCommunityId',
-          items: communityItems,
-          selected: '{{ web_user.primary_community_id|default:"" }}',
-          color: 'yellow',
-          placeholder: 'Select community...',
-          onSelect: (val) => savePrimaryCommunity(val),
-        });
-      });
-      </script>
-      {% endif %}
     </div>
 
     <!-- Invite Friends -->
@@ -545,20 +300,21 @@
       </div>
     </div>
 
-    <!-- My Games -->
-    <div class="bg-neutral-900/50 rounded-lg border border-neutral-800 p-6">
-      <h2 class="text-base font-semibold text-white mb-1"><i class="fas fa-gamepad text-green-400 mr-2"></i>My Games</h2>
-      <p class="text-gray-400 text-xs mb-4">Add up to 10 games. They show on your profile and appear as quick-pick buttons when you create an LFG group.</p>
-      <div class="relative mb-3" id="profileGameSearchWrapper">
-        <div class="flex items-center bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 focus-within:border-green-500">
-          <i class="fas fa-search text-gray-500 mr-2 text-sm"></i>
-          <input type="text" id="pe-gameSearch" autocomplete="off" placeholder="Search IGDB to add a game..."
-                 class="flex-1 bg-transparent text-white text-sm focus:outline-none placeholder-gray-500">
+    <!-- Game Library CTA -->
+    <div class="bg-neutral-900/50 rounded-lg border border-indigo-900/40 p-6">
+      <div class="flex items-start gap-4">
+        <div class="w-10 h-10 rounded-xl bg-indigo-600/20 flex items-center justify-center flex-shrink-0">
+          <i class="fas fa-book text-indigo-400"></i>
         </div>
-        <div id="pe-gameSearchResults" class="hidden absolute z-30 w-full mt-1 bg-neutral-800 border border-neutral-700 rounded-lg shadow-xl overflow-hidden max-h-64 overflow-y-auto"></div>
+        <div class="flex-1">
+          <h2 class="text-base font-semibold text-white mb-1">Game Library</h2>
+          <p class="text-gray-400 text-xs mb-3">Your game library is your master list. Add games, set status (Playing, Backlog, Play Together), and they appear as quick-pick pills when you create an LFG group.</p>
+          <button @click="tab='library'; history.replaceState(null,'',location.pathname+'#library')"
+                  class="text-xs bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-lg transition">
+            <i class="fas fa-book mr-1"></i>Manage Library
+          </button>
+        </div>
       </div>
-      <div id="pe-savedGamesList" class="space-y-2"></div>
-      <p id="pe-savedGamesEmpty" class="text-gray-500 text-sm hidden">No games added yet. Search above to add some.</p>
     </div>
 
     <!-- Creator Profile -->
@@ -603,10 +359,16 @@
                  onchange="saveUserPrefs()" class="w-4 h-4 accent-green-500">
           <p class="text-white text-sm">Show my recent activity (groups joined, etc.)</p>
         </label>
-        <label class="flex items-center gap-3 cursor-pointer">
+        <label class="flex items-center gap-3 cursor-pointer p-3 rounded-xl border border-indigo-500/20 bg-indigo-500/5 hover:bg-indigo-500/10 transition">
           <input type="checkbox" id="allowMessages" {% if web_user.allow_messages %}checked{% endif %}
-                 onchange="saveUserPrefs()" class="w-4 h-4 accent-green-500">
-          <p class="text-white text-sm">Allow other users to message me <span class="text-xs text-indigo-400 ml-1">- Site DMs coming soon with E2EE</span></p>
+                 onchange="saveUserPrefs()" class="w-4 h-4 accent-indigo-500 flex-shrink-0">
+          <div>
+            <p class="text-white text-sm font-medium flex items-center gap-2">
+              <i class="fas fa-envelope text-indigo-400 text-xs"></i>
+              Allow other users to message me
+            </p>
+            <p class="text-gray-500 text-xs mt-0.5">Lets mutual follows send you encrypted site DMs. <a href="/messages/" class="text-indigo-400 hover:underline">Open Messages</a></p>
+          </div>
         </label>
         {% if web_user.is_hero %}
         <label class="flex items-center gap-3 cursor-pointer">
@@ -681,6 +443,11 @@
           <p class="text-white text-sm">My LFG group is full</p>
         </label>
         <label class="flex items-center gap-3 cursor-pointer">
+          <input type="checkbox" id="notifyLfgGameOwned" {% if web_user.notify_lfg_game_owned %}checked{% endif %}
+                 onchange="saveUserPrefs()" class="w-4 h-4 accent-yellow-500">
+          <p class="text-white text-sm">LFG group created for a game I own <span class="text-xs text-gray-500">(requires Steam library linked)</span></p>
+        </label>
+        <label class="flex items-center gap-3 cursor-pointer">
           <input type="checkbox" id="notifyNowPlaying" {% if web_user.notify_now_playing %}checked{% endif %}
                  onchange="saveUserPrefs()" class="w-4 h-4 accent-yellow-500">
           <p class="text-white text-sm">Friends start playing a game I play</p>
@@ -736,6 +503,523 @@
 
   </div><!-- /edit -->
 
+  <!-- ══════════════════════════════════════════════════════════════ -->
+  <!-- LIBRARY TAB                                                     -->
+  <!-- ══════════════════════════════════════════════════════════════ -->
+  <div x-show="tab==='library'">
+    {% include "questlog_web/partials/library_content.html" %}
+  </div><!-- /library -->
+
+  <!-- ══════════════════════════════════════════════════════════════ -->
+  <!-- CONNECTED TAB                                                   -->
+  <!-- ══════════════════════════════════════════════════════════════ -->
+  <div x-show="tab==='connected'" class="space-y-5">
+
+    <!-- Connected Accounts -->
+    <div class="bg-neutral-900/50 rounded-lg border border-neutral-800 p-5">
+      <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3"><i class="fas fa-link text-indigo-400 mr-1"></i>Connected Accounts</h3>
+      <div class="space-y-2">
+        <!-- Steam -->
+        <div class="bg-neutral-800/50 rounded-lg overflow-hidden">
+          <div class="flex items-center justify-between p-3">
+            <div class="flex items-center gap-3">
+              <i class="fab fa-steam text-xl text-blue-400"></i>
+              <div>
+                <p class="text-white text-sm font-medium">Steam</p>
+                {% if web_user.steam_id %}<p class="text-xs text-gray-400">{{ web_user.steam_username|default:web_user.steam_id }}</p>{% else %}<p class="text-xs text-gray-500">Not connected</p>{% endif %}
+              </div>
+            </div>
+            {% if web_user.steam_id %}
+            <div class="flex items-center gap-3">
+              <span class="text-green-400 text-xs"><i class="fas fa-check-circle mr-1"></i>Connected</span>
+              <form method="post" action="{% url 'questlog_web_steam_unlink' %}" onsubmit="return confirm('Disconnect Steam? You can re-link anytime.');" class="inline">
+                {% csrf_token %}
+                <button type="submit" class="text-red-400 hover:text-red-300 text-xs font-medium transition">Disconnect</button>
+              </form>
+            </div>
+            {% else %}
+            <a href="{% url 'questlog_web_steam_link' %}" class="text-xs bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg transition">Connect</a>
+            {% endif %}
+          </div>
+          {% if web_user.steam_id %}
+          <div class="border-t border-neutral-700/50 px-4 py-3 bg-neutral-900/30">
+            <p class="text-xs text-gray-400 mb-2 flex items-center gap-1"><i class="fas fa-star text-yellow-500 text-xs"></i>Steam tracking - earn XP automatically</p>
+            <div class="space-y-1.5">
+              <label class="flex items-center gap-2 cursor-pointer group">
+                <input type="checkbox" id="trackAchievements" {% if web_user.track_achievements %}checked{% endif %}
+                       onchange="saveSteamPrefs()" class="rounded bg-neutral-700 border-neutral-600 text-yellow-500">
+                <span class="text-xs text-gray-300 group-hover:text-white transition">Track achievements <span class="text-yellow-500">+5 XP each</span></span>
+              </label>
+              <label class="flex items-center gap-2 cursor-pointer group">
+                <input type="checkbox" id="trackHoursPlayed" {% if web_user.track_hours_played %}checked{% endif %}
+                       onchange="saveSteamPrefs()" class="rounded bg-neutral-700 border-neutral-600 text-yellow-500">
+                <span class="text-xs text-gray-300 group-hover:text-white transition">Track hours played <span class="text-yellow-500">+1 XP / hour</span></span>
+              </label>
+              <label class="flex items-center gap-2 cursor-pointer group">
+                <input type="checkbox" id="showPlayingStatus" {% if web_user.show_playing_status %}checked{% endif %}
+                       onchange="saveSteamPrefs()" class="rounded bg-neutral-700 border-neutral-600 text-cyan-500">
+                <span class="text-xs text-gray-300 group-hover:text-white transition">Show currently playing game <span class="text-cyan-400">neon glow</span></span>
+              </label>
+              <label class="flex items-center gap-2 cursor-pointer group">
+                <input type="checkbox" id="trackGameLaunches" {% if web_user.track_game_launches %}checked{% endif %}
+                       onchange="saveSteamPrefs()" class="rounded bg-neutral-700 border-neutral-600 text-yellow-500">
+                <span class="text-xs text-gray-300 group-hover:text-white transition">Earn XP when launching a game <span class="text-yellow-500">+2 XP</span> <span class="text-gray-500">(30 min cooldown)</span></span>
+              </label>
+              {# fluxer_sync_custom_status: hidden until Fluxer exposes a write scope for custom status #}
+            </div>
+            <div class="mt-2 pt-2 border-t border-neutral-700/40">
+              <p class="text-xs text-gray-400 mb-1.5 flex items-center gap-1"><i class="fas fa-dice text-blue-400 text-xs"></i>SteamQuest</p>
+              <label class="flex items-center gap-2 cursor-pointer group">
+                <input type="checkbox" id="shareSteamLibrary" {% if web_user.share_steam_library %}checked{% endif %}
+                       onchange="saveSteamPrefs()" class="rounded bg-neutral-700 border-neutral-600 text-blue-500">
+                <span class="text-xs text-gray-300 group-hover:text-white transition">Share my library <span class="text-blue-400">- let members see if you own the same game</span></span>
+              </label>
+              <p id="steamLibraryWarning" class="hidden mt-1.5 text-xs text-yellow-400 flex items-start gap-1.5">
+                <i class="fas fa-exclamation-triangle mt-0.5 flex-shrink-0"></i>
+                <span>Your Steam profile appears to be private. Set <strong>Game details</strong> to Public in Steam &rsaquo; Settings &rsaquo; Privacy so your library can be included in community features.</span>
+              </p>
+            </div>
+            <p id="steamPrefsStatus" class="text-xs text-gray-500 mt-1.5 hidden"></p>
+          </div>
+          {% endif %}
+        </div>
+        <!-- Discord -->
+        <div class="flex items-center justify-between p-3 bg-neutral-800/50 rounded-lg">
+          <div class="flex items-center gap-3">
+            <i class="fab fa-discord text-xl text-indigo-400"></i>
+            <div>
+              <p class="text-white text-sm font-medium">Discord</p>
+              {% if web_user.discord_id %}<p class="text-xs text-gray-400">{{ web_user.discord_username|default:"Connected" }}</p>{% else %}<p class="text-xs text-gray-500">Not connected</p>{% endif %}
+            </div>
+          </div>
+          {% if web_user.discord_id %}
+          <div class="flex items-center gap-3">
+            <span class="text-green-400 text-xs"><i class="fas fa-check-circle mr-1"></i>Connected</span>
+            <form method="post" action="{% url 'questlog_web_discord_unlink' %}" onsubmit="return confirm('Disconnect Discord?');" class="inline">
+              {% csrf_token %}
+              <button type="submit" class="text-red-400 hover:text-red-300 text-xs font-medium transition">Disconnect</button>
+            </form>
+          </div>
+          {% else %}
+          <a href="{% url 'questlog_web_discord_link' %}" class="text-xs bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-lg transition">Connect</a>
+          {% endif %}
+        </div>
+        <!-- Fluxer -->
+        <div class="flex items-center justify-between p-3 bg-neutral-800/50 rounded-lg">
+          <div class="flex items-center gap-3">
+            <span class="text-purple-400 text-xl w-5 text-center font-extrabold leading-none">F</span>
+            <div>
+              <p class="text-white text-sm font-medium">Fluxer</p>
+              {% if web_user.fluxer_id %}<p class="text-xs text-gray-400">{{ web_user.fluxer_username|default:"Connected" }}</p>{% else %}<p class="text-xs text-gray-500">Not connected</p>{% endif %}
+            </div>
+          </div>
+          {% if web_user.fluxer_id %}
+          <div class="flex items-center gap-3">
+            <span class="text-green-400 text-xs"><i class="fas fa-check-circle mr-1"></i>Connected</span>
+            <form method="post" action="{% url 'questlog_web_fluxer_unlink' %}" onsubmit="return confirm('Disconnect Fluxer?');" class="inline">
+              {% csrf_token %}
+              <button type="submit" class="text-red-400 hover:text-red-300 text-xs font-medium transition">Disconnect</button>
+            </form>
+          </div>
+          {% else %}
+          <a href="{% url 'questlog_web_fluxer_link' %}" class="text-xs bg-purple-700 hover:bg-purple-600 text-white px-3 py-1.5 rounded-lg transition">Connect</a>
+          {% endif %}
+        </div>
+        <!-- Matrix / QuestChat -->
+        <div class="flex items-center justify-between p-3 bg-neutral-800/50 rounded-lg">
+          <div class="flex items-center gap-3">
+            <i class="fas fa-comment-dots text-xl text-teal-400"></i>
+            <div>
+              <p class="text-white text-sm font-medium">QuestChat (Matrix)</p>
+              {% if web_user.matrix_id %}<p class="text-xs text-gray-400">{{ web_user.matrix_id }}</p>{% else %}<p class="text-xs text-gray-500">Not connected</p>{% endif %}
+            </div>
+          </div>
+          {% if web_user.matrix_id %}
+          <div class="flex items-center gap-3">
+            <span class="text-green-400 text-xs"><i class="fas fa-check-circle mr-1"></i>Connected</span>
+            <form method="post" action="{% url 'questlog_web_matrix_unlink' %}" onsubmit="return confirm('Disconnect QuestChat account?');" class="inline">
+              {% csrf_token %}
+              <button type="submit" class="text-red-400 hover:text-red-300 text-xs font-medium transition">Disconnect</button>
+            </form>
+          </div>
+          {% else %}
+          <a href="{% url 'questlog_web_matrix_link' %}" class="text-xs bg-teal-700 hover:bg-teal-600 text-white px-3 py-1.5 rounded-lg transition">Connect</a>
+          {% endif %}
+        </div>
+        <!-- Stoat -->
+        <div class="bg-neutral-800/50 rounded-lg overflow-hidden">
+          <div class="flex items-center justify-between p-3">
+            <div class="flex items-center gap-3">
+              <i class="fas fa-paw text-xl text-orange-400"></i>
+              <div>
+                <p class="text-white text-sm font-medium">Stoat</p>
+                <p class="text-xs text-gray-500">Invite link for your Stoat server</p>
+              </div>
+            </div>
+            {% if web_user.revolt_url %}
+            <span class="text-green-400 text-xs"><i class="fas fa-check-circle mr-1"></i>Set</span>
+            {% endif %}
+          </div>
+          <div class="border-t border-neutral-700/50 px-4 py-3 bg-neutral-900/30">
+            <input type="url" id="stoatInviteInput" value="{{ web_user.revolt_url|default:'' }}"
+                   placeholder="https://stoat.gg/invite/..."
+                   class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-orange-500 focus:outline-none">
+            <button onclick="saveCommunityLink('revolt_url', 'stoatInviteInput', this)"
+                    class="mt-2 text-xs bg-orange-600/30 hover:bg-orange-600/50 text-orange-300 border border-orange-700/50 px-3 py-1.5 rounded-lg transition">Save</button>
+            {% if web_user.revolt_url %}
+            <button onclick="clearCommunityLink('revolt_url', 'stoatInviteInput', this)"
+                    class="mt-2 ml-2 text-xs text-red-400 hover:text-red-300 transition">Remove</button>
+            {% endif %}
+          </div>
+        </div>
+        <!-- Root -->
+        <div class="bg-neutral-800/50 rounded-lg overflow-hidden">
+          <div class="flex items-center justify-between p-3">
+            <div class="flex items-center gap-3">
+              <i class="fas fa-leaf text-xl text-rose-400"></i>
+              <div>
+                <p class="text-white text-sm font-medium">Root</p>
+                <p class="text-xs text-gray-500">Invite link for your Root server</p>
+              </div>
+            </div>
+            {% if web_user.root_url %}
+            <span class="text-green-400 text-xs"><i class="fas fa-check-circle mr-1"></i>Set</span>
+            {% endif %}
+          </div>
+          <div class="border-t border-neutral-700/50 px-4 py-3 bg-neutral-900/30">
+            <input type="url" id="rootInviteInput" value="{{ web_user.root_url|default:'' }}"
+                   placeholder="https://rootapp.io/invite/..."
+                   class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-rose-500 focus:outline-none">
+            <button onclick="saveCommunityLink('root_url', 'rootInviteInput', this)"
+                    class="mt-2 text-xs bg-rose-600/30 hover:bg-rose-600/50 text-rose-300 border border-rose-700/50 px-3 py-1.5 rounded-lg transition">Save</button>
+            {% if web_user.root_url %}
+            <button onclick="clearCommunityLink('root_url', 'rootInviteInput', this)"
+                    class="mt-2 ml-2 text-xs text-red-400 hover:text-red-300 transition">Remove</button>
+            {% endif %}
+          </div>
+        </div>
+        <!-- Twitch -->
+        <div class="flex items-center justify-between p-3 bg-neutral-800/50 rounded-lg">
+          <div class="flex items-center gap-3">
+            <i class="fab fa-twitch text-xl text-purple-400"></i>
+            <div>
+              <p class="text-white text-sm font-medium">Twitch</p>
+              {% if creator_profile and creator_profile.twitch_user_id %}
+              <p class="text-xs text-purple-300">{{ creator_profile.twitch_display_name }} &middot; {{ creator_profile.twitch_follower_count|default:0 }} followers</p>
+              {% elif web_user.twitch_username %}
+              <p class="text-xs text-gray-400">{{ web_user.twitch_username }}</p>
+              {% else %}
+              <p class="text-xs text-gray-500">Not connected</p>
+              {% endif %}
+            </div>
+          </div>
+          {% if creator_profile and creator_profile.twitch_user_id %}
+          <a href="{% url 'questlog_web_creator_register' %}" class="text-xs text-purple-400 hover:text-purple-300">Manage <i class="fas fa-external-link-alt ml-1"></i></a>
+          {% elif web_user.twitch_username %}
+          <div class="flex items-center gap-3">
+            <span class="text-green-400 text-xs"><i class="fas fa-check-circle mr-1"></i>Connected</span>
+            <a href="https://twitch.tv/{{ web_user.twitch_username }}" target="_blank" rel="noopener" class="text-xs text-purple-400 hover:text-purple-300">View <i class="fas fa-external-link-alt ml-1"></i></a>
+          </div>
+          {% else %}
+          <a href="{% url 'questlog_web_creator_register' %}" class="text-xs bg-neutral-700 hover:bg-neutral-600 text-gray-300 px-3 py-1.5 rounded-lg transition">Connect</a>
+          {% endif %}
+        </div>
+        <!-- YouTube -->
+        <div class="flex items-center justify-between p-3 bg-neutral-800/50 rounded-lg">
+          <div class="flex items-center gap-3">
+            <i class="fab fa-youtube text-xl text-red-500"></i>
+            <div>
+              <p class="text-white text-sm font-medium">YouTube</p>
+              {% if creator_profile and creator_profile.youtube_channel_id %}
+              <p class="text-xs text-red-300">{{ creator_profile.youtube_channel_name }} &middot; {{ creator_profile.youtube_subscriber_count|default:0 }} subs</p>
+              {% elif web_user.youtube_channel_name %}
+              <p class="text-xs text-gray-400">{{ web_user.youtube_channel_name }}</p>
+              {% else %}
+              <p class="text-xs text-gray-500">Not connected</p>
+              {% endif %}
+            </div>
+          </div>
+          {% if creator_profile and creator_profile.youtube_channel_id %}
+          <a href="{% url 'questlog_web_creator_register' %}" class="text-xs text-red-400 hover:text-red-300">Manage <i class="fas fa-external-link-alt ml-1"></i></a>
+          {% elif web_user.youtube_channel_name %}
+          <div class="flex items-center gap-3">
+            <span class="text-green-400 text-xs"><i class="fas fa-check-circle mr-1"></i>Connected</span>
+            <a href="https://youtube.com/@{{ web_user.youtube_channel_name }}" target="_blank" rel="noopener" class="text-xs text-red-400 hover:text-red-300">View <i class="fas fa-external-link-alt ml-1"></i></a>
+          </div>
+          {% else %}
+          <a href="{% url 'questlog_web_creator_register' %}" class="text-xs bg-neutral-700 hover:bg-neutral-600 text-gray-300 px-3 py-1.5 rounded-lg transition">Connect</a>
+          {% endif %}
+        </div>
+        <!-- Creator social links -->
+        {% if creator_profile %}
+          {% if creator_profile.twitter_url %}
+          <div class="flex items-center justify-between p-3 bg-neutral-800/50 rounded-lg">
+            <div class="flex items-center gap-3">
+              <i class="fab fa-x-twitter text-xl text-gray-300"></i>
+              <p class="text-white text-sm font-medium">X / Twitter</p>
+            </div>
+            <a href="{{ creator_profile.twitter_url }}" target="_blank" rel="noopener" class="text-xs text-gray-400 hover:text-white">Open <i class="fas fa-external-link-alt ml-1"></i></a>
+          </div>
+          {% endif %}
+          {% if creator_profile.bluesky_url %}
+          <div class="flex items-center justify-between p-3 bg-neutral-800/50 rounded-lg">
+            <div class="flex items-center gap-3">
+              <i class="fas fa-cloud text-xl text-sky-400"></i>
+              <p class="text-white text-sm font-medium">Bluesky</p>
+            </div>
+            <a href="{{ creator_profile.bluesky_url }}" target="_blank" rel="noopener" class="text-xs text-sky-400 hover:text-sky-300">Open <i class="fas fa-external-link-alt ml-1"></i></a>
+          </div>
+          {% endif %}
+          {% if creator_profile.tiktok_url %}
+          <div class="flex items-center justify-between p-3 bg-neutral-800/50 rounded-lg">
+            <div class="flex items-center gap-3">
+              <i class="fab fa-tiktok text-xl text-pink-400"></i>
+              <p class="text-white text-sm font-medium">TikTok</p>
+            </div>
+            <a href="{{ creator_profile.tiktok_url }}" target="_blank" rel="noopener" class="text-xs text-pink-400 hover:text-pink-300">Open <i class="fas fa-external-link-alt ml-1"></i></a>
+          </div>
+          {% endif %}
+          {% if creator_profile.instagram_url %}
+          <div class="flex items-center justify-between p-3 bg-neutral-800/50 rounded-lg">
+            <div class="flex items-center gap-3">
+              <i class="fab fa-instagram text-xl text-pink-500"></i>
+              <p class="text-white text-sm font-medium">Instagram</p>
+            </div>
+            <a href="{{ creator_profile.instagram_url }}" target="_blank" rel="noopener" class="text-xs text-pink-400 hover:text-pink-300">Open <i class="fas fa-external-link-alt ml-1"></i></a>
+          </div>
+          {% endif %}
+          {% if creator_profile.website_url %}
+          <div class="flex items-center justify-between p-3 bg-neutral-800/50 rounded-lg">
+            <div class="flex items-center gap-3">
+              <i class="fas fa-globe text-xl text-green-400"></i>
+              <p class="text-white text-sm font-medium">Website</p>
+            </div>
+            <a href="{{ creator_profile.website_url }}" target="_blank" rel="noopener" class="text-xs text-green-400 hover:text-green-300">Open <i class="fas fa-external-link-alt ml-1"></i></a>
+          </div>
+          {% endif %}
+        {% endif %}
+      </div>
+
+      {% if user_communities|length >= 1 %}
+      <!-- Primary Community picker -->
+      <div class="mt-3 pt-3 border-t border-neutral-700/50">
+        <p class="text-sm text-white font-medium flex items-center gap-1.5 mb-1">
+          <i class="fas fa-star text-yellow-400 text-xs"></i>Primary Community
+        </p>
+        <p class="text-xs text-gray-500 mb-2">Shown on your profile and sidebar</p>
+        <div id="primaryCommunityContainer"></div>
+        <p id="primaryCommunityStatus" class="text-xs mt-1.5 hidden"></p>
+      </div>
+      <script>
+      document.addEventListener('DOMContentLoaded', function() {
+        const communityItems = [
+          {value: '', label: 'None'},
+          {% for c in user_communities %}{value: '{{ c.id }}', label: '{{ c.name }} ({{ c.platform }})'},
+          {% endfor %}
+        ];
+        createCustomSelect({
+          container: document.getElementById('primaryCommunityContainer'),
+          name: 'primaryCommunityId',
+          items: communityItems,
+          selected: '{{ web_user.primary_community_id|default:"" }}',
+          color: 'yellow',
+          placeholder: 'Select community...',
+          onSelect: (val) => savePrimaryCommunity(val),
+        });
+      });
+      </script>
+      {% endif %}
+    </div>
+
+  </div><!-- /connected -->
+
+  <!-- ══════════════════════════════════════════════════════════════ -->
+  <!-- ACHIEVEMENTS TAB                                               -->
+  <!-- ══════════════════════════════════════════════════════════════ -->
+  <div x-show="tab==='achievements'" class="space-y-5">
+
+    <!-- Site Achievements -->
+    <div class="bg-neutral-900/50 rounded-lg border border-neutral-800 p-5">
+      <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4"><i class="fas fa-star text-yellow-400 mr-1"></i>Site Achievements</h3>
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+
+        <!-- Level -->
+        <div class="bg-neutral-800/60 rounded-lg p-4 flex items-center gap-3">
+          <div class="w-10 h-10 rounded-full bg-yellow-500/20 flex items-center justify-center flex-shrink-0">
+            <i class="fas fa-star text-yellow-400 text-lg"></i>
+          </div>
+          <div>
+            <p class="text-white font-semibold text-lg">Level {{ web_user.web_level|default:"1" }}</p>
+            <p class="text-gray-400 text-xs">{{ web_user.web_xp|default:"0" }} total XP</p>
+          </div>
+        </div>
+
+        <!-- Legacy Mark -->
+        <div class="bg-neutral-800/60 rounded-lg p-4 flex items-center gap-3">
+          <div class="w-10 h-10 rounded-full bg-purple-500/20 flex items-center justify-center flex-shrink-0">
+            {% with t=web_user.legacy_tier|default:1 %}
+            {% if t == 1 %}<img src="{% static 'img/legacy/Common.png' %}" class="w-6 h-6 object-contain">
+            {% elif t == 2 %}<img src="{% static 'img/legacy/Rare.png' %}" class="w-6 h-6 object-contain">
+            {% elif t == 3 %}<img src="{% static 'img/legacy/Epic.png' %}" class="w-6 h-6 object-contain">
+            {% elif t == 4 %}<img src="{% static 'img/legacy/Legendary.png' %}" class="w-6 h-6 object-contain">
+            {% elif t == 5 %}<img src="{% static 'img/legacy/Mythic.png' %}" class="w-6 h-6 object-contain">
+            {% endif %}
+            {% endwith %}
+          </div>
+          <div>
+            {% with t=web_user.legacy_tier|default:1 %}
+            <p class="font-semibold text-lg {% if t == 1 %}text-gray-400{% elif t == 2 %}text-blue-400{% elif t == 3 %}text-purple-400{% elif t == 4 %}text-orange-400{% elif t == 5 %}text-yellow-400{% endif %}">
+              {% if t == 1 %}Wanderer{% elif t == 2 %}Ranger{% elif t == 3 %}Warden{% elif t == 4 %}Champion{% elif t == 5 %}Ascendant{% endif %}
+            </p>
+            {% endwith %}
+            <p class="text-gray-400 text-xs">{{ web_user.legacy_score|default:"0" }} Legacy Score</p>
+          </div>
+        </div>
+
+        <!-- Hero Points -->
+        <div class="bg-neutral-800/60 rounded-lg p-4 flex items-center gap-3">
+          <div class="w-10 h-10 rounded-full bg-rose-500/20 flex items-center justify-center flex-shrink-0">
+            <i class="fas fa-fire text-rose-400 text-lg"></i>
+          </div>
+          <div>
+            <p class="text-white font-semibold text-lg">{{ web_user.hero_points|default:"0" }}</p>
+            <p class="text-gray-400 text-xs">Hero Points earned</p>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- FFXIV Achievements -->
+    {% if ffxiv_char %}
+    <div class="bg-neutral-900/50 rounded-lg border border-neutral-800 p-5">
+      <div class="flex items-center gap-3 mb-4">
+        <img src="{% static 'img/games/guilds/ffxiv_logo.png' %}" class="w-5 h-5 object-contain">
+        <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wider">FFXIV Achievements</h3>
+      </div>
+      <!-- Character strip -->
+      <div class="flex items-center gap-3 bg-neutral-800/60 rounded-lg p-3 mb-4">
+        {% if ffxiv_char.avatar_url %}
+        <img src="{{ ffxiv_char.avatar_url }}" alt="{{ ffxiv_char.character_name }}" class="w-10 h-10 rounded-lg object-cover flex-shrink-0">
+        {% endif %}
+        <div class="min-w-0">
+          <p class="text-white font-medium text-sm">{{ ffxiv_char.character_name }}</p>
+          <p class="text-gray-400 text-xs">{{ ffxiv_char.world }} - {{ ffxiv_char.datacenter }}{% if ffxiv_char.active_job %} &middot; {{ ffxiv_char.active_job }}{% endif %}</p>
+        </div>
+        <span class="ml-auto text-xs text-gray-500">{{ ffxiv_rewards|length }} tracked</span>
+      </div>
+      {% if ffxiv_rewards %}
+      <div class="space-y-1 max-h-72 overflow-y-auto pr-1">
+        {% for r in ffxiv_rewards %}
+        <div class="flex items-center justify-between py-1.5 px-2 rounded hover:bg-neutral-800/40 transition">
+          <span class="text-gray-300 text-sm truncate mr-3">{{ r.name }}</span>
+          <div class="flex items-center gap-2 flex-shrink-0">
+            {% if r.xp %}<span class="text-yellow-400 text-xs font-medium">+{{ r.xp }} XP</span>{% endif %}
+            {% if r.legacy %}<span class="text-purple-400 text-xs font-medium">+{{ r.legacy }} Legacy</span>{% endif %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p class="text-gray-500 text-sm text-center py-4">No achievements tracked yet - sync your character to start earning XP.</p>
+      {% endif %}
+    </div>
+    {% elif web_user.track_achievements %}
+    <div class="bg-neutral-900/50 rounded-lg border border-neutral-800 p-5">
+      <div class="flex items-center gap-3 mb-3">
+        <img src="{% static 'img/games/guilds/ffxiv_logo.png' %}" class="w-5 h-5 object-contain">
+        <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wider">FFXIV Achievements</h3>
+      </div>
+      <p class="text-gray-500 text-sm">No linked FFXIV character found. <a href="{% url 'questlog_web_profile' %}#connected" class="text-indigo-400 hover:underline">Connect your character</a> in the Connected tab.</p>
+    </div>
+    {% endif %}
+
+    <!-- Steam Achievements -->
+    {% if web_user.steam_id %}
+    <div class="bg-neutral-900/50 rounded-lg border border-neutral-800 p-5">
+      <!-- Header row -->
+      <div class="flex items-center justify-between mb-4">
+        <div class="flex items-center gap-3">
+          <i class="fab fa-steam text-blue-400 text-lg"></i>
+          <div>
+            <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wider">Steam Achievement Showcase</h3>
+            <p class="text-xs text-gray-600 mt-0.5">Pin up to 10 achievements on your public profile</p>
+          </div>
+        </div>
+        <button id="ach-sync-btn" onclick="syncAchievements()" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-neutral-700 hover:bg-neutral-600 text-gray-200 transition flex items-center gap-1.5">
+          <i class="fab fa-steam"></i> Sync Achievements
+        </button>
+      </div>
+
+      <!-- Stats row (shown after sync) -->
+      <div id="ach-stats-row" class="{% if not web_user.steam_achievements_total %}hidden {% endif %}grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
+        <div class="bg-neutral-800/60 rounded-lg p-3 text-center">
+          <p class="text-white font-bold text-xl" id="ach-total-count">{{ web_user.steam_achievements_total|default:"0" }}</p>
+          <p class="text-gray-400 text-xs mt-0.5">Achievements Earned</p>
+        </div>
+        {% if steam_ach_events %}{% with s=steam_ach_events.0 %}
+        {% if s.xp_today %}
+        <div class="bg-neutral-800/60 rounded-lg p-3 text-center">
+          <p class="text-yellow-400 font-bold text-xl">+{{ s.xp_today }}</p>
+          <p class="text-gray-400 text-xs mt-0.5">XP earned today (1 per unlock, 50/day max)</p>
+        </div>
+        {% endif %}
+        <div class="bg-neutral-800/60 rounded-lg p-3 text-center col-span-2 sm:col-span-1">
+          <p class="text-blue-400 font-bold text-xl">{{ s.count }}</p>
+          <p class="text-gray-400 text-xs mt-0.5">New Since Tracking</p>
+        </div>
+        {% endwith %}{% endif %}
+      </div>
+
+      <!-- Never-synced prompt -->
+      <div id="ach-no-sync-msg" class="{% if web_user.steam_achievements_total %}hidden {% endif %}bg-neutral-800/40 rounded-lg p-4 mb-4 text-center">
+        <p class="text-gray-400 text-sm mb-1">No achievements synced yet.</p>
+        <p class="text-gray-600 text-xs">Click "Sync Achievements" above - this pulls all your unlocked achievements with icons. May take a minute for large libraries.</p>
+      </div>
+
+      <!-- Current showcase pinned strip -->
+      <div class="border-t border-neutral-800 pt-4 mb-4">
+        <div class="flex items-center justify-between mb-2">
+          <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Pinned to Profile</p>
+          <button onclick="saveShowcase()" id="showcase-save-btn" class="hidden px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white transition">Save Showcase</button>
+        </div>
+        <div id="showcase-pinned" class="flex flex-wrap gap-2 min-h-[52px]">
+          <div class="text-gray-600 text-xs flex items-center gap-2"><i class="fas fa-spinner fa-spin"></i>Loading...</div>
+        </div>
+      </div>
+
+      <!-- Picker: game filter (custom select) + achievement rows -->
+      <div class="border-t border-neutral-800 pt-4">
+        <div class="flex items-center justify-between mb-3">
+          <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Browse Your Achievements</p>
+          <span id="ach-pinned-count" class="text-xs text-gray-500">0 / 10 pinned</span>
+        </div>
+        <!-- Game multi-select filter -->
+        <div id="ach-game-select-wrap" class="mb-3"></div>
+        <!-- Achievement list -->
+        <div id="ach-picker-grid" class="flex flex-col gap-1.5 max-h-[420px] overflow-y-auto">
+          <div class="text-center py-6 text-gray-600 text-xs" id="ach-empty-msg"><i class="fas fa-sync fa-spin mr-1"></i>Loading achievements...</div>
+        </div>
+        <!-- Pagination -->
+        <div id="ach-pagination" class="flex items-center justify-between mt-3 hidden">
+          <button id="ach-prev-btn" onclick="loadAchievements(achPage-1)" class="px-3 py-1.5 text-xs bg-neutral-700 hover:bg-neutral-600 text-gray-300 rounded-lg transition disabled:opacity-40">Prev</button>
+          <span id="ach-page-info" class="text-xs text-gray-500"></span>
+          <button id="ach-next-btn" onclick="loadAchievements(achPage+1)" class="px-3 py-1.5 text-xs bg-neutral-700 hover:bg-neutral-600 text-gray-300 rounded-lg transition disabled:opacity-40">Next</button>
+        </div>
+      </div>
+    </div>
+    {% else %}
+    <div class="bg-neutral-900/50 rounded-lg border border-neutral-800 p-5">
+      <div class="flex items-center gap-3 mb-3">
+        <i class="fab fa-steam text-blue-400"></i>
+        <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wider">Steam Achievements</h3>
+      </div>
+      <p class="text-gray-500 text-sm">No Steam account linked. <a href="{% url 'questlog_web_profile' %}#connected" class="text-indigo-400 hover:underline">Connect Steam</a> in the Connected tab to start tracking achievements.</p>
+    </div>
+    {% endif %}
+
+  </div><!-- /achievements -->
+
 </div><!-- /x-data -->
 
 <!-- Delete modal -->
@@ -767,7 +1051,6 @@
 {{ playstyle_list|default:"[]"|json_script:"profile-playstyle-data" }}
 {{ gaming_platforms_list|default:"[]"|json_script:"profile-platforms-data" }}
 {{ favorite_genres_list|default:"[]"|json_script:"profile-genres-data" }}
-{{ favorite_games_list|json_script:"profile-games-data" }}
 {% include "questlog/partials/custom_select.html" %}
 <script>
 (function() {
@@ -799,7 +1082,7 @@
   // ── Active flair ──────────────────────────────────────────────
   async function loadActiveFlair() {
     try {
-      const res  = await csrfFetch('/ql/api/flairs/');
+      const res  = await csrfFetch('/api/flairs/');
       const data = await res.json();
       document.getElementById('flair-loading').classList.add('hidden');
       const eq   = data.flairs && data.flairs.find(f => f.equipped);
@@ -821,7 +1104,7 @@
 
   window.unequipFlair = async function() {
     try {
-      const res  = await csrfFetch('/ql/api/flairs/unequip/', { method: 'POST' });
+      const res  = await csrfFetch('/api/flairs/unequip/', { method: 'POST' });
       const data = await res.json();
       if (data.success) {
         document.getElementById('profile-flair-badge').textContent = '';
@@ -874,93 +1157,6 @@
     multiSelect:  true,
   });
 
-  // ── My Games ────────────────────────────────────────────────────
-  let _profileGames = JSON.parse(document.getElementById('profile-games-data').textContent || '[]');
-  // Normalize legacy string entries to objects
-  _profileGames = _profileGames.map(g => typeof g === 'string' ? {name: g, igdb_id: null, cover_url: ''} : g);
-
-  function _renderProfileGames() {
-    const list  = document.getElementById('pe-savedGamesList');
-    const empty = document.getElementById('pe-savedGamesEmpty');
-    if (!list) return;
-    list.innerHTML = '';
-    if (!_profileGames.length) { empty.classList.remove('hidden'); return; }
-    empty.classList.add('hidden');
-    _profileGames.forEach(function(g, idx) {
-      const row = document.createElement('div');
-      row.className = 'flex items-center gap-3 bg-neutral-800/50 border border-neutral-700 rounded-lg px-3 py-2';
-      row.innerHTML = (g.cover_url
-        ? `<img src="${escapeHtml(g.cover_url)}" class="w-8 h-11 rounded object-cover flex-shrink-0">`
-        : `<div class="w-8 h-11 rounded bg-neutral-700 flex items-center justify-center flex-shrink-0"><i class="fas fa-gamepad text-gray-500 text-xs"></i></div>`)
-        + `<span class="text-white text-sm flex-1 truncate">${escapeHtml(g.name)}</span>`
-        + `<button type="button" onclick="_removeProfileGame(${idx})" class="text-gray-500 hover:text-red-400 transition ml-auto flex-shrink-0" title="Remove"><i class="fas fa-times text-sm"></i></button>`;
-      list.appendChild(row);
-    });
-  }
-
-  window._removeProfileGame = function(idx) {
-    _profileGames.splice(idx, 1);
-    _renderProfileGames();
-  };
-
-  function _addProfileGame(game) {
-    if (_profileGames.length >= 10) { alert('You can save up to 10 games.'); return; }
-    if (_profileGames.some(g => g.name.toLowerCase() === game.name.toLowerCase())) return;
-    _profileGames.push({name: game.name, igdb_id: game.id || null, cover_url: game.cover_url || ''});
-    _renderProfileGames();
-    const inp = document.getElementById('pe-gameSearch');
-    const res = document.getElementById('pe-gameSearchResults');
-    if (inp) inp.value = '';
-    if (res) res.classList.add('hidden');
-  }
-
-  let _pgSearchTimeout = null;
-  const _peGameInput = document.getElementById('pe-gameSearch');
-  const _peGameResults = document.getElementById('pe-gameSearchResults');
-
-  if (_peGameInput) {
-    _peGameInput.addEventListener('input', function() {
-      clearTimeout(_pgSearchTimeout);
-      const q = this.value.trim();
-      if (q.length < 2) { _peGameResults.classList.add('hidden'); return; }
-      _pgSearchTimeout = setTimeout(async function() {
-        _peGameResults.innerHTML = '<div class="px-4 py-3 text-gray-500 text-sm"><i class="fas fa-spinner fa-spin mr-2"></i>Searching...</div>';
-        _peGameResults.classList.remove('hidden');
-        try {
-          const res = await fetch('/ql/api/igdb/search/?q=' + encodeURIComponent(q) + '&limit=8');
-          const data = await res.json();
-          const games = data.games || [];
-          if (!games.length) {
-            _peGameResults.innerHTML = '<div class="px-4 py-3 text-gray-400 text-sm">No results found.</div>';
-            return;
-          }
-          _peGameResults.innerHTML = '';
-          games.forEach(function(game) {
-            const item = document.createElement('button');
-            item.type = 'button';
-            item.className = 'w-full flex items-center gap-3 px-4 py-3 hover:bg-neutral-700 transition text-left border-b border-neutral-700/50 last:border-0';
-            item.innerHTML = (game.cover_url
-              ? `<img src="${escapeHtml(game.cover_url)}" class="w-8 h-11 rounded object-cover flex-shrink-0">`
-              : `<div class="w-8 h-11 rounded bg-neutral-600 flex items-center justify-center flex-shrink-0"><i class="fas fa-gamepad text-gray-400 text-xs"></i></div>`)
-              + `<div class="min-w-0"><span class="text-white text-sm font-medium block truncate">${escapeHtml(game.name)}</span>${game.release_year ? `<span class="text-gray-500 text-xs">${game.release_year}</span>` : ''}</div>`
-              + `<span class="ml-auto text-green-400 text-xs flex-shrink-0"><i class="fas fa-plus"></i></span>`;
-            item.addEventListener('click', function() { _addProfileGame(game); });
-            _peGameResults.appendChild(item);
-          });
-        } catch(e) {
-          _peGameResults.innerHTML = '<div class="px-4 py-3 text-gray-400 text-sm">Search failed.</div>';
-        }
-      }, 250);
-    });
-
-    document.addEventListener('click', function(e) {
-      const wrapper = document.getElementById('profileGameSearchWrapper');
-      if (wrapper && !wrapper.contains(e.target)) _peGameResults.classList.add('hidden');
-    });
-
-    _renderProfileGames();
-  }
-
   // ── Avatar preview ─────────────────────────────────────────────
   window.previewAvatar = function(url) {
     const el = document.getElementById('avatarPreview');
@@ -985,12 +1181,11 @@
       playstyle:        playstyleSelect.getValue(),
       gaming_platforms: platformSelect.getValue(),
       favorite_genres:  genreSelect.getValue(),
-      favorite_games:   _profileGames,
       allow_discovery:  document.getElementById('pe-discovery').checked,
     };
 
     try {
-      const res  = await csrfFetch('/ql/api/profile/update/', {
+      const res  = await csrfFetch('/api/profile/update/', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -1015,18 +1210,44 @@
     btn.innerHTML = '<i class="fas fa-save mr-2"></i>Save Changes';
   };
 
+  // ── Community invite links (Stoat / Root) ────────────────────
+  window.saveCommunityLink = async function(field, inputId, btn) {
+    const val = document.getElementById(inputId).value.trim();
+    btn.disabled = true;
+    btn.textContent = 'Saving...';
+    try {
+      const res = await csrfFetch('{% url "questlog_web_api_profile_update" %}', {
+        method: 'PUT',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({[field]: val || null}),
+      });
+      const d = await res.json();
+      btn.textContent = d.id ? 'Saved!' : 'Failed';
+      setTimeout(() => { btn.textContent = 'Save'; btn.disabled = false; }, 1500);
+    } catch(e) {
+      btn.textContent = 'Error'; btn.disabled = false;
+    }
+  };
+  window.clearCommunityLink = async function(field, inputId, btn) {
+    document.getElementById(inputId).value = '';
+    await window.saveCommunityLink(field, inputId, btn);
+  };
+
   // ── Steam prefs ───────────────────────────────────────────────
   window.saveSteamPrefs = async function() {
     const status = document.getElementById('steamPrefsStatus');
+    const libWarning = document.getElementById('steamLibraryWarning');
+    const shareEl = document.getElementById('shareSteamLibrary');
     const data = {
       track_achievements:        document.getElementById('trackAchievements').checked,
       track_hours_played:        document.getElementById('trackHoursPlayed').checked,
       show_playing_status:       document.getElementById('showPlayingStatus').checked,
       track_game_launches:       document.getElementById('trackGameLaunches').checked,
+      share_steam_library:       shareEl ? shareEl.checked : false,
       // fluxer_sync_custom_status: hidden until Fluxer exposes a write scope
     };
     try {
-      const res    = await csrfFetch('/ql/api/profile/steam-prefs/', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(data) });
+      const res    = await csrfFetch('/api/profile/steam-prefs/', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(data) });
       const result = await res.json();
       status.textContent  = result.success ? 'Saved!' : (result.error || 'Failed.');
       status.className    = `text-xs mt-1.5 ${result.success ? 'text-green-400' : 'text-red-400'}`;
@@ -1036,7 +1257,41 @@
     }
     status.classList.remove('hidden');
     setTimeout(() => status.classList.add('hidden'), 2500);
+
+    // If sharing was just enabled, verify the library is accessible
+    if (shareEl && shareEl.checked && libWarning) {
+      try {
+        const libRes = await csrfFetch('/api/steamquest/library/');
+        const libData = await libRes.json();
+        if (!libData.ok) {
+          libWarning.classList.remove('hidden');
+        } else {
+          libWarning.classList.add('hidden');
+        }
+      } catch(e) {
+        libWarning.classList.remove('hidden');
+      }
+    } else if (libWarning) {
+      libWarning.classList.add('hidden');
+    }
   };
+
+  // Check library status on page load if sharing is already enabled
+  document.addEventListener('DOMContentLoaded', function() {
+    const shareEl = document.getElementById('shareSteamLibrary');
+    const libWarning = document.getElementById('steamLibraryWarning');
+    if (shareEl && shareEl.checked && libWarning) {
+      csrfFetch('/api/steamquest/library/').then(r => r.json()).then(d => {
+        if (!d.ok) libWarning.classList.remove('hidden');
+      }).catch(() => libWarning.classList.remove('hidden'));
+    }
+
+    // Init achievement picker if Steam linked
+    if (document.getElementById('ach-picker-grid')) {
+      loadShowcasePinned();
+      loadAchievements(1);
+    }
+  });
 
   // ── Upload avatar file ────────────────────────────────────────
   window.uploadAvatarFile = async function(input) {
@@ -1044,17 +1299,17 @@
     const status = document.getElementById('avatarUploadStatus');
     status.textContent = 'Uploading…';
     const formData = new FormData();
-    formData.append('avatar', input.files[0]);
+    formData.append('image', input.files[0]);
     try {
-      const res  = await csrfFetch('/ql/api/profile/upload-avatar/', { method: 'POST', body: formData });
+      const res  = await csrfFetch('/api/upload/avatar/', { method: 'POST', body: formData });
       const data = await res.json();
-      if (data.success && data.url) {
-        document.getElementById('pe-avatarUrl').value = data.url;
+      if (data.success && data.avatar_url) {
+        document.getElementById('pe-avatarUrl').value = data.avatar_url;
         const preview = document.getElementById('avatarPreview');
         if (preview.tagName === 'IMG') {
-          preview.src = data.url;
+          preview.src = data.avatar_url;
         } else {
-          preview.outerHTML = `<img id="avatarPreview" src="${data.url}" class="w-20 h-20 rounded-xl object-cover">`;
+          preview.outerHTML = `<img id="avatarPreview" src="${data.avatar_url}" class="w-20 h-20 rounded-xl object-cover">`;
         }
         status.textContent = 'Uploaded!';
         status.className   = 'text-xs text-green-400';
@@ -1074,7 +1329,7 @@
     const status = document.getElementById('avatarUploadStatus');
     status.textContent = 'Pulling…';
     try {
-      const res  = await csrfFetch('/ql/api/profile/pull-avatar/', {
+      const res  = await csrfFetch('/api/profile/pull-avatar/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ source }),
@@ -1115,16 +1370,17 @@
       notify_comment_likes:  document.getElementById('notifyCommentLikes')?.checked ?? false,
       notify_shares:         document.getElementById('notifyShares')?.checked ?? false,
       notify_mentions:       document.getElementById('notifyMentions')?.checked ?? false,
-      notify_lfg_join:       document.getElementById('notifyLfgJoin')?.checked ?? false,
+      notify_lfg_join:        document.getElementById('notifyLfgJoin')?.checked ?? false,
       notify_lfg_leave:      document.getElementById('notifyLfgLeave')?.checked ?? false,
-      notify_lfg_full:       document.getElementById('notifyLfgFull')?.checked ?? false,
+      notify_lfg_full:        document.getElementById('notifyLfgFull')?.checked ?? false,
+      notify_lfg_game_owned:  document.getElementById('notifyLfgGameOwned')?.checked ?? false,
       notify_now_playing:    document.getElementById('notifyNowPlaying')?.checked ?? false,
       notify_giveaways:      document.getElementById('notifyGiveaways')?.checked ?? false,
       notify_community_join: document.getElementById('notifyCommunity')?.checked ?? false,
       notify_level_up:       document.getElementById('notifyLevelUp')?.checked ?? false,
     };
     try {
-      const res  = await csrfFetch('/ql/api/profile/user-prefs/', {
+      const res  = await csrfFetch('/api/profile/user-prefs/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -1153,7 +1409,7 @@
     status.className = 'text-xs mt-1.5 text-gray-400';
     status.classList.remove('hidden');
     try {
-      const res = await csrfFetch('/ql/api/profile/update/', {
+      const res = await csrfFetch('/api/profile/update/', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ primary_community_id: communityId || null }),
@@ -1177,7 +1433,7 @@
   // ── Invite link ───────────────────────────────────────────────
   async function loadInviteLink() {
     try {
-      const res  = await csrfFetch('/ql/api/invite/');
+      const res  = await csrfFetch('/api/invite/');
       const data = await res.json();
       if (data.invite_url) {
         document.getElementById('inviteLinkInput').value = data.invite_url;
@@ -1266,6 +1522,160 @@
   };
 })();
 
+// ── Achievement showcase picker (global scope - called from onclick) ──────────
+var achPage = 1, achPinnedIds = new Set(), achSelectedGames = [], achGameSelectInst = null, achPinnedCache = {};
+
+function initAchGameSelect(game_names) {
+  var wrap = document.getElementById('ach-game-select-wrap');
+  if (!wrap || achGameSelectInst) return;
+  if (!game_names || !game_names.length) {
+    wrap.innerHTML = '<p class="text-gray-600 text-xs">Sync achievements first to see your games.</p>';
+    return;
+  }
+  wrap.innerHTML = '';
+  var items = game_names.map(function(n) { return {value: n, label: n}; });
+  achGameSelectInst = createCustomSelect({
+    container: wrap,
+    name: 'ach_game_filter',
+    id: 'ach_game_filter',
+    placeholder: 'Filter by game (select one or more)...',
+    items: items,
+    multiSelect: true,
+    onSelect: function(vals) { achSelectedGames = vals; loadAchievements(1); },
+  });
+}
+
+function loadAchievements(page) {
+  achPage = page;
+  var grid = document.getElementById('ach-picker-grid');
+  if (!grid) return;
+  grid.innerHTML = '<div class="text-center py-6 text-gray-600 text-xs"><i class="fas fa-spinner fa-spin mr-1"></i>Loading...</div>';
+  var url = '/api/steam/achievements/?page=' + page;
+  if (achSelectedGames.length === 1) { url += '&game_name=' + encodeURIComponent(achSelectedGames[0]); }
+  else if (achSelectedGames.length > 1) { achSelectedGames.forEach(function(g) { url += '&games[]=' + encodeURIComponent(g); }); }
+  fetch(url).then(function(r) { return r.json(); }).then(function(data) {
+    if (!data.ok) { grid.innerHTML = '<div class="text-center py-6 text-gray-500 text-xs">No achievements synced yet. Click "Sync Achievements" above.</div>'; return; }
+    if (!achGameSelectInst) initAchGameSelect(data.game_names);
+    var achs = data.achievements;
+    var total = data.total || 0, pages = Math.ceil(total / data.per_page);
+    var pag = document.getElementById('ach-pagination'), info = document.getElementById('ach-page-info');
+    if (pag && total > data.per_page) {
+      pag.classList.remove('hidden');
+      if (info) info.textContent = 'Page ' + page + ' of ' + pages + ' (' + total + ' total)';
+      document.getElementById('ach-prev-btn').disabled = page <= 1;
+      document.getElementById('ach-next-btn').disabled = page >= pages;
+    } else if (pag) { pag.classList.add('hidden'); }
+    var esc = function(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); };
+    if (!achs.length) { grid.innerHTML = '<div class="text-center py-6 text-gray-500 text-xs">No achievements found.</div>'; return; }
+    achs.forEach(function(a) { achPinnedCache[a.id] = {icon_url: a.icon_url, display_name: a.display_name, game_name: a.game_name}; });
+    grid.innerHTML = achs.map(function(a) {
+      var pinned = achPinnedIds.has(a.id);
+      var borderCls = pinned ? 'border-yellow-500 bg-yellow-500/5' : 'border-neutral-700 hover:border-indigo-500/60 bg-neutral-800/40';
+      var icon = a.icon_url
+        ? '<img src="' + esc(a.icon_url) + '" class="w-10 h-10 rounded flex-shrink-0 object-cover" alt="" loading="lazy">'
+        : '<div class="w-10 h-10 rounded flex-shrink-0 bg-neutral-800 flex items-center justify-center"><i class="fas fa-trophy text-gray-600 text-sm"></i></div>';
+      var pinnedBadge = pinned
+        ? '<span class="text-[10px] text-yellow-400 font-semibold"><i class="fas fa-check mr-0.5"></i>Pinned</span>'
+        : '<span class="text-[10px] text-gray-600 group-hover:text-indigo-400 transition">Click to pin</span>';
+      var desc = a.description ? '<p class="text-[11px] text-gray-500 leading-snug mt-0.5 line-clamp-2">' + esc(a.description) + '</p>' : '';
+      var gameLabel = '<p class="text-[10px] text-gray-600 truncate">' + esc(a.game_name) + '</p>';
+      return '<div class="flex items-center gap-3 p-2.5 rounded-lg border cursor-pointer transition group ' + borderCls + '" onclick="toggleShowcasePin(' + a.id + ')" data-ach-id="' + a.id + '">'
+        + icon + '<div class="flex-1 min-w-0"><p class="text-xs text-white font-medium leading-snug">' + esc(a.display_name) + '</p>' + gameLabel + desc + '</div>'
+        + '<div class="flex-shrink-0 pl-2">' + pinnedBadge + '</div></div>';
+    }).join('');
+  }).catch(function(err) { console.error('loadAchievements error:', err); grid.innerHTML = '<div class="text-center py-6 text-gray-500 text-xs">Failed to load achievements.</div>'; });
+}
+
+function loadShowcasePinned() {
+  fetch('/api/steam/showcase/').then(function(r) { return r.json(); }).then(function(data) {
+    if (!data.ok) return;
+    achPinnedIds = new Set(data.showcase.map(function(s) { return s.achievement_id; }));
+    data.showcase.forEach(function(s) { achPinnedCache[s.achievement_id] = {icon_url: s.icon_url, display_name: s.display_name}; });
+    renderShowcasePinned(data.showcase);
+    updatePinnedCount();
+  }).catch(function() {});
+}
+
+function renderShowcasePinned(showcase) {
+  var el = document.getElementById('showcase-pinned');
+  if (!el) return;
+  var esc = function(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); };
+  if (!showcase.length) { el.innerHTML = '<p class="text-gray-600 text-xs py-1">None pinned. Browse achievements below and click to pin up to 10.</p>'; return; }
+  el.innerHTML = showcase.map(function(a) {
+    var icon = a.icon_url
+      ? '<img src="' + esc(a.icon_url) + '" class="w-10 h-10 rounded object-cover border border-yellow-500/60" alt="' + esc(a.display_name) + '">'
+      : '<div class="w-10 h-10 rounded bg-neutral-800 border border-yellow-500/30 flex items-center justify-center"><i class="fas fa-trophy text-yellow-500 text-sm"></i></div>';
+    return '<div class="flex flex-col items-center gap-1 cursor-pointer" title="' + esc(a.display_name) + ' - click to unpin" onclick="toggleShowcasePin(' + a.achievement_id + ')">'
+      + icon + '<span class="text-[9px] text-gray-400 max-w-[42px] truncate text-center">' + esc(a.display_name) + '</span></div>';
+  }).join('');
+}
+
+function updatePinnedCount() {
+  var el = document.getElementById('ach-pinned-count');
+  if (el) el.textContent = achPinnedIds.size + ' / 10 pinned';
+  var btn = document.getElementById('showcase-save-btn');
+  if (btn) btn.classList.remove('hidden');
+}
+
+function toggleShowcasePin(achId) {
+  if (achPinnedIds.has(achId)) { achPinnedIds.delete(achId); }
+  else {
+    if (achPinnedIds.size >= 10) { showAchToast('Maximum 10 achievements. Remove one first.', 'error'); return; }
+    achPinnedIds.add(achId);
+  }
+  updatePinnedCount();
+  loadAchievements(achPage);
+  var showcase = [];
+  achPinnedIds.forEach(function(id) {
+    var c = achPinnedCache[id];
+    if (c) showcase.push({achievement_id: id, icon_url: c.icon_url || '', display_name: c.display_name || ''});
+  });
+  renderShowcasePinned(showcase);
+}
+
+function saveShowcase() {
+  var btn = document.getElementById('showcase-save-btn');
+  var ids = Array.from(achPinnedIds);
+  if (btn) { btn.disabled = true; btn.textContent = 'Saving...'; }
+  csrfFetch('/api/steam/showcase/save/', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({achievement_ids:ids})})
+    .then(function(r) { return r.json(); }).then(function(d) {
+      if (btn) { btn.disabled = false; btn.textContent = 'Save Showcase'; }
+      if (d.ok) { showAchToast('Showcase saved!', 'success'); loadShowcasePinned(); }
+      else { showAchToast(d.error || 'Failed to save.', 'error'); }
+    }).catch(function() { if (btn) { btn.disabled = false; btn.textContent = 'Save Showcase'; } showAchToast('Failed to save.', 'error'); });
+}
+
+function syncAchievements() {
+  var btn = document.getElementById('ach-sync-btn');
+  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fab fa-steam fa-spin"></i> Syncing...'; }
+  csrfFetch('/api/steam/sync-achievements/', {method:'POST'})
+    .then(function(r) { return r.json(); }).then(function(d) {
+      if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fab fa-steam"></i> Sync Achievements'; }
+      if (d.ok) {
+        var total = d.total || 0;
+        var el = document.getElementById('ach-total-count'); if (el) el.textContent = total;
+        if (total > 0) {
+          var sr = document.getElementById('ach-stats-row'); if (sr) sr.classList.remove('hidden');
+          var nm = document.getElementById('ach-no-sync-msg'); if (nm) nm.classList.add('hidden');
+        }
+        showAchToast('Synced! ' + d.new + ' new achievements found.', 'success');
+        achGameSelectInst = null;
+        var wrap = document.getElementById('ach-game-select-wrap'); if (wrap) wrap.innerHTML = '';
+        loadAchievements(1);
+      } else { showAchToast(d.error || 'Sync failed.', 'error'); }
+    }).catch(function() { if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fab fa-steam"></i> Sync Achievements'; } showAchToast('Sync failed.', 'error'); });
+}
+
+function showAchToast(msg, type) {
+  var t = document.createElement('div');
+  t.className = 'fixed bottom-6 right-6 z-50 px-4 py-3 rounded-xl shadow-2xl text-sm font-medium '
+    + (type === 'error' ? 'bg-red-900 border border-red-700 text-red-200' : 'bg-neutral-800 border border-green-700 text-green-200');
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(function() { t.remove(); }, 3500);
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 // Show toast if redirected back after linking an account
 (function() {
   function showProfileToast(msg) {
@@ -1280,6 +1690,29 @@
     showProfileToast('Discord connected! Your servers will now appear in My Servers.');
     history.replaceState(null, '', window.location.pathname);
   }
+})();
+
+// Annotate profile game tiles with community owner counts
+(function() {
+  const tilesContainer = document.getElementById('profile-games-tiles');
+  if (!tilesContainer) return;
+  const tiles = tilesContainer.querySelectorAll('[data-game-name]');
+  if (!tiles.length) return;
+  const names = Array.from(tiles).map(t => t.dataset.gameName).join('|');
+  fetch('/api/steamquest/community-owns/?names=' + encodeURIComponent(names))
+    .then(r => r.json())
+    .then(function(data) {
+      if (!data.ok || !data.counts) return;
+      tiles.forEach(function(tile) {
+        const count = data.counts[tile.dataset.gameName];
+        if (count && count > 0) {
+          const badge = document.createElement('span');
+          badge.className = 'text-blue-400 font-medium flex-shrink-0';
+          badge.textContent = count + ' member' + (count === 1 ? '' : 's');
+          tile.appendChild(badge);
+        }
+      });
+    }).catch(function() {});
 })();
 </script>
 {% endblock %}

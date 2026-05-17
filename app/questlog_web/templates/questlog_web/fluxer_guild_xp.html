@@ -776,11 +776,11 @@ const CHANNELS = JSON.parse('{{ channels_json|escapejs }}');
 const ROLES_JSON = JSON.parse('{{ roles_json|escapejs }}');
 const BOOSTS_JSON = JSON.parse('{{ boosts_json|escapejs }}');
 const LEVELUP_CONFIG = JSON.parse('{{ levelup_config_json|escapejs }}');
-const API_URL = '/ql/api/dashboard/fluxer/' + GUILD_ID + '/settings/';
-const LEVEL_ROLES_API = '/ql/api/dashboard/fluxer/' + GUILD_ID + '/level-roles/';
-const LEVEL_ROLES_BULK_API = '/ql/api/dashboard/fluxer/' + GUILD_ID + '/level-roles/bulk/';
-const LEVELUP_API = '/ql/api/dashboard/fluxer/' + GUILD_ID + '/levelup-config/';
-const BOOSTS_API = '/ql/api/dashboard/fluxer/' + GUILD_ID + '/xp-boosts/';
+const API_URL = '/api/dashboard/fluxer/' + GUILD_ID + '/settings/';
+const LEVEL_ROLES_API = '/api/dashboard/fluxer/' + GUILD_ID + '/level-roles/';
+const LEVEL_ROLES_BULK_API = '/api/dashboard/fluxer/' + GUILD_ID + '/level-roles/bulk/';
+const LEVELUP_API = '/api/dashboard/fluxer/' + GUILD_ID + '/levelup-config/';
+const BOOSTS_API = '/api/dashboard/fluxer/' + GUILD_ID + '/xp-boosts/';
 
 // Init stats
 document.addEventListener('DOMContentLoaded', () => {
@@ -1001,7 +1001,7 @@ function appendLevelRoleRow(lr) {
 async function deleteLevelRole(lrId) {
   if (!confirm('Remove this level role?')) return;
   try {
-    const resp = await csrfFetch('/ql/api/dashboard/fluxer/' + GUILD_ID + '/level-roles/' + lrId + '/', {
+    const resp = await csrfFetch('/api/dashboard/fluxer/' + GUILD_ID + '/level-roles/' + lrId + '/', {
       method: 'DELETE',
     });
     const data = await resp.json();
@@ -1089,7 +1089,7 @@ document.getElementById('add-member-form').addEventListener('submit', async (e) 
 });
 
 // Bulk Edit XP Modal
-const MEMBER_XP_API = '/ql/api/dashboard/fluxer/' + GUILD_ID + '/member-xp/';
+const MEMBER_XP_API = '/api/dashboard/fluxer/' + GUILD_ID + '/member-xp/';
 let _bulkXpMembers = [];  // full list loaded from API
 
 async function openBulkEditModal() {
@@ -1647,7 +1647,7 @@ window.addEventListener('hashchange', () => {
 
 async function loadLiveInfo() {
   try {
-    const resp = await csrfFetch('/ql/api/dashboard/fluxer/' + GUILD_ID + '/live-info/', { method: 'GET' });
+    const resp = await csrfFetch('/api/dashboard/fluxer/' + GUILD_ID + '/live-info/', { method: 'GET' });
     const data = await resp.json();
     const el = document.getElementById('stat-total-members');
     if (data.success && el) {

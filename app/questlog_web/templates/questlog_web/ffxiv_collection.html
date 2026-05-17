@@ -1,0 +1,1201 @@
+{% extends "questlog_web/base_web.html" %}
+{% load static %}
+{% block title %}Collection Tracker | FFXIV Tools | Casual Heroes{% endblock %}
+{% block web_content %}
+
+<div class="p-4 sm:p-6 max-w-7xl mx-auto">
+
+  <!-- Breadcrumb -->
+  <div class="flex items-center gap-2 text-xs text-gray-500 mb-6">
+    <a href="/ffxiv/" class="hover:text-gray-300 transition">FFXIV</a>
+    <span class="text-gray-700">/</span>
+    <a href="/ffxiv/tools/" class="hover:text-gray-300 transition">Tools</a>
+    <span class="text-gray-700">/</span>
+    <span class="text-gray-300">Collection Tracker</span>
+  </div>
+
+  <!-- Header -->
+  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+    <div>
+      <div class="flex items-center gap-3 mb-1">
+        <div class="w-8 h-8 rounded-lg bg-yellow-900/40 flex items-center justify-center">
+          <i class="fas fa-dragon text-yellow-400 text-sm"></i>
+        </div>
+        <h1 class="text-2xl font-bold text-white">Collection Tracker</h1>
+      </div>
+      <p class="text-gray-400 text-sm">Link your Lodestone character to track mounts, minions, and earn QuestLog XP.</p>
+    </div>
+  </div>
+
+  {% if not character %}
+  <!-- ── LINK CHARACTER PANEL ───────────────────────────────────────────── -->
+  <div class="max-w-2xl mx-auto">
+
+    <!-- XP reward teaser -->
+    <div class="bg-gradient-to-r from-yellow-900/20 to-amber-900/10 border border-yellow-700/30 rounded-2xl p-5 mb-6">
+      <p class="text-yellow-300 font-bold text-sm mb-3"><i class="fas fa-star mr-2"></i>Earn XP &amp; Legacy Marks for your in-game achievements</p>
+      <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
+        <div class="bg-neutral-900/60 rounded-lg p-2.5">
+          <p class="text-white font-bold">+300 XP</p>
+          <p class="text-gray-500">Earn Mentor Crown</p>
+        </div>
+        <div class="bg-neutral-900/60 rounded-lg p-2.5">
+          <p class="text-white font-bold">+250 XP</p>
+          <p class="text-gray-500">Ultimate Raid Clear</p>
+        </div>
+        <div class="bg-neutral-900/60 rounded-lg p-2.5">
+          <p class="text-white font-bold">+500 XP</p>
+          <p class="text-gray-500">Collect All Mounts</p>
+        </div>
+        <div class="bg-neutral-900/60 rounded-lg p-2.5">
+          <p class="text-white font-bold">+500 Legacy</p>
+          <p class="text-gray-500">Mentor Crown</p>
+        </div>
+        <div class="bg-neutral-900/60 rounded-lg p-2.5">
+          <p class="text-white font-bold">+300 Legacy</p>
+          <p class="text-gray-500">Ultimate Raid Clear</p>
+        </div>
+        <div class="bg-neutral-900/60 rounded-lg p-2.5">
+          <p class="text-white font-bold">+500 Legacy</p>
+          <p class="text-gray-500">Collect All Mounts</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Search form -->
+    <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-6">
+      <h2 class="text-white font-bold text-lg mb-1">Link Your Character</h2>
+      <p class="text-gray-400 text-sm mb-4">Search for your character on Lodestone by name and world.</p>
+
+      <div class="flex gap-2 mb-3">
+        <input type="text" id="char-name-input" placeholder="Character Name (First Last)"
+          class="flex-1 bg-neutral-800 border border-neutral-700 text-white placeholder-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-500">
+        <input type="text" id="char-world-input" placeholder="World (optional)"
+          class="w-32 bg-neutral-800 border border-neutral-700 text-white placeholder-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-500">
+        <button onclick="searchCharacters()" id="search-btn"
+          class="bg-indigo-700 hover:bg-indigo-600 text-white font-semibold px-4 py-2 rounded-lg text-sm transition">
+          <i class="fas fa-search mr-1"></i>Search
+        </button>
+      </div>
+
+      <div id="search-error" class="hidden text-red-400 text-xs mb-3"></div>
+
+      <!-- Results -->
+      <div id="search-results" class="space-y-2 hidden"></div>
+
+      <!-- Confirm panel -->
+      <div id="confirm-panel" class="hidden mt-4 bg-neutral-800/60 border border-indigo-700/40 rounded-xl p-4">
+        <p class="text-xs text-gray-400 mb-3">Confirm this is your character:</p>
+        <div class="flex items-center gap-3 mb-4">
+          <img id="confirm-avatar" src="" alt="" class="w-12 h-12 rounded-full object-cover border border-neutral-600">
+          <div>
+            <p id="confirm-name" class="text-white font-bold"></p>
+            <p id="confirm-world" class="text-gray-400 text-xs"></p>
+          </div>
+        </div>
+        <button onclick="linkCharacter()" id="link-btn"
+          class="w-full bg-indigo-700 hover:bg-indigo-600 text-white font-bold py-2.5 rounded-lg text-sm transition">
+          <i class="fas fa-link mr-1"></i>Link This Character
+        </button>
+        <button onclick="cancelConfirm()" class="w-full mt-2 text-gray-500 hover:text-gray-300 text-xs transition">
+          Cancel - search again
+        </button>
+      </div>
+
+      <p class="text-gray-600 text-xs mt-4">
+        <i class="fas fa-info-circle mr-1"></i>
+        Make sure your Lodestone profile is set to <strong class="text-gray-400">Public</strong> so we can read your mounts and minions.
+        <a href="https://na.finalfantasyxiv.com/lodestone/my/setting/account/" target="_blank" class="text-indigo-400 hover:text-indigo-300 ml-1">Update privacy settings</a>
+      </p>
+    </div>
+  </div>
+
+  {% else %}
+  <!-- ── CHARACTER LINKED - COLLECTION VIEW ────────────────────────────── -->
+
+  <!-- Character Card -->
+  <div class="bg-neutral-900 border border-neutral-800 rounded-2xl overflow-hidden mb-6">
+    <div class="h-1 bg-gradient-to-r from-indigo-600 to-purple-600"></div>
+    <div class="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center gap-4">
+      <div class="flex items-center gap-4 flex-1">
+        {% if character.avatar_url %}
+        <img src="{{ character.avatar_url }}" alt="{{ character.character_name }}" class="w-14 h-14 rounded-full object-cover border-2 border-indigo-700/50">
+        {% else %}
+        <div class="w-14 h-14 rounded-full bg-indigo-800 flex items-center justify-center text-xl font-bold text-white">{{ character.character_name|slice:":1" }}</div>
+        {% endif %}
+        <div>
+          {% if character.title %}
+          <p class="text-indigo-300 text-xs mb-0.5">{{ character.title }}</p>
+          {% endif %}
+          <p class="text-white font-bold text-lg leading-tight">{{ character.character_name }}</p>
+          <p class="text-gray-400 text-sm">{{ character.world }} &bull; {{ character.datacenter }}
+            {% if character.free_company %}<span class="ml-2 text-gray-500">{% if character.fc_tag %}&lt;{{ character.fc_tag }}&gt; {% endif %}{{ character.free_company }}</span>{% endif %}
+          </p>
+        </div>
+      </div>
+
+      <!-- Stats -->
+      <div class="flex items-center gap-6">
+        <div class="text-center">
+          <p class="text-2xl font-extrabold text-yellow-400">{{ character.mount_count }}</p>
+          <p class="text-gray-500 text-xs">Mounts</p>
+        </div>
+        <div class="text-center">
+          <p class="text-2xl font-extrabold text-blue-400">{{ character.minion_count }}</p>
+          <p class="text-gray-500 text-xs">Minions</p>
+        </div>
+        <div>
+          <button onclick="syncCharacter('{{ character.lodestone_id }}')" id="sync-btn"
+            class="flex items-center gap-2 bg-neutral-800 hover:bg-neutral-700 text-gray-300 hover:text-white font-semibold px-3 py-2 rounded-lg text-xs transition">
+            <i class="fas fa-sync-alt" id="sync-icon"></i>
+            {% if character.sync_status == 'ok' %}Sync Now{% elif character.sync_status == 'private' %}Profile Private{% else %}Sync{% endif %}
+          </button>
+          {% if character.last_synced_at %}
+          <p class="text-gray-600 text-[10px] text-center mt-1" id="sync-time">
+            Synced <span id="sync-ago">recently</span>
+          </p>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    {% if character.sync_status == 'private' %}
+    <div class="px-5 pb-4">
+      <div class="bg-yellow-900/20 border border-yellow-700/30 rounded-lg p-3 text-xs text-yellow-300">
+        <i class="fas fa-lock mr-1"></i>
+        Your Lodestone profile has mounts/minions set to private. <a href="https://na.finalfantasyxiv.com/lodestone/my/setting/account/" target="_blank" class="underline">Update privacy settings</a> then sync again.
+      </div>
+    </div>
+    {% endif %}
+
+    {% if character.sync_status == 'error' and character.sync_error %}
+    <div class="px-5 pb-4">
+      <div class="bg-red-900/20 border border-red-700/30 rounded-lg p-3 text-xs text-red-300">
+        <i class="fas fa-exclamation-triangle mr-1"></i>{{ character.sync_error }}
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- XP/Legacy reward teaser - always visible when linked -->
+  <div class="bg-gradient-to-r from-yellow-900/20 to-amber-900/10 border border-yellow-700/30 rounded-2xl p-4 mb-4">
+    <p class="text-yellow-300 font-bold text-sm mb-2"><i class="fas fa-star mr-2"></i>Earn XP &amp; Legacy Marks for your in-game achievements</p>
+    <div class="grid grid-cols-3 sm:grid-cols-6 gap-1.5 text-xs">
+      <div class="bg-neutral-900/60 rounded-lg p-2 text-center"><p class="text-white font-bold">+300 XP</p><p class="text-gray-500 text-[10px]">Mentor Crown</p></div>
+      <div class="bg-neutral-900/60 rounded-lg p-2 text-center"><p class="text-white font-bold">+250 XP</p><p class="text-gray-500 text-[10px]">Ultimate Clear</p></div>
+      <div class="bg-neutral-900/60 rounded-lg p-2 text-center"><p class="text-white font-bold">+500 XP</p><p class="text-gray-500 text-[10px]">All Mounts</p></div>
+      <div class="bg-neutral-900/60 rounded-lg p-2 text-center"><p class="text-indigo-300 font-bold">+500 LM</p><p class="text-gray-500 text-[10px]">Mentor Crown</p></div>
+      <div class="bg-neutral-900/60 rounded-lg p-2 text-center"><p class="text-indigo-300 font-bold">+300 LM</p><p class="text-gray-500 text-[10px]">Ultimate Clear</p></div>
+      <div class="bg-neutral-900/60 rounded-lg p-2 text-center"><p class="text-indigo-300 font-bold">+500 LM</p><p class="text-gray-500 text-[10px]">All Mounts</p></div>
+    </div>
+  </div>
+
+  <!-- Rewards earned -->
+  {% if rewards_earned %}
+  <div class="bg-neutral-900 border border-yellow-700/20 rounded-2xl p-4 mb-6">
+    <p class="text-yellow-400 font-bold text-sm mb-3"><i class="fas fa-star mr-2"></i>Achievements Rewarded</p>
+    <div class="flex flex-wrap gap-2">
+      {% for r in rewards_earned %}
+      <div class="flex items-center gap-2 bg-neutral-800/60 border border-neutral-700/50 rounded-lg px-3 py-1.5">
+        <i class="fas fa-check-circle text-green-400 text-xs"></i>
+        <span class="text-gray-300 text-xs font-semibold">{{ r.name }}</span>
+        {% if r.xp %}<span class="text-yellow-400 text-[10px] font-bold">+{{ r.xp }}XP</span>{% endif %}
+        {% if r.legacy %}<span class="text-indigo-400 text-[10px] font-bold">+{{ r.legacy }}LM</span>{% endif %}
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Tab nav (scrollable on mobile) -->
+  <div class="overflow-x-auto pb-1 mb-1">
+  <div class="flex gap-1 bg-neutral-900 border border-neutral-800 rounded-xl p-1 w-max min-w-full">
+    <button onclick="switchTab('mounts')" id="tab-mounts"
+      class="tab-btn whitespace-nowrap px-3 py-2 rounded-lg text-xs font-semibold transition bg-yellow-600 text-white">
+      <i class="fas fa-horse mr-1"></i>Mounts
+      <span class="ml-1 bg-yellow-800/60 px-1.5 py-0.5 rounded-full text-[10px]">{{ character.mount_count }}/{{ mount_total }}</span>
+    </button>
+    <button onclick="switchTab('minions')" id="tab-minions"
+      class="tab-btn whitespace-nowrap px-3 py-2 rounded-lg text-xs font-semibold transition text-gray-400 hover:text-white">
+      <i class="fas fa-paw mr-1"></i>Minions
+      <span class="ml-1 bg-neutral-700 px-1.5 py-0.5 rounded-full text-[10px]">{{ character.minion_count }}/{{ minion_total }}</span>
+    </button>
+    <button onclick="switchTab('jobs')" id="tab-jobs"
+      class="tab-btn whitespace-nowrap px-3 py-2 rounded-lg text-xs font-semibold transition text-gray-400 hover:text-white">
+      <i class="fas fa-fist-raised mr-1"></i>Jobs
+      {% if jobs_by_role %}<span class="ml-1 bg-neutral-700 px-1.5 py-0.5 rounded-full text-[10px]">{{ jobs_by_role|length }}</span>{% endif %}
+    </button>
+    <button onclick="switchTab('missing-mounts')" id="tab-missing-mounts"
+      class="tab-btn whitespace-nowrap px-3 py-2 rounded-lg text-xs font-semibold transition text-gray-400 hover:text-white">
+      <i class="fas fa-question-circle mr-1"></i>Missing Mounts
+      <span class="ml-1 bg-neutral-700 px-1.5 py-0.5 rounded-full text-[10px]">{{ mounts_missing|length }}</span>
+    </button>
+    <button onclick="switchTab('missing-minions')" id="tab-missing-minions"
+      class="tab-btn whitespace-nowrap px-3 py-2 rounded-lg text-xs font-semibold transition text-gray-400 hover:text-white">
+      <i class="fas fa-question-circle mr-1"></i>Missing Minions
+      <span class="ml-1 bg-neutral-700 px-1.5 py-0.5 rounded-full text-[10px]">{{ minions_missing|length }}</span>
+    </button>
+    <button onclick="switchTab('hairstyles')" id="tab-hairstyles"
+      class="tab-btn whitespace-nowrap px-3 py-2 rounded-lg text-xs font-semibold transition text-gray-400 hover:text-white">
+      <i class="fas fa-cut mr-1"></i>Hairstyles
+      <span class="ml-1 bg-neutral-700 px-1.5 py-0.5 rounded-full text-[10px]">{% if character.hairstyle_count %}{{ character.hairstyle_count }}/{% endif %}{{ character.hairstyle_total }}</span>
+    </button>
+    <button onclick="switchTab('emotes')" id="tab-emotes"
+      class="tab-btn whitespace-nowrap px-3 py-2 rounded-lg text-xs font-semibold transition text-gray-400 hover:text-white">
+      <i class="fas fa-theater-masks mr-1"></i>Emotes
+      <span class="ml-1 bg-neutral-700 px-1.5 py-0.5 rounded-full text-[10px]">{% if character.emote_count %}{{ character.emote_count }}/{% endif %}{{ character.emote_total }}</span>
+    </button>
+    <button onclick="switchTab('orchestrions')" id="tab-orchestrions"
+      class="tab-btn whitespace-nowrap px-3 py-2 rounded-lg text-xs font-semibold transition text-gray-400 hover:text-white">
+      <i class="fas fa-music mr-1"></i>Orchestrion
+      <span class="ml-1 bg-neutral-700 px-1.5 py-0.5 rounded-full text-[10px]">{% if character.orchestrion_count %}{{ character.orchestrion_count }}/{% endif %}{{ character.orchestrion_total }}</span>
+    </button>
+    <button onclick="switchTab('spells')" id="tab-spells"
+      class="tab-btn whitespace-nowrap px-3 py-2 rounded-lg text-xs font-semibold transition text-gray-400 hover:text-white">
+      <i class="fas fa-book-open mr-1"></i>Blue Magic
+      <span class="ml-1 bg-neutral-700 px-1.5 py-0.5 rounded-full text-[10px]">{% if character.spell_count %}{{ character.spell_count }}/{% endif %}{{ character.spell_total }}</span>
+    </button>
+    <button onclick="switchTab('bardings')" id="tab-bardings"
+      class="tab-btn whitespace-nowrap px-3 py-2 rounded-lg text-xs font-semibold transition text-gray-400 hover:text-white">
+      <i class="fas fa-shield-alt mr-1"></i>Bardings
+      <span class="ml-1 bg-neutral-700 px-1.5 py-0.5 rounded-full text-[10px]">{% if character.barding_count %}{{ character.barding_count }}/{% endif %}{{ character.barding_total }}</span>
+    </button>
+    <button onclick="switchTab('fashions')" id="tab-fashions"
+      class="tab-btn whitespace-nowrap px-3 py-2 rounded-lg text-xs font-semibold transition text-gray-400 hover:text-white">
+      <i class="fas fa-tshirt mr-1"></i>Fashion
+      <span class="ml-1 bg-neutral-700 px-1.5 py-0.5 rounded-full text-[10px]">{% if character.fashion_count %}{{ character.fashion_count }}/{% endif %}{{ character.fashion_total }}</span>
+    </button>
+    <button onclick="switchTab('achievements')" id="tab-achievements"
+      class="tab-btn whitespace-nowrap px-3 py-2 rounded-lg text-xs font-semibold transition text-gray-400 hover:text-white">
+      <i class="fas fa-award mr-1"></i>Achievements
+      <span class="ml-1 bg-neutral-700 px-1.5 py-0.5 rounded-full text-[10px]">{% if character.achievement_count %}{{ character.achievement_count }}/{% endif %}{{ character.achievement_total }}</span>
+    </button>
+    <button onclick="switchTab('relics')" id="tab-relics"
+      class="tab-btn whitespace-nowrap px-3 py-2 rounded-lg text-xs font-semibold transition text-gray-400 hover:text-white">
+      <i class="fas fa-gem mr-1"></i>Relics
+      <span class="ml-1 bg-neutral-700 px-1.5 py-0.5 rounded-full text-[10px]">{% if character.relic_owned_count %}{{ character.relic_owned_count }}/{% endif %}{{ character.relic_total_count }}</span>
+    </button>
+    <button onclick="switchTab('records')" id="tab-records"
+      class="tab-btn whitespace-nowrap px-3 py-2 rounded-lg text-xs font-semibold transition text-gray-400 hover:text-white">
+      <i class="fas fa-scroll mr-1"></i>Records
+      <span class="ml-1 bg-neutral-700 px-1.5 py-0.5 rounded-full text-[10px]">{% if character.record_count %}{{ character.record_count }}/{% endif %}{{ character.record_total }}</span>
+    </button>
+  </div>
+  </div><!-- end scrollable wrapper -->
+
+  <!-- Search within tab -->
+  <div class="mb-4">
+    <input type="text" id="collection-search" oninput="filterCollection()" placeholder="Search..."
+      class="bg-neutral-800 border border-neutral-700 text-white placeholder-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-500 w-full sm:w-64">
+  </div>
+
+  <!-- Mounts Owned -->
+  <div id="panel-mounts">
+    {% if mounts_owned %}
+    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2" id="mounts-grid">
+      {% for mount in mounts_owned %}
+      <a href="{{ mount.url }}" target="_blank" rel="noopener"
+        class="collection-item bg-neutral-900 border border-yellow-800/30 rounded-xl p-2.5 flex items-center gap-2 hover:border-yellow-600/50 hover:bg-neutral-800 transition group"
+        data-name="{{ mount.name|lower }}">
+        {% if mount.icon %}
+        <img src="{{ mount.icon }}" alt="" class="w-8 h-8 rounded flex-shrink-0">
+        {% else %}
+        <div class="w-8 h-8 rounded bg-yellow-900/40 flex items-center justify-center flex-shrink-0">
+          <i class="fas fa-check text-yellow-400 text-[10px]"></i>
+        </div>
+        {% endif %}
+        <div class="min-w-0 flex-1">
+          <span class="text-gray-300 text-xs font-medium truncate block group-hover:text-white">{{ mount.name }}</span>
+          {% if mount.owned_pct %}<span class="text-indigo-400/60 text-[10px]">{{ mount.owned_pct }} own this</span>{% endif %}
+        </div>
+      </a>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="text-center py-12 text-gray-600">
+      <i class="fas fa-sync-alt text-2xl mb-3 block"></i>
+      <p class="text-sm">No mounts loaded yet. Click Sync Now to pull your collection from Lodestone.</p>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Minions Owned -->
+  <div id="panel-minions" class="hidden">
+    {% if minions_owned %}
+    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2" id="minions-grid">
+      {% for minion in minions_owned %}
+      <a href="{{ minion.url }}" target="_blank" rel="noopener"
+        class="collection-item bg-neutral-900 border border-blue-800/30 rounded-xl p-2.5 flex items-center gap-2 hover:border-blue-600/50 hover:bg-neutral-800 transition group"
+        data-name="{{ minion.name|lower }}">
+        {% if minion.icon %}
+        <img src="{{ minion.icon }}" alt="" class="w-8 h-8 rounded flex-shrink-0">
+        {% else %}
+        <div class="w-8 h-8 rounded bg-blue-900/40 flex items-center justify-center flex-shrink-0">
+          <i class="fas fa-check text-blue-400 text-[10px]"></i>
+        </div>
+        {% endif %}
+        <div class="min-w-0 flex-1">
+          <span class="text-gray-300 text-xs font-medium truncate block group-hover:text-white">{{ minion.name }}</span>
+          {% if minion.owned_pct %}<span class="text-indigo-400/60 text-[10px]">{{ minion.owned_pct }} own this</span>{% endif %}
+        </div>
+      </a>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="text-center py-12 text-gray-600">
+      <i class="fas fa-sync-alt text-2xl mb-3 block"></i>
+      <p class="text-sm">Sync your character to load minions.</p>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Missing Mounts -->
+  <div id="panel-missing-mounts" class="hidden">
+    {% if catalog_error %}
+    <div class="text-center py-8 text-gray-600 text-sm">Could not load mount catalog. Try again in a moment.</div>
+    {% elif mounts_missing %}
+    <p class="text-gray-500 text-xs mb-3">{{ mounts_missing|length }} of {{ mount_total }} mounts you don't have yet.</p>
+    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2" id="missing-mounts-grid">
+      {% for mount in mounts_missing %}
+      <a href="{{ mount.url }}" target="_blank" rel="noopener"
+        class="collection-item bg-neutral-900/60 border border-neutral-800/50 rounded-xl p-2.5 flex items-center gap-2 opacity-60 hover:opacity-100 hover:border-yellow-800/40 transition group"
+        data-name="{{ mount.name|lower }}">
+        {% if mount.icon %}
+        <img src="{{ mount.icon }}" alt="" class="w-8 h-8 rounded flex-shrink-0 grayscale group-hover:grayscale-0 transition">
+        {% else %}
+        <div class="w-8 h-8 rounded bg-neutral-800 flex items-center justify-center flex-shrink-0">
+          <i class="fas fa-question text-gray-600 text-[10px]"></i>
+        </div>
+        {% endif %}
+        <div class="min-w-0">
+          <span class="text-gray-500 text-xs font-medium truncate block group-hover:text-gray-300">{{ mount.name }}</span>
+          <div class="flex items-center gap-1.5">
+            {% if mount.sources %}<span class="text-gray-700 text-[10px] truncate">{{ mount.sources.0.text }}</span>{% endif %}
+            {% if mount.owned_pct %}<span class="text-indigo-400/50 text-[10px]">{{ mount.owned_pct }} own</span>{% endif %}
+          </div>
+        </div>
+      </a>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="text-center py-12">
+      <i class="fas fa-trophy text-yellow-400 text-3xl mb-3 block"></i>
+      <p class="text-white font-bold">All mounts collected!</p>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Missing Minions -->
+  <div id="panel-missing-minions" class="hidden">
+    {% if catalog_error %}
+    <div class="text-center py-8 text-gray-600 text-sm">Could not load minion catalog.</div>
+    {% elif minions_missing %}
+    <p class="text-gray-500 text-xs mb-3">{{ minions_missing|length }} of {{ minion_total }} minions you don't have yet.</p>
+    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2" id="missing-minions-grid">
+      {% for minion in minions_missing %}
+      <a href="{{ minion.url }}" target="_blank" rel="noopener"
+        class="collection-item bg-neutral-900/60 border border-neutral-800/50 rounded-xl p-2.5 flex items-center gap-2 opacity-60 hover:opacity-100 hover:border-blue-800/40 transition group"
+        data-name="{{ minion.name|lower }}">
+        {% if minion.icon %}
+        <img src="{{ minion.icon }}" alt="" class="w-8 h-8 rounded flex-shrink-0 grayscale group-hover:grayscale-0 transition">
+        {% else %}
+        <div class="w-8 h-8 rounded bg-neutral-800 flex items-center justify-center flex-shrink-0">
+          <i class="fas fa-question text-gray-600 text-[10px]"></i>
+        </div>
+        {% endif %}
+        <div class="min-w-0">
+          <span class="text-gray-500 text-xs font-medium truncate block group-hover:text-gray-300">{{ minion.name }}</span>
+          <div class="flex items-center gap-1.5">
+            {% if minion.sources %}<span class="text-gray-700 text-[10px] truncate">{{ minion.sources.0.text }}</span>{% endif %}
+            {% if minion.owned_pct %}<span class="text-indigo-400/50 text-[10px]">{{ minion.owned_pct }} own</span>{% endif %}
+          </div>
+        </div>
+      </a>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="text-center py-12">
+      <i class="fas fa-trophy text-blue-400 text-3xl mb-3 block"></i>
+      <p class="text-white font-bold">All minions collected!</p>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Jobs / Class Levels Panel -->
+  <div id="panel-jobs" class="hidden">
+    {% if jobs_by_role %}
+    <div class="space-y-6">
+      {% for role, jobs in jobs_by_role %}
+      <div>
+        <h3 class="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3 flex items-center gap-2">
+          {% if role == 'Tank' %}<i class="fas fa-shield-alt text-blue-400"></i>
+          {% elif role == 'Healer' %}<i class="fas fa-heart text-green-400"></i>
+          {% elif role == 'Melee DPS' %}<i class="fas fa-sword text-red-400"></i>
+          {% elif role == 'Physical Ranged DPS' %}<i class="fas fa-crosshairs text-yellow-400"></i>
+          {% elif role == 'Magical Ranged DPS' %}<i class="fas fa-magic text-purple-400"></i>
+          {% elif role == 'Crafter' %}<i class="fas fa-hammer text-orange-400"></i>
+          {% elif role == 'Gatherer' %}<i class="fas fa-leaf text-teal-400"></i>
+          {% else %}<i class="fas fa-question text-gray-500"></i>
+          {% endif %}
+          {{ role }}
+        </h3>
+        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
+          {% for job in jobs %}
+          <div class="collection-item bg-neutral-900/60 border {% if job.level >= 90 %}border-yellow-600/30{% elif job.level > 0 %}border-neutral-700/50{% else %}border-neutral-800/30{% endif %} rounded-xl p-3 flex flex-col gap-2"
+               data-name="{{ job.name|lower }}">
+            <div class="flex items-center gap-2">
+              {% if job.icon_url %}
+              <img src="{{ job.icon_url }}" alt="{{ job.name }}" class="w-8 h-8 rounded flex-shrink-0 {% if job.level == 0 %}opacity-30{% endif %}">
+              {% else %}
+              <div class="w-8 h-8 rounded bg-neutral-800 flex items-center justify-center flex-shrink-0 {% if job.level == 0 %}opacity-30{% endif %}">
+                <i class="fas fa-fist-raised text-gray-600 text-xs"></i>
+              </div>
+              {% endif %}
+              <div class="min-w-0 flex-1">
+                <div class="text-white text-xs font-semibold truncate {% if job.level == 0 %}opacity-40{% endif %}">{{ job.name }}</div>
+                <div class="flex items-center gap-1 mt-0.5">
+                  {% if job.level == 0 %}
+                  <span class="text-gray-600 text-[10px]">Unleveled</span>
+                  {% elif job.level >= 100 %}
+                  <span class="text-yellow-400 font-bold text-xs">Lv {{ job.level }}</span>
+                  <span class="text-yellow-500 text-[10px] ml-0.5">MAX</span>
+                  {% elif job.level >= 90 %}
+                  <span class="text-yellow-400 font-bold text-xs">Lv {{ job.level }}</span>
+                  <span class="text-yellow-600/70 text-[10px] ml-0.5">CAP</span>
+                  {% else %}
+                  <span class="text-gray-300 font-semibold text-xs">Lv {{ job.level }}</span>
+                  {% endif %}
+                </div>
+              </div>
+            </div>
+            {% if job.level > 0 and job.xp_max > 0 %}
+            <div class="w-full bg-neutral-800 rounded-full h-1">
+              <div class="h-1 rounded-full {% if job.level >= 90 %}bg-yellow-500{% else %}bg-indigo-500{% endif %}"
+                   style="width: {% widthratio job.xp_current job.xp_max 100 %}%"></div>
+            </div>
+            {% endif %}
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="text-center py-12 text-gray-500">
+      <i class="fas fa-fist-raised text-3xl mb-4 block opacity-30"></i>
+      <p class="text-sm font-semibold">No job data yet.</p>
+      <p class="text-xs mt-1">Click Sync Now to pull your class and job levels from Lodestone.</p>
+    </div>
+    {% endif %}
+  </div>
+
+  {% comment %}--- CATALOG BROWSE PANELS (all items from FFXIV Collect with community owned%) ---{% endcomment %}
+
+  <!-- HAIRSTYLES panel - grouped by patch era -->
+  <div id="panel-hairstyles" class="hidden">
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
+      {% if character.hairstyle_count %}<div class="flex items-center gap-3"><span class="text-pink-400 font-bold text-lg">{{ character.hairstyle_count }}<span class="text-gray-500 font-normal text-sm">/{{ character.hairstyle_total }}</span></span><span class="text-gray-400 text-xs">hairstyles owned</span></div>
+      {% else %}<p class="text-gray-500 text-xs">{{ character.hairstyle_total }} hairstyles total - <a href="{{ character.collect_url }}" target="_blank" rel="noopener" class="text-indigo-400 hover:text-indigo-300">sync FFXIV Collect</a> to see your count</p>{% endif %}
+      <a href="{{ character.collect_url }}" target="_blank" rel="noopener" class="text-indigo-400 hover:text-indigo-300 text-xs flex items-center gap-1 shrink-0"><i class="fas fa-external-link-alt text-[10px]"></i> View on FFXIV Collect</a>
+    </div>
+    <p class="text-gray-600 text-xs mb-3 italic">Per-item owned status requires FFXIV Collect sync. Grouped by patch era - community ownership rates shown.</p>
+    <div class="space-y-2">
+      {% for group_name, items in hairstyles_grouped %}{% if items %}
+      <div class="cat-group bg-neutral-900 border border-neutral-800 rounded-xl overflow-hidden">
+        <button type="button" onclick="toggleCatGroup(this)" class="w-full flex items-center justify-between px-4 py-3 hover:bg-neutral-800/60 transition text-left">
+          <div class="flex items-center gap-3">
+            <i class="fas fa-chevron-right text-gray-600 text-xs transition-transform cat-chevron"></i>
+            <span class="text-white font-semibold text-sm">{{ group_name }}</span>
+            <span class="text-gray-600 text-xs">({{ items|length }})</span>
+          </div>
+        </button>
+        <div class="cat-group-body hidden px-4 pb-4">
+          <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2 mt-2">
+            {% for item in items %}
+            <a href="{{ item.url }}" target="_blank" rel="noopener"
+              class="collection-item bg-neutral-800/60 border border-neutral-700/50 rounded-xl p-2.5 flex items-center gap-2 hover:border-pink-700/40 hover:bg-neutral-800 transition group"
+              data-name="{{ item.name|lower }}">
+              {% if item.icon %}<img src="{{ item.icon }}" alt="" class="w-8 h-8 rounded flex-shrink-0">{% endif %}
+              <div class="min-w-0 flex-1">
+                <span class="text-gray-300 text-xs font-medium truncate block group-hover:text-white">{{ item.name }}</span>
+                {% if item.owned_pct %}<span class="text-indigo-400/60 text-[10px]">{{ item.owned_pct }} own</span>{% endif %}
+              </div>
+            </a>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+      {% endif %}{% endfor %}
+    </div>
+  </div>
+
+  <!-- EMOTES panel - grouped by category -->
+  <div id="panel-emotes" class="hidden">
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
+      {% if character.emote_count %}<div class="flex items-center gap-3"><span class="text-purple-400 font-bold text-lg">{{ character.emote_count }}<span class="text-gray-500 font-normal text-sm">/{{ character.emote_total }}</span></span><span class="text-gray-400 text-xs">emotes owned</span></div>
+      {% else %}<p class="text-gray-500 text-xs">{{ character.emote_total }} emotes total - <a href="{{ character.collect_url }}" target="_blank" rel="noopener" class="text-indigo-400 hover:text-indigo-300">sync FFXIV Collect</a> to see your count</p>{% endif %}
+      <a href="{{ character.collect_url }}" target="_blank" rel="noopener" class="text-indigo-400 hover:text-indigo-300 text-xs flex items-center gap-1 shrink-0"><i class="fas fa-external-link-alt text-[10px]"></i> View on FFXIV Collect</a>
+    </div>
+    <p class="text-gray-600 text-xs mb-3 italic">Per-item owned status requires FFXIV Collect sync. Grouped by category - community ownership rates shown.</p>
+    <div class="space-y-2">
+      {% for group_name, items in emotes_grouped %}{% if items %}
+      <div class="cat-group bg-neutral-900 border border-neutral-800 rounded-xl overflow-hidden">
+        <button type="button" onclick="toggleCatGroup(this)" class="w-full flex items-center justify-between px-4 py-3 hover:bg-neutral-800/60 transition text-left">
+          <div class="flex items-center gap-3">
+            <i class="fas fa-chevron-right text-gray-600 text-xs transition-transform cat-chevron"></i>
+            <span class="text-white font-semibold text-sm">{{ group_name }}</span>
+            <span class="text-gray-600 text-xs">({{ items|length }})</span>
+          </div>
+        </button>
+        <div class="cat-group-body hidden px-4 pb-4">
+          <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2 mt-2">
+            {% for item in items %}
+            <a href="{{ item.url }}" target="_blank" rel="noopener"
+              class="collection-item bg-neutral-800/60 border border-neutral-700/50 rounded-xl p-2.5 flex items-center gap-2 hover:border-purple-700/40 hover:bg-neutral-800 transition group"
+              data-name="{{ item.name|lower }}">
+              {% if item.icon %}<img src="{{ item.icon }}" alt="" class="w-8 h-8 rounded flex-shrink-0">{% endif %}
+              <div class="min-w-0 flex-1">
+                <span class="text-gray-300 text-xs font-medium truncate block group-hover:text-white">{{ item.name }}</span>
+                <div class="flex items-center gap-1.5">
+                  {% if item.command %}<span class="text-indigo-500 text-[10px] font-mono">{{ item.command }}</span>{% endif %}
+                  {% if item.owned_pct %}<span class="text-indigo-400/60 text-[10px]">{{ item.owned_pct }} own</span>{% endif %}
+                </div>
+              </div>
+            </a>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+      {% endif %}{% endfor %}
+    </div>
+  </div>
+
+  <!-- ORCHESTRIONS panel - grouped by category -->
+  <div id="panel-orchestrions" class="hidden">
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
+      {% if character.orchestrion_count %}<div class="flex items-center gap-3"><span class="text-green-400 font-bold text-lg">{{ character.orchestrion_count }}<span class="text-gray-500 font-normal text-sm">/{{ character.orchestrion_total }}</span></span><span class="text-gray-400 text-xs">orchestrion rolls owned</span></div>
+      {% else %}<p class="text-gray-500 text-xs">{{ character.orchestrion_total }} orchestrion rolls total - <a href="{{ character.collect_url }}" target="_blank" rel="noopener" class="text-indigo-400 hover:text-indigo-300">sync FFXIV Collect</a> to see your count</p>{% endif %}
+      <a href="{{ character.collect_url }}" target="_blank" rel="noopener" class="text-indigo-400 hover:text-indigo-300 text-xs flex items-center gap-1 shrink-0"><i class="fas fa-external-link-alt text-[10px]"></i> View on FFXIV Collect</a>
+    </div>
+    <p class="text-gray-600 text-xs mb-3 italic">Per-item owned status requires FFXIV Collect sync. Grouped by category - community ownership rates shown.</p>
+    <div class="space-y-2">
+      {% for group_name, items in orchestrions_grouped %}{% if items %}
+      <div class="cat-group bg-neutral-900 border border-neutral-800 rounded-xl overflow-hidden">
+        <button type="button" onclick="toggleCatGroup(this)" class="w-full flex items-center justify-between px-4 py-3 hover:bg-neutral-800/60 transition text-left">
+          <div class="flex items-center gap-3">
+            <i class="fas fa-chevron-right text-gray-600 text-xs transition-transform cat-chevron"></i>
+            <span class="text-white font-semibold text-sm">{{ group_name }}</span>
+            <span class="text-gray-600 text-xs">({{ items|length }})</span>
+          </div>
+        </button>
+        <div class="cat-group-body hidden px-4 pb-4">
+          <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2 mt-2">
+            {% for item in items %}
+            <a href="{{ item.url }}" target="_blank" rel="noopener"
+              class="collection-item bg-neutral-800/60 border border-neutral-700/50 rounded-xl p-2.5 flex items-center gap-2 hover:border-green-700/40 hover:bg-neutral-800 transition group"
+              data-name="{{ item.name|lower }}">
+              {% if item.icon %}<img src="{{ item.icon }}" alt="" class="w-8 h-8 rounded flex-shrink-0">{% endif %}
+              <div class="min-w-0 flex-1">
+                <span class="text-gray-300 text-xs font-medium truncate block group-hover:text-white">{{ item.name }}</span>
+                {% if item.owned_pct %}<span class="text-indigo-400/60 text-[10px]">{{ item.owned_pct }} own</span>{% endif %}
+              </div>
+            </a>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+      {% endif %}{% endfor %}
+    </div>
+  </div>
+
+  <!-- SPELLS panel - grouped by type (Magic/Physical) -->
+  <div id="panel-spells" class="hidden">
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
+      {% if character.spell_count %}<div class="flex items-center gap-3"><span class="text-blue-400 font-bold text-lg">{{ character.spell_count }}<span class="text-gray-500 font-normal text-sm">/{{ character.spell_total }}</span></span><span class="text-gray-400 text-xs">Blue Magic spells learned</span></div>
+      {% else %}<p class="text-gray-500 text-xs">{{ character.spell_total }} Blue Magic spells total - <a href="{{ character.collect_url }}" target="_blank" rel="noopener" class="text-indigo-400 hover:text-indigo-300">sync FFXIV Collect</a> to see your count</p>{% endif %}
+      <a href="{{ character.collect_url }}" target="_blank" rel="noopener" class="text-indigo-400 hover:text-indigo-300 text-xs flex items-center gap-1 shrink-0"><i class="fas fa-external-link-alt text-[10px]"></i> View on FFXIV Collect</a>
+    </div>
+    <p class="text-gray-600 text-xs mb-3 italic">Per-item owned status requires FFXIV Collect sync. Grouped by spell type - community ownership rates shown.</p>
+    <div class="space-y-2">
+      {% for group_name, items in spells_grouped %}{% if items %}
+      <div class="cat-group bg-neutral-900 border border-neutral-800 rounded-xl overflow-hidden">
+        <button type="button" onclick="toggleCatGroup(this)" class="w-full flex items-center justify-between px-4 py-3 hover:bg-neutral-800/60 transition text-left">
+          <div class="flex items-center gap-3">
+            <i class="fas fa-chevron-right text-gray-600 text-xs transition-transform cat-chevron"></i>
+            <span class="text-white font-semibold text-sm">{{ group_name }}</span>
+            <span class="text-gray-600 text-xs">({{ items|length }})</span>
+          </div>
+        </button>
+        <div class="cat-group-body hidden px-4 pb-4">
+          <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 mt-2">
+            {% for item in items %}
+            <a href="{{ item.url }}" target="_blank" rel="noopener"
+              class="collection-item bg-neutral-800/60 border border-neutral-700/50 rounded-xl p-2.5 flex items-center gap-2 hover:border-blue-700/40 hover:bg-neutral-800 transition group"
+              data-name="{{ item.name|lower }}">
+              {% if item.icon %}<img src="{{ item.icon }}" alt="" class="w-8 h-8 rounded flex-shrink-0">{% endif %}
+              <div class="min-w-0 flex-1">
+                <span class="text-gray-300 text-xs font-medium truncate block group-hover:text-white">{{ item.name }}</span>
+                <div class="flex items-center gap-1.5">
+                  {% if item.aspect %}<span class="text-blue-400 text-[10px]">{{ item.aspect }}</span>{% endif %}
+                  {% if item.owned_pct %}<span class="text-indigo-400/60 text-[10px]">{{ item.owned_pct }} own</span>{% endif %}
+                </div>
+              </div>
+            </a>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+      {% endif %}{% endfor %}
+    </div>
+  </div>
+
+  <!-- BARDINGS panel - grouped by patch era -->
+  <div id="panel-bardings" class="hidden">
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
+      {% if character.barding_count %}<div class="flex items-center gap-3"><span class="text-amber-400 font-bold text-lg">{{ character.barding_count }}<span class="text-gray-500 font-normal text-sm">/{{ character.barding_total }}</span></span><span class="text-gray-400 text-xs">bardings owned</span></div>
+      {% else %}<p class="text-gray-500 text-xs">{{ character.barding_total }} bardings total - <a href="{{ character.collect_url }}" target="_blank" rel="noopener" class="text-indigo-400 hover:text-indigo-300">sync FFXIV Collect</a> to see your count</p>{% endif %}
+      <a href="{{ character.collect_url }}" target="_blank" rel="noopener" class="text-indigo-400 hover:text-indigo-300 text-xs flex items-center gap-1 shrink-0"><i class="fas fa-external-link-alt text-[10px]"></i> View on FFXIV Collect</a>
+    </div>
+    <p class="text-gray-600 text-xs mb-3 italic">Per-item owned status requires FFXIV Collect sync. Grouped by patch era - community ownership rates shown.</p>
+    <div class="space-y-2">
+      {% for group_name, items in bardings_grouped %}{% if items %}
+      <div class="cat-group bg-neutral-900 border border-neutral-800 rounded-xl overflow-hidden">
+        <button type="button" onclick="toggleCatGroup(this)" class="w-full flex items-center justify-between px-4 py-3 hover:bg-neutral-800/60 transition text-left">
+          <div class="flex items-center gap-3">
+            <i class="fas fa-chevron-right text-gray-600 text-xs transition-transform cat-chevron"></i>
+            <span class="text-white font-semibold text-sm">{{ group_name }}</span>
+            <span class="text-gray-600 text-xs">({{ items|length }})</span>
+          </div>
+        </button>
+        <div class="cat-group-body hidden px-4 pb-4">
+          <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2 mt-2">
+            {% for item in items %}
+            <a href="{{ item.url }}" target="_blank" rel="noopener"
+              class="collection-item bg-neutral-800/60 border border-neutral-700/50 rounded-xl p-2.5 flex items-center gap-2 hover:border-amber-700/40 hover:bg-neutral-800 transition group"
+              data-name="{{ item.name|lower }}">
+              {% if item.icon %}<img src="{{ item.icon }}" alt="" class="w-8 h-8 rounded flex-shrink-0">{% endif %}
+              <div class="min-w-0 flex-1">
+                <span class="text-gray-300 text-xs font-medium truncate block group-hover:text-white">{{ item.name }}</span>
+                {% if item.owned_pct %}<span class="text-indigo-400/60 text-[10px]">{{ item.owned_pct }} own</span>{% endif %}
+              </div>
+            </a>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+      {% endif %}{% endfor %}
+    </div>
+  </div>
+
+  <!-- FASHIONS panel - grouped by patch era -->
+  <div id="panel-fashions" class="hidden">
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
+      {% if character.fashion_count %}<div class="flex items-center gap-3"><span class="text-rose-400 font-bold text-lg">{{ character.fashion_count }}<span class="text-gray-500 font-normal text-sm">/{{ character.fashion_total }}</span></span><span class="text-gray-400 text-xs">fashion accessories owned</span></div>
+      {% else %}<p class="text-gray-500 text-xs">{{ character.fashion_total }} fashion accessories total - <a href="{{ character.collect_url }}" target="_blank" rel="noopener" class="text-indigo-400 hover:text-indigo-300">sync FFXIV Collect</a> to see your count</p>{% endif %}
+      <a href="{{ character.collect_url }}" target="_blank" rel="noopener" class="text-indigo-400 hover:text-indigo-300 text-xs flex items-center gap-1 shrink-0"><i class="fas fa-external-link-alt text-[10px]"></i> View on FFXIV Collect</a>
+    </div>
+    <p class="text-gray-600 text-xs mb-3 italic">Per-item owned status requires FFXIV Collect sync. Grouped by patch era - community ownership rates shown.</p>
+    <div class="space-y-2">
+      {% for group_name, items in fashions_grouped %}{% if items %}
+      <div class="cat-group bg-neutral-900 border border-neutral-800 rounded-xl overflow-hidden">
+        <button type="button" onclick="toggleCatGroup(this)" class="w-full flex items-center justify-between px-4 py-3 hover:bg-neutral-800/60 transition text-left">
+          <div class="flex items-center gap-3">
+            <i class="fas fa-chevron-right text-gray-600 text-xs transition-transform cat-chevron"></i>
+            <span class="text-white font-semibold text-sm">{{ group_name }}</span>
+            <span class="text-gray-600 text-xs">({{ items|length }})</span>
+          </div>
+        </button>
+        <div class="cat-group-body hidden px-4 pb-4">
+          <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2 mt-2">
+            {% for item in items %}
+            <a href="{{ item.url }}" target="_blank" rel="noopener"
+              class="collection-item bg-neutral-800/60 border border-neutral-700/50 rounded-xl p-2.5 flex items-center gap-2 hover:border-rose-700/40 hover:bg-neutral-800 transition group"
+              data-name="{{ item.name|lower }}">
+              {% if item.icon %}<img src="{{ item.icon }}" alt="" class="w-8 h-8 rounded flex-shrink-0">{% endif %}
+              <div class="min-w-0 flex-1">
+                <span class="text-gray-300 text-xs font-medium truncate block group-hover:text-white">{{ item.name }}</span>
+                {% if item.owned_pct %}<span class="text-indigo-400/60 text-[10px]">{{ item.owned_pct }} own</span>{% endif %}
+              </div>
+            </a>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+      {% endif %}{% endfor %}
+    </div>
+  </div>
+
+  <div id="panel-achievements" class="hidden">
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
+      <div class="flex items-center gap-3">
+        {% if character.achievement_count %}
+        <span class="text-yellow-400 font-bold text-lg">{{ character.achievement_count }}<span class="text-gray-500 font-normal text-sm">/{{ character.achievement_total }}</span></span>
+        <span class="text-gray-400 text-xs">achievements earned</span>
+        {% else %}
+        <span class="text-gray-500 text-xs">{{ character.achievement_total }} total - sync to see your progress</span>
+        {% endif %}
+      </div>
+      <a href="https://na.finalfantasyxiv.com/lodestone/character/{{ character.lodestone_id }}/achievement/" target="_blank" rel="noopener" class="text-indigo-400 hover:text-indigo-300 text-xs flex items-center gap-1 shrink-0"><i class="fas fa-external-link-alt text-[10px]"></i> View on Lodestone</a>
+    </div>
+
+    {% if achievements_by_cat %}
+    <!-- Filter bar -->
+    <div class="flex flex-wrap gap-2 mb-4">
+      <button onclick="filterAchievements('all', this)" class="ach-filter-btn text-xs px-3 py-1.5 rounded-full bg-yellow-600 text-white font-semibold transition">All</button>
+      <button onclick="filterAchievements('owned', this)" class="ach-filter-btn text-xs px-3 py-1.5 rounded-full bg-neutral-800 text-gray-400 hover:text-white font-semibold transition"><i class="fas fa-check mr-1 text-green-400"></i>Earned</button>
+      <button onclick="filterAchievements('missing', this)" class="ach-filter-btn text-xs px-3 py-1.5 rounded-full bg-neutral-800 text-gray-400 hover:text-white font-semibold transition"><i class="fas fa-times mr-1 text-red-400"></i>Missing</button>
+    </div>
+
+    <!-- Categories accordion -->
+    <div class="space-y-3" id="ach-categories">
+      {% for cat_name, items in achievements_by_cat.items %}
+      {% if items %}
+      <div class="ach-cat bg-neutral-900 border border-neutral-800 rounded-xl overflow-hidden">
+        <button type="button" onclick="toggleAchCat(this)"
+          class="w-full flex items-center justify-between px-4 py-3 hover:bg-neutral-800/60 transition text-left">
+          <div class="flex items-center gap-3">
+            <i class="fas fa-chevron-right text-gray-600 text-xs transition-transform ach-chevron"></i>
+            <span class="text-white font-semibold text-sm">{{ cat_name }}</span>
+          </div>
+          <div class="flex items-center gap-3">
+            <span class="text-xs text-gray-500">
+              <span class="text-green-400 font-bold ach-cat-done">{% for a in items %}{% if a.completed %}{% endif %}{% endfor %}</span>
+              / {{ items|length }}
+            </span>
+            <!-- progress bar -->
+            <div class="w-20 h-1.5 bg-neutral-700 rounded-full overflow-hidden hidden sm:block">
+              <div class="h-full bg-green-500 rounded-full ach-cat-bar" style="width:0%"></div>
+            </div>
+          </div>
+        </button>
+        <div class="ach-cat-body hidden px-4 pb-4">
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 mt-2">
+            {% for item in items %}
+            <a href="https://na.finalfantasyxiv.com/lodestone/character/{{ character.lodestone_id }}/achievement/detail/{{ item.id }}/"
+              target="_blank" rel="noopener"
+              class="ach-item flex items-center gap-3 rounded-xl p-2.5 border transition group {% if item.completed %}bg-green-900/10 border-green-800/30 hover:border-green-600/50 hover:bg-green-900/20{% else %}bg-neutral-800/40 border-neutral-700/40 hover:border-neutral-600 hover:bg-neutral-800 opacity-60 hover:opacity-100{% endif %}"
+              data-owned="{% if item.completed %}1{% else %}0{% endif %}">
+              {% if item.icon %}
+              <div class="relative flex-shrink-0">
+                <img src="{{ item.icon }}" alt="" class="w-9 h-9 rounded {% if not item.completed %}grayscale opacity-50{% endif %}">
+                {% if item.completed %}<span class="absolute -bottom-1 -right-1 w-3.5 h-3.5 bg-green-500 rounded-full flex items-center justify-center"><i class="fas fa-check text-white" style="font-size:7px"></i></span>{% endif %}
+              </div>
+              {% endif %}
+              <div class="min-w-0 flex-1">
+                <span class="text-xs font-medium truncate block {% if item.completed %}text-white{% else %}text-gray-400 group-hover:text-gray-200{% endif %}">{{ item.name }}</span>
+                <span class="text-[10px] {% if item.completed %}text-yellow-500{% else %}text-gray-600{% endif %}">{{ item.pts }} pts</span>
+              </div>
+            </a>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+      {% endif %}
+      {% endfor %}
+    </div>
+
+    {% else %}
+    <!-- No achievement data yet - prompt sync -->
+    <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-6 text-center">
+      <i class="fas fa-sync text-gray-600 text-2xl mb-3"></i>
+      <p class="text-gray-400 text-sm font-semibold mb-1">Sync to load achievements</p>
+      <p class="text-gray-600 text-xs">Click "Sync Now" above to pull your achievement data from Lodestone.</p>
+    </div>
+    {% endif %}
+  </div>
+
+  <div id="panel-relics" class="hidden">
+    <div class="flex items-center justify-between mb-4">
+      <p class="text-gray-500 text-xs">{% if character.relic_owned_count %}<span class="text-violet-400 font-bold">{{ character.relic_owned_count }}/{{ character.relic_total_count }}</span> owned - {% endif %}{{ relic_total }} relics across {{ relics_grouped|length }} series - click a section to expand</p>
+      <a href="{{ character.collect_url }}" target="_blank" rel="noopener" class="text-indigo-400 hover:text-indigo-300 text-xs flex items-center gap-1"><i class="fas fa-external-link-alt text-[10px]"></i> View progress on FFXIV Collect</a>
+    </div>
+    <div class="space-y-2" id="relics-accordion">
+      {% for type_name, items in relics_grouped %}
+      <div class="relic-group bg-neutral-900 border border-neutral-800 rounded-xl overflow-hidden">
+        <button type="button" onclick="toggleRelicGroup(this)"
+          class="w-full flex items-center justify-between px-4 py-3 hover:bg-neutral-800 transition text-left">
+          <div class="flex items-center gap-3">
+            <i class="fas fa-gem text-violet-400 text-xs"></i>
+            <span class="text-white font-semibold text-sm">{{ type_name }}</span>
+            <span class="text-gray-600 text-xs">({{ items|length }})</span>
+          </div>
+          <i class="fas fa-chevron-down text-gray-600 text-xs transition-transform relic-chevron"></i>
+        </button>
+        <div class="relic-group-content hidden px-4 pb-4">
+          <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2 pt-2">
+            {% for item in items %}
+            <a href="{{ item.url }}" target="_blank" rel="noopener"
+              class="collection-item bg-neutral-800/60 border border-neutral-700/50 rounded-xl p-2.5 flex items-center gap-2 hover:border-violet-700/40 hover:bg-neutral-800 transition group"
+              data-name="{{ item.name|lower }}">
+              {% if item.icon %}<img src="{{ item.icon }}" alt="" class="w-8 h-8 rounded flex-shrink-0">{% else %}<div class="w-8 h-8 rounded bg-violet-900/30 flex items-center justify-center flex-shrink-0"><i class="fas fa-gem text-violet-600 text-[10px]"></i></div>{% endif %}
+              <div class="min-w-0 flex-1">
+                <span class="text-gray-300 text-xs font-medium truncate block group-hover:text-white">{{ item.name }}</span>
+                {% if item.owned_pct %}<span class="text-indigo-400/60 text-[10px]">{{ item.owned_pct }} own</span>{% endif %}
+              </div>
+            </a>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- RECORDS panel - grouped by patch era -->
+  <div id="panel-records" class="hidden">
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
+      {% if character.record_count %}<div class="flex items-center gap-3"><span class="text-teal-400 font-bold text-lg">{{ character.record_count }}<span class="text-gray-500 font-normal text-sm">/{{ character.record_total }}</span></span><span class="text-gray-400 text-xs">field records owned</span></div>
+      {% else %}<p class="text-gray-500 text-xs">{{ character.record_total }} field records total - <a href="{{ character.collect_url }}" target="_blank" rel="noopener" class="text-indigo-400 hover:text-indigo-300">sync FFXIV Collect</a> to see your count</p>{% endif %}
+      <a href="{{ character.collect_url }}" target="_blank" rel="noopener" class="text-indigo-400 hover:text-indigo-300 text-xs flex items-center gap-1 shrink-0"><i class="fas fa-external-link-alt text-[10px]"></i> View on FFXIV Collect</a>
+    </div>
+    <p class="text-gray-600 text-xs mb-3 italic">Per-item owned status requires FFXIV Collect sync. Grouped by patch era - community ownership rates shown.</p>
+    <div class="space-y-2">
+      {% for group_name, items in records_grouped %}{% if items %}
+      <div class="cat-group bg-neutral-900 border border-neutral-800 rounded-xl overflow-hidden">
+        <button type="button" onclick="toggleCatGroup(this)" class="w-full flex items-center justify-between px-4 py-3 hover:bg-neutral-800/60 transition text-left">
+          <div class="flex items-center gap-3">
+            <i class="fas fa-chevron-right text-gray-600 text-xs transition-transform cat-chevron"></i>
+            <span class="text-white font-semibold text-sm">{{ group_name }}</span>
+            <span class="text-gray-600 text-xs">({{ items|length }})</span>
+          </div>
+        </button>
+        <div class="cat-group-body hidden px-4 pb-4">
+          <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 mt-2">
+            {% for item in items %}
+            <a href="{{ item.url }}" target="_blank" rel="noopener"
+              class="collection-item bg-neutral-800/60 border border-neutral-700/50 rounded-xl p-2.5 flex items-center gap-2 hover:border-teal-700/40 hover:bg-neutral-800 transition group"
+              data-name="{{ item.name|lower }}">
+              {% if item.icon %}<img src="{{ item.icon }}" alt="" class="w-8 h-8 rounded flex-shrink-0">{% endif %}
+              {% if item.image and not item.icon %}<img src="{{ item.image }}" alt="" class="w-8 h-8 rounded flex-shrink-0 object-cover">{% endif %}
+              <div class="min-w-0 flex-1">
+                <span class="text-gray-300 text-xs font-medium truncate block group-hover:text-white">{{ item.name }}</span>
+                {% if item.owned_pct %}<span class="text-indigo-400/60 text-[10px]">{{ item.owned_pct }} own</span>{% endif %}
+              </div>
+            </a>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+      {% endif %}{% endfor %}
+    </div>
+  </div>
+
+
+  {% endif %}
+
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  {% if character %}
+  // Sync time display
+  const lastSynced = {{ character.last_synced_at|default:"null" }};
+  if (lastSynced) {
+    const ago = Math.floor((Date.now()/1000 - lastSynced) / 60);
+    const agoEl = document.getElementById('sync-ago');
+    if (agoEl) {
+      if (ago < 1) agoEl.textContent = 'just now';
+      else if (ago < 60) agoEl.textContent = ago + 'm ago';
+      else agoEl.textContent = Math.floor(ago/60) + 'h ago';
+    }
+  }
+  {% endif %}
+});
+
+// ── Character Search ───────────────────────────────────────────────────────
+
+let selectedCharacter = null;
+
+function searchCharacters() {
+  const name = document.getElementById('char-name-input').value.trim();
+  const world = document.getElementById('char-world-input').value.trim();
+  const errEl = document.getElementById('search-error');
+  const resultsEl = document.getElementById('search-results');
+  const btn = document.getElementById('search-btn');
+
+  errEl.classList.add('hidden');
+  if (name.length < 2) {
+    errEl.textContent = 'Enter at least 2 characters.';
+    errEl.classList.remove('hidden');
+    return;
+  }
+
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>Searching...';
+  resultsEl.innerHTML = '';
+  resultsEl.classList.add('hidden');
+
+  const params = new URLSearchParams({name});
+  if (world) params.set('world', world);
+
+  csrfFetch('/api/ffxiv/characters/search/?' + params.toString())
+    .then(r => r.json())
+    .then(data => {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fas fa-search mr-1"></i>Search';
+      if (data.error) {
+        errEl.textContent = data.error;
+        errEl.classList.remove('hidden');
+        return;
+      }
+      if (!data.results || data.results.length === 0) {
+        errEl.textContent = 'No characters found. Check the name spelling and try including the world name.';
+        errEl.classList.remove('hidden');
+        return;
+      }
+      resultsEl.classList.remove('hidden');
+      resultsEl.innerHTML = data.results.map(c => `
+        <button onclick='selectCharacter(${JSON.stringify(c)})'
+          class="w-full flex items-center gap-3 bg-neutral-800/60 hover:bg-neutral-800 border border-neutral-700/50 rounded-xl p-3 text-left transition">
+          ${c.avatar_url ? `<img src="${escapeHtml(c.avatar_url)}" class="w-10 h-10 rounded-full object-cover flex-shrink-0" alt="">` : '<div class="w-10 h-10 rounded-full bg-indigo-800 flex-shrink-0"></div>'}
+          <div>
+            <p class="text-white font-bold text-sm">${escapeHtml(c.name)}</p>
+            <p class="text-gray-400 text-xs">${escapeHtml(c.world)}</p>
+          </div>
+          <i class="fas fa-chevron-right text-gray-600 text-xs ml-auto"></i>
+        </button>
+      `).join('');
+    })
+    .catch(() => {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fas fa-search mr-1"></i>Search';
+      errEl.textContent = 'Search failed. Please try again.';
+      errEl.classList.remove('hidden');
+    });
+}
+
+function selectCharacter(c) {
+  selectedCharacter = c;
+  document.getElementById('confirm-avatar').src = c.avatar_url || '';
+  document.getElementById('confirm-name').textContent = c.name;
+  document.getElementById('confirm-world').textContent = c.world;
+  document.getElementById('search-results').classList.add('hidden');
+  document.getElementById('confirm-panel').classList.remove('hidden');
+}
+
+function cancelConfirm() {
+  selectedCharacter = null;
+  document.getElementById('confirm-panel').classList.add('hidden');
+  document.getElementById('search-results').classList.remove('hidden');
+}
+
+function linkCharacter() {
+  if (!selectedCharacter) return;
+  const btn = document.getElementById('link-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>Linking...';
+
+  csrfFetch('/api/ffxiv/characters/link/', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({lodestone_id: selectedCharacter.lodestone_id}),
+  }).then(r => r.json()).then(data => {
+    if (data.error) {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fas fa-link mr-1"></i>Link This Character';
+      document.getElementById('search-error').textContent = data.error;
+      document.getElementById('search-error').classList.remove('hidden');
+      return;
+    }
+    // Reload to show the collection view
+    window.location.reload();
+  }).catch(() => {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-link mr-1"></i>Link This Character';
+  });
+}
+
+// ── Sync ──────────────────────────────────────────────────────────────────
+
+function syncCharacter(lodestoneId) {
+  const btn = document.getElementById('sync-btn');
+  const icon = document.getElementById('sync-icon');
+  btn.disabled = true;
+  icon.className = 'fas fa-spinner fa-spin';
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Syncing...';
+
+  csrfFetch('/api/ffxiv/characters/sync/', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({lodestone_id: lodestoneId}),
+  }).then(r => r.json()).then(data => {
+    btn.disabled = false;
+    if (data.error) {
+      btn.innerHTML = '<i class="fas fa-exclamation-circle text-red-400"></i> ' + escapeHtml(data.error);
+      return;
+    }
+    // Show rewards toast if any
+    if (data.rewards && data.rewards.length > 0) {
+      data.rewards.forEach(r => showRewardToast(r.name, r.xp, r.legacy));
+    }
+    // Mounts/minions done. Achievements scrape runs in background - poll until ready then reload.
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin text-yellow-400"></i> Loading achievements...';
+    let pollCount = 0;
+    function pollAchievements() {
+      pollCount++;
+      if (pollCount > 20) { window.location.reload(); return; } // give up after 40s
+      fetch('/api/ffxiv/characters/achievements-ready/?lodestone_id=' + encodeURIComponent(lodestoneId))
+        .then(r => r.json()).then(d => {
+          if (d.ready) { window.location.reload(); }
+          else { setTimeout(pollAchievements, 2000); }
+        }).catch(() => setTimeout(pollAchievements, 2000));
+    }
+    setTimeout(pollAchievements, 3000);
+  }).catch(() => {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-sync-alt"></i> Sync Now';
+  });
+}
+
+function showRewardToast(name, xp, legacy) {
+  const toast = document.createElement('div');
+  toast.className = 'fixed bottom-6 right-6 bg-yellow-600 text-white font-bold text-sm px-5 py-3 rounded-xl shadow-xl z-50 flex items-center gap-2';
+  toast.innerHTML = `<i class="fas fa-star"></i><div><p>${escapeHtml(name)}</p><p class="text-yellow-200 text-xs font-normal">+${xp}XP ${legacy ? '&bull; +' + legacy + ' Legacy' : ''}</p></div>`;
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 4000);
+}
+
+// ── Tab switching ─────────────────────────────────────────────────────────
+
+const TABS = [
+  'mounts', 'minions', 'jobs', 'missing-mounts', 'missing-minions',
+  'hairstyles', 'emotes', 'orchestrions', 'spells',
+  'bardings', 'fashions', 'achievements', 'relics', 'records',
+];
+
+function switchTab(tab) {
+  TABS.forEach(t => {
+    document.getElementById('panel-' + t)?.classList.add('hidden');
+    const btn = document.getElementById('tab-' + t);
+    if (btn) {
+      btn.classList.remove('bg-yellow-600', 'text-white');
+      btn.classList.add('text-gray-400', 'hover:text-white');
+    }
+  });
+  document.getElementById('panel-' + tab)?.classList.remove('hidden');
+  const activeBtn = document.getElementById('tab-' + tab);
+  if (activeBtn) {
+    activeBtn.classList.add('bg-yellow-600', 'text-white');
+    activeBtn.classList.remove('text-gray-400', 'hover:text-white');
+  }
+  const searchEl = document.getElementById('collection-search');
+  if (searchEl) { searchEl.value = ''; filterCollection(); }
+}
+
+// ── Relic accordion ──────────────────────────────────────────────────────
+
+// ── Achievement accordion ─────────────────────────────────────────────────
+
+function toggleAchCat(btn) {
+  const body = btn.nextElementSibling;
+  const chevron = btn.querySelector('.ach-chevron');
+  const hidden = body.classList.contains('hidden');
+  body.classList.toggle('hidden', !hidden);
+  if (chevron) chevron.style.transform = hidden ? 'rotate(90deg)' : '';
+}
+
+function filterAchievements(mode, btn) {
+  document.querySelectorAll('.ach-filter-btn').forEach(b => {
+    b.classList.remove('bg-yellow-600', 'text-white');
+    b.classList.add('bg-neutral-800', 'text-gray-400');
+  });
+  btn.classList.add('bg-yellow-600', 'text-white');
+  btn.classList.remove('bg-neutral-800', 'text-gray-400');
+  document.querySelectorAll('.ach-item').forEach(el => {
+    const owned = el.dataset.owned === '1';
+    if (mode === 'all') el.style.display = '';
+    else if (mode === 'owned') el.style.display = owned ? '' : 'none';
+    else el.style.display = owned ? 'none' : '';
+  });
+  // Expand all cats when filtering, show/hide cats with no visible items
+  document.querySelectorAll('.ach-cat').forEach(cat => {
+    const body = cat.querySelector('.ach-cat-body');
+    const visible = Array.from(cat.querySelectorAll('.ach-item')).some(el => el.style.display !== 'none');
+    if (body) body.classList.toggle('hidden', !visible);
+    const chevron = cat.querySelector('.ach-chevron');
+    if (chevron) chevron.style.transform = visible ? 'rotate(90deg)' : '';
+  });
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  // Compute earned count + progress bar per category
+  document.querySelectorAll('.ach-cat').forEach(cat => {
+    const items = cat.querySelectorAll('.ach-item');
+    const done = Array.from(items).filter(el => el.dataset.owned === '1').length;
+    const total = items.length;
+    const doneEl = cat.querySelector('.ach-cat-done');
+    if (doneEl) doneEl.textContent = done;
+    const bar = cat.querySelector('.ach-cat-bar');
+    if (bar) bar.style.width = total ? `${Math.round(done / total * 100)}%` : '0%';
+  });
+});
+
+function toggleRelicGroup(btn) {
+  const content = btn.nextElementSibling;
+  const chevron = btn.querySelector('.relic-chevron');
+  const isHidden = content.classList.contains('hidden');
+  content.classList.toggle('hidden', !isHidden);
+  if (chevron) chevron.style.transform = isHidden ? 'rotate(180deg)' : '';
+}
+
+function toggleCatGroup(btn) {
+  const body = btn.nextElementSibling;
+  const chevron = btn.querySelector('.cat-chevron');
+  const hidden = body.classList.contains('hidden');
+  body.classList.toggle('hidden', !hidden);
+  if (chevron) chevron.style.transform = hidden ? 'rotate(90deg)' : '';
+}
+
+// ── Collection search filter ──────────────────────────────────────────────
+
+function filterCollection() {
+  const q = document.getElementById('collection-search').value.toLowerCase();
+  document.querySelectorAll('.collection-item').forEach(el => {
+    const visible = el.dataset.name.includes(q);
+    el.style.display = visible ? '' : 'none';
+  });
+  // Relic groups
+  document.querySelectorAll('.relic-group').forEach(group => {
+    const content = group.querySelector('.relic-group-content');
+    if (!content) return;
+    if (!q) {
+      content.classList.add('hidden');
+      const chevron = group.querySelector('.relic-chevron');
+      if (chevron) chevron.style.transform = '';
+      return;
+    }
+    const hasVisible = Array.from(content.querySelectorAll('.collection-item')).some(
+      el => el.dataset.name.includes(q)
+    );
+    content.classList.toggle('hidden', !hasVisible);
+    const chevron = group.querySelector('.relic-chevron');
+    if (chevron) chevron.style.transform = hasVisible ? 'rotate(180deg)' : '';
+  });
+  // Category accordion groups (hairstyles, emotes, orchestrions, etc.)
+  document.querySelectorAll('.cat-group').forEach(group => {
+    const body = group.querySelector('.cat-group-body');
+    if (!body) return;
+    if (!q) {
+      body.classList.add('hidden');
+      const chevron = group.querySelector('.cat-chevron');
+      if (chevron) chevron.style.transform = '';
+      return;
+    }
+    const hasVisible = Array.from(body.querySelectorAll('.collection-item')).some(
+      el => el.dataset.name.includes(q)
+    );
+    body.classList.toggle('hidden', !hasVisible);
+    const chevron = group.querySelector('.cat-chevron');
+    if (chevron) chevron.style.transform = hasVisible ? 'rotate(90deg)' : '';
+  });
+}
+
+// Allow Enter key in character search
+document.addEventListener('DOMContentLoaded', function() {
+  const nameInput = document.getElementById('char-name-input');
+  if (nameInput) {
+    nameInput.addEventListener('keydown', e => { if (e.key === 'Enter') searchCharacters(); });
+  }
+});
+</script>
+{% endblock web_content %}

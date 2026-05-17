@@ -228,7 +228,7 @@
 
 <script>
 const SPACE_ID_URL = '{{ space_id_url }}';
-const WELCOME_API = '/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/welcome/';
+const WELCOME_API = 'api/dashboard/matrix/' + SPACE_ID_URL + '/welcome/';
 
 let welcomeRoomSelect = null;
 let goodbyeRoomSelect = null;
@@ -287,7 +287,7 @@ async function saveConfig() {
 }
 
 const VIEWER_MATRIX_ID = '{{ viewer_matrix_id|escapejs }}';
-const MESSAGES_API = '/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/messages/';
+const MESSAGES_API = 'api/dashboard/matrix/' + SPACE_ID_URL + '/messages/';
 
 let sendRoomSelect = null;
 let ROOMS = [];

@@ -1,53 +1,108 @@
 {% extends "base.html" %}
 {% block title %}Upcoming Games We're Hyped About | Casual Heroes{% endblock %}
-{% block og_title %}Welcome to Casual Heroes{% endblock %}
-{% block og_description %}Join the Casual Heroes community — modded servers, friendly vibes, and endless co-op adventures.{% endblock %}
+{% block og_title %}Games We're Hyped About | Casual Heroes{% endblock %}
+{% block og_description %}Upcoming titles the Casual Heroes community is watching, planning servers for, and losing sleep over.{% endblock %}
 {% block og_image %}https://casual-heroes.com/static/img/siteassets/homepage/CHLogoFinal.png{% endblock %}
-{% block og_url %}https://casual-heroes.com/{% endblock %}
+{% block og_url %}https://casual-heroes.com/gameshype/{% endblock %}
 {% block content %}
-<section class="mt-20 max-w-4xl mx-auto px-4">
-  <h1 class="text-4xl font-extrabold text-center mb-10">Upcoming Games We're Hyped About</h1>
-  <p class="text-center text-gray-300 mb-12">
-    These are the titles we're watching closely, discussing in our Discord, and planning to build future servers, content, and community events around.
-  </p>
+<section class="mt-20 max-w-5xl mx-auto px-4 pb-20">
 
-  <div class="grid grid-cols-1 sm:grid-cols-2 gap-8">
-    <!-- Game Card -->
-    <a href="https://casual-heroes.com/dune/" target="_blank" class="bg-neutral-900 border border-neutral-800 p-4 rounded-xl shadow-[0_0_10px_#6366f1] shadow transition hover:shadow-[0_0_40px_#818CF8] block">
-      <h2 class="text-xl font-semibold text-indigo-400">Dune: Awakening</h2>
-      <p class="text-sm text-gray-400">Launching June 10, Dune blends MMO survival and spice-fueled chaos. We'll be running a guild, lore events, and more.</p>
+  <div class="text-center mb-14">
+    <h1 class="text-4xl font-extrabold text-white mb-3">Games We're Hyped About</h1>
+    <p class="text-gray-400 text-base max-w-2xl mx-auto">Titles we're watching closely, planning servers for, and building community events around. No algorithm. Just genuine hype.</p>
+  </div>
+
+  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+
+    <!-- Light No Fire -->
+    <a href="https://store.steampowered.com/app/2719590/Light_No_Fire/" target="_blank" rel="noopener noreferrer" class="group relative rounded-xl overflow-hidden bg-neutral-900 border border-neutral-800 hover:border-indigo-500/50 transition-all duration-300 flex flex-col">
+      <div class="relative h-36 overflow-hidden">
+        <img src="https://cdn.cloudflare.steamstatic.com/steam/apps/2719590/header.jpg" alt="Light No Fire" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">
+        <div class="absolute inset-0 bg-gradient-to-t from-neutral-900 via-neutral-900/60 to-transparent"></div>
+        <span class="absolute top-2 right-2 text-xs bg-neutral-700/90 text-gray-300 px-2 py-0.5 rounded-full font-medium">Watching</span>
+      </div>
+      <div class="p-4 flex flex-col flex-1">
+        <h2 class="text-white font-bold text-base mb-1">Light No Fire</h2>
+        <p class="text-gray-400 text-sm leading-relaxed flex-1">Earth-scale procedural fantasy from Hello Games. No one is ready for how big this could be.</p>
+      </div>
     </a>
 
-    <a href="https://store.steampowered.com/app/2622380/ELDEN_RING_NIGHTREIGN/" target="_blank" class="bg-neutral-900 border border-neutral-800 p-4 rounded-xl shadow-[0_0_10px_#6366f1] shadow transition hover:shadow-[0_0_40px_#818CF8] block">
-      <h2 class="text-xl font-semibold text-indigo-400">Elden Ring: Night Reign</h2>
-      <p class="text-sm text-gray-400">We're gathering for launch night raids and community builds. Prepare to die... gloriously.</p>
+    <!-- Outward 2 -->
+    <a href="https://store.steampowered.com/app/2849490/Outward_2/" target="_blank" rel="noopener noreferrer" class="group relative rounded-xl overflow-hidden bg-neutral-900 border border-neutral-800 hover:border-indigo-500/50 transition-all duration-300 flex flex-col">
+      <div class="relative h-36 overflow-hidden">
+        <img src="https://cdn.cloudflare.steamstatic.com/steam/apps/2849490/header.jpg" alt="Outward 2" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">
+        <div class="absolute inset-0 bg-gradient-to-t from-neutral-900 via-neutral-900/60 to-transparent"></div>
+        <span class="absolute top-2 right-2 text-xs bg-neutral-700/90 text-gray-300 px-2 py-0.5 rounded-full font-medium">Watching</span>
+      </div>
+      <div class="p-4 flex flex-col flex-1">
+        <h2 class="text-white font-bold text-base mb-1">Outward 2</h2>
+        <p class="text-gray-400 text-sm leading-relaxed flex-1">Punishing survival co-op with serious modding potential. The kind of game CH was made for.</p>
+      </div>
     </a>
 
-    <a href="https://store.steampowered.com/app/2719590/Light_No_Fire/" target="_blank" class="bg-neutral-900 border border-neutral-800 p-4 rounded-xl shadow-[0_0_10px_#6366f1] shadow transition hover:shadow-[0_0_40px_#818CF8] block">
-      <h2 class="text-xl font-semibold text-indigo-400">Light No Fire</h2>
-      <p class="text-sm text-gray-400">A procedural open-world Earth-scale fantasy from Hello Games. No one's ready for how big this could be.</p>
+    <!-- FFXIV: Evercold -->
+    <a href="https://www.finalfantasyxiv.com/" target="_blank" rel="noopener noreferrer" class="group relative rounded-xl overflow-hidden bg-neutral-900 border border-neutral-800 hover:border-indigo-500/50 transition-all duration-300 flex flex-col">
+      <div class="relative h-36 overflow-hidden">
+        <img src="https://cdn.cloudflare.steamstatic.com/steam/apps/39210/header.jpg" alt="FFXIV: Evercold" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">
+        <div class="absolute inset-0 bg-gradient-to-t from-neutral-900 via-neutral-900/60 to-transparent"></div>
+        <span class="absolute top-2 right-2 text-xs bg-indigo-600/90 text-white px-2 py-0.5 rounded-full font-medium">Expansion</span>
+      </div>
+      <div class="p-4 flex flex-col flex-1">
+        <h2 class="text-white font-bold text-base mb-1">FFXIV: Evercold</h2>
+        <p class="text-gray-400 text-sm leading-relaxed flex-1">The next chapter for our FC. New raids, new story, same chaotic family energy.</p>
+      </div>
     </a>
 
-    <a href="https://store.steampowered.com/app/2849490/Outward_2/" target="_blank" class="bg-neutral-900 border border-neutral-800 p-4 rounded-xl shadow-[0_0_10px_#6366f1] shadow transition hover:shadow-[0_0_40px_#818CF8] block">
-      <h2 class="text-xl font-semibold text-indigo-400">Outward 2</h2>
-      <p class="text-sm text-gray-400">More punishing survival co-op with modding potential? Count us in. Watch this one.</p>
+    <!-- Wyldheart -->
+    <a href="https://store.steampowered.com/app/3642910/Wyldheart/" target="_blank" rel="noopener noreferrer" class="group relative rounded-xl overflow-hidden bg-neutral-900 border border-neutral-800 hover:border-indigo-500/50 transition-all duration-300 flex flex-col">
+      <div class="relative h-36 overflow-hidden bg-neutral-800">
+        <div class="absolute inset-0 bg-gradient-to-br from-violet-900/50 to-neutral-900"></div>
+        <div class="absolute inset-0 flex items-center justify-center">
+          <i class="fas fa-heart text-violet-700/30 text-7xl"></i>
+        </div>
+        <div class="absolute inset-0 bg-gradient-to-t from-neutral-900 via-neutral-900/40 to-transparent"></div>
+        <span class="absolute top-2 right-2 text-xs bg-neutral-700/90 text-gray-300 px-2 py-0.5 rounded-full font-medium">Watching</span>
+      </div>
+      <div class="p-4 flex flex-col flex-1">
+        <h2 class="text-white font-bold text-base mb-1">Wyldheart</h2>
+        <p class="text-gray-400 text-sm leading-relaxed flex-1">Bite-sized co-op campaigns in a rustic fantasy world. Start from nothing, build your character, explore ruins, and survive the dangers threatening the fallen Kingdom of Caerwyn.</p>
+      </div>
     </a>
 
-    <a href="https://store.steampowered.com/app/1340720/State_of_Decay_3/" target="_blank" class="bg-neutral-900 border border-neutral-800 p-4 rounded-xl shadow-[0_0_10px_#6366f1] shadow transition hover:shadow-[0_0_40px_#818CF8] block">
-      <h2 class="text-xl font-semibold text-indigo-400">State of Deacy 3</h2>
-      <p class="text-sm text-gray-400">Zombies rot. Fun doesn’t. We’re gettimg ready for base-building, survival mayhem, bring on the co-op carnage!</p>
+    <!-- Soulframe -->
+    <a href="https://store.steampowered.com/app/4095380/Soulframe/" target="_blank" rel="noopener noreferrer" class="group relative rounded-xl overflow-hidden bg-neutral-900 border border-neutral-800 hover:border-indigo-500/50 transition-all duration-300 flex flex-col">
+      <div class="relative h-36 overflow-hidden bg-neutral-800">
+        <div class="absolute inset-0 bg-gradient-to-br from-slate-800/60 to-neutral-900"></div>
+        <div class="absolute inset-0 flex items-center justify-center">
+          <i class="fas fa-khanda text-slate-600/40 text-7xl"></i>
+        </div>
+        <div class="absolute inset-0 bg-gradient-to-t from-neutral-900 via-neutral-900/40 to-transparent"></div>
+        <span class="absolute top-2 right-2 text-xs bg-neutral-700/90 text-gray-300 px-2 py-0.5 rounded-full font-medium">Watching</span>
+      </div>
+      <div class="p-4 flex flex-col flex-1">
+        <h2 class="text-white font-bold text-base mb-1">Soulframe</h2>
+        <p class="text-gray-400 text-sm leading-relaxed flex-1">From the Warframe creators - a fantasy action RPG set in a corrupted world. Built for co-op depth.</p>
+      </div>
     </a>
 
-    <a href="https://www.soulframe.com/en" target="_blank" class="bg-neutral-900 border border-neutral-800 p-4 rounded-xl shadow-[0_0_10px_#6366f1] shadow transition hover:shadow-[0_0_40px_#818CF8] block">
-      <h2 class="text-xl font-semibold text-indigo-400">SoulFrame</h2>
-      <p class="text-sm text-gray-400">An upcoming MMORPG from Warframe creators, set in the fantasy realm of Midrath. Play as an Envoy, a guardian fighting to restore balance against the corrupted Kingdom of Ode.</p>
+    <!-- Guardians of the Wild Sky -->
+    <a href="https://store.steampowered.com/app/1579420/Guardians_of_the_Wild_Sky/" target="_blank" rel="noopener noreferrer" class="group relative rounded-xl overflow-hidden bg-neutral-900 border border-neutral-800 hover:border-indigo-500/50 transition-all duration-300 flex flex-col">
+      <div class="relative h-36 overflow-hidden">
+        <img src="https://cdn.cloudflare.steamstatic.com/steam/apps/1579420/header.jpg" alt="Guardians of the Wild Sky" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">
+        <div class="absolute inset-0 bg-gradient-to-t from-neutral-900 via-neutral-900/60 to-transparent"></div>
+        <span class="absolute top-2 right-2 text-xs bg-neutral-700/90 text-gray-300 px-2 py-0.5 rounded-full font-medium">Watching</span>
+      </div>
+      <div class="p-4 flex flex-col flex-1">
+        <h2 class="text-white font-bold text-base mb-1">Guardians of the Wild Sky</h2>
+        <p class="text-gray-400 text-sm leading-relaxed flex-1">Survive, build, craft and explore a vast magical world. Capture and bond with powerful Guardians, captain your airship, and sail the cloud seas.</p>
+      </div>
     </a>
-
 
   </div>
 
   <div class="text-center mt-12">
-    <a href="/gamesuggest" class="text-indigo-400 hover:underline">Suggest a game you’re hyped for →</a>
+    <a href="/gamesuggest/" class="text-indigo-400 hover:text-indigo-300 text-sm transition">Suggest a game you're hyped for →</a>
   </div>
+
 </section>
 {% endblock %}

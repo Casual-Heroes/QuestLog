@@ -475,7 +475,7 @@ function loadPanelMembers() {
   updatePanelBulkBar();
 
   const roomParam = _panelRoomId ? '&room_id=' + encodeURIComponent(_panelRoomId) : '';
-  csrfFetch('/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/members/?per_page=500' + roomParam)
+  csrfFetch('/api/dashboard/matrix/' + SPACE_ID_URL + '/members/?per_page=500' + roomParam)
     .then(r => r.json()).then(d => {
       _panelMembers = d.members || [];
       renderPanelMembers(_panelMembers);
@@ -616,7 +616,7 @@ function submitPanelKick() {
 
   let done = 0;
   ids.forEach(matrix_id => {
-    csrfFetch('/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/members/kick/', {
+    csrfFetch('/api/dashboard/matrix/' + SPACE_ID_URL + '/members/kick/', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({ matrix_id, room_id: _panelRoomId, reason, all_rooms: false }),
@@ -640,7 +640,7 @@ function submitPanelBan() {
 
   let done = 0;
   ids.forEach(matrix_id => {
-    csrfFetch('/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/members/ban/', {
+    csrfFetch('/api/dashboard/matrix/' + SPACE_ID_URL + '/members/ban/', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({ matrix_id, reason }),
@@ -660,7 +660,7 @@ function submitPanelEdit() {
   const room_id = document.getElementById('panelEditRoomId').value;
   const name = document.getElementById('panelEditName').value.trim();
   const topic = document.getElementById('panelEditTopic').value.trim();
-  csrfFetch('/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/rooms/' + encodeURIComponent(room_id) + '/', {
+  csrfFetch('/api/dashboard/matrix/' + SPACE_ID_URL + '/rooms/' + encodeURIComponent(room_id) + '/', {
     method: 'PATCH',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({ name, topic }),
@@ -675,7 +675,7 @@ function submitPanelMessage() {
   const content = document.getElementById('panelMsgContent').value.trim();
   const as_html = document.getElementById('panelMsgHtml').checked;
   if (!content) { showToast('Message cannot be empty.', false); return; }
-  csrfFetch('/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/messages/', {
+  csrfFetch('/api/dashboard/matrix/' + SPACE_ID_URL + '/messages/', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({ room_id: _panelRoomId, content, as_html }),
@@ -689,7 +689,7 @@ function submitPanelMessage() {
 function submitPanelInvite() {
   const user_id = document.getElementById('panelInviteId').value.trim();
   if (!user_id.startsWith('@')) { showToast('Enter a valid Matrix ID (e.g. @user:server.com)', false); return; }
-  csrfFetch('/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/members/invite/', {
+  csrfFetch('/api/dashboard/matrix/' + SPACE_ID_URL + '/members/invite/', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({ user_id, room_id: _panelRoomId }),
@@ -711,7 +711,7 @@ function submitCreateRoom() {
   const topic = document.getElementById('createRoomTopic').value.trim();
   const is_private = document.getElementById('createRoomPrivate').checked;
   if (!name) { showToast('Room name is required.', false); return; }
-  csrfFetch('/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/rooms/create/', {
+  csrfFetch('/api/dashboard/matrix/' + SPACE_ID_URL + '/rooms/create/', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({ name, topic, is_private }),
@@ -738,7 +738,7 @@ function submitSendMessage() {
   const content = document.getElementById('sendMsgContent').value.trim();
   const as_html = document.getElementById('sendMsgHtml').checked;
   if (!content) { showToast('Message cannot be empty.', false); return; }
-  csrfFetch('/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/messages/', {
+  csrfFetch('/api/dashboard/matrix/' + SPACE_ID_URL + '/messages/', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({ room_id, content, as_html }),
@@ -766,7 +766,7 @@ function fmtTs(ts) {
 function loadActionHistory() {
   const body = document.getElementById('actionHistoryBody');
   body.innerHTML = '<div class="p-4 text-center text-gray-500 text-sm">Loading...</div>';
-  fetch('/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/actions/?limit=50')
+  fetch('/api/dashboard/matrix/' + SPACE_ID_URL + '/actions/?limit=50')
     .then(r => r.json())
     .then(d => {
       if (!d.actions || d.actions.length === 0) {

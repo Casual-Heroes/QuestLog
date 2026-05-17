@@ -1,0 +1,198 @@
+{% extends "questlog_web/base_web.html" %}
+{% load static %}
+{% block title %}ESO Builds | Casual Heroes{% endblock %}
+{% block web_content %}
+
+<div class="p-4 sm:p-6 max-w-7xl mx-auto">
+
+  <!-- Header -->
+  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+    <div>
+      <div class="flex items-center gap-3 mb-1">
+        <img src="{% static 'img/games/guilds/esoguild.png' %}" class="w-8 h-8 rounded-lg object-cover" alt="ESO">
+        <h1 class="text-2xl font-bold text-white">ESO Builds</h1>
+      </div>
+      <p class="text-gray-400 text-sm">Community-crafted builds for Elder Scrolls Online. No paywalls, no ads, just real guides from real players.</p>
+    </div>
+    {% if web_user %}
+    <a href="/eso/builds/create/" class="flex items-center gap-2 bg-amber-600 hover:bg-amber-500 text-white font-semibold px-4 py-2 rounded-xl transition text-sm shrink-0">
+      <i class="fas fa-plus"></i> Submit Build
+    </a>
+    {% else %}
+    <a href="/ql/login/?next=/eso/builds/create/" class="flex items-center gap-2 bg-amber-600 hover:bg-amber-500 text-white font-semibold px-4 py-2 rounded-xl transition text-sm shrink-0">
+      <i class="fas fa-plus"></i> Submit Build
+    </a>
+    {% endif %}
+  </div>
+
+  <!-- Filters -->
+  <div class="flex flex-wrap gap-2 mb-6" id="filter-bar">
+    <!-- Class filter -->
+    <div class="flex flex-wrap gap-1">
+      <a href="?{% if filter_role %}role={{ filter_role }}&{% endif %}{% if filter_meta %}meta={{ filter_meta }}&{% endif %}"
+         class="px-3 py-1.5 rounded-lg text-xs font-semibold transition {% if not filter_class %}bg-amber-600 text-white{% else %}bg-neutral-800 text-gray-400 hover:text-white{% endif %}">
+        All Classes
+      </a>
+      {% for cls in eso_classes %}
+      {% if filter_class == cls %}
+      <a href="?{% if filter_role %}role={{ filter_role }}&{% endif %}{% if filter_meta %}meta={{ filter_meta }}&{% endif %}"
+         class="px-3 py-1.5 rounded-lg text-xs font-semibold transition bg-amber-600 text-white">
+        {{ cls }}
+      </a>
+      {% else %}
+      <a href="?class={{ cls }}{% if filter_role %}&role={{ filter_role }}{% endif %}{% if filter_meta %}&meta={{ filter_meta }}{% endif %}"
+         class="px-3 py-1.5 rounded-lg text-xs font-semibold transition bg-neutral-800 text-gray-400 hover:text-white">
+        {{ cls }}
+      </a>
+      {% endif %}
+      {% endfor %}
+    </div>
+
+    <div class="w-px bg-neutral-700 self-stretch mx-1"></div>
+
+    <!-- Role filter -->
+    {% for role in eso_roles %}
+    {% if filter_role == role %}
+    <a href="?{% if filter_class %}class={{ filter_class }}&{% endif %}{% if filter_meta %}meta={{ filter_meta }}&{% endif %}"
+       class="px-3 py-1.5 rounded-lg text-xs font-semibold capitalize transition
+       {% if role == 'dps' %}bg-rose-700 text-white{% elif role == 'healer' %}bg-emerald-700 text-white{% else %}bg-sky-700 text-white{% endif %}">
+      {% if role == 'dps' %}<i class="fas fa-khanda mr-1"></i>{% elif role == 'healer' %}<i class="fas fa-heart mr-1"></i>{% else %}<i class="fas fa-shield-alt mr-1"></i>{% endif %}
+      {{ role|capfirst }}
+    </a>
+    {% else %}
+    <a href="?{% if filter_class %}class={{ filter_class }}&{% endif %}role={{ role }}{% if filter_meta %}&meta={{ filter_meta }}{% endif %}"
+       class="px-3 py-1.5 rounded-lg text-xs font-semibold capitalize transition bg-neutral-800 text-gray-400 hover:text-white">
+      {% if role == 'dps' %}<i class="fas fa-khanda mr-1"></i>{% elif role == 'healer' %}<i class="fas fa-heart mr-1"></i>{% else %}<i class="fas fa-shield-alt mr-1"></i>{% endif %}
+      {{ role|capfirst }}
+    </a>
+    {% endif %}
+    {% endfor %}
+
+    <div class="w-px bg-neutral-700 self-stretch mx-1"></div>
+
+    {% if filter_meta == '1' %}
+    <a href="?{% if filter_class %}class={{ filter_class }}&{% endif %}{% if filter_role %}role={{ filter_role }}{% endif %}"
+       class="px-3 py-1.5 rounded-lg text-xs font-semibold transition bg-yellow-600 text-white">
+      <i class="fas fa-star mr-1"></i> Meta Only
+    </a>
+    {% else %}
+    <a href="?{% if filter_class %}class={{ filter_class }}&{% endif %}{% if filter_role %}role={{ filter_role }}&{% endif %}meta=1"
+       class="px-3 py-1.5 rounded-lg text-xs font-semibold transition bg-neutral-800 text-gray-400 hover:text-white">
+      <i class="fas fa-star mr-1"></i> Meta Only
+    </a>
+    {% endif %}
+  </div>
+
+  <!-- Results count -->
+  <p class="text-gray-500 text-xs mb-4">{{ total }} build{{ total|pluralize }} found</p>
+
+  {% if builds %}
+  <!-- Build Grid -->
+  <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 mb-8">
+    {% for build in builds %}
+    <a href="/eso/builds/{{ build.slug }}/" class="group block bg-neutral-900 border border-neutral-800 hover:border-neutral-600 rounded-2xl overflow-hidden transition">
+
+      <!-- Class color bar -->
+      <div class="h-1 w-full
+        {% if build.eso_class == 'Dragonknight' %}bg-gradient-to-r from-red-700 to-orange-600
+        {% elif build.eso_class == 'Sorcerer' %}bg-gradient-to-r from-purple-700 to-indigo-600
+        {% elif build.eso_class == 'Nightblade' %}bg-gradient-to-r from-gray-700 to-neutral-600
+        {% elif build.eso_class == 'Templar' %}bg-gradient-to-r from-yellow-600 to-amber-500
+        {% elif build.eso_class == 'Warden' %}bg-gradient-to-r from-green-700 to-emerald-600
+        {% elif build.eso_class == 'Necromancer' %}bg-gradient-to-r from-teal-700 to-cyan-600
+        {% elif build.eso_class == 'Arcanist' %}bg-gradient-to-r from-blue-700 to-sky-500
+        {% else %}bg-gradient-to-r from-neutral-700 to-neutral-600{% endif %}">
+      </div>
+
+      <div class="p-4">
+        <!-- Badges -->
+        <div class="flex items-center gap-2 mb-2 flex-wrap">
+          <span class="text-xs font-bold px-2 py-0.5 rounded-full
+            {% if build.eso_class == 'Dragonknight' %}bg-red-900/50 text-red-300
+            {% elif build.eso_class == 'Sorcerer' %}bg-purple-900/50 text-purple-300
+            {% elif build.eso_class == 'Nightblade' %}bg-neutral-700 text-gray-300
+            {% elif build.eso_class == 'Templar' %}bg-yellow-900/50 text-yellow-300
+            {% elif build.eso_class == 'Warden' %}bg-green-900/50 text-green-300
+            {% elif build.eso_class == 'Necromancer' %}bg-teal-900/50 text-teal-300
+            {% elif build.eso_class == 'Arcanist' %}bg-blue-900/50 text-blue-300
+            {% else %}bg-neutral-700 text-gray-300{% endif %}">
+            {{ build.eso_class }}
+          </span>
+          <span class="text-xs font-semibold px-2 py-0.5 rounded-full capitalize
+            {% if build.role == 'dps' %}bg-rose-900/40 text-rose-300
+            {% elif build.role == 'healer' %}bg-emerald-900/40 text-emerald-300
+            {% else %}bg-sky-900/40 text-sky-300{% endif %}">
+            {% if build.role == 'dps' %}<i class="fas fa-khanda mr-1 text-[10px]"></i>{% elif build.role == 'healer' %}<i class="fas fa-heart mr-1 text-[10px]"></i>{% else %}<i class="fas fa-shield-alt mr-1 text-[10px]"></i>{% endif %}
+            {{ build.role|capfirst }}
+          </span>
+          {% if build.is_meta %}
+          <span class="text-xs font-bold px-2 py-0.5 rounded-full bg-yellow-600/20 text-yellow-400 border border-yellow-600/30">
+            <i class="fas fa-star text-[10px] mr-0.5"></i> META
+          </span>
+          {% endif %}
+          {% if build.patch_version %}
+          <span class="text-xs text-gray-500 ml-auto">{{ build.patch_version }}</span>
+          {% endif %}
+        </div>
+
+        <!-- Title + tagline -->
+        <h2 class="text-white font-bold text-base leading-tight group-hover:text-amber-400 transition mb-1">{{ build.title }}</h2>
+        {% if build.tagline %}
+        <p class="text-gray-400 text-xs leading-snug mb-3">{{ build.tagline }}</p>
+        {% endif %}
+
+        <!-- Author + stats -->
+        <div class="flex items-center justify-between mt-3">
+          <div class="flex items-center gap-2">
+            {% if build.author.avatar_url %}
+            <img src="{{ build.author.avatar_url }}" class="w-6 h-6 rounded-full object-cover" alt="{{ build.author.username }}">
+            {% else %}
+            <div class="w-6 h-6 rounded-full bg-indigo-800 flex items-center justify-center text-[10px] font-bold text-white">{{ build.author.display_name|slice:":1"|upper }}</div>
+            {% endif %}
+            <span class="text-gray-400 text-xs">{{ build.author.display_name }}</span>
+          </div>
+          <div class="flex items-center gap-3 text-gray-500 text-xs">
+            <span><i class="fas fa-arrow-up text-emerald-500 mr-0.5"></i>{{ build.upvotes }}</span>
+            <span><i class="fas fa-comment mr-0.5"></i>{{ build.comment_count }}</span>
+            <span><i class="fas fa-eye mr-0.5"></i>{{ build.view_count }}</span>
+          </div>
+        </div>
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+
+  <!-- Pagination -->
+  {% if total_pages > 1 %}
+  <div class="flex items-center justify-center gap-2">
+    {% if page > 1 %}
+    <a href="?page={{ page|add:"-1" }}{% if filter_class %}&class={{ filter_class }}{% endif %}{% if filter_role %}&role={{ filter_role }}{% endif %}{% if filter_meta %}&meta={{ filter_meta }}{% endif %}"
+       class="px-4 py-2 bg-neutral-800 hover:bg-neutral-700 text-gray-300 rounded-lg text-sm transition">
+      <i class="fas fa-chevron-left"></i>
+    </a>
+    {% endif %}
+    <span class="text-gray-400 text-sm">Page {{ page }} of {{ total_pages }}</span>
+    {% if page < total_pages %}
+    <a href="?page={{ page|add:"1" }}{% if filter_class %}&class={{ filter_class }}{% endif %}{% if filter_role %}&role={{ filter_role }}{% endif %}{% if filter_meta %}&meta={{ filter_meta }}{% endif %}"
+       class="px-4 py-2 bg-neutral-800 hover:bg-neutral-700 text-gray-300 rounded-lg text-sm transition">
+      <i class="fas fa-chevron-right"></i>
+    </a>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  {% else %}
+  <div class="text-center py-20">
+    <div class="w-16 h-16 rounded-2xl bg-neutral-800 flex items-center justify-center mx-auto mb-4">
+      <i class="fas fa-scroll text-gray-600 text-2xl"></i>
+    </div>
+    <p class="text-gray-400 font-semibold mb-1">No builds yet</p>
+    <p class="text-gray-600 text-sm mb-6">Be the first to share your build with the community.</p>
+    {% if web_user %}
+    <a href="/eso/builds/create/" class="bg-amber-600 hover:bg-amber-500 text-white font-semibold px-6 py-2.5 rounded-xl transition text-sm">Submit the First Build</a>
+    {% endif %}
+  </div>
+  {% endif %}
+
+</div>
+{% endblock web_content %}

@@ -1,0 +1,474 @@
+{% extends "questlog_web/base_web.html" %}
+{% load static %}
+
+{% block title %}Messages - {{ other_user.display_name }} | Casual Heroes{% endblock %}
+
+{% block web_content %}
+<style>
+#chat-root {
+  display: flex;
+  flex-direction: column;
+  height: calc(100dvh - 3.5rem);
+  overflow: hidden;
+  max-width: 52rem;
+  margin: 0 auto;
+  width: 100%;
+}
+#messages-container {
+  flex: 1;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 1.25rem 1rem;
+}
+#composer-wrap {
+  flex-shrink: 0;
+  border-top: 1px solid rgb(38 38 38);
+  background: rgb(10 10 10 / 0.95);
+  padding: 0.875rem 1rem;
+  padding-bottom: max(0.875rem, env(safe-area-inset-bottom));
+}
+.date-separator {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 1.25rem 0 1rem;
+  color: rgb(75 85 99);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.date-separator::before,
+.date-separator::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: rgb(38 38 38);
+}
+.msg-row { display: flex; gap: 0.625rem; margin-top: 0.25rem; }
+.msg-row.first-in-group { margin-top: 1rem; }
+.msg-avatar { width: 2rem; height: 2rem; border-radius: 9999px; flex-shrink: 0; object-fit: cover; }
+.msg-avatar-placeholder { width: 2rem; height: 2rem; border-radius: 9999px; flex-shrink: 0; background: rgb(64 64 64); display: flex; align-items: center; justify-content: center; font-size: 0.7rem; font-weight: 700; color: rgb(156 163 175); }
+.msg-avatar-spacer { width: 2rem; flex-shrink: 0; }
+.msg-bubble-wrap { display: flex; flex-direction: column; max-width: min(75%, 28rem); }
+.msg-bubble-wrap.mine { align-items: flex-end; }
+.msg-meta { font-size: 0.7rem; color: rgb(107 114 128); margin-bottom: 0.2rem; display: flex; align-items: baseline; gap: 0.375rem; }
+.msg-bubble {
+  padding: 0.5rem 0.875rem;
+  border-radius: 1.125rem;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+.msg-bubble.theirs { background: rgb(38 38 38); color: rgb(229 231 235); border-bottom-left-radius: 0.25rem; }
+.msg-bubble.mine { background: rgb(79 70 229); color: white; border-bottom-right-radius: 0.25rem; }
+/* grouped bubbles lose the sharp corner on all but last */
+.msg-row.grouped .msg-bubble.theirs { border-top-left-radius: 0.25rem; }
+.msg-row.grouped .msg-bubble.mine { border-top-right-radius: 0.25rem; }
+.msg-time { font-size: 0.65rem; color: rgb(75 85 99); margin-top: 0.2rem; }
+.msg-time.mine { text-align: right; }
+@media (hover: none) { .msg-delete-btn { opacity: 0.5 !important; } }
+</style>
+
+<div id="chat-root">
+
+  <!-- Header -->
+  <div class="flex items-center gap-3 px-4 py-3 border-b border-neutral-800 bg-neutral-950/90 backdrop-blur-sm flex-shrink-0">
+    <a href="/messages/" class="text-gray-400 hover:text-white transition p-1 rounded-lg hover:bg-neutral-800 flex-shrink-0">
+      <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+      </svg>
+    </a>
+    {% if other_user.avatar_url %}
+    <img src="{{ other_user.avatar_url }}" class="w-9 h-9 rounded-full object-cover flex-shrink-0" alt="">
+    {% else %}
+    <div class="w-9 h-9 rounded-full bg-neutral-700 flex items-center justify-center text-gray-300 text-sm font-bold flex-shrink-0">{{ other_user.display_name|first|upper }}</div>
+    {% endif %}
+    <div class="flex-1 min-w-0">
+      <a href="/u/{{ other_user.username }}/" class="text-sm font-semibold text-white hover:text-indigo-300 transition truncate block leading-tight">{{ other_user.display_name }}</a>
+      <p class="text-xs text-gray-500 leading-tight">@{{ other_user.username }}</p>
+    </div>
+    <span class="flex items-center gap-1 text-xs text-green-500/70 flex-shrink-0">
+      <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
+      E2EE
+    </span>
+  </div>
+
+  <!-- Warnings -->
+  <div id="no-key-warning" class="hidden px-4 pt-3 flex-shrink-0">
+    <div class="p-3 rounded-xl border border-yellow-500/30 bg-yellow-500/10 flex items-center justify-between gap-3">
+      <p class="text-yellow-200 text-xs">Encryption keys not found. Set up keys to send and read messages.</p>
+      <button onclick="openKeySetupModal()" class="flex-shrink-0 px-3 py-1.5 rounded-lg bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-200 text-xs font-medium transition">Set Up</button>
+    </div>
+  </div>
+  <div id="no-recipient-key-warning" class="hidden px-4 pt-3 flex-shrink-0">
+    <div class="p-3 rounded-xl border border-neutral-700 bg-neutral-800/50">
+      <p class="text-gray-400 text-xs">{{ other_user.display_name }} hasn't set up encrypted messaging yet. Ask them to visit Messages and set up their keys.</p>
+    </div>
+  </div>
+
+  <!-- Messages -->
+  <div id="messages-container">
+    <div id="messages-loading" class="flex justify-center py-12">
+      <svg class="w-6 h-6 animate-spin text-gray-600" fill="none" viewBox="0 0 24 24">
+        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 12 0 12 12h4z"></path>
+      </svg>
+    </div>
+    <div id="messages-list"></div>
+    <div id="messages-empty" class="hidden text-center py-12">
+      <p class="text-gray-600 text-sm">No messages yet. Say hello!</p>
+    </div>
+    <div id="decrypt-error" class="hidden mt-3 px-3 py-2 rounded-xl bg-red-500/10 border border-red-500/20 text-center">
+      <p class="text-red-400 text-xs">Some messages couldn't be decrypted. Old messages encrypted with previous keys can't be recovered.</p>
+    </div>
+  </div>
+
+  <!-- Composer -->
+  <div id="composer-wrap" class="hidden">
+    <div class="flex items-end gap-2">
+      <textarea
+        id="compose-input"
+        rows="1"
+        maxlength="2000"
+        placeholder="Message {{ other_user.display_name }}..."
+        class="flex-1 resize-none bg-neutral-800 border border-neutral-700 rounded-2xl px-4 py-2.5 text-base sm:text-sm text-white placeholder-gray-600 focus:outline-none focus:border-indigo-500/60 transition leading-relaxed"
+        style="min-height:44px;max-height:144px;"
+        onkeydown="handleComposerKey(event)"
+        oninput="autoResize(this)"
+      ></textarea>
+      <button id="send-btn" onclick="sendMessage()" disabled
+        class="flex-shrink-0 w-11 h-11 rounded-2xl bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center transition">
+        <svg class="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+      </button>
+    </div>
+    <p class="text-[11px] text-gray-700 mt-1.5 flex items-center gap-1">
+      <svg class="w-3 h-3 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
+      Messages are end-to-end encrypted. Casual Heroes cannot read them.
+    </p>
+  </div>
+
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const CONVO_ID = {{ conversation_id }};
+  const MY_USER_ID = {{ web_user.id }};
+  const MY_NAME = "{{ web_user.display_name|default:web_user.username|escapejs }}";
+  const MY_AVATAR = "{{ web_user.avatar_url|default:''|escapejs }}";
+  const OTHER_USER_ID = {{ other_user.id }};
+  const OTHER_NAME = "{{ other_user.display_name|default:other_user.username|escapejs }}";
+  const OTHER_AVATAR = "{{ other_user.avatar_url|default:''|escapejs }}";
+  const OTHER_PUBKEY_JWK = {% if other_user.pubkey %}"{{ other_user.pubkey|escapejs }}"{% else %}null{% endif %};
+
+  let myPrivKey = null;
+  let myPubKey = null;
+  let recipientPubKey = null;
+  let latestMessageAt = 0;
+  let pollTimer = null;
+  let decryptErrors = 0;
+
+  // track grouping
+  let lastMsgSender = null; // 'me' or 'them'
+  let lastMsgDate = null;   // 'YYYY-MM-DD'
+
+  // --- Crypto ---
+  async function importPublicKey(jwkJson) {
+    const jwk = typeof jwkJson === 'string' ? JSON.parse(jwkJson) : jwkJson;
+    return crypto.subtle.importKey('jwk', jwk, { name: 'ECDH', namedCurve: 'P-256' }, true, []);
+  }
+  async function importPrivateKey(jwkJson) {
+    const jwk = typeof jwkJson === 'string' ? JSON.parse(jwkJson) : jwkJson;
+    return crypto.subtle.importKey('jwk', jwk, { name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveKey']);
+  }
+  async function deriveSharedKey(myPriv, theirPub) {
+    return crypto.subtle.deriveKey(
+      { name: 'ECDH', public: theirPub }, myPriv,
+      { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']
+    );
+  }
+  function b64ToBytes(b64) {
+    const bin = atob(b64.replace(/-/g,'+').replace(/_/g,'/'));
+    return new Uint8Array([...bin].map(c => c.charCodeAt(0)));
+  }
+  function bytesToB64(buf) { return btoa(String.fromCharCode(...new Uint8Array(buf))); }
+
+  async function encryptMessage(plaintext, recipientPub, senderPriv) {
+    const data = new TextEncoder().encode(plaintext);
+    const ephPair = await crypto.subtle.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveKey']);
+    const ephPubJwk = JSON.stringify(await crypto.subtle.exportKey('jwk', ephPair.publicKey));
+    const sharedKeyR = await deriveSharedKey(ephPair.privateKey, recipientPub);
+    const ivR = crypto.getRandomValues(new Uint8Array(12));
+    const ctR = await crypto.subtle.encrypt({ name: 'AES-GCM', iv: ivR }, sharedKeyR, data);
+    const sharedKeyS = await deriveSharedKey(senderPriv, ephPair.publicKey);
+    const ivS = crypto.getRandomValues(new Uint8Array(12));
+    const ctS = await crypto.subtle.encrypt({ name: 'AES-GCM', iv: ivS }, sharedKeyS, data);
+    return {
+      ciphertext_for_recipient: bytesToB64(ctR),
+      ciphertext_for_sender: bytesToB64(ctS),
+      ephemeral_pubkey: ephPubJwk,
+      iv_recipient: bytesToB64(ivR),
+      iv_sender: bytesToB64(ivS),
+    };
+  }
+
+  async function decryptMessage(msg) {
+    const ephPub = await importPublicKey(msg.ephemeral_pubkey);
+    const iv = b64ToBytes(msg.iv);
+    const ct = b64ToBytes(msg.ciphertext);
+    const sharedKey = await deriveSharedKey(myPrivKey, ephPub);
+    const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, sharedKey, ct);
+    return new TextDecoder().decode(plain);
+  }
+
+  // --- IndexedDB key store (same helpers as base_web.html) ---
+  function openKeyDB() {
+    return new Promise(function(resolve, reject) {
+      const req = indexedDB.open('ql_dm_keys', 1);
+      req.onupgradeneeded = function(e) { e.target.result.createObjectStore('keys'); };
+      req.onsuccess = function(e) { resolve(e.target.result); };
+      req.onerror = function(e) { reject(e.target.error); };
+    });
+  }
+  async function idbGet(key) {
+    const db = await openKeyDB();
+    return new Promise(function(resolve, reject) {
+      const req = db.transaction('keys','readonly').objectStore('keys').get(key);
+      req.onsuccess = function(e) { resolve(e.target.result); };
+      req.onerror = function(e) { reject(e.target.error); };
+    });
+  }
+
+  // --- Keys ---
+  async function loadMyKeys() {
+    try {
+      // Load non-extractable CryptoKey objects directly from IndexedDB
+      const priv = await idbGet('privKey');
+      const pub = await idbGet('pubKey');
+      if (!(priv instanceof CryptoKey) || !(pub instanceof CryptoKey)) return false;
+      myPrivKey = priv;
+      myPubKey = pub;
+      return true;
+    } catch(e) { return false; }
+  }
+  async function loadRecipientKey() {
+    if (!OTHER_PUBKEY_JWK) return false;
+    try { recipientPubKey = await importPublicKey(OTHER_PUBKEY_JWK); return true; }
+    catch(e) {
+      try {
+        const resp = await csrfFetch('/api/dm/pubkey/' + OTHER_USER_ID + '/');
+        if (!resp.ok) return false;
+        const d = await resp.json();
+        recipientPubKey = await importPublicKey(d.pubkey);
+        return true;
+      } catch(e2) { return false; }
+    }
+  }
+
+  // --- Rendering ---
+  function msgDateKey(ts) {
+    const d = new Date(ts * 1000);
+    return d.getFullYear() + '-' + d.getMonth() + '-' + d.getDate();
+  }
+  function formatDate(ts) {
+    const d = new Date(ts * 1000);
+    const today = new Date();
+    const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1);
+    if (d.toDateString() === today.toDateString()) return 'Today';
+    if (d.toDateString() === yesterday.toDateString()) return 'Yesterday';
+    return d.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric', year: d.getFullYear() !== today.getFullYear() ? 'numeric' : undefined });
+  }
+  function formatTime(ts) {
+    return new Date(ts * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  }
+  function avatarEl(name, url, isMine) {
+    if (url) {
+      return '<img src="' + escapeHtml(url) + '" class="msg-avatar" alt="">';
+    }
+    return '<div class="msg-avatar-placeholder">' + escapeHtml(name.charAt(0).toUpperCase()) + '</div>';
+  }
+
+  function appendMessage(text, isMine, ts, msgId) {
+    document.getElementById('messages-empty').classList.add('hidden');
+    const list = document.getElementById('messages-list');
+
+    const sender = isMine ? 'me' : 'them';
+    const dateKey = msgDateKey(ts);
+    const isFirstInGroup = sender !== lastMsgSender;
+    const needsDateSep = dateKey !== lastMsgDate;
+
+    if (needsDateSep) {
+      const sep = document.createElement('div');
+      sep.className = 'date-separator';
+      sep.textContent = formatDate(ts);
+      list.appendChild(sep);
+      lastMsgDate = dateKey;
+      lastMsgSender = null; // force new group after date separator
+    }
+
+    const firstInGroup = sender !== lastMsgSender;
+    lastMsgSender = sender;
+
+    const name = isMine ? MY_NAME : OTHER_NAME;
+    const avatar = isMine ? MY_AVATAR : OTHER_AVATAR;
+
+    const row = document.createElement('div');
+    row.className = 'msg-row' + (firstInGroup ? ' first-in-group' : ' grouped') + (isMine ? ' justify-end' : '');
+    row.dataset.msgId = msgId;
+
+    if (isMine) {
+      row.innerHTML =
+        '<div class="msg-bubble-wrap mine">' +
+          (firstInGroup ? '<div class="msg-meta justify-end"><span class="text-gray-400 font-medium text-xs">' + escapeHtml(name) + '</span><span>' + formatTime(ts) + '</span></div>' : '') +
+          '<div class="group relative">' +
+            '<div class="msg-bubble mine">' + escapeHtml(text) + '</div>' +
+            '<button onclick="deleteMsg(' + msgId + ',this)" title="Delete" class="msg-delete-btn absolute top-1 -left-6 opacity-0 group-hover:opacity-100 text-gray-600 hover:text-red-400 transition">' +
+              '<svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>' +
+            '</button>' +
+          '</div>' +
+          (!firstInGroup ? '<div class="msg-time mine">' + formatTime(ts) + '</div>' : '') +
+        '</div>' +
+        (firstInGroup ? avatarEl(name, avatar, true) : '<div class="msg-avatar-spacer"></div>');
+    } else {
+      row.innerHTML =
+        (firstInGroup ? avatarEl(name, avatar, false) : '<div class="msg-avatar-spacer"></div>') +
+        '<div class="msg-bubble-wrap">' +
+          (firstInGroup ? '<div class="msg-meta"><span class="text-gray-300 font-medium text-xs">' + escapeHtml(name) + '</span><span>' + formatTime(ts) + '</span></div>' : '') +
+          '<div class="msg-bubble theirs">' + escapeHtml(text) + '</div>' +
+          (!firstInGroup ? '<div class="msg-time">' + formatTime(ts) + '</div>' : '') +
+        '</div>';
+    }
+
+    list.appendChild(row);
+  }
+
+  function appendDecryptFail(isMine) {
+    lastMsgSender = null;
+    const list = document.getElementById('messages-list');
+    const row = document.createElement('div');
+    row.className = 'msg-row first-in-group ' + (isMine ? 'justify-end' : '');
+    row.innerHTML = '<div class="msg-bubble-wrap' + (isMine ? ' mine' : '') + '"><div class="msg-bubble ' + (isMine ? 'mine' : 'theirs') + ' opacity-50 italic text-xs">[Unable to decrypt]</div></div>';
+    list.appendChild(row);
+  }
+
+  async function renderMessages(msgs) {
+    for (const m of msgs) {
+      if (m.created_at > latestMessageAt) latestMessageAt = m.created_at;
+      try {
+        const text = await decryptMessage(m);
+        appendMessage(text, m.is_mine, m.created_at, m.id);
+      } catch(e) {
+        decryptErrors++;
+        appendDecryptFail(m.is_mine);
+      }
+    }
+    if (decryptErrors > 0) document.getElementById('decrypt-error').classList.remove('hidden');
+    scrollToBottom();
+  }
+
+  function scrollToBottom() {
+    const c = document.getElementById('messages-container');
+    c.scrollTop = c.scrollHeight;
+  }
+  function isAtBottom() {
+    const c = document.getElementById('messages-container');
+    return c.scrollTop + c.clientHeight >= c.scrollHeight - 80;
+  }
+
+  // --- Load + Poll ---
+  async function loadMessages() {
+    try {
+      const resp = await csrfFetch('/api/dm/' + CONVO_ID + '/messages/');
+      document.getElementById('messages-loading').classList.add('hidden');
+      if (!resp.ok) { document.getElementById('messages-empty').classList.remove('hidden'); return; }
+      const data = await resp.json();
+      if (!data.messages.length) { document.getElementById('messages-empty').classList.remove('hidden'); return; }
+      await renderMessages(data.messages);
+    } catch(e) {
+      document.getElementById('messages-loading').classList.add('hidden');
+      document.getElementById('messages-empty').classList.remove('hidden');
+    }
+  }
+
+  async function poll() {
+    try {
+      const resp = await csrfFetch('/api/dm/' + CONVO_ID + '/poll/?after=' + latestMessageAt);
+      if (!resp.ok) return;
+      const data = await resp.json();
+      if (data.messages && data.messages.length) {
+        const wasAtBottom = isAtBottom();
+        await renderMessages(data.messages);
+        if (wasAtBottom) scrollToBottom();
+      }
+    } catch(e) {}
+  }
+
+  function startPolling() {
+    if (pollTimer) clearInterval(pollTimer);
+    pollTimer = setInterval(poll, 4000);
+  }
+
+  // --- Send ---
+  window.sendMessage = async function() {
+    const input = document.getElementById('compose-input');
+    const text = input.value.trim();
+    if (!text || !myPrivKey || !recipientPubKey) return;
+    const btn = document.getElementById('send-btn');
+    btn.disabled = true;
+    input.value = '';
+    input.style.height = '';
+    try {
+      const encrypted = await encryptMessage(text, recipientPubKey, myPrivKey);
+      const resp = await csrfFetch('/api/dm/send/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to_user_id: OTHER_USER_ID, ...encrypted }),
+      });
+      if (resp.ok) {
+        const d = await resp.json();
+        appendMessage(text, true, d.created_at, d.message_id);
+        latestMessageAt = d.created_at;
+        scrollToBottom();
+      } else { input.value = text; }
+    } catch(e) { input.value = text; }
+    btn.disabled = !input.value.trim();
+  };
+
+  window.handleComposerKey = function(e) {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+  };
+  window.autoResize = function(el) {
+    el.style.height = '';
+    el.style.height = Math.min(el.scrollHeight, 144) + 'px';
+    document.getElementById('send-btn').disabled = !el.value.trim();
+  };
+  window.deleteMsg = async function(msgId, btn) {
+    if (!confirm('Delete this message?')) return;
+    const row = btn.closest('[data-msg-id]');
+    try {
+      const resp = await csrfFetch('/api/dm/message/' + msgId + '/delete/', { method: 'POST' });
+      if (resp.ok && row) row.remove();
+    } catch(e) {}
+  };
+
+  // --- Init ---
+  async function init() {
+    const hasMyKey = await loadMyKeys();
+    if (!hasMyKey) {
+      document.getElementById('no-key-warning').classList.remove('hidden');
+      document.getElementById('messages-loading').classList.add('hidden');
+      document.getElementById('messages-empty').classList.remove('hidden');
+      return;
+    }
+    const hasRecipientKey = await loadRecipientKey();
+    if (!hasRecipientKey) document.getElementById('no-recipient-key-warning').classList.remove('hidden');
+    document.getElementById('composer-wrap').classList.remove('hidden');
+    await loadMessages();
+    startPolling();
+  }
+
+  init();
+  window.addEventListener('beforeunload', function() { if (pollTimer) clearInterval(pollTimer); });
+});
+</script>
+{% endblock %}

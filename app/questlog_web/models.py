@@ -91,6 +91,11 @@ class WebUser(Base):
     hero_points = Column(Integer, default=0)
     active_flair_id = Column(Integer, ForeignKey('web_flairs.id'), nullable=True)
     fluxer_xp_migrated = Column(SmallInteger, default=0, nullable=False, server_default='0')
+
+    # Legacy system - impact/trust passport across all CH platforms and game servers
+    legacy_score = Column(Integer, default=0, nullable=False, server_default='0')
+    legacy_tier  = Column(Integer, default=1, nullable=False, server_default='1')
+    # Tiers: 1=Common, 2=Rare, 3=Epic, 4=Legendary, 5=Mythical
     primary_community_id = Column(Integer, ForeignKey('web_communities.id'), nullable=True)
 
     # Live stream status (updated by check_live_status cron)
@@ -111,9 +116,12 @@ class WebUser(Base):
     track_game_launches = Column(Boolean, default=False)   # Opt-in: earn XP when launching a new game
     last_game_launched_at = Column(BigInteger, nullable=True)  # Unix epoch of last game launch XP award (cooldown)
     fluxer_sync_custom_status = Column(Boolean, default=False)  # Opt-in: sync Now Playing to Fluxer custom status
-    fluxer_access_token_enc = Column(Text, nullable=True)       # Fernet-encrypted Fluxer OAuth access token
-    fluxer_refresh_token_enc = Column(Text, nullable=True)      # Fernet-encrypted Fluxer OAuth refresh token
-    fluxer_token_expires_at = Column(BigInteger, nullable=True) # Unix epoch when access token expires
+    fluxer_access_token_enc = Column(Text, nullable=True)
+    fluxer_refresh_token_enc = Column(Text, nullable=True)
+    fluxer_token_expires_at = Column(BigInteger, nullable=True)
+    discord_access_token_enc = Column(Text, nullable=True)
+    discord_refresh_token_enc = Column(Text, nullable=True)
+    discord_token_expires_at = Column(BigInteger, nullable=True)
 
     # Preferences
     allow_discovery = Column(Boolean, default=True)  # Show in public directories
@@ -121,8 +129,12 @@ class WebUser(Base):
 
     # Privacy preferences
     show_steam_profile = Column(Boolean, default=True)   # Show Steam profile link on public profile
+    share_steam_library = Column(Boolean, default=False)  # Opt-in: let other users see if they share games via SteamQuest
     show_activity = Column(Boolean, default=True)         # Show recent activity (groups joined, etc.)
     allow_messages = Column(Boolean, default=False)       # Allow DMs from other users
+    pubkey           = Column(Text, nullable=True)         # ECDH P-256 public key (JWK JSON) - server stores only pubkey
+    pubkey_encrypted = Column(Text, nullable=True)         # AES-GCM encrypted private key backup (phrase-derived AES key)
+    pubkey_salt      = Column(String(64), nullable=True)   # Hex salt for phrase -> AES key derivation
 
     # Notification preferences (in-site notifications)
     notify_follows = Column(Boolean, default=True)        # Someone follows me
@@ -132,9 +144,10 @@ class WebUser(Base):
     notify_shares = Column(Boolean, default=True)         # Someone shares my post
     notify_mentions = Column(Boolean, default=True)       # Someone @mentions me
     notify_giveaways = Column(Boolean, default=True)      # New giveaway launched
-    notify_lfg_join = Column(Boolean, default=True)       # Someone joins my LFG group
-    notify_lfg_leave = Column(Boolean, default=True)      # Someone leaves my LFG group
-    notify_lfg_full = Column(Boolean, default=True)       # My LFG group is full
+    notify_lfg_join = Column(Boolean, default=True)        # Someone joins my LFG group
+    notify_lfg_leave = Column(Boolean, default=True)       # Someone leaves my LFG group
+    notify_lfg_full = Column(Boolean, default=True)        # My LFG group is full
+    notify_lfg_game_owned = Column(Boolean, default=True)  # LFG group created for a game I own
     notify_community_join = Column(Boolean, default=False) # New member joins my community
     notify_now_playing = Column(Boolean, default=True)    # Someone you follow starts playing a game
     notify_level_up = Column(Boolean, default=True)       # You leveled up (system)
@@ -173,9 +186,13 @@ class WebUser(Base):
     show_as_champion = Column(SmallInteger, default=0, nullable=False, server_default='0')  # Opt-in public listing
 
     # Admin flags
-    is_vip = Column(Boolean, default=False)    # Early tester / VIP status
-    is_admin = Column(Boolean, default=False)  # Site admin
-is_banned = Column(Boolean, default=False)
+    is_vip = Column(Boolean, default=False)             # Early tester / VIP status
+    is_admin = Column(Boolean, default=False)            # Site admin
+    is_mod = Column(Boolean, default=False)              # Site moderator - limited admin access
+    is_ffxiv_member = Column(Boolean, default=False)     # CH FFXIV crew - can write to FC progression
+    is_eso_member = Column(Boolean, default=False)       # CH ESO crew
+    is_contributor = Column(Boolean, default=False)      # Blog/article contributor - can create/edit articles
+    is_banned = Column(Boolean, default=False)
     ban_reason = Column(Text, nullable=True)
     is_disabled = Column(Boolean, default=False)  # Account locked (soft ban - no login)
     posting_timeout_until = Column(BigInteger, nullable=True)  # Unix ts: cannot post/comment until this time
@@ -303,6 +320,10 @@ class WebCommunity(Base):
     tags = Column(Text, default='[]')  # JSON array of tags
     games = Column(Text, default='[]')  # JSON array of game names/IDs
 
+    # In-game guild/FC/clan identity (optional)
+    guild_game = Column(Text, nullable=True)          # JSON array e.g. '["ffxiv","eso"]'
+    guild_game_name = Column(String(200), nullable=True)  # e.g. "Casual Heroes <CH>"
+
     # Social links
     website_url = Column(String(500), nullable=True)
     twitter_url = Column(String(500), nullable=True)
@@ -420,6 +441,7 @@ class WebLFGGroup(Base):
     # Platform for voice/communication
     voice_platform = Column(String(50), nullable=True)  # discord, teamspeak, etc.
     voice_link = Column(String(500), nullable=True)  # Invite link
+    server_invite_link = Column(String(500), nullable=True)  # Server invite link shown in embeds
 
     # Status
     status = Column(String(20), default='open')  # open, full, started, completed, cancelled
@@ -516,6 +538,7 @@ class WebCreatorProfile(Base):
     kloak_url = Column(String(500), nullable=True)         # Kloak
     teamspeak_url = Column(String(500), nullable=True)     # TeamSpeak
     revolt_url = Column(String(500), nullable=True)        # Stoat (formerly Revolt)
+    root_url = Column(String(500), nullable=True)          # Root
 
     # Twitch OAuth (encrypted tokens)
     twitch_user_id = Column(String(100), nullable=True)
@@ -1048,6 +1071,8 @@ class WebComment(Base):
     post_id = Column(Integer, ForeignKey('web_posts.id', ondelete='CASCADE'), nullable=False)
     author_id = Column(Integer, ForeignKey('web_users.id'), nullable=False)
     content = Column(Text, nullable=False)  # Max 500 chars enforced in code
+    gif_url = Column(String(500), nullable=True)
+    image_url = Column(String(500), nullable=True)
     parent_id = Column(Integer, ForeignKey('web_comments.id', ondelete='CASCADE'), nullable=True)
 
     is_deleted = Column(Boolean, default=False)
@@ -1177,6 +1202,51 @@ class WebXpEvent(Base):
     )
 
 
+class WebLegacyEvent(Base):
+    """
+    Ledger of every Legacy point award.
+    Legacy = impact metric (how much you matter to others).
+    XP = activity metric (how much you do).
+    """
+    __tablename__ = 'web_legacy_events'
+
+    id          = Column(Integer, primary_key=True, autoincrement=True)
+    user_id     = Column(Integer, ForeignKey('web_users.id'), nullable=False)
+    action_type = Column(String(60), nullable=False)
+    points      = Column(Integer, nullable=False)
+    source      = Column(String(20), default='web')   # web, discord, fluxer, 7dtd, dayz, minecraft, palworld, etc
+    ref_id      = Column(String(100), nullable=True)  # prevent duplicate awards
+    created_at  = Column(BigInteger, nullable=False)
+
+    __table_args__ = (
+        Index('idx_legacy_user_action', 'user_id', 'action_type', 'created_at'),
+    )
+
+
+class WebLegacyNomination(Base):
+    """One nomination per nominator per category per month."""
+    __tablename__ = 'web_legacy_nominations'
+
+    id                       = Column(Integer, primary_key=True, autoincrement=True)
+    month_year               = Column(String(7),  nullable=False)          # YYYY-MM
+    category                 = Column(String(50), nullable=False)          # community, 7dtd, valheim, etc.
+    nominated_user_id        = Column(Integer, ForeignKey('web_users.id'), nullable=False)
+    nominated_by_web_user_id = Column(Integer, ForeignKey('web_users.id'), nullable=True)
+    nominated_by_fluxer_id   = Column(String(25), nullable=True)
+    guild_id                 = Column(String(25), nullable=True)
+    platform                 = Column(String(10), nullable=False, default='web')
+    reason                   = Column(Text, nullable=True)
+    vote_count               = Column(Integer, nullable=False, default=0)
+    awarded                  = Column(SmallInteger, nullable=False, default=0)
+    created_at               = Column(BigInteger, nullable=False)
+    updated_at               = Column(BigInteger, nullable=False)
+
+    __table_args__ = (
+        Index('idx_nom_month_category', 'month_year', 'category'),
+        Index('idx_nom_user', 'nominated_user_id'),
+    )
+
+
 class WebFlair(Base):
     """Admin-created cosmetic flair that users can purchase with Hero Points."""
     __tablename__ = 'web_flairs'
@@ -1187,6 +1257,7 @@ class WebFlair(Base):
     description = Column(String(300), nullable=True)
     flair_type = Column(Enum('normal', 'seasonal', 'exclusive', 'hero'), default='normal')
     hp_cost = Column(Integer, default=0)
+    equippable = Column(SmallInteger, nullable=False, default=1, server_default='1')  # 0 = trophy only, cannot equip
     enabled = Column(Boolean, default=True)
     display_order = Column(Integer, default=0)
     available_from = Column(BigInteger, nullable=True)   # Unix ts: flair not claimable before this date (None = always)
@@ -1392,6 +1463,7 @@ class WebFluxerWebhookConfig(Base):
     event_type = Column(String(50), nullable=False, unique=True)  # new_post, new_member, giveaway_start, giveaway_winner
     label = Column(String(100), nullable=False)  # human-friendly name shown in admin
     webhook_url = Column(String(1000), nullable=True)  # legacy - no longer used
+    discord_webhook_url = Column(String(1000), nullable=True)  # Discord webhook URL for new_post broadcasts
     is_enabled = Column(Boolean, default=False)
     guild_id = Column(String(32), nullable=True)
     channel_id = Column(String(32), nullable=True)
@@ -1400,12 +1472,21 @@ class WebFluxerWebhookConfig(Base):
     message_template = Column(Text, nullable=True)      # welcome message body (new_member only)
     embed_title = Column(String(255), nullable=True)    # custom embed title override
     embed_footer = Column(String(255), nullable=True)   # custom embed footer override
+    mention_role_id = Column(String(32), nullable=True) # Fluxer role ID to @mention on post
     created_at = Column(BigInteger, nullable=False)
     updated_at = Column(BigInteger, nullable=False)
 
     def __repr__(self):
         return f"<WebFluxerWebhookConfig {self.event_type} enabled={self.is_enabled}>"
 
+
+class WebBroadcastUser(Base):
+    """Users whose posts are fanned out to Fluxer and Discord channels."""
+    __tablename__ = 'web_broadcast_users'
+
+    id       = Column(Integer, primary_key=True, autoincrement=True)
+    user_id  = Column(Integer, nullable=False, unique=True)
+    added_at = Column(BigInteger, nullable=False)
 
 
 class WebCommunityBotConfig(Base):
@@ -1547,6 +1628,27 @@ class WebFluxerRoleUpdate(Base):
         return f"<WebFluxerRoleUpdate user={self.web_user_id} action={self.action}>"
 
 
+class WebDiscordPendingRoleUpdate(Base):
+    """Queue for QuestLog flair -> Discord role sync. Written by web when user equips/unequips a flair.
+    Polled by WardenBot's flair_sync cog every 10s. Only processed for guilds with flair_sync_enabled=1."""
+    __tablename__ = 'discord_pending_role_updates'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    web_user_id = Column(Integer, nullable=False, index=True)
+    action = Column(String(20), nullable=False)      # 'set_flair' or 'clear_flair'
+    flair_emoji = Column(String(20), nullable=True)
+    flair_name = Column(String(100), nullable=True)
+    created_at = Column(BigInteger, nullable=False)
+    processed_at = Column(BigInteger, nullable=True)
+
+    __table_args__ = (
+        Index('idx_discord_role_update_pending', 'processed_at', 'created_at'),
+    )
+
+    def __repr__(self):
+        return f"<WebDiscordPendingRoleUpdate user={self.web_user_id} action={self.action}>"
+
+
 class WebFluxerGuildAction(Base):
     """
     Queue for actions the dashboard requests the bot to perform in a Fluxer guild.
@@ -1681,8 +1783,14 @@ class WebFluxerGuildSettings(Base):
     xp_per_media = Column(Integer, nullable=False, default=3, server_default='3')
     xp_per_gaming_hour = Column(Integer, nullable=False, default=10, server_default='10')
 
+    # Flair Sync (opt-in - admin must enable before flair roles are created in this guild)
+    flair_sync_enabled = Column(SmallInteger, nullable=False, default=0, server_default='0')
+
     # Creator Discovery / Spotlight (all settings as JSON blob)
     creator_discovery_json = Column(Text, nullable=True)   # JSON: enabled, channels, intervals, COTW/COTM, etc.
+
+    # Community Spotlight (Most Helpful nominations + announcements)
+    spotlight_channel_id = Column(String(25), nullable=True)        # Channel for nomination polls + winner announcements
 
     # Game Discovery (implemented in cogs/discovery.py)
     game_discovery_enabled = Column(SmallInteger, nullable=False, default=0, server_default='0')
@@ -1755,7 +1863,7 @@ class WebBridgeConfig(Base):
     relay_fluxer_to_discord = Column(SmallInteger, default=1, nullable=False, server_default='1')
     relay_matrix_outbound = Column(SmallInteger, default=1, nullable=False, server_default='1')  # Matrix -> other platforms
     relay_matrix_inbound = Column(SmallInteger, default=1, nullable=False, server_default='1')   # other platforms -> Matrix
-    max_msg_len = Column(Integer, default=1000, nullable=False, server_default='1000')
+    max_msg_len = Column(Integer, default=2000, nullable=False, server_default='2000')
     enabled = Column(SmallInteger, default=1, nullable=False, server_default='1')
     created_at = Column(BigInteger, nullable=False)
 
@@ -1905,6 +2013,32 @@ class WebBridgePendingDeletion(Base):
         return f"<WebBridgePendingDeletion {self.source_platform}->{self.target_platform} msg={self.target_message_id}>"
 
 
+class WebBridgePendingEdit(Base):
+    """
+    Queue of message edits to relay cross-platform.
+    Keyed by (platform, source_message_id) -> new content.
+    Bots poll /ql/internal/bridge/pending-edits/<platform>/ every 6s.
+    """
+    __tablename__ = 'web_bridge_pending_edits'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    source_platform = Column(String(10), nullable=False)
+    target_platform = Column(String(10), nullable=False)
+    target_message_id = Column(String(255), nullable=False)
+    target_channel_id = Column(String(255), nullable=False)
+    new_content = Column(Text, nullable=False)
+    created_at = Column(BigInteger, nullable=False)
+    delivered_at = Column(BigInteger, nullable=True)
+
+    __table_args__ = (
+        Index('idx_pending_edit', 'target_platform', 'delivered_at', 'created_at'),
+        Index('idx_pending_edit_msg', 'target_message_id'),
+    )
+
+    def __repr__(self):
+        return f"<WebBridgePendingEdit {self.source_platform}->{self.target_platform} msg={self.target_message_id}>"
+
+
 class WebFluxerStreamerSub(Base):
     """
     A Fluxer guild's subscription to a specific streamer's live alerts.
@@ -1948,6 +2082,46 @@ class WebFluxerStreamerSub(Base):
         return f"<WebFluxerStreamerSub guild={self.guild_id} {self.streamer_platform}:{self.streamer_handle}>"
 
 
+class WebDiscordStreamerSub(Base):
+    """
+    A Discord guild's subscription to a specific streamer's live alerts.
+    Mirrors WebFluxerStreamerSub but uses BigInteger guild_id/notify_channel_id
+    since Discord snowflakes are integers.
+    """
+    __tablename__ = 'web_discord_streamer_subs'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    guild_id = Column(BigInteger, nullable=False, index=True)
+    # 'twitch' or 'youtube'
+    streamer_platform = Column(String(20), nullable=False)
+    # The username/channel handle as entered (e.g. "shroud" or "UCxxxxxx")
+    streamer_handle = Column(String(100), nullable=False)
+    # Optional display name override (e.g. "Shroud") - shown in embed
+    streamer_display_name = Column(String(100), nullable=True)
+    # Discord channel ID to post the live alert into
+    notify_channel_id = Column(BigInteger, nullable=False)
+    # Optional custom message prepended before the embed (supports {streamer}, {title}, {url})
+    custom_message = Column(String(500), nullable=True)
+    # Whether this sub is active
+    is_active = Column(SmallInteger, nullable=False, default=1, server_default='1')
+    # Dedupe: 1 while the streamer is currently live (cleared on offline)
+    is_currently_live = Column(SmallInteger, nullable=False, default=0, server_default='0')
+    # Unix timestamp of the last live notification sent (to avoid re-pinging same stream)
+    last_notified_at = Column(BigInteger, nullable=True)
+    created_at = Column(BigInteger, nullable=False, default=lambda: int(time.time()))
+    updated_at = Column(BigInteger, nullable=False, default=lambda: int(time.time()))
+
+    __table_args__ = (
+        UniqueConstraint('guild_id', 'streamer_platform', 'streamer_handle',
+                         name='uq_discord_streamer_sub'),
+        Index('idx_discord_streamer_sub_guild', 'guild_id'),
+        Index('idx_discord_streamer_sub_active', 'is_active'),
+    )
+
+    def __repr__(self):
+        return f"<WebDiscordStreamerSub guild={self.guild_id} {self.streamer_platform}:{self.streamer_handle}>"
+
+
 # =============================================================================
 # FLUXER GUILD FEATURE MODELS (per-guild bot features: LFG, Welcome, etc.)
 # =============================================================================
@@ -1980,6 +2154,7 @@ class WebFluxerLfgGame(Base):
     is_custom_game = Column(Integer, default=0)          # 1 = custom (not from IGDB)
     enabled = Column(Integer, default=1)                 # 0 = disabled but not deleted
     options_json = Column(Text, nullable=True)           # JSON: [{name, choices: [{label, role_tag}]}]
+    receive_network_lfg = Column(Integer, default=0)     # 1 = receive network LFG broadcasts for this game
     is_active = Column(Integer, default=1)               # 0 = soft-deleted
     created_at = Column(BigInteger, default=0)
 
@@ -2020,6 +2195,7 @@ class WebFluxerLfgGroup(Base):
     support_needed = Column(Integer, default=0)
     enforce_role_limits = Column(Integer, default=1)
     role_schema = Column(Text, nullable=True)  # JSON array of 4 slot dicts
+    server_invite_link = Column(String(500), nullable=True)
 
     __table_args__ = (
         Index('idx_fluxer_lfg_group_guild_status', 'guild_id', 'status'),
@@ -2091,6 +2267,7 @@ class WebFluxerReactionRole(Base):
     title = Column(String(200), nullable=True)
     description = Column(Text, nullable=True)
     mappings_json = Column(Text, nullable=True)  # JSON: [{emoji, role_id, role_name, label}]
+    mention_role_id = Column(String(32), nullable=True)  # role to ping when posting the menu
     is_exclusive = Column(Integer, default=0)  # 1 = only one role at a time
     created_at = Column(BigInteger, default=0)
     updated_at = Column(BigInteger, default=0)
@@ -2461,6 +2638,30 @@ class WebFluxerFoundGame(Base):
 
     def __repr__(self):
         return f"<WebFluxerFoundGame {self.game_name} guild={self.guild_id}>"
+
+
+class WebFluxerGuildTemplate(Base):
+    """Saved channel or role templates for a Fluxer guild."""
+    __tablename__ = 'web_fluxer_guild_templates'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    guild_id = Column(String(32), nullable=False)
+    template_type = Column(String(10), nullable=False)  # 'channels' or 'roles'
+    name = Column(String(100), nullable=False)
+    description = Column(String(500), nullable=True)
+    template_data = Column(Text, nullable=False)        # JSON
+    use_count = Column(Integer, default=0)
+    created_by = Column(Integer, nullable=True)         # web_user id
+    created_at = Column(BigInteger, nullable=False, default=lambda: int(time.time()))
+    updated_at = Column(BigInteger, nullable=False, default=lambda: int(time.time()))
+
+    __table_args__ = (
+        Index('idx_fluxer_template_guild', 'guild_id'),
+        Index('idx_fluxer_template_type', 'guild_id', 'template_type'),
+    )
+
+    def __repr__(self):
+        return f"<WebFluxerGuildTemplate {self.name} guild={self.guild_id} type={self.template_type}>"
 
 
 class WebFluxerAnnouncedGame(Base):
@@ -2968,3 +3169,888 @@ class WebCustomEmoji(Base):
 
     def __repr__(self):
         return f"<WebCustomEmoji :{self.shortcode}: sticker={self.is_sticker}>"
+
+
+class Web7dtdCharacterTransfer(Base):
+    """Tracks in-transit character state for cross-server transfers.
+    Created when player confirms travel. Consumed when they join the destination server.
+    in_transit=1 means their character is frozen - deny login on source server."""
+    __tablename__ = 'web_7dtd_character_transfers'
+
+    id              = Column(Integer, primary_key=True, autoincrement=True)
+    steam_id        = Column(String(32), nullable=False, index=True)
+    player_name     = Column(String(64), nullable=False)
+    from_server     = Column(String(64), nullable=False)
+    to_server       = Column(String(64), nullable=False)
+    connect_ip      = Column(String(64), nullable=False)
+    zone_id         = Column(String(64), nullable=False)
+    in_transit      = Column(Integer, nullable=False, default=1)  # 1=frozen, 0=arrived
+    character_state = Column(Text, nullable=True)                 # JSON - Phase 2 (inventory/health/buffs)
+    created_at      = Column(BigInteger, nullable=False)
+    arrived_at      = Column(BigInteger, nullable=True)
+
+    def __repr__(self):
+        return f"<Web7dtdCharacterTransfer steam={self.steam_id} {self.from_server}->{self.to_server} in_transit={self.in_transit}>"
+
+
+class Web7dtdPendingNotification(Base):
+    """Pending Fluxer notifications queued by the C# mod via Django. Bot polls and posts these."""
+    __tablename__ = 'web_7dtd_pending_notifications'
+
+    id          = Column(Integer, primary_key=True, autoincrement=True)
+    server      = Column(String(64), nullable=False)
+    event_type  = Column(String(64), nullable=False)
+    payload     = Column(Text, nullable=False)   # JSON - full event data from C# mod
+    embed_data  = Column(Text, nullable=True)    # JSON - pre-built embed for bot to post
+    channel_id  = Column(String(64), nullable=True)
+    sent        = Column(Integer, nullable=False, default=0)
+    created_at  = Column(BigInteger, nullable=False)
+    sent_at     = Column(BigInteger, nullable=True)
+
+    def __repr__(self):
+        return f"<Web7dtdPendingNotification id={self.id} server={self.server} event={self.event_type} sent={self.sent}>"
+
+
+class Web7dtdArtifactUnlock(Base):
+    """Records when a player picks up a SYNAPSE artifact in 7DTD.
+    One row per player per artifact. Prevents duplicate unlocks.
+    weekly_reset_at is set by cron to allow respawn for other players."""
+    __tablename__ = 'web_7dtd_artifact_unlocks'
+
+    id            = Column(Integer, primary_key=True, autoincrement=True)
+    steam_id      = Column(String(64), nullable=False)
+    player_name   = Column(String(128), nullable=False)
+    artifact_id   = Column(String(64), nullable=False)
+    server        = Column(String(64), nullable=False)
+    web_user_id   = Column(Integer, ForeignKey('web_users.id'), nullable=True)
+    unlocked_at   = Column(BigInteger, nullable=False)
+    weekly_reset_at = Column(BigInteger, nullable=True)
+
+    __table_args__ = (
+        UniqueConstraint('steam_id', 'artifact_id', name='uq_steam_artifact'),
+    )
+
+    def __repr__(self):
+        return f"<Web7dtdArtifactUnlock steam={self.steam_id} artifact={self.artifact_id}>"
+
+
+class Web7dtdArtifactLoadout(Base):
+    """Tracks which artifact a player has equipped in their single slot.
+    slot=1 is the only slot for alpha. slot=2 will be added later.
+    Only valid if the player also has a row in web_7dtd_artifact_unlocks for this artifact."""
+    __tablename__ = 'web_7dtd_artifact_loadout'
+
+    id          = Column(Integer, primary_key=True, autoincrement=True)
+    steam_id    = Column(String(64), nullable=False)
+    web_user_id = Column(Integer, ForeignKey('web_users.id'), nullable=True)
+    artifact_id = Column(String(64), nullable=False)
+    slot        = Column(Integer, nullable=False, default=1)
+    server      = Column(String(64), nullable=False)
+    equipped_at = Column(BigInteger, nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint('steam_id', 'slot', name='uq_loadout_slot'),
+    )
+
+    def __repr__(self):
+        return f"<Web7dtdArtifactLoadout steam={self.steam_id} slot={self.slot} artifact={self.artifact_id}>"
+
+
+class WebSynapsePlayer(Base):
+    """Per-player SYNAPSE progression state.
+    One row per steam_id. Tracks Prototype unlock, slot 2 unlock, and Legacy score."""
+    __tablename__ = 'web_synapse_players'
+
+    id                       = Column(Integer, primary_key=True, autoincrement=True)
+    steam_id                 = Column(String(64), nullable=False, unique=True)
+    web_user_id              = Column(Integer, ForeignKey('web_users.id'), nullable=True)
+    prototype_unlocked       = Column(Boolean, nullable=False, default=False)
+    prototype_unlocked_at    = Column(BigInteger, nullable=True)
+    subclass_slot_2_unlocked = Column(Boolean, nullable=False, default=False)
+    slot_2_unlocked_at       = Column(BigInteger, nullable=True)
+    legacy_score             = Column(Integer, nullable=False, default=0)
+    legacy_tier              = Column(Integer, nullable=False, default=0)
+    created_at               = Column(BigInteger, nullable=False)
+    updated_at               = Column(BigInteger, nullable=False)
+
+    def __repr__(self):
+        return f"<WebSynapsePlayer steam={self.steam_id} legacy={self.legacy_score} prototype={self.prototype_unlocked}>"
+
+
+class WebSynapseLegacyEvent(Base):
+    """War story log - each meaningful Legacy-earning event.
+    Never deleted - permanent record of what a player survived."""
+    __tablename__ = 'web_synapse_legacy_events'
+
+    id          = Column(Integer, primary_key=True, autoincrement=True)
+    steam_id    = Column(String(64), nullable=False, index=True)
+    web_user_id = Column(Integer, ForeignKey('web_users.id'), nullable=True)
+    event_type  = Column(String(64), nullable=False, index=True)
+    points      = Column(Integer, nullable=False)
+    server      = Column(String(64), nullable=False)
+    earned_at   = Column(BigInteger, nullable=False)
+
+    def __repr__(self):
+        return f"<WebSynapseLegacyEvent steam={self.steam_id} type={self.event_type} pts={self.points}>"
+
+
+class WebSteamAppTag(Base):
+    """Local cache of Steam app -> tag mappings, populated from SteamSpy.
+    Used by SteamQuest genre/theme filtering without live API calls per game."""
+    __tablename__ = 'web_steam_app_tags'
+
+    id         = Column(Integer, primary_key=True, autoincrement=True)
+    app_id     = Column(Integer, nullable=False, index=True)
+    tag_name   = Column(String(128), nullable=False)
+    synced_at  = Column(BigInteger, nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint('app_id', 'tag_name', name='uq_steam_app_tag'),
+        Index('ix_steam_app_tags_tag', 'tag_name'),
+    )
+
+    def __repr__(self):
+        return f"<WebSteamAppTag app_id={self.app_id} tag={self.tag_name}>"
+
+
+# ---------------------------------------------------------------------------
+# ESO Build System
+# ---------------------------------------------------------------------------
+
+class WebEsoBuild(Base):
+    """Community-submitted ESO character builds."""
+    __tablename__ = 'web_eso_builds'
+
+    id              = Column(Integer, primary_key=True, autoincrement=True)
+    author_id       = Column(Integer, ForeignKey('web_users.id'), nullable=False, index=True)
+
+    # Identity
+    title           = Column(String(120), nullable=False)
+    slug            = Column(String(140), nullable=False, unique=True, index=True)
+    tagline         = Column(String(200), nullable=True)  # one-liner shown in cards
+    patch_version   = Column(String(20), nullable=True)   # e.g. "U42"
+
+    # Classification
+    eso_class       = Column(String(40), nullable=False)  # Dragonknight, Sorcerer, etc.
+    role            = Column(String(20), nullable=False)  # dps / healer / tank
+    resource        = Column(String(20), nullable=True)   # magicka / stamina / hybrid
+
+    # Claimed stats (author-entered)
+    stat_health     = Column(Integer, nullable=True)
+    stat_magicka    = Column(Integer, nullable=True)
+    stat_stamina    = Column(Integer, nullable=True)
+    stat_dps        = Column(Integer, nullable=True)
+    stat_hps        = Column(Integer, nullable=True)
+    difficulty      = Column(SmallInteger, nullable=True)  # 1-5
+
+    # Rich text sections (HTML from sanitized WYSIWYG)
+    how_it_works    = Column(Text, nullable=True)
+    pros            = Column(Text, nullable=True)   # JSON list of strings
+    cons            = Column(Text, nullable=True)   # JSON list of strings
+    champion_points = Column(Text, nullable=True)  # rich text
+    rotation        = Column(Text, nullable=True)  # rich text
+
+    # Gear slots JSON - list of 12 dicts:
+    # {slot, set_name, set_url, weight, trait, enchant}
+    gear            = Column(Text, nullable=True)
+
+    # Skill bars JSON - list of 2 bars, each bar = list of 6 dicts:
+    # {name, url, is_ultimate}
+    skills          = Column(Text, nullable=True)
+
+    # Mundus stone, food/drink buff
+    mundus          = Column(String(80), nullable=True)
+    buff_food       = Column(String(120), nullable=True)
+
+    # Meta flag (admin-pinned as community meta build)
+    is_meta         = Column(Boolean, default=False, nullable=False)
+    is_published    = Column(Boolean, default=True, nullable=False)
+
+    # Engagement
+    view_count      = Column(Integer, default=0, nullable=False)
+    upvotes         = Column(Integer, default=0, nullable=False)
+    downvotes       = Column(Integer, default=0, nullable=False)
+    comment_count   = Column(Integer, default=0, nullable=False)
+
+    created_at      = Column(BigInteger, nullable=False)
+    updated_at      = Column(BigInteger, nullable=False)
+
+    __table_args__ = (
+        Index('ix_eso_builds_class_role', 'eso_class', 'role'),
+        Index('ix_eso_builds_author', 'author_id'),
+        Index('ix_eso_builds_meta', 'is_meta'),
+    )
+
+    def __repr__(self):
+        return f"<WebEsoBuild id={self.id} title={self.title!r} class={self.eso_class}>"
+
+
+class WebEsoBuildVote(Base):
+    """Up/downvotes on ESO builds - one per user per build."""
+    __tablename__ = 'web_eso_build_votes'
+
+    id         = Column(Integer, primary_key=True, autoincrement=True)
+    build_id   = Column(Integer, ForeignKey('web_eso_builds.id'), nullable=False, index=True)
+    user_id    = Column(Integer, ForeignKey('web_users.id'), nullable=False)
+    vote       = Column(SmallInteger, nullable=False)  # 1 = up, -1 = down
+    created_at = Column(BigInteger, nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint('build_id', 'user_id', name='uq_eso_build_vote'),
+    )
+
+
+class WebEsoBuildComment(Base):
+    """Comments on ESO builds."""
+    __tablename__ = 'web_eso_build_comments'
+
+    id         = Column(Integer, primary_key=True, autoincrement=True)
+    build_id   = Column(Integer, ForeignKey('web_eso_builds.id'), nullable=False, index=True)
+    author_id  = Column(Integer, ForeignKey('web_users.id'), nullable=False, index=True)
+    body       = Column(Text, nullable=False)
+    created_at = Column(BigInteger, nullable=False)
+    updated_at = Column(BigInteger, nullable=False)
+
+    def __repr__(self):
+        return f"<WebEsoBuildComment id={self.id} build={self.build_id}>"
+
+
+class WebEsoBuildBookmark(Base):
+    """User bookmarks for ESO builds."""
+    __tablename__ = 'web_eso_build_bookmarks'
+
+    id         = Column(Integer, primary_key=True, autoincrement=True)
+    build_id   = Column(Integer, ForeignKey('web_eso_builds.id'), nullable=False, index=True)
+    user_id    = Column(Integer, ForeignKey('web_users.id'), nullable=False)
+    created_at = Column(BigInteger, nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint('build_id', 'user_id', name='uq_eso_build_bookmark'),
+    )
+
+
+class WebFfxivCharacter(Base):
+    """Lodestone character linked to a QuestLog account."""
+    __tablename__ = 'web_ffxiv_characters'
+
+    id             = Column(Integer, primary_key=True, autoincrement=True)
+    user_id        = Column(Integer, ForeignKey('web_users.id'), nullable=False, index=True)
+    lodestone_id   = Column(String(20), nullable=False, index=True)
+    character_name = Column(String(100), nullable=False)
+    world          = Column(String(50), nullable=False)
+    datacenter     = Column(String(50), nullable=False)
+    avatar_url     = Column(String(500), nullable=True)
+    portrait_url   = Column(String(500), nullable=True)
+    title          = Column(String(200), nullable=True)
+    free_company   = Column(String(200), nullable=True)
+    fc_tag         = Column(String(10), nullable=True)
+    active_job     = Column(String(50), nullable=True)
+    # Collection counts
+    mount_count    = Column(Integer, default=0)
+    minion_count   = Column(Integer, default=0)
+    # Raw JSON snapshots from Lodestone scrape
+    mounts_json       = Column(Text, nullable=True)
+    minions_json      = Column(Text, nullable=True)
+    jobs_json         = Column(Text, nullable=True)
+    achievements_json = Column(Text, nullable=True)
+    # Sync state
+    last_synced_at = Column(BigInteger, nullable=True)
+    sync_status    = Column(String(20), default='pending')  # pending, syncing, ok, error, private
+    sync_error     = Column(String(500), nullable=True)
+    is_primary     = Column(Boolean, default=True)
+    created_at     = Column(BigInteger, nullable=False)
+    updated_at     = Column(BigInteger, nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint('user_id', 'lodestone_id', name='uq_user_character'),
+    )
+
+    def __repr__(self):
+        return f"<WebFfxivCharacter {self.character_name}@{self.world}>"
+
+
+class WebFfxivAchievementReward(Base):
+    """Tracks which FFXIV achievements have already granted XP/Legacy to prevent double-award."""
+    __tablename__ = 'web_ffxiv_achievement_rewards'
+
+    id               = Column(Integer, primary_key=True, autoincrement=True)
+    user_id          = Column(Integer, ForeignKey('web_users.id'), nullable=False, index=True)
+    lodestone_id     = Column(String(20), nullable=False)
+    achievement_key  = Column(String(100), nullable=False)
+    achievement_name = Column(String(200), nullable=False)
+    xp_awarded       = Column(Integer, default=0)
+    legacy_awarded   = Column(Integer, default=0)
+    awarded_at       = Column(BigInteger, nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint('user_id', 'achievement_key', name='uq_user_achievement'),
+    )
+
+    def __repr__(self):
+        return f"<WebFfxivAchievementReward user={self.user_id} ach={self.achievement_key}>"
+
+
+class WebFfxivItemName(Base):
+    """Cache table for Lodestone mount/minion tooltip_hash -> name resolution."""
+    __tablename__ = 'web_ffxiv_item_names'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    tooltip_hash = Column(String(64), nullable=False, unique=True)
+    item_type = Column(String(10), nullable=False)  # 'mount' or 'minion'
+    item_name = Column(String(255), nullable=False)
+    collect_id = Column(Integer)
+    lodestone_url = Column(String(512))
+    created_at = Column(BigInteger, default=lambda: int(time.time()))
+
+    def __repr__(self):
+        return f"<WebFfxivItemName {self.item_type}:{self.item_name}>"
+
+
+# ---------------------------------------------------------------------------
+# FFXIV Job Guides
+# ---------------------------------------------------------------------------
+
+class WebFfxivGuide(Base):
+    """Community-submitted FFXIV job guide."""
+    __tablename__ = 'web_ffxiv_guides'
+
+    id              = Column(Integer, primary_key=True, autoincrement=True)
+    author_id       = Column(Integer, ForeignKey('web_users.id'), nullable=False, index=True)
+
+    # Identity
+    job_key         = Column(String(10), nullable=False, index=True)  # e.g. 'rdm', 'whm', 'pld'
+    title           = Column(String(150), nullable=False)
+    slug            = Column(String(180), nullable=False, unique=True, index=True)
+    summary         = Column(String(300), nullable=True)   # shown on job hub card
+
+    # Classification tags - JSON list e.g. ["Savage", "BiS", "Beginner"]
+    tags            = Column(Text, nullable=True)
+
+    # Patch version this guide targets
+    patch_version   = Column(String(20), nullable=True)   # e.g. "7.1"
+
+    # Blocks - ordered list of content blocks stored as JSON
+    # Each block: {type: text|image|video|gear_table|rotation, content: ..., sort_order: int}
+    blocks          = Column(Text, nullable=True)
+
+    # Moderation
+    is_published    = Column(Boolean, default=True,  nullable=False)
+    is_hidden       = Column(Boolean, default=False, nullable=False)  # admin/mod hide
+    is_pinned       = Column(Boolean, default=False, nullable=False)  # admin pin to top
+
+    # Engagement
+    view_count      = Column(Integer, default=0, nullable=False)
+    like_count      = Column(Integer, default=0, nullable=False)
+    comment_count   = Column(Integer, default=0, nullable=False)
+
+    created_at      = Column(BigInteger, nullable=False)
+    updated_at      = Column(BigInteger, nullable=False)
+
+    __table_args__ = (
+        Index('ix_ffxiv_guides_job_published', 'job_key', 'is_published', 'is_hidden'),
+        Index('ix_ffxiv_guides_author', 'author_id'),
+        Index('ix_ffxiv_guides_pinned', 'is_pinned'),
+    )
+
+    def __repr__(self):
+        return f"<WebFfxivGuide id={self.id} job={self.job_key} title={self.title!r}>"
+
+
+class WebFfxivGuideLike(Base):
+    """Upvote on an FFXIV guide - one per user per guide."""
+    __tablename__ = 'web_ffxiv_guide_likes'
+
+    id         = Column(Integer, primary_key=True, autoincrement=True)
+    guide_id   = Column(Integer, ForeignKey('web_ffxiv_guides.id'), nullable=False, index=True)
+    user_id    = Column(Integer, ForeignKey('web_users.id'), nullable=False)
+    created_at = Column(BigInteger, nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint('guide_id', 'user_id', name='uq_ffxiv_guide_like'),
+    )
+
+
+class WebFfxivGuideComment(Base):
+    """Comment on an FFXIV guide - supports one level of threading."""
+    __tablename__ = 'web_ffxiv_guide_comments'
+
+    id         = Column(Integer, primary_key=True, autoincrement=True)
+    guide_id   = Column(Integer, ForeignKey('web_ffxiv_guides.id'), nullable=False, index=True)
+    author_id  = Column(Integer, ForeignKey('web_users.id'), nullable=False, index=True)
+    parent_id  = Column(Integer, ForeignKey('web_ffxiv_guide_comments.id'), nullable=True)
+    body       = Column(Text, nullable=False)
+    is_deleted = Column(Boolean, default=False, nullable=False)
+    like_count = Column(Integer, default=0, nullable=False)
+    created_at = Column(BigInteger, nullable=False)
+    updated_at = Column(BigInteger, nullable=False)
+
+    def __repr__(self):
+        return f"<WebFfxivGuideComment id={self.id} guide={self.guide_id}>"
+
+
+class WebFfxivGuideCommentLike(Base):
+    """Like on an FFXIV guide comment."""
+    __tablename__ = 'web_ffxiv_guide_comment_likes'
+
+    id         = Column(Integer, primary_key=True, autoincrement=True)
+    comment_id = Column(Integer, ForeignKey('web_ffxiv_guide_comments.id'), nullable=False, index=True)
+    user_id    = Column(Integer, ForeignKey('web_users.id'), nullable=False)
+    created_at = Column(BigInteger, nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint('comment_id', 'user_id', name='uq_ffxiv_guide_comment_like'),
+    )
+
+
+class WebFfxivClear(Base):
+    """Self-reported raid/content clear for FFXIV FC progression tracking."""
+    __tablename__ = 'web_ffxiv_clears'
+
+    id          = Column(Integer, primary_key=True, autoincrement=True)
+    user_id     = Column(Integer, ForeignKey('web_users.id', ondelete='CASCADE'), nullable=False, index=True)
+    content_key = Column(String(32), nullable=False)
+    cleared_at  = Column(BigInteger, nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint('user_id', 'content_key', name='uq_ffxiv_clear'),
+    )
+
+
+class WebFfxivDeepDungeonRun(Base):
+    """A single deep dungeon run attempt logged by a user."""
+    __tablename__ = 'web_ffxiv_dd_runs'
+
+    id           = Column(Integer, primary_key=True, autoincrement=True)
+    user_id      = Column(Integer, ForeignKey('web_users.id', ondelete='CASCADE'), nullable=False, index=True)
+    dungeon      = Column(String(8), nullable=False)       # 'potd' | 'hoh' | 'eo'
+    floor_start  = Column(Integer, nullable=False)         # 1, 21, or 51
+    floor_end    = Column(Integer, nullable=False)         # floor reached when run ended
+    kos          = Column(Integer, nullable=False, default=0)
+    job          = Column(String(32), nullable=True)       # e.g. "Paladin"
+    party_size   = Column(Integer, nullable=False, default=1)  # 1-4
+    is_clear     = Column(Integer, nullable=False, default=0)  # 1 if reached max floor
+    notes        = Column(String(256), nullable=True)
+    run_at       = Column(BigInteger, nullable=False)      # Unix epoch
+
+
+class WebFfxivDeepDungeonPB(Base):
+    """Personal best record per user per dungeon - updated when a run beats it."""
+    __tablename__ = 'web_ffxiv_dd_pb'
+
+    id          = Column(Integer, primary_key=True, autoincrement=True)
+    user_id     = Column(Integer, ForeignKey('web_users.id', ondelete='CASCADE'), nullable=False, index=True)
+    dungeon     = Column(String(8), nullable=False)
+    floor_end   = Column(Integer, nullable=False)
+    kos         = Column(Integer, nullable=False, default=0)
+    job         = Column(String(32), nullable=True)
+    party_size  = Column(Integer, nullable=False, default=1)
+    is_clear    = Column(Integer, nullable=False, default=0)
+    run_at      = Column(BigInteger, nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint('user_id', 'dungeon', name='uq_dd_pb'),
+    )
+
+
+class WebFfxivFieldOps(Base):
+    """Self-reported field operations progression per user per zone."""
+    __tablename__ = 'web_ffxiv_field_ops'
+
+    id               = Column(Integer, primary_key=True, autoincrement=True)
+    user_id          = Column(Integer, ForeignKey('web_users.id', ondelete='CASCADE'), nullable=False, index=True)
+    zone             = Column(String(24), nullable=False)   # eureka_anemos/pagos/pyros/hydatos, bozja, occult_crescent
+    # Eureka fields
+    elemental_level  = Column(Integer, nullable=True)       # 1-60
+    logos_actions    = Column(Integer, nullable=True)       # 0-56 (Pyros/Hydatos)
+    # Bozja fields
+    resistance_rank  = Column(Integer, nullable=True)       # 1-25
+    mettle           = Column(BigInteger, nullable=True)    # 0-25,870,000
+    ces_completed    = Column(Integer, nullable=True)       # count
+    # Occult Crescent fields
+    knowledge_level  = Column(Integer, nullable=True)       # 1-40
+    phantom_unlocked = Column(Integer, nullable=True)       # 0-16
+    phantom_mastered = Column(Integer, nullable=True)       # 0-16
+    forked_clears    = Column(Integer, nullable=True)       # int
+    # Shared
+    relic_stage      = Column(String(64), nullable=True)    # human-readable stage name
+    armor_stage      = Column(String(64), nullable=True)    # human-readable armor stage (Eureka only)
+    updated_at       = Column(BigInteger, nullable=False)   # Unix epoch
+
+    __table_args__ = (
+        UniqueConstraint('user_id', 'zone', name='uq_field_ops'),
+    )
+
+
+class WebFfxivHuntReport(Base):
+    __tablename__ = 'web_ffxiv_hunt_reports'
+
+    id            = Column(Integer, primary_key=True, autoincrement=True)
+    hunt_key      = Column(String(64), nullable=False, index=True)   # e.g. "srank_labarinthia_crystarium"
+    reported_by   = Column(Integer, ForeignKey('web_users.id', ondelete='SET NULL'), nullable=True, index=True)
+    dc            = Column(String(32), nullable=False)                # e.g. "Aether"
+    world         = Column(String(32), nullable=False)                # e.g. "Cactuar"
+    event_type    = Column(String(16), nullable=False)                # "kill" | "sight" | "pull"
+    reported_at   = Column(BigInteger, nullable=False)                # Unix epoch
+    notes         = Column(String(256), nullable=True)
+
+    __table_args__ = (
+        UniqueConstraint('hunt_key', 'world', name='uq_hunt_world'),
+    )
+
+
+class WebFfxivTriadCard(Base):
+    """Triple Triad card ownership per user."""
+    __tablename__ = 'web_ffxiv_triad_cards'
+
+    id         = Column(Integer, primary_key=True, autoincrement=True)
+    user_id    = Column(Integer, ForeignKey('web_users.id', ondelete='CASCADE'), nullable=False, index=True)
+    card_id    = Column(Integer, nullable=False)          # FF Logs / XIVAPI card ID (from static data)
+    obtained_at = Column(BigInteger, nullable=False)      # Unix epoch
+    notes      = Column(String(256), nullable=True)
+
+    __table_args__ = (
+        UniqueConstraint('user_id', 'card_id', name='uq_triad_user_card'),
+    )
+
+
+class WebFfxivHuntSub(Base):
+    """User subscription for FFXIV hunt/event notifications."""
+    __tablename__ = 'web_ffxiv_hunt_subs'
+
+    id              = Column(Integer, primary_key=True, autoincrement=True)
+    user_id         = Column(Integer, ForeignKey('web_users.id', ondelete='CASCADE'), nullable=False, index=True)
+    # What to watch: 'S', 'A', 'B', or a specific hunt_key like 'srank_labarinthia_crystarium'
+    # Also supports event keys like 'fate_odin', 'eureka_nm_penthesilea'
+    watch_key       = Column(String(128), nullable=False)   # 'S' | 'A' | 'all_events' | specific key
+    # Which worlds (comma-separated) - empty = all worlds
+    worlds          = Column(String(512), nullable=True)
+    notify_site     = Column(Boolean, default=True, nullable=False)
+    notify_fluxer   = Column(Boolean, default=False, nullable=False)
+    created_at      = Column(BigInteger, nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint('user_id', 'watch_key', name='uq_hunt_sub_user_key'),
+    )
+
+
+class WebFfxivTriadDeck(Base):
+    """A saved Triple Triad deck belonging to a user."""
+    __tablename__ = 'web_ffxiv_triad_decks'
+
+    id         = Column(Integer, primary_key=True, autoincrement=True)
+    user_id    = Column(Integer, ForeignKey('web_users.id', ondelete='CASCADE'), nullable=False, index=True)
+    name       = Column(String(64), nullable=False)
+    card_ids   = Column(Text, nullable=False)             # JSON array of 5 card_ids
+    created_at = Column(BigInteger, nullable=False)
+    updated_at = Column(BigInteger, nullable=False)
+
+
+# =============================================================================
+# BLOG / ARTICLES
+# =============================================================================
+
+class WebArticle(Base):
+    """
+    Community blog article. Written by contributors (is_contributor=True) or admins.
+    Body stored as Markdown source; rendered to sanitized HTML at read time (never stored).
+    Cover image must be a local /media/uploads/ path validated on write.
+    """
+    __tablename__ = 'web_articles'
+
+    id              = Column(Integer, primary_key=True, autoincrement=True)
+    author_id       = Column(Integer, ForeignKey('web_users.id'), nullable=False, index=True)
+
+    # Identity
+    title           = Column(String(200), nullable=False)
+    slug            = Column(String(220), nullable=False, unique=True, index=True)
+    summary         = Column(String(500), nullable=True)   # shown on listing card; no HTML
+
+    # Category - controls which tab it appears under on the listing page
+    # Allowed values: 'guide', 'article', 'news', 'opinion'
+    category        = Column(String(20), nullable=False, default='article')
+
+    # Optional game tag (mirrors WebPost game tagging)
+    game_tag_id     = Column(Integer, ForeignKey('web_found_games.id', ondelete='SET NULL'), nullable=True)
+    game_tag_name   = Column(String(500), nullable=True)   # cached, survives game deletion
+
+    # Cover image - local /media/uploads/ path only, validated on write
+    cover_url       = Column(String(500), nullable=True)
+
+    # Markdown body - rendered + sanitized at read time, never stored as HTML
+    body_md         = Column(Text, nullable=False)
+
+    # State
+    is_published    = Column(Boolean, default=False, nullable=False)  # drafts default to unpublished
+    is_hidden       = Column(Boolean, default=False, nullable=False)  # admin soft-hide
+    is_pinned       = Column(Boolean, default=False, nullable=False)  # admin pin to top of listing
+
+    # Denormalized counters - updated on comment create/delete
+    comment_count   = Column(Integer, default=0, nullable=False)
+    view_count      = Column(Integer, default=0, nullable=False)
+
+    # Edit tracking
+    edited_at       = Column(BigInteger, nullable=True)    # null = never edited after publish
+    edit_count      = Column(Integer, default=0, nullable=False)
+
+    # Timestamps
+    created_at      = Column(BigInteger, nullable=False)
+    updated_at      = Column(BigInteger, nullable=False)
+    published_at    = Column(BigInteger, nullable=True)    # set when is_published flips True
+
+    __table_args__ = (
+        Index('ix_web_articles_listing', 'is_published', 'is_hidden', 'category', 'published_at'),
+        Index('ix_web_articles_author', 'author_id'),
+        Index('ix_web_articles_pinned', 'is_pinned'),
+    )
+
+    def __repr__(self):
+        return f"<WebArticle id={self.id} slug={self.slug!r}>"
+
+
+class WebArticleComment(Base):
+    """
+    Comment on a blog article. One level of threading (reply to top-level only).
+    Body is plain text, sanitized on write via sanitize_text().
+    """
+    __tablename__ = 'web_article_comments'
+
+    id          = Column(Integer, primary_key=True, autoincrement=True)
+    article_id  = Column(Integer, ForeignKey('web_articles.id', ondelete='CASCADE'), nullable=False, index=True)
+    author_id   = Column(Integer, ForeignKey('web_users.id'), nullable=False, index=True)
+    parent_id   = Column(Integer, ForeignKey('web_article_comments.id', ondelete='CASCADE'), nullable=True)
+
+    content     = Column(Text, nullable=False)   # plain text, max 1000 chars, sanitized on write
+    is_deleted  = Column(Boolean, default=False, nullable=False)
+
+    like_count  = Column(Integer, default=0, nullable=False)
+
+    created_at  = Column(BigInteger, nullable=False)
+    updated_at  = Column(BigInteger, nullable=False)
+
+    __table_args__ = (
+        Index('ix_web_article_comments_article', 'article_id', 'is_deleted'),
+    )
+
+    def __repr__(self):
+        return f"<WebArticleComment id={self.id} article={self.article_id}>"
+
+
+class WebArticleCommentLike(Base):
+    """Like on a blog article comment - one per user per comment."""
+    __tablename__ = 'web_article_comment_likes'
+
+    id          = Column(Integer, primary_key=True, autoincrement=True)
+    comment_id  = Column(Integer, ForeignKey('web_article_comments.id', ondelete='CASCADE'), nullable=False, index=True)
+    user_id     = Column(Integer, ForeignKey('web_users.id'), nullable=False)
+    created_at  = Column(BigInteger, nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint('comment_id', 'user_id', name='uq_article_comment_like'),
+    )
+
+
+class WebFfxivApplication(Base):
+    """FFXIV Free Company membership application."""
+    __tablename__ = 'web_ffxiv_applications'
+
+    id              = Column(Integer, primary_key=True, autoincrement=True)
+    web_user_id     = Column(Integer, ForeignKey('web_users.id', ondelete='SET NULL'), nullable=True)
+    # Character info
+    character_name  = Column(String(100), nullable=False)
+    home_world      = Column(String(50), nullable=False)
+    main_job        = Column(String(50), nullable=False)
+    alt_jobs        = Column(Text, nullable=True)           # JSON list of job names
+    # Experience
+    experience_level = Column(String(50), nullable=False)  # new/leveling/casual/savage/ultimate
+    content_interests = Column(Text, nullable=True)        # JSON list
+    # Availability
+    availability    = Column(Text, nullable=True)          # JSON list of days
+    # Essay questions
+    why_join        = Column(Text, nullable=False)
+    about_me        = Column(Text, nullable=True)
+    referral        = Column(String(100), nullable=True)
+    # Status
+    status          = Column(String(20), nullable=False, default='pending')  # pending/approved/denied
+    admin_notes     = Column(Text, nullable=True)
+    submitted_at    = Column(BigInteger, nullable=False)
+    reviewed_at     = Column(BigInteger, nullable=True)
+    reviewed_by     = Column(Integer, nullable=True)
+
+    __table_args__ = (
+        Index('idx_ffxiv_app_user', 'web_user_id'),
+        Index('idx_ffxiv_app_status', 'status'),
+    )
+
+
+class WebUserGame(Base):
+    """A game in a user's personal game library."""
+    __tablename__ = 'web_user_games'
+
+    id             = Column(Integer, primary_key=True, autoincrement=True)
+    web_user_id    = Column(Integer, ForeignKey('web_users.id', ondelete='CASCADE'), nullable=False)
+    igdb_id        = Column(Integer, nullable=True)
+    steam_app_id   = Column(Integer, nullable=True)
+    name           = Column(String(200), nullable=False)
+    cover_url      = Column(String(500), nullable=True)
+    status         = Column(String(20), nullable=False, default='playing')  # playing/played/backlog/play_together
+    playtime_hours = Column(Float, nullable=True)
+    platform       = Column(String(50), nullable=True)
+    game_modes     = Column(Text, nullable=True)          # JSON array e.g. ["Multiplayer","Co-operative"]
+    is_favorite    = Column(Boolean, nullable=False, default=False)
+    added_at       = Column(BigInteger, nullable=False)
+    updated_at     = Column(BigInteger, nullable=False)
+
+    __table_args__ = (
+        Index('idx_ug_user', 'web_user_id'),
+        Index('idx_ug_status', 'status'),
+        Index('idx_ug_steam', 'steam_app_id'),
+        Index('idx_ug_igdb', 'igdb_id'),
+    )
+
+
+class WebEsoApplication(Base):
+    """ESO Guild membership application."""
+    __tablename__ = 'web_eso_applications'
+
+    id               = Column(Integer, primary_key=True, autoincrement=True)
+    web_user_id      = Column(Integer, ForeignKey('web_users.id', ondelete='SET NULL'), nullable=True)
+    character_name   = Column(String(100), nullable=False)
+    main_class       = Column(String(50), nullable=False)
+    subclass         = Column(String(50), nullable=False)
+    skill_line       = Column(String(50), nullable=True)     # skill line focus for main class
+    role             = Column(String(100), nullable=False)   # comma-joined e.g. "Tank,Healer"
+    experience_level = Column(String(200), nullable=False)   # comma-joined keys
+    content_interests = Column(Text, nullable=True)          # JSON list
+    availability     = Column(Text, nullable=True)           # JSON list of days
+    why_join         = Column(Text, nullable=False)
+    about_me         = Column(Text, nullable=True)
+    referral         = Column(String(100), nullable=True)
+    status           = Column(String(20), nullable=False, default='pending')
+    admin_notes      = Column(Text, nullable=True)
+    submitted_at     = Column(BigInteger, nullable=False)
+    reviewed_at      = Column(BigInteger, nullable=True)
+    reviewed_by      = Column(Integer, nullable=True)
+
+    __table_args__ = (
+        Index('idx_eso_app_user', 'web_user_id'),
+        Index('idx_eso_app_status', 'status'),
+    )
+
+
+class WebTestimonial(Base):
+    """Member quote shown on the landing page. Admin-managed."""
+    __tablename__ = 'web_testimonials'
+
+    id          = Column(Integer, primary_key=True, autoincrement=True)
+    member_name = Column(String(100), nullable=False)
+    handle      = Column(String(100), nullable=True)
+    avatar_url  = Column(String(500), nullable=True)
+    quote       = Column(Text, nullable=False)
+    game_tag    = Column(String(100), nullable=True)
+    sort_order  = Column(Integer, nullable=False, default=0)
+    is_active   = Column(Boolean, nullable=False, default=True)
+    created_at  = Column(BigInteger, nullable=False)
+
+
+class WebSteamAchievement(Base):
+    """Cached Steam achievement data per user per game (unlocked only)."""
+    __tablename__ = 'web_steam_achievements'
+
+    id           = Column(Integer, primary_key=True, autoincrement=True)
+    web_user_id  = Column(Integer, ForeignKey('web_users.id', ondelete='CASCADE'), nullable=False)
+    app_id       = Column(Integer, nullable=False)
+    game_name    = Column(String(200), nullable=False)
+    api_name     = Column(String(200), nullable=False)   # Steam internal name e.g. "ACH_WIN_ONE_FOR_THE_TEAM"
+    display_name = Column(String(200), nullable=False)
+    description  = Column(String(500), nullable=True)
+    icon_url     = Column(String(500), nullable=True)
+    unlocked_at  = Column(BigInteger, nullable=True)     # Unix timestamp from Steam
+    synced_at    = Column(BigInteger, nullable=False)
+
+    __table_args__ = (
+        Index('idx_steam_ach_user', 'web_user_id'),
+        Index('idx_steam_ach_app', 'web_user_id', 'app_id'),
+        UniqueConstraint('web_user_id', 'app_id', 'api_name', name='uq_steam_ach'),
+    )
+
+
+class WebSteamAchievementShowcase(Base):
+    """Up to 6 achievements a user has pinned to their profile."""
+    __tablename__ = 'web_steam_achievement_showcase'
+
+    id              = Column(Integer, primary_key=True, autoincrement=True)
+    web_user_id     = Column(Integer, ForeignKey('web_users.id', ondelete='CASCADE'), nullable=False)
+    achievement_id  = Column(Integer, ForeignKey('web_steam_achievements.id', ondelete='CASCADE'), nullable=False)
+    sort_order      = Column(Integer, nullable=False, default=0)
+    pinned_at       = Column(BigInteger, nullable=False)
+
+    __table_args__ = (
+        Index('idx_showcase_user', 'web_user_id'),
+        UniqueConstraint('web_user_id', 'achievement_id', name='uq_showcase_ach'),
+    )
+
+
+# ---------------------------------------------------------------------------
+# E2EE Direct Messages
+# ---------------------------------------------------------------------------
+
+class WebDMConversation(Base):
+    """One row per unique user pair. user_a_id < user_b_id always."""
+    __tablename__ = 'web_dm_conversations'
+
+    id              = Column(Integer, primary_key=True, autoincrement=True)
+    user_a_id       = Column(Integer, ForeignKey('web_users.id', ondelete='CASCADE'), nullable=False)
+    user_b_id       = Column(Integer, ForeignKey('web_users.id', ondelete='CASCADE'), nullable=False)
+    last_message_at = Column(BigInteger, nullable=False, default=0)
+    created_at      = Column(BigInteger, nullable=False)
+
+    user_a   = relationship("WebUser", foreign_keys=[user_a_id])
+    user_b   = relationship("WebUser", foreign_keys=[user_b_id])
+    messages = relationship("WebDMMessage", back_populates="conversation", order_by="WebDMMessage.created_at")
+
+    __table_args__ = (
+        UniqueConstraint('user_a_id', 'user_b_id', name='uq_convo'),
+        Index('idx_dm_convo_a', 'user_a_id'),
+        Index('idx_dm_convo_b', 'user_b_id'),
+        Index('idx_dm_convo_updated', 'last_message_at'),
+    )
+
+
+class WebDMMessage(Base):
+    """Encrypted message. Server stores ciphertext only - never sees plaintext."""
+    __tablename__ = 'web_dm_messages'
+
+    id                      = Column(Integer, primary_key=True, autoincrement=True)
+    conversation_id         = Column(Integer, ForeignKey('web_dm_conversations.id', ondelete='CASCADE'), nullable=False)
+    sender_id               = Column(Integer, ForeignKey('web_users.id', ondelete='CASCADE'), nullable=False)
+    ciphertext_for_recipient = Column(Text, nullable=False)  # base64 AES-GCM ciphertext for recipient
+    ciphertext_for_sender    = Column(Text, nullable=False)  # base64 AES-GCM ciphertext for sender's own copy
+    ephemeral_pubkey         = Column(Text, nullable=False)  # JWK JSON of ECDH ephemeral public key
+    iv_recipient             = Column(String(32), nullable=False)  # base64 IV for recipient copy
+    iv_sender                = Column(String(32), nullable=False)  # base64 IV for sender copy
+    is_deleted               = Column(Boolean, nullable=False, default=False)
+    created_at               = Column(BigInteger, nullable=False)
+
+    conversation = relationship("WebDMConversation", back_populates="messages")
+    sender       = relationship("WebUser", foreign_keys=[sender_id])
+
+    __table_args__ = (
+        Index('idx_dm_msg_convo', 'conversation_id'),
+        Index('idx_dm_msg_sender', 'sender_id'),
+        Index('idx_dm_msg_created', 'created_at'),
+    )
+
+
+class WebDMReadState(Base):
+    """Tracks last-read timestamp per user per conversation for unread counts."""
+    __tablename__ = 'web_dm_read_state'
+
+    id              = Column(Integer, primary_key=True, autoincrement=True)
+    conversation_id = Column(Integer, ForeignKey('web_dm_conversations.id', ondelete='CASCADE'), nullable=False)
+    user_id         = Column(Integer, ForeignKey('web_users.id', ondelete='CASCADE'), nullable=False)
+    last_read_at    = Column(BigInteger, nullable=False, default=0)
+
+    __table_args__ = (
+        UniqueConstraint('conversation_id', 'user_id', name='uq_read_state'),
+        Index('idx_dm_read_user', 'user_id'),
+    )

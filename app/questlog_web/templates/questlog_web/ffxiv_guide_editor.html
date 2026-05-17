@@ -1,0 +1,527 @@
+{% extends "questlog_web/base_web.html" %}
+{% load static %}
+
+{% block title %}{% if mode == 'edit' %}Edit Guide{% else %}Write a Guide{% endif %} - {{ job.abbr }} - QuestLog{% endblock %}
+
+{% block web_content %}
+<script>
+const CSRF_TOKEN   = '{{ csrf_token }}';
+const MODE         = '{{ mode }}';
+const JOB_KEY      = '{{ job_key }}';
+const GUIDE_ID     = {{ guide_id|default:"null" }};
+const GUIDE_SLUG   = '{{ guide_slug|default:"" }}';
+const GUIDE_TAGS   = {{ guide_tags|safe }};
+const PATCHES      = {{ patches|safe }};
+{% if mode == 'edit' %}
+const INITIAL_DATA = {{ initial|safe }};
+{% else %}
+const INITIAL_DATA = { title:'', summary:'', tags:[], patch_version:'', blocks:[] };
+{% endif %}
+</script>
+
+<!-- Header -->
+<div class="bg-gradient-to-br from-neutral-900 via-neutral-900 to-indigo-950/30 border-b border-neutral-800 p-6 mb-6">
+  <div class="max-w-4xl mx-auto">
+    <div class="flex items-center gap-2 text-sm text-gray-500 mb-3">
+      <a href="/ffxiv/tools/job-guides/" class="hover:text-white transition">Job Guides</a>
+      <i class="fas fa-chevron-right text-xs"></i>
+      <a href="/ffxiv/tools/job-guides/{{ job_key }}/" class="hover:text-white transition">{{ job.abbr }}</a>
+      <i class="fas fa-chevron-right text-xs"></i>
+      <span class="text-gray-300">{% if mode == 'edit' %}Edit Guide{% else %}New Guide{% endif %}</span>
+    </div>
+    <div class="flex items-center gap-3">
+      <img src="{{ job_icon_url }}" alt="{{ job.abbr }}" class="w-10 h-10 rounded-xl object-contain"
+           onerror="this.style.display='none'">
+      <div>
+        <h1 class="text-2xl font-bold text-white">
+          {% if mode == 'edit' %}Edit Guide{% else %}Write a {{ job.name }} Guide{% endif %}
+        </h1>
+        <p class="{{ role_color }} text-xs">{{ job.role }}</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="max-w-4xl mx-auto px-4 pb-12">
+  <div class="space-y-6">
+
+    <!-- Meta section -->
+    <div class="bg-neutral-900/50 border border-neutral-800 rounded-xl p-6 space-y-4">
+      <h2 class="text-sm font-bold text-gray-400 uppercase tracking-wider">Guide Info</h2>
+
+      <div>
+        <label class="text-sm text-gray-300 mb-1 block">Title <span class="text-red-400">*</span></label>
+        <input id="guideTitle" type="text" maxlength="150" placeholder="e.g. Savage RDM BiS &amp; Opener 7.2"
+               class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2.5 text-white text-sm focus:border-indigo-500 focus:outline-none placeholder-gray-600">
+        <p class="text-xs text-gray-600 mt-1"><span id="titleCount">0</span>/150</p>
+      </div>
+
+      <div>
+        <label class="text-sm text-gray-300 mb-1 block">Summary <span class="text-gray-500">(shown on cards)</span></label>
+        <input id="guideSummary" type="text" maxlength="300" placeholder="One-liner: what makes this guide unique or who it's for"
+               class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2.5 text-white text-sm focus:border-indigo-500 focus:outline-none placeholder-gray-600">
+        <p class="text-xs text-gray-600 mt-1"><span id="summaryCount">0</span>/300</p>
+      </div>
+
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="text-sm text-gray-300 mb-1 block">Patch Version</label>
+          <select id="guidePatch" class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2.5 text-white text-sm focus:border-indigo-500 focus:outline-none">
+            <option value="">Select patch...</option>
+          </select>
+        </div>
+        <div>
+          <label class="text-sm text-gray-300 mb-2 block">Tags <span class="text-gray-500">(up to 8)</span></label>
+          <div id="tagPills" class="flex flex-wrap gap-1.5"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Block builder -->
+    <div class="bg-neutral-900/50 border border-neutral-800 rounded-xl p-6">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-sm font-bold text-gray-400 uppercase tracking-wider">Content Blocks</h2>
+        <p class="text-xs text-gray-600">Drag blocks to reorder</p>
+      </div>
+
+      <!-- Block list -->
+      <div id="blockList" class="space-y-3 mb-4"></div>
+
+      <!-- Add block buttons -->
+      <div class="flex flex-wrap gap-2 pt-2 border-t border-neutral-800">
+        <span class="text-xs text-gray-600 self-center mr-1">Add block:</span>
+        <button onclick="addBlock('text')"
+                class="flex items-center gap-1.5 px-3 py-1.5 bg-neutral-800 hover:bg-neutral-700 text-gray-300 rounded-lg text-xs font-medium transition">
+          <i class="fas fa-font text-blue-400"></i> Text
+        </button>
+        <button onclick="addBlock('rotation')"
+                class="flex items-center gap-1.5 px-3 py-1.5 bg-neutral-800 hover:bg-neutral-700 text-gray-300 rounded-lg text-xs font-medium transition">
+          <i class="fas fa-sync-alt text-purple-400"></i> Rotation
+        </button>
+        <button onclick="addBlock('gear_table')"
+                class="flex items-center gap-1.5 px-3 py-1.5 bg-neutral-800 hover:bg-neutral-700 text-gray-300 rounded-lg text-xs font-medium transition">
+          <i class="fas fa-shield-alt text-yellow-400"></i> Gear / BiS
+        </button>
+        <button onclick="addBlock('video')"
+                class="flex items-center gap-1.5 px-3 py-1.5 bg-neutral-800 hover:bg-neutral-700 text-gray-300 rounded-lg text-xs font-medium transition">
+          <i class="fas fa-play-circle text-red-400"></i> YouTube / Twitch
+        </button>
+        <button onclick="addBlock('image')"
+                class="flex items-center gap-1.5 px-3 py-1.5 bg-neutral-800 hover:bg-neutral-700 text-gray-300 rounded-lg text-xs font-medium transition">
+          <i class="fas fa-image text-green-400"></i> Image
+        </button>
+      </div>
+    </div>
+
+    <!-- Error message -->
+    <div id="errorMsg" class="hidden bg-red-900/30 border border-red-700/50 text-red-300 rounded-xl p-4 text-sm"></div>
+
+    <!-- Save buttons -->
+    <div class="flex items-center justify-between gap-4">
+      <a href="/ffxiv/tools/job-guides/{{ job_key }}/" class="text-sm text-gray-500 hover:text-white transition">
+        <i class="fas fa-arrow-left mr-1"></i>Cancel
+      </a>
+      <div class="flex items-center gap-4">
+        {% if mode != 'edit' %}
+        <label class="flex items-center gap-2 cursor-pointer select-none">
+          <input type="checkbox" id="notifyFluxer"
+                 class="w-4 h-4 rounded border-neutral-600 bg-neutral-800 text-indigo-500 focus:ring-indigo-500 focus:ring-offset-neutral-900">
+          <span class="text-sm text-gray-400">
+            <i class="fas fa-bell text-indigo-400 mr-1"></i>Send to Fluxer
+          </span>
+        </label>
+        {% endif %}
+        <button onclick="saveGuide()" id="saveBtn"
+                class="flex items-center gap-2 px-6 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-xl font-semibold text-sm transition">
+          <i class="fas fa-save"></i>
+          {% if mode == 'edit' %}Save Changes{% else %}Publish Guide{% endif %}
+        </button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Image upload modal -->
+<div id="imageModal" class="hidden fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
+  <div class="bg-neutral-900 border border-neutral-700 rounded-xl shadow-2xl w-full max-w-md p-6">
+    <div class="flex items-center justify-between mb-4">
+      <h3 class="text-white font-semibold">Add Image</h3>
+      <button onclick="closeImageModal()" class="text-gray-400 hover:text-white"><i class="fas fa-times"></i></button>
+    </div>
+    <p class="text-xs text-gray-500 mb-3">Upload an image. It will be stored on QuestLog servers.</p>
+    <input type="file" id="imageFileInput" accept="image/*" class="w-full text-sm text-gray-400 mb-3">
+    <input type="text" id="imageCaption" maxlength="200" placeholder="Caption (optional)"
+           class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-indigo-500 focus:outline-none mb-4">
+    <div id="imageUploadError" class="hidden text-red-400 text-xs mb-3"></div>
+    <div class="flex gap-3">
+      <button onclick="uploadImage()" id="uploadBtn"
+              class="flex-1 bg-green-600 hover:bg-green-700 text-white rounded-lg py-2 text-sm font-semibold transition">
+        Upload &amp; Add
+      </button>
+      <button onclick="closeImageModal()" class="px-4 bg-neutral-800 hover:bg-neutral-700 text-white rounded-lg py-2 text-sm transition">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── State ─────────────────────────────────────────────────────────────────────
+let blocks = [];
+let selectedTags = [];
+let pendingImageBlockIdx = null;
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', function() {
+  // Populate patch dropdown
+  const patchSel = document.getElementById('guidePatch');
+  PATCHES.forEach(p => {
+    const opt = document.createElement('option');
+    opt.value = p; opt.textContent = p;
+    patchSel.appendChild(opt);
+  });
+
+  // Tag pills
+  renderTagPills();
+
+  // Prefill from INITIAL_DATA
+  document.getElementById('guideTitle').value = INITIAL_DATA.title || '';
+  document.getElementById('guideSummary').value = INITIAL_DATA.summary || '';
+  patchSel.value = INITIAL_DATA.patch_version || '';
+  selectedTags = Array.isArray(INITIAL_DATA.tags) ? [...INITIAL_DATA.tags] : [];
+  blocks = Array.isArray(INITIAL_DATA.blocks) ? INITIAL_DATA.blocks.map((b, i) => ({...b, _id: i})) : [];
+  updateTitleCount();
+  updateSummaryCount();
+  renderTagPills();
+  renderBlocks();
+
+  // Character counters
+  document.getElementById('guideTitle').addEventListener('input', updateTitleCount);
+  document.getElementById('guideSummary').addEventListener('input', updateSummaryCount);
+});
+
+function updateTitleCount() {
+  document.getElementById('titleCount').textContent = document.getElementById('guideTitle').value.length;
+}
+function updateSummaryCount() {
+  document.getElementById('summaryCount').textContent = document.getElementById('guideSummary').value.length;
+}
+
+// ── Tags ──────────────────────────────────────────────────────────────────────
+function renderTagPills() {
+  const container = document.getElementById('tagPills');
+  container.innerHTML = GUIDE_TAGS.map(tag => {
+    const active = selectedTags.includes(tag);
+    return `<button type="button" onclick="toggleTag('${escapeHtml(tag)}')"
+      class="text-xs px-2.5 py-1 rounded-full border transition ${active
+        ? 'bg-indigo-600/30 border-indigo-500/60 text-indigo-300'
+        : 'border-neutral-700 bg-neutral-800 text-gray-400 hover:text-white'}"
+    >${escapeHtml(tag)}</button>`;
+  }).join('');
+}
+
+function toggleTag(tag) {
+  if (selectedTags.includes(tag)) {
+    selectedTags = selectedTags.filter(t => t !== tag);
+  } else if (selectedTags.length < 8) {
+    selectedTags.push(tag);
+  }
+  renderTagPills();
+}
+
+// ── Blocks ────────────────────────────────────────────────────────────────────
+let _nextId = 1000;
+function addBlock(type) {
+  const block = { _id: _nextId++, type, content: '', caption: '' };
+  if (type === 'image') {
+    pendingImageBlockIdx = blocks.length;
+    blocks.push(block);
+    openImageModal();
+    return;
+  }
+  blocks.push(block);
+  renderBlocks();
+  // Scroll to new block
+  setTimeout(() => {
+    const el = document.querySelector(`[data-block-id="${block._id}"]`);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, 50);
+}
+
+function removeBlock(id) {
+  blocks = blocks.filter(b => b._id !== id);
+  renderBlocks();
+}
+
+function moveBlock(id, dir) {
+  const idx = blocks.findIndex(b => b._id === id);
+  if (idx < 0) return;
+  const swapIdx = dir === 'up' ? idx - 1 : idx + 1;
+  if (swapIdx < 0 || swapIdx >= blocks.length) return;
+  [blocks[idx], blocks[swapIdx]] = [blocks[swapIdx], blocks[idx]];
+  // Sync content before re-render
+  syncBlockContent(id);
+  renderBlocks();
+}
+
+function syncBlockContent(id) {
+  const b = blocks.find(b => b._id === id);
+  if (!b) return;
+  const el = document.querySelector(`[data-block-id="${id}"]`);
+  if (!el) return;
+  const ta = el.querySelector('textarea');
+  if (ta) b.content = ta.value;
+  const cap = el.querySelector('.block-caption');
+  if (cap) b.caption = cap.value;
+}
+
+function syncAllContent() {
+  blocks.forEach(b => syncBlockContent(b._id));
+}
+
+const BLOCK_ICONS = { text: 'fas fa-font', rotation: 'fas fa-sync-alt', gear_table: 'fas fa-shield-alt', video: 'fas fa-play-circle', image: 'fas fa-image' };
+const BLOCK_COLORS = { text: 'text-blue-400', rotation: 'text-purple-400', gear_table: 'text-yellow-400', video: 'text-red-400', image: 'text-green-400' };
+const BLOCK_LABELS = { text: 'Text', rotation: 'Rotation', gear_table: 'Gear / BiS', video: 'Video', image: 'Image' };
+const BLOCK_PLACEHOLDERS = {
+  text: 'Write your guide content here. Explain mechanics, tips, rotations in plain text...',
+  rotation: 'Paste or type your rotation sequence here. e.g.\nManafication > Enchanted Riposte > Zwerchhau > Redoublement...',
+  gear_table: 'List your BiS gear here. e.g.\nHead: Anabaseios Helm of Casting (Crit/DH)\nBody: ...',
+  video: 'Paste a YouTube, YouTube Shorts, or Twitch VOD URL here.\ne.g. https://www.youtube.com/watch?v=... or https://youtube.com/shorts/...',
+};
+
+function renderBlocks() {
+  const container = document.getElementById('blockList');
+  if (!blocks.length) {
+    container.innerHTML = `<div class="text-center text-gray-600 py-8 border border-dashed border-neutral-700 rounded-xl">
+      <i class="fas fa-layer-group text-2xl mb-2 opacity-30"></i>
+      <p class="text-sm">Add your first content block below</p>
+    </div>`;
+    return;
+  }
+
+  container.innerHTML = blocks.map((b, i) => {
+    const icon = BLOCK_ICONS[b.type] || 'fas fa-cube';
+    const color = BLOCK_COLORS[b.type] || 'text-gray-400';
+    const label = BLOCK_LABELS[b.type] || b.type;
+    const placeholder = BLOCK_PLACEHOLDERS[b.type] || '';
+
+    let inputHtml = '';
+    if (b.type === 'image') {
+      inputHtml = `
+        <div class="space-y-2">
+          ${b.content ? `<img src="${escapeHtml(b.content)}" class="max-h-48 rounded-lg object-contain border border-neutral-700" alt="">` : ''}
+          <button type="button" onclick="replaceImage(${b._id})"
+                  class="flex items-center gap-1.5 px-3 py-1.5 bg-neutral-700 hover:bg-neutral-600 text-gray-300 rounded-lg text-xs transition">
+            <i class="fas fa-upload"></i> ${b.content ? 'Replace Image' : 'Upload Image'}
+          </button>
+          <input type="text" value="${escapeHtml(b.caption||'')}" maxlength="200" placeholder="Caption (optional)"
+                 class="block-caption w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-xs focus:border-indigo-500 focus:outline-none">
+        </div>`;
+    } else {
+      const rows = b.type === 'text' ? 6 : 4;
+      inputHtml = `<textarea rows="${rows}" maxlength="5000" placeholder="${escapeHtml(placeholder)}"
+        class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2.5 text-white text-sm focus:border-indigo-500 focus:outline-none resize-y font-${b.type === 'rotation' ? 'mono' : 'sans'}"
+        >${escapeHtml(b.content||'')}</textarea>`;
+    }
+
+    return `
+      <div class="bg-neutral-800/60 border border-neutral-700 rounded-xl p-4 space-y-3" data-block-id="${b._id}">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <i class="${icon} ${color} text-sm"></i>
+            <span class="text-xs font-semibold text-gray-400 uppercase tracking-wider">${escapeHtml(label)}</span>
+          </div>
+          <div class="flex items-center gap-1">
+            <button type="button" onclick="moveBlock(${b._id},'up')" ${i === 0 ? 'disabled' : ''}
+                    class="w-7 h-7 flex items-center justify-center rounded text-gray-500 hover:text-white hover:bg-neutral-700 transition disabled:opacity-30">
+              <i class="fas fa-chevron-up text-xs"></i>
+            </button>
+            <button type="button" onclick="moveBlock(${b._id},'down')" ${i === blocks.length-1 ? 'disabled' : ''}
+                    class="w-7 h-7 flex items-center justify-center rounded text-gray-500 hover:text-white hover:bg-neutral-700 transition disabled:opacity-30">
+              <i class="fas fa-chevron-down text-xs"></i>
+            </button>
+            <button type="button" onclick="syncAllContent(); removeBlock(${b._id})"
+                    class="w-7 h-7 flex items-center justify-center rounded text-gray-500 hover:text-red-400 hover:bg-red-900/20 transition">
+              <i class="fas fa-trash text-xs"></i>
+            </button>
+          </div>
+        </div>
+        ${inputHtml}
+      </div>`;
+  }).join('');
+}
+
+// ── Image upload ──────────────────────────────────────────────────────────────
+function openImageModal() {
+  document.getElementById('imageModal').classList.remove('hidden');
+  document.getElementById('imageUploadError').classList.add('hidden');
+  document.getElementById('imageFileInput').value = '';
+  document.getElementById('imageCaption').value = '';
+}
+
+function closeImageModal() {
+  document.getElementById('imageModal').classList.add('hidden');
+  // If user cancelled a pending new image block, remove it
+  if (pendingImageBlockIdx !== null) {
+    const b = blocks[pendingImageBlockIdx];
+    if (b && !b.content) {
+      blocks.splice(pendingImageBlockIdx, 1);
+      renderBlocks();
+    }
+    pendingImageBlockIdx = null;
+  }
+}
+
+function replaceImage(blockId) {
+  pendingImageBlockIdx = blocks.findIndex(b => b._id === blockId);
+  openImageModal();
+}
+
+async function uploadImage() {
+  const fileInput = document.getElementById('imageFileInput');
+  const caption   = document.getElementById('imageCaption').value.trim();
+  const errEl     = document.getElementById('imageUploadError');
+  const btn       = document.getElementById('uploadBtn');
+
+  if (!fileInput.files[0]) {
+    errEl.textContent = 'Please select an image file.';
+    errEl.classList.remove('hidden');
+    return;
+  }
+
+  const file = fileInput.files[0];
+  const allowed = ['image/jpeg','image/png','image/gif','image/webp'];
+  if (!allowed.includes(file.type)) {
+    errEl.textContent = 'Only JPEG, PNG, GIF, and WebP images are allowed.';
+    errEl.classList.remove('hidden');
+    return;
+  }
+  if (file.size > 8 * 1024 * 1024) {
+    errEl.textContent = 'Image must be under 8 MB.';
+    errEl.classList.remove('hidden');
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = 'Uploading...';
+  errEl.classList.add('hidden');
+
+  try {
+    const formData = new FormData();
+    formData.append('image', file);
+
+    const res = await csrfFetch('/api/upload/image/', { method: 'POST', body: formData });
+    const data = await res.json();
+
+    if (!res.ok || !data.image_url) {
+      errEl.textContent = data.error || 'Upload failed.';
+      errEl.classList.remove('hidden');
+      return;
+    }
+
+    // Update the block
+    if (pendingImageBlockIdx !== null && pendingImageBlockIdx < blocks.length) {
+      blocks[pendingImageBlockIdx].content = data.image_url;
+      blocks[pendingImageBlockIdx].caption = caption;
+    }
+    pendingImageBlockIdx = null;
+    document.getElementById('imageModal').classList.add('hidden');
+    renderBlocks();
+  } catch (e) {
+    errEl.textContent = 'Upload failed. Please try again.';
+    errEl.classList.remove('hidden');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Upload & Add';
+  }
+}
+
+// ── Save ──────────────────────────────────────────────────────────────────────
+async function saveGuide() {
+  syncAllContent();
+
+  const title = document.getElementById('guideTitle').value.trim();
+  const summary = document.getElementById('guideSummary').value.trim();
+  const patch = document.getElementById('guidePatch').value;
+  const errEl = document.getElementById('errorMsg');
+  const btn = document.getElementById('saveBtn');
+
+  errEl.classList.add('hidden');
+
+  if (!title || title.length < 5) {
+    errEl.textContent = 'Title must be at least 5 characters.';
+    errEl.classList.remove('hidden');
+    document.getElementById('guideTitle').focus();
+    return;
+  }
+
+  if (!blocks.length) {
+    errEl.textContent = 'Add at least one content block before publishing.';
+    errEl.classList.remove('hidden');
+    return;
+  }
+
+  // Validate video URLs client-side before sending
+  for (const b of blocks) {
+    if (b.type === 'video') {
+      const content = (b.content || '').trim();
+      const ytMatch = /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/shorts\/)[a-zA-Z0-9_-]{11}/.test(content);
+      const twMatch = /twitch\.tv\/videos\/\d+/.test(content);
+      if (!content || (!ytMatch && !twMatch)) {
+        errEl.textContent = 'Video blocks must be YouTube or Twitch VOD URLs.';
+        errEl.classList.remove('hidden');
+        return;
+      }
+    }
+    if (b.type === 'image' && !b.content) {
+      errEl.textContent = 'Image blocks must have an uploaded image.';
+      errEl.classList.remove('hidden');
+      return;
+    }
+  }
+
+  const notifyFluxerEl = document.getElementById('notifyFluxer');
+  const payload = {
+    title,
+    summary,
+    tags: selectedTags,
+    patch_version: patch,
+    blocks: blocks.map((b, i) => ({ type: b.type, content: b.content || '', caption: b.caption || '', sort_order: i })),
+    notify_fluxer: notifyFluxerEl ? notifyFluxerEl.checked : false,
+  };
+
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Saving...';
+
+  try {
+    let url, res;
+    if (MODE === 'edit') {
+      url = `/api/ffxiv/guides/${GUIDE_ID}/edit/`;
+    } else {
+      url = `/api/ffxiv/guides/${JOB_KEY}/create/`;
+    }
+
+    res = await csrfFetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      errEl.textContent = data.error || 'Failed to save guide.';
+      errEl.classList.remove('hidden');
+      return;
+    }
+
+    location.href = `/ffxiv/tools/job-guides/guide/${data.slug}/`;
+  } catch (e) {
+    errEl.textContent = 'An error occurred. Please try again.';
+    errEl.classList.remove('hidden');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = `<i class="fas fa-save mr-2"></i>${MODE === 'edit' ? 'Save Changes' : 'Publish Guide'}`;
+  }
+}
+</script>
+
+{% endblock %}

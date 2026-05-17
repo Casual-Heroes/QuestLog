@@ -196,6 +196,8 @@ class Guild(Base):
     mod_enabled = Column(Boolean, nullable=False, default=False, server_default='0')
     discovery_enabled = Column(Boolean, default=False)
     role_persistence_enabled = Column(Boolean, default=False)  # Restore roles when members rejoin
+    flair_sync_enabled = Column(Boolean, nullable=False, default=False, server_default='0')  # Opt-in: sync QuestLog flair -> Discord role
+    spotlight_channel_id = Column(BigInteger, nullable=True)  # Channel for Community Spotlight bot posts
 
     # AMP Integration (Casual Heroes Hosting Services)
     amp_instance_id = Column(String(255), nullable=True)  # AMP instance ID for game server access
@@ -1937,6 +1939,7 @@ class LFGGame(Base):
 
     # Feature toggles
     enabled = Column(Boolean, default=True)
+    receive_network_lfg = Column(Boolean, default=False)  # Receive network LFG broadcasts for this game
     require_rank = Column(Boolean, default=False)  # Require rank/level input (PREMIUM)
     rank_label = Column(String(50), default="Rank")  # e.g., "Hunter Rank", "Power Level"
     rank_min = Column(Integer, default=1)
@@ -1997,6 +2000,7 @@ class LFGGroup(Base):
     is_full = Column(Boolean, default=False)
     member_count = Column(Integer, default=1)
     shared_to_network = Column(Boolean, default=False)  # Whether shared to Discovery Network
+    server_invite_link = Column(String(500), nullable=True)  # Optional invite link shown in LFG embeds
 
     # Timestamps
     created_at = Column(BigInteger, default=lambda: int(time.time()))
@@ -2880,7 +2884,7 @@ class SiteActivityGame(Base):
     display_on = Column(String(20), default="gamesweplay")  # 'gamesweplay', 'gameservers', or 'both'
 
     # AMP Server (if game_type = 'amp' or 'both')
-    amp_instance_id = Column(String(255), nullable=True)  # e.g., "CH-7DTD01"
+    amp_instance_id = Column(String(255), nullable=True)   # e.g., "CH-7DTD01"
 
     # Static Info (Steam, Discord, Images)
     steam_appid = Column(String(50), nullable=True)  # e.g., "251570"
@@ -2897,6 +2901,7 @@ class SiteActivityGame(Base):
 
     # Display on website
     is_active = Column(Boolean, default=True)  # Show on /gamesweplay/
+    show_on_discover_strip = Column(Boolean, default=True)  # Show pill on /discover/ page (AMP/both only)
     sort_order = Column(Integer, default=0)  # Display order on site
 
     # Timestamps
@@ -2943,6 +2948,28 @@ class SiteActivityGuildRole(Base):
         Index("idx_site_activity_guild_role_game", "game_id"),
         Index("idx_site_activity_guild_role_guild", "guild_id"),
         UniqueConstraint("game_id", "guild_id", "role_id", name="uq_game_guild_role"),
+    )
+
+
+class SiteActivityFluxerRole(Base):
+    """
+    Fluxer guild/role mappings for activity tracking.
+    Mirrors SiteActivityGuildRole but for Fluxer (IDs are strings).
+    """
+    __tablename__ = "site_activity_fluxer_roles"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    game_id = Column(Integer, ForeignKey("site_activity_games.id", ondelete="CASCADE"), nullable=False)
+    guild_id = Column(String(100), nullable=False)   # Fluxer guild ID
+    role_id = Column(String(100), nullable=False)    # Fluxer role ID
+    guild_name = Column(String(255), nullable=True)
+    role_name = Column(String(255), nullable=True)
+    is_active = Column(Boolean, default=True)
+
+    __table_args__ = (
+        Index("idx_site_activity_fluxer_role_game", "game_id"),
+        Index("idx_site_activity_fluxer_role_guild", "guild_id"),
+        UniqueConstraint("game_id", "guild_id", "role_id", name="uq_fluxer_game_guild_role"),
     )
 
 

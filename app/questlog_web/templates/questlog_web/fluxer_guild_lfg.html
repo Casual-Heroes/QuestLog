@@ -336,6 +336,13 @@
           <span class="text-white font-medium">Enabled</span>
         </label>
       </div>
+      <div>
+        <label class="flex items-center gap-3 cursor-pointer">
+          <input type="checkbox" id="addReceiveNetworkLfg" class="w-5 h-5 rounded bg-neutral-700 border-neutral-600 text-yellow-500 focus:ring-yellow-500">
+          <span class="text-white font-medium">Receive QuestLog Network LFG</span>
+        </label>
+        <p class="text-gray-500 text-xs mt-1 ml-8">When enabled, LFG posts for this game from other servers broadcast here.</p>
+      </div>
     </div>
     <div class="p-4 bg-neutral-800 border-t border-neutral-700 flex justify-end gap-3">
       <button onclick="closeAddGameModal()" class="bg-neutral-700 hover:bg-neutral-600 text-white px-4 py-2 rounded-lg transition">
@@ -464,6 +471,14 @@
           <input type="checkbox" id="editEnabled" class="w-5 h-5 rounded bg-neutral-700 border-neutral-600 text-green-500 focus:ring-green-500">
           <span class="text-white font-medium">Enabled</span>
         </label>
+      </div>
+
+      <div>
+        <label class="flex items-center gap-3 cursor-pointer">
+          <input type="checkbox" id="editReceiveNetworkLfg" class="w-5 h-5 rounded bg-neutral-700 border-neutral-600 text-yellow-500 focus:ring-yellow-500">
+          <span class="text-white font-medium">Receive QuestLog Network LFG</span>
+        </label>
+        <p class="text-gray-500 text-xs mt-1 ml-8">When enabled, LFG posts for this game from other servers broadcast here.</p>
       </div>
 
       <div class="border-t border-neutral-700 pt-4 mt-4">
@@ -685,12 +700,12 @@
 
 <script>
 const GUILD_ID = '{{ guild_id }}';
-const GAMES_API = '/ql/api/dashboard/fluxer/' + GUILD_ID + '/lfg-games/';
-const IGDB_API = '/ql/api/igdb/search/';
-const CONFIG_API = '/ql/api/dashboard/fluxer/' + GUILD_ID + '/lfg-config/';
-const STATS_API = '/ql/api/dashboard/fluxer/' + GUILD_ID + '/lfg-stats/';
-const BLACKLIST_API = '/ql/api/dashboard/fluxer/' + GUILD_ID + '/lfg-blacklist/';
-const SETTINGS_API = '/ql/api/dashboard/fluxer/' + GUILD_ID + '/settings/';
+const GAMES_API = '/api/dashboard/fluxer/' + GUILD_ID + '/lfg-games/';
+const IGDB_API = '/api/igdb/search/';
+const CONFIG_API = '/api/dashboard/fluxer/' + GUILD_ID + '/lfg-config/';
+const STATS_API = '/api/dashboard/fluxer/' + GUILD_ID + '/lfg-stats/';
+const BLACKLIST_API = '/api/dashboard/fluxer/' + GUILD_ID + '/lfg-blacklist/';
+const SETTINGS_API = '/api/dashboard/fluxer/' + GUILD_ID + '/settings/';
 const CHANNELS = JSON.parse('{{ channels_json|escapejs }}');
 const SETTINGS = JSON.parse('{{ settings_json|escapejs }}');
 
@@ -841,7 +856,8 @@ function renderGames() {
   }
 
   const list = document.getElementById('games-list');
-  list.innerHTML = gamesData.map(g => {
+  window._lfgGamesData = gamesData;
+  list.innerHTML = gamesData.map((g, gIdx) => {
     const coverHtml = g.cover_url
       ? `<img src="${escapeHtml(g.cover_url)}" alt="${escapeHtml(g.game_name || g.name)}" class="w-full h-full object-cover">`
       : `<div class="w-full h-full flex items-center justify-center text-gray-500"><i class="fas fa-gamepad text-2xl"></i></div>`;
@@ -901,7 +917,7 @@ function renderGames() {
         <button onclick="editGame(${g.id})" class="bg-neutral-700 hover:bg-neutral-600 text-white px-3 py-2 rounded-lg transition text-sm" title="Edit">
           <i class="fas fa-cog"></i>
         </button>
-        <button onclick="removeGame(${g.id}, '${escapeHtml(g.game_name || g.name).replace(/'/g, "\\'")}')" class="bg-red-600/20 hover:bg-red-600 text-red-400 hover:text-white px-3 py-2 rounded-lg transition text-sm" title="Remove">
+        <button onclick="_lfgRemoveGameByIdx(${gIdx})" class="bg-red-600/20 hover:bg-red-600 text-red-400 hover:text-white px-3 py-2 rounded-lg transition text-sm" title="Remove">
           <i class="fas fa-trash"></i>
         </button>
       </div>
@@ -941,9 +957,10 @@ async function searchGames() {
     const data = await resp.json();
 
     if (data.games && data.games.length > 0) {
-      resultsDiv.innerHTML = data.games.map(game => `
+      window._lfgIgdbResults = data.games;
+      resultsDiv.innerHTML = data.games.map((game, idx) => `
         <div class="bg-neutral-800 rounded-lg p-4 flex items-center gap-4 cursor-pointer hover:bg-neutral-700 transition"
-             onclick="addGameFromIgdb(${game.id}, '${escapeHtml(game.name).replace(/'/g, "\\'")}', '${escapeHtml(game.cover_url || '').replace(/'/g, "\\'")}', '${escapeHtml(game.platforms || '').replace(/'/g, "\\'")}')">
+             onclick="_lfgSelectGameByIdx(${idx})">
           <div class="w-12 h-16 bg-neutral-700 rounded overflow-hidden flex-shrink-0">
             ${game.cover_url
               ? `<img src="${escapeHtml(game.cover_url)}" alt="${escapeHtml(game.name)}" class="w-full h-full object-cover">`
@@ -974,6 +991,12 @@ async function searchGames() {
 // -------------------------
 // Add Game Modal (IGDB)
 // -------------------------
+function _lfgSelectGameByIdx(idx) {
+  const game = (window._lfgIgdbResults || [])[idx];
+  if (!game) return;
+  addGameFromIgdb(game.id, game.name, game.cover_url || '', game.platforms || '');
+}
+
 function addGameFromIgdb(igdbId, name, coverUrl, platforms) {
   closeSearchModal();
 
@@ -1015,6 +1038,7 @@ function addGameFromIgdb(igdbId, name, coverUrl, platforms) {
   document.getElementById('addMaxSize').value = '4';
   document.getElementById('addArchiveHours').value = '24';
   document.getElementById('addEnabled').checked = true;
+  document.getElementById('addReceiveNetworkLfg').checked = false;
 
   openAddGameModal();
 }
@@ -1050,6 +1074,7 @@ async function submitAddGame() {
     max_group_size: parseInt(document.getElementById('addMaxSize').value) || 4,
     auto_archive_hours: parseInt(document.getElementById('addArchiveHours').value) || 24,
     enabled: document.getElementById('addEnabled').checked,
+    receive_network_lfg: document.getElementById('addReceiveNetworkLfg').checked,
     is_custom_game: false
   };
 
@@ -1175,6 +1200,7 @@ async function editGame(gameId) {
     document.getElementById('editArchiveHours').value = normalizedHours;
 
     document.getElementById('editEnabled').checked = game.enabled !== false;
+    document.getElementById('editReceiveNetworkLfg').checked = game.receive_network_lfg || false;
     document.getElementById('editRequireRank').checked = game.require_rank || false;
     document.getElementById('editRankLabel').value = game.rank_label || 'Rank';
     document.getElementById('editRankMin').value = game.rank_min || 1;
@@ -1244,6 +1270,7 @@ async function submitEditGame() {
     max_group_size: parseInt(document.getElementById('editMaxSize').value) || 4,
     auto_archive_hours: parseInt(document.getElementById('editArchiveHours').value) || 24,
     enabled: document.getElementById('editEnabled').checked,
+    receive_network_lfg: document.getElementById('editReceiveNetworkLfg').checked,
     require_rank: document.getElementById('editRequireRank').checked,
     rank_label: document.getElementById('editRankLabel').value || 'Rank',
     rank_min: parseInt(document.getElementById('editRankMin').value) || 1,
@@ -1268,6 +1295,12 @@ async function submitEditGame() {
   } catch (e) {
     alert('Network error updating game.');
   }
+}
+
+function _lfgRemoveGameByIdx(idx) {
+  const g = (window._lfgGamesData || [])[idx];
+  if (!g) return;
+  removeGame(g.id, g.game_name || g.name);
 }
 
 async function removeGame(gameId, gameName) {
@@ -1340,7 +1373,7 @@ async function saveConfig() {
 // -------------------------
 // Network LFG Broadcasts
 // -------------------------
-const NETWORK_LFG_API = '/ql/api/dashboard/fluxer/' + GUILD_ID + '/network-lfg/';
+const NETWORK_LFG_API = '/api/dashboard/fluxer/' + GUILD_ID + '/network-lfg/';
 
 function onNetworkLfgToggle() {
   const enabled = document.getElementById('networkLfgEnabled').checked;
@@ -1840,36 +1873,15 @@ function customOptionsBuilder() {
           },
           {
             name: 'Server Type',
-            choices: ['PvE', 'PvP', 'PvE-C', 'Modded', 'Official', 'Private']
+            multi: true,
+            maxSelections: 5,
+            choices: ['PvE', 'PvP', 'PvE-C', 'Modded', 'Official', 'Private', 'Hardcore', 'Community/Social', 'Roleplay', 'Boosted Rates', 'Open Join', 'Vanilla', 'No Wipe', 'Seasonal Wipe']
           }
         ],
         'survival': [
           {
-            name: 'Activity',
-            choices: ['Boss Fight', 'Raid (PvE)', 'Dungeon/POI Clear', 'Base Building', 'Resource Farming', 'Taming/Breeding', 'PvP Combat', 'Base Raiding (PvP)', 'Territory Control (PvP)', 'Exploration', 'Crafting/Tech', 'Casual Co-op']
-          },
-          {
-            name: 'Role',
-            enableRoleTags: true,
-            choices: [
-              { value: 'Combat (Melee)', role: 'dps' },
-              { value: 'Combat (Ranged)', role: 'dps' },
-              { value: 'Tank/Defender', role: 'tank' },
-              { value: 'Support/Healer', role: 'healer' },
-              { value: 'Builder', role: 'support' },
-              { value: 'Gatherer', role: 'support' },
-              { value: 'Tamer/Breeder', role: 'support' },
-              { value: 'Crafter', role: 'support' },
-              { value: 'Scout/Explorer', role: 'dps' }
-            ]
-          },
-          {
             name: 'Platform',
-            choices: ['PC', 'Xbox', 'PlayStation', 'Nintendo Switch', 'Cross-platform']
-          },
-          {
-            name: 'Level Range',
-            choices: ['Early (1-20)', 'Mid (21-40)', 'End (41+)']
+            choices: ['PC', 'Xbox', 'PlayStation', 'Cross-platform']
           },
           {
             name: 'Experience',
@@ -1877,7 +1889,14 @@ function customOptionsBuilder() {
           },
           {
             name: 'Server Type',
-            choices: ['PvE', 'PvP', 'PvE-C', 'Modded', 'Official', 'Private']
+            multi: true,
+            maxSelections: 5,
+            choices: ['PvE', 'PvP', 'PvE-C', 'Modded', 'Official', 'Private', 'Hardcore', 'Community/Social', 'Roleplay', 'Boosted Rates', 'Open Join', 'Vanilla', 'No Wipe', 'Seasonal Wipe']
+          },
+          {
+            name: 'Server Info',
+            freetext: true,
+            choices: []
           }
         ]
       };

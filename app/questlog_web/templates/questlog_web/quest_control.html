@@ -1,0 +1,1747 @@
+{% extends "questlog_web/base_web.html" %}
+{% load static %}
+
+{% block title %}Quest Control{% endblock %}
+
+{% block web_content %}
+{% include "questlog/partials/custom_select.html" %}
+
+<div class="max-w-screen-2xl mx-auto">
+
+  <!-- Header -->
+  <div class="mb-6 flex items-center justify-between">
+    <div>
+      <h1 class="text-2xl font-bold text-white flex items-center gap-3">
+        <i class="fas fa-satellite-dish text-cyan-400"></i>
+        Quest Control
+      </h1>
+      <p class="text-neutral-400 text-sm mt-1">Game server cog management - channels, schedules, god mode (powered by QuestLogFluxer)</p>
+    </div>
+    <a href="{% url 'questlog_web_admin' %}" class="text-neutral-400 hover:text-white text-sm flex items-center gap-2">
+      <i class="fas fa-arrow-left"></i> Admin Panel
+    </a>
+  </div>
+
+  {% if not bots %}
+  <div class="bg-gradient-to-br from-neutral-800 to-neutral-900 border border-neutral-700 ring-1 ring-white/5 rounded-xl p-12 text-center">
+    <i class="fas fa-robot text-4xl text-neutral-600 mb-4"></i>
+    <p class="text-neutral-400 text-lg">No game modules detected.</p>
+    <p class="text-neutral-500 text-sm mt-2">Config tables are empty or missing. Make sure QuestLogFluxer is running and configured.</p>
+  </div>
+  {% else %}
+
+  <div class="flex gap-4 min-h-[calc(100vh-12rem)]">
+
+    <!-- Bot Selector Sidebar -->
+    <div class="w-52 shrink-0">
+      <div class="bg-gradient-to-b from-neutral-800 to-neutral-900 border border-neutral-700 ring-1 ring-white/5 rounded-xl overflow-hidden sticky top-4">
+        <div class="px-4 py-3 border-b border-neutral-700">
+          <p class="text-xs font-semibold text-neutral-400 uppercase tracking-wider">Game Modules</p>
+          <p class="text-xs text-neutral-600 mt-0.5">via QuestLogFluxer</p>
+        </div>
+        <nav class="p-2 flex flex-col gap-1">
+          {% for bot in bots %}
+          <button
+            onclick="selectBot('{{ bot.slug }}')"
+            id="bot-btn-{{ bot.slug }}"
+            class="bot-selector-btn w-full text-left px-3 py-2.5 rounded-lg flex items-center gap-3 transition-all text-sm border
+              {% if bot.slug == active_bot %}bg-cyan-500/20 text-cyan-300 border-cyan-500/30{% else %}text-neutral-300 hover:bg-neutral-700 border-transparent{% endif %}"
+          >
+            <span class="w-2 h-2 rounded-full shrink-0
+              {% if bot.slug == active_bot %}bg-cyan-400{% else %}bg-neutral-600{% endif %}"
+              id="bot-dot-{{ bot.slug }}">
+            </span>
+            <span class="flex flex-col min-w-0">
+              <span class="font-medium truncate">{{ bot.name }}</span>
+              <span class="text-xs text-neutral-500 truncate">{{ bot.game }}</span>
+            </span>
+          </button>
+          {% endfor %}
+        </nav>
+        <div class="px-4 py-3 border-t border-neutral-700">
+          <p class="text-xs text-neutral-600 italic">ZQuest - coming soon</p>
+          <p class="text-xs text-neutral-600 italic">SoulQuest - coming soon</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main Panel -->
+    <div class="flex-1 min-w-0">
+      {% for bot in bots %}
+      <div id="panel-{{ bot.slug }}" class="bot-panel {% if bot.slug != active_bot %}hidden{% endif %}">
+
+        <!-- Bot Header -->
+        <div class="bg-gradient-to-br from-neutral-800 to-neutral-900 border border-neutral-700 ring-1 ring-white/5 rounded-xl px-5 py-4 mb-4 flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-lg bg-neutral-700/80 border border-neutral-600 shadow-inner flex items-center justify-center">
+              <i class="fas {{ bot.icon }} text-lg
+                {% if bot.color == 'red' %}text-red-400
+                {% elif bot.color == 'orange' %}text-orange-400
+                {% elif bot.color == 'purple' %}text-purple-400
+                {% elif bot.color == 'blue' %}text-blue-400
+                {% else %}text-cyan-400{% endif %}">
+              </i>
+            </div>
+            <div>
+              <h2 class="text-white font-semibold text-lg">{{ bot.name }}</h2>
+              <p class="text-neutral-400 text-sm">{{ bot.game }} - {{ bot.config.amp_instance_name|default:"Instance not configured" }}</p>
+              <p class="text-xs text-neutral-600 mt-0.5"><i class="fas fa-puzzle-piece mr-1"></i>QuestLogFluxer cog</p>
+            </div>
+          </div>
+          <div id="status-badge-{{ bot.slug }}" class="px-3 py-1 rounded-full text-xs font-medium bg-neutral-700 text-neutral-400">
+            <i class="fas fa-circle-notch fa-spin mr-1"></i> Checking...
+          </div>
+        </div>
+
+        <!-- Tab Bar -->
+        <div class="flex gap-1 mb-4 bg-gradient-to-br from-neutral-800 to-neutral-900 border border-neutral-700 ring-1 ring-white/5 rounded-xl p-1">
+          <button onclick="switchTab('{{ bot.slug }}', 'channels')"
+            id="tab-{{ bot.slug }}-channels"
+            class="bot-tab flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-all bg-cyan-500/20 text-cyan-300">
+            <i class="fas fa-hashtag mr-1.5"></i>Channels
+          </button>
+          <button onclick="switchTab('{{ bot.slug }}', 'embeds')"
+            id="tab-{{ bot.slug }}-embeds"
+            class="bot-tab flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-all text-neutral-400 hover:text-white hover:bg-neutral-700">
+            <i class="fas fa-layer-group mr-1.5"></i>Embeds
+          </button>
+          <button onclick="switchTab('{{ bot.slug }}', 'schedule')"
+            id="tab-{{ bot.slug }}-schedule"
+            class="bot-tab flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-all text-neutral-400 hover:text-white hover:bg-neutral-700">
+            <i class="fas fa-calendar-days mr-1.5"></i>Schedule
+          </button>
+          <button onclick="switchTab('{{ bot.slug }}', 'toggles')"
+            id="tab-{{ bot.slug }}-toggles"
+            class="bot-tab flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-all text-neutral-400 hover:text-white hover:bg-neutral-700">
+            <i class="fas fa-sliders mr-1.5"></i>Toggles
+          </button>
+          <button onclick="switchTab('{{ bot.slug }}', 'server')"
+            id="tab-{{ bot.slug }}-server"
+            class="bot-tab flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-all text-neutral-400 hover:text-white hover:bg-neutral-700">
+            <i class="fas fa-server mr-1.5"></i>Server
+          </button>
+          <button onclick="switchTab('{{ bot.slug }}', 'godmode')"
+            id="tab-{{ bot.slug }}-godmode"
+            class="bot-tab flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-all text-neutral-400 hover:text-white hover:bg-neutral-700">
+            <i class="fas fa-bolt mr-1.5 text-yellow-400"></i><span class="text-yellow-300">God Mode</span>
+          </button>
+        </div>
+
+        <!-- Tab: Channels -->
+        <div id="tab-content-{{ bot.slug }}-channels" class="bot-tab-content">
+          <div class="bg-gradient-to-br from-neutral-800 to-neutral-900 border border-neutral-700 ring-1 ring-white/5 rounded-xl p-5 border-l-4 border-l-indigo-500/60">
+            <h3 class="text-white font-semibold mb-1 flex items-center gap-2"><i class="fas fa-hashtag text-indigo-400 text-sm"></i>Channel & Role Configuration</h3>
+            <p class="text-neutral-400 text-sm mb-5">Pick the server the bot is in, then assign channels.</p>
+
+            <!-- Guild picker -->
+            <div class="mb-5">
+              <label class="block text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-2">Server</label>
+              <div id="{{ bot.slug }}-guild-select-wrap" class="max-w-sm"></div>
+              <p class="text-xs text-neutral-600 mt-1">Only servers the Fluxer bot has joined appear here.</p>
+            </div>
+
+            <!-- Channel/role dropdowns - populated after guild pick -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-5" id="{{ bot.slug }}-channel-fields">
+              <div class="col-span-full text-neutral-600 text-sm text-center py-4">
+                Select a server above to configure channels.
+              </div>
+            </div>
+
+            <div class="flex items-center gap-3">
+              <button onclick="saveChannels('{{ bot.slug }}')"
+                class="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-sm font-medium transition-all shadow-lg shadow-cyan-900/40">
+                <i class="fas fa-save mr-1.5"></i>Save
+              </button>
+              <span id="{{ bot.slug }}-channels-msg" class="text-sm text-neutral-400"></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab: Embeds -->
+        <div id="tab-content-{{ bot.slug }}-embeds" class="bot-tab-content hidden">
+          <div class="bg-gradient-to-br from-neutral-800 to-neutral-900 border border-neutral-700 ring-1 ring-white/5 rounded-xl p-5 border-l-4 border-l-purple-500/60">
+            <div class="flex items-start justify-between mb-5">
+              <div>
+                <h3 class="text-white font-semibold mb-1 flex items-center gap-2"><i class="fas fa-layer-group text-purple-400 text-sm"></i>Send Custom Embed</h3>
+                <p class="text-neutral-400 text-sm">Compose and send a rich embed to any configured channel. The Fluxer bot will deliver it.</p>
+              </div>
+            </div>
+
+            <!-- Two-column layout: compose left, preview right -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+
+              <!-- Left: Compose -->
+              <div class="space-y-4">
+
+                <!-- Channel selector -->
+                <div>
+                  <label class="block text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-2">Target Channel</label>
+                  <div id="{{ bot.slug }}-embed-channel-select" class="text-sm"></div>
+                  <p class="text-xs text-neutral-500 mt-1">Channels are loaded from your saved config. Click "Load Channels" in the Channels tab if empty.</p>
+                </div>
+
+                <!-- Color + Title row -->
+                <div class="flex gap-3 items-end">
+                  <div>
+                    <label class="block text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-2">Color</label>
+                    <input type="color" id="{{ bot.slug }}-embed-color" value="#5865F2"
+                      class="h-9 w-12 cursor-pointer rounded-lg border border-neutral-600 bg-neutral-800 p-0.5 focus:outline-none focus:ring-1 focus:ring-purple-500">
+                  </div>
+                  <div class="flex-1">
+                    <label class="block text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-2">Title</label>
+                    <input type="text" id="{{ bot.slug }}-embed-title" maxlength="256" placeholder="Embed title..."
+                      class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-1 focus:ring-purple-500/60 focus:border-purple-500"
+                      oninput="previewEmbed('{{ bot.slug }}')">
+                  </div>
+                </div>
+
+                <!-- Description -->
+                <div>
+                  <label class="block text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-2">Description</label>
+                  <textarea id="{{ bot.slug }}-embed-description" maxlength="4096" rows="4" placeholder="Embed body text..."
+                    class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-1 focus:ring-purple-500/60 focus:border-purple-500 resize-none"
+                    oninput="previewEmbed('{{ bot.slug }}')"></textarea>
+                </div>
+
+                <!-- Fields (up to 6) -->
+                <div>
+                  <div class="flex items-center justify-between mb-2">
+                    <label class="text-xs font-semibold text-neutral-400 uppercase tracking-wider">Fields <span class="text-neutral-600 font-normal normal-case">(optional, max 6)</span></label>
+                    <button type="button" onclick="addEmbedField('{{ bot.slug }}')" class="text-xs text-purple-400 hover:text-purple-300 transition-colors flex items-center gap-1">
+                      <i class="fas fa-plus text-xs"></i> Add Field
+                    </button>
+                  </div>
+                  <div id="{{ bot.slug }}-embed-fields" class="space-y-2"></div>
+                </div>
+
+                <!-- Footer -->
+                <div>
+                  <label class="block text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-2">Footer Text <span class="text-neutral-600 font-normal normal-case">(optional)</span></label>
+                  <input type="text" id="{{ bot.slug }}-embed-footer" maxlength="256" placeholder="e.g. VQuest - Casual Heroes Hosting"
+                    class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-1 focus:ring-purple-500/60 focus:border-purple-500"
+                    oninput="previewEmbed('{{ bot.slug }}')">
+                </div>
+
+                <!-- Send button -->
+                <div class="flex items-center gap-3 pt-1">
+                  <button onclick="sendQuestEmbed('{{ bot.slug }}')" id="{{ bot.slug }}-embed-send-btn"
+                    class="px-5 py-2.5 bg-purple-600 hover:bg-purple-500 text-white rounded-lg text-sm font-semibold transition-all shadow-lg shadow-purple-900/40 flex items-center gap-2">
+                    <i class="fas fa-paper-plane text-xs"></i> Send Embed
+                  </button>
+                  <button onclick="clearEmbedComposer('{{ bot.slug }}')"
+                    class="px-4 py-2.5 bg-neutral-700/80 hover:bg-neutral-600 text-neutral-300 rounded-lg text-sm font-medium transition-all border border-neutral-600">
+                    <i class="fas fa-eraser mr-1.5"></i>Clear
+                  </button>
+                  <span id="{{ bot.slug }}-embed-msg" class="text-sm text-neutral-400"></span>
+                </div>
+              </div>
+
+              <!-- Right: Live Preview -->
+              <div>
+                <label class="block text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-2">Live Preview</label>
+                <div id="{{ bot.slug }}-embed-preview" class="rounded-xl overflow-hidden bg-neutral-900 border border-neutral-700 min-h-[160px]">
+                  <div class="flex h-full min-h-[160px] items-center justify-center">
+                    <p class="text-neutral-600 text-sm">Start typing to preview your embed</p>
+                  </div>
+                </div>
+                <p class="text-xs text-neutral-600 mt-2 italic">Preview is approximate - actual Discord/Fluxer rendering may vary slightly.</p>
+
+                <!-- Preset blurbs - quick insert buttons -->
+                <div class="mt-4">
+                  <label class="block text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-2">Quick Presets</label>
+                  <div class="flex flex-wrap gap-2" id="{{ bot.slug }}-embed-presets">
+                    <button onclick="applyEmbedPreset('{{ bot.slug }}', 'maintenance')" class="px-3 py-1.5 bg-neutral-700/80 hover:bg-neutral-600 text-neutral-300 rounded-lg text-xs border border-neutral-600 transition-all">Maintenance</button>
+                    <button onclick="applyEmbedPreset('{{ bot.slug }}', 'online')" class="px-3 py-1.5 bg-neutral-700/80 hover:bg-neutral-600 text-neutral-300 rounded-lg text-xs border border-neutral-600 transition-all">Server Online</button>
+                    <button onclick="applyEmbedPreset('{{ bot.slug }}', 'event')" class="px-3 py-1.5 bg-neutral-700/80 hover:bg-neutral-600 text-neutral-300 rounded-lg text-xs border border-neutral-600 transition-all">Special Event</button>
+                    <button onclick="applyEmbedPreset('{{ bot.slug }}', 'wipe')" class="px-3 py-1.5 bg-neutral-700/80 hover:bg-neutral-600 text-neutral-300 rounded-lg text-xs border border-neutral-600 transition-all">Wipe Announcement</button>
+                    <button onclick="applyEmbedPreset('{{ bot.slug }}', 'update')" class="px-3 py-1.5 bg-neutral-700/80 hover:bg-neutral-600 text-neutral-300 rounded-lg text-xs border border-neutral-600 transition-all">Game Update</button>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab: Schedule -->
+        <div id="tab-content-{{ bot.slug }}-schedule" class="bot-tab-content hidden">
+          <div class="bg-gradient-to-br from-neutral-800 to-neutral-900 border border-neutral-700 ring-1 ring-white/5 rounded-xl p-5 border-l-4 border-l-cyan-500/50">
+            <div class="flex items-start justify-between mb-5">
+              <div>
+                <h3 class="text-white font-semibold flex items-center gap-2"><i class="fas fa-calendar-days text-cyan-400 text-sm"></i>Daily Schedule</h3>
+                <p class="text-neutral-400 text-sm mt-0.5">Per-day server settings applied automatically by the bot scheduler.</p>
+              </div>
+              <div class="flex items-center gap-3">
+                <span id="{{ bot.slug }}-schedule-source" class="text-xs text-neutral-500 italic"></span>
+                <button id="{{ bot.slug }}-sched-toggle-btn" onclick="toggleScheduleEnabled('{{ bot.slug }}')"
+                  class="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-all border border-neutral-600 bg-neutral-700/60 hover:bg-neutral-600 text-neutral-300">
+                  <i id="{{ bot.slug }}-sched-toggle-icon" class="fas fa-play text-xs"></i>
+                  <span id="{{ bot.slug }}-sched-toggle-label">Schedule On</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Scheduler time + backup days -->
+            <div class="p-4 bg-neutral-900/60 rounded-xl border border-neutral-700 ring-1 ring-white/5 mb-5 space-y-4">
+              <div class="flex items-center gap-4">
+                <i class="fas fa-sliders text-cyan-400"></i>
+                <span class="text-sm text-neutral-300 font-medium w-32 shrink-0">Settings time</span>
+                <div class="flex items-center gap-2">
+                  <input type="number" id="{{ bot.slug }}-scheduler-hour"
+                    value="{{ bot.config.scheduler_hour|default:3 }}"
+                    min="0" max="23" placeholder="Hour"
+                    class="w-16 bg-neutral-700 border border-neutral-600 rounded-lg px-2 py-1.5 text-white text-sm text-center focus:outline-none focus:ring-1 focus:ring-cyan-500 focus:border-cyan-500">
+                  <span class="text-neutral-400 font-bold">:</span>
+                  <input type="number" id="{{ bot.slug }}-scheduler-minute"
+                    value="{{ bot.config.scheduler_minute|default:27 }}"
+                    min="0" max="59" placeholder="Min"
+                    class="w-16 bg-neutral-700 border border-neutral-600 rounded-lg px-2 py-1.5 text-white text-sm text-center focus:outline-none focus:ring-1 focus:ring-cyan-500 focus:border-cyan-500">
+                </div>
+                <span class="text-xs text-neutral-500">Server local time (24h). Bot swaps per-day server settings at this time.</span>
+              </div>
+              <div class="flex items-center gap-4">
+                <i class="fas fa-database text-cyan-400"></i>
+                <span class="text-sm text-neutral-300 font-medium w-32 shrink-0">Backup time</span>
+                <div class="flex items-center gap-2">
+                  <input type="number" id="{{ bot.slug }}-backup-hour"
+                    value="{{ bot.config.backup_hour|default:23 }}"
+                    min="0" max="23" placeholder="Hour"
+                    class="w-16 bg-neutral-700 border border-neutral-600 rounded-lg px-2 py-1.5 text-white text-sm text-center focus:outline-none focus:ring-1 focus:ring-cyan-500 focus:border-cyan-500">
+                  <span class="text-neutral-400 font-bold">:</span>
+                  <input type="number" id="{{ bot.slug }}-backup-minute"
+                    value="{{ bot.config.backup_minute|default:30 }}"
+                    min="0" max="59" placeholder="Min"
+                    class="w-16 bg-neutral-700 border border-neutral-600 rounded-lg px-2 py-1.5 text-white text-sm text-center focus:outline-none focus:ring-1 focus:ring-cyan-500 focus:border-cyan-500">
+                </div>
+                <span class="text-xs text-neutral-500">Server local time (24h). Bot takes an AMP backup at this time (respects backup days).</span>
+              </div>
+              <div class="border-t border-neutral-700/60 pt-4">
+                <div class="flex items-center gap-3 mb-3">
+                  <i class="fas fa-database text-cyan-400 text-sm"></i>
+                  <span class="text-sm text-neutral-300 font-medium">Backup days</span>
+                  <span class="text-xs text-neutral-500">Uncheck days to skip backup (settings still apply every day)</span>
+                </div>
+                <div class="flex gap-2 flex-wrap" id="{{ bot.slug }}-backup-days">
+                  <label class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-neutral-700/60 border border-neutral-600 cursor-pointer hover:bg-neutral-700 transition text-sm text-neutral-300"><input type="checkbox" class="backup-day-cb accent-cyan-500" value="Monday" checked> Mon</label>
+                  <label class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-neutral-700/60 border border-neutral-600 cursor-pointer hover:bg-neutral-700 transition text-sm text-neutral-300"><input type="checkbox" class="backup-day-cb accent-cyan-500" value="Tuesday" checked> Tue</label>
+                  <label class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-neutral-700/60 border border-neutral-600 cursor-pointer hover:bg-neutral-700 transition text-sm text-neutral-300"><input type="checkbox" class="backup-day-cb accent-cyan-500" value="Wednesday" checked> Wed</label>
+                  <label class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-neutral-700/60 border border-neutral-600 cursor-pointer hover:bg-neutral-700 transition text-sm text-neutral-300"><input type="checkbox" class="backup-day-cb accent-cyan-500" value="Thursday" checked> Thu</label>
+                  <label class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-neutral-700/60 border border-neutral-600 cursor-pointer hover:bg-neutral-700 transition text-sm text-neutral-300"><input type="checkbox" class="backup-day-cb accent-cyan-500" value="Friday" checked> Fri</label>
+                  <label class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-neutral-700/60 border border-neutral-600 cursor-pointer hover:bg-neutral-700 transition text-sm text-neutral-300"><input type="checkbox" class="backup-day-cb accent-cyan-500" value="Saturday" checked> Sat</label>
+                  <label class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-neutral-700/60 border border-neutral-600 cursor-pointer hover:bg-neutral-700 transition text-sm text-neutral-300"><input type="checkbox" class="backup-day-cb accent-cyan-500" value="Sunday" checked> Sun</label>
+                </div>
+              </div>
+            </div>
+
+            {% if bot.scheduler_ready %}
+            <!-- Day tab row -->
+            <div class="flex gap-1 mb-4 flex-wrap" id="{{ bot.slug }}-day-tabs">
+              <button id="{{ bot.slug }}-day-btn-Monday"    onclick="switchDay('{{ bot.slug }}', 'Monday')"    class="day-tab-btn px-3.5 py-1.5 rounded-lg text-sm font-medium transition-all border bg-cyan-500/20 text-cyan-300 border-cyan-500/30">Mon</button>
+              <button id="{{ bot.slug }}-day-btn-Tuesday"   onclick="switchDay('{{ bot.slug }}', 'Tuesday')"   class="day-tab-btn px-3.5 py-1.5 rounded-lg text-sm font-medium transition-all border text-neutral-400 hover:text-white hover:bg-neutral-700 border-transparent">Tue</button>
+              <button id="{{ bot.slug }}-day-btn-Wednesday" onclick="switchDay('{{ bot.slug }}', 'Wednesday')" class="day-tab-btn px-3.5 py-1.5 rounded-lg text-sm font-medium transition-all border text-neutral-400 hover:text-white hover:bg-neutral-700 border-transparent">Wed</button>
+              <button id="{{ bot.slug }}-day-btn-Thursday"  onclick="switchDay('{{ bot.slug }}', 'Thursday')"  class="day-tab-btn px-3.5 py-1.5 rounded-lg text-sm font-medium transition-all border text-neutral-400 hover:text-white hover:bg-neutral-700 border-transparent">Thu</button>
+              <button id="{{ bot.slug }}-day-btn-Friday"    onclick="switchDay('{{ bot.slug }}', 'Friday')"    class="day-tab-btn px-3.5 py-1.5 rounded-lg text-sm font-medium transition-all border text-neutral-400 hover:text-white hover:bg-neutral-700 border-transparent">Fri</button>
+              <button id="{{ bot.slug }}-day-btn-Saturday"  onclick="switchDay('{{ bot.slug }}', 'Saturday')"  class="day-tab-btn px-3.5 py-1.5 rounded-lg text-sm font-medium transition-all border text-neutral-400 hover:text-white hover:bg-neutral-700 border-transparent">Sat</button>
+              <button id="{{ bot.slug }}-day-btn-Sunday"    onclick="switchDay('{{ bot.slug }}', 'Sunday')"    class="day-tab-btn px-3.5 py-1.5 rounded-lg text-sm font-medium transition-all border text-neutral-400 hover:text-white hover:bg-neutral-700 border-transparent">Sun</button>
+            </div>
+
+            <!-- Per-day panels - populated by JS via API -->
+            <div id="{{ bot.slug }}-schedule-panels">
+              <div class="text-neutral-500 text-sm text-center py-8">
+                <i class="fas fa-circle-notch fa-spin mr-2"></i>Loading schedule...
+              </div>
+            </div>
+
+            <div class="mt-5 flex items-center gap-3">
+              <button onclick="saveSchedule('{{ bot.slug }}')"
+                class="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-sm font-medium transition-all shadow-lg shadow-cyan-900/40">
+                <i class="fas fa-save mr-1.5"></i>Save
+              </button>
+              <button onclick="resetSchedule('{{ bot.slug }}')"
+                class="px-4 py-2 bg-neutral-700/80 hover:bg-neutral-600 text-neutral-300 rounded-lg text-sm font-medium transition-all border border-neutral-600">
+                <i class="fas fa-rotate-left mr-1.5"></i>Reset to File Defaults
+              </button>
+              <span id="{{ bot.slug }}-schedule-msg" class="text-sm text-neutral-400"></span>
+            </div>
+            {% else %}
+            <div class="bg-neutral-900/60 border-2 border-dashed border-amber-500/30 rounded-xl p-6 text-center mb-4 ring-1 ring-white/5">
+              <i class="fas fa-triangle-exclamation text-2xl text-amber-500/70 mb-3"></i>
+              <p class="text-amber-300/80 text-sm font-semibold">Scheduler presets not built yet for {{ bot.game }}</p>
+              <p class="text-neutral-500 text-xs mt-1">The preset file for this bot contains placeholder data. Build correct {{ bot.game }}-specific presets first.</p>
+            </div>
+            <div class="mt-2 flex items-center gap-3">
+              <button onclick="saveScheduleTimeOnly('{{ bot.slug }}')"
+                class="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-sm font-medium transition-all shadow-lg shadow-cyan-900/40">
+                <i class="fas fa-save mr-1.5"></i>Save Time
+              </button>
+              <span id="{{ bot.slug }}-schedule-msg" class="text-sm text-neutral-400"></span>
+            </div>
+            {% endif %}
+          </div>
+        </div>
+
+        <!-- Tab: Toggles -->
+        <div id="tab-content-{{ bot.slug }}-toggles" class="bot-tab-content hidden">
+          <div class="bg-gradient-to-br from-neutral-800 to-neutral-900 border border-neutral-700 ring-1 ring-white/5 rounded-xl p-5 border-l-4 border-l-cyan-500/50">
+            <h3 class="text-white font-semibold mb-1 flex items-center gap-2"><i class="fas fa-sliders text-cyan-400 text-sm"></i>Bot Display Toggles</h3>
+            <p class="text-neutral-400 text-sm mb-5">Control what the bot shows and which alerts it sends.</p>
+            <div id="{{ bot.slug }}-toggles-grid" class="grid grid-cols-1 sm:grid-cols-2 gap-4"></div>
+            <div class="mt-5 flex items-center gap-3">
+              <button onclick="saveToggles('{{ bot.slug }}')"
+                class="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-sm font-medium transition-all shadow-lg shadow-cyan-900/40">
+                <i class="fas fa-save mr-1.5"></i>Save Toggles
+              </button>
+              <span id="{{ bot.slug }}-toggles-msg" class="text-sm text-neutral-400"></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab: Server Control -->
+        <div id="tab-content-{{ bot.slug }}-server" class="bot-tab-content hidden">
+          <!-- Header bar -->
+          <div class="flex items-center justify-between mb-4 px-1">
+            <div class="flex items-center gap-3">
+              <div id="{{ bot.slug }}-status-pulse" class="w-2.5 h-2.5 rounded-full bg-neutral-600"></div>
+              <div>
+                <span class="text-white font-semibold text-sm">{{ bot.config.amp_instance_name|default:"AMP" }}</span>
+                <span class="text-neutral-500 text-xs ml-2">live status</span>
+              </div>
+            </div>
+            <button onclick="refreshServerStatus(this, '{{ bot.slug }}')" class="w-7 h-7 flex items-center justify-center rounded-lg border border-neutral-700 text-neutral-500 hover:text-white hover:border-neutral-500 hover:bg-neutral-800 transition-all" title="Refresh status">
+              <i class="fas fa-sync-alt text-xs"></i>
+            </button>
+          </div>
+
+          <!-- Main status card -->
+          <div id="server-status-{{ bot.slug }}" class="rounded-xl mb-4 min-h-[160px] flex items-center justify-center bg-neutral-900/80 border border-neutral-800 ring-1 ring-white/5">
+            <i class="fas fa-circle-notch fa-spin text-neutral-600 text-xl"></i>
+          </div>
+
+          <!-- Action buttons row -->
+          <div class="grid grid-cols-3 gap-2 mb-4">
+            <button id="{{ bot.slug }}-btn-start" onclick="serverAction('{{ bot.slug }}', 'start', event)"
+              class="py-2.5 bg-green-700 hover:bg-green-600 active:bg-green-800 text-white rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2 shadow-lg shadow-green-900/30">
+              <i class="fas fa-play text-xs"></i>Start
+            </button>
+            <button id="{{ bot.slug }}-btn-restart" onclick="serverAction('{{ bot.slug }}', 'restart', event)"
+              class="py-2.5 bg-amber-700 hover:bg-amber-600 active:bg-amber-800 text-white rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2 shadow-lg shadow-amber-900/30">
+              <i class="fas fa-rotate-right text-xs"></i>Restart
+            </button>
+            <button id="{{ bot.slug }}-btn-stop" onclick="serverAction('{{ bot.slug }}', 'stop', event)"
+              class="py-2.5 bg-red-800 hover:bg-red-700 active:bg-red-900 text-white rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2 shadow-lg shadow-red-900/30">
+              <i class="fas fa-stop text-xs"></i>Stop
+            </button>
+          </div>
+
+          <!-- Online Players -->
+          <div class="bg-neutral-900/80 border border-neutral-800 ring-1 ring-white/5 rounded-xl p-4">
+            <div class="flex items-center justify-between mb-3">
+              <h4 class="text-neutral-400 text-xs font-semibold uppercase tracking-wider">Online Players</h4>
+              <span id="{{ bot.slug }}-player-count" class="text-xs text-neutral-500">0 / 0</span>
+            </div>
+            <div id="player-list-{{ bot.slug }}" class="min-h-[2.5rem] flex items-center justify-center">
+              <p class="text-neutral-600 text-sm">No players online</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab: God Mode -->
+        <div id="tab-content-{{ bot.slug }}-godmode" class="bot-tab-content hidden">
+          <div class="bg-gradient-to-br from-neutral-800 to-neutral-900 border border-yellow-500/30 ring-1 ring-yellow-400/10 rounded-xl p-5 border-l-4 border-l-yellow-500/60">
+            <div class="flex items-center gap-3 mb-5">
+              <i class="fas fa-bolt text-yellow-400 text-xl"></i>
+              <div>
+                <h3 class="text-white font-semibold">God Mode - {{ bot.name }}</h3>
+                <p class="text-neutral-400 text-sm">Full server control. Actions are immediate and irreversible.</p>
+              </div>
+            </div>
+
+            {% if bot.slug == 'vquest' %}
+            <div class="space-y-4">
+              <div class="bg-neutral-900/60 rounded-xl p-4 border border-neutral-700 ring-1 ring-white/5">
+                <h4 class="text-neutral-200 font-medium text-sm mb-3 flex items-center gap-2"><i class="fas fa-bullhorn text-yellow-400"></i>Broadcast Message</h4>
+                <div class="flex gap-2">
+                  <input type="text" id="vquest-broadcast-msg" placeholder="Message to all players..."
+                    class="flex-1 bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-1 focus:ring-yellow-500/60 focus:border-yellow-500">
+                  <button onclick="godAction('vquest', 'broadcast')" class="px-4 py-2 bg-yellow-600 hover:bg-yellow-500 text-white rounded-lg text-sm font-medium transition-colors whitespace-nowrap">Send</button>
+                </div>
+              </div>
+              <div class="bg-neutral-900/60 rounded-xl p-4 border border-neutral-700 ring-1 ring-white/5">
+                <h4 class="text-neutral-200 font-medium text-sm mb-3 flex items-center gap-2"><i class="fas fa-user-shield text-yellow-400"></i>Player Actions</h4>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label class="block text-xs text-neutral-400 mb-1">Player (Steam ID or Name)</label>
+                    <input type="text" id="vquest-target-player" placeholder="Steam ID or name"
+                      class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-1 focus:ring-yellow-500/60 focus:border-yellow-500">
+                  </div>
+                  <div class="flex flex-col gap-2 justify-end">
+                    <button onclick="godAction('vquest', 'kick')" class="px-3 py-2 bg-orange-700 hover:bg-orange-600 text-white rounded-lg text-sm transition-colors"><i class="fas fa-boot mr-1.5"></i>Kick</button>
+                    <button onclick="godAction('vquest', 'ban')" class="px-3 py-2 bg-red-800 hover:bg-red-700 text-white rounded-lg text-sm transition-colors"><i class="fas fa-ban mr-1.5"></i>Ban</button>
+                  </div>
+                  <div class="flex flex-col gap-2 justify-end">
+                    <button onclick="godAction('vquest', 'teleport')" class="px-3 py-2 bg-purple-700 hover:bg-purple-600 text-white rounded-lg text-sm transition-colors"><i class="fas fa-location-dot mr-1.5"></i>Teleport to Me</button>
+                  </div>
+                </div>
+              </div>
+              <div class="bg-neutral-900/40 rounded-xl p-4 border-2 border-dashed border-neutral-600/60 ring-1 ring-white/3">
+                <h4 class="text-neutral-400 font-medium text-sm mb-1 flex items-center gap-2"><i class="fas fa-skull text-neutral-500"></i>BloodyBoss Panel</h4>
+                <p class="text-neutral-500 text-xs">Available after ScarletRCON + BloodyBoss mods are installed.</p>
+              </div>
+              <div class="bg-neutral-900/40 rounded-xl p-4 border-2 border-dashed border-neutral-600/60 ring-1 ring-white/3">
+                <h4 class="text-neutral-400 font-medium text-sm mb-1 flex items-center gap-2"><i class="fas fa-wand-sparkles text-neutral-500"></i>VAMP Actions</h4>
+                <p class="text-neutral-500 text-xs">Entity manipulation, world control - available after VAMP mod is installed.</p>
+              </div>
+            </div>
+
+            {% elif bot.slug == '7dayquest' %}
+            <div class="space-y-4">
+              <div class="bg-neutral-900/60 rounded-xl p-4 border border-neutral-700 ring-1 ring-white/5">
+                <h4 class="text-neutral-200 font-medium text-sm mb-3 flex items-center gap-2"><i class="fas fa-bullhorn text-yellow-400"></i>Broadcast Message</h4>
+                <div class="flex gap-2">
+                  <input type="text" id="7dayquest-broadcast-msg" placeholder="Message to all players..."
+                    class="flex-1 bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-1 focus:ring-yellow-500/60 focus:border-yellow-500">
+                  <button onclick="godAction('7dayquest', 'broadcast')" class="px-4 py-2 bg-yellow-600 hover:bg-yellow-500 text-white rounded-lg text-sm font-medium transition-colors whitespace-nowrap">Send</button>
+                </div>
+              </div>
+              <div class="bg-neutral-900/60 rounded-xl p-4 border border-neutral-700 ring-1 ring-white/5">
+                <h4 class="text-neutral-200 font-medium text-sm mb-3 flex items-center gap-2"><i class="fas fa-biohazard text-yellow-400"></i>Spawn Entities</h4>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label class="block text-xs text-neutral-400 mb-1">Entity Type</label>
+                    <div id="7dayquest-spawn-select-wrap"></div>
+                  </div>
+                  <div>
+                    <label class="block text-xs text-neutral-400 mb-1">Quantity</label>
+                    <input type="number" id="7dayquest-spawn-qty" value="1" min="1" max="20"
+                      class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-1 focus:ring-yellow-500/60 focus:border-yellow-500">
+                  </div>
+                  <div class="flex items-end">
+                    <button onclick="godAction('7dayquest', 'spawn')" class="w-full px-4 py-2 bg-orange-700 hover:bg-orange-600 text-white rounded-lg text-sm font-medium transition-colors">
+                      <i class="fas fa-skull-crossbones mr-1.5"></i>Spawn
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <div class="bg-neutral-900/60 rounded-xl p-4 border border-neutral-700 ring-1 ring-white/5">
+                <h4 class="text-neutral-200 font-medium text-sm mb-3 flex items-center gap-2"><i class="fas fa-user-shield text-yellow-400"></i>Player Actions</h4>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+                  <div>
+                    <label class="block text-xs text-neutral-400 mb-1">Player (Steam ID or Name)</label>
+                    <input type="text" id="7dayquest-target-player" placeholder="Steam ID or name"
+                      class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-1 focus:ring-yellow-500/60 focus:border-yellow-500">
+                  </div>
+                  <div>
+                    <label class="block text-xs text-neutral-400 mb-1">Item to Give</label>
+                    <input type="text" id="7dayquest-give-item" placeholder="e.g. ammo9mmBullet"
+                      class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-1 focus:ring-yellow-500/60 focus:border-yellow-500">
+                  </div>
+                </div>
+                <div class="flex flex-wrap gap-2">
+                  <button onclick="godAction('7dayquest', 'give_item')" class="px-3 py-2 bg-green-700 hover:bg-green-600 text-white rounded-lg text-sm transition-colors"><i class="fas fa-gift mr-1.5"></i>Give Item</button>
+                  <button onclick="godAction('7dayquest', 'kick')" class="px-3 py-2 bg-orange-700 hover:bg-orange-600 text-white rounded-lg text-sm transition-colors"><i class="fas fa-boot mr-1.5"></i>Kick</button>
+                  <button onclick="godAction('7dayquest', 'ban')" class="px-3 py-2 bg-red-800 hover:bg-red-700 text-white rounded-lg text-sm transition-colors"><i class="fas fa-ban mr-1.5"></i>Ban</button>
+                  <button onclick="godAction('7dayquest', 'teleport')" class="px-3 py-2 bg-purple-700 hover:bg-purple-600 text-white rounded-lg text-sm transition-colors"><i class="fas fa-location-dot mr-1.5"></i>Teleport</button>
+                </div>
+              </div>
+              <div class="bg-neutral-900/60 rounded-xl p-4 border border-neutral-700 ring-1 ring-white/5">
+                <h4 class="text-neutral-200 font-medium text-sm mb-3 flex items-center gap-2"><i class="fas fa-globe text-yellow-400"></i>World Controls</h4>
+                <div class="flex flex-wrap gap-2">
+                  <button onclick="godAction('7dayquest', 'trigger_horde')" class="px-3 py-2 bg-red-900 hover:bg-red-800 text-white rounded-lg text-sm transition-colors"><i class="fas fa-skull mr-1.5"></i>Trigger Horde</button>
+                  <button onclick="godAction('7dayquest', 'blood_moon')" class="px-3 py-2 bg-red-800 hover:bg-red-700 text-white rounded-lg text-sm transition-colors"><i class="fas fa-moon mr-1.5 text-red-300"></i>Blood Moon</button>
+                  <div class="flex items-center gap-2">
+                    <input type="number" id="7dayquest-set-time" placeholder="Hour (0-23)" min="0" max="23"
+                      class="w-28 bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-1 focus:ring-yellow-500/60 focus:border-yellow-500">
+                    <button onclick="godAction('7dayquest', 'set_time')" class="px-3 py-2 bg-sky-700 hover:bg-sky-600 text-white rounded-lg text-sm transition-colors"><i class="fas fa-clock mr-1.5"></i>Set Time</button>
+                  </div>
+                </div>
+              </div>
+              <div class="bg-neutral-900/40 rounded-xl p-4 border-2 border-dashed border-orange-500/30 ring-1 ring-orange-400/5">
+                <h4 class="text-orange-300 font-medium text-sm mb-1"><i class="fas fa-network-wired mr-2"></i>Wasteland Network</h4>
+                <p class="text-neutral-500 text-xs">Cross-realm travel management, bloodmoon sync, character snapshots - coming when Wasteland Network goes live.</p>
+              </div>
+            </div>
+
+            {% else %}
+            <div class="space-y-4">
+              <div class="bg-neutral-900/60 rounded-xl p-4 border border-neutral-700 ring-1 ring-white/5">
+                <h4 class="text-neutral-200 font-medium text-sm mb-3 flex items-center gap-2"><i class="fas fa-bullhorn text-yellow-400"></i>Broadcast Message</h4>
+                <div class="flex gap-2">
+                  <input type="text" id="{{ bot.slug }}-broadcast-msg" placeholder="Message to all players..."
+                    class="flex-1 bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-1 focus:ring-yellow-500/60 focus:border-yellow-500">
+                  <button onclick="godAction('{{ bot.slug }}', 'broadcast')" class="px-4 py-2 bg-yellow-600 hover:bg-yellow-500 text-white rounded-lg text-sm font-medium transition-colors whitespace-nowrap">Send</button>
+                </div>
+              </div>
+              <div class="bg-neutral-900/40 rounded-xl p-4 border-2 border-dashed border-neutral-600/60 ring-1 ring-white/3">
+                <h4 class="text-neutral-400 font-medium text-sm mb-1 flex items-center gap-2"><i class="fas fa-bolt text-neutral-500"></i>More Actions</h4>
+                <p class="text-neutral-500 text-xs">Additional god mode actions for {{ bot.game }} coming soon.</p>
+              </div>
+            </div>
+            {% endif %}
+
+            <div class="mt-5">
+              <div class="flex items-center gap-2 mb-2">
+                <span class="inline-flex w-2 h-2 rounded-full bg-red-500/70"></span>
+                <span class="inline-flex w-2 h-2 rounded-full bg-yellow-500/70"></span>
+                <span class="inline-flex w-2 h-2 rounded-full bg-green-500/70"></span>
+                <span class="text-neutral-500 text-xs font-mono ml-1 uppercase tracking-widest">Action Log</span>
+              </div>
+              <div id="{{ bot.slug }}-action-log" class="bg-black/80 border border-neutral-800 rounded-lg p-3 font-mono text-xs text-green-400 h-28 overflow-y-auto space-y-1 shadow-inner">
+                <p class="text-neutral-600">-- No actions yet --</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+      {% endfor %}
+    </div>
+
+  </div>
+  {% endif %}
+
+</div>
+
+<script>
+// Bot config data (for toggle rendering)
+const BOT_CONFIGS = {
+  {% for bot in bots %}
+  '{{ bot.slug }}': {{ bot.config_json|safe }},
+  {% endfor %}
+};
+
+// Known Fluxer guilds the bot is in
+const FLUXER_GUILDS = {{ fluxer_guilds_json|safe }};
+
+// Per-bot pre-loaded channels (from DB at page load, keyed by slug)
+const BOT_CHANNELS = {
+  {% for bot in bots %}
+  '{{ bot.slug }}': {{ bot.channels_json|safe }},
+  {% endfor %}
+};
+
+// Per-bot channel/role selections (populated after guild pick)
+const _channelSelections = {};
+const _roleSelections = {};
+// Active guild_id per bot
+const _activeGuildId = {};
+
+// --- Bot selector ---
+function selectBot(slug) {
+  document.querySelectorAll('.bot-panel').forEach(p => p.classList.add('hidden'));
+  document.querySelectorAll('.bot-selector-btn').forEach(b => {
+    b.classList.remove('bg-cyan-500/20', 'text-cyan-300', 'border-cyan-500/30');
+    b.classList.add('text-neutral-300', 'border-transparent');
+  });
+  document.querySelectorAll('[id^="bot-dot-"]').forEach(d => {
+    d.classList.remove('bg-cyan-400');
+    d.classList.add('bg-neutral-600');
+  });
+  const panel = document.getElementById('panel-' + slug);
+  if (panel) panel.classList.remove('hidden');
+  const btn = document.getElementById('bot-btn-' + slug);
+  if (btn) {
+    btn.classList.remove('text-neutral-300', 'border-transparent');
+    btn.classList.add('bg-cyan-500/20', 'text-cyan-300', 'border-cyan-500/30');
+  }
+  const dot = document.getElementById('bot-dot-' + slug);
+  if (dot) { dot.classList.remove('bg-neutral-600'); dot.classList.add('bg-cyan-400'); }
+}
+
+// --- Tab switcher ---
+function switchTab(botSlug, tab) {
+  document.querySelectorAll('#panel-' + botSlug + ' .bot-tab-content').forEach(c => c.classList.add('hidden'));
+  document.querySelectorAll('#panel-' + botSlug + ' .bot-tab').forEach(b => {
+    b.classList.remove('bg-cyan-500/20', 'text-cyan-300');
+    b.classList.add('text-neutral-400');
+  });
+  const content = document.getElementById('tab-content-' + botSlug + '-' + tab);
+  if (content) content.classList.remove('hidden');
+  const tabBtn = document.getElementById('tab-' + botSlug + '-' + tab);
+  if (tabBtn) { tabBtn.classList.remove('text-neutral-400'); tabBtn.classList.add('bg-cyan-500/20', 'text-cyan-300'); }
+
+  // Lazy-load tab content on first open
+  if (tab === 'schedule') {
+    const panels = document.getElementById(botSlug + '-schedule-panels');
+    if (panels && panels.querySelector('.fa-circle-notch')) loadSchedule(botSlug);
+  }
+  if (tab === 'server') {
+    loadServerStatus(botSlug);
+  }
+  if (tab === 'embeds') {
+    _initEmbedTabIfNeeded(botSlug);
+  }
+}
+
+// --- Guild picker: on select, fetch channels for that guild ---
+function onGuildSelected(slug, guildId) {
+  _activeGuildId[slug] = guildId;
+  if (!guildId) return;
+  csrfFetch('/api/admin/quest-control/discord/?guild_id=' + encodeURIComponent(guildId))
+    .then(r => r.json())
+    .then(d => {
+      if (!d.ok) {
+        const cf = document.getElementById(slug + '-channel-fields');
+        if (cf) cf.innerHTML = '<div class="col-span-full text-amber-400 text-sm py-2"><i class="fas fa-triangle-exclamation mr-2"></i>' + escapeHtml(d.error || 'Failed') + '</div>';
+        return;
+      }
+      renderChannelFields(slug, d.channels, d.roles);
+    });
+}
+
+// --- Render channel/role dropdowns ---
+function renderChannelFields(slug, channels, roles) {
+  const cfg = BOT_CONFIGS[slug] || {};
+  const container = document.getElementById(slug + '-channel-fields');
+  if (!container) return;
+
+  const channelFields = [
+    {key: 'notif_channel_id',         label: 'Join/Leave Notifications'},
+    {key: 'live_log_channel_id',       label: 'Live Log Channel'},
+    {key: 'stats_channel_id',          label: 'Stats Channel'},
+    {key: 'server_update_channel_id',  label: 'Daily Update Channel'},
+  ];
+  const roleFields = [
+    {key: 'admin_role_id', label: 'Admin Role'},
+  ];
+
+  const noneOption = [{value: '', label: '-- None --'}];
+
+  container.innerHTML = '';
+  _channelSelections[slug] = _channelSelections[slug] || {};
+  _roleSelections[slug] = _roleSelections[slug] || {};
+
+  channelFields.forEach(f => {
+    const wrap = document.createElement('div');
+    const label = document.createElement('label');
+    label.className = 'block text-xs font-medium text-neutral-400 mb-1.5';
+    label.textContent = f.label;
+    wrap.appendChild(label);
+    const selectWrap = document.createElement('div');
+    selectWrap.id = slug + '-select-' + f.key;
+    wrap.appendChild(selectWrap);
+    container.appendChild(wrap);
+
+    const currentVal = cfg[f.key] ? String(cfg[f.key]) : '';
+    _channelSelections[slug][f.key] = currentVal;
+
+    createCustomSelect(selectWrap, {
+      id: slug + '-' + f.key,
+      placeholder: 'Select channel...',
+      items: noneOption.concat(channels),
+      onSelect: function(val) { _channelSelections[slug][f.key] = val; },
+    });
+    // Set current value
+    if (currentVal) {
+      const hidden = selectWrap.querySelector('input[type="hidden"]');
+      if (hidden) hidden.value = currentVal;
+      const btn = selectWrap.querySelector('[data-value="' + currentVal + '"]');
+      if (btn) {
+        const display = selectWrap.querySelector('.cs-display');
+        if (display) display.textContent = btn.textContent.trim();
+      }
+    }
+  });
+
+  roleFields.forEach(f => {
+    const wrap = document.createElement('div');
+    const label = document.createElement('label');
+    label.className = 'block text-xs font-medium text-neutral-400 mb-1.5';
+    label.textContent = f.label;
+    wrap.appendChild(label);
+    const selectWrap = document.createElement('div');
+    selectWrap.id = slug + '-select-' + f.key;
+    wrap.appendChild(selectWrap);
+    container.appendChild(wrap);
+
+    const currentVal = cfg[f.key] ? String(cfg[f.key]) : '';
+    _roleSelections[slug] = _roleSelections[slug] || {};
+    _roleSelections[slug][f.key] = currentVal;
+
+    createCustomSelect(selectWrap, {
+      id: slug + '-' + f.key,
+      placeholder: 'Select role...',
+      items: noneOption.concat(roles),
+      onSelect: function(val) { _roleSelections[slug][f.key] = val; },
+    });
+  });
+}
+
+// --- Save channels ---
+function saveChannels(slug) {
+  const data = {bot: slug};
+  const guildId = _activeGuildId[slug];
+  if (guildId) data.guild_id = guildId;
+  Object.assign(data, _channelSelections[slug] || {});
+  Object.assign(data, _roleSelections[slug] || {});
+
+  const msg = document.getElementById(slug + '-channels-msg');
+  msg.textContent = 'Saving...';
+  csrfFetch('/api/admin/quest-control/channels/', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  }).then(r => r.json()).then(d => {
+    msg.textContent = d.ok ? 'Saved.' : ('Error: ' + (d.error || 'Unknown'));
+    msg.className = 'text-sm ' + (d.ok ? 'text-green-400' : 'text-red-400');
+    setTimeout(() => { msg.textContent = ''; msg.className = 'text-sm text-neutral-400'; }, 3000);
+  }).catch(() => { msg.textContent = 'Request failed.'; msg.className = 'text-sm text-red-400'; });
+}
+
+// --- Toggles ---
+const TOGGLE_FIELDS = [
+  {key: 'alert_join_leave',   label: 'Join/Leave Alerts'},
+  {key: 'alert_live_logs',    label: 'Live Log Alerts'},
+  {key: 'show_player_count',  label: 'Show Player Count'},
+  {key: 'show_ip_port',       label: 'Show IP and Port'},
+  {key: 'show_password',      label: 'Show Password'},
+  {key: 'show_top_5_players', label: 'Show Top 5 Players'},
+];
+
+function renderToggles(slug) {
+  const cfg = BOT_CONFIGS[slug] || {};
+  const grid = document.getElementById(slug + '-toggles-grid');
+  if (!grid) return;
+  grid.innerHTML = TOGGLE_FIELDS.map(f => `
+    <label class="flex items-center justify-between bg-neutral-900/60 border border-neutral-700 ring-1 ring-white/5 rounded-xl px-4 py-3.5 cursor-pointer hover:border-neutral-600 transition-colors group">
+      <span class="text-sm text-neutral-300 group-hover:text-white transition-colors">${escapeHtml(f.label)}</span>
+      <div class="relative">
+        <input type="checkbox" id="${escapeHtml(slug)}-toggle-${escapeHtml(f.key)}" class="sr-only peer" ${cfg[f.key] ? 'checked' : ''}>
+        <div class="w-11 h-6 bg-neutral-700 peer-checked:bg-cyan-600 rounded-full transition-all duration-200 peer-checked:shadow-sm peer-checked:shadow-cyan-500/30"></div>
+        <div class="absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200 peer-checked:translate-x-5"></div>
+      </div>
+    </label>
+  `).join('');
+}
+
+function saveToggles(slug) {
+  const data = {bot: slug};
+  TOGGLE_FIELDS.forEach(f => {
+    const el = document.getElementById(slug + '-toggle-' + f.key);
+    if (el) data[f.key] = el.checked;
+  });
+  const msg = document.getElementById(slug + '-toggles-msg');
+  msg.textContent = 'Saving...';
+  csrfFetch('/api/admin/quest-control/toggles/', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  }).then(r => r.json()).then(d => {
+    msg.textContent = d.ok ? 'Saved.' : ('Error: ' + (d.error || 'Unknown'));
+    msg.className = 'text-sm ' + (d.ok ? 'text-green-400' : 'text-red-400');
+    setTimeout(() => { msg.textContent = ''; msg.className = 'text-sm text-neutral-400'; }, 3000);
+  }).catch(() => { msg.textContent = 'Request failed.'; msg.className = 'text-sm text-red-400'; });
+}
+
+// --- Schedule ---
+const _scheduleData   = {};  // {slug: {day: {flatKey: value}}}
+const _scheduleSchema = {};  // {slug: [...groups]}
+const _activeDay      = {};  // {slug: dayName}
+const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
+function loadSchedule(slug, resetDb) {
+  const url = '/api/admin/quest-control/schedule/?bot=' + encodeURIComponent(slug) + (resetDb ? '&reset=1' : '');
+  csrfFetch(url)
+    .then(r => r.json())
+    .then(d => {
+      const panels  = document.getElementById(slug + '-schedule-panels');
+      const sourceEl = document.getElementById(slug + '-schedule-source');
+      _applyScheduleTimes(slug, d);
+      _applyBackupDays(slug, d.backup_days || null);
+      if (!d.ok) {
+        if (panels) panels.innerHTML = '<p class="text-red-400 text-sm text-center py-4">' + escapeHtml(d.error || 'Could not load schedule') + '</p>';
+        return;
+      }
+      _scheduleData[slug]   = d.presets;
+      _scheduleSchema[slug] = d.schema || null;
+      if (!_activeDay[slug]) _activeDay[slug] = 'Monday';
+      if (sourceEl) sourceEl.textContent = d.source === 'db' ? 'Using saved overrides' : 'Loaded from preset file';
+      renderAllDayPanels(slug);
+      switchDay(slug, _activeDay[slug]);
+    })
+    .catch(() => {
+      const panels = document.getElementById(slug + '-schedule-panels');
+      if (panels) panels.innerHTML = '<p class="text-red-400 text-sm text-center py-4">Could not load schedule.</p>';
+    });
+}
+
+// Build a safe DOM id for a preset field input
+function _fieldInputId(slug, day, key) {
+  // Replace dots with underscores for cleaner IDs; use data-key attr to retrieve the real key
+  return 'sf_' + slug + '__' + day + '__' + key.replace(/\./g, '__');
+}
+
+function _renderField(slug, day, field, preset) {
+  const INPUT_CLS = 'bg-neutral-900 border border-neutral-700 rounded-lg text-white text-sm focus:outline-none focus:ring-1 focus:ring-cyan-500 focus:border-cyan-500';
+
+  if (field.type === 'time_pair') {
+    const hKey = field.hour_key;
+    const mKey = field.minute_key;
+    const hVal = preset[hKey] !== undefined ? preset[hKey] : '';
+    const mVal = preset[mKey] !== undefined ? preset[mKey] : '';
+    const hId  = _fieldInputId(slug, day, hKey);
+    const mId  = _fieldInputId(slug, day, mKey);
+    return `
+      <div class="flex items-center justify-between gap-3 py-2.5 border-b border-neutral-800/60 last:border-0">
+        <span class="text-sm text-neutral-400 shrink-0 w-40">${escapeHtml(field.label)}</span>
+        <div class="flex items-center gap-1.5">
+          <input type="number" id="${escapeHtml(hId)}" data-key="${escapeHtml(hKey)}" data-day="${escapeHtml(day)}"
+            value="${escapeHtml(String(hVal))}" min="0" max="23" step="1"
+            class="${INPUT_CLS} w-16 px-2 py-1.5 text-center">
+          <span class="text-neutral-500 font-bold">:</span>
+          <input type="number" id="${escapeHtml(mId)}" data-key="${escapeHtml(mKey)}" data-day="${escapeHtml(day)}"
+            value="${escapeHtml(String(mVal))}" min="0" max="59" step="1"
+            class="${INPUT_CLS} w-16 px-2 py-1.5 text-center">
+        </div>
+      </div>`;
+  }
+
+  if (field.type === 'select') {
+    const val = preset[field.key] !== undefined ? preset[field.key] : '';
+    const id  = _fieldInputId(slug, day, field.key);
+    const opts = (field.options || []).map(o =>
+      `<option value="${escapeHtml(String(o.value))}" ${String(o.value) === String(val) ? 'selected' : ''}>${escapeHtml(o.label)}</option>`
+    ).join('');
+    return `
+      <div class="flex items-center justify-between gap-3 py-2.5 border-b border-neutral-800/60 last:border-0">
+        <span class="text-sm text-neutral-400 shrink-0 w-40">${escapeHtml(field.label)}</span>
+        <select id="${escapeHtml(id)}" data-key="${escapeHtml(field.key)}" data-day="${escapeHtml(day)}"
+          class="${INPUT_CLS} px-3 py-1.5 w-44">
+          ${opts}
+        </select>
+      </div>`;
+  }
+
+  // number (default)
+  const val  = preset[field.key] !== undefined ? preset[field.key] : '';
+  const id   = _fieldInputId(slug, day, field.key);
+  const step = field.step !== undefined ? ' step="' + field.step + '"' : '';
+  const mn   = field.min  !== undefined ? ' min="'  + field.min  + '"' : '';
+  const mx   = field.max  !== undefined ? ' max="'  + field.max  + '"' : '';
+  return `
+    <div class="flex items-center justify-between gap-3 py-2.5 border-b border-neutral-800/60 last:border-0">
+      <span class="text-sm text-neutral-400 shrink-0 w-40">${escapeHtml(field.label)}</span>
+      <input type="number" id="${escapeHtml(id)}" data-key="${escapeHtml(field.key)}" data-day="${escapeHtml(day)}"
+        value="${escapeHtml(String(val))}"${step}${mn}${mx}
+        class="${INPUT_CLS} w-28 px-3 py-1.5 text-right">
+    </div>`;
+}
+
+function _renderGroupedPanel(slug, day, preset, schema) {
+  if (!schema || !schema.length) {
+    // Fallback: flat dump (legacy, should not happen for vquest)
+    const fields = Object.entries(preset).map(([k, v]) => `
+      <div class="flex items-center justify-between gap-2 py-1.5 border-b border-neutral-800/60 last:border-0">
+        <span class="text-sm text-neutral-400 truncate">${escapeHtml(k.split('.').pop())}</span>
+        <input type="${typeof v === 'number' ? 'number' : 'text'}" step="any"
+          id="${escapeHtml(_fieldInputId(slug, day, k))}" data-key="${escapeHtml(k)}" data-day="${escapeHtml(day)}"
+          value="${escapeHtml(String(v))}"
+          class="w-28 bg-neutral-900 border border-neutral-700 rounded-lg px-2 py-1.5 text-white text-sm focus:outline-none focus:ring-1 focus:ring-cyan-500">
+      </div>`).join('');
+    return '<div class="px-4 py-3 space-y-0">' + fields + '</div>';
+  }
+
+  return schema.map(group => {
+    const fieldsHtml = group.fields.map(f => _renderField(slug, day, f, preset)).join('');
+    return `
+      <div class="mb-3 bg-neutral-900/60 border border-neutral-700 ring-1 ring-white/5 rounded-xl overflow-hidden">
+        <button type="button" onclick="toggleGroupSection(this)"
+          class="w-full px-4 py-3 flex items-center gap-2.5 text-left hover:bg-neutral-700/40 transition-colors">
+          <i class="fas ${escapeHtml(group.icon)} text-cyan-400 text-xs w-4 text-center"></i>
+          <span class="text-sm font-medium text-neutral-200 flex-1">${escapeHtml(group.label)}</span>
+          <i class="fas fa-chevron-down text-neutral-500 text-xs transition-transform"></i>
+        </button>
+        <div class="group-section-body px-4 pb-1">
+          ${fieldsHtml}
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function renderAllDayPanels(slug) {
+  const container = document.getElementById(slug + '-schedule-panels');
+  if (!container) return;
+  const presets = _scheduleData[slug] || {};
+  const schema  = _scheduleSchema[slug] || null;
+
+  const mondayPreset = presets['Monday'] || {};
+
+  container.innerHTML = DAYS.map(day => {
+    const preset = presets[day] || {};
+    const isMonday = day === 'Monday';
+
+    // "Changed" badge: check if any key differs from Monday
+    let diffCount = 0;
+    if (!isMonday) {
+      Object.keys(mondayPreset).forEach(k => {
+        if (String(preset[k]) !== String(mondayPreset[k])) diffCount++;
+      });
+    }
+
+    const diffBadge = (!isMonday && diffCount > 0)
+      ? `<span class="ml-2 px-2 py-0.5 text-xs bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-full">${diffCount} changed</span>`
+      : '';
+
+    const copyBtn = isMonday ? '' : `
+      <button type="button" onclick="copyFromMonday('${escapeHtml(slug)}', '${escapeHtml(day)}')"
+        class="ml-auto flex items-center gap-1.5 px-3 py-1.5 text-xs bg-neutral-700 hover:bg-neutral-600 text-neutral-300 border border-neutral-600 rounded-lg transition-colors">
+        <i class="fas fa-copy text-xs"></i> Copy from Monday
+      </button>`;
+
+    const groupsHtml = _renderGroupedPanel(slug, day, preset, schema);
+
+    return `
+      <div id="${escapeHtml(slug)}-day-panel-${escapeHtml(day)}" class="day-panel hidden">
+        <div class="flex items-center gap-2 mb-3 min-h-[2rem]">
+          <span class="text-sm font-semibold text-white">${escapeHtml(day)}</span>
+          <span id="${escapeHtml(slug)}-diff-badge-${escapeHtml(day)}">${diffBadge}</span>
+          ${copyBtn}
+        </div>
+        ${groupsHtml}
+      </div>`;
+  }).join('');
+}
+
+function switchDay(slug, day) {
+  _activeDay[slug] = day;
+  // Hide all panels for this bot
+  DAYS.forEach(d => {
+    const panel = document.getElementById(slug + '-day-panel-' + d);
+    if (panel) panel.classList.add('hidden');
+    const btn = document.getElementById(slug + '-day-btn-' + d);
+    if (btn) {
+      btn.classList.remove('bg-cyan-500/20', 'text-cyan-300', 'border-cyan-500/30');
+      btn.classList.add('text-neutral-400', 'border-transparent');
+    }
+  });
+  // Show active
+  const activePanel = document.getElementById(slug + '-day-panel-' + day);
+  if (activePanel) activePanel.classList.remove('hidden');
+  const activeBtn = document.getElementById(slug + '-day-btn-' + day);
+  if (activeBtn) {
+    activeBtn.classList.remove('text-neutral-400', 'border-transparent');
+    activeBtn.classList.add('bg-cyan-500/20', 'text-cyan-300', 'border-cyan-500/30');
+  }
+}
+
+function toggleGroupSection(btn) {
+  const body = btn.nextElementSibling;
+  const icon = btn.querySelector('i.fa-chevron-down');
+  body.classList.toggle('hidden');
+  if (icon) icon.classList.toggle('rotate-180');
+}
+
+// Copy Monday values into another day's inputs, then update diff badge
+function copyFromMonday(slug, targetDay) {
+  const mondayPreset = (_scheduleData[slug] || {})['Monday'] || {};
+  const schema = _scheduleSchema[slug] || null;
+
+  // Collect all keys from schema (both regular and time_pair)
+  const allKeys = [];
+  if (schema) {
+    schema.forEach(group => {
+      group.fields.forEach(f => {
+        if (f.type === 'time_pair') {
+          allKeys.push(f.hour_key);
+          allKeys.push(f.minute_key);
+        } else if (f.key) {
+          allKeys.push(f.key);
+        }
+      });
+    });
+  } else {
+    Object.keys(mondayPreset).forEach(k => allKeys.push(k));
+  }
+
+  allKeys.forEach(k => {
+    const srcId  = _fieldInputId(slug, 'Monday',    k);
+    const dstId  = _fieldInputId(slug, targetDay,   k);
+    const srcEl  = document.getElementById(srcId);
+    const dstEl  = document.getElementById(dstId);
+    if (srcEl && dstEl) dstEl.value = srcEl.value;
+  });
+
+  // Recalculate diff badge: now 0 since we just copied
+  const badgeEl = document.getElementById(slug + '-diff-badge-' + targetDay);
+  if (badgeEl) badgeEl.innerHTML = '';
+}
+
+function _getScheduleTime(slug) {
+  const h  = document.getElementById(slug + '-scheduler-hour'),  m  = document.getElementById(slug + '-scheduler-minute');
+  const bh = document.getElementById(slug + '-backup-hour'),     bm = document.getElementById(slug + '-backup-minute');
+  const cbContainer = document.getElementById(slug + '-backup-days');
+  let backup_days = null;
+  if (cbContainer) {
+    const checked = Array.from(cbContainer.querySelectorAll('.backup-day-cb:checked')).map(cb => cb.value);
+    const all = Array.from(cbContainer.querySelectorAll('.backup-day-cb')).map(cb => cb.value);
+    backup_days = (checked.length === all.length) ? 'all' : checked;
+  }
+  return {
+    scheduler_hour: h ? parseInt(h.value) : null, scheduler_minute: m ? parseInt(m.value) : null,
+    backup_hour: bh ? parseInt(bh.value) : null,  backup_minute: bm ? parseInt(bm.value) : null,
+    backup_days,
+  };
+}
+
+function _applyBackupDays(slug, days) {
+  const cbContainer = document.getElementById(slug + '-backup-days');
+  if (!cbContainer) return;
+  cbContainer.querySelectorAll('.backup-day-cb').forEach(cb => {
+    cb.checked = !days || days.includes(cb.value);
+  });
+}
+
+function _applyScheduleTimes(slug, d) {
+  const setVal = (id, val) => { const el = document.getElementById(id); if (el && val !== undefined && val !== null) el.value = val; };
+  setVal(slug + '-scheduler-hour',   d.scheduler_hour);
+  setVal(slug + '-scheduler-minute', d.scheduler_minute);
+  setVal(slug + '-backup-hour',      d.backup_hour);
+  setVal(slug + '-backup-minute',    d.backup_minute);
+  if (d.schedule_enabled !== undefined) _applyScheduleEnabledUI(slug, d.schedule_enabled);
+}
+
+function _applyScheduleEnabledUI(slug, enabled) {
+  const btn   = document.getElementById(slug + '-sched-toggle-btn');
+  const icon  = document.getElementById(slug + '-sched-toggle-icon');
+  const label = document.getElementById(slug + '-sched-toggle-label');
+  if (!btn) return;
+  if (enabled) {
+    btn.classList.remove('border-red-600/50', 'bg-red-900/30', 'text-red-300');
+    btn.classList.add('border-neutral-600', 'bg-neutral-700/60', 'text-neutral-300');
+    icon.className  = 'fas fa-play text-xs text-green-400';
+    label.textContent = 'Schedule On';
+  } else {
+    btn.classList.remove('border-neutral-600', 'bg-neutral-700/60', 'text-neutral-300');
+    btn.classList.add('border-red-600/50', 'bg-red-900/30', 'text-red-300');
+    icon.className  = 'fas fa-pause text-xs';
+    label.textContent = 'Schedule Off';
+  }
+}
+
+function toggleScheduleEnabled(slug) {
+  const icon = document.getElementById(slug + '-sched-toggle-icon');
+  const currentlyOn = icon && icon.className.includes('fa-play');
+  const newState = !currentlyOn;
+  csrfFetch('/api/admin/quest-control/schedule/', {
+    method: 'POST',
+    body: JSON.stringify({bot: slug, schedule_enabled: newState}),
+  }).then(r => r.json()).then(d => {
+    if (d.ok) {
+      _applyScheduleEnabledUI(slug, newState);
+    } else {
+      alert(d.error || 'Failed to update schedule state');
+    }
+  });
+}
+window.toggleScheduleEnabled = toggleScheduleEnabled;
+
+function saveSchedule(slug) {
+  const presets = {};
+  const schema  = _scheduleSchema[slug] || null;
+  const baseData = _scheduleData[slug] || {};
+
+  DAYS.forEach(day => {
+    if (!baseData[day]) return;
+    presets[day] = {};
+    const allKeys = [];
+    if (schema) {
+      schema.forEach(group => {
+        group.fields.forEach(f => {
+          if (f.type === 'time_pair') {
+            allKeys.push({key: f.hour_key,   isNum: true});
+            allKeys.push({key: f.minute_key, isNum: true});
+          } else {
+            const isNum = (f.type === 'number');
+            allKeys.push({key: f.key, isNum});
+          }
+        });
+      });
+    } else {
+      Object.keys(baseData[day]).forEach(k => {
+        allKeys.push({key: k, isNum: typeof baseData[day][k] === 'number'});
+      });
+    }
+    allKeys.forEach(({key, isNum}) => {
+      const el = document.getElementById(_fieldInputId(slug, day, key));
+      if (!el) return;
+      presets[day][key] = isNum ? parseFloat(el.value) : el.value;
+    });
+  });
+
+  const msg = document.getElementById(slug + '-schedule-msg');
+  msg.textContent = 'Saving...';
+  csrfFetch('/api/admin/quest-control/schedule/', {
+    method: 'POST',
+    body: JSON.stringify(Object.assign({bot: slug, presets}, _getScheduleTime(slug))),
+  }).then(r => r.json()).then(d => {
+    msg.textContent = d.ok ? 'Saved.' : ('Error: ' + (d.error || 'Unknown'));
+    msg.className = 'text-sm ' + (d.ok ? 'text-green-400' : 'text-red-400');
+    const src = document.getElementById(slug + '-schedule-source');
+    if (d.ok && src) src.textContent = 'Using saved overrides';
+    setTimeout(() => { msg.textContent = ''; msg.className = 'text-sm text-neutral-400'; }, 3000);
+  }).catch(() => { msg.textContent = 'Request failed.'; msg.className = 'text-sm text-red-400'; });
+}
+
+function saveScheduleTimeOnly(slug) {
+  const msg = document.getElementById(slug + '-schedule-msg');
+  msg.textContent = 'Saving...';
+  csrfFetch('/api/admin/quest-control/schedule/', {
+    method: 'POST',
+    body: JSON.stringify(Object.assign({bot: slug, presets: {}}, _getScheduleTime(slug))),
+  }).then(r => r.json()).then(d => {
+    msg.textContent = d.ok ? 'Saved.' : ('Error: ' + (d.error || 'Unknown'));
+    msg.className = 'text-sm ' + (d.ok ? 'text-green-400' : 'text-red-400');
+    setTimeout(() => { msg.textContent = ''; msg.className = 'text-sm text-neutral-400'; }, 3000);
+  }).catch(() => { msg.textContent = 'Request failed.'; msg.className = 'text-sm text-red-400'; });
+}
+
+function resetSchedule(slug) {
+  if (!confirm('Reset to file defaults? This will clear saved overrides.')) return;
+  csrfFetch('/api/admin/quest-control/schedule/', {
+    method: 'POST',
+    body: JSON.stringify(Object.assign({bot: slug, presets: {}, reset: true}, _getScheduleTime(slug))),
+  }).then(() => loadSchedule(slug));
+}
+
+// --- Server status ---
+const _STATE_BADGE = {
+  'Running':             {bg: 'bg-green-900/40',  text: 'text-green-300',  dot: 'text-green-400'},
+  'Starting':            {bg: 'bg-amber-900/40',  text: 'text-amber-300',  dot: 'text-amber-400'},
+  'Restarting':          {bg: 'bg-amber-900/40',  text: 'text-amber-300',  dot: 'text-amber-400'},
+  'Stopping':            {bg: 'bg-amber-900/40',  text: 'text-amber-300',  dot: 'text-amber-400'},
+  'Configuring':         {bg: 'bg-amber-900/40',  text: 'text-amber-300',  dot: 'text-amber-400'},
+  'Pre-Start':           {bg: 'bg-amber-900/40',  text: 'text-amber-300',  dot: 'text-amber-400'},
+  'Installing':          {bg: 'bg-amber-900/40',  text: 'text-amber-300',  dot: 'text-amber-400'},
+  'Updating':            {bg: 'bg-amber-900/40',  text: 'text-amber-300',  dot: 'text-amber-400'},
+  'Preparing for Sleep': {bg: 'bg-neutral-700',   text: 'text-neutral-400', dot: 'text-neutral-500'},
+  'Sleeping':            {bg: 'bg-neutral-700',   text: 'text-neutral-400', dot: 'text-neutral-500'},
+  'Waiting':             {bg: 'bg-neutral-700',   text: 'text-neutral-400', dot: 'text-neutral-500'},
+  'Stopped':             {bg: 'bg-neutral-700',   text: 'text-neutral-400', dot: 'text-neutral-500'},
+  'Suspended':           {bg: 'bg-neutral-700',   text: 'text-neutral-400', dot: 'text-neutral-500'},
+  'Failed':              {bg: 'bg-red-900/50',    text: 'text-red-300',    dot: 'text-red-400'},
+  'Maintenance':         {bg: 'bg-amber-900/40',  text: 'text-amber-300',  dot: 'text-amber-400'},
+};
+const _TRANSITIONAL_STATES = new Set(['Starting','Restarting','Stopping','Configuring','Pre-Start','Installing','Updating']);
+const _pollTimers = {};
+
+function _stateBadgeClasses(state) {
+  return _STATE_BADGE[state] || {bg: 'bg-neutral-700', text: 'text-neutral-400', dot: 'text-neutral-500'};
+}
+
+function _fmtMb(mb) {
+  if (mb >= 1024) return (mb / 1024).toFixed(1) + ' GB';
+  return mb + ' MB';
+}
+
+function refreshServerStatus(btn, slug) {
+  const icon = btn.querySelector('i');
+  if (icon) icon.classList.add('fa-spin');
+  btn.disabled = true;
+  loadServerStatus(slug);
+  setTimeout(() => { btn.disabled = false; if (icon) icon.classList.remove('fa-spin'); }, 2000);
+}
+
+function loadServerStatus(slug) {
+  csrfFetch('/api/admin/quest-control/server/status/?bot=' + encodeURIComponent(slug))
+    .then(r => r.json())
+    .then(d => {
+      const badge   = document.getElementById('status-badge-' + slug);
+      const box     = document.getElementById('server-status-' + slug);
+
+      if (!d.ok) {
+        if (badge) {
+          badge.innerHTML = '<i class="fas fa-circle-xmark mr-1"></i> AMP Error';
+          badge.className = 'px-3 py-1 rounded-full text-xs font-medium bg-red-900/50 text-red-400';
+        }
+        if (box) box.innerHTML = '<p class="text-red-400 text-sm text-center py-4"><i class="fas fa-triangle-exclamation mr-2"></i>' + escapeHtml(d.error || 'Could not connect to AMP') + '</p>';
+        _stopPoll(slug);
+        return;
+      }
+
+      const state = d.state || 'Unknown';
+      const sc = _stateBadgeClasses(state);
+
+      // Header badge
+      if (badge) {
+        badge.innerHTML = '<i class="fas fa-circle ' + sc.dot + ' mr-1.5 text-xs"></i>' + escapeHtml(state);
+        badge.className = 'px-3 py-1 rounded-full text-xs font-medium ' + sc.bg + ' ' + sc.text;
+      }
+
+      // Metrics panel
+      if (box) {
+        const stateTextColor = {
+          'Running': 'text-green-400',
+          'Starting': 'text-amber-400', 'Restarting': 'text-amber-400', 'Stopping': 'text-amber-400',
+          'Configuring': 'text-amber-400', 'Pre-Start': 'text-amber-400',
+          'Installing': 'text-amber-400', 'Updating': 'text-amber-400',
+          'Stopped': 'text-neutral-500', 'Sleeping': 'text-neutral-500', 'Waiting': 'text-neutral-500',
+          'Failed': 'text-red-400',
+        }[state] || 'text-neutral-400';
+
+        const memStr   = d.mem_total_mb > 0 ? _fmtMb(d.mem_used_mb) + ' / ' + _fmtMb(d.mem_total_mb) : '--';
+        const uptimeStr = d.uptime ? escapeHtml(String(d.uptime)) : '--';
+
+        // Update pulse dot
+        const pulse = document.getElementById(slug + '-status-pulse');
+        if (pulse) {
+          const pulseColor = {
+            'Running': 'bg-green-400', 'Starting': 'bg-amber-400', 'Restarting': 'bg-amber-400',
+            'Stopping': 'bg-amber-400', 'Stopped': 'bg-neutral-600', 'Failed': 'bg-red-500',
+          }[state] || 'bg-neutral-600';
+          const isActive = _TRANSITIONAL_STATES.has(state) || state === 'Running';
+          pulse.className = 'w-2.5 h-2.5 rounded-full ' + pulseColor + (isActive ? ' animate-pulse' : '');
+        }
+        // Update player count badge
+        const pcEl = document.getElementById(slug + '-player-count');
+        if (pcEl) pcEl.textContent = d.players + ' / ' + d.players_max;
+
+        const cpuColor  = d.cpu_pct > 80 ? '#ef4444' : d.cpu_pct > 50 ? '#f59e0b' : '#22c55e';
+        const memColor  = d.mem_pct > 80 ? '#ef4444' : d.mem_pct > 50 ? '#f59e0b' : '#3b82f6';
+        const plyrPct   = d.players_max > 0 ? Math.round(d.players / d.players_max * 100) : 0;
+        const plyrColor = plyrPct > 80 ? '#ef4444' : plyrPct > 50 ? '#f59e0b' : '#a855f7';
+
+        box.className = 'rounded-xl mb-4 min-h-[160px] bg-neutral-900 border border-neutral-800 overflow-hidden';
+        box.innerHTML = `
+          <div class="w-full">
+            <!-- State banner -->
+            <div class="px-5 pt-4 pb-3 flex items-center justify-between border-b border-neutral-800">
+              <div class="flex items-center gap-3">
+                <span class="text-xl font-bold tracking-tight ${stateTextColor}">${escapeHtml(state)}</span>
+                ${_TRANSITIONAL_STATES.has(state) ? '<i class="fas fa-circle-notch fa-spin text-xs ' + stateTextColor + '"></i>' : ''}
+              </div>
+              <span class="text-xs text-neutral-500 font-mono tabular-nums"><i class="fas fa-clock mr-1 opacity-50"></i>${uptimeStr}</span>
+            </div>
+            <!-- Metrics -->
+            <div class="grid grid-cols-3 divide-x divide-neutral-800">
+              <div class="p-4 text-center">
+                <p class="text-xs text-neutral-500 uppercase tracking-widest mb-2">CPU</p>
+                <p class="text-2xl font-bold text-white tabular-nums">${d.cpu_pct}<span class="text-sm text-neutral-400 ml-0.5">%</span></p>
+                <div class="mt-2 h-1.5 bg-neutral-800 rounded-full overflow-hidden">
+                  <div class="h-full rounded-full transition-all duration-700" style="width:${Math.min(d.cpu_pct,100)}%;background:${cpuColor}"></div>
+                </div>
+              </div>
+              <div class="p-4 text-center">
+                <p class="text-xs text-neutral-500 uppercase tracking-widest mb-2">Memory</p>
+                <p class="text-lg font-bold text-white">${memStr}</p>
+                <div class="mt-2 h-1.5 bg-neutral-800 rounded-full overflow-hidden">
+                  <div class="h-full rounded-full transition-all duration-700" style="width:${Math.min(d.mem_pct,100)}%;background:${memColor}"></div>
+                </div>
+              </div>
+              <div class="p-4 text-center">
+                <p class="text-xs text-neutral-500 uppercase tracking-widest mb-2">Players</p>
+                <p class="text-2xl font-bold text-white tabular-nums">${d.players}<span class="text-sm text-neutral-400 ml-0.5">/ ${d.players_max}</span></p>
+                <div class="mt-2 h-1.5 bg-neutral-800 rounded-full overflow-hidden">
+                  <div class="h-full rounded-full transition-all duration-700" style="width:${plyrPct}%;background:${plyrColor}"></div>
+                </div>
+              </div>
+            </div>
+          </div>`;
+      }
+      // Auto-poll while transitional; stop and restore buttons once stable
+      if (_TRANSITIONAL_STATES.has(state)) {
+        _startPoll(slug);
+      } else {
+        _stopPoll(slug);
+        _restoreActionButtons(slug);
+        _startIdlePoll(slug);
+      }
+    })
+    .catch(err => {
+      const badge = document.getElementById('status-badge-' + slug);
+      if (badge) {
+        badge.innerHTML = '<i class="fas fa-circle-xmark mr-1"></i> Offline';
+        badge.className = 'px-3 py-1 rounded-full text-xs font-medium bg-red-900/50 text-red-400';
+      }
+      _startIdlePoll(slug);
+    });
+}
+
+function _startPoll(slug, interval) {
+  if (_pollTimers[slug]) return;
+  _pollTimers[slug] = setInterval(() => loadServerStatus(slug), interval || 5000);
+}
+function _stopPoll(slug) {
+  if (_pollTimers[slug]) { clearInterval(_pollTimers[slug]); delete _pollTimers[slug]; }
+}
+function _startIdlePoll(slug) {
+  // 30s background refresh for stable states - restarts as fast poll if state goes transitional
+  if (_pollTimers[slug]) return;
+  _pollTimers[slug] = setInterval(() => loadServerStatus(slug), 30000);
+}
+function _restoreActionButtons(slug) {
+  const labels = {start: '<i class="fas fa-play mr-1.5"></i>Start', restart: '<i class="fas fa-rotate-right mr-1.5"></i>Restart', stop: '<i class="fas fa-stop mr-1.5"></i>Stop'};
+  ['start','restart','stop'].forEach(a => {
+    const btn = document.getElementById(slug + '-btn-' + a);
+    if (btn) { btn.disabled = false; btn.innerHTML = labels[a]; }
+  });
+}
+
+// --- Server actions ---
+function serverAction(slug, action, evt) {
+  if (action === 'stop' && !confirm('Stop the ' + slug + ' server?')) return;
+  const _btnLabels = {start: '<i class="fas fa-play mr-1.5"></i>Start', restart: '<i class="fas fa-rotate-right mr-1.5"></i>Restart', stop: '<i class="fas fa-stop mr-1.5"></i>Stop'};
+  const btn = evt && evt.target ? evt.target.closest('button') : null;
+  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-circle-notch fa-spin mr-1.5"></i>' + action.charAt(0).toUpperCase() + action.slice(1) + 'ing...'; }
+
+  csrfFetch('/api/admin/quest-control/server/action/', {
+    method: 'POST',
+    body: JSON.stringify({bot: slug, action}),
+  }).then(r => r.json()).then(d => {
+    if (btn) { btn.disabled = false; btn.innerHTML = btn.innerHTML.replace(/<i[^>]*><\/i>/, ''); }
+    logAction(slug, 'Server ' + action + ': ' + (d.ok ? 'OK' : (d.error || 'Failed')));
+    if (d.ok) {
+      // Poll immediately and keep polling until stable
+      setTimeout(() => { loadServerStatus(slug); _startPoll(slug); }, 2000);
+    } else {
+      if (btn) { btn.disabled = false; btn.innerHTML = _btnLabels[action] || action; }
+    }
+  }).catch(() => {
+    if (btn) { btn.disabled = false; btn.innerHTML = _btnLabels[action] || action; }
+    logAction(slug, 'Server ' + action + ': request failed');
+  });
+}
+
+// --- God mode actions ---
+function godAction(slug, action) {
+  const data = {bot: slug, action};
+  if (action === 'broadcast') {
+    const inp = document.getElementById(slug + '-broadcast-msg');
+    data.message = inp ? inp.value.trim() : '';
+    if (!data.message) return;
+  } else if (['kick', 'ban', 'teleport', 'give_item'].includes(action)) {
+    const inp = document.getElementById(slug + '-target-player');
+    data.player = inp ? inp.value.trim() : '';
+    if (!data.player) return;
+    if (action === 'give_item') {
+      const item = document.getElementById(slug + '-give-item');
+      data.item = item ? item.value.trim() : '';
+    }
+  } else if (action === 'spawn') {
+    const qty = document.getElementById('7dayquest-spawn-qty');
+    data.quantity = qty ? parseInt(qty.value) : 1;
+    const sel = document.getElementById('7dayquest-spawn-type');
+    data.entity = sel ? sel.value : '';
+    if (!data.entity) return;
+  } else if (action === 'set_time') {
+    const inp = document.getElementById('7dayquest-set-time');
+    data.hour = inp ? parseInt(inp.value) : 0;
+  }
+  if (action === 'ban' && !confirm('Ban ' + (data.player || '?') + '?')) return;
+  csrfFetch('/api/admin/quest-control/god-action/', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  }).then(r => r.json()).then(d => {
+    logAction(slug, action + ': ' + (d.ok ? (d.result || 'OK') : (d.error || 'Failed')));
+  }).catch(() => logAction(slug, action + ': request failed'));
+}
+
+// --- Action log ---
+function logAction(slug, msg) {
+  const log = document.getElementById(slug + '-action-log');
+  if (!log) return;
+  const time = new Date().toLocaleTimeString();
+  const line = document.createElement('p');
+  line.className = 'text-green-400';
+  line.textContent = '[' + time + '] ' + msg;
+  if (log.querySelector('.text-neutral-600')) log.innerHTML = '';
+  log.prepend(line);
+}
+
+// ============================================================
+// EMBED COMPOSER
+// ============================================================
+
+// Cache channels per bot as they're loaded (by renderChannelFields)
+const _loadedChannels = {};
+
+// Patch renderChannelFields to also refresh the embed tab channel select
+const _origRenderChannelFields = renderChannelFields;
+function renderChannelFields(slug, channels, roles) {
+  _loadedChannels[slug] = channels;
+  _origRenderChannelFields(slug, channels, roles);
+  _refreshEmbedChannelSelect(slug);
+}
+
+function _refreshEmbedChannelSelect(slug) {
+  const wrap = document.getElementById(slug + '-embed-channel-select');
+  if (!wrap) return;
+  wrap.innerHTML = '';
+  if (!window._embedChannelVal) window._embedChannelVal = {};
+  window._embedChannelVal[slug] = '';
+  const channels = _loadedChannels[slug] || BOT_CHANNELS[slug] || [];
+  const items = [{value: '', label: '-- Select channel --'}].concat(channels);
+  createCustomSelect(wrap, {
+    id: slug + '-embed-channel',
+    placeholder: 'Select channel...',
+    items: items,
+    onSelect: function(val) { window._embedChannelVal[slug] = val; },
+  });
+}
+
+function _initEmbedTabIfNeeded(slug) {
+  const wrap = document.getElementById(slug + '-embed-channel-select');
+  if (!wrap || wrap.querySelector('.cs-display')) return;
+  _refreshEmbedChannelSelect(slug);
+}
+
+function addEmbedField(slug) {
+  const container = document.getElementById(slug + '-embed-fields');
+  if (!container) return;
+  const existing = container.querySelectorAll('.embed-field-row').length;
+  if (existing >= 6) return;
+
+  const idx = Date.now();
+  const row = document.createElement('div');
+  row.className = 'embed-field-row grid grid-cols-12 gap-2 items-start';
+  row.innerHTML = `
+    <div class="col-span-4">
+      <input type="text" placeholder="Field name" maxlength="256"
+        class="embed-field-name w-full bg-neutral-800 border border-neutral-700 rounded-lg px-2.5 py-1.5 text-white text-xs focus:outline-none focus:ring-1 focus:ring-purple-500/60"
+        oninput="previewEmbed('${slug}')">
+    </div>
+    <div class="col-span-6">
+      <input type="text" placeholder="Field value" maxlength="1024"
+        class="embed-field-value w-full bg-neutral-800 border border-neutral-700 rounded-lg px-2.5 py-1.5 text-white text-xs focus:outline-none focus:ring-1 focus:ring-purple-500/60"
+        oninput="previewEmbed('${slug}')">
+    </div>
+    <div class="col-span-1 flex items-center justify-center pt-1.5">
+      <label class="flex items-center gap-1 cursor-pointer" title="Inline">
+        <input type="checkbox" class="embed-field-inline" checked onchange="previewEmbed('${slug}')">
+        <span class="text-xs text-neutral-500">Inline</span>
+      </label>
+    </div>
+    <div class="col-span-1 flex items-center pt-1">
+      <button type="button" onclick="this.closest('.embed-field-row').remove(); previewEmbed('${slug}')"
+        class="text-neutral-600 hover:text-red-400 transition-colors p-1">
+        <i class="fas fa-times text-xs"></i>
+      </button>
+    </div>
+  `;
+  container.appendChild(row);
+  previewEmbed(slug);
+}
+
+function _getEmbedFields(slug) {
+  const container = document.getElementById(slug + '-embed-fields');
+  if (!container) return [];
+  const rows = container.querySelectorAll('.embed-field-row');
+  const fields = [];
+  rows.forEach(row => {
+    const name = row.querySelector('.embed-field-name')?.value.trim() || '';
+    const value = row.querySelector('.embed-field-value')?.value.trim() || '';
+    const inline = row.querySelector('.embed-field-inline')?.checked ?? true;
+    if (name && value) fields.push({name, value, inline});
+  });
+  return fields;
+}
+
+function previewEmbed(slug) {
+  const title   = document.getElementById(slug + '-embed-title')?.value.trim() || '';
+  const desc    = document.getElementById(slug + '-embed-description')?.value.trim() || '';
+  const color   = document.getElementById(slug + '-embed-color')?.value || '#5865F2';
+  const footer  = document.getElementById(slug + '-embed-footer')?.value.trim() || '';
+  const fields  = _getEmbedFields(slug);
+  const preview = document.getElementById(slug + '-embed-preview');
+  if (!preview) return;
+
+  if (!title && !desc && !fields.length) {
+    preview.innerHTML = '<div class="flex h-full min-h-[160px] items-center justify-center"><p class="text-neutral-600 text-sm">Start typing to preview your embed</p></div>';
+    return;
+  }
+
+  let html = `<div class="flex min-h-[160px]">
+    <div class="w-1 rounded-l-xl shrink-0" style="background:${escapeHtml(color)}"></div>
+    <div class="p-4 flex-1">`;
+
+  if (title) html += `<div class="font-bold text-white text-sm mb-1">${escapeHtml(title)}</div>`;
+  if (desc) html += `<div class="text-neutral-300 text-xs mb-3 whitespace-pre-wrap">${escapeHtml(desc)}</div>`;
+
+  if (fields.length) {
+    html += '<div class="grid gap-2 mb-3" style="grid-template-columns: repeat(auto-fill, minmax(120px, 1fr))">';
+    fields.forEach(f => {
+      html += `<div class="${f.inline ? '' : 'col-span-full'}">
+        <div class="text-xs font-semibold text-white mb-0.5">${escapeHtml(f.name)}</div>
+        <div class="text-xs text-neutral-300">${escapeHtml(f.value)}</div>
+      </div>`;
+    });
+    html += '</div>';
+  }
+
+  if (footer) html += `<div class="text-neutral-500 text-xs border-t border-neutral-700 pt-2 mt-1">${escapeHtml(footer)}</div>`;
+
+  html += '</div></div>';
+  preview.innerHTML = html;
+}
+
+function clearEmbedComposer(slug) {
+  const fields = ['title', 'description', 'footer'];
+  fields.forEach(f => {
+    const el = document.getElementById(slug + '-embed-' + f);
+    if (el) el.value = '';
+  });
+  const colorEl = document.getElementById(slug + '-embed-color');
+  if (colorEl) colorEl.value = '#5865F2';
+  const fieldsContainer = document.getElementById(slug + '-embed-fields');
+  if (fieldsContainer) fieldsContainer.innerHTML = '';
+  previewEmbed(slug);
+  const msgEl = document.getElementById(slug + '-embed-msg');
+  if (msgEl) msgEl.textContent = '';
+}
+
+// Per-bot preset content maps (game-appropriate)
+const _EMBED_PRESETS = {
+  vquest: {
+    maintenance: {title: 'Server Maintenance', description: 'The V Rising server is going down briefly for maintenance. Back up shortly!', color: '#F59E0B', footer: 'VQuest - Casual Heroes Hosting'},
+    online:      {title: 'Server Is Online', description: 'The V Rising server is back online. Time to hunt!', color: '#10B981', footer: 'VQuest - Casual Heroes Hosting'},
+    event:       {title: 'Special Blood Moon Event', description: 'A special Blood Moon event is beginning. Extra chaos, extra loot. Get in here.', color: '#8B0000', footer: 'VQuest - Casual Heroes Hosting'},
+    wipe:        {title: 'World Wipe Incoming', description: 'A world wipe is scheduled. Grab what you can before the reset!', color: '#EF4444', footer: 'VQuest - Casual Heroes Hosting'},
+    update:      {title: 'Game Update Applied', description: 'V Rising has been updated. Server restarted with the latest patch. Check the changelog!', color: '#6366F1', footer: 'VQuest - Casual Heroes Hosting'},
+  },
+  '7dayquest': {
+    maintenance: {title: 'Server Maintenance', description: 'The 7DTD server is going down briefly for maintenance. Back up shortly!', color: '#F59E0B', footer: '7DayQuest - Casual Heroes Hosting'},
+    online:      {title: 'Server Is Online', description: 'The wasteland is open. 7 Days to Die server is live - survive if you can!', color: '#10B981', footer: '7DayQuest - Casual Heroes Hosting'},
+    event:       {title: 'Horde Night Event', description: 'A special Horde Night event is starting. Fortify your base NOW.', color: '#E8890C', footer: '7DayQuest - Casual Heroes Hosting'},
+    wipe:        {title: 'World Wipe Incoming', description: 'A world wipe is scheduled. Grab what you can before the wasteland resets!', color: '#EF4444', footer: '7DayQuest - Casual Heroes Hosting'},
+    update:      {title: 'Game Update Applied', description: '7 Days to Die has been updated. Server restarted with the latest patch.', color: '#6366F1', footer: '7DayQuest - Casual Heroes Hosting'},
+  },
+  shroudquest: {
+    maintenance: {title: 'Server Maintenance', description: 'The Enshrouded server is going down briefly for maintenance. Back up shortly!', color: '#F59E0B', footer: 'ShroudQuest - Casual Heroes Hosting'},
+    online:      {title: 'Server Is Online', description: 'The shroud awaits. Enshrouded server is live!', color: '#10B981', footer: 'ShroudQuest - Casual Heroes Hosting'},
+    event:       {title: 'Special Event', description: 'A special server event is starting. Get in there!', color: '#A855F7', footer: 'ShroudQuest - Casual Heroes Hosting'},
+    wipe:        {title: 'World Wipe Incoming', description: 'A world wipe is scheduled. Grab what you can!', color: '#EF4444', footer: 'ShroudQuest - Casual Heroes Hosting'},
+    update:      {title: 'Game Update Applied', description: 'Enshrouded has been updated. Server restarted with the latest patch.', color: '#6366F1', footer: 'ShroudQuest - Casual Heroes Hosting'},
+  },
+};
+const _EMBED_PRESETS_DEFAULT = {
+  maintenance: {title: 'Server Maintenance', description: 'Server is going down briefly for maintenance. Back up shortly!', color: '#F59E0B', footer: 'Casual Heroes Hosting'},
+  online:      {title: 'Server Is Online', description: 'Server is back online!', color: '#10B981', footer: 'Casual Heroes Hosting'},
+  event:       {title: 'Special Event', description: 'A special server event is starting. Get in here!', color: '#6366F1', footer: 'Casual Heroes Hosting'},
+  wipe:        {title: 'World Wipe Incoming', description: 'A world wipe is scheduled. Grab what you can before reset!', color: '#EF4444', footer: 'Casual Heroes Hosting'},
+  update:      {title: 'Game Update Applied', description: 'Server updated to latest patch and restarted.', color: '#6366F1', footer: 'Casual Heroes Hosting'},
+};
+
+function applyEmbedPreset(slug, preset) {
+  const map = _EMBED_PRESETS[slug] || _EMBED_PRESETS_DEFAULT;
+  const p = map[preset] || _EMBED_PRESETS_DEFAULT[preset];
+  if (!p) return;
+
+  const titleEl = document.getElementById(slug + '-embed-title');
+  const descEl  = document.getElementById(slug + '-embed-description');
+  const colorEl = document.getElementById(slug + '-embed-color');
+  const footerEl = document.getElementById(slug + '-embed-footer');
+
+  if (titleEl)  titleEl.value  = p.title || '';
+  if (descEl)   descEl.value   = p.description || '';
+  if (colorEl)  colorEl.value  = p.color || '#5865F2';
+  if (footerEl) footerEl.value = p.footer || '';
+
+  previewEmbed(slug);
+}
+
+async function sendQuestEmbed(slug) {
+  const channelId = window._embedChannelVal?.[slug] || '';
+  if (!channelId) {
+    alert('Select a target channel first.');
+    return;
+  }
+
+  const title   = document.getElementById(slug + '-embed-title')?.value.trim() || '';
+  const desc    = document.getElementById(slug + '-embed-description')?.value.trim() || '';
+  const color   = document.getElementById(slug + '-embed-color')?.value || '#5865F2';
+  const footer  = document.getElementById(slug + '-embed-footer')?.value.trim() || '';
+  const fields  = _getEmbedFields(slug);
+
+  if (!title && !desc) {
+    alert('Embed needs at least a title or description.');
+    return;
+  }
+
+  const btn  = document.getElementById(slug + '-embed-send-btn');
+  const msgEl = document.getElementById(slug + '-embed-msg');
+  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-circle-notch fa-spin text-xs"></i> Sending...'; }
+  if (msgEl) msgEl.textContent = '';
+
+  try {
+    const resp = await csrfFetch('/api/admin/quest-control/send-embed/', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({bot: slug, channel_id: channelId, title, description: desc, color, footer, fields}),
+    });
+    const data = await resp.json();
+    if (data.ok) {
+      if (msgEl) { msgEl.textContent = 'Embed queued - bot will deliver it within 5 seconds.'; msgEl.className = 'text-sm text-green-400'; }
+    } else {
+      if (msgEl) { msgEl.textContent = data.error || 'Failed to send.'; msgEl.className = 'text-sm text-red-400'; }
+    }
+  } catch(e) {
+    if (msgEl) { msgEl.textContent = 'Request failed.'; msgEl.className = 'text-sm text-red-400'; }
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-paper-plane text-xs"></i> Send Embed'; }
+  }
+}
+
+// --- Init on load ---
+window.addEventListener('load', function() {
+  // Init guild picker + render toggles + load server status for all bots
+  {% for bot in bots %}
+  try {
+    const guildWrap = document.getElementById('{{ bot.slug }}-guild-select-wrap');
+    if (guildWrap) {
+      const savedGuildId = '{{ bot.config.guild_id|default:"" }}';
+      _activeGuildId['{{ bot.slug }}'] = savedGuildId || '';
+      const guildItems = [{value: '', label: '-- Select server --'}].concat(
+        FLUXER_GUILDS.map(g => ({value: g.guild_id, label: g.guild_name || g.guild_id}))
+      );
+      createCustomSelect(guildWrap, {
+        id: '{{ bot.slug }}-guild-select',
+        placeholder: 'Select server...',
+        items: guildItems,
+        onSelect: function(val) { onGuildSelected('{{ bot.slug }}', val); },
+      });
+      // Pre-select saved guild and load its channels
+      if (savedGuildId && savedGuildId !== 'vquest_main' && savedGuildId !== 'sdtd_main'
+          && savedGuildId !== 'shroudquest_main' && savedGuildId !== 'valquest_main') {
+        const hidden = guildWrap.querySelector('input[type="hidden"]');
+        if (hidden) hidden.value = savedGuildId;
+        const btn = guildWrap.querySelector('[data-value="' + savedGuildId + '"]');
+        if (btn) {
+          const display = guildWrap.querySelector('.cs-display');
+          if (display) display.textContent = btn.textContent.trim();
+        }
+        // Pre-populate with channels already loaded server-side
+        const preloaded = BOT_CHANNELS['{{ bot.slug }}'] || [];
+        if (preloaded.length) renderChannelFields('{{ bot.slug }}', preloaded, []);
+      }
+    }
+  } catch(e) { console.error('guild select {{ bot.slug }}:', e); }
+  try { renderToggles('{{ bot.slug }}'); } catch(e) { console.error('renderToggles {{ bot.slug }}:', e); }
+  try { loadServerStatus('{{ bot.slug }}'); } catch(e) { console.error('loadServerStatus {{ bot.slug }}:', e); }
+  {% endfor %}
+  // Start 30s idle background refresh for all bots after initial status loads
+  setTimeout(function() {
+    {% for bot in bots %}
+    _startIdlePoll('{{ bot.slug }}');
+    {% endfor %}
+  }, 3000);
+
+  // Init spawn select for 7DayQuest
+  try {
+    const spawnWrap = document.getElementById('7dayquest-spawn-select-wrap');
+    if (spawnWrap) {
+      createCustomSelect(spawnWrap, {
+        id: '7dayquest-spawn-type',
+        placeholder: 'Select entity...',
+        items: [
+          {value: 'zombieBiker',        label: 'Zombie Biker'},
+          {value: 'zombieNurse',        label: 'Zombie Nurse'},
+          {value: 'zombieBurnt',        label: 'Zombie Burnt'},
+          {value: 'zombieSpiderFeral',  label: 'Feral Spider'},
+          {value: 'zombieJanitorFeral', label: 'Feral Janitor'},
+          {value: 'animalBossGrace',    label: 'Boss Grace'},
+          {value: 'feral_strike',       label: 'Feral Strike Faction'},
+          {value: 'radiated_wave',      label: 'Radiated Wave Faction'},
+          {value: 'hazmat_response',    label: 'Hazmat Response Faction'},
+        ],
+      });
+    }
+  } catch(e) { console.error('spawn select init:', e); }
+});
+</script>
+{% endblock %}

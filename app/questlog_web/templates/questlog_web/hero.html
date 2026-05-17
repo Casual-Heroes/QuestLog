@@ -224,8 +224,8 @@
     QuestLog Champion
   </div>
 
-  <h1 class="champion-title">Keep it independent,<br><span>earn your place.</span></h1>
-  <p class="champion-subtitle">QuestLog is built by gamers, for gamers - no ads, no investor nonsense. Champions keep the lights on. In return you get perks, recognition, and a direct line to what's coming.</p>
+  <h1 class="champion-title">Support the community.<br><span>Skip the hunt, not the grind.</span></h1>
+  <p class="champion-subtitle">QuestLog is built by gamers, for gamers - no ads, no investor nonsense. Champions keep the lights on. In return you get queue priority, exclusive perks, and a direct line to what's coming. Zones are still earned. Always.</p>
 
   {% if web_user and web_user.is_hero %}
   <div class="already-champion">
@@ -240,12 +240,26 @@
 
   <div class="champion-card">
     <div class="price-row">
-      <span class="price-amount">$4.99</span>
+      <span class="price-amount">$6.99</span>
       <span class="price-period">/month</span>
     </div>
     <p class="price-note">Cancel anytime. Price never increases.</p>
 
     <ul class="perks-list">
+      <li>
+        <div class="perk-icon"><i class="fas fa-list-ol" style="color:#22d3ee;font-size:0.75rem;"></i></div>
+        <div>
+          <div class="perk-label">Priority Queue</div>
+          <div class="perk-desc">When a server is full, Champions jump to the front of the line. Not P2W - just wait less. Everyone still earns their way in through Legacy.</div>
+        </div>
+      </li>
+      <li>
+        <div class="perk-icon"><i class="fas fa-tag" style="color:#34d399;font-size:0.75rem;"></i></div>
+        <div>
+          <div class="perk-label">12% Merch Discount</div>
+          <div class="perk-desc">12% off all Casual Heroes merch, applied automatically at checkout. More than Twitch subs get - direct support means more stays in the community.</div>
+        </div>
+      </li>
       <li>
         <div class="perk-icon"><i class="fas fa-shield-alt" style="color:#fbbf24;font-size:0.75rem;"></i></div>
         <div>
@@ -263,29 +277,22 @@
       <li>
         <div class="perk-icon"><i class="fas fa-hashtag" style="color:#34d399;font-size:0.75rem;"></i></div>
         <div>
-          <div class="perk-label">Champions Channel on Fluxer</div>
-          <div class="perk-desc">Auto-unlocks the #champions category on Fluxer - behind the scenes, first looks at new features, and a direct line to share feedback.</div>
+          <div class="perk-label">Champions Channel on Fluxer + Discord</div>
+          <div class="perk-desc">Auto-unlocks the #champions category on Fluxer and Discord - direct line to share feedback and talk to the people building this thing.</div>
+        </div>
+      </li>
+      <li>
+        <div class="perk-icon"><i class="fas fa-flask" style="color:#e879f9;font-size:0.75rem;"></i></div>
+        <div>
+          <div class="perk-label">Early Access to New Features</div>
+          <div class="perk-desc">Champions get new QuestLog features before anyone else - new pages, tools, and systems land in your account first. You shape it before it ships.</div>
         </div>
       </li>
       <li>
         <div class="perk-icon"><i class="fas fa-align-left" style="color:#60a5fa;font-size:0.75rem;"></i></div>
         <div>
           <div class="perk-label">Extended Posts</div>
-          <div class="perk-desc">3,000 character limit on posts (vs 1,000 for free) and up to 8 images per post (vs 4).</div>
-        </div>
-      </li>
-      <li>
-        <div class="perk-icon"><i class="fas fa-users" style="color:#f87171;font-size:0.75rem;"></i></div>
-        <div>
-          <div class="perk-label">Champions Listing (opt-in)</div>
-          <div class="perk-desc">Opt-in to be listed publicly on the Champions page. Show the community you helped build this - toggle it on or off from your profile settings anytime.</div>
-        </div>
-      </li>
-      <li>
-        <div class="perk-icon"><i class="fas fa-scroll" style="color:#fbbf24;font-size:0.75rem;"></i></div>
-        <div>
-          <div class="perk-label">Name in the Credits</div>
-          <div class="perk-desc">Your username goes in the site credits - part of QuestLog's history. <a href="#credits" style="color:#fbbf24;">See the credits</a></div>
+          <div class="perk-desc">4,000 character limit on posts (vs 1,000 free / 2,000 Warden) and up to 8 images per post (vs 4).</div>
         </div>
       </li>
       <li>
@@ -297,6 +304,44 @@
       </li>
     </ul>
 
+    <!-- Twitch comparison -->
+    <div style="background:rgba(139,92,246,0.05);border:1px solid rgba(139,92,246,0.2);border-radius:12px;padding:16px 18px;margin-bottom:24px;">
+      <p style="font-size:0.82rem;color:#c4b5fd;font-weight:700;margin:0 0 8px 0;">
+        <i class="fab fa-twitch mr-2"></i>Already a Twitch sub? Here's how it compares.
+      </p>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:0.78rem;">
+        <div>
+          <p style="color:#9ca3af;font-weight:600;margin:0 0 4px 0;">Twitch Sub ($4.99)</p>
+          <ul style="color:#6b7280;margin:0;padding-left:14px;line-height:1.8;">
+            <li>Priority queue</li>
+            <li>Fluxer + Discord supporter role</li>
+            <li>5% merch discount</li>
+            <li>Twitch emotes</li>
+          </ul>
+        </div>
+        <div>
+          <p style="color:#fcd34d;font-weight:600;margin:0 0 4px 0;">Champion ($6.99 direct)</p>
+          <ul style="color:#9ca3af;margin:0;padding-left:14px;line-height:1.8;">
+            <li>Priority queue</li>
+            <li>Champion badge + exclusive channel</li>
+            <li>12% merch discount</li>
+            <li>Two flair slots + extended posts</li>
+          </ul>
+        </div>
+      </div>
+      <p style="font-size:0.75rem;color:#4b5563;margin:10px 0 0 0;">Twitch takes ~50% - direct Champion means more goes back into the community.</p>
+    </div>
+
+    <!-- Anti-P2W statement -->
+    <div style="background:rgba(34,197,94,0.05);border:1px solid rgba(34,197,94,0.2);border-radius:12px;padding:16px 18px;margin-bottom:24px;">
+      <p style="font-size:0.82rem;color:#86efac;font-weight:700;margin:0 0 4px 0;">
+        <i class="fas fa-shield-alt mr-2"></i>Our promise - no pay to win. Ever.
+      </p>
+      <p style="font-size:0.8rem;color:#6b7280;margin:0;line-height:1.6;">
+        Champion gives you convenience and community perks - it does not give you better loot, better quests, better events, zone access, or any in-game advantage. Server regions are locked behind Legacy Marks, which you earn by playing. You can't buy Legacy. Same ceiling for everyone.
+      </p>
+    </div>
+
     {% if web_user and web_user.is_hero %}
     <form method="post" action="{% url 'questlog_web_hero_portal' %}" style="margin:0;">
       {% csrf_token %}
@@ -306,7 +351,7 @@
     </form>
     {% elif stripe_publishable_key and hero_price_id %}
     <button id="checkout-btn" class="champion-btn" onclick="startCheckout()">
-      Become a Champion - $4.99/mo
+      Become a Champion - $6.99/mo
     </button>
     <p class="manage-link" style="margin-top:8px;font-size:0.78rem;color:#4b5563;">
       Secured by Stripe. Cancel any time from your subscription portal.
@@ -317,35 +362,32 @@
     </button>
     {% endif %}
 
-    <div style="margin-top:16px;font-size:0.8rem;color:#4b5563;text-align:center;padding:10px 16px;border:1px solid rgba(255,255,255,0.04);border-radius:10px;background:rgba(255,255,255,0.01);">
-      Prefer a one-time tip?
-      <a href="https://ko-fi.com/casualheroes" target="_blank" rel="noopener" style="color:#f59e0b;text-decoration:none;">Ko-fi</a>
-      is always open - no account needed.
-    </div>
   </div>
 
 
-  <!-- Credits -->
+  <!-- Founders Credits -->
   <div id="credits" style="margin-bottom:40px;scroll-margin-top:24px;">
-    <h2 style="font-size:1.1rem;font-weight:700;color:#fff;margin-bottom:4px;">
-      <i class="fas fa-scroll text-amber-400 mr-2"></i>Site Credits
-    </h2>
-    <p style="font-size:0.82rem;color:#6b7280;margin-bottom:16px;">These Champions helped build QuestLog. Thank you, Hero! Your support helps cover server costs, electricity, and keeps this community alive. Without you, none of this would be possible.</p>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
+      <i class="fas fa-medal" style="color:#f59e0b;font-size:1.1rem;"></i>
+      <h2 style="font-size:1.1rem;font-weight:700;color:#fff;margin:0;">Founders Credits</h2>
+    </div>
+    <p style="font-size:0.82rem;color:#6b7280;margin-bottom:16px;">Make a one-time donation of $25 or more and earn your name here permanently - a spot in QuestLog's history. Not a sub, not a badge. Just proof you were here early and you believed in it. <a href="https://ko-fi.com/casualheroes" target="_blank" rel="noopener" style="color:#d97706;">Ko-fi</a></p>
     {% if champions %}
     <div style="display:flex;flex-wrap:wrap;gap:8px;">
       {% for c in champions %}
-      <a href="/ql/u/{{ c.username }}/" style="display:inline-flex;align-items:center;gap:6px;background:rgba(245,158,11,0.06);border:1px solid rgba(245,158,11,0.18);border-radius:8px;padding:5px 12px;text-decoration:none;">
+      <a href="/u/{{ c.username }}/" style="display:inline-flex;align-items:center;gap:6px;background:rgba(245,158,11,0.06);border:1px solid rgba(245,158,11,0.25);border-radius:8px;padding:6px 14px;text-decoration:none;">
         {% if c.avatar_url %}
-        <img src="{{ c.avatar_url }}" alt="{{ c.username }}" style="width:18px;height:18px;border-radius:4px;object-fit:cover;">
+        <img src="{{ c.avatar_url }}" alt="{{ c.username }}" style="width:20px;height:20px;border-radius:4px;object-fit:cover;">
         {% endif %}
-        <span style="font-size:0.82rem;color:#fcd34d;font-weight:600;">{{ c.username }}</span>
+        <i class="fas fa-medal" style="color:#f59e0b;font-size:0.7rem;"></i>
+        <span style="font-size:0.82rem;color:#fcd34d;font-weight:700;">{{ c.username }}</span>
       </a>
       {% endfor %}
     </div>
-    <p style="font-size:0.75rem;color:#4b5563;margin-top:10px;">Want to be listed here? <a href="#" onclick="document.getElementById('checkout-btn')?.scrollIntoView({behavior:'smooth'});return false;" style="color:#d97706;">Become a Champion</a> and opt in from Profile Settings.</p>
     {% else %}
-    <div style="background:rgba(245,158,11,0.04);border:1px solid rgba(245,158,11,0.1);border-radius:12px;padding:20px;text-align:center;">
-      <p style="color:#6b7280;font-size:0.88rem;margin:0;">Be the first in the credits. <a href="#" onclick="window.scrollTo({top:0,behavior:'smooth'});return false;" style="color:#d97706;">Become a Champion</a></p>
+    <div style="background:rgba(245,158,11,0.03);border:1px solid rgba(245,158,11,0.08);border-radius:12px;padding:20px;text-align:center;">
+      <i class="fas fa-medal" style="color:#4b5563;font-size:1.4rem;display:block;margin-bottom:8px;"></i>
+      <p style="color:#4b5563;font-size:0.85rem;margin:0;">No Founders yet. Be the first to leave your mark.</p>
     </div>
     {% endif %}
   </div>
@@ -354,13 +396,23 @@
     <h2 style="font-size:1.1rem;font-weight:700;color:#fff;margin-bottom:4px;">FAQ</h2>
 
     <div class="faq-item">
+      <div class="faq-q">Is this pay to win?</div>
+      <div class="faq-a">No. Champion gives you queue priority and community perks - nothing more. Zone access, better loot, quests, events, named boss encounters, and class artifacts are all gated behind Legacy Marks, which are earned by playing. You can't buy Legacy. A Champion who just subscribed has zero Legacy content unlocked - the same as any new free player. You will never buy a gameplay advantage on Casual Heroes. Ever.</div>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-q">Can I access all server regions without paying?</div>
+      <div class="faq-a">Yes. All server regions in Project SYNAPSE unlock via Legacy Marks earned through playing. Zone gates check your Legacy tier - no payment path bypasses them. Champion only skips the queue when the server is full. The grind path exists for everyone and leads to the same places.</div>
+    </div>
+
+    <div class="faq-item">
       <div class="faq-q">Can I cancel any time?</div>
       <div class="faq-a">Yes. Cancel from the Stripe customer portal anytime. Your perks stay active until the end of your billing period.</div>
     </div>
 
     <div class="faq-item">
       <div class="faq-q">Will the price ever go up?</div>
-      <div class="faq-a">No. $4.99/month is the price, period. If you're already subscribed when you read this, that's your rate forever.</div>
+      <div class="faq-a">No. $6.99/month is the price, period. If you're already subscribed when you read this, that's your rate forever.</div>
     </div>
 
     <div class="faq-item">
@@ -400,7 +452,7 @@ function startCheckout() {
   btn.disabled = true;
   btn.textContent = 'Redirecting to Stripe...';
 
-  csrfFetch('/ql/api/billing/checkout/', { method: 'POST' })
+  csrfFetch('/api/billing/checkout/', { method: 'POST' })
     .then(function(r) { return r.json(); })
     .then(function(data) {
       if (data.url) {

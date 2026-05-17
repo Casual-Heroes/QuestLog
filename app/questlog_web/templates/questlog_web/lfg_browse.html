@@ -1,7 +1,9 @@
 {% extends "questlog_web/base_web.html" %}
 {% load static %}
 
-{% block title %}Find Groups - QuestLog{% endblock %}
+{% block title %}Find Groups | Casual Heroes{% endblock %}
+{% block og_title %}Looking for Group | Casual Heroes{% endblock %}
+{% block og_description %}A community for working adults, parents, and gamers who grew up but never quite left Neverland.{% endblock %}
 
 {% block web_content %}
 {% include 'questlog/partials/custom_select.html' %}
@@ -292,7 +294,7 @@ async function searchGameFilter(q) {
   gameFilterDropdown.classList.remove('hidden');
 
   try {
-    const res = await fetch(`/ql/api/igdb/search/?q=${encodeURIComponent(q)}&limit=8`);
+    const res = await fetch(`/api/igdb/search/?q=${encodeURIComponent(q)}&limit=8`);
     const data = await res.json();
     const igdbGames = data.games || [];
 
@@ -490,7 +492,7 @@ communityFilterSelect = createCustomSelect({
 
 async function loadCommunityGuilds() {
   try {
-    const res = await fetch('/ql/api/lfg/community-guilds/');
+    const res = await fetch('/api/lfg/community-guilds/');
     const data = await res.json();
     const guilds = data.guilds || [];
     if (!guilds.length) return;
@@ -904,7 +906,7 @@ function getEffectiveSchema(group) {
 async function kickMember(groupId, userId, username) {
   if (!confirm(`Kick ${username} from the group?`)) return;
   try {
-    const res = await csrfFetch(`/ql/api/lfg/${groupId}/kick/${userId}/`, { method: 'POST' });
+    const res = await csrfFetch(`/api/lfg/${groupId}/kick/${userId}/`, { method: 'POST' });
     const data = await res.json();
     if (data.success) { showToast('Member removed from group'); loadGroups(); }
     else showToast(data.error || 'Failed to kick member', 'error');
@@ -916,7 +918,7 @@ async function kickMember(groupId, userId, username) {
 async function leaveGroup(groupId) {
   if (!confirm('Leave this group?')) return;
   try {
-    const res = await csrfFetch(`/ql/lfg/${groupId}/leave/`, { method: 'POST' });
+    const res = await csrfFetch(`/lfg/${groupId}/leave/`, { method: 'POST' });
     const data = await res.json();
     if (data.success) { showToast('Left group'); loadGroups(); }
     else showToast(data.error || 'Failed to leave group', 'error');
@@ -947,7 +949,7 @@ async function submitFluxerEdit() {
   const size = parseInt(document.getElementById('fluxerEditSize')?.value || '4', 10);
   const time = document.getElementById('fluxerEditTime')?.value?.trim() || '';
   try {
-    const res = await csrfFetch(`/ql/api/lfg/fluxer/${fluxerEditPostId}/edit/`, {
+    const res = await csrfFetch(`/api/lfg/fluxer/${fluxerEditPostId}/edit/`, {
       method: 'POST',
       body: JSON.stringify({ description: desc || null, group_size: size, scheduled_time: time || null }),
     });
@@ -961,7 +963,7 @@ async function fluxerMarkFull(postId, btn) {
   if (!confirm('Mark this group as full? It will be closed.')) return;
   btn.disabled = true;
   try {
-    const res = await csrfFetch(`/ql/api/lfg/fluxer/${postId}/mark-full/`, { method: 'POST' });
+    const res = await csrfFetch(`/api/lfg/fluxer/${postId}/mark-full/`, { method: 'POST' });
     const data = await res.json();
     if (data.success) { showToast('Group marked full'); loadGroups(); }
     else { showToast(data.error || 'Failed', 'error'); btn.disabled = false; }
@@ -972,7 +974,7 @@ async function fluxerClose(postId, btn) {
   if (!confirm('Close and remove this LFG post?')) return;
   btn.disabled = true;
   try {
-    const res = await csrfFetch(`/ql/api/lfg/fluxer/${postId}/close/`, { method: 'POST' });
+    const res = await csrfFetch(`/api/lfg/fluxer/${postId}/close/`, { method: 'POST' });
     const data = await res.json();
     if (data.success) { showToast('Group closed'); loadGroups(); }
     else { showToast(data.error || 'Failed', 'error'); btn.disabled = false; }
@@ -983,7 +985,7 @@ async function fluxerGuildClose(groupId, btn) {
   if (!confirm('Close this group? It will be removed from the LFG browser.')) return;
   btn.disabled = true;
   try {
-    const res = await csrfFetch(`/ql/api/lfg/fluxer-guild/${groupId}/close/`, { method: 'POST' });
+    const res = await csrfFetch(`/api/lfg/fluxer-guild/${groupId}/close/`, { method: 'POST' });
     const data = await res.json();
     if (data.success) { showToast('Group closed'); loadGroups(); }
     else { showToast(data.error || 'Failed', 'error'); btn.disabled = false; }
@@ -1081,7 +1083,12 @@ function renderGroup(group) {
 
     Object.entries(sel).forEach(([key, value]) => {
       const kl = key.toLowerCase();
-      const nv = Array.isArray(value) ? (value[0] || '') : value;
+      // Normalize: parse JSON strings, flatten arrays to comma-joined string
+      let _v = value;
+      if (typeof _v === 'string' && _v.startsWith('[')) {
+        try { _v = JSON.parse(_v); } catch(e) {}
+      }
+      const nv = Array.isArray(_v) ? _v.join(', ') : _v;
       if (nv && kl !== 'activity' && kl !== 'role' && kl !== 'player_role') {
         if (kl === 'class')          cls      = nv;
         else if (kl === 'specialization') spec = nv;
@@ -1462,7 +1469,7 @@ function renderGroup(group) {
                 <i class="fas fa-pencil-alt mr-2"></i>Update Class
               </button>
             ` : !isFull ? `
-              <a href="/ql/fluxer/${escapeHtml(String(group.guild_id))}/lfg/" target="_blank"
+              <a href="/fluxer/${escapeHtml(String(group.guild_id))}/lfg/" target="_blank"
                  class="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm font-medium transition">
                 <i class="fas fa-satellite-dish mr-2"></i>Join on Fluxer
               </a>
@@ -1542,7 +1549,7 @@ function renderGroup(group) {
                 </span>`
             )}
             ${canManage ? `
-            <a href="/ql/lfg/${group.share_token || group.id}/" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium transition">
+            <a href="/lfg/${group.share_token || group.id}/" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium transition">
               <i class="fas fa-edit mr-2"></i>Edit Group
             </a>
             <button onclick="deleteGroupFromBrowse(${group.id})" class="px-4 py-2 bg-red-600/20 hover:bg-red-600 text-red-400 hover:text-white rounded-lg text-sm font-medium transition">
@@ -1584,6 +1591,9 @@ const GAME_TEMPLATES = {
     { name: 'Class', choices: ['Dragonknight','Sorcerer','Nightblade','Templar','Warden','Necromancer','Arcanist'] },
     { name: 'Subclass', exclude_same_as: 'Class', choices: ['Dragonknight','Sorcerer','Nightblade','Templar','Warden','Necromancer','Arcanist'] },
     { name: 'Role', choices: [{value:'Tank',role:'tank'},{value:'Healer',role:'healer'},{value:'DPS',role:'dps'},{value:'Support',role:'support'}] },
+    { name: 'Alliance', choices: ['Aldmeri Dominion','Daggerfall Covenant','Ebonheart Pact','Any'] },
+    { name: 'Min CP', freetext: true, placeholder: 'e.g. 160 (optional)' },
+    { name: 'Build Notes', freetext: true, placeholder: 'e.g. Farm run, no carries, vHRC prog...' },
   ],
   // Survival games - sub-choices map to tank/healer/dps/support parent sections
   palworld: [
@@ -1855,7 +1865,7 @@ async function deleteGroupFromBrowse(groupId) {
   const title = group ? group.title : 'this group';
   if (!confirm(`Delete "${title}"? This cannot be undone.`)) return;
   try {
-    const res = await csrfFetch(`/ql/lfg/${groupId}/delete/`, {
+    const res = await csrfFetch(`/lfg/${groupId}/delete/`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
     });
@@ -1887,8 +1897,8 @@ async function submitJoin(groupId) {
   }
 
   const url = joinBrowseMode === 'update'
-    ? `/ql/lfg/${groupId}/update-member/`
-    : `/ql/lfg/${groupId}/join/`;
+    ? `/lfg/${groupId}/update-member/`
+    : `/lfg/${groupId}/join/`;
   const successMsg = joinBrowseMode === 'update' ? 'Class updated!' : 'Successfully joined group!';
   const failMsg    = joinBrowseMode === 'update' ? 'Failed to update class' : 'Failed to join group';
 
@@ -1954,7 +1964,7 @@ async function submitFgEditGroup() {
   btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Saving...';
 
   try {
-    const resp = await csrfFetch(`/ql/api/lfg/fluxer-guild/${groupId}/edit/`, {
+    const resp = await csrfFetch(`/api/lfg/fluxer-guild/${groupId}/edit/`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -2064,7 +2074,7 @@ async function submitFgEditClass() {
   btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Updating...';
 
   try {
-    const resp = await csrfFetch(`/ql/api/lfg/fluxer-guild/${groupId}/update-member/`, {
+    const resp = await csrfFetch(`/api/lfg/fluxer-guild/${groupId}/update-member/`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ role, selections }),

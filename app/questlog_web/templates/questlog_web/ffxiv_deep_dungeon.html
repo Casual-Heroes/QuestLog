@@ -1,0 +1,715 @@
+{% extends "questlog_web/base_web.html" %}
+{% load static %}
+{% block title %}Deep Dungeon Tracker - FFXIV Tools{% endblock %}
+
+{% block web_content %}
+<div class="max-w-6xl mx-auto px-4 py-6 space-y-6">
+
+  <!-- Header -->
+  <div class="flex items-center gap-4">
+    <a href="{% url 'ffxiv_tools' %}" class="text-gray-500 hover:text-white transition">
+      <i class="fas fa-arrow-left"></i>
+    </a>
+    <div>
+      <h1 class="text-2xl font-bold text-white flex items-center gap-3">
+        <i class="fas fa-dungeon text-purple-400"></i> Deep Dungeon Tracker
+      </h1>
+      <p class="text-gray-500 text-sm mt-0.5">Track your Palace of the Dead, Heaven on High, and Eureka Orthos runs. Personal bests, run history, and FC leaderboard.</p>
+    </div>
+    {% if is_logged_in %}
+    <div class="ml-auto">
+      <button onclick="openLogModal()"
+        class="flex items-center gap-2 px-4 py-2 bg-purple-700 hover:bg-purple-600 text-white text-sm font-semibold rounded-xl transition">
+        <i class="fas fa-plus"></i> Log Run
+      </button>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Dungeon tabs -->
+  <div class="flex gap-1 border-b border-neutral-800">
+    {% for d in dungeons %}
+    <button onclick="switchDungeon('{{ d.key }}')" id="dtab-{{ d.key }}"
+      class="dtab px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition
+        {% if forloop.first %}border-purple-500 text-purple-400{% else %}border-transparent text-gray-500 hover:text-gray-300{% endif %}">
+      <i class="fas {{ d.icon }} mr-1.5"></i>{{ d.short }}
+    </button>
+    {% endfor %}
+  </div>
+
+  <!-- Per-dungeon content -->
+  {% for d in dungeons %}
+  <div id="dpane-{{ d.key }}" class="space-y-5 {% if not forloop.first %}hidden{% endif %}">
+
+    <!-- Dungeon info strip -->
+    <div class="bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-3 flex flex-wrap items-center gap-4 text-xs text-gray-500">
+      <span><i class="fas fa-layer-group mr-1"></i>Floors 1-{{ d.max_floor }}</span>
+      <span><i class="fas fa-flag-checkered mr-1"></i>Clear: Floor {{ d.clear_floor }}</span>
+      <span><i class="fas fa-users mr-1"></i>Solo or party (1-4)</span>
+      <span><i class="fas fa-trophy mr-1 text-yellow-600"></i>Solo clear title: <span class="text-gray-400">{{ d.solo_title }}</span></span>
+      <span>Milestones:
+        {% for m in d.milestones %}<span class="ml-1 px-1.5 py-0.5 rounded bg-neutral-800 text-gray-300">{{ m }}</span>{% endfor %}
+      </span>
+    </div>
+
+    <!-- PB card + log button -->
+    <div id="pb-card-{{ d.key }}"></div>
+
+    <!-- FC Leaderboard -->
+    <div class="bg-neutral-900 border border-neutral-800 rounded-xl overflow-hidden">
+      <div class="px-4 py-3 border-b border-neutral-800 flex items-center justify-between">
+        <h3 class="text-sm font-semibold text-white flex items-center gap-2">
+          <i class="fas fa-crown text-yellow-400 text-xs"></i> CH Leaderboard
+          <span class="text-gray-600 font-normal text-xs">- personal bests</span>
+        </h3>
+      </div>
+      <div id="lb-{{ d.key }}">
+        <p class="px-4 py-6 text-gray-600 text-sm text-center">No runs logged yet. Be the first!</p>
+      </div>
+    </div>
+
+    <!-- Run history (personal) -->
+    {% if is_logged_in %}
+    <div class="bg-neutral-900 border border-neutral-800 rounded-xl overflow-hidden">
+      <div class="px-4 py-3 border-b border-neutral-800 flex items-center justify-between">
+        <h3 class="text-sm font-semibold text-white flex items-center gap-2">
+          <i class="fas fa-history text-gray-400 text-xs"></i> My Run History
+        </h3>
+        <span class="text-xs text-gray-600">Last 50 runs</span>
+      </div>
+      <div id="runs-{{ d.key }}">
+        <p class="px-4 py-6 text-gray-600 text-sm text-center">No runs logged for this dungeon yet.</p>
+      </div>
+    </div>
+    {% endif %}
+
+  </div>
+  {% endfor %}
+
+</div>
+
+<!-- Log Run Modal -->
+<div id="logModal" class="fixed inset-0 bg-black/70 z-50 hidden flex items-center justify-center p-4">
+  <div class="bg-neutral-900 border border-neutral-700 rounded-2xl w-full max-w-lg shadow-2xl">
+    <div class="flex items-center justify-between px-5 py-4 border-b border-neutral-800">
+      <h3 class="text-white font-bold flex items-center gap-2">
+        <i class="fas fa-dungeon text-purple-400"></i> Log a Run
+      </h3>
+      <button onclick="closeLogModal()" class="text-gray-500 hover:text-white transition"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="px-5 py-4 space-y-4">
+
+      <!-- Dungeon select -->
+      <div>
+        <label class="text-xs text-gray-500 uppercase tracking-wide block mb-1.5">Dungeon <span class="text-red-400">*</span></label>
+        <div class="grid grid-cols-3 gap-2" id="modalDungeonPicker">
+          {% for d in dungeons %}
+          <button onclick="selectModalDungeon('{{ d.key }}')" data-dkey="{{ d.key }}"
+            class="dungeon-pick-btn px-3 py-2 rounded-lg border border-neutral-700 text-gray-400 text-sm font-medium hover:border-purple-600 hover:text-white transition text-center">
+            <i class="fas {{ d.icon }} block mb-1 text-base"></i>{{ d.short }}
+          </button>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-4">
+        <!-- Start floor -->
+        <div>
+          <label class="text-xs text-gray-500 uppercase tracking-wide block mb-1.5">Started from Floor <span class="text-red-400">*</span></label>
+          <select id="modalFloorStart" class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-purple-500 focus:outline-none">
+            <option value="1">Floor 1</option>
+          </select>
+        </div>
+        <!-- Floor reached -->
+        <div>
+          <label class="text-xs text-gray-500 uppercase tracking-wide block mb-1.5">Floor Reached <span class="text-red-400">*</span></label>
+          <input id="modalFloorEnd" type="number" min="1" max="200" placeholder="e.g. 150"
+            class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-purple-500 focus:outline-none placeholder-gray-600">
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-4">
+        <!-- KOs -->
+        <div>
+          <label class="text-xs text-gray-500 uppercase tracking-wide block mb-1.5">KO Count (Deaths)</label>
+          <input id="modalKOs" type="number" min="0" max="999" value="0"
+            class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-purple-500 focus:outline-none">
+        </div>
+        <!-- Party size -->
+        <div>
+          <label class="text-xs text-gray-500 uppercase tracking-wide block mb-1.5">Party Size</label>
+          <select id="modalPartySize" class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-purple-500 focus:outline-none">
+            <option value="1">Solo</option>
+            <option value="2">2 Players</option>
+            <option value="3">3 Players</option>
+            <option value="4">Full Party (4)</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Job -->
+      <div>
+        <label class="text-xs text-gray-500 uppercase tracking-wide block mb-1.5">Job <span class="text-gray-600">(optional)</span></label>
+        <select id="modalJob" class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-purple-500 focus:outline-none">
+          <option value="">-- Select Job --</option>
+          {% for job in jobs %}
+          <option value="{{ job }}">{{ job }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <!-- Notes -->
+      <div>
+        <label class="text-xs text-gray-500 uppercase tracking-wide block mb-1.5">Notes <span class="text-gray-600">(optional)</span></label>
+        <input id="modalNotes" type="text" maxlength="200" placeholder="e.g. died to Undead Bahamut on F150..."
+          class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-purple-500 focus:outline-none placeholder-gray-600">
+      </div>
+
+      <!-- Clear indicator -->
+      <div id="clearBanner" class="hidden bg-green-900/30 border border-green-700/40 rounded-lg px-3 py-2 text-green-300 text-xs flex items-center gap-2">
+        <i class="fas fa-trophy text-yellow-400"></i>
+        <span id="clearBannerText">That's a clear!</span>
+      </div>
+
+    </div>
+    <div class="px-5 py-4 border-t border-neutral-800 flex gap-3">
+      <button onclick="closeLogModal()" class="flex-1 px-4 py-2 rounded-lg border border-neutral-700 text-gray-400 hover:text-white hover:border-neutral-500 text-sm transition">Cancel</button>
+      <button onclick="submitRun()" id="submitRunBtn"
+        class="flex-1 px-4 py-2 rounded-lg bg-purple-700 hover:bg-purple-600 text-white text-sm font-semibold transition">
+        <i class="fas fa-save mr-1.5"></i>Save Run
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Run Modal -->
+<div id="editModal" class="fixed inset-0 bg-black/70 z-50 hidden flex items-center justify-center p-4">
+  <div class="bg-neutral-900 border border-neutral-700 rounded-2xl w-full max-w-lg shadow-2xl">
+    <div class="flex items-center justify-between px-5 py-4 border-b border-neutral-800">
+      <h3 class="text-white font-bold flex items-center gap-2">
+        <i class="fas fa-pencil-alt text-blue-400"></i> Edit Run
+      </h3>
+      <button onclick="closeEditModal()" class="text-gray-500 hover:text-white transition"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="px-5 py-4 space-y-4">
+      <input type="hidden" id="editRunId">
+      <p id="editDungeonLabel" class="text-xs text-gray-500 uppercase tracking-wide"></p>
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="text-xs text-gray-500 uppercase tracking-wide block mb-1.5">Started from Floor <span class="text-red-400">*</span></label>
+          <select id="editFloorStart" class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-blue-500 focus:outline-none">
+            <option value="1">Floor 1</option>
+          </select>
+        </div>
+        <div>
+          <label class="text-xs text-gray-500 uppercase tracking-wide block mb-1.5">Floor Reached <span class="text-red-400">*</span></label>
+          <input id="editFloorEnd" type="number" min="1" max="200"
+            class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-blue-500 focus:outline-none">
+        </div>
+      </div>
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="text-xs text-gray-500 uppercase tracking-wide block mb-1.5">KO Count</label>
+          <input id="editKOs" type="number" min="0" max="999"
+            class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-blue-500 focus:outline-none">
+        </div>
+        <div>
+          <label class="text-xs text-gray-500 uppercase tracking-wide block mb-1.5">Party Size</label>
+          <select id="editPartySize" class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-blue-500 focus:outline-none">
+            <option value="1">Solo</option>
+            <option value="2">2 Players</option>
+            <option value="3">3 Players</option>
+            <option value="4">Full Party (4)</option>
+          </select>
+        </div>
+      </div>
+      <div>
+        <label class="text-xs text-gray-500 uppercase tracking-wide block mb-1.5">Job <span class="text-gray-600">(optional)</span></label>
+        <select id="editJob" class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-blue-500 focus:outline-none">
+          <option value="">-- Select Job --</option>
+          {% for job in jobs %}
+          <option value="{{ job }}">{{ job }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="text-xs text-gray-500 uppercase tracking-wide block mb-1.5">Notes <span class="text-gray-600">(optional)</span></label>
+        <input id="editNotes" type="text" maxlength="200"
+          class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-blue-500 focus:outline-none placeholder-gray-600">
+      </div>
+    </div>
+    <div class="px-5 py-4 border-t border-neutral-800 flex gap-3">
+      <button onclick="closeEditModal()" class="flex-1 px-4 py-2 rounded-lg border border-neutral-700 text-gray-400 hover:text-white hover:border-neutral-500 text-sm transition">Cancel</button>
+      <button onclick="submitEdit()" id="submitEditBtn"
+        class="flex-1 px-4 py-2 rounded-lg bg-blue-700 hover:bg-blue-600 text-white text-sm font-semibold transition">
+        <i class="fas fa-save mr-1.5"></i>Save Changes
+      </button>
+    </div>
+  </div>
+</div>
+
+{{ dungeons|json_script:"dungeons-data" }}
+{{ my_runs|json_script:"my-runs-data" }}
+{{ my_pbs|json_script:"my-pbs-data" }}
+{{ fc_lb|json_script:"fc-lb-data" }}
+
+<script>
+const DUNGEONS_META = JSON.parse(document.getElementById('dungeons-data').textContent);
+const IS_LOGGED_IN  = {{ is_logged_in|yesno:"true,false" }};
+const IS_ADMIN      = {{ is_admin|yesno:"true,false" }};
+
+const DUNGEON_MAP = {};
+DUNGEONS_META.forEach(d => { DUNGEON_MAP[d.key] = d; });
+</script>
+
+<script>
+const MY_RUNS = JSON.parse(document.getElementById('my-runs-data').textContent);
+const MY_PBS  = JSON.parse(document.getElementById('my-pbs-data').textContent);
+const FC_LB   = JSON.parse(document.getElementById('fc-lb-data').textContent);
+
+let activeDungeon   = '{{ dungeons.0.key }}';
+let _modalDungeon   = null;
+
+// ── Colors ───────────────────────────────────────────────────────────────────
+const DCOLORS = {
+  potd:  { ring: 'ring-purple-500', badge: 'bg-purple-900/40 text-purple-300 border-purple-700/40', bar: 'bg-purple-500', text: 'text-purple-400' },
+  hoh:   { ring: 'ring-sky-500',    badge: 'bg-sky-900/40 text-sky-300 border-sky-700/40',          bar: 'bg-sky-500',    text: 'text-sky-400'    },
+  eo:    { ring: 'ring-emerald-500',badge: 'bg-emerald-900/40 text-emerald-300 border-emerald-700/40',bar:'bg-emerald-500',text:'text-emerald-400' },
+};
+
+// ── Tab switching ─────────────────────────────────────────────────────────────
+function switchDungeon(key) {
+  activeDungeon = key;
+  DUNGEONS_META.forEach(d => {
+    document.getElementById('dpane-' + d.key).classList.toggle('hidden', d.key !== key);
+    const tab = document.getElementById('dtab-' + d.key);
+    const col = DCOLORS[d.key];
+    tab.classList.toggle('border-' + col.text.replace('text-','') , false); // reset
+    const isActive = d.key === key;
+    tab.className = `dtab px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition ${
+      isActive
+        ? (key === 'potd' ? 'border-purple-500 text-purple-400' : key === 'hoh' ? 'border-sky-500 text-sky-400' : 'border-emerald-500 text-emerald-400')
+        : 'border-transparent text-gray-500 hover:text-gray-300'
+    }`;
+  });
+}
+
+// ── PB card ───────────────────────────────────────────────────────────────────
+function renderPBCard(dkey) {
+  const pb   = MY_PBS[dkey];
+  const meta = DUNGEON_MAP[dkey];
+  const col  = DCOLORS[dkey];
+  const el   = document.getElementById('pb-card-' + dkey);
+  if (!el) return;
+
+  if (!IS_LOGGED_IN) {
+    el.innerHTML = `<div class="bg-neutral-900 border border-neutral-800 rounded-xl p-4 flex items-center justify-between">
+      <p class="text-gray-500 text-sm">Log in to track your personal best.</p>
+      <a href="/ql/login/?next=/ffxiv/tools/deep-dungeon/" class="text-xs text-purple-400 hover:text-purple-300 transition">Log in</a>
+    </div>`;
+    return;
+  }
+
+  if (!pb) {
+    el.innerHTML = `<div class="bg-neutral-900 border border-neutral-800 rounded-xl p-4 flex items-center justify-between gap-4">
+      <div>
+        <p class="text-white font-semibold text-sm">No runs logged yet</p>
+        <p class="text-gray-500 text-xs mt-0.5">Log your first ${escapeHtml(meta.short)} run to set your personal best.</p>
+      </div>
+      <button onclick="openLogModal('${dkey}')"
+        class="flex-shrink-0 px-4 py-2 bg-purple-700 hover:bg-purple-600 text-white text-xs font-semibold rounded-lg transition">
+        <i class="fas fa-plus mr-1"></i>Log Run
+      </button>
+    </div>`;
+    return;
+  }
+
+  const pct     = Math.round((pb.floor_end / meta.max_floor) * 100);
+  const isClear = pb.is_clear;
+  const isClean = pb.kos === 0;
+
+  el.innerHTML = `<div class="bg-neutral-900 border ${isClear ? 'border-yellow-600/50' : 'border-neutral-800'} rounded-xl p-4">
+    <div class="flex items-start justify-between gap-4 mb-3">
+      <div>
+        <div class="flex items-center gap-2 mb-1">
+          <p class="text-white font-bold text-lg">Floor ${pb.floor_end}</p>
+          ${isClear ? `<span class="text-[10px] px-2 py-0.5 rounded-full bg-yellow-900/40 border border-yellow-600/40 text-yellow-300 font-semibold"><i class="fas fa-trophy mr-1"></i>CLEAR</span>` : ''}
+          ${isClean ? `<span class="text-[10px] px-2 py-0.5 rounded-full bg-green-900/40 border border-green-700/40 text-green-300">0 KOs</span>` : `<span class="text-[10px] px-2 py-0.5 rounded-full bg-neutral-800 text-gray-400">${pb.kos} KO${pb.kos !== 1 ? 's':''}</span>`}
+        </div>
+        <p class="text-gray-500 text-xs">Personal Best - ${escapeHtml(meta.name)}</p>
+      </div>
+      <div class="text-right text-xs text-gray-500">
+        ${pb.job ? `<p class="text-gray-300">${escapeHtml(pb.job)}</p>` : ''}
+        <p>${pb.party_size === 1 ? 'Solo' : pb.party_size + ' Players'}</p>
+        <p class="mt-1">${formatDate(pb.run_at)}</p>
+      </div>
+    </div>
+    <!-- Progress bar -->
+    <div class="space-y-1">
+      <div class="flex justify-between text-xs text-gray-600">
+        <span>Progress</span><span>${pct}%</span>
+      </div>
+      <div class="h-2 bg-neutral-800 rounded-full overflow-hidden">
+        <div class="h-full ${col.bar} rounded-full transition-all" style="width:${pct}%"></div>
+      </div>
+      <div class="flex justify-between text-[10px] text-gray-700">
+        ${meta.milestones.map(m => `<span>${m}</span>`).join('')}
+      </div>
+    </div>
+    <div class="mt-3 flex justify-end">
+      <button onclick="openLogModal('${dkey}')"
+        class="px-3 py-1.5 text-xs border border-neutral-700 hover:border-purple-600 hover:text-purple-300 text-gray-400 rounded-lg transition">
+        <i class="fas fa-plus mr-1"></i>Log New Run
+      </button>
+    </div>
+  </div>`;
+}
+
+// ── FC Leaderboard ────────────────────────────────────────────────────────────
+function renderLeaderboard(dkey) {
+  const lb   = FC_LB[dkey] || [];
+  const meta = DUNGEON_MAP[dkey];
+  const el   = document.getElementById('lb-' + dkey);
+  if (!el) return;
+
+  if (!lb.length) {
+    el.innerHTML = '<p class="px-4 py-6 text-gray-600 text-sm text-center">No runs logged yet. Be the first!</p>';
+    return;
+  }
+
+  el.innerHTML = `<table class="w-full text-sm">
+    <thead>
+      <tr class="text-[10px] text-gray-600 uppercase tracking-wide border-b border-neutral-800">
+        <th class="px-4 py-2 text-left w-8">#</th>
+        <th class="px-4 py-2 text-left">Player</th>
+        <th class="px-4 py-2 text-center">Floor</th>
+        <th class="px-4 py-2 text-center">KOs</th>
+        <th class="px-4 py-2 text-center hidden sm:table-cell">Job</th>
+        <th class="px-4 py-2 text-center hidden sm:table-cell">Party</th>
+        <th class="px-4 py-2 text-right hidden md:table-cell">Date</th>
+        ${IS_ADMIN ? `<th class="px-4 py-2 w-8"></th>` : ''}
+      </tr>
+    </thead>
+    <tbody>
+      ${lb.map((r, i) => {
+        const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `<span class="text-gray-600">${i+1}</span>`;
+        const avatar = r.avatar_url
+          ? `<img src="${escapeHtml(r.avatar_url)}" class="w-6 h-6 rounded-full object-cover" alt="">`
+          : `<div class="w-6 h-6 rounded-full bg-neutral-700 flex items-center justify-center"><i class="fas fa-user text-[10px] text-gray-500"></i></div>`;
+        return `<tr class="border-b border-neutral-800/50 hover:bg-white/3 transition">
+          <td class="px-4 py-2.5 text-center">${medal}</td>
+          <td class="px-4 py-2.5">
+            <div class="flex items-center gap-2">
+              ${avatar}
+              <span class="text-white text-sm font-medium">${escapeHtml(r.display_name)}</span>
+              ${r.is_clear ? `<span class="text-[9px] px-1.5 py-0.5 rounded bg-yellow-900/40 text-yellow-300 border border-yellow-700/30">CLEAR</span>` : ''}
+            </div>
+          </td>
+          <td class="px-4 py-2.5 text-center font-bold text-white">${r.floor_end}</td>
+          <td class="px-4 py-2.5 text-center ${r.kos === 0 ? 'text-green-400 font-semibold' : 'text-gray-400'}">${r.kos}</td>
+          <td class="px-4 py-2.5 text-center text-gray-400 text-xs hidden sm:table-cell">${r.job ? escapeHtml(r.job) : '-'}</td>
+          <td class="px-4 py-2.5 text-center text-gray-400 text-xs hidden sm:table-cell">${r.party_size === 1 ? 'Solo' : r.party_size + 'P'}</td>
+          <td class="px-4 py-2.5 text-right text-gray-600 text-xs hidden md:table-cell">${formatDate(r.run_at)}</td>
+          ${IS_ADMIN ? `<td class="px-4 py-2.5 text-right"><button onclick="adminDeleteAllRuns('${dkey}', ${JSON.stringify(r.display_name)})" class="text-gray-700 hover:text-red-400 transition text-xs" title="Admin: wipe all runs for this user/dungeon"><i class="fas fa-ban"></i></button></td>` : ''}
+        </tr>`;
+      }).join('')}
+    </tbody>
+  </table>`;
+}
+
+// ── Run History ───────────────────────────────────────────────────────────────
+function renderRunHistory(dkey) {
+  const el   = document.getElementById('runs-' + dkey);
+  if (!el) return;
+  const runs = MY_RUNS.filter(r => r.dungeon === dkey);
+
+  if (!runs.length) {
+    el.innerHTML = '<p class="px-4 py-6 text-gray-600 text-sm text-center">No runs logged for this dungeon yet.</p>';
+    return;
+  }
+
+  el.innerHTML = `<div class="overflow-x-auto"><table class="w-full text-sm">
+    <thead>
+      <tr class="text-[10px] text-gray-600 uppercase tracking-wide border-b border-neutral-800">
+        <th class="px-4 py-2 text-left">Floor</th>
+        <th class="px-4 py-2 text-center">KOs</th>
+        <th class="px-4 py-2 text-center hidden sm:table-cell">Start</th>
+        <th class="px-4 py-2 text-center hidden sm:table-cell">Job</th>
+        <th class="px-4 py-2 text-center hidden sm:table-cell">Party</th>
+        <th class="px-4 py-2 text-left">Notes</th>
+        <th class="px-4 py-2 text-right hidden md:table-cell">Date</th>
+        <th class="px-4 py-2 w-8"></th>
+      </tr>
+    </thead>
+    <tbody>
+      ${runs.map(r => `<tr class="border-b border-neutral-800/50 hover:bg-white/3 transition" data-run-id="${r.id}">
+        <td class="px-4 py-2.5">
+          <span class="font-bold text-white">${r.floor_end}</span>
+          ${r.is_clear ? `<span class="ml-1.5 text-[9px] px-1.5 py-0.5 rounded bg-yellow-900/40 text-yellow-300 border border-yellow-700/30">CLEAR</span>` : ''}
+        </td>
+        <td class="px-4 py-2.5 text-center ${r.kos === 0 ? 'text-green-400 font-semibold' : 'text-gray-400'}">${r.kos}</td>
+        <td class="px-4 py-2.5 text-center text-gray-500 text-xs hidden sm:table-cell">F${r.floor_start}</td>
+        <td class="px-4 py-2.5 text-center text-gray-400 text-xs hidden sm:table-cell">${r.job ? escapeHtml(r.job) : '-'}</td>
+        <td class="px-4 py-2.5 text-center text-gray-400 text-xs hidden sm:table-cell">${r.party_size === 1 ? 'Solo' : r.party_size + 'P'}</td>
+        <td class="px-4 py-2.5 text-gray-500 text-xs max-w-[180px] truncate">${r.notes ? escapeHtml(r.notes) : ''}</td>
+        <td class="px-4 py-2.5 text-right text-gray-600 text-xs hidden md:table-cell">${formatDate(r.run_at)}</td>
+        <td class="px-4 py-2.5 text-right">
+          <div class="flex items-center justify-end gap-2">
+            <button onclick="openEditModal(${r.id})" class="text-gray-600 hover:text-blue-400 transition text-xs" title="Edit run">
+              <i class="fas fa-pencil-alt"></i>
+            </button>
+            <button onclick="deleteRun(${r.id})" class="text-gray-600 hover:text-red-400 transition text-xs" title="Delete run">
+              <i class="fas fa-trash"></i>
+            </button>
+          </div>
+        </td>
+      </tr>`).join('')}
+    </tbody>
+  </table></div>`;
+}
+
+// ── Modal ─────────────────────────────────────────────────────────────────────
+function openLogModal(dkey) {
+  if (!IS_LOGGED_IN) { window.location.href = '/ql/login/?next=/ffxiv/tools/deep-dungeon/'; return; }
+  if (dkey) selectModalDungeon(dkey);
+  else selectModalDungeon(activeDungeon);
+  document.getElementById('modalFloorEnd').value = '';
+  document.getElementById('modalKOs').value = '0';
+  document.getElementById('modalPartySize').value = '1';
+  document.getElementById('modalJob').value = '';
+  document.getElementById('modalNotes').value = '';
+  document.getElementById('clearBanner').classList.add('hidden');
+  document.getElementById('logModal').classList.remove('hidden');
+}
+
+function closeLogModal() {
+  document.getElementById('logModal').classList.add('hidden');
+}
+
+document.getElementById('logModal').addEventListener('click', function(e) {
+  if (e.target === this) closeLogModal();
+});
+
+function selectModalDungeon(dkey) {
+  _modalDungeon = dkey;
+  const meta = DUNGEON_MAP[dkey];
+
+  // Highlight selected button
+  document.querySelectorAll('.dungeon-pick-btn').forEach(b => {
+    const isActive = b.dataset.dkey === dkey;
+    b.classList.toggle('border-purple-500', isActive);
+    b.classList.toggle('text-white', isActive);
+    b.classList.toggle('bg-purple-900/20', isActive);
+    b.classList.toggle('border-neutral-700', !isActive);
+    b.classList.toggle('text-gray-400', !isActive);
+  });
+
+  // Update start floor options
+  const sel = document.getElementById('modalFloorStart');
+  sel.innerHTML = meta.start_floors.map(f => `<option value="${f}">Floor ${f}</option>`).join('');
+
+  // Update max on floor end input
+  document.getElementById('modalFloorEnd').max = meta.max_floor;
+  checkClear();
+}
+
+function checkClear() {
+  if (!_modalDungeon) return;
+  const meta    = DUNGEON_MAP[_modalDungeon];
+  const floorEl = document.getElementById('modalFloorEnd');
+  const banner  = document.getElementById('clearBanner');
+  const val     = parseInt(floorEl.value);
+  if (val >= meta.clear_floor) {
+    document.getElementById('clearBannerText').textContent = `Floor ${meta.clear_floor} - that's a ${meta.short} clear!`;
+    banner.classList.remove('hidden');
+  } else {
+    banner.classList.add('hidden');
+  }
+}
+
+document.getElementById('modalFloorEnd').addEventListener('input', checkClear);
+
+async function submitRun() {
+  if (!_modalDungeon) { alert('Please select a dungeon.'); return; }
+
+  const floorEnd = parseInt(document.getElementById('modalFloorEnd').value);
+  if (!floorEnd || floorEnd < 1) { alert('Please enter the floor you reached.'); return; }
+
+  const payload = {
+    dungeon:     _modalDungeon,
+    floor_start: parseInt(document.getElementById('modalFloorStart').value),
+    floor_end:   floorEnd,
+    kos:         parseInt(document.getElementById('modalKOs').value) || 0,
+    job:         document.getElementById('modalJob').value,
+    party_size:  parseInt(document.getElementById('modalPartySize').value),
+    notes:       document.getElementById('modalNotes').value.trim(),
+  };
+
+  const btn = document.getElementById('submitRunBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1.5"></i>Saving...';
+
+  try {
+    const res  = await csrfFetch('/api/ffxiv/dd/log/', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (data.ok) {
+      MY_RUNS.unshift(data.run);
+      if (data.is_new_pb) {
+        MY_PBS[_modalDungeon] = {
+          floor_end:  data.run.floor_end,
+          kos:        data.run.kos,
+          job:        data.run.job,
+          party_size: data.run.party_size,
+          is_clear:   data.run.is_clear,
+          run_at:     data.run.run_at,
+        };
+      }
+      closeLogModal();
+      renderAll();
+    } else {
+      alert(data.error || 'Failed to save run.');
+    }
+  } catch(e) {
+    alert('Network error. Please try again.');
+  }
+
+  btn.disabled = false;
+  btn.innerHTML = '<i class="fas fa-save mr-1.5"></i>Save Run';
+}
+
+// ── Edit modal ────────────────────────────────────────────────────────────────
+function openEditModal(runId) {
+  const run = MY_RUNS.find(r => r.id === runId);
+  if (!run) return;
+  const meta = DUNGEON_MAP[run.dungeon];
+
+  document.getElementById('editRunId').value    = runId;
+  document.getElementById('editDungeonLabel').textContent = meta.name;
+  document.getElementById('editFloorEnd').value  = run.floor_end;
+  document.getElementById('editFloorEnd').max    = meta.max_floor;
+  document.getElementById('editKOs').value       = run.kos;
+  document.getElementById('editPartySize').value = run.party_size;
+  document.getElementById('editJob').value       = run.job || '';
+  document.getElementById('editNotes').value     = run.notes || '';
+
+  const sel = document.getElementById('editFloorStart');
+  sel.innerHTML = meta.start_floors.map(f => `<option value="${f}">Floor ${f}</option>`).join('');
+  sel.value = run.floor_start;
+
+  document.getElementById('editModal').classList.remove('hidden');
+}
+
+function closeEditModal() {
+  document.getElementById('editModal').classList.add('hidden');
+}
+
+document.getElementById('editModal').addEventListener('click', function(e) {
+  if (e.target === this) closeEditModal();
+});
+
+async function submitEdit() {
+  const runId    = parseInt(document.getElementById('editRunId').value);
+  const floorEnd = parseInt(document.getElementById('editFloorEnd').value);
+  if (!floorEnd || floorEnd < 1) { alert('Please enter the floor reached.'); return; }
+
+  const payload = {
+    run_id:      runId,
+    floor_start: parseInt(document.getElementById('editFloorStart').value),
+    floor_end:   floorEnd,
+    kos:         parseInt(document.getElementById('editKOs').value) || 0,
+    job:         document.getElementById('editJob').value,
+    party_size:  parseInt(document.getElementById('editPartySize').value),
+    notes:       document.getElementById('editNotes').value.trim(),
+  };
+
+  const btn = document.getElementById('submitEditBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1.5"></i>Saving...';
+
+  try {
+    const res  = await csrfFetch('/api/ffxiv/dd/edit/', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (data.ok) {
+      const idx = MY_RUNS.findIndex(r => r.id === runId);
+      if (idx !== -1) MY_RUNS[idx] = data.run;
+      if (data.pb) MY_PBS[data.run.dungeon] = data.pb;
+      closeEditModal();
+      renderAll();
+    } else {
+      alert(data.error || 'Failed to save.');
+    }
+  } catch(e) { alert('Network error.'); }
+
+  btn.disabled = false;
+  btn.innerHTML = '<i class="fas fa-save mr-1.5"></i>Save Changes';
+}
+
+async function deleteRun(runId) {
+  if (!confirm('Delete this run?')) return;
+  try {
+    const res  = await csrfFetch('/api/ffxiv/dd/delete/', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({run_id: runId}),
+    });
+    const data = await res.json();
+    if (data.ok) {
+      const idx = MY_RUNS.findIndex(r => r.id === runId);
+      if (idx !== -1) MY_RUNS.splice(idx, 1);
+      renderAll();
+    }
+  } catch(e) { alert('Network error.'); }
+}
+
+async function adminDeleteAllRuns(dkey, displayName) {
+  const meta = DUNGEON_MAP[dkey];
+  if (!confirm(`ADMIN: Wipe ALL ${meta.name} runs for "${displayName}"?\n\nThis removes every run and their PB. Use this when a BS clear is detected.`)) return;
+  try {
+    const res  = await csrfFetch('/api/ffxiv/dd/admin-wipe/', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({display_name: displayName, dungeon: dkey}),
+    });
+    const data = await res.json();
+    if (data.ok) {
+      // Remove from leaderboard display
+      FC_LB[dkey] = FC_LB[dkey].filter(r => r.display_name !== displayName);
+      renderLeaderboard(dkey);
+    } else {
+      alert(data.error || 'Failed.');
+    }
+  } catch(e) { alert('Network error.'); }
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function formatDate(ts) {
+  if (!ts) return '';
+  return new Date(ts * 1000).toLocaleDateString(undefined, {month:'short', day:'numeric', year:'numeric'});
+}
+
+function escapeHtml(s) {
+  if (!s) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function renderAll() {
+  DUNGEONS_META.forEach(d => {
+    renderPBCard(d.key);
+    renderLeaderboard(d.key);
+    if (IS_LOGGED_IN) renderRunHistory(d.key);
+  });
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  renderAll();
+});
+</script>
+{% endblock %}

@@ -164,7 +164,7 @@ class YouTubeService:
                 f"{self.API_BASE_URL}/channels",
                 headers={'Authorization': f'Bearer {access_token}'},
                 params={
-                    'part': 'snippet,statistics,contentDetails,brandingSettings',
+                    'part': 'snippet,statistics',
                     'mine': 'true',
                 }
             )
@@ -178,15 +178,12 @@ class YouTubeService:
             channel = data['items'][0]
             snippet = channel.get('snippet', {})
             statistics = channel.get('statistics', {})
-            branding = channel.get('brandingSettings', {})
-            banner_url = branding.get('image', {}).get('bannerExternalUrl') or branding.get('image', {}).get('bannerImageUrl')
 
             return {
                 'id': channel.get('id'),
                 'title': snippet.get('title'),
                 'description': snippet.get('description'),
                 'thumbnail_url': snippet.get('thumbnails', {}).get('high', {}).get('url'),
-                'banner_url': banner_url,
                 'custom_url': snippet.get('customUrl'),
                 'subscriber_count': int(statistics.get('subscriberCount', 0)),
                 'video_count': int(statistics.get('videoCount', 0)),
@@ -194,7 +191,12 @@ class YouTubeService:
             }
 
         except requests.RequestException as e:
-            logger.error(f"YouTube channel info request failed: {e}")
+            resp_body = getattr(e, 'response', None)
+            if resp_body is not None:
+                logger.error("YouTube channel info request failed: %s (status=%s, body=%s)",
+                             e, resp_body.status_code, resp_body.text[:500])
+            else:
+                logger.error(f"YouTube channel info request failed: {e}")
             raise YouTubeAPIError(f"Failed to get channel info: {e}")
 
     # =========================================================================

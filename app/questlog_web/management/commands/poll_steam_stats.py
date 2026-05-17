@@ -64,7 +64,7 @@ class Command(BaseCommand):
                             for _ in range(delta):
                                 pts = award_hero_points(u.id, 'steam_achievement', source='steam')
                                 total_hp += pts
-                            self.stdout.write(f'  {u.username}: +{delta} achievement(s), +{delta * 5} HP')
+                            self.stdout.write(f'  {u.username}: +{delta} achievement(s), +{total_hp} XP')
 
                     # --- Hours played ---
                     if u.track_hours_played:

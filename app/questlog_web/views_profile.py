@@ -18,10 +18,11 @@ from .models import (
     WebComment, WebCommentLike, WebNotification, WebUserBlock,
     WebCommunity, WebCommunityMember, WebLFGMember, WebRaffleEntry, WebCreatorProfile,
     WebReferral, WebFlair, WebUserFlair, WebRankTitle, WebHeroPointEvent,
+    WebFfxivCharacter, WebFfxivAchievementReward,
 )
 from app.db import get_db_session
 from .helpers import (
-    web_login_required, add_web_user_context,
+    web_login_required, web_verified_required, add_web_user_context,
     check_banned, is_blocked,
     sanitize_text, parse_embed_url,
     serialize_post, award_hero_points,
@@ -31,16 +32,24 @@ logger = logging.getLogger(__name__)
 
 
 def _queue_flair_role_update(web_user_id: int, action: str, flair_emoji: str | None, flair_name: str | None):
-    """Insert a row into fluxer_pending_role_updates so the bot can sync flair roles."""
+    """Queue flair role sync for both Fluxer and Discord bots."""
     try:
-        from .models import WebFluxerRoleUpdate
+        from .models import WebFluxerRoleUpdate, WebDiscordPendingRoleUpdate
+        now = int(time.time())
         with get_db_session() as db:
             db.add(WebFluxerRoleUpdate(
                 web_user_id=web_user_id,
                 action=action,
                 flair_emoji=flair_emoji,
                 flair_name=flair_name,
-                created_at=int(time.time()),
+                created_at=now,
+            ))
+            db.add(WebDiscordPendingRoleUpdate(
+                web_user_id=web_user_id,
+                action=action,
+                flair_emoji=flair_emoji,
+                flair_name=flair_name,
+                created_at=now,
             ))
             db.commit()
     except Exception as exc:
@@ -53,7 +62,7 @@ def _queue_flair_role_update(web_user_id: int, action: str, flair_emoji: str | N
 
 @web_login_required
 @require_http_methods(["PUT"])
-@ratelimit(key='user', rate='20/h', method='PUT', block=True)
+@ratelimit(key='ip', rate='20/h', method='PUT', block=True)
 def api_profile_update(request):
     """PUT: Update current user's profile."""
     banned = check_banned(request)
@@ -201,6 +210,20 @@ def api_profile_update(request):
                 clean = [p for p in platforms if p in allowed_platforms]
                 user.gaming_platforms = json.dumps(clean)
 
+        if 'revolt_url' in data:
+            val = (data['revolt_url'] or '').strip()[:500]
+            if not val:
+                user.revolt_url = None
+            elif val.startswith('https://'):
+                user.revolt_url = val
+
+        if 'root_url' in data:
+            val = (data['root_url'] or '').strip()[:500]
+            if not val:
+                user.root_url = None
+            elif val.startswith('https://'):
+                user.root_url = val
+
         if 'allow_discovery' in data:
             user.allow_discovery = bool(data['allow_discovery'])
 
@@ -296,7 +319,7 @@ def api_validate_embed(request):
 @ensure_csrf_cookie
 @add_web_user_context
 def public_profile(request, username):
-    """Public profile page at /ql/u/<username>/."""
+    """Public profile page at u/<username>/."""
     with get_db_session() as db:
         profile_user = db.query(WebUser).filter_by(username=username).first()
         if not profile_user:
@@ -328,11 +351,18 @@ def public_profile(request, username):
                 ).first() is not None
 
         genres = json.loads(profile_user.favorite_genres) if profile_user.favorite_genres else []
-        raw_fav = json.loads(profile_user.favorite_games) if profile_user.favorite_games else []
-        fav_games = [
-            g if isinstance(g, dict) else {'name': g, 'igdb_id': None, 'cover_url': ''}
-            for g in raw_fav
-        ]
+        # Pull games from library (web_user_games) instead of legacy favorite_games JSON
+        from .models import WebUserGame as _PubWebUserGame
+        from sqlalchemy import case as _pub_case
+        _pub_order = _pub_case(
+            (_PubWebUserGame.status == 'play_together', 0),
+            (_PubWebUserGame.status == 'playing', 1),
+            else_=2,
+        )
+        lib_rows = db.query(_PubWebUserGame).filter_by(web_user_id=profile_user.id).order_by(
+            _pub_order, _PubWebUserGame.updated_at.desc()
+        ).limit(20).all()
+        fav_games = [{'name': g.name, 'igdb_id': g.igdb_id, 'cover_url': g.cover_url or ''} for g in lib_rows]
         platforms = json.loads(profile_user.gaming_platforms) if profile_user.gaming_platforms else []
         raw_ps = profile_user.playstyle or ''
         playstyle_list = (
@@ -343,6 +373,26 @@ def public_profile(request, username):
         creator_profile = db.query(WebCreatorProfile).filter_by(user_id=profile_user.id).first()
         if creator_profile:
             db.expunge(creator_profile)
+
+        from .helpers import get_user_flair_and_title as _get_flair
+        flair_emoji, flair_name, rank_title = _get_flair(profile_user)
+
+        # FFXIV character + achievement rewards (only if user opted in)
+        ffxiv_char = None
+        ffxiv_rewards = []
+        if profile_user.track_achievements:
+            ffxiv_char = db.query(WebFfxivCharacter).filter_by(
+                user_id=profile_user.id, is_primary=True, sync_status='ok'
+            ).first()
+            if ffxiv_char:
+                db.expunge(ffxiv_char)
+                rewards = db.query(WebFfxivAchievementReward).filter_by(
+                    user_id=profile_user.id
+                ).order_by(WebFfxivAchievementReward.awarded_at.desc()).all()
+                ffxiv_rewards = [
+                    {'name': r.achievement_name, 'xp': r.xp_awarded, 'legacy': r.legacy_awarded}
+                    for r in rewards
+                ]
 
         db.expunge(profile_user)
 
@@ -360,21 +410,24 @@ def public_profile(request, username):
         'gaming_platforms': platforms,
         'playstyle_list': playstyle_list,
         'creator_profile': creator_profile,
+        'ffxiv_char': ffxiv_char,
+        'ffxiv_rewards': ffxiv_rewards,
+        'flair_emoji': flair_emoji,
+        'flair_name': flair_name,
+        'rank_title': rank_title,
         'active_page': 'public_profile',
         'og_title': f"{og_name} on QuestLog",
         'og_desc': og_desc,
         'og_image': profile_user.avatar_url or None,
-        'og_url': f"https://casual-heroes.com/ql/u/{profile_user.username}/",
+        'og_url': f"https://casual-heroes.comu/{profile_user.username}/",
     })
 
 
-@web_login_required
 def public_profile_followers(request, username):
     """Public profile - followers tab."""
     return public_profile(request, username)
 
 
-@web_login_required
 def public_profile_following(request, username):
     """Public profile - following tab."""
     return public_profile(request, username)
@@ -385,12 +438,14 @@ def public_profile_following(request, username):
 # =============================================================================
 
 @ensure_csrf_cookie
-@web_login_required
+@add_web_user_context
 def social_feed(request):
     """Main social feed page."""
+    game_filter = request.GET.get('game', '').strip()[:200]
     return render(request, 'questlog_web/feed.html', {
-        'web_user': request.web_user,
+        'web_user': getattr(request, 'web_user', None),
         'active_page': 'feed',
+        'game_filter': game_filter,
     })
 
 
@@ -429,7 +484,7 @@ def api_invite_link(request):
 
         invite_code = user.invite_code
 
-    invite_url = request.build_absolute_uri(f'/ql/register/?ref={invite_code}')
+    invite_url = request.build_absolute_uri(f'register/?ref={invite_code}')
 
     return JsonResponse({
         'invite_code': invite_code,
@@ -514,7 +569,7 @@ def api_privacy_data_summary(request):
 
 
 @web_login_required
-@ratelimit(key='user', rate='1/d', block=True)
+@ratelimit(key='ip', rate='1/d', block=True)
 @require_http_methods(["GET"])
 def api_privacy_export(request):
     """GET: Export all user data as JSON. Rate limited to 1 per day."""
@@ -721,6 +776,8 @@ def api_save_user_prefs(request):
         # Privacy
         if 'show_steam_profile' in data:
             user.show_steam_profile = bool(data['show_steam_profile'])
+        if 'share_steam_library' in data:
+            user.share_steam_library = bool(data['share_steam_library'])
         if 'show_activity' in data:
             user.show_activity = bool(data['show_activity'])
         if 'allow_messages' in data:
@@ -743,7 +800,7 @@ def api_save_user_prefs(request):
             'notify_follows', 'notify_likes', 'notify_comments', 'notify_comment_likes',
             'notify_shares', 'notify_mentions',
             'notify_giveaways', 'notify_lfg_join', 'notify_lfg_leave', 'notify_lfg_full',
-            'notify_community_join', 'notify_now_playing', 'notify_level_up',
+            'notify_lfg_game_owned', 'notify_community_join', 'notify_now_playing', 'notify_level_up',
         ]
         for field in _notif_fields:
             if field in data:
@@ -794,6 +851,8 @@ def api_save_steam_prefs(request):
                 user.current_game = None
         if 'track_game_launches' in data:
             user.track_game_launches = bool(data['track_game_launches'])
+        if 'share_steam_library' in data:
+            user.share_steam_library = bool(data['share_steam_library'])
         if 'fluxer_sync_custom_status' in data:
             # Only allow if Fluxer is actually linked and we have a stored token
             if user.fluxer_id and user.fluxer_access_token_enc:
@@ -816,6 +875,26 @@ def api_save_steam_prefs(request):
 # NOW PLAYING STATUS (polled every 30s by client)
 # =============================================================================
 
+_NSFW_TAGS = ('sexual content', 'hentai', 'adult only sexual content')
+
+
+def _is_game_nsfw(db, appid) -> bool:
+    """Return True if this Steam appid has NSFW tags in web_steam_app_tags."""
+    if not appid:
+        return False
+    try:
+        row = db.execute(
+            sa_text(
+                "SELECT 1 FROM web_steam_app_tags "
+                "WHERE app_id = :aid AND tag_name IN :tags LIMIT 1"
+            ),
+            {'aid': appid, 'tags': _NSFW_TAGS},
+        ).first()
+        return row is not None
+    except Exception:
+        return False
+
+
 @web_login_required
 @require_http_methods(["GET"])
 def api_me_now_playing(request):
@@ -826,6 +905,9 @@ def api_me_now_playing(request):
             return JsonResponse({'current_game': None, 'is_live': False})
         game = user.current_game if user.show_playing_status else None
         game_appid = user.current_game_appid if game else None
+        if game and _is_game_nsfw(db, game_appid):
+            game = None
+            game_appid = None
     return JsonResponse({
         'current_game': game,
         'current_game_appid': game_appid,
@@ -846,6 +928,9 @@ def api_user_now_playing(request, username):
             return JsonResponse({'current_game': None, 'is_live': False})
         game = user.current_game if user.show_playing_status else None
         game_appid = user.current_game_appid if game else None
+        if game and _is_game_nsfw(db, game_appid):
+            game = None
+            game_appid = None
     return JsonResponse({
         'current_game': game,
         'current_game_appid': game_appid,
@@ -943,15 +1028,8 @@ def api_flairs(request):
         data = []
         for f in flairs:
             is_owned = f.id in owned_ids
-            # Exclusive flairs (e.g. Early Tester) are admin-granted only — hide from shop unless owned
-            if f.flair_type == 'exclusive' and not is_owned:
-                # Exception: show time-gated exclusives so people know they exist / can claim during window
-                has_window = f.available_from or f.available_until
-                if not has_window:
-                    continue
-                # Window closed - hide
-                if f.available_until and now_ts > f.available_until:
-                    continue
+            # Exclusive flairs: always show in shop so people can see they exist,
+            # but they cannot be purchased - only auto-granted.
 
             # Determine availability status for the UI
             available = True
@@ -981,6 +1059,7 @@ def api_flairs(request):
                 'available_from': available_from_ts,
                 'available_from_label': available_from_label,
                 'available_until': available_until_ts,
+                'equippable': bool(getattr(f, 'equippable', 1)),
             })
 
     return JsonResponse({'flairs': data})
@@ -999,6 +1078,10 @@ def api_flair_buy(request, flair_id):
         flair = db.query(WebFlair).filter_by(id=flair_id, enabled=True).first()
         if not flair:
             return JsonResponse({'error': 'Flair not found.'}, status=404)
+
+        # Exclusive flairs are award-only - cannot be purchased
+        if flair.flair_type == 'exclusive':
+            return JsonResponse({'error': 'This flair is award-only and cannot be purchased.'}, status=403)
 
         already = db.query(WebUserFlair).filter_by(
             user_id=request.web_user.id, flair_id=flair_id
@@ -1097,6 +1180,8 @@ def api_flair_equip(request, flair_id):
             return JsonResponse({'error': 'You do not own this flair.'}, status=403)
 
         flair = db.query(WebFlair).filter_by(id=flair_id).first()
+        if flair and not getattr(flair, 'equippable', 1):
+            return JsonResponse({'error': 'This flair is a trophy and cannot be equipped.'}, status=403)
         flair_emoji = flair.emoji if flair else ''
         flair_name  = flair.name  if flair else ''
 
