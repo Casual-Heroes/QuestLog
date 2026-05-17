@@ -18,19 +18,31 @@
 
 {% if not web_user %}
 <!-- Full landing hero for visitors -->
-<div class="bg-gradient-to-b from-indigo-950/60 via-neutral-950 to-neutral-950 border-b border-neutral-800">
-  <div class="max-w-4xl mx-auto px-6 py-16 text-center">
-    <div class="inline-flex items-center gap-2 bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 text-xs font-semibold px-3 py-1 rounded-full mb-6">
-      <span class="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse"></span>
-      Now in Beta - Powered by Casual Heroes
+<div class="relative bg-gradient-to-b from-neutral-950 via-neutral-950 to-neutral-950 border-b border-neutral-800 overflow-hidden">
+  <!-- Subtle atmospheric shapes -->
+  <div class="absolute inset-0 pointer-events-none">
+    <div class="absolute top-0 left-1/4 w-96 h-96 bg-indigo-900/20 rounded-full blur-3xl -translate-y-1/2"></div>
+    <div class="absolute top-0 right-1/4 w-80 h-80 bg-purple-900/15 rounded-full blur-3xl -translate-y-1/3"></div>
+  </div>
+  <div class="relative max-w-4xl mx-auto px-6 py-16 text-center">
+    <!-- Brand lockup -->
+    <div class="mb-6">
+      <p class="text-sm font-bold text-gray-500 uppercase tracking-widest mb-2">Casual Heroes</p>
+      <h1 class="text-4xl sm:text-5xl font-extrabold text-white leading-tight tracking-tight mb-3">
+        Aging, But Still Looting.
+      </h1>
+      <p class="text-lg text-gray-400 max-w-2xl mx-auto leading-relaxed">
+        A community for working adults, parents, and gamers who grew up but never quite left Neverland.
+      </p>
     </div>
-    <h1 class="text-4xl sm:text-5xl font-extrabold text-white leading-tight tracking-tight mb-3">
-      The gaming network for adults with real lives.
-    </h1>
-    <p class="text-xl font-semibold text-indigo-300 mb-5">Aging, but still looting.</p>
-    <p class="text-lg text-gray-400 max-w-2xl mx-auto leading-relaxed mb-8">
-      LFG, community discovery, social posts, and cross-platform tools - all in one place.
-      No pressure. Just real gamers, finding each other.
+    <!-- Divider -->
+    <div class="flex items-center gap-4 max-w-xs mx-auto mb-8">
+      <div class="flex-1 h-px bg-neutral-800"></div>
+      <span class="text-xs text-gray-600 font-medium uppercase tracking-wider">QuestLog Network</span>
+      <div class="flex-1 h-px bg-neutral-800"></div>
+    </div>
+    <p class="text-sm text-gray-500 max-w-xl mx-auto mb-8">
+      LFG, community discovery, social posts, and cross-platform tools - no pressure, just real gamers finding each other.
     </p>
     <div class="flex flex-col sm:flex-row gap-3 justify-center mb-10">
       <a href="{% url 'questlog_web_register' %}"
@@ -66,7 +78,7 @@
       <div class="bg-neutral-900/60 border border-neutral-800 rounded-lg px-3 py-4">
         <div class="text-2xl mb-1.5"><i class="fas fa-network-wired text-yellow-400"></i></div>
         <div class="text-xs text-gray-300 font-medium">Community Tools</div>
-        <div class="text-xs text-gray-600 mt-0.5">Discord + Matrix + Fluxer</div>
+        <div class="text-xs text-gray-600 mt-0.5">Discord + Fluxer + Matrix</div>
       </div>
     </div>
     <!-- Legal links -->
@@ -83,14 +95,12 @@
 </div>
 {% else %}
 <!-- Compact header for logged-in users -->
-<div class="bg-gradient-to-r from-indigo-900/30 via-purple-900/20 to-indigo-900/30 border-b border-neutral-800 px-6 py-5">
+<div class="bg-gradient-to-r from-neutral-900 via-neutral-900 to-neutral-900 border-b border-neutral-800 px-6 py-4">
   <div class="max-w-6xl mx-auto flex items-center justify-between">
     <div>
-      <h1 class="text-2xl font-bold text-white flex items-center gap-2">
-        <i class="fas fa-scroll text-indigo-400"></i>
-        QuestLog Network
-      </h1>
-      <p class="text-gray-400 text-sm mt-0.5">See what gamers are up to right now</p>
+      <p class="text-xs text-gray-600 font-semibold uppercase tracking-widest mb-0.5">Casual Heroes</p>
+      <h1 class="text-xl font-bold text-white">Aging, But Still Looting.</h1>
+      <p class="text-gray-500 text-xs mt-0.5">QuestLog Network - see what gamers are up to right now</p>
     </div>
   </div>
 </div>
@@ -446,7 +456,7 @@ function switchFeedTab(tab) {
 
 async function loadGlobalFeed() {
   try {
-    const res = await fetch(`/ql/api/posts/global/?page=${currentPage}&per_page=15`);
+    const res = await fetch(`/api/posts/global/?page=${currentPage}&per_page=15`);
     const data = await res.json();
     renderFeedPosts(data);
   } catch(e) {
@@ -458,7 +468,7 @@ async function loadGlobalFeed() {
 
 async function loadFollowingFeed() {
   try {
-    const res = await fetch(`/ql/api/posts/?page=${currentPage}&per_page=15`);
+    const res = await fetch(`/api/posts/?page=${currentPage}&per_page=15`);
     const data = await res.json();
     renderFeedPosts(data);
   } catch(e) {
@@ -555,8 +565,8 @@ function renderSuggestedMain(gamers) {
     return `
     <div class="snap-start flex-shrink-0 w-52 rounded-xl border border-neutral-800 hover:border-neutral-700 bg-neutral-900/70 hover:bg-neutral-800/60 transition p-3 flex flex-col gap-2">
       <div class="flex items-center gap-2">
-        <a href="/ql/u/${esc(u.username)}/" class="flex-shrink-0">${av}</a>
-        <a href="/ql/u/${esc(u.username)}/" class="flex-1 min-w-0">
+        <a href="/u/${esc(u.username)}/" class="flex-shrink-0">${av}</a>
+        <a href="/u/${esc(u.username)}/" class="flex-1 min-w-0">
           <p class="text-white text-xs font-semibold truncate leading-tight">${esc(u.display_name||u.username)}</p>
           <p class="text-gray-500 text-[11px] truncate">@${esc(u.username)}</p>
         </a>
@@ -573,7 +583,7 @@ function renderSuggestedMain(gamers) {
 
 async function loadActivity() {
   try {
-    const res = await fetch('/ql/api/activity/');
+    const res = await fetch('/api/activity/');
     const data = await res.json();
 
     document.getElementById('stat-users').textContent = data.total_users || 0;
@@ -608,11 +618,11 @@ async function loadActivity() {
         return `
         <div class="rounded-lg border border-neutral-800 hover:border-neutral-700 bg-neutral-800/30 hover:bg-neutral-800/60 transition p-3">
           <div class="flex items-start gap-2.5 mb-2">
-            <a href="/ql/u/${esc(u.username)}/" class="flex-shrink-0">
+            <a href="/u/${esc(u.username)}/" class="flex-shrink-0">
               ${avatarHtml(u.username, u.avatar_url, 'w-10 h-10')}
             </a>
             <div class="flex-1 min-w-0">
-              <a href="/ql/u/${esc(u.username)}/" class="block">
+              <a href="/u/${esc(u.username)}/" class="block">
                 <p class="text-white text-xs font-semibold truncate leading-tight">${esc(u.display_name || u.username)}</p>
                 <p class="text-gray-500 text-[11px] truncate">@${esc(u.username)}</p>
               </a>
@@ -641,7 +651,7 @@ async function loadActivity() {
             : `<div class="w-8 h-8 bg-neutral-700 rounded-lg flex items-center justify-center"><i class="fas fa-gamepad text-gray-600 text-xs"></i></div>`}
           <div class="flex-1 min-w-0">
             <p class="text-white text-xs font-medium truncate">${esc(g.name)}</p>
-            <p class="text-gray-500 text-xs">${g.post_count} post${g.post_count !== 1 ? 's' : ''} this week</p>
+            <p class="text-gray-500 text-xs">${[g.lfg_count ? g.lfg_count + ' LFG' : '', g.member_count ? g.member_count + ' in library' : '', g.post_count ? g.post_count + ' post' + (g.post_count !== 1 ? 's' : '') : ''].filter(Boolean).join(' · ') || 'trending'}</p>
           </div>
         </div>
       `).join('');
@@ -668,7 +678,7 @@ async function loadActivity() {
       function buildTickerItem(t) {
         const meta = TICKER_ICONS[t.type] || { icon: 'fa-circle', color: 'text-gray-400' };
         const userLink = t.username
-          ? `<a href="/ql/u/${esc(t.username)}/" class="text-white font-medium hover:underline">${esc(t.display_name)}</a>`
+          ? `<a href="/u/${esc(t.username)}/" class="text-white font-medium hover:underline">${esc(t.display_name)}</a>`
           : `<span class="text-white font-medium">${esc(t.display_name)}</span>`;
 
         // Message with clickable extras
@@ -678,9 +688,9 @@ async function loadActivity() {
         } else if (t.type === 'playing' && t.steam_url) {
           msgHtml = `is playing <a href="${esc(t.steam_url)}" target="_blank" rel="noopener" class="text-cyan-400 hover:underline">${esc(t.game)}</a>`;
         } else if ((t.type === 'lfg_create' || t.type === 'lfg_join' || t.type === 'lfg_leave') && t.group_id) {
-          msgHtml = `${t.type === 'lfg_create' ? 'created' : t.type === 'lfg_join' ? 'joined' : 'left'} a group for <a href="/ql/lfg/${t.group_id}/" class="text-orange-400 hover:underline">${esc(t.game_name)}</a>`;
+          msgHtml = `${t.type === 'lfg_create' ? 'created' : t.type === 'lfg_join' ? 'joined' : 'left'} a group for <a href="/lfg/${t.group_id}/" class="text-orange-400 hover:underline">${esc(t.game_name)}</a>`;
         } else if (t.type === 'community_join' && t.community_id) {
-          msgHtml = `joined <a href="/ql/communities/" class="text-teal-400 hover:underline">${esc(t.community_name)}</a>`;
+          msgHtml = `joined <a href="/communities/" class="text-teal-400 hover:underline">${esc(t.community_name)}</a>`;
         }
 
         return `<span class="inline-flex items-center gap-1.5 text-xs">
@@ -705,7 +715,7 @@ async function loadActivity() {
 
 async function sidebarFollow(userId, btn) {
   try {
-    const res = await csrfFetch(`/ql/api/follow/${userId}/`, { method: 'POST' });
+    const res = await csrfFetch(`/api/follow/${userId}/`, { method: 'POST' });
     const data = await res.json();
     if (data.success) {
       const card = btn.closest('.sidebar-gamer-card');
@@ -733,7 +743,7 @@ async function loadSidebarContent() {
     const groups = (data.groups || []).slice(0, 4);
     if (groups.length > 0) {
       el.innerHTML = groups.map(g => `
-        <a href="/ql/lfg/${g.id}/" class="block p-2 rounded-lg hover:bg-neutral-800 transition">
+        <a href="/lfg/${g.id}/" class="block p-2 rounded-lg hover:bg-neutral-800 transition">
           <div class="flex items-center justify-between">
             <span class="text-white text-xs font-medium truncate">${esc(g.title)}</span>
             <span class="text-xs px-1.5 py-0.5 rounded ${g.status === 'open' ? 'bg-green-600/20 text-green-400' : 'bg-yellow-600/20 text-yellow-400'}">${g.current_size}/${g.group_size}</span>
@@ -752,7 +762,7 @@ async function loadSidebarContent() {
     const comms = (data.communities || []).slice(0, 4);
     if (comms.length > 0) {
       el.innerHTML = comms.map(c => `
-        <a href="/ql/communities/${c.id}/" class="flex items-center gap-2 p-2 rounded-lg hover:bg-neutral-800 transition">
+        <a href="/communities/${c.id}/" class="flex items-center gap-2 p-2 rounded-lg hover:bg-neutral-800 transition">
           ${c.icon_url ? `<img src="${esc(c.icon_url)}" class="w-7 h-7 rounded-lg">` : `<div class="w-7 h-7 bg-neutral-700 rounded-lg flex items-center justify-center"><i class="fas fa-server text-gray-600 text-xs"></i></div>`}
           <div class="flex-1 min-w-0">
             <p class="text-white text-xs font-medium truncate">${esc(c.name)}</p>
@@ -772,7 +782,7 @@ async function loadSidebarContent() {
     const medals = ['🥇','🥈','🥉'];
     if (entries.length > 0) {
       el.innerHTML = entries.map((e, i) => `
-        <a href="/ql/u/${esc(e.username)}/" class="flex items-center gap-2 p-1.5 rounded-lg hover:bg-neutral-800 transition">
+        <a href="/u/${esc(e.username)}/" class="flex items-center gap-2 p-1.5 rounded-lg hover:bg-neutral-800 transition">
           <span class="text-sm w-5 text-center flex-shrink-0">${medals[i] || `<span class="text-gray-500 text-xs">#${e.rank}</span>`}</span>
           ${e.avatar_url ? `<img src="${esc(e.avatar_url)}" class="w-6 h-6 rounded flex-shrink-0">` : `<div class="w-6 h-6 bg-indigo-800 rounded flex items-center justify-center flex-shrink-0"><span class="text-white text-xs font-bold">${esc(e.username.slice(0,1).toUpperCase())}</span></div>`}
           <div class="flex-1 min-w-0">
@@ -840,7 +850,7 @@ let _customEmojiCache = null;
 
 // Fetch custom emoji once and make available globally for post rendering
 window._customEmojiMap = {};
-fetch('/ql/api/emoji/').then(r => r.json()).then(data => {
+fetch('/api/emoji/').then(r => r.json()).then(data => {
   _customEmojiCache = data.emoji || [];
   data.emoji.forEach(e => { window._customEmojiMap[e.shortcode] = e.image_url; });
   const lolUrl = window._customEmojiMap['lol'];
@@ -866,7 +876,7 @@ function showEmojiCategory(cat) {
       renderCustomEmoji(_customEmojiCache);
     } else {
       customGrid.innerHTML = '<p class="col-span-8 text-center text-gray-500 text-xs py-3">Loading...</p>';
-      fetch('/ql/api/emoji/').then(r => r.json()).then(data => {
+      fetch('/api/emoji/').then(r => r.json()).then(data => {
         _customEmojiCache = data.emoji || [];
         renderCustomEmoji(_customEmojiCache);
       });
@@ -930,7 +940,7 @@ async function loadTrendingGifs() {
   const container = document.getElementById('gif-results');
   container.innerHTML = '<p class="col-span-3 text-gray-500 text-xs text-center py-4">Loading trending...</p>';
   try {
-    const res = await fetch('/ql/api/gifs/trending/');
+    const res = await fetch('/api/gifs/trending/');
     const data = await res.json();
     renderGifResults(data.results || []);
   } catch(e) {
@@ -948,7 +958,7 @@ function searchGifs(query) {
     const container = document.getElementById('gif-results');
     container.innerHTML = '<p class="col-span-3 text-gray-500 text-xs text-center py-4">Searching...</p>';
     try {
-      const res = await fetch(`/ql/api/gifs/search/?q=${encodeURIComponent(query)}`);
+      const res = await fetch(`/api/gifs/search/?q=${encodeURIComponent(query)}`);
       const data = await res.json();
       renderGifResults(data.results || []);
     } catch(e) {
@@ -1011,7 +1021,7 @@ function searchGames(query) {
   if (!query || query.length < 2) { results.classList.add('hidden'); return; }
   gameSearchTimeout = setTimeout(async () => {
     try {
-      const res = await fetch(`/ql/api/igdb/search/?q=${encodeURIComponent(query)}`);
+      const res = await fetch(`/api/igdb/search/?q=${encodeURIComponent(query)}`);
       const data = await res.json();
       if (data.games && data.games.length > 0) {
         results.classList.remove('hidden');
@@ -1060,7 +1070,7 @@ async function handleImageSelect(input) {
     const formData = new FormData();
     formData.append('image', file);
     try {
-      const res = await csrfFetch('/ql/api/upload/image/', { method: 'POST', body: formData });
+      const res = await csrfFetch('/api/upload/image/', { method: 'POST', body: formData });
       const data = await res.json();
       if (data.success) { uploadedImages.push(data); renderImagePreviews(); updateCharCount(); }
       else { alert(data.error || 'Upload failed'); }
@@ -1086,7 +1096,7 @@ async function handlePasteImage(event) {
     const formData = new FormData();
     formData.append('image', file);
     try {
-      const res = await csrfFetch('/ql/api/upload/image/', { method: 'POST', body: formData });
+      const res = await csrfFetch('/api/upload/image/', { method: 'POST', body: formData });
       const data = await res.json();
       if (data.success) { uploadedImages.push(data); }
       else { alert(data.error || 'Upload failed'); }
@@ -1144,7 +1154,7 @@ async function submitPost() {
   }
 
   try {
-    const res = await csrfFetch('/ql/api/posts/', {
+    const res = await csrfFetch('/api/posts/', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     });

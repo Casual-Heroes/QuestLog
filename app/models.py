@@ -2901,6 +2901,7 @@ class SiteActivityGame(Base):
 
     # Display on website
     is_active = Column(Boolean, default=True)  # Show on /gamesweplay/
+    show_on_discover_strip = Column(Boolean, default=True)  # Show pill on /discover/ page (AMP/both only)
     sort_order = Column(Integer, default=0)  # Display order on site
 
     # Timestamps
@@ -2947,6 +2948,28 @@ class SiteActivityGuildRole(Base):
         Index("idx_site_activity_guild_role_game", "game_id"),
         Index("idx_site_activity_guild_role_guild", "guild_id"),
         UniqueConstraint("game_id", "guild_id", "role_id", name="uq_game_guild_role"),
+    )
+
+
+class SiteActivityFluxerRole(Base):
+    """
+    Fluxer guild/role mappings for activity tracking.
+    Mirrors SiteActivityGuildRole but for Fluxer (IDs are strings).
+    """
+    __tablename__ = "site_activity_fluxer_roles"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    game_id = Column(Integer, ForeignKey("site_activity_games.id", ondelete="CASCADE"), nullable=False)
+    guild_id = Column(String(100), nullable=False)   # Fluxer guild ID
+    role_id = Column(String(100), nullable=False)    # Fluxer role ID
+    guild_name = Column(String(255), nullable=True)
+    role_name = Column(String(255), nullable=True)
+    is_active = Column(Boolean, default=True)
+
+    __table_args__ = (
+        Index("idx_site_activity_fluxer_role_game", "game_id"),
+        Index("idx_site_activity_fluxer_role_guild", "guild_id"),
+        UniqueConstraint("game_id", "guild_id", "role_id", name="uq_fluxer_game_guild_role"),
     )
 
 

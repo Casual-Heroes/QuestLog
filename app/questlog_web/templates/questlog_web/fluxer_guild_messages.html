@@ -92,10 +92,15 @@
             <input type="text" id="embed-footer" placeholder="Footer text..."
                    class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm">
           </div>
+          <div>
+            <label class="block text-xs text-gray-400 mb-1.5">Mention <span class="text-gray-600">(optional)</span></label>
+            <div id="cs-embed-mention"></div>
+          </div>
         </div>
         <!-- Live preview -->
         <div>
           <label class="block text-xs text-gray-400 mb-1.5">Preview</label>
+          <p class="text-blue-400 text-xs mb-1 hidden" id="preview-mention"></p>
           <div class="bg-neutral-800 rounded-lg p-4 border-l-4" id="embed-preview" style="border-color: #8b5cf6;">
             <p class="text-white font-semibold text-sm" id="preview-title">Embed Title</p>
             <p class="text-gray-400 text-xs mt-1 whitespace-pre-wrap" id="preview-desc">Embed description goes here...</p>
@@ -195,7 +200,7 @@
 const GUILD_ID = '{{ guild_id }}';
 const CHANNELS = JSON.parse('{{ channels_json|escapejs }}');
 
-let csEmbedChannel, csBroadcastChannel, csSchedChannel;
+let csEmbedChannel, csBroadcastChannel, csSchedChannel, csEmbedMention;
 
 function switchTab(name) {
   ['schedule','embed','broadcast'].forEach(t => {
@@ -209,6 +214,22 @@ function switchTab(name) {
     csEmbedChannel = createCustomSelect({
       container: document.getElementById('cs-embed-channel'),
       name: 'embed_channel_id', items: CHANNELS, selected: [], placeholder: 'Select channel...',
+    });
+    csEmbedMention = createCustomSelect({
+      container: document.getElementById('cs-embed-mention'),
+      name: 'embed_mention',
+      items: [
+        {value: '', label: 'No mention'},
+        {value: '@here', label: '@here / @room - online members only'},
+        {value: '@everyone', label: '@everyone - all members'},
+      ],
+      selected: '',
+      color: 'blue',
+      onSelect: (val) => {
+        const el = document.getElementById('preview-mention');
+        if (val) { el.textContent = val; el.classList.remove('hidden'); }
+        else { el.textContent = ''; el.classList.add('hidden'); }
+      },
     });
   }
   if (name === 'broadcast' && !csBroadcastChannel) {
@@ -269,16 +290,17 @@ async function sendEmbed() {
   if (!title && !description) { alert('Please enter a title or description.'); return; }
   const color = document.getElementById('embed-color').value;
   const footer = document.getElementById('embed-footer').value.trim();
+  const mention = csEmbedMention ? csEmbedMention.getValue() : '';
 
   const btn = document.getElementById('send-embed-btn');
   btn.disabled = true;
   btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Sending...';
 
   try {
-    const resp = await csrfFetch(`/ql/api/dashboard/fluxer/${GUILD_ID}/messages/send-embed/`, {
+    const resp = await csrfFetch(`/api/dashboard/fluxer/${GUILD_ID}/messages/send-embed/`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ channel_id, title, description, color, footer }),
+      body: JSON.stringify({ channel_id, title, description, color, footer, mention }),
     });
     const data = await resp.json();
     if (data.success) {

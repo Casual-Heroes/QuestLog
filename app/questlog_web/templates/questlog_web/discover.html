@@ -1,0 +1,1818 @@
+{% extends "questlog_web/base_web.html" %}
+{% load static %}
+
+{% block title %}Discover | Casual Heroes{% endblock %}
+{% block og_title %}Discover QuestLog | Casual Heroes{% endblock %}
+{% block og_description %}A community for working adults, parents, and gamers who grew up but never quite left Neverland.{% endblock %}
+
+{% block web_content %}
+<style>
+.discover-card {
+  background: rgb(18 18 18);
+  border: 1px solid rgb(38 38 38);
+  transition: border-color 0.2s, transform 0.2s, box-shadow 0.2s;
+}
+.discover-card:hover {
+  border-color: rgb(63 63 70);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+}
+.live-pulse { animation: livepulse 2s infinite; }
+@keyframes livepulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(239,68,68,0.5); }
+  50% { box-shadow: 0 0 0 6px rgba(239,68,68,0); }
+}
+.game-tile:hover .game-tile-img { transform: scale(1.05); }
+.game-tile-img { transition: transform 0.3s ease; }
+.section-header {
+  display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem;
+}
+.section-title {
+  font-size: 1rem; font-weight: 700; color: white; display: flex; align-items: center; gap: 0.5rem;
+}
+.view-all {
+  font-size: 0.75rem; color: rgb(99 102 241);
+  display: flex; align-items: center; gap: 0.25rem; transition: color 0.15s;
+}
+.view-all:hover { color: rgb(165 180 252); }
+@keyframes tickerScroll {
+  0% { transform: translateX(100vw); }
+  100% { transform: translateX(-100%); }
+}
+.animate-ticker { will-change: transform; }
+</style>
+
+{% if not web_user %}
+<!-- Visitor Landing Hero -->
+<div class="relative overflow-hidden bg-neutral-950 border-b border-neutral-800">
+  <!-- Atmospheric background -->
+  <div class="absolute -top-40 -left-40 w-[500px] h-[500px] bg-indigo-700/8 rounded-full blur-3xl pointer-events-none"></div>
+  <div class="absolute -top-20 right-0 w-96 h-96 bg-purple-700/8 rounded-full blur-3xl pointer-events-none"></div>
+
+  <div class="relative max-w-5xl mx-auto px-4 sm:px-6 py-10 sm:py-16">
+
+    <!-- Two column: headline left, value props right -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-10 items-center">
+      <div>
+        <!-- Brand lockup -->
+        {% if web_user %}
+        <p class="text-xs font-bold text-indigo-400 uppercase tracking-widest mb-3">Welcome Home, {{ web_user.username }}</p>
+        {% else %}
+        <p class="text-xs font-bold text-gray-600 uppercase tracking-widest mb-3">Casual Heroes</p>
+        {% endif %}
+        <h1 class="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-white leading-tight tracking-tight mb-3">
+          Aging, But<br>Still Looting.
+        </h1>
+        <p class="text-gray-400 text-base leading-relaxed mb-2">
+          A community for working adults, parents, and gamers who grew up but never quite left Neverland.
+        </p>
+        <div class="flex items-center gap-3 my-5">
+          <div class="flex-1 h-px bg-neutral-800"></div>
+          <span class="text-xs text-gray-600 font-medium uppercase tracking-wider">QuestLog Network</span>
+          <div class="flex-1 h-px bg-neutral-800"></div>
+        </div>
+        <p class="text-gray-500 text-sm leading-relaxed mb-7">
+          LFG, community discovery, social posts, and cross-platform tools - no pressure, just real gamers finding each other.
+        </p>
+        <div class="flex flex-col sm:flex-row gap-3">
+          <a href="{% url 'questlog_web_lfg_browse' %}"
+             class="inline-flex items-center justify-center bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-3 rounded-xl font-semibold text-sm transition shadow-lg shadow-emerald-900/30">
+            <i class="fas fa-users mr-2"></i>Find a Group Now
+          </a>
+          <a href="{% url 'questlog_web_register' %}"
+             class="inline-flex items-center justify-center bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-white px-6 py-3 rounded-xl font-semibold text-sm transition">
+            <i class="fas fa-user-plus mr-2"></i>Join Free
+          </a>
+          <a href="{% url 'questlog_web_login' %}"
+             class="inline-flex items-center justify-center bg-transparent hover:bg-neutral-800 border border-neutral-700 text-gray-400 hover:text-white px-6 py-3 rounded-xl font-semibold text-sm transition">
+            Sign In
+          </a>
+        </div>
+      </div>
+
+      <!-- Value props -->
+      <div class="grid grid-cols-2 gap-3">
+        <div class="bg-neutral-900/80 border border-neutral-800 rounded-xl p-4 hover:border-emerald-500/30 transition">
+          <div class="w-9 h-9 rounded-lg bg-emerald-500/15 flex items-center justify-center mb-3">
+            <i class="fas fa-users text-emerald-400"></i>
+          </div>
+          <div class="text-sm text-white font-semibold mb-1">Find Your Group</div>
+          <div class="text-xs text-gray-500 leading-relaxed">LFG that shows you the vibe before you join - casual, competitive, story-first, whatever fits you</div>
+        </div>
+        <div class="bg-neutral-900/80 border border-neutral-800 rounded-xl p-4 hover:border-red-500/30 transition">
+          <div class="w-9 h-9 rounded-lg bg-red-500/15 flex items-center justify-center mb-3">
+            <i class="fas fa-broadcast-tower text-red-400"></i>
+          </div>
+          <div class="text-sm text-white font-semibold mb-1">Creators Worth Finding</div>
+          <div class="text-xs text-gray-500 leading-relaxed">Small creators who make real content - sorted by who posted recently, not who has the most followers</div>
+        </div>
+        <div class="bg-neutral-900/80 border border-neutral-800 rounded-xl p-4 hover:border-purple-500/30 transition">
+          <div class="w-9 h-9 rounded-lg bg-purple-500/15 flex items-center justify-center mb-3">
+            <i class="fas fa-shield-alt text-purple-400"></i>
+          </div>
+          <div class="text-sm text-white font-semibold mb-1">Real Communities</div>
+          <div class="text-xs text-gray-500 leading-relaxed">Gaming communities that don't make you perform for clout - Discord, Matrix, or Fluxer</div>
+        </div>
+        <div class="bg-neutral-900/80 border border-neutral-800 rounded-xl p-4 hover:border-indigo-500/30 transition">
+          <div class="w-9 h-9 rounded-lg bg-indigo-500/15 flex items-center justify-center mb-3">
+            <i class="fas fa-lock-open text-indigo-400"></i>
+          </div>
+          <div class="text-sm text-white font-semibold mb-1">No Algorithm</div>
+          <div class="text-xs text-gray-500 leading-relaxed">You decide what you see. No engagement farming, no promoted posts, no data selling. Ever.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="border-t border-neutral-800/60 py-3 px-6 text-center">
+    <p class="text-xs text-gray-600">Live network activity - <a href="{% url 'questlog_web_register' %}" class="text-indigo-400 hover:text-indigo-300 transition">join to participate</a> &nbsp;&bull;&nbsp; <a href="/privacy" class="hover:text-gray-400 transition">Privacy</a> &nbsp;&bull;&nbsp; <a href="/terms" class="hover:text-gray-400 transition">Terms</a></p>
+  </div>
+</div>
+
+{% else %}
+<!-- Logged-in: compact CH header + game search -->
+<div class="bg-neutral-950 border-b border-neutral-800 px-4 sm:px-6 pt-5 pb-4">
+  <div class="max-w-2xl mx-auto text-center">
+    <p class="text-xs font-bold text-indigo-400 uppercase tracking-widest mb-1">Welcome Home, {{ web_user.username }}</p>
+    <p class="text-base font-semibold text-white mb-4">Aging, But Still Looting.</p>
+    <p class="text-xs text-gray-600 uppercase tracking-widest font-semibold mb-3">What are you playing?</p>
+    <div class="relative">
+      <i class="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 text-sm pointer-events-none"></i>
+      <input id="lfg-game-search" type="text" placeholder="Search a game to find or start a group..."
+        class="w-full bg-neutral-900 border border-neutral-700 focus:border-indigo-500 rounded-2xl pl-11 pr-14 py-4 text-white text-base placeholder-gray-600 focus:outline-none transition"
+        oninput="discoverGameSearchInput(this.value)"
+        onkeydown="if(event.key==='Enter'){discoverGameSearchGo()}"
+        autocomplete="off">
+      <button onclick="discoverGameSearchGo()"
+        class="absolute right-3 top-1/2 -translate-y-1/2 bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1.5 rounded-xl text-xs font-semibold transition flex items-center gap-1.5">
+        <i class="fas fa-arrow-right"></i>
+      </button>
+      <div id="lfg-game-suggestions" class="hidden absolute left-0 right-0 top-full mt-1 bg-neutral-900 border border-neutral-700 rounded-xl shadow-xl z-50 max-h-56 overflow-y-auto"></div>
+    </div>
+    <div class="flex items-center justify-center gap-3 mt-4">
+      <a href="{% url 'questlog_web_lfg_browse' %}" id="browse-all-btn"
+         class="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold px-5 py-2.5 rounded-xl transition text-sm shadow-lg shadow-emerald-900/30">
+        <i class="fas fa-users"></i> Browse All Groups
+      </a>
+      <a href="{% url 'questlog_web_lfg_create' %}"
+         class="inline-flex items-center gap-2 bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-white font-semibold px-5 py-2.5 rounded-xl transition text-sm">
+        <i class="fas fa-plus"></i> Start a Group
+      </a>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- Live Stats Bar -->
+<div class="bg-neutral-900/80 border-b border-neutral-800 px-4 py-2.5">
+  <div class="max-w-5xl mx-auto flex items-center justify-center flex-wrap gap-x-4 gap-y-1 text-xs">
+    <span class="flex items-center gap-1.5">
+      <span class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+      <span class="text-gray-400"><span class="text-white font-semibold" id="stat-users">-</span> Gamers</span>
+    </span>
+    <span class="text-gray-600 hidden sm:inline">|</span>
+    <span class="text-gray-400"><span class="text-white font-semibold" id="stat-posts">-</span> Posts</span>
+    <span class="text-gray-600 hidden sm:inline">|</span>
+    <span class="text-gray-400"><span class="text-green-400 font-semibold" id="stat-today">-</span> posts today</span>
+    <span class="text-gray-600 hidden sm:inline">|</span>
+    <span class="text-gray-400"><span class="text-indigo-400 font-semibold" id="stat-active">-</span> active today</span>
+  </div>
+</div>
+
+<!-- Activity Ticker -->
+<div id="ticker-bar" class="hidden bg-neutral-950 border-b border-neutral-800 overflow-hidden relative" style="height: 32px;">
+  <div id="ticker-content" class="flex items-center gap-8 whitespace-nowrap animate-ticker absolute" style="animation: tickerScroll 22s linear infinite;"></div>
+</div>
+
+{% if game_servers %}
+<!-- Game Server Strip -->
+<div class="bg-neutral-900/60 border-b border-neutral-800 px-4 py-2">
+  <div class="max-w-5xl mx-auto flex items-center gap-2 overflow-x-auto" style="scrollbar-width:none;">
+    <span class="text-xs text-gray-600 font-medium whitespace-nowrap flex-shrink-0 mr-1">
+      <i class="fas fa-server text-gray-700 mr-1"></i>Servers:
+    </span>
+    {% for s in game_servers %}
+    <a href="{% url 'questlog_web_gameservers' %}"
+       class="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs whitespace-nowrap flex-shrink-0 transition
+              {% if s.live_now %}bg-green-500/10 border border-green-500/20 text-green-300 hover:bg-green-500/20
+              {% else %}bg-neutral-800 border border-neutral-700 text-gray-500 hover:bg-neutral-700{% endif %}">
+      <span class="w-1.5 h-1.5 rounded-full {% if s.live_now %}bg-green-400{% else %}bg-gray-600{% endif %}"></span>
+      {{ s.name }}
+      {% if s.live_now and s.online != '-' %}
+      <span class="{% if s.live_now %}text-green-400{% else %}text-gray-600{% endif %} font-semibold">{{ s.online }}/{{ s.max }}</span>
+      {% endif %}
+    </a>
+    {% endfor %}
+    <a href="{% url 'questlog_web_gameservers' %}" class="text-xs text-gray-600 hover:text-gray-400 transition whitespace-nowrap flex-shrink-0 ml-1">View all &rarr;</a>
+  </div>
+</div>
+{% endif %}
+
+<!-- Main layout: discovery content + right sidebar -->
+<div class="max-w-5xl mx-auto px-3 sm:px-4 py-4 sm:py-6">
+  <div class="flex flex-col lg:flex-row gap-6">
+
+    <!-- Discovery Main Column -->
+    <div class="flex-1 min-w-0 space-y-6 sm:space-y-10">
+
+      <!-- Quick Post Composer - moved below LFG via JS on page load -->
+      {% if web_user %}
+      <div id="quick-composer" class="bg-neutral-900 rounded-xl border border-neutral-800 transition-all duration-200">
+        <div class="bg-gradient-to-r from-indigo-950/40 to-transparent px-4 pt-4 pb-3 rounded-t-xl">
+          <div class="flex gap-3 items-start">
+            {% if web_user.avatar_url %}
+            <img src="{{ web_user.avatar_url }}" alt="" class="w-9 h-9 rounded-full object-cover flex-shrink-0 ring-1 ring-indigo-500/30">
+            {% else %}
+            <div class="w-9 h-9 bg-indigo-900/60 rounded-full flex items-center justify-center flex-shrink-0 ring-1 ring-indigo-500/30">
+              <span class="text-xs font-bold text-indigo-300">{{ web_user.username|slice:":2"|upper }}</span>
+            </div>
+            {% endif %}
+            <textarea id="discover-post-content" rows="2" maxlength="{% if web_user.is_admin %}6000{% elif web_user.is_hero %}3000{% else %}1000{% endif %}"
+              placeholder="What are you playing? Share a moment... (paste a video link or image!)"
+              class="w-full bg-transparent border-0 text-sm text-white placeholder-gray-600 focus:outline-none resize-none leading-relaxed pt-1 overflow-hidden"
+              oninput="discoverAutoExpand(this); discoverUpdateBtn()" onpaste="discoverHandlePasteImage(event)"></textarea>
+          </div>
+        </div>
+
+        <!-- Tools bar -->
+        <div class="px-4 py-3 border-t border-neutral-800/50">
+          <div id="discover-image-preview" class="hidden mb-3"></div>
+          <!-- Game tag display -->
+          <div id="discover-game-tag-display" class="hidden mb-3 flex items-center gap-2">
+            <span class="inline-flex items-center gap-1 px-2 py-1 bg-indigo-500/20 text-indigo-300 rounded-full text-xs">
+              <i class="fas fa-gamepad"></i>
+              <span id="discover-game-tag-name"></span>
+              <button onclick="discoverClearGameTag()" class="ml-1 hover:text-red-400"><i class="fas fa-times text-xs"></i></button>
+            </span>
+          </div>
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-0.5">
+              <label class="cursor-pointer flex items-center gap-1.5 text-gray-500 hover:text-green-400 px-2.5 py-1.5 rounded-lg hover:bg-neutral-800 text-xs font-medium transition">
+                <i class="fas fa-image"></i><span class="hidden sm:inline">Photo</span>
+                <input type="file" id="discover-image-input" accept="image/jpeg,image/png,image/gif,image/webp" multiple class="hidden" onchange="discoverHandleImageSelect(this)">
+              </label>
+              <button onclick="discoverToggleGifPicker()" class="flex items-center gap-1.5 text-gray-500 hover:text-purple-400 px-2.5 py-1.5 rounded-lg hover:bg-neutral-800 text-xs font-bold transition">GIF</button>
+              <button onclick="discoverToggleEmojiPicker()" class="flex items-center gap-1.5 text-gray-500 hover:text-yellow-400 px-2.5 py-1.5 rounded-lg hover:bg-neutral-800 text-xs transition">
+                <i class="far fa-smile"></i><span class="hidden sm:inline ml-1">Emoji</span>
+              </button>
+              <button onclick="discoverToggleGameSearch()" class="flex items-center gap-1.5 text-gray-500 hover:text-indigo-400 px-2.5 py-1.5 rounded-lg hover:bg-neutral-800 text-xs transition">
+                <i class="fas fa-gamepad"></i><span class="hidden sm:inline ml-1">Game</span>
+              </button>
+              <span id="discover-char-count" class="text-gray-600 text-xs ml-2">0/{% if web_user.is_admin %}6000{% elif web_user.is_hero %}3000{% else %}1000{% endif %}</span>
+            </div>
+            <button onclick="discoverSubmitPost()" id="discover-post-btn"
+              class="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-1.5 rounded-lg text-xs font-semibold transition disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5" disabled>
+              <i class="fas fa-paper-plane text-xs"></i>Post
+            </button>
+          </div>
+          <!-- Emoji Picker -->
+          <div id="discover-emoji-picker" class="hidden mt-2 bg-neutral-800 border border-neutral-700 rounded-xl p-3 max-h-52 overflow-y-auto">
+            <div class="flex gap-1 mb-2 border-b border-neutral-700 pb-2 flex-wrap">
+              <button onclick="discoverShowEmojiCategory('gaming')" data-cat="gaming" class="discover-emoji-cat-btn text-xs px-2 py-1 rounded bg-neutral-700 text-white">🎮 Gaming</button>
+              <button onclick="discoverShowEmojiCategory('smileys')" data-cat="smileys" class="discover-emoji-cat-btn text-xs px-2 py-1 rounded text-gray-400 hover:bg-neutral-700">😀 Faces</button>
+              <button onclick="discoverShowEmojiCategory('hands')" data-cat="hands" class="discover-emoji-cat-btn text-xs px-2 py-1 rounded text-gray-400 hover:bg-neutral-700">👍 Hands</button>
+              <button onclick="discoverShowEmojiCategory('hearts')" data-cat="hearts" class="discover-emoji-cat-btn text-xs px-2 py-1 rounded text-gray-400 hover:bg-neutral-700">❤️ React</button>
+              <button onclick="discoverShowEmojiCategory('objects')" data-cat="objects" class="discover-emoji-cat-btn text-xs px-2 py-1 rounded text-gray-400 hover:bg-neutral-700">⚡ Misc</button>
+              <button onclick="discoverShowEmojiCategory('custom')" data-cat="custom" id="discover-custom-emoji-tab-btn" class="discover-emoji-cat-btn text-xs px-2 py-1 rounded text-gray-400 hover:bg-neutral-700 flex items-center gap-1"><span id="discover-custom-emoji-tab-icon">✨</span> Custom</button>
+            </div>
+            <div id="discover-emoji-grid" class="grid grid-cols-10 gap-0.5"></div>
+            <div id="discover-custom-emoji-grid" class="hidden grid grid-cols-8 gap-1"></div>
+          </div>
+          <!-- GIF Picker -->
+          <div id="discover-gif-picker" class="hidden mt-2 bg-neutral-800 border border-neutral-700 rounded-xl overflow-hidden">
+            <div class="p-2 border-b border-neutral-700">
+              <input type="text" id="discover-gif-search-input" placeholder="Search GIFs..."
+                class="w-full bg-neutral-900 border border-neutral-600 rounded-lg px-3 py-1.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
+                oninput="discoverSearchGifs(this.value)">
+            </div>
+            <div id="discover-gif-results" class="grid grid-cols-3 gap-1 p-2 max-h-64 overflow-y-auto">
+              <p class="col-span-3 text-gray-500 text-xs text-center py-4">Search or browse trending GIFs</p>
+            </div>
+            <div class="px-2 py-1 border-t border-neutral-700 text-right">
+              <span class="text-gray-600 text-xs">Powered by GIPHY</span>
+            </div>
+          </div>
+          <!-- Game Search -->
+          <div id="discover-game-search-row" class="hidden mt-2 relative">
+            <input type="text" id="discover-game-search-input" placeholder="Search for a game to tag..."
+              class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500"
+              oninput="discoverSearchGames(this.value)">
+            <div id="discover-game-search-results" class="hidden absolute left-0 right-0 top-full mt-1 bg-neutral-900 border border-neutral-700 rounded-lg shadow-lg z-50 max-h-48 overflow-y-auto"></div>
+          </div>
+        </div>
+        <div id="discover-post-status" class="hidden text-xs text-green-400 px-4 pb-3">Posted!</div>
+      </div>
+      {% endif %}
+
+      <!-- 1. GROUPS FORMING NOW - first thing a visitor sees, the dopamine hook -->
+      <section>
+        <div class="section-header">
+          <h2 class="section-title">
+            <span class="w-7 h-7 rounded-lg bg-emerald-500/15 flex items-center justify-center">
+              <i class="fas fa-users text-emerald-400 text-xs"></i>
+            </span>
+            Groups Forming Now
+            {% if groups_last_hour > 0 %}
+            <span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 whitespace-nowrap">
+              {{ groups_last_hour }} new this hour
+            </span>
+            {% endif %}
+          </h2>
+          <a href="{% url 'questlog_web_lfg_browse' %}" class="view-all">
+            Browse All <i class="fas fa-arrow-right text-[10px]"></i>
+          </a>
+        </div>
+
+        {% if lfg_groups %}
+        <div id="lfg-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {% for g in lfg_groups %}
+          <a href="/lfg/{{ g.share_token }}/"
+             class="lfg-group-card discover-card rounded-2xl overflow-hidden group flex flex-col"
+             data-game="{{ g.game_name|lower }}" data-title="{{ g.title|lower }}">
+            <div class="relative h-28 bg-neutral-800 overflow-hidden flex-shrink-0">
+              {% if g.game_image_url %}
+              <img src="{{ g.game_image_url }}"
+                   class="w-full h-full object-cover object-left opacity-60 group-hover:opacity-80 transition duration-300"
+                   alt="{{ g.game_name }}">
+              {% else %}
+              <div class="w-full h-full bg-gradient-to-br from-neutral-800 to-neutral-900 flex items-center justify-center">
+                <i class="fas fa-gamepad text-3xl text-neutral-700"></i>
+              </div>
+              {% endif %}
+              <div class="absolute inset-0 bg-gradient-to-t from-[#121212] via-[#121212]/40 to-transparent"></div>
+              <span class="absolute bottom-2 left-3 text-xs font-bold text-white bg-black/40 backdrop-blur-sm px-2 py-0.5 rounded-full">
+                {{ g.game_name }}
+              </span>
+              <!-- Size badge -->
+              <span class="absolute top-2 right-2 text-xs font-bold {% if g.current_size >= g.group_size %}text-red-400 bg-red-500/15 border border-red-500/30{% else %}text-emerald-400 bg-emerald-500/15 border border-emerald-500/30{% endif %} px-2 py-0.5 rounded-full backdrop-blur-sm">
+                <i class="fas fa-user-friends text-[10px] mr-1"></i>{{ g.current_size }}/{{ g.group_size }}
+              </span>
+              <!-- Urgency tag -->
+              {% if g.urgency == 'new' %}
+              <span class="absolute top-2 left-2 text-[10px] font-bold text-indigo-300 bg-indigo-500/20 border border-indigo-500/30 px-1.5 py-0.5 rounded-full backdrop-blur-sm">NEW</span>
+              {% elif g.urgency == 'almost_full' %}
+              <span class="absolute top-2 left-2 text-[10px] font-bold text-orange-300 bg-orange-500/20 border border-orange-500/30 px-1.5 py-0.5 rounded-full backdrop-blur-sm">ALMOST FULL</span>
+              {% elif g.urgency == 'recruiting' %}
+              <span class="absolute top-2 left-2 text-[10px] font-bold text-emerald-300 bg-emerald-500/15 border border-emerald-500/25 px-1.5 py-0.5 rounded-full backdrop-blur-sm">RECRUITING</span>
+              {% endif %}
+            </div>
+            <div class="p-3 flex-1">
+              <p class="text-sm font-semibold text-white line-clamp-2 group-hover:text-emerald-300 transition leading-snug">{{ g.title }}</p>
+              {% if g.slots_left > 0 %}
+              <p class="text-xs text-gray-600 mt-1">{{ g.slots_left }} slot{{ g.slots_left|pluralize }} open</p>
+              {% endif %}
+            </div>
+          </a>
+          {% endfor %}
+        </div>
+
+        <!-- No search results state -->
+        <div id="lfg-no-results" style="display:none" class="discover-card rounded-2xl p-8 text-center">
+          <i class="fas fa-search text-3xl text-neutral-600 mb-3"></i>
+          <p class="text-gray-400 font-semibold mb-1">No groups found for that game</p>
+          <p class="text-gray-600 text-sm mb-4">Be the first one - start a group and find your squad.</p>
+          {% if web_user %}
+          <a id="lfg-search-start-cta" href="{% url 'questlog_web_lfg_create' %}"
+             class="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold px-5 py-2.5 rounded-xl transition text-sm">
+            <i class="fas fa-plus"></i> Start a Group for <span id="lfg-search-game-name" class="ml-1"></span>
+          </a>
+          {% else %}
+          <a href="{% url 'questlog_web_register' %}"
+             class="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold px-5 py-2.5 rounded-xl transition text-sm">
+            <i class="fas fa-user-plus"></i> Join to Start a Group
+          </a>
+          {% endif %}
+        </div>
+
+        {% else %}
+        <div id="lfg-empty-state" class="discover-card rounded-2xl p-10 text-center">
+          <div class="w-14 h-14 rounded-2xl bg-neutral-800 flex items-center justify-center mx-auto mb-4">
+            <i class="fas fa-users text-2xl text-neutral-600"></i>
+          </div>
+          <p class="text-gray-400 mb-1 font-semibold">No groups yet</p>
+          <p class="text-gray-600 text-sm mb-5">Be the first to create one</p>
+          {% if web_user %}
+          <a href="{% url 'questlog_web_lfg_create' %}"
+             class="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold px-5 py-2.5 rounded-xl transition text-sm">
+            <i class="fas fa-plus"></i> Create a Group
+          </a>
+          {% else %}
+          <a href="{% url 'questlog_web_register' %}"
+             class="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold px-5 py-2.5 rounded-xl transition text-sm">
+            <i class="fas fa-plus"></i> Sign Up and Create a Group
+          </a>
+          {% endif %}
+        </div>
+        {% endif %}
+      </section>
+
+      <!-- post-composer-anchor: JS will move #quick-composer here after LFG loads -->
+      <div id="post-composer-anchor"></div>
+
+      <!-- 2. COMMUNITIES - for members looking for a home -->
+      <section>
+        <div class="section-header">
+          <h2 class="section-title">
+            <span class="w-7 h-7 rounded-lg bg-purple-500/15 flex items-center justify-center">
+              <i class="fas fa-shield-alt text-purple-400 text-xs"></i>
+            </span>
+            Communities
+            {% if community_counts %}
+            <span class="text-xs font-normal text-gray-500">{{ featured_communities|length }} shown</span>
+            {% endif %}
+          </h2>
+          <a href="{% url 'questlog_web_communities' %}" class="view-all">
+            Browse All <i class="fas fa-arrow-right text-[10px]"></i>
+          </a>
+        </div>
+
+        <!-- Platform filter pills -->
+        {% if community_counts %}
+        <div class="flex flex-wrap gap-2 mb-4">
+          <button onclick="filterCommunities('all')" data-filter="all"
+            class="community-filter-btn active text-xs px-3 py-1 rounded-full border border-purple-500/40 bg-purple-500/15 text-purple-300 transition">
+            All
+          </button>
+          {% if community_counts.discord %}
+          <button onclick="filterCommunities('discord')" data-filter="discord"
+            class="community-filter-btn text-xs px-3 py-1 rounded-full border border-neutral-700 bg-neutral-800 text-gray-400 hover:border-indigo-500/40 hover:text-indigo-300 transition">
+            <i class="fab fa-discord mr-1"></i>Discord
+            <span class="text-gray-600 ml-1">{{ community_counts.discord }}</span>
+          </button>
+          {% endif %}
+          {% if community_counts.matrix %}
+          <button onclick="filterCommunities('matrix')" data-filter="matrix"
+            class="community-filter-btn text-xs px-3 py-1 rounded-full border border-neutral-700 bg-neutral-800 text-gray-400 hover:border-green-500/40 hover:text-green-300 transition">
+            <i class="fas fa-comments mr-1"></i>Matrix
+            <span class="text-gray-600 ml-1">{{ community_counts.matrix }}</span>
+          </button>
+          {% endif %}
+          {% if community_counts.fluxer %}
+          <button onclick="filterCommunities('fluxer')" data-filter="fluxer"
+            class="community-filter-btn text-xs px-3 py-1 rounded-full border border-neutral-700 bg-neutral-800 text-gray-400 hover:border-cyan-500/40 hover:text-cyan-300 transition">
+            <i class="fas fa-satellite-dish mr-1"></i>Fluxer
+            <span class="text-gray-600 ml-1">{{ community_counts.fluxer }}</span>
+          </button>
+          {% endif %}
+          {% if community_counts.stoat %}
+          <button onclick="filterCommunities('stoat')" data-filter="stoat"
+            class="community-filter-btn text-xs px-3 py-1 rounded-full border border-neutral-700 bg-neutral-800 text-gray-400 hover:border-orange-500/40 hover:text-orange-300 transition">
+            <i class="fas fa-bolt mr-1"></i>Stoat
+            <span class="text-gray-600 ml-1">{{ community_counts.stoat }}</span>
+          </button>
+          {% endif %}
+        </div>
+        {% endif %}
+
+        {% if featured_communities %}
+        <div id="communities-grid" class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {% for c in featured_communities %}
+          <a href="{% url 'questlog_web_community_detail_slug' c.slug %}"
+             class="discover-card community-card rounded-xl p-4 flex items-center gap-3 group"
+             data-platform="{{ c.platform }}">
+            {% if c.avatar_url %}
+            <img src="{{ c.avatar_url }}"
+                 class="w-12 h-12 rounded-xl object-cover flex-shrink-0 border border-neutral-700"
+                 alt="{{ c.name }}">
+            {% else %}
+            <div class="w-12 h-12 rounded-xl bg-neutral-800 flex items-center justify-center flex-shrink-0 border border-neutral-700">
+              <i class="fas fa-shield-alt text-purple-400"></i>
+            </div>
+            {% endif %}
+            <div class="min-w-0 flex-1">
+              <p class="text-sm font-semibold text-white truncate group-hover:text-purple-300 transition">{{ c.name }}</p>
+              <p class="text-xs text-gray-500 mt-0.5">
+                {{ c.member_count }} member{{ c.member_count|pluralize }}
+                &middot;
+                {% if c.platform == 'discord' %}<i class="fab fa-discord text-indigo-400 mr-0.5"></i>{% elif c.platform == 'fluxer' %}<img src="{% static 'img/siteassets/fluxer-favicon.png' %}" class="inline-block mr-0.5" style="width:1em;height:1em;object-fit:contain;vertical-align:middle;" alt="Fluxer">{% elif c.platform == 'matrix' %}<i class="fas fa-comments text-green-400 mr-0.5"></i>{% elif c.platform == 'stoat' %}<i class="fas fa-bolt text-orange-400 mr-0.5"></i>{% endif %}
+                <span class="capitalize">{{ c.platform }}</span>
+              </p>
+              {% if c.description %}
+              <p class="text-xs text-gray-600 mt-1 line-clamp-1">{{ c.description }}</p>
+              {% endif %}
+            </div>
+            <i class="fas fa-chevron-right text-gray-700 text-xs group-hover:text-purple-400 transition flex-shrink-0"></i>
+          </a>
+          {% endfor %}
+        </div>
+
+        <!-- CTA to list your community -->
+        <div class="mt-4 border border-dashed border-neutral-700 rounded-xl p-4 flex items-center justify-between gap-4">
+          <div>
+            <p class="text-sm font-semibold text-white">Running a gaming community?</p>
+            <p class="text-xs text-gray-500 mt-0.5">List your Discord, Matrix, or Fluxer server and get found by players looking for a home.</p>
+          </div>
+          {% if web_user %}
+          <a href="{% url 'questlog_web_communities' %}"
+             class="flex-shrink-0 inline-flex items-center gap-2 bg-purple-600 hover:bg-purple-500 text-white font-semibold px-4 py-2 rounded-xl transition text-xs">
+            <i class="fas fa-plus"></i> List Server
+          </a>
+          {% else %}
+          <a href="{% url 'questlog_web_register' %}"
+             class="flex-shrink-0 inline-flex items-center gap-2 bg-purple-600 hover:bg-purple-500 text-white font-semibold px-4 py-2 rounded-xl transition text-xs">
+            <i class="fas fa-plus"></i> List Your Server
+          </a>
+          {% endif %}
+        </div>
+        {% else %}
+        <div class="discover-card rounded-2xl p-10 text-center">
+          <div class="w-14 h-14 rounded-2xl bg-neutral-800 flex items-center justify-center mx-auto mb-4">
+            <i class="fas fa-shield-alt text-xl text-neutral-600"></i>
+          </div>
+          <p class="text-gray-400 mb-1 font-semibold">No communities listed yet</p>
+          <p class="text-gray-600 text-sm mb-5">Be the first to list your server - Discord, Matrix, or Fluxer</p>
+          {% if web_user %}
+          <a href="{% url 'questlog_web_community_register' %}"
+             class="inline-flex items-center gap-2 bg-purple-600 hover:bg-purple-500 text-white font-semibold px-5 py-2.5 rounded-xl transition text-sm">
+            <i class="fas fa-plus"></i> List Your Community
+          </a>
+          {% else %}
+          <a href="{% url 'questlog_web_register' %}"
+             class="inline-flex items-center gap-2 bg-purple-600 hover:bg-purple-500 text-white font-semibold px-5 py-2.5 rounded-xl transition text-sm">
+            <i class="fas fa-plus"></i> Sign Up and List Your Community
+          </a>
+          {% endif %}
+        </div>
+        {% endif %}
+      </section>
+
+      <!-- 3. ACTIVE GAMES + LIVE STREAMERS side by side -->
+      <div class="grid grid-cols-1 lg:grid-cols-5 gap-6">
+
+        {% if active_games %}
+        <section class="{% if live_streamers or recently_streamed %}lg:col-span-3{% else %}lg:col-span-5{% endif %}">
+          <div class="section-header">
+            <h2 class="section-title">
+              <span class="w-7 h-7 rounded-lg bg-indigo-500/15 flex items-center justify-center">
+                <i class="fas fa-fire text-indigo-400 text-xs"></i>
+              </span>
+              Active Games
+            </h2>
+          </div>
+          <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            {% for g in active_games %}
+            <a href="{% url 'questlog_web_lfg_browse' %}?game={{ g.game_name|urlencode }}"
+               class="game-tile discover-card rounded-xl overflow-hidden group">
+              <div class="h-20 bg-neutral-800 overflow-hidden relative">
+                {% if g.game_image_url %}
+                <img src="{{ g.game_image_url }}"
+                     class="game-tile-img w-full h-full object-cover object-left opacity-60 group-hover:opacity-90"
+                     alt="{{ g.game_name }}">
+                {% else %}
+                <div class="w-full h-full bg-gradient-to-br from-neutral-800 to-neutral-900 flex items-center justify-center">
+                  <i class="fas fa-gamepad text-xl text-neutral-700"></i>
+                </div>
+                {% endif %}
+                <div class="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
+              </div>
+              <div class="p-2">
+                <p class="text-xs font-semibold text-white truncate group-hover:text-indigo-300 transition">{{ g.game_name }}</p>
+                <p class="text-[10px] text-gray-500 mt-0.5">
+                  {{ g.group_count }} group{{ g.group_count|pluralize }}{% if g.live_count %} &nbsp;<span class="text-red-400">&#9679; {{ g.live_count }} live</span>{% endif %}
+                </p>
+              </div>
+            </a>
+            {% endfor %}
+          </div>
+        </section>
+        {% endif %}
+
+        <!-- 3. CREATORS WORTH FINDING - recency sorted, small creators surface here -->
+        {% if live_streamers or recently_streamed %}
+        <section class="{% if active_games %}lg:col-span-2{% else %}lg:col-span-5{% endif %}">
+          <div class="section-header">
+            <h2 class="section-title">
+              <span class="w-7 h-7 rounded-lg bg-red-500/15 flex items-center justify-center">
+                <i class="fas fa-broadcast-tower text-red-400 text-xs"></i>
+              </span>
+              Creators Worth Finding
+            </h2>
+            <a href="{% url 'questlog_web_creators' %}" class="view-all">
+              All Creators <i class="fas fa-arrow-right text-[10px]"></i>
+            </a>
+          </div>
+
+          {% if live_streamers %}
+          <p class="text-[10px] font-semibold text-red-400 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+            <span class="w-1.5 h-1.5 rounded-full bg-red-500 live-pulse inline-block"></span> Live Now
+          </p>
+          {% for s in live_streamers %}
+          <a href="/u/{{ s.username }}/"
+             class="discover-card rounded-xl p-3 flex items-center gap-3 group mb-2 block">
+            <div class="relative flex-shrink-0">
+              {% if s.avatar_url %}
+              <img src="{{ s.avatar_url }}" class="w-10 h-10 rounded-full object-cover ring-2 ring-red-500/70" alt="{{ s.display_name }}">
+              {% else %}
+              <div class="w-10 h-10 rounded-full bg-neutral-800 flex items-center justify-center ring-2 ring-red-500/70">
+                <span class="text-xs font-bold text-gray-400">{{ s.display_name|slice:":2"|upper }}</span>
+              </div>
+              {% endif %}
+              <span class="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-red-500 border-2 border-[#121212] live-pulse"></span>
+            </div>
+            <div class="min-w-0 flex-1">
+              <div class="flex items-center gap-1.5">
+                <span class="font-semibold text-white text-xs truncate group-hover:text-red-300 transition">{{ s.display_name }}</span>
+                {% if s.is_cotm %}<span class="text-[9px] bg-yellow-500/15 text-yellow-400 border border-yellow-500/30 px-1 py-0.5 rounded-full font-bold whitespace-nowrap"><i class="fas fa-crown text-[8px]"></i> COTM</span>
+                {% elif s.is_cotw %}<span class="text-[9px] bg-indigo-500/15 text-indigo-300 border border-indigo-500/30 px-1 py-0.5 rounded-full font-bold whitespace-nowrap"><i class="fas fa-star text-[8px]"></i> COTW</span>{% endif %}
+              </div>
+              <p id="creator-game-{{ s.username }}" class="text-[11px] text-gray-500 truncate{% if not s.current_game %} hidden{% endif %}">{{ s.current_game }}</p>
+            </div>
+            <div class="flex items-center gap-1.5 flex-shrink-0">
+              <span class="text-[10px] text-red-400 font-semibold">LIVE</span>
+              {% if s.platform == 'twitch' %}<i class="fab fa-twitch text-purple-400 text-xs"></i>
+              {% elif s.platform == 'youtube' %}<i class="fab fa-youtube text-red-400 text-xs"></i>
+              {% elif s.platform == 'kick' %}<i class="fas fa-bolt text-green-400 text-xs"></i>{% endif %}
+            </div>
+          </a>
+          {% endfor %}
+          {% endif %}
+
+          {% if recently_streamed %}
+          <p class="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5 {% if live_streamers %}mt-3{% endif %}">Recently Streamed</p>
+          {% for s in recently_streamed %}
+          <a href="/u/{{ s.username }}/"
+             class="discover-card rounded-xl p-3 flex items-center gap-3 group mb-2 block">
+            <div class="relative flex-shrink-0">
+              {% if s.avatar_url %}
+              <img src="{{ s.avatar_url }}" class="w-10 h-10 rounded-full object-cover opacity-70" alt="{{ s.display_name }}">
+              {% else %}
+              <div class="w-10 h-10 rounded-full bg-neutral-800 flex items-center justify-center">
+                <span class="text-xs font-bold text-gray-500">{{ s.display_name|slice:":2"|upper }}</span>
+              </div>
+              {% endif %}
+            </div>
+            <div class="min-w-0 flex-1">
+              <div class="flex items-center gap-1.5">
+                <span class="font-semibold text-gray-300 text-xs truncate group-hover:text-white transition">{{ s.display_name }}</span>
+                {% if s.is_cotm %}<span class="text-[9px] bg-yellow-500/15 text-yellow-400 border border-yellow-500/30 px-1 py-0.5 rounded-full font-bold whitespace-nowrap"><i class="fas fa-crown text-[8px]"></i> COTM</span>
+                {% elif s.is_cotw %}<span class="text-[9px] bg-indigo-500/15 text-indigo-300 border border-indigo-500/30 px-1 py-0.5 rounded-full font-bold whitespace-nowrap"><i class="fas fa-star text-[8px]"></i> COTW</span>{% endif %}
+              </div>
+              <p id="creator-game-{{ s.username }}" class="text-[11px] text-gray-600 truncate{% if not s.current_game %} hidden{% endif %}">{{ s.current_game }}</p>
+            </div>
+            <div class="flex items-center gap-1.5 flex-shrink-0 text-gray-600 text-xs">
+              {% if s.platform == 'twitch' %}<i class="fab fa-twitch"></i>
+              {% elif s.platform == 'youtube' %}<i class="fab fa-youtube"></i>
+              {% elif s.platform == 'kick' %}<i class="fas fa-bolt"></i>{% endif %}
+            </div>
+          </a>
+          {% endfor %}
+          {% endif %}
+
+        </section>
+        {% endif %}
+
+      </div>
+
+      <!-- Bottom CTA: federation pitch (logged out only) -->
+      {% if not web_user %}
+      <section>
+        <div class="relative overflow-hidden rounded-2xl border border-indigo-500/20 bg-gradient-to-br from-indigo-900/15 via-neutral-900 to-purple-900/15 p-5 sm:p-8">
+          <div class="absolute -top-16 -right-16 w-64 h-64 bg-indigo-600/8 rounded-full blur-3xl pointer-events-none"></div>
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-6 relative">
+            <div class="text-center">
+              <div class="w-10 h-10 rounded-xl bg-indigo-500/15 flex items-center justify-center mx-auto mb-3">
+                <i class="fas fa-shield-alt text-indigo-400"></i>
+              </div>
+              <p class="text-white text-sm font-semibold mb-1">Find Your Group</p>
+              <p class="text-gray-500 text-xs leading-relaxed">LFG that shows you the vibe before you join. Casual, competitive, story-first - find people who play the way you play.</p>
+            </div>
+            <div class="text-center">
+              <div class="w-10 h-10 rounded-xl bg-red-500/15 flex items-center justify-center mx-auto mb-3">
+                <i class="fas fa-broadcast-tower text-red-400"></i>
+              </div>
+              <p class="text-white text-sm font-semibold mb-1">Discover Real Creators</p>
+              <p class="text-gray-500 text-xs leading-relaxed">Small creators who make content worth watching - sorted by who's active, not who has the biggest audience.</p>
+            </div>
+            <div class="text-center">
+              <div class="w-10 h-10 rounded-xl bg-purple-500/15 flex items-center justify-center mx-auto mb-3">
+                <i class="fas fa-shield-alt text-purple-400"></i>
+              </div>
+              <p class="text-white text-sm font-semibold mb-1">Join a Real Community</p>
+              <p class="text-gray-500 text-xs leading-relaxed">Gaming communities that don't make you perform for clout. No algorithm. No promoted posts. Your data stays yours.</p>
+            </div>
+          </div>
+          <div class="text-center mt-8 relative">
+            <a href="{% url 'questlog_web_register' %}"
+               class="inline-flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-8 py-3 rounded-xl transition text-sm shadow-lg shadow-indigo-900/30">
+              <i class="fas fa-user-plus"></i> Create a Free Account
+            </a>
+          </div>
+        </div>
+      </section>
+      {% endif %}
+
+    </div><!-- /main column -->
+
+    <!-- Right Sidebar -->
+    <div class="w-full lg:w-72 lg:flex-shrink-0">
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-4 sm:gap-5">
+
+      <!-- Suggested Gamers -->
+      <div class="hidden sm:block bg-neutral-900/50 rounded-xl border border-neutral-800 p-4">
+        <h3 class="text-sm font-semibold text-white mb-3 flex items-center gap-2">
+          <i class="fas fa-users text-green-400"></i>Suggested Gamers
+        </h3>
+        <div id="suggested-gamers" class="space-y-3">
+          <p class="text-gray-600 text-xs">Loading...</p>
+        </div>
+      </div>
+
+      <!-- Play Together Nudge Cards -->
+      <div id="nudge-panel" class="hidden bg-neutral-900/50 rounded-xl border border-violet-700/30 p-4">
+        <h3 class="text-sm font-semibold text-white mb-3 flex items-center gap-2">
+          <i class="fas fa-users text-violet-400"></i>Play Together
+        </h3>
+        <div id="nudge-cards" class="space-y-2"></div>
+      </div>
+
+      <!-- Find Players by Game -->
+      <div class="bg-neutral-900/50 rounded-xl border border-neutral-800 p-4">
+        <h3 class="text-sm font-semibold text-white mb-3 flex items-center gap-2">
+          <i class="fas fa-search text-violet-400"></i>Find Players
+        </h3>
+        <div class="relative mb-3">
+          <input id="find-players-input" type="text" placeholder="Search a game..."
+                 class="w-full bg-neutral-800 border border-neutral-700 text-white text-sm rounded-lg px-3 py-2 pl-8 focus:outline-none focus:border-violet-500 placeholder-gray-600">
+          <i class="fas fa-gamepad absolute left-2.5 top-2.5 text-gray-600 text-xs"></i>
+          <div id="find-players-suggestions" class="hidden absolute left-0 right-0 top-full mt-1 bg-neutral-900 border border-neutral-700 rounded-xl shadow-xl z-50 max-h-48 overflow-y-auto"></div>
+        </div>
+        <div id="find-players-results" class="space-y-2">
+          <p class="text-gray-600 text-xs text-center py-2">Search a game to find members playing it.</p>
+        </div>
+      </div>
+
+      <!-- Top Players -->
+      <div class="bg-neutral-900/50 rounded-xl border border-yellow-700/30 p-4">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="text-sm font-semibold text-white flex items-center gap-2">
+            <i class="fas fa-trophy text-yellow-400"></i>Top Players
+          </h3>
+          <a href="{% url 'questlog_web_leaderboard' %}" class="text-yellow-400 hover:text-yellow-300 text-xs">Full List</a>
+        </div>
+        <div id="sidebar-leaderboard" class="space-y-2">
+          <p class="text-gray-600 text-xs">Loading...</p>
+        </div>
+      </div>
+
+      <!-- Top Posts -->
+      <div class="bg-neutral-900/50 rounded-xl border border-neutral-800 p-4">
+        <h3 class="text-sm font-semibold text-white mb-3 flex items-center gap-2">
+          <i class="fas fa-fire text-rose-400"></i>Top Posts
+        </h3>
+        <div id="sidebar-top-posts" class="space-y-2">
+          <p class="text-gray-600 text-xs">Loading...</p>
+        </div>
+      </div>
+
+      <!-- Most Played by Community -->
+      {% if top_owned_games %}
+      <div class="bg-neutral-900/50 rounded-xl border border-neutral-800 p-4">
+        <h3 class="text-sm font-semibold text-white mb-3 flex items-center gap-2">
+          <i class="fas fa-clock text-yellow-400"></i>Most Played by Community
+        </h3>
+        <div class="space-y-1.5">
+          {% for g in top_owned_games %}
+          <div class="flex items-center gap-2 hover:bg-neutral-800/50 rounded-lg px-2 py-1.5 transition group">
+            <a href="{{ g.steam_url }}" target="_blank" rel="noopener" class="flex-shrink-0">
+              <img src="{{ g.cover_url }}" alt="{{ g.name }}"
+                   class="w-12 h-9 rounded object-cover bg-neutral-800"
+                   onerror="this.style.display='none'">
+            </a>
+            <div class="flex-1 min-w-0">
+              <a href="{{ g.steam_url }}" target="_blank" rel="noopener">
+                <p class="text-gray-200 text-xs font-medium truncate group-hover:text-white transition">{{ g.name }}</p>
+              </a>
+              <p class="text-gray-500 text-[11px] mt-0.5 flex items-center gap-1.5">
+                <span>{{ g.count }} played recently</span>
+                <span>&middot;</span>
+                <span class="text-yellow-400 font-semibold">{{ g.hours }}h</span>
+                {% if g.is_mp %}<span>&middot;</span><a href="/lfg/create/?game={{ g.name|urlencode }}" class="text-green-400 hover:text-green-300 transition font-medium">+ LFG</a>{% endif %}
+              </p>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- Community Picks -->
+      {% if community_picks %}
+      <div class="bg-neutral-900/50 rounded-xl border border-neutral-800 p-4">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="text-sm font-semibold text-white flex items-center gap-2">
+            <i class="fas fa-dice text-purple-400"></i>Community Picks
+          </h3>
+          <span class="text-xs text-gray-600">Refreshes each visit</span>
+        </div>
+        <div class="space-y-1.5">
+          {% for g in community_picks %}
+          <div class="flex items-center gap-2 hover:bg-neutral-800/50 rounded-lg px-2 py-1.5 transition group">
+            <a href="{{ g.steam_url }}" target="_blank" rel="noopener" class="flex-shrink-0">
+              <img src="{{ g.cover_url }}" alt="{{ g.name }}"
+                   class="w-12 h-9 rounded object-cover bg-neutral-800"
+                   onerror="this.style.display='none'">
+            </a>
+            <div class="flex-1 min-w-0">
+              <a href="{{ g.steam_url }}" target="_blank" rel="noopener">
+                <p class="text-gray-200 text-xs font-medium truncate group-hover:text-white transition">{{ g.name }}</p>
+              </a>
+              <p class="text-gray-500 text-[11px] mt-0.5 flex items-center gap-1.5">
+                <span>{{ g.owners }} own this</span>
+                {% if g.is_mp %}<span>&middot;</span><a href="/lfg/create/?game={{ g.name|urlencode }}" class="text-green-400 hover:text-green-300 transition font-medium">+ LFG</a>{% endif %}
+              </p>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- Gaming News -->
+      <div class="bg-neutral-900/50 rounded-xl border border-neutral-800 p-4">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="text-sm font-semibold text-white flex items-center gap-2">
+            <i class="fas fa-newspaper text-orange-400"></i>Gaming News
+          </h3>
+          <a href="{% url 'questlog_web_articles' %}" class="text-indigo-400 hover:text-indigo-300 text-xs">View All</a>
+        </div>
+        <div id="sidebar-news" class="space-y-2">
+          <p class="text-gray-600 text-xs">Loading...</p>
+        </div>
+      </div>
+
+      <!-- Quick Links -->
+      <div class="bg-neutral-900/50 rounded-xl border border-neutral-800 p-4">
+        <h3 class="text-sm font-semibold text-white mb-3 flex items-center gap-2">
+          <i class="fas fa-compass text-indigo-400"></i>Explore
+        </h3>
+        <div class="grid grid-cols-2 gap-2">
+          <a href="{% url 'questlog_web_creators' %}" class="flex items-center gap-2 px-3 py-2 bg-neutral-800 hover:bg-neutral-700 rounded-lg text-xs text-gray-300 transition">
+            <i class="fas fa-star text-yellow-400"></i>Creators
+          </a>
+          <a href="{% url 'questlog_web_lfg_browse' %}" class="flex items-center gap-2 px-3 py-2 bg-neutral-800 hover:bg-neutral-700 rounded-lg text-xs text-gray-300 transition">
+            <i class="fas fa-users text-emerald-400"></i>Find Groups
+          </a>
+          <a href="{% url 'questlog_web_communities' %}" class="flex items-center gap-2 px-3 py-2 bg-neutral-800 hover:bg-neutral-700 rounded-lg text-xs text-gray-300 transition">
+            <i class="fas fa-shield-alt text-purple-400"></i>Communities
+          </a>
+          <a href="{% url 'questlog_web_games' %}" class="flex items-center gap-2 px-3 py-2 bg-neutral-800 hover:bg-neutral-700 rounded-lg text-xs text-gray-300 transition">
+            <i class="fas fa-gamepad text-indigo-400"></i>Games
+          </a>
+          {% if web_user %}
+          <a href="{% url 'questlog_web_network' %}" class="flex items-center gap-2 px-3 py-2 bg-neutral-800 hover:bg-neutral-700 rounded-lg text-xs text-gray-300 transition">
+            <i class="fas fa-search text-cyan-400"></i>Find Gamers
+          </a>
+          <a href="{% url 'questlog_web_feed' %}" class="flex items-center gap-2 px-3 py-2 bg-neutral-800 hover:bg-neutral-700 rounded-lg text-xs text-gray-300 transition">
+            <i class="fas fa-scroll text-pink-400"></i>Posts Feed
+          </a>
+          {% else %}
+          <a href="{% url 'questlog_web_articles' %}" class="col-span-2 flex items-center gap-2 px-3 py-2 bg-neutral-800 hover:bg-neutral-700 rounded-lg text-xs text-gray-300 transition">
+            <i class="fas fa-newspaper text-orange-400"></i>Gaming News
+          </a>
+          {% endif %}
+        </div>
+      </div>
+
+      </div><!-- /sidebar inner grid -->
+    </div><!-- /right sidebar -->
+
+  </div><!-- /flex layout -->
+</div><!-- /max-w container -->
+
+<script>
+const CURRENT_USER_ID = {{ web_user.id|default:"null" }};
+
+const DISCOVER_EMOJIS = {
+  gaming: ['🎮','🕹️','🎯','🏆','⚔️','🛡️','🎲','👾','🤖','💀','🔥','⭐','💎','🗡️','🏹','🧙','🐉','💣','🎪','🧩','🎰','🃏','♟️','🏅','🥇','🎖️','🏴‍☠️','👑','💪','🦾'],
+  smileys: ['😀','😂','🤣','😍','🥰','😎','🤔','😤','😭','🥺','😱','🤯','😈','👀','🫡','😴','🤮','🥶','🥵','😏','🤩','😇','🙄','😬','🤪','😵','🫠','🤡','💩','👻'],
+  hands:   ['👍','👎','✌️','🤞','👊','✊','🫡','👋','🖐️','🤙','🫶','👏','🙌','🤝','🙏','🫰','🤘','🤟','🖖','✋','👆','👇','👈','👉','💪','🦾','🫵','✍️','🤳','💅'],
+  hearts:  ['❤️','💜','💙','💚','🧡','💛','🖤','🤍','💔','❤️‍🔥','💯','✅','❌','⭕','💢','💥','✨','🌟','💫','🎉','🎊','🏳️‍🌈','🫂','💤','💭','💬','👁️‍🗨️','🔔','📢','🚀'],
+  objects: ['⚡','🔫','💰','🍕','🍺','🎵','🎧','📱','💻','🖥️','⌨️','🖱️','🕐','📸','🎬','📺','🔧','⚙️','🧪','🗺️','🌍','🌙','☀️','🌈','❄️','🔑','🏠','🚗','✈️','🛸'],
+};
+
+let discoverUploadedImages = [];
+let discoverSelectedGif = null;
+let discoverSelectedGameTag = null;
+let discoverGifTimeout = null;
+let discoverGameTimeout = null;
+
+function discoverAutoExpand(el) {
+  el.style.height = 'auto';
+  const newHeight = el.scrollHeight;
+  if (newHeight > 300) {
+    el.style.height = '300px';
+    el.style.overflowY = 'auto';
+  } else {
+    el.style.height = newHeight + 'px';
+    el.style.overflowY = 'hidden';
+  }
+  const max = parseInt(el.getAttribute('maxlength') || 1000);
+  const count = document.getElementById('discover-char-count');
+  if (count) count.textContent = el.value.length + '/' + max;
+}
+
+function discoverUpdateBtn() {
+  const ta = document.getElementById('discover-post-content');
+  const btn = document.getElementById('discover-post-btn');
+  if (!btn) return;
+  const hasText = ta && ta.value.trim().length > 0;
+  const hasImage = discoverUploadedImages.length > 0;
+  const hasGif = !!discoverSelectedGif;
+  btn.disabled = !(hasText || hasImage || hasGif);
+}
+
+// ── Emoji ──
+let _discoverCustomEmojiCache = null;
+
+function discoverToggleEmojiPicker() {
+  const picker = document.getElementById('discover-emoji-picker');
+  document.getElementById('discover-gif-picker').classList.add('hidden');
+  document.getElementById('discover-game-search-row').classList.add('hidden');
+  picker.classList.toggle('hidden');
+  if (!picker.classList.contains('hidden')) discoverShowEmojiCategory('gaming');
+}
+
+function discoverShowEmojiCategory(cat) {
+  document.querySelectorAll('.discover-emoji-cat-btn').forEach(b => {
+    const active = b.dataset.cat === cat;
+    b.className = 'discover-emoji-cat-btn text-xs px-2 py-1 rounded ' + (active ? 'bg-neutral-700 text-white' : 'text-gray-400 hover:bg-neutral-700') + (b.dataset.cat === 'custom' ? ' flex items-center gap-1' : '');
+  });
+  const grid = document.getElementById('discover-emoji-grid');
+  const customGrid = document.getElementById('discover-custom-emoji-grid');
+  if (cat === 'custom') {
+    grid.classList.add('hidden');
+    customGrid.classList.remove('hidden');
+    if (_discoverCustomEmojiCache) {
+      discoverRenderCustomEmoji(_discoverCustomEmojiCache);
+    } else {
+      customGrid.innerHTML = '<p class="col-span-8 text-center text-gray-500 text-xs py-3">Loading...</p>';
+      fetch('/api/emoji/').then(r => r.json()).then(data => {
+        _discoverCustomEmojiCache = data.emoji || [];
+        discoverRenderCustomEmoji(_discoverCustomEmojiCache);
+      });
+    }
+  } else {
+    grid.classList.remove('hidden');
+    customGrid.classList.add('hidden');
+    grid.innerHTML = (DISCOVER_EMOJIS[cat] || []).map(e =>
+      `<button onclick="discoverInsertEmoji('${e}')" class="text-xl hover:bg-neutral-700 rounded p-1 transition cursor-pointer">${e}</button>`
+    ).join('');
+  }
+}
+
+function discoverRenderCustomEmoji(items) {
+  const customGrid = document.getElementById('discover-custom-emoji-grid');
+  if (!items.length) {
+    customGrid.innerHTML = '<p class="col-span-8 text-center text-gray-500 text-xs py-3">No custom emoji yet.</p>';
+    return;
+  }
+  customGrid.innerHTML = items.filter(e => !e.is_sticker).map(e =>
+    `<button onclick="discoverInsertCustomEmoji(':${e.shortcode}:')" title=":${e.shortcode}:"
+             class="flex items-center justify-center hover:bg-neutral-700 rounded p-1 transition cursor-pointer">
+       <img src="${e.image_url}" alt=":${e.shortcode}:" class="w-7 h-7 object-contain">
+     </button>`
+  ).join('');
+}
+
+function discoverInsertCustomEmoji(shortcode) {
+  const ta = document.getElementById('discover-post-content');
+  const start = ta.selectionStart, end = ta.selectionEnd;
+  ta.value = ta.value.substring(0, start) + shortcode + ta.value.substring(end);
+  ta.selectionStart = ta.selectionEnd = start + shortcode.length;
+  ta.focus();
+  discoverAutoExpand(ta);
+  discoverUpdateBtn();
+}
+
+function discoverInsertEmoji(emoji) {
+  const ta = document.getElementById('discover-post-content');
+  const start = ta.selectionStart, end = ta.selectionEnd;
+  ta.value = ta.value.slice(0, start) + emoji + ta.value.slice(end);
+  ta.selectionStart = ta.selectionEnd = start + emoji.length;
+  ta.focus();
+  discoverAutoExpand(ta);
+  discoverUpdateBtn();
+}
+
+// ── GIF ──
+function discoverToggleGifPicker() {
+  const picker = document.getElementById('discover-gif-picker');
+  document.getElementById('discover-emoji-picker').classList.add('hidden');
+  document.getElementById('discover-game-search-row').classList.add('hidden');
+  picker.classList.toggle('hidden');
+  if (!picker.classList.contains('hidden')) {
+    document.getElementById('discover-gif-search-input').focus();
+    discoverLoadTrendingGifs();
+  }
+}
+
+async function discoverLoadTrendingGifs() {
+  const container = document.getElementById('discover-gif-results');
+  container.innerHTML = '<p class="col-span-3 text-gray-500 text-xs text-center py-4">Loading trending...</p>';
+  try {
+    const res = await fetch('/api/gifs/trending/');
+    const data = await res.json();
+    discoverRenderGifs(data.results || []);
+  } catch(e) {
+    container.innerHTML = '<p class="col-span-3 text-gray-500 text-xs text-center py-4">GIFs unavailable</p>';
+  }
+}
+
+function discoverSearchGifs(query) {
+  clearTimeout(discoverGifTimeout);
+  const container = document.getElementById('discover-gif-results');
+  if (!query || query.length < 2) { discoverLoadTrendingGifs(); return; }
+  discoverGifTimeout = setTimeout(async () => {
+    container.innerHTML = '<p class="col-span-3 text-gray-500 text-xs text-center py-4">Searching...</p>';
+    try {
+      const res = await fetch(`/api/gifs/search/?q=${encodeURIComponent(query)}`);
+      const data = await res.json();
+      discoverRenderGifs(data.results || []);
+    } catch(e) {
+      container.innerHTML = '<p class="col-span-3 text-gray-500 text-xs text-center py-4">Search failed</p>';
+    }
+  }, 400);
+}
+
+function discoverRenderGifs(gifs) {
+  const container = document.getElementById('discover-gif-results');
+  if (!gifs.length) {
+    container.innerHTML = '<p class="col-span-3 text-gray-500 text-xs text-center py-4">No GIFs found</p>';
+    return;
+  }
+  container.innerHTML = gifs.map(g => `
+    <button onclick="discoverSelectGif('${esc(g.url)}','${esc(g.preview)}')" class="rounded overflow-hidden hover:ring-2 hover:ring-purple-500 transition cursor-pointer">
+      <img src="${esc(g.preview)}" alt="GIF" class="w-full h-24 object-cover" loading="lazy">
+    </button>`).join('');
+}
+
+function discoverSelectGif(url, preview) {
+  discoverSelectedGif = { url, preview };
+  document.getElementById('discover-gif-picker').classList.add('hidden');
+  const preview_el = document.getElementById('discover-image-preview');
+  preview_el.classList.remove('hidden');
+  preview_el.innerHTML = `<div class="relative"><img src="${esc(preview)}" class="h-24 rounded object-cover"><span class="absolute top-1 right-1 bg-purple-600 text-white text-xs px-1 rounded">GIF</span><button onclick="discoverClearGif()" class="absolute top-1 left-1 bg-black/60 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs hover:bg-red-600"><i class="fas fa-times"></i></button></div>`;
+  discoverUpdateBtn();
+}
+
+function discoverClearGif() {
+  discoverSelectedGif = null;
+  discoverUpdateBtn();
+  const preview_el = document.getElementById('discover-image-preview');
+  if (discoverUploadedImages.length === 0) preview_el.classList.add('hidden');
+  discoverRenderImagePreview();
+}
+
+// ── Images ──
+async function discoverHandlePasteImage(event) {
+  const items = Array.from(event.clipboardData?.items || []);
+  const imageItems = items.filter(item => item.kind === 'file' && item.type.startsWith('image/'));
+  if (!imageItems.length) return;
+  event.preventDefault();
+  if (discoverUploadedImages.length >= 4) return;
+  if (discoverSelectedGif) discoverClearGif();
+  const container = document.getElementById('discover-image-preview');
+  container.classList.remove('hidden');
+  container.innerHTML = `<div class="text-xs text-gray-400 py-2"><i class="fas fa-spinner fa-spin mr-1"></i>Uploading...</div>`;
+  for (const item of imageItems) {
+    if (discoverUploadedImages.length >= 4) break;
+    const file = item.getAsFile();
+    if (!file) continue;
+    const reader = new FileReader();
+    await new Promise(resolve => {
+      reader.onload = e => {
+        discoverUploadedImages.push({ file, preview: e.target.result });
+        resolve();
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+  discoverRenderImagePreview();
+  discoverUpdateBtn();
+}
+
+function discoverHandleImageSelect(input) {
+  const files = Array.from(input.files || []);
+  if (!files.length) return;
+  const remaining = 4 - discoverUploadedImages.length;
+  files.slice(0, remaining).forEach(file => {
+    if (!file.type.startsWith('image/')) return;
+    const reader = new FileReader();
+    reader.onload = e => {
+      discoverUploadedImages.push({ file, preview: e.target.result });
+      discoverRenderImagePreview();
+      discoverUpdateBtn();
+    };
+    reader.readAsDataURL(file);
+  });
+  input.value = '';
+}
+
+function discoverRenderImagePreview() {
+  const container = document.getElementById('discover-image-preview');
+  if (discoverUploadedImages.length === 0 && !discoverSelectedGif) {
+    container.classList.add('hidden');
+    container.innerHTML = '';
+    return;
+  }
+  container.classList.remove('hidden');
+  let html = discoverUploadedImages.map((img, i) =>
+    `<div class="relative"><img src="${esc(img.preview)}" class="h-24 w-24 rounded object-cover"><button onclick="discoverRemoveImage(${i})" class="absolute top-1 right-1 bg-black/60 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs hover:bg-red-600"><i class="fas fa-times"></i></button></div>`
+  ).join('');
+  if (discoverSelectedGif) {
+    html += `<div class="relative"><img src="${esc(discoverSelectedGif.preview)}" class="h-24 rounded object-cover"><span class="absolute top-1 right-1 bg-purple-600 text-white text-xs px-1 rounded">GIF</span><button onclick="discoverClearGif()" class="absolute top-1 left-1 bg-black/60 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs hover:bg-red-600"><i class="fas fa-times"></i></button></div>`;
+  }
+  container.innerHTML = html;
+}
+
+function discoverRemoveImage(idx) {
+  discoverUploadedImages.splice(idx, 1);
+  discoverRenderImagePreview();
+  discoverUpdateBtn();
+}
+
+// ── Game Tag ──
+function discoverToggleGameSearch() {
+  const row = document.getElementById('discover-game-search-row');
+  document.getElementById('discover-emoji-picker').classList.add('hidden');
+  document.getElementById('discover-gif-picker').classList.add('hidden');
+  row.classList.toggle('hidden');
+  if (!row.classList.contains('hidden')) document.getElementById('discover-game-search-input').focus();
+}
+
+function discoverSearchGames(query) {
+  clearTimeout(discoverGameTimeout);
+  const results = document.getElementById('discover-game-search-results');
+  if (!query || query.length < 2) { results.classList.add('hidden'); return; }
+  discoverGameTimeout = setTimeout(async () => {
+    try {
+      const res = await fetch(`/api/igdb/search/?q=${encodeURIComponent(query)}`);
+      const data = await res.json();
+      if (data.games && data.games.length > 0) {
+        results.classList.remove('hidden');
+        results.innerHTML = data.games.map(g => {
+          const platforms = g.platforms || '';
+          return `<button onclick="discoverSelectGameTag(${g.id}, '${esc(g.name).replace(/'/g, "\\'")}', ${g.steam_id || 'null'})" class="w-full flex items-center gap-2 px-3 py-2 hover:bg-neutral-800 transition text-left">
+            ${g.cover_url ? `<img src="${esc(g.cover_url)}" class="w-8 h-8 rounded object-cover">` : `<div class="w-8 h-8 bg-neutral-800 rounded flex items-center justify-center"><i class="fas fa-gamepad text-gray-600 text-xs"></i></div>`}
+            <div class="flex-1 min-w-0">
+              <p class="text-white text-sm truncate">${esc(g.name)}</p>
+              ${platforms ? `<p class="text-gray-500 text-xs truncate">${esc(platforms)}</p>` : ''}
+            </div>
+            ${g.release_year ? `<span class="text-gray-600 text-xs flex-shrink-0">${g.release_year}</span>` : ''}
+          </button>`;
+        }).join('');
+      } else {
+        results.classList.remove('hidden');
+        results.innerHTML = '<p class="text-gray-500 text-xs p-3">No games found</p>';
+      }
+    } catch(e) { results.classList.add('hidden'); }
+  }, 400);
+}
+
+function discoverSelectGameTag(id, name, steamId) {
+  discoverSelectedGameTag = { id, name, steam_id: steamId };
+  document.getElementById('discover-game-tag-name').textContent = name;
+  document.getElementById('discover-game-tag-display').classList.remove('hidden');
+  document.getElementById('discover-game-search-row').classList.add('hidden');
+  document.getElementById('discover-game-search-results').classList.add('hidden');
+  document.getElementById('discover-game-search-input').value = '';
+}
+
+function discoverClearGameTag() {
+  discoverSelectedGameTag = null;
+  document.getElementById('discover-game-tag-display').classList.add('hidden');
+}
+
+// ── Submit ──
+async function discoverSubmitPost() {
+  const ta = document.getElementById('discover-post-content');
+  const btn = document.getElementById('discover-post-btn');
+  const status = document.getElementById('discover-post-status');
+  const text = ta ? ta.value.trim() : '';
+  if (!text && discoverUploadedImages.length === 0 && !discoverSelectedGif) return;
+  btn.disabled = true;
+
+  try {
+    let imageUrls = [];
+    if (discoverUploadedImages.length > 0) {
+      for (const img of discoverUploadedImages) {
+        const fd = new FormData();
+        fd.append('image', img.file);
+        const r = await csrfFetch('/api/upload-image/', { method: 'POST', body: fd });
+        const d = await r.json();
+        if (d.url) imageUrls.push(d.url);
+      }
+    }
+
+    const body = { content: text, post_type: 'text' };
+    if (imageUrls.length > 0) { body.images = imageUrls; body.post_type = 'image'; }
+    if (discoverSelectedGif) { body.gif_url = discoverSelectedGif.url; body.post_type = 'gif'; }
+    if (discoverSelectedGameTag) {
+      body.game_tag_id = discoverSelectedGameTag.id;
+      body.game_tag_name = discoverSelectedGameTag.name;
+      if (discoverSelectedGameTag.steam_id) body.game_tag_steam_id = discoverSelectedGameTag.steam_id;
+    }
+
+    const res = await csrfFetch('/api/posts/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (data.success || data.post) {
+      ta.value = '';
+      ta.style.height = '';
+      discoverUploadedImages = [];
+      discoverSelectedGif = null;
+      discoverSelectedGameTag = null;
+      discoverClearGameTag();
+      document.getElementById('discover-image-preview').classList.add('hidden');
+      document.getElementById('discover-image-preview').innerHTML = '';
+      const cc = document.getElementById('discover-char-count');
+      if (cc) cc.textContent = '0/' + ta.getAttribute('maxlength');
+      status.textContent = 'Posted! View it in your feed.';
+      status.classList.remove('hidden', 'text-red-400');
+      status.classList.add('text-green-400');
+      setTimeout(() => status.classList.add('hidden'), 3000);
+    } else {
+      status.textContent = data.error || 'Failed to post.';
+      status.classList.remove('hidden', 'text-green-400');
+      status.classList.add('text-red-400');
+      setTimeout(() => { status.classList.add('hidden'); status.classList.remove('text-red-400'); status.classList.add('text-green-400'); }, 3000);
+    }
+  } catch(e) {
+    console.error('Post error:', e);
+  }
+  btn.disabled = false;
+  discoverUpdateBtn();
+}
+
+function esc(str) {
+  if (!str) return '';
+  const d = document.createElement('div');
+  d.textContent = str;
+  return d.innerHTML;
+}
+
+function tickerTimeAgo(ts) {
+  const s = Math.floor(Date.now() / 1000) - ts;
+  if (s < 60) return 'just now';
+  if (s < 3600) return Math.floor(s / 60) + 'm ago';
+  if (s < 86400) return Math.floor(s / 3600) + 'h ago';
+  return Math.floor(s / 86400) + 'd ago';
+}
+
+function avatarHtml(username, avatarUrl, sizeClass) {
+  if (avatarUrl) {
+    return `<img src="${esc(avatarUrl)}" class="${sizeClass} rounded-full object-cover flex-shrink-0" alt="">`;
+  }
+  const initials = (username || '?').slice(0, 2).toUpperCase();
+  return `<div class="${sizeClass} rounded-full bg-indigo-700 flex items-center justify-center flex-shrink-0 text-xs font-bold text-white">${esc(initials)}</div>`;
+}
+
+// Move post composer below LFG section on desktop only; stays at top on mobile
+document.addEventListener('DOMContentLoaded', function() {
+  const composer = document.getElementById('quick-composer');
+  const anchor = document.getElementById('post-composer-anchor');
+  if (composer && anchor && window.innerWidth >= 1024) {
+    anchor.appendChild(composer);
+  }
+  if (composer) composer.classList.remove('hidden');
+});
+
+// Game search hero: IGDB suggestions + redirect to LFG browse on submit
+let _discoverSearchDebounce = null;
+let _discoverSelectedGame = null;
+
+function discoverGameSearchInput(val) {
+  const q = val.trim();
+  const browseBtn = document.getElementById('browse-all-btn');
+  if (browseBtn) {
+    browseBtn.href = q
+      ? `/lfg/browse/?game=${encodeURIComponent(q)}`
+      : '{% url "questlog_web_lfg_browse" %}';
+    browseBtn.innerHTML = q
+      ? `<i class="fas fa-search"></i> Find Groups for "${escapeHtml(q)}"`
+      : `<i class="fas fa-users"></i> Browse All Groups`;
+  }
+  // Also filter any on-page cards
+  const cards = document.querySelectorAll('.lfg-group-card');
+  const ql = q.toLowerCase();
+  cards.forEach(c => {
+    const match = !ql || (c.dataset.game||'').toLowerCase().includes(ql) || (c.dataset.title||'').toLowerCase().includes(ql);
+    c.style.display = match ? '' : 'none';
+  });
+
+  clearTimeout(_discoverSearchDebounce);
+  if (q.length < 2) { hideSuggestions(); return; }
+  _discoverSearchDebounce = setTimeout(() => fetchGameSuggestions(q), 300);
+}
+
+function discoverGameSearchGo() {
+  const q = document.getElementById('lfg-game-search').value.trim();
+  if (q) window.location.href = `/lfg/browse/?game=${encodeURIComponent(q)}`;
+}
+
+async function fetchGameSuggestions(q) {
+  const box = document.getElementById('lfg-game-suggestions');
+  if (!box) return;
+  try {
+    const res = await fetch(`/api/igdb/search/?q=${encodeURIComponent(q)}&limit=6`);
+    if (!res.ok) { hideSuggestions(); return; }
+    const data = await res.json();
+    const games = data.games || [];
+    if (!games.length) { hideSuggestions(); return; }
+    box.innerHTML = '';
+    games.forEach(g => {
+      const btn = document.createElement('button');
+      btn.className = 'w-full flex items-center gap-3 px-4 py-2.5 hover:bg-neutral-800 transition text-left';
+      btn.innerHTML = `
+        ${g.cover_url ? `<img src="${escapeHtml(g.cover_url)}" class="w-8 h-10 object-cover rounded flex-shrink-0">` : `<div class="w-8 h-10 bg-neutral-800 rounded flex-shrink-0 flex items-center justify-center"><i class="fas fa-gamepad text-gray-600 text-xs"></i></div>`}
+        <div class="flex-1 min-w-0">
+          <div class="text-sm text-white truncate">${escapeHtml(g.name)}</div>
+        </div>
+        <div class="flex gap-1.5 flex-shrink-0">
+          <span class="text-[10px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-1 rounded-lg font-semibold">Find Group</span>
+          <span class="text-[10px] text-indigo-400 bg-indigo-500/10 border border-indigo-500/20 px-2 py-1 rounded-lg font-semibold">Start Group</span>
+        </div>`;
+      btn.addEventListener('mousedown', e => {
+        e.preventDefault();
+        const action = e.target.closest('span');
+        if (action && action.textContent.includes('Start')) {
+          window.location.href = `/lfg/create/?game=${encodeURIComponent(g.name)}`;
+        } else {
+          window.location.href = `/lfg/browse/?game=${encodeURIComponent(g.name)}`;
+        }
+      });
+      box.appendChild(btn);
+    });
+    box.classList.remove('hidden');
+  } catch { hideSuggestions(); }
+}
+
+function hideSuggestions() {
+  const box = document.getElementById('lfg-game-suggestions');
+  if (box) { box.classList.add('hidden'); box.innerHTML = ''; }
+}
+
+document.addEventListener('click', e => {
+  if (!e.target.closest('#lfg-game-search') && !e.target.closest('#lfg-game-suggestions')) hideSuggestions();
+});
+
+document.addEventListener('DOMContentLoaded', function() {
+  loadActivity();
+  setInterval(refreshTicker, 30000);
+  loadSidebarContent();
+  loadNudgeCards();
+  initFindPlayers();
+  // Preload custom emoji so the tab icon can update
+  fetch('/api/emoji/').then(r => r.json()).then(data => {
+    _discoverCustomEmojiCache = data.emoji || [];
+    const lolUrl = (_discoverCustomEmojiCache.find(e => e.shortcode === 'lol') || {}).image_url;
+    const iconEl = document.getElementById('discover-custom-emoji-tab-icon');
+    if (lolUrl && iconEl) {
+      iconEl.innerHTML = `<img src="${lolUrl}" class="w-4 h-4 object-contain inline-block" alt=":lol:" style="vertical-align:-2px">`;
+    }
+  }).catch(() => {});
+});
+
+async function loadActivity() {
+  try {
+    const res = await fetch('/api/activity/');
+    const data = await res.json();
+
+    document.getElementById('stat-users').textContent = data.total_users || 0;
+    document.getElementById('stat-posts').textContent = data.total_posts || 0;
+    document.getElementById('stat-today').textContent = data.posts_today || 0;
+    document.getElementById('stat-active').textContent = data.active_posters_today || 0;
+
+    // Suggested Gamers sidebar
+    const gamers = (data.suggested_gamers && data.suggested_gamers.length > 0)
+      ? data.suggested_gamers : (data.new_members || []);
+    const gamerEl = document.getElementById('suggested-gamers');
+    const platformIcons = { PC:'fa-desktop', PS5:'fa-playstation', PS4:'fa-playstation', 'Xbox Series':'fa-xbox', 'Xbox One':'fa-xbox', Switch:'fa-gamepad', Mobile:'fa-mobile-alt', 'Steam Deck':'fa-steam' };
+
+    if (gamers.length > 0) {
+      gamerEl.innerHTML = gamers.map(u => {
+        const playstyleTags = (Array.isArray(u.playstyle) ? u.playstyle : (u.playstyle ? [u.playstyle] : []))
+          .slice(0,2).map(s => `<span class="px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 text-[10px]">${esc(s)}</span>`).join('');
+        const socials = [
+          u.twitch_username ? `<a href="https://twitch.tv/${esc(u.twitch_username)}" target="_blank" rel="noopener" class="text-purple-400 text-xs"><i class="fab fa-twitch"></i></a>` : '',
+          u.youtube_channel_name ? `<a href="https://youtube.com/@${esc(u.youtube_channel_name)}" target="_blank" rel="noopener" class="text-red-400 text-xs"><i class="fab fa-youtube"></i></a>` : '',
+        ].filter(Boolean).join('');
+        const levelBadge = u.web_level > 1
+          ? `<span class="text-[10px] text-indigo-400 font-semibold">Lv.${u.web_level}</span>` : '';
+        return `
+        <div class="rounded-lg border border-neutral-800 hover:border-neutral-700 bg-neutral-800/30 hover:bg-neutral-800/60 transition p-3">
+          <div class="flex items-start gap-2.5 mb-1.5">
+            <a href="/u/${esc(u.username)}/" class="flex-shrink-0">${avatarHtml(u.username, u.avatar_url, 'w-9 h-9')}</a>
+            <div class="flex-1 min-w-0">
+              <a href="/u/${esc(u.username)}/" class="block">
+                <p class="text-white text-xs font-semibold truncate">${esc(u.display_name || u.username)} ${levelBadge}</p>
+                <p class="text-gray-500 text-[11px] truncate">@${esc(u.username)}</p>
+              </a>
+            </div>
+            ${CURRENT_USER_ID ? `<button onclick="sidebarFollow(${u.id}, this)" class="flex-shrink-0 text-[11px] px-2 py-1 rounded-full bg-indigo-600 hover:bg-indigo-500 text-white transition font-medium"><i class="fas fa-plus"></i></button>` : ''}
+          </div>
+          ${playstyleTags ? `<div class="flex flex-wrap gap-1 mt-1">${playstyleTags}</div>` : ''}
+          ${socials ? `<div class="flex items-center gap-2 mt-1.5">${socials}</div>` : ''}
+        </div>`;
+      }).join('');
+    } else {
+      gamerEl.innerHTML = '<p class="text-gray-600 text-xs text-center py-4">No suggestions yet</p>';
+    }
+
+    // Activity Ticker
+    if (data.ticker && data.ticker.length > 0) {
+      const tickerBar = document.getElementById('ticker-bar');
+      const tickerContent = document.getElementById('ticker-content');
+      const TICKER_ICONS = {
+        post:             { icon: 'fa-pen',             color: 'text-indigo-400' },
+        follow:           { icon: 'fa-heart',           color: 'text-pink-400' },
+        join:             { icon: 'fa-door-open',       color: 'text-green-400' },
+        live:             { icon: 'fa-broadcast-tower', color: 'text-rose-400' },
+        playing:          { icon: 'fa-gamepad',         color: 'text-cyan-400' },
+        lfg_create:       { icon: 'fa-users',           color: 'text-orange-400' },
+        lfg_join:         { icon: 'fa-user-plus',       color: 'text-orange-400' },
+        lfg_leave:        { icon: 'fa-user-minus',      color: 'text-gray-500' },
+        community_join:   { icon: 'fa-building',        color: 'text-teal-400' },
+        network_approved: { icon: 'fa-network-wired',   color: 'text-indigo-400' },
+        play_together:    { icon: 'fa-layer-group',     color: 'text-violet-400' },
+      };
+
+      function buildTickerItem(t) {
+        const meta = TICKER_ICONS[t.type] || { icon: 'fa-circle', color: 'text-gray-400' };
+        const userLink = t.username
+          ? `<a href="/u/${esc(t.username)}/" class="text-white font-medium hover:underline">${esc(t.display_name)}</a>`
+          : `<span class="text-white font-medium">${esc(t.display_name)}</span>`;
+        let msgHtml = esc(t.message);
+        if (t.type === 'live' && t.live_url) {
+          msgHtml = `<a href="${esc(t.live_url)}" target="_blank" rel="noopener" class="text-rose-400 hover:underline">${esc(t.message)}</a>`;
+        } else if (t.type === 'playing' && t.steam_url) {
+          msgHtml = `is playing <a href="${esc(t.steam_url)}" target="_blank" rel="noopener" class="text-cyan-400 hover:underline">${esc(t.game)}</a>`;
+        } else if ((t.type === 'lfg_create' || t.type === 'lfg_join' || t.type === 'lfg_leave') && t.group_id) {
+          msgHtml = `${t.type === 'lfg_create' ? 'created' : t.type === 'lfg_join' ? 'joined' : 'left'} a group for <a href="/lfg/${t.group_id}/" class="text-orange-400 hover:underline">${esc(t.game_name)}</a>`;
+        } else if (t.type === 'community_join' && t.community_id) {
+          msgHtml = `joined <a href="/communities/" class="text-teal-400 hover:underline">${esc(t.community_name)}</a>`;
+        } else if (t.type === 'play_together' && t.steam_url) {
+          msgHtml = `wants to play <a href="${esc(t.steam_url)}" target="_blank" rel="noopener" class="text-violet-400 hover:underline">${esc(t.game)}</a>`;
+        }
+        return `<span class="inline-flex items-center gap-1.5 text-xs">
+          ${avatarHtml(t.username || t.display_name, t.avatar_url, 'w-4 h-4')}
+          ${userLink}
+          <span class="${meta.color}"><i class="fas ${meta.icon} text-xs"></i></span>
+          <span class="text-gray-400">${msgHtml}</span>
+          <span class="text-gray-600">${tickerTimeAgo(t.timestamp)}</span>
+        </span>`;
+      }
+
+      const seen = new Set();
+      const dedupedTicker = data.ticker.filter(t => {
+        const key = t.type + '|' + t.display_name + '|' + t.message;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+      // Network joins always scroll first
+      dedupedTicker.sort(function(a, b) {
+        const aJoin = a.type === 'network_approved' ? 0 : 1;
+        const bJoin = b.type === 'network_approved' ? 0 : 1;
+        return aJoin - bJoin;
+      });
+      const items = dedupedTicker.map(buildTickerItem).join('<span class="text-neutral-700 mx-3">|</span>');
+      tickerContent.innerHTML = items;
+      const duration = Math.max(22, dedupedTicker.length * 5);
+      tickerContent.style.animationDuration = duration + 's';
+      tickerBar.classList.remove('hidden');
+    }
+  } catch(e) {
+    console.error('Activity error:', e);
+  }
+}
+
+// Polls only the ticker every 30s - lightweight, no full page data reload
+async function refreshTicker() {
+  try {
+    const res = await fetch('/api/activity/');
+    const data = await res.json();
+    if (!data.ticker || !data.ticker.length) return;
+    const tickerBar = document.getElementById('ticker-bar');
+    const tickerContent = document.getElementById('ticker-content');
+    if (!tickerBar || !tickerContent) return;
+
+    // Dedup + network joins first
+    const seen = new Set();
+    const deduped = data.ticker.filter(t => {
+      const key = t.type + '|' + t.display_name + '|' + t.message;
+      if (seen.has(key)) return false;
+      seen.add(key); return true;
+    });
+    deduped.sort(function(a, b) {
+      return (a.type === 'network_approved' ? 0 : 1) - (b.type === 'network_approved' ? 0 : 1);
+    });
+    const items = deduped.map(buildTickerItemStatic).join('<span class="text-neutral-700 mx-3">|</span>');
+
+    // Restart animation smoothly by briefly pausing then swapping content
+    tickerContent.style.animationPlayState = 'paused';
+    tickerContent.innerHTML = items;
+    const duration = Math.max(20, data.ticker.length * 5);
+    tickerContent.style.animationDuration = duration + 's';
+    tickerContent.style.animationPlayState = 'running';
+    tickerBar.classList.remove('hidden');
+  } catch(e) {}
+}
+
+// Standalone ticker item builder (same logic, no closure dependency)
+function buildTickerItemStatic(t) {
+  function esc(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+  function ago(ts) {
+    if (!ts) return '';
+    const s = Math.floor(Date.now() / 1000) - ts;
+    if (s < 60) return s + 's ago';
+    if (s < 3600) return Math.floor(s / 60) + 'm ago';
+    if (s < 86400) return Math.floor(s / 3600) + 'h ago';
+    return Math.floor(s / 86400) + 'd ago';
+  }
+  const ICONS = {
+    post: 'fa-pen text-indigo-400', follow: 'fa-heart text-pink-400', join: 'fa-door-open text-green-400',
+    live: 'fa-broadcast-tower text-rose-400', playing: 'fa-gamepad text-cyan-400',
+    lfg_create: 'fa-users text-orange-400', lfg_join: 'fa-user-plus text-orange-400',
+    lfg_leave: 'fa-user-minus text-gray-500', community_join: 'fa-building text-teal-400',
+    play_together: 'fa-layer-group text-violet-400',
+  };
+  const iconCls = ICONS[t.type] || 'fa-circle text-gray-400';
+  const userLink = t.username
+    ? `<a href="/u/${esc(t.username)}/" class="text-white font-medium hover:underline">${esc(t.display_name)}</a>`
+    : `<span class="text-white font-medium">${esc(t.display_name)}</span>`;
+  let msgHtml = esc(t.message);
+  if (t.type === 'live' && t.live_url)
+    msgHtml = `<a href="${esc(t.live_url)}" target="_blank" rel="noopener" class="text-rose-400 hover:underline">${esc(t.message)}</a>`;
+  else if (t.type === 'playing' && t.steam_url)
+    msgHtml = `is playing <a href="${esc(t.steam_url)}" target="_blank" rel="noopener" class="text-cyan-400 hover:underline">${esc(t.game)}</a>`;
+  else if ((t.type === 'lfg_create' || t.type === 'lfg_join' || t.type === 'lfg_leave') && t.group_id)
+    msgHtml = `${t.type === 'lfg_create' ? 'created' : t.type === 'lfg_join' ? 'joined' : 'left'} a group for <a href="/lfg/${t.group_id}/" class="text-orange-400 hover:underline">${esc(t.game_name)}</a>`;
+  else if (t.type === 'community_join' && t.community_id)
+    msgHtml = `joined <a href="/communities/" class="text-teal-400 hover:underline">${esc(t.community_name)}</a>`;
+  else if (t.type === 'play_together' && t.steam_url)
+    msgHtml = `wants to play <a href="${esc(t.steam_url)}" target="_blank" rel="noopener" class="text-violet-400 hover:underline">${esc(t.game)}</a>`;
+  const av = t.avatar_url
+    ? `<img src="${esc(t.avatar_url)}" class="w-4 h-4 rounded-full object-cover flex-shrink-0" loading="lazy">`
+    : `<span class="w-4 h-4 rounded-full bg-neutral-700 flex-shrink-0 flex items-center justify-center text-[8px] text-gray-400">${esc((t.display_name||'?')[0].toUpperCase())}</span>`;
+  return `<span class="inline-flex items-center gap-1.5 text-xs">
+    ${av} ${userLink}
+    <span><i class="fas ${iconCls} text-xs"></i></span>
+    <span class="text-gray-400">${msgHtml}</span>
+    <span class="text-gray-600">${ago(t.timestamp)}</span>
+  </span>`;
+}
+
+// Nudge cards - games where 3+ members want to play together
+async function loadNudgeCards() {
+  try {
+    const res = await fetch('/api/library/nudge-opportunities/');
+    const data = await res.json();
+    if (!data.success || !data.nudges || !data.nudges.length) return;
+    const panel = document.getElementById('nudge-panel');
+    const container = document.getElementById('nudge-cards');
+    panel.classList.remove('hidden');
+    container.innerHTML = data.nudges.slice(0, 5).map(n => {
+      const cover = n.cover_url
+        ? `<img src="${esc(n.cover_url)}" class="w-8 h-11 rounded object-cover flex-shrink-0" loading="lazy">`
+        : `<div class="w-8 h-11 bg-neutral-800 rounded flex items-center justify-center flex-shrink-0"><i class="fas fa-gamepad text-gray-600 text-xs"></i></div>`;
+      return `<div class="flex items-center gap-2.5 p-2 bg-neutral-800/50 rounded-xl hover:bg-neutral-800 transition">
+        ${cover}
+        <div class="flex-1 min-w-0">
+          <p class="text-white text-xs font-medium truncate">${esc(n.name)}</p>
+          <p class="text-violet-400 text-xs">${n.member_count} want to play</p>
+        </div>
+        <a href="/library/" class="text-xs text-violet-400 hover:text-violet-300 shrink-0">
+          <i class="fas fa-arrow-right"></i>
+        </a>
+      </div>`;
+    }).join('');
+  } catch(e) {}
+}
+
+// Find Players by game search
+let findPlayersTimer = null;
+function initFindPlayers() {
+  const input = document.getElementById('find-players-input');
+  const suggestions = document.getElementById('find-players-suggestions');
+  if (!input) return;
+
+  input.addEventListener('input', function() {
+    clearTimeout(findPlayersTimer);
+    const q = this.value.trim();
+    if (!q) { suggestions.classList.add('hidden'); return; }
+    findPlayersTimer = setTimeout(() => searchFindPlayers(q), 350);
+  });
+
+  document.addEventListener('click', function(e) {
+    if (!e.target.closest('#find-players-input') && !e.target.closest('#find-players-suggestions')) {
+      suggestions.classList.add('hidden');
+    }
+  });
+}
+
+async function searchFindPlayers(q) {
+  const suggestions = document.getElementById('find-players-suggestions');
+  try {
+    const res = await fetch(`/api/igdb/search/?q=${encodeURIComponent(q)}&limit=6`);
+    const data = await res.json();
+    const games = data.games || [];
+    if (!games.length) { suggestions.classList.add('hidden'); return; }
+    suggestions.innerHTML = games.map(g => {
+      const cover = g.cover_url
+        ? `<img src="${esc(g.cover_url)}" class="w-6 h-8 object-cover rounded flex-shrink-0" loading="lazy">`
+        : `<div class="w-6 h-8 bg-neutral-700 rounded flex-shrink-0"></div>`;
+      return `<button class="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-neutral-800 text-left transition"
+                       onclick="loadFindPlayers(${g.id || 0}, ${g.steam_id || 0}, '${esc(g.name)}')">
+        ${cover}
+        <span class="text-sm text-white truncate">${esc(g.name)}</span>
+      </button>`;
+    }).join('');
+    suggestions.classList.remove('hidden');
+  } catch(e) {}
+}
+
+async function loadFindPlayers(igdbId, steamId, name) {
+  document.getElementById('find-players-suggestions').classList.add('hidden');
+  document.getElementById('find-players-input').value = name;
+  const el = document.getElementById('find-players-results');
+  el.innerHTML = '<p class="text-gray-600 text-xs text-center py-2">Loading...</p>';
+  const params = new URLSearchParams({name});
+  if (igdbId) params.set('igdb_id', igdbId);
+  if (steamId) params.set('steam_app_id', steamId);
+  try {
+    const res = await fetch(`/api/library/find-players/?${params}`);
+    const data = await res.json();
+    if (!data.success || !data.players || !data.players.length) {
+      el.innerHTML = '<p class="text-gray-600 text-xs text-center py-2">No members with this game yet.</p>';
+      return;
+    }
+    el.innerHTML = data.players.slice(0, 6).map(p => {
+      const av = p.avatar_url
+        ? `<img src="${esc(p.avatar_url)}" class="w-7 h-7 rounded-full object-cover flex-shrink-0" loading="lazy">`
+        : `<div class="w-7 h-7 rounded-full bg-indigo-800 flex items-center justify-center flex-shrink-0 text-xs font-bold text-white">${esc((p.username||'?')[0].toUpperCase())}</div>`;
+      const badge = p.status === 'play_together'
+        ? `<span class="text-violet-400 text-[10px]"><i class="fas fa-users"></i> Play Together</span>`
+        : `<span class="text-gray-500 text-[10px]">${esc(p.status_label||p.status)}</span>`;
+      return `<a href="/u/${esc(p.username)}/" class="flex items-center gap-2 p-1.5 rounded-lg hover:bg-neutral-800 transition">
+        ${av}
+        <div class="flex-1 min-w-0">
+          <p class="text-white text-xs font-medium truncate">${esc(p.display_name||p.username)}</p>
+          ${badge}
+        </div>
+      </a>`;
+    }).join('');
+  } catch(e) {
+    el.innerHTML = '<p class="text-gray-600 text-xs text-center py-2">Error loading results.</p>';
+  }
+}
+
+function filterCommunities(platform) {
+  // Update pill active state
+  document.querySelectorAll('.community-filter-btn').forEach(btn => {
+    const isActive = btn.dataset.filter === platform;
+    btn.classList.toggle('active', isActive);
+    if (isActive) {
+      btn.classList.add('border-purple-500/40', 'bg-purple-500/15', 'text-purple-300');
+      btn.classList.remove('border-neutral-700', 'bg-neutral-800', 'text-gray-400');
+    } else {
+      btn.classList.remove('border-purple-500/40', 'bg-purple-500/15', 'text-purple-300');
+      btn.classList.add('border-neutral-700', 'bg-neutral-800', 'text-gray-400');
+    }
+  });
+  // Show/hide cards
+  document.querySelectorAll('.community-card').forEach(card => {
+    const show = platform === 'all' || card.dataset.platform === platform;
+    card.style.display = show ? '' : 'none';
+  });
+}
+
+async function sidebarFollow(userId, btn) {
+  try {
+    const res = await csrfFetch(`/api/follow/${userId}/`, { method: 'POST' });
+    const data = await res.json();
+    if (data.success) {
+      btn.textContent = 'Following';
+      btn.disabled = true;
+      btn.className = btn.className.replace('bg-indigo-600 hover:bg-indigo-500', 'bg-neutral-700 cursor-default');
+    }
+  } catch(e) { console.error('Follow error:', e); }
+}
+
+async function loadSidebarContent() {
+  // Leaderboard
+  try {
+    const res = await fetch('{% url "questlog_web_api_leaderboard_top" %}?limit=5');
+    const data = await res.json();
+    const el = document.getElementById('sidebar-leaderboard');
+    const entries = data.entries || [];
+    const medals = ['🥇','🥈','🥉'];
+    if (entries.length > 0) {
+      el.innerHTML = entries.map((e, i) => `
+        <a href="/u/${esc(e.username)}/" class="flex items-center gap-2 p-1.5 rounded-lg hover:bg-neutral-800 transition">
+          <span class="text-sm w-5 text-center flex-shrink-0">${medals[i] || `<span class="text-gray-500 text-xs">#${e.rank}</span>`}</span>
+          ${e.avatar_url ? `<img src="${esc(e.avatar_url)}" class="w-6 h-6 rounded flex-shrink-0">` : `<div class="w-6 h-6 bg-indigo-800 rounded flex items-center justify-center flex-shrink-0"><span class="text-white text-xs font-bold">${esc(e.username.slice(0,1).toUpperCase())}</span></div>`}
+          <div class="flex-1 min-w-0">
+            <p class="text-white text-xs font-medium truncate">${esc(e.username)}</p>
+            <p class="text-gray-600 text-xs">Lv.${e.level}</p>
+          </div>
+          <span class="text-yellow-400 text-xs font-bold flex-shrink-0">${e.xp.toLocaleString()}</span>
+        </a>
+      `).join('');
+    } else { el.innerHTML = '<p class="text-gray-600 text-xs text-center py-2">No ranked players yet</p>'; }
+  } catch(e) { document.getElementById('sidebar-leaderboard').innerHTML = '<p class="text-gray-600 text-xs">-</p>'; }
+
+  // Top Posts
+  try {
+    const res = await fetch('/api/posts/top/?limit=5');
+    const data = await res.json();
+    const el = document.getElementById('sidebar-top-posts');
+    const posts = data.posts || [];
+    if (posts.length > 0) {
+      el.innerHTML = posts.map(p => {
+        const snippet = esc(p.content || '').slice(0, 80) + (p.content && p.content.length > 80 ? '...' : '');
+        const avatar = p.author_avatar_url
+          ? `<img src="${esc(p.author_avatar_url)}" class="w-6 h-6 rounded-full object-cover flex-shrink-0" alt="">`
+          : `<div class="w-6 h-6 rounded-full bg-indigo-800 flex items-center justify-center flex-shrink-0"><span class="text-white text-xs font-bold">${esc((p.author_username||'?').slice(0,1).toUpperCase())}</span></div>`;
+        return `
+        <a href="/post/${esc(p.public_id)}/" class="block p-2 rounded-lg hover:bg-neutral-800 transition group">
+          <div class="flex items-center gap-1.5 mb-1">
+            ${avatar}
+            <span class="text-gray-400 text-xs truncate group-hover:text-white transition">${esc(p.author_display_name)}</span>
+            ${p.game_tag_name ? `<span class="text-indigo-400 text-[10px] truncate ml-auto flex-shrink-0"><i class="fas fa-gamepad text-[9px]"></i> ${esc(p.game_tag_name)}</span>` : ''}
+          </div>
+          ${snippet ? `<p class="text-white text-xs leading-relaxed line-clamp-2">${snippet}</p>` : ''}
+          <div class="flex items-center gap-3 mt-1.5 text-gray-600 text-[11px]">
+            <span><i class="fas fa-heart text-rose-500/70 text-[10px]"></i> ${p.like_count}</span>
+            <span><i class="fas fa-comment text-indigo-400/70 text-[10px]"></i> ${p.comment_count}</span>
+            ${p.repost_count ? `<span><i class="fas fa-retweet text-green-500/70 text-[10px]"></i> ${p.repost_count}</span>` : ''}
+          </div>
+        </a>`;
+      }).join('');
+    } else {
+      el.innerHTML = '<p class="text-gray-600 text-xs text-center py-2">No posts yet this week</p>';
+    }
+  } catch(e) { document.getElementById('sidebar-top-posts').innerHTML = '<p class="text-gray-600 text-xs">-</p>'; }
+
+  // News
+  try {
+    const res = await fetch('{% url "questlog_web_api_articles" %}');
+    const data = await res.json();
+    const el = document.getElementById('sidebar-news');
+    const articles = (data.articles || []).slice(0, 4);
+    if (articles.length > 0) {
+      el.innerHTML = articles.map(a => `
+        <a href="${esc(a.url)}" target="_blank" rel="noopener" class="block p-2 rounded-lg hover:bg-neutral-800 transition">
+          <p class="text-white text-xs font-medium line-clamp-2">${esc(a.title)}</p>
+          <p class="text-gray-500 text-xs mt-0.5">${a.source_name || 'News'}</p>
+        </a>
+      `).join('');
+    } else { el.innerHTML = '<p class="text-gray-600 text-xs text-center py-2">No articles yet</p>'; }
+  } catch(e) { document.getElementById('sidebar-news').innerHTML = '<p class="text-gray-600 text-xs">-</p>'; }
+}
+</script>
+
+{% if live_streamers or recently_streamed %}
+<script>
+(function() {
+  const _creatorUsernames = [
+    {% for s in live_streamers %}'{{ s.username|escapejs }}'{% if not forloop.last %},{% endif %}{% endfor %}
+    {% if live_streamers and recently_streamed %},{% endif %}
+    {% for s in recently_streamed %}'{{ s.username|escapejs }}'{% if not forloop.last %},{% endif %}{% endfor %}
+  ];
+
+  function _updateCreatorGame(username, game) {
+    const el = document.getElementById('creator-game-' + username);
+    if (!el) return;
+    if (game) {
+      el.textContent = game;
+      el.classList.remove('hidden');
+    } else {
+      el.textContent = '';
+      el.classList.add('hidden');
+    }
+  }
+
+  async function _pollCreator(username) {
+    try {
+      const res = await fetch('/api/u/' + encodeURIComponent(username) + '/now-playing/', {credentials: 'same-origin'});
+      if (!res.ok) return;
+      const d = await res.json();
+      _updateCreatorGame(username, d.current_game || null);
+    } catch (_) {}
+  }
+
+  function _pollAll() {
+    _creatorUsernames.forEach(_pollCreator);
+  }
+
+  document.addEventListener('DOMContentLoaded', function() {
+    setInterval(_pollAll, 30000);
+  });
+})();
+</script>
+{% endif %}
+{% endblock %}

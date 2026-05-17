@@ -8,6 +8,7 @@
 
 <script>
   const CSRF_TOKEN = '{{ csrf_token }}';
+  const IS_MOD_ONLY = {{ is_mod_only|yesno:"true,false" }};
   function formatTimestamp(ts) {
     if (!ts) return 'Never';
     return new Date(ts * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
@@ -15,11 +16,16 @@
 </script>
 
 <!-- Header -->
-<div class="bg-gradient-to-br from-neutral-900 to-neutral-950 border-b border-neutral-800 p-6 mb-6">
+<div class="bg-gradient-to-br from-neutral-900 to-neutral-950 border-b border-neutral-800 p-4 sm:p-6 mb-4 sm:mb-6">
   <div class="max-w-7xl mx-auto">
-    <h1 class="text-3xl font-bold text-white flex items-center gap-3">
+    <h1 class="text-2xl sm:text-3xl font-bold text-white flex items-center gap-3">
+      {% if is_mod_only %}
+      <i class="fas fa-user-shield text-blue-400"></i>
+      Moderator Panel
+      {% else %}
       <i class="fas fa-shield-alt text-yellow-400"></i>
       Admin Panel
+      {% endif %}
     </h1>
     <p class="text-gray-400 mt-1">Manage Casual Heroes</p>
   </div>
@@ -36,6 +42,7 @@
     <button onclick="toggleMaintenance()" class="ml-auto px-3 py-1 bg-green-700 hover:bg-green-600 text-white text-xs rounded font-bold transition">BRING BACK ONLINE</button>
   </div>
 
+  {% if not is_mod_only %}
   <!-- ===== OH SHIT BUTTON ===== -->
   <div class="mb-3 rounded-xl border border-neutral-800 bg-neutral-900/60 p-4 flex flex-col sm:flex-row items-start sm:items-center gap-4">
     <div class="flex items-center gap-3 flex-1 min-w-0">
@@ -65,12 +72,13 @@
       🔒 LOCK LOGINS
     </button>
   </div>
+  {% endif %}
 
   <!-- Quick Stats -->
   <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 mb-6">
     <div class="bg-neutral-900/50 rounded-lg border border-neutral-800 p-3 text-center">
       <p class="text-2xl font-bold text-white" id="statUsers">-</p>
-      <p class="text-xs text-gray-400">Users</p>
+      <p class="text-xs text-gray-400">Members (all)</p>
     </div>
     <div class="bg-neutral-900/50 rounded-lg border border-neutral-800 p-3 text-center">
       <p class="text-2xl font-bold text-white" id="statGroups">-</p>
@@ -94,59 +102,119 @@
     </div>
   </div>
 
-  <!-- Tab Navigation -->
-  <div class="flex flex-wrap gap-1 mb-6 bg-neutral-900/50 rounded-lg border border-neutral-800 p-1">
-    <button onclick="switchTab('audit')" id="tab-audit" class="admin-tab px-4 py-2 rounded-md text-sm font-medium transition">
-      <i class="fas fa-clipboard-list mr-1"></i>Audit Log
-    </button>
-    <button onclick="switchTab('bot-network')" id="tab-bot-network" class="admin-tab px-4 py-2 rounded-md text-sm font-medium transition">
-      <i class="fas fa-network-wired mr-1"></i>Bot Network
-    </button>
-    <button onclick="switchTab('communities')" id="tab-communities" class="admin-tab px-4 py-2 rounded-md text-sm font-medium transition">
-      <i class="fas fa-server mr-1"></i>Communities
-    </button>
-    <button onclick="switchTab('posts')" id="tab-posts" class="admin-tab px-4 py-2 rounded-md text-sm font-medium transition">
-      <i class="fas fa-scroll mr-1"></i>Content Mod
-    </button>
-    <button onclick="switchTab('creators')" id="tab-creators" class="admin-tab px-4 py-2 rounded-md text-sm font-medium transition">
-      <i class="fas fa-star mr-1"></i>Creators
-    </button>
-    <button onclick="switchTab('early-access')" id="tab-early-access" class="admin-tab px-4 py-2 rounded-md text-sm font-medium transition">
-      <i class="fas fa-ticket-alt mr-1"></i>Early Access
-    </button>
-    <button onclick="switchTab('emoji')" id="tab-emoji" class="admin-tab px-4 py-2 rounded-md text-sm font-medium transition">
-      <i class="fas fa-smile mr-1"></i>Emoji &amp; Stickers
-    </button>
-    <button onclick="switchTab('flairs')" id="tab-flairs" class="admin-tab px-4 py-2 rounded-md text-sm font-medium transition">
-      <i class="fas fa-palette mr-1"></i>Flairs &amp; XP
-    </button>
-    <button onclick="switchTab('games')" id="tab-games" class="admin-tab px-4 py-2 rounded-md text-sm font-medium transition">
-      <i class="fas fa-gamepad mr-1"></i>Found Games
-    </button>
-    <a href="/ql/admin/games-tracker/" class="admin-tab px-4 py-2 rounded-md text-sm font-medium transition inline-flex items-center hover:border-neutral-500">
-      <i class="fas fa-gamepad mr-1"></i>Games We Play
-    </a>
-    <button onclick="switchTab('giveaways')" id="tab-giveaways" class="admin-tab px-4 py-2 rounded-md text-sm font-medium transition">
-      <i class="fas fa-gift mr-1"></i>Giveaways
-    </button>
-    <button onclick="switchTab('hero-subs')" id="tab-hero-subs" class="admin-tab px-4 py-2 rounded-md text-sm font-medium transition">
-      <i class="fas fa-crown mr-1"></i>Hero Subs
-    </button>
-    <button onclick="switchTab('rss')" id="tab-rss" class="admin-tab px-4 py-2 rounded-md text-sm font-medium transition">
-      <i class="fas fa-rss mr-1"></i>RSS Feeds
-    </button>
-    <button onclick="switchTab('polls')" id="tab-polls" class="admin-tab px-4 py-2 rounded-md text-sm font-medium transition">
-      <i class="fas fa-vote-yea mr-1"></i>Server Polls
-    </button>
-    <button onclick="switchTab('steam')" id="tab-steam" class="admin-tab px-4 py-2 rounded-md text-sm font-medium transition">
-      <i class="fab fa-steam mr-1"></i>Steam Searches
-    </button>
-    <button onclick="switchTab('users')" id="tab-users" class="admin-tab px-4 py-2 rounded-md text-sm font-medium transition">
-      <i class="fas fa-user-shield mr-1"></i>Users
-    </button>
-    <button onclick="switchTab('bot-stats')" id="tab-bot-stats" class="admin-tab px-4 py-2 rounded-md text-sm font-medium transition">
-      <i class="fas fa-chart-bar mr-1"></i>Bot Stats
-    </button>
+
+
+  <!-- Tab Navigation - dropdown on mobile, pill bar on desktop -->
+  <div class="mb-6">
+    <!-- Mobile dropdown -->
+    <div class="sm:hidden">
+      <select id="tabDropdown" onchange="switchTab(this.value)" class="w-full bg-neutral-900 border border-neutral-700 text-white rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-yellow-500">
+        <option value="audit">Audit Log</option>
+        {% if not is_mod_only %}<option value="bot-network">Bot Network</option>{% endif %}
+        <option value="communities">Communities</option>
+        <option value="posts">Content Mod</option>
+        <option value="creators">Creators</option>
+        {% if not is_mod_only %}<option value="early-access">Early Access</option>{% endif %}
+        <option value="emoji">Emoji &amp; Stickers</option>
+        {% if not is_mod_only %}
+        <option value="testimonials">Voices</option>
+        <option value="flairs">Flairs &amp; XP</option>
+        <option value="games">Found Games</option>
+        {% endif %}
+        <option value="giveaways">Giveaways</option>
+        {% if not is_mod_only %}
+        <option value="hero-subs">Hero Subs</option>
+        <option value="rss">RSS Feeds</option>
+        {% endif %}
+        <option value="polls">Server Polls</option>
+        {% if not is_mod_only %}<option value="steam">Steam Searches</option>{% endif %}
+        <option value="users">Members</option>
+        {% if not is_mod_only %}
+        <option value="bot-stats">Bot Stats</option>
+        <option value="broadcasts">Broadcasts</option>
+        {% endif %}
+        <option value="ffxiv-applications">FFXIV Applications</option>
+        <option value="eso-applications">ESO Applications</option>
+      </select>
+    </div>
+    <!-- Desktop pill bar -->
+    <div class="hidden sm:flex flex-wrap gap-1 bg-neutral-900/50 rounded-lg border border-neutral-800 p-1">
+      <button onclick="switchTab('audit')" id="tab-audit" class="admin-tab px-3 py-1.5 rounded-md text-sm font-medium transition">
+        <i class="fas fa-clipboard-list mr-1"></i>Audit Log
+      </button>
+      {% if not is_mod_only %}
+      <button onclick="switchTab('bot-network')" id="tab-bot-network" class="admin-tab px-3 py-1.5 rounded-md text-sm font-medium transition">
+        <i class="fas fa-network-wired mr-1"></i>Bot Network
+      </button>
+      {% endif %}
+      <button onclick="switchTab('communities')" id="tab-communities" class="admin-tab px-3 py-1.5 rounded-md text-sm font-medium transition">
+        <i class="fas fa-server mr-1"></i>Communities
+      </button>
+      <button onclick="switchTab('posts')" id="tab-posts" class="admin-tab px-3 py-1.5 rounded-md text-sm font-medium transition">
+        <i class="fas fa-scroll mr-1"></i>Content Mod
+      </button>
+      <button onclick="switchTab('creators')" id="tab-creators" class="admin-tab px-3 py-1.5 rounded-md text-sm font-medium transition">
+        <i class="fas fa-star mr-1"></i>Creators
+      </button>
+      {% if not is_mod_only %}
+      <button onclick="switchTab('early-access')" id="tab-early-access" class="admin-tab px-3 py-1.5 rounded-md text-sm font-medium transition">
+        <i class="fas fa-ticket-alt mr-1"></i>Early Access
+      </button>
+      {% endif %}
+      <button onclick="switchTab('emoji')" id="tab-emoji" class="admin-tab px-3 py-1.5 rounded-md text-sm font-medium transition">
+        <i class="fas fa-smile mr-1"></i>Emoji
+      </button>
+      {% if not is_mod_only %}
+      <button onclick="switchTab('testimonials')" id="tab-testimonials" class="admin-tab px-3 py-1.5 rounded-md text-sm font-medium transition">
+        <i class="fas fa-quote-left mr-1"></i>Voices
+      </button>
+      <button onclick="switchTab('flairs')" id="tab-flairs" class="admin-tab px-3 py-1.5 rounded-md text-sm font-medium transition">
+        <i class="fas fa-palette mr-1"></i>Flairs
+      </button>
+      <button onclick="switchTab('games')" id="tab-games" class="admin-tab px-3 py-1.5 rounded-md text-sm font-medium transition">
+        <i class="fas fa-gamepad mr-1"></i>Found Games
+      </button>
+      {% endif %}
+      <a href="/admin/games-tracker/" class="admin-tab px-3 py-1.5 rounded-md text-sm font-medium transition inline-flex items-center">
+        <i class="fas fa-gamepad mr-1"></i>Games We Play
+      </a>
+      <button onclick="switchTab('giveaways')" id="tab-giveaways" class="admin-tab px-3 py-1.5 rounded-md text-sm font-medium transition">
+        <i class="fas fa-gift mr-1"></i>Giveaways
+      </button>
+      {% if not is_mod_only %}
+      <button onclick="switchTab('hero-subs')" id="tab-hero-subs" class="admin-tab px-3 py-1.5 rounded-md text-sm font-medium transition">
+        <i class="fas fa-crown mr-1"></i>Hero Subs
+      </button>
+      <button onclick="switchTab('rss')" id="tab-rss" class="admin-tab px-3 py-1.5 rounded-md text-sm font-medium transition">
+        <i class="fas fa-rss mr-1"></i>RSS
+      </button>
+      {% endif %}
+      <button onclick="switchTab('polls')" id="tab-polls" class="admin-tab px-3 py-1.5 rounded-md text-sm font-medium transition">
+        <i class="fas fa-vote-yea mr-1"></i>Polls
+      </button>
+      {% if not is_mod_only %}
+      <button onclick="switchTab('steam')" id="tab-steam" class="admin-tab px-3 py-1.5 rounded-md text-sm font-medium transition">
+        <i class="fab fa-steam mr-1"></i>Steam
+      </button>
+      {% endif %}
+      <button onclick="switchTab('users')" id="tab-users" class="admin-tab px-3 py-1.5 rounded-md text-sm font-medium transition">
+        <i class="fas fa-user-shield mr-1"></i>Members
+      </button>
+      {% if not is_mod_only %}
+      <button onclick="switchTab('bot-stats')" id="tab-bot-stats" class="admin-tab px-3 py-1.5 rounded-md text-sm font-medium transition">
+        <i class="fas fa-chart-bar mr-1"></i>Bot Stats
+      </button>
+      <button onclick="switchTab('broadcasts')" id="tab-broadcasts" class="admin-tab px-3 py-1.5 rounded-md text-sm font-medium transition">
+        <i class="fas fa-broadcast-tower mr-1"></i>Broadcasts
+      </button>
+      {% endif %}
+      <button onclick="switchTab('ffxiv-applications')" id="tab-ffxiv-applications" class="admin-tab px-3 py-1.5 rounded-md text-sm font-medium transition">
+        <i class="fas fa-file-alt mr-1 text-rose-400"></i>FFXIV Apps
+      </button>
+      <button onclick="switchTab('eso-applications')" id="tab-eso-applications" class="admin-tab px-3 py-1.5 rounded-md text-sm font-medium transition">
+        <i class="fas fa-file-alt mr-1 text-amber-400"></i>ESO Apps
+      </button>
+    </div>
   </div>
 
   <!-- Tab Content Panels -->
@@ -268,11 +336,11 @@
   <!-- Users Tab -->
   <div id="panel-users" class="admin-panel hidden">
     <div class="flex items-center justify-between mb-4">
-      <h2 class="text-lg font-semibold text-white"><i class="fas fa-user-shield text-cyan-400 mr-2"></i>User Management</h2>
+      <h2 class="text-lg font-semibold text-white"><i class="fas fa-user-shield text-cyan-400 mr-2"></i>Member Management</h2>
     </div>
-    <p class="text-gray-400 text-sm mb-4">View users, ban/unban accounts, manage admin privileges, and set hero points.</p>
+    <p class="text-gray-400 text-sm mb-4">View members, manage access, timeouts, and account privileges.</p>
     <div class="mb-4">
-      <input type="text" id="userSearchInput" placeholder="Search users..." class="w-full md:w-64 bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2 text-white text-sm focus:border-cyan-500 focus:outline-none hover:bg-neutral-700/50 transition-colors">
+      <input type="text" id="userSearchInput" placeholder="Search members..." class="w-full md:w-64 bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2 text-white text-sm focus:border-cyan-500 focus:outline-none hover:bg-neutral-700/50 transition-colors">
     </div>
     <div id="adminUsersList" class="space-y-3">
       <div class="text-center text-gray-500 py-8"><i class="fas fa-spinner fa-spin text-2xl"></i></div>
@@ -377,6 +445,24 @@
     <p class="text-gray-400 text-sm mb-4">Create polls to let members vote on the next game server rotation. Only one poll can be active at a time. Members can change their vote anytime while the poll is open.</p>
     <div id="adminPollsList" class="space-y-4">
       <div class="text-center text-gray-500 py-8"><i class="fas fa-spinner fa-spin text-2xl"></i></div>
+    </div>
+  </div>
+
+  <!-- Voices / Testimonials Tab -->
+  <div id="panel-testimonials" class="admin-panel hidden">
+    <div class="bg-neutral-900 rounded-xl p-5 border border-neutral-800">
+      <div class="flex items-center justify-between mb-4">
+        <div>
+          <h2 class="text-lg font-semibold text-white"><i class="fas fa-quote-left text-violet-400 mr-2"></i>Voices from the Guild</h2>
+          <p class="text-gray-400 text-sm mt-1">Member quotes shown on the landing page. Visible only when at least one is active.</p>
+        </div>
+        <button onclick="openTestimonialModal(null)" class="px-4 py-2 bg-violet-600 hover:bg-violet-500 text-white text-sm rounded-lg transition">
+          <i class="fas fa-plus mr-1"></i>Add Quote
+        </button>
+      </div>
+      <div id="testimonials-list" class="space-y-3">
+        <p class="text-gray-500 text-sm text-center py-6">Loading...</p>
+      </div>
     </div>
   </div>
 
@@ -753,6 +839,7 @@
 
 <style>
   .admin-tab { color: #9ca3af; }
+  .admin-panel { overflow-x: auto; }
   .admin-tab:hover { color: #fff; background: rgba(255,255,255,0.05); }
   .admin-tab.active { color: #fbbf24; background: rgba(251,191,36,0.1); }
 </style>
@@ -768,7 +855,10 @@ function switchTab(tab) {
   document.querySelectorAll('.admin-panel').forEach(p => p.classList.add('hidden'));
   document.querySelectorAll('.admin-tab').forEach(t => t.classList.remove('active'));
   document.getElementById('panel-' + tab).classList.remove('hidden');
-  document.getElementById('tab-' + tab).classList.add('active');
+  const tabBtn = document.getElementById('tab-' + tab);
+  if (tabBtn) tabBtn.classList.add('active');
+  const dd = document.getElementById('tabDropdown');
+  if (dd) dd.value = tab;
   currentTab = tab;
 
   if (!tabLoaded[tab]) {
@@ -797,6 +887,9 @@ function loadTabData(tab) {
     'bot-network': loadBotNetwork,
     'emoji': loadEmoji,
     'bot-stats': loadBotStats,
+    'testimonials': loadTestimonials,
+    'ffxiv-applications': () => loadFfxivApplications('pending'),
+    'eso-applications':   () => loadEsoApplications('pending'),
   };
   if (loaders[tab]) loaders[tab]();
 }
@@ -1052,7 +1145,7 @@ async function saveLFGGame() {
 async function deleteLFGGame(id, name) {
   if (!confirm(`Delete LFG game "${name}"?`)) return;
   try {
-    await csrfFetch(`/ql/api/admin/lfg-games/${id}/`, { method: 'DELETE', headers: {'Content-Type':'application/json'} });
+    await csrfFetch(`/api/admin/lfg-games/${id}/`, { method: 'DELETE', headers: {'Content-Type':'application/json'} });
     tabLoaded.lfg = false; loadLFGGames();
   } catch(e) { alert('Failed to delete'); }
 }
@@ -1178,7 +1271,7 @@ async function communityAction(id, action) {
     body.reason = reason;
   }
   try {
-    await csrfFetch(`/ql/api/admin/communities/${id}/action/`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+    await csrfFetch(`/api/admin/communities/${id}/action/`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
     tabLoaded.communities = false; loadAdminCommunities(); loadStats();
   } catch(e) { alert('Action failed'); }
 }
@@ -1249,7 +1342,7 @@ function renderAdminCreators() {
 
 async function creatorAction(id, action) {
   try {
-    await csrfFetch(`/ql/api/admin/creators/${id}/action/`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ action }) });
+    await csrfFetch(`/api/admin/creators/${id}/action/`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ action }) });
     tabLoaded.creators = false; loadAdminCreators(); loadStats();
   } catch(e) { alert('Action failed: ' + e.message); }
 }
@@ -1257,7 +1350,7 @@ async function creatorAction(id, action) {
 async function rotateCOTW() {
   if (!confirm('Auto-rotate Creator of the Week? This will clear the current COTW and randomly select a new one.')) return;
   try {
-    const r = await csrfFetch('/ql/api/admin/creators/rotate-cotw/', { method: 'POST', headers: {'Content-Type':'application/json'} });
+    const r = await csrfFetch('/api/admin/creators/rotate-cotw/', { method: 'POST', headers: {'Content-Type':'application/json'} });
     const d = await r.json();
     if (d.new_cotw) {
       alert(`New Creator of the Week: ${d.new_cotw}`);
@@ -1271,7 +1364,7 @@ async function rotateCOTW() {
 async function rotateCOTM() {
   if (!confirm('Auto-rotate Creator of the Month? This will clear the current COTM and randomly select a new one.')) return;
   try {
-    const r = await csrfFetch('/ql/api/admin/creators/rotate-cotm/', { method: 'POST', headers: {'Content-Type':'application/json'} });
+    const r = await csrfFetch('/api/admin/creators/rotate-cotm/', { method: 'POST', headers: {'Content-Type':'application/json'} });
     const d = await r.json();
     if (d.new_cotm) {
       alert(`New Creator of the Month: ${d.new_cotm}`);
@@ -1434,7 +1527,7 @@ function _steamFormHtml(data) {
       <label class="flex items-center justify-between bg-neutral-800/50 rounded-lg px-3 py-3 cursor-pointer">
         <div>
           <p class="text-sm text-white font-medium">Show on Site</p>
-          <p class="text-xs text-gray-400">Games from this search appear on /ql/games/</p>
+          <p class="text-xs text-gray-400">Games from this search appear on games/</p>
         </div>
         <input type="checkbox" id="ssShowOnSite" ${chk('show_on_site', true)}
           class="w-5 h-5 rounded bg-neutral-700 border-neutral-600 text-blue-500 focus:ring-blue-500 cursor-pointer">
@@ -1500,7 +1593,7 @@ async function updateSteamSearch(id) {
   const body = _steamBodyFromForm();
   if (!body.name) return alert('Search name is required');
   try {
-    const r = await csrfFetch(`/ql/api/admin/steam-searches/${id}/`,
+    const r = await csrfFetch(`/api/admin/steam-searches/${id}/`,
       { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
     const d = await r.json();
     if (d.success) { closeModal(); tabLoaded.steam = false; loadSteamSearches(); }
@@ -1517,7 +1610,7 @@ async function runSteamSearchNow(id, clear = false) {
   } else {
     if (runBtn) { runBtn.disabled = true; runBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>'; }
   }
-  const url = `/ql/api/admin/steam-searches/${id}/run/${clear ? '?clear=1' : ''}`;
+  const url = `/api/admin/steam-searches/${id}/run/${clear ? '?clear=1' : ''}`;
   try {
     const r = await csrfFetch(url, { method: 'POST', headers: {'Content-Type':'application/json'} });
     const d = await r.json();
@@ -1539,7 +1632,7 @@ async function runSteamSearchNow(id, clear = false) {
 async function deleteSteamSearch(id, name) {
   if (!confirm(`Delete search "${name}"?`)) return;
   try {
-    await csrfFetch(`/ql/api/admin/steam-searches/${id}/`, { method: 'DELETE', headers: {'Content-Type':'application/json'} });
+    await csrfFetch(`/api/admin/steam-searches/${id}/`, { method: 'DELETE', headers: {'Content-Type':'application/json'} });
     tabLoaded.steam = false; loadSteamSearches();
   } catch(e) { alert('Failed to delete'); }
 }
@@ -1593,7 +1686,7 @@ function renderFoundGames() {
 
 async function foundGameAction(id, action) {
   try {
-    await csrfFetch(`/ql/api/admin/found-games/${id}/action/`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ action }) });
+    await csrfFetch(`/api/admin/found-games/${id}/action/`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ action }) });
     tabLoaded.games = false; loadFoundGames(); loadStats();
   } catch(e) { alert('Action failed'); }
 }
@@ -1618,7 +1711,7 @@ async function fetchRSSFeedNow(id, clear = false) {
   const btn = document.getElementById(`rss-fetch-${id}`);
   if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>'; }
   try {
-    const url = `/ql/api/admin/rss-feeds/${id}/fetch-now/${clear ? '?clear=1' : ''}`;
+    const url = `/api/admin/rss-feeds/${id}/fetch-now/${clear ? '?clear=1' : ''}`;
     const r = await csrfFetch(url, { method: 'POST', headers: {'Content-Type':'application/json'} });
     const d = await r.json();
     if (d.success) {
@@ -1743,7 +1836,7 @@ async function validateRSSUrl() {
   btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
   statusEl.classList.add('hidden');
   try {
-    const r = await csrfFetch('/ql/api/admin/rss-feeds/validate/', {
+    const r = await csrfFetch('/api/admin/rss-feeds/validate/', {
       method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ url }),
     });
     const d = await r.json();
@@ -1797,7 +1890,7 @@ async function updateRSSFeed(id) {
   const body = _rssBodyFromForm();
   if (!body.name || !body.url) return alert('Name and URL are required');
   try {
-    const r = await csrfFetch(`/ql/api/admin/rss-feeds/${id}/`, {
+    const r = await csrfFetch(`/api/admin/rss-feeds/${id}/`, {
       method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body),
     });
     const d = await r.json();
@@ -1808,14 +1901,14 @@ async function updateRSSFeed(id) {
 
 async function toggleRSSFeed(id, active) {
   try {
-    await csrfFetch(`/ql/api/admin/rss-feeds/${id}/`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ is_active: active }) });
+    await csrfFetch(`/api/admin/rss-feeds/${id}/`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ is_active: active }) });
     tabLoaded.rss = false; loadRSSFeeds();
   } catch(e) { alert('Failed to update feed'); }
 }
 
 async function deleteRSSFeed(id) {
   try {
-    await csrfFetch(`/ql/api/admin/rss-feeds/${id}/`, { method: 'DELETE', headers: {'Content-Type':'application/json'} });
+    await csrfFetch(`/api/admin/rss-feeds/${id}/`, { method: 'DELETE', headers: {'Content-Type':'application/json'} });
     tabLoaded.rss = false; loadRSSFeeds(); loadStats();
   } catch(e) { alert('Failed to delete'); }
 }
@@ -1856,39 +1949,73 @@ function renderUsers() {
   }
   c.innerHTML = adminUsers.map(u => {
     const isTimedOut = u.posting_timeout_until && u.posting_timeout_until > now;
+    const borderCls = u.is_banned ? 'border-red-800/50' : u.is_disabled ? 'border-orange-800/50' : 'border-neutral-800';
+    const badges = [
+      u.is_admin ? '<span class="text-xs px-1.5 py-0.5 rounded bg-yellow-600/20 text-yellow-400">Admin</span>' : '',
+      u.is_mod && !u.is_admin ? '<span class="text-xs px-1.5 py-0.5 rounded bg-blue-600/20 text-blue-400"><i class="fas fa-user-shield text-[10px] mr-0.5"></i>Mod</span>' : '',
+      u.is_vip ? '<span class="text-xs px-1.5 py-0.5 rounded bg-purple-600/20 text-purple-300">⭐ VIP</span>' : '',
+      u.is_ffxiv_member ? '<span class="text-xs px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300">FFXIV</span>' : '',
+      u.is_eso_member ? '<span class="text-xs px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300">ESO</span>' : '',
+      u.is_contributor ? '<span class="text-xs px-1.5 py-0.5 rounded bg-violet-600/20 text-violet-300"><i class="fas fa-pen text-[10px] mr-0.5"></i>Contributor</span>' : '',
+      !u.email_verified ? '<span class="text-xs px-1.5 py-0.5 rounded bg-yellow-600/20 text-yellow-400"><i class="fas fa-envelope text-[10px] mr-0.5"></i>Unverified</span>' : '',
+      u.is_banned ? '<span class="text-xs px-1.5 py-0.5 rounded bg-red-600/20 text-red-400">Banned</span>' : '',
+      u.is_disabled ? '<span class="text-xs px-1.5 py-0.5 rounded bg-orange-600/20 text-orange-400">Disabled</span>' : '',
+      isTimedOut ? '<span class="text-xs px-1.5 py-0.5 rounded bg-blue-600/20 text-blue-400">Timed Out</span>' : '',
+    ].filter(Boolean).join('');
+
     return `
-    <div class="bg-neutral-900/50 border ${u.is_banned ? 'border-red-800/50' : u.is_disabled ? 'border-orange-800/50' : 'border-neutral-800'} rounded-lg p-4">
-      <div class="flex items-start justify-between gap-3">
-        <div class="flex items-center gap-3 min-w-0 flex-1">
-          ${avatarHtml(u.username, u.avatar_url, 'w-10 h-10')}
-          <div class="min-w-0">
-            <div class="flex items-center gap-2 flex-wrap">
-              <span class="text-white font-medium">${escapeHtml(u.username)}</span>
-              ${u.display_name && u.display_name !== u.username ? `<span class="text-gray-400 text-xs">(${escapeHtml(u.display_name)})</span>` : ''}
-              ${u.is_admin ? '<span class="text-xs px-1.5 py-0.5 rounded bg-yellow-600/20 text-yellow-400">Admin</span>' : ''}
-              ${u.is_vip ? '<span class="text-xs px-1.5 py-0.5 rounded bg-purple-600/20 text-purple-300">⭐ VIP</span>' : ''}
-              ${u.is_banned ? '<span class="text-xs px-1.5 py-0.5 rounded bg-red-600/20 text-red-400">Banned</span>' : ''}
-              ${u.is_disabled ? '<span class="text-xs px-1.5 py-0.5 rounded bg-orange-600/20 text-orange-400">Disabled</span>' : ''}
-              ${isTimedOut ? `<span class="text-xs px-1.5 py-0.5 rounded bg-blue-600/20 text-blue-400" title="Timeout until ${formatTimestamp(u.posting_timeout_until)}">Timed Out</span>` : ''}
-            </div>
-            <div class="text-xs text-gray-500 mt-0.5">
-              ID: ${u.id} | Posts: ${u.post_count || 0} | XP: ${u.web_xp} Lvl ${u.web_level}
-              ${u.email ? ` | ${escapeHtml(u.email)}` : ''}
-              | Last login: ${formatTimestamp(u.last_login_at)}
-            </div>
-            ${u.ban_reason ? `<div class="text-xs text-red-400 mt-0.5">Ban reason: ${escapeHtml(u.ban_reason)}</div>` : ''}
+    <div class="bg-neutral-900/50 border ${borderCls} rounded-lg p-3">
+      <!-- Top row: avatar + name + badges -->
+      <div class="flex items-center gap-3 mb-2">
+        ${avatarHtml(u.username, u.avatar_url, 'w-9 h-9 flex-shrink-0')}
+        <div class="min-w-0 flex-1">
+          <div class="flex items-center gap-1.5 flex-wrap">
+            <a href="/u/${escapeHtml(u.username)}/" target="_blank" class="text-white font-medium text-sm hover:text-cyan-400 transition">${escapeHtml(u.username)}</a>
+            ${u.display_name && u.display_name !== u.username ? `<span class="text-gray-500 text-xs truncate">(${escapeHtml(u.display_name)})</span>` : ''}
+          </div>
+          <div class="text-xs text-gray-600 mt-0.5 leading-tight">
+            ID:${u.id} &middot; Lv${u.web_level} &middot; ${u.web_xp}xp &middot; ${u.post_count||0} posts${u.email_domain ? ` &middot; @${escapeHtml(u.email_domain)}` : ''}
           </div>
         </div>
-        <div class="flex flex-wrap gap-1 flex-shrink-0">
-          ${!u.is_vip ? `<button onclick="userAction(${u.id}, 'grant_vip')" class="text-xs bg-purple-600/20 text-purple-300 hover:bg-purple-600/30 px-2 py-1 rounded transition" title="Grant VIP / Early Tester">⭐ VIP</button>` : `<button onclick="userAction(${u.id}, 'revoke_vip')" class="text-xs bg-neutral-700 text-gray-400 hover:bg-neutral-600 px-2 py-1 rounded transition" title="Revoke VIP">⭐ Revoke</button>`}
-          ${!u.is_admin ? `<button onclick="userAction(${u.id}, 'make_admin')" class="text-xs bg-yellow-600/20 text-yellow-400 hover:bg-yellow-600/30 px-2 py-1 rounded transition" title="Make Admin"><i class="fas fa-crown"></i></button>` : `<button onclick="userAction(${u.id}, 'remove_admin')" class="text-xs bg-neutral-700 text-gray-300 hover:bg-neutral-600 px-2 py-1 rounded transition" title="Remove Admin"><i class="fas fa-crown"></i></button>`}
-          ${!u.is_disabled ? `<button onclick="userAction(${u.id}, 'disable')" class="text-xs bg-orange-600/20 text-orange-400 hover:bg-orange-600/30 px-2 py-1 rounded transition" title="Disable Account">Disable</button>` : `<button onclick="userAction(${u.id}, 'enable')" class="text-xs bg-green-600/20 text-green-400 hover:bg-green-600/30 px-2 py-1 rounded transition">Enable</button>`}
-          ${!u.is_banned ? `<button onclick="userAction(${u.id}, 'ban')" class="text-xs bg-red-600/20 text-red-400 hover:bg-red-600/30 px-2 py-1 rounded transition">Ban</button>` : `<button onclick="userAction(${u.id}, 'unban')" class="text-xs bg-green-600/20 text-green-400 hover:bg-green-600/30 px-2 py-1 rounded transition">Unban</button>`}
-          ${!isTimedOut ? `<button onclick="timeoutUser(${u.id})" class="text-xs bg-blue-600/20 text-blue-400 hover:bg-blue-600/30 px-2 py-1 rounded transition" title="Posting Timeout"><i class="fas fa-clock"></i></button>` : `<button onclick="userAction(${u.id}, 'clear_timeout')" class="text-xs bg-neutral-700 text-gray-300 hover:bg-neutral-600 px-2 py-1 rounded transition" title="Clear Timeout"><i class="fas fa-clock"></i> Clear</button>`}
-          <button onclick="if(confirm('Delete ALL posts by this user? This cannot be undone.')) userAction(${u.id}, 'delete_posts')" class="text-xs bg-red-600/20 text-red-400 hover:bg-red-600/30 px-2 py-1 rounded transition" title="Delete All Posts"><i class="fas fa-trash-alt"></i></button>
-          <button onclick="purgeUser(${u.id}, '${escapeHtml(u.username)}')" class="text-xs bg-red-900/50 text-red-300 hover:bg-red-800/60 border border-red-800/50 px-2 py-1 rounded transition font-bold" title="Purge Account (complete wipe — frees username)">PURGE</button>
-          <button onclick="setHeroPoints(${u.id}, ${u.hero_points})" class="text-xs bg-purple-600/20 text-purple-400 hover:bg-purple-600/30 px-2 py-1 rounded transition" title="Set Hero Points"><i class="fas fa-gem"></i></button>
-        </div>
+      </div>
+      <!-- Status badges -->
+      ${badges ? `<div class="flex flex-wrap gap-1 mb-2">${badges}</div>` : ''}
+      ${u.ban_reason ? `<div class="text-xs text-red-400 mb-2">Ban: ${escapeHtml(u.ban_reason)}</div>` : ''}
+      <div class="text-xs text-gray-600 mb-2">Last login: ${formatTimestamp(u.last_login_at)}</div>
+      <!-- Action buttons - full width grid on mobile -->
+      <div class="flex flex-wrap gap-1">
+        ${!IS_MOD_ONLY ? (!u.is_ffxiv_member
+          ? `<button onclick="userAction(${u.id},'grant_ffxiv')" class="text-xs bg-blue-500/20 text-blue-300 hover:bg-blue-500/30 px-2 py-1 rounded transition">+FFXIV</button>`
+          : `<button onclick="userAction(${u.id},'revoke_ffxiv')" class="text-xs bg-neutral-700 text-gray-400 hover:bg-neutral-600 px-2 py-1 rounded transition">-FFXIV</button>`) : ''}
+        ${!IS_MOD_ONLY ? (!u.is_eso_member
+          ? `<button onclick="userAction(${u.id},'grant_eso')" class="text-xs bg-amber-500/20 text-amber-300 hover:bg-amber-500/30 px-2 py-1 rounded transition">+ESO</button>`
+          : `<button onclick="userAction(${u.id},'revoke_eso')" class="text-xs bg-neutral-700 text-gray-400 hover:bg-neutral-600 px-2 py-1 rounded transition">-ESO</button>`) : ''}
+        ${!IS_MOD_ONLY && !u.email_verified ? `<button onclick="userAction(${u.id},'verify_email')" class="text-xs bg-green-600/20 text-green-400 hover:bg-green-600/30 px-2 py-1 rounded transition"><i class="fas fa-envelope-open-text"></i> Verify</button>` : ''}
+        ${!IS_MOD_ONLY ? (!u.is_contributor
+          ? `<button onclick="userAction(${u.id},'grant_contributor')" class="text-xs bg-violet-600/20 text-violet-300 hover:bg-violet-600/30 px-2 py-1 rounded transition">+Contrib</button>`
+          : `<button onclick="userAction(${u.id},'revoke_contributor')" class="text-xs bg-neutral-700 text-gray-400 hover:bg-neutral-600 px-2 py-1 rounded transition">-Contrib</button>`) : ''}
+        ${!IS_MOD_ONLY ? (!u.is_vip
+          ? `<button onclick="userAction(${u.id},'grant_vip')" class="text-xs bg-purple-600/20 text-purple-300 hover:bg-purple-600/30 px-2 py-1 rounded transition">+VIP</button>`
+          : `<button onclick="userAction(${u.id},'revoke_vip')" class="text-xs bg-neutral-700 text-gray-400 hover:bg-neutral-600 px-2 py-1 rounded transition">-VIP</button>`) : ''}
+        ${!IS_MOD_ONLY ? (!u.is_mod
+          ? `<button onclick="userAction(${u.id},'grant_mod')" class="text-xs bg-blue-600/20 text-blue-400 hover:bg-blue-600/30 px-2 py-1 rounded transition">+Mod</button>`
+          : `<button onclick="userAction(${u.id},'revoke_mod')" class="text-xs bg-neutral-700 text-gray-300 hover:bg-neutral-600 px-2 py-1 rounded transition">-Mod</button>`) : ''}
+        ${!IS_MOD_ONLY ? (!u.is_admin
+          ? `<button onclick="userAction(${u.id},'make_admin')" class="text-xs bg-yellow-600/20 text-yellow-400 hover:bg-yellow-600/30 px-2 py-1 rounded transition" title="Make Admin"><i class="fas fa-crown"></i></button>`
+          : `<button onclick="userAction(${u.id},'remove_admin')" class="text-xs bg-neutral-700 text-gray-300 hover:bg-neutral-600 px-2 py-1 rounded transition" title="Remove Admin"><i class="fas fa-crown text-yellow-400"></i></button>`) : ''}
+        ${!IS_MOD_ONLY ? `<button onclick="setHeroPoints(${u.id},${u.hero_points})" class="text-xs bg-purple-600/20 text-purple-400 hover:bg-purple-600/30 px-2 py-1 rounded transition" title="Set Hero Points"><i class="fas fa-gem"></i></button>` : ''}
+        ${!IS_MOD_ONLY ? `<button onclick="awardMostHelpful(${u.id},'${escapeHtml(u.username)}')" class="text-xs bg-yellow-600/20 text-yellow-400 hover:bg-yellow-600/30 px-2 py-1 rounded transition" title="Award Most Helpful"><i class="fas fa-dragon"></i></button>` : ''}
+        ${!isTimedOut
+          ? `<button onclick="timeoutUser(${u.id})" class="text-xs bg-blue-600/20 text-blue-400 hover:bg-blue-600/30 px-2 py-1 rounded transition" title="Timeout"><i class="fas fa-clock"></i></button>`
+          : `<button onclick="userAction(${u.id},'clear_timeout')" class="text-xs bg-neutral-700 text-gray-300 hover:bg-neutral-600 px-2 py-1 rounded transition"><i class="fas fa-clock"></i> Untimeout</button>`}
+        ${!u.is_disabled
+          ? `<button onclick="userAction(${u.id},'disable')" class="text-xs bg-orange-600/20 text-orange-400 hover:bg-orange-600/30 px-2 py-1 rounded transition">Disable</button>`
+          : `<button onclick="userAction(${u.id},'enable')" class="text-xs bg-green-600/20 text-green-400 hover:bg-green-600/30 px-2 py-1 rounded transition">Enable</button>`}
+        ${!IS_MOD_ONLY ? (!u.is_banned
+          ? `<button onclick="userAction(${u.id},'ban')" class="text-xs bg-red-600/20 text-red-400 hover:bg-red-600/30 px-2 py-1 rounded transition">Ban</button>`
+          : `<button onclick="userAction(${u.id},'unban')" class="text-xs bg-green-600/20 text-green-400 hover:bg-green-600/30 px-2 py-1 rounded transition">Unban</button>`) : ''}
+        <button onclick="if(confirm('Delete ALL posts by this user?')) userAction(${u.id},'delete_posts')" class="text-xs bg-red-600/20 text-red-400 hover:bg-red-600/30 px-2 py-1 rounded transition" title="Delete All Posts"><i class="fas fa-trash-alt"></i></button>
+        ${!IS_MOD_ONLY ? `<button onclick="purgeUser(${u.id},'${escapeHtml(u.username)}')" class="text-xs bg-red-900/50 text-red-300 hover:bg-red-800/60 border border-red-800/50 px-2 py-1 rounded transition font-bold">PURGE</button>` : ''}
       </div>
     </div>`;
   }).join('');
@@ -1902,7 +2029,7 @@ async function userAction(id, action) {
     body.reason = reason;
   }
   try {
-    const r = await csrfFetch(`/ql/api/admin/users/${id}/action/`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+    const r = await csrfFetch(`/api/admin/users/${id}/action/`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
     const d = await r.json();
     if (!d.success) { alert(d.error || 'Action failed'); return; }
     tabLoaded.users = false; loadUsers(); loadStats();
@@ -1914,7 +2041,7 @@ async function purgeUser(id, username) {
   const reason = prompt('Reason for purge (required):');
   if (!reason) return;
   try {
-    const r = await csrfFetch(`/ql/api/admin/users/${id}/action/`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ action: 'purge_user', reason }) });
+    const r = await csrfFetch(`/api/admin/users/${id}/action/`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ action: 'purge_user', reason }) });
     const d = await r.json();
     if (!d.success) { alert(d.error || 'Purge failed'); return; }
     tabLoaded.users = false; loadUsers(); loadStats();
@@ -1929,7 +2056,7 @@ async function timeoutUser(id) {
   const reason = prompt('Timeout reason (optional):');
   if (reason === null) return;
   try {
-    const r = await csrfFetch(`/ql/api/admin/users/${id}/action/`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ action: 'timeout', hours: h, reason }) });
+    const r = await csrfFetch(`/api/admin/users/${id}/action/`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ action: 'timeout', hours: h, reason }) });
     const d = await r.json();
     if (!d.success) { alert(d.error || 'Failed to set timeout'); return; }
     tabLoaded.users = false; loadUsers();
@@ -1940,9 +2067,30 @@ async function setHeroPoints(id, current) {
   const pts = prompt('Set hero points:', current);
   if (pts === null) return;
   try {
-    await csrfFetch(`/ql/api/admin/users/${id}/action/`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ action: 'set_hero_points', hero_points: parseInt(pts) || 0 }) });
+    await csrfFetch(`/api/admin/users/${id}/action/`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ action: 'set_hero_points', hero_points: parseInt(pts) || 0 }) });
     tabLoaded.users = false; loadUsers();
   } catch(e) { alert('Action failed'); }
+}
+
+async function awardMostHelpful(id, username) {
+  const cats = 'community, 7dtd, valheim, minecraft, dayz';
+  const category = prompt(`Award Most Helpful to ${username}.\nCategory (${cats}):`, 'community');
+  if (!category) return;
+  const now = new Date();
+  const defaultMonth = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
+  const monthYear = prompt('Month (YYYY-MM):', defaultMonth);
+  if (!monthYear) return;
+  try {
+    const r = await csrfFetch(`/api/admin/users/${id}/action/`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ action: 'award_most_helpful', category: category.trim(), month_year: monthYear.trim() }),
+    });
+    const d = await r.json();
+    if (!r.ok) { alert('Error: ' + (d.error || 'Failed')); return; }
+    alert(`Most Helpful awarded to ${username} for ${monthYear} (${category}). +Legacy points granted.`);
+    tabLoaded.users = false; loadUsers();
+  } catch(e) { alert('Award failed: ' + e.message); }
 }
 
 // ============================================================
@@ -2000,7 +2148,7 @@ function renderAdminPosts(posts, total) {
     <div class="bg-neutral-900/50 border ${p.is_hidden ? 'border-orange-800/50' : 'border-neutral-800'} rounded-lg p-4">
       <div class="flex items-start justify-between gap-3 mb-2">
         <div class="flex items-center gap-2 min-w-0">
-          <a href="/ql/u/${escapeHtml(p.author?.username || '')}" class="text-blue-400 hover:text-blue-300 text-sm font-medium">@${escapeHtml(p.author?.username || 'unknown')}</a>
+          <a href="/u/${escapeHtml(p.author?.username || '')}" class="text-blue-400 hover:text-blue-300 text-sm font-medium">@${escapeHtml(p.author?.username || 'unknown')}</a>
           <span class="text-gray-500 text-xs">${formatTimestamp(p.created_at)}</span>
           ${p.is_hidden ? '<span class="text-xs px-1.5 py-0.5 rounded bg-orange-600/20 text-orange-400">Hidden</span>' : ''}
           ${p.is_deleted ? '<span class="text-xs px-1.5 py-0.5 rounded bg-red-600/20 text-red-400">Deleted</span>' : ''}
@@ -2021,7 +2169,7 @@ function renderAdminPosts(posts, total) {
 
 async function adminPostAction(id, action) {
   try {
-    const r = await csrfFetch(`/ql/api/admin/social-posts/${id}/action/`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ action }) });
+    const r = await csrfFetch(`/api/admin/social-posts/${id}/action/`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ action }) });
     const d = await r.json();
     if (!d.success) { alert(d.error || 'Action failed'); return; }
     tabLoaded.posts = false; loadAdminPosts();
@@ -2090,7 +2238,7 @@ async function loadFlairsTab() {
 async function loadXpLeaderboard() {
   const el = document.getElementById('xpLeaderboard');
   try {
-    const res = await csrfFetch('/ql/api/admin/xp-leaderboard/');
+    const res = await csrfFetch('/api/admin/xp-leaderboard/');
     const data = await res.json();
     if (!data.leaderboard || !data.leaderboard.length) {
       el.innerHTML = '<p class="text-gray-500 text-sm text-center py-4">No users yet.</p>';
@@ -2111,7 +2259,7 @@ async function loadXpLeaderboard() {
 async function loadRankTitles() {
   const el = document.getElementById('rankTitlesList');
   try {
-    const res = await csrfFetch('/ql/api/admin/rank-titles/');
+    const res = await csrfFetch('/api/admin/rank-titles/');
     const data = await res.json();
     if (!data.rank_titles || !data.rank_titles.length) {
       el.innerHTML = '<p class="text-gray-500 text-sm">No rank titles.</p>';
@@ -2133,7 +2281,7 @@ async function loadRankTitles() {
 async function loadFlairs() {
   const el = document.getElementById('flairsList');
   try {
-    const res = await csrfFetch('/ql/api/admin/flairs/');
+    const res = await csrfFetch('/api/admin/flairs/');
     const data = await res.json();
     if (!data.flairs || !data.flairs.length) {
       el.innerHTML = '<p class="text-gray-500 text-sm col-span-3 text-center py-4">No flairs yet. Create one!</p>';
@@ -2246,7 +2394,7 @@ async function saveFlair(isEdit = false) {
     enabled: document.getElementById('fm-enabled').checked,
   };
   if (!body.name) { document.getElementById('fm-error').textContent = 'Name required.'; document.getElementById('fm-error').classList.remove('hidden'); return; }
-  const url = isEdit ? `/ql/api/admin/flairs/${id}/` : '/ql/api/admin/flairs/';
+  const url = isEdit ? `/api/admin/flairs/${id}/` : '/api/admin/flairs/';
   const method = isEdit ? 'PUT' : 'POST';
   const res = await csrfFetch(url, {method, body: JSON.stringify(body)});
   const data = await res.json();
@@ -2256,7 +2404,7 @@ async function saveFlair(isEdit = false) {
 
 async function deleteFlair(id) {
   if (!confirm('Delete this flair? Users who own it will keep it but it won\'t appear in the shop.')) return;
-  const res = await csrfFetch(`/ql/api/admin/flairs/${id}/`, {method: 'DELETE'});
+  const res = await csrfFetch(`/api/admin/flairs/${id}/`, {method: 'DELETE'});
   const data = await res.json();
   if (data.success) { tabLoaded.flairs = false; loadFlairs(); }
   else alert(data.error || 'Error deleting flair');
@@ -2293,7 +2441,7 @@ async function saveRankTitle(isEdit) {
     icon: document.getElementById('rt-icon').value.trim(),
   };
   if (!body.title || !body.level) { document.getElementById('rt-error').textContent = 'Level and title required.'; document.getElementById('rt-error').classList.remove('hidden'); return; }
-  const url = isEdit ? `/ql/api/admin/rank-titles/${id}/` : '/ql/api/admin/rank-titles/';
+  const url = isEdit ? `/api/admin/rank-titles/${id}/` : '/api/admin/rank-titles/';
   const method = isEdit ? 'PUT' : 'POST';
   const res = await csrfFetch(url, {method, body: JSON.stringify(body)});
   const data = await res.json();
@@ -2303,7 +2451,7 @@ async function saveRankTitle(isEdit) {
 
 async function deleteRankTitle(id) {
   if (!confirm('Delete this rank title?')) return;
-  const res = await csrfFetch(`/ql/api/admin/rank-titles/${id}/`, {method: 'DELETE'});
+  const res = await csrfFetch(`/api/admin/rank-titles/${id}/`, {method: 'DELETE'});
   const data = await res.json();
   if (data.success) { tabLoaded.flairs = false; loadRankTitles(); }
   else alert(data.error || 'Error');
@@ -2318,7 +2466,7 @@ async function loadServerPolls() {
   const el = document.getElementById('adminPollsList');
   el.innerHTML = '<div class="text-center text-gray-500 py-8"><i class="fas fa-spinner fa-spin text-2xl"></i></div>';
   try {
-    const res = await csrfFetch('/ql/api/admin/server-polls/');
+    const res = await csrfFetch('/api/admin/server-polls/');
     const d = await res.json();
     pollsData = d.polls || [];
     renderPollsList();
@@ -2500,7 +2648,7 @@ async function steamGameSearch(query, uid, row) {
   drop.innerHTML = '<div class="px-3 py-2 text-gray-500 text-xs"><i class="fas fa-spinner fa-spin mr-1"></i>Searching Steam...</div>';
   drop.classList.remove('hidden');
   try {
-    const res = await csrfFetch(`/ql/api/admin/steam-game-search/?q=${encodeURIComponent(query)}`);
+    const res = await csrfFetch(`/api/admin/steam-game-search/?q=${encodeURIComponent(query)}`);
     const d = await res.json();
     const results = d.results || [];
     if (!results.length) {
@@ -2573,7 +2721,7 @@ async function createPoll() {
     if (name) opts.push({ game_name: name, steam_appid: appid, sort_order: i });
   });
   try {
-    const res = await csrfFetch('/ql/api/admin/server-polls/', {
+    const res = await csrfFetch('/api/admin/server-polls/', {
       method: 'POST',
       body: JSON.stringify({
         title,
@@ -2624,7 +2772,7 @@ async function savePollEdit(pollId) {
   const title = document.getElementById('editPollTitle').value.trim();
   if (!title) { alert('Title required'); return; }
   try {
-    const res = await csrfFetch(`/ql/api/admin/server-polls/${pollId}/`, {
+    const res = await csrfFetch(`/api/admin/server-polls/${pollId}/`, {
       method: 'PUT',
       body: JSON.stringify({
         title,
@@ -2642,7 +2790,7 @@ async function savePollEdit(pollId) {
 async function togglePollActive(pollId, makeActive) {
   if (makeActive && !confirm('Activating this poll will pause any currently active poll. Continue?')) return;
   try {
-    const res = await csrfFetch(`/ql/api/admin/server-polls/${pollId}/`, {
+    const res = await csrfFetch(`/api/admin/server-polls/${pollId}/`, {
       method: 'PUT', body: JSON.stringify({ is_active: makeActive }),
     });
     const d = await res.json();
@@ -2654,7 +2802,7 @@ async function togglePollActive(pollId, makeActive) {
 async function deletePoll(pollId) {
   if (!confirm('Delete this poll and all its votes? This cannot be undone.')) return;
   try {
-    const res = await csrfFetch(`/ql/api/admin/server-polls/${pollId}/`, { method: 'DELETE' });
+    const res = await csrfFetch(`/api/admin/server-polls/${pollId}/`, { method: 'DELETE' });
     const d = await res.json();
     if (d.success) { tabLoaded.polls = false; loadServerPolls(); }
     else alert(d.error || 'Failed');
@@ -2690,7 +2838,7 @@ async function addPollOption(pollId) {
   const name = document.getElementById('newOptName').value.trim();
   if (!name) { alert('Game name required'); return; }
   try {
-    const res = await csrfFetch(`/ql/api/admin/server-polls/${pollId}/options/`, {
+    const res = await csrfFetch(`/api/admin/server-polls/${pollId}/options/`, {
       method: 'POST',
       body: JSON.stringify({
         game_name: name,
@@ -2707,7 +2855,7 @@ async function addPollOption(pollId) {
 async function removePollOption(pollId, optionId) {
   if (!confirm('Remove this option? Any existing votes for it will also be removed.')) return;
   try {
-    const res = await csrfFetch(`/ql/api/admin/server-polls/${pollId}/options/${optionId}/`, { method: 'DELETE' });
+    const res = await csrfFetch(`/api/admin/server-polls/${pollId}/options/${optionId}/`, { method: 'DELETE' });
     const d = await res.json();
     if (d.success) { tabLoaded.polls = false; loadServerPolls(); }
     else alert(d.error || 'Failed');
@@ -2717,7 +2865,7 @@ async function removePollOption(pollId, optionId) {
 async function declareWinner(pollId, optionId, gameName) {
   if (!confirm(`Declare "${gameName}" as the winner and close this poll?`)) return;
   try {
-    const res = await csrfFetch(`/ql/api/admin/server-polls/${pollId}/declare-winner/`, {
+    const res = await csrfFetch(`/api/admin/server-polls/${pollId}/declare-winner/`, {
       method: 'POST', body: JSON.stringify({ option_id: optionId }),
     });
     const d = await res.json();
@@ -2756,7 +2904,7 @@ document.addEventListener('DOMContentLoaded', () => {
 async function loadAdminGiveaways() {
   const list = document.getElementById('adminGiveawayList');
   try {
-    const res = await csrfFetch('/ql/api/admin/giveaways/');
+    const res = await csrfFetch('/api/admin/giveaways/');
     const data = await res.json();
     if (!data.giveaways || data.giveaways.length === 0) {
       list.innerHTML = '<p class="text-gray-500 text-sm text-center py-8">No giveaways yet. Create one above.</p>';
@@ -2872,7 +3020,7 @@ async function submitCreateGiveaway(editId) {
   const hpPerTicket = parseInt(document.getElementById('gHpPerTicket').value) || 0;
   if (!title || !prize) { alert('Title and prize are required.'); return; }
   try {
-    const url = editId ? `/ql/api/admin/giveaways/${editId}/` : '/ql/api/admin/giveaways/';
+    const url = editId ? `/api/admin/giveaways/${editId}/` : '/api/admin/giveaways/';
     const method = editId ? 'PUT' : 'POST';
     const res = await csrfFetch(url, {
       method,
@@ -2887,7 +3035,7 @@ async function submitCreateGiveaway(editId) {
 
 async function adminLaunchGiveaway(id) {
   if (!confirm('Launch this giveaway? All users will receive a notification.')) return;
-  const res = await csrfFetch(`/ql/api/admin/giveaways/${id}/launch/`, {method: 'POST'});
+  const res = await csrfFetch(`/api/admin/giveaways/${id}/launch/`, {method: 'POST'});
   const data = await res.json();
   if (data.success) { showToastAdmin(`Launched! ${data.notified} users notified.`); tabLoaded.giveaways = false; loadAdminGiveaways(); }
   else alert(data.error || 'Failed to launch');
@@ -2895,7 +3043,7 @@ async function adminLaunchGiveaway(id) {
 
 async function adminCloseGiveaway(id) {
   if (!confirm('Close entries for this giveaway?')) return;
-  const res = await csrfFetch(`/ql/api/admin/giveaways/${id}/close/`, {method: 'POST'});
+  const res = await csrfFetch(`/api/admin/giveaways/${id}/close/`, {method: 'POST'});
   const data = await res.json();
   if (data.success) { tabLoaded.giveaways = false; loadAdminGiveaways(); }
   else alert(data.error || 'Failed to close');
@@ -2903,7 +3051,7 @@ async function adminCloseGiveaway(id) {
 
 async function adminPickWinner(id) {
   if (!confirm('Pick winner(s) randomly from all entries? Tickets give extra chances. This cannot be undone.')) return;
-  const res = await csrfFetch(`/ql/api/admin/giveaways/${id}/pick-winner/`, {method: 'POST'});
+  const res = await csrfFetch(`/api/admin/giveaways/${id}/pick-winner/`, {method: 'POST'});
   const data = await res.json();
   if (data.success) {
     const winners = data.giveaway.winners || [];
@@ -2918,7 +3066,7 @@ async function adminPickWinner(id) {
 
 async function adminDeleteGiveaway(id) {
   if (!confirm('Delete this giveaway draft?')) return;
-  const res = await csrfFetch(`/ql/api/admin/giveaways/${id}/`, {method: 'DELETE'});
+  const res = await csrfFetch(`/api/admin/giveaways/${id}/`, {method: 'DELETE'});
   const data = await res.json();
   if (data.success) { tabLoaded.giveaways = false; loadAdminGiveaways(); }
   else alert(data.error || 'Failed to delete');
@@ -2926,7 +3074,7 @@ async function adminDeleteGiveaway(id) {
 
 async function adminEditGiveaway(id) {
   try {
-    const res = await csrfFetch(`/ql/api/admin/giveaways/${id}/`);
+    const res = await csrfFetch(`/api/admin/giveaways/${id}/`);
     const data = await res.json();
     if (data.giveaway) showCreateGiveawayModal(id, data.giveaway);
     else alert(data.error || 'Could not load giveaway');
@@ -2950,6 +3098,8 @@ const EVENT_TYPE_ICONS = {
   new_member:      'fas fa-user-plus text-green-400',
   giveaway_start:  'fas fa-gift text-pink-400',
   giveaway_winner: 'fas fa-trophy text-yellow-400',
+  ffxiv_hunt:      'fas fa-crosshairs text-red-400',
+  ffxiv_guide:     'fas fa-book text-indigo-400',
 };
 
 
@@ -2958,7 +3108,7 @@ const EVENT_TYPE_ICONS = {
 // =====================================================================
 
 async function loadInviteCodes() {
-  const data = await csrfFetch('/ql/api/admin/invite-codes/').then(r => r.json());
+  const data = await csrfFetch('/api/admin/invite-codes/').then(r => r.json());
   const s = data.stats;
   document.getElementById('eacTotal').textContent = s.total;
   document.getElementById('eacUnused').textContent = s.unused;
@@ -2986,7 +3136,7 @@ async function loadInviteCodes() {
 
     const statusBadge = c.used_at
       ? `<span class="text-[10px] bg-indigo-900/40 text-indigo-300 border border-indigo-700/40 px-2 py-0.5 rounded-full font-medium">
-           <i class="fas fa-user text-[8px] mr-0.5"></i>Used by <a href="/ql/u/${escapeHtml(c.used_by_username || '')}/" class="underline hover:text-indigo-200">${escapeHtml(c.used_by_username || '?')}</a>
+           <i class="fas fa-user text-[8px] mr-0.5"></i>Used by <a href="/u/${escapeHtml(c.used_by_username || '')}/" class="underline hover:text-indigo-200">${escapeHtml(c.used_by_username || '?')}</a>
          </span>`
       : c.is_revoked
         ? `<span class="text-[10px] bg-red-900/40 text-red-300 border border-red-700/40 px-2 py-0.5 rounded-full">Revoked</span>`
@@ -3033,7 +3183,7 @@ async function eacRevokeSelected() {
   const ids = Array.from(document.querySelectorAll('.eac-checkbox:checked')).map(cb => parseInt(cb.dataset.id, 10));
   if (!ids.length) return;
   if (!confirm(`Revoke ${ids.length} selected code(s)? They will no longer be usable.`)) return;
-  const data = await csrfFetch('/ql/api/admin/invite-codes/bulk-revoke/', {
+  const data = await csrfFetch('/api/admin/invite-codes/bulk-revoke/', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ ids }),
@@ -3048,7 +3198,7 @@ async function eacRevokeSelected() {
 
 async function eacRevokeAllUnused() {
   if (!confirm('Revoke ALL unused invite codes? This cannot be undone.')) return;
-  const data = await csrfFetch('/ql/api/admin/invite-codes/bulk-revoke/', {
+  const data = await csrfFetch('/api/admin/invite-codes/bulk-revoke/', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ revoke_all_unused: true }),
@@ -3065,7 +3215,7 @@ async function generateInviteCodes() {
   const count = parseInt(document.getElementById('eacGenCount').value, 10) || 10;
   const platform = document.getElementById('eacGenPlatform').value;
   const notes = document.getElementById('eacGenNotes').value.trim();
-  const data = await csrfFetch('/ql/api/admin/invite-codes/', {
+  const data = await csrfFetch('/api/admin/invite-codes/', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ count, platform: platform || null, notes: notes || null }),
@@ -3081,7 +3231,7 @@ async function generateInviteCodes() {
 async function revokeInviteCode(codeId, btn) {
   if (!confirm('Revoke this invite code? It will no longer be usable.')) return;
   btn.disabled = true;
-  const data = await csrfFetch(`/ql/api/admin/invite-codes/${codeId}/`, {
+  const data = await csrfFetch(`/api/admin/invite-codes/${codeId}/`, {
     method: 'DELETE',
   }).then(r => r.json());
   if (data.success) {
@@ -3099,7 +3249,7 @@ async function revokeInviteCode(codeId, btn) {
 function esc(s) { var d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
 
 async function loadHeroSubs() {
-  const r = await csrfFetch('/ql/api/admin/hero-subscribers/');
+  const r = await csrfFetch('/api/admin/hero-subscribers/');
   const data = await r.json();
   const stats = data.stats || {};
 
@@ -3134,7 +3284,7 @@ async function loadHeroSubs() {
 let _botNetData = null;
 
 async function loadBotNetwork() {
-  const r = await csrfFetch('/ql/api/admin/bot-network/');
+  const r = await csrfFetch('/api/admin/bot-network/');
   _botNetData = await r.json();
   showBotNetTab('discord');
 }
@@ -3188,7 +3338,7 @@ function renderFluxerGuilds() {
       '<div class="flex-1"><div class="text-sm font-semibold text-white">' + esc(g.guild_name || g.guild_id) + '</div>' +
         '<div class="text-xs text-gray-500">ID: ' + esc(g.guild_id) + ' | ' + (g.channel_count || 0) + ' channels</div>' +
       '</div>' +
-      '<a href="/ql/dashboard/fluxer/' + esc(g.guild_id) + '/" class="text-xs text-purple-400 hover:text-purple-300">Configure &rarr;</a>' +
+      '<a href="/dashboard/fluxer/' + esc(g.guild_id) + '/" class="text-xs text-purple-400 hover:text-purple-300">Configure &rarr;</a>' +
     '</div>';
   }).join('');
 }
@@ -3206,7 +3356,7 @@ function renderMatrixSpaces() {
       '<div class="flex-1"><div class="text-sm font-semibold text-white">' + esc(s.space_name || s.space_id) + '</div>' +
         '<div class="text-xs text-gray-500">ID: ' + esc(s.space_id) + ' | ' + (s.member_count || 0) + ' members</div>' +
       '</div>' +
-      '<a href="/ql/dashboard/matrix/' + encodeURIComponent(s.space_id) + '/" class="text-xs text-green-400 hover:text-green-300">Dashboard &rarr;</a>' +
+      '<a href="/dashboard/matrix/' + encodeURIComponent(s.space_id) + '/" class="text-xs text-green-400 hover:text-green-300">Dashboard &rarr;</a>' +
     '</div>';
   }).join('');
 }
@@ -3357,7 +3507,7 @@ async function _onBrMatrixSpaceChange(spaceId) {
   _makeBrMatrixRoomSel([{ value: '', label: 'Loading...' }], '');
   if (!spaceId) { _makeBrMatrixRoomSel([], ''); return; }
   try {
-    const r = await csrfFetch('/ql/api/admin/matrix-space/' + encodeURIComponent(spaceId) + '/rooms/');
+    const r = await csrfFetch('/api/admin/matrix-space/' + encodeURIComponent(spaceId) + '/rooms/');
     const data = await r.json();
     const items = [{ value: '', label: '-- Select room --' }].concat(
       (data.rooms || []).map(rm => ({ value: rm.id, label: rm.name || rm.id }))
@@ -3370,7 +3520,7 @@ async function _onBrDiscordGuildChange(guildId) {
   _makeBrDiscordChSel([{ value: '', label: 'Loading...' }], '');
   if (!guildId) { _makeBrDiscordChSel([], ''); return; }
   try {
-    const r = await csrfFetch('/ql/api/admin/discord-guild/' + encodeURIComponent(guildId) + '/channels/');
+    const r = await csrfFetch('/api/admin/discord-guild/' + encodeURIComponent(guildId) + '/channels/');
     const data = await r.json();
     const items = (data.channels || []).map(c => ({ value: String(c.id), label: '#' + c.name }));
     _makeBrDiscordChSel(items, '');
@@ -3381,7 +3531,7 @@ async function _onBrFluxerGuildChange(guildId) {
   _makeBrFluxerChSel([{ value: '', label: 'Loading...' }], '');
   if (!guildId) { _makeBrFluxerChSel([], ''); return; }
   try {
-    const r = await csrfFetch('/ql/api/admin/fluxer-guild/' + encodeURIComponent(guildId) + '/channels/');
+    const r = await csrfFetch('/api/admin/fluxer-guild/' + encodeURIComponent(guildId) + '/channels/');
     const data = await r.json();
     const items = (data.channels || []).map(c => ({ value: String(c.id), label: '#' + c.name }));
     _makeBrFluxerChSel(items, '');
@@ -3439,19 +3589,19 @@ async function editBridgeConfig(id) {
   document.getElementById('bridgeAdminModal').classList.remove('hidden');
 
   // Load channels/rooms and pre-select after modal is visible
-  const loadDiscord = dg ? csrfFetch('/ql/api/admin/discord-guild/' + encodeURIComponent(dg) + '/channels/')
+  const loadDiscord = dg ? csrfFetch('/api/admin/discord-guild/' + encodeURIComponent(dg) + '/channels/')
     .then(r => r.json()).then(data => {
       const items = (data.channels || []).map(c => ({ value: String(c.id), label: '#' + c.name }));
       _makeBrDiscordChSel(items, dc);
     }).catch(() => {}) : Promise.resolve();
 
-  const loadFluxer = fg ? csrfFetch('/ql/api/admin/fluxer-guild/' + encodeURIComponent(fg) + '/channels/')
+  const loadFluxer = fg ? csrfFetch('/api/admin/fluxer-guild/' + encodeURIComponent(fg) + '/channels/')
     .then(r => r.json()).then(data => {
       const items = (data.channels || []).map(c => ({ value: String(c.id), label: '#' + c.name }));
       _makeBrFluxerChSel(items, fc);
     }).catch(() => {}) : Promise.resolve();
 
-  const loadMatrix = ms ? csrfFetch('/ql/api/admin/matrix-space/' + encodeURIComponent(ms) + '/rooms/')
+  const loadMatrix = ms ? csrfFetch('/api/admin/matrix-space/' + encodeURIComponent(ms) + '/rooms/')
     .then(r => r.json()).then(data => {
       const items = [{ value: '', label: '-- Select room --' }].concat(
         (data.rooms || []).map(rm => ({ value: rm.id, label: rm.name || rm.id }))
@@ -3492,11 +3642,11 @@ async function saveBridgeConfig() {
 
   let r, data;
   if (editId) {
-    r = await csrfFetch('/ql/api/admin/bridge-configs/' + editId + '/', { method: 'PATCH', body: JSON.stringify(body) });
+    r = await csrfFetch('/api/admin/bridge-configs/' + editId + '/', { method: 'PATCH', body: JSON.stringify(body) });
     data = await r.json();
     if (r.ok) showToastAdmin('Bridge updated.');
   } else {
-    r = await csrfFetch('/ql/api/admin/bridge-configs/', { method: 'POST', body: JSON.stringify(body) });
+    r = await csrfFetch('/api/admin/bridge-configs/', { method: 'POST', body: JSON.stringify(body) });
     data = await r.json();
     if (r.ok) showToastAdmin('Bridge created.');
   }
@@ -3513,7 +3663,7 @@ async function saveBridgeConfig() {
 }
 
 async function toggleBridgeEnabled(id, newVal) {
-  await csrfFetch('/ql/api/admin/bridge-configs/' + id + '/', {
+  await csrfFetch('/api/admin/bridge-configs/' + id + '/', {
     method: 'PATCH', body: JSON.stringify({ enabled: newVal })
   });
   _botNetData = null;
@@ -3523,7 +3673,7 @@ async function toggleBridgeEnabled(id, newVal) {
 
 async function deleteBridgeConfig(id) {
   if (!confirm('Delete this bridge? Pending relay messages will also be deleted.')) return;
-  await csrfFetch('/ql/api/admin/bridge-configs/' + id + '/', { method: 'DELETE' });
+  await csrfFetch('/api/admin/bridge-configs/' + id + '/', { method: 'DELETE' });
   _botNetData = null;
   await loadBotNetwork();
   showBotNetTab('bridge');
@@ -3551,7 +3701,7 @@ let _emojiData = null;
 async function loadEmoji() {
   const grid = document.getElementById('emojiGrid');
   grid.innerHTML = '<div class="col-span-6 text-center text-gray-500 py-8"><i class="fas fa-spinner fa-spin text-2xl"></i></div>';
-  const res = await csrfFetch('/ql/api/admin/emoji/');
+  const res = await csrfFetch('/api/admin/emoji/');
   const data = await res.json();
   _emojiData = data.emoji || [];
   renderEmojiGrid();
@@ -3694,7 +3844,7 @@ async function submitAllEmoji() {
     form.append('is_sticker', _emojiIsSticker ? '1' : '0');
     form.append('image', item.file);
     try {
-      const res = await csrfFetch('/ql/api/admin/emoji/', { method: 'POST', body: form });
+      const res = await csrfFetch('/api/admin/emoji/', { method: 'POST', body: form });
       const data = await res.json();
       if (data.success) {
         item.status = 'ok';
@@ -3727,7 +3877,7 @@ async function submitAllEmoji() {
 
 async function deleteEmoji(id, shortcode) {
   if (!confirm('Delete :' + shortcode + ':? This cannot be undone.')) return;
-  const res = await csrfFetch('/ql/api/admin/emoji/' + id + '/', { method: 'DELETE' });
+  const res = await csrfFetch('/api/admin/emoji/' + id + '/', { method: 'DELETE' });
   const data = await res.json();
   if (data.success) {
     _emojiData = (_emojiData || []).filter(e => e.id !== id);
@@ -3743,7 +3893,7 @@ function loadBotStats() {
   _botStatsLoaded = true;
   document.getElementById('bot-stats-loading').style.display = 'block';
   document.getElementById('bot-stats-content').style.display = 'none';
-  csrfFetch('/ql/api/admin/bot-stats/')
+  csrfFetch('/api/admin/bot-stats/')
     .then(r => r.json())
     .then(data => {
       renderBotStats(data);
@@ -3799,7 +3949,7 @@ function renderBotStats(d) {
 
   // Discord summary cards
   document.getElementById('bs-discord-cards').innerHTML =
-    statCard('fab fa-discord', 'Servers', disc.total_guilds, `${disc.active_guilds} active`, 'indigo') +
+    statCard('fab fa-discord', 'Servers', disc.total_guilds, 'bot present and active', 'indigo') +
     statCard('fas fa-users', 'Members tracked', disc.total_members, 'across all servers', 'indigo') +
     statCard('fas fa-star', 'XP events (30d)', disc.xp_events_30d, 'messages, reactions, voice', 'indigo') +
     statCard('fas fa-users-line', 'LFG groups', disc.lfg_groups_total, `${disc.lfg_groups_active} open now`, 'indigo');
@@ -3853,7 +4003,7 @@ function renderBotStats(d) {
 </script>
 
 <!-- Bot Stats Panel -->
-<div id="panel-bot-stats" class="admin-panel hidden">
+<div id="panel-bot-stats" class="admin-panel hidden max-w-7xl mx-auto px-4 pb-8">
   <div class="flex items-center justify-between mb-6">
     <h2 class="text-lg font-semibold text-white"><i class="fas fa-chart-bar text-indigo-400 mr-2"></i>Bot Usage Stats</h2>
     <button onclick="_botStatsLoaded=false; loadBotStats();" class="text-xs text-gray-500 hover:text-gray-300 transition flex items-center gap-1">
@@ -3869,7 +4019,7 @@ function renderBotStats(d) {
 
     <!-- Fluxer -->
     <h3 class="text-sm font-semibold text-purple-400 uppercase tracking-wider mb-3 flex items-center gap-2">
-      <i class="fas fa-bolt"></i> Fluxer Bot
+      <img src="{% static 'img/siteassets/fluxer-favicon.png' %}" style="width:1em;height:1em;object-fit:contain;vertical-align:middle;display:inline-block;" alt="Fluxer"> Fluxer Bot
     </h3>
     <div id="bs-fluxer-cards" class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6"></div>
     <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-4 mb-6">
@@ -3917,5 +4067,1543 @@ function renderBotStats(d) {
 
   </div>
 </div>
+
+<!-- ESO Guild Applications Tab -->
+<div id="panel-eso-applications" class="admin-panel hidden max-w-7xl mx-auto px-4 pb-8">
+  <div class="flex items-center justify-between mb-6">
+    <h2 class="text-lg font-semibold text-white"><i class="fas fa-file-alt text-amber-400 mr-2"></i>ESO Guild Applications</h2>
+    <div class="flex gap-2">
+      <button onclick="esoAppFilter('pending')" id="eso-filter-pending" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-orange-600/20 text-orange-400 border border-orange-600/30 transition hover:bg-orange-600/30">Pending</button>
+      <button onclick="esoAppFilter('approved')" id="eso-filter-approved" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-neutral-700 text-gray-400 border border-neutral-600 transition hover:bg-neutral-600">Approved</button>
+      <button onclick="esoAppFilter('denied')" id="eso-filter-denied" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-neutral-700 text-gray-400 border border-neutral-600 transition hover:bg-neutral-600">Denied</button>
+    </div>
+  </div>
+  <div id="eso-app-list" class="space-y-4">
+    <div class="text-gray-500 text-sm text-center py-8">Loading applications...</div>
+  </div>
+</div>
+
+<!-- FFXIV FC Applications Tab -->
+<div id="panel-ffxiv-applications" class="admin-panel hidden max-w-7xl mx-auto px-4 pb-8">
+  <div class="flex items-center justify-between mb-6">
+    <h2 class="text-lg font-semibold text-white"><i class="fas fa-file-alt text-rose-400 mr-2"></i>FFXIV FC Applications</h2>
+    <div class="flex gap-2">
+      <button onclick="ffxivAppFilter('pending')" id="ffxiv-filter-pending" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-orange-600/20 text-orange-400 border border-orange-600/30 transition hover:bg-orange-600/30">Pending</button>
+      <button onclick="ffxivAppFilter('approved')" id="ffxiv-filter-approved" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-neutral-700 text-gray-400 border border-neutral-600 transition hover:bg-neutral-600">Approved</button>
+      <button onclick="ffxivAppFilter('denied')" id="ffxiv-filter-denied" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-neutral-700 text-gray-400 border border-neutral-600 transition hover:bg-neutral-600">Denied</button>
+    </div>
+  </div>
+  <div id="ffxiv-app-list" class="space-y-4">
+    <div class="text-gray-500 text-sm text-center py-8">Loading applications...</div>
+  </div>
+</div>
+
+<!-- Broadcasts Tab -->
+<div id="panel-broadcasts" class="admin-panel hidden">
+  <h2 class="text-lg font-semibold text-white mb-6"><i class="fas fa-broadcast-tower text-yellow-400 mr-2"></i>Post Broadcasts</h2>
+
+  <!-- Platform Channels -->
+  <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-5 mb-6">
+    <h3 class="text-sm font-semibold text-gray-300 uppercase tracking-wider mb-4">Platform Channels</h3>
+    <p class="text-gray-400 text-sm mb-4">Every new post and comment on QuestLog is sent to these channels. Set a Fluxer channel, a Discord webhook, or both.</p>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <!-- Fluxer -->
+      <div>
+        <label class="text-sm text-gray-300 mb-1 block"><img src="{% static 'img/siteassets/fluxer-favicon.png' %}" style="width:1em;height:1em;object-fit:contain;vertical-align:middle;display:inline-block;" alt="Fluxer"> Fluxer Guild</label>
+        <div id="bc-guild-container" class="mb-2"></div>
+        <label class="text-sm text-gray-300 mb-1 block">Fluxer Channel</label>
+        <div id="bc-channel-container"></div>
+        <p class="text-xs text-gray-500 mt-1">Currently: <span id="bc-fluxer-current" class="text-gray-400">not set</span></p>
+      </div>
+
+      <!-- Discord -->
+      <div>
+        <label class="text-sm text-gray-300 mb-1 block"><i class="fab fa-discord text-blue-400 mr-1"></i>Discord Webhook URL</label>
+        <input type="text" id="bc-discord-webhook" placeholder="https://discord.com/api/webhooks/..."
+          class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm font-mono">
+        <p class="text-xs text-gray-500 mt-1">Create a webhook in Discord channel settings and paste the URL here.</p>
+      </div>
+    </div>
+
+    <div class="flex items-center gap-3 mt-4">
+      <button onclick="bcSaveChannels()" class="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition">
+        <i class="fas fa-save mr-1"></i>Save Channels
+      </button>
+      <label class="flex items-center gap-2 cursor-pointer">
+        <input type="checkbox" id="bc-enabled" class="rounded bg-neutral-700 border-neutral-600">
+        <span class="text-sm text-gray-300">Enable broadcasts</span>
+      </label>
+      <span id="bc-save-msg" class="text-xs text-green-400 hidden">Saved</span>
+    </div>
+  </div>
+
+  <!-- FFXIV Hunt / Event Alerts -->
+  <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-5 mb-6">
+    <h3 class="text-sm font-semibold text-gray-300 uppercase tracking-wider mb-1 flex items-center gap-2">
+      <i class="fas fa-crosshairs text-red-400"></i>FFXIV Hunt / Event Alerts
+    </h3>
+    <p class="text-gray-400 text-sm mb-4">When a user reports a hunt or event on the Hunt Board, the bot posts an embed here and optionally @mentions a role.</p>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div>
+        <label class="text-sm text-gray-300 mb-1 block"><img src="{% static 'img/siteassets/fluxer-favicon.png' %}" style="width:1em;height:1em;object-fit:contain;vertical-align:middle;display:inline-block;" alt="Fluxer"> Fluxer Guild</label>
+        <div id="hunt-guild-container" class="mb-2"></div>
+        <label class="text-sm text-gray-300 mb-1 block">Fluxer Channel</label>
+        <div id="hunt-channel-container"></div>
+        <p class="text-xs text-gray-500 mt-1">Currently: <span id="hunt-fluxer-current" class="text-gray-400">not set</span></p>
+      </div>
+      <div>
+        <label class="text-sm text-gray-300 mb-1 block"><i class="fas fa-at text-orange-400 mr-1"></i>Mention Role <span class="text-gray-500 text-xs font-normal">(optional)</span></label>
+        <div id="hunt-role-container"></div>
+        <p class="text-xs text-gray-500 mt-1">Select a Fluxer role to @mention when a hunt is reported. Select guild first.</p>
+        <label class="text-sm text-gray-300 mb-1 block mt-4"><i class="fab fa-discord text-blue-400 mr-1"></i>Discord Webhook URL</label>
+        <input type="text" id="hunt-discord-webhook" placeholder="https://discord.com/api/webhooks/..."
+          class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm font-mono">
+        <p class="text-xs text-gray-500 mt-1">Create a webhook in your Discord channel settings and paste the URL here.</p>
+      </div>
+    </div>
+
+    <div class="flex items-center gap-3 mt-4">
+      <button onclick="huntSaveChannels()" class="bg-red-700 hover:bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition">
+        <i class="fas fa-save mr-1"></i>Save Hunt Config
+      </button>
+      <label class="flex items-center gap-2 cursor-pointer">
+        <input type="checkbox" id="hunt-enabled" class="rounded bg-neutral-700 border-neutral-600">
+        <span class="text-sm text-gray-300">Enable hunt alerts</span>
+      </label>
+      <span id="hunt-save-msg" class="text-xs text-green-400 hidden">Saved</span>
+    </div>
+  </div>
+
+  <!-- FFXIV Job Guide Published -->
+  <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-5 mb-6">
+    <h3 class="text-sm font-semibold text-gray-300 uppercase tracking-wider mb-1 flex items-center gap-2">
+      <i class="fas fa-book text-indigo-400"></i>FFXIV Job Guide Published
+    </h3>
+    <p class="text-gray-400 text-sm mb-4">When a user publishes a job guide with "Send to Fluxer" checked, the bot posts an embed to this channel.</p>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div>
+        <label class="text-sm text-gray-300 mb-1 block"><img src="{% static 'img/siteassets/fluxer-favicon.png' %}" style="width:1em;height:1em;object-fit:contain;vertical-align:middle;display:inline-block;" alt="Fluxer"> Fluxer Guild</label>
+        <div id="guide-guild-container" class="mb-2"></div>
+        <label class="text-sm text-gray-300 mb-1 block">Fluxer Channel</label>
+        <div id="guide-channel-container"></div>
+        <p class="text-xs text-gray-500 mt-1">Currently: <span id="guide-fluxer-current" class="text-gray-400">not set</span></p>
+      </div>
+      <div>
+        <label class="text-sm text-gray-300 mb-1 block"><i class="fas fa-at text-orange-400 mr-1"></i>Mention Role <span class="text-gray-500 text-xs font-normal">(optional)</span></label>
+        <div id="guide-role-container"></div>
+        <p class="text-xs text-gray-500 mt-1">Select a Fluxer role to @mention when a guide is posted. Select guild first.</p>
+        <label class="text-sm text-gray-300 mb-1 block mt-4"><i class="fab fa-discord text-blue-400 mr-1"></i>Discord Webhook URL</label>
+        <input type="text" id="guide-discord-webhook" placeholder="https://discord.com/api/webhooks/..."
+          class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm font-mono">
+        <p class="text-xs text-gray-500 mt-1">Create a webhook in your Discord channel settings and paste the URL here.</p>
+      </div>
+    </div>
+
+    <div class="flex items-center gap-3 mt-4">
+      <button onclick="guideSaveChannels()" class="bg-indigo-700 hover:bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition">
+        <i class="fas fa-save mr-1"></i>Save Guide Config
+      </button>
+      <label class="flex items-center gap-2 cursor-pointer">
+        <input type="checkbox" id="guide-enabled" class="rounded bg-neutral-700 border-neutral-600">
+        <span class="text-sm text-gray-300">Enable guide alerts</span>
+      </label>
+      <span id="guide-save-msg" class="text-xs text-green-400 hidden">Saved</span>
+    </div>
+  </div>
+
+  <!-- FFXIV Gathering Node Timers -->
+  <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-5 mb-6">
+    <h3 class="text-sm font-semibold text-gray-300 uppercase tracking-wider mb-1 flex items-center gap-2">
+      <i class="fas fa-leaf text-green-400"></i>FFXIV Gathering Node Timers
+    </h3>
+    <p class="text-gray-400 text-sm mb-4">Posts a warning before unspoiled/legendary nodes spawn in Eorzea time, then an active alert at spawn. Covers all 219 timed nodes (BTN/MIN/FSH).</p>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div>
+        <label class="text-sm text-gray-300 mb-1 block"><img src="{% static 'img/siteassets/fluxer-favicon.png' %}" style="width:1em;height:1em;object-fit:contain;vertical-align:middle;display:inline-block;" alt="Fluxer"> Fluxer Guild</label>
+        <div id="gathering-guild-container" class="mb-2"></div>
+        <label class="text-sm text-gray-300 mb-1 block">Fluxer Channel</label>
+        <div id="gathering-channel-container"></div>
+        <p class="text-xs text-gray-500 mt-1">Currently: <span id="gathering-fluxer-current" class="text-gray-400">not set</span></p>
+        <label class="text-sm text-gray-300 mb-1 block mt-3"><i class="fab fa-discord text-indigo-400 mr-1"></i>Discord Webhook URL</label>
+        <input type="text" id="gathering-discord-webhook" placeholder="https://discord.com/api/webhooks/..." class="w-full bg-neutral-800 border border-neutral-700 text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+        <p class="text-xs text-gray-500 mt-1">Create a webhook in Discord channel settings and paste the URL here.</p>
+      </div>
+      <div>
+        <label class="text-sm text-gray-300 mb-1 block"><i class="fas fa-clock text-green-400 mr-1"></i>Warning Time</label>
+        <select id="gathering-warn-minutes" class="bg-neutral-800 border border-neutral-700 text-white rounded-lg px-3 py-2 text-sm w-full focus:outline-none focus:ring-2 focus:ring-green-500">
+          <option value="3">3 minutes before spawn</option>
+          <option value="5" selected>5 minutes before spawn</option>
+          <option value="10">10 minutes before spawn</option>
+          <option value="15">15 minutes before spawn</option>
+        </select>
+        <p class="text-xs text-gray-500 mt-2">How many real minutes before each node spawns to post the warning embed.</p>
+      </div>
+    </div>
+    <div class="flex items-center gap-3 mt-4">
+      <button onclick="gatheringSaveChannels()" class="bg-green-700 hover:bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition">
+        <i class="fas fa-save mr-1"></i>Save Gathering Config
+      </button>
+      <label class="flex items-center gap-2 cursor-pointer">
+        <input type="checkbox" id="gathering-enabled" class="rounded bg-neutral-700 border-neutral-600">
+        <span class="text-sm text-gray-300">Enable gathering alerts</span>
+      </label>
+      <span id="gathering-save-msg" class="text-xs text-green-400 hidden">Saved</span>
+    </div>
+  </div>
+
+  <!-- FFXIV Ocean Fishing -->
+  <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-5 mb-6">
+    <h3 class="text-sm font-semibold text-gray-300 uppercase tracking-wider mb-1 flex items-center gap-2">
+      <i class="fas fa-fish text-blue-400"></i>FFXIV Ocean Fishing Alerts
+    </h3>
+    <p class="text-gray-400 text-sm mb-4">Posts when registration opens (45 min before departure) with route, stops, time-of-day, and blue/achievement fish info.</p>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div>
+        <label class="text-sm text-gray-300 mb-1 block"><img src="{% static 'img/siteassets/fluxer-favicon.png' %}" style="width:1em;height:1em;object-fit:contain;vertical-align:middle;display:inline-block;" alt="Fluxer"> Fluxer Guild</label>
+        <div id="ocean-guild-container" class="mb-2"></div>
+        <label class="text-sm text-gray-300 mb-1 block">Fluxer Channel</label>
+        <div id="ocean-channel-container"></div>
+        <p class="text-xs text-gray-500 mt-1">Currently: <span id="ocean-fluxer-current" class="text-gray-400">not set</span></p>
+      </div>
+      <div>
+        <label class="text-sm text-gray-300 mb-1 block"><i class="fab fa-discord text-indigo-400 mr-1"></i>Discord Webhook URL</label>
+        <input type="text" id="ocean-discord-webhook" placeholder="https://discord.com/api/webhooks/..." class="w-full bg-neutral-800 border border-neutral-700 text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+        <p class="text-xs text-gray-500 mt-1">Create a webhook in Discord channel settings and paste the URL here.</p>
+      </div>
+    </div>
+    <div class="flex items-center gap-3 mt-4">
+      <button onclick="oceanSaveChannels()" class="bg-blue-700 hover:bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition">
+        <i class="fas fa-save mr-1"></i>Save Ocean Config
+      </button>
+      <label class="flex items-center gap-2 cursor-pointer">
+        <input type="checkbox" id="ocean-enabled" class="rounded bg-neutral-700 border-neutral-600">
+        <span class="text-sm text-gray-300">Enable ocean fishing alerts</span>
+      </label>
+      <span id="ocean-save-msg" class="text-xs text-green-400 hidden">Saved</span>
+    </div>
+  </div>
+
+  <!-- FFXIV Daily / Weekly Resets -->
+  <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-5 mb-6">
+    <h3 class="text-sm font-semibold text-gray-300 uppercase tracking-wider mb-1 flex items-center gap-2">
+      <i class="fas fa-calendar-check text-purple-400"></i>FFXIV Daily / Weekly Resets
+    </h3>
+    <p class="text-gray-400 text-sm mb-4">Posts a reminder at daily reset (15:00 UTC) and/or weekly reset (Tuesday 08:00 UTC) listing what's available.</p>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div>
+        <label class="text-sm text-gray-300 mb-1 block"><img src="{% static 'img/siteassets/fluxer-favicon.png' %}" style="width:1em;height:1em;object-fit:contain;vertical-align:middle;display:inline-block;" alt="Fluxer"> Fluxer Guild</label>
+        <div id="resets-guild-container" class="mb-2"></div>
+        <label class="text-sm text-gray-300 mb-1 block">Fluxer Channel</label>
+        <div id="resets-channel-container"></div>
+        <p class="text-xs text-gray-500 mt-1">Currently: <span id="resets-fluxer-current" class="text-gray-400">not set</span></p>
+        <label class="text-sm text-gray-300 mb-1 block mt-3"><i class="fab fa-discord text-indigo-400 mr-1"></i>Discord Webhook URL</label>
+        <input type="text" id="resets-discord-webhook" placeholder="https://discord.com/api/webhooks/..." class="w-full bg-neutral-800 border border-neutral-700 text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+        <p class="text-xs text-gray-500 mt-1">Create a webhook in Discord channel settings and paste the URL here.</p>
+      </div>
+      <div>
+        <label class="text-sm text-gray-300 mb-2 block"><i class="fas fa-toggle-on text-purple-400 mr-1"></i>Which resets to announce</label>
+        <label class="flex items-center gap-2 cursor-pointer mb-2">
+          <input type="checkbox" id="resets-daily" class="rounded bg-neutral-700 border-neutral-600" checked>
+          <span class="text-sm text-gray-300">Daily reset <span class="text-gray-500 text-xs">(15:00 UTC)</span></span>
+        </label>
+        <label class="flex items-center gap-2 cursor-pointer">
+          <input type="checkbox" id="resets-weekly" class="rounded bg-neutral-700 border-neutral-600" checked>
+          <span class="text-sm text-gray-300">Weekly reset <span class="text-gray-500 text-xs">(Tuesday 08:00 UTC)</span></span>
+        </label>
+      </div>
+    </div>
+    <div class="flex items-center gap-3 mt-4">
+      <button onclick="resetsSaveChannels()" class="bg-purple-700 hover:bg-purple-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition">
+        <i class="fas fa-save mr-1"></i>Save Resets Config
+      </button>
+      <label class="flex items-center gap-2 cursor-pointer">
+        <input type="checkbox" id="resets-enabled" class="rounded bg-neutral-700 border-neutral-600">
+        <span class="text-sm text-gray-300">Enable reset alerts</span>
+      </label>
+      <span id="resets-save-msg" class="text-xs text-green-400 hidden">Saved</span>
+    </div>
+  </div>
+
+  <!-- FC Application Notifications -->
+  <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-5 mb-6">
+    <h3 class="text-sm font-semibold text-gray-300 uppercase tracking-wider mb-1 flex items-center gap-2">
+      <i class="fas fa-scroll text-rose-400"></i>FFXIV FC Applications
+    </h3>
+    <p class="text-gray-400 text-sm mb-4">When a player submits an FC application, the bot posts an embed to this channel. Admins and mods also receive a bell notification on the site.</p>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div>
+        <label class="text-sm text-gray-300 mb-1 block"><img src="{% static 'img/siteassets/fluxer-favicon.png' %}" style="width:1em;height:1em;object-fit:contain;vertical-align:middle;display:inline-block;" alt="Fluxer"> Fluxer Guild</label>
+        <div id="fcapp-guild-container" class="mb-2"></div>
+        <label class="text-sm text-gray-300 mb-1 block">Fluxer Channel</label>
+        <div id="fcapp-channel-container"></div>
+        <p class="text-xs text-gray-500 mt-1">Currently: <span id="fcapp-fluxer-current" class="text-gray-400">not set</span></p>
+      </div>
+      <div>
+        <label class="text-sm text-gray-300 mb-1 block"><i class="fab fa-discord text-blue-400 mr-1"></i>Discord Webhook URL</label>
+        <input type="text" id="fcapp-discord-webhook" placeholder="https://discord.com/api/webhooks/..."
+          class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm font-mono">
+        <p class="text-xs text-gray-500 mt-1">Create a webhook in your Discord channel settings and paste the URL here.</p>
+      </div>
+    </div>
+
+    <div class="flex items-center gap-3 mt-4">
+      <button onclick="fcappSaveChannels()" class="bg-rose-700 hover:bg-rose-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition">
+        <i class="fas fa-save mr-1"></i>Save FC App Config
+      </button>
+      <label class="flex items-center gap-2 cursor-pointer">
+        <input type="checkbox" id="fcapp-enabled" class="rounded bg-neutral-700 border-neutral-600">
+        <span class="text-sm text-gray-300">Enable FC application alerts</span>
+      </label>
+      <span id="fcapp-save-msg" class="text-xs text-green-400 hidden">Saved</span>
+    </div>
+  </div>
+
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+
+// ============================================================
+// BROADCASTS TAB
+// ============================================================
+let _bcConfig = null;
+let _huntConfig = null;
+let _guideConfig = null;
+let _gatheringConfig = null, _oceanConfig = null, _resetsConfig = null;
+let _fcappConfig = null;
+
+// Custom select instances for broadcasts tab
+let _bcGuildSel = null, _bcChannelSel = null;
+let _huntGuildSel = null, _huntChannelSel = null, _huntRoleSel = null;
+let _guideGuildSel = null, _guideChannelSel = null, _guideRoleSel = null;
+let _gatheringGuildSel = null, _gatheringChannelSel = null;
+let _oceanGuildSel = null, _oceanChannelSel = null;
+let _resetsGuildSel = null, _resetsChannelSel = null;
+let _fcappGuildSel = null, _fcappChannelSel = null;
+
+// Track channel names since createCustomSelect has no getItems
+let _bcChannelName = '', _huntChannelName = '', _guideChannelName = '';
+let _gatheringChannelName = '', _oceanChannelName = '', _resetsChannelName = '';
+let _fcappChannelName = '';
+
+function _makeBcGuildSel(guilds, selected) {
+  const items = [{value: '', label: '-- Select Guild --'}].concat(guilds.map(g => ({value: g.id, label: g.name || g.id})));
+  if (_bcGuildSel) _bcGuildSel.destroy();
+  _bcGuildSel = createCustomSelect({
+    container: '#bc-guild-container', name: 'bc_guild_id',
+    placeholder: 'Select Fluxer guild...', items, selected: selected || '', color: 'purple',
+    onSelect: function(val) { _bcChannelName = ''; if (val) _bcLoadChannels(val, ''); else _makeBcChannelSel([], ''); }
+  });
+}
+
+function _makeBcChannelSel(channels, selected) {
+  const items = [{value: '', label: '-- Select Channel --'}].concat(channels.map(c => ({value: String(c.id), label: '#' + c.name})));
+  if (_bcChannelSel) _bcChannelSel.destroy();
+  _bcChannelSel = createCustomSelect({
+    container: '#bc-channel-container', name: 'bc_channel_id',
+    placeholder: 'Select channel...', items, selected: selected || '', color: 'purple',
+    onSelect: function(val, item) { _bcChannelName = item ? item.label.replace(/^#\s*/, '') : ''; }
+  });
+}
+
+function _bcLoadChannels(guildId, selectedChannel) {
+  _makeBcChannelSel([{id: 'loading', name: 'Loading...'}], '');
+  csrfFetch('/api/admin/fluxer-guild/' + guildId + '/channels/')
+    .then(r => r.json())
+    .then(d => {
+      _makeBcChannelSel(d.channels || [], selectedChannel || '');
+      // Restore channel name from saved config
+      if (selectedChannel && _bcConfig && _bcConfig.channel_name) _bcChannelName = _bcConfig.channel_name;
+    });
+}
+
+function _makeHuntGuildSel(guilds, selected) {
+  const items = [{value: '', label: '-- Select Guild --'}].concat(guilds.map(g => ({value: g.id, label: g.name || g.id})));
+  if (_huntGuildSel) _huntGuildSel.destroy();
+  _huntGuildSel = createCustomSelect({
+    container: '#hunt-guild-container', name: 'hunt_guild_id',
+    placeholder: 'Select Fluxer guild...', items, selected: selected || '', color: 'red',
+    onSelect: function(val) {
+      _huntChannelName = '';
+      if (val) { _huntLoadChannels(val, ''); _huntLoadRoles(val, ''); }
+      else { _makeHuntChannelSel([], ''); _makeHuntRoleSel([], ''); }
+    }
+  });
+}
+
+function _makeHuntChannelSel(channels, selected) {
+  const items = [{value: '', label: '-- Select Channel --'}].concat(channels.map(c => ({value: String(c.id), label: '#' + c.name})));
+  if (_huntChannelSel) _huntChannelSel.destroy();
+  _huntChannelSel = createCustomSelect({
+    container: '#hunt-channel-container', name: 'hunt_channel_id',
+    placeholder: 'Select channel...', items, selected: selected || '', color: 'red',
+    onSelect: function(val, item) { _huntChannelName = item ? item.label.replace(/^#\s*/, '') : ''; }
+  });
+}
+
+function _makeHuntRoleSel(roles, selected) {
+  const items = [{value: '', label: '-- No @mention --'}].concat(roles.map(r => ({value: String(r.id), label: '@' + r.name})));
+  if (_huntRoleSel) _huntRoleSel.destroy();
+  _huntRoleSel = createCustomSelect({
+    container: '#hunt-role-container', name: 'hunt_role_id',
+    placeholder: 'No @mention...', items, selected: selected || '', color: 'orange'
+  });
+}
+
+function _huntLoadChannels(guildId, selectedChannel) {
+  _makeHuntChannelSel([{id: 'loading', name: 'Loading...'}], '');
+  csrfFetch('/api/admin/fluxer-guild/' + guildId + '/channels/')
+    .then(r => r.json())
+    .then(d => {
+      _makeHuntChannelSel(d.channels || [], selectedChannel || '');
+      if (selectedChannel && _huntConfig && _huntConfig.channel_name) _huntChannelName = _huntConfig.channel_name;
+    });
+}
+
+function _huntLoadRoles(guildId, selectedRole) {
+  _makeHuntRoleSel([{id: 'loading', name: 'Loading...'}], '');
+  csrfFetch('/api/admin/fluxer-guild/' + guildId + '/roles/')
+    .then(r => r.json())
+    .then(d => _makeHuntRoleSel(d.roles || [], selectedRole || ''));
+}
+
+// --- Job Guide helpers ---
+function _makeGuideGuildSel(guilds, selected) {
+  const items = [{value: '', label: '-- Select Guild --'}].concat(guilds.map(g => ({value: g.id, label: g.name || g.id})));
+  if (_guideGuildSel) _guideGuildSel.destroy();
+  _guideGuildSel = createCustomSelect({
+    container: '#guide-guild-container', name: 'guide_guild_id',
+    placeholder: 'Select Fluxer guild...', items, selected: selected || '', color: 'indigo',
+    onSelect: function(val) {
+      _guideChannelName = '';
+      if (val) { _guideLoadChannels(val, ''); _guideLoadRoles(val, ''); }
+      else { _makeGuideChannelSel([], ''); _makeGuideRoleSel([], ''); }
+    }
+  });
+}
+
+function _makeGuideChannelSel(channels, selected) {
+  const items = [{value: '', label: '-- Select Channel --'}].concat(channels.map(c => ({value: String(c.id), label: '#' + c.name})));
+  if (_guideChannelSel) _guideChannelSel.destroy();
+  _guideChannelSel = createCustomSelect({
+    container: '#guide-channel-container', name: 'guide_channel_id',
+    placeholder: 'Select channel...', items, selected: selected || '', color: 'indigo',
+    onSelect: function(val, item) { _guideChannelName = item ? item.label.replace(/^#\s*/, '') : ''; }
+  });
+}
+
+function _makeGuideRoleSel(roles, selected) {
+  const items = [{value: '', label: '-- No @mention --'}].concat(roles.map(r => ({value: String(r.id), label: '@' + r.name})));
+  if (_guideRoleSel) _guideRoleSel.destroy();
+  _guideRoleSel = createCustomSelect({
+    container: '#guide-role-container', name: 'guide_role_id',
+    placeholder: 'No @mention...', items, selected: selected || '', color: 'orange'
+  });
+}
+
+function _guideLoadChannels(guildId, selectedChannel) {
+  _makeGuideChannelSel([{id: 'loading', name: 'Loading...'}], '');
+  csrfFetch('/api/admin/fluxer-guild/' + guildId + '/channels/')
+    .then(r => r.json())
+    .then(d => {
+      _makeGuideChannelSel(d.channels || [], selectedChannel || '');
+      if (selectedChannel && _guideConfig && _guideConfig.channel_name) _guideChannelName = _guideConfig.channel_name;
+    });
+}
+
+function _guideLoadRoles(guildId, selectedRole) {
+  _makeGuideRoleSel([{id: 'loading', name: 'Loading...'}], '');
+  csrfFetch('/api/admin/fluxer-guild/' + guildId + '/roles/')
+    .then(r => r.json())
+    .then(d => _makeGuideRoleSel(d.roles || [], selectedRole || ''));
+}
+
+// --- Gathering helpers ---
+function _makeGatheringGuildSel(guilds, selected) {
+  const items = [{value: '', label: '-- Select Guild --'}].concat(guilds.map(g => ({value: g.id, label: g.name || g.id})));
+  if (_gatheringGuildSel) _gatheringGuildSel.destroy();
+  _gatheringGuildSel = createCustomSelect({
+    container: '#gathering-guild-container', name: 'gathering_guild_id',
+    placeholder: 'Select Fluxer guild...', items, selected: selected || '', color: 'green',
+    onSelect: function(val) { _gatheringChannelName = ''; if (val) _gatheringLoadChannels(val, ''); else _makeGatheringChannelSel([], ''); }
+  });
+}
+function _makeGatheringChannelSel(channels, selected) {
+  const items = [{value: '', label: '-- Select Channel --'}].concat(channels.map(c => ({value: String(c.id), label: '#' + c.name})));
+  if (_gatheringChannelSel) _gatheringChannelSel.destroy();
+  _gatheringChannelSel = createCustomSelect({
+    container: '#gathering-channel-container', name: 'gathering_channel_id',
+    placeholder: 'Select channel...', items, selected: selected || '', color: 'green',
+    onSelect: function(val, item) { _gatheringChannelName = item ? item.label.replace(/^#\s*/, '') : ''; }
+  });
+}
+function _gatheringLoadChannels(guildId, selectedChannel) {
+  _makeGatheringChannelSel([{id: 'loading', name: 'Loading...'}], '');
+  csrfFetch('/api/admin/fluxer-guild/' + guildId + '/channels/')
+    .then(r => r.json())
+    .then(d => {
+      _makeGatheringChannelSel(d.channels || [], selectedChannel || '');
+      if (selectedChannel && _gatheringConfig && _gatheringConfig.channel_name) _gatheringChannelName = _gatheringConfig.channel_name;
+    });
+}
+
+// --- Ocean helpers ---
+function _makeOceanGuildSel(guilds, selected) {
+  const items = [{value: '', label: '-- Select Guild --'}].concat(guilds.map(g => ({value: g.id, label: g.name || g.id})));
+  if (_oceanGuildSel) _oceanGuildSel.destroy();
+  _oceanGuildSel = createCustomSelect({
+    container: '#ocean-guild-container', name: 'ocean_guild_id',
+    placeholder: 'Select Fluxer guild...', items, selected: selected || '', color: 'blue',
+    onSelect: function(val) { _oceanChannelName = ''; if (val) _oceanLoadChannels(val, ''); else _makeOceanChannelSel([], ''); }
+  });
+}
+function _makeOceanChannelSel(channels, selected) {
+  const items = [{value: '', label: '-- Select Channel --'}].concat(channels.map(c => ({value: String(c.id), label: '#' + c.name})));
+  if (_oceanChannelSel) _oceanChannelSel.destroy();
+  _oceanChannelSel = createCustomSelect({
+    container: '#ocean-channel-container', name: 'ocean_channel_id',
+    placeholder: 'Select channel...', items, selected: selected || '', color: 'blue',
+    onSelect: function(val, item) { _oceanChannelName = item ? item.label.replace(/^#\s*/, '') : ''; }
+  });
+}
+function _oceanLoadChannels(guildId, selectedChannel) {
+  _makeOceanChannelSel([{id: 'loading', name: 'Loading...'}], '');
+  csrfFetch('/api/admin/fluxer-guild/' + guildId + '/channels/')
+    .then(r => r.json())
+    .then(d => {
+      _makeOceanChannelSel(d.channels || [], selectedChannel || '');
+      if (selectedChannel && _oceanConfig && _oceanConfig.channel_name) _oceanChannelName = _oceanConfig.channel_name;
+    });
+}
+
+// --- Resets helpers ---
+function _makeResetsGuildSel(guilds, selected) {
+  const items = [{value: '', label: '-- Select Guild --'}].concat(guilds.map(g => ({value: g.id, label: g.name || g.id})));
+  if (_resetsGuildSel) _resetsGuildSel.destroy();
+  _resetsGuildSel = createCustomSelect({
+    container: '#resets-guild-container', name: 'resets_guild_id',
+    placeholder: 'Select Fluxer guild...', items, selected: selected || '', color: 'purple',
+    onSelect: function(val) { _resetsChannelName = ''; if (val) _resetsLoadChannels(val, ''); else _makeResetsChannelSel([], ''); }
+  });
+}
+function _makeResetsChannelSel(channels, selected) {
+  const items = [{value: '', label: '-- Select Channel --'}].concat(channels.map(c => ({value: String(c.id), label: '#' + c.name})));
+  if (_resetsChannelSel) _resetsChannelSel.destroy();
+  _resetsChannelSel = createCustomSelect({
+    container: '#resets-channel-container', name: 'resets_channel_id',
+    placeholder: 'Select channel...', items, selected: selected || '', color: 'purple',
+    onSelect: function(val, item) { _resetsChannelName = item ? item.label.replace(/^#\s*/, '') : ''; }
+  });
+}
+function _resetsLoadChannels(guildId, selectedChannel) {
+  _makeResetsChannelSel([{id: 'loading', name: 'Loading...'}], '');
+  csrfFetch('/api/admin/fluxer-guild/' + guildId + '/channels/')
+    .then(r => r.json())
+    .then(d => {
+      _makeResetsChannelSel(d.channels || [], selectedChannel || '');
+      if (selectedChannel && _resetsConfig && _resetsConfig.channel_name) _resetsChannelName = _resetsConfig.channel_name;
+    });
+}
+
+// --- FC Applications helpers ---
+function _makeFcappGuildSel(guilds, selected) {
+  const items = [{value: '', label: '-- Select Guild --'}].concat(guilds.map(g => ({value: g.id, label: g.name || g.id})));
+  if (_fcappGuildSel) _fcappGuildSel.destroy();
+  _fcappGuildSel = createCustomSelect({
+    container: '#fcapp-guild-container', name: 'fcapp_guild_id',
+    placeholder: 'Select Fluxer guild...', items, selected: selected || '', color: 'red',
+    onSelect: function(val) { _fcappChannelName = ''; if (val) _fcappLoadChannels(val, ''); else _makeFcappChannelSel([], ''); }
+  });
+}
+function _makeFcappChannelSel(channels, selected) {
+  const items = [{value: '', label: '-- Select Channel --'}].concat(channels.map(c => ({value: String(c.id), label: '#' + c.name})));
+  if (_fcappChannelSel) _fcappChannelSel.destroy();
+  _fcappChannelSel = createCustomSelect({
+    container: '#fcapp-channel-container', name: 'fcapp_channel_id',
+    placeholder: 'Select channel...', items, selected: selected || '', color: 'red',
+    onSelect: function(val, item) { _fcappChannelName = item ? item.label.replace(/^#\s*/, '') : ''; }
+  });
+}
+function _fcappLoadChannels(guildId, selectedChannel) {
+  _makeFcappChannelSel([{id: 'loading', name: 'Loading...'}], '');
+  csrfFetch('/api/admin/fluxer-guild/' + guildId + '/channels/')
+    .then(r => r.json())
+    .then(d => {
+      _makeFcappChannelSel(d.channels || [], selectedChannel || '');
+      if (selectedChannel && _fcappConfig && _fcappConfig.channel_name) _fcappChannelName = _fcappConfig.channel_name;
+    });
+}
+
+function bcLoad() {
+  _makeBcGuildSel([], '');
+  _makeBcChannelSel([], '');
+  _makeHuntGuildSel([], '');
+  _makeHuntChannelSel([], '');
+  _makeHuntRoleSel([], '');
+  _makeGatheringGuildSel([], '');
+  _makeGatheringChannelSel([], '');
+  _makeOceanGuildSel([], '');
+  _makeOceanChannelSel([], '');
+  _makeResetsGuildSel([], '');
+  _makeResetsChannelSel([], '');
+  _makeFcappGuildSel([], '');
+  _makeFcappChannelSel([], '');
+
+  Promise.all([
+    csrfFetch('/api/admin/fluxer-webhooks/').then(r => r.json()),
+    csrfFetch('/api/admin/fluxer-guilds/').then(r => r.json()),
+  ]).then(([wh, gd]) => {
+    const guilds = gd.guilds || [];
+
+    const cfg = (wh.configs || []).find(c => c.event_type === 'new_post');
+    if (cfg) {
+      _bcConfig = cfg;
+      document.getElementById('bc-fluxer-current').textContent = cfg.channel_name || cfg.channel_id || 'not set';
+      document.getElementById('bc-discord-webhook').value = cfg.discord_webhook_url || '';
+      document.getElementById('bc-enabled').checked = cfg.is_enabled;
+      _bcChannelName = cfg.channel_name || '';
+      _makeBcGuildSel(guilds, cfg.guild_id || '');
+      if (cfg.guild_id) _bcLoadChannels(cfg.guild_id, cfg.channel_id || '');
+    } else {
+      _makeBcGuildSel(guilds, '');
+    }
+
+    const huntCfg = (wh.configs || []).find(c => c.event_type === 'ffxiv_hunt');
+    if (huntCfg) {
+      _huntConfig = huntCfg;
+      document.getElementById('hunt-fluxer-current').textContent = huntCfg.channel_name || huntCfg.channel_id || 'not set';
+      document.getElementById('hunt-enabled').checked = huntCfg.is_enabled;
+      _huntChannelName = huntCfg.channel_name || '';
+      _makeHuntGuildSel(guilds, huntCfg.guild_id || '');
+      if (huntCfg.guild_id) {
+        _huntLoadChannels(huntCfg.guild_id, huntCfg.channel_id || '');
+        _huntLoadRoles(huntCfg.guild_id, huntCfg.mention_role_id || '');
+      }
+      document.getElementById('hunt-discord-webhook').value = huntCfg.discord_webhook_url || '';
+    } else {
+      _makeHuntGuildSel(guilds, '');
+    }
+
+    // Job Guides
+    const guideCfg = (wh.configs || []).find(c => c.event_type === 'ffxiv_guide');
+    if (guideCfg) {
+      _guideConfig = guideCfg;
+      document.getElementById('guide-fluxer-current').textContent = guideCfg.channel_name || guideCfg.channel_id || 'not set';
+      document.getElementById('guide-enabled').checked = guideCfg.is_enabled;
+      _guideChannelName = guideCfg.channel_name || '';
+      _makeGuideGuildSel(guilds, guideCfg.guild_id || '');
+      if (guideCfg.guild_id) {
+        _guideLoadChannels(guideCfg.guild_id, guideCfg.channel_id || '');
+        _guideLoadRoles(guideCfg.guild_id, guideCfg.mention_role_id || '');
+      }
+      document.getElementById('guide-discord-webhook').value = guideCfg.discord_webhook_url || '';
+    } else {
+      _makeGuideGuildSel(guilds, '');
+    }
+
+    // Gathering
+    const gatherCfg = (wh.configs || []).find(c => c.event_type === 'ffxiv_gathering');
+    if (gatherCfg) {
+      _gatheringConfig = gatherCfg;
+      document.getElementById('gathering-fluxer-current').textContent = gatherCfg.channel_name || gatherCfg.channel_id || 'not set';
+      document.getElementById('gathering-enabled').checked = gatherCfg.is_enabled;
+      document.getElementById('gathering-discord-webhook').value = gatherCfg.discord_webhook_url || '';
+      _gatheringChannelName = gatherCfg.channel_name || '';
+      if (gatherCfg.embed_footer) {
+        const v = parseInt(gatherCfg.embed_footer, 10);
+        if (!isNaN(v)) document.getElementById('gathering-warn-minutes').value = String(v);
+      }
+      _makeGatheringGuildSel(guilds, gatherCfg.guild_id || '');
+      if (gatherCfg.guild_id) _gatheringLoadChannels(gatherCfg.guild_id, gatherCfg.channel_id || '');
+    } else {
+      _makeGatheringGuildSel(guilds, '');
+    }
+
+    // Ocean
+    const oceanCfg = (wh.configs || []).find(c => c.event_type === 'ffxiv_ocean');
+    if (oceanCfg) {
+      _oceanConfig = oceanCfg;
+      document.getElementById('ocean-fluxer-current').textContent = oceanCfg.channel_name || oceanCfg.channel_id || 'not set';
+      document.getElementById('ocean-enabled').checked = oceanCfg.is_enabled;
+      document.getElementById('ocean-discord-webhook').value = oceanCfg.discord_webhook_url || '';
+      _oceanChannelName = oceanCfg.channel_name || '';
+      _makeOceanGuildSel(guilds, oceanCfg.guild_id || '');
+      if (oceanCfg.guild_id) _oceanLoadChannels(oceanCfg.guild_id, oceanCfg.channel_id || '');
+    } else {
+      _makeOceanGuildSel(guilds, '');
+    }
+
+    // Resets
+    const resetsCfg = (wh.configs || []).find(c => c.event_type === 'ffxiv_resets');
+    if (resetsCfg) {
+      _resetsConfig = resetsCfg;
+      document.getElementById('resets-fluxer-current').textContent = resetsCfg.channel_name || resetsCfg.channel_id || 'not set';
+      document.getElementById('resets-enabled').checked = resetsCfg.is_enabled;
+      document.getElementById('resets-discord-webhook').value = resetsCfg.discord_webhook_url || '';
+      _resetsChannelName = resetsCfg.channel_name || '';
+      if (resetsCfg.embed_title) {
+        const flags = resetsCfg.embed_title.split(',');
+        document.getElementById('resets-daily').checked  = flags.includes('daily');
+        document.getElementById('resets-weekly').checked = flags.includes('weekly');
+      }
+      _makeResetsGuildSel(guilds, resetsCfg.guild_id || '');
+      if (resetsCfg.guild_id) _resetsLoadChannels(resetsCfg.guild_id, resetsCfg.channel_id || '');
+    } else {
+      _makeResetsGuildSel(guilds, '');
+    }
+
+    // FC Applications
+    const fcappCfg = (wh.configs || []).find(c => c.event_type === 'ffxiv_application');
+    if (fcappCfg) {
+      _fcappConfig = fcappCfg;
+      document.getElementById('fcapp-fluxer-current').textContent = fcappCfg.channel_name || fcappCfg.channel_id || 'not set';
+      document.getElementById('fcapp-enabled').checked = fcappCfg.is_enabled;
+      document.getElementById('fcapp-discord-webhook').value = fcappCfg.discord_webhook_url || '';
+      _fcappChannelName = fcappCfg.channel_name || '';
+      _makeFcappGuildSel(guilds, fcappCfg.guild_id || '');
+      if (fcappCfg.guild_id) _fcappLoadChannels(fcappCfg.guild_id, fcappCfg.channel_id || '');
+    } else {
+      _makeFcappGuildSel(guilds, '');
+    }
+  });
+
+  bcLoadUsers();
+}
+
+function bcSaveChannels() {
+  if (!_bcConfig) return;
+  const guildId   = _bcGuildSel   ? _bcGuildSel.getValue()   : '';
+  const channelId = _bcChannelSel ? _bcChannelSel.getValue() : '';
+  const discordWebhook = document.getElementById('bc-discord-webhook').value.trim();
+  const isEnabled = document.getElementById('bc-enabled').checked;
+
+  csrfFetch('/api/admin/fluxer-webhooks/' + _bcConfig.id + '/', {
+    method: 'PUT',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({guild_id: guildId, channel_id: channelId, channel_name: _bcChannelName,
+      discord_webhook_url: discordWebhook, is_enabled: isEnabled}),
+  })
+    .then(r => r.json())
+    .then(d => {
+      if (d.success) {
+        _bcConfig = d.config;
+        document.getElementById('bc-fluxer-current').textContent = d.config.channel_name || d.config.channel_id || 'not set';
+        const msg = document.getElementById('bc-save-msg');
+        msg.classList.remove('hidden');
+        setTimeout(() => msg.classList.add('hidden'), 2000);
+      } else { alert(d.error || 'Save failed'); }
+    });
+}
+window.bcSaveChannels = bcSaveChannels;
+
+function huntSaveChannels() {
+  if (!_huntConfig) return;
+  const guildId      = _huntGuildSel   ? _huntGuildSel.getValue()   : '';
+  const channelId    = _huntChannelSel ? _huntChannelSel.getValue() : '';
+  const roleId       = _huntRoleSel    ? _huntRoleSel.getValue()    : '';
+  const isEnabled    = document.getElementById('hunt-enabled').checked;
+  const discordWebhook = document.getElementById('hunt-discord-webhook').value.trim();
+
+  csrfFetch('/api/admin/fluxer-webhooks/' + _huntConfig.id + '/', {
+    method: 'PUT',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({guild_id: guildId, channel_id: channelId, channel_name: _huntChannelName,
+      is_enabled: isEnabled, mention_role_id: roleId || null, discord_webhook_url: discordWebhook}),
+  })
+    .then(r => r.json())
+    .then(d => {
+      if (d.success) {
+        _huntConfig = d.config;
+        document.getElementById('hunt-fluxer-current').textContent = d.config.channel_name || d.config.channel_id || 'not set';
+        const msg = document.getElementById('hunt-save-msg');
+        msg.classList.remove('hidden');
+        setTimeout(() => msg.classList.add('hidden'), 2000);
+      } else { alert(d.error || 'Save failed'); }
+    });
+}
+window.huntSaveChannels = huntSaveChannels;
+
+function guideSaveChannels() {
+  if (!_guideConfig) return;
+  const guildId        = _guideGuildSel   ? _guideGuildSel.getValue()   : '';
+  const channelId      = _guideChannelSel ? _guideChannelSel.getValue() : '';
+  const roleId         = _guideRoleSel    ? _guideRoleSel.getValue()    : '';
+  const isEnabled      = document.getElementById('guide-enabled').checked;
+  const discordWebhook = document.getElementById('guide-discord-webhook').value.trim();
+
+  csrfFetch('/api/admin/fluxer-webhooks/' + _guideConfig.id + '/', {
+    method: 'PUT',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({guild_id: guildId, channel_id: channelId, channel_name: _guideChannelName,
+      is_enabled: isEnabled, mention_role_id: roleId || null, discord_webhook_url: discordWebhook}),
+  })
+    .then(r => r.json())
+    .then(d => {
+      if (d.success) {
+        _guideConfig = d.config;
+        document.getElementById('guide-fluxer-current').textContent = d.config.channel_name || d.config.channel_id || 'not set';
+        const msg = document.getElementById('guide-save-msg');
+        msg.classList.remove('hidden');
+        setTimeout(() => msg.classList.add('hidden'), 2000);
+      } else { alert(d.error || 'Save failed'); }
+    });
+}
+window.guideSaveChannels = guideSaveChannels;
+
+function gatheringSaveChannels() {
+  if (!_gatheringConfig) return;
+  const guildId   = _gatheringGuildSel   ? _gatheringGuildSel.getValue()   : '';
+  const channelId = _gatheringChannelSel ? _gatheringChannelSel.getValue() : '';
+  const isEnabled = document.getElementById('gathering-enabled').checked;
+  const warnMin   = document.getElementById('gathering-warn-minutes').value;
+  const discordWebhook = document.getElementById('gathering-discord-webhook').value.trim();
+  csrfFetch('/api/admin/fluxer-webhooks/' + _gatheringConfig.id + '/', {
+    method: 'PUT',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({guild_id: guildId, channel_id: channelId, channel_name: _gatheringChannelName,
+      is_enabled: isEnabled, embed_footer: warnMin, discord_webhook_url: discordWebhook}),
+  }).then(r => r.json()).then(d => {
+    if (d.success) {
+      _gatheringConfig = d.config;
+      document.getElementById('gathering-fluxer-current').textContent = d.config.channel_name || d.config.channel_id || 'not set';
+      const msg = document.getElementById('gathering-save-msg');
+      msg.classList.remove('hidden');
+      setTimeout(() => msg.classList.add('hidden'), 2000);
+    } else { alert(d.error || 'Save failed'); }
+  });
+}
+window.gatheringSaveChannels = gatheringSaveChannels;
+
+function oceanSaveChannels() {
+  if (!_oceanConfig) return;
+  const guildId   = _oceanGuildSel   ? _oceanGuildSel.getValue()   : '';
+  const channelId = _oceanChannelSel ? _oceanChannelSel.getValue() : '';
+  const isEnabled = document.getElementById('ocean-enabled').checked;
+  const discordWebhook = document.getElementById('ocean-discord-webhook').value.trim();
+  csrfFetch('/api/admin/fluxer-webhooks/' + _oceanConfig.id + '/', {
+    method: 'PUT',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({guild_id: guildId, channel_id: channelId, channel_name: _oceanChannelName,
+      is_enabled: isEnabled, discord_webhook_url: discordWebhook}),
+  }).then(r => r.json()).then(d => {
+    if (d.success) {
+      _oceanConfig = d.config;
+      document.getElementById('ocean-fluxer-current').textContent = d.config.channel_name || d.config.channel_id || 'not set';
+      const msg = document.getElementById('ocean-save-msg');
+      msg.classList.remove('hidden');
+      setTimeout(() => msg.classList.add('hidden'), 2000);
+    } else { alert(d.error || 'Save failed'); }
+  });
+}
+window.oceanSaveChannels = oceanSaveChannels;
+
+function resetsSaveChannels() {
+  if (!_resetsConfig) return;
+  const guildId   = _resetsGuildSel   ? _resetsGuildSel.getValue()   : '';
+  const channelId = _resetsChannelSel ? _resetsChannelSel.getValue() : '';
+  const isEnabled = document.getElementById('resets-enabled').checked;
+  const daily     = document.getElementById('resets-daily').checked;
+  const weekly    = document.getElementById('resets-weekly').checked;
+  const flags     = [daily ? 'daily' : null, weekly ? 'weekly' : null].filter(Boolean).join(',');
+  const discordWebhook = document.getElementById('resets-discord-webhook').value.trim();
+  csrfFetch('/api/admin/fluxer-webhooks/' + _resetsConfig.id + '/', {
+    method: 'PUT',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({guild_id: guildId, channel_id: channelId, channel_name: _resetsChannelName,
+      is_enabled: isEnabled, embed_title: flags, discord_webhook_url: discordWebhook}),
+  }).then(r => r.json()).then(d => {
+    if (d.success) {
+      _resetsConfig = d.config;
+      document.getElementById('resets-fluxer-current').textContent = d.config.channel_name || d.config.channel_id || 'not set';
+      const msg = document.getElementById('resets-save-msg');
+      msg.classList.remove('hidden');
+      setTimeout(() => msg.classList.add('hidden'), 2000);
+    } else { alert(d.error || 'Save failed'); }
+  });
+}
+window.resetsSaveChannels = resetsSaveChannels;
+
+function fcappSaveChannels() {
+  if (!_fcappConfig) return;
+  const guildId   = _fcappGuildSel   ? _fcappGuildSel.getValue()   : '';
+  const channelId = _fcappChannelSel ? _fcappChannelSel.getValue() : '';
+  const discordWebhook = document.getElementById('fcapp-discord-webhook').value.trim();
+  const isEnabled = document.getElementById('fcapp-enabled').checked;
+
+  csrfFetch('/api/admin/fluxer-webhooks/' + _fcappConfig.id + '/', {
+    method: 'PUT',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({guild_id: guildId, channel_id: channelId, channel_name: _fcappChannelName,
+      discord_webhook_url: discordWebhook, is_enabled: isEnabled}),
+  })
+    .then(r => r.json())
+    .then(d => {
+      if (d.success) {
+        _fcappConfig = d.config;
+        document.getElementById('fcapp-fluxer-current').textContent = d.config.channel_name || d.config.channel_id || 'not set';
+        const msg = document.getElementById('fcapp-save-msg');
+        msg.classList.remove('hidden');
+        setTimeout(() => msg.classList.add('hidden'), 2000);
+      } else { alert(d.error || 'Save failed'); }
+    });
+}
+window.fcappSaveChannels = fcappSaveChannels;
+
+function bcLoadUsers() {
+  csrfFetch('/api/admin/broadcast-users/')
+    .then(r => r.json())
+    .then(d => {
+      const list = document.getElementById('bc-user-list');
+      const users = d.users || [];
+      if (!users.length) {
+        list.innerHTML = '<p class="text-gray-500 text-sm text-center py-4">No broadcast users. Add one above.</p>';
+        return;
+      }
+      list.innerHTML = users.map(u => `
+        <div class="flex items-center justify-between bg-neutral-800 rounded-lg px-4 py-2">
+          <div class="flex items-center gap-3">
+            ${u.avatar_url
+              ? `<img src="${escapeHtml(u.avatar_url)}" class="w-7 h-7 rounded-full object-cover">`
+              : `<div class="w-7 h-7 rounded-full bg-neutral-700 flex items-center justify-center text-xs text-gray-400">${escapeHtml(u.username[0].toUpperCase())}</div>`}
+            <span class="text-white text-sm font-medium">${escapeHtml(u.username)}</span>
+          </div>
+          <button onclick="bcRemoveUser(${u.user_id})" class="text-red-400 hover:text-red-300 text-xs transition">
+            <i class="fas fa-times mr-1"></i>Remove
+          </button>
+        </div>
+      `).join('');
+    });
+}
+
+function bcAddUser() {
+  const username = document.getElementById('bc-user-search').value.trim();
+  if (!username) return;
+  csrfFetch('/api/admin/broadcast-users/', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({username}),
+  })
+    .then(r => r.json())
+    .then(d => {
+      if (d.success) {
+        document.getElementById('bc-user-search').value = '';
+        bcLoadUsers();
+      } else {
+        alert(d.error || 'Failed to add user');
+      }
+    });
+}
+window.bcAddUser = bcAddUser;
+
+function bcRemoveUser(userId) {
+  if (!confirm('Remove this user from broadcasts?')) return;
+  csrfFetch('/api/admin/broadcast-users/' + userId + '/', {method: 'DELETE'})
+    .then(r => r.json())
+    .then(d => { if (d.success) bcLoadUsers(); });
+}
+window.bcRemoveUser = bcRemoveUser;
+
+// Register with tab loader
+const _origLoadTabData = loadTabData;
+window.loadTabData = function(tab) {
+  _origLoadTabData(tab);
+  if (tab === 'broadcasts') bcLoad();
+};
+
+}); // end DOMContentLoaded
+
+// ============================================================
+// TESTIMONIALS (global scope - called from loadTabData)
+// ============================================================
+let _testimonialData = null;
+
+async function loadTestimonials() {
+  const list = document.getElementById('testimonials-list');
+  list.innerHTML = '<p class="text-gray-500 text-sm text-center py-6">Loading...</p>';
+  const res = await csrfFetch('/api/admin/testimonials/');
+  const d = await res.json();
+  _testimonialData = d.testimonials || [];
+  renderTestimonials();
+}
+
+function renderTestimonials() {
+  const list = document.getElementById('testimonials-list');
+  if (!_testimonialData || !_testimonialData.length) {
+    list.innerHTML = '<p class="text-gray-500 text-sm text-center py-6">No quotes yet. Add the first one.</p>';
+    return;
+  }
+  list.innerHTML = _testimonialData.map(t => `
+    <div class="flex items-start gap-4 bg-neutral-800 rounded-xl p-4 border border-neutral-700">
+      ${t.avatar_url
+        ? `<img src="${escapeHtml(t.avatar_url)}" class="w-10 h-10 rounded-full object-cover flex-shrink-0">`
+        : `<div class="w-10 h-10 rounded-full bg-violet-800 flex items-center justify-center flex-shrink-0 font-bold text-white">${escapeHtml(t.member_name.charAt(0).toUpperCase())}</div>`}
+      <div class="flex-1 min-w-0">
+        <div class="flex items-center gap-2 mb-1">
+          <span class="text-white font-semibold text-sm">${escapeHtml(t.member_name)}</span>
+          ${t.handle ? `<span class="text-gray-500 text-xs">${escapeHtml(t.handle)}</span>` : ''}
+          ${t.game_tag ? `<span class="text-violet-400 text-xs bg-violet-900/30 px-1.5 py-0.5 rounded">${escapeHtml(t.game_tag)}</span>` : ''}
+          <span class="ml-auto text-xs px-2 py-0.5 rounded ${t.is_active ? 'bg-green-900/40 text-green-400' : 'bg-neutral-700 text-gray-500'}">${t.is_active ? 'Active' : 'Hidden'}</span>
+          <span class="text-xs text-gray-600">Order: ${t.sort_order}</span>
+        </div>
+        <p class="text-gray-300 text-sm italic">"${escapeHtml(t.quote)}"</p>
+      </div>
+      <div class="flex gap-2 flex-shrink-0">
+        <button onclick="openTestimonialModal(${t.id})" class="px-3 py-1.5 bg-neutral-700 hover:bg-neutral-600 text-white text-xs rounded-lg transition">Edit</button>
+        <button onclick="deleteTestimonial(${t.id})" class="px-3 py-1.5 bg-red-900/40 hover:bg-red-800/60 text-red-400 text-xs rounded-lg transition">Delete</button>
+      </div>
+    </div>`).join('');
+}
+
+function openTestimonialModal(id) {
+  const t = id ? (_testimonialData || []).find(x => x.id === id) : null;
+  showModal(
+    t ? 'Edit Quote' : 'Add Quote',
+    `<div class="space-y-3">
+      ${!t ? `<div>
+        <label class="block text-xs text-gray-400 mb-1">Pick a Member</label>
+        <div class="relative">
+          <input id="tm-member-search" type="text" placeholder="Search by username..."
+                 autocomplete="off"
+                 class="w-full px-3 py-2 bg-neutral-800 border border-violet-500 rounded-lg text-sm text-white focus:outline-none"
+                 oninput="tmSearchMembers(this.value)">
+          <div id="tm-member-results" class="absolute z-50 w-full mt-1 bg-neutral-800 border border-neutral-700 rounded-lg shadow-xl hidden max-h-48 overflow-y-auto"></div>
+        </div>
+        <button type="button" onclick="tmToggleManual()" class="text-xs text-violet-400 hover:text-violet-300 mt-1.5 block">
+          Not a member yet? Enter manually instead
+        </button>
+      </div>
+      <div id="tm-selected-member" class="hidden items-center gap-3 bg-neutral-800 rounded-lg px-3 py-2">
+        <img id="tm-sel-avatar" src="" class="w-8 h-8 rounded-full object-cover flex-shrink-0 hidden">
+        <div class="min-w-0">
+          <p id="tm-sel-name" class="text-white text-sm font-semibold truncate"></p>
+          <p id="tm-sel-handle" class="text-gray-400 text-xs truncate"></p>
+        </div>
+        <button onclick="tmClearMember()" class="ml-auto text-gray-500 hover:text-white text-xs">Clear</button>
+      </div>
+      <div id="tm-manual-fields" class="hidden space-y-3">
+        <div>
+          <label class="block text-xs text-gray-400 mb-1">Handle / Username <span class="text-gray-600">(optional)</span></label>
+          <input id="tm-handle-manual" type="text" maxlength="100" placeholder="e.g. @Ryven"
+                 class="w-full px-3 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-sm text-white focus:outline-none focus:border-violet-500"
+                 oninput="document.getElementById('tm-handle').value=this.value">
+        </div>
+        <div>
+          <label class="block text-xs text-gray-400 mb-1">Avatar URL <span class="text-gray-600">(optional, must be HTTPS)</span></label>
+          <input id="tm-avatar-manual" type="text" placeholder="https://..."
+                 class="w-full px-3 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-sm text-white focus:outline-none focus:border-violet-500"
+                 oninput="document.getElementById('tm-avatar').value=this.value">
+        </div>
+      </div>` : `<div id="tm-selected-member" class="flex items-center gap-3 bg-neutral-800 rounded-lg px-3 py-2">
+        ${t.avatar_url ? `<img src="${escapeHtml(t.avatar_url)}" class="w-8 h-8 rounded-full object-cover flex-shrink-0">` : `<div class="w-8 h-8 rounded-full bg-violet-800 flex-shrink-0"></div>`}
+        <div class="min-w-0">
+          <p class="text-white text-sm font-semibold">${escapeHtml(t.member_name)}</p>
+          <p class="text-gray-400 text-xs">${escapeHtml(t.handle)}</p>
+        </div>
+      </div>`}
+      <div>
+        <label class="block text-xs text-gray-400 mb-1">Display Name *</label>
+        <input id="tm-name" type="text" maxlength="100" value="${escapeHtml(t ? t.member_name : '')}"
+               class="w-full px-3 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-sm text-white focus:outline-none focus:border-violet-500">
+      </div>
+      <div>
+        <label class="block text-xs text-gray-400 mb-1">Quote * (max 500 chars)</label>
+        <textarea id="tm-quote" rows="3" maxlength="500"
+                  class="w-full px-3 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-sm text-white resize-none focus:outline-none focus:border-violet-500">${escapeHtml(t ? t.quote : '')}</textarea>
+      </div>
+      <div>
+        <label class="block text-xs text-gray-400 mb-1">Game Tag (optional) <span class="text-gray-600">- e.g. FFXIV Player, ESO Tank</span></label>
+        <input id="tm-game" type="text" maxlength="100" value="${escapeHtml(t ? t.game_tag : '')}"
+               class="w-full px-3 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-sm text-white focus:outline-none focus:border-violet-500">
+      </div>
+      <input type="hidden" id="tm-handle" value="${escapeHtml(t ? t.handle : '')}">
+      <input type="hidden" id="tm-avatar" value="${escapeHtml(t ? t.avatar_url : '')}">
+      <div class="flex gap-4">
+        <div class="flex-1">
+          <label class="block text-xs text-gray-400 mb-1">Sort Order</label>
+          <input id="tm-order" type="number" min="0" value="${t ? t.sort_order : 0}"
+                 class="w-full px-3 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-sm text-white focus:outline-none focus:border-violet-500">
+        </div>
+        <div class="flex items-end pb-1">
+          <label class="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" id="tm-active" ${(!t || t.is_active) ? 'checked' : ''}
+                   class="w-4 h-4 rounded accent-violet-500">
+            <span class="text-sm text-gray-300">Active</span>
+          </label>
+        </div>
+      </div>
+    </div>`,
+    `<button onclick="saveTestimonial(${id || 'null'})"
+             class="px-4 py-2 bg-violet-600 hover:bg-violet-500 text-white text-sm rounded-lg transition">
+       ${t ? 'Save Changes' : 'Add Quote'}
+     </button>`
+  );
+}
+
+async function saveTestimonial(id) {
+  const payload = {
+    member_name: document.getElementById('tm-name').value.trim(),
+    handle:      document.getElementById('tm-handle').value.trim(),
+    quote:       document.getElementById('tm-quote').value.trim(),
+    game_tag:    document.getElementById('tm-game').value.trim(),
+    avatar_url:  document.getElementById('tm-avatar').value.trim(),
+    sort_order:  parseInt(document.getElementById('tm-order').value, 10) || 0,
+    is_active:   document.getElementById('tm-active').checked,
+  };
+  if (!payload.member_name || !payload.quote) {
+    alert('Member name and quote are required.');
+    return;
+  }
+  const url = id ? `/api/admin/testimonials/${id}/` : '/api/admin/testimonials/';
+  const method = id ? 'PATCH' : 'POST';
+  const res = await csrfFetch(url, { method, body: JSON.stringify(payload) });
+  const d = await res.json();
+  if (d.error) { alert(d.error); return; }
+  closeModal();
+  _testimonialData = null;
+  tabLoaded['testimonials'] = false;
+  loadTestimonials();
+}
+
+async function deleteTestimonial(id) {
+  if (!confirm('Delete this quote?')) return;
+  const res = await csrfFetch(`/api/admin/testimonials/${id}/`, { method: 'DELETE' });
+  const d = await res.json();
+  if (d.success) {
+    _testimonialData = (_testimonialData || []).filter(t => t.id !== id);
+    renderTestimonials();
+  }
+}
+
+let _tmSearchTimeout = null;
+let _tmUserCache = [];
+function tmSearchMembers(q) {
+  clearTimeout(_tmSearchTimeout);
+  const results = document.getElementById('tm-member-results');
+  if (!q || q.length < 2) { results.classList.add('hidden'); return; }
+  _tmSearchTimeout = setTimeout(async () => {
+    const res = await csrfFetch('/api/admin/users/?q=' + encodeURIComponent(q));
+    const d = await res.json();
+    const users = (d.users || []).slice(0, 8);
+    _tmUserCache = users;
+    if (!users.length) { results.classList.add('hidden'); return; }
+    results.innerHTML = users.map((u, i) => `
+      <button type="button" onclick="tmSelectMember(${i})"
+              class="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-neutral-700 transition text-left">
+        ${u.avatar_url ? `<img src="${escapeHtml(u.avatar_url)}" class="w-7 h-7 rounded-full object-cover flex-shrink-0">` : `<div class="w-7 h-7 rounded-full bg-violet-800 flex items-center justify-center flex-shrink-0 text-xs font-bold text-white">${escapeHtml((u.display_name || u.username).charAt(0).toUpperCase())}</div>`}
+        <div class="min-w-0">
+          <p class="text-white text-sm truncate">${escapeHtml(u.display_name || u.username)}</p>
+          <p class="text-gray-500 text-xs">@${escapeHtml(u.username)}</p>
+        </div>
+      </button>`).join('');
+    results.classList.remove('hidden');
+  }, 250);
+}
+
+function tmSelectMember(i) {
+  const u = _tmUserCache[i];
+  if (!u) return;
+  const displayName = u.display_name || u.username;
+  const handle = '@' + u.username;
+  const avatarUrl = u.avatar_url || '';
+  document.getElementById('tm-name').value = displayName;
+  document.getElementById('tm-handle').value = handle;
+  document.getElementById('tm-avatar').value = avatarUrl;
+  document.getElementById('tm-member-search').value = displayName;
+  document.getElementById('tm-member-results').classList.add('hidden');
+  const card = document.getElementById('tm-selected-member');
+  const img = document.getElementById('tm-sel-avatar');
+  document.getElementById('tm-sel-name').textContent = displayName;
+  document.getElementById('tm-sel-handle').textContent = handle;
+  if (avatarUrl) { img.src = avatarUrl; img.classList.remove('hidden'); }
+  else img.classList.add('hidden');
+  card.classList.remove('hidden');
+  card.classList.add('flex');
+}
+
+function tmClearMember() {
+  document.getElementById('tm-name').value = '';
+  document.getElementById('tm-handle').value = '';
+  document.getElementById('tm-avatar').value = '';
+  document.getElementById('tm-member-search').value = '';
+  document.getElementById('tm-selected-member').classList.add('hidden');
+  document.getElementById('tm-selected-member').classList.remove('flex');
+}
+
+function tmToggleManual() {
+  const f = document.getElementById('tm-manual-fields');
+  const isHidden = f.classList.contains('hidden');
+  f.classList.toggle('hidden', !isHidden);
+  // Hide the member search row when in manual mode
+  const searchInput = document.getElementById('tm-member-search');
+  if (searchInput) searchInput.closest('div.relative').parentElement.querySelector('button').textContent =
+    isHidden ? 'Search for a member instead' : 'Not a member yet? Enter manually instead';
+}
+
+// ============================================================
+// FFXIV FC APPLICATIONS
+// ============================================================
+let ffxivCurrentFilter = 'pending';
+
+function ffxivAppFilter(status) {
+  ffxivCurrentFilter = status;
+  ['pending', 'approved', 'denied'].forEach(s => {
+    const btn = document.getElementById('ffxiv-filter-' + s);
+    if (s === status) {
+      btn.className = 'px-3 py-1.5 rounded-lg text-xs font-medium border transition ' +
+        (s === 'pending' ? 'bg-orange-600/20 text-orange-400 border-orange-600/30 hover:bg-orange-600/30' :
+         s === 'approved' ? 'bg-green-600/20 text-green-400 border-green-600/30 hover:bg-green-600/30' :
+         'bg-red-600/20 text-red-400 border-red-600/30 hover:bg-red-600/30');
+    } else {
+      btn.className = 'px-3 py-1.5 rounded-lg text-xs font-medium bg-neutral-700 text-gray-400 border border-neutral-600 transition hover:bg-neutral-600';
+    }
+  });
+  tabLoaded['ffxiv-applications'] = false;
+  loadFfxivApplications(status);
+}
+
+async function loadFfxivApplications(status) {
+  status = status || ffxivCurrentFilter;
+  const list = document.getElementById('ffxiv-app-list');
+  list.innerHTML = '<div class="text-gray-500 text-sm text-center py-8">Loading...</div>';
+  const resp = await csrfFetch('/api/admin/ffxiv/applications/?status=' + status);
+  const data = await resp.json();
+  if (!data.success || !data.applications.length) {
+    list.innerHTML = '<div class="text-gray-500 text-sm text-center py-8 border border-dashed border-neutral-700 rounded-lg">No ' + status + ' applications</div>';
+    return;
+  }
+  const expLabels = {
+    new:       'New to FFXIV',
+    leveling:  'Leveling up',
+    casual:    'Endgame casual',
+    savage:    'Savage raider',
+    ultimate:  'Ultimate cleared',
+    crafter:   'Seasoned crafter',
+    gatherer:  'Seasoned gatherer',
+    pvp:       'Seasoned PvPer',
+    collector: 'Collector',
+  };
+  const jobIcons = {
+    'Paladin':'fas fa-shield-alt','Warrior':'fas fa-axe','Dark Knight':'fas fa-moon','Gunbreaker':'fas fa-gun',
+    'White Mage':'fas fa-staff-aesculapius','Scholar':'fas fa-book','Astrologian':'fas fa-star','Sage':'fas fa-crosshairs',
+    'Monk':'fas fa-hand-fist','Dragoon':'fas fa-chess-rook','Ninja':'fas fa-mask','Samurai':'fas fa-wind',
+    'Reaper':'fas fa-skull','Viper':'fas fa-circle','Bard':'fas fa-music','Machinist':'fas fa-cog',
+    'Dancer':'fas fa-circle-dot','Black Mage':'fas fa-hat-wizard','Summoner':'fas fa-dragon',
+    'Red Mage':'fas fa-wand-sparkles','Blue Mage':'fas fa-circle-half-stroke','Pictomancer':'fas fa-palette',
+    'Carpenter':'fas fa-hammer','Blacksmith':'fas fa-fire','Armorer':'fas fa-shield','Goldsmith':'fas fa-gem',
+    'Leatherworker':'fas fa-scissors','Weaver':'fas fa-thread','Alchemist':'fas fa-flask','Culinarian':'fas fa-utensils',
+    'Miner':'fas fa-pickaxe','Botanist':'fas fa-seedling','Fisher':'fas fa-fish',
+  };
+  const roleColors = {
+    'Paladin':'text-blue-400','Warrior':'text-red-400','Dark Knight':'text-purple-400','Gunbreaker':'text-yellow-400',
+    'White Mage':'text-white','Scholar':'text-emerald-400','Astrologian':'text-sky-300','Sage':'text-teal-400',
+    'Monk':'text-orange-400','Dragoon':'text-blue-500','Ninja':'text-pink-400','Samurai':'text-red-300',
+    'Reaper':'text-purple-300','Viper':'text-green-400','Bard':'text-yellow-300','Machinist':'text-cyan-400',
+    'Dancer':'text-pink-300','Black Mage':'text-violet-400','Summoner':'text-emerald-300',
+    'Red Mage':'text-rose-400','Blue Mage':'text-blue-300','Pictomancer':'text-fuchsia-400',
+  };
+  list.innerHTML = data.applications.map(a => {
+    const altJobs = (a.alt_jobs || []);
+    const interests = (a.content_interests || []);
+    const avail = (a.availability || []);
+    const expList = (a.experience_level || '').split(',').map(e => expLabels[e.trim()] || e.trim()).filter(Boolean);
+    const statusBorder = a.status === 'pending' ? 'border-orange-700/50' : a.status === 'approved' ? 'border-green-700/50' : 'border-red-700/50';
+    const statusBar = a.status === 'pending' ? 'bg-orange-500' : a.status === 'approved' ? 'bg-green-500' : 'bg-red-500';
+    const statusBadge = a.status === 'pending'
+      ? '<span class="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-orange-600/20 text-orange-400 font-semibold border border-orange-600/30"><i class="fas fa-clock text-[10px]"></i> Pending</span>'
+      : a.status === 'approved'
+      ? '<span class="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-green-600/20 text-green-400 font-semibold border border-green-600/30"><i class="fas fa-check text-[10px]"></i> Approved</span>'
+      : '<span class="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-red-600/20 text-red-400 font-semibold border border-red-600/30"><i class="fas fa-times text-[10px]"></i> Denied</span>';
+    const jobColor = roleColors[a.main_job] || 'text-indigo-300';
+    const jobIcon = jobIcons[a.main_job] || 'fas fa-swords';
+    const altJobPills = altJobs.length
+      ? altJobs.map(j => `<span class="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-neutral-700/60 text-gray-300 border border-neutral-600/50">${escapeHtml(j)}</span>`).join(' ')
+      : '<span class="text-gray-600 text-xs">None listed</span>';
+    const expPills = expList.map(e => `<span class="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-indigo-900/40 text-indigo-300 border border-indigo-700/40">${escapeHtml(e)}</span>`).join(' ');
+    const interestPills = interests.length
+      ? interests.map(i => `<span class="inline-flex items-center text-[11px] px-2 py-0.5 rounded-full bg-neutral-700/40 text-gray-400 border border-neutral-600/40">${escapeHtml(i)}</span>`).join(' ')
+      : '<span class="text-gray-600 text-xs">None selected</span>';
+    const availPills = avail.length
+      ? avail.map(d => `<span class="inline-flex items-center text-[11px] px-2 py-0.5 rounded-full bg-sky-900/30 text-sky-400 border border-sky-700/30">${escapeHtml(d)}</span>`).join(' ')
+      : '<span class="text-gray-600 text-xs">Not specified</span>';
+
+    return `<div class="rounded-2xl border ${statusBorder} bg-neutral-900 overflow-hidden" id="ffxiv-app-${a.id}">
+      <!-- Colored top bar -->
+      <div class="h-1 w-full ${statusBar}"></div>
+
+      <!-- Header -->
+      <div class="flex items-start justify-between gap-4 px-5 pt-4 pb-4 border-b border-neutral-800">
+        <div class="flex items-center gap-3 min-w-0">
+          <!-- Job icon avatar -->
+          <div class="w-11 h-11 rounded-xl bg-neutral-800 border border-neutral-700 flex items-center justify-center flex-shrink-0">
+            <i class="${jobIcon} ${jobColor} text-lg"></i>
+          </div>
+          <div class="min-w-0">
+            <div class="flex items-center gap-2 flex-wrap">
+              <span class="text-white font-bold text-base">${escapeHtml(a.character_name)}</span>
+              <span class="text-gray-500 text-xs">${escapeHtml(a.home_world)}</span>
+              ${statusBadge}
+            </div>
+            <div class="text-xs text-gray-500 mt-0.5">
+              Submitted ${formatTimestamp(a.submitted_at)}
+              ${a.reviewed_at ? ' &middot; Reviewed ' + formatTimestamp(a.reviewed_at) : ''}
+            </div>
+          </div>
+        </div>
+        <div class="flex gap-2 flex-shrink-0">
+          ${a.status === 'pending' ? `
+          <button onclick="ffxivReview(${a.id}, 'approved')" class="px-4 py-2 rounded-xl text-sm font-semibold bg-green-600/20 text-green-400 border border-green-600/30 hover:bg-green-600/40 transition">
+            <i class="fas fa-check mr-1.5"></i>Approve
+          </button>
+          <button onclick="ffxivReview(${a.id}, 'denied')" class="px-4 py-2 rounded-xl text-sm font-semibold bg-red-600/20 text-red-400 border border-red-600/30 hover:bg-red-600/40 transition">
+            <i class="fas fa-times mr-1.5"></i>Deny
+          </button>
+          ` : `<button onclick="ffxivReview(${a.id}, 'pending')" class="px-4 py-2 rounded-xl text-sm font-semibold bg-neutral-700 text-gray-400 border border-neutral-600 hover:bg-neutral-600 transition">
+            <i class="fas fa-undo mr-1.5"></i>Re-open
+          </button>`}
+        </div>
+      </div>
+
+      <!-- Stats row -->
+      <div class="grid grid-cols-2 sm:grid-cols-4 divide-x divide-neutral-800 border-b border-neutral-800">
+        <div class="px-4 py-3">
+          <p class="text-[11px] text-gray-500 uppercase tracking-wide font-medium mb-1.5">Main Job</p>
+          <p class="${jobColor} font-semibold text-sm flex items-center gap-1.5"><i class="${jobIcon} text-xs"></i>${escapeHtml(a.main_job)}</p>
+        </div>
+        <div class="px-4 py-3">
+          <p class="text-[11px] text-gray-500 uppercase tracking-wide font-medium mb-1.5">Alt Jobs</p>
+          <div class="flex flex-wrap gap-1">${altJobPills}</div>
+        </div>
+        <div class="px-4 py-3">
+          <p class="text-[11px] text-gray-500 uppercase tracking-wide font-medium mb-1.5">Experience</p>
+          <div class="flex flex-wrap gap-1">${expPills}</div>
+        </div>
+        <div class="px-4 py-3">
+          <p class="text-[11px] text-gray-500 uppercase tracking-wide font-medium mb-1.5">Availability</p>
+          <div class="flex flex-wrap gap-1">${availPills}</div>
+        </div>
+      </div>
+
+      <!-- Content interests -->
+      <div class="px-5 py-3 border-b border-neutral-800">
+        <p class="text-[11px] text-gray-500 uppercase tracking-wide font-medium mb-2">Content Interests</p>
+        <div class="flex flex-wrap gap-1.5">${interestPills}</div>
+      </div>
+
+      <!-- Why join -->
+      <div class="px-5 py-4 border-b border-neutral-800">
+        <p class="text-[11px] text-gray-500 uppercase tracking-wide font-medium mb-2">Why do you want to join?</p>
+        <div class="bg-neutral-800/60 rounded-xl px-4 py-3 text-sm text-gray-200 leading-relaxed whitespace-pre-wrap">${escapeHtml(a.why_join)}</div>
+      </div>
+
+      ${a.about_me ? `<div class="px-5 py-4 border-b border-neutral-800">
+        <p class="text-[11px] text-gray-500 uppercase tracking-wide font-medium mb-2">About Me</p>
+        <div class="bg-neutral-800/60 rounded-xl px-4 py-3 text-sm text-gray-200 leading-relaxed whitespace-pre-wrap">${escapeHtml(a.about_me)}</div>
+      </div>` : ''}
+
+      <!-- Footer: referral + officer notes -->
+      <div class="px-5 py-4 bg-neutral-950/30">
+        ${a.referral ? `<p class="text-xs text-gray-500 mb-3"><i class="fas fa-share-alt mr-1.5"></i>Heard about us from: <span class="text-gray-300 font-medium">${escapeHtml(a.referral)}</span></p>` : ''}
+        <label class="text-[11px] text-gray-500 uppercase tracking-wide font-medium mb-2 block"><i class="fas fa-comment-alt mr-1"></i> Officer Notes</label>
+        <textarea id="ffxiv-notes-${a.id}" rows="2" placeholder="Optional notes visible to officers only..."
+          class="w-full bg-neutral-800 border border-neutral-700 rounded-xl px-4 py-2.5 text-sm text-white resize-none focus:outline-none focus:border-indigo-500 transition placeholder-neutral-600">${escapeHtml(a.admin_notes || '')}</textarea>
+        ${a.status !== 'pending' ? `
+        <div class="mt-3 flex gap-2">
+          <button onclick="ffxivReview(${a.id}, 'approved')" class="px-4 py-2 rounded-xl text-xs font-semibold bg-green-600/20 text-green-400 border border-green-600/30 hover:bg-green-600/40 transition"><i class="fas fa-check mr-1"></i>Approve</button>
+          <button onclick="ffxivReview(${a.id}, 'denied')" class="px-4 py-2 rounded-xl text-xs font-semibold bg-red-600/20 text-red-400 border border-red-600/30 hover:bg-red-600/40 transition"><i class="fas fa-times mr-1"></i>Deny</button>
+          <button onclick="ffxivReview(${a.id}, 'pending')" class="px-4 py-2 rounded-xl text-xs font-semibold bg-neutral-700 text-gray-400 border border-neutral-600 hover:bg-neutral-600 transition"><i class="fas fa-undo mr-1"></i>Re-open</button>
+        </div>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function ffxivReview(appId, action) {
+  const notes = (document.getElementById('ffxiv-notes-' + appId) || {}).value || '';
+  const label = action === 'approved' ? 'approve' : action === 'denied' ? 'deny' : 're-open';
+  if (action !== 'pending' && !confirm('Are you sure you want to ' + label + ' this application?')) return;
+  const resp = await csrfFetch('/api/admin/ffxiv/applications/' + appId + '/review/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action, notes }),
+  });
+  const data = await resp.json();
+  if (data.success) {
+    tabLoaded['ffxiv-applications'] = false;
+    loadFfxivApplications(ffxivCurrentFilter);
+  } else {
+    alert(data.error || 'Failed to update application.');
+  }
+}
+
+// ── ESO Applications ─────────────────────────────────────────────────────────
+
+let esoCurrentFilter = 'pending';
+
+function esoAppFilter(status) {
+  esoCurrentFilter = status;
+  ['pending','approved','denied'].forEach(s => {
+    const btn = document.getElementById('eso-filter-' + s);
+    if (!btn) return;
+    if (s === status) {
+      btn.className = 'px-3 py-1.5 rounded-lg text-xs font-medium border transition ' +
+        (s === 'pending' ? 'bg-orange-600/20 text-orange-400 border-orange-600/30' :
+         s === 'approved' ? 'bg-green-600/20 text-green-400 border-green-600/30' :
+         'bg-red-600/20 text-red-400 border-red-600/30');
+    } else {
+      btn.className = 'px-3 py-1.5 rounded-lg text-xs font-medium bg-neutral-700 text-gray-400 border border-neutral-600 transition hover:bg-neutral-600';
+    }
+  });
+  tabLoaded['eso-applications'] = false;
+  loadEsoApplications(status);
+}
+
+async function loadEsoApplications(status) {
+  status = status || esoCurrentFilter;
+  const list = document.getElementById('eso-app-list');
+  list.innerHTML = '<div class="text-gray-500 text-sm text-center py-8">Loading...</div>';
+  const resp = await csrfFetch('/api/admin/eso/applications/?status=' + status);
+  const data = await resp.json();
+  if (!data.success || !data.applications.length) {
+    list.innerHTML = '<div class="text-gray-500 text-sm text-center py-8 border border-dashed border-neutral-700 rounded-lg">No ' + status + ' applications</div>';
+    return;
+  }
+  const expLabels = {
+    new: 'New to ESO', leveling: 'Still Leveling', cp: 'CP Grind',
+    casual: 'Endgame Casual', vet: 'Veteran Content', raider: 'Trial Raider',
+    pvp: 'PvP Player', crafter: 'Master Crafter', collector: 'Collector',
+  };
+  const classColors = {
+    'Dragonknight':'text-red-400','Sorcerer':'text-violet-400','Nightblade':'text-purple-400',
+    'Templar':'text-yellow-300','Warden':'text-green-400','Necromancer':'text-emerald-300','Arcanist':'text-cyan-400',
+  };
+  const classIcons = {
+    'Dragonknight':'fas fa-fire','Sorcerer':'fas fa-bolt','Nightblade':'fas fa-mask',
+    'Templar':'fas fa-sun','Warden':'fas fa-leaf','Necromancer':'fas fa-skull','Arcanist':'fas fa-book-open',
+  };
+
+  list.innerHTML = data.applications.map(a => {
+    const interests = (a.content_interests || []);
+    const avail = (a.availability || []);
+    const expList = (a.experience_level || '').split(',').map(e => expLabels[e.trim()] || e.trim()).filter(Boolean);
+    const roleList = (a.role || '').split(',').map(r => r.trim()).filter(Boolean);
+    const statusBorder = a.status === 'pending' ? 'border-orange-700/50' : a.status === 'approved' ? 'border-green-700/50' : 'border-red-700/50';
+    const statusBar    = a.status === 'pending' ? 'bg-orange-500' : a.status === 'approved' ? 'bg-green-500' : 'bg-red-500';
+    const statusBadge  = a.status === 'pending'
+      ? '<span class="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-orange-600/20 text-orange-400 font-semibold border border-orange-600/30"><i class="fas fa-clock text-[10px]"></i> Pending</span>'
+      : a.status === 'approved'
+      ? '<span class="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-green-600/20 text-green-400 font-semibold border border-green-600/30"><i class="fas fa-check text-[10px]"></i> Approved</span>'
+      : '<span class="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-red-600/20 text-red-400 font-semibold border border-red-600/30"><i class="fas fa-times text-[10px]"></i> Denied</span>';
+    const clsColor = classColors[a.main_class] || 'text-amber-300';
+    const clsIcon  = classIcons[a.main_class] || 'fas fa-hat-wizard';
+    const expPills = expList.map(e => `<span class="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-amber-900/40 text-amber-300 border border-amber-700/40">${escapeHtml(e)}</span>`).join(' ');
+    const rolePills = roleList.map(r => {
+      const rIcon = r === 'Tank' ? 'fas fa-shield-alt text-blue-400' : r === 'Healer' ? 'fas fa-heart text-green-400' : r === 'Damage (DPS)' ? 'fas fa-fire text-red-400' : 'fas fa-random text-purple-400';
+      return `<span class="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-neutral-700/60 text-gray-300 border border-neutral-600/50"><i class="${rIcon} text-[9px]"></i>${escapeHtml(r)}</span>`;
+    }).join(' ');
+    const availPills = avail.length
+      ? avail.map(d => `<span class="inline-flex items-center text-[11px] px-2 py-0.5 rounded-full bg-sky-900/30 text-sky-400 border border-sky-700/30">${escapeHtml(d)}</span>`).join(' ')
+      : '<span class="text-gray-600 text-xs">Not specified</span>';
+    const interestPills = interests.length
+      ? interests.map(i => `<span class="inline-flex items-center text-[11px] px-2 py-0.5 rounded-full bg-neutral-700/40 text-gray-400 border border-neutral-600/40">${escapeHtml(i)}</span>`).join(' ')
+      : '<span class="text-gray-600 text-xs">None selected</span>';
+
+    return `<div class="rounded-2xl border ${statusBorder} bg-neutral-900 overflow-hidden" id="eso-app-${a.id}">
+      <div class="h-1 w-full ${statusBar}"></div>
+      <div class="flex items-start justify-between gap-4 px-5 pt-4 pb-4 border-b border-neutral-800">
+        <div class="flex items-center gap-3 min-w-0">
+          <div class="w-11 h-11 rounded-xl bg-neutral-800 border border-neutral-700 flex items-center justify-center flex-shrink-0">
+            <i class="${clsIcon} ${clsColor} text-lg"></i>
+          </div>
+          <div class="min-w-0">
+            <div class="flex items-center gap-2 flex-wrap">
+              <span class="text-white font-bold text-base">${escapeHtml(a.character_name)}</span>
+              ${statusBadge}
+            </div>
+            <div class="text-xs text-gray-500 mt-0.5">
+              Submitted ${formatTimestamp(a.submitted_at)}
+              ${a.reviewed_at ? ' &middot; Reviewed ' + formatTimestamp(a.reviewed_at) : ''}
+            </div>
+          </div>
+        </div>
+        <div class="flex gap-2 flex-shrink-0">
+          ${a.status === 'pending' ? `
+          <button onclick="esoReview(${a.id}, 'approved')" class="px-4 py-2 rounded-xl text-sm font-semibold bg-green-600/20 text-green-400 border border-green-600/30 hover:bg-green-600/40 transition"><i class="fas fa-check mr-1.5"></i>Approve</button>
+          <button onclick="esoReview(${a.id}, 'denied')" class="px-4 py-2 rounded-xl text-sm font-semibold bg-red-600/20 text-red-400 border border-red-600/30 hover:bg-red-600/40 transition"><i class="fas fa-times mr-1.5"></i>Deny</button>
+          ` : `<button onclick="esoReview(${a.id}, 'pending')" class="px-4 py-2 rounded-xl text-sm font-semibold bg-neutral-700 text-gray-400 border border-neutral-600 hover:bg-neutral-600 transition"><i class="fas fa-undo mr-1.5"></i>Re-open</button>`}
+        </div>
+      </div>
+      <div class="grid grid-cols-2 sm:grid-cols-4 divide-x divide-neutral-800 border-b border-neutral-800">
+        <div class="px-4 py-3">
+          <p class="text-[11px] text-gray-500 uppercase tracking-wide font-medium mb-1.5">Main Class</p>
+          <p class="${clsColor} font-semibold text-sm flex items-center gap-1.5"><i class="${clsIcon} text-xs"></i>${escapeHtml(a.main_class)}</p>
+          ${a.skill_line ? `<p class="text-gray-500 text-[11px] mt-0.5">${escapeHtml(a.skill_line)}</p>` : ''}
+        </div>
+        <div class="px-4 py-3">
+          <p class="text-[11px] text-gray-500 uppercase tracking-wide font-medium mb-1.5">Sub Class</p>
+          <p class="text-gray-300 text-sm font-medium">${escapeHtml(a.subclass)}</p>
+        </div>
+        <div class="px-4 py-3">
+          <p class="text-[11px] text-gray-500 uppercase tracking-wide font-medium mb-1.5">Role</p>
+          <div class="flex flex-wrap gap-1">${rolePills}</div>
+        </div>
+        <div class="px-4 py-3">
+          <p class="text-[11px] text-gray-500 uppercase tracking-wide font-medium mb-1.5">Availability</p>
+          <div class="flex flex-wrap gap-1">${availPills}</div>
+        </div>
+      </div>
+      <div class="px-4 py-3 border-b border-neutral-800">
+        <p class="text-[11px] text-gray-500 uppercase tracking-wide font-medium mb-1.5">Experience</p>
+        <div class="flex flex-wrap gap-1">${expPills}</div>
+      </div>
+      <div class="px-5 py-3 border-b border-neutral-800">
+        <p class="text-[11px] text-gray-500 uppercase tracking-wide font-medium mb-2">Content Interests</p>
+        <div class="flex flex-wrap gap-1.5">${interestPills}</div>
+      </div>
+      <div class="px-5 py-4 border-b border-neutral-800">
+        <p class="text-[11px] text-gray-500 uppercase tracking-wide font-medium mb-2">Why do you want to join?</p>
+        <div class="bg-neutral-800/60 rounded-xl px-4 py-3 text-sm text-gray-200 leading-relaxed whitespace-pre-wrap">${escapeHtml(a.why_join)}</div>
+      </div>
+      ${a.about_me ? `<div class="px-5 py-4 border-b border-neutral-800">
+        <p class="text-[11px] text-gray-500 uppercase tracking-wide font-medium mb-2">About Me</p>
+        <div class="bg-neutral-800/60 rounded-xl px-4 py-3 text-sm text-gray-200 leading-relaxed whitespace-pre-wrap">${escapeHtml(a.about_me)}</div>
+      </div>` : ''}
+      <div class="px-5 py-4 bg-neutral-950/30">
+        ${a.referral ? `<p class="text-xs text-gray-500 mb-3"><i class="fas fa-share-alt mr-1.5"></i>Heard about us from: <span class="text-gray-300 font-medium">${escapeHtml(a.referral)}</span></p>` : ''}
+        <label class="text-[11px] text-gray-500 uppercase tracking-wide font-medium mb-2 block"><i class="fas fa-comment-alt mr-1"></i> Officer Notes</label>
+        <textarea id="eso-notes-${a.id}" rows="2" placeholder="Optional notes visible to officers only..."
+          class="w-full bg-neutral-800 border border-neutral-700 rounded-xl px-4 py-2.5 text-sm text-white resize-none focus:outline-none focus:border-amber-500 transition placeholder-neutral-600">${escapeHtml(a.admin_notes || '')}</textarea>
+        ${a.status !== 'pending' ? `
+        <div class="mt-3 flex gap-2">
+          <button onclick="esoReview(${a.id}, 'approved')" class="px-4 py-2 rounded-xl text-xs font-semibold bg-green-600/20 text-green-400 border border-green-600/30 hover:bg-green-600/40 transition"><i class="fas fa-check mr-1"></i>Approve</button>
+          <button onclick="esoReview(${a.id}, 'denied')" class="px-4 py-2 rounded-xl text-xs font-semibold bg-red-600/20 text-red-400 border border-red-600/30 hover:bg-red-600/40 transition"><i class="fas fa-times mr-1"></i>Deny</button>
+          <button onclick="esoReview(${a.id}, 'pending')" class="px-4 py-2 rounded-xl text-xs font-semibold bg-neutral-700 text-gray-400 border border-neutral-600 hover:bg-neutral-600 transition"><i class="fas fa-undo mr-1"></i>Re-open</button>
+        </div>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function esoReview(appId, action) {
+  const notes = (document.getElementById('eso-notes-' + appId) || {}).value || '';
+  const label = action === 'approved' ? 'approve' : action === 'denied' ? 'deny' : 're-open';
+  if (action !== 'pending' && !confirm('Are you sure you want to ' + label + ' this application?')) return;
+  const resp = await csrfFetch('/api/admin/eso/applications/' + appId + '/review/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action, notes }),
+  });
+  const data = await resp.json();
+  if (data.success) {
+    tabLoaded['eso-applications'] = false;
+    loadEsoApplications(esoCurrentFilter);
+  } else {
+    alert(data.error || 'Failed to update application.');
+  }
+}
+</script>
 
 {% endblock %}

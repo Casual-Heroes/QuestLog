@@ -684,7 +684,7 @@
 
 <script>
 const GUILD_ID = '{{ guild_id }}';
-const API_BASE = `/ql/api/dashboard/fluxer/${GUILD_ID}/roles`;
+const API_BASE = `api/dashboard/fluxer/${GUILD_ID}/roles`;
 
 let singleRoleSelect, bulkRoleSelect, singleUserSelect;
 
@@ -818,7 +818,7 @@ function closeInteractiveBulkAssignModal() {
 
 async function loadMembersForBulkAssign() {
   try {
-    const response = await csrfFetch(`/ql/api/dashboard/fluxer/${GUILD_ID}/members/`);
+    const response = await csrfFetch(`/api/dashboard/fluxer/${GUILD_ID}/members/`);
     const data = await response.json();
     if (data.members) {
       allMembers = data.members;

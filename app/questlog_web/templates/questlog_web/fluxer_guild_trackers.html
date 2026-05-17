@@ -145,7 +145,7 @@
 
 <script>
 const GUILD_ID = '{{ guild_id }}';
-const API_BASE = '/ql/api/dashboard/fluxer/' + GUILD_ID + '/trackers/';
+const API_BASE = '/api/dashboard/fluxer/' + GUILD_ID + '/trackers/';
 
 let _trackers = [];
 let _channelSel = null, _roleSel = null;
@@ -158,8 +158,8 @@ document.addEventListener('DOMContentLoaded', function() {
 async function loadResources() {
   const [trackerRes, channelRes, roleRes] = await Promise.all([
     csrfFetch(API_BASE),
-    csrfFetch('/ql/api/dashboard/fluxer/' + GUILD_ID + '/channels/'),
-    csrfFetch('/ql/api/dashboard/fluxer/' + GUILD_ID + '/roles/'),
+    csrfFetch('/api/dashboard/fluxer/' + GUILD_ID + '/channels/'),
+    csrfFetch('/api/dashboard/fluxer/' + GUILD_ID + '/roles/'),
   ]);
   const td = await trackerRes.json();
   const cd = await channelRes.json();

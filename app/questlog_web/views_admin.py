@@ -1,6 +1,7 @@
 # QuestLog Web — admin views & APIs
 
 import json
+import re
 import time
 import logging
 import os
@@ -39,13 +40,16 @@ from .models import (
     WebFluxerReactionRole, WebFluxerWelcomeConfig, WebFluxerXpBoostEvent,
     WebFluxerRaffle, WebFluxerStreamerSub,
     WebMatrixSpaceSettings, WebMatrixRoom, WebMatrixMember, WebMatrixXpEvent, WebMatrixRssFeed,
+    WebBroadcastUser,
+    WebTestimonial,
 )
+from django_ratelimit.decorators import ratelimit
 from app.security_middleware import MAINTENANCE_FLAG
 from app.db import get_db_session
 from .fluxer_webhooks import notify_giveaway_start as _fluxer_giveaway_start, notify_giveaway_winner as _fluxer_giveaway_winner
-from app.models import SiteActivityGame, SiteActivityGuildRole
+from app.models import SiteActivityGame, SiteActivityGuildRole, SiteActivityFluxerRole
 from .helpers import (
-    web_login_required, web_admin_required, add_web_user_context, log_admin_action,
+    web_login_required, web_admin_required, web_mod_required, add_web_user_context, log_admin_action,
     serialize_post, fetch_rss_feed, create_notification,
     serialize_user_brief, safe_int, validate_admin_image_url,
     process_uploaded_image,
@@ -63,18 +67,1023 @@ def admin_verify_pin(request):
     return redirect('questlog_web_home')
 
 
-@web_admin_required
+@web_mod_required
 @add_web_user_context
 def admin_panel(request):
-    """Admin panel — Django superusers only."""
+    """Admin panel — admins and mods."""
+    wu = request.web_user
     context = {
-        'web_user': request.web_user,
+        'web_user': wu,
         'active_page': 'admin',
+        'is_mod_only': wu.is_mod and not wu.is_admin,
     }
     return render(request, 'questlog_web/admin.html', context)
 
 
+# --- Quest Control: single unified table, keyed by instance_name ---
+# All per-game tables (vquest_configs, sdtd_configs, etc.) replaced by gamebot_configs.
+# Single AMP account (AMP_USER/AMP_PASSWORD) - no per-instance credentials needed.
+
+_INSTANCE_NAME_RE = re.compile(r'^[A-Za-z0-9_-]{1,64}$')
+
+def _validate_instance_name(name: str) -> bool:
+    """Return True only if instance_name is a safe alphanumeric slug."""
+    return bool(name and _INSTANCE_NAME_RE.match(name))
+
+
+def _get_gamebot_config(engine, instance_name: str) -> dict | None:
+    """Load a single row from gamebot_configs by instance_name."""
+    from sqlalchemy import text as sa_text2
+    try:
+        with engine.connect() as conn:
+            row = conn.execute(sa_text2(
+                "SELECT * FROM gamebot_configs WHERE instance_name = :n LIMIT 1"
+            ), {'n': instance_name}).fetchone()
+            return dict(row._mapping) if row else None
+    except Exception as e:
+        logger.error('_get_gamebot_config(%s): %s', instance_name, e)
+        return None
+
+def _load_preset_from_file(preset_path):
+    """Import DAY_EVENT_PRESETS from a bot preset .py file. Returns dict or None."""
+    import importlib.util
+    try:
+        spec = importlib.util.spec_from_file_location('_preset_module', preset_path)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        return getattr(mod, 'DAY_EVENT_PRESETS', None)
+    except Exception as e:
+        logger.warning('_load_preset_from_file(%s): %s', preset_path, e)
+        return None
+
+def _flatten_preset_day(day_data):
+    """Flatten a nested preset day dict to a flat key->value dict for UI rendering."""
+    flat = {}
+    def _walk(d, prefix=''):
+        for k, v in d.items():
+            key = f'{prefix}{k}' if not prefix else f'{prefix}.{k}'
+            if isinstance(v, dict):
+                _walk(v, key)
+            else:
+                flat[key] = v
+    _walk(day_data)
+    return flat
+
+def _unflatten_preset_day(flat):
+    """Reverse of _flatten_preset_day - reconstruct nested dict."""
+    result = {}
+    for dotkey, v in flat.items():
+        parts = dotkey.split('.')
+        d = result
+        for part in parts[:-1]:
+            d = d.setdefault(part, {})
+        d[parts[-1]] = v
+    return result
+
+def _build_schedule_schema():
+    """Return a list of field groups for the V Rising schedule UI.
+
+    Each group has: label, icon (FA class), fields list.
+    Each field has: key (dot-notation), label, type, and type-specific attrs.
+    Types: select, number, time_pair.
+    """
+    DAMAGE_MODES = [
+        {'value': 'Never', 'label': 'Never'},
+        {'value': 'Always', 'label': 'Always'},
+        {'value': 'TimeRestricted', 'label': 'Time Restricted'},
+    ]
+    return [
+        {
+            'label': 'Game Mode',
+            'icon': 'fa-gamepad',
+            'fields': [
+                {'key': 'GameDifficulty', 'label': 'Game Difficulty', 'type': 'number', 'step': 1, 'min': 1, 'max': 5},
+                {'key': 'GameModeType', 'label': 'Game Mode', 'type': 'select',
+                 'options': [{'value': 'PvE', 'label': 'PvE'}, {'value': 'PvP', 'label': 'PvP'}]},
+                {'key': 'PlayerDamageMode', 'label': 'Player Damage Mode', 'type': 'select', 'options': DAMAGE_MODES},
+                {'key': 'CastleDamageMode', 'label': 'Castle Damage Mode', 'type': 'select', 'options': DAMAGE_MODES},
+            ],
+        },
+        {
+            'label': 'Rates and Crafting',
+            'icon': 'fa-hammer',
+            'fields': [
+                {'key': 'SunDamageModifier',              'label': 'Sun Damage',          'type': 'number', 'step': 0.01},
+                {'key': 'DropTableModifier_General',      'label': 'Drop Rate (General)', 'type': 'number', 'step': 0.01},
+                {'key': 'RepairCostModifier',             'label': 'Repair Cost',         'type': 'number', 'step': 0.01},
+                {'key': 'RefinementRateModifier',         'label': 'Refinement Rate',     'type': 'number', 'step': 0.01},
+                {'key': 'CraftRateModifier',              'label': 'Craft Rate',          'type': 'number', 'step': 0.01},
+                {'key': 'BuildCostModifier',              'label': 'Build Cost',          'type': 'number', 'step': 0.01},
+                {'key': 'MaterialYieldModifier_Global',   'label': 'Material Yield',      'type': 'number', 'step': 0.01},
+                {'key': 'ServantConvertRateModifier',     'label': 'Servant Convert Rate','type': 'number', 'step': 0.01},
+                {'key': 'BloodEssenceYieldModifier',      'label': 'Blood Essence Yield', 'type': 'number', 'step': 0.01},
+                {'key': 'DropTableModifier_Missions',     'label': 'Drop Rate (Missions)','type': 'number', 'step': 0.01},
+                {'key': 'DropTableModifier_StygianShards','label': 'Drop Rate (Shards)',  'type': 'number', 'step': 0.01},
+            ],
+        },
+        {
+            'label': 'Day and Night',
+            'icon': 'fa-sun',
+            'fields': [
+                {'key': 'GameTimeModifiers.DayDurationInSeconds', 'label': 'Day Duration (seconds)', 'type': 'number', 'step': 1, 'min': 60},
+                {'type': 'time_pair', 'label': 'Day Start',
+                 'hour_key': 'GameTimeModifiers.DayStartHour', 'minute_key': 'GameTimeModifiers.DayStartMinute'},
+                {'type': 'time_pair', 'label': 'Day End',
+                 'hour_key': 'GameTimeModifiers.DayEndHour', 'minute_key': 'GameTimeModifiers.DayEndMinute'},
+            ],
+        },
+        {
+            'label': 'Blood Moon',
+            'icon': 'fa-moon',
+            'fields': [
+                {'key': 'GameTimeModifiers.BloodMoonFrequency_Min', 'label': 'Blood Moon Frequency Min', 'type': 'number', 'step': 1, 'min': 1},
+                {'key': 'GameTimeModifiers.BloodMoonFrequency_Max', 'label': 'Blood Moon Frequency Max', 'type': 'number', 'step': 1, 'min': 1},
+                {'key': 'GameTimeModifiers.BloodMoonBuff',          'label': 'Blood Moon Buff',          'type': 'number', 'step': 0.01},
+            ],
+        },
+        {
+            'label': 'Enemy Difficulty',
+            'icon': 'fa-skull',
+            'fields': [
+                {'key': 'UnitStatModifiers_Global.MaxHealthModifier', 'label': 'Global Max Health',  'type': 'number', 'step': 0.01},
+                {'key': 'UnitStatModifiers_Global.PowerModifier',     'label': 'Global Power',       'type': 'number', 'step': 0.01},
+                {'key': 'UnitStatModifiers_Global.LevelIncrease',     'label': 'Global Level Bonus', 'type': 'number', 'step': 1},
+                {'key': 'UnitStatModifiers_VBlood.MaxHealthModifier', 'label': 'VBlood Max Health',  'type': 'number', 'step': 0.01},
+                {'key': 'UnitStatModifiers_VBlood.PowerModifier',     'label': 'VBlood Power',       'type': 'number', 'step': 0.01},
+                {'key': 'UnitStatModifiers_VBlood.LevelIncrease',     'label': 'VBlood Level Bonus', 'type': 'number', 'step': 1},
+            ],
+        },
+        {
+            'label': 'War Events',
+            'icon': 'fa-flag',
+            'fields': [
+                {'key': 'WarEventGameSettings.Interval',      'label': 'Interval',        'type': 'number', 'step': 1, 'min': 1},
+                {'key': 'WarEventGameSettings.MajorDuration', 'label': 'Major Duration',  'type': 'number', 'step': 1, 'min': 1},
+                {'key': 'WarEventGameSettings.MinorDuration', 'label': 'Minor Duration',  'type': 'number', 'step': 1, 'min': 1},
+                {'type': 'time_pair', 'label': 'Weekday Start',
+                 'hour_key': 'WarEventGameSettings.WeekdayTime.StartHour',
+                 'minute_key': 'WarEventGameSettings.WeekdayTime.StartMinute'},
+                {'type': 'time_pair', 'label': 'Weekday End',
+                 'hour_key': 'WarEventGameSettings.WeekdayTime.EndHour',
+                 'minute_key': 'WarEventGameSettings.WeekdayTime.EndMinute'},
+                {'type': 'time_pair', 'label': 'Weekend Start',
+                 'hour_key': 'WarEventGameSettings.WeekendTime.StartHour',
+                 'minute_key': 'WarEventGameSettings.WeekendTime.StartMinute'},
+                {'type': 'time_pair', 'label': 'Weekend End',
+                 'hour_key': 'WarEventGameSettings.WeekendTime.EndHour',
+                 'minute_key': 'WarEventGameSettings.WeekendTime.EndMinute'},
+                {'key': 'WarEventGameSettings.ScalingPlayers1.PointsModifier', 'label': '1-Player Points Mod', 'type': 'number', 'step': 0.01},
+                {'key': 'WarEventGameSettings.ScalingPlayers1.DropModifier',   'label': '1-Player Drop Mod',   'type': 'number', 'step': 0.01},
+                {'key': 'WarEventGameSettings.ScalingPlayers2.PointsModifier', 'label': '2-Player Points Mod', 'type': 'number', 'step': 0.01},
+                {'key': 'WarEventGameSettings.ScalingPlayers2.DropModifier',   'label': '2-Player Drop Mod',   'type': 'number', 'step': 0.01},
+                {'key': 'WarEventGameSettings.ScalingPlayers3.PointsModifier', 'label': '3-Player Points Mod', 'type': 'number', 'step': 0.01},
+                {'key': 'WarEventGameSettings.ScalingPlayers3.DropModifier',   'label': '3-Player Drop Mod',   'type': 'number', 'step': 0.01},
+                {'key': 'WarEventGameSettings.ScalingPlayers4.PointsModifier', 'label': '4-Player Points Mod', 'type': 'number', 'step': 0.01},
+                {'key': 'WarEventGameSettings.ScalingPlayers4.DropModifier',   'label': '4-Player Drop Mod',   'type': 'number', 'step': 0.01},
+                {'key': 'WarEventGameSettings.VampireStatModifiers.SpellPowerModifier',    'label': 'Vampire Spell Power',    'type': 'number', 'step': 0.01},
+                {'key': 'WarEventGameSettings.VampireStatModifiers.PhysicalPowerModifier', 'label': 'Vampire Physical Power', 'type': 'number', 'step': 0.01},
+                {'key': 'WarEventGameSettings.VampireStatModifiers.ResourcePowerModifier', 'label': 'Vampire Resource Power', 'type': 'number', 'step': 0.01},
+                {'key': 'WarEventGameSettings.VampireStatModifiers.DamageReceivedModifier','label': 'Vampire Damage Received','type': 'number', 'step': 0.01},
+                {'key': 'WarEventGameSettings.VampireStatModifiers.MaxHealthModifier',     'label': 'Vampire Max Health',     'type': 'number', 'step': 0.01},
+            ],
+        },
+    ]
+
+
+
 @web_admin_required
+@require_http_methods(['GET'])
+def api_quest_control_discord_lookup(request):
+    """Fetch channels and roles for a guild_id from the Fluxer bot's synced DB tables."""
+    from app.db import get_engine
+    from sqlalchemy import text as sa_text2
+    engine = get_engine()
+
+    guild_id = request.GET.get('guild_id', '').strip()
+    if not guild_id:
+        return JsonResponse({'ok': False, 'error': 'guild_id required'})
+
+    try:
+        with engine.connect() as conn:
+            ch_rows = conn.execute(sa_text2(
+                "SELECT channel_id, channel_name FROM web_fluxer_guild_channels "
+                "WHERE guild_id = :g ORDER BY channel_name"
+            ), {'g': guild_id}).fetchall()
+            role_rows = conn.execute(sa_text2(
+                "SELECT role_id, role_name FROM web_fluxer_guild_roles "
+                "WHERE guild_id = :g ORDER BY role_name"
+            ), {'g': guild_id}).fetchall()
+        channels = [{'value': str(r.channel_id), 'label': r.channel_name or str(r.channel_id)} for r in ch_rows]
+        roles    = [{'value': str(r.role_id),    'label': r.role_name    or str(r.role_id)}    for r in role_rows]
+        return JsonResponse({'ok': True, 'channels': channels, 'roles': roles})
+    except Exception as e:
+        logger.error('api_quest_control_discord_lookup: %s', e)
+        return JsonResponse({'ok': False, 'error': 'Lookup failed'})
+
+
+@web_admin_required
+@require_http_methods(['GET', 'POST'])
+def api_quest_control_schedule(request):
+    """GET: Load schedule presets for an instance. POST: Save schedule overrides to DB."""
+    from app.db import get_engine
+    from sqlalchemy import text as sa_text2
+    engine = get_engine()
+
+    if request.method == 'GET':
+        instance_name = request.GET.get('bot', '')  # 'bot' param = instance_name slug from template
+        if not _validate_instance_name(instance_name):
+            return JsonResponse({'ok': False, 'error': 'Missing or invalid instance_name'})
+        cfg = _get_gamebot_config(engine, instance_name)
+        if not cfg:
+            return JsonResponse({'ok': False, 'error': 'Instance not found'})
+
+        db_hour    = cfg.get('scheduler_hour', 3) or 3
+        db_minute  = cfg.get('scheduler_minute', 27) or 27
+        db_backup_hour   = cfg.get('backup_hour', 23) if cfg.get('backup_hour') is not None else 23
+        db_backup_minute = cfg.get('backup_minute', 30) if cfg.get('backup_minute') is not None else 30
+        db_backup_days = None
+        if cfg.get('backup_days'):
+            try:
+                db_backup_days = json.loads(cfg['backup_days'])
+            except Exception:
+                pass
+        db_overrides = None
+        if cfg.get('schedule_overrides'):
+            try:
+                db_overrides = json.loads(cfg['schedule_overrides']) or None
+            except Exception:
+                pass
+
+        db_schedule_enabled = cfg.get('schedule_enabled', 1)
+        if db_schedule_enabled is None:
+            db_schedule_enabled = 1
+
+        common = {
+            'scheduler_hour': db_hour, 'scheduler_minute': db_minute,
+            'backup_hour': db_backup_hour, 'backup_minute': db_backup_minute,
+            'backup_days': db_backup_days,
+            'schedule_enabled': bool(db_schedule_enabled),
+        }
+        if db_overrides:
+            return JsonResponse({'ok': True, 'presets': db_overrides, 'source': 'db',
+                                 'schema': _build_schedule_schema(), **common})
+
+        return JsonResponse({'ok': False, 'error': 'No schedule configured yet.', **common})
+
+    else:  # POST
+        try:
+            body = json.loads(request.body)
+        except Exception:
+            return JsonResponse({'ok': False, 'error': 'Invalid JSON'})
+
+        instance_name    = body.get('bot', '')
+        reset            = body.get('reset', False)
+        scheduler_hour   = body.get('scheduler_hour')
+        scheduler_minute = body.get('scheduler_minute')
+        backup_hour      = body.get('backup_hour')
+        backup_minute    = body.get('backup_minute')
+        backup_days      = body.get('backup_days')  # list of day names or 'all'
+        schedule_enabled = body.get('schedule_enabled')
+
+        if not _validate_instance_name(instance_name):
+            return JsonResponse({'ok': False, 'error': 'Missing or invalid instance_name'})
+
+        set_parts = []
+        params = {'n': instance_name}
+
+        if 'presets' in body or reset:
+            presets = body.get('presets', {})
+            save_val = None if reset else json.dumps(presets) if presets else None
+            set_parts.append('schedule_overrides = :val')
+            params['val'] = save_val
+
+        if not set_parts and schedule_enabled is None and scheduler_hour is None and scheduler_minute is None and backup_hour is None and backup_minute is None and backup_days is None:
+            return JsonResponse({'ok': False, 'error': 'Nothing to save'})
+
+        if scheduler_hour is not None:
+            try:
+                h = int(scheduler_hour)
+                if 0 <= h <= 23:
+                    set_parts.append('scheduler_hour = :sh')
+                    params['sh'] = h
+            except (ValueError, TypeError):
+                pass
+        if scheduler_minute is not None:
+            try:
+                m = int(scheduler_minute)
+                if 0 <= m <= 59:
+                    set_parts.append('scheduler_minute = :sm')
+                    params['sm'] = m
+            except (ValueError, TypeError):
+                pass
+        if backup_hour is not None:
+            try:
+                h = int(backup_hour)
+                if 0 <= h <= 23:
+                    set_parts.append('backup_hour = :bh')
+                    params['bh'] = h
+            except (ValueError, TypeError):
+                pass
+        if backup_minute is not None:
+            try:
+                m = int(backup_minute)
+                if 0 <= m <= 59:
+                    set_parts.append('backup_minute = :bm')
+                    params['bm'] = m
+            except (ValueError, TypeError):
+                pass
+        if backup_days is not None:
+            valid_days = {'Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'}
+            if isinstance(backup_days, list):
+                clean = [d for d in backup_days if d in valid_days]
+                set_parts.append('backup_days = :bd')
+                params['bd'] = json.dumps(clean) if clean else None
+            elif backup_days == 'all':
+                set_parts.append('backup_days = :bd')
+                params['bd'] = None
+        if schedule_enabled is not None:
+            set_parts.append('schedule_enabled = :se')
+            params['se'] = 1 if schedule_enabled else 0
+
+        if not set_parts:
+            return JsonResponse({'ok': False, 'error': 'Nothing valid to save'})
+
+        try:
+            with engine.connect() as conn:
+                conn.execute(sa_text2(
+                    f"UPDATE gamebot_configs SET {', '.join(set_parts)} WHERE instance_name = :n"
+                ).bindparams(**params))
+                conn.commit()
+        except Exception as e:
+            logger.error('api_quest_control_schedule save: %s', e)
+            return JsonResponse({'ok': False, 'error': 'Save failed'})
+
+        return JsonResponse({'ok': True})
+
+
+@web_admin_required
+@require_http_methods(['POST'])
+def api_quest_control_channels(request):
+    """Save channel/role IDs for a game server instance."""
+    from app.db import get_engine
+    from sqlalchemy import text as sa_text2
+    engine = get_engine()
+    try:
+        body = json.loads(request.body)
+    except Exception:
+        return JsonResponse({'ok': False, 'error': 'Invalid JSON'})
+
+    instance_name = body.get('bot', '')
+    if not _validate_instance_name(instance_name):
+        return JsonResponse({'ok': False, 'error': 'Missing or invalid instance_name'})
+
+    allowed_fields = ['notif_channel_id', 'live_log_channel_id', 'stats_channel_id',
+                      'discord_stats_channel_id', 'server_update_channel_id', 'admin_role_id']
+    updates = {f: (str(body[f]).strip() or None) for f in allowed_fields if f in body}
+
+    if not updates:
+        return JsonResponse({'ok': False, 'error': 'No fields to update'})
+
+    set_clause = ', '.join(f'{f} = :{f}' for f in updates)
+    updates['n'] = instance_name
+    try:
+        with engine.connect() as conn:
+            conn.execute(sa_text2(
+                f"UPDATE gamebot_configs SET {set_clause} WHERE instance_name = :n"
+            ).bindparams(**updates))
+            conn.commit()
+    except Exception as e:
+        logger.error('api_quest_control_channels save: %s', e)
+        return JsonResponse({'ok': False, 'error': 'Save failed'})
+
+    return JsonResponse({'ok': True})
+
+
+@web_admin_required
+@require_http_methods(['POST'])
+def api_quest_control_toggles(request):
+    """Save display/alert toggles for a game server instance."""
+    from app.db import get_engine
+    from sqlalchemy import text as sa_text2
+    engine = get_engine()
+    try:
+        body = json.loads(request.body)
+    except Exception:
+        return JsonResponse({'ok': False, 'error': 'Invalid JSON'})
+
+    instance_name = body.get('bot', '')
+    if not _validate_instance_name(instance_name):
+        return JsonResponse({'ok': False, 'error': 'Missing or invalid instance_name'})
+
+    toggle_fields = ['alert_join_leave', 'alert_live_logs', 'show_player_count',
+                     'show_ip_port', 'show_password', 'show_top_5_players']
+    updates = {f: 1 if body.get(f) else 0 for f in toggle_fields if f in body}
+    if not updates:
+        return JsonResponse({'ok': False, 'error': 'No fields to update'})
+
+    try:
+        with engine.connect() as conn:
+            set_clause = ', '.join(f'{f} = :{f}' for f in updates)
+            updates['n'] = instance_name
+            conn.execute(sa_text2(
+                f"UPDATE gamebot_configs SET {set_clause} WHERE instance_name = :n"
+            ), updates)
+            conn.commit()
+    except Exception as e:
+        logger.error('api_quest_control_toggles save: %s', e)
+        return JsonResponse({'ok': False, 'error': 'Save failed'})
+
+    return JsonResponse({'ok': True})
+
+
+def _get_amp_instance(instance_name, user_env='AMP_USER', pass_env='AMP_PASSWORD'):
+    """Synchronous helper: connects to AMP and returns the named instance object, or None."""
+    import asyncio
+    from ampapi.dataclass import APIParams
+    from ampapi.bridge import Bridge
+    from ampapi.controller import AMPControllerInstance as _AMPController
+
+    async def _fetch():
+        _params = APIParams(
+            url=os.getenv('AMP_URL'),
+            user=os.getenv(user_env),
+            password=os.getenv(pass_env),
+        )
+        Bridge(api_params=_params)
+        ctrl = _AMPController()
+        await ctrl.get_instances()
+        return next((i for i in ctrl.instances if i.instance_name == instance_name), None)
+
+    loop = asyncio.new_event_loop()
+    try:
+        return loop.run_until_complete(_fetch())
+    finally:
+        loop.close()
+
+
+@web_admin_required
+@require_http_methods(['POST'])
+def api_quest_control_server_settings(request):
+    """Save server-level settings (public_ip override) for a game server instance."""
+    from app.db import get_engine
+    from sqlalchemy import text as sa_text2
+    import re
+    engine = get_engine()
+    try:
+        body = json.loads(request.body)
+    except Exception:
+        return JsonResponse({'ok': False, 'error': 'Invalid JSON'})
+
+    instance_name = body.get('bot', '')
+    if not _validate_instance_name(instance_name):
+        return JsonResponse({'ok': False, 'error': 'Missing or invalid instance_name'})
+
+    public_ip = (body.get('public_ip') or '').strip() or None
+    if public_ip and not re.match(r'^\d{1,3}(\.\d{1,3}){3}$', public_ip):
+        return JsonResponse({'ok': False, 'error': 'Invalid IP address format'})
+
+    try:
+        with engine.connect() as conn:
+            conn.execute(sa_text2(
+                "UPDATE gamebot_configs SET public_ip = :ip WHERE instance_name = :n"
+            ).bindparams(ip=public_ip, n=instance_name))
+            conn.commit()
+    except Exception as e:
+        logger.error('api_quest_control_server_ip save: %s', e)
+        return JsonResponse({'ok': False, 'error': 'Save failed'})
+
+    return JsonResponse({'ok': True})
+
+
+@web_admin_required
+@ratelimit(key='ip', rate='60/h', method='GET', block=True)
+@require_http_methods(['GET'])
+def api_quest_control_server_status(request):
+    """GET: Fetch AMP server status for a game server instance."""
+    instance_name = request.GET.get('bot', '')
+    if not _validate_instance_name(instance_name):
+        return JsonResponse({'ok': False, 'error': 'Missing or invalid instance_name'})
+
+    try:
+        import asyncio
+        from ampapi.dataclass import APIParams
+        from ampapi.bridge import Bridge
+        from ampapi.controller import AMPControllerInstance as _AMPCtrl
+
+        async def _fetch_status():
+            _params = APIParams(url=os.getenv('AMP_URL'), user=os.getenv('AMP_USER'), password=os.getenv('AMP_PASSWORD'))
+            Bridge(api_params=_params)
+            ctrl = _AMPCtrl()
+            await ctrl.get_instances()
+            instance = next((i for i in ctrl.instances if i.instance_name == instance_name), None)
+            if not instance:
+                return None, None
+            # Only fetch get_status() metrics when the instance is actually running
+            from ampapi.dataclass import AMPInstanceState
+            if instance.app_state == AMPInstanceState.ready:
+                status = await instance.get_status(format_data=False)
+            else:
+                status = None
+            return instance, status
+
+        loop = asyncio.new_event_loop()
+        try:
+            instance, status = loop.run_until_complete(_fetch_status())
+        finally:
+            loop.close()
+
+        if instance is None:
+            return JsonResponse({'ok': False, 'error': f'Instance "{instance_name}" not found in AMP'})
+
+        # Use controller-level app_state (1:1 with AMP panel) - NOT get_status() state
+        # AMPInstanceState enum: stopped=0, pre_start=5, configuring=7, starting=10,
+        # ready=20, restarting=30, stopping=40, sleeping=50, failed=100, suspended=200
+        _APP_STATE_LABEL = {
+            'undefined': 'Unknown', 'stopped': 'Stopped', 'pre_start': 'Pre-Start',
+            'configuring': 'Configuring', 'starting': 'Starting', 'ready': 'Running',
+            'restarting': 'Restarting', 'stopping': 'Stopping',
+            'preparing_for_sleep': 'Preparing for Sleep', 'sleeping': 'Sleeping',
+            'waiting': 'Waiting', 'installing': 'Installing', 'updating': 'Updating',
+            'awaiting_user_input': 'Awaiting Input', 'failed': 'Failed',
+            'suspended': 'Suspended', 'maintenance': 'Maintenance', 'indeterminate': 'Unknown',
+        }
+        _STATE_COLOR = {
+            'Running': 'green', 'Starting': 'amber', 'Configuring': 'amber',
+            'Restarting': 'amber', 'Stopping': 'amber', 'Pre-Start': 'amber',
+            'Stopped': 'neutral', 'Failed': 'red', 'Sleeping': 'neutral',
+            'Waiting': 'neutral', 'Installing': 'amber', 'Updating': 'amber',
+            'Suspended': 'neutral', 'Maintenance': 'amber', 'Unknown': 'neutral',
+        }
+
+        app_state_name = instance.app_state.name if hasattr(instance.app_state, 'name') else str(instance.app_state)
+        state_label = _APP_STATE_LABEL.get(app_state_name, app_state_name.replace('_', ' ').title())
+
+        s = status if isinstance(status, dict) else {}
+        uptime = s.get('uptime') or s.get('Uptime') or ''
+
+        # Parse metrics dict (snake_case keys from ampapi) - only present when running
+        metrics = s.get('metrics') or s.get('Metrics') or {}
+
+        def _metric(m, *keys):
+            for k in keys:
+                if k in m:
+                    return m[k]
+            return {}
+
+        cpu    = _metric(metrics, 'cpu_usage',    'CPU Usage',    'CPUUsage')
+        mem    = _metric(metrics, 'memory_usage', 'Memory Usage', 'MemoryUsage')
+        users  = _metric(metrics, 'active_users', 'Active Users', 'ActiveUsers')
+
+        def _val(d, *keys):
+            for k in keys:
+                v = d.get(k)
+                if v is not None:
+                    return v
+            return 0
+
+        return JsonResponse({
+            'ok': True,
+            'instance': instance_name,
+            'state': state_label,
+            'state_color': _STATE_COLOR.get(state_label, 'neutral'),
+            'uptime': uptime,
+            'cpu_pct':      _val(cpu,   'percent', 'Percent'),
+            'cpu_raw':      _val(cpu,   'raw_value', 'RawValue'),
+            'mem_used_mb':  _val(mem,   'raw_value', 'RawValue'),
+            'mem_total_mb': _val(mem,   'max_value', 'MaxValue'),
+            'mem_pct':      _val(mem,   'percent',   'Percent'),
+            'players':      _val(users, 'raw_value', 'RawValue'),
+            'players_max':  _val(users, 'max_value', 'MaxValue'),
+        })
+
+    except Exception as e:
+        logger.error('api_quest_control_server_status: %s', e)
+        return JsonResponse({'ok': False, 'error': 'Failed to fetch server status'})
+
+
+@web_admin_required
+@ratelimit(key='ip', rate='20/h', method='POST', block=True)
+@require_http_methods(['POST'])
+def api_quest_control_server_action(request):
+    """POST: Start, stop, or restart a game server via AMP."""
+    try:
+        body = json.loads(request.body)
+    except Exception:
+        return JsonResponse({'ok': False, 'error': 'Invalid JSON'})
+
+    instance_name = body.get('bot', '')
+    action        = body.get('action', '')
+    if not _validate_instance_name(instance_name):
+        return JsonResponse({'ok': False, 'error': 'Missing or invalid instance_name'})
+    if action not in ('start', 'stop', 'restart'):
+        return JsonResponse({'ok': False, 'error': 'Invalid action'})
+
+    try:
+        import asyncio
+        from ampapi.dataclass import APIParams
+        from ampapi.bridge import Bridge
+        from ampapi.controller import AMPControllerInstance as _AMPCtrl
+
+        async def _do_action():
+            _params = APIParams(url=os.getenv('AMP_URL'), user=os.getenv('AMP_USER'), password=os.getenv('AMP_PASSWORD'))
+            Bridge(api_params=_params)
+            ctrl = _AMPCtrl()
+            await ctrl.get_instances()
+            instance = next((i for i in ctrl.instances if i.instance_name == instance_name), None)
+            if not instance:
+                raise ValueError(f'Instance "{instance_name}" not found in AMP')
+            if action == 'start':
+                await instance.start_application()
+            elif action == 'stop':
+                await instance.stop_application()
+            elif action == 'restart':
+                await instance.restart_application()
+
+        loop = asyncio.new_event_loop()
+        try:
+            loop.run_until_complete(_do_action())
+        finally:
+            loop.close()
+
+        return JsonResponse({'ok': True, 'action': action, 'instance': instance_name})
+
+    except Exception as e:
+        logger.error('api_quest_control_server_action: %s', e)
+        return JsonResponse({'ok': False, 'error': 'Server action failed'})
+
+
+@web_admin_required
+@ratelimit(key='ip', rate='20/h', method='POST', block=True)
+@require_http_methods(['POST'])
+def api_quest_control_god_action(request):
+    """POST: Execute a God Mode action on a game server via AMP console commands."""
+    try:
+        body = json.loads(request.body)
+    except Exception:
+        return JsonResponse({'ok': False, 'error': 'Invalid JSON'})
+
+    instance_name = str(body.get('bot', '')).strip()
+    action        = str(body.get('action', '')).strip()
+
+    VALID_ACTIONS = ('broadcast', 'spawn', 'kick', 'ban', 'teleport', 'give_item',
+                     'trigger_horde', 'blood_moon', 'set_time')
+    if not _validate_instance_name(instance_name) or action not in VALID_ACTIONS:
+        return JsonResponse({'ok': False, 'error': 'Invalid action or missing bot'})
+
+    # Verify the instance exists and is configured
+    from app.db import get_engine
+    from sqlalchemy import text as sa_text2
+    engine = get_engine()
+
+    try:
+        with engine.connect() as conn:
+            row = conn.execute(sa_text2(
+                "SELECT instance_name FROM gamebot_configs "
+                "WHERE LOWER(instance_name) = LOWER(:name) AND configured = 1 LIMIT 1"
+            ), {'name': instance_name}).fetchone()
+            if not row:
+                return JsonResponse({'ok': False, 'error': f'Instance not found or not configured: {instance_name}'})
+            instance_name = row[0]  # Use canonical casing from DB
+    except Exception as e:
+        logger.error('api_quest_control_god_action: config lookup: %s', e)
+        return JsonResponse({'ok': False, 'error': 'Config lookup failed'})
+
+    # Build the AMP console command(s) for this action
+    commands = []
+    try:
+        if action == 'broadcast':
+            message = str(body.get('message', '')).strip()
+            if not message:
+                return JsonResponse({'ok': False, 'error': 'Message is required'})
+            if not re.match(r'^[^\n\r;|&`]{1,500}$', message):
+                return JsonResponse({'ok': False, 'error': 'Message contains invalid characters'})
+            commands = [f'say {message}']
+
+        elif action == 'spawn':
+            import random as _random
+            import json as _json
+            from pathlib import Path as _Path
+            entity   = str(body.get('entity', '')).strip()
+            quantity = max(1, min(int(body.get('quantity', 1)), 50))
+            _FACTIONS = {
+                'feral_strike':    ['zombieSpiderFeral', 'zombieJanitorFeral', 'zombieMarlene',
+                                    'zombieBikerFeral', 'zombieNurseFeral', 'zombieScreamerFeral'],
+                'radiated_wave':   ['zombieYoRadiated', 'zombieNurseRadiated', 'zombieSkateboarderFeral',
+                                    'zombieBurntRadiated', 'zombieSoldierRadiated', 'zombieMutatedRadiated'],
+                'hazmat_response': ['zombieMaleHazmatFeral', 'zombieSoldierFeral', 'zombieLabFeral',
+                                    'zombieBurntFeral', 'zombieDemolition'],
+                'infernal_wave':   ['zombieBikerInfernal', 'zombieBurntInfernal', 'zombieLumberjackInfernal',
+                                    'zombieFatCopInfernal', 'zombieMutatedInfernal', 'zombieWightInfernal'],
+                'animal_horde':    ['animalZombieDog', 'animalZombieBear', 'animalZombieVulture',
+                                    'animalDireWolf', 'animalMountainLion', 'animalZombieBoar'],
+            }
+            if entity in _FACTIONS:
+                pool = _FACTIONS[entity]
+                entity_list = [_random.choice(pool) for _ in range(quantity)]
+            elif not entity or not re.match(r'^[A-Za-z0-9_]+$', entity):
+                return JsonResponse({'ok': False, 'error': 'Invalid entity type'})
+            else:
+                entity_list = [entity] * quantity
+
+            # Read player positions to spawn at actual player location
+            # Flat list: [{name, x, y, z, timestamp}, ...] - last entry per player = most recent
+            _SPAWN_RADIUS = 15
+            _pos_file = _Path('/mnt/gamestoreage2/DiscordBots/7questbot/player_positions.json')
+            spawn_pos = None
+            try:
+                if _pos_file.exists():
+                    raw = _json.loads(_pos_file.read_text())
+                    # Build map of name -> most recent entry (list is chronological)
+                    _pos_map = {}
+                    for entry in raw:
+                        name = entry.get('name') or entry.get('id')
+                        if name:
+                            _pos_map[name] = entry
+                    if _pos_map:
+                        chosen = _random.choice(list(_pos_map.values()))
+                        spawn_pos = (int(chosen['x']), int(chosen.get('y', 0)), int(chosen['z']))
+            except Exception as _pe:
+                logger.warning('god_action spawn: could not read positions: %s', _pe)
+
+            if spawn_pos:
+                px, py, pz = spawn_pos
+                commands = []
+                for ent in entity_list:
+                    ox = _random.randint(-_SPAWN_RADIUS, _SPAWN_RADIUS)
+                    oz = _random.randint(-_SPAWN_RADIUS, _SPAWN_RADIUS)
+                    commands.append(f'spawnentityat {ent} {px + ox} {py} {pz + oz}')
+            else:
+                # No position data - fall back to se command which spawns near a random player
+                commands = [f'se {ent}' for ent in entity_list]
+
+        elif action == 'kick':
+            player = str(body.get('player', '')).strip()
+            if not player:
+                return JsonResponse({'ok': False, 'error': 'Player name required'})
+            if not re.match(r'^[A-Za-z0-9_ \-]{1,64}$', player):
+                return JsonResponse({'ok': False, 'error': 'Invalid player name'})
+            commands = [f'kick {player}']
+
+        elif action == 'ban':
+            player = str(body.get('player', '')).strip()
+            if not player:
+                return JsonResponse({'ok': False, 'error': 'Player name required'})
+            if not re.match(r'^[A-Za-z0-9_ \-]{1,64}$', player):
+                return JsonResponse({'ok': False, 'error': 'Invalid player name'})
+            commands = [f'ban add {player} 36500 "Banned via God Mode"']
+
+        elif action == 'teleport':
+            player = str(body.get('player', '')).strip()
+            if not player:
+                return JsonResponse({'ok': False, 'error': 'Player name required'})
+            if not re.match(r'^[A-Za-z0-9_ \-]{1,64}$', player):
+                return JsonResponse({'ok': False, 'error': 'Invalid player name'})
+            commands = [f'teleportplayer {player} 0 0 0']
+
+        elif action == 'give_item':
+            player = str(body.get('player', '')).strip()
+            item   = str(body.get('item', '')).strip()
+            if not player or not item:
+                return JsonResponse({'ok': False, 'error': 'Player and item required'})
+            if not re.match(r'^[A-Za-z0-9_ \-]{1,64}$', player):
+                return JsonResponse({'ok': False, 'error': 'Invalid player name'})
+            if not re.match(r'^[A-Za-z0-9_ ]+$', item):
+                return JsonResponse({'ok': False, 'error': 'Invalid item name'})
+            commands = [f'give {player} {item} 1']
+
+        elif action == 'trigger_horde':
+            commands = ['spawnscouting']
+
+        elif action == 'blood_moon':
+            commands = ['bloodmoon']
+
+        elif action == 'set_time':
+            hour = max(0, min(int(body.get('hour', 6)), 23))
+            commands = [f'settime {hour} 0']
+
+    except (ValueError, TypeError) as e:
+        return JsonResponse({'ok': False, 'error': f'Bad parameter: {e}'})
+
+    # Execute commands via AMP console
+    try:
+        import asyncio
+        from ampapi.dataclass import APIParams
+        from ampapi.bridge import Bridge
+        from ampapi.controller import AMPControllerInstance as _AMPCtrl
+
+        async def _run_commands():
+            _params = APIParams(
+                url=os.getenv('AMP_URL'),
+                user=os.getenv('AMP_USER'),
+                password=os.getenv('AMP_PASSWORD'),
+            )
+            Bridge(api_params=_params)
+            ctrl = _AMPCtrl()
+            await ctrl.get_instances()
+            inst = next((i for i in ctrl.instances if i.instance_name == instance_name), None)
+            if not inst:
+                raise ValueError(f'Instance "{instance_name}" not found in AMP')
+            # Flush any buffered updates before sending so get_updates only returns new lines
+            try:
+                await inst.get_updates()
+            except Exception:
+                pass
+            for cmd in commands:
+                await inst.send_console_message(cmd)
+            # Brief pause then collect console output as confirmation
+            await asyncio.sleep(1.5)
+            console_lines = []
+            try:
+                updates = await inst.get_updates()
+                entries = getattr(updates, 'console_entries', None) or []
+                for entry in entries[-10:]:
+                    contents = getattr(entry, 'contents', None) or ''
+                    if contents:
+                        console_lines.append(contents)
+            except Exception:
+                pass
+            return console_lines
+
+        loop = asyncio.new_event_loop()
+        try:
+            console_lines = loop.run_until_complete(_run_commands())
+        finally:
+            loop.close()
+
+        log_admin_action(request, 'god_action', instance_name, 0,
+                         f'action={action} instance={instance_name} params={json.dumps({k: body.get(k) for k in ("player","message","entity","item","hour") if body.get(k)})}')
+        result_msg = f'{action} sent ({len(commands)} command(s))'
+        return JsonResponse({
+            'ok': True,
+            'result': result_msg,
+            'console': console_lines,
+        })
+
+    except Exception as e:
+        logger.error('api_quest_control_god_action: %s', e)
+        return JsonResponse({'ok': False, 'error': f'Command failed: {e}'})
+
+
+@web_admin_required
+@require_http_methods(['POST'])
+def api_quest_control_send_embed(request):
+    """POST: Send a custom embed to a game bot channel via fluxer_pending_broadcasts."""
+    from app.db import get_engine
+    from sqlalchemy import text as sa_text2
+    engine = get_engine()
+    try:
+        body = json.loads(request.body)
+    except Exception:
+        return JsonResponse({'ok': False, 'error': 'Invalid JSON'})
+
+    instance_name = body.get('bot', '')
+    if not _validate_instance_name(instance_name):
+        return JsonResponse({'ok': False, 'error': 'Missing or invalid instance_name'})
+
+    channel_id = str(body.get('channel_id', '')).strip()
+    if not channel_id or not channel_id.isdigit():
+        return JsonResponse({'ok': False, 'error': 'Invalid channel_id'})
+
+    title = str(body.get('title', '')).strip()[:256]
+    description = str(body.get('description', '')).strip()[:4096]
+    color_hex = str(body.get('color', '#5865F2')).strip()
+    fields = body.get('fields', [])  # [{name, value, inline}]
+    footer = str(body.get('footer', '')).strip()[:256]
+
+    if not title and not description:
+        return JsonResponse({'ok': False, 'error': 'Embed must have a title or description'})
+
+    # Parse color
+    try:
+        color_int = int(color_hex.lstrip('#'), 16)
+    except (ValueError, AttributeError):
+        color_int = 0x5865F2
+
+    # Build embed payload matching fluxer_pending_broadcasts format
+    embed_data = {}
+    if title:
+        embed_data['title'] = title
+    if description:
+        embed_data['description'] = description
+    embed_data['color'] = color_int
+
+    # Sanitize and add fields (max 10)
+    clean_fields = []
+    for f in (fields or [])[:10]:
+        fname = str(f.get('name', '')).strip()[:256]
+        fval  = str(f.get('value', '')).strip()[:1024]
+        if fname and fval:
+            clean_fields.append({'name': fname, 'value': fval, 'inline': bool(f.get('inline', True))})
+    if clean_fields:
+        embed_data['fields'] = clean_fields
+
+    if footer:
+        embed_data['footer'] = footer
+
+    # Look up guild_id + platform from unified table
+    try:
+        with engine.connect() as conn:
+            row = conn.execute(sa_text2(
+                "SELECT guild_id, platform FROM gamebot_configs WHERE instance_name = :n LIMIT 1"
+            ), {'n': instance_name}).fetchone()
+            guild_id = row.guild_id if row else 0
+            platform = (row.platform if row else None) or 'fluxer'
+    except Exception as e:
+        return JsonResponse({'ok': False, 'error': f'DB error: {e}'})
+
+    # Route to the correct broadcast queue based on platform
+    if platform == 'fluxer':
+        broadcast_sql = "INSERT INTO fluxer_pending_broadcasts (guild_id, channel_id, payload, created_at) VALUES (:g, :c, :p, :t)"
+    else:
+        broadcast_sql = "INSERT INTO discord_pending_broadcasts (guild_id, channel_id, payload, created_at) VALUES (:g, :c, :p, :t)"
+    payload_json = json.dumps({'embed': embed_data})
+    now_ts = int(time.time())
+
+    try:
+        with engine.connect() as conn:
+            conn.execute(sa_text2(broadcast_sql),
+                         {'g': int(guild_id) if guild_id else 0, 'c': int(channel_id), 'p': payload_json, 't': now_ts})
+            conn.commit()
+    except Exception as e:
+        return JsonResponse({'ok': False, 'error': f'Queue insert failed: {e}'})
+
+    log_admin_action(request, 'quest_control_send_embed', instance_name, 0,
+                     details={'channel_id': channel_id, 'title': title, 'instance': instance_name})
+    return JsonResponse({'ok': True})
+
+
+@web_login_required
+@ratelimit(key='ip', rate='10/h', method='POST', block=True)
+@require_http_methods(['POST'])
+def api_quest_control_claim(request):
+    """
+    POST: Assign an unconfigured AMP instance to this Fluxer guild.
+    Called from the Quest Control dashboard when clicking 'Claim' on a discovered server.
+    Auth: Fluxer guild owner/admin - validated via session web_user_id vs guild ownership.
+    """
+    from app.db import get_engine
+    from sqlalchemy import text as sa_text2
+    from .helpers import get_web_user
+    engine = get_engine()
+
+    caller = get_web_user(request)
+    if not caller or caller.is_banned or caller.is_disabled:
+        return JsonResponse({'ok': False, 'error': 'Access denied'}, status=403)
+    web_user_id = caller.id
+
+    try:
+        body = json.loads(request.body)
+    except Exception:
+        return JsonResponse({'ok': False, 'error': 'Invalid JSON'})
+
+    instance_name = str(body.get('instance_name', '')).strip()
+    guild_id      = str(body.get('guild_id', '')).strip()
+
+    if not _validate_instance_name(instance_name) or not guild_id:
+        return JsonResponse({'ok': False, 'error': 'Missing or invalid instance_name or guild_id'})
+
+    # Verify caller owns or admins this Fluxer guild
+    try:
+        with engine.connect() as conn:
+            user_row = conn.execute(sa_text2(
+                "SELECT fluxer_id FROM web_users WHERE id = :uid LIMIT 1"
+            ), {'uid': web_user_id}).fetchone()
+            if not user_row or not user_row.fluxer_id:
+                return JsonResponse({'ok': False, 'error': 'No Fluxer account linked'}, status=403)
+            fluxer_id = str(user_row.fluxer_id)
+
+            guild_row = conn.execute(sa_text2(
+                "SELECT owner_id FROM web_fluxer_guild_settings WHERE guild_id = :g LIMIT 1"
+            ), {'g': guild_id}).fetchone()
+            if not guild_row:
+                return JsonResponse({'ok': False, 'error': 'Guild not found'}, status=403)
+            if str(guild_row.owner_id) != fluxer_id:
+                # Check if web-panel admin/mod
+                panel_row = conn.execute(sa_text2(
+                    "SELECT role FROM web_fluxer_guild_settings WHERE guild_id = :g AND panel_user_id = :uid LIMIT 1"
+                ), {'g': guild_id, 'uid': web_user_id}).fetchone()
+                if not panel_row:
+                    return JsonResponse({'ok': False, 'error': 'Not authorized for this guild'}, status=403)
+    except Exception as e:
+        return JsonResponse({'ok': False, 'error': f'Auth check failed: {e}'}, status=500)
+
+    # Claim it - assign guild_id and mark configured=1 so bot commands work immediately
+    try:
+        with engine.connect() as conn:
+            result = conn.execute(sa_text2(
+                "UPDATE gamebot_configs SET guild_id = :g, platform = 'fluxer', configured = 1 "
+                "WHERE instance_name = :n AND (guild_id IS NULL OR guild_id = '')"
+            ), {'g': guild_id, 'n': instance_name})
+            conn.commit()
+            if result.rowcount == 0:
+                return JsonResponse({'ok': False, 'error': 'Instance already claimed or not found'})
+    except Exception as e:
+        return JsonResponse({'ok': False, 'error': f'Claim failed: {e}'})
+
+    return JsonResponse({'ok': True})
+
+
+@web_mod_required
 def api_admin_stats(request):
     """API: Get admin dashboard stats."""
     with get_db_session() as db:
@@ -130,8 +1139,8 @@ def api_admin_bot_stats(request):
         )).fetchall()
 
         # ── Discord (WardenBot tables) ───────────────────────────
-        disc_total   = db.execute(sa_text("SELECT COUNT(*) FROM guilds")).scalar() or 0
-        disc_active  = db.execute(sa_text("SELECT COUNT(*) FROM guilds WHERE bot_present=1")).scalar() or 0
+        disc_total   = db.execute(sa_text("SELECT COUNT(*) FROM guilds WHERE bot_present=1 AND left_at IS NULL")).scalar() or 0
+        disc_active  = disc_total
         disc_members = db.execute(sa_text("SELECT COALESCE(SUM(member_count),0) FROM guilds")).scalar() or 0
         disc_xp_30d  = db.execute(sa_text(
             "SELECT COUNT(*) FROM guild_members WHERE last_active >= :ts"
@@ -215,6 +1224,7 @@ def api_admin_bot_stats(request):
 # --- LFG Game Config Admin ---
 
 @web_admin_required
+@require_http_methods(["GET", "POST"])
 def api_admin_lfg_games(request):
     """API: CRUD for LFG game configs."""
     if request.method == 'GET':
@@ -301,13 +1311,14 @@ def api_admin_lfg_game_detail(request, game_id):
             config.custom_roles = json.dumps(body['custom_roles'])
         config.updated_at = int(time.time())
         db.commit()
-        log_admin_action(request, 'update_lfg_game', 'lfg_game', game_id, body)
+        _safe_log = {k: body[k] for k in ('game_name', 'game_short', 'role_mode', 'enabled', 'sort_order') if k in body}
+        log_admin_action(request, 'update_lfg_game', 'lfg_game', game_id, _safe_log)
         return JsonResponse({'success': True})
 
 
 # --- Community Admin ---
 
-@web_admin_required
+@web_mod_required
 def api_admin_communities(request):
     """API: List all communities for admin."""
     with get_db_session() as db:
@@ -340,7 +1351,7 @@ def api_admin_communities(request):
     return JsonResponse({'communities': data})
 
 
-@web_admin_required
+@web_mod_required
 @require_http_methods(["POST"])
 def api_admin_community_action(request, community_id):
     """API: Admin actions on a community (approve, ban, unban, purge)."""
@@ -472,7 +1483,7 @@ def api_admin_community_action(request, community_id):
 
 # --- Creator Admin ---
 
-@web_admin_required
+@web_mod_required
 def api_admin_creators(request):
     """API: List all creators for admin."""
     with get_db_session() as db:
@@ -498,7 +1509,7 @@ def api_admin_creators(request):
     return JsonResponse({'creators': data})
 
 
-@web_admin_required
+@web_mod_required
 @require_http_methods(["POST"])
 def api_admin_creator_action(request, creator_id):
     """API: Admin actions on a creator (verify, unverify, feature, delete)."""
@@ -520,6 +1531,9 @@ def api_admin_creator_action(request, creator_id):
 
         if action == 'verify':
             creator.is_verified = True
+            web_user = db.query(WebUser).filter_by(id=creator.user_id).first()
+            if web_user and not web_user.is_contributor:
+                web_user.is_contributor = True
         elif action == 'unverify':
             creator.is_verified = False
         elif action == 'feature':
@@ -622,7 +1636,7 @@ def _do_rotate_cotm(db):
     return winner
 
 
-@web_admin_required
+@web_mod_required
 @require_http_methods(["POST"])
 def api_admin_rotate_cotw(request):
     """API: Admin triggers COTW rotation."""
@@ -636,7 +1650,7 @@ def api_admin_rotate_cotw(request):
             return JsonResponse({'success': True, 'new_cotw': None, 'message': 'No eligible creators for COTW.'})
 
 
-@web_admin_required
+@web_mod_required
 @require_http_methods(["POST"])
 def api_admin_rotate_cotm(request):
     """API: Admin triggers COTM rotation."""
@@ -745,7 +1759,8 @@ def api_admin_steam_search_detail(request, search_id):
             config.exclude_tags = json.dumps(body['exclude_tags'])
         config.updated_at = int(time.time())
         db.commit()
-        log_admin_action(request, 'update_steam_search', 'steam_search', search_id, body)
+        _safe_log = {k: body[k] for k in ('name', 'enabled', 'min_reviews', 'max_results', 'fetch_interval') if k in body}
+        log_admin_action(request, 'update_steam_search', 'steam_search', search_id, _safe_log)
         return JsonResponse({'success': True})
 
 
@@ -1131,7 +2146,7 @@ def api_admin_rss_feed_fetch_now(request, feed_id):
 
 # --- User Admin ---
 
-@web_admin_required
+@web_mod_required
 def api_admin_users(request):
     """API: List users for admin."""
     q = request.GET.get('q', '').strip()
@@ -1146,10 +2161,14 @@ def api_admin_users(request):
             'id': u.id,
             'username': u.username,
             'display_name': u.display_name,
-            'email': u.email,
+            'email_domain': u.email.split('@')[-1] if u.email and '@' in u.email else '',
             'avatar_url': u.avatar_url,
             'is_admin': u.is_admin,
+            'is_mod': bool(u.is_mod),
             'is_vip': bool(u.is_vip),
+            'is_ffxiv_member': bool(u.is_ffxiv_member),
+            'is_eso_member': bool(u.is_eso_member),
+            'is_contributor': bool(u.is_contributor),
             'is_banned': u.is_banned,
             'ban_reason': u.ban_reason,
             'is_disabled': u.is_disabled,
@@ -1160,25 +2179,39 @@ def api_admin_users(request):
             'hero_points': u.hero_points,
             'created_at': u.created_at,
             'last_login_at': u.last_login_at,
+            'email_verified': bool(u.email_verified),
         } for u in users]
     return JsonResponse({'users': data})
 
 
-@web_admin_required
+@web_mod_required
 @require_http_methods(["POST"])
 def api_admin_user_action(request, user_id):
-    """API: Admin actions on user (ban, unban, toggle admin)."""
+    """API: Admin actions on user (ban, unban, toggle admin/mod)."""
     try:
         body = json.loads(request.body)
     except json.JSONDecodeError:
         return JsonResponse({'error': 'Invalid JSON'}, status=400)
 
     action = body.get('action')
-    valid_actions = ('ban', 'unban', 'disable', 'enable', 'timeout', 'clear_timeout',
-                     'make_admin', 'remove_admin', 'set_hero_points', 'delete_posts',
-                     'purge_user', 'grant_vip', 'revoke_vip')
-    if action not in valid_actions:
+    is_mod_only = request.web_user.is_mod and not request.web_user.is_admin
+
+    all_actions = ('ban', 'unban', 'disable', 'enable', 'timeout', 'clear_timeout',
+                   'make_admin', 'remove_admin', 'grant_mod', 'revoke_mod',
+                   'set_hero_points', 'delete_posts',
+                   'purge_user', 'grant_vip', 'revoke_vip', 'award_most_helpful',
+                   'grant_ffxiv', 'revoke_ffxiv',
+                   'grant_eso', 'revoke_eso',
+                   'grant_contributor', 'revoke_contributor',
+                   'verify_email')
+    # Actions mods are allowed to perform
+    mod_allowed_actions = ('timeout', 'clear_timeout', 'disable', 'enable', 'delete_posts')
+
+    if action not in all_actions:
         return JsonResponse({'error': 'Invalid action'}, status=400)
+
+    if is_mod_only and action not in mod_allowed_actions:
+        return JsonResponse({'error': 'Access denied - admin only action'}, status=403)
 
     now = int(time.time())
     with get_db_session() as db:
@@ -1187,7 +2220,7 @@ def api_admin_user_action(request, user_id):
             return JsonResponse({'error': 'Not found'}, status=404)
 
         # Prevent self-action on destructive operations
-        if user_id == request.web_user.id and action in ('ban', 'disable', 'remove_admin'):
+        if user_id == request.web_user.id and action in ('ban', 'disable', 'remove_admin', 'revoke_mod'):
             return JsonResponse({'error': 'Cannot perform this action on your own account'}, status=400)
 
         if action == 'ban':
@@ -1211,8 +2244,22 @@ def api_admin_user_action(request, user_id):
             user.posting_timeout_until = None
         elif action == 'make_admin':
             user.is_admin = True
+            # Sync Django is_superuser so web_admin_required decorator passes
+            try:
+                DjangoUser.objects.filter(username__iexact=user.username).update(is_superuser=True, is_staff=True)
+            except Exception:
+                pass
         elif action == 'remove_admin':
             user.is_admin = False
+            # Sync Django is_superuser
+            try:
+                DjangoUser.objects.filter(username__iexact=user.username).update(is_superuser=False, is_staff=False)
+            except Exception:
+                pass
+        elif action == 'grant_mod':
+            user.is_mod = True
+        elif action == 'revoke_mod':
+            user.is_mod = False
         elif action == 'set_hero_points':
             try:
                 hp = int(body.get('hero_points', 0))
@@ -1246,6 +2293,48 @@ def api_admin_user_action(request, user_id):
         elif action == 'revoke_vip':
             user.is_vip = False
             # Leave the flair in their collection — it's a reward they earned
+
+        elif action == 'grant_ffxiv':
+            user.is_ffxiv_member = True
+
+        elif action == 'revoke_ffxiv':
+            user.is_ffxiv_member = False
+
+        elif action == 'grant_eso':
+            user.is_eso_member = True
+
+        elif action == 'revoke_eso':
+            user.is_eso_member = False
+
+        elif action == 'grant_contributor':
+            user.is_contributor = True
+
+        elif action == 'revoke_contributor':
+            user.is_contributor = False
+
+        elif action == 'verify_email':
+            user.email_verified = True
+
+        elif action == 'award_most_helpful':
+            # Manual fallback: admin awards Most Helpful to a user for a given month+category
+            from .helpers import award_legacy
+            category = (body.get('category') or 'community').strip()
+            month_year = (body.get('month_year') or '').strip()
+            if not month_year or len(month_year) != 7:
+                import datetime as _dt
+                month_year = _dt.datetime.utcnow().strftime('%Y-%m')
+            valid_cats = {'community', 'lfg_host', 'build', '7dtd', 'valheim', 'minecraft', 'dayz', 'palworld'}
+            if category not in valid_cats:
+                return JsonResponse({'error': 'Invalid category'}, status=400)
+            db.commit()  # flush before calling award_legacy (opens its own session)
+            award_legacy(user_id, 'most_helpful_vote', source='web', ref_id=f"{month_year}:{category}")
+            log_admin_action(request, 'award_most_helpful', 'user', user_id, {
+                'action': 'award_most_helpful',
+                'target_username': user.username,
+                'category': category,
+                'month_year': month_year,
+            })
+            return JsonResponse({'success': True})
 
         elif action == 'purge_user':
             if user_id == request.web_user.id:
@@ -1283,6 +2372,28 @@ def api_admin_user_action(request, user_id):
 
         user.updated_at = now
         db.commit()
+
+    # Award negative legacy for ban actions (outside session to avoid DetachedInstanceError)
+    if action == 'ban':
+        try:
+            from .helpers import award_legacy
+            import time as _time
+            ref_id = f"ban_{user_id}_{int(_time.time())}"
+            award_legacy(user_id, 'report_upheld', source='web', ref_id=ref_id)
+        except Exception as e:
+            logger.warning(f"[Admin] Failed to award negative legacy for ban on user {user_id}: {e}")
+    elif action == 'timeout' and body.get('hours', 0):
+        try:
+            from .helpers import award_legacy
+            import time as _time
+            hours = body.get('hours', 24)
+            # Only apply temp_ban penalty for longer timeouts (24h+) to avoid spam
+            if int(hours) >= 24:
+                ref_id = f"timeout_{user_id}_{int(_time.time())}"
+                award_legacy(user_id, 'temp_ban', source='web', ref_id=ref_id)
+        except Exception as e:
+            logger.warning(f"[Admin] Failed to award negative legacy for timeout on user {user_id}: {e}")
+
     log_admin_action(request, f'{action}_user', 'user', user_id, {
         'action': action,
         'target_username': user.username if user else 'unknown',
@@ -1293,7 +2404,7 @@ def api_admin_user_action(request, user_id):
 
 # --- Admin Audit Log ---
 
-@web_admin_required
+@web_mod_required
 def api_admin_audit_log(request):
     """API: View admin audit log."""
     limit = safe_int(request.GET.get('limit', 100), default=100, min_val=1, max_val=500)
@@ -1323,7 +2434,7 @@ def api_admin_audit_log(request):
 
 # --- Admin Social Moderation ---
 
-@web_admin_required
+@web_mod_required
 def api_admin_posts(request):
     """GET: List posts for moderation. Paginated."""
     page = safe_int(request.GET.get('page', 1), default=1, min_val=1)
@@ -1346,7 +2457,7 @@ def api_admin_posts(request):
     return JsonResponse({'posts': data, 'total': total, 'page': page})
 
 
-@web_admin_required
+@web_mod_required
 @require_http_methods(["POST"])
 def api_admin_post_action(request, post_id):
     """POST: Admin action on a post (hide/unhide/delete/pin/unpin)."""
@@ -1390,7 +2501,7 @@ def api_admin_post_action(request, post_id):
     return JsonResponse({'success': True})
 
 
-@web_admin_required
+@web_mod_required
 @require_http_methods(["POST"])
 def api_admin_comment_action(request, comment_id):
     """POST: Admin action on a comment (delete/hide)."""
@@ -1425,7 +2536,7 @@ def api_admin_comment_action(request, comment_id):
 
 # ── Games We Play Tracker ──────────────────────────────────────────────────────
 
-@web_admin_required
+@web_mod_required
 def admin_games_tracker(request):
     """Admin page for managing /gamesweplay/ game list."""
     with get_db_session() as db:
@@ -1436,6 +2547,7 @@ def admin_games_tracker(request):
         games_data = []
         for game in games:
             roles = db.query(SiteActivityGuildRole).filter_by(game_id=game.id, is_active=True).all()
+            fluxer_roles = db.query(SiteActivityFluxerRole).filter_by(game_id=game.id, is_active=True).all()
             games_data.append({
                 'id': game.id,
                 'game_key': game.game_key,
@@ -1459,6 +2571,13 @@ def admin_games_tracker(request):
                     'guild_name': r.guild_name,
                     'role_name': r.role_name,
                 } for r in roles],
+                'fluxer_roles': [{
+                    'id': r.id,
+                    'guild_id': r.guild_id,
+                    'role_id': r.role_id,
+                    'guild_name': r.guild_name,
+                    'role_name': r.role_name,
+                } for r in fluxer_roles],
             })
 
     return render(request, 'questlog_web/admin_games_tracker.html', {
@@ -1479,6 +2598,7 @@ def api_admin_site_activity_games(request, game_id=None):
                 if not game:
                     return JsonResponse({'error': 'Game not found'}, status=404)
                 roles = db.query(SiteActivityGuildRole).filter_by(game_id=game.id).all()
+                fluxer_roles = db.query(SiteActivityFluxerRole).filter_by(game_id=game.id).all()
                 return JsonResponse({
                     'id': game.id,
                     'game_key': game.game_key,
@@ -1494,6 +2614,7 @@ def api_admin_site_activity_games(request, game_id=None):
                     'link_label': game.link_label,
                     'activity_keywords': json.loads(game.activity_keywords or '[]'),
                     'is_active': game.is_active,
+                    'show_on_discover_strip': game.show_on_discover_strip if game.show_on_discover_strip is not None else True,
                     'sort_order': game.sort_order,
                     'roles': [{
                         'id': r.id,
@@ -1502,6 +2623,13 @@ def api_admin_site_activity_games(request, game_id=None):
                         'guild_name': r.guild_name,
                         'role_name': r.role_name,
                     } for r in roles],
+                    'fluxer_roles': [{
+                        'id': r.id,
+                        'guild_id': r.guild_id,
+                        'role_id': r.role_id,
+                        'guild_name': r.guild_name,
+                        'role_name': r.role_name,
+                    } for r in fluxer_roles],
                 })
             games = db.query(SiteActivityGame).order_by(SiteActivityGame.sort_order).all()
             return JsonResponse({'games': [
@@ -1542,6 +2670,7 @@ def api_admin_site_activity_games(request, game_id=None):
                 link_label=data.get('link_label', 'View Site'),
                 activity_keywords=json.dumps(data.get('activity_keywords', [])),
                 is_active=data.get('is_active', True),
+                show_on_discover_strip=data.get('show_on_discover_strip', True),
                 sort_order=data.get('sort_order', 0),
             )
             db.add(game)
@@ -1553,6 +2682,15 @@ def api_admin_site_activity_games(request, game_id=None):
                         game_id=game.id,
                         guild_id=int(mapping['guild_id']),
                         role_id=int(mapping['role_id']),
+                        guild_name=mapping.get('guild_name', ''),
+                        role_name=mapping.get('role_name', ''),
+                    ))
+            for mapping in data.get('fluxer_role_mappings', []):
+                if mapping.get('guild_id') and mapping.get('role_id'):
+                    db.add(SiteActivityFluxerRole(
+                        game_id=game.id,
+                        guild_id=str(mapping['guild_id']),
+                        role_id=str(mapping['role_id']),
                         guild_name=mapping.get('guild_name', ''),
                         role_name=mapping.get('role_name', ''),
                     ))
@@ -1580,10 +2718,12 @@ def api_admin_site_activity_games(request, game_id=None):
             game.link_label = data.get('link_label', game.link_label)
             game.activity_keywords = json.dumps(data.get('activity_keywords', json.loads(game.activity_keywords or '[]')))
             game.is_active = data.get('is_active', game.is_active)
+            if 'show_on_discover_strip' in data:
+                game.show_on_discover_strip = data['show_on_discover_strip']
             game.sort_order = data.get('sort_order', game.sort_order)
             game.updated_at = int(time.time())
 
-            # Replace role mappings if provided
+            # Replace Discord role mappings if provided
             if 'role_mappings' in data:
                 db.query(SiteActivityGuildRole).filter_by(game_id=game.id).delete()
                 for mapping in data['role_mappings']:
@@ -1592,6 +2732,18 @@ def api_admin_site_activity_games(request, game_id=None):
                             game_id=game.id,
                             guild_id=int(mapping['guild_id']),
                             role_id=int(mapping['role_id']),
+                            guild_name=mapping.get('guild_name', ''),
+                            role_name=mapping.get('role_name', ''),
+                        ))
+            # Replace Fluxer role mappings if provided
+            if 'fluxer_role_mappings' in data:
+                db.query(SiteActivityFluxerRole).filter_by(game_id=game.id).delete()
+                for mapping in data['fluxer_role_mappings']:
+                    if mapping.get('guild_id') and mapping.get('role_id'):
+                        db.add(SiteActivityFluxerRole(
+                            game_id=game.id,
+                            guild_id=str(mapping['guild_id']),
+                            role_id=str(mapping['role_id']),
                             guild_name=mapping.get('guild_name', ''),
                             role_name=mapping.get('role_name', ''),
                         ))
@@ -1634,6 +2786,45 @@ def api_admin_site_activity_roles(request, role_id=None):
             role = db.query(SiteActivityGuildRole).filter_by(id=role_id).first()
             if not role:
                 return JsonResponse({'error': 'Role mapping not found'}, status=404)
+            db.delete(role)
+            db.commit()
+            return JsonResponse({'success': True})
+
+    return JsonResponse({'error': 'Method not allowed'}, status=405)
+
+
+@web_admin_required
+@require_http_methods(["POST", "DELETE"])
+def api_admin_site_activity_fluxer_roles(request, role_id=None):
+    """Add or remove Fluxer role mappings for a game."""
+    with get_db_session() as db:
+        if request.method == "POST":
+            try:
+                data = json.loads(request.body)
+            except (json.JSONDecodeError, ValueError):
+                return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+            game = db.query(SiteActivityGame).filter_by(id=data.get('game_id')).first()
+            if not game:
+                return JsonResponse({'error': 'Game not found'}, status=404)
+
+            role = SiteActivityFluxerRole(
+                game_id=game.id,
+                guild_id=str(data['guild_id']),
+                role_id=str(data['role_id']),
+                guild_name=data.get('guild_name', ''),
+                role_name=data.get('role_name', ''),
+            )
+            db.add(role)
+            db.commit()
+            return JsonResponse({'success': True, 'id': role.id})
+
+        if request.method == "DELETE":
+            if not role_id:
+                return JsonResponse({'error': 'role_id required'}, status=400)
+            role = db.query(SiteActivityFluxerRole).filter_by(id=role_id).first()
+            if not role:
+                return JsonResponse({'error': 'Fluxer role mapping not found'}, status=404)
             db.delete(role)
             db.commit()
             return JsonResponse({'success': True})
@@ -1717,7 +2908,7 @@ def api_admin_maintenance(request):
             return JsonResponse({'success': True, 'enabled': True, 'users_disabled': len(affected_ids)})
 
 
-@web_admin_required
+@web_mod_required
 @require_http_methods(["GET"])
 def api_admin_maintenance_status(request):
     """Return current maintenance mode status."""
@@ -1742,7 +2933,7 @@ def api_admin_toggle_logins(request):
     return JsonResponse({'logins_disabled': new_value == '1'})
 
 
-@web_admin_required
+@web_mod_required
 @require_http_methods(["GET"])
 def api_admin_logins_status(request):
     """Return whether logins are currently disabled."""
@@ -1769,6 +2960,7 @@ def api_admin_flairs(request):
                 'description': f.description or '',
                 'flair_type': f.flair_type,
                 'hp_cost': f.hp_cost,
+                'equippable': bool(getattr(f, 'equippable', 1)),
                 'enabled': f.enabled,
                 'display_order': f.display_order,
                 'created_at': f.created_at,
@@ -1792,6 +2984,7 @@ def api_admin_flairs(request):
             description=(body.get('description') or '')[:300],
             flair_type=body.get('flair_type', 'normal'),
             hp_cost=safe_int(body.get('hp_cost', 0), default=0, min_val=0),
+            equippable=1 if body.get('equippable', True) else 0,
             enabled=bool(body.get('enabled', True)),
             display_order=safe_int(body.get('display_order', 0), default=0),
             created_at=now,
@@ -1833,6 +3026,8 @@ def api_admin_flair_detail(request, flair_id):
             flair.flair_type = body['flair_type']
         if 'hp_cost' in body:
             flair.hp_cost = max(0, int(body['hp_cost']))
+        if 'equippable' in body:
+            flair.equippable = 1 if body['equippable'] else 0
         if 'enabled' in body:
             flair.enabled = bool(body['enabled'])
         if 'display_order' in body:
@@ -2085,7 +3280,7 @@ def api_admin_server_polls(request):
         return JsonResponse({'success': True, 'poll': _serialize_poll(poll, opts)}, status=201)
 
 
-@web_admin_required
+@web_mod_required
 @require_http_methods(['GET', 'PUT', 'DELETE'])
 def api_admin_server_poll_detail(request, poll_id):
     """Get, update, or delete a specific poll."""
@@ -2139,7 +3334,7 @@ def api_admin_server_poll_detail(request, poll_id):
         return JsonResponse({'success': True, 'poll': _serialize_poll(poll, opts)})
 
 
-@web_admin_required
+@web_mod_required
 @require_http_methods(['POST'])
 def api_admin_server_poll_option(request, poll_id):
     """Add an option to a poll."""
@@ -2180,7 +3375,7 @@ def api_admin_server_poll_option(request, poll_id):
         }})
 
 
-@web_admin_required
+@web_mod_required
 @require_http_methods(['DELETE'])
 def api_admin_server_poll_option_detail(request, poll_id, option_id):
     """Remove an option from a poll."""
@@ -2193,7 +3388,7 @@ def api_admin_server_poll_option_detail(request, poll_id, option_id):
         return JsonResponse({'success': True})
 
 
-@web_admin_required
+@web_mod_required
 @require_http_methods(['POST'])
 def api_admin_server_poll_declare_winner(request, poll_id):
     """Declare a winner and close the poll."""
@@ -2262,7 +3457,7 @@ def _giveaway_dict(g, db, include_entries=False):
     return data
 
 
-@web_admin_required
+@web_mod_required
 @require_http_methods(['GET', 'POST'])
 def api_admin_giveaways(request):
     """GET: list all giveaways. POST: create a new draft giveaway."""
@@ -2304,7 +3499,7 @@ def api_admin_giveaways(request):
         return JsonResponse({'success': True, 'giveaway': _giveaway_dict(g, db)}, status=201)
 
 
-@web_admin_required
+@web_mod_required
 @require_http_methods(['GET', 'PUT', 'DELETE'])
 def api_admin_giveaway_detail(request, giveaway_id):
     """GET: detail with entries. PUT: edit draft. DELETE: remove draft."""
@@ -2352,7 +3547,7 @@ def api_admin_giveaway_detail(request, giveaway_id):
         return JsonResponse({'success': True, 'giveaway': _giveaway_dict(g, db)})
 
 
-@web_admin_required
+@web_mod_required
 @require_http_methods(['POST'])
 def api_admin_giveaway_launch(request, giveaway_id):
     """Launch a giveaway: set active, send global notification to all users."""
@@ -2404,7 +3599,7 @@ def api_admin_giveaway_launch(request, giveaway_id):
         return JsonResponse({'success': True, 'notified': notif_count, 'giveaway': _giveaway_dict(g, db)})
 
 
-@web_admin_required
+@web_mod_required
 @require_http_methods(['POST'])
 def api_admin_giveaway_close(request, giveaway_id):
     """Close entries for an active giveaway."""
@@ -2423,7 +3618,7 @@ def api_admin_giveaway_close(request, giveaway_id):
         return JsonResponse({'success': True, 'giveaway': _giveaway_dict(g, db)})
 
 
-@web_admin_required
+@web_mod_required
 @require_http_methods(['POST'])
 def api_admin_giveaway_pick_winner(request, giveaway_id):
     """Randomly pick winner(s) from entries, weighted by ticket_count."""
@@ -2508,10 +3703,12 @@ def _fluxer_config_dict(cfg: WebFluxerWebhookConfig) -> dict:
         'guild_id': cfg.guild_id or '',
         'channel_id': cfg.channel_id or '',
         'channel_name': cfg.channel_name or '',
+        'discord_webhook_url': cfg.discord_webhook_url or '',
         'embed_color': cfg.embed_color or '',
         'message_template': cfg.message_template or '',
         'embed_title': cfg.embed_title or '',
         'embed_footer': cfg.embed_footer or '',
+        'mention_role_id': cfg.mention_role_id or '',
         'updated_at': cfg.updated_at,
     }
 
@@ -2595,32 +3792,38 @@ def api_admin_fluxer_webhook_detail(request, config_id):
     except (json.JSONDecodeError, AttributeError):
         return JsonResponse({'error': 'Invalid JSON'}, status=400)
 
-    guild_id        = data.get('guild_id', '').strip()[:32]
-    channel_id      = data.get('channel_id', '').strip()[:32]
-    channel_name    = data.get('channel_name', '').strip()[:200]
-    embed_color     = data.get('embed_color', '').strip()[:7]
-    message_template = (data.get('message_template') or '').strip()[:4000]
-    embed_title     = (data.get('embed_title') or '').strip()[:255]
-    embed_footer    = (data.get('embed_footer') or '').strip()[:255]
-    is_enabled      = bool(data.get('is_enabled', False))
+    guild_id            = data.get('guild_id', '').strip()[:32]
+    channel_id          = data.get('channel_id', '').strip()[:32]
+    channel_name        = data.get('channel_name', '').strip()[:200]
+    discord_webhook_url = (data.get('discord_webhook_url') or '').strip()[:1000]
+    embed_color         = data.get('embed_color', '').strip()[:7]
+    message_template    = (data.get('message_template') or '').strip()[:4000]
+    embed_title         = (data.get('embed_title') or '').strip()[:255]
+    embed_footer        = (data.get('embed_footer') or '').strip()[:255]
+    mention_role_id     = (data.get('mention_role_id') or '').strip()[:32]
+    is_enabled          = bool(data.get('is_enabled', False))
 
     if embed_color and not (embed_color.startswith('#') and len(embed_color) == 7):
         return JsonResponse({'error': 'embed_color must be #RRGGBB format'}, status=400)
+    if discord_webhook_url and not discord_webhook_url.startswith('https://discord.com/api/webhooks/'):
+        return JsonResponse({'error': 'discord_webhook_url must be a Discord webhook URL'}, status=400)
 
     with get_db_session() as db:
         cfg = db.query(WebFluxerWebhookConfig).filter_by(id=config_id).first()
         if not cfg:
             return JsonResponse({'error': 'Config not found'}, status=404)
 
-        cfg.guild_id         = guild_id or cfg.guild_id
-        cfg.channel_id       = channel_id or cfg.channel_id
-        cfg.channel_name     = channel_name or cfg.channel_name
-        cfg.embed_color      = embed_color or cfg.embed_color
-        cfg.message_template = message_template or cfg.message_template
-        cfg.embed_title      = embed_title or cfg.embed_title
-        cfg.embed_footer     = embed_footer or cfg.embed_footer
-        cfg.is_enabled       = is_enabled and bool(cfg.channel_id)
-        cfg.updated_at       = int(time.time())
+        cfg.guild_id            = guild_id or cfg.guild_id
+        cfg.channel_id          = channel_id or cfg.channel_id
+        cfg.channel_name        = channel_name or cfg.channel_name
+        cfg.discord_webhook_url = discord_webhook_url or cfg.discord_webhook_url
+        cfg.embed_color         = embed_color or cfg.embed_color
+        cfg.message_template    = message_template or cfg.message_template
+        cfg.embed_title         = embed_title or cfg.embed_title
+        cfg.embed_footer        = embed_footer or cfg.embed_footer
+        cfg.mention_role_id     = mention_role_id or None
+        cfg.is_enabled          = is_enabled and bool(cfg.channel_id)
+        cfg.updated_at          = int(time.time())
         db.commit()
 
         log_admin_action(request, 'update_fluxer_webhook', 'fluxer_webhook', config_id,
@@ -2715,6 +3918,67 @@ def api_admin_fluxer_webhook_test(request, config_id):
         log_admin_action(request, 'test_fluxer_webhook', 'fluxer_webhook', config_id,
                          {'event_type': cfg.event_type})
         return JsonResponse({'success': True, 'message': 'Test embed queued - bot will post it within 5 seconds.'})
+
+
+# =============================================================================
+# BROADCAST USERS
+# =============================================================================
+
+@web_admin_required
+@require_http_methods(['GET', 'POST'])
+def api_admin_broadcast_users(request):
+    """GET list / POST add a user to the broadcast list."""
+    if request.method == 'GET':
+        with get_db_session() as db:
+            rows = db.query(WebBroadcastUser).order_by(WebBroadcastUser.added_at.desc()).all()
+            result = []
+            for r in rows:
+                user = db.query(WebUser).filter_by(id=r.user_id).first()
+                result.append({
+                    'id': r.id,
+                    'user_id': r.user_id,
+                    'username': user.username if user else f'#{r.user_id}',
+                    'avatar_url': user.avatar_url if user else '',
+                    'added_at': r.added_at,
+                })
+        return JsonResponse({'users': result})
+
+    # POST - add user by username
+    try:
+        data = json.loads(request.body)
+    except (json.JSONDecodeError, AttributeError):
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+    username = (data.get('username') or '').strip()
+    if not username:
+        return JsonResponse({'error': 'username required'}, status=400)
+
+    with get_db_session() as db:
+        user = db.query(WebUser).filter(WebUser.username.ilike(username)).first()
+        if not user:
+            return JsonResponse({'error': 'User not found'}, status=404)
+        existing = db.query(WebBroadcastUser).filter_by(user_id=user.id).first()
+        if existing:
+            return JsonResponse({'error': 'User already in broadcast list'}, status=409)
+        bu = WebBroadcastUser(user_id=user.id, added_at=int(time.time()))
+        db.add(bu)
+        db.commit()
+        log_admin_action(request, 'add_broadcast_user', 'broadcast_user', user.id, {'username': user.username})
+        return JsonResponse({'success': True, 'user_id': user.id, 'username': user.username})
+
+
+@web_admin_required
+@require_http_methods(['DELETE'])
+def api_admin_broadcast_user_detail(request, user_id):
+    """DELETE remove a user from the broadcast list."""
+    with get_db_session() as db:
+        bu = db.query(WebBroadcastUser).filter_by(user_id=user_id).first()
+        if not bu:
+            return JsonResponse({'error': 'Not found'}, status=404)
+        db.delete(bu)
+        db.commit()
+        log_admin_action(request, 'remove_broadcast_user', 'broadcast_user', user_id, {})
+    return JsonResponse({'success': True})
 
 
 def _subscriber_dict(cfg: WebCommunityBotConfig) -> dict:
@@ -2881,6 +4145,23 @@ def api_admin_fluxer_guild_channels(request, guild_id):
         ).fetchall()
     channels = [{'id': r.channel_id, 'name': r.channel_name} for r in rows]
     return JsonResponse({'channels': channels})
+
+
+@web_admin_required
+@require_http_methods(['GET'])
+def api_admin_fluxer_guild_roles(request, guild_id):
+    """GET cached Fluxer roles for a guild - used by role picker in admin panel."""
+    from sqlalchemy import text as sa_text
+    with get_db_session() as db:
+        rows = db.execute(
+            sa_text(
+                "SELECT role_id, role_name FROM web_fluxer_guild_roles "
+                "WHERE guild_id = :gid ORDER BY role_name ASC"
+            ),
+            {"gid": str(guild_id)},
+        ).fetchall()
+    roles = [{'id': r.role_id, 'name': r.role_name} for r in rows]
+    return JsonResponse({'roles': roles})
 
 
 @web_admin_required
@@ -3437,7 +4718,7 @@ def api_admin_bridge_config_detail(request, config_id):
 
 # ── Custom Emoji & Stickers ──────────────────────────────────────────────────
 
-@web_admin_required
+@web_mod_required
 @require_http_methods(["GET", "POST"])
 def api_admin_emoji(request):
     """GET: list all emoji/stickers. POST: upload new one (multipart form)."""
@@ -3512,7 +4793,7 @@ def api_admin_emoji(request):
         }})
 
 
-@web_admin_required
+@web_mod_required
 @require_http_methods(["DELETE"])
 def api_admin_emoji_detail(request, emoji_id):
     """DELETE: remove a custom emoji/sticker."""
@@ -3523,3 +4804,115 @@ def api_admin_emoji_detail(request, emoji_id):
         db.delete(emoji)
         db.commit()
     return JsonResponse({'success': True})
+
+
+# ---------------------------------------------------------------------------
+# Admin: Testimonials
+# ---------------------------------------------------------------------------
+
+@web_admin_required
+@require_http_methods(["GET", "POST"])
+def api_admin_testimonials(request):
+    """GET: list all. POST: create new."""
+    with get_db_session() as db:
+        if request.method == 'GET':
+            rows = db.query(WebTestimonial).order_by(
+                WebTestimonial.sort_order, WebTestimonial.id
+            ).all()
+            return JsonResponse({'testimonials': [_serialize_testimonial(t) for t in rows]})
+
+        try:
+            data = json.loads(request.body)
+        except (json.JSONDecodeError, ValueError):
+            return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+        quote = str(data.get('quote', '')).strip()
+        if not quote:
+            return JsonResponse({'error': 'Quote is required'}, status=400)
+        if len(quote) > 500:
+            return JsonResponse({'error': 'Quote too long (max 500 chars)'}, status=400)
+
+        member_name = str(data.get('member_name', '')).strip()[:100]
+        if not member_name:
+            return JsonResponse({'error': 'Member name is required'}, status=400)
+
+        avatar_url = str(data.get('avatar_url', '')).strip()
+        if avatar_url:
+            if not validate_admin_image_url(avatar_url):
+                return JsonResponse({'error': 'Invalid avatar URL'}, status=400)
+
+        t = WebTestimonial(
+            member_name=member_name,
+            handle=str(data.get('handle', '')).strip()[:100] or None,
+            avatar_url=avatar_url or None,
+            quote=quote,
+            game_tag=str(data.get('game_tag', '')).strip()[:100] or None,
+            sort_order=safe_int(data.get('sort_order', 0), default=0),
+            is_active=bool(data.get('is_active', True)),
+            created_at=int(time.time()),
+        )
+        db.add(t)
+        db.commit()
+        db.refresh(t)
+        log_admin_action(request, 'testimonial_create', f'Created testimonial for {member_name}')
+        return JsonResponse({'success': True, 'testimonial': _serialize_testimonial(t)}, status=201)
+
+
+@web_admin_required
+@require_http_methods(["PATCH", "DELETE"])
+def api_admin_testimonial_detail(request, testimonial_id):
+    """PATCH: update. DELETE: remove."""
+    with get_db_session() as db:
+        t = db.query(WebTestimonial).filter_by(id=testimonial_id).first()
+        if not t:
+            return JsonResponse({'error': 'Not found'}, status=404)
+
+        if request.method == 'DELETE':
+            db.delete(t)
+            db.commit()
+            log_admin_action(request, 'testimonial_delete', f'Deleted testimonial {testimonial_id}')
+            return JsonResponse({'success': True})
+
+        try:
+            data = json.loads(request.body)
+        except (json.JSONDecodeError, ValueError):
+            return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+        if 'quote' in data:
+            quote = str(data['quote']).strip()
+            if not quote or len(quote) > 500:
+                return JsonResponse({'error': 'Invalid quote'}, status=400)
+            t.quote = quote
+        if 'member_name' in data:
+            t.member_name = str(data['member_name']).strip()[:100]
+        if 'handle' in data:
+            t.handle = str(data['handle']).strip()[:100] or None
+        if 'avatar_url' in data:
+            av = str(data['avatar_url']).strip()
+            if av and not validate_admin_image_url(av):
+                return JsonResponse({'error': 'Invalid avatar URL'}, status=400)
+            t.avatar_url = av or None
+        if 'game_tag' in data:
+            t.game_tag = str(data['game_tag']).strip()[:100] or None
+        if 'sort_order' in data:
+            t.sort_order = safe_int(data['sort_order'], default=0)
+        if 'is_active' in data:
+            t.is_active = bool(data['is_active'])
+
+        db.commit()
+        log_admin_action(request, 'testimonial_update', f'Updated testimonial {testimonial_id}')
+        return JsonResponse({'success': True, 'testimonial': _serialize_testimonial(t)})
+
+
+def _serialize_testimonial(t):
+    return {
+        'id':          t.id,
+        'member_name': t.member_name,
+        'handle':      t.handle or '',
+        'avatar_url':  t.avatar_url or '',
+        'quote':       t.quote,
+        'game_tag':    t.game_tag or '',
+        'sort_order':  t.sort_order,
+        'is_active':   bool(t.is_active),
+        'created_at':  t.created_at,
+    }

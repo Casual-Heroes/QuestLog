@@ -36,18 +36,18 @@
     <div class="flex items-center gap-3 flex-wrap">
       <!-- XP Badge -->
       {% if is_network_approved %}
-      <a href="/ql/fluxer/{{ guild_id }}/profile/"
+      <a href="/fluxer/{{ guild_id }}/profile/"
          class="flex items-center gap-2 bg-indigo-600/20 border border-indigo-600/40 text-indigo-300 px-4 py-2 rounded-lg text-sm font-medium transition hover:bg-indigo-600/30">
         <i class="fas fa-star"></i>{{ unified_xp }} XP
       </a>
       {% elif user_xp %}
-      <a href="/ql/fluxer/{{ guild_id }}/profile/"
+      <a href="/fluxer/{{ guild_id }}/profile/"
          class="flex items-center gap-2 bg-neutral-800 border border-neutral-700 text-gray-300 px-4 py-2 rounded-lg text-sm font-medium transition hover:bg-neutral-700">
         <i class="fas fa-star text-indigo-400"></i>{{ user_xp }} Server XP
       </a>
       {% endif %}
       {% if open_lfg_count > 0 %}
-      <a href="/ql/fluxer/{{ guild_id }}/lfg/browse/"
+      <a href="/fluxer/{{ guild_id }}/lfg/browse/"
          class="flex items-center gap-2 bg-green-600/20 hover:bg-green-600/30 border border-green-600/40 text-green-400 px-4 py-2 rounded-lg text-sm font-medium transition">
         <i class="fas fa-users"></i>
         {{ open_lfg_count }} open group{{ open_lfg_count|pluralize }}
@@ -65,7 +65,7 @@
 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
 
   <!-- Find Groups (server LFG) -->
-  <a href="/ql/fluxer/{{ guild_id }}/lfg/browse/"
+  <a href="/fluxer/{{ guild_id }}/lfg/browse/"
      class="group bg-neutral-900 rounded-xl p-6 border border-neutral-800 hover:border-green-500 transition-all hover:shadow-lg hover:shadow-green-500/20">
     <div class="flex items-start justify-between mb-4">
       <div class="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-500 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
@@ -85,7 +85,7 @@
   </a>
 
   <!-- Found Games (server games) -->
-  <a href="/ql/fluxer/{{ guild_id }}/games/"
+  <a href="/fluxer/{{ guild_id }}/games/"
      class="group bg-neutral-900 rounded-xl p-6 border border-neutral-800 hover:border-green-500 transition-all hover:shadow-lg hover:shadow-green-500/20">
     <div class="flex items-start justify-between mb-4">
       <div class="w-12 h-12 bg-gradient-to-br from-green-500 to-teal-500 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
@@ -101,7 +101,7 @@
   </a>
 
   <!-- Flair Store (server flairs) -->
-  <a href="/ql/fluxer/{{ guild_id }}/flairs/"
+  <a href="/fluxer/{{ guild_id }}/flairs/"
      class="group bg-neutral-900 rounded-xl p-6 border border-neutral-800 hover:border-purple-500 transition-all hover:shadow-lg hover:shadow-purple-500/20">
     <div class="flex items-start justify-between mb-4">
       <div class="w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
@@ -117,7 +117,7 @@
   </a>
 
   <!-- Giveaways (server raffles) -->
-  <a href="/ql/fluxer/{{ guild_id }}/raffles/"
+  <a href="/fluxer/{{ guild_id }}/raffles/"
      class="group bg-neutral-900 rounded-xl p-6 border border-neutral-800 hover:border-yellow-500 transition-all hover:shadow-lg hover:shadow-yellow-500/20">
     <div class="flex items-start justify-between mb-4">
       <div class="w-12 h-12 bg-gradient-to-br from-yellow-500 to-amber-500 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
@@ -133,7 +133,7 @@
   </a>
 
   <!-- RSS Articles (server feeds) -->
-  <a href="/ql/fluxer/{{ guild_id }}/rss/"
+  <a href="/fluxer/{{ guild_id }}/rss/"
      class="group bg-neutral-900 rounded-xl p-6 border border-neutral-800 hover:border-orange-500 transition-all hover:shadow-lg hover:shadow-orange-500/20">
     <div class="flex items-start justify-between mb-4">
       <div class="w-12 h-12 bg-gradient-to-br from-orange-500 to-red-500 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
@@ -149,7 +149,7 @@
   </a>
 
   <!-- Your Profile (server profile) -->
-  <a href="/ql/fluxer/{{ guild_id }}/profile/"
+  <a href="/fluxer/{{ guild_id }}/profile/"
      class="group bg-neutral-900 rounded-xl p-6 border border-neutral-800 hover:border-blue-500 transition-all hover:shadow-lg hover:shadow-blue-500/20">
     <div class="flex items-start justify-between mb-4">
       <div class="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">

@@ -1,0 +1,655 @@
+{% extends "questlog_web/base_web.html" %}
+{% load static %}
+{% block title %}Field Operations Tracker - FFXIV Tools{% endblock %}
+
+{% block web_content %}
+{{ zones|json_script:"zones-data" }}
+{{ bozja_ranks|json_script:"bozja-ranks-data" }}
+{{ my_progress|json_script:"my-progress-data" }}
+{{ fc_lb|json_script:"fc-lb-data" }}
+{{ is_logged_in|json_script:"is-logged-in-data" }}
+{{ is_admin|json_script:"is-admin-data" }}
+
+<div class="min-h-screen bg-neutral-950 text-white">
+  <div class="max-w-7xl mx-auto px-4 py-8">
+
+    <!-- Header -->
+    <div class="flex items-center gap-3 mb-2">
+      <a href="/ffxiv/tools/" class="text-gray-500 hover:text-gray-300 transition text-sm flex items-center gap-1">
+        <i class="fas fa-arrow-left text-xs"></i> FFXIV Tools
+      </a>
+    </div>
+    <div class="flex items-center gap-4 mb-6">
+      <div class="w-12 h-12 rounded-xl bg-emerald-900/40 flex items-center justify-center flex-shrink-0">
+        <i class="fas fa-map-marked-alt text-emerald-400 text-xl"></i>
+      </div>
+      <div>
+        <h1 class="text-2xl font-bold text-white">Field Operations Tracker</h1>
+        <p class="text-gray-400 text-sm">Track your Eureka, Bozja, and Occult Crescent progress</p>
+      </div>
+    </div>
+
+    <!-- Tab Nav -->
+    <div class="flex gap-1 mb-6 bg-neutral-900 border border-neutral-800 rounded-xl p-1 w-fit">
+      <button onclick="switchTab('eureka')" id="tab-eureka"
+        class="tab-btn px-4 py-2 rounded-lg text-sm font-medium transition">
+        <i class="fas fa-wind mr-1.5"></i>Eureka
+      </button>
+      <button onclick="switchTab('bozja')" id="tab-bozja"
+        class="tab-btn px-4 py-2 rounded-lg text-sm font-medium transition">
+        <i class="fas fa-shield-alt mr-1.5"></i>Bozja &amp; Zadnor
+      </button>
+      <button onclick="switchTab('occult')" id="tab-occult"
+        class="tab-btn px-4 py-2 rounded-lg text-sm font-medium transition">
+        <i class="fas fa-moon mr-1.5"></i>Occult Crescent
+      </button>
+    </div>
+
+    <!-- ===== EUREKA TAB ===== -->
+    <div id="panel-eureka" class="tab-panel hidden">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8" id="eureka-zones"></div>
+      <div id="eureka-lb"></div>
+    </div>
+
+    <!-- ===== BOZJA TAB ===== -->
+    <div id="panel-bozja" class="tab-panel hidden">
+      <div class="grid grid-cols-1 gap-4 mb-8" id="bozja-zones"></div>
+      <div id="bozja-lb"></div>
+    </div>
+
+    <!-- ===== OCCULT TAB ===== -->
+    <div id="panel-occult" class="tab-panel hidden">
+      <div class="grid grid-cols-1 gap-4 mb-8" id="occult-zones"></div>
+      <div id="occult-lb"></div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Save Modal -->
+<div id="save-modal" class="fixed inset-0 z-50 flex items-center justify-center hidden">
+  <div class="absolute inset-0 bg-black/70" onclick="closeModal()"></div>
+  <div class="relative bg-neutral-900 border border-neutral-700 rounded-2xl p-6 w-full max-w-md mx-4 z-10">
+    <h3 class="text-white font-bold text-lg mb-1" id="modal-title">Update Progress</h3>
+    <p class="text-gray-400 text-sm mb-4" id="modal-zone-desc"></p>
+    <div id="modal-fields" class="space-y-3"></div>
+    <div class="flex gap-3 mt-5">
+      <button onclick="closeModal()" class="flex-1 px-4 py-2 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-gray-300 text-sm font-medium transition">Cancel</button>
+      <button onclick="submitSave()" class="flex-1 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium transition">
+        <i class="fas fa-save mr-1.5"></i>Save
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+// Global state - must be accessible from inline onclick attributes
+let _foZones = null, _foBozjaRanks = null, _foProgress = null, _foFcLb = null, _foIsLoggedIn = false, _foIsAdmin = false;
+let _foActiveModal = null;
+
+function switchTab(tab) {
+  document.querySelectorAll('.tab-btn').forEach(b => {
+    b.classList.remove('bg-neutral-700', 'text-white');
+    b.classList.add('text-gray-400', 'hover:text-white');
+  });
+  const active = document.getElementById('tab-' + tab);
+  if (active) {
+    active.classList.add('bg-neutral-700', 'text-white');
+    active.classList.remove('text-gray-400', 'hover:text-white');
+  }
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.add('hidden'));
+  const panel = document.getElementById('panel-' + tab);
+  if (panel) panel.classList.remove('hidden');
+}
+
+function openModal(zoneKey) {
+  if (!_foZones) return;
+  const z = _foZones.find(x => x.key === zoneKey);
+  if (!z) return;
+  _foActiveModal = zoneKey;
+
+  const prog = _foProgress[zoneKey] || {};
+  document.getElementById('modal-title').textContent = 'Update ' + z.name;
+  document.getElementById('modal-zone-desc').textContent = z.desc;
+
+  const fields = document.getElementById('modal-fields');
+  let html = '';
+
+  if (z.tab === 'eureka') {
+    const [lo, hi] = z.el_range;
+    html += _foFieldNum('elemental_level', 'Elemental Level', prog.elemental_level, lo, hi);
+    if (z.has_logos) {
+      html += _foFieldNum('logos_actions', 'Logos Actions Unlocked (0-56)', prog.logos_actions, 0, 56);
+    }
+  } else if (z.tab === 'bozja') {
+    html += _foFieldNum('resistance_rank', 'Resistance Rank (1-25)', prog.resistance_rank, 1, 25);
+    html += _foFieldNum('mettle', 'Total Mettle', prog.mettle, 0, 25870000);
+    html += _foFieldNum('ces_completed', 'Critical Engagements Completed', prog.ces_completed, 0, 99999);
+  } else if (z.tab === 'occult') {
+    html += _foFieldNum('knowledge_level', 'Knowledge Level (1-40)', prog.knowledge_level, 1, 40);
+    html += _foFieldNum('phantom_unlocked', 'Phantom Jobs Unlocked (0-16)', prog.phantom_unlocked, 0, 16);
+    html += _foFieldNum('phantom_mastered', 'Phantom Jobs Mastered (0-16)', prog.phantom_mastered, 0, 16);
+    html += _foFieldNum('forked_clears', 'Forked Tower Clears', prog.forked_clears, 0, 99999);
+  }
+
+  if (z.relic_stages && z.relic_stages.length > 0) {
+    const cur = prog.relic_stage || 'None';
+    const opts = z.relic_stages.map(s => `<option value="${escapeHtml(s)}" ${s === cur || (s === 'None' && !prog.relic_stage) ? 'selected' : ''}>${escapeHtml(s)}</option>`).join('');
+    html += `<div>
+      <label class="block text-xs text-gray-400 mb-1">Weapon Relic Stage</label>
+      <select id="field-relic_stage" class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-neutral-500">
+        ${opts}
+      </select>
+    </div>`;
+  }
+
+  if (z.armor_stages && z.armor_stages.length > 0) {
+    const cur = prog.armor_stage || 'None';
+    const opts = z.armor_stages.map(s => `<option value="${escapeHtml(s)}" ${s === cur || (s === 'None' && !prog.armor_stage) ? 'selected' : ''}>${escapeHtml(s)}</option>`).join('');
+    html += `<div>
+      <label class="block text-xs text-gray-400 mb-1">Armor Stage</label>
+      <select id="field-armor_stage" class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-neutral-500">
+        ${opts}
+      </select>
+    </div>`;
+  }
+
+  fields.innerHTML = html;
+  document.getElementById('save-modal').classList.remove('hidden');
+}
+
+function _foFieldNum(id, label, val, min, max) {
+  return `<div>
+    <label class="block text-xs text-gray-400 mb-1">${escapeHtml(label)}</label>
+    <input id="field-${id}" type="number" min="${min}" max="${max}" value="${val != null ? val : ''}"
+      class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm font-mono focus:outline-none focus:border-neutral-500"
+      placeholder="${min}-${max}">
+  </div>`;
+}
+
+function closeModal() {
+  _foActiveModal = null;
+  document.getElementById('save-modal').classList.add('hidden');
+}
+
+async function submitSave() {
+  if (!_foActiveModal || !_foZones) return;
+  const z = _foZones.find(x => x.key === _foActiveModal);
+  if (!z) return;
+
+  const payload = { zone: _foActiveModal };
+
+  function getNum(id) {
+    const el = document.getElementById('field-' + id);
+    if (!el) return undefined;
+    const v = el.value.trim();
+    return v === '' ? null : parseInt(v, 10);
+  }
+
+  if (z.tab === 'eureka') {
+    payload.elemental_level = getNum('elemental_level');
+    if (z.has_logos) payload.logos_actions = getNum('logos_actions');
+  } else if (z.tab === 'bozja') {
+    payload.resistance_rank = getNum('resistance_rank');
+    payload.mettle = getNum('mettle');
+    payload.ces_completed = getNum('ces_completed');
+  } else if (z.tab === 'occult') {
+    payload.knowledge_level = getNum('knowledge_level');
+    payload.phantom_unlocked = getNum('phantom_unlocked');
+    payload.phantom_mastered = getNum('phantom_mastered');
+    payload.forked_clears = getNum('forked_clears');
+  }
+
+  const relicEl = document.getElementById('field-relic_stage');
+  if (relicEl) payload.relic_stage = relicEl.value;
+  const armorEl = document.getElementById('field-armor_stage');
+  if (armorEl) payload.armor_stage = armorEl.value;
+
+  try {
+    const fetchFn = window.csrfFetch || csrfFetch;
+    const resp = await fetchFn('/api/ffxiv/field-ops/update/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    let data;
+    try { data = await resp.json(); } catch(je) { data = {}; }
+    if (!resp.ok || data.error) {
+      alert(data.error || `Save failed (HTTP ${resp.status})`);
+      return;
+    }
+    _foProgress[_foActiveModal] = data.progress;
+    closeModal();
+    _foRenderAll();
+  } catch (e) {
+    console.error('Field ops save error:', e);
+    alert('Network error: ' + e.message);
+  }
+}
+
+async function deleteZone(zoneKey) {
+  const z = _foZones ? _foZones.find(x => x.key === zoneKey) : null;
+  const name = z ? z.name : zoneKey;
+  if (!confirm(`Delete your ${name} progress? This cannot be undone.`)) return;
+  try {
+    const fetchFn = window.csrfFetch || csrfFetch;
+    const resp = await fetchFn('/api/ffxiv/field-ops/delete/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ zone: zoneKey }),
+    });
+    const data = await resp.json();
+    if (!resp.ok || data.error) { alert(data.error || 'Delete failed'); return; }
+    delete _foProgress[zoneKey];
+    _foRenderAll();
+  } catch (e) {
+    alert('Network error: ' + e.message);
+  }
+}
+
+async function adminDeleteZone(zoneKey, userId, displayName) {
+  const z = _foZones ? _foZones.find(x => x.key === zoneKey) : null;
+  const name = z ? z.name : zoneKey;
+  if (!confirm(`Admin: delete ${displayName}'s ${name} progress?`)) return;
+  try {
+    const fetchFn = window.csrfFetch || csrfFetch;
+    const resp = await fetchFn('/api/ffxiv/field-ops/admin-delete/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ zone: zoneKey, user_id: userId }),
+    });
+    const data = await resp.json();
+    if (!resp.ok || data.error) { alert(data.error || 'Delete failed'); return; }
+    // remove from leaderboard cache
+    if (_foFcLb[zoneKey]) {
+      _foFcLb[zoneKey] = _foFcLb[zoneKey].filter(e => e.user_id !== userId);
+    }
+    // also clear own progress if admin deleted themselves
+    if (_foProgress[zoneKey] && _foIsLoggedIn) {
+      // can't easily check own user_id here, just re-render
+    }
+    _foRenderAll();
+  } catch (e) {
+    alert('Network error: ' + e.message);
+  }
+}
+
+const COLOR_MAP = {
+  cyan:   { bg: 'bg-cyan-900/30',   text: 'text-cyan-300',   border: 'border-cyan-700/40',   icon: 'text-cyan-400',   btn: 'bg-cyan-700 hover:bg-cyan-600',   header: 'from-cyan-600 to-sky-500' },
+  sky:    { bg: 'bg-sky-900/30',    text: 'text-sky-300',    border: 'border-sky-700/40',    icon: 'text-sky-400',    btn: 'bg-sky-700 hover:bg-sky-600',    header: 'from-sky-600 to-blue-500' },
+  orange: { bg: 'bg-orange-900/30', text: 'text-orange-300', border: 'border-orange-700/40', icon: 'text-orange-400', btn: 'bg-orange-700 hover:bg-orange-600', header: 'from-orange-600 to-amber-500' },
+  teal:   { bg: 'bg-teal-900/30',   text: 'text-teal-300',   border: 'border-teal-700/40',   icon: 'text-teal-400',   btn: 'bg-teal-700 hover:bg-teal-600',   header: 'from-teal-600 to-emerald-500' },
+  yellow: { bg: 'bg-yellow-900/30', text: 'text-yellow-300', border: 'border-yellow-700/40', icon: 'text-yellow-400', btn: 'bg-yellow-700 hover:bg-yellow-600', header: 'from-yellow-600 to-amber-500' },
+  violet: { bg: 'bg-violet-900/30', text: 'text-violet-300', border: 'border-violet-700/40', icon: 'text-violet-400', btn: 'bg-violet-700 hover:bg-violet-600', header: 'from-violet-600 to-purple-500' },
+};
+
+function fmtTimestamp(ts) {
+  if (!ts) return 'Never';
+  const d = new Date(ts * 1000);
+  return d.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
+}
+
+function fmtMettle(v) {
+  if (v == null) return '-';
+  return v.toLocaleString();
+}
+
+// ---- Progress card rendering ----
+
+function renderEurekaCard(z) {
+  const c = COLOR_MAP[z.color] || COLOR_MAP['cyan'];
+  const myProgress = _foProgress || {};
+  const isLoggedIn = _foIsLoggedIn;
+  const prog = myProgress[z.key] || null;
+  const [lo, hi] = z.el_range;
+  const el = prog ? prog.elemental_level : null;
+  const pct = el != null ? Math.round(((el - lo) / (hi - lo)) * 100) : 0;
+  const logos = prog ? prog.logos_actions : null;
+  const relic = prog ? (prog.relic_stage || 'None') : 'None';
+  const relicList = z.relic_stages || [];
+  const relicIdx = relicList.indexOf(relic);
+  const relicPct = relicList.length > 1 ? Math.round((Math.max(0, relicIdx) / (relicList.length - 1)) * 100) : 0;
+  const armor = prog ? (prog.armor_stage || 'None') : 'None';
+  const armorList = z.armor_stages || [];
+  const armorIdx = armorList.indexOf(armor);
+  const armorPct = armorList.length > 1 ? Math.round((Math.max(0, armorIdx) / (armorList.length - 1)) * 100) : 0;
+  const updated = prog ? fmtTimestamp(prog.updated_at) : null;
+
+  return `
+  <div class="bg-neutral-900 border ${c.border} rounded-2xl overflow-hidden">
+    <div class="h-1 bg-gradient-to-r ${c.header}"></div>
+    <div class="p-5">
+      <div class="flex items-center justify-between mb-3">
+        <div class="flex items-center gap-3">
+          <div class="w-9 h-9 rounded-xl ${c.bg} flex items-center justify-center flex-shrink-0">
+            <i class="fas ${z.icon} ${c.icon}"></i>
+          </div>
+          <div>
+            <h3 class="font-bold text-white text-sm">${escapeHtml(z.name)}</h3>
+            <p class="text-gray-500 text-xs">${escapeHtml(z.expansion)} - EL ${lo}-${hi}</p>
+          </div>
+        </div>
+        <div class="flex gap-1.5">
+          ${isLoggedIn ? `
+            <button onclick="openModal('${z.key}')" class="px-3 py-1.5 ${c.btn} text-white text-xs font-medium rounded-lg transition"><i class="fas fa-edit mr-1"></i>Update</button>
+            ${myProgress[z.key] ? `<button onclick="deleteZone('${z.key}')" class="px-2.5 py-1.5 bg-red-900/50 hover:bg-red-800 text-red-400 hover:text-red-300 text-xs font-medium rounded-lg transition" title="Delete my progress"><i class="fas fa-trash"></i></button>` : ''}
+          ` : `<a href="/ql/login/?next=/ffxiv/tools/field-ops/" class="px-3 py-1.5 bg-neutral-700 hover:bg-neutral-600 text-gray-300 text-xs font-medium rounded-lg transition">Log In</a>`}
+        </div>
+      </div>
+
+      <p class="text-gray-500 text-xs mb-3">${escapeHtml(z.desc)}</p>
+
+      <div class="space-y-2">
+        <div>
+          <div class="flex justify-between text-xs mb-1">
+            <span class="text-gray-400">Elemental Level</span>
+            <span class="${c.text} font-mono">${el != null ? el : '-'} / ${hi}</span>
+          </div>
+          <div class="h-1.5 bg-neutral-800 rounded-full overflow-hidden">
+            <div class="h-full bg-gradient-to-r ${c.header} rounded-full transition-all" style="width:${pct}%"></div>
+          </div>
+        </div>
+        ${z.has_logos ? `
+        <div class="flex justify-between text-xs">
+          <span class="text-gray-400">Logos Actions</span>
+          <span class="${c.text} font-mono">${logos != null ? logos : '-'} / 56</span>
+        </div>` : ''}
+        <div>
+          <div class="flex justify-between text-xs mb-1">
+            <span class="text-gray-400">Weapon Relic</span>
+            <span class="${c.text} font-mono text-right max-w-[60%] truncate">${escapeHtml(relic)}</span>
+          </div>
+          <div class="h-1.5 bg-neutral-800 rounded-full overflow-hidden">
+            <div class="h-full bg-gradient-to-r from-amber-600 to-yellow-500 rounded-full transition-all" style="width:${relicPct}%"></div>
+          </div>
+        </div>
+        ${armorList.length > 1 ? `
+        <div>
+          <div class="flex justify-between text-xs mb-1">
+            <span class="text-gray-400">Armor Stage</span>
+            <span class="text-rose-300 font-mono text-right max-w-[60%] truncate">${escapeHtml(armor)}</span>
+          </div>
+          <div class="h-1.5 bg-neutral-800 rounded-full overflow-hidden">
+            <div class="h-full bg-gradient-to-r from-rose-600 to-pink-500 rounded-full transition-all" style="width:${armorPct}%"></div>
+          </div>
+        </div>` : ''}
+      </div>
+      ${updated ? `<p class="text-gray-600 text-[10px] mt-3">Updated ${updated}</p>` : ''}
+    </div>
+  </div>`;
+}
+
+function renderBozjaCard(z) {
+  const c = COLOR_MAP[z.color] || COLOR_MAP['yellow'];
+  const myProgress = _foProgress || {};
+  const isLoggedIn = _foIsLoggedIn;
+  const BOZJA_RANKS = _foBozjaRanks || [];
+  const prog = myProgress[z.key] || null;
+  const rank = prog ? prog.resistance_rank : null;
+  const mettle = prog ? prog.mettle : null;
+  const ces = prog ? prog.ces_completed : null;
+  const relic = prog ? (prog.relic_stage || 'None') : 'None';
+  const relicList = z.relic_stages || [];
+  const relicIdx = relicList.indexOf(relic);
+  const relicPct = relicList.length > 1 ? Math.round((Math.max(0, relicIdx) / (relicList.length - 1)) * 100) : 0;
+  const updated = prog ? fmtTimestamp(prog.updated_at) : null;
+
+  // find mettle for current rank and next rank
+  let mettleForRank = 0, mettleForNext = null;
+  if (rank != null) {
+    const rankRow = BOZJA_RANKS.find(r => r[0] === rank);
+    const nextRow = BOZJA_RANKS.find(r => r[0] === rank + 1);
+    if (rankRow) mettleForRank = rankRow[1];
+    if (nextRow) mettleForNext = nextRow[1];
+  }
+  const mettlePct = (mettle != null && mettleForNext != null && mettleForNext > mettleForRank)
+    ? Math.min(100, Math.round(((mettle - mettleForRank) / (mettleForNext - mettleForRank)) * 100))
+    : (rank === 25 ? 100 : 0);
+
+  const milestones = z.rank_milestones || [];
+
+  return `
+  <div class="bg-neutral-900 border ${c.border} rounded-2xl overflow-hidden">
+    <div class="h-1 bg-gradient-to-r ${c.header}"></div>
+    <div class="p-5">
+      <div class="flex items-center justify-between mb-3">
+        <div class="flex items-center gap-3">
+          <div class="w-9 h-9 rounded-xl ${c.bg} flex items-center justify-center flex-shrink-0">
+            <i class="fas ${z.icon} ${c.icon}"></i>
+          </div>
+          <div>
+            <h3 class="font-bold text-white text-sm">${escapeHtml(z.name)}</h3>
+            <p class="text-gray-500 text-xs">${escapeHtml(z.expansion)} - Rank 1-25</p>
+          </div>
+        </div>
+        <div class="flex gap-1.5">
+          ${isLoggedIn ? `
+            <button onclick="openModal('${z.key}')" class="px-3 py-1.5 ${c.btn} text-white text-xs font-medium rounded-lg transition"><i class="fas fa-edit mr-1"></i>Update</button>
+            ${myProgress[z.key] ? `<button onclick="deleteZone('${z.key}')" class="px-2.5 py-1.5 bg-red-900/50 hover:bg-red-800 text-red-400 hover:text-red-300 text-xs font-medium rounded-lg transition" title="Delete my progress"><i class="fas fa-trash"></i></button>` : ''}
+          ` : `<a href="/ql/login/?next=/ffxiv/tools/field-ops/" class="px-3 py-1.5 bg-neutral-700 hover:bg-neutral-600 text-gray-300 text-xs font-medium rounded-lg transition">Log In</a>`}
+        </div>
+      </div>
+
+      <p class="text-gray-500 text-xs mb-3">${escapeHtml(z.desc)}</p>
+
+      <div class="space-y-2">
+        <div class="flex justify-between text-xs">
+          <span class="text-gray-400">Resistance Rank</span>
+          <span class="${c.text} font-mono font-bold">${rank != null ? 'Rank ' + rank : '-'} / 25</span>
+        </div>
+        <div class="relative h-2 bg-neutral-800 rounded-full overflow-visible mb-1">
+          <div class="h-full bg-gradient-to-r ${c.header} rounded-full transition-all" style="width:${rank != null ? Math.round((rank/25)*100) : 0}%"></div>
+          ${milestones.map(m => `<div class="absolute top-0 h-full w-px bg-neutral-600" style="left:${Math.round((m/25)*100)}%" title="Rank ${m}"></div>`).join('')}
+        </div>
+        <div class="flex justify-between text-xs">
+          <span class="text-gray-400">Mettle</span>
+          <span class="${c.text} font-mono">${fmtMettle(mettle)}</span>
+        </div>
+        ${mettle != null && mettleForNext != null ? `
+        <div>
+          <div class="flex justify-between text-xs mb-1">
+            <span class="text-gray-500">Progress to Rank ${(rank||0)+1}</span>
+            <span class="text-gray-500">${mettlePct}%</span>
+          </div>
+          <div class="h-1 bg-neutral-800 rounded-full overflow-hidden">
+            <div class="h-full bg-gradient-to-r from-amber-600 to-yellow-500 rounded-full" style="width:${mettlePct}%"></div>
+          </div>
+        </div>` : ''}
+        <div class="flex justify-between text-xs">
+          <span class="text-gray-400">Critical Engagements</span>
+          <span class="${c.text} font-mono">${ces != null ? ces : '-'}</span>
+        </div>
+        <div>
+          <div class="flex justify-between text-xs mb-1">
+            <span class="text-gray-400">Relic Stage</span>
+            <span class="${c.text} text-right max-w-[60%] truncate">${escapeHtml(relic)}</span>
+          </div>
+          <div class="h-1.5 bg-neutral-800 rounded-full overflow-hidden">
+            <div class="h-full bg-gradient-to-r from-amber-600 to-yellow-500 rounded-full" style="width:${relicPct}%"></div>
+          </div>
+        </div>
+      </div>
+      ${updated ? `<p class="text-gray-600 text-[10px] mt-3">Updated ${updated}</p>` : ''}
+    </div>
+  </div>`;
+}
+
+function renderOccultCard(z) {
+  const c = COLOR_MAP[z.color] || COLOR_MAP['violet'];
+  const myProgress = _foProgress || {};
+  const isLoggedIn = _foIsLoggedIn;
+  const prog = myProgress[z.key] || null;
+  const kl = prog ? prog.knowledge_level : null;
+  const unlocked = prog ? prog.phantom_unlocked : null;
+  const mastered = prog ? prog.phantom_mastered : null;
+  const forked = prog ? prog.forked_clears : null;
+  const relic = prog ? (prog.relic_stage || 'None') : 'None';
+  const relicList = z.relic_stages || [];
+  const relicIdx = relicList.indexOf(relic);
+  const relicPct = relicList.length > 1 ? Math.round((Math.max(0, relicIdx) / (relicList.length - 1)) * 100) : 0;
+  const updated = prog ? fmtTimestamp(prog.updated_at) : null;
+  const jobs = z.phantom_jobs || [];
+
+  return `
+  <div class="bg-neutral-900 border ${c.border} rounded-2xl overflow-hidden">
+    <div class="h-1 bg-gradient-to-r ${c.header}"></div>
+    <div class="p-5">
+      <div class="flex items-center justify-between mb-3">
+        <div class="flex items-center gap-3">
+          <div class="w-9 h-9 rounded-xl ${c.bg} flex items-center justify-center flex-shrink-0">
+            <i class="fas ${z.icon} ${c.icon}"></i>
+          </div>
+          <div>
+            <h3 class="font-bold text-white text-sm">${escapeHtml(z.name)}</h3>
+            <p class="text-gray-500 text-xs">${escapeHtml(z.expansion)} - KL 1-40</p>
+          </div>
+        </div>
+        <div class="flex gap-1.5">
+          ${isLoggedIn ? `
+            <button onclick="openModal('${z.key}')" class="px-3 py-1.5 ${c.btn} text-white text-xs font-medium rounded-lg transition"><i class="fas fa-edit mr-1"></i>Update</button>
+            ${myProgress[z.key] ? `<button onclick="deleteZone('${z.key}')" class="px-2.5 py-1.5 bg-red-900/50 hover:bg-red-800 text-red-400 hover:text-red-300 text-xs font-medium rounded-lg transition" title="Delete my progress"><i class="fas fa-trash"></i></button>` : ''}
+          ` : `<a href="/ql/login/?next=/ffxiv/tools/field-ops/" class="px-3 py-1.5 bg-neutral-700 hover:bg-neutral-600 text-gray-300 text-xs font-medium rounded-lg transition">Log In</a>`}
+        </div>
+      </div>
+
+      <p class="text-gray-500 text-xs mb-3">${escapeHtml(z.desc)}</p>
+
+      <div class="space-y-2">
+        <div>
+          <div class="flex justify-between text-xs mb-1">
+            <span class="text-gray-400">Knowledge Level</span>
+            <span class="${c.text} font-mono">${kl != null ? kl : '-'} / 40</span>
+          </div>
+          <div class="h-1.5 bg-neutral-800 rounded-full overflow-hidden">
+            <div class="h-full bg-gradient-to-r ${c.header} rounded-full transition-all" style="width:${kl != null ? Math.round((kl/40)*100) : 0}%"></div>
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-2 text-xs">
+          <div class="bg-neutral-800 rounded-lg p-2">
+            <div class="text-gray-500 mb-0.5">Phantom Jobs Unlocked</div>
+            <div class="${c.text} font-mono font-bold text-sm">${unlocked != null ? unlocked : '-'} / 16</div>
+          </div>
+          <div class="bg-neutral-800 rounded-lg p-2">
+            <div class="text-gray-500 mb-0.5">Jobs Mastered</div>
+            <div class="${c.text} font-mono font-bold text-sm">${mastered != null ? mastered : '-'} / 16</div>
+          </div>
+        </div>
+        <div class="flex justify-between text-xs">
+          <span class="text-gray-400">Forked Tower Clears</span>
+          <span class="${c.text} font-mono">${forked != null ? forked : '-'}</span>
+        </div>
+        <div>
+          <div class="flex justify-between text-xs mb-1">
+            <span class="text-gray-400">Relic Stage</span>
+            <span class="${c.text} text-right max-w-[60%] truncate">${escapeHtml(relic)}</span>
+          </div>
+          <div class="h-1.5 bg-neutral-800 rounded-full overflow-hidden">
+            <div class="h-full bg-gradient-to-r from-amber-600 to-yellow-500 rounded-full" style="width:${relicPct}%"></div>
+          </div>
+        </div>
+      </div>
+      ${updated ? `<p class="text-gray-600 text-[10px] mt-3">Updated ${updated}</p>` : ''}
+    </div>
+  </div>`;
+}
+
+// ---- Leaderboard rendering ----
+
+function renderLeaderboard(zoneKey, zoneName, color, entries) {
+  const c = COLOR_MAP[color] || COLOR_MAP['cyan'];
+  const z = (_foZones || []).find(x => x.key === zoneKey);
+  const tab = z ? z.tab : 'eureka';
+
+  if (!entries || entries.length === 0) {
+    return `
+    <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-5 mb-4">
+      <h3 class="font-bold text-white mb-1 flex items-center gap-2"><i class="fas fa-trophy ${c.icon}"></i>${escapeHtml(zoneName)} - CH Leaderboard</h3>
+      <p class="text-gray-600 text-sm">No data yet. Be the first to log progress!</p>
+    </div>`;
+  }
+
+  const rows = entries.map((e, i) => {
+    let statCell = '';
+    if (tab === 'eureka') {
+      statCell = `<td class="px-3 py-2 text-center"><span class="${c.text} font-mono font-bold">${e.elemental_level != null ? 'EL '+e.elemental_level : '-'}</span></td>`;
+    } else if (tab === 'bozja') {
+      statCell = `<td class="px-3 py-2 text-center"><span class="${c.text} font-mono font-bold">${e.resistance_rank != null ? 'Rank '+e.resistance_rank : '-'}</span></td>`;
+    } else {
+      statCell = `<td class="px-3 py-2 text-center"><span class="${c.text} font-mono font-bold">${e.knowledge_level != null ? 'KL '+e.knowledge_level : '-'}</span></td>`;
+    }
+
+    const relicCell = `<td class="px-3 py-2 text-center text-gray-400 text-xs">${escapeHtml(e.relic_stage || 'None')}</td>`;
+    const updatedCell = `<td class="px-3 py-2 text-center text-gray-600 text-xs">${fmtTimestamp(e.updated_at)}</td>`;
+    const adminCell = _foIsAdmin
+      ? `<td class="px-2 py-2 text-center"><button onclick="adminDeleteZone('${zoneKey}', ${e.user_id}, '${escapeHtml(e.display_name).replace(/'/g,"\\'")}\')" class="p-1.5 rounded bg-red-900/40 hover:bg-red-800 text-red-400 hover:text-red-300 transition" title="Admin: delete entry"><i class="fas fa-trash text-[10px]"></i></button></td>`
+      : '';
+
+    const medal = i === 0 ? 'text-yellow-400' : i === 1 ? 'text-gray-400' : i === 2 ? 'text-amber-600' : 'text-gray-600';
+    const rankCell = `<td class="px-3 py-2 text-center"><span class="${medal} font-bold text-sm">${i+1}</span></td>`;
+
+    const avatar = e.avatar_url
+      ? `<img src="${escapeHtml(e.avatar_url)}" class="w-6 h-6 rounded-full object-cover flex-shrink-0" onerror="this.style.display='none'">`
+      : `<div class="w-6 h-6 rounded-full bg-neutral-700 flex items-center justify-center flex-shrink-0"><i class="fas fa-user text-gray-500 text-xs"></i></div>`;
+
+    const nameCell = `<td class="px-3 py-2"><div class="flex items-center gap-2">${avatar}<span class="text-white text-sm font-medium">${escapeHtml(e.display_name)}</span></div></td>`;
+
+    return `<tr class="border-t border-neutral-800 hover:bg-neutral-800/30 transition">${rankCell}${nameCell}${statCell}${relicCell}${updatedCell}${adminCell}</tr>`;
+  }).join('');
+
+  const statHeader = tab === 'eureka' ? 'EL' : tab === 'bozja' ? 'Rank' : 'KL';
+
+  return `
+  <div class="bg-neutral-900 border border-neutral-800 rounded-2xl overflow-hidden mb-4">
+    <div class="px-5 py-3 border-b border-neutral-800 flex items-center gap-2">
+      <i class="fas fa-trophy ${c.icon}"></i>
+      <h3 class="font-bold text-white text-sm">${escapeHtml(zoneName)} - CH Leaderboard</h3>
+      <span class="ml-auto text-xs text-gray-500">${entries.length} members</span>
+    </div>
+    <div class="overflow-x-auto">
+      <table class="w-full text-xs">
+        <thead>
+          <tr class="text-gray-500 uppercase text-[10px]">
+            <th class="px-3 py-2 text-center w-10">#</th>
+            <th class="px-3 py-2 text-left">Member</th>
+            <th class="px-3 py-2 text-center">${statHeader}</th>
+            <th class="px-3 py-2 text-center">Relic</th>
+            <th class="px-3 py-2 text-center">Updated</th>
+            ${_foIsAdmin ? '<th class="px-2 py-2 w-8"></th>' : ''}
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+  </div>`;
+}
+
+function _foRenderAll() {
+  const zones   = _foZones;
+  const fcLb    = _foFcLb;
+
+  const eurekaZones = zones.filter(z => z.tab === 'eureka');
+  document.getElementById('eureka-zones').innerHTML = eurekaZones.map(z => renderEurekaCard(z)).join('');
+  document.getElementById('eureka-lb').innerHTML = eurekaZones.map(z => renderLeaderboard(z.key, z.name, z.color, fcLb[z.key] || [])).join('');
+
+  const bozjaZones = zones.filter(z => z.tab === 'bozja');
+  document.getElementById('bozja-zones').innerHTML = bozjaZones.map(z => renderBozjaCard(z)).join('');
+  document.getElementById('bozja-lb').innerHTML = bozjaZones.map(z => renderLeaderboard(z.key, z.name, z.color, fcLb[z.key] || [])).join('');
+
+  const occultZones = zones.filter(z => z.tab === 'occult');
+  document.getElementById('occult-zones').innerHTML = occultZones.map(z => renderOccultCard(z)).join('');
+  document.getElementById('occult-lb').innerHTML = occultZones.map(z => renderLeaderboard(z.key, z.name, z.color, fcLb[z.key] || [])).join('');
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  _foZones      = JSON.parse(document.getElementById('zones-data').textContent);
+  _foBozjaRanks = JSON.parse(document.getElementById('bozja-ranks-data').textContent);
+  _foProgress   = JSON.parse(document.getElementById('my-progress-data').textContent);
+  _foFcLb       = JSON.parse(document.getElementById('fc-lb-data').textContent);
+  _foIsLoggedIn = JSON.parse(document.getElementById('is-logged-in-data').textContent);
+  _foIsAdmin    = JSON.parse(document.getElementById('is-admin-data').textContent);
+
+  _foRenderAll();
+  switchTab('eureka');
+});
+</script>
+{% endblock web_content %}

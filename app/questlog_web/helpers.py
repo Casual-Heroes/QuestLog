@@ -24,6 +24,7 @@ from .models import (
     WebUser, WebUserBlock, WebNotification, WebLike, WebPost,
     AdminAuditLog, WebHeroPointEvent, WebRSSFeed, WebRSSArticle,
     WebXpEvent, WebFlair, WebUserFlair, WebRankTitle, WebCommunity,
+    WebLegacyEvent,
 )
 from app.db import get_db_session
 
@@ -32,8 +33,8 @@ logger = logging.getLogger(__name__)
 STEAM_API_KEY = os.getenv('STEAM_API_KEY', '')
 
 # User IDs excluded from all public listings (leaderboards, suggestions, search, gamers directory)
-# Add internal/test accounts here. ID 4 = RyvenTest
-EXCLUDED_USER_IDS = {1, 4}
+# Add internal/test accounts here. ID 4 = RyvenTest (test account)
+EXCLUDED_USER_IDS = {4}
 
 # IP addresses in audit logs are SHA-256 hashed with this salt (never stored raw)
 AUDIT_LOG_SALT = os.getenv('AUDIT_LOG_SALT', '')
@@ -70,7 +71,7 @@ def safe_int(value, default=1, min_val=None, max_val=None):
     return result
 
 
-def safe_redirect_url(next_url, default='/ql/'):
+def safe_redirect_url(next_url, default='/'):
     """
     Validate a ?next= redirect parameter to prevent open redirect attacks.
     Only allows relative paths on the same host — rejects:
@@ -114,10 +115,10 @@ def get_client_ip(request):
 
 
 def _hash_ip(ip_address):
-    # Store a 16-char truncated hash — enough to correlate entries without storing the raw IP
+    # Store a full 64-char SHA-256 hex digest — correlatable within a session, not reversible
     return hashlib.sha256(
         (ip_address + AUDIT_LOG_SALT).encode('utf-8')
-    ).hexdigest()[:16]
+    ).hexdigest()
 
 
 def _truncate_user_agent(ua_string):
@@ -192,6 +193,19 @@ def web_login_required(view_func):
     return wrapper
 
 
+def api_login_required(view_func):
+    """Like web_login_required but returns JSON 401 instead of redirecting. Use on API endpoints."""
+    from django.http import JsonResponse as _JsonResponse
+    @wraps(view_func)
+    def wrapper(request, *args, **kwargs):
+        web_user = get_web_user(request)
+        if not web_user:
+            return _JsonResponse({'ok': False, 'error': 'Login required.'}, status=401)
+        request.web_user = web_user
+        return view_func(request, *args, **kwargs)
+    return wrapper
+
+
 def web_verified_required(view_func):
     """Requires login AND email_verified=True. Returns 403 JSON for API calls, redirect for pages."""
     @wraps(view_func)
@@ -208,7 +222,7 @@ def web_verified_required(view_func):
                 return _JsonResponse({'error': 'Please verify your email before using this feature.'}, status=403)
             from django.contrib import messages as _msg
             _msg.warning(request, "Please verify your email to use this feature.")
-            return redirect('/ql/')
+            return redirect('/')
         request.web_user = web_user
         return view_func(request, *args, **kwargs)
     return wrapper
@@ -253,6 +267,39 @@ def web_admin_required(view_func):
                 f"BANNED ADMIN ATTEMPT: User {web_user.username} (id={web_user.id}) "
                 f"is banned but is a superuser. IP: {get_client_ip(request)}"
             )
+            if request.headers.get('Accept', '').find('application/json') >= 0:
+                return JsonResponse({'error': 'Account suspended'}, status=403)
+            messages.error(request, "Your account has been suspended.")
+            return redirect('questlog_web_home')
+
+        request.web_user = web_user
+        return view_func(request, *args, **kwargs)
+    return wrapper
+
+
+def web_mod_required(view_func):
+    """Allows site admins (is_admin=True) OR site mods (is_mod=True). Re-verified from DB each request."""
+    @wraps(view_func)
+    def wrapper(request, *args, **kwargs):
+        web_user = get_web_user(request)
+
+        if not web_user:
+            if request.headers.get('Accept', '').find('application/json') >= 0:
+                return JsonResponse({'error': 'Authentication required'}, status=401)
+            messages.error(request, "Please log in first.")
+            return redirect('questlog_web_login')
+
+        if not (web_user.is_admin or web_user.is_mod):
+            logger.warning(
+                f"MOD ACCESS DENIED: User {web_user.username} (id={web_user.id}) "
+                f"- not admin or mod. IP: {get_client_ip(request)}"
+            )
+            if request.headers.get('Accept', '').find('application/json') >= 0:
+                return JsonResponse({'error': 'Access denied'}, status=403)
+            messages.error(request, "Access denied.")
+            return redirect('questlog_web_home')
+
+        if web_user.is_banned:
             if request.headers.get('Accept', '').find('application/json') >= 0:
                 return JsonResponse({'error': 'Account suspended'}, status=403)
             messages.error(request, "Your account has been suspended.")
@@ -620,10 +667,9 @@ def add_web_user_context(view_func):
         # Award daily visit HP once per calendar day (tracked via session to avoid per-request DB hits)
         if request.web_user:
             today_str = datetime.now(timezone.utc).strftime('%Y-%m-%d')
-            session_key = f'hp_visit_{today_str}'
-            if not request.session.get(session_key):
-                award_hero_points(request.web_user.id, 'daily_visit')
-                request.session[session_key] = True
+            if not request.session.get('hp_visit_last') == today_str:
+                award_hero_points(request.web_user.id, 'daily_visit', ref_id=today_str)
+                request.session['hp_visit_last'] = today_str
             # Community owner check for sidebar Community Admin section
             try:
                 from sqlalchemy import text as sa_text
@@ -759,17 +805,18 @@ def add_web_user_context(view_func):
                                 "JOIN web_communities c ON c.id = cm.community_id "
                                 "LEFT JOIN web_fluxer_guild_settings s ON s.guild_id = c.platform_id "
                                 "WHERE cm.user_id = :uid AND cm.role IN ('admin','moderator','owner') "
-                                "AND c.platform = 'fluxer' AND c.is_active = 1 LIMIT 10"
+                                "AND c.platform = 'fluxer' AND c.is_active = 1 LIMIT 50"
                             ),
                             {'uid': _web_uid}
                         ).fetchall()
-                        # Member: fluxer_member_xp.user_id is a Fluxer user ID
+                        # Member: use web_fluxer_members for all servers the bot sees this user in
                         member_rows = _db.execute(
                             sa_text(
-                                "SELECT x.guild_id, COALESCE(NULLIF(s.guild_name,''), x.guild_id) as name, s.guild_icon_hash "
-                                "FROM (SELECT DISTINCT guild_id FROM fluxer_member_xp WHERE user_id = :fid) x "
-                                "LEFT JOIN web_fluxer_guild_settings s ON s.guild_id = x.guild_id "
-                                "LIMIT 15"
+                                "SELECT m.guild_id, COALESCE(NULLIF(s.guild_name,''), CAST(m.guild_id AS CHAR)) as name, s.guild_icon_hash "
+                                "FROM web_fluxer_members m "
+                                "LEFT JOIN web_fluxer_guild_settings s ON s.guild_id = m.guild_id "
+                                "WHERE m.user_id = :fid AND m.left_at IS NULL "
+                                "LIMIT 50"
                             ),
                             {'fid': _fid_str}
                         ).fetchall()
@@ -803,10 +850,21 @@ def add_web_user_context(view_func):
                                 "SELECT g.guild_id, COALESCE(NULLIF(g.guild_name,''), CAST(g.guild_id AS CHAR)) as name, "
                                 "g.guild_icon_hash, g.owner_id "
                                 "FROM guild_members gm JOIN guilds g ON g.guild_id = gm.guild_id "
-                                "WHERE gm.user_id = :uid AND gm.left_at IS NULL AND g.bot_present = 1 LIMIT 20"
+                                "WHERE gm.user_id = :uid AND gm.left_at IS NULL AND g.bot_present = 1 LIMIT 50"
                             ),
                             {'uid': _did_int}
                         ).fetchall()
+                        # Also fetch Discord guilds where user has web-panel admin/mod role
+                        web_admin_discord_rows = _db.execute(
+                            sa_text(
+                                "SELECT c.platform_id FROM web_community_members cm "
+                                "JOIN web_communities c ON c.id = cm.community_id "
+                                "WHERE cm.user_id = :uid AND cm.role IN ('admin','moderator','owner') "
+                                "AND c.platform = 'discord' AND c.is_active = 1 LIMIT 50"
+                            ),
+                            {'uid': _web_uid}
+                        ).fetchall()
+                        _web_admin_discord_ids = {str(r[0]) for r in web_admin_discord_rows}
 
                     _admin_d = {}
                     _member_d = {}
@@ -815,7 +873,7 @@ def add_web_user_context(view_func):
                         gid_str = str(gid)
                         entry = {'id': gid_str, 'name': gname, 'icon_hash': icon_hash or ''}
 
-                        if str(owner_id) == _discord_id:
+                        if str(owner_id) == _discord_id or gid_str in _web_admin_discord_ids:
                             _admin_d[gid_str] = entry
                         else:
                             _member_d[gid_str] = entry
@@ -844,11 +902,13 @@ XP_ACTIONS = {
     'follow':            {'xp': 3,  'daily_max': 5},
     'share':             {'xp': 3,  'daily_max': 3},
     'post':              {'xp': 5,  'daily_max': 5},
-    'steam_achievement': {'xp': 5,  'daily_max': None},
+    'steam_achievement': {'xp': 1,  'daily_max': 50},
     'steam_hours':       {'xp': 1,  'daily_max': None},
     'steam_game_launch': {'xp': 2,  'daily_max': None},  # cooldown enforced in update_steam_now_playing (30 min)
     'invite':            {'xp': 50, 'daily_max': None},
     'champion_sub':      {'xp': 100, 'daily_max': 1},  # one-time bonus on first Champion sub
+    # QuestChat native activity - cooldown enforced by _award_chat_xp (60s), no daily cap
+    'qc_chat':           {'xp': 2,  'daily_max': None},
     # Fluxer bot activity - cooldowns enforced by bot, no daily caps
     'fluxer_message':    {'xp': 2,  'daily_max': None},
     'fluxer_reaction':   {'xp': 1,  'daily_max': None},
@@ -860,6 +920,59 @@ XP_ACTIONS = {
     'discord_reaction':  {'xp': 1,  'daily_max': None},
     'discord_voice':     {'xp': 3,  'daily_max': None},
     'discord_gaming':    {'xp': 2,  'daily_max': None},
+    # 7DTD in-game events - awarded via Fluxer bot, unified XP
+    '7dtd_boss_kill':    {'xp': 75, 'daily_max': None},  # stalker/miniboss kill
+    '7dtd_boss_assist':  {'xp': 25, 'daily_max': None},  # nearby player during boss kill
+    # 7DTD organic events - awarded via C# mod -> Django endpoint
+    # Group kill > solo kill on Legacy to encourage cooperative play
+    'ingame_boss_kill':       {'xp': 75, 'daily_max': None},   # group kill (killer) - 75 XP, 50 Legacy
+    'ingame_boss_solo_kill':  {'xp': 75, 'daily_max': None},   # solo kill - 75 XP, 25 Legacy (less Legacy than group)
+    'ingame_boss_assist':     {'xp': 25, 'daily_max': None},   # group assist - 25 XP, 15 Legacy
+    'ingame_normal_kill':     {'xp': 1,  'daily_max': 50},     # normal mob kill - tiny XP drip, cap 50/day
+    'ingame_revive':          {'xp': 20, 'daily_max': 5},
+    'ingame_bloodmoon':       {'xp': 50, 'daily_max': 1},
+    'ingame_quest_complete':  {'xp': 10, 'daily_max': 10},
+    'ingame_trade':           {'xp': 10, 'daily_max': 5},
+    # --- FFXIV Lodestone character link ---
+    'ffxiv_char_linked':      {'xp': 25,  'daily_max': 1},   # one-time per character link
+    # --- FFXIV in-game achievements (synced from Lodestone) ---
+    # Progression milestones
+    'ffxiv_msq_complete':     {'xp': 50,  'daily_max': None},  # completed an expansion MSQ
+    'ffxiv_job_level_cap':    {'xp': 10,  'daily_max': None},  # per job/profession at level cap
+    'ffxiv_all_jobs_cap':     {'xp': 200, 'daily_max': None},  # ALL jobs at level cap
+    # Endgame content
+    'ffxiv_extreme_clear':    {'xp': 30,  'daily_max': None},  # any extreme trial clear
+    'ffxiv_savage_clear':     {'xp': 75,  'daily_max': None},  # any savage raid clear
+    'ffxiv_ultimate_clear':   {'xp': 250, 'daily_max': None},  # any ultimate raid clear
+    'ffxiv_criterion_savage': {'xp': 100, 'daily_max': None},  # criterion savage clear
+    # Collector milestones
+    'ffxiv_mount_50':         {'xp': 25,  'daily_max': None},  # 50 mounts collected
+    'ffxiv_mount_100':        {'xp': 50,  'daily_max': None},
+    'ffxiv_mount_200':        {'xp': 100, 'daily_max': None},
+    'ffxiv_mount_300':        {'xp': 150, 'daily_max': None},
+    'ffxiv_mount_all':        {'xp': 500, 'daily_max': None},  # ALL mounts - legendary
+    'ffxiv_minion_50':        {'xp': 15,  'daily_max': None},
+    'ffxiv_minion_100':       {'xp': 30,  'daily_max': None},
+    'ffxiv_minion_all':       {'xp': 300, 'daily_max': None},
+    # Community/mentor
+    'ffxiv_mentor':           {'xp': 300, 'daily_max': None},  # earned Mentor crown (PvE or PvP)
+    'ffxiv_commendations_50': {'xp': 25,  'daily_max': None},  # 50 player commendations
+    'ffxiv_commendations_500':{'xp': 150, 'daily_max': None},
+    # Crafting/Gathering mastery
+    'ffxiv_crafter_cap':      {'xp': 10,  'daily_max': None},  # any crafter to level cap
+    'ffxiv_gatherer_cap':     {'xp': 10,  'daily_max': None},  # any gatherer to level cap
+    'ffxiv_all_crafters_cap': {'xp': 200, 'daily_max': None},  # all crafters at cap
+    # Fishing
+    'ffxiv_ocean_fishing_ach':{'xp': 30,  'daily_max': None},  # ocean fishing achievement
+    'ffxiv_big_fish':         {'xp': 50,  'daily_max': None},  # big fish achievement
+    # Other prestige
+    'ffxiv_triple_triad_all': {'xp': 200, 'daily_max': None},  # all triple triad cards
+    'ffxiv_blue_mage_all':    {'xp': 150, 'daily_max': None},  # all blue mage spells
+    'ffxiv_deep_dungeon_200': {'xp': 200, 'daily_max': None},  # floor 200 in any deep dungeon
+    'ffxiv_eureka_complete':  {'xp': 100, 'daily_max': None},  # Eureka Orthos complete
+    # --- Blog / Articles ---
+    'article_published':      {'xp': 10,  'daily_max': 2},     # contributor publishes an article
+    'article_comment':        {'xp': 3,   'daily_max': 10},    # leaving a comment on an article
 }
 
 # HP conversion: every XP_TO_HP_THRESHOLD XP earns HP_PER_THRESHOLD HP
@@ -1082,6 +1195,253 @@ def award_hero_points(user_id, action_type, source='web', ref_id=None):
 
 
 # =============================================================================
+# LEGACY SYSTEM
+# =============================================================================
+
+# Legacy points per action. source can be: web, fluxer, discord, 7dtd, dayz, minecraft, palworld, soulmask, hytale
+LEGACY_ACTIONS = {
+    # --- Platform actions ---
+    'post_liked':              {'points': 2,  'daily_max': None},
+    'post_shared':             {'points': 5,  'daily_max': None},
+    'gained_follower':         {'points': 3,  'daily_max': 10},
+    'community_member_joined': {'points': 5,  'daily_max': 5},
+    'lfg_group_filled':        {'points': 10, 'daily_max': 3},
+    'comment_received':        {'points': 1,  'daily_max': None},
+    'post_pinned':             {'points': 15, 'daily_max': 1},
+    'referral_active':         {'points': 15, 'daily_max': 2},
+    'clean_record_30d':        {'points': 10, 'daily_max': 1},
+    'clean_record_60d':        {'points': 15, 'daily_max': 1},
+    'clean_record_90d':        {'points': 20, 'daily_max': 1},
+    'lfg_completed':           {'points': 15, 'daily_max': 3},
+    'comment_helpful':         {'points': 5,  'daily_max': 5},
+    'community_milestone':     {'points': 25, 'daily_max': 1},
+    'event_hosted':            {'points': 20, 'daily_max': 1},
+    'most_helpful_vote':       {'points': 15, 'daily_max': 1},  # monthly community award - ref_id = YYYY-MM:category
+    # --- In-game actions ---
+    'ingame_revive':           {'points': 10, 'daily_max': 5},
+    'ingame_trade':            {'points': 8,  'daily_max': 5},
+    'ingame_quest_complete':   {'points': 5,  'daily_max': 10},
+    'ingame_bloodmoon':        {'points': 15, 'daily_max': 1},
+    'ingame_hours_milestone':  {'points': 20, 'daily_max': 1},
+    'ingame_clean_record_30d': {'points': 25, 'daily_max': 1},
+    'ingame_report_confirmed': {'points': 20, 'daily_max': 2},
+    'ingame_survive_milestone':{'points': 15, 'daily_max': 1},
+    'ingame_helped_newbie':    {'points': 10, 'daily_max': 3},
+    'ingame_community_build':  {'points': 15, 'daily_max': 2},
+    # --- 7DTD boss events ---
+    'ingame_boss_kill':        {'points': 50, 'daily_max': None},  # group kill (killer) - cooperative play rewarded
+    'ingame_boss_assist':      {'points': 15, 'daily_max': None},  # group assist
+    'ingame_boss_solo_kill':   {'points': 25, 'daily_max': None},  # solo kill - less than group to encourage coop
+    'ingame_normal_kill':      {'points': 0,  'daily_max': None},  # normal kills give no Legacy - only XP drip
+    # --- FFXIV prestige achievements (these are the "WOW you did THAT?!" ones) ---
+    # Mentor status - took hundreds of hours of helping new players
+    'ffxiv_mentor':            {'points': 500, 'daily_max': None},
+    'ffxiv_commendations_500': {'points': 200, 'daily_max': None},
+    # Ultimate raids - hardest content in the game, long prog commitment
+    'ffxiv_ultimate_clear':    {'points': 300, 'daily_max': None},
+    # Complete collection milestones - deep time investment
+    'ffxiv_mount_all':         {'points': 500, 'daily_max': None},
+    'ffxiv_minion_all':        {'points': 300, 'daily_max': None},
+    'ffxiv_triple_triad_all':  {'points': 250, 'daily_max': None},
+    'ffxiv_blue_mage_all':     {'points': 150, 'daily_max': None},
+    'ffxiv_deep_dungeon_200':  {'points': 200, 'daily_max': None},
+    # All jobs/crafters at cap - commitment to mastering the game
+    'ffxiv_all_jobs_cap':      {'points': 200, 'daily_max': None},
+    'ffxiv_all_crafters_cap':  {'points': 150, 'daily_max': None},
+    # Savage raiding - dedicated progression content
+    'ffxiv_savage_clear':      {'points': 75, 'daily_max': None},
+    'ffxiv_criterion_savage':  {'points': 100, 'daily_max': None},
+    # Collector milestones
+    'ffxiv_mount_300':         {'points': 100, 'daily_max': None},
+    'ffxiv_mount_200':         {'points': 50, 'daily_max': None},
+    'ffxiv_mount_100':         {'points': 25, 'daily_max': None},
+    # Extreme clears - meaningful but not as prestige as savage/ultimate
+    'ffxiv_extreme_clear':     {'points': 25, 'daily_max': None},
+    # Character link - small bonus for connecting account
+    'ffxiv_char_linked':       {'points': 10, 'daily_max': None},
+    # --- Negative legacy ---
+    'report_upheld':           {'points': -20, 'daily_max': None},
+    'temp_ban':                {'points': -50, 'daily_max': None},
+}
+
+# Tier thresholds - score >= value = that tier
+LEGACY_TIERS = [
+    (25000, 5),  # Ascendant
+    (7500,  4),  # Champion
+    (2000,  3),  # Warden
+    (500,   2),  # Ranger
+    (0,     1),  # Wanderer
+]
+
+LEGACY_TIER_NAMES = {
+    1: 'Wanderer',
+    2: 'Ranger',
+    3: 'Warden',
+    4: 'Champion',
+    5: 'Ascendant',
+}
+
+
+def _calculate_legacy_tier(score: int) -> int:
+    """Return tier (1-5) based on legacy score."""
+    for threshold, tier in LEGACY_TIERS:
+        if score >= threshold:
+            return tier
+    return 1
+
+
+# Award flair definitions - auto-created per month when nominations close
+_AWARD_FLAIR_DEFS = {
+    'community': {'emoji': '🌟', 'color': 'gold'},
+    'lfg_host':  {'emoji': '🎯', 'color': 'cyan'},
+    'build':     {'emoji': '🏗️', 'color': 'lime'},
+    '7dtd':      {'emoji': '☣️', 'color': 'orange'},
+    'valheim':   {'emoji': '❄️', 'color': 'blue'},
+    'minecraft': {'emoji': '🧱', 'color': 'green'},
+    'dayz':      {'emoji': '🧟', 'color': 'red'},
+    'palworld':  {'emoji': '🐉', 'color': 'emerald'},
+}
+
+_AWARD_FLAIR_LABELS = {
+    'community': 'Most Helpful',
+    'lfg_host':  'LFG Host',
+    'build':     'Master Builder',
+    '7dtd':      'SYNAPSE MVP',
+    'valheim':   'Valheim Wanderer',
+    'minecraft': 'Minecraft Builder',
+    'dayz':      'DayZ Survivor',
+    'palworld':  'Palworld Tamer',
+}
+
+
+def grant_flair_award(user_id: int, category: str, month_year: str) -> int | None:
+    """Auto-create the monthly award flair if needed, then grant it to user_id.
+    Returns the flair id on success, None on failure.
+    Flair is exclusive + non-equippable (trophy only).
+    """
+    import time as _time
+    from app.db import get_db_session
+    from .models import WebFlair, WebUserFlair
+
+    label = _AWARD_FLAIR_LABELS.get(category)
+    defn = _AWARD_FLAIR_DEFS.get(category)
+    if not label or not defn:
+        logger.warning(f"grant_flair_award: unknown category '{category}'")
+        return None
+
+    flair_name = f"{label} - {month_year}"
+    now = int(_time.time())
+
+    try:
+        with get_db_session() as db:
+            # Get or create the flair
+            flair = db.query(WebFlair).filter_by(name=flair_name).first()
+            if not flair:
+                flair = WebFlair(
+                    name=flair_name,
+                    emoji=defn['emoji'],
+                    description=f"Awarded for {label} in {month_year}.",
+                    flair_type='exclusive',
+                    hp_cost=0,
+                    equippable=0,
+                    enabled=True,
+                    display_order=999,
+                    created_at=now,
+                    updated_at=now,
+                )
+                db.add(flair)
+                db.flush()
+
+            # Grant to user if not already owned
+            existing = db.query(WebUserFlair).filter_by(
+                user_id=user_id, flair_id=flair.id
+            ).first()
+            if not existing:
+                db.add(WebUserFlair(
+                    user_id=user_id,
+                    flair_id=flair.id,
+                    is_equipped=False,
+                    purchased_at=now,
+                ))
+            db.commit()
+            return flair.id
+    except Exception as e:
+        logger.error(f"grant_flair_award: failed for user {user_id} cat {category}: {e}")
+        return None
+
+
+def award_legacy(user_id, action_type, source='web', ref_id=None):
+    """
+    Award Legacy points to a user for the given action.
+    Mirrors award_xp() pattern exactly.
+    Always pass ref_id to prevent duplicate awards.
+    Returns points awarded (0 if capped, unknown action, or duplicate).
+    """
+    from sqlalchemy import text
+    from app.questlog_web.models import WebLegacyEvent, WebUser
+    from app.db import get_db_session
+
+    config = LEGACY_ACTIONS.get(action_type)
+    if not config:
+        logger.warning(f"award_legacy: unknown action_type '{action_type}'")
+        return 0
+
+    points = config['points']
+    daily_max = config['daily_max']
+
+    try:
+        with get_db_session() as db:
+            now = int(time.time())
+
+            # Duplicate check via ref_id
+            if ref_id is not None:
+                existing = db.execute(text(
+                    "SELECT id FROM web_legacy_events "
+                    "WHERE user_id=:uid AND action_type=:act AND ref_id=:ref LIMIT 1"
+                ), {'uid': user_id, 'act': action_type, 'ref': str(ref_id)}).fetchone()
+                if existing:
+                    return 0
+
+            # Daily cap check (skip for negative actions)
+            if daily_max is not None and points > 0:
+                today_start = now - (now % 86400)
+                count = db.execute(text(
+                    "SELECT COUNT(*) FROM web_legacy_events "
+                    "WHERE user_id=:uid AND action_type=:act AND created_at>=:ts"
+                ), {'uid': user_id, 'act': action_type, 'ts': today_start}).scalar()
+                if count >= daily_max:
+                    return 0
+
+            # Insert event
+            db.execute(text(
+                "INSERT INTO web_legacy_events (user_id, action_type, points, source, ref_id, created_at) "
+                "VALUES (:uid, :act, :pts, :src, :ref, :ts)"
+            ), {'uid': user_id, 'act': action_type, 'pts': points,
+                'src': source, 'ref': str(ref_id) if ref_id else None, 'ts': now})
+
+            # Update legacy_score and recalculate tier on web_users
+            db.execute(text(
+                "UPDATE web_users SET legacy_score = GREATEST(0, legacy_score + :pts) WHERE id = :uid"
+            ), {'pts': points, 'uid': user_id})
+
+            # Fetch new score and update tier
+            new_score = db.execute(text(
+                "SELECT legacy_score FROM web_users WHERE id = :uid"
+            ), {'uid': user_id}).scalar() or 0
+            new_tier = _calculate_legacy_tier(new_score)
+            db.execute(text(
+                "UPDATE web_users SET legacy_tier = :tier WHERE id = :uid"
+            ), {'tier': new_tier, 'uid': user_id})
+
+            db.commit()
+            return points
+
+    except Exception as e:
+        logger.error(f"award_legacy failed for user {user_id} action {action_type}: {e}")
+        return 0
+
+
+# =============================================================================
 # SOCIAL LAYER HELPERS
 # =============================================================================
 
@@ -1274,9 +1634,10 @@ def fetch_link_preview(url):
             return None
 
         # Resolve DNS and block all RFC-reserved ranges (pre-connect SSRF guard)
+        # getaddrinfo returns all records; check every resolved address to prevent SSRF via multi-homed hosts
         try:
-            addr = socket.gethostbyname(host)
-            if _is_blocked_ip(addr):
+            records = socket.getaddrinfo(host, None)
+            if not records or any(_is_blocked_ip(r[4][0]) for r in records):
                 return None
         except Exception:
             return None
@@ -1337,8 +1698,8 @@ def fetch_link_preview(url):
                 if img_parsed.scheme != 'https' or not img_parsed.hostname:
                     og.pop('image', None)
                 else:
-                    img_addr = socket.gethostbyname(img_parsed.hostname)
-                    if _is_blocked_ip(img_addr):
+                    img_records = socket.getaddrinfo(img_parsed.hostname, None)
+                    if not img_records or any(_is_blocked_ip(r[4][0]) for r in img_records):
                         og.pop('image', None)
             except Exception:
                 og.pop('image', None)
@@ -1362,6 +1723,170 @@ def sanitize_text(text_input, max_length=2000):
     clean = re.sub(r'\n{3,}', '\n\n', clean)
     clean = clean[:max_length].strip()
     return clean
+
+
+# HTML tags and attributes allowed in rendered article bodies.
+# This is the ONLY set that survives after markdown -> HTML conversion.
+# Everything else is stripped before the HTML ever reaches a template.
+_ARTICLE_ALLOWED_TAGS = frozenset({
+    'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+    'p', 'br', 'hr',
+    'strong', 'b', 'em', 'i', 'u', 's', 'del', 'ins', 'mark', 'small', 'sub', 'sup',
+    'ul', 'ol', 'li',
+    'blockquote', 'pre', 'code',
+    'table', 'thead', 'tbody', 'tr', 'th', 'td',
+    'a', 'img',
+    'div', 'span',
+    'details', 'summary',
+})
+
+_ARTICLE_ALLOWED_ATTRS = {
+    'a':   {'href', 'title', 'rel'},
+    'img': {'src', 'alt', 'title', 'width', 'height'},
+    'th':  {'scope', 'colspan', 'rowspan'},
+    'td':  {'colspan', 'rowspan'},
+    'code': {'class'},   # for syntax-highlight class names (e.g. language-python)
+    'pre':  {'class'},
+    'div':  {'class'},
+    'span': {'class'},
+}
+
+# Schemes allowed in href/src attributes
+_SAFE_URL_SCHEMES = frozenset({'http', 'https', 'mailto'})
+
+
+def _sanitize_url(url):
+    """Return url only if its scheme is in _SAFE_URL_SCHEMES, else '#'."""
+    from urllib.parse import urlparse
+    if not url:
+        return '#'
+    try:
+        scheme = urlparse(url.strip()).scheme.lower()
+    except Exception:
+        return '#'
+    if scheme not in _SAFE_URL_SCHEMES:
+        return '#'
+    return url.strip()
+
+
+def _strip_html_to_allowlist(html_source):
+    """
+    Walk the parsed HTML tree and rebuild it keeping only allowed tags/attrs.
+    Uses stdlib html.parser - no third-party sanitizer needed.
+    Enforces _SAFE_URL_SCHEMES on href and src to block javascript: and data: URIs.
+    """
+    import html as _html
+    from html.parser import HTMLParser
+
+    VOID_ELEMENTS = frozenset({
+        'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input',
+        'link', 'meta', 'param', 'source', 'track', 'wbr',
+    })
+
+    class _Sanitizer(HTMLParser):
+        def __init__(self):
+            super().__init__(convert_charrefs=False)
+            self._out = []
+
+        def handle_starttag(self, tag, attrs):
+            tag = tag.lower()
+            if tag not in _ARTICLE_ALLOWED_TAGS:
+                return
+            allowed_attr_names = _ARTICLE_ALLOWED_ATTRS.get(tag, set())
+            safe_attrs = []
+            for name, value in attrs:
+                name = name.lower()
+                if name not in allowed_attr_names:
+                    continue
+                if value is None:
+                    value = ''
+                if name in ('href', 'src'):
+                    value = _sanitize_url(value)
+                # Strip event handlers defensively (shouldn't reach here but belt+braces)
+                if name.startswith('on'):
+                    continue
+                safe_attrs.append(f'{_html.escape(name)}="{_html.escape(value)}"')
+            # Force rel="noopener noreferrer" on external links
+            if tag == 'a' and 'href' in {n for n, _ in attrs}:
+                has_rel = any(n.lower() == 'rel' for n, _ in attrs)
+                if not has_rel:
+                    safe_attrs.append('rel="noopener noreferrer"')
+                # Force target=_blank only when we have a full URL (not anchor)
+                href_val = next((v for n, v in attrs if n.lower() == 'href'), '')
+                if href_val and href_val.startswith('http'):
+                    safe_attrs.append('target="_blank"')
+            attr_str = (' ' + ' '.join(safe_attrs)) if safe_attrs else ''
+            if tag in VOID_ELEMENTS:
+                self._out.append(f'<{tag}{attr_str}>')
+            else:
+                self._out.append(f'<{tag}{attr_str}>')
+
+        def handle_endtag(self, tag):
+            tag = tag.lower()
+            if tag not in _ARTICLE_ALLOWED_TAGS:
+                return
+            VOID_ELEMENTS = frozenset({
+                'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input',
+                'link', 'meta', 'param', 'source', 'track', 'wbr',
+            })
+            if tag not in VOID_ELEMENTS:
+                self._out.append(f'</{tag}>')
+
+        def handle_data(self, data):
+            self._out.append(_html.escape(data, quote=False))
+
+        def handle_entityref(self, name):
+            self._out.append(f'&{_html.escape(name)};')
+
+        def handle_charref(self, name):
+            self._out.append(f'&#{_html.escape(name)};')
+
+        def get_output(self):
+            return ''.join(self._out)
+
+    sanitizer = _Sanitizer()
+    sanitizer.feed(html_source)
+    return sanitizer.get_output()
+
+
+def sanitize_article_html(markdown_source, max_chars=100_000):
+    """
+    Convert Markdown source to sanitized HTML safe for direct template rendering.
+
+    Pipeline:
+      1. Hard-limit raw markdown size to prevent DoS via huge inputs.
+      2. Convert markdown -> HTML using python-markdown with safe extensions.
+      3. Strip all tags/attrs not on the allowlist (_ARTICLE_ALLOWED_TAGS).
+      4. Enforce URL scheme allowlist on every href/src.
+      5. Return the resulting HTML string.
+
+    The returned string is marked safe for Django's |safe filter ONLY because
+    we fully control what tags and attributes survive. Never call this on
+    arbitrary HTML that skipped step 2.
+    """
+    import markdown as _md
+
+    if not markdown_source:
+        return ''
+
+    # Hard cap on input size - prevents ReDoS / CPU exhaustion on pathological markdown
+    source = str(markdown_source)[:max_chars]
+
+    # Convert markdown to raw HTML.
+    # Extensions used:
+    #   - tables:   GitHub-style tables
+    #   - fenced_code: ``` code blocks
+    #   - nl2br:    newlines become <br> inside paragraphs
+    #   - toc:      auto-generates id attrs on headings for anchor links
+    #   - sane_lists: fixes mixed list edge cases
+    raw_html = _md.markdown(
+        source,
+        extensions=['tables', 'fenced_code', 'nl2br', 'toc', 'sane_lists'],
+        output_format='html',
+    )
+
+    # Walk the HTML tree and enforce the allowlist
+    return _strip_html_to_allowlist(raw_html)
 
 
 def is_blocked(db, user_id_a, user_id_b):
@@ -1502,10 +2027,24 @@ def process_uploaded_image(uploaded_file, dest_subdir='posts',
     if is_gif and getattr(img, 'is_animated', False):
         ext = '.gif'
         save_path = os.path.join(base_dir, f'{file_uuid}{ext}')
-        uploaded_file.seek(0)
-        with open(save_path, 'wb') as f:
-            for chunk in uploaded_file.chunks():
-                f.write(chunk)
+        # Re-encode through Pillow to strip embedded scripts/metadata rather than writing raw bytes
+        try:
+            frames = []
+            durations = []
+            for frame_idx in range(getattr(img, 'n_frames', 1)):
+                img.seek(frame_idx)
+                frames.append(img.copy().convert('RGBA'))
+                durations.append(img.info.get('duration', 100))
+            frames[0].save(
+                save_path, format='GIF', save_all=True, append_images=frames[1:],
+                loop=0, duration=durations, optimize=False,
+            )
+        except Exception:
+            # Fallback: write raw bytes if Pillow multi-frame save fails
+            uploaded_file.seek(0)
+            with open(save_path, 'wb') as f:
+                for chunk in uploaded_file.chunks():
+                    f.write(chunk)
         saved_size = os.path.getsize(save_path)
     else:
         ext = '.webp'
@@ -1619,6 +2158,8 @@ def serialize_user_brief(user):
         'avatar_url': user.avatar_url or user.steam_avatar,
         'is_banned': user.is_banned,
         'is_vip': bool(user.is_vip),
+        'is_ffxiv_member': bool(getattr(user, 'is_ffxiv_member', False)),
+        'is_contributor': bool(getattr(user, 'is_contributor', False)),
         'web_level': user.web_level or 1,
         'rank_title': rank_title,
         'flair_emoji': flair_emoji,
@@ -1642,6 +2183,7 @@ def serialize_user_admin(user):
         'discord_id': user.discord_id,
         'email': user.email,
         'is_admin': user.is_admin,
+        'is_mod': user.is_mod,
         'created_at': user.created_at,
         'last_login_at': user.last_login_at,
     })
@@ -1777,8 +2319,16 @@ def serialize_post(post, current_user_id=None, db=None, following_ids=None):
     following_ids: set/frozenset of user IDs that the current user follows,
     used to populate author._following so the follow button renders correctly."""
     author_data = serialize_user_brief(post.author) if post.author else None
-    if author_data and following_ids is not None:
-        author_data['_following'] = post.author.id in following_ids
+    if author_data and post.author:
+        if following_ids is not None:
+            author_data['_following'] = post.author.id in following_ids
+        elif current_user_id and db and current_user_id != post.author.id:
+            from app.questlog_web.models import WebFollow
+            author_data['_following'] = db.query(WebFollow).filter_by(
+                follower_id=current_user_id, following_id=post.author.id
+            ).first() is not None
+        else:
+            author_data['_following'] = False
 
     data = {
         'id': post.id,
@@ -1793,6 +2343,10 @@ def serialize_post(post, current_user_id=None, db=None, following_ids=None):
         'game_tag_id': post.game_tag_id,
         'game_tag_name': post.game_tag_name,
         'game_tag_steam_id': post.game_tag_steam_id,
+        'game_tag_cover_url': (
+            f'https://cdn.cloudflare.steamstatic.com/steam/apps/{post.game_tag_steam_id}/library_600x900.jpg'
+            if post.game_tag_steam_id else None
+        ),
         'is_pinned': post.is_pinned,
         'edited_at': post.edited_at,
         'edit_count': post.edit_count or 0,
@@ -1823,3 +2377,39 @@ def serialize_post(post, current_user_id=None, db=None, following_ids=None):
         data['liked_by_me'] = like is not None
 
     return data
+
+
+def get_steam_cover_url(aid):
+    """Return a working cover image URL for a Steam appid.
+    Tries the standard CDN first. Falls back to the Store API header_image
+    for new titles not yet on the standard CDN. Result cached 24h."""
+    try:
+        from django.core.cache import cache
+        import requests
+        cache_key = f'steam_cover_{aid}'
+        cached = cache.get(cache_key)
+        if cached is not None:
+            return cached
+        standard = f'https://cdn.cloudflare.steamstatic.com/steam/apps/{aid}/capsule_sm_120.jpg'
+        try:
+            r = requests.head(standard, timeout=3, allow_redirects=True)
+            if r.status_code == 200:
+                cache.set(cache_key, standard, 86400)
+                return standard
+        except Exception:
+            pass
+        try:
+            r = requests.get(
+                f'https://store.steampowered.com/api/appdetails?appids={aid}&filters=basic',
+                timeout=4,
+            )
+            img = r.json().get(str(aid), {}).get('data', {}).get('header_image', '')
+            if img:
+                cache.set(cache_key, img, 86400)
+                return img
+        except Exception:
+            pass
+        cache.set(cache_key, standard, 3600)
+        return standard
+    except Exception:
+        return f'https://cdn.cloudflare.steamstatic.com/steam/apps/{aid}/capsule_sm_120.jpg'

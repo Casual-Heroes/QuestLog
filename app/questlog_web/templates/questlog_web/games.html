@@ -299,52 +299,6 @@ function buildGenreSelect(games) {
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 
-platformSelect = createCustomSelect({
-  container: '#platformFilterContainer',
-  name: 'platformFilter',
-  items: [
-    { value: '',            label: 'All Platforms' },
-    { value: 'pc',          label: '🖥 PC' },
-    { value: 'playstation', label: '🎮 PlayStation' },
-    { value: 'xbox',        label: '🟢 Xbox' },
-    { value: 'nintendo',    label: '🔴 Nintendo' },
-    { value: 'mac',         label: '🍎 Mac' },
-    { value: 'linux',       label: '🐧 Linux' },
-  ],
-  selected: '',
-  color: 'green',
-  onSelect: filterAndRender,
-});
-
-priceSelect = createCustomSelect({
-  container: '#priceFilterContainer',
-  name: 'priceFilter',
-  items: [
-    { value: '',     label: 'Any Price' },
-    { value: 'free', label: 'Free' },
-    { value: 'paid', label: 'Paid' },
-  ],
-  selected: '',
-  color: 'green',
-  onSelect: filterAndRender,
-});
-
-sortSelect = createCustomSelect({
-  container: '#sortFilterContainer',
-  name: 'sortFilter',
-  items: [
-    { value: 'newest',  label: 'Newest Found' },
-    { value: 'name',    label: 'Name A–Z' },
-    { value: 'score',   label: 'Review Score' },
-    { value: 'release', label: 'Release Date' },
-  ],
-  selected: 'newest',
-  color: 'green',
-  onSelect: filterAndRender,
-});
-
-document.getElementById('searchFilter').addEventListener('input', filterAndRender);
-
 async function loadGames() {
   try {
     const resp = await fetch('{% url "questlog_web_api_games" %}');
@@ -362,6 +316,53 @@ async function loadGames() {
   }
 }
 
-document.addEventListener('DOMContentLoaded', loadGames);
+document.addEventListener('DOMContentLoaded', function() {
+  platformSelect = createCustomSelect({
+    container: '#platformFilterContainer',
+    name: 'platformFilter',
+    items: [
+      { value: '',            label: 'All Platforms' },
+      { value: 'pc',          label: 'PC' },
+      { value: 'playstation', label: 'PlayStation' },
+      { value: 'xbox',        label: 'Xbox' },
+      { value: 'nintendo',    label: 'Nintendo' },
+      { value: 'mac',         label: 'Mac' },
+      { value: 'linux',       label: 'Linux' },
+    ],
+    selected: '',
+    color: 'green',
+    onSelect: filterAndRender,
+  });
+
+  priceSelect = createCustomSelect({
+    container: '#priceFilterContainer',
+    name: 'priceFilter',
+    items: [
+      { value: '',     label: 'Any Price' },
+      { value: 'free', label: 'Free' },
+      { value: 'paid', label: 'Paid' },
+    ],
+    selected: '',
+    color: 'green',
+    onSelect: filterAndRender,
+  });
+
+  sortSelect = createCustomSelect({
+    container: '#sortFilterContainer',
+    name: 'sortFilter',
+    items: [
+      { value: 'newest',  label: 'Newest Found' },
+      { value: 'name',    label: 'Name A-Z' },
+      { value: 'score',   label: 'Review Score' },
+      { value: 'release', label: 'Release Date' },
+    ],
+    selected: 'newest',
+    color: 'green',
+    onSelect: filterAndRender,
+  });
+
+  document.getElementById('searchFilter').addEventListener('input', filterAndRender);
+  loadGames();
+});
 </script>
 {% endblock %}

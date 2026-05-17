@@ -404,8 +404,8 @@
 const SPACE_ID_URL = '{{ space_id_url }}';
 const SETTINGS = JSON.parse('{{ settings_json|escapejs }}');
 const ROOMS = JSON.parse('{{ rooms_json|escapejs }}');
-const API_URL = '/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/settings/';
-const WARNINGS_API = '/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/warnings/';
+const API_URL = 'api/dashboard/matrix/' + SPACE_ID_URL + '/settings/';
+const WARNINGS_API = 'api/dashboard/matrix/' + SPACE_ID_URL + '/warnings/';
 
 const roomsWithBlank = [{value: '', label: '-- None --'}, ...ROOMS];
 const warnItems = [
@@ -570,7 +570,7 @@ function submitKick() {
   const room_id = csKickRoomSelect ? (csKickRoomSelect.getValue() || null) : null;
   const reason = document.getElementById('kickModReason').value.trim();
   if (!matrix_id) { showToast('Matrix ID required.', false); return; }
-  csrfFetch('/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/members/kick/', {
+  csrfFetch('/api/dashboard/matrix/' + SPACE_ID_URL + '/members/kick/', {
     method: 'POST', body: JSON.stringify({matrix_id, room_id, reason, all_rooms: !room_id})
   }).then(r => r.json()).then(d => {
     if (d.ok) { showToast('Kick queued.'); document.getElementById('kickModal').classList.add('hidden'); }
@@ -582,7 +582,7 @@ function submitBanMod() {
   const matrix_id = document.getElementById('banModUserId').value.trim();
   const reason = document.getElementById('banModReason').value.trim();
   if (!matrix_id) { showToast('Matrix ID required.', false); return; }
-  csrfFetch('/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/members/ban/', {
+  csrfFetch('/api/dashboard/matrix/' + SPACE_ID_URL + '/members/ban/', {
     method: 'POST', body: JSON.stringify({matrix_id, reason})
   }).then(r => r.json()).then(d => {
     if (d.ok) { showToast('Ban queued.'); document.getElementById('banModModal').classList.add('hidden'); }
@@ -593,7 +593,7 @@ function submitBanMod() {
 function submitUnban() {
   const matrix_id = document.getElementById('unbanUserId').value.trim();
   if (!matrix_id) { showToast('Matrix ID required.', false); return; }
-  csrfFetch('/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/members/ban/', {
+  csrfFetch('/api/dashboard/matrix/' + SPACE_ID_URL + '/members/ban/', {
     method: 'DELETE', body: JSON.stringify({matrix_id})
   }).then(r => r.json()).then(d => {
     if (d.ok) { showToast('Unban queued.'); document.getElementById('unbanModal').classList.add('hidden'); }
@@ -606,7 +606,7 @@ function submitMute() {
   const duration = parseInt(document.getElementById('muteDuration').value);
   const reason = document.getElementById('muteReason').value.trim();
   if (!matrix_id || !duration) { showToast('Matrix ID and duration required.', false); return; }
-  csrfFetch('/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/members/powerlevel/', {
+  csrfFetch('/api/dashboard/matrix/' + SPACE_ID_URL + '/members/powerlevel/', {
     method: 'POST', body: JSON.stringify({matrix_id, level: -1, duration_minutes: duration, reason})
   }).then(r => r.json()).then(d => {
     if (d.ok) { showToast('Mute queued.'); document.getElementById('muteModal').classList.add('hidden'); }
@@ -621,8 +621,8 @@ function submitAllRooms() {
   if (!matrix_id) { showToast('Matrix ID required.', false); return; }
   if (!confirm('Execute "' + action + ' from all rooms" for ' + matrix_id + '?')) return;
   const url = action === 'ban'
-    ? '/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/members/ban/'
-    : '/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/members/kick/';
+    ? 'api/dashboard/matrix/' + SPACE_ID_URL + '/members/ban/'
+    : 'api/dashboard/matrix/' + SPACE_ID_URL + '/members/kick/';
   csrfFetch(url, {method: 'POST', body: JSON.stringify({matrix_id, reason, all_rooms: true})})
     .then(r => r.json()).then(d => {
       if (d.ok) { showToast('Action queued.'); document.getElementById('allRoomsModal').classList.add('hidden'); }

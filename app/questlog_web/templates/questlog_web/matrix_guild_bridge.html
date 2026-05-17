@@ -88,7 +88,7 @@
 
       <!-- Fluxer section -->
       <div class="border-t border-neutral-800 pt-3">
-        <p class="text-xs text-gray-500 uppercase font-semibold mb-3"><i class="fas fa-bolt text-purple-400 mr-1"></i>Fluxer (optional)</p>
+        <p class="text-xs text-gray-500 uppercase font-semibold mb-3"><img src="{% static 'img/siteassets/fluxer-favicon.png' %}" style="width:1em;height:1em;object-fit:contain;vertical-align:middle;display:inline-block;" alt="Fluxer">Fluxer (optional)</p>
         {% if fluxer_guilds_json != '[]' %}
         <div class="mb-3">
           <label class="block text-xs text-gray-400 mb-1">Fluxer Server</label>
@@ -140,7 +140,7 @@ const SPACE_ID = '{{ space_id_url }}';
 const ROOMS = JSON.parse('{{ rooms_json|escapejs }}');
 const DISCORD_GUILDS = JSON.parse('{{ discord_guilds_json|escapejs }}');
 const FLUXER_GUILDS = JSON.parse('{{ fluxer_guilds_json|escapejs }}');
-const BRIDGES_API = '/ql/api/dashboard/matrix/' + SPACE_ID + '/bridges/';
+const BRIDGES_API = 'api/dashboard/matrix/' + SPACE_ID + '/bridges/';
 
 let matrixRoomSelect = null;
 let discordGuildSelect = null;
@@ -329,7 +329,7 @@ function loadBridges() {
           const fc = fg ? fg.channels.find(c => c.value === b.fluxer_channel_id) : null;
           const fcLabel = fc ? '#' + fc.label : b.fluxer_channel_id;
           const fgLabel = fg ? fg.name : (b.fluxer_guild_id || '');
-          targets.push(`<span class="text-purple-400"><i class="fas fa-bolt mr-1"></i>${escapeHtml(fgLabel)} / ${escapeHtml(fcLabel)}</span>`);
+          targets.push(`<span class="text-purple-400"><img src="${FLUXER_ICON_URL}" style="width:0.85em;height:0.85em;object-fit:contain;vertical-align:middle;margin-right:0.25rem;" alt="Fluxer">${escapeHtml(fgLabel)} / ${escapeHtml(fcLabel)}</span>`);
         }
         const roomLabel = ROOMS.find(r => r.value === b.matrix_room_id);
         return `

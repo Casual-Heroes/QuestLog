@@ -140,7 +140,7 @@
 
   async function loadShop() {
     try {
-      const res = await csrfFetch('/ql/api/flairs/');
+      const res = await csrfFetch('/api/flairs/');
       const data = await res.json();
       document.getElementById('shop-loading').classList.add('hidden');
 
@@ -221,7 +221,17 @@
     }
 
     let btn = '';
-    if (equipped || equipped2) {
+    if (f.flair_type === 'exclusive' && !owned) {
+      // Award-only, not yet earned
+      btn = `<button disabled class="w-full py-2 bg-neutral-900 text-purple-600 text-xs rounded-lg cursor-not-allowed font-medium">
+               <i class="fas fa-crown mr-1"></i>Award Only
+             </button>`;
+    } else if (owned && f.equippable === false) {
+      // Trophy flair - owned but can't equip
+      btn = `<button disabled class="w-full py-2 bg-neutral-800 text-yellow-600 text-xs rounded-lg cursor-not-allowed font-medium">
+               <i class="fas fa-trophy mr-1"></i>Trophy
+             </button>`;
+    } else if (equipped || equipped2) {
       const unequipBtns = [];
       if (equipped) unequipBtns.push(`<button onclick="doUnequip(1)" class="flex-1 py-2 bg-neutral-700 hover:bg-neutral-600 text-white text-xs rounded-lg transition font-medium"><i class="fas fa-times mr-1"></i>S1</button>`);
       if (equipped2) unequipBtns.push(`<button onclick="doUnequip(2)" class="flex-1 py-2 bg-neutral-700 hover:bg-neutral-600 text-white text-xs rounded-lg transition font-medium"><i class="fas fa-times mr-1"></i>S2</button>`);
@@ -280,7 +290,7 @@
 
   window.doBuy = async function(flairId, cost) {
     try {
-      const res = await csrfFetch(`/ql/api/flairs/${flairId}/buy/`, { method: 'POST' });
+      const res = await csrfFetch(`/api/flairs/${flairId}/buy/`, { method: 'POST' });
       const data = await res.json();
       if (data.success) {
         currentHp = data.hero_points;
@@ -296,7 +306,7 @@
   window.doEquip = async function(flairId, slot) {
     slot = slot || 1;
     try {
-      const res = await csrfFetch(`/ql/api/flairs/${flairId}/equip/`, {
+      const res = await csrfFetch(`/api/flairs/${flairId}/equip/`, {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({slot: slot}),
@@ -314,7 +324,7 @@
   window.doUnequip = async function(slot) {
     slot = slot || 1;
     try {
-      const res = await csrfFetch('/ql/api/flairs/unequip/', {
+      const res = await csrfFetch('/api/flairs/unequip/', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({slot: slot}),

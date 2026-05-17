@@ -156,58 +156,51 @@ def _get_twitch_follower_count(twitch_user_id: str) -> int | None:
         return None
 
 
-def _get_latest_youtube_video(channel_id: str, api_key: str) -> dict | None:
+def _get_latest_youtube_video(channel_id: str, api_key: str = None) -> dict | None:
     """
-    Return the most recent public uploaded video for a YouTube channel using the API key.
-    Returns dict with id, title, thumbnail_url, published_at (epoch int), or None on failure.
+    Return the most recent public video for a YouTube channel via the free RSS feed.
+    No API key or quota required. Returns dict with id, title, thumbnail_url,
+    published_at (epoch int), or None on failure.
     """
-    if not api_key or not channel_id:
+    import xml.etree.ElementTree as _ET
+    if not channel_id:
         return None
     try:
-        resp = requests.get(
-            'https://www.googleapis.com/youtube/v3/search',
-            params={
-                'part': 'snippet',
-                'channelId': channel_id,
-                'type': 'video',
-                'order': 'date',
-                'maxResults': 1,
-                'key': api_key,
-            },
-            timeout=10,
-        )
-        resp.raise_for_status()
-        items = resp.json().get('items', [])
-        if not items:
+        rss_url = f'https://www.youtube.com/feeds/videos.xml?channel_id={channel_id}'
+        resp = requests.get(rss_url, timeout=10, headers={'User-Agent': 'Mozilla/5.0'})
+        if resp.status_code != 200:
             return None
-        item = items[0]
-        snippet = item.get('snippet', {})
-        video_id = item.get('id', {}).get('videoId', '')
+        ns = {
+            'atom': 'http://www.w3.org/2005/Atom',
+            'yt':   'http://www.youtube.com/xml/schemas/2015',
+            'media':'http://search.yahoo.com/mrss/',
+        }
+        root = _ET.fromstring(resp.text)
+        entry = root.find('atom:entry', ns)
+        if entry is None:
+            return None
+        video_id = entry.findtext('yt:videoId', namespaces=ns) or ''
         if not video_id:
             return None
-        published_str = snippet.get('publishedAt', '')  # ISO 8601
+        title = (entry.findtext('atom:title', namespaces=ns) or '')[:300]
+        published_str = entry.findtext('atom:published', namespaces=ns) or ''
         published_epoch = 0
         if published_str:
-            from datetime import datetime, timezone as tz
+            from datetime import datetime
             try:
                 dt = datetime.fromisoformat(published_str.replace('Z', '+00:00'))
                 published_epoch = int(dt.timestamp())
             except Exception:
                 pass
-        thumbnail = (
-            snippet.get('thumbnails', {}).get('high', {}).get('url') or
-            snippet.get('thumbnails', {}).get('medium', {}).get('url') or
-            snippet.get('thumbnails', {}).get('default', {}).get('url') or
-            f'https://img.youtube.com/vi/{video_id}/hqdefault.jpg'
-        )
+        thumbnail = f'https://img.youtube.com/vi/{video_id}/hqdefault.jpg'
         return {
             'id': video_id,
-            'title': (snippet.get('title') or '')[:300],
+            'title': title,
             'thumbnail_url': thumbnail,
             'published_at': published_epoch,
         }
     except Exception as e:
-        logger.warning(f'check_live_status: latest YouTube video failed for {channel_id}: {e}')
+        logger.warning(f'check_live_status: latest YouTube video (RSS) failed for {channel_id}: {e}')
         return None
 
 
@@ -301,7 +294,7 @@ class Command(BaseCommand):
                                     platform=platform,
                                     title=stream_info['title'],
                                     stream_url=stream_info['url'],
-                                    profile_url=f'https://casual-heroes.com/ql/u/{u.username}/',
+                                    profile_url=f'https://questlog.casual-heroes.com/u/{u.username}/',
                                 )
                             except Exception as exc:
                                 logger.warning(f'check_live_status: go_live notification failed for {u.username}: {exc}')

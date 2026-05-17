@@ -50,7 +50,16 @@
         </div>
         <p id="communityShortDesc" class="text-gray-400 text-sm mt-2 font-medium hidden"></p>
         <p id="communityDescription" class="text-gray-300 mt-3 text-sm leading-relaxed hidden"></p>
+        <div id="communityGuilds" class="hidden flex items-center gap-2 mt-3"></div>
       </div>
+    </div>
+
+    <!-- Games We Play -->
+    <div id="gamesSection" class="hidden bg-neutral-900 rounded-2xl border border-neutral-800 p-5">
+      <h3 class="text-sm font-semibold text-white mb-4 flex items-center gap-2">
+        <i class="fas fa-gamepad text-indigo-400 text-xs"></i>Games We Play
+      </h3>
+      <div id="gamesList" class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-3"></div>
     </div>
 
     <!-- Tags -->
@@ -77,6 +86,79 @@
       </div>
     </div>
 
+    <!-- Owner management panel (only shown to owner) -->
+    <div id="ownerPanel" class="hidden bg-neutral-900 border border-indigo-500/20 rounded-2xl p-5">
+      <h3 class="text-sm font-semibold text-white mb-4 flex items-center gap-2">
+        <i class="fas fa-cog text-indigo-400 text-xs"></i>Manage Your Community
+      </h3>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+
+        <div id="memberCountRow">
+          <label class="block text-xs text-gray-400 mb-1">Member Count</label>
+          <input type="number" id="editMemberCount" min="0" max="9999999"
+            class="w-full bg-neutral-800 border border-neutral-700 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:border-indigo-500 transition"
+            placeholder="e.g. 250">
+          <p class="text-xs text-gray-600 mt-1">Update this manually from your server dashboard.</p>
+        </div>
+        <div id="platformSyncHint" class="hidden sm:col-span-2">
+          <p class="text-xs text-indigo-400/70 flex items-center gap-1.5">
+            <i class="fas fa-sync-alt text-[10px]"></i>
+            Member count and icon are synced automatically from your linked server.
+          </p>
+        </div>
+
+        <div>
+          <label class="block text-xs text-gray-400 mb-1">Activity Level</label>
+          <select id="editActivityLevel"
+            class="w-full bg-neutral-800 border border-neutral-700 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:border-indigo-500 transition">
+            <option value="unknown">Unknown</option>
+            <option value="dormant">Dormant - Quiet, low activity</option>
+            <option value="squire">Squire - Getting started</option>
+            <option value="champion">Champion - Active daily</option>
+            <option value="legendary">Legendary - Very active</option>
+            <option value="mythic">Mythic - Thriving community</option>
+          </select>
+        </div>
+
+        <div class="sm:col-span-2">
+          <label class="block text-xs text-gray-400 mb-1">Short Description <span class="text-gray-600">(shown in listings)</span></label>
+          <input type="text" id="editShortDesc" maxlength="120"
+            class="w-full bg-neutral-800 border border-neutral-700 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:border-indigo-500 transition"
+            placeholder="One-line description of your community">
+        </div>
+
+        <div class="sm:col-span-2">
+          <label class="block text-xs text-gray-400 mb-1">Full Description</label>
+          <textarea id="editDescription" rows="4" maxlength="2000"
+            class="w-full bg-neutral-800 border border-neutral-700 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:border-indigo-500 transition resize-none"
+            placeholder="Tell people about your community..."></textarea>
+        </div>
+
+        <div>
+          <label class="block text-xs text-gray-400 mb-1">Invite URL</label>
+          <input type="url" id="editInviteUrl"
+            class="w-full bg-neutral-800 border border-neutral-700 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:border-indigo-500 transition"
+            placeholder="https://discord.gg/...">
+        </div>
+
+        <div>
+          <label class="block text-xs text-gray-400 mb-1">Website URL <span class="text-gray-600">(optional)</span></label>
+          <input type="url" id="editWebsiteUrl"
+            class="w-full bg-neutral-800 border border-neutral-700 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:border-indigo-500 transition"
+            placeholder="https://...">
+        </div>
+
+      </div>
+
+      <div class="flex items-center gap-3 mt-5">
+        <button onclick="saveCommunityEdits()"
+          class="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold rounded-xl transition">
+          Save Changes
+        </button>
+        <span id="saveStatus" class="text-xs text-gray-500"></span>
+      </div>
+    </div>
+
   </div>
 
   <!-- Error -->
@@ -94,18 +176,7 @@ document.addEventListener('DOMContentLoaded', loadCommunity);
 
 const communityId = {{ community_id }};
 
-const PLATFORM_ICONS = {
-  discord:   'fab fa-discord text-indigo-400',
-  fluxer:    'fas fa-bolt text-yellow-400',
-  matrix:    'fas fa-cube text-green-400',
-  kloak:     'fas fa-user-shield text-slate-400',
-  stoat:     'fas fa-network-wired text-teal-400',
-  teamspeak: 'fas fa-headset text-blue-400',
-  mumble:    'fas fa-microphone text-purple-400',
-  guilded:   'fas fa-shield-alt text-yellow-400',
-  root:      'fas fa-tree text-emerald-400',
-  other:     'fas fa-globe text-gray-400',
-};
+const PLATFORM_ICONS = {}; // legacy - use platformIconHtml()
 
 const ACTIVITY_TIERS = {
   dormant:   { label: 'Dormant',   icon: 'fas fa-moon',      color: 'text-gray-400' },
@@ -124,7 +195,7 @@ const SOCIAL_BUTTONS = [
 
 async function loadCommunity() {
   try {
-    const r = await fetch(`/ql/api/communities/${communityId}/`);
+    const r = await fetch(`/api/communities/${communityId}/`);
     if (!r.ok) throw new Error('not found');
     const c = await r.json();
 
@@ -134,8 +205,7 @@ async function loadCommunity() {
     document.getElementById('communityTitle').textContent = c.name;
 
     // Header icon (platform-based)
-    const iconClass = PLATFORM_ICONS[c.platform] || PLATFORM_ICONS.other;
-    document.getElementById('headerIcon').className = iconClass + ' text-2xl';
+    setPlatformIcon(document.getElementById('headerIcon'), c.platform, 'text-2xl');
 
     // Banner
     if (c.banner_url) {
@@ -150,12 +220,12 @@ async function loadCommunity() {
     if (c.icon_url) {
       iconEl.innerHTML = `<img src="${escapeHtml(c.icon_url)}" class="w-20 h-20 rounded-xl object-cover">`;
     } else {
-      iconEl.innerHTML = `<i class="${escapeHtml(iconClass)} text-3xl"></i>`;
+      iconEl.innerHTML = platformIconHtml(c.platform, 'text-3xl');
     }
 
     // Platform + members + activity inline badges
     document.getElementById('communityPlatform').innerHTML =
-      `<i class="${escapeHtml(iconClass)} mr-1"></i><span class="capitalize">${escapeHtml(c.platform)}</span>`;
+      `${platformIconHtml(c.platform, 'mr-1')}<span class="capitalize">${escapeHtml(c.platform)}</span>`;
     document.getElementById('communityMembers').innerHTML =
       `<i class="fas fa-users mr-1"></i>${c.member_count.toLocaleString()} members`;
 
@@ -186,6 +256,65 @@ async function loadCommunity() {
         </a>`;
     }
 
+    // Guilds inline in header
+    if (c.guild_game && c.guild_game.length) {
+      const GUILD_META = {
+        ffxiv: { label: 'Final Fantasy XIV', icon: '/static/img/games/guilds/ffxiv.png', url: '/ffxiv/' },
+        eso:   { label: 'Elder Scrolls Online', icon: '/static/img/games/guilds/esoguild.png', url: '/eso/' },
+        wow:   { label: 'World of Warcraft', icon: '/static/img/games/guilds/WoWlogo.png', url: null },
+        gw2:   { label: 'Guild Wars 2', icon: null, url: null },
+        other: { label: 'MMO Guild', icon: null, url: null },
+      };
+      const guildsSpan = document.getElementById('communityGuilds');
+      if (guildsSpan) {
+        guildsSpan.innerHTML = `<i class="fas fa-shield-alt text-amber-400 text-xs"></i><span class="text-gray-500 text-xs font-medium">Guilds</span>`
+          + c.guild_game.map(g => {
+            const meta = GUILD_META[g] || { label: g, icon: null, url: null };
+            const img = meta.icon
+              ? `<img src="${meta.icon}" alt="${escapeHtml(meta.label)}" title="${escapeHtml(meta.label)}" class="w-7 h-7 rounded-lg object-cover opacity-90 hover:opacity-100 transition">`
+              : `<i class="fas fa-shield-alt text-amber-400" title="${escapeHtml(meta.label)}"></i>`;
+            return meta.url
+              ? `<a href="${meta.url}" title="${escapeHtml(meta.label)}" class="flex-shrink-0">${img}</a>`
+              : `<span class="flex-shrink-0">${img}</span>`;
+          }).join('');
+        guildsSpan.classList.remove('hidden');
+      }
+    }
+
+    // Games We Play
+    if (c.games && c.games.length) {
+      document.getElementById('gamesSection').classList.remove('hidden');
+      document.getElementById('gamesList').innerHTML = c.games.map(g => {
+        const name = typeof g === 'string' ? g : g.name;
+        const cover = (typeof g === 'object' && g.cover_url) ? g.cover_url : null;
+        const appId = (typeof g === 'object' && g.steam_app_id) ? g.steam_app_id : null;
+        const isMP = typeof g === 'object' ? g.multiplayer : true;
+        const steamUrl = appId
+          ? `https://store.steampowered.com/app/${appId}/`
+          : `https://store.steampowered.com/search/?term=${encodeURIComponent(name)}`;
+        const lfgBtn = isMP
+          ? `<a href="/ql/lfg/create/?game=${encodeURIComponent(name)}"
+               class="mt-1 flex items-center justify-center gap-1 text-[10px] bg-indigo-600/80 hover:bg-indigo-500 text-white py-0.5 rounded-md font-semibold whitespace-nowrap transition w-full"
+               title="Find group for ${escapeHtml(name)}">
+               <i class="fas fa-users text-[9px]"></i>LFG
+             </a>`
+          : '';
+        const img = cover
+          ? `<img src="${escapeHtml(cover)}" alt="${escapeHtml(name)}" class="w-full h-full object-cover" loading="lazy" onerror="this.style.display='none'">`
+          : `<div class="w-full h-full flex items-center justify-center"><i class="fas fa-gamepad text-gray-600 text-lg"></i></div>`;
+        return `<div class="group flex flex-col">
+          <a href="${steamUrl}" target="_blank" rel="noopener"
+             class="block w-full aspect-[2/3] rounded-xl overflow-hidden bg-neutral-800 border border-neutral-700 group-hover:border-indigo-500/50 transition relative">
+            ${img}
+            <div class="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition rounded-xl flex items-start justify-center pt-2 px-1">
+              <span class="text-white text-[10px] font-medium text-center leading-tight line-clamp-3">${escapeHtml(name)}</span>
+            </div>
+          </a>
+          ${lfgBtn}
+        </div>`;
+      }).join('');
+    }
+
     // Tags
     if (c.tags && c.tags.length) {
       document.getElementById('tagsSection').classList.remove('hidden');
@@ -213,14 +342,68 @@ async function loadCommunity() {
       `<i class="${escapeHtml(tier.icon)} mr-1"></i>${escapeHtml(tier.label)}`;
     document.getElementById('statActivity').className = `text-xl font-bold ${tier.color}`;
 
+    // Owner panel
+    if (c.is_owner) {
+      const panel = document.getElementById('ownerPanel');
+      panel.classList.remove('hidden');
+      document.getElementById('editMemberCount').value = c.member_count || 0;
+      document.getElementById('editActivityLevel').value = c.activity_level || 'unknown';
+      document.getElementById('editShortDesc').value = c.short_description || '';
+      document.getElementById('editDescription').value = c.description || '';
+      document.getElementById('editInviteUrl').value = c.invite_url || '';
+      document.getElementById('editWebsiteUrl').value = c.website_url || '';
+
+      // Hide member count field if platform is linked - pulled automatically
+      const platformLinked = (c.platform === 'fluxer' || c.platform === 'discord');
+      if (platformLinked) {
+        const mcRow = document.getElementById('memberCountRow');
+        if (mcRow) {
+          mcRow.classList.add('hidden');
+          const hint = document.getElementById('platformSyncHint');
+          if (hint) hint.classList.remove('hidden');
+        }
+      }
+    }
+
     document.getElementById('loadingState').classList.add('hidden');
     document.getElementById('communityContent').classList.remove('hidden');
 
   } catch (e) {
-    console.error(e);
     document.getElementById('loadingState').classList.add('hidden');
     document.getElementById('errorState').classList.remove('hidden');
   }
 }
+
+window.saveCommunityEdits = async function() {
+  const status = document.getElementById('saveStatus');
+  status.textContent = 'Saving...';
+  status.className = 'text-xs text-gray-400';
+  try {
+    const resp = await csrfFetch('/api/communities/' + communityId + '/', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        member_count: parseInt(document.getElementById('editMemberCount').value) || 0,
+        activity_level: document.getElementById('editActivityLevel').value,
+        short_description: document.getElementById('editShortDesc').value.trim(),
+        description: document.getElementById('editDescription').value.trim(),
+        invite_url: document.getElementById('editInviteUrl').value.trim(),
+        website_url: document.getElementById('editWebsiteUrl').value.trim(),
+      }),
+    });
+    if (resp.ok) {
+      status.textContent = 'Saved!';
+      status.className = 'text-xs text-green-400';
+      setTimeout(function() { location.reload(); }, 800);
+    } else {
+      const d = await resp.json();
+      status.textContent = d.error || 'Save failed.';
+      status.className = 'text-xs text-red-400';
+    }
+  } catch(e) {
+    status.textContent = 'Save failed.';
+    status.className = 'text-xs text-red-400';
+  }
+};
 </script>
 {% endblock %}

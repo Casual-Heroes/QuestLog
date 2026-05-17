@@ -1,11 +1,11 @@
-{% extends "base.html" %}
+{% extends "questlog_web/base_web.html" %}
 {% load static %}
 
 {% block title %}QuestLog Discord Bot | Casual Heroes{% endblock %}
 {% block og_title %}QuestLog Discord Bot{% endblock %}
 {% block og_description %}A free, open source Discord bot for gaming communities. XP, LFG, moderation, RSS feeds, live alerts, raffles, and more.{% endblock %}
 
-{% block content %}
+{% block web_content %}
 <div style="max-width: 860px; margin: 0 auto; padding: 80px 20px 60px;">
 
   <!-- Hero -->
@@ -72,9 +72,9 @@
       <h3 style="font-size: 1.05rem; font-weight: 800; color: #c4b5fd; margin: 0 0 6px 0;">QuestLog Network Integration</h3>
       <p style="font-size: 0.85rem; color: #9ca3af; margin: 0 0 12px 0; line-height: 1.6;">
         When your server joins the QuestLog Network, Discord XP flows into your members' unified QuestLog profiles. One profile, one leaderboard, across Discord and Fluxer.
-        Members can view their stats at <strong style="color: #a5b4fc;">casual-heroes.com/ql/</strong>.
+        Members can view their stats at <strong style="color: #a5b4fc;">casual-heroes.com</strong>.
       </p>
-      <a href="/ql/communities/" style="color: #818cf8; font-size: 0.82rem; font-weight: 600; text-decoration: none;">Learn about the QuestLog Network -></a>
+      <a href="/communities/" style="color: #818cf8; font-size: 0.82rem; font-weight: 600; text-decoration: none;">Learn about the QuestLog Network -></a>
     </div>
   </div>
 
@@ -84,10 +84,10 @@
     <div>
       <h3 style="font-size: 1.05rem; font-weight: 800; color: #c7d2fe; margin: 0 0 6px 0;">Full Web Dashboard</h3>
       <p style="font-size: 0.85rem; color: #9ca3af; margin: 0 0 12px 0; line-height: 1.6;">
-        Every bot feature has a matching web interface at <strong style="color: #a5b4fc;">casual-heroes.com/ql/dashboard/</strong>.
+        Every bot feature has a matching web interface at <strong style="color: #a5b4fc;">casual-heroes.comdashboard/</strong>.
         Configure XP settings, manage LFG, set up live alerts, moderate members, and view leaderboards - all from the browser with no slash commands required.
       </p>
-      <a href="/ql/dashboard/discord/" style="color: #818cf8; font-size: 0.82rem; font-weight: 600; text-decoration: none;">Go to Discord Dashboard -></a>
+      <a href="/dashboard/discord/" style="color: #818cf8; font-size: 0.82rem; font-weight: 600; text-decoration: none;">Go to Discord Dashboard -></a>
     </div>
   </div>
 
@@ -99,7 +99,7 @@
       <p style="font-size: 0.85rem; color: #9ca3af; margin: 0 0 12px 0; line-height: 1.6;">
         If your community is already registered on the QuestLog Network, connect your Discord server to unify XP, leaderboards, and member profiles across all platforms. One application links everything together.
       </p>
-      <a href="/ql/communities/register/" style="color: #f59e0b; font-size: 0.82rem; font-weight: 600; text-decoration: none;">Connect your server to QuestLog -></a>
+      <a href="/communities/register/" style="color: #f59e0b; font-size: 0.82rem; font-weight: 600; text-decoration: none;">Connect your server to QuestLog -></a>
     </div>
   </div>
 
@@ -132,7 +132,7 @@
   <div style="text-align: center;">
     <p style="color: #4b5563; font-size: 0.82rem; margin-bottom: 12px;">Also available on Fluxer</p>
     <a href="/bot/fluxer/" style="color: #a78bfa; font-size: 0.85rem; font-weight: 600; text-decoration: none;">
-      <i class="fas fa-bolt mr-1"></i> QuestLog Bot for Fluxer ->
+      <img src="/static/img/siteassets/fluxer-favicon.png" alt="" style="width:13px;height:13px;border-radius:2px;vertical-align:middle;margin-right:4px;"> QuestLog Bot for Fluxer ->
     </a>
   </div>
 

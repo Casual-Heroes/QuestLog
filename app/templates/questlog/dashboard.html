@@ -30,12 +30,12 @@
         <h2 class="text-2xl font-bold text-white">{{ discord_user.global_name }}</h2>
       </div>
       <div class="md:ml-auto text-center md:text-right">
-        <p class="text-gray-400 text-sm">Your Servers</p>
-        <p class="text-2xl font-bold text-indigo-400">{{ total_guilds }} total</p>
-        <p class="text-sm text-gray-500">{{ admin_guilds|length }} admin • {{ member_guilds|length }} member</p>
+        <p class="text-gray-400 text-sm">Bot Installed</p>
+        <p class="text-2xl font-bold text-indigo-400">{{ bot_installed_count }} server{{ bot_installed_count|pluralize }}</p>
+        <p class="text-sm text-gray-500">{{ total_guilds }} Discord servers total</p>
       </div>
       <div class="flex flex-col gap-2">
-        <a href="/ql/" class="bg-neutral-700 hover:bg-neutral-600 text-white px-4 py-2 rounded-lg font-medium transition text-sm text-center whitespace-nowrap">
+        <a href="/discover/" class="bg-neutral-700 hover:bg-neutral-600 text-white px-4 py-2 rounded-lg font-medium transition text-sm text-center whitespace-nowrap">
           <i class="fas fa-arrow-left mr-2"></i>Back to QuestLog
         </a>
         <button onclick="refreshGuilds()" id="refreshBtn" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition text-sm whitespace-nowrap">

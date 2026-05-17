@@ -66,7 +66,7 @@ def _verify_totp_code(rec, code):
 
 
 # ---------------------------------------------------------------------------
-# totp_verify -- /ql/2fa/verify/
+# totp_verify -- 2fa/verify/
 # ---------------------------------------------------------------------------
 
 @ratelimit(key='ip', rate='10/h', block=True)
@@ -78,7 +78,7 @@ def totp_verify(request):
     """
     pending_user_id = request.session.get('web_2fa_pending_user_id')
     if not pending_user_id:
-        return redirect('/ql/login/')
+        return redirect('login/')
 
     error = None
     use_backup = request.GET.get('backup') == '1' or request.POST.get('use_backup') == '1'
@@ -95,7 +95,7 @@ def totp_verify(request):
             if not rec:
                 # 2FA record disappeared — allow through
                 _complete_2fa_login(request, pending_user_id, db)
-                return redirect(request.session.pop('web_2fa_pending_next', '/ql/'))
+                return redirect(request.session.pop('web_2fa_pending_next', ''))
 
             verified = False
 
@@ -111,7 +111,7 @@ def totp_verify(request):
 
             if verified:
                 _complete_2fa_login(request, pending_user_id, db)
-                next_url = request.session.pop('web_2fa_pending_next', '/ql/')
+                next_url = request.session.pop('web_2fa_pending_next', '')
                 # Clear pending keys
                 request.session.pop('web_2fa_pending_user_id', None)
                 request.session.pop('web_2fa_pending_is_admin', None)
@@ -141,7 +141,7 @@ def _complete_2fa_login(request, user_id, db):
 
 
 # ---------------------------------------------------------------------------
-# totp_setup -- GET /ql/2fa/setup/
+# totp_setup -- GET 2fa/setup/
 # ---------------------------------------------------------------------------
 
 @web_login_required
@@ -152,7 +152,7 @@ def totp_setup(request):
     """
     web_user = get_web_user(request)
     if not web_user:
-        return redirect('/ql/login/')
+        return redirect('login/')
 
     with get_db_session() as db:
         user = db.query(WebUser).filter_by(id=web_user['id']).first()
@@ -173,7 +173,7 @@ def totp_setup(request):
             db.refresh(rec)
         elif rec.is_enabled:
             # Already enabled -- redirect to profile
-            return redirect('/ql/profile/edit/#2fa')
+            return redirect('profile/edit/#2fa')
         else:
             secret = decrypt_token(rec.secret_enc)
 
@@ -190,7 +190,7 @@ def totp_setup(request):
 
 
 # ---------------------------------------------------------------------------
-# api_2fa_enable -- POST /ql/api/2fa/enable/
+# api_2fa_enable -- POST api/2fa/enable/
 # ---------------------------------------------------------------------------
 
 @web_login_required
@@ -213,7 +213,7 @@ def api_2fa_enable(request):
         ).first()
 
         if not rec:
-            return JsonResponse({'error': '2FA record not found. Visit /ql/2fa/setup/ first.'}, status=400)
+            return JsonResponse({'error': '2FA record not found. Visit 2fa/setup/ first.'}, status=400)
 
         if not _verify_totp_code(rec, code):
             return JsonResponse({'error': 'Invalid code. Make sure your authenticator is synced.'}, status=400)
@@ -229,7 +229,7 @@ def api_2fa_enable(request):
 
 
 # ---------------------------------------------------------------------------
-# api_2fa_disable -- POST /ql/api/2fa/disable/
+# api_2fa_disable -- POST api/2fa/disable/
 # ---------------------------------------------------------------------------
 
 @web_login_required
@@ -262,7 +262,7 @@ def api_2fa_disable(request):
 
 
 # ---------------------------------------------------------------------------
-# api_2fa_backup_codes -- POST /ql/api/2fa/regenerate-backup-codes/
+# api_2fa_backup_codes -- POST api/2fa/regenerate-backup-codes/
 # ---------------------------------------------------------------------------
 
 @web_login_required

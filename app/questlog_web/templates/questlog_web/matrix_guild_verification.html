@@ -134,7 +134,7 @@
 const SPACE_ID_URL = '{{ space_id_url }}';
 const ROOMS = JSON.parse('{{ rooms_json|escapejs }}');
 const SETTINGS = JSON.parse('{{ settings_json|escapejs }}');
-const API_URL = '/ql/api/dashboard/matrix/' + SPACE_ID_URL + '/settings/';
+const API_URL = 'api/dashboard/matrix/' + SPACE_ID_URL + '/settings/';
 
 const roomsWithBlank = [{value: '', label: '-- None --'}, ...ROOMS];
 

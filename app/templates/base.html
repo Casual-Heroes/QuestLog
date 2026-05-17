@@ -2,29 +2,30 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta property="og:title" content="{% block og_title %}Casual Heroes - Game Servers & Community{% endblock %}">
-  <meta property="og:description" content="{% block og_description %}Join our friendly, mod-loving community. Explore servers, suggest games, and play your way.{% endblock %}">
-  <meta property="og:image" content="{% block og_image %}https://dashboard.casual-heroes.com/static/img/siteassets/homepage/CHLogoFinal.png{% endblock %}">
+  <meta property="og:title" content="{% block og_title %}Casual Heroes - Aging, But Still Looting{% endblock %}">
+  <meta property="og:description" content="{% block og_description %}A community for working adults, parents, and gamers who grew up but never quite left Neverland.{% endblock %}">
+  <meta property="og:image" content="{% block og_image %}https://questlog.casual-heroes.com/static/img/siteassets/homepage/CHLogoFinal.png{% endblock %}">
   <meta property="og:image:alt" content="Casual Heroes Logo">
   <meta property="og:image:type" content="image/png">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="680">
-  <meta property="og:url" content="{% block og_url %}https://dashboard.casual-heroes.com{% endblock %}">
+  <meta property="og:url" content="{% block og_url %}https://questlog.casual-heroes.com{% endblock %}">
   <meta property="og:type" content="website">
   <meta property="article:author" content="Ryven">
   <meta name="author" content="Ryven">
   <meta name="twitter:card" content="{% block twitter_card %}summary_large_image{% endblock %}">
-  <meta name="twitter:title" content="{% block twitter_title %}Casual Heroes - Game Servers & Community{% endblock %}">
-  <meta name="twitter:description" content="{% block twitter_description %}Join our friendly, mod-loving community. Explore servers, suggest games, and play your way.{% endblock %}">
-  <meta name="twitter:image" content="{% block twitter_image %}https://dashboard.casual-heroes.com/static/img/siteassets/homepage/CHLogoFinal.png{% endblock %}">
+  <meta name="twitter:title" content="{% block twitter_title %}Casual Heroes - Aging, But Still Looting{% endblock %}">
+  <meta name="twitter:description" content="{% block twitter_description %}A community for working adults, parents, and gamers who grew up but never quite left Neverland.{% endblock %}">
+  <meta name="twitter:image" content="{% block twitter_image %}https://questlog.casual-heroes.com/static/img/siteassets/homepage/CHLogoFinal.png{% endblock %}">
   <meta name="twitter:creator" content="@Ryven">
 
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <link rel="icon" type="image/png" href="{% static 'img/siteassets/homepage/CHLogofav.png' %}">
+  <link rel="icon" type="image/png" href="{% static 'img/siteassets/homepage/CHLogofav.png' %}?v=2">
   <title>{% block title %}Casual Heroes{% endblock %}</title>
 
   <script src="https://cdn.tailwindcss.com"></script>
+  <style>[x-cloak] { display: none !important; }</style>
   <!-- Alpine.js 3.14.1 with SRI -->
   <script defer src="https://unpkg.com/alpinejs@3.14.1/dist/cdn.min.js"
           integrity="sha384-l8f0VcPi/M1iHPv8egOnY/15TDwqgbOR1anMIJWvU6nLRgZVLTLSaNqi/TOoT5Fh"
@@ -56,7 +57,7 @@
 <body class="bg-[#0a0a1a] text-white font-sans">
   <div class="max-w-7xl mx-auto px-4 sm:px-6">
 
-    <header class="py-4" x-data="{ mobileOpen: false, activeDropdown: null }">
+    {% block header %}<header class="py-4" x-data="{ mobileOpen: false, activeDropdown: null }">
 
       <!-- ===== TOP BAR ===== -->
       <div class="flex items-center justify-between gap-4">
@@ -90,9 +91,9 @@
                 <span class="text-[10px] bg-indigo-900/60 text-indigo-400 px-1.5 py-0.5 rounded font-mono tracking-wide">Soon™</span>
               </span>
               <div class="px-4 pt-2 pb-1 text-xs uppercase text-gray-500 tracking-wider border-t border-neutral-800 mt-1">Guilds</div>
-              <a href="https://casual-heroes.com/wow" class="flex items-center gap-2 px-4 py-2 hover:bg-neutral-800 transition">
-                <img src="{% static 'img/games/guilds/WoWlogo.png' %}" alt="WoW" class="w-4 h-4" />
-                World of Warcraft
+              <a href="https://casual-heroes.com/ffxiv" class="flex items-center gap-2 px-4 py-2 hover:bg-neutral-800 transition">
+                <img src="{% static 'img/games/guilds/ffxiv_logo.png' %}" alt="FFXIV" class="w-4 h-4 object-contain" />
+                Final Fantasy XIV
               </a>
               <a href="https://casual-heroes.com/eso" class="flex items-center gap-2 px-4 py-2 hover:bg-neutral-800 transition">
                 <img src="{% static 'img/games/guilds/esoguild.png' %}" alt="ESO" class="w-4 h-4" />
@@ -114,24 +115,32 @@
             <div x-show="activeDropdown === 'questlog'" @click.outside="activeDropdown = null" x-transition
                  class="absolute left-0 mt-2 bg-neutral-900 border border-neutral-800 rounded-lg shadow-xl w-64 z-50">
               <div class="px-4 py-2 text-xs uppercase text-indigo-400 tracking-wider border-b border-neutral-800">
-                <i class="fas fa-globe mr-1"></i>Social Hub
+                <i class="fas fa-compass mr-1"></i>QuestLog
               </div>
-              <a href="/ql/" class="flex items-center gap-2 px-4 py-3 hover:bg-neutral-800 transition">
+              <a href="https://questlog.casual-heroes.com/discover/" class="flex items-center gap-2 px-4 py-3 hover:bg-neutral-800 transition">
                 <i class="fas fa-home text-indigo-400 w-4"></i>
-                <div><div class="text-white text-sm">QuestLog Home</div><div class="text-xs text-gray-500">Your gaming social hub</div></div>
+                <div><div class="text-white text-sm">Discover</div><div class="text-xs text-gray-500">Groups, creators, communities</div></div>
               </a>
-              <a href="/ql/lfg/" class="flex items-center gap-2 px-4 py-3 hover:bg-neutral-800 transition">
-                <i class="fas fa-users text-yellow-400 w-4"></i>
-                <div><div class="text-white text-sm">Looking for Group</div><div class="text-xs text-gray-500">Find players for any game</div></div>
+              <a href="https://questlog.casual-heroes.com/lfg/" class="flex items-center gap-2 px-4 py-3 hover:bg-neutral-800 transition">
+                <i class="fas fa-users text-emerald-400 w-4"></i>
+                <div><div class="text-white text-sm">Find a Group</div><div class="text-xs text-gray-500">LFG for any game, any vibe</div></div>
               </a>
-              <a href="/ql/network/" class="flex items-center gap-2 px-4 py-3 hover:bg-neutral-800 transition">
-                <i class="fas fa-user-friends text-purple-400 w-4"></i>
-                <div><div class="text-white text-sm">Network</div><div class="text-xs text-gray-500">Discover gamers</div></div>
+              <a href="https://questlog.casual-heroes.com/creators/" class="flex items-center gap-2 px-4 py-3 hover:bg-neutral-800 transition">
+                <i class="fas fa-broadcast-tower text-red-400 w-4"></i>
+                <div><div class="text-white text-sm">Creators Worth Finding</div><div class="text-xs text-gray-500">Small creators, real content</div></div>
+              </a>
+              <a href="https://questlog.casual-heroes.com/communities/" class="flex items-center gap-2 px-4 py-3 hover:bg-neutral-800 transition">
+                <i class="fas fa-shield-alt text-purple-400 w-4"></i>
+                <div><div class="text-white text-sm">Communities</div><div class="text-xs text-gray-500">Find your server</div></div>
               </a>
               <div class="border-t border-neutral-800 mx-3 my-1"></div>
-              <a href="/security/" class="flex items-center gap-2 px-4 py-3 hover:bg-neutral-800 transition">
-                <i class="fas fa-shield-halved text-emerald-400 w-4"></i>
-                <div><div class="text-white text-sm">Security</div><div class="text-xs text-gray-500">Bug bounty &amp; disclosure policy</div></div>
+              <a href="https://questlog.casual-heroes.com/feed/" class="flex items-center gap-2 px-4 py-3 hover:bg-neutral-800 transition">
+                <i class="fas fa-stream text-indigo-400 w-4"></i>
+                <div><div class="text-white text-sm">Feed</div><div class="text-xs text-gray-500">Posts from people you follow</div></div>
+              </a>
+              <a href="https://questlog.casual-heroes.com/leaderboard/" class="flex items-center gap-2 px-4 py-3 hover:bg-neutral-800 transition">
+                <i class="fas fa-trophy text-yellow-400 w-4"></i>
+                <div><div class="text-white text-sm">Leaderboard</div><div class="text-xs text-gray-500">Top players by Legacy XP</div></div>
               </a>
             </div>
           </div>
@@ -151,20 +160,11 @@
                 <i class="fas fa-door-open text-teal-400 w-4"></i>
                 <div><div class="text-white text-sm">QuestChat Home</div><div class="text-xs text-gray-500">See all chat options</div></div>
               </a>
-              <a href="https://fluxer.gg/PhPvQTGp" class="flex items-center gap-2 px-4 py-3 hover:bg-neutral-800 transition" target="_blank" rel="noopener noreferrer">
-                <i class="fas fa-bolt text-teal-400 w-4"></i>
+              <a href="https://fluxer.gg/zplS0MwI" class="flex items-center gap-2 px-4 py-3 hover:bg-neutral-800 transition" target="_blank" rel="noopener noreferrer">
+                <img src="{% static 'img/siteassets/fluxer-favicon.png' %}" alt="Fluxer" class="w-4 h-4 rounded-sm flex-shrink-0">
                 <div><div class="text-white text-sm">Join on Fluxer</div><div class="text-xs text-gray-500">Primary community hub</div></div>
               </a>
-              <div class="border-t border-neutral-800 mx-3 my-1"></div>
-              <div class="px-4 py-1 text-xs uppercase text-gray-500 tracking-wider">Power Users</div>
-              <a href="https://chat.casual-heroes.com/#/login" class="flex items-center gap-2 px-4 py-3 hover:bg-neutral-800 transition" target="_blank" rel="noopener noreferrer">
-                <i class="fas fa-lock text-indigo-400 w-4"></i>
-                <div><div class="text-white text-sm">Matrix (Self-Hosted)</div><div class="text-xs text-gray-500">Privacy-focused, encrypted, open protocol</div></div>
-              </a>
-              <a href="/self-host/" class="flex items-center gap-2 px-4 py-3 hover:bg-neutral-800 transition">
-                <i class="fas fa-book-open text-gray-400 w-4"></i>
-                <div><div class="text-white text-sm">Self-Host Guide</div><div class="text-xs text-gray-500">Run your own instance</div></div>
-              </a>
+              <!-- Matrix removed 2026-05-01 - service suspended -->
             </div>
           </div>
 
@@ -178,7 +178,7 @@
                  class="absolute left-0 mt-2 bg-neutral-900 border border-neutral-800 rounded-lg shadow-xl w-64 z-50 py-1">
 
               <a href="/bot/fluxer/" class="flex items-center gap-3 px-4 py-2.5 hover:bg-neutral-800 transition">
-                <i class="fas fa-bolt text-purple-400 w-4 text-center"></i>
+                <img src="{% static 'img/siteassets/fluxer-favicon.png' %}" alt="Fluxer" class="w-4 h-4 rounded-sm flex-shrink-0">
                 <div class="text-white text-sm font-medium">Fluxer Bot</div>
               </a>
               <a href="/bot/discord/" class="flex items-center gap-3 px-4 py-2.5 hover:bg-neutral-800 transition">
@@ -188,11 +188,11 @@
 
               <div class="border-t border-neutral-800 mx-3 my-1"></div>
 
-              <a href="/ql/dashboard/fluxer/" class="flex items-center gap-3 px-4 py-2.5 hover:bg-neutral-800 transition">
+              <a href="/dashboard/fluxer/" class="flex items-center gap-3 px-4 py-2.5 hover:bg-neutral-800 transition">
                 <i class="fas fa-gauge-high text-purple-400 w-4 text-center"></i>
                 <div class="text-white text-sm font-medium">Fluxer Dashboard</div>
               </a>
-              <a href="/ql/dashboard/discord/" class="flex items-center gap-3 px-4 py-2.5 hover:bg-neutral-800 transition">
+              <a href="/dashboard/discord/" class="flex items-center gap-3 px-4 py-2.5 hover:bg-neutral-800 transition">
                 <i class="fas fa-gauge-high text-indigo-400 w-4 text-center"></i>
                 <div class="text-white text-sm font-medium">Discord Dashboard</div>
               </a>
@@ -238,18 +238,39 @@
               <div class="px-4 py-2 text-xs uppercase text-indigo-400 tracking-wider border-b border-neutral-800">
                 <i class="fas fa-user mr-1"></i>My Account
               </div>
-              <a href="/ql/" class="flex items-center gap-2 px-4 py-3 hover:bg-neutral-800 transition">
+              <a href="https://questlog.casual-heroes.com/discover/" class="flex items-center gap-2 px-4 py-3 hover:bg-neutral-800 transition">
                 <i class="fas fa-home text-indigo-400 w-4"></i><span>QuestLog Home</span>
               </a>
-              <a href="/ql/profile/" class="flex items-center gap-2 px-4 py-3 hover:bg-neutral-800 transition">
+              <a href="https://questlog.casual-heroes.com/profile/" class="flex items-center gap-2 px-4 py-3 hover:bg-neutral-800 transition">
                 <i class="fas fa-id-card text-indigo-400 w-4"></i><span>My Profile</span>
               </a>
-              <a href="/ql/settings/" class="flex items-center gap-2 px-4 py-3 hover:bg-neutral-800 transition">
+              <a href="https://questlog.casual-heroes.com/settings/" class="flex items-center gap-2 px-4 py-3 hover:bg-neutral-800 transition">
                 <i class="fas fa-cog text-gray-400 w-4"></i><span>Settings</span>
+              </a>
+              <a href="https://questlog.casual-heroes.com/legacy/" class="flex items-center gap-2 px-4 py-3 hover:bg-neutral-800 transition">
+                <i class="fas fa-dragon text-purple-400 w-4"></i>
+                <span>Legacy Mark</span>
+                {% if web_user and web_user.legacy_tier %}
+                <span class="ml-auto text-[10px] font-semibold
+                  {% if web_user.legacy_tier == 5 %}text-yellow-400
+                  {% elif web_user.legacy_tier == 4 %}text-orange-400
+                  {% elif web_user.legacy_tier == 3 %}text-purple-400
+                  {% elif web_user.legacy_tier == 2 %}text-blue-400
+                  {% else %}text-gray-400{% endif %}">
+                  {% if web_user.legacy_tier == 5 %}Ascendant
+                  {% elif web_user.legacy_tier == 4 %}Champion
+                  {% elif web_user.legacy_tier == 3 %}Warden
+                  {% elif web_user.legacy_tier == 2 %}Ranger
+                  {% else %}Wanderer{% endif %}
+                </span>
+                {% endif %}
+              </a>
+              <a href="https://questlog.casual-heroes.com/legacy/nominate/" class="flex items-center gap-2 px-4 py-2 hover:bg-neutral-800 transition text-yellow-500/80 text-sm pl-10">
+                <i class="fas fa-star text-yellow-600/70 w-4 text-xs"></i><span>Nominate Someone</span>
               </a>
               {% if request.session.web_user_is_admin %}
               <div class="border-t border-neutral-800 my-1"></div>
-              <a href="/ql/admin-login/" class="flex items-center gap-2 px-4 py-3 hover:bg-neutral-800 transition text-yellow-400">
+              <a href="https://questlog.casual-heroes.com/admin/" class="flex items-center gap-2 px-4 py-3 hover:bg-neutral-800 transition text-yellow-400">
                 <i class="fas fa-crown w-4"></i><span>Admin Panel</span>
               </a>
               {% endif %}
@@ -260,7 +281,7 @@
             </div>
           </div>
           {% else %}
-          <a href="/ql/login/" class="text-sm font-semibold text-indigo-400 hover:text-indigo-300 transition">
+          <a href="https://questlog.casual-heroes.com/login/" class="text-sm font-semibold text-indigo-400 hover:text-indigo-300 transition">
             Sign In
           </a>
           {% endif %}
@@ -270,7 +291,7 @@
         <!-- Mobile: account avatar or sign-in + hamburger -->
         <div class="flex lg:hidden items-center gap-3">
           {% if request.session.web_user_id %}
-          <a href="/ql/" class="flex items-center gap-1.5 text-sm text-indigo-300">
+          <a href="https://questlog.casual-heroes.com/" class="flex items-center gap-1.5 text-sm text-indigo-300">
             {% if request.session.web_user_avatar %}
             <img src="{{ request.session.web_user_avatar }}" alt="avatar" class="w-7 h-7 rounded-full object-cover ring-1 ring-indigo-700" />
             {% else %}
@@ -278,7 +299,7 @@
             {% endif %}
           </a>
           {% else %}
-          <a href="/ql/login/" class="text-sm font-semibold text-indigo-400 hover:text-indigo-300 transition">Sign In</a>
+          <a href="https://questlog.casual-heroes.com/login/" class="text-sm font-semibold text-indigo-400 hover:text-indigo-300 transition">Sign In</a>
           {% endif %}
 
           <!-- Hamburger -->
@@ -330,8 +351,8 @@
                 <span class="text-[10px] bg-indigo-900/60 text-indigo-400 px-1.5 py-0.5 rounded font-mono tracking-wide">Soon™</span>
               </span>
               <div class="text-xs uppercase text-gray-600 tracking-wider pt-2 pb-1">Guilds</div>
-              <a href="https://casual-heroes.com/wow" class="flex items-center gap-2 py-2 hover:text-indigo-400 transition">
-                <img src="{% static 'img/games/guilds/WoWlogo.png' %}" class="w-4 h-4" alt="WoW"> World of Warcraft
+              <a href="https://casual-heroes.com/ffxiv" class="flex items-center gap-2 py-2 hover:text-indigo-400 transition">
+                <img src="{% static 'img/games/guilds/ffxiv_logo.png' %}" class="w-4 h-4 object-contain" alt="FFXIV"> Final Fantasy XIV
               </a>
               <a href="https://casual-heroes.com/eso" class="flex items-center gap-2 py-2 hover:text-indigo-400 transition">
                 <img src="{% static 'img/games/guilds/esoguild.png' %}" class="w-4 h-4" alt="ESO"> Elder Scrolls Online
@@ -357,9 +378,12 @@
               <span class="text-xs opacity-50" x-text="open ? '▲' : '▾'"></span>
             </button>
             <div x-show="open" class="bg-neutral-950/50 pl-10 pr-4 pb-2 text-gray-300">
-              <a href="/ql/"         class="block py-2 hover:text-indigo-400 transition">QuestLog Home</a>
-              <a href="/ql/lfg/"     class="block py-2 hover:text-indigo-400 transition">Looking for Group</a>
-              <a href="/ql/network/" class="block py-2 hover:text-indigo-400 transition">Network</a>
+              <a href="https://questlog.casual-heroes.com/discover/"              class="block py-2 hover:text-indigo-400 transition">Discover</a>
+              <a href="https://questlog.casual-heroes.com/lfg/"          class="block py-2 hover:text-indigo-400 transition">Find a Group</a>
+              <a href="https://questlog.casual-heroes.com/creators/"     class="block py-2 hover:text-indigo-400 transition">Creators Worth Finding</a>
+              <a href="https://questlog.casual-heroes.com/communities/"  class="block py-2 hover:text-indigo-400 transition">Communities</a>
+              <a href="https://questlog.casual-heroes.com/feed/"         class="block py-2 hover:text-indigo-400 transition">Feed</a>
+              <a href="https://questlog.casual-heroes.com/leaderboard/"  class="block py-2 hover:text-indigo-400 transition">Leaderboard</a>
             </div>
           </div>
 
@@ -372,10 +396,8 @@
             </button>
             <div x-show="open" class="bg-neutral-950/50 pl-10 pr-4 pb-2 text-gray-300">
               <a href="/questchat/" class="block py-2 hover:text-teal-400 transition">QuestChat Home</a>
-              <a href="https://fluxer.gg/PhPvQTGp" target="_blank" rel="noopener noreferrer" class="block py-2 hover:text-teal-400 transition">Join on Fluxer</a>
-              <div class="text-xs uppercase text-gray-600 tracking-wider pt-2 pb-1">Power Users</div>
-              <a href="https://chat.casual-heroes.com/#/login" target="_blank" rel="noopener noreferrer" class="block py-2 hover:text-teal-400 transition">Matrix (Self-Hosted)</a>
-              <a href="/self-host/" class="block py-2 hover:text-teal-400 transition">Self-Host Guide</a>
+              <a href="https://fluxer.gg/zplS0MwI" target="_blank" rel="noopener noreferrer" class="block py-2 hover:text-teal-400 transition">Join on Fluxer</a>
+              <!-- Matrix removed 2026-05-01 - service suspended -->
             </div>
           </div>
 
@@ -402,11 +424,9 @@
               <div class="text-xs uppercase text-gray-600 tracking-wider pt-2 pb-1">Other Platforms</div>
               <a href="https://github.com/Casual-Heroes/QuestLogBot-Fluxer" target="_blank" rel="noopener"
                  class="flex items-center gap-2 py-2 hover:text-amber-400 transition">
-                <i class="fas fa-bolt w-4"></i> Fluxer Bot
+                <img src="{% static 'img/siteassets/fluxer-favicon.png' %}" alt="Fluxer" class="w-4 h-4 rounded-sm inline-block mr-1"> Fluxer Bot
               </a>
-              <span class="flex items-center justify-between py-2 text-gray-600 cursor-not-allowed select-none">
-                Matrix Bot <span class="text-[10px] bg-indigo-900/60 text-indigo-400 px-1.5 py-0.5 rounded font-mono tracking-wide">Soon™</span>
-              </span>
+              <!-- Matrix Bot removed 2026-05-01 -->
               <div class="text-xs uppercase text-gray-600 tracking-wider pt-2 pb-1">Coming Soon</div>
               <span class="flex items-center justify-between py-2 text-gray-600 cursor-not-allowed select-none">
                 Setup Guide <span class="text-[10px] bg-indigo-900/60 text-indigo-400 px-1.5 py-0.5 rounded font-mono tracking-wide">Soon™</span>
@@ -436,14 +456,14 @@
               <span class="text-sm font-semibold text-indigo-300">{{ request.session.web_user_name }}</span>
             </div>
             <div class="grid grid-cols-2 gap-2 text-xs">
-              <a href="/ql/profile/" class="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-neutral-800 hover:bg-neutral-700 transition text-gray-300">
+              <a href="https://questlog.casual-heroes.com/profile/" class="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-neutral-800 hover:bg-neutral-700 transition text-gray-300">
                 <i class="fas fa-id-card text-indigo-400"></i> My Profile
               </a>
-              <a href="/ql/settings/" class="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-neutral-800 hover:bg-neutral-700 transition text-gray-300">
+              <a href="https://questlog.casual-heroes.com/settings/" class="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-neutral-800 hover:bg-neutral-700 transition text-gray-300">
                 <i class="fas fa-cog text-gray-400"></i> Settings
               </a>
               {% if request.session.web_user_is_admin %}
-              <a href="/ql/admin-login/" class="col-span-2 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-yellow-900/30 hover:bg-yellow-900/50 transition text-yellow-400 border border-yellow-800/40">
+              <a href="https://questlog.casual-heroes.com/admin/" class="col-span-2 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-yellow-900/30 hover:bg-yellow-900/50 transition text-yellow-400 border border-yellow-800/40">
                 <i class="fas fa-crown"></i> Admin Panel
               </a>
               {% endif %}
@@ -453,7 +473,7 @@
             </div>
           </div>
           {% else %}
-          <a href="/ql/login/" class="flex items-center justify-center gap-2 px-4 py-3.5 text-sm font-semibold text-indigo-400 hover:text-indigo-300 hover:bg-neutral-800 transition">
+          <a href="https://questlog.casual-heroes.com/login/" class="flex items-center justify-center gap-2 px-4 py-3.5 text-sm font-semibold text-indigo-400 hover:text-indigo-300 hover:bg-neutral-800 transition">
             <i class="fas fa-sign-in-alt"></i> Sign In
           </a>
           {% endif %}
@@ -461,36 +481,41 @@
         </div>
       </div><!-- /mobile menu -->
 
-    </header>
+    </header>{% endblock %}
 
     {% block content %}{% endblock %}
 
-    <footer class="mt-24 border-t border-gray-800 pt-6 pb-12 text-sm text-gray-400">
-      <div class="flex flex-col md:flex-row justify-between items-center gap-4">
-        <div class="flex flex-wrap justify-center gap-4 text-center md:text-left">
-          <a href="/contactus">Contact</a>
-          <a href="/terms">Terms of Service</a>
-          <a href="/privacy">Privacy Policy</a>
-          <a href="/faq">Returns & FAQ</a>
-          <a href="/security/">Security</a>
+    <footer class="mt-24 border-t border-gray-800 pt-8 pb-10 text-sm text-gray-400">
+      <div class="max-w-5xl mx-auto px-6 flex flex-col items-center gap-6">
+
+        <!-- Nav links -->
+        <div class="flex flex-wrap justify-center gap-x-6 gap-y-2">
+          <a href="/contactus" class="hover:text-white transition">Contact</a>
+          <a href="/terms" class="hover:text-white transition">Terms of Service</a>
+          <a href="/privacy" class="hover:text-white transition">Privacy Policy</a>
+          <a href="/faq" class="hover:text-white transition">Returns & FAQ</a>
+          <a href="/security/" class="hover:text-white transition">Security</a>
         </div>
 
-        <div class="text-center space-y-2">
-          <p class="text-gray-500">© 2026 Casual Heroes</p>
-          <p class="text-xs text-gray-500 max-w-3xl mx-auto px-4">
-            All referenced images, logos, and characters are registered trademarks of their respective game studios. Casual Heroes Hosting Services claims no ownership over Dragonwilds, Enshrouded, V Rising, or any other game assets, which are used here solely for illustrative and community engagement purposes.
-          </p>
+        <!-- Social icons -->
+        <div class="flex gap-5 items-center text-lg">
+          <a href="https://fluxer.gg/zplS0MwI" target="_blank" rel="noopener noreferrer" class="hover:opacity-100 opacity-60 transition"><img src="/static/img/siteassets/fluxer-favicon.png" alt="Fluxer" style="width:18px;height:18px;border-radius:3px;"></a>
+          <a href="https://www.youtube.com/@RyvenBrodragon" class="text-gray-400 hover:text-white transition"><i class="fab fa-youtube"></i></a>
+          <a href="https://www.twitch.tv/ryvenbrodragon" class="text-gray-400 hover:text-white transition"><i class="fab fa-twitch"></i></a>
+          <a href="https://x.com/CasualHeroes_" class="text-gray-400 hover:text-white transition"><i class="fab fa-twitter"></i></a>
+          <a href="https://www.facebook.com/CasualHeroesCmty" class="text-gray-400 hover:text-white transition"><i class="fab fa-facebook"></i></a>
+          <a href="https://www.instagram.com/casualheroescommunity/" class="text-gray-400 hover:text-white transition"><i class="fab fa-instagram"></i></a>
+          <a href="https://www.tiktok.com/@casualheroes" class="text-gray-400 hover:text-white transition"><i class="fab fa-tiktok"></i></a>
         </div>
 
-        <div class="flex gap-4 justify-center md:justify-end">
-          <a href="https://discord.gg/ECwJWppSjQ"><i class="fab fa-discord"></i></a>
-          <a href="https://www.youtube.com/@RyvenBrodragon"><i class="fab fa-youtube"></i></a>
-          <a href="https://www.twitch.tv/ryvenbrodragon"><i class="fab fa-twitch"></i></a>
-          <a href="https://x.com/CasualHeroes_"><i class="fab fa-twitter"></i></a>
-          <a href="https://www.facebook.com/CasualHeroesCmty"><i class="fab fa-facebook"></i></a>
-          <a href="https://www.instagram.com/casualheroescommunity/"><i class="fab fa-instagram"></i></a>
-          <a href="https://www.tiktok.com/@casualheroes"><i class="fab fa-tiktok"></i></a>
-        </div>
+        <!-- Copyright -->
+        <p class="text-gray-600 text-xs">© 2026 Casual Heroes</p>
+
+        <!-- Disclaimer -->
+        <p class="text-xs text-gray-700 text-center max-w-2xl leading-relaxed">
+          All referenced images, logos, and characters are registered trademarks of their respective game studios. Casual Heroes claims no ownership over any game assets, which are used here solely for illustrative and community engagement purposes.
+        </p>
+
       </div>
     </footer>
   </div>

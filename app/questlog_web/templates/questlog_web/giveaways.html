@@ -7,11 +7,18 @@
 <div class="max-w-3xl mx-auto px-4 py-6">
 
   <!-- Header -->
-  <div class="mb-6">
-    <h1 class="text-2xl font-bold text-white flex items-center gap-2">
-      <i class="fas fa-gift text-indigo-400"></i> Giveaways
-    </h1>
-    <p class="text-gray-400 text-sm mt-1">Enter active giveaways for a chance to win prizes from Casual Heroes.</p>
+  <div class="mb-6 flex items-start justify-between gap-4 flex-wrap">
+    <div>
+      <h1 class="text-2xl font-bold text-white flex items-center gap-2">
+        <i class="fas fa-gift text-indigo-400"></i> Giveaways
+      </h1>
+      <p class="text-gray-400 text-sm mt-1">Enter active giveaways for a chance to win prizes from Casual Heroes.</p>
+    </div>
+    {% if web_user and web_user.is_admin %}
+    <a href="/ql/admin/?tab=giveaways" class="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg transition">
+      <i class="fas fa-cog"></i> Admin Panel
+    </a>
+    {% endif %}
   </div>
 
   <!-- Giveaway list -->
@@ -68,7 +75,7 @@
           ${winners.map(w => `
             <div class="flex items-center gap-2 text-sm text-indigo-300 font-medium">
               <i class="fas fa-trophy text-yellow-400"></i>
-              <a href="/ql/u/${esc(w.username)}/" class="hover:underline">${esc(w.display_name || w.username)}</a>
+              <a href="/u/${esc(w.username)}/" class="hover:underline">${esc(w.display_name || w.username)}</a>
             </div>`).join('')}
          </div>` : '';
 
@@ -93,7 +100,7 @@
 
       entryHtml = `<div class="flex gap-2 items-center flex-wrap">${enterBtn}${extraBtn}</div>`;
     } else if (isActive && !isLoggedIn) {
-      entryHtml = `<a href="/ql/login/" class="text-sm px-4 py-2 rounded-lg font-semibold bg-indigo-600 hover:bg-indigo-700 text-white transition">Sign in to Enter</a>`;
+      entryHtml = `<a href="/login/" class="text-sm px-4 py-2 rounded-lg font-semibold bg-indigo-600 hover:bg-indigo-700 text-white transition">Sign in to Enter</a>`;
     }
 
     // Ticket / HP info row
@@ -135,7 +142,7 @@
   async function loadGiveaways() {
     const list = document.getElementById('giveaway-list');
     try {
-      const res = await fetch('/ql/api/giveaways/');
+      const res = await fetch('/api/giveaways/');
       const data = await res.json();
       if (!data.giveaways || data.giveaways.length === 0) {
         list.innerHTML = `
@@ -159,7 +166,7 @@
     const method = entered ? 'DELETE' : 'POST';
     btn.disabled = true;
     try {
-      const res = await csrfFetch(`/ql/api/giveaways/${giveawayId}/enter/`, { method });
+      const res = await csrfFetch(`/api/giveaways/${giveawayId}/enter/`, { method });
       const data = await res.json();
       if (data.success) {
         const newTickets = data.ticket_count || 0;
@@ -188,7 +195,7 @@
     if (!confirm(`Buy 1 extra ticket for ${hpCost} HP? No refunds.`)) return;
     const desired = currentTickets + 1;
     try {
-      const res = await csrfFetch(`/ql/api/giveaways/${giveawayId}/enter/`, {
+      const res = await csrfFetch(`/api/giveaways/${giveawayId}/enter/`, {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({tickets: desired}),

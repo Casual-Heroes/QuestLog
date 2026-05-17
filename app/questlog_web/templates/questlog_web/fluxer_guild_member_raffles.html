@@ -119,7 +119,7 @@ function statusBadge(status) {
 }
 
 async function loadRaffles() {
-  const res = await fetch(`/ql/api/fluxer/${GUILD_ID}/raffles/`);
+  const res = await fetch(`/api/fluxer/${GUILD_ID}/raffles/`);
   const data = await res.json();
   userHp = data.hp || 0;
   document.getElementById('hp-balance').textContent = userHp;
@@ -238,7 +238,7 @@ async function submitEntry() {
   btn.disabled = true;
   btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Entering...';
   try {
-    const res = await csrfFetch(`/ql/api/fluxer/${GUILD_ID}/raffles/${currentRaffleId}/enter/`, {
+    const res = await csrfFetch(`/api/fluxer/${GUILD_ID}/raffles/${currentRaffleId}/enter/`, {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({tickets}),

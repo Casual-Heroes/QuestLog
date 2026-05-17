@@ -1,0 +1,288 @@
+{% extends "questlog_web/base_web.html" %}
+{% load static %}
+{% block title %}{% if editing %}Edit Build{% else %}Submit ESO Build{% endif %} | Casual Heroes{% endblock %}
+
+{% block web_content %}
+<div class="max-w-4xl mx-auto px-4 py-6">
+
+  <!-- Header -->
+  <div class="mb-6">
+    <div class="flex items-center gap-2 text-xs text-gray-500 mb-3">
+      <a href="/eso/" class="hover:text-gray-300 transition">ESO</a>
+      <i class="fas fa-chevron-right text-[10px]"></i>
+      <a href="/eso/builds/" class="hover:text-gray-300 transition">Builds</a>
+      <i class="fas fa-chevron-right text-[10px]"></i>
+      <span class="text-gray-400">{% if editing %}Edit{% else %}Submit{% endif %}</span>
+    </div>
+    <h1 class="text-2xl font-bold text-white">{% if editing %}Edit Build{% else %}Submit Your ESO Build{% endif %}</h1>
+    <p class="text-gray-400 text-sm mt-1">Share your knowledge with the Casual Heroes community.</p>
+  </div>
+
+  <form method="post" id="build-form">
+    {% csrf_token %}
+
+    <!-- Section 1: Identity -->
+    <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-5 mb-4">
+      <h2 class="text-sm font-bold text-gray-300 uppercase tracking-wide mb-4">Build Identity</h2>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+        <div class="sm:col-span-2">
+          <label class="block text-xs text-gray-400 mb-1">Build Title <span class="text-rose-400">*</span></label>
+          <input type="text" name="title" maxlength="120" required
+            value="{% if editing %}{{ build.title }}{% endif %}"
+            placeholder="e.g. Magicka Arcanist Healer - Vet Trials"
+            class="w-full bg-neutral-800 border border-neutral-700 text-white rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-indigo-500 transition">
+        </div>
+        <div class="sm:col-span-2">
+          <label class="block text-xs text-gray-400 mb-1">Tagline <span class="text-gray-600">(one sentence summary)</span></label>
+          <input type="text" name="tagline" maxlength="200"
+            value="{% if editing %}{{ build.tagline }}{% endif %}"
+            placeholder="e.g. Max sustain healer for vet trials, no parse pressure"
+            class="w-full bg-neutral-800 border border-neutral-700 text-white rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-indigo-500 transition">
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div>
+          <label class="block text-xs text-gray-400 mb-1">Class <span class="text-rose-400">*</span></label>
+          <select name="eso_class" class="w-full bg-neutral-800 border border-neutral-700 text-white rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-indigo-500">
+            {% for cls in eso_classes %}
+            <option value="{{ cls }}" {% if editing and build.eso_class == cls %}selected{% endif %}>{{ cls }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs text-gray-400 mb-1">Role <span class="text-rose-400">*</span></label>
+          <select name="role" class="w-full bg-neutral-800 border border-neutral-700 text-white rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-indigo-500">
+            {% for role in eso_roles %}
+            <option value="{{ role }}" {% if editing and build.role == role %}selected{% endif %}>{{ role|capfirst }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs text-gray-400 mb-1">Resource</label>
+          <select name="resource" class="w-full bg-neutral-800 border border-neutral-700 text-white rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-indigo-500">
+            <option value="">-</option>
+            {% for res in eso_resources %}
+            <option value="{{ res }}" {% if editing and build.resource == res %}selected{% endif %}>{{ res|capfirst }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs text-gray-400 mb-1">Patch</label>
+          <select name="patch_version" class="w-full bg-neutral-800 border border-neutral-700 text-white rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-indigo-500">
+            <option value="">-</option>
+            {% for p in patches %}
+            <option value="{{ p }}" {% if editing and build.patch_version == p %}selected{% endif %}>{{ p }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section 2: Stats -->
+    <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-5 mb-4">
+      <h2 class="text-sm font-bold text-gray-300 uppercase tracking-wide mb-4">Claimed Stats <span class="text-gray-600 font-normal normal-case">(optional - what you're hitting buffed)</span></h2>
+      <div class="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-4">
+        <div>
+          <label class="block text-xs text-gray-400 mb-1">Health</label>
+          <input type="number" name="stat_health" min="0" max="200000" value="{% if editing %}{{ build.stat_health }}{% endif %}"
+            class="w-full bg-neutral-800 border border-neutral-700 text-red-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-red-500">
+        </div>
+        <div>
+          <label class="block text-xs text-gray-400 mb-1">Magicka</label>
+          <input type="number" name="stat_magicka" min="0" max="200000" value="{% if editing %}{{ build.stat_magicka }}{% endif %}"
+            class="w-full bg-neutral-800 border border-neutral-700 text-blue-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-blue-500">
+        </div>
+        <div>
+          <label class="block text-xs text-gray-400 mb-1">Stamina</label>
+          <input type="number" name="stat_stamina" min="0" max="200000" value="{% if editing %}{{ build.stat_stamina }}{% endif %}"
+            class="w-full bg-neutral-800 border border-neutral-700 text-green-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-green-500">
+        </div>
+        <div>
+          <label class="block text-xs text-gray-400 mb-1">DPS</label>
+          <input type="number" name="stat_dps" min="0" max="1000000" value="{% if editing %}{{ build.stat_dps }}{% endif %}"
+            class="w-full bg-neutral-800 border border-neutral-700 text-amber-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-amber-500">
+        </div>
+        <div>
+          <label class="block text-xs text-gray-400 mb-1">HPS</label>
+          <input type="number" name="stat_hps" min="0" max="1000000" value="{% if editing %}{{ build.stat_hps }}{% endif %}"
+            class="w-full bg-neutral-800 border border-neutral-700 text-emerald-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-emerald-500">
+        </div>
+      </div>
+      <div>
+        <label class="block text-xs text-gray-400 mb-1">Difficulty (1 = easy to play, 5 = complex rotation)</label>
+        <div class="flex items-center gap-2">
+          {% for i in "12345" %}
+          <button type="button" onclick="setDifficulty({{ forloop.counter }})" id="diff-star-{{ forloop.counter }}"
+            class="text-xl transition hover:scale-110 {% if editing and build.difficulty >= forloop.counter %}text-amber-400{% else %}text-neutral-700{% endif %}">
+            <i class="fas fa-star"></i>
+          </button>
+          {% endfor %}
+          <input type="hidden" name="difficulty" id="difficulty-val" value="{% if editing %}{{ build.difficulty }}{% endif %}">
+        </div>
+      </div>
+    </div>
+
+    <!-- Section 3: Gear -->
+    <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-5 mb-4">
+      <h2 class="text-sm font-bold text-gray-300 uppercase tracking-wide mb-1">Gear Setup</h2>
+      <p class="text-xs text-gray-500 mb-4">Paste ESO-Hub.com or ElderScrollsBote.de set URLs for hover tooltips on your build page.</p>
+
+      <div class="space-y-2" id="gear-rows">
+        {% for slot in gear_slots %}
+        <div class="grid grid-cols-[100px,1fr,90px,100px,110px] gap-2 items-center text-xs">
+          <span class="text-gray-500 font-medium">{{ slot }}</span>
+          <input type="text" name="gear_set_{{ forloop.counter0 }}" placeholder="Set name"
+            {% if editing %}value="{{ build.gear|default:'[]'|slice:'' }}"{% endif %}
+            class="bg-neutral-800 border border-neutral-700 text-white rounded-lg px-2 py-1.5 focus:outline-none focus:border-amber-500 text-xs gear-set-input" data-idx="{{ forloop.counter0 }}">
+          <select name="gear_weight_{{ forloop.counter0 }}" class="bg-neutral-800 border border-neutral-700 text-gray-300 rounded-lg px-2 py-1.5 focus:outline-none focus:border-amber-500 text-xs">
+            <option value="">Weight</option>
+            {% for w in gear_weights %}<option value="{{ w }}">{{ w }}</option>{% endfor %}
+          </select>
+          <select name="gear_trait_{{ forloop.counter0 }}" class="bg-neutral-800 border border-neutral-700 text-gray-300 rounded-lg px-2 py-1.5 focus:outline-none focus:border-amber-500 text-xs">
+            <option value="">Trait</option>
+            {% for t in traits %}<option value="{{ t }}">{{ t }}</option>{% endfor %}
+          </select>
+          <input type="text" name="gear_enchant_{{ forloop.counter0 }}" placeholder="Enchant"
+            class="bg-neutral-800 border border-neutral-700 text-gray-300 rounded-lg px-2 py-1.5 focus:outline-none focus:border-amber-500 text-xs">
+        </div>
+        <div class="grid grid-cols-[100px,1fr] gap-2 items-center">
+          <span></span>
+          <input type="url" name="gear_url_{{ forloop.counter0 }}" placeholder="ESO-Hub or ElderScrollsBote URL (optional)"
+            class="bg-neutral-800/50 border border-neutral-800 text-gray-500 rounded-lg px-2 py-1.5 focus:outline-none focus:border-amber-500 text-xs">
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Section 4: Skills -->
+    <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-5 mb-4">
+      <h2 class="text-sm font-bold text-gray-300 uppercase tracking-wide mb-1">Skill Bars</h2>
+      <p class="text-xs text-gray-500 mb-4">Slots 1-5 are active skills. Slot 6 is the ultimate. Paste ESO-Hub URLs for tooltips.</p>
+
+      {% for bar_label, bar_i in bar_data %}
+      <div class="mb-5">
+        <p class="text-xs font-semibold text-gray-400 mb-2">{{ bar_label }}</p>
+        <div class="space-y-2">
+          {% for slot in bar_i %}
+          <div class="flex items-center gap-2">
+            <span class="text-xs text-gray-600 w-14 shrink-0">{{ slot.label }}</span>
+            <input type="text" name="{{ slot.name_field }}" placeholder="Skill name"
+              class="flex-1 bg-neutral-800 border border-neutral-700 text-white rounded-lg px-2 py-1.5 focus:outline-none focus:border-amber-500 text-xs">
+            <input type="url" name="{{ slot.url_field }}" placeholder="ESO-Hub URL"
+              class="flex-1 bg-neutral-800/50 border border-neutral-800 text-gray-500 rounded-lg px-2 py-1.5 focus:outline-none focus:border-amber-500 text-xs">
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+
+    <!-- Section 5: Write-up -->
+    <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-5 mb-4">
+      <h2 class="text-sm font-bold text-gray-300 uppercase tracking-wide mb-4">Build Breakdown</h2>
+
+      <div class="mb-4">
+        <label class="block text-xs text-gray-400 mb-1">How It Works <span class="text-gray-600">(explain your build's concept, synergies, playstyle)</span></label>
+        <textarea name="how_it_works" rows="6" placeholder="Walk through how this build functions. What makes it strong? What synergies are you exploiting?"
+          class="w-full bg-neutral-800 border border-neutral-700 text-white rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-indigo-500 transition resize-y">{% if editing %}{{ build.how_it_works }}{% endif %}</textarea>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+        <div>
+          <label class="block text-xs text-gray-400 mb-1">Pros <span class="text-gray-600">(one per line)</span></label>
+          <textarea name="pros" rows="5" placeholder="Great sustain&#10;Easy rotation&#10;Flexible gear options"
+            class="w-full bg-neutral-800 border border-neutral-700 text-white rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-emerald-500 transition resize-y">{% if editing %}{% for p in build.pros %}{{ p }}
+{% endfor %}{% endif %}</textarea>
+        </div>
+        <div>
+          <label class="block text-xs text-gray-400 mb-1">Cons <span class="text-gray-600">(one per line)</span></label>
+          <textarea name="cons" rows="5" placeholder="Gear is expensive&#10;Needs high CP&#10;Weak in PvP"
+            class="w-full bg-neutral-800 border border-neutral-700 text-white rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-rose-500 transition resize-y">{% if editing %}{% for c in build.cons %}{{ c }}
+{% endfor %}{% endif %}</textarea>
+        </div>
+      </div>
+
+      <div class="mb-4">
+        <label class="block text-xs text-gray-400 mb-1">Rotation <span class="text-gray-600">(step-by-step skill order)</span></label>
+        <textarea name="rotation" rows="4" placeholder="1. Apply DoTs: Barbed Trap, Carve&#10;2. Heavy attack weave&#10;3. Bar swap - apply back bar DoTs&#10;4. Repeat"
+          class="w-full bg-neutral-800 border border-neutral-700 text-white rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-indigo-500 transition resize-y">{% if editing %}{{ build.rotation }}{% endif %}</textarea>
+      </div>
+
+      <div class="mb-4">
+        <label class="block text-xs text-gray-400 mb-1">Champion Points <span class="text-gray-600">(where to spend your CP)</span></label>
+        <textarea name="champion_points" rows="4" placeholder="Warfare: Biting Aura 50, Deadly Aim 50...&#10;Fitness: Boundless Vitality 50..."
+          class="w-full bg-neutral-800 border border-neutral-700 text-white rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-indigo-500 transition resize-y">{% if editing %}{{ build.champion_points }}{% endif %}</textarea>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          <label class="block text-xs text-gray-400 mb-1">Mundus Stone</label>
+          <input type="text" name="mundus" maxlength="80" placeholder="e.g. The Atronach"
+            value="{% if editing %}{{ build.mundus }}{% endif %}"
+            class="w-full bg-neutral-800 border border-neutral-700 text-white rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-indigo-500">
+        </div>
+        <div>
+          <label class="block text-xs text-gray-400 mb-1">Buff Food / Drink</label>
+          <input type="text" name="buff_food" maxlength="120" placeholder="e.g. Witchmother's Potent Brew"
+            value="{% if editing %}{{ build.buff_food }}{% endif %}"
+            class="w-full bg-neutral-800 border border-neutral-700 text-white rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-indigo-500">
+        </div>
+      </div>
+    </div>
+
+    <!-- Submit -->
+    <div class="flex items-center justify-between">
+      <a href="/eso/builds/" class="text-gray-500 hover:text-gray-300 text-sm transition">Cancel</a>
+      <button type="submit" class="bg-amber-600 hover:bg-amber-500 text-white font-semibold px-8 py-2.5 rounded-xl transition text-sm">
+        {% if editing %}Save Changes{% else %}Submit Build{% endif %}
+      </button>
+    </div>
+
+  </form>
+</div>
+
+<script>
+let difficultyVal = {% if editing and build.difficulty %}{{ build.difficulty }}{% else %}0{% endif %};
+
+function setDifficulty(val) {
+  difficultyVal = val;
+  document.getElementById('difficulty-val').value = val;
+  for (let i = 1; i <= 5; i++) {
+    const star = document.getElementById('diff-star-' + i);
+    star.className = `text-xl transition hover:scale-110 ${i <= val ? 'text-amber-400' : 'text-neutral-700'}`;
+  }
+}
+
+{% if editing %}
+document.addEventListener('DOMContentLoaded', function() {
+  // Populate gear from existing build data
+  const gear = {{ build.gear|safe }};
+  gear.forEach((g, i) => {
+    const setInput = document.querySelector(`[name="gear_set_${i}"]`);
+    const urlInput = document.querySelector(`[name="gear_url_${i}"]`);
+    const weightSel = document.querySelector(`[name="gear_weight_${i}"]`);
+    const traitSel  = document.querySelector(`[name="gear_trait_${i}"]`);
+    const enchInput = document.querySelector(`[name="gear_enchant_${i}"]`);
+    if (setInput) setInput.value = g.set_name || '';
+    if (urlInput) urlInput.value = g.set_url || '';
+    if (weightSel) weightSel.value = g.weight || '';
+    if (traitSel)  traitSel.value  = g.trait  || '';
+    if (enchInput) enchInput.value = g.enchant || '';
+  });
+
+  // Populate skills
+  const skills = {{ build.skills|safe }};
+  skills.forEach((bar, bi) => {
+    bar.forEach((skill, si) => {
+      const nameInput = document.querySelector(`[name="skill_name_${bi}_${si}"]`);
+      const urlInput  = document.querySelector(`[name="skill_url_${bi}_${si}"]`);
+      if (nameInput) nameInput.value = skill.name || '';
+      if (urlInput)  urlInput.value  = skill.url  || '';
+    });
+  });
+});
+{% endif %}
+</script>
+{% endblock web_content %}

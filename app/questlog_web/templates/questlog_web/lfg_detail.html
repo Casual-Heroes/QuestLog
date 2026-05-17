@@ -208,7 +208,7 @@ document.addEventListener('DOMContentLoaded', loadGroupDetail);
 
 async function loadGroupDetail() {
   try {
-    const res = await fetch(`/ql/api/lfg/${groupId}/`);
+    const res = await fetch(`/api/lfg/${groupId}/`);
     if (!res.ok) { showError(); return; }
     groupData = await res.json();
     renderGroup();
@@ -311,7 +311,7 @@ function renderActions() {
       </button>`;
   } else if (!isLoggedIn && g.status === 'open') {
     el.innerHTML = `
-      <a href="/ql/login/" class="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded-lg text-sm font-semibold transition">
+      <a href="/login/" class="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded-lg text-sm font-semibold transition">
         <i class="fas fa-sign-in-alt mr-2"></i>Login to Join
       </a>`;
   }
@@ -594,8 +594,8 @@ function renderMembers() {
 
     listEl.innerHTML = g.members.map(m => {
       const avatar = m.avatar_url
-        ? `<a href="/ql/u/${escapeHtml(m.username)}/"><img src="${escapeHtml(m.avatar_url)}" alt="" class="w-10 h-10 rounded-full object-cover flex-shrink-0"></a>`
-        : `<a href="/ql/u/${escapeHtml(m.username)}/"><div class="w-10 h-10 rounded-full bg-neutral-700 flex items-center justify-center flex-shrink-0 text-xs font-bold text-gray-400">${escapeHtml((m.username||'?').slice(0,2).toUpperCase())}</div></a>`;
+        ? `<a href="/u/${escapeHtml(m.username)}/"><img src="${escapeHtml(m.avatar_url)}" alt="" class="w-10 h-10 rounded-full object-cover flex-shrink-0"></a>`
+        : `<a href="/u/${escapeHtml(m.username)}/"><div class="w-10 h-10 rounded-full bg-neutral-700 flex items-center justify-center flex-shrink-0 text-xs font-bold text-gray-400">${escapeHtml((m.username||'?').slice(0,2).toUpperCase())}</div></a>`;
 
       let leaderBadge = '';
       if (m.is_creator) leaderBadge = '<span class="inline-flex items-center gap-1 px-2 py-0.5 bg-yellow-500/20 text-yellow-400 rounded text-xs font-semibold"><i class="fas fa-crown text-xs"></i>Leader</span>';
@@ -622,7 +622,7 @@ function renderMembers() {
           ${avatar}
           <div class="flex-1 min-w-0">
             <div class="flex items-center gap-2 flex-wrap">
-              <a href="/ql/u/${escapeHtml(m.username)}/" class="text-white font-semibold text-sm hover:underline">${escapeHtml(m.display_name || m.username)}</a>
+              <a href="/u/${escapeHtml(m.username)}/" class="text-white font-semibold text-sm hover:underline">${escapeHtml(m.display_name || m.username)}</a>
               ${leaderBadge}${roleBadge}
             </div>
             <div class="flex flex-wrap items-center gap-1 mt-0.5">
@@ -810,6 +810,9 @@ const GAME_TEMPLATES = {
     { name: 'Class', choices: ['Dragonknight','Sorcerer','Nightblade','Templar','Warden','Necromancer','Arcanist'] },
     { name: 'Subclass', exclude_same_as: 'Class', choices: ['Dragonknight','Sorcerer','Nightblade','Templar','Warden','Necromancer','Arcanist'] },
     { name: 'Role', choices: [{value:'Tank'},{value:'Healer'},{value:'DPS'},{value:'Support'}] },
+    { name: 'Alliance', choices: ['Aldmeri Dominion','Daggerfall Covenant','Ebonheart Pact','Any'] },
+    { name: 'Min CP', freetext: true, placeholder: 'e.g. 160 (optional)' },
+    { name: 'Build Notes', freetext: true, placeholder: 'e.g. Farm run, no carries, vHRC prog...' },
   ],
   palworld: [
     { name: 'Role', choices: [
@@ -1085,8 +1088,8 @@ async function submitJoinUpdate() {
   }
 
   const url = joinUpdateMode === 'join'
-    ? `/ql/lfg/${groupId}/join/`
-    : `/ql/lfg/${groupId}/update-member/`;
+    ? `/lfg/${groupId}/join/`
+    : `/lfg/${groupId}/update-member/`;
 
   try {
     const res = await csrfFetch(url, {
@@ -1169,7 +1172,7 @@ async function submitEdit() {
   saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Saving…';
 
   try {
-    const res = await csrfFetch(`/ql/lfg/${groupId}/edit/`, {
+    const res = await csrfFetch(`/lfg/${groupId}/edit/`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -1210,13 +1213,13 @@ function showToast(msg) {
 async function confirmDelete() {
   if (!confirm(`Delete "${groupData.title}"? This cannot be undone.`)) return;
   try {
-    const res = await csrfFetch(`/ql/lfg/${groupId}/delete/`, {
+    const res = await csrfFetch(`/lfg/${groupId}/delete/`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
     });
     const data = await res.json();
     if (data.success) {
-      window.location.href = '/ql/lfg/';
+      window.location.href = '/lfg/';
     } else {
       alert(data.error || 'Failed to delete group');
     }
@@ -1230,13 +1233,13 @@ async function confirmDelete() {
 async function confirmLeave() {
   if (!confirm('Leave this group?')) return;
   try {
-    const res = await csrfFetch(`/ql/lfg/${groupId}/leave/`, {
+    const res = await csrfFetch(`/lfg/${groupId}/leave/`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
     });
     const data = await res.json();
     if (data.success) {
-      window.location.href = '/ql/lfg/';
+      window.location.href = '/lfg/';
     } else {
       alert(data.error || 'Failed to leave group');
     }
@@ -1250,7 +1253,7 @@ async function confirmLeave() {
 async function confirmKick(userId, username) {
   if (!confirm(`Kick ${username} from the group?`)) return;
   try {
-    const res = await csrfFetch(`/ql/lfg/${groupId}/kick/${userId}/`, {
+    const res = await csrfFetch(`/lfg/${groupId}/kick/${userId}/`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
     });
@@ -1297,7 +1300,7 @@ async function submitCoLeaders() {
   const co_leader_ids = Array.from(checkboxes).filter(cb => cb.checked).map(cb => parseInt(cb.value));
 
   try {
-    const res = await csrfFetch(`/ql/lfg/${groupId}/set-co-leaders/`, {
+    const res = await csrfFetch(`/lfg/${groupId}/set-co-leaders/`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ co_leader_ids }),

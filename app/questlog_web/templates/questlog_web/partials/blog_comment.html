@@ -1,0 +1,96 @@
+{% load static %}
+{# Renders a single blog article comment. Used both in blog_detail.html initial render #}
+{# and as a reference for the JS buildCommentHtml() function for dynamically appended comments. #}
+{# Variables: comment (dict from _serialize_comment), depth (0=top-level, 1=reply) #}
+<div id="comment-{{ comment.id }}" class="flex gap-3 py-4 border-b border-neutral-800/60 last:border-0">
+  {# Avatar #}
+  {% if not comment.is_deleted and comment.author %}
+    {% if comment.author.avatar_url %}
+    <img src="{{ comment.author.avatar_url }}" alt="{{ comment.author.username }}"
+         class="w-8 h-8 rounded-full object-cover flex-shrink-0">
+    {% else %}
+    <div class="w-8 h-8 rounded-full bg-violet-700 flex items-center justify-center flex-shrink-0">
+      <span class="text-xs font-bold text-white">{{ comment.author.display_name|slice:":1"|upper }}</span>
+    </div>
+    {% endif %}
+  {% else %}
+  <div class="w-8 h-8 rounded-full bg-neutral-700 flex-shrink-0"></div>
+  {% endif %}
+
+  <div class="flex-1 min-w-0">
+    {# Author line #}
+    <div class="flex items-center gap-2 mb-1">
+      {% if comment.is_deleted %}
+      <span class="text-xs text-gray-600">[deleted]</span>
+      {% else %}
+      <a href="/ql/u/{{ comment.author.username }}/"
+         class="text-xs font-medium text-gray-300 hover:text-violet-400 transition-colors">
+        {{ comment.author.display_name }}
+      </a>
+      {% if comment.author.flair_emoji %}
+      <span class="text-xs">{{ comment.author.flair_emoji }}</span>
+      {% endif %}
+      {% endif %}
+      <span data-comment-ts="{{ comment.created_at }}" class="text-xs text-gray-600"></span>
+    </div>
+
+    {# Body #}
+    {% if comment.is_deleted %}
+    <p class="text-sm text-gray-600 italic">[deleted]</p>
+    {% else %}
+    <p class="text-sm text-gray-300 whitespace-pre-wrap">{{ comment.content }}</p>
+
+    {# Actions #}
+    <div class="flex items-center gap-3 mt-2 text-xs text-gray-500">
+      {% if web_user %}
+      <button onclick="likeComment({{ comment.id }}, this)"
+              class="flex items-center gap-1 hover:text-violet-400 transition-colors"
+              data-liked="{{ comment.liked|yesno:'1,0' }}">
+        <i class="fas fa-heart {% if comment.liked %}text-violet-400{% endif %}"></i>
+        <span class="like-count-{{ comment.id }}">{{ comment.like_count }}</span>
+      </button>
+      {% if depth == 0 %}
+      <button onclick="toggleReply({{ comment.id }})"
+              class="hover:text-violet-400 transition-colors">Reply</button>
+      {% endif %}
+      {% if web_user.id == comment.author.id or web_user.is_admin %}
+      <button onclick="deleteComment({{ comment.id }})"
+              class="hover:text-red-400 transition-colors ml-auto">Delete</button>
+      {% endif %}
+      {% else %}
+      <span class="flex items-center gap-1">
+        <i class="fas fa-heart"></i>
+        {{ comment.like_count }}
+      </span>
+      {% endif %}
+    </div>
+
+    {# Reply compose (top-level only, shown when toggleReply() is clicked) #}
+    {% if web_user and depth == 0 %}
+    <div id="reply-area-{{ comment.id }}" class="hidden mt-3">
+      <textarea id="reply-box-{{ comment.id }}" rows="2"
+                placeholder="Write a reply..." maxlength="1000"
+                class="w-full px-3 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-sm text-white placeholder-gray-500 resize-none focus:outline-none focus:border-violet-500 transition-colors"></textarea>
+      <div class="flex justify-end mt-1.5 gap-2">
+        <button onclick="toggleReply({{ comment.id }})"
+                class="px-3 py-1 text-xs text-gray-400 hover:text-white transition-colors">Cancel</button>
+        <button id="reply-submit-{{ comment.id }}"
+                onclick="submitComment({{ comment.id }})"
+                class="px-3 py-1 bg-violet-600 hover:bg-violet-500 text-white text-xs rounded transition-colors">
+          Reply
+        </button>
+      </div>
+    </div>
+    {% endif %}
+    {% endif %}
+  </div>
+</div>
+
+{# Nested replies (depth==1, no further nesting) #}
+{% if comment.replies %}
+<div id="replies-{{ comment.id }}" class="ml-9 space-y-0">
+  {% for reply in comment.replies %}
+  {% include "questlog_web/partials/blog_comment.html" with comment=reply depth=1 %}
+  {% endfor %}
+</div>
+{% endif %}

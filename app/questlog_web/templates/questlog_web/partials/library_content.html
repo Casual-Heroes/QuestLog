@@ -1,0 +1,520 @@
+{% load static %}
+
+<div class="p-4 sm:p-6 max-w-6xl mx-auto">
+
+  {% if not web_user %}
+  <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-10 text-center max-w-lg mx-auto">
+    <i class="fas fa-layer-group text-indigo-400 text-5xl mb-5 block"></i>
+    <h2 class="text-xl font-bold text-white mb-2">Build Your Game Library</h2>
+    <p class="text-gray-400 text-sm mb-6">Track games you're playing, your backlog, and find members who want to play the same games.</p>
+    <a href="{% url 'questlog_web_login' %}?next=/library/"
+       class="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-6 py-3 rounded-xl transition">
+      <i class="fas fa-sign-in-alt"></i> Sign In to Get Started
+    </a>
+  </div>
+  {% else %}
+
+  <!-- SECTION 1: Favorites -->
+  <div class="bg-neutral-900 border border-yellow-700/30 rounded-2xl p-5 mb-5">
+    <div class="flex items-center justify-between mb-1">
+      <div class="flex items-center gap-2">
+        <i class="fas fa-star text-yellow-400"></i>
+        <h3 class="text-white font-bold text-base">Favorites</h3>
+        <span id="fav-count-badge" class="text-xs text-gray-500 bg-neutral-800 px-2 py-0.5 rounded-full">0 / 10</span>
+      </div>
+    </div>
+    <p class="text-gray-500 text-xs mb-4">Up to 10 games. These show on your public profile. Star any game in your library below to add it here.</p>
+    <div id="fav-grid" class="grid grid-cols-5 sm:grid-cols-8 lg:grid-cols-10 gap-2 min-h-[80px]">
+      <div class="col-span-full text-center py-4 text-gray-600 text-xs"><i class="fas fa-star text-2xl mb-2 block text-neutral-700"></i>No favorites yet - hover a game below and click the <i class="fas fa-star text-yellow-400 text-[10px]"></i> star</div>
+    </div>
+  </div>
+
+  <!-- SECTION 2: Want to Play / LFG -->
+  <div class="bg-neutral-900 border border-orange-700/30 rounded-2xl p-5 mb-5">
+    <div class="flex items-center justify-between mb-1">
+      <div class="flex items-center gap-2">
+        <i class="fas fa-users text-orange-400"></i>
+        <h3 class="text-white font-bold text-base">Want to Play</h3>
+        <span id="wtp-count-badge" class="text-xs text-gray-500 bg-neutral-800 px-2 py-0.5 rounded-full">0 games</span>
+      </div>
+    </div>
+    <p class="text-gray-500 text-xs mb-4">Games you want to group up for. These appear as quick-picks when you <a href="/lfg/create/" class="text-orange-400 hover:text-orange-300">create an LFG group</a>. Set any game's status to "Want to Play" in your library below.</p>
+    <div id="wtp-grid" class="grid grid-cols-5 sm:grid-cols-8 lg:grid-cols-10 gap-2 min-h-[80px]">
+      <div class="col-span-full text-center py-4 text-gray-600 text-xs"><i class="fas fa-users text-2xl mb-2 block text-neutral-700"></i>No games marked yet - set a game's status to "Want to Play" below</div>
+    </div>
+  </div>
+
+  <!-- SECTION 3: Full Library -->
+  <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-5 mb-10">
+    <div class="flex items-center justify-between mb-4 flex-wrap gap-3">
+      <div class="flex items-center gap-3">
+        <h3 class="text-white font-bold text-base">My Library</h3>
+        <span id="total-badge" class="text-xs text-gray-500 bg-neutral-800 px-2 py-0.5 rounded-full">0 games</span>
+        <span id="in-common-badge" class="hidden text-xs px-2.5 py-1 rounded-full bg-indigo-900/40 text-indigo-300 border border-indigo-700/40 items-center gap-1.5">
+          <i class="fas fa-gamepad text-[10px]"></i> <span id="in-common-text"></span>
+        </span>
+      </div>
+      <div class="flex items-center gap-2">
+        {% if web_user and web_user.steam_id %}
+        <button id="steam-import-btn" onclick="syncSteamLibrary()" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-neutral-700 hover:bg-neutral-600 text-gray-200 transition flex items-center gap-1.5">
+          <i class="fab fa-steam"></i> Sync Steam
+        </button>
+        {% endif %}
+        <button onclick="openAddModal()" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-600 hover:bg-indigo-500 text-white transition flex items-center gap-1.5">
+          <i class="fas fa-plus"></i> Add Game
+        </button>
+      </div>
+    </div>
+
+    <!-- Search -->
+    <div class="relative mb-4">
+      <input id="lib-search" type="text" placeholder="Search your library..." autocomplete="off"
+             class="w-full bg-neutral-800 border border-neutral-700 text-white rounded-xl px-4 py-2 pr-9 text-sm focus:outline-none focus:border-indigo-500 placeholder-gray-600"
+             oninput="filterLibrary(this.value)">
+      <i class="fas fa-search absolute right-3 top-2.5 text-gray-500 text-sm pointer-events-none"></i>
+    </div>
+
+    <!-- Status filter tabs -->
+    <div class="flex gap-2 flex-wrap mb-5">
+      <button id="tab-all" class="lib-tab-btn active-tab px-3 py-1.5 rounded-lg text-xs font-semibold border transition" onclick="switchTab('')">All (<span id="cnt-all">0</span>)</button>
+      <button id="tab-playing" class="lib-tab-btn px-3 py-1.5 rounded-lg text-xs font-semibold bg-neutral-800 text-gray-400 border border-neutral-700 hover:border-green-500/50 hover:text-green-300 transition flex items-center gap-1.5" onclick="switchTab('playing')"><span class="w-2 h-2 rounded-full bg-green-500 inline-block"></span> Playing (<span id="cnt-playing">0</span>)</button>
+      <button id="tab-played" class="lib-tab-btn px-3 py-1.5 rounded-lg text-xs font-semibold bg-neutral-800 text-gray-400 border border-neutral-700 hover:border-blue-500/50 hover:text-blue-300 transition flex items-center gap-1.5" onclick="switchTab('played')"><i class="fas fa-check text-[10px]"></i> Played (<span id="cnt-played">0</span>)</button>
+      <button id="tab-backlog" class="lib-tab-btn px-3 py-1.5 rounded-lg text-xs font-semibold bg-neutral-800 text-gray-400 border border-neutral-700 hover:border-purple-500/50 hover:text-purple-300 transition flex items-center gap-1.5" onclick="switchTab('backlog')"><i class="fas fa-clock text-[10px]"></i> Backlog (<span id="cnt-backlog">0</span>)</button>
+      <button id="tab-play_together" class="lib-tab-btn px-3 py-1.5 rounded-lg text-xs font-semibold bg-neutral-800 text-gray-400 border border-neutral-700 hover:border-orange-500/50 hover:text-orange-300 transition flex items-center gap-1.5" onclick="switchTab('play_together')"><i class="fas fa-users text-[10px]"></i> Want to Play (<span id="cnt-play_together">0</span>)</button>
+    </div>
+
+    <!-- Game grid -->
+    <div id="game-grid" class="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-7 gap-3">
+      <div class="col-span-full text-center py-10 text-gray-600">
+        <i class="fas fa-spinner fa-spin text-2xl mb-3 block text-indigo-500"></i>Loading...
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="mt-4 pt-4 border-t border-neutral-800 flex items-center justify-between flex-wrap gap-2">
+      <p id="steam-sync-note" class="text-gray-600 text-xs flex items-center gap-1.5 hidden"><i class="fab fa-steam"></i> <span id="steam-sync-text"></span></p>
+      <p class="text-gray-600 text-xs" id="no-steam-note">Add games manually or link Steam in <a href="{% url 'questlog_web_settings' %}" class="text-indigo-400 hover:underline">Settings</a></p>
+    </div>
+  </div>
+
+  {% endif %}
+</div>
+
+<!-- Add Game Modal -->
+{% if web_user %}
+<div id="add-modal" class="hidden fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+  <div class="bg-neutral-900 border border-neutral-800 rounded-2xl w-full max-w-md shadow-2xl">
+    <div class="flex items-center justify-between px-6 py-4 border-b border-neutral-800">
+      <h3 class="text-white font-bold text-lg">Add to Library</h3>
+      <button onclick="closeAddModal()" class="text-gray-500 hover:text-white transition"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="p-6 space-y-4">
+      <div>
+        <label class="text-xs text-gray-400 uppercase tracking-wide mb-1.5 block">Search Game</label>
+        <div class="relative">
+          <input id="modal-search" type="text" placeholder="Type to search IGDB..."
+                 class="w-full bg-neutral-800 border border-neutral-700 text-white rounded-xl px-4 py-2.5 pr-10 text-sm focus:outline-none focus:border-indigo-500 placeholder-gray-600"
+                 oninput="debounceSearch(this.value)">
+          <i id="search-spinner" class="fas fa-spinner fa-spin absolute right-3 top-3 text-indigo-400 hidden"></i>
+        </div>
+        <div id="search-results" class="hidden mt-1 bg-neutral-800 border border-neutral-700 rounded-xl overflow-hidden max-h-56 overflow-y-auto"></div>
+      </div>
+      <div id="selected-game-preview" class="hidden flex items-center gap-3 p-3 bg-neutral-800 border border-indigo-700/50 rounded-xl">
+        <img id="preview-cover" src="" alt="" class="w-10 h-14 object-cover rounded-lg flex-shrink-0">
+        <div class="flex-1 min-w-0">
+          <p id="preview-name" class="text-white font-medium text-sm truncate"></p>
+          <p id="preview-meta" class="text-gray-500 text-xs"></p>
+        </div>
+        <button onclick="clearSelection()" class="text-gray-600 hover:text-red-400 transition text-sm flex-shrink-0"><i class="fas fa-times-circle"></i></button>
+      </div>
+      <div id="manual-name-row">
+        <label class="text-xs text-gray-400 uppercase tracking-wide mb-1.5 block">Or Enter Name Manually</label>
+        <input id="manual-name" type="text" placeholder="Game name..."
+               class="w-full bg-neutral-800 border border-neutral-700 text-white rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-indigo-500 placeholder-gray-600">
+      </div>
+      <div>
+        <label class="text-xs text-gray-400 uppercase tracking-wide mb-1.5 block">Status</label>
+        <div class="grid grid-cols-2 gap-2">
+          <button class="status-pick active-status px-3 py-2 rounded-xl text-sm font-medium border border-neutral-700 text-gray-300 flex items-center gap-2 transition" data-s="playing"><span class="w-2 h-2 rounded-full bg-green-500 flex-shrink-0"></span>Playing</button>
+          <button class="status-pick px-3 py-2 rounded-xl text-sm font-medium border border-neutral-700 text-gray-300 flex items-center gap-2 transition" data-s="played"><i class="fas fa-check text-blue-400 text-xs flex-shrink-0"></i>Played</button>
+          <button class="status-pick px-3 py-2 rounded-xl text-sm font-medium border border-neutral-700 text-gray-300 flex items-center gap-2 transition" data-s="backlog"><i class="fas fa-clock text-purple-400 text-xs flex-shrink-0"></i>Backlog</button>
+          <button class="status-pick px-3 py-2 rounded-xl text-sm font-medium border border-neutral-700 text-gray-300 flex items-center gap-2 transition" data-s="play_together"><i class="fas fa-users text-orange-400 text-xs flex-shrink-0"></i>Want to Play</button>
+        </div>
+      </div>
+    </div>
+    <div class="px-6 pb-6 flex gap-3">
+      <button onclick="closeAddModal()" class="flex-1 bg-neutral-800 hover:bg-neutral-700 text-gray-300 font-medium px-4 py-2.5 rounded-xl text-sm transition">Cancel</button>
+      <button onclick="submitAdd()" class="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-4 py-2.5 rounded-xl text-sm transition"><i class="fas fa-plus mr-1.5"></i>Add Game</button>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<style>
+.lib-tab-btn { color: #6b7280; }
+.lib-tab-btn.active-tab { background:#fff; color:#111827; border-color:#fff; }
+.status-pick.active-status { border-color:#6366f1; color:#a5b4fc; background:#1e1b4b; }
+</style>
+
+{% if web_user %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  loadLibrary('');
+  document.querySelectorAll('.status-pick').forEach(b => {
+    b.addEventListener('click', function() {
+      selectedStatus = this.dataset.s;
+      document.querySelectorAll('.status-pick').forEach(x => x.classList.remove('active-status'));
+      this.classList.add('active-status');
+    });
+  });
+});
+
+let allGames = [], inCommonNames = [], activeStatus = '', selectedGame = null, selectedStatus = 'playing';
+
+function loadLibrary(status) {
+  activeStatus = status;
+  document.getElementById('game-grid').innerHTML = '<div class="col-span-full text-center py-10 text-gray-600"><i class="fas fa-spinner fa-spin text-2xl mb-3 block text-indigo-500"></i>Loading...</div>';
+  csrfFetch('/api/library/' + (status ? '?status=' + status : ''))
+    .then(r => r.json()).then(data => {
+      if (!data.success) return;
+      allGames = data.games;
+      inCommonNames = data.in_common || [];
+      const c = data.counts;
+      document.getElementById('cnt-all').textContent        = c.total || 0;
+      document.getElementById('cnt-playing').textContent    = c.playing || 0;
+      document.getElementById('cnt-played').textContent     = c.played || 0;
+      document.getElementById('cnt-backlog').textContent    = c.backlog || 0;
+      document.getElementById('cnt-play_together').textContent = c.play_together || 0;
+      const total = c.total || 0;
+      document.getElementById('total-badge').textContent = total + ' game' + (total === 1 ? '' : 's');
+      if (total > 0) document.getElementById('no-steam-note').classList.add('hidden');
+      renderGrid(allGames);
+      if (allGames.length) loadOwnerCounts(allGames.slice(0, 50));
+      // Always refresh the top panels when loading all games
+      if (!status) {
+        renderFavPanel(allGames);
+        renderWTPPanel(allGames);
+      }
+    });
+}
+
+function switchTab(status) {
+  document.querySelectorAll('.lib-tab-btn').forEach(b => b.classList.remove('active-tab'));
+  const map = {'':'tab-all','playing':'tab-playing','played':'tab-played','backlog':'tab-backlog','play_together':'tab-play_together'};
+  document.getElementById(map[status]).classList.add('active-tab');
+  libSearchTerm = '';
+  const searchEl = document.getElementById('lib-search');
+  if (searchEl) searchEl.value = '';
+  loadLibrary(status);
+}
+
+function renderFavPanel(games) {
+  const esc = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  const favs = games.filter(g => g.is_favorite);
+  document.getElementById('fav-count-badge').textContent = favs.length + ' / 10';
+  const grid = document.getElementById('fav-grid');
+  if (!favs.length) {
+    grid.innerHTML = `<div class="col-span-full text-center py-4 text-gray-600 text-xs"><i class="fas fa-star text-2xl mb-2 block text-neutral-700"></i>No favorites yet - hover a game below and click the <i class="fas fa-star text-yellow-400 text-[10px]"></i> star</div>`;
+    return;
+  }
+  grid.innerHTML = favs.map(g => {
+    const cover = g.cover_url || '';
+    return `<div class="relative group cursor-pointer" title="${esc(g.name)}" data-fav-id="${g.id}">
+      ${cover
+        ? `<img src="${esc(cover)}" class="w-full aspect-[2/3] object-cover rounded-lg border border-yellow-500/50" loading="lazy" alt="${esc(g.name)}">`
+        : `<div class="w-full aspect-[2/3] bg-neutral-800 rounded-lg border border-yellow-500/50 flex items-center justify-center"><i class="fas fa-gamepad text-gray-600"></i></div>`}
+      <div class="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition rounded-lg flex items-center justify-center">
+        <i class="fas fa-times text-red-400 text-sm"></i>
+      </div>
+    </div>`;
+  }).join('');
+  grid.querySelectorAll('[data-fav-id]').forEach(el => {
+    el.addEventListener('click', e => toggleFavorite(parseInt(el.dataset.favId), e));
+  });
+}
+
+function renderWTPPanel(games) {
+  const esc = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  const wtp = games.filter(g => g.status === 'play_together');
+  document.getElementById('wtp-count-badge').textContent = wtp.length + ' game' + (wtp.length !== 1 ? 's' : '');
+  const grid = document.getElementById('wtp-grid');
+  if (!wtp.length) {
+    grid.innerHTML = `<div class="col-span-full text-center py-4 text-gray-600 text-xs"><i class="fas fa-users text-2xl mb-2 block text-neutral-700"></i>No games marked yet - set a game's status to "Want to Play" below</div>`;
+    return;
+  }
+  grid.innerHTML = wtp.map(g => {
+    const cover = g.cover_url || '';
+    return `<a href="/lfg/create/?game=${encodeURIComponent(g.name)}" class="relative group block" title="Create LFG for ${esc(g.name)}">
+      ${cover
+        ? `<img src="${esc(cover)}" class="w-full aspect-[2/3] object-cover rounded-lg border border-orange-500/50" loading="lazy" alt="${esc(g.name)}">`
+        : `<div class="w-full aspect-[2/3] bg-neutral-800 rounded-lg border border-orange-500/50 flex items-center justify-center"><i class="fas fa-gamepad text-gray-600"></i></div>`}
+      <div class="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition rounded-lg flex flex-col items-center justify-center gap-1 p-1">
+        <i class="fas fa-users text-orange-300 text-sm"></i>
+        <span class="text-white text-[10px] font-bold text-center leading-tight">${esc(g.name)}</span>
+        <span class="text-orange-300 text-[9px]">Create LFG</span>
+      </div>
+    </a>`;
+  }).join('');
+}
+
+let libSearchTerm = '';
+function filterLibrary(val) {
+  libSearchTerm = val.trim().toLowerCase();
+  const filtered = libSearchTerm
+    ? allGames.filter(g => g.name.toLowerCase().includes(libSearchTerm))
+    : allGames.filter(g => !activeStatus || g.status === activeStatus);
+  renderGrid(filtered);
+  if (filtered.length) loadOwnerCounts(filtered.slice(0, 50));
+}
+
+function renderGrid(games) {
+  const grid = document.getElementById('game-grid');
+  grid.innerHTML = '';
+  // If searching, show all matches; otherwise apply status tab filter
+  const display = libSearchTerm ? games : games.filter(g => !activeStatus || g.status === activeStatus);
+  display.forEach(g => grid.insertAdjacentHTML('beforeend', buildCard(g)));
+  if (!activeStatus && !libSearchTerm) {
+    grid.insertAdjacentHTML('beforeend', `
+      <div onclick="openAddModal()" class="rounded-xl border-2 border-dashed border-neutral-700 hover:border-indigo-500/50 transition cursor-pointer flex items-center justify-center aspect-[2/3] text-neutral-600 hover:text-indigo-400">
+        <div class="text-center"><i class="fas fa-plus text-lg mb-1 block"></i><p class="text-[10px]">Add</p></div>
+      </div>`);
+  }
+  if (!display.length) {
+    grid.innerHTML = libSearchTerm
+      ? '<div class="col-span-full text-center py-10 text-gray-600"><i class="fas fa-search text-3xl mb-3 block"></i>No games match "' + libSearchTerm.replace(/</g,'&lt;') + '"</div>'
+      : '<div class="col-span-full text-center py-10 text-gray-600"><i class="fas fa-gamepad text-3xl mb-3 block"></i>Nothing here yet.</div>';
+  }
+}
+
+function buildCard(g) {
+  const esc = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  const cover       = g.cover_url || '';
+  const isCommon    = inCommonNames.includes(g.name);
+  const isPT        = g.status === 'play_together';
+  const isBacklog   = g.status === 'backlog';
+  const isFav       = g.is_favorite;
+  const borderCls   = isFav ? 'border-yellow-500/60 hover:border-yellow-400' : isPT ? 'border-orange-600/50 hover:border-orange-500' : 'border-neutral-700 hover:border-indigo-500/60';
+  const opacityCls  = isBacklog ? 'opacity-75 hover:opacity-100' : '';
+  const grayscaleCls= isBacklog ? 'grayscale group-hover:grayscale-0 transition' : '';
+  const dotColor    = {playing:'bg-green-500',played:'bg-blue-400',backlog:'bg-purple-400',play_together:'bg-orange-500'}[g.status] || 'bg-gray-500';
+  const statusLabel = {playing:'Playing',played:'Played',backlog:'Backlog',play_together:'Play Together'}[g.status] || g.status;
+  const statusColor = {playing:'text-green-400',played:'text-blue-400',backlog:'text-purple-400',play_together:'text-orange-400'}[g.status] || 'text-gray-400';
+  const statusIcon  = {playing:'<span class="w-1.5 h-1.5 rounded-full bg-green-500 inline-block mr-1"></span>',played:'<i class="fas fa-check text-[8px] mr-1"></i>',backlog:'<i class="fas fa-clock text-[8px] mr-1"></i>',play_together:'<i class="fas fa-users text-[8px] mr-1"></i>'}[g.status] || '';
+  const hrs = g.playtime_hours ? `<span class="text-cyan-400 text-[10px]">${Math.round(g.playtime_hours)} hrs</span>` : '';
+  const img = cover
+    ? `<img src="${esc(cover)}" class="w-full aspect-[2/3] object-cover ${grayscaleCls}" loading="lazy" alt="${esc(g.name)}" onerror="this.parentElement.querySelector('.no-cover').style.display='flex';this.style.display='none'">`
+    : '';
+  return `
+  <div class="group relative rounded-xl overflow-hidden border ${borderCls} transition cursor-pointer ${opacityCls}" onclick="openCardMenu(${g.id},event)">
+    <div class="relative">
+      ${img}
+      <div class="no-cover w-full aspect-[2/3] bg-neutral-800 ${cover?'hidden':''} items-center justify-center flex">
+        <i class="fas fa-gamepad text-2xl text-gray-600"></i>
+      </div>
+      ${isCommon ? '<div class="absolute top-1.5 left-1.5 bg-indigo-600/90 rounded-md px-1.5 py-0.5 text-[10px] font-bold text-white backdrop-blur-sm z-20"><i class="fas fa-link text-[8px]"></i> Common</div>' : ''}
+      <div class="absolute top-1.5 right-1.5 w-2.5 h-2.5 rounded-full ${dotColor} border-2 border-neutral-900 shadow z-20"></div>
+      ${isPT ? '<div class="absolute bottom-0 left-0 right-0 bg-orange-600/80 backdrop-blur-sm py-0.5 text-center z-20"><span class="text-white text-[9px] font-bold"><i class="fas fa-users text-[8px]"></i> Play Together</span></div>' : ''}
+      <a id="owner-badge-${g.id}" href="/ql/gamers/?game=${encodeURIComponent(g.name)}#by-game" onclick="event.stopPropagation()" class="hidden absolute ${isPT?'bottom-6':'bottom-1'} left-1 right-1 bg-black/70 backdrop-blur-sm rounded px-1 py-0.5 text-center text-[9px] text-indigo-300 font-semibold truncate hover:text-indigo-200 transition z-20"></a>
+      <div class="absolute inset-0 bg-black/70 opacity-0 group-hover:opacity-100 transition flex flex-col items-center justify-center gap-1.5 p-2 z-10">
+        <span class="text-white text-[10px] font-bold text-center leading-tight line-clamp-2">${esc(g.name)}</span>
+        <span class="${statusColor} text-[10px] flex items-center">${statusIcon}${statusLabel}</span>
+        ${hrs}
+        ${(function(){if(isPT)return '';var su=g.steam_app_id?'https://store.steampowered.com/app/'+g.steam_app_id+'/':'https://store.steampowered.com/search/?term='+encodeURIComponent(g.name);return '<a href="'+su+'" target="_blank" rel="noopener" onclick="event.stopPropagation()" class="text-blue-400 hover:text-blue-300 text-[10px] flex items-center gap-0.5 mt-0.5"><i class="fab fa-steam text-xs"></i> Steam</a>';})()}
+      </div>
+      <button class="fav-btn absolute top-1 right-1 w-6 h-6 rounded-full flex items-center justify-center transition z-30 ${isFav ? 'bg-yellow-500/90 text-white shadow-lg' : 'bg-black/70 text-gray-400 opacity-0 group-hover:opacity-100'}" data-game-id="${g.id}" onclick="toggleFavorite(${g.id},event)" title="${isFav ? 'Remove from favorites' : 'Add to favorites'}">
+        <i class="fas fa-star text-[9px]"></i>
+      </button>
+    </div>
+  </div>`;
+}
+
+function toggleFavorite(gameId, e) {
+  e.stopPropagation();
+  const game = allGames.find(g => g.id === gameId);
+  if (!game) return;
+  csrfFetch(`/api/library/${gameId}/favorite/`, {method:'POST'})
+    .then(r => r.json()).then(data => {
+      if (data.error) {
+        if (data.at_limit) {
+          showLibraryToast('You can only have 10 favorites. Remove one first.', 'error');
+        }
+        return;
+      }
+      game.is_favorite = data.is_favorite;
+      renderFavPanel(allGames);
+      renderGrid(allGames);
+      if (allGames.length) loadOwnerCounts(allGames.slice(0, 50));
+    });
+}
+
+function showLibraryToast(msg, type) {
+  const t = document.createElement('div');
+  t.className = `fixed bottom-6 right-6 z-50 px-4 py-3 rounded-xl shadow-2xl text-sm font-medium ${type==='error' ? 'bg-red-900 border border-red-700 text-red-200' : 'bg-neutral-800 border border-neutral-700 text-gray-200'}`;
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 3500);
+}
+
+function openCardMenu(gameId, e) {
+  e.stopPropagation();
+  document.getElementById('card-menu')?.remove();
+  const game = allGames.find(g => g.id === gameId);
+  if (!game) return;
+  const menu = document.createElement('div');
+  menu.id = 'card-menu';
+  menu.className = 'fixed z-50 bg-neutral-800 border border-neutral-700 rounded-xl shadow-2xl py-1 w-44';
+  const statuses = [{s:'playing',label:'Playing',icon:'<span class="w-2 h-2 rounded-full bg-green-500"></span>'},{s:'played',label:'Played',icon:'<i class="fas fa-check text-blue-400 text-xs w-4 text-center"></i>'},{s:'backlog',label:'Backlog',icon:'<i class="fas fa-clock text-purple-400 text-xs w-4 text-center"></i>'},{s:'play_together',label:'Want to Play (LFG)',icon:'<i class="fas fa-users text-orange-400 text-xs w-4 text-center"></i>'}];
+  statuses.forEach(({s, label, icon}) => {
+    const btn = document.createElement('button');
+    btn.className = `w-full text-left px-4 py-2 text-sm flex items-center gap-2 hover:bg-neutral-700 transition ${game.status === s ? 'text-indigo-400 font-semibold' : 'text-gray-300'}`;
+    btn.innerHTML = `${icon} ${label}${game.status === s ? ' <i class="fas fa-check ml-auto text-indigo-400 text-xs"></i>' : ''}`;
+    btn.onclick = () => { updateStatus(gameId, s); menu.remove(); };
+    menu.appendChild(btn);
+  });
+  menu.appendChild(Object.assign(document.createElement('div'), {className:'border-t border-neutral-700 my-1'}));
+  const del = document.createElement('button');
+  del.className = 'w-full text-left px-4 py-2 text-sm flex items-center gap-2 text-red-400 hover:bg-neutral-700 transition';
+  del.innerHTML = '<i class="fas fa-trash w-4 text-center text-xs"></i> Remove';
+  del.onclick = () => { removeGame(gameId); menu.remove(); };
+  menu.appendChild(del);
+  menu.style.top  = Math.min(e.clientY, window.innerHeight - 230) + 'px';
+  menu.style.left = Math.min(e.clientX, window.innerWidth - 190) + 'px';
+  document.body.appendChild(menu);
+  setTimeout(() => document.addEventListener('click', () => menu.remove(), {once:true}), 10);
+}
+
+function updateStatus(gameId, status) {
+  csrfFetch(`/api/library/${gameId}/update/`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({status})})
+    .then(r => r.json()).then(d => {
+      if (d.success) {
+        const game = allGames.find(g => g.id === gameId);
+        if (game) game.status = status;
+        renderWTPPanel(allGames);
+        loadLibrary(activeStatus);
+      }
+    });
+}
+function removeGame(gameId) {
+  if (!confirm('Remove this game from your library?')) return;
+  csrfFetch(`/api/library/${gameId}/remove/`, {method:'POST'})
+    .then(r => r.json()).then(d => { if (d.success) loadLibrary(activeStatus); });
+}
+
+function openAddModal() {
+  document.getElementById('add-modal').classList.remove('hidden');
+  setTimeout(() => document.getElementById('modal-search').focus(), 50);
+}
+function closeAddModal() {
+  document.getElementById('add-modal').classList.add('hidden');
+  document.getElementById('modal-search').value = '';
+  document.getElementById('search-results').classList.add('hidden');
+  document.getElementById('search-results').innerHTML = '';
+  document.getElementById('manual-name').value = '';
+  clearSelection();
+  selectedStatus = 'playing';
+  document.querySelectorAll('.status-pick').forEach(b => b.classList.toggle('active-status', b.dataset.s === 'playing'));
+}
+function clearSelection() {
+  selectedGame = null;
+  document.getElementById('selected-game-preview').classList.add('hidden');
+  document.getElementById('manual-name-row').classList.remove('hidden');
+}
+
+let searchTimer = null;
+function debounceSearch(val) {
+  clearTimeout(searchTimer);
+  document.getElementById('search-results').classList.add('hidden');
+  if (!val.trim()) { document.getElementById('search-spinner').classList.add('hidden'); return; }
+  document.getElementById('search-spinner').classList.remove('hidden');
+  searchTimer = setTimeout(() => searchIGDB(val), 400);
+}
+function searchIGDB(q) {
+  csrfFetch(`/api/igdb/search/?q=${encodeURIComponent(q)}&limit=8`)
+    .then(r => r.json()).then(data => {
+      document.getElementById('search-spinner').classList.add('hidden');
+      const res = document.getElementById('search-results');
+      res.innerHTML = '';
+      const games = data.games || [];
+      if (!games.length) {
+        res.innerHTML = '<div class="px-4 py-3 text-sm text-gray-500">No results. Enter name manually below.</div>';
+        res.classList.remove('hidden');
+        return;
+      }
+      games.forEach(g => {
+        const esc = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+        const btn = document.createElement('button');
+        btn.className = 'w-full flex items-center gap-3 px-4 py-2.5 hover:bg-neutral-700 text-left transition';
+        btn.innerHTML = (g.cover_url ? `<img src="${esc(g.cover_url)}" class="w-8 h-10 object-cover rounded flex-shrink-0" loading="lazy">` : `<div class="w-8 h-10 bg-neutral-700 rounded flex items-center justify-center flex-shrink-0"><i class="fas fa-gamepad text-gray-500 text-xs"></i></div>`)
+          + `<div class="flex-1 min-w-0"><p class="text-sm text-white font-medium truncate">${esc(g.name)}</p><p class="text-xs text-gray-500">${esc(String(g.release_year||''))}</p></div>`;
+        btn.onclick = () => selectGame(g);
+        res.appendChild(btn);
+      });
+      res.classList.remove('hidden');
+    }).catch(() => document.getElementById('search-spinner').classList.add('hidden'));
+}
+function selectGame(g) {
+  selectedGame = g;
+  document.getElementById('preview-name').textContent = g.name;
+  const plat = Array.isArray(g.platforms) ? g.platforms.join(', ') : (g.platforms || '');
+  document.getElementById('preview-meta').textContent = [g.release_year, plat].filter(Boolean).join(' - ');
+  const img = document.getElementById('preview-cover');
+  if (g.cover_url) { img.src = g.cover_url; img.classList.remove('hidden'); } else img.classList.add('hidden');
+  document.getElementById('selected-game-preview').classList.remove('hidden');
+  document.getElementById('manual-name-row').classList.add('hidden');
+  document.getElementById('search-results').classList.add('hidden');
+  document.getElementById('modal-search').value = g.name;
+}
+function submitAdd() {
+  const name = selectedGame ? selectedGame.name : document.getElementById('manual-name').value.trim();
+  if (!name) { document.getElementById('manual-name').focus(); return; }
+  csrfFetch('/api/library/add/', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({name, status: selectedStatus, igdb_id: selectedGame?.id||null, steam_app_id: selectedGame?.steam_id||null, cover_url: selectedGame?.cover_url||null, game_modes: selectedGame?.game_modes||[]}),
+  }).then(r => r.json()).then(d => {
+    if (d.success) { closeAddModal(); loadLibrary(activeStatus); }
+    else alert(d.error || 'Failed to add game.');
+  });
+}
+
+function syncSteamLibrary() {
+  const btn = document.getElementById('steam-import-btn');
+  if (!btn) return;
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fab fa-steam fa-spin"></i> Syncing...';
+  csrfFetch('/api/library/sync-steam/', {method:'POST'})
+    .then(r => r.json()).then(d => {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fab fa-steam"></i> Sync Steam';
+      if (d.ok) {
+        showLibraryToast(d.added > 0 ? `${d.added} game${d.added===1?'':'s'} added from Steam!` : 'Library already up to date.', 'info');
+        if (d.added > 0) loadLibrary(activeStatus);
+      } else {
+        showLibraryToast(d.error || 'Steam sync failed.', 'error');
+      }
+    }).catch(() => {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fab fa-steam"></i> Sync Steam';
+      showLibraryToast('Steam sync failed.', 'error');
+    });
+}
+
+// Fetch owner counts for all games and update badges
+function loadOwnerCounts(games) {
+  const esc = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  const names = games.map(g => g.name).filter(Boolean);
+  if (!names.length) return;
+  fetch('/api/library/game-owners/?names=' + encodeURIComponent(names.join('|')))
+    .then(r => r.json()).then(data => {
+      if (!data.ok) return;
+      games.forEach(g => {
+        const count = data.counts[g.name] || 0;
+        const badge = document.getElementById('owner-badge-' + g.id);
+        if (badge && count > 0) {
+          badge.textContent = count + ' other' + (count === 1 ? '' : 's');
+          badge.classList.remove('hidden');
+        }
+      });
+    }).catch(() => {});
+}
+</script>
+{% endif %}

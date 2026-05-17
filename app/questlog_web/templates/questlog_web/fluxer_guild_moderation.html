@@ -215,8 +215,8 @@
 const GUILD_ID = '{{ guild_id }}';
 const SETTINGS = JSON.parse('{{ settings_json|escapejs }}');
 const CHANNELS = JSON.parse('{{ channels_json|escapejs }}');
-const API_URL = '/ql/api/dashboard/fluxer/' + GUILD_ID + '/settings/';
-const WARNINGS_API = '/ql/api/dashboard/fluxer/' + GUILD_ID + '/warnings/';
+const API_URL = '/api/dashboard/fluxer/' + GUILD_ID + '/settings/';
+const WARNINGS_API = '/api/dashboard/fluxer/' + GUILD_ID + '/warnings/';
 
 const channelsWithBlank = [{id: '', value: '', label: '-- None --'}, ...CHANNELS];
 const warnItems = [

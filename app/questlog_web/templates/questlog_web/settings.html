@@ -369,7 +369,7 @@ async function uploadAvatarFile(input) {
   const formData = new FormData();
   formData.append('image', file);
   try {
-    const res = await csrfFetch('/ql/api/upload/avatar/', { method: 'POST', body: formData });
+    const res = await csrfFetch('/api/upload/avatar/', { method: 'POST', body: formData });
     const data = await res.json();
     if (data.avatar_url) {
       document.getElementById('avatarPreviewWrap').innerHTML =
@@ -392,7 +392,7 @@ async function pullAvatar(source) {
   status.className = 'text-xs text-gray-400';
   status.classList.remove('hidden');
   try {
-    const res = await csrfFetch('/ql/api/profile/pull-avatar/', {
+    const res = await csrfFetch('/api/profile/pull-avatar/', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ source })
@@ -418,7 +418,7 @@ let _inviteUrl = '';
 
 async function loadInviteLink() {
   try {
-    const res = await csrfFetch('/ql/api/invite/');
+    const res = await csrfFetch('/api/invite/');
     const data = await res.json();
     if (data.invite_url) {
       _inviteUrl = data.invite_url;
@@ -464,6 +464,7 @@ async function saveUserPrefs() {
   const status = document.getElementById('userPrefsStatus');
   const data = {
     show_steam_profile:    document.getElementById('showSteamProfile').checked,
+    share_steam_library:   document.getElementById('shareSteamLibrary') ? document.getElementById('shareSteamLibrary').checked : false,
     show_activity:         document.getElementById('showActivity').checked,
     allow_messages:        document.getElementById('allowMessages').checked,
     show_as_champion:      document.getElementById('showAsChampion') ? document.getElementById('showAsChampion').checked : false,
@@ -487,7 +488,7 @@ async function saveUserPrefs() {
     notify_level_up:       document.getElementById('notifyLevelUp').checked,
   };
   try {
-    const res = await csrfFetch('/ql/api/profile/user-prefs/', {
+    const res = await csrfFetch('/api/profile/user-prefs/', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
@@ -538,7 +539,7 @@ async function executeDeleteAccount() {
   btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>Deleting…';
 
   try {
-    const res = await csrfFetch('/ql/api/privacy/delete/', { method: 'POST' });
+    const res = await csrfFetch('/api/privacy/delete/', { method: 'POST' });
     const data = await res.json();
     if (data.success) {
       btn.innerHTML = '<i class="fas fa-check mr-1"></i>Account deleted';

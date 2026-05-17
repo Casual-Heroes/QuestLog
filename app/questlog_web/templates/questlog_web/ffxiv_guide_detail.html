@@ -1,0 +1,380 @@
+{% extends "questlog_web/base_web.html" %}
+{% load static %}
+
+{% block title %}{{ guide.title }} - {{ guide.job_abbr }} Guide - QuestLog{% endblock %}
+
+{% block web_content %}
+<script>
+const CSRF_TOKEN = '{{ csrf_token }}';
+const GUIDE_ID   = {{ guide.id }};
+const GUIDE_SLUG = '{{ guide.slug }}';
+const JOB_KEY    = '{{ job_key }}';
+const IS_AUTHOR  = {{ is_author|yesno:"true,false" }};
+const IS_ADMIN   = {{ is_admin|yesno:"true,false" }};
+const WEB_USER_ID = {{ web_user.id|default:"null" }};
+const FLUXER_CHANNEL = '{{ fluxer_channel }}';
+const INITIAL_COMMENTS = {{ comments|safe }};
+</script>
+
+<!-- Breadcrumb + header -->
+<div class="bg-gradient-to-br from-neutral-900 via-neutral-900 to-indigo-950/30 border-b border-neutral-800 p-6 mb-6">
+  <div class="max-w-4xl mx-auto">
+    <div class="flex items-center gap-2 text-sm text-gray-500 mb-3">
+      <a href="/ffxiv/" class="hover:text-white transition">FFXIV</a>
+      <i class="fas fa-chevron-right text-xs"></i>
+      <a href="/ffxiv/tools/job-guides/" class="hover:text-white transition">Job Guides</a>
+      <i class="fas fa-chevron-right text-xs"></i>
+      <a href="/ffxiv/tools/job-guides/{{ job_key }}/" class="hover:text-white transition">{{ job.abbr }}</a>
+      <i class="fas fa-chevron-right text-xs"></i>
+      <span class="text-gray-300 truncate max-w-xs">{{ guide.title }}</span>
+    </div>
+
+    <div class="flex items-start justify-between gap-4 flex-wrap">
+      <div class="flex items-start gap-4">
+        <img src="{{ job_icon_url }}" alt="{{ job.abbr }}" class="w-12 h-12 rounded-xl object-contain flex-shrink-0"
+             onerror="this.style.display='none'">
+        <div>
+          <div class="flex items-center gap-2 flex-wrap mb-1">
+            {% if guide.is_pinned %}
+            <span class="text-xs bg-yellow-500/20 text-yellow-300 border border-yellow-500/30 px-2 py-0.5 rounded-full">
+              <i class="fas fa-thumbtack mr-1"></i>Pinned
+            </span>
+            {% endif %}
+            {% if guide.patch_version %}
+            <span class="text-xs bg-neutral-800 text-cyan-400 px-2 py-0.5 rounded-full">{{ guide.patch_version }}</span>
+            {% endif %}
+            {% for tag in guide.tags %}
+            <span class="text-xs bg-neutral-800 text-gray-400 px-2 py-0.5 rounded-full">{{ tag }}</span>
+            {% endfor %}
+          </div>
+          <h1 class="text-2xl font-bold text-white leading-tight">{{ guide.title }}</h1>
+          {% if guide.summary %}
+          <p class="text-gray-400 text-sm mt-1">{{ guide.summary }}</p>
+          {% endif %}
+          <div class="flex items-center gap-4 mt-2 text-xs text-gray-500">
+            {% if guide.author.avatar %}
+            <img src="{{ guide.author.avatar }}" class="w-5 h-5 rounded-full object-cover inline" alt="">
+            {% endif %}
+            <span>by <strong class="text-gray-300">{{ guide.author.username }}</strong></span>
+            <span><i class="fas fa-eye mr-1"></i>{{ guide.view_count }}</span>
+            <span id="likeCountBadge"><i class="fas fa-heart mr-1 text-rose-500/70"></i>{{ guide.like_count }}</span>
+            <span><i class="fas fa-comment mr-1 text-blue-500/70"></i><span id="commentCountBadge">{{ guide.comment_count }}</span></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Actions -->
+      <div class="flex items-center gap-2 flex-wrap">
+        {% if web_user %}
+        <button id="likeBtn" onclick="toggleLike()"
+                class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition border {% if guide.liked %}bg-rose-600/20 border-rose-500/50 text-rose-300{% else %}bg-neutral-800 border-neutral-700 text-gray-400 hover:text-rose-300 hover:border-rose-500/50{% endif %}">
+          <i class="fas fa-heart"></i>
+          <span id="likeBtnLabel">{% if guide.liked %}Liked{% else %}Like{% endif %}</span>
+        </button>
+        {% endif %}
+        <a href="{{ fluxer_channel }}" target="_blank" rel="noopener"
+           class="flex items-center gap-2 px-3 py-2 bg-indigo-600/20 border border-indigo-500/40 text-indigo-300 rounded-lg text-sm hover:bg-indigo-600/30 transition">
+          <img src="{% static 'img/siteassets/fluxer-favicon.png' %}" style="width:1em;height:1em;object-fit:contain;" alt="Fluxer">
+          Discuss in Fluxer
+        </a>
+        {% if is_author or is_admin %}
+        <a href="/ffxiv/tools/job-guides/guide/{{ guide.slug }}/edit/"
+           class="px-3 py-2 bg-neutral-800 hover:bg-neutral-700 text-gray-300 rounded-lg text-sm transition">
+          <i class="fas fa-pen mr-1"></i>Edit
+        </a>
+        {% endif %}
+        {% if is_admin %}
+        <button onclick="toggleHide()"
+                class="px-3 py-2 bg-neutral-800 hover:bg-red-600/20 text-gray-400 hover:text-red-400 rounded-lg text-sm transition" title="Admin: toggle visibility">
+          <i class="fas fa-eye-slash"></i>
+        </button>
+        {% endif %}
+        {% if is_author or is_admin %}
+        <button onclick="deleteGuide()"
+                class="px-3 py-2 bg-neutral-800 hover:bg-red-600/20 text-red-400 rounded-lg text-sm transition">
+          <i class="fas fa-trash"></i>
+        </button>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="max-w-4xl mx-auto px-4 pb-12 space-y-8">
+
+  <!-- Guide blocks -->
+  <div id="guideBlocks" class="space-y-6">
+    {% for block in guide.blocks %}
+    {% if block.type == 'text' %}
+    <div class="prose prose-invert prose-sm max-w-none bg-neutral-900/40 rounded-xl border border-neutral-800 p-6">
+      <div class="text-gray-300 leading-relaxed whitespace-pre-wrap">{{ block.content }}</div>
+    </div>
+
+    {% elif block.type == 'image' %}
+    <div class="bg-neutral-900/40 rounded-xl border border-neutral-800 overflow-hidden">
+      <img src="{{ block.content }}" alt="{{ block.caption }}" class="w-full object-contain max-h-[600px]">
+      {% if block.caption %}
+      <p class="text-xs text-gray-500 text-center py-2 px-4">{{ block.caption }}</p>
+      {% endif %}
+    </div>
+
+    {% elif block.type == 'video' %}
+    <div class="bg-neutral-900/40 rounded-xl border border-neutral-800 overflow-hidden">
+      <div class="relative w-full" style="padding-top:56.25%">
+        <iframe id="videoFrame{{ forloop.counter }}" class="absolute inset-0 w-full h-full"
+                src="" frameborder="0" allowfullscreen></iframe>
+      </div>
+      {% if block.caption %}
+      <p class="text-xs text-gray-500 text-center py-2 px-4">{{ block.caption }}</p>
+      {% endif %}
+    </div>
+    <script>
+    (function() {
+      var url = '{{ block.content|escapejs }}';
+      var frame = document.getElementById('videoFrame{{ forloop.counter }}');
+      if (!frame) return;
+      var ytMatch = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/shorts\/)([a-zA-Z0-9_-]{11})/);
+      var twMatch = url.match(/twitch\.tv\/videos\/(\d+)/);
+      if (ytMatch) frame.src = 'https://www.youtube.com/embed/' + ytMatch[1];
+      else if (twMatch) frame.src = 'https://player.twitch.tv/?video=' + twMatch[1] + '&parent=' + location.hostname;
+    })();
+    </script>
+
+    {% elif block.type == 'rotation' %}
+    <div class="bg-neutral-900/40 rounded-xl border border-neutral-800 p-6">
+      <div class="flex items-center gap-2 mb-3">
+        <i class="fas fa-sync-alt text-purple-400"></i>
+        <span class="text-sm font-semibold text-purple-300 uppercase tracking-wider">Rotation</span>
+      </div>
+      <div class="text-gray-300 leading-relaxed whitespace-pre-wrap font-mono text-sm">{{ block.content }}</div>
+    </div>
+
+    {% elif block.type == 'gear_table' %}
+    <div class="bg-neutral-900/40 rounded-xl border border-neutral-800 p-6">
+      <div class="flex items-center gap-2 mb-3">
+        <i class="fas fa-shield-alt text-yellow-400"></i>
+        <span class="text-sm font-semibold text-yellow-300 uppercase tracking-wider">Gear / BiS</span>
+      </div>
+      <div class="text-gray-300 leading-relaxed whitespace-pre-wrap text-sm">{{ block.content }}</div>
+    </div>
+    {% endif %}
+    {% empty %}
+    <div class="text-center text-gray-500 py-12 bg-neutral-900/40 rounded-xl border border-neutral-800">
+      <i class="fas fa-file-alt text-4xl mb-3 opacity-30"></i>
+      <p>This guide has no content blocks yet.</p>
+      {% if is_author %}
+      <a href="/ffxiv/tools/job-guides/guide/{{ guide.slug }}/edit/" class="text-indigo-400 hover:text-indigo-300 transition text-sm mt-2 inline-block">
+        Add content &rarr;
+      </a>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- Discussion -->
+  <div class="bg-neutral-900/40 border border-neutral-800 rounded-xl p-6">
+    <h2 class="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+      <i class="fas fa-comments text-blue-400"></i>
+      Discussion
+      <span class="text-sm font-normal text-gray-500" id="commentCountLabel">({{ guide.comment_count }})</span>
+    </h2>
+
+    {% if web_user %}
+    <div class="mb-5">
+      <textarea id="newCommentBody" rows="3" maxlength="2000" placeholder="Share your thoughts, ask questions, suggest improvements..."
+                class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 text-white text-sm focus:border-indigo-500 focus:outline-none resize-none placeholder-gray-600"></textarea>
+      <div class="flex justify-between items-center mt-2">
+        <p class="text-xs text-gray-600">Max 2000 characters</p>
+        <button onclick="submitComment(null)"
+                class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium transition">
+          Post Comment
+        </button>
+      </div>
+    </div>
+    {% else %}
+    <div class="mb-5 p-4 bg-neutral-800/50 rounded-lg text-center text-sm text-gray-400">
+      <a href="/register/" class="text-indigo-400 hover:text-indigo-300">Sign in</a> to join the discussion.
+    </div>
+    {% endif %}
+
+    <div id="commentsList" class="space-y-4"></div>
+    <div id="noComments" class="hidden text-center text-gray-500 py-6 text-sm">No comments yet - be the first to contribute.</div>
+  </div>
+
+  <!-- Fluxer CTA -->
+  <div class="bg-indigo-950/30 border border-indigo-800/30 rounded-xl p-5 flex items-center justify-between gap-4 flex-wrap">
+    <div>
+      <p class="text-white font-semibold text-sm">Want to theory craft in real time?</p>
+      <p class="text-gray-400 text-xs mt-0.5">Take the conversation to Fluxer - our #guides channel is where the real-time discussion happens.</p>
+    </div>
+    <a href="{{ fluxer_channel }}" target="_blank" rel="noopener"
+       class="flex-shrink-0 flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-semibold transition">
+      <img src="{% static 'img/siteassets/fluxer-favicon.png' %}" style="width:1em;height:1em;object-fit:contain;" alt="Fluxer">
+      Open in Fluxer
+    </a>
+  </div>
+
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  renderComments(INITIAL_COMMENTS);
+});
+
+// ── Like ──────────────────────────────────────────────────────────────────────
+let liked = {{ guide.liked|yesno:"true,false" }};
+
+async function toggleLike() {
+  const res = await csrfFetch(`/api/ffxiv/guides/${GUIDE_ID}/like/`, { method: 'POST' });
+  if (!res.ok) return;
+  const data = await res.json();
+  liked = data.liked;
+  document.getElementById('likeBtn').className = liked
+    ? 'flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition border bg-rose-600/20 border-rose-500/50 text-rose-300'
+    : 'flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition border bg-neutral-800 border-neutral-700 text-gray-400 hover:text-rose-300 hover:border-rose-500/50';
+  document.getElementById('likeBtnLabel').textContent = liked ? 'Liked' : 'Like';
+  document.getElementById('likeCountBadge').innerHTML = `<i class="fas fa-heart mr-1 text-rose-500/70"></i>${data.like_count}`;
+}
+
+// ── Admin actions ─────────────────────────────────────────────────────────────
+async function toggleHide() {
+  if (!confirm('Toggle guide visibility?')) return;
+  const res = await csrfFetch(`/api/ffxiv/guides/${GUIDE_ID}/hide/`, { method: 'POST' });
+  if (res.ok) location.reload();
+}
+
+async function deleteGuide() {
+  if (!confirm('Delete this guide? This cannot be undone.')) return;
+  const res = await csrfFetch(`/api/ffxiv/guides/${GUIDE_ID}/delete/`, { method: 'POST' });
+  if (!res.ok) return;
+  const data = await res.json();
+  if (data.success) location.href = data.redirect || `/ffxiv/tools/job-guides/${JOB_KEY}/`;
+}
+
+// ── Comments ──────────────────────────────────────────────────────────────────
+let replyingTo = null;
+
+function renderComments(comments) {
+  const container = document.getElementById('commentsList');
+  const noComments = document.getElementById('noComments');
+  const top = comments.filter(c => !c.parent_id && !c.is_deleted);
+  const replies = comments.filter(c => c.parent_id);
+
+  if (!top.length && !replies.length) {
+    noComments.classList.remove('hidden');
+    return;
+  }
+  noComments.classList.add('hidden');
+
+  container.innerHTML = top.map(c => renderComment(c, replies)).join('');
+}
+
+function renderComment(c, replies) {
+  const childReplies = replies.filter(r => r.parent_id === c.id);
+  const ts = new Date(c.created_at * 1000).toLocaleDateString();
+  const avatar = c.author.avatar
+    ? `<img src="${escapeHtml(c.author.avatar)}" class="w-8 h-8 rounded-full object-cover flex-shrink-0" alt="">`
+    : `<div class="w-8 h-8 rounded-full bg-neutral-700 flex items-center justify-center flex-shrink-0 text-xs text-gray-400">${escapeHtml(c.author.username[0]||'?').toUpperCase()}</div>`;
+
+  return `
+    <div class="space-y-3" id="comment-${c.id}">
+      <div class="flex gap-3">
+        ${avatar}
+        <div class="flex-1 min-w-0">
+          <div class="bg-neutral-800/60 rounded-xl px-4 py-3">
+            <div class="flex items-center gap-2 mb-1">
+              <span class="text-sm font-semibold text-white">${escapeHtml(c.author.username)}</span>
+              <span class="text-xs text-gray-600">${ts}</span>
+            </div>
+            <p class="text-gray-300 text-sm leading-relaxed whitespace-pre-wrap">${escapeHtml(c.body)}</p>
+          </div>
+          <div class="flex items-center gap-3 mt-1 px-1">
+            <button onclick="likeComment(${c.id})" class="flex items-center gap-1 text-xs ${c.liked ? 'text-rose-400' : 'text-gray-500 hover:text-rose-400'} transition" id="commentLike-${c.id}">
+              <i class="fas fa-heart text-[10px]"></i>
+              <span id="commentLikeCount-${c.id}">${c.like_count}</span>
+            </button>
+            ${WEB_USER_ID ? `<button onclick="setReply(${c.id}, '${escapeHtml(c.author.username)}')" class="text-xs text-gray-500 hover:text-indigo-400 transition">Reply</button>` : ''}
+            ${(WEB_USER_ID === c.author.id || IS_ADMIN) ? `<button onclick="deleteComment(${c.id})" class="text-xs text-gray-600 hover:text-red-400 transition">Delete</button>` : ''}
+          </div>
+          ${childReplies.length ? `<div class="mt-3 ml-4 space-y-3 border-l border-neutral-700 pl-4">${childReplies.map(r => renderComment(r, [])).join('')}</div>` : ''}
+          <div id="replyBox-${c.id}" class="hidden mt-3 ml-4">
+            <textarea rows="2" maxlength="2000" placeholder="Reply to ${escapeHtml(c.author.username)}..."
+                      class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-indigo-500 focus:outline-none resize-none"
+                      id="replyText-${c.id}"></textarea>
+            <div class="flex gap-2 mt-1">
+              <button onclick="submitComment(${c.id})" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-medium transition">Reply</button>
+              <button onclick="cancelReply(${c.id})" class="px-3 py-1.5 bg-neutral-700 hover:bg-neutral-600 text-gray-300 rounded-lg text-xs transition">Cancel</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function setReply(commentId, username) {
+  if (replyingTo) cancelReply(replyingTo);
+  replyingTo = commentId;
+  const box = document.getElementById(`replyBox-${commentId}`);
+  if (box) { box.classList.remove('hidden'); document.getElementById(`replyText-${commentId}`)?.focus(); }
+}
+
+function cancelReply(commentId) {
+  replyingTo = null;
+  const box = document.getElementById(`replyBox-${commentId}`);
+  if (box) box.classList.add('hidden');
+}
+
+async function submitComment(parentId) {
+  const textEl = parentId
+    ? document.getElementById(`replyText-${parentId}`)
+    : document.getElementById('newCommentBody');
+  const body = (textEl?.value || '').trim();
+  if (!body) return;
+
+  const res = await csrfFetch(`/api/ffxiv/guides/${GUIDE_ID}/comments/`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ body, parent_id: parentId }),
+  });
+  if (!res.ok) { const d = await res.json(); alert(d.error || 'Failed to post'); return; }
+  const data = await res.json();
+
+  textEl.value = '';
+  if (parentId) cancelReply(parentId);
+
+  const count = parseInt(document.getElementById('commentCountBadge').textContent || '0') + 1;
+  document.getElementById('commentCountBadge').textContent = count;
+  document.getElementById('commentCountLabel').textContent = `(${count})`;
+
+  // Reload comments fresh
+  const allComments = getAllRenderedComments();
+  allComments.push(data.comment);
+  document.getElementById('commentsList').innerHTML = '';
+  renderComments(allComments);
+}
+
+function getAllRenderedComments() {
+  return INITIAL_COMMENTS; // simplified - in practice reload from server
+}
+
+async function likeComment(commentId) {
+  const res = await csrfFetch(`/api/ffxiv/guide-comments/${commentId}/like/`, { method: 'POST' });
+  if (!res.ok) return;
+  const data = await res.json();
+  const btn = document.getElementById(`commentLike-${commentId}`);
+  const cnt = document.getElementById(`commentLikeCount-${commentId}`);
+  if (btn) btn.className = `flex items-center gap-1 text-xs ${data.liked ? 'text-rose-400' : 'text-gray-500 hover:text-rose-400'} transition`;
+  if (cnt) cnt.textContent = data.like_count;
+}
+
+async function deleteComment(commentId) {
+  if (!confirm('Delete this comment?')) return;
+  const res = await csrfFetch(`/api/ffxiv/guide-comments/${commentId}/delete/`, { method: 'POST' });
+  if (!res.ok) return;
+  const el = document.getElementById(`comment-${commentId}`);
+  if (el) el.remove();
+}
+</script>
+
+{% endblock %}

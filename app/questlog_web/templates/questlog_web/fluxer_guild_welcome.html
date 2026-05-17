@@ -328,8 +328,8 @@
 const GUILD_ID = '{{ guild_id }}';
 const CHANNELS = JSON.parse('{{ channels_json|escapejs }}');
 const WELCOME_CONFIG = JSON.parse('{{ welcome_config_json|escapejs }}');
-const WELCOME_API = '/ql/api/dashboard/fluxer/' + GUILD_ID + '/welcome/';
-const ROLES_API = '/ql/api/dashboard/fluxer/' + GUILD_ID + '/roles/list/';
+const WELCOME_API = '/api/dashboard/fluxer/' + GUILD_ID + '/welcome/';
+const ROLES_API = '/api/dashboard/fluxer/' + GUILD_ID + '/roles/list/';
 
 // Color picker sync
 const colorPicker = document.getElementById('channel_embed_color_picker');
