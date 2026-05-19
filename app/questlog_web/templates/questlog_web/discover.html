@@ -1456,6 +1456,8 @@ async function loadActivity() {
           msgHtml = `joined <a href="/communities/" class="text-teal-400 hover:underline">${esc(t.community_name)}</a>`;
         } else if (t.type === 'play_together' && t.steam_url) {
           msgHtml = `wants to play <a href="${esc(t.steam_url)}" target="_blank" rel="noopener" class="text-violet-400 hover:underline">${esc(t.game)}</a>`;
+        } else if (t.type === 'post' && t.post_url) {
+          msgHtml = `<a href="${esc(t.post_url)}" class="text-indigo-400 hover:underline">${esc(t.message)}</a>`;
         }
         return `<span class="inline-flex items-center gap-1.5 text-xs">
           ${avatarHtml(t.username || t.display_name, t.avatar_url, 'w-4 h-4')}

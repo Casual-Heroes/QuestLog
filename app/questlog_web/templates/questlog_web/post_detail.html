@@ -40,6 +40,10 @@
   window._postDetailId = window._postDetailData.id;
   window._postDetailUserId = {{ web_user.id|default:"null" }};
   window._postDetailIsAdmin = {{ web_user.is_admin|default:"false"|lower }};
+  window._customEmojiMap = {};
+  fetch('/api/emoji/').then(r => r.json()).then(data => {
+    (data.emoji || []).forEach(e => { window._customEmojiMap[e.shortcode] = e.image_url; });
+  }).catch(() => {});
   </script>
 
   {% endif %}

@@ -244,16 +244,22 @@ function renderWTPPanel(games) {
   }
   grid.innerHTML = wtp.map(g => {
     const cover = g.cover_url || '';
-    return `<a href="/lfg/create/?game=${encodeURIComponent(g.name)}" class="relative group block" title="Create LFG for ${esc(g.name)}">
-      ${cover
-        ? `<img src="${esc(cover)}" class="w-full aspect-[2/3] object-cover rounded-lg border border-orange-500/50" loading="lazy" alt="${esc(g.name)}">`
-        : `<div class="w-full aspect-[2/3] bg-neutral-800 rounded-lg border border-orange-500/50 flex items-center justify-center"><i class="fas fa-gamepad text-gray-600"></i></div>`}
-      <div class="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition rounded-lg flex flex-col items-center justify-center gap-1 p-1">
-        <i class="fas fa-users text-orange-300 text-sm"></i>
-        <span class="text-white text-[10px] font-bold text-center leading-tight">${esc(g.name)}</span>
-        <span class="text-orange-300 text-[9px]">Create LFG</span>
-      </div>
-    </a>`;
+    return `<div class="relative group block">
+      <a href="/lfg/create/?game=${encodeURIComponent(g.name)}" title="Create LFG for ${esc(g.name)}">
+        ${cover
+          ? `<img src="${esc(cover)}" class="w-full aspect-[2/3] object-cover rounded-lg border border-orange-500/50" loading="lazy" alt="${esc(g.name)}">`
+          : `<div class="w-full aspect-[2/3] bg-neutral-800 rounded-lg border border-orange-500/50 flex items-center justify-center"><i class="fas fa-gamepad text-gray-600"></i></div>`}
+        <div class="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition rounded-lg flex flex-col items-center justify-center gap-1 p-1">
+          <i class="fas fa-users text-orange-300 text-sm"></i>
+          <span class="text-white text-[10px] font-bold text-center leading-tight">${esc(g.name)}</span>
+          <span class="text-orange-300 text-[9px]">Create LFG</span>
+        </div>
+      </a>
+      <button onclick="removeFromWantToPlay(event, ${g.id})" title="Remove from Want to Play"
+        class="absolute top-1 right-1 w-5 h-5 bg-black/70 hover:bg-red-600 text-white rounded-full text-[10px] items-center justify-center hidden group-hover:flex transition z-10">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>`;
   }).join('');
 }
 
@@ -394,6 +400,15 @@ function updateStatus(gameId, status) {
       }
     });
 }
+function removeFromWantToPlay(e, gameId) {
+  e.preventDefault();
+  e.stopPropagation();
+  csrfFetch(`/api/library/${gameId}/update/`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({status:'played'})})
+    .then(r => r.json())
+    .then(() => loadLibrary())
+    .catch(() => {});
+}
+
 function removeGame(gameId) {
   if (!confirm('Remove this game from your library?')) return;
   csrfFetch(`/api/library/${gameId}/remove/`, {method:'POST'})

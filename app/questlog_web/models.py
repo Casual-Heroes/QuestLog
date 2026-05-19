@@ -113,6 +113,7 @@ class WebUser(Base):
     show_playing_status = Column(Boolean, default=False)   # Show currently-playing game on profile/posts
     current_game = Column(String(255), nullable=True)      # Name of game being played right now (null = not playing)
     current_game_appid = Column(Integer, nullable=True)    # Steam app ID for current_game (for direct store link)
+    current_game_started_at = Column(BigInteger, nullable=True)  # Unix epoch when current_game session started (only set on game change)
     track_game_launches = Column(Boolean, default=False)   # Opt-in: earn XP when launching a new game
     last_game_launched_at = Column(BigInteger, nullable=True)  # Unix epoch of last game launch XP award (cooldown)
     fluxer_sync_custom_status = Column(Boolean, default=False)  # Opt-in: sync Now Playing to Fluxer custom status

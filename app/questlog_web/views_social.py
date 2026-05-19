@@ -1057,6 +1057,7 @@ def _get_recent_activity(request):
                     'message': msg,
                     'timestamp': p.created_at,
                     'post_id': p.id,
+                    'post_url': f"/ql/post/{p.public_id}/" if p.public_id else None,
                 })
 
         # Follows
@@ -1155,7 +1156,7 @@ def _get_recent_activity(request):
                     'message': f"is playing {u.current_game}",
                     'game': u.current_game,
                     'steam_url': steam_url,
-                    'timestamp': now - 60,  # approximate - no written-at column
+                    'timestamp': u.current_game_started_at or (now - 60),
                 })
 
         # LFG group created (last 2 days)
