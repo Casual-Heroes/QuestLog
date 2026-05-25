@@ -754,8 +754,11 @@ def api_lfg_detail(request, group_id):
         ).all()
 
         viewer_id = request.web_user.id if request.web_user else None
+        viewer_is_site_admin = bool(viewer_id and request.web_user and
+                                    (getattr(request.web_user, 'is_admin', False) or
+                                     getattr(request.web_user, 'is_mod', False)))
         viewer_is_member = False
-        viewer_is_creator = group.creator_id == viewer_id
+        viewer_is_creator = group.creator_id == viewer_id or viewer_is_site_admin
         viewer_is_co_leader = False
 
         members = []
@@ -1286,8 +1289,6 @@ def api_community_wall(request, community_id):
         if request.method == 'POST':
             if not user_id:
                 return JsonResponse({'error': 'Login required'}, status=401)
-            if not (is_owner or is_member or is_site_admin):
-                return JsonResponse({'error': 'You must be a member to post'}, status=403)
             try:
                 data = json.loads(request.body)
             except (json.JSONDecodeError, ValueError):
@@ -1303,8 +1304,7 @@ def api_community_wall(request, community_id):
                 parent = db.query(WebCommunityPost).filter_by(
                     id=parent_id, community_id=community_id, is_deleted=False
                 ).first()
-                if not parent or parent.parent_id is not None:
-                    # Only allow 1 level of nesting
+                if not parent:
                     parent_id = None
                     parent = None
             else:
@@ -1393,15 +1393,24 @@ def api_community_wall(request, community_id):
         all_top = pinned + regular
         top_ids = [p.id for p in all_top]
 
-        # Fetch all replies for these top-level posts
-        replies_raw = db.query(WebCommunityPost).filter(
-            WebCommunityPost.parent_id.in_(top_ids),
-            WebCommunityPost.is_deleted == False,
-        ).order_by(WebCommunityPost.created_at.asc()).all() if top_ids else []
+        # Fetch ALL descendants (any depth) for these top-level posts
+        # Walk down iteratively until no new children found
+        all_descendants = []
+        parent_ids = top_ids[:]
+        seen_ids = set(top_ids)
+        while parent_ids:
+            children = db.query(WebCommunityPost).filter(
+                WebCommunityPost.parent_id.in_(parent_ids),
+                WebCommunityPost.is_deleted == False,
+            ).order_by(WebCommunityPost.created_at.asc()).all()
+            new_children = [c for c in children if c.id not in seen_ids]
+            all_descendants.extend(new_children)
+            seen_ids.update(c.id for c in new_children)
+            parent_ids = [c.id for c in new_children]
 
         liked_ids = set()
         if user_id:
-            all_ids = top_ids + [r.id for r in replies_raw]
+            all_ids = top_ids + [r.id for r in all_descendants]
             likes = db.query(WebCommunityPostLike.post_id).filter(
                 WebCommunityPostLike.user_id == user_id,
                 WebCommunityPostLike.post_id.in_(all_ids),
@@ -1473,20 +1482,20 @@ def api_community_wall(request, community_id):
                 'replies': [],
             }
 
-        # Group replies by parent
-        replies_by_parent = {}
-        for r in replies_raw:
-            replies_by_parent.setdefault(r.parent_id, []).append(r)
+        # Build recursive tree
+        children_by_parent = {}
+        for r in all_descendants:
+            children_by_parent.setdefault(r.parent_id, []).append(r)
 
-        def serialize_with_replies(p):
-            s = serialize(p)
-            s['replies'] = [serialize(r, is_reply=True) for r in replies_by_parent.get(p.id, [])]
+        def serialize_tree(p, depth=0):
+            s = serialize(p, is_reply=depth > 0)
+            s['replies'] = [serialize_tree(c, depth + 1) for c in children_by_parent.get(p.id, [])]
             return s
 
         return JsonResponse({
-            'posts': [serialize_with_replies(p) for p in all_top],
+            'posts': [serialize_tree(p) for p in all_top],
             'has_more': len(regular) == limit,
-            'can_post': bool(is_owner or is_member or is_site_admin),
+            'can_post': bool(user_id),
             'is_owner': is_owner,
         })
 
@@ -1752,8 +1761,9 @@ def api_lfg_group_post_action(request, group_id, post_id):
         group = db.query(WebLFGGroup).filter_by(id=group_id).first()
         is_creator = group and group.creator_id == user_id
 
+        is_site_admin = bool(request.web_user and (getattr(request.web_user, 'is_admin', False) or getattr(request.web_user, 'is_mod', False)))
         if action == 'delete':
-            if post.author_id != user_id and not is_creator:
+            if post.author_id != user_id and not is_creator and not is_site_admin:
                 return JsonResponse({'error': 'Forbidden'}, status=403)
             post.is_deleted = True
             if post.parent_id:
