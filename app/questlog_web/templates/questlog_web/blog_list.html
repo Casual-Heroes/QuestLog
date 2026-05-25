@@ -96,7 +96,7 @@
           <span class="text-xs text-yellow-500" title="Pinned"><i class="fas fa-thumbtack"></i></span>
           {% endif %}
           {% if art.game_tag_name %}
-          <span class="text-xs text-gray-500 truncate">{{ art.game_tag_name }}</span>
+          <a href="/ql/lfg/browse/?game={{ art.game_tag_name|urlencode }}" class="text-xs text-indigo-400 hover:text-indigo-300 truncate transition"><i class="fas fa-gamepad mr-0.5 text-[10px]"></i>{{ art.game_tag_name }}</a>
           {% endif %}
         </div>
 

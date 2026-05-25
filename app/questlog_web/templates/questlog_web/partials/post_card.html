@@ -17,6 +17,8 @@ function formatContent(text) {
   const div = document.createElement('div');
   div.textContent = text;
   let html = div.innerHTML;
+  // Inline markdown: bold, italic, underline, code
+  if (window.renderInlineMarkdown) html = renderInlineMarkdown(html);
   html = html.replace(/\n/g, '<br>');
   html = html.replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener" class="text-blue-400 hover:underline">$1</a>');
   if (window._customEmojiMap) {
@@ -27,6 +29,7 @@ function formatContent(text) {
         : match;
     });
   }
+  if (window.renderMentions) html = renderMentions(html);
   return html;
 }
 
@@ -134,7 +137,7 @@ function renderPostCard(post, options = {}) {
       const h = count === 2 ? 'h-64' : 'h-48';
       html += `<img src="${escapePost(img.image_url)}" alt="Post image"` +
         ` class="w-full ${h} object-cover cursor-pointer hover:opacity-90 transition ${span}"` +
-        ` onclick="window.open('${escapePost(img.image_url)}', '_blank')"` +
+        ` onclick="openLightbox('${escapePost(img.image_url)}')"` +
         ` loading="lazy">`;
     });
     html += '</div>';
@@ -239,7 +242,7 @@ function renderPostCard(post, options = {}) {
     : '';
 
   const mediaHtml = post.post_type === 'gif' && post.media_url
-    ? `<img src="${escapePost(post.media_url)}" alt="GIF" class="rounded-lg max-h-80 w-auto" loading="lazy">`
+    ? `<img src="${escapePost(post.media_url)}" alt="GIF" class="rounded-lg max-h-80 w-auto cursor-pointer hover:opacity-90 transition" loading="lazy" onclick="openLightbox('${escapePost(post.media_url)}')">`
     : (_embedSource ? renderEmbed(_embedSource) : renderImages(post.images || []));
 
   // Link preview card (OG metadata) - only shown on text posts with no other media

@@ -330,6 +330,54 @@
       </div>
     </div>
 
+    <!-- Stream Schedule -->
+    <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-5">
+      <h3 class="text-base font-semibold text-white mb-1"><i class="fas fa-clock text-indigo-400 mr-2"></i>Stream Schedule <span class="text-gray-500 font-normal text-sm">(optional)</span></h3>
+      <p class="text-xs text-gray-500 mb-4">Set your usual stream times in your timezone. Viewers will see times converted to their local timezone.</p>
+
+      <div class="mb-4">
+        <label class="block text-xs font-medium text-gray-400 mb-1">Your Timezone</label>
+        <select id="streamTimezone" class="w-full max-w-xs bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500">
+          <option value="">-- Select your timezone --</option>
+          <optgroup label="United States">
+            <option value="America/New_York">Eastern (ET)</option>
+            <option value="America/Chicago">Central (CT)</option>
+            <option value="America/Denver">Mountain (MT)</option>
+            <option value="America/Los_Angeles">Pacific (PT)</option>
+            <option value="America/Anchorage">Alaska (AKT)</option>
+            <option value="Pacific/Honolulu">Hawaii (HT)</option>
+          </optgroup>
+          <optgroup label="Canada">
+            <option value="America/Toronto">Toronto (ET)</option>
+            <option value="America/Vancouver">Vancouver (PT)</option>
+          </optgroup>
+          <optgroup label="Europe">
+            <option value="Europe/London">London (GMT/BST)</option>
+            <option value="Europe/Paris">Paris / Berlin (CET)</option>
+            <option value="Europe/Amsterdam">Amsterdam (CET)</option>
+            <option value="Europe/Stockholm">Stockholm (CET)</option>
+            <option value="Europe/Helsinki">Helsinki (EET)</option>
+            <option value="Europe/Moscow">Moscow (MSK)</option>
+          </optgroup>
+          <optgroup label="Asia / Pacific">
+            <option value="Asia/Tokyo">Tokyo (JST)</option>
+            <option value="Asia/Seoul">Seoul (KST)</option>
+            <option value="Asia/Shanghai">Shanghai (CST)</option>
+            <option value="Asia/Singapore">Singapore (SGT)</option>
+            <option value="Asia/Kolkata">India (IST)</option>
+            <option value="Australia/Sydney">Sydney (AEST)</option>
+            <option value="Pacific/Auckland">Auckland (NZST)</option>
+          </optgroup>
+        </select>
+      </div>
+
+      <div id="scheduleSlots" class="space-y-2 mb-3"></div>
+      <button type="button" onclick="addScheduleSlot()"
+              class="flex items-center gap-2 text-sm text-indigo-400 hover:text-indigo-300 transition">
+        <i class="fas fa-plus-circle"></i> Add Time Slot
+      </button>
+    </div>
+
     <!-- Submit -->
     <div class="flex items-center justify-between">
       <a href="{% url 'questlog_web_creators' %}" class="text-gray-400 hover:text-white transition">
@@ -375,6 +423,10 @@ document.getElementById('creatorForm').addEventListener('submit', async (e) => {
   const kickUrl = val('kickUrl');
   if (kickUrl !== undefined) formData.kick_url = kickUrl;
 
+  // Stream schedule
+  formData.stream_timezone = document.getElementById('streamTimezone').value || '';
+  formData.stream_schedule = collectScheduleSlots();
+
   try {
     const response = await csrfFetch('{% url "questlog_web_api_creators" %}', {
       method: 'POST',
@@ -404,6 +456,60 @@ document.getElementById('creatorForm').addEventListener('submit', async (e) => {
     alert('Failed to save creator profile. Please try again.');
     btn.disabled = false;
     btn.innerHTML = '<i class="fas fa-save mr-2"></i>Save Creator Profile';
+  }
+});
+
+// ---- Stream Schedule ----
+const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+function addScheduleSlot(day, start, end) {
+  const container = document.getElementById('scheduleSlots');
+  const idx = container.children.length;
+  const d = day !== undefined ? day : 1;
+  const s = start || '18:00';
+  const e = end || '22:00';
+  const dayOpts = DAYS.map((name, i) =>
+    `<option value="${i}" ${i === d ? 'selected' : ''}>${name}</option>`
+  ).join('');
+  const row = document.createElement('div');
+  row.className = 'flex items-center gap-2 flex-wrap';
+  row.innerHTML = `
+    <select class="sch-day bg-neutral-800 border border-neutral-700 rounded-lg px-2 py-1.5 text-sm text-white focus:outline-none">${dayOpts}</select>
+    <input type="time" value="${s}" class="sch-start bg-neutral-800 border border-neutral-700 rounded-lg px-2 py-1.5 text-sm text-white focus:outline-none">
+    <span class="text-gray-500 text-xs">to</span>
+    <input type="time" value="${e}" class="sch-end bg-neutral-800 border border-neutral-700 rounded-lg px-2 py-1.5 text-sm text-white focus:outline-none">
+    <button type="button" onclick="this.closest('.flex').remove()" class="text-gray-600 hover:text-red-400 transition"><i class="fas fa-trash text-sm"></i></button>
+  `;
+  container.appendChild(row);
+}
+
+function collectScheduleSlots() {
+  const rows = document.getElementById('scheduleSlots').children;
+  const slots = [];
+  for (const row of rows) {
+    const day = parseInt(row.querySelector('.sch-day').value);
+    const start = row.querySelector('.sch-start').value;
+    const end = row.querySelector('.sch-end').value;
+    if (!isNaN(day) && start && end) slots.push({ day, start, end });
+  }
+  return slots;
+}
+
+// Pre-populate from server data
+document.addEventListener('DOMContentLoaded', function() {
+  const tzEl = document.getElementById('streamTimezone');
+  const existingTz = '{{ profile.stream_timezone|default:"" }}';
+  if (existingTz && tzEl) {
+    for (const opt of tzEl.options) {
+      if (opt.value === existingTz) { opt.selected = true; break; }
+    }
+  }
+  const rawSchedule = '{{ profile.stream_schedule|default:""|escapejs }}';
+  if (rawSchedule) {
+    try {
+      const slots = JSON.parse(rawSchedule);
+      slots.forEach(function(s) { addScheduleSlot(s.day, s.start, s.end); });
+    } catch(e) {}
   }
 });
 </script>

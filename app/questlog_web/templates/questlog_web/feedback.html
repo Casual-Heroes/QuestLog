@@ -1,0 +1,176 @@
+{% extends "questlog_web/base_web.html" %}
+{% load static %}
+
+{% block title %}Give Feedback | Casual Heroes{% endblock %}
+{% block og_title %}Give Feedback | Casual Heroes{% endblock %}
+{% block og_description %}Help us improve QuestLog by sharing your feedback, ideas, and bug reports.{% endblock %}
+
+{% block web_content %}
+<div class="max-w-2xl mx-auto px-4 lg:px-6 py-10">
+
+  <!-- Header -->
+  <div class="mb-8">
+    <div class="flex items-center gap-3 mb-3">
+      <div class="w-10 h-10 rounded-xl bg-indigo-500/20 flex items-center justify-center">
+        <i class="fas fa-comment-dots text-indigo-400 text-lg"></i>
+      </div>
+      <h1 class="text-2xl font-bold text-white">Give Feedback</h1>
+    </div>
+    <p class="text-gray-400 text-sm leading-relaxed">
+      Your feedback helps make QuestLog better for everyone. Report a bug, suggest a feature, or share anything on your mind.
+    </p>
+  </div>
+
+  <!-- Category tabs -->
+  <div class="flex items-center gap-2 flex-wrap mb-6">
+    <button onclick="setCategory('bug')" id="cat-bug"
+            class="category-btn px-4 py-2 rounded-lg text-sm font-medium transition border border-neutral-700 text-gray-400 hover:text-white hover:border-neutral-600">
+      <i class="fas fa-bug mr-1.5"></i>Bug Report
+    </button>
+    <button onclick="setCategory('feature')" id="cat-feature"
+            class="category-btn px-4 py-2 rounded-lg text-sm font-medium transition border border-neutral-700 text-gray-400 hover:text-white hover:border-neutral-600">
+      <i class="fas fa-lightbulb mr-1.5"></i>Feature Idea
+    </button>
+    <button onclick="setCategory('suggestion')" id="cat-suggestion"
+            class="category-btn px-4 py-2 rounded-lg text-sm font-medium transition border border-neutral-700 text-gray-400 hover:text-white hover:border-neutral-600">
+      <i class="fas fa-star mr-1.5"></i>Suggestion
+    </button>
+    <button onclick="setCategory('general')" id="cat-general"
+            class="category-btn px-4 py-2 rounded-lg text-sm font-medium transition border border-neutral-700 text-gray-400 hover:text-white hover:border-neutral-600">
+      <i class="fas fa-comment mr-1.5"></i>General
+    </button>
+  </div>
+
+  <!-- Form -->
+  <div class="bg-neutral-900 border border-neutral-800 rounded-2xl overflow-hidden">
+    <!-- Category description -->
+    <div id="catDesc" class="px-5 pt-5 pb-3 bg-indigo-500/5 border-b border-indigo-500/10">
+      <p id="catDescText" class="text-sm text-indigo-200 leading-relaxed"></p>
+    </div>
+
+    <div class="p-5 space-y-4">
+      <div>
+        <label class="block text-xs font-medium text-gray-400 mb-1.5">Subject <span class="text-red-500">*</span></label>
+        <input id="fbSubject" type="text" maxlength="200" placeholder="Brief summary of your feedback..."
+               class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500 transition">
+        <p class="text-xs text-gray-600 mt-1"><span id="subjectCount">0</span>/200</p>
+      </div>
+
+      <div>
+        <label class="block text-xs font-medium text-gray-400 mb-1.5">Details <span class="text-red-500">*</span></label>
+        <textarea id="fbBody" rows="6" maxlength="2000" placeholder="Describe your feedback in detail..."
+                  class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500 transition resize-y"></textarea>
+        <p class="text-xs text-gray-600 mt-1"><span id="bodyCount">0</span>/2000</p>
+      </div>
+
+      <div id="successMsg" class="hidden p-3 bg-green-500/10 border border-green-500/30 rounded-lg text-green-400 text-sm">
+        <i class="fas fa-check-circle mr-2"></i>Thanks for your feedback! We'll review it soon.
+      </div>
+      <div id="errorMsg" class="hidden p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-sm"></div>
+    </div>
+
+    <div class="flex items-center justify-between px-5 py-4 border-t border-neutral-800">
+      <p class="text-xs text-gray-600">
+        {% if web_user %}
+        Submitting as <span class="text-gray-400">{{ web_user.display_name|default:web_user.username }}</span>
+        {% else %}
+        Submitting anonymously - <a href="/login/?next=/feedback/" class="text-indigo-400 hover:underline">log in</a> to identify yourself
+        {% endif %}
+      </p>
+      <button id="fbSubmitBtn" onclick="submitFeedback()"
+              class="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-lg transition">
+        Send Feedback
+      </button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const CAT_COLORS = {
+  bug: 'border-red-500/30 bg-red-500/5',
+  feature: 'border-indigo-500/30 bg-indigo-500/5',
+  suggestion: 'border-yellow-500/30 bg-yellow-500/5',
+  general: 'border-neutral-700 bg-neutral-800/30',
+};
+const CAT_TEXT_COLORS = {
+  bug: 'text-red-300',
+  feature: 'text-indigo-200',
+  suggestion: 'text-yellow-200',
+  general: 'text-gray-300',
+};
+const CAT_BTN_ACTIVE = {
+  bug: 'bg-red-500/20 border-red-500/50 text-red-300',
+  feature: 'bg-indigo-500/20 border-indigo-500/50 text-indigo-300',
+  suggestion: 'bg-yellow-500/20 border-yellow-500/50 text-yellow-300',
+  general: 'bg-neutral-700 border-neutral-600 text-white',
+};
+const CAT_DESCS = {
+  bug: 'Describe what happened, what you expected, and steps to reproduce. Screenshots or URLs help a lot.',
+  feature: "What would you like to see? Describe the feature and why it would be useful.",
+  suggestion: "An improvement or tweak to something that already exists. What would make it better?",
+  general: "Anything else on your mind - questions, compliments, concerns.",
+};
+
+let _selectedCategory = 'general';
+
+function setCategory(cat) {
+  _selectedCategory = cat;
+  document.querySelectorAll('.category-btn').forEach(function(b) {
+    b.className = 'category-btn px-4 py-2 rounded-lg text-sm font-medium transition border border-neutral-700 text-gray-400 hover:text-white hover:border-neutral-600';
+  });
+  const btn = document.getElementById('cat-' + cat);
+  if (btn) btn.className = 'category-btn px-4 py-2 rounded-lg text-sm font-medium transition border ' + CAT_BTN_ACTIVE[cat];
+  const desc = document.getElementById('catDesc');
+  const descText = document.getElementById('catDescText');
+  desc.className = 'px-5 pt-5 pb-3 border-b ' + CAT_COLORS[cat];
+  descText.className = 'text-sm leading-relaxed ' + CAT_TEXT_COLORS[cat];
+  descText.textContent = CAT_DESCS[cat];
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  setCategory('general');
+  document.getElementById('fbSubject').addEventListener('input', function() {
+    document.getElementById('subjectCount').textContent = this.value.length;
+  });
+  document.getElementById('fbBody').addEventListener('input', function() {
+    document.getElementById('bodyCount').textContent = this.value.length;
+  });
+});
+
+async function submitFeedback() {
+  const subject = document.getElementById('fbSubject').value.trim();
+  const body = document.getElementById('fbBody').value.trim();
+  const errEl = document.getElementById('errorMsg');
+  errEl.classList.add('hidden');
+  if (!subject) { errEl.textContent = 'Please enter a subject.'; errEl.classList.remove('hidden'); return; }
+  if (!body) { errEl.textContent = 'Please describe your feedback.'; errEl.classList.remove('hidden'); return; }
+  const btn = document.getElementById('fbSubmitBtn');
+  btn.disabled = true;
+  try {
+    const r = await csrfFetch('/api/feedback/', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ category: _selectedCategory, subject, body }),
+    });
+    if (r.ok) {
+      document.getElementById('successMsg').classList.remove('hidden');
+      document.getElementById('fbSubject').value = '';
+      document.getElementById('fbBody').value = '';
+      document.getElementById('subjectCount').textContent = '0';
+      document.getElementById('bodyCount').textContent = '0';
+      btn.disabled = false;
+    } else {
+      const d = await r.json();
+      errEl.textContent = d.error || 'Something went wrong. Please try again.';
+      errEl.classList.remove('hidden');
+      btn.disabled = false;
+    }
+  } catch(e) {
+    errEl.textContent = 'Network error. Please try again.';
+    errEl.classList.remove('hidden');
+    btn.disabled = false;
+  }
+}
+</script>
+{% endblock %}

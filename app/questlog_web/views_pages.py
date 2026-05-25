@@ -556,7 +556,7 @@ def lfg_calendar(request):
             ).filter(WebFluxerGuildSettings.guild_id.in_(guild_ids)).all()
             guild_name_map = {r[0]: r[1] or 'Unknown Server' for r in settings_rows}
 
-        events = [
+        lfg_events = [
             {
                 'id': g.id,
                 'title': g.title or g.game_name,
@@ -569,9 +569,100 @@ def lfg_calendar(request):
                 'guild_id': g.guild_id,
                 'guild_name': guild_name_map.get(g.guild_id, 'Unknown Server'),
                 'description': g.description or '',
+                'type': 'lfg',
             }
             for g in groups
         ]
+
+        # Community Game Nights - public communities with upcoming events
+        from .models import WebCommunityEvent
+        game_nights = db.query(WebCommunityEvent).filter(
+            WebCommunityEvent.is_cancelled == False,
+            WebCommunityEvent.starts_at >= cutoff,
+        ).order_by(WebCommunityEvent.starts_at).limit(200).all()
+
+        community_ids = list({e.community_id for e in game_nights})
+        community_map = {}
+        if community_ids:
+            from .models import WebCommunity
+            communities = db.query(WebCommunity).filter(
+                WebCommunity.id.in_(community_ids),
+                WebCommunity.is_active == True,
+                WebCommunity.is_banned == False,
+                WebCommunity.allow_discovery == True,
+            ).all()
+            community_map = {c.id: c for c in communities}
+
+        # Fetch user's RSVPs for all game nights (if logged in)
+        user_id = request.web_user.id if request.web_user else None
+        gn_rsvp_map = {}
+        if user_id and game_nights:
+            from .models import WebCommunityEventRSVP
+            gn_ids = [e.id for e in game_nights if e.community_id in community_map]
+            if gn_ids:
+                rsvp_rows = db.query(WebCommunityEventRSVP).filter(
+                    WebCommunityEventRSVP.user_id == user_id,
+                    WebCommunityEventRSVP.event_id.in_(gn_ids),
+                ).all()
+                gn_rsvp_map = {r.event_id: r.status for r in rsvp_rows}
+
+        game_night_events = [
+            {
+                'id': 'gn-' + str(e.id),
+                'title': e.title,
+                'game_name': e.game_tag_name or '',
+                'ts': e.starts_at,
+                'status': 'open',
+                'current_size': e.rsvp_going,
+                'max_size': e.max_attendees or 0,
+                'recurrence': e.recurrence or 'none',
+                'guild_id': None,
+                'guild_name': community_map[e.community_id].name if e.community_id in community_map else '',
+                'community_name': community_map[e.community_id].name if e.community_id in community_map else '',
+                'community_id': e.community_id,
+                'community_slug': _community_slug(community_map[e.community_id].name) if e.community_id in community_map else '',
+                'description': e.description or '',
+                'type': 'game_night',
+                'rsvp_going': e.rsvp_going,
+                'duration_mins': e.duration_mins,
+                'rsvp_maybe': e.rsvp_maybe,
+                'my_rsvp': gn_rsvp_map.get(e.id),
+            }
+            for e in game_nights
+            if e.community_id in community_map
+        ]
+
+        # Web-native LFG groups (QuestLog web, scheduled)
+        web_lfg_groups = db.query(WebLFGGroup).filter(
+            WebLFGGroup.scheduled_time.isnot(None),
+            WebLFGGroup.scheduled_time >= cutoff,
+            WebLFGGroup.status.in_(['open', 'full']),
+            WebLFGGroup.allow_network_discovery == True,
+        ).order_by(WebLFGGroup.scheduled_time).limit(200).all()
+
+        web_lfg_events = [
+            {
+                'id': g.id,
+                'share_token': g.share_token or '',
+                'share_url': f'/ql/lfg/{g.share_token}/' if g.share_token else f'/ql/lfg/{g.id}/',
+                'title': g.title,
+                'game_name': g.game_name or '',
+                'ts': g.scheduled_time,
+                'status': g.status,
+                'current_size': g.current_size,
+                'max_size': g.group_size,
+                'recurrence': 'none',
+                'guild_id': None,
+                'guild_name': g.origin_guild_name or '',
+                'description': g.description or '',
+                'type': 'lfg',
+                'source': 'web',
+                'creator_id': g.creator_id,
+            }
+            for g in web_lfg_groups
+        ]
+
+        events = lfg_events + web_lfg_events + game_night_events
 
     context = {
         'web_user': request.web_user,
@@ -579,6 +670,10 @@ def lfg_calendar(request):
         'events_json': json.dumps(events),
     }
     return render(request, 'questlog_web/lfg_calendar.html', context)
+
+
+def _community_slug(name):
+    return re.sub(r'[^a-z0-9]+', '-', name.lower()).strip('-')
 
 
 @web_login_required
@@ -4146,3 +4241,572 @@ def api_public_testimonials(request):
             'game_tag':    t.game_tag or '',
         } for t in rows]
     return JsonResponse({'testimonials': data})
+
+
+@require_GET
+@add_web_user_context
+def api_calendar_game_nights(request):
+    """Public: return upcoming game night events for the calendar polling."""
+    from .models import WebCommunityEvent, WebCommunity, WebCommunityEventRSVP
+    now_ts = int(time.time())
+    cutoff = now_ts - 86400
+
+    with get_db_session() as db:
+        game_nights = db.query(WebCommunityEvent).filter(
+            WebCommunityEvent.is_cancelled == False,
+            WebCommunityEvent.starts_at >= cutoff,
+        ).order_by(WebCommunityEvent.starts_at).limit(200).all()
+
+        community_ids = list({e.community_id for e in game_nights})
+        community_map = {}
+        if community_ids:
+            communities = db.query(WebCommunity).filter(
+                WebCommunity.id.in_(community_ids),
+                WebCommunity.is_active == True,
+                WebCommunity.is_banned == False,
+                WebCommunity.allow_discovery == True,
+            ).all()
+            community_map = {c.id: c for c in communities}
+
+        user_id = request.web_user.id if hasattr(request, 'web_user') and request.web_user else None
+        gn_rsvp_map = {}
+        if user_id and game_nights:
+            gn_ids = [e.id for e in game_nights if e.community_id in community_map]
+            if gn_ids:
+                rsvp_rows = db.query(WebCommunityEventRSVP).filter(
+                    WebCommunityEventRSVP.user_id == user_id,
+                    WebCommunityEventRSVP.event_id.in_(gn_ids),
+                ).all()
+                gn_rsvp_map = {r.event_id: r.status for r in rsvp_rows}
+
+        events = [
+            {
+                'id': 'gn-' + str(e.id),
+                'title': e.title,
+                'game_name': e.game_tag_name or '',
+                'ts': e.starts_at,
+                'status': 'open',
+                'current_size': e.rsvp_going,
+                'max_size': e.max_attendees or 0,
+                'recurrence': e.recurrence or 'none',
+                'guild_id': None,
+                'guild_name': community_map[e.community_id].name if e.community_id in community_map else '',
+                'community_name': community_map[e.community_id].name if e.community_id in community_map else '',
+                'community_id': e.community_id,
+                'community_slug': _community_slug(community_map[e.community_id].name) if e.community_id in community_map else '',
+                'description': e.description or '',
+                'type': 'game_night',
+                'rsvp_going': e.rsvp_going,
+                'duration_mins': e.duration_mins,
+                'rsvp_maybe': e.rsvp_maybe,
+                'my_rsvp': gn_rsvp_map.get(e.id),
+            }
+            for e in game_nights
+            if e.community_id in community_map
+        ]
+
+    return JsonResponse({'events': events})
+
+
+@require_GET
+@add_web_user_context
+def api_calendar_lfg_events(request):
+    """Public: return active LFG events for calendar polling."""
+    now_ts = int(time.time())
+    cutoff = now_ts - 86400
+
+    from .models import WebFluxerLfgGroup, WebFluxerLfgConfig, WebFluxerGuildSettings
+
+    with get_db_session() as db:
+        # Published Fluxer LFG groups
+        published_guild_ids = [
+            r[0] for r in db.query(WebFluxerLfgConfig.guild_id)
+            .filter(WebFluxerLfgConfig.publish_to_network == 1).all()
+        ]
+        fluxer_groups = db.query(WebFluxerLfgGroup).filter(
+            WebFluxerLfgGroup.scheduled_time.isnot(None),
+            WebFluxerLfgGroup.scheduled_time >= cutoff,
+            WebFluxerLfgGroup.status.in_(['open', 'full']),
+            or_(
+                WebFluxerLfgGroup.publish_override == 1,
+                and_(
+                    WebFluxerLfgGroup.guild_id.in_(published_guild_ids) if published_guild_ids else False,
+                    WebFluxerLfgGroup.publish_override.is_(None),
+                ),
+            ),
+        ).order_by(WebFluxerLfgGroup.scheduled_time).limit(365).all()
+
+        guild_ids = list({g.guild_id for g in fluxer_groups})
+        guild_name_map = {}
+        if guild_ids:
+            settings_rows = db.query(
+                WebFluxerGuildSettings.guild_id,
+                WebFluxerGuildSettings.guild_name,
+            ).filter(WebFluxerGuildSettings.guild_id.in_(guild_ids)).all()
+            guild_name_map = {r[0]: r[1] or 'Unknown Server' for r in settings_rows}
+
+        fluxer_events = [
+            {
+                'id': g.id,
+                'title': g.title or g.game_name,
+                'game_name': g.game_name or '',
+                'ts': g.scheduled_time,
+                'status': g.status,
+                'current_size': g.current_size,
+                'max_size': g.max_size,
+                'recurrence': g.recurrence or 'none',
+                'guild_id': g.guild_id,
+                'guild_name': guild_name_map.get(g.guild_id, 'Unknown Server'),
+                'description': g.description or '',
+                'type': 'lfg',
+            }
+            for g in fluxer_groups
+        ]
+
+        # Web-native LFG groups
+        web_groups = db.query(WebLFGGroup).filter(
+            WebLFGGroup.scheduled_time.isnot(None),
+            WebLFGGroup.scheduled_time >= cutoff,
+            WebLFGGroup.status.in_(['open', 'full']),
+            WebLFGGroup.allow_network_discovery == True,
+        ).order_by(WebLFGGroup.scheduled_time).limit(200).all()
+
+        web_events = [
+            {
+                'id': g.id,
+                'share_token': g.share_token or '',
+                'share_url': f'/ql/lfg/{g.share_token}/' if g.share_token else f'/ql/lfg/{g.id}/',
+                'title': g.title,
+                'game_name': g.game_name or '',
+                'ts': g.scheduled_time,
+                'status': g.status,
+                'current_size': g.current_size,
+                'max_size': g.group_size,
+                'recurrence': 'none',
+                'guild_id': None,
+                'guild_name': g.origin_guild_name or '',
+                'description': g.description or '',
+                'type': 'lfg',
+                'source': 'web',
+                'creator_id': g.creator_id,
+            }
+            for g in web_groups
+        ]
+
+    return JsonResponse({'events': fluxer_events + web_events})
+
+
+# ---------------------------------------------------------------------------
+# Site Announcements / What's New
+# ---------------------------------------------------------------------------
+
+@add_web_user_context
+@require_http_methods(['GET'])
+def page_whats_new(request):
+    """Public What's New page listing all site announcements."""
+    from .models import WebSiteAnnouncement
+    with get_db_session() as db:
+        announcements = db.query(WebSiteAnnouncement).order_by(
+            WebSiteAnnouncement.is_pinned.desc(),
+            WebSiteAnnouncement.created_at.desc()
+        ).limit(50).all()
+
+        now = int(time.time())
+        seven_days = 7 * 86400
+
+        items = []
+        from django.utils.safestring import mark_safe
+        from .helpers import sanitize_article_html
+        for a in announcements:
+            author = a.author
+            items.append({
+                'id': a.id,
+                'title': a.title,
+                'body_html': mark_safe(sanitize_article_html(a.body_md)),
+                'category': a.category,
+                'is_pinned': a.is_pinned,
+                'is_new': (now - a.created_at) < seven_days,
+                'created_at': a.created_at,
+                'media_items': json.loads(a.media_items) if a.media_items else (
+                    [{'url': a.media_url, 'type': a.media_type}] if a.media_url else []
+                ),
+                'game_tag_name': a.game_tag_name or '',
+                'game_tag_steam_id': a.game_tag_steam_id or 0,
+                'author_username': author.username if author else '',
+                'author_display_name': (author.display_name or author.username) if author else 'Admin',
+                'author_avatar': author.avatar_url or '' if author else '',
+            })
+
+    return render(request, 'questlog_web/whats_new.html', {
+        'web_user': request.web_user,
+        'announcements': items,
+        'active_page': 'whats_new',
+    })
+
+
+@require_http_methods(['GET', 'POST'])
+@add_web_user_context
+def api_admin_announcements(request):
+    """Admin: list all announcements (GET) or create one (POST)."""
+    from .helpers import web_admin_required
+    from .models import WebSiteAnnouncement
+
+    if not (request.web_user and request.web_user.is_admin):
+        return JsonResponse({'error': 'Forbidden'}, status=403)
+
+    with get_db_session() as db:
+        if request.method == 'POST':
+            try:
+                data = json.loads(request.body)
+            except (json.JSONDecodeError, ValueError):
+                return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+            title = (data.get('title', '').strip())[:200]
+            body_md = (data.get('body_md') or '').strip()[:10000]
+            category = data.get('category', 'update')
+            if category not in ('update', 'event', 'maintenance', 'feature'):
+                category = 'update'
+            is_pinned = bool(data.get('is_pinned', False))
+
+            from app.questlog_web.helpers import _is_valid_giphy_url
+            game_tag_name = (data.get('game_tag_name') or '')[:200] or None
+            game_tag_steam_id = safe_int(data.get('game_tag_steam_id'), None)
+
+            # Multi-media: list of {url, type} - no limit for admins
+            raw_items = data.get('media_items') or []
+            media_items_clean = []
+            for item in raw_items[:50]:
+                url = (item.get('url') or '').strip()[:500]
+                mtype = (item.get('type') or '').strip()
+                if mtype == 'gif' and _is_valid_giphy_url(url):
+                    media_items_clean.append({'url': url, 'type': 'gif'})
+                elif mtype == 'image' and url.startswith('/media/uploads/'):
+                    media_items_clean.append({'url': url, 'type': 'image'})
+            # Legacy single-media compat
+            media_url = media_items_clean[0]['url'] if media_items_clean else None
+            media_type = media_items_clean[0]['type'] if media_items_clean else None
+
+            if not title or (not body_md and not media_items_clean):
+                return JsonResponse({'error': 'Title and body or media required'}, status=400)
+
+            now = int(time.time())
+            ann = WebSiteAnnouncement(
+                author_id=request.web_user.id,
+                title=title,
+                body_md=body_md or '',
+                category=category,
+                is_pinned=is_pinned,
+                media_url=media_url,
+                media_type=media_type,
+                media_items=json.dumps(media_items_clean) if media_items_clean else None,
+                game_tag_name=game_tag_name,
+                game_tag_steam_id=game_tag_steam_id,
+                created_at=now,
+                updated_at=now,
+            )
+            db.add(ann)
+            db.commit()
+            return JsonResponse({'ok': True, 'id': ann.id})
+
+        # GET - list all
+        items = db.query(WebSiteAnnouncement).order_by(
+            WebSiteAnnouncement.is_pinned.desc(),
+            WebSiteAnnouncement.created_at.desc()
+        ).all()
+        return JsonResponse({'announcements': [
+            {
+                'id': a.id,
+                'title': a.title,
+                'body_md': a.body_md,
+                'category': a.category,
+                'is_pinned': a.is_pinned,
+                'created_at': a.created_at,
+            }
+            for a in items
+        ]})
+
+
+@require_http_methods(['GET', 'PUT', 'DELETE'])
+@add_web_user_context
+def api_admin_announcement_detail(request, ann_id):
+    """Admin: get, update, or delete a specific announcement."""
+    from .models import WebSiteAnnouncement
+
+    if not (request.web_user and request.web_user.is_admin):
+        return JsonResponse({'error': 'Forbidden'}, status=403)
+
+    with get_db_session() as db:
+        ann = db.query(WebSiteAnnouncement).filter_by(id=ann_id).first()
+        if not ann:
+            return JsonResponse({'error': 'Not found'}, status=404)
+
+        if request.method == 'DELETE':
+            db.delete(ann)
+            db.commit()
+            return JsonResponse({'ok': True})
+
+        if request.method == 'PUT':
+            try:
+                data = json.loads(request.body)
+            except (json.JSONDecodeError, ValueError):
+                return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+            if 'title' in data:
+                ann.title = data['title'].strip()[:200]
+            if 'body_md' in data:
+                ann.body_md = data['body_md'].strip()[:10000]
+            if 'category' in data and data['category'] in ('update', 'event', 'maintenance', 'feature'):
+                ann.category = data['category']
+            if 'is_pinned' in data:
+                ann.is_pinned = bool(data['is_pinned'])
+            from app.questlog_web.helpers import _is_valid_giphy_url
+            if 'media_items' in data:
+                raw_items = data.get('media_items') or []
+                media_items_clean = []
+                for item in raw_items[:50]:
+                    url = (item.get('url') or '').strip()[:500]
+                    mtype = (item.get('type') or '').strip()
+                    if mtype == 'gif' and _is_valid_giphy_url(url):
+                        media_items_clean.append({'url': url, 'type': 'gif'})
+                    elif mtype == 'image' and url.startswith('/media/uploads/'):
+                        media_items_clean.append({'url': url, 'type': 'image'})
+                ann.media_items = json.dumps(media_items_clean) if media_items_clean else None
+                ann.media_url = media_items_clean[0]['url'] if media_items_clean else None
+                ann.media_type = media_items_clean[0]['type'] if media_items_clean else None
+            if 'game_tag_name' in data:
+                ann.game_tag_name = (data['game_tag_name'] or '')[:200] or None
+                ann.game_tag_steam_id = safe_int(data.get('game_tag_steam_id'), None)
+            ann.updated_at = int(time.time())
+            db.commit()
+            return JsonResponse({'ok': True})
+
+        raw_items = json.loads(ann.media_items) if ann.media_items else (
+            [{'url': ann.media_url, 'type': ann.media_type}] if ann.media_url else []
+        )
+        return JsonResponse({
+            'id': ann.id,
+            'title': ann.title,
+            'body_md': ann.body_md,
+            'category': ann.category,
+            'is_pinned': ann.is_pinned,
+            'media_items': raw_items,
+            'game_tag_name': ann.game_tag_name or '',
+            'game_tag_steam_id': ann.game_tag_steam_id or 0,
+            'created_at': ann.created_at,
+        })
+
+
+@require_http_methods(['GET'])
+@add_web_user_context
+def api_announcements_latest(request):
+    """Public: latest announcements for sidebar widget."""
+    from .models import WebSiteAnnouncement
+    with get_db_session() as db:
+        items = db.query(WebSiteAnnouncement).order_by(
+            WebSiteAnnouncement.is_pinned.desc(),
+            WebSiteAnnouncement.created_at.desc()
+        ).limit(5).all()
+        now = int(time.time())
+        seven_days = 7 * 86400
+        return JsonResponse({'announcements': [
+            {
+                'id': a.id,
+                'title': a.title,
+                'category': a.category,
+                'is_pinned': a.is_pinned,
+                'is_new': (now - a.created_at) < seven_days,
+                'created_at': a.created_at,
+            }
+            for a in items
+        ]})
+
+
+# ---------------------------------------------------------------------------
+# Site Feedback
+# ---------------------------------------------------------------------------
+
+@require_http_methods(['POST'])
+@add_web_user_context
+@ratelimit(key='ip', rate='5/h', block=True)
+def api_submit_feedback(request):
+    """Submit user feedback. Logged-in preferred but anonymous allowed."""
+    import requests as _requests
+    from .models import WebSiteFeedback, WebSiteConfig
+
+    try:
+        data = json.loads(request.body)
+    except (json.JSONDecodeError, ValueError):
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+    category = data.get('category', 'general')
+    if category not in ('bug', 'feature', 'suggestion', 'general'):
+        category = 'general'
+    subject = sanitize_text((data.get('subject') or '').strip(), max_length=200)
+    body = sanitize_text((data.get('body') or '').strip(), max_length=2000)
+
+    if not subject or not body:
+        return JsonResponse({'error': 'Subject and body required'}, status=400)
+
+    now = int(time.time())
+    user_id = request.web_user.id if request.web_user else None
+
+    CATEGORY_COLORS = {
+        'bug': 0xef4444,
+        'feature': 0x6366f1,
+        'suggestion': 0xf59e0b,
+        'general': 0x6b7280,
+    }
+
+    with get_db_session() as db:
+        fb = WebSiteFeedback(
+            user_id=user_id,
+            category=category,
+            subject=subject,
+            body=body,
+            status='new',
+            created_at=now,
+        )
+        db.add(fb)
+        db.commit()
+        fb_id = fb.id
+
+        # Read routing config
+        fluxer_channel_cfg = db.query(WebSiteConfig).filter_by(key='feedback_fluxer_channel_id').first()
+        discord_webhook_cfg = db.query(WebSiteConfig).filter_by(key='feedback_discord_webhook_url').first()
+        fluxer_channel_id = fluxer_channel_cfg.value if fluxer_channel_cfg else None
+        discord_webhook_url = discord_webhook_cfg.value if discord_webhook_cfg else None
+
+    author_name = 'Anonymous'
+    if request.web_user:
+        author_name = request.web_user.display_name or request.web_user.username
+
+    admin_url = f'https://questlog.casual-heroes.com/admin/?tab=feedback'
+    embed = {
+        'title': f'[{category.upper()}] {subject}',
+        'description': body[:2000],
+        'color': CATEGORY_COLORS.get(category, 0x6b7280),
+        'fields': [
+            {'name': 'From', 'value': author_name, 'inline': True},
+            {'name': 'Category', 'value': category.capitalize(), 'inline': True},
+            {'name': 'ID', 'value': f'#{fb_id}', 'inline': True},
+            {'name': 'Review', 'value': f'[Open in Admin]({admin_url})', 'inline': False},
+        ],
+        'timestamp': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime(now)),
+    }
+
+    # Send to Fluxer channel via pending broadcasts queue
+    if fluxer_channel_id:
+        try:
+            with get_db_session() as db2:
+                from sqlalchemy import text as _text
+                db2.execute(_text(
+                    "INSERT INTO fluxer_pending_broadcasts (guild_id, channel_id, payload, created_at) "
+                    "VALUES (:g, :c, :p, :t)"
+                ), {"g": 0, "c": int(fluxer_channel_id), "p": json.dumps(embed), "t": now})
+                db2.commit()
+        except Exception:
+            pass
+
+    # Send to Discord webhook
+    if discord_webhook_url and discord_webhook_url.startswith('https://discord.com/api/webhooks/'):
+        try:
+            _requests.post(discord_webhook_url, json={'embeds': [embed]}, timeout=5)
+        except Exception:
+            pass
+
+    return JsonResponse({'ok': True})
+
+
+@require_http_methods(['GET'])
+@add_web_user_context
+def api_admin_feedback(request):
+    """Admin: list feedback submissions."""
+    from .models import WebSiteFeedback
+    if not (request.web_user and request.web_user.is_admin):
+        return JsonResponse({'error': 'Forbidden'}, status=403)
+
+    status_filter = request.GET.get('status', '')
+    with get_db_session() as db:
+        q = db.query(WebSiteFeedback)
+        if status_filter:
+            q = q.filter(WebSiteFeedback.status == status_filter)
+        items = q.order_by(WebSiteFeedback.created_at.desc()).limit(100).all()
+        return JsonResponse({'feedback': [
+            {
+                'id': f.id,
+                'category': f.category,
+                'subject': f.subject,
+                'body': f.body,
+                'status': f.status,
+                'created_at': f.created_at,
+                'author': (f.user.display_name or f.user.username) if f.user else 'Anonymous',
+            }
+            for f in items
+        ]})
+
+
+@require_http_methods(['PUT'])
+@add_web_user_context
+def api_admin_feedback_detail(request, feedback_id):
+    """Admin: update feedback status."""
+    from .models import WebSiteFeedback
+    if not (request.web_user and request.web_user.is_admin):
+        return JsonResponse({'error': 'Forbidden'}, status=403)
+    try:
+        data = json.loads(request.body)
+    except (json.JSONDecodeError, ValueError):
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+    with get_db_session() as db:
+        fb = db.query(WebSiteFeedback).filter_by(id=feedback_id).first()
+        if not fb:
+            return JsonResponse({'error': 'Not found'}, status=404)
+        if 'status' in data and data['status'] in ('new', 'in_review', 'implementing', 'completed', 'dismissed'):
+            fb.status = data['status']
+        db.commit()
+    return JsonResponse({'ok': True})
+
+
+@require_http_methods(['GET', 'POST'])
+@add_web_user_context
+def api_admin_feedback_settings(request):
+    """Admin: get/set feedback routing (Fluxer channel + Discord webhook)."""
+    from .models import WebSiteConfig
+    if not (request.web_user and request.web_user.is_admin):
+        return JsonResponse({'error': 'Forbidden'}, status=403)
+
+    with get_db_session() as db:
+        if request.method == 'POST':
+            try:
+                data = json.loads(request.body)
+            except (json.JSONDecodeError, ValueError):
+                return JsonResponse({'error': 'Invalid JSON'}, status=400)
+            now = int(time.time())
+            for key, val in [
+                ('feedback_fluxer_channel_id', data.get('fluxer_channel_id', '').strip()),
+                ('feedback_discord_webhook_url', data.get('discord_webhook_url', '').strip()),
+            ]:
+                cfg = db.query(WebSiteConfig).filter_by(key=key).first()
+                if cfg:
+                    cfg.value = val or None
+                    cfg.updated_at = now
+                else:
+                    db.add(WebSiteConfig(key=key, value=val or None, updated_at=now))
+            db.commit()
+            return JsonResponse({'ok': True})
+
+        fluxer_cfg = db.query(WebSiteConfig).filter_by(key='feedback_fluxer_channel_id').first()
+        discord_cfg = db.query(WebSiteConfig).filter_by(key='feedback_discord_webhook_url').first()
+        return JsonResponse({
+            'fluxer_channel_id': fluxer_cfg.value or '' if fluxer_cfg else '',
+            'discord_webhook_url': discord_cfg.value or '' if discord_cfg else '',
+        })
+
+
+@add_web_user_context
+@require_http_methods(['GET'])
+def page_feedback(request):
+    """Public feedback submission page."""
+    return render(request, 'questlog_web/feedback.html', {
+        'web_user': request.web_user,
+        'active_page': 'feedback',
+    })

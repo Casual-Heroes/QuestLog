@@ -378,6 +378,38 @@ def discord_login_required(view_func):
     return wrapper
 
 
+def fluxer_or_web_admin_required(view_func):
+    """
+    Allows access if the user is a Django superuser OR has an active Fluxer session.
+    Used for quest-control API endpoints that are reached from both the Discord
+    dashboard (web_admin_required) and the Fluxer dashboard (Fluxer OAuth session).
+    Returns JSON errors for all failures (these are always API endpoints).
+    """
+    @wraps(view_func)
+    def wrapper(request, *args, **kwargs):
+        web_user = get_web_user(request)
+
+        if web_user:
+            if web_user.is_banned:
+                return JsonResponse({'error': 'Account suspended'}, status=403)
+            # QuestLog admin - always allow
+            if web_user.is_admin:
+                return view_func(request, *args, **kwargs)
+            # Fluxer-linked user - allow if they have a fluxer_id (guild admin check is on the page itself)
+            user_fluxer_id = str(getattr(web_user, 'fluxer_id', None) or '')
+            if user_fluxer_id:
+                return view_func(request, *args, **kwargs)
+
+        # Lite Fluxer session (OAuth without QL account)
+        lite_id = request.session.get('fluxer_session_id', '')
+        lite_ts = request.session.get('fluxer_session_ts', 0)
+        if lite_id and (int(time.time()) - lite_ts) < 604800:
+            return view_func(request, *args, **kwargs)
+
+        return JsonResponse({'error': 'Authentication required'}, status=401)
+    return wrapper
+
+
 def fluxer_guild_required(view_func):
     """
     Fluxer bot dashboard access guard. Accepts either:
@@ -1741,7 +1773,7 @@ _ARTICLE_ALLOWED_TAGS = frozenset({
 })
 
 _ARTICLE_ALLOWED_ATTRS = {
-    'a':   {'href', 'title', 'rel'},
+    'a':   {'href', 'title', 'rel', 'target'},
     'img': {'src', 'alt', 'title', 'width', 'height'},
     'th':  {'scope', 'colspan', 'rowspan'},
     'td':  {'colspan', 'rowspan'},
@@ -1864,6 +1896,7 @@ def sanitize_article_html(markdown_source, max_chars=100_000):
     we fully control what tags and attributes survive. Never call this on
     arbitrary HTML that skipped step 2.
     """
+    import re as _re
     import markdown as _md
 
     if not markdown_source:
@@ -1871,6 +1904,20 @@ def sanitize_article_html(markdown_source, max_chars=100_000):
 
     # Hard cap on input size - prevents ReDoS / CPU exhaustion on pathological markdown
     source = str(markdown_source)[:max_chars]
+
+    # Pre-process: wrap bare URLs that are NOT already inside markdown link syntax
+    # [text](url) or <url> - so they survive as clickable links after markdown render.
+    # We only match http/https to stay safe.
+    _bare_url_re = _re.compile(
+        r'(?<!\()'                    # not preceded by ( - already a markdown link target
+        r'(?<!\[)'                    # not preceded by [ - markdown link label
+        r'(?<!href=")'                # not inside an href already
+        r'(https?://[^\s\)\]<>"]+)',  # the URL itself
+    )
+    def _wrap_url(m):
+        url = m.group(1)
+        return f'[{url}]({url})'
+    source = _bare_url_re.sub(_wrap_url, source)
 
     # Convert markdown to raw HTML.
     # Extensions used:

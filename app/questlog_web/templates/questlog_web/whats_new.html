@@ -1,0 +1,581 @@
+{% extends "questlog_web/base_web.html" %}
+{% load static %}
+
+{% block title %}What's New | Casual Heroes{% endblock %}
+{% block og_title %}What's New | Casual Heroes{% endblock %}
+{% block og_description %}Platform updates, feature releases, and announcements from the Casual Heroes team.{% endblock %}
+
+{% block web_content %}
+<style>
+.ann-body h1,.ann-body h2,.ann-body h3,.ann-body h4 { color:#fff; font-weight:600; margin-top:1.1em; margin-bottom:.3em; }
+.ann-body h1 { font-size:1.25rem; }
+.ann-body h2 { font-size:1.1rem; }
+.ann-body h3 { font-size:1rem; color:#e5e7eb; }
+.ann-body p { margin-bottom:.6em; }
+.ann-body ul,.ann-body ol { margin:.5em 0 .5em 1.4em; }
+.ann-body li { margin-bottom:.2em; list-style:disc; }
+.ann-body ol li { list-style:decimal; }
+.ann-body a { color:#818cf8; }
+.ann-body a:hover { text-decoration:underline; }
+.ann-body code { background:#262626; color:#a5b4fc; padding:1px 5px; border-radius:4px; font-size:.85em; }
+.ann-body pre { background:#262626; border-radius:8px; padding:12px; overflow-x:auto; margin:.75em 0; }
+.ann-body pre code { background:none; padding:0; }
+.ann-body blockquote { border-left:3px solid #6366f1; padding-left:12px; color:#9ca3af; margin:.75em 0; }
+.ann-body hr { border:none; border-top:1px solid #404040; margin:1em 0; }
+.ann-body strong,.ann-body b { color:#f3f4f6; font-weight:600; }
+</style>
+<div class="max-w-4xl mx-auto px-4 lg:px-6">
+
+  <!-- Header -->
+  <div class="py-8">
+    <div class="flex items-center justify-between flex-wrap gap-4">
+      <div>
+        <h1 class="text-3xl font-bold bg-gradient-to-r from-yellow-400 to-orange-400 bg-clip-text text-transparent">
+          What's New
+        </h1>
+        <p class="text-gray-400 mt-1 text-sm">Platform updates, features, and announcements from the Casual Heroes team.</p>
+      </div>
+      {% if web_user and web_user.is_admin %}
+      <button onclick="openNewAnnouncement()"
+              class="flex items-center gap-2 px-4 py-2 bg-yellow-600 hover:bg-yellow-500 text-white text-sm font-medium rounded-lg transition-colors">
+        <i class="fas fa-bullhorn"></i> Post Announcement
+      </button>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Announcements list -->
+  {% if announcements %}
+  <div class="space-y-4 pb-12">
+    {% for ann in announcements %}
+    <div class="bg-neutral-900 border border-neutral-800 rounded-2xl overflow-hidden {% if ann.is_pinned %}ring-1 ring-yellow-500/30{% endif %}" id="ann-{{ ann.id }}">
+      <!-- Card header -->
+      <div class="flex items-start gap-3 p-5 pb-3">
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-2 flex-wrap mb-1">
+            <!-- Category badge -->
+            {% if ann.category == 'update' %}
+            <span class="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 bg-indigo-500/20 text-indigo-300 rounded-full">Update</span>
+            {% elif ann.category == 'feature' %}
+            <span class="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 bg-green-500/20 text-green-300 rounded-full">Feature</span>
+            {% elif ann.category == 'event' %}
+            <span class="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 bg-purple-500/20 text-purple-300 rounded-full">Event</span>
+            {% elif ann.category == 'maintenance' %}
+            <span class="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 bg-orange-500/20 text-orange-300 rounded-full">Maintenance</span>
+            {% endif %}
+            {% if ann.is_pinned %}
+            <span class="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 bg-yellow-500/20 text-yellow-300 rounded-full"><i class="fas fa-thumbtack mr-0.5"></i>Pinned</span>
+            {% endif %}
+            {% if ann.is_new %}
+            <span class="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 bg-yellow-500 text-black rounded-full">NEW</span>
+            {% endif %}
+          </div>
+          <h2 class="text-lg font-bold text-white leading-snug">{{ ann.title }}</h2>
+          <div class="flex items-center gap-2 mt-1.5">
+            {% if ann.author_avatar %}
+            <img src="{{ ann.author_avatar }}" class="w-4 h-4 rounded-full object-cover" alt="">
+            {% else %}
+            <div class="w-4 h-4 rounded-full bg-indigo-600 flex items-center justify-center text-[8px] font-bold text-white">C</div>
+            {% endif %}
+            <span class="text-xs text-gray-500">{{ ann.author_display_name }}</span>
+            <span class="text-gray-700 text-xs">-</span>
+            <span class="text-xs text-gray-600 ann-ts" data-ts="{{ ann.created_at }}"></span>
+          </div>
+        </div>
+        {% if web_user and web_user.is_admin %}
+        <div class="flex items-center gap-1 flex-shrink-0">
+          <button onclick="editAnnouncement({{ ann.id }})" class="p-1.5 text-gray-600 hover:text-white rounded-lg hover:bg-neutral-800 transition text-xs"><i class="fas fa-edit"></i></button>
+          <button onclick="deleteAnnouncement({{ ann.id }})" class="p-1.5 text-gray-600 hover:text-red-400 rounded-lg hover:bg-neutral-800 transition text-xs"><i class="fas fa-trash"></i></button>
+        </div>
+        {% endif %}
+      </div>
+
+      <!-- Body -->
+      <div class="px-5 pb-5">
+        {% if ann.body_html %}
+        <div class="ann-body text-gray-300 text-sm leading-relaxed mb-3">
+          {{ ann.body_html|safe }}
+        </div>
+        {% endif %}
+        {% if ann.media_items %}
+        <div class="mt-3 {% if ann.media_items|length == 1 %}block{% else %}grid grid-cols-2 gap-2{% endif %}">
+          {% for item in ann.media_items %}
+          <img src="{{ item.url }}" class="rounded-xl w-full {% if ann.media_items|length == 1 %}max-h-96{% else %}max-h-52{% endif %} object-contain bg-neutral-800 cursor-pointer hover:opacity-90 transition" alt="" loading="lazy" onclick="openLightbox(this.src)">
+          {% endfor %}
+        </div>
+        {% endif %}
+        {% if ann.game_tag_name %}
+        <div class="mt-2">
+          <a href="{% if ann.game_tag_steam_id %}https://store.steampowered.com/app/{{ ann.game_tag_steam_id }}/{% else %}/ql/lfg/browse/?game={{ ann.game_tag_name|urlencode }}{% endif %}"
+             {% if ann.game_tag_steam_id %}target="_blank" rel="noopener noreferrer"{% endif %}
+             class="inline-flex items-center gap-1.5 px-2.5 py-1 bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-300 rounded-full text-xs font-medium transition">
+            <i class="fas fa-gamepad text-xs"></i> {{ ann.game_tag_name }}
+          </a>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="text-center py-24">
+    <div class="w-16 h-16 bg-neutral-800 rounded-full flex items-center justify-center mx-auto mb-4">
+      <i class="fas fa-bullhorn text-2xl text-gray-600"></i>
+    </div>
+    <p class="text-gray-500 text-sm">No announcements yet. Check back soon!</p>
+  </div>
+  {% endif %}
+
+</div>
+
+<!-- Admin: Create/Edit Modal -->
+{% if web_user and web_user.is_admin %}
+<div id="annModal" class="hidden fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
+  <div class="bg-neutral-900 border border-neutral-700 rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+    <div class="flex items-center justify-between p-5 border-b border-neutral-800">
+      <h3 id="annModalTitle" class="text-lg font-semibold text-white">Post Announcement</h3>
+      <button onclick="closeAnnModal()" class="text-gray-500 hover:text-white"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="p-5 space-y-4">
+      <!-- Title -->
+      <div>
+        <label class="block text-xs font-medium text-gray-400 mb-1">Title</label>
+        <input id="annTitle" type="text" maxlength="200" placeholder="Announcement title..."
+               class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500">
+      </div>
+      <!-- Category + Pin -->
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-xs font-medium text-gray-400 mb-1">Category</label>
+          <select id="annCategory" class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500">
+            <option value="update">Update</option>
+            <option value="feature">Feature</option>
+            <option value="event">Event</option>
+            <option value="maintenance">Maintenance</option>
+          </select>
+        </div>
+        <div class="flex items-end">
+          <label class="flex items-center gap-2 cursor-pointer">
+            <input id="annPinned" type="checkbox" class="rounded">
+            <span class="text-sm text-gray-300">Pin this announcement</span>
+          </label>
+        </div>
+      </div>
+      <!-- Body composer -->
+      <div>
+        <label class="block text-xs font-medium text-gray-400 mb-1">Body <span class="text-gray-500">(Markdown - **bold**, *italic*, _underline_, ## Heading, - list)</span></label>
+        <!-- Formatting toolbar -->
+        <div class="flex items-center gap-0.5 mb-1 bg-neutral-800 border border-neutral-700 rounded-t-lg px-2 py-1.5 border-b-0">
+          <button type="button" onclick="annFmt('bold')" title="Bold (**text**)" class="px-2 py-1 text-sm font-bold text-gray-300 hover:text-white hover:bg-neutral-700 rounded transition"><b>B</b></button>
+          <button type="button" onclick="annFmt('italic')" title="Italic (*text*)" class="px-2 py-1 text-sm italic text-gray-300 hover:text-white hover:bg-neutral-700 rounded transition"><i>I</i></button>
+          <button type="button" onclick="annFmt('underline')" title="Underline (<u>text</u>)" class="px-2 py-1 text-sm underline text-gray-300 hover:text-white hover:bg-neutral-700 rounded transition">U</button>
+          <div class="w-px h-4 bg-neutral-700 mx-1"></div>
+          <button type="button" onclick="annFmt('h2')" title="Heading" class="px-2 py-1 text-xs font-bold text-gray-300 hover:text-white hover:bg-neutral-700 rounded transition">H2</button>
+          <button type="button" onclick="annFmt('h3')" title="Subheading" class="px-2 py-1 text-xs font-bold text-gray-300 hover:text-white hover:bg-neutral-700 rounded transition">H3</button>
+          <div class="w-px h-4 bg-neutral-700 mx-1"></div>
+          <button type="button" onclick="annFmt('ul')" title="Bullet list" class="px-2 py-1 text-xs text-gray-300 hover:text-white hover:bg-neutral-700 rounded transition"><i class="fas fa-list-ul"></i></button>
+          <button type="button" onclick="annFmt('ol')" title="Numbered list" class="px-2 py-1 text-xs text-gray-300 hover:text-white hover:bg-neutral-700 rounded transition"><i class="fas fa-list-ol"></i></button>
+          <div class="w-px h-4 bg-neutral-700 mx-1"></div>
+          <button type="button" onclick="annFmt('code')" title="Inline code" class="px-2 py-1 text-xs font-mono text-gray-300 hover:text-white hover:bg-neutral-700 rounded transition">&lt;/&gt;</button>
+          <button type="button" onclick="annFmt('link')" title="Link" class="px-2 py-1 text-xs text-gray-300 hover:text-white hover:bg-neutral-700 rounded transition"><i class="fas fa-link"></i></button>
+        </div>
+        <textarea id="annBody" rows="10" placeholder="Write your announcement..."
+                  class="w-full bg-neutral-800 border border-neutral-700 rounded-b-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500 resize-y"
+                  oninput="annCheckPost()" onpaste="annHandlePaste(event)"></textarea>
+      </div>
+      <!-- Multi-media preview grid -->
+      <div id="annMediaGrid" class="flex flex-wrap gap-2"></div>
+      <!-- Game tag preview -->
+      <div id="annGameTagPreview" class="hidden">
+        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 bg-indigo-500/15 text-indigo-300 rounded-full text-xs font-medium">
+          <i class="fas fa-gamepad text-xs"></i>
+          <span id="annGameTagName"></span>
+          <button onclick="annClearGameTag()" class="ml-0.5 hover:text-red-400"><i class="fas fa-times text-xs"></i></button>
+        </span>
+      </div>
+      <!-- GIF picker -->
+      <div id="annGifPicker" class="hidden bg-neutral-800 border border-neutral-700 rounded-xl p-3">
+        <input id="annGifSearch" type="text" placeholder="Search GIFs..." oninput="annSearchGifs(this.value)"
+               class="w-full bg-neutral-700 border-0 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none mb-2">
+        <div id="annGifResults" class="grid grid-cols-3 gap-2 max-h-48 overflow-y-auto"></div>
+      </div>
+      <!-- Emoji picker -->
+      <div id="annEmojiPicker" class="hidden bg-neutral-800 border border-neutral-700 rounded-xl p-3 max-h-52 overflow-y-auto">
+        <div class="flex gap-1 mb-2 border-b border-neutral-700 pb-2 flex-wrap">
+          <button onclick="annShowEmojiCat('gaming',event)" class="ann-emoji-cat text-xs px-2 py-1 rounded bg-neutral-700 text-white">🎮 Gaming</button>
+          <button onclick="annShowEmojiCat('faces',event)" class="ann-emoji-cat text-xs px-2 py-1 rounded text-gray-400">😀 Faces</button>
+          <button onclick="annShowEmojiCat('symbols',event)" class="ann-emoji-cat text-xs px-2 py-1 rounded text-gray-400">❤ Symbols</button>
+          <button onclick="annShowEmojiCat('custom',event)" class="ann-emoji-cat text-xs px-2 py-1 rounded text-gray-400">✨ Custom</button>
+        </div>
+        <div id="annEmojiGrid" class="grid grid-cols-8 gap-1"></div>
+      </div>
+      <!-- Game search -->
+      <div id="annGameSearch" class="hidden bg-neutral-800 border border-neutral-700 rounded-xl p-3">
+        <input id="annGameSearchInput" type="text" placeholder="Search games..." oninput="annSearchGames(this.value)"
+               class="w-full bg-neutral-700 border-0 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none mb-2">
+        <div id="annGameResults" class="space-y-1 max-h-40 overflow-y-auto"></div>
+      </div>
+    </div>
+    <!-- Toolbar + footer -->
+    <div class="border-t border-neutral-800 px-5 py-3">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-0">
+          <label class="cursor-pointer flex items-center text-gray-500 hover:text-green-400 p-1.5 rounded-lg hover:bg-neutral-700 transition" title="Upload photo">
+            <i class="fas fa-image text-sm"></i>
+            <input type="file" accept="image/jpeg,image/png,image/gif,image/webp" class="hidden" onchange="annHandleImageUpload(this)">
+          </label>
+          <button type="button" onclick="annToggleGif()" title="GIF" class="text-gray-500 hover:text-purple-400 p-1.5 rounded-lg hover:bg-neutral-700 text-xs font-bold transition">GIF</button>
+          <button type="button" onclick="annToggleEmoji()" title="Emoji" class="text-gray-500 hover:text-yellow-400 p-1.5 rounded-lg hover:bg-neutral-700 transition"><i class="fas fa-smile text-sm"></i></button>
+          <button type="button" onclick="annToggleGame()" title="Tag a game" class="text-gray-500 hover:text-indigo-400 p-1.5 rounded-lg hover:bg-neutral-700 transition"><i class="fas fa-gamepad text-sm"></i></button>
+        </div>
+        <div class="flex items-center gap-3">
+          <button onclick="closeAnnModal()" class="px-4 py-2 text-sm text-gray-400 hover:text-white rounded-lg hover:bg-neutral-800 transition">Cancel</button>
+          <button id="annSaveBtn" onclick="saveAnnouncement()" class="px-4 py-2 bg-yellow-600 hover:bg-yellow-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-lg transition">Post</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  document.querySelectorAll('.ann-ts').forEach(function(el) {
+    const ts = parseInt(el.dataset.ts);
+    if (!ts) return;
+    const d = new Date(ts * 1000);
+    el.textContent = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  });
+
+  // Mark announcements as seen - dismiss the NEW badge in the navbar
+  fetch('/api/announcements/').then(r => r.json()).then(d => {
+    const anns = d.announcements || [];
+    const latestTs = anns.length ? Math.max(...anns.map(a => a.created_at || 0)) : 0;
+    if (latestTs) {
+      try { localStorage.setItem('ql_whats_new_seen', String(latestTs)); } catch(e) {}
+    }
+    // Hide the badge immediately without waiting for the next poll
+    const badge = document.getElementById('navWhatsNewBadge');
+    if (badge) badge.classList.add('hidden');
+  }).catch(() => {});
+});
+{% if web_user and web_user.is_admin %}
+
+let _editingAnnId = null;
+let _annMediaItems = [];   // [{url, type}, ...]
+let _annGame = null;       // {name, steam_id} or null
+const _annEmojiSets = {
+  gaming:  ['🎮','🕹','🏆','⚔','🛡','🗡','🔫','🎯','🎲','💀','👾','🤖','🐉','⚡','🔥','💎','🏅','🥇','🚀','🌌'],
+  faces:   ['😀','😂','🤣','😍','🥰','😎','🤩','😜','🤔','😤','😠','😱','🥳','😴','🤯','🥺','😭','😈','🤗','💪'],
+  symbols: ['❤','🧡','💛','💚','💙','💜','🖤','🤍','⭐','✨','🔥','💯','✅','❌','⚠','🎉','🎊','💥','🌟','🏳'],
+};
+
+function annCheckPost() {
+  const hasText = (document.getElementById('annBody').value.trim().length > 0);
+  const hasMedia = _annMediaItems.length > 0;
+  document.getElementById('annSaveBtn').disabled = !hasText && !hasMedia;
+}
+
+function openNewAnnouncement() {
+  _editingAnnId = null;
+  _annMediaItems = []; _annGame = null;
+  document.getElementById('annModalTitle').textContent = 'Post Announcement';
+  document.getElementById('annTitle').value = '';
+  document.getElementById('annBody').value = '';
+  document.getElementById('annCategory').value = 'update';
+  document.getElementById('annPinned').checked = false;
+  document.getElementById('annSaveBtn').textContent = 'Post';
+  annRenderMediaGrid(); annClearGameTag();
+  document.getElementById('annGifPicker').classList.add('hidden');
+  document.getElementById('annEmojiPicker').classList.add('hidden');
+  document.getElementById('annGameSearch').classList.add('hidden');
+  document.getElementById('annModal').classList.remove('hidden');
+  attachMention(document.getElementById('annBody'));
+  annLoadCustomEmoji();
+}
+
+function editAnnouncement(id) {
+  csrfFetch('/api/admin/announcements/' + id + '/').then(r => r.json()).then(function(d) {
+    _editingAnnId = id;
+    _annMediaItems = d.media_items || []; _annGame = null;
+    document.getElementById('annModalTitle').textContent = 'Edit Announcement';
+    document.getElementById('annTitle').value = d.title || '';
+    document.getElementById('annBody').value = d.body_md || '';
+    document.getElementById('annCategory').value = d.category || 'update';
+    document.getElementById('annPinned').checked = !!d.is_pinned;
+    document.getElementById('annSaveBtn').textContent = 'Save';
+    annRenderMediaGrid();
+    if (d.game_tag_name) {
+      _annGame = {name: d.game_tag_name, steam_id: d.game_tag_steam_id || 0};
+      document.getElementById('annGameTagName').textContent = d.game_tag_name;
+      document.getElementById('annGameTagPreview').classList.remove('hidden');
+    } else { annClearGameTag(); }
+    document.getElementById('annGifPicker').classList.add('hidden');
+    document.getElementById('annEmojiPicker').classList.add('hidden');
+    document.getElementById('annGameSearch').classList.add('hidden');
+    document.getElementById('annModal').classList.remove('hidden');
+    attachMention(document.getElementById('annBody'));
+    annLoadCustomEmoji();
+  });
+}
+
+function closeAnnModal() {
+  document.getElementById('annModal').classList.add('hidden');
+}
+
+// Formatting toolbar
+function annFmt(type) {
+  const ta = document.getElementById('annBody');
+  const start = ta.selectionStart, end = ta.selectionEnd;
+  const sel = ta.value.substring(start, end);
+  let before = '', after = '', insert = '';
+  if (type === 'bold')      { before = '**'; after = '**'; insert = sel || 'bold text'; }
+  else if (type === 'italic')    { before = '*'; after = '*'; insert = sel || 'italic text'; }
+  else if (type === 'underline') { before = '<u>'; after = '</u>'; insert = sel || 'underlined text'; }
+  else if (type === 'h2')   { before = '\n## '; after = ''; insert = sel || 'Heading'; }
+  else if (type === 'h3')   { before = '\n### '; after = ''; insert = sel || 'Subheading'; }
+  else if (type === 'ul')   { before = '\n- '; after = ''; insert = sel || 'Item'; }
+  else if (type === 'ol')   { before = '\n1. '; after = ''; insert = sel || 'Item'; }
+  else if (type === 'code') { before = '`'; after = '`'; insert = sel || 'code'; }
+  else if (type === 'link') { before = '['; after = '](https://...)'; insert = sel || 'link text'; }
+  const replacement = before + insert + after;
+  ta.value = ta.value.substring(0, start) + replacement + ta.value.substring(end);
+  ta.focus();
+  ta.selectionStart = start + before.length;
+  ta.selectionEnd = start + before.length + insert.length;
+  annCheckPost();
+}
+
+// Paste images
+function annHandlePaste(e) {
+  const items = (e.clipboardData || {}).items;
+  if (!items) return;
+  for (let i = 0; i < items.length; i++) {
+    if (items[i].type.startsWith('image/')) {
+      e.preventDefault();
+      const file = items[i].getAsFile();
+      annUploadFile(file);
+      return;
+    }
+  }
+}
+
+async function annHandleImageUpload(input) {
+  if (!input.files || !input.files[0]) return;
+  await annUploadFile(input.files[0]);
+  input.value = '';
+}
+
+// Render the multi-image preview grid
+function annRenderMediaGrid() {
+  const grid = document.getElementById('annMediaGrid');
+  grid.innerHTML = '';
+  _annMediaItems.forEach(function(item, idx) {
+    const wrap = document.createElement('div');
+    wrap.className = 'relative';
+    const img = document.createElement('img');
+    img.src = item.url;
+    img.className = 'rounded-xl h-28 w-auto object-contain bg-neutral-800';
+    const rm = document.createElement('button');
+    rm.type = 'button';
+    rm.className = 'absolute top-1 right-1 bg-black/70 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs hover:bg-red-600 transition';
+    rm.innerHTML = '<i class="fas fa-times" style="font-size:9px"></i>';
+    rm.onclick = function() { _annMediaItems.splice(idx, 1); annRenderMediaGrid(); annCheckPost(); };
+    wrap.appendChild(img); wrap.appendChild(rm);
+    grid.appendChild(wrap);
+  });
+}
+
+async function annUploadFile(file) {
+  const fd = new FormData();
+  fd.append('image', file);
+  try {
+    const res = await csrfFetch('/api/upload/image/', { method: 'POST', body: fd });
+    const data = await res.json();
+    if (data.image_url) {
+      _annMediaItems.push({url: data.image_url, type: 'image'});
+      annRenderMediaGrid();
+      annCheckPost();
+    }
+  } catch(e) { alert('Upload failed'); }
+}
+
+function annClearGameTag() {
+  _annGame = null;
+  document.getElementById('annGameTagPreview').classList.add('hidden');
+  document.getElementById('annGameTagName').textContent = '';
+}
+
+// GIF
+function annToggleGif() {
+  const el = document.getElementById('annGifPicker');
+  el.classList.toggle('hidden');
+  document.getElementById('annEmojiPicker').classList.add('hidden');
+  document.getElementById('annGameSearch').classList.add('hidden');
+  if (!el.classList.contains('hidden')) {
+    document.getElementById('annGifSearch').focus();
+    annSearchGifs('gaming');
+  }
+}
+
+let _annGifTimer = null;
+function annSearchGifs(q) {
+  clearTimeout(_annGifTimer);
+  _annGifTimer = setTimeout(async function() {
+    if (!q) return;
+    try {
+      const r = await fetch('/api/giphy/search/?q=' + encodeURIComponent(q) + '&limit=9');
+      const d = await r.json();
+      const grid = document.getElementById('annGifResults');
+      grid.innerHTML = '';
+      (d.gifs || []).forEach(function(g) {
+        const img = document.createElement('img');
+        img.src = g.preview_url || g.url;
+        img.className = 'rounded cursor-pointer hover:opacity-80 transition w-full h-20 object-cover';
+        img.onclick = function() {
+          _annMediaItems.push({url: g.url, type: 'gif'});
+          annRenderMediaGrid();
+          document.getElementById('annGifPicker').classList.add('hidden');
+          annCheckPost();
+        };
+        grid.appendChild(img);
+      });
+    } catch(e) {}
+  }, 300);
+}
+
+// Emoji
+function annToggleEmoji() {
+  const el = document.getElementById('annEmojiPicker');
+  el.classList.toggle('hidden');
+  document.getElementById('annGifPicker').classList.add('hidden');
+  document.getElementById('annGameSearch').classList.add('hidden');
+  if (!el.classList.contains('hidden')) annShowEmojiCat('gaming', null);
+}
+
+function annLoadCustomEmoji() {
+  if (window._customEmojiCache !== undefined) return;
+  window._customEmojiCache = null;
+  fetch('/api/emoji/').then(r => r.json()).then(function(data) {
+    window._customEmojiCache = data.emoji || [];
+    window._customEmojiMap = {};
+    data.emoji.forEach(e => { window._customEmojiMap[e.shortcode] = e.image_url; });
+  }).catch(function() { window._customEmojiCache = []; window._customEmojiMap = {}; });
+}
+
+function annShowEmojiCat(cat, e) {
+  document.querySelectorAll('.ann-emoji-cat').forEach(b => { b.className = 'ann-emoji-cat text-xs px-2 py-1 rounded text-gray-400'; });
+  if (e) { e.target.className = 'ann-emoji-cat text-xs px-2 py-1 rounded bg-neutral-700 text-white'; }
+  const grid = document.getElementById('annEmojiGrid');
+  grid.innerHTML = '';
+  const ta = document.getElementById('annBody');
+  function insert(char) {
+    const s = ta.selectionStart, end = ta.selectionEnd;
+    ta.value = ta.value.substring(0, s) + char + ta.value.substring(end);
+    ta.selectionStart = ta.selectionEnd = s + char.length;
+    ta.focus();
+    annCheckPost();
+  }
+  if (cat === 'custom') {
+    const emojis = window._customEmojiCache || [];
+    emojis.forEach(function(em) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.title = ':' + em.shortcode + ':';
+      btn.innerHTML = '<img src="' + escapeHtml(em.image_url) + '" class="w-6 h-6 object-contain">';
+      btn.className = 'flex items-center justify-center p-1 rounded hover:bg-neutral-700 transition';
+      btn.onclick = function() { insert(':' + em.shortcode + ':'); };
+      grid.appendChild(btn);
+    });
+    if (!emojis.length) grid.innerHTML = '<p class="text-gray-500 text-xs col-span-8">No custom emoji yet</p>';
+  } else {
+    (_annEmojiSets[cat] || []).forEach(function(em) {
+      const btn = document.createElement('button');
+      btn.type = 'button'; btn.textContent = em;
+      btn.className = 'text-xl p-1 rounded hover:bg-neutral-700 transition';
+      btn.onclick = function() { insert(em); };
+      grid.appendChild(btn);
+    });
+  }
+}
+
+// Game tag
+function annToggleGame() {
+  const el = document.getElementById('annGameSearch');
+  el.classList.toggle('hidden');
+  document.getElementById('annGifPicker').classList.add('hidden');
+  document.getElementById('annEmojiPicker').classList.add('hidden');
+  if (!el.classList.contains('hidden')) document.getElementById('annGameSearchInput').focus();
+}
+
+let _annGameTimer = null;
+function annSearchGames(q) {
+  clearTimeout(_annGameTimer);
+  _annGameTimer = setTimeout(async function() {
+    if (q.length < 2) return;
+    try {
+      const r = await fetch('/api/igdb/search/?q=' + encodeURIComponent(q));
+      const d = await r.json();
+      const list = document.getElementById('annGameResults');
+      list.innerHTML = '';
+      (d.results || []).slice(0, 8).forEach(function(g) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'w-full flex items-center gap-2 px-2 py-1.5 hover:bg-neutral-700 rounded-lg transition text-left';
+        btn.innerHTML = (g.cover_url ? '<img src="' + escapeHtml(g.cover_url) + '" class="w-6 h-6 rounded object-cover flex-shrink-0">' : '<div class="w-6 h-6 bg-neutral-700 rounded flex-shrink-0"></div>')
+          + '<span class="text-sm text-white truncate">' + escapeHtml(g.name) + '</span>';
+        btn.onclick = function() {
+          _annGame = {name: g.name, steam_id: g.steam_id || 0};
+          document.getElementById('annGameTagName').textContent = g.name;
+          document.getElementById('annGameTagPreview').classList.remove('hidden');
+          document.getElementById('annGameSearch').classList.add('hidden');
+          document.getElementById('annGameSearchInput').value = '';
+          list.innerHTML = '';
+        };
+        list.appendChild(btn);
+      });
+    } catch(e) {}
+  }, 300);
+}
+
+async function saveAnnouncement() {
+  const title = document.getElementById('annTitle').value.trim();
+  const body_md = document.getElementById('annBody').value.trim();
+  const category = document.getElementById('annCategory').value;
+  const is_pinned = document.getElementById('annPinned').checked;
+  if (!title) { alert('Title is required.'); return; }
+  if (!body_md && _annMediaItems.length === 0) { alert('Body or media is required.'); return; }
+  const btn = document.getElementById('annSaveBtn');
+  btn.disabled = true;
+  const payload = { title, body_md, category, is_pinned, media_items: _annMediaItems };
+  if (_annGame) {
+    payload.game_tag_name = _annGame.name;
+    payload.game_tag_steam_id = _annGame.steam_id;
+  } else if (_editingAnnId) {
+    payload.game_tag_name = '';
+  }
+  try {
+    if (_editingAnnId) {
+      await csrfFetch('/api/admin/announcements/' + _editingAnnId + '/', {
+        method: 'PUT', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(payload),
+      });
+    } else {
+      await csrfFetch('/api/admin/announcements/', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(payload),
+      });
+    }
+    closeAnnModal();
+    location.reload();
+  } catch(e) { btn.disabled = false; }
+}
+
+async function deleteAnnouncement(id) {
+  if (!confirm('Delete this announcement?')) return;
+  await csrfFetch('/api/admin/announcements/' + id + '/', { method: 'DELETE' });
+  document.getElementById('ann-' + id)?.remove();
+}
+{% endif %}
+</script>
+{% endblock %}

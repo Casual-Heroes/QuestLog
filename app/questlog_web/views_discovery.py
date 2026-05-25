@@ -21,13 +21,77 @@ from .models import (
     WebCommunityBotConfig, WebLFGGameConfig,
     WebFluxerLfgGroup, WebFluxerLfgConfig, WebFluxerGuildChannel,
     WebFluxerLfgMember, WebFluxerGuildSettings, WebFluxerLfgGame,
-    WebPost, WebFollow,
+    WebPost, WebFollow, WebCommunityPost, WebCommunityPostLike,
+    WebCommunityMember, WebCommunityEvent, WebCommunityEventRSVP,
+    WebCommunityConnection, WebUnifiedLeaderboard,
 )
 from app.db import get_db_session
 from .helpers import add_web_user_context, web_login_required, web_verified_required, safe_int, EXCLUDED_USER_IDS, generate_post_public_id, create_notification
 from .fluxer_webhooks import notify_lfg_post as _fluxer_lfg_post, build_lfg_embed_data as _build_lfg_embed_data
 
 logger = logging.getLogger(__name__)
+
+
+def _calc_activity_level(db, community):
+    """
+    Auto-calculate activity tier. Sources, highest to lowest weight:
+      1. Platform signals (messages, voice_mins, reactions, media) from WebUnifiedLeaderboard
+         - requires community.platform_id (guild linked to bot)
+      2. Wall posts (lowest weight - supplementary only)
+    Tiers: unknown < dormant < squire < champion < legendary < mythic
+    """
+    score = 0
+
+    # --- Platform signals (bot must be in the guild) ---
+    if community.platform_id:
+        row = db.execute(
+            text("""
+                SELECT
+                    COALESCE(SUM(messages), 0)    AS msgs,
+                    COALESCE(SUM(voice_mins), 0)  AS voice,
+                    COALESCE(SUM(reactions), 0)   AS reacts,
+                    COALESCE(SUM(media_count), 0) AS media
+                FROM web_unified_leaderboard
+                WHERE guild_id = :gid
+            """),
+            {'gid': community.platform_id}
+        ).fetchone()
+
+        if row:
+            msgs   = row[0] or 0
+            voice  = row[1] or 0
+            reacts = row[2] or 0
+            media  = row[3] or 0
+            # Weights: messages=1pt per 10, voice=1pt per 30min,
+            #          reactions=1pt per 20, media=1pt per 5
+            score += msgs   // 10
+            score += voice  // 30
+            score += reacts // 20
+            score += media  // 5
+
+    # --- Wall posts (last 30 days, lowest weight) ---
+    cutoff = int(time.time()) - 30 * 86400
+    wall_posts = db.query(WebCommunityPost).filter(
+        WebCommunityPost.community_id == community.id,
+        WebCommunityPost.is_deleted == False,
+        WebCommunityPost.created_at >= cutoff,
+        WebCommunityPost.parent_id == None,
+    ).count()
+    score += wall_posts  # 1pt each - lowest weight
+
+    # Tiers
+    if score >= 500:
+        return 'mythic'
+    if score >= 150:
+        return 'legendary'
+    if score >= 40:
+        return 'champion'
+    if score >= 10:
+        return 'squire'
+    if score >= 1:
+        return 'dormant'
+    return 'unknown'
+
 
 _VOICE_LINK_SCHEMES = ('https://',)
 _VOICE_LINK_MAX = 500
@@ -1106,9 +1170,8 @@ def api_community_detail(request, community_id):
             raw_games = data.get('games') or []
             community.games = json.dumps([g.strip() for g in raw_games if isinstance(g, str) and g.strip()][:20])
             community.member_count = safe_int(data.get('member_count') or community.member_count, default=community.member_count, min_val=0)
-            VALID_ACTIVITY = {'unknown', 'dormant', 'squire', 'champion', 'legendary', 'mythic'}
-            if data.get('activity_level') in VALID_ACTIVITY:
-                community.activity_level = data['activity_level']
+            # Auto-calculate activity level - not owner-settable
+            community.activity_level = _calc_activity_level(db, community)
             community.allow_discovery = bool(data.get('allow_discovery', community.allow_discovery))
             community.allow_joins = bool(data.get('allow_joins', community.allow_joins))
             # In-game guild fields
@@ -1198,7 +1261,1380 @@ def api_community_detail(request, community_id):
             'guild_game_name': community.guild_game_name or None,
             'games': _enrich_community_games(db, json.loads(community.games or '[]')),
             'is_owner': is_owner,
+            'discord_webhook_url': community.discord_webhook_url if is_owner else None,
+            'fluxer_webhook_url': community.fluxer_webhook_url if is_owner else None,
         })
+
+
+@add_web_user_context
+@require_http_methods(['GET', 'POST'])
+def api_community_wall(request, community_id):
+    """GET wall posts for a community. POST to create a new post (members + owner only)."""
+    with get_db_session() as db:
+        community = db.query(WebCommunity).filter_by(id=community_id, is_active=True, is_banned=False).first()
+        if not community:
+            return JsonResponse({'error': 'Not found'}, status=404)
+
+        user_id = request.web_user.id if request.web_user else None
+        is_owner = bool(user_id and community.owner_id == user_id)
+        is_member = bool(user_id and db.query(WebCommunityMember).filter_by(
+            community_id=community_id, user_id=user_id).first())
+
+        if request.method == 'POST':
+            if not user_id:
+                return JsonResponse({'error': 'Login required'}, status=401)
+            if not (is_owner or is_member):
+                return JsonResponse({'error': 'You must be a member to post'}, status=403)
+            try:
+                data = json.loads(request.body)
+            except (json.JSONDecodeError, ValueError):
+                return JsonResponse({'error': 'Invalid JSON'}, status=400)
+            from app.questlog_web.helpers import _is_valid_giphy_url
+            content = (data.get('content') or '').strip()[:1000] or None
+            gif_url = (data.get('gif_url') or '').strip()[:500]
+            image_url = (data.get('image_url') or '').strip()[:500]
+            parent_id = safe_int(data.get('parent_id'), None)
+
+            # Validate parent post exists and belongs to this community
+            if parent_id:
+                parent = db.query(WebCommunityPost).filter_by(
+                    id=parent_id, community_id=community_id, is_deleted=False
+                ).first()
+                if not parent or parent.parent_id is not None:
+                    # Only allow 1 level of nesting
+                    parent_id = None
+                    parent = None
+            else:
+                parent = None
+
+            media_url = None
+            media_type = None
+            if gif_url and _is_valid_giphy_url(gif_url):
+                media_url = gif_url
+                media_type = 'gif'
+            elif image_url:
+                if image_url.startswith('/media/uploads/'):
+                    media_url = image_url
+                    media_type = 'image'
+
+            if not content and not media_url:
+                return JsonResponse({'error': 'Post must have content or media'}, status=400)
+
+            game_tag_name = (data.get('game_tag_name') or '')[:200] or None
+            game_tag_steam_id = safe_int(data.get('game_tag_steam_id'), None)
+
+            now = int(time.time())
+            post = WebCommunityPost(
+                community_id=community_id,
+                author_id=user_id,
+                content=content,
+                media_url=media_url,
+                media_type=media_type,
+                game_tag_name=game_tag_name,
+                game_tag_steam_id=game_tag_steam_id,
+                parent_id=parent_id,
+                is_pinned=False,
+                is_deleted=False,
+                like_count=0,
+                reply_count=0,
+                created_at=now,
+                updated_at=now,
+            )
+            db.add(post)
+            if parent:
+                parent.reply_count = (parent.reply_count or 0) + 1
+            db.commit()
+            author = db.query(WebUser).filter_by(id=user_id).first()
+            return JsonResponse({'ok': True, 'post': {
+                'id': post.id,
+                'parent_id': parent_id,
+                'content': post.content or '',
+                'media_url': post.media_url or '',
+                'media_type': post.media_type or '',
+                'game_tag_name': post.game_tag_name or '',
+                'game_tag_steam_id': post.game_tag_steam_id or 0,
+                'game_tag_igdb_url': '',
+                'is_pinned': False,
+                'reply_count': 0,
+                'like_count': 0,
+                'liked': False,
+                'created_at': now,
+                'author_id': user_id,
+                'author_username': author.username if author else '',
+                'author_display_name': (author.display_name or author.username) if author else '',
+                'author_avatar': author.avatar_url or '' if author else '',
+                'is_mine': True,
+                'can_delete': True,
+                'can_pin': False,
+            }})
+
+        # GET - return paginated top-level posts with replies embedded
+        page = safe_int(request.GET.get('page', 1), 1, 1, 100)
+        limit = 20
+        offset = (page - 1) * limit
+
+        pinned = db.query(WebCommunityPost).filter(
+            WebCommunityPost.community_id == community_id,
+            WebCommunityPost.is_deleted == False,
+            WebCommunityPost.is_pinned == True,
+            WebCommunityPost.parent_id == None,
+        ).order_by(WebCommunityPost.created_at.desc()).all()
+
+        regular = db.query(WebCommunityPost).filter(
+            WebCommunityPost.community_id == community_id,
+            WebCommunityPost.is_deleted == False,
+            WebCommunityPost.is_pinned == False,
+            WebCommunityPost.parent_id == None,
+        ).order_by(WebCommunityPost.created_at.desc()).offset(offset).limit(limit).all()
+
+        all_top = pinned + regular
+        top_ids = [p.id for p in all_top]
+
+        # Fetch all replies for these top-level posts
+        replies_raw = db.query(WebCommunityPost).filter(
+            WebCommunityPost.parent_id.in_(top_ids),
+            WebCommunityPost.is_deleted == False,
+        ).order_by(WebCommunityPost.created_at.asc()).all() if top_ids else []
+
+        liked_ids = set()
+        if user_id:
+            all_ids = top_ids + [r.id for r in replies_raw]
+            likes = db.query(WebCommunityPostLike.post_id).filter(
+                WebCommunityPostLike.user_id == user_id,
+                WebCommunityPostLike.post_id.in_(all_ids),
+            ).all()
+            liked_ids = {r[0] for r in likes}
+
+        # Fetch event data for any event-linked posts
+        event_ids = [p.event_id for p in all_top if p.event_id]
+        event_map = {}
+        if event_ids:
+            events = db.query(WebCommunityEvent).filter(
+                WebCommunityEvent.id.in_(event_ids)
+            ).all()
+            event_map = {e.id: e for e in events}
+
+        # Fetch user RSVPs for those events
+        rsvp_map = {}
+        if user_id and event_ids:
+            rsvp_rows = db.query(WebCommunityEventRSVP).filter(
+                WebCommunityEventRSVP.user_id == user_id,
+                WebCommunityEventRSVP.event_id.in_(event_ids),
+            ).all()
+            rsvp_map = {r.event_id: r.status for r in rsvp_rows}
+
+        # Build igdb_url map for game tags
+        all_posts_for_igdb = list(all_top) + list(replies_raw)
+        comm_game_tag_ids = list({p.game_tag_id for p in all_posts_for_igdb if p.game_tag_id})
+        comm_igdb_url_map = {}
+        if comm_game_tag_ids:
+            from app.questlog_web.models import WebFoundGame
+            comm_games = db.query(WebFoundGame.id, WebFoundGame.igdb_url).filter(
+                WebFoundGame.id.in_(comm_game_tag_ids)
+            ).all()
+            comm_igdb_url_map = {g.id: (g.igdb_url or '') for g in comm_games}
+
+        def serialize(p, is_reply=False):
+            a = p.author
+            ev = event_map.get(p.event_id) if p.event_id else None
+            event_data = None
+            if ev:
+                from datetime import datetime, timezone
+                dt = datetime.fromtimestamp(ev.starts_at, tz=timezone.utc)
+                event_data = {
+                    'id': ev.id,
+                    'title': ev.title,
+                    'game_tag_name': ev.game_tag_name or '',
+                    'game_cover_url': ev.game_cover_url or '',
+                    'starts_at': ev.starts_at,
+                    'starts_fmt': dt.strftime('%a, %b %-d at %-I:%M %p UTC'),
+                    'duration_mins': ev.duration_mins,
+                    'rsvp_going': ev.rsvp_going,
+                    'rsvp_maybe': ev.rsvp_maybe,
+                    'my_rsvp': rsvp_map.get(ev.id),
+                    'is_cancelled': ev.is_cancelled,
+                    'recurrence': ev.recurrence or 'none',
+                }
+            igdb_url = comm_igdb_url_map.get(p.game_tag_id, '') if p.game_tag_id else ''
+            return {
+                'id': p.id,
+                'parent_id': p.parent_id,
+                'event_id': p.event_id,
+                'event': event_data,
+                'content': p.content or '',
+                'media_url': p.media_url or '',
+                'media_type': p.media_type or '',
+                'game_tag_name': p.game_tag_name or '',
+                'game_tag_steam_id': p.game_tag_steam_id or 0,
+                'game_tag_igdb_url': igdb_url,
+                'is_pinned': p.is_pinned,
+                'reply_count': p.reply_count or 0,
+                'like_count': p.like_count,
+                'liked': p.id in liked_ids,
+                'created_at': p.created_at,
+                'author_id': p.author_id,
+                'author_username': a.username if a else '',
+                'author_display_name': (a.display_name or a.username) if a else '',
+                'author_avatar': a.avatar_url or '' if a else '',
+                'is_mine': p.author_id == user_id,
+                'can_delete': p.author_id == user_id or is_owner,
+                'can_pin': is_owner and not is_reply,
+                'replies': [],
+            }
+
+        # Group replies by parent
+        replies_by_parent = {}
+        for r in replies_raw:
+            replies_by_parent.setdefault(r.parent_id, []).append(r)
+
+        def serialize_with_replies(p):
+            s = serialize(p)
+            s['replies'] = [serialize(r, is_reply=True) for r in replies_by_parent.get(p.id, [])]
+            return s
+
+        return JsonResponse({
+            'posts': [serialize_with_replies(p) for p in all_top],
+            'has_more': len(regular) == limit,
+            'can_post': bool(is_owner or is_member),
+            'is_owner': is_owner,
+        })
+
+
+@web_login_required
+@add_web_user_context
+@require_http_methods(['POST'])
+def api_community_post_action(request, community_id, post_id):
+    """Pin/unpin, delete, or like a community wall post."""
+    user_id = request.web_user.id
+    try:
+        data = json.loads(request.body)
+    except (json.JSONDecodeError, ValueError):
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+    action = data.get('action')
+    if action not in ('delete', 'pin', 'unpin', 'like', 'unlike'):
+        return JsonResponse({'error': 'Invalid action'}, status=400)
+
+    with get_db_session() as db:
+        post = db.query(WebCommunityPost).filter_by(id=post_id, community_id=community_id, is_deleted=False).first()
+        if not post:
+            return JsonResponse({'error': 'Not found'}, status=404)
+        community = db.query(WebCommunity).filter_by(id=community_id).first()
+        is_owner = community and community.owner_id == user_id
+
+        if action == 'delete':
+            if post.author_id != user_id and not is_owner:
+                return JsonResponse({'error': 'Forbidden'}, status=403)
+            post.is_deleted = True
+            # Decrement parent reply_count if this is a reply
+            if post.parent_id:
+                parent = db.query(WebCommunityPost).filter_by(id=post.parent_id).first()
+                if parent:
+                    parent.reply_count = max(0, (parent.reply_count or 1) - 1)
+            db.commit()
+            return JsonResponse({'ok': True, 'parent_id': post.parent_id})
+
+        if action in ('pin', 'unpin'):
+            if not is_owner:
+                return JsonResponse({'error': 'Forbidden'}, status=403)
+            post.is_pinned = (action == 'pin')
+            db.commit()
+            return JsonResponse({'ok': True, 'is_pinned': post.is_pinned})
+
+        if action == 'like':
+            existing = db.query(WebCommunityPostLike).filter_by(post_id=post_id, user_id=user_id).first()
+            if not existing:
+                db.add(WebCommunityPostLike(post_id=post_id, user_id=user_id, created_at=int(time.time())))
+                post.like_count = max(0, post.like_count + 1)
+                db.commit()
+            return JsonResponse({'ok': True, 'like_count': post.like_count})
+
+        if action == 'unlike':
+            existing = db.query(WebCommunityPostLike).filter_by(post_id=post_id, user_id=user_id).first()
+            if existing:
+                db.delete(existing)
+                post.like_count = max(0, post.like_count - 1)
+                db.commit()
+            return JsonResponse({'ok': True, 'like_count': post.like_count})
+
+
+@add_web_user_context
+@require_http_methods(['GET', 'POST'])
+def api_lfg_group_wall(request, group_id):
+    """GET discussion posts for an LFG group. POST to create a new post (members + creator only).
+    Reuses WebCommunityPost with lfg_group_id set and community_id=None.
+    """
+    with get_db_session() as db:
+        group = db.query(WebLFGGroup).filter_by(id=group_id).first()
+        if not group or group.status == 'cancelled':
+            return JsonResponse({'error': 'Not found'}, status=404)
+
+        user_id = request.web_user.id if request.web_user else None
+        is_creator = bool(user_id and group.creator_id == user_id)
+        is_member = bool(user_id and db.query(WebLFGMember).filter_by(
+            group_id=group_id, user_id=user_id, status='joined').first())
+        can_post = is_creator or is_member
+        can_manage = is_creator
+
+        if request.method == 'POST':
+            if not user_id:
+                return JsonResponse({'error': 'Login required'}, status=401)
+            if not can_post:
+                return JsonResponse({'error': 'You must be in the group to post'}, status=403)
+            try:
+                data = json.loads(request.body)
+            except (json.JSONDecodeError, ValueError):
+                return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+            from app.questlog_web.helpers import _is_valid_giphy_url
+            content = (data.get('content') or '').strip()[:1000] or None
+            gif_url = (data.get('gif_url') or '').strip()[:500]
+            image_url = (data.get('image_url') or '').strip()[:500]
+            parent_id = safe_int(data.get('parent_id'), None)
+
+            if parent_id:
+                parent = db.query(WebCommunityPost).filter_by(
+                    id=parent_id, lfg_group_id=group_id, is_deleted=False
+                ).first()
+                if not parent:
+                    parent_id = None
+                    parent = None
+            else:
+                parent = None
+
+            media_url = None
+            media_type = None
+            if gif_url and _is_valid_giphy_url(gif_url):
+                media_url = gif_url
+                media_type = 'gif'
+            elif image_url and image_url.startswith('/media/uploads/'):
+                media_url = image_url
+                media_type = 'image'
+
+            if not content and not media_url:
+                return JsonResponse({'error': 'Post must have content or media'}, status=400)
+
+            game_tag_name = (data.get('game_tag_name') or '')[:200] or None
+            game_tag_steam_id = safe_int(data.get('game_tag_steam_id'), None)
+
+            now = int(time.time())
+            post = WebCommunityPost(
+                community_id=None,
+                lfg_group_id=group_id,
+                author_id=user_id,
+                content=content,
+                media_url=media_url,
+                media_type=media_type,
+                game_tag_name=game_tag_name,
+                game_tag_steam_id=game_tag_steam_id,
+                parent_id=parent_id,
+                is_pinned=False,
+                is_deleted=False,
+                like_count=0,
+                reply_count=0,
+                created_at=now,
+                updated_at=now,
+            )
+            db.add(post)
+            if parent:
+                parent.reply_count = (parent.reply_count or 0) + 1
+            db.commit()
+            author = db.query(WebUser).filter_by(id=user_id).first()
+            return JsonResponse({'ok': True, 'post': {
+                'id': post.id,
+                'parent_id': parent_id,
+                'content': post.content or '',
+                'media_url': post.media_url or '',
+                'media_type': post.media_type or '',
+                'game_tag_name': post.game_tag_name or '',
+                'game_tag_steam_id': post.game_tag_steam_id or 0,
+                'game_tag_igdb_url': '',
+                'is_pinned': False,
+                'reply_count': 0,
+                'like_count': 0,
+                'liked': False,
+                'created_at': now,
+                'author_id': user_id,
+                'author_username': author.username if author else '',
+                'author_display_name': (author.display_name or author.username) if author else '',
+                'author_avatar': author.avatar_url or '' if author else '',
+                'is_mine': True,
+                'can_delete': True,
+                'can_pin': False,
+            }})
+
+        # GET - paginated posts
+        page = safe_int(request.GET.get('page', 1), 1, 1, 100)
+        limit = 20
+        offset = (page - 1) * limit
+
+        top_posts = db.query(WebCommunityPost).filter(
+            WebCommunityPost.lfg_group_id == group_id,
+            WebCommunityPost.is_deleted == False,
+            WebCommunityPost.parent_id == None,
+        ).order_by(WebCommunityPost.created_at.desc()).offset(offset).limit(limit).all()
+
+        top_ids = [p.id for p in top_posts]
+
+        # Load ALL descendants in one query (flat list, any depth)
+        all_descendants = db.query(WebCommunityPost).filter(
+            WebCommunityPost.lfg_group_id == group_id,
+            WebCommunityPost.is_deleted == False,
+            WebCommunityPost.parent_id != None,
+        ).order_by(WebCommunityPost.created_at.asc()).all() if top_ids else []
+
+        liked_ids = set()
+        if user_id:
+            all_ids = top_ids + [r.id for r in all_descendants]
+            likes = db.query(WebCommunityPostLike.post_id).filter(
+                WebCommunityPostLike.user_id == user_id,
+                WebCommunityPostLike.post_id.in_(all_ids),
+            ).all()
+            liked_ids = {r[0] for r in likes}
+
+        game_tag_ids = list({p.game_tag_id for p in top_posts if p.game_tag_id}
+                            | {r.game_tag_id for r in all_descendants if r.game_tag_id})
+        igdb_url_map = {}
+        if game_tag_ids:
+            from app.questlog_web.models import WebFoundGame
+            games = db.query(WebFoundGame.id, WebFoundGame.igdb_url).filter(
+                WebFoundGame.id.in_(set(game_tag_ids))
+            ).all()
+            igdb_url_map = {g.id: (g.igdb_url or '') for g in games}
+
+        def serialize(p):
+            a = p.author
+            igdb_url = igdb_url_map.get(p.game_tag_id, '') if p.game_tag_id else ''
+            return {
+                'id': p.id,
+                'parent_id': p.parent_id,
+                'content': p.content or '',
+                'media_url': p.media_url or '',
+                'media_type': p.media_type or '',
+                'game_tag_name': p.game_tag_name or '',
+                'game_tag_steam_id': p.game_tag_steam_id or 0,
+                'game_tag_igdb_url': igdb_url,
+                'is_pinned': p.is_pinned,
+                'reply_count': p.reply_count or 0,
+                'like_count': p.like_count,
+                'liked': p.id in liked_ids,
+                'created_at': p.created_at,
+                'author_id': p.author_id,
+                'author_username': a.username if a else '',
+                'author_display_name': (a.display_name or a.username) if a else '',
+                'author_avatar': a.avatar_url or '' if a else '',
+                'is_mine': p.author_id == user_id,
+                'can_delete': p.author_id == user_id or can_manage,
+                'can_pin': False,
+                'replies': [],
+            }
+
+        # Build tree: group all descendants by parent_id
+        children_by_parent = {}
+        for r in all_descendants:
+            children_by_parent.setdefault(r.parent_id, []).append(r)
+
+        def serialize_tree(p):
+            s = serialize(p)
+            s['replies'] = [serialize_tree(c) for c in children_by_parent.get(p.id, [])]
+            return s
+
+        return JsonResponse({
+            'posts': [serialize_tree(p) for p in top_posts],
+            'has_more': len(top_posts) == limit,
+            'can_post': can_post,
+            'is_creator': is_creator,
+        })
+
+
+@web_login_required
+@add_web_user_context
+@require_http_methods(['POST'])
+def api_lfg_group_post_action(request, group_id, post_id):
+    """Delete or like an LFG group discussion post."""
+    user_id = request.web_user.id
+    try:
+        data = json.loads(request.body)
+    except (json.JSONDecodeError, ValueError):
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+    action = data.get('action')
+    if action not in ('delete', 'like', 'unlike'):
+        return JsonResponse({'error': 'Invalid action'}, status=400)
+
+    with get_db_session() as db:
+        post = db.query(WebCommunityPost).filter_by(
+            id=post_id, lfg_group_id=group_id, is_deleted=False
+        ).first()
+        if not post:
+            return JsonResponse({'error': 'Not found'}, status=404)
+        group = db.query(WebLFGGroup).filter_by(id=group_id).first()
+        is_creator = group and group.creator_id == user_id
+
+        if action == 'delete':
+            if post.author_id != user_id and not is_creator:
+                return JsonResponse({'error': 'Forbidden'}, status=403)
+            post.is_deleted = True
+            if post.parent_id:
+                parent = db.query(WebCommunityPost).filter_by(id=post.parent_id).first()
+                if parent:
+                    parent.reply_count = max(0, (parent.reply_count or 1) - 1)
+            db.commit()
+            return JsonResponse({'ok': True, 'parent_id': post.parent_id})
+
+        if action == 'like':
+            existing = db.query(WebCommunityPostLike).filter_by(post_id=post_id, user_id=user_id).first()
+            if not existing:
+                db.add(WebCommunityPostLike(post_id=post_id, user_id=user_id, created_at=int(time.time())))
+                post.like_count = max(0, post.like_count + 1)
+                db.commit()
+            return JsonResponse({'ok': True, 'like_count': post.like_count})
+
+        if action == 'unlike':
+            existing = db.query(WebCommunityPostLike).filter_by(post_id=post_id, user_id=user_id).first()
+            if existing:
+                db.delete(existing)
+                post.like_count = max(0, post.like_count - 1)
+                db.commit()
+            return JsonResponse({'ok': True, 'like_count': post.like_count})
+
+
+@add_web_user_context
+@require_http_methods(['GET'])
+def api_mention_search(request):
+    """Search users by username prefix for @mention autocomplete. Public read."""
+    q = (request.GET.get('q') or '').strip()[:50]
+    if len(q) < 1:
+        return JsonResponse({'users': []})
+    with get_db_session() as db:
+        rows = db.execute(text(
+            "SELECT username, display_name, avatar_url FROM web_users "
+            "WHERE (username LIKE :q OR display_name LIKE :q) "
+            "AND is_banned = 0 AND is_disabled = 0 AND email_verified = 1 "
+            "ORDER BY username ASC LIMIT 8"
+        ), {'q': q + '%'}).fetchall()
+    return JsonResponse({'users': [
+        {'username': r[0], 'display_name': r[1] or r[0], 'avatar_url': r[2] or ''}
+        for r in rows
+    ]})
+
+
+@add_web_user_context
+def api_community_members_list(request, community_id):
+    """GET QuestLog members of a community."""
+    with get_db_session() as db:
+        community = db.query(WebCommunity).filter_by(id=community_id, is_active=True).first()
+        if not community:
+            return JsonResponse({'error': 'Not found'}, status=404)
+
+        page = safe_int(request.GET.get('page', 1), 1, 1, 100)
+        limit = 24
+        offset = (page - 1) * limit
+
+        rows = db.execute(text("""
+            SELECT u.id, u.username, u.display_name, u.avatar_url, u.is_banned, u.is_disabled,
+                   cm.role, cm.joined_at
+            FROM web_community_members cm
+            JOIN web_users u ON u.id = cm.user_id
+            WHERE cm.community_id = :cid AND u.is_banned = 0 AND u.is_disabled = 0
+            ORDER BY FIELD(cm.role,'owner','admin','moderator','member'), cm.joined_at ASC
+            LIMIT :lim OFFSET :off
+        """), {'cid': community_id, 'lim': limit, 'off': offset}).fetchall()
+
+        total = db.execute(text("""
+            SELECT COUNT(*) FROM web_community_members cm
+            JOIN web_users u ON u.id = cm.user_id
+            WHERE cm.community_id = :cid AND u.is_banned = 0 AND u.is_disabled = 0
+        """), {'cid': community_id}).scalar()
+
+        members = [{
+            'id': r.id,
+            'username': r.username,
+            'display_name': r.display_name or r.username,
+            'avatar_url': r.avatar_url or '',
+            'role': r.role,
+            'joined_at': r.joined_at,
+        } for r in rows]
+
+        return JsonResponse({'members': members, 'total': total, 'has_more': offset + limit < total})
+
+
+@add_web_user_context
+@require_http_methods(['GET', 'POST'])
+def api_community_membership(request, community_id):
+    """POST to join/leave a community on QuestLog."""
+    if not request.web_user:
+        return JsonResponse({'error': 'Login required'}, status=401)
+    user_id = request.web_user.id
+
+    with get_db_session() as db:
+        community = db.query(WebCommunity).filter_by(id=community_id, is_active=True, is_banned=False).first()
+        if not community:
+            return JsonResponse({'error': 'Not found'}, status=404)
+
+        existing = db.query(WebCommunityMember).filter_by(community_id=community_id, user_id=user_id).first()
+
+        if request.method == 'GET':
+            return JsonResponse({'is_member': bool(existing), 'role': existing.role if existing else None})
+
+        try:
+            data = json.loads(request.body)
+        except (json.JSONDecodeError, ValueError):
+            return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+        action = data.get('action')
+        if action == 'join':
+            if existing:
+                return JsonResponse({'ok': True, 'is_member': True})
+            if community.owner_id == user_id:
+                return JsonResponse({'error': 'You own this community'}, status=400)
+            db.add(WebCommunityMember(
+                community_id=community_id, user_id=user_id,
+                role='member', joined_at=int(time.time())
+            ))
+            db.commit()
+            return JsonResponse({'ok': True, 'is_member': True})
+
+        if action == 'leave':
+            if community.owner_id == user_id:
+                return JsonResponse({'error': 'Owner cannot leave'}, status=400)
+            if existing:
+                db.delete(existing)
+                db.commit()
+            return JsonResponse({'ok': True, 'is_member': False})
+
+        return JsonResponse({'error': 'Invalid action'}, status=400)
+
+
+def _validate_webhook_url(url):
+    """Webhook URLs must be https:// from Discord or Fluxer only."""
+    if not url or not isinstance(url, str):
+        return None
+    url = url.strip()[:1000]
+    if not url.startswith('https://'):
+        return None
+    try:
+        from urllib.parse import urlparse
+        host = urlparse(url).netloc.lower().lstrip('www.')
+        allowed = ('discord.com', 'discordapp.com', 'fluxer.app', 'fluxer.gg')
+        if not any(host == d or host.endswith('.' + d) for d in allowed):
+            return None
+    except Exception:
+        return None
+    return url
+
+
+def _fire_event_webhook(community, event):
+    """POST a Discord-compatible embed to the community's configured webhook URL."""
+    webhook_url = community.discord_webhook_url or community.fluxer_webhook_url
+    if not webhook_url:
+        return
+    import requests as _req
+    from datetime import datetime, timezone
+    dt = datetime.fromtimestamp(event.starts_at, tz=timezone.utc)
+    date_str = dt.strftime('%A, %B %-d at %-I:%M %p UTC')
+    h, m = divmod(event.duration_mins or 120, 60)
+    dur = (f'{h}h ' if h else '') + (f'{m}m' if m else '')
+    fields = [{'name': 'When', 'value': f'{date_str}  •  {dur.strip()}', 'inline': False}]
+    if event.game_tag_name:
+        fields.append({'name': 'Game', 'value': event.game_tag_name, 'inline': False})
+    if event.description:
+        fields.append({'name': 'Details', 'value': event.description[:500], 'inline': False})
+    community_slug = _community_slug(community.name)
+    wall_url = f'https://questlog.casual-heroes.com/ql/communities/{community_slug}/#wall'
+    calendar_url = f'https://questlog.casual-heroes.com/ql/lfg/calendar/#event-gn-{event.id}'
+    fields.append({'name': 'RSVP & Sign Up', 'value': f'[View on Calendar]({calendar_url})', 'inline': False})
+    embed = {
+        'title': event.title,
+        'url': wall_url,
+        'color': 0x6366f1,
+        'fields': fields,
+        'footer': {'text': f'{community.name} - QuestLog Community Spaces'},
+    }
+    if event.game_cover_url:
+        embed['thumbnail'] = {'url': event.game_cover_url}
+    try:
+        _req.post(webhook_url, json={'embeds': [embed]}, timeout=8)
+    except Exception:
+        pass
+
+
+def _spawn_recurrence(db, parent_event, now):
+    """Create future occurrences for a recurring event up to 3 months out."""
+    import datetime as _dt
+    DELTAS = {
+        'weekly':   _dt.timedelta(weeks=1),
+        'biweekly': _dt.timedelta(weeks=2),
+        'monthly':  None,  # handled separately
+    }
+    horizon = now + 90 * 86400  # 3 months
+    starts = parent_event.starts_at
+    recurrence = parent_event.recurrence
+    created = []
+    while True:
+        if recurrence == 'monthly':
+            d = _dt.datetime.utcfromtimestamp(starts)
+            month = d.month + 1
+            year = d.year + (month - 1) // 12
+            month = ((month - 1) % 12) + 1
+            try:
+                next_dt = d.replace(year=year, month=month)
+            except ValueError:
+                # e.g. Jan 31 + 1 month = Feb 28
+                import calendar as _cal
+                last_day = _cal.monthrange(year, month)[1]
+                next_dt = d.replace(year=year, month=month, day=last_day)
+            starts = int(next_dt.timestamp())
+        else:
+            starts = starts + int(DELTAS[recurrence].total_seconds())
+
+        if starts > horizon:
+            break
+
+        instance = WebCommunityEvent(
+            community_id=parent_event.community_id,
+            created_by=parent_event.created_by,
+            title=parent_event.title,
+            description=parent_event.description,
+            game_tag_name=parent_event.game_tag_name,
+            game_tag_steam_id=parent_event.game_tag_steam_id,
+            game_cover_url=parent_event.game_cover_url,
+            starts_at=starts,
+            duration_mins=parent_event.duration_mins,
+            max_attendees=parent_event.max_attendees,
+            recurrence=recurrence,
+            recurrence_parent_id=parent_event.id,
+            rsvp_going=0, rsvp_maybe=0,
+            is_cancelled=False, webhook_sent=False,
+            created_at=now, updated_at=now,
+        )
+        db.add(instance)
+        created.append(instance)
+
+    if created:
+        db.commit()
+
+
+@add_web_user_context
+@require_http_methods(['GET', 'POST', 'PUT', 'DELETE'])
+def api_community_events(request, community_id, event_id=None):
+    """
+    GET  /api/communities/<id>/events/          - list upcoming events
+    POST /api/communities/<id>/events/          - create event (owner only)
+    PUT  /api/communities/<id>/events/<eid>/    - edit event (owner only)
+    DELETE /api/communities/<id>/events/<eid>/  - cancel event (owner only)
+    """
+    with get_db_session() as db:
+        community = db.query(WebCommunity).filter_by(id=community_id, is_active=True, is_banned=False).first()
+        if not community:
+            return JsonResponse({'error': 'Not found'}, status=404)
+
+        user_id = request.web_user.id if request.web_user else None
+        is_owner = bool(user_id and community.owner_id == user_id)
+        now = int(time.time())
+
+        if request.method == 'GET':
+            # Return upcoming + recent past events
+            cutoff = now - 7200  # include events up to 2h past start
+            events = db.query(WebCommunityEvent).filter(
+                WebCommunityEvent.community_id == community_id,
+                WebCommunityEvent.is_cancelled == False,
+                WebCommunityEvent.starts_at >= cutoff,
+            ).order_by(WebCommunityEvent.starts_at.asc()).limit(10).all()
+
+            my_rsvps = {}
+            if user_id:
+                rows = db.query(WebCommunityEventRSVP).filter(
+                    WebCommunityEventRSVP.user_id == user_id,
+                    WebCommunityEventRSVP.event_id.in_([e.id for e in events])
+                ).all()
+                my_rsvps = {r.event_id: r.status for r in rows}
+
+            def serialize_event(e):
+                return {
+                    'id': e.id,
+                    'title': e.title,
+                    'description': e.description or '',
+                    'game_tag_name': e.game_tag_name or '',
+                    'game_cover_url': e.game_cover_url or '',
+                    'starts_at': e.starts_at,
+                    'duration_mins': e.duration_mins,
+                    'max_attendees': e.max_attendees,
+                    'rsvp_going': e.rsvp_going,
+                    'rsvp_maybe': e.rsvp_maybe,
+                    'my_rsvp': my_rsvps.get(e.id),
+                    'can_manage': is_owner,
+                    'is_past': e.starts_at < now,
+                    'recurrence': e.recurrence or 'none',
+                    'recurrence_parent_id': e.recurrence_parent_id,
+                }
+
+            return JsonResponse({'events': [serialize_event(e) for e in events]})
+
+        # Write methods - owner only
+        if not is_owner:
+            return JsonResponse({'error': 'Owner only'}, status=403)
+
+        if request.method == 'POST':
+            try:
+                data = json.loads(request.body)
+            except (json.JSONDecodeError, ValueError):
+                return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+            title = (data.get('title') or '').strip()
+            if not title or len(title) > 200:
+                return JsonResponse({'error': 'Title required (max 200 chars)'}, status=400)
+            starts_at = safe_int(data.get('starts_at'), 0, 1)
+            if not starts_at or starts_at < now - 300:
+                return JsonResponse({'error': 'starts_at must be a future Unix timestamp'}, status=400)
+
+            recurrence = data.get('recurrence', 'none')
+            if recurrence not in ('none', 'weekly', 'biweekly', 'monthly'):
+                recurrence = 'none'
+
+            duration_mins = safe_int(data.get('duration_mins'), 120, 15, 1440)
+            max_attendees = safe_int(data.get('max_attendees'), None, 1, 9999) or None
+            description = (data.get('description') or '')[:1000] or None
+            game_tag_name = (data.get('game_tag_name') or '')[:200] or None
+            game_tag_steam_id = safe_int(data.get('game_tag_steam_id'), None)
+            send_webhook = data.get('send_webhook', True)
+
+            event = WebCommunityEvent(
+                community_id=community_id,
+                created_by=user_id,
+                title=title,
+                description=description,
+                game_tag_name=game_tag_name,
+                game_tag_steam_id=game_tag_steam_id,
+                game_cover_url=_validate_voice_link(data.get('game_cover_url')),
+                starts_at=starts_at,
+                duration_mins=duration_mins,
+                max_attendees=max_attendees,
+                recurrence=recurrence,
+                recurrence_parent_id=None,
+                rsvp_going=0, rsvp_maybe=0,
+                is_cancelled=False, webhook_sent=False,
+                created_at=now, updated_at=now,
+            )
+            db.add(event)
+            db.commit()
+
+            # Auto-create a pinned wall post as the event's discussion thread
+            from datetime import datetime, timezone
+            dt = datetime.fromtimestamp(event.starts_at, tz=timezone.utc)
+            date_str = dt.strftime('%A, %B %-d at %-I:%M %p UTC')
+            dur_h, dur_m = divmod(event.duration_mins or 120, 60)
+            dur_str = (f'{dur_h}h ' if dur_h else '') + (f'{dur_m}m' if dur_m else '')
+            post_content = f"Game Night: {event.title}"
+            if event.game_tag_name:
+                post_content += f" - {event.game_tag_name}"
+            post_content += f"\n{date_str} ({dur_str.strip()})"
+            if event.description:
+                post_content += f"\n\n{event.description}"
+            event_post = WebCommunityPost(
+                community_id=community_id,
+                author_id=user_id,
+                content=post_content,
+                event_id=event.id,
+                is_pinned=True,
+                is_deleted=False,
+                like_count=0,
+                reply_count=0,
+                created_at=now,
+                updated_at=now,
+            )
+            db.add(event_post)
+            db.commit()
+            event_post_id = event_post.id
+
+            # Spawn future recurring instances (up to 3 months out)
+            if recurrence != 'none':
+                _spawn_recurrence(db, event, now)
+
+            # Fire webhook for first occurrence only
+            if send_webhook:
+                _fire_event_webhook(community, event)
+                event.webhook_sent = True
+                db.commit()
+
+            return JsonResponse({'ok': True, 'event_id': event.id, 'event_post_id': event_post_id})
+
+        if request.method == 'PUT':
+            if not event_id:
+                return JsonResponse({'error': 'event_id required'}, status=400)
+            event = db.query(WebCommunityEvent).filter_by(id=event_id, community_id=community_id).first()
+            if not event:
+                return JsonResponse({'error': 'Not found'}, status=404)
+            try:
+                data = json.loads(request.body)
+            except (json.JSONDecodeError, ValueError):
+                return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+            new_title = data['title'].strip()[:200] if data.get('title') else None
+            new_desc = (data['description'] or '')[:1000] or None if 'description' in data else None
+            new_game = (data['game_tag_name'] or '')[:200] or None if 'game_tag_name' in data else None
+            new_steam_id = safe_int(data.get('game_tag_steam_id'), None) if 'game_tag_steam_id' in data else None
+            new_dur = safe_int(data['duration_mins'], 120, 15, 1440) if data.get('duration_mins') else None
+            new_max = safe_int(data.get('max_attendees'), None, 1, 9999) or None if 'max_attendees' in data else None
+            new_starts = safe_int(data['starts_at'], event.starts_at, 1) if data.get('starts_at') else None
+
+            # Resolve cover URL from IGDB if a new game was selected
+            new_cover = None
+            if new_game is not None and new_steam_id:
+                from app.utils.igdb import search_games
+                import asyncio
+                try:
+                    loop = asyncio.new_event_loop()
+                    results = loop.run_until_complete(search_games(new_game))
+                    loop.close()
+                    match = next((g for g in results if g.get('name', '').lower() == new_game.lower()), results[0] if results else None)
+                    if match:
+                        new_cover = match.get('cover_url') or None
+                except Exception:
+                    pass
+
+            if new_title: event.title = new_title
+            if new_desc is not None: event.description = new_desc
+            if new_game is not None:
+                event.game_tag_name = new_game
+                if new_steam_id: event.game_tag_steam_id = new_steam_id
+                if new_cover: event.game_cover_url = new_cover
+            if new_dur: event.duration_mins = new_dur
+            if new_max is not None: event.max_attendees = new_max
+            if new_starts: event.starts_at = new_starts
+            event.updated_at = now
+
+            # Propagate title/desc/game changes to all future instances in series
+            series_root = event.recurrence_parent_id or (event.id if event.recurrence != 'none' else None)
+            if series_root and (new_title or new_desc is not None or new_game is not None):
+                siblings = db.query(WebCommunityEvent).filter(
+                    WebCommunityEvent.recurrence_parent_id == series_root,
+                    WebCommunityEvent.starts_at > now,
+                    WebCommunityEvent.is_cancelled == False,
+                ).all()
+                for s in siblings:
+                    if new_title: s.title = new_title
+                    if new_desc is not None: s.description = new_desc
+                    if new_game is not None:
+                        s.game_tag_name = new_game
+                        if new_steam_id: s.game_tag_steam_id = new_steam_id
+                        if new_cover: s.game_cover_url = new_cover
+                    if new_dur: s.duration_mins = new_dur
+                    s.updated_at = now
+
+            db.commit()
+            return JsonResponse({'ok': True})
+
+        if request.method == 'DELETE':
+            if not event_id:
+                return JsonResponse({'error': 'event_id required'}, status=400)
+            event = db.query(WebCommunityEvent).filter_by(id=event_id, community_id=community_id).first()
+            if not event:
+                return JsonResponse({'error': 'Not found'}, status=404)
+
+            try:
+                body = json.loads(request.body) if request.body else {}
+            except (json.JSONDecodeError, ValueError):
+                body = {}
+            cancel_series = body.get('cancel_series', False)
+
+            if cancel_series and (event.recurrence != 'none' or event.recurrence_parent_id):
+                # Cancel this event + all future siblings in the series
+                series_root = event.recurrence_parent_id or event.id
+                # Cancel the parent if it's still upcoming
+                parent = db.query(WebCommunityEvent).filter_by(id=series_root).first()
+                if parent and not parent.is_cancelled:
+                    parent.is_cancelled = True
+                    parent.updated_at = now
+                # Cancel all children with starts_at >= now
+                db.query(WebCommunityEvent).filter(
+                    WebCommunityEvent.recurrence_parent_id == series_root,
+                    WebCommunityEvent.starts_at >= now,
+                    WebCommunityEvent.is_cancelled == False,
+                ).update({'is_cancelled': True, 'updated_at': now})
+                db.commit()
+                return JsonResponse({'ok': True, 'cancelled_series': True})
+
+            event.is_cancelled = True
+            event.updated_at = now
+            db.commit()
+            return JsonResponse({'ok': True, 'cancelled_series': False})
+
+
+@web_login_required
+@add_web_user_context
+@require_http_methods(['POST'])
+def api_community_event_rsvp(request, community_id, event_id):
+    """RSVP to a community event. status: going | maybe | not_going | remove"""
+    user_id = request.web_user.id
+    try:
+        data = json.loads(request.body)
+    except (json.JSONDecodeError, ValueError):
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+    status = data.get('status')
+    if status not in ('going', 'maybe', 'not_going', 'remove'):
+        return JsonResponse({'error': 'Invalid status'}, status=400)
+
+    with get_db_session() as db:
+        event = db.query(WebCommunityEvent).filter_by(
+            id=event_id, community_id=community_id, is_cancelled=False
+        ).first()
+        if not event:
+            return JsonResponse({'error': 'Not found'}, status=404)
+
+        existing = db.query(WebCommunityEventRSVP).filter_by(event_id=event_id, user_id=user_id).first()
+        old_status = existing.status if existing else None
+
+        def _adjust(field, delta):
+            setattr(event, field, max(0, getattr(event, field) + delta))
+
+        if status == 'remove':
+            if existing:
+                if old_status == 'going': _adjust('rsvp_going', -1)
+                if old_status == 'maybe': _adjust('rsvp_maybe', -1)
+                db.delete(existing)
+        else:
+            if existing:
+                if old_status == 'going': _adjust('rsvp_going', -1)
+                if old_status == 'maybe': _adjust('rsvp_maybe', -1)
+                existing.status = status
+            else:
+                db.add(WebCommunityEventRSVP(event_id=event_id, user_id=user_id, status=status, created_at=int(time.time())))
+            if status == 'going': _adjust('rsvp_going', 1)
+            if status == 'maybe': _adjust('rsvp_maybe', 1)
+
+        db.commit()
+        return JsonResponse({'ok': True, 'rsvp_going': event.rsvp_going, 'rsvp_maybe': event.rsvp_maybe, 'my_rsvp': None if status == 'remove' else status})
+
+
+@web_login_required
+@add_web_user_context
+@require_http_methods(['POST'])
+def api_community_integrations(request, community_id):
+    """Save or test webhook integrations for a community (owner only)."""
+    user_id = request.web_user.id
+    try:
+        data = json.loads(request.body)
+    except (json.JSONDecodeError, ValueError):
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+    with get_db_session() as db:
+        community = db.query(WebCommunity).filter_by(id=community_id, is_active=True).first()
+        if not community or community.owner_id != user_id:
+            return JsonResponse({'error': 'Forbidden'}, status=403)
+
+        action = data.get('action', 'save')
+
+        if action == 'test':
+            url = _validate_webhook_url(data.get('url', ''))
+            if not url:
+                return JsonResponse({'error': 'Invalid webhook URL'}, status=400)
+            import requests as _req
+            try:
+                resp = _req.post(url, json={
+                    'embeds': [{
+                        'title': 'QuestLog Webhook Test',
+                        'description': f'Webhook from **{community.name}** is working correctly.',
+                        'color': 0x6366f1,
+                        'footer': {'text': 'QuestLog Community Spaces'},
+                    }]
+                }, timeout=8)
+                if resp.status_code in (200, 204):
+                    return JsonResponse({'ok': True})
+                return JsonResponse({'error': f'Webhook returned {resp.status_code}'}, status=400)
+            except Exception as e:
+                return JsonResponse({'error': 'Webhook request failed'}, status=400)
+
+        # save
+        community.discord_webhook_url = _validate_webhook_url(data.get('discord_webhook_url', ''))
+        community.fluxer_webhook_url  = _validate_webhook_url(data.get('fluxer_webhook_url', ''))
+        community.updated_at = int(time.time())
+        db.commit()
+        return JsonResponse({'ok': True})
+
+
+@add_web_user_context
+@require_http_methods(['GET', 'POST'])
+def api_community_connections(request, community_id):
+    """
+    GET  - list active connections + pending requests for this community
+    POST - send a connection request (action='request', target_id=X)
+           or respond to a request (action='accept'|'decline', connection_id=X)
+           or disconnect (action='disconnect', connection_id=X)
+    """
+    with get_db_session() as db:
+        community = db.query(WebCommunity).filter_by(id=community_id, is_active=True, is_banned=False).first()
+        if not community:
+            return JsonResponse({'error': 'Not found'}, status=404)
+
+        user_id = request.web_user.id if request.web_user else None
+        is_owner = bool(user_id and community.owner_id == user_id)
+        now = int(time.time())
+
+        if request.method == 'GET':
+            from sqlalchemy import or_
+            rows = db.query(WebCommunityConnection).filter(
+                or_(
+                    WebCommunityConnection.requester_id == community_id,
+                    WebCommunityConnection.recipient_id == community_id,
+                ),
+                WebCommunityConnection.status.in_(['active', 'pending']),
+            ).all()
+
+            def _community_summary(c):
+                return {
+                    'id': c.id,
+                    'name': c.name,
+                    'slug': _community_slug(c.name),
+                    'icon_url': c.icon_url or '',
+                    'platform': c.platform.value,
+                    'member_count': c.member_count or 0,
+                    'short_description': c.short_description or '',
+                    'activity_level': c.activity_level or 'unknown',
+                }
+
+            active, pending_in, pending_out = [], [], []
+            for row in rows:
+                is_requester = row.requester_id == community_id
+                partner_id = row.recipient_id if is_requester else row.requester_id
+                partner = db.query(WebCommunity).filter_by(id=partner_id).first()
+                if not partner:
+                    continue
+                entry = {
+                    'connection_id': row.id,
+                    'community': _community_summary(partner),
+                    'connected_since': row.updated_at,
+                }
+                if row.status == 'active':
+                    active.append(entry)
+                elif row.status == 'pending':
+                    if is_requester:
+                        pending_out.append(entry)
+                    else:
+                        pending_in.append({**entry, 'requested_by': row.requested_by})
+
+            return JsonResponse({
+                'active': active,
+                'pending_in': pending_in if is_owner else [],
+                'pending_out': pending_out if is_owner else [],
+                'is_owner': is_owner,
+            })
+
+        # Write actions - owner only
+        if not is_owner:
+            return JsonResponse({'error': 'Owner only'}, status=403)
+
+        try:
+            data = json.loads(request.body)
+        except (json.JSONDecodeError, ValueError):
+            return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+        action = data.get('action')
+
+        if action == 'request':
+            target_id = safe_int(data.get('target_id'), 0, 1)
+            if not target_id or target_id == community_id:
+                return JsonResponse({'error': 'Invalid target'}, status=400)
+            target = db.query(WebCommunity).filter_by(id=target_id, is_active=True, is_banned=False).first()
+            if not target:
+                return JsonResponse({'error': 'Community not found'}, status=404)
+            from sqlalchemy import or_
+            existing = db.query(WebCommunityConnection).filter(
+                or_(
+                    (WebCommunityConnection.requester_id == community_id) & (WebCommunityConnection.recipient_id == target_id),
+                    (WebCommunityConnection.requester_id == target_id) & (WebCommunityConnection.recipient_id == community_id),
+                )
+            ).first()
+            if existing:
+                if existing.status == 'active':
+                    return JsonResponse({'error': 'Already connected'}, status=400)
+                if existing.status == 'pending':
+                    return JsonResponse({'error': 'Request already pending'}, status=400)
+                # declined - allow re-request by resetting
+                existing.status = 'pending'
+                existing.requester_id = community_id
+                existing.recipient_id = target_id
+                existing.requested_by = user_id
+                existing.updated_at = now
+                db.commit()
+                return JsonResponse({'ok': True, 'connection_id': existing.id})
+
+            conn = WebCommunityConnection(
+                requester_id=community_id,
+                recipient_id=target_id,
+                status='pending',
+                requested_by=user_id,
+                created_at=now,
+                updated_at=now,
+            )
+            db.add(conn)
+            db.commit()
+            return JsonResponse({'ok': True, 'connection_id': conn.id})
+
+        if action in ('accept', 'decline', 'disconnect'):
+            connection_id = safe_int(data.get('connection_id'), 0, 1)
+            conn = db.query(WebCommunityConnection).filter_by(id=connection_id).first()
+            if not conn:
+                return JsonResponse({'error': 'Not found'}, status=404)
+            # Must be a party to this connection
+            if conn.requester_id != community_id and conn.recipient_id != community_id:
+                return JsonResponse({'error': 'Forbidden'}, status=403)
+
+            if action == 'accept':
+                if conn.recipient_id != community_id:
+                    return JsonResponse({'error': 'Only the recipient can accept'}, status=403)
+                conn.status = 'active'
+                conn.updated_at = now
+            elif action == 'decline':
+                conn.status = 'declined'
+                conn.updated_at = now
+            elif action == 'disconnect':
+                db.delete(conn)
+
+            db.commit()
+            return JsonResponse({'ok': True})
+
+        return JsonResponse({'error': 'Unknown action'}, status=400)
+
+
+@add_web_user_context
+@require_http_methods(['GET'])
+def api_community_network_feed(request, community_id):
+    """Return recent wall posts, upcoming events, and open LFGs from connected communities."""
+    with get_db_session() as db:
+        community = db.query(WebCommunity).filter_by(id=community_id, is_active=True, is_banned=False).first()
+        if not community:
+            return JsonResponse({'error': 'Not found'}, status=404)
+
+        from sqlalchemy import or_
+        connections = db.query(WebCommunityConnection).filter(
+            or_(
+                WebCommunityConnection.requester_id == community_id,
+                WebCommunityConnection.recipient_id == community_id,
+            ),
+            WebCommunityConnection.status == 'active',
+        ).all()
+
+        if not connections:
+            return JsonResponse({'partners': []})
+
+        partner_ids = [
+            (c.recipient_id if c.requester_id == community_id else c.requester_id)
+            for c in connections
+        ]
+        partners = {c.id: c for c in db.query(WebCommunity).filter(WebCommunity.id.in_(partner_ids)).all()}
+
+        user_id = request.web_user.id if request.web_user else None
+        now = int(time.time())
+        cutoff_posts = now - 7 * 86400  # last 7 days of posts
+        cutoff_events = now - 7200       # events up to 2h past
+
+        result = []
+        for pid in partner_ids:
+            partner = partners.get(pid)
+            if not partner:
+                continue
+
+            # Last 5 wall posts
+            posts = db.query(WebCommunityPost).filter(
+                WebCommunityPost.community_id == pid,
+                WebCommunityPost.is_deleted == False,
+                WebCommunityPost.created_at >= cutoff_posts,
+            ).order_by(WebCommunityPost.created_at.desc()).limit(5).all()
+
+            def _post_dict(p):
+                a = p.author
+                return {
+                    'id': p.id,
+                    'content': p.content or '',
+                    'media_url': p.media_url or '',
+                    'media_type': p.media_type or '',
+                    'game_tag_name': p.game_tag_name or '',
+                    'created_at': p.created_at,
+                    'author_username': a.username if a else '',
+                    'author_display_name': (a.display_name or a.username) if a else '',
+                    'author_avatar': a.avatar_url or '' if a else '',
+                    'like_count': p.like_count,
+                }
+
+            # Upcoming events
+            events = db.query(WebCommunityEvent).filter(
+                WebCommunityEvent.community_id == pid,
+                WebCommunityEvent.is_cancelled == False,
+                WebCommunityEvent.starts_at >= cutoff_events,
+            ).order_by(WebCommunityEvent.starts_at.asc()).limit(3).all()
+
+            def _event_dict(e):
+                return {
+                    'id': e.id,
+                    'title': e.title,
+                    'game_tag_name': e.game_tag_name or '',
+                    'starts_at': e.starts_at,
+                    'duration_mins': e.duration_mins,
+                    'rsvp_going': e.rsvp_going,
+                    'rsvp_maybe': e.rsvp_maybe,
+                }
+
+            # Open LFG groups
+            lfgs = db.query(WebLFGGroup).filter(
+                WebLFGGroup.community_id == pid,
+                WebLFGGroup.is_closed == False,
+            ).order_by(WebLFGGroup.created_at.desc()).limit(3).all()
+
+            def _lfg_dict(g):
+                return {
+                    'public_id': g.public_id,
+                    'game_name': g.game_name or '',
+                    'description': (g.description or '')[:120],
+                    'current_size': g.current_size,
+                    'max_size': g.max_size,
+                }
+
+            result.append({
+                'community': {
+                    'id': partner.id,
+                    'name': partner.name,
+                    'slug': _community_slug(partner.name),
+                    'icon_url': partner.icon_url or '',
+                    'platform': partner.platform.value,
+                },
+                'posts': [_post_dict(p) for p in posts],
+                'events': [_event_dict(e) for e in events],
+                'lfgs': [_lfg_dict(g) for g in lfgs],
+            })
+
+        return JsonResponse({'partners': result})
+
+
+@add_web_user_context
+@require_http_methods(['GET'])
+def api_community_search(request):
+    """Search communities by name for connection requests."""
+    q = (request.GET.get('q') or '').strip()
+    exclude_id = safe_int(request.GET.get('exclude'), 0)
+    if len(q) < 2:
+        return JsonResponse({'communities': []})
+    with get_db_session() as db:
+        results = db.query(WebCommunity).filter(
+            WebCommunity.name.ilike(f'%{q}%'),
+            WebCommunity.is_active == True,
+            WebCommunity.is_banned == False,
+            WebCommunity.allow_discovery == True,
+            WebCommunity.id != exclude_id,
+        ).order_by(WebCommunity.member_count.desc()).limit(8).all()
+        return JsonResponse({'communities': [
+            {
+                'id': c.id,
+                'name': c.name,
+                'slug': _community_slug(c.name),
+                'icon_url': c.icon_url or '',
+                'platform': c.platform.value,
+                'member_count': c.member_count or 0,
+                'short_description': c.short_description or '',
+            }
+            for c in results
+        ]})
 
 
 @add_web_user_context
@@ -1264,6 +2700,36 @@ def api_creators(request):
                 profile.kick_slug = None
             profile.allow_discovery = bool(data.get('allow_discovery', True))
             profile.show_steam_on_profile = bool(data.get('show_steam_on_profile', False))
+
+            # Stream schedule
+            raw_schedule = data.get('stream_schedule')
+            if raw_schedule is not None:
+                if isinstance(raw_schedule, list):
+                    # Validate each slot: {day: 0-6, start: "HH:MM", end: "HH:MM"}
+                    import re as _re
+                    TIME_RE = _re.compile(r'^\d{2}:\d{2}$')
+                    clean = []
+                    for slot in raw_schedule[:14]:
+                        day = safe_int(slot.get('day'), None)
+                        start = (slot.get('start') or '').strip()
+                        end = (slot.get('end') or '').strip()
+                        if day is not None and 0 <= day <= 6 and TIME_RE.match(start) and TIME_RE.match(end):
+                            clean.append({'day': day, 'start': start, 'end': end})
+                    profile.stream_schedule = json.dumps(clean) if clean else None
+                else:
+                    profile.stream_schedule = None
+
+            tz = (data.get('stream_timezone') or '').strip()[:50]
+            if tz:
+                import zoneinfo
+                try:
+                    zoneinfo.ZoneInfo(tz)  # validate
+                    profile.stream_timezone = tz
+                except Exception:
+                    pass
+            elif data.get('stream_timezone') == '':
+                profile.stream_timezone = None
+
             db.commit()
 
             return JsonResponse({'success': True, 'id': profile.id})
@@ -1334,6 +2800,8 @@ def api_creators(request):
             'current_game': u.current_game or '',
             'current_game_appid': u.current_game_appid or 0,
             'show_steam_on_profile': bool(c.show_steam_on_profile),
+            'stream_schedule': json.loads(c.stream_schedule) if c.stream_schedule else [],
+            'stream_timezone': c.stream_timezone or '',
             'primary_community_name': comm.name if comm else '',
             'primary_community_platform': comm.platform.value if comm else '',
             'primary_community_icon_url': comm.icon_url or '' if comm else '',
@@ -2619,3 +4087,322 @@ def api_user_fluxer_guilds(request):
                 g['registered'] = g['id'] in registered
 
     return JsonResponse({'guilds': guilds})
+
+
+@add_web_user_context
+@require_http_methods(['GET', 'POST'])
+def api_calendar_event_detail(request):
+    """
+    GET  /api/calendar/event/?type=game_night&id=<gn_id>  - full event detail + attendees
+    GET  /api/calendar/event/?type=lfg&id=<group_id>       - LFG group detail + members
+    POST /api/calendar/event/rsvp/                          - RSVP for game_night only
+         body: {type: 'game_night', id: <gn_id>, status: 'going'|'maybe'|'not_going'|'remove'}
+    POST /api/calendar/event/edit/                          - Edit game_night (owner only)
+         body: {id: <gn_id>, title, description, starts_at, duration_mins, max_attendees}
+    POST /api/calendar/event/cancel/                        - Cancel game_night (owner only)
+         body: {id: <gn_id>}
+    """
+    user_id = request.web_user.id if request.web_user else None
+    now = int(time.time())
+
+    if request.method == 'GET':
+        event_type = request.GET.get('type')
+        raw_id = request.GET.get('id', '')
+
+        if event_type == 'game_night':
+            # Strip 'gn-' prefix if present
+            gn_id = raw_id.replace('gn-', '') if raw_id.startswith('gn-') else raw_id
+            try:
+                gn_id = int(gn_id)
+            except (ValueError, TypeError):
+                return JsonResponse({'error': 'Invalid id'}, status=400)
+
+            with get_db_session() as db:
+                event = db.query(WebCommunityEvent).filter_by(id=gn_id, is_cancelled=False).first()
+                if not event:
+                    return JsonResponse({'error': 'Not found'}, status=404)
+                community = db.query(WebCommunity).filter_by(id=event.community_id, is_active=True, is_banned=False).first()
+                if not community:
+                    return JsonResponse({'error': 'Not found'}, status=404)
+
+                is_owner = bool(user_id and community.owner_id == user_id)
+                my_rsvp = None
+                if user_id:
+                    r = db.query(WebCommunityEventRSVP).filter_by(event_id=gn_id, user_id=user_id).first()
+                    my_rsvp = r.status if r else None
+
+                # Fetch attendees
+                rsvps = db.query(WebCommunityEventRSVP, WebUser).join(
+                    WebUser, WebCommunityEventRSVP.user_id == WebUser.id
+                ).filter(
+                    WebCommunityEventRSVP.event_id == gn_id,
+                    WebCommunityEventRSVP.status.in_(['going', 'maybe']),
+                ).order_by(WebCommunityEventRSVP.status, WebUser.display_name).limit(50).all()
+
+                attendees = [
+                    {
+                        'user_id': u.id,
+                        'display_name': u.display_name or u.username,
+                        'avatar_url': u.avatar_url or '',
+                        'status': rsvp.status,
+                    }
+                    for rsvp, u in rsvps
+                ]
+
+                from .views_pages import _community_slug
+                slug = _community_slug(community.name)
+                # Find the wall post linked to this event
+                event_post = db.query(WebCommunityPost).filter_by(
+                    event_id=event.id, is_deleted=False, parent_id=None
+                ).first()
+                return JsonResponse({
+                    'type': 'game_night',
+                    'id': event.id,
+                    'title': event.title,
+                    'description': event.description or '',
+                    'game_name': event.game_tag_name or '',
+                    'starts_at': event.starts_at,
+                    'duration_mins': event.duration_mins,
+                    'max_attendees': event.max_attendees,
+                    'rsvp_going': event.rsvp_going,
+                    'rsvp_maybe': event.rsvp_maybe,
+                    'my_rsvp': my_rsvp,
+                    'is_logged_in': bool(user_id),
+                    'can_manage': is_owner,
+                    'community_id': community.id,
+                    'community_name': community.name,
+                    'community_slug': slug,
+                    'attendees': attendees,
+                    'is_past': event.starts_at < now,
+                    'event_post_id': event_post.id if event_post else None,
+                })
+
+        elif event_type == 'lfg':
+            try:
+                group_id = int(raw_id)
+            except (ValueError, TypeError):
+                return JsonResponse({'error': 'Invalid id'}, status=400)
+
+            with get_db_session() as db:
+                group = db.query(WebLFGGroup).filter_by(id=group_id).first()
+                if not group:
+                    return JsonResponse({'error': 'Not found'}, status=404)
+
+                is_creator = bool(user_id and group.creator_id == user_id)
+
+                members = db.query(WebLFGMember, WebUser).join(
+                    WebUser, WebLFGMember.user_id == WebUser.id
+                ).filter(
+                    WebLFGMember.group_id == group_id,
+                    WebLFGMember.status.in_(['joined', 'confirmed']),
+                ).order_by(WebLFGMember.is_creator.desc(), WebLFGMember.joined_at).limit(30).all()
+
+                members_data = [
+                    {
+                        'user_id': u.id,
+                        'display_name': u.display_name or u.username,
+                        'avatar_url': u.avatar_url or '',
+                        'is_creator': m.is_creator,
+                        'role': m.role or '',
+                    }
+                    for m, u in members
+                ]
+
+                viewer_is_member = any(m['user_id'] == user_id for m in members_data) if user_id else False
+                share_url = f'/ql/lfg/{group.share_token}/' if group.share_token else f'/ql/lfg/{group.id}/'
+                return JsonResponse({
+                    'type': 'lfg',
+                    'id': group.id,
+                    'share_token': group.share_token or '',
+                    'share_url': share_url,
+                    'title': group.title,
+                    'game_name': group.game_name or '',
+                    'description': group.description or '',
+                    'scheduled_time': group.scheduled_time,
+                    'duration_hours': group.duration_hours,
+                    'current_size': group.current_size,
+                    'group_size': group.group_size,
+                    'status': group.status,
+                    'voice_platform': group.voice_platform or '',
+                    'is_creator': is_creator,
+                    'can_manage': is_creator,
+                    'is_logged_in': bool(user_id),
+                    'viewer_is_member': viewer_is_member,
+                    'members': members_data,
+                    'is_past': bool(group.scheduled_time and group.scheduled_time < now),
+                })
+
+        return JsonResponse({'error': 'type must be game_night or lfg'}, status=400)
+
+    # POST actions
+    if not user_id:
+        return JsonResponse({'error': 'Login required'}, status=401)
+
+    try:
+        data = json.loads(request.body)
+    except (json.JSONDecodeError, ValueError):
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+    action = request.path.rstrip('/').split('/')[-1]  # rsvp | edit | cancel
+
+    if action == 'rsvp':
+        event_type = data.get('type')
+
+        if event_type == 'lfg':
+            try:
+                group_id = int(data.get('id', ''))
+            except (ValueError, TypeError):
+                return JsonResponse({'error': 'Invalid id'}, status=400)
+            rsvp_status = data.get('status')
+            if rsvp_status not in ('going', 'remove'):
+                return JsonResponse({'error': 'Invalid status'}, status=400)
+
+            with get_db_session() as db:
+                group = db.query(WebLFGGroup).filter_by(id=group_id).first()
+                if not group or group.status == 'cancelled':
+                    return JsonResponse({'error': 'Not found'}, status=404)
+
+                existing = db.query(WebLFGMember).filter_by(group_id=group_id, user_id=user_id).first()
+                if rsvp_status == 'remove':
+                    if existing and not existing.is_creator:
+                        existing.status = 'left'
+                        existing.left_at = now
+                        group.current_size = max(0, group.current_size - 1)
+                        db.commit()
+                    return JsonResponse({'ok': True, 'viewer_is_member': False, 'current_size': group.current_size})
+                else:
+                    if existing:
+                        if existing.status != 'joined':
+                            existing.status = 'joined'
+                            existing.left_at = None
+                            group.current_size = min(group.group_size, group.current_size + 1)
+                            db.commit()
+                    else:
+                        if group.current_size >= group.group_size:
+                            return JsonResponse({'error': 'Group is full'}, status=400)
+                        db.add(WebLFGMember(
+                            group_id=group_id, user_id=user_id,
+                            is_creator=False, status='joined',
+                            joined_at=now,
+                        ))
+                        group.current_size = min(group.group_size, group.current_size + 1)
+                        if group.current_size >= group.group_size:
+                            group.status = 'full'
+                        db.commit()
+                    return JsonResponse({'ok': True, 'viewer_is_member': True, 'current_size': group.current_size})
+
+        if event_type != 'game_night':
+            return JsonResponse({'error': 'RSVP only supported for game_night or lfg'}, status=400)
+        raw_id = str(data.get('id', '')).replace('gn-', '')
+        try:
+            gn_id = int(raw_id)
+        except (ValueError, TypeError):
+            return JsonResponse({'error': 'Invalid id'}, status=400)
+        status = data.get('status')
+        if status not in ('going', 'maybe', 'not_going', 'remove'):
+            return JsonResponse({'error': 'Invalid status'}, status=400)
+
+        with get_db_session() as db:
+            event = db.query(WebCommunityEvent).filter_by(id=gn_id, is_cancelled=False).first()
+            if not event:
+                return JsonResponse({'error': 'Not found'}, status=404)
+
+            existing = db.query(WebCommunityEventRSVP).filter_by(event_id=gn_id, user_id=user_id).first()
+            old_status = existing.status if existing else None
+
+            def _adj(field, delta):
+                setattr(event, field, max(0, getattr(event, field) + delta))
+
+            if status == 'remove':
+                if existing:
+                    if old_status == 'going': _adj('rsvp_going', -1)
+                    if old_status == 'maybe': _adj('rsvp_maybe', -1)
+                    db.delete(existing)
+            else:
+                if existing:
+                    if old_status == 'going': _adj('rsvp_going', -1)
+                    if old_status == 'maybe': _adj('rsvp_maybe', -1)
+                    existing.status = status
+                else:
+                    db.add(WebCommunityEventRSVP(event_id=gn_id, user_id=user_id, status=status, created_at=now))
+                if status == 'going': _adj('rsvp_going', 1)
+                if status == 'maybe': _adj('rsvp_maybe', 1)
+            db.commit()
+            return JsonResponse({
+                'ok': True,
+                'rsvp_going': event.rsvp_going,
+                'rsvp_maybe': event.rsvp_maybe,
+                'my_rsvp': None if status == 'remove' else status,
+            })
+
+    if action == 'edit':
+        raw_id = str(data.get('id', '')).replace('gn-', '')
+        try:
+            gn_id = int(raw_id)
+        except (ValueError, TypeError):
+            return JsonResponse({'error': 'Invalid id'}, status=400)
+
+        with get_db_session() as db:
+            event = db.query(WebCommunityEvent).filter_by(id=gn_id, is_cancelled=False).first()
+            if not event:
+                return JsonResponse({'error': 'Not found'}, status=404)
+            community = db.query(WebCommunity).filter_by(id=event.community_id).first()
+            if not community or community.owner_id != user_id:
+                return JsonResponse({'error': 'Forbidden'}, status=403)
+
+            if data.get('title'):
+                event.title = data['title'].strip()[:200]
+            if 'description' in data:
+                event.description = (data.get('description') or '')[:1000] or None
+            if 'game_tag_name' in data:
+                event.game_tag_name = (data.get('game_tag_name') or '')[:200] or None
+            if data.get('starts_at'):
+                ts = safe_int(data['starts_at'], 0, 1)
+                if ts:
+                    event.starts_at = ts
+            if data.get('duration_mins'):
+                event.duration_mins = safe_int(data['duration_mins'], 120, 15, 1440)
+            if 'max_attendees' in data:
+                event.max_attendees = safe_int(data.get('max_attendees'), None, 1, 9999) or None
+            event.updated_at = now
+            db.commit()
+            return JsonResponse({'ok': True})
+
+    if action == 'cancel':
+        event_type = data.get('type', 'game_night')
+
+        if event_type == 'lfg':
+            try:
+                group_id = int(data.get('id', ''))
+            except (ValueError, TypeError):
+                return JsonResponse({'error': 'Invalid id'}, status=400)
+            with get_db_session() as db:
+                group = db.query(WebLFGGroup).filter_by(id=group_id).first()
+                if not group:
+                    return JsonResponse({'error': 'Not found'}, status=404)
+                if group.creator_id != user_id:
+                    return JsonResponse({'error': 'Forbidden'}, status=403)
+                group.status = 'cancelled'
+                group.updated_at = now
+                db.commit()
+            return JsonResponse({'ok': True})
+
+        raw_id = str(data.get('id', '')).replace('gn-', '')
+        try:
+            gn_id = int(raw_id)
+        except (ValueError, TypeError):
+            return JsonResponse({'error': 'Invalid id'}, status=400)
+
+        with get_db_session() as db:
+            event = db.query(WebCommunityEvent).filter_by(id=gn_id, is_cancelled=False).first()
+            if not event:
+                return JsonResponse({'error': 'Not found'}, status=404)
+            community = db.query(WebCommunity).filter_by(id=event.community_id).first()
+            if not community or community.owner_id != user_id:
+                return JsonResponse({'error': 'Forbidden'}, status=403)
+            event.is_cancelled = True
+            event.updated_at = now
+            db.commit()
+            return JsonResponse({'ok': True})
+
+    return JsonResponse({'error': 'Unknown action'}, status=400)

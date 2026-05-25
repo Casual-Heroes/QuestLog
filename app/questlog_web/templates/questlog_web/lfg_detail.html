@@ -90,6 +90,104 @@
       <div id="roleRoster" class="hidden mb-4"></div>
       <div id="membersList" class="space-y-2"></div>
     </div>
+
+    <!-- Discussion -->
+    <div class="bg-neutral-900/50 rounded-lg border border-neutral-800 p-6">
+      <h3 class="text-lg font-semibold text-white mb-4">
+        <i class="fas fa-comments text-purple-400 mr-2"></i>Discussion
+      </h3>
+
+      <!-- Composer (members + creator only) -->
+      <div id="lfgComposer" class="hidden mb-5 bg-neutral-900 border border-neutral-800 rounded-2xl overflow-hidden">
+        <div class="px-4 pt-4 pb-2">
+          <textarea id="lfgPostInput" rows="2" maxlength="1000" placeholder="Say something to the group..."
+            class="w-full bg-transparent border-0 text-sm text-white placeholder-gray-600 focus:outline-none resize-none leading-relaxed"
+            oninput="lfgUpdatePost()"></textarea>
+        </div>
+        <div id="lfgMediaPreview" class="hidden px-4 pb-3"></div>
+        <div id="lfgGameTagDisplay" class="hidden px-4 pb-2">
+          <span class="inline-flex items-center gap-1.5 px-2.5 py-1 bg-indigo-500/20 text-indigo-300 rounded-full text-xs font-medium">
+            <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M21 6H3c-1.1 0-2 .9-2 2v8c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-10 7H8v3H6v-3H3v-2h3V8h2v3h3v2zm4.5 2c-.83 0-1.5-.67-1.5-1.5S14.67 12 15.5 12s1.5.67 1.5 1.5S16.33 15 15.5 15zm3-3c-.83 0-1.5-.67-1.5-1.5S17.67 10 18.5 10s1.5.67 1.5 1.5S19.33 12 18.5 12z"/></svg>
+            <span id="lfgGameTagName"></span>
+            <button onclick="lfgClearGameTag()" class="ml-0.5 hover:text-red-400"><svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/></svg></button>
+          </span>
+        </div>
+        <div class="px-4 py-2.5 border-t border-neutral-800">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-0.5">
+              <button type="button" onmousedown="event.preventDefault();lfgFmt('bold')" title="Bold" class="px-2 py-1 text-xs font-bold text-gray-500 hover:text-white hover:bg-neutral-800 rounded transition">B</button>
+              <button type="button" onmousedown="event.preventDefault();lfgFmt('italic')" title="Italic" class="px-2 py-1 text-xs italic text-gray-500 hover:text-white hover:bg-neutral-800 rounded transition">I</button>
+              <button type="button" onmousedown="event.preventDefault();lfgFmt('underline')" title="Underline" class="px-2 py-1 text-xs underline text-gray-500 hover:text-white hover:bg-neutral-800 rounded transition">U</button>
+              <div class="w-px h-4 bg-neutral-700 mx-1"></div>
+              <label class="cursor-pointer flex items-center gap-1.5 text-gray-500 hover:text-green-400 px-2.5 py-1.5 rounded-lg hover:bg-neutral-800 text-xs font-medium transition" title="Photo">
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                <span class="hidden sm:inline">Photo</span>
+                <input type="file" id="lfgImageInput" accept="image/jpeg,image/png,image/gif,image/webp" class="hidden" onchange="lfgHandleImage(this)">
+              </label>
+              <button onclick="lfgToggleGif()" class="flex items-center gap-1.5 text-gray-500 hover:text-purple-400 px-2.5 py-1.5 rounded-lg hover:bg-neutral-800 text-xs font-bold transition">GIF</button>
+              <button onclick="lfgToggleEmoji()" class="flex items-center gap-1.5 text-gray-500 hover:text-yellow-400 px-2.5 py-1.5 rounded-lg hover:bg-neutral-800 text-xs transition">
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                <span class="hidden sm:inline ml-0.5">Emoji</span>
+              </button>
+              <button onclick="lfgToggleGame()" class="flex items-center gap-1.5 text-gray-500 hover:text-indigo-400 px-2.5 py-1.5 rounded-lg hover:bg-neutral-800 text-xs transition">
+                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M21 6H3c-1.1 0-2 .9-2 2v8c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-10 7H8v3H6v-3H3v-2h3V8h2v3h3v2zm4.5 2c-.83 0-1.5-.67-1.5-1.5S14.67 12 15.5 12s1.5.67 1.5 1.5S16.33 15 15.5 15zm3-3c-.83 0-1.5-.67-1.5-1.5S17.67 10 18.5 10s1.5.67 1.5 1.5S19.33 12 18.5 12z"/></svg>
+                <span class="hidden sm:inline ml-0.5">Game</span>
+              </button>
+            </div>
+            <button id="lfgPostBtn" onclick="submitLfgPost()" disabled
+              class="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-semibold rounded-lg transition">Post</button>
+          </div>
+          <!-- Emoji picker -->
+          <div id="lfgEmojiPicker" class="hidden mt-2 bg-neutral-800 border border-neutral-700 rounded-xl p-3 max-h-52 overflow-y-auto">
+            <div class="flex gap-1 mb-2 border-b border-neutral-700 pb-2 flex-wrap">
+              <button onclick="lfgShowEmojiCat('gaming',event)" class="lfg-emoji-cat text-xs px-2 py-1 rounded bg-neutral-700 text-white">🎮 Gaming</button>
+              <button onclick="lfgShowEmojiCat('smileys',event)" class="lfg-emoji-cat text-xs px-2 py-1 rounded text-gray-400 hover:bg-neutral-700">😀 Faces</button>
+              <button onclick="lfgShowEmojiCat('hands',event)" class="lfg-emoji-cat text-xs px-2 py-1 rounded text-gray-400 hover:bg-neutral-700">👍 Hands</button>
+              <button onclick="lfgShowEmojiCat('hearts',event)" class="lfg-emoji-cat text-xs px-2 py-1 rounded text-gray-400 hover:bg-neutral-700">❤️ React</button>
+              <button onclick="lfgShowEmojiCat('objects',event)" class="lfg-emoji-cat text-xs px-2 py-1 rounded text-gray-400 hover:bg-neutral-700">⚡ Misc</button>
+              <button onclick="lfgShowEmojiCat('custom',event)" id="lfgCustomEmojiTabBtn" class="lfg-emoji-cat text-xs px-2 py-1 rounded text-gray-400 hover:bg-neutral-700">✨ Custom</button>
+            </div>
+            <div id="lfgEmojiGrid" class="grid grid-cols-10 gap-0.5"></div>
+            <div id="lfgCustomEmojiGrid" class="hidden grid grid-cols-8 gap-1"></div>
+          </div>
+          <!-- GIF picker -->
+          <div id="lfgGifPicker" class="hidden mt-2 bg-neutral-800 border border-neutral-700 rounded-xl overflow-hidden">
+            <div class="p-2 border-b border-neutral-700">
+              <input type="text" id="lfgGifSearch" placeholder="Search GIFs..."
+                class="w-full bg-neutral-900 border border-neutral-600 rounded-lg px-3 py-1.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
+                oninput="lfgSearchGifs(this.value)">
+            </div>
+            <div id="lfgGifResults" class="grid grid-cols-3 gap-1 p-2 max-h-56 overflow-y-auto">
+              <p class="col-span-3 text-gray-500 text-xs text-center py-4">Search or browse trending GIFs</p>
+            </div>
+            <div class="px-2 py-1 border-t border-neutral-700 text-right"><span class="text-gray-600 text-xs">Powered by GIPHY</span></div>
+          </div>
+          <!-- Game search -->
+          <div id="lfgGameSearch" class="hidden mt-2">
+            <input type="text" id="lfgGameSearchInput" placeholder="Search for a game to tag..."
+              class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500"
+              oninput="lfgSearchGame(this.value)">
+          </div>
+          <div id="lfgGameResults" class="hidden bg-neutral-900 border border-neutral-700 rounded-lg mt-1 max-h-48 overflow-y-auto z-50"></div>
+        </div>
+      </div>
+
+      <!-- Login notice -->
+      <div id="lfgPostLoginNotice" class="hidden mb-4 text-center text-sm text-gray-500 py-3">
+        <a href="/login/?next={{ request.path }}" class="text-indigo-400 hover:underline">Log in</a> and join the group to post.
+      </div>
+
+      <div id="lfgDiscussionLoading" class="text-center py-6 text-gray-600">
+        <svg class="w-5 h-5 mx-auto animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 12 0 12 12h4z"></path></svg>
+      </div>
+      <div id="lfgPosts" class="space-y-3"></div>
+      <div id="lfgEmpty" class="hidden text-center py-8">
+        <p class="text-gray-500 text-sm">No discussion yet. Be the first to post!</p>
+      </div>
+      <div id="lfgLoadMore" class="hidden text-center mt-3">
+        <button onclick="loadLfgPosts(true)" class="px-4 py-2 bg-neutral-800 hover:bg-neutral-700 text-gray-300 text-sm rounded-xl transition">Load more</button>
+      </div>
+    </div>
   </div>
 
   <div id="errorState" class="hidden text-center text-red-400 py-12">
@@ -274,6 +372,7 @@ function renderGroup() {
 
   renderActions();
   renderMembers();
+  initLfgDiscussion();
 
   document.getElementById('loadingState').classList.add('hidden');
   document.getElementById('groupContent').classList.remove('hidden');
@@ -1316,5 +1415,752 @@ async function submitCoLeaders() {
     alert('Request failed. Please try again.');
   }
 }
+
+// ---- Discussion ----
+
+let lfgPostPage = 1;
+let lfgUploadedImage = null;
+let lfgSelectedGif = null;
+let lfgSelectedGame = null;
+let lfgGifTimeout = null;
+let lfgGameTimeout = null;
+
+const LFG_EMOJIS = {
+  gaming: ['🎮','🕹️','🎯','🏆','⚔️','🛡️','🎲','👾','🤖','💀','🔥','⭐','💎','🗡️','🏹','🧙','🐉','💣','🎪','🧩','🎰','🃏','♟️','🏅','🥇','🎖️','🏴‍☠️','👑','💪','🦾'],
+  smileys: ['😀','😂','🤣','😍','🥰','😎','🤔','😤','😭','🥺','😱','🤯','😈','👀','🫡','😴','🤮','🥶','🥵','😏','🤩','😇','🙄','😬','🤪','😵','🫠','🤡','💩','👻'],
+  hands:   ['👍','👎','✌️','🤞','👊','✊','🫡','👋','🖐️','🤙','🫶','👏','🙌','🤝','🙏','🫰','🤘','🤟','🖖','✋','👆','👇','👈','👉','💪','🦾','🫵','✍️','🤳','💅'],
+  hearts:  ['❤️','💜','💙','💚','🧡','💛','🖤','🤍','💔','❤️‍🔥','💯','✅','❌','⭕','💢','💥','✨','🌟','💫','🎉','🎊','🏳️‍🌈','🫂','💤','💭','💬','👁️‍🗨️','🔔','📢','🚀'],
+  objects: ['⚡','🔫','💰','🍕','🍺','🎵','🎧','📱','💻','🖥️','⌨️','🖱️','🕐','📸','🎬','📺','🔧','⚙️','🧪','🗺️','🌍','🌙','☀️','🌈','❄️','🔑','🏠','🚗','✈️','🛸'],
+};
+
+function timeAgo(ts) {
+  const diff = Math.floor(Date.now() / 1000) - ts;
+  if (diff < 60) return 'just now';
+  if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
+  if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
+  return Math.floor(diff / 86400) + 'd ago';
+}
+
+function lfgAvatarHtml(url, name, size) {
+  size = size || 'w-9 h-9';
+  if (url) return '<img src="' + escapeHtml(url) + '" class="' + size + ' rounded-full object-cover flex-shrink-0" alt="">';
+  return '<div class="' + size + ' rounded-full bg-neutral-700 flex items-center justify-center text-gray-300 text-sm font-bold flex-shrink-0">' + escapeHtml((name || '?')[0].toUpperCase()) + '</div>';
+}
+
+function renderLfgPostContent(p) {
+  let html = '';
+  if (p.content) {
+    let text = escapeHtml(p.content);
+    // Render custom emoji :shortcode:
+    text = text.replace(/:([a-zA-Z0-9_]+):/g, function(match, code) {
+      const url = window._customEmojiMap && window._customEmojiMap[code];
+      if (url) return '<img src="' + escapeHtml(url) + '" alt=":' + escapeHtml(code) + ':" class="inline-block w-5 h-5 object-contain align-middle" style="vertical-align:-3px">';
+      return match;
+    });
+    // Render inline markdown then @mentions
+    text = renderInlineMarkdown(text);
+    text = renderMentions(text);
+    html += '<p class="text-sm text-gray-300 mt-1.5 leading-relaxed whitespace-pre-wrap">' + text + '</p>';
+  }
+  if (p.game_tag_name) {
+    const gameHref = p.game_tag_steam_id
+      ? 'https://store.steampowered.com/app/' + p.game_tag_steam_id + '/'
+      : (p.game_tag_igdb_url || ('/ql/lfg/browse/?game=' + encodeURIComponent(p.game_tag_name)));
+    const gameTarget = (p.game_tag_steam_id || p.game_tag_igdb_url) ? ' target="_blank" rel="noopener noreferrer"' : '';
+    html += '<div class="mt-2"><a href="' + gameHref + '"' + gameTarget + ' class="inline-flex items-center gap-1.5 px-2.5 py-1 bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-300 rounded-full text-xs font-medium transition"><svg class="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M21 6H3c-1.1 0-2 .9-2 2v8c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-10 7H8v3H6v-3H3v-2h3V8h2v3h3v2zm4.5 2c-.83 0-1.5-.67-1.5-1.5S14.67 12 15.5 12s1.5.67 1.5 1.5S16.33 15 15.5 15zm3-3c-.83 0-1.5-.67-1.5-1.5S17.67 10 18.5 10s1.5.67 1.5 1.5S19.33 12 18.5 12z"/></svg>' + escapeHtml(p.game_tag_name) + '</a></div>';
+  }
+  if (p.media_url && (p.media_type === 'gif' || p.media_type === 'image')) {
+    html += '<div class="mt-3"><img src="' + escapeHtml(p.media_url) + '" class="rounded-xl max-w-full max-h-80 object-contain" loading="lazy" alt=""></div>';
+  }
+  return html;
+}
+
+let lfgCanPost = false;
+
+// Lazy alias - resolves at call time so base_web.html's extra_js block is already loaded
+function lfgAttachMention(ta) { if (window.attachMention) window.attachMention(ta); }
+
+function lfgFmt(type) {
+  const ta = document.getElementById('lfgPostInput');
+  if (!ta) return;
+  const s = ta.selectionStart, e = ta.selectionEnd;
+  const sel = ta.value.substring(s, e);
+  const map = {bold:['**','**'], italic:['*','*'], underline:['<u>','</u>']};
+  const [pre, post] = map[type];
+  const ins = sel || type;
+  ta.value = ta.value.substring(0, s) + pre + ins + post + ta.value.substring(e);
+  ta.selectionStart = s + pre.length;
+  ta.selectionEnd = s + pre.length + ins.length;
+  ta.focus();
+  ta.dispatchEvent(new Event('input'));
+}
+
+// Per-reply state keyed by postId
+const _lfgReplyState = {};
+function _lfgReplyStateFor(pid) {
+  if (!_lfgReplyState[pid]) _lfgReplyState[pid] = { image: null, gif: null, game: null };
+  return _lfgReplyState[pid];
+}
+
+function buildLfgReplyComposerHtml(postId) {
+  if (!lfgCanPost) return '';
+  return '<div id="lfg-reply-box-' + postId + '" class="hidden mt-2 ml-12">'
+    + '<div class="bg-neutral-800 border border-neutral-700 rounded-2xl overflow-hidden">'
+      + '<div class="px-3 pt-3 pb-1.5">'
+        + '<textarea id="lfg-reply-input-' + postId + '" rows="2" maxlength="500" placeholder="Write a reply..."'
+          + ' class="w-full bg-transparent border-0 text-sm text-white placeholder-gray-600 focus:outline-none resize-none leading-relaxed"'
+          + ' oninput="lfgReplyUpdateBtn(' + postId + ')"></textarea>'
+      + '</div>'
+      + '<div id="lfg-reply-media-preview-' + postId + '" class="hidden px-3 pb-2"></div>'
+      + '<div id="lfg-reply-game-tag-' + postId + '" class="hidden px-3 pb-1.5">'
+        + '<span class="inline-flex items-center gap-1.5 px-2 py-0.5 bg-indigo-500/20 text-indigo-300 rounded-full text-xs font-medium">'
+          + '<svg class="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M21 6H3c-1.1 0-2 .9-2 2v8c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-10 7H8v3H6v-3H3v-2h3V8h2v3h3v2zm4.5 2c-.83 0-1.5-.67-1.5-1.5S14.67 12 15.5 12s1.5.67 1.5 1.5S16.33 15 15.5 15zm3-3c-.83 0-1.5-.67-1.5-1.5S17.67 10 18.5 10s1.5.67 1.5 1.5S19.33 12 18.5 12z"/></svg>'
+          + '<span id="lfg-reply-game-tag-name-' + postId + '"></span>'
+          + '<button onclick="lfgReplyClearGameTag(' + postId + ')" class="ml-0.5 hover:text-red-400"><svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/></svg></button>'
+        + '</span>'
+      + '</div>'
+      + '<div class="px-3 py-2 border-t border-neutral-700">'
+        + '<div class="flex items-center justify-between">'
+          + '<div class="flex items-center gap-0">'
+            + '<label class="cursor-pointer flex items-center text-gray-500 hover:text-green-400 p-1.5 rounded-lg hover:bg-neutral-700 transition" title="Photo">'
+              + '<svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>'
+              + '<input type="file" accept="image/jpeg,image/png,image/gif,image/webp" class="hidden" onchange="lfgReplyHandleImage(this,' + postId + ')">'
+            + '</label>'
+            + '<button onclick="lfgReplyToggleGif(' + postId + ')" class="text-gray-500 hover:text-purple-400 p-1.5 rounded-lg hover:bg-neutral-700 text-xs font-bold transition">GIF</button>'
+            + '<button onclick="lfgReplyToggleEmoji(' + postId + ')" class="text-gray-500 hover:text-yellow-400 p-1.5 rounded-lg hover:bg-neutral-700 transition">'
+              + '<svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>'
+            + '</button>'
+            + '<button onclick="lfgReplyToggleGame(' + postId + ')" class="text-gray-500 hover:text-indigo-400 p-1.5 rounded-lg hover:bg-neutral-700 transition">'
+              + '<svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M21 6H3c-1.1 0-2 .9-2 2v8c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-10 7H8v3H6v-3H3v-2h3V8h2v3h3v2zm4.5 2c-.83 0-1.5-.67-1.5-1.5S14.67 12 15.5 12s1.5.67 1.5 1.5S16.33 15 15.5 15zm3-3c-.83 0-1.5-.67-1.5-1.5S17.67 10 18.5 10s1.5.67 1.5 1.5S19.33 12 18.5 12z"/></svg>'
+            + '</button>'
+          + '</div>'
+          + '<div class="flex items-center gap-2">'
+            + '<button onclick="lfgToggleReplyBox(' + postId + ')" class="px-3 py-1 text-xs text-gray-400 hover:text-white rounded-lg hover:bg-neutral-700 transition">Cancel</button>'
+            + '<button id="lfg-reply-submit-' + postId + '" onclick="lfgSubmitReply(' + postId + ')" disabled'
+              + ' class="px-3 py-1 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-semibold rounded-lg transition">Reply</button>'
+          + '</div>'
+        + '</div>'
+        + '<div id="lfg-reply-emoji-' + postId + '" class="hidden mt-2 bg-neutral-800 border border-neutral-700 rounded-xl p-3 max-h-52 overflow-y-auto">'
+          + '<div class="flex gap-1 mb-2 border-b border-neutral-700 pb-2 flex-wrap">'
+            + '<button onclick="lfgReplyShowEmojiCat(\'gaming\',' + postId + ',event)" class="lfg-reply-emoji-cat-' + postId + ' text-xs px-2 py-1 rounded bg-neutral-700 text-white">🎮 Gaming</button>'
+            + '<button onclick="lfgReplyShowEmojiCat(\'smileys\',' + postId + ',event)" class="lfg-reply-emoji-cat-' + postId + ' text-xs px-2 py-1 rounded text-gray-400 hover:bg-neutral-700">😀 Faces</button>'
+            + '<button onclick="lfgReplyShowEmojiCat(\'hands\',' + postId + ',event)" class="lfg-reply-emoji-cat-' + postId + ' text-xs px-2 py-1 rounded text-gray-400 hover:bg-neutral-700">👍 Hands</button>'
+            + '<button onclick="lfgReplyShowEmojiCat(\'hearts\',' + postId + ',event)" class="lfg-reply-emoji-cat-' + postId + ' text-xs px-2 py-1 rounded text-gray-400 hover:bg-neutral-700">❤️ React</button>'
+            + '<button onclick="lfgReplyShowEmojiCat(\'objects\',' + postId + ',event)" class="lfg-reply-emoji-cat-' + postId + ' text-xs px-2 py-1 rounded text-gray-400 hover:bg-neutral-700">⚡ Misc</button>'
+            + '<button onclick="lfgReplyShowEmojiCat(\'custom\',' + postId + ',event)" class="lfg-reply-emoji-cat-' + postId + ' text-xs px-2 py-1 rounded text-gray-400 hover:bg-neutral-700">✨ Custom</button>'
+          + '</div>'
+          + '<div id="lfg-reply-emoji-grid-' + postId + '" class="grid grid-cols-10 gap-0.5"></div>'
+          + '<div id="lfg-reply-custom-emoji-grid-' + postId + '" class="hidden grid grid-cols-8 gap-1"></div>'
+        + '</div>'
+        + '<div id="lfg-reply-gif-' + postId + '" class="hidden mt-2 bg-neutral-900 border border-neutral-700 rounded-xl overflow-hidden">'
+          + '<div class="p-2 border-b border-neutral-700"><input type="text" placeholder="Search GIFs..." class="w-full bg-neutral-800 border border-neutral-600 rounded-lg px-2 py-1 text-xs text-white placeholder-gray-500 focus:outline-none" oninput="lfgReplySearchGifs(this.value,' + postId + ')"></div>'
+          + '<div id="lfg-reply-gif-results-' + postId + '" class="grid grid-cols-3 gap-1 p-2 max-h-40 overflow-y-auto"><p class="col-span-3 text-gray-500 text-xs text-center py-3">Search GIFs...</p></div>'
+          + '<div class="px-2 py-1 border-t border-neutral-700 text-right"><span class="text-gray-600 text-[10px]">Powered by GIPHY</span></div>'
+        + '</div>'
+        + '<div id="lfg-reply-game-search-' + postId + '" class="hidden mt-2"><input type="text" placeholder="Search for a game..." class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-2 py-1.5 text-xs text-white placeholder-gray-500 focus:outline-none" oninput="lfgReplySearchGame(this.value,' + postId + ')"></div>'
+        + '<div id="lfg-reply-game-results-' + postId + '" class="hidden bg-neutral-900 border border-neutral-700 rounded-lg mt-1 max-h-40 overflow-y-auto z-50"></div>'
+      + '</div>'
+    + '</div>'
+  + '</div>';
+}
+
+// Unified recursive post builder - handles top-level and all reply depths
+function buildLfgPostEl(p, depth) {
+  depth = depth || 0;
+  const isTop = depth === 0;
+  const el = document.createElement('div');
+  el.id = 'lfg-post-' + p.id;
+
+  const avatarSize = isTop ? 'w-9 h-9' : (depth === 1 ? 'w-7 h-7' : 'w-6 h-6');
+  const nameCls = isTop ? 'text-sm font-semibold' : 'text-xs font-semibold';
+  const gapCls = isTop ? 'gap-3' : 'gap-2';
+  const iconSize = isTop ? 'w-3.5 h-3.5' : 'w-3 h-3';
+  const actionGap = isTop ? 'gap-4 mt-3' : 'gap-3 mt-1.5';
+
+  const delBtn = p.can_delete
+    ? '<button onclick="lfgPostAction(' + p.id + ',\'delete\')" class="text-xs text-gray-600 hover:text-red-400 transition">Delete</button>'
+    : '';
+  const replyBtn = lfgCanPost
+    ? '<button onclick="lfgToggleReplyBox(' + p.id + ')" class="flex items-center gap-1 text-xs text-gray-600 hover:text-indigo-400 transition"><svg class="' + iconSize + '" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/></svg><span id="lfg-reply-count-' + p.id + '">' + (p.reply_count > 0 ? p.reply_count + ' Repl' + (p.reply_count === 1 ? 'y' : 'ies') : 'Reply') + '</span></button>'
+    : (p.reply_count > 0 ? '<span class="text-xs text-gray-600">' + p.reply_count + ' repl' + (p.reply_count === 1 ? 'y' : 'ies') + '</span>' : '');
+
+  const childrenHtml = (p.replies || []).map(function(r) {
+    return buildLfgPostEl(r, depth + 1).outerHTML;
+  }).join('');
+
+  const indent = depth > 0 ? ' ml-' + Math.min(depth * 8, 16) + ' border-l-2 border-neutral-700/50 pl-3' : '';
+  if (depth > 0) {
+    el.className = 'mt-2' + indent;
+  } else {
+    el.className = 'bg-neutral-900 border border-neutral-800 rounded-2xl p-4';
+  }
+
+  const contentWrapper = isTop
+    ? '<div class="flex-1 min-w-0">'
+    : '<div class="flex-1 min-w-0 bg-neutral-800/40 rounded-xl px-3 py-2">';
+
+  el.innerHTML = '<div class="flex items-start ' + gapCls + '">'
+    + lfgAvatarHtml(p.author_avatar, p.author_display_name, avatarSize)
+    + contentWrapper
+      + '<div class="flex items-center gap-2 flex-wrap ' + (isTop ? '' : 'mb-0.5') + '">'
+        + '<a href="/u/' + escapeHtml(p.author_username) + '/" class="' + nameCls + ' text-white hover:text-indigo-300 transition">' + escapeHtml(p.author_display_name) + '</a>'
+        + '<span class="text-xs text-gray-600">' + timeAgo(p.created_at) + '</span>'
+      + '</div>'
+      + renderLfgPostContent(p)
+      + '<div class="flex items-center ' + actionGap + '">'
+        + '<button id="lfg-like-btn-' + p.id + '" onclick="lfgPostAction(' + p.id + ',\'' + (p.liked ? 'unlike' : 'like') + '\')" class="flex items-center gap-1 text-xs ' + (p.liked ? 'text-indigo-400' : 'text-gray-600 hover:text-indigo-400') + ' transition">'
+          + '<svg class="' + iconSize + '" fill="' + (p.liked ? 'currentColor' : 'none') + '" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/></svg>'
+          + '<span id="lfg-like-count-' + p.id + '">' + p.like_count + '</span>'
+        + '</button>'
+        + replyBtn
+        + delBtn
+      + '</div>'
+    + '</div>'
+  + '</div>'
+  + '<div id="lfg-replies-' + p.id + '" class="' + (isTop ? 'mt-2' : 'mt-1') + '">' + childrenHtml + '</div>'
+  + buildLfgReplyComposerHtml(p.id);
+
+  return el;
+}
+
+function initLfgDiscussion() {
+  const g = groupData;
+  lfgCanPost = isLoggedIn && (g.viewer_is_creator || g.viewer_is_member);
+
+  if (lfgCanPost) {
+    document.getElementById('lfgComposer').classList.remove('hidden');
+    document.getElementById('lfgPostLoginNotice').classList.add('hidden');
+    loadCustomEmojiForLfg();
+    lfgAttachMention(document.getElementById('lfgPostInput'));
+  } else if (!isLoggedIn) {
+    document.getElementById('lfgPostLoginNotice').classList.remove('hidden');
+  }
+
+  loadLfgPosts(false);
+}
+
+function loadCustomEmojiForLfg() {
+  if (window._customEmojiCache !== undefined) return;
+  window._customEmojiCache = null; // mark as loading
+  fetch('/api/emoji/').then(function(r) { return r.json(); }).then(function(data) {
+    window._customEmojiCache = data.emoji || [];
+    window._customEmojiMap = {};
+    data.emoji.forEach(function(e) { window._customEmojiMap[e.shortcode] = e.image_url; });
+  }).catch(function() {
+    window._customEmojiCache = [];
+    window._customEmojiMap = {};
+  });
+}
+
+window.loadLfgPosts = async function(more) {
+  if (!more) {
+    lfgPostPage = 1;
+    document.getElementById('lfgPosts').innerHTML = '';
+    document.getElementById('lfgEmpty').classList.add('hidden');
+  }
+  document.getElementById('lfgDiscussionLoading').classList.remove('hidden');
+  try {
+    const r = await fetch('/api/lfg/' + groupId + '/wall/?page=' + lfgPostPage);
+    document.getElementById('lfgDiscussionLoading').classList.add('hidden');
+    if (!r.ok) return;
+    const d = await r.json();
+    if (!d.posts.length && lfgPostPage === 1) {
+      document.getElementById('lfgEmpty').classList.remove('hidden');
+      return;
+    }
+    const container = document.getElementById('lfgPosts');
+    d.posts.forEach(function(p) { container.appendChild(buildLfgPostEl(p)); });
+    document.getElementById('lfgLoadMore').classList.toggle('hidden', !d.has_more);
+    if (d.has_more) lfgPostPage++;
+  } catch(e) {
+    document.getElementById('lfgDiscussionLoading').classList.add('hidden');
+  }
+};
+
+window.submitLfgPost = async function() {
+  const input = document.getElementById('lfgPostInput');
+  const content = input.value.trim();
+  if (!content && !lfgUploadedImage && !lfgSelectedGif) return;
+  const btn = document.getElementById('lfgPostBtn');
+  btn.disabled = true;
+  const body = {};
+  if (content) body.content = content;
+  if (lfgSelectedGif) body.gif_url = lfgSelectedGif.url;
+  if (lfgUploadedImage) body.image_url = lfgUploadedImage.image_url;
+  if (lfgSelectedGame) {
+    body.game_tag_name = lfgSelectedGame.name;
+    if (lfgSelectedGame.steam_id) body.game_tag_steam_id = lfgSelectedGame.steam_id;
+  }
+  try {
+    const r = await csrfFetch('/api/lfg/' + groupId + '/wall/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (r.ok) {
+      const d = await r.json();
+      input.value = '';
+      lfgClearMedia();
+      lfgClearGameTag();
+      lfgSelectedGame = null;
+      document.getElementById('lfgEmojiPicker').classList.add('hidden');
+      document.getElementById('lfgGifPicker').classList.add('hidden');
+      document.getElementById('lfgGameSearch').classList.add('hidden');
+      lfgUpdatePost();
+      document.getElementById('lfgEmpty').classList.add('hidden');
+      const container = document.getElementById('lfgPosts');
+      container.insertBefore(buildLfgPostEl(d.post), container.firstChild);
+    }
+  } catch(e) {}
+  btn.disabled = false;
+};
+
+window.lfgPostAction = async function(postId, action) {
+  if (action === 'delete' && !confirm('Delete this post?')) return;
+  try {
+    const r = await csrfFetch('/api/lfg/' + groupId + '/wall/' + postId + '/action/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action }),
+    });
+    if (!r.ok) return;
+    const d = await r.json();
+    if (action === 'delete') {
+      const el = document.getElementById('lfg-post-' + postId);
+      if (el) {
+        if (d.parent_id) {
+          const countEl = document.getElementById('lfg-reply-count-' + d.parent_id);
+          if (countEl) {
+            const cur = Math.max(0, parseInt(countEl.dataset.count || '1') - 1);
+            countEl.dataset.count = cur;
+            countEl.textContent = cur > 0 ? (cur + ' ' + (cur === 1 ? 'Reply' : 'Replies')) : 'Reply';
+          }
+        }
+        el.remove();
+      }
+      if (!document.getElementById('lfgPosts').children.length) {
+        document.getElementById('lfgEmpty').classList.remove('hidden');
+      }
+    } else if (action === 'like' || action === 'unlike') {
+      const countEl = document.getElementById('lfg-like-count-' + postId);
+      if (countEl) countEl.textContent = d.like_count;
+      const btn = document.getElementById('lfg-like-btn-' + postId);
+      if (btn) {
+        btn.className = 'flex items-center gap-1.5 text-xs ' + (action === 'like' ? 'text-indigo-400' : 'text-gray-600 hover:text-indigo-400') + ' transition';
+        btn.setAttribute('onclick', 'lfgPostAction(' + postId + ',\'' + (action === 'like' ? 'unlike' : 'like') + '\')');
+        const svg = btn.querySelector('svg');
+        if (svg) svg.setAttribute('fill', action === 'like' ? 'currentColor' : 'none');
+      }
+    }
+  } catch(e) {}
+};
+
+window.lfgToggleReplyBox = function(postId) {
+  const box = document.getElementById('lfg-reply-box-' + postId);
+  if (!box) return;
+  const isHidden = box.classList.contains('hidden');
+  box.classList.toggle('hidden', !isHidden);
+  if (!isHidden) return;
+  const ta = document.getElementById('lfg-reply-input-' + postId);
+  if (ta) { ta.value = ''; ta.focus(); lfgAttachMention(ta); }
+  const rs = _lfgReplyStateFor(postId);
+  rs.image = null; rs.gif = null; rs.game = null;
+};
+
+window.lfgReplyUpdateBtn = function(postId) {
+  const ta = document.getElementById('lfg-reply-input-' + postId);
+  const btn = document.getElementById('lfg-reply-submit-' + postId);
+  if (!ta || !btn) return;
+  const rs = _lfgReplyStateFor(postId);
+  btn.disabled = !ta.value.trim() && !rs.image && !rs.gif;
+};
+
+window.lfgSubmitReply = async function(postId) {
+  const ta = document.getElementById('lfg-reply-input-' + postId);
+  const btn = document.getElementById('lfg-reply-submit-' + postId);
+  if (!ta || !btn) return;
+  const rs = _lfgReplyStateFor(postId);
+  const content = ta.value.trim();
+  if (!content && !rs.image && !rs.gif) return;
+  btn.disabled = true;
+  const body = { parent_id: postId };
+  if (content) body.content = content;
+  if (rs.gif) body.gif_url = rs.gif.url;
+  if (rs.image) body.image_url = rs.image.image_url;
+  if (rs.game) { body.game_tag_name = rs.game.name; if (rs.game.steam_id) body.game_tag_steam_id = rs.game.steam_id; }
+  try {
+    const r = await csrfFetch('/api/lfg/' + groupId + '/wall/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (r.ok) {
+      const d = await r.json();
+      ta.value = ''; rs.image = null; rs.gif = null; rs.game = null;
+      document.getElementById('lfg-reply-media-preview-' + postId).classList.add('hidden');
+      document.getElementById('lfg-reply-game-tag-' + postId).classList.add('hidden');
+      const repliesEl = document.getElementById('lfg-replies-' + postId);
+      if (repliesEl) repliesEl.appendChild(buildLfgPostEl(d.post, 1));
+      const countEl = document.getElementById('lfg-reply-count-' + postId);
+      if (countEl) {
+        const cur = parseInt(countEl.dataset.count || countEl.textContent || '0') + 1;
+        countEl.dataset.count = cur;
+        countEl.textContent = cur + ' ' + (cur === 1 ? 'Reply' : 'Replies');
+      }
+      lfgReplyUpdateBtn(postId);
+    }
+  } catch(e) {}
+  btn.disabled = false;
+};
+
+window.lfgReplyToggleEmoji = function(postId) {
+  document.getElementById('lfg-reply-gif-' + postId).classList.add('hidden');
+  document.getElementById('lfg-reply-game-search-' + postId).classList.add('hidden');
+  document.getElementById('lfg-reply-game-results-' + postId).classList.add('hidden');
+  const ep = document.getElementById('lfg-reply-emoji-' + postId);
+  ep.classList.toggle('hidden');
+  if (!ep.classList.contains('hidden')) lfgReplyShowEmojiCat('gaming', postId, null);
+};
+
+window.lfgReplyShowEmojiCat = function(cat, postId, evt) {
+  document.querySelectorAll('.lfg-reply-emoji-cat-' + postId).forEach(function(b) {
+    b.className = 'lfg-reply-emoji-cat-' + postId + ' text-xs px-2 py-1 rounded text-gray-400 hover:bg-neutral-700';
+  });
+  if (evt) evt.target.closest('.lfg-reply-emoji-cat-' + postId).className = 'lfg-reply-emoji-cat-' + postId + ' text-xs px-2 py-1 rounded bg-neutral-700 text-white';
+  const grid = document.getElementById('lfg-reply-emoji-grid-' + postId);
+  const customGrid = document.getElementById('lfg-reply-custom-emoji-grid-' + postId);
+  if (cat === 'custom') {
+    grid.classList.add('hidden');
+    customGrid.classList.remove('hidden');
+    const cache = window._customEmojiCache;
+    if (cache === null || cache === undefined) {
+      customGrid.innerHTML = '<p class="col-span-8 text-center text-gray-500 text-xs py-3">Loading...</p>';
+    } else if (!cache.length) {
+      customGrid.innerHTML = '<p class="col-span-8 text-center text-gray-500 text-xs py-3">No custom emoji yet.</p>';
+    } else {
+      customGrid.innerHTML = cache.map(function(e) {
+        return '<button onclick="lfgReplyInsertEmoji(\':' + escapeHtml(e.shortcode) + ':\',' + postId + ')" title=":' + escapeHtml(e.shortcode) + ':" class="p-1 rounded hover:bg-neutral-700 transition flex items-center justify-center"><img src="' + escapeHtml(e.image_url) + '" class="w-6 h-6 object-contain"></button>';
+      }).join('');
+    }
+  } else {
+    customGrid.classList.add('hidden');
+    grid.classList.remove('hidden');
+    const emojis = LFG_EMOJIS[cat] || [];
+    grid.innerHTML = emojis.map(function(e) {
+      return '<button onclick="lfgReplyInsertEmoji(\'' + e + '\',' + postId + ')" class="w-7 h-7 flex items-center justify-center text-lg rounded hover:bg-neutral-700 transition">' + e + '</button>';
+    }).join('');
+  }
+};
+
+window.lfgReplyInsertEmoji = function(emoji, postId) {
+  const ta = document.getElementById('lfg-reply-input-' + postId);
+  if (!ta) return;
+  const s = ta.selectionStart, e2 = ta.selectionEnd;
+  ta.value = ta.value.slice(0, s) + emoji + ta.value.slice(e2);
+  ta.selectionStart = ta.selectionEnd = s + emoji.length;
+  ta.focus();
+  lfgReplyUpdateBtn(postId);
+};
+
+window.lfgReplyToggleGif = function(postId) {
+  document.getElementById('lfg-reply-emoji-' + postId).classList.add('hidden');
+  document.getElementById('lfg-reply-game-search-' + postId).classList.add('hidden');
+  document.getElementById('lfg-reply-game-results-' + postId).classList.add('hidden');
+  const gp = document.getElementById('lfg-reply-gif-' + postId);
+  gp.classList.toggle('hidden');
+  if (!gp.classList.contains('hidden')) {
+    const c = document.getElementById('lfg-reply-gif-results-' + postId);
+    if (c.children.length <= 1) lfgReplyFetchGifs('', postId);
+  }
+};
+
+const _lfgReplyGifTimeouts = {};
+window.lfgReplySearchGifs = function(q, postId) {
+  clearTimeout(_lfgReplyGifTimeouts[postId]);
+  _lfgReplyGifTimeouts[postId] = setTimeout(function() { lfgReplyFetchGifs(q, postId); }, 400);
+};
+
+function lfgReplyFetchGifs(q, postId) {
+  const container = document.getElementById('lfg-reply-gif-results-' + postId);
+  container.innerHTML = '<p class="col-span-3 text-gray-500 text-xs text-center py-3">Loading...</p>';
+  const url = q ? '/api/gifs/search/?q=' + encodeURIComponent(q) : '/api/gifs/trending/';
+  fetch(url).then(function(r) { return r.json(); }).then(function(d) {
+    const gifs = d.gifs || d.results || [];
+    if (!gifs.length) { container.innerHTML = '<p class="col-span-3 text-gray-500 text-xs text-center py-3">No results</p>'; return; }
+    container.innerHTML = gifs.map(function(g) {
+      const preview = g.preview || g.url;
+      return '<img src="' + escapeHtml(preview) + '" class="w-full h-16 object-cover rounded cursor-pointer hover:opacity-80 transition" onclick="lfgReplySelectGif(\'' + escapeHtml(g.url) + '\',\'' + escapeHtml(preview) + '\',' + postId + ')" loading="lazy">';
+    }).join('');
+  }).catch(function() {});
+}
+
+window.lfgReplySelectGif = function(url, preview, postId) {
+  const rs = _lfgReplyStateFor(postId);
+  rs.gif = { url }; rs.image = null;
+  document.getElementById('lfg-reply-gif-' + postId).classList.add('hidden');
+  const mp = document.getElementById('lfg-reply-media-preview-' + postId);
+  mp.classList.remove('hidden');
+  mp.innerHTML = '<div class="relative inline-block"><img src="' + escapeHtml(preview) + '" class="max-h-28 rounded-lg"><button onclick="lfgReplyClearMedia(' + postId + ')" class="absolute top-1 right-1 bg-black/60 rounded-full p-0.5 hover:bg-red-600/80 transition"><svg class="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/></svg></button></div>';
+  lfgReplyUpdateBtn(postId);
+};
+
+window.lfgReplyHandleImage = async function(input, postId) {
+  const file = input.files[0]; if (!file) return;
+  const rs = _lfgReplyStateFor(postId);
+  rs.gif = null;
+  const fd = new FormData(); fd.append('image', file);
+  try {
+    const r = await csrfFetch('/api/upload/image/', { method: 'POST', body: fd });
+    const d = await r.json();
+    if (d.success) {
+      rs.image = d;
+      const mp = document.getElementById('lfg-reply-media-preview-' + postId);
+      mp.classList.remove('hidden');
+      mp.innerHTML = '<div class="relative inline-block"><img src="' + escapeHtml(d.image_url) + '" class="max-h-28 rounded-lg"><button onclick="lfgReplyClearMedia(' + postId + ')" class="absolute top-1 right-1 bg-black/60 rounded-full p-0.5 hover:bg-red-600/80 transition"><svg class="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/></svg></button></div>';
+      lfgReplyUpdateBtn(postId);
+    }
+  } catch(e) {}
+  input.value = '';
+};
+
+window.lfgReplyClearMedia = function(postId) {
+  const rs = _lfgReplyStateFor(postId);
+  rs.image = null; rs.gif = null;
+  const mp = document.getElementById('lfg-reply-media-preview-' + postId);
+  mp.classList.add('hidden'); mp.innerHTML = '';
+  lfgReplyUpdateBtn(postId);
+};
+
+window.lfgReplyToggleGame = function(postId) {
+  document.getElementById('lfg-reply-emoji-' + postId).classList.add('hidden');
+  document.getElementById('lfg-reply-gif-' + postId).classList.add('hidden');
+  const gs = document.getElementById('lfg-reply-game-search-' + postId);
+  gs.classList.toggle('hidden');
+  if (!gs.classList.contains('hidden')) gs.querySelector('input').focus();
+  else document.getElementById('lfg-reply-game-results-' + postId).classList.add('hidden');
+};
+
+const _lfgReplyGameTimeouts = {};
+window.lfgReplySearchGame = function(q, postId) {
+  clearTimeout(_lfgReplyGameTimeouts[postId]);
+  if (!q.trim()) { document.getElementById('lfg-reply-game-results-' + postId).classList.add('hidden'); return; }
+  _lfgReplyGameTimeouts[postId] = setTimeout(function() {
+    fetch('/api/igdb/search/?q=' + encodeURIComponent(q)).then(function(r) { return r.json(); }).then(function(d) {
+      const results = d.results || d.games || [];
+      const container = document.getElementById('lfg-reply-game-results-' + postId);
+      if (!results.length) { container.classList.add('hidden'); return; }
+      container.classList.remove('hidden');
+      container.innerHTML = '';
+      results.slice(0, 6).forEach(function(g) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'w-full flex items-center gap-2 px-3 py-1.5 hover:bg-neutral-800 text-left text-xs text-white transition';
+        btn.innerHTML = (g.cover_url ? '<img src="' + escapeHtml(g.cover_url) + '" class="w-5 h-7 object-cover rounded flex-shrink-0">' : '<div class="w-5 h-7 bg-neutral-700 rounded flex-shrink-0"></div>') + '<span class="truncate">' + escapeHtml(g.name) + '</span>';
+        btn.addEventListener('mousedown', function(e) {
+          e.preventDefault();
+          lfgReplySelectGame(g.name, g.steam_id || null, postId);
+        });
+        container.appendChild(btn);
+      });
+    }).catch(function() {});
+  }, 300);
+};
+
+window.lfgReplySelectGame = function(name, steamId, postId) {
+  const rs = _lfgReplyStateFor(postId);
+  rs.game = { name, steam_id: steamId };
+  document.getElementById('lfg-reply-game-search-' + postId).classList.add('hidden');
+  document.getElementById('lfg-reply-game-results-' + postId).classList.add('hidden');
+  document.getElementById('lfg-reply-game-tag-name-' + postId).textContent = name;
+  document.getElementById('lfg-reply-game-tag-' + postId).classList.remove('hidden');
+  lfgReplyUpdateBtn(postId);
+};
+
+window.lfgReplyClearGameTag = function(postId) {
+  const rs = _lfgReplyStateFor(postId);
+  rs.game = null;
+  document.getElementById('lfg-reply-game-tag-' + postId).classList.add('hidden');
+  lfgReplyUpdateBtn(postId);
+};
+
+window.lfgUpdatePost = function() {
+  const content = document.getElementById('lfgPostInput').value.trim();
+  document.getElementById('lfgPostBtn').disabled = !content && !lfgUploadedImage && !lfgSelectedGif;
+};
+
+window.lfgToggleEmoji = function() {
+  document.getElementById('lfgGifPicker').classList.add('hidden');
+  document.getElementById('lfgGameSearch').classList.add('hidden');
+  document.getElementById('lfgGameResults').classList.add('hidden');
+  const ep = document.getElementById('lfgEmojiPicker');
+  ep.classList.toggle('hidden');
+  if (!ep.classList.contains('hidden')) lfgShowEmojiCat('gaming', null);
+};
+
+window.lfgShowEmojiCat = function(cat, evt) {
+  document.querySelectorAll('.lfg-emoji-cat').forEach(function(b) {
+    b.className = 'lfg-emoji-cat text-xs px-2 py-1 rounded text-gray-400 hover:bg-neutral-700';
+  });
+  if (evt) evt.target.closest('.lfg-emoji-cat').className = 'lfg-emoji-cat text-xs px-2 py-1 rounded bg-neutral-700 text-white';
+  const grid = document.getElementById('lfgEmojiGrid');
+  const customGrid = document.getElementById('lfgCustomEmojiGrid');
+  if (cat === 'custom') {
+    grid.classList.add('hidden');
+    customGrid.classList.remove('hidden');
+    const cache = window._customEmojiCache;
+    if (cache === null || cache === undefined) {
+      customGrid.innerHTML = '<p class="col-span-8 text-center text-gray-500 text-xs py-3">Loading...</p>';
+    } else if (!cache.length) {
+      customGrid.innerHTML = '<p class="col-span-8 text-center text-gray-500 text-xs py-3">No custom emoji yet.</p>';
+    } else {
+      customGrid.innerHTML = cache.map(function(e) {
+        return '<button onclick="lfgInsertEmoji(\':' + escapeHtml(e.shortcode) + ':\')" title=":' + escapeHtml(e.shortcode) + ':" class="p-1 rounded hover:bg-neutral-700 transition flex items-center justify-center"><img src="' + escapeHtml(e.image_url) + '" class="w-6 h-6 object-contain"></button>';
+      }).join('');
+    }
+  } else {
+    customGrid.classList.add('hidden');
+    grid.classList.remove('hidden');
+    const emojis = LFG_EMOJIS[cat] || [];
+    grid.innerHTML = emojis.map(function(e) {
+      return '<button onclick="lfgInsertEmoji(\'' + e + '\')" class="w-7 h-7 flex items-center justify-center text-lg rounded hover:bg-neutral-700 transition">' + e + '</button>';
+    }).join('');
+  }
+};
+
+window.lfgInsertEmoji = function(emoji) {
+  const ta = document.getElementById('lfgPostInput');
+  const start = ta.selectionStart, end = ta.selectionEnd;
+  const val = ta.value;
+  ta.value = val.slice(0, start) + emoji + val.slice(end);
+  ta.selectionStart = ta.selectionEnd = start + emoji.length;
+  ta.focus();
+  lfgUpdatePost();
+};
+
+window.lfgToggleGif = function() {
+  document.getElementById('lfgEmojiPicker').classList.add('hidden');
+  document.getElementById('lfgGameSearch').classList.add('hidden');
+  document.getElementById('lfgGameResults').classList.add('hidden');
+  const gp = document.getElementById('lfgGifPicker');
+  gp.classList.toggle('hidden');
+  if (!gp.classList.contains('hidden') && !document.getElementById('lfgGifResults').children.length) {
+    lfgFetchGifs('');
+  }
+};
+
+window.lfgSearchGifs = function(q) {
+  clearTimeout(lfgGifTimeout);
+  lfgGifTimeout = setTimeout(function() { lfgFetchGifs(q); }, 400);
+};
+
+function lfgFetchGifs(q) {
+  const container = document.getElementById('lfgGifResults');
+  container.innerHTML = '<p class="col-span-3 text-gray-500 text-xs text-center py-4">Loading...</p>';
+  const url = q ? '/api/gifs/search/?q=' + encodeURIComponent(q) : '/api/gifs/trending/';
+  fetch(url).then(function(r) { return r.json(); }).then(function(d) {
+    const gifs = d.gifs || d.results || [];
+    if (!gifs.length) { container.innerHTML = '<p class="col-span-3 text-gray-500 text-xs text-center py-4">No results</p>'; return; }
+    container.innerHTML = gifs.map(function(g) {
+      const preview = g.preview || g.url;
+      return '<img src="' + escapeHtml(preview) + '" class="w-full h-20 object-cover rounded cursor-pointer hover:opacity-80 transition" onclick="lfgSelectGif(\'' + escapeHtml(g.url) + '\',\'' + escapeHtml(preview) + '\')" loading="lazy">';
+    }).join('');
+  }).catch(function() {
+    container.innerHTML = '<p class="col-span-3 text-gray-500 text-xs text-center py-4">Failed to load GIFs</p>';
+  });
+}
+
+window.lfgSelectGif = function(url, preview) {
+  lfgSelectedGif = { url: url };
+  lfgUploadedImage = null;
+  document.getElementById('lfgGifPicker').classList.add('hidden');
+  const mp = document.getElementById('lfgMediaPreview');
+  mp.classList.remove('hidden');
+  mp.innerHTML = '<div class="relative inline-block"><img src="' + escapeHtml(preview) + '" class="max-h-40 rounded-lg"><button onclick="lfgClearMedia()" class="absolute top-1 right-1 bg-black/60 rounded-full p-1 hover:bg-red-600/80 transition"><svg class="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/></svg></button></div>';
+  lfgUpdatePost();
+};
+
+window.lfgClearMedia = function() {
+  lfgUploadedImage = null;
+  lfgSelectedGif = null;
+  const mp = document.getElementById('lfgMediaPreview');
+  mp.classList.add('hidden'); mp.innerHTML = '';
+  lfgUpdatePost();
+};
+
+window.lfgHandleImage = async function(input) {
+  const file = input.files[0];
+  if (!file) return;
+  lfgSelectedGif = null;
+  const fd = new FormData();
+  fd.append('image', file);
+  try {
+    const r = await csrfFetch('/api/upload/image/', { method: 'POST', body: fd });
+    const d = await r.json();
+    if (d.success) {
+      lfgUploadedImage = d;
+      const mp = document.getElementById('lfgMediaPreview');
+      mp.classList.remove('hidden');
+      mp.innerHTML = '<div class="relative inline-block"><img src="' + escapeHtml(d.image_url) + '" class="max-h-40 rounded-lg"><button onclick="lfgClearMedia()" class="absolute top-1 right-1 bg-black/60 rounded-full p-1 hover:bg-red-600/80 transition"><svg class="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/></svg></button></div>';
+      lfgUpdatePost();
+    }
+  } catch(e) {}
+  input.value = '';
+};
+
+window.lfgToggleGame = function() {
+  document.getElementById('lfgEmojiPicker').classList.add('hidden');
+  document.getElementById('lfgGifPicker').classList.add('hidden');
+  const gs = document.getElementById('lfgGameSearch');
+  gs.classList.toggle('hidden');
+  if (!gs.classList.contains('hidden')) {
+    document.getElementById('lfgGameSearchInput').focus();
+  } else {
+    document.getElementById('lfgGameResults').classList.add('hidden');
+  }
+};
+
+window.lfgSearchGame = function(q) {
+  clearTimeout(lfgGameTimeout);
+  if (!q.trim()) { document.getElementById('lfgGameResults').classList.add('hidden'); return; }
+  lfgGameTimeout = setTimeout(function() {
+    fetch('/api/igdb/search/?q=' + encodeURIComponent(q)).then(function(r) { return r.json(); }).then(function(d) {
+      const results = d.results || d.games || [];
+      const container = document.getElementById('lfgGameResults');
+      if (!results.length) { container.classList.add('hidden'); return; }
+      container.classList.remove('hidden');
+      container.innerHTML = '';
+      results.slice(0, 8).forEach(function(g) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'w-full flex items-center gap-2.5 px-3 py-2 hover:bg-neutral-800 text-left text-sm text-white transition';
+        btn.dataset.name = g.name;
+        btn.dataset.steamId = g.steam_id || '';
+        btn.innerHTML = (g.cover_url ? '<img src="' + escapeHtml(g.cover_url) + '" class="w-6 h-8 object-cover rounded flex-shrink-0">' : '<div class="w-6 h-8 bg-neutral-700 rounded flex-shrink-0"></div>')
+          + '<span class="truncate">' + escapeHtml(g.name) + '</span>';
+        btn.addEventListener('mousedown', function(e) {
+          e.preventDefault();
+          lfgSelectGame(this.dataset.name, this.dataset.steamId ? parseInt(this.dataset.steamId) : null);
+        });
+        container.appendChild(btn);
+      });
+    }).catch(function() {});
+  }, 300);
+};
+
+window.lfgSelectGame = function(name, steamId) {
+  lfgSelectedGame = { name: name, steam_id: steamId };
+  document.getElementById('lfgGameSearch').classList.add('hidden');
+  document.getElementById('lfgGameSearchInput').value = '';
+  document.getElementById('lfgGameResults').classList.add('hidden');
+  document.getElementById('lfgGameTagName').textContent = name;
+  document.getElementById('lfgGameTagDisplay').classList.remove('hidden');
+  lfgUpdatePost();
+};
+
+window.lfgClearGameTag = function() {
+  lfgSelectedGame = null;
+  document.getElementById('lfgGameTagDisplay').classList.add('hidden');
+  lfgUpdatePost();
+};
 </script>
 {% endblock %}

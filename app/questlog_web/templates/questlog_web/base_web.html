@@ -48,6 +48,10 @@
         <a href="{% url 'questlog_web_getting_started' %}" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-emerald-600 hover:text-emerald-400 hover:bg-neutral-800 transition text-xs font-medium">
           <i class="fas fa-rocket text-xs"></i> Get Started
         </a>
+        <a href="{% url 'questlog_web_whats_new' %}" class="relative flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-yellow-500 hover:text-yellow-400 hover:bg-neutral-800 transition text-xs font-medium">
+          <i class="fas fa-bullhorn text-xs"></i> What's New
+          <span id="navWhatsNewBadge" class="hidden ml-0.5 text-[9px] font-bold bg-yellow-400 text-neutral-900 px-1.5 py-0.5 rounded-full leading-none">NEW</span>
+        </a>
       </nav>
 
       <!-- Right: user menu or login -->
@@ -167,6 +171,154 @@
 {% block extra_js %}
 <script>
 const FLUXER_ICON_URL = '{% static "img/siteassets/fluxer-favicon.png" %}';
+
+// ── Global @mention autocomplete ──────────────────────────────────────────
+(function() {
+  let _drop = null, _ta = null, _start = -1, _timer = null, _results = [], _sel = 0;
+  function _getDropdown() {
+    if (!_drop) {
+      _drop = document.createElement('div');
+      _drop.className = 'fixed z-[9999] bg-neutral-800 border border-neutral-700 rounded-xl shadow-xl py-1 min-w-[200px] max-w-[280px]';
+      _drop.style.display = 'none';
+      document.body.appendChild(_drop);
+    }
+    return _drop;
+  }
+  function _hide() {
+    _getDropdown().style.display = 'none';
+    _ta = null; _start = -1; _results = [];
+  }
+  function _highlight() {
+    _getDropdown().querySelectorAll('.m-item').forEach(function(el, i) {
+      el.classList.toggle('bg-neutral-700', i === _sel);
+    });
+  }
+  function _insert(user) {
+    if (!_ta || _start < 0) return;
+    const before = _ta.value.slice(0, _start);
+    const after = _ta.value.slice(_ta.selectionStart);
+    _ta.value = before + '@' + user.username + ' ' + after;
+    const pos = before.length + user.username.length + 2;
+    _ta.setSelectionRange(pos, pos);
+    _ta.dispatchEvent(new Event('input'));
+    _hide();
+    _ta.focus();
+  }
+  function _render(users) {
+    _results = users; _sel = 0;
+    const d = _getDropdown();
+    if (!users.length) { d.style.display = 'none'; return; }
+    d.innerHTML = users.map(function(u, i) {
+      const av = u.avatar_url
+        ? '<img src="' + escapeHtml(u.avatar_url) + '" class="w-7 h-7 rounded-full object-cover flex-shrink-0">'
+        : '<div class="w-7 h-7 rounded-full bg-indigo-800 flex items-center justify-center text-xs font-bold text-white flex-shrink-0">' + escapeHtml((u.username||'?').slice(0,2).toUpperCase()) + '</div>';
+      return '<div class="m-item flex items-center gap-2.5 px-3 py-2 cursor-pointer hover:bg-neutral-700 transition' + (i===0?' bg-neutral-700':'') + '" data-idx="' + i + '">'
+        + av + '<div class="min-w-0">'
+        + '<div class="text-sm font-semibold text-white truncate">' + escapeHtml(u.display_name) + '</div>'
+        + '<div class="text-xs text-gray-500 truncate">@' + escapeHtml(u.username) + '</div>'
+        + '</div></div>';
+    }).join('');
+    d.querySelectorAll('.m-item').forEach(function(el) {
+      el.addEventListener('mousedown', function(e) { e.preventDefault(); _insert(_results[+el.dataset.idx]); });
+    });
+    if (_ta) {
+      const r = _ta.getBoundingClientRect();
+      const dh = d.offsetHeight || 180;
+      d.style.display = 'block';
+      d.style.left = r.left + 'px';
+      d.style.top = ((window.innerHeight - r.bottom > dh + 8)
+        ? r.bottom + window.scrollY + 4
+        : r.top + window.scrollY - dh - 4) + 'px';
+    }
+  }
+  function _onInput(e) {
+    const ta = e.target;
+    const text = ta.value.slice(0, ta.selectionStart);
+    const m = text.match(/@([a-zA-Z0-9_]*)$/);
+    if (!m || !m[1]) { _hide(); return; }
+    _ta = ta; _start = ta.selectionStart - m[0].length;
+    clearTimeout(_timer);
+    _timer = setTimeout(function() {
+      fetch('/api/mention-search/?q=' + encodeURIComponent(m[1]))
+        .then(function(r){return r.json();})
+        .then(function(d){_render(d.users||[]);})
+        .catch(_hide);
+    }, 150);
+  }
+  function _onKeydown(e) {
+    const d = _getDropdown();
+    if (d.style.display === 'none') return;
+    if (e.key === 'ArrowDown') { e.preventDefault(); _sel = Math.min(_sel+1, _results.length-1); _highlight(); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); _sel = Math.max(_sel-1, 0); _highlight(); }
+    else if (e.key === 'Enter' || e.key === 'Tab') { if (_results.length) { e.preventDefault(); _insert(_results[_sel]); } }
+    else if (e.key === 'Escape') { _hide(); }
+  }
+  // Render @mentions as clickable pills in already-escaped HTML text
+  window.renderMentions = function(escapedText) {
+    return escapedText.replace(/@([a-zA-Z0-9_]{1,50})/g, function(m, u) {
+      return '<a href="/u/' + u + '/" class="inline-flex items-center px-1.5 py-0.5 bg-indigo-500/20 text-indigo-300 hover:bg-indigo-500/30 rounded font-medium text-xs transition" style="vertical-align:1px">@' + u + '</a>';
+    });
+  };
+  window.attachMention = function(ta) {
+    if (!ta || ta._mentionAttached) return;
+    ta._mentionAttached = true;
+    ta.addEventListener('input', _onInput);
+    ta.addEventListener('keydown', _onKeydown);
+    ta.addEventListener('blur', function() { setTimeout(_hide, 150); });
+  };
+})();
+
+// Inline markdown renderer: **bold**, *italic*, <u>underline</u>, `code`, bare URLs
+// Call AFTER escapeHtml - input is already escaped (& -> &amp;, < -> &lt; etc.)
+window.renderInlineMarkdown = function(text) {
+  return text
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g, '<em>$1</em>')
+    .replace(/&lt;u&gt;(.+?)&lt;\/u&gt;/g, '<u>$1</u>')
+    .replace(/`([^`]+)`/g, '<code class="bg-neutral-800 text-indigo-300 px-1 rounded text-xs">$1</code>')
+    // Linkify bare URLs - must run last so formatting above doesn't interfere.
+    // Input is HTML-escaped, so & in URLs is &amp; - match the escaped form.
+    .replace(/(https?:\/\/[^\s<"']+)/g, function(url) {
+      // Strip trailing punctuation that was likely not part of the URL
+      var clean = url.replace(/[.,;:!?)]+$/, '');
+      var trail = url.slice(clean.length);
+      return '<a href="' + clean + '" target="_blank" rel="noopener noreferrer" class="text-indigo-400 hover:underline break-all">' + clean + '</a>' + trail;
+    });
+};
+
+// Global formatting toolbar helper.
+// Creates a small B/I/U bar above a textarea and returns the toolbar element.
+window.createFormatBar = function(ta) {
+  if (!ta || ta._fmtBar) return ta._fmtBar;
+  const bar = document.createElement('div');
+  bar.className = 'flex items-center gap-0.5 px-1.5 py-1 bg-neutral-800 border border-neutral-700 border-b-0 rounded-t-lg';
+  function applyFmt(type) {
+    const s = ta.selectionStart, e = ta.selectionEnd;
+    const sel = ta.value.substring(s, e);
+    const map = {bold:['**','**'], italic:['*','*'], underline:['<u>','</u>']};
+    const [pre, post] = map[type];
+    const ins = sel || (type === 'bold' ? 'bold' : type === 'italic' ? 'italic' : 'underline');
+    ta.value = ta.value.substring(0, s) + pre + ins + post + ta.value.substring(e);
+    ta.selectionStart = s + pre.length;
+    ta.selectionEnd = s + pre.length + ins.length;
+    ta.focus();
+    ta.dispatchEvent(new Event('input'));
+  }
+  [['B','bold','font-bold'],['I','italic','italic'],['U','underline','underline']].forEach(function(cfg) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.textContent = cfg[0];
+    btn.title = cfg[1].charAt(0).toUpperCase() + cfg[1].slice(1);
+    btn.className = 'px-1.5 py-0.5 text-xs text-gray-400 hover:text-white hover:bg-neutral-700 rounded transition ' + cfg[2];
+    btn.addEventListener('mousedown', function(ev) { ev.preventDefault(); applyFmt(cfg[1]); });
+    bar.appendChild(btn);
+  });
+  ta._fmtBar = bar;
+  // Insert bar before the textarea
+  ta.parentNode.insertBefore(bar, ta);
+  ta.classList.add('rounded-t-none');
+  return bar;
+};
 
 function platformIconHtml(platform, extraClasses) {
   const cls = extraClasses || '';
@@ -292,6 +444,9 @@ function setPlatformIcon(el, platform, extraClasses) {
         </span>
         Generate Encryption Keys
       </button>
+      <button onclick="openKeyRestoreStep()" id="restore-keys-btn" class="hidden w-full mt-2 py-2.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-gray-300 text-sm font-medium transition">
+        Restore from recovery phrase
+      </button>
       <button onclick="closeKeySetupModal()" class="w-full mt-2 py-2 text-gray-500 hover:text-gray-300 text-sm transition">
         Maybe later
       </button>
@@ -335,6 +490,40 @@ function setPlatformIcon(el, platform, extraClasses) {
       <button onclick="finishKeySetup()" id="finish-setup-btn" disabled
         class="w-full py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold text-sm transition">
         Done - Start Messaging
+      </button>
+    </div>
+
+    <!-- Step 3: Restore from recovery phrase -->
+    <div id="key-step-3" class="hidden">
+      <div class="flex items-center gap-3 mb-4">
+        <div class="w-10 h-10 rounded-xl bg-indigo-600/20 flex items-center justify-center">
+          <svg class="w-5 h-5 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+          </svg>
+        </div>
+        <div>
+          <h2 class="text-white font-bold text-lg">Restore Your Keys</h2>
+          <p class="text-gray-500 text-xs">Enter your 12-word recovery phrase</p>
+        </div>
+      </div>
+
+      <textarea id="restore-phrase-input" rows="3" placeholder="word1 word2 word3 ... word12"
+        class="w-full bg-neutral-800 border border-neutral-700 rounded-xl px-4 py-3 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-indigo-500/60 transition resize-none font-mono mb-3"
+        oninput="document.getElementById('restore-btn').disabled = this.value.trim().split(/\s+/).filter(Boolean).length < 12"></textarea>
+
+      <div id="restore-error" class="hidden mb-3 p-3 rounded-xl bg-red-500/10 border border-red-500/20">
+        <p class="text-red-400 text-xs" id="restore-error-msg">Incorrect recovery phrase. Please check and try again.</p>
+      </div>
+
+      <button onclick="restoreFromPhrase()" id="restore-btn" disabled
+        class="w-full py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold text-sm transition flex items-center justify-center gap-2">
+        <span id="restore-spinner" class="hidden">
+          <svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 12 0 12 12h4z"></path></svg>
+        </span>
+        Restore Keys
+      </button>
+      <button onclick="openKeySetupModal()" class="w-full mt-2 py-2 text-gray-500 hover:text-gray-300 text-sm transition">
+        Back
       </button>
     </div>
 
@@ -413,9 +602,27 @@ window.openKeySetupModal = function() {
   document.getElementById('key-setup-modal').classList.remove('hidden');
   document.getElementById('key-step-1').classList.remove('hidden');
   document.getElementById('key-step-2').classList.add('hidden');
+  document.getElementById('key-step-3').classList.add('hidden');
+  // Show restore button if server has a backup for this user
+  csrfFetch('/api/dm/keys/recovery/').then(function(r) {
+    if (!r.ok) return;
+    return r.json();
+  }).then(function(d) {
+    if (d && d.has_backup) {
+      document.getElementById('restore-keys-btn').classList.remove('hidden');
+    }
+  }).catch(function() {});
 };
 window.closeKeySetupModal = function() {
   document.getElementById('key-setup-modal').classList.add('hidden');
+};
+window.openKeyRestoreStep = function() {
+  document.getElementById('key-step-1').classList.add('hidden');
+  document.getElementById('key-step-2').classList.add('hidden');
+  document.getElementById('key-step-3').classList.remove('hidden');
+  document.getElementById('restore-phrase-input').value = '';
+  document.getElementById('restore-btn').disabled = true;
+  document.getElementById('restore-error').classList.add('hidden');
 };
 
 // ---- Crypto utilities ----
@@ -605,6 +812,118 @@ window.finishKeySetup = async function() {
     btn.disabled = false;
   }
 };
+
+window.restoreFromPhrase = async function() {
+  const input = document.getElementById('restore-phrase-input');
+  const phrase = input.value.trim().split(/\s+/).filter(Boolean).join(' ');
+  const btn = document.getElementById('restore-btn');
+  const spinner = document.getElementById('restore-spinner');
+  const errBox = document.getElementById('restore-error');
+  const errMsg = document.getElementById('restore-error-msg');
+  errBox.classList.add('hidden');
+  btn.disabled = true;
+  spinner.classList.remove('hidden');
+
+  try {
+    // Fetch encrypted backup from server
+    const resp = await csrfFetch('/api/dm/keys/recovery/');
+    if (!resp.ok) throw new Error('no_backup');
+    const data = await resp.json();
+    if (!data.has_backup) throw new Error('no_backup');
+
+    // Decode combined blob (12-byte IV + ciphertext)
+    const combined = b64ToBytes(data.pubkey_encrypted);
+    const iv = combined.slice(0, 12);
+    const ct = combined.slice(12);
+    const saltBytes = hexToBytes(data.pubkey_salt);
+
+    // Derive AES key from phrase
+    const aesKey = await pbkdf2Key(phrase, saltBytes);
+
+    // Decrypt private key JWK
+    let privJwkStr;
+    try {
+      const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, aesKey, ct);
+      privJwkStr = new TextDecoder().decode(plain);
+    } catch(e) {
+      errMsg.textContent = 'Incorrect recovery phrase. Please check and try again.';
+      errBox.classList.remove('hidden');
+      btn.disabled = false;
+      spinner.classList.add('hidden');
+      return;
+    }
+
+    const privJwk = JSON.parse(privJwkStr);
+
+    // Store as non-extractable in IndexedDB
+    const privKeyNonExtractable = await crypto.subtle.importKey(
+      'jwk', privJwk, { name: 'ECDH', namedCurve: 'P-256' }, false, ['deriveKey']
+    );
+    // Reconstruct public key - use server's stored pubkey if available, else derive from private
+    let pubKeyObj, pubKeyJwkStr;
+    if (data.pubkey) {
+      pubKeyObj = await crypto.subtle.importKey(
+        'jwk', JSON.parse(data.pubkey), { name: 'ECDH', namedCurve: 'P-256' }, true, []
+      );
+      pubKeyJwkStr = data.pubkey;
+    } else {
+      // Derive public key from private (ECDH key pair - public is derivable)
+      const tempPair = await crypto.subtle.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveKey']);
+      // We can't derive pubkey from privkey alone in WebCrypto - if server has no pubkey, upload the restored one
+      // For now use tempPriv to export the pubkey embedded in the JWK
+      const privJwkParsed = JSON.parse(privJwkStr);
+      const pubJwk = { kty: privJwkParsed.kty, crv: privJwkParsed.crv, x: privJwkParsed.x, y: privJwkParsed.y };
+      pubKeyObj = await crypto.subtle.importKey('jwk', pubJwk, { name: 'ECDH', namedCurve: 'P-256' }, true, []);
+      pubKeyJwkStr = JSON.stringify(pubJwk);
+    }
+
+    await idbPut('privKey', privKeyNonExtractable);
+    await idbPut('pubKey', pubKeyObj);
+    await idbPut('pubKeyJwk', pubKeyJwkStr);
+
+    // Clean up old localStorage
+    localStorage.removeItem('ql_dm_privkey');
+    localStorage.removeItem('ql_dm_pubkey');
+
+    closeKeySetupModal();
+    window.location.reload();
+  } catch(e) {
+    if (e.message === 'no_backup') {
+      errMsg.textContent = 'No backup found on server. You may need to generate new keys.';
+    } else {
+      errMsg.textContent = 'Restore failed. Please check your phrase and try again.';
+    }
+    errBox.classList.remove('hidden');
+    btn.disabled = false;
+    spinner.classList.add('hidden');
+  }
+};
 </script>
 {% endif %}
+
+<!-- Global lightbox - works on any image with onclick="openLightbox(this.src)" -->
+<div id="ql-lightbox" class="hidden fixed inset-0 z-[9999] flex items-center justify-center bg-black/90 backdrop-blur-sm" onclick="closeLightbox()">
+  <button class="absolute top-4 right-4 text-white/70 hover:text-white text-2xl z-10" onclick="closeLightbox()"><i class="fas fa-times"></i></button>
+  <img id="ql-lightbox-img" src="" class="max-w-[95vw] max-h-[92vh] object-contain rounded-xl shadow-2xl" onclick="event.stopPropagation()">
+  <a id="ql-lightbox-link" href="" target="_blank" rel="noopener" onclick="event.stopPropagation()"
+     class="absolute bottom-4 right-4 text-white/50 hover:text-white text-xs flex items-center gap-1 transition">
+    <i class="fas fa-external-link-alt text-xs"></i> Open full size
+  </a>
+</div>
+<script>
+window.openLightbox = function(src) {
+  document.getElementById('ql-lightbox-img').src = src;
+  document.getElementById('ql-lightbox-link').href = src;
+  document.getElementById('ql-lightbox').classList.remove('hidden');
+  document.body.style.overflow = 'hidden';
+};
+window.closeLightbox = function() {
+  document.getElementById('ql-lightbox').classList.add('hidden');
+  document.getElementById('ql-lightbox-img').src = '';
+  document.body.style.overflow = '';
+};
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') closeLightbox();
+});
+</script>
 {% endblock %}
