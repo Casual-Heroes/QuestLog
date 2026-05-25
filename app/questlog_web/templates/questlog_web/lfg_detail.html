@@ -1326,7 +1326,11 @@ function showToast(msg) {
 // ─── Delete ───────────────────────────────────────────────────────────────────
 
 async function confirmDelete() {
-  if (!confirm(`Delete "${groupData.title}"? This cannot be undone.`)) return;
+  const isCancelled = groupData.status === 'cancelled';
+  const msg = isCancelled
+    ? `Permanently remove "${groupData.title}" from your groups? This cannot be undone.`
+    : `Cancel "${groupData.title}"? Members will be notified.`;
+  if (!confirm(msg)) return;
   try {
     const res = await csrfFetch(`/lfg/${groupId}/delete/`, {
       method: 'POST',

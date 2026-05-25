@@ -961,7 +961,8 @@ def lfg_edit(request, group_id):
         group = db.query(WebLFGGroup).filter_by(id=group_id).first()
         if not group:
             return JsonResponse({'error': 'Group not found'}, status=404)
-        if group.creator_id != request.web_user.id:
+        is_site_admin = bool(getattr(request.web_user, 'is_admin', False) or getattr(request.web_user, 'is_mod', False))
+        if group.creator_id != request.web_user.id and not is_site_admin:
             return JsonResponse({'error': 'Only the group creator can edit it'}, status=403)
 
         title = (data.get('title') or '').strip()
@@ -992,22 +993,32 @@ def lfg_edit(request, group_id):
 @require_http_methods(["POST"])
 @ratelimit(key='ip', rate='10/h', method='POST', block=True)
 def lfg_delete(request, group_id):
-    """Delete (cancel) a group — creator only."""
+    """Cancel an active group, or permanently delete an already-cancelled group."""
     now = int(time.time())
     with get_db_session() as db:
         group = db.query(WebLFGGroup).filter_by(id=group_id).first()
         if not group:
             return JsonResponse({'error': 'Group not found'}, status=404)
-        if group.creator_id != request.web_user.id:
+        is_site_admin = bool(getattr(request.web_user, 'is_admin', False) or getattr(request.web_user, 'is_mod', False))
+        if group.creator_id != request.web_user.id and not is_site_admin:
             return JsonResponse({'error': 'Only the group creator can delete it'}, status=403)
 
+        already_cancelled = group.status == 'cancelled'
         ran = group.status == 'full' or (group.current_size or 1) > 1
         creator_id = group.creator_id
+
+        if already_cancelled:
+            # Hard delete - remove members then the group (posts cascade via FK)
+            db.query(WebLFGMember).filter_by(group_id=group_id).delete()
+            db.delete(group)
+            db.commit()
+            return JsonResponse({'success': True, 'deleted': True})
+
         group.status = 'cancelled'
         group.updated_at = now
         db.commit()
 
-    # Award legacy if group actually ran (was full or had members beyond creator)
+    # Award legacy if group actually ran
     if ran and creator_id:
         try:
             from .helpers import award_legacy
@@ -1015,7 +1026,7 @@ def lfg_delete(request, group_id):
         except Exception as e:
             logger.warning(f"[LFG] Failed to award legacy for completion on group {group_id}: {e}")
 
-    return JsonResponse({'success': True})
+    return JsonResponse({'success': True, 'deleted': False})
 
 
 @web_login_required
