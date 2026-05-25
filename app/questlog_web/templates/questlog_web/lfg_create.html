@@ -124,6 +124,11 @@
           <label class="text-sm text-gray-300 mb-2 block">Scheduled Time</label>
           <input type="datetime-local" id="scheduledTime" name="scheduled_time"
                  class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2 text-white text-sm focus:border-green-500 focus:outline-none hover:bg-neutral-700/50 transition-colors">
+          <p class="text-xs text-purple-400 mt-2 flex items-center gap-1">
+            <i class="fas fa-calendar-alt"></i>
+            Your session will appear on the
+            <a href="{% url 'questlog_web_lfg_calendar' %}" target="_blank" class="underline hover:text-purple-300 transition">Group &amp; Raid Planner calendar</a>.
+          </p>
         </div>
       </div>
     </div>
@@ -938,7 +943,7 @@ function updateGameSpecificOptions(gameName) {
   conditionalSelects = {};
   currentGameType = detectGameType(gameName);
 
-  const templates = currentGameType ? GAME_TEMPLATES[currentGameType] : [];
+  const templates = (currentGameType ? GAME_TEMPLATES[currentGameType] : null) || [];
 
   // Survival = any game whose template has a 'Server Type' field (DB-driven, no hardcoded list needed)
   const _isSurvivalGame = templates.some(f => f.name === 'Server Type');
@@ -1665,7 +1670,7 @@ document.getElementById('createGroupForm').addEventListener('submit', async (e) 
   // For survival games, Role is a sub-choice label (e.g. "Tank/Defender") - keep it in selections
   // so the browse/detail survival grid can bucket the creator correctly.
   // For MMOs (gw2/eso), Role is a generic tank/healer/dps/support - extract to selected_role.
-  const _submitTemplates = currentGameType ? GAME_TEMPLATES[currentGameType] : [];
+  const _submitTemplates = (currentGameType ? GAME_TEMPLATES[currentGameType] : null) || [];
   const _submitIsSurvival = _submitTemplates.some(f => f.name === 'Server Type');
   let roleVal = null;
   if (!_submitIsSurvival) {

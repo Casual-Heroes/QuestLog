@@ -179,6 +179,7 @@ def api_dm_get_encrypted_key(request):
         if not user:
             return JsonResponse({'error': 'not found'}, status=404)
         return JsonResponse({
+            'pubkey': user.pubkey or '',
             'pubkey_encrypted': user.pubkey_encrypted or '',
             'pubkey_salt': user.pubkey_salt or '',
             'has_backup': bool(user.pubkey_encrypted),

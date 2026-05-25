@@ -113,6 +113,7 @@ class WebUser(Base):
     show_playing_status = Column(Boolean, default=False)   # Show currently-playing game on profile/posts
     current_game = Column(String(255), nullable=True)      # Name of game being played right now (null = not playing)
     current_game_appid = Column(Integer, nullable=True)    # Steam app ID for current_game (for direct store link)
+    current_game_started_at = Column(BigInteger, nullable=True)  # Unix epoch when current_game session started (only set on game change)
     track_game_launches = Column(Boolean, default=False)   # Opt-in: earn XP when launching a new game
     last_game_launched_at = Column(BigInteger, nullable=True)  # Unix epoch of last game launch XP award (cooldown)
     fluxer_sync_custom_status = Column(Boolean, default=False)  # Opt-in: sync Now Playing to Fluxer custom status
@@ -346,6 +347,10 @@ class WebCommunity(Base):
     is_primary = Column(Boolean, default=False)  # Primary/featured platform for this community owner
     site_xp_to_guild = Column(Boolean, default=False)  # Opt-in: site XP feeds this guild's leaderboard (admin-approved)
 
+    # Webhooks
+    discord_webhook_url = Column(String(1000), nullable=True)
+    fluxer_webhook_url  = Column(String(1000), nullable=True)
+
     # Moderation
     is_active = Column(Boolean, default=True)
     is_banned = Column(Boolean, default=False)
@@ -391,6 +396,126 @@ class WebCommunityMember(Base):
 
     __table_args__ = (
         UniqueConstraint('user_id', 'community_id', name='uq_user_community'),
+    )
+
+
+class WebCommunityConnection(Base):
+    """Mutual link between two community spaces. Both owners must agree."""
+    __tablename__ = 'web_community_connections'
+
+    id              = Column(Integer, primary_key=True, autoincrement=True)
+    requester_id    = Column(Integer, ForeignKey('web_communities.id', ondelete='CASCADE'), nullable=False)
+    recipient_id    = Column(Integer, ForeignKey('web_communities.id', ondelete='CASCADE'), nullable=False)
+    status          = Column(String(20), nullable=False, default='pending')  # pending | active | declined
+    requested_by    = Column(Integer, ForeignKey('web_users.id', ondelete='CASCADE'), nullable=False)
+    created_at      = Column(BigInteger, nullable=False)
+    updated_at      = Column(BigInteger, nullable=False)
+
+    requester   = relationship("WebCommunity", foreign_keys=[requester_id])
+    recipient   = relationship("WebCommunity", foreign_keys=[recipient_id])
+
+    __table_args__ = (
+        UniqueConstraint('requester_id', 'recipient_id', name='uq_community_connection'),
+        Index('idx_conn_requester', 'requester_id', 'status'),
+        Index('idx_conn_recipient', 'recipient_id', 'status'),
+    )
+
+
+class WebCommunityPost(Base):
+    """Post on a community's wall (Community Spaces feature)."""
+    __tablename__ = 'web_community_posts'
+
+    id            = Column(Integer, primary_key=True, autoincrement=True)
+    community_id  = Column(Integer, ForeignKey('web_communities.id', ondelete='CASCADE'), nullable=True)
+    author_id     = Column(Integer, ForeignKey('web_users.id', ondelete='CASCADE'), nullable=False)
+    content       = Column(Text, nullable=True)
+    media_url     = Column(String(500), nullable=True)
+    media_type    = Column(String(20), nullable=True)  # 'image', 'gif'
+    game_tag_name = Column(String(200), nullable=True)
+    game_tag_steam_id = Column(Integer, nullable=True)
+    is_pinned     = Column(Boolean, default=False)
+    is_deleted    = Column(Boolean, default=False)
+    like_count    = Column(Integer, default=0)
+    parent_id     = Column(Integer, ForeignKey('web_community_posts.id', ondelete='CASCADE'), nullable=True)
+    event_id      = Column(Integer, ForeignKey('web_community_events.id', ondelete='SET NULL'), nullable=True)
+    lfg_group_id  = Column(Integer, ForeignKey('web_lfg_groups.id', ondelete='CASCADE'), nullable=True)
+    reply_count   = Column(Integer, default=0)
+    created_at    = Column(BigInteger, nullable=False)
+    updated_at    = Column(BigInteger, nullable=False)
+
+    author    = relationship("WebUser", foreign_keys=[author_id])
+    community = relationship("WebCommunity")
+
+    __table_args__ = (
+        Index('idx_cp_community', 'community_id', 'is_deleted', 'created_at'),
+        Index('idx_cp_parent', 'parent_id'),
+        Index('idx_cp_lfg_group', 'lfg_group_id', 'is_deleted', 'created_at'),
+    )
+
+
+class WebCommunityPostLike(Base):
+    """Like on a community wall post."""
+    __tablename__ = 'web_community_post_likes'
+
+    id         = Column(Integer, primary_key=True, autoincrement=True)
+    post_id    = Column(Integer, ForeignKey('web_community_posts.id', ondelete='CASCADE'), nullable=False)
+    user_id    = Column(Integer, ForeignKey('web_users.id', ondelete='CASCADE'), nullable=False)
+    created_at = Column(BigInteger, nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint('post_id', 'user_id', name='uq_cp_like'),
+    )
+
+
+class WebCommunityEvent(Base):
+    """Game night / scheduled event on a community Space."""
+    __tablename__ = 'web_community_events'
+
+    id               = Column(Integer, primary_key=True, autoincrement=True)
+    community_id     = Column(Integer, ForeignKey('web_communities.id', ondelete='CASCADE'), nullable=False)
+    created_by       = Column(Integer, ForeignKey('web_users.id', ondelete='CASCADE'), nullable=False)
+    title            = Column(String(200), nullable=False)
+    description      = Column(Text, nullable=True)
+    game_tag_name    = Column(String(200), nullable=True)
+    game_tag_steam_id = Column(Integer, nullable=True)
+    game_cover_url   = Column(String(500), nullable=True)
+    starts_at        = Column(BigInteger, nullable=False)
+    duration_mins    = Column(Integer, default=120)
+    max_attendees    = Column(Integer, nullable=True)
+    rsvp_going       = Column(Integer, default=0)
+    rsvp_maybe       = Column(Integer, default=0)
+    recurrence           = Column(String(20), default='none')   # none | weekly | biweekly | monthly
+    recurrence_parent_id = Column(Integer, nullable=True)        # set on spawned instances
+    is_cancelled     = Column(Boolean, default=False)
+    webhook_sent     = Column(Boolean, default=False)
+    created_at       = Column(BigInteger, nullable=False)
+    updated_at       = Column(BigInteger, nullable=False)
+
+    creator   = relationship("WebUser", foreign_keys=[created_by])
+    community = relationship("WebCommunity")
+    rsvps     = relationship("WebCommunityEventRSVP", back_populates="event", cascade="all, delete-orphan")
+
+    __table_args__ = (
+        Index('idx_ce_community', 'community_id', 'is_cancelled', 'starts_at'),
+        Index('idx_ce_recurrence_parent', 'recurrence_parent_id'),
+    )
+
+
+class WebCommunityEventRSVP(Base):
+    """RSVP for a community event."""
+    __tablename__ = 'web_community_event_rsvps'
+
+    id         = Column(Integer, primary_key=True, autoincrement=True)
+    event_id   = Column(Integer, ForeignKey('web_community_events.id', ondelete='CASCADE'), nullable=False)
+    user_id    = Column(Integer, ForeignKey('web_users.id', ondelete='CASCADE'), nullable=False)
+    status     = Column(String(20), default='going')  # going, maybe, not_going
+    created_at = Column(BigInteger, nullable=False)
+
+    event = relationship("WebCommunityEvent", back_populates="rsvps")
+    user  = relationship("WebUser")
+
+    __table_args__ = (
+        UniqueConstraint('event_id', 'user_id', name='uq_event_rsvp'),
     )
 
 
@@ -606,6 +731,11 @@ class WebCreatorProfile(Base):
 
     # Privacy / display options
     show_steam_on_profile = Column(Boolean, default=False)  # Opt-in: show current Steam game on creator card
+
+    # Stream schedule - JSON array of {day, start, end} objects, times in HH:MM 24h
+    # day: 0=Sun,1=Mon,...,6=Sat. start/end: "HH:MM" in creator's local timezone.
+    stream_schedule = Column(Text, nullable=True)   # JSON e.g. [{"day":1,"start":"18:00","end":"22:00"}]
+    stream_timezone = Column(String(50), nullable=True)  # IANA tz e.g. "America/New_York"
 
     # Timestamps
     created_at = Column(BigInteger, nullable=False)
@@ -3847,6 +3977,63 @@ class WebArticleCommentLike(Base):
     __table_args__ = (
         UniqueConstraint('comment_id', 'user_id', name='uq_article_comment_like'),
     )
+
+
+class WebSiteFeedback(Base):
+    """
+    User-submitted feedback (bug reports, feature ideas, suggestions).
+    Routed to a Fluxer channel and/or Discord webhook configured in admin settings.
+    """
+    __tablename__ = 'web_site_feedback'
+
+    id          = Column(Integer, primary_key=True, autoincrement=True)
+    user_id     = Column(Integer, ForeignKey('web_users.id', ondelete='SET NULL'), nullable=True, index=True)
+    category    = Column(String(30), nullable=False, default='general')  # bug, feature, suggestion, general
+    subject     = Column(String(200), nullable=False)
+    body        = Column(Text, nullable=False)
+    status      = Column(String(20), nullable=False, default='new')  # new, reviewed, done, dismissed
+    created_at  = Column(BigInteger, nullable=False)
+
+    user = relationship('WebUser', foreign_keys=[user_id], lazy='select')
+
+    __table_args__ = (
+        Index('idx_site_feedback_created', 'created_at'),
+        Index('idx_site_feedback_status', 'status'),
+    )
+
+    def __repr__(self):
+        return f"<WebSiteFeedback id={self.id} category={self.category!r}>"
+
+
+class WebSiteAnnouncement(Base):
+    """
+    Site-wide announcements posted by admins. Displayed in a dedicated What's New section.
+    Body stored as Markdown, rendered at read time. Not a community/LFG post - separate feed.
+    """
+    __tablename__ = 'web_site_announcements'
+
+    id          = Column(Integer, primary_key=True, autoincrement=True)
+    author_id   = Column(Integer, ForeignKey('web_users.id'), nullable=False, index=True)
+    title       = Column(String(200), nullable=False)
+    body_md     = Column(Text, nullable=False)
+    category    = Column(String(20), nullable=False, default='update')  # update, event, maintenance, feature
+    is_pinned   = Column(Boolean, nullable=False, default=False)
+    media_url   = Column(String(500), nullable=True)   # kept for legacy/compat
+    media_type  = Column(String(20), nullable=True)   # image, gif
+    media_items = Column(Text, nullable=True)          # JSON list of {url, type}
+    game_tag_name     = Column(String(200), nullable=True)
+    game_tag_steam_id = Column(Integer, nullable=True)
+    created_at  = Column(BigInteger, nullable=False)
+    updated_at  = Column(BigInteger, nullable=False)
+
+    author = relationship('WebUser', foreign_keys=[author_id], lazy='select')
+
+    __table_args__ = (
+        Index('idx_site_ann_created', 'created_at'),
+    )
+
+    def __repr__(self):
+        return f"<WebSiteAnnouncement id={self.id} title={self.title!r}>"
 
 
 class WebFfxivApplication(Base):

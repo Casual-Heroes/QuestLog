@@ -168,6 +168,12 @@
       <button onclick="switchTab('testimonials')" id="tab-testimonials" class="admin-tab px-3 py-1.5 rounded-md text-sm font-medium transition">
         <i class="fas fa-quote-left mr-1"></i>Voices
       </button>
+      <button onclick="switchTab('feedback')" id="tab-feedback" class="admin-tab px-3 py-1.5 rounded-md text-sm font-medium transition">
+        <i class="fas fa-comment-dots mr-1"></i>Feedback
+      </button>
+      <button onclick="switchTab('announcements')" id="tab-announcements" class="admin-tab px-3 py-1.5 rounded-md text-sm font-medium transition">
+        <i class="fas fa-bullhorn mr-1"></i>Announcements
+      </button>
       <button onclick="switchTab('flairs')" id="tab-flairs" class="admin-tab px-3 py-1.5 rounded-md text-sm font-medium transition">
         <i class="fas fa-palette mr-1"></i>Flairs
       </button>
@@ -445,6 +451,62 @@
     <p class="text-gray-400 text-sm mb-4">Create polls to let members vote on the next game server rotation. Only one poll can be active at a time. Members can change their vote anytime while the poll is open.</p>
     <div id="adminPollsList" class="space-y-4">
       <div class="text-center text-gray-500 py-8"><i class="fas fa-spinner fa-spin text-2xl"></i></div>
+    </div>
+  </div>
+
+  <!-- Feedback Tab -->
+  <div id="panel-feedback" class="admin-panel hidden">
+    <div class="bg-neutral-900 rounded-xl p-5 border border-neutral-800 mb-4">
+      <h2 class="text-lg font-semibold text-white mb-4"><i class="fas fa-comment-dots text-indigo-400 mr-2"></i>Feedback Settings</h2>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label class="block text-xs font-medium text-gray-400 mb-1">Fluxer Channel ID</label>
+          <input id="fbFluxerChannel" type="text" placeholder="Channel ID (numbers only)"
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500">
+          <p class="text-xs text-gray-600 mt-1">Feedback will be posted to this Fluxer channel.</p>
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-400 mb-1">Discord Webhook URL</label>
+          <input id="fbDiscordWebhook" type="text" placeholder="https://discord.com/api/webhooks/..."
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500">
+          <p class="text-xs text-gray-600 mt-1">Also posts to this Discord webhook if set.</p>
+        </div>
+      </div>
+      <button onclick="saveFeedbackSettings()" class="mt-4 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold rounded-lg transition">Save Settings</button>
+      <span id="fbSettingsSaved" class="hidden ml-3 text-green-400 text-sm">Saved!</span>
+    </div>
+    <div class="bg-neutral-900 rounded-xl p-5 border border-neutral-800">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-lg font-semibold text-white">Feedback Submissions</h2>
+        <div class="flex gap-2">
+          <select id="fbStatusFilter" onchange="loadFeedbackList()" class="bg-neutral-800 border border-neutral-700 text-white text-xs rounded-lg px-2 py-1.5 focus:outline-none">
+            <option value="">All</option>
+            <option value="new">New</option>
+            <option value="in_review">In Review</option>
+            <option value="implementing">Implementing</option>
+            <option value="completed">Completed</option>
+            <option value="dismissed">Dismissed</option>
+          </select>
+          <button onclick="loadFeedbackList()" class="text-xs bg-neutral-700 text-gray-300 hover:bg-neutral-600 px-3 py-1.5 rounded transition">Refresh</button>
+        </div>
+      </div>
+      <div id="feedbackList" class="space-y-3">
+        <p class="text-gray-500 text-sm text-center py-8">Loading...</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Announcements Admin Tab -->
+  <div id="panel-announcements" class="admin-panel hidden">
+    <div class="bg-neutral-900 rounded-xl p-5 border border-neutral-800">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-lg font-semibold text-white"><i class="fas fa-bullhorn text-yellow-400 mr-2"></i>Announcements</h2>
+        <a href="/whats-new/" target="_blank" class="text-xs text-indigo-400 hover:underline"><i class="fas fa-external-link-alt mr-1"></i>View Public Page</a>
+      </div>
+      <p class="text-sm text-gray-400 mb-4">Announcements are managed from the <a href="/whats-new/" class="text-indigo-400 hover:underline">What's New</a> page. Click "Post Announcement" there to create one.</p>
+      <div id="annAdminList" class="space-y-2">
+        <p class="text-gray-500 text-sm text-center py-8">Loading...</p>
+      </div>
     </div>
   </div>
 
@@ -888,6 +950,8 @@ function loadTabData(tab) {
     'emoji': loadEmoji,
     'bot-stats': loadBotStats,
     'testimonials': loadTestimonials,
+    'feedback': loadFeedbackTab,
+    'announcements': loadAnnouncementsTab,
     'ffxiv-applications': () => loadFfxivApplications('pending'),
     'eso-applications':   () => loadEsoApplications('pending'),
   };
@@ -2881,7 +2945,8 @@ document.addEventListener('DOMContentLoaded', () => {
   loadMaintenanceStatus();
   loadLoginLockStatus();
   loadStats();
-  switchTab('audit');
+  const urlTab = new URLSearchParams(window.location.search).get('tab');
+  switchTab(urlTab || 'audit');
   createCustomSelect({
     container: document.getElementById('eacGenPlatformContainer'),
     name: 'eacGenPlatform',
@@ -5019,6 +5084,121 @@ window.loadTabData = function(tab) {
 // ============================================================
 // TESTIMONIALS (global scope - called from loadTabData)
 // ============================================================
+// ============================================================
+// FEEDBACK TAB
+// ============================================================
+
+async function loadFeedbackTab() {
+  // Load settings
+  try {
+    const r = await csrfFetch('/api/admin/feedback-settings/');
+    const d = await r.json();
+    document.getElementById('fbFluxerChannel').value = d.fluxer_channel_id || '';
+    document.getElementById('fbDiscordWebhook').value = d.discord_webhook_url || '';
+  } catch(e) {}
+  loadFeedbackList();
+}
+
+async function loadFeedbackList() {
+  const status = document.getElementById('fbStatusFilter').value;
+  const list = document.getElementById('feedbackList');
+  list.innerHTML = '<p class="text-gray-500 text-sm text-center py-6">Loading...</p>';
+  try {
+    const r = await csrfFetch('/api/admin/feedback/' + (status ? '?status=' + status : ''));
+    const d = await r.json();
+    if (!d.feedback || !d.feedback.length) {
+      list.innerHTML = '<p class="text-gray-500 text-sm text-center py-8">No feedback yet.</p>';
+      return;
+    }
+    const STATUS_COLORS = { new: 'text-yellow-400', in_review: 'text-blue-400', implementing: 'text-purple-400', completed: 'text-green-400', dismissed: 'text-gray-500' };
+    const STATUS_LABELS = { new: 'New', in_review: 'In Review', implementing: 'Implementing', completed: 'Completed', dismissed: 'Dismissed' };
+    const CAT_COLORS = { bug: 'bg-red-500/20 text-red-300', feature: 'bg-indigo-500/20 text-indigo-300', suggestion: 'bg-yellow-500/20 text-yellow-300', general: 'bg-neutral-700 text-gray-300' };
+    list.innerHTML = d.feedback.map(function(f) {
+      const dt = new Date(f.created_at * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+      return `<div class="bg-neutral-800 rounded-xl p-4 border border-neutral-700">
+        <div class="flex items-start gap-3">
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-2 flex-wrap mb-1">
+              <span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${CAT_COLORS[f.category] || CAT_COLORS.general}">${f.category}</span>
+              <span class="text-white text-sm font-semibold">${escapeHtml(f.subject)}</span>
+            </div>
+            <p class="text-gray-400 text-sm whitespace-pre-wrap leading-relaxed">${escapeHtml(f.body)}</p>
+            <div class="flex items-center gap-3 mt-2 text-xs text-gray-600">
+              <span>${escapeHtml(f.author)}</span>
+              <span>${dt}</span>
+              <span class="${STATUS_COLORS[f.status] || ''} font-medium">${STATUS_LABELS[f.status] || f.status}</span>
+            </div>
+          </div>
+          <select onchange="updateFeedbackStatus(${f.id}, this.value)" class="bg-neutral-700 border border-neutral-600 text-white text-xs rounded px-2 py-1 focus:outline-none flex-shrink-0">
+            <option value="new" ${f.status==='new'?'selected':''}>New</option>
+            <option value="in_review" ${f.status==='in_review'?'selected':''}>In Review</option>
+            <option value="implementing" ${f.status==='implementing'?'selected':''}>Implementing</option>
+            <option value="completed" ${f.status==='completed'?'selected':''}>Completed</option>
+            <option value="dismissed" ${f.status==='dismissed'?'selected':''}>Dismissed</option>
+          </select>
+        </div>
+      </div>`;
+    }).join('');
+  } catch(e) {
+    list.innerHTML = '<p class="text-red-400 text-sm text-center py-4">Failed to load.</p>';
+  }
+}
+
+async function updateFeedbackStatus(id, status) {
+  await csrfFetch('/api/admin/feedback/' + id + '/', {
+    method: 'PUT', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ status }),
+  });
+}
+
+async function saveFeedbackSettings() {
+  const fluxer_channel_id = document.getElementById('fbFluxerChannel').value.trim();
+  const discord_webhook_url = document.getElementById('fbDiscordWebhook').value.trim();
+  await csrfFetch('/api/admin/feedback-settings/', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ fluxer_channel_id, discord_webhook_url }),
+  });
+  const saved = document.getElementById('fbSettingsSaved');
+  saved.classList.remove('hidden');
+  setTimeout(() => saved.classList.add('hidden'), 2000);
+}
+
+// ============================================================
+// ANNOUNCEMENTS ADMIN TAB
+// ============================================================
+
+async function loadAnnouncementsTab() {
+  const list = document.getElementById('annAdminList');
+  list.innerHTML = '<p class="text-gray-500 text-sm text-center py-6">Loading...</p>';
+  try {
+    const r = await csrfFetch('/api/admin/announcements/');
+    const d = await r.json();
+    if (!d.announcements || !d.announcements.length) {
+      list.innerHTML = '<p class="text-gray-500 text-sm text-center py-8">No announcements yet. <a href="/whats-new/" class="text-indigo-400 hover:underline">Go to What\'s New</a> to post one.</p>';
+      return;
+    }
+    const CAT_COLORS = { update: 'bg-indigo-500/20 text-indigo-300', feature: 'bg-green-500/20 text-green-300', event: 'bg-purple-500/20 text-purple-300', maintenance: 'bg-orange-500/20 text-orange-300' };
+    list.innerHTML = d.announcements.map(function(a) {
+      const dt = new Date(a.created_at * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+      return `<div class="bg-neutral-800 rounded-xl p-4 border border-neutral-700 flex items-center gap-3">
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-2 mb-0.5">
+            <span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${CAT_COLORS[a.category] || ''}">${a.category}</span>
+            ${a.is_pinned ? '<span class="text-[10px] text-yellow-400"><i class="fas fa-thumbtack"></i> Pinned</span>' : ''}
+            <span class="text-white text-sm font-medium">${escapeHtml(a.title)}</span>
+          </div>
+          <p class="text-xs text-gray-600">${dt}</p>
+        </div>
+        <a href="/whats-new/#ann-${a.id}" target="_blank" class="text-xs text-indigo-400 hover:underline flex-shrink-0">View</a>
+      </div>`;
+    }).join('');
+  } catch(e) {
+    list.innerHTML = '<p class="text-red-400 text-sm text-center py-4">Failed to load.</p>';
+  }
+}
+
+// ============================================================
+
 let _testimonialData = null;
 
 async function loadTestimonials() {

@@ -126,6 +126,13 @@ const CURRENT_USERNAME = "{{ web_user.username|default:'' }}";
             </div>
           </div>
 
+          <!-- Stream Schedule -->
+          <div id="modalSchedule" class="hidden mb-4 pb-4 border-b border-neutral-800">
+            <h4 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2"><i class="fas fa-calendar-alt mr-1 text-indigo-400"></i>Stream Schedule</h4>
+            <div id="modalScheduleSlots" class="space-y-1"></div>
+            <p id="modalScheduleTzNote" class="text-[10px] text-gray-600 mt-1.5"></p>
+          </div>
+
           <!-- Games + categories -->
           <div id="modalTags" class="flex flex-wrap gap-1.5 mb-4 hidden"></div>
 
@@ -602,6 +609,58 @@ function openCreatorModal(id) {
     document.getElementById('modalKickCount').textContent = formatCount(creator.kick_follower_count);
   } else {
     kickStat.classList.add('hidden');
+  }
+
+  // Stream Schedule
+  const scheduleEl = document.getElementById('modalSchedule');
+  const scheduleSlotsEl = document.getElementById('modalScheduleSlots');
+  const scheduleTzNote = document.getElementById('modalScheduleTzNote');
+  const slots = creator.stream_schedule || [];
+  if (slots.length && creator.stream_timezone) {
+    scheduleEl.classList.remove('hidden');
+    const DAY_NAMES = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+    const creatorTz = creator.stream_timezone;
+    const viewerTz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+    const tzDiffers = viewerTz !== creatorTz;
+    scheduleTzNote.textContent = tzDiffers ? 'In your timezone (' + viewerTz + ')' : 'Timezone: ' + viewerTz;
+
+    function wallClockToUtc(day, hhmm, fromTz) {
+      const [hStr, mStr] = hhmm.split(':');
+      const h = parseInt(hStr, 10), m = parseInt(mStr, 10);
+      const dd = String(7 + day).padStart(2, '0');
+      const hh = String(h).padStart(2, '0'), mm = String(m).padStart(2, '0');
+      const probe = new Date('2024-01-' + dd + 'T' + hh + ':' + mm + ':00Z');
+      const dtf = new Intl.DateTimeFormat('en-US', {timeZone: fromTz, hour12: false,
+        year: 'numeric', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit'});
+      let tzH = 0, tzM = 0;
+      dtf.formatToParts(probe).forEach(p => {
+        if (p.type === 'hour') tzH = parseInt(p.value, 10);
+        if (p.type === 'minute') tzM = parseInt(p.value, 10);
+      });
+      return new Date(probe.getTime() + (h * 60 + m - tzH * 60 - tzM) * 60000);
+    }
+    function fmtTime(d, tz) {
+      return d.toLocaleString('en-US', {timeZone: tz, hour: 'numeric', minute: '2-digit', hour12: true});
+    }
+    function fmtDay(d, tz) {
+      return d.toLocaleString('en-US', {timeZone: tz, weekday: 'short'});
+    }
+
+    const sorted = [...slots].sort((a, b) => a.day !== b.day ? a.day - b.day : a.start.localeCompare(b.start));
+    scheduleSlotsEl.innerHTML = sorted.map(slot => {
+      try {
+        const su = wallClockToUtc(slot.day, slot.start, creatorTz);
+        const eu = wallClockToUtc(slot.day, slot.end, creatorTz);
+        const day = fmtDay(su, viewerTz);
+        const time = fmtTime(su, viewerTz) + ' - ' + fmtTime(eu, viewerTz);
+        return `<div class="flex items-center gap-2 text-xs">
+          <span class="text-indigo-300 font-medium w-8 shrink-0">${escapeHtml(day)}</span>
+          <span class="text-white">${escapeHtml(time)}</span>
+        </div>`;
+      } catch(e) { return ''; }
+    }).join('');
+  } else {
+    scheduleEl.classList.add('hidden');
   }
 
   // Tags (games + categories)

@@ -223,6 +223,7 @@ class Command(BaseCommand):
 
                         u.current_game = game_name
                         u.current_game_appid = game_appid
+                        u.current_game_started_at = int(time.time()) if game_name else None
 
                         # Queue Fluxer status update — run after session closes
                         if u.fluxer_sync_custom_status and u.fluxer_id and u.fluxer_access_token_enc:

@@ -18,6 +18,7 @@ from .models import (
     WebFoundGame, WebCreatorProfile,
     WebGiveaway, WebGiveawayEntry,
     WebLFGGroup, WebLFGMember, WebCommunity, WebCommunityMember,
+    WebCommunityPost, WebCommunityEvent,
 )
 from app.db import get_db_session
 from .fluxer_webhooks import (
@@ -1057,6 +1058,7 @@ def _get_recent_activity(request):
                     'message': msg,
                     'timestamp': p.created_at,
                     'post_id': p.id,
+                    'post_url': f"/ql/post/{p.public_id}/" if p.public_id else None,
                 })
 
         # Follows
@@ -1155,7 +1157,7 @@ def _get_recent_activity(request):
                     'message': f"is playing {u.current_game}",
                     'game': u.current_game,
                     'steam_url': steam_url,
-                    'timestamp': now - 60,  # approximate - no written-at column
+                    'timestamp': u.current_game_started_at or (now - 60),
                 })
 
         # LFG group created (last 2 days)
@@ -1311,6 +1313,93 @@ def _get_recent_activity(request):
                 })
         except Exception:
             pass
+
+        # Community wall posts (last 2 days, top-level only, from public communities)
+        from .views_pages import _community_slug as _cslug
+        wall_posts = db.query(WebCommunityPost, WebCommunity).join(
+            WebCommunity, WebCommunity.id == WebCommunityPost.community_id
+        ).filter(
+            WebCommunityPost.is_deleted == False,
+            WebCommunityPost.parent_id == None,
+            WebCommunityPost.created_at >= two_days_ago,
+            WebCommunity.is_active == True,
+            WebCommunity.is_banned == False,
+            WebCommunity.allow_discovery == True,
+        ).order_by(WebCommunityPost.created_at.desc()).limit(8).all()
+
+        for post, community in wall_posts:
+            author = db.query(WebUser).filter_by(id=post.author_id).first()
+            if not _user_ok(author):
+                continue
+            msg = f"posted on {community.name}'s wall"
+            if post.game_tag_name:
+                msg += f" about {post.game_tag_name}"
+            elif post.media_type == 'gif':
+                msg += " (GIF)"
+            elif post.media_type == 'image':
+                msg += " (photo)"
+            slug = _cslug(community.name)
+            ticker.append({
+                'type': 'community_post',
+                'username': author.username,
+                'display_name': author.display_name or author.username,
+                'avatar_url': author.avatar_url or '',
+                'message': msg,
+                'timestamp': post.created_at,
+                'community_name': community.name,
+                'community_url': f"/ql/communities/{slug}/#wall",
+            })
+
+        # Community game nights announced in last 2 days (upcoming only)
+        recent_events = db.query(WebCommunityEvent, WebCommunity).join(
+            WebCommunity, WebCommunity.id == WebCommunityEvent.community_id
+        ).filter(
+            WebCommunityEvent.is_cancelled == False,
+            WebCommunityEvent.created_at >= two_days_ago,
+            WebCommunityEvent.starts_at >= now,
+            WebCommunityEvent.recurrence_parent_id == None,  # only announce the first in a series
+            WebCommunity.is_active == True,
+            WebCommunity.is_banned == False,
+            WebCommunity.allow_discovery == True,
+        ).order_by(WebCommunityEvent.created_at.desc()).limit(6).all()
+
+        for event, community in recent_events:
+            slug = _cslug(community.name)
+            msg = f"scheduled a Game Night"
+            if event.game_tag_name:
+                msg += f": {event.game_tag_name}"
+            if event.recurrence and event.recurrence != 'none':
+                recur_labels = {'weekly': 'weekly', 'biweekly': 'every 2 weeks', 'monthly': 'monthly'}
+                msg += f" ({recur_labels.get(event.recurrence, event.recurrence)})"
+            ticker.append({
+                'type': 'game_night',
+                'username': '',
+                'display_name': community.name,
+                'avatar_url': community.icon_url or '',
+                'message': msg,
+                'timestamp': event.created_at,
+                'community_name': community.name,
+                'community_url': f"/ql/communities/{slug}/#wall",
+                'event_title': event.title,
+            })
+
+        # Site announcements (last 7 days) - show as platform news in ticker
+        from .models import WebSiteAnnouncement
+        recent_announcements = db.query(WebSiteAnnouncement).filter(
+            WebSiteAnnouncement.created_at >= week_ago,
+        ).order_by(WebSiteAnnouncement.created_at.desc()).limit(3).all()
+        for ann in recent_announcements:
+            ann_author = db.query(WebUser).filter_by(id=ann.author_id).first()
+            ticker.append({
+                'type': 'announcement',
+                'username': ann_author.username if ann_author else '',
+                'display_name': 'QuestLog',
+                'avatar_url': '',
+                'message': ann.title,
+                'timestamp': ann.created_at,
+                'ann_url': '/ql/whats-new/',
+                'category': ann.category,
+            })
 
         ticker.sort(key=lambda x: x['timestamp'], reverse=True)
         ticker = ticker[:20]

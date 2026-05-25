@@ -31,7 +31,7 @@
 <div class="max-w-7xl mx-auto">
 
   <!-- Quick stats bar -->
-  <div class="grid grid-cols-3 gap-4 mb-6" id="stats-bar">
+  <div class="grid grid-cols-4 gap-4 mb-6" id="stats-bar">
     <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-4 flex items-center gap-3">
       <div class="w-10 h-10 bg-green-600/20 rounded-lg flex items-center justify-center">
         <i class="fas fa-door-open text-green-400"></i>
@@ -39,6 +39,15 @@
       <div>
         <p class="text-xl font-bold text-white" id="stat-open">0</p>
         <p class="text-xs text-gray-500">Open Groups</p>
+      </div>
+    </div>
+    <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-4 flex items-center gap-3">
+      <div class="w-10 h-10 bg-indigo-600/20 rounded-lg flex items-center justify-center">
+        <i class="fas fa-moon text-indigo-400"></i>
+      </div>
+      <div>
+        <p class="text-xl font-bold text-white" id="stat-gamenights">0</p>
+        <p class="text-xs text-gray-500">Game Nights</p>
       </div>
     </div>
     <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-4 flex items-center gap-3">
@@ -51,8 +60,8 @@
       </div>
     </div>
     <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-4 flex items-center gap-3">
-      <div class="w-10 h-10 bg-indigo-600/20 rounded-lg flex items-center justify-center">
-        <i class="fas fa-redo text-indigo-400"></i>
+      <div class="w-10 h-10 bg-amber-600/20 rounded-lg flex items-center justify-center">
+        <i class="fas fa-redo text-amber-400"></i>
       </div>
       <div>
         <p class="text-xl font-bold text-white" id="stat-recurring">0</p>
@@ -128,6 +137,10 @@
             <span class="text-gray-300">Closed</span>
           </div>
           <div class="flex items-center gap-2 text-xs mt-1 pt-1 border-t border-neutral-800">
+            <i class="fas fa-moon text-indigo-400 text-xs w-2.5 text-center"></i>
+            <span class="text-gray-300">Community Game Night</span>
+          </div>
+          <div class="flex items-center gap-2 text-xs">
             <i class="fas fa-redo text-indigo-400 text-xs w-2.5 text-center"></i>
             <span class="text-gray-300">Recurring session</span>
           </div>
@@ -138,46 +151,170 @@
   </div>
 </div>
 
-<!-- Event Detail Modal -->
-<div id="cal-event-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-  <div class="bg-neutral-900 border border-neutral-700 rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl">
-    <div class="flex items-center justify-between p-5 border-b border-neutral-800">
+<!-- Event Detail Modal - full-width Outlook-style -->
+<div id="cal-event-modal" class="hidden fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/75 backdrop-blur-sm">
+  <div class="bg-neutral-950 border-t sm:border border-neutral-700 rounded-t-3xl sm:rounded-2xl w-full sm:max-w-2xl sm:mx-4 shadow-2xl flex flex-col max-h-[95vh] sm:max-h-[90vh]">
+
+    <!-- Top toolbar -->
+    <div class="flex items-center justify-between px-5 pt-4 pb-3 border-b border-neutral-800 flex-shrink-0">
       <div id="modal-badges" class="flex items-center gap-2 flex-wrap"></div>
-      <button onclick="closeEventModal()" class="w-8 h-8 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-gray-400 hover:text-white transition flex items-center justify-center ml-4">
-        <i class="fas fa-times text-sm"></i>
-      </button>
+      <div class="flex items-center gap-2 ml-auto">
+        <div id="modal-owner-btns" class="hidden flex items-center gap-2">
+          <button id="modal-edit-toggle" onclick="toggleEditPanel()"
+            class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-gray-300 text-xs font-semibold transition">
+            <i class="fas fa-edit text-indigo-400"></i>Edit
+          </button>
+          <button onclick="calCancelEvent(false)"
+            class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-neutral-800 hover:bg-red-900/40 border border-neutral-700 hover:border-red-700 text-gray-400 hover:text-red-400 text-xs font-semibold transition">
+            <i class="fas fa-trash"></i>Cancel Event
+          </button>
+          <button id="modal-cancel-series-btn" onclick="calCancelEvent(true)"
+            class="hidden flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-neutral-800 hover:bg-red-900/40 border border-neutral-700 hover:border-red-700 text-gray-400 hover:text-red-500 text-xs font-semibold transition">
+            <i class="fas fa-ban"></i>Cancel Series
+          </button>
+        </div>
+        <button onclick="closeEventModal()" class="w-8 h-8 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-gray-400 hover:text-white transition flex items-center justify-center">
+          <i class="fas fa-times text-sm"></i>
+        </button>
+      </div>
     </div>
-    <div class="p-5 space-y-4">
+
+    <!-- Scrollable body -->
+    <div class="overflow-y-auto flex-1 px-5 py-4 space-y-5">
+
+      <!-- Title + meta -->
       <div>
-        <h3 id="modal-title" class="text-xl font-bold text-white mb-1"></h3>
-        <p id="modal-game" class="text-purple-300 text-sm font-semibold flex items-center gap-1">
-          <i class="fas fa-gamepad text-purple-400 text-xs"></i><span></span>
-        </p>
-        <p id="modal-guild" class="text-gray-400 text-xs mt-0.5"></p>
-      </div>
-      <div class="grid grid-cols-2 gap-3 text-sm">
-        <div class="bg-neutral-800/60 rounded-xl p-3 border border-neutral-700/50">
-          <div class="text-gray-400 text-xs mb-1 flex items-center gap-1"><i class="far fa-clock text-purple-400"></i>Scheduled</div>
-          <div id="modal-time" class="text-white font-semibold"></div>
-        </div>
-        <div class="bg-neutral-800/60 rounded-xl p-3 border border-neutral-700/50">
-          <div class="text-gray-400 text-xs mb-1 flex items-center gap-1"><i class="fas fa-users text-green-400"></i>Party Size</div>
-          <div id="modal-size" class="text-white font-semibold"></div>
+        <h2 id="modal-title" class="text-2xl font-bold text-white leading-tight mb-1"></h2>
+        <div class="flex flex-wrap items-center gap-3 text-sm text-gray-400">
+          <span id="modal-game" class="hidden text-purple-300 font-semibold flex items-center gap-1">
+            <i class="fas fa-gamepad text-purple-400 text-xs"></i><span></span>
+          </span>
+          <span id="modal-guild" class="hidden"></span>
+          <a id="modal-community-link" href="#" class="hidden text-indigo-400 hover:text-indigo-300 hover:underline transition flex items-center gap-1">
+            <i class="fas fa-users text-xs"></i><span></span>
+          </a>
         </div>
       </div>
-      <div id="modal-description" class="hidden text-sm text-gray-300 italic bg-neutral-800/40 rounded-xl p-4 border border-neutral-700/40 leading-relaxed"></div>
-      <div id="modal-actions" class="flex gap-2 pt-1"></div>
+
+      <!-- Date / time / size row -->
+      <div class="grid grid-cols-2 gap-3">
+        <div class="bg-neutral-900 rounded-xl p-3.5 border border-neutral-800">
+          <p class="text-gray-500 text-xs mb-1 flex items-center gap-1"><i class="far fa-calendar text-purple-400"></i>Date & Time</p>
+          <p id="modal-time" class="text-white font-semibold text-sm"></p>
+          <p id="modal-duration" class="text-gray-500 text-xs mt-0.5"></p>
+        </div>
+        <div class="bg-neutral-900 rounded-xl p-3.5 border border-neutral-800">
+          <p id="modal-size-label" class="text-gray-500 text-xs mb-1 flex items-center gap-1"><i class="fas fa-users text-green-400"></i>Party Size</p>
+          <div id="modal-size" class="text-white font-semibold text-sm"></div>
+        </div>
+      </div>
+
+      <!-- Description -->
+      <div id="modal-description" class="hidden text-sm text-gray-300 bg-neutral-900 rounded-xl p-4 border border-neutral-800 leading-relaxed"></div>
+
+      <!-- RSVP strip (game_night, logged in) -->
+      <div id="modal-rsvp-strip" class="hidden">
+        <p class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2.5">Are you going?</p>
+        <div class="grid grid-cols-3 gap-2">
+          <button id="rsvp-going" onclick="calRsvp('going')"
+            class="py-2.5 rounded-xl border text-sm font-semibold transition flex items-center justify-center gap-1.5 bg-neutral-900 border-neutral-700 text-gray-300">
+            <i class="fas fa-check text-xs"></i>Going
+          </button>
+          <button id="rsvp-maybe" onclick="calRsvp('maybe')"
+            class="py-2.5 rounded-xl border text-sm font-semibold transition flex items-center justify-center gap-1.5 bg-neutral-900 border-neutral-700 text-gray-300">
+            <i class="fas fa-question text-xs"></i>Maybe
+          </button>
+          <button id="rsvp-decline" onclick="calRsvp('not_going')"
+            class="py-2.5 rounded-xl border text-sm font-semibold transition flex items-center justify-center gap-1.5 bg-neutral-900 border-neutral-700 text-gray-300">
+            <i class="fas fa-times text-xs"></i>Can't Go
+          </button>
+        </div>
+      </div>
+
+      <!-- Attendees (game_night) -->
+      <div id="modal-attendees-wrap" class="hidden">
+        <p class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Who's Going</p>
+        <div id="modal-attendees" class="space-y-1 max-h-44 overflow-y-auto"></div>
+      </div>
+
+      <!-- Members (LFG) -->
+      <div id="modal-members-wrap" class="hidden">
+        <p class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Party Members</p>
+        <div id="modal-members" class="space-y-1 max-h-44 overflow-y-auto"></div>
+      </div>
+
+      <!-- Inline edit form (owner, game_night) - always rendered, toggled visible -->
+      <div id="modal-edit-panel" class="hidden bg-neutral-900 border border-indigo-700/40 rounded-xl p-4 space-y-3">
+        <p class="text-xs font-bold text-indigo-400 uppercase tracking-wider flex items-center gap-1.5"><i class="fas fa-edit"></i>Editing Event</p>
+        <div>
+          <label class="text-xs text-gray-400 mb-1 block">Title</label>
+          <input id="modal-edit-title" type="text" maxlength="200"
+            class="w-full bg-neutral-800 border border-neutral-700 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-indigo-500 transition">
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="text-xs text-gray-400 mb-1 block">Date & Time</label>
+            <input id="modal-edit-datetime" type="datetime-local"
+              class="w-full bg-neutral-800 border border-neutral-700 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-indigo-500 transition">
+          </div>
+          <div>
+            <label class="text-xs text-gray-400 mb-1 block">Game (optional)</label>
+            <input id="modal-edit-game" type="text" maxlength="200" placeholder="e.g. Elden Ring"
+              class="w-full bg-neutral-800 border border-neutral-700 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-indigo-500 transition">
+          </div>
+        </div>
+        <div>
+          <label class="text-xs text-gray-400 mb-1 block">Description</label>
+          <textarea id="modal-edit-desc" rows="3" maxlength="500"
+            class="w-full bg-neutral-800 border border-neutral-700 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-indigo-500 transition resize-none"></textarea>
+        </div>
+        <div class="flex gap-2">
+          <button onclick="calSaveEdit()" class="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold rounded-xl transition">Save Changes</button>
+          <button onclick="toggleEditPanel()" class="px-5 py-2.5 bg-neutral-800 hover:bg-neutral-700 text-gray-300 text-sm rounded-xl transition">Cancel</button>
+        </div>
+        <div id="modal-edit-error" class="hidden text-xs text-red-400"></div>
+      </div>
+
+      <!-- Comment box (game_night, logged in) -->
+      <div id="modal-comment-wrap" class="hidden">
+        <div class="flex items-center justify-between mb-2">
+          <p class="text-xs font-bold text-gray-500 uppercase tracking-wider">Announce to Community Wall</p>
+          <a id="modal-wall-link" href="#" target="_blank"
+            class="text-xs text-indigo-400 hover:text-indigo-300 hover:underline transition flex items-center gap-1">
+            <i class="fas fa-external-link-alt text-[10px]"></i>See wall discussion
+          </a>
+        </div>
+        <div class="flex gap-2 items-end">
+          <textarea id="modal-comment-text" rows="2" maxlength="500" placeholder="Post a game night announcement, tip, or update..."
+            class="flex-1 bg-neutral-900 border border-neutral-700 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-indigo-500 transition resize-none"></textarea>
+          <button onclick="calPostComment()" class="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold rounded-xl transition flex-shrink-0">
+            <i class="fas fa-bullhorn text-xs mr-1"></i>Post
+          </button>
+        </div>
+        <p class="text-xs text-gray-600 mt-1.5">Replies and discussion happen on the community wall.</p>
+        <div id="modal-comment-error" class="hidden text-xs text-red-400 mt-1"></div>
+        <div id="modal-comment-confirm" class="hidden mt-2 p-2.5 bg-green-900/20 border border-green-800/40 rounded-lg flex items-center justify-between">
+          <span class="text-xs text-green-400 flex items-center gap-1.5"><i class="fas fa-check-circle"></i>Announced on community wall</span>
+          <a id="modal-comment-wall-link" href="#" target="_blank" class="text-xs text-indigo-400 hover:underline">View discussion <i class="fas fa-arrow-right text-[10px]"></i></a>
+        </div>
+      </div>
+
     </div>
+
+    <!-- Bottom action bar -->
+    <div id="modal-actions" class="flex flex-wrap gap-2 px-5 py-4 border-t border-neutral-800 flex-shrink-0 bg-neutral-950 rounded-b-2xl"></div>
   </div>
 </div>
 
 <script>
 const EVENTS = JSON.parse('{{ events_json|escapejs }}');
+const CURRENT_USER_ID = {{ web_user.id|default:"null" }};
 
 const STATUS_CHIP = {
-  open:   { dot: 'bg-green-400',   chip: 'bg-green-500/15 text-green-300 border-green-500/30' },
-  full:   { dot: 'bg-yellow-400',  chip: 'bg-yellow-500/15 text-yellow-300 border-yellow-500/30' },
-  closed: { dot: 'bg-neutral-500', chip: 'bg-neutral-600/30 text-gray-400 border-neutral-600/30' },
+  open:       { dot: 'bg-green-400',   chip: 'bg-green-500/15 text-green-300 border-green-500/30' },
+  full:       { dot: 'bg-yellow-400',  chip: 'bg-yellow-500/15 text-yellow-300 border-yellow-500/30' },
+  closed:     { dot: 'bg-neutral-500', chip: 'bg-neutral-600/30 text-gray-400 border-neutral-600/30' },
+  game_night: { dot: 'bg-indigo-400',  chip: 'bg-indigo-500/15 text-indigo-300 border-indigo-500/30' },
 };
 const RECUR_LABELS = { daily: 'Daily', weekly: 'Weekly', monthly: 'Monthly' };
 
@@ -210,6 +347,8 @@ function expandRecurring(events) {
   const now = Math.floor(Date.now() / 1000);
   const maxFuture = now + 365 * 86400;
   events.forEach(function(e) {
+    // Game night instances are pre-stored in DB - never expand them client-side
+    if (e.type === 'game_night') return;
     if (!e.recurrence || e.recurrence === 'none' || !e.ts) return;
     const maxOcc = e.recurrence === 'daily' ? 30 : e.recurrence === 'weekly' ? 13 : 6;
     for (let n = 1; n <= maxOcc; n++) {
@@ -247,10 +386,12 @@ function _today() {
 function updateStats() {
   const now = Math.floor(Date.now() / 1000);
   const weekEnd = now + 7 * 86400;
-  const open = ALL_EVENTS.filter(e => e.status === 'open' && !e.is_virtual).length;
+  const open = ALL_EVENTS.filter(e => e.type !== 'game_night' && e.status === 'open' && !e.is_virtual).length;
+  const gameNights = ALL_EVENTS.filter(e => e.type === 'game_night' && e.ts >= now).length;
   const thisWeek = ALL_EVENTS.filter(e => e.ts && e.ts >= now && e.ts <= weekEnd).length;
   const recurring = EVENTS.filter(e => e.recurrence && e.recurrence !== 'none').length;
   document.getElementById('stat-open').textContent = open;
+  document.getElementById('stat-gamenights').textContent = gameNights;
   document.getElementById('stat-week').textContent = thisWeek;
   document.getElementById('stat-recurring').textContent = recurring;
 }
@@ -292,19 +433,23 @@ function renderCalendar() {
     const dayEvents = eventsForDay(_curYear, _curMonth, d);
     const hasFuture = dayEvents.some(e => e.ts * 1000 > Date.now());
     const todayCls = isToday ? 'bg-purple-900/20 border-purple-700/40' : (hasFuture ? 'bg-neutral-800/10' : '');
-    const chips = dayEvents.slice(0, 2).map(e => {
-      const s = STATUS_CHIP[e.status] || STATUS_CHIP.closed;
+    const chips = dayEvents.slice(0, 3).map(e => {
+      const s = e.type === 'game_night' ? STATUS_CHIP.game_night : (STATUS_CHIP[e.status] || STATUS_CHIP.closed);
       const recurIcon = e.recurrence && e.recurrence !== 'none' ? '<i class="fas fa-redo text-[9px] opacity-60 mr-0.5"></i>' : '';
-      const eid = JSON.stringify(String(e.id));
-      return `<div class="text-[11px] px-1.5 py-0.5 rounded-md border ${s.chip} truncate cursor-pointer hover:opacity-80 transition leading-tight"
-                   onclick="event.stopPropagation(); showEventModal(${eid})">${recurIcon}${escapeHtmlLocal(e.game_name || e.title)}</div>`;
+      const nightIcon = e.type === 'game_night' ? '<i class="fas fa-moon text-[9px] opacity-70 mr-0.5"></i>' : '';
+      const eid = String(e.id);
+      return `<div class="cal-chip text-[11px] px-1.5 py-0.5 rounded-md border ${s.chip} truncate cursor-pointer hover:opacity-80 transition leading-tight"
+                   data-eid="${eid}">${nightIcon}${recurIcon}${escapeHtmlLocal(e.game_name || e.title)}</div>`;
     }).join('');
-    const more = dayEvents.length > 2
-      ? `<div class="text-[10px] text-purple-400 font-medium mt-0.5 pl-1">+${dayEvents.length - 2} more</div>` : '';
+    const more = dayEvents.length > 3
+      ? `<div class="text-[10px] text-purple-400 font-medium mt-0.5 pl-1 cursor-pointer hover:text-purple-300" onclick="calDayClick(${_curYear},${_curMonth},${d})">+${dayEvents.length - 3} more</div>` : '';
     const hasDot = dayEvents.length > 0;
+    const dayOnclick = dayEvents.length === 1
+      ? `calChipClick('${String(dayEvents[0].id)}')`
+      : (dayEvents.length > 1 ? `calDayClick(${_curYear},${_curMonth},${d})` : '');
     cells += `
       <div class="min-h-24 border-b border-r border-neutral-800/60 p-1.5 ${todayCls} ${hasFuture ? 'cursor-pointer hover:bg-purple-900/10' : ''} transition"
-           onclick="${dayEvents.length ? `showDayPanel(${_curYear}, ${_curMonth}, ${d})` : ''}">
+           onclick="${dayOnclick}">
         <div class="flex items-start justify-between mb-1">
           <span class="${isToday
             ? 'bg-purple-600 text-white w-6 h-6 flex items-center justify-center rounded-full text-xs font-bold'
@@ -324,90 +469,611 @@ function renderCalendar() {
   grid.innerHTML = cells;
 }
 
+// ---- Modal state ----
+let _modalEvent = null;  // current event data from ALL_EVENTS
+let _modalDetail = null; // full detail fetched from API
+
+function _sidebarItem(e, onclick) {
+  const isGN = e.type === 'game_night';
+  const s = isGN ? STATUS_CHIP.game_night : (STATUS_CHIP[e.status] || STATUS_CHIP.closed);
+  const statusBadge = isGN
+    ? `<span class="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full border ${s.chip} flex-shrink-0"><i class="fas fa-moon text-indigo-400 text-[9px]"></i>Game Night</span>`
+    : `<span class="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full border ${s.chip} flex-shrink-0"><span class="w-1 h-1 rounded-full ${s.dot}"></span>${e.status}</span>`;
+  const recurTag = !isGN && e.recurrence && e.recurrence !== 'none'
+    ? `<span class="text-indigo-400 text-[10px]"><i class="fas fa-redo mr-0.5"></i>${RECUR_LABELS[e.recurrence]}</span>` : '';
+  const communityUrl = isGN && e.community_slug ? `/ql/communities/${e.community_slug}/#wall` : null;
+  const myRsvp = e.my_rsvp || null;
+  const safeEid = "'" + String(e.id).replace(/'/g, "\\'") + "'";
+  const wallLink = communityUrl
+    ? '<a href="' + communityUrl + '" onclick="event.stopPropagation()" class="ml-auto text-[10px] text-indigo-400 hover:underline">View wall</a>'
+    : '';
+  const isLFG = e.type === 'lfg';
+  const gnRsvpRow = isGN && !e.is_past
+    ? '<div class="flex items-center gap-1.5 mt-2" onclick="event.stopPropagation()">'
+        + '<button onclick="sidebarRsvp(' + safeEid + ',\'' + (myRsvp === 'going' ? 'remove' : 'going') + '\')" class="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-medium transition ' + (myRsvp === 'going' ? 'bg-green-600 text-white' : 'bg-neutral-800 hover:bg-green-600/20 text-gray-400 hover:text-green-400') + '"><i class="fas fa-check text-[9px]"></i>Going <span id="gngoing-' + e.id + '">(' + (e.rsvp_going || 0) + ')</span></button>'
+        + '<button onclick="sidebarRsvp(' + safeEid + ',\'' + (myRsvp === 'maybe' ? 'remove' : 'maybe') + '\')" class="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-medium transition ' + (myRsvp === 'maybe' ? 'bg-yellow-600/80 text-white' : 'bg-neutral-800 hover:bg-yellow-600/20 text-gray-400 hover:text-yellow-400') + '">Maybe <span id="gnmaybe-' + e.id + '">(' + (e.rsvp_maybe || 0) + ')</span></button>'
+        + wallLink
+      + '</div>'
+    : (isGN && communityUrl
+        ? '<div class="mt-1.5" onclick="event.stopPropagation()"><a href="' + communityUrl + '" class="text-xs text-indigo-400 hover:text-indigo-300 hover:underline transition">' + escapeHtmlLocal(e.community_name || '') + '</a></div>'
+        : (isLFG && !e.is_past && e.status === 'open' && e.creator_id !== CURRENT_USER_ID
+            ? '<div class="flex items-center gap-1.5 mt-2" onclick="event.stopPropagation()">'
+                + '<button onclick="sidebarRsvp(' + safeEid + ',\'going\')" class="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-medium transition bg-neutral-800 hover:bg-purple-600/20 text-gray-400 hover:text-purple-400"><i class="fas fa-user-plus text-[9px]"></i>Join</button>'
+                + '<span class="text-[10px] text-gray-500">' + (e.current_size || 0) + '/' + (e.max_size || 0) + ' members</span>'
+              + '</div>'
+            : ''));
+  const bottomRow = isGN
+    ? `<span class="text-xs text-indigo-400">${escapeHtmlLocal(e.community_name || '')}</span>`
+    : `<span class="text-xs text-gray-500">${e.current_size}/${e.max_size} <i class="fas fa-user ml-0.5 text-[10px]"></i></span>${recurTag}`;
+  return `
+    <div class="px-4 py-3 cursor-pointer hover:bg-neutral-800/60 transition" onclick="${onclick}">
+      <div class="flex items-start justify-between gap-2 mb-1">
+        <span class="text-[11px] text-gray-400 font-medium">${fmtRelative(e.ts)}</span>
+        ${statusBadge}
+      </div>
+      <p class="text-sm text-white font-semibold truncate">${escapeHtmlLocal(e.title || e.game_name)}</p>
+      <p class="text-xs text-purple-300 truncate">${escapeHtmlLocal(e.game_name || '')}</p>
+      <div class="flex items-center justify-between mt-1.5">${bottomRow}</div>
+      ${gnRsvpRow}
+    </div>`;
+}
+
+function _sidebarDayItem(e) {
+  const isGN = e.type === 'game_night';
+  const s = isGN ? STATUS_CHIP.game_night : (STATUS_CHIP[e.status] || STATUS_CHIP.closed);
+  const eid = "'" + String(e.id).replace(/'/g, "\\'") + "'";
+  const statusBadge = isGN
+    ? `<span class="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full border ${s.chip} flex-shrink-0"><i class="fas fa-moon text-indigo-400 text-[9px]"></i>Game Night</span>`
+    : `<span class="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full border ${s.chip} flex-shrink-0"><span class="w-1 h-1 rounded-full ${s.dot}"></span>${e.status}</span>`;
+  const communityUrl2 = isGN && e.community_slug ? `/ql/communities/${e.community_slug}/` : null;
+  const bottomRow = isGN
+    ? (communityUrl2
+        ? `<a href="${communityUrl2}" onclick="event.stopPropagation()" class="text-xs text-indigo-400 hover:text-indigo-300 hover:underline transition">${escapeHtmlLocal(e.community_name || '')}</a>`
+        : `<span class="text-xs text-indigo-400">${escapeHtmlLocal(e.community_name || '')}</span>`)
+    : `<span class="text-xs text-gray-500">${e.current_size}/${e.max_size} <i class="fas fa-user ml-0.5 text-[10px]"></i></span>`;
+  return `
+    <div class="px-4 py-3 cursor-pointer hover:bg-neutral-800/60 transition" onclick="showEventModal(${eid})">
+      <div class="flex items-start justify-between gap-2 mb-1">
+        <span class="text-[11px] text-gray-400">${fmtTs(e.ts)}</span>
+        ${statusBadge}
+      </div>
+      <p class="text-sm text-white font-semibold truncate">${escapeHtmlLocal(e.title || e.game_name)}</p>
+      <p class="text-xs text-purple-300">${escapeHtmlLocal(e.game_name || '')}</p>
+      <div class="mt-1">${bottomRow}</div>
+    </div>`;
+}
+
+// ---- RSVP button highlight helper ----
+const _RSVP_BASE = 'flex-1 py-2 rounded-xl border text-sm font-semibold transition flex items-center justify-center gap-1.5';
+const _RSVP_CFG = {
+  going:     { id: 'rsvp-going',   active: 'bg-green-600/30 border-green-500 text-green-300',    inactive: 'bg-neutral-800 border-neutral-700 text-gray-300' },
+  maybe:     { id: 'rsvp-maybe',   active: 'bg-yellow-600/30 border-yellow-500 text-yellow-300', inactive: 'bg-neutral-800 border-neutral-700 text-gray-300' },
+  not_going: { id: 'rsvp-decline', active: 'bg-red-700/40 border-red-500 text-red-300',          inactive: 'bg-neutral-800 border-neutral-700 text-gray-300' },
+};
+function _refreshRsvpButtons(myRsvp) {
+  Object.entries(_RSVP_CFG).forEach(([key, cfg]) => {
+    const btn = document.getElementById(cfg.id);
+    if (!btn) return;
+    const isActive = myRsvp === key;
+    btn.className = `${_RSVP_BASE} ${isActive ? cfg.active : cfg.inactive}`;
+    btn.onclick = () => calRsvp(isActive ? 'remove' : key);
+  });
+}
+
+// ---- Show modal from calendar/sidebar click ----
 function showEventModal(eventId) {
   const e = ALL_EVENTS.find(x => String(x.id) === String(eventId));
   if (!e) return;
-  const s = STATUS_CHIP[e.status] || STATUS_CHIP.closed;
-  let badges = `<span class="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border ${s.chip}">
-    <span class="w-1.5 h-1.5 rounded-full ${s.dot}"></span>${escapeHtmlLocal(e.status)}
-  </span>`;
-  if (e.recurrence && e.recurrence !== 'none') {
-    badges += `<span class="text-xs bg-indigo-900/40 text-indigo-300 border border-indigo-700/40 px-2.5 py-1 rounded-full">
-      <i class="fas fa-redo mr-1 text-xs"></i>${RECUR_LABELS[e.recurrence]}</span>`;
+  _modalEvent = e;
+  _modalDetail = null;
+  // Update URL hash so the link is shareable
+  history.replaceState(null, '', '#event-' + String(eventId));
+
+  const isGameNight = e.type === 'game_night';
+
+  // Badges
+  let badges = '';
+  if (isGameNight) {
+    badges = `<span class="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border bg-indigo-500/15 text-indigo-300 border-indigo-500/30"><i class="fas fa-moon text-indigo-400 text-xs"></i>Game Night</span>`;
+    if (e.community_name) {
+      badges += ` <span class="text-xs bg-neutral-800 text-gray-300 border border-neutral-700 px-2.5 py-1 rounded-full"><i class="fas fa-users text-gray-400 text-xs mr-1"></i>${escapeHtmlLocal(e.community_name)}</span>`;
+    }
+  } else {
+    const s = STATUS_CHIP[e.status] || STATUS_CHIP.closed;
+    badges = `<span class="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border ${s.chip}"><span class="w-1.5 h-1.5 rounded-full ${s.dot}"></span>${escapeHtmlLocal(e.status)}</span>`;
+    if (e.recurrence && e.recurrence !== 'none') {
+      badges += ` <span class="text-xs bg-indigo-900/40 text-indigo-300 border border-indigo-700/40 px-2.5 py-1 rounded-full"><i class="fas fa-redo mr-1 text-xs"></i>${RECUR_LABELS[e.recurrence]}</span>`;
+    }
   }
   document.getElementById('modal-badges').innerHTML = badges;
-  document.getElementById('modal-title').textContent = e.title || e.game_name;
+  document.getElementById('modal-title').textContent = e.title || e.game_name || 'Event';
+
+  // Game tag
   const gameEl = document.getElementById('modal-game');
   gameEl.querySelector('span').textContent = e.game_name || '';
   gameEl.classList.toggle('hidden', !e.game_name);
-  document.getElementById('modal-guild').innerHTML = e.guild_name
-    ? `<i class="fas fa-server mr-1 text-gray-500"></i>${escapeHtmlLocal(e.guild_name)}` : '';
+
+  // Guild (LFG only)
+  const guildEl = document.getElementById('modal-guild');
+  if (!isGameNight && e.guild_name) {
+    guildEl.innerHTML = `<i class="fas fa-server mr-1 text-gray-500"></i>${escapeHtmlLocal(e.guild_name)}`;
+    guildEl.classList.remove('hidden');
+  } else { guildEl.classList.add('hidden'); }
+
+  // Community link (game_night)
+  const commLink = document.getElementById('modal-community-link');
+  if (isGameNight && e.community_name) {
+    const url = e.community_slug ? `/ql/communities/${e.community_slug}/` : '/ql/discover/';
+    commLink.href = url;
+    commLink.querySelector('span').textContent = e.community_name;
+    commLink.classList.remove('hidden');
+  } else { commLink.classList.add('hidden'); }
+
+  // Time + duration
   document.getElementById('modal-time').textContent = fmtTs(e.ts) || 'Not scheduled';
-  const filled = e.current_size;
-  const total = e.max_size;
-  const pct = total > 0 ? Math.round((filled / total) * 100) : 0;
-  document.getElementById('modal-size').innerHTML = `
-    <div class="flex items-center gap-2">
-      <span>${filled} / ${total}</span>
-      <div class="flex-1 bg-neutral-700 rounded-full h-1.5 min-w-12">
-        <div class="h-1.5 rounded-full bg-purple-500 transition-all" style="width:${pct}%"></div>
-      </div>
-    </div>`;
-  const descEl = document.getElementById('modal-description');
-  if (e.description) {
-    descEl.textContent = e.description;
-    descEl.classList.remove('hidden');
+  const durEl = document.getElementById('modal-duration');
+  if (isGameNight && e.duration_mins) {
+    const h = Math.floor(e.duration_mins / 60), m = e.duration_mins % 60;
+    durEl.textContent = h && m ? `${h}h ${m}m` : h ? `${h}h` : `${m}m`;
+  } else if (!isGameNight && e.duration_hours) {
+    durEl.textContent = `${e.duration_hours}h`;
+  } else { durEl.textContent = ''; }
+
+  // Size row
+  if (isGameNight) {
+    document.getElementById('modal-size-label').innerHTML = '<i class="far fa-check-circle text-indigo-400 mr-1"></i>RSVPs';
+    const going = e.rsvp_going || 0, maybe = e.rsvp_maybe || 0;
+    document.getElementById('modal-size').innerHTML =
+      `<span class="text-green-400 font-bold text-lg">${going}</span><span class="text-gray-400 text-xs ml-1 mr-3">going</span>` +
+      `<span class="text-yellow-400 font-bold text-lg">${maybe}</span><span class="text-gray-400 text-xs ml-1">maybe</span>`;
   } else {
-    descEl.classList.add('hidden');
+    document.getElementById('modal-size-label').innerHTML = '<i class="fas fa-users text-green-400 mr-1"></i>Party Size';
+    const filled = e.current_size, total = e.max_size, pct = total > 0 ? Math.round((filled / total) * 100) : 0;
+    document.getElementById('modal-size').innerHTML =
+      `<div class="flex items-center gap-2"><span class="text-lg font-bold">${filled}<span class="text-gray-500 font-normal text-sm"> / ${total}</span></span>` +
+      `<div class="flex-1 bg-neutral-700 rounded-full h-1.5"><div class="h-1.5 rounded-full bg-purple-500" style="width:${pct}%"></div></div></div>`;
   }
-  const browseUrl = e.guild_id ? `fluxer/${e.guild_id}/lfg/browse/` : 'lfg/';
-  document.getElementById('modal-actions').innerHTML = `
-    <a href="${browseUrl}"
-       class="flex-1 text-center text-sm bg-purple-600 hover:bg-purple-500 text-white px-4 py-2.5 rounded-xl transition font-semibold flex items-center justify-center gap-2">
-      <i class="fas fa-users"></i>View Group &amp; Join
-    </a>`;
+
+  // Description
+  const descEl = document.getElementById('modal-description');
+  if (e.description) { descEl.textContent = e.description; descEl.classList.remove('hidden'); }
+  else { descEl.classList.add('hidden'); }
+
+  // RSVP strip - show for game nights (hidden per-user after API call if guest)
+  document.getElementById('modal-rsvp-strip').classList.toggle('hidden', !isGameNight);
+  if (isGameNight) _refreshRsvpButtons(null);
+
+  // Comment wrap
+  document.getElementById('modal-comment-wrap').classList.toggle('hidden', !isGameNight);
+  if (isGameNight) {
+    document.getElementById('modal-comment-text').value = '';
+    document.getElementById('modal-comment-error').classList.add('hidden');
+    document.getElementById('modal-comment-confirm').classList.add('hidden');
+    // Set wall link immediately if community_slug known
+    const wallUrl = e.community_slug ? `/ql/communities/${e.community_slug}/#wall` : null;
+    if (wallUrl) {
+      document.getElementById('modal-wall-link').href = wallUrl;
+      document.getElementById('modal-comment-wall-link').href = wallUrl;
+    }
+  }
+
+  // Owner buttons + edit panel - hidden until API confirms
+  document.getElementById('modal-owner-btns').classList.add('hidden');
+  document.getElementById('modal-attendees-wrap').classList.add('hidden');
+  document.getElementById('modal-members-wrap').classList.add('hidden');
+  document.getElementById('modal-edit-panel').classList.add('hidden');
+
+  // Actions
+  _renderModalActions(e, null);
+
   document.getElementById('cal-event-modal').classList.remove('hidden');
   document.body.style.overflow = 'hidden';
+
+  // Async: fetch full detail
+  _fetchModalDetail(e);
+}
+
+function _renderModalActions(e, detail) {
+  const isGameNight = e.type === 'game_night';
+  let html = '';
+  if (isGameNight) {
+    const communityUrl = (detail && detail.community_slug)
+      ? `/ql/communities/${detail.community_slug}/#wall`
+      : (e.community_slug ? `/ql/communities/${e.community_slug}/#wall` : '/ql/discover/');
+    html += `<a href="${communityUrl}" class="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold transition"><i class="fas fa-users"></i>Visit Community Wall</a>`;
+  } else {
+    const groupUrl = e.share_url || (e.share_token ? `/ql/lfg/${e.share_token}/` : (e.guild_id ? `/ql/fluxer/${e.guild_id}/lfg/browse/` : '/ql/lfg/'));
+    html += `<a href="${groupUrl}" class="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-sm font-semibold transition"><i class="fas fa-users"></i>View Group &amp; Join</a>`;
+  }
+  document.getElementById('modal-actions').innerHTML = html;
+
+  // Show owner toolbar buttons once we know can_manage (game_night or lfg creator)
+  if (detail && detail.can_manage) {
+    document.getElementById('modal-owner-btns').classList.remove('hidden');
+    const seriesBtn = document.getElementById('modal-cancel-series-btn');
+    if (seriesBtn && e.recurrence && e.recurrence !== 'none') {
+      seriesBtn.classList.remove('hidden');
+    } else if (seriesBtn) {
+      seriesBtn.classList.add('hidden');
+    }
+  }
+}
+
+async function _fetchModalDetail(e) {
+  const isGN = e.type === 'game_night';
+  const rawId = String(e.id);
+  const params = isGN
+    ? `?type=game_night&id=${rawId}`
+    : `?type=lfg&id=${rawId}`;
+
+  try {
+    const r = await fetch(`/api/calendar/event/${params}`);
+    if (!r.ok) return;
+    const d = await r.json();
+    _modalDetail = d;
+
+    // Update RSVP buttons state
+    if (isGN && d.my_rsvp !== undefined) {
+      _refreshRsvpButtons(d.my_rsvp);
+      // Update size counters
+      document.getElementById('modal-size').innerHTML =
+        `<span class="text-green-400 font-bold">${d.rsvp_going}</span><span class="text-gray-400 text-xs ml-1">going</span>` +
+        `<span class="text-yellow-400 font-bold ml-3">${d.rsvp_maybe}</span><span class="text-gray-400 text-xs ml-1">maybe</span>`;
+    }
+
+    // LFG: show join/leave state in RSVP strip area
+    if (!isGN) {
+      const strip = document.getElementById('modal-rsvp-strip');
+      // Creator never sees a join strip - they own it
+      if (d.is_creator || !d.is_logged_in || d.is_past) {
+        strip.classList.add('hidden');
+      } else {
+        strip.classList.remove('hidden');
+        const goBtn = document.getElementById('rsvp-going');
+        const decBtn = document.getElementById('rsvp-decline');
+        const mayBtn = document.getElementById('rsvp-maybe');
+        const label = strip.querySelector('p');
+        if (label) label.textContent = d.viewer_is_member ? 'YOU\'RE IN' : 'WANT TO JOIN?';
+        if (mayBtn) mayBtn.classList.add('hidden');
+        // Reshape the grid to 2 cols since maybe is hidden
+        const grid = strip.querySelector('.grid');
+        if (grid) { grid.classList.remove('grid-cols-3'); grid.classList.add('grid-cols-2'); }
+        if (d.viewer_is_member) {
+          if (goBtn) {
+            goBtn.innerHTML = '<i class="fas fa-check text-xs"></i>Joined';
+            goBtn.classList.add('ring-2', 'ring-green-500', 'bg-green-900/30', 'border-green-700', 'text-green-300');
+            goBtn.classList.remove('bg-neutral-900', 'border-neutral-700', 'text-gray-300');
+          }
+          if (decBtn) { decBtn.innerHTML = '<i class="fas fa-sign-out-alt text-xs"></i>Leave'; decBtn.classList.remove('hidden'); }
+        } else {
+          if (goBtn) {
+            goBtn.innerHTML = '<i class="fas fa-user-plus text-xs"></i>Join Group';
+            goBtn.classList.remove('ring-2', 'ring-green-500', 'bg-green-900/30', 'border-green-700', 'text-green-300');
+            goBtn.classList.add('bg-neutral-900', 'border-neutral-700', 'text-gray-300');
+          }
+          if (decBtn) { decBtn.innerHTML = '<i class="fas fa-times text-xs"></i>Not Going'; decBtn.classList.remove('hidden'); }
+        }
+      }
+    }
+
+    // Render attendees
+    if (isGN && d.attendees && d.attendees.length > 0) {
+      const wrap = document.getElementById('modal-attendees-wrap');
+      const list = document.getElementById('modal-attendees');
+      list.innerHTML = d.attendees.map(a => `
+        <div class="flex items-center gap-2 py-1.5 px-1">
+          ${a.avatar_url
+            ? `<img src="${escapeHtmlLocal(a.avatar_url)}" class="w-7 h-7 rounded-full object-cover flex-shrink-0">`
+            : `<div class="w-7 h-7 rounded-full bg-neutral-700 flex items-center justify-center flex-shrink-0 text-xs font-bold text-gray-400">${escapeHtmlLocal((a.display_name || '?').charAt(0).toUpperCase())}</div>`}
+          <span class="text-sm text-white flex-1 truncate">${escapeHtmlLocal(a.display_name)}</span>
+          <span class="text-xs ${a.status === 'going' ? 'text-green-400' : 'text-yellow-400'}">${a.status === 'going' ? 'Going' : 'Maybe'}</span>
+        </div>`).join('');
+      wrap.classList.remove('hidden');
+    }
+
+    // Render LFG members
+    if (!isGN && d.members && d.members.length > 0) {
+      const wrap = document.getElementById('modal-members-wrap');
+      const list = document.getElementById('modal-members');
+      list.innerHTML = d.members.map(m => `
+        <div class="flex items-center gap-2 py-1.5 px-1">
+          ${m.avatar_url
+            ? `<img src="${escapeHtmlLocal(m.avatar_url)}" class="w-7 h-7 rounded-full object-cover flex-shrink-0">`
+            : `<div class="w-7 h-7 rounded-full bg-neutral-700 flex items-center justify-center flex-shrink-0 text-xs font-bold text-gray-400">${escapeHtmlLocal((m.display_name || '?').charAt(0).toUpperCase())}</div>`}
+          <span class="text-sm text-white flex-1 truncate">${escapeHtmlLocal(m.display_name)}</span>
+          ${m.is_creator ? '<span class="text-xs text-purple-400 font-semibold">Leader</span>' : ''}
+          ${m.role ? `<span class="text-xs text-gray-500">${escapeHtmlLocal(m.role)}</span>` : ''}
+        </div>`).join('');
+      wrap.classList.remove('hidden');
+    }
+
+    // Re-render action buttons now we know can_manage
+    if (_modalEvent) _renderModalActions(_modalEvent, d);
+
+    // Update wall links with confirmed community_slug from API
+    if (isGN && d.community_slug) {
+      const wallUrl = `/ql/communities/${d.community_slug}/#wall`;
+      const wallLinkEl = document.getElementById('modal-wall-link');
+      const wallConfirmEl = document.getElementById('modal-comment-wall-link');
+      if (wallLinkEl) wallLinkEl.href = wallUrl;
+      if (wallConfirmEl) wallConfirmEl.href = wallUrl;
+    }
+
+    // Gate comment box: only show for logged-in users
+    if (isGN && d.is_logged_in === false) {
+      document.getElementById('modal-comment-wrap').classList.add('hidden');
+    }
+
+    // Pre-fill edit form
+    if (isGN && d.can_manage) {
+      document.getElementById('modal-edit-title').value = d.title || '';
+      document.getElementById('modal-edit-desc').value = d.description || '';
+      document.getElementById('modal-edit-game').value = d.game_name || '';
+      if (d.starts_at) {
+        const dt = new Date(d.starts_at * 1000);
+        const local = new Date(dt.getTime() - dt.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+        document.getElementById('modal-edit-datetime').value = local;
+      }
+    }
+
+    // Hide RSVP + comment for guests
+    if (isGN && !d.is_logged_in) {
+      document.getElementById('modal-rsvp-strip').classList.add('hidden');
+      document.getElementById('modal-comment-wrap').classList.add('hidden');
+    }
+  } catch (_) { /* silent */ }
+}
+
+async function calRsvp(status) {
+  if (!_modalEvent) return;
+  const rawId = String(_modalEvent.id);
+  const isGN = _modalEvent.type === 'game_night';
+
+  if (!isGN) {
+    // LFG: going = join, not_going/remove = leave
+    const lfgStatus = (status === 'going') ? 'going' : 'remove';
+    try {
+      const r = await csrfFetch('/api/calendar/event/rsvp/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'lfg', id: rawId, status: lfgStatus }),
+      });
+      if (!r.ok) return;
+      const d = await r.json();
+      // Update detail state and re-render join/leave buttons
+      if (_modalDetail) {
+        _modalDetail.viewer_is_member = d.viewer_is_member;
+        _modalDetail.current_size = d.current_size;
+      }
+      const ev = ALL_EVENTS.find(x => String(x.id) === rawId);
+      if (ev) { ev.current_size = d.current_size; }
+      // Re-trigger the LFG RSVP UI update
+      if (_modalDetail) _fetchModalDetail.call(null, _modalEvent);
+      renderUpcoming();
+    } catch (_) { /* silent */ }
+    return;
+  }
+
+  try {
+    const r = await csrfFetch('/api/calendar/event/rsvp/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'game_night', id: rawId, status }),
+    });
+    if (!r.ok) return;
+    const d = await r.json();
+    _refreshRsvpButtons(d.my_rsvp);
+    document.getElementById('modal-size').innerHTML =
+      `<span class="text-green-400 font-bold">${d.rsvp_going}</span><span class="text-gray-400 text-xs ml-1">going</span>` +
+      `<span class="text-yellow-400 font-bold ml-3">${d.rsvp_maybe}</span><span class="text-gray-400 text-xs ml-1">maybe</span>`;
+    const ev = ALL_EVENTS.find(x => String(x.id) === rawId);
+    if (ev) { ev.rsvp_going = d.rsvp_going; ev.rsvp_maybe = d.rsvp_maybe; ev.my_rsvp = d.my_rsvp; }
+    // Refresh sidebar counts
+    const goEl = document.getElementById('gngoing-' + rawId);
+    if (goEl) goEl.textContent = '(' + d.rsvp_going + ')';
+    const mayEl = document.getElementById('gnmaybe-' + rawId);
+    if (mayEl) mayEl.textContent = '(' + d.rsvp_maybe + ')';
+  } catch (_) { /* silent */ }
+}
+
+async function sidebarRsvp(eventId, status) {
+  const eidStr = String(eventId);
+  const ev = ALL_EVENTS.find(x => String(x.id) === eidStr);
+  if (!ev) { showEventModal(eidStr); return; }
+
+  if (ev.type === 'lfg') {
+    // LFG: join (going) or leave (remove) via calendar RSVP endpoint
+    try {
+      const r = await csrfFetch('/api/calendar/event/rsvp/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'lfg', id: eidStr, status: status === 'going' ? 'going' : 'remove' }),
+      });
+      if (!r.ok) { showEventModal(eidStr); return; }
+      const d = await r.json();
+      ev.current_size = d.current_size;
+      renderUpcoming();
+    } catch (_) { showEventModal(eidStr); }
+    return;
+  }
+
+  if (!ev.community_id) { showEventModal(eidStr); return; }
+  // Strip 'gn-' prefix to get raw DB id for RSVP endpoint
+  const rawId = eidStr.startsWith('gn-') ? eidStr.slice(3) : eidStr;
+  try {
+    const r = await csrfFetch('/api/communities/' + ev.community_id + '/events/' + rawId + '/rsvp/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status }),
+    });
+    if (!r.ok) { showEventModal(eidStr); return; }
+    const d = await r.json();
+    ev.rsvp_going = d.rsvp_going; ev.rsvp_maybe = d.rsvp_maybe; ev.my_rsvp = d.my_rsvp;
+    renderUpcoming();
+  } catch (_) { showEventModal(eidStr); }
+}
+
+function toggleEditPanel() {
+  const panel = document.getElementById('modal-edit-panel');
+  panel.classList.toggle('hidden');
+  document.getElementById('modal-edit-error').classList.add('hidden');
+}
+
+async function calSaveEdit() {
+  if (!_modalEvent || !_modalDetail) return;
+  const title = document.getElementById('modal-edit-title').value.trim();
+  const dtVal = document.getElementById('modal-edit-datetime').value;
+  const desc = document.getElementById('modal-edit-desc').value.trim();
+  const game = document.getElementById('modal-edit-game').value.trim();
+  const errEl = document.getElementById('modal-edit-error');
+  if (!title) { errEl.textContent = 'Title required.'; errEl.classList.remove('hidden'); return; }
+  const starts_at = dtVal ? Math.floor(new Date(dtVal).getTime() / 1000) : null;
+  try {
+    const r = await csrfFetch('/api/calendar/event/edit/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: String(_modalEvent.id), title, starts_at, description: desc, game_tag_name: game }),
+    });
+    const d = await r.json();
+    if (!r.ok) { errEl.textContent = d.error || 'Failed.'; errEl.classList.remove('hidden'); return; }
+    // Update local data
+    const ev = ALL_EVENTS.find(x => String(x.id) === String(_modalEvent.id));
+    if (ev) { ev.title = title; if (starts_at) ev.ts = starts_at; ev.description = desc; ev.game_name = game; }
+    document.getElementById('modal-title').textContent = title;
+    document.getElementById('modal-time').textContent = fmtTs(starts_at || _modalEvent.ts);
+    const descEl = document.getElementById('modal-description');
+    if (desc) { descEl.textContent = desc; descEl.classList.remove('hidden'); } else { descEl.classList.add('hidden'); }
+    const gameEl = document.getElementById('modal-game');
+    gameEl.querySelector('span').textContent = game || '';
+    gameEl.classList.toggle('hidden', !game);
+    toggleEditPanel();
+    renderCalendar();
+  } catch (_) { errEl.textContent = 'Request failed.'; errEl.classList.remove('hidden'); }
+}
+
+async function calPostComment() {
+  if (!_modalEvent || _modalEvent.type !== 'game_night') return;
+  const text = document.getElementById('modal-comment-text').value.trim();
+  const errEl = document.getElementById('modal-comment-error');
+  if (!text) return;
+  const communityId = _modalDetail && _modalDetail.community_id;
+  if (!communityId) { errEl.textContent = 'Community not loaded yet.'; errEl.classList.remove('hidden'); return; }
+  const eventPostId = _modalDetail && _modalDetail.event_post_id;
+  const payload = { content: text };
+  if (eventPostId) payload.parent_id = eventPostId;
+  try {
+    const r = await csrfFetch(`/api/communities/${communityId}/wall/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const d = await r.json();
+    if (!r.ok) { errEl.textContent = d.error || 'Failed to post.'; errEl.classList.remove('hidden'); return; }
+    document.getElementById('modal-comment-text').value = '';
+    errEl.classList.add('hidden');
+    const slug = _modalDetail.community_slug || (_modalEvent.community_slug || '');
+    const wallUrl = slug ? `/ql/communities/${slug}/#post-${eventPostId || ''}` : null;
+    if (wallUrl) document.getElementById('modal-comment-wall-link').href = wallUrl;
+    document.getElementById('modal-comment-confirm').classList.remove('hidden');
+  } catch (_) { errEl.textContent = 'Request failed.'; errEl.classList.remove('hidden'); }
+}
+
+async function calCancelEvent(cancelSeries) {
+  if (!_modalEvent) return;
+  const isGN = _modalEvent.type === 'game_night';
+  const isLFG = _modalEvent.type === 'lfg';
+  const msg = cancelSeries
+    ? 'Cancel the entire recurring series? All future occurrences will be removed.'
+    : 'Cancel this event? This cannot be undone.';
+  if (!confirm(msg)) return;
+  const communityId = _modalDetail && _modalDetail.community_id;
+  const rawId = String(_modalEvent.id).replace('gn-', '');
+  try {
+    let ok = false;
+    if (isLFG) {
+      const r = await csrfFetch('/api/calendar/event/cancel/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'lfg', id: rawId }),
+      });
+      ok = r.ok;
+    } else if (communityId) {
+      // Use the community events API which supports cancel_series
+      const r = await csrfFetch('/api/communities/' + communityId + '/events/' + rawId + '/', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cancel_series: !!cancelSeries }),
+      });
+      ok = r.ok;
+    } else {
+      // Fallback to legacy cancel endpoint
+      const r = await csrfFetch('/api/calendar/event/cancel/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: String(_modalEvent.id) }),
+      });
+      ok = r.ok;
+    }
+    if (!ok) return;
+    if (cancelSeries) {
+      // Remove all events in this series from local data
+      const seriesId = String(_modalEvent.id);
+      const toRemove = ALL_EVENTS.filter(x =>
+        String(x.id) === seriesId ||
+        (x.recurrence_parent_id && String('gn-' + x.recurrence_parent_id) === seriesId)
+      ).map(x => String(x.id));
+      toRemove.forEach(id => {
+        const i = ALL_EVENTS.findIndex(x => String(x.id) === id);
+        if (i !== -1) ALL_EVENTS.splice(i, 1);
+        const j = EVENTS.findIndex(x => String(x.id) === id);
+        if (j !== -1) EVENTS.splice(j, 1);
+      });
+    } else {
+      const idx = ALL_EVENTS.findIndex(x => String(x.id) === String(_modalEvent.id));
+      if (idx !== -1) ALL_EVENTS.splice(idx, 1);
+      const eidx = EVENTS.findIndex(x => String(x.id) === String(_modalEvent.id));
+      if (eidx !== -1) EVENTS.splice(eidx, 1);
+    }
+    closeEventModal();
+    renderCalendar();
+    renderUpcoming();
+    updateStats();
+  } catch (_) { /* silent */ }
 }
 
 function closeEventModal() {
   document.getElementById('cal-event-modal').classList.add('hidden');
   document.body.style.overflow = '';
+  _modalEvent = null;
+  _modalDetail = null;
+  history.replaceState(null, '', window.location.pathname + window.location.search);
 }
-document.getElementById('cal-event-modal').addEventListener('click', function(e) {
-  if (e.target === this) closeEventModal();
+document.getElementById('cal-event-modal').addEventListener('click', function(ev) {
+  if (ev.target === this) closeEventModal();
 });
 
 function renderUpcoming() {
   const now = Math.floor(Date.now() / 1000);
   const upcoming = ALL_EVENTS.filter(e => e.ts && e.ts >= now).sort((a, b) => a.ts - b.ts).slice(0, 20);
   const container = document.getElementById('upcoming-list');
-  if (!upcoming.length) {
-    container.innerHTML = '<p class="text-gray-500 text-sm p-4">No upcoming events</p>';
-    return;
-  }
+  if (!upcoming.length) { container.innerHTML = '<p class="text-gray-500 text-sm p-4">No upcoming events</p>'; return; }
   container.innerHTML = upcoming.map(e => {
-    const s = STATUS_CHIP[e.status] || STATUS_CHIP.closed;
-    const eid = JSON.stringify(String(e.id));
-    const recurTag = e.recurrence && e.recurrence !== 'none'
-      ? `<span class="text-indigo-400 text-[10px]"><i class="fas fa-redo mr-0.5"></i>${RECUR_LABELS[e.recurrence]}</span>` : '';
-    return `
-      <div class="px-4 py-3 cursor-pointer hover:bg-neutral-800/60 transition"
-           onclick="showEventModal(${eid}); jumpToEvent(${eid})">
-        <div class="flex items-start justify-between gap-2 mb-1">
-          <span class="text-[11px] text-gray-400 font-medium">${fmtRelative(e.ts)}</span>
-          <span class="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full border ${s.chip} flex-shrink-0">
-            <span class="w-1 h-1 rounded-full ${s.dot}"></span>${e.status}
-          </span>
-        </div>
-        <p class="text-sm text-white font-semibold truncate">${escapeHtmlLocal(e.title)}</p>
-        <p class="text-xs text-purple-300 truncate">${escapeHtmlLocal(e.game_name)}</p>
-        <div class="flex items-center justify-between mt-1.5">
-          <span class="text-xs text-gray-500">${e.current_size}/${e.max_size} <i class="fas fa-user ml-0.5 text-[10px]"></i></span>
-          ${recurTag}
-        </div>
-      </div>`;
+    const eid = "'" + String(e.id).replace(/'/g, "\\'") + "'";
+    return _sidebarItem(e, `showEventModal(${eid}); jumpToEvent(${eid})`);
   }).join('');
+}
+
+function calChipClick(eid) {
+  showEventModal(String(eid));
+}
+
+function calDayClick(year, month, day) {
+  const dayEvents = eventsForDay(year, month, day);
+  if (dayEvents.length === 1) {
+    showEventModal(String(dayEvents[0].id));
+  } else {
+    showDayPanel(year, month, day);
+  }
 }
 
 function showDayPanel(year, month, day) {
@@ -417,32 +1083,12 @@ function showDayPanel(year, month, day) {
     `<i class="fas fa-calendar-day text-purple-400"></i>${MONTHS[month]} ${day}`;
   document.getElementById('sidebar-back-btn').classList.remove('hidden');
   const container = document.getElementById('upcoming-list');
-  if (!dayEvents.length) {
-    container.innerHTML = '<p class="text-gray-500 text-sm p-4">No events this day</p>';
-    return;
-  }
-  container.innerHTML = dayEvents.map(e => {
-    const s = STATUS_CHIP[e.status] || STATUS_CHIP.closed;
-    const eid = JSON.stringify(String(e.id));
-    return `
-      <div class="px-4 py-3 cursor-pointer hover:bg-neutral-800/60 transition"
-           onclick="showEventModal(${eid})">
-        <div class="flex items-start justify-between gap-2 mb-1">
-          <span class="text-[11px] text-gray-400">${fmtTs(e.ts)}</span>
-          <span class="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full border ${s.chip} flex-shrink-0">
-            <span class="w-1 h-1 rounded-full ${s.dot}"></span>${e.status}
-          </span>
-        </div>
-        <p class="text-sm text-white font-semibold truncate">${escapeHtmlLocal(e.title)}</p>
-        <p class="text-xs text-purple-300">${escapeHtmlLocal(e.game_name)}</p>
-        <span class="text-xs text-gray-500">${e.current_size}/${e.max_size} <i class="fas fa-user ml-0.5 text-[10px]"></i></span>
-      </div>`;
-  }).join('');
+  if (!dayEvents.length) { container.innerHTML = '<p class="text-gray-500 text-sm p-4">No events this day</p>'; return; }
+  container.innerHTML = dayEvents.map(e => _sidebarDayItem(e)).join('');
 }
 
 function showUpcomingPanel() {
-  document.getElementById('sidebar-title').innerHTML =
-    '<i class="fas fa-clock text-purple-400"></i>Upcoming';
+  document.getElementById('sidebar-title').innerHTML = '<i class="fas fa-clock text-purple-400"></i>Upcoming';
   document.getElementById('sidebar-back-btn').classList.add('hidden');
   renderUpcoming();
 }
@@ -455,6 +1101,70 @@ function jumpToEvent(eventId) {
   renderCalendar();
 }
 
-document.addEventListener('DOMContentLoaded', init);
+document.addEventListener('DOMContentLoaded', function() {
+  init();
+  // Chip clicks: stop propagation so multi-event day cell onclick doesn't fire
+  document.getElementById('cal-grid').addEventListener('click', function(ev) {
+    const chip = ev.target.closest('.cal-chip');
+    if (!chip) return;
+    ev.stopPropagation();
+    const eid = chip.dataset.eid;
+    if (eid) showEventModal(eid);
+  });
+  // Deep-link: #event-gn-123 or #event-123 opens the modal directly
+  const hash = window.location.hash;
+  if (hash && hash.startsWith('#event-')) {
+    const eid = hash.slice(7); // strip '#event-'
+    const ev = ALL_EVENTS.find(x => String(x.id) === eid);
+    if (ev) {
+      jumpToEvent(eid);
+      setTimeout(function() { showEventModal(eid); }, 150);
+    }
+  }
+
+  // Poll for event changes every 30 seconds
+  function _reconcileEvents(fresh, typeFilter) {
+    const freshIds = new Set(fresh.map(function(e) { return String(e.id); }));
+    for (let i = ALL_EVENTS.length - 1; i >= 0; i--) {
+      if (ALL_EVENTS[i].type === typeFilter && !ALL_EVENTS[i].is_virtual && !freshIds.has(String(ALL_EVENTS[i].id))) {
+        ALL_EVENTS.splice(i, 1);
+      }
+    }
+    for (let i = EVENTS.length - 1; i >= 0; i--) {
+      if (EVENTS[i].type === typeFilter && !freshIds.has(String(EVENTS[i].id))) {
+        EVENTS.splice(i, 1);
+      }
+    }
+    fresh.forEach(function(ev) {
+      const idx = ALL_EVENTS.findIndex(function(x) { return String(x.id) === String(ev.id) && !x.is_virtual; });
+      if (idx === -1) {
+        ALL_EVENTS.push(ev);
+        EVENTS.push(ev);
+      } else {
+        Object.assign(ALL_EVENTS[idx], ev);
+      }
+    });
+  }
+
+  setInterval(async function() {
+    try {
+      const [gnRes, lfgRes] = await Promise.all([
+        fetch('/api/calendar/game-nights/'),
+        fetch('/api/calendar/lfg-events/'),
+      ]);
+      if (gnRes.ok) {
+        const data = await gnRes.json();
+        _reconcileEvents(data.events || [], 'game_night');
+      }
+      if (lfgRes.ok) {
+        const data = await lfgRes.json();
+        _reconcileEvents(data.events || [], 'lfg');
+      }
+      renderCalendar();
+      renderUpcoming();
+      updateStats();
+    } catch (_) {}
+  }, 30000);
+});
 </script>
 {% endblock %}

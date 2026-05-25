@@ -71,7 +71,7 @@
         <span><i class="fas fa-eye mr-1"></i>{{ article.view_count }}</span>
         <span><i class="fas fa-comment mr-1"></i>{{ article.comment_count }}</span>
         {% if article.game_tag_name %}
-        <span class="px-2 py-0.5 bg-neutral-800 rounded text-xs">{{ article.game_tag_name }}</span>
+        <a href="/ql/lfg/browse/?game={{ article.game_tag_name|urlencode }}" class="inline-flex items-center gap-1 px-2 py-0.5 bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-300 rounded text-xs transition"><i class="fas fa-gamepad text-[10px]"></i>{{ article.game_tag_name }}</a>
         {% endif %}
         {% if user_can_edit %}
         <a href="/blog/{{ article.slug }}/edit/"
@@ -189,8 +189,9 @@ document.addEventListener('DOMContentLoaded', function() {
   // Render comment timestamps
   renderCommentTimestamps();
 
-  // Character counter
+  // Character counter + mention
   const box = document.getElementById('new-comment-box');
+  if (box) { attachMention(box); createFormatBar(box); }
   const counter = document.getElementById('comment-char-count');
   if (box && counter) {
     box.addEventListener('input', function() {
@@ -311,7 +312,7 @@ function buildCommentHtml(c, depth) {
   const isDeleted = c.is_deleted;
   const bodyHtml = isDeleted
     ? '<span class="text-gray-600 italic">[deleted]</span>'
-    : `<p class="text-sm text-gray-300 whitespace-pre-wrap">${_esc(c.content)}</p>`;
+    : `<p class="text-sm text-gray-300 whitespace-pre-wrap">${renderMentions(renderInlineMarkdown(_esc(c.content)))}</p>`;
   const actionsHtml = isDeleted ? '' : `
     <div class="flex items-center gap-3 mt-2 text-xs text-gray-500">
       <button onclick="likeComment(${c.id}, this)" class="flex items-center gap-1 hover:text-violet-400 transition-colors" data-liked="${c.liked ? '1' : '0'}">
@@ -351,7 +352,7 @@ function toggleReply(commentId) {
     area.classList.toggle('hidden');
     if (!area.classList.contains('hidden')) {
       const box = document.getElementById('reply-box-' + commentId);
-      if (box) box.focus();
+      if (box) { box.focus(); attachMention(box); }
     }
   }
 }

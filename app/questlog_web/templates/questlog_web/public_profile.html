@@ -221,6 +221,95 @@
   {% endif %}
   {% endwith %}
 
+  <!-- Stream Schedule -->
+  {% if creator_profile and creator_profile.stream_schedule %}
+  <div class="bg-neutral-900/50 rounded-lg border border-neutral-800 p-5 mb-5">
+    <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-1"><i class="fas fa-calendar-alt mr-1.5 text-indigo-400"></i>Stream Schedule</h3>
+    <p id="schedule-tz-note" class="text-xs text-gray-600 mb-3"></p>
+    <div id="schedule-slots" class="space-y-1.5"></div>
+  </div>
+  <script>
+  (function() {
+    var DAY_NAMES = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+    var creatorTz = "{{ creator_profile.stream_timezone|default:''|escapejs }}";
+    var rawSchedule = {{ creator_profile.stream_schedule|safe }};
+    if (!creatorTz) creatorTz = 'UTC';
+
+    var viewerTz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+    var note = document.getElementById('schedule-tz-note');
+    var container = document.getElementById('schedule-slots');
+    if (!note || !container) return;
+
+    var tzDiffers = viewerTz !== creatorTz;
+    note.textContent = tzDiffers
+      ? 'Times shown in your local timezone (' + viewerTz + ')'
+      : 'Timezone: ' + viewerTz;
+
+    // Convert a wall-clock time in fromTz to a UTC Date object.
+    // Reference week: 2024-01-07 = Sunday (day 0) through 2024-01-13 = Saturday (day 6).
+    function wallClockToUtc(day, hhmm, fromTz) {
+      var timeParts = hhmm.split(':');
+      var h = parseInt(timeParts[0], 10), m = parseInt(timeParts[1], 10);
+      // Build ISO string treating it as UTC first (just a probe)
+      var dd = String(7 + day).padStart(2, '0');
+      var hh = String(h).padStart(2, '0'), mm = String(m).padStart(2, '0');
+      var probe = new Date('2024-01-' + dd + 'T' + hh + ':' + mm + ':00Z');
+      // Extract the parts() from Intl to find what the tz offset actually is
+      var dtf = new Intl.DateTimeFormat('en-US', {
+        timeZone: fromTz, hour12: false,
+        year: 'numeric', month: 'numeric', day: 'numeric',
+        hour: '2-digit', minute: '2-digit'
+      });
+      var p = dtf.formatToParts(probe);
+      var tzH = 0, tzM = 0;
+      p.forEach(function(part) {
+        if (part.type === 'hour') tzH = parseInt(part.value, 10);
+        if (part.type === 'minute') tzM = parseInt(part.value, 10);
+      });
+      // tzH/tzM is what the clock shows in fromTz at probe (UTC). We want probe to show h:mm instead.
+      var tzTotalMin = tzH * 60 + tzM;
+      var wantMin = h * 60 + m;
+      var diffMs = (wantMin - tzTotalMin) * 60000;
+      return new Date(probe.getTime() + diffMs);
+    }
+
+    function fmtTime(d, tz) {
+      return d.toLocaleString('en-US', {timeZone: tz, hour: 'numeric', minute: '2-digit', hour12: true});
+    }
+    function fmtDay(d, tz) {
+      return d.toLocaleString('en-US', {timeZone: tz, weekday: 'long'});
+    }
+
+    var slots = rawSchedule;
+    if (!slots || !slots.length) {
+      container.innerHTML = '<p class="text-gray-600 text-sm">No schedule set.</p>';
+      return;
+    }
+
+    slots.sort(function(a, b) { return a.day !== b.day ? a.day - b.day : a.start.localeCompare(b.start); });
+
+    var html = '';
+    slots.forEach(function(slot) {
+      try {
+        var startUtc = wallClockToUtc(slot.day, slot.start, creatorTz);
+        var endUtc = wallClockToUtc(slot.day, slot.end, creatorTz);
+        var dayLabel = fmtDay(startUtc, viewerTz);
+        var timeLabel = fmtTime(startUtc, viewerTz) + ' - ' + fmtTime(endUtc, viewerTz);
+        var creatorLabel = tzDiffers
+          ? '<span class="text-gray-600 text-[10px] ml-2">(' + DAY_NAMES[slot.day] + ' ' + slot.start + '-' + slot.end + ' ' + creatorTz + ')</span>'
+          : '';
+        html += '<div class="flex items-center flex-wrap gap-x-3 py-1.5 border-b border-neutral-800/60 last:border-0">'
+          + '<span class="text-indigo-300 text-sm font-medium w-24 shrink-0">' + dayLabel + '</span>'
+          + '<span class="text-white text-sm">' + timeLabel + '</span>'
+          + creatorLabel
+          + '</div>';
+      } catch(e) { /* skip bad slot */ }
+    });
+    container.innerHTML = html || '<p class="text-gray-600 text-sm">No schedule set.</p>';
+  })();
+  </script>
+  {% endif %}
+
   <!-- Followers / Following -->
   <div class="bg-neutral-900/50 rounded-lg border border-neutral-800 overflow-hidden">
     <div class="flex border-b border-neutral-800">

@@ -673,6 +673,8 @@ async function loadActivity() {
         lfg_leave:        { icon: 'fa-user-minus',     color: 'text-gray-500' },
         community_join:   { icon: 'fa-building',       color: 'text-teal-400' },
         network_approved: { icon: 'fa-network-wired',  color: 'text-indigo-400' },
+        community_post:   { icon: 'fa-comments',       color: 'text-teal-400' },
+        game_night:       { icon: 'fa-moon',           color: 'text-indigo-400' },
       };
 
       function buildTickerItem(t) {
@@ -691,6 +693,8 @@ async function loadActivity() {
           msgHtml = `${t.type === 'lfg_create' ? 'created' : t.type === 'lfg_join' ? 'joined' : 'left'} a group for <a href="/lfg/${t.group_id}/" class="text-orange-400 hover:underline">${esc(t.game_name)}</a>`;
         } else if (t.type === 'community_join' && t.community_id) {
           msgHtml = `joined <a href="/communities/" class="text-teal-400 hover:underline">${esc(t.community_name)}</a>`;
+        } else if ((t.type === 'community_post' || t.type === 'game_night') && t.community_url) {
+          msgHtml = `<a href="${esc(t.community_url)}" class="${t.type === 'game_night' ? 'text-indigo-400' : 'text-teal-400'} hover:underline">${esc(t.message)}</a>`;
         }
 
         return `<span class="inline-flex items-center gap-1.5 text-xs">
@@ -704,7 +708,7 @@ async function loadActivity() {
 
       const items = data.ticker.map(buildTickerItem).join('<span class="text-neutral-700 mx-3">|</span>');
       tickerContent.innerHTML = items + '<span class="text-neutral-700 mx-3">|</span>' + items;
-      const duration = Math.max(60, data.ticker.length * 8);
+      const duration = Math.max(90, data.ticker.length * 16);
       tickerContent.style.animationDuration = duration + 's';
       tickerBar.classList.remove('hidden');
     }

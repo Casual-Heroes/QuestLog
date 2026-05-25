@@ -1200,7 +1200,7 @@ def fluxer_guild_game_servers(request, guild_id):
     for cfg in all_instances:
         game_type = cfg.get('game_type', 'Unknown')
         icon, color = _GAME_ICONS.get(game_type, _DEFAULT_ICON)
-        slug = cfg['instance_name'].lower().replace(' ', '-').replace('_', '-')
+        slug = cfg['instance_name']
         bots.append({
             'slug':      slug,
             'name':      cfg.get('server_display_name') or cfg['instance_name'],

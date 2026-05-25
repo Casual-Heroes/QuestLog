@@ -17,6 +17,8 @@ function formatContent(text) {
   const div = document.createElement('div');
   div.textContent = text;
   let html = div.innerHTML;
+  // Inline markdown: bold, italic, underline, code
+  if (window.renderInlineMarkdown) html = renderInlineMarkdown(html);
   html = html.replace(/\n/g, '<br>');
   html = html.replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener" class="text-blue-400 hover:underline">$1</a>');
   if (window._customEmojiMap) {
@@ -27,6 +29,7 @@ function formatContent(text) {
         : match;
     });
   }
+  if (window.renderMentions) html = renderMentions(html);
   return html;
 }
 
@@ -134,7 +137,7 @@ function renderPostCard(post, options = {}) {
       const h = count === 2 ? 'h-64' : 'h-48';
       html += `<img src="${escapePost(img.image_url)}" alt="Post image"` +
         ` class="w-full ${h} object-cover cursor-pointer hover:opacity-90 transition ${span}"` +
-        ` onclick="window.open('${escapePost(img.image_url)}', '_blank')"` +
+        ` onclick="openLightbox('${escapePost(img.image_url)}')"` +
         ` loading="lazy">`;
     });
     html += '</div>';
@@ -239,7 +242,7 @@ function renderPostCard(post, options = {}) {
     : '';
 
   const mediaHtml = post.post_type === 'gif' && post.media_url
-    ? `<img src="${escapePost(post.media_url)}" alt="GIF" class="rounded-lg max-h-80 w-auto" loading="lazy">`
+    ? `<img src="${escapePost(post.media_url)}" alt="GIF" class="rounded-lg max-h-80 w-auto cursor-pointer hover:opacity-90 transition" loading="lazy" onclick="openLightbox('${escapePost(post.media_url)}')">`
     : (_embedSource ? renderEmbed(_embedSource) : renderImages(post.images || []));
 
   // Link preview card (OG metadata) - only shown on text posts with no other media
@@ -1033,8 +1036,10 @@ function buildCommentComposer(postId, opts) {
         <button onclick="_cmtEmojiCat('${cid}','hands',this)" class="cmt-ecat-${cid} text-xs px-2 py-0.5 rounded text-gray-400 hover:bg-neutral-700">👍</button>
         <button onclick="_cmtEmojiCat('${cid}','hearts',this)" class="cmt-ecat-${cid} text-xs px-2 py-0.5 rounded text-gray-400 hover:bg-neutral-700">❤️</button>
         <button onclick="_cmtEmojiCat('${cid}','objects',this)" class="cmt-ecat-${cid} text-xs px-2 py-0.5 rounded text-gray-400 hover:bg-neutral-700">⚡</button>
+        <button onclick="_cmtEmojiCat('${cid}','custom',this)" class="cmt-ecat-${cid} text-xs px-2 py-0.5 rounded text-gray-400 hover:bg-neutral-700" id="cmt-custom-tab-${cid}">✨</button>
       </div>
       <div id="cmt-emoji-grid-${cid}" class="grid grid-cols-10 gap-0.5"></div>
+      <div id="cmt-custom-emoji-grid-${cid}" class="hidden grid grid-cols-8 gap-1"></div>
     </div>
     <div class="flex items-center justify-between mt-1.5 pt-1.5 border-t border-neutral-700/50">
       <div class="flex items-center gap-0.5">
@@ -1089,7 +1094,13 @@ function _cmtToggleEmoji(cid) {
   if (gif) gif.classList.add('hidden');
   const opening = emoji.classList.contains('hidden');
   emoji.classList.toggle('hidden');
-  if (opening) _cmtEmojiCat(cid, 'gaming', emoji.querySelector(`.cmt-ecat-${cid}`));
+  if (opening) {
+    _cmtEmojiCat(cid, 'gaming', emoji.querySelector(`.cmt-ecat-${cid}`));
+    const map = window._customEmojiMap || {};
+    const lolUrl = map['lol'];
+    const tabBtn = document.getElementById(`cmt-custom-tab-${cid}`);
+    if (lolUrl && tabBtn) tabBtn.innerHTML = `<img src="${lolUrl}" class="w-4 h-4 object-contain inline-block" style="vertical-align:-2px" alt=":lol:">`;
+  }
 }
 
 function _cmtEmojiCat(cid, cat, btn) {
@@ -1098,11 +1109,44 @@ function _cmtEmojiCat(cid, cat, btn) {
   });
   if (btn) btn.className = `cmt-ecat-${cid} text-xs px-2 py-0.5 rounded bg-neutral-700 text-white`;
   const grid = document.getElementById(`cmt-emoji-grid-${cid}`);
-  if (grid && _CMT_EMOJIS[cat]) {
-    grid.innerHTML = _CMT_EMOJIS[cat].map(e =>
-      `<button type="button" onclick="_cmtInsertEmoji('${cid}','${e}')" class="text-lg hover:bg-neutral-700 rounded p-0.5 transition">${e}</button>`
-    ).join('');
+  const customGrid = document.getElementById(`cmt-custom-emoji-grid-${cid}`);
+  if (cat === 'custom') {
+    if (grid) grid.classList.add('hidden');
+    if (customGrid) {
+      customGrid.classList.remove('hidden');
+      const map = window._customEmojiMap || {};
+      const entries = Object.entries(map);
+      customGrid.innerHTML = entries.length
+        ? entries.map(([code, url]) =>
+            `<button type="button" data-cid="${cid}" data-code=":${code}:" onclick="_cmtInsertCustomEmoji(this)" class="hover:bg-neutral-700 rounded p-0.5 transition" title=":${code}:">
+               <img src="${url}" class="w-7 h-7 object-contain" alt=":${code}:">
+             </button>`
+          ).join('')
+        : '<p class="col-span-8 text-center text-gray-500 text-xs py-3">No custom emoji yet.</p>';
+    }
+  } else {
+    if (customGrid) customGrid.classList.add('hidden');
+    if (grid) {
+      grid.classList.remove('hidden');
+      if (_CMT_EMOJIS[cat]) {
+        grid.innerHTML = _CMT_EMOJIS[cat].map(e =>
+          `<button type="button" onclick="_cmtInsertEmoji('${cid}','${e}')" class="text-lg hover:bg-neutral-700 rounded p-0.5 transition">${e}</button>`
+        ).join('');
+      }
+    }
   }
+}
+
+function _cmtInsertCustomEmoji(btn) {
+  const cid = btn.dataset.cid;
+  const shortcode = btn.dataset.code;
+  const ta = document.getElementById(`cmt-text-${cid}`);
+  if (!ta) return;
+  const s = ta.selectionStart, e = ta.selectionEnd;
+  ta.value = ta.value.substring(0, s) + shortcode + ta.value.substring(e);
+  ta.selectionStart = ta.selectionEnd = s + shortcode.length;
+  ta.focus();
+  _cmtCharCount(cid);
 }
 
 function _cmtInsertEmoji(cid, emoji) {

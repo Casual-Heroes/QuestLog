@@ -52,7 +52,7 @@ from .helpers import (
     web_login_required, web_admin_required, web_mod_required, add_web_user_context, log_admin_action,
     serialize_post, fetch_rss_feed, create_notification,
     serialize_user_brief, safe_int, validate_admin_image_url,
-    process_uploaded_image,
+    process_uploaded_image, fluxer_or_web_admin_required,
 )
 
 logger = logging.getLogger(__name__)
@@ -251,7 +251,7 @@ def _build_schedule_schema():
 
 
 
-@web_admin_required
+@fluxer_or_web_admin_required
 @require_http_methods(['GET'])
 def api_quest_control_discord_lookup(request):
     """Fetch channels and roles for a guild_id from the Fluxer bot's synced DB tables."""
@@ -281,7 +281,7 @@ def api_quest_control_discord_lookup(request):
         return JsonResponse({'ok': False, 'error': 'Lookup failed'})
 
 
-@web_admin_required
+@fluxer_or_web_admin_required
 @require_http_methods(['GET', 'POST'])
 def api_quest_control_schedule(request):
     """GET: Load schedule presets for an instance. POST: Save schedule overrides to DB."""
@@ -421,7 +421,7 @@ def api_quest_control_schedule(request):
         return JsonResponse({'ok': True})
 
 
-@web_admin_required
+@fluxer_or_web_admin_required
 @require_http_methods(['POST'])
 def api_quest_control_channels(request):
     """Save channel/role IDs for a game server instance."""
@@ -459,7 +459,7 @@ def api_quest_control_channels(request):
     return JsonResponse({'ok': True})
 
 
-@web_admin_required
+@fluxer_or_web_admin_required
 @require_http_methods(['POST'])
 def api_quest_control_toggles(request):
     """Save display/alert toggles for a game server instance."""
@@ -521,7 +521,7 @@ def _get_amp_instance(instance_name, user_env='AMP_USER', pass_env='AMP_PASSWORD
         loop.close()
 
 
-@web_admin_required
+@fluxer_or_web_admin_required
 @require_http_methods(['POST'])
 def api_quest_control_server_settings(request):
     """Save server-level settings (public_ip override) for a game server instance."""
@@ -555,8 +555,8 @@ def api_quest_control_server_settings(request):
     return JsonResponse({'ok': True})
 
 
-@web_admin_required
-@ratelimit(key='ip', rate='60/h', method='GET', block=True)
+@fluxer_or_web_admin_required
+@ratelimit(key='ip', rate='10000/h', method='GET', block=True)
 @require_http_methods(['GET'])
 def api_quest_control_server_status(request):
     """GET: Fetch AMP server status for a game server instance."""
@@ -661,7 +661,7 @@ def api_quest_control_server_status(request):
         return JsonResponse({'ok': False, 'error': 'Failed to fetch server status'})
 
 
-@web_admin_required
+@fluxer_or_web_admin_required
 @ratelimit(key='ip', rate='20/h', method='POST', block=True)
 @require_http_methods(['POST'])
 def api_quest_control_server_action(request):
@@ -712,7 +712,7 @@ def api_quest_control_server_action(request):
         return JsonResponse({'ok': False, 'error': 'Server action failed'})
 
 
-@web_admin_required
+@fluxer_or_web_admin_required
 @ratelimit(key='ip', rate='20/h', method='POST', block=True)
 @require_http_methods(['POST'])
 def api_quest_control_god_action(request):
@@ -924,7 +924,7 @@ def api_quest_control_god_action(request):
         return JsonResponse({'ok': False, 'error': f'Command failed: {e}'})
 
 
-@web_admin_required
+@fluxer_or_web_admin_required
 @require_http_methods(['POST'])
 def api_quest_control_send_embed(request):
     """POST: Send a custom embed to a game bot channel via fluxer_pending_broadcasts."""

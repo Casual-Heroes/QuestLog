@@ -329,34 +329,31 @@
           <a href="/lfg/{{ g.share_token }}/"
              class="lfg-group-card discover-card rounded-2xl overflow-hidden group flex flex-col"
              data-game="{{ g.game_name|lower }}" data-title="{{ g.title|lower }}">
-            <div class="relative h-28 bg-neutral-800 overflow-hidden flex-shrink-0">
+            <div class="relative flex-shrink-0" style="height:140px;overflow:hidden">
               {% if g.game_image_url %}
               <img src="{{ g.game_image_url }}"
-                   class="w-full h-full object-cover object-left opacity-60 group-hover:opacity-80 transition duration-300"
+                   class="w-full h-full object-cover object-top group-hover:scale-105 transition duration-300"
                    alt="{{ g.game_name }}">
               {% else %}
               <div class="w-full h-full bg-gradient-to-br from-neutral-800 to-neutral-900 flex items-center justify-center">
                 <i class="fas fa-gamepad text-3xl text-neutral-700"></i>
               </div>
               {% endif %}
-              <div class="absolute inset-0 bg-gradient-to-t from-[#121212] via-[#121212]/40 to-transparent"></div>
-              <span class="absolute bottom-2 left-3 text-xs font-bold text-white bg-black/40 backdrop-blur-sm px-2 py-0.5 rounded-full">
-                {{ g.game_name }}
-              </span>
               <!-- Size badge -->
-              <span class="absolute top-2 right-2 text-xs font-bold {% if g.current_size >= g.group_size %}text-red-400 bg-red-500/15 border border-red-500/30{% else %}text-emerald-400 bg-emerald-500/15 border border-emerald-500/30{% endif %} px-2 py-0.5 rounded-full backdrop-blur-sm">
+              <span class="absolute top-2 right-2 text-xs font-bold {% if g.current_size >= g.group_size %}text-red-400 bg-black/70{% else %}text-emerald-400 bg-black/70{% endif %} px-2 py-0.5 rounded-full">
                 <i class="fas fa-user-friends text-[10px] mr-1"></i>{{ g.current_size }}/{{ g.group_size }}
               </span>
               <!-- Urgency tag -->
               {% if g.urgency == 'new' %}
-              <span class="absolute top-2 left-2 text-[10px] font-bold text-indigo-300 bg-indigo-500/20 border border-indigo-500/30 px-1.5 py-0.5 rounded-full backdrop-blur-sm">NEW</span>
+              <span class="absolute top-2 left-2 text-[10px] font-bold text-indigo-300 bg-black/70 px-1.5 py-0.5 rounded-full">NEW</span>
               {% elif g.urgency == 'almost_full' %}
-              <span class="absolute top-2 left-2 text-[10px] font-bold text-orange-300 bg-orange-500/20 border border-orange-500/30 px-1.5 py-0.5 rounded-full backdrop-blur-sm">ALMOST FULL</span>
+              <span class="absolute top-2 left-2 text-[10px] font-bold text-orange-300 bg-black/70 px-1.5 py-0.5 rounded-full">ALMOST FULL</span>
               {% elif g.urgency == 'recruiting' %}
-              <span class="absolute top-2 left-2 text-[10px] font-bold text-emerald-300 bg-emerald-500/15 border border-emerald-500/25 px-1.5 py-0.5 rounded-full backdrop-blur-sm">RECRUITING</span>
+              <span class="absolute top-2 left-2 text-[10px] font-bold text-emerald-300 bg-black/70 px-1.5 py-0.5 rounded-full">RECRUITING</span>
               {% endif %}
             </div>
             <div class="p-3 flex-1">
+              <p class="text-xs text-gray-400 mb-0.5">{{ g.game_name }}</p>
               <p class="text-sm font-semibold text-white line-clamp-2 group-hover:text-emerald-300 transition leading-snug">{{ g.title }}</p>
               {% if g.slots_left > 0 %}
               <p class="text-xs text-gray-600 mt-1">{{ g.slots_left }} slot{{ g.slots_left|pluralize }} open</p>
@@ -450,7 +447,7 @@
           {% if community_counts.fluxer %}
           <button onclick="filterCommunities('fluxer')" data-filter="fluxer"
             class="community-filter-btn text-xs px-3 py-1 rounded-full border border-neutral-700 bg-neutral-800 text-gray-400 hover:border-cyan-500/40 hover:text-cyan-300 transition">
-            <i class="fas fa-satellite-dish mr-1"></i>Fluxer
+            <img src="{% static 'img/siteassets/fluxer-favicon.png' %}" class="inline-block mr-1" style="width:1em;height:1em;object-fit:contain;vertical-align:middle;" alt="">Fluxer
             <span class="text-gray-600 ml-1">{{ community_counts.fluxer }}</span>
           </button>
           {% endif %}
@@ -552,24 +549,25 @@
           <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
             {% for g in active_games %}
             <a href="{% url 'questlog_web_lfg_browse' %}?game={{ g.game_name|urlencode }}"
-               class="game-tile discover-card rounded-xl overflow-hidden group">
-              <div class="h-20 bg-neutral-800 overflow-hidden relative">
+               class="game-tile discover-card group" style="border-radius:0.75rem;overflow:hidden;transform:translateZ(0);display:block">
+              <div class="relative bg-neutral-800" style="height:110px;overflow:hidden;border-radius:0.75rem 0.75rem 0 0">
                 {% if g.game_image_url %}
                 <img src="{{ g.game_image_url }}"
-                     class="game-tile-img w-full h-full object-cover object-left opacity-60 group-hover:opacity-90"
+                     style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center top"
+                     class="game-tile-img group-hover:scale-105 transition duration-300"
                      alt="{{ g.game_name }}">
                 {% else %}
                 <div class="w-full h-full bg-gradient-to-br from-neutral-800 to-neutral-900 flex items-center justify-center">
                   <i class="fas fa-gamepad text-xl text-neutral-700"></i>
                 </div>
                 {% endif %}
-                <div class="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
+                {% if g.live_count %}
+                <span class="absolute top-2 right-2 text-[10px] font-bold text-red-400 bg-black/70 px-1.5 py-0.5 rounded-full">&#9679; {{ g.live_count }} live</span>
+                {% endif %}
               </div>
-              <div class="p-2">
+              <div class="p-2.5">
                 <p class="text-xs font-semibold text-white truncate group-hover:text-indigo-300 transition">{{ g.game_name }}</p>
-                <p class="text-[10px] text-gray-500 mt-0.5">
-                  {{ g.group_count }} group{{ g.group_count|pluralize }}{% if g.live_count %} &nbsp;<span class="text-red-400">&#9679; {{ g.live_count }} live</span>{% endif %}
-                </p>
+                <p class="text-[10px] text-gray-500 mt-0.5">{{ g.group_count }} group{{ g.group_count|pluralize }}</p>
               </div>
             </a>
             {% endfor %}
@@ -1278,6 +1276,7 @@ document.addEventListener('DOMContentLoaded', function() {
     anchor.appendChild(composer);
   }
   if (composer) composer.classList.remove('hidden');
+  attachMention(document.getElementById('discover-post-content'));
 });
 
 // Game search hero: IGDB suggestions + redirect to LFG browse on submit
@@ -1438,6 +1437,9 @@ async function loadActivity() {
         community_join:   { icon: 'fa-building',        color: 'text-teal-400' },
         network_approved: { icon: 'fa-network-wired',   color: 'text-indigo-400' },
         play_together:    { icon: 'fa-layer-group',     color: 'text-violet-400' },
+        community_post:   { icon: 'fa-comments',        color: 'text-teal-400' },
+        game_night:       { icon: 'fa-moon',            color: 'text-indigo-400' },
+        announcement:     { icon: 'fa-bullhorn',        color: 'text-yellow-400' },
       };
 
       function buildTickerItem(t) {
@@ -1456,10 +1458,19 @@ async function loadActivity() {
           msgHtml = `joined <a href="/communities/" class="text-teal-400 hover:underline">${esc(t.community_name)}</a>`;
         } else if (t.type === 'play_together' && t.steam_url) {
           msgHtml = `wants to play <a href="${esc(t.steam_url)}" target="_blank" rel="noopener" class="text-violet-400 hover:underline">${esc(t.game)}</a>`;
+        } else if (t.type === 'post' && t.post_url) {
+          msgHtml = `<a href="${esc(t.post_url)}" class="text-indigo-400 hover:underline">${esc(t.message)}</a>`;
+        } else if ((t.type === 'community_post' || t.type === 'game_night') && t.community_url) {
+          msgHtml = `<a href="${esc(t.community_url)}" class="${t.type === 'game_night' ? 'text-indigo-400' : 'text-teal-400'} hover:underline">${esc(t.message)}</a>`;
+        } else if (t.type === 'announcement' && t.ann_url) {
+          msgHtml = `<a href="${esc(t.ann_url)}" class="text-yellow-400 hover:underline">${esc(t.message)}</a>`;
         }
+        const annAvatar = t.type === 'announcement'
+          ? `<span class="w-4 h-4 rounded-full bg-yellow-500/20 flex items-center justify-center flex-shrink-0"><i class="fas fa-bullhorn text-yellow-400" style="font-size:8px"></i></span>`
+          : avatarHtml(t.username || t.display_name, t.avatar_url, 'w-4 h-4');
         return `<span class="inline-flex items-center gap-1.5 text-xs">
-          ${avatarHtml(t.username || t.display_name, t.avatar_url, 'w-4 h-4')}
-          ${userLink}
+          ${annAvatar}
+          ${t.type === 'announcement' ? '<span class="text-yellow-400 font-medium">New Update</span>' : userLink}
           <span class="${meta.color}"><i class="fas ${meta.icon} text-xs"></i></span>
           <span class="text-gray-400">${msgHtml}</span>
           <span class="text-gray-600">${tickerTimeAgo(t.timestamp)}</span>
@@ -1475,9 +1486,8 @@ async function loadActivity() {
       });
       // Network joins always scroll first
       dedupedTicker.sort(function(a, b) {
-        const aJoin = a.type === 'network_approved' ? 0 : 1;
-        const bJoin = b.type === 'network_approved' ? 0 : 1;
-        return aJoin - bJoin;
+        const priority = t => t.type === 'announcement' ? 0 : t.type === 'network_approved' ? 1 : 2;
+        return priority(a) - priority(b);
       });
       const items = dedupedTicker.map(buildTickerItem).join('<span class="text-neutral-700 mx-3">|</span>');
       tickerContent.innerHTML = items;
@@ -1508,7 +1518,8 @@ async function refreshTicker() {
       seen.add(key); return true;
     });
     deduped.sort(function(a, b) {
-      return (a.type === 'network_approved' ? 0 : 1) - (b.type === 'network_approved' ? 0 : 1);
+      const priority = t => t.type === 'announcement' ? 0 : t.type === 'network_approved' ? 1 : 2;
+      return priority(a) - priority(b);
     });
     const items = deduped.map(buildTickerItemStatic).join('<span class="text-neutral-700 mx-3">|</span>');
 
@@ -1539,6 +1550,8 @@ function buildTickerItemStatic(t) {
     lfg_create: 'fa-users text-orange-400', lfg_join: 'fa-user-plus text-orange-400',
     lfg_leave: 'fa-user-minus text-gray-500', community_join: 'fa-building text-teal-400',
     play_together: 'fa-layer-group text-violet-400',
+    community_post: 'fa-comments text-teal-400', game_night: 'fa-moon text-indigo-400',
+    announcement: 'fa-bullhorn text-yellow-400',
   };
   const iconCls = ICONS[t.type] || 'fa-circle text-gray-400';
   const userLink = t.username
@@ -1553,13 +1566,23 @@ function buildTickerItemStatic(t) {
     msgHtml = `${t.type === 'lfg_create' ? 'created' : t.type === 'lfg_join' ? 'joined' : 'left'} a group for <a href="/lfg/${t.group_id}/" class="text-orange-400 hover:underline">${esc(t.game_name)}</a>`;
   else if (t.type === 'community_join' && t.community_id)
     msgHtml = `joined <a href="/communities/" class="text-teal-400 hover:underline">${esc(t.community_name)}</a>`;
+  else if ((t.type === 'community_post' || t.type === 'game_night') && t.community_url)
+    msgHtml = `<a href="${esc(t.community_url)}" class="${t.type === 'game_night' ? 'text-indigo-400' : 'text-teal-400'} hover:underline">${esc(t.message)}</a>`;
   else if (t.type === 'play_together' && t.steam_url)
     msgHtml = `wants to play <a href="${esc(t.steam_url)}" target="_blank" rel="noopener" class="text-violet-400 hover:underline">${esc(t.game)}</a>`;
-  const av = t.avatar_url
+  else if (t.type === 'announcement' && t.ann_url)
+    msgHtml = `<a href="${esc(t.ann_url)}" class="text-yellow-400 hover:underline">${esc(t.message)}</a>`;
+  const annStaticAvatar = t.type === 'announcement'
+    ? `<span class="w-4 h-4 rounded-full bg-yellow-500/20 flex items-center justify-center flex-shrink-0"><i class="fas fa-bullhorn text-yellow-400" style="font-size:8px"></i></span>`
+    : null;
+  const av = annStaticAvatar || (t.avatar_url
     ? `<img src="${esc(t.avatar_url)}" class="w-4 h-4 rounded-full object-cover flex-shrink-0" loading="lazy">`
-    : `<span class="w-4 h-4 rounded-full bg-neutral-700 flex-shrink-0 flex items-center justify-center text-[8px] text-gray-400">${esc((t.display_name||'?')[0].toUpperCase())}</span>`;
+    : `<span class="w-4 h-4 rounded-full bg-neutral-700 flex-shrink-0 flex items-center justify-center text-[8px] text-gray-400">${esc((t.display_name||'?')[0].toUpperCase())}</span>`);
+  const staticUserLink = t.type === 'announcement'
+    ? `<span class="text-yellow-400 font-medium">New Update</span>`
+    : userLink;
   return `<span class="inline-flex items-center gap-1.5 text-xs">
-    ${av} ${userLink}
+    ${av} ${staticUserLink}
     <span><i class="fas ${iconCls} text-xs"></i></span>
     <span class="text-gray-400">${msgHtml}</span>
     <span class="text-gray-600">${ago(t.timestamp)}</span>
@@ -1742,7 +1765,7 @@ async function loadSidebarContent() {
           <div class="flex items-center gap-1.5 mb-1">
             ${avatar}
             <span class="text-gray-400 text-xs truncate group-hover:text-white transition">${esc(p.author_display_name)}</span>
-            ${p.game_tag_name ? `<span class="text-indigo-400 text-[10px] truncate ml-auto flex-shrink-0"><i class="fas fa-gamepad text-[9px]"></i> ${esc(p.game_tag_name)}</span>` : ''}
+            ${p.game_tag_name ? `<a href="/ql/lfg/browse/?game=${encodeURIComponent(p.game_tag_name)}" class="text-indigo-400 hover:text-indigo-300 text-[10px] truncate ml-auto flex-shrink-0 transition"><i class="fas fa-gamepad text-[9px]"></i> ${esc(p.game_tag_name)}</a>` : ''}
           </div>
           ${snippet ? `<p class="text-white text-xs leading-relaxed line-clamp-2">${snippet}</p>` : ''}
           <div class="flex items-center gap-3 mt-1.5 text-gray-600 text-[11px]">

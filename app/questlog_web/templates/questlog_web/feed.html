@@ -154,6 +154,10 @@
           </div>
           <div class="flex items-center justify-between">
             <div class="flex items-center gap-0.5">
+              <button type="button" onmousedown="event.preventDefault();feedFmt('bold')" title="Bold" class="px-2 py-1 text-xs font-bold text-gray-500 hover:text-white hover:bg-neutral-800 rounded transition">B</button>
+              <button type="button" onmousedown="event.preventDefault();feedFmt('italic')" title="Italic" class="px-2 py-1 text-xs italic text-gray-500 hover:text-white hover:bg-neutral-800 rounded transition">I</button>
+              <button type="button" onmousedown="event.preventDefault();feedFmt('underline')" title="Underline" class="px-2 py-1 text-xs underline text-gray-500 hover:text-white hover:bg-neutral-800 rounded transition">U</button>
+              <div class="w-px h-4 bg-neutral-700 mx-1"></div>
               <label class="cursor-pointer flex items-center gap-1.5 text-gray-500 hover:text-green-400 px-2.5 py-1.5 rounded-lg hover:bg-neutral-800 text-xs font-medium transition">
                 <i class="fas fa-image"></i><span class="hidden sm:inline">Photo</span>
                 <input type="file" id="image-input" accept="image/jpeg,image/png,image/gif,image/webp" multiple class="hidden" onchange="handleImageSelect(this)">
@@ -488,7 +492,7 @@ document.addEventListener('DOMContentLoaded', () => {
   loadSidebarData();
   loadGameFilterBar();
   const postContent = document.getElementById('post-content');
-  if (postContent) postContent.addEventListener('input', updateCharCount);
+  if (postContent) { postContent.addEventListener('input', updateCharCount); attachMention(postContent); }
   const gfSearch = document.getElementById('game-filter-search');
   if (gfSearch) {
     gfSearch.addEventListener('input', function() {
@@ -830,6 +834,22 @@ async function quickFollowSidebar(userId, btn) {
     btn.textContent = 'Follow';
     btn.disabled = false;
   }
+}
+
+// ── Formatting (B/I/U) ──
+function feedFmt(type) {
+  const ta = document.getElementById('post-content');
+  if (!ta) return;
+  const s = ta.selectionStart, e = ta.selectionEnd;
+  const sel = ta.value.substring(s, e);
+  const map = {bold:['**','**'], italic:['*','*'], underline:['<u>','</u>']};
+  const [pre, post] = map[type];
+  const ins = sel || type;
+  ta.value = ta.value.substring(0, s) + pre + ins + post + ta.value.substring(e);
+  ta.selectionStart = s + pre.length;
+  ta.selectionEnd = s + pre.length + ins.length;
+  ta.focus();
+  ta.dispatchEvent(new Event('input'));
 }
 
 // ── Char counter ──
